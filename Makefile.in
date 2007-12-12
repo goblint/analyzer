@@ -1,0 +1,109 @@
+# 
+# Makefile for building goblint.
+#
+# Popular targets: all=opt test clean docs unittests
+#
+
+
+CIL=@CIL@
+CILLIB=@CIL@/@CILOBJ@
+XML=@XML@
+
+LINK_LIBS  = @LINKLIBS@
+CAMLDIR    = @CAMLDIR@ 
+
+OBJDIR     = obj
+DEPENDDIR  = obj/.depend
+SOURCEDIRS = src src/util/ src/domains/ src/cdomains/ src/framework/ \
+		src/solvers/ src/analyses/ unittest/ unittest/cdomains unittest/domains
+
+COMPILEFLAGS = @COMPILEFLAGS@ -I $(CILLIB) -I $(XML)/ 
+LINKFLAGS = @COMPILEFLAGS@ -ccopt -L$(CILLIB) -I $(CILLIB) -I $(XML)/ -ccopt -L$(XML) 
+
+PROG_MODULES = \
+	goblintutil messages printer cilfacade xmldump \
+	printable lattice mapDomain setDomain \
+	basetype intDomain addressDomain \
+	arrayDomain structDomain unionDomain valueDomain memoryDomain \
+	hash progress myCFG analyses libraryFunctions global \
+	effectWCon worklist worklistCon WNCon \
+	multithread compose \
+	base mutex
+
+TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \
+	intDomainTest mapDomainTest collapsingArrayDomainTest \
+	pMapArrayDomainTest lMapArrayDomainTest
+
+
+MODULES    = $(PROG_MODULES) maingoblint $(TEST_MODULES) mainTest
+
+
+all : opt
+
+#ECHOSTYLE_SCOTT=1
+UNSAFE=1
+STATIC=1
+include Makefile.ocaml
+
+
+
+byte  : $(PROG_MODULES:%=$(OBJDIR)/%.cmo) $(OBJDIR)/maingoblint.cmo
+	@$(NARRATIVE) "Linking $(COMPILETOWHAT) goblint.byte$(EXE) $(LINKMSG)"
+	$(AT)$(CAMLLINK.BYTE) -g -o goblint.byte$(EXE) \
+                    $(LINK_LIBS:%=%.cma) \
+                    $^
+
+opt   : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) $(OBJDIR)/maingoblint.cmx
+	@$(NARRATIVE) "Linking $(COMPILETOWHAT) goblint$(EXE) $(LINKMSG)"
+	$(AT)$(CAMLLINK.OPT) -o goblint$(EXE) \
+                    $(LINK_LIBS:%=%.cmxa) \
+                    $^
+
+
+unittests  : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) \
+			$(TEST_MODULES:%=$(OBJDIR)/%.cmx) \
+			$(OBJDIR)/mainTest.cmx
+	@$(NARRATIVE) "Linking $(COMPILETOWHAT) goblint.unittest $(LINKMSG)"
+	$(AT)$(CAMLLINK.OPT) -o goblint.unittest \
+                    $(LINK_LIBS:%=%.cmxa) \
+                    oUnit.cmxa \
+                    $^
+
+# Clean up
+clean: cleancaml
+	@rm -f goblint goblint.exe goblint.byte goblint.byte.exe
+	@rm -f goblint.unittest
+	@find ./ '(' -name "*.cm[iox]" -or -name "*.o" ')' -exec rm '{}' ';'
+	@rm -f tests/*.i tests/*.goblint tests/a.out a.out
+
+dist:
+	@darcs dist
+	@mv goblint.tar.gz /var/www/goblint/latest.tgz
+
+backup: clean
+	@rm /home/vesal/goblint-backup.tgz
+	@tar czf /home/vesal/goblint-backup.tgz ../goblint
+	@scp /home/vesal/goblint-backup.tgz math.ut.ee:backup
+
+test: opt unittests
+	@./scripts/runalltests.sh
+
+
+# TAGS
+tags:
+	otags -vi * $(SOURCEDIRS:%=%*) $(CIL)/src/* $(CIL)/src/frontc/* $(CIL)/src/ext/* $(CIL)/ocamlutil/*
+
+# DOCS
+docs: 
+	@rm -f doc/*
+	ocamldoc.opt -stars -t 'Goblint API documentation' -html -d doc -v -I $(OBJDIR) \
+	    -I $(CILLIB) -I $(XML) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*.mli?'` \
+	    $(CIL)/src/cil.mli $(CIL)/src/formatcil.mli \
+	    $(CIL)/ocamlutil/pretty.mli $(CIL)/ocamlutil/errormsg.mli \
+	    $(CIL)/ocamlutil/trace.mli $(CIL)/ocamlutil/stats.mli \
+	    $(CIL)/ocamlutil/alpha.mli $(CIL)/ocamlutil/util.mli \
+	    $(CIL)/ocamlutil/clist.mli \
+	    $(XML)/xml.mli \
+
+
+

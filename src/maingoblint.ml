@@ -1,0 +1,163 @@
+(* 
+ * Copyright (c) 2005-2007,
+ *     * University of Tartu
+ *     * Vesal Vojdani <vesal.vojdani@gmail.com>
+ *     * Kalmer Apinis <kalmera@ut.ee>
+ *     * Jaak Randmets <jaak.ra@gmail.com>
+ *     * Toomas Römer <toomasr@gmail.com>
+ * All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without modification,
+ * are permitted provided that the following conditions are met:
+ * 
+ *     * Redistributions of source code must retain the above copyright notice,
+ *       this list of conditions and the following disclaimer.
+ * 
+ *     * Redistributions in binary form must reproduce the above copyright notice,
+ *       this list of conditions and the following disclaimer in the documentation
+ *       and/or other materials provided with the distribution.
+ * 
+ *     * Neither the name of the University of Tartu nor the names of its
+ *       contributors may be used to endorse or promote products derived from
+ *       this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *)
+
+(** This is the main program! *)
+
+module CF = Cilfacade
+module GU = Goblintutil
+module M = Messages
+
+let main () =
+  let usage = "Usage: goblin [options] source-files" in
+  let fileNames : string list ref = ref [] in
+  (* default settings for the command line arguments: *)
+  let includes = ref (Filename.concat (Filename.dirname Sys.executable_name) "includes") in 
+  let justCil = ref false in
+  let dopartial = ref false in
+  let keep_cpp = ref false in
+  let outFile = ref "" in 
+  (* Function for setting the style, basically Haskell's read function: *)
+  let setstyle x = 
+    GU.result_style := match x with
+      | "none" -> GU.None
+      | "state" -> GU.State
+      | "indented" -> GU.Indented
+      | "compact" -> GU.Compact
+      | "pretty" -> GU.Pretty
+      | _ -> raise (Arg.Bad "invalid result style") 
+  in
+  let setdump path = GU.dump_path := Some (GU.create_dir path) in
+  let analyze = ref Mutex.Analysis.analyze in
+  let setanalysis str = 
+    analyze := match str with
+      | "base" -> Base.Analysis.analyze
+      | "mutex" -> Mutex.Analysis.analyze
+      | "no_path" -> Mutex.SimpleAnalysis.analyze
+      | _ -> raise (Arg.Bad "no such analysis")
+  in
+  let set_trace sys = 
+    if M.tracing then Trace.traceAddMulti sys
+    else (prerr_endline "Goblin has been compiled without tracing, run ./trace_on to recompile."; exit 2)
+  in
+  let speclist = [
+                 ("-o", Arg.Set_string outFile, "<file>  Prints the output to file.");
+                 ("-v", Arg.Set GU.verbose, " Prints some status information.");
+                 ("--includes", Arg.Set_string includes, " Uses custom include files.");
+                 ("--justcil", Arg.Set justCil, " Just print the transformated CIL output.");
+                 ("--dopartial", Arg.Set dopartial, " Apply CIL's constant folding and partial evaluation.");
+                 ("--cfg", Arg.Set GU.cfg_print, " prints the cfg into cfg.dot.");
+                 ("--debug", Arg.Set GU.debug, " Debug mode: for testing the anlyzer itself.");
+                 ("--pedantic", Arg.Set GU.pedantic, " Pedantic mode: prints pedantic warning that are mainly due to lack of precision.");
+                 ("--trace", Arg.String set_trace, "<sys>  subsystem to show debug printfs for: con, sol.");
+                 ("--stats", Arg.Set Cilutil.printStats, " Outputs timing information.");
+                 ("--eclipse", Arg.Set GU.eclipse, " Flag for Goblin's Eclipse Plugin.");
+                 ("--allfuns", Arg.Set GU.allfuns, " Analyzes all the functions from the initial state (not just beginning from main).");
+                 ("--keepcpp", Arg.Set keep_cpp, " Keep the intermediate output of running the C preprocessor.");
+                 ("--showtemps", Arg.Set CF.showtemps, " Shows CIL's temporary variables when printing the state.");
+                 ("--uncalled", Arg.Set GU.print_uncalled, " Display uncalled functions.");
+                 ("--result", Arg.String setstyle, "<style>  Result style: none, state, indented, compact, or pretty.");
+                 ("--analysis", Arg.String setanalysis, "<name>  Picks the analysis: intcpa, cpa, base, mutex");
+                 ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
+                 ] in
+  let recordFile fname = 
+    fileNames := fname :: (!fileNames) in
+  (* The temp directory for preprocessing the input files *)
+  let dirName = GU.create_dir "goblin_temp" in
+  (* Looking for the include files *)
+  let warn_includes () = print_endline "Warning, cannot find goblin's custom include files." in
+  let includes = if Sys.file_exists(!includes) then "-I" ^ !includes else (warn_includes () ; "") in
+  (* Preprocess the input c files *)
+  let preproFile fname =
+    (* The actual filename of the preprocessed sourcefile *)
+    let nname =  Filename.concat dirName (Filename.basename fname) in 
+    (* Preprocess using gcc -E *)
+    let command = "gcc -E " ^ includes ^ " " ^ fname ^ " -o " ^ nname in
+      ignore (Unix.system command);  (* MAYBE BAD IDEA to ingore! *)
+      nname
+  in
+    Stats.reset Stats.HardwareIfAvail;
+    CF.init();
+    Arg.parse speclist recordFile usage;
+    let _ = match !GU.dump_path with
+      | Some path -> begin
+          M.warn_out := open_out (Filename.concat path "warnings.out");
+          outFile := "" (*Filename.concat path "analysis.out";*)
+          (* --dump overwrites the -o flag*)
+        end
+      | _ -> ()
+    in
+    fileNames := List.rev !fileNames;
+    (* preprocess all the files *)
+    let cpp_file_names = 
+      if !GU.verbose then print_endline "Preprocessing files.";
+      List.map preproFile !fileNames in
+    (* and get their AST *)
+    let files_AST = 
+      if !GU.verbose then print_endline "Parsing files.";
+      List.map CF.getAST cpp_file_names in
+    let _ = if !keep_cpp then () else ignore (Unix.system ("rm -rf " ^ dirName)) in
+    (* direct the output to file if requested  *)
+    let _ = if not (!outFile = "") then GU.out :=  open_out !outFile in
+    (* we use CIL to merge all inputs to ONE file *)
+    let merged_AST = 
+      match files_AST with
+        | [one] -> one
+        | [] -> prerr_endline "No arguments for the goblin??"; exit 2
+        | xs -> CF.getMergedAST xs 
+    in
+      (* using CIL's partial evaluation and constant folding! *)
+      if !dopartial then CF.partial merged_AST;
+      (* creat the Control Flow Graph from CIL's AST *)
+      CF.createCFG merged_AST;
+      CF.ugglyImperativeHack := merged_AST;
+      (* we let the "--eclipse" flag override result style: *)
+      if !GU.eclipse then GU.result_style := GU.Compact;
+      if !justCil then 
+        (* if we only want to print the output created by CIL: *)
+        CF.print merged_AST
+      else begin
+        (* we first find the functions to analyze: *)
+        if !GU.verbose then print_endline "And now...  the Goblin!";
+        let funs = 
+          if !GU.allfuns then Cilfacade.getFuns merged_AST
+          else [Cilfacade.getMain merged_AST]
+        in
+          (* and here we run the analysis! *)
+          Stats.time "analysis" (!analyze merged_AST) funs;
+          if !Cilutil.printStats then Stats.print stderr "Timings:\n"
+      end
+
+let _ = 
+  main ()
