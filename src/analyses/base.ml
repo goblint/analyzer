@@ -628,7 +628,7 @@ struct
     let f x acc = match x with
       | `Address adrs when AD.is_top adrs -> 
           M.unsound "Unkown address given as function argument"; acc
-      | `Address adrs when AD.to_var adrs = [] ->  []
+      | `Address adrs when AD.to_var adrs = [] -> acc
       | `Address adrs -> 
           let typ = AD.get_type adrs in
             if is_fun_type typ then acc else adrs :: acc

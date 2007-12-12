@@ -9,7 +9,7 @@ class Project
   attr_writer :size
   def initialize(name, size, group, path, params, warnings)
     @name     = name
-    @url      = "http://maynard.at.mt.ut.ee/goblint/tracker/browser/" + path
+    @url      = "http://goblin.at.mt.ut.ee/goblint/tracker/browser/trunk/goblint/" + path
     @size     = size
     @group    = group
     @path     = path
