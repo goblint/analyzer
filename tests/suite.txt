@@ -269,6 +269,11 @@ tests/regression/04-mutex/18-glob_guards.c
 -
 0
 
+call_by_ptrrace
+tests/regression/04-mutex/19-call_by_ptrrace.c
+-
+3
+
 
 Group: Problems from the Real Life
 
@@ -340,7 +345,7 @@ tests/regression/03-practical/13-pfscan_minimal.c
 call_by_pointer
 tests/regression/03-practical/14-call_by_pointer.c
 -
-0
+1
 
 exit_problems
 tests/regression/03-practical/15-exit_problems.c
