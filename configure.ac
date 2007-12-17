@@ -18,6 +18,8 @@
 
 AC_INIT(goblint, 0.9.2)
 
+m4_include([scripts/ax_compare_version.m4])
+
 LINKLIBS="str cil xml-light"
 DEFAULTCIL="../cil"
 DEFAULTXML="../xml-light"
@@ -106,9 +108,17 @@ else
     AC_MSG_RESULT(using cil from $CIL)
 fi
 
+# test cil version
+CIL_VERSION=`$CIL/bin/cilly --version | head -n 1 | cut -d " " -f3`
+AX_COMPARE_VERSION([echo $CIL_VERSION],[lt],[1.3.6])
+
+if `$ax_compare_version` 
+then
+    AC_MSG_ERROR([CIL is too old, use at least version 1.3.6 !])
+fi
+
 AC_SUBST(CIL)
 AC_SUBST(CILOBJ,/obj/$ARCHOS)
-
 
 
 ######
