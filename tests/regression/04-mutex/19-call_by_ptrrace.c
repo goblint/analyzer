@@ -25,8 +25,8 @@ void reset_glob(void) {
 int main() {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  pthread_join (id, NULL);
 /*  reset_glob();*/
   foo(reset_glob);
+  pthread_join (id, NULL);
   return 0;
 }

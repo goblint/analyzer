@@ -102,6 +102,7 @@ struct
 
   let special f arglist (st,c,gl) =
     match f.vname with
+   (* | "sem_wait"*)
       | "pthread_mutex_lock" -> begin
           match arglist with
             | [AddrOf (Var x, _)] -> (Lockset.add x st,[])
@@ -110,6 +111,7 @@ struct
                         | _ -> st, [])
             | _ -> (st, [])
         end
+   (* | "sem_post"*)
       | "pthread_mutex_unlock" -> begin
           match arglist with
             | [AddrOf (Var x, _)] -> (Lockset.remove x st,[])
