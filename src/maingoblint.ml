@@ -62,9 +62,9 @@ let main () =
   let analyze = ref Mutex.Analysis.analyze in
   let setanalysis str = 
     analyze := match str with
-      | "base" -> Base.Analysis.analyze
       | "mutex" -> Mutex.Analysis.analyze
       | "no_path" -> Mutex.SimpleAnalysis.analyze
+      | "base" -> Base.Analysis.analyze
       | _ -> raise (Arg.Bad "no such analysis")
   in
   let set_trace sys = 
@@ -88,7 +88,7 @@ let main () =
                  ("--showtemps", Arg.Set CF.showtemps, " Shows CIL's temporary variables when printing the state.");
                  ("--uncalled", Arg.Set GU.print_uncalled, " Display uncalled functions.");
                  ("--result", Arg.String setstyle, "<style>  Result style: none, state, indented, compact, or pretty.");
-                 ("--analysis", Arg.String setanalysis, "<name>  Picks the analysis: intcpa, cpa, base, mutex");
+                 ("--analysis", Arg.String setanalysis, "<name>  Picks the analysis: mutex, no_path, base.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ] in
   let recordFile fname = 
