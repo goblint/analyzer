@@ -46,7 +46,7 @@ File.open("tests/projects.txt", "r") do |f|
     end
     name = line.chomp
     description = f.gets.chomp
-    path = f.gets.chomp
+    path = File.expand_path(f.gets.chomp, "../bench")
     size = `wc -l #{path}`.split[0] + " lines"
     p = Project.new(name,size,description,gname,path)
     projects << p

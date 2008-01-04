@@ -2,35 +2,31 @@ Group: Locksmith POSIX Apps
 
 aget
 Multithreaded wget
-/projects/locksmith/aget_comb.c
+locksmith/aget_comb.c
 
 ctrace
 Library for tracing multithreaded programs
-/projects/locksmith/ctrace_comb.c
+locksmith/ctrace_comb.c
 
 pfscan
 Multithreaded file scanner
-/projects/locksmith/pfscan_comb.c
-
-engine
-Parallel search engine query
-/projects/locksmith/engine.c
+locksmith/pfscan_comb.c
 
 smtprc
 SMTP Open Relay Checker
-/projects/locksmith/smtprc_comb.c
+locksmith/smtprc_comb.c
 
 knot
 Multithreaded web server
-/projects/locksmith/knot_comb.c
+locksmith/knot_comb.c
 
 
 Group: Larger programs
 
 zfs-fuse
 ZFS file system
-/projects/merged/zfs-fuse_comb.c
+pthread/zfs-fuse_comb.c
 
 mt-daapd
 Multithreaded DAAP server
-/projects/locksmith/mt-daapd_comb.c
+locksmith/mt-daapd_comb.c
