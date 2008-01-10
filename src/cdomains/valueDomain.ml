@@ -263,19 +263,22 @@ struct
       | `Field (fld, offs) -> begin
           match x with 
             | `Union (last_fld, prev_val) -> 
-                let tempval = 
+                let tempval, tempoffs = 
                   if UnionDomain.Field.equal last_fld (`Lifted fld) then 
-                    prev_val
+                    prev_val, offs
                   else begin
                     match offs with
                       | `Field (fld, _) when fld.fcomp.cstruct -> 
-                          `Struct (Structs.top ())
-                      | `Field (fld, _) -> `Union (Unions.top ())
-                      | `NoOffset -> top ()
-                      | _ -> M.warn_each "Why are you indexing on a union? Normal people give a field name."; top ()
+                          `Struct (Structs.top ()), offs
+                      | `Field (fld, _) -> `Union (Unions.top ()), offs
+                      | `NoOffset -> top (), offs
+                      | `Index (idx, _) when ID.equal idx (ID.of_int 0L) -> 
+                          (* Why does cil index unions? We'll just pick the first field. *)
+                          top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset) 
+                      | _ -> M.warn_each "Why are you indexing on a union? Normal people give a field name."; top (), offs
                   end
                 in
-                  `Union (`Lifted fld, update_offset tempval offs value)
+                  `Union (`Lifted fld, update_offset tempval tempoffs value)
             | `Top -> M.warn_pedant "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
         end
