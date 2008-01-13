@@ -245,17 +245,11 @@ struct
   let name () = Base1.name () ^ " * " ^ Base2.name ()
 
   let pretty_f _ () (x,y) = 
-    match expand_fst,expand_snd with
-        | (true, false) -> Base1.pretty () x
-        | (false, true) -> Base2.pretty () y
-        | (true, true) ->
-            text "("
-          ++ Base1.pretty () x
-          ++ text ", "
-          ++ Base2.pretty () y
-          ++ text ")"
-        | _ -> nil
-  
+    text "("
+    ++ (if expand_fst then Base1.pretty () x else text (Base1.short 60 x))
+    ++ text ", "
+    ++ (if expand_snd then Base2.pretty () y else text (Base2.short 60 y))
+    ++ text ")"
   
   let pretty () x = pretty_f short () x
 
