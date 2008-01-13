@@ -120,6 +120,7 @@ struct
     let f x =
       match x with
         | Addr.Addr x  -> f_addr x
+        | Addr.StrPtr -> `Int (ID.top ())
         | Addr.NullPtr -> M.warn "A possible dereferencing of a null pointer"; VD.bot ()
     in
     (* We form the collecting function by joining *)
@@ -144,10 +145,10 @@ struct
         let nst = CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst in
           (nst,gd)
     in 
-    let update_one x y =
+    let update_one x (y: cpa * glob_diff) =
       match x with
         | Addr.Addr x -> update_one_addr x y
-        | Addr.NullPtr -> y
+        | Addr.StrPtr | Addr.NullPtr -> y
     in try 
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the the different possible places: *)
@@ -217,15 +218,9 @@ struct
   let heap_varinfo () = !heap_varstore 
   let heap_var () = AD.from_var (heap_varinfo ())
 
-  let string_varstore = ref dummyFunDec.svar
-  let string_varinfo () = !string_varstore 
-  let string_var () = AD.from_var (string_varinfo ())
-
   let init () = 
     return_varstore := makeVarinfo false "RETURN" voidType;
-    heap_varstore := makeVarinfo true "HEAP" voidType;
-    string_varstore := makeVarinfo false "STRING" voidType
-
+    heap_varstore := makeVarinfo true "HEAP" voidType
 
  (**************************************************************************
   * Abstract evaluation functions
@@ -260,6 +255,7 @@ struct
     in let addToAddr n (addr:Addr.t) =
       match addr with
         | Addr.NullPtr -> Addr.NullPtr
+        | Addr.StrPtr -> Addr.StrPtr
         | Addr.Addr (x, `Index (`Definite i, offs)) 
           -> Addr.from_var_offset (x, `Index (`Definite (Int64.add i n), offs))
         | _ -> raise Top
@@ -297,7 +293,6 @@ struct
               | Ne -> `Int (if (single p1)&&(single p2) then ID.of_bool (not (AD.equal p1 p2)) else ID.top())
               | _ -> VD.top ()
           end
-        | `String, `Int _  -> `String
         (* For other values, we just give up! *)
         | _ -> VD.top ()
 
@@ -322,6 +317,14 @@ struct
       | `Field (fld, ofs) -> `Field (fld, add_offset ofs add)
       | `Index (exp, `NoOffset) -> `Index (exp, add)
       | `Index (exp, ofs) -> `Index (exp, add_offset ofs add)
+                               
+  (* We need the previous function with the varinfo carried along, so we can
+   * map it on the address sets. *)
+  let add_offset_varinfo add ad = 
+    match ad with 
+      | Addr.Addr (x,ofs) -> Addr.from_var_offset (x, add_offset ofs add)
+      | Addr.NullPtr -> Addr.NullPtr
+      | Addr.StrPtr -> Addr.StrPtr
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
   let rec eval_rv (st: store) (exp:exp): value = 
@@ -329,8 +332,8 @@ struct
       (* Integer literals *)
       | Const (CInt64 (num,typ,str)) -> `Int (`Definite num)
       (* String literals *)
-      | Const (CStr str) -> `String
-      | Const (CWStr _) -> `Address (AD.top ())
+      | Const (CStr _)
+      | Const (CWStr _) -> `Address (AD.str_ptr ())
       (* Variables and address expressions *)
       | Lval lval -> get st (eval_lv st lval)
       (* Binary operators *)
@@ -351,7 +354,9 @@ struct
           let array_start ad = 
             match ad with
               | Addr.Addr (x, offs) -> Addr.from_var_offset (x, add_offset offs array_ofs) 
-              | Addr.NullPtr -> Addr.NullPtr in
+              | Addr.NullPtr -> Addr.NullPtr
+              | Addr.StrPtr -> Addr.StrPtr 
+          in
           `Address (AD.map array_start (eval_lv st lval))
       (* Most casts are currently just ignored, that's probably not a good idea! *)
       | CastE  (t, exp) -> begin
@@ -373,42 +378,31 @@ struct
 	  match (eval_rv st exp) with
 	    | `Address x -> x
 	    | _          -> M.bailwith "Problems evaluating expression to function calls!"
+  (* A function to convert the offset to our abstract representation of
+   * offsets, i.e.  evaluate the index expression to the integer domain. *)
+  and convert_offset (st: store) (ofs: offset) = 
+    match ofs with 
+      | NoOffset -> `NoOffset
+      | Field (fld, ofs) -> `Field (fld, convert_offset st ofs)
+      | Index (exp, ofs) -> 
+          match eval_rv st exp with
+            | `Int i -> `Index (i, convert_offset st ofs)
+            | _ -> M.bailwith "Index not an integer value"
   (* Evaluation of lvalues to our abstract address domain. *)
   and eval_lv st (lval:lval): AD.t = 
-    (* We need to create an address object by mainly converting and manipulating
-     * the offsets. We begin with a function to convert the offset to our
-     * abstract representation of offsets, i.e.  evaluate the index expression
-     * to the integer domain. *)
-    let rec convert_offset (st: store) (ofs: offset) = 
-      match ofs with 
-        | NoOffset -> `NoOffset
-        | Field (fld, ofs) -> `Field (fld, convert_offset st ofs)
-        | Index (exp, ofs) -> 
-            match eval_rv st exp with
-              | `Int i -> `Index (i, convert_offset st ofs)
-              | _ -> M.bailwith "Index not an integer value"
-    (* We need the previous function with the varinfo carried along, so we can
-     * map it on the address sets. *)
-    in 
-    let f add ad = 
-      match ad with 
-        | Addr.Addr (x,ofs) -> Addr.from_var_offset (x, add_offset ofs add)
-        | Addr.NullPtr -> Addr.NullPtr
-    in
-      match lval with 
-        (* The simpler case with an explicit variable, e.g. for [x.field] we just
-         * create the address { (x,field) } *)
-        | Var x, ofs ->  AD.singleton (Addr.from_var_offset (x, convert_offset st ofs))
-        (* The more complicated case when [exp = & x.field] and we are asked to
-         * evaluate [(\*exp).subfield]. We first evaluate [exp] to { (x,field) }
-         * and then add the subfield to it: { (x,field.subfield) }. *)
-        | Mem n, ofs -> begin
-            match (eval_rv st n) with 
-              | `Address adr -> AD.map (f (convert_offset st ofs)) adr
-              | `String -> string_var ()
-              | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-                  M.warn_pedant ("Failed evaluating "^str^" to lvalue"); AD.top ()
-            end 
+    match lval with 
+      (* The simpler case with an explicit variable, e.g. for [x.field] we just
+       * create the address { (x,field) } *)
+      | Var x, ofs ->  AD.singleton (Addr.from_var_offset (x, convert_offset st ofs))
+      (* The more complicated case when [exp = & x.field] and we are asked to
+       * evaluate [(\*exp).subfield]. We first evaluate [exp] to { (x,field) }
+       * and then add the subfield to it: { (x,field.subfield) }. *)
+      | Mem n, ofs -> begin
+          match (eval_rv st n) with 
+            | `Address adr -> AD.map (add_offset_varinfo (convert_offset st ofs)) adr
+            | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
+                M.warn_pedant ("Failed evaluating "^str^" to lvalue"); AD.top ()
+          end 
 
   let access_address ((_,fl),_) write (addrs: address): extra =
     if fl then begin
@@ -664,7 +658,7 @@ struct
          * join all its values. *)
         | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (ID.top ()))
         | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD. join (reachable_from_value v) acc) s empty
-        | `Int _ | `String -> empty
+        | `Int _ -> empty
     in
     let res = reachable_from_value (get st a) in
       if M.tracing then M.traceu "reachability" (dprintf "Reachable addresses: %a\n" AD.pretty res);
@@ -831,6 +825,7 @@ struct
     let add_calls ad p =
       match ad with 
         | Addr.Addr (f, offs) -> add_calls_addr (f, offs) p
+        | Addr.StrPtr -> failwith "Function should not be a string pointer."
         | Addr.NullPtr -> failwith "There should be no null-pointer functions."
     in
     List.fold_right add_calls funs ([],[])

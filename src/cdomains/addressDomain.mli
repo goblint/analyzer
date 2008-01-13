@@ -73,7 +73,7 @@ sig
   type field = fieldinfo
  
   (* The next few lines are from Printable.S with ... *)
-  type t = Addr of (varinfo * ((field, idx) offs)) | NullPtr 
+  type t = Addr of (varinfo * (field, idx) offs) | NullPtr | StrPtr
   (* hopefully someday the compiler is able to parse it.*)
   val equal: t -> t -> bool
   val hash: t -> int
@@ -107,6 +107,8 @@ sig
   type field = fieldinfo
   val null_ptr: unit -> t
   (* Creates a null pointer address*)
+  val str_ptr: unit -> t
+  (* Creates a string pointer address*)
   val from_var: varinfo -> t
   (** Creates an address from variable. *)  
   val from_var_offset: (varinfo * (field,idx) offs) -> t

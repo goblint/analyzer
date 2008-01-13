@@ -51,7 +51,6 @@ end
 module rec Compound: S with type t = [
     | `Top
     | `Int of ID.t
-    | `String
     | `Address of AD.t
     | `Struct of Structs.t
     | `Union of Unions.t
@@ -64,7 +63,6 @@ struct
   type t = [
     | `Top
     | `Int of ID.t
-    | `String
     | `Address of AD.t
     | `Struct of Structs.t
     | `Union of Unions.t
@@ -89,7 +87,6 @@ struct
       | (`Top, `Top) -> true
       | (`Bot, `Bot) -> true
       | (`Int x, `Int y) -> ID.equal x y
-      | (`String, `String) -> true
       | (`Address x, `Address y) -> AD.equal x y
       | (`Struct x, `Struct y) -> Structs.equal x y
       | (`Union x, `Union y) -> Unions.equal x y
@@ -100,7 +97,6 @@ struct
     match x with
       | `Top -> 248723984
       | `Bot -> 982398349
-      | `String -> 99
       | `Int n -> ID.hash n
       | `Address n -> AD.hash n
       | `Struct n -> Structs.hash n
@@ -111,7 +107,6 @@ struct
     let constr_to_int x = match x with
         | `Bot -> 0
         | `Int _ -> 1
-        | `String -> 2
         | `Address _ -> 3
         | `Struct _ -> 5
         | `Union _ -> 6
@@ -128,7 +123,6 @@ struct
   let pretty_f _ () state = 
     match state with
       | `Int n ->  ID.pretty () n
-      | `String -> text "string"
       | `Address n ->  AD.pretty () n
       | `Struct n ->  Structs.pretty () n
       | `Union n ->  Unions.pretty () n
@@ -139,7 +133,6 @@ struct
   let short w state = 
     match state with
       | `Int n ->  ID.short w n
-      | `String -> "string"
       | `Address n ->  AD.short w n
       | `Struct n ->  Structs.short w n
       | `Union n ->  Unions.short w n
@@ -159,7 +152,6 @@ struct
   let toXML_f _ state =
     match state with
       | `Int n -> ID.toXML n
-      | `String -> Xml.Element ("Leaf", ["text","string"], [])
       | `Address n -> AD.toXML n
       | `Struct n -> Structs.toXML n
       | `Union n -> Unions.toXML n
@@ -178,7 +170,6 @@ struct
       | (`Bot, _) -> true
       | (_, `Bot) -> false
       | (`Int x, `Int y) -> ID.leq x y
-      | (`String, `String) -> true
       | (`Address x, `Address y) -> AD.leq x y
       | (`Struct x, `Struct y) -> Structs.leq x y
       | (`Union x, `Union y) -> Unions.leq x y
@@ -192,7 +183,6 @@ struct
       | (`Bot, x) -> x
       | (x, `Bot) -> x
       | (`Int x, `Int y) -> `Int (ID.join x y)
-      | (`String, `String) -> `String
       | (`Address x, `Address y) -> `Address (AD.join x y)
       | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
       | (`Union x, `Union y) -> `Union (Unions.join x y) 
@@ -206,7 +196,6 @@ struct
       | (`Top, x) -> x
       | (x, `Top) -> x
       | (`Int x, `Int y) -> `Int (ID.meet x y)
-      | (`String, `String) -> `String
       | (`Address x, `Address y) -> `Address (AD.meet x y)
       | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
       | (`Union x, `Union y) -> `Union (Unions.meet x y)
