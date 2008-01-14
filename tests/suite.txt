@@ -274,6 +274,11 @@ tests/regression/04-mutex/19-call_by_ptrrace.c
 -
 3
 
+stdfun_race
+tests/regression/04-mutex/20-stdfun_race.c
+-
+2
+
 
 Group: Problems from the Real Life
 
@@ -351,6 +356,11 @@ exit_problems
 tests/regression/03-practical/15-exit_problems.c
 -
 -3
+
+union_index
+tests/regression/03-practical/16-union_index.c
+-
+0
 
 
 Group: Future stuff
