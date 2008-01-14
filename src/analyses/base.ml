@@ -72,10 +72,21 @@ struct
   module Flag = IntDomain.MakeBooleans (struct 
                                          let truename = "Multithreaded" 
                                          let falsename = "Singlethreaded" end)
-  module LD = Lattice.ProdConf (struct
-                                  let expand_fst = true
-                                  let expand_snd = false
-                                end) (CPA) (Flag) 
+  module LD = struct
+    include Lattice.ProdConf (struct
+                                let expand_fst = true
+                                let expand_snd = false
+                              end) (CPA) (Flag) 
+    let join (x,fx) (y,fy) = 
+      let cpa = CPA.join x y in
+      let rem_var (v:varinfo) value cpa = 
+        if v.vglob then CPA.remove v cpa else cpa
+      in
+        if fx <> fy then 
+          CPA.fold rem_var cpa cpa, true 
+        else 
+          cpa, fx
+  end
 
   let name = "Constant Propagation Analysis"
   let startstate = (CPA.top (), Flag.bot ())
