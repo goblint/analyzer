@@ -734,6 +734,7 @@ struct
             | _ -> M.bailwith "pthread_join arguments are strange!"
         end
       | "exit" -> raise A.Deadcode
+      | "abort" -> raise A.Deadcode
       | "malloc" | "calloc" -> set st return_var (`Address heap_var)
       (* Handling the assertions *)
       | "assert" -> begin
