@@ -82,10 +82,11 @@ struct
       let rem_var (v:varinfo) value cpa = 
         if v.vglob then CPA.remove v cpa else cpa
       in
-        if fx <> fy then 
+        if fx <> fy then
           CPA.fold rem_var cpa cpa, true 
-        else 
+        else
           cpa, fx
+        
   end
 
   let name = "Constant Propagation Analysis"
@@ -868,15 +869,26 @@ struct
       | _ -> []
 
   let combine lval f args fun_st (loc,gl as st) = 
+    (* This function does miscelaneous things, but the main task was to give the
+     * handle to the global state to the state return from the function, but now
+     * the function tries to add all the context variables back to the callee.
+     * Note that, the function return above has to remove all the local
+     * variables of the called function from cpa_s. *)
     let add_globals (cpa_s,fl_s) ((cpa_d,fl_d),gl) = 
+      (* Remove the return value as this is dealt with separately. *)
       let cpa_s = CPA.remove (return_varinfo ()) cpa_s in
       let f var value acc = CPA.add var value acc in
+      let rem_var (v:varinfo) value cpa = 
+        if v.vglob then CPA.remove v cpa else cpa in
+      (* If the called function has gone to multithreaded mode, we need to
+       * remove the globals from the state of the callee. *)
+      let cpa_d = if fl_s then CPA.fold rem_var cpa_d cpa_d else cpa_d in
       let new_cpa = CPA.fold f cpa_s cpa_d in
         ((new_cpa, fl_s), gl)
     in 
-    let get st v = get (st,gl) v in
     let return_var = return_var () in
-    let return_val, st = get fun_st return_var, add_globals fun_st st in
+    let return_val = get (fun_st,gl) return_var in
+    let st = add_globals fun_st st in
       match lval with
         | None -> set_none st
         | Some lval -> set_savetop st (eval_lv st lval) return_val
