@@ -751,6 +751,7 @@ struct
       | "abort" -> raise A.Deadcode
       | "malloc" | "calloc" -> set st return_var (`Address heap_var)
       (* Handling the assertions *)
+      | "__assert_rtn" -> raise A.Deadcode (* gcc's built-in assert *) 
       | "assert" -> begin
           match args with
             | [e] -> begin

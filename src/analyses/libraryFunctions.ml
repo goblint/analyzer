@@ -171,7 +171,46 @@ let invalidate_actions = [
   ("svc_register",Unsafe);
   ("sleep",Safe);
   ("svc_run",Unsafe);
-  ("dup",Safe);  
+  ("dup",Safe); 
+  ("__builtin_expect",Safe); (* only stoopid people use __builtin_expect *) 
+  ("vsnprintf",Drop 3); 
+  ("syslog",Safe); 
+  ("strcasecmp",Safe); 
+  ("strchr",Safe); 
+  ("getservbyname",Safe); 
+  ("__error",Safe); 
+  ("__maskrune",Unsafe); 
+  ("inet_addr",Safe); 
+  ("gethostbyname",Safe); 
+  ("__builtin_bzero",Keep [1]); 
+  ("setsockopt",Safe); 
+  ("listen",Safe); 
+  ("getsockname",Keep [1;3]); 
+  ("getenv",Safe); 
+  ("execl",Safe); 
+  ("select",Keep [1;5]); 
+  ("accept",Keep [1]); 
+  ("getpeername",Keep [1]); 
+  ("times",Unsafe); 
+  ("fgets",Keep [3]); 
+  ("strtoul",Safe); 
+  ("__tolower",Safe); 
+  ("signal",Unsafe); 
+  ("popen",Safe); 
+  ("BF_cfb64_encrypt",Keep [1;3;4;5]); 
+  ("BZ2_bzBuffToBuffDecompress",Keep [3;4]); 
+  ("uncompress",Keep [3;4]); 
+  ("stat",Keep [1]); 
+  ("BZ2_bzBuffToBuffCompress",Keep [3;4]); 
+  ("compress2",Keep [3]); 
+  ("__toupper",Safe); 
+  ("BF_set_key",Keep [3]); 
+  ("memcmp",Safe); 
+  ("sendto",Keep [2;4]); 
+  ("recvfrom",Keep [4;5]); 
+  ("srand",Safe); 
+  ("rand",Safe); 
+  ("gethostname",Unsafe); 
 ]
 
 (* used by get_invalidate_action to make sure
