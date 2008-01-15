@@ -139,6 +139,39 @@ let invalidate_actions = [
   ("nanosleep",Drop 1);
   ("sigdelset",Safe);
   ("sigwait",Drop 1);
+  ("setlocale",Safe);
+  ("bindtextdomain",Safe);
+  ("textdomain",Safe);
+  ("dcgettext",Safe);
+  ("fputs",Safe);
+  ("syscall",Drop 1);
+  ("fputc",Safe);
+  ("feof",Safe);
+  ("__getdelim",Keep [3]);
+  ("vsyslog",Safe);
+  ("gethostbyname_r",Safe);
+  ("__h_errno_location",Safe);
+  ("getuid",Safe);
+  ("strerror",Safe);
+  ("readdir",Safe);
+  ("openlog",Safe);
+  ("getdtablesize",Safe);
+  ("umask",Safe);
+  ("socket",Safe);
+  ("clntudp_create", Drop 3);
+  ("svctcp_create", Safe);
+  ("clntudp_bufcreate", Unsafe);
+  ("authunix_create_default",Safe);
+  ("writev",Safe);
+  ("clnt_broadcast",Unsafe);
+  ("clnt_sperrno",Safe);
+  ("pmap_unset",Unsafe);
+  ("bind",Safe);
+  ("svcudp_create",Safe);
+  ("svc_register",Unsafe);
+  ("sleep",Safe);
+  ("svc_run",Unsafe);
+  ("dup",Safe);  
 ]
 
 (* used by get_invalidate_action to make sure
