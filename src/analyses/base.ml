@@ -723,6 +723,19 @@ struct
     let invalids = List.concat (List.map invalidate_exp exps) in
       set_many st invalids
 
+  let access_funargs (st:store) (exps: exp list): extra = 
+    (* We define the function that evaluates all the values that an address
+     * expression e may point to *)
+    let do_exp e = 
+      match eval_rv st e with
+        | `Address a when AD.equal a (AD.null_ptr()) -> []
+        | `Address a when not (AD.is_top a) -> 
+            List.concat (List.map (access_address st true ) (reachable_vars [a] st))
+        | _-> []
+    in
+    (* We concatMap the previous function on the list of expressions. *)
+      List.concat (List.map do_exp exps)
+
 
  (**************************************************************************
   * Function calls

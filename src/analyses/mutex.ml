@@ -38,6 +38,7 @@ module M = Messages
 module GU = Goblintutil
 module AD = ValueDomain.AD
 module BS = Base.Spec
+module LF = LibraryFunctions
 open Cil
 open Pretty
 
@@ -121,7 +122,13 @@ struct
                         | _ -> st, [])
             | _ -> (st, [])
         end
-      | _ -> (st, [])
+      | x -> begin
+          match LF.get_invalidate_action x with
+            | Some fnc -> 
+                let written = BS.access_funargs c (fnc arglist) in
+                  (st, add_locks written st)
+            | _ -> (st, [])
+        end
 
   let combine lval f args (fun_st: domain) (st,c,gl: trans_in) =
     let accessed = List.concat (List.map (BS.access false c) args) in
