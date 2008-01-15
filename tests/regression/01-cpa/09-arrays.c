@@ -14,7 +14,7 @@ struct kass {
 };
 
 int main () {
-  int i,t, k1,k2;
+  int i,t, k1,k2,top;
 
   int a[] = {2,2,2};
   int b[2], c[3];
@@ -23,7 +23,11 @@ int main () {
   int (*fp)();
   int *ip;
   int (*iap)[];
-
+  
+  // really really top 
+  if (i) top = (int) &top;
+  else   top = 5;
+    
   assert(a[0] == 2);
   assert(a[1] == 2);
   assert(a[2] == 2);
@@ -90,6 +94,9 @@ int main () {
   ip = x.a;
   x.a[0] = 7;
   assert(*ip == 7);
+  
+  // (typeless) Top index
+  assert(x.a[top] == 7);
 
   // And finally array of structs
   struct kala xs[5];

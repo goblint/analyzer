@@ -397,8 +397,10 @@ struct
       | NoOffset -> `NoOffset
       | Field (fld, ofs) -> `Field (fld, convert_offset st ofs)
       | Index (exp, ofs) -> 
-          match eval_rv st exp with
+          let exp_rv = eval_rv st exp in
+          match exp_rv with
             | `Int i -> `Index (i, convert_offset st ofs)
+            | `Top   -> `Index (ID.top (), convert_offset st ofs) 
             | _ -> M.bailwith "Index not an integer value"
   (* Evaluation of lvalues to our abstract address domain. *)
   and eval_lv st (lval:lval): AD.t = 
