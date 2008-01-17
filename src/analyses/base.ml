@@ -809,7 +809,10 @@ struct
             | Some fnc -> invalidate st (fnc args);
             | None -> begin
                 M.warn ("Function definition missing for " ^ f.vname);
-                invalidate st args
+                let st_expr (v:varinfo) (value) a = 
+                  if v.vglob then Cil.mkAddrOf (Var v, NoOffset) :: a else a
+                in
+                  invalidate st (CPA.fold st_expr cpa args)
               end
         end
 
