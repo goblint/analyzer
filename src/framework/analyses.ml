@@ -97,6 +97,29 @@ struct
     dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
 end
 
+module VarCS =
+struct
+  type t = MyCFG.node * location
+
+  let hash (n,l) = 
+    match n with
+      | MyCFG.Statement s -> Hashtbl.hash (l, s.sid, 0)
+      | MyCFG.Function f -> Hashtbl.hash (l, f.vid, 1)
+
+  let equal (n1,d1) (n2,d2) =
+    MyCFG.Node.equal n1 n2 && compareLoc d1 d1 = 0
+
+  let getLocation (n,d) = MyCFG.getLoc n
+
+  let pretty () (n,d) =
+    match n with
+      | MyCFG.Statement s -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
+      | MyCFG.Function f -> dprintf "call of %s" f.vname
+
+  let pretty_trace () x = 
+    dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
+end
+
 module Dom (LD: Lattice.S) = 
 struct 
   include Lattice.Lift (LD) (struct
