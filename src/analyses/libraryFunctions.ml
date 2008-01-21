@@ -222,6 +222,13 @@ let invalidate_actions = [
   ("sem_destroy",Safe); 
   ("sem_wait",Safe); 
   ("sem_post",Safe); 
+  ("PL_NewHashTable",Safe); 
+  ("__assert_fail",Safe); 
+  ("assert_failed",Safe); 
+  ("htonl",Safe); 
+  ("htons",Safe); 
+  ("ntohl",Safe); 
+  ("htons",Safe); 
 ]
 
 (* used by get_invalidate_action to make sure
