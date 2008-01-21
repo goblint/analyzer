@@ -53,8 +53,12 @@ let invalidate_actions = [
   ("memcpy", Keep [1]);
   ("memset", Unsafe);
   ("printf", Safe);
+  ("perror", Safe);
   ("pthread_mutex_lock", Safe);
   ("pthread_mutex_unlock", Safe);
+  ("pthread_mutex_init", Safe);
+  ("pthread_mutex_destroy", Safe);
+  ("pthread_self", Safe);
   ("read", Keep [2]);
   ("recv", Keep [2]);
   ("scanf",  Drop 1);
@@ -211,8 +215,13 @@ let invalidate_actions = [
   ("srand",Safe); 
   ("rand",Safe); 
   ("gethostname",Unsafe); 
-  ("pthread_mutex_init",Safe); 
   ("fork",Safe); 
+  ("setrlimit",Safe); 
+  ("getrlimit", Keep [2]); 
+  ("sem_init",Safe); 
+  ("sem_destroy",Safe); 
+  ("sem_wait",Safe); 
+  ("sem_post",Safe); 
 ]
 
 (* used by get_invalidate_action to make sure
