@@ -211,6 +211,8 @@ let invalidate_actions = [
   ("srand",Safe); 
   ("rand",Safe); 
   ("gethostname",Unsafe); 
+  ("pthread_mutex_init",Safe); 
+  ("fork",Safe); 
 ]
 
 (* used by get_invalidate_action to make sure
