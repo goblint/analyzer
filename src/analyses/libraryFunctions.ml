@@ -216,6 +216,7 @@ let invalidate_actions = [
   ("rand",Safe); 
   ("gethostname",Unsafe); 
   ("fork",Safe); 
+  ("realloc",Unsafe);
   ("setrlimit",Safe); 
   ("getrlimit", Keep [2]); 
   ("sem_init",Safe); 
