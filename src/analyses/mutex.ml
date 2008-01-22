@@ -54,7 +54,7 @@ struct
   module AccessType = IntDomain.MakeBooleans (struct 
                                                let truename = "Write" 
                                                let falsename = "Read" end)
-  module Access = Printable.Prod (Basetype.ProgLines) (LD)
+  module Access = Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (LD)
   module Accesses = SetDomain.SensitiveConf (struct
                                                let expand_fst = false
                                                let expand_snd = true
@@ -77,21 +77,22 @@ struct
       myvar.vid <- -99;
       myvar
 
-  let add_locks accessed (locks: domain) = 
+  let add_locks accessed c (locks: domain) = 
+    let fl = BS.get_fl c in
     let loc = !GU.current_loc in
-    let f (v,rv) = (v,(locks, Accesses.singleton (rv, (loc, locks)))) in 
+    let f (v,rv) = (v,(locks, Accesses.singleton (rv, (loc, fl, locks)))) in 
       List.rev_map f accessed
 
   let assign lval rval (st,c,gl) = 
     let accessed = BS.access true c (Lval lval) @ BS.access false c rval in
-      (st, add_locks accessed st)
+      (st, add_locks accessed c st)
   let branch exp tv (st,c,gl) =
     let accessed = BS.access false c exp in
-      (st, add_locks accessed st)
+      (st, add_locks accessed c st)
   let return exp fundec (st,c,gl) =
     match exp with 
       | Some exp -> let accessed = BS.access false c exp in 
-          (st, add_locks accessed st)
+          (st, add_locks accessed c st)
       | None -> (st, [])
   let body f (st,c,gl) = (st, [])
 
@@ -126,13 +127,13 @@ struct
           match LF.get_invalidate_action x with
             | Some fnc -> 
                 let written = BS.access_funargs c (fnc arglist) in
-                  (st, add_locks written st)
+                  (st, add_locks written c st)
             | _ -> (st, [])
         end
 
   let combine lval f args (fun_st: domain) (st,c,gl: trans_in) =
     let accessed = List.concat (List.map (BS.access false c) args) in
-      (fun_st, add_locks accessed st)
+      (fun_st, add_locks accessed c st)
 
   let entry f args st = ([],[])
 
@@ -140,13 +141,16 @@ struct
   let init () = ()
 
   let postprocess_glob gl (locks, accesses) = 
+    let non_main (_,(_,x,_)) = x > 1 in
     if (Lockset.is_empty locks || Lockset.is_top locks)
     && ((Accesses.cardinal accesses) > 1)
-    && (Accesses.exists fst accesses) then 
+    && (Accesses.exists fst accesses) 
+    && (Accesses.exists non_main accesses)
+    then 
       let warn = "Datarace over variable \"" ^ gl.vname ^ "\"" in
-      let f (flag, (loc, lockset)) = 
+      let f (write, (loc, fl, lockset)) = 
         let lockstr = LD.short 80 lockset in
-        let action = if flag then "write" else "read" in
+        let action = if write then "write" else "read" in
         let warn = action ^ " with lockset: " ^ lockstr in
           (warn,loc) in 
       let warnings =  List.map f (Accesses.elements accesses) in

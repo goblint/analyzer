@@ -69,24 +69,22 @@ struct
   module CArrays = ValueDomain.CArrays
   module GD = Global.Make (VD)
 
-  module Flag = IntDomain.MakeBooleans (struct 
-                                         let truename = "Multithreaded" 
-                                         let falsename = "Singlethreaded" end)
+  module Flag = ConcDomain.Simple
+
   module LD = struct
     include Lattice.ProdConf (struct
                                 let expand_fst = true
                                 let expand_snd = false
                               end) (CPA) (Flag) 
-    let join (x,fx) (y,fy) = 
-      let cpa = CPA.join x y in
+    let join (_,fx as x) (_,fy as y) = 
+      let cpa,fl = join x y in
       let rem_var (v:varinfo) value cpa = 
         if v.vglob then CPA.remove v cpa else cpa
       in
-        if fx <> fy then
-          CPA.fold rem_var cpa cpa, true 
+        if Flag.switch fx fy then
+          CPA.fold rem_var cpa cpa, fl
         else
-          cpa, fx
-        
+          cpa, fl
   end
 
   let name = "Constant Propagation Analysis"
@@ -113,6 +111,8 @@ struct
   type value = VD.t
   type address = AD.t
 
+  let get_fl ((_,fl),gl) = fl
+
   let globalize (cpa:cpa): (cpa * glob_diff) =
     (* For each global variable, we create the diff *)
     let add_var (v:varinfo) (value) (cpa,acc) = 
@@ -126,7 +126,7 @@ struct
     (* Finding a single varinfo*offset pair *)
     let f_addr (x, offs) = 
       (* get hold of the variable value, either from local or global state *)
-      let var = if fl && x.vglob then gl x else CPA.find x st in
+      let var = if Flag.is_multi fl && x.vglob then gl x else CPA.find x st in
         VD.eval_offset var offs 
     in 
     let f x =
@@ -147,7 +147,7 @@ struct
      * not include the flag. *)
     let update_one_addr (x, offs) (nst,gd): cpa * glob_diff = 
       (* Check if we need to side-effect this one *)
-      if fl && x.vglob then if not effect then (nst,gd)
+      if Flag.is_multi fl && x.vglob then if not effect then (nst,gd)
       else begin
         (* Create an update and add it to the difflist *)
         let gd = (x, VD.update_offset (gl x) offs value) :: gd in 
@@ -419,7 +419,7 @@ struct
           end 
 
   let access_address ((_,fl),_) write (addrs: address): extra =
-    if fl then begin
+    if Flag.is_multi fl then begin
       let f v acc = if v.vglob then (v, write) :: acc else acc in 
       let addr_list = try AD.to_var addrs with _ -> M.unsound "Access to unknown address could be global"; [] in
         List.fold_right f addr_list [] 
@@ -747,10 +747,11 @@ struct
     match f.vname with 
       (* handling thread creations *)
       | "pthread_create" -> 
-          if fl then 
-            ((cpa,true),[])
+          let new_fl = Flag.join fl (Flag.get_main ()) in
+          if Flag.is_multi fl then 
+            ((cpa,new_fl),[])
           else 
-            let (ncpa,ngl) = globalize cpa in ((ncpa,true),ngl)
+            let (ncpa,ngl) = globalize cpa in ((ncpa, new_fl),ngl)
       (* handling thread joins... sort of *)
       | "pthread_join" -> begin
           match args with
@@ -819,7 +820,7 @@ struct
   let entry fval args ((cpa,fl),gl as st: trans_in): (varinfo * domain) list * varinfo list = try
     let make_entry pa context =
       (* If we need the globals, add them *)
-      let new_cpa = if not fl then CPA.filter_class 2 cpa else CPA.top () in 
+      let new_cpa = if not (Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.top () in 
       (* Assign parameters to arguments *)
       let new_cpa = CPA.add_list pa new_cpa in
       let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
@@ -871,14 +872,15 @@ struct
             | [_; _; start; ptc_arg] -> begin
                 let start_addr = eval_fv st start in
                 let start_vari = List.hd (AD.to_var start_addr) in
-                  let vdl,_ = entry (Lval (Var start_vari,NoOffset)) [ptc_arg] ((cpa,true),gl) in
+                  let vdl,_ = entry (Lval (Var start_vari,NoOffset)) [ptc_arg] 
+                                ((cpa,Flag.get_multi ()),gl) in
                 try
                   (* try to get function declaration *)
                   let _ = Cilfacade.getdec start_vari in 
                   vdl
                 with Not_found -> 
                   M.unsound ("creating an thread from unknown function " ^ start_vari.vname);
-                  [start_vari,(cpa, true)]
+                  [start_vari,(cpa, Flag.get_multi ())]
                 end
             | _ -> M.bailwith "pthread_create arguments are strange!"
         end
@@ -898,7 +900,7 @@ struct
         if v.vglob then CPA.remove v cpa else cpa in
       (* If the called function has gone to multithreaded mode, we need to
        * remove the globals from the state of the callee. *)
-      let cpa_d = if fl_s then CPA.fold rem_var cpa_d cpa_d else cpa_d in
+      let cpa_d = if Flag.is_multi fl_s then CPA.fold rem_var cpa_d cpa_d else cpa_d in
       let new_cpa = CPA.fold f cpa_s cpa_d in
         ((new_cpa, fl_s), gl)
     in 

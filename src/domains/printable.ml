@@ -325,9 +325,27 @@ struct
       Xml.Element ("Node", [("text", "set")], elems)
 
   let toXML m = toXML_f short m
-
   let pretty () x = pretty_f short () x
   let name () = Base.name () ^ " list"
+end
+
+module type ChainParams = sig
+  val n: int
+  val names: int -> string
+end
+
+module Chain (P: ChainParams): S with type t = int = 
+struct
+  type t = int
+  include Std
+
+  let short _ x = P.names x
+  let pretty_f f () x = text (f max_int x)
+  let toXML_f f x = Xml.Element ("Leaf", ["text",f 80 x], [])
+  let isSimple _ = true
+
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
 end
 
 (** Concatenates a list of strings that 
