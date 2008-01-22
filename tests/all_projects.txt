@@ -38,3 +38,7 @@ pthread/ypbind_comb.c
 zebedee
 Zebedee: Secure IP tunnel
 pthread/zebedee_comb.c
+
+mt-daapd
+Multithreaded DAAP server
+locksmith/mt-daapd_comb.c

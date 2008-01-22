@@ -38,6 +38,7 @@ module M = Messages
 module GU = Goblintutil
 module AD = ValueDomain.AD
 module BS = Base.Spec
+(*module BS = Base.Main*)
 module LF = LibraryFunctions
 open Cil
 open Pretty
@@ -141,7 +142,7 @@ struct
   let init () = ()
 
   let postprocess_glob gl (locks, accesses) = 
-    let non_main (_,(_,x,_)) = x > 1 in
+    let non_main (_,(_,x,_)) = BS.Flag.is_bad x in
     if (Lockset.is_empty locks || Lockset.is_top locks)
     && ((Accesses.cardinal accesses) > 1)
     && (Accesses.exists fst accesses) 
@@ -151,7 +152,8 @@ struct
       let f (write, (loc, fl, lockset)) = 
         let lockstr = LD.short 80 lockset in
         let action = if write then "write" else "read" in
-        let warn = action ^ " with lockset: " ^ lockstr in
+        let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
+        let warn = action ^ "in" ^ thread ^ " with lockset: " ^ lockstr in
           (warn,loc) in 
       let warnings =  List.map f (Accesses.elements accesses) in
         M.print_group warn warnings

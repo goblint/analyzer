@@ -56,9 +56,10 @@ let is_fun_type (t: typ): bool = match t with
 
 let is_immediate_type t = is_mutex_type t || is_fun_type t
 
-module Spec =
+module MakeSpec (Flag: ConcDomain.S) =
 struct
   exception Top
+  module Flag = Flag
   module VD = ValueDomain.Compound
   module CPA = MemoryDomain.Stack (VD)
   module ID = ValueDomain.ID
@@ -68,8 +69,6 @@ struct
   module Unions = ValueDomain.Unions
   module CArrays = ValueDomain.CArrays
   module GD = Global.Make (VD)
-
-  module Flag = ConcDomain.Simple
 
   module LD = struct
     include Lattice.ProdConf (struct
@@ -913,5 +912,8 @@ struct
 
   let postprocess_glob g v = ()
 end
+
+module Spec = MakeSpec (ConcDomain.Trivial)
+module Main = MakeSpec (ConcDomain.Simple)
 
 module Analysis = Multithread.Forward(Spec)
