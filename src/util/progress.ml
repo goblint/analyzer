@@ -40,7 +40,7 @@ module M = Messages
 module GU = Goblintutil
 
 (* Compile time constants: *)
-let tracking = true
+let tracking = false
 let n = 2
 
 (* Auxialiary data structures: *)
