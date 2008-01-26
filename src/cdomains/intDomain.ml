@@ -503,3 +503,57 @@ module Booleans = MakeBooleans (
     let truename = "True" 
     let falsename = "False"
   end)
+
+module None : ExclList with type t = unit  =
+struct
+  include Printable.Std
+  include Lattice.StdCousot
+  let name () = "none"
+  type t = unit
+  let copy x = () 
+  let top () = ()
+  let is_top _ = true
+  let bot () = ()
+  let is_bot _ = true
+  let isSimple _  = true
+  let short _ x = "?"
+  let pretty_f _ _ x = text "?"
+  let toXML_f _ x = Xml.Element ("Leaf", [("text", "?")],[])
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
+  let leq x y = true
+  let join x y = ()
+  let meet x y = ()
+
+  let of_bool _ = ()
+  let to_bool _ = None
+  let is_bool _ = false
+  let of_int  _ = ()
+  let to_int  _ = None
+  let is_int  _ = false
+  let is_excl_list _ = false
+  let of_excl_list _ = ()
+  let to_excl_list _ = None
+
+  let neg x = ()
+  let add _ _ = ()
+  let sub _ _ = ()
+  let mul _ _ = ()
+  let div _ _ = ()
+  let rem _ _ = ()
+  let lt n1 n2 = ()
+  let gt n1 n2 = ()
+  let le n1 n2 = ()
+  let ge n1 n2 = ()
+  let eq n1 n2 = ()
+  let ne n1 n2 = ()
+  let bitnot n1 = ()
+  let bitand n1 n2 = ()
+  let bitor  n1 n2 = ()
+  let bitxor n1 n2 = ()
+  let shift_left  n1 n2 = ()
+  let shift_right n1 n2 = ()
+  let lognot n1    = ()
+  let logand n1 n2 = ()
+  let logor  n1 n2 = ()
+end

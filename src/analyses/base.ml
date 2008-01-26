@@ -267,8 +267,8 @@ struct
       match addr with
         | Addr.NullPtr -> Addr.NullPtr
         | Addr.StrPtr -> Addr.StrPtr
-        | Addr.Addr (x, `Index (`Definite i, offs)) 
-          -> Addr.from_var_offset (x, `Index (`Definite (Int64.add i n), offs))
+        | Addr.Addr (x, `Index (i, offs)) when ID.is_int i -> 
+            Addr.from_var_offset (x, `Index (ID.add i n, offs))
         | _ -> raise Top
     in
       (* The main function! *)
@@ -276,23 +276,19 @@ struct
         (* For the integer values, we apply the domain operator *)
         | `Int v1, `Int v2 -> `Int (the_op v1 v2)
         (* For address +/- value, we try to do some elementary ptr arithmetic *)
-        | `Address p, `Int v  -> begin
-            match v with
-              | `Definite n -> begin
-                  try match op with
-                    (* For array indexing, e[i] we have *)
-                    | IndexPI -> `Address (AD.map (addToAddr n) p)
-                    (* Pointer addition e + i, it's the same: *)
-                    | PlusPI -> `Address (AD.map (addToAddr n) p)
-                    (* Pointer subtracted by a value (e-i) is very similar *)
-                    | MinusPI -> let n = Int64.neg n in
-                        `Address (AD.map (addToAddr n) p)
-		    | Mod -> `Int (ID.top ()) (* we assume that address is actually casted to int first*)
-                    | _ -> `Address (AD.top ())
-                  with
-                    | Top -> `Address (AD.top ())
-                end
+        | `Address p, `Int n  -> begin
+            try match op with
+              (* For array indexing, e[i] we have *)
+              | IndexPI -> `Address (AD.map (addToAddr n) p)
+              (* Pointer addition e + i, it's the same: *)
+              | PlusPI -> `Address (AD.map (addToAddr n) p)
+              (* Pointer subtracted by a value (e-i) is very similar *)
+              | MinusPI -> let n = ID.neg n in
+                  `Address (AD.map (addToAddr n) p)
+              | Mod -> `Int (ID.top ()) (* we assume that address is actually casted to int first*)
               | _ -> `Address (AD.top ())
+            with
+              | Top -> `Address (AD.top ())
           end
         (* If both are pointer values, we can subtract them and well, we don't
          * bother to find the result, but it's an integer. *)
@@ -341,7 +337,7 @@ struct
   let rec eval_rv (st: store) (exp:exp): value = 
     match constFold true exp with
       (* Integer literals *)
-      | Const (CInt64 (num,typ,str)) -> `Int (`Definite num)
+      | Const (CInt64 (num,typ,str)) -> `Int (ID.of_int num)
       (* String literals *)
       | Const (CStr _)
       | Const (CWStr _) -> `Address (AD.str_ptr ())
@@ -361,7 +357,7 @@ struct
       (* CIL's very nice implicit conversion of an array name [a] to a pointer
        * to its first element [&a[0]]. *)
       | StartOf lval -> 
-          let array_ofs = `Index (`Definite 0L, `NoOffset) in
+          let array_ofs = `Index (ID.of_int 0L, `NoOffset) in
           let array_start ad = 
             match ad with
               | Addr.Addr (x, offs) -> Addr.from_var_offset (x, add_offset offs array_ofs) 
@@ -472,10 +468,14 @@ struct
         | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.bot ())
 	| TArray (_, None, _) -> `Array (ValueDomain.CArrays.bot ())
         | TArray (ai, Some exp, _) -> begin
+            let default = `Array (ValueDomain.CArrays.bot ()) in
             match eval_rv st exp with
-              | `Int (`Definite n) -> 
-                  `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value st ai))
-              | _ -> `Array (ValueDomain.CArrays.bot ())
+              | `Int n -> begin
+                  match ID.to_int n with
+                    | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value st ai))
+                    | _ -> default
+                end
+              | _ -> default
           end
         | TNamed ({ttype=t}, _) -> bot_value st t
         | _ -> `Bot 
@@ -523,10 +523,14 @@ struct
         (* The false-branch for x == value: *)
         | Eq, x, value, false -> begin
             match value with
-              | `Int (`Definite n) -> 
-                  (* When x != n, we can return a singleton exclusion set *)
-                  if M.tracing then M.trace "invariant" (dprintf "Yes, success! %a is not %Ld\n\n" d_lval x n);
-                  Some (x, `Int (`Excluded (IntSet.singleton n)))
+              | `Int n -> begin
+                  match ID.to_int n with
+                    | Some n ->
+                        (* When x != n, we can return a singleton exclusion set *)
+                        if M.tracing then M.trace "invariant" (dprintf "Yes, success! %a is not %Ld\n\n" d_lval x n);
+                        Some (x, `Int (ID.of_excl_list [n]))
+                    | None -> None
+                end
               | `Address n ->
                   if M.tracing then M.trace "invariant" (dprintf "Yes, success! %a is not NULL\n\n" d_lval x);
                   let x_rv = 
@@ -756,7 +760,7 @@ struct
           match args with
             | [id; ret_var] -> begin
 		match (eval_rv st ret_var) with
-		  | `Int (`Definite n) when n=Int64.zero -> (cpa,fl),[]
+		  | `Int n when n = ID.of_int 0L -> (cpa,fl),[]
 		  | _      -> invalidate st [ret_var] end
             | _ -> M.bailwith "pthread_join arguments are strange!"
         end
@@ -795,8 +799,8 @@ struct
             | [e] -> begin
                 (* evaluate the negative assertion and check if it will be true *)
                 match eval_rv st e with 
-                  | `Int(`Definite valu) -> 
-                      let value = IntDomain.Integers.short 80 valu in
+                  | `Int n when ID.is_int n -> 
+                      let value = ID.short 80 n in
                       let expr = sprint ~width:80 (d_exp () e) in
                         M.warn_each ("Expression \"" ^ expr ^ "\" should be unknown, but is " ^ value ^ ".");
                         set_none st

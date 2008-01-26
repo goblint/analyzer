@@ -185,3 +185,6 @@ module MakeBooleans (Names: BooleansNames): S with type t = bool
 module Booleans: S with type t = bool
 (** Boolean abstract domain, where true is output "True" and false is output
   * "False" *)
+
+module None: ExclList with type t = unit
+(** Domain with nothing in it. *)

@@ -35,7 +35,8 @@
 
 open Cil
 open Pretty
-module ID = IntDomain.Trier
+(*module ID: IntDomain.ExclList = IntDomain.None*)
+module ID: IntDomain.ExclList = IntDomain.Trier
 module AD = AddressDomain.AddressSet (ID)
 module Addr = AddressDomain.Address (ID)
 module M = Messages
