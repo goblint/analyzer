@@ -279,6 +279,11 @@ tests/regression/04-mutex/20-stdfun_race.c
 -
 2
 
+sound_base
+tests/regression/04-mutex/21-sound_base.c
+-
+2
+
 
 Group: Problems from the Real Life
 
