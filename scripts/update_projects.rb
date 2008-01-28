@@ -8,12 +8,13 @@ fail "Please run script from goblint dir!" unless File.exist?(goblint)
 
 class Project
   attr_reader :name, :group, :path, :params
-  def initialize(name, size, desc, group, path)
+  def initialize(name, size, desc, group, path, params)
     @name     = name
     @size     = size
     @desc     = desc
     @group    = group
     @path     = path
+    @params   = params
   end
   def to_html
     "<td>#{@name}</td>\n" + "<td>#{@desc}</td>\n" + "<td>#{@size}</td>\n"
@@ -48,7 +49,9 @@ File.open("tests/projects.txt", "r") do |f|
     description = f.gets.chomp
     path = File.expand_path(f.gets.chomp, "../bench")
     size = `wc -l #{path}`.split[0] + " lines"
-    p = Project.new(name,size,description,gname,path)
+    params = f.gets.chomp
+    params = "" if params == "-"
+    p = Project.new(name,size,description,gname,path,params)
     projects << p
   end
 end
@@ -69,7 +72,7 @@ projects.each do |p|
   analyses.each do |a|
     puts "  " + a
     outfile = testresults + File.basename(filename,".c") + ".#{a}.txt"
-    `timeout #{timeout} #{goblint} #{filename} --analysis #{a} --stats 1>#{outfile} 2>&1`
+    `timeout #{timeout} #{goblint} #{filename} #{p.params} --analysis #{a} --stats 1>#{outfile} 2>&1`
     if $? != 0 then
       puts "  Timed out! (or other failure)"
       `echo "TIMEOUT                    #{timeout} s" >> #{outfile}`
