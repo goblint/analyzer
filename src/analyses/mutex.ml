@@ -134,7 +134,7 @@ struct
         end
 
   let combine lval f args (fun_st: domain) (st,c,gl: trans_in) =
-    let accessed = List.concat (List.map (BS.access false c) args) in
+    let accessed = List.concat (List.map (BS.access false c) (f::args)) in
       (fun_st, add_locks accessed c st)
 
   let entry f args st = ([],[])
