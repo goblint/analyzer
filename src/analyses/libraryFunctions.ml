@@ -120,7 +120,7 @@ let invalidate_actions = [
   ("stat__extinline",Drop 1);
   ("lstat__extinline",Drop 1);
   ("__builtin_strchr",Safe);
-  ("strcpy",Safe);
+  ("strcpy",Keep [1]);
   ("strcat",Keep [2]);
   ("getpgrp",Safe);
   ("umount2",Safe);
