@@ -224,7 +224,10 @@ struct
     let startstate = 
       if !GU.verbose then print_endline "Initializing globals.";
       Stats.time "initializers" doGlobalInits file in
-    let startvars = List.map (fun x -> (MyCFG.Function x.svar, startstate)) funs in
+    let startvars = match funs with 
+      | (f::fs) -> (MyCFG.Function f.svar, startstate) ::
+                   List.map (fun x -> (MyCFG.Function x.svar, otherstate)) fs 
+      | [] -> [] in
     Spec.init ();
     let (sigma,theta) as sol = 
       if !GU.verbose then print_endline "Analyzing!";

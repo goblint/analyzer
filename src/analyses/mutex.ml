@@ -73,6 +73,7 @@ struct
   type callback = calls * spawn 
 
   let startstate = LD.top ()
+  let otherstate = LD.top ()
   let return_var = 
     let myvar = makeVarinfo false "RETURN" voidType in
       myvar.vid <- -99;

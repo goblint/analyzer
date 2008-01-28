@@ -88,6 +88,7 @@ struct
 
   let name = "Constant Propagation Analysis"
   let startstate = (CPA.top (), Flag.bot ())
+  let otherstate = (CPA.top (), Flag.top ())
 
  (**************************************************************************
   * Auxiliary stuff

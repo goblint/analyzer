@@ -129,11 +129,17 @@ let getMain fileAST =
     | Found def -> def
 
 let getFuns fileAST  : fundec list =
-  foldGlobals fileAST (fun rest glob ->
+  let main = ref dummyFunDec in
+  let found = ref false in
+  let f rest glob =
     match glob with 
+      | GFun({svar={vname="main"}} as def,_) -> 
+          found := true; main := def; rest
       | GFun (def, _) -> def :: rest
-      | _ -> rest
-  ) []
+      | _ -> rest 
+  in
+  let others = foldGlobals fileAST f [] in
+    if !found then !main :: others else others
 
 let getdec fv = 
   try 

@@ -88,6 +88,7 @@ struct
 
   let name = Base.name ^ " and " ^ User.name
   let startstate = (Base.startstate, User.startstate)
+  let otherstate = (Base.otherstate, User.otherstate)
   let es_to_string f (es,_) = Base.es_to_string f (es)
   let init () = Base.init (); User.init ()
   let postprocess_glob g (v1,v2) = 
@@ -135,6 +136,7 @@ struct
 
   let name = S.name
   let startstate = LD.singleton (Base.startstate, User.startstate)
+  let otherstate = LD.singleton (Base.otherstate, User.otherstate)
   let es_to_string f es = Base.es_to_string f (fst (LD.choose es))
   let init () = S.init ()
   let postprocess_glob = S.postprocess_glob

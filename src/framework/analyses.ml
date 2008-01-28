@@ -49,6 +49,7 @@ sig
 
   val name: string
   val startstate: domain
+  val otherstate: domain
   val es_to_string: fundec -> domain -> string
   val init: unit -> unit
 
