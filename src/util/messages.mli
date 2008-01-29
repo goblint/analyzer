@@ -44,6 +44,7 @@ val bailwith: string -> 'a
   * analysis. *)
 
 val warn_out : out_channel ref
+val get_out: string -> out_channel -> out_channel
 
 val print_warn: string -> location -> unit
 (** Prints a warning and adds the given location information. *)

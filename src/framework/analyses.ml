@@ -37,6 +37,7 @@ open Cil
 open Pretty
 
 module GU = Goblintutil
+module M  = Messages
 
 exception Deadcode
 exception Nofun
@@ -184,10 +185,6 @@ sig
   val output: t -> unit
 end
 
-let get_out name alternative = match !GU.dump_path with
-  | Some path -> open_out (Filename.concat path (name ^ ".out"))
-  | _ -> alternative
-
 module Result (Range: Printable.S) (C: ResultConf) =
 struct
   include Hash.Printable (Basetype.ProgLinesFun) (Range)
@@ -214,7 +211,7 @@ struct
   let resultXML x = toXML x
 
   let output table =
-    let out = get_out result_name !GU.out in
+    let out = M.get_out result_name !GU.out in
     match !GU.result_style with
       | GU.Pretty -> ignore (fprintf out "%a\n" pretty table)
       | GU.Indented -> begin

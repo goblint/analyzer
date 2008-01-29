@@ -45,6 +45,10 @@ let tracing = false  (* Hopefully, when set to false optimizations will kick in 
 let soundness = ref true
 let warn_out = ref stdout
 
+let get_out name alternative = match !GU.dump_path with
+  | Some path -> open_out (Filename.concat path (name ^ ".out"))
+  | _ -> alternative
+
 let current_loc = GU.current_loc
 
 let print_warn msg loc = 

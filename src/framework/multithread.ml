@@ -234,7 +234,7 @@ struct
       Stats.time "solver" (Solver.solve constraints) startvars in
     if !GU.print_uncalled then
       begin
-        let out = A.get_out "uncalled" stdout in
+        let out = M.get_out "uncalled" stdout in
         let f =
           let insrt k _ s = match k with
             | (MyCFG.Function fn, _) -> S.add fn.vid s
@@ -277,7 +277,7 @@ struct
             match last_st with
               | None -> ()
               | Some st -> 
-                  let out = A.get_out "state" !GU.out in
+                  let out = M.get_out "state" !GU.out in
                   ignore (Pretty.fprintf out "%a\n" SD.pretty st);
                   let f key valu = 
                     ignore (Pretty.fprintf out "%a -> %a\n" 
