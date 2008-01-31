@@ -1,8 +1,8 @@
 #!/usr/bin/ruby
 
-testresults = "/var/www/goblint/suiteresults/"
 goblint = File.join(Dir.getwd,"goblint")
 fail "Please run script from goblint dir!" unless File.exist?(goblint)
+testresults = File.expand_path("tests/suite_result") + "/"
 
 class Project
   attr_reader :name, :group, :path, :params, :warnings

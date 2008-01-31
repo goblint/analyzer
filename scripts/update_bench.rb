@@ -1,10 +1,11 @@
 #!/usr/bin/ruby
 require "timeout"
 
-testresults = "/var/www/goblint/testresults/"
 # trier_res = "/home/vesal/kool/magister/projects/results_rtmm/"
 goblint = File.join(Dir.getwd,"goblint")
 fail "Please run script from goblint dir!" unless File.exist?(goblint)
+testresults = File.expand_path("tests/bench_result") + "/"
+bench = "../bench/"
 
 class Project
   attr_reader :name, :group, :path, :params
@@ -47,7 +48,7 @@ File.open("tests/projects.txt", "r") do |f|
     end
     name = line.chomp
     description = f.gets.chomp
-    path = File.expand_path(f.gets.chomp, "../bench")
+    path = File.expand_path(f.gets.chomp, bench)
     size = `wc -l #{path}`.split[0] + " lines"
     params = f.gets.chomp
     params = "" if params == "-"
