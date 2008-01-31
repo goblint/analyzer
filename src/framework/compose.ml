@@ -91,6 +91,7 @@ struct
   let otherstate = (Base.otherstate, User.otherstate)
   let es_to_string f (es,_) = Base.es_to_string f (es)
   let init () = Base.init (); User.init ()
+  let finalize () = Base.finalize (); User.finalize ()
   let postprocess_glob g (v1,v2) = 
     Base.postprocess_glob g v1;
     User.postprocess_glob g v2
@@ -139,6 +140,7 @@ struct
   let otherstate = LD.singleton (Base.otherstate, User.otherstate)
   let es_to_string f es = Base.es_to_string f (fst (LD.choose es))
   let init () = S.init ()
+  let finalize () = S.finalize ()
   let postprocess_glob = S.postprocess_glob
 
   let lifting (f: S.transfer): transfer =

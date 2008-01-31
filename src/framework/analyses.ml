@@ -53,6 +53,7 @@ sig
   val otherstate: domain
   val es_to_string: fundec -> domain -> string
   val init: unit -> unit
+  val finalize: unit -> unit
 
   val assign: lval -> exp -> transfer
   val branch: exp -> bool -> transfer

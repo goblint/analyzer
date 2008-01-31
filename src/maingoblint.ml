@@ -40,7 +40,7 @@ module GU = Goblintutil
 module M = Messages
 
 let main () =
-  let usage = "Usage: goblin [options] source-files" in
+  let usage_str = "Usage: goblint [options] source-files" in
   let fileNames : string list ref = ref [] in
   (* default settings for the command line arguments: *)
   let includes = ref (Filename.concat (Filename.dirname Sys.executable_name) "includes") in 
@@ -109,7 +109,7 @@ let main () =
   in
     Stats.reset Stats.HardwareIfAvail;
     CF.init();
-    Arg.parse speclist recordFile usage;
+    Arg.parse speclist recordFile usage_str;
     let _ = match !GU.dump_path with
       | Some path -> begin
           M.warn_out := open_out (Filename.concat path "warnings.out");
@@ -134,7 +134,11 @@ let main () =
     let merged_AST = 
       match files_AST with
         | [one] -> one
-        | [] -> prerr_endline "No arguments for the goblin??"; exit 2
+        | [] -> 
+            prerr_endline "No arguments for Goblint?"; 
+            prerr_endline usage_str; 
+            prerr_endline "Try `goblint --help' for more information."; 
+            exit 2
         | xs -> CF.getMergedAST xs 
     in
       (* using CIL's partial evaluation and constant folding! *)

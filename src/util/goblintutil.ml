@@ -55,6 +55,9 @@ let allfuns = ref false
 (** an optional path to dump all output *)
 let dump_path = ref (None : string option)
 
+(** has any threads have been spawned *)
+let multi_threaded = ref false
+
 (** The file where everything is output *)
 let out = ref stdout
 

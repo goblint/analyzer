@@ -271,6 +271,7 @@ struct
       end
     in
       postprocess theta;
+      finalize ();
       match !GU.result_style with
         (* when debuggin we output the last state and the globals! *)
         | GU.State -> begin

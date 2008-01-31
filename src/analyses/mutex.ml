@@ -142,13 +142,16 @@ struct
   let es_to_string f es = f.svar.vname
   let init () = ()
 
+  let race_free = ref true
+
   let postprocess_glob gl (locks, accesses) = 
     let non_main (_,(_,x,_)) = BS.Flag.is_bad x in
     if (Lockset.is_empty locks || Lockset.is_top locks)
     && ((Accesses.cardinal accesses) > 1)
     && (Accesses.exists fst accesses) 
     && (Accesses.exists non_main accesses)
-    then 
+    then begin
+      race_free := false;
       let warn = "Datarace over variable \"" ^ gl.vname ^ "\"" in
       let f (write, (loc, fl, lockset)) = 
         let lockstr = LD.short 80 lockset in
@@ -158,6 +161,21 @@ struct
           (warn,loc) in 
       let warnings =  List.map f (Accesses.elements accesses) in
         M.print_group warn warnings
+    end
+
+  let finalize () = 
+    if !GU.multi_threaded then begin
+      match !race_free, !M.soundness with
+        | true, true -> print_endline "CONGRATULATIONS!\nYour program has just been certified Free of Data Races!"
+        | true, false -> 
+            print_endline "Goblint did not find any Data Races in this program!";
+            print_endline "However, the code was too complicated for Goblint to understand all of it."
+        | _ -> ()
+    end else if not !GU.debug then begin
+      print_endline "NB! That didn't seem like a multithreaded program.";
+      print_endline "Try `goblint --help' to do something other than Data Race Analysis."
+    end
+
 end
 
 (*module Trivial = Spec*)

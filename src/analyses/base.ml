@@ -234,6 +234,8 @@ struct
     return_varstore := makeVarinfo false "RETURN" voidType;
     heap_varstore := makeVarinfo true "HEAP" voidType
 
+  let finalize () = ()
+
  (**************************************************************************
   * Abstract evaluation functions
   **************************************************************************)
@@ -751,6 +753,7 @@ struct
     match f.vname with 
       (* handling thread creations *)
       | "pthread_create" -> 
+          GU.multi_threaded := true;
           let new_fl = Flag.join fl (Flag.get_main ()) in
           if Flag.is_multi fl then 
             ((cpa,new_fl),[])
