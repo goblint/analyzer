@@ -152,15 +152,19 @@ struct
     && (Accesses.exists non_main accesses)
     then begin
       race_free := false;
-      let warn = "Datarace over variable \"" ^ gl.vname ^ "\"" in
-      let f (write, (loc, fl, lockset)) = 
-        let lockstr = LD.short 80 lockset in
-        let action = if write then "write" else "read" in
-        let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
-        let warn = action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
-          (warn,loc) in 
-      let warnings =  List.map f (Accesses.elements accesses) in
-        M.print_group warn warnings
+      if gl = BS.heap_varinfo () then
+        print_endline "There might be races involving the heap!"
+      else begin 
+        let warn = "Datarace over variable \"" ^ gl.vname ^ "\"" in
+        let f (write, (loc, fl, lockset)) = 
+          let lockstr = LD.short 80 lockset in
+          let action = if write then "write" else "read" in
+          let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
+          let warn = action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
+            (warn,loc) in 
+        let warnings =  List.map f (Accesses.elements accesses) in
+          M.print_group warn warnings
+      end
     end
 
   let finalize () = 

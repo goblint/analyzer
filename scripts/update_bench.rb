@@ -38,7 +38,7 @@ analyses = ["mutex"]
 #processing the input file
 
 projects = []
-File.open("tests/projects.txt", "r") do |f|
+File.open("tests/bench.txt", "r") do |f|
   i = 0
   while line = f.gets
     next if line =~ /^\s*$/ 
