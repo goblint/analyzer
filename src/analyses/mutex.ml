@@ -101,7 +101,11 @@ struct
   let eval_exp context exp: varinfo option =
     let v = BS.eval_rv context exp in
       match v with
-        | `Address v when not (AD.is_top v) && AD.cardinal v = 1 -> Some (List.hd (AD.to_var v))
+        | `Address v when not (AD.is_top v) -> begin
+            match AD.to_var_must v with
+              | [x] -> Some x
+              | _ -> None
+          end
         | _ -> None
 
   let special f arglist (st,c,gl) =

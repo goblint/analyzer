@@ -208,10 +208,10 @@ struct
       match x.vtype, CPA.find x es with
         | TPtr (t, attr), `Address a 
 	    when (not (AD.is_top a)) 
-	      && List.length (AD.to_var a) = 1 
+	      && List.length (AD.to_var_may a) = 1 
 	      && not (is_immediate_type t) 
 	      -> 
-            let cv = List.hd (AD.to_var a) in 
+            let cv = List.hd (AD.to_var_may a) in 
               "ref " ^ VD.short 26 (CPA.find cv es)
         | _, v -> VD.short 30 v
     in
@@ -419,7 +419,7 @@ struct
   let access_address ((_,fl),_) write (addrs: address): extra =
     if Flag.is_multi fl then begin
       let f v acc = if v.vglob then (v, write) :: acc else acc in 
-      let addr_list = try AD.to_var addrs with _ -> M.unsound "Access to unknown address could be global"; [] in
+      let addr_list = try AD.to_var_may addrs with _ -> M.unsound "Access to unknown address could be global"; [] in
         List.fold_right f addr_list [] 
     end else []
 
@@ -642,7 +642,7 @@ struct
     let f x acc = match x with
       | `Address adrs when AD.is_top adrs -> 
           M.unsound "Unkown address given as function argument"; acc
-      | `Address adrs when AD.to_var adrs = [] -> acc
+      | `Address adrs when AD.to_var_may adrs = [] -> acc
       | `Address adrs -> 
           let typ = AD.get_type adrs in
             if is_fun_type typ then acc else adrs :: acc
@@ -668,7 +668,7 @@ struct
               if is_immediate_type typ then () else M.unsound warning; empty 
         | `Bot -> M.warn "A bottom value when computing reachable addresses!"; empty
         | `Address adrs when AD.is_top adrs -> 
-            let warning = "Unknown address in " ^ AD.short 40 a ^ " has escaped. I'm sorry I wasn't precise enough :( " in
+            let warning = "Unknown address in " ^ AD.short 40 a ^ " has escaped." in
               M.unsound warning; empty
         (* The main thing is to track where pointers go: *)
         | `Address adrs -> adrs
@@ -839,7 +839,7 @@ struct
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv st) args in
     (* List of reachable variables *)
-    let reachable = List.concat (List.map AD.to_var (reachable_vars (get_ptrs vals) st)) in
+    let reachable = List.concat (List.map AD.to_var_may (reachable_vars (get_ptrs vals) st)) in
     (* generate the entry states *)
     let add_calls_addr (f,offs) (norms,specs) =
       (* A simple check that there is no offset, if this fails things have gone
@@ -878,7 +878,7 @@ struct
           match args with
             | [_; _; start; ptc_arg] -> begin
                 let start_addr = eval_fv st start in
-                let start_vari = List.hd (AD.to_var start_addr) in
+                let start_vari = List.hd (AD.to_var_may start_addr) in
                   let vdl,_ = entry (Lval (Var start_vari,NoOffset)) [ptc_arg] 
                                 ((cpa,Flag.get_multi ()),gl) in
                 try

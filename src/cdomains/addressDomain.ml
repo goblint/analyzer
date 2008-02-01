@@ -50,7 +50,8 @@ sig
   
   val from_var: varinfo -> t
   val from_var_offset: (varinfo * (idx,field) offs) -> t
-  val to_var: t -> varinfo list
+  val to_var_may: t -> varinfo list
+  val to_var_must: t -> varinfo list
   val get_type: t -> typ
 
 (*  val from_heap: heap -> t*)
@@ -68,11 +69,15 @@ struct
 
   let from_var x = Addr (x, `NoOffset)
   let from_var_offset x = Addr x
-  let to_var a =
+  let to_var_may a =
     match a with
       | Addr (x,_) -> [x]
       | StrPtr
       | NullPtr    -> []
+  let to_var_must a = 
+    match a with
+      | Addr (x,`NoOffset) -> [x]
+      | _ -> []
 
   let get_type_addr (x, ofs) = 
     let unarray t = match t with
@@ -198,5 +203,6 @@ struct
 
   let from_var x = singleton (Addr.from_var x)
   let from_var_offset x = singleton (Addr.from_var_offset x)
-  let to_var x = List.concat (List.map Addr.to_var (elements x))
+  let to_var_may x = List.concat (List.map Addr.to_var_may (elements x))
+  let to_var_must x = List.concat (List.map Addr.to_var_must (elements x))
 end
