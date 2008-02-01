@@ -56,7 +56,7 @@ let invalidate_actions = [
   ("perror", Safe);
   ("pthread_mutex_lock", Safe);
   ("pthread_mutex_unlock", Safe);
-  ("pthread_mutex_init", Safe);
+(*  ("pthread_mutex_init", Keep [2]); removed, to speed up zebedee*)
   ("pthread_mutex_destroy", Safe);
   ("pthread_self", Safe);
   ("read", Keep [2]);
