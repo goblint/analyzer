@@ -13,7 +13,7 @@ locksmith/knot_comb.c
 pfscan
 Multithreaded file scanner
 locksmith/pfscan_comb.c
--
+--libc
 
 ctrace
 Library for tracing multithreaded programs

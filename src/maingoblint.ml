@@ -43,7 +43,8 @@ let main () =
   let usage_str = "Usage: goblint [options] source-files" in
   let fileNames : string list ref = ref [] in
   (* default settings for the command line arguments: *)
-  let includes = ref (Filename.concat (Filename.dirname Sys.executable_name) "includes") in 
+  let include_dir = ref (Filename.concat (Filename.dirname Sys.executable_name) "includes") in 
+  let use_libc = ref false in
   let justCil = ref false in
   let dopartial = ref false in
   let keep_cpp = ref false in
@@ -74,7 +75,8 @@ let main () =
   let speclist = [
                  ("-o", Arg.Set_string outFile, "<file>  Prints the output to file.");
                  ("-v", Arg.Set GU.verbose, " Prints some status information.");
-                 ("--includes", Arg.Set_string includes, " Uses custom include files.");
+                 ("--includes", Arg.Set_string include_dir, " Uses custom include files.");
+                 ("--libc", Arg.Set use_libc, " Merge with a custom implementation of standard libs.");
                  ("--justcil", Arg.Set justCil, " Just print the transformated CIL output.");
                  ("--dopartial", Arg.Set dopartial, " Apply CIL's constant folding and partial evaluation.");
                  ("--cfg", Arg.Set GU.cfg_print, " prints the cfg into cfg.dot.");
@@ -97,7 +99,7 @@ let main () =
   let dirName = GU.create_dir "goblin_temp" in
   (* Looking for the include files *)
   let warn_includes () = print_endline "Warning, cannot find goblin's custom include files." in
-  let includes = if Sys.file_exists(!includes) then "-I" ^ !includes else (warn_includes () ; "") in
+  let includes = if Sys.file_exists(!include_dir) then "-I" ^ !include_dir else (warn_includes () ; "") in
   (* Preprocess the input c files *)
   let preproFile fname =
     (* The actual filename of the preprocessed sourcefile *)
@@ -118,7 +120,9 @@ let main () =
         end
       | _ -> ()
     in
+    let libc = Filename.concat !include_dir "lib.c" in 
     fileNames := List.rev !fileNames;
+    if !use_libc then fileNames := libc :: !fileNames;
     (* preprocess all the files *)
     let cpp_file_names = 
       if !GU.verbose then print_endline "Preprocessing files.";

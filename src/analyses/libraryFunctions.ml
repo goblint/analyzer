@@ -72,6 +72,9 @@ let invalidate_actions = [
   ("strncmp", Safe);
   ("strncpy", Keep [1]);
   ("strstr", Safe);
+  ("strdup", Safe);
+  ("toupper", Safe);
+  ("tolower", Safe);
   ("time", Unsafe);
   ("vfprintf", Keep [1]);
   ("vprintf", Safe);
@@ -106,6 +109,11 @@ let invalidate_actions = [
   ("pthread_attr_init",Unsafe); 
   ("pthread_attr_setdetachstate",Unsafe);
   ("pthread_attr_setstacksize",Unsafe);
+  ("pthread_attr_setscope",Unsafe);
+  ("pthread_cond_init",Safe); 
+  ("pthread_cond_wait",Safe); 
+  ("pthread_cond_signal",Safe);
+  ("pthread_cond_broadcast",Safe);
   ("pthread_key_create",Unsafe);
   ("sigemptyset",Unsafe);
   ("sigaddset",Unsafe);
@@ -147,14 +155,18 @@ let invalidate_actions = [
   ("bindtextdomain",Safe);
   ("textdomain",Safe);
   ("dcgettext",Safe);
-  ("fputs",Safe);
   ("syscall",Drop 1);
+  ("fputs",Safe);
   ("fputc",Safe);
+  ("putc",Safe);
+  ("putw",Safe);
+  ("putchar",Safe);
   ("feof",Safe);
   ("__getdelim",Keep [3]);
   ("vsyslog",Safe);
   ("gethostbyname_r",Safe);
   ("__h_errno_location",Safe);
+  ("__fxstat",Safe);
   ("getuid",Safe);
   ("strerror",Safe);
   ("readdir",Safe);
@@ -230,6 +242,8 @@ let invalidate_actions = [
   ("htons",Safe); 
   ("ntohl",Safe); 
   ("htons",Safe); 
+  ("munmap",Safe);
+  ("mmap",Safe);
 ]
 
 (* used by get_invalidate_action to make sure
