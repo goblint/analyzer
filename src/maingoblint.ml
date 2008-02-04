@@ -49,6 +49,7 @@ let main () =
   let dopartial = ref false in
   let keep_cpp = ref false in
   let outFile = ref "" in 
+  let cilout = ref stderr in
   (* Function for setting the style, basically Haskell's read function: *)
   let setstyle x = 
     GU.result_style := match x with
@@ -60,6 +61,7 @@ let main () =
       | _ -> raise (Arg.Bad "invalid result style") 
   in
   let setdump path = GU.dump_path := Some (GU.create_dir path) in
+  let setcil path = cilout := open_out path in
   let analyze = ref Mutex.Analysis.analyze in
   let setanalysis str = 
     analyze := match str with
@@ -92,6 +94,7 @@ let main () =
                  ("--result", Arg.String setstyle, "<style>  Result style: none, state, indented, compact, or pretty.");
                  ("--analysis", Arg.String setanalysis, "<name>  Picks the analysis: mutex, no_path, base.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
+                 ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
                  ] in
   let recordFile fname = 
     fileNames := fname :: (!fileNames) in
@@ -134,7 +137,7 @@ let main () =
     let _ = if !keep_cpp then () else ignore (Unix.system ("rm -rf " ^ dirName)) in
     (* direct the output to file if requested  *)
     let _ = if not (!outFile = "") then GU.out :=  open_out !outFile in
-    let _ = Errormsg.logChannel := M.get_out "cil" stderr in
+    let _ = Errormsg.logChannel := M.get_out "cil" !cilout in
     (* we use CIL to merge all inputs to ONE file *)
     let merged_AST = 
       match files_AST with
@@ -166,7 +169,7 @@ let main () =
           (* and here we run the analysis! *)
           Stats.time "analysis" (!analyze merged_AST) funs;
           if !Cilutil.printStats then 
-            Stats.print (M.get_out "timing" stdout) "Timings:\n"
+            Stats.print (M.get_out "timing" stderr) "Timings:\n"
       end
 
 let _ = 

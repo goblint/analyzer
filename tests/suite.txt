@@ -2,7 +2,7 @@ Group: Sanity checks
 
 assert
 tests/regression/00-sanity/01-assert.c
--
+--debug
 2
 
 minimal
@@ -22,37 +22,27 @@ tests/regression/00-sanity/04-empty_if.c
 
 inf_loop
 tests/regression/00-sanity/05-inf_loop.c
--
+--debug
 -1
-
-library_functions
-tests/regression/00-sanity/07-library_functions.c
--
-1
 
 pointer_problem
 tests/regression/00-sanity/09-ptr_problem.c
 -
 0
 
-include
-tests/regression/00-sanity/10-include.c
--
-0
-
 asm
 tests/regression/00-sanity/11-asm.c
 -
-0
+1
 
 term1
 tests/regression/00-sanity/12-term1.c
--
+--debug
 -1
 
 term2
 tests/regression/00-sanity/13-term2.c
--
+--debug
 -1
 
 
@@ -60,102 +50,102 @@ Group: Constant Propagation
 
 expressions
 tests/regression/01-cpa/01-expressions.c
--
+--debug
 0
 
 branch
 tests/regression/01-cpa/02-branch.c
--
+--debug
 0
 
 loops
 tests/regression/01-cpa/03-loops.c
--
+--debug
 0
 
 function
 tests/regression/01-cpa/04-functions.c
--
+--debug
 0
 
 pointers
 tests/regression/01-cpa/06-pointers.c
--
+--debug
 0
 
 structs
 tests/regression/01-cpa/07-structs.c
--
+--debug
 0
 
 unions
 tests/regression/01-cpa/08-unions.c
--
-0
+--debug
+1
 
 arrays
 tests/regression/01-cpa/09-arrays.c
--
+--debug
 0
 
 posneg
 tests/regression/01-cpa/10-posneg.c
--
+--debug
 0
 
 fun_ptrargs
 tests/regression/01-cpa/11-fun_ptrargs.c
--
+--debug
 0
 
 bool
 tests/regression/01-cpa/12-bool.c
--
+--debug
 0
 
 scanf
 tests/regression/01-cpa/13-scanf.c
--
+--debug
 0
 
 vararg
 tests/regression/01-cpa/14-vararg.c
--
+--debug
 0
 
 break
 tests/regression/01-cpa/15-break.c
--
+--debug
 0
 
 exit
 tests/regression/01-cpa/16-exit.c
--
+--debug
 0
 
 ptr_aliasing
 tests/regression/01-cpa/17-ptr_aliasing.c
--
+--debug
 0
 
 ptr_chains
 tests/regression/01-cpa/18-ptr_chains.c
--
+--debug
 1
 
 static_var
 tests/regression/01-cpa/20-static_var.c
--
+--debug
 0
 
 strings
 tests/regression/01-cpa/21-strings.c
--
+--debug
 0
 
 std_funs
 tests/regression/01-cpa/22-std_funs.c
--
+--debug
 0
 
 
@@ -163,22 +153,22 @@ Group: Base analysis with globals
 
 thread_creation
 tests/regression/02-base/01-thread_creation.c
--
+--debug
 0
 
 simple_assign
 tests/regression/02-base/02-simple_assignments.c
--
+--debug
 0
 
 pthread_join
 tests/regression/02-base/03-pthread_join.c
--
+--debug
 0
 
 creation_result
 tests/regression/02-base/05-result_thread_creation.c
--
+--debug
 0
 
 
@@ -287,11 +277,6 @@ tests/regression/03-practical/01-lval_eval.c
 -
 0
 
-index_nonstruct
-tests/regression/03-practical/02-index_nonstruct.c
--
-0
-
 pthread_ptrs
 tests/regression/03-practical/03-pthread_ptrs.c
 -
@@ -314,17 +299,17 @@ tests/regression/03-practical/06-callback.c
 
 nonterm
 tests/regression/03-practical/07-nonterm.c
--
+--debug
 3
 
 nonterm1
 tests/regression/03-practical/08-nonterm1.c
--
+--debug
 4
 
 nonterm2
 tests/regression/03-practical/09-nonterm2.c
--
+--debug
 -2
 
 big_init
@@ -339,7 +324,7 @@ tests/regression/03-practical/11-extern.c
 
 aget_minimal
 tests/regression/03-practical/12-aget_minimal.c
--
+--debug
 -2
 
 pfscan_minimal
@@ -354,16 +339,31 @@ tests/regression/03-practical/14-call_by_pointer.c
 
 exit_problems
 tests/regression/03-practical/15-exit_problems.c
--
+--debug
 -3
-
-union_index
-tests/regression/03-practical/16-union_index.c
--
-0
 
 
 Group: Future stuff
+
+library_functions
+tests/regression/00-sanity/07-library_functions.c
+-
+0
+
+include
+tests/regression/00-sanity/10-include.c
+-
+0
+
+index_nonstruct
+tests/regression/03-practical/02-index_nonstruct.c
+-
+0
+
+union_index
+tests/regression/03-practical/16-union_index.c
+--debug
+0
 
 rtmm
 tests/regression/04-mutex/13-rtmm.c

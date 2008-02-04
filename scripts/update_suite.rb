@@ -75,7 +75,7 @@ projects.each do |p|
   cilfile = testresults + p.name + ".txt"
   `#{goblint} #{filename} --justcil #{p.params} >#{cilfile} 2> /dev/null`
   p.size = `wc -l #{cilfile}`.split[0] + " lines"
-  `#{goblint} #{filename} --debug #{p.params} 1>#{warnfile} --stats 2>#{statsfile}`
+  `#{goblint} #{filename} #{p.params} 1>#{warnfile} --stats 2>#{statsfile}`
   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
 end

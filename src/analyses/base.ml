@@ -413,7 +413,7 @@ struct
           match (eval_rv st n) with 
             | `Address adr -> AD.map (add_offset_varinfo (convert_offset st ofs)) adr
             | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-                M.warn ("Failed evaluating "^str^" to lvalue"); AD.top ()
+                M.debug ("Failed evaluating "^str^" to lvalue"); AD.top ()
           end 
 
   let access_address ((_,fl),_) write (addrs: address): extra =
