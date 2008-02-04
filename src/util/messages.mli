@@ -71,8 +71,11 @@ val warn_all: string -> unit
 (** Prints a warning and adds the source code location where the warning
   * occured. This should also be called from within transfer functions. *)
 
+val warn_urgent: string -> unit
+(** Prints a warning no matter what. And sets soundness to false. *)
+
 val debug: string -> unit
-(** Prints a debuggin warning with location. *)
+(** Prints a debugging warning with location. *)
 
 val tracing: bool
 (** Static flag to turn off tracing (improves performance) *)

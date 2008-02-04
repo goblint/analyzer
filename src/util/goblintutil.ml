@@ -40,9 +40,6 @@ open Cil
 (** when goblin is in debug mode *)
 let debug = ref false 
 
-(** when goblin is in pedantic mode *)
-let pedantic = ref false 
-
 (** Outputs information about what the goblin is doing *)
 let verbose = ref false
 

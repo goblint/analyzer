@@ -139,7 +139,7 @@ struct
         with
           | A.Deadcode -> (SD.bot (), [], [])
           | M.Bailure s -> M.warn_each s; (sigma predvar, [], [])
-          | x -> M.warn "Oh no! Something terrible just happened"; raise x
+          | x -> M.warn_urgent "Oh no! Something terrible just happened"; raise x
       in
       let old_loc = !GU.current_loc in
       let _ = GU.current_loc := MyCFG.getLoc pred in
@@ -172,7 +172,7 @@ struct
         (* If the function is not defined, and yet has been included to the
          * analysis result, we generate a warning. *)
 	with Not_found -> 
-	  ignore (printf "BUG: Undefined function has escaped: %a\n" Var.pretty_trace (n,es))
+          M.warn ("Undefined function has escaped.")
     in
     (* Globals are associated with the declaration location, this is queried
      * from CIL. *)
@@ -270,7 +270,7 @@ struct
       else begin
         let x = Solver.VMap.find sigma (List.hd startvars) in
           (* check for dead code at the last state: *)
-          if SD.equal x (SD.bot ()) then
+          if !GU.debug && SD.equal x (SD.bot ()) then
             Printf.printf "NB! Execution does not reach the end of Main.\n";
           Some x
       end

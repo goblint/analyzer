@@ -81,7 +81,6 @@ let main () =
                  ("--dopartial", Arg.Set dopartial, " Apply CIL's constant folding and partial evaluation.");
                  ("--cfg", Arg.Set GU.cfg_print, " prints the cfg into cfg.dot.");
                  ("--debug", Arg.Set GU.debug, " Debug mode: for testing the anlyzer itself.");
-                 ("--pedantic", Arg.Set GU.pedantic, " Pedantic mode: prints pedantic warning that are mainly due to lack of precision.");
                  ("--trace", Arg.String set_trace, "<sys>  subsystem to show debug printfs for: con, sol.");
                  ("--stats", Arg.Set Cilutil.printStats, " Outputs timing information.");
                  ("--eclipse", Arg.Set GU.eclipse, " Flag for Goblin's Eclipse Plugin.");
@@ -135,6 +134,7 @@ let main () =
     let _ = if !keep_cpp then () else ignore (Unix.system ("rm -rf " ^ dirName)) in
     (* direct the output to file if requested  *)
     let _ = if not (!outFile = "") then GU.out :=  open_out !outFile in
+    let _ = Errormsg.logChannel := M.get_out "cil" stderr in
     (* we use CIL to merge all inputs to ONE file *)
     let merged_AST = 
       match files_AST with
@@ -160,12 +160,13 @@ let main () =
         (* we first find the functions to analyze: *)
         if !GU.verbose then print_endline "And now...  the Goblin!";
         let funs = 
-          if !GU.allfuns then Cilfacade.getFuns merged_AST
-          else [Cilfacade.getMain merged_AST]
+          if !GU.allfuns then CF.getFuns merged_AST
+          else [CF.getMain merged_AST]
         in
           (* and here we run the analysis! *)
           Stats.time "analysis" (!analyze merged_AST) funs;
-          if !Cilutil.printStats then Stats.print stderr "Timings:\n"
+          if !Cilutil.printStats then 
+            Stats.print (M.get_out "timing" stdout) "Timings:\n"
       end
 
 let _ = 

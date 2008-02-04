@@ -73,7 +73,7 @@ projects.each do |p|
   analyses.each do |a|
     puts "  " + a
     outfile = testresults + File.basename(filename,".c") + ".#{a}.txt"
-    `timeout #{timeout} #{goblint} #{filename} #{p.params} --analysis #{a} --stats 1>#{outfile} 2>&1`
+    `timeout #{timeout} #{goblint} #{filename} #{p.params} --analysis #{a} --stats >#{outfile}`
     if $? != 0 then
       puts "  Timed out! (or other failure)"
       `echo "TIMEOUT                    #{timeout} s" >> #{outfile}`

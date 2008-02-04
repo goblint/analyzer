@@ -64,13 +64,16 @@ let print_group group_name errors =
     let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
       ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
+let warn_urgent msg = 
+  soundness := false;
+  print_msg msg (!current_loc)
 
 let warn_all msg = 
   if !soundness  then begin
     soundness := false;
-    print_msg "Analysis no longer sound!" (!current_loc)
+    print_msg ("No longer sound. " ^ msg) !current_loc
   end else
-    if !GU.pedantic then 
+    if !GU.debug then 
       print_msg msg (!current_loc)
 
 let warn_str_hashtbl = Hashtbl.create 10
