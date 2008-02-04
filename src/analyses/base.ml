@@ -80,7 +80,7 @@ struct
       let rem_var (v:varinfo) value cpa = 
         if v.vglob then CPA.remove v cpa else cpa
       in
-        if Flag.switch fx fy then
+        if not !GU.earlyglobs && Flag.switch fx fy then
           CPA.fold rem_var cpa cpa, fl
         else
           cpa, fl
@@ -126,7 +126,7 @@ struct
     (* Finding a single varinfo*offset pair *)
     let f_addr (x, offs) = 
       (* get hold of the variable value, either from local or global state *)
-      let var = if Flag.is_multi fl && x.vglob then gl x else CPA.find x st in
+      let var = if (!GU.earlyglobs || Flag.is_multi fl) && x.vglob then gl x else CPA.find x st in
         VD.eval_offset var offs 
     in 
     let f x =
@@ -147,7 +147,7 @@ struct
      * not include the flag. *)
     let update_one_addr (x, offs) (nst,gd): cpa * glob_diff = 
       (* Check if we need to side-effect this one *)
-      if Flag.is_multi fl && x.vglob then if not effect then (nst,gd)
+      if (!GU.earlyglobs || Flag.is_multi fl) && x.vglob then if not effect then (nst,gd)
       else begin
         (* Create an update and add it to the difflist *)
         let gd = (x, VD.update_offset (gl x) offs value) :: gd in 
@@ -758,7 +758,8 @@ struct
           if Flag.is_multi fl then 
             ((cpa,new_fl),[])
           else 
-            let (ncpa,ngl) = globalize cpa in ((ncpa, new_fl),ngl)
+            let (ncpa,ngl) = if not !GU.earlyglobs then globalize cpa else cpa,[] in 
+              ((ncpa, new_fl),ngl)
       (* handling thread joins... sort of *)
       | "pthread_join" -> begin
           match args with
@@ -827,7 +828,7 @@ struct
   let entry fval args ((cpa,fl),gl as st: trans_in): (varinfo * domain) list * varinfo list = try
     let make_entry pa context =
       (* If we need the globals, add them *)
-      let new_cpa = if not (Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.top () in 
+      let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.top () in 
       (* Assign parameters to arguments *)
       let new_cpa = CPA.add_list pa new_cpa in
       let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
@@ -907,7 +908,8 @@ struct
         if v.vglob then CPA.remove v cpa else cpa in
       (* If the called function has gone to multithreaded mode, we need to
        * remove the globals from the state of the callee. *)
-      let cpa_d = if Flag.is_multi fl_s then CPA.fold rem_var cpa_d cpa_d else cpa_d in
+      let cpa_d = if not !GU.earlyglobs && Flag.is_multi fl_s then 
+        CPA.fold rem_var cpa_d cpa_d else cpa_d in
       let new_cpa = CPA.fold f cpa_s cpa_d in
         ((new_cpa, fl_s), gl)
     in 

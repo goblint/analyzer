@@ -269,11 +269,6 @@ tests/regression/04-mutex/18-glob_guards.c
 -
 0
 
-call_by_ptrrace
-tests/regression/04-mutex/19-call_by_ptrrace.c
--
-3
-
 stdfun_race
 tests/regression/04-mutex/20-stdfun_race.c
 -
@@ -399,6 +394,11 @@ branched_creation
 tests/regression/02-base/04-branched_thread_creation.c
 -
 0
+
+call_by_ptrrace
+tests/regression/04-mutex/19-call_by_ptrrace.c
+-
+3
 
 
 Group: Symbolic Equality

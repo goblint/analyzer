@@ -58,6 +58,9 @@ let dump_path = ref (None : string option)
 (** has any threads have been spawned *)
 let multi_threaded = ref false
 
+(** should globals be side-effected early *)
+let earlyglobs = ref false
+
 (** The file where everything is output *)
 let out = ref stdout
 

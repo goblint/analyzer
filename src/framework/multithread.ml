@@ -185,6 +185,7 @@ struct
       (localhash,globhash)
 
   let doGlobalInits file = 
+    let early = !GU.earlyglobs in
     let edges = MyCFG.getGlobalInits file in
     let theta x = GD.Val.top () in
     let f st (edge, loc) = try
@@ -199,7 +200,10 @@ struct
     with
       | Failure x -> M.warn x; st
     in
-      List.fold_left f Spec.startstate edges
+    let _ = GU.earlyglobs := false in
+    let result = List.fold_left f Spec.startstate edges in
+    let _ = GU.earlyglobs := early in
+      result
       
   let postprocess theta = 
     if !GU.eclipse then begin
