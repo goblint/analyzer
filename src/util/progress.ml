@@ -52,11 +52,14 @@ let track_with (notify: int -> unit): unit =
   if (Hashtbl.mem reached_loc_hashtbl loc) then
     begin
       let visited_count = Hashtbl.find reached_loc_hashtbl loc in
+      (* Need this because calling notify will trigger demand-driven evaluation
+       * of other nodes, so we have to update the real current_n before! *)
+      let the_current_n = !current_n in
 	visited_count := (succ !visited_count);
-	if (!visited_count > !current_n) then
+	if (!visited_count > the_current_n) then
 	  begin
-	    notify !current_n;
-	    current_n := !current_n * n
+	    current_n := the_current_n * n;
+	    notify the_current_n
 	  end
     end
   else
@@ -65,49 +68,6 @@ let track_with (notify: int -> unit): unit =
 let track () = 
   let msg n = M.warn_all ("Line visited more than " ^ string_of_int n ^ " times.") in
     track_with msg
-
-(* This is probably not needed *)
-module Tracker (A: Printable.S) = 
-struct
-  let locx_hashtbl = Hashtbl.create 1001
-  let loc_hashtbl = Hashtbl.create 1001
-
-  let notify loc x = 
-    let pretty_loc () = Basetype.ProgLines.pretty () loc in
-      ignore (Pretty.printf "Line %t is visited more than %d times with:\n%a"
-        pretty_loc !current_n A.pretty x) 
-
-  let track_with x =
-    let loc = !GU.current_loc in
-    if (Hashtbl.mem locx_hashtbl (loc,x)) then
-      begin
-        let visited_count = Hashtbl.find locx_hashtbl (loc,x) in
-          visited_count := (succ !visited_count);
-          if (!visited_count > !current_n) then
-            begin
-              notify loc x;
-              current_n := !current_n * n
-            end
-      end
-    else
-      Hashtbl.add locx_hashtbl (loc,x) (ref 1)
-
-  let track_without x =
-    let loc = !GU.current_loc in
-    if (Hashtbl.mem loc_hashtbl loc) then
-      begin
-        let visited_count = Hashtbl.find loc_hashtbl loc in
-          visited_count := (succ !visited_count);
-          if (!visited_count > !current_n) then
-            begin
-              notify loc x;
-              current_n := !current_n * n
-            end
-      end
-    else
-      Hashtbl.add loc_hashtbl loc (ref 1)
-end
-
 
 let show_subtask (subt:string) (len:int) =
   Printf.printf "PROGRESS /-/ SUBTASK /-/ %s /-/ %d\n%!" subt len

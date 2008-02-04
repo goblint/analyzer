@@ -47,19 +47,6 @@ val track_with: (int -> unit) -> unit
   * call notify with the number of visits as argument, use
   * {!Messages.current_loc} to find the line. *)
 
-module Tracker (A: Printable.S):
-sig
-  val track_with: A.t -> unit
-(** Notifies, if [track x] is called more than n times with argument x when
-  * analyzing the same location, also increasing n itself. Useful for
-  * distinguishing different entry states etc. *)
-
-  val track_without: A.t -> unit
-(** Notifies, if [track x] is called more than n times when analyzing the same
-  * location, also increasing n itself. It then prints the information about x,
-  * more useful to detect recursion... *)
-end
-(** For tracking stuff with an additional parameter. *)
 
 val show_subtask: string -> int -> unit
 (** change subtask *)
