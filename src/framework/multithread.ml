@@ -130,6 +130,7 @@ struct
                 in
                 let (b,n) = helper (SD.unlift (sigma predvar), theta) in
                   (SD.lift b, n, !sp)
+            | MyCFG.ASM _ -> M.warn "ASM statement ignored."; (sigma predvar, [], [])
             (* The return edge to function type nodes: *)
             | MyCFG.Ret (ret,fundec) ->
                 let (b,n) = return ret fundec (SD.unlift (sigma predvar), theta) in 

@@ -48,6 +48,10 @@ type node =
 module Node : Hashtbl.HashedType with type t = node
 (** The HashedType module for nodes *)
 
+type asm_out = (string option * string * lval) list
+type asm_in  = (string option * string * exp ) list
+(** Types for the inline assembly. *)
+
 type edge = 
   | Assign of lval * exp  
   (** Assignments lval = exp *)
@@ -62,6 +66,9 @@ type edge =
     * transfered to the function node! *)
   | Test of exp * bool 
   (** The true-branch or false-branch of a conditional exp *) 
+  | ASM of string list * asm_out * asm_in
+  (** Inline assembly statements, and the annotations for output and input
+    * variables. *)
   | Skip 
   (** This is here for historical reasons. I never use Skip edges! *)
 

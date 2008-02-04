@@ -55,12 +55,16 @@ struct
       | Function f -> Hashtbl.hash (f.vid, 1)
 end
 
+type asm_out = (string option * string * lval) list
+type asm_in  = (string option * string * exp ) list
+
 type edge = 
   | Assign of lval * exp
   | Proc of lval option * exp * exp list
   | Entry of fundec
   | Ret of exp option * fundec
   | Test of exp * bool
+  | ASM of string list * asm_out * asm_in
   | Skip
 
 type cfg = node -> (edge * node) list
@@ -132,7 +136,7 @@ let createCFG (file: file) =
                     match x with 
                       | [Set (lval,exp,loc)] -> mkEdge stmt (Assign (lval, exp)) succ
                       | [Call (lval,func,args,loc)] -> mkEdge stmt (Proc (lval,func,args)) succ
-                      | [Asm _] -> print_endline "ASM escaped:"; pstmt stmt; mkEdge stmt Skip succ
+                      | [Asm (attr,tmpl,out,inp,regs,loc)] -> mkEdge stmt (ASM (tmpl,out,inp)) succ
                       | [] -> ()
                       | _ -> print_endline "block escaped:"; pstmt stmt; 
                   in begin

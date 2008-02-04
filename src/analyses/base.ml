@@ -171,7 +171,7 @@ struct
         ((nst,fl),gd)
     with 
       (* If any of the addresses are unknown, we ignore it!?! *)
-      | SetDomain.Unsupported _ -> M.unsound "Assignment to unknown address"; ((st,fl),[])
+      | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; ((st,fl),[])
 
   (* Just identity transition from store -> wstore *)
   let set_none (lst,gl) = (lst, [])
@@ -413,13 +413,13 @@ struct
           match (eval_rv st n) with 
             | `Address adr -> AD.map (add_offset_varinfo (convert_offset st ofs)) adr
             | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-                M.warn_pedant ("Failed evaluating "^str^" to lvalue"); AD.top ()
+                M.warn ("Failed evaluating "^str^" to lvalue"); AD.top ()
           end 
 
   let access_address ((_,fl),_) write (addrs: address): extra =
     if Flag.is_multi fl then begin
       let f v acc = if v.vglob then (v, write) :: acc else acc in 
-      let addr_list = try AD.to_var_may addrs with _ -> M.unsound "Access to unknown address could be global"; [] in
+      let addr_list = try AD.to_var_may addrs with _ -> M.warn "Access to unknown address could be global"; [] in
         List.fold_right f addr_list [] 
     end else []
 
@@ -641,12 +641,12 @@ struct
   let get_ptrs (vals: value list): address list = 
     let f x acc = match x with
       | `Address adrs when AD.is_top adrs -> 
-          M.unsound "Unkown address given as function argument"; acc
+          M.warn "Unkown address given as function argument"; acc
       | `Address adrs when AD.to_var_may adrs = [] -> acc
       | `Address adrs -> 
           let typ = AD.get_type adrs in
             if is_fun_type typ then acc else adrs :: acc
-      | `Top -> M.warn_pedant "Unkown value type given as function argument"; acc
+      | `Top -> M.warn "Unkown value type given as function argument"; acc
       | _ -> acc
     in 
       List.fold_right f vals []
@@ -665,11 +665,11 @@ struct
         | `Top -> 
             let typ = AD.get_type a in
             let warning = "Unknown value in " ^ AD.short 40 a ^ " could be an escaped pointer address!" in
-              if is_immediate_type typ then () else M.unsound warning; empty 
+              if is_immediate_type typ then () else M.warn warning; empty 
         | `Bot -> M.warn "A bottom value when computing reachable addresses!"; empty
         | `Address adrs when AD.is_top adrs -> 
             let warning = "Unknown address in " ^ AD.short 40 a ^ " has escaped." in
-              M.unsound warning; empty
+              M.warn warning; empty
         (* The main thing is to track where pointers go: *)
         | `Address adrs -> adrs
         (* Unions are easy, I just ingore the type info. *)
@@ -723,7 +723,7 @@ struct
             List.map (invalidate_address st) (reachable_vars [a] st)
         | `Int _ -> []
         | _ -> let expr = sprint ~width:80 (d_exp () e) in
-            M.unsound ("Failed to invalidate unknown address: " ^ expr); []
+            M.warn ("Failed to invalidate unknown address: " ^ expr); []
     in
     (* We concatMap the previous function on the list of expressions. *)
     let invalids = List.concat (List.map invalidate_exp exps) in
@@ -887,7 +887,7 @@ struct
                   let _ = Cilfacade.getdec start_vari in 
                   vdl
                 with Not_found -> 
-                  M.unsound ("creating an thread from unknown function " ^ start_vari.vname);
+                  M.warn ("creating an thread from unknown function " ^ start_vari.vname);
                   [start_vari,(cpa, Flag.get_multi ())]
                 end
             | _ -> M.bailwith "pthread_create arguments are strange!"

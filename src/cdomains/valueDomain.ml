@@ -222,8 +222,8 @@ struct
             | `Struct str -> 
                 let x = Structs.get str fld in
                   eval_offset x offs
-            | `Top -> M.warn_pedant "Trying to read a field, but the struct is unknown"; top ()
-            | _ -> M.warn_each "Trying to read a field, but was not given a struct"; top ()
+            | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
+            | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
         end
       | `Field (fld, offs) -> begin
           match x with 
@@ -231,14 +231,14 @@ struct
                 let x = do_cast l_fld.ftype fld.ftype valu in
                   eval_offset x offs
             | `Union (_, valu) -> top ()
-            | `Top -> M.warn_pedant "Trying to read a field, but the union is unknown"; top ()
-            | _ -> M.warn_each "Trying to read a field, but was not given a union"; top ()
+            | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
+            | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
         end
       | `Index (idx, offs) -> begin
           match x with 
             | `Array x -> eval_offset (CArrays.get x idx) offs
-            | `Top -> M.warn_pedant "Trying to update an index, but the array is unknown"; top ()
-            | _ -> M.warn_each "Trying to update an index, but was not given an array"; top ()
+            | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
+            | _ -> M.warn "Trying to update an index, but was not given an array"; top ()
         end
 
   let rec update_offset (x:t) (offs:offs) (value:t): t =
@@ -247,8 +247,8 @@ struct
       | `Field (fld, offs) when fld.fcomp.cstruct -> begin
           match x with 
             | `Struct str -> `Struct (Structs.replace str fld (update_offset (Structs.get str fld) offs value))
-            | `Top -> M.warn_pedant "Trying to update a field, but the struct is unknown"; top ()
-            | _ -> M.warn_each "Trying to update a field, but was not given a struct"; top ()
+            | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
+            | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
         end
       | `Field (fld, offs) -> begin
           match x with 
@@ -269,7 +269,7 @@ struct
                   end
                 in
                   `Union (`Lifted fld, update_offset tempval tempoffs value)
-            | `Top -> M.warn_pedant "Trying to update a field, but the union is unknown"; top ()
+            | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
         end
       | `Index (idx, offs) -> begin
@@ -277,7 +277,7 @@ struct
             | `Array x' ->
                 let nval = update_offset (CArrays.get x' idx) offs value in
                   `Array (CArrays.set x' idx nval)
-            | `Top -> M.warn_pedant "Trying to update an index, but the array is unknown"; top ()
+            | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | _ -> M.warn_each "Trying to update an index, but was not given an array"; top ()
         end
 end

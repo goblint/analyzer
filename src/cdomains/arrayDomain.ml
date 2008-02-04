@@ -168,7 +168,7 @@ struct
       if (i >= 0 && i < Array.length a) then
         A.get a i 
       else begin
-        unsound "Array index out of bounds";
+        warn "Array index out of bounds";
         folded ()
       end
     in
@@ -193,7 +193,7 @@ struct
       if Idx.is_int i then 
         match Idx.to_int i with
           | Some ix -> set_index (Int64.to_int ix)
-          | _  -> unsound "Array set with unknown index";
+          | _  -> warn "Array set with unknown index";
                   top_value ()
       else
         joined_value () in

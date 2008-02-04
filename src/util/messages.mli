@@ -46,8 +46,8 @@ val bailwith: string -> 'a
 val warn_out : out_channel ref
 val get_out: string -> out_channel -> out_channel
 
-val print_warn: string -> location -> unit
-(** Prints a warning and adds the given location information. *)
+val print_msg: string -> location -> unit
+(** Prints a message and adds the given location information. *)
 
 val print_group: string -> (string * location) list -> unit
 (** Prints a group of warning with a title and individual messages and given
@@ -71,13 +71,8 @@ val warn_all: string -> unit
 (** Prints a warning and adds the source code location where the warning
   * occured. This should also be called from within transfer functions. *)
 
-val warn_pedant: string -> unit
-(** Behaves like {!Messages.warn_each}, but only speaks if the pedantic flag is
-  * set by the user. *)
-
-val unsound: string -> unit
-(** Just like {!Messages.warn}, but it also sets {!Analyses.soundness} to false.
-  * This should be used to warn the user that the analysis will turn unsound! *)
+val debug: string -> unit
+(** Prints a debuggin warning with location. *)
 
 val tracing: bool
 (** Static flag to turn off tracing (improves performance) *)

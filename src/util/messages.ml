@@ -51,7 +51,7 @@ let get_out name alternative = match !GU.dump_path with
 
 let current_loc = GU.current_loc
 
-let print_warn msg loc = 
+let print_msg msg loc = 
   if !Goblintutil.eclipse then 
     Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
   else
@@ -59,13 +59,19 @@ let print_warn msg loc =
 
 let print_group group_name errors =
   if !Goblintutil.eclipse then
-    List.iter (fun (msg,loc) -> print_warn (group_name ^ ", " ^ msg) loc) errors
+    List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
   else
     let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
       ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
 
-let warn_all msg = print_warn msg (!current_loc)
+let warn_all msg = 
+  if !soundness  then begin
+    soundness := false;
+    print_msg "Analysis no longer sound!" (!current_loc)
+  end else
+    if !GU.pedantic then 
+      print_msg msg (!current_loc)
 
 let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
@@ -85,12 +91,8 @@ let warn_each msg =
 	Hashtbl.add warn_lin_hashtbl (msg,loc) true
       end
 
-let warn_pedant msg =
-  if !GU.pedantic then warn_each msg
-
-let unsound msg = 
-  warn ("UNSOUND: " ^ msg);
-  soundness := false
+let debug msg =
+  if !GU.debug then warn msg
 
 let trace = Trace.trace
 let tracei = Trace.tracei
