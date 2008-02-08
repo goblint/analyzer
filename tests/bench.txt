@@ -2,28 +2,28 @@ Group: Locksmith POSIX Apps
 
 aget
 Multithreaded wget
-locksmith/aget_comb.c
+pthread/aget_comb.c
 -
 
 knot
 Multithreaded web server
-locksmith/knot_comb.c
+pthread/knot_comb.c
 -
 
 pfscan
 Multithreaded file scanner
-locksmith/pfscan_comb.c
+pthread/pfscan_comb.c
 --libc
 
 ctrace
 Library for tracing multithreaded programs
-locksmith/ctrace_comb.c
+pthread/ctrace_comb.c
 -
 
 smtprc
 SMTP Open Relay Checker
-locksmith/smtprc_comb.c
--
+pthread/smtprc_comb.c
+--earlyglobs
 
 
 Group: Larger programs
