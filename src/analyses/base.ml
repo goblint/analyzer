@@ -428,7 +428,7 @@ struct
       (* Integer literals *)
       | Const _ -> []
       (* Variables and address expressions *)
-      | Lval lval -> access_address st rw (eval_lv st lval) @ (access_lv rw st lval)
+      | Lval lval -> access_address st rw (eval_lv st lval) @ (access_lv st lval)
       (* Binary operators *)
       | BinOp (op,arg1,arg2,typ) -> 
           let a1 = access rw st arg1 in
@@ -437,22 +437,22 @@ struct
       (* Unary operators *)
       | UnOp (op,arg1,typ) -> access rw st arg1
       (* The address operators, we just check the accesses under them *)
-      | AddrOf lval -> access_lv rw st lval
-      | StartOf lval -> access_lv rw st lval
+      | AddrOf lval -> access_lv st lval
+      | StartOf lval -> access_lv st lval
       (* Most casts are currently just ignored, that's probably not a good idea! *)
       | CastE  (t, exp) -> access rw st exp
       | _ -> []
   (* Accesses during the evaluation of an lval, not the lval itself! *)
-  and access_lv rw st (lval:lval): extra = 
+  and access_lv st (lval:lval): extra = 
     let rec access_offset (st: store) (ofs: offset): extra = 
       match ofs with 
         | NoOffset -> []
         | Field (fld, ofs) -> access_offset st ofs
-        | Index (exp, ofs) -> access rw st exp @ access_offset st ofs
+        | Index (exp, ofs) -> access false st exp @ access_offset st ofs
     in 
       match lval with 
         | Var x, ofs -> access_offset st ofs
-        | Mem n, ofs -> access rw st n @ access_offset st ofs
+        | Mem n, ofs -> access false st n @ access_offset st ofs
 
  (**************************************************************************
   * Auxilliary functions

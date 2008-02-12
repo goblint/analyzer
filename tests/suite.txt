@@ -269,6 +269,11 @@ tests/regression/04-mutex/21-sound_base.c
 -
 4
 
+deref_read
+tests/regression/04-mutex/22-deref_read.c
+-
+0
+
 
 Group: Problems from the Real Life
 
