@@ -60,10 +60,16 @@ struct
      | _ -> set
 
   let remove addr set = 
+    let collect_diff_varinfo_with (vi,os) addr =
+      match (Addr.to_var_offset addr) with
+        | [(v,_)] when vi != v -> true
+        | _ -> false
+    in
    match (Addr.to_var_offset addr) with
      | [(_,x)] when concrete_offset x -> ReverseAddrSet.remove addr set
-     | _ -> AddrSet.top ()
-     
+     | [x] -> ReverseAddrSet.filter (collect_diff_varinfo_with x) set
+     | _   -> AddrSet.top ()
+
   let empty = ReverseAddrSet.empty
   let is_empty = ReverseAddrSet.is_empty
 
