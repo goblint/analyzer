@@ -54,6 +54,15 @@ struct
      | `Field (x,y) -> concrete_offset y
      | `Index (x,y) -> ID.is_int x && concrete_offset y
 
+  let rec may_be_same_offset of1 of2 =
+    match of1, of2 with
+      | `NoOffset , `NoOffset -> true
+      | `Field (x1,y1) , `Field (x2,y2) -> x1.fcomp.ckey = x2.fcomp.ckey && may_be_same_offset y1 y2
+      | `Index (x1,y1) , `Index (x2,y2) 
+        -> (not (ID.is_int x1) || not (ID.is_int x2)) 
+        || ID.equal x1 x2 && may_be_same_offset y1 y2
+      | _ -> false
+
   let add addr set = 
    match (Addr.to_var_offset addr) with
      | [(_,x)] when concrete_offset x -> ReverseAddrSet.add addr set
@@ -62,7 +71,8 @@ struct
   let remove addr set = 
     let collect_diff_varinfo_with (vi,os) addr =
       match (Addr.to_var_offset addr) with
-        | [(v,_)] when vi != v -> true
+        | [(v,o)] when vi.vid == v.vid -> not (may_be_same_offset o os)
+        | [(v,o)] when vi.vid != v.vid -> true
         | _ -> false
     in
    match (Addr.to_var_offset addr) with
