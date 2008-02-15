@@ -78,6 +78,10 @@ struct
     match a with
       | Addr (x,`NoOffset) -> [x]
       | _ -> []
+  let to_var_offset a =
+    match a with
+      | Addr x -> [x]
+      | _      -> []
 
   let get_type_addr (x, ofs) = 
     let unarray t = match t with

@@ -98,6 +98,8 @@ sig
   val to_var_may: t -> varinfo list
   val to_var_must: t -> varinfo list
   (** Strips the varinfo out of the address representation. *)
+  val to_var_offset: t -> (varinfo * (field,idx) offs) list
+  (** Get varinfo and also the offset *)
   val get_type: t -> typ
   (** Finds the type of the address location. *)
 end

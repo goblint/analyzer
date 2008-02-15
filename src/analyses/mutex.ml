@@ -48,9 +48,7 @@ struct
   exception Top
   let name = "Mutex Must"
   type context = BS.store
-  module Lockset = SetDomain.ToppedSet (Basetype.Variables) 
-                  (struct let topname = "All mutexes" end)
-  module LD = Lattice.Reverse (Lockset)
+  module LD = LockDomain.Lockset
 
   module AccessType = IntDomain.MakeBooleans (struct 
                                                let truename = "Write" 
@@ -98,35 +96,30 @@ struct
       | None -> (st, [])
   let body f (st,c,gl) = (st, [])
 
-  let eval_exp context exp: varinfo option =
+  let eval_exp_addr context exp =
     let v = BS.eval_rv context exp in
       match v with
-        | `Address v when not (AD.is_top v) -> begin
-            match AD.to_var_must v with
-              | [x] -> Some x
-              | _ -> None
-          end
-        | _ -> None
+        | `Address v when not (AD.is_top v) -> AD.fold (fun a b -> a :: b) v []    
+        | _                                 -> []
 
   let special f arglist (st,c,gl) =
     match f.vname with
    (* | "sem_wait"*)
       | "pthread_mutex_lock" -> begin
           match arglist with
-            | [AddrOf (Var x, _)] -> (Lockset.add x st,[])
-            | [x] -> (match eval_exp c x with
-                        | Some x -> Lockset.add x st, []
-                        | _ -> st, [])
+            | [x] -> begin match  (eval_exp_addr c x) with 
+                             | [e]  -> LD.add e st, []
+                             | _ -> st, []
+                     end
             | _ -> (st, [])
         end
    (* | "sem_post"*)
       | "pthread_mutex_unlock" -> begin
           match arglist with
-            | [AddrOf (Var x, _)] -> (Lockset.remove x st,[])
-            (* XXX This isn't sound. You should remove ALL possible addresses! *)
-            | [x] -> (match eval_exp c x with
-                        | Some x -> Lockset.remove x st, []
-                        | _ -> st, [])
+            | [x] -> begin match  (eval_exp_addr c x) with 
+                             | [] -> LD.empty () , []                       
+                             | e  -> List.fold_right (LD.remove) e st, []
+                     end
             | _ -> (st, [])
         end
       | x -> begin
@@ -150,7 +143,7 @@ struct
 
   let postprocess_glob gl (locks, accesses) = 
     let non_main (_,(_,x,_)) = BS.Flag.is_bad x in
-    if (Lockset.is_empty locks || Lockset.is_top locks)
+    if (LD.is_empty locks || LD.is_top locks)
     && ((Accesses.cardinal accesses) > 1)
     && (Accesses.exists fst accesses) 
     && (Accesses.exists non_main accesses)
