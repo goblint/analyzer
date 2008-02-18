@@ -274,6 +274,16 @@ tests/regression/04-mutex/22-deref_read.c
 -
 0
 
+sound_unlock
+tests/regression/04-mutex/23-sound_unlock.c
+-
+2
+
+sound_lock
+tests/regression/04-mutex/24-sound_lock.c
+-
+2
+
 
 Group: Advanced Locksets
 
@@ -356,6 +366,7 @@ idxunknown_unlock
 tests/regression/06-lval_ls/16-idxunknown_unlock.c
 -
 2
+
 
 Group: Problems from the Real Life
 
