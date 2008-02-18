@@ -15,7 +15,7 @@ int main() {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&m[4]);
-  pthread_mutex_lock(&m[i]);
+  pthread_mutex_unlock(&m[i]);
   data++;
   pthread_mutex_unlock(&m[4]);
   return 0;
