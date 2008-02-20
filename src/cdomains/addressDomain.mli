@@ -37,14 +37,6 @@
 open Cil
 open Pretty
 
-type ('a, 'b) offs = [
-  | `NoOffset 
-  | `Field of 'a * ('a,'b) offs
-  | `Index of 'b * ('a,'b) offs
-  ] 
-(** The mirror of the {!Cil.offset} type parameterised over the field and
-  * indexing abstract domains. *)
-
 module type S = 
 sig
   include Lattice.S
@@ -54,7 +46,7 @@ sig
   
   val from_var: varinfo -> t
   (** Creates an address from variable. *)  
-  val from_var_offset: (varinfo * (idx,field) offs) -> t
+  val from_var_offset: (varinfo * (idx,field) Lval.offs) -> t
   (** Creates an address from a variable and offset, will fail on a top element! *) 
   val to_var_may: t -> varinfo list
   val to_var_must: t -> varinfo list
@@ -68,45 +60,9 @@ sig
 (*  (** Creates an address from a heap representation and offset. *) *)
 end
 
-module Address (Idx: Printable.S):
-sig
-  type idx = Idx.t
-  type field = fieldinfo
- 
-  (* The next few lines are from Printable.S with ... *)
-  type t = Addr of (varinfo * (field, idx) offs) | NullPtr | StrPtr
-  (* hopefully someday the compiler is able to parse it.*)
-  val equal: t -> t -> bool
-  val hash: t -> int
-  val compare: t -> t -> int
-  val short: int -> t -> string
-  val isSimple: t -> bool
-  val pretty: unit -> t -> doc
-  val toXML : t -> Xml.xml
-  (* These two let's us reuse the short function, and allows some overriding
-   * possibilities. *)
-  val pretty_f: (int -> t -> string) -> unit -> t -> doc
-  val toXML_f : (int -> t -> string) -> t -> Xml.xml
-  (* This is for debugging *)
-  val name: unit -> string
-  
-
-  val from_var: varinfo -> t
-  (** Creates an address from variable. *)  
-  val from_var_offset: (varinfo * (field,idx) offs) -> t
-  (** Creates an address from a variable and offset. *) 
-  val to_var_may: t -> varinfo list
-  val to_var_must: t -> varinfo list
-  (** Strips the varinfo out of the address representation. *)
-  val to_var_offset: t -> (varinfo * (field,idx) offs) list
-  (** Get varinfo and also the offset *)
-  val get_type: t -> typ
-  (** Finds the type of the address location. *)
-end
-
 module AddressSet (Idx: Lattice.S): 
 sig
-  include SetDomain.S with type elt = Address(Idx).t 
+  include SetDomain.S with type elt = Lval.Lval(Idx).t 
   type idx = Idx.t
   type field = fieldinfo
   val null_ptr: unit -> t
@@ -115,7 +71,7 @@ sig
   (* Creates a string pointer address*)
   val from_var: varinfo -> t
   (** Creates an address from variable. *)  
-  val from_var_offset: (varinfo * (field,idx) offs) -> t
+  val from_var_offset: (varinfo * (field,idx) Lval.offs) -> t
   (** Creates an address from a variable and offset. *) 
   val to_var_may: t -> varinfo list
   val to_var_must: t -> varinfo list

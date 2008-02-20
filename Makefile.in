@@ -23,7 +23,7 @@ LINKFLAGS = @COMPILEFLAGS@ -ccopt -L$(CILLIB) -I $(CILLIB) -I $(XML)/ -ccopt -L$
 PROG_MODULES = \
 	goblintutil messages printer cilfacade xmldump \
 	printable lattice mapDomain setDomain \
-	basetype intDomain addressDomain \
+	basetype intDomain lval addressDomain \
 	arrayDomain structDomain unionDomain valueDomain memoryDomain \
 	concDomain lockDomain \
 	hash progress myCFG analyses libraryFunctions global \

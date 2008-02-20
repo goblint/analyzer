@@ -130,10 +130,10 @@ struct
         VD.eval_offset var offs 
     in 
     let f x =
-      match x with
-        | Addr.Addr x  -> f_addr x
-        | Addr.StrPtr -> `Int (ID.top ())
-        | Addr.NullPtr -> M.warn "A possible dereferencing of a null pointer"; VD.bot ()
+      match Addr.to_var_offset x with
+      | [x] -> f_addr x
+      | [] when not (Addr.is_null x) -> `Int (ID.top ())
+      | _ -> M.warn "A possible dereferencing of a null pointer"; VD.bot ()
     in
     (* We form the collecting function by joining *)
     let f x a = VD.join (f x) a in
@@ -158,9 +158,9 @@ struct
           (nst,gd)
     in 
     let update_one x (y: cpa * glob_diff) =
-      match x with
-        | Addr.Addr x -> update_one_addr x y
-        | Addr.StrPtr | Addr.NullPtr -> y
+      match Addr.to_var_offset x with
+        | [x] -> update_one_addr x y
+        | _ -> y
     in try 
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the the different possible places: *)
@@ -267,12 +267,11 @@ struct
         | _ -> (fun x y -> ID.top ())
     (* An auxiliary function for ptr arithmetic on array values. *)
     in let addToAddr n (addr:Addr.t) =
-      match addr with
-        | Addr.NullPtr -> Addr.NullPtr
-        | Addr.StrPtr -> Addr.StrPtr
-        | Addr.Addr (x, `Index (i, offs)) when ID.is_int i -> 
+      match Addr.to_var_offset addr with
+        | [x,`Index (i, offs)] when ID.is_int i -> 
             Addr.from_var_offset (x, `Index (ID.add i n, offs))
-        | _ -> raise Top
+        | [_] -> raise Top 
+        | _ -> addr
     in
       (* The main function! *)
       match a1,a2 with
@@ -331,10 +330,9 @@ struct
   (* We need the previous function with the varinfo carried along, so we can
    * map it on the address sets. *)
   let add_offset_varinfo add ad = 
-    match ad with 
-      | Addr.Addr (x,ofs) -> Addr.from_var_offset (x, add_offset ofs add)
-      | Addr.NullPtr -> Addr.NullPtr
-      | Addr.StrPtr -> Addr.StrPtr
+    match Addr.to_var_offset ad with 
+      | [x,ofs] -> Addr.from_var_offset (x, add_offset ofs add)
+      | _ -> ad
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
   let rec eval_rv (st: store) (exp:exp): value = 
@@ -362,10 +360,9 @@ struct
       | StartOf lval -> 
           let array_ofs = `Index (ID.of_int 0L, `NoOffset) in
           let array_start ad = 
-            match ad with
-              | Addr.Addr (x, offs) -> Addr.from_var_offset (x, add_offset offs array_ofs) 
-              | Addr.NullPtr -> Addr.NullPtr
-              | Addr.StrPtr -> Addr.StrPtr 
+            match Addr.to_var_offset ad with
+              | [x, offs] -> Addr.from_var_offset (x, add_offset offs array_ofs) 
+              | _ -> ad
           in
           `Address (AD.map array_start (eval_lv st lval))
       (* Most casts are currently just ignored, that's probably not a good idea! *)
@@ -861,10 +858,10 @@ struct
         | Not_found -> (norms, f::specs)
     in
     let add_calls ad p =
-      match ad with 
-        | Addr.Addr (f, offs) -> add_calls_addr (f, offs) p
-        | Addr.StrPtr -> failwith "Function should not be a string pointer."
-        | Addr.NullPtr -> failwith "There should be no null-pointer functions."
+      match Addr.to_var_offset ad with 
+        | [f, offs] -> add_calls_addr (f, offs) p
+        | _ when Addr.is_null ad -> failwith "There should be no null-pointer functions."
+        | _ -> failwith "Function should not be a string pointer."
     in
     List.fold_right add_calls funs ([],[])
   with

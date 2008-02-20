@@ -38,7 +38,7 @@ open Pretty
 (*module ID: IntDomain.ExclList = IntDomain.None*)
 module ID: IntDomain.ExclList = IntDomain.Trier
 module AD = AddressDomain.AddressSet (ID)
-module Addr = AddressDomain.Address (ID)
+module Addr = Lval.Lval (ID)
 module M = Messages
 
 module type S =
@@ -57,7 +57,7 @@ module rec Compound: S with type t = [
     | `Union of Unions.t
     | `Array of CArrays.t
     | `Bot
-    ] and type offs = (fieldinfo,ID.t) AddressDomain.offs = 
+    ] and type offs = (fieldinfo,ID.t) Lval.offs = 
 struct 
   include Lattice.StdCousot
 
@@ -73,7 +73,7 @@ struct
 
   let name () = "compund"
 
-  type offs = (fieldinfo,ID.t) AddressDomain.offs
+  type offs = (fieldinfo,ID.t) Lval.offs
 
   exception Unsupported of string
   let bot () = `Bot

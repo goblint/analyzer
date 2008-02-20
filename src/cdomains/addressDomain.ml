@@ -34,12 +34,7 @@
  *)
 
 open Cil
-
-type ('a, 'b) offs = [
-  | `NoOffset 
-  | `Field of 'a * ('a,'b) offs
-  | `Index of 'b * ('a,'b) offs
-  ] 
+open Pretty
 
 module type S = 
 sig
@@ -49,7 +44,7 @@ sig
   type heap
   
   val from_var: varinfo -> t
-  val from_var_offset: (varinfo * (idx,field) offs) -> t
+  val from_var_offset: (varinfo * (idx,field) Lval.offs) -> t
   val to_var_may: t -> varinfo list
   val to_var_must: t -> varinfo list
   val get_type: t -> typ
@@ -58,95 +53,18 @@ sig
 (*  val from_offset_heap: (heap * (idx,field) offs) -> t*)
 end
 
-module Address (Idx: Printable.S) = 
-struct
-  open Basetype
-  type heap = unit
-  type field = fieldinfo
-  type idx = Idx.t
-  type t = Addr of (varinfo * (field, idx) offs) | NullPtr | StrPtr
-  include Printable.Std
-
-  let from_var x = Addr (x, `NoOffset)
-  let from_var_offset x = Addr x
-  let to_var_may a =
-    match a with
-      | Addr (x,_) -> [x]
-      | StrPtr
-      | NullPtr    -> []
-  let to_var_must a = 
-    match a with
-      | Addr (x,`NoOffset) -> [x]
-      | _ -> []
-  let to_var_offset a =
-    match a with
-      | Addr x -> [x]
-      | _      -> []
-
-  let get_type_addr (x, ofs) = 
-    let unarray t = match t with
-      | TArray (t,_,_) -> t
-      | _ -> failwith "C'est Unpossible!"
-    in let rec find_type t ofs = match ofs with
-      | `NoOffset -> t
-      | `Field (fld, ofs) -> find_type fld.ftype ofs
-      | `Index (idx, ofs) -> find_type (unarray t) ofs
-    in
-      find_type x.vtype ofs
-  
-  let get_type x =
-    match x with
-      | Addr x  -> get_type_addr x
-      | StrPtr  -> charPtrType
-      | NullPtr -> voidType
-
-  let copy x = x
-  let isSimple _  = true
-
-  let short_addr (x, offs) = 
-    let rec off_str ofs = 
-      match ofs with
-        | `NoOffset -> ""
-        | `Field (fld, ofs) -> "." ^ CilField.short Goblintutil.summary_length fld ^ off_str ofs
-        | `Index (v, ofs) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ off_str ofs
-    in
-      "&" ^ x.Cil.vname ^ off_str offs
-
-  let short _ x = 
-    match x with 
-      | Addr x  -> short_addr x
-      | StrPtr  -> "STRING"
-      | NullPtr -> "NULL"
-
-  let toXML_f_addr sf (x,y) = 
-    let esc = Goblintutil.escape in
-    let typeinf = esc (Pretty.sprint Goblintutil.summary_length (Cil.d_type () x.Cil.vtype)) in
-    let info = "id=" ^ string_of_int x.Cil.vid ^ "; type=" ^ typeinf in
-      Xml.Element ("Leaf", [("text", esc (sf max_int (Addr (x,y)))); ("info", info)],[])
-
-  let toXML_f sf x =
-    match x with 
-      | Addr x  -> toXML_f_addr sf x
-      | StrPtr | NullPtr -> Xml.Element ("Leaf", [("text", short max_int x)],[])
-
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
-end
-
 module AddressSet (Idx: Lattice.S) = 
 struct 
-  module Addr = Address (Idx)
-  module Variables = Basetype.Variables
+  module Addr = Lval.Lval (Idx)
   include SetDomain.ToppedSet (Addr) (struct let topname = "Anywhere" end)
+  
   type heap = unit
-  type field = Basetype.CilField.t
+  type field = Addr.field
   type idx = Idx.t
   type offs = [`NoOffset | `Field of (field * offs) | `Index of (idx * offs)]
 
-  let null_ptr () = singleton Addr.NullPtr
-  let str_ptr () = singleton Addr.StrPtr
+  let null_ptr () = singleton (Addr.null_ptr ())
+  let str_ptr () = singleton (Addr.str_ptr ())
 
   let get_type xs = 
     try Addr.get_type (choose xs) 
@@ -169,8 +87,8 @@ struct
       in
         v1, merge_offs ofs1 ofs2
     in
-    match (x,y) with
-      | Addr.Addr x,  Addr.Addr y  -> Addr.Addr (merge_addr op x y)
+    match (Addr.to_var_offset x, Addr.to_var_offset y) with
+      | [x],[y]  -> Addr.from_var_offset (merge_addr op x y)
       | _ -> failwith "This should never happen!"
 
   (* A function to find the addresses that need to be merged. Those that have
@@ -184,10 +102,10 @@ struct
           | `Field (f1,x), `Field (f2,y) when Util.equals f1 f2 -> same_offs x y
           | _ -> false
       in
-        Variables.equal v1 v2 && same_offs ofs1 ofs2
+        v1.vid = v2.vid && same_offs ofs1 ofs2
     in
-    match x,y with
-      | Addr.Addr x , Addr.Addr y  -> same_mod_idx_addr x y
+    match Addr.to_var_offset x, Addr.to_var_offset y with
+      | [x],[y]  -> same_mod_idx_addr x y
       | _ -> false
 
   let merge_idxs op (s:t) : t = 
@@ -209,4 +127,43 @@ struct
   let from_var_offset x = singleton (Addr.from_var_offset x)
   let to_var_may x = List.concat (List.map Addr.to_var_may (elements x))
   let to_var_must x = List.concat (List.map Addr.to_var_must (elements x))
+  
+  (* add an & in front of real addresses *)
+  let short_addr w a =
+    match Addr.to_var a with
+      | [_] -> "&" ^ Addr.short w a
+      | _ -> Addr.short w a
+
+  let pretty_f w () x = 
+    try
+      let elts = elements x in
+      let content = List.map (Addr.pretty_f short_addr ()) elts in
+      let rec separate x =
+        match x with
+          | [] -> []
+          | [x] -> [x]
+          | (x::xs) -> x ++ (text ", ") :: separate xs
+      in 
+      let separated = separate content in
+      let content = List.fold_left (++) nil separated in
+         (text "{") ++ content ++ (text "}") 
+    with SetDomain.Unsupported _ -> pretty_f w () x
+
+  let short w x : string = 
+    try
+      let usable_length = w - 5 in
+      let all_elems : string list = List.map (short_addr usable_length) (elements x) in
+        Printable.get_short_list "{" "}" usable_length all_elems 
+    with SetDomain.Unsupported _ -> short w x
+
+  let toXML_f sf x = 
+    try
+      let esc = Goblintutil.escape in
+      let elems = List.map Addr.toXML (elements x) in
+        Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
+    with SetDomain.Unsupported _ -> toXML_f sf x
+
+  let toXML s  = toXML_f short s
+  let pretty () x = pretty_f short () x
+  
 end
