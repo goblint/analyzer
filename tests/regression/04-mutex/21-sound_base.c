@@ -3,20 +3,20 @@
 
 int global;
 
-void bad() { global++; }
+void bad() { global++; } // RACE!
 void good() { printf("Hello!"); }
 
 void (*f)() = good;
 
 void *t_fun(void *arg) {
-  f();
+  f(); // RACE!
   return NULL;
 }
 
 int main() {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  f = bad;
-  printf("global: %d\n", global);
+  f = bad; // RACE!
+  printf("global: %d\n", global); // RACE!
   return 0;
 }

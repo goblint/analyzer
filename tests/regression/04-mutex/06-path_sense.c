@@ -7,7 +7,7 @@ pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&m);
-  glob++;
+  glob++; // NOWARN!
   pthread_mutex_unlock(&m);
   return NULL;
 }
@@ -24,7 +24,7 @@ int main() {
     pthread_mutex_lock(&m);
   printf("Now we do the work..\n");
   if (i) 
-    glob++;
+    glob++; // NOWARN!
   printf("Work is completed...");
   if (i) 
     pthread_mutex_unlock(&m);

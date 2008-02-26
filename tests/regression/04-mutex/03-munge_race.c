@@ -7,12 +7,12 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
 void munge(pthread_mutex_t *m) {
   pthread_mutex_lock(m);
-  myglobal=myglobal+1;
+  myglobal=myglobal+1; // RACE!
   pthread_mutex_unlock(m);
 }
 
 void *t_fun(void *arg) {
-  munge(&mutex2);
+  munge(&mutex2); // NOWARN!
   return NULL;
 }
 
@@ -20,7 +20,7 @@ void *t_fun(void *arg) {
 int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  munge(&mutex1);
+  munge(&mutex1); // NOWARN!
   pthread_join (id, NULL);
   return 0;
 }

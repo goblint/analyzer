@@ -29,9 +29,7 @@ class Project
   end
 end
 
-
 #Command line parameters
-
 only = ARGV[0] unless ARGV[0].nil?
 # analyses = ["mutex", "base", "cpa", "intcpa"]
 # analyses = ["mutex"]
@@ -54,11 +52,23 @@ regs.sort.each do |d|
     path = File.expand_path(f, grouppath)
     lines = IO.readlines(path)
     size = 0
-    puts lines[0]
     lines[0] =~ /.*PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
-    warnings = lines.grep(/RACE|FAIL/).size
-    p = Project.new(testname,size,groupname,path,params,warnings)
+    hash = Hash.new
+    lines.each_with_index do |obj, i|
+      if obj =~ /RACE/ then
+        hash[i] = "race"
+      elsif obj =~ /assert/ then
+        if obj =~ /FAIL/ then
+          hash[i] = "fail"
+        else
+#           hash[i] = "assert"
+        end
+      elsif obj =~ /NOWARN/ then
+#         hash[i] = "nowarn"
+      end
+    end
+    p = Project.new(testname,size,groupname,path,params,hash.size)
     projects << p 
   end
 end
@@ -107,45 +117,40 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
     end
     f.puts "<tr>"
     f.puts p.to_html
+
     warnfile = p.name + ".warn.txt"
     warnings = 0
-    File.open(File.join(testresults, warnfile), "r") do |g|
-      lines = g.readlines
-      warnings = lines.grep(/^.*\(.*\.c:.*\)$/).size
-      if lines.grep(/does not reach the end/).size > 0 then
-        warnings = (1+warnings) * (-1)
-      end
-      if p.warnings < 0 then 
-        f.puts "<td><a href=\"#{warnfile}\">#{warnings.abs} of #{p.warnings.abs}</a>*</td>"
-      else
-        f.puts "<td><a href=\"#{warnfile}\">#{warnings} of #{p.warnings}</a></td>"
-      end
+    lines = IO.readlines(File.join(testresults, warnfile))
+    warnings = lines.grep(/^.*\(.*\.c:.*\)$/).size
+    if lines.grep(/does not reach the end/).size > 0 then
+      warnings = (1+warnings) * (-1)
     end
+    if p.warnings < 0 then 
+      f.puts "<td><a href=\"#{warnfile}\">#{warnings.abs} of #{p.warnings.abs}</a>*</td>"
+    else
+      f.puts "<td><a href=\"#{warnfile}\">#{warnings} of #{p.warnings}</a></td>"
+    end
+
     statsfile = p.name + ".stats.txt"
-    File.open(File.join(testresults, statsfile), "r") do |g|
-      lines = g.readlines
-      res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
-      errors = lines.grep(/Error:/)
-      if res == [] or not errors == [] then
-        is_ok = false
-        f.puts "<td><a href=\"#{statsfile}\">failure</a></td>"
-      else
-        f.puts "<td><a href=\"#{statsfile}\">#{res.to_s} s</a></td>"
-      end
+    lines = IO.readlines(File.join(testresults, statsfile))
+    res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
+    errors = lines.grep(/Error:/)
+    if res == [] or not errors == [] then
+      is_ok = false
+      f.puts "<td><a href=\"#{statsfile}\">failure</a></td>"
+    else
+      f.puts "<td><a href=\"#{statsfile}\">#{res.to_s} s</a></td>"
     end
+
     if tracing then
       confile = p.name + ".con.txt"
-      File.open(File.join(testresults, confile), "r") do |g|
-        lines = g.readlines
-        cons = lines.grep(/con/).size
-        f.puts "<td><a href=\"#{confile}\">#{cons} nodes</a></td>"
-      end
+      lines = IO.readlines(File.join(testresults, confile))
+      cons = lines.grep(/con/).size
+      f.puts "<td><a href=\"#{confile}\">#{cons} nodes</a></td>"
       solfile = p.name + ".sol.txt"
-      File.open(File.join(testresults, solfile), "r") do |g|
-        lines = g.readlines
-        sols = lines.grep(/sol: Entered/).size
-        f.puts "<td><a href=\"#{solfile}\">#{sols} nodes</a></td>"
-      end
+      lines = IO.readlines(File.join(testresults, solfile))
+      sols = lines.grep(/sol: Entered/).size
+      f.puts "<td><a href=\"#{solfile}\">#{sols} nodes</a></td>"
     end
     
     if warnings == p.warnings && is_ok then
@@ -153,7 +158,6 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
     else
       f.puts "<td style =\"color: red\">FAIL</td>"
     end
-
 
     f.puts "</tr>"
   end
