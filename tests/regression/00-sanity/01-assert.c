@@ -1,3 +1,4 @@
+// PARAM: --debug
 // just a few sanity checks on the asserts
 #include<assert.h>
 
@@ -6,8 +7,8 @@ int main() {
   int fail = 0;
   int unknown;
   assert(success);
-  assert(fail); // this should fail
+  assert(fail); // FAIL!
   assert_unknown(unknown);
-  assert_unknown(fail);  // this should fail
+  assert_unknown(fail);  // FAIL!
   return 0;
 }
