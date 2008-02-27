@@ -64,6 +64,7 @@ regs.sort.each do |d|
     hash = Hash.new
     lines.each_with_index do |obj, i|
       i = i + 1
+      next if obj =~ /^\s*\/\//
       if obj =~ /RACE/ then
         hash[i] = "race"
       elsif obj =~ /assert.*\(/ then
