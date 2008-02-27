@@ -1,3 +1,4 @@
+// PARAM: --debug
 #include<stdio.h>
 #include<assert.h>
 

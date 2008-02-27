@@ -20,14 +20,14 @@ int main () {
   *p = 7;
   q = dang();
   i = *q;
-  assert_unknown(i);
+  assert(i == 7); // UNKNOWN
   printf("%d\n", i);
 
   nestra(&p);
   *p = 8;
   nestra(&q);
   i = *q;
-  assert_unknown(i);
+  assert(i == 8); // UNKNOWN
   printf("%d\n", i);
 
   return 0;

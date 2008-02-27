@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <assert.h>
-void assert_unknown(int x) {}
 
 void unknown_fn(int *i);
 
@@ -29,12 +28,12 @@ int main(){
 
   // filtering out the null pointer possibility
   if (x){    
-    assert_unknown(x);
+    assert(x != 0);
     assert(*x = 1);
     b = 2;
     assert(*x != 0);
     b = 0;
-    assert_unknown(*x);
+    assert(*x == 0); // UNKNOWN
     if (x != &b) {
       assert(x == &a);
       assert(*x == 1);
@@ -45,10 +44,7 @@ int main(){
                    // or 0-ptr warning
   }
   
-
-
   unknown_fn(0);
-
   return 0;
 }
 

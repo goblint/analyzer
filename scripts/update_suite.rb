@@ -10,7 +10,8 @@ testfiles   = File.expand_path("tests/regression")
 class Project
   attr_reader :name, :group, :path, :params, :warnings
   attr_writer :size
-  def initialize(name, size, group, path, params, warnings)
+  def initialize(id, name, size, group, path, params, warnings)
+    @id       = id
     @name     = name
     @size     = size
     @group    = group
@@ -21,6 +22,7 @@ class Project
   def to_html
     orgfile = name + ".c.txt"
     cilfile = name + ".cil.txt"
+    "<td>#{@id}</td>\n" +
     "<td><a href=\"#{orgfile}\">#{@name}</a></td>\n" +
     "<td><a href=\"#{cilfile}\">#{@size} lines</a></td>\n"
   end
@@ -42,33 +44,51 @@ projects = []
 regs = Dir.open(testfiles)
 regs.sort.each do |d| 
   next if File.basename(d)[0] == ?.
+  gid = d[0..1]
   groupname = d[3..-1]
   grouppath = File.expand_path(d, testfiles)
   group = Dir.open(grouppath)
   group.sort.each do |f|
     next if File.basename(f)[0] == ?.
     next if f =~ /goblin_temp/ 
+    id = gid + "/" + f[0..1]
     testname = f[3..-3]
     path = File.expand_path(f, grouppath)
     lines = IO.readlines(path)
     size = 0
-    lines[0] =~ /.*PARAM: (.*)$/
+    debug = false
+
+    lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
+
     hash = Hash.new
     lines.each_with_index do |obj, i|
+      i = i + 1
       if obj =~ /RACE/ then
         hash[i] = "race"
-      elsif obj =~ /assert/ then
+      elsif obj =~ /assert.*\(/ then
         if obj =~ /FAIL/ then
           hash[i] = "fail"
+        elsif obj =~ /UNKNOWN/ then
+          hash[i] = "unknown"
+          debug = true
         else
-#           hash[i] = "assert"
+          hash[i] = "assert"
         end
       elsif obj =~ /NOWARN/ then
-#         hash[i] = "nowarn"
+        hash[i] = "nowarn"
       end
     end
-    p = Project.new(testname,size,groupname,path,params,hash.size)
+    case lines[0]
+    when /NON?TERM/ 
+      hash[-1] = "noterm"
+      debug = true
+    when /TERM/: 
+      hash[-1] = "term"
+      debug = true
+    end
+    params << " --debug" if debug
+    p = Project.new(id,testname,size,groupname,path,params,hash)
     projects << p 
   end
 end
@@ -89,7 +109,7 @@ projects.each do |p|
   solfile = File.join(testresults, p.name + ".sol.txt")
   cilfile = File.join(testresults, p.name + ".cil.txt")
   orgfile = File.join(testresults, p.name + ".c.txt")
-  `cp #{filename} #{orgfile}`
+  `cat -n #{filename} > #{orgfile}`
   `#{goblint} #{filename} --justcil #{p.params} >#{cilfile} 2> /dev/null`
   p.size = `wc -l #{cilfile}`.split[0]
   `#{goblint} #{filename} #{p.params} 1>#{warnfile} --stats 2>#{statsfile}`
@@ -108,8 +128,8 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
     is_ok = true
     if p.group != gname then
       gname = p.group
-      headings = ["Name", "Size (CIL)", "Warnings", "Time", "Status"]
-      headings = ["Name", "Size (CIL)", "Warnings", "Time", "Constraints", "Solver", "Status"] if tracing
+      headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Problems"]
+      headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Constraints", "Solver", "Problems"] if tracing
       f.puts "<tr><th colspan=#{headings.size}>#{gname}</th></tr>"
       f.puts "<tr>"
       headings.each {|h| f.puts "<th>#{h}</th>"}
@@ -119,17 +139,39 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
     f.puts p.to_html
 
     warnfile = p.name + ".warn.txt"
-    warnings = 0
+    warnings = Hash.new
+    warnings[-1] = "term"
     lines = IO.readlines(File.join(testresults, warnfile))
-    warnings = lines.grep(/^.*\(.*\.c:.*\)$/).size
-    if lines.grep(/does not reach the end/).size > 0 then
-      warnings = (1+warnings) * (-1)
+    lines.each do |l| 
+      if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
+      next unless l =~ /^(.*)\(.*\.c:(.*)\)$/
+      obj,i = $1,$2.to_i
+      warnings[i] = case obj
+                    when /with lockset/: "race"
+                    when /will fail/   : "fail"
+                    when /is unknown/  : "unknown"
+                    else obj
+                    end
     end
-    if p.warnings < 0 then 
-      f.puts "<td><a href=\"#{warnfile}\">#{warnings.abs} of #{p.warnings.abs}</a>*</td>"
-    else
-      f.puts "<td><a href=\"#{warnfile}\">#{warnings} of #{p.warnings}</a></td>"
+    correct = 0
+    ferr = nil
+    p.warnings.each_pair do |idx, type|
+      case type
+      when "race", "fail", "unknown", "noterm", "term"
+        if warnings[idx] == type then 
+          correct += 1 
+        else 
+          ferr = idx if ferr.nil?
+        end
+      when "assert", "nowarn" 
+        if warnings[idx].nil? then 
+          correct += 1 
+        else 
+          ferr = idx if ferr.nil?
+        end
+      end
     end
+    f.puts "<td><a href=\"#{warnfile}\">#{correct} of #{p.warnings.size}</a></td>"
 
     statsfile = p.name + ".stats.txt"
     lines = IO.readlines(File.join(testresults, statsfile))
@@ -153,10 +195,14 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
       f.puts "<td><a href=\"#{solfile}\">#{sols} nodes</a></td>"
     end
     
-    if warnings == p.warnings && is_ok then
-      f.puts "<td style =\"color: green\">PASS</td>"
+    if correct == p.warnings.size && is_ok then
+      f.puts "<td style =\"color: green\">NONE</td>"
     else
-      f.puts "<td style =\"color: red\">FAIL</td>"
+      if ferr.nil? then
+        f.puts "<td style =\"color: red\">FAILED</td>"
+      else
+        f.puts "<td style =\"color: red\">LINE #{ferr}</td>"
+      end
     end
 
     f.puts "</tr>"

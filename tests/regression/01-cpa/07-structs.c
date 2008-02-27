@@ -53,12 +53,12 @@ int main () {
   // and here we *add* some more addresses
   if (k2) p = &i;
   if (k2) p = & b.kaal; 
-  // p points to a.hind, b.hind, b.kaal ja i, invalidate them!
+  // p points to a.hind, b.hind, b.kaal and i, invalidate them!
   *p = 666;
-  assert_unknown(a.hind);
-  assert_unknown(b.hind);
-  assert_unknown(b.kaal);
-  assert_unknown(i);
+  assert(a.hind == 666); // UNKNOWN!
+  assert(b.hind == 666); // UNKNOWN!
+  assert(b.kaal == 666); // UNKNOWN!
+  assert(i      == 666); // UNKNOWN!
 
 
   // structs in structs
@@ -93,7 +93,7 @@ int main () {
   a.hind = 1;
   a.kaal = 2;
   scanf("%d", &a.hind);
-  assert_unknown(a.hind);
+  assert(a.hind == 1); // UNKNOWN!
   assert(a.kaal == 2);
 
   return 0;

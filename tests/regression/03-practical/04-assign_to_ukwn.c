@@ -1,11 +1,12 @@
 #include <errno.h>
 
 int main(){
-
-	if (errno == ENOENT) {
-	} 
-
-    return 0;
+  int x = 5;
+  if (errno == ENOENT) {
+    x = 9;
+  } 
+  assert(x == 5); // UNKNOWN
+  return 0;
 }
 
 

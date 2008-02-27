@@ -11,7 +11,7 @@ main () {
       break;
   }
   printf("%d\n",sum);
-  assert_unknown(sum);
+  assert(sum == 1); // UNKNOWN
   assert(k == 7);
   return 0;
 }

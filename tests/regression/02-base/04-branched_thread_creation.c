@@ -18,7 +18,7 @@ int main() {
   else glob1 = 4;
   printf("Yeah! Yeah!\n");
   pthread_join(id, NULL);
-  assert_unknown(glob1);
+  assert(glob1 == 3); // UNKNOWN
   assert(glob2 == 9);
 
   return 0;

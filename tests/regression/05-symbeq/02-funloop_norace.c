@@ -8,13 +8,14 @@ struct cache_entry {
 
 void cache_entry_addref(struct cache_entry *entry) {
   pthread_mutex_lock(&entry->refs_mutex);
-  entry->refs++;
+  entry->refs++; // NOWARN
   pthread_mutex_unlock(&entry->refs_mutex);
 }
 
 void *t_fun(void *arg) {
   int i;
-  for(i=0; i<10; i++) cache_entry_addref(&cache[i]);
+  for(i=0; i<10; i++) 
+    cache_entry_addref(&cache[i]); // NOWARN
   return NULL;
 }
 
@@ -22,6 +23,7 @@ int main () {
   int i;
   pthread_t t1;
   pthread_create(&t1, NULL, t_fun, NULL);
-  for(i=0; i<10; i++) cache_entry_addref(&cache[i]);
+  for(i=0; i<10; i++) 
+    cache_entry_addref(&cache[i]); // NOWARN
   return 0;
 }

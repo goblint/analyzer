@@ -6,14 +6,14 @@ struct {
 } data;
 
 void *t_fun(void *arg) {
-  data.x++;
+  data.x++; // RACE!
   return NULL;
 }
 
 int main() {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  data.x++;
+  data.x++; // RACE!
   return 0;
 }
 

@@ -26,14 +26,14 @@ int main () {
   assert(*p == 8);
   // if j -> 7 and i -> 8, we don't know:
   j = 7;
-  assert_unknown(*p);
+  assert(*p == 8); // UNKNOWN!
 
   // writing to a set of addresses
   // p still points to i or j, writing to p should update both:
   i = 3; j = 7;
   *p = 3;
   assert(i == 3);
-  assert_unknown(j);
+  assert(j == 7); // UNKNOWN!
 
 
   // pointer to pointers
@@ -59,7 +59,7 @@ int main () {
   // pointer to a set of functions
   if (k2) fp = fun_5; else fp = fun_6;
   i = fp();
-  assert_unknown(i);
+  assert(i == 5); // UNKNOWN!
 
   if (k3) fp = fun_5; else fp = fun_5b;
   i = fp();

@@ -1,3 +1,4 @@
+// NONTERM
 #include<stdlib.h>
 
 void f() {

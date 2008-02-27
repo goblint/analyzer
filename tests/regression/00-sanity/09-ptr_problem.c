@@ -3,5 +3,6 @@ int main()
   int x, y;
   int *p = &x;
   ++ p;
-  return p == &y;
+  assert(p == &y); // UNKNOWN
+  return 0;
 }

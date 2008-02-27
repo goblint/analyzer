@@ -6,7 +6,7 @@ int main()
   int* pn = &n;
   int* t = pn;
   f(&pn);
-  assert_unknown(n);
+  assert(n); // UNKNOWN!
   assert(pn == t);
   return 0;
 }

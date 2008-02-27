@@ -1,3 +1,4 @@
+// TERM. Well, just an example of slow initialization.
 typedef unsigned char BYTE;
 BYTE Buffer[4096];
 

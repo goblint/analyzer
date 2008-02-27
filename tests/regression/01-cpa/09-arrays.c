@@ -38,31 +38,31 @@ int main () {
   // NB! We assume the index is in bounds!
   if (k1) i=0; else i=1;
   a[i] = 0;
-  assert_unknown(a[0]);
-  assert_unknown(a[1]);
-  assert_unknown(a[2]);
+  assert(a[0] == 0); // UNKNOWN
+  assert(a[1] == 0); // UNKNOWN
+  assert(a[2] == 0); // UNKNOWN
   
   // reading from unknown index:
   b[0] = 2; b[1] = 2;
   assert(b[i] == 2);
   b[0] = 3;
-  assert_unknown(b[i]);
+  assert(b[i] == 2); // UNKNOWN
 
   // function arrays
   t = f[i]();
-  assert_unknown(t);
+  assert(t == 5); // UNKNOWN
   t = g[i]();
   assert(t == 5);
 
   // array has set of addresses:
   if (k2) f[i] = fun_5b;
   t = f[1]();
-  assert_unknown(t);
+  assert(t == 5); // UNKNOWN
 
   // now we collect all the sets:
   fp = f[i];
   t = fp();
-  assert_unknown(t);
+  assert(t == 5); // UNKNOWN
   fp = g[i];
   t = fp();
   assert(t == 5);
@@ -87,7 +87,7 @@ int main () {
   // and some pointer arithmetic (tests are meaningless)
   *ip = 6;
   ip++;
-  assert_unknown(*ip);
+  assert(*ip == 5); // UNKNOWN
 
   // Now testing arrays inside structs.
   struct kala x;

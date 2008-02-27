@@ -1,3 +1,4 @@
+// NONTERM
 int main()
 {
   while (1);

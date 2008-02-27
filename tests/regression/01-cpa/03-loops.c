@@ -10,8 +10,8 @@ int main () {
     j = 7;
     k = 5;
   }
-  assert_unknown(i);
-  assert_unknown(k); 
+  assert(i); // UNKNOWN!
+  assert(k);  // UNKNOWN!
   // k is currenlty 0 \sqcup 5, if we unfolded the loops it would be 5
   assert(j==7);
   return 0;

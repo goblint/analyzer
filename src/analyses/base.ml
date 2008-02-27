@@ -787,28 +787,15 @@ struct
                       (* Just propagate the state *)
                       set_none st
                   | _ -> begin 
-                      if !GU.debug then M.warn_each ("Assertion \"" ^ expr ^ "\" is unknown");
-                      (* make the state meet the assertion in the rest of the code *)
-                      invariant st e true
+                      if !GU.debug then begin
+                        M.warn_each ("Assertion \"" ^ expr ^ "\" is unknown");
+                        set_none st
+                      end else
+                        (* make the state meet the assertion in the rest of the code *)
+                        invariant st e true
                     end
               end
             | _ -> M.bailwith "Assert argument mismatch!"
-        end
-      (* To assert that something should be unknown, to test functions like
-       * scanf and recursion. *)
-      | "assert_unknown" -> begin
-          match args with
-            | [e] -> begin
-                (* evaluate the negative assertion and check if it will be true *)
-                match eval_rv st e with 
-                  | `Int n when ID.is_int n -> 
-                      let value = ID.short 80 n in
-                      let expr = sprint ~width:80 (d_exp () e) in
-                        M.warn_each ("Expression \"" ^ expr ^ "\" should be unknown, but is " ^ value ^ ".");
-                        set_none st
-                  | _ -> set_none st
-              end
-            | _ -> M.bailwith "Assert_unknown argument mismatch!"
         end
       | x -> begin
           match LF.get_invalidate_action x with
@@ -844,8 +831,6 @@ struct
        * terribly wrong: *)
       (match offs with | `NoOffset -> () | _ -> M.bailwith "Function has offset?");
       try
-        (* Über-hack to take care of assert_unknown, if Wonderboy calls it *)
-        if !GU.debug && f.vname = "assert_unknown" then raise Not_found;
         (* We find the fundec from the varinfo, this raises the Not_found
          * exception if the function is not defined in the given sources. *)
         let fundec = Cilfacade.getdec f in

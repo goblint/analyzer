@@ -25,16 +25,16 @@ int main () {
   k.i = 5;
   k.j = 7;
   assert(k.i == 7);
-  assert_unknown(k.p);
+  assert(k.p == 7.0); // UNKNOWN!
 
   maja.arv = 8;
   maja.kala.i = 3;
   assert(maja.kala.j == 3);
-  assert_unknown(maja.kala.p);
+  assert(maja.kala.p == 3.0); // UNKNOWN!
 
   k.struk.x = 3;
   assert(k.struk.x == 3);
-  assert_unknown(k.i);
+  assert(k.i == 3); // UNKNOWN!
 
   return 0;
 }

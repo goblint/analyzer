@@ -9,14 +9,14 @@ pthread_mutex_t bad   = PTHREAD_MUTEX_INITIALIZER;
 
 void f(pthread_mutex_t *m) {
   pthread_mutex_lock(m);
-  glob++;
+  glob++; // RACE!
   pthread_mutex_unlock(m);
   exit(0);
 }
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mutex);
-  glob++;
+  glob++; // RACE!
   pthread_mutex_unlock(&mutex);
   return NULL;
 }

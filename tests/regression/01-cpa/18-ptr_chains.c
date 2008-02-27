@@ -1,6 +1,5 @@
 #include<stdio.h>
 #include<assert.h>
-void assert_unknown(int x) { };
 
 struct kala {
   int x;
@@ -31,13 +30,13 @@ int main () {
   i = 7; k.x =13;
   ip = &i;
   invalid(&ip);
-  assert_unknown(i);
+  assert(i == 7); // UNKNOWN
   *ip = 3;
   assert(i == 3);
   
   ip = &k.x;
   invalid(&ip);
-  assert_unknown(k.x);
+  assert(k.x == 13); // UNKNOWN
   *ip = 5;
   assert(k.x == 5);
 
@@ -50,8 +49,8 @@ int main () {
   assert(n2.next->data == 1);
 
   update_list(&n1);
-  assert_unknown(n1.data);
-  assert_unknown(n2.data);
+  assert(n1.data == 1); // UNKNOWN
+  assert(n2.data == 2); // UNKNOWN
 
   return 0;
 }

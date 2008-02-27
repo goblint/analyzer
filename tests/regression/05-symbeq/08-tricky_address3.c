@@ -11,7 +11,7 @@ void *t_fun(void *arg) {
   struct s *p = &a[i];
   pthread_mutex_lock(&p->mutex);
   i++;
-  p->datum++;
+  p->datum++; // NOWARN
   pthread_mutex_unlock(&p->mutex);
   return NULL;
 }
@@ -22,7 +22,7 @@ int main () {
   pthread_create(&t1, NULL, t_fun, NULL);
   
   pthread_mutex_lock(&a[i].mutex);
-  a[i].datum++;
+  a[i].datum++; // NOWARN
   pthread_mutex_unlock(&a[i].mutex);
   return 0;
 }

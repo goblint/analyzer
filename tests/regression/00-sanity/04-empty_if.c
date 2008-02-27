@@ -5,6 +5,6 @@ int main()
   int i;
   if (i);
   ++ i;
-  assert_unknown(i);
+  assert(i); // UNKNOWN!
   return 0;
 }

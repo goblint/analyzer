@@ -18,7 +18,7 @@ int main() {
   i = k * 2;
   assert(i != 10);
   i = k / 2;
-  assert_unknown(i != 2); // k could be 4
+  assert(i != 2); // UNKNOWN: k could be 4
 
   return 0;
 }

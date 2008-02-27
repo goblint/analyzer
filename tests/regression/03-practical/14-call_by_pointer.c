@@ -17,6 +17,6 @@ int main()
 {
   glob = 0;
   foo(reset_glob);
-  assert_unknown(glob);
+  assert(glob == 0); // UNKNOWN
   return 0;
 }

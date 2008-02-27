@@ -5,13 +5,12 @@ typedef struct _s {
 } s;
 
 int main(){
-  int l;
+  int l = 17;
 
   s * K = malloc(sizeof(s));
   K->i = 1;
   l = K->i;
-  assert_unknown(l);
-
+  assert(l == 17); // UNKNOWN
   return 0;
 }
 

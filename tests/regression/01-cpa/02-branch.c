@@ -19,8 +19,8 @@ int main() {
     j = 10;
   }
 
-  assert_unknown(i==5);
-  assert_unknown(i==7);
+  assert(i==5); // UNKNOWN!
+  assert(i==7); // UNKNOWN!
   assert(i != 0);
   assert(j == 10);
 

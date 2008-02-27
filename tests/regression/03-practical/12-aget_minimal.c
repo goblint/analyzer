@@ -8,7 +8,7 @@
  */
 
 void f(void) {
-  assert(0);
+  assert(0); // FAIL!
   printf("hello, this is \"void f(void)\"\n");
 }
 

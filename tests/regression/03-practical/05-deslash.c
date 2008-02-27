@@ -1,3 +1,4 @@
+// TERM.
 int deslash(unsigned char *str) {
     unsigned char *wp, *rp;
 

@@ -27,7 +27,7 @@ int main() {
   glob1 = 5;
   assert(glob1 == 5);
   glob2 = 5;
-  assert_unknown(glob2);
+  assert(glob2 == 5); // UNKNOWN
   pthread_mutex_unlock(&m);
 
   return 0;

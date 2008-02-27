@@ -1,6 +1,5 @@
 #include<stdio.h>
 #include<assert.h>
-void assert_unknown(int x) { }
 
 void proc(int *x, int *y) {
   *x = *y + 3;
@@ -25,7 +24,7 @@ int main () {
   // may-aliasing
   if (k) x = &k;
   (*x)++;
-  assert_unknown(*y);
+  assert(*y == 2); // UNKNOWN
 
   // Function call return test
   z = 7;
@@ -67,17 +66,17 @@ int main () {
   x = &a; if (k) x = &b;
   evil(x, x, &c);
   printf("%d %d %d\n",a,b,c);
-  assert_unknown(a);
-  assert_unknown(b);
-  assert_unknown(c);
+  assert(a == 3); // UNKNOWN
+  assert(b == 3); // UNKNOWN
+  assert(c == 7); // UNKNOWN
 
   a = 3; b = 5; c = 7; 
   x = &a; if (k) x = &b;
   evil(x, &a, &c);
   printf("%d %d %d\n",a,b,c);
-  assert_unknown(a);
-  assert_unknown(b);
-  assert_unknown(c);
+  assert(a == 3); // UNKNOWN
+  assert(b == 5); // UNKNOWN
+  assert(c == 7); // UNKNOWN
 
   return 0;
 }

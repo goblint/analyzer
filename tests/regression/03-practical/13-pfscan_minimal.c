@@ -1,14 +1,14 @@
 #include <assert.h>
 
-int get(void);
+extern int get(void);
 
 int init(void) { return 0; }
 
 int main(int argc , char **argv ) 
 {
-  int tmp;
+  int tmp = 5;
   init();
   tmp = get();
-  assert_unknown(tmp);
+  assert(tmp == 5); // UNKNOWN
   return 0;
 }
