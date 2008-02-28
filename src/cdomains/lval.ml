@@ -41,8 +41,8 @@ type ('a, 'b) offs = [
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
   ] 
-  
-module Offset (Idx: Printable.S) =
+
+module Offset (Idx: IntDomain.S) =
 struct
   type t = Offs of ((fieldinfo, Idx.t) offs) | Bot
   
@@ -51,7 +51,17 @@ struct
   
   let name () = "Offset"
   
-  let from_offset x : t = Offs x  
+  let from_offset x = Offs x  
+  let definite o =
+    let rec def o = 
+      match o with
+       | `Index (i,o) when Idx.is_int i -> `Index (i,def o)
+       | `Field (f,o) -> `Field (f,def o) 
+       | _ -> `NoOffset
+     in
+     match o with 
+      | Offs o -> Offs (def o)
+      | Bot -> Bot
  
   let top () = Offs `NoOffset 
   let bot () = Bot
@@ -67,16 +77,38 @@ struct
       | _ -> false
   
   let equal x y = 
+    let rec eq a b = 
+      match a,b with
+        | `NoOffset , `NoOffset -> true
+        | `Field (f1,o1), `Field (f2,o2) when f1.fname == f2.fname -> eq o1 o2
+        | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> eq o1 o2
+        | _ -> false
+    in
     match x, y with
-      | Offs x, Offs y -> x == y
+      | Offs x, Offs y -> eq x y
       | Bot, Bot -> true
       | _ -> false
   
-  let leq x y = 
+  (* The following compare is same as the Pervasives one, but that depends on the exact definition
+    of ('a,'b) offs. We need leq a b ==> b <= a *)
+  let compare x y =
+    let rec comp x y =
+      match x,y with
+        | `Field (f1,o1), `Field (f2,o2) when f1.fname == f2.fname -> comp o1 o2
+        | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> comp o1 o2
+        | _ -> compare (Offs x) (Offs y)
+    in
+    match x,y with
+      | Offs x, Offs y -> comp x y
+      | _ -> compare x y
+  
+  let rec leq x y = 
     match x, y with
       | Bot, _ -> true
-      | Offs _, Offs _ -> true
-      | _, Bot -> false
+      | Offs _, Offs `NoOffset -> true
+      | Offs `Index (i1,o1), Offs `Index (i2,o2)  when Idx.equal i1 i2 -> leq (Offs o1) (Offs o2)
+      | Offs `Field (f1,o1), Offs `Field (f2,o2) when f1.fname == f2.fname -> leq (Offs o1) (Offs o2)
+      | _ -> false      
   
   let isSimple x = true
   
@@ -120,8 +152,8 @@ struct
     let rec offs_short x = 
       match x with 
         | `NoOffset -> ""
-        | `Index (x,o) -> (Idx.short 80 x) ^ (offs_short o) 
-        | `Field (x,o) -> (x.fname) ^ (offs_short o) 
+        | `Index (x,o) -> "[" ^ (Idx.short 80 x) ^ "]" ^ (offs_short o) 
+        | `Field (x,o) -> "." ^ (x.fname) ^ (offs_short o) 
     in
     match x with 
       | Offs x -> offs_short x

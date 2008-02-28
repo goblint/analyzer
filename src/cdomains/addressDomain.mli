@@ -73,6 +73,8 @@ sig
   (** Creates an address from variable. *)  
   val from_var_offset: (varinfo * (field,idx) Lval.offs) -> t
   (** Creates an address from a variable and offset. *) 
+  val to_var_offset: t -> (varinfo * (field,idx) Lval.offs) list
+  (** Get also the offset *)
   val to_var_may: t -> varinfo list
   val to_var_must: t -> varinfo list
   (** Strips the varinfo out of the address representation. *)

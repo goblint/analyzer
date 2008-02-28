@@ -36,6 +36,9 @@
 module A = Analyses
 module M = Messages
 module GU = Goblintutil
+module Addr = ValueDomain.Addr
+module Offs = ValueDomain.Offs
+module Lockset = LockDomain.Lockset
 module AD = ValueDomain.AD
 (*module BS = Base.Spec*)
 module BS = Base.Main
@@ -48,12 +51,13 @@ struct
   exception Top
   let name = "Mutex Must"
   type context = BS.store
-  module LD = LockDomain.Lockset
+  module LD = Lockset
 
   module AccessType = IntDomain.MakeBooleans (struct 
                                                let truename = "Write" 
                                                let falsename = "Read" end)
-  module Access = Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (LD)
+  module SLD = Printable.Prod (LD) (Offs)                                             
+  module Access = Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (SLD)
   module Accesses = SetDomain.SensitiveConf (struct
                                                let expand_fst = false
                                                let expand_snd = true
@@ -77,10 +81,10 @@ struct
       myvar.vid <- -99;
       myvar
 
-  let add_locks accessed c (locks: domain) = 
+  let add_locks accessed c locks  = 
     let fl = BS.get_fl c in
     let loc = !GU.current_loc in
-    let f (v,rv) = (v,(locks, Accesses.singleton (rv, (loc, fl, locks)))) in 
+    let f (v, o, rv) = (v, (locks, Accesses.singleton (rv, (loc, fl, (locks,o))))) in 
       List.rev_map f accessed
 
   let assign lval rval (st,c,gl) = 
@@ -117,8 +121,8 @@ struct
       | "pthread_mutex_unlock" -> begin
           match arglist with
             | [x] -> begin match  (eval_exp_addr c x) with 
-                             | [] -> LD.empty () , []                       
-                             | e  -> List.fold_right (LD.remove) e st, []
+                             | [] -> Lockset.empty () , []                       
+                             | e  -> List.fold_right (Lockset.remove) e st, []
                      end
             | _ -> (st, [])
         end
@@ -141,28 +145,67 @@ struct
 
   let race_free = ref true
 
-  let postprocess_glob gl (locks, accesses) = 
-    let non_main (_,(_,x,_)) = BS.Flag.is_bad x in
-    if (LD.is_empty locks || LD.is_top locks)
-    && ((Accesses.cardinal accesses) > 1)
-    && (Accesses.exists fst accesses) 
-    && (Accesses.exists non_main accesses)
-    then begin
-      race_free := false;
-      if gl = BS.heap_varinfo () then
-        print_endline "There might be races involving the heap!"
-      else begin 
-        let warn = "Datarace over variable \"" ^ gl.vname ^ "\"" in
-        let f (write, (loc, fl, lockset)) = 
-          let lockstr = LD.short 80 lockset in
-          let action = if write then "write" else "read" in
-          let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
-          let warn = action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
-            (warn,loc) in 
-        let warnings =  List.map f (Accesses.elements accesses) in
-          M.print_group warn warnings
+  module OffsMap = Map.Make (Offs)
+  module OffsSet = Set.Make (Offs)
+
+  let postprocess_glob (gl : GD.Var.t) ((_, accesses) : GD.Val.t) = 
+    (* create mapping from offset to access list; set of offsets  *)
+    let create_map access_list =
+      let f (map,set)  ((_, (_, _, (_, offs))) as accsess) =
+        if OffsMap.mem offs map
+        then (OffsMap.add offs ([accsess] @ (OffsMap.find offs map)) map,
+              OffsSet.add offs set)
+        else (OffsMap.add offs [accsess] map,
+              OffsSet.add offs set)
+      in
+      List.fold_left f (OffsMap.empty, OffsSet.empty) access_list
+    in 
+    (* join map elements, that we cannot be sure are logically separate *)
+    let regroup_map (map,set) =
+      let f offs (group_offs, access_list, new_map) = 
+        let new_offs = Offs.definite offs in
+        let new_gr_offs = Offs.join new_offs group_offs in
+        (* we assume f is called in the right order: we get the greatest offset first (leq'wise) *)
+        if (Offs.leq new_offs group_offs || (Offs.is_bot group_offs)) 
+        then (new_gr_offs, OffsMap.find offs map @ access_list, new_map) 
+        else (   new_offs, OffsMap.find offs map, OffsMap.add group_offs access_list new_map) 
+      in
+      let (last_offs,last_set, map) = OffsSet.fold f set (Offs.bot (), [], OffsMap.empty) in
+        if Offs.is_bot last_offs
+        then map
+        else OffsMap.add last_offs last_set map
+    in
+    let is_race acc_list =
+      let f locks ((_, (_, _, (lock, _)))) = Lockset.join locks lock in
+      let locks = List.fold_left f (Lockset.bot ()) acc_list in
+      let non_main (_,(_,x,_)) = BS.Flag.is_bad x in      
+             (LD.is_empty locks || LD.is_top locks) 
+          && ((List.length acc_list) > 1)
+          && (List.exists fst acc_list) 
+          && (List.exists non_main acc_list)    
+    in
+    let report_race offset acc_list =
+      if is_race acc_list
+        then begin
+        race_free := false;
+        if gl = BS.heap_varinfo () then
+          print_endline "There might be races involving the heap!"
+        else begin 
+          let warn = "Datarace over variable \"" ^ gl.vname ^ Offs.short 80 offset ^ "\"" in
+          let f (write, (loc, fl, (lockset,o))) = 
+            let lockstr = Lockset.short 80 lockset in
+            let action = if write then "write" else "read" in
+            let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
+            let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
+              (warn,loc) in 
+          let warnings =  List.map f acc_list in
+            M.print_group warn warnings
+        end      
       end
-    end
+    in 
+    let acc_info = create_map (Accesses.elements accesses) in
+    let acc_map  = regroup_map acc_info in
+      OffsMap.iter report_race acc_map
 
   let finalize () = 
     if !GU.multi_threaded then begin

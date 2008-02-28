@@ -42,6 +42,7 @@ module ID = ValueDomain.ID
 module IntSet = SetDomain.Make (IntDomain.Integers)
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
+module Offs = ValueDomain.Offs
 module VD = ValueDomain.Compound
 module LF = LibraryFunctions
 
@@ -105,7 +106,7 @@ struct
   type transfer = domain * glob_fun -> domain * glob_diff
   type trans_in = domain * glob_fun
   type callback = calls * spawn 
-  type extra = (Cil.varinfo * bool) list
+  type extra = (Cil.varinfo * Offs.t * bool) list
   type store = trans_in
   type wstore = domain * glob_diff
   type value = VD.t
@@ -415,8 +416,8 @@ struct
 
   let access_address ((_,fl),_) write (addrs: address): extra =
     if Flag.is_multi fl then begin
-      let f v acc = if v.vglob then (v, write) :: acc else acc in 
-      let addr_list = try AD.to_var_may addrs with _ -> M.warn "Access to unknown address could be global"; [] in
+      let f (v,o) acc = if v.vglob then (v, Offs.from_offset o, write) :: acc else acc in 
+      let addr_list = try AD.to_var_offset addrs with _ -> M.warn "Access to unknown address could be global"; [] in
         List.fold_right f addr_list [] 
     end else []
 
