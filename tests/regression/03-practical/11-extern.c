@@ -1,10 +1,10 @@
 #include <assert.h>
 
-extern void write(int *x);
+extern void mywrite(int *x);
 
 int main() {
   int i=0;
-  write(&i);
+  mywrite(&i);
   assert(i == 0); // UNKNOWN!
   return 0;
 }

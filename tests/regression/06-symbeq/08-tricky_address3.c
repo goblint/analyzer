@@ -1,3 +1,4 @@
+// SKIP!
 #include<pthread.h>
 #include<stdio.h>
 
@@ -10,7 +11,8 @@ void *t_fun(void *arg) {
   int i;
   struct s *p = &a[i];
   pthread_mutex_lock(&p->mutex);
-  a[i].datum++; // NOWARN
+  i++;
+  p->datum++; // NOWARN
   pthread_mutex_unlock(&p->mutex);
   return NULL;
 }

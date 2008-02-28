@@ -33,6 +33,12 @@ end
 
 #Command line parameters
 only = ARGV[0] unless ARGV[0].nil?
+if only == "future" then
+  future = true
+  only = nil
+else
+  future = false
+end
 # analyses = ["mutex", "base", "cpa", "intcpa"]
 # analyses = ["mutex"]
 
@@ -58,6 +64,7 @@ regs.sort.each do |d|
     size = 0
     debug = false
 
+    next if not future and lines[0] =~ /SKIP/
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
 

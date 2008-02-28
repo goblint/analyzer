@@ -1,3 +1,4 @@
+// SKIP!
 #include <assert.h>
 extern void f(int* const*);
 int main()
