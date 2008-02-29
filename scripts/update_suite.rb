@@ -62,9 +62,10 @@ regs.sort.each do |d|
     path = File.expand_path(f, grouppath)
     lines = IO.readlines(path)
     size = 0
-    debug = false
+    debug = true
 
     next if not future and lines[0] =~ /SKIP/
+    debug = false if lines[0] =~ /NODEBUG/
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
 

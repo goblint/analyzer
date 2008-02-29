@@ -1,9 +1,7 @@
-#include<stdio.h>
 #include<pthread.h>
 #include<assert.h>
 
 void *t_fun(void *arg) {
-  printf("Not much to say when your high above the mucky-muck...\n");
   return NULL;
 }
 
@@ -25,7 +23,6 @@ int main() {
 
   // Creat the thread
   pthread_create(&id, NULL, t_fun, NULL);
-  printf("Yeah! Yeah!\n");
 
   // The values should remain the same
   assert(glob1 == 7);

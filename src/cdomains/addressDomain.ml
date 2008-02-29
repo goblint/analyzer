@@ -41,16 +41,12 @@ sig
   include Lattice.S
   type idx
   type field
-  type heap
   
   val from_var: varinfo -> t
   val from_var_offset: (varinfo * (idx,field) Lval.offs) -> t
   val to_var_may: t -> varinfo list
   val to_var_must: t -> varinfo list
   val get_type: t -> typ
-
-(*  val from_heap: heap -> t*)
-(*  val from_offset_heap: (heap * (idx,field) offs) -> t*)
 end
 
 module AddressSet (Idx: Lattice.S) = 
@@ -58,7 +54,6 @@ struct
   module Addr = Lval.Lval (Idx)
   include SetDomain.ToppedSet (Addr) (struct let topname = "Anywhere" end)
   
-  type heap = unit
   type field = Addr.field
   type idx = Idx.t
   type offs = [`NoOffset | `Field of (field * offs) | `Index of (idx * offs)]

@@ -42,7 +42,6 @@ sig
   include Lattice.S
   type idx (** The integer abstract domain for array indexes. *)
   type field (** The abstract representation of field names. *)
-  type heap (** The heab representation. *)
   
   val from_var: varinfo -> t
   (** Creates an address from variable. *)  
@@ -53,11 +52,6 @@ sig
   (** Strips the varinfo out of the address representation. *)
   val get_type: t -> typ
   (** Finds the type of the address location. *)
-
-(*  val from_heap: heap -> t*)
-(*  (** Creates an address from a heap representation. *) *)
-(*  val from_offset_heap: (heap * (idx,field) offs) -> t*)
-(*  (** Creates an address from a heap representation and offset. *) *)
 end
 
 module AddressSet (Idx: Lattice.S): 
