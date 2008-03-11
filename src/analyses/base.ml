@@ -710,7 +710,10 @@ struct
   let invalidate (st:store) (exps: exp list): wstore = 
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
-    let invalidate_address st a = (a, top_value st (AD.get_type a)) in
+    let invalidate_address st a = 
+      let t = AD.get_type a in
+          (a, top_value st t) 
+    in
     (* We define the function that evaluates all the values that an address
      * expression e may point to *)
     let invalidate_exp e = 

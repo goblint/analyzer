@@ -14,7 +14,7 @@ CAMLDIR    = @CAMLDIR@
 
 OBJDIR     = obj
 DEPENDDIR  = obj/.depend
-SOURCEDIRS = src src/util/ src/domains/ src/cdomains/ src/framework/ \
+SOURCEDIRS = src/ src/util/ src/domains/ src/cdomains/ src/framework/ \
 		src/solvers/ src/analyses/ unittest/ unittest/cdomains unittest/domains
 
 COMPILEFLAGS = @COMPILEFLAGS@ -I $(CILLIB) -I $(XML)/ 
@@ -92,7 +92,7 @@ test: opt unittests
 
 # TAGS
 tags:
-	otags -vi * $(SOURCEDIRS:%=%*) $(CIL)/src/* $(CIL)/src/frontc/* $(CIL)/src/ext/* $(CIL)/ocamlutil/*
+	otags -vi $(SOURCEDIRS:%=%*) $(CIL)/src/* $(CIL)/src/frontc/* $(CIL)/src/ext/* $(CIL)/ocamlutil/*
 
 # DOCS
 docs: 
