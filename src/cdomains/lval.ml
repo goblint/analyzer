@@ -168,7 +168,6 @@ end
 
 module type S =
 sig
-  type heap
   type field
   type idx
   include Printable.S
@@ -197,7 +196,6 @@ end
 
 module Lval (Idx: Printable.S) = 
 struct
-  type heap = unit
   type field = fieldinfo
   type idx = Idx.t
   type t = Addr of (varinfo * (field, idx) offs) | NullPtr | StrPtr

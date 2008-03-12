@@ -59,6 +59,7 @@ regs.sort.each do |d|
     next if f =~ /goblin_temp/ 
     id = gid + "/" + f[0..1]
     testname = f[3..-3]
+    next unless only.nil? or testname == only 
     path = File.expand_path(f, grouppath)
     lines = IO.readlines(path)
     size = 0
@@ -170,7 +171,7 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
         if warnings[idx] == type then 
           correct += 1 
         else 
-          ferr = idx if ferr.nil?
+          ferr = idx if ferr.nil? or idx < ferr
         end
       when "assert", "nowarn" 
         if warnings[idx].nil? then 

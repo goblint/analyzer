@@ -23,6 +23,10 @@ int main () {
   int (*fp)();
   int *ip;
   int (*iap)[];
+
+  //soundness check!!
+  b[0] = 2;
+  assert(b[1] == 2); // UNKNOWN
   
   // really really top 
   if (i) top = (int) &top;

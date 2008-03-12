@@ -37,6 +37,8 @@ open Cil
 open Pretty
 module A = Analyses
 module M = Messages
+module H = Hashtbl
+
 module GU = Goblintutil
 module ID = ValueDomain.ID
 module IntSet = SetDomain.Make (IntDomain.Integers)
@@ -227,13 +229,24 @@ struct
   let return_varinfo () = !return_varstore 
   let return_var () = AD.from_var (return_varinfo ())
 
-  let heap_varstore = ref dummyFunDec.svar
-  let heap_varinfo () = !heap_varstore 
-  let heap_var () = AD.from_var (heap_varinfo ())
+  let heap_hash = H.create 113 
+  let heap_counter = ref 0
+
+  let get_heap_var loc = try 
+      H.find heap_hash loc
+    with Not_found ->
+      let _ = heap_counter := !heap_counter + 1 in
+      let name = "heap_" ^ string_of_int !heap_counter in
+      let newvar = makeGlobalVar name voidType 
+      in
+        H.add heap_hash loc newvar;
+        newvar
+
+  let heap_var loc = AD.from_var (get_heap_var loc)
 
   let init () = 
     return_varstore := makeVarinfo false "RETURN" voidType;
-    heap_varstore := makeVarinfo true "HEAP" voidType
+    H.clear heap_hash
 
   let finalize () = ()
 
@@ -750,7 +763,7 @@ struct
 
   let special (f: varinfo) (args: exp list) ((cpa,fl),gl as st:store): wstore = 
     let return_var = return_var () in
-    let heap_var = heap_var () in
+    let heap_var = heap_var !GU.current_loc in
     match f.vname with 
       (* handling thread creations *)
       | "pthread_create" -> 
@@ -772,7 +785,9 @@ struct
         end
       | "exit" -> raise A.Deadcode
       | "abort" -> raise A.Deadcode
-      | "malloc" | "calloc" -> set st return_var (`Address heap_var)
+      | "malloc" | "calloc" -> begin
+          set st return_var (`Address heap_var)
+        end
       (* Handling the assertions *)
       | "__assert_rtn" -> raise A.Deadcode (* gcc's built-in assert *) 
       | "assert" -> begin

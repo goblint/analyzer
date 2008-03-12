@@ -188,19 +188,15 @@ struct
       if is_race acc_list
         then begin
         race_free := false;
-        if gl = BS.heap_varinfo () then
-          print_endline "There might be races involving the heap!"
-        else begin 
-          let warn = "Datarace over variable \"" ^ gl.vname ^ Offs.short 80 offset ^ "\"" in
-          let f (write, (loc, fl, (lockset,o))) = 
-            let lockstr = Lockset.short 80 lockset in
-            let action = if write then "write" else "read" in
-            let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
-            let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
-              (warn,loc) in 
-          let warnings =  List.map f acc_list in
-            M.print_group warn warnings
-        end      
+        let warn = "Datarace over variable \"" ^ gl.vname ^ Offs.short 80 offset ^ "\"" in
+        let f (write, (loc, fl, (lockset,o))) = 
+          let lockstr = Lockset.short 80 lockset in
+          let action = if write then "write" else "read" in
+          let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
+          let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
+            (warn,loc) in 
+        let warnings =  List.map f acc_list in
+          M.print_group warn warnings
       end
     in 
     let acc_info = create_map (Accesses.elements accesses) in

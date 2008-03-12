@@ -1,3 +1,4 @@
+// PARAM: --analysis base
 #include <malloc.h>
 #include <pthread.h>
 #include <assert.h>
