@@ -185,19 +185,22 @@ struct
           && (List.exists non_main acc_list)    
     in
     let report_race offset acc_list =
-      if is_race acc_list
-        then begin
+      let f (write, (loc, fl, (lockset,o))) = 
+        let lockstr = Lockset.short 80 lockset in
+        let action = if write then "write" else "read" in
+        let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
+        let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
+          (warn,loc) in 
+      let warnings =  List.map f acc_list in
+      if is_race acc_list then begin
         race_free := false;
         let warn = "Datarace over variable \"" ^ gl.vname ^ Offs.short 80 offset ^ "\"" in
-        let f (write, (loc, fl, (lockset,o))) = 
-          let lockstr = Lockset.short 80 lockset in
-          let action = if write then "write" else "read" in
-          let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
-          let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
-            (warn,loc) in 
-        let warnings =  List.map f acc_list in
           M.print_group warn warnings
-      end
+      end else if !GU.allglobs then
+        let warn = "Safely accessed variable \"" ^ gl.vname ^ Offs.short 80 offset ^ "\"" in
+          match gl.vtype with
+            | TFun _ -> ()
+            | _ -> M.print_group warn warnings
     in 
     let acc_info = create_map (Accesses.elements accesses) in
     let acc_map  = regroup_map acc_info in

@@ -87,6 +87,7 @@ let main () =
                  ("--stats", Arg.Set Cilutil.printStats, " Outputs timing information.");
                  ("--eclipse", Arg.Set GU.eclipse, " Flag for Goblin's Eclipse Plugin.");
                  ("--allfuns", Arg.Set GU.allfuns, " Analyzes all the functions from the initial state (not just beginning from main).");
+                 ("--allglobs", Arg.Set GU.allglobs, " Prints access information about all globals, not just races.");
                  ("--earlyglobs", Arg.Set GU.earlyglobs, " Side-effecting of globals right after initialization.");
                  ("--keepcpp", Arg.Set keep_cpp, " Keep the intermediate output of running the C preprocessor.");
                  ("--showtemps", Arg.Set CF.showtemps, " Shows CIL's temporary variables when printing the state.");

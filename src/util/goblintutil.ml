@@ -49,6 +49,9 @@ let cfg_print = ref false
 (** analyze all the functions in the program, rather than just main *)
 let allfuns = ref false
 
+(** print information about all globals, not just races *)
+let allglobs = ref false
+
 (** an optional path to dump all output *)
 let dump_path = ref (None : string option)
 
