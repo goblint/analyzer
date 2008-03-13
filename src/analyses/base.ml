@@ -230,13 +230,12 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
 
   let heap_hash = H.create 113 
-  let heap_counter = ref 0
 
   let get_heap_var loc = try 
       H.find heap_hash loc
     with Not_found ->
-      let _ = heap_counter := !heap_counter + 1 in
-      let name = "heap_" ^ string_of_int !heap_counter in
+      let annot = "(" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
+      let name = "heap " ^ annot in
       let newvar = makeGlobalVar name voidType 
       in
         H.add heap_hash loc newvar;
