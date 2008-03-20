@@ -75,7 +75,7 @@ regs.sort.each do |d|
       i = i + 1
       next if obj =~ /^\s*\/\//
       if obj =~ /RACE/ then
-        hash[i] = "race"
+        hash[i] = if obj =~ /NORACE/ then "norace" else "race" end
       elsif obj =~ /assert.*\(/ then
         if obj =~ /FAIL/ then
           hash[i] = "fail"
@@ -168,17 +168,14 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
     p.warnings.each_pair do |idx, type|
       case type
       when "race", "fail", "unknown", "noterm", "term"
-        if warnings[idx] == type then 
-          correct += 1 
-        else 
-          ferr = idx if ferr.nil? or idx < ferr
-        end
+        if warnings[idx] == type then correct += 1 
+        else ferr = idx if ferr.nil? or idx < ferr end
       when "assert", "nowarn" 
-        if warnings[idx].nil? then 
-          correct += 1 
-        else 
-          ferr = idx if ferr.nil?
-        end
+        if warnings[idx].nil? then correct += 1 
+        else ferr = idx if ferr.nil? or idx < ferr end
+      when "norace"
+        if warnings[idx] != "race" then correct += 1 
+        else ferr = idx if ferr.nil? or idx < ferr end
       end
     end
     f.puts "<td><a href=\"#{warnfile}\">#{correct} of #{p.warnings.size}</a></td>"
