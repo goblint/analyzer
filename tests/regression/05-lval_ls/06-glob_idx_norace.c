@@ -3,7 +3,7 @@
 int data[10];
 
 void *t_fun(void *arg) {
-  data[4]++; // NOWARN!
+  data[4]++; // Can't say anything...
   return NULL;
 }
 

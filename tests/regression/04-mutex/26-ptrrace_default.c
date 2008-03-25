@@ -1,6 +1,12 @@
-// PARAM: --libc
-#include<pthread.h>
-#include<ftw.h>
+// SKIP: Don't see the point in such elaborate invalidations for unknown
+// functions since we warn unsound on this anyway.
+
+#include <pthread.h>
+
+/**
+ * foo /migh/ call the argument function
+ */
+extern void foo(void (*)(void));
 
 int glob;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
@@ -13,17 +19,17 @@ void *t_fun(void *arg) {
   return NULL;
 }
 
-int reset_glob(char const *path, struct stat const *sp, int f) {
+void reset_glob(void) {
   pthread_mutex_lock(&mutex1);
   glob=glob+1; // RACE!
   pthread_mutex_unlock(&mutex1);
-  return 0;
 }
 
 int main() {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  ftw(".", reset_glob, 10);
+  /* reset_glob(); */
+  foo(reset_glob);
   pthread_join (id, NULL);
   return 0;
 }

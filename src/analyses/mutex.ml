@@ -180,7 +180,6 @@ struct
       let locks = List.fold_left f (Lockset.bot ()) acc_list in
       let non_main (_,(_,x,_)) = BS.Flag.is_bad x in      
              (LD.is_empty locks || LD.is_top locks) 
-          && ((List.length acc_list) > 1)
           && (List.exists fst acc_list) 
           && (List.exists non_main acc_list)    
     in

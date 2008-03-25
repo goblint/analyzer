@@ -32,6 +32,8 @@ class Project
 end
 
 #Command line parameters
+#Either only run a single test, or
+#"future" will also run tests we normally skip
 only = ARGV[0] unless ARGV[0].nil?
 if only == "future" then
   future = true

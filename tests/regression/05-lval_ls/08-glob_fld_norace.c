@@ -6,7 +6,7 @@ struct {
 } data;
 
 void *t_fun(void *arg) {
-  data.x++; // NOWARN!
+  data.x++; // Don't know if it's a single thread!
   return NULL;
 }
 
