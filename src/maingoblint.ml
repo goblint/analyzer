@@ -48,6 +48,7 @@ let main () =
   let justCil = ref false in
   let dopartial = ref false in
   let keep_cpp = ref false in
+  let cppflags = ref "" in
   let outFile = ref "" in 
   let cilout = ref stderr in
   (* Function for setting the style, basically Haskell's read function: *)
@@ -90,6 +91,7 @@ let main () =
                  ("--allglobs", Arg.Set GU.allglobs, " Prints access information about all globals, not just races.");
                  ("--earlyglobs", Arg.Set GU.earlyglobs, " Side-effecting of globals right after initialization.");
                  ("--keepcpp", Arg.Set keep_cpp, " Keep the intermediate output of running the C preprocessor.");
+                 ("--cppflags", Arg.Set_string cppflags, "<flags>  Pre-processing parameters.");
                  ("--showtemps", Arg.Set CF.showtemps, " Shows CIL's temporary variables when printing the state.");
                  ("--uncalled", Arg.Set GU.print_uncalled, " Display uncalled functions.");
                  ("--result", Arg.String setstyle, "<style>  Result style: none, state, indented, compact, or pretty.");
@@ -123,7 +125,7 @@ let main () =
     (* The actual filename of the preprocessed sourcefile *)
     let nname =  Filename.concat dirName (Filename.basename fname) in 
     (* Preprocess using gcc -E *)
-    let command = "gcc -E" ^ includes ^ " " ^ fname ^ " -o " ^ nname in
+    let command = "gcc -E " ^ !cppflags ^ " " ^ includes ^ " " ^ fname ^ " -o " ^ nname in
       ignore (Unix.system command);  (* MAYBE BAD IDEA to ingore! *)
       nname
   in
