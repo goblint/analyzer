@@ -8,6 +8,7 @@ int main() {
   while (i < 10)
     x[i++] = malloc(sizeof(int));
 
+  *x[3] = 50;
   *x[7] = 100;
   assert(*x[8] == 100); // UNKNOWN
 

@@ -101,77 +101,76 @@ let main () =
     fileNames := fname :: (!fileNames) in
   (* The temp directory for preprocessing the input files *)
   let dirName = GU.create_dir "goblin_temp" in
-  (* Looking for the include files *)
+  Stats.reset Stats.HardwareIfAvail;
+  CF.init();
+  Arg.parse speclist recordFile usage_str;
+  let _ = match !GU.dump_path with
+    | Some path -> begin
+        M.warn_out := open_out (Filename.concat path "warnings.out");
+        outFile := "" (*Filename.concat path "analysis.out";*)
+        (* --dump overwrites the -o flag*)
+      end
+    | _ -> ()
+  in
+  (* The include files, libc stuff  *)
   let warn_includes () = print_endline "Warning, cannot find goblin's custom include files." in
   let includes = if Sys.file_exists(!include_dir) then "-I" ^ !include_dir else (warn_includes () ; "") in
-  (* Preprocess the input c files *)
+  let libc = Filename.concat !include_dir "lib.c" in 
+  fileNames := List.rev !fileNames;
+  if !use_libc then fileNames := libc :: !fileNames;
+  (* preprocess all the files *)
   let preproFile fname =
     (* The actual filename of the preprocessed sourcefile *)
     let nname =  Filename.concat dirName (Filename.basename fname) in 
     (* Preprocess using gcc -E *)
-    let command = "gcc -E " ^ includes ^ " " ^ fname ^ " -o " ^ nname in
+    let command = "gcc -E" ^ includes ^ " " ^ fname ^ " -o " ^ nname in
       ignore (Unix.system command);  (* MAYBE BAD IDEA to ingore! *)
       nname
   in
-    Stats.reset Stats.HardwareIfAvail;
-    CF.init();
-    Arg.parse speclist recordFile usage_str;
-    let _ = match !GU.dump_path with
-      | Some path -> begin
-          M.warn_out := open_out (Filename.concat path "warnings.out");
-          outFile := "" (*Filename.concat path "analysis.out";*)
-          (* --dump overwrites the -o flag*)
-        end
-      | _ -> ()
-    in
-    let libc = Filename.concat !include_dir "lib.c" in 
-    fileNames := List.rev !fileNames;
-    if !use_libc then fileNames := libc :: !fileNames;
-    (* preprocess all the files *)
-    let cpp_file_names = 
-      if !GU.verbose then print_endline "Preprocessing files.";
-      List.map preproFile !fileNames in
-    (* and get their AST *)
-    let files_AST = 
-      if !GU.verbose then print_endline "Parsing files.";
-      List.map CF.getAST cpp_file_names in
-    let _ = if !keep_cpp then () else ignore (Unix.system ("rm -rf " ^ dirName)) in
-    (* direct the output to file if requested  *)
-    let _ = if not (!outFile = "") then GU.out :=  open_out !outFile in
-    let _ = Errormsg.logChannel := M.get_out "cil" !cilout in
-    (* we use CIL to merge all inputs to ONE file *)
-    let merged_AST = 
-      match files_AST with
-        | [one] -> one
-        | [] -> 
-            prerr_endline "No arguments for Goblint?"; 
-            prerr_endline usage_str; 
-            prerr_endline "Try `goblint --help' for more information."; 
-            exit 2
-        | xs -> CF.getMergedAST xs 
-    in
-      (* using CIL's partial evaluation and constant folding! *)
-      if !dopartial then CF.partial merged_AST;
-      (* creat the Control Flow Graph from CIL's AST *)
-      CF.createCFG merged_AST;
-      CF.ugglyImperativeHack := merged_AST;
-      (* we let the "--eclipse" flag override result style: *)
-      if !GU.eclipse then GU.result_style := GU.Compact;
-      if !justCil then 
-        (* if we only want to print the output created by CIL: *)
-        CF.print merged_AST
-      else begin
-        (* we first find the functions to analyze: *)
-        if !GU.verbose then print_endline "And now...  the Goblin!";
-        let funs = 
-          if !GU.allfuns then CF.getFuns merged_AST
-          else [CF.getMain merged_AST]
-        in
-          (* and here we run the analysis! *)
-          Stats.time "analysis" (!analyze merged_AST) funs;
-          if !Cilutil.printStats then 
-            Stats.print (M.get_out "timing" stderr) "Timings:\n"
-      end
+  let cpp_file_names = 
+    if !GU.verbose then print_endline "Preprocessing files.";
+    List.map preproFile !fileNames in
+  (* and get their AST *)
+  let files_AST = 
+    if !GU.verbose then print_endline "Parsing files.";
+    List.map CF.getAST cpp_file_names in
+  let _ = if !keep_cpp then () else ignore (Unix.system ("rm -rf " ^ dirName)) in
+  (* direct the output to file if requested  *)
+  let _ = if not (!outFile = "") then GU.out :=  open_out !outFile in
+  let _ = Errormsg.logChannel := M.get_out "cil" !cilout in
+  (* we use CIL to merge all inputs to ONE file *)
+  let merged_AST = 
+    match files_AST with
+      | [one] -> one
+      | [] -> 
+          prerr_endline "No arguments for Goblint?"; 
+          prerr_endline usage_str; 
+          prerr_endline "Try `goblint --help' for more information."; 
+          exit 2
+      | xs -> CF.getMergedAST xs 
+  in
+    (* using CIL's partial evaluation and constant folding! *)
+    if !dopartial then CF.partial merged_AST;
+    (* creat the Control Flow Graph from CIL's AST *)
+    CF.createCFG merged_AST;
+    CF.ugglyImperativeHack := merged_AST;
+    (* we let the "--eclipse" flag override result style: *)
+    if !GU.eclipse then GU.result_style := GU.Compact;
+    if !justCil then 
+      (* if we only want to print the output created by CIL: *)
+      CF.print merged_AST
+    else begin
+      (* we first find the functions to analyze: *)
+      if !GU.verbose then print_endline "And now...  the Goblin!";
+      let funs = 
+        if !GU.allfuns then CF.getFuns merged_AST
+        else [CF.getMain merged_AST]
+      in
+        (* and here we run the analysis! *)
+        Stats.time "analysis" (!analyze merged_AST) funs;
+        if !Cilutil.printStats then 
+          Stats.print (M.get_out "timing" stderr) "Timings:\n"
+    end
 
 let _ = 
   main ()
