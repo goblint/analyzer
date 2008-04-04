@@ -1,9 +1,0 @@
-aget
-ctrace
-pfscan
-smtprc
-knot
-ypbind
-zebedee
-automount
-zfs-fuse
