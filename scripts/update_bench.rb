@@ -1,5 +1,4 @@
 #!/usr/bin/ruby
-require "timeout"
 
 # trier_res = "/home/vesal/kool/magister/projects/results_rtmm/"
 goblint = File.join(Dir.getwd,"goblint")
