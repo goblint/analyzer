@@ -77,6 +77,9 @@ let result_style = ref None
 (** Is the goblin Eclipse Plugin calling the analyzer? *)
 let eclipse = ref false
 
+(** Analyzing Device Drivers? *)
+let kernel = ref false
+
 (** Length of summary description in XML output *)
 let summary_length = 80
 

@@ -92,6 +92,7 @@ let main () =
                  ("--earlyglobs", Arg.Set GU.earlyglobs, " Side-effecting of globals right after initialization.");
                  ("--keepcpp", Arg.Set keep_cpp, " Keep the intermediate output of running the C preprocessor.");
                  ("--cppflags", Arg.Set_string cppflags, "<flags>  Pre-processing parameters.");
+                 ("--kernel", Arg.Set GU.kernel, "For analyzing Linux Device Drivers.");
                  ("--showtemps", Arg.Set CF.showtemps, " Shows CIL's temporary variables when printing the state.");
                  ("--uncalled", Arg.Set GU.print_uncalled, " Display uncalled functions.");
                  ("--result", Arg.String setstyle, "<style>  Result style: none, state, indented, compact, or pretty.");
@@ -118,8 +119,10 @@ let main () =
   let warn_includes () = print_endline "Warning, cannot find goblin's custom include files." in
   let includes = if Sys.file_exists(!include_dir) then "-I" ^ !include_dir else (warn_includes () ; "") in
   let libc = Filename.concat !include_dir "lib.c" in 
+  let autoconf = Filename.concat !include_dir "linux/autoconf.h" in 
   fileNames := List.rev !fileNames;
   if !use_libc then fileNames := libc :: !fileNames;
+  if !GU.kernel then cppflags := "-D__KERNEL__ -include " ^ autoconf ^ " " ^ !cppflags;
   (* preprocess all the files *)
   let preproFile fname =
     (* The actual filename of the preprocessed sourcefile *)
@@ -164,6 +167,7 @@ let main () =
     else begin
       (* we first find the functions to analyze: *)
       if !GU.verbose then print_endline "And now...  the Goblin!";
+      if !GU.kernel then GU.allfuns := true; (* for now ... *)
       let funs = 
         if !GU.allfuns then CF.getFuns merged_AST
         else [CF.getMain merged_AST]
