@@ -98,7 +98,7 @@ tags:
 docs: 
 	@rm -f doc/*
 	ocamldoc.opt -stars -t 'Goblint API documentation' -html -d doc -v -I $(OBJDIR) \
-	    -I $(CILLIB) -I $(XML) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*.mli?'` \
+	    -I $(CILLIB) -I $(XML) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*\.mli*'` \
 	    $(CIL)/src/cil.mli $(CIL)/src/formatcil.mli \
 	    $(CIL)/ocamlutil/pretty.mli $(CIL)/ocamlutil/errormsg.mli \
 	    $(CIL)/ocamlutil/trace.mli $(CIL)/ocamlutil/stats.mli \
