@@ -56,6 +56,13 @@ let invalidate_actions = [
   ("perror", Safe);
   ("pthread_mutex_lock", Safe);
   ("pthread_mutex_unlock", Safe);
+  ("mutex_lock", Safe);
+  ("mutex_lock_interruptible", Safe);
+  ("mutex_unlock", Safe);
+  ("_spin_lock", Safe);
+  ("_spin_unlock", Safe);
+  ("_spin_lock_irqsave", Safe);
+  ("_spin_unlock_irqrestore", Safe);
   ("pthread_mutex_init", Safe);
   ("pthread_mutex_destroy", Safe);
   ("pthread_self", Safe);

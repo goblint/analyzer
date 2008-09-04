@@ -106,21 +106,27 @@ struct
         | `Address v when not (AD.is_top v) -> AD.fold (fun a b -> a :: b) v []    
         | _                                 -> []
 
+  (* Don't forget to add some annotation for the base analysis as well,
+   * otherwise goblint will warn that the function is unknown. *)
   let special f arglist (st,c,gl) =
     match f.vname with
    (* | "sem_wait"*)
+      | "_spin_lock" | "_spin_lock_irqsave"
+      | "mutex_lock" | "mutex_lock_interruptible"
       | "pthread_mutex_lock" -> begin
           match arglist with
-            | [x] -> begin match  (eval_exp_addr c x) with 
+            | (x::_) -> begin match  (eval_exp_addr c x) with 
                              | [e]  -> LD.add e st, []
                              | _ -> st, []
                      end
             | _ -> (st, [])
         end
    (* | "sem_post"*)
+      | "_spin_unlock" | "_spin_unlock_irqrestore"
+      | "mutex_unlock"
       | "pthread_mutex_unlock" -> begin
           match arglist with
-            | [x] -> begin match  (eval_exp_addr c x) with 
+            | (x::_) -> begin match  (eval_exp_addr c x) with 
                              | [] -> Lockset.empty () , []                       
                              | e  -> List.fold_right (Lockset.remove) e st, []
                      end
