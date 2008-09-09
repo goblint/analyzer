@@ -12,8 +12,9 @@ nlib   = "#{ls}/newlib.c"
 
 #processing the input file
 
+$ls = ls
 def doit(str,f)
-  lines = IO.readlines("#{str}.txt")
+  lines = IO.readlines("#{$ls}/#{str}.txt")
   res = lines.grep(/^LockSmith run for:\s*(.*) s.*$/) { |x| $1 }
   if res == [] then
     res = lines.grep(/^TIMEOUT\s*(.*) s.*$/) { |x| $1 }
@@ -25,7 +26,7 @@ def doit(str,f)
   else
     f.puts "<td><a href=\"#{str}.txt\">#{res.to_s} s</a></td>"
   end
-  races = `wc -l #{str}.short.txt`.split[0]
+  races = `wc -l #{$ls}/#{str}.short.txt`.split[0]
   f.puts "<td><a href=\"#{str}.short.txt\">#{races} races</a></td>"
 end
 
@@ -38,7 +39,7 @@ File.open("#{ls}/index.html", "w") do |g|
   g.puts "<body>"
   g.puts "<table border=2 cellpadding=4>"
   g.puts "<tr><th>Name</th><th>Size (merged)</th>"
-  ["normal", "field-sensitive"].each do |a| 
+  ["normal", "field-insensitive"].each do |a| 
     g.puts "<th>#{a}</th>"
     g.puts "<th>warnings</th>"
   end
@@ -55,12 +56,12 @@ File.open("#{ls}/index.html", "w") do |g|
     res_n = "#{ls}/normal/#{fn}"
     `#{runit} #{file} #{nlib} --merge --no-existentials --no-linearity 2> #{res_n}.txt`
     `grep 'Possible data race:' #{res_n}.txt > #{res_n}.short.txt`
-    doit(res_n,g)
+    doit("normal/#{fn}",g)
 
     res_f = "#{ls}/field_insensitive/#{fn}"
     `#{runit} #{file} #{nlib} --merge --no-existentials --no-linearity --field-insensitive 2> #{res_f}.txt`
     `grep 'Possible data race: &' #{res_f}.txt > #{res_f}.short.txt`
-    doit(res_f,g)
+    doit("field_insensitive/#{fn}",g)
 
     g.puts "</tr>"
   end
