@@ -115,7 +115,7 @@ File.open(testresults + "index.html", "w") do |f|
         else
           f.puts "<td><a href = #{outfile}>#{res.to_s} s</a></td>"
         end
-        f.puts "<td>#{warnings} races</rd"
+        f.puts "<td>#{warnings} races</td>"
       end
     end
     gb_file = testresults + File.basename(p.path,".c") + ".mutex.txt"
