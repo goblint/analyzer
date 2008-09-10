@@ -120,11 +120,12 @@ let main () =
   let warn_includes () = print_endline "Warning, cannot find goblin's custom include files." in
   let includes = ref (if Sys.file_exists(!include_dir) then "-I" ^ !include_dir else (warn_includes () ; "")) in
   let libc = Filename.concat !include_dir "lib.c" in 
-  let autoconf = Filename.concat kernel_dir "linux/autoconf.h" in 
   fileNames := List.rev !fileNames;
   if !use_libc then fileNames := libc :: !fileNames;
   if !GU.kernel then begin
-    cppflags := "-D__KERNEL__ -include " ^ autoconf ^ " " ^ !cppflags;
+    let preconf = Filename.concat !include_dir "linux/goblint_preconf.h" in 
+    let autoconf = Filename.concat kernel_dir "linux/autoconf.h" in 
+    cppflags := "-D__KERNEL__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
     includes := !includes ^ " -I" ^ kernel_dir ^ " -I" ^ kernel_dir ^ "/asm-x86/mach-default"
   end;
   (* preprocess all the files *)
