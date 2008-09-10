@@ -44,6 +44,7 @@ let main () =
   let fileNames : string list ref = ref [] in
   (* default settings for the command line arguments: *)
   let include_dir = ref (Filename.concat (Filename.dirname Sys.executable_name) "includes") in 
+  let kernel_dir = "/lib/modules/`uname -r`/build/include" in
   let use_libc = ref false in
   let justCil = ref false in
   let dopartial = ref false in
@@ -117,18 +118,21 @@ let main () =
   in
   (* The include files, libc stuff  *)
   let warn_includes () = print_endline "Warning, cannot find goblin's custom include files." in
-  let includes = if Sys.file_exists(!include_dir) then "-I" ^ !include_dir else (warn_includes () ; "") in
+  let includes = ref (if Sys.file_exists(!include_dir) then "-I" ^ !include_dir else (warn_includes () ; "")) in
   let libc = Filename.concat !include_dir "lib.c" in 
-  let autoconf = Filename.concat !include_dir "linux/autoconf.h" in 
+  let autoconf = Filename.concat kernel_dir "linux/autoconf.h" in 
   fileNames := List.rev !fileNames;
   if !use_libc then fileNames := libc :: !fileNames;
-  if !GU.kernel then cppflags := "-D__KERNEL__ -include " ^ autoconf ^ " " ^ !cppflags;
+  if !GU.kernel then begin
+    cppflags := "-D__KERNEL__ -include " ^ autoconf ^ " " ^ !cppflags;
+    includes := !includes ^ " -I" ^ kernel_dir ^ " -I" ^ kernel_dir ^ "/asm-x86/mach-default"
+  end;
   (* preprocess all the files *)
   let preproFile fname =
     (* The actual filename of the preprocessed sourcefile *)
     let nname =  Filename.concat dirName (Filename.basename fname) in 
     (* Preprocess using gcc -E *)
-    let command = "gcc -E " ^ !cppflags ^ " " ^ includes ^ " " ^ fname ^ " -o " ^ nname in
+    let command = "gcc -E " ^ !cppflags ^ " " ^ !includes ^ " " ^ fname ^ " -o " ^ nname in
       ignore (Unix.system command);  (* MAYBE BAD IDEA to ingore! *)
       nname
   in
