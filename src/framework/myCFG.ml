@@ -92,22 +92,26 @@ let createCFG (file: file) =
   let mkEdge fromNode edge toNode = H.add cfg (Statement toNode) (edge, Statement fromNode) in
   (* Function for finding the next real successor of a statement. CIL tends to
    * put a lot of junk between stuff: *)
-  let rec realnode ie stmt = 
-    try 
-      match stmt.skind with
-        | Block _ -> realnode ie (List.hd stmt.succs)
-        | Goto _ -> realnode ie (List.hd stmt.succs)
-        | Instr [] -> begin
-            let next = List.hd stmt.succs in
-              if next.sid == stmt.sid
-                then stmt
-                else realnode ie next
-          end
-        | Loop _ -> realnode ie (List.hd stmt.succs)
-        | If (exp,_,_,_) -> if isZero exp then realnode ie (List.hd stmt.succs) else stmt
-        | _ -> stmt
-    with
-      | Failure "hd" -> if ie then stmt else raise (Failure "hd")
+  let realnode ie stmt = 
+    let rec realnode ie visited stmt = 
+      if List.mem stmt.sid visited then stmt  else
+      let sid = stmt.sid in
+      try 
+        match stmt.skind with
+          | Block _ -> realnode ie (sid::visited) (List.hd stmt.succs)
+          | Goto _ -> realnode ie (sid::visited) (List.hd stmt.succs)
+          | Instr [] -> begin
+              let next = List.hd stmt.succs in
+                if next.sid == stmt.sid
+                  then stmt
+                  else realnode ie (sid::visited) next 
+            end
+          | Loop _ -> realnode ie (sid::visited) (List.hd stmt.succs)
+          | If (exp,_,_,_) -> if isZero exp then realnode ie (sid::visited) (List.hd stmt.succs) else stmt
+          | _ -> stmt
+      with
+        | Failure "hd" -> if ie then stmt else raise (Failure "hd")
+    in realnode ie [] stmt
   in
   (* We iterate over all globals looking for functions: *)
   iterGlobals file (fun glob -> 
