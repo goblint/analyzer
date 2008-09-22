@@ -36,6 +36,7 @@ analyses = ["mutex"]
 
 #processing the input file
 
+skipgrp = []
 projects = []
 File.open("tests/bench.txt", "r") do |f|
   i = 0
@@ -43,6 +44,7 @@ File.open("tests/bench.txt", "r") do |f|
     next if line =~ /^\s*$/ 
     if line =~ /Group: (.*)/
       gname = $1
+      skipgrp << gname if line =~ /SKIP/
       next
     end
     name = line.chomp
@@ -56,9 +58,11 @@ File.open("tests/bench.txt", "r") do |f|
   end
 end
 
+puts skipgrp
 #analysing the files
 gname = ""
 projects.each do |p|
+  next if skipgrp.member? p.group
   next unless only.nil? or p.name == only 
   if p.group != gname then
     gname = p.group

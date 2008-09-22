@@ -1,3 +1,66 @@
+Group: Kernel
+
+misc
+Wrapper for for misc devices
+kernel/misc.c
+--allfuns
+
+ds1302
+DS1302 Real Time Clock
+kernel/ds1302.c
+--allfuns
+
+vc_screen
+Provide access to virtual console memory
+kernel/vc_screen.c
+--allfuns
+
+dtlk
+DoubleTalk PC driver
+kernel/dtlk.c
+--allfuns
+
+ipmi_devintf
+Device interface for the IPMI message handler
+kernel/ipmi_devintf.c
+--allfuns
+
+tlclk
+Telecom Clock driver for Intel NetStructure(tm) MPCBL0010
+kernel/tlclk.c
+--allfuns
+
+ppdev
+Provide access to parport subsystem
+kernel/ppdev.c
+--allfuns
+
+mem
+Provide access to main memory
+kernel/mem.c
+--allfuns
+
+drm_drv
+Generic DRM driver template
+kernel/drm_drv.c
+--allfuns
+
+cm4040
+Omnikey PCMCIA smartcard reader CardMan 4040
+kernel/cm4040_cs.c
+--allfuns
+
+cm4000
+Omnikey PCMCIA smartcard reader CardMan 4000
+kernel/cm4000_cs.c
+--allfuns
+
+ip2main
+IntelliPort family multiport serial I/O controllers
+kernel/ip2main.c
+--allfuns
+
+
 Group: Locksmith POSIX Apps
 
 aget
