@@ -55,7 +55,7 @@ struct
     module M = MapDomain.MapTop (Basetype.Variables) (AddressDomain.Owner)
     module BM = Map.Make (AddressDomain.Owner)
     type t = M.t * M.t BM.t
-    include Printable.Std
+    include Printable.Blank
     include Lattice.StdCousot
     let name () = "The Domain"
     let join x y = x
