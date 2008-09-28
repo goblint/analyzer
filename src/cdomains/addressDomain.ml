@@ -163,3 +163,10 @@ struct
   let pretty () x = pretty_f short () x
   
 end
+
+module Owner = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "Entire heap" end)
+
+module OwnerClass = 
+struct
+  include Lattice.Prod (Owner) (SetDomain.Make (Basetype.Variables))
+end

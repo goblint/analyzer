@@ -75,6 +75,19 @@ struct
   let name () = "blank"
 end
 
+module Unit = 
+struct
+  type t = unit
+  include Std
+  let pretty () _ = text "()"
+  let short _ _ = "()"
+  let toXML x = Xml.Element ("Leaf", [("text", "()")], [])
+  let isSimple _ = true
+  let pretty_f _ = pretty
+  let toXML_f _ = toXML
+  let name () = "blank"
+end
+
 module type LiftingNames =
 sig
   val bot_name: string

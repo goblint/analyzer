@@ -1,3 +1,4 @@
+// SKIP
 #include <malloc.h>
 #include <pthread.h>
 

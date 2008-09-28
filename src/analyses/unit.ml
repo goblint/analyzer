@@ -33,47 +33,57 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *)
 
-(** Abstract domain for addresses, the abstraction of l-values. *)
+module A = Analyses
+module M = Messages
+module GU = Goblintutil
+module BS = Base.Main
+module LF = LibraryFunctions
 open Cil
 open Pretty
 
-module type S = 
-sig
-  include Lattice.S
-  type idx (** The integer abstract domain for array indexes. *)
-  type field (** The abstract representation of field names. *)
-  
-  val from_var: varinfo -> t
-  (** Creates an address from variable. *)  
-  val from_var_offset: (varinfo * (idx,field) Lval.offs) -> t
-  (** Creates an address from a variable and offset, will fail on a top element! *) 
-  val to_var_may: t -> varinfo list
-  val to_var_must: t -> varinfo list
-  (** Strips the varinfo out of the address representation. *)
-  val get_type: t -> typ
-  (** Finds the type of the address location. *)
+module Spec =
+struct
+  let name = "Unit analysis"
+  type context = BS.store
+  module LD = Lattice.Unit
+  module GD = Global.Make (Lattice.Unit)
+
+  type domain = LD.t
+  type glob_fun = GD.Var.t -> GD.Val.t
+  type glob_diff = (GD.Var.t * GD.Val.t) list
+  type calls = (varinfo * LD.t) list -> LD.t
+  type spawn = (varinfo * LD.t) list -> unit
+  type transfer = LD.t * context * glob_fun -> LD.t * glob_diff
+  type trans_in = LD.t * context * glob_fun
+  type callback = calls * spawn 
+
+  let startstate = LD.top ()
+  let otherstate = LD.top ()
+
+  let assign lval rval (st,c,gl) = (st,[])
+
+  let branch exp tv (st,c,gl) = (st,[])
+
+  let return exp fundec (st,c,gl) = (st,[])
+
+  let body f (st,c,gl) = (st, [])
+
+
+  let special f arglist (st,c,gl) = (st,[])
+
+  let combine lval f args (fun_st: domain) (st,c,gl: trans_in) = (fun_st, [])
+
+  let entry f args st = ([],[])
+
+  let es_to_string f es = f.svar.vname
+  let init () = ()
+  let finalize () = ()
+  let postprocess_glob g v = ()
+
 end
 
-module AddressSet (Idx: Lattice.S): 
-sig
-  include SetDomain.S with type elt = Lval.Lval(Idx).t 
-  type idx = Idx.t
-  type field = fieldinfo
-  val null_ptr: unit -> t
-  (* Creates a null pointer address*)
-  val str_ptr: unit -> t
-  (* Creates a string pointer address*)
-  val from_var: varinfo -> t
-  (** Creates an address from variable. *)  
-  val from_var_offset: (varinfo * (field,idx) Lval.offs) -> t
-  (** Creates an address from a variable and offset. *) 
-  val to_var_offset: t -> (varinfo * (field,idx) Lval.offs) list
-  (** Get also the offset *)
-  val to_var_may: t -> varinfo list
-  val to_var_must: t -> varinfo list
-  (** Strips the varinfo out of the address representation. *)
-  val get_type: t -> typ
-  (** Finds the type of the address location. *)
-end
+module Context = Compose.ContextSensitive (BS) (Spec)
+module SimpleAnalysis = Multithread.Forward(Context)
 
-module Owner: Lattice.S
+module Path = Compose.PathSensitive (BS) (Spec)
+module Analysis = Multithread.Forward(Path)
