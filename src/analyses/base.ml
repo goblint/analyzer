@@ -234,8 +234,7 @@ struct
   let get_heap_var loc = try 
       H.find heap_hash loc
     with Not_found ->
-      let annot = "(" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
-      let name = "heap " ^ annot in
+      let name = "(alloc@" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
       let newvar = makeGlobalVar name voidType 
       in
         H.add heap_hash loc newvar;

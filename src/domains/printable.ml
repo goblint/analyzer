@@ -94,6 +94,12 @@ sig
   val top_name: string
 end
 
+module DefaultNames = 
+struct
+  let bot_name = "bot"
+  let top_name = "top"
+end
+
 module Lift (Base: S) (N: LiftingNames) =
 struct
   type t = [`Bot | `Lifted of Base.t | `Top]
@@ -134,7 +140,6 @@ struct
 
   let pretty () x = pretty_f short () x
   let name () = "lifted " ^ Base.name ()
-
 end
 
 module Either (Base1: S) (Base2: S) =
@@ -274,15 +279,14 @@ struct
         | (true, true) -> [Base1.toXML x; Base2.toXML y]
         | _ -> []
     in
-      Xml.Element ("Node", [("text", esc (sf Goblintutil.summary_length st))], nodes)
+    let node_leaf = if nodes = [] then "Leaf" else "Node" in
+      Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length st))], nodes)
 
   let toXML m = toXML_f short m
 end
 
-module Prod = ProdConf (struct
-                          let expand_fst = true
-                          let expand_snd = true
-                        end)
+module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
+module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = false end)
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct 
@@ -333,9 +337,13 @@ struct
   let pretty_f sf () x = text (sf max_int x)
   let isSimple _ = true
 
-  let toXML_f _ x = 
-    let elems = List.map Base.toXML x in
-      Xml.Element ("Node", [("text", "set")], elems)
+  let toXML_f sf x = 
+    let esc = Goblintutil.escape in
+      match x with
+        | (y::_) when not (Base.isSimple y) ->
+            let elems = List.map Base.toXML x in
+              Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
+        | _ -> Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x

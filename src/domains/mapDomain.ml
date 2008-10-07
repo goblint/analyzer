@@ -200,7 +200,7 @@ struct
                     else Xml.Element ("Node", attr, children)
                 | x -> x
             end
-        | _ -> Xml.Element ("Node", [("text","map")], [Domain.toXML key; Range.toXML st])
+        | _ -> Xml.Element ("Node", [("text","map:")], [Domain.toXML key; Range.toXML st])
     in
     let assoclist map = fold (fun x y rest -> (x,y)::rest) map [] in
     let children map = List.rev_map f (assoclist map) in

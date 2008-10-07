@@ -38,7 +38,6 @@ module M = Messages
 module GU = Goblintutil
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
-module Lockset = LockDomain.Lockset
 module AD = ValueDomain.AD
 (*module BS = Base.Spec*)
 module BS = Base.Main
@@ -49,24 +48,9 @@ open Pretty
 module Spec =
 struct
   exception Top
-  let name = "Ownership"
+  let name = "Equalities"
   type context = BS.store
-  module LD = struct 
-    module M = MapDomain.MapTop (Basetype.Variables) (AddressDomain.Owner)
-    module BM = Map.Make (AddressDomain.Owner)
-    type t = M.t * M.t BM.t
-    include Printable.Blank
-    include Lattice.StdCousot
-    let name () = "The Domain"
-    let join x y = x
-    let meet x y = x
-    let top () = M.top (), BM.empty
-    let bot () = M.bot (), BM.empty
-    let is_top (x,y) = M.is_top x
-    let is_bot (x,y) = M.is_bot x
-    let leq x y = true
-
-  end
+  module LD = AddressDomain.Equ 
   module GD = Global.Make (Lattice.Unit)
 
   type domain = LD.t
@@ -85,7 +69,19 @@ struct
       myvar.vid <- -99;
       myvar
 
-  let assign lval rval (st,c,gl) = (st,[])
+  let assign lval rval (st,c,gl) = 
+    let rec listify ofs  = 
+      match ofs with 
+        | NoOffset -> []
+        | Field (x,ofs) -> x :: listify ofs
+        | _ -> M.bailwith "Indexing not supported here!"
+    in
+    let st = match (lval,rval) with
+      | (Var x, NoOffset), Lval (Var y, NoOffset) -> LD.add_eq (x,y) st 
+      | (Var x, NoOffset), AddrOf (Mem (Lval (Var y, NoOffset)),  ofs) -> 
+          LD.add (x,y) (`Lifted (listify ofs)) st 
+      | _ -> st
+    in (st,[])
 
   let branch exp tv (st,c,gl) = (st,[])
 
@@ -113,5 +109,7 @@ end
 module Context = Compose.ContextSensitive (BS) (Spec)
 module Path = Compose.PathSensitive (BS) (Spec)
 
-module Analysis = Multithread.Forward(Path)
+(*module Analysis = Multithread.Forward(Path)*)
+(*module SimpleAnalysis = Multithread.Forward(Context)*)
+module Analysis = Multithread.Forward(Context)
 module SimpleAnalysis = Multithread.Forward(Context)
