@@ -18,9 +18,9 @@ void init (struct s *p, int x) {
 
 void update (int *p) {
   struct s *s = list_entry(p, struct s, list);
-  //pthread_mutex_lock(&s->mutex);
-  s->datum++;
-  //pthread_mutex_lock(&s->mutex);
+  pthread_mutex_lock(&s->mutex);
+  s->datum++; //RACE
+  pthread_mutex_lock(&s->mutex);
 }
 
 void *t_fun(void *arg) {

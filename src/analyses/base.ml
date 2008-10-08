@@ -65,6 +65,7 @@ struct
   module Flag = Flag
   module VD = ValueDomain.Compound
   module CPA = MemoryDomain.Stack (VD)
+  module EQU = AddressDomain.Equ
   module ID = ValueDomain.ID
   module AD = ValueDomain.AD
   module Addr = ValueDomain.Addr
@@ -72,34 +73,36 @@ struct
   module Unions = ValueDomain.Unions
   module CArrays = ValueDomain.CArrays
   module GD = Global.Make (VD)
+  module CE = Lattice.Prod (CPA) (EQU)
 
   module LD = struct
     include Lattice.ProdConf (struct
                                 let expand_fst = true
                                 let expand_snd = false
-                              end) (CPA) (Flag) 
+                              end) (CE) (Flag) 
     let join (_,fx as x) (_,fy as y) = 
-      let cpa,fl = join x y in
+      let (cpa,eq),fl = join x y in
       let rem_var (v:varinfo) value cpa = 
         if v.vglob then CPA.remove v cpa else cpa
       in
         if not !GU.earlyglobs && Flag.switch fx fy then
-          CPA.fold rem_var cpa cpa, fl
+          (CPA.fold rem_var cpa cpa, eq), fl
         else
-          cpa, fl
+          (cpa,eq), fl
   end
 
   let name = "Constant Propagation Analysis"
-  let startstate = (CPA.top (), Flag.bot ())
-  let otherstate = (CPA.top (), Flag.top ())
+  let startstate = (CE.top (), Flag.bot ())
+  let otherstate = (CE.top (), Flag.top ())
 
  (**************************************************************************
   * Auxiliary stuff
   **************************************************************************)
 
   type cpa = CPA.t
+  type equ = EQU.t
   type flag = Flag.t
-  type domain = cpa * flag
+  type domain = (cpa * equ) * flag
   type glob_fun = GD.Var.t -> GD.Val.t
   type glob_diff = (GD.Var.t * GD.Val.t) list
   type glob_state = glob_fun * glob_diff
@@ -124,7 +127,7 @@ struct
       (* We fold over the local state, and collect the globals *)
       CPA.fold add_var cpa (cpa,[])
 
-  let get ((st,fl),gl: store) (addrs:address): value =
+  let get (((st,eq),fl),gl: store) (addrs:address): value =
     if M.tracing then M.tracel "get" (dprintf "address: %a\nstate: %a" AD.pretty addrs CPA.pretty st);
     (* Finding a single varinfo*offset pair *)
     let f_addr (x, offs) = 
@@ -144,7 +147,7 @@ struct
        * addresses is a topped value, joining will fail. *)
       try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
 
-  let set ?(effect=true) ((st,fl),gl: store) (lval: AD.t) (value: value): wstore =
+  let set ?(effect=true) (((st,eq),fl),gl: store) (lval: AD.t) (value: value): wstore =
     if M.tracing then M.tracel "set" (dprintf "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st);
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
@@ -171,10 +174,10 @@ struct
       (* If the address was definite, then we just return it. If the address
        * was ambiguous, we have to join it with the initial state. *)
       let nst = if AD.cardinal lval > 1 then CPA.join st nst else nst in
-        ((nst,fl),gd)
+        (((nst,eq),fl),gd)
     with 
       (* If any of the addresses are unknown, we ignore it!?! *)
-      | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; ((st,fl),[])
+      | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; (((st,eq),fl),[])
 
   (* Just identity transition from store -> wstore *)
   let set_none (lst,gl) = (lst, [])
@@ -200,13 +203,13 @@ struct
      * not sure in which order! *)
     (LD.join st1 st2, gl1 @ gl2)
 
-  let rem_many ((st,fl),gl: store) (v_list: varinfo list): store = 
+  let rem_many (((st,eq),fl),gl: store) (v_list: varinfo list): store = 
     let f acc v = CPA.remove v acc in
-      (List.fold_left f st v_list,fl),gl
+      ((List.fold_left f st v_list,eq),fl),gl
 
   exception Top
 
-  let es_to_string f (es,fl) = 
+  let es_to_string f ((es,eq),fl) = 
     let short_fun x = 
       match x.vtype, CPA.find x es with
         | TPtr (t, attr), `Address a 
@@ -607,7 +610,12 @@ struct
   **************************************************************************)
 
   let assign lval rval st = 
-    set_savetop st (eval_lv st lval) (eval_rv st rval)
+    let st:store = 
+      let ((cpa,equ),flag),gl = st in
+      let equ = EQU.assign lval rval equ in
+        ((cpa,equ),flag),gl
+    in
+      set_savetop st (eval_lv st lval) (eval_rv st rval)
 
   let branch (exp:exp) (tv:bool) (st: store): wstore =
     (* First we want to see, if we can determine a dead branch: *)
@@ -759,7 +767,7 @@ struct
   * Function calls
   **************************************************************************)
 
-  let special (f: varinfo) (args: exp list) ((cpa,fl),gl as st:store): wstore = 
+  let special (f: varinfo) (args: exp list) (((cpa,eq),fl),gl as st:store): wstore = 
     let return_var = return_var () in
     let heap_var = heap_var !GU.current_loc in
     match f.vname with 
@@ -768,16 +776,16 @@ struct
           GU.multi_threaded := true;
           let new_fl = Flag.join fl (Flag.get_main ()) in
           if Flag.is_multi fl then 
-            ((cpa,new_fl),[])
+            (((cpa,eq),new_fl),[])
           else 
             let (ncpa,ngl) = if not !GU.earlyglobs then globalize cpa else cpa,[] in 
-              ((ncpa, new_fl),ngl)
+              (((ncpa,eq), new_fl),ngl)
       (* handling thread joins... sort of *)
       | "pthread_join" -> begin
           match args with
             | [id; ret_var] -> begin
 		match (eval_rv st ret_var) with
-		  | `Int n when n = ID.of_int 0L -> (cpa,fl),[]
+		  | `Int n when n = ID.of_int 0L -> ((cpa,eq),fl),[]
 		  | _      -> invalidate st [ret_var] end
             | _ -> M.bailwith "pthread_join arguments are strange!"
         end
@@ -826,14 +834,14 @@ struct
               end
         end
 
-  let entry fval args ((cpa,fl),gl as st: trans_in): (varinfo * domain) list * varinfo list = try
+  let entry fval args (((cpa,eq),fl),gl as st: trans_in): (varinfo * domain) list * varinfo list = try
     let make_entry pa context =
       (* If we need the globals, add them *)
       let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.top () in 
       (* Assign parameters to arguments *)
       let new_cpa = CPA.add_list pa new_cpa in
       let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
-        (new_cpa,fl)
+        ((new_cpa,eq),fl)
     in
     (* Ok, first of all, I need a list of function that this expression might
      * point to. *)
@@ -899,7 +907,7 @@ struct
      * the function tries to add all the context variables back to the callee.
      * Note that, the function return above has to remove all the local
      * variables of the called function from cpa_s. *)
-    let add_globals (cpa_s,fl_s) ((cpa_d,fl_d),gl) = 
+    let add_globals ((cpa_s,eq_s),fl_s) (((cpa_d,eq_d),fl_d),gl) = 
       (* Remove the return value as this is dealt with separately. *)
       let cpa_s = CPA.remove (return_varinfo ()) cpa_s in
       let f var value acc = CPA.add var value acc in
@@ -910,7 +918,7 @@ struct
       let cpa_d = if not !GU.earlyglobs && Flag.is_multi fl_s then 
         CPA.fold rem_var cpa_d cpa_d else cpa_d in
       let new_cpa = CPA.fold f cpa_s cpa_d in
-        ((new_cpa, fl_s), gl)
+        (((new_cpa,eq_s), fl_s), gl)
     in 
     let return_var = return_var () in
     let return_val = get (fun_st,gl) return_var in

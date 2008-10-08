@@ -52,95 +52,12 @@ struct
   include Lattice.Prod (Owner) (SetDomain.Make (Basetype.Variables))
 end
 
-module Fields = 
-struct
-  module Ofs = struct
-    include Printable.Liszt (Basetype.CilField)
-    let short _ x = 
-      let elems = List.map (Basetype.CilField.short max_int) x in
-        match elems with 
-          | [] -> ""
-          | e -> "." ^ String.concat "." elems
-    let toXML m = toXML_f short m
-    let pretty () x = pretty_f short () x
-  end
-  include Lattice.Fake (Ofs)
-
-  let rec prefix x y = match x,y with
-    | (x::xs), (y::ys) when Basetype.CilField.equal x y -> prefix xs ys
-    | [], ys -> Some ys
-    | _ -> None
-end
-
-module Equ = 
-struct
-  module V = Basetype.Variables
-  module P = Printable.ProdSimple (V) (V)
-  module PMap = MapDomain.PMap (P) (Fields)
-  include MapDomain.MapTop (P) (Fields)
-
-  let exists x m = try PMap.find x m; true with | Not_found -> false
-
-  let add_old = add
-  let rec add (x,y) fd d =
-    if V.equal x y || exists (x,y) d then d else
-      let add_closure (x,y) fd d = 
-        let f (x',y') fd' acc =
-          if V.equal y y' then 
-            match Fields.prefix fd fd' with
-              | Some rest -> add (x',x) rest acc
-              | None -> match Fields.prefix fd' fd with
-                  | Some rest -> add (x,x') rest acc
-                  | None -> acc
-          else acc
-        in
-        let d = fold f d d in
-          add_old (x,y) fd d
-      in
-        if fd = [] then add_closure (y,x) [] (add_closure (x,y) [] d)
-        else add_closure (x,y) fd d
-
-  let kill x d = 
-    let f (y,z) fd acc = 
-      if V.equal x y || V.equal x z then remove (y,z) acc else acc
-    in
-      fold f d d 
-
-  let add_eq (x,y) d = add (x,y) [] d
-  let toXML_f sf mapping =
-    let esc = Goblintutil.escape in
-    let f ((v1,v2: key), (fd: value)) = 
-      let w = Goblintutil.summary_length - 4 in
-      let v1_str = V.short w v1 in let w = w - String.length v1_str in
-      let v2_str = V.short w v2 in let w = w - String.length v2_str in
-      let fd_str = Fields.short w fd in
-      let summary = esc (v1_str ^ " = " ^ v2_str ^ fd_str) in
-      let attr = [("text", summary)] in 
-        Xml.Element ("Leaf",attr,[])
-    in
-    let assoclist = fold (fun x y rest -> (x,y)::rest) mapping [] in
-    let children = List.rev_map f assoclist in
-    let node_attrs = [("text", esc (sf Goblintutil.summary_length mapping));("id","map")] in
-      Xml.Element ("Node", node_attrs, children)
-
-  let pretty_f short () mapping = 
-    let f (v1,v2) st dok: doc = 
-      dok ++ dprintf "%a = %a %a\n" V.pretty v1 V.pretty v2 Fields.pretty st in
-    let content () = fold f mapping nil in
-      dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
-
-  let short _ _ = "Equalities"
-
-  let toXML s  = toXML_f short s
-  let pretty () x = pretty_f short () x
-end
-
 module Spec =
 struct
   exception Top
   let name = "Equalities"
   type context = BS.store
-  module LD = Equ 
+  module LD = AddressDomain.Equ 
   module GD = Global.Make (Lattice.Unit)
 
   type domain = LD.t
@@ -160,23 +77,7 @@ struct
       myvar
 
   let assign lval rval (st,c,gl) = 
-    let rec listify ofs  = 
-      match ofs with 
-        | NoOffset -> []
-        | Field (x,ofs) -> x :: listify ofs
-        | _ -> M.bailwith "Indexing not supported here!"
-    in
-    let st = match lval with
-      | Var x, NoOffset -> begin 
-          let st = LD.kill x st in
-            match rval with
-              | Lval (Var y, NoOffset) -> LD.add_eq (x,y) st 
-              | AddrOf (Mem (Lval (Var y, NoOffset)),  ofs) -> 
-                  LD.add (x,y) (listify ofs) st 
-              | _ -> st
-        end
-      | _ -> st
-    in (st,[])
+    LD.assign lval rval st, []
 
   let branch exp tv (st,c,gl) = (st,[])
 
@@ -200,7 +101,7 @@ struct
 
 end
 
-(*module Trivial = Spec*)
+module Trivial = Spec
 module Context = Compose.ContextSensitive (BS) (Spec)
 module Path = Compose.PathSensitive (BS) (Spec)
 
