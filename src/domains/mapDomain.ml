@@ -165,7 +165,9 @@ struct
     (* Similar to the previous, except we ignore elements that only occur in one
      * of the mappings, so we start from an empty map *)
     let f key value acc =
-      try add key (op value (find key m2)) acc with Not_found -> acc
+      try add key (op value (find key m2)) acc with 
+        | Not_found -> acc
+        | Lattice.Unsupported _ -> acc
     in
       fold f m1 M.empty
 

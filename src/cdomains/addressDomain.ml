@@ -164,28 +164,3 @@ struct
   
 end
 
-module Owner = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "Entire heap" end)
-
-module OwnerClass = 
-struct
-  include Lattice.Prod (Owner) (SetDomain.Make (Basetype.Variables))
-end
-
-module Fields = Lattice.Flat (
-  struct
-    include Printable.Liszt (Basetype.CilField)
-    let short _ x = 
-      let elems = List.map (Basetype.CilField.short max_int) x in
-        match elems with 
-          | [] -> "Equal"
-          | e -> String.concat "." elems
-    let toXML m = toXML_f short m
-    let pretty () x = pretty_f short () x
-  end) (Printable.DefaultNames)
-
-module Equ = 
-struct
-  include MapDomain.MapTop (Printable.ProdSimple (Basetype.Variables) (Basetype.Variables)) (Fields)
-
-  let add_eq (x,y) d = add (x,y) (`Lifted []) d
-end
