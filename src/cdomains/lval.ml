@@ -42,6 +42,12 @@ type ('a, 'b) offs = [
   | `Index of 'b * ('a,'b) offs
   ] 
 
+let rec listify ofs = 
+  match ofs with 
+    | `NoOffset -> []
+    | `Field (x,ofs) -> x :: listify ofs
+    | _ -> Messages.bailwith "Indexing not supported here!"
+  
 module Offset (Idx: IntDomain.S) =
 struct
   type t = Offs of ((fieldinfo, Idx.t) offs) | Bot
@@ -147,7 +153,7 @@ struct
       | Offs (`Field x), Offs (`Index y) -> Offs `NoOffset 
       | Offs (`Index x), Offs (`Field y) -> Offs `NoOffset
       | Offs x, Offs y -> Offs (offs_join x y)
-  
+
   let short _ x =
     let rec offs_short x = 
       match x with 

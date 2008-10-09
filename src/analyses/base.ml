@@ -47,6 +47,12 @@ module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module VD = ValueDomain.Compound
 module LF = LibraryFunctions
+module CPA = MemoryDomain.Stack (VD)
+module Equ = AddressDomain.Equ
+module EquAddr = AddressDomain.EquAddr
+module Structs = ValueDomain.Structs
+module Unions = ValueDomain.Unions
+module CArrays = ValueDomain.CArrays
 
 let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t"
@@ -63,17 +69,8 @@ module MakeSpec (Flag: ConcDomain.S) =
 struct
   exception Top
   module Flag = Flag
-  module VD = ValueDomain.Compound
-  module CPA = MemoryDomain.Stack (VD)
-  module EQU = AddressDomain.Equ
-  module ID = ValueDomain.ID
-  module AD = ValueDomain.AD
-  module Addr = ValueDomain.Addr
-  module Structs = ValueDomain.Structs
-  module Unions = ValueDomain.Unions
-  module CArrays = ValueDomain.CArrays
   module GD = Global.Make (VD)
-  module CE = Lattice.Prod (CPA) (EQU)
+  module CE = Lattice.Prod (CPA) (Equ)
 
   module LD = struct
     include Lattice.ProdConf (struct
@@ -100,7 +97,7 @@ struct
   **************************************************************************)
 
   type cpa = CPA.t
-  type equ = EQU.t
+  type equ = Equ.t
   type flag = Flag.t
   type domain = (cpa * equ) * flag
   type glob_fun = GD.Var.t -> GD.Val.t
@@ -111,13 +108,14 @@ struct
   type transfer = domain * glob_fun -> domain * glob_diff
   type trans_in = domain * glob_fun
   type callback = calls * spawn 
-  type extra = (Cil.varinfo * Offs.t * bool) list
+  type access_list = ((Cil.varinfo * Offs.t) * EquAddr.t option * bool) list
   type store = trans_in
   type wstore = domain * glob_diff
   type value = VD.t
   type address = AD.t
 
-  let get_fl ((_,fl),gl) = fl
+  let get_fl ((_,fl),_) = fl
+  let get_eq (((_,eq),_),_) = eq
 
   let globalize (cpa:cpa): (cpa * glob_diff) =
     (* For each global variable, we create the diff *)
@@ -428,19 +426,23 @@ struct
                 M.debug ("Failed evaluating "^str^" to lvalue"); AD.top ()
           end 
 
-  let access_address ((_,fl),_) write (addrs: address): extra =
+
+  let access_address ((_,fl),_) write (addrs, eq_addr): access_list =
     if Flag.is_multi fl then begin
-      let f (v,o) acc = if v.vglob then (v, Offs.from_offset o, write) :: acc else acc in 
+      let f (v,o) acc = if v.vglob then ((v, Offs.from_offset o), eq_addr, write) :: acc else acc in 
       let addr_list = try AD.to_var_offset addrs with _ -> M.warn "Access to unknown address could be global"; [] in
         List.fold_right f addr_list [] 
     end else []
 
-  let rec access rw (st: store) (exp:exp): extra = 
+  let rec access rw (st: store) (exp:exp): access_list = 
     match exp with
       (* Integer literals *)
       | Const _ -> []
       (* Variables and address expressions *)
-      | Lval lval -> access_address st rw (eval_lv st lval) @ (access_lv st lval)
+      | Lval lval -> 
+          let target = access_address st rw (eval_lv st lval, Equ.eval_rv (AddrOf lval)) in
+          let derefs = access_lv st lval in
+            target @ derefs
       (* Binary operators *)
       | BinOp (op,arg1,arg2,typ) -> 
           let a1 = access rw st arg1 in
@@ -455,8 +457,8 @@ struct
       | CastE  (t, exp) -> access rw st exp
       | _ -> []
   (* Accesses during the evaluation of an lval, not the lval itself! *)
-  and access_lv st (lval:lval): extra = 
-    let rec access_offset (st: store) (ofs: offset): extra = 
+  and access_lv st (lval:lval): access_list = 
+    let rec access_offset (st: store) (ofs: offset): access_list = 
       match ofs with 
         | NoOffset -> []
         | Field (fld, ofs) -> access_offset st ofs
@@ -612,7 +614,7 @@ struct
   let assign lval rval st = 
     let st:store = 
       let ((cpa,equ),flag),gl = st in
-      let equ = EQU.assign lval rval equ in
+      let equ = Equ.assign lval rval equ in
         ((cpa,equ),flag),gl
     in
       set_savetop st (eval_lv st lval) (eval_rv st rval)
@@ -653,7 +655,7 @@ struct
     | (x::xs), (y::ys) -> (x,y) :: zip xs ys
     | _ -> []
 
-  (* From a list of values, presumably arguments to a function, simply extract
+  (* From a list of values, presumably arguments to a function, simply access_listct
    * the pointer arguments. *)
   let get_ptrs (vals: value list): address list = 
     let f x acc = match x with
@@ -749,14 +751,16 @@ struct
     let invalids = List.concat (List.map invalidate_exp exps) in
       set_many st invalids
 
-  let access_funargs (st:store) (exps: exp list): extra = 
+  let access_funargs (st:store) (exps: exp list): access_list = 
     (* Find the addresses reachable from some expression, and assume that these
      * can all be written to. *)
     let do_exp e = 
       match eval_rv st e with
         | `Address a when AD.equal a (AD.null_ptr()) -> []
         | `Address a when not (AD.is_top a) -> 
-            List.concat (List.map (access_address st true) (reachable_vars [a] st))
+            let eq = Equ.eval_rv e in
+            let f x = access_address st true (x,eq) in
+              List.concat (List.map f (reachable_vars [a] st))
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _-> []
     in

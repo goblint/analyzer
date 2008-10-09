@@ -38,7 +38,10 @@ module M = Messages
 module GU = Goblintutil
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
+module Equ = AddressDomain.Equ
+module Fields = AddressDomain.Fields
 module Lockset = LockDomain.Lockset
+module Equset = LockDomain.LocksetEqu
 module AD = ValueDomain.AD
 (*module BS = Base.Spec*)
 module BS = Base.Main
@@ -51,18 +54,18 @@ struct
   exception Top
   let name = "Mutex Must"
   type context = BS.store
-  module LD = Lockset
+  module LD = Lattice.ProdSimple (Lockset) (Equset)
 
   module AccessType = IntDomain.MakeBooleans (struct 
                                                let truename = "Write" 
                                                let falsename = "Read" end)
-  module SLD = Printable.Prod (LD) (Offs)                                             
+  module SLD = Printable.Prod (Lockset) (Offs)                                             
   module Access = Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (SLD)
   module Accesses = SetDomain.SensitiveConf (struct
                                                let expand_fst = false
                                                let expand_snd = true
                                              end) (AccessType) (Access)
-  module GLock = Lattice.Prod (LD) (Accesses)
+  module GLock = Lattice.Prod (Lockset) (Accesses)
   module GD = Global.Make (GLock)
 
   type domain = LD.t
@@ -81,24 +84,46 @@ struct
       myvar.vid <- -99;
       myvar
 
-  let add_locks accessed c locks  = 
+  let add_locks accessed c (locks, eqlocks)  = 
     let fl = BS.get_fl c in
+    let eq = BS.get_eq c in
     let loc = !GU.current_loc in
-    let f (v, o, rv) = (v, (locks, Accesses.singleton (rv, (loc, fl, (locks,o))))) in 
+    let f ((v,o), eq_acc, rv) = 
+      let locks = 
+        match eq_acc with 
+          | Some eqaddr -> (try
+              let all_addrs = Equ.other_addrs eqaddr eq in
+              let all_locks = Equset.elements eqlocks in
+              let ptr_to x y = match x with
+                | TPtr (x,_) when Util.equals x y -> true
+                | _ -> false in
+              let compat = List.find (fun (x,fl) -> ptr_to x.vtype v.vtype) in
+              let (lv,lo) = compat all_locks in
+              let (av,ao) = compat all_addrs in
+                if Basetype.Variables.equal lv av then
+                  let lo = Fields.to_offs lo in
+                    Lockset.add (Addr.from_var_offset (v,lo)) locks
+                  else locks 
+              with _ -> locks)
+          | None -> locks
+      in
+        (v, (locks, Accesses.singleton (rv, (loc, fl, (locks,o))))) 
+    in 
       List.rev_map f accessed
 
-  let assign lval rval (st,c,gl) = 
+  let assign lval rval ((st,eq),c,gl) = 
     let accessed = BS.access true c (Lval lval) @ BS.access false c rval in
-      (st, add_locks accessed c st)
-  let branch exp tv (st,c,gl) =
+    let eq = match Equ.eval_lv lval with Some x -> Equset.remove x eq | _ -> eq in
+      ((st, eq), add_locks accessed c (st,eq))
+  let branch exp tv ((st,eq),c,gl) =
     let accessed = BS.access false c exp in
-      (st, add_locks accessed c st)
-  let return exp fundec (st,c,gl) =
+      ((st,eq), add_locks accessed c (st,eq))
+  let return exp fundec ((st,eq),c,gl) =
     match exp with 
       | Some exp -> let accessed = BS.access false c exp in 
-          (st, add_locks accessed c st)
-      | None -> (st, [])
-  let body f (st,c,gl) = (st, [])
+          ((st,eq), add_locks accessed c (st,eq))
+      | None -> ((st,eq), [])
+  let body f ((st,eq),c,gl) = ((st,eq), [])
 
   let eval_exp_addr context exp =
     let v = BS.eval_rv context exp in
@@ -108,41 +133,42 @@ struct
 
   (* Don't forget to add some annotation for the base analysis as well,
    * otherwise goblint will warn that the function is unknown. *)
-  let special f arglist (st,c,gl) =
+  let special f arglist ((st,eq),c,gl) =
     match f.vname with
    (* | "sem_wait"*)
       | "_spin_lock" | "_spin_lock_irqsave"
       | "mutex_lock" | "mutex_lock_interruptible"
-      | "pthread_mutex_lock" -> begin
-          match arglist with
-            | (x::_) -> begin match  (eval_exp_addr c x) with 
-                             | [e]  -> LD.add e st, []
-                             | _ -> st, []
-                     end
-            | _ -> (st, [])
-        end
+      | "pthread_mutex_lock" ->
+          let x = List.hd arglist in
+          let st = match (eval_exp_addr c x) with 
+            | [e]  -> Lockset.add e st
+            | _ -> st in
+          let eq = 
+            let c_eq = BS.get_eq c in 
+              match Equ.eval_rv x with
+                | Some e  -> Equset.add e c_eq eq
+                | _ -> eq
+          in (st,eq), []
    (* | "sem_post"*)
       | "_spin_unlock" | "_spin_unlock_irqrestore"
       | "mutex_unlock"
-      | "pthread_mutex_unlock" -> begin
-          match arglist with
-            | (x::_) -> begin match  (eval_exp_addr c x) with 
-                             | [] -> Lockset.empty () , []                       
-                             | e  -> List.fold_right (Lockset.remove) e st, []
-                     end
-            | _ -> (st, [])
-        end
+      | "pthread_mutex_unlock" ->
+          let x = List.hd arglist in
+          let st, eq = match  (eval_exp_addr c x) with 
+            | [] -> Lockset.empty (), Equset.empty ()
+            | e  -> List.fold_right (Lockset.remove) e st, Equset.empty ()
+          in (st,eq), []
       | x -> begin
           match LF.get_invalidate_action x with
             | Some fnc -> 
                 let written = BS.access_funargs c (fnc arglist) in
-                  (st, add_locks written c st)
-            | _ -> (st, [])
+                  ((st,eq), add_locks written c (st,eq))
+            | _ -> ((st,eq), [])
         end
 
-  let combine lval f args (fun_st: domain) (st,c,gl: trans_in) =
+  let combine lval f args ((fun_st,fun_eq): domain) ((st,eq),c,gl: trans_in) =
     let accessed = List.concat (List.map (BS.access false c) (f::args)) in
-      (fun_st, add_locks accessed c st)
+      ((fun_st,fun_eq), add_locks accessed c (st,eq))
 
   let entry f args st = ([],[])
 
@@ -185,7 +211,7 @@ struct
       let f locks ((_, (_, _, (lock, _)))) = Lockset.join locks lock in
       let locks = List.fold_left f (Lockset.bot ()) acc_list in
       let non_main (_,(_,x,_)) = BS.Flag.is_bad x in      
-             (LD.is_empty locks || LD.is_top locks) 
+             (Lockset.is_empty locks || Lockset.is_top locks) 
           && (List.exists fst acc_list) 
           && (List.exists non_main acc_list)    
     in

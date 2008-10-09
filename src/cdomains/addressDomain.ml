@@ -182,12 +182,37 @@ struct
     | (x::xs), (y::ys) when Basetype.CilField.equal x y -> prefix xs ys
     | [], ys -> Some ys
     | _ -> None
+
+  let append x y: t = x @ y
+
+  let rec listify ofs: t = 
+    match ofs with 
+      | NoOffset -> []
+      | Field (x,ofs) -> x :: listify ofs
+      | _ -> Messages.bailwith "Indexing not supported here!"
+
+  let rec to_offs (ofs:t) = match ofs with 
+    | [] -> `NoOffset
+    | (x::xs) -> `Field (x, to_offs xs)
 end
+
+module V = Basetype.Variables
+
+module EquAddr = 
+struct 
+  include Printable.ProdSimple (V) (Fields)
+  let short w (v,fd) = 
+    let v_str = V.short w v in let w = w - String.length v_str in
+    let fd_str = Fields.short w fd in
+      v_str ^ fd_str
+  let toXML s  = toXML_f short s
+  let pretty () x = pretty_f short () x
+end
+
+module P = Printable.ProdSimple (V) (V)
 
 module Equ = 
 struct
-  module V = Basetype.Variables
-  module P = Printable.ProdSimple (V) (V)
   module PMap = MapDomain.PMap (P) (Fields)
   include MapDomain.MapTop (P) (Fields)
 
@@ -218,22 +243,39 @@ struct
     in
       fold f d d 
 
+  let other_addrs (v,fd) eq = 
+    let f (x,y) fd' acc = 
+      if V.equal v x then
+        (y, Fields.append fd' fd) :: acc
+      else if V.equal v y then 
+        (match Fields.prefix fd' fd with
+          | Some rest -> (x,rest) :: acc
+          | None -> acc)
+      else acc
+    in
+      fold f eq [v,fd]
+
+  let eval_rv rv = 
+    match rv with 
+      | Lval (Var x, NoOffset) -> Some (x, [])
+      | AddrOf (Mem (Lval (Var x, NoOffset)),  ofs) -> Some (x, Fields.listify ofs)
+      | _ -> None
+
+  let eval_lv lv = 
+    match lv with 
+      | Var x, NoOffset -> Some x
+      | _ -> None
+
   let add_eq (x,y) d = add (x,y) [] d
 
   let assign lval rval st =
-    let rec listify ofs  = 
-      match ofs with 
-        | NoOffset -> []
-        | Field (x,ofs) -> x :: listify ofs
-        | _ -> Messages.bailwith "Indexing not supported here!"
-    in
     match lval with
       | Var x, NoOffset -> begin 
           let st = kill x st in
             match rval with
               | Lval (Var y, NoOffset) -> add_eq (x,y) st 
               | AddrOf (Mem (Lval (Var y, NoOffset)),  ofs) -> 
-                  add (x,y) (listify ofs) st 
+                  add (x,y) (Fields.listify ofs) st 
               | _ -> st
         end
       | _ -> st
@@ -256,7 +298,7 @@ struct
 
   let pretty_f short () mapping = 
     let f (v1,v2) st dok: doc = 
-      dok ++ dprintf "%a = %a %a\n" V.pretty v1 V.pretty v2 Fields.pretty st in
+      dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 Fields.pretty st in
     let content () = fold f mapping nil in
       dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
 

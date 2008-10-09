@@ -1,5 +1,5 @@
-#include<stdlib.h>
 #include<pthread.h>
+#include<stdlib.h>
 
 struct q { int x; int y; };
 struct s {

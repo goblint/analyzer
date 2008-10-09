@@ -34,6 +34,7 @@
  *)
 
 module Addr = ValueDomain.Addr
+module Equ = AddressDomain.Equ
 module ID = ValueDomain.ID
 
 open Cil
@@ -82,5 +83,19 @@ struct
 
   let empty = ReverseAddrSet.empty
   let is_empty = ReverseAddrSet.is_empty
+end
+
+module LocksetEqu = 
+struct
+  module P = AddressDomain.EquAddr
+  module S = SetDomain.ToppedSet (P) (struct let topname = "All mutexes" end)
+  include Lattice.Reverse (S)
+  let empty = S.empty
+  let is_empty = S.is_empty
+  let add (v,fd) eq (s:t): t = 
+    let others = Equ.other_addrs (v,fd) eq in
+      List.fold_left (fun s vfd -> S.add vfd s) s others
+  let remove x = S.filter (fun (y,f) -> not (Basetype.Variables.equal x y))
+  let elements = S.elements
 
 end
