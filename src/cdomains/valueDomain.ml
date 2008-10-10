@@ -270,7 +270,7 @@ struct
                   end
                 in
                   `Union (`Lifted fld, update_offset tempval tempoffs value)
-            | `Top -> printf "%s" fld.fname; M.warn "Trying to update a field, but the union is unknown"; top ()
+            | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
         end
       | `Index (idx, offs) -> begin

@@ -48,6 +48,7 @@ module Offs = ValueDomain.Offs
 module VD = ValueDomain.Compound
 module LF = LibraryFunctions
 module CPA = MemoryDomain.Stack (VD)
+module Fields = AddressDomain.Fields
 module Equ = AddressDomain.Equ
 module EquAddr = AddressDomain.EquAddr
 module Structs = ValueDomain.Structs
@@ -231,21 +232,31 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
 
   let heap_hash = H.create 113 
+  let type_hash = H.create 113 
 
-  let get_heap_var loc = try 
-      H.find heap_hash loc
+  let get_heap_var loc = 
+    try H.find heap_hash loc
     with Not_found ->
       let name = "(alloc@" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
-      let newvar = makeGlobalVar name voidType 
-      in
+      let newvar = makeGlobalVar name voidType in
         H.add heap_hash loc newvar;
         newvar
 
+  let get_typvar typ = 
+    try H.find type_hash typ
+    with Not_found ->
+      let name = "(Type: " ^ sprint ~width:0 (d_type () typ) ^ ")" in
+      let newvar = makeGlobalVar name typ in
+        H.add type_hash typ newvar;
+        newvar
+
   let heap_var loc = AD.from_var (get_heap_var loc)
+  let type_var typ = AD.from_var (get_heap_var typ)
 
   let init () = 
     return_varstore := makeVarinfo false "RETURN" voidType;
-    H.clear heap_hash
+    H.clear heap_hash;
+    H.clear type_hash
 
   let finalize () = ()
 
@@ -427,10 +438,21 @@ struct
           end 
 
 
-  let access_address ((_,fl),_) write (addrs, eq_addr): access_list =
+  let access_address (((st,eq),fl),_) write (addrs, eq_addr): access_list =
     if Flag.is_multi fl then begin
       let f (v,o) acc = if v.vglob then ((v, Offs.from_offset o), eq_addr, write) :: acc else acc in 
-      let addr_list = try AD.to_var_offset addrs with _ -> M.warn "Access to unknown address could be global"; [] in
+      let addr_list = try AD.to_var_offset addrs with _ -> 
+        match eq_addr with
+          | Some eq_addr -> 
+              let all = Equ.other_addrs eq_addr eq in
+              let f eq_addr acc = 
+                let (x,ofs) = eq_addr in
+                let ofs = Fields.to_offs ofs in
+                  match x.vtype with
+                    | TPtr (typ,_) -> let v = get_typvar typ in (v,ofs) :: acc
+                    | _ -> acc
+              in List.fold_right f all []
+          | None -> M.warn "Access to unknown address could be global"; [] in
         List.fold_right f addr_list [] 
     end else []
 

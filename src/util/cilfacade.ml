@@ -152,6 +152,10 @@ let getdec fv =
   with
     | Found def -> def
 
+let iterGlobals () = iterGlobals !ugglyImperativeHack
+let foldGlobals () = foldGlobals !ugglyImperativeHack
+let mapGlobals () = mapGlobals !ugglyImperativeHack
+
 let getFirstStmt fd = List.hd fd.sbody.bstmts
 
 let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()

@@ -35,7 +35,9 @@
 
 module A = Analyses
 module M = Messages
+module H = Hashtbl
 module GU = Goblintutil
+module CF = Cilfacade
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module Equ = AddressDomain.Equ
@@ -173,6 +175,7 @@ struct
   let entry f args st = ([],[])
 
   let es_to_string f es = f.svar.vname
+
   let init () = ()
 
   let race_free = ref true
