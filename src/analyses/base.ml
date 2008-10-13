@@ -245,7 +245,7 @@ struct
   let get_typvar typ = 
     try H.find type_hash typ
     with Not_found ->
-      let name = "(Type: " ^ sprint ~width:0 (d_type () typ) ^ ")" in
+      let name = "(" ^ GU.trim (sprint ~width:0 (d_type () typ)) ^ ")" in
       let newvar = makeGlobalVar name typ in
         H.add type_hash typ newvar;
         newvar

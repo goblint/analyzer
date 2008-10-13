@@ -100,6 +100,11 @@ let escape (x:string):string =
   let esc_4 = Str.global_replace (Str.regexp "\"") "&quot;" esc_3 in
     esc_4
 
+let trim (x:string): string = 
+  let len = String.length x in
+    if x.[len-1] = ' ' then String.sub x 0 (len-1) else x
+
+
 (** Creates a directory and returns the absolute path **)
 let create_dir name = 
   let dirName = if Filename.is_relative name then Filename.concat (Unix.getcwd ()) name else name in

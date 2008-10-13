@@ -262,12 +262,15 @@ struct
 
   let name () = Base1.name () ^ " * " ^ Base2.name ()
 
-  let pretty_f _ () (x,y) = 
-    text "("
-    ++ (if expand_fst then Base1.pretty () x else text (Base1.short 60 x))
-    ++ text ", "
-    ++ (if expand_snd then Base2.pretty () y else text (Base2.short 60 y))
-    ++ text ")"
+  let pretty_f sf () (x,y) = 
+    if expand_fst || expand_snd then
+      text "("
+      ++ (if expand_fst then Base1.pretty () x else text (Base1.short 60 x))
+      ++ text ", "
+      ++ (if expand_snd then Base2.pretty () y else text (Base2.short 60 y))
+      ++ text ")"
+    else
+      text (sf Goblintutil.summary_length (x,y))
   
   let pretty () x = pretty_f short () x
 
