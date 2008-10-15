@@ -243,17 +243,21 @@ struct
     in
       fold f d d 
 
-  let other_addrs (v,fd) eq = 
-    let f (x,y) fd' acc = 
-      if V.equal v x then
-        (y, Fields.append fd' fd) :: acc
-      else if V.equal v y then 
-        (match Fields.prefix fd' fd with
-          | Some rest -> (x,rest) :: acc
-          | None -> acc)
-      else acc
+  let other_addrs vfd eq = 
+    let rec helper (v,fd) addrs = 
+      if List.exists (EquAddr.equal (v,fd)) addrs then addrs else
+        let f (x,y) fd' acc = 
+          if V.equal v x then
+            helper (y, Fields.append fd' fd) acc
+          else if V.equal v y then 
+            (match Fields.prefix fd' fd with
+               | Some rest -> helper (x,rest) acc
+               | None -> acc)
+          else acc
+        in
+          fold f eq ((v,fd) :: addrs)
     in
-      fold f eq [v,fd]
+      helper vfd []
 
   let eval_rv rv = 
     match rv with 

@@ -861,13 +861,15 @@ struct
         end
 
   let entry fval args (((cpa,eq),fl),gl as st: trans_in): (varinfo * domain) list * varinfo list = try
-    let make_entry pa context =
+    let make_entry pa peq context =
       (* If we need the globals, add them *)
       let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.top () in 
       (* Assign parameters to arguments *)
       let new_cpa = CPA.add_list pa new_cpa in
       let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
-        ((new_cpa,eq),fl)
+      let f (x,r) eq = Equ.assign x r eq in
+      let new_eq  = List.fold_right f peq eq in 
+        ((new_cpa,new_eq),fl)
     in
     (* Ok, first of all, I need a list of function that this expression might
      * point to. *)
@@ -885,8 +887,9 @@ struct
         (* We find the fundec from the varinfo, this raises the Not_found
          * exception if the function is not defined in the given sources. *)
         let fundec = Cilfacade.getdec f in
+        let vars = List.map (fun vi -> (Var vi, NoOffset: lval)) fundec.sformals in
         (* And we prepare the entry state *)
-        let entry_state = make_entry (zip fundec.sformals vals) reachable in
+        let entry_state = make_entry (zip fundec.sformals vals) (zip vars args) reachable in
           ((f,entry_state) :: norms, specs)
       with
         (* We look the function up to see, if there is a special treatment for
