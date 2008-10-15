@@ -216,6 +216,33 @@ struct
   module PMap = MapDomain.PMap (P) (Fields)
   include MapDomain.MapTop (P) (Fields)
 
+  let toXML_f sf mapping =
+    let esc = Goblintutil.escape in
+    let f ((v1,v2: key), (fd: value)) = 
+      let w = Goblintutil.summary_length - 4 in
+      let v1_str = V.short w v1 in let w = w - String.length v1_str in
+      let v2_str = V.short w v2 in let w = w - String.length v2_str in
+      let fd_str = Fields.short w fd in
+      let summary = esc (v1_str ^ " = " ^ v2_str ^ fd_str) in
+      let attr = [("text", summary)] in 
+        Xml.Element ("Leaf",attr,[])
+    in
+    let assoclist = fold (fun x y rest -> (x,y)::rest) mapping [] in
+    let children = List.rev_map f assoclist in
+    let node_attrs = [("text", esc (sf Goblintutil.summary_length mapping));("id","map")] in
+      Xml.Element ("Node", node_attrs, children)
+
+  let pretty_f short () mapping = 
+    let f (v1,v2) st dok: doc = 
+      dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 Fields.pretty st in
+    let content () = fold f mapping nil in
+      dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
+
+  let short _ _ = "Equalities"
+
+  let toXML s  = toXML_f short s
+  let pretty () x = pretty_f short () x
+
   let exists x m = try PMap.find x m; true with | Not_found -> false
 
   let add_old = add
@@ -231,8 +258,7 @@ struct
                   | None -> acc
           else acc
         in
-        let d = fold f d d in
-          add_old (x,y) fd d
+        fold f d (add_old (x,y) fd d)
       in
         if fd = [] then add_closure (y,x) [] (add_closure (x,y) [] d)
         else add_closure (x,y) fd d
@@ -284,30 +310,4 @@ struct
         end
       | _ -> st
 
-  let toXML_f sf mapping =
-    let esc = Goblintutil.escape in
-    let f ((v1,v2: key), (fd: value)) = 
-      let w = Goblintutil.summary_length - 4 in
-      let v1_str = V.short w v1 in let w = w - String.length v1_str in
-      let v2_str = V.short w v2 in let w = w - String.length v2_str in
-      let fd_str = Fields.short w fd in
-      let summary = esc (v1_str ^ " = " ^ v2_str ^ fd_str) in
-      let attr = [("text", summary)] in 
-        Xml.Element ("Leaf",attr,[])
-    in
-    let assoclist = fold (fun x y rest -> (x,y)::rest) mapping [] in
-    let children = List.rev_map f assoclist in
-    let node_attrs = [("text", esc (sf Goblintutil.summary_length mapping));("id","map")] in
-      Xml.Element ("Node", node_attrs, children)
-
-  let pretty_f short () mapping = 
-    let f (v1,v2) st dok: doc = 
-      dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 Fields.pretty st in
-    let content () = fold f mapping nil in
-      dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
-
-  let short _ _ = "Equalities"
-
-  let toXML s  = toXML_f short s
-  let pretty () x = pretty_f short () x
 end
