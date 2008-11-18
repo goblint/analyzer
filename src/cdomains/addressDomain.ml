@@ -311,3 +311,15 @@ struct
       | _ -> st
 
 end
+
+module SetSet (Base: Printable.S) = 
+struct
+  module S = SetDomain.Make (Base)
+  module E =  SetDomain.ToppedSet (S) (struct let topname = "Top" end)
+  include Lattice.Reverse (E)
+  let short w _ = "Partitions"
+  let toXML s  = toXML_f short s
+  let pretty () x = pretty_f short () x
+end
+
+module Reg: Lattice.S = SetSet (Basetype.Variables)

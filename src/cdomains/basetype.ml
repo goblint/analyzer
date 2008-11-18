@@ -165,6 +165,25 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
                                let bot_name = "-"
                              end)
 
+module CilExp: Printable.S with type t = exp =
+struct
+  type t = exp
+  let isSimple _  = true
+  let copy x = x
+  let compare x y = Pervasives.compare x y
+  let equal x y = Util.equals x y
+  let hash x = Hashtbl.hash x
+  let short w x = sprint ~width:w (d_exp () x)
+  let toXML_f sf x = 
+    let esc = Goblintutil.escape in
+      Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
+  let pretty_f sf () x = d_exp () x
+
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
+  let name () = "expresssions"
+end
+
 module CilStmt: Printable.S with type t = stmt =
 struct
   type t = stmt
@@ -184,7 +203,7 @@ struct
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let name () = "strings"
+  let name () = "expressions"
 end
 
 module CilFun: Printable.S with type t = varinfo =

@@ -45,7 +45,8 @@ module Spec =
 struct
   let name = "Unit analysis"
   type context = BS.store
-  module LD = Lattice.Unit
+  module S = SetDomain.Make (Basetype.CilExp)
+  module LD = Lattice.Reverse (S)
   module GD = Global.Make (Lattice.Unit)
 
   type domain = LD.t
@@ -60,7 +61,33 @@ struct
   let startstate = LD.top ()
   let otherstate = LD.top ()
 
-  let assign lval rval (st,c,gl) = (st,[])
+  let rec gen exp st = 
+    match exp with
+      | BinOp (_, e1, e2, _) -> 
+          let st = gen e1 st in
+          let st = gen e2 st in 
+            S.add exp st
+      | UnOp (_, e, _) -> 
+          let st = gen e st in 
+            S.add exp st
+      | _ -> st
+
+  let kill lval st = 
+    let rec occur x exp = match exp with
+      | Lval (Var y, NoOffset) when x == y -> true
+      | BinOp (_, e1, e2, _) -> occur x e1 || occur x e2
+      | UnOp (_, e, _) -> occur x e
+      | _ -> false
+    in let not_occur x e = not (occur x e) 
+    in
+      match lval with
+        | (Var x, NoOffset) -> S.filter (not_occur x) st
+        | _ -> st
+
+  let assign lval rval (st,c,gl) = 
+    let st = gen  rval st in
+    let st = kill lval st in
+      (st,[])
 
   let branch exp tv (st,c,gl) = (st,[])
 
@@ -86,4 +113,5 @@ module Context = Compose.ContextSensitive (BS) (Spec)
 module SimpleAnalysis = Multithread.Forward(Context)
 
 module Path = Compose.PathSensitive (BS) (Spec)
-module Analysis = Multithread.Forward(Path)
+(*module Analysis = Multithread.Forward(Path)*)
+module Analysis = SimpleAnalysis

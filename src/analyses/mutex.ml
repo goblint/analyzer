@@ -116,7 +116,7 @@ struct
   let assign lval rval ((st,eq),c,gl) = 
     let accessed = BS.access true c (Lval lval) @ BS.access false c rval in
     let eq = match Equ.eval_lv lval with Some x -> Equset.remove x eq | _ -> eq in
-      ((st, eq), add_locks accessed c (st,eq))
+      ((st,eq), add_locks accessed c (st,eq))
   let branch exp tv ((st,eq),c,gl) =
     let accessed = BS.access false c exp in
       ((st,eq), add_locks accessed c (st,eq))

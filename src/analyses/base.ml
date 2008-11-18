@@ -49,6 +49,7 @@ module VD = ValueDomain.Compound
 module LF = LibraryFunctions
 module CPA = MemoryDomain.Stack (VD)
 module Fields = AddressDomain.Fields
+module Reg = AddressDomain.Reg
 module Equ = AddressDomain.Equ
 module EquAddr = AddressDomain.EquAddr
 module Structs = ValueDomain.Structs
@@ -71,27 +72,28 @@ struct
   exception Top
   module Flag = Flag
   module GD = Global.Make (VD)
-  module CE = Lattice.Prod (CPA) (Equ)
+  module Alias = Lattice.Prod (Equ) (Reg)
+  module CA = Lattice.Prod (CPA) (Alias)
 
   module LD = struct
     include Lattice.ProdConf (struct
                                 let expand_fst = true
                                 let expand_snd = false
-                              end) (CE) (Flag) 
+                              end) (CA) (Flag) 
     let join (_,fx as x) (_,fy as y) = 
-      let (cpa,eq),fl = join x y in
+      let (cpa,alias),fl = join x y in
       let rem_var (v:varinfo) value cpa = 
         if v.vglob then CPA.remove v cpa else cpa
       in
         if not !GU.earlyglobs && Flag.switch fx fy then
-          (CPA.fold rem_var cpa cpa, eq), fl
+          (CPA.fold rem_var cpa cpa, alias), fl
         else
-          (cpa,eq), fl
+          (cpa,alias), fl
   end
 
   let name = "Constant Propagation Analysis"
-  let startstate = (CE.top (), Flag.bot ())
-  let otherstate = (CE.top (), Flag.top ())
+  let startstate = (CA.top (), Flag.bot ())
+  let otherstate = (CA.top (), Flag.top ())
 
  (**************************************************************************
   * Auxiliary stuff
@@ -99,8 +101,10 @@ struct
 
   type cpa = CPA.t
   type equ = Equ.t
+  type reg = Reg.t
+  type alias = Alias.t
   type flag = Flag.t
-  type domain = (cpa * equ) * flag
+  type domain = (cpa * alias) * flag
   type glob_fun = GD.Var.t -> GD.Val.t
   type glob_diff = (GD.Var.t * GD.Val.t) list
   type glob_state = glob_fun * glob_diff
@@ -116,7 +120,7 @@ struct
   type address = AD.t
 
   let get_fl ((_,fl),_) = fl
-  let get_eq (((_,eq),_),_) = eq
+  let get_eq (((_,(eq,_)),_),_) = eq
 
   let globalize (cpa:cpa): (cpa * glob_diff) =
     (* For each global variable, we create the diff *)
@@ -438,7 +442,7 @@ struct
           end 
 
 
-  let access_address (((st,eq),fl),_) write (addrs, eq_addr): access_list =
+  let access_address (((st,(eq,reg)),fl),_) write (addrs, eq_addr): access_list =
     if Flag.is_multi fl then begin
       let f (v,o) acc = if v.vglob then ((v, Offs.from_offset o), eq_addr, write) :: acc else acc in 
       let addr_list = try AD.to_var_offset addrs with _ -> 
@@ -635,9 +639,9 @@ struct
 
   let assign lval rval st = 
     let st:store = 
-      let ((cpa,equ),flag),gl = st in
+      let ((cpa,(equ,reg)),flag),gl = st in
       let equ = Equ.assign lval rval equ in
-        ((cpa,equ),flag),gl
+        ((cpa,(equ,reg)),flag),gl
     in
       set_savetop st (eval_lv st lval) (eval_rv st rval)
 
@@ -860,7 +864,7 @@ struct
               end
         end
 
-  let entry fval args (((cpa,eq),fl),gl as st: trans_in): (varinfo * domain) list * varinfo list = try
+  let entry fval args (((cpa,(eq,reg)),fl),gl as st: trans_in): (varinfo * domain) list * varinfo list = try
     let make_entry pa peq context =
       (* If we need the globals, add them *)
       let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.top () in 
@@ -869,7 +873,7 @@ struct
       let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
       let f (x,r) eq = Equ.assign x r eq in
       let new_eq  = List.fold_right f peq eq in 
-        ((new_cpa,new_eq),fl)
+        ((new_cpa,(new_eq,reg)),fl)
     in
     (* Ok, first of all, I need a list of function that this expression might
      * point to. *)
