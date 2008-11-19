@@ -166,20 +166,21 @@ end
 
 module Fields = 
 struct
+  module F = Printable.Either (Basetype.CilField) (Basetype.CilExp)
   module Ofs = struct
-    include Printable.Liszt (Basetype.CilField)
-    let short _ x = 
-      let elems = List.map (Basetype.CilField.short max_int) x in
-        match elems with 
-          | [] -> ""
-          | e -> "." ^ String.concat "." elems
+    include Printable.Liszt (F)
+    let rec short w x = match x with
+      | [] -> ""
+      | (`Left x :: xs) -> "." ^ Basetype.CilField.short w x ^ short w xs
+      | (`Right x :: xs) -> "[" ^ Basetype.CilExp.short w x ^ "]" ^ short w xs
+
     let toXML m = toXML_f short m
     let pretty () x = pretty_f short () x
   end
   include Lattice.Fake (Ofs)
 
   let rec prefix x y = match x,y with
-    | (x::xs), (y::ys) when Basetype.CilField.equal x y -> prefix xs ys
+    | (x::xs), (y::ys) when F.equal x y -> prefix xs ys
     | [], ys -> Some ys
     | _ -> None
 
@@ -188,12 +189,18 @@ struct
   let rec listify ofs: t = 
     match ofs with 
       | NoOffset -> []
-      | Field (x,ofs) -> x :: listify ofs
-      | _ -> Messages.bailwith "Indexing not supported here!"
+      | Field (x,ofs) -> `Left x :: listify ofs
+      | Index (i,ofs) -> `Right i :: listify ofs
 
-  let rec to_offs (ofs:t) = match ofs with 
+  let rec to_offs (ofs:t) tv = match ofs with 
+    | (`Left x::xs) -> `Field (x, to_offs xs tv)
+    | (`Right x::xs) -> `Index (tv, to_offs xs tv)
     | [] -> `NoOffset
-    | (x::xs) -> `Field (x, to_offs xs)
+
+  let rec occurs v fds = match fds with 
+    | (`Left x::xs) -> occurs v xs 
+    | (`Right x::xs) -> Basetype.CilExp.occurs v x || occurs v xs
+    | [] -> false
 end
 
 module V = Basetype.Variables
@@ -265,7 +272,8 @@ struct
 
   let kill x d = 
     let f (y,z) fd acc = 
-      if V.equal x y || V.equal x z then remove (y,z) acc else acc
+      if V.equal x y || V.equal x z || Fields.occurs x fd then 
+        remove (y,z) acc else acc
     in
       fold f d d 
 
@@ -302,8 +310,10 @@ struct
     match lval with
       | Var x, NoOffset -> begin 
           let st = kill x st in
+          (* let _ = printf "Here: %a\n" (printExp plainCilPrinter) rval in *)
             match rval with
               | Lval (Var y, NoOffset) -> add_eq (x,y) st 
+              | AddrOf (Var y, ofs) -> add (x,y) (Fields.listify ofs) st 
               | AddrOf (Mem (Lval (Var y, NoOffset)),  ofs) -> 
                   add (x,y) (Fields.listify ofs) st 
               | _ -> st

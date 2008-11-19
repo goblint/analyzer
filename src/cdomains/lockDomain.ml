@@ -95,7 +95,7 @@ struct
   let add (v,fd) eq (s:t): t = 
     let others = Equ.other_addrs (v,fd) eq in
       List.fold_left (fun s vfd -> S.add vfd s) s others
-  let remove x = S.filter (fun (y,f) -> not (Basetype.Variables.equal x y))
+  let remove x = S.filter (fun (y,f) -> not (Basetype.Variables.equal x y || AddressDomain.Fields.occurs x f))
   let elements = S.elements
 
 end

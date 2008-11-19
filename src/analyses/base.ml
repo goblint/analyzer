@@ -451,7 +451,7 @@ struct
               let all = Equ.other_addrs eq_addr eq in
               let f eq_addr acc = 
                 let (x,ofs) = eq_addr in
-                let ofs = Fields.to_offs ofs in
+                let ofs = Fields.to_offs ofs (ID.top ()) in
                   match x.vtype with
                     | TPtr (typ,_) -> let v = get_typvar typ in (v,ofs) :: acc
                     | _ -> acc

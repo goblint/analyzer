@@ -103,7 +103,7 @@ struct
               let (lv,lo) = compat all_locks in
               let (av,ao) = compat all_addrs in
                 if Basetype.Variables.equal lv av then
-                  let lo = Fields.to_offs lo in
+                  let lo = Fields.to_offs lo (Base.ID.top ()) in
                     Lockset.add (Addr.from_var_offset (v,lo)) locks
                   else locks 
               with _ -> locks)

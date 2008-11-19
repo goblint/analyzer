@@ -165,7 +165,7 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
                                let bot_name = "-"
                              end)
 
-module CilExp: Printable.S with type t = exp =
+module CilExp =
 struct
   type t = exp
   let isSimple _  = true
@@ -182,6 +182,24 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "expresssions"
+
+  let rec occurs x e = 
+    let rec occurs_lv (v,offs) = 
+      let rec occurs_offs offs = match offs with 
+        | Index (e,offs) -> occurs x e || occurs_offs offs
+        | Field (_,offs) -> occurs_offs offs
+        | NoOffset -> false
+      in 
+        (match v with 
+          | Var y -> Variables.equal x y
+          | Mem e -> occurs x e) || occurs_offs offs
+    in
+      match e with
+      | Lval l -> occurs_lv l
+      | AddrOf l -> occurs_lv l
+      | UnOp (_,e,_) -> occurs x e
+      | BinOp (_,e1,e2,_) -> occurs x e1 || occurs x e2
+      | _ -> false
 end
 
 module CilStmt: Printable.S with type t = stmt =
