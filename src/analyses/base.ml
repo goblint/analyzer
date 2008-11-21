@@ -711,7 +711,7 @@ struct
             let typ = AD.get_type a in
             let warning = "Unknown value in " ^ AD.short 40 a ^ " could be an escaped pointer address!" in
               if is_immediate_type typ then () else M.warn warning; empty 
-        | `Bot -> M.warn "A bottom value when computing reachable addresses!"; empty
+        | `Bot -> M.debug "A bottom value when computing reachable addresses!"; empty
         | `Address adrs when AD.is_top adrs -> 
             let warning = "Unknown address in " ^ AD.short 40 a ^ " has escaped." in
               M.warn warning; empty
@@ -792,6 +792,17 @@ struct
     in
       List.concat (List.map do_exp exps)
 
+  (* Variation of the above for yet another purpose, uhm, code reuse? *)
+  let collect_funargs (st:store) (exps: exp list) = 
+    let do_exp e = 
+      match eval_rv st e with
+        | `Address a when AD.equal a (AD.null_ptr()) -> []
+        | `Address a when not (AD.is_top a) -> reachable_vars [a] st
+        | _-> []
+    in
+      List.concat (List.map do_exp exps)
+
+
 
  (**************************************************************************
   * Function calls
@@ -854,7 +865,7 @@ struct
         end
       | x -> begin
           match LF.get_invalidate_action x with
-            | Some fnc -> invalidate st (fnc args);
+            | Some fnc -> invalidate st (fnc args)
             | None -> begin
                 M.warn ("Function definition missing for " ^ f.vname);
                 let st_expr (v:varinfo) (value) a = 
@@ -912,7 +923,7 @@ struct
         let str = sprint ~width:80 (d_exp () fval) in
           M.bailwith ("Trying to call function, but evaluating \"" ^ str ^ "\" yields an unknown address.")
 
-  let spawn (f: varinfo) (args: exp list) ((cpa,fl),gl as st:store) = 
+  let spawn (f: varinfo) (args: exp list) ((cpa,fl),gl as st:store): (varinfo * domain) list = 
     match f.vname with 
       (* handling thread creations *)
       | "pthread_create" -> begin	 
@@ -932,8 +943,24 @@ struct
                 end
             | _ -> M.bailwith "pthread_create arguments are strange!"
         end
-      | _ -> []
-
+      | _ -> begin
+          let args = 
+            match LF.get_invalidate_action f.vname with
+              | Some fnc -> fnc args
+              | None -> args
+          in
+          let flist = collect_funargs st args in
+          let f addr = 
+            let var = List.hd (AD.to_var_may addr) in
+            let _ = Cilfacade.getdec var in 
+              var, (cpa,Flag.get_multi ())
+          in 
+          let g a acc = try 
+            let r = f a in r :: acc 
+          with _ -> acc in
+            List.fold_right g flist [] 
+        end
+          
   let combine lval f args fun_st (loc,gl as st) = 
     (* This function does miscelaneous things, but the main task was to give the
      * handle to the global state to the state return from the function, but now
