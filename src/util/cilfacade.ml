@@ -35,6 +35,7 @@
 
 open Cil
 module E = Errormsg
+module GU = Goblintutil
 
 let init () =
   initCIL ();
@@ -118,13 +119,14 @@ let getMergedAST fileASTs =
 
 exception Found of fundec
 let getMain fileAST = 
+  let main = !GU.mainfun in
   try 
     iterGlobals fileAST (fun glob ->
       match glob with 
-        | GFun({svar={vname="main"}} as def,_) -> raise (Found def)
+        | GFun({svar={vname=vn}} as def,_) when vn = main -> raise (Found def)
         | _ -> ()
     );
-    failwith "No main method!"
+    failwith ("No "^ main ^ " method!")
   with
     | Found def -> def
 

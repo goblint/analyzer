@@ -953,7 +953,7 @@ struct
           let f addr = 
             let var = List.hd (AD.to_var_may addr) in
             let _ = Cilfacade.getdec var in 
-              var, (cpa,Flag.get_multi ())
+              var, (CA.top (), Flag.get_multi ())
           in 
           let g a acc = try 
             let r = f a in r :: acc 
