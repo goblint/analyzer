@@ -866,13 +866,30 @@ struct
       | x -> begin
           match LF.get_invalidate_action x with
             | Some fnc -> invalidate st (fnc args)
-            | None -> begin
+            | None -> (
                 M.warn ("Function definition missing for " ^ f.vname);
                 let st_expr (v:varinfo) (value) a = 
                   if v.vglob then Cil.mkAddrOf (Var v, NoOffset) :: a else a
                 in
-                  invalidate st (CPA.fold st_expr cpa args)
-              end
+                (* This here is just to see of something got spawned. *)
+                let flist = collect_funargs st args in
+                let f addr = 
+                  let var = List.hd (AD.to_var_may addr) in
+                  let _ = Cilfacade.getdec var in true
+                in 
+                let g a acc = try let r = f a in r || acc with _ -> acc in
+                let (((cpa,eq),fl),gl as st) = invalidate st (CPA.fold st_expr cpa args) in
+                  if List.fold_right g flist false then (
+                    (* Copy-pasted from the thread-spawning code above: *)
+                    GU.multi_threaded := true;
+                    let new_fl = Flag.join fl (Flag.get_main ()) in
+                      if Flag.is_multi fl then 
+                        (((cpa,eq),new_fl),[])
+                      else 
+                        let (ncpa,ngl) = if not !GU.earlyglobs then globalize cpa else cpa,[] in 
+                          (((ncpa,eq), new_fl),ngl)
+                  ) else st
+              )
         end
 
   let entry fval args (((cpa,(eq,reg)),fl),gl as st: trans_in): (varinfo * domain) list * varinfo list = try

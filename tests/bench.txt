@@ -3,62 +3,62 @@ Group: Kernel
 misc
 Wrapper for for misc devices
 kernel/misc.c
---allfuns
+--mainfun misc_init
 
 ds1302
 DS1302 Real Time Clock
 kernel/ds1302.c
---allfuns
+--mainfun ds1302_register
 
 vc_screen
 Provide access to virtual console memory
 kernel/vc_screen.c
---allfuns
+--mainfun vcs_init
 
 dtlk
 DoubleTalk PC driver
 kernel/dtlk.c
---allfuns
+--mainfun dtlk_init
 
 ipmi_devintf
 Device interface for the IPMI message handler
 kernel/ipmi_devintf.c
---allfuns
+--mainfun init_ipmi_devintf
 
 tlclk
 Telecom Clock driver for Intel NetStructure(tm) MPCBL0010
 kernel/tlclk.c
---allfuns
+--mainfun tlclk_init
 
 ppdev
 Provide access to parport subsystem
 kernel/ppdev.c
---allfuns
+--mainfun ppdev_init
 
 mem
 Provide access to main memory
 kernel/mem.c
---allfuns
+--mainfun chr_dev_init
 
 drm_drv
 Generic DRM driver template
 kernel/drm_drv.c
---allfuns
+--mainfun drm_core_init
 
 cm4040
 Omnikey PCMCIA smartcard reader CardMan 4040
 kernel/cm4040_cs.c
---allfuns
+--mainfun cm4040_init
 
 cm4000
 Omnikey PCMCIA smartcard reader CardMan 4000
 kernel/cm4000_cs.c
---allfuns
+--mainfun cmm_init
 
 ip2main
 IntelliPort family multiport serial I/O controllers
 kernel/ip2main.c
---allfuns
+--mainfun ip2_loadmain
 
 
 Group: Locksmith POSIX Apps
