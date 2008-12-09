@@ -175,7 +175,6 @@ let main () =
     else begin
       (* we first find the functions to analyze: *)
       if !GU.verbose then print_endline "And now...  the Goblin!";
-      if !GU.kernel then GU.allfuns := true; (* for now ... *)
       let funs = 
         if !GU.allfuns then CF.getFuns merged_AST
         else [CF.getMain merged_AST]
