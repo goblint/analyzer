@@ -38,7 +38,13 @@ analyses = ["mutex"]
 
 skipgrp = []
 projects = []
-File.open("tests/bench.txt", "r") do |f|
+file = if FileTest.exists? "tests/mybench.txt"
+         "tests/mybench.txt"
+       else
+         "tests/bench.txt"
+       end
+
+File.open(file, "r") do |f|
   i = 0
   while line = f.gets
     next if line =~ /^\s*$/ 

@@ -326,10 +326,34 @@ module SetSet (Base: Printable.S) =
 struct
   module S = SetDomain.Make (Base)
   module E =  SetDomain.ToppedSet (S) (struct let topname = "Top" end)
-  include Lattice.Reverse (E)
+  include E
+  type set = S.t
+  type partition = E.t
+
   let short w _ = "Partitions"
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
+
+  let leq x y = if is_top y then true else if is_top x then false else
+    for_all (fun p -> exists (S.leq p) y) x
+
+  let join xs ys = if is_top xs || is_top ys then top () else
+    let f (x: set) (zs: partition): partition = 
+      let p z = S.is_empty (S.inter x z) in
+      let (rest, joinem) = partition p zs in
+      let joined = fold S.union joinem x in
+        add joined rest
+    in
+      fold f xs ys
+
+  let meet xs ys = if is_top xs then ys else if is_top ys then xs else
+    let f (x: set) (zs: partition): partition = 
+      let p z = not (S.is_empty (S.inter x z)) in
+      let joinem = filter p ys in
+      let joined = fold S.inter joinem x in
+        if S.is_empty joined then zs else add joined zs
+    in
+      fold f xs (empty ())
 end
 
 module Reg: Lattice.S = SetSet (Basetype.Variables)
