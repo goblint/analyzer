@@ -1,3 +1,4 @@
+// PARAM: --analysis base
 #include <assert.h>
 
 /**

@@ -37,6 +37,7 @@ int main () {
   A->next = p;
   B = malloc(sizeof(struct s));
   init(B,5);
+
   B->next = p;
 
   pthread_create(&t1, NULL, t_fun, NULL);

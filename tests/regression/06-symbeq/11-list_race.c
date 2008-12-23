@@ -25,7 +25,7 @@ void *t_fun(void *arg) {
   t = A->next;
   A->next = p; // RACE!
   p->next = t;
-  pthread_mutex_unlock(&A_mutex);
+  pthread_mutex_unlock(&B_mutex);
   return NULL;
 }
 

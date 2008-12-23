@@ -354,6 +354,43 @@ struct
         if S.is_empty joined then zs else add joined zs
     in
       fold f xs (empty ())
+
+  let remove x ss = 
+    let f (z: set) (zz: partition) = 
+      let res = S.remove x z in
+        if S.cardinal res > 1 then 
+          add res zz
+        else 
+          zz
+    in
+      fold f ss (empty ())
+
+  let add_eq (x,y) ss = 
+    let myset = S.add y (S.singleton x) in
+      join ss (singleton myset)
 end
 
-module Reg: Lattice.S = SetSet (Basetype.Variables)
+module Reg = 
+struct 
+  include SetSet (Basetype.Variables)
+
+  let assign lval rval st =
+    match lval with
+      | Var x, NoOffset -> begin 
+          let st = remove x st in
+          (* let _ = printf "Here: %a\n" (printExp plainCilPrinter) rval in *)
+            match rval with
+              | Lval (Var y, NoOffset)
+              | Lval (Mem (Lval (Var y, NoOffset)),  _)
+              | AddrOf (Mem (Lval (Var y, NoOffset)),  _) -> add_eq (x,y) st 
+              | _ -> st
+        end
+      | Mem (Lval (Var x, NoOffset)),  ofs -> begin
+          match rval with
+            | Lval (Var y, NoOffset)
+            | Lval (Mem (Lval (Var y, NoOffset)),  _)
+            | AddrOf (Mem (Lval (Var y, NoOffset)),  _) -> add_eq (x,y) st 
+            | _ -> st
+        end
+      | _ -> st
+end

@@ -92,7 +92,7 @@ struct
   end
 
   let name = "Constant Propagation Analysis"
-  let startstate = (CA.top (), Flag.bot ())
+  let startstate = ((CPA.top (), (Equ.top (), Reg.bot ())), Flag.bot ())
   let otherstate = (CA.top (), Flag.top ())
 
  (**************************************************************************
@@ -641,6 +641,7 @@ struct
     let st:store = 
       let ((cpa,(equ,reg)),flag),gl = st in
       let equ = Equ.assign lval rval equ in
+      let reg = Reg.assign lval rval reg in
         ((cpa,(equ,reg)),flag),gl
     in
       set_savetop st (eval_lv st lval) (eval_rv st rval)
