@@ -355,7 +355,7 @@ struct
     in
       fold f xs (empty ())
 
-  let remove x ss = 
+  let remove x ss = if is_top ss then ss else
     let f (z: set) (zz: partition) = 
       let res = S.remove x z in
         if S.cardinal res > 1 then 
