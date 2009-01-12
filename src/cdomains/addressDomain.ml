@@ -374,23 +374,30 @@ module Reg =
 struct 
   include SetSet (Basetype.Variables)
 
+  let rec eval_exp rval = 
+    match rval with
+      | Lval (Var x, NoOffset)
+      | Lval (Mem (Lval (Var x, NoOffset)),  _)
+      | AddrOf (Mem (Lval (Var x, NoOffset)),  _) -> Some x
+      | BinOp (MinusPI, p, i, typ) 
+      | BinOp (PlusPI, p, i, typ) 
+      | BinOp (IndexPI, p, i, typ) -> eval_exp p
+      | CastE (typ, exp) -> eval_exp exp
+      | _ -> None
+
   let assign lval rval st =
     match lval with
       | Var x, NoOffset -> begin 
           let st = remove x st in
-          (* let _ = printf "Here: %a\n" (printExp plainCilPrinter) rval in *)
-            match rval with
-              | Lval (Var y, NoOffset)
-              | Lval (Mem (Lval (Var y, NoOffset)),  _)
-              | AddrOf (Mem (Lval (Var y, NoOffset)),  _) -> add_eq (x,y) st 
-              | _ -> st
+          (*let _ = printf "%s = %a\n" x.vname (printExp plainCilPrinter) rval in *)
+            match eval_exp rval with
+              | Some y -> add_eq (x,y) st
+              | None -> st
         end
       | Mem (Lval (Var x, NoOffset)),  ofs -> begin
-          match rval with
-            | Lval (Var y, NoOffset)
-            | Lval (Mem (Lval (Var y, NoOffset)),  _)
-            | AddrOf (Mem (Lval (Var y, NoOffset)),  _) -> add_eq (x,y) st 
-            | _ -> st
+            match eval_exp rval with
+              | Some y -> add_eq (x,y) st
+              | None -> st
         end
       | _ -> st
 end
