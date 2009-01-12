@@ -50,7 +50,7 @@ sig
 
   val name: string
   val startstate: domain
-  val otherstate: domain
+  val otherstate: domain (** This is used for non-main functions with the flag --allfuns. *)
   val es_to_string: fundec -> domain -> string
   val init: unit -> unit
   val finalize: unit -> unit

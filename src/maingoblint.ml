@@ -164,6 +164,7 @@ let main () =
   in
     (* using CIL's partial evaluation and constant folding! *)
     if !dopartial then CF.partial merged_AST;
+    CF.rmTemps merged_AST;
     (* creat the Control Flow Graph from CIL's AST *)
     CF.createCFG merged_AST;
     CF.ugglyImperativeHack := merged_AST;
