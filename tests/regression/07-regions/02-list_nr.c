@@ -1,4 +1,3 @@
-// SKIP
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
@@ -21,11 +20,11 @@ void *t_fun(void *arg) {
   struct s *t;
   init(p,7);
   
-  pthread_mutex_lock(&B_mutex);
-  t = A->next;
-  A->next = p; // RACE!
-  p->next = t;
-  pthread_mutex_unlock(&B_mutex);
+  pthread_mutex_lock(&A_mutex);
+  t = A->next; // NORACE
+  A->next = p; // NORACE
+  p->next = t; // NORACE
+  pthread_mutex_unlock(&A_mutex);
   return NULL;
 }
 
@@ -44,8 +43,8 @@ int main () {
   //pthread_join(t1, NULL);
   
   pthread_mutex_lock(&A_mutex);
-  p = A->next; // RACE
-  printf("%d\n", p->datum);
+  p = A->next; // NORACE
+  printf("%d\n", p->datum); // NORACE
   pthread_mutex_unlock(&A_mutex);
   return 0;
 }

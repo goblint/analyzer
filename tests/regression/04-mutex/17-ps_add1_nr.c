@@ -15,8 +15,6 @@ void *t_fun(void *arg) {
 int main() {
   int i;
   pthread_t id;
-
-  // Cre-1ate the thread
   pthread_create(&id, NULL, t_fun, NULL);
   
   printf("Do the work? ");
