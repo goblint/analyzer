@@ -42,6 +42,14 @@ type ('a, 'b) offs = [
   | `Index of 'b * ('a,'b) offs
   ] 
 
+type ('a,'b) offs_uk = [
+  | `NoOffset 
+  | `UnknownOffset
+  | `Field of 'a * ('a,'b) offs
+  | `Index of 'b * ('a,'b) offs
+  ] 
+
+
 let rec listify ofs = 
   match ofs with 
     | `NoOffset -> []
@@ -200,7 +208,7 @@ sig
   (** Finds the type of the address location. *)
 end
 
-module Lval (Idx: Printable.S) = 
+module Normal (Idx: Printable.S) = 
 struct
   type field = fieldinfo
   type idx = Idx.t
@@ -309,4 +317,35 @@ struct
 
   let toXML = toXML_f short 
   let pretty = pretty_f short 
+end
+
+module Stateless (Idx: Printable.S) =
+struct
+  type field = fieldinfo
+  type idx = Idx.t
+  type t = bool * varinfo * (field, idx) offs_uk
+  include Printable.Std
+
+  let isSimple _  = true
+
+  let short _ (dest, x, offs) = 
+    let rec off_str ofs = 
+      match ofs with
+        | `NoOffset -> ""
+        | `UnknownOffset -> "?"
+        | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
+        | `Index (v, ofs) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ off_str ofs
+    in
+      (if dest then "&" else "") ^ x.Cil.vname ^ off_str offs
+
+  let toXML_f sf (d,x,y) = 
+    let esc = Goblintutil.escape in
+    let typeinf = esc (Pretty.sprint Goblintutil.summary_length (Cil.d_type () x.Cil.vtype)) in
+    let info = "id=" ^ esc (string_of_int x.Cil.vid) ^ "; type=" ^ typeinf in
+      Xml.Element ("Leaf", [("text", esc (sf max_int (d,x,y))); ("info", info)],[])
+
+  let pretty_f sf () x = Pretty.text (sf max_int x)
+
+  let toXML x = toXML_f short x
+  let pretty () x = pretty_f short () x
 end

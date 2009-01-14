@@ -38,7 +38,7 @@ open Pretty
 (*module ID: IntDomain.ExclList = IntDomain.None*)
 module ID: IntDomain.ExclList = IntDomain.Trier
 module AD = AddressDomain.AddressSet (ID)
-module Addr = Lval.Lval (ID)
+module Addr = Lval.Normal (ID)
 module Offs = Lval.Offset (ID)
 module M = Messages
 

@@ -200,6 +200,28 @@ struct
       | UnOp (_,e,_) -> occurs x e
       | BinOp (_,e1,e2,_) -> occurs x e1 || occurs x e2
       | _ -> false
+
+  let replace (x:varinfo) (exp: exp) (e:exp): exp = 
+    let rec replace_lv (v,offs): lval = 
+      let rec replace_offs offs = match offs with 
+        | Index (e,offs) -> Index (replace_rv e, replace_offs offs)
+        | Field (f,offs) -> Field (f, replace_offs offs)
+        | NoOffset -> NoOffset
+      in 
+        (match v with 
+           | Mem e -> Mem (replace_rv e)
+           | x -> x), replace_offs offs
+    and replace_rv e = 
+      match e with
+        | Lval (Var y, NoOffset) when Variables.equal x y -> exp
+        | Lval l -> Lval (replace_lv l)
+        | AddrOf l -> Lval (replace_lv l)
+        | UnOp (op,e,t) -> UnOp (op, replace_rv e, t)
+        | BinOp (op,e1,e2,t) -> BinOp (op, replace_rv e1, replace_rv e2, t)
+        | x -> x
+    in
+      constFold true (replace_rv e)
+
 end
 
 module CilStmt: Printable.S with type t = stmt =

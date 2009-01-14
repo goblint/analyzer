@@ -93,7 +93,7 @@ struct
 
   let name = "Constant Propagation Analysis"
   let startstate = ((CPA.top (), (Equ.top (), Reg.bot ())), Flag.bot ())
-  let otherstate = (CA.top (), Flag.top ())
+  let otherstate = ((CPA.top (), (Equ.top (), Reg.bot ())), Flag.top ())
 
  (**************************************************************************
   * Auxiliary stuff
@@ -667,7 +667,14 @@ struct
       set_many st inits
 
   let return exp fundec st =
-    let nst = rem_many st (fundec.sformals @ fundec.slocals) in
+    let locals = fundec.sformals @ fundec.slocals in
+    let st:store = 
+      let ((cpa,(equ,reg)),flag),gl = st in
+      let equ = Equ.kill_vars locals equ in
+      let reg = Reg.remove_vars locals reg in
+        ((cpa,(equ,reg)),flag),gl
+    in
+    let nst = rem_many st locals in
       match exp with
         | None -> set_none nst
         | Some exp -> set nst (return_var ()) (eval_rv st exp)
@@ -902,7 +909,9 @@ struct
       let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
       let f (x,r) eq = Equ.assign x r eq in
       let new_eq  = List.fold_right f peq eq in 
-        ((new_cpa,(new_eq,reg)),fl)
+      let f (x,r) reg = Reg.assign x r reg in
+      let new_reg  = List.fold_right f peq reg in 
+        ((new_cpa,(new_eq,new_reg)),fl)
     in
     (* Ok, first of all, I need a list of function that this expression might
      * point to. *)

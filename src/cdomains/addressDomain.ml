@@ -51,7 +51,7 @@ end
 
 module AddressSet (Idx: Lattice.S) = 
 struct 
-  module Addr = Lval.Lval (Idx)
+  module Addr = Lval.Normal (Idx)
   include SetDomain.ToppedSet (Addr) (struct let topname = "Anywhere" end)
   
   type field = Addr.field
@@ -201,16 +201,24 @@ struct
     | (`Left x::xs) -> occurs v xs 
     | (`Right x::xs) -> Basetype.CilExp.occurs v x || occurs v xs
     | [] -> false
+
+  let rec replace x exp ofs = 
+    let f o = match o with
+      | `Right e -> `Right (Basetype.CilExp.replace x exp e)
+      | x -> x
+    in 
+      List.map f ofs
 end
 
 module V = Basetype.Variables
+module F = Fields
 
 module EquAddr = 
 struct 
-  include Printable.ProdSimple (V) (Fields)
+  include Printable.ProdSimple (V) (F)
   let short w (v,fd) = 
     let v_str = V.short w v in let w = w - String.length v_str in
-    let fd_str = Fields.short w fd in
+    let fd_str = F.short w fd in
       v_str ^ fd_str
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
@@ -220,8 +228,8 @@ module P = Printable.ProdSimple (V) (V)
 
 module Equ = 
 struct
-  module PMap = MapDomain.PMap (P) (Fields)
-  include MapDomain.MapTop (P) (Fields)
+  module PMap = MapDomain.PMap (P) (F)
+  include MapDomain.MapTop (P) (F)
 
   let toXML_f sf mapping =
     let esc = Goblintutil.escape in
@@ -229,7 +237,7 @@ struct
       let w = Goblintutil.summary_length - 4 in
       let v1_str = V.short w v1 in let w = w - String.length v1_str in
       let v2_str = V.short w v2 in let w = w - String.length v2_str in
-      let fd_str = Fields.short w fd in
+      let fd_str = F.short w fd in
       let summary = esc (v1_str ^ " = " ^ v2_str ^ fd_str) in
       let attr = [("text", summary)] in 
         Xml.Element ("Leaf",attr,[])
@@ -241,7 +249,7 @@ struct
 
   let pretty_f short () mapping = 
     let f (v1,v2) st dok: doc = 
-      dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 Fields.pretty st in
+      dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 F.pretty st in
     let content () = fold f mapping nil in
       dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
 
@@ -258,9 +266,9 @@ struct
       let add_closure (x,y) fd d = 
         let f (x',y') fd' acc =
           if V.equal y y' then 
-            match Fields.prefix fd fd' with
+            match F.prefix fd fd' with
               | Some rest -> add (x',x) rest acc
-              | None -> match Fields.prefix fd' fd with
+              | None -> match F.prefix fd' fd with
                   | Some rest -> add (x,x') rest acc
                   | None -> acc
           else acc
@@ -272,19 +280,21 @@ struct
 
   let kill x d = 
     let f (y,z) fd acc = 
-      if V.equal x y || V.equal x z || Fields.occurs x fd then 
+      if V.equal x y || V.equal x z || F.occurs x fd then 
         remove (y,z) acc else acc
     in
       fold f d d 
+
+  let kill_vars vars st = List.fold_right kill vars st
 
   let other_addrs vfd eq = 
     let rec helper (v,fd) addrs = 
       if List.exists (EquAddr.equal (v,fd)) addrs then addrs else
         let f (x,y) fd' acc = 
           if V.equal v x then
-            helper (y, Fields.append fd' fd) acc
+            helper (y, F.append fd' fd) acc
           else if V.equal v y then 
-            (match Fields.prefix fd' fd with
+            (match F.prefix fd' fd with
                | Some rest -> helper (x,rest) acc
                | None -> acc)
           else acc
@@ -296,7 +306,7 @@ struct
   let eval_rv rv = 
     match rv with 
       | Lval (Var x, NoOffset) -> Some (x, [])
-      | AddrOf (Mem (Lval (Var x, NoOffset)),  ofs) -> Some (x, Fields.listify ofs)
+      | AddrOf (Mem (Lval (Var x, NoOffset)),  ofs) -> Some (x, F.listify ofs)
       | _ -> None
 
   let eval_lv lv = 
@@ -313,9 +323,9 @@ struct
           (* let _ = printf "Here: %a\n" (printExp plainCilPrinter) rval in *)
             match rval with
               | Lval (Var y, NoOffset) -> add_eq (x,y) st 
-              | AddrOf (Var y, ofs) -> add (x,y) (Fields.listify ofs) st 
+              | AddrOf (Var y, ofs) -> add (x,y) (F.listify ofs) st 
               | AddrOf (Mem (Lval (Var y, NoOffset)),  ofs) -> 
-                  add (x,y) (Fields.listify ofs) st 
+                  add (x,y) (F.listify ofs) st 
               | _ -> st
         end
       | _ -> st
@@ -328,7 +338,7 @@ struct
   module E =  SetDomain.ToppedSet (S) (struct let topname = "Top" end)
   include E
   type set = S.t
-  type partition = E.t
+  type partition = t
 
   let short w _ = "Partitions"
   let toXML s  = toXML_f short s
@@ -358,46 +368,161 @@ struct
   let remove x ss = if is_top ss then ss else
     let f (z: set) (zz: partition) = 
       let res = S.remove x z in
-        if S.cardinal res > 1 then 
-          add res zz
-        else 
-          zz
+        if S.cardinal res > 1 then add res zz else zz
     in
       fold f ss (empty ())
 
-  let add_eq (x,y) ss = 
+  let add_eq (x,y) ss = if Base.equal x y then ss else
     let myset = S.add y (S.singleton x) in
       join ss (singleton myset)
+
+  let filter f ss = if is_top ss then ss else
+    let f (z: set) (zz: partition) = 
+      let res = S.filter f z in
+        if S.cardinal res > 1 then add res zz else zz
+    in
+      fold f ss (empty ())
 end
 
 module Reg = 
 struct 
-  include SetSet (Basetype.Variables)
+  module SS = SetSet (EquAddr)
+  module S  = struct
+    include SetDomain.Make (Basetype.Variables)
+    let short w _ = "Collapsed"
+    let toXML s  = toXML_f short s
+    let pretty () x = pretty_f short () x
+  end
 
-  let rec eval_exp rval = 
-    match rval with
-      | Lval (Var x, NoOffset)
-      | Lval (Mem (Lval (Var x, NoOffset)),  _)
-      | AddrOf (Mem (Lval (Var x, NoOffset)),  _) -> Some x
-      | BinOp (MinusPI, p, i, typ) 
-      | BinOp (PlusPI, p, i, typ) 
-      | BinOp (IndexPI, p, i, typ) -> eval_exp p
-      | CastE (typ, exp) -> eval_exp exp
-      | _ -> None
+  include Lattice.Prod (S) (SS)
 
-  let assign lval rval st =
-    match lval with
-      | Var x, NoOffset -> begin 
-          let st = remove x st in
-          (*let _ = printf "%s = %a\n" x.vname (printExp plainCilPrinter) rval in *)
-            match eval_exp rval with
-              | Some y -> add_eq (x,y) st
-              | None -> st
-        end
-      | Mem (Lval (Var x, NoOffset)),  ofs -> begin
-            match eval_exp rval with
-              | Some y -> add_eq (x,y) st
-              | None -> st
-        end
-      | _ -> st
+
+  let problematic (v1,fd1) (v2,fd2) = 
+    V.equal v1 v2 && not (F.equal fd1 fd2)
+
+  exception Found of V.t
+  let find_problem (ss: SS.t) = 
+    let f (s: SS.S.t) =
+      let f (v,fd: EquAddr.t) (seen: S.t): S.t = match fd with
+        | [`Right _] -> 
+            if S.exists (V.equal v) seen then 
+              raise (Found v) else S.add v seen 
+        | _ -> seen
+      in
+      let _ = SS.S.fold f s (S.empty ()) in ()
+    in
+      SS.iter f ss
+
+  (* Function for collapsing an array v and joining all equivalent classes
+   * related to any of its elements. *)
+  let rec collapse v (c,p) = 
+    let c = S.add v c in
+    let p = 
+      let f z (s,ss) = 
+        let f (v',_) = V.equal v v' in
+        let (x,y) = SS.S.partition f z in
+          if SS.S.is_empty x then 
+            (s, SS.add y ss) 
+          else 
+            (SS.S.union y s, ss)
+      in
+      let (s,ss) = SS.fold f p (SS.S.empty (), SS.empty ()) in
+        SS.add (SS.S.add (v,[]) s) ss
+    in normalize (c,p)
+  and normalize (c,p) = 
+    try find_problem p; (c,p) with Found v -> collapse v (c,p)
+
+  let collapse_all vs cp = S.fold collapse vs cp
+
+  let join (c1,_ as cp1: t) (c2,_ as cp2: t): t =
+    let cp1 = collapse_all (S.diff c2 c1) cp1 in
+    let cp2 = collapse_all (S.diff c1 c2) cp2 in
+      normalize (join cp1 cp2)
+
+  (* Here, we collapse the array v, without joiing equivalence classes. Probably
+   * only needed for the leq function. *)
+  let flatten v (c,p) = 
+    let f (v,fd) = match fd with 
+      | [`Right _] -> (v, [])
+      | x -> v,x
+    in c, SS.map (SS.S.map f) p
+
+  let flatten_all vs cp = S.fold flatten vs cp
+
+  let leq (c1,_ as cp1: t) (c2,_ as cp2: t): bool = 
+    let cp1 = flatten_all (S.diff c2 c1) cp1 in
+      leq cp1 cp2
+
+
+  let add_eq (x,y) (c,p) = 
+    if problematic x y then 
+      collapse (fst x) (c,p)
+    else 
+      normalize (c, SS.add_eq (x,y) p)
+
+  let remove x (c,p) = c, SS.remove x p
+
+  let remove_vars vs cp = 
+    let f v (c,p) = 
+      let not_v (v',_) = not (V.equal v v') in
+        S.remove v c, SS.filter not_v p
+    in
+      List.fold_right f vs cp
+
+  let kill x (c,p) = 
+    let vars =
+      let f (v,fd) vs = if F.occurs x fd then S.add v vs else vs in
+      let f s vs = SS.S.fold f s vs in
+        SS.fold f p (S.empty ())
+    in
+      collapse_all vars (c,p)
+
+  let replace x exp (c,st): t = 
+    let f (v,fd) = v, F.replace x exp fd in
+      (c,SS.map (SS.S.map f) st)
+
+
+
+  let update x rval st =
+    match rval with 
+      | Lval (Var y, NoOffset) when V.equal x y -> st
+      | BinOp (PlusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y -> 
+          replace x (BinOp (MinusA, Lval (Var y, NoOffset), c, typ)) st
+      | BinOp (MinusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y -> 
+          replace x (BinOp (PlusA, Lval (Var y, NoOffset), c, typ)) st
+      | _ -> kill x st
+
+  let eval_exp exp: (bool * EquAddr.t) option = 
+    let rec eval_rval deref rval =
+      match rval with
+        | Lval lval -> eval_lval deref lval 
+        | AddrOf lval -> eval_lval deref lval
+        | CastE (typ, exp) -> eval_rval deref exp
+        | BinOp (MinusPI, p, i, typ) 
+        | BinOp (PlusPI, p, i, typ) 
+        | BinOp (IndexPI, p, i, typ) -> eval_rval deref p
+        | _ -> None
+    and eval_lval deref lval =
+      match lval with 
+        | (Var x, Index (exp, _)) -> Some (deref, (x, [`Right exp]))
+        | (Var x, _) -> Some (deref, (x, []))
+        | (Mem exp,  _) -> eval_rval true exp
+    in
+      eval_rval false exp
+
+  let assign lval rval (c,p as st) =
+(*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
+    if isPointerType (typeOf rval) then begin
+      match eval_exp (Lval lval), eval_exp rval with
+        | Some (false, x), Some (_,y) -> 
+            let st = remove x st in 
+              add_eq (x, y) st
+        | Some (true, x), Some (_,y) -> 
+            add_eq (x, y) st
+        | _ -> st
+    end else if isIntegralType (typeOf rval) then begin
+      match lval with 
+        | Var x, NoOffset -> update x rval st
+        | _ -> st
+    end else st
 end
