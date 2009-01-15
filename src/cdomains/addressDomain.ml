@@ -393,6 +393,8 @@ struct
     let toXML s  = toXML_f short s
     let pretty () x = pretty_f short () x
   end
+  (* Note that SS is a topped set, while S has no top; this can cause problems
+   * that are extremely hard to find... *)
 
   include Lattice.Prod (S) (SS)
 
@@ -480,7 +482,6 @@ struct
   let replace x exp (c,st): t = 
     let f (v,fd) = v, F.replace x exp fd in
       (c,SS.map (SS.S.map f) st)
-
 
 
   let update x rval st =

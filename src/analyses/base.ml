@@ -980,11 +980,11 @@ struct
           let f addr = 
             let var = List.hd (AD.to_var_may addr) in
             let _ = Cilfacade.getdec var in 
-              var, (CA.top (), Flag.get_multi ())
+              var, otherstate
           in 
           let g a acc = try 
             let r = f a in r :: acc 
-          with _ -> acc in
+          with x -> M.debug ("Ignoring exception: " ^ Printexc.to_string x); acc in
             List.fold_right g flist [] 
         end
           
