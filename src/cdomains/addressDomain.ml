@@ -287,6 +287,7 @@ struct
 
   let kill_vars vars st = List.fold_right kill vars st
 
+  (* Function to find all addresses equal to { vfd } in { eq }. *)
   let other_addrs vfd eq = 
     let rec helper (v,fd) addrs = 
       if List.exists (EquAddr.equal (v,fd)) addrs then addrs else
@@ -303,7 +304,7 @@ struct
     in
       helper vfd []
 
-  let eval_rv rv = 
+  let eval_rv rv: EquAddr.t option = 
     match rv with 
       | Lval (Var x, NoOffset) -> Some (x, [])
       | AddrOf (Mem (Lval (Var x, NoOffset)),  ofs) -> Some (x, F.listify ofs)
@@ -382,6 +383,10 @@ struct
         if S.cardinal res > 1 then add res zz else zz
     in
       fold f ss (empty ())
+         
+  let find_class (x: Base.t) (ss: t): set option = 
+    try Some (E.choose (E.filter (S.mem x) ss)) with _ -> None
+
 end
 
 module Reg = 
@@ -397,6 +402,7 @@ struct
    * that are extremely hard to find... *)
 
   include Lattice.Prod (S) (SS)
+  type elt = EquAddr.t
 
 
   let problematic (v1,fd1) (v2,fd2) = 
@@ -405,7 +411,7 @@ struct
   exception Found of V.t
   let find_problem (ss: SS.t) = 
     let f (s: SS.S.t) =
-      let f (v,fd: EquAddr.t) (seen: S.t): S.t = match fd with
+      let f (v,fd: elt) (seen: S.t): S.t = match fd with
         | [`Right _] -> 
             if S.exists (V.equal v) seen then 
               raise (Found v) else S.add v seen 
@@ -415,7 +421,7 @@ struct
     in
       SS.iter f ss
 
-  (* Function for collapsing an array v and joining all equivalent classes
+  (* Function for collapsing an array { v } and joining all equivalent classes
    * related to any of its elements. *)
   let rec collapse v (c,p) = 
     let c = S.add v c in
@@ -441,8 +447,8 @@ struct
     let cp2 = collapse_all (S.diff c1 c2) cp2 in
       normalize (join cp1 cp2)
 
-  (* Here, we collapse the array v, without joiing equivalence classes. Probably
-   * only needed for the leq function. *)
+  (* Here, we collapse the array { v }, without joiing equivalence classes.
+   * Probably only needed for the leq function. *)
   let flatten v (c,p) = 
     let f (v,fd) = match fd with 
       | [`Right _] -> (v, [])
@@ -493,7 +499,7 @@ struct
           replace x (BinOp (PlusA, Lval (Var y, NoOffset), c, typ)) st
       | _ -> kill x st
 
-  let eval_exp exp: (bool * EquAddr.t) option = 
+  let eval_exp exp: (bool * elt) option = 
     let rec eval_rval deref rval =
       match rval with
         | Lval lval -> eval_lval deref lval 
@@ -511,7 +517,7 @@ struct
     in
       eval_rval false exp
 
-  let assign lval rval (c,p as st) =
+  let assign lval rval (c,p as st: t) =
 (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
     if isPointerType (typeOf rval) then begin
       match eval_exp (Lval lval), eval_exp rval with
@@ -526,4 +532,11 @@ struct
         | Var x, NoOffset -> update x rval st
         | _ -> st
     end else st
+
+  let related_globals (vfd: elt) (st: t): elt list = 
+    let is_global (v,fd) = v.vglob in
+    let set = SS.find_class vfd (snd st) in
+      match set with 
+        | Some set -> SS.S. elements (SS.S.filter is_global set)
+        | None -> []
 end

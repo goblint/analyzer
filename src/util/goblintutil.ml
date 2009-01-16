@@ -83,6 +83,9 @@ let eclipse = ref false
 (** Analyzing Device Drivers? *)
 let kernel = ref false
 
+(** Enable region-based warnings. *)
+let regions = ref false
+
 (** Length of summary description in XML output *)
 let summary_length = 80
 

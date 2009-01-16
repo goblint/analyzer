@@ -97,6 +97,7 @@ let main () =
                  ("--keepcpp", Arg.Set keep_cpp, " Keep the intermediate output of running the C preprocessor.");
                  ("--cppflags", Arg.Set_string cppflags, "<flags>  Pre-processing parameters.");
                  ("--kernel", Arg.Set GU.kernel, "For analyzing Linux Device Drivers.");
+                 ("--regions", Arg.Set GU.regions, "Enable region-based race detection.");
                  ("--showtemps", Arg.Set CF.showtemps, " Shows CIL's temporary variables when printing the state.");
                  ("--uncalled", Arg.Set GU.print_uncalled, " Display uncalled functions.");
                  ("--result", Arg.String setstyle, "<style>  Result style: none, state, indented, compact, or pretty.");

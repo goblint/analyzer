@@ -121,6 +121,7 @@ struct
 
   let get_fl ((_,fl),_) = fl
   let get_eq (((_,(eq,_)),_),_) = eq
+  let get_rg (((_,(_,rg)),_),_) = rg
 
   let globalize (cpa:cpa): (cpa * glob_diff) =
     (* For each global variable, we create the diff *)
@@ -237,6 +238,7 @@ struct
 
   let heap_hash = H.create 113 
   let type_hash = H.create 113 
+  let regn_hash = H.create 113 
 
   let get_heap_var loc = 
     try H.find heap_hash loc
@@ -254,8 +256,15 @@ struct
         H.add type_hash typ newvar;
         newvar
 
+  let get_regvar var = 
+    try H.find regn_hash var
+    with Not_found ->
+      let name = "R(" ^ var.vname ^ ")" in
+      let newvar = makeGlobalVar name var.vtype in
+        H.add  regn_hash var newvar;
+        newvar
+
   let heap_var loc = AD.from_var (get_heap_var loc)
-  let type_var typ = AD.from_var (get_heap_var typ)
 
   let init () = 
     return_varstore := makeVarinfo false "RETURN" voidType;
@@ -442,21 +451,38 @@ struct
           end 
 
 
-  let access_address (((st,(eq,reg)),fl),_) write (addrs, eq_addr): access_list =
+  let access_address (((st,(eq,reg)),fl),_) write (addrs, eq_addr, reg_addr): access_list =
     if Flag.is_multi fl then begin
       let f (v,o) acc = if v.vglob then ((v, Offs.from_offset o), eq_addr, write) :: acc else acc in 
-      let addr_list = try AD.to_var_offset addrs with _ -> 
-        match eq_addr with
-          | Some eq_addr -> 
-              let all = Equ.other_addrs eq_addr eq in
-              let f eq_addr acc = 
-                let (x,ofs) = eq_addr in
-                let ofs = Fields.to_offs ofs (ID.top ()) in
-                  match x.vtype with
-                    | TPtr (typ,_) -> let v = get_typvar typ in (v,ofs) :: acc
-                    | _ -> acc
-              in List.fold_right f all []
-          | None -> M.warn "Access to unknown address could be global"; [] in
+      let addr_list = 
+        if !GU.regions then begin
+          match reg_addr with
+            | Some (true, x) -> 
+                let all = Reg.related_globals x reg in
+                let f (x,ofs) = 
+                  let ofs = Fields.to_offs ofs (ID.top ()) in 
+                  let v = get_regvar x in
+                    (v,ofs)
+                in
+                  List.map f all
+            | Some (false, (x,ofs)) -> []
+            | None -> M.warn "Access to unknown address could be global"; [] 
+        end else begin
+          try AD.to_var_offset addrs with _ -> begin
+            match eq_addr with
+              | Some eq_addr -> 
+                  let all = Equ.other_addrs eq_addr eq in
+                  let f eq_addr acc = 
+                    let (x,ofs) = eq_addr in
+                    let ofs = Fields.to_offs ofs (ID.top ()) in
+                      match x.vtype with
+                        | TPtr (typ,_) -> let v = get_typvar typ in (v,ofs) :: acc
+                        | _ -> acc
+                  in List.fold_right f all []
+              | None -> M.warn "Access to unknown address could be global"; [] 
+          end
+        end
+      in
         List.fold_right f addr_list [] 
     end else []
 
@@ -466,7 +492,9 @@ struct
       | Const _ -> []
       (* Variables and address expressions *)
       | Lval lval -> 
-          let target = access_address st rw (eval_lv st lval, Equ.eval_rv (AddrOf lval)) in
+          let eq = Equ.eval_rv (AddrOf lval) in
+          let rg = Reg.eval_exp (AddrOf lval) in
+          let target = access_address st rw (eval_lv st lval, eq, rg) in
           let derefs = access_lv st lval in
             target @ derefs
       (* Binary operators *)
@@ -793,7 +821,8 @@ struct
         | `Address a when AD.equal a (AD.null_ptr()) -> []
         | `Address a when not (AD.is_top a) -> 
             let eq = Equ.eval_rv e in
-            let f x = access_address st true (x,eq) in
+            let rg = Reg.eval_exp e in
+            let f x = access_address st true (x,eq,rg) in
               List.concat (List.map f (reachable_vars [a] st))
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _-> []
@@ -984,7 +1013,10 @@ struct
           in 
           let g a acc = try 
             let r = f a in r :: acc 
-          with x -> M.debug ("Ignoring exception: " ^ Printexc.to_string x); acc in
+          with 
+            | Not_found -> acc 
+            | x -> M.debug ("Ignoring exception: " ^ Printexc.to_string x); acc 
+          in
             List.fold_right g flist [] 
         end
           

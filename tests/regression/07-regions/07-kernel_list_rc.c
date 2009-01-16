@@ -1,4 +1,4 @@
-// PARAM: --kernel --allfuns
+// PARAM: --kernel --allfuns --regions
 #include<linux/module.h>
 #include<linux/list.h>
 #include<linux/mutex.h>
