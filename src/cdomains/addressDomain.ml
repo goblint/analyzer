@@ -307,6 +307,7 @@ struct
   let eval_rv rv: EquAddr.t option = 
     match rv with 
       | Lval (Var x, NoOffset) -> Some (x, [])
+      | AddrOf (Var x, ofs)
       | AddrOf (Mem (Lval (Var x, NoOffset)),  ofs) -> Some (x, F.listify ofs)
       | _ -> None
 

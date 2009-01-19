@@ -47,7 +47,6 @@ int main () {
   init(B,5);
 
   pthread_create(&t1, NULL, t_fun, NULL);
-  //pthread_join(t1, NULL);
   
   ip = &p->datum;
   sp = list_entry(ip, struct s, datum);

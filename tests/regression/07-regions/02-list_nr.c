@@ -6,7 +6,7 @@
 struct s {
   int datum;
   struct s *next;
-} *A, *B;
+} *A;
 
 void init (struct s *p, int x) {
   p -> datum = x;
@@ -37,11 +37,8 @@ int main () {
   A = malloc(sizeof(struct s));
   init(A,3);
   A->next = p;
-  B = malloc(sizeof(struct s));
-  init(B,5);
 
   pthread_create(&t1, NULL, t_fun, NULL);
-  //pthread_join(t1, NULL);
   
   pthread_mutex_lock(&A_mutex);
   p = A->next; // NORACE

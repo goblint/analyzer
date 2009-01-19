@@ -43,7 +43,6 @@ int main () {
   B->next = p;
 
   pthread_create(&t1, NULL, t_fun, NULL);
-  //pthread_join(t1, NULL);
   
   pthread_mutex_lock(&A_mutex);
   p = A->next; 

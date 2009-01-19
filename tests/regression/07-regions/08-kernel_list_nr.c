@@ -20,7 +20,7 @@ void t1() {
   INIT_LIST_HEAD(&p->list);
   
   mutex_lock(&A_mutex);
-  list_add(p, &A); 
+  list_add(&p->list, &A); 
   p->datum++; // NORACE!
   mutex_unlock(&A_mutex);
 }
@@ -31,7 +31,7 @@ void t2 () {
   INIT_LIST_HEAD(&p->list);
   
   mutex_lock(&A_mutex);
-  list_add(p, &A);
+  list_add(&p->list, &A);
   p->datum++; // NORACE!
   mutex_unlock(&A_mutex);
 }
