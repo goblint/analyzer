@@ -113,7 +113,7 @@ struct
   type transfer = domain * glob_fun -> domain * glob_diff
   type trans_in = domain * glob_fun
   type callback = calls * spawn 
-  type access_list = ((Cil.varinfo * Offs.t) * EquAddr.t option * bool) list
+  type access_list = ((Cil.varinfo * Offs.t) * EquAddr.t option * exp option * bool) list
   type store = trans_in
   type wstore = domain * glob_diff
   type value = VD.t
@@ -453,21 +453,24 @@ struct
 
   let access_address (((st,(eq,reg)),fl),_) write (addrs, eq_addr, reg_addr): access_list =
     if Flag.is_multi fl then begin
-      let f (v,o) acc = if v.vglob then ((v, Offs.from_offset o), eq_addr, write) :: acc else acc in 
+      let f ((v,o), e) acc = if v.vglob then ((v, Offs.from_offset o), eq_addr, e, write) :: acc else acc in 
       let addr_list = 
         if !GU.regions then begin
           match reg_addr with
             | Some (true, x) -> 
                 let all = Reg.related_globals x reg in
                 let f (x,ofs) = 
-                  let ofs = Fields.to_offs ofs (ID.top ()) in 
+                  let expopt = match ofs with
+                    | [`Right e] -> Some e
+                    | _ -> None
+                  in
                   let v = get_regvar x in
-                    (v,ofs)
+                    (v, `NoOffset), expopt
                 in
                   List.map f all
-            | Some (false, (x,ofs)) -> []
+            | Some (false, (x,ofs)) -> let v = get_regvar x in [(v,`NoOffset), None]
             | None -> M.warn "Access to unknown address could be global"; [] 
-        end else begin
+        end else List.map (fun x -> (x,None)) (
           try AD.to_var_offset addrs with _ -> begin
             match eq_addr with
               | Some eq_addr -> 
@@ -481,7 +484,7 @@ struct
                   in List.fold_right f all []
               | None -> M.warn "Access to unknown address could be global"; [] 
           end
-        end
+        )
       in
         List.fold_right f addr_list [] 
     end else []

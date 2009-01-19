@@ -34,6 +34,7 @@
  *)
 
 open Pretty
+module GU = Goblintutil
 
 module type S =
 sig
@@ -95,7 +96,7 @@ struct
   let bot () = raise Error
   let is_bot _ = false
   let isSimple _  = true
-  let short _ x = Int64.to_string x
+  let short _ x = if x = GU.inthack then "*" else Int64.to_string x
   let pretty_f _ _ x = text (Int64.to_string x)
   let toXML_f _ x = Xml.Element ("Leaf", [("text", Int64.to_string x)],[])
   let toXML m = toXML_f short m

@@ -422,6 +422,8 @@ struct
     in
       SS.iter f ss
 
+  let is_collapsed v (c,p) = S.mem v c
+
   (* Function for collapsing an array { v } and joining all equivalent classes
    * related to any of its elements. *)
   let rec collapse v (c,p) = 

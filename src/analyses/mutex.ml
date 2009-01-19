@@ -41,10 +41,12 @@ module CF = Cilfacade
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module Equ = AddressDomain.Equ
+module Reg = AddressDomain.Reg
 module Fields = AddressDomain.Fields
 module Lockset = LockDomain.Lockset
 module Equset = LockDomain.LocksetEqu
 module AD = ValueDomain.AD
+module ID = ValueDomain.ID
 (*module BS = Base.Spec*)
 module BS = Base.Main
 module LF = LibraryFunctions
@@ -89,24 +91,41 @@ struct
   let add_locks accessed c (locks, eqlocks)  = 
     let fl = BS.get_fl c in
     let eq = BS.get_eq c in
+    let rg = BS.get_rg c in
     let loc = !GU.current_loc in
-    let f ((v,o), eq_acc, rv) = 
-      let locks = 
+    let f ((v,o), eq_acc, exp, rv) = 
+      let locks = if Reg.is_collapsed v rg then locks else 
+        match exp with 
+          | Some e -> begin
+              try 
+(*                let all_locks = Equset.elements eqlocks in*)
+                let (lv,lo) = Equset.choose eqlocks in
+                  match lo with
+                    | [`Right e'] when Basetype.CilExp.equal e e' -> 
+                        Lockset.add (Addr.from_var_offset (lv, (`Index (ID.of_int GU.inthack, `NoOffset)))) locks
+                    | _ -> locks
+              with _ -> locks
+            end
+          | None -> locks 
+      in
+      let locks =
         match eq_acc with 
-          | Some eqaddr -> (try
-              let all_addrs = Equ.other_addrs eqaddr eq in
-              let all_locks = Equset.elements eqlocks in
-              let ptr_to x y = match x with
-                | TPtr (x,_) when Util.equals x y -> true
-                | _ -> false in
-              let compat = List.find (fun (x,fl) -> ptr_to x.vtype v.vtype) in
-              let (lv,lo) = compat all_locks in
-              let (av,ao) = compat all_addrs in
-                if Basetype.Variables.equal lv av then
-                  let lo = Fields.to_offs lo (Base.ID.top ()) in
-                    Lockset.add (Addr.from_var_offset (v,lo)) locks
-                  else locks 
-              with _ -> locks)
+          | Some eqaddr -> begin 
+              try
+                let all_addrs = Equ.other_addrs eqaddr eq in
+                let all_locks = Equset.elements eqlocks in
+                let ptr_to x y = match x with
+                  | TPtr (x,_) when Util.equals x y -> true
+                  | _ -> false in
+                let compat = List.find (fun (x,fl) -> ptr_to x.vtype v.vtype) in
+                let (lv,lo) = compat all_locks in
+                let (av,ao) = compat all_addrs in
+                  if Basetype.Variables.equal lv av then
+                    let lo = Fields.to_offs lo (Base.ID.top ()) in
+                      Lockset.add (Addr.from_var_offset (v,lo)) locks
+                      else locks 
+              with _ -> locks
+            end
           | None -> locks
       in
         (v, (locks, Accesses.singleton (rv, (loc, fl, (locks,o))))) 
