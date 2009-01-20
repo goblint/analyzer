@@ -94,19 +94,22 @@ struct
     let rg = BS.get_rg c in
     let loc = !GU.current_loc in
     let f ((v,o), eq_acc, exp, rv) = 
-      let locks = if Reg.is_collapsed v rg then locks else 
-        match exp with 
-          | Some e -> begin
-              try 
-(*                let all_locks = Equset.elements eqlocks in*)
-                let (lv,lo) = Equset.choose eqlocks in
-                  match lo with
-                    | [`Right e'] when Basetype.CilExp.equal e e' -> 
-                        Lockset.add (Addr.from_var_offset (lv, (`Index (ID.of_int GU.inthack, `NoOffset)))) locks
-                    | _ -> locks
-              with _ -> locks
-            end
-          | None -> locks 
+      let locks = 
+        if !GU.regions then begin
+          if Reg.is_collapsed (try BS.getback_reg v with _ -> v) rg then locks else 
+            match exp with 
+              | Some e -> begin
+                  try 
+    (*                let all_locks = Equset.elements eqlocks in*)
+                    let (lv,lo) = Equset.choose eqlocks in
+                      match lo with
+                        | [`Right e'] when Basetype.CilExp.equal e e' -> 
+                            Lockset.add (Addr.from_var_offset (lv, (`Index (ID.of_int GU.inthack, `NoOffset)))) locks
+                        | _ -> locks
+                  with _ -> locks
+                end
+              | None -> locks 
+        end else locks 
       in
       let locks =
         match eq_acc with 

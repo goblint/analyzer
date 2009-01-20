@@ -473,7 +473,7 @@ struct
 
   let remove x (c,p) = c, SS.remove x p
 
-  let remove_vars vs cp = 
+  let remove_vars (vs: varinfo list) (cp:t): t = 
     let f v (c,p) = 
       let not_v (v',_) = not (V.equal v v') in
         S.remove v c, SS.filter not_v p
@@ -520,15 +520,15 @@ struct
     in
       eval_rval false exp
 
-  let assign lval rval (c,p as st: t) =
+  let assign (lval: lval) (rval: exp) (c,p as st: t): t =
 (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
+    let st = match eval_exp (Lval lval) with 
+      | Some (false, x) -> remove x st
+      | _ -> st
+    in
     if isPointerType (typeOf rval) then begin
       match eval_exp (Lval lval), eval_exp rval with
-        | Some (false, x), Some (_,y) -> 
-            let st = remove x st in 
-              add_eq (x, y) st
-        | Some (true, x), Some (_,y) -> 
-            add_eq (x, y) st
+        | Some (_, x), Some (_,y) -> add_eq (x, y) st
         | _ -> st
     end else if isIntegralType (typeOf rval) then begin
       match lval with 

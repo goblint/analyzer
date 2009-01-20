@@ -235,10 +235,12 @@ struct
   let return_varstore = ref dummyFunDec.svar
   let return_varinfo () = !return_varstore 
   let return_var () = AD.from_var (return_varinfo ())
+  let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
   let heap_hash = H.create 113 
   let type_hash = H.create 113 
   let regn_hash = H.create 113 
+  let regn_invh = H.create 113
 
   let get_heap_var loc = 
     try H.find heap_hash loc
@@ -261,13 +263,16 @@ struct
     with Not_found ->
       let name = "R(" ^ var.vname ^ ")" in
       let newvar = makeGlobalVar name var.vtype in
-        H.add  regn_hash var newvar;
+        H.add regn_hash var newvar;
+        H.add regn_invh newvar var;
         newvar
+
+  let getback_reg reg = H.find regn_invh reg
 
   let heap_var loc = AD.from_var (get_heap_var loc)
 
   let init () = 
-    return_varstore := makeVarinfo false "RETURN" voidType;
+    return_varstore := makeVarinfo false "RETURN" voidPtrType;
     H.clear heap_hash;
     H.clear type_hash
 
@@ -456,19 +461,20 @@ struct
       let f ((v,o), e) acc = if v.vglob then ((v, Offs.from_offset o), eq_addr, e, write) :: acc else acc in 
       let addr_list = 
         if !GU.regions then begin
+          let f (x,ofs) = 
+            let expopt = match ofs with
+              | [`Right e] -> Some e
+              | _ -> None
+            in
+            let v = get_regvar x in
+              (v, `NoOffset), expopt
+          in
           match reg_addr with
             | Some (true, x) -> 
                 let all = Reg.related_globals x reg in
-                let f (x,ofs) = 
-                  let expopt = match ofs with
-                    | [`Right e] -> Some e
-                    | _ -> None
-                  in
-                  let v = get_regvar x in
-                    (v, `NoOffset), expopt
-                in
                   List.map f all
-            | Some (false, (x,ofs)) -> let v = get_regvar x in [(v,`NoOffset), None]
+            | Some (false, x) -> 
+                if (fst x).vglob then [f x] else []
             | None -> M.warn "Access to unknown address could be global"; [] 
         end else List.map (fun x -> (x,None)) (
           try AD.to_var_offset addrs with _ -> begin
@@ -702,6 +708,9 @@ struct
     let st:store = 
       let ((cpa,(equ,reg)),flag),gl = st in
       let equ = Equ.kill_vars locals equ in
+      let reg = match exp with 
+        | Some exp -> Reg.assign (return_lval ()) exp reg 
+        | None -> reg in
       let reg = Reg.remove_vars locals reg in
         ((cpa,(equ,reg)),flag),gl
     in
@@ -1047,7 +1056,14 @@ struct
     let st = add_globals fun_st st in
       match lval with
         | None -> set_none st
-        | Some lval -> set_savetop st (eval_lv st lval) return_val
+        | Some lval -> 
+            let st:store = 
+              let ((cpa,(equ,reg)),flag),gl = st in
+              let reg = Reg.assign lval (Lval (return_lval ())) reg in 
+              let reg = Reg.remove_vars [return_varinfo ()] reg in
+                ((cpa,(equ,reg)),flag),gl
+            in
+              set_savetop st (eval_lv st lval) return_val
 
   let postprocess_glob g v = ()
 end

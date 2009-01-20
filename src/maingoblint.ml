@@ -112,6 +112,7 @@ let main () =
   Stats.reset Stats.HardwareIfAvail;
   CF.init();
   Arg.parse speclist recordFile usage_str;
+  (* GU.regions := true; *)
   let _ = match !GU.dump_path with
     | Some path -> begin
         M.warn_out := open_out (Filename.concat path "warnings.out");
