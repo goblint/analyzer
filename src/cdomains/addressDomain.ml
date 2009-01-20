@@ -522,13 +522,15 @@ struct
 
   let assign (lval: lval) (rval: exp) (c,p as st: t): t =
 (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
+    let st' = st in
     let st = match eval_exp (Lval lval) with 
       | Some (false, x) -> remove x st
       | _ -> st
     in
     if isPointerType (typeOf rval) then begin
       match eval_exp (Lval lval), eval_exp rval with
-        | Some (_, x), Some (_,y) -> add_eq (x, y) st
+        | Some (_, x), Some (_,y) ->
+            if EquAddr.equal x y then st' else add_eq (x, y) st
         | _ -> st
     end else if isIntegralType (typeOf rval) then begin
       match lval with 
