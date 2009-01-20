@@ -71,8 +71,9 @@ let warn_urgent msg =
 let warn_all msg = 
   if !GU.debug then 
     print_msg msg (!current_loc)
-  else if !soundness then 
-    print_msg ("No longer sound. " ^ msg) !current_loc;
+  else 
+    ();
+(*    if !soundness then print_msg ("No longer sound. " ^ msg) !current_loc;*)
   soundness := false
 
 let warn_str_hashtbl = Hashtbl.create 10

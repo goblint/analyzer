@@ -265,12 +265,17 @@ struct
   let finalize () = 
     if !GU.multi_threaded then begin
       match !race_free, !M.soundness with
-        | true, true -> print_endline "CONGRATULATIONS!\nYour program has just been certified Free of Data Races!"
+        | true, true -> 
+            print_endline "CONGRATULATIONS!\nYour program has just been certified Free of Data Races!"
         | true, false -> 
             print_endline "Goblint did not find any Data Races in this program!";
             print_endline "However, the code was too complicated for Goblint to understand all of it."
-        | _ -> ()
-    end else if not (!GU.debug || !GU.allfuns) then begin
+        | false, true -> 
+            print_endline "And that's all. Goblint is certain there are no other races."
+        | _ -> 
+            print_endline "And there may be more races ...";
+            print_endline "The code was too complicated for Goblint to understand all of it."
+    end else if not !GU.debug then begin
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end
