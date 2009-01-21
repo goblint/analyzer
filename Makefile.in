@@ -95,16 +95,18 @@ tags:
 	otags -vi $(SOURCEDIRS:%=%*) $(CIL)/src/* $(CIL)/src/frontc/* $(CIL)/src/ext/* $(CIL)/ocamlutil/*
 
 # DOCS
+DOC_ARG = -I $(OBJDIR) \
+	-I $(CILLIB) -I $(XML) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*\.mli*'` \
+	$(CIL)/src/cil.mli $(CIL)/src/formatcil.mli \
+	$(CIL)/ocamlutil/pretty.mli $(CIL)/ocamlutil/errormsg.mli \
+	$(CIL)/ocamlutil/trace.mli $(CIL)/ocamlutil/stats.mli \
+	$(CIL)/ocamlutil/alpha.mli $(CIL)/ocamlutil/util.mli \
+	$(CIL)/ocamlutil/clist.mli \
+	$(XML)/xml.mli \
+
 docs: 
 	@rm -f doc/*
-	ocamldoc.opt -stars -t 'Goblint API documentation' -html -d doc -v -I $(OBJDIR) \
-	    -I $(CILLIB) -I $(XML) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*\.mli*'` \
-	    $(CIL)/src/cil.mli $(CIL)/src/formatcil.mli \
-	    $(CIL)/ocamlutil/pretty.mli $(CIL)/ocamlutil/errormsg.mli \
-	    $(CIL)/ocamlutil/trace.mli $(CIL)/ocamlutil/stats.mli \
-	    $(CIL)/ocamlutil/alpha.mli $(CIL)/ocamlutil/util.mli \
-	    $(CIL)/ocamlutil/clist.mli \
-	    $(XML)/xml.mli \
+	ocamldoc.opt -stars -t 'Goblint API documentation' -dot-reduce -dot -html -d doc -v $(DOC_ARG)
 
-
-
+dot:
+	ocamldoc.opt -dot-reduce -dot -v $(DOC_ARG)

@@ -45,6 +45,8 @@ let main () =
   (* default settings for the command line arguments: *)
   let include_dir = ref (Filename.concat (Filename.dirname Sys.executable_name) "includes") in 
   let kernel_dir = "/lib/modules/`uname -r`/build/include" in
+  let other_includes = ref "" in
+  let add_include x = other_includes := "-I " ^ x ^ " " ^ !other_includes in
   let use_libc = ref false in
   let justCil = ref false in
   let dopartial = ref false in
@@ -81,6 +83,7 @@ let main () =
   let speclist = [
                  ("-o", Arg.Set_string outFile, "<file>  Prints the output to file.");
                  ("-v", Arg.Set GU.verbose, " Prints some status information.");
+                 ("-I", Arg.String add_include,  " Add include directory.");
                  ("--includes", Arg.Set_string include_dir, " Uses custom include files.");
                  ("--libc", Arg.Set use_libc, " Merge with a custom implementation of standard libs.");
                  ("--justcil", Arg.Set justCil, " Just print the transformated CIL output.");
@@ -125,6 +128,7 @@ let main () =
   (* The include files, libc stuff  *)
   let warn_includes () = print_endline "Warning, cannot find goblin's custom include files." in
   let includes = ref (if Sys.file_exists(!include_dir) then "-I" ^ !include_dir else (warn_includes () ; "")) in
+  let _ = includes := !includes ^ " " ^ !other_includes in
   let libc = Filename.concat !include_dir "lib.c" in 
   fileNames := List.rev !fileNames;
   if !use_libc then fileNames := libc :: !fileNames;
