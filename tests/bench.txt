@@ -61,6 +61,49 @@ kernel/ip2main.c
 --mainfun ip2_loadmain
 
 
+Group: Kernel Arrays
+
+applicom
+Driver for Applicom cards
+kernel/applicom.c
+--mainfun applicom_init
+
+avc
+Access Vector Cache implementation of SELinux
+kernel/avc.c
+--allfuns
+
+iphase
+Device driver for Interphase ATM PCI adapter cards
+kernel/iphase.c
+--mainfun ia_module_init
+
+lp
+Generic parallel printer driver
+kernel/lp.c
+--mainfun lp_init_module
+
+cassini
+Sun's Cassini ethernet driver.
+kernel/cassini.c
+--mainfun cas_init
+
+isicom
+Driver for Isicom profibus cards
+kernel/isicom.c
+--mainfun isicom_init
+
+sc26xx
+Serial driver for Philiphs SC2681/SC2692 devices
+kernel/sc26xx.c
+--mainfun sc26xx_init
+
+pcm_oss
+Digital Audio (PCM) abstract layer
+kernel/pcm_oss.c
+--mainfun alsa_pcm_oss_init
+
+
 Group: Locksmith POSIX Apps
 
 aget
