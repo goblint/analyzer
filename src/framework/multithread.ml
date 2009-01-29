@@ -75,6 +75,10 @@ struct
   type solver_result = Solver.solution'
   type source_result = ResultLocal.t * ResultGlob.t
 
+  let get_sid node = match node with
+    | MyCFG.Statement stmt -> stmt.sid
+    | MyCFG.Function _ -> failwith "What?"
+
   let system (cfg: MyCFG.cfg) ((n,es): Solver.variable) : Solver.rhs list = 
     if M.tracing then M.trace "con" (dprintf "%a\n" Var.pretty_trace (n,es));
     (* Find the edges entering this edge *)
@@ -142,9 +146,12 @@ struct
           | x -> M.warn_urgent "Oh no! Something terrible just happened"; raise x
       in
       let old_loc = !GU.current_loc in
+      let old_sid = !GU.current_sid in
       let _ = GU.current_loc := MyCFG.getLoc pred in
+      let _ = GU.current_sid := MyCFG.getSid pred, MyCFG.getSid n in
       let ans = eval () in 
       let _ = GU.current_loc := old_loc in 
+      let _ = GU.current_sid := old_sid in 
         ans
 
     in
@@ -229,9 +236,11 @@ struct
     let startstate = 
       if !GU.verbose then print_endline "Initializing globals.";
       Stats.time "initializers" doGlobalInits file in
-    let startvars = match !GU.allfuns, funs with 
-      | false, [f] -> [MyCFG.Function f.svar, startstate]
-      | _ -> List.map (fun x -> (MyCFG.Function x.svar, otherstate)) funs
+    let with_ostartstate x = MyCFG.Function x.svar, otherstate in
+    let startvars = match !GU.has_main, funs with 
+      | true, f :: fs -> 
+          (MyCFG.Function f.svar, startstate) :: List.map with_ostartstate fs
+      | _ -> List.map with_ostartstate funs
     in
     Spec.init ();
     let (sigma,theta) as sol = 

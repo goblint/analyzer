@@ -52,6 +52,9 @@ let allfuns = ref false
 (** name of the main function *)
 let mainfun = ref "main"
 
+(** Whether a main function has been found. *)
+let has_main = ref false
+
 (** print information about all globals, not just races *)
 let allglobs = ref false
 
@@ -63,6 +66,15 @@ let multi_threaded = ref false
 
 (** should globals be side-effected early *)
 let earlyglobs = ref false
+
+(** only report write races *)
+let no_read = ref false
+
+(** Avoids the merging of fields, not really sound *)
+let unmerged_fields = ref false
+
+(** Will terminate on a collapsed array --- for debugging. *)
+let die_on_collapse = ref false
 
 (** hack to use a special integer to denote synchronized array-based locking *)
 let inthack = Int64.of_int (-19012009)
@@ -101,6 +113,7 @@ let print_uncalled = ref false
 (** A very nice imperative hack to get the current location. This can be
   * referenced from within any transfer function. *)
 let current_loc = ref locUnknown
+let current_sid = ref (0,0)
 
 let escape (x:string):string =
   let esc_1 = Str.global_replace (Str.regexp "&") "&amp;" x in

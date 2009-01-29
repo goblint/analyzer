@@ -26,7 +26,7 @@ PROG_MODULES = \
 	basetype intDomain lval addressDomain \
 	arrayDomain structDomain unionDomain valueDomain memoryDomain \
 	concDomain lockDomain \
-	hash progress myCFG analyses libraryFunctions global \
+	hash progress myCFG myLiveness analyses libraryFunctions global \
 	effectWCon worklist worklistCon WNCon \
 	multithread compose \
 	base unit owner mutex

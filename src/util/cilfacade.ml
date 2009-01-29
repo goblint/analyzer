@@ -39,8 +39,8 @@ module GU = Goblintutil
 
 let init () =
   initCIL ();
-  print_CIL_Input := true;
-  lineDirectiveStyle := None
+  lineDirectiveStyle := None;
+  print_CIL_Input := true
 
 let ugglyImperativeHack = ref dummyFile
 let showtemps = ref false
@@ -128,16 +128,17 @@ let getMain fileAST =
     );
     failwith ("No "^ main ^ " method!")
   with
-    | Found def -> def
+    | Found def -> GU.has_main := true; def
 
 let getFuns fileAST  : fundec list =
+  let mainname = !GU.mainfun in
   let main = ref dummyFunDec in
   let found = ref false in
   let f rest glob =
     match glob with 
-      | GFun({svar={vname="main"}} as def,_) -> 
-          found := true; main := def; rest
-      | GFun (def, _) -> def :: rest
+      | GFun({svar={vname=mn}} as def,_) when mn = mainname-> 
+          found := true; GU.has_main := true; main := def; rest
+      | GFun ({svar={vstorage=NoStorage}} as def, _) -> def :: rest
       | _ -> rest 
   in
   let others = foldGlobals fileAST f [] in

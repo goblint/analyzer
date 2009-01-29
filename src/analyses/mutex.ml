@@ -91,24 +91,34 @@ struct
   let add_locks accessed c (locks, eqlocks)  = 
     let fl = BS.get_fl c in
     let eq = BS.get_eq c in
-    let rg = BS.get_rg c in
     let loc = !GU.current_loc in
     let f ((v,o), eq_acc, exp, rv) = 
       let locks = 
         if !GU.regions then begin
-          if Reg.is_collapsed (try BS.getback_reg v with _ -> v) rg then locks else 
-            match exp with 
-              | Some e -> begin
-                  try 
-    (*                let all_locks = Equset.elements eqlocks in*)
-                    let (lv,lo) = Equset.choose eqlocks in
-                      match lo with
-                        | [`Right e'] when Basetype.CilExp.equal e e' -> 
-                            Lockset.add (Addr.from_var_offset (lv, (`Index (ID.of_int GU.inthack, `NoOffset)))) locks
-                        | _ -> locks
-                  with _ -> locks
-                end
-              | None -> locks 
+          match exp with 
+            | Some fd -> begin
+                try 
+                  (* let all_locks = Equset.elements eqlocks in *)
+                  let (lv,lo) = Equset.choose eqlocks in
+                  (* We need a function to skip fields to the first array
+                   * indexing while constructing the sequence of field
+                   * accesses into which we place our k. *)
+                  let rec skip_fields fds k =
+                    match fds with
+                      | `Left f :: fds -> 
+                          let (seq,rest) = skip_fields fds k in
+                            `Field (f, seq), rest
+                      | _ -> k, fds
+                  in
+                  let _ ,fd = skip_fields fd `NoOffset in
+                  let la,lo = skip_fields lo (`Index (ID.of_int GU.inthack, `NoOffset)) in
+                    match fd,lo with
+                      | `Right e :: _, [`Right e'] when Basetype.CilExp.equal e e' -> 
+                          Lockset.add (Addr.from_var_offset (lv,la)) locks
+                      | _ -> locks
+                with _ -> locks
+              end
+            | None -> locks 
         end else locks 
       in
       let locks =
@@ -143,6 +153,8 @@ struct
     let accessed = BS.access false c exp in
       ((st,eq), add_locks accessed c (st,eq))
   let return exp fundec ((st,eq),c,gl) =
+    let locals = fundec.sformals @ fundec.slocals in
+    let eq = Equset.kill_vars locals eq in
     match exp with 
       | Some exp -> let accessed = BS.access false c exp in 
           ((st,eq), add_locks accessed c (st,eq))
@@ -160,7 +172,7 @@ struct
   let special f arglist ((st,eq),c,gl) =
     match f.vname with
    (* | "sem_wait"*)
-      | "_spin_lock" | "_spin_lock_irqsave"
+      | "_spin_lock" | "_spin_lock_irqsave" | "_spin_trylock" | "_spin_trylock_irqsave"
       | "mutex_lock" | "mutex_lock_interruptible"
       | "pthread_mutex_lock" ->
           let x = List.hd arglist in
@@ -258,8 +270,10 @@ struct
             | TFun _ -> ()
             | _ -> M.print_group warn warnings
     in 
-    let acc_info = create_map (Accesses.elements accesses) in
-    let acc_map  = regroup_map acc_info in
+    let acc = Accesses.elements accesses in
+    let acc = if !GU.no_read then List.filter fst acc else acc in
+    let acc_info = create_map acc in
+    let acc_map  = if !GU.unmerged_fields then fst acc_info else regroup_map acc_info in
       OffsMap.iter report_race acc_map
 
   let finalize () = 

@@ -57,15 +57,32 @@ module Unions = ValueDomain.Unions
 module CArrays = ValueDomain.CArrays
 
 let is_mutex_type (t: typ): bool = match t with
-  | TNamed (info, attr) -> info.tname = "pthread_mutex_t"
+  | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
   | TInt (IInt, attr) -> hasAttribute "mutex" attr
   | _ -> false
+
+let is_atomic_type (t: typ): bool = match t with
+  | TNamed (info, attr) -> info.tname = "atomic_t"
+  | _ -> false
+
+let is_atomic addr = 
+  try 
+    let (v,o) = List.hd (AD.to_var_offset addr) in
+    let rec remove_one_offs offs = 
+      match offs with 
+        | `Field (f, `NoOffset) -> `NoOffset
+        | `Field (f, offs) -> `Field (f, remove_one_offs offs)
+        | `Index (i, offs) -> `Index (i, remove_one_offs offs)
+        | _ -> `NoOffset
+    in is_atomic_type (AD.get_type (AD.from_var_offset (v,remove_one_offs o)))
+  with _ -> false
 
 let is_fun_type (t: typ): bool = match t with
   | TFun _ -> true
   | _ -> false
 
 let is_immediate_type t = is_mutex_type t || is_fun_type t
+let is_ignorable addr = is_mutex_type (AD.get_type addr) || is_atomic addr
 
 module MakeSpec (Flag: ConcDomain.S) =
 struct
@@ -113,7 +130,7 @@ struct
   type transfer = domain * glob_fun -> domain * glob_diff
   type trans_in = domain * glob_fun
   type callback = calls * spawn 
-  type access_list = ((Cil.varinfo * Offs.t) * EquAddr.t option * exp option * bool) list
+  type access_list = ((Cil.varinfo * Offs.t) * EquAddr.t option * Fields.t option * bool) list
   type store = trans_in
   type wstore = domain * glob_diff
   type value = VD.t
@@ -458,16 +475,14 @@ struct
 
   let access_address (((st,(eq,reg)),fl),_) write (addrs, eq_addr, reg_addr): access_list =
     if Flag.is_multi fl then begin
-      let f ((v,o), e) acc = if v.vglob then ((v, Offs.from_offset o), eq_addr, e, write) :: acc else acc in 
+      let f ((v,o), e) acc = if v.vglob && not (is_ignorable addrs) then 
+        ((v, Offs.from_offset o), eq_addr, e, write) :: acc else acc in 
       let addr_list = 
         if !GU.regions then begin
           let f (x,ofs) = 
-            let expopt = match ofs with
-              | [`Right e] -> Some e
-              | _ -> None
-            in
             let v = get_regvar x in
-              (v, `NoOffset), expopt
+            let ofs' = Fields.to_offs ofs (ID.top ()) in
+              (v, ofs'), Some ofs
           in
           match reg_addr with
             | Some (true, x) -> 
@@ -673,17 +688,38 @@ struct
  (**************************************************************************
   * Simple defs for the transfer functions 
   **************************************************************************)
+  module VL = Printable.Liszt (Basetype.Variables)
+
+  let kill_dead reg = 
+    let (before,after) = !GU.current_sid in
+    match MyLiveness.getLiveSet before, MyLiveness.getLiveSet after with
+      | Some before, Some after -> 
+          let vars = MyLiveness.VS.elements (MyLiveness.VS.diff before after) in
+          let vars = List.filter (fun v -> not (v.vglob)) vars in
+(*          let _ = printf "Before: %a\n" Reg.pretty reg in*)
+(*          let _ = printf "Died: %a\n" VL.pretty vars in*)
+          let reg = Reg.remove_vars vars reg in
+(*          let _ = printf "After: %a\n" Reg.pretty reg in*)
+            reg
+      | _ -> reg
 
   let assign lval rval st = 
+(*    let _ = printf "%a = %a\n" d_lval lval d_exp rval in*)
     let st:store = 
       let ((cpa,(equ,reg)),flag),gl = st in
       let equ = Equ.assign lval rval equ in
       let reg = Reg.assign lval rval reg in
+      let reg = kill_dead reg in
         ((cpa,(equ,reg)),flag),gl
     in
       set_savetop st (eval_lv st lval) (eval_rv st rval)
 
   let branch (exp:exp) (tv:bool) (st: store): wstore =
+    let st =
+      let ((cpa,(equ,reg)),flag),gl = st in
+      let reg = kill_dead reg in
+        ((cpa,(equ,reg)),flag),gl
+    in
     (* First we want to see, if we can determine a dead branch: *)
     match eval_rv st exp with
       (* For a boolean value: *)
@@ -701,6 +737,7 @@ struct
     let init_var v = (AD.from_var v, init_value st v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
+      MyLiveness.computeLiveness f;
       set_many st inits
 
   let return exp fundec st =
@@ -711,7 +748,7 @@ struct
       let reg = match exp with 
         | Some exp -> Reg.assign (return_lval ()) exp reg 
         | None -> reg in
-      let reg = Reg.remove_vars locals reg in
+      let reg = Reg.kill_vars locals (Reg.remove_vars locals reg) in
         ((cpa,(equ,reg)),flag),gl
     in
     let nst = rem_many st locals in
@@ -1054,8 +1091,19 @@ struct
     let return_var = return_var () in
     let return_val = get (fun_st,gl) return_var in
     let st = add_globals fun_st st in
+    let st:store = 
+      let ((cpa,(equ,reg)),flag),gl = st in
+      let reg = kill_dead reg in
+        ((cpa,(equ,reg)),flag),gl
+    in
       match lval with
-        | None -> set_none st
+        | None -> 
+            let st:store = 
+              let ((cpa,(equ,reg)),flag),gl = st in
+              let reg = Reg.remove_vars [return_varinfo ()] reg in
+                ((cpa,(equ,reg)),flag),gl
+            in
+              set_none st
         | Some lval -> 
             let st:store = 
               let ((cpa,(equ,reg)),flag),gl = st in

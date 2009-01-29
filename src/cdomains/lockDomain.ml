@@ -53,7 +53,11 @@ struct
    match offs with
      | `NoOffset -> true
      | `Field (x,y) -> concrete_offset y
-     | `Index (x,y) -> ID.is_int x && concrete_offset y
+     | `Index (x,y) -> 
+         if !Goblintutil.regions then 
+           ID.equal x (ID.of_int Goblintutil.inthack) 
+         else 
+           ID.is_int x && concrete_offset y
 
   let rec may_be_same_offset of1 of2 =
     match of1, of2 with
@@ -96,6 +100,8 @@ struct
     let others = Equ.other_addrs (v,fd) eq in
       List.fold_left (fun s vfd -> S.add vfd s) s others
   let remove x = S.filter (fun (y,f) -> not (Basetype.Variables.equal x y || AddressDomain.Fields.occurs x f))
+  let kill x = S.filter (fun (y,f) -> not (AddressDomain.Fields.occurs x f))
+  let kill_vars vars st = List.fold_right kill vars st
   let elements = S.elements
   let choose = S.choose
 
