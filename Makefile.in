@@ -25,7 +25,7 @@ PROG_MODULES = \
 	printable lattice setDomain mapDomain \
 	basetype intDomain lval addressDomain \
 	arrayDomain structDomain unionDomain valueDomain memoryDomain \
-	concDomain lockDomain \
+	musteqDomain regionDomain concDomain lockDomain \
 	hash progress myCFG myLiveness analyses libraryFunctions global \
 	effectWCon worklist worklistCon WNCon \
 	multithread compose \

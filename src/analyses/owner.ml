@@ -57,7 +57,7 @@ struct
   exception Top
   let name = "Equalities"
   type context = BS.store
-  module LD = AddressDomain.Equ 
+  module LD = MusteqDomain.Equ 
   module GD = Global.Make (Lattice.Unit)
 
   type domain = LD.t

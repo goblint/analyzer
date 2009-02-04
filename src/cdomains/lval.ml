@@ -349,3 +349,55 @@ struct
   let toXML x = toXML_f short x
   let pretty () x = pretty_f short () x
 end
+
+module Fields = 
+struct
+  module F = Printable.Either (Basetype.CilField) (Basetype.CilExp)
+  module Ofs = struct
+    include Printable.Liszt (F)
+    let rec short w x = match x with
+      | [] -> ""
+      | (`Left x :: xs) -> "." ^ Basetype.CilField.short w x ^ short w xs
+      | (`Right x :: xs) -> "[" ^ Basetype.CilExp.short w x ^ "]" ^ short w xs
+
+    let toXML m = toXML_f short m
+    let pretty () x = pretty_f short () x
+  end
+  include Lattice.Fake (Ofs)
+
+  let rec prefix x y = match x,y with
+    | (x::xs), (y::ys) when F.equal x y -> prefix xs ys
+    | [], ys -> Some ys
+    | _ -> None
+
+  let append x y: t = x @ y
+
+  let rec listify ofs: t = 
+    match ofs with 
+      | NoOffset -> []
+      | Field (x,ofs) -> `Left x :: listify ofs
+      | Index (i,ofs) -> `Right i :: listify ofs
+
+  let rec to_offs (ofs:t) tv = match ofs with 
+    | (`Left x::xs) -> `Field (x, to_offs xs tv)
+    | (`Right x::xs) -> `Index (tv, to_offs xs tv)
+    | [] -> `NoOffset
+
+  let rec occurs v fds = match fds with 
+    | (`Left x::xs) -> occurs v xs 
+    | (`Right x::xs) -> Basetype.CilExp.occurs v x || occurs v xs
+    | [] -> false
+
+  let rec occurs_where v (fds: t): t option = match fds with 
+    | (`Right x::xs) when Basetype.CilExp.occurs v x -> Some []
+    | (x::xs) -> (match occurs_where v xs with None -> None | Some fd -> Some (x :: fd))
+    | [] -> None
+
+  let rec replace x exp ofs = 
+    let f o = match o with
+      | `Right e -> `Right (Basetype.CilExp.replace x exp e)
+      | x -> x
+    in 
+      List.map f ofs
+end
+
