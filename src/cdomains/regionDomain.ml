@@ -35,221 +35,73 @@
 
 open Cil
 open Pretty
-open MusteqDomain
 
-module SetSet (Base: Printable.S) = 
+module V = Basetype.Variables
+module B = Printable.UnitConf (struct let name = "*fresh*" end) 
+module F = Lval.Fields
+
+module VF = 
 struct
-  module S = SetDomain.Make (Base)
-  module E =  SetDomain.ToppedSet (S) (struct let topname = "Top" end)
-  include E
-  type set = S.t
-  type partition = t
-
-  let short w _ = "Partitions"
+  include Printable.ProdSimple (V) (F)
+  let short w (v,fd) = 
+    let v_str = V.short w v in let w = w - String.length v_str in
+    let fd_str = F.short w fd in
+      v_str ^ fd_str
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
-  let leq x y = if is_top y then true else if is_top x then false else
-    for_all (fun p -> exists (S.leq p) y) x
-
-  let join xs ys = if is_top xs || is_top ys then top () else
-    let f (x: set) (zs: partition): partition = 
-      let p z = S.is_empty (S.inter x z) in
-      let (rest, joinem) = partition p zs in
-      let joined = fold S.union joinem x in
-        add joined rest
-    in
-      fold f xs ys
-
-  let meet xs ys = if is_top xs then ys else if is_top ys then xs else
-    let f (x: set) (zs: partition): partition = 
-      let p z = not (S.is_empty (S.inter x z)) in
-      let joinem = filter p ys in
-      let joined = fold S.inter joinem x in
-        if S.is_empty joined then zs else add joined zs
-    in
-      fold f xs (empty ())
-
-  let remove x ss = if is_top ss then ss else
-    let f (z: set) (zz: partition) = 
-      let res = S.remove x z in
-        if S.cardinal res > 1 then add res zz else zz
-    in
-      fold f ss (empty ())
-
-  let add_eq (x,y) ss = if Base.equal x y then ss else
-    let myset = S.add y (S.singleton x) in
-      join ss (singleton myset)
-
-  let filter f ss = if is_top ss then ss else
-    let f (z: set) (zz: partition) = 
-      let res = S.filter f z in
-        if S.cardinal res > 1 then add res zz else zz
-    in
-      fold f ss (empty ())
-         
-  let find_class (x: Base.t) (ss: t): set option = 
-    try Some (E.choose (E.filter (S.mem x) ss)) with _ -> None
+  let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
+  let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
+  let fake_join (v1,f1) (v2,f2) = (v1, F.join f1 f2)
+  let is_glob (v,f) = v.vglob
 end
+
+module VFB = Printable.Either (V) (B)
+
+module RegionSet = 
+struct
+  include SetDomain.Make (VF)
+
+  let leq s1 s2 = 
+    let p vf1 = exists (fun vf2 -> VF.leq vf1 vf2) s2 in
+      for_all p s1
+
+  let join (s1:t) (s2:t): t = 
+    (* Ok, so for each element vf2 in s2, we check in s1 for elements that
+     * collapse with it and join with them. These are put in res and removed
+     * from s1 as we don't need to compare with them anymore. *)
+    let f vf2 (s1,res) = 
+      let (s1_match, s1_rest) = partition (fun vf1 -> VF.collapse vf1 vf2) s1 in
+      let el = fold VF.fake_join s1_match vf2 in
+        (s1_rest, add el res)
+    in
+    let (s1', res) = fold f s2 (s1, empty ()) in
+      union s1' res
+
+  let add e s = join s (singleton e)
+end
+
 
 module Reg = 
 struct 
-  module SS = SetSet (EquAddr)
-  module S  = struct
-    include SetDomain.Make (EquAddr)
-    let short w _ = "Collapsed"
-    let toXML s  = toXML_f short s
-    let pretty () x = pretty_f short () x
-  end
-  (* Note that SS is a topped set, while S has no top; this can cause problems
-   * that are extremely hard to find... *)
+  include MapDomain.MapBot (VF) (RegionSet)
+  type elt = VF.t
 
-  include Lattice.Prod (S) (SS)
-  type elt = EquAddr.t
-  type set = S.t
-  type equiv = SS.t
+  let add_eq (x: elt) (y:elt) (rmap:t): t = 
+    let _ = printf "Blah: %a = %a\n" VF.pretty x VF.pretty y in
+    let x,y = if VF.is_glob x then y,x else x,y in
+      if VF.is_glob y then 
+        add x (RegionSet.add y (find x rmap)) rmap
+      else 
+        add x (RegionSet.union (find y rmap) (find x rmap)) rmap
 
-  let problematic (v1,fd1) (v2,fd2) = 
-    (* Check if two offsets conflict, and return common prefix. *)
-    let rec offs fd1 fd2 o =
-      match fd1,fd2 with
-        | `Right _ :: _, _ | _, `Right _ :: _ -> Some (List.rev o)
-(*        | `Right i1 :: fd1, `Right i2 :: fd2 when Basetype.CilExp.equal i1 i2 -> *)
-(*            offs fd1 fd2 (`Right i1 :: o)*)
-        | `Left f1 :: fd1, `Left f2 :: fd2 when Basetype.CilField.equal f1 f2 -> 
-            offs fd1 fd2 (`Left f1 :: o)
-        | _ -> None
-    in
-      if V.equal v1 v2 then begin
-        match offs fd1 fd2 [] with
-          | Some fd -> Some (v1,fd)
-          | None -> None
-      end else None
-
-  exception Found of elt
-  (* Function to find a problematic prefix. *)
-  let find_problem (c,ss: t) = 
-    (* Look inside a class for two conflicting elements. *)
-    let f (s: set) =
-      (* Check if a new element conflicts with what we have visited so far. *)
-      let f (e: elt) (seen: set): set = 
-        (* As soon as we find a problematic pair, we escape out of the loops. *)
-        let check vf1 vf2 = 
-          match problematic vf1 vf2 with
-            | Some vf -> raise (Found vf)
-            | None -> ()
-        in
-          (* Check if e conflicts with any of the elements we have seen. *)
-          S.iter (check e) seen;
-          (* If not, then we add it to the seen elements. *)
-          S.add e seen
-      in
-      let _ = SS.S.fold f s c in ()
-    in
-      SS.iter f ss
-
-  let is_collapsed v (c,p) = S.mem v c
-
-  (* Function for collapsing an array { v } and joining all equivalent classes
-   * related to any of its elements. *)
-  let rec collapse (vf: elt) (c,p: t): t = 
-    if !Goblintutil.die_on_collapse then failwith "An array has collapsed!";
-    let c = S.add vf c in
-    let p = 
-      (* We need a function that looks into each set z of our partitions, and
-       * collect those that contain vf into a single class s and the other
-       * partitions ss we leave alone. *)
-      let f (z: set) (s,ss) = 
-        (* We first split the elements in z into two sets, those with a
-         * prefix vf and those without it. *)
-        let f vf' = match EquAddr.prefix vf vf' with Some _ -> true | _ -> false in
-        let (x,y) = SS.S.partition f z in
-          if SS.S.is_empty x then 
-            (* If this partition does not contain something that was collapsed,
-             * then we add it to the undisturbed ones. *)
-            (s, SS.add y ss) 
-          else 
-            (* If something here needs to be collapsed, then we take the other
-             * elements and throw it into the class that collects everything
-             * related to the array. *)
-            (SS.S.union y s, ss)
-      in
-      let (s,ss) = SS.fold f p (SS.S.empty (), SS.empty ()) in
-        SS.add (SS.S.add vf s) ss
-    in normalize (c,p)
-  (* And we iterate until there are nothing more to collapse. *)
-  and normalize cp = 
-    try find_problem cp; cp with Found v -> collapse v cp
-
-  let collapse_all (vs: set) (cp: t): t = S.fold collapse vs cp
-
-  (* We join these classes by collapsing what is uncollapsed in the other, and
-   * then normalizing. *)
-  let join (c1,_ as cp1: t) (c2,_ as cp2: t): t =
-    let cp1 = collapse_all (S.diff c2 c1) cp1 in
-    let cp2 = collapse_all (S.diff c1 c2) cp2 in
-      normalize (join cp1 cp2)
-
-  (* Here, we collapse the array { v }, without joiing equivalence classes.
-   * Probably only needed for the leq function. *)
-  let flatten v (c,p) = 
-    let f (v,fd) = match fd with 
-      | [`Right _] -> (v, [])
-      | x -> v,x
-    in c, SS.map (SS.S.map f) p
-
-  let flatten_all vs cp = S.fold flatten vs cp
-
-  let leq (c1,_ as cp1: t) (c2,_ as cp2: t): bool = 
-    let cp1 = flatten_all (S.diff c2 c1) cp1 in
-      leq cp1 cp2
-
-
-  let add_eq (x,y) (c,p) = 
-    match problematic x y with
-      | Some vf -> collapse vf (c,p)
-      | None -> normalize (c, SS.add_eq (x,y) p)
-
-  let remove x (c,p) = c, SS.remove x p
-
+  let remove v cp = remove (v,[]) cp
   let remove_vars (vs: varinfo list) (cp:t): t = 
-    let f v (c,p) = 
-      let not_v (v',_) = not (V.equal v v') in
-        S.filter not_v c, SS.filter not_v p
-    in
-      List.fold_right f vs cp
+    List.fold_right remove vs cp
 
-  let keep_only (vs: varinfo list) (c,p:t): t = 
-    let eq_v (pv,_) = pv.vglob || List.mem pv vs  in
-      S.filter eq_v c, SS.filter eq_v p
+  let kill_vars vars st = st
 
-  let kill x (c,p: t): t = 
-    let vars =
-      let f (v,fd) vs = 
-        match F.occurs_where x fd with
-          | Some fs -> S.add (v,fs) vs
-          | None -> vs
-      in
-      let f s vs = SS.S.fold f s vs in
-        SS.fold f p (S.empty ())
-    in
-      collapse_all vars (c,p)
-
-  let kill_vars vars st = List.fold_right kill vars st
-
-  let replace x exp (c,st): t = 
-    let f (v,fd) = v, F.replace x exp fd in
-      (c,SS.map (SS.S.map f) st)
-
-
-  let update x rval st =
-    match rval with 
-      | Lval (Var y, NoOffset) when V.equal x y -> st
-      | BinOp (PlusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y -> 
-          replace x (BinOp (MinusA, Lval (Var y, NoOffset), c, typ)) st
-      | BinOp (MinusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y -> 
-          replace x (BinOp (PlusA, Lval (Var y, NoOffset), c, typ)) st
-      | _ -> kill x st
+  let update x rval st = st
 
   type eval_t = (bool * elt) option
   let eval_exp exp: eval_t = 
@@ -264,22 +116,22 @@ struct
         | _ -> None
     and eval_lval deref lval =
       match lval with 
-        | (Var x, offs) -> Some (deref, (x,F.listify offs))
+        | (Var x, offs) -> Some (deref, (x, F.listify offs))
         | (Mem exp,  _) -> eval_rval true exp
     in
       eval_rval false exp
 
-  let assign (lval: lval) (rval: exp) (c,p as st: t): t =
+  let assign (lval: lval) (rval: exp) (st: t): t =
 (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
     let st' = st in
     let st = match eval_exp (Lval lval) with 
-      | Some (false, x) -> remove x st
+      | Some (false, (x,_)) -> remove x st
       | _ -> st
     in
     if isPointerType (typeOf rval) then begin
       match eval_exp (Lval lval), eval_exp rval with
         | Some (_, x), Some (_,y) ->
-            if EquAddr.equal x y then st' else add_eq (x, y) st
+            if VF.equal x y then st' else add_eq x y st
         | _ -> st
     end else if isIntegralType (typeOf rval) then begin
       match lval with 
@@ -290,12 +142,7 @@ struct
   let related_globals (deref_vfd: eval_t) (st: t): elt list = 
     let is_global (v,fd) = v.vglob in
     match deref_vfd with
-      | Some (true, vfd) -> 
-          let set = SS.find_class vfd (snd st) in begin
-            match set with 
-              | Some set -> SS.S.elements (SS.S.filter is_global set)
-              | None -> if is_global vfd then [vfd] else []
-          end
+      | Some (true, vfd) -> RegionSet.elements (find vfd st)
       | Some (false, vfd) -> 
           if is_global vfd then [vfd] else []
       | None -> Messages.warn "Access to unknown address could be global"; [] 

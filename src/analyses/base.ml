@@ -615,36 +615,17 @@ struct
   **************************************************************************)
   module VL = Printable.Liszt (Basetype.Variables)
 
-  let kill_dead reg = 
-    let (before,after) = !GU.current_sid in
-    match MyLiveness.getLiveSet before, MyLiveness.getLiveSet after with
-      | Some before, Some after -> 
-          let vars = MyLiveness.VS.elements (MyLiveness.VS.diff before after) in
-          let vars = List.filter (fun v -> not (v.vglob)) vars in
-(*          let _ = printf "Before: %a\n" Reg.pretty reg in*)
-(*          let _ = printf "Died: %a\n" VL.pretty vars in*)
-          let reg = Reg.remove_vars vars reg in
-(*          let _ = printf "After: %a\n" Reg.pretty reg in*)
-            reg
-      | _ -> reg
-
   let assign lval rval st = 
 (*    let _ = printf "%a = %a\n" d_lval lval d_exp rval in*)
     let st:store = 
       let ((cpa,(equ,reg)),flag),gl = st in
       let equ = Equ.assign lval rval equ in
       let reg = Reg.assign lval rval reg in
-      let reg = kill_dead reg in
         ((cpa,(equ,reg)),flag),gl
     in
       set_savetop st (eval_lv st lval) (eval_rv st rval)
 
   let branch (exp:exp) (tv:bool) (st: store): wstore =
-    let st =
-      let ((cpa,(equ,reg)),flag),gl = st in
-      let reg = kill_dead reg in
-        ((cpa,(equ,reg)),flag),gl
-    in
     (* First we want to see, if we can determine a dead branch: *)
     match eval_rv st exp with
       (* For a boolean value: *)
@@ -662,7 +643,6 @@ struct
     let init_var v = (AD.from_var v, init_value st v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
-      MyLiveness.computeLiveness f;
       set_many st inits
 
   let return exp fundec st =
@@ -1000,11 +980,6 @@ struct
     let return_var = return_var () in
     let return_val = get (fun_st,gl) return_var in
     let st = add_globals fun_st st in
-    let st:store = 
-      let ((cpa,(equ,reg)),flag),gl = st in
-      let reg = kill_dead reg in
-        ((cpa,(equ,reg)),flag),gl
-    in
       match lval with
         | None -> 
             let st:store = 

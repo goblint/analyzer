@@ -75,18 +75,20 @@ struct
   let name () = "blank"
 end
 
-module Unit = 
+module type Name = sig val name: string end
+module UnitConf (N: Name) = 
 struct
   type t = unit
   include Std
-  let pretty () _ = text "()"
-  let short _ _ = "()"
-  let toXML x = Xml.Element ("Leaf", [("text", "()")], [])
+  let pretty () _ = text N.name
+  let short _ _ = N.name
+  let toXML x = Xml.Element ("Leaf", [("text", N.name)], [])
   let isSimple _ = true
   let pretty_f _ = pretty
   let toXML_f _ = toXML
-  let name () = "blank"
+  let name () = "Unit"
 end
+module Unit = UnitConf (struct let name = "()" end)
 
 module type LiftingNames =
 sig

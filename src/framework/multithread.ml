@@ -146,12 +146,9 @@ struct
           | x -> M.warn_urgent "Oh no! Something terrible just happened"; raise x
       in
       let old_loc = !GU.current_loc in
-      let old_sid = !GU.current_sid in
       let _ = GU.current_loc := MyCFG.getLoc pred in
-      let _ = GU.current_sid := MyCFG.getSid pred, MyCFG.getSid n in
       let ans = eval () in 
       let _ = GU.current_loc := old_loc in 
-      let _ = GU.current_sid := old_sid in 
         ans
 
     in

@@ -352,21 +352,22 @@ end
 
 module Fields = 
 struct
-  module F = Printable.Either (Basetype.CilField) (Basetype.CilExp)
-  module Ofs = struct
-    include Printable.Liszt (F)
-    let rec short w x = match x with
-      | [] -> ""
-      | (`Left x :: xs) -> "." ^ Basetype.CilField.short w x ^ short w xs
-      | (`Right x :: xs) -> "[" ^ Basetype.CilExp.short w x ^ "]" ^ short w xs
+  module F = Basetype.CilField
+  module I = Basetype.CilExp
+  module FI = Printable.Either (F) (I)
+  include Printable.Liszt (FI)
+  include Lattice.StdCousot
 
-    let toXML m = toXML_f short m
-    let pretty () x = pretty_f short () x
-  end
-  include Lattice.Fake (Ofs)
+  let rec short w x = match x with
+    | [] -> ""
+    | (`Left x :: xs) -> "." ^ F.short w x ^ short w xs
+    | (`Right x :: xs) -> "[" ^ I.short w x ^ "]" ^ short w xs
+
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
 
   let rec prefix x y = match x,y with
-    | (x::xs), (y::ys) when F.equal x y -> prefix xs ys
+    | (x::xs), (y::ys) when FI.equal x y -> prefix xs ys
     | [], ys -> Some ys
     | _ -> None
 
@@ -385,19 +386,48 @@ struct
 
   let rec occurs v fds = match fds with 
     | (`Left x::xs) -> occurs v xs 
-    | (`Right x::xs) -> Basetype.CilExp.occurs v x || occurs v xs
+    | (`Right x::xs) -> I.occurs v x || occurs v xs
     | [] -> false
 
   let rec occurs_where v (fds: t): t option = match fds with 
-    | (`Right x::xs) when Basetype.CilExp.occurs v x -> Some []
+    | (`Right x::xs) when I.occurs v x -> Some []
     | (x::xs) -> (match occurs_where v xs with None -> None | Some fd -> Some (x :: fd))
     | [] -> None
 
   let rec replace x exp ofs = 
     let f o = match o with
-      | `Right e -> `Right (Basetype.CilExp.replace x exp e)
+      | `Right e -> `Right (I.replace x exp e)
       | x -> x
     in 
       List.map f ofs
+
+  let top () = []
+  let is_top x = x = []
+  let bot () = failwith "Bottom offset list!"
+  let is_bot x = false
+
+  let rec leq x y = 
+    match x,y with
+      | _, [] -> true
+      | x::xs, y::ys when FI.equal x y -> leq xs ys
+      | _ -> false
+
+  let rec meet x y = 
+    match x,y with
+      | [], x | x, [] -> x
+      | x::xs, y::ys when FI.equal x y -> x :: meet xs ys
+      | _ -> failwith "Arguments do not meet"
+
+  let rec join x y = 
+    match x,y with
+      | [], x | x, [] -> [] 
+      | x::xs, y::ys when FI.equal x y -> x :: join xs ys
+      | _ -> []
+
+  let rec collapse x y = 
+    match x,y with
+      | [], x | x, [] -> true
+      | x::xs, y::ys when FI.equal x y -> collapse xs ys
+      | _ -> false
 end
 
