@@ -50,8 +50,10 @@ struct
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
+  (* Indicates if the two var * offset pairs should collapse or not. *)
   let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
   let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
+  (* Joins the fields, assuming the vars are equal. *)
   let fake_join (v1,f1) (v2,f2) = (v1, F.join f1 f2)
   let is_glob (v,f) = v.vglob
 end
@@ -78,24 +80,41 @@ struct
     let (s1', res) = fold f s2 (s1, empty ()) in
       union s1' res
 
+  let collapse (s1:t) (s2:t): bool = 
+    let f vf2 res = 
+      res || exists (fun vf1 -> VF.collapse vf1 vf2) s1
+    in
+      fold f s2 false
+
   let add e s = join s (singleton e)
 end
 
+module P = PartitionDomain.Set (RegionSet)
 
-module Reg = 
-struct 
+module M = struct
   include MapDomain.MapBot (VF) (RegionSet)
   type elt = VF.t
 
   let add_eq (x: elt) (y:elt) (rmap:t): t = 
-    let _ = printf "Blah: %a = %a\n" VF.pretty x VF.pretty y in
     let x,y = if VF.is_glob x then y,x else x,y in
       if VF.is_glob y then 
         add x (RegionSet.add y (find x rmap)) rmap
       else 
         add x (RegionSet.union (find y rmap) (find x rmap)) rmap
+end
 
-  let remove v cp = remove (v,[]) cp
+
+module Reg = 
+struct 
+  include Lattice.Prod (P) (M) 
+  type elt = VF.t
+
+  let is_global (v,fd) = v.vglob
+
+  let add_eq (x: elt) (y:elt) (p,rmap:t): t = 
+    p, M.add_eq x y rmap
+
+  let remove v (p,m) = p, M.remove (v,[]) m
   let remove_vars (vs: varinfo list) (cp:t): t = 
     List.fold_right remove vs cp
 
@@ -123,26 +142,33 @@ struct
 
   let assign (lval: lval) (rval: exp) (st: t): t =
 (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
-    let st' = st in
-    let st = match eval_exp (Lval lval) with 
-      | Some (false, (x,_)) -> remove x st
-      | _ -> st
-    in
     if isPointerType (typeOf rval) then begin
       match eval_exp (Lval lval), eval_exp rval with
-        | Some (_, x), Some (_,y) ->
-            if VF.equal x y then st' else add_eq x y st
+        | Some (deref_x, x), Some (deref_y,y) ->
+            if VF.equal x y then st else 
+              let (p,m) = st in begin
+                match is_global x, deref_x, is_global y with
+                  | false, false, false -> p, M.add x (M.find y m) m
+                  | false, false, true  -> 
+                      p, M.add x (P.closure p (P.S.singleton y)) m
+                  | false, true , false -> st
+                  | true , _    , true  -> 
+                      P.add (P.S.add x (P.S.singleton y)) p, m
+                  | _ -> st
+              end
         | _ -> st
     end else if isIntegralType (typeOf rval) then begin
       match lval with 
         | Var x, NoOffset -> update x rval st
         | _ -> st
-    end else st
+    end else 
+      match eval_exp (Lval lval) with 
+        | Some (false, (x,_)) -> remove x st
+        | _ -> st
 
-  let related_globals (deref_vfd: eval_t) (st: t): elt list = 
-    let is_global (v,fd) = v.vglob in
+  let related_globals (deref_vfd: eval_t) (p,st: t): elt list = 
     match deref_vfd with
-      | Some (true, vfd) -> RegionSet.elements (find vfd st)
+      | Some (true, vfd) -> RegionSet.elements (M.find vfd st)
       | Some (false, vfd) -> 
           if is_global vfd then [vfd] else []
       | None -> Messages.warn "Access to unknown address could be global"; [] 
