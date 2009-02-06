@@ -51,7 +51,6 @@ module CPA = MemoryDomain.Stack (VD)
 module Fields = Lval.Fields
 module Reg = RegionDomain.Reg
 module Equ = MusteqDomain.Equ
-module EquAddr = MusteqDomain.EquAddr
 module Structs = ValueDomain.Structs
 module Unions = ValueDomain.Unions
 module CArrays = ValueDomain.CArrays
@@ -130,7 +129,6 @@ struct
   type transfer = domain * glob_fun -> domain * glob_diff
   type trans_in = domain * glob_fun
   type callback = calls * spawn 
-  type access_list = ((Cil.varinfo * Offs.t) * EquAddr.t option * Fields.t option * bool) list
   type store = trans_in
   type wstore = domain * glob_diff
   type value = VD.t
@@ -473,79 +471,6 @@ struct
           end 
 
 
-  let access_address (((st,(eq,reg)),fl),_) write (addrs, eq_addr, reg_addr): access_list =
-    if Flag.is_multi fl then begin
-      let f ((v,o), e) acc = if v.vglob && not (is_ignorable addrs) then 
-        ((v, Offs.from_offset o), eq_addr, e, write) :: acc else acc in 
-      let addr_list = 
-        if !GU.regions then begin
-          let f (x,ofs) = 
-            let v = get_regvar x in
-            let ofs' = Fields.to_offs ofs (ID.top ()) in
-              (v, ofs'), Some ofs
-          in
-          match reg_addr with
-            | Some (true, x) -> 
-                let all = Reg.related_globals x reg in
-                  List.map f all
-            | Some (false, x) -> 
-                if (fst x).vglob then [f x] else []
-            | None -> M.warn "Access to unknown address could be global"; [] 
-        end else List.map (fun x -> (x,None)) (
-          try AD.to_var_offset addrs with _ -> begin
-            match eq_addr with
-              | Some eq_addr -> 
-                  let all = Equ.other_addrs eq_addr eq in
-                  let f eq_addr acc = 
-                    let (x,ofs) = eq_addr in
-                    let ofs = Fields.to_offs ofs (ID.top ()) in
-                      match x.vtype with
-                        | TPtr (typ,_) -> let v = get_typvar typ in (v,ofs) :: acc
-                        | _ -> acc
-                  in List.fold_right f all []
-              | None -> M.warn "Access to unknown address could be global"; [] 
-          end
-        )
-      in
-        List.fold_right f addr_list [] 
-    end else []
-
-  let rec access rw (st: store) (exp:exp): access_list = 
-    match exp with
-      (* Integer literals *)
-      | Const _ -> []
-      (* Variables and address expressions *)
-      | Lval lval -> 
-          let eq = Equ.eval_rv (AddrOf lval) in
-          let rg = Reg.eval_exp (AddrOf lval) in
-          let target = access_address st rw (eval_lv st lval, eq, rg) in
-          let derefs = access_lv st lval in
-            target @ derefs
-      (* Binary operators *)
-      | BinOp (op,arg1,arg2,typ) -> 
-          let a1 = access rw st arg1 in
-          let a2 = access rw st arg2 in
-            a1 @ a2
-      (* Unary operators *)
-      | UnOp (op,arg1,typ) -> access rw st arg1
-      (* The address operators, we just check the accesses under them *)
-      | AddrOf lval -> access_lv st lval
-      | StartOf lval -> access_lv st lval
-      (* Most casts are currently just ignored, that's probably not a good idea! *)
-      | CastE  (t, exp) -> access rw st exp
-      | _ -> []
-  (* Accesses during the evaluation of an lval, not the lval itself! *)
-  and access_lv st (lval:lval): access_list = 
-    let rec access_offset (st: store) (ofs: offset): access_list = 
-      match ofs with 
-        | NoOffset -> []
-        | Field (fld, ofs) -> access_offset st ofs
-        | Index (exp, ofs) -> access false st exp @ access_offset st ofs
-    in 
-      match lval with 
-        | Var x, ofs -> access_offset st ofs
-        | Mem n, ofs -> access false st n @ access_offset st ofs
-
  (**************************************************************************
   * Auxilliary functions
   **************************************************************************)
@@ -861,22 +786,6 @@ struct
     (* We concatMap the previous function on the list of expressions. *)
     let invalids = List.concat (List.map invalidate_exp exps) in
       set_many st invalids
-
-  let access_funargs (st:store) (exps: exp list): access_list = 
-    (* Find the addresses reachable from some expression, and assume that these
-     * can all be written to. *)
-    let do_exp e = 
-      match eval_rv st e with
-        | `Address a when AD.equal a (AD.null_ptr()) -> []
-        | `Address a when not (AD.is_top a) -> 
-            let eq = Equ.eval_rv e in
-            let rg = Reg.eval_exp e in
-            let f x = access_address st true (x,eq,rg) in
-              List.concat (List.map f (reachable_vars [a] st))
-        (* Ignore soundness warnings, as invalidation proper will raise them. *)
-        | _-> []
-    in
-      List.concat (List.map do_exp exps)
 
   (* Variation of the above for yet another purpose, uhm, code reuse? *)
   let collect_funargs (st:store) (exps: exp list) = 

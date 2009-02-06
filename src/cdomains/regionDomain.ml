@@ -251,7 +251,8 @@ struct
           replace x (BinOp (PlusA, Lval (Var y, NoOffset), c, typ)) st
       | _ -> kill x st
 
-  let eval_exp exp: (bool * elt) option = 
+  type eval_t = (bool * elt) option
+  let eval_exp exp: eval_t = 
     let rec eval_rval deref rval =
       match rval with
         | Lval lval -> eval_lval deref lval 
@@ -286,10 +287,16 @@ struct
         | _ -> st
     end else st
 
-  let related_globals (vfd: elt) (st: t): elt list = 
+  let related_globals (deref_vfd: eval_t) (st: t): elt list = 
     let is_global (v,fd) = v.vglob in
-    let set = SS.find_class vfd (snd st) in
-      match set with 
-        | Some set -> SS.S. elements (SS.S.filter is_global set)
-        | None -> if is_global vfd then [vfd] else []
+    match deref_vfd with
+      | Some (true, vfd) -> 
+          let set = SS.find_class vfd (snd st) in begin
+            match set with 
+              | Some set -> SS.S.elements (SS.S.filter is_global set)
+              | None -> if is_global vfd then [vfd] else []
+          end
+      | Some (false, vfd) -> 
+          if is_global vfd then [vfd] else []
+      | None -> Messages.warn "Access to unknown address could be global"; [] 
 end
