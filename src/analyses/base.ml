@@ -807,8 +807,14 @@ struct
         end
       | "exit" -> raise A.Deadcode
       | "abort" -> raise A.Deadcode
-      | "malloc" | "calloc" -> begin
-          set st return_var (`Address heap_var)
+      | "malloc" | "calloc" | "__kmalloc" -> begin
+          let _ = printf "yeeeeees\n" in
+          let st:store = 
+            let ((cpa,(equ,reg)),flag),gl = st in
+            let reg = Reg.assign_bullet (return_lval ()) reg in
+              ((cpa,(equ,reg)),flag),gl
+            in
+              set st return_var (`Address heap_var)
         end
       (* Handling the assertions *)
       | "__assert_rtn" -> raise A.Deadcode (* gcc's built-in assert *) 
