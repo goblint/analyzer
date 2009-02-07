@@ -54,65 +54,46 @@ struct
   let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
   let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
   (* Joins the fields, assuming the vars are equal. *)
-  let fake_join (v1,f1) (v2,f2) = (v1, F.join f1 f2)
+  let join (v1,f1) (v2,f2) = (v1, F.join f1 f2)
   let is_glob (v,f) = v.vglob
 end
 
-module VFB = Printable.Either (V) (B)
-
-module RegionSet = 
+module VFB = 
 struct
-  include SetDomain.Make (VF)
+  include Printable.Either (VF) (B)
 
-  let leq s1 s2 = 
-    let p vf1 = exists (fun vf2 -> VF.leq vf1 vf2) s2 in
-      for_all p s1
+  let collapse (x:t) (y:t): bool = 
+    match x,y with
+      | `Right (), `Right () -> true
+      | `Right (), _ | _, `Right () -> false
+      | `Left x, `Left y -> VF.collapse x y
 
-  let join (s1:t) (s2:t): t = 
-    (* Ok, so for each element vf2 in s2, we check in s1 for elements that
-     * collapse with it and join with them. These are put in res and removed
-     * from s1 as we don't need to compare with them anymore. *)
-    let f vf2 (s1,res) = 
-      let (s1_match, s1_rest) = partition (fun vf1 -> VF.collapse vf1 vf2) s1 in
-      let el = fold VF.fake_join s1_match vf2 in
-        (s1_rest, add el res)
-    in
-    let (s1', res) = fold f s2 (s1, empty ()) in
-      union s1' res
+  let leq x y = 
+    match x,y with
+      | `Right (), `Right () -> true
+      | `Right (), _ | _, `Right () -> false
+      | `Left x, `Left y -> VF.leq x y
 
-  let collapse (s1:t) (s2:t): bool = 
-    let f vf2 res = 
-      res || exists (fun vf1 -> VF.collapse vf1 vf2) s1
-    in
-      fold f s2 false
-
-  let add e s = join s (singleton e)
+  let join x y: t = 
+    match x,y with
+      | `Right (), _ | _, `Right () -> `Right ()
+      | `Left x, `Left y -> `Left (VF.join x y)
 end
 
-module P = PartitionDomain.Set (RegionSet)
+module RS = PartitionDomain.Set (VF)
+module RB = PartitionDomain.Set (VFB)
 
-module M = struct
-  include MapDomain.MapBot (VF) (RegionSet)
-  type elt = VF.t
-
-  let add_eq (x: elt) (y:elt) (rmap:t): t = 
-    let x,y = if VF.is_glob x then y,x else x,y in
-      if VF.is_glob y then 
-        add x (RegionSet.add y (find x rmap)) rmap
-      else 
-        add x (RegionSet.union (find y rmap) (find x rmap)) rmap
-end
-
+module P = PartitionDomain.Make  (RS)
+module M = MapDomain.MapBot (VF) (RS)
 
 module Reg = 
 struct 
   include Lattice.Prod (P) (M) 
   type elt = VF.t
 
-  let is_global (v,fd) = v.vglob
+  let closure p m = M.map (P.closure p) m
 
-  let add_eq (x: elt) (y:elt) (p,rmap:t): t = 
-    p, M.add_eq x y rmap
+  let is_global (v,fd) = v.vglob
 
   let remove v (p,m) = p, M.remove (v,[]) m
   let remove_vars (vs: varinfo list) (cp:t): t = 
@@ -148,13 +129,22 @@ struct
             if VF.equal x y then st else 
               let (p,m) = st in begin
                 match is_global x, deref_x, is_global y with
-                  | false, false, false -> p, M.add x (M.find y m) m
                   | false, false, true  -> 
                       p, M.add x (P.closure p (P.S.singleton y)) m
-                  | false, true , false -> st
+                  | false, false, false -> 
+                      p, M.add x (M.find y m) m
+                  | false, true , true ->
+                      let p = P.add (P.S.join (M.find x m) (P.S.singleton y)) p in
+                        p, closure p m
+                  | false, true , false ->
+                      let p = P.add (P.S.join (M.find x m) (M.find y m)) p in
+                        p, closure p m
                   | true , _    , true  -> 
-                      P.add (P.S.add x (P.S.singleton y)) p, m
-                  | _ -> st
+                      let p = P.add (P.S.join (P.S.singleton x) (P.S.singleton y)) p in
+                        p, closure p m
+                  | true , _    , false  -> 
+                      let p = P.add (P.S.join (P.S.singleton x) (M.find y m)) p in
+                        p, closure p m
               end
         | _ -> st
     end else if isIntegralType (typeOf rval) then begin
@@ -166,9 +156,13 @@ struct
         | Some (false, (x,_)) -> remove x st
         | _ -> st
 
-  let related_globals (deref_vfd: eval_t) (p,st: t): elt list = 
+  let related_globals (deref_vfd: eval_t) (p,m: t): elt list = 
     match deref_vfd with
-      | Some (true, vfd) -> RegionSet.elements (M.find vfd st)
+      | Some (true, vfd) -> RS.elements (
+          if is_global vfd then 
+            P.find_class vfd p
+          else 
+            M.find vfd m)
       | Some (false, vfd) -> 
           if is_global vfd then [vfd] else []
       | None -> Messages.warn "Access to unknown address could be global"; [] 
