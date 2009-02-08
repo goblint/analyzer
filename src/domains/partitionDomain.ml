@@ -108,7 +108,9 @@ struct
       fold f xs (empty ())
 
   let find_class (x:elem) (p:t): set = 
-    try choose (filter (S.mem x) p) with Not_found -> S.singleton x
+    let s = S.singleton x in try 
+      choose (filter (S.collapse s) p) 
+    with Not_found -> s
 
   let closure (p:t) (s:set): set =
     let f x res = S.join (find_class x p) res in

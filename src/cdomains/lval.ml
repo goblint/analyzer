@@ -394,6 +394,12 @@ struct
     | (x::xs) -> (match occurs_where v xs with None -> None | Some fd -> Some (x :: fd))
     | [] -> None
 
+  (* Same as the above, but always returns something. *)
+  let rec kill v (fds: t): t = match fds with 
+    | (`Right x::xs) when I.occurs v x -> []
+    | (x::xs) -> x :: kill v xs
+    | [] -> []
+
   let rec replace x exp ofs = 
     let f o = match o with
       | `Right e -> `Right (I.replace x exp e)

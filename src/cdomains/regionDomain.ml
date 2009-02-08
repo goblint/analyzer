@@ -56,6 +56,8 @@ struct
   (* Joins the fields, assuming the vars are equal. *)
   let join (v1,f1) (v2,f2) = (v1, F.join f1 f2)
   let is_glob (v,f) = v.vglob
+  let kill x (v,f) = v, F.kill x f
+  let replace x exp (v,fd) = v, F.replace x exp fd
 end
 
 module VFB = 
@@ -79,12 +81,19 @@ struct
       | `Right (), _ | _, `Right () -> `Right ()
       | `Left x, `Left y -> `Left (VF.join x y)
 
+  let lift f y = match y with
+    | `Left y -> `Left (f y)
+    | `Right () -> `Right ()
+
+  let kill x (y:t): t = lift (VF.kill x) y
+  let replace x exp y = lift (VF.replace x exp) y
+
   let is_bullet x = x = `Right ()
   let bullet = `Right ()
   let of_vf vf = `Left vf
 end
 
-module R = struct
+module RS = struct
   include PartitionDomain.Set (VFB)
   let single_vf vf = singleton (VFB.of_vf vf)
   let single_bullet = singleton (VFB.bullet)
@@ -98,15 +107,18 @@ module R = struct
       | `Right () -> acc 
     in
       List.fold_right f lst []
+
+  let kill x s = map (VFB.kill x) s
+  let replace x exp s = map (VFB.replace x exp) s
 end
 
-module P = PartitionDomain.Make  (R)
-module M = MapDomain.MapBot (VF) (R)
+module P = PartitionDomain.Make  (RS)
+module M = MapDomain.MapBot (VF) (RS)
 
 module Reg = 
 struct 
   include Lattice.Prod (P) (M) 
-  type set = R.t
+  type set = RS.t
   type elt = VF.t
 
   let closure p m = M.map (P.closure p) m
@@ -117,9 +129,22 @@ struct
   let remove_vars (vs: varinfo list) (cp:t): t = 
     List.fold_right remove vs cp
 
-  let kill_vars vars st = st
+  let kill x (p,m:t): t =
+    p, M.map (RS.kill x) m
 
-  let update x rval st = st
+  let kill_vars vars st = List.fold_right kill vars st
+
+  let replace x exp (p,m:t): t = p,m
+(*    P.map (RS.replace x exp) p, M.map (RS.replace x exp) m*)
+
+  let update x rval st =
+    match rval with 
+      | Lval (Var y, NoOffset) when V.equal x y -> st
+      | BinOp (PlusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y -> 
+          replace x (BinOp (MinusA, Lval (Var y, NoOffset), c, typ)) st
+      | BinOp (MinusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y -> 
+          replace x (BinOp (PlusA, Lval (Var y, NoOffset), c, typ)) st
+      | _ -> kill x st
 
   type eval_t = (bool * elt) option
   let eval_exp exp: eval_t = 
@@ -142,13 +167,13 @@ struct
   (* This is the main logic for dealing with the bullet and finding it an
    * owner... *)
   let add_set (s:set) llist (p,m:t): t =
-    if R.has_bullet s then 
+    if RS.has_bullet s then 
       let f key value (ys, x) = 
-        if R.has_bullet value then key::ys, R.join value x else ys,x in
-      let ys,x = M.fold f m (llist, R.remove_bullet s) in
-      let x = R.remove_bullet x in
-        if R.is_empty x then
-          p, M.add_list_set llist R.single_bullet m
+        if RS.has_bullet value then key::ys, RS.join value x else ys,x in
+      let ys,x = M.fold f m (llist, RS.remove_bullet s) in
+      let x = RS.remove_bullet x in
+        if RS.is_empty x then
+          p, M.add_list_set llist RS.single_bullet m
         else
           P.add x p, M.add_list_set ys x m
     else
@@ -164,17 +189,17 @@ struct
               let (p,m) = st in begin
                 match is_global x, deref_x, is_global y with
                   | false, false, true  -> 
-                      p, M.add x (P.closure p (R.single_vf y)) m
+                      p, M.add x (P.closure p (RS.single_vf y)) m
                   | false, false, false -> 
                       p, M.add x (M.find y m) m
                   | false, true , true ->
-                      add_set (R.join (M.find x m) (R.single_vf y)) [x] st
+                      add_set (RS.join (M.find x m) (RS.single_vf y)) [x] st
                   | false, true , false ->
-                      add_set (R.join (M.find x m) (M.find y m)) [x;y] st
+                      add_set (RS.join (M.find x m) (M.find y m)) [x;y] st
                   | true , _    , true  -> 
-                      add_set (R.join (R.single_vf x) (R.single_vf y)) [] st
+                      add_set (RS.join (RS.single_vf x) (RS.single_vf y)) [] st
                   | true , _    , false  -> 
-                      add_set (R.join (R.single_vf x) (M.find y m)) [y] st
+                      add_set (RS.join (RS.single_vf x) (M.find y m)) [y] st
               end
         | _ -> st
     end else if isIntegralType (typeOf rval) then begin
@@ -188,12 +213,12 @@ struct
 
   let assign_bullet lval (p,m:t):t = 
     match eval_exp (Lval lval) with
-      | Some (_,x) -> p, M.add x R.single_bullet m
+      | Some (_,x) -> p, M.add x RS.single_bullet m
       | _ -> p,m
 
   let related_globals (deref_vfd: eval_t) (p,m: t): elt list = 
     match deref_vfd with
-      | Some (true, vfd) -> R.to_vf_list (
+      | Some (true, vfd) -> RS.to_vf_list (
           if is_global vfd then 
             P.find_class (VFB.of_vf vfd) p
           else 

@@ -808,7 +808,6 @@ struct
       | "exit" -> raise A.Deadcode
       | "abort" -> raise A.Deadcode
       | "malloc" | "calloc" | "__kmalloc" -> begin
-          let _ = printf "yeeeeees\n" in
           let st:store = 
             let ((cpa,(equ,reg)),flag),gl = st in
             let reg = Reg.assign_bullet (return_lval ()) reg in
