@@ -426,14 +426,23 @@ struct
 
   let rec join x y = 
     match x,y with
-      | [], x | x, [] -> [] 
       | x::xs, y::ys when FI.equal x y -> x :: join xs ys
       | _ -> []
 
   let rec collapse x y = 
     match x,y with
       | [], x | x, [] -> true
-      | x::xs, y::ys when FI.equal x y -> collapse xs ys
-      | _ -> false
+      | x :: xs, y :: ys when FI.equal x y -> collapse xs ys
+      | `Left x::xs, `Left y::ys -> false
+      | `Right x::xs, `Right y::ys -> true
+      | _ -> failwith "Type mismatch!"
+  
+  (* TODO: use the type information to do this properly. Currently, this assumes
+   * there are no nested arrays, so all indexing is eliminated. *)
+  let rec real_region (fd:t) typ: bool = 
+    match fd with
+      | [] -> true
+      | `Left _ :: xs -> real_region xs typ
+      | `Right i :: _ -> false
 end
 

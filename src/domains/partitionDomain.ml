@@ -93,7 +93,7 @@ struct
   let join xs ys =
     let f (x: set) (zs: t): t = 
       let (joinem, rest) = partition (S.collapse x) zs in
-      let joined = fold S.union joinem x in
+      let joined = fold S.join joinem x in
         add joined rest
     in
       fold f xs ys

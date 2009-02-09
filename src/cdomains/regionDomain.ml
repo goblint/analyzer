@@ -91,6 +91,9 @@ struct
   let is_bullet x = x = `Right ()
   let bullet = `Right ()
   let of_vf vf = `Left vf
+  let real_region (x:t): bool = match x with
+    | `Left (v,fd) -> F.real_region fd (v.vtype)
+    | `Right () -> false
 end
 
 module RS = struct
@@ -112,7 +115,14 @@ module RS = struct
   let replace x exp s = map (VFB.replace x exp) s
 end
 
-module P = PartitionDomain.Make  (RS)
+module P = struct 
+  include PartitionDomain.Make  (RS)
+  let real_region r = 
+    RS.cardinal r > 1 || try VFB.real_region (RS.choose r) 
+      with Not_found -> false
+
+  let add r p = if real_region r then add r p else p
+end
 module M = MapDomain.MapBot (VF) (RS)
 
 module Reg = 
@@ -134,8 +144,8 @@ struct
 
   let kill_vars vars st = List.fold_right kill vars st
 
-  let replace x exp (p,m:t): t = p,m
-(*    P.map (RS.replace x exp) p, M.map (RS.replace x exp) m*)
+  let replace x exp (p,m:t): t =
+    P.map (RS.replace x exp) p, M.map (RS.replace x exp) m
 
   let update x rval st =
     match rval with 
