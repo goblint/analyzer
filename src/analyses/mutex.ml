@@ -54,6 +54,20 @@ module LF = LibraryFunctions
 open Cil
 open Pretty
 
+(* Some helper functions ... *)
+let is_atomic_type (t: typ): bool = match t with
+  | TNamed (info, attr) -> info.tname = "atomic_t"
+  | _ -> false
+
+let is_atomic lval = 
+  let (lval, _) = removeOffsetLval lval in
+  let typ = typeOfLval lval in
+    is_atomic_type typ
+
+let is_ignorable lval = 
+  Base.is_mutex_type (typeOfLval lval) || is_atomic lval
+
+
 module Spec =
 struct
   exception Top
@@ -92,7 +106,7 @@ struct
 
   let access_address (((st,(eq,reg)),fl),_) write (addrs, eq_addr, reg_addr): access_list =
     if BS.Flag.is_multi fl then begin
-      let f ((v,o), e) acc = if v.vglob && not (Base.is_ignorable addrs) then 
+      let f ((v,o), e) acc = if v.vglob then 
         ((v, Offs.from_offset o), eq_addr, e, write) :: acc else acc in 
       let addr_list = 
         if !GU.regions then begin
@@ -127,6 +141,7 @@ struct
       | Const _ -> []
       (* Variables and address expressions *)
       | Lval lval -> 
+          if is_ignorable lval then [] else
           let eq = Equ.eval_rv (AddrOf lval) in
           let rg = Reg.eval_exp (AddrOf lval) in
           let target = access_address st rw (BS.eval_lv st lval, eq, rg) in

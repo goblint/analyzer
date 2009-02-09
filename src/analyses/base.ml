@@ -60,28 +60,11 @@ let is_mutex_type (t: typ): bool = match t with
   | TInt (IInt, attr) -> hasAttribute "mutex" attr
   | _ -> false
 
-let is_atomic_type (t: typ): bool = match t with
-  | TNamed (info, attr) -> info.tname = "atomic_t"
-  | _ -> false
-
-let is_atomic addr = 
-  try 
-    let (v,o) = List.hd (AD.to_var_offset addr) in
-    let rec remove_one_offs offs = 
-      match offs with 
-        | `Field (f, `NoOffset) -> `NoOffset
-        | `Field (f, offs) -> `Field (f, remove_one_offs offs)
-        | `Index (i, offs) -> `Index (i, remove_one_offs offs)
-        | _ -> `NoOffset
-    in is_atomic_type (AD.get_type (AD.from_var_offset (v,remove_one_offs o)))
-  with _ -> false
-
 let is_fun_type (t: typ): bool = match t with
   | TFun _ -> true
   | _ -> false
 
 let is_immediate_type t = is_mutex_type t || is_fun_type t
-let is_ignorable addr = is_mutex_type (AD.get_type addr) || is_atomic addr
 
 module MakeSpec (Flag: ConcDomain.S) =
 struct
