@@ -71,7 +71,7 @@ kernel/applicom.c
 avc
 Access Vector Cache implementation of SELinux
 kernel/avc.c
---allfuns
+--allfuns --mainfun avc_init
 
 iphase
 Device driver for Interphase ATM PCI adapter cards
