@@ -317,6 +317,12 @@ struct
   module OffsMap = Map.Make (Offs)
   module OffsSet = Set.Make (Offs)
 
+  type access_status = 
+    | Race
+    | Guarded of Lockset.t
+    | ReadOnly
+    | ThreadLocal
+
   let postprocess_glob (gl : GD.Var.t) ((_, accesses) : GD.Val.t) = 
     if Base.is_fun_type (gl.vtype) then () else
     (* create mapping from offset to access list; set of offsets  *)
@@ -349,12 +355,17 @@ struct
       let f locks ((_, (_, _, (lock, _)))) = Lockset.join locks lock in
         List.fold_left f (Lockset.bot ()) acc_list 
     in
-    let is_race acc_list =
+    let is_race acc_list: access_status =
       let locks = get_common_locks acc_list in
       let non_main (_,(_,x,_)) = BS.Flag.is_bad x in      
-             (Lockset.is_empty locks || Lockset.is_top locks) 
-          && (List.exists fst acc_list) 
-          && (List.exists non_main acc_list)    
+        if not (Lockset.is_empty locks || Lockset.is_top locks) then
+          Guarded locks
+        else if not (List.exists fst acc_list) then
+          ReadOnly
+        else if not (List.exists non_main acc_list) then
+          ThreadLocal
+        else
+          Race
     in
     let report_race offset acc_list =
       let f (write, (loc, fl, (lockset,o))) = 
@@ -364,18 +375,26 @@ struct
         let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
           (warn,loc) in 
       let warnings =  List.map f acc_list in
-      if is_race acc_list then begin
-        race_free := false;
-        let warn = "Datarace over variable \"" ^ gl.vname ^ Offs.short 80 offset ^ "\"" in
-          M.print_group warn warnings
-      end else if !GU.allglobs && not (Base.is_fun_type gl.vtype) then
-        let warn = "Safely accessed variable \"" ^ gl.vname ^ Offs.short 80 offset ^ "\"" in
-          M.print_group warn warnings
-      else
-        let locks = get_common_locks acc_list in
-          if not (Lockset.is_empty locks) then
-            ignore (printf "Found correlation: %s%a is guarded by lockset %a\n" gl.vname Offs.pretty offset Lockset.pretty locks)
-
+      let var_str = gl.vname ^ Offs.short 80 offset in
+      let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
+        match is_race acc_list with
+          | Race -> begin
+              race_free := false;
+              let warn = "Datarace over " ^ var_str in
+                M.print_group warn warnings
+            end
+          | Guarded locks ->
+              let lock_str = Lockset.short 80 locks in
+                if !GU.allglobs then
+                  M.print_group (safe_str "common mutex") warnings
+                else 
+                  ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
+          | ReadOnly ->
+              if !GU.allglobs then
+                M.print_group (safe_str "only read") warnings
+          | ThreadLocal ->
+              if !GU.allglobs then
+                M.print_group (safe_str "thread local") warnings
     in 
     let acc = Accesses.elements accesses in
     let acc = if !GU.no_read then List.filter fst acc else acc in
