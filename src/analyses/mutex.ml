@@ -318,6 +318,7 @@ struct
   module OffsSet = Set.Make (Offs)
 
   let postprocess_glob (gl : GD.Var.t) ((_, accesses) : GD.Val.t) = 
+    if Base.is_fun_type (gl.vtype) then () else
     (* create mapping from offset to access list; set of offsets  *)
     let create_map access_list =
       let f (map,set)  ((_, (_, _, (_, offs))) as accsess) =
@@ -344,9 +345,12 @@ struct
         then map
         else OffsMap.add last_offs last_set map
     in
-    let is_race acc_list =
+    let get_common_locks acc_list = 
       let f locks ((_, (_, _, (lock, _)))) = Lockset.join locks lock in
-      let locks = List.fold_left f (Lockset.bot ()) acc_list in
+        List.fold_left f (Lockset.bot ()) acc_list 
+    in
+    let is_race acc_list =
+      let locks = get_common_locks acc_list in
       let non_main (_,(_,x,_)) = BS.Flag.is_bad x in      
              (Lockset.is_empty locks || Lockset.is_top locks) 
           && (List.exists fst acc_list) 
@@ -364,11 +368,14 @@ struct
         race_free := false;
         let warn = "Datarace over variable \"" ^ gl.vname ^ Offs.short 80 offset ^ "\"" in
           M.print_group warn warnings
-      end else if !GU.allglobs then
+      end else if !GU.allglobs && not (Base.is_fun_type gl.vtype) then
         let warn = "Safely accessed variable \"" ^ gl.vname ^ Offs.short 80 offset ^ "\"" in
-          match gl.vtype with
-            | TFun _ -> ()
-            | _ -> M.print_group warn warnings
+          M.print_group warn warnings
+      else
+        let locks = get_common_locks acc_list in
+          if not (Lockset.is_empty locks) then
+            ignore (printf "Found correlation: %s%a is guarded by lockset %a\n" gl.vname Offs.pretty offset Lockset.pretty locks)
+
     in 
     let acc = Accesses.elements accesses in
     let acc = if !GU.no_read then List.filter fst acc else acc in

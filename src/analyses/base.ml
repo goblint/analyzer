@@ -259,7 +259,7 @@ struct
   let get_regvar var = 
     try H.find regn_hash var
     with Not_found ->
-      let name = "R(" ^ var.vname ^ ")" in
+      let name = var.vname in
       let newvar = makeGlobalVar name var.vtype in
         H.add regn_hash var newvar;
         H.add regn_invh newvar var;
