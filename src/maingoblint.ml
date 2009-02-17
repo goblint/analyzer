@@ -67,6 +67,7 @@ let main () =
   let setdump path = GU.dump_path := Some (GU.create_dir path) in
   let setcil path = cilout := open_out path in
   let analyze = ref Mutex.Analysis.analyze in
+  let nonstatic () = GU.allfuns := true; GU.nonstatic := true in
   let setanalysis str = 
     analyze := match str with
       | "mutex" -> Mutex.Analysis.analyze
@@ -93,7 +94,8 @@ let main () =
                  ("--trace", Arg.String set_trace, "<sys>  subsystem to show debug printfs for: con, sol.");
                  ("--stats", Arg.Set Cilutil.printStats, " Outputs timing information.");
                  ("--eclipse", Arg.Set GU.eclipse, " Flag for Goblin's Eclipse Plugin.");
-                 ("--allfuns", Arg.Set GU.allfuns, " Analyzes all the functions from the initial state (not just beginning from main).");
+                 ("--allfuns", Arg.Set GU.allfuns, " Analyzes all the functions (not just beginning from main).");
+                 ("--nonstatic", Arg.Unit nonstatic, " Analyzes all non-static functions.");
                  ("--mainfun", Arg.Set_string GU.mainfun, " Sets the name of the main function.");
                  ("--allglobs", Arg.Set GU.allglobs, " Prints access information about all globals, not just races.");
                  ("--earlyglobs", Arg.Set GU.earlyglobs, " Side-effecting of globals right after initialization.");

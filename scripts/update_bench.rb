@@ -82,7 +82,7 @@ projects.each do |p|
   analyses.each do |a|
     puts "  " + a
     outfile = testresults + File.basename(filename,".c") + ".#{a}.txt"
-    `timeout #{timeout} #{goblint} #{filename} #{p.params} --analysis #{a} --stats --cilout /dev/null 1>#{outfile} 2>&1`
+    `timeout #{timeout} #{goblint} #{filename} #{p.params} --analysis #{a} --uncalled --stats --cilout /dev/null 1>#{outfile} 2>&1`
     if $? != 0 then
       puts "  Timed out! (or other failure)"
       `echo "TIMEOUT                    #{timeout} s" >> #{outfile}`
@@ -112,8 +112,9 @@ File.open(testresults + "index.html", "w") do |f|
       outfile = File.basename(p.path,".c") + ".#{a}.txt"
       File.open(testresults + outfile, "r") do |g|
         lines = g.readlines
-        warnings = lines.grep(/Datarace over variable/).size
+        warnings = lines.grep(/Datarace over/).size
         correlations = lines.grep(/is guarded by/).size
+        uncalled = lines.grep(/will never be called/).size
         res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
         if res == [] then
           res = lines.grep(/^TIMEOUT\s*(.*) s.*$/) { |x| $1 }
@@ -123,7 +124,7 @@ File.open(testresults + "index.html", "w") do |f|
             f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
           end
         else
-          f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (#{correlations} verified, #{warnings} warnings)</td>"
+          f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (#{correlations} verified, #{warnings} warnings, #{uncalled} uncalled)</td>"
         end
       end
     end
