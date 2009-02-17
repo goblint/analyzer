@@ -272,7 +272,7 @@ struct
   let special f arglist ((st,eq),c,gl) =
     match f.vname with
    (* | "sem_wait"*)
-      | "_spin_lock" | "_spin_lock_irqsave" | "_spin_trylock" | "_spin_trylock_irqsave"
+      | "_spin_lock" | "_spin_lock_irqsave" | "_spin_trylock" | "_spin_trylock_irqsave" | "_spin_lock_bh"
       | "mutex_lock" | "mutex_lock_interruptible"
       | "pthread_mutex_lock" ->
           let x = List.hd arglist in
@@ -286,7 +286,7 @@ struct
                 | _ -> eq
           in (st,eq), []
    (* | "sem_post"*)
-      | "_spin_unlock" | "_spin_unlock_irqrestore"
+      | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
       | "mutex_unlock"
       | "pthread_mutex_unlock" ->
           let x = List.hd arglist in

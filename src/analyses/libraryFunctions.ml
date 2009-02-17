@@ -53,6 +53,7 @@ let invalidate_actions = [
   ("memcpy", Keep [1]);
   ("memset", Unsafe);
   ("printf", Safe);
+  ("kprintf", Safe);
   ("perror", Safe);
   ("pthread_mutex_lock", Safe);
   ("pthread_mutex_unlock", Safe);
