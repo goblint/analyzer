@@ -1,155 +1,46 @@
-Group: Kernel
+Group: Regions
 
-misc
-Wrapper for for misc devices
-kernel/misc.c
---mainfun misc_init
+atmel_tclib
+Thin libarary for TC block allocation for Atmel SoCs
+kernel/atmel_tclib.c
+--regions --allfuns
 
-ds1302
-DS1302 Real Time Clock
-kernel/ds1302.c
---mainfun ds1302_register
+hwmon
+Linux kernel module for hardware monitoring
+kernel/hwmon_coretemp.c
+--regions --allfuns --mainfun coretemp_init --write-races
 
-vc_screen
-Provide access to virtual console memory
-kernel/vc_screen.c
---mainfun vcs_init
+enclosure
+Enclosure Services
+kernel/enclosure.c
+--regions --allfuns --mainfun enclosure_init
 
-dtlk
-DoubleTalk PC driver
-kernel/dtlk.c
---mainfun dtlk_init
+scsi_dh
+SCSI device handler infrastruture.
+kernel/scsi_dh.c
+--regions --allfuns --write-races
 
-ipmi_devintf
-Device interface for the IPMI message handler
-kernel/ipmi_devintf.c
---mainfun init_ipmi_devintf
+dmaengine
+HW-neutral interface to DMA subsystem
+kernel/dmaengine.c
+--regions --nonstatic --mainfun dma_bus_init
 
-tlclk
-Telecom Clock driver for Intel NetStructure(tm) MPCBL0010
-kernel/tlclk.c
---mainfun tlclk_init
+scsi_rdac
+Engenio/LSI RDAC SCSI Device Handler
+kernel/scsi_dh_rdac.c
+--regions --allfuns --mainfun rdac_init
 
-ppdev
-Provide access to parport subsystem
-kernel/ppdev.c
---mainfun ppdev_init
-
-mem
-Provide access to main memory
-kernel/mem.c
---mainfun chr_dev_init
-
-drm_drv
-Generic DRM driver template
-kernel/drm_drv.c
---mainfun drm_core_init
-
-cm4040
-Omnikey PCMCIA smartcard reader CardMan 4040
-kernel/cm4040_cs.c
---mainfun cm4040_init
-
-cm4000
-Omnikey PCMCIA smartcard reader CardMan 4000
-kernel/cm4000_cs.c
---mainfun cmm_init
-
-ip2main
-IntelliPort family multiport serial I/O controllers
-kernel/ip2main.c
---mainfun ip2_loadmain
-
-
-Group: Kernel Arrays
-
-applicom
-Driver for Applicom cards
-kernel/applicom.c
---mainfun applicom_init
+usb_hcd
+USB Host Controller Driver framework
+kernel/hcd.c
+--regions --allfuns
 
 avc
 Access Vector Cache implementation of SELinux
 kernel/avc.c
---allfuns --mainfun avc_init
+--regions --allfuns --mainfun avc_init --write-races
 
-iphase
-Device driver for Interphase ATM PCI adapter cards
-kernel/iphase.c
---mainfun ia_module_init
-
-lp
-Generic parallel printer driver
-kernel/lp.c
---mainfun lp_init_module
-
-cassini
-Sun's Cassini ethernet driver.
-kernel/cassini.c
---mainfun cas_init
-
-isicom
-Driver for Isicom profibus cards
-kernel/isicom.c
---mainfun isicom_init
-
-sc26xx
-Serial driver for Philiphs SC2681/SC2692 devices
-kernel/sc26xx.c
---mainfun sc26xx_init
-
-pcm_oss
-Digital Audio (PCM) abstract layer
-kernel/pcm_oss.c
---mainfun alsa_pcm_oss_init
-
-
-Group: Locksmith POSIX Apps
-
-aget
-Multithreaded wget
-pthread/aget_comb.c
--
-
-knot
-Multithreaded web server
-pthread/knot_comb.c
--
-
-pfscan
-Multithreaded file scanner
-pthread/pfscan_comb.c
---libc
-
-ctrace
-Library for tracing multithreaded programs
-pthread/ctrace_comb.c
--
-
-smtprc
-SMTP Open Relay Checker
-pthread/smtprc_comb.c
---earlyglobs
-
-
-Group: Larger programs
-
-ypbind
-Linux NIS daemon: ypbind-mt
-pthread/ypbind_comb.c
---allfuns
-
-zebedee
-Zebedee: Secure IP tunnel
-pthread/zebedee_comb.c
---earlyglobs
-
-automount
-kernel-based automounter for linux
-pthread/automount_comb.c
---allfuns
-
-zfs-fuse
-ZFS file system
-pthread/zfs-fuse_comb.c
---allfuns
+ppp_generic
+Generic PPP layer for Linux.
+kernel/ppp_generic.c
+--regions --nonstatic --mainfun ppp_init --write-races

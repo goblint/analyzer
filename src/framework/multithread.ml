@@ -55,6 +55,7 @@ sig
      and type transfer = LD.t * glob_fun -> LD.t * glob_diff
      and type trans_in = LD.t * glob_fun
   val spawn: varinfo -> exp list -> trans_in -> (varinfo * domain) list
+  val ass_spawn: lval -> exp -> trans_in -> (varinfo * domain) list
 end
 
 module Forward (Spec: Spec) =
@@ -83,6 +84,7 @@ struct
     if M.tracing then M.trace "con" (dprintf "%a\n" Var.pretty_trace (n,es));
     (* Find the edges entering this edge *)
     let edges = cfg n in
+    let dress (f,es) = (MyCFG.Function f, es) in
     (* For each edge we generate a rhs: a function that takes current state
      * sigma and the global state theta; it outputs the new state, delta, and
      * spawned calls. *)
@@ -101,8 +103,10 @@ struct
                 let (b,n) = body func (es, theta) in 
                   (SD.lift b,n,[])
             | MyCFG.Assign (lval,exp) -> 
-                let (b,n) = assign lval exp (SD.unlift (sigma predvar), theta) in 
-                  (SD.lift b,n,[])
+                let trans_in = (SD.unlift (sigma predvar), theta) in
+                let (b,n) = assign lval exp trans_in in 
+                let s = ass_spawn lval exp trans_in in
+                  (SD.lift b,n, List.map dress s)
             | MyCFG.Test (exp,tv) -> 
                 let (b,n) = branch exp tv (SD.unlift (sigma predvar), theta) in 
                   (SD.lift b,n,[])
@@ -116,7 +120,6 @@ struct
                  * return dead code since they don't terminate. *)
                 let helper (st,gl as stg) =
                   let (norms,specs) = entry exp args stg in
-                  let dress (f,es) = (MyCFG.Function f, es) in
                   let baseval = SD.bot () in
                   let effects = ref [] in
                   let fun_res fe = sigma (dress fe) in

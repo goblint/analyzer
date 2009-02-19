@@ -107,11 +107,8 @@ struct
   type glob_fun = GD.Var.t -> GD.Val.t
   type glob_diff = (GD.Var.t * GD.Val.t) list
   type glob_state = glob_fun * glob_diff
-  type calls = (Cil.varinfo * domain) list -> domain
-  type spawn = (Cil.varinfo * domain) list -> unit
   type transfer = domain * glob_fun -> domain * glob_diff
   type trans_in = domain * glob_fun
-  type callback = calls * spawn 
   type store = trans_in
   type wstore = domain * glob_diff
   type value = VD.t
@@ -179,10 +176,7 @@ struct
         (((nst,eq),fl),gd)
     with 
       (* If any of the addresses are unknown, we ignore it!?! *)
-      | SetDomain.Unsupported _ -> 
-          M.warn "Assignment to unknown address"; 
-
-          (((st,eq),fl),[])
+      | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; (((st,eq),fl),[])
 
   (* Just identity transition from store -> wstore *)
   let set_none (lst,gl) = (lst, [])
@@ -200,8 +194,6 @@ struct
       (* And fold over the list starting from the store turned wstore: *)
       List.fold_left f (set_none store) lval_value_list
 
-  (* The function for invalidating a list of addresses *)
-  let set_top ((st,fl),gl:store) (lvals: AD.t list) = ()
 
   let join_writes (st1,gl1) (st2,gl2) = 
     (* It's the join of the local state and concatenate the global deltas, I'm
@@ -909,6 +901,21 @@ struct
         let str = sprint ~width:80 (d_exp () fval) in
           M.bailwith ("Trying to call function, but evaluating \"" ^ str ^ "\" yields an unknown address.")
 
+  let collect_spawned st args = 
+    let flist = collect_funargs st args in
+    let f addr = 
+      let var = List.hd (AD.to_var_may addr) in
+      let _ = Cilfacade.getdec var in 
+        var, otherstate
+    in 
+    let g a acc = try 
+      let r = f a in r :: acc 
+    with 
+      | Not_found -> acc 
+      | x -> M.debug ("Ignoring exception: " ^ Printexc.to_string x); acc 
+    in
+      List.fold_right g flist [] 
+
   let spawn (f: varinfo) (args: exp list) ((cpa,fl),gl as st:store): (varinfo * domain) list = 
     match f.vname with 
       (* handling thread creations *)
@@ -935,20 +942,14 @@ struct
               | Some fnc -> fnc args
               | None -> args
           in
-          let flist = collect_funargs st args in
-          let f addr = 
-            let var = List.hd (AD.to_var_may addr) in
-            let _ = Cilfacade.getdec var in 
-              var, otherstate
-          in 
-          let g a acc = try 
-            let r = f a in r :: acc 
-          with 
-            | Not_found -> acc 
-            | x -> M.debug ("Ignoring exception: " ^ Printexc.to_string x); acc 
-          in
-            List.fold_right g flist [] 
+            collect_spawned st args
         end
+
+  let ass_spawn lval exp ((cpa,fl),gl as st:store) =
+    if AD.is_top (eval_lv st lval) then 
+      collect_spawned st [exp]
+    else 
+      []
           
   let combine lval f args fun_st (loc,gl as st) = 
     (* This function does miscelaneous things, but the main task was to give the

@@ -48,6 +48,7 @@ sig
      and type transfer = LD.t * glob_fun -> LD.t * glob_diff
      and type trans_in = LD.t * glob_fun
   val spawn: varinfo -> exp list -> trans_in -> (varinfo * domain) list
+  val ass_spawn: lval -> exp -> trans_in -> (varinfo * domain) list
 end
 
 module type UserSpec =
@@ -110,6 +111,11 @@ struct
   let spawn f args ((st1,st2),gl) =
     let gf1 x = fst (gl x) in
     let norms = Base.spawn f args (st1,gf1) in
+      List.map (fun (f,x) -> (f,(x,st2))) norms
+
+  let ass_spawn lval exp ((st1,st2),gl): (varinfo * domain) list =
+    let gf1 x = fst (gl x) in
+    let norms = Base.ass_spawn lval exp (st1,gf1) in
       List.map (fun (f,x) -> (f,(x,st2))) norms
 
   let special f args = combiner (Base.special f args, User.special f args)
@@ -208,6 +214,15 @@ struct
     let for_each (st1,st2) =
       let gf1 x = fst (gl x) in
       let norms = Base.spawn f args (st1,gf1) in
+        List.map (fun (f,x) -> (f, LD.singleton (x,st2))) norms
+    in
+    let res = List.map for_each (LD.elements st) in
+      List.concat res
+
+  let ass_spawn lval exp (st,gl: trans_in): (varinfo * domain) list =
+    let for_each (st1,st2) =
+      let gf1 x = fst (gl x) in
+      let norms = Base.ass_spawn lval exp (st1,gf1) in
         List.map (fun (f,x) -> (f, LD.singleton (x,st2))) norms
     in
     let res = List.map for_each (LD.elements st) in
