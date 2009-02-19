@@ -50,8 +50,11 @@ let cfg_print = ref false
 let allfuns = ref false
 let nonstatic = ref false
 
-(** name of the main function *)
+(** name of the main / init function *)
 let mainfun = ref "main"
+
+(** name of the exit function, just additionally spawned ... *)
+let exitfun = ref ([]: string list)
 
 (** Whether a main function has been found. *)
 let has_main = ref false

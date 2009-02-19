@@ -124,7 +124,11 @@ File.open(testresults + "index.html", "w") do |f|
             f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
           end
         else
-          f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (#{correlations} verified, #{warnings} warnings, #{uncalled} uncalled)</td>"
+          if uncalled == 0 then
+            f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (#{correlations} verified, #{warnings} warnings)</td>"
+          else
+            f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (#{correlations} verified, #{warnings} warnings, #{uncalled} uncalled)</td>"
+          end
         end
       end
     end

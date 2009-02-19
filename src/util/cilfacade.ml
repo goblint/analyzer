@@ -138,6 +138,8 @@ let getFuns fileAST  : fundec list =
     match glob with 
       | GFun({svar={vname=mn}} as def,_) when mn = mainname-> 
           found := true; GU.has_main := true; main := def; rest
+      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.exitfun -> 
+          def :: rest
       | GFun ({svar={vstorage=NoStorage}} as def, _) -> def :: rest
       | GFun (def, _) when not (!GU.nonstatic) -> def :: rest
       | _ -> rest 

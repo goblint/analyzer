@@ -43,4 +43,4 @@ kernel/avc.c
 ppp_generic
 Generic PPP layer for Linux.
 kernel/ppp_generic.c
---regions --nonstatic --mainfun ppp_init --write-races
+--regions --nonstatic --mainfun ppp_init --exitfun ppp_cleanup --write-races

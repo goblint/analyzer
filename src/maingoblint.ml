@@ -65,6 +65,7 @@ let main () =
       | _ -> raise (Arg.Bad "invalid result style") 
   in
   let setdump path = GU.dump_path := Some (GU.create_dir path) in
+  let add_exitfun f = GU.exitfun := f :: !GU.exitfun in
   let setcil path = cilout := open_out path in
   let analyze = ref Mutex.Analysis.analyze in
   let nonstatic () = GU.allfuns := true; GU.nonstatic := true in
@@ -97,6 +98,7 @@ let main () =
                  ("--allfuns", Arg.Set GU.allfuns, " Analyzes all the functions (not just beginning from main).");
                  ("--nonstatic", Arg.Unit nonstatic, " Analyzes all non-static functions.");
                  ("--mainfun", Arg.Set_string GU.mainfun, " Sets the name of the main function.");
+                 ("--exitfun", Arg.String add_exitfun, " Sets the name of the main function.");
                  ("--allglobs", Arg.Set GU.allglobs, " Prints access information about all globals, not just races.");
                  ("--earlyglobs", Arg.Set GU.earlyglobs, " Side-effecting of globals right after initialization.");
                  ("--write-races", Arg.Set GU.no_read, " Ignores read accesses altogether in reporting races.");
