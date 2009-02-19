@@ -179,7 +179,10 @@ struct
         (((nst,eq),fl),gd)
     with 
       (* If any of the addresses are unknown, we ignore it!?! *)
-      | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; (((st,eq),fl),[])
+      | SetDomain.Unsupported _ -> 
+          M.warn "Assignment to unknown address"; 
+
+          (((st,eq),fl),[])
 
   (* Just identity transition from store -> wstore *)
   let set_none (lst,gl) = (lst, [])
@@ -826,6 +829,7 @@ struct
               end
             | _ -> M.bailwith "Assert argument mismatch!"
         end
+      | "goblint_debug" -> let _ = printf "%a\n" LD.pretty (fst st) in set_none st
       | x -> begin
           match LF.get_invalidate_action x with
             | Some fnc -> invalidate st (fnc args)
