@@ -67,13 +67,12 @@ let print_group group_name errors =
 let warn_urgent msg = 
   soundness := false;
   print_msg msg (!current_loc)
+  
+let write msg =
+  print_msg msg !current_loc
 
 let warn_all msg = 
-  if !GU.debug then 
-    print_msg msg (!current_loc)
-  else 
-    ();
-(*    if !soundness then print_msg ("No longer sound. " ^ msg) !current_loc;*)
+  if !GU.debug then print_msg msg (!current_loc);
   soundness := false
 
 let warn_str_hashtbl = Hashtbl.create 10

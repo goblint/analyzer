@@ -76,6 +76,7 @@ module Variables =
 struct
   type t = varinfo
   let isSimple _  = true
+  let is_global v = v.vglob
   let copy x = x
   let equal x y = x.vid = y.vid
   let compare x y = compare x.vid y.vid

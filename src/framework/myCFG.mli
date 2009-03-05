@@ -92,9 +92,6 @@ val getLoc: node -> location
 (** Returns the source location of the given node. For a function, this is the
   * point were the function is defined. *)
 
-val getSid: node -> int
-(** Returns the sid of the given node. For a function, this is just -1. *)
-
 val getFun: node -> fundec
 (** Returns the function that the given node belongs to. *)
 

@@ -57,6 +57,9 @@ val soundness: bool ref
 (** The soundness of the current analysis. We begin with sound analyses, but if
   * we can't keep soundness, we try to continue and maybe find some bugs. *)
 
+val write: string -> unit
+(** Print out a message, does not affect soundness. *)
+
 val warn: string -> unit
 (** Prints a warning and adds the source code location where the warning
   * occured. This should also be called from within transfer functions. 

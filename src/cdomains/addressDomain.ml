@@ -44,6 +44,7 @@ sig
   
   val from_var: varinfo -> t
   val from_var_offset: (varinfo * (idx,field) Lval.offs) -> t
+  val to_var_offset: t -> (varinfo * (idx,field) Lval.offs) list
   val to_var_may: t -> varinfo list
   val to_var_must: t -> varinfo list
   val get_type: t -> typ

@@ -434,9 +434,10 @@ struct
   let bitxor = lift2 Integers.bitxor
   let shift_left  = lift2 Integers.shift_left
   let shift_right = lift2 Integers.shift_right
-  let lognot = lift1 Integers.lognot
+  (* TODO: lift does not treat Not {0} as true. *)
   let logand = lift2 Integers.logand
   let logor  = lift2 Integers.logor
+  let lognot = eq (of_int 0L) 
 end
 
 

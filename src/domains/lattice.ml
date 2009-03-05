@@ -277,6 +277,41 @@ struct
   let meet = op_scheme Base1.meet Base2.meet Base3.meet
 end
 
+module LiftBot (Base : S) =
+struct
+  include Printable.LiftBot (Base)
+  include StdCousot
+
+  let bot () = `Bot
+  let is_bot x = x = `Bot
+  let top () = `Lifted (Base.top ())
+  let is_top x = 
+    match x with 
+      | `Lifted x -> Base.is_top x
+      | `Bot -> false
+
+  let leq x y =
+    match (x,y) with
+      | (`Bot, _) -> true
+      | (_, `Bot) -> false
+      | (`Lifted x, `Lifted y) -> Base.leq x y
+
+  let join x y = 
+    match (x,y) with 
+      | (`Bot, x) -> x
+      | (x, `Bot) -> x
+      | (`Lifted x, `Lifted y) -> `Lifted (Base.join x y)
+
+  let meet x y = 
+    match (x,y) with 
+      | (`Bot, _) -> `Bot
+      | (_, `Bot) -> `Bot
+      | (`Lifted x, `Lifted y) -> `Lifted (Base.meet x y) 
+  
+end
+  
+                               
+  
 module Liszt (Base: S) = 
 struct
   include Printable.Liszt (Base)

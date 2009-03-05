@@ -282,11 +282,6 @@ let getLoc (node: node) =
     | Statement stmt -> get_stmtLoc stmt.skind
     | Function fv -> fv.vdecl
 
-let getSid (node: node) = 
-  match node with
-    | Statement stmt -> stmt.sid
-    | Function fv -> -1
-
 let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_index_hack stmt
 
 let getFun (node: node) = 

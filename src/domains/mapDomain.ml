@@ -45,6 +45,7 @@ sig
   val add: key -> value -> t -> t
   val remove: key -> t -> t
   val find: key -> t -> value
+  val mem: key -> t -> bool
   val iter: (key -> value -> unit) -> t -> unit
   val map: (value -> value) -> t -> t
 (*  val mapi: (key -> value -> value) -> t -> t*)
@@ -128,6 +129,7 @@ struct
   let add = M.add
   let remove = M.remove
   let find = M.find
+  let mem = M.mem
   let iter = M.iter
   let map = M.map
   let mapi = M.mapi
@@ -167,7 +169,8 @@ struct
     let f key value acc =
       try add key (op value (find key m2)) acc with 
         | Not_found -> acc
-        | Lattice.Unsupported _ -> acc
+        | Lattice.Unsupported _ -> 
+            ME.debug "Ignoring Unsupported!"; acc
     in
       fold f m1 M.empty
 

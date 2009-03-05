@@ -117,7 +117,6 @@ let print_uncalled = ref false
 (** A very nice imperative hack to get the current location. This can be
   * referenced from within any transfer function. *)
 let current_loc = ref locUnknown
-let current_sid = ref (0,0)
 
 let escape (x:string):string =
   let esc_1 = Str.global_replace (Str.regexp "&") "&amp;" x in

@@ -374,6 +374,46 @@ struct
   let pretty () x = pretty_f short () x
 end
 
+module LiftBot (Base : S) =
+struct
+  type t = [`Bot | `Lifted of Base.t ]
+  include Std
+    
+  let lift x = `Lifted x
+    
+  let equal x y = 
+    match (x, y) with
+      | (`Bot, `Bot) -> true
+      | (`Lifted x, `Lifted y) -> Base.equal x y
+      | _ -> false
+
+  let short w state = 
+    match state with
+      | `Lifted n ->  Base.short w n
+      | `Bot -> "bot of " ^ (Base.name ())
+
+  let isSimple x = 
+    match x with
+      | `Lifted n -> Base.isSimple n
+      | _ -> true
+
+  let pretty_f _ () (state:t) = 
+    match state with
+      | `Lifted n ->  Base.pretty () n
+      | `Bot -> text ("bot of " ^ (Base.name ()))
+
+  let toXML_f _ (state:t) =
+    match state with
+      | `Lifted n -> Base.toXML n
+      | `Bot -> Xml.Element ("Leaf", ["text","bot of " ^ (Base.name ())], [])
+
+  let toXML m = toXML_f short m
+
+  let pretty () x = pretty_f short () x
+  let name () = "bottom or " ^ Base.name ()
+end
+
+
 (** Concatenates a list of strings that 
    fit in the given character constraint *)
 let get_short_list begin_str end_str w list =

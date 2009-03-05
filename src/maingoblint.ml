@@ -74,8 +74,6 @@ let main () =
       | "mutex" -> Mutex.Analysis.analyze
       | "no_path" -> Mutex.SimpleAnalysis.analyze
       | "base" -> Base.Analysis.analyze
-      | "owner" -> Owner.Analysis.analyze
-      | "unit" -> Unit.Analysis.analyze
       | _ -> raise (Arg.Bad "no such analysis")
   in
   let set_trace sys = 

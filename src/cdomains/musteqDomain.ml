@@ -57,7 +57,6 @@ module P = Printable.ProdSimple (V) (V)
 
 module Equ = 
 struct
-  module PMap = MapDomain.PMap (P) (F)
   include MapDomain.MapTop (P) (F)
 
   let toXML_f sf mapping =
@@ -87,11 +86,9 @@ struct
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
-  let exists x m = try PMap.find x m; true with | Not_found -> false
-
   let add_old = add
   let rec add (x,y) fd d =
-    if V.equal x y || exists (x,y) d then d else
+    if V.equal x y || mem (x,y) d then d else
       let add_closure (x,y) fd d = 
         let f (x',y') fd' acc =
           if V.equal y y' then 
