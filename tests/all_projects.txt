@@ -1,0 +1,44 @@
+Group: Locksmith POSIX Apps
+
+aget
+Multithreaded wget
+locksmith/aget_comb.c
+
+ctrace
+Library for tracing multithreaded programs
+locksmith/ctrace_comb.c
+
+pfscan
+Multithreaded file scanner
+locksmith/pfscan_comb.c
+
+smtprc
+SMTP Open Relay Checker
+locksmith/smtprc_comb.c
+
+knot
+Multithreaded web server
+locksmith/knot_comb.c
+
+
+Group: Larger programs
+
+zfs-fuse
+ZFS file system
+pthread/zfs-fuse_comb.c
+
+automount
+kernel-based automounter for linux
+pthread/automount_comb.c
+
+ypbind
+Linux NIS daemon: ypbind-mt
+pthread/ypbind_comb.c
+
+zebedee
+Zebedee: Secure IP tunnel
+pthread/zebedee_comb.c
+
+mt-daapd
+Multithreaded DAAP server
+locksmith/mt-daapd_comb.c
