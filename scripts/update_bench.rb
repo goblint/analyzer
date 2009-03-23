@@ -1,5 +1,4 @@
 #!/usr/bin/ruby
-require "timeout"
 
 # trier_res = "/home/vesal/kool/magister/projects/results_rtmm/"
 goblint = File.join(Dir.getwd,"goblint")
@@ -18,7 +17,7 @@ class Project
     @params   = params
   end
   def to_html
-    "<td>#{@name}</td>\n" + "<td>#{@desc}</td>\n" + "<td>#{@size}</td>\n"
+    "<td>#{@name}</td>\n" + "<td><small>#{@desc}</small></td>\n" + "<td>#{@size}</td>\n"
   end
   def to_s
     "#{@name} -- #{@desc}"
@@ -37,13 +36,21 @@ analyses = ["mutex"]
 
 #processing the input file
 
+skipgrp = []
 projects = []
-File.open("tests/bench.txt", "r") do |f|
+file = if FileTest.exists? "tests/mybench.txt"
+         "tests/mybench.txt"
+       else
+         "tests/bench.txt"
+       end
+
+File.open(file, "r") do |f|
   i = 0
   while line = f.gets
     next if line =~ /^\s*$/ 
     if line =~ /Group: (.*)/
       gname = $1
+      skipgrp << gname if line =~ /SKIP/
       next
     end
     name = line.chomp
@@ -57,9 +64,11 @@ File.open("tests/bench.txt", "r") do |f|
   end
 end
 
+puts skipgrp
 #analysing the files
 gname = ""
 projects.each do |p|
+  next if skipgrp.member? p.group
   next unless only.nil? or p.name == only 
   if p.group != gname then
     gname = p.group
@@ -73,7 +82,7 @@ projects.each do |p|
   analyses.each do |a|
     puts "  " + a
     outfile = testresults + File.basename(filename,".c") + ".#{a}.txt"
-    `timeout #{timeout} #{goblint} #{filename} #{p.params} --analysis #{a} --stats --cilout /dev/null 1>#{outfile} 2>&1`
+    `timeout #{timeout} #{goblint} #{filename} #{p.params} --analysis #{a} --uncalled --stats --cilout /dev/null 1>#{outfile} 2>&1`
     if $? != 0 then
       puts "  Timed out! (or other failure)"
       `echo "TIMEOUT                    #{timeout} s" >> #{outfile}`
@@ -90,11 +99,10 @@ File.open(testresults + "index.html", "w") do |f|
   projects.each do |p|
     if p.group != gname then
       gname = p.group
-      f.puts "<tr><th colspan=#{3+2*analyses.size}>#{gname}</th></tr>"
+      f.puts "<tr><th colspan=#{3+analyses.size}>#{gname}</th></tr>"
       f.puts "<tr><th>Name</th><th>Description</th><th>Size (merged)</th>"
       analyses.each do |a| 
         f.puts "<th>#{a}</th>"
-        f.puts "<th>warnings</th>"
       end
 #       f.puts "<th>Compared to Trier</th>"
     end
@@ -104,7 +112,9 @@ File.open(testresults + "index.html", "w") do |f|
       outfile = File.basename(p.path,".c") + ".#{a}.txt"
       File.open(testresults + outfile, "r") do |g|
         lines = g.readlines
-        warnings = lines.grep(/Datarace over variable/).size
+        warnings = lines.grep(/Datarace over/).size
+        correlations = lines.grep(/is guarded by/).size
+        uncalled = lines.grep(/will never be called/).size
         res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
         if res == [] then
           res = lines.grep(/^TIMEOUT\s*(.*) s.*$/) { |x| $1 }
@@ -114,9 +124,12 @@ File.open(testresults + "index.html", "w") do |f|
             f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
           end
         else
-          f.puts "<td><a href = #{outfile}>#{res.to_s} s</a></td>"
+          if uncalled == 0 then
+            f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (#{correlations} verified, #{warnings} warnings)</td>"
+          else
+            f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (#{correlations} verified, #{warnings} warnings, #{uncalled} uncalled)</td>"
+          end
         end
-        f.puts "<td>#{warnings} races</rd"
       end
     end
     gb_file = testresults + File.basename(p.path,".c") + ".mutex.txt"

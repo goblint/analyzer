@@ -32,6 +32,8 @@ class Project
 end
 
 #Command line parameters
+#Either only run a single test, or
+#"future" will also run tests we normally skip
 only = ARGV[0] unless ARGV[0].nil?
 if only == "future" then
   future = true
@@ -66,7 +68,7 @@ regs.sort.each do |d|
     debug = true
 
     next if not future and lines[0] =~ /SKIP/
-    debug = false if lines[0] =~ /NODEBUG/
+    debug = false unless lines[0] =~ /DEBUG/
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
 
@@ -75,10 +77,11 @@ regs.sort.each do |d|
       i = i + 1
       next if obj =~ /^\s*\/\//
       if obj =~ /RACE/ then
-        hash[i] = "race"
+        hash[i] = if obj =~ /NORACE/ then "norace" else "race" end
       elsif obj =~ /assert.*\(/ then
         if obj =~ /FAIL/ then
           hash[i] = "fail"
+          debug = true
         elsif obj =~ /UNKNOWN/ then
           hash[i] = "unknown"
           debug = true
@@ -177,11 +180,11 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
           ferr = idx if ferr.nil? or idx < ferr
         end
       when "assert", "nowarn" 
-        if warnings[idx].nil? then 
-          correct += 1 
-        else 
-          ferr = idx if ferr.nil?
-        end
+        if warnings[idx].nil? then correct += 1 
+        else ferr = idx if ferr.nil? or idx < ferr end
+      when "norace"
+        if warnings[idx] != "race" then correct += 1 
+        else ferr = idx if ferr.nil? or idx < ferr end
       end
     end
     f.puts "<td><a href=\"#{warnfile}\">#{correct} of #{p.warnings.size}</a></td>"

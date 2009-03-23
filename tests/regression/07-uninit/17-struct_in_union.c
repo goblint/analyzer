@@ -1,4 +1,4 @@
-// NODEBUG PARAM: --analysis uninit
+// PARAM: --analysis uninit
 typedef union {
 	struct {
 		int a;
