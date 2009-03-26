@@ -1,49 +1,46 @@
-Group: Locksmith POSIX Apps
+Group: Regions
 
-aget
-Multithreaded wget
-pthread/aget_comb.c
--
+atmel_tclib
+Thin libarary for TC block allocation for Atmel SoCs
+kernel/atmel_tclib.c
+--regions --allfuns
 
-knot
-Multithreaded web server
-pthread/knot_comb.c
--
+hwmon
+Linux kernel module for hardware monitoring
+kernel/hwmon_coretemp.c
+--regions --allfuns --mainfun coretemp_init --write-races
 
-pfscan
-Multithreaded file scanner
-pthread/pfscan_comb.c
---libc
+enclosure
+Enclosure Services
+kernel/enclosure.c
+--regions --allfuns --mainfun enclosure_init
 
-ctrace
-Library for tracing multithreaded programs
-pthread/ctrace_comb.c
--
+scsi_dh
+SCSI device handler infrastruture.
+kernel/scsi_dh.c
+--regions --allfuns --write-races
 
-smtprc
-SMTP Open Relay Checker
-pthread/smtprc_comb.c
---earlyglobs
+dmaengine
+HW-neutral interface to DMA subsystem
+kernel/dmaengine.c
+--regions --nonstatic --mainfun dma_bus_init
 
+scsi_rdac
+Engenio/LSI RDAC SCSI Device Handler
+kernel/scsi_dh_rdac.c
+--regions --allfuns --mainfun rdac_init
 
-Group: Larger programs
+usb_hcd
+USB Host Controller Driver framework
+kernel/hcd.c
+--regions --allfuns
 
-ypbind
-Linux NIS daemon: ypbind-mt
-pthread/ypbind_comb.c
---allfuns
+avc
+Access Vector Cache implementation of SELinux
+kernel/avc.c
+--regions --allfuns --mainfun avc_init --write-races
 
-zebedee
-Zebedee: Secure IP tunnel
-pthread/zebedee_comb.c
---earlyglobs
-
-automount
-kernel-based automounter for linux
-pthread/automount_comb.c
---allfuns
-
-zfs-fuse
-ZFS file system
-pthread/zfs-fuse_comb.c
---allfuns
+ppp_generic
+Generic PPP layer for Linux.
+kernel/ppp_generic.c
+--regions --nonstatic --mainfun ppp_init --exitfun ppp_cleanup --write-races

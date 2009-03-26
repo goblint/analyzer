@@ -35,177 +35,215 @@
 
 module A = Analyses
 module M = Messages
+module H = Hashtbl
 module GU = Goblintutil
+module CF = Cilfacade
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
+module Fields = Lval.Fields
 module Lockset = LockDomain.Lockset
 module AD = ValueDomain.AD
+module ID = ValueDomain.ID
 (*module BS = Base.Spec*)
 module BS = Base.Main
 module LF = LibraryFunctions
 open Cil
 open Pretty
 
-(** Data race analyzer *)  
-module Spec : Analyses.Spec =
-struct  
+(* Some helper functions ... *)
+let is_atomic_type (t: typ): bool = match t with
+  | TNamed (info, attr) -> info.tname = "atomic_t"
+  | _ -> false
 
-  (** name for the analysis (btw, it's "Mutex Must") *)
+let is_atomic lval = 
+  let (lval, _) = removeOffsetLval lval in
+  let typ = typeOfLval lval in
+    is_atomic_type typ
+
+let is_ignorable lval = 
+  Base.is_mutex_type (typeOfLval lval) || is_atomic lval
+
+
+module Spec =
+struct
+  exception Top
   let name = "Mutex Must"
+  type context = BS.store
+  module LD = Lockset
 
-  (** a strange function *)
-  let es_to_string f es = f.svar.vname
-  
-  (** no init. needed -- call [BS.init] *)
-  let init = BS.init 
+  module AccessType = IntDomain.MakeBooleans (struct 
+                                               let truename = "Write" 
+                                               let falsename = "Read" end)
+  module SLD = Printable.Prod (Lockset) (Offs)                                             
+  module Access = Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (SLD)
+  module Accesses = SetDomain.SensitiveConf (struct
+                                               let expand_fst = false
+                                               let expand_snd = true
+                                             end) (AccessType) (Access)
+  module GLock = Lattice.Prod (Lockset) (Accesses)
+  module GD = Global.Make (GLock)
 
-  (** Add current lockset alongside to the base analysis domain. Global data is collected using dirty side-effecting. *)
-  module Dom = Lattice.Prod (BS.Dom) (Lockset)
-  
-  (** We do not add global state, so just lift from [BS]*)
-  module Dep = BS.Dep
-  
-  (** Access counting is done using side-effect (accesses added in [add_accesses] and read in [finalize]) : *)
-  
-  (* 
-    Access counting using side-effects: ('|->' is a hash-map)
-    
-    acc     : var |-> (loc, mt_flag, rw_falg, lockset, offset) set
-    accKeys : var set
-    
-    Remark:
-    As you can see, [accKeys] is just premature optimization, so we dont have to iterate over [acc] to get all keys.
-   *)
-  module Acc = Hashtbl.Make (Basetype.Variables)
-  module AccKeySet = Set.Make (Basetype.Variables)
-  module AccValSet = Set.Make (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs))
-  let acc     : AccValSet.t Acc.t = Acc.create 100
-  let accKeys : AccKeySet.t ref   = ref AccKeySet.empty 
-  
-  (** Function [add_accesses accs st] fills the hash-map [acc] *)
-  let add_accesses (accessed: (varinfo * Offs.t * bool) list) (bst,ust:Dom.t) : unit = 
-    let fl = BS.get_fl bst in
-    if BS.Flag.is_multi fl then
-      let loc = !GU.current_loc in
-      let try_add_one (v, o, rv: Cil.varinfo * Offs.t * bool) =
-        if (v.vglob) then
-          let curr : AccValSet.t = try Acc.find acc v with Not_found -> AccValSet.empty in
-          let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
-          Acc.replace acc v neww;
-          accKeys := AccKeySet.add v !accKeys
-      in 
-        List.iter try_add_one accessed
+  type domain = LD.t
+  type glob_fun = GD.Var.t -> GD.Val.t
+  type glob_diff = (GD.Var.t * GD.Val.t) list
+  type calls = (varinfo * LD.t) list -> LD.t
+  type spawn = (varinfo * LD.t) list -> unit
+  type transfer = LD.t * context * glob_fun -> LD.t * glob_diff
+  type trans_in = LD.t * context * glob_fun
+  type callback = calls * spawn 
+  type access_list = (Cil.varinfo * Offs.t * bool) list
 
+  let startstate = LD.top ()
+  let otherstate = LD.top ()
+  let return_var = 
+    let myvar = makeVarinfo false "RETURN" voidType in
+      myvar.vid <- -99;
+      myvar
 
-  (** First we consider reasonable joining states if locksets are equal, also we don't expect precision if base state is equal*)
-  let should_join (x,a) (y,b) = Lockset.equal a b || BS.Dom.equal x y
-  
-  (** We just lift start state, global and dependecy functions: *)
-  
-  let startstate = BS.startstate, Lockset.empty ()
-  let otherstate = BS.otherstate, Lockset.empty ()
-  
-  let filter_globals      (b,d)         = (BS.filter_globals b, Lockset.empty ())
-  let insert_globals      (b1,d) (b2,_) = (BS.insert_globals b1 b2, d)
-  let get_changed_globals (b1,_) (b2,_) = BS.get_changed_globals b1 b2 
-  let get_global_dep      (vs,is)       = BS.get_global_dep vs
-  let reset_global_dep    (vs,is)       = BS.reset_global_dep vs, is
-  
-  (** Transfer functions: *)
-  
-  let assign lval rval (bst,ust: Dom.t) : Dom.t = 
-    let accessed = BS.access_one_byval true bst (Lval lval) @ BS.access_one_byval false bst rval in
-    add_accesses accessed (bst,ust) ;
-    (BS.assign lval rval bst, ust)
-    
-  let branch exp tv (bst,ust: Dom.t) : Dom.t =
-    let accessed = BS.access_one_byval false bst exp in
-    add_accesses accessed (bst,ust);
-    (BS.branch exp tv bst, ust)
-    
-  let return exp fundec (bst,ust: Dom.t) : Dom.t =
-    begin match exp with 
-      | Some exp -> 
-          let accessed = BS.access_one_byval false bst exp in
-          add_accesses accessed (bst,ust)
-      | None -> () end;
-      (BS.return exp fundec bst, ust)
-        
-  let body f (bst,ust: Dom.t) : Dom.t = 
-    (BS.body f bst, ust)
+  let access_address ((_,fl),_) write addrs =
+    if BS.Flag.is_multi fl then begin
+      let f (v,o) acc = if v.vglob then (v, Offs.from_offset o, write) :: acc else acc in 
+      let addr_list = try AD.to_var_offset addrs with _ -> M.warn "Access to unknown address could be global"; [] in
+        List.fold_right f addr_list [] 
+    end else []
 
-  let eval_funvar exp (bst,bl) = 
-    let read = BS.access_one_byval false bst exp in
-    add_accesses read (bst,bl); 
-    BS.eval_funvar exp bst
-  
-  let special_fn lv f arglist (bst,ls: Dom.t) : Dom.t =
-    let eval_exp_addr context exp =
-      let v = BS.eval_rv context exp in
-        match v with
-          | `Address v when not (AD.is_top v) -> AD.fold (fun a b -> a :: b) v []    
-          | _                                 -> []
+  let rec access rw (st: context) (exp:exp): access_list = 
+    match exp with
+      (* Integer literals *)
+      | Const _ -> []
+      (* Variables and address expressions *)
+      | Lval lval -> 
+          if is_ignorable lval then [] else
+          let target = access_address st rw (BS.eval_lv st lval) in
+          let derefs = access_lv st lval in
+            target @ derefs
+      (* Binary operators *)
+      | BinOp (op,arg1,arg2,typ) -> 
+          let a1 = access rw st arg1 in
+          let a2 = access rw st arg2 in
+            a1 @ a2
+      (* Unary operators *)
+      | UnOp (op,arg1,typ) -> access rw st arg1
+      (* The address operators, we just check the accesses under them *)
+      | AddrOf lval -> access_lv st lval
+      | StartOf lval -> access_lv st lval
+      (* Most casts are currently just ignored, that's probably not a good idea! *)
+      | CastE  (t, exp) -> access rw st exp
+      | _ -> []
+  (* Accesses during the evaluation of an lval, not the lval itself! *)
+  and access_lv st (lval:lval): access_list = 
+    let rec access_offset (st: context) (ofs: offset): access_list = 
+      match ofs with 
+        | NoOffset -> []
+        | Field (fld, ofs) -> access_offset st ofs
+        | Index (exp, ofs) -> access false st exp @ access_offset st ofs
+    in 
+      match lval with 
+        | Var x, ofs -> access_offset st ofs
+        | Mem n, ofs -> access false st n @ access_offset st ofs
+
+  let access_funargs (st:context) (exps: exp list): access_list = 
+    (* Find the addresses reachable from some expression, and assume that these
+     * can all be written to. *)
+    let do_exp e = 
+      match BS.eval_rv st e with
+        | `Address a when AD.equal a (AD.null_ptr()) -> []
+        | `Address a when not (AD.is_top a) -> 
+            let f x = access_address st true x in
+              List.concat (List.map f (BS.reachable_vars [a] st))
+        (* Ignore soundness warnings, as invalidation proper will raise them. *)
+        | _-> []
     in
+      List.concat (List.map do_exp exps)
+
+  let add_locks accessed c locks  = 
+    let fl = BS.get_fl c in
+    let loc = !GU.current_loc in
+    let f (v, o, rv) = (v, (locks, Accesses.singleton (rv, (loc, fl, (locks,o))))) in 
+      List.rev_map f accessed
+
+  let assign lval rval (st,c,gl) = 
+    let accessed = access true c (Lval lval) @ access false c rval in
+      (st, add_locks accessed c st)
+  let branch exp tv (st,c,gl) =
+    let accessed = access false c exp in
+      (st, add_locks accessed c st)
+  let return exp fundec (st,c,gl) =
+    match exp with 
+      | Some exp -> let accessed = access false c exp in 
+          (st, add_locks accessed c st)
+      | None -> (st, [])
+  let body f (st,c,gl) = (st, [])
+
+  let eval_exp_addr context exp =
+    let v = BS.eval_rv context exp in
+      match v with
+        | `Address v when not (AD.is_top v) -> AD.fold (fun a b -> a :: b) v []    
+        | _                                 -> []
+
+  (* Don't forget to add some annotation for the base analysis as well,
+   * otherwise goblint will warn that the function is unknown. *)
+  let special f arglist (st,c,gl) =
     match f.vname with
    (* | "sem_wait"*)
-      | "pthread_mutex_lock" -> BS.special_fn lv f arglist bst, begin
-          match arglist with
-            | [x] -> begin match  (eval_exp_addr bst x) with 
-                             | [e]  -> Lockset.add e ls
-                             | _ -> ls
-                     end
-            | _ -> ls
-        end
+      | "_spin_lock" | "_spin_lock_irqsave" | "_spin_trylock" | "_spin_trylock_irqsave" | "_spin_lock_bh"
+      | "mutex_lock" | "mutex_lock_interruptible"
+      | "pthread_mutex_lock" ->
+          let x = List.hd arglist in
+          let st = match (eval_exp_addr c x) with 
+            | [e]  -> Lockset.add e st
+            | _ -> st 
+          in st,[]
    (* | "sem_post"*)
-      | "pthread_mutex_unlock" -> BS.special_fn lv f arglist bst, begin
-          match arglist with
-            | [x] -> begin match  (eval_exp_addr bst x) with 
-                             | [] -> Lockset.empty ()
-                             | e  -> List.fold_right (Lockset.remove) e ls
-                     end
-            | _ -> ls
+      | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
+      | "mutex_unlock"
+      | "pthread_mutex_unlock" ->
+          let x = List.hd arglist in
+          let st = match  (eval_exp_addr c x) with 
+            | [] -> Lockset.empty ()
+            | e  -> List.fold_right (Lockset.remove) e st
+          in st, []
+      | x -> begin
+          match LF.get_invalidate_action x with
+            | Some fnc -> 
+                let written = access_funargs c (fnc arglist) in
+                  (st, add_locks written c st)
+            | _ -> (st, [])
         end
-      | x -> 
-          let read       = BS.access_byval false bst arglist in
-          let accessable = BS.access_byref       bst arglist in
-          add_accesses (read @ accessable) (bst,ls);
-          BS.special_fn lv f arglist bst, ls
-          
-  let enter_func lv f args (bst,lst) =
-    List.map (fun st -> (st,lst)) (BS.enter_func lv f args bst) 
 
-  let leave_func lv f args (bst,bl) (ast,al) = 
-    let read = BS.access_byval false bst args in
-    add_accesses read (bst,bl); 
-    let rslt = BS.leave_func lv f args bst ast in
-    (rslt, al)
-    
-  let fork lv f args (bst,ls) = 
-    List.map (fun (f,t) -> (f,(t,ls))) (BS.fork lv f args bst)
-  
-  
-  (** Finalization and other result printing functions: *)
+  let combine lval f args (fun_st: domain) (st,c,gl: trans_in) =
+    let accessed = List.concat (List.map (access false c) (f::args)) in
+      (fun_st, add_locks accessed c st)
 
-  (** are we still race free *)
+  let entry f args st = ([],[])
+
+  let es_to_string f es = f.svar.vname
+
+  let init () = ()
+
   let race_free = ref true
 
-  (** modules used for grouping [varinfo]s by [Offset] *)
   module OffsMap = Map.Make (Offs)
-  (** modules used for grouping [varinfo]s by [Offset] *)
   module OffsSet = Set.Make (Offs)
 
-  (** [postprocess_acc gl] groups and report races in [gl] *)
-  let postprocess_acc (gl : Cil.varinfo) =
+  type access_status = 
+    | Race
+    | Guarded of Lockset.t
+    | ReadOnly
+    | ThreadLocal
+
+  let postprocess_glob (gl : GD.Var.t) ((_, accesses) : GD.Val.t) = 
+    if Base.is_fun_type (gl.vtype) then () else
     (* create mapping from offset to access list; set of offsets  *)
-    let create_map (accesses_map: AccValSet.t) =
-      let f (((_, _, rw), _, offs) as accs) (map,set) =
+    let create_map access_list =
+      let f (map,set)  ((_, (_, _, (_, offs))) as accsess) =
         if OffsMap.mem offs map
-        then (OffsMap.add offs ([accs] @ (OffsMap.find offs map)) map,
+        then (OffsMap.add offs ([accsess] @ (OffsMap.find offs map)) map,
               OffsSet.add offs set)
-        else (OffsMap.add offs [accs] map,
+        else (OffsMap.add offs [accsess] map,
               OffsSet.add offs set)
       in
-      AccValSet.fold f accesses_map (OffsMap.empty, OffsSet.empty)
+      List.fold_left f (OffsMap.empty, OffsSet.empty) access_list
     in 
     (* join map elements, that we cannot be sure are logically separate *)
     let regroup_map (map,set) =
@@ -222,57 +260,80 @@ struct
         then map
         else OffsMap.add last_offs last_set map
     in
-    let is_race acc_list =
-      let f locks (_, lock, _) = Lockset.join locks lock in
-      let locks = List.fold_left f (Lockset.bot ()) acc_list in
-      let rw ((_,_,x),_,_) = x in
-      let non_main ((_,x,_),_,_) = BS.Flag.is_bad x in      
-             (Lockset.is_empty locks || Lockset.is_top locks) 
-          && ((List.length acc_list) > 1)
-          && (List.exists rw acc_list) 
-          && (List.exists non_main acc_list)
+    let get_common_locks acc_list = 
+      let f locks ((_, (_, _, (lock, _)))) = Lockset.join locks lock in
+        List.fold_left f (Lockset.bot ()) acc_list 
+    in
+    let is_race acc_list: access_status =
+      let locks = get_common_locks acc_list in
+      let non_main (_,(_,x,_)) = BS.Flag.is_bad x in      
+        if not (Lockset.is_empty locks || Lockset.is_top locks) then
+          Guarded locks
+        else if not (List.exists fst acc_list) then
+          ReadOnly
+        else if not (List.exists non_main acc_list) then
+          ThreadLocal
+        else
+          Race
     in
     let report_race offset acc_list =
-      if is_race acc_list
-        then begin
-        race_free := false;
-        let warn = "Datarace over variable \"" ^ gl.vname ^ Offs.short 80 offset ^ "\"" in
-        let f  ((loc, fl, write), lockset,o) = 
-          let lockstr = Lockset.short 80 lockset in
-          let action = if write then "write" else "read" in
-          let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
-          let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
-            (warn,loc) in 
-        let warnings =  List.map f acc_list in
-          M.print_group warn warnings
-      end
+      let f (write, (loc, fl, (lockset,o))) = 
+        let lockstr = Lockset.short 80 lockset in
+        let action = if write then "write" else "read" in
+        let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
+        let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
+          (warn,loc) in 
+      let warnings =  List.map f acc_list in
+      let var_str = gl.vname ^ Offs.short 80 offset in
+      let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
+        match is_race acc_list with
+          | Race -> begin
+              race_free := false;
+              let warn = "Datarace over " ^ var_str in
+                M.print_group warn warnings
+            end
+          | Guarded locks ->
+              let lock_str = Lockset.short 80 locks in
+                if !GU.allglobs then
+                  M.print_group (safe_str "common mutex") warnings
+                else 
+                  ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
+          | ReadOnly ->
+              if !GU.allglobs then
+                M.print_group (safe_str "only read") warnings
+          | ThreadLocal ->
+              if !GU.allglobs then
+                M.print_group (safe_str "thread local") warnings
     in 
-    let acc_info = create_map (Acc.find acc gl) in
-    let acc_map  = regroup_map acc_info in
+    let acc = Accesses.elements accesses in
+    let acc = if !GU.no_read then List.filter fst acc else acc in
+    let acc_info = create_map acc in
+    let acc_map  = if !GU.unmerged_fields then fst acc_info else regroup_map acc_info in
       OffsMap.iter report_race acc_map
-    
-  (** postprocess and print races and other output *)
+
   let finalize () = 
-    AccKeySet.iter postprocess_acc !accKeys;
     if !GU.multi_threaded then begin
       match !race_free, !M.soundness with
-        | true, true -> print_endline "CONGRATULATIONS!\nYour program has just been certified Free of Data Races!"
+        | true, true -> 
+            print_endline "CONGRATULATIONS!\nYour program has just been certified Free of Data Races!"
         | true, false -> 
             print_endline "Goblint did not find any Data Races in this program!";
             print_endline "However, the code was too complicated for Goblint to understand all of it."
-        | _ -> ()
+        | false, true -> 
+            print_endline "And that's all. Goblint is certain there are no other races."
+        | _ -> 
+            print_endline "And there may be more races ...";
+            print_endline "The code was too complicated for Goblint to understand all of it."
     end else if not !GU.debug then begin
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
-    end;
-    BS.finalize ()
+    end
 
 end
 
 (*module Trivial = Spec*)
-(*module Context = Compose.ContextSensitive (BS) (Spec)*)
-module Path = Compose.PathSensitive (Spec)
+module Context = Compose.ContextSensitive (BS) (Spec)
+module Path = Compose.PathSensitive (BS) (Spec)
 
 module Analysis = Multithread.Forward(Path)
-module SimpleAnalysis = Multithread.Forward(Spec)
-
+module SimpleAnalysis = Multithread.Forward(Context)

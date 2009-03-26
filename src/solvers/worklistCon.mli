@@ -33,49 +33,26 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *)
 
-(** Some functions to deal with globals and dependencies. *)
-module type Deps =
-sig
-  module Dom : Lattice.S
-  (** analysis state domain (-- used for binding only)*)
-    
-  module Var : Analyses.VarType
-  (** module of local & global variables *)
-    
-  val get_changed_globals : Dom.t -> Dom.t -> Var.t list
-    (** [get_globals x y] returns list of (global) variables that have changed *)
-  val filter_globals      : Dom.t -> Dom.t
-    (** [filter_globals x] removes all non-global info from [x]. 
-     * The usual pattern should be [insert_globals x (func (filter_globals x))]. *)
-  val insert_globals      : Dom.t -> Dom.t -> Dom.t
-    (** [insert_globals st glob] return a state where globals are taken from [glob] and
-     * all other data from [st] *)
-  val reset_global_dep    : Dom.t -> Dom.t
-    (** [reset_global_dep x] clears global dependency list from [x]*)
-  val get_global_dep      : Dom.t -> Var.t list
-    (** [get_global_dep x] returns list of (global) dependencies thet have gathered in calculating the state. *)
-end
-    
 (** A very fast demand-driven constraint solver *)
-module Make (Dom : Lattice.S) (Deps : Deps with module Dom = Dom) :
+
+module Make (Var: Analyses.VarType) (Dom: Lattice.S) :
 sig
-  module HT : Hash.S with type key = Deps.Var.t
+  module HT : Hash.S with type key = Var.t
   type 'a table    = 'a HT.t
   (** A hashtable mapping system variables to ['a] *)
 
   (** A few type synonyms to make it more readable: *)
-  type variable    = Deps.Var.t
+
+  type variable    = Var.t
   (** The variables of constraint system *)
   type domain      = Dom.t
   (** The value domain of the variables *)
-  type forks       = variable list
-  (** Forks to be evaluated in parallel *)
 
   type assignment  = variable -> domain
   (** Assignments from variables to their values *)
   type assignment' = domain table 
   (** data structure representation of an assignment *)
-  type rhs         = assignment -> domain * forks
+  type rhs         = assignment -> domain 
   (** RHS of the constraint in functional form. The rhs is a function that given
     * the current values of the variables will evaluate the rhs expression *)
   type lhs         = variable 
@@ -91,7 +68,7 @@ sig
 
   (** And finally... *)
                        
-  val solve: system -> variable list -> solution 
+  val solve: system -> variable list -> solution
   (** [solve system xs] solves a constraint [system] in a demand-driven fashion
-    * starting from the variables [xs], also returning global state *)
+    * starting from the variables [xs] *)
 end 

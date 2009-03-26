@@ -39,138 +39,65 @@ open Pretty
 module GU = Goblintutil
 module M  = Messages
 
-(** General type of an analyzer. *)
+exception Deadcode
+exception Nofun
+
+module type Spec = 
+sig
+  type domain
+  type transfer
+  type trans_in
+
+  val name: string
+  val startstate: domain
+  val otherstate: domain (** This is used for non-main functions with the flag --allfuns. *)
+  val es_to_string: fundec -> domain -> string
+  val init: unit -> unit
+  val finalize: unit -> unit
+
+  val assign: lval -> exp -> transfer
+  val branch: exp -> bool -> transfer
+  val body  : fundec -> transfer
+  val return: exp option -> fundec -> transfer
+
+  val entry : exp -> exp list -> trans_in -> (varinfo * domain) list * varinfo list
+  val special: varinfo -> exp list -> transfer
+  val combine: lval option -> exp -> exp list -> domain -> transfer
+end
+
 module type S =
 sig
   val name: string
-  (** name of the analyzer*)
   val analyze: file -> fundec list -> unit
-  (** analyze a file -- output using Messages.* *)
 end
 
 module type VarType = 
 sig
   include Hashtbl.HashedType
   val pretty_trace: unit -> t -> doc
-  val is_global : t -> bool
-end
-  
-
-module type Spec = 
-sig
-  module Dom : Lattice.S   
-  (** THE data structure *)
-  module Dep : VarType     
-  (** global data structure *)    
-  
-  val name: string
-  (** name of the analysis *)
-  val init: unit -> unit
-  (** first function to be called when analyzing using this Spec *)
-  val finalize: unit -> unit
-  (** last function to be called when analyzing using this Spec *)
-  
-  val should_join         : Dom.t -> Dom.t -> bool
-  (** sensitivity predicate *)
-  val startstate: Dom.t
-  (** state to start analyzing the main function*)
-  val otherstate: Dom.t
-  (** state to start analyzing other functions (usual when calling './goblint --allfuns ...') *)
-  
-  val es_to_string: fundec -> Dom.t -> string
-  (** no-one knows .. somehow used when generating final output *)
-
-  (** Functions dealing with global: *)
-  
-  val get_changed_globals : Dom.t -> Dom.t -> Dep.t list 
-  (** [get_changed_globals x y] returns list of globals that are different in [x] and [y] *)
-  val filter_globals      : Dom.t -> Dom.t
-  (** [filter_globals x] throws out all information, that is not considered [x]-s global state *)
-  val insert_globals      : Dom.t -> Dom.t -> Dom.t
-  (** [insert_globals x y]  replaces global state from [x] with the global state in [y] *)
-
-  (** Functions dealing with dependency list maintanance: *)
-
-  val reset_global_dep    : Dom.t -> Dom.t
-  (** [reset_global_dep x]  returns state [x] where the inner globals dependency list is reset*)
-  val get_global_dep      : Dom.t -> Dep.t list
-  (** [get_global_dep x]  returns list of recent global dependencies --- global variables that have been queried since last reset *)
-
-  
-  (** Transfer functions:  *)
-  
-  val assign: lval -> exp -> Dom.t -> Dom.t 
-  (** handle assignments *)
-  val branch: exp -> bool -> Dom.t -> Dom.t
-  (** handle branches *)
-  val body  : fundec      -> Dom.t -> Dom.t
-  (** steping inside of a function body *)
-  val return: exp option  -> fundec -> Dom.t -> Dom.t
-  (** steping out from a function *)
-  
-
-  (** Transfer function for function calls: *)
-  
-  (* Basic scheme:
-    
-                 |-> enter_func -> <analyze the functions> -> leave_func -> join -> ...
-    eval_funvar -|-> special_fn ----------------------------------------------^
-                 |-> fork  ------------------------------------------------------->
-  *)
-  
-  
-  val eval_funvar : exp -> Dom.t -> varinfo list
-  (** [eval_funvar f st] evaluates [f] to a list of possible functions (in state [st]) *)
-  val fork       : lval option -> varinfo -> exp list -> Dom.t -> (varinfo * Dom.t) list  
-  (** [fork] returns list of function,input-state pairs, that the callee has spawned *)
-  val special_fn : lval option -> varinfo -> exp list -> Dom.t -> Dom.t
-  (** [special_fn] is called, when given varinfo is not connected to a fundec -- no function definition is given*)
-  val enter_func : lval option -> varinfo -> exp list -> Dom.t -> Dom.t list 
-  (** [enter_func] returns input-states that must be analyzed for the given function *)
-  val leave_func : lval option -> varinfo -> exp list -> Dom.t -> Dom.t -> Dom.t
-  (** [leave_func lv f a x y] does postprocessing on the analyzed [enter_func lv f a x] output [y] -- usually readding some
-     context from [x] *)
-
 end
 
-
-module VarF (LD: Printable.S) (GD: VarType)= 
+module VarF (LD: Printable.S) = 
 struct
-  type t = Local  of MyCFG.node * LD.t
-         | Global of GD.t
+  type t = MyCFG.node * LD.t
 
-  let hash x = 
-    match x with
-      | Local  (MyCFG.Statement s,d) -> Hashtbl.hash (d, s.sid, 0)
-      | Local  (MyCFG.Function  f,d) -> Hashtbl.hash (d, f.vid, 1)
-      | Global g -> GD.hash g
+  let hash (n,d) = 
+    match n with
+      | MyCFG.Statement s -> Hashtbl.hash (d, s.sid, 0)
+      | MyCFG.Function f -> Hashtbl.hash (d, f.vid, 1)
 
-  let equal x1 x2 =
-    match x1, x2 with
-      | Global     g1, Global     g2 -> GD.equal g1 g2
-      | Local (n1,d1), Local (n2,d2) -> MyCFG.Node.equal n1 n2 && LD.equal d1 d2
-      | _ -> false
-      
-  let getLocation x =
-    match x with
-      | Local (n,d) -> MyCFG.getLoc n
-      | Global g    -> Cil.locUnknown
+  let equal (n1,d1) (n2,d2) =
+    MyCFG.Node.equal n1 n2 && LD.equal d1 d2
 
-  let pretty () x =
-    match x with
-      | Local (MyCFG.Statement s,d) -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
-      | Local (MyCFG.Function  f,d) -> dprintf "call of %s" f.vname
-      | Global g -> GD.pretty_trace () g
-                
-  let pretty_trace () x =
-    match x with
-      | Local  _ -> dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
-      | Global g -> GD.pretty_trace () g
-  
-  let is_global x =
-    match x with
-      | Local  _ -> false
-      | Global _ -> true
+  let getLocation (n,d) = MyCFG.getLoc n
+
+  let pretty () (n,d) =
+    match n with
+      | MyCFG.Statement s -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
+      | MyCFG.Function f -> dprintf "call of %s" f.vname
+
+  let pretty_trace () x = 
+    dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
 end
 
 module VarCS =
@@ -196,10 +123,6 @@ struct
     dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
 end
 
-exception Deadcode
-
-
-(** [Dom (D)] produces D lifted where bottpom means dead-code *)
 module Dom (LD: Lattice.S) = 
 struct 
   include Lattice.Lift (LD) (struct
@@ -219,8 +142,7 @@ struct
       | tb -> tb
 end
 
-
-module ResultType (Spec: Spec) (LD: Printable.S with type t = Spec.Dom.t) (SD: Printable.S) = 
+module ResultType (Spec: Spec) (LD: Printable.S with type t = Spec.domain) (SD: Printable.S) = 
 struct
   include Printable.Prod3 (LD) (SD) (Basetype.CilFundec)
   let isSimple _ = false
@@ -304,3 +226,19 @@ struct
       | _ -> ()
 end
 
+module ComposeResults (R1: Printable.S) (R2: Printable.S) (C: ResultConf) =
+struct
+  module R = Printable.Either (R1) (R2)
+  module H1 = Hash.Printable (Basetype.ProgLinesFun) (R1)
+  module H2 = Hash.Printable (Basetype.ProgLinesFun) (R2)
+
+  include Result (R) (C)
+
+  let merge h1 h2 =
+    let hash = create 113 in
+    let f k v = add hash k (`Left v) in
+    let g k v = add hash k (`Right v) in
+      H1.iter f h1;
+      H2.iter g h2;
+      hash
+end

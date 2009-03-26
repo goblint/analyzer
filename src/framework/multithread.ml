@@ -40,217 +40,267 @@ module GU = Goblintutil
 module Glob = Basetype.Variables
 module Stmt = Basetype.CilStmt
 module Func = Basetype.CilFun
-
 open Cil
 open Pretty
 
-(** Forward analysis using a specification [Spec] *)
-module Forward (Spec : Analyses.Spec) : Analyses.S = 
-struct
-  (** Augment domain to lift dead code *)
-  module SD  = A.Dom (Spec.Dom)
-  (** Solver variables use global part from [Spec.Dep] *)
-  module Var = A.VarF (SD) (Spec.Dep)
- 
-  (** Deps module for WorklistCon solver *)
-  module Deps =
-  struct
-    module Dom = SD 
-    module Var = Var
-    
-    (** Lift globals & global dep. functions from [Spec] to use domain [SD] and variables [Var] *)
-    
-    let get_changed_globals x y = 
-      try  List.map (fun x -> Var.Global x) (Spec.get_changed_globals (SD.unlift x) (SD.unlift y))
-      with Analyses.Deadcode -> []
-    let get_global_dep d = 
-      try  List.map (fun x -> Var.Global x) (Spec.get_global_dep (SD.unlift d))
-      with Analyses.Deadcode -> []
-    let filter_globals x = 
-      try SD.lifted Spec.filter_globals x
-      with _ -> SD.bot ()
-    let reset_global_dep y = 
-      try SD.lifted Spec.reset_global_dep y
-      with _ -> SD.bot ()
-    let insert_globals x y = 
-      try SD.lifted (Spec.insert_globals (SD.unlift x)) y
-      with _ -> SD.bot ()
-    end
+module type Spec = 
+sig
+  module LD: Lattice.S
+  module GD: Global.S
+  type glob_fun = GD.Var.t -> GD.Val.t
+  type glob_diff = (GD.Var.t * GD.Val.t) list
+  val postprocess_glob: GD.Var.t -> GD.Val.t -> unit
+  include Analyses.Spec 
+    with type domain = LD.t
+     and type transfer = LD.t * glob_fun -> LD.t * glob_diff
+     and type trans_in = LD.t * glob_fun
+  val spawn: varinfo -> exp list -> trans_in -> (varinfo * domain) list
+  val ass_spawn: lval -> exp -> trans_in -> (varinfo * domain) list
+end
 
-  (** Modified WorklistCon solver *)
-  module Solver = WorklistCon.Make (SD) (Deps)
+module Forward (Spec: Spec) =
+struct
+  include Spec (* also makes accessible it's modules LD, GD *)
+
+  module Var = A.VarF (LD)
+  module SD = A.Dom (LD)
   
-  (** name the analyzer *)
-  let name = "analyzer"
-  
-  let system (cfg: MyCFG.cfg) (var: Var.t) : Solver.rhs list = 
-    if M.tracing then M.trace "con" (dprintf "%a\n" Var.pretty_trace var);
-    
-    (* We can only solve using normal variables *)
-    let (n,es) =      
-      match var with 
-        | Var.Local (n,es) -> (n,es)
-        | Var.Global _     -> failwith "cannot solve a global by itself"
-    in
-    
-    (*
-      Compiles a transfer function that handles function calls. The reason for this is
-      that we do not want the analyzer to decend into function calls, but rather we want 
-      to analyze functions separatly and then merge the result into function calls.
-      
-      First we get a list of possible functions that can occur evaluating [exp], and 
-      for each function [f] we do the following:
-      
-      If there does not exist a declaration of [f] the result will be [special_fn lval f exp args st].
-      
-      If a declaration is available:
-        1) [enter_func lval f args st] gives us minimal entry states to analize [f]
-        2) we analyze [f] with each given entry state, giving us a result list [rs]
-        3) we postprocess [rs] with maping it with [leave_func lval f args st]
-        4) join the postprocessed result
-      
-      Also we concatenate each [forks lval f args st] for each [f]
-      *)
-    let proc_call sigma lval exp args st : Solver.domain * Solver.forks =
-      let funs  = Spec.eval_funvar exp st in
-      let dress (f,es)  = Var.Local (MyCFG.Function f, SD.lift es) in
-      let add_function st' f : Spec.Dom.t =
-        let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
-        if (has_dec)  then
-          let work    = Spec.enter_func lval f args st in
-          let leave   = Spec.leave_func lval f args st in
-          let general_results = List.map (fun x -> SD.unlift (sigma (dress (f,x)))) work in
-          let joined_result   = List.fold_left (fun st fst -> Spec.Dom.join st (leave fst)) (Spec.Dom.bot ()) general_results in
-          Spec.Dom.join st' joined_result        
-        else
-          Spec.special_fn lval f args st
-      in
-      let crap  = List.fold_left add_function (Spec.Dom.bot ()) funs in      
-      let forks = List.fold_left (fun xs x -> List.map dress (Spec.fork lval x args st) @ xs) [] funs in
-      SD.lift crap, forks
-    in
-      
+  (* Pretty printing stuff *)
+  module RT = A.ResultType (Spec) (LD) (SD)
+  module LT = SetDomain.HeadlessSet (RT)  (* Multiple results for each node *)
+  module ResultLocal = A.Result (LT) (struct let result_name = "Local" end)
+  module ResultGlob = A.Result (GD.Val) (struct let result_name = "Global" end)
+  module Result = A.ComposeResults (LT) (GD.Val) (struct let result_name = "Analysis" end)
+
+  module Solver = EffectWCon.Make (Var) (SD) (GD)
+  type solver_result = Solver.solution'
+  type source_result = ResultLocal.t * ResultGlob.t
+
+  let get_sid node = match node with
+    | MyCFG.Statement stmt -> stmt.sid
+    | MyCFG.Function _ -> failwith "What?"
+
+  let system (cfg: MyCFG.cfg) ((n,es): Solver.variable) : Solver.rhs list = 
+    if M.tracing then M.trace "con" (dprintf "%a\n" Var.pretty_trace (n,es));
     (* Find the edges entering this edge *)
-    let edges : (MyCFG.edge * MyCFG.node) list = cfg n in
-      
+    let edges = cfg n in
+    let dress (f,es) = (MyCFG.Function f, es) in
     (* For each edge we generate a rhs: a function that takes current state
      * sigma and the global state theta; it outputs the new state, delta, and
-     * spawned calls. *)      
-    let edge2rhs (edge, pred : MyCFG.edge * MyCFG.node) (sigma:Solver.assignment) : Solver.domain * Solver.forks = 
-      let predvar = Var.Local (pred, es) in
-      (*if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty (sigma predvar))));*)
-      
+     * spawned calls. *)
+    let edge2rhs (edge, pred) (sigma, theta) = 
+      let predvar = (pred, es) in
       (* This is the key computation, only we need to set and reset current_loc,
        * see below. We call a function to avoid ;-confusion *)
-      let eval () : Solver.domain * Solver.forks = 
+      if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty (sigma predvar))));
+      let eval () = 
         try  
           (* Generating the constraints is quite straightforward, except maybe
            * the call case. There is an ALMOST constant lifting and unlifting to
            * handle the dead code -- maybe it could be avoided  *)
           match edge with
-            | MyCFG.Entry func             -> SD.lift (Spec.body func (SD.unlift es)), []
-            | MyCFG.Assign (lval,exp)      -> SD.lift (Spec.assign lval exp (SD.unlift (sigma predvar))), []
-            | MyCFG.Test   (exp,tv)        -> SD.lift (Spec.branch exp tv (SD.unlift (sigma predvar))), []
-            | MyCFG.Ret    (ret,fundec)    -> SD.lift (Spec.return ret fundec (SD.unlift (sigma predvar))), []
-            | MyCFG.Proc   (lval,exp,args) -> proc_call sigma lval exp args (SD.unlift (sigma predvar)) 
-            | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; sigma predvar, []
-            | MyCFG.Skip                   -> sigma predvar, []
+            | MyCFG.Entry func ->
+                let (b,n) = body func (es, theta) in 
+                  (SD.lift b,n,[])
+            | MyCFG.Assign (lval,exp) -> 
+                let trans_in = (SD.unlift (sigma predvar), theta) in
+                let (b,n) = assign lval exp trans_in in 
+                let s = ass_spawn lval exp trans_in in
+                  (SD.lift b,n, List.map dress s)
+            | MyCFG.Test (exp,tv) -> 
+                let (b,n) = branch exp tv (SD.unlift (sigma predvar), theta) in 
+                  (SD.lift b,n,[])
+            (* The procedure call is a bit unorthodox, we create a callback, so
+             * the user can "call" functions on demand, when defining the
+             * transfer function for calls: *)
+            | MyCFG.Proc (lval,exp,args) ->
+                let sp = ref [] in
+                (* Helper function to be lifted so we can ignore some dead-code
+                 * elimination issues, to avoid confusing it with functions that
+                 * return dead code since they don't terminate. *)
+                let helper (st,gl as stg) =
+                  let (norms,specs) = entry exp args stg in
+                  let baseval = SD.bot () in
+                  let effects = ref [] in
+                  let fun_res fe = sigma (dress fe) in
+                  let spec_res f = 
+                    let (b,n) = special f args stg in
+                      effects := n @ !effects;
+                      sp := List.map dress (spawn f args stg) @ !sp;
+                      SD.lift b
+                  in
+                  let call_results = List.map fun_res norms in
+                  let spec_results = List.map spec_res specs in
+                  let res = List.fold_left SD.join baseval (call_results @ spec_results) in
+                  let (l,g) = combine lval exp args (SD.unlift res) stg in
+                    (l, !effects @ g)
+                in
+                let (b,n) = helper (SD.unlift (sigma predvar), theta) in
+                  (SD.lift b, n, !sp)
+            | MyCFG.ASM _ -> M.warn "ASM statement ignored."; (sigma predvar, [], [])
+            (* The return edge to function type nodes: *)
+            | MyCFG.Ret (ret,fundec) ->
+                let (b,n) = return ret fundec (SD.unlift (sigma predvar), theta) in 
+                  (SD.lift b,n,[])
+            | _ -> (sigma predvar, [], [])
         with
-          | A.Deadcode  -> SD.bot (), []
-          | M.Bailure s -> M.warn_each s; (sigma predvar, [])
+          | A.Deadcode -> (SD.bot (), [], [])
+          | M.Bailure s -> M.warn_each s; (sigma predvar, [], [])
           | x -> M.warn_urgent "Oh no! Something terrible just happened"; raise x
       in
       let old_loc = !GU.current_loc in
-      let _   = GU.current_loc := MyCFG.getLoc pred in
+      let _ = GU.current_loc := MyCFG.getLoc pred in
       let ans = eval () in 
-      let _   = GU.current_loc := old_loc in 
+      let _ = GU.current_loc := old_loc in 
         ans
 
     in
       (* and we generate a list of rh-sides *)
       List.map edge2rhs edges
 
-      
-  (* Pretty printing stuff *)
-  module RT = A.ResultType (Spec) (Spec.Dom) (SD)
-  module LT = SetDomain.HeadlessSet (RT)  (* Multiple results for each node *)
-  module Result = A.Result (LT) (struct let result_name = "Analysis" end)
-    
-  type solver_result = Solver.solution
-  type source_result = Result.t
-  
-  (** convert result that can be out-put *)
-  let solver2source_result (sol: solver_result) : source_result =
-    (* processed result *)
-    let res : source_result = Result.create 113 in
-    
+
+  let solver2source_result ((sol,globs): solver_result) : source_result =
+    let localhash = ResultLocal.create 113 in
+    let globhash = ResultGlob.create 113 in
     (* Adding the state at each system variable to the final result *)
-    let add_local_var (n,es) state =
+    let add_var (n,es) state =
       let loc = MyCFG.getLoc n in
-      if loc <> locUnknown then try 
-        let (_, fundec) as p = loc, MyCFG.getFun n in
-        if Result.mem res p then 
-          (* If this source location has been added before, we look it up
-           * and add another node to it information to it. *)
-          let prev = Result.find res p in
-          Result.replace res p (LT.add (SD.unlift es,state,fundec) prev)
-        else 
-          Result.add res p (LT.singleton (SD.unlift es,state,fundec))
+        if loc <> locUnknown then
+	try
+	  let fundec = MyCFG.getFun n in
+          let p = (loc, fundec) in
+	    if (ResultLocal.mem localhash p) then begin
+              (* If this source location has been added before, we look it up
+               * and add another node to it information to it. *)
+              let prev = ResultLocal.find localhash p in
+                    ResultLocal.replace localhash p (LT.add (es,state,fundec) prev)
+            end else 
+              ResultLocal.add localhash p (LT.singleton (es,state,fundec))
         (* If the function is not defined, and yet has been included to the
          * analysis result, we generate a warning. *)
-	    with Not_found -> M.warn ("Undefined function has escaped.")
+	with Not_found -> 
+          M.warn ("Undefined function has escaped.")
     in
-    
-    let add_var (v: Var.t) =
-      match v with
-        | Var.Local (n,es)  -> add_local_var (n,es)
-        | Var.Global g      -> failwith "lol wut?" 
+    (* Globals are associated with the declaration location, this is queried
+     * from CIL. *)
+    let add_glob glob state = 
+      ResultGlob.add globhash (Glob.get_location glob, MyCFG.initfun) (state)
     in
       (* Iterate over all solved equations... *)
-      Solver.HT.iter add_var sol;
-      res
+      Solver.VMap.iter add_var sol;
+      (* And all the computed globals... *)
+      Solver.GMap.iter add_glob globs;
+      (localhash,globhash)
 
-  (** analyze cil's global-inits function to get a starting state *)
-  let do_global_inits (file: Cil.file) : SD.t = 
+  let doGlobalInits file = 
     let early = !GU.earlyglobs in
     let edges = MyCFG.getGlobalInits file in
-    let transfer_func (st : Spec.Dom.t) (edge, loc) : Spec.Dom.t = 
-      try
-        if M.tracing then M.trace "con" (dprintf "Initializer %a\n" d_loc loc);
-        GU.current_loc := loc;
-        match edge with
-          | MyCFG.Entry func        -> Spec.body func st
-          | MyCFG.Assign (lval,exp) -> Spec.assign lval exp st
-          | _                       -> raise (Failure "This iz impossible!") 
-      with Failure x -> M.warn x; st
+    let theta x = GD.Val.top () in
+    let f st (edge, loc) = try
+      if M.tracing then M.trace "con" (dprintf "Initializer %a\n" d_loc loc);
+      GU.current_loc := loc;
+      match edge with
+        | MyCFG.Entry func ->
+            fst (body func (st, theta))
+        | MyCFG.Assign (lval,exp) -> 
+            fst (assign lval exp (st, theta))
+        | _ -> raise (Failure "This iz impossible!") 
+    with
+      | Failure x -> M.warn x; st
     in
     let _ = GU.earlyglobs := false in
-    let result : Spec.Dom.t = List.fold_left transfer_func Spec.startstate edges in
+    let result = List.fold_left f Spec.startstate edges in
     let _ = GU.earlyglobs := early in
-      SD.lift result
-     
-  (** do the analysis and do the output according to flags*)
+      result
+      
+  let postprocess theta = 
+    if !GU.eclipse then begin
+	P.show_subtask "Postprocessing" 2;
+	P.show_worked 1
+      end;
+    Solver.GMap.iter postprocess_glob theta;
+    if !GU.eclipse then begin
+	P.show_subtask "Finishing ... " 1;
+	P.show_worked 1
+      end
+
+  module S = Set.Make(struct
+                        type t = int
+                        let compare = compare
+                      end)
+
   let analyze (file: Cil.file) (funs: Cil.fundec list) =
     let constraints = 
       if !GU.verbose then print_endline "Generating constraints."; 
       system (MyCFG.getCFG file) in
     let startstate = 
       if !GU.verbose then print_endline "Initializing globals.";
-      Stats.time "initializers" do_global_inits file in
-    let startvars = match funs with 
-      | (f::fs) -> (MyCFG.Function f.svar, startstate) ::
-                   List.map (fun x -> (MyCFG.Function x.svar, SD.lift Spec.otherstate)) fs 
-      | [] -> [] in
+      Stats.time "initializers" doGlobalInits file in
+    let with_ostartstate x = MyCFG.Function x.svar, otherstate in
+    let startvars = match !GU.has_main, funs with 
+      | true, f :: fs -> 
+          (MyCFG.Function f.svar, startstate) :: List.map with_ostartstate fs
+      | _ -> List.map with_ostartstate funs
+    in
     Spec.init ();
-    let lifted_startvars = List.map (fun (x,y) -> Var.Local (x, y)) startvars in
-    let sol = 
+    let (sigma,theta) as sol = 
       if !GU.verbose then print_endline "Analyzing!";
-      Stats.time "solver" (Solver.solve constraints) lifted_startvars in
-    Spec.finalize ();
-    let main_sol = Solver.HT.find sol (List.hd lifted_startvars) in
-    (* check for dead code at the last state: *)
-    if !GU.debug && SD.equal main_sol (SD.bot ()) then
-      Printf.printf "NB! Execution does not reach the end of Main.\n";
-    Result.output (solver2source_result sol)
-    
+      Stats.time "solver" (Solver.solve constraints) startvars in
+    if !GU.print_uncalled then
+      begin
+        let out = M.get_out "uncalled" stdout in
+        let f =
+          let insrt k _ s = match k with
+            | (MyCFG.Function fn, _) -> S.add fn.vid s
+            | _ -> s
+          in
+          (* set of ids of called functions *)
+          let calledFuns = Solver.VMap.fold insrt sigma S.empty in
+          function
+            | GFun (fn, loc) -> if not (S.mem fn.svar.vid calledFuns) then
+                begin
+                  let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+                  ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+                end
+            | _ -> ()
+        in
+          List.iter f file.globals;
+      end;
+    let (locals, globs) = solver2source_result sol in
+    let _ = match !GU.dump_path with
+      | Some _ -> begin
+          ResultLocal.output locals;
+          ResultGlob.output globs;
+        end
+      | _ -> Result.output (Result.merge locals globs);
+    in
+    let last_st = 
+      if !GU.allfuns then None
+      else begin
+        let x = Solver.VMap.find sigma (List.hd startvars) in
+          (* check for dead code at the last state: *)
+          if !GU.debug && SD.equal x (SD.bot ()) then
+            Printf.printf "NB! Execution does not reach the end of Main.\n";
+          Some x
+      end
+    in
+      postprocess theta;
+      finalize ();
+      match !GU.result_style with
+        (* when debuggin we output the last state and the globals! *)
+        | GU.State -> begin
+            match last_st with
+              | None -> ()
+              | Some st -> 
+                  let out = M.get_out "state" !GU.out in
+                  ignore (Pretty.fprintf out "%a\n" SD.pretty st);
+                  let f key valu = 
+                    ignore (Pretty.fprintf out "%a -> %a\n" 
+                              Glob.pretty key
+                              GD.Val.pretty valu)
+                  in
+                    Solver.GMap.iter f theta;
+                    flush out
+          end
+        | _ -> ()
 end

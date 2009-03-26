@@ -71,8 +71,6 @@ let main () =
   let nonstatic () = GU.allfuns := true; GU.nonstatic := true in
   let setanalysis str = 
     analyze := match str with
-      | "mem" ->  MemLeaks.Analysis.analyze
-      | "uninit" -> Uninit.Analysis.analyze
       | "mutex" -> Mutex.Analysis.analyze
       | "no_path" -> Mutex.SimpleAnalysis.analyze
       | "base" -> Base.Analysis.analyze
@@ -111,7 +109,7 @@ let main () =
                  ("--showtemps", Arg.Set CF.showtemps, " Shows CIL's temporary variables when printing the state.");
                  ("--uncalled", Arg.Set GU.print_uncalled, " Display uncalled functions.");
                  ("--result", Arg.String setstyle, "<style>  Result style: none, state, indented, compact, or pretty.");
-                 ("--analysis", Arg.String setanalysis, "<name>  Picks the analysis: uninit, mutex, no_path, base.");
+                 ("--analysis", Arg.String setanalysis, "<name>  Picks the analysis: mutex, no_path, base.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
                  ] in

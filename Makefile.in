@@ -28,8 +28,8 @@ PROG_MODULES = \
 	musteqDomain regionDomain concDomain lockDomain \
 	hash progress myCFG analyses libraryFunctions global \
 	effectWCon worklist worklistCon WNCon \
-	multithread compose cInterpreter \
-	base mutex uninit memLeaks
+	multithread compose \
+	base unit owner mutex
 
 TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \
 	intDomainTest mapDomainTest collapsingArrayDomainTest \
