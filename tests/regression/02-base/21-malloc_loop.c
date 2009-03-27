@@ -1,4 +1,3 @@
-// SKIP
 #include <malloc.h>
 #include <assert.h>
 
