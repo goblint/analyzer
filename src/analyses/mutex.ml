@@ -102,7 +102,10 @@ struct
 
   let access_address ((_,fl),_) write addrs =
     if BS.Flag.is_multi fl then begin
-      let f (v,o) acc = if v.vglob then (v, Offs.from_offset o, write) :: acc else acc in 
+      let f (v,o) acc = 
+        let o = if !GU.field_insensitive then `NoOffset else o in
+        if v.vglob then (v, Offs.from_offset o, write) :: acc else acc 
+      in 
       let addr_list = try AD.to_var_offset addrs with _ -> M.warn "Access to unknown address could be global"; [] in
         List.fold_right f addr_list [] 
     end else []

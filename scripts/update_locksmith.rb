@@ -60,7 +60,8 @@ File.open("#{ls}/index.html", "w") do |g|
 
     res_f = "#{ls}/field_insensitive/#{fn}"
     `#{runit} #{file} #{nlib} --merge --no-existentials --no-linearity --field-insensitive 2> #{res_f}.txt`
-    `grep 'Possible data race: &' #{res_f}.txt > #{res_f}.short.txt`
+#     `grep 'Possible data race: &' #{res_f}.txt > #{res_f}.short.txt`
+    `grep 'Possible data race:' #{res_f}.txt > #{res_f}.short.txt`
     doit("field_insensitive/#{fn}",g)
 
     g.puts "</tr>"
