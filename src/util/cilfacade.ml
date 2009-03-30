@@ -52,7 +52,7 @@ let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
     
 let printDebug fileAST = 
-  dumpFile Printer.debugCilPrinter stdout fileAST
+  dumpFile Printer.debugCilPrinter stdout "stdout" fileAST
 
 let rmTemps fileAST = 
   Rmtmps.removeUnusedTemps fileAST

@@ -76,7 +76,7 @@ let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 
 let stmt_index_hack = Hashtbl.create 113
 
-let do_the_params_and_bajs (fd: fundec) =
+let do_the_params (fd: fundec) =
   (* This function used to create extra variables, but now it just sets the
    * vdecl to -3, lovely... *)
   let create_extra_var (p: varinfo): unit = 
@@ -118,7 +118,7 @@ let createCFG (file: file) =
     match glob with
       | GFun (fd,loc) ->
           (* Walk through the parameters and pre-process them a bit... *)
-          do_the_params_and_bajs fd;
+          do_the_params fd;
           (* Find the first statement in the function *)
           let entrynode = realnode true (CF.getFirstStmt fd) in
           (* I just add the entry edge to that node (pointing to itself).
@@ -146,14 +146,10 @@ let createCFG (file: file) =
                   in begin
                     (* Sometimes a statement might not have a successor, but we
                      * still need to do something about him, this can happen if
-                     * the last statement of a function is a call to exit. *)
+                     * the last statement of a function is a call to exit. 
+                     * Also see test 00/11. Code changed in revision 244. *)
                     match stmt.succs with
-                      | [] -> begin
-                          match x with
-                            | [Call (lval,Lval (Var v,NoOffset),args,loc)] when v.vname = "exit" ->
-                                H.add cfg (Function fd.svar) (Ret (None, fd), Statement stmt)
-                            | _ -> () (* H.add cfg (Function fd.svar) (Ret (None, fd), Statement stmt) *)
-                        end
+                      | [] -> H.add cfg (Function fd.svar) (Ret (None, fd), Statement stmt)
                       | _ -> List.iter foreach (List.map (realnode true) stmt.succs)
                   end
               (* If expressions are a bit more interesting, but CIL has done
