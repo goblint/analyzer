@@ -3,7 +3,15 @@
 require 'find'
 
 goblint = File.join(Dir.getwd,"goblint")
-fail "Please run script from goblint dir!" unless File.exist?(goblint)
+goblintbyte = File.join(Dir.getwd,"goblint.byte")
+if File.exists?(goblintbyte) then
+  puts "Running the byte-code version!"
+  `make byte`
+  goblint = goblintbyte if File.exists?(goblintbyte)
+else
+  fail "Please run script from goblint dir!" unless File.exist?(goblint)
+  `make`
+end
 testresults = File.expand_path("tests/suite_result") 
 testfiles   = File.expand_path("tests/regression")
 

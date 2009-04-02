@@ -50,6 +50,25 @@ sig
   val update_offset: t -> offs -> t -> t
 end
 
+module Blob (Val: Lattice.S): Lattice.S with type t = Val.t =
+struct
+  let name () = "blobs"
+  include Val
+  include Lattice.StdCousot
+  type value = Val.t
+
+  let short w x = "Blob: " ^ Val.short (w - 7) x
+  let pretty () x = pretty_f short () x
+  let toXML m = toXML_f short m
+  let get a i = a
+  let set a i v = join a v
+  let make i v = v
+  let length _ = None
+
+  let set_inplace = set
+  let copy a = a
+end
+
 module rec Compound: S with type t = [
     | `Top
     | `Int of ID.t
@@ -57,6 +76,7 @@ module rec Compound: S with type t = [
     | `Struct of Structs.t
     | `Union of Unions.t
     | `Array of CArrays.t
+    | `Blob of Blobs.t
     | `Bot
     ] and type offs = (fieldinfo,ID.t) Lval.offs = 
 struct 
@@ -69,6 +89,7 @@ struct
     | `Struct of Structs.t
     | `Union of Unions.t
     | `Array of CArrays.t
+    | `Blob of Blobs.t
     | `Bot
     ]
 
@@ -93,17 +114,18 @@ struct
       | (`Struct x, `Struct y) -> Structs.equal x y
       | (`Union x, `Union y) -> Unions.equal x y
       | (`Array x, `Array y) -> CArrays.equal x y
+      | (`Blob x, `Blob y) -> Blobs.equal x y
       | _ -> false
 
   let hash x =
     match x with
-      | `Top -> 248723984
-      | `Bot -> 982398349
       | `Int n -> ID.hash n
       | `Address n -> AD.hash n
       | `Struct n -> Structs.hash n
       | `Union n -> Unions.hash n
       | `Array n -> CArrays.hash n
+      | `Blob n -> Blobs.hash n
+      | _ -> Hashtbl.hash x
 
   let compare x y = 
     let constr_to_int x = match x with
@@ -113,6 +135,7 @@ struct
         | `Struct _ -> 5
         | `Union _ -> 6
         | `Array _ -> 7
+        | `Blob _ -> 9
         | `Top -> 100
     in match x,y with
       | `Int x, `Int y -> ID.compare x y
@@ -120,6 +143,7 @@ struct
       | `Struct x, `Struct y -> Structs.compare x y
       | `Union x, `Union y -> Unions.compare x y
       | `Array x, `Array y -> CArrays.compare x y
+      | `Blob x, `Blob y -> Blobs.compare x y
       | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f _ () state = 
@@ -129,6 +153,7 @@ struct
       | `Struct n ->  Structs.pretty () n
       | `Union n ->  Unions.pretty () n
       | `Array n ->  CArrays.pretty () n
+      | `Blob n ->  Blobs.pretty () n
       | `Bot -> text bot_name
       | `Top -> text top_name
 
@@ -139,16 +164,18 @@ struct
       | `Struct n ->  Structs.short w n
       | `Union n ->  Unions.short w n
       | `Array n ->  CArrays.short w n
+      | `Blob n ->  Blobs.short w n
       | `Bot -> bot_name
       | `Top -> top_name
 
-  let isSimple x = 
+  let rec isSimple x = 
     match x with
       | `Int n ->  ID.isSimple n
       | `Address n ->  AD.isSimple n
       | `Struct n ->  Structs.isSimple n
       | `Union n ->  Unions.isSimple n
       | `Array n ->  CArrays.isSimple n
+      | `Blob n ->  Blobs.isSimple n
       | _ -> true
 
   let toXML_f _ state =
@@ -159,6 +186,7 @@ struct
       | `Union n -> Unions.toXML n
       | `Array n -> CArrays.toXML n
           (* let (node, attr, children) = Base.toXML n in (node, ("lifted", !liftname)::attr, children) *)
+      | `Blob n -> Blobs.toXML n
       | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
       | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
 
@@ -176,6 +204,7 @@ struct
       | (`Struct x, `Struct y) -> Structs.leq x y
       | (`Union x, `Union y) -> Unions.leq x y
       | (`Array x, `Array y) -> CArrays.leq x y
+      | (`Blob x, `Blob y) -> Blobs.leq x y
       | _ -> false
 
   let join x y = 
@@ -189,6 +218,7 @@ struct
       | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
       | (`Union x, `Union y) -> `Union (Unions.join x y) 
       | (`Array x, `Array y) -> `Array (CArrays.join x y) 
+      | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) 
       | _ -> `Top
 
   let meet x y = 
@@ -202,6 +232,7 @@ struct
       | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
       | (`Union x, `Union y) -> `Union (Unions.meet x y)
       | (`Array x, `Array y) -> `Array (CArrays.meet x y)
+      | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
       | _ -> `Bot
 
 
@@ -215,9 +246,14 @@ struct
       | _, TInt _     -> `Int (ID.top ())
       | _ -> top ()
 
-  let rec eval_offset (x: t) (offs:offs) =
+  (* Funny, this does not compile without the final type annotation! *)
+  let rec eval_offset (x: t) (offs:offs): t =
     match offs with
-      | `NoOffset -> x
+      | `NoOffset -> begin 
+          match x with
+            | `Blob x -> x
+            | _ -> x
+        end
       | `Field (fld, offs) when fld.fcomp.cstruct -> begin
           match x with 
             | `Struct str -> 
@@ -244,7 +280,12 @@ struct
 
   let rec update_offset (x:t) (offs:offs) (value:t): t =
     match offs with
-      | `NoOffset -> value
+      | `NoOffset -> begin
+          match x, value with
+            | `Blob x, `Blob y -> `Blob (join x y)
+            | `Blob x, y -> `Blob (join x y)
+            | _ -> value
+        end
       | `Field (fld, offs) when fld.fcomp.cstruct -> begin
           match x with 
             | `Struct str -> `Struct (Structs.replace str fld (update_offset (Structs.get str fld) offs value))
@@ -291,3 +332,6 @@ and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
 
 and CArrays: ArrayDomain.S with type idx = ID.t and type value = Compound.t = 
   ArrayDomain.Trivial (Compound) (ID) 
+
+and Blobs: Lattice.S with type t = Compound.t = Blob (Compound) 
+

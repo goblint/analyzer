@@ -47,7 +47,8 @@ module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module VD = ValueDomain.Compound
 module LF = LibraryFunctions
-module CPA = MemoryDomain.Stack (VD)
+(*module CPA = MemoryDomain.Stack (VD)*)
+module CPA = MapDomain.MapBot (Basetype.Variables) (VD)
 module Fields = Lval.Fields
 module Structs = ValueDomain.Structs
 module Unions = ValueDomain.Unions
@@ -87,8 +88,8 @@ struct
   end
 
   let name = "Constant Propagation Analysis"
-  let startstate = (CPA.top (), Flag.bot ())
-  let otherstate = (CPA.top (), Flag.top ())
+  let startstate = (CPA.bot (), Flag.bot ())
+  let otherstate = (CPA.bot (), Flag.top ())
 
  (**************************************************************************
   * Auxiliary stuff
@@ -668,6 +669,7 @@ struct
         (* For arrays, we ask to read from an unknown index, this will cause it
          * join all its values. *)
         | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (ID.top ()))
+        | `Blob e -> reachable_from_value e
         | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD. join (reachable_from_value v) acc) s empty
         | `Int _ -> empty
     in
@@ -741,7 +743,6 @@ struct
 
   let special (f: varinfo) (args: exp list) ((cpa,fl),gl as st:store): wstore = 
     let return_var = return_var () in
-    let heap_var = heap_var !GU.current_loc in
     match f.vname with 
       (* handling thread creations *)
       | "pthread_create" -> 
@@ -764,7 +765,9 @@ struct
       | "exit" -> raise A.Deadcode
       | "abort" -> raise A.Deadcode
       | "malloc" | "calloc" | "__kmalloc" -> 
-          set st return_var (`Address heap_var)
+          let heap_var = heap_var !GU.current_loc in
+            set_many st [(heap_var, `Blob (VD.bot ())); 
+                         (return_var, `Address heap_var)]
       (* Handling the assertions *)
       | "__assert_rtn" -> raise A.Deadcode (* gcc's built-in assert *) 
       | "assert" -> begin
@@ -826,7 +829,7 @@ struct
   let entry fval args ((cpa,fl),gl as st: trans_in): (varinfo * domain) list * varinfo list = try
     let make_entry pa peq context =
       (* If we need the globals, add them *)
-      let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.top () in 
+      let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
       (* Assign parameters to arguments *)
       let new_cpa = CPA.add_list pa new_cpa in
       let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
