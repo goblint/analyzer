@@ -764,10 +764,14 @@ struct
         end
       | "exit" -> raise A.Deadcode
       | "abort" -> raise A.Deadcode
-      | "malloc" | "calloc" | "__kmalloc" -> 
+      | "malloc" | "__kmalloc" -> 
           let heap_var = heap_var !GU.current_loc in
             set_many st [(heap_var, `Blob (VD.bot ())); 
                          (return_var, `Address heap_var)]
+      | "calloc" -> 
+          let heap_var = get_heap_var !GU.current_loc in
+            set_many st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
+                         (return_var, `Address (AD.from_var_offset (heap_var, `Index (ID.of_int 0L, `NoOffset))))]
       (* Handling the assertions *)
       | "__assert_rtn" -> raise A.Deadcode (* gcc's built-in assert *) 
       | "assert" -> begin
