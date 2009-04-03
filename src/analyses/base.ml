@@ -611,12 +611,13 @@ struct
     let inits = List.map init_var f.slocals in
       set_many st inits
 
+  let set_return st value = set st (return_var ()) value
   let return exp fundec st =
     let locals = fundec.sformals @ fundec.slocals in
     let nst = rem_many st locals in
       match exp with
         | None -> set_none nst
-        | Some exp -> set nst (return_var ()) (eval_rv st exp)
+        | Some exp -> set_return nst (eval_rv st exp)
 
 
  (**************************************************************************

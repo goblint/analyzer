@@ -128,7 +128,7 @@ end
 
 module PathSensitive (Base: BaseSpec) (User: UserSpec with 
   module GD.Var = Base.GD.Var and 
-  type context = Base.domain * Base.glob_fun): Multithread.Spec = 
+  type context = Base.domain * Base.glob_fun) (* : Multithread.Spec *) = 
 struct
   module S = ContextSensitive (Base) (User)
   module LD = SetDomain.Sensitive (Base.LD) (User.LD)

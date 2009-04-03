@@ -332,7 +332,27 @@ end
 
 (*module Trivial = Spec*)
 module Context = Compose.ContextSensitive (BS) (Spec)
-module Path = Compose.PathSensitive (BS) (Spec)
+module Path = struct
+  include Compose.PathSensitive (BS) (Spec)
+  let special f arglist (st,gl) = 
+    match f.vname with
+      | "pthread_mutex_lock" ->
+          let f (cpa,ls) st = 
+            let x = List.hd arglist in
+            let gf1 x = fst (gl x) in
+              match (Spec.eval_exp_addr (cpa,gf1) x) with 
+                | [e]  -> 
+                    let cpa_succ,_ = BS.set_return (cpa,gf1) (`Int (ID.of_int 0L)) in
+                    let cpa_fail,_ = BS.set_return (cpa,gf1) (`Int (ID.of_excl_list [0L])) in
+                    let st = LD.add (cpa_succ, Lockset.add e ls) st in
+                      LD.add (cpa_fail,ls) st
+                | _ -> 
+                    let cpa_unknown,_ = BS.set_return (cpa,gf1) (`Int (ID.top ())) in
+                    LD.add (cpa_unknown,ls) st
+          in
+            LD.fold f st (LD.empty ()), []
+      | _ -> special f arglist (st,gl)
+end
 
 module Analysis = Multithread.Forward(Path)
 module SimpleAnalysis = Multithread.Forward(Context)
