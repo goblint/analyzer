@@ -95,10 +95,6 @@ struct
 
   let startstate = LD.top ()
   let otherstate = LD.top ()
-  let return_var = 
-    let myvar = makeVarinfo false "RETURN" voidType in
-      myvar.vid <- -99;
-      myvar
 
   let access_address ((_,fl),_) write addrs =
     if BS.Flag.is_multi fl then begin
