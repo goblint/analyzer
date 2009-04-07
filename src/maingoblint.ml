@@ -99,9 +99,10 @@ let main () =
                  ("--exitfun", Arg.String add_exitfun, " Sets the name of the main function.");
                  ("--allglobs", Arg.Set GU.allglobs, " Prints access information about all globals, not just races.");
                  ("--earlyglobs", Arg.Set GU.earlyglobs, " Side-effecting of globals right after initialization.");
-                 ("--write-races", Arg.Set GU.no_read, " Ignores read accesses altogether in reporting races.");
-                 ("--field-insensitive", Arg.Set GU.field_insensitive, " Turns off field-sensitivity.");
-                 ("--unmerged-fields", Arg.Set GU.unmerged_fields, " Does not merge accesses to possibly same fields, unsound.");
+                 ("--write-races", Arg.Set Mutex.no_read, " Ignores read accesses altogether in reporting races.");
+                 ("--failing-locks", Arg.Set Mutex.failing_locks, " Takes the possible failing of locking operations into account.");
+                 ("--field-insensitive", Arg.Set Mutex.field_insensitive, " Turns off field-sensitivity.");
+                 ("--unmerged-fields", Arg.Set Mutex.unmerged_fields, " Does not merge accesses to possibly same fields, unsound.");
                  ("--die-on-collapse", Arg.Set GU.die_on_collapse, " Raise an exception as soon as an array collapses.");
                  ("--keepcpp", Arg.Set keep_cpp, " Keep the intermediate output of running the C preprocessor.");
                  ("--cppflags", Arg.Set_string cppflags, "<flags>  Pre-processing parameters.");

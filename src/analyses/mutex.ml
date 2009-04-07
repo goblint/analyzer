@@ -50,6 +50,15 @@ module LF = LibraryFunctions
 open Cil
 open Pretty
 
+(** only report write races *)
+let no_read = ref false
+(** Truns off field-sensitivity. *)
+let field_insensitive = ref false
+(** Avoids the merging of fields, not really sound *)
+let unmerged_fields = ref false
+(** Take the possible failing of standard locking operations into account. *)
+let failing_locks = ref false
+
 (* Some helper functions ... *)
 let is_atomic_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "atomic_t"
@@ -99,7 +108,7 @@ struct
   let access_address ((_,fl),_) write addrs =
     if BS.Flag.is_multi fl then begin
       let f (v,o) acc = 
-        let o = if !GU.field_insensitive then `NoOffset else o in
+        let o = if !field_insensitive then `NoOffset else o in
         if v.vglob then (v, Offs.from_offset o, write) :: acc else acc 
       in 
       let addr_list = try AD.to_var_offset addrs with _ -> M.warn "Access to unknown address could be global"; [] in
@@ -305,21 +314,23 @@ struct
                 M.print_group (safe_str "thread local") warnings
     in 
     let acc = Accesses.elements accesses in
-    let acc = if !GU.no_read then List.filter fst acc else acc in
+    let acc = if !no_read then List.filter fst acc else acc in
     let acc_info = create_map acc in
-    let acc_map  = if !GU.unmerged_fields then fst acc_info else regroup_map acc_info in
+    let acc_map  = if !unmerged_fields then fst acc_info else regroup_map acc_info in
       OffsMap.iter report_race acc_map
 
   let finalize () = 
     if !GU.multi_threaded then begin
       match !race_free, !M.soundness with
         | true, true -> 
-            print_endline "CONGRATULATIONS!\nYour program has just been certified Free of Data Races!"
+            print_endline "CONGRATULATIONS!\nYour program has just been certified Free of Data Races!";
+            if not (!failing_locks) then print_endline  "(Assuming locking operations always succeed.)"
         | true, false -> 
             print_endline "Goblint did not find any Data Races in this program!";
             print_endline "However, the code was too complicated for Goblint to understand all of it."
         | false, true -> 
-            print_endline "And that's all. Goblint is certain there are no other races."
+            print_endline "And that's all. Goblint is certain there are no other races.";
+            if not (!failing_locks) then print_endline  "(Assuming locking operations always succeed.)"
         | _ -> 
             print_endline "And there may be more races ...";
             print_endline "The code was too complicated for Goblint to understand all of it."
@@ -336,7 +347,7 @@ module Path = struct
   include Compose.PathSensitive (BS) (Spec)
   let special f arglist (st,gl) = 
     match f.vname with
-      | "pthread_mutex_lock" ->
+      | "pthread_mutex_lock" | "pthread_mutex_trylock" ->
           let f (cpa,ls) st = 
             let x = List.hd arglist in
             let gf1 x = fst (gl x) in
@@ -345,7 +356,7 @@ module Path = struct
                     let cpa_succ,_ = BS.set_return (cpa,gf1) (`Int (ID.of_int 0L)) in
                     let cpa_fail,_ = BS.set_return (cpa,gf1) (`Int (ID.of_excl_list [0L])) in
                     let st = LD.add (cpa_succ, Lockset.add e ls) st in
-                      LD.add (cpa_fail,ls) st
+                      if !failing_locks then LD.add (cpa_fail,ls) st else st
                 | _ -> 
                     let cpa_unknown,_ = BS.set_return (cpa,gf1) (`Int (ID.top ())) in
                     LD.add (cpa_unknown,ls) st

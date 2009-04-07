@@ -1,3 +1,4 @@
+// PARAM: --failing-locks
 #include <pthread.h>
 #include <stdio.h>
 
