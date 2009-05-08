@@ -146,14 +146,12 @@ let main () =
     cppflags := "-D__KERNEL__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
     includes := !includes ^ " -I" ^ kernel_dir ^ " -I" ^ asm_dir ^ " -I" ^ asm_dir ^ "/asm/mach-default"
   end;
-  print_endline "What?";
   (* preprocess all the files *)
   let preproFile fname =
     (* The actual filename of the preprocessed sourcefile *)
     let nname =  Filename.concat dirName (Filename.basename fname) in 
     (* Preprocess using gcc -E *)
     let command = "gcc -E " ^ !cppflags ^ " " ^ !includes ^ " " ^ fname ^ " -o " ^ nname in
-      ignore (Printf.printf "Executing: %s\n" command);
       ignore (Unix.system command);  (* MAYBE BAD IDEA to ingore! *)
       nname
   in
