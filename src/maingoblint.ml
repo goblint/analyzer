@@ -45,6 +45,7 @@ let main () =
   (* default settings for the command line arguments: *)
   let include_dir = ref (Filename.concat (Filename.dirname Sys.executable_name) "includes") in 
   let kernel_dir = "/lib/modules/`uname -r`/build/include" in
+  let asm_dir = "/lib/modules/`uname -r`/build/arch/x86/include" in
   let other_includes = ref "" in
   let add_include x = other_includes := "-I " ^ x ^ " " ^ !other_includes in
   let use_libc = ref false in
@@ -143,14 +144,16 @@ let main () =
     let preconf = Filename.concat !include_dir "linux/goblint_preconf.h" in 
     let autoconf = Filename.concat kernel_dir "linux/autoconf.h" in 
     cppflags := "-D__KERNEL__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
-    includes := !includes ^ " -I" ^ kernel_dir ^ " -I" ^ kernel_dir ^ "/asm-x86/mach-default"
+    includes := !includes ^ " -I" ^ kernel_dir ^ " -I" ^ asm_dir ^ " -I" ^ asm_dir ^ "/asm/mach-default"
   end;
+  print_endline "What?";
   (* preprocess all the files *)
   let preproFile fname =
     (* The actual filename of the preprocessed sourcefile *)
     let nname =  Filename.concat dirName (Filename.basename fname) in 
     (* Preprocess using gcc -E *)
     let command = "gcc -E " ^ !cppflags ^ " " ^ !includes ^ " " ^ fname ^ " -o " ^ nname in
+      ignore (Printf.printf "Executing: %s\n" command);
       ignore (Unix.system command);  (* MAYBE BAD IDEA to ingore! *)
       nname
   in

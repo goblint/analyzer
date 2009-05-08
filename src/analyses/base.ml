@@ -898,17 +898,9 @@ struct
       | "pthread_create" -> begin	 
           match args with
             | [_; _; start; ptc_arg] -> begin
-                let start_addr = eval_fv st start in
-                let start_vari = List.hd (AD.to_var_may start_addr) in
-                  let vdl,_ = entry (Lval (Var start_vari,NoOffset)) [ptc_arg] 
-                                ((cpa,Flag.get_multi ()),gl) in
-                try
-                  (* try to get function declaration *)
-                  let _ = Cilfacade.getdec start_vari in 
-                  vdl
-                with Not_found -> 
-                  M.warn ("creating an thread from unknown function " ^ start_vari.vname);
-                  [start_vari,(cpa, Flag.get_multi ())]
+                  let vdl,_ = entry start [ptc_arg] ((cpa,Flag.get_multi ()),gl) in
+                    if vdl = [] then M.warn ("creating an thread from unknown function.");
+                    vdl
                 end
             | _ -> M.bailwith "pthread_create arguments are strange!"
         end
