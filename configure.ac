@@ -20,7 +20,7 @@ AC_INIT(goblint, 0.9.2)
 
 m4_include([scripts/ax_compare_version.m4])
 
-LINKLIBS="str cil xml-light"
+LINKLIBS="str nums cil xml-light"
 DEFAULTCIL="../cil"
 DEFAULTXML="../xml-light"
 DEFAULTOUNIT="../ounit"

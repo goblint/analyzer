@@ -40,6 +40,7 @@ module GU = Goblintutil
 let init () =
   initCIL ();
   lineDirectiveStyle := None;
+  Rmtmps.keepUnused := true;
   print_CIL_Input := true
 
 let ugglyImperativeHack = ref dummyFile
@@ -105,7 +106,7 @@ let oneret fileAST =
 
 let getAST fileName = 
   let fileAST = parse fileName in
-    rmTemps fileAST;
+    (*  rmTemps fileAST; *)
     (*  oneret fileAST;*)
     (*  simplify fileAST;*)
     fileAST
