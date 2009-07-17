@@ -15,7 +15,8 @@ CAMLDIR    = @CAMLDIR@
 OBJDIR     = obj
 DEPENDDIR  = obj/.depend
 SOURCEDIRS = src/ src/util/ src/domains/ src/cdomains/ src/framework/ \
-		src/solvers/ src/analyses/ unittest/ unittest/cdomains unittest/domains
+		src/solvers/ src/analyses/ unittest/ unittest/solver \
+    unittest/cdomains unittest/domains
 
 COMPILEFLAGS = @COMPILEFLAGS@ -I $(CILLIB) -I $(XML)/ 
 LINKFLAGS = @COMPILEFLAGS@ -ccopt -L$(CILLIB) -I $(CILLIB) -I $(XML)/ -ccopt -L$(XML) 
@@ -33,7 +34,7 @@ PROG_MODULES = \
 
 TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \
 	intDomainTest mapDomainTest collapsingArrayDomainTest \
-	pMapArrayDomainTest lMapArrayDomainTest
+	pMapArrayDomainTest lMapArrayDomainTest solverTest
 
 
 MODULES    = $(PROG_MODULES) maingoblint $(TEST_MODULES) mainTest

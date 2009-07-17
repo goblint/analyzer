@@ -9,6 +9,7 @@ let all_tests _ = ("Tests for goblin" >:::
     MapDomainTest.test ();
     PMapArrayDomainTest.test ();
     LMapArrayDomainTest.test ();
+    SolverTest.test ();
     (* etc *)
   ])
 
