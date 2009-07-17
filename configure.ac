@@ -21,9 +21,10 @@ AC_INIT(goblint, 0.9.2)
 m4_include([scripts/ax_compare_version.m4])
 
 LINKLIBS="str nums cil xml-light"
-DEFAULTCIL="../cil"
-DEFAULTXML="../xml-light"
-DEFAULTOUNIT="../ounit"
+DEFAULTCIL="../cil/"
+DEFAULTXML="../xml-light/"
+DEFAULTOUNIT="../ounit/"
+DEFAULTDOC="ocamldoc.opt"
 
 
 # Is it something for you?
@@ -133,26 +134,29 @@ AC_PATH_PROG(OCAMLFIND, ocamlfind)
 
 if test -z $OCAMLFIND
 then
-    # No? Really?    
+  # No? Really?    
 
-    AC_CHECK_FILE($FINDPATH/ocamlfind,ok=true,ok="")
-    if test -z $ok 
-    then	
-        # Oh, well ...
-	AC_MSG_WARN([Can't find ocamlfind! Specify by running "./configure FINDPATH=<Path>"])
-	AC_SUBST(CAMLDIR,"")
-	NO_FIND=1
-	LINKLIBS="unix $LINKLIBS"
-    else
-	AC_SUBST(CAMLDIR,$FINDPATH/ocamlfind )
-	COMPILEFLAGS=["-package oUnit,xml-light -linkpkg"]
-    fi
-else
-    # Finding a camel will be easy...
-    AC_SUBST(CAMLDIR,$OCAMLFIND )
-    COMPILEFLAGS=["-package oUnit,xml-light -linkpkg"]
+  AC_CHECK_FILE($FINDPATH/ocamlfind,ok=true,ok="")
+  if test -z $ok 
+  then	
+    # Oh, well ...
+    AC_MSG_WARN([Can't find ocamlfind! Specify by running "./configure FINDPATH=<Path>"])
+    AC_SUBST(CAMLDIR,"")
+    NO_FIND=1
+  else
+    OCAMLFIND=$FINDPATH/ocamlfind
+  fi
 fi
 
+LINKLIBS="unix $LINKLIBS"
+
+if test ! $NO_FIND
+then
+  AC_SUBST(CAMLDIR, $OCAMLFIND)
+  AC_SUBST(OCAMLDOC,"$OCAMLFIND ocamldoc")
+else
+  AC_SUBST(OCAMLDOC,$DEFAULTDOC)
+fi 
 
 
 ######
@@ -161,54 +165,79 @@ fi
 ##
 ######
 
-# Do we need them?
-if test $NO_FIND
+#ounit
+if test -z $OUNIT
 then
-    # The hard way then ...
+  OUNIT=$DEFAULTOUNIT
+fi
 
-    if test -z $OUNIT
-    then
-        OUNIT=$DEFAULTOUNIT
-    fi
+if test -z $OUNIT && ( ! $NO_FIND )
+then
+  OUNIT=`$OCAMLFIND query ounit`
+  USE_FIND=true
+fi 
 
-    # Is oUnit built
-    AC_CHECK_FILE($OUNIT/oUnit.cma,ok=true,ok="")
-    AC_CHECK_FILE($OUNIT/oUnit.cmxa,      ,ok="")
+# Is oUnit built
+AC_CHECK_FILE($OUNIT/oUnit.cma,ok=true,ok="")
+AC_CHECK_FILE($OUNIT/oUnit.cmxa,      ,ok="")
 
-    if test -z $ok
-    then
-	AC_MSG_WARN([
-		Can't find ocamlfind nor oUnit! Unittests disabled!
-		Specify by running "./configure OUNIT=<Path>"
-	                       	or "./configure FINDPATH=<Path>"])
-	OUNIT=""
-    else
-	# Now we are ready for the ride.
-	COMPILEFLAGS="$COMPILEFLAGS -I $OUNIT/"
-    fi	
-    # Do we know where to look?
-    if test -z $XML
-    then 
-         # No ... Maybe in ../xml-light ?
-         XML=$DEFAULTXML
-    fi
+if test -z $ok
+then
+  AC_MSG_WARN([
+  Can't find oUnit! Unittests disabled!
+  Specify by running "./configure OUNIT=<Path>"])
+  OUNIT=""
+else
+  # Now we are ready for the ride.
+  if test $USE_FIND
+  then
+    COMPILEFLAGS=$COMPILEFLAGS -package ounit
+    USE_FIND=""
+  else
+    COMPILEFLAGS="$COMPILEFLAGS -I $OUNIT/"
+  fi
+fi	
 
 
-    # Are mommy and daddy home?
-    AC_CHECK_FILE($XML/xml-light.cma,ok=true,ok="")
-    AC_CHECK_FILE($XML/xml-light.cmxa,      ,ok="")
 
-    if test -z $ok 
-    then	
-        # Oh, well ...
-        AC_MSG_ERROR([Can't find Xml-light! Specify by running "./configure XML=<Path>"])
-    else
-        AC_MSG_RESULT(using xml-light from $XML)
-    fi
+# Do we know where to look?
+if test -z $XML
+then 
+     # No ... Maybe in ../xml-light ?
+     XML=$DEFAULTXML
+fi
+
+
+if test -z $XML && ( ! $NO_FIND )
+then
+  OUNIT=`$OCAMLFIND query xml-light`
+  USE_FIND=true
+fi 
+
+# Are mommy and daddy home?
+AC_CHECK_FILE($XML/xml-light.cma,ok=true,ok="")
+AC_CHECK_FILE($XML/xml-light.cmxa,      ,ok="")
+
+if test -z $ok 
+then	
+    # Oh, well ...
+    AC_MSG_ERROR([Can't find Xml-light! Specify by running "./configure XML=<Path>"])
+else
+  AC_MSG_RESULT(using xml-light from $XML)
+  
+  if test $USE_FIND
+  then
+    COMPILEFLAGS="$COMPILEFLAGS -package xml-light"
+    USE_FIND=""
+  else
+    COMPILEFLAGS="$COMPILEFLAGS -I $XML/ -ccopt -L$XML"
+  fi
+  
 fi
 
 AC_SUBST(LINKLIBS)
 AC_SUBST(COMPILEFLAGS)
+AC_SUBST(DOCFLAGS)
 AC_SUBST(OUNIT)
 AC_SUBST(XML)
 

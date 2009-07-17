@@ -11,6 +11,7 @@ XML=@XML@
 
 LINK_LIBS  = @LINKLIBS@
 CAMLDIR    = @CAMLDIR@ 
+OCAMLDOC   = @OCAMLDOC@
 
 OBJDIR     = obj
 DEPENDDIR  = obj/.depend
@@ -18,8 +19,9 @@ SOURCEDIRS = src/ src/util/ src/domains/ src/cdomains/ src/framework/ \
 		src/solvers/ src/analyses/ unittest/ unittest/solver \
     unittest/cdomains unittest/domains
 
-COMPILEFLAGS = @COMPILEFLAGS@ -I $(CILLIB) -I $(XML)/ 
-LINKFLAGS = @COMPILEFLAGS@ -ccopt -L$(CILLIB) -I $(CILLIB) -I $(XML)/ -ccopt -L$(XML) 
+COMPILEFLAGS = @COMPILEFLAGS@ -I $(CILLIB)  
+LINKFLAGS = @COMPILEFLAGS@ -ccopt -L$(CILLIB) -I $(CILLIB)  
+DOCFLAGS = @DOCFLAGS@ -stars -t 'Goblint API documentation' -dot-reduce -dot -html -d doc -v
 
 PROG_MODULES = \
 	goblintutil messages printer cilfacade xmldump \
@@ -98,16 +100,16 @@ tags:
 # DOCS
 DOC_ARG = -I $(OBJDIR) \
 	-I $(CILLIB) -I $(XML) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*\.mli*'` \
-	$(CIL)/src/cil.mli $(CIL)/src/formatcil.mli \
-	$(CIL)/ocamlutil/pretty.mli $(CIL)/ocamlutil/errormsg.mli \
-	$(CIL)/ocamlutil/trace.mli $(CIL)/ocamlutil/stats.mli \
-	$(CIL)/ocamlutil/alpha.mli $(CIL)/ocamlutil/util.mli \
-	$(CIL)/ocamlutil/clist.mli \
-	$(XML)/xml.mli \
+	$(CIL)src/cil.mli $(CIL)src/formatcil.mli \
+	$(CIL)ocamlutil/pretty.mli $(CIL)ocamlutil/errormsg.mli \
+	$(CIL)ocamlutil/trace.mli $(CIL)ocamlutil/stats.mli \
+	$(CIL)ocamlutil/alpha.mli $(CIL)ocamlutil/util.mli \
+	$(CIL)ocamlutil/clist.mli \
+	$(XML)xml.mli \
 
 docs: 
 	@rm -f doc/*
-	ocamldoc.opt -stars -t 'Goblint API documentation' -dot-reduce -dot -html -d doc -v $(DOC_ARG)
+	$(OCAMLDOC) $(DOCFLAGS) $(DOC_ARG)
 
 dot:
 	ocamldoc.opt -dot-reduce -dot -v $(DOC_ARG)
