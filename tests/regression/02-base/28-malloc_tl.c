@@ -1,5 +1,5 @@
 // SKIP
-#include <malloc.h>
+#include <stdlib.h>
 #include <pthread.h>
 
 void *t_fun(void *arg) {
