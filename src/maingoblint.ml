@@ -44,8 +44,9 @@ let main () =
   let fileNames : string list ref = ref [] in
   (* default settings for the command line arguments: *)
   let include_dir = ref (Filename.concat (Filename.dirname Sys.executable_name) "includes") in 
-  let kernel_dir = "/lib/modules/`uname -r`/build/include" in
-  let asm_dir = "/lib/modules/`uname -r`/build/arch/x86/include" in
+  let kernel_root = "/lib/modules/`uname -r`/build" in
+  let kernel_dir = kernel_root ^ "/include" in
+  let asm_dir = kernel_root ^ "/arch/x86/include" in
   let other_includes = ref "" in
   let add_include x = other_includes := "-I " ^ x ^ " " ^ !other_includes in
   let use_libc = ref false in
@@ -91,6 +92,7 @@ let main () =
                  ("--dopartial", Arg.Set dopartial, " Apply CIL's constant folding and partial evaluation.");
                  ("--cfg", Arg.Set GU.cfg_print, " prints the cfg into cfg.dot.");
                  ("--debug", Arg.Set GU.debug, " Debug mode: for testing the anlyzer itself.");
+                 ("--warnings", Arg.Set M.warnings, " Print soundness warnings.");
                  ("--trace", Arg.String set_trace, "<sys>  subsystem to show debug printfs for: con, sol.");
                  ("--stats", Arg.Set Cilutil.printStats, " Outputs timing information.");
                  ("--eclipse", Arg.Set GU.eclipse, " Flag for Goblin's Eclipse Plugin.");
@@ -124,6 +126,7 @@ let main () =
   CF.init();
   Arg.parse speclist recordFile usage_str;
   if !GU.allfuns then GU.multi_threaded := true;
+  if !GU.debug then M.warnings := true;
   (* GU.regions := true; *)
   let _ = match !GU.dump_path with
     | Some path -> begin

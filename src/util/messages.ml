@@ -41,7 +41,7 @@ exception Bailure of string
 let bailwith s = raise (Bailure s)
 
 let tracing = false  (* Hopefully, when set to false optimizations will kick in *)
-
+let warnings = ref false
 let soundness = ref true
 let warn_out = ref stdout
 
@@ -72,14 +72,15 @@ let write msg =
   print_msg msg !current_loc
 
 let warn_all msg = 
-  if !GU.debug then print_msg msg (!current_loc);
+  if !warnings then 
+    print_msg msg (!current_loc);
   soundness := false
 
 let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
 
 let warn msg = 
-  if (Hashtbl.mem warn_str_hashtbl msg == false) then
+  if (Hashtbl.mem warn_str_hashtbl msg = false) then
     begin
       warn_all msg;
       Hashtbl.add warn_str_hashtbl msg true
@@ -93,8 +94,6 @@ let warn_each msg =
 	Hashtbl.add warn_lin_hashtbl (msg,loc) true
       end
 
-let debug msg =
-  if !GU.debug then warn msg
 
 let trace = Trace.trace
 let tracei = Trace.tracei

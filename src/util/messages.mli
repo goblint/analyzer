@@ -57,6 +57,9 @@ val soundness: bool ref
 (** The soundness of the current analysis. We begin with sound analyses, but if
   * we can't keep soundness, we try to continue and maybe find some bugs. *)
 
+val warnings: bool ref
+(** Turns on printing of soundness warnings. *)
+
 val write: string -> unit
 (** Print out a message, does not affect soundness. *)
 
@@ -76,9 +79,6 @@ val warn_all: string -> unit
 
 val warn_urgent: string -> unit
 (** Prints a warning no matter what. And sets soundness to false. *)
-
-val debug: string -> unit
-(** Prints a debugging warning with location. *)
 
 val tracing: bool
 (** Static flag to turn off tracing (improves performance) *)

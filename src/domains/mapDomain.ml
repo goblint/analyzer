@@ -170,7 +170,7 @@ struct
       try add key (op value (find key m2)) acc with 
         | Not_found -> acc
         | Lattice.Unsupported _ -> 
-            ME.debug "Ignoring Unsupported!"; acc
+            ME.warn "Ignoring Unsupported!"; acc
     in
       fold f m1 M.empty
 

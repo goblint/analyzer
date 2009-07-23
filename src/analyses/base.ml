@@ -439,7 +439,7 @@ struct
           match (eval_rv st n) with 
             | `Address adr -> AD.map (add_offset_varinfo (convert_offset st ofs)) adr
             | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-                M.debug ("Failed evaluating "^str^" to lvalue"); AD.top ()
+                M.warn ("Failed evaluating "^str^" to lvalue"); AD.top ()
           end 
 
 
@@ -659,7 +659,7 @@ struct
             let typ = AD.get_type a in
             let warning = "Unknown value in " ^ AD.short 40 a ^ " could be an escaped pointer address!" in
               if is_immediate_type typ then () else M.warn warning; empty 
-        | `Bot -> M.debug "A bottom value when computing reachable addresses!"; empty
+        | `Bot -> M.warn "A bottom value when computing reachable addresses!"; empty
         | `Address adrs when AD.is_top adrs -> 
             let warning = "Unknown address in " ^ AD.short 40 a ^ " has escaped." in
               M.warn warning; empty
@@ -888,7 +888,7 @@ struct
       let r = f a in r :: acc 
     with 
       | Not_found -> acc 
-      | x -> M.debug ("Ignoring exception: " ^ Printexc.to_string x); acc 
+      | x -> M.warn ("Ignoring exception: " ^ Printexc.to_string x); acc 
     in
       List.fold_right g flist [] 
 
