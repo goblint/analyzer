@@ -43,8 +43,10 @@ let main () =
   let usage_str = "Usage: goblint [options] source-files" in
   let fileNames : string list ref = ref [] in
   (* default settings for the command line arguments: *)
-  let include_dir = ref (Filename.concat (Filename.dirname Sys.executable_name) "includes") in 
-  let kernel_root = "/lib/modules/`uname -r`/build" in
+  let myname = Filename.dirname Sys.executable_name in
+  let include_dir = ref (Filename.concat myname "includes") in 
+(*  let kernel_root = "/lib/modules/`uname -r`/build" in*)
+  let kernel_root = Filename.concat myname "../linux-headers" in
   let kernel_dir = kernel_root ^ "/include" in
   let asm_dir = kernel_root ^ "/arch/x86/include" in
   let other_includes = ref "" in
