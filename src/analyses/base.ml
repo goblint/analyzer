@@ -919,7 +919,7 @@ struct
     else 
       []
           
-  let combine lval f args fun_st ((cpa,_),gl as st) = 
+  let combine lval f args (cpa,_ as fun_st) (loc,gl as st) = 
     (* This function does miscelaneous things, but the main task was to give the
      * handle to the global state to the state return from the function, but now
      * the function tries to add all the context variables back to the callee.
