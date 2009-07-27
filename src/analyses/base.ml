@@ -818,7 +818,7 @@ struct
                 in 
                 let g a acc = try let r = f a in r || acc with _ -> acc in
                 let ((cpa,fl),gl as st) = invalidate st (CPA.fold st_expr cpa args) in
-                  if List.fold_right g flist false then (
+                   if List.fold_right g flist false then (
                     (* Copy-pasted from the thread-spawning code above: *)
                     GU.multi_threaded := true;
                     let new_fl = Flag.join fl (Flag.get_main ()) in
@@ -919,7 +919,7 @@ struct
     else 
       []
           
-  let combine lval f args fun_st (loc,gl as st) = 
+  let combine lval f args fun_st ((cpa,_),gl as st) = 
     (* This function does miscelaneous things, but the main task was to give the
      * handle to the global state to the state return from the function, but now
      * the function tries to add all the context variables back to the callee.
@@ -939,7 +939,11 @@ struct
         ((new_cpa, fl_s), gl)
     in 
     let return_var = return_var () in
-    let return_val = get (fun_st,gl) return_var in
+    let return_val = 
+      if CPA.mem (return_varinfo ()) cpa 
+      then get (fun_st,gl) return_var 
+      else VD.top ()  
+    in
     let st = add_globals fun_st st in
       match lval with
         | None -> set_none st
