@@ -299,6 +299,8 @@ struct
       match Addr.to_var_offset addr with
         | [x,`Index (i, offs)] when ID.is_int i -> 
             Addr.from_var_offset (x, `Index (ID.add i n, offs))
+        | [x,`NoOffset] ->
+            Addr.from_var_offset (x, `Index (n, `NoOffset))          
         | [_] -> raise Top 
         | _ -> addr
     in
@@ -569,9 +571,9 @@ struct
           | Some (lval, value) -> 
               let addr = eval_lv st lval in
              	if (AD.is_top addr) then
-		  set_none st
-		else
-		  let oldval = get st addr in
+          		  set_none st
+          		else
+          		  let oldval = get st addr in
                     (* make that address meet the invariant, i.e exclusion sets
                      * will be joined *)
                     set st addr (VD.meet oldval value) ~effect:false
