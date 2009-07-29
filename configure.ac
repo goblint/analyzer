@@ -166,16 +166,17 @@ fi
 ######
 
 #ounit
+if test -z "$OUNIT" -a ! $NO_FIND  
+then
+  OUNIT=`$OCAMLFIND query oUnit`
+  USE_FIND=true
+fi 
+
+
 if test -z $OUNIT
 then
   OUNIT=$DEFAULTOUNIT
 fi
-
-if test -z $OUNIT && ( ! $NO_FIND )
-then
-  OUNIT=`$OCAMLFIND query ounit`
-  USE_FIND=true
-fi 
 
 # Is oUnit built
 AC_CHECK_FILE($OUNIT/oUnit.cma,ok=true,ok="")
@@ -191,7 +192,7 @@ else
   # Now we are ready for the ride.
   if test $USE_FIND
   then
-    COMPILEFLAGS=$COMPILEFLAGS -package ounit
+    COMPILEFLAGS="$COMPILEFLAGS -package oUnit"
     USE_FIND=""
   else
     COMPILEFLAGS="$COMPILEFLAGS -I $OUNIT/"
@@ -201,18 +202,20 @@ fi
 
 
 # Do we know where to look?
+
+
+if test -z $XML -a ! $NO_FIND
+then
+  XML=`$OCAMLFIND query xml-light`
+  USE_FIND=true
+fi 
+
+
 if test -z $XML
 then 
      # No ... Maybe in ../xml-light ?
      XML=$DEFAULTXML
 fi
-
-
-if test -z $XML && ( ! $NO_FIND )
-then
-  OUNIT=`$OCAMLFIND query xml-light`
-  USE_FIND=true
-fi 
 
 # Are mommy and daddy home?
 AC_CHECK_FILE($XML/xml-light.cma,ok=true,ok="")
