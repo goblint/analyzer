@@ -105,7 +105,7 @@ DOC_ARG = -I $(OBJDIR) \
 	$(CIL)ocamlutil/trace.mli $(CIL)ocamlutil/stats.mli \
 	$(CIL)ocamlutil/alpha.mli $(CIL)ocamlutil/util.mli \
 	$(CIL)ocamlutil/clist.mli \
-	$(XML)xml.mli \
+	$(XML)/xml.mli \
 
 docs: 
 	@rm -f doc/*
