@@ -806,7 +806,7 @@ struct
       | "goblint_debug" -> let _ = printf "%a\n" LD.pretty (fst st) in set_none st
       | x -> begin
           match LF.get_invalidate_action x with
-            | Some fnc -> invalidate st (fnc args)
+            | Some fnc -> invalidate st (fnc `Write args)
             | None -> (
                 M.warn ("Function definition missing for " ^ f.vname);
                 let st_expr (v:varinfo) (value) a = 
@@ -909,7 +909,7 @@ struct
       | _ -> begin
           let args = 
             match LF.get_invalidate_action f.vname with
-              | Some fnc -> fnc args
+              | Some fnc -> fnc `Write args
               | None -> args
           in
             collect_spawned st args

@@ -150,14 +150,14 @@ struct
         | Var x, ofs -> access_offset st ofs
         | Mem n, ofs -> access false st n @ access_offset st ofs
 
-  let access_funargs (st:context) (exps: exp list): access_list = 
+  let access_funargs rw (st:context) (exps: exp list): access_list = 
     (* Find the addresses reachable from some expression, and assume that these
      * can all be written to. *)
     let do_exp e = 
       match BS.eval_rv st e with
         | `Address a when AD.equal a (AD.null_ptr()) -> []
         | `Address a when not (AD.is_top a) -> 
-            let f x = access_address st true x in
+            let f x = access_address st rw x in
               List.concat (List.map f (BS.reachable_vars [a] st))
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _-> []
@@ -214,8 +214,9 @@ struct
       | x -> begin
           match LF.get_invalidate_action x with
             | Some fnc -> 
-                let written = access_funargs c (fnc arglist) in
-                  (st, add_locks written c st)
+                let read    = access_funargs false c (fnc `Read  arglist) in
+                let written = access_funargs true  c (fnc `Write arglist) in
+                  (st, add_locks (read @ written) c st)
             | _ -> (st, [])
         end
 
