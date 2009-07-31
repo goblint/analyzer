@@ -116,7 +116,10 @@ struct
   let add  = Int64.add
   let sub  = Int64.sub
   let mul  = Int64.mul
-  let div  = Int64.div
+  let div x y =  
+    match y with 
+      | 0L -> raise Division_by_zero  (* -- this is for a bug (#253) where div throws *) 
+      | _  -> Int64.div x y           (*    sigfpe and ocaml has somehow forgotten how to deal with it*)
   let rem  = Int64.rem
   let lt n1 n2 = of_bool (n1 <  n2)
   let gt n1 n2 = of_bool (n1 >  n2)
