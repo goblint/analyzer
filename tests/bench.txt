@@ -1,0 +1,49 @@
+Group: Locksmith POSIX Apps
+
+aget
+Multithreaded wget
+pthread/aget_comb.c
+-
+
+knot
+Multithreaded web server
+pthread/knot_comb.c
+-
+
+pfscan
+Multithreaded file scanner
+pthread/pfscan_comb.c
+--libc
+
+ctrace
+Library for tracing multithreaded programs
+pthread/ctrace_comb.c
+-
+
+smtprc
+SMTP Open Relay Checker
+pthread/smtprc_comb.c
+--earlyglobs
+
+
+Group: Larger programs
+
+ypbind
+Linux NIS daemon: ypbind-mt
+pthread/ypbind_comb.c
+--allfuns
+
+zebedee
+Zebedee: Secure IP tunnel
+pthread/zebedee_comb.c
+--earlyglobs
+
+automount
+kernel-based automounter for linux
+pthread/automount_comb.c
+--allfuns
+
+zfs-fuse
+ZFS file system
+pthread/zfs-fuse_comb.c
+--allfuns
