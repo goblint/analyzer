@@ -573,11 +573,11 @@ struct
   let of_interval x y = (I.Fin x, I.Fin y)
   let ending   x = (I.NInf , I.Fin x)
   let starting x = (I.Fin x, I.PInf)
-  let maximal (_,y) = 
+  let maximal (_,y:t) = 
     match y with
       | I.Fin x -> Some x
       | _ -> None
-  let minimal (x,_) = 
+  let minimal (x,_:t) = 
     match x with
       | I.Fin x -> Some x
       | _ -> None
@@ -585,7 +585,7 @@ struct
   let equal (x1,x2:t) (y1,y2:t) =
     I.equal x1 y1 && I.equal x2 y2
 
-  let hash = Hashtbl.hash
+  let hash (x:t) = Hashtbl.hash x
   let compare (x1,x2:t) (y1,y2:t) =
     let c = I.compare x1 y1 in
     if c == 0 then c else I.compare x2 y2
@@ -594,7 +594,7 @@ struct
   let is_top (x,y) =
     match x, y with
       | I.NInf, I.PInf -> true
-      | _          -> false
+      | _              -> false
       
   let bot () = (I.PInf,I.NInf)
   let is_bot (x,y) = 
@@ -602,7 +602,8 @@ struct
 
   let isSimple _ = true
   let short _ (x,y) =
-    let f p = match p with
+    let f p = 
+    match p with
       | I.NInf -> "-∞"
       | I.PInf -> "∞"
       | I.Fin x-> Int64.to_string x 
@@ -637,11 +638,11 @@ struct
     (lr,ur)
 
   let of_int i = (I.Fin i, I.Fin i)
-  let to_int (x,y) = 
+  let to_int (x,y:t) = 
     match x, y with
       | I.Fin x, I.Fin y when Int64.compare x y == 0 -> Some x
       | _ -> None
-  let is_int (x,y) = 
+  let is_int (x,y:t) = 
     match x, y with
       | I.Fin x, I.Fin y when Int64.compare x y == 0 -> true
       | _ -> false
@@ -661,25 +662,33 @@ struct
   let add (x1,x2) (y1,y2) = (I.addp I.NInf x1 y1, I.addp I.PInf x2 y2)
   let sub i1 i2 = add i1 (neg i2)
   let mul (x1,x2) (y1,y2) =
-    let x1y1 = (I.mul x1 y1) in let x1y2 = (I.mul x1 y2) in
-    let x2y1 = (I.mul x2 y1) in let x2y2 = (I.mul x2 y2) in
-    (I.min (I.min x1y1 x1y2) (I.min x2y1 x2y2)),
-    (I.max (I.max x1y1 x1y2) (I.max x2y1 x2y2))
+    if is_bot (x1, x2) || is_bot (y1, y2) then
+      bot ()
+    else begin
+      let x1y1 = (I.mul x1 y1) in let x1y2 = (I.mul x1 y2) in
+      let x2y1 = (I.mul x2 y1) in let x2y2 = (I.mul x2 y2) in
+      (I.min (I.min x1y1 x1y2) (I.min x2y1 x2y2)),
+      (I.max (I.max x1y1 x1y2) (I.max x2y1 x2y2))
+    end
     
   let rec div (x1,x2:t) (y1,y2:t) =
-    match y1, y2 with
-      | I.Fin 0L, I.Fin 0L -> bot ()
-      | I.Fin 0L, _        -> div (x1,x2) (I.Fin 1L,y2)
-      | _      , I.Fin 0L  -> div (x1,x2) (y1, I.Fin (-1L))
-      | _ when leq (of_int 0L) (y1,y2) -> top ()
-      | _ -> 
-        let x1y1n = (I.divp I.NInf x1 y1) in let x1y2n = (I.divp I.NInf x1 y2) in
-        let x2y1n = (I.divp I.NInf x2 y1) in let x2y2n = (I.divp I.NInf x2 y2) in
-        let x1y1p = (I.divp I.PInf x1 y1) in let x1y2p = (I.divp I.PInf x1 y2) in
-        let x2y1p = (I.divp I.PInf x2 y1) in let x2y2p = (I.divp I.PInf x2 y2) in
-        (I.min (I.min x1y1n x1y2n) (I.min x2y1n x2y2n)),
-        (I.max (I.max x1y1p x1y2p) (I.max x2y1p x2y2p))
-
+    if is_bot (x1, x2) || is_bot (y1, y2) then
+      bot ()
+    else begin
+      match y1, y2 with
+        | I.Fin 0L, I.Fin 0L -> bot ()
+        | I.Fin 0L, _        -> div (x1,x2) (I.Fin 1L,y2)
+        | _      , I.Fin 0L  -> div (x1,x2) (y1, I.Fin (-1L))
+        | _ when leq (of_int 0L) (y1,y2) -> top ()
+        | _ -> 
+          let x1y1n = (I.divp I.NInf x1 y1) in let x1y2n = (I.divp I.NInf x1 y2) in
+          let x2y1n = (I.divp I.NInf x2 y1) in let x2y2n = (I.divp I.NInf x2 y2) in
+          let x1y1p = (I.divp I.PInf x1 y1) in let x1y2p = (I.divp I.PInf x1 y2) in
+          let x2y1p = (I.divp I.PInf x2 y1) in let x2y2p = (I.divp I.PInf x2 y2) in
+          (I.min (I.min x1y1n x1y2n) (I.min x2y1n x2y2n)),
+          (I.max (I.max x1y1p x1y2p) (I.max x2y1p x2y2p))
+    end
+    
   let log f i1 i2 = 
     match is_bot i1, is_bot i2 with
       | true, _ 
@@ -749,25 +758,40 @@ struct
       | _ -> top () 
 
   let ge (x1,x2) (y1,y2) =
-    if I.leq y2 x1 then of_bool true  else 
-    if I.lt  x2 y1 then of_bool false else
-    top ()
+    if is_bot (x1, x2) || is_bot (y1, y2) then
+      bot ()
+    else begin
+      if I.leq y2 x1 then of_bool true  else 
+      if I.lt  x2 y1 then of_bool false else
+      top ()
+    end
     
   let le (x1,x2) (y1,y2) =
-    if I.leq x2 y1 then of_bool true  else
-    if I.lt  y2 x1 then of_bool false else 
-    top ()
-
+    if is_bot (x1, x2) || is_bot (y1, y2) then
+      bot ()
+    else begin
+      if I.leq x2 y1 then of_bool true  else
+      if I.lt  y2 x1 then of_bool false else 
+      top ()
+    end
+    
   let gt (x1,x2) (y1,y2) =
-    if I.lt  y2 x1 then of_bool true  else 
-    if I.leq x2 y1 then of_bool false else
-    top ()
-
+    if is_bot (x1, x2) || is_bot (y1, y2) then
+      bot ()
+    else begin
+      if I.lt  y2 x1 then of_bool true  else 
+      if I.leq x2 y1 then of_bool false else
+      top ()
+    end
+    
   let lt (x1,x2) (y1,y2) =
-    if I.lt  x2 y1 then of_bool true  else
-    if I.leq y2 x1 then of_bool false else 
-    top ()
-
+    if is_bot (x1, x2) || is_bot (y1, y2) then
+      bot ()
+    else begin
+      if I.lt  x2 y1 then of_bool true  else
+      if I.leq y2 x1 then of_bool false else 
+      top ()
+    end
 
   let of_excl_list l = top ()
   let is_excl_list l = false
