@@ -63,7 +63,7 @@ struct
     let worklist = ref initialvars in
     let globals_changed = ref true in
     let widen = ref true in
-
+    
     let rec constrainOneVar (x: variable) =
       let rhsides = 
         if not (VMap.mem recal x) then begin
@@ -143,6 +143,9 @@ struct
       GMap.find theta glob 
     in
 
+    (* we make an extra reporting pass later *)
+    GU.may_narrow := true; 
+
     if !GU.eclipse then show_subtask "Widening Phase" 0;  
     while !globals_changed do
       globals_changed := false;
@@ -158,6 +161,14 @@ struct
       next_wls := VarSet.empty;
     done ;
     if !GU.eclipse then show_subtask "Narrowing Phase" 0;  
+    VMap.clear recal;
+    worklist := initialvars;
+    widen    := false;
+    if !GU.eclipse then show_add_work_buf (List.length !worklist);
+    List.iter constrainOneVar !worklist;
+
+    GU.may_narrow := false; 
+    if !GU.eclipse then show_subtask "Reporting Phase" 0;  
     VMap.clear recal;
     worklist := initialvars;
     widen    := false;

@@ -110,17 +110,19 @@ struct
   
   (** Function [add_accesses accs st] fills the hash-map [acc] *)
   let add_accesses (accessed: (varinfo * Offs.t * bool) list) (bst,ust:Dom.t) : unit = 
-    let fl = BS.get_fl bst in
-    if BS.Flag.is_multi fl then
-      let loc = !GU.current_loc in
-      let try_add_one (v, o, rv: Cil.varinfo * Offs.t * bool) =
-        if (v.vglob) then
-          let curr : AccValSet.t = try Acc.find acc v with Not_found -> AccValSet.empty in
-          let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
-          Acc.replace acc v neww;
-          accKeys := AccKeySet.add v !accKeys
-      in 
-        List.iter try_add_one accessed
+    if not !GU.may_narrow then begin
+      let fl = BS.get_fl bst in
+      if BS.Flag.is_multi fl then
+        let loc = !GU.current_loc in
+        let try_add_one (v, o, rv: Cil.varinfo * Offs.t * bool) =
+          if (v.vglob) then
+            let curr : AccValSet.t = try Acc.find acc v with Not_found -> AccValSet.empty in
+            let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
+            Acc.replace acc v neww;
+            accKeys := AccKeySet.add v !accKeys
+        in 
+          List.iter try_add_one accessed
+    end
 
 
   (** First we consider reasonable joining states if locksets are equal, also we don't expect precision if base state is equal*)

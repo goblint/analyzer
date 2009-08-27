@@ -65,45 +65,55 @@ let print_group group_name errors =
       ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
 let warn_urgent msg = 
-  soundness := false;
-  print_msg msg (!current_loc)
+  if not !GU.may_narrow then begin
+    soundness := false;
+    print_msg msg (!current_loc)
+  end
   
 let write msg =
   print_msg msg !current_loc
 
 let warn_all msg = 
-  if !warnings then 
-    print_msg msg (!current_loc);
-  soundness := false
-
+  if not !GU.may_narrow then begin
+    if !warnings then 
+      print_msg msg (!current_loc);
+    soundness := false
+  end
+  
 let report_lin_hashtbl  = Hashtbl.create 10
 
 let report msg = 
-  let loc = !current_loc in
-  if (Hashtbl.mem report_lin_hashtbl (msg,loc) == false) then
-    begin
-      print_msg msg loc;
-      Hashtbl.add report_lin_hashtbl (msg,loc) true
-    end
-
+  if not !GU.may_narrow then begin
+    let loc = !current_loc in
+    if (Hashtbl.mem report_lin_hashtbl (msg,loc) == false) then
+      begin
+        print_msg msg loc;
+        Hashtbl.add report_lin_hashtbl (msg,loc) true
+      end
+  end
+  
 let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
 
 let warn msg = 
-  if (Hashtbl.mem warn_str_hashtbl msg == false) then
-    begin
-      warn_all msg;
-      Hashtbl.add warn_str_hashtbl msg true
-    end
-
-let warn_each msg = 
-  let loc = !current_loc in
-    if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
+  if not !GU.may_narrow then begin
+    if (Hashtbl.mem warn_str_hashtbl msg == false) then
       begin
-	warn_all msg;
-	Hashtbl.add warn_lin_hashtbl (msg,loc) true
+        warn_all msg;
+        Hashtbl.add warn_str_hashtbl msg true
       end
-
+  end
+  
+let warn_each msg = 
+  if not !GU.may_narrow then begin
+    let loc = !current_loc in
+      if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
+        begin
+        warn_all msg;
+        Hashtbl.add warn_lin_hashtbl (msg,loc) true
+        end
+  end
+  
 let debug msg =
   if !GU.debug then warn msg
 

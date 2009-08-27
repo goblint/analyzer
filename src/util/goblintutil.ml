@@ -83,6 +83,10 @@ let unmerged_fields = ref false
 (** Will terminate on a collapsed array --- for debugging. *)
 let die_on_collapse = ref false
 
+(** Tells the spec that result may still get smaller (on narrowing). 
+   If this is false we can output messages and collect accesses. *)
+let may_narrow = ref true
+
 (** hack to use a special integer to denote synchronized array-based locking *)
 let inthack = Int64.of_int (-19012009)
 

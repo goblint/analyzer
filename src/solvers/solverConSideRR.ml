@@ -53,7 +53,7 @@ struct
   module VarSet = Set.Make(Var)
   
   let solve (system: system) (initialvars: variable list): solution' =
-(*     let recal = VMap.create 113 true in *)
+    let recal = VMap.create 113 true in
     let sigma = VMap.create 113 (VDom.bot ()) in
     let theta = GMap.create 113 (GDom.bot ()) in
     let vInfl = VMap.create 113 ([]: constrain list) in
@@ -65,19 +65,13 @@ struct
 
     let rec constrainOneVar (x: variable) =
       let rhsides = 
-(*        if VMap.mem recal x then
+        if VMap.mem recal x then
           let temp = VMap.find todo x in 
           VMap.remove todo x; temp
         else begin
           if not (VMap.mem sigma x) then
             VMap.add sigma x (VDom.bot ()); 
           VMap.add recal x false;
-          system x
-        end*)
-        if VMap.mem sigma x then
-          let temp = VMap.find todo x in VMap.remove todo x; temp
-        else begin
-          VMap.add sigma x (VDom.bot ());  
           system x
         end
       in 
@@ -137,10 +131,10 @@ struct
       GMap.find theta glob 
     in
     
+    GU.may_narrow := true;
     if !GU.eclipse then show_subtask "Constant Propagation" 0;  
     while !globals_changed do
       globals_changed := false;
-(*       VMap.clear recal; *)
       
       if !GU.eclipse then show_add_work_buf (List.length !worklist);
       List.iter constrainOneVar !worklist;
@@ -152,5 +146,11 @@ struct
       VarSet.iter add_to_work !next_wls;
       next_wls := VarSet.empty;
     done ;
+    
+    GU.may_narrow := false;
+    VMap.clear recal;
+    if !GU.eclipse then show_subtask "Result Postprocess" 0;  
+    List.iter constrainOneVar initialvars;
+
       (sigma, theta)
 end 

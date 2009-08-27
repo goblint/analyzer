@@ -51,6 +51,7 @@ struct
   include SolverTypes
 
   let solve (system: system) (initialvars: variable list): solution' =
+    let recal = VMap.create 113 true in
     let sigma: VDom.t VMap.t = VMap.create 113 (VDom.bot ()) in
     let theta = GMap.create 113 (GDom.bot ()) in
     let vInfl = VMap.create 113 ([]: constrain list) in
@@ -61,13 +62,15 @@ struct
 
     let rec constrainOneVar (x: variable) =
       let rhsides = 
-        let notnew = VMap.mem sigma in 
-          if notnew x then
-            let temp = VMap.find todo x in VMap.remove todo x; temp
-          else begin
-            VMap.add sigma x (VDom.bot ()); 
-            system x
-          end
+        if not (VMap.mem recal x) then begin
+          if not (VMap.mem sigma x) then
+            VMap.add sigma x (VDom.bot ());  
+          VMap.add recal x false;
+          system x
+        end else begin
+          let temp = VMap.find todo x in 
+          VMap.remove todo x; temp
+        end
       in 
 
       begin if rhsides = [] then ()
@@ -150,7 +153,24 @@ struct
       GMap.find theta glob 
 
     in
+      GU.may_narrow := true;
       if !GU.eclipse then show_subtask "Constant Propagation" 0;  
+      while !worklist != [] do
+        if !GU.eclipse then show_add_work_buf (List.length !worklist);
+        let wl = !worklist in worklist := [];
+        List.iter constrainOneVar wl;
+        let recallConstraint (y,f) = 
+          VMap.replace todo y (f :: VMap.find todo y);
+          worklist := y :: !worklist
+        in
+          List.iter recallConstraint !unsafe;
+          unsafe := [];
+      done;
+      
+      VMap.clear recal;
+      GU.may_narrow := false;
+      worklist := initialvars;
+      if !GU.eclipse then show_subtask "Reporting Phase" 0;  
       while !worklist != [] do
         if !GU.eclipse then show_add_work_buf (List.length !worklist);
         let wl = !worklist in worklist := [];

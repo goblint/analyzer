@@ -105,12 +105,12 @@ struct
             in
               List.iter collectInfluence (VMap.find vInfl x);
               VMap.remove vInfl x;
-	      if !GU.eclipse then show_add_work_buf (List.length !influenced_vars);
+          if !GU.eclipse then show_add_work_buf (List.length !influenced_vars);
               List.iter constrainOneVar !influenced_vars;
           end else 
             if tracing then traceu "sol" (dprintf "State didn't change!\n")
-	end end;
-	if !GU.eclipse then show_worked_buf 1
+    end end;
+    if !GU.eclipse then show_worked_buf 1
           
 
     and vEval (c: constrain) var =
@@ -124,9 +124,10 @@ struct
       GMap.find theta glob 
 
     in
+      GU.may_narrow := false;
       if !GU.eclipse then show_subtask "Constant Propagation" 0;  
       while !worklist != [] do
-	if !GU.eclipse then show_add_work_buf (List.length !worklist);
+        if !GU.eclipse then show_add_work_buf (List.length !worklist);
         List.iter constrainOneVar !worklist;
         worklist := [];
         let recallConstraint (y,f) = 
