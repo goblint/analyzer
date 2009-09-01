@@ -60,7 +60,18 @@ sig
   val is_bool: t -> bool
   (** Checks if the element is a definite boolean value. If this function
     * returns [true], the above [to_bool] should return a real value. *)
-
+  val to_excl_list: t -> int64 list option
+  (* Gives a list representation of the excluded values if possible. *)
+  val of_excl_list: int64 list -> t
+  (* Creates a exclusion set from a given list of integers. *)
+  val is_excl_list: t -> bool
+  (* Checks if the element is an exclusion set. *)
+(*  val of_interval: int64 -> int64 -> t*)
+  val starting   : int64 -> t
+  val ending     : int64 -> t
+  val maximal    : t -> int64 option
+  val minimal    : t -> int64 option
+  
   (** {b Arithmetic operators} *)
 
   val neg: t -> t
@@ -118,27 +129,6 @@ end
 (** The signature of integral value domains. They need to support all integer
   * operations that are allowed in C *)
 
-module type ExclList =
-sig
-  include S  
-  val to_excl_list: t -> int64 list option
-  (* Gives a list representation of the excluded values if possible. *)
-  val of_excl_list: int64 list -> t
-  (* Creates a exclusion set from a given list of integers. *)
-  val is_excl_list: t -> bool
-  (* Checks if the element is an exclusion set. *)
-end
-(** Signature of integer value domains, that also supports exclusion list. *)
-
-module type Intervals =
-sig
-  include ExclList
-  val of_interval: int64 -> int64 -> t
-  val starting   : int64 -> t
-  val ending     : int64 -> t
-  val maximal    : t -> int64 option
-  val minimal    : t -> int64 option
-end
 
 exception Unknown
 (** An exception that can be raised when the result of a computation is unknown.
@@ -160,7 +150,7 @@ module Flattened : S with type t = [`Top | `Lifted of int64 | `Bot]
   * propagation. *)
 
 module Trier 
-: Intervals with type t = [
+: S with type t = [
     | `Excluded of SetDomain.Make(Integers).t
     | `Definite of Integers.t
     | `Bot
@@ -180,11 +170,13 @@ module Flat (Base: S): S
 module Lift (Base: S): S
 (** Just like {!Value.Flat} except the order is preserved. *)
 
-module Interval : Intervals
+module Interval : S
 (** Interval domain with int64-s --- use with caution! *)
 
-module IncExcInterval : Intervals with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] 
-(** Inclusive and exclusive intervals *)
+module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] 
+(** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
+
+module ManyInts : S 
 
 (** {b Boolean domains} *)
 
@@ -202,5 +194,5 @@ module Booleans: S with type t = bool
 (** Boolean abstract domain, where true is output "True" and false is output
   * "False" *)
 
-module None: ExclList with type t = unit
+module None: S with type t = unit
 (** Domain with nothing in it. *)

@@ -46,6 +46,14 @@ sig
   val to_bool: t -> bool option
   val of_bool: bool -> t
   val is_bool: t -> bool
+  val to_excl_list: t -> int64 list option
+  val of_excl_list: int64 list -> t
+  val is_excl_list: t -> bool
+(*  val of_interval: int64 -> int64 -> t*)
+  val starting   : int64 -> t
+  val ending     : int64 -> t
+  val maximal    : t -> int64 option
+  val minimal    : t -> int64 option
     
   val neg: t -> t
   val add: t -> t -> t
@@ -71,24 +79,6 @@ sig
   val lognot: t -> t
   val logand: t -> t -> t
   val logor : t -> t -> t
-end
-
-module type ExclList =
-sig
-  include S  
-  val to_excl_list: t -> int64 list option
-  val of_excl_list: int64 list -> t
-  val is_excl_list: t -> bool
-end
-
-module type Intervals =
-sig
-  include ExclList
-  val of_interval: int64 -> int64 -> t
-  val starting   : int64 -> t
-  val ending     : int64 -> t
-  val maximal    : t -> int64 option
-  val minimal    : t -> int64 option
 end
 
 exception Unknown
@@ -122,6 +112,16 @@ struct
   let of_int  x = x
   let to_int  x = Some x
   let is_int  _ = true
+  
+  let to_excl_list x = None
+  let of_excl_list x = top ()
+  let is_excl_list x = false
+  let of_interval  x = top ()
+  let starting     x = top ()
+  let ending       x = top ()
+  let maximal      x = None
+  let minimal      x = None
+  
   let neg  = Int64.neg
   let add  = Int64.add
   let sub  = Int64.sub
@@ -170,6 +170,15 @@ struct
     | `Lifted x -> Base.to_bool x
     | _ -> None
   let is_bool = is_int
+  
+  let to_excl_list x = None
+  let of_excl_list x = top ()
+  let is_excl_list x = false
+  let of_interval  x y = top ()
+  let starting     x = top ()
+  let ending       x = top ()
+  let maximal      x = None
+  let minimal      x = None
 
   let lift1 f x = match x with
     | `Lifted x -> 
@@ -227,6 +236,14 @@ struct
     | _ -> None
   let is_bool = is_int
 
+  let to_excl_list x = None
+  let of_excl_list x = top ()
+  let is_excl_list x = false
+  let of_interval  x y = top ()
+  let starting     x = top ()
+  let ending       x = top ()
+  let maximal      x = None
+  let minimal      x = None
 
   let lift1 f x = match x with
     | `Lifted x -> `Lifted (f x)
@@ -564,7 +581,7 @@ struct
 
 end
 
-module Interval : Intervals with type t = InfInt.t * InfInt.t =
+module Interval : S with type t = InfInt.t * InfInt.t =
 struct 
   module I = InfInt
   type t = I.t * I.t
@@ -798,7 +815,7 @@ struct
   let to_excl_list x = None
 end
 
-module IncExcInterval : Intervals with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] = 
+module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] = 
 struct
   module I = Interval
 
@@ -936,7 +953,7 @@ struct
       
   let starting x : t = `Included (I.starting x)
   let ending x : t = `Included (I.ending x)
-  let of_interval x y : t = `Included (I.of_interval x y)
+(*   let of_interval x y : t = `Included (I.of_interval x y) *)
   
   let to_excl_list (x:t)  = 
     let rec els x y = if x == y then [x] else  x :: els (Int64.add x 1L) y in
@@ -1133,6 +1150,16 @@ struct
   let of_int x  = x = Int64.zero
   let to_int x  = if x then None else Some Int64.zero
   let is_int x  = not x
+
+  let to_excl_list x = None
+  let of_excl_list x = top ()
+  let is_excl_list x = false
+  let of_interval  x y = top ()
+  let starting     x = top ()
+  let ending       x = top ()
+  let maximal      x = None
+  let minimal      x = None
+
   let neg x = x
   let add x y = x || y
   let sub x y = x || y
@@ -1162,7 +1189,7 @@ module Booleans = MakeBooleans (
     let falsename = "False"
   end)
 
-module None : ExclList with type t = unit  =
+module None : S with type t = unit  =
 struct
   include Printable.Std
   include Lattice.StdCousot
@@ -1189,9 +1216,15 @@ struct
   let of_int  _ = ()
   let to_int  _ = None
   let is_int  _ = false
+
   let is_excl_list _ = false
-  let of_excl_list _ = ()
+  let of_excl_list _ = top ()
   let to_excl_list _ = None
+  let of_interval  x y = top ()
+  let starting     x = top ()
+  let ending       x = top ()
+  let maximal      x = None
+  let minimal      x = None
 
   let neg x = ()
   let add _ _ = ()
@@ -1215,3 +1248,184 @@ struct
   let logand n1 n2 = ()
   let logor  n1 n2 = ()
 end
+
+
+module ManyInts : S =
+struct
+  module I1 = Trier
+  module I2 = Interval
+  
+  include Lattice.Prod (I1) (I2)
+  
+  let name () = I1.name () ^ " * " ^ I2.name ()
+    
+  let equal (x1,x2) (y1,y2) =
+    (I1.equal x1 y1 && I2.equal x2 y2)
+    
+  let logor (x1,x2) (y1,y2) =
+    (I1.logor x1 y1
+    ,I2.logor x2 y2)
+
+  let logand (x1,x2) (y1,y2) =
+    (I1.logand x1 y1
+    ,I2.logand x2 y2)
+
+  let lognot (x1,x2) =
+    (I1.lognot x1
+    ,I2.lognot x2)
+
+  let shift_right (x1,x2) (y1,y2) =
+    (I1.shift_right x1 y1
+    ,I2.shift_right x2 y2)
+
+  let shift_left (x1,x2) (y1,y2) =
+    (I1.shift_left x1 y1
+    ,I2.shift_left x2 y2)
+
+  let bitxor (x1,x2) (y1,y2) =
+    (I1.bitxor x1 y1
+    ,I2.bitxor x2 y2)
+
+  let bitor (x1,x2) (y1,y2) =
+    (I1.bitor x1 y1
+    ,I2.bitor x2 y2)
+
+  let bitand (x1,x2) (y1,y2) =
+    (I1.bitand x1 y1
+    ,I2.bitand x2 y2)
+
+  let bitnot (x1,x2) =
+    (I1.bitnot x1
+    ,I2.bitnot x2)
+
+  let ne (x1,x2) (y1,y2) =
+    (I1.ne x1 y1
+    ,I2.ne x2 y2)
+
+  let ne (x1,x2) (y1,y2) =
+    (I1.ne x1 y1
+    ,I2.ne x2 y2)
+
+  let eq (x1,x2) (y1,y2) =
+    (I1.eq x1 y1
+    ,I2.eq x2 y2)
+
+  let ge (x1,x2) (y1,y2) =
+    (I1.ge x1 y1
+    ,I2.ge x2 y2)
+
+  let le (x1,x2) (y1,y2) =
+    (I1.le x1 y1
+    ,I2.le x2 y2)
+
+  let gt (x1,x2) (y1,y2) =
+    (I1.gt x1 y1
+    ,I2.gt x2 y2)
+
+  let lt (x1,x2) (y1,y2) =
+    (I1.lt x1 y1
+    ,I2.lt x2 y2)
+
+  let rem (x1,x2) (y1,y2) =
+    (I1.rem x1 y1
+    ,I2.rem x2 y2)
+
+  let div (x1,x2) (y1,y2) =
+    (I1.div x1 y1
+    ,I2.div x2 y2)
+
+  let mul (x1,x2) (y1,y2) =
+    (I1.mul x1 y1
+    ,I2.mul x2 y2)
+
+  let sub (x1,x2) (y1,y2) =
+    (I1.sub x1 y1
+    ,I2.sub x2 y2)
+
+  let add (x1,x2) (y1,y2) =
+    (I1.add x1 y1
+    ,I2.add x2 y2)
+
+  let neg (x1,x2) =
+    (I1.neg x1
+    ,I2.neg x2)
+
+  let starting x =
+    (I1.starting x
+    ,I2.starting x)
+    
+  let ending x =
+    (I1.ending x
+    ,I2.ending x)
+    
+  let of_bool x =
+    (I1.of_bool x
+    ,I2.of_bool x)
+  
+  let of_excl_list x =
+    (I1.of_excl_list x
+    ,I2.of_excl_list x)
+
+  let of_int x =
+    (I1.of_int x
+    ,I2.of_int x)
+
+  let compare (x1,x2) (y1,y2) =
+    match I1.compare x1 y1 with
+      | 0 -> I2.compare x2 y2
+      | x -> x
+      
+  let hash (x1,x2) = (I1.hash x1) lxor (I2.hash x2)
+
+  let minimal (x1, x2) = 
+    match I1.minimal x1 with
+      | None -> I2.minimal x2
+      | Some x1 ->
+    match I2.minimal x2 with
+      | None -> Some x1
+      | Some x2 -> Some (max x1 x2)
+
+  let maximal (x1, x2) = 
+    match I1.maximal x1 with
+      | None -> I2.minimal x2
+      | Some x1 ->
+    match I2.maximal x2 with
+      | None -> Some x1
+      | Some x2 -> Some (min x1 x2)
+
+  let to_int (x1, x2) = 
+    match I1.to_int x1 with
+      | None -> I2.to_int x2
+      | Some x1 ->
+    match I2.to_int x2 with
+      | None -> Some x1
+      | Some x2 when Int64.compare x1 x2 == 0 -> Some x1
+      | Some x2 -> 
+        let msg = "Inconsistent state! "^(Int64.to_string x1)^" != "^(Int64.to_string x2) in
+        Messages.warn_all msg; None
+
+  let to_bool (x1, x2) = 
+    match I1.to_bool x1 with
+      | None -> I2.to_bool x2
+      | Some x1 ->
+    match I2.to_bool x2 with
+      | None -> Some x1
+      | Some x2 when x1 == x2 -> Some x1
+      | Some x2 -> 
+        let msg = "Inconsistent state! "^(string_of_bool x1)^" != "^(string_of_bool x2) in
+        Messages.warn_all msg; None
+
+  let to_excl_list (x1, x2) = 
+    match I1.to_excl_list x1 with
+      | None -> I2.to_excl_list x2
+      | Some x1 ->
+    match I2.to_excl_list x2 with
+      | None -> Some x1
+      | Some x2 -> Some (x1 @ x2)
+      
+  let is_excl_list (x1,x2) = (I1.is_excl_list x1) || (I2.is_excl_list x2)
+  let is_bool (x1,x2) = (I1.is_bool x1) || (I2.is_bool x2)
+  let is_int (x1,x2) = (I1.is_int x1) || (I2.is_int x2)
+
+end
+

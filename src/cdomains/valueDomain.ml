@@ -36,9 +36,9 @@
 open Cil
 open Pretty
 (*module ID: IntDomain.ExclList = IntDomain.None*)
-module ID: IntDomain.Intervals = IntDomain.Trier  
-(* module ID: IntDomain.Intervals = IntDomain.Interval *)
-(* module ID: IntDomain.Intervals = IntDomain.IncExcInterval *)
+module ID: IntDomain.S = IntDomain.Trier  
+(* module ID: IntDomain.S = IntDomain.ManyInts *)
+(* module ID: IntDomain.S = IntDomain.IncExcInterval *)
 module AD = AddressDomain.AddressSet (ID)
 module Addr = Lval.Normal (ID)
 module Offs = Lval.Offset (ID)
