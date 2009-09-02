@@ -1429,3 +1429,451 @@ struct
 
 end
 
+module IntDomList : S =
+struct
+  exception IntDomListBroken
+  
+  module I1 = Trier
+  module I2 = Interval
+  
+  type e = Trier of Trier.t
+         | Interval of Interval.t
+         | B
+  
+  type t = e list
+  
+  (* constructors *)
+  
+  let name () = Trier.name ()
+    
+  let top () = 
+    [Trier    (Trier.top ())
+    ;Interval (Interval.top ())]
+      
+  let bot () = 
+    [Trier    (Trier.bot ())
+    ;Interval (Interval.bot ())]
+  
+  let starting x = 
+    [Trier    (Trier.starting x)
+    ;Interval (Interval.starting x)]
+
+  let ending x = 
+    [Trier    (Trier.ending x)
+    ;Interval (Interval.ending x)]
+    
+  let of_bool x = 
+    [Trier    (Trier.of_bool x)
+    ;Interval (Interval.of_bool x)]
+  
+  let of_excl_list x = 
+    [Trier    (Trier.of_excl_list x)
+    ;Interval (Interval.of_excl_list x)]
+
+  let of_int x = 
+    [Trier    (Trier.of_int x)
+    ;Interval (Interval.of_int x)]
+  
+  (* element functions *)
+  
+  let narrow' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.narrow x y)
+      | Interval x, Interval y -> Interval (Interval.narrow x y)
+      | _ -> raise IntDomListBroken
+
+  let widen' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.widen x y)
+      | Interval x, Interval y -> Interval (Interval.widen x y)
+      | _ -> raise IntDomListBroken
+
+  let is_top' x =
+    match x with
+      | Trier x -> Trier.is_top x
+      | Interval x -> Interval.is_top x
+      | _ -> raise IntDomListBroken
+  
+  let is_bot' x =
+    match x with
+      | Trier x -> Trier.is_bot x
+      | Interval x -> Interval.is_bot x
+      | _ -> raise IntDomListBroken
+
+  let meet' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.meet x y)
+      | Interval x, Interval y -> Interval (Interval.meet x y)
+      | _ -> raise IntDomListBroken
+
+  let join' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.join x y)
+      | Interval x, Interval y -> Interval (Interval.join x y)
+      | _ -> raise IntDomListBroken
+
+  let leq' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier.leq x y
+      | Interval x, Interval y -> Interval.leq x y
+      | _ -> raise IntDomListBroken
+      
+  let short' w x =
+    match x with
+      | Trier x -> Trier.short w x
+      | Interval x -> Interval.short w x
+      | _ -> raise IntDomListBroken
+      
+  let toXML_f' sf x =
+    match x with
+      | Trier x -> Trier.toXML_f (fun w x -> sf w (Trier x)) x
+      | Interval x -> Trier.toXML_f (fun w x -> sf w (Interval x)) x
+      | _ -> raise IntDomListBroken
+      
+  let pretty_f' sf () x =
+    match x with
+      | Trier x -> Trier.pretty_f (fun w x -> sf w (Trier x)) () x
+      | Interval x -> Interval.pretty_f (fun w x -> sf w (Interval x)) () x
+      | _ -> raise IntDomListBroken
+      
+  let toXML' x = toXML_f' short' x
+      
+  let pretty' x = pretty_f' short' x
+      
+  let isSimple' x =
+    match x with
+      | Trier x -> Trier.isSimple x
+      | Interval x -> Interval.isSimple x
+      | _ -> raise IntDomListBroken
+
+  let compare' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier.compare x y
+      | Interval x, Interval y -> Interval.compare x y
+      | _ -> raise IntDomListBroken
+
+  let equal' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier.equal x y
+      | Interval x, Interval y -> Interval.equal x y
+      | _ -> raise IntDomListBroken
+
+  let logor' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.logor x y)
+      | Interval x, Interval y -> Interval (Interval.logor x y)
+      | _ -> raise IntDomListBroken
+
+  let logand' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.logand x y)
+      | Interval x, Interval y -> Interval (Interval.logand x y)
+      | _ -> raise IntDomListBroken
+
+  let lognot' x =
+    match x with
+      | Trier x -> Trier (Trier.lognot x )
+      | Interval x -> Interval (Interval.lognot x )
+      | _ -> raise IntDomListBroken
+
+  let shift_right' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.shift_right x y)
+      | Interval x, Interval y -> Interval (Interval.shift_right x y)
+      | _ -> raise IntDomListBroken
+
+  let shift_left' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.shift_left x y)
+      | Interval x, Interval y -> Interval (Interval.shift_left x y)
+      | _ -> raise IntDomListBroken
+
+  let bitxor' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.bitxor x y)
+      | Interval x, Interval y -> Interval (Interval.bitxor x y)
+      | _ -> raise IntDomListBroken
+
+  let bitor' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.bitor x y)
+      | Interval x, Interval y -> Interval (Interval.bitor x y)
+      | _ -> raise IntDomListBroken
+
+  let bitand' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.bitand x y)
+      | Interval x, Interval y -> Interval (Interval.bitand x y)
+      | _ -> raise IntDomListBroken
+
+  let bitnot' x =
+    match x with
+      | Trier x -> Trier (Trier.bitnot x)
+      | Interval x -> Interval (Interval.bitnot x)
+      | _ -> raise IntDomListBroken
+
+  let ne' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.ne x y)
+      | Interval x, Interval y -> Interval (Interval.ne x y)
+      | _ -> raise IntDomListBroken
+
+  let eq' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.eq x y)
+      | Interval x, Interval y -> Interval (Interval.eq x y)
+      | _ -> raise IntDomListBroken
+
+  let ge' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.ge x y)
+      | Interval x, Interval y -> Interval (Interval.ge x y)
+      | _ -> raise IntDomListBroken
+
+  let le' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.le x y)
+      | Interval x, Interval y -> Interval (Interval.le x y)
+      | _ -> raise IntDomListBroken
+
+  let gt' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.gt x y)
+      | Interval x, Interval y -> Interval (Interval.gt x y)
+      | _ -> raise IntDomListBroken
+
+  let lt' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.lt x y)
+      | Interval x, Interval y -> Interval (Interval.lt x y)
+      | _ -> raise IntDomListBroken
+
+  let rem' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.rem x y)
+      | Interval x, Interval y -> Interval (Interval.rem x y)
+      | _ -> raise IntDomListBroken
+
+  let div' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.div x y)
+      | Interval x, Interval y -> Interval (Interval.div x y)
+      | _ -> raise IntDomListBroken
+
+  let mul' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.mul x y)
+      | Interval x, Interval y -> Interval (Interval.mul x y)
+      | _ -> raise IntDomListBroken
+
+  let sub' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.sub x y)
+      | Interval x, Interval y -> Interval (Interval.sub x y)
+      | _ -> raise IntDomListBroken
+
+  let add' x y =
+    match x, y with
+      | Trier x, Trier y -> Trier (Trier.add x y)
+      | Interval x, Interval y -> Interval (Interval.add x y)
+      | _ -> raise IntDomListBroken
+
+  let neg' x =
+    match x with
+      | Trier x -> Trier (Trier.neg x)
+      | Interval x -> Interval (Interval.neg x)
+      | _ -> raise IntDomListBroken
+
+  let hash' x =
+    match x with
+      | Trier x-> Trier.hash x
+      | Interval x-> Interval.hash x
+      | _ -> raise IntDomListBroken
+
+  let minimal' x =
+    match x with
+      | Trier x -> Trier.minimal x
+      | Interval x -> Interval.minimal x
+      | _ -> raise IntDomListBroken
+
+  let maximal' x =
+    match x with
+      | Trier x -> Trier.maximal x
+      | Interval x -> Interval.maximal x
+      | _ -> raise IntDomListBroken
+
+  let to_int' x =
+    match x with
+      | Trier x -> Trier.to_int x
+      | Interval x -> Interval.to_int x
+      | _ -> raise IntDomListBroken
+
+  let to_bool' x =
+    match x with
+      | Trier x -> Trier.to_bool x
+      | Interval x -> Interval.to_bool x
+      | _ -> raise IntDomListBroken
+
+  let to_excl_list' x =
+    match x with
+      | Trier x -> Trier.to_excl_list x
+      | Interval x -> Interval.to_excl_list x
+      | _ -> raise IntDomListBroken
+
+  let is_excl_list' x =
+    match x with
+      | Trier x -> Trier.is_excl_list x
+      | Interval x -> Interval.is_excl_list x
+      | _ -> raise IntDomListBroken
+
+  let is_bool' x =
+    match x with
+      | Trier x -> Trier.is_bool x
+      | Interval x -> Interval.is_bool x
+      | _ -> raise IntDomListBroken
+
+  let is_int' x =
+    match x with
+      | Trier x -> Trier.is_int x
+      | Interval x -> Interval.is_int x
+      | _ -> raise IntDomListBroken
+  
+  (* list functions *)
+  
+  let logor       = List.map2 logor' 
+  let logand      = List.map2 logand' 
+  let lognot      = List.map lognot' 
+  let shift_right = List.map2 shift_right'                  
+  let shift_left  = List.map2 shift_left'                   
+  let bitxor      = List.map2 bitxor' 
+  let bitor       = List.map2 bitor'  
+  let bitand      = List.map2 bitand' 
+  let bitnot      = List.map bitnot' 
+  let ne  = List.map2 ne'     
+  let eq  = List.map2 eq'     
+  let ge  = List.map2 ge'     
+  let le  = List.map2 le'     
+  let gt  = List.map2 gt'     
+  let lt  = List.map2 lt'     
+  let rem = List.map2 rem'    
+  let div = List.map2 div'                          
+  let mul = List.map2 mul' 
+  let sub = List.map2 sub' 
+  let add = List.map2 add' 
+  let neg = List.map neg' 
+  
+  let minimal x =
+    let max x y =
+      match x, y with
+        | Some x, Some y -> Some (max x y)
+        | x   , None -> x
+        | None,    y -> y
+    in
+    match x with 
+      | (x::y) -> List.fold_left (fun x y -> max x (minimal' y)) (minimal' x) y
+      | _ -> None
+      
+  let maximal x =
+    let min x y =
+      match x, y with
+        | Some x, Some y -> Some (min x y)
+        | x   , None -> x
+        | None,    y -> y
+    in
+    match x with
+      | (x::y) -> List.fold_left (fun x y -> min x (maximal' y)) (maximal' x) y
+      | _ -> None 
+      
+  let narrow = List.map2 narrow'
+  let widen  = List.map2 widen'
+  let meet   = List.map2 meet'
+  let join   = List.map2 join'
+
+  let is_top = List.for_all is_top' 
+  let is_bot = List.for_all is_bot' 
+  let leq    = List.for_all2 leq' 
+    
+  let short _ = List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""
+  
+  let pretty_f _ () x = 
+    match x with
+      | [] -> text "()"
+      | x :: [] -> pretty' () x
+      | x :: y ->
+        let first = pretty' () x in
+        let rest  = List.fold_left (fun p n->p ++ text "," ++ pretty' () n) (text "") y in
+        text "(" ++ first ++ rest ++ text ")"
+
+  let pretty () x = pretty_f short () x
+
+  let toXML_f sf x =
+    let esc = Goblintutil.escape in
+    let nodes = List.map toXML' x in
+    let node_leaf = if nodes = [] then "Leaf" else "Node" in
+      Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length x))], nodes)
+
+  let toXML = toXML_f short
+  
+  let compare =
+    let f a x y =
+      if a == 0 
+      then compare' x y
+      else 0
+    in
+    List.fold_left2 f 0
+    
+  let isSimple = List.for_all isSimple'
+  let hash     = List.fold_left (fun x y -> x lxor (hash' y)) 0 
+  let equal    = List.for_all2 equal' 
+
+  let is_excl_list = List.exists  is_excl_list'
+  let is_bool = List.exists  is_bool'
+  let is_int = List.exists  is_int'
+
+  let to_excl_list = 
+    let f x y =
+      match x with 
+        | None -> to_excl_list' y
+        | Some x -> 
+      match to_excl_list' y with
+        | None -> Some x
+        | Some y -> Some (x @ y)
+    in
+    List.fold_left f None 
+  
+  exception Inconsistent
+  
+  let to_bool x =
+    let f x y =
+      match x with
+        | None -> to_bool' y
+        | Some x ->
+      match to_bool' y with
+        | None -> Some x
+        | Some y when x == y -> Some x
+        | Some y ->
+          let msg = "Inconsistent state! "^(string_of_bool x)^" != "^(string_of_bool y) in
+          Messages.warn_all msg; 
+          raise Inconsistent
+    in
+    try List.fold_left f None x
+    with Inconsistent -> None
+    
+  let to_int x =
+    let f x y =
+      match x with
+        | None -> to_int' y
+        | Some x ->
+      match to_int' y with
+        | None -> Some x
+        | Some y when Int64.compare x y == 0 -> Some x
+        | Some y ->
+          let msg = "Inconsistent state! "^(Int64.to_string x)^" != "^(Int64.to_string y) in
+          Messages.warn_all msg; 
+          raise Inconsistent
+    in
+    try List.fold_left f None x
+    with Inconsistent -> None
+
+
+end

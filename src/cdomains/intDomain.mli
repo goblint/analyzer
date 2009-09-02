@@ -177,6 +177,7 @@ module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included o
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
 
 module ManyInts : S 
+module IntDomList : S 
 
 (** {b Boolean domains} *)
 
