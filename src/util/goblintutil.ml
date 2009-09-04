@@ -156,3 +156,15 @@ let create_dir name =
       end
   in
     dirName
+
+(** Remove directory and its content, as "rm -rf" would do. *)
+let rm_rf path = 
+  let rec f path = 
+    if Sys.is_directory path then begin
+      let files = Array.map (Filename.concat path) (Sys.readdir path) in
+        Array.iter f files; 
+        Unix.rmdir path
+    end else 
+      Sys.remove path
+  in
+    f path

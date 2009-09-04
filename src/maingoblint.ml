@@ -180,7 +180,7 @@ let main () =
   let files_AST = 
     if !GU.verbose then print_endline "Parsing files.";
     List.map CF.getAST cpp_file_names in
-  let _ = if !keep_cpp then () else ignore (Unix.system ("rm -rf " ^ dirName)) in
+  let _ = if !keep_cpp then () else ignore (GU.rm_rf dirName) in
   (* direct the output to file if requested  *)
   let _ = if not (!outFile = "") then GU.out :=  open_out !outFile in
   let _ = Errormsg.logChannel := M.get_out "cil" !cilout in
