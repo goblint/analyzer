@@ -75,9 +75,9 @@ struct
   let should_join x y = true
 
   let branch exp tv glob st     = st
-  let return exp fundec glob st = st
-  let body   f glob st          = st
-  let special f arglist glob st = st
+  let return exp fundec glob st = Dom.top ()
+  let body   f glob st          = Dom.top ()
+  let special f arglist glob st = Dom.top ()
 
   let assign (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
     match lval, rval with
@@ -85,9 +85,9 @@ struct
       | (Var v1,_), _ -> Dom.remove v1 st
       | _ -> st
 
-  let enter_func lval f args glob st = [(st,st)]
+  let enter_func lval f args glob st = [(st,Dom.top ())]
   let leave_func lval f args glob st1 st2 = Dom.top ()
-  let special_fn lval f args glob st = []
+  let special_fn lval f args glob st = [Dom.top ()]
   let fork       lval f args glob st = []
   
   let eval_funvar exp glob st = []
