@@ -81,7 +81,7 @@ struct
 
   let assign (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
     match lval, rval with
-      | (Var v1,NoOffset), Lval ((Var v2,NoOffset)) -> Dom.add_eq (v1,v2) st
+      | (Var v1,NoOffset), Lval ((Var v2,NoOffset)) -> Dom.add_eq (v1,v2) (Dom.remove v1 st)
       | (Var v1,_), _ -> Dom.remove v1 st
       | _ -> st
 
