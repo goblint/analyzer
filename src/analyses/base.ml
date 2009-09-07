@@ -851,6 +851,14 @@ struct
   let should_join (_,p1,_) (_,p2,_) = Pre.should_join p1 p2 
   let get_fl (_, pr,  _) = Pre.get_fl pr
 
+  let exp_equal e1 e2 gs (_,p,_ as st : store) = 
+    match eval_rv gs st e1, eval_rv gs st e2 with
+      | `Int x , `Int y when ID.equal x y && ID.is_int x -> Some true
+      | `Int x , `Int y when ID.is_bot (ID.meet x y) -> Some false
+      | `Address x, `Address y 
+          when AD.equal x y && List.length (AD.to_var_must x) == 0 ->
+          Some true
+      | _ -> None
 
   (* First try to forward pre-base analysis result. If there is none
    * we try to compute something simple ... something that we trust *)
