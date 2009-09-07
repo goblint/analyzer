@@ -62,41 +62,28 @@ let is_immediate_type t = is_mutex_type t || is_fun_type t
 
 module MakeSpec (Flag: ConcDomain.S) =
 struct
-   exception Top
-   module Flag = Flag
+  exception Top
+  module Flag = Flag
   
-   (* Constant propagation state maps variables to value domain elements.*)
-   module CPA    = MapDomain.MapBot (Basetype.Variables) (VD)
-   (* We remember a set of changed global variables and their respective values. *)  
-   module Vars   = SetDomain.Make (Printable.Prod (Basetype.Variables) (VD)) 
-   
-   (* For global variables we just do constant propagation. *)
+  (* interpreter begin *)
+   module CPA    = MapDomain.MapBot (Basetype.Variables) (VD) (*MemoryDomain.Stack (VD)*)
+   module Var    = Basetype.Variables    
+   module Vars   = SetDomain.Make (Printable.Prod (Var) (VD)) 
+   (*module VarSet = Ref (Vars)*)
    module Glob = 
    struct
      module Var = Basetype.Variables
      module Val = VD
    end
-   
-   (* This is a configureable analysis spec that goes before base analysis (it
-      does not know anything about base). It contains a flag (get_fl, set_fl).
-      communication goes trough query functions like exp_equal.*)
-   module Pre = PreBase.MakeSpec (Flag)   
-   
-   (* Dom is a triple (CPA,Pre,Vars), but we do not print out the last part.*)
-   module Dom = 
-   struct 
-     module P2 = Lattice.Prod(CPA)(Pre.Dom)
-     include Lattice.Prod3 (CPA) (Pre.Dom) (Vars)
-     let short w (c,d,v)   = P2.short w (c,d)
-     let pretty_f sf () (c,d,v:t) = P2.pretty_f (fun w (x,y) -> sf w (x,y,v)) () (c,d)
-     let toXML_f sf (c,d,v:t) = P2.toXML_f (fun w (x,y) -> sf w (x,y,v)) (c,d)
-     let pretty = pretty_f short
-     let toXML  = toXML_f short
-   end
-  
-   let name = "Constant Propagation Analysis"
-   let startstate = CPA.bot (), Pre.startstate, Vars.bot ()
-   let otherstate = CPA.bot (), Pre.otherstate, Vars.bot ()
+   module Dom = Lattice.Prod3 (CPA) (Flag) (Vars)     
+   module Dep = Var
+
+  let name = "Constant Propagation Analysis"
+  let startstate = CPA.bot (), Flag.bot (), Vars.bot ()
+  let otherstate = CPA.bot (), Flag.top (), Vars.bot ()
+
+
+
 
    type cpa = CPA.t
    type flag = Flag.t
@@ -127,8 +114,7 @@ struct
 
    (** [get st addr] returns the value corresponding to [addr] in [st] 
     *  adding proper dependencies *)
-   let get (gs: glob_fun) (st,pr,gl: store) (addrs:address): value =
-     let fl = Pre.get_fl pr in 
+   let get (gs: glob_fun) (st,fl,gl: store) (addrs:address): value =
      if M.tracing then M.tracel "get" (dprintf "address: %a\nstate: %a" AD.pretty addrs CPA.pretty st);
      (* Finding a single varinfo*offset pair *)
      let f_addr (x, offs) = 
@@ -148,20 +134,20 @@ struct
        try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
 
    (** [set st addr val] returns a state where [addr] is set to [val] *)
-   let set ?(effect=true) (gs:glob_fun) (st,pr,gl: store) (lval: AD.t) (value: value): store =
+   let set ?(effect=true) (gs:glob_fun) (st,fl,gl: store) (lval: AD.t) (value: value): store =
      if M.tracing then M.tracel "set" (dprintf "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st);
      (* Updating a single varinfo*offset pair. NB! This function's type does
       * not include the flag. *)
      let update_one_addr (x, offs) (nst,gd): cpa * deps = 
        (* Check if we need to side-effect this one *)
-       if (!GU.earlyglobs || Flag.is_multi (Pre.get_fl pr)) && x.Cil.vglob then if not effect then (nst,gd)
+       if (!GU.earlyglobs || Flag.is_multi fl) && x.Cil.vglob then if not effect then (nst,gd)
        else begin
-       	(* Create an update and add it to the difflist *)
-       	(nst,Vars.add (x, VD.update_offset (gs x) offs value) gd)
+        (* Create an update and add it to the difflist *)
+        (nst,Vars.add (x, VD.update_offset (gs x) offs value) gd)
        end else
-       	(* Normal update of the local state *)
-       	let nst = CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst in
-       	(nst,gd)  
+        (* Normal update of the local state *)
+        let nst = CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst in
+        (nst,gd)  
        in 
      let update_one x (y: cpa * deps) =
        match Addr.to_var_offset x with
@@ -174,10 +160,10 @@ struct
        (* If the address was definite, then we just return it. If the address
         * was ambiguous, we have to join it with the initial state. *)
        let nst = if AD.cardinal lval > 1 then CPA.join st nst else nst in
-         (nst,pr,gd)
+         (nst,fl,gd)
      with 
        (* If any of the addresses are unknown, we ignore it!?! *)
-       | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; (st,pr,gl)
+       | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; (st,fl,gl)
 
    let set_many (gs:glob_fun) (st,fl,gl as store: store) lval_value_list: store =
      (* Maybe this can be done with a simple fold *)
@@ -203,10 +189,10 @@ struct
     let short_fun x = 
       match x.vtype, CPA.find x es with
         | TPtr (t, attr), `Address a 
-	    when (not (AD.is_top a)) 
-	      && List.length (AD.to_var_may a) = 1 
-	      && not (is_immediate_type t) 
-	      -> 
+            when (not (AD.is_top a)) 
+              && List.length (AD.to_var_may a) = 1 
+              && not (is_immediate_type t) 
+              -> 
             let cv = List.hd (AD.to_var_may a) in 
               "ref " ^ VD.short 26 (CPA.find cv es)
         | _, v -> VD.short 30 v
@@ -236,11 +222,10 @@ struct
   let heap_var loc = AD.from_var (get_heap_var loc)
 
   let init () = 
-    Pre.init ();
     return_varstore := makeVarinfo false "RETURN" voidType;
     H.clear heap_hash
 
-  let finalize () = Pre.finalize ()
+  let finalize () = ()
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -342,37 +327,8 @@ struct
        | [x,ofs] -> Addr.from_var_offset (x, add_offset ofs add)
        | _ -> ad
 
-   (* evaluate value using our "query functions" *)
-   let eval_rv_pre exp pr =
-     let binop op e1 e2 =
-       match op, Pre.exp_equal e1 e2 (fun _ -> ()) pr with
-         | Cil.MinusA, Some true 
-         | Cil.MinusPI, Some true 
-         | Cil.MinusPP, Some true -> Some (`Int (ID.of_int 0L))
-         | Cil.MinusA, Some false 
-         | Cil.MinusPI, Some false 
-         | Cil.MinusPP, Some false -> Some (`Int (ID.of_excl_list [0L]))
-         | Cil.Le, Some true 
-         | Cil.Ge, Some true -> Some (`Int (ID.of_bool true))
-         | Cil.Lt, Some true 
-         | Cil.Gt, Some true -> Some (`Int (ID.of_bool false))
-         | Cil.Eq, Some tv -> Some (`Int (ID.of_bool tv))
-         | Cil.Ne, Some tv -> Some (`Int (ID.of_bool (not tv)))
-         | _ -> None
-     in
-     match exp with
-       | Cil.BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
-       | _ -> None
-
-      
    (* The evaluation function as mutually recursive eval_lv & eval_rv *)
-   let rec eval_rv (gs:glob_fun) (_,p,_ as st: store) (exp:Cil.exp): value = 
-     (* First we try with query functions --- these are currently more precise.
-      * Ideally we would meet both values, but we fear types might not match. (bottom) *)
-     match eval_rv_pre exp p with
-       | Some x -> x 
-       | None -> 
-     (* query functions were no help ... now try with values*)
+   let rec eval_rv (gs:glob_fun) (st: store) (exp:Cil.exp): value = 
      match Cil.constFold true exp with
        (* Integer literals *)
        | Cil.Const (Cil.CInt64 (num,typ,str)) -> `Int (ID.of_int num)
@@ -381,10 +337,6 @@ struct
        | Cil.Const (Cil.CWStr _) -> `Address (AD.str_ptr ())
        (* Variables and address expressions *)
        | Cil.Lval lval -> get gs st (eval_lv gs st lval)
-       (* if pre analysis knows ... *)
-       | Cil.BinOp (Cil.Eq,arg1,arg2,typ)
-           when Pre.exp_equal arg1 arg2 (fun _ -> ()) p = Some true ->  
-          `Int (ID.of_bool true)
        (* Binary operators *)
        | Cil.BinOp (op,arg1,arg2,typ) -> 
            let a1 = eval_rv gs st arg1 in
@@ -408,14 +360,14 @@ struct
            `Address (AD.map array_start (eval_lv gs st lval))
        (* Most casts are currently just ignored, that's probably not a good idea! *)
         | Cil.CastE  (t, exp) -> begin
- 	    match t,eval_rv gs st exp with
- 	      | Cil.TPtr (_,_), `Top -> `Address (AD.top ())
+            match t,eval_rv gs st exp with
+              | Cil.TPtr (_,_), `Top -> `Address (AD.top ())
                | Cil.TPtr _, `Int a when Some Int64.zero = ID.to_int a -> 
                    `Address (AD.null_ptr ())
                | Cil.TInt _, `Address a when AD.equal a (AD.null_ptr()) -> 
                    `Int (ID.of_int Int64.zero)
- 	      | _, s -> s
- 	end
+              | _, s -> s
+        end
        | _ -> VD.top ()
    (* A hackish evaluation of expressions that should immediately yield an
     * address, e.g. when calling functions. *)
@@ -423,9 +375,9 @@ struct
      match exp with
        | Cil.Lval lval -> eval_lv gs st lval
        | _ -> 
- 	  match (eval_rv gs st exp) with
- 	    | `Address x -> x
- 	    | _          -> M.bailwith "Problems evaluating expression to function calls!"
+          match (eval_rv gs st exp) with
+            | `Address x -> x
+            | _          -> M.bailwith "Problems evaluating expression to function calls!"
    (* A function to convert the offset to our abstract representation of
     * offsets, i.e.  evaluate the index expression to the integer domain. *)
    and convert_offset (gs:glob_fun) (st: store) (ofs: Cil.offset) = 
@@ -508,7 +460,7 @@ struct
          | Cil.TPtr _ -> `Address (AD.bot ())
          | Cil.TComp ({Cil.cstruct=true} as ci,_) -> `Struct (bot_comp ci)
          | Cil.TComp ({Cil.cstruct=false},_) -> `Union (ValueDomain.Unions.bot ())
- 	    | Cil.TArray (_, None, _) -> `Array (ValueDomain.CArrays.bot ())
+            | Cil.TArray (_, None, _) -> `Array (ValueDomain.CArrays.bot ())
          | Cil.TArray (ai, Some exp, _) -> begin
              let default = `Array (ValueDomain.CArrays.bot ()) in
              match eval_rv gs st exp with
@@ -656,15 +608,15 @@ struct
          match derived_invariant exp tv with
            | Some (lval, value) -> 
                let addr = eval_lv gs st lval in
-              	if (AD.is_top addr) then
- 		          st
- 		        else
- 		          let oldval = get gs st addr in
- 		          let new_val = VD.meet oldval value in
+                if (AD.is_top addr) then
+                          st
+                        else
+                          let oldval = get gs st addr in
+                          let new_val = VD.meet oldval value in
                  (* make that address meet the invariant, i.e exclusion sets
                   * will be joined *)
- 		            if is_some_bot new_val 
- 		            then raise Analyses.Deadcode
+                            if is_some_bot new_val 
+                            then raise Analyses.Deadcode
                  else if VD.is_bot new_val 
                  then set gs st addr value ~effect:false
                  else set gs st addr new_val ~effect:false
@@ -679,11 +631,9 @@ struct
   **************************************************************************)
 
   let assign lval rval gs st = 
-    let do_pre (c,p,g) = (c, Pre.assign lval rval (fun _ -> ()) p, g) in
-    do_pre (set_savetop gs st (eval_lv gs st lval) (eval_rv gs st rval))
+    set_savetop gs st (eval_lv gs st lval) (eval_rv gs st rval)
 
   let branch (exp:exp) (tv:bool) gs (st: store): store =
-    let do_pre (c,p,g) = (c, Pre.branch exp tv (fun _ -> ()) p, g) in
     (* First we want to see, if we can determine a dead branch: *)
     match eval_rv gs st exp with
       (* For a boolean value: *)
@@ -692,26 +642,23 @@ struct
           let fromJust x = match x with Some x -> x | None -> assert false in
           let v = fromJust (ID.to_bool value) in
             (* Eliminate the dead branch and just propagate to the true branch *)
-            if v == tv then do_pre st else raise A.Deadcode
+            if v == tv then st else raise A.Deadcode
       (* Otherwise we try to impose an invariant: *)
-      | _ -> do_pre (invariant gs st exp tv) 
+      | _ -> invariant gs st exp tv 
 
   let body f gs st = 
-    let do_pre (c,p,g) = (c, Pre.body f (fun _ -> ()) p, g) in
     (* First we create a variable-initvalue pair for each varaiable *)
     let init_var v = (AD.from_var v, init_value gs st v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
-      do_pre (set_many gs st inits)
+      set_many gs st inits
 
   let return exp fundec gs st =
-    let do_pre (c,p,g) = (c, Pre.return exp fundec (fun _ -> ()) p, g) in
     let nst = rem_many st (fundec.sformals @ fundec.slocals) in
-    let base = match exp with
-                 | None -> nst
-                 | Some exp -> set gs nst (return_var ()) (eval_rv gs st exp)
-    in
-      do_pre base
+      match exp with
+        | None -> nst
+        | Some exp -> set gs nst (return_var ()) (eval_rv gs st exp)
+
 
 
 
@@ -846,26 +793,21 @@ struct
          | _-> []
      in
        List.concat (List.map do_exp exps)
+  (* interpreter end *)
   
     
-  let should_join (_,p1,_) (_,p2,_) = Pre.should_join p1 p2 
-  let get_fl (_, pr,  _) = Pre.get_fl pr
+  let should_join _ _ = true 
+  let get_fl (_,fl,_) = fl
+  
+  let hash    (x,y,_)             = Hashtbl.hash (x,y)
+  let equal   (x1,x2,_) (y1,y2,_) = CPA.equal x1 y1 && Flag.equal x2 y2
+  let leq     (x1,x2,_) (y1,y2,_) = CPA.leq   x1 y1 && Flag.leq   x2 y2 
+  let compare (x1,x2,_) (y1,y2,_) = 
+    match CPA.compare x1 y1 with 
+      | 0 -> Flag.compare x2 y2
+      | x -> x
 
   let exp_equal e1 e2 gs (_,p,_ as st : store) = 
-    match eval_rv gs st e1, eval_rv gs st e2 with
-      | `Int x , `Int y when ID.equal x y && ID.is_int x -> Some true
-      | `Int x , `Int y when ID.is_bot (ID.meet x y) -> Some false
-      | `Address x, `Address y 
-          when AD.equal x y && List.length (AD.to_var_must x) == 0 ->
-          Some true
-      | _ -> None
-
-  (* First try to forward pre-base analysis result. If there is none
-   * we try to compute something simple ... something that we trust *)
-  let exp_equal e1 e2 gs (_,p,_ as st : store) = 
-    match Pre.exp_equal e1 e2 (fun _ -> ()) p with
-      | Some x -> Some x
-      | None ->
     match eval_rv gs st e1, eval_rv gs st e2 with
       | `Int x , `Int y when ID.equal x y && ID.is_int x -> Some true
       | `Int x , `Int y when ID.is_bot (ID.meet x y) -> Some false
@@ -887,37 +829,36 @@ struct
       [dummyFunDec.svar] 
     
   
-  let special_fn (lv:lval option) (f: varinfo) (args: exp list) (gs:glob_fun) (cpa,pr,gl as st:store): Dom.t list = 
-    (* Parallel with base analysis transfer we must do pre analysis step. *) 
-    let pres = Pre.special_fn lv f args (fun _ -> ()) pr in
-    let map_pres (cpa,_,gl) = List.map (fun x -> cpa, x, gl) pres in
+  let special_fn (lv:lval option) (f: varinfo) (args: exp list) (gs:glob_fun) (cpa,fl,gl as st:store): Dom.t list = 
+(*    let heap_var = heap_var !GU.current_loc in*)
     match f.vname with 
       | "exit" ->  raise A.Deadcode
       | "abort" -> raise A.Deadcode
       (* handling thread creations *)
       | "pthread_create" -> 
           GU.multi_threaded := true;
-          if Flag.is_multi (Pre.get_fl pr) then
-            map_pres (cpa,pr,gl)
+          let new_fl = Flag.join fl (Flag.get_main ()) in
+          if Flag.is_multi fl then
+            [(cpa,new_fl,gl)]
           else
             let (ncpa,ngl) = if not !GU.earlyglobs then globalize cpa else cpa, Vars.empty() in
-            map_pres (ncpa, pr, ngl)
+            [(ncpa, new_fl,ngl)]
       (* handling thread joins... sort of *)
       | "pthread_join" -> begin
           match args with
             | [id; ret_var] -> begin
                 match (eval_rv gs st ret_var) with
-                  | `Int n when n = ID.of_int 0L -> map_pres (cpa,pr,Vars.bot ())
-                  | _      -> map_pres (invalidate gs st [ret_var]) end
+                  | `Int n when n = ID.of_int 0L -> [(cpa,fl,Vars.bot ())]
+                  | _      -> [invalidate gs st [ret_var]] end
             | _ -> M.bailwith "pthread_join arguments are strange!"
         end
       | "malloc" | "__kmalloc" -> begin
         match lv with
           | Some lv -> 
             let heap_var = heap_var !GU.current_loc in 
-            map_pres (set_many gs st [(heap_var, `Blob (VD.bot ()));  
-                                      (eval_lv gs st lv, `Address heap_var)])
-          | _ -> map_pres st
+            [set_many gs st [(heap_var, `Blob (VD.bot ()));  
+                            (eval_lv gs st lv, `Address heap_var)]]
+          | _ -> [st]
         end
       | "calloc" -> 
         begin match lv with
@@ -925,7 +866,7 @@ struct
               let heap_var = get_heap_var !GU.current_loc in
                 [set_many gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
                                  (eval_lv gs st lv, `Address (AD.from_var_offset (heap_var, `Index (ID.of_int 0L, `NoOffset))))]]
-          | _ -> map_pres st
+          | _ -> [st]
         end
       (* Handling the assertions *)
       | "__assert_rtn" -> raise A.Deadcode (* gcc's built-in assert *) 
@@ -943,14 +884,14 @@ struct
                         | Some false -> M.warn_each ("Assertion \"" ^ expr () ^ "\" will fail")
                         | _ -> ()); 
                       (* Just propagate the state *)
-                      map_pres st
+                      [st]
                   | _ -> begin 
                       if !GU.debug then begin
                         M.warn_each ("Assertion \"" ^ expr () ^ "\" is unknown");
-                        map_pres st
+                        [st]
                       end else
                         (* make the state meet the assertion in the rest of the code *)
-                        map_pres (invariant gs st e true)
+                        [invariant gs st e true]
                     end
               end
             | _ -> M.bailwith "Assert argument mismatch!"
@@ -975,45 +916,41 @@ struct
                   let _ = Cilfacade.getdec var in true
                 in 
                 let g a acc = try let r = f a in r || acc with _ -> acc in
-                let (cpa,pr,gl as st) = invalidate gs st (CPA.fold st_expr cpa (lv_list @ args)) in
+                let (cpa,fl,gl as st) = invalidate gs st (CPA.fold st_expr cpa (lv_list @ args)) in
                   if List.fold_right g flist false then begin
                     (* Copy-pasted from the thread-spawning code above: *)
                     GU.multi_threaded := true;
-                    let fl = Pre.get_fl pr in
                     let new_fl = Flag.join fl (Flag.get_main ()) in
-                    let cpa, pr, gl = 
                       if Flag.is_multi fl then 
-                        (cpa, pr, Vars.empty())
+                        [(cpa,new_fl,Vars.empty())]
                       else 
                         let (ncpa,ngl) = if not !GU.earlyglobs then globalize cpa else cpa, Vars.empty() in 
-                        (ncpa, pr, ngl)
-                    in
-                      let xs = map_pres (cpa, pr, gl) in
-                      List.map (fun (c,p,g) -> c, Pre.set_fl p new_fl, g) xs
-                  end else map_pres st
+                          [(ncpa, new_fl,ngl)]
+                  end else [st]
               )
         end
 
-  let enter_func lval fn args gs (cpa,pr,gl as st: store): (Dom.t * Dom.t) list = 
+  let enter_func lval fn args gs (cpa,fl,gl as st: store): (Dom.t * Dom.t) list = 
     let make_entry pa context =
-      let fl = Pre.get_fl pr in
       (* If we need the globals, add them *)
       let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
       (* Assign parameters to arguments *)
       let new_cpa = CPA.add_list pa new_cpa in
       let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
-        (new_cpa, pr, Vars.bot ()) 
+        st, (new_cpa, fl, Vars.bot ()) 
     in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv gs st) args in
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars (get_ptrs vals) gs st)) in
-    (* And we prepare the entry state *)
-    let fundec = Cilfacade.getdec fn in
-    let ncpa, _, ngl = make_entry (zip fundec.sformals vals) reachable in
-    (* mix pre-stuff and base stuff *)
-    let pres = Pre.enter_func lval fn args (fun _ -> ()) pr in 
-    List.map (fun npr -> st, (ncpa, npr, ngl)) pres
+    (* generate the entry states *)
+    let add_calls_addr f norms =
+      let fundec = Cilfacade.getdec fn in
+      (* And we prepare the entry state *)
+      let entry_state = make_entry (zip fundec.sformals vals) reachable in
+        entry_state :: norms
+    in
+    add_calls_addr fn []
 
   let collect_spawned gs st args: (varinfo * Dom.t) list = 
     let flist = collect_funargs gs st args in
@@ -1030,10 +967,10 @@ struct
     in
       List.fold_right g flist [] 
 
-  let fork (lv: lval option) (f: varinfo) (args: exp list) gs (cpa,pr,gl as st:store) : (varinfo * Dom.t) list = 
+  let fork (lv: lval option) (f: varinfo) (args: exp list) gs (cpa,fl,gl as st:store) : (varinfo * Dom.t) list = 
     match f.vname with 
       (* handling thread creations *)
-      | "pthread_create" -> begin	 
+      | "pthread_create" -> begin        
           match args with
             | [_; _; start; ptc_arg] -> begin
                 let start_addr = eval_fv gs st start in
@@ -1041,11 +978,11 @@ struct
                 try
                   (* try to get function declaration *)
                   let _ = Cilfacade.getdec start_vari in 
-                  let sts = enter_func None start_vari [ptc_arg] gs (cpa, Pre.set_fl pr (Flag.get_multi ()), gl) in
+                  let sts = enter_func None start_vari [ptc_arg] gs (cpa, Flag.get_multi (), gl) in
                   List.map (fun (_,st) -> start_vari, st) sts
                 with Not_found -> 
                   M.warn ("creating an thread from unknown function " ^ start_vari.vname);
-                  [start_vari,(cpa, Pre.set_fl pr (Flag.get_multi ()), Vars.bot())]
+                  [start_vari,(cpa, Flag.get_multi (), Vars.bot())]
                 end
             | _ -> M.bailwith "pthread_create arguments are strange!"
         end
@@ -1059,8 +996,7 @@ struct
         end
 
   let leave_func (lval: lval option) (f: varinfo) (args: exp list) gs (before: Dom.t) (after: Dom.t) : Dom.t =
-    let combine_one (loc,pr,gl as st: Dom.t) ((fun_st,fun_pr,_) as fun_d: Dom.t) = 
-      let new_pr = Pre.leave_func lval f args (fun _ -> ()) pr fun_pr in
+    let combine_one (loc,lf,gl as st: Dom.t) ((fun_st,fun_fl,_) as fun_d: Dom.t) = 
       (* This function does miscelaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
@@ -1078,7 +1014,7 @@ struct
         then get gs fun_d return_var 
         else VD.top ()  
       in
-      let st = add_globals (fun_st,new_pr) st in
+      let st = add_globals (fun_st,fun_fl) st in
         match lval with
           | None      -> st
           | Some lval -> set_savetop gs st (eval_lv gs st lval) return_val
