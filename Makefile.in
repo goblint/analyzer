@@ -8,6 +8,7 @@
 CIL=@CIL@
 CILLIB=@CIL@/@CILOBJ@
 XML=@XML@
+JSON=@JSON@
 
 LINK_LIBS  = @LINKLIBS@
 CAMLDIR    = @CAMLDIR@ 
@@ -31,7 +32,7 @@ PROG_MODULES = \
 	musteqDomain regionDomain concDomain lockDomain \
 	hash progress myCFG analyses libraryFunctions global \
 	solver effectWCon effectWNCon solverConSideRR solverConSideWNRR \
-	multithread compose \
+	multithread compose partition preBase \
 	base owner unit mutex uninit malloc_null memLeaks
 
 TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \

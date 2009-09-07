@@ -85,6 +85,10 @@ sig
   (** returns global differences from state *)
   
   
+  (** Query functions: *)
+  val exp_equal: exp -> exp -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> bool option
+  (** Tells us if two expressions must/may not be equal. *)
+  
   (** Transfer functions:  *)
   
   val assign: lval -> exp -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t 

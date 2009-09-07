@@ -40,29 +40,19 @@ module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module AD = ValueDomain.AD
 (*module BS = Base.Spec*)
-module BS = Base.Main
 module LF = LibraryFunctions
 open Cil
 open Pretty
 
-module Owner = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "Entire heap" end)
 
-module OwnerClass = 
-struct
-  include Lattice.Prod (Owner) (SetDomain.Make (Basetype.Variables))
-end
-
-(* Kalmer: 
-    i do not know what this is --- i hoped there would be tests for it but that is not the case 
-    *)
-module Spec : Analyses.Spec =
+module Spec : Analyses.Spec with type Glob.Val.t = unit =
 struct
   exception Top
 
-  module Dom = MusteqDomain.Equ
+  module Dom = PartitionDomain.SetSet (Basetype.Variables)
   module Glob = Global.Make (Lattice.Unit)
 
-  let name = "Equalities"
+  let name = "Partition"
 
   let init () = ()
   let finalize () = ()
@@ -70,25 +60,33 @@ struct
   let otherstate = Dom.top ()
   let es_to_string f es = f.svar.vname
   
-  let exp_equal e1 e2 g s = None
-  
+  let exp_equal e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
+    print_string "...";
+    match e1, e2 with
+      | Lval  (Var v1,NoOffset), Lval (Var v2,NoOffset) -> begin
+        match Dom.find_class v1 s with
+          | Some ss when Dom.S.mem v2 ss -> print_string ("ok\n"); Some true
+          | _ -> print_string ("not in "^(Dom.short 80 s)^"\n"); None
+        end
+      | _ -> print_string "not lv\n"; None
+      
   let reset_diff x = x
   let get_diff   x = []
   let should_join x y = true
 
-  let return_var = 
-    let myvar = makeVarinfo false "RETURN" voidType in
-      myvar.vid <- -99;
-      myvar
-
-  let assign lval rval glob st = Dom.assign lval rval st
-  let branch exp tv glob st = st
+  let branch exp tv glob st     = st
   let return exp fundec glob st = st
-  let body   f glob st = st
+  let body   f glob st          = st
   let special f arglist glob st = st
 
-  let enter_func lval f args glob st = []
-  let leave_func lval f args glob st1 st2 = st1
+  let assign (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
+    match lval, rval with
+      | (Var v1,NoOffset), Lval ((Var v2,NoOffset)) -> Dom.add_eq (v1,v2) st
+      | (Var v1,_), _ -> Dom.remove v1 st
+      | _ -> st
+
+  let enter_func lval f args glob st = [(st,st)]
+  let leave_func lval f args glob st1 st2 = Dom.top ()
   let special_fn lval f args glob st = []
   let fork       lval f args glob st = []
   

@@ -37,6 +37,29 @@
 
 open Cil
 
+open Json_type
+open Json_type.Browse
+
+(* generate a default configuration *)
+let default_conf () =
+  let def_int = Build.objekt ["trier"    , Build.bool true
+                             ;"interval" , Build.bool false] in
+  let def_pre = Build.objekt ["partition", Build.bool true ] in
+  Build.objekt ["int_domain"      , def_int
+               ;"pre_cpa_analysis", def_pre
+               ;"analysis"        , Build.string "mutex"
+               ;"solver"          , Build.string "effectWCon" ]
+
+(* configuration structure -- get it from a file or generate a new one *)
+let conf = 
+  let fn = Filename.concat (Filename.dirname (Sys.argv.(0))) "goblint.json" in
+  try
+    make_table (objekt (Json_io.load_json ~allow_comments:true fn))
+  with (Sys_error x) -> 
+    let c = default_conf () in
+    Json_io.save_json fn c;
+    make_table (objekt c)
+
 (** when goblin is in debug mode *)
 let debug = ref false 
 
@@ -125,7 +148,7 @@ let print_uncalled = ref false
   * referenced from within any transfer function. *)
 let current_loc = ref locUnknown
 
-let solver = ref ""
+let solver = ref (string (field conf "solver"))
 
 let escape (x:string):string =
   let esc_1 = Str.global_replace (Str.regexp "&") "&amp;" x in

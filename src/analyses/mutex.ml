@@ -90,7 +90,10 @@ struct
   
   let get_diff (x,_) = BS.get_diff x
   let reset_diff (x,y) = (BS.reset_diff x, y)
-
+  
+  (** equality query --- pass on to base *)
+  let exp_equal e1 e2 g (b,_) = BS.exp_equal e1 e2 g b  
+  
   (** Access counting is done using side-effect (accesses added in [add_accesses] and read in [finalize]) : *)
   
   (* 

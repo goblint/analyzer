@@ -111,6 +111,15 @@ struct
   let es_to_string f es  = Base.es_to_string f (Dom.choose es)
   let should_join _ _ = true
   
+  (** query if exps are equal *)
+  let exp_equal e1 e2 g d =
+    let eq d x = 
+      match x with
+        | None -> Base.exp_equal e1 e2 g d
+        | x -> x 
+    in
+    Dom.fold eq d None
+  
   (** [lift f set] is basically a map, that handles dead-code*)
   let lift f set = 
     let apply_add st = 

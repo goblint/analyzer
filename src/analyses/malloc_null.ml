@@ -19,7 +19,9 @@ struct
   let get_diff (_,x) = BS.get_diff x
   let reset_diff (y,x) = (y,BS.reset_diff x)
   
-  
+  (* equality query --- pass on to base *)
+  let exp_equal e1 e2 g (_,b) = BS.exp_equal e1 e2 g b  
+
   (*
     Addr set functions: 
   *)

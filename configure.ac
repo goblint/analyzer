@@ -11,7 +11,7 @@
 
 ######
 ##
-#  Chapter 0: About the author
+#  Chapter 0: About us
 ##
 ######
 
@@ -20,10 +20,11 @@ AC_INIT(goblint, 0.9.2)
 
 m4_include([scripts/ax_compare_version.m4])
 
-LINKLIBS="str nums cil xml-light"
+LINKLIBS="unix str nums cil xml-light pcre netsys netstring jsonwheel"
 DEFAULTCIL="../cil/"
 DEFAULTXML="../xml-light/"
 DEFAULTOUNIT="../ounit/"
+DEFAULTJSON="../json-wheel/"
 DEFAULTDOC="ocamldoc.opt"
 
 
@@ -124,31 +125,26 @@ AC_SUBST(CILOBJ,/obj/$ARCHOS)
 
 ######
 ##
-#  Chapter 3: The Great o Camlfind
+#  Chapter 3: oCamlfind
 ##
 ######
 
 
-# Can we use ocamlfind?
-AC_PATH_PROG(OCAMLFIND, ocamlfind)
-
-if test -z $OCAMLFIND
+if test -z "$FINDPATH"
 then
-  # No? Really?    
-
-  AC_CHECK_FILE($FINDPATH/ocamlfind,ok=true,ok="")
-  if test -z $ok 
-  then	
-    # Oh, well ...
-    AC_MSG_WARN([Can't find ocamlfind! Specify by running "./configure FINDPATH=<Path>"])
-    AC_SUBST(CAMLDIR,"")
-    NO_FIND=1
-  else
-    OCAMLFIND=$FINDPATH/ocamlfind
-  fi
+  AC_PATH_PROG(OCAMLFIND, ocamlfind)
+else
+  OCAMLFIND=$FINDPATH/ocamlfind
 fi
 
-LINKLIBS="unix $LINKLIBS"
+AC_CHECK_FILE($OCAMLFIND,ok=true,ok="")
+if test -z "$ok"
+then
+  # Oh, well ...
+  AC_MSG_WARN([Can't find ocamlfind! Specify by running "./configure FINDPATH=<Path>"])
+  AC_SUBST(CAMLDIR,"")
+  NO_FIND=1
+fi
 
 if test ! $NO_FIND
 then
@@ -166,10 +162,13 @@ fi
 ######
 
 #ounit
-if test -z "$OUNIT" -a ! $NO_FIND  
-then
-  OUNIT=`$OCAMLFIND query oUnit`
-  USE_FIND=true
+if test -z "$OUNIT" 
+then 
+  if test ! "$NO_FIND"   
+  then
+    OUNIT=`$OCAMLFIND query oUnit`
+    USE_FIND=true
+  fi
 fi 
 
 
@@ -199,15 +198,54 @@ else
   fi
 fi	
 
+#json
+if test -z "$JSON" 
+then
+  if test ! "$NO_FIND"  
+  then
+    JSON=`$OCAMLFIND query json-wheel`
+    USE_FIND=true
+  fi 
+fi
+
+if test -z $JSON
+then
+  JSON=$DEFAULTJSON
+fi
+
+# Is oUnit built
+AC_CHECK_FILE($JSON/jsonwheel.cma,ok=true,ok="")
+AC_CHECK_FILE($JSON/jsonwheel.cmxa,      ,ok="")
+
+if test -z $ok
+then
+  AC_MSG_ERROR([
+  Can't find json-wheel!
+  Specify by running "./configure JSON=<Path>"])
+else
+  AC_MSG_RESULT(using json-wheel from $JSON)
+
+  # Now we are ready for the ride.
+  if test $USE_FIND
+  then
+    COMPILEFLAGS="$COMPILEFLAGS -package json-wheel"
+    USE_FIND=""
+  else
+    COMPILEFLAGS="$COMPILEFLAGS -I $JSON/ -ccopt -L$JSON"
+  fi
+fi  
 
 
 # Do we know where to look?
 
 
-if test -z $XML -a ! $NO_FIND
-then
-  XML=`$OCAMLFIND query xml-light`
-  USE_FIND=true
+if test -z $XML 
+then 
+  if test ! $NO_FIND
+  then
+    XML=`$OCAMLFIND query xml-light`
+    USE_FIND=true
+  fi
 fi 
 
 
@@ -217,7 +255,7 @@ then
      XML=$DEFAULTXML
 fi
 
-# Are mommy and daddy home?
+
 AC_CHECK_FILE($XML/xml-light.cma,ok=true,ok="")
 AC_CHECK_FILE($XML/xml-light.cmxa,      ,ok="")
 
@@ -244,12 +282,6 @@ AC_SUBST(DOCFLAGS)
 AC_SUBST(OUNIT)
 AC_SUBST(XML)
 
-
-######
-##
-#  Chapter 4: Now we only need a camel.
-##
-######
 
 
 AC_OUTPUT(Makefile)

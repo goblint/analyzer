@@ -1818,10 +1818,11 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 
-LINKLIBS="str nums cil xml-light"
+LINKLIBS="unix str nums cil xml-light pcre netsys netstring jsonwheel"
 DEFAULTCIL="../cil/"
 DEFAULTXML="../xml-light/"
 DEFAULTOUNIT="../ounit/"
+DEFAULTJSON="../json-wheel/"
 DEFAULTDOC="ocamldoc.opt"
 
 
@@ -2158,13 +2159,14 @@ CILOBJ=/obj/$ARCHOS
 
 ######
 ##
-#  Chapter 3: The Great o Camlfind
+#  Chapter 3: oCamlfind
 ##
 ######
 
 
-# Can we use ocamlfind?
-# Extract the first word of "ocamlfind", so it can be a program name with args.
+if test -z "$FINDPATH"
+then
+  # Extract the first word of "ocamlfind", so it can be a program name with args.
 set dummy ocamlfind; ac_word=$2
 { $as_echo "$as_me:$LINENO: checking for $ac_word" >&5
 $as_echo_n "checking for $ac_word... " >&6; }
@@ -2204,14 +2206,13 @@ $as_echo "no" >&6; }
 fi
 
 
+else
+  OCAMLFIND=$FINDPATH/ocamlfind
+fi
 
-if test -z $OCAMLFIND
-then
-  # No? Really?
-
-  as_ac_File=`$as_echo "ac_cv_file_$FINDPATH/ocamlfind" | $as_tr_sh`
-{ $as_echo "$as_me:$LINENO: checking for $FINDPATH/ocamlfind" >&5
-$as_echo_n "checking for $FINDPATH/ocamlfind... " >&6; }
+as_ac_File=`$as_echo "ac_cv_file_$OCAMLFIND" | $as_tr_sh`
+{ $as_echo "$as_me:$LINENO: checking for $OCAMLFIND" >&5
+$as_echo_n "checking for $OCAMLFIND... " >&6; }
 if { as_var=$as_ac_File; eval "test \"\${$as_var+set}\" = set"; }; then
   $as_echo_n "(cached) " >&6
 else
@@ -2219,7 +2220,7 @@ else
   { { $as_echo "$as_me:$LINENO: error: cannot check for file existence when cross compiling" >&5
 $as_echo "$as_me: error: cannot check for file existence when cross compiling" >&2;}
    { (exit 1); exit 1; }; }
-if test -r "$FINDPATH/ocamlfind"; then
+if test -r "$OCAMLFIND"; then
   eval "$as_ac_File=yes"
 else
   eval "$as_ac_File=no"
@@ -2237,20 +2238,15 @@ else
   ok=""
 fi
 
-  if test -z $ok
-  then
-    # Oh, well ...
-    { $as_echo "$as_me:$LINENO: WARNING: Can't find ocamlfind! Specify by running \"./configure FINDPATH=<Path>\"" >&5
+if test -z "$ok"
+then
+  # Oh, well ...
+  { $as_echo "$as_me:$LINENO: WARNING: Can't find ocamlfind! Specify by running \"./configure FINDPATH=<Path>\"" >&5
 $as_echo "$as_me: WARNING: Can't find ocamlfind! Specify by running \"./configure FINDPATH=<Path>\"" >&2;}
-    CAMLDIR=""
+  CAMLDIR=""
 
-    NO_FIND=1
-  else
-    OCAMLFIND=$FINDPATH/ocamlfind
-  fi
+  NO_FIND=1
 fi
-
-LINKLIBS="unix $LINKLIBS"
 
 if test ! $NO_FIND
 then
@@ -2271,10 +2267,13 @@ fi
 ######
 
 #ounit
-if test -z "$OUNIT" -a ! $NO_FIND
+if test -z "$OUNIT"
 then
-  OUNIT=`$OCAMLFIND query oUnit`
-  USE_FIND=true
+  if test ! "$NO_FIND"
+  then
+    OUNIT=`$OCAMLFIND query oUnit`
+    USE_FIND=true
+  fi
 fi
 
 
@@ -2361,15 +2360,113 @@ else
   fi
 fi
 
+#json
+if test -z "$JSON"
+then
+  if test ! "$NO_FIND"
+  then
+    JSON=`$OCAMLFIND query json-wheel`
+    USE_FIND=true
+  fi
+fi
+
+if test -z $JSON
+then
+  JSON=$DEFAULTJSON
+fi
+
+# Is oUnit built
+as_ac_File=`$as_echo "ac_cv_file_$JSON/jsonwheel.cma" | $as_tr_sh`
+{ $as_echo "$as_me:$LINENO: checking for $JSON/jsonwheel.cma" >&5
+$as_echo_n "checking for $JSON/jsonwheel.cma... " >&6; }
+if { as_var=$as_ac_File; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+else
+  test "$cross_compiling" = yes &&
+  { { $as_echo "$as_me:$LINENO: error: cannot check for file existence when cross compiling" >&5
+$as_echo "$as_me: error: cannot check for file existence when cross compiling" >&2;}
+   { (exit 1); exit 1; }; }
+if test -r "$JSON/jsonwheel.cma"; then
+  eval "$as_ac_File=yes"
+else
+  eval "$as_ac_File=no"
+fi
+fi
+ac_res=`eval 'as_val=${'$as_ac_File'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+as_val=`eval 'as_val=${'$as_ac_File'}
+		 $as_echo "$as_val"'`
+   if test "x$as_val" = x""yes; then
+  ok=true
+else
+  ok=""
+fi
+
+as_ac_File=`$as_echo "ac_cv_file_$JSON/jsonwheel.cmxa" | $as_tr_sh`
+{ $as_echo "$as_me:$LINENO: checking for $JSON/jsonwheel.cmxa" >&5
+$as_echo_n "checking for $JSON/jsonwheel.cmxa... " >&6; }
+if { as_var=$as_ac_File; eval "test \"\${$as_var+set}\" = set"; }; then
+  $as_echo_n "(cached) " >&6
+else
+  test "$cross_compiling" = yes &&
+  { { $as_echo "$as_me:$LINENO: error: cannot check for file existence when cross compiling" >&5
+$as_echo "$as_me: error: cannot check for file existence when cross compiling" >&2;}
+   { (exit 1); exit 1; }; }
+if test -r "$JSON/jsonwheel.cmxa"; then
+  eval "$as_ac_File=yes"
+else
+  eval "$as_ac_File=no"
+fi
+fi
+ac_res=`eval 'as_val=${'$as_ac_File'}
+		 $as_echo "$as_val"'`
+	       { $as_echo "$as_me:$LINENO: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+as_val=`eval 'as_val=${'$as_ac_File'}
+		 $as_echo "$as_val"'`
+   if test "x$as_val" = x""yes; then
+  :
+else
+  ok=""
+fi
+
+
+if test -z $ok
+then
+  { { $as_echo "$as_me:$LINENO: error:
+  Can't find json-wheel!
+  Specify by running \"./configure JSON=<Path>\"" >&5
+$as_echo "$as_me: error:
+  Can't find json-wheel!
+  Specify by running \"./configure JSON=<Path>\"" >&2;}
+   { (exit 1); exit 1; }; }
+else
+  { $as_echo "$as_me:$LINENO: result: using json-wheel from $JSON" >&5
+$as_echo "using json-wheel from $JSON" >&6; }
+
+  # Now we are ready for the ride.
+  if test $USE_FIND
+  then
+    COMPILEFLAGS="$COMPILEFLAGS -package json-wheel"
+    USE_FIND=""
+  else
+    COMPILEFLAGS="$COMPILEFLAGS -I $JSON/ -ccopt -L$JSON"
+  fi
+fi
 
 
 # Do we know where to look?
 
 
-if test -z $XML -a ! $NO_FIND
+if test -z $XML
 then
-  XML=`$OCAMLFIND query xml-light`
-  USE_FIND=true
+  if test ! $NO_FIND
+  then
+    XML=`$OCAMLFIND query xml-light`
+    USE_FIND=true
+  fi
 fi
 
 
@@ -2379,7 +2476,7 @@ then
      XML=$DEFAULTXML
 fi
 
-# Are mommy and daddy home?
+
 as_ac_File=`$as_echo "ac_cv_file_$XML/xml-light.cma" | $as_tr_sh`
 { $as_echo "$as_me:$LINENO: checking for $XML/xml-light.cma" >&5
 $as_echo_n "checking for $XML/xml-light.cma... " >&6; }
@@ -2463,12 +2560,6 @@ fi
 
 
 
-
-######
-##
-#  Chapter 4: Now we only need a camel.
-##
-######
 
 
 ac_config_files="$ac_config_files Makefile"

@@ -35,6 +35,7 @@
 
 open Pretty
 module GU = Goblintutil
+module JB = Json_type.Browse
 
 module type S =
 sig
@@ -1446,33 +1447,43 @@ struct
   
   let name () = Trier.name ()
     
-  let top () = 
-    [Trier    (Trier.top ())
-    ;Interval (Interval.top ())]
-      
-  let bot () = 
-    [Trier    (Trier.bot ())
-    ;Interval (Interval.bot ())]
-  
-  let starting x = 
-    [Trier    (Trier.starting x)
-    ;Interval (Interval.starting x)]
-
-  let ending x = 
-    [Trier    (Trier.ending x)
-    ;Interval (Interval.ending x)]
+  let int_ds = JB.make_table (JB.objekt (JB.field GU.conf "int_domain")) 
     
-  let of_bool x = 
-    [Trier    (Trier.of_bool x)
-    ;Interval (Interval.of_bool x)]
-  
-  let of_excl_list x = 
-    [Trier    (Trier.of_excl_list x)
-    ;Interval (Interval.of_excl_list x)]
+  let constr_scheme xs =
+    let f (s,g) y : t = 
+      if JB.bool (JB.field int_ds s) 
+      then (g ()) :: y
+      else y
+    in
+    List.fold_right f xs []
 
-  let of_int x = 
-    [Trier    (Trier.of_int x)
-    ;Interval (Interval.of_int x)]
+  let top () = constr_scheme
+    [("trier"   ,fun () -> Trier    (Trier.top ()))
+    ;("interval",fun () -> Interval (Interval.top ()))]
+      
+  let bot () = constr_scheme
+    [("trier"   ,fun () -> Trier    (Trier.bot ()))
+    ;("interval",fun () -> Interval (Interval.bot ()))]
+  
+  let starting x = constr_scheme
+    [("trier"   ,fun () -> Trier    (Trier.starting x))
+    ;("interval",fun () -> Interval (Interval.starting x))]
+
+  let ending x = constr_scheme
+    [("trier"   ,fun () -> Trier    (Trier.ending x))
+    ;("interval",fun () -> Interval (Interval.ending x))]
+    
+  let of_bool x = constr_scheme
+    [("trier"   ,fun () -> Trier    (Trier.of_bool x))
+    ;("interval",fun () -> Interval (Interval.of_bool x))]
+  
+  let of_excl_list x = constr_scheme
+    [("trier"   ,fun () -> Trier    (Trier.of_excl_list x))
+    ;("interval",fun () -> Interval (Interval.of_excl_list x))]
+
+  let of_int x = constr_scheme
+    [("trier"   ,fun () -> Trier    (Trier.of_int x))
+    ;("interval",fun () -> Interval (Interval.of_int x))]
   
   (* element functions *)
   

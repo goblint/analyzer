@@ -37,6 +37,7 @@
 
 module CF = Cilfacade
 module GU = Goblintutil
+module JB = Json_type.Browse
 module M = Messages
 
 let main () =
@@ -81,8 +82,9 @@ let main () =
       | "no_path" -> Mutex.SimpleAnalysis.analyze
       | "base" -> Base.Analysis.analyze
       | "malloc_null" -> Malloc_null.Analysis.analyze
-      | _ -> raise (Arg.Bad "no such analysis")
+      | _ -> raise (Arg.Bad ("no such analysis: "^str))
   in
+  let _ = setanalysis (JB.string (JB.field GU.conf "analysis")) in
   let setsolver str = 
     GU.solver := match str with
       | "effectWCon"
