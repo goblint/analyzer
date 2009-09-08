@@ -111,14 +111,9 @@ struct
   let es_to_string f es  = Base.es_to_string f (Dom.choose es)
   let should_join _ _ = true
   
-  (** query if exps are equal *)
-  let exp_equal e1 e2 g d =
-    let eq d x = 
-      match x with
-        | None -> Base.exp_equal e1 e2 g d
-        | x -> x 
-    in
-    Dom.fold eq d None
+  let query a g s y = 
+    let f e b = Queries.Result.meet b (Base.query a g e y) in 
+    Dom.fold f s (Queries.Result.bot ())
   
   (** [lift f set] is basically a map, that handles dead-code*)
   let lift f set = 
@@ -134,31 +129,31 @@ struct
   let reset_diff x = Dom.map Base.reset_diff x
   let get_diff x = Dom.fold (fun x y -> Base.get_diff x @ y) x []
 
-  let assign lval exp gs       = lift (Base.assign lval exp gs)
-  let branch exp br gs         = lift (Base.branch exp br gs)
-  let body f gs                = lift (Base.body f gs)
-  let return exp f gs          = lift (Base.return exp f gs)
+  let assign a lval exp gs       = lift (Base.assign a lval exp gs)
+  let branch a exp br gs         = lift (Base.branch a exp br gs)
+  let body a f gs                = lift (Base.body a f gs)
+  let return a exp f gs          = lift (Base.return a exp f gs)
 
-  let special_fn lval f args gs st = 
-    Dom.fold (fun st xs -> List.map Dom.singleton (Base.special_fn lval f args gs st)  @ xs) st [] 
+  let special_fn a lval f args gs st = 
+    Dom.fold (fun st xs -> List.map Dom.singleton (Base.special_fn a lval f args gs st)  @ xs) st [] 
   
   let eval_funvar exp gs st  = Dom.fold (fun x xs -> (Base.eval_funvar exp gs x) @ xs)  st []
   
-  let fork lval fn args gs st = 
+  let fork a lval fn args gs st = 
     let add_spawn st ss =  
-      List.map (fun (x,y) -> x, Dom.singleton y) (Base.fork lval fn args gs st) @ ss
+      List.map (fun (x,y) -> x, Dom.singleton y) (Base.fork a lval fn args gs st) @ ss
     in
     Dom.fold add_spawn st []
   
-  let enter_func lval fn args gs st : (Dom.t * Dom.t) list =
+  let enter_func a lval fn args gs st : (Dom.t * Dom.t) list =
     let sing_pair (x,y) =  Dom.singleton x, Dom.singleton y in
-    let add_work wrk_list st = List.map sing_pair (Base.enter_func lval fn args gs st) @ wrk_list in
+    let add_work wrk_list st = List.map sing_pair (Base.enter_func a lval fn args gs st) @ wrk_list in
     List.fold_left add_work [] (Dom.elements st) 
 
-  let leave_func lval fn args gs before after : Dom.t =
+  let leave_func a lval fn args gs before after : Dom.t =
     (* we join as a general case -- but it should have been a singleton anyway *)
     let bbf : Base.Dom.t = Dom.fold Base.Dom.join before (Base.Dom.bot ()) in
-    let leave_and_join nst result = Dom.join result (Dom.singleton (Base.leave_func lval fn args gs bbf nst)) in
+    let leave_and_join nst result = Dom.join result (Dom.singleton (Base.leave_func a lval fn args gs bbf nst)) in
     Dom.fold leave_and_join after (Dom.bot ())    
 end
 

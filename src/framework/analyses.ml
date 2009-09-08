@@ -85,19 +85,19 @@ sig
   (** returns global differences from state *)
   
   
-  (** Query functions: *)
-  val exp_equal: exp -> exp -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> bool option
-  (** Tells us if two expressions must/may not be equal. *)
-  
+  (** Query function: *)
+  val query: (Queries.t -> Queries.Result.t) -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Queries.t -> Queries.Result.t 
+  (** Answers our ... ahem ... queries. *)
+
   (** Transfer functions:  *)
   
-  val assign: lval -> exp -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t 
+  val assign: (Queries.t -> Queries.Result.t) ->  lval -> exp -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t 
   (** handle assignments *)
-  val branch: exp -> bool -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t
+  val branch: (Queries.t -> Queries.Result.t) -> exp -> bool -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t
   (** handle branches *)
-  val body  : fundec      -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t
+  val body  : (Queries.t -> Queries.Result.t) -> fundec      -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t
   (** steping inside of a function body *)
-  val return: exp option  -> fundec -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t
+  val return: (Queries.t -> Queries.Result.t) -> exp option  -> fundec -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t
   (** steping out from a function *)
   
 
@@ -111,16 +111,16 @@ sig
   *)
   
   
-  val eval_funvar : exp -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> varinfo list
-  (** [eval_funvar f st] evaluates [f] to a list of possible functions (in state [st]) *)
-  val fork       : lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> (varinfo * Dom.t) list  
+  val eval_funvar: exp -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> varinfo list
+  (** [eval_funvar q f st] evaluates [f] to a list of possible functions (in state [st]) *)
+  val fork       : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> (varinfo * Dom.t) list  
   (** [fork] returns list of function,input-state pairs, that the callee has spawned *)
-  val special_fn : lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t list
+  val special_fn : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t list
   (** [special_fn] is called, when given varinfo is not connected to a fundec -- no function definition is given*)
-  val enter_func : lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> (Dom.t * Dom.t) list 
+  val enter_func : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> (Dom.t * Dom.t) list 
   (** [enter_func] returns input-states that must be analyzed for the given function *)
-  val leave_func : lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t -> Dom.t
-  (** [leave_func lv f a x y] does postprocessing on the analyzed [enter_func lv f a x] output [y] -- usually readding some
+  val leave_func : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t -> Dom.t
+  (** [leave_func q lv f a x y] does postprocessing on the analyzed [enter_func q lv f a x] output [y] -- usually readding some
      context from [x] *)
 
 end

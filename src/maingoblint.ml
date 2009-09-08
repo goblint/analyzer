@@ -77,6 +77,7 @@ let main () =
   let setanalysis str = 
     analyze := match str with
 (*      | "mem" ->  MemLeaks.Analysis.analyze *)
+      | "mcp" -> MCP.Analysis.analyze
       | "uninit" -> Uninit.Analysis.analyze
       | "mutex" -> Mutex.Analysis.analyze
       | "no_path" -> Mutex.SimpleAnalysis.analyze

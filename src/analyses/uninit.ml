@@ -68,9 +68,9 @@ struct
   let get_diff (_,x) = BS.get_diff x
   let reset_diff (y,x) = (y,BS.reset_diff x)
   
-  (* equality query --- pass on to base *)
-  let exp_equal e1 e2 g (_,b) = BS.exp_equal e1 e2 g b  
-  
+  (*  queries *)
+  let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
+
   (* list accessed addresses *)
   let varoffs (rval:exp) (gs:glob_fun) (st:BS.store) =
     let f vs (v,o,_) =
@@ -215,36 +215,36 @@ struct
     Transfer functions
   *)
   
-  let assign (lval:lval) (rval:exp) (gl:glob_fun) (st,gs:trans_in) : trans_out =
+  let assign a (lval:lval) (rval:exp) (gl:glob_fun) (st,gs:trans_in) : trans_out =
     ignore (is_expr_initd rval gl st gs);
-    (init_lval lval gl gs st, BS.assign lval rval gl gs)
+    (init_lval lval gl gs st, BS.assign a lval rval gl gs)
         
-  let branch (exp:exp) (tv:bool) (gl:glob_fun) (st,gs:trans_in) : trans_out = 
+  let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st,gs:trans_in) : trans_out = 
     ignore (is_expr_initd exp gl st gs);
-    (st,BS.branch exp tv gl gs)
+    (st,BS.branch a exp tv gl gs)
   
-  let body (f:fundec) (gl:glob_fun) (st,gs:trans_in) : trans_out = 
+  let body a (f:fundec) (gl:glob_fun) (st,gs:trans_in) : trans_out = 
     let add_var st v = List.fold_right LD.add (to_addrs v) st in
-    (List.fold_left add_var st f.slocals, BS.body f gl gs)
+    (List.fold_left add_var st f.slocals, BS.body a f gl gs)
   
-  let return (exp:exp option) (f:fundec) (gl:glob_fun) (st,gs:trans_in) : trans_out = 
+  let return a (exp:exp option) (f:fundec) (gl:glob_fun) (st,gs:trans_in) : trans_out = 
     let remove_var x v = 
       List.fold_right LD.remove (to_addrs v) x in
     let nst = List.fold_left remove_var st (f.slocals @ f.sformals) in
     match exp with 
-      | Some exp -> ignore (is_expr_initd exp gl st gs); (nst, BS.return (Some exp) f gl gs)
-      | _ -> (nst,BS.return exp f gl gs)
+      | Some exp -> ignore (is_expr_initd exp gl st gs); (nst, BS.return a (Some exp) f gl gs)
+      | _ -> (nst,BS.return a exp f gl gs)
   
   
   
   let eval_funvar fn (gl:glob_fun) (_,st) = BS.eval_funvar fn gl st    
   
-  let enter_func (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st,gs:trans_in) : (Dom.t * Dom.t) list =
+  let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st,gs:trans_in) : (Dom.t * Dom.t) list =
     let nst = remove_unreachable args gl gs st in
     let lift_pair (bf,g) = (st,gs), (nst, g)  in
-    List.map lift_pair (BS.enter_func lval f args gl gs)
+    List.map lift_pair (BS.enter_func a lval f args gl gs)
   
-  let leave_func (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu,bst:Dom.t) (au,ast:Dom.t) : trans_out =
+  let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu,bst:Dom.t) (au,ast:Dom.t) : trans_out =
     ignore (List.map (fun x -> is_expr_initd x gl bu bst) args);
     let cal_st = remove_unreachable args gl bst bu in
     let ret_st = LD.union au (LD.diff bu cal_st) in
@@ -253,9 +253,9 @@ struct
         | None -> ret_st
         | Some lv -> init_lval lv gl bst ret_st
     in
-    new_u, BS.leave_func lval f args gl bst ast
+    new_u, BS.leave_func a lval f args gl bst ast
   
-  let special_fn (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st,gs:trans_in) : Dom.t list =
+  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st,gs:trans_in) : Dom.t list =
     let remove_lv lval =
       let addr  = BS.eval_lv gl gs lval in
       if AD.is_top addr then st else
@@ -265,13 +265,13 @@ struct
       else
         st        
     in  
-    let map_bs x = List.map (fun y -> x, y) (BS.special_fn lval f arglist gl gs) in
+    let map_bs x = List.map (fun y -> x, y) (BS.special_fn a lval f arglist gl gs) in
     match lval with
       | Some lv -> map_bs (remove_lv lv)
       | _ -> map_bs st
       
-  let fork (lval: lval option) (f : varinfo) (args : exp list) (gl:glob_fun) ((univ, cpa) : trans_in) : (varinfo * Dom.t) list =
-    let base = BS.fork lval f args gl cpa in
+  let fork a (lval: lval option) (f : varinfo) (args : exp list) (gl:glob_fun) ((univ, cpa) : trans_in) : (varinfo * Dom.t) list =
+    let base = BS.fork a lval f args gl cpa in
     let dress (v,d) = v, (LD.top (), d) in 
     List.map dress base
 

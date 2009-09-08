@@ -71,7 +71,8 @@ struct
   let es_to_string f es = f.svar.vname
   
   let exp_equal e1 e2 g s = None
-  
+  let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
+
   let reset_diff x = x
   let get_diff   x = []
   let should_join x y = true
@@ -81,16 +82,16 @@ struct
       myvar.vid <- -99;
       myvar
 
-  let assign lval rval glob st = Dom.assign lval rval st
-  let branch exp tv glob st = st
-  let return exp fundec glob st = st
-  let body   f glob st = st
-  let special f arglist glob st = st
+  let assign a lval rval glob st = Dom.assign lval rval st
+  let branch a exp tv glob st = st
+  let return a exp fundec glob st = st
+  let body   a f glob st = st
+  let special a f arglist glob st = st
 
-  let enter_func lval f args glob st = []
-  let leave_func lval f args glob st1 st2 = st1
-  let special_fn lval f args glob st = []
-  let fork       lval f args glob st = []
+  let enter_func a lval f args glob st = []
+  let leave_func a lval f args glob st1 st2 = st1
+  let special_fn a lval f args glob st = []
+  let fork       a lval f args glob st = []
   
   let eval_funvar exp glob st = []
 

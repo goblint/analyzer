@@ -91,9 +91,9 @@ struct
   let get_diff (x,_) = BS.get_diff x
   let reset_diff (x,y) = (BS.reset_diff x, y)
   
-  (** equality query --- pass on to base *)
-  let exp_equal e1 e2 g (b,_) = BS.exp_equal e1 e2 g b  
-  
+  (** queries *)
+  let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
+
   (** Access counting is done using side-effect (accesses added in [add_accesses] and read in [finalize]) : *)
   
   (* 
@@ -139,40 +139,40 @@ struct
   
   (** Transfer functions: *)
   
-  let assign lval rval gs (bst,ust: Dom.t) : Dom.t = 
+  let assign a lval rval gs (bst,ust: Dom.t) : Dom.t = 
     let accessed = BS.access_one_byval true gs bst (Lval lval) @ BS.access_one_byval false gs bst rval in
     add_accesses accessed (bst,ust) ;
-    (BS.assign lval rval gs bst, ust)
+    (BS.assign a lval rval gs bst, ust)
     
-  let branch exp tv gs (bst,ust: Dom.t) : Dom.t =
+  let branch a exp tv gs (bst,ust: Dom.t) : Dom.t =
     let accessed = BS.access_one_byval false gs bst exp in
     add_accesses accessed (bst,ust);
-    (BS.branch exp tv gs bst, ust)
+    (BS.branch a exp tv gs bst, ust)
     
-  let return exp fundec gs (bst,ust: Dom.t) : Dom.t =
+  let return a exp fundec gs (bst,ust: Dom.t) : Dom.t =
     begin match exp with 
       | Some exp -> 
           let accessed = BS.access_one_byval false gs bst exp in
           add_accesses accessed (bst,ust)
       | None -> () end;
-      (BS.return exp fundec gs bst, ust)
+      (BS.return a exp fundec gs bst, ust)
         
-  let body f gs (bst,ust: Dom.t) : Dom.t = 
-    (BS.body f gs bst, ust)
+  let body a f gs (bst,ust: Dom.t) : Dom.t = 
+    (BS.body a f gs bst, ust)
 
   let eval_funvar exp gs (bst,bl) = 
     let read = BS.access_one_byval false gs bst exp in
     add_accesses read (bst,bl); 
     BS.eval_funvar exp gs bst
   
-  let special_fn lv f arglist gs (bst,ls: Dom.t) : Dom.t list =
+  let special_fn a lv f arglist gs (bst,ls: Dom.t) : Dom.t list =
     let eval_exp_addr context exp =
       let v = BS.eval_rv gs context exp in
         match v with
           | `Address v when not (AD.is_top v) -> AD.fold (fun a b -> a :: b) v []    
           | _                                 -> []
     in
-    let map_bs x = List.map (fun y -> y, x) (BS.special_fn lv f arglist gs bst) in
+    let map_bs x = List.map (fun y -> y, x) (BS.special_fn a lv f arglist gs bst) in
     let lock rw =
         let lock_one (e:LockDomain.Addr.t) =
           let set_ret v sts = 
@@ -246,17 +246,17 @@ struct
           add_accesses (read @ accessable) (bst,ls);
           map_bs ls
           
-  let enter_func lv f args gs (bst,lst) : (Dom.t * Dom.t) list =
-    List.map (fun (bf,st) -> (bf,lst),(st,lst)) (BS.enter_func lv f args gs bst) 
+  let enter_func a lv f args gs (bst,lst) : (Dom.t * Dom.t) list =
+    List.map (fun (bf,st) -> (bf,lst),(st,lst)) (BS.enter_func a lv f args gs bst) 
 
-  let leave_func lv f args gs (bst,bl) (ast,al) = 
+  let leave_func a lv f args gs (bst,bl) (ast,al) = 
     let read = BS.access_byval false gs bst args in
     add_accesses read (bst,bl); 
-    let rslt = BS.leave_func lv f args gs bst ast in
+    let rslt = BS.leave_func a lv f args gs bst ast in
     (rslt, al)
     
-  let fork lv f args gs (bst,ls) = 
-    List.map (fun (f,t) -> (f,(t,ls))) (BS.fork lv f args gs bst)
+  let fork a lv f args gs (bst,ls) = 
+    List.map (fun (f,t) -> (f,(t,ls))) (BS.fork a lv f args gs bst)
   
   
   (** Finalization and other result printing functions: *)

@@ -27,13 +27,13 @@ DOCFLAGS = @DOCFLAGS@ -stars -t 'Goblint API documentation' -dot-reduce -dot -ht
 PROG_MODULES = \
 	goblintutil messages printer cilfacade xmldump \
 	printable lattice setDomain mapDomain partitionDomain \
-	basetype intDomain lval addressDomain \
+	queries basetype intDomain lval addressDomain \
 	arrayDomain structDomain unionDomain valueDomain memoryDomain \
 	musteqDomain regionDomain concDomain lockDomain \
 	hash progress myCFG analyses libraryFunctions global \
 	solver effectWCon effectWNCon solverConSideRR solverConSideWNRR \
-	multithread compose partition preBase \
-	base owner unit mutex uninit malloc_null memLeaks
+	multithread compose partition \
+	base owner unit mutex uninit malloc_null memLeaks mCP
 
 TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \
 	intDomainTest mapDomainTest collapsingArrayDomainTest \

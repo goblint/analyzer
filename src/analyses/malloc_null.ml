@@ -19,8 +19,8 @@ struct
   let get_diff (_,x) = BS.get_diff x
   let reset_diff (y,x) = (y,BS.reset_diff x)
   
-  (* equality query --- pass on to base *)
-  let exp_equal e1 e2 g (_,b) = BS.exp_equal e1 e2 g b  
+  (* queries *)
+  let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
   (*
     Addr set functions: 
@@ -121,25 +121,25 @@ struct
   
   (* One step tf-s *)
   
-  let assign (lval:lval) (rval:exp) (gl:glob_fun) (st,gs:Dom.t) : Dom.t =
+  let assign a (lval:lval) (rval:exp) (gl:glob_fun) (st,gs:Dom.t) : Dom.t =
     warn_deref_exp gl (st,gs) (Lval lval) ;
     warn_deref_exp gl (st,gs) rval;
     match get_concrete_exp rval gl (st,gs), get_concrete_lval lval gl (st,gs) with
       | Some rv , Some (vt,ot) when might_be_null rv gl (st,gs) -> 
-          AddrSet.add (Addr.from_var_offset (vt,ot)) st, BS.assign lval rval gl gs
-      | _ -> st, BS.assign lval rval gl gs
+          AddrSet.add (Addr.from_var_offset (vt,ot)) st, BS.assign a lval rval gl gs
+      | _ -> st, BS.assign a lval rval gl gs
       
-  let branch (exp:exp) (tv:bool) (gl:glob_fun) (st,gs:Dom.t) : Dom.t = 
+  let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st,gs:Dom.t) : Dom.t = 
     warn_deref_exp gl (st,gs) exp;
-    (st,BS.branch exp tv gl gs)
+    (st,BS.branch a exp tv gl gs)
   
-  let body (f:fundec) (gl:glob_fun) (st,gs:Dom.t) : Dom.t = 
-    (st, BS.body f gl gs)
+  let body a (f:fundec) (gl:glob_fun) (st,gs:Dom.t) : Dom.t = 
+    (st, BS.body a f gl gs)
   
   let return_addr_ = ref (Addr.null_ptr ())
   let return_addr () = !return_addr_
   
-  let return (exp:exp option) (f:fundec) (gl:glob_fun) (st,gs:Dom.t) : Dom.t = 
+  let return a (exp:exp option) (f:fundec) (gl:glob_fun) (st,gs:Dom.t) : Dom.t = 
     let remove_var x v = List.fold_right AddrSet.remove (to_addrs v) x in
     let nst = List.fold_left remove_var st (f.slocals @ f.sformals) in
     match exp with
@@ -147,9 +147,9 @@ struct
           warn_deref_exp gl (st,gs) ret;
           begin match get_concrete_exp ret gl (st,gs) with
             | Some ev when might_be_null ev gl (st,gs) ->
-                AddrSet.add (return_addr ()) nst, BS.return exp f gl gs
-            | _ -> (nst,BS.return exp f gl gs)  end
-      | None -> (nst,BS.return exp f gl gs)  
+                AddrSet.add (return_addr ()) nst, BS.return a exp f gl gs
+            | _ -> (nst,BS.return a exp f gl gs)  end
+      | None -> (nst,BS.return a exp f gl gs)  
   
   (* Function calls *)
   
@@ -157,13 +157,13 @@ struct
     warn_deref_exp gl (st,gs) fv;
     BS.eval_funvar fv gl gs
   
-  let enter_func (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st,gs:Dom.t) : (Dom.t * Dom.t) list =
+  let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st,gs:Dom.t) : (Dom.t * Dom.t) list =
     let nst = remove_unreachable args gl gs st in
     may (fun x -> warn_deref_exp gl (st,gs) (Lval x)) lval;
     List.iter (warn_deref_exp gl (st,gs)) args;
-    List.map (fun (b,x) -> (st,b), (nst, x)) (BS.enter_func lval f args gl gs)          
+    List.map (fun (b,x) -> (st,b), (nst, x)) (BS.enter_func a lval f args gl gs)          
   
-  let leave_func (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu,bst:Dom.t) (au,ast:Dom.t) : Dom.t =
+  let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu,bst:Dom.t) (au,ast:Dom.t) : Dom.t =
     let cal_st = remove_unreachable args gl bst bu in
     let ret_st = AddrSet.union au (AddrSet.diff bu cal_st) in
     let new_u = 
@@ -174,12 +174,12 @@ struct
                     | _ -> ret_st end
         | _ -> ret_st
     in
-    new_u, BS.leave_func lval f args gl bst ast
+    new_u, BS.leave_func a lval f args gl bst ast
   
-  let special_fn (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st,gs:Dom.t) : Dom.t list =
+  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st,gs:Dom.t) : Dom.t list =
     may (fun x -> warn_deref_exp gl (st,gs) (Lval x)) lval;
     List.iter (warn_deref_exp gl (st,gs)) arglist;
-    let map_gs x = List.map (fun y -> x, y) (BS.special_fn lval f arglist gl gs) in
+    let map_gs x = List.map (fun y -> x, y) (BS.special_fn a lval f arglist gl gs) in
     let null_it add x = BS.set gl x add (`Address (AD.null_ptr ()))  in
     match f.vname, lval with
       | "malloc", Some lv ->
@@ -192,9 +192,9 @@ struct
         end
       | _ -> map_gs st 
   
-  let fork (lval: lval option) (f : varinfo) (args : exp list) (gl:glob_fun) (univ,cpa: Dom.t) : (varinfo * Dom.t) list =
+  let fork a (lval: lval option) (f : varinfo) (args : exp list) (gl:glob_fun) (univ,cpa: Dom.t) : (varinfo * Dom.t) list =
     let dress (v,d) = v, (AddrSet.top (), d) in 
-    List.map dress (BS.fork lval f args gl cpa)
+    List.map dress (BS.fork a lval f args gl cpa)
   
   let name = "Malloc null"
 

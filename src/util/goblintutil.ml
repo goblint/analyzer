@@ -44,11 +44,12 @@ open Json_type.Browse
 let default_conf () =
   let def_int = Build.objekt ["trier"    , Build.bool true
                              ;"interval" , Build.bool false] in
-  let def_pre = Build.objekt ["partition", Build.bool true ] in
-  Build.objekt ["int_domain"      , def_int
-               ;"pre_cpa_analysis", def_pre
-               ;"analysis"        , Build.string "mutex"
-               ;"solver"          , Build.string "effectWCon" ]
+  let def_ana = Build.objekt ["base"     , Build.bool true
+                             ;"partition", Build.bool false] in
+  Build.objekt ["int_domain" , def_int
+               ;"analyses"   , def_ana
+               ;"analysis"   , Build.string "mutex"
+               ;"solver"     , Build.string "effectWCon" ]
 
 (* configuration structure -- get it from a file or generate a new one *)
 let conf = 

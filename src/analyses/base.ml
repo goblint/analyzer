@@ -49,6 +49,7 @@ module VD = ValueDomain.Compound
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 
+
 let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
   | TInt (IInt, attr) -> hasAttribute "mutex" attr
@@ -630,10 +631,10 @@ struct
   * Simple defs for the transfer functions 
   **************************************************************************)
 
-  let assign lval rval gs st = 
+  let assign a lval rval gs st = 
     set_savetop gs st (eval_lv gs st lval) (eval_rv gs st rval)
 
-  let branch (exp:exp) (tv:bool) gs (st: store): store =
+  let branch a (exp:exp) (tv:bool) gs (st: store): store =
     (* First we want to see, if we can determine a dead branch: *)
     match eval_rv gs st exp with
       (* For a boolean value: *)
@@ -646,14 +647,14 @@ struct
       (* Otherwise we try to impose an invariant: *)
       | _ -> invariant gs st exp tv 
 
-  let body f gs st = 
+  let body a f gs st = 
     (* First we create a variable-initvalue pair for each varaiable *)
     let init_var v = (AD.from_var v, init_value gs st v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
       set_many gs st inits
 
-  let return exp fundec gs st =
+  let return a exp fundec gs st =
     let nst = rem_many st (fundec.sformals @ fundec.slocals) in
       match exp with
         | None -> nst
@@ -807,15 +808,16 @@ struct
       | 0 -> Flag.compare x2 y2
       | x -> x
 
-  let exp_equal e1 e2 gs (_,p,_ as st : store) = 
+(*  let exp_equal e1 e2 gs (_,p,_ as st : store) = 
     match eval_rv gs st e1, eval_rv gs st e2 with
       | `Int x , `Int y when ID.equal x y && ID.is_int x -> Some true
       | `Int x , `Int y when ID.is_bot (ID.meet x y) -> Some false
       | `Address x, `Address y 
           when AD.equal x y && List.length (AD.to_var_must x) == 0 ->
           Some true
-      | _ -> None
+      | _ -> None*)
 
+  let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
  (**************************************************************************
   * Function calls
@@ -829,7 +831,7 @@ struct
       [dummyFunDec.svar] 
     
   
-  let special_fn (lv:lval option) (f: varinfo) (args: exp list) (gs:glob_fun) (cpa,fl,gl as st:store): Dom.t list = 
+  let special_fn a (lv:lval option) (f: varinfo) (args: exp list) (gs:glob_fun) (cpa,fl,gl as st:store): Dom.t list = 
 (*    let heap_var = heap_var !GU.current_loc in*)
     match f.vname with 
       | "exit" ->  raise A.Deadcode
@@ -930,7 +932,7 @@ struct
               )
         end
 
-  let enter_func lval fn args gs (cpa,fl,gl as st: store): (Dom.t * Dom.t) list = 
+  let enter_func a lval fn args gs (cpa,fl,gl as st: store): (Dom.t * Dom.t) list = 
     let make_entry pa context =
       (* If we need the globals, add them *)
       let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
@@ -967,7 +969,7 @@ struct
     in
       List.fold_right g flist [] 
 
-  let fork (lv: lval option) (f: varinfo) (args: exp list) gs (cpa,fl,gl as st:store) : (varinfo * Dom.t) list = 
+  let fork a (lv: lval option) (f: varinfo) (args: exp list) gs (cpa,fl,gl as st:store) : (varinfo * Dom.t) list = 
     match f.vname with 
       (* handling thread creations *)
       | "pthread_create" -> begin        
@@ -978,7 +980,7 @@ struct
                 try
                   (* try to get function declaration *)
                   let _ = Cilfacade.getdec start_vari in 
-                  let sts = enter_func None start_vari [ptc_arg] gs (cpa, Flag.get_multi (), gl) in
+                  let sts = enter_func a None start_vari [ptc_arg] gs (cpa, Flag.get_multi (), gl) in
                   List.map (fun (_,st) -> start_vari, st) sts
                 with Not_found -> 
                   M.warn ("creating an thread from unknown function " ^ start_vari.vname);
@@ -995,7 +997,7 @@ struct
             collect_spawned gs st args
         end
 
-  let leave_func (lval: lval option) (f: varinfo) (args: exp list) gs (before: Dom.t) (after: Dom.t) : Dom.t =
+  let leave_func a (lval: lval option) (f: varinfo) (args: exp list) gs (before: Dom.t) (after: Dom.t) : Dom.t =
     let combine_one (loc,lf,gl as st: Dom.t) ((fun_st,fun_fl,_) as fun_d: Dom.t) = 
       (* This function does miscelaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now

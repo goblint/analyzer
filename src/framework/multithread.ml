@@ -72,6 +72,7 @@ struct
   end
   (** name the analyzer *)
   let name = "analyzer"
+  let fake_query_fun x = Queries.Result.top () 
   
   let system (cfg: MyCFG.cfg) (var: Var.t) : (Solver.var_assign * Solver.glob_assign -> Solver.var_domain * Solver.glob_diff * Solver.calls) list = 
     if M.tracing then M.trace "con" (dprintf "%a\n" Var.pretty_trace var);
@@ -106,22 +107,22 @@ struct
       
       Also we concatenate each [forks lval f args st] for each [f]
       *)
-    let proc_call sigma theta lval exp args st : Solver.var_domain * Solver.glob_diff * Solver.variable list =
+    let proc_call sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.glob_diff * Solver.variable list =
       let funs  = Spec.eval_funvar exp theta st in
       let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
       let add_function st' f : Spec.Dom.t =
         let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
         if has_dec && not (LibraryFunctions.use_special f.vname) then
-          let work    = Spec.enter_func lval f args theta st in
-          let leave   = Spec.leave_func lval f args theta in
+          let work    = Spec.enter_func fake_query_fun lval f args theta st in
+          let leave   = Spec.leave_func fake_query_fun lval f args theta in
           let general_results = List.map (fun (y,x) -> y, SD.unlift (sigma (dress (f,x)))) work in
           let joined_result   = List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst tst)) (Spec.Dom.bot ()) general_results in
           Spec.Dom.join st' joined_result        
         else
-          List.fold_left Spec.Dom.join (Spec.Dom.bot ()) (Spec.special_fn lval f args theta st) 
+          List.fold_left Spec.Dom.join (Spec.Dom.bot ()) (Spec.special_fn fake_query_fun lval f args theta st) 
       in
       let crap  = List.fold_left add_function (Spec.Dom.bot ()) funs in      
-      let forks = List.fold_left (fun xs x -> List.map dress (Spec.fork lval x args theta st) @ xs) [] funs in
+      let forks = List.fold_left (fun xs x -> List.map dress (Spec.fork fake_query_fun lval x args theta st) @ xs) [] funs in
       lift_st crap forks
     in
       
@@ -143,10 +144,10 @@ struct
            * the call case. There is an ALMOST constant lifting and unlifting to
            * handle the dead code -- maybe it could be avoided  *)
           match edge with
-            | MyCFG.Entry func             -> lift_st (Spec.body func theta (SD.unlift es)) []
-            | MyCFG.Assign (lval,exp)      -> lift_st (Spec.assign lval exp theta (SD.unlift (sigma predvar))) []
-            | MyCFG.Test   (exp,tv)        -> lift_st (Spec.branch exp tv theta (SD.unlift (sigma predvar))) []
-            | MyCFG.Ret    (ret,fundec)    -> lift_st (Spec.return ret fundec theta (SD.unlift (sigma predvar))) []
+            | MyCFG.Entry func             -> lift_st (Spec.body   fake_query_fun func theta (SD.unlift es)) []
+            | MyCFG.Assign (lval,exp)      -> lift_st (Spec.assign fake_query_fun lval exp theta (SD.unlift (sigma predvar))) []
+            | MyCFG.Test   (exp,tv)        -> lift_st (Spec.branch fake_query_fun exp tv theta (SD.unlift (sigma predvar))) []
+            | MyCFG.Ret    (ret,fundec)    -> lift_st (Spec.return fake_query_fun ret fundec theta (SD.unlift (sigma predvar))) []
             | MyCFG.Proc   (lval,exp,args) -> proc_call sigma theta lval exp args (SD.unlift (sigma predvar)) 
             | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; sigma predvar, [], []
             | MyCFG.Skip                   -> sigma predvar, [], []
@@ -210,8 +211,8 @@ struct
         if M.tracing then M.trace "con" (dprintf "Initializer %a\n" d_loc loc);
         GU.current_loc := loc;
         match edge with
-          | MyCFG.Entry func        -> Spec.body func theta st
-          | MyCFG.Assign (lval,exp) -> Spec.assign lval exp theta st
+          | MyCFG.Entry func        -> Spec.body fake_query_fun func theta st
+          | MyCFG.Assign (lval,exp) -> Spec.assign fake_query_fun lval exp theta st
           | _                       -> raise (Failure "This iz impossible!") 
       with Failure x -> M.warn x; st
     in

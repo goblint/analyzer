@@ -60,6 +60,8 @@ struct
   let otherstate = Dom.top ()
   let es_to_string f es = f.svar.vname
   
+  let query a g s x = Queries.Result.top ()
+  
   let exp_equal e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
     print_string "...";
     match e1, e2 with
@@ -74,21 +76,21 @@ struct
   let get_diff   x = []
   let should_join x y = true
 
-  let branch exp tv glob st     = st
-  let return exp fundec glob st = Dom.top ()
-  let body   f glob st          = Dom.top ()
-  let special f arglist glob st = Dom.top ()
+  let branch a exp tv glob st     = st
+  let return a exp fundec glob st = Dom.top ()
+  let body a f glob st            = Dom.top ()
+  let special a f arglist glob st = Dom.top ()
 
-  let assign (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
+  let assign a (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
     match lval, rval with
       | (Var v1,NoOffset), Lval ((Var v2,NoOffset)) -> Dom.add_eq (v1,v2) (Dom.remove v1 st)
       | (Var v1,_), _ -> Dom.remove v1 st
       | _ -> st
 
-  let enter_func lval f args glob st = [(st,Dom.top ())]
-  let leave_func lval f args glob st1 st2 = Dom.top ()
-  let special_fn lval f args glob st = [Dom.top ()]
-  let fork       lval f args glob st = []
+  let enter_func a lval f args glob st = [(st,Dom.top ())]
+  let leave_func a lval f args glob st1 st2 = Dom.top ()
+  let special_fn a lval f args glob st = [Dom.top ()]
+  let fork       a lval f args glob st = []
   
   let eval_funvar exp glob st = []
 
