@@ -59,18 +59,6 @@ struct
   let startstate = Dom.top ()
   let otherstate = Dom.top ()
   let es_to_string f es = f.svar.vname
-  
-  let query a g s x = Queries.Result.top ()
-  
-  let exp_equal e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
-    print_string "...";
-    match e1, e2 with
-      | Lval  (Var v1,NoOffset), Lval (Var v2,NoOffset) -> begin
-        match Dom.find_class v1 s with
-          | Some ss when Dom.S.mem v2 ss -> print_string ("ok\n"); Some true
-          | _ -> print_string ("not in "^(Dom.short 80 s)^"\n"); None
-        end
-      | _ -> print_string "not lv\n"; None
       
   let reset_diff x = x
   let get_diff   x = []
@@ -79,7 +67,6 @@ struct
   let branch a exp tv glob st     = st
   let return a exp fundec glob st = Dom.top ()
   let body a f glob st            = Dom.top ()
-  let special a f arglist glob st = Dom.top ()
 
   let assign a (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
     match lval, rval with
@@ -92,7 +79,23 @@ struct
   let special_fn a lval f args glob st = [Dom.top ()]
   let fork       a lval f args glob st = []
   
-  let eval_funvar exp glob st = []
+  let eval_funvar a exp glob st = []
+
+  (* query stuff *)
+  
+  let exp_equal e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
+    match e1, e2 with
+      | Lval  (Var v1,NoOffset), Lval (Var v2,NoOffset) -> begin
+        match Dom.find_class v1 s with
+          | Some ss when Dom.S.mem v2 ss -> true
+          | _ -> false
+        end
+      | _ -> false
+      
+  let query a g s x = 
+    match x with 
+      | Queries.ExpEq (e1,e2) when exp_equal e1 e2 g s -> `Int (Queries.ID.of_bool true)
+      | _ -> `Top
 
 end
 

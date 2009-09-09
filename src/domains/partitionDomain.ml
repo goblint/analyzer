@@ -124,7 +124,7 @@ end
 module SetSet (Base: Printable.S) = 
 struct
   module S = SetDomain.Make (Base)
-  module E =  SetDomain.ToppedSet (S) (struct let topname = "Top" end)
+  module E =  SetDomain.ToppedSet (S) (struct let topname = "Bot" end)
   include E
   type set = S.t
   type partition = t
@@ -133,10 +133,15 @@ struct
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
-  let leq x y = if is_top y then true else if is_top x then false else
+  let top = E.bot
+  let bot = E.top
+  let is_top = E.is_bot
+  let is_bot = E.is_top
+
+  let leq y x = if is_bot y then true else if is_bot x then false else
     for_all (fun p -> exists (S.leq p) y) x
 
-  let join xs ys = if is_top xs || is_top ys then top () else
+  let meet xs ys = if is_bot xs || is_bot ys then bot () else
     let f (x: set) (zs: partition): partition = 
       let p z = S.is_empty (S.inter x z) in
       let (rest, joinem) = partition p zs in
@@ -145,7 +150,7 @@ struct
     in
       fold f xs ys
 
-  let meet xs ys = if is_top xs then ys else if is_top ys then xs else
+  let join xs ys = if is_bot xs then ys else if is_bot ys then xs else
     let f (x: set) (zs: partition): partition = 
       let p z = not (S.is_empty (S.inter x z)) in
       let joinem = filter p ys in
@@ -154,7 +159,7 @@ struct
     in
       fold f xs (empty ())
 
-  let remove x ss = if is_top ss then ss else
+  let remove x ss = if is_bot ss then ss else
     let f (z: set) (zz: partition) = 
       let res = S.remove x z in
         if S.cardinal res > 1 then add res zz else zz
@@ -163,9 +168,9 @@ struct
 
   let add_eq (x,y) ss = if Base.equal x y then ss else
     let myset = S.add y (S.singleton x) in
-      join ss (singleton myset)
+      meet ss (singleton myset)
 
-  let filter f ss = if is_top ss then ss else
+  let filter f ss = if is_bot ss then ss else
     let f (z: set) (zz: partition) = 
       let res = S.filter f z in
         if S.cardinal res > 1 then add res zz else zz

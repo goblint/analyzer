@@ -45,7 +45,7 @@ let default_conf () =
   let def_int = Build.objekt ["trier"    , Build.bool true
                              ;"interval" , Build.bool false] in
   let def_ana = Build.objekt ["base"     , Build.bool true
-                             ;"partition", Build.bool false] in
+                             ;"var_eq"   , Build.bool false] in
   Build.objekt ["int_domain" , def_int
                ;"analyses"   , def_ana
                ;"analysis"   , Build.string "mutex"

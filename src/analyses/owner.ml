@@ -93,7 +93,7 @@ struct
   let special_fn a lval f args glob st = []
   let fork       a lval f args glob st = []
   
-  let eval_funvar exp glob st = []
+  let eval_funvar a exp glob st = []
 
 end
 

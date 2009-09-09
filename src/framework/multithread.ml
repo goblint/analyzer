@@ -108,7 +108,7 @@ struct
       Also we concatenate each [forks lval f args st] for each [f]
       *)
     let proc_call sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.glob_diff * Solver.variable list =
-      let funs  = Spec.eval_funvar exp theta st in
+      let funs  = Spec.eval_funvar fake_query_fun exp theta st in
       let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
       let add_function st' f : Spec.Dom.t =
         let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        

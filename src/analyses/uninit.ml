@@ -72,15 +72,15 @@ struct
   let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
   (* list accessed addresses *)
-  let varoffs (rval:exp) (gs:glob_fun) (st:BS.store) =
+  let varoffs a (rval:exp) (gs:glob_fun) (st:BS.store) =
     let f vs (v,o,_) =
       match o with 
         | Offs.Offs o -> (v,o) :: vs
         | _ -> vs in 
-    List.fold_left f [] (BS.access_one_byval false gs st rval)  
+    List.fold_left f [] (BS.access_one_byval a false gs st rval)  
 
-  let vars (rval:exp) (gs:glob_fun) (st:BS.store) : Addr.t list =
-    List.map Addr.from_var_offset (varoffs rval gs st)
+  let vars a (rval:exp) (gs:glob_fun) (st:BS.store) : Addr.t list =
+    List.map Addr.from_var_offset (varoffs a rval gs st)
 
   let is_prefix_of (v1,ofs1: varinfo * (Addr.field,Addr.idx) Lval.offs) (v2,ofs2: varinfo * (Addr.field,Addr.idx) Lval.offs) : bool =
     let rec is_offs_prefix_of pr os = 
@@ -93,8 +93,8 @@ struct
     
 
   (* Does it contain non-initialized variables? *)
-  let is_expr_initd (expr:exp) (gs:glob_fun) (st:LD.t) (ct:BS.store): bool = 
-    let variables = vars expr gs ct in
+  let is_expr_initd a (expr:exp) (gs:glob_fun) (st:LD.t) (ct:BS.store): bool = 
+    let variables = vars a expr gs ct in
     let raw_vars = List.concat (List.map Addr.to_var_offset variables) in
     let will_addr_init (t:bool) a = 
       let f addr =
@@ -173,11 +173,11 @@ struct
         
     
   (* Call to [init_lval lv gs st] results in state [st] where the variable evaluated form [lv] is initialized. *)
-  let init_lval (lv: lval) (gl:glob_fun)  (gs: BS.Dom.t) (st: LD.t) : LD.t =
+  let init_lval a (lv: lval) (gl:glob_fun)  (gs: BS.Dom.t) (st: LD.t) : LD.t =
     let init_vo (v: varinfo) (ofs: lval_offs) : LD.t = 
       List.fold_right remove_if_prefix (get_pfx v `NoOffset ofs v.vtype v.vtype) st
     in
-    let el = BS.eval_lv gl gs lv in
+    let el = BS.eval_lv a gl gs lv in
     if AD.is_top el then st else
     match AD.to_var_offset el with
       | [var,ofs] -> init_vo var ofs
@@ -199,8 +199,8 @@ struct
       | _ -> [Addr.from_var v]
       
   
-  let remove_unreachable (args: exp list) (gl:glob_fun) (gs: BS.Dom.t) (st: LD.t) : LD.t =
-    let vals      = List.map (BS.eval_rv gl gs) args in
+  let remove_unreachable a (args: exp list) (gl:glob_fun) (gs: BS.Dom.t) (st: LD.t) : LD.t =
+    let vals      = List.map (BS.eval_rv a gl gs) args in
     let reachable = BS.reachable_vars (BS.get_ptrs vals) (gl:glob_fun) gs in
     let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
       let vars = AD.to_var_may one in
@@ -216,11 +216,11 @@ struct
   *)
   
   let assign a (lval:lval) (rval:exp) (gl:glob_fun) (st,gs:trans_in) : trans_out =
-    ignore (is_expr_initd rval gl st gs);
-    (init_lval lval gl gs st, BS.assign a lval rval gl gs)
+    ignore (is_expr_initd a rval gl st gs);
+    (init_lval a lval gl gs st, BS.assign a lval rval gl gs)
         
   let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st,gs:trans_in) : trans_out = 
-    ignore (is_expr_initd exp gl st gs);
+    ignore (is_expr_initd a exp gl st gs);
     (st,BS.branch a exp tv gl gs)
   
   let body a (f:fundec) (gl:glob_fun) (st,gs:trans_in) : trans_out = 
@@ -232,32 +232,32 @@ struct
       List.fold_right LD.remove (to_addrs v) x in
     let nst = List.fold_left remove_var st (f.slocals @ f.sformals) in
     match exp with 
-      | Some exp -> ignore (is_expr_initd exp gl st gs); (nst, BS.return a (Some exp) f gl gs)
+      | Some exp -> ignore (is_expr_initd a exp gl st gs); (nst, BS.return a (Some exp) f gl gs)
       | _ -> (nst,BS.return a exp f gl gs)
   
   
   
-  let eval_funvar fn (gl:glob_fun) (_,st) = BS.eval_funvar fn gl st    
+  let eval_funvar a fn (gl:glob_fun) (_,st) = BS.eval_funvar a fn gl st    
   
   let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st,gs:trans_in) : (Dom.t * Dom.t) list =
-    let nst = remove_unreachable args gl gs st in
+    let nst = remove_unreachable a args gl gs st in
     let lift_pair (bf,g) = (st,gs), (nst, g)  in
     List.map lift_pair (BS.enter_func a lval f args gl gs)
   
   let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu,bst:Dom.t) (au,ast:Dom.t) : trans_out =
-    ignore (List.map (fun x -> is_expr_initd x gl bu bst) args);
-    let cal_st = remove_unreachable args gl bst bu in
+    ignore (List.map (fun x -> is_expr_initd a x gl bu bst) args);
+    let cal_st = remove_unreachable a args gl bst bu in
     let ret_st = LD.union au (LD.diff bu cal_st) in
     let new_u = 
       match lval with
         | None -> ret_st
-        | Some lv -> init_lval lv gl bst ret_st
+        | Some lv -> init_lval a lv gl bst ret_st
     in
     new_u, BS.leave_func a lval f args gl bst ast
   
   let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st,gs:trans_in) : Dom.t list =
     let remove_lv lval =
-      let addr  = BS.eval_lv gl gs lval in
+      let addr  = BS.eval_lv a gl gs lval in
       if AD.is_top addr then st else
       let addrl = AD.to_var_offset addr in
       if (List.length addrl) = 1 then

@@ -45,7 +45,7 @@ struct
   
   (* This type should contain all analyses that do not depend on base.*)
   type e = Base      of Base.Dom.t
-         | Partition of Partition.Spec.Dom.t
+         | VarEq of VarEq.Spec.Dom.t
          | Bad
   
   (* We pair list of configurable analyses with multithreadidness flag domain. *)
@@ -64,81 +64,81 @@ struct
     
   (* constructors *)
   let top () = constr_scheme
-    [("base"     ,fun () -> Base      (Base.Dom.top ()))
-    ;("partition",fun () -> Partition (Partition.Spec.Dom.top ()))]
+    [("base"  ,fun () -> Base  (Base.Dom.top ()))
+    ;("var_eq",fun () -> VarEq (VarEq.Spec.Dom.top ()))]
       
   let bot () = constr_scheme
-    [("base"     ,fun () -> Base      (Base.Dom.bot ()))
-    ;("partition",fun () -> Partition (Partition.Spec.Dom.bot ()))]
+    [("base"  ,fun () -> Base  (Base.Dom.bot ()))
+    ;("var_eq",fun () -> VarEq (VarEq.Spec.Dom.bot ()))]
   
 
   let startstate () = constr_scheme
-    [("base"     ,fun () -> Base      (Base.startstate))
-    ;("partition",fun () -> Partition (Partition.Spec.startstate))]
+    [("base"  ,fun () -> Base  (Base.startstate))
+    ;("var_eq",fun () -> VarEq (VarEq.Spec.startstate))]
 
   let otherstate () = constr_scheme
-    [("base"     ,fun () -> Base      (Base.otherstate))
-    ;("partition",fun () -> Partition (Partition.Spec.otherstate))]
+    [("base"  ,fun () -> Base  (Base.otherstate))
+    ;("var_eq",fun () -> VarEq (VarEq.Spec.otherstate))]
 
   (* element lattice functions *)
   let narrow' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Dom.narrow x y)
-      | Partition x, Partition y -> Partition (Partition.Spec.Dom.narrow x y)
+      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.narrow x y)
       | _ -> raise DomainBroken
 
   let widen' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Dom.widen x y)
-      | Partition x, Partition y -> Partition (Partition.Spec.Dom.widen x y)
+      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.widen x y)
       | _ -> raise DomainBroken
 
   let is_top' x =
     match x with
       | Base x -> Base.Dom.is_top x
-      | Partition x -> Partition.Spec.Dom.is_top x
+      | VarEq x -> VarEq.Spec.Dom.is_top x
       | _ -> raise DomainBroken
   
   let is_bot' x =
     match x with
       | Base x -> Base.Dom.is_bot x
-      | Partition x -> Partition.Spec.Dom.is_bot x
+      | VarEq x -> VarEq.Spec.Dom.is_bot x
       | _ -> raise DomainBroken
 
   let meet' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Dom.meet x y)
-      | Partition x, Partition y -> Partition (Partition.Spec.Dom.meet x y)
+      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.meet x y)
       | _ -> raise DomainBroken
 
   let join' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Dom.join x y)
-      | Partition x, Partition y -> Partition (Partition.Spec.Dom.join x y)
+      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.join x y)
       | _ -> raise DomainBroken
 
   let leq' x y =
     match x, y with
       | Base x, Base y -> Base.Dom.leq x y
-      | Partition x, Partition y -> Partition.Spec.Dom.leq x y
+      | VarEq x, VarEq y -> VarEq.Spec.Dom.leq x y
       | _ -> raise DomainBroken
       
   let short' w x =
     match x with
       | Base x -> Base.Dom.short w x
-      | Partition x -> Partition.Spec.Dom.short w x
+      | VarEq x -> VarEq.Spec.Dom.short w x
       | _ -> raise DomainBroken
       
   let toXML_f' sf x =
     match x with
       | Base x -> Base.Dom.toXML_f (fun w x -> sf w (Base x)) x
-      | Partition x -> Partition.Spec.Dom.toXML_f (fun w x -> sf w (Partition x)) x
+      | VarEq x -> VarEq.Spec.Dom.toXML_f (fun w x -> sf w (VarEq x)) x
       | _ -> raise DomainBroken
       
   let pretty_f' sf () x =
     match x with
       | Base x -> Base.Dom.pretty_f (fun w x -> sf w (Base x)) () x
-      | Partition x -> Partition.Spec.Dom.pretty_f (fun w x -> sf w (Partition x)) () x
+      | VarEq x -> VarEq.Spec.Dom.pretty_f (fun w x -> sf w (VarEq x)) () x
       | _ -> raise DomainBroken
       
   let toXML' x = toXML_f' short' x
@@ -148,25 +148,25 @@ struct
   let isSimple' x =
     match x with
       | Base x -> Base.Dom.isSimple x
-      | Partition x -> Partition.Spec.Dom.isSimple x
+      | VarEq x -> VarEq.Spec.Dom.isSimple x
       | _ -> raise DomainBroken
 
   let compare' x y =
     match x, y with
       | Base x, Base y -> Base.Dom.compare x y
-      | Partition x, Partition y -> Partition.Spec.Dom.compare x y
+      | VarEq x, VarEq y -> VarEq.Spec.Dom.compare x y
       | _ -> raise DomainBroken
 
   let equal' x y =
     match x, y with
       | Base x, Base y -> Base.Dom.equal x y
-      | Partition x, Partition y -> Partition.Spec.Dom.equal x y
+      | VarEq x, VarEq y -> VarEq.Spec.Dom.equal x y
       | _ -> raise DomainBroken
 
   let hash' x =
     match x with
       | Base x-> Base.Dom.hash x
-      | Partition x-> Partition.Spec.Dom.hash x
+      | VarEq x-> VarEq.Spec.Dom.hash x
       | _ -> raise DomainBroken
 
   (* combining element functions to list functions *)
@@ -221,7 +221,7 @@ struct
   exception DomainBroken
   
   (* This type should contain all analyses that do not depend on base.*)
-  type e = Partition of Partition.Spec.Glob.Val.t
+  type e = VarEq of VarEq.Spec.Glob.Val.t
          | Base      of Base.Glob.Val.t
          | Bad
   
@@ -241,73 +241,73 @@ struct
     
   (* constructors *)
   let top () = constr_scheme
-    [("base"     ,fun () -> Base      (Base.Glob.Val.top ()))
-    ;("partition",fun () -> Partition (Partition.Spec.Glob.Val.top ()))]
+    [("base"  ,fun () -> Base  (Base.Glob.Val.top ()))
+    ;("var_eq",fun () -> VarEq (VarEq.Spec.Glob.Val.top ()))]
       
   let bot () = constr_scheme
-    [("base"     ,fun () -> Base      (Base.Glob.Val.bot ()))
-    ;("partition",fun () -> Partition (Partition.Spec.Glob.Val.bot ()))]
+    [("base"  ,fun () -> Base  (Base.Glob.Val.bot ()))
+    ;("var_eq",fun () -> VarEq (VarEq.Spec.Glob.Val.bot ()))]
 
   (* element lattice functions *)
   
   let narrow' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.narrow x y)
-      | Partition x, Partition y -> Partition (Partition.Spec.Glob.Val.narrow x y)
+      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.narrow x y)
       | _ -> raise DomainBroken
 
   let widen' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.widen x y)
-      | Partition x, Partition y -> Partition (Partition.Spec.Glob.Val.widen x y)
+      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.widen x y)
       | _ -> raise DomainBroken
 
   let is_top' x =
     match x with
       | Base x -> Base.Glob.Val.is_top x
-      | Partition x -> Partition.Spec.Glob.Val.is_top x
+      | VarEq x -> VarEq.Spec.Glob.Val.is_top x
       | _ -> raise DomainBroken
   
   let is_bot' x =
     match x with
       | Base x -> Base.Glob.Val.is_bot x
-      | Partition x -> Partition.Spec.Glob.Val.is_bot x
+      | VarEq x -> VarEq.Spec.Glob.Val.is_bot x
       | _ -> raise DomainBroken
 
   let meet' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.meet x y)
-      | Partition x, Partition y -> Partition (Partition.Spec.Glob.Val.meet x y)
+      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.meet x y)
       | _ -> raise DomainBroken
 
   let join' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.join x y)
-      | Partition x, Partition y -> Partition (Partition.Spec.Glob.Val.join x y)
+      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.join x y)
       | _ -> raise DomainBroken
 
   let leq' x y =
     match x, y with
       | Base x, Base y -> Base.Glob.Val.leq x y
-      | Partition x, Partition y -> Partition.Spec.Glob.Val.leq x y
+      | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.leq x y
       | _ -> raise DomainBroken
       
   let short' w x =
     match x with
       | Base x -> Base.Glob.Val.short w x
-      | Partition x -> Partition.Spec.Glob.Val.short w x
+      | VarEq x -> VarEq.Spec.Glob.Val.short w x
       | _ -> raise DomainBroken
       
   let toXML_f' sf x =
     match x with
       | Base x -> Base.Glob.Val.toXML_f (fun w x -> sf w (Base x)) x
-      | Partition x -> Partition.Spec.Glob.Val.toXML_f (fun w x -> sf w (Partition x)) x
+      | VarEq x -> VarEq.Spec.Glob.Val.toXML_f (fun w x -> sf w (VarEq x)) x
       | _ -> raise DomainBroken
       
   let pretty_f' sf () x =
     match x with
       | Base x -> Base.Glob.Val.pretty_f (fun w x -> sf w (Base x)) () x
-      | Partition x -> Partition.Spec.Glob.Val.pretty_f (fun w x -> sf w (Partition x)) () x
+      | VarEq x -> VarEq.Spec.Glob.Val.pretty_f (fun w x -> sf w (VarEq x)) () x
       | _ -> raise DomainBroken
       
   let toXML' x = toXML_f' short' x
@@ -317,25 +317,25 @@ struct
   let isSimple' x =
     match x with
       | Base x -> Base.Glob.Val.isSimple x
-      | Partition x -> Partition.Spec.Glob.Val.isSimple x
+      | VarEq x -> VarEq.Spec.Glob.Val.isSimple x
       | _ -> raise DomainBroken
 
   let compare' x y =
     match x, y with
       | Base x, Base y -> Base.Glob.Val.compare x y
-      | Partition x, Partition y -> Partition.Spec.Glob.Val.compare x y
+      | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.compare x y
       | _ -> raise DomainBroken
 
   let equal' x y =
     match x, y with
       | Base x, Base y -> Base.Glob.Val.equal x y
-      | Partition x, Partition y -> Partition.Spec.Glob.Val.equal x y
+      | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.equal x y
       | _ -> raise DomainBroken
 
   let hash' x =
     match x with
       | Base x-> Base.Glob.Val.hash x
-      | Partition x-> Partition.Spec.Glob.Val.hash x
+      | VarEq x-> VarEq.Spec.Glob.Val.hash x
       | _ -> raise DomainBroken
 
   (* combining element functions to list functions *)
@@ -406,10 +406,10 @@ struct
       | Some x -> x
       | None -> raise Glob.Val.DomainBroken
 
-  let globalPartition g (x:Glob.Var.t) : Partition.Spec.Glob.Val.t =
+  let globalVarEq g (x:Glob.Var.t) : VarEq.Spec.Glob.Val.t =
     let f c n = 
       match n with
-        | Glob.Val.Partition x -> Some x
+        | Glob.Val.VarEq x -> Some x
         | _ -> c 
     in
     match List.fold_left f None (g x) with
@@ -419,83 +419,89 @@ struct
   let assign' a lv exp g x =
     match x with
       | Dom.Base x -> Dom.Base (Base.assign a lv exp (globalBase g) x)
-      | Dom.Partition x -> Dom.Partition (Partition.Spec.assign a lv exp (globalPartition g) x)
+      | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.assign a lv exp (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
   let body' a fn g st =
     match st with
       | Dom.Base x -> Dom.Base (Base.body a fn (globalBase g) x)
-      | Dom.Partition x -> Dom.Partition (Partition.Spec.body a fn (globalPartition g) x)
+      | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.body a fn (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
   
   let return' a r fn g st =
     match st with
       | Dom.Base x -> Dom.Base (Base.return a r fn (globalBase g) x)
-      | Dom.Partition x -> Dom.Partition (Partition.Spec.return a r fn (globalPartition g) x)
+      | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.return a r fn (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
   let branch' a exp tv g st =
     match st with
       | Dom.Base x -> Dom.Base (Base.branch a exp tv (globalBase g) x)
-      | Dom.Partition x -> Dom.Partition (Partition.Spec.branch a exp tv (globalPartition g) x)
+      | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.branch a exp tv (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
   
   let special_fn' a r v args g st =
     match st with
       | Dom.Base x -> List.map (fun x -> Dom.Base x) (Base.special_fn a r v args (globalBase g) x)
-      | Dom.Partition x -> List.map (fun x -> Dom.Partition x) (Partition.Spec.special_fn a r v args (globalPartition g) x)
+      | Dom.VarEq x -> List.map (fun x -> Dom.VarEq x) (VarEq.Spec.special_fn a r v args (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
   let enter_func' a r v args g st =
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> Dom.Base x, Dom.Base y) (Base.enter_func a r v args (globalBase g) x)
-      | Dom.Partition x -> List.map (fun (x,y) -> Dom.Partition x,Dom.Partition y) (Partition.Spec.enter_func a r v args (globalPartition g) x)
+      | Dom.VarEq x -> List.map (fun (x,y) -> Dom.VarEq x,Dom.VarEq y) (VarEq.Spec.enter_func a r v args (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
   let leave_func' a r v args g st1 st2 =
     match st1, st2 with
       | Dom.Base x, Dom.Base y -> Dom.Base (Base.leave_func a r v args (globalBase g) x y)
-      | Dom.Partition x, Dom.Partition y -> Dom.Partition (Partition.Spec.leave_func a r v args (globalPartition g) x y)
+      | Dom.VarEq x, Dom.VarEq y -> Dom.VarEq (VarEq.Spec.leave_func a r v args (globalVarEq g) x y)
       | _ -> raise Dom.DomainBroken
   
-  let eval_funvar' exp g st =
+  let eval_funvar' a exp g st : Cil.varinfo list =
     match st with
-      | Dom.Base x -> Base.eval_funvar exp (globalBase g) x
-      | Dom.Partition x -> Partition.Spec.eval_funvar exp (globalPartition g) x
+      | Dom.Base x -> Base.eval_funvar a exp (globalBase g) x
+      | Dom.VarEq x -> VarEq.Spec.eval_funvar a exp (globalVarEq g) x
       | _ -> raise Dom.DomainBroken
   
   let fork' a r v args g st =
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> x, Dom.Base y) (Base.fork a r v args (globalBase g) x)
-      | Dom.Partition x -> List.map (fun (x,y) -> x, Dom.Partition y) (Partition.Spec.fork a r v args (globalPartition g) x)
+      | Dom.VarEq x -> List.map (fun (x,y) -> x, Dom.VarEq y) (VarEq.Spec.fork a r v args (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
   
   let reset_diff' st =
     match st with
       | Dom.Base x -> Dom.Base (Base.reset_diff x)
-      | Dom.Partition x -> Dom.Partition (Partition.Spec.reset_diff x)
+      | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.reset_diff x)
       | _ -> raise Dom.DomainBroken
 
   let rec replaceg x ws = 
     match ws, x with
       | [], _ -> []
       | Glob.Val.Base x :: ws, Glob.Val.Base y -> Glob.Val.Base y :: ws
-      | Glob.Val.Partition x :: ws, Glob.Val.Partition y -> Glob.Val.Partition y :: ws
+      | Glob.Val.VarEq x :: ws, Glob.Val.VarEq y -> Glob.Val.VarEq y :: ws
       | w::ws, x -> w :: replaceg x ws
       
   let rec replace x ws = 
     match ws, x with
       | [], _ -> []
       | Dom.Base x :: ws, Dom.Base y -> Dom.Base y :: ws
-      | Dom.Partition x :: ws, Dom.Partition y -> Dom.Partition y :: ws
+      | Dom.VarEq x :: ws, Dom.VarEq y -> Dom.VarEq y :: ws
       | w::ws, x -> w :: replace x ws
 
   let get_diff' st =
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Base y) (Glob.Val.bot ())) (Base.get_diff x)
-      | Dom.Partition x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Partition y) (Glob.Val.bot ())) (Partition.Spec.get_diff x)
+      | Dom.VarEq x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.VarEq y) (Glob.Val.bot ())) (VarEq.Spec.get_diff x)
       | _ -> raise Dom.DomainBroken
-
+  
+  let query' a g st =
+    match st with
+      | Dom.Base x -> Base.query a (globalBase g) x
+      | Dom.VarEq x -> VarEq.Spec.query a (globalVarEq g) x
+      | _ -> raise Dom.DomainBroken
+  
   (* analysis spec stuff *)
   let name = "analyses"
   let finalize () = ()
@@ -509,17 +515,24 @@ struct
   let get_diff st = List.flatten (List.map get_diff' st)
   let reset_diff = List.map reset_diff'  
 
+  (* queries *)
+  let rec query_imp g s q =
+    let ls = List.map (fun x -> query' (query_imp g s) g x q) s in
+    List.fold_left Queries.Result.meet (Queries.Result.top ()) ls
+  
+  let query _ = query_imp
+
   (* transfer functions *)
-  let return a r fn g   = List.map (return' a r fn g)
-  let body a fn g       = List.map (body' a fn g)
-  let branch a exp tv g = List.map (branch' a exp tv g)
-  let assign a lv exp g = List.map (assign' a lv exp g)
-  let leave_func a r v args g = List.map2 (leave_func' a r v args g)
+  let return a r fn g s   = List.map (return' (query_imp g s) r fn g) s
+  let body a fn g s       = List.map (body' (query_imp g s) fn g) s
+  let branch a exp tv g s = List.map (branch' (query_imp g s) exp tv g) s
+  let assign a lv exp g s = List.map (assign' (query_imp g s) lv exp g) s
+  let leave_func a r v args g s = List.map2 (leave_func' (query_imp g s) r v args g) s
 
   (* return all unique variables that analyses report *)
-  let eval_funvar exp g st = 
+  let eval_funvar a exp g st : Cil.varinfo list = 
     let unique x = List.fold_right (fun x xs -> if List.mem x xs then xs else x::xs) x [] in
-    unique (List.flatten (List.map (eval_funvar' exp g) st))
+    unique (List.flatten (List.map (eval_funvar' (query_imp g st) exp g) st))
 
   (* fork over all analyses and combine values of equal varinfos *)
   let fork a r v args g st =
@@ -533,7 +546,7 @@ struct
       in
       List.fold_left g rs xs
     in
-    List.fold_left f [] (List.map (fork' a r v args g) st) 
+    List.fold_left f [] (List.map (fork' (query_imp g st) r v args g) st) 
 
   (* We start with maping all enter_func to analyses, then we match together all
      possible combinations. *)
@@ -542,22 +555,19 @@ struct
       let h (s,t) = List.map (fun (ss,tt) -> ss@[s], tt@[t]) ps in
       List.flatten (List.map h rs)
     in
-    match List.map (enter_func' a r v args g) st with
+    match List.map (enter_func' (query_imp g st) r v args g) st with
        | []      -> []
        | x :: xs -> List.fold_left f (List.map (fun (x,y) -> [x],[y]) x) xs
   
-  (* Concatenate all lists gathered from applying special_fn' to analyses states.
-     Hope that someone will join them together at some point. Unused values
-     will be bot.*)
   let special_fn a r v args g st =
-    let f d rest =
-      List.map (fun x ->  x :: List.flatten rest) (special_fn' a r v args g d)
+    let f ps rs =
+      let h s = List.map (fun ss -> ss@[s]) ps in
+      List.flatten (List.map h rs)
     in
-    List.fold_right f st []
-
-  (* queries *)
-  let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
-
+    match List.map (special_fn' (query_imp g st) r v args g) st with
+       | []      -> []
+       | x :: xs -> List.fold_left f (List.map (fun x -> [x]) x) xs
+    
 end
 
 module Analysis = Multithread.Forward(MakeSpec (Base.Spec)) 

@@ -111,7 +111,7 @@ sig
   *)
   
   
-  val eval_funvar: exp -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> varinfo list
+  val eval_funvar: (Queries.t -> Queries.Result.t) -> exp -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> varinfo list
   (** [eval_funvar q f st] evaluates [f] to a list of possible functions (in state [st]) *)
   val fork       : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> (varinfo * Dom.t) list  
   (** [fork] returns list of function,input-state pairs, that the callee has spawned *)

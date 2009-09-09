@@ -137,7 +137,7 @@ struct
   let special_fn a lval f args gs st = 
     Dom.fold (fun st xs -> List.map Dom.singleton (Base.special_fn a lval f args gs st)  @ xs) st [] 
   
-  let eval_funvar exp gs st  = Dom.fold (fun x xs -> (Base.eval_funvar exp gs x) @ xs)  st []
+  let eval_funvar a exp gs st  = Dom.fold (fun x xs -> (Base.eval_funvar a exp gs x) @ xs)  st []
   
   let fork a lval fn args gs st = 
     let add_spawn st ss =  

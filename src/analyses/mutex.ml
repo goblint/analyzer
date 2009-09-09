@@ -140,19 +140,19 @@ struct
   (** Transfer functions: *)
   
   let assign a lval rval gs (bst,ust: Dom.t) : Dom.t = 
-    let accessed = BS.access_one_byval true gs bst (Lval lval) @ BS.access_one_byval false gs bst rval in
+    let accessed = BS.access_one_byval a true gs bst (Lval lval) @ BS.access_one_byval a false gs bst rval in
     add_accesses accessed (bst,ust) ;
     (BS.assign a lval rval gs bst, ust)
     
   let branch a exp tv gs (bst,ust: Dom.t) : Dom.t =
-    let accessed = BS.access_one_byval false gs bst exp in
+    let accessed = BS.access_one_byval a false gs bst exp in
     add_accesses accessed (bst,ust);
     (BS.branch a exp tv gs bst, ust)
     
   let return a exp fundec gs (bst,ust: Dom.t) : Dom.t =
     begin match exp with 
       | Some exp -> 
-          let accessed = BS.access_one_byval false gs bst exp in
+          let accessed = BS.access_one_byval a false gs bst exp in
           add_accesses accessed (bst,ust)
       | None -> () end;
       (BS.return a exp fundec gs bst, ust)
@@ -160,14 +160,14 @@ struct
   let body a f gs (bst,ust: Dom.t) : Dom.t = 
     (BS.body a f gs bst, ust)
 
-  let eval_funvar exp gs (bst,bl) = 
-    let read = BS.access_one_byval false gs bst exp in
+  let eval_funvar a exp gs (bst,bl) = 
+    let read = BS.access_one_byval a false gs bst exp in
     add_accesses read (bst,bl); 
-    BS.eval_funvar exp gs bst
+    BS.eval_funvar a exp gs bst
   
   let special_fn a lv f arglist gs (bst,ls: Dom.t) : Dom.t list =
     let eval_exp_addr context exp =
-      let v = BS.eval_rv gs context exp in
+      let v = BS.eval_rv a gs context exp in
         match v with
           | `Address v when not (AD.is_top v) -> AD.fold (fun a b -> a :: b) v []    
           | _                                 -> []
@@ -179,7 +179,7 @@ struct
             match lv with 
               | None -> sts
               | Some lv ->
-                let lv_addr = BS.eval_lv gs bst lv in
+                let lv_addr = BS.eval_lv a gs bst lv in
                 List.map (fun (b,u) -> BS.set gs b lv_addr v, u) sts 
           in 
           set_ret (`Int (ID.of_int 0L)) (map_bs (Lockset.add (e,rw) ls)) @
@@ -189,7 +189,7 @@ struct
           match lv with 
             | None -> map_bs ls
             | Some lv ->  
-                let lv_addr = BS.eval_lv gs bst lv in
+                let lv_addr = BS.eval_lv a gs bst lv in
                 List.map (fun (b,u) -> BS.set gs b lv_addr (`Int (ID.top ())), u) (map_bs ls)  
         in
           match arglist with
@@ -241,8 +241,8 @@ struct
               | Some fnc -> (fnc act arglist) 
               | _ -> []
           in
-          let read       = BS.access_byval false gs bst (arg_acc `Read) in
-          let accessable = BS.access_byref       gs bst (arg_acc `Write) in
+          let read       = BS.access_byval a false gs bst (arg_acc `Read) in
+          let accessable = BS.access_byref a       gs bst (arg_acc `Write) in
           add_accesses (read @ accessable) (bst,ls);
           map_bs ls
           
@@ -250,7 +250,7 @@ struct
     List.map (fun (bf,st) -> (bf,lst),(st,lst)) (BS.enter_func a lv f args gs bst) 
 
   let leave_func a lv f args gs (bst,bl) (ast,al) = 
-    let read = BS.access_byval false gs bst args in
+    let read = BS.access_byval a false gs bst args in
     add_accesses read (bst,bl); 
     let rslt = BS.leave_func a lv f args gs bst ast in
     (rslt, al)
