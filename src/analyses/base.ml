@@ -1,38 +1,3 @@
-(* 
- * Copyright (c) 2005-2007,
- *     * University of Tartu
- *     * Vesal Vojdani <vesal.vojdani@gmail.com>
- *     * Kalmer Apinis <kalmera@ut.ee>
- *     * Jaak Randmets <jaak.ra@gmail.com>
- *     * Toomas Römer <toomasr@gmail.com>
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- * 
- *     * Redistributions of source code must retain the above copyright notice,
- *       this list of conditions and the following disclaimer.
- * 
- *     * Redistributions in binary form must reproduce the above copyright notice,
- *       this list of conditions and the following disclaimer in the documentation
- *       and/or other materials provided with the distribution.
- * 
- *     * Neither the name of the University of Tartu nor the names of its
- *       contributors may be used to endorse or promote products derived from
- *       this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *)
-
 open Cil
 open Pretty
 module A = Analyses
@@ -331,24 +296,24 @@ struct
    (* evaluate value using our "query functions" *)
    let eval_rv_pre ask exp pr =
      let binop op e1 e2 =
-       let equality = 
+       let equality () = 
          match ask (Queries.ExpEq (e1,e2)) with
            | `Int x -> Queries.ID.to_bool x
            | _ -> None
        in
-       match op, equality with
-         | Cil.MinusA, Some true 
-         | Cil.MinusPI, Some true 
-         | Cil.MinusPP, Some true -> Some (`Int (ID.of_int 0L))
-         | Cil.MinusA, Some false 
-         | Cil.MinusPI, Some false 
-         | Cil.MinusPP, Some false -> Some (`Int (ID.of_excl_list [0L]))
-         | Cil.Le, Some true 
-         | Cil.Ge, Some true -> Some (`Int (ID.of_bool true))
-         | Cil.Lt, Some true 
-         | Cil.Gt, Some true -> Some (`Int (ID.of_bool false))
-         | Cil.Eq, Some tv -> Some (`Int (ID.of_bool tv))
-         | Cil.Ne, Some tv -> Some (`Int (ID.of_bool (not tv)))
+       match op with
+         | Cil.MinusA
+         | Cil.MinusPI 
+         | Cil.MinusPP when equality () = Some true -> Some (`Int (ID.of_int 0L))
+         | Cil.MinusA
+         | Cil.MinusPI
+         | Cil.MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list [0L]))
+         | Cil.Le
+         | Cil.Ge when equality () = Some true -> Some (`Int (ID.of_bool true))
+         | Cil.Lt
+         | Cil.Gt when equality () = Some true -> Some (`Int (ID.of_bool false))
+         | Cil.Eq -> (match equality () with Some tv -> Some (`Int (ID.of_bool tv)) | None -> None)
+         | Cil.Ne -> (match equality () with Some tv -> Some (`Int (ID.of_bool (not tv))) | None -> None)
          | _ -> None
      in
      match exp with
@@ -840,17 +805,40 @@ struct
     match CPA.compare x1 y1 with 
       | 0 -> Flag.compare x2 y2
       | x -> x
-
-(*  let exp_equal e1 e2 gs (_,p,_ as st : store) = 
-    match eval_rv gs st e1, eval_rv gs st e2 with
-      | `Int x , `Int y when ID.equal x y && ID.is_int x -> Some true
-      | `Int x , `Int y when ID.is_bot (ID.meet x y) -> Some false
-      | `Address x, `Address y 
-          when AD.equal x y && List.length (AD.to_var_must x) == 0 ->
-          Some true
-      | _ -> None*)
-
-  let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
+      
+  exception ConversionFailed
+  let convertToQueryLval x =
+    let rec offsNormal o = 
+      let toInt i = 
+        match ValueDomain.ID.to_int i with
+          | Some x -> x
+          | _ -> raise ConversionFailed 
+      in
+      match o with
+        | `NoOffset -> `NoOffset
+        | `Field (f,o) -> `Field (f,offsNormal o) 
+        | `Index (i,o) -> `Index (Const (CInt64 (toInt i,IInt, None)),offsNormal o) 
+    in
+    match x with
+      | ValueDomain.AD.Addr.Addr (v,o) -> begin
+          try [v,offsNormal o]
+          with ConversionFailed -> [] end
+      | _ -> []
+  
+  let addrToLvalSet a = 
+    let add x y = Queries.LS.add y x in
+    try
+      AD.fold (fun e c -> List.fold_left add c (convertToQueryLval e)) a (Queries.LS.empty ())
+    with SetDomain.Unsupported _ -> Queries.LS.empty ()
+        
+  let query ask g st (q:Queries.t) = 
+    match q with
+      | Queries.MayPointTo e -> begin
+          match eval_rv ask g st e with 
+            | `Address a -> `LvalSet (addrToLvalSet a)
+            | _ -> `Top
+          end
+      | _ -> Queries.Result.top ()
 
  (**************************************************************************
   * Function calls

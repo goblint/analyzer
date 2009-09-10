@@ -446,3 +446,28 @@ struct
       | `Right i :: _ -> false
 end
 
+
+module CilLval : Printable.S with type t = Cil.varinfo * (fieldinfo, exp) offs =
+struct
+  type t = Cil.varinfo * (fieldinfo, exp) offs
+
+  let equal   = Util.equals
+  let hash    = Hashtbl.hash
+  let compare = Pervasives.compare
+  let name () = "simplified Cil.lval" 
+  let isSimple _ = true
+
+  let rec short_offs o a =
+    match o with
+      | `NoOffset -> a
+      | `Field (f,o) -> short_offs o (a^"."^f.fname) 
+      | `Index (e,o) -> short_offs o (a^"["^Pretty.sprint 80 (dn_exp () e)^"]")
+
+  let short _ (v,o) = short_offs o v.vname
+  
+  let pretty_f sf () x = text (sf 80 x) 
+  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)], [])
+  let pretty  = pretty_f short
+  let toXML = toXML_f short
+
+end

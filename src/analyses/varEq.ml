@@ -1,38 +1,3 @@
-(* 
- * Copyright (c) 2005-2007,
- *     * University of Tartu
- *     * Vesal Vojdani <vesal.vojdani@gmail.com>
- *     * Kalmer Apinis <kalmera@ut.ee>
- *     * Jaak Randmets <jaak.ra@gmail.com>
- *     * Toomas Römer <toomasr@gmail.com>
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- * 
- *     * Redistributions of source code must retain the above copyright notice,
- *       this list of conditions and the following disclaimer.
- * 
- *     * Redistributions in binary form must reproduce the above copyright notice,
- *       this list of conditions and the following disclaimer in the documentation
- *       and/or other materials provided with the distribution.
- * 
- *     * Neither the name of the University of Tartu nor the names of its
- *       contributors may be used to endorse or promote products derived from
- *       this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *)
-
 module A = Analyses
 module M = Messages
 module GU = Goblintutil
@@ -49,7 +14,7 @@ module Spec : Analyses.Spec with type Glob.Val.t = unit =
 struct
   exception Top
 
-  module Dom = PartitionDomain.SetSet (Basetype.Variables)
+  module Dom = PartitionDomain.SetSet (Lval.CilLval)
   module Glob = Global.Make (Lattice.Unit)
 
   let name = "Partition"
@@ -68,11 +33,22 @@ struct
   let return a exp fundec glob st = Dom.top ()
   let body a f glob st            = Dom.top ()
 
-  let assign a (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
-    match lval, rval with
-      | (Var v1,NoOffset), Lval ((Var v2,NoOffset)) -> Dom.add_eq (v1,v2) (Dom.remove v1 st)
-      | (Var v1,_), _ -> Dom.remove v1 st
-      | _ -> st
+  let assign ask (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
+    let l = ask (Queries.MayPointTo (Cil.mkAddrOf lval)) in   
+    match l, rval with
+      | `LvalSet l, Lval rlval when Queries.LS.cardinal l == 1 -> begin
+          let r  = ask (Queries.MayPointTo (Cil.mkAddrOf rlval)) in
+          let v1 = Queries.LS.choose l in
+          let st = Dom.remove v1 st in
+          match r with 
+            | `LvalSet r when Queries.LS.cardinal r == 1 -> 
+                let v2 = Queries.LS.choose r in
+                Dom.add_eq (v1,v2) st
+            | _ -> st
+          end
+      | `LvalSet l, _ when not (Queries.LS.is_top l) ->
+          Queries.LS.fold Dom.remove l st 
+      | _ -> Dom.top ()
 
   let enter_func a lval f args glob st = [(st,Dom.top ())]
   let leave_func a lval f args glob st1 st2 = Dom.top ()
@@ -83,18 +59,27 @@ struct
 
   (* query stuff *)
   
-  let exp_equal e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
+  let exp_equal ask e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
     match e1, e2 with
-      | Lval  (Var v1,NoOffset), Lval (Var v2,NoOffset) -> begin
-        match Dom.find_class v1 s with
-          | Some ss when Dom.S.mem v2 ss -> true
-          | _ -> false
-        end
+      | Lval  llval, Lval rlval -> begin
+        let v1 = ask (Queries.MayPointTo (Cil.mkAddrOf llval)) in
+        let v2 = ask (Queries.MayPointTo (Cil.mkAddrOf rlval)) in
+        match v1, v2 with
+          | `LvalSet v1, `LvalSet v2 when 
+                 Queries.LS.cardinal v1 == 1 
+              && Queries.LS.cardinal v2 == 1 -> begin
+            let v1 = Queries.LS.choose v1 in
+            let v2 = Queries.LS.choose v2 in          
+            match Dom.find_class v1 s with
+              | Some ss when Dom.S.mem v2 ss -> true
+              | _ -> false
+            end 
+           | _ -> false end
       | _ -> false
       
   let query a g s x = 
     match x with 
-      | Queries.ExpEq (e1,e2) when exp_equal e1 e2 g s -> `Int (Queries.ID.of_bool true)
+      | Queries.ExpEq (e1,e2) when exp_equal a e1 e2 g s -> `Int (Queries.ID.of_bool true)
       | _ -> `Top
 
 end

@@ -220,7 +220,7 @@ module GlobalDomain (Base : Analyses.Spec)=
 struct
   exception DomainBroken
   
-  (* This type should contain all analyses that do not depend on base.*)
+  (* This type should contain all analyses. *)
   type e = VarEq of VarEq.Spec.Glob.Val.t
          | Base      of Base.Glob.Val.t
          | Bad
