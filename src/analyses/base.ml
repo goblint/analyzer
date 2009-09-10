@@ -41,8 +41,17 @@ struct
      module Var = Basetype.Variables
      module Val = VD
    end
-   module Dom = Lattice.Prod3 (CPA) (Flag) (Vars)     
-   module Dep = Var
+   (* Dom is a triple (CPA,Pre,Vars), but we do not print out the last part.*)
+   module Dom =
+   struct
+     module P2 = Lattice.Prod(CPA)(Flag)
+     include Lattice.Prod3 (CPA) (Flag) (Vars)
+     let short w (c,d,v)   = P2.short w (c,d)
+     let pretty_f sf () (c,d,v:t) = P2.pretty_f (fun w (x,y) -> sf w (x,y,v)) () (c,d)
+     let toXML_f sf (c,d,v:t) = P2.toXML_f (fun w (x,y) -> sf w (x,y,v)) (c,d)
+     let pretty = pretty_f short
+     let toXML  = toXML_f short
+   end
 
   let name = "Constant Propagation Analysis"
   let startstate = CPA.bot (), Flag.bot (), Vars.bot ()
