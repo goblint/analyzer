@@ -847,6 +847,16 @@ struct
             | `Address a -> `LvalSet (addrToLvalSet a)
             | _ -> `Top
           end
+      | Queries.ReachableFrom e -> begin
+          match eval_rv ask g st e with
+            | `Top -> `Top
+            | `Bot -> `Bot
+            | `Address a ->
+                let xs = List.map addrToLvalSet (reachable_vars [a] g st) in 
+                let addrs = List.fold_left Queries.LS.join (Queries.LS.empty ()) xs in
+                `LvalSet addrs
+            | _ -> `LvalSet (Queries.LS.empty ())      
+          end
       | _ -> Queries.Result.top ()
 
  (**************************************************************************

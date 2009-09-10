@@ -6,6 +6,7 @@ module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 
 type t = ExpEq of exp * exp
        | MayPointTo of exp
+       | ReachableFrom of exp
        | TheAnswerToLifeUniverseAndEverything
 
       

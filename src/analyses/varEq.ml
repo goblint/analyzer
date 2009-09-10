@@ -33,7 +33,9 @@ struct
   let return a exp fundec glob st = Dom.top ()
   let body a f glob st            = Dom.top ()
 
+  (* removes all equalities with lval and then tries to make a new one: lval=rval *)
   let assign ask (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
+    let is_global (v,_) = v.vglob in 
     let l = ask (Queries.MayPointTo (Cil.mkAddrOf lval)) in   
     match l, rval with
       | `LvalSet l, Lval rlval when Queries.LS.cardinal l == 1 -> begin
@@ -43,7 +45,9 @@ struct
           match r with 
             | `LvalSet r when Queries.LS.cardinal r == 1 -> 
                 let v2 = Queries.LS.choose r in
-                Dom.add_eq (v1,v2) st
+                if not (is_global v1 || is_global v2) 
+                then Dom.add_eq (v1,v2) st
+                else st
             | _ -> st
           end
       | `LvalSet l, _ when not (Queries.LS.is_top l) ->
@@ -52,8 +56,23 @@ struct
 
   let enter_func a lval f args glob st = [(st,Dom.top ())]
   let leave_func a lval f args glob st1 st2 = Dom.top ()
-  let special_fn a lval f args glob st = [Dom.top ()]
   let fork       a lval f args glob st = []
+
+  (* remove all variables that are reachable from arguments *)
+  let special_fn ask lval f args glob st = 
+    let remove_reachable e st = 
+      match ask (Queries.ReachableFrom e) with
+        | `LvalSet vs when not (Queries.LS.is_top vs) ->
+            Queries.LS.fold Dom.remove vs st
+        | _ -> Dom.top ()
+    in
+    let es = 
+      match lval with
+        | Some l -> mkAddrOf l :: args
+        | None -> args
+    in
+    [List.fold_right remove_reachable es st] 
+    
   
   let eval_funvar a exp glob st = []
 
