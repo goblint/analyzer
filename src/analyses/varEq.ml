@@ -29,55 +29,120 @@ struct
   let get_diff   x = []
   let should_join x y = true
 
-  let branch a exp tv glob st     = st
-  let return a exp fundec glob st = Dom.top ()
-  let body a f glob st            = Dom.top ()
+  (* This is a very conservative remove operation, it removes all elements that
+     share the same toplevel variable *)
+  let remove (v,_) st = 
+    let removel1 es st =
+      let removel2 ((v2,_) as e) st =
+        if v.vid = v2.vid then Dom.remove e st else st
+      in
+      Dom.S.fold removel2 es st
+    in
+    Dom.fold removel1 st st
 
-  (* removes all equalities with lval and then tries to make a new one: lval=rval *)
-  let assign ask (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
+  (* Set given lval equal to the result of given expression. On doubt do nothing. *)
+  let add_eq ask lv rv st =
     let is_global (v,_) = v.vglob in 
-    let l = ask (Queries.MayPointTo (Cil.mkAddrOf lval)) in   
-    match l, rval with
-      | `LvalSet l, Lval rlval when Queries.LS.cardinal l == 1 -> begin
-          let r  = ask (Queries.MayPointTo (Cil.mkAddrOf rlval)) in
-          let v1 = Queries.LS.choose l in
-          let st = Dom.remove v1 st in
-          match r with 
-            | `LvalSet r when Queries.LS.cardinal r == 1 -> 
-                let v2 = Queries.LS.choose r in
-                if not (is_global v1 || is_global v2) 
-                then Dom.add_eq (v1,v2) st
+    let st = remove lv st in
+    match rv with
+      | Lval rlval -> begin
+          let rv  = ask (Queries.MayPointTo (Cil.mkAddrOf rlval)) in
+          match rv with 
+            | `LvalSet rv when Queries.LS.cardinal rv == 1 -> 
+                let rv = Queries.LS.choose rv in
+                if not (is_global lv || is_global rv) 
+                then Dom.add_eq (rv,lv) st
                 else st
             | _ -> st
           end
-      | `LvalSet l, _ when not (Queries.LS.is_top l) ->
-          Queries.LS.fold Dom.remove l st 
-      | _ -> Dom.top ()
-
-  let enter_func a lval f args glob st = [(st,Dom.top ())]
-  let leave_func a lval f args glob st1 st2 = Dom.top ()
-  let fork       a lval f args glob st = []
-
-  (* remove all variables that are reachable from arguments *)
-  let special_fn ask lval f args glob st = 
-    let remove_reachable e st = 
+      | _ -> st
+  
+  (* Give the set of reachables from argument. *)
+  let reachables ask es = 
+    let reachable e st = 
       match ask (Queries.ReachableFrom e) with
         | `LvalSet vs when not (Queries.LS.is_top vs) ->
-            Queries.LS.fold Dom.remove vs st
-        | _ -> Dom.top ()
+            Queries.LS.join vs st
+        | _ -> Queries.LS.top ()
     in
+    List.fold_right reachable es (Queries.LS.empty ())   
+
+  (* Probably ok as is. *)
+  let body a f glob st = st
+  let fork a lval f args glob st = []
+  
+  (* this makes it grossly unsound *)
+  let eval_funvar a exp glob st = []
+
+  (* Branch could be improved to set invariants like base tries to do. *)
+  let branch a exp tv glob st     = st
+  
+  (* Just remove things that go out of scope. *)
+  let return a exp fundec glob st = 
+    let rm v = remove (v,`NoOffset) in
+    List.fold_right rm (fundec.sformals@fundec.slocals) st   
+
+  (* removes all equalities with lval and then tries to make a new one: lval=rval *)
+  let assign ask (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
+    let l = ask (Queries.MayPointTo (Cil.mkAddrOf lval)) in   
+    match l with
+      | `LvalSet l when Queries.LS.cardinal l == 1 -> 
+          let l = Queries.LS.choose l in
+          add_eq ask l rval st
+      | `LvalSet l when not (Queries.LS.is_top l) ->
+          Queries.LS.fold remove l st 
+      | _ -> Dom.top ()
+
+  (* First assign arguments to parameters. Then join it with reachables, to get
+     rid of equalities that are not reachable. *)
+  let enter_func a lval f args glob st = 
+    let assign_one_param st lv exp = add_eq a (lv, `NoOffset) exp st in
+    let f = Cilfacade.getdec f in
+    let nst = List.fold_left2 assign_one_param st f.sformals args in
+    let rst = Queries.LS.fold Dom.S.add (reachables a args) (Dom.S.empty ()) in
+    let rst = List.fold_left (fun st v -> Dom.S.add (v,`NoOffset) st) rst f.sformals in
+    [st,Dom.join nst (Dom.singleton rst)]
+  
+  
+  let leave_func ask lval f args glob st1 st2 = 
+    let st1 =
+      match lval with
+        | Some lval -> begin
+            match ask (Queries.MayPointTo (Cil.mkAddrOf lval)) with
+              | `LvalSet l when not (Queries.LS.is_top l) ->
+                  Queries.LS.fold remove l st1 
+              | _ -> Dom.top ();
+           end
+        | None -> st1 
+    in
+    let rs = reachables ask args in
+    let remove_reachable1 es st =
+      let remove_reachable2 e st =
+        if Queries.LS.mem e rs then remove e st else st
+      in
+      Dom.S.fold remove_reachable2 es st
+    in
+    Dom.meet (Dom.fold remove_reachable1 st1 st1) st2
+    
+  (* remove all variables that are reachable from arguments *)
+  let special_fn ask lval f args glob st = 
     let es = 
       match lval with
         | Some l -> mkAddrOf l :: args
         | None -> args
     in
-    [List.fold_right remove_reachable es st] 
+    let rs = reachables ask es in
+    let remove_reachable1 es st =
+      let remove_reachable2 e st =
+        if Queries.LS.mem e rs then remove e st else st
+      in
+      Dom.S.fold remove_reachable2 es st
+    in
+    [Dom.fold remove_reachable1 st st]
     
-  
-  let eval_funvar a exp glob st = []
-
   (* query stuff *)
   
+  (* helper to decide equality *)
   let exp_equal ask e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
     match e1, e2 with
       | Lval  llval, Lval rlval -> begin
