@@ -138,7 +138,8 @@ struct
       in
       Dom.S.fold remove_reachable2 es st
     in
-    [Dom.fold remove_reachable1 st st]
+    let true_exp = (Cil.integer 1) in
+    [Dom.fold remove_reachable1 st st, true_exp, true]
     
   (* query stuff *)
   

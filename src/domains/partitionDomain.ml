@@ -178,6 +178,6 @@ struct
       fold f ss (empty ())
          
   let find_class (x: Base.t) (ss: t): set option = 
-    try Some (E.choose (E.filter (S.mem x) ss)) with _ -> None
+    try Some (E.choose (E.filter (S.mem x) ss)) with Not_found -> None
 end
 

@@ -414,6 +414,7 @@ struct
                  M.debug ("Failed evaluating "^str^" to lvalue"); AD.top ()
            end 
 
+
    let access_address (gs:glob_fun) (_,fl,_) write (addrs: address): extra =
      let f (v,o) acc = (v, Offs.from_offset o, write) :: acc in 
      let addr_list = try AD.to_var_offset addrs with _ -> M.warn "Access to unknown address could be global"; [] in
@@ -452,6 +453,7 @@ struct
 
    let access_byval a (rw: bool) (gs:glob_fun) (st: store) (exps: Cil.exp list): extra =
      List.concat (List.map (access_one_byval a rw gs st) exps)
+
 
   (**************************************************************************
    * Auxilliary functions
@@ -788,19 +790,20 @@ struct
         | _-> []
     in
       List.concat (List.map do_exp exps)
-
-   let access_byref a (gs:glob_fun)  (st:store) (exps: Cil.exp list): extra = 
-     (* Find the addresses reachable from some expression, and assume that these
-      * can all be written to. *)
-     let do_exp e = 
-       match eval_rv a gs st e with
-         | `Address a when AD.equal a (AD.null_ptr()) -> []
-         | `Address a when not (AD.is_top a) -> 
-             List.concat (List.map (access_address gs st true) (reachable_vars [a] gs st))
-         (* Ignore soundness warnings, as invalidation proper will raise them. *)
-         | _-> []
-     in
-       List.concat (List.map do_exp exps)
+   
+  let access_byref a (gs:glob_fun)  (st:store) (exps: Cil.exp list): extra = 
+    (* Find the addresses reachable from some expression, and assume that these
+    * can all be written to. *)
+    let do_exp e = 
+      match eval_rv a gs st e with
+        | `Address a when AD.equal a (AD.null_ptr()) -> []
+        | `Address a when not (AD.is_top a) -> 
+            List.concat (List.map (access_address gs st true) (reachable_vars [a] gs st))
+        (* Ignore soundness warnings, as invalidation proper will raise them. *)
+        | _-> []
+    in
+      List.concat (List.map do_exp exps)
+       
   (* interpreter end *)
   
     
@@ -815,23 +818,21 @@ struct
       | 0 -> Flag.compare x2 y2
       | x -> x
       
-  exception ConversionFailed
   let convertToQueryLval x =
     let rec offsNormal o = 
       let toInt i = 
         match ValueDomain.ID.to_int i with
-          | Some x -> x
-          | _ -> raise ConversionFailed 
+          | Some x -> Const (CInt64 (x,IInt, None))
+          | _ -> Const (CStr "unknown") (* minor hack as we do not know from 
+                                           where the unknown stuff came from *)
       in
       match o with
         | `NoOffset -> `NoOffset
         | `Field (f,o) -> `Field (f,offsNormal o) 
-        | `Index (i,o) -> `Index (Const (CInt64 (toInt i,IInt, None)),offsNormal o) 
+        | `Index (i,o) -> `Index (toInt i,offsNormal o) 
     in
     match x with
-      | ValueDomain.AD.Addr.Addr (v,o) -> begin
-          try [v,offsNormal o]
-          with ConversionFailed -> [] end
+      | ValueDomain.AD.Addr.Addr (v,o) ->[v,offsNormal o]
       | _ -> []
   
   let addrToLvalSet a = 
@@ -857,6 +858,9 @@ struct
                 `LvalSet addrs
             | _ -> `LvalSet (Queries.LS.empty ())      
           end
+      | Queries.SingleThreaded -> `Int (Queries.ID.of_bool (not (Flag.is_multi (get_fl st))))
+      | Queries.CurrentThreadId when (Flag.is_bad (get_fl st)) -> `Top
+      | Queries.CurrentThreadId -> `Int (Queries.ID.of_int 1L)
       | _ -> Queries.Result.top ()
 
  (**************************************************************************
@@ -871,8 +875,9 @@ struct
       [dummyFunDec.svar] 
     
   
-  let special_fn a (lv:lval option) (f: varinfo) (args: exp list) (gs:glob_fun) (cpa,fl,gl as st:store): Dom.t list = 
+  let special_fn a (lv:lval option) (f: varinfo) (args: exp list) (gs:glob_fun) (cpa,fl,gl as st:store) = 
 (*    let heap_var = heap_var !GU.current_loc in*)
+    let map_true x = x, (Cil.integer 1), true in
     match f.vname with 
       | "exit" ->  raise A.Deadcode
       | "abort" -> raise A.Deadcode
@@ -881,34 +886,34 @@ struct
           GU.multi_threaded := true;
           let new_fl = Flag.join fl (Flag.get_main ()) in
           if Flag.is_multi fl then
-            [(cpa,new_fl,gl)]
+            [map_true (cpa,new_fl,gl)]
           else
             let (ncpa,ngl) = if not !GU.earlyglobs then globalize cpa else cpa, Vars.empty() in
-            [(ncpa, new_fl,ngl)]
+            [map_true (ncpa, new_fl,ngl)]
       (* handling thread joins... sort of *)
       | "pthread_join" -> begin
           match args with
             | [id; ret_var] -> begin
                 match (eval_rv a gs st ret_var) with
-                  | `Int n when n = ID.of_int 0L -> [(cpa,fl,Vars.bot ())]
-                  | _      -> [invalidate a gs st [ret_var]] end
+                  | `Int n when n = ID.of_int 0L -> [map_true (cpa,fl,Vars.bot ())]
+                  | _      -> [map_true (invalidate a gs st [ret_var])] end
             | _ -> M.bailwith "pthread_join arguments are strange!"
         end
       | "malloc" | "__kmalloc" -> begin
         match lv with
           | Some lv -> 
             let heap_var = heap_var !GU.current_loc in 
-            [set_many gs st [(heap_var, `Blob (VD.bot ()));  
-                            (eval_lv a gs st lv, `Address heap_var)]]
-          | _ -> [st]
+            [map_true (set_many gs st [(heap_var, `Blob (VD.bot ()));  
+                                       (eval_lv a gs st lv, `Address heap_var)])]
+          | _ -> [map_true st]
         end
       | "calloc" -> 
         begin match lv with
           | Some lv -> 
               let heap_var = get_heap_var !GU.current_loc in
-                [set_many gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
-                                 (eval_lv a gs st lv, `Address (AD.from_var_offset (heap_var, `Index (ID.of_int 0L, `NoOffset))))]]
-          | _ -> [st]
+                [map_true (set_many gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
+                                           (eval_lv a gs st lv, `Address (AD.from_var_offset (heap_var, `Index (ID.of_int 0L, `NoOffset))))])]
+          | _ -> [map_true st]
         end
       (* Handling the assertions *)
       | "__assert_rtn" -> raise A.Deadcode (* gcc's built-in assert *) 
@@ -926,14 +931,14 @@ struct
                         | Some false -> M.warn_each ("Assertion \"" ^ expr () ^ "\" will fail")
                         | _ -> ()); 
                       (* Just propagate the state *)
-                      [st]
+                      [map_true st]
                   | _ -> begin 
                       if !GU.debug then begin
                         M.warn_each ("Assertion \"" ^ expr () ^ "\" is unknown");
-                        [st]
+                        [map_true st]
                       end else
                         (* make the state meet the assertion in the rest of the code *)
-                        [invariant a gs st e true]
+                        [map_true (invariant a gs st e true)]
                     end
               end
             | _ -> M.bailwith "Assert argument mismatch!"
@@ -945,7 +950,7 @@ struct
               | None -> []
           in
           match LF.get_invalidate_action x with
-            | Some fnc -> [invalidate a gs st (lv_list @ (fnc `Write  args))];
+            | Some fnc -> [map_true (invalidate a gs st (lv_list @ (fnc `Write  args)))];
             | None -> (
                 M.warn ("Function definition missing for " ^ f.vname);
                 let st_expr (v:varinfo) (value) a = 
@@ -964,11 +969,11 @@ struct
                     GU.multi_threaded := true;
                     let new_fl = Flag.join fl (Flag.get_main ()) in
                       if Flag.is_multi fl then 
-                        [(cpa,new_fl,Vars.empty())]
+                        [map_true (cpa,new_fl,Vars.empty())]
                       else 
                         let (ncpa,ngl) = if not !GU.earlyglobs then globalize cpa else cpa, Vars.empty() in 
-                          [(ncpa, new_fl,ngl)]
-                  end else [st]
+                          [map_true (ncpa, new_fl,ngl)]
+                  end else [map_true st]
               )
         end
 

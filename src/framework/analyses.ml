@@ -115,7 +115,7 @@ sig
   (** [eval_funvar q f st] evaluates [f] to a list of possible functions (in state [st]) *)
   val fork       : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> (varinfo * Dom.t) list  
   (** [fork] returns list of function,input-state pairs, that the callee has spawned *)
-  val special_fn : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t list
+  val special_fn : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> (Dom.t * Cil.exp * bool) list
   (** [special_fn] is called, when given varinfo is not connected to a fundec -- no function definition is given*)
   val enter_func : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> (Dom.t * Dom.t) list 
   (** [enter_func] returns input-states that must be analyzed for the given function *)

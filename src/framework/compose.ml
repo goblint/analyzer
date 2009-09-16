@@ -56,7 +56,7 @@ struct
     let rec join s1 s2 = 
       let f b (ok, todo) =
         let joinable, rest = partition (Base.should_join b) ok in
-        if cardinal joinable == 0 then
+        if cardinal joinable = 0 then
           (add b ok, todo)
         else
           let joint = fold Base.Dom.join joinable b in
@@ -119,7 +119,7 @@ struct
   let lift f set = 
     let apply_add st = 
       try Dom.add (f st) 
-      with _ -> fun x -> x (*exception means dead-code so we filter these out*) 
+      with Analyses.Deadcode -> fun x -> x (*exception means dead-code so we filter these out*) 
     in   
     let rslt = Dom.fold apply_add set (Dom.bot ()) in
     if Dom.is_bot rslt 
@@ -135,7 +135,12 @@ struct
   let return a exp f gs          = lift (Base.return a exp f gs)
 
   let special_fn a lval f args gs st = 
-    Dom.fold (fun st xs -> List.map Dom.singleton (Base.special_fn a lval f args gs st)  @ xs) st [] 
+    let just_d_set (s,_,_) = Dom.singleton s in
+    let one_special st xs =
+      List.map just_d_set (Base.special_fn a lval f args gs st)  @ xs
+    in
+    let true_exp = (Cil.integer 1) in
+    List.map (fun x -> x, true_exp, true) (Dom.fold one_special st []) 
   
   let eval_funvar a exp gs st  = Dom.fold (fun x xs -> (Base.eval_funvar a exp gs x) @ xs)  st []
   

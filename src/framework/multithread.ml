@@ -119,7 +119,8 @@ struct
           let joined_result   = List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst tst)) (Spec.Dom.bot ()) general_results in
           Spec.Dom.join st' joined_result        
         else
-          List.fold_left Spec.Dom.join (Spec.Dom.bot ()) (Spec.special_fn fake_query_fun lval f args theta st) 
+          let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
+          List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn fake_query_fun lval f args theta st) 
       in
       let crap  = List.fold_left add_function (Spec.Dom.bot ()) funs in      
       let forks = List.fold_left (fun xs x -> List.map dress (Spec.fork fake_query_fun lval x args theta st) @ xs) [] funs in

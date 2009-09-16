@@ -4,9 +4,11 @@ include Pretty
 module ID = IntDomain.Integers
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 
-type t = ExpEq of exp * exp
+type t = ExpEq of exp * exp 
        | MayPointTo of exp
        | ReachableFrom of exp
+       | SingleThreaded       (* result is "boolean" in `Int form *)
+       | CurrentThreadId      (* currently "main" -> `Int 1; "other" -> `Top *)
        | TheAnswerToLifeUniverseAndEverything
 
       

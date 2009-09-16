@@ -3,6 +3,7 @@ sig
   include Lattice.S
   val is_multi: t -> bool
   val is_bad: t -> bool
+  val get_single: unit -> t
   val get_multi: unit -> t
   val get_main:  unit -> t
   val switch: t -> t -> bool
@@ -17,6 +18,7 @@ module Trivial = struct
   include IntDomain.MakeBooleans (TrivialNames)
   let is_multi x = x
   let is_bad   x = x
+  let get_single () = false
   let get_multi () = true
   let get_main  () = true
   let switch x y = x <> y
@@ -38,6 +40,7 @@ module Simple = struct
   let is_bad   x = x > 1
   let get_multi () = 2
   let get_main  () = 1
+  let get_single () = 0
   let switch x y = match x,y with
     | 0,0 -> false
     | 0,_ -> true

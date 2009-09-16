@@ -176,10 +176,10 @@ struct
     in
     new_u, BS.leave_func a lval f args gl bst ast
   
-  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st,gs:Dom.t) : Dom.t list =
+  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st,gs:Dom.t) : (Dom.t * Cil.exp * bool) list =
     may (fun x -> warn_deref_exp a gl (st,gs) (Lval x)) lval;
     List.iter (warn_deref_exp a gl (st,gs)) arglist;
-    let map_gs x = List.map (fun y -> x, y) (BS.special_fn a lval f arglist gl gs) in
+    let map_gs x = List.map (fun (y,e,t) -> (x, y), e, t) (BS.special_fn a lval f arglist gl gs) in
     let null_it add x = BS.set gl x add (`Address (AD.null_ptr ()))  in
     match f.vname, lval with
       | "malloc", Some lv ->
@@ -187,7 +187,7 @@ struct
         begin
           let addr = BS.eval_lv a gl gs lv in
           match AD.to_var_offset addr with
-           | [vo] -> map_gs st @ List.map (fun (x,y) -> x, null_it addr y) (map_gs (AddrSet.add (Addr.from_var_offset vo) st))
+           | [vo] -> map_gs st @ List.map (fun ((x,y),e,t) -> (x, null_it addr y),e,t) (map_gs (AddrSet.add (Addr.from_var_offset vo) st))
            | _ -> map_gs st
         end
       | _ -> map_gs st 

@@ -255,7 +255,7 @@ struct
     in
     new_u, BS.leave_func a lval f args gl bst ast
   
-  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st,gs:trans_in) : Dom.t list =
+  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st,gs:trans_in) : (Dom.t * Cil.exp * bool) list =
     let remove_lv lval =
       let addr  = BS.eval_lv a gl gs lval in
       if AD.is_top addr then st else
@@ -265,7 +265,7 @@ struct
       else
         st        
     in  
-    let map_bs x = List.map (fun y -> x, y) (BS.special_fn a lval f arglist gl gs) in
+    let map_bs x = List.map (fun (y,e,t) -> (x, y), e, t) (BS.special_fn a lval f arglist gl gs) in
     match lval with
       | Some lv -> map_bs (remove_lv lv)
       | _ -> map_bs st
