@@ -189,21 +189,15 @@ struct
   let isSimple = List.for_all isSimple'
   let equal    = List.for_all2 equal' 
 
-  (* BROKEN!
-  
   let compare =
     let f a x y =
       if a == 0 
       then compare' x y
-      else 0
+      else a
     in
     List.fold_left2 f 0
     
-  let hash     = List.fold_left (fun x y -> x lxor (hash' y)) 0 
-  *)
-  
-  let hash (x:t) = Hashtbl.hash x
-  let compare (x:t) (y:t) = Pervasives.compare x y
+  let hash = List.fold_left (fun x y -> x lxor (hash' y)) 0 
 end
 
 module GlobalDomain (Base : Analyses.Spec)=
