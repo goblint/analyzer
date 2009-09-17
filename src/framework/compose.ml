@@ -104,8 +104,8 @@ struct
   type transfer = Dom.t -> Dom.t
     
   let name       = "Path sensitive " ^ Base.name
-  let startstate = Dom.singleton Base.startstate
-  let otherstate = Dom.singleton Base.otherstate
+  let startstate () = Dom.singleton (Base.startstate ())
+  let otherstate () = Dom.singleton (Base.otherstate ())
   let init     = Base.init
   let finalize = Base.finalize
   let es_to_string f es  = Base.es_to_string f (Dom.choose es)

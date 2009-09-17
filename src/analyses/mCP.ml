@@ -12,6 +12,7 @@ struct
   type e = Base  of Base.Dom.t
          | Mutex of Mutex.NoBaseSpec.Dom.t
          | VarEq of VarEq.Spec.Dom.t
+         | Uninit of Uninit.Spec.Dom.t
          | Bad
   
   (* We pair list of configurable analyses with multithreadidness flag domain. *)
@@ -19,8 +20,8 @@ struct
   
   (* Constructor scheme stuff: we take a list of values and then filter out
      ones that are disabled. *)
-  let int_ds = JB.make_table (JB.objekt (JB.field GU.conf "analyses")) 
   let constr_scheme xs =
+    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
     let f (s,g) y : e list = 
       if JB.bool (JB.field int_ds s) 
       then (g ()) :: y
@@ -30,31 +31,36 @@ struct
     
   (* constructors *)
   let top () = constr_scheme
-    [("base"  ,fun () -> Base  (Base.Dom.top ()))
-    ;("mutex" ,fun () -> Mutex (Mutex.NoBaseSpec.Dom.top ()))
-    ;("var_eq",fun () -> VarEq (VarEq.Spec.Dom.top ()))]
+    [("base"  ,fun () -> Base   (Base.Dom.top ()))
+    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.Dom.top ()))
+    ;("uninit",fun () -> Uninit (Uninit.Spec.Dom.top ()))
+    ;("var_eq",fun () -> VarEq  (VarEq.Spec.Dom.top ()))]
       
   let bot () = constr_scheme
-    [("base"  ,fun () -> Base  (Base.Dom.bot ()))
-    ;("mutex" ,fun () -> Mutex (Mutex.NoBaseSpec.Dom.bot ()))
-    ;("var_eq",fun () -> VarEq (VarEq.Spec.Dom.bot ()))]
+    [("base"  ,fun () -> Base   (Base.Dom.bot ()))
+    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.Dom.bot ()))
+    ;("uninit",fun () -> Uninit (Uninit.Spec.Dom.bot ()))
+    ;("var_eq",fun () -> VarEq  (VarEq.Spec.Dom.bot ()))]
   
 
   let startstate () = constr_scheme
-    [("base"  ,fun () -> Base  (Base.startstate))
-    ;("mutex" ,fun () -> Mutex (Mutex.NoBaseSpec.startstate))
-    ;("var_eq",fun () -> VarEq (VarEq.Spec.startstate))]
+    [("base"  ,fun () -> Base   (Base.startstate ()))
+    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.startstate ()))
+    ;("uninit",fun () -> Uninit (Uninit.Spec.startstate ()))
+    ;("var_eq",fun () -> VarEq  (VarEq.Spec.startstate ()))]
 
   let otherstate () = constr_scheme
-    [("base"  ,fun () -> Base  (Base.otherstate))
-    ;("mutex" ,fun () -> Mutex (Mutex.NoBaseSpec.otherstate))
-    ;("var_eq",fun () -> VarEq (VarEq.Spec.otherstate))]
+    [("base"  ,fun () -> Base   (Base.otherstate ()))
+    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.otherstate ()))
+    ;("uninit",fun () -> Uninit (Uninit.Spec.otherstate ()))
+    ;("var_eq",fun () -> VarEq  (VarEq.Spec.otherstate ()))]
 
   (* element lattice functions *)
   let narrow' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Dom.narrow x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.narrow x y)
+      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.narrow x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.narrow x y)
       | _ -> raise DomainBroken
 
@@ -62,6 +68,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Dom.widen x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.widen x y)
+      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.widen x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.widen x y)
       | _ -> raise DomainBroken
 
@@ -69,6 +76,7 @@ struct
     match x with
       | Base x -> Base.Dom.is_top x
       | Mutex x -> Mutex.NoBaseSpec.Dom.is_top x
+      | Uninit x -> Uninit.Spec.Dom.is_top x
       | VarEq x -> VarEq.Spec.Dom.is_top x
       | _ -> raise DomainBroken
   
@@ -76,6 +84,7 @@ struct
     match x with
       | Base x -> Base.Dom.is_bot x
       | Mutex x -> Mutex.NoBaseSpec.Dom.is_bot x
+      | Uninit x -> Uninit.Spec.Dom.is_bot x
       | VarEq x -> VarEq.Spec.Dom.is_bot x
       | _ -> raise DomainBroken
 
@@ -83,6 +92,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Dom.meet x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.meet x y)
+      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.meet x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.meet x y)
       | _ -> raise DomainBroken
 
@@ -90,6 +100,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Dom.join x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.join x y)
+      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.join x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.join x y)
       | _ -> raise DomainBroken
 
@@ -97,6 +108,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Dom.leq x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.leq x y
+      | Uninit x, Uninit y -> Uninit.Spec.Dom.leq x y
       | VarEq x, VarEq y -> VarEq.Spec.Dom.leq x y
       | _ -> raise DomainBroken
       
@@ -104,6 +116,7 @@ struct
     match x with
       | Base x -> Base.Dom.short w x
       | Mutex x -> Mutex.NoBaseSpec.Dom.short w x
+      | Uninit x -> Uninit.Spec.Dom.short w x
       | VarEq x -> VarEq.Spec.Dom.short w x
       | _ -> raise DomainBroken
       
@@ -111,6 +124,7 @@ struct
     match x with
       | Base x -> Base.Dom.toXML_f (fun w x -> sf w (Base x)) x
       | Mutex x -> Mutex.NoBaseSpec.Dom.toXML_f (fun w x -> sf w (Mutex x)) x
+      | Uninit x -> Uninit.Spec.Dom.toXML_f (fun w x -> sf w (Uninit x)) x
       | VarEq x -> VarEq.Spec.Dom.toXML_f (fun w x -> sf w (VarEq x)) x
       | _ -> raise DomainBroken
       
@@ -118,6 +132,7 @@ struct
     match x with
       | Base x -> Base.Dom.pretty_f (fun w x -> sf w (Base x)) () x
       | Mutex x -> Mutex.NoBaseSpec.Dom.pretty_f (fun w x -> sf w (Mutex x)) () x
+      | Uninit x -> Uninit.Spec.Dom.pretty_f (fun w x -> sf w (Uninit x)) () x
       | VarEq x -> VarEq.Spec.Dom.pretty_f (fun w x -> sf w (VarEq x)) () x
       | _ -> raise DomainBroken
       
@@ -129,6 +144,7 @@ struct
     match x with
       | Base x -> Base.Dom.isSimple x
       | Mutex x -> Mutex.NoBaseSpec.Dom.isSimple x
+      | Uninit x -> Uninit.Spec.Dom.isSimple x
       | VarEq x -> VarEq.Spec.Dom.isSimple x
       | _ -> raise DomainBroken
 
@@ -136,6 +152,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Dom.compare x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.compare x y
+      | Uninit x, Uninit y -> Uninit.Spec.Dom.compare x y
       | VarEq x, VarEq y -> VarEq.Spec.Dom.compare x y
       | _ -> raise DomainBroken
 
@@ -143,6 +160,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Dom.equal x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.equal x y
+      | Uninit x, Uninit y -> Uninit.Spec.Dom.equal x y
       | VarEq x, VarEq y -> VarEq.Spec.Dom.equal x y
       | _ -> raise DomainBroken
 
@@ -150,6 +168,7 @@ struct
     match x with
       | Base x-> Base.Dom.hash x
       | Mutex x-> Mutex.NoBaseSpec.Dom.hash x
+      | Uninit x-> Uninit.Spec.Dom.hash x
       | VarEq x-> VarEq.Spec.Dom.hash x
       | _ -> raise DomainBroken
 
@@ -205,9 +224,10 @@ struct
   exception DomainBroken
   
   (* This type should contain all analyses. *)
-  type e = VarEq of VarEq.Spec.Glob.Val.t
-         | Mutex of Mutex.NoBaseSpec.Glob.Val.t
-         | Base  of Base.Glob.Val.t
+  type e = VarEq  of VarEq.Spec.Glob.Val.t
+         | Uninit of Uninit.Spec.Glob.Val.t
+         | Mutex  of Mutex.NoBaseSpec.Glob.Val.t
+         | Base   of Base.Glob.Val.t
          | Bad
   
   (* We pair list of configurable analyses with multithreadidness flag domain. *)
@@ -215,8 +235,8 @@ struct
   
   (* Constructor scheme stuff: we take a list of values and then filter out
      ones that are disabled. *)
-  let int_ds = JB.make_table (JB.objekt (JB.field GU.conf "analyses")) 
   let constr_scheme xs =
+    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
     let f (s,g) y : e list = 
       if JB.bool (JB.field int_ds s) 
       then (g ()) :: y
@@ -226,14 +246,16 @@ struct
     
   (* constructors *)
   let top () = constr_scheme
-    [("base"  ,fun () -> Base  (Base.Glob.Val.top ()))
-    ;("mutex" ,fun () -> Mutex (Mutex.NoBaseSpec.Glob.Val.top ()))
-    ;("var_eq",fun () -> VarEq (VarEq.Spec.Glob.Val.top ()))]
+    [("base"  ,fun () -> Base   (Base.Glob.Val.top ()))
+    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.top ()))
+    ;("uninit",fun () -> Uninit (Uninit.Spec.Glob.Val.top ()))
+    ;("var_eq",fun () -> VarEq  (VarEq.Spec.Glob.Val.top ()))]
       
   let bot () = constr_scheme
-    [("base"  ,fun () -> Base  (Base.Glob.Val.bot ()))
-    ;("mutex" ,fun () -> Mutex (Mutex.NoBaseSpec.Glob.Val.bot ()))
-    ;("var_eq",fun () -> VarEq (VarEq.Spec.Glob.Val.bot ()))]
+    [("base"  ,fun () -> Base   (Base.Glob.Val.bot ()))
+    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.bot ()))
+    ;("uninit",fun () -> Uninit (Uninit.Spec.Glob.Val.bot ()))
+    ;("var_eq",fun () -> VarEq  (VarEq.Spec.Glob.Val.bot ()))]
 
   (* element lattice functions *)
   
@@ -241,6 +263,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.narrow x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.narrow x y)
+      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.narrow x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.narrow x y)
       | _ -> raise DomainBroken
 
@@ -248,6 +271,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.widen x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.widen x y)
+      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.widen x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.widen x y)
       | _ -> raise DomainBroken
 
@@ -255,6 +279,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.is_top x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.is_top x
+      | Uninit x -> Uninit.Spec.Glob.Val.is_top x
       | VarEq x -> VarEq.Spec.Glob.Val.is_top x
       | _ -> raise DomainBroken
   
@@ -262,6 +287,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.is_bot x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.is_bot x
+      | Uninit x -> Uninit.Spec.Glob.Val.is_bot x
       | VarEq x -> VarEq.Spec.Glob.Val.is_bot x
       | _ -> raise DomainBroken
 
@@ -269,6 +295,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.meet x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.meet x y)
+      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.meet x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.meet x y)
       | _ -> raise DomainBroken
 
@@ -276,6 +303,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.join x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.join x y)
+      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.join x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.join x y)
       | _ -> raise DomainBroken
 
@@ -283,6 +311,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Glob.Val.leq x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.leq x y
+      | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.leq x y
       | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.leq x y
       | _ -> raise DomainBroken
       
@@ -290,6 +319,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.short w x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.short w x
+      | Uninit x -> Uninit.Spec.Glob.Val.short w x
       | VarEq x -> VarEq.Spec.Glob.Val.short w x
       | _ -> raise DomainBroken
       
@@ -297,6 +327,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.toXML_f (fun w x -> sf w (Base x)) x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.toXML_f (fun w x -> sf w (Mutex x)) x
+      | Uninit x -> Uninit.Spec.Glob.Val.toXML_f (fun w x -> sf w (Uninit x)) x
       | VarEq x -> VarEq.Spec.Glob.Val.toXML_f (fun w x -> sf w (VarEq x)) x
       | _ -> raise DomainBroken
       
@@ -304,6 +335,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.pretty_f (fun w x -> sf w (Base x)) () x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.pretty_f (fun w x -> sf w (Mutex x)) () x
+      | Uninit x -> Uninit.Spec.Glob.Val.pretty_f (fun w x -> sf w (Uninit x)) () x
       | VarEq x -> VarEq.Spec.Glob.Val.pretty_f (fun w x -> sf w (VarEq x)) () x
       | _ -> raise DomainBroken
       
@@ -315,6 +347,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.isSimple x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.isSimple x
+      | Uninit x -> Uninit.Spec.Glob.Val.isSimple x
       | VarEq x -> VarEq.Spec.Glob.Val.isSimple x
       | _ -> raise DomainBroken
 
@@ -322,6 +355,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Glob.Val.compare x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.compare x y
+      | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.compare x y
       | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.compare x y
       | _ -> raise DomainBroken
 
@@ -329,6 +363,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Glob.Val.equal x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.equal x y
+      | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.equal x y
       | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.equal x y
       | _ -> raise DomainBroken
 
@@ -336,6 +371,7 @@ struct
     match x with
       | Base x-> Base.Glob.Val.hash x
       | Mutex x-> Mutex.NoBaseSpec.Glob.Val.hash x
+      | Uninit x-> Uninit.Spec.Glob.Val.hash x
       | VarEq x-> VarEq.Spec.Glob.Val.hash x
       | _ -> raise DomainBroken
 
@@ -425,11 +461,22 @@ struct
     match List.fold_left f None (g x) with
       | Some x -> x
       | None -> raise Glob.Val.DomainBroken
-  
+
+  let globalUninit g (x:Glob.Var.t) : Uninit.Spec.Glob.Val.t =
+    let f c n = 
+      match n with
+        | Glob.Val.Uninit x -> Some x
+        | _ -> c 
+    in
+    match List.fold_left f None (g x) with
+      | Some x -> x
+      | None -> raise Glob.Val.DomainBroken
+
   let assign' a lv exp g x =
     match x with
       | Dom.Base x -> Dom.Base (Base.assign a lv exp (globalBase g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.assign a lv exp (globalMutex g) x)
+      | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.assign a lv exp (globalUninit g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.assign a lv exp (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
@@ -437,6 +484,7 @@ struct
     match st with
       | Dom.Base x -> Dom.Base (Base.body a fn (globalBase g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.body a fn (globalMutex g) x)
+      | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.body a fn (globalUninit g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.body a fn (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
   
@@ -444,6 +492,7 @@ struct
     match st with
       | Dom.Base x -> Dom.Base (Base.return a r fn (globalBase g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.return a r fn (globalMutex g) x)
+      | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.return a r fn (globalUninit g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.return a r fn (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
@@ -451,6 +500,7 @@ struct
     match st with
       | Dom.Base x -> Dom.Base (Base.branch a exp tv (globalBase g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.branch a exp tv (globalMutex g) x)
+      | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.branch a exp tv (globalUninit g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.branch a exp tv (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
   
@@ -458,6 +508,7 @@ struct
     match st with
       | Dom.Base x -> List.map (fun (x,e,t) -> Dom.Base x,e,t) (Base.special_fn a r v args (globalBase g) x)
       | Dom.Mutex x -> List.map (fun (x,e,t) -> Dom.Mutex x,e,t) (Mutex.NoBaseSpec.special_fn a r v args (globalMutex g) x)
+      | Dom.Uninit x -> List.map (fun (x,e,t) -> Dom.Uninit x,e,t) (Uninit.Spec.special_fn a r v args (globalUninit g) x)
       | Dom.VarEq x -> List.map (fun (x,e,t) -> Dom.VarEq x,e,t) (VarEq.Spec.special_fn a r v args (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
@@ -465,6 +516,7 @@ struct
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> Dom.Base x, Dom.Base y) (Base.enter_func a r v args (globalBase g) x)
       | Dom.Mutex x -> List.map (fun (x,y) -> Dom.Mutex x,Dom.Mutex y) (Mutex.NoBaseSpec.enter_func a r v args (globalMutex g) x)
+      | Dom.Uninit x -> List.map (fun (x,y) -> Dom.Uninit x,Dom.Uninit y) (Uninit.Spec.enter_func a r v args (globalUninit g) x)
       | Dom.VarEq x -> List.map (fun (x,y) -> Dom.VarEq x,Dom.VarEq y) (VarEq.Spec.enter_func a r v args (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
@@ -472,6 +524,7 @@ struct
     match st1, st2 with
       | Dom.Base x, Dom.Base y -> Dom.Base (Base.leave_func a r v args (globalBase g) x y)
       | Dom.Mutex x, Dom.Mutex y -> Dom.Mutex (Mutex.NoBaseSpec.leave_func a r v args (globalMutex g) x y)
+      | Dom.Uninit x, Dom.Uninit y -> Dom.Uninit (Uninit.Spec.leave_func a r v args (globalUninit g) x y)
       | Dom.VarEq x, Dom.VarEq y -> Dom.VarEq (VarEq.Spec.leave_func a r v args (globalVarEq g) x y)
       | _ -> raise Dom.DomainBroken
   
@@ -479,6 +532,7 @@ struct
     match st with
       | Dom.Base x -> Base.eval_funvar a exp (globalBase g) x
       | Dom.Mutex x -> Mutex.NoBaseSpec.eval_funvar a exp (globalMutex g) x
+      | Dom.Uninit x -> Uninit.Spec.eval_funvar a exp (globalUninit g) x
       | Dom.VarEq x -> VarEq.Spec.eval_funvar a exp (globalVarEq g) x
       | _ -> raise Dom.DomainBroken
   
@@ -486,6 +540,7 @@ struct
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> x, Dom.Base y) (Base.fork a r v args (globalBase g) x)
       | Dom.Mutex x -> List.map (fun (x,y) -> x, Dom.Mutex y) (Mutex.NoBaseSpec.fork a r v args (globalMutex g) x)
+      | Dom.Uninit x -> List.map (fun (x,y) -> x, Dom.Uninit y) (Uninit.Spec.fork a r v args (globalUninit g) x)
       | Dom.VarEq x -> List.map (fun (x,y) -> x, Dom.VarEq y) (VarEq.Spec.fork a r v args (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
   
@@ -493,6 +548,7 @@ struct
     match st with
       | Dom.Base x -> Dom.Base (Base.reset_diff x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.reset_diff x)
+      | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.reset_diff x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.reset_diff x)
       | _ -> raise Dom.DomainBroken
 
@@ -501,6 +557,7 @@ struct
       | [], _ -> []
       | Glob.Val.Base x :: ws, Glob.Val.Base y -> Glob.Val.Base y :: ws
       | Glob.Val.Mutex x :: ws, Glob.Val.Mutex y -> Glob.Val.Mutex y :: ws
+      | Glob.Val.Uninit x :: ws, Glob.Val.Uninit y -> Glob.Val.Uninit y :: ws
       | Glob.Val.VarEq x :: ws, Glob.Val.VarEq y -> Glob.Val.VarEq y :: ws
       | w::ws, x -> w :: replaceg x ws
       
@@ -509,6 +566,7 @@ struct
       | [], _ -> []
       | Dom.Base x :: ws, Dom.Base y -> Dom.Base y :: ws
       | Dom.Mutex x :: ws, Dom.Mutex y -> Dom.Mutex y :: ws
+      | Dom.Uninit x :: ws, Dom.Uninit y -> Dom.Uninit y :: ws
       | Dom.VarEq x :: ws, Dom.VarEq y -> Dom.VarEq y :: ws
       | w::ws, x -> w :: replace x ws
 
@@ -516,6 +574,7 @@ struct
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Base y) (Glob.Val.bot ())) (Base.get_diff x)
       | Dom.Mutex x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Mutex y) (Glob.Val.bot ())) (Mutex.NoBaseSpec.get_diff x)
+      | Dom.Uninit x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Uninit y) (Glob.Val.bot ())) (Uninit.Spec.get_diff x)
       | Dom.VarEq x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.VarEq y) (Glob.Val.bot ())) (VarEq.Spec.get_diff x)
       | _ -> raise Dom.DomainBroken
   
@@ -523,45 +582,48 @@ struct
     match st with
       | Dom.Base x -> Base.query a (globalBase g) x
       | Dom.Mutex x -> Mutex.NoBaseSpec.query a (globalMutex g) x
+      | Dom.Uninit x -> Uninit.Spec.query a (globalUninit g) x
       | Dom.VarEq x -> VarEq.Spec.query a (globalVarEq g) x
       | _ -> raise Dom.DomainBroken
   
   (* analysis spec stuff *)
   let name = "analyses"
   let finalize () = 
-    let uses x = JB.bool (JB.field Dom.int_ds x) in
+    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
+    let uses x = JB.bool (JB.field int_ds x) in
     (if uses "base" then Base.finalize ());
     (if uses "mutex" then Mutex.NoBaseSpec.finalize ());
+    (if uses "uninit" then Uninit.Spec.finalize ());
     (if uses "var_eq" then VarEq.Spec.finalize ());
     ()
 
-
-  let init     () = 
-    let uses x = JB.bool (JB.field Dom.int_ds x) in
-    (if uses "base" then Base.init ());
-    (if uses "mutex" then Mutex.NoBaseSpec.init ());
-    (if uses "var_eq" then VarEq.Spec.init ());
-    ()
-
-  let otherstate = Dom.otherstate ()
-  let startstate = Dom.startstate ()
-  
   (* Generate a "drop list" (on startup) for elements that are not considered 
      path-sensitive properties. *)
-  let nonsense =
-    let specs_ds = JB.make_table (JB.objekt (JB.field GU.conf "analyses"))  in
-    let sense_ds = JB.make_table (JB.objekt (JB.field GU.conf "sensitive")) in
-    let list_order = ["base";"mutex";"var_eq"] in
+  let nonsense = ref []
+
+  let init () = 
+    let specs_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses"))  in
+    let sense_ds = JB.make_table (JB.objekt (JB.field !GU.conf "sensitive")) in
+    let list_order = ["base";"mutex";"uninit";"var_eq"] in
     let f s r = 
       if JB.bool (JB.field specs_ds s) then JB.bool (JB.field sense_ds s) :: r else r
     in
-    List.fold_right f list_order []
-    
+    nonsense := List.fold_right f list_order [];
+    let uses x = JB.bool (JB.field specs_ds x) in
+    (if uses "base" then Base.init ());
+    (if uses "mutex" then Mutex.NoBaseSpec.init ());
+    (if uses "uninit" then Uninit.Spec.init ());
+    (if uses "var_eq" then VarEq.Spec.init ());
+    ()
+
+  let otherstate () = Dom.otherstate ()
+  let startstate () = Dom.startstate ()
+      
   (* Join when path-sensitive properties are equal. *)
   let should_join xs ys = 
     let drop_keep it_is x xs = if it_is then x :: xs else xs in
-    let xs = List.fold_right2 drop_keep nonsense xs [] in
-    let ys = List.fold_right2 drop_keep nonsense ys [] in
+    let xs = List.fold_right2 drop_keep !nonsense xs [] in
+    let ys = List.fold_right2 drop_keep !nonsense ys [] in
     List.for_all2 Dom.equal' xs ys
   
   let es_to_string f _ = f.svar.vname
@@ -591,7 +653,7 @@ struct
 
   (* fork over all analyses and combine values of equal varinfos *)
   let fork a r v args g st =
-    let start_val = st in (* do not know if it should be st or top *)
+    let start_val = otherstate () in 
     let f rs xs = 
       let g rs (v,s) : (Cil.varinfo * Dom.t) list=
         if List.mem_assoc v rs then 

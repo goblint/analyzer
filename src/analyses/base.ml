@@ -54,8 +54,8 @@ struct
    end
 
   let name = "Constant Propagation Analysis"
-  let startstate = CPA.bot (), Flag.bot (), Vars.bot ()
-  let otherstate = CPA.bot (), Flag.top (), Vars.bot ()
+  let startstate () = CPA.bot (), Flag.bot (), Vars.bot ()
+  let otherstate () = CPA.bot (), Flag.top (), Vars.bot ()
 
 
 
@@ -1004,7 +1004,7 @@ struct
     let f addr = 
       let var = List.hd (AD.to_var_may addr) in
       let _ = Cilfacade.getdec var in 
-        var, otherstate
+        var, otherstate ()
     in 
     let g a acc = try 
       let r = f a in r :: acc 

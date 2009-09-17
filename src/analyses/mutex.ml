@@ -167,8 +167,8 @@ struct
   
   (** We just lift start state, global and dependecy functions: *)
   
-  let startstate = Lockset.empty ()
-  let otherstate = Lockset.empty ()
+  let startstate () = Lockset.empty ()
+  let otherstate () = Lockset.empty ()
   
   
   (** Transfer functions: *)
@@ -482,8 +482,8 @@ struct
   
   (** We just lift start state, global and dependecy functions: *)
   
-  let startstate = BS.startstate, Lockset.empty ()
-  let otherstate = BS.otherstate, Lockset.empty ()
+  let startstate () = BS.startstate (), Lockset.empty ()
+  let otherstate () = BS.otherstate (), Lockset.empty ()
   
   
   (** Transfer functions: *)

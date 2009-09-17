@@ -1411,10 +1411,9 @@ struct
   (* constructors *)
   
   let name () = Trier.name ()
-    
-  let int_ds = JB.make_table (JB.objekt (JB.field GU.conf "int_domain")) 
-    
+        
   let constr_scheme xs =
+    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "int_domain")) in
     let f (s,g) y : t = 
       if JB.bool (JB.field int_ds s) 
       then (g ()) :: y

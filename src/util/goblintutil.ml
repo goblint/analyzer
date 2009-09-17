@@ -11,9 +11,11 @@ let default_conf () =
                              ;"interval" , Build.bool false] in
   let def_ana = Build.objekt ["base"     , Build.bool true
                              ;"mutex"    , Build.bool true
+                             ;"uninit"   , Build.bool false
                              ;"var_eq"   , Build.bool false] in
   let def_path = Build.objekt ["base"     , Build.bool false
                               ;"mutex"    , Build.bool true
+                              ;"uninit"   , Build.bool false
                               ;"var_eq"   , Build.bool false] in
   Build.objekt ["int_domain" , def_int
                ;"analyses"   , def_ana
@@ -22,14 +24,31 @@ let default_conf () =
                ;"solver"     , Build.string "effectWCon" ]
 
 (* configuration structure -- get it from a file or generate a new one *)
-let conf = 
+let conf : (string, Json_type.t) Hashtbl.t ref = 
   let fn = Filename.concat (Filename.dirname (Sys.argv.(0))) "goblint.json" in
   try
-    make_table (objekt (Json_io.load_json ~allow_comments:true fn))
+    ref (make_table (objekt (Json_io.load_json ~allow_comments:true fn)))
   with (Sys_error x) -> 
     let c = default_conf () in
     Json_io.save_json fn c;
-    make_table (objekt c)
+    ref (make_table (objekt c))
+
+let conf_uninit () = 
+  let uni_ana = Build.objekt ["base"     , Build.bool true
+                             ;"mutex"    , Build.bool false
+                             ;"uninit"   , Build.bool true
+                             ;"var_eq"   , Build.bool false] in
+  let uni_path = Build.objekt ["base"     , Build.bool false
+                              ;"mutex"    , Build.bool false
+                              ;"uninit"   , Build.bool true
+                              ;"var_eq"   , Build.bool false] in
+  let uninit = 
+    Build.objekt ["int_domain" , field !conf "int_domain"
+                 ;"analyses"   , uni_ana
+                 ;"sensitive"  , uni_path
+                 ;"analysis"   , field !conf "analysis"
+                 ;"solver"     , field !conf "solver"] in
+  conf := make_table (objekt uninit)
 
 (** when goblin is in debug mode *)
 let debug = ref false 
@@ -119,7 +138,7 @@ let print_uncalled = ref false
   * referenced from within any transfer function. *)
 let current_loc = ref locUnknown
 
-let solver = ref (string (field conf "solver"))
+let solver = ref (string (field !conf "solver"))
 
 let escape (x:string):string =
   let esc_1 = Str.global_replace (Str.regexp "&") "&amp;" x in

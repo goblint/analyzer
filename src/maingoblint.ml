@@ -72,20 +72,24 @@ let main () =
   let setdump path = GU.dump_path := Some (GU.create_dir path) in
   let add_exitfun f = GU.exitfun := f :: !GU.exitfun in
   let setcil path = cilout := open_out path in
-  let analyze = ref Mutex.Analysis.analyze in
-  let nonstatic () = GU.allfuns := true; GU.nonstatic := true in
-  let setanalysis str = 
-    analyze := match str with
-(*      | "mem" ->  MemLeaks.Analysis.analyze *)
+  let analyzer str = match str with
       | "mcp" -> MCP.Analysis.analyze
-      | "uninit" -> Uninit.Analysis.analyze
+      | "uninit" -> MCP.Analysis.analyze (*integrated*)
       | "mutex" -> Mutex.Analysis.analyze
       | "no_path" -> Mutex.SimpleAnalysis.analyze
       | "base" -> Base.Analysis.analyze
       | "malloc_null" -> Malloc_null.Analysis.analyze
       | _ -> raise (Arg.Bad ("no such analysis: "^str))
   in
-  let _ = setanalysis (JB.string (JB.field GU.conf "analysis")) in
+  let analyze = ref (analyzer (JB.string (JB.field !GU.conf "analysis"))) in
+  let nonstatic () = GU.allfuns := true; GU.nonstatic := true in
+  let setanalysis str = 
+    begin match str with
+            | "uninit" -> GU.conf_uninit ()
+            | _ -> ()
+    end;
+    analyze := analyzer str 
+  in
   let setsolver str = 
     GU.solver := match str with
       | "effectWCon"

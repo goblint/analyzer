@@ -200,8 +200,8 @@ struct
 
   let finalize = BS.finalize
   let should_join (x,_) (y,_) = AddrSet.equal x y
-  let startstate = AddrSet.empty () , BS.startstate
-  let otherstate = AddrSet.empty () , BS.otherstate
+  let startstate () = AddrSet.empty () , BS.startstate ()
+  let otherstate () = AddrSet.empty () , BS.otherstate ()
   let es_to_string fd (_,d) = BS.es_to_string fd d
   let init () = 
     BS.init ();

@@ -218,7 +218,7 @@ struct
       with Failure x -> M.warn x; st
     in
     let _ = GU.earlyglobs := false in
-    let result : Spec.Dom.t = List.fold_left transfer_func Spec.startstate edges in
+    let result : Spec.Dom.t = List.fold_left transfer_func (Spec.startstate ()) edges in
     let _ = GU.earlyglobs := early in
       SD.lift result
      
@@ -235,7 +235,7 @@ struct
     let startstate = 
       if !GU.verbose then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file in
-    let with_ostartstate x = MyCFG.Function x.svar, SD.lift Spec.otherstate in
+    let with_ostartstate x = MyCFG.Function x.svar, SD.lift (Spec.otherstate ()) in
     let startvars = match !GU.has_main, funs with 
       | true, f :: fs -> 
           (MyCFG.Function f.svar, startstate) :: List.map with_ostartstate fs

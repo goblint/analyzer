@@ -66,8 +66,8 @@ struct
 
   let init () = ()
   let finalize () = ()
-  let startstate = Dom.top ()
-  let otherstate = Dom.top ()
+  let startstate = Dom.top 
+  let otherstate = Dom.top 
   let es_to_string f es = f.svar.vname
   
   let exp_equal e1 e2 g s = None

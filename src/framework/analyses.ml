@@ -72,9 +72,9 @@ sig
   
   val should_join: Dom.t -> Dom.t -> bool
   (** sensitivity predicate *)
-  val startstate: Dom.t
+  val startstate: unit -> Dom.t
   (** state to start analyzing the main function*)
-  val otherstate: Dom.t
+  val otherstate: unit -> Dom.t
   (** state to start analyzing other functions (usual when calling './goblint --allfuns ...') *)
   val es_to_string: fundec -> Dom.t -> string
   (** no-one knows .. somehow used when generating final output *)
