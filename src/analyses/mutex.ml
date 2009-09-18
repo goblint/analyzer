@@ -207,16 +207,15 @@ struct
               Queries.LS.fold gather_addr a []    
           | _ -> []
     in
-    let lock rw =
+    let lock rw may_fail =
         let lock_one (e:LockDomain.Addr.t) =
           let set_ret tv sts = 
             match lv with 
               | None -> [sts,Cil.integer 1,true]
-              | Some lv ->
-                [sts,Lval lv,tv]
+              | Some lv -> [sts,Lval lv,tv]
           in 
           set_ret false  (Lockset.add (e,rw) ls) @
-          if !failing_locks then set_ret true ls else [] 
+          if may_fail then set_ret true ls else [] 
         in
         let nothing ls = [ls,Cil.integer 1,true] in
           match arglist with
@@ -237,12 +236,15 @@ struct
     in
     match f.vname with
    (* | "sem_wait"*)
-      | "_spin_lock" | "_spin_lock_irqsave" | "_spin_trylock" | "_spin_trylock_irqsave" | "_spin_lock_bh"
-      | "mutex_lock" | "mutex_lock_interruptible" | "pthread_mutex_trylock" | "_write_lock"
-      | "pthread_mutex_lock" | "pthread_rwlock_wrlock" | "pthread_rwlock_trywrlock"
-          -> lock true
+      | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock" 
+      | "pthread_rwlock_trywrlock"
+          -> lock true true
+      | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh"
+      | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock"
+      | "pthread_mutex_lock" | "pthread_rwlock_wrlock" 
+          -> lock true !failing_locks
       | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock" 
-          -> lock false
+          -> lock false !failing_locks
       | "__raw_read_unlock" | "__raw_write_unlock" -> 
           let drop_raw_lock x =
             let rec drop_offs o = 
