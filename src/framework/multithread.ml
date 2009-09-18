@@ -232,6 +232,7 @@ struct
     let constraints = 
       if !GU.verbose then print_endline "Generating constraints."; 
       system (MyCFG.getCFG file) in
+    Spec.init ();
     let startstate = 
       if !GU.verbose then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file in
@@ -241,7 +242,6 @@ struct
           (MyCFG.Function f.svar, startstate) :: List.map with_ostartstate fs
       | _ -> List.map with_ostartstate funs
     in
-    Spec.init ();
     let sol,gs = 
       if !GU.verbose then print_endline "Analyzing!";
       Stats.time "solver" (Solver.solve () constraints) startvars in

@@ -18,42 +18,45 @@ struct
   (* We pair list of configurable analyses with multithreadidness flag domain. *)
   type t = e list
   
+  let take_list = ref [] 
+  
+  let init () = 
+    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
+    let order = ["base";"mutex";"uninit";"var_eq"] in
+    let f s y = JB.bool (JB.field int_ds s) :: y in
+    take_list := List.fold_right f order []
+  
   (* Constructor scheme stuff: we take a list of values and then filter out
      ones that are disabled. *)
   let constr_scheme xs =
-    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
-    let f (s,g) y : e list = 
-      if JB.bool (JB.field int_ds s) 
-      then (g ()) :: y
-      else y
-    in
-    List.fold_right f xs []
+    let f take x xs = if take then x()::xs else xs in
+    List.fold_right2 f !take_list xs []
     
   (* constructors *)
   let top () = constr_scheme
-    [("base"  ,fun () -> Base   (Base.Dom.top ()))
-    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.Dom.top ()))
-    ;("uninit",fun () -> Uninit (Uninit.Spec.Dom.top ()))
-    ;("var_eq",fun () -> VarEq  (VarEq.Spec.Dom.top ()))]
+    [(fun () -> Base   (Base.Dom.top ()))
+    ;(fun () -> Mutex  (Mutex.NoBaseSpec.Dom.top ()))
+    ;(fun () -> Uninit (Uninit.Spec.Dom.top ()))
+    ;(fun () -> VarEq  (VarEq.Spec.Dom.top ()))]
       
   let bot () = constr_scheme
-    [("base"  ,fun () -> Base   (Base.Dom.bot ()))
-    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.Dom.bot ()))
-    ;("uninit",fun () -> Uninit (Uninit.Spec.Dom.bot ()))
-    ;("var_eq",fun () -> VarEq  (VarEq.Spec.Dom.bot ()))]
+    [(fun () -> Base   (Base.Dom.bot ()))
+    ;(fun () -> Mutex  (Mutex.NoBaseSpec.Dom.bot ()))
+    ;(fun () -> Uninit (Uninit.Spec.Dom.bot ()))
+    ;(fun () -> VarEq  (VarEq.Spec.Dom.bot ()))]
   
 
   let startstate () = constr_scheme
-    [("base"  ,fun () -> Base   (Base.startstate ()))
-    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.startstate ()))
-    ;("uninit",fun () -> Uninit (Uninit.Spec.startstate ()))
-    ;("var_eq",fun () -> VarEq  (VarEq.Spec.startstate ()))]
+    [(fun () -> Base   (Base.startstate ()))
+    ;(fun () -> Mutex  (Mutex.NoBaseSpec.startstate ()))
+    ;(fun () -> Uninit (Uninit.Spec.startstate ()))
+    ;(fun () -> VarEq  (VarEq.Spec.startstate ()))]
 
   let otherstate () = constr_scheme
-    [("base"  ,fun () -> Base   (Base.otherstate ()))
-    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.otherstate ()))
-    ;("uninit",fun () -> Uninit (Uninit.Spec.otherstate ()))
-    ;("var_eq",fun () -> VarEq  (VarEq.Spec.otherstate ()))]
+    [(fun () -> Base   (Base.otherstate ()))
+    ;(fun () -> Mutex  (Mutex.NoBaseSpec.otherstate ()))
+    ;(fun () -> Uninit (Uninit.Spec.otherstate ()))
+    ;(fun () -> VarEq  (VarEq.Spec.otherstate ()))]
 
   (* element lattice functions *)
   let narrow' x y =
@@ -233,29 +236,32 @@ struct
   (* We pair list of configurable analyses with multithreadidness flag domain. *)
   type t = e list
   
+  let take_list = ref []   
+  let init () = 
+    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
+    let order = ["base";"mutex";"uninit";"var_eq"] in
+    let f s y = JB.bool (JB.field int_ds s) :: y in
+    take_list := List.fold_right f order []
+  
   (* Constructor scheme stuff: we take a list of values and then filter out
      ones that are disabled. *)
   let constr_scheme xs =
-    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
-    let f (s,g) y : e list = 
-      if JB.bool (JB.field int_ds s) 
-      then (g ()) :: y
-      else y
-    in
-    List.fold_right f xs []
+    let f take x xs = if take then x()::xs else xs in
+    List.fold_right2 f !take_list xs []
+    
     
   (* constructors *)
   let top () = constr_scheme
-    [("base"  ,fun () -> Base   (Base.Glob.Val.top ()))
-    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.top ()))
-    ;("uninit",fun () -> Uninit (Uninit.Spec.Glob.Val.top ()))
-    ;("var_eq",fun () -> VarEq  (VarEq.Spec.Glob.Val.top ()))]
+    [(fun () -> Base   (Base.Glob.Val.top ()))
+    ;(fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.top ()))
+    ;(fun () -> Uninit (Uninit.Spec.Glob.Val.top ()))
+    ;(fun () -> VarEq  (VarEq.Spec.Glob.Val.top ()))]
       
   let bot () = constr_scheme
-    [("base"  ,fun () -> Base   (Base.Glob.Val.bot ()))
-    ;("mutex" ,fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.bot ()))
-    ;("uninit",fun () -> Uninit (Uninit.Spec.Glob.Val.bot ()))
-    ;("var_eq",fun () -> VarEq  (VarEq.Spec.Glob.Val.bot ()))]
+    [(fun () -> Base   (Base.Glob.Val.bot ()))
+    ;(fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.bot ()))
+    ;(fun () -> Uninit (Uninit.Spec.Glob.Val.bot ()))
+    ;(fun () -> VarEq  (VarEq.Spec.Glob.Val.bot ()))]
 
   (* element lattice functions *)
   
@@ -599,16 +605,13 @@ struct
 
   (* Generate a "drop list" (on startup) for elements that are not considered 
      path-sensitive properties. *)
-  let nonsense = ref []
+  let take_list = ref []
 
   let init () = 
+    Dom.init ();
+    Glob.Val.init ();
+    take_list := !Dom.take_list;
     let specs_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses"))  in
-    let sense_ds = JB.make_table (JB.objekt (JB.field !GU.conf "sensitive")) in
-    let list_order = ["base";"mutex";"uninit";"var_eq"] in
-    let f s r = 
-      if JB.bool (JB.field specs_ds s) then JB.bool (JB.field sense_ds s) :: r else r
-    in
-    nonsense := List.fold_right f list_order [];
     let uses x = JB.bool (JB.field specs_ds x) in
     (if uses "base" then Base.init ());
     (if uses "mutex" then Mutex.NoBaseSpec.init ());
@@ -622,8 +625,8 @@ struct
   (* Join when path-sensitive properties are equal. *)
   let should_join xs ys = 
     let drop_keep it_is x xs = if it_is then x :: xs else xs in
-    let xs = List.fold_right2 drop_keep !nonsense xs [] in
-    let ys = List.fold_right2 drop_keep !nonsense ys [] in
+    let xs = List.fold_right2 drop_keep !take_list xs [] in
+    let ys = List.fold_right2 drop_keep !take_list ys [] in
     List.for_all2 Dom.equal' xs ys
   
   let es_to_string f _ = f.svar.vname
