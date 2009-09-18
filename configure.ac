@@ -253,6 +253,7 @@ if test -z $XML
 then 
      # No ... Maybe in ../xml-light ?
      XML=$DEFAULTXML
+     USE_FIND=""
 fi
 
 
