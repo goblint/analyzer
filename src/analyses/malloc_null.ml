@@ -1,3 +1,4 @@
+
 module M = Messages
 module BS = Base.Main
 module AD = ValueDomain.AD
@@ -11,21 +12,29 @@ struct
   module Addr = ValueDomain.Addr
   module AddrSet = SetDomain.ToppedSet (Addr) (struct let topname = "All" end)
   
-  module Dom  = Lattice.Prod (AddrSet) (BS.Dom)   
-  module Glob = BS.Glob
+  module Dom  = AddrSet
+  module Glob = Global.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
   
-  let get_diff (_,x) = BS.get_diff x
-  let reset_diff (y,x) = (y,BS.reset_diff x)
+  let get_diff _ = []
+  let reset_diff x = x
   
   (* queries *)
   let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
+  (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
+     element) answers with the string "unknown" on all non-concrete cases. *)
+  let rec conv_offset x =
+    match x with
+      | `NoOffset    -> `NoOffset
+      | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.ID.of_int i, conv_offset o)
+      | `Index (_,o) -> `Index (ValueDomain.ID.top (), conv_offset o)
+      | `Field (f,o) -> `Field (f, conv_offset o)
+
   (*
     Addr set functions: 
   *)
-  
   let is_prefix_of (v1,ofs1: varinfo * (Addr.field,Addr.idx) Lval.offs) (v2,ofs2: varinfo * (Addr.field,Addr.idx) Lval.offs) : bool =
     let rec is_offs_prefix_of pr os = 
       match (pr, os) with
@@ -36,7 +45,8 @@ struct
     in
     (v1.vid == v2.vid) && is_offs_prefix_of ofs1 ofs2
   
-  let warn_lval (st,gs:Dom.t) (v :varinfo * (Addr.field,Addr.idx) Lval.offs) : unit =
+  (* We just had to dereference an lval --- warn if it was null *)
+  let warn_lval (st:Dom.t) (v :varinfo * (Addr.field,Addr.idx) Lval.offs) : unit =
     try 
       if AddrSet.exists (fun x -> List.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
       then 
@@ -44,29 +54,35 @@ struct
         Messages.report ("Possible dereferencing of null on variable '" ^ (Addr.short 80 var) ^ "'.")
     with SetDomain.Unsupported _ -> ()
   
-  let rec warn_deref_exp a (gl:glob_fun) (_,s as st:Dom.t) (e:exp): unit =
+  (* Warn null-lval dereferences, but not normal (null-) lvals*)
+  let rec warn_deref_exp a (st:Dom.t) (e:exp): unit =
+    let warn_lval_mem e offs = 
+(*      begin try List.iter (warn_lval st) (AD.to_var_offset (BS.eval_lv gl s (Mem e, offs)))
+      with SetDomain.Unsupported _ -> () end;*)
+      match e with
+        | Lval (Var v, offs) ->            
+            begin match a (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
+                    | `LvalSet a when not (Queries.LS.is_top a) ->
+                        Queries.LS.iter (fun (v,o) -> warn_lval st (v, conv_offset o)) a
+                    | _ -> ()
+            end
+        | _ -> ()          
+    in
     match e with
       | Lval (Var v, offs) -> ()
+      | AddrOf (Var _, _) 
+      | StartOf (Var _, _) ->  warn_lval_mem e NoOffset
+      | AddrOf (Mem e, offs) 
+      | StartOf (Mem e, offs) 
       | Lval (Mem e, offs) -> 
-          warn_deref_exp a gl st e;
-(*          begin try List.iter (warn_lval st) (AD.to_var_offset (BS.eval_lv gl s (Mem e, offs)))
-          with SetDomain.Unsupported _ -> () end;
-*)          begin match e with
-            | Lval (Var v, offs) -> warn_lval st (v, BS.convert_offset a gl s offs)
-            | Lval (Mem e, offs) -> 
-                        begin try List.iter (warn_lval st) (AD.to_var_offset (BS.eval_lv a gl s (Mem e, offs)))
-                        with SetDomain.Unsupported _ -> () end;
-            | _ -> () end
+          warn_deref_exp a st e;
+          warn_lval_mem e offs
       | BinOp (_,e1,e2,_) -> 
-          warn_deref_exp a gl st e1;
-          warn_deref_exp a gl st e2
+          warn_deref_exp a st e1;
+          warn_deref_exp a st e2
       | UnOp (_,e,_) 
-      | SizeOfE e 
-      | AlignOfE e
-      | AddrOf (Mem e, _) 
-      | StartOf (Mem e, _) 
       | CastE  (_,e) ->
-          warn_deref_exp a gl st e 
+          warn_deref_exp a st e 
       | _ -> ()
   
   let may (f: 'a -> 'b) (x: 'a option) : unit =
@@ -74,6 +90,7 @@ struct
       | Some x -> f x; ()
       | None -> ()
 
+  (* Generate addresses to all points in an given varinfo. (Depends on type) *)
   let to_addrs (v:varinfo) : Addr.t list =
     let make_offs = List.fold_left (fun o f -> `Field (f, o)) `NoOffset in
     let rec add_fields (base: Addr.field list) fs acc = 
@@ -88,32 +105,49 @@ struct
       | TComp ({cfields=fs},_) -> add_fields [] fs [] 
       | _ -> [Addr.from_var v]
 
-    let remove_unreachable a (args: exp list) (gl:glob_fun) (gs: BS.Dom.t) (st: AddrSet.t) : AddrSet.t =
-      if AddrSet.is_top st then st else
-      let vals      = List.map (BS.eval_rv a gl gs) args in
-      let reachable = BS.reachable_vars (BS.get_ptrs vals) (gl:glob_fun) gs in
-      let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
-        let vars = AD.to_var_may one in
-        List.fold_right AD.add (List.concat (List.map to_addrs vars)) many
-      in
-      let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
-      AddrSet.filter (fun x -> AD.mem x vars) st     
+  (* Remove null values from state that are unreachable from exp.*)
+  let remove_unreachable ask (args: exp list) (st: Dom.t) : Dom.t =
+  let reachable = 
+    let do_exp e = 
+      match ask (Queries.ReachableFrom e) with
+        | `LvalSet a when not (Queries.LS.is_top a) -> 
+          let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
+          Queries.LS.fold to_extra a [] 
+        (* Ignore soundness warnings, as invalidation proper will raise them. *)
+        | _ -> []
+    in
+      List.concat (List.map do_exp args)
+  in
+  let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
+    let vars = AD.to_var_may one in
+    List.fold_right AD.add (List.concat (List.map to_addrs vars)) many
+  in
+  let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
+  if Dom.is_top st 
+  then Dom.top ()
+  else Dom.filter (fun x -> AD.mem x vars) st       
 
-  let get_concrete_lval a (lval:lval) (gl:glob_fun) (st,gs:Dom.t)  =
-    let lval_v = BS.eval_lv a gl gs lval in
-      if AD.is_top lval_v then None else
-      match AD.to_var_offset lval_v with
-        | [(vt,ot)] -> Some (vt,ot)
-        | _ -> None 
-    
-  let get_concrete_exp (exp:exp) (gl:glob_fun) (st,gs:Dom.t) =
+  let get_concrete_lval ask (lval:lval) =
+    match ask (Queries.MayPointTo (mkAddrOf lval)) with
+      | `LvalSet a when Queries.LS.cardinal a = 1 ->
+          let v, o = Queries.LS.choose a in
+          Some (Var v, conv_offset o)
+      | _ -> None 
+
+  let get_concrete_exp (exp:exp) (gl:glob_fun) (st:Dom.t) =
     match Cil.constFold true exp with
        | CastE (_,Lval (Var v, offs))
-       | Lval (Var v, offs) -> Some (v,offs)
+       | Lval (Var v, offs) -> Some (Var v,offs)
        | _ -> None
 
-  let might_be_null a (v,offs) gl (st,gs) =
-    AddrSet.exists (fun x -> List.exists (fun x -> is_prefix_of (v, BS.convert_offset a gl gs offs) x) (Addr.to_var_offset x)) st 
+  let might_be_null ask lv gl st =
+    match ask (Queries.MayPointTo (mkAddrOf lv)) with
+      | `LvalSet a when not (Queries.LS.is_top a) ->
+          let one_addr_might (v,o) = 
+            AddrSet.exists (fun x -> List.exists (fun x -> is_prefix_of (v, conv_offset o) x) (Addr.to_var_offset x)) st
+          in
+          Queries.LS.exists one_addr_might a 
+      | _ -> false   
   
   (*
     Transfer functions and alike 
@@ -121,94 +155,90 @@ struct
   
   (* One step tf-s *)
   
-  let assign a (lval:lval) (rval:exp) (gl:glob_fun) (st,gs:Dom.t) : Dom.t =
-    warn_deref_exp a gl (st,gs) (Lval lval) ;
-    warn_deref_exp a gl (st,gs) rval;
-    match get_concrete_exp rval gl (st,gs), get_concrete_lval a lval gl (st,gs) with
-      | Some rv , Some (vt,ot) when might_be_null a rv gl (st,gs) -> 
-          AddrSet.add (Addr.from_var_offset (vt,ot)) st, BS.assign a lval rval gl gs
-      | _ -> st, BS.assign a lval rval gl gs
+  let assign a (lval:lval) (rval:exp) (gl:glob_fun) (st:Dom.t) : Dom.t =
+    warn_deref_exp a st (Lval lval) ;
+    warn_deref_exp a st rval;
+    match get_concrete_exp rval gl st, get_concrete_lval a lval with
+      | Some rv , Some (Var vt,ot) when might_be_null a rv gl st -> 
+          AddrSet.add (Addr.from_var_offset (vt,ot)) st
+      | _ -> st
       
-  let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st,gs:Dom.t) : Dom.t = 
-    warn_deref_exp a gl (st,gs) exp;
-    (st,BS.branch a exp tv gl gs)
+  let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st:Dom.t) : Dom.t = 
+    warn_deref_exp a st exp;
+    st
   
-  let body a (f:fundec) (gl:glob_fun) (st,gs:Dom.t) : Dom.t = 
-    (st, BS.body a f gl gs)
+  let body a (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t = 
+    st
   
   let return_addr_ = ref (Addr.null_ptr ())
   let return_addr () = !return_addr_
   
-  let return a (exp:exp option) (f:fundec) (gl:glob_fun) (st,gs:Dom.t) : Dom.t = 
+  let return a (exp:exp option) (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t = 
     let remove_var x v = List.fold_right AddrSet.remove (to_addrs v) x in
     let nst = List.fold_left remove_var st (f.slocals @ f.sformals) in
     match exp with
       | Some ret ->
-          warn_deref_exp a gl (st,gs) ret;
-          begin match get_concrete_exp ret gl (st,gs) with
-            | Some ev when might_be_null a ev gl (st,gs) ->
-                AddrSet.add (return_addr ()) nst, BS.return a exp f gl gs
-            | _ -> (nst,BS.return a exp f gl gs)  end
-      | None -> (nst,BS.return a exp f gl gs)  
+          warn_deref_exp a st ret;
+          begin match get_concrete_exp ret gl st with
+            | Some ev when might_be_null a ev gl st ->
+                AddrSet.add (return_addr ()) nst
+            | _ -> nst  end
+      | None -> nst
   
   (* Function calls *)
   
-  let eval_funvar a (fv:exp) (gl:glob_fun) (st,gs:Dom.t) : varinfo list = 
-    warn_deref_exp a gl (st,gs) fv;
-    BS.eval_funvar a fv gl gs
+  let eval_funvar a (fv:exp) (gl:glob_fun) (st:Dom.t) : varinfo list = 
+    warn_deref_exp a st fv;
+    []
+    
+  let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Dom.t) list =
+    let nst = remove_unreachable a args st in
+    may (fun x -> warn_deref_exp a st (Lval x)) lval;
+    List.iter (warn_deref_exp a st) args;
+    [st,nst]
   
-  let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st,gs:Dom.t) : (Dom.t * Dom.t) list =
-    let nst = remove_unreachable a args gl gs st in
-    may (fun x -> warn_deref_exp a gl (st,gs) (Lval x)) lval;
-    List.iter (warn_deref_exp a gl (st,gs)) args;
-    List.map (fun (b,x) -> (st,b), (nst, x)) (BS.enter_func a lval f args gl gs)          
-  
-  let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu,bst:Dom.t) (au,ast:Dom.t) : Dom.t =
-    let cal_st = remove_unreachable a args gl bst bu in
+  let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu:Dom.t) (au:Dom.t) : Dom.t =
+    let cal_st = remove_unreachable a args bu in
     let ret_st = AddrSet.union au (AddrSet.diff bu cal_st) in
     let new_u = 
       match lval, AddrSet.mem (return_addr ()) ret_st with
         | Some lv, true -> 
-            begin match get_concrete_lval a lv gl (bu,bst) with
-                    | Some (v,ofs) -> AddrSet.remove (return_addr ()) (AddrSet.add (Addr.from_var_offset (v,ofs)) ret_st)
+            begin match get_concrete_lval a lv with
+                    | Some (Var v,ofs) -> AddrSet.remove (return_addr ()) (AddrSet.add (Addr.from_var_offset (v,ofs)) ret_st)
                     | _ -> ret_st end
         | _ -> ret_st
     in
-    new_u, BS.leave_func a lval f args gl bst ast
+    new_u
   
-  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st,gs:Dom.t) : (Dom.t * Cil.exp * bool) list =
-    may (fun x -> warn_deref_exp a gl (st,gs) (Lval x)) lval;
-    List.iter (warn_deref_exp a gl (st,gs)) arglist;
-    let map_gs x = List.map (fun (y,e,t) -> (x, y), e, t) (BS.special_fn a lval f arglist gl gs) in
-    let null_it add x = BS.set gl x add (`Address (AD.null_ptr ()))  in
+  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Cil.exp * bool) list =
+    may (fun x -> warn_deref_exp a st (Lval x)) lval;
+    List.iter (warn_deref_exp a st) arglist;
     match f.vname, lval with
       | "malloc", Some lv ->
-        Messages.report "malloc";
         begin
-          let addr = BS.eval_lv a gl gs lv in
-          match AD.to_var_offset addr with
-           | [vo] -> map_gs st @ List.map (fun ((x,y),e,t) -> (x, null_it addr y),e,t) (map_gs (AddrSet.add (Addr.from_var_offset vo) st))
-           | _ -> map_gs st
+          match get_concrete_lval a lv with
+            | Some (Var v, offs) ->
+                [st, Lval lv, true
+                ;AddrSet.add (Addr.from_var_offset (v,offs)) st, Lval lv, false]
+           | _ -> [st, Cil.integer 1, true]
         end
-      | _ -> map_gs st 
+      | _ -> [st, Cil.integer 1, true]
   
-  let fork a (lval: lval option) (f : varinfo) (args : exp list) (gl:glob_fun) (univ,cpa: Dom.t) : (varinfo * Dom.t) list =
-    let dress (v,d) = v, (AddrSet.top (), d) in 
-    List.map dress (BS.fork a lval f args gl cpa)
+  let fork a lv f args gs ls = 
+    []
   
   let name = "Malloc null"
 
-  let finalize = BS.finalize
-  let should_join (x,_) (y,_) = AddrSet.equal x y
-  let startstate () = AddrSet.empty () , BS.startstate ()
-  let otherstate () = AddrSet.empty () , BS.otherstate ()
-  let es_to_string fd (_,d) = BS.es_to_string fd d
+  let finalize () = ()
+  let should_join _ _ = true
+  let startstate () = AddrSet.empty () 
+  let otherstate () = AddrSet.empty ()
+  let es_to_string f _ = f.svar.vname
   let init () = 
-    BS.init ();
+    Goblintutil.malloc_may_fail := true; 
     return_addr_ :=  Addr.from_var (makeVarinfo false "RETURN" voidType)
   
 end
-
 
 module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
 module Analysis : Analyses.S    = Multithread.Forward(Path)

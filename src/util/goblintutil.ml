@@ -7,16 +7,18 @@ open Json_type.Browse
 
 (* generate a default configuration *)
 let default_conf () =
-  let def_int = Build.objekt ["trier"    , Build.bool true
-                             ;"interval" , Build.bool false] in
-  let def_ana = Build.objekt ["base"     , Build.bool true
-                             ;"mutex"    , Build.bool true
-                             ;"uninit"   , Build.bool false
-                             ;"var_eq"   , Build.bool false] in
-  let def_path = Build.objekt ["base"     , Build.bool false
-                              ;"mutex"    , Build.bool true
-                              ;"uninit"   , Build.bool false
-                              ;"var_eq"   , Build.bool false] in
+  let def_int = Build.objekt ["trier"      , Build.bool true
+                             ;"interval"   , Build.bool false] in
+  let def_ana = Build.objekt ["base"       , Build.bool true
+                             ;"mutex"      , Build.bool true
+                             ;"uninit"     , Build.bool false
+                             ;"malloc_null", Build.bool false
+                             ;"var_eq"     , Build.bool false] in
+  let def_path = Build.objekt ["base"       , Build.bool false
+                              ;"mutex"      , Build.bool true
+                              ;"uninit"     , Build.bool false
+                              ;"malloc_null", Build.bool false
+                              ;"var_eq"     , Build.bool false] in
   Build.objekt ["int_domain" , def_int
                ;"analyses"   , def_ana
                ;"sensitive"  , def_path
@@ -34,14 +36,16 @@ let conf : (string, Json_type.t) Hashtbl.t ref =
     ref (make_table (objekt c))
 
 let conf_uninit () = 
-  let uni_ana = Build.objekt ["base"     , Build.bool true
-                             ;"mutex"    , Build.bool false
-                             ;"uninit"   , Build.bool true
-                             ;"var_eq"   , Build.bool false] in
-  let uni_path = Build.objekt ["base"     , Build.bool false
-                              ;"mutex"    , Build.bool false
-                              ;"uninit"   , Build.bool true
-                              ;"var_eq"   , Build.bool false] in
+  let uni_ana = Build.objekt ["base"       , Build.bool true
+                             ;"mutex"      , Build.bool false
+                             ;"uninit"     , Build.bool true
+                             ;"malloc_null", Build.bool false
+                             ;"var_eq"     , Build.bool false] in
+  let uni_path = Build.objekt ["base"       , Build.bool false
+                              ;"mutex"      , Build.bool false
+                              ;"uninit"     , Build.bool true
+                              ;"malloc_null", Build.bool false
+                              ;"var_eq"     , Build.bool false] in
   let uninit = 
     Build.objekt ["int_domain" , field !conf "int_domain"
                  ;"analyses"   , uni_ana
@@ -49,7 +53,25 @@ let conf_uninit () =
                  ;"analysis"   , field !conf "analysis"
                  ;"solver"     , field !conf "solver"] in
   conf := make_table (objekt uninit)
-
+  
+let conf_malloc () = 
+  let uni_ana = Build.objekt ["base"       , Build.bool true
+                             ;"mutex"      , Build.bool false
+                             ;"uninit"     , Build.bool false
+                             ;"malloc_null", Build.bool true
+                             ;"var_eq"     , Build.bool false] in
+  let uni_path = Build.objekt ["base"       , Build.bool false
+                              ;"mutex"      , Build.bool false
+                              ;"uninit"     , Build.bool false
+                              ;"malloc_null", Build.bool true
+                              ;"var_eq"     , Build.bool false] in
+  let uninit = 
+    Build.objekt ["int_domain" , field !conf "int_domain"
+                 ;"analyses"   , uni_ana
+                 ;"sensitive"  , uni_path
+                 ;"analysis"   , field !conf "analysis"
+                 ;"solver"     , field !conf "solver"] in
+  conf := make_table (objekt uninit)
 (** when goblin is in debug mode *)
 let debug = ref false 
 
@@ -95,6 +117,9 @@ let unmerged_fields = ref false
 
 (** Will terminate on a collapsed array --- for debugging. *)
 let die_on_collapse = ref false
+
+(** Adds support to failing mallocs. *)
+let malloc_may_fail = ref false 
 
 (** Tells the spec that result may still get smaller (on narrowing). 
    If this is false we can output messages and collect accesses. *)

@@ -174,6 +174,7 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
                     when /will fail/   : "fail"
                     when /is unknown/  : "unknown"
                     when /Uninitialized/ : "warn"
+                    when /dereferencing of null/ : "warn"
                     else obj
                     end
     end

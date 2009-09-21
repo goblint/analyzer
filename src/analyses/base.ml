@@ -902,7 +902,11 @@ struct
       | "malloc" | "__kmalloc" -> begin
         match lv with
           | Some lv -> 
-            let heap_var = heap_var !GU.current_loc in 
+            let heap_var = 
+              if !GU.malloc_may_fail 
+              then AD.join (heap_var !GU.current_loc) (AD.null_ptr ()) 
+              else heap_var !GU.current_loc
+            in 
             [map_true (set_many gs st [(heap_var, `Blob (VD.bot ()));  
                                        (eval_lv a gs st lv, `Address heap_var)])]
           | _ -> [map_true st]

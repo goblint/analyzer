@@ -78,7 +78,7 @@ let main () =
       | "mutex" -> Mutex.Analysis.analyze
       | "no_path" -> Mutex.SimpleAnalysis.analyze
       | "base" -> Base.Analysis.analyze
-      | "malloc_null" -> Malloc_null.Analysis.analyze
+      | "malloc_null" -> MCP.Analysis.analyze (*integrated*)
       | _ -> raise (Arg.Bad ("no such analysis: "^str))
   in
   let analyze = ref (analyzer (JB.string (JB.field !GU.conf "analysis"))) in
@@ -86,6 +86,7 @@ let main () =
   let setanalysis str = 
     begin match str with
             | "uninit" -> GU.conf_uninit ()
+            | "malloc_null" -> GU.conf_malloc ()
             | _ -> ()
     end;
     analyze := analyzer str 
