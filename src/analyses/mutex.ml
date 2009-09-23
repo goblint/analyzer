@@ -207,17 +207,26 @@ struct
               Queries.LS.fold gather_addr a []    
           | _ -> []
     in
+    let is_a_blob addr = 
+      match LockDomain.Addr.to_var addr with
+        | [a] -> a.vname.[0] = '(' 
+        | _ -> false
+    in
     let lock rw may_fail =
+        let nothing ls = [ls,Cil.integer 1,true] in
         let lock_one (e:LockDomain.Addr.t) =
           let set_ret tv sts = 
             match lv with 
               | None -> [sts,Cil.integer 1,true]
               | Some lv -> [sts,Lval lv,tv]
           in 
-          set_ret false  (Lockset.add (e,rw) ls) @
-          if may_fail then set_ret true ls else [] 
+          if is_a_blob e then
+            nothing ls
+          else begin
+            set_ret false  (Lockset.add (e,rw) ls) @
+            if may_fail then set_ret true ls else []
+          end
         in
-        let nothing ls = [ls,Cil.integer 1,true] in
           match arglist with
             | [x] -> begin match  (eval_exp_addr x) with 
                              | [e]  -> lock_one e

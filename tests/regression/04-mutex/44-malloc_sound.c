@@ -6,7 +6,7 @@ pthread_mutex_t *p, *q;
 
 void *f(void *x){
   pthread_mutex_lock(q);
-  glob++; // WARN
+  glob++; // RACE
   pthread_mutex_unlock(q);      
 }
 
@@ -28,7 +28,7 @@ int main() {
   pthread_create(&t1, 0, f, 0);
   
   pthread_mutex_lock(p);
-  glob++; // WARN
+  glob++; // RACE
   pthread_mutex_unlock(p);
   
   return 1;
