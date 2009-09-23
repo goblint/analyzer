@@ -307,7 +307,8 @@ struct
      let binop op e1 e2 =
        let equality () = 
          match ask (Queries.ExpEq (e1,e2)) with
-           | `Int x -> Queries.ID.to_bool x
+           | `Int 0L -> Some false
+           | `Int _ -> Some true
            | _ -> None
        in
        match op with
@@ -852,6 +853,8 @@ struct
           match eval_rv ask g st e with
             | `Top -> `Top
             | `Bot -> `Bot
+            | `Address a when AD.is_top a -> 
+                `LvalSet (Queries.LS.top ())   
             | `Address a ->
                 let xs = List.map addrToLvalSet (reachable_vars [a] g st) in 
                 let addrs = List.fold_left Queries.LS.join (Queries.LS.empty ()) xs in
@@ -860,7 +863,7 @@ struct
           end
       | Queries.SingleThreaded -> `Int (Queries.ID.of_bool (not (Flag.is_multi (get_fl st))))
       | Queries.CurrentThreadId when (Flag.is_bad (get_fl st)) -> `Top
-      | Queries.CurrentThreadId -> `Int (Queries.ID.of_int 1L)
+      | Queries.CurrentThreadId -> `Int 1L
       | _ -> Queries.Result.top ()
 
  (**************************************************************************

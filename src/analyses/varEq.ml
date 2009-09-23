@@ -38,7 +38,9 @@ struct
       in
       Dom.S.fold removel2 es st
     in
-    Dom.fold removel1 st st
+    if Dom.is_bot st
+    then st
+    else Dom.fold removel1 st st
 
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask lv rv st =
@@ -60,12 +62,14 @@ struct
   (* Give the set of reachables from argument. *)
   let reachables ask es = 
     let reachable e st = 
+      match st with 
+        | None -> None
+        | Some st ->
       match ask (Queries.ReachableFrom e) with
-        | `LvalSet vs when not (Queries.LS.is_top vs) ->
-            Queries.LS.join vs st
-        | _ -> Queries.LS.top ()
+        | `LvalSet vs -> Some (Queries.LS.join vs st)
+        | _ -> None
     in
-    List.fold_right reachable es (Queries.LS.empty ())   
+    List.fold_right reachable es (Some (Queries.LS.empty ()))   
 
   (* Probably ok as is. *)
   let body a f glob st = st
@@ -99,9 +103,15 @@ struct
     let assign_one_param st lv exp = add_eq a (lv, `NoOffset) exp st in
     let f = Cilfacade.getdec f in
     let nst = List.fold_left2 assign_one_param st f.sformals args in
-    let rst = Queries.LS.fold Dom.S.add (reachables a args) (Dom.S.empty ()) in
-    let rst = List.fold_left (fun st v -> Dom.S.add (v,`NoOffset) st) rst f.sformals in
-    [st,Dom.join nst (Dom.singleton rst)]
+    match Dom.is_bot st with
+      | true -> raise Analyses.Deadcode
+      | false -> 
+    match reachables a args with
+      | None -> [st, Dom.top ()]
+      | Some xs ->
+        let rst = Queries.LS.fold Dom.S.add xs (Dom.S.empty ()) in
+        let rst = List.fold_left (fun st v -> Dom.S.add (v,`NoOffset) st) rst f.sformals in
+        [st,Dom.join nst (Dom.singleton rst)]
   
   
   let leave_func ask lval f args glob st1 st2 = 
@@ -115,14 +125,19 @@ struct
            end
         | None -> st1 
     in
-    let rs = reachables ask args in
-    let remove_reachable1 es st =
-      let remove_reachable2 e st =
-        if Queries.LS.mem e rs then remove e st else st
-      in
-      Dom.S.fold remove_reachable2 es st
-    in
-    Dom.meet (Dom.fold remove_reachable1 st1 st1) st2
+    match Dom.is_bot st1 with
+      | true -> raise Analyses.Deadcode
+      | false -> 
+    match reachables ask args with
+      | None -> Dom.top ()
+      | Some rs -> 
+        let remove_reachable1 es st =
+          let remove_reachable2 e st =
+            if Queries.LS.mem e rs then remove e st else st
+          in
+          Dom.S.fold remove_reachable2 es st
+        in
+        Dom.meet (Dom.fold remove_reachable1 st1 st1) st2
     
   (* remove all variables that are reachable from arguments *)
   let special_fn ask lval f args glob st = 
@@ -131,15 +146,20 @@ struct
         | Some l -> mkAddrOf l :: args
         | None -> args
     in
-    let rs = reachables ask es in
-    let remove_reachable1 es st =
-      let remove_reachable2 e st =
-        if Queries.LS.mem e rs then remove e st else st
-      in
-      Dom.S.fold remove_reachable2 es st
-    in
-    let true_exp = (Cil.integer 1) in
-    [Dom.fold remove_reachable1 st st, true_exp, true]
+    match Dom.is_bot st with
+      | true -> raise Analyses.Deadcode
+      | false -> 
+    let true_exp = Cil.integer 1 in
+    match reachables ask es with
+      | None -> [Dom.top (), true_exp, true]
+      | Some rs -> 
+        let remove_reachable1 es st =
+          let remove_reachable2 e st =
+            if Queries.LS.mem e rs then remove e st else st
+          in
+          Dom.S.fold remove_reachable2 es st
+        in
+        [Dom.fold remove_reachable1 st st, true_exp, true]
     
   (* query stuff *)
   

@@ -1,7 +1,7 @@
 include Cil
 include Pretty 
 
-module ID = IntDomain.Integers
+module ID = IntDomain.FlatPureIntegers
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 
 type t = ExpEq of exp * exp 
@@ -101,35 +101,38 @@ struct
       | _ -> false
 
   let join x y = 
-    match (x,y) with 
-      | (`Top, _) -> `Top
+    try match (x,y) with 
+      | (`Top, _) 
       | (_, `Top) -> `Top
-      | (`Bot, x) -> x
+      | (`Bot, x) 
       | (x, `Bot) -> x
       | (`Int x, `Int y) -> `Int (ID.join x y)
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.join x y)
       | _ -> `Top
+    with IntDomain.Unknown -> `Top
 
   let meet x y = 
-    match (x,y) with 
-      | (`Bot, _) -> `Bot
+    try match (x,y) with 
+      | (`Bot, _) 
       | (_, `Bot) -> `Bot
-      | (`Top, x) -> x
+      | (`Top, x) 
       | (x, `Top) -> x
       | (`Int x, `Int y) -> `Int (ID.meet x y)
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.meet x y)
       | _ -> `Bot
+    with IntDomain.Error -> `Bot
 
   let widen x y =
-    match (x,y) with 
-      | (`Top, _) -> `Top
+    try match (x,y) with 
+      | (`Top, _) 
       | (_, `Top) -> `Top
-      | (`Bot, x) -> x
+      | (`Bot, x) 
       | (x, `Bot) -> x
       | (`Int x, `Int y) -> `Int (ID.widen x y)
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.widen x y)
       | _ -> `Top    
-
+    with IntDomain.Unknown -> `Top
+  
   let narrow x y =
     match (x,y) with 
       | (`Int x, `Int y) -> `Int (ID.narrow x y)

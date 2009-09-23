@@ -114,6 +114,17 @@ struct
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
 end
 
+module FlatPureIntegers =
+struct
+  include Integers
+  
+  let top () = raise Unknown
+  let bot () = raise Error
+  let leq = equal
+  let join x y = if equal x y then x else top ()
+  let meet x y = if equal x y then x else bot ()
+end
+
 module Flat (Base: S) =
 struct
   include Lattice.Flat (Base) (struct

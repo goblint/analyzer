@@ -110,7 +110,7 @@ struct
   let reachable = 
     let do_exp e = 
       match ask (Queries.ReachableFrom e) with
-        | `LvalSet a when not (Queries.LS.is_top a) -> 
+        | `LvalSet a when not (Queries.LS.is_top a)  -> 
           let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
           Queries.LS.fold to_extra a [] 
         (* Ignore soundness warnings, as invalidation proper will raise them. *)

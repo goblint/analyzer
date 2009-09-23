@@ -110,6 +110,10 @@ module Integers : S with type t = int64
 (** The integers with their natural orderings. Calling [top] and [bot] will
   * raise exceptions. *)
 
+module FlatPureIntegers : S with type t = int64
+(** The integers with flattened orderings. Calling [top] and [bot] or [join]ing
+    or [meet]ing inequal elements will raise exceptions. *)
+
 module Flattened : S with type t = [`Top | `Lifted of int64 | `Bot]
 (** This is the typical flattened integer domain used in Kildall's constant
   * propagation. *)

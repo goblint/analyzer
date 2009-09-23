@@ -695,6 +695,11 @@ struct
     let drop_keep it_is x xs = if it_is then x :: xs else xs in
     let xs = List.fold_right2 drop_keep !take_list xs [] in
     let ys = List.fold_right2 drop_keep !take_list ys [] in
+    let equal_or_bot x y = 
+      Dom.is_bot' x ||
+      Dom.is_bot' y ||
+      Dom.equal' x y
+    in
     List.for_all2 Dom.equal' xs ys
   
   let es_to_string f _ = f.svar.vname
