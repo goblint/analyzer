@@ -32,7 +32,7 @@ PROG_MODULES = \
 	musteqDomain regionDomain concDomain lockDomain queries \
 	hash progress myCFG analyses libraryFunctions global \
 	solver effectWCon effectWNCon solverConSideRR solverConSideWNRR \
-	multithread compose varEq \
+	multithread compose varEq symbLocks \
 	base owner unit mutex uninit malloc_null memLeaks mCP
 
 TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \

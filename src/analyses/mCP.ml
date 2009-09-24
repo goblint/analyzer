@@ -9,10 +9,11 @@ struct
   exception DomainBroken
   
   (* This type should contain all analyses that do not depend on base.*)
-  type e = Base  of Base.Dom.t
-         | Mutex of Mutex.NoBaseSpec.Dom.t
-         | VarEq of VarEq.Spec.Dom.t
-         | Uninit of Uninit.Spec.Dom.t
+  type e = Base        of Base.Dom.t
+         | Mutex       of Mutex.NoBaseSpec.Dom.t
+         | SymbLocks   of SymbLocks.Spec.Dom.t
+         | VarEq       of VarEq.Spec.Dom.t
+         | Uninit      of Uninit.Spec.Dom.t
          | Malloc_null of Malloc_null.Spec.Dom.t
          | Bad
   
@@ -23,7 +24,7 @@ struct
   
   let init () = 
     let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
-    let order = ["base";"mutex";"uninit";"malloc_null";"var_eq"] in
+    let order = ["base";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
     let f s y = JB.bool (JB.field int_ds s) :: y in
     take_list := List.fold_right f order []
   
@@ -37,6 +38,7 @@ struct
   let top () = constr_scheme
     [(fun () -> Base   (Base.Dom.top ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.Dom.top ()))
+    ;(fun () -> SymbLocks (SymbLocks.Spec.Dom.top ()))
     ;(fun () -> Uninit (Uninit.Spec.Dom.top ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.Dom.top ()))
     ;(fun () -> VarEq  (VarEq.Spec.Dom.top ()))]
@@ -44,6 +46,7 @@ struct
   let bot () = constr_scheme
     [(fun () -> Base   (Base.Dom.bot ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.Dom.bot ()))
+    ;(fun () -> SymbLocks (SymbLocks.Spec.Dom.bot ()))
     ;(fun () -> Uninit (Uninit.Spec.Dom.bot ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.Dom.bot ()))
     ;(fun () -> VarEq  (VarEq.Spec.Dom.bot ()))]
@@ -52,6 +55,7 @@ struct
   let startstate () = constr_scheme
     [(fun () -> Base   (Base.startstate ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.startstate ()))
+    ;(fun () -> SymbLocks (SymbLocks.Spec.startstate ()))
     ;(fun () -> Uninit (Uninit.Spec.startstate ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.startstate ()))
     ;(fun () -> VarEq  (VarEq.Spec.startstate ()))]
@@ -59,6 +63,7 @@ struct
   let otherstate () = constr_scheme
     [(fun () -> Base   (Base.otherstate ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.otherstate ()))
+    ;(fun () -> SymbLocks (SymbLocks.Spec.otherstate ()))
     ;(fun () -> Uninit (Uninit.Spec.otherstate ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.otherstate ()))
     ;(fun () -> VarEq  (VarEq.Spec.otherstate ()))]
@@ -68,6 +73,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Dom.narrow x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.narrow x y)
+      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.narrow x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.narrow x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.narrow x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.narrow x y)
@@ -77,6 +83,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Dom.widen x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.widen x y)
+      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.widen x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.widen x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.widen x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.widen x y)
@@ -86,6 +93,7 @@ struct
     match x with
       | Base x -> Base.Dom.is_top x
       | Mutex x -> Mutex.NoBaseSpec.Dom.is_top x
+      | SymbLocks x -> SymbLocks.Spec.Dom.is_top x
       | Uninit x -> Uninit.Spec.Dom.is_top x
       | Malloc_null x -> Malloc_null.Spec.Dom.is_top x
       | VarEq x -> VarEq.Spec.Dom.is_top x
@@ -95,6 +103,7 @@ struct
     match x with
       | Base x -> Base.Dom.is_bot x
       | Mutex x -> Mutex.NoBaseSpec.Dom.is_bot x
+      | SymbLocks x -> SymbLocks.Spec.Dom.is_bot x
       | Uninit x -> Uninit.Spec.Dom.is_bot x
       | Malloc_null x -> Malloc_null.Spec.Dom.is_bot x
       | VarEq x -> VarEq.Spec.Dom.is_bot x
@@ -104,6 +113,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Dom.meet x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.meet x y)
+      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.meet x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.meet x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.meet x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.meet x y)
@@ -113,6 +123,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Dom.join x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.join x y)
+      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.join x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.join x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.join x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.join x y)
@@ -122,6 +133,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Dom.leq x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.leq x y
+      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.leq x y
       | Uninit x, Uninit y -> Uninit.Spec.Dom.leq x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Dom.leq x y
       | VarEq x, VarEq y -> VarEq.Spec.Dom.leq x y
@@ -131,6 +143,7 @@ struct
     match x with
       | Base x -> Base.Dom.short w x
       | Mutex x -> Mutex.NoBaseSpec.Dom.short w x
+      | SymbLocks x -> SymbLocks.Spec.Dom.short w x
       | Uninit x -> Uninit.Spec.Dom.short w x
       | Malloc_null x -> Malloc_null.Spec.Dom.short w x
       | VarEq x -> VarEq.Spec.Dom.short w x
@@ -140,6 +153,7 @@ struct
     match x with
       | Base x -> Base.Dom.toXML_f (fun w x -> sf w (Base x)) x
       | Mutex x -> Mutex.NoBaseSpec.Dom.toXML_f (fun w x -> sf w (Mutex x)) x
+      | SymbLocks x -> SymbLocks.Spec.Dom.toXML_f (fun w x -> sf w (SymbLocks x)) x
       | Uninit x -> Uninit.Spec.Dom.toXML_f (fun w x -> sf w (Uninit x)) x
       | Malloc_null x -> Malloc_null.Spec.Dom.toXML_f (fun w x -> sf w (Malloc_null x)) x
       | VarEq x -> VarEq.Spec.Dom.toXML_f (fun w x -> sf w (VarEq x)) x
@@ -149,6 +163,7 @@ struct
     match x with
       | Base x -> Base.Dom.pretty_f (fun w x -> sf w (Base x)) () x
       | Mutex x -> Mutex.NoBaseSpec.Dom.pretty_f (fun w x -> sf w (Mutex x)) () x
+      | SymbLocks x -> SymbLocks.Spec.Dom.pretty_f (fun w x -> sf w (SymbLocks x)) () x
       | Uninit x -> Uninit.Spec.Dom.pretty_f (fun w x -> sf w (Uninit x)) () x
       | Malloc_null x -> Malloc_null.Spec.Dom.pretty_f (fun w x -> sf w (Malloc_null x)) () x
       | VarEq x -> VarEq.Spec.Dom.pretty_f (fun w x -> sf w (VarEq x)) () x
@@ -162,6 +177,7 @@ struct
     match x with
       | Base x -> Base.Dom.isSimple x
       | Mutex x -> Mutex.NoBaseSpec.Dom.isSimple x
+      | SymbLocks x -> SymbLocks.Spec.Dom.isSimple x
       | Uninit x -> Uninit.Spec.Dom.isSimple x
       | Malloc_null x -> Malloc_null.Spec.Dom.isSimple x
       | VarEq x -> VarEq.Spec.Dom.isSimple x
@@ -171,6 +187,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Dom.compare x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.compare x y
+      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.compare x y
       | Uninit x, Uninit y -> Uninit.Spec.Dom.compare x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Dom.compare x y
       | VarEq x, VarEq y -> VarEq.Spec.Dom.compare x y
@@ -180,6 +197,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Dom.equal x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.equal x y
+      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.equal x y
       | Uninit x, Uninit y -> Uninit.Spec.Dom.equal x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Dom.equal x y
       | VarEq x, VarEq y -> VarEq.Spec.Dom.equal x y
@@ -189,6 +207,7 @@ struct
     match x with
       | Base x-> Base.Dom.hash x
       | Mutex x-> Mutex.NoBaseSpec.Dom.hash x
+      | SymbLocks x-> SymbLocks.Spec.Dom.hash x
       | Uninit x-> Uninit.Spec.Dom.hash x
       | Malloc_null x-> Malloc_null.Spec.Dom.hash x
       | VarEq x-> VarEq.Spec.Dom.hash x
@@ -246,11 +265,12 @@ struct
   exception DomainBroken
   
   (* This type should contain all analyses. *)
-  type e = Base   of Base.Glob.Val.t
-         | Mutex  of Mutex.NoBaseSpec.Glob.Val.t
-         | Uninit of Uninit.Spec.Glob.Val.t
+  type e = Base        of Base.Glob.Val.t
+         | Mutex       of Mutex.NoBaseSpec.Glob.Val.t
+         | SymbLocks   of SymbLocks.Spec.Glob.Val.t
+         | Uninit      of Uninit.Spec.Glob.Val.t
          | Malloc_null of Malloc_null.Spec.Glob.Val.t
-         | VarEq  of VarEq.Spec.Glob.Val.t
+         | VarEq       of VarEq.Spec.Glob.Val.t
          | Bad
   
   (* We pair list of configurable analyses with multithreadidness flag domain. *)
@@ -259,7 +279,7 @@ struct
   let take_list = ref []   
   let init () = 
     let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
-    let order = ["base";"mutex";"uninit";"malloc_null";"var_eq"] in
+    let order = ["base";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
     let f s y = JB.bool (JB.field int_ds s) :: y in
     take_list := List.fold_right f order []
   
@@ -274,6 +294,7 @@ struct
   let top () = constr_scheme
     [(fun () -> Base   (Base.Glob.Val.top ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.top ()))
+    ;(fun () -> SymbLocks (SymbLocks.Spec.Glob.Val.top ()))
     ;(fun () -> Uninit (Uninit.Spec.Glob.Val.top ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.Glob.Val.top ()))
     ;(fun () -> VarEq  (VarEq.Spec.Glob.Val.top ()))]
@@ -281,6 +302,7 @@ struct
   let bot () = constr_scheme
     [(fun () -> Base   (Base.Glob.Val.bot ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.bot ()))
+    ;(fun () -> SymbLocks (SymbLocks.Spec.Glob.Val.bot ()))
     ;(fun () -> Uninit (Uninit.Spec.Glob.Val.bot ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.Glob.Val.bot ()))
     ;(fun () -> VarEq  (VarEq.Spec.Glob.Val.bot ()))]
@@ -291,6 +313,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.narrow x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.narrow x y)
+      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.narrow x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.narrow x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.narrow x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.narrow x y)
@@ -300,6 +323,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.widen x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.widen x y)
+      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.widen x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.widen x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.widen x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.widen x y)
@@ -309,6 +333,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.is_top x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.is_top x
+      | SymbLocks x -> SymbLocks.Spec.Glob.Val.is_top x
       | Uninit x -> Uninit.Spec.Glob.Val.is_top x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.is_top x
       | VarEq x -> VarEq.Spec.Glob.Val.is_top x
@@ -318,6 +343,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.is_bot x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.is_bot x
+      | SymbLocks x -> SymbLocks.Spec.Glob.Val.is_bot x
       | Uninit x -> Uninit.Spec.Glob.Val.is_bot x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.is_bot x
       | VarEq x -> VarEq.Spec.Glob.Val.is_bot x
@@ -327,6 +353,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.meet x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.meet x y)
+      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.meet x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.meet x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.meet x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.meet x y)
@@ -336,6 +363,7 @@ struct
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.join x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.join x y)
+      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.join x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.join x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.join x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.join x y)
@@ -345,6 +373,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Glob.Val.leq x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.leq x y
+      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.leq x y
       | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.leq x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Glob.Val.leq x y
       | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.leq x y
@@ -354,6 +383,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.short w x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.short w x
+      | SymbLocks x -> SymbLocks.Spec.Glob.Val.short w x
       | Uninit x -> Uninit.Spec.Glob.Val.short w x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.short w x
       | VarEq x -> VarEq.Spec.Glob.Val.short w x
@@ -363,6 +393,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.toXML_f (fun w x -> sf w (Base x)) x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.toXML_f (fun w x -> sf w (Mutex x)) x
+      | SymbLocks x -> SymbLocks.Spec.Glob.Val.toXML_f (fun w x -> sf w (SymbLocks x)) x
       | Uninit x -> Uninit.Spec.Glob.Val.toXML_f (fun w x -> sf w (Uninit x)) x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.toXML_f (fun w x -> sf w (Malloc_null x)) x
       | VarEq x -> VarEq.Spec.Glob.Val.toXML_f (fun w x -> sf w (VarEq x)) x
@@ -372,6 +403,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.pretty_f (fun w x -> sf w (Base x)) () x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.pretty_f (fun w x -> sf w (Mutex x)) () x
+      | SymbLocks x -> SymbLocks.Spec.Glob.Val.pretty_f (fun w x -> sf w (SymbLocks x)) () x
       | Uninit x -> Uninit.Spec.Glob.Val.pretty_f (fun w x -> sf w (Uninit x)) () x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.pretty_f (fun w x -> sf w (Malloc_null x)) () x
       | VarEq x -> VarEq.Spec.Glob.Val.pretty_f (fun w x -> sf w (VarEq x)) () x
@@ -385,6 +417,7 @@ struct
     match x with
       | Base x -> Base.Glob.Val.isSimple x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.isSimple x
+      | SymbLocks x -> SymbLocks.Spec.Glob.Val.isSimple x
       | Uninit x -> Uninit.Spec.Glob.Val.isSimple x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.isSimple x
       | VarEq x -> VarEq.Spec.Glob.Val.isSimple x
@@ -394,6 +427,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Glob.Val.compare x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.compare x y
+      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.compare x y
       | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.compare x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Glob.Val.compare x y
       | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.compare x y
@@ -403,6 +437,7 @@ struct
     match x, y with
       | Base x, Base y -> Base.Glob.Val.equal x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.equal x y
+      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.equal x y
       | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.equal x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Glob.Val.equal x y
       | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.equal x y
@@ -412,6 +447,7 @@ struct
     match x with
       | Base x-> Base.Glob.Val.hash x
       | Mutex x-> Mutex.NoBaseSpec.Glob.Val.hash x
+      | SymbLocks x-> SymbLocks.Spec.Glob.Val.hash x
       | Uninit x-> Uninit.Spec.Glob.Val.hash x
       | Malloc_null x-> Malloc_null.Spec.Glob.Val.hash x
       | VarEq x-> VarEq.Spec.Glob.Val.hash x
@@ -504,6 +540,16 @@ struct
       | Some x -> x
       | None -> raise Glob.Val.DomainBroken
 
+  let globalSymbLocks g (x:Glob.Var.t) : SymbLocks.Spec.Glob.Val.t =
+    let f c n = 
+      match n with
+        | Glob.Val.SymbLocks x -> Some x
+        | _ -> c 
+    in
+    match List.fold_left f None (g x) with
+      | Some x -> x
+      | None -> raise Glob.Val.DomainBroken
+
   let globalUninit g (x:Glob.Var.t) : Uninit.Spec.Glob.Val.t =
     let f c n = 
       match n with
@@ -528,6 +574,7 @@ struct
     match x with
       | Dom.Base x -> Dom.Base (Base.assign a lv exp (globalBase g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.assign a lv exp (globalMutex g) x)
+      | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.assign a lv exp (globalSymbLocks g) x)
       | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.assign a lv exp (globalUninit g) x)
       | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.assign a lv exp (globalMallocNull g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.assign a lv exp (globalVarEq g) x)
@@ -537,6 +584,7 @@ struct
     match st with
       | Dom.Base x -> Dom.Base (Base.body a fn (globalBase g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.body a fn (globalMutex g) x)
+      | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.body a fn (globalSymbLocks g) x)
       | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.body a fn (globalUninit g) x)
       | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.body a fn (globalMallocNull g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.body a fn (globalVarEq g) x)
@@ -546,6 +594,7 @@ struct
     match st with
       | Dom.Base x -> Dom.Base (Base.return a r fn (globalBase g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.return a r fn (globalMutex g) x)
+      | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.return a r fn (globalSymbLocks g) x)
       | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.return a r fn (globalUninit g) x)
       | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.return a r fn (globalMallocNull g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.return a r fn (globalVarEq g) x)
@@ -555,6 +604,7 @@ struct
     match st with
       | Dom.Base x -> Dom.Base (Base.branch a exp tv (globalBase g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.branch a exp tv (globalMutex g) x)
+      | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.branch a exp tv (globalSymbLocks g) x)
       | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.branch a exp tv (globalUninit g) x)
       | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.branch a exp tv (globalMallocNull g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.branch a exp tv (globalVarEq g) x)
@@ -564,6 +614,7 @@ struct
     match st with
       | Dom.Base x -> List.map (fun (x,e,t) -> Dom.Base x,e,t) (Base.special_fn a r v args (globalBase g) x)
       | Dom.Mutex x -> List.map (fun (x,e,t) -> Dom.Mutex x,e,t) (Mutex.NoBaseSpec.special_fn a r v args (globalMutex g) x)
+      | Dom.SymbLocks x -> List.map (fun (x,e,t) -> Dom.SymbLocks x,e,t) (SymbLocks.Spec.special_fn a r v args (globalSymbLocks g) x)
       | Dom.Uninit x -> List.map (fun (x,e,t) -> Dom.Uninit x,e,t) (Uninit.Spec.special_fn a r v args (globalUninit g) x)
       | Dom.Malloc_null x -> List.map (fun (x,e,t) -> Dom.Malloc_null x,e,t) (Malloc_null.Spec.special_fn a r v args (globalMallocNull g) x)
       | Dom.VarEq x -> List.map (fun (x,e,t) -> Dom.VarEq x,e,t) (VarEq.Spec.special_fn a r v args (globalVarEq g) x)
@@ -573,6 +624,7 @@ struct
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> Dom.Base x, Dom.Base y) (Base.enter_func a r v args (globalBase g) x)
       | Dom.Mutex x -> List.map (fun (x,y) -> Dom.Mutex x,Dom.Mutex y) (Mutex.NoBaseSpec.enter_func a r v args (globalMutex g) x)
+      | Dom.SymbLocks x -> List.map (fun (x,y) -> Dom.SymbLocks x,Dom.SymbLocks y) (SymbLocks.Spec.enter_func a r v args (globalSymbLocks g) x)
       | Dom.Uninit x -> List.map (fun (x,y) -> Dom.Uninit x,Dom.Uninit y) (Uninit.Spec.enter_func a r v args (globalUninit g) x)
       | Dom.Malloc_null x -> List.map (fun (x,y) -> Dom.Malloc_null x,Dom.Malloc_null y) (Malloc_null.Spec.enter_func a r v args (globalMallocNull g) x)
       | Dom.VarEq x -> List.map (fun (x,y) -> Dom.VarEq x,Dom.VarEq y) (VarEq.Spec.enter_func a r v args (globalVarEq g) x)
@@ -582,6 +634,7 @@ struct
     match st1, st2 with
       | Dom.Base x, Dom.Base y -> Dom.Base (Base.leave_func a r v args (globalBase g) x y)
       | Dom.Mutex x, Dom.Mutex y -> Dom.Mutex (Mutex.NoBaseSpec.leave_func a r v args (globalMutex g) x y)
+      | Dom.SymbLocks x, Dom.SymbLocks y -> Dom.SymbLocks (SymbLocks.Spec.leave_func a r v args (globalSymbLocks g) x y)
       | Dom.Uninit x, Dom.Uninit y -> Dom.Uninit (Uninit.Spec.leave_func a r v args (globalUninit g) x y)
       | Dom.Malloc_null x, Dom.Malloc_null y -> Dom.Malloc_null (Malloc_null.Spec.leave_func a r v args (globalMallocNull g) x y)
       | Dom.VarEq x, Dom.VarEq y -> Dom.VarEq (VarEq.Spec.leave_func a r v args (globalVarEq g) x y)
@@ -591,6 +644,7 @@ struct
     match st with
       | Dom.Base x -> Base.eval_funvar a exp (globalBase g) x
       | Dom.Mutex x -> Mutex.NoBaseSpec.eval_funvar a exp (globalMutex g) x
+      | Dom.SymbLocks x -> SymbLocks.Spec.eval_funvar a exp (globalSymbLocks g) x
       | Dom.Uninit x -> Uninit.Spec.eval_funvar a exp (globalUninit g) x
       | Dom.Malloc_null x -> Malloc_null.Spec.eval_funvar a exp (globalMallocNull g) x
       | Dom.VarEq x -> VarEq.Spec.eval_funvar a exp (globalVarEq g) x
@@ -600,6 +654,7 @@ struct
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> x, Dom.Base y) (Base.fork a r v args (globalBase g) x)
       | Dom.Mutex x -> List.map (fun (x,y) -> x, Dom.Mutex y) (Mutex.NoBaseSpec.fork a r v args (globalMutex g) x)
+      | Dom.SymbLocks x -> List.map (fun (x,y) -> x, Dom.SymbLocks y) (SymbLocks.Spec.fork a r v args (globalSymbLocks g) x)
       | Dom.Uninit x -> List.map (fun (x,y) -> x, Dom.Uninit y) (Uninit.Spec.fork a r v args (globalUninit g) x)
       | Dom.Malloc_null x -> List.map (fun (x,y) -> x, Dom.Malloc_null y) (Malloc_null.Spec.fork a r v args (globalMallocNull g) x)
       | Dom.VarEq x -> List.map (fun (x,y) -> x, Dom.VarEq y) (VarEq.Spec.fork a r v args (globalVarEq g) x)
@@ -609,6 +664,7 @@ struct
     match st with
       | Dom.Base x -> Dom.Base (Base.reset_diff x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.reset_diff x)
+      | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.reset_diff x)
       | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.reset_diff x)
       | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.reset_diff x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.reset_diff x)
@@ -619,6 +675,7 @@ struct
       | [], _ -> []
       | Glob.Val.Base x :: ws, Glob.Val.Base y -> Glob.Val.Base y :: ws
       | Glob.Val.Mutex x :: ws, Glob.Val.Mutex y -> Glob.Val.Mutex y :: ws
+      | Glob.Val.SymbLocks x :: ws, Glob.Val.SymbLocks y -> Glob.Val.SymbLocks y :: ws
       | Glob.Val.Uninit x :: ws, Glob.Val.Uninit y -> Glob.Val.Uninit y :: ws
       | Glob.Val.Malloc_null x :: ws, Glob.Val.Malloc_null y -> Glob.Val.Malloc_null y :: ws
       | Glob.Val.VarEq x :: ws, Glob.Val.VarEq y -> Glob.Val.VarEq y :: ws
@@ -629,6 +686,7 @@ struct
       | [], _ -> []
       | Dom.Base x :: ws, Dom.Base y -> Dom.Base y :: ws
       | Dom.Mutex x :: ws, Dom.Mutex y -> Dom.Mutex y :: ws
+      | Dom.SymbLocks x :: ws, Dom.SymbLocks y -> Dom.SymbLocks y :: ws
       | Dom.Uninit x :: ws, Dom.Uninit y -> Dom.Uninit y :: ws
       | Dom.Malloc_null x :: ws, Dom.Malloc_null y -> Dom.Malloc_null y :: ws
       | Dom.VarEq x :: ws, Dom.VarEq y -> Dom.VarEq y :: ws
@@ -638,6 +696,7 @@ struct
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Base y) (Glob.Val.bot ())) (Base.get_diff x)
       | Dom.Mutex x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Mutex y) (Glob.Val.bot ())) (Mutex.NoBaseSpec.get_diff x)
+      | Dom.SymbLocks x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.SymbLocks y) (Glob.Val.bot ())) (SymbLocks.Spec.get_diff x)
       | Dom.Uninit x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Uninit y) (Glob.Val.bot ())) (Uninit.Spec.get_diff x)
       | Dom.Malloc_null x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Malloc_null y) (Glob.Val.bot ())) (Malloc_null.Spec.get_diff x)
       | Dom.VarEq x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.VarEq y) (Glob.Val.bot ())) (VarEq.Spec.get_diff x)
@@ -647,6 +706,7 @@ struct
     match st with
       | Dom.Base x -> Base.query a (globalBase g) x
       | Dom.Mutex x -> Mutex.NoBaseSpec.query a (globalMutex g) x
+      | Dom.SymbLocks x -> SymbLocks.Spec.query a (globalSymbLocks g) x
       | Dom.Uninit x -> Uninit.Spec.query a (globalUninit g) x
       | Dom.Malloc_null x -> Malloc_null.Spec.query a (globalMallocNull g) x
       | Dom.VarEq x -> VarEq.Spec.query a (globalVarEq g) x
@@ -659,6 +719,7 @@ struct
     let uses x = JB.bool (JB.field int_ds x) in
     (if uses "base" then Base.finalize ());
     (if uses "mutex" then Mutex.NoBaseSpec.finalize ());
+    (if uses "symb_locks" then SymbLocks.Spec.finalize ());
     (if uses "uninit" then Uninit.Spec.finalize ());
     (if uses "malloc_null" then Malloc_null.Spec.finalize ());
     (if uses "var_eq" then VarEq.Spec.finalize ());
@@ -673,7 +734,7 @@ struct
     Glob.Val.init ();
     let specs_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses"))  in
     let sense_ds = JB.make_table (JB.objekt (JB.field !GU.conf "sensitive")) in
-    let list_order = ["base";"mutex";"uninit";"malloc_null";"var_eq"] in
+    let list_order = ["base";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
     let f s r =
       if JB.bool (JB.field specs_ds s) then JB.bool (JB.field sense_ds s) :: r else r
     in
@@ -682,6 +743,7 @@ struct
     let uses x = JB.bool (JB.field specs_ds x) in
     (if uses "base" then Base.init ());
     (if uses "mutex" then Mutex.NoBaseSpec.init ());
+    (if uses "symb_locks" then SymbLocks.Spec.init ());
     (if uses "uninit" then Uninit.Spec.init ());
     (if uses "malloc_null" then Malloc_null.Spec.init ());
     (if uses "var_eq" then VarEq.Spec.init ());

@@ -11,11 +11,13 @@ let default_conf () =
                              ;"interval"   , Build.bool false] in
   let def_ana = Build.objekt ["base"       , Build.bool true
                              ;"mutex"      , Build.bool true
+                             ;"symb_locks" , Build.bool false
                              ;"uninit"     , Build.bool false
                              ;"malloc_null", Build.bool false
                              ;"var_eq"     , Build.bool false] in
   let def_path = Build.objekt ["base"       , Build.bool false
                               ;"mutex"      , Build.bool true
+                              ;"symb_locks" , Build.bool false
                               ;"uninit"     , Build.bool false
                               ;"malloc_null", Build.bool false
                               ;"var_eq"     , Build.bool false] in
@@ -38,11 +40,13 @@ let conf : (string, Json_type.t) Hashtbl.t ref =
 let conf_uninit () = 
   let uni_ana = Build.objekt ["base"       , Build.bool true
                              ;"mutex"      , Build.bool false
+                             ;"symb_locks" , Build.bool false
                              ;"uninit"     , Build.bool true
                              ;"malloc_null", Build.bool false
                              ;"var_eq"     , Build.bool false] in
   let uni_path = Build.objekt ["base"       , Build.bool false
                               ;"mutex"      , Build.bool false
+                              ;"symb_locks" , Build.bool false
                               ;"uninit"     , Build.bool true
                               ;"malloc_null", Build.bool false
                               ;"var_eq"     , Build.bool false] in
@@ -57,11 +61,13 @@ let conf_uninit () =
 let conf_malloc () = 
   let uni_ana = Build.objekt ["base"       , Build.bool true
                              ;"mutex"      , Build.bool false
+                             ;"symb_locks" , Build.bool false
                              ;"uninit"     , Build.bool false
                              ;"malloc_null", Build.bool true
                              ;"var_eq"     , Build.bool false] in
   let uni_path = Build.objekt ["base"       , Build.bool false
                               ;"mutex"      , Build.bool false
+                              ;"symb_locks" , Build.bool false
                               ;"uninit"     , Build.bool false
                               ;"malloc_null", Build.bool true
                               ;"var_eq"     , Build.bool false] in
