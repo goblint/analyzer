@@ -102,7 +102,13 @@ struct
   let enter_func a lval f args glob st = 
     let assign_one_param st lv exp = add_eq a (lv, `NoOffset) exp st in
     let f = Cilfacade.getdec f in
-    let nst = List.fold_left2 assign_one_param st f.sformals args in
+    if List.length args != List.length f.sformals 
+    then [st, Dom.top ()]
+    else
+    let nst = 
+      try List.fold_left2 assign_one_param st f.sformals args 
+      with SetDomain.Unsupported _ -> (* ignore varargs fr now *) st
+    in
     match Dom.is_bot st with
       | true -> raise Analyses.Deadcode
       | false -> 
