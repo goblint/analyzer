@@ -143,7 +143,7 @@ struct
   let toXML m = toXML_f short m
 
   let pretty () x = pretty_f short () x
-  let name () = "either " ^ Base1.name () ^ " and " ^ Base2.name ()
+  let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
 end
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =

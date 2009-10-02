@@ -72,7 +72,7 @@ let main () =
   let setdump path = GU.dump_path := Some (GU.create_dir path) in
   let add_exitfun f = GU.exitfun := f :: !GU.exitfun in
   let setcil path = cilout := open_out path in
-  let analyzer str = match str with
+  let analyzer str = match str with (*legacy: use .json, --with and --no instead *)
       | "mcp" -> MCP.Analysis.analyze
       | "uninit" -> MCP.Analysis.analyze (*integrated*)
       | "mutex" -> Mutex.Analysis.analyze
@@ -90,6 +90,12 @@ let main () =
             | _ -> ()
     end;
     analyze := analyzer str 
+  in
+  let set_feature b x =
+    match x with
+      | "mutex" | "symb_locks" | "var_eq" | "uninit" | "malloc_null"
+          -> GU.modify_ana x b
+      | _ -> raise (Arg.Bad ("no such feature: "^x))
   in
   let setsolver str = 
     GU.solver := match str with
@@ -136,6 +142,8 @@ let main () =
                  ("--uncalled", Arg.Set GU.print_uncalled, " Display uncalled functions.");
                  ("--result", Arg.String setstyle, "<style>  Result style: none, state, indented, compact, or pretty.");
                  ("--analysis", Arg.String setanalysis, "<name>  Picks the analysis: uninit, malloc_null, mutex, no_path, base.");
+                 ("--with", Arg.String (set_feature true), "<name>  Enables features: mutex, symb_locks, var_eq, uninit, malloc_null.");
+                 ("--no", Arg.String (set_feature false), "<name>  Disables features: mutex, symb_locks, var_eq, uninit, malloc_null.");
                  ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");

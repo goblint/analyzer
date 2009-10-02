@@ -155,7 +155,7 @@ struct
       let p z = not (S.is_empty (S.inter x z)) in
       let joinem = filter p ys in
       let joined = fold S.inter joinem x in
-        if S.is_empty joined then zs else add joined zs
+        if S.cardinal joined > 1 then add joined zs else zs
     in
       fold f xs (empty ())
 
@@ -179,5 +179,6 @@ struct
          
   let find_class (x: Base.t) (ss: t): set option = 
     try Some (E.choose (E.filter (S.mem x) ss)) with Not_found -> None
+
 end
 

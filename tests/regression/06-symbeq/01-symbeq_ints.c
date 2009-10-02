@@ -1,5 +1,4 @@
-// SKIP!
-// PARAM: --debug
+// PARAM: --debug --with var_eq
 #include<stdio.h>
 #include<assert.h>
 

@@ -33,7 +33,7 @@ struct
   let branch a exp tv glob st = st
   let return a exp fundec glob st = st
   let body   a f glob st = st
-  let special a f arglist glob st = 
+  let special_fn a lval f arglist glob st = 
       match f.vname with
    (* | "sem_wait"*)
       | "_spin_lock" | "_spin_lock_irqsave" | "_spin_trylock" | "_spin_trylock_irqsave" | "_spin_lock_bh"
@@ -41,7 +41,7 @@ struct
       | "pthread_mutex_lock" ->
           let x = List.hd arglist in
           let eq = 
-            let c_eq = Equ.bot () in 
+            let c_eq = Equ.top () in 
               match Equ.eval_rv x with
                 | Some e  -> Equset.add e c_eq st
                 | _ -> st
@@ -63,7 +63,6 @@ struct
 
   let enter_func a lval f args glob st = [(st,st)]
   let leave_func a lval f args glob st1 st2 = st1
-  let special_fn a lval f args glob st = [(st,integer 1,true)]
   let fork       a lval f args glob st = []
   
   let eval_funvar a exp glob st = []
