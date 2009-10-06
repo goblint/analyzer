@@ -54,37 +54,6 @@ struct
       | Cil.Lval    (Cil.Mem e,_)
       | Cil.CastE (_,e)           -> contains_var v e 
     
-  let rec reachable_from (r:Queries.LS.t) e =
-    let rec is_prefix x1 x2 =
-      match x1, x2 with
-        | _, `NoOffset -> true
-        | Cil.Field (f1,o1), `Field (f2,o2) when f1.Cil.fname = f2.Cil.fname -> is_prefix o1 o2
-        | Cil.Index (_,o1), `Index (_,o2) -> is_prefix o1 o2
-        | _ -> false
-    in
-    let has_reachable_prefix v1 ofs =
-      let suitable_prefix (v2,ofs2) = 
-             v1.Cil.vid = v2.Cil.vid 
-          && is_prefix ofs ofs2
-      in
-      Queries.LS.exists suitable_prefix r
-    in
-    match e with
-      | Cil.SizeOf _
-      | Cil.SizeOfE _
-      | Cil.SizeOfStr _
-      | Cil.AlignOf _  
-      | Cil.Const _ 
-      | Cil.AlignOfE _ 
-      | Cil.UnOp  _ 
-      | Cil.BinOp _ -> true
-      | Cil.AddrOf  (Cil.Var v2,ofs) 
-      | Cil.StartOf (Cil.Var v2,ofs) 
-      | Cil.Lval    (Cil.Var v2,ofs) -> has_reachable_prefix v2 ofs
-      | Cil.AddrOf  (Cil.Mem e,_) 
-      | Cil.StartOf (Cil.Mem e,_) 
-      | Cil.Lval    (Cil.Mem e,_)
-      | Cil.CastE (_,e)           -> reachable_from r e 
       
   let rec is_global_var x =
     match x with

@@ -46,7 +46,7 @@ struct
       match x with (Var v,_) -> not v.vglob | _ -> false
     in
     let st = 
-      if Exp.interesting rv 
+      if is_local lv && Exp.interesting rv 
       then Dom.add_eq (rv,Lval lv) (remove ask lv st)
       else remove ask lv st 
     in
@@ -74,6 +74,38 @@ struct
     in
     List.fold_right reachable es (Some (Queries.LS.empty ()))   
 
+  let rec reachable_from (r:Queries.LS.t) e =
+    let rec is_prefix x1 x2 =
+      match x1, x2 with
+        | _, `NoOffset -> true
+        | Cil.Field (f1,o1), `Field (f2,o2) when f1.Cil.fname = f2.Cil.fname -> is_prefix o1 o2
+        | Cil.Index (_,o1), `Index (_,o2) -> is_prefix o1 o2
+        | _ -> false
+    in
+    let has_reachable_prefix v1 ofs =
+      let suitable_prefix (v2,ofs2) = 
+             v1.Cil.vid = v2.Cil.vid 
+          && is_prefix ofs ofs2
+      in
+      Queries.LS.exists suitable_prefix r
+    in
+    match e with
+      | Cil.SizeOf _
+      | Cil.SizeOfE _
+      | Cil.SizeOfStr _
+      | Cil.AlignOf _  
+      | Cil.Const _ 
+      | Cil.AlignOfE _ 
+      | Cil.UnOp  _ 
+      | Cil.BinOp _ -> true
+      | Cil.AddrOf  (Cil.Var v2,ofs) 
+      | Cil.StartOf (Cil.Var v2,ofs) 
+      | Cil.Lval    (Cil.Var v2,ofs) -> has_reachable_prefix v2 ofs
+      | Cil.AddrOf  (Cil.Mem e,_) 
+      | Cil.StartOf (Cil.Mem e,_) 
+      | Cil.Lval    (Cil.Mem e,_)
+      | Cil.CastE (_,e)           -> reachable_from r e 
+      
   (* Probably ok as is. *)
   let body a f glob st = st
   let fork a lval f args glob st = []
@@ -132,7 +164,7 @@ struct
       | Some rs -> 
         let remove_reachable1 (es:Dom.S.t) (st:Dom.t) = 
           let remove_reachable2 e st =
-            if Exp.reachable_from rs e then Dom.remove e st else st
+            if reachable_from rs e then Dom.remove e st else st
           in
           Dom.S.fold remove_reachable2 es st
         in
@@ -154,7 +186,7 @@ struct
       | Some rs -> 
         let remove_reachable1 es st =
           let remove_reachable2 e st =
-            if Exp.reachable_from rs e then Dom.remove e st else st
+            if reachable_from rs e then Dom.remove e st else st
           in
           Dom.S.fold remove_reachable2 es st
         in
@@ -169,10 +201,17 @@ struct
     match Dom.find_class e1 s with
       | Some ss when Dom.S.mem e2 ss -> true
       | _ -> false
-      
+  
+  let eq_set (e:Cil.exp) s =
+    match Dom.find_class e s with
+      | None -> Queries.ES.empty ()
+      | Some e when Dom.S.is_bot e -> Queries.ES.bot ()
+      | Some e -> Dom.S.fold Queries.ES.add e (Queries.ES.empty ())
+  
   let query a g s x = 
     match x with 
       | Queries.ExpEq (e1,e2) when exp_equal a e1 e2 g s -> `Int (Queries.ID.of_bool true)
+      | Queries.EqualSet e -> `ExprSet (eq_set e s)
       | _ -> `Top
 
 end

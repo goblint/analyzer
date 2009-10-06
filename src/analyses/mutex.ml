@@ -6,6 +6,7 @@ module Offs = ValueDomain.Offs
 module Lockset = LockDomain.Lockset
 module AD = ValueDomain.AD
 module ID = ValueDomain.ID
+module Exp = Exp.Exp
 (*module BS = Base.Spec*)
 module BS = Base.Main
 module LF = LibraryFunctions
@@ -57,6 +58,22 @@ struct
   let get_diff _ = []
   let reset_diff x = x
   
+  (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
+     element) answers with the string "unknown" on all non-concrete cases. *)
+  let rec conv_offset x =
+    match x with
+      | `NoOffset    -> `NoOffset
+      | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.ID.of_int i, conv_offset o)
+      | `Index (_,o) -> `Index (ValueDomain.ID.top (), conv_offset o)
+      | `Field (f,o) -> `Field (f, conv_offset o)
+
+  let rec conv_const_offset x =
+    match x with
+      | Cil.NoOffset    -> `NoOffset
+      | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.ID.of_int i, conv_const_offset o)
+      | Cil.Index (_,o) -> `Index (ValueDomain.ID.top (), conv_const_offset o)
+      | Cil.Field (f,o) -> `Field (f, conv_const_offset o)
+
   (** queries *)
   let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
@@ -78,7 +95,8 @@ struct
   let accKeys : AccKeySet.t ref   = ref AccKeySet.empty 
   
   (** Function [add_accesses accs st] fills the hash-map [acc] *)
-  let add_accesses ask (accessed: (varinfo * Offs.t * bool) list) (ust:Dom.t) : unit = 
+  let add_accesses ask (raw_acc: (varinfo * Offs.t * bool) list * (exp * offset) list) (ust:Dom.t) = 
+    let accessed, perelem = raw_acc in
     if not !GU.may_narrow then begin
       let fl = 
         match ask Queries.SingleThreaded, ask Queries.CurrentThreadId with
@@ -88,44 +106,68 @@ struct
       in
       if BS.Flag.is_multi fl then
         let loc = !GU.current_loc in
-        let try_add_one (v, o, rv: Cil.varinfo * Offs.t * bool) =
+        let try_add_one ust (v, o, rv: Cil.varinfo * Offs.t * bool) =
           if (v.vglob) then
             let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
             let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
             Acc.replace acc v neww;
             accKeys := AccKeySet.add v !accKeys
         in 
-          List.iter try_add_one accessed
+        let add_one_perelem (e, offs) =
+          let locks =
+            match ask (Queries.PerElementLock (Lval (Mem e, offs))) with
+              | `ExprSet a when not (Queries.ES.is_bot a) -> a
+              | _ -> Queries.ES.empty ()
+          in
+          let add_locks (v,o) =
+            let rec replace_element le st =
+              match le with
+                | Cil.AddrOf  (Cil.Mem l,o) when (Exp.equal e l)-> Dom.add (Addr.from_var_offset (v,conv_const_offset o),true) st
+                | Cil.StartOf (Cil.Mem l,o) when (Exp.equal e l)-> Dom.add (Addr.from_var_offset (v,conv_const_offset o),true) st
+                | Cil.Lval    (Cil.Mem l,o) 
+                    when Exp.equal e l -> Dom.add (Addr.from_var_offset (v,conv_const_offset o),true) st
+                | Cil.AddrOf  (Cil.Mem l,Cil.NoOffset) -> replace_element l st
+                | Cil.CastE (_,e)-> replace_element e st
+                | _ -> st
+            in
+            let new_locks = Queries.ES.fold replace_element locks ust in
+(*             Messages.report ((Lval.CilLval.short 80 (v,o)) ^" accessed with "^ (Dom.short 80 new_locks)^" symbolically "^(Queries.ES.short 80 locks)); *)
+            try_add_one new_locks (v, Base.Offs.from_offset (conv_offset o), true) (* write? *)
+          in
+          match ask (Queries.MayPointTo (AddrOf (Mem e, offs))) with
+            | `LvalSet a when not (Queries.LS.is_top a) -> 
+                  Queries.LS.iter add_locks a
+            | _ -> () (* type invariant *)
+        in
+          List.iter add_one_perelem perelem;
+          List.iter (try_add_one ust) accessed
     end
 
-  (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
-     element) answers with the string "unknown" on all non-concrete cases. *)
-  let rec conv_offset x =
-    match x with
-      | `NoOffset    -> `NoOffset
-      | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.ID.of_int i, conv_offset o)
-      | `Index (_,o) -> `Index (ValueDomain.ID.top (), conv_offset o)
-      | `Field (f,o) -> `Field (f, conv_offset o)
-
-  let access_address ask write lv : BS.extra =
+  let access_address ask write lv : BS.extra * (exp * offset) list =
+    match lv with
+      | Mem e, offs -> [], [(e,offs)]
+      | _ -> 
     match ask (Queries.MayPointTo (AddrOf lv)) with
       | `LvalSet a when not (Queries.LS.is_top a) -> 
           let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), write) :: xs  in
-          Queries.LS.fold to_extra a [] 
+          Queries.LS.fold to_extra a [], []
       | _ -> 
-          M.warn "Access to unknown address could be global"; []
+          M.warn "Access to unknown address could be global"; [], []
 
-  let rec access_one_byval a rw (exp:Cil.exp): BS.extra = 
+  let rec access_one_byval a rw (exp:Cil.exp): BS.extra * (exp * offset) list = 
     match exp with 
       (* Integer literals *)
-      | Cil.Const _ -> []
+      | Cil.Const _ -> [], []
       (* Variables and address expressions *)
-      | Cil.Lval lval -> access_address a rw lval @ (access_lv_byval a lval)
+      | Cil.Lval lval -> 
+        let a1, b1 = access_address a rw lval in
+        let a2, b2 = access_lv_byval a lval in
+          a1 @ a2, b1 @ b2
       (* Binary operators *)
       | Cil.BinOp (op,arg1,arg2,typ) -> 
-          let a1 = access_one_byval a rw arg1 in
-          let a2 = access_one_byval a rw arg2 in
-            a1 @ a2
+          let a1, b1 = access_one_byval a rw arg1 in
+          let a2, b2 = access_one_byval a rw arg2 in
+            a1 @ a2, b1 @ b2
       (* Unary operators *)
       | Cil.UnOp (op,arg1,typ) -> access_one_byval a rw arg1
       (* The address operators, we just check the accesses under them *)
@@ -133,23 +175,30 @@ struct
       | Cil.StartOf lval -> access_lv_byval a lval
       (* Most casts are currently just ignored, that's probably not a good idea! *)
       | Cil.CastE  (t, exp) -> access_one_byval a rw exp
-      | _ -> []    
+      | _ -> [], []
   (* Accesses during the evaluation of an lval, not the lval itself! *)
-  and access_lv_byval a (lval:Cil.lval): BS.extra = 
-    let rec access_offset (ofs: Cil.offset): BS.extra = 
+  and access_lv_byval a (lval:Cil.lval): BS.extra * (exp * offset) list = 
+    let rec access_offset (ofs: Cil.offset): BS.extra * (exp * offset) list = 
       match ofs with 
-        | Cil.NoOffset -> []
+        | Cil.NoOffset -> [], []
         | Cil.Field (fld, ofs) -> access_offset ofs
-        | Cil.Index (exp, ofs) -> access_one_byval a false exp @ access_offset ofs
+        | Cil.Index (exp, ofs) -> 
+          let a1, b1 = access_one_byval a false exp in
+          let a2, b2 = access_offset ofs in
+            a1 @ a2, b1 @ b2
     in 
       match lval with 
         | Cil.Var x, ofs -> access_offset ofs
-        | Cil.Mem n, ofs -> access_one_byval a false n @ access_offset ofs
+        | Cil.Mem n, ofs -> 
+          let a1, b1 = access_one_byval a false n in
+          let a2, b2 = access_offset ofs in
+            a1 @ a2, b1 @ b2
 
-   let access_byval a (rw: bool) (exps: Cil.exp list): BS.extra =
-     List.concat (List.map (access_one_byval a rw) exps)
+   let access_byval a (rw: bool) (exps: Cil.exp list): BS.extra * (exp * offset) list =
+     let concat2 xs = List.fold_right (fun (x,y) (xs,ys) -> x@xs, y@ys) xs ([],[]) in
+     concat2 (List.map (access_one_byval a rw) exps)
 
-   let access_byref ask (exps: Cil.exp list) = 
+   let access_reachable ask (exps: Cil.exp list) = 
      (* Find the addresses reachable from some expression, and assume that these
       * can all be written to. *)
      let do_exp e = 
@@ -174,8 +223,9 @@ struct
   (** Transfer functions: *)
   
   let assign a lval rval gs (ust: Dom.t) : Dom.t = 
-    let accessed = access_one_byval a true (Lval lval) @ access_one_byval a false rval in
-    add_accesses a accessed ust;
+    let a1, b1 = access_one_byval a true (Lval lval) in 
+    let a2, b2 = access_one_byval a false rval in
+    add_accesses a (a1@a2,b1@b2) ust;
     ust
     
   let branch a exp tv gs (ust: Dom.t) : Dom.t =
@@ -279,9 +329,9 @@ struct
               | Some fnc -> (fnc act arglist) 
               | _ -> []
           in
-          let read       = access_byval a false (arg_acc `Read) in
-          let accessable = access_byref a       (arg_acc `Write) in
-          add_accesses a (read @ accessable) ls;
+          let r1,r2 = access_byval a false (arg_acc `Read) in
+          let a1 = access_reachable a   (arg_acc `Write) in
+          add_accesses a (r1@a1, r2) ls;
           [ls, Cil.integer 1, true]
           
   let enter_func a lv f args gs lst : (Dom.t * Dom.t) list =

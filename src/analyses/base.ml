@@ -715,7 +715,7 @@ struct
              let typ = AD.get_type a in
              let warning = "Unknown value in " ^ AD.short 40 a ^ " could be an escaped pointer address!" in
                if is_immediate_type typ then () else M.warn warning; empty 
-         | `Bot -> M.debug "A bottom value when computing reachable addresses!"; empty
+         | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
          | `Address adrs when AD.is_top adrs -> 
              let warning = "Unknown address in " ^ AD.short 40 a ^ " has escaped." in
                M.warn warning; empty

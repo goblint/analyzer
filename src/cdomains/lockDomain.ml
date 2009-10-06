@@ -1,5 +1,6 @@
 module Addr = ValueDomain.Addr
 module Equ = MusteqDomain.Equ
+module Exp = Exp.Exp
 module ID = ValueDomain.ID
 
 open Cil
@@ -79,20 +80,45 @@ struct
   let filter = ReverseAddrSet.filter
 end
 
-module LocksetEqu = 
+module Symbolic = 
 struct
-  module P = MusteqDomain.EquAddr
-  module S = SetDomain.ToppedSet (P) (struct let topname = "All mutexes" end)
+  module S = SetDomain.ToppedSet (Exp) (struct let topname = "All mutexes" end)
   include Lattice.Reverse (S)
+
   let empty = S.empty
   let is_empty = S.is_empty
-  let add (v,fd) eq (s:t): t = 
-    let others = Equ.other_addrs (v,fd) eq in
-      List.fold_left (fun s vfd -> S.add vfd s) s others
-  let remove x = S.filter (fun (y,f) -> not (Basetype.Variables.equal x y || Lval.Fields.occurs x f))
-  let kill x = S.filter (fun (y,f) -> not (Lval.Fields.occurs x f))
-  let kill_vars vars st = List.fold_right kill vars st
+
+  let rec eq_set ask e =
+    S.union
+      (match ask (Queries.EqualSet e) with
+        | `ExprSet es when not (Queries.ES.is_bot es) ->
+            Queries.ES.fold S.add es (S.empty ())
+        | _ -> S.empty ())      
+      (match e with
+        | Cil.SizeOf _
+        | Cil.SizeOfE _
+        | Cil.SizeOfStr _
+        | Cil.AlignOf _  
+        | Cil.Const _ 
+        | Cil.AlignOfE _
+        | Cil.UnOp _     
+        | Cil.BinOp _ -> S.empty () 
+        | Cil.AddrOf  (Cil.Var _,_) 
+        | Cil.StartOf (Cil.Var _,_) 
+        | Cil.Lval    (Cil.Var _,_) -> S.singleton e
+        | Cil.AddrOf  (Cil.Mem e,ofs) -> S.map (fun e -> Cil.AddrOf  (Cil.Mem e,ofs)) (eq_set ask e) 
+        | Cil.StartOf (Cil.Mem e,ofs) -> S.map (fun e -> Cil.StartOf (Cil.Mem e,ofs)) (eq_set ask e) 
+        | Cil.Lval    (Cil.Mem e,ofs) -> S.map (fun e -> Cil.Lval    (Cil.Mem e,ofs)) (eq_set ask e) 
+        | Cil.CastE (_,e)           -> eq_set ask e)
+  
+  let add ask e st = S.union (eq_set ask e) st
+  let remove ask e st = S.diff st (eq_set ask e)
+  let remove_var v st = S.filter (Exp.contains_var v) st
+
   let elements = S.elements
   let choose = S.choose
+  let filter = S.filter
+  let union = S.union
+  let fold = S.fold
 
 end

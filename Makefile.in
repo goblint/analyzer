@@ -27,7 +27,7 @@ DOCFLAGS = @DOCFLAGS@ -stars -t 'Goblint API documentation' -dot-reduce -dot -ht
 PROG_MODULES = \
 	goblintutil messages printer cilfacade xmldump \
 	printable lattice setDomain mapDomain partitionDomain \
-	basetype intDomain lval queries exp addressDomain \
+	basetype intDomain lval exp queries addressDomain \
 	arrayDomain structDomain unionDomain valueDomain memoryDomain \
 	musteqDomain regionDomain concDomain lockDomain  \
 	hash progress myCFG analyses libraryFunctions global \
