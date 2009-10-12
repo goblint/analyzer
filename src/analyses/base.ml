@@ -367,6 +367,7 @@ struct
                | _ -> ad
            in
            `Address (AD.map array_start (eval_lv a gs st lval))
+        | Cil.CastE  (t, Const (CStr _)) -> VD.top ()
        (* Most casts are currently just ignored, that's probably not a good idea! *)
         | Cil.CastE  (t, exp) -> begin
             match t,eval_rv a gs st exp with
@@ -824,8 +825,8 @@ struct
       let toInt i = 
         match ValueDomain.ID.to_int i with
           | Some x -> Const (CInt64 (x,IInt, None))
-          | _ -> Const (CStr "unknown") (* minor hack as we do not know from 
-                                           where the unknown stuff came from *)
+          | _ -> mkCast (Const (CStr "unknown")) Cil.intType
+                                       
       in
       match o with
         | `NoOffset -> `NoOffset

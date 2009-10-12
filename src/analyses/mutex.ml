@@ -74,74 +74,23 @@ struct
       | Cil.Index (_,o) -> `Index (ValueDomain.ID.top (), conv_const_offset o)
       | Cil.Field (f,o) -> `Field (f, conv_const_offset o)
 
+  let rec replace_elem (v,o) q ex =
+    match ex with
+      | Cil.AddrOf  (Cil.Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
+      | Cil.StartOf (Cil.Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
+      | Cil.Lval    (Cil.Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
+      | Cil.CastE (_,e)           -> replace_elem (v,o) q e
+      | _ -> v, Offs.from_offset (conv_offset o)
+  
+  let query_lv ask exp = 
+    match ask (Queries.MayPointTo exp) with
+      | `LvalSet l when not (Queries.LS.is_top l) -> 
+          Queries.LS.elements l
+      | _ -> []
+
   (** queries *)
   let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
-  (** Access counting is done using side-effect (accesses added in [add_accesses] and read in [finalize]) : *)
-  
-  (* 
-    Access counting using side-effects: ('|->' is a hash-map)
-    
-    acc     : var |-> (loc, mt_flag, rw_falg, lockset, offset) set
-    accKeys : var set
-    
-    Remark:
-    As you can see, [accKeys] is just premature optimization, so we dont have to iterate over [acc] to get all keys.
-   *)
-  module Acc = Hashtbl.Make (Basetype.Variables)
-  module AccKeySet = Set.Make (Basetype.Variables)
-  module AccValSet = Set.Make (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs))
-  let acc     : AccValSet.t Acc.t = Acc.create 100
-  let accKeys : AccKeySet.t ref   = ref AccKeySet.empty 
-  
-  (** Function [add_accesses accs st] fills the hash-map [acc] *)
-  let add_accesses ask (raw_acc: (varinfo * Offs.t * bool) list * (exp * offset) list) (ust:Dom.t) = 
-    let accessed, perelem = raw_acc in
-    if not !GU.may_narrow then begin
-      let fl = 
-        match ask Queries.SingleThreaded, ask Queries.CurrentThreadId with
-          | `Int is_sing, _ when Queries.ID.to_bool is_sing = Some true -> BS.Flag.get_single ()
-          | _,`Int x when  Queries.ID.to_int x = Some 1L -> BS.Flag.get_main ()
-          | _ -> BS.Flag.get_multi ()
-      in
-      if BS.Flag.is_multi fl then
-        let loc = !GU.current_loc in
-        let try_add_one ust (v, o, rv: Cil.varinfo * Offs.t * bool) =
-          if (v.vglob) then
-            let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
-            let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
-            Acc.replace acc v neww;
-            accKeys := AccKeySet.add v !accKeys
-        in 
-        let add_one_perelem (e, offs) =
-          let locks =
-            match ask (Queries.PerElementLock (Lval (Mem e, offs))) with
-              | `ExprSet a when not (Queries.ES.is_bot a) -> a
-              | _ -> Queries.ES.empty ()
-          in
-          let add_locks (v,o) =
-            let rec replace_element le st =
-              match le with
-                | Cil.AddrOf  (Cil.Mem l,o) when (Exp.equal e l)-> Dom.add (Addr.from_var_offset (v,conv_const_offset o),true) st
-                | Cil.StartOf (Cil.Mem l,o) when (Exp.equal e l)-> Dom.add (Addr.from_var_offset (v,conv_const_offset o),true) st
-                | Cil.Lval    (Cil.Mem l,o) 
-                    when Exp.equal e l -> Dom.add (Addr.from_var_offset (v,conv_const_offset o),true) st
-                | Cil.AddrOf  (Cil.Mem l,Cil.NoOffset) -> replace_element l st
-                | Cil.CastE (_,e)-> replace_element e st
-                | _ -> st
-            in
-            let new_locks = Queries.ES.fold replace_element locks ust in
-(*             Messages.report ((Lval.CilLval.short 80 (v,o)) ^" accessed with "^ (Dom.short 80 new_locks)^" symbolically "^(Queries.ES.short 80 locks)); *)
-            try_add_one new_locks (v, Base.Offs.from_offset (conv_offset o), true) (* write? *)
-          in
-          match ask (Queries.MayPointTo (AddrOf (Mem e, offs))) with
-            | `LvalSet a when not (Queries.LS.is_top a) -> 
-                  Queries.LS.iter add_locks a
-            | _ -> () (* type invariant *)
-        in
-          List.iter add_one_perelem perelem;
-          List.iter (try_add_one ust) accessed
-    end
 
   let access_address ask write lv : BS.extra * (exp * offset) list =
     match lv with
@@ -211,6 +160,111 @@ struct
      in
        List.concat (List.map do_exp exps)
        
+  let eval_exp_addr a exp =
+    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
+    match a (Queries.MayPointTo exp) with
+      | `LvalSet a when not (Queries.LS.is_top a) -> 
+          Queries.LS.fold gather_addr a []    
+      | _ -> []
+  
+  
+  let lock rw may_fail a lv arglist ls =
+    let is_a_blob addr = 
+      match LockDomain.Addr.to_var addr with
+        | [a] -> a.vname.[0] = '(' 
+        | _ -> false
+    in  
+    let nothing ls = [ls,Cil.integer 1,true] in
+    let lock_one (e:LockDomain.Addr.t) =
+      let set_ret tv sts = 
+        match lv with 
+          | None -> [sts,Cil.integer 1,true]
+          | Some lv -> [sts,Lval lv,tv]
+      in 
+      if is_a_blob e then
+        nothing ls
+      else begin
+        set_ret false  (Lockset.add (e,rw) ls) @
+        if may_fail then set_ret true ls else []
+      end
+    in
+      match arglist with
+        | [x] -> begin match  (eval_exp_addr a x) with 
+                          | [e]  -> lock_one e
+                          | _ -> nothing ls 
+                  end
+        | _ -> nothing (Lockset.top ())
+       
+  (** Access counting is done using side-effect (accesses added in [add_accesses] and read in [finalize]) : *)
+  
+  (* 
+    Access counting using side-effects: ('|->' is a hash-map)
+    
+    acc     : var |-> (loc, mt_flag, rw_falg, lockset, offset) set
+    accKeys : var set
+    
+    Remark:
+    As you can see, [accKeys] is just premature optimization, so we dont have to iterate over [acc] to get all keys.
+   *)
+  module Acc = Hashtbl.Make (Basetype.Variables)
+  module AccKeySet = Set.Make (Basetype.Variables)
+  module AccValSet = Set.Make (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs))
+  let acc     : AccValSet.t Acc.t = Acc.create 100
+  let accKeys : AccKeySet.t ref   = ref AccKeySet.empty 
+  
+  (** Function [add_accesses accs st] fills the hash-map [acc] *)
+  let add_normal_accesses ask (accessed: (varinfo * Offs.t * bool) list) (ust:Dom.t) = 
+    if not !GU.may_narrow then begin
+      let fl = 
+        match ask Queries.SingleThreaded, ask Queries.CurrentThreadId with
+          | `Int is_sing, _ when Queries.ID.to_bool is_sing = Some true -> BS.Flag.get_single ()
+          | _,`Int x when  Queries.ID.to_int x = Some 1L -> BS.Flag.get_main ()
+          | _ -> BS.Flag.get_multi ()
+      in
+      if BS.Flag.is_multi fl then
+        let loc = !GU.current_loc in
+        let try_add_one (v, o, rv: Cil.varinfo * Offs.t * bool) =
+          if (v.vglob) then
+            let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
+            let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
+            Acc.replace acc v neww;
+            accKeys := AccKeySet.add v !accKeys
+        in 
+          List.iter try_add_one accessed
+    end
+    
+  let add_perelem_accesses ask perelem ust =
+    let add_one_perelem (e, offs) =
+      let one (e,a,l) =
+        let element lv = 
+          let accs, _ = access_one_byval ask true (Exp.replace_base lv e a) in
+          let lock = 
+            match Exp.fold_offs (Exp.replace_base lv e l) with
+              | Some (v, o) -> LockDomain.Lockset.ReverseAddrSet.add (LockDomain.Addr.from_var_offset (v,conv_const_offset o) ,true) ust
+              | None -> ust
+          in
+          add_normal_accesses ask accs lock
+        in
+        List.iter element (query_lv ask e)
+      in
+      match ask (Queries.PerElementLock (Lval (mkMem e offs))) with
+        | `PerElemLock a when not (Queries.PS.is_top a || Queries.PS.is_empty a) -> 
+            Queries.PS.iter one a
+        | _ ->     
+      match ask (Queries.MayPointTo (Lval (Mem e, offs))) with
+        | `LvalSet a when not (Queries.LS.is_top a) -> 
+            let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
+            add_normal_accesses ask (Queries.LS.fold to_extra a []) ust
+        | _ -> 
+            M.warn "Access to unknown address could be global"; ()
+    in
+    List.iter add_one_perelem perelem
+
+  let add_accesses a (acc,perel) ust =
+    add_normal_accesses a acc ust;
+    add_perelem_accesses a perel ust
+    
+       
   (** First we consider reasonable joining states if locksets are equal, also we don't expect precision if base state is equal*)
   let should_join x y = true
   
@@ -249,45 +303,12 @@ struct
     add_accesses a read bl; 
     []
   
+  
   let special_fn a lv f arglist gs (ls: Dom.t) : (Dom.t * exp * bool) list =
-    let eval_exp_addr exp =
-        let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-        match a (Queries.MayPointTo exp) with
-          | `LvalSet a when not (Queries.LS.is_top a) -> 
-              Queries.LS.fold gather_addr a []    
-          | _ -> []
-    in
-    let is_a_blob addr = 
-      match LockDomain.Addr.to_var addr with
-        | [a] -> a.vname.[0] = '(' 
-        | _ -> false
-    in
-    let lock rw may_fail =
-        let nothing ls = [ls,Cil.integer 1,true] in
-        let lock_one (e:LockDomain.Addr.t) =
-          let set_ret tv sts = 
-            match lv with 
-              | None -> [sts,Cil.integer 1,true]
-              | Some lv -> [sts,Lval lv,tv]
-          in 
-          if is_a_blob e then
-            nothing ls
-          else begin
-            set_ret false  (Lockset.add (e,rw) ls) @
-            if may_fail then set_ret true ls else []
-          end
-        in
-          match arglist with
-            | [x] -> begin match  (eval_exp_addr x) with 
-                             | [e]  -> lock_one e
-                             | _ -> nothing ls 
-                     end
-            | _ -> nothing (Lockset.top ())
-    in
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
     let unlock remove_fn =
       match arglist with
-        | [x] -> begin match  (eval_exp_addr x) with 
+        | [x] -> begin match  (eval_exp_addr a x) with 
                         | [] -> [(Lockset.empty ()),Cil.integer 1, true]
                         | es -> [(List.fold_right remove_fn es ls), Cil.integer 1, true]
                 end
@@ -297,13 +318,13 @@ struct
    (* | "sem_wait"*)
       | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock" 
       | "pthread_rwlock_trywrlock"
-          -> lock true true
+          -> lock true true a lv arglist ls
       | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh"
       | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock"
       | "pthread_mutex_lock" | "pthread_rwlock_wrlock" 
-          -> lock true !failing_locks
+          -> lock true !failing_locks a lv arglist ls
       | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock" 
-          -> lock false !failing_locks
+          -> lock false !failing_locks a lv arglist ls
       | "__raw_read_unlock" | "__raw_write_unlock" -> 
           let drop_raw_lock x =
             let rec drop_offs o = 

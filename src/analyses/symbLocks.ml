@@ -1,4 +1,5 @@
 module LF = LibraryFunctions
+module LP = Exp.LockingPattern
 module Exp = Exp.Exp
 
 open Cil
@@ -59,21 +60,27 @@ struct
   let fork       a lval f args glob st = []  
 
   let get_locks e st =
-    let rec prefix e l =
-      match l with
-        | Cil.AddrOf  (Cil.Mem l,_) 
-        | Cil.StartOf (Cil.Mem l,_) 
-        | Cil.Lval    (Cil.Mem l,_) -> Exp.equal e l
-        | Cil.CastE (_,l)           -> prefix e l
-        | _ -> false
+    let add_perel x xs =
+      match LP.from_exps e x with
+        | Some x -> Queries.PS.add x xs
+        | None -> xs
     in
-    match e with
-      | Cil.Lval (Cil.Mem e, _) ->
-          Dom.fold Queries.ES.add (Dom.filter (prefix e) st) (Queries.ES.empty ())
-      | _ -> Queries.ES.empty ()
+    Dom.fold add_perel st (Queries.PS.empty ())
 
-  let query _ _ (x:Dom.t) (q:Queries.t) =
+  let get_all_locks ask e st : Queries.PS.t =
+    let exps = 
+      match ask (Queries.EqualSet e) with
+        | `ExprSet a when not (Queries.ES.is_bot a) -> a
+        | _ -> Queries.ES.singleton e
+    in
+    let add_locks x xs = Queries.PS.union (get_locks x st) xs in
+    Queries.ES.fold add_locks exps (Queries.PS.empty ())
+
+  let query a _ (x:Dom.t) (q:Queries.t) =
     match q with
-      | Queries.PerElementLock e -> `ExprSet (get_locks e x)
+      | Queries.PerElementLock e -> 
+          let triples = get_all_locks a e x in
+(*           Messages.report ((sprint 800 (d_exp () e)) ^ " accesed with " ^ (Queries.PS.short 800 triples)); *)
+          `PerElemLock triples
       | _ -> Queries.Result.top ()
 end

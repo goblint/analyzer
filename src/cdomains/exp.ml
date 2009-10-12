@@ -78,4 +78,165 @@ struct
       | `Index (e,o) -> Cil.Index (e, conv_offs o)
 
   let of_clval (v,offs) = Cil.Lval (Cil.Var v, conv_offs offs)
+  
+  let rec fold_offs c =
+    match c with
+      | Cil.AddrOf (Cil.Mem e,o) -> begin
+          match fold_offs e with
+            | Some (v, o') -> Some (v, Cil.addOffset o o')
+            | x -> x
+          end
+      | Cil.AddrOf (Cil.Var v,o)  
+      | Cil.Lval (Cil.Var v,o) -> 
+          Some (v, o)
+      | _ -> None
+
+  let rec replace_base (v,offs) q exp =
+    let rec off_eq x y =
+      match x, y with
+        | Cil.NoOffset, Cil.NoOffset -> true
+        | Cil.Field (f1, o1), Cil.Field (f2, o2) -> f1.Cil.fname = f2.Cil.fname && off_eq o1 o2
+        | Cil.Index (e1, o1), Cil.Index (e2, o2) -> simple_eq e1 e2 && off_eq o1 o2
+        | _ -> false
+    and simple_eq x y =
+      match x, y with
+        | Cil.Lval (Cil.Var v1,o1)   , Cil.Lval (Cil.Var v2,o2)
+        | Cil.AddrOf (Cil.Var v1,o1) , Cil.AddrOf (Cil.Var v2,o2)             
+        | Cil.StartOf (Cil.Var v1,o1), Cil.StartOf (Cil.Var v2,o2) 
+            -> v1.Cil.vid = v2.Cil.vid && off_eq o1 o2
+        | Cil.Lval (Cil.Mem e1,o1)   , Cil.Lval (Cil.Mem e2,o2)
+        | Cil.AddrOf (Cil.Mem e1,o1) , Cil.AddrOf (Cil.Mem e2,o2) 
+        | Cil.StartOf (Cil.Mem e1,o1), Cil.StartOf (Cil.Mem e2,o2)
+            -> simple_eq e1 e2 && off_eq o1 o2
+        | _ -> false
+    in
+    match exp with
+      | Cil.SizeOf _
+      | Cil.SizeOfE _
+      | Cil.SizeOfStr _
+      | Cil.AlignOf _  
+      | Cil.AlignOfE _ 
+      | Cil.UnOp _      
+      | Cil.BinOp _ 
+      | Cil.Const _ 
+      | Cil.Lval (Cil.Var _,_) 
+      | Cil.AddrOf (Cil.Var _,_)              
+      | Cil.StartOf (Cil.Var _,_) -> exp
+      | Cil.Lval (Cil.Mem e,o)    when simple_eq e q -> Cil.Lval (Cil.Var v, Cil.addOffset o (conv_offs offs))
+      | Cil.Lval (Cil.Mem e,o)                       -> Cil.Lval (Cil.Mem (replace_base (v,offs) q e), o)
+      | Cil.AddrOf (Cil.Mem e,o)  when simple_eq e q -> Cil.AddrOf (Cil.Var v, Cil.addOffset o (conv_offs offs))
+      | Cil.AddrOf (Cil.Mem e,o)                     -> Cil.AddrOf (Cil.Mem (replace_base (v,offs) q e), o)
+      | Cil.StartOf (Cil.Mem e,o) when simple_eq e q -> Cil.StartOf (Cil.Var v, Cil.addOffset o (conv_offs offs))
+      | Cil.StartOf (Cil.Mem e,o)                    -> Cil.StartOf (Cil.Mem (replace_base (v,offs) q e), o)
+      | Cil.CastE (t,e) -> Cil.CastE (t, replace_base (v,offs) q e)
+end
+
+module LockingPattern =
+struct
+  type t = Exp.t * Exp.t * Exp.t
+  
+  let equal = Util.equals
+  let hash = Hashtbl.hash
+  let compare = Pervasives.compare
+  let classify _ = 0
+  let class_name _ = "None" 
+  let name () = "Per-Element locking triple"
+    
+  let pretty () (x,y,z) = text "(" ++ Cil.d_exp () x ++ text ", "++ Cil.d_exp () y ++ text ", "++ Cil.d_exp () z ++ text ")"
+  let short w (x,y,z) = sprint w (dprintf "(%a,%a,%a)" Cil.d_exp x Cil.d_exp y Cil.d_exp z)
+  let toXML x = Xml.Element ("Leaf", [("text", Goblintutil.escape (short 80 x))], [])
+  let isSimple _ = true
+  let pretty_f _ = pretty
+  let toXML_f _ = toXML
+  
+  type ee = Var of Cil.varinfo
+          | Addr
+          | Deref
+          | Field of Cil.fieldinfo
+          | Index of Cil.exp
+
+  let ee_equal x y = 
+    match x, y with
+      | Var v1, Var v2 -> v1.Cil.vid = v2.Cil.vid
+      | Addr, Addr -> true 
+      | Deref, Deref -> true
+      | Field f1, Field f2 -> f1.Cil.fname = f2.Cil.fname 
+      | Index e1, Index e2 -> e1 == e2
+      | _ -> false
+  
+  let ee_to_str x = 
+    match x with
+      | Var v -> v.Cil.vname
+      | Addr -> "&"
+      | Deref -> "*"
+      | Field f -> f.Cil.fname 
+      | Index e -> Pretty.sprint 80 (Cil.d_exp () e)
+  
+  let ees_to_str xs = List.fold_right (fun x xs -> " " ^ (ee_to_str x) ^ xs ) xs ""
+      
+  exception NotSimpleEnough
+  
+  let toEl exp = 
+    let rec conv_o o =
+      match o with
+        | Cil.NoOffset -> []
+        | Cil.Index (e,o) -> Index e :: conv_o o
+        | Cil.Field (f,o) -> Field f :: conv_o o
+    in
+    let rec helper exp =
+      match exp with
+        | Cil.SizeOf _
+        | Cil.SizeOfE _
+        | Cil.SizeOfStr _
+        | Cil.AlignOf _  
+        | Cil.AlignOfE _ 
+        | Cil.UnOp _      
+        | Cil.BinOp _ 
+        | Cil.StartOf _
+        | Cil.Const _ -> raise NotSimpleEnough 
+        | Cil.Lval (Cil.Var v, os) -> Var v :: conv_o os  
+        | Cil.Lval (Cil.Mem e, os) -> helper e @ [Deref] @ conv_o os
+        | Cil.AddrOf (Cil.Var v, os) -> Var v :: conv_o os @ [Addr]
+        | Cil.AddrOf (Cil.Mem e, os) -> helper e @ [Deref] @ conv_o os @ [Addr]
+        | Cil.CastE (_,e) -> helper e 
+    in
+      try helper exp 
+      with NotSimpleEnough -> []
+      
+  let rec fromEl xs ex =
+    match xs, ex with
+      | []           ,             _ -> ex      
+      | Deref::xs    ,             _ -> fromEl xs (Cil.Lval (Cil.Mem ex, Cil.NoOffset))
+      | Var v::xs    ,             _ -> fromEl xs (Cil.Lval (Cil.Var v, Cil.NoOffset)) 
+      | Field f::xs  , Cil.Lval lv   -> fromEl xs (Cil.Lval (Cil.Mem (Cil.AddrOf lv), Cil.Field (f, Cil.NoOffset)))
+      | Index i::xs  , Cil.Lval lv   -> fromEl xs (Cil.Lval (Cil.Mem (Cil.AddrOf lv), Cil.Index (i, Cil.NoOffset)))
+      | Addr::xs     , Cil.Lval lv   -> fromEl xs (Cil.AddrOf lv)
+      | _            ,             _ -> raise (Invalid_argument "")
+  
+  let from_exps a l : t option =
+    let a, l = toEl a, toEl l in
+(*    print_endline (ees_to_str a);
+    print_endline (ees_to_str l);
+    print_endline "---------------";*)
+    let rec fold_left2 f a xs ys =
+      match xs, ys with
+        | x::xs, y::ys -> fold_left2 f (f a x y) xs ys
+        | _ -> a
+    in
+    let f xs x y = 
+      match xs with
+        | `Done _ -> xs 
+        | `Todo xs when ee_equal x y -> `Todo (x :: xs)
+        | `Todo xs -> 
+            `Done xs
+    in
+    let dummy = Cil.integer 42 in
+    try match fold_left2 f (`Todo []) a l with
+      | `Done [] 
+      | `Todo [] -> None
+      | `Todo x 
+      | `Done x -> 
+          Some (fromEl (List.rev (Addr::x)) dummy, fromEl a dummy, fromEl l dummy)
+    with Invalid_argument _ -> print_endline ("bad l?:"^((ees_to_str l))); print_endline ("bad a?:"^((ees_to_str a))); None
+
 end

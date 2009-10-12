@@ -208,10 +208,36 @@ struct
       | Some e when Dom.S.is_bot e -> Queries.ES.bot ()
       | Some e -> Dom.S.fold Queries.ES.add e (Queries.ES.empty ())
   
+  let rec eq_set_clos e s =
+    match e with
+      | Cil.SizeOf _
+      | Cil.SizeOfE _
+      | Cil.SizeOfStr _
+      | Cil.AlignOf _  
+      | Cil.Const _ 
+      | Cil.AlignOfE _ 
+      | Cil.UnOp _
+      | Cil.BinOp _ 
+      | Cil.AddrOf  (Cil.Var _,_) 
+      | Cil.StartOf (Cil.Var _,_) 
+      | Cil.Lval    (Cil.Var _,_) -> eq_set e s
+      | Cil.AddrOf  (Cil.Mem e,ofs) -> 
+          Queries.ES.map (fun e -> mkAddrOf (Cil.mkMem e ofs)) (eq_set_clos e s)
+      | Cil.StartOf (Cil.Mem e,ofs) -> 
+          Queries.ES.map (fun e -> mkAddrOrStartOf (Cil.mkMem e ofs)) (eq_set_clos e s)
+      | Cil.Lval    (Cil.Mem e,ofs) -> 
+          Queries.ES.map (fun e -> Cil.Lval (Cil.mkMem e ofs)) (eq_set_clos e s)
+      | Cil.CastE (t,e) -> 
+          Queries.ES.map (fun e -> Cil.CastE (t,e)) (eq_set_clos e s)
+      
+      
   let query a g s x = 
     match x with 
       | Queries.ExpEq (e1,e2) when exp_equal a e1 e2 g s -> `Int (Queries.ID.of_bool true)
-      | Queries.EqualSet e -> `ExprSet (eq_set e s)
+      | Queries.EqualSet e -> 
+        let r = eq_set_clos e s in 
+(*         Messages.report ("equset of "^(sprint 80 (Cil.d_exp () e))^" is "^(Queries.ES.short 80 r)); *)
+        `ExprSet r
       | _ -> `Top
 
 end
