@@ -1,4 +1,4 @@
-// SKIP!
+// PARAM: --unmerged-fields --with var_eq --with symb_locks 
 #include<pthread.h>
 #include<stdio.h>
 

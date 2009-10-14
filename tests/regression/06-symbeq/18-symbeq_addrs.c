@@ -1,4 +1,4 @@
-// PARAM: --with var_eq
+// PARAM: --debug --with var_eq
 #include<stdlib.h>
 
 typedef struct {

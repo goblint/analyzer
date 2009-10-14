@@ -31,8 +31,15 @@ struct
   let branch a exp tv glob st = st
   let body   a f glob st = st
 
-  let assign a lval rval glob st =
-    Dom.remove a (Cil.Lval lval) st
+  let assign ask lval rval glob st =
+    let not_in v xs = not (Exp.contains_var v xs) in
+    let remove_simple (v,offs) st =      
+      Dom.filter (not_in v) st
+    in
+    match ask (Queries.MayPointTo (Cil.mkAddrOf lval)) with 
+      | `LvalSet rv when not (Queries.LS.is_top rv) -> 
+          Queries.LS.fold remove_simple rv st 
+      | _ -> Dom.top ()
     
   let return a exp fundec glob st = 
     List.fold_right Dom.remove_var (fundec.sformals@fundec.slocals) st  

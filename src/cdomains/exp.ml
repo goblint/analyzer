@@ -36,24 +36,34 @@ struct
       | Cil.Lval    (Cil.Mem e,_)
       | Cil.CastE (_,e)           -> interesting e 
       
-  let rec contains_var v e =
-    match e with
-      | Cil.SizeOf _
-      | Cil.SizeOfE _
-      | Cil.SizeOfStr _
-      | Cil.AlignOf _  
-      | Cil.Const _ 
-      | Cil.AlignOfE _ -> false 
-      | Cil.UnOp  (_,e,_)     -> contains_var v e      
-      | Cil.BinOp (_,e1,e2,_) -> contains_var v e1 || contains_var v e2  
-      | Cil.AddrOf  (Cil.Var v2,_) 
-      | Cil.StartOf (Cil.Var v2,_) -> false 
-      | Cil.Lval    (Cil.Var v2,_) -> v.Cil.vid = v2.Cil.vid 
-      | Cil.AddrOf  (Cil.Mem e,_) 
-      | Cil.StartOf (Cil.Mem e,_) 
-      | Cil.Lval    (Cil.Mem e,_)
-      | Cil.CastE (_,e)           -> contains_var v e 
-    
+  let  contains_var v e =
+    let rec offs_contains o =
+      match o with
+        | Cil.NoOffset -> false
+        | Cil.Field (_,o) -> offs_contains o
+        | Cil.Index (e,o) -> cv false e || offs_contains o
+    and cv deref e = 
+      match e with
+        | Cil.SizeOf _
+        | Cil.SizeOfE _
+        | Cil.SizeOfStr _
+        | Cil.AlignOf _  
+        | Cil.Const _ 
+        | Cil.AlignOfE _ -> false 
+        | Cil.UnOp  (_,e,_)     -> cv deref e      
+        | Cil.BinOp (_,e1,e2,_) -> cv deref e1 || cv deref e2  
+        | Cil.AddrOf  (Cil.Mem e,o) 
+        | Cil.StartOf (Cil.Mem e,o) 
+        | Cil.Lval    (Cil.Mem e,o) -> cv true e || offs_contains o
+        | Cil.CastE (_,e)           -> cv deref e 
+        | Cil.Lval    (Cil.Var v2,o) -> v.Cil.vid = v2.Cil.vid || offs_contains o
+        | Cil.AddrOf  (Cil.Var v2,o) 
+        | Cil.StartOf (Cil.Var v2,o) -> 
+          if deref  
+          then v.Cil.vid = v2.Cil.vid || offs_contains o 
+          else offs_contains o 
+    in
+      cv false e
       
   let rec is_global_var x =
     match x with

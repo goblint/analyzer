@@ -1,4 +1,4 @@
-
+// PARAM: --with symb_locks --with var_eq
 typedef long long pthread_t;
 typedef long long pthread_mutex_t;
 
