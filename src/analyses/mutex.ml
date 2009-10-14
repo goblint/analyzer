@@ -92,31 +92,77 @@ struct
   let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
 
-  let access_address ask write lv : BS.extra * (exp * offset) list =
+  let access_address_perel ask write lv  =
     match lv with
-      | Mem e, offs -> [], [(e,offs)]
-      | _ -> 
+      | Mem e, offs -> [(e,offs,write)]
+      | Var v, offs -> [AddrOf lv, NoOffset,write]
+
+  let rec access_one_byval_perel a rw (exp:Cil.exp) = 
+    match exp with 
+      (* Integer literals *)
+      | Cil.Const _ -> []
+      (* Variables and address expressions *)
+      | Cil.Lval lval -> 
+        let b1 = access_address_perel a rw lval in
+        let b2 = access_lv_byval_perel a lval in
+          b1 @ b2
+      (* Binary operators *)
+      | Cil.BinOp (op,arg1,arg2,typ) -> 
+          let b1 = access_one_byval_perel a rw arg1 in
+          let b2 = access_one_byval_perel a rw arg2 in
+            b1 @ b2
+      (* Unary operators *)
+      | Cil.UnOp (op,arg1,typ) -> access_one_byval_perel a rw arg1
+      (* The address operators, we just check the accesses under them *)
+      | Cil.AddrOf lval -> access_lv_byval_perel a lval
+      | Cil.StartOf lval -> access_lv_byval_perel a lval
+      (* Most casts are currently just ignored, that's probably not a good idea! *)
+      | Cil.CastE  (t, exp) -> access_one_byval_perel a rw exp
+      | _ -> []
+  (* Accesses during the evaluation of an lval, not the lval itself! *)
+  and access_lv_byval_perel a (lval:Cil.lval) = 
+    let rec access_offset (ofs: Cil.offset) = 
+      match ofs with 
+        | Cil.NoOffset -> []
+        | Cil.Field (fld, ofs) -> access_offset ofs
+        | Cil.Index (exp, ofs) -> 
+          let b1 = access_one_byval_perel a false exp in
+          let b2 = access_offset ofs in
+            b1 @ b2
+    in 
+      match lval with 
+        | Cil.Var x, ofs -> access_offset ofs
+        | Cil.Mem n, ofs -> 
+          let b1 = access_one_byval_perel a false n in
+          let b2 = access_offset ofs in
+            b1 @ b2
+
+   let access_byval_perel a (rw: bool) (exps: Cil.exp list) =
+     List.concat (List.map (access_one_byval_perel a rw) exps)
+
+
+  let access_address ask write lv : BS.extra  =
     match ask (Queries.MayPointTo (AddrOf lv)) with
       | `LvalSet a when not (Queries.LS.is_top a) -> 
           let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), write) :: xs  in
-          Queries.LS.fold to_extra a [], []
+          Queries.LS.fold to_extra a []
       | _ -> 
-          M.warn "Access to unknown address could be global"; [], []
+          M.warn "Access to unknown address could be global"; []
 
-  let rec access_one_byval a rw (exp:Cil.exp): BS.extra * (exp * offset) list = 
+  let rec access_one_byval a rw (exp:Cil.exp): BS.extra  = 
     match exp with 
       (* Integer literals *)
-      | Cil.Const _ -> [], []
+      | Cil.Const _ -> []
       (* Variables and address expressions *)
       | Cil.Lval lval -> 
-        let a1, b1 = access_address a rw lval in
-        let a2, b2 = access_lv_byval a lval in
-          a1 @ a2, b1 @ b2
+        let a1 = access_address a rw lval in
+        let a2 = access_lv_byval a lval in
+          a1 @ a2
       (* Binary operators *)
       | Cil.BinOp (op,arg1,arg2,typ) -> 
-          let a1, b1 = access_one_byval a rw arg1 in
-          let a2, b2 = access_one_byval a rw arg2 in
-            a1 @ a2, b1 @ b2
+          let a1 = access_one_byval a rw arg1 in
+          let a2 = access_one_byval a rw arg2 in
+            a1 @ a2
       (* Unary operators *)
       | Cil.UnOp (op,arg1,typ) -> access_one_byval a rw arg1
       (* The address operators, we just check the accesses under them *)
@@ -124,28 +170,27 @@ struct
       | Cil.StartOf lval -> access_lv_byval a lval
       (* Most casts are currently just ignored, that's probably not a good idea! *)
       | Cil.CastE  (t, exp) -> access_one_byval a rw exp
-      | _ -> [], []
+      | _ -> []
   (* Accesses during the evaluation of an lval, not the lval itself! *)
-  and access_lv_byval a (lval:Cil.lval): BS.extra * (exp * offset) list = 
-    let rec access_offset (ofs: Cil.offset): BS.extra * (exp * offset) list = 
+  and access_lv_byval a (lval:Cil.lval): BS.extra = 
+    let rec access_offset (ofs: Cil.offset): BS.extra = 
       match ofs with 
-        | Cil.NoOffset -> [], []
+        | Cil.NoOffset -> []
         | Cil.Field (fld, ofs) -> access_offset ofs
         | Cil.Index (exp, ofs) -> 
-          let a1, b1 = access_one_byval a false exp in
-          let a2, b2 = access_offset ofs in
-            a1 @ a2, b1 @ b2
+          let a1 = access_one_byval a false exp in
+          let a2 = access_offset ofs in
+            a1 @ a2
     in 
       match lval with 
         | Cil.Var x, ofs -> access_offset ofs
         | Cil.Mem n, ofs -> 
-          let a1, b1 = access_one_byval a false n in
-          let a2, b2 = access_offset ofs in
-            a1 @ a2, b1 @ b2
+          let a1 = access_one_byval a false n in
+          let a2 = access_offset ofs in
+            a1 @ a2
 
-   let access_byval a (rw: bool) (exps: Cil.exp list): BS.extra * (exp * offset) list =
-     let concat2 xs = List.fold_right (fun (x,y) (xs,ys) -> x@xs, y@ys) xs ([],[]) in
-     concat2 (List.map (access_one_byval a rw) exps)
+   let access_byval a (rw: bool) (exps: Cil.exp list): BS.extra =
+     List.concat (List.map (access_one_byval a rw) exps)
 
    let access_reachable ask (exps: Cil.exp list) = 
      (* Find the addresses reachable from some expression, and assume that these
@@ -234,10 +279,10 @@ struct
     end
     
   let add_perelem_accesses ask perelem ust =
-    let add_one_perelem (e, offs) =
+    let add_one_perelem (e, offs,rw) =
       let one (e,a,l) =
-        let element lv = 
-          let accs, _ = access_one_byval ask true (Exp.replace_base lv e a) in
+        let with_element lv = 
+          let accs = access_one_byval ask rw (Exp.replace_base lv e a) in
           let lock = 
             match Exp.fold_offs (Exp.replace_base lv e l) with
               | Some (v, o) -> LockDomain.Lockset.ReverseAddrSet.add (LockDomain.Addr.from_var_offset (v,conv_const_offset o) ,true) ust
@@ -245,18 +290,14 @@ struct
           in
           add_normal_accesses ask accs lock
         in
-        List.iter element (query_lv ask e)
+        List.iter with_element (query_lv ask e)
       in
       match ask (Queries.PerElementLock (Lval (mkMem e offs))) with
         | `PerElemLock a when not (Queries.PS.is_top a || Queries.PS.is_empty a) -> 
             Queries.PS.iter one a
         | _ ->     
-      match ask (Queries.MayPointTo (Lval (Mem e, offs))) with
-        | `LvalSet a when not (Queries.LS.is_top a) -> 
-            let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
-            add_normal_accesses ask (Queries.LS.fold to_extra a []) ust
-        | _ -> 
-            M.warn "Access to unknown address could be global"; ()
+            let accs = access_one_byval ask rw (Lval (mkMem e offs)) in
+            add_normal_accesses ask accs ust
     in
     List.iter add_one_perelem perelem
 
@@ -277,21 +318,21 @@ struct
   (** Transfer functions: *)
   
   let assign a lval rval gs (ust: Dom.t) : Dom.t = 
-    let a1, b1 = access_one_byval a true (Lval lval) in 
-    let a2, b2 = access_one_byval a false rval in
-    add_accesses a (a1@a2,b1@b2) ust;
+    let b1 = access_one_byval_perel a true (Lval lval) in 
+    let b2 = access_one_byval_perel a false rval in
+    add_perelem_accesses a (b1@b2) ust;
     ust
     
   let branch a exp tv gs (ust: Dom.t) : Dom.t =
-    let accessed = access_one_byval a false exp in
-    add_accesses a accessed ust;
+    let accessed = access_one_byval_perel a false exp in
+    add_perelem_accesses a accessed ust;
     ust
     
   let return a exp fundec gs (ust: Dom.t) : Dom.t =
     begin match exp with 
       | Some exp -> 
-          let accessed = access_one_byval a false exp in
-          add_accesses a accessed ust
+          let accessed = access_one_byval_perel a false exp in
+          add_perelem_accesses a accessed ust
       | None -> () 
     end;
     ust
@@ -299,8 +340,8 @@ struct
   let body a f gs (ust: Dom.t) : Dom.t =  ust
 
   let eval_funvar a exp gs bl = 
-    let read = access_one_byval a false exp in
-    add_accesses a read bl; 
+    let read = access_one_byval_perel a false exp in
+    add_perelem_accesses a read bl; 
     []
   
   
@@ -350,17 +391,17 @@ struct
               | Some fnc -> (fnc act arglist) 
               | _ -> []
           in
-          let r1,r2 = access_byval a false (arg_acc `Read) in
+          let r1 = access_byval a false (arg_acc `Read) in
           let a1 = access_reachable a   (arg_acc `Write) in
-          add_accesses a (r1@a1, r2) ls;
+          add_normal_accesses a (r1@a1) ls;
           [ls, Cil.integer 1, true]
           
   let enter_func a lv f args gs lst : (Dom.t * Dom.t) list =
     [(lst,lst)]
 
   let leave_func a lv f args gs bl al = 
-    let read = access_byval a false args in
-    add_accesses a read bl; 
+    let read = access_byval_perel a false args in
+    add_perelem_accesses a read bl; 
     al
     
   let fork a lv f args gs ls = 

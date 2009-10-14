@@ -90,26 +90,26 @@ struct
       | Cil.Lval (Cil.Var v,o) -> 
           Some (v, o)
       | _ -> None
-
+    
+  let rec off_eq x y =
+    match x, y with
+      | Cil.NoOffset, Cil.NoOffset -> true
+      | Cil.Field (f1, o1), Cil.Field (f2, o2) -> f1.Cil.fname = f2.Cil.fname && off_eq o1 o2
+      | Cil.Index (e1, o1), Cil.Index (e2, o2) -> simple_eq e1 e2 && off_eq o1 o2
+      | _ -> false
+  and simple_eq x y =
+    match x, y with
+      | Cil.Lval (Cil.Var v1,o1)   , Cil.Lval (Cil.Var v2,o2)
+      | Cil.AddrOf (Cil.Var v1,o1) , Cil.AddrOf (Cil.Var v2,o2)             
+      | Cil.StartOf (Cil.Var v1,o1), Cil.StartOf (Cil.Var v2,o2) 
+          -> v1.Cil.vid = v2.Cil.vid && off_eq o1 o2
+      | Cil.Lval (Cil.Mem e1,o1)   , Cil.Lval (Cil.Mem e2,o2)
+      | Cil.AddrOf (Cil.Mem e1,o1) , Cil.AddrOf (Cil.Mem e2,o2) 
+      | Cil.StartOf (Cil.Mem e1,o1), Cil.StartOf (Cil.Mem e2,o2)
+          -> simple_eq e1 e2 && off_eq o1 o2
+      | _ -> false
+    
   let rec replace_base (v,offs) q exp =
-    let rec off_eq x y =
-      match x, y with
-        | Cil.NoOffset, Cil.NoOffset -> true
-        | Cil.Field (f1, o1), Cil.Field (f2, o2) -> f1.Cil.fname = f2.Cil.fname && off_eq o1 o2
-        | Cil.Index (e1, o1), Cil.Index (e2, o2) -> simple_eq e1 e2 && off_eq o1 o2
-        | _ -> false
-    and simple_eq x y =
-      match x, y with
-        | Cil.Lval (Cil.Var v1,o1)   , Cil.Lval (Cil.Var v2,o2)
-        | Cil.AddrOf (Cil.Var v1,o1) , Cil.AddrOf (Cil.Var v2,o2)             
-        | Cil.StartOf (Cil.Var v1,o1), Cil.StartOf (Cil.Var v2,o2) 
-            -> v1.Cil.vid = v2.Cil.vid && off_eq o1 o2
-        | Cil.Lval (Cil.Mem e1,o1)   , Cil.Lval (Cil.Mem e2,o2)
-        | Cil.AddrOf (Cil.Mem e1,o1) , Cil.AddrOf (Cil.Mem e2,o2) 
-        | Cil.StartOf (Cil.Mem e1,o1), Cil.StartOf (Cil.Mem e2,o2)
-            -> simple_eq e1 e2 && off_eq o1 o2
-        | _ -> false
-    in
     match exp with
       | Cil.SizeOf _
       | Cil.SizeOfE _
@@ -161,7 +161,7 @@ struct
       | Addr, Addr -> true 
       | Deref, Deref -> true
       | Field f1, Field f2 -> f1.Cil.fname = f2.Cil.fname 
-      | Index e1, Index e2 -> e1 == e2
+      | Index e1, Index e2 -> Exp.simple_eq e1 e2
       | _ -> false
   
   let ee_to_str x = 
@@ -215,28 +215,37 @@ struct
   
   let from_exps a l : t option =
     let a, l = toEl a, toEl l in
-(*    print_endline (ees_to_str a);
-    print_endline (ees_to_str l);
-    print_endline "---------------";*)
     let rec fold_left2 f a xs ys =
       match xs, ys with
         | x::xs, y::ys -> fold_left2 f (f a x y) xs ys
         | _ -> a
     in
-    let f xs x y = 
+    let advance_prefix xs x y = 
       match xs with
-        | `Done _ -> xs 
-        | `Todo xs when ee_equal x y -> `Todo (x :: xs)
-        | `Todo xs -> 
-            `Done xs
+        | `Todo (zs,xs,ys) when ee_equal x y -> `Todo (x :: zs,xs,ys)
+        | `Todo (zs,xs,ys)
+        | `Done (zs,xs,ys) ->  `Done (zs,x::xs,y::ys)
     in
     let dummy = Cil.integer 42 in
-    try match fold_left2 f (`Todo []) a l with
-      | `Done [] 
-      | `Todo [] -> None
-      | `Todo x 
-      | `Done x -> 
-          Some (fromEl (List.rev (Addr::x)) dummy, fromEl a dummy, fromEl l dummy)
-    with Invalid_argument _ -> print_endline ("bad l?:"^((ees_to_str l))); print_endline ("bad a?:"^((ees_to_str a))); None
+    let is_concrete = 
+      let is_concrete x =
+        match x with
+          | Var v -> true
+          | Addr -> true
+          | Deref -> true
+          | Field f -> true
+          | Index e -> false
+      in
+      List.for_all is_concrete 
+    in
+    try match fold_left2 advance_prefix (`Todo ([],[],[])) a l with
+      | `Done ([],_,_) 
+      | `Todo ([],_,_) -> None
+      | `Todo (zs,xs,ys)  
+      | `Done (zs,xs,ys) when is_concrete xs && is_concrete ys ->
+          let elem = fromEl (List.rev (Addr::zs)) dummy in
+          Some (elem, fromEl a dummy, fromEl l dummy)
+      | _ -> None
+    with Invalid_argument _ -> None
 
 end

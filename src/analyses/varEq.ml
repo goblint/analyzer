@@ -75,6 +75,7 @@ struct
     List.fold_right reachable es (Some (Queries.LS.empty ()))   
 
   let rec reachable_from (r:Queries.LS.t) e =
+    if Queries.LS.is_top r then true else
     let rec is_prefix x1 x2 =
       match x1, x2 with
         | _, `NoOffset -> true
@@ -145,7 +146,11 @@ struct
       | None -> [st, Dom.top ()]
       | Some xs ->
         let add x = Dom.S.add (Exp.of_clval x) in
-        let rst = Queries.LS.fold add xs (Dom.S.empty ()) in
+        let rst = 
+          if Queries.LS.is_top xs 
+          then Dom.S.empty ()
+          else Queries.LS.fold add xs (Dom.S.empty ()) 
+        in
         let rst = List.fold_left (fun st v -> Dom.S.add (Lval (Var v,NoOffset)) st) rst f.sformals in
         [st,Dom.join nst (Dom.singleton rst)]
   
