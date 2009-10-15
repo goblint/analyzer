@@ -10,12 +10,14 @@ let default_conf () =
   let def_int = Build.objekt ["trier"      , Build.bool true
                              ;"interval"   , Build.bool false] in
   let def_ana = Build.objekt ["base"       , Build.bool true
+                             ;"thread"     , Build.bool false
                              ;"mutex"      , Build.bool true
                              ;"symb_locks" , Build.bool false
                              ;"uninit"     , Build.bool false
                              ;"malloc_null", Build.bool false
                              ;"var_eq"     , Build.bool false] in
   let def_path = Build.objekt ["base"       , Build.bool false
+                              ;"thread"     , Build.bool false
                               ;"mutex"      , Build.bool true
                               ;"symb_locks" , Build.bool false
                               ;"uninit"     , Build.bool false
@@ -39,7 +41,7 @@ let conf : (string, Json_type.t) Hashtbl.t ref =
 
 let modify_ana x b = 
   let old_ana = make_table (objekt (field !conf "analyses")) in
-  let anas = ["base";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
+  let anas = ["base";"thread";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
   let set_ana_pair fe = 
     if fe = x 
     then fe, Build.bool b
@@ -54,32 +56,20 @@ let modify_ana x b =
   conf := make_table (objekt modif)
   
 let conf_uninit () = 
+  modify_ana "thread" false;
   modify_ana "mutex" false;
   modify_ana "symb_locks" false;
   modify_ana "uninit" true;
   modify_ana "malloc_null" false
 
-
 let conf_malloc () = 
-  let uni_ana = Build.objekt ["base"       , Build.bool true
-                             ;"mutex"      , Build.bool false
-                             ;"symb_locks" , Build.bool false
-                             ;"uninit"     , Build.bool false
-                             ;"malloc_null", Build.bool true
-                             ;"var_eq"     , Build.bool false] in
-  let uni_path = Build.objekt ["base"       , Build.bool false
-                              ;"mutex"      , Build.bool false
-                              ;"symb_locks" , Build.bool false
-                              ;"uninit"     , Build.bool false
-                              ;"malloc_null", Build.bool true
-                              ;"var_eq"     , Build.bool false] in
-  let uninit = 
-    Build.objekt ["int_domain" , field !conf "int_domain"
-                 ;"analyses"   , uni_ana
-                 ;"sensitive"  , uni_path
-                 ;"analysis"   , field !conf "analysis"
-                 ;"solver"     , field !conf "solver"] in
-  conf := make_table (objekt uninit)
+  modify_ana "thread" false;
+  modify_ana "mutex" false;
+  modify_ana "symb_locks" false;
+  modify_ana "uninit" false;
+  modify_ana "malloc_null" true
+
+
 (** when goblin is in debug mode *)
 let debug = ref false 
 
