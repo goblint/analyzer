@@ -78,6 +78,8 @@ struct
   
   let map = ReverseAddrSet.map
   let filter = ReverseAddrSet.filter
+  let fold = ReverseAddrSet.fold
+  let singleton = ReverseAddrSet.singleton
 end
 
 module Symbolic = 

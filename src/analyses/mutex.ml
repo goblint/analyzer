@@ -239,7 +239,47 @@ struct
                           | _ -> nothing ls 
                   end
         | _ -> nothing (Lockset.top ())
-       
+        
+  let per_elementize oa op (locks:Dom.t) =
+    let wildcard_ok ip il ia = ID.is_top ip && ID.equal ia il in
+    let rec no_wildcards x =
+      match x with
+        | `NoOffset -> true
+        | `Index (i,o) -> not (ID.is_top i) && no_wildcards o
+        | `Field (_,o) -> no_wildcards o
+    in
+    let rec get_perel_lock_offs oa op ol =
+      match oa, op, ol with
+        | _, `NoOffset, _ -> ol
+        | `Index (ia,oa), `Index (ip,op), `Index (il,ol) 
+            when wildcard_ok ip il ia ->
+            `Index (ip,get_perel_lock_offs oa op ol)            
+        | `Index (ia,oa), `Index (ip,op), `Index (il,ol) 
+            when not (ID.is_top ip) ->
+            `Index (il,get_perel_lock_offs oa op ol)  
+        | _, `Index (ip,op), _ 
+            when no_wildcards ol ->
+            ol
+        | `Field (fa,oa), `Field (fp,op), `Field (fl,ol) ->
+            `Field (fl,get_perel_lock_offs oa op ol)  
+        | _, `Field (fp,op), _ 
+            when no_wildcards ol ->
+            ol
+        | _ -> raise Not_found
+    in
+    let add_perel (lock,_) ls =
+      match Addr.to_var_offset lock, Offs.to_offset oa, Offs.to_offset op with
+        | [va,ol], [oa], [op] -> begin
+          try (va, get_perel_lock_offs oa op ol) :: ls
+          with Not_found -> ls end
+        | _ -> ls
+    in
+      match Lockset.fold add_perel locks [] with
+        | x :: _ -> Some x
+        | _ -> None
+    
+        
+        
   (** Access counting is done using side-effect (accesses added in [add_accesses] and read in [finalize]) : *)
   
   (* 
@@ -440,12 +480,42 @@ struct
     (* join map elements, that we cannot be sure are logically separate *)
     let regroup_map (map,set) =
       let f offs (group_offs, access_list, new_map) = 
+        let process (oa:Offs.t) (op:Offs.t) = 
+          let prc_acc (bs, ls, os) = 
+            match per_elementize oa op ls with
+              | Some lock -> (bs,Dom.singleton (Addr.from_var_offset lock, true),os)
+              | None -> (bs,Dom.empty (),os)
+          in
+          List.map prc_acc 
+        in
+        (* We assume f is called in the right order: we get the greatest offset first (leq'wise) 
+           That also means that we get unknown indexes first.*)
+        (* At first we take the definite part of an offset --- if that's all 
+           then go to f_definite else try to record that as a per-element 
+           access protection and proceed to f_perel *)
         let new_offs = Offs.definite offs in
-        let new_gr_offs = Offs.join new_offs group_offs in
-        (* we assume f is called in the right order: we get the greatest offset first (leq'wise) *)
-        if (Offs.leq new_offs group_offs || (Offs.is_bot group_offs)) 
-        then (new_gr_offs, OffsMap.find offs map @ access_list, new_map) 
-        else (   new_offs, OffsMap.find offs map, OffsMap.add group_offs access_list new_map) 
+        let f_definite () = 
+          (* Offset was definite -- current offset the offsets that follow and are 
+            smaller (have extra indexes ond/or fields) are to be considered as one.*)
+          let new_gr_offs = Offs.join new_offs group_offs in
+          if (Offs.leq new_offs group_offs || (Offs.is_bot group_offs)) 
+          then (new_gr_offs, OffsMap.find offs map @ access_list, new_map) 
+          else (   new_offs, OffsMap.find offs map, OffsMap.add group_offs access_list new_map)         
+        in
+        let f_perel () =
+          (* Offset was not definite --- almost same as with f_definite, but keep only 
+             per-element locks. *)
+          let new_gr_offs = Offs.perelem_join offs group_offs in
+          let accs = OffsMap.find offs map in
+          if (Offs.perel_leq offs group_offs || (Offs.is_bot group_offs)) 
+          then (new_gr_offs, process offs new_gr_offs accs @ access_list, new_map) 
+          else (       offs, accs, OffsMap.add group_offs access_list new_map)         
+        in
+        (* Were we precise enough to have definite variable access or must we try to 
+           generate per-element invariants. *)
+        if (Offs.equal offs new_offs) && (Offs.equal group_offs (Offs.definite group_offs))
+        then f_definite ()
+        else f_perel ()
       in
       let (last_offs,last_set, map) = OffsSet.fold f set (Offs.bot (), [], OffsMap.empty) in
         if Offs.is_bot last_offs
