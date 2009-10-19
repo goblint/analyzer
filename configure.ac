@@ -154,7 +154,6 @@ else
   AC_SUBST(OCAMLDOC,$DEFAULTDOC)
 fi 
 
-
 ######
 ##
 #  Chapter 4: The Libraries
@@ -282,7 +281,7 @@ AC_SUBST(COMPILEFLAGS)
 AC_SUBST(DOCFLAGS)
 AC_SUBST(OUNIT)
 AC_SUBST(XML)
-
+AC_SUBST(JSON)
 
 
 AC_OUTPUT(Makefile)

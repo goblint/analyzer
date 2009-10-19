@@ -600,6 +600,7 @@ PACKAGE_BUGREPORT=''
 
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+JSON
 XML
 OUNIT
 DOCFLAGS
@@ -2258,7 +2259,6 @@ else
   OCAMLDOC=$DEFAULTDOC
 
 fi
-
 
 ######
 ##

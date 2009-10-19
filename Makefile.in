@@ -100,13 +100,13 @@ tags:
 
 # DOCS
 DOC_ARG = -I $(OBJDIR) \
-	-I $(CILLIB) -I $(XML) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*\.mli*'` \
+	-I $(CILLIB) -I $(XML) -I $(JSON) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*\.mli*'` \
 	$(CIL)src/cil.mli $(CIL)src/formatcil.mli \
 	$(CIL)ocamlutil/pretty.mli $(CIL)ocamlutil/errormsg.mli \
 	$(CIL)ocamlutil/trace.mli $(CIL)ocamlutil/stats.mli \
 	$(CIL)ocamlutil/alpha.mli $(CIL)ocamlutil/util.mli \
 	$(CIL)ocamlutil/clist.mli \
-	$(XML)/xml.mli \
+	$(XML)/xml.mli $(JSON)/json_type.mli \
 
 docs: 
 	@rm -f doc/*
