@@ -53,7 +53,7 @@ struct
     match rv with
       | Lval rlval -> begin
           match ask (Queries.MayPointTo (Cil.mkAddrOf rlval)) with 
-            | `LvalSet rv when Queries.LS.cardinal rv == 1 -> 
+            | `LvalSet rv when not (Queries.LS.is_top rv) && Queries.LS.cardinal rv = 1 -> 
                 let rv = Exp.of_clval (Queries.LS.choose rv) in
                 if is_local lv && Exp.is_global_var rv = Some false 
                 then Dom.add_eq (rv,Lval lv) st
@@ -177,6 +177,11 @@ struct
     
   (* remove all variables that are reachable from arguments *)
   let special_fn ask lval f args glob st = 
+    let args =
+      match LF.get_invalidate_action f.vname with
+        | Some fnc -> fnc `Write args
+        | _ -> args
+    in
     let es = 
       match lval with
         | Some l -> mkAddrOf l :: args

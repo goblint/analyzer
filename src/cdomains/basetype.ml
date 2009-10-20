@@ -301,3 +301,20 @@ struct
   let name () = "field"
 end
 
+module CilType =
+struct
+  let isSimple _  = true
+  type t = typ
+  let compare x y = Pervasives.compare x y
+  let equal x y = Util.equals x y
+  let hash x = Hashtbl.hash x
+  let short w x = sprint ~width:w (d_type () x)
+  let toXML_f sf x = 
+    let esc = Goblintutil.escape in
+      Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
+  let pretty_f sf () x = d_type () x
+
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
+  let name () = "types"
+end

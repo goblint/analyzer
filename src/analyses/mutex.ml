@@ -82,12 +82,6 @@ struct
       | Cil.CastE (_,e)           -> replace_elem (v,o) q e
       | _ -> v, Offs.from_offset (conv_offset o)
   
-  let query_lv ask exp = 
-    match ask (Queries.MayPointTo exp) with
-      | `LvalSet l when not (Queries.LS.is_top l) -> 
-          Queries.LS.elements l
-      | _ -> []
-
   (** queries *)
   let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
@@ -277,8 +271,16 @@ struct
       match Lockset.fold add_perel locks [] with
         | x :: _ -> Some x
         | _ -> None
-    
-        
+  
+
+  let type_inv_tbl = Hashtbl.create 13 
+  
+  let type_inv t : Lval.CilLval.t list =
+    try [Hashtbl.find type_inv_tbl t,`NoOffset]
+    with Not_found ->
+        let i = makeGlobalVar ("( "^sprint 64 (d_type () t)^")") t in
+        Hashtbl.add type_inv_tbl t i;
+        [i, `NoOffset]
         
   (** Access counting is done using side-effect (accesses added in [add_accesses] and read in [finalize]) : *)
   
@@ -319,6 +321,13 @@ struct
     end
     
   let add_perelem_accesses ask perelem ust =
+    let query_lv exp = 
+      match ask (Queries.MayPointTo exp) with
+        | `LvalSet l when not (Queries.LS.is_top l) -> Queries.LS.elements l
+        | `Top
+        | `LvalSet _ -> type_inv (Cil.typeOf (Lval (Mem exp,NoOffset)))
+        | _ ->  [] 
+    in
     let add_one_perelem (e, offs,rw) =
       let one (e,a,l) =
         let with_element lv = 
@@ -330,7 +339,7 @@ struct
           in
           add_normal_accesses ask accs lock
         in
-        List.iter with_element (query_lv ask e)
+        List.iter with_element (query_lv e)
       in
       match ask (Queries.PerElementLock (Lval (mkMem e offs))) with
         | `PerElemLock a when not (Queries.PS.is_top a || Queries.PS.is_empty a) -> 

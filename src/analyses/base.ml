@@ -841,7 +841,7 @@ struct
     let add x y = Queries.LS.add y x in
     try
       AD.fold (fun e c -> List.fold_left add c (convertToQueryLval e)) a (Queries.LS.empty ())
-    with SetDomain.Unsupported _ -> Queries.LS.empty ()
+    with SetDomain.Unsupported _ -> Queries.LS.top ()
         
   let query ask g st (q:Queries.t) = 
     match q with
