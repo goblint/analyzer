@@ -1,6 +1,8 @@
 open Cil
 open Pretty
 
+module GU = Goblintutil
+
 type ('a, 'b) offs = [
   | `NoOffset 
   | `Field of 'a * ('a,'b) offs
@@ -39,14 +41,14 @@ struct
   let definite o =
     let rec def o = 
       match o with
-       | `Index (i,o) when Idx.is_int i -> `Index (i,def o)
+       | `Index (i,o) when Idx.is_int i && Idx.to_int i <> Some GU.inthack -> `Index (i,def o)
        | `Field (f,o) -> `Field (f,def o) 
        | _ -> `NoOffset
      in
      match o with 
       | Offs o -> Offs (def o)
       | Bot -> Bot
- 
+
   let top () = Offs `NoOffset 
   let bot () = Bot
  
@@ -98,8 +100,12 @@ struct
     match x, y with
       | Bot, _ -> true
       | Offs _, Offs `NoOffset -> true
-      | Offs `Index (i1,o1), Offs `Index (i2,o2)  when Idx.leq i1 i2 -> perel_leq (Offs o1) (Offs o2)
-      | Offs `Field (f1,o1), Offs `Field (f2,o2) when f1.fname = f2.fname -> perel_leq (Offs o1) (Offs o2)
+      | Offs `Index (i1,o1), Offs `Index (i2,o2) 
+          when Idx.to_int i2 = Some (GU.inthack) || Idx.leq i1 i2 
+          -> perel_leq (Offs o1) (Offs o2)
+      | Offs `Field (f1,o1), Offs `Field (f2,o2) 
+          when f1.fname = f2.fname 
+          -> perel_leq (Offs o1) (Offs o2)
       | _ -> false      
       
   let isSimple x = true
@@ -147,7 +153,11 @@ struct
         | x, `NoOffset -> `NoOffset
         | `Field (x1,y1), `Field (x2,y2) when x1 == x2 
             -> `Field (x1, offs_join y1 y2)
-        | `Index (x1,y1), `Index (x2,y2) -> `Index (Idx.join x1 x2, offs_join y1 y2)
+        | `Index (x1,y1), `Index (x2,y2) 
+            when Idx.to_int x1 = Some (GU.inthack) || Idx.to_int x2 = Some (GU.inthack)
+            -> `Index (Idx.of_int GU.inthack, offs_join y1 y2)
+        | `Index (x1,y1), `Index (x2,y2) 
+            -> `Index (Idx.join x1 x2, offs_join y1 y2)
         | _ -> `NoOffset
     in
     match x, y with
@@ -156,7 +166,7 @@ struct
       | Offs (`Field x), Offs (`Index y) -> Offs `NoOffset 
       | Offs (`Index x), Offs (`Field y) -> Offs `NoOffset
       | Offs x, Offs y -> Offs (offs_join x y)
-
+      
   let short _ x =
     let rec offs_short x = 
       match x with 

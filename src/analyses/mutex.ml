@@ -281,6 +281,7 @@ struct
         let i = makeGlobalVar ("( "^sprint 64 (d_type () t)^")") t in
         Hashtbl.add type_inv_tbl t i;
         [i, `NoOffset]
+
         
   (** Access counting is done using side-effect (accesses added in [add_accesses] and read in [finalize]) : *)
   
@@ -328,12 +329,20 @@ struct
         | `LvalSet _ -> type_inv (Cil.typeOf (Lval (Mem exp,NoOffset)))
         | _ ->  [] 
     in
+    let rec offs_perel o =
+      match o with
+        | `Index (CastE (intType, Const (CStr "unknown")),o)
+            -> `Index (Cil.kinteger64 IInt GU.inthack,offs_perel o)
+        | `Index (i,o) -> `Index (i,offs_perel o)
+        | `Field (f,o) -> `Field (f,offs_perel o) 
+        | _ -> `NoOffset
+    in
     let add_one_perelem (e, offs,rw) =
       let one (e,a,l) =
-        let with_element lv = 
-          let accs = access_one_byval ask rw (Exp.replace_base lv e a) in
+        let with_element (v,o) = 
+          let accs = access_one_byval ask rw (Exp.replace_base (v,offs_perel o) e a) in
           let lock = 
-            match Exp.fold_offs (Exp.replace_base lv e l) with
+            match Exp.fold_offs (Exp.replace_base (v,offs_perel o) e l) with
               | Some (v, o) -> LockDomain.Lockset.ReverseAddrSet.add (LockDomain.Addr.from_var_offset (v,conv_const_offset o) ,true) ust
               | None -> ust
           in
@@ -486,13 +495,24 @@ struct
       in
       AccValSet.fold f accesses_map (OffsMap.empty, OffsSet.empty)
     in 
+    (* Change lock element offset o to match access offset a *)
+    let rec offs_perel o a =
+      match a, o with
+        | Offs.Offs `Index (i1,a), `Index (i2,o) 
+            when ValueDomain.ID.equal i1 i2
+            -> `Index (ValueDomain.ID.of_int GU.inthack, offs_perel o (Offs.Offs a))
+        | Offs.Offs `Index (_,a), `Index (i,o) -> `Index (i,offs_perel o (Offs.Offs a))
+        | Offs.Offs `Field (_,a), `Field (f,o) -> `Field (f,offs_perel o (Offs.Offs a)) 
+        | _ -> o
+    in
     (* join map elements, that we cannot be sure are logically separate *)
     let regroup_map (map,set) =
       let f offs (group_offs, access_list, new_map) = 
         let process (oa:Offs.t) (op:Offs.t) = 
           let prc_acc (bs, ls, os) = 
             match per_elementize oa op ls with
-              | Some lock -> (bs,Dom.singleton (Addr.from_var_offset lock, true),os)
+              | Some (lv,lo) -> 
+                  (bs,Dom.singleton (Addr.from_var_offset (lv,offs_perel lo oa), true), os)
               | None -> (bs,Dom.empty (),os)
           in
           List.map prc_acc 

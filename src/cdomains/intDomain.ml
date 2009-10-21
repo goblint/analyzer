@@ -1779,7 +1779,11 @@ struct
   let is_bot = List.for_all is_bot' 
   let leq    = List.for_all2 leq' 
     
-  let short _ = List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""
+  let short _ x = 
+    match x with
+      | [] -> ""
+      | [x] -> short' 30 x
+      | x::xs ->  List.fold_left (fun p n -> p ^ ";" ^ short' 30 n) (short' 30 x) xs
   
   let pretty_f _ () x = 
     match x with
