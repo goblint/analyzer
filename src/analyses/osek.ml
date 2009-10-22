@@ -10,7 +10,7 @@ struct
   (* helper functions *)
   let oil = "../osek_helper/priorities.txt"
   
-  let default = 
+  let default () = 
     let oil = open_in oil in
     let ret = if (input_line oil = "default") then int_of_string (input_line oil) else -1 in 
 	close_in oil; ret
@@ -19,7 +19,7 @@ struct
     let oil = open_in oil in
     let rec look_up line f =
       match line with
-      | "" -> default
+      | "" -> default ()
       | _ -> if line = f.svar.vname then int_of_string(input_line oil) else look_up (input_line oil) f
     in let ret = look_up (input_line oil) f in
       close_in oil ; (`Lifted (Int64.of_int ret))
