@@ -420,7 +420,7 @@ struct
           -> lock true true a lv arglist ls
       | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh"
       | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock"
-      | "pthread_mutex_lock" | "pthread_rwlock_wrlock" 
+      | "pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource"
           -> lock true !failing_locks a lv arglist ls
       | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock" 
           -> lock false !failing_locks a lv arglist ls
@@ -440,7 +440,7 @@ struct
           unlock (fun l -> remove_rw (drop_raw_lock l))
    (* | "sem_post"*)
       | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
-      | "mutex_unlock"  
+      | "mutex_unlock" | "ReleaseResource" 
       | "pthread_mutex_unlock" 
           -> unlock remove_rw
       | x -> 

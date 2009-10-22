@@ -16,6 +16,7 @@ struct
          | Uninit      of Uninit.Spec.Dom.t
          | Malloc_null of Malloc_null.Spec.Dom.t
          | Thread      of Thread.Spec.Dom.t
+	 | OSEK	       of Osek.Spec.Dom.t
          | Bad
   
   (* We pair list of configurable analyses with multithreadidness flag domain. *)
@@ -25,7 +26,7 @@ struct
   
   let init () = 
     let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
-    let order = ["base";"thread";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
+    let order = ["base";"OSEK"; "thread";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
     let f s y = JB.bool (JB.field int_ds s) :: y in
     take_list := List.fold_right f order []
   
@@ -38,6 +39,7 @@ struct
   (* constructors *)
   let top () = constr_scheme
     [(fun () -> Base   (Base.Dom.top ()))
+    ;(fun () -> OSEK   (Osek.Spec.Dom.top ()))
     ;(fun () -> Thread  (Thread.Spec.Dom.top ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.Dom.top ()))
     ;(fun () -> SymbLocks (SymbLocks.Spec.Dom.top ()))
@@ -47,6 +49,7 @@ struct
       
   let bot () = constr_scheme
     [(fun () -> Base   (Base.Dom.bot ()))
+    ;(fun () -> OSEK   (Osek.Spec.Dom.bot ()))
     ;(fun () -> Thread  (Thread.Spec.Dom.bot ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.Dom.bot ()))
     ;(fun () -> SymbLocks (SymbLocks.Spec.Dom.bot ()))
@@ -57,6 +60,7 @@ struct
 
   let startstate () = constr_scheme
     [(fun () -> Base   (Base.startstate ()))
+    ;(fun () -> OSEK  (Osek.Spec.startstate ()))
     ;(fun () -> Thread  (Thread.Spec.startstate ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.startstate ()))
     ;(fun () -> SymbLocks (SymbLocks.Spec.startstate ()))
@@ -66,6 +70,7 @@ struct
 
   let otherstate () = constr_scheme
     [(fun () -> Base   (Base.otherstate ()))
+    ;(fun () -> OSEK   (Osek.Spec.otherstate ()))
     ;(fun () -> Thread  (Thread.Spec.otherstate ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.otherstate ()))
     ;(fun () -> SymbLocks (SymbLocks.Spec.otherstate ()))
@@ -77,6 +82,7 @@ struct
   let narrow' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Dom.narrow x y)
+      | OSEK x, OSEK y -> OSEK (Osek.Spec.Dom.narrow x y)
       | Thread x, Thread y -> Thread (Thread.Spec.Dom.narrow x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.narrow x y)
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.narrow x y)
@@ -88,6 +94,7 @@ struct
   let widen' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Dom.widen x y)
+      | OSEK x, OSEK y -> OSEK (Osek.Spec.Dom.widen x y)	
       | Thread x, Thread y -> Thread (Thread.Spec.Dom.widen x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.widen x y)
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.widen x y)
@@ -99,6 +106,7 @@ struct
   let is_top' x =
     match x with
       | Base x -> Base.Dom.is_top x
+      | OSEK x -> Osek.Spec.Dom.is_top x
       | Thread x -> Thread.Spec.Dom.is_top x
       | Mutex x -> Mutex.NoBaseSpec.Dom.is_top x
       | SymbLocks x -> SymbLocks.Spec.Dom.is_top x
@@ -110,6 +118,7 @@ struct
   let is_bot' x =
     match x with
       | Base x -> Base.Dom.is_bot x
+      | OSEK x -> Osek.Spec.Dom.is_bot x
       | Thread x -> Thread.Spec.Dom.is_bot x
       | Mutex x -> Mutex.NoBaseSpec.Dom.is_bot x
       | SymbLocks x -> SymbLocks.Spec.Dom.is_bot x
@@ -121,6 +130,7 @@ struct
   let meet' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Dom.meet x y)
+      | OSEK x, OSEK y -> OSEK (Osek.Spec.Dom.meet x y)
       | Thread x, Thread y -> Thread (Thread.Spec.Dom.meet x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.meet x y)
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.meet x y)
@@ -132,6 +142,7 @@ struct
   let join' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Dom.join x y)
+      | OSEK x, OSEK y -> OSEK (Osek.Spec.Dom.join x y)
       | Thread x, Thread y -> Thread (Thread.Spec.Dom.join x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.join x y)
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.join x y)
@@ -143,6 +154,7 @@ struct
   let leq' x y =
     match x, y with
       | Base x, Base y -> Base.Dom.leq x y
+      | OSEK x, OSEK y -> Osek.Spec.Dom.leq x y
       | Thread x, Thread y -> Thread.Spec.Dom.leq x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.leq x y
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.leq x y
@@ -154,6 +166,7 @@ struct
   let short' w x =
     match x with
       | Base x -> Base.Dom.short w x
+      | OSEK x -> Osek.Spec.Dom.short w x
       | Thread x -> Thread.Spec.Dom.short w x
       | Mutex x -> Mutex.NoBaseSpec.Dom.short w x
       | SymbLocks x -> SymbLocks.Spec.Dom.short w x
@@ -165,6 +178,7 @@ struct
   let toXML_f' sf x =
     match x with
       | Base x -> Base.Dom.toXML_f (fun w x -> sf w (Base x)) x
+      | OSEK x -> Osek.Spec.Dom.toXML_f (fun w x -> sf w (OSEK x)) x
       | Thread x -> Thread.Spec.Dom.toXML_f (fun w x -> sf w (Thread x)) x
       | Mutex x -> Mutex.NoBaseSpec.Dom.toXML_f (fun w x -> sf w (Mutex x)) x
       | SymbLocks x -> SymbLocks.Spec.Dom.toXML_f (fun w x -> sf w (SymbLocks x)) x
@@ -176,6 +190,7 @@ struct
   let pretty_f' sf () x =
     match x with
       | Base x -> Base.Dom.pretty_f (fun w x -> sf w (Base x)) () x
+      | OSEK x -> Osek.Spec.Dom.pretty_f (fun w x -> sf w (OSEK x)) () x
       | Thread x -> Thread.Spec.Dom.pretty_f (fun w x -> sf w (Thread x)) () x
       | Mutex x -> Mutex.NoBaseSpec.Dom.pretty_f (fun w x -> sf w (Mutex x)) () x
       | SymbLocks x -> SymbLocks.Spec.Dom.pretty_f (fun w x -> sf w (SymbLocks x)) () x
@@ -191,6 +206,7 @@ struct
   let isSimple' x =
     match x with
       | Base x -> Base.Dom.isSimple x
+      | OSEK x -> Osek.Spec.Dom.isSimple x
       | Thread x -> Thread.Spec.Dom.isSimple x
       | Mutex x -> Mutex.NoBaseSpec.Dom.isSimple x
       | SymbLocks x -> SymbLocks.Spec.Dom.isSimple x
@@ -202,6 +218,7 @@ struct
   let compare' x y =
     match x, y with
       | Base x, Base y -> Base.Dom.compare x y
+      | OSEK x, OSEK y -> Osek.Spec.Dom.compare x y
       | Thread x, Thread y -> Thread.Spec.Dom.compare x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.compare x y
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.compare x y
@@ -213,6 +230,7 @@ struct
   let equal' x y =
     match x, y with
       | Base x, Base y -> Base.Dom.equal x y
+      | OSEK x, OSEK y -> Osek.Spec.Dom.equal x y
       | Thread x, Thread y -> Thread.Spec.Dom.equal x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.equal x y
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.equal x y
@@ -224,6 +242,7 @@ struct
   let hash' x =
     match x with
       | Base x-> Base.Dom.hash x
+      | OSEK x-> Osek.Spec.Dom.hash x
       | Thread x-> Thread.Spec.Dom.hash x
       | Mutex x-> Mutex.NoBaseSpec.Dom.hash x
       | SymbLocks x-> SymbLocks.Spec.Dom.hash x
@@ -291,6 +310,7 @@ struct
          | Malloc_null of Malloc_null.Spec.Glob.Val.t
          | VarEq       of VarEq.Spec.Glob.Val.t
          | Thread      of Thread.Spec.Glob.Val.t
+	 | OSEK        of Osek.Spec.Glob.Val.t
          | Bad
   
   (* We pair list of configurable analyses with multithreadidness flag domain. *)
@@ -299,7 +319,7 @@ struct
   let take_list = ref []   
   let init () = 
     let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
-    let order = ["base";"thread";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
+    let order = ["base";"OSEK";"thread";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
     let f s y = JB.bool (JB.field int_ds s) :: y in
     take_list := List.fold_right f order []
   
@@ -313,6 +333,7 @@ struct
   (* constructors *)
   let top () = constr_scheme
     [(fun () -> Base   (Base.Glob.Val.top ()))
+    ;(fun () -> OSEK   (Osek.Spec.Glob.Val.top ()))
     ;(fun () -> Thread (Thread.Spec.Glob.Val.top ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.top ()))
     ;(fun () -> SymbLocks (SymbLocks.Spec.Glob.Val.top ()))
@@ -322,6 +343,7 @@ struct
       
   let bot () = constr_scheme
     [(fun () -> Base   (Base.Glob.Val.bot ()))
+    ;(fun () -> OSEK   (Osek.Spec.Glob.Val.bot ()))
     ;(fun () -> Thread (Thread.Spec.Glob.Val.bot ()))
     ;(fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.bot ()))
     ;(fun () -> SymbLocks (SymbLocks.Spec.Glob.Val.bot ()))
@@ -334,6 +356,7 @@ struct
   let narrow' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.narrow x y)
+      | OSEK x, OSEK y -> OSEK (Osek.Spec.Glob.Val.narrow x y)
       | Thread x, Thread y -> Thread (Thread.Spec.Glob.Val.narrow x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.narrow x y)
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.narrow x y)
@@ -345,6 +368,7 @@ struct
   let widen' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.widen x y)
+      | OSEK x, OSEK y -> OSEK (Osek.Spec.Glob.Val.widen x y)
       | Thread x, Thread y -> Thread (Thread.Spec.Glob.Val.widen x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.widen x y)
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.widen x y)
@@ -356,6 +380,7 @@ struct
   let is_top' x =
     match x with
       | Base x -> Base.Glob.Val.is_top x
+      | OSEK x -> Osek.Spec.Glob.Val.is_top x
       | Thread x -> Thread.Spec.Glob.Val.is_top x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.is_top x
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.is_top x
@@ -367,6 +392,7 @@ struct
   let is_bot' x =
     match x with
       | Base x -> Base.Glob.Val.is_bot x
+      | OSEK x -> Osek.Spec.Glob.Val.is_bot x
       | Thread x -> Thread.Spec.Glob.Val.is_bot x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.is_bot x
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.is_bot x
@@ -378,6 +404,7 @@ struct
   let meet' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.meet x y)
+      | OSEK x, OSEK y -> OSEK (Osek.Spec.Glob.Val.meet x y)
       | Thread x, Thread y -> Thread (Thread.Spec.Glob.Val.meet x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.meet x y)
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.meet x y)
@@ -389,6 +416,7 @@ struct
   let join' x y =
     match x, y with
       | Base x, Base y -> Base (Base.Glob.Val.join x y)
+      | OSEK x, OSEK y -> OSEK (Osek.Spec.Glob.Val.join x y)
       | Thread x, Thread y -> Thread (Thread.Spec.Glob.Val.join x y)
       | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.join x y)
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.join x y)
@@ -400,6 +428,7 @@ struct
   let leq' x y =
     match x, y with
       | Base x, Base y -> Base.Glob.Val.leq x y
+      | OSEK x, OSEK y -> Osek.Spec.Glob.Val.leq x y
       | Thread x, Thread y -> Thread.Spec.Glob.Val.leq x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.leq x y
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.leq x y
@@ -411,6 +440,7 @@ struct
   let short' w x =
     match x with
       | Base x -> Base.Glob.Val.short w x
+      | OSEK x -> Osek.Spec.Glob.Val.short w x
       | Thread x -> Thread.Spec.Glob.Val.short w x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.short w x
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.short w x
@@ -422,6 +452,7 @@ struct
   let toXML_f' sf x =
     match x with
       | Base x -> Base.Glob.Val.toXML_f (fun w x -> sf w (Base x)) x
+      | OSEK x -> Osek.Spec.Glob.Val.toXML_f (fun w x -> sf w (OSEK x)) x
       | Thread x -> Thread.Spec.Glob.Val.toXML_f (fun w x -> sf w (Thread x)) x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.toXML_f (fun w x -> sf w (Mutex x)) x
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.toXML_f (fun w x -> sf w (SymbLocks x)) x
@@ -433,6 +464,7 @@ struct
   let pretty_f' sf () x =
     match x with
       | Base x -> Base.Glob.Val.pretty_f (fun w x -> sf w (Base x)) () x
+      | OSEK x -> Osek.Spec.Glob.Val.pretty_f (fun w x -> sf w (OSEK x)) () x
       | Thread x -> Thread.Spec.Glob.Val.pretty_f (fun w x -> sf w (Thread x)) () x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.pretty_f (fun w x -> sf w (Mutex x)) () x
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.pretty_f (fun w x -> sf w (SymbLocks x)) () x
@@ -448,6 +480,7 @@ struct
   let isSimple' x =
     match x with
       | Base x -> Base.Glob.Val.isSimple x
+      | OSEK x -> Osek.Spec.Glob.Val.isSimple x
       | Thread x -> Thread.Spec.Glob.Val.isSimple x
       | Mutex x -> Mutex.NoBaseSpec.Glob.Val.isSimple x
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.isSimple x
@@ -459,6 +492,7 @@ struct
   let compare' x y =
     match x, y with
       | Base x, Base y -> Base.Glob.Val.compare x y
+      | OSEK x, OSEK y -> Osek.Spec.Glob.Val.compare x y
       | Thread x, Thread y -> Thread.Spec.Glob.Val.compare x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.compare x y
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.compare x y
@@ -470,6 +504,7 @@ struct
   let equal' x y =
     match x, y with
       | Base x, Base y -> Base.Glob.Val.equal x y
+      | OSEK x, OSEK y -> Osek.Spec.Glob.Val.equal x y
       | Thread x, Thread y -> Thread.Spec.Glob.Val.equal x y
       | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.equal x y
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.equal x y
@@ -481,6 +516,7 @@ struct
   let hash' x =
     match x with
       | Base x-> Base.Glob.Val.hash x
+      | OSEK x-> Osek.Spec.Glob.Val.hash x
       | Thread x-> Thread.Spec.Glob.Val.hash x
       | Mutex x-> Mutex.NoBaseSpec.Glob.Val.hash x
       | SymbLocks x-> SymbLocks.Spec.Glob.Val.hash x
@@ -556,6 +592,16 @@ struct
       | Some x -> x
       | None -> raise Glob.Val.DomainBroken
 
+  let globalOSEK g (x:Glob.Var.t) : Osek.Spec.Glob.Val.t =
+    let f c n = 
+      match n with
+        | Glob.Val.OSEK x -> Some x
+        | _ -> c 
+    in
+    match List.fold_left f None (g x) with
+      | Some x -> x
+      | None -> raise Glob.Val.DomainBroken
+
   let globalThread g (x:Glob.Var.t) : Thread.Spec.Glob.Val.t =
     let f c n = 
       match n with
@@ -619,6 +665,7 @@ struct
   let assign' a lv exp g x =
     match x with
       | Dom.Base x -> Dom.Base (Base.assign a lv exp (globalBase g) x)
+      | Dom.OSEK x -> Dom.OSEK (Osek.Spec.assign a lv exp (globalOSEK g) x)
       | Dom.Thread x -> Dom.Thread (Thread.Spec.assign a lv exp (globalThread g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.assign a lv exp (globalMutex g) x)
       | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.assign a lv exp (globalSymbLocks g) x)
@@ -630,6 +677,7 @@ struct
   let body' a fn g st =
     match st with
       | Dom.Base x -> Dom.Base (Base.body a fn (globalBase g) x)
+      | Dom.OSEK x -> Dom.OSEK (Osek.Spec.body a fn (globalOSEK g) x)
       | Dom.Thread x -> Dom.Thread (Thread.Spec.body a fn (globalThread g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.body a fn (globalMutex g) x)
       | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.body a fn (globalSymbLocks g) x)
@@ -641,6 +689,7 @@ struct
   let return' a r fn g st =
     match st with
       | Dom.Base x -> Dom.Base (Base.return a r fn (globalBase g) x)
+      | Dom.OSEK x -> Dom.OSEK (Osek.Spec.return a r fn (globalOSEK g) x)
       | Dom.Thread x -> Dom.Thread (Thread.Spec.return a r fn (globalThread g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.return a r fn (globalMutex g) x)
       | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.return a r fn (globalSymbLocks g) x)
@@ -652,6 +701,7 @@ struct
   let branch' a exp tv g st =
     match st with
       | Dom.Base x -> Dom.Base (Base.branch a exp tv (globalBase g) x)
+      | Dom.OSEK x -> Dom.OSEK (Osek.Spec.branch a exp tv (globalOSEK g) x)
       | Dom.Thread x -> Dom.Thread (Thread.Spec.branch a exp tv (globalThread g) x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.branch a exp tv (globalMutex g) x)
       | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.branch a exp tv (globalSymbLocks g) x)
@@ -663,6 +713,7 @@ struct
   let special_fn' a r v args g st =
     match st with
       | Dom.Base x -> List.map (fun (x,e,t) -> Dom.Base x,e,t) (Base.special_fn a r v args (globalBase g) x)
+      | Dom.OSEK x -> List.map (fun (x,e,t) -> Dom.OSEK x,e,t) (Osek.Spec.special_fn a r v args (globalOSEK g) x)
       | Dom.Thread x -> List.map (fun (x,e,t) -> Dom.Thread x,e,t) (Thread.Spec.special_fn a r v args (globalThread g) x)
       | Dom.Mutex x -> List.map (fun (x,e,t) -> Dom.Mutex x,e,t) (Mutex.NoBaseSpec.special_fn a r v args (globalMutex g) x)
       | Dom.SymbLocks x -> List.map (fun (x,e,t) -> Dom.SymbLocks x,e,t) (SymbLocks.Spec.special_fn a r v args (globalSymbLocks g) x)
@@ -674,6 +725,7 @@ struct
   let enter_func' a r v args g st =
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> Dom.Base x, Dom.Base y) (Base.enter_func a r v args (globalBase g) x)
+      | Dom.OSEK x -> List.map (fun (x,y) -> Dom.OSEK x,Dom.OSEK y) (Osek.Spec.enter_func a r v args (globalOSEK g) x)
       | Dom.Thread x -> List.map (fun (x,y) -> Dom.Thread x,Dom.Thread y) (Thread.Spec.enter_func a r v args (globalThread g) x)
       | Dom.Mutex x -> List.map (fun (x,y) -> Dom.Mutex x,Dom.Mutex y) (Mutex.NoBaseSpec.enter_func a r v args (globalMutex g) x)
       | Dom.SymbLocks x -> List.map (fun (x,y) -> Dom.SymbLocks x,Dom.SymbLocks y) (SymbLocks.Spec.enter_func a r v args (globalSymbLocks g) x)
@@ -685,6 +737,7 @@ struct
   let leave_func' a r v args g st1 st2 =
     match st1, st2 with
       | Dom.Base x, Dom.Base y -> Dom.Base (Base.leave_func a r v args (globalBase g) x y)
+      | Dom.OSEK x, Dom.OSEK y -> Dom.OSEK (Osek.Spec.leave_func a r v args (globalOSEK g) x y)
       | Dom.Thread x, Dom.Thread y -> Dom.Thread (Thread.Spec.leave_func a r v args (globalThread g) x y)
       | Dom.Mutex x, Dom.Mutex y -> Dom.Mutex (Mutex.NoBaseSpec.leave_func a r v args (globalMutex g) x y)
       | Dom.SymbLocks x, Dom.SymbLocks y -> Dom.SymbLocks (SymbLocks.Spec.leave_func a r v args (globalSymbLocks g) x y)
@@ -696,6 +749,7 @@ struct
   let eval_funvar' a exp g st : Cil.varinfo list =
     match st with
       | Dom.Base x -> Base.eval_funvar a exp (globalBase g) x
+      | Dom.OSEK x -> Osek.Spec.eval_funvar a exp (globalOSEK g) x
       | Dom.Thread x -> Thread.Spec.eval_funvar a exp (globalThread g) x
       | Dom.Mutex x -> Mutex.NoBaseSpec.eval_funvar a exp (globalMutex g) x
       | Dom.SymbLocks x -> SymbLocks.Spec.eval_funvar a exp (globalSymbLocks g) x
@@ -707,6 +761,7 @@ struct
   let fork' a r v args g st =
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> x, Dom.Base y) (Base.fork a r v args (globalBase g) x)
+      | Dom.OSEK x -> List.map (fun (x,y) -> x, Dom.OSEK y) (Osek.Spec.fork a r v args (globalOSEK g) x)
       | Dom.Thread x -> List.map (fun (x,y) -> x, Dom.Thread y) (Thread.Spec.fork a r v args (globalThread g) x)
       | Dom.Mutex x -> List.map (fun (x,y) -> x, Dom.Mutex y) (Mutex.NoBaseSpec.fork a r v args (globalMutex g) x)
       | Dom.SymbLocks x -> List.map (fun (x,y) -> x, Dom.SymbLocks y) (SymbLocks.Spec.fork a r v args (globalSymbLocks g) x)
@@ -718,6 +773,7 @@ struct
   let reset_diff' st =
     match st with
       | Dom.Base x -> Dom.Base (Base.reset_diff x)
+      | Dom.OSEK x -> Dom.OSEK (Osek.Spec.reset_diff x)
       | Dom.Thread x -> Dom.Thread (Thread.Spec.reset_diff x)
       | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.reset_diff x)
       | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.reset_diff x)
@@ -730,6 +786,7 @@ struct
     match ws, x with
       | [], _ -> []
       | Glob.Val.Base x :: ws, Glob.Val.Base y -> Glob.Val.Base y :: ws
+      | Glob.Val.OSEK x :: ws, Glob.Val.OSEK y -> Glob.Val.OSEK y :: ws
       | Glob.Val.Thread x :: ws, Glob.Val.Thread y -> Glob.Val.Thread y :: ws
       | Glob.Val.Mutex x :: ws, Glob.Val.Mutex y -> Glob.Val.Mutex y :: ws
       | Glob.Val.SymbLocks x :: ws, Glob.Val.SymbLocks y -> Glob.Val.SymbLocks y :: ws
@@ -742,6 +799,7 @@ struct
     match ws, x with
       | [], _ -> []
       | Dom.Base x :: ws, Dom.Base y -> Dom.Base y :: ws
+      | Dom.OSEK x :: ws, Dom.OSEK y -> Dom.OSEK y :: ws
       | Dom.Thread x :: ws, Dom.Thread y -> Dom.Thread y :: ws
       | Dom.Mutex x :: ws, Dom.Mutex y -> Dom.Mutex y :: ws
       | Dom.SymbLocks x :: ws, Dom.SymbLocks y -> Dom.SymbLocks y :: ws
@@ -753,6 +811,7 @@ struct
   let get_diff' st =
     match st with
       | Dom.Base x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Base y) (Glob.Val.bot ())) (Base.get_diff x)
+      | Dom.OSEK x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.OSEK y) (Glob.Val.bot ())) (Osek.Spec.get_diff x)
       | Dom.Thread x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Thread y) (Glob.Val.bot ())) (Thread.Spec.get_diff x)
       | Dom.Mutex x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Mutex y) (Glob.Val.bot ())) (Mutex.NoBaseSpec.get_diff x)
       | Dom.SymbLocks x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.SymbLocks y) (Glob.Val.bot ())) (SymbLocks.Spec.get_diff x)
@@ -764,6 +823,7 @@ struct
   let query' a g st =
     match st with
       | Dom.Base x -> Base.query a (globalBase g) x
+      | Dom.OSEK x -> Osek.Spec.query a (globalOSEK g) x
       | Dom.Thread x -> Thread.Spec.query a (globalThread g) x
       | Dom.Mutex x -> Mutex.NoBaseSpec.query a (globalMutex g) x
       | Dom.SymbLocks x -> SymbLocks.Spec.query a (globalSymbLocks g) x
@@ -774,10 +834,11 @@ struct
   
   (* analysis spec stuff *)
   let name = "analyses"
-  let finalize () = 
+  let finalize () =
     let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
     let uses x = JB.bool (JB.field int_ds x) in
     (if uses "base" then Base.finalize ());
+    (if uses "OSEK" then Osek.Spec.finalize ());
     (if uses "thread" then Thread.Spec.finalize ());
     (if uses "mutex" then Mutex.NoBaseSpec.finalize ());
     (if uses "symb_locks" then SymbLocks.Spec.finalize ());
@@ -795,7 +856,7 @@ struct
     Glob.Val.init ();
     let specs_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses"))  in
     let sense_ds = JB.make_table (JB.objekt (JB.field !GU.conf "sensitive")) in
-    let list_order = ["base";"thread";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
+    let list_order = ["base"; "OSEK"; "thread";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
     let f s r =
       if JB.bool (JB.field specs_ds s) then JB.bool (JB.field sense_ds s) :: r else r
     in
@@ -803,6 +864,7 @@ struct
     let specs_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses"))  in
     let uses x = JB.bool (JB.field specs_ds x) in
     (if uses "base" then Base.init ());
+    (if uses "OSEK" then Osek.Spec.init ());
     (if uses "thread" then Thread.Spec.init ());
     (if uses "mutex" then Mutex.NoBaseSpec.init ());
     (if uses "symb_locks" then SymbLocks.Spec.init ());
