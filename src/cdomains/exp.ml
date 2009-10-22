@@ -223,6 +223,15 @@ struct
       | Addr::xs     , Cil.Lval lv   -> fromEl xs (Cil.AddrOf lv)
       | _            ,             _ -> raise (Invalid_argument "")
   
+  let strip_fields e =
+    let rec sf e fs = 
+      match e with
+        | Field f :: es -> sf es (Field f::fs)
+        | _ -> e, fs
+    in
+    let el, fs = sf (List.rev e) [] in
+    List.rev el, fs
+  
   let from_exps a l : t option =
     let a, l = toEl a, toEl l in
     let rec fold_left2 f a xs ys =
