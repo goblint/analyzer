@@ -1,4 +1,4 @@
-// PARAM: --with var_eq --with symb_locks 
+// SKIP!
 #include<pthread.h>
 #include<stdlib.h>
 

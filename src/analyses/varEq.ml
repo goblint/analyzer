@@ -130,51 +130,27 @@ struct
   (* First assign arguments to parameters. Then join it with reachables, to get
      rid of equalities that are not reachable. *)
   let enter_func a lval f args glob st = 
-    let assign_one_param st lv exp = add_eq a (Var lv, NoOffset) exp st in
-    let f = Cilfacade.getdec f in
-    if List.length args != List.length f.sformals 
-    then [st, Dom.top ()]
-    else
+    let assign_one_param st lv exp = 
+      let rm = remove a (Var lv, NoOffset) st in 
+      add_eq a (Var lv, NoOffset) exp rm 
+    in
+    let f = Cilfacade.getdec f in    
     let nst = 
       try List.fold_left2 assign_one_param st f.sformals args 
-      with SetDomain.Unsupported _ -> (* ignore varargs fr now *) st
+      with SetDomain.Unsupported _ -> (* ignore varargs fr now *) Dom.top ()
     in
     match Dom.is_bot st with
       | true -> raise Analyses.Deadcode
-      | false -> 
-    match reachables a args with
-      | None -> [st, Dom.top ()]
-      | Some xs ->
-        let add x = Dom.S.add (Exp.of_clval x) in
-        let rst = 
-          if Queries.LS.is_top xs 
-          then Dom.S.empty ()
-          else Queries.LS.fold add xs (Dom.S.empty ()) 
-        in
-        let rst = List.fold_left (fun st v -> Dom.S.add (Lval (Var v,NoOffset)) st) rst f.sformals in
-        [st,Dom.join nst (Dom.singleton rst)]
-  
+      | false -> [st,nst]
   
   let leave_func ask lval f args glob st1 st2 = 
-    let remove_ret st =
-      match lval with
-        | Some lval -> remove ask lval st
-        | None -> st
-    in
     match Dom.is_bot st1 with
       | true -> raise Analyses.Deadcode
       | false -> 
-    match reachables ask args with
-      | None -> Dom.top ()
-      | Some rs -> 
-        let remove_reachable1 (es:Dom.S.t) (st:Dom.t) = 
-          let remove_reachable2 e st =
-            if reachable_from rs e then Dom.remove e st else st
-          in
-          Dom.S.fold remove_reachable2 es st
-        in
-        remove_ret (Dom.meet (Dom.fold remove_reachable1 st1 st1) st2)
-    
+      match lval with
+        | Some lval -> remove ask lval st2
+        | None -> st2    
+
   (* remove all variables that are reachable from arguments *)
   let special_fn ask lval f args glob st = 
     let args =
