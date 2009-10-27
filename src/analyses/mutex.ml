@@ -590,10 +590,10 @@ struct
       let locks = get_common_locks acc_list in
       let rw ((_,_,x),_,_) = x in
       let non_main ((_,x,_),_,_) = BS.Flag.is_bad x in      
-        if not (Lockset.is_empty locks || Lockset.is_top locks) then
-          Guarded locks
-        else if not (List.exists rw acc_list) then
+        if not (List.exists rw acc_list) then
           ReadOnly
+        else if not (Lockset.is_empty locks || Lockset.is_top locks) then
+          Guarded locks
         else if not (List.exists non_main acc_list) then
           ThreadLocal
         else
