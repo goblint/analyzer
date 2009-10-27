@@ -39,7 +39,7 @@ struct
     match ask (Queries.MayPointTo (Cil.mkAddrOf lval)) with 
       | `LvalSet rv when not (Queries.LS.is_top rv) -> 
           Queries.LS.fold remove_simple rv st 
-      | _ -> Dom.top ()
+      | _ -> Dom.kill_lval lval st
     
   let return a exp fundec glob st = 
     List.fold_right Dom.remove_var (fundec.sformals@fundec.slocals) st  
@@ -58,8 +58,8 @@ struct
           [Dom.remove ask (List.hd arglist) st, integer 1, true]
       | x -> begin
           match LF.get_invalidate_action x with
-            | Some fnc -> [st, integer 1, true]
-            | _ -> [st, integer 1, true]
+            | Some fnc -> [Dom.top (), integer 1, true]
+            | _ -> [Dom.top (), integer 1, true]
         end
 
   let enter_func a lval f args glob st = [(st,st)]

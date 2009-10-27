@@ -53,39 +53,39 @@ Group: Per-element locking
 aircable
 AIRcable USB Driver
 kernel/aircable.c
---kernel --nonstatic --mainfun aircable_init --exitfun aircable_exit 
+--analysis mcp --kernel --nonstatic --mainfun aircable_init --exitfun aircable_exit --with var_eq --with symb_locks 
 
 ark3116
 driver for the arkmicro ark3116 chipset
 kernel/ark3116.c
---kernel --nonstatic --mainfun ark3116_init --exitfun ark3116_exit 
+--analysis mcp --kernel --nonstatic --mainfun ark3116_init --exitfun ark3116_exit --with var_eq --with symb_locks 
 
 belkin_sa
 USB Belkin Serial converter driver
 kernel/belkin_sa.c
---kernel --nonstatic --mainfun belkin_sa_init --exitfun belkin_sa_exit 
+--analysis mcp --kernel --nonstatic --mainfun belkin_sa_init --exitfun belkin_sa_exit --with var_eq --with symb_locks 
 
 cyberjack
 Reiner SCT Cyberjack USB card reader
 kernel/cyberjack.c
---kernel --nonstatic --mainfun cyberjack_init --exitfun cyberjack_exit 
+--analysis mcp --kernel --nonstatic --mainfun cyberjack_init --exitfun cyberjack_exit --with var_eq --with symb_locks 
 
 empeg
 USB Empeg Mark I/II Driver
 kernel/empeg.c
---kernel --nonstatic --mainfun empeg_init --exitfun empeg_exit 
+--analysis mcp --kernel --nonstatic --mainfun empeg_init --exitfun empeg_exit --with var_eq --with symb_locks 
 
 mos7720
 Moschip 2 port adapter
 kernel/mos7720.c
---kernel --nonstatic --mainfun moschip7720_init --exitfun moschip7720_exit 
+--analysis mcp --kernel --nonstatic --mainfun moschip7720_init --exitfun moschip7720_exit --with var_eq --with symb_locks 
 
 whiteheat
 USB ConnectTech WhiteHEAT driver
 kernel/whiteheat.c
---kernel --allfuns --mainfun whiteheat_init --exitfun whiteheat_exit 
+--analysis mcp --kernel --allfuns --mainfun whiteheat_init --exitfun whiteheat_exit --with var_eq --with symb_locks 
 
 ti_3410_5052
 TI USB 3410/5052 Serial Driver
 kernel/ti_usb_3410_5052.c
---kernel --nonstatic --mainfun ti_init --exitfun ti_exit 
+--analysis mcp --kernel --nonstatic --mainfun ti_init --exitfun ti_exit --with var_eq --with symb_locks 

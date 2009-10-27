@@ -240,12 +240,11 @@ struct
   
   (* Type invariant variables. *)
   let type_inv_tbl = Hashtbl.create 13 
-  let type_inv t : Lval.CilLval.t list =
-    let t = unrollType t in
-    try [Hashtbl.find type_inv_tbl t,`NoOffset]
+  let type_inv (c:compinfo) : Lval.CilLval.t list =
+    try [Hashtbl.find type_inv_tbl c.ckey,`NoOffset]
     with Not_found ->
-        let i = makeGlobalVar ("( "^sprint 64 (d_type () t)^")") t in
-        Hashtbl.add type_inv_tbl t i;
+        let i = makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[])) in
+        Hashtbl.add type_inv_tbl c.ckey i;
         [i, `NoOffset]
 
   (* Try to find a suitable type invarinat --- and by that we mean a struct.
@@ -257,16 +256,18 @@ struct
     in
     let full_els = List.fold_left add_el [] exs in
     let el_os = List.map LockingPattern.strip_fields full_els in
-    let dummy = Cil.integer 42 in
-    let is_el_struct (e,_) = 
-      match unrollType (typeOf (LockingPattern.fromEl e dummy)) with
-        | TComp _ -> true
-        | _ -> false
+(*     let dummy = Cil.integer 42 in *)
+    let add_struct xs (e,fs) = 
+      match fs with
+        | LockingPattern.Field f :: _ -> (e,f.fcomp,fs) :: xs 
+        | _ -> xs
+(*      match unrollType (typeOf (LockingPattern.fromEl e dummy)) with
+        | TComp (c,_) -> (e,c,fs) :: xs 
+        | _ -> xs*)
     in
     try 
-      let es, fs = List.hd (List.filter is_el_struct el_os) in
-      let t = typeOf (LockingPattern.fromEl es dummy) in
-      let e_inv = type_inv t in
+      let es, c, fs = List.hd (List.fold_left add_struct [] el_os) in
+      let e_inv = type_inv c in
       let add_fields_back (v,o) = 
         LockingPattern.fromEl fs (Lval (Var v,NoOffset))
       in
@@ -303,11 +304,12 @@ struct
   
   (* Try to add symbolic locks --- returns [false] on failure.*)
   let rec add_per_element_access ask loc ust (e,rw:exp * bool) =
-    let query_lv exp =
-        match ask (Queries.MayPointTo exp) with
-        | `LvalSet l when not (Queries.LS.is_top l) -> Queries.LS.elements l
-        | `Top | `LvalSet _ -> type_inv (Cil.typeOf (Lval (Mem exp,NoOffset)))
-        | _ ->  [] 
+    let query_lv exp ci =
+        match ask (Queries.MayPointTo exp), ci with
+        | `LvalSet l, _ when not (Queries.LS.is_top l) -> Queries.LS.elements l
+        | `Top, Some ci
+        | `LvalSet _, Some ci-> type_inv ci
+        | _ ->  unknown_access (); []
     in
     let rec offs_perel o =
       match o with
@@ -332,7 +334,8 @@ struct
         in
         add_accesses ask (List.map no_recurse accs) lock
       in
-      List.iter with_element (query_lv e)
+      let b_comp = Exp.base_compinfo e a in
+      List.iter with_element (query_lv e b_comp)
     in
     match ask (Queries.PerElementLock e) with
       | `PerElemLock a 

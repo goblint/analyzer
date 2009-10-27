@@ -64,6 +64,32 @@ struct
           else offs_contains o 
     in
       cv false e
+  
+  let contains_field f e =
+    let rec offs_contains o =
+      match o with
+        | Cil.NoOffset -> false
+        | Cil.Field (f',o) -> f.Cil.fname = f'.Cil.fname 
+        | Cil.Index (e,o) -> cv e || offs_contains o
+    and cv e = 
+      match e with
+        | Cil.SizeOf _
+        | Cil.SizeOfE _
+        | Cil.SizeOfStr _
+        | Cil.AlignOf _  
+        | Cil.Const _ 
+        | Cil.AlignOfE _ -> false 
+        | Cil.UnOp  (_,e,_)     -> cv e      
+        | Cil.BinOp (_,e1,e2,_) -> cv e1 || cv e2  
+        | Cil.AddrOf  (Cil.Mem e,o) 
+        | Cil.StartOf (Cil.Mem e,o) 
+        | Cil.Lval    (Cil.Mem e,o) -> cv e || offs_contains o
+        | Cil.CastE (_,e)           -> cv e 
+        | Cil.Lval    (Cil.Var v2,o) -> offs_contains o
+        | Cil.AddrOf  (Cil.Var v2,o) 
+        | Cil.StartOf (Cil.Var v2,o) -> offs_contains o 
+    in
+      cv e
       
   let rec is_global_var x =
     match x with
@@ -139,6 +165,28 @@ struct
       | Cil.StartOf (Cil.Mem e,o) when simple_eq e q -> Cil.StartOf (Cil.Var v, Cil.addOffset o (conv_offs offs))
       | Cil.StartOf (Cil.Mem e,o)                    -> Cil.StartOf (Cil.Mem (replace_base (v,offs) q e), o)
       | Cil.CastE (t,e) -> Cil.CastE (t, replace_base (v,offs) q e)
+
+  let rec base_compinfo q exp =
+    match exp with
+      | Cil.SizeOf _
+      | Cil.SizeOfE _
+      | Cil.SizeOfStr _
+      | Cil.AlignOf _  
+      | Cil.AlignOfE _ 
+      | Cil.UnOp _      
+      | Cil.BinOp _ 
+      | Cil.Const _ 
+      | Cil.Lval (Cil.Var _,_) 
+      | Cil.AddrOf (Cil.Var _,_)              
+      | Cil.StartOf (Cil.Var _,_) -> None
+      | Cil.Lval (Cil.Mem e,Cil.Field (f,_)) when simple_eq e q -> Some f.Cil.fcomp
+      | Cil.Lval (Cil.Mem e,o) -> base_compinfo q e
+      | Cil.AddrOf (Cil.Mem e,Cil.Field (f,_)) when simple_eq e q -> Some f.Cil.fcomp
+      | Cil.AddrOf (Cil.Mem e,o) -> base_compinfo q e
+      | Cil.StartOf (Cil.Mem e,Cil.Field (f,_)) when simple_eq e q -> Some f.Cil.fcomp
+      | Cil.StartOf (Cil.Mem e,o) -> base_compinfo q e
+      | Cil.CastE (t,e) -> base_compinfo q e
+
 end
 
 module LockingPattern =
@@ -212,7 +260,7 @@ struct
     in
       try helper exp 
       with NotSimpleEnough -> []
-      
+  
   let rec fromEl xs ex =
     match xs, ex with
       | []           ,             _ -> ex      
