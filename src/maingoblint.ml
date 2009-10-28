@@ -147,12 +147,13 @@ let main () =
                  ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
+		 ("--oil", Arg.Set_string Osek.Spec.oilFile, "<file>  Oil file for the analysed programm");
                  ] in
   let recordFile fname = 
     fileNames := fname :: (!fileNames) in
   (* The temp directory for preprocessing the input files *)
   let dirName = GU.create_dir "goblin_temp" in
-  Stats.reset Stats.HardwareIfAvail;
+  Stats.reset Stats.HardwareIfAvail;  
   CF.init();
   Arg.parse speclist recordFile usage_str;
   if !GU.allfuns then GU.multi_threaded := true;
@@ -206,7 +207,7 @@ let main () =
       | [one] -> one
       | [] -> 
           prerr_endline "No arguments for Goblint?"; 
-          prerr_endline usage_str; 
+          prerr_endline usage_str; 	  
           prerr_endline "Try `goblint --help' for more information."; 
           exit 2
       | xs -> CF.getMergedAST xs 

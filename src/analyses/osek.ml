@@ -2,29 +2,30 @@ open Cil
 open Pretty
 module Trivial =  ConcDomain.Simple
 
-module Spec : Analyses.Spec =
+module Spec =
 struct
   module Dom  = Lattice.ProdConf (struct let expand_fst = true let expand_snd = true end) (Mutex.NoBaseSpec.Dom) (IntDomain.Flattened)
   module Glob = Mutex.NoBaseSpec.Glob
 
-  (* helper functions *)
-  let oil = "../osek_helper/priorities.txt"
-  
-  let default () = 
-    let oil = open_in oil in
-    let ret = if (input_line oil = "default") then int_of_string (input_line oil) else -1 in 
-	close_in oil; ret
+  let oilFile = ref ""
 
+  (*priority function, currently onlywokrs for tasks*)
   let pry f = 
-    let oil = open_in oil in
-    let rec look_up line f =
-      match line with
-      | "" -> default ()
-      | _ -> if line = f.svar.vname then int_of_string(input_line oil) else look_up (input_line oil) f
-    in let ret = look_up (input_line oil) f in
-      close_in oil ; (`Lifted (Int64.of_int ret))
+    if Sys.file_exists(Filename.dirname(Sys.executable_name) ^ "/osek_temp/priorities.txt") then begin
+      let oil = open_in (Filename.dirname(Sys.executable_name) ^ "/osek_temp/priorities.txt") in
+      let rec look_up line f =
+	match line with
+	| "" -> if (input_line oil = "default") then int_of_string (input_line oil) else -1
+	| _ -> if line = f.svar.vname then int_of_string(input_line oil) else look_up (input_line oil) f
+      in
+      let ret = look_up (input_line oil) f in
+      close_in oil ; (`Lifted (Int64.of_int ret));
+      end else begin
+      prerr_endline "Priorites could not be determined." ;
+      exit 2;
+    end 
 
-
+  (*brutal hack*)
   let is_task f = 
     (String.length f.svar.vname >= 12 && String.sub f.svar.vname 0 12 = "function_of_")
   
@@ -69,18 +70,21 @@ struct
   let leave_func a (lval:lval option) (f:varinfo) (args:exp list) gl (bu:Dom.t) (au:Dom.t) : Dom.t =
    (Mutex.NoBaseSpec.leave_func a (lval:lval option) (f:varinfo) (args:exp list) gl (fst bu) (fst au), snd au)
 
-  let res = "../osek_helper/resources.txt"
-
-  let constant_lock c =
-    let res = open_in res in
-      let rec look_up line id = 
-        if line = id then input_line res else look_up (input_line res) id in 
-	let var = makeVarinfo true (look_up (input_line res) c) (TVoid [])
-in
-	  close_in res; [AddrOf (Var var,NoOffset)]
-
+(*map (fun x->x) Mutex.NoBaseSpec.acc *)
   
   let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) gl (st:Dom.t) : (Dom.t * Cil.exp * bool) list =
+    let constant_lock c =
+      if Sys.file_exists("/osek_temp/resources.txt") then begin
+	let res = open_in "/osek_temp/resources.txt" in
+	let rec look_up line id = 
+	  if line = id then input_line res else look_up (input_line res) id in 
+	let var = makeVarinfo true (look_up (input_line res) c) (TVoid []) in
+	  close_in res; [AddrOf (Var var,NoOffset)];
+      end else begin
+	prerr_endline "Resources could not be determined." ;
+	exit 2;
+      end 
+    in
     let arglist =
       match f.vname with
         | "GetResource" | "ReleaseResource" -> 
@@ -104,8 +108,25 @@ in
   let es_to_string f _ = f.svar.vname
 
   let should_join _ _ = true
-  let finalize () = Mutex.NoBaseSpec.finalize ()
-  let init () = ()
+  let finalize () = begin
+    ignore (Unix.system("rm -rf osek_temp") );
+    Mutex.NoBaseSpec.finalize ()
+  end
+  let init () =   
+    if !oilFile != "" && Sys.file_exists(!oilFile) then begin
+      ignore (Unix.system("mkdir osek_temp") );
+      ignore (Unix.system( "ruby " ^ Filename.dirname(Sys.executable_name) ^"/scripts/parse_oil.rb " ^ !oilFile) );
+      let tramp = Filename.dirname(!oilFile) ^ "/defaultAppWorkstation/tpl_os_generated_configuration.h" in
+      if Sys.file_exists(tramp) then begin
+	ignore (Unix.system ("ruby " ^ Filename.dirname(Sys.executable_name) ^ "/scripts/parse_trampoline.rb " ^ tramp) )
+      end else begin
+	prerr_endline "Trampoline headers not found." ;
+	exit 2;
+      end
+    end else begin
+      prerr_endline "OIL-file does not exist." ;
+      exit 2;
+    end;   
 end
 
 module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
