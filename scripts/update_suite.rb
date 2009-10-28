@@ -1,6 +1,7 @@
 #!/usr/bin/ruby
 
 require 'find'
+require 'fileutils'
 
 goblint = File.join(Dir.getwd,"goblint")
 goblintbyte = File.join(Dir.getwd,"goblint.byte")
@@ -12,6 +13,11 @@ else
   fail "Please run script from goblint dir!" unless File.exist?(goblint)
   `make`
 end
+
+backup = File.join(Dir.getwd,"goblint.script_backup.json")
+json   = File.join(Dir.getwd, "goblint.json")
+FileUtils.mv(json, backup) if File.exists?(json) 
+
 testresults = File.expand_path("tests/suite_result") 
 testfiles   = File.expand_path("tests/regression")
 
@@ -139,6 +145,7 @@ projects.each do |p|
   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
 end
+FileUtils.mv(backup,json) if File.exists?(backup) 
 
 #Outputting
 File.open(File.join(testresults, "index.html"), "w") do |f|

@@ -6,6 +6,10 @@ fail "Please run script from goblint dir!" unless File.exist?(goblint)
 testresults = File.expand_path("tests/bench_result") + "/"
 bench = "../bench/"
 
+backup = File.join(Dir.getwd,"goblint.script_backup.json")
+json   = File.join(Dir.getwd, "goblint.json")
+FileUtils.mv(json, backup) if File.exists?(json) 
+
 class Project
   attr_reader :name, :group, :path, :params
   def initialize(name, size, desc, group, path, params)
@@ -89,6 +93,7 @@ projects.each do |p|
     end
   end
 end
+FileUtils.mv(backup,json) if File.exists?(backup) 
 
 File.open(testresults + "index.html", "w") do |f|
   f.puts "<html>"
