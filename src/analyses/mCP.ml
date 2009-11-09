@@ -16,6 +16,7 @@ struct
          | Uninit      of Uninit.Spec.Dom.t
          | Malloc_null of Malloc_null.Spec.Dom.t
          | Thread      of Thread.Spec.Dom.t
+         | Region      of Region.Spec.Dom.t
 	 | OSEK	       of Osek.Spec.Dom.t
          | Bad
   
@@ -26,7 +27,7 @@ struct
   
   let init () = 
     let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
-    let order = ["base";"OSEK"; "thread";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
+    let order = ["base";"OSEK"; "thread";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
     let f s y = JB.bool (JB.field int_ds s) :: y in
     take_list := List.fold_right f order []
   
@@ -45,6 +46,7 @@ struct
     ;(fun () -> SymbLocks (SymbLocks.Spec.Dom.top ()))
     ;(fun () -> Uninit (Uninit.Spec.Dom.top ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.Dom.top ()))
+    ;(fun () -> Region (Region.Spec.Dom.top ()))
     ;(fun () -> VarEq  (VarEq.Spec.Dom.top ()))]
       
   let bot () = constr_scheme
@@ -55,6 +57,7 @@ struct
     ;(fun () -> SymbLocks (SymbLocks.Spec.Dom.bot ()))
     ;(fun () -> Uninit (Uninit.Spec.Dom.bot ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.Dom.bot ()))
+    ;(fun () -> Region (Region.Spec.Dom.bot ()))
     ;(fun () -> VarEq  (VarEq.Spec.Dom.bot ()))]
   
 
@@ -66,6 +69,7 @@ struct
     ;(fun () -> SymbLocks (SymbLocks.Spec.startstate ()))
     ;(fun () -> Uninit (Uninit.Spec.startstate ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.startstate ()))
+    ;(fun () -> Region (Region.Spec.startstate ()))
     ;(fun () -> VarEq  (VarEq.Spec.startstate ()))]
 
   let otherstate () = constr_scheme
@@ -76,6 +80,7 @@ struct
     ;(fun () -> SymbLocks (SymbLocks.Spec.otherstate ()))
     ;(fun () -> Uninit (Uninit.Spec.otherstate ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.otherstate ()))
+    ;(fun () -> Region (Region.Spec.otherstate ()))
     ;(fun () -> VarEq  (VarEq.Spec.otherstate ()))]
 
   (* element lattice functions *)
@@ -88,6 +93,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.narrow x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.narrow x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.narrow x y)
+      | Region x, Region y -> Region (Region.Spec.Dom.narrow x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.narrow x y)
       | _ -> raise DomainBroken
 
@@ -100,6 +106,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.widen x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.widen x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.widen x y)
+      | Region x, Region y -> Region (Region.Spec.Dom.widen x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.widen x y)
       | _ -> raise DomainBroken
 
@@ -112,6 +119,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Dom.is_top x
       | Uninit x -> Uninit.Spec.Dom.is_top x
       | Malloc_null x -> Malloc_null.Spec.Dom.is_top x
+      | Region x -> Region.Spec.Dom.is_top x
       | VarEq x -> VarEq.Spec.Dom.is_top x
       | _ -> raise DomainBroken
   
@@ -124,6 +132,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Dom.is_bot x
       | Uninit x -> Uninit.Spec.Dom.is_bot x
       | Malloc_null x -> Malloc_null.Spec.Dom.is_bot x
+      | Region x -> Region.Spec.Dom.is_bot x
       | VarEq x -> VarEq.Spec.Dom.is_bot x
       | _ -> raise DomainBroken
 
@@ -136,6 +145,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.meet x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.meet x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.meet x y)
+      | Region x, Region y -> Region (Region.Spec.Dom.meet x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.meet x y)
       | _ -> raise DomainBroken
 
@@ -148,6 +158,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.join x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.join x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.join x y)
+      | Region x, Region y -> Region (Region.Spec.Dom.join x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.join x y)
       | _ -> raise DomainBroken
 
@@ -160,6 +171,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.leq x y
       | Uninit x, Uninit y -> Uninit.Spec.Dom.leq x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Dom.leq x y
+      | Region x, Region y -> Region.Spec.Dom.leq x y
       | VarEq x, VarEq y -> VarEq.Spec.Dom.leq x y
       | _ -> raise DomainBroken
       
@@ -172,6 +184,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Dom.short w x
       | Uninit x -> Uninit.Spec.Dom.short w x
       | Malloc_null x -> Malloc_null.Spec.Dom.short w x
+      | Region x -> Region.Spec.Dom.short w x
       | VarEq x -> VarEq.Spec.Dom.short w x
       | _ -> raise DomainBroken
       
@@ -184,6 +197,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Dom.toXML_f (fun w x -> sf w (SymbLocks x)) x
       | Uninit x -> Uninit.Spec.Dom.toXML_f (fun w x -> sf w (Uninit x)) x
       | Malloc_null x -> Malloc_null.Spec.Dom.toXML_f (fun w x -> sf w (Malloc_null x)) x
+      | Region x -> Region.Spec.Dom.toXML_f (fun w x -> sf w (Region x)) x
       | VarEq x -> VarEq.Spec.Dom.toXML_f (fun w x -> sf w (VarEq x)) x
       | _ -> raise DomainBroken
       
@@ -196,6 +210,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Dom.pretty_f (fun w x -> sf w (SymbLocks x)) () x
       | Uninit x -> Uninit.Spec.Dom.pretty_f (fun w x -> sf w (Uninit x)) () x
       | Malloc_null x -> Malloc_null.Spec.Dom.pretty_f (fun w x -> sf w (Malloc_null x)) () x
+      | Region x -> Region.Spec.Dom.pretty_f (fun w x -> sf w (Region x)) () x
       | VarEq x -> VarEq.Spec.Dom.pretty_f (fun w x -> sf w (VarEq x)) () x
       | _ -> raise DomainBroken
       
@@ -212,6 +227,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Dom.isSimple x
       | Uninit x -> Uninit.Spec.Dom.isSimple x
       | Malloc_null x -> Malloc_null.Spec.Dom.isSimple x
+      | Region x -> Region.Spec.Dom.isSimple x
       | VarEq x -> VarEq.Spec.Dom.isSimple x
       | _ -> raise DomainBroken
 
@@ -224,6 +240,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.compare x y
       | Uninit x, Uninit y -> Uninit.Spec.Dom.compare x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Dom.compare x y
+      | Region x, Region y -> Region.Spec.Dom.compare x y
       | VarEq x, VarEq y -> VarEq.Spec.Dom.compare x y
       | _ -> raise DomainBroken
 
@@ -236,6 +253,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.equal x y
       | Uninit x, Uninit y -> Uninit.Spec.Dom.equal x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Dom.equal x y
+      | Region x, Region y -> Region.Spec.Dom.equal x y
       | VarEq x, VarEq y -> VarEq.Spec.Dom.equal x y
       | _ -> raise DomainBroken
 
@@ -248,6 +266,7 @@ struct
       | SymbLocks x-> SymbLocks.Spec.Dom.hash x
       | Uninit x-> Uninit.Spec.Dom.hash x
       | Malloc_null x-> Malloc_null.Spec.Dom.hash x
+      | Region x-> Region.Spec.Dom.hash x
       | VarEq x-> VarEq.Spec.Dom.hash x
       | _ -> raise DomainBroken
 
@@ -310,6 +329,7 @@ struct
          | Malloc_null of Malloc_null.Spec.Glob.Val.t
          | VarEq       of VarEq.Spec.Glob.Val.t
          | Thread      of Thread.Spec.Glob.Val.t
+         | Region      of Region.Spec.Glob.Val.t
 	 | OSEK        of Osek.Spec.Glob.Val.t
          | Bad
   
@@ -319,7 +339,7 @@ struct
   let take_list = ref []   
   let init () = 
     let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
-    let order = ["base";"OSEK";"thread";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
+    let order = ["base";"OSEK";"thread";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
     let f s y = JB.bool (JB.field int_ds s) :: y in
     take_list := List.fold_right f order []
   
@@ -339,6 +359,7 @@ struct
     ;(fun () -> SymbLocks (SymbLocks.Spec.Glob.Val.top ()))
     ;(fun () -> Uninit (Uninit.Spec.Glob.Val.top ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.Glob.Val.top ()))
+    ;(fun () -> Region (Region.Spec.Glob.Val.top ()))
     ;(fun () -> VarEq  (VarEq.Spec.Glob.Val.top ()))]
       
   let bot () = constr_scheme
@@ -349,6 +370,7 @@ struct
     ;(fun () -> SymbLocks (SymbLocks.Spec.Glob.Val.bot ()))
     ;(fun () -> Uninit (Uninit.Spec.Glob.Val.bot ()))
     ;(fun () -> Malloc_null (Malloc_null.Spec.Glob.Val.bot ()))
+    ;(fun () -> Region (Region.Spec.Glob.Val.bot ()))
     ;(fun () -> VarEq  (VarEq.Spec.Glob.Val.bot ()))]
 
   (* element lattice functions *)
@@ -362,6 +384,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.narrow x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.narrow x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.narrow x y)
+      | Region x, Region y -> Region (Region.Spec.Glob.Val.narrow x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.narrow x y)
       | _ -> raise DomainBroken
 
@@ -374,6 +397,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.widen x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.widen x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.widen x y)
+      | Region x, Region y -> Region (Region.Spec.Glob.Val.widen x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.widen x y)
       | _ -> raise DomainBroken
 
@@ -386,6 +410,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.is_top x
       | Uninit x -> Uninit.Spec.Glob.Val.is_top x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.is_top x
+      | Region x -> Region.Spec.Glob.Val.is_top x
       | VarEq x -> VarEq.Spec.Glob.Val.is_top x
       | _ -> raise DomainBroken
   
@@ -398,6 +423,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.is_bot x
       | Uninit x -> Uninit.Spec.Glob.Val.is_bot x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.is_bot x
+      | Region x -> Region.Spec.Glob.Val.is_bot x
       | VarEq x -> VarEq.Spec.Glob.Val.is_bot x
       | _ -> raise DomainBroken
 
@@ -410,6 +436,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.meet x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.meet x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.meet x y)
+      | Region x, Region y -> Region (Region.Spec.Glob.Val.meet x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.meet x y)
       | _ -> raise DomainBroken
 
@@ -422,6 +449,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.join x y)
       | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.join x y)
       | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.join x y)
+      | Region x, Region y -> Region (Region.Spec.Glob.Val.join x y)
       | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.join x y)
       | _ -> raise DomainBroken
 
@@ -434,6 +462,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.leq x y
       | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.leq x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Glob.Val.leq x y
+      | Region x, Region y -> Region.Spec.Glob.Val.leq x y
       | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.leq x y
       | _ -> raise DomainBroken
       
@@ -446,6 +475,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.short w x
       | Uninit x -> Uninit.Spec.Glob.Val.short w x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.short w x
+      | Region x -> Region.Spec.Glob.Val.short w x
       | VarEq x -> VarEq.Spec.Glob.Val.short w x
       | _ -> raise DomainBroken
       
@@ -458,6 +488,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.toXML_f (fun w x -> sf w (SymbLocks x)) x
       | Uninit x -> Uninit.Spec.Glob.Val.toXML_f (fun w x -> sf w (Uninit x)) x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.toXML_f (fun w x -> sf w (Malloc_null x)) x
+      | Region x -> Region.Spec.Glob.Val.toXML_f (fun w x -> sf w (Region x)) x
       | VarEq x -> VarEq.Spec.Glob.Val.toXML_f (fun w x -> sf w (VarEq x)) x
       | _ -> raise DomainBroken
       
@@ -470,6 +501,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.pretty_f (fun w x -> sf w (SymbLocks x)) () x
       | Uninit x -> Uninit.Spec.Glob.Val.pretty_f (fun w x -> sf w (Uninit x)) () x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.pretty_f (fun w x -> sf w (Malloc_null x)) () x
+      | Region x -> Region.Spec.Glob.Val.pretty_f (fun w x -> sf w (Region x)) () x
       | VarEq x -> VarEq.Spec.Glob.Val.pretty_f (fun w x -> sf w (VarEq x)) () x
       | _ -> raise DomainBroken
       
@@ -486,6 +518,7 @@ struct
       | SymbLocks x -> SymbLocks.Spec.Glob.Val.isSimple x
       | Uninit x -> Uninit.Spec.Glob.Val.isSimple x
       | Malloc_null x -> Malloc_null.Spec.Glob.Val.isSimple x
+      | Region x -> Region.Spec.Glob.Val.isSimple x
       | VarEq x -> VarEq.Spec.Glob.Val.isSimple x
       | _ -> raise DomainBroken
 
@@ -498,6 +531,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.compare x y
       | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.compare x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Glob.Val.compare x y
+      | Region x, Region y -> Region.Spec.Glob.Val.compare x y
       | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.compare x y
       | _ -> raise DomainBroken
 
@@ -510,6 +544,7 @@ struct
       | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.equal x y
       | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.equal x y
       | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Glob.Val.equal x y
+      | Region x, Region y -> Region.Spec.Glob.Val.equal x y
       | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.equal x y
       | _ -> raise DomainBroken
 
@@ -522,6 +557,7 @@ struct
       | SymbLocks x-> SymbLocks.Spec.Glob.Val.hash x
       | Uninit x-> Uninit.Spec.Glob.Val.hash x
       | Malloc_null x-> Malloc_null.Spec.Glob.Val.hash x
+      | Region x-> Region.Spec.Glob.Val.hash x
       | VarEq x-> VarEq.Spec.Glob.Val.hash x
       | _ -> raise DomainBroken
 
@@ -662,6 +698,16 @@ struct
       | Some x -> x
       | None -> raise Glob.Val.DomainBroken
 
+  let globalRegion g (x:Glob.Var.t) : Region.Spec.Glob.Val.t =
+    let f c n = 
+      match n with
+        | Glob.Val.Region x -> Some x
+        | _ -> c 
+    in
+    match List.fold_left f None (g x) with
+      | Some x -> x
+      | None -> raise Glob.Val.DomainBroken
+  
   let assign' a lv exp g x =
     match x with
       | Dom.Base x -> Dom.Base (Base.assign a lv exp (globalBase g) x)
@@ -671,6 +717,7 @@ struct
       | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.assign a lv exp (globalSymbLocks g) x)
       | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.assign a lv exp (globalUninit g) x)
       | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.assign a lv exp (globalMallocNull g) x)
+      | Dom.Region x -> Dom.Region (Region.Spec.assign a lv exp (globalRegion g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.assign a lv exp (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
@@ -683,6 +730,7 @@ struct
       | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.body a fn (globalSymbLocks g) x)
       | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.body a fn (globalUninit g) x)
       | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.body a fn (globalMallocNull g) x)
+      | Dom.Region x -> Dom.Region (Region.Spec.body a fn (globalRegion g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.body a fn (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
   
@@ -695,6 +743,7 @@ struct
       | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.return a r fn (globalSymbLocks g) x)
       | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.return a r fn (globalUninit g) x)
       | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.return a r fn (globalMallocNull g) x)
+      | Dom.Region x -> Dom.Region (Region.Spec.return a r fn (globalRegion g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.return a r fn (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
@@ -707,6 +756,7 @@ struct
       | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.branch a exp tv (globalSymbLocks g) x)
       | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.branch a exp tv (globalUninit g) x)
       | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.branch a exp tv (globalMallocNull g) x)
+      | Dom.Region x -> Dom.Region (Region.Spec.branch a exp tv (globalRegion g) x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.branch a exp tv (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
   
@@ -719,6 +769,7 @@ struct
       | Dom.SymbLocks x -> List.map (fun (x,e,t) -> Dom.SymbLocks x,e,t) (SymbLocks.Spec.special_fn a r v args (globalSymbLocks g) x)
       | Dom.Uninit x -> List.map (fun (x,e,t) -> Dom.Uninit x,e,t) (Uninit.Spec.special_fn a r v args (globalUninit g) x)
       | Dom.Malloc_null x -> List.map (fun (x,e,t) -> Dom.Malloc_null x,e,t) (Malloc_null.Spec.special_fn a r v args (globalMallocNull g) x)
+      | Dom.Region x -> List.map (fun (x,e,t) -> Dom.Region x,e,t) (Region.Spec.special_fn a r v args (globalRegion g) x)
       | Dom.VarEq x -> List.map (fun (x,e,t) -> Dom.VarEq x,e,t) (VarEq.Spec.special_fn a r v args (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
@@ -731,6 +782,7 @@ struct
       | Dom.SymbLocks x -> List.map (fun (x,y) -> Dom.SymbLocks x,Dom.SymbLocks y) (SymbLocks.Spec.enter_func a r v args (globalSymbLocks g) x)
       | Dom.Uninit x -> List.map (fun (x,y) -> Dom.Uninit x,Dom.Uninit y) (Uninit.Spec.enter_func a r v args (globalUninit g) x)
       | Dom.Malloc_null x -> List.map (fun (x,y) -> Dom.Malloc_null x,Dom.Malloc_null y) (Malloc_null.Spec.enter_func a r v args (globalMallocNull g) x)
+      | Dom.Region x -> List.map (fun (x,y) -> Dom.Region x,Dom.Region y) (Region.Spec.enter_func a r v args (globalRegion g) x)
       | Dom.VarEq x -> List.map (fun (x,y) -> Dom.VarEq x,Dom.VarEq y) (VarEq.Spec.enter_func a r v args (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
 
@@ -743,6 +795,7 @@ struct
       | Dom.SymbLocks x, Dom.SymbLocks y -> Dom.SymbLocks (SymbLocks.Spec.leave_func a r v args (globalSymbLocks g) x y)
       | Dom.Uninit x, Dom.Uninit y -> Dom.Uninit (Uninit.Spec.leave_func a r v args (globalUninit g) x y)
       | Dom.Malloc_null x, Dom.Malloc_null y -> Dom.Malloc_null (Malloc_null.Spec.leave_func a r v args (globalMallocNull g) x y)
+      | Dom.Region x, Dom.Region y -> Dom.Region (Region.Spec.leave_func a r v args (globalRegion g) x y)
       | Dom.VarEq x, Dom.VarEq y -> Dom.VarEq (VarEq.Spec.leave_func a r v args (globalVarEq g) x y)
       | _ -> raise Dom.DomainBroken
   
@@ -755,6 +808,7 @@ struct
       | Dom.SymbLocks x -> SymbLocks.Spec.eval_funvar a exp (globalSymbLocks g) x
       | Dom.Uninit x -> Uninit.Spec.eval_funvar a exp (globalUninit g) x
       | Dom.Malloc_null x -> Malloc_null.Spec.eval_funvar a exp (globalMallocNull g) x
+      | Dom.Region x -> Region.Spec.eval_funvar a exp (globalRegion g) x
       | Dom.VarEq x -> VarEq.Spec.eval_funvar a exp (globalVarEq g) x
       | _ -> raise Dom.DomainBroken
   
@@ -767,6 +821,7 @@ struct
       | Dom.SymbLocks x -> List.map (fun (x,y) -> x, Dom.SymbLocks y) (SymbLocks.Spec.fork a r v args (globalSymbLocks g) x)
       | Dom.Uninit x -> List.map (fun (x,y) -> x, Dom.Uninit y) (Uninit.Spec.fork a r v args (globalUninit g) x)
       | Dom.Malloc_null x -> List.map (fun (x,y) -> x, Dom.Malloc_null y) (Malloc_null.Spec.fork a r v args (globalMallocNull g) x)
+      | Dom.Region x -> List.map (fun (x,y) -> x, Dom.Region y) (Region.Spec.fork a r v args (globalRegion g) x)
       | Dom.VarEq x -> List.map (fun (x,y) -> x, Dom.VarEq y) (VarEq.Spec.fork a r v args (globalVarEq g) x)
       | _ -> raise Dom.DomainBroken
   
@@ -779,6 +834,7 @@ struct
       | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.reset_diff x)
       | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.reset_diff x)
       | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.reset_diff x)
+      | Dom.Region x -> Dom.Region (Region.Spec.reset_diff x)
       | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.reset_diff x)
       | _ -> raise Dom.DomainBroken
 
@@ -792,6 +848,7 @@ struct
       | Glob.Val.SymbLocks x :: ws, Glob.Val.SymbLocks y -> Glob.Val.SymbLocks y :: ws
       | Glob.Val.Uninit x :: ws, Glob.Val.Uninit y -> Glob.Val.Uninit y :: ws
       | Glob.Val.Malloc_null x :: ws, Glob.Val.Malloc_null y -> Glob.Val.Malloc_null y :: ws
+      | Glob.Val.Region x :: ws, Glob.Val.Region y -> Glob.Val.Region y :: ws
       | Glob.Val.VarEq x :: ws, Glob.Val.VarEq y -> Glob.Val.VarEq y :: ws
       | w::ws, x -> w :: replaceg x ws
       
@@ -805,6 +862,7 @@ struct
       | Dom.SymbLocks x :: ws, Dom.SymbLocks y -> Dom.SymbLocks y :: ws
       | Dom.Uninit x :: ws, Dom.Uninit y -> Dom.Uninit y :: ws
       | Dom.Malloc_null x :: ws, Dom.Malloc_null y -> Dom.Malloc_null y :: ws
+      | Dom.Region x :: ws, Dom.Region y -> Dom.Region y :: ws
       | Dom.VarEq x :: ws, Dom.VarEq y -> Dom.VarEq y :: ws
       | w::ws, x -> w :: replace x ws
 
@@ -817,6 +875,7 @@ struct
       | Dom.SymbLocks x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.SymbLocks y) (Glob.Val.bot ())) (SymbLocks.Spec.get_diff x)
       | Dom.Uninit x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Uninit y) (Glob.Val.bot ())) (Uninit.Spec.get_diff x)
       | Dom.Malloc_null x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Malloc_null y) (Glob.Val.bot ())) (Malloc_null.Spec.get_diff x)
+      | Dom.Region x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Region y) (Glob.Val.bot ())) (Region.Spec.get_diff x)
       | Dom.VarEq x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.VarEq y) (Glob.Val.bot ())) (VarEq.Spec.get_diff x)
       | _ -> raise Dom.DomainBroken
   
@@ -829,6 +888,7 @@ struct
       | Dom.SymbLocks x -> SymbLocks.Spec.query a (globalSymbLocks g) x
       | Dom.Uninit x -> Uninit.Spec.query a (globalUninit g) x
       | Dom.Malloc_null x -> Malloc_null.Spec.query a (globalMallocNull g) x
+      | Dom.Region x -> Region.Spec.query a (globalRegion g) x
       | Dom.VarEq x -> VarEq.Spec.query a (globalVarEq g) x
       | _ -> raise Dom.DomainBroken
   
@@ -844,6 +904,7 @@ struct
     (if uses "symb_locks" then SymbLocks.Spec.finalize ());
     (if uses "uninit" then Uninit.Spec.finalize ());
     (if uses "malloc_null" then Malloc_null.Spec.finalize ());
+    (if uses "region" then Region.Spec.finalize ());
     (if uses "var_eq" then VarEq.Spec.finalize ());
     ()
 
@@ -856,7 +917,7 @@ struct
     Glob.Val.init ();
     let specs_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses"))  in
     let sense_ds = JB.make_table (JB.objekt (JB.field !GU.conf "sensitive")) in
-    let list_order = ["base"; "OSEK"; "thread";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
+    let list_order = ["base"; "OSEK"; "thread";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
     let f s r =
       if JB.bool (JB.field specs_ds s) then JB.bool (JB.field sense_ds s) :: r else r
     in
@@ -870,6 +931,7 @@ struct
     (if uses "symb_locks" then SymbLocks.Spec.init ());
     (if uses "uninit" then Uninit.Spec.init ());
     (if uses "malloc_null" then Malloc_null.Spec.init ());
+    (if uses "region" then Region.Spec.init ());
     (if uses "var_eq" then VarEq.Spec.init ());
     ()
 

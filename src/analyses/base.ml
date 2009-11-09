@@ -182,6 +182,7 @@ struct
   let return_varstore = ref dummyFunDec.svar
   let return_varinfo () = !return_varstore 
   let return_var () = AD.from_var (return_varinfo ())
+  let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
   let heap_hash = H.create 113 
   let heap_counter = ref 0

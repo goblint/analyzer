@@ -86,18 +86,15 @@ struct
   (** queries *)
   let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
-  (* There are three kinds of accesses:
-      * only symbolical 
-      * only concrete (first arg. is None)
-      * concrete but we may be able to add symbolical locks *)
   type access = Concrete of (exp option * Cil.varinfo * Offs.t * bool)
+              | Region   of (exp option * Cil.varinfo * Offs.t * bool) 
               | Unknown  of (exp * bool)
   type accesses = access list
 
   let unknown_access () =
     M.warn "Access to unknown address could be global"
   
-  let access_address ask write lv : accesses =
+  let access_address ask regs write lv : accesses =
     match ask (Queries.MayPointTo (mkAddrOf lv)) with
       | `LvalSet a when not (Queries.LS.is_top a) -> 
           let to_accs (v,o) xs = 
@@ -105,30 +102,46 @@ struct
           in
           Queries.LS.fold to_accs a []
       | _ ->         
-        [Unknown (Lval lv,write)]
+          let add_reg (v,o) = 
+            Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
+          in 
+          if List.length regs = 0 
+          then [Unknown (Lval lv,write)]
+          else List.map add_reg regs
 
   let rec access_one_byval a rw (exp:Cil.exp): accesses  = 
-    match exp with 
-      (* Integer literals *)
-      | Cil.Const _ -> []
-      (* Variables and address expressions *)
-      | Cil.Lval lval -> 
-        let a1 = access_address a rw lval in
-        let a2 = access_lv_byval a lval in
-          a1 @ a2
-      (* Binary operators *)
-      | Cil.BinOp (op,arg1,arg2,typ) -> 
-          let a1 = access_one_byval a rw arg1 in
-          let a2 = access_one_byval a rw arg2 in
+    let accs regs = 
+      match exp with 
+        (* Integer literals *)
+        | Cil.Const _ -> []
+        (* Variables and address expressions *)
+        | Cil.Lval lval -> 
+          let a1 = access_address a regs rw lval in
+          let a2 = access_lv_byval a lval in
             a1 @ a2
-      (* Unary operators *)
-      | Cil.UnOp (op,arg1,typ) -> access_one_byval a rw arg1
-      (* The address operators, we just check the accesses under them *)
-      | Cil.AddrOf lval -> access_lv_byval a lval
-      | Cil.StartOf lval -> access_lv_byval a lval
-      (* Most casts are currently just ignored, that's probably not a good idea! *)
-      | Cil.CastE  (t, exp) -> access_one_byval a rw exp
-      | _ -> []
+        (* Binary operators *)
+        | Cil.BinOp (op,arg1,arg2,typ) -> 
+            let a1 = access_one_byval a rw arg1 in
+            let a2 = access_one_byval a rw arg2 in
+              a1 @ a2
+        (* Unary operators *)
+        | Cil.UnOp (op,arg1,typ) -> access_one_byval a rw arg1
+        (* The address operators, we just check the accesses under them *)
+        | Cil.AddrOf lval -> access_lv_byval a lval
+        | Cil.StartOf lval -> access_lv_byval a lval
+        (* Most casts are currently just ignored, that's probably not a good idea! *)
+        | Cil.CastE  (t, exp) -> access_one_byval a rw exp
+        | _ -> []
+    in
+    let is_unknown x = match x with Unknown _ -> true | _ -> false in
+    match a (Queries.Regions exp) with
+      | `Bot -> 
+(*          Messages.report ((sprint 80 (d_exp () exp))^" is thread local");*)
+          List.filter is_unknown (accs [])
+      | `LvalSet regs -> 
+(*          Messages.report ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs);*)
+          accs (Queries.LS.elements regs)
+      | _ -> accs []
   (* Accesses during the evaluation of an lval, not the lval itself! *)
   and access_lv_byval a (lval:Cil.lval): accesses = 
     let rec access_offset (ofs: Cil.offset): accesses = 
@@ -147,8 +160,10 @@ struct
           let a2 = access_offset ofs in
             a1 @ a2
 
+   let access_one_top = access_one_byval 
+
    let access_byval a (rw: bool) (exps: Cil.exp list): accesses =
-     List.concat (List.map (access_one_byval a rw) exps)
+     List.concat (List.map (access_one_top a rw) exps)
 
    let access_reachable ask (exps: Cil.exp list) = 
      (* Find the addresses reachable from some expression, and assume that these
@@ -378,6 +393,11 @@ struct
                 then add_concrete_access fl loc ust (v,o,rw)
             | Concrete (None,v,o,rw) -> 
                 add_concrete_access fl loc ust (v,o,rw)
+            | Region (Some e,v,o,rw) -> 
+                if   not (add_per_element_access ask loc ust (e,rw)) 
+                then add_concrete_access fl loc ust (v,o,rw)
+            | Region (None,v,o,rw) -> 
+                add_concrete_access fl loc ust (v,o,rw)
             | Unknown a -> 
                 if   not (add_per_element_access ask loc ust a) 
                 then add_type_access ask loc ust a 
@@ -397,20 +417,20 @@ struct
   (** Transfer functions: *)
   
   let assign a lval rval gs (ust: Dom.t) : Dom.t = 
-    let b1 = access_one_byval a true (Lval lval) in 
-    let b2 = access_one_byval a false rval in
+    let b1 = access_one_top a true (Lval lval) in 
+    let b2 = access_one_top a false rval in
     add_accesses a (b1@b2) ust;
     ust
     
   let branch a exp tv gs (ust: Dom.t) : Dom.t =
-    let accessed = access_one_byval a false exp in
+    let accessed = access_one_top a false exp in
     add_accesses a accessed ust;
     ust
     
   let return a exp fundec gs (ust: Dom.t) : Dom.t =
     begin match exp with 
       | Some exp -> 
-          let accessed = access_one_byval a false exp in
+          let accessed = access_one_top a false exp in
           add_accesses a accessed ust
       | None -> () 
     end;
@@ -419,7 +439,7 @@ struct
   let body a f gs (ust: Dom.t) : Dom.t =  ust
 
   let eval_funvar a exp gs bl = 
-    let read = access_one_byval a false exp in
+    let read = access_one_top a false exp in
     add_accesses a read bl; 
     []
   

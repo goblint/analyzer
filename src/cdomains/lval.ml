@@ -389,6 +389,11 @@ struct
     | (`Right x::xs) -> `Index (tv, to_offs xs tv)
     | [] -> `NoOffset
 
+  let rec to_offs' (ofs:t) = match ofs with 
+    | (`Left x::xs) -> `Field (x, to_offs' xs)
+    | (`Right x::xs) -> `Index (x, to_offs' xs)
+    | [] -> `NoOffset
+
   let rec occurs v fds = match fds with 
     | (`Left x::xs) -> occurs v xs 
     | (`Right x::xs) -> I.occurs v x || occurs v xs

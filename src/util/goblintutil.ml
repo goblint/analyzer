@@ -16,6 +16,7 @@ let default_conf () =
                              ;"symb_locks" , Build.bool false
                              ;"uninit"     , Build.bool false
                              ;"malloc_null", Build.bool false
+                             ;"region"     , Build.bool false
                              ;"var_eq"     , Build.bool false] in
   let def_path = Build.objekt ["base"       , Build.bool false
                               ;"OSEK"       , Build.bool false
@@ -24,6 +25,7 @@ let default_conf () =
                               ;"symb_locks" , Build.bool false
                               ;"uninit"     , Build.bool true
                               ;"malloc_null", Build.bool true
+                              ;"region"     , Build.bool false
                               ;"var_eq"     , Build.bool false] in
   Build.objekt ["int_domain" , def_int
                ;"analyses"   , def_ana
@@ -43,7 +45,7 @@ let conf : (string, Json_type.t) Hashtbl.t ref =
 
 let modify_ana x b = 
   let old_ana = make_table (objekt (field !conf "analyses")) in
-  let anas = ["base";"OSEK";"thread";"mutex";"symb_locks";"uninit";"malloc_null";"var_eq"] in
+  let anas = ["base";"OSEK";"thread";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
   let set_ana_pair fe = 
     if fe = x 
     then fe, Build.bool b
@@ -62,14 +64,16 @@ let conf_uninit () =
   modify_ana "mutex" false;
   modify_ana "symb_locks" false;
   modify_ana "uninit" true;
-  modify_ana "malloc_null" false
+  modify_ana "malloc_null" false;
+  modify_ana "region" false
 
 let conf_malloc () = 
   modify_ana "thread" false;
   modify_ana "mutex" false;
   modify_ana "symb_locks" false;
   modify_ana "uninit" false;
-  modify_ana "malloc_null" true
+  modify_ana "malloc_null" true;
+  modify_ana "region" false
 
 
 (** when goblin is in debug mode *)

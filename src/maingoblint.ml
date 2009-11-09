@@ -93,7 +93,7 @@ let main () =
   in
   let set_feature b x =
     match x with
-      | "mutex" | "symb_locks" | "var_eq" | "uninit" | "malloc_null"
+      | "mutex" | "symb_locks" | "var_eq" | "uninit" | "malloc_null" | "region" | "OSEK"
           -> GU.modify_ana x b
       | _ -> raise (Arg.Bad ("no such feature: "^x))
   in

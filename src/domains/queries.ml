@@ -22,6 +22,7 @@ type t = ExpEq of exp * exp
        | MayPointTo of exp
        | ReachableFrom of exp
        | PerElementLock of exp
+       | Regions of exp  
        | SingleThreaded       (* result is "boolean" in `Int form *)
        | CurrentThreadId      (* currently "main" -> `Int 1; "other" -> `Top *)
        | TheAnswerToLifeUniverseAndEverything
