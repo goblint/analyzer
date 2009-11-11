@@ -2,7 +2,7 @@
 
   def parse_trampoline
     input = File.open(ARGV[0], "r")
-    output = File.open("osek_temp/resources.txt", "w")  
+    output = File.open(ARGV[1] + "/osek_temp/resources.txt", "w")  
     while line = input.gets do
       if line =~ / .*resource_id_of_(\w+)\s+(\d+).*/ then
 	output.puts $2

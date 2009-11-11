@@ -38,7 +38,7 @@ let is_ignorable lval =
 
 
 (** Data race analyzer without base --- this is the new standard *)  
-module NoBaseSpec : Analyses.Spec =
+module NoBaseSpec =
 struct  
 
   (** name for the analysis (btw, it's "Only Mutex Must") *)

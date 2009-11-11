@@ -2,7 +2,7 @@
 
   def parse_oil
     input = File.open(ARGV[0], "r")
-    output = File.open("osek_temp/priorities.txt", "w")
+    output = File.open(ARGV[1] + "/osek_temp/priorities.txt", "w")
     head = "function_of_"
     flag = true
     output.puts "default"

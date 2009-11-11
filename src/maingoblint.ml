@@ -161,7 +161,7 @@ let main () =
   (* GU.regions := true; *)
   let _ = match !GU.dump_path with
     | Some path -> begin
-        M.warn_out := open_out (Filename.concat path "warnings.out");
+        M	.warn_out := open_out (Filename.concat path "warnings.out");
         outFile := "" (*Filename.concat path "analysis.out";*)
         (* --dump overwrites the -o flag*)
       end
