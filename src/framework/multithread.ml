@@ -245,6 +245,10 @@ struct
     let sol,gs = 
       if !GU.verbose then print_endline "Analyzing!";
       Stats.time "solver" (Solver.solve () constraints) startvars in
+    if !GU.verify then begin
+      if !GU.verbose then print_endline "Analyzing!";
+      Stats.time "verification" (Solver.verify () constraints) (sol,gs)
+    end;
     Spec.finalize ();
     if !GU.print_uncalled then
       begin

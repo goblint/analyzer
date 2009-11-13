@@ -79,6 +79,9 @@ let conf_malloc () =
 (** when goblin is in debug mode *)
 let debug = ref false 
 
+(** whether to verify result *)
+let verify = ref true 
+
 (** Outputs information about what the goblin is doing *)
 let verbose = ref false
 
