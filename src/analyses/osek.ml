@@ -43,9 +43,10 @@ struct
     let m_st = Mutex.NoBaseSpec.body a (f:fundec) gl st in
     if (is_task f) then 
       let task_lock = makeGlobalVar f.svar.vname Cil.voidType  in
-      let dummy_edge = makeLocalVar f ?insert:None "GetResource" Cil.voidType  in
-      let [(x,_,_)]= Mutex.NoBaseSpec.special_fn a None dummy_edge [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st in     
-      x
+      let dummy_edge = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType  in
+      match Mutex.NoBaseSpec.special_fn a None dummy_edge [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
+        | [(x,_,_)] -> x 
+        | _ -> failwith "This never happens!"     
     else 
       m_st
 

@@ -95,9 +95,10 @@ struct
           List.iter constrainOneRHS rhsides;
           if tracing then tracei "sol" (dprintf "Entered %a.\n" Var.pretty_trace x);
           if tracing then trace "sol" (dprintf "Current state:\n    %a\n" VDom.pretty old_state );
+          let old_state = VMap.find sigma x in
           if not (VDom.leq !local_state old_state) then begin
             if tracing then traceu "sol" (dprintf "Set state to:\n    %a\n" VDom.pretty !local_state );
-            VMap.replace sigma x !local_state;
+            VMap.replace sigma x (VDom.join !local_state old_state);
             let influenced_vars = ref [] in
             let collectInfluence (y,f) = 
               VMap.replace todo y (f :: VMap.find todo y);

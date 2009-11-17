@@ -23,13 +23,15 @@ struct
 
   let verify () (system: system) (sigma,theta: solution') =
     let correct = ref true in
-    let complain_l (v: variable) = 
+    let complain_l (v: variable) lhs rhs = 
       correct := false; 
-      ignore (Pretty.printf "BAD: %a\n" Var.pretty_trace v)
+      ignore (Pretty.printf "Unsatisfied constraint at location %a\n  Variable:\n  %a\n  Right-Hand-Side:\n  %a\n" 
+                Var.pretty_trace v VDom.pretty lhs VDom.pretty rhs)
     in
-    let complain_g (g: global) = 
+    let complain_g (g: global) lhs rhs = 
       correct := false; 
-      ignore (Pretty.printf "BAD: %a\n" G.Var.pretty_trace g)
+      ignore (Pretty.printf "Unsatisfied constraint at global %a\nVariable:\n%a\nRight-Hand-Side:\n%a\n" 
+                G.Var.pretty_trace g G.Val.pretty lhs G.Val.pretty rhs)
     in
     let verify_var v d' = 
       let verify_constraint rhs =
@@ -39,10 +41,10 @@ struct
         let check_glob (g,gv) = 
           let gv' = GMap.find theta g in 
             if not (G.Val.leq gv gv') then 
-              complain_g g in
+              complain_g g gv' gv  in
         let _ = List.iter check_glob g in
           if not (VDom.leq d d') then
-            complain_l v
+            complain_l v d' d
       in
       let rhs = system v in
         List.iter verify_constraint rhs 
