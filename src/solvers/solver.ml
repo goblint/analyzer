@@ -30,19 +30,24 @@ struct
     in
     let complain_g (g: global) lhs rhs = 
       correct := false; 
-      ignore (Pretty.printf "Unsatisfied constraint at global %a\nVariable:\n%a\nRight-Hand-Side:\n%a\n" 
+      ignore (Pretty.printf "Unsatisfied constraint at location %a\n  Variable:\n  %a\n  Right-Hand-Side:\n  %a\n" 
                 G.Var.pretty_trace g G.Val.pretty lhs G.Val.pretty rhs)
     in
+    (* For each variable v which has been assigned value d', would like to check
+     * that d' satisfied all constraints. *)
     let verify_var v d' = 
       let verify_constraint rhs =
         let sigma' x = VMap.find sigma x in
         let theta' x = GMap.find theta x in
-        let (d,g,s) = rhs (sigma',theta') in
+        let (d,gs,s) = rhs (sigma',theta') in
+        (* First check that each global delta is included in the global
+         * invariant. *)
         let check_glob (g,gv) = 
           let gv' = GMap.find theta g in 
             if not (G.Val.leq gv gv') then 
               complain_g g gv' gv  in
-        let _ = List.iter check_glob g in
+        let _ = List.iter check_glob gs in
+        (* Then we check that the local state satisfies this constraint. *)
           if not (VDom.leq d d') then
             complain_l v d' d
       in

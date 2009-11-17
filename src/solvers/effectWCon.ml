@@ -72,8 +72,7 @@ struct
 	
       begin if rhsides = [] then ()
       else begin
-        let old_state = VMap.find sigma x in
-        let local_state = ref old_state in 
+        let local_state = ref (VDom.bot ()) in 
         let constrainOneRHS (f: rhs) =
           let (nls,ngd,tc) = f (vEval (x,f), gEval (x,f)) in
           let doOneGlobalDelta (g, gstate) = 
@@ -93,9 +92,9 @@ struct
             local_state := VDom.join !local_state nls
         in
           List.iter constrainOneRHS rhsides;
+          let old_state = VMap.find sigma x in
           if tracing then tracei "sol" (dprintf "Entered %a.\n" Var.pretty_trace x);
           if tracing then trace "sol" (dprintf "Current state:\n    %a\n" VDom.pretty old_state );
-          let old_state = VMap.find sigma x in
           if not (VDom.leq !local_state old_state) then begin
             if tracing then traceu "sol" (dprintf "Set state to:\n    %a\n" VDom.pretty !local_state );
             VMap.replace sigma x (VDom.join !local_state old_state);
