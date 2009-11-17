@@ -458,7 +458,7 @@ struct
    (* | "sem_wait"*)
       | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock" 
       | "pthread_rwlock_trywrlock"
-          -> lock true true a lv arglist ls
+          ->lock true true a lv arglist ls
       | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh"
       | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock"
       | "pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource"

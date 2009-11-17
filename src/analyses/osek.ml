@@ -42,8 +42,9 @@ struct
   let body a (f:fundec) gl (st:Dom.t) : Dom.t = 
     let m_st = Mutex.NoBaseSpec.body a (f:fundec) gl st in
     if (is_task f) then 
-      let (x,_,_)= List.hd (Mutex.NoBaseSpec.special_fn a None (makeVarinfo true "GetResource" (TVoid [])) [Lval (Var (makeVarinfo true f.svar.vname (TVoid [])), NoOffset)] gl m_st) in
-      print_endline ( Mutex.NoBaseSpec.Dom.short 10 x);
+      let task_lock = makeGlobalVar f.svar.vname Cil.voidType  in
+      let dummy_edge = makeLocalVar f ?insert:None "GetResource" Cil.voidType  in
+      let [(x,_,_)]= Mutex.NoBaseSpec.special_fn a None dummy_edge [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st in     
       x
     else 
       m_st
