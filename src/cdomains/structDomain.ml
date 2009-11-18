@@ -47,6 +47,7 @@ end
 
 module Simple (Val: Lattice.S) =
 struct 
+  include Printable.Std
   module M = MapDomain.MapTop (Basetype.CilField) (Val)
   let name () = "simple structs"
   type t = M.t
@@ -83,4 +84,6 @@ struct
   let hash x = M.hash x
   let widen = M.widen
   let narrow = M.narrow
+  let why_not_leq () (x,y) = 
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end

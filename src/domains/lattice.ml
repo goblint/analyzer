@@ -89,13 +89,16 @@ struct
   let top () = `Top
   let is_top x = x = `Top
 
-  let leq x y =
+  let leq (x:t) (y:t) =
     match (x,y) with
       | (_, `Top) -> true
       | (`Top, _) -> false
       | (`Bot, _) -> true
       | (_, `Bot) -> false
       | (`Lifted x, `Lifted y) -> Base.equal x y
+
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
 
   let join x y = 
     match (x,y) with 
@@ -133,6 +136,11 @@ struct
       | (`Bot, _) -> true
       | (_, `Bot) -> false
       | (`Lifted x, `Lifted y) -> Base.leq x y
+
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    match (x,y) with
+      | (`Lifted x, `Lifted y) -> Base.why_not_leq () (x,y)
+      | _ -> Pretty.dprintf "%a not leq %a" pretty x pretty y
 
   let join x y = 
     match (x,y) with 
@@ -182,6 +190,9 @@ struct
       | (`Lifted1 x, `Lifted1 y) -> Base1.leq x y
       | (`Lifted2 x, `Lifted2 y) -> Base2.leq x y
       | _ -> false
+
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
 
   let join x y = 
     match (x,y) with 
@@ -244,6 +255,12 @@ struct
 
   let leq (x1,x2) (y1,y2) = Base1.leq x1 y1 && Base2.leq x2 y2
 
+  let why_not_leq () ((x1,x2:t),(y1,y2:t)): Pretty.doc = 
+    if Base1.leq x1 y1 then
+      Base2.why_not_leq () (x2,y2)
+    else 
+      Base1.why_not_leq () (x1,y1)
+
   let op_scheme op1 op2 (x1,x2) (y1,y2): t = (op1 x1 y1, op2 x2 y2)
   let join = op_scheme Base1.join Base2.join
   let meet = op_scheme Base1.meet Base2.meet
@@ -265,6 +282,14 @@ struct
   let is_top (x1,x2,x3) = Base1.is_top x1 && Base2.is_top x2 && Base3.is_top x3
 
   let leq (x1,x2,x3) (y1,y2,y3) = Base1.leq x1 y1 && Base2.leq x2 y2 && Base3.leq x3 y3
+
+  let why_not_leq () ((x1,x2,x3:t),(y1,y2,y3:t)): Pretty.doc = 
+    if not (Base1.leq x1 y1) then
+      Base1.why_not_leq () (x1,y1)
+    else if not (Base2.leq x2 y2) then
+      Base2.why_not_leq () (x2,y2)
+    else 
+      Base3.why_not_leq () (x3,y3)
 
   let op_scheme op1 op2 op3 (x1,x2,x3) (y1,y2,y3): t = (op1 x1 y1, op2 x2 y2, op3 x3 y3)
   let join = op_scheme Base1.join Base2.join Base3.join
@@ -291,6 +316,9 @@ struct
       | (`Bot, _) -> true
       | (_, `Bot) -> false
       | (`Lifted x, `Lifted y) -> Base.leq x y
+
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
 
   let join x y = 
     match (x,y) with 
@@ -327,6 +355,7 @@ end
 
 module Chain (P: Printable.ChainParams) = 
 struct
+  include Printable.Std
   include Printable.Chain (P)
   include StdCousot
   let bot () = 0

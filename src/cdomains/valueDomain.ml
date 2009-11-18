@@ -57,7 +57,8 @@ struct
     | `Bot
     ]
 
-  let name () = "compund"
+  include Printable.Std
+  let name () = "compound"
 
   type offs = (fieldinfo,ID.t) Lval.offs
 
@@ -156,6 +157,8 @@ struct
 
   let pretty () x = pretty_f short () x
   let toXML s = toXML_f short s
+  let why_not_leq () (x,y) = 
+    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let leq x y =
     match (x,y) with

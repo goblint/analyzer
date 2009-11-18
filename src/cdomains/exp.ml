@@ -3,6 +3,7 @@ include Pretty
 module Exp =
 struct
   type t = Cil.exp
+  include Printable.Std
 
   let equal = Util.equals
   let hash = Hashtbl.hash
@@ -17,6 +18,7 @@ struct
   let isSimple _ = true
   let pretty_f _ = pretty
   let toXML_f _ = toXML
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   
   let rec interesting x =
     match x with
@@ -191,6 +193,7 @@ end
 
 module LockingPattern =
 struct
+  include Printable.Std
   type t = Exp.t * Exp.t * Exp.t
   
   let equal = Util.equals
@@ -206,6 +209,7 @@ struct
   let isSimple _ = true
   let pretty_f _ = pretty
   let toXML_f _ = toXML
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   
   type ee = Var of Cil.varinfo
           | Addr

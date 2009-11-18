@@ -4,6 +4,7 @@ open Pretty
 
 module ProgLines : Printable.S with type t = location =
 struct
+  include Printable.Std
   type t = location
   let isSimple _  = true
   let copy x = x
@@ -17,10 +18,12 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "proglines"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module ProgLinesFun: Printable.S with type t = location * fundec =
 struct
+  include Printable.Std
   type t = location * fundec
   let isSimple _  = true
   let copy x = x
@@ -35,10 +38,12 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "proglinesfun"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module Variables = 
 struct
+  include Printable.Std
   type t = varinfo
   let isSimple _  = true
   let is_global v = v.vglob
@@ -71,10 +76,12 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "variables"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module VarStatus =
 struct
+  include Printable.Std
   type status = Local | Context
   type t = varinfo * status
   let isSimple _  = true
@@ -107,6 +114,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "variables"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module RawStrings: Printable.S with type t = string = 
@@ -123,6 +131,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "raw strings"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
@@ -133,6 +142,7 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
 
 module CilExp =
 struct
+  include Printable.Std
   type t = exp
   let isSimple _  = true
   let copy x = x
@@ -188,10 +198,12 @@ struct
     in
       constFold true (replace_rv e)
 
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilStmt: Printable.S with type t = stmt =
 struct
+  include Printable.Std
   type t = stmt
   let isSimple _  = false
   let copy x = x
@@ -210,10 +222,12 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "expressions"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilFun: Printable.S with type t = varinfo =
 struct
+  include Printable.Std
   let isSimple _  = false
   let copy x = x
   type t = varinfo
@@ -227,10 +241,12 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "functions"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilFundec =
 struct
+  include Printable.Std
   let isSimple _  = false
   let copy x = x
   type t = fundec
@@ -244,10 +260,12 @@ struct
   let pretty () x = pretty_f short () x
   let name () = "function decs"
   let dummy = dummyFunDec
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilField =
 struct
+  include Printable.Std
   let isSimple _  = true
   let copy x = x
   type t = fieldinfo
@@ -264,10 +282,12 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "field"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilType =
 struct
+  include Printable.Std
   let isSimple _  = true
   type t = typ
   let compare x y = Pervasives.compare x y
@@ -282,4 +302,5 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "types"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end

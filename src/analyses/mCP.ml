@@ -175,6 +175,19 @@ struct
       | VarEq x, VarEq y -> VarEq.Spec.Dom.leq x y
       | _ -> raise DomainBroken
       
+  let why_not_leq' x y acc = if leq' x y then acc else
+    match x, y with
+      | Base x, Base y -> Base.Dom.why_not_leq () (x,y)
+      | OSEK x, OSEK y -> Osek.Spec.Dom.why_not_leq () (x,y)
+      | Thread x, Thread y -> Thread.Spec.Dom.why_not_leq () (x,y)
+      | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.why_not_leq () (x,y)
+      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.why_not_leq () (x,y)
+      | Uninit x, Uninit y -> Uninit.Spec.Dom.why_not_leq () (x,y)
+      | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Dom.why_not_leq () (x,y)
+      | Region x, Region y -> Region.Spec.Dom.why_not_leq () (x,y)
+      | VarEq x, VarEq y -> VarEq.Spec.Dom.why_not_leq () (x,y)
+      | _ -> raise DomainBroken
+
   let short' w x =
     match x with
       | Base x -> Base.Dom.short w x
@@ -281,6 +294,7 @@ struct
   let is_top = List.for_all is_top' 
   let is_bot = List.for_all is_bot'
   let leq    = List.for_all2 leq' 
+  let why_not_leq () (x,y): Pretty.doc = List.fold_right2 why_not_leq' x y Pretty.nil
     
   let short _ = List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""
   
@@ -320,6 +334,8 @@ end
 module GlobalDomain (Base : Analyses.Spec)=
 struct
   exception DomainBroken
+  include Printable.Std
+
   
   (* This type should contain all analyses. *)
   type e = Base        of Base.Glob.Val.t
@@ -465,6 +481,19 @@ struct
       | Region x, Region y -> Region.Spec.Glob.Val.leq x y
       | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.leq x y
       | _ -> raise DomainBroken
+
+  let why_not_leq' x y acc = if leq' x y then acc else
+    match x, y with
+      | Base x, Base y -> Base.Glob.Val.why_not_leq () (x,y)
+      | OSEK x, OSEK y -> Osek.Spec.Glob.Val.why_not_leq () (x,y)
+      | Thread x, Thread y -> Thread.Spec.Glob.Val.why_not_leq () (x,y)
+      | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.why_not_leq () (x,y)
+      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.why_not_leq () (x,y)
+      | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.why_not_leq () (x,y)
+      | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Glob.Val.why_not_leq () (x,y)
+      | Region x, Region y -> Region.Spec.Glob.Val.why_not_leq () (x,y)
+      | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.why_not_leq () (x,y)
+      | _ -> raise DomainBroken
       
   let short' w x =
     match x with
@@ -572,6 +601,7 @@ struct
   let is_top = List.for_all is_top' 
   let is_bot = List.for_all is_bot'
   let leq    = List.for_all2 leq' 
+  let why_not_leq () (x,y): Pretty.doc = List.fold_right2 why_not_leq' x y Pretty.nil
     
   let short _ = List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""
   

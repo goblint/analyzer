@@ -229,6 +229,9 @@ struct
     in
       m1 == m2 || for_all p m1
 
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    Pretty.dprintf "MapBot: %a not leq %a" pretty x pretty y
+
   let find x m = try find x m with | Not_found -> Range.bot ()
   let top () = Lattice.unsupported "partial map top"
   let bot () = M.empty
@@ -255,6 +258,9 @@ struct
       try Range.leq (find key m1) value with Not_found -> false
     in
       m1 == m2 || for_all p m2
+
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    Pretty.dprintf "MapTop: %a not leq %a" pretty x pretty y
 
   let find x m = try find x m with | Not_found -> Range.top ()
   let top () = M.empty

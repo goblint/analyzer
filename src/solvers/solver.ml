@@ -25,12 +25,12 @@ struct
     let correct = ref true in
     let complain_l (v: variable) lhs rhs = 
       correct := false; 
-      ignore (Pretty.printf "Unsatisfied constraint at location %a\n  Variable:\n  %a\n  Right-Hand-Side:\n  %a\n" 
-                Var.pretty_trace v VDom.pretty lhs VDom.pretty rhs)
+      ignore (Pretty.printf "Unsatisfied constraint at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nReason: %a\n@]" 
+                Var.pretty_trace v VDom.pretty lhs VDom.pretty rhs VDom.why_not_leq (rhs,lhs))
     in
     let complain_g (g: global) lhs rhs = 
       correct := false; 
-      ignore (Pretty.printf "Unsatisfied constraint at location %a\n  Variable:\n  %a\n  Right-Hand-Side:\n  %a\n" 
+      ignore (Pretty.printf "Unsatisfied constraint for global %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]" 
                 G.Var.pretty_trace g G.Val.pretty lhs G.Val.pretty rhs)
     in
     (* For each variable v which has been assigned value d', would like to check

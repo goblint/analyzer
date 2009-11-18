@@ -26,7 +26,6 @@ let rec listify ofs =
 module Offset (Idx: IntDomain.S) =
 struct
   type t = Offs of ((fieldinfo, Idx.t) offs) | Bot
-  
   include Printable.Std
   include Lattice.StdCousot
   
@@ -183,6 +182,8 @@ struct
   
   let pretty = pretty_f short
   let toXML = toXML_f short
+  let why_not_leq () (x,y) = 
+    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module type S =
@@ -219,6 +220,7 @@ struct
   type idx = Idx.t
   type t = Addr of (varinfo * (field, idx) offs) | NullPtr | StrPtr
   include Printable.Std
+  let name () = "Normal Lvals"
   
   let null_ptr () = NullPtr
   let str_ptr () = StrPtr
@@ -322,6 +324,7 @@ struct
 
   let toXML = toXML_f short 
   let pretty = pretty_f short 
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module Stateless (Idx: Printable.S) =
@@ -353,6 +356,8 @@ struct
 
   let toXML x = toXML_f short x
   let pretty () x = pretty_f short () x
+  let why_not_leq () (x,y) = 
+    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module Fields = 
@@ -459,6 +464,7 @@ end
 
 module CilLval : Printable.S with type t = Cil.varinfo * (fieldinfo, exp) offs =
 struct
+  include Printable.Std
   type t = Cil.varinfo * (fieldinfo, exp) offs
 
   let equal   = Util.equals
@@ -479,7 +485,7 @@ struct
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)], [])
   let pretty  = pretty_f short
   let toXML = toXML_f short
-  
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 

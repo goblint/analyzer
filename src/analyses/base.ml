@@ -57,9 +57,6 @@ struct
   let startstate () = CPA.bot (), Flag.bot (), Vars.bot ()
   let otherstate () = CPA.bot (), Flag.top (), Vars.bot ()
 
-
-
-
    type cpa = CPA.t
    type flag = Flag.t
    type deps = Vars.t
@@ -1081,6 +1078,5 @@ end
 
 module Spec = MakeSpec (ConcDomain.Trivial)
 module Main = MakeSpec (ConcDomain.Simple)
-
 
 module Analysis = Multithread.Forward(Spec)

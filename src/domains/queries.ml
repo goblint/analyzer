@@ -9,6 +9,7 @@ module ES_r = SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end)
 module ES = 
 struct 
   include ES_r
+  include Printable.Std
   include Lattice.StdCousot 
   let bot = ES_r.top
   let top = ES_r.bot
@@ -38,6 +39,7 @@ type result = [
       
 module Result: Lattice.S with type t = result = 
 struct 
+  include Printable.Std
   type t = result
 
   let name () = "query result domain"
@@ -119,6 +121,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let toXML s = toXML_f short s
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let leq x y =
     match (x,y) with

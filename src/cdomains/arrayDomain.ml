@@ -60,6 +60,7 @@ struct
 
   let short w x = "Array: " ^ Val.short (w - 7) x
   let pretty () x = pretty_f short () x
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
   let get a i = a
   let set a i v = join a v
@@ -73,6 +74,7 @@ end
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
+  include Printable.Std
   include Lattice.StdCousot
   type idx = Idx.t
   type value = Base.t
@@ -159,6 +161,7 @@ struct
 
   let pretty ()  x = pretty_f short () x
   let toXML s = toXML_f short s
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let get a i =
     let folded () = 
@@ -243,6 +246,7 @@ module Collapsing (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
   module Array = NativeArray (Base) (Idx)
+  include Printable.Std
   include Lattice.StdCousot
 
   let name () = "collapsing arrays"
@@ -358,6 +362,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let toXML m = toXML_f short m
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let make i v = 
     if i > 25 then 
@@ -376,6 +381,7 @@ end
 module MapArray (I: sig val n : int option end) (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
+  include Printable.Std
   include Lattice.StdCousot
 
   module M = Map.Make (Idx)
@@ -452,6 +458,7 @@ struct
       (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
 
   let pretty () = pretty_f short () 
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let toXML_f s x =
     let text = s Goblintutil.summary_length x in
@@ -789,6 +796,7 @@ module PreciseMapArray
   (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
+  include Printable.Std
   include SharedMapArrayParts(Base)(Idx)
 
   let conform (map, length) :t =
@@ -850,6 +858,7 @@ struct
 
 
   let name () = "strict map based arrays"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   
 end
 
@@ -857,6 +866,7 @@ module LooseMapArray
   (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
+  include Printable.Std
   include SharedMapArrayParts(Base)(Idx)
 
   let conform (map, length) :t =
@@ -976,6 +986,7 @@ struct
 *)
 
   let name () = "loose map based arrays"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   
 end
 
@@ -1043,6 +1054,7 @@ struct
 
   let make i v = `Lifted (A.make i v)
 
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 

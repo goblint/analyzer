@@ -95,9 +95,10 @@ end
 
 module Make (Base: Printable.S) = 
 struct
-  include Set.Make(Base)
   include Printable.Blank
   include Lattice.StdCousot
+  include Set.Make(Base)
+  let name () = "Set (" ^ Base.name () ^ ")"
   let empty _ = empty
   let leq  = subset
   let join = union
@@ -141,18 +142,30 @@ struct
 
   let isSimple x = 
     (List.length (elements x)) < 3
+
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    if leq x y then dprintf "%s: These are fine!" (name ()) else begin
+      let evil = choose (diff x y) in
+      let other = choose y in
+      Pretty.dprintf "%s: %a not leq %a\n  @[for example: %a@]" (name ()) pretty x pretty y
+        Base.why_not_leq (evil,other)
+    end
 end
 
 module SensitiveConf (C: Printable.ProdConfiguration) (Base: Lattice.S) (User: Printable.S) = 
 struct
   module Elt = Printable.ProdConf (C) (Base) (User)
   include Make(Elt)
+  let name () = "Sensitive " ^ name ()
 
   let leq s1 s2 = 
     (* I want to check that forall e in x, the same key is in y with it's base
      * domain element being leq of this one *)
     let p (b1,u1) = exists (fun (b2,u2) -> User.equal u1 u2 && Base.leq b1 b2) s2 in
       for_all p s1
+
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let join s1 s2 = 
     (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
@@ -205,6 +218,7 @@ struct
   type t = All | Set of S.t
   type elt = Base.t
 
+  let name () = "Topped " ^ S.name ()
   let empty () = Set (S.empty ())
   let is_empty x = 
     match x with
@@ -307,6 +321,10 @@ struct
   let leq = subset
   let join = union
   let meet = inter
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    match x,y with
+      | Set x, Set y -> S.why_not_leq () (x,y)
+      | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 (* This one just removes the extra "{" notation and also by always returning
@@ -318,6 +336,7 @@ struct
 
   let isSimple _ = false
 
+  let name () = "Headless " ^ name ()
   let pretty_f _ () x = 
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
@@ -332,4 +351,6 @@ struct
       content 
 
   let pretty () x = pretty_f short () x
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end

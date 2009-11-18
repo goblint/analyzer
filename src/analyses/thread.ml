@@ -4,7 +4,7 @@ module Trivial =  ConcDomain.Simple
 
 module Spec : Analyses.Spec =
 struct
-  module Dom  = Trivial
+  module Dom = Trivial
   module Glob = Global.Make (Lattice.Unit) (* no global state *)
 
   (* helper functions *)
