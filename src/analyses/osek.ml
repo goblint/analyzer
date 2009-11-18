@@ -8,30 +8,20 @@ struct
 
   let oilFile = ref ""
 
-  (*priority function, currently onlywokrs for tasks*)
-  let pry f = 
-    if Sys.file_exists(Filename.dirname(Sys.executable_name) ^ "/osek_temp/priorities.txt") then begin
-      let oil = open_in (Filename.dirname(Sys.executable_name) ^ "/osek_temp/priorities.txt") in
-      let rec look_up line f =
-	match line with
-	| "" -> if (input_line oil = "default") then int_of_string (input_line oil) else -1
-	| _ -> if line = f.svar.vname then int_of_string(input_line oil) else look_up (input_line oil) f
-      in
-      let ret = look_up (input_line oil) f in
-      close_in oil ; (`Lifted (Int64.of_int ret));
-      end else begin
-      prerr_endline "Priorites could not be determined." ;
-      exit 2;
-    end 
+  let priorities = Hashtbl.create 16
+  let constantlocks = Hashtbl.create 16
+
+  (*priority function*)
+  let pry lock = try Hashtbl.find priorities lock with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
 
   (*brutal hack*)
   let is_task f = 
-    (String.length f.svar.vname >= 12 && String.sub f.svar.vname 0 12 = "function_of_")
-  let dummyquery _ = `LvalSet (Queries.LS.top())
+    (String.length f >= 12 && String.sub f 0 12 = "function_of_")
+  (* let is_task f = is_task' f.svar.vname *)
 
   let query ask _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = 
     Queries.Result.top ()
- 
+
   (* transfer functions *)
   let assign a (lval:lval) (rval:exp) gl (st:Dom.t) : Dom.t =
     (Mutex.NoBaseSpec.assign a lval rval gl  st)
@@ -41,8 +31,8 @@ struct
   
   let body a (f:fundec) gl (st:Dom.t) : Dom.t = 
     let m_st = Mutex.NoBaseSpec.body a (f:fundec) gl st in
-    if (is_task f) then 
-      let task_lock = makeGlobalVar f.svar.vname Cil.voidType  in
+    if (is_task f.svar.vname) then 
+      let task_lock = Hashtbl.find constantlocks f.svar.vname in
       let dummy_edge = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType  in
       match Mutex.NoBaseSpec.special_fn a None dummy_edge [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
         | [(x,_,_)] -> x 
@@ -52,9 +42,12 @@ struct
 
   let return a (exp:exp option) (f:fundec) gl (st:Dom.t) : Dom.t =
     let m_st = Mutex.NoBaseSpec.return a (exp:exp option) (f:fundec) gl st in
-    if (is_task f) then 
-      let (x,_,_)= List.hd (Mutex.NoBaseSpec.special_fn a None (makeVarinfo true "ReleaseResource" (TVoid [])) [Lval (Var (makeVarinfo true f.svar.vname (TVoid [])), NoOffset)] gl m_st) in
-      x
+    if (is_task f.svar.vname) then 
+      let task_lock = Hashtbl.find constantlocks f.svar.vname in
+      let dummy_edge = makeLocalVar f ?insert:(Some false) "ReleaseResource" Cil.voidType  in
+      match Mutex.NoBaseSpec.special_fn a None dummy_edge [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
+        | [(x,_,_)] -> x 
+        | _ -> failwith "This never happens!"     
     else 
       m_st
   
@@ -68,24 +61,13 @@ struct
    Mutex.NoBaseSpec.leave_func a (lval:lval option) (f:varinfo) (args:exp list) gl bu au
   
   let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) gl (st:Dom.t) : (Dom.t * Cil.exp * bool) list =
-    let constant_lock c =
-      if Sys.file_exists(Filename.dirname(Sys.executable_name) ^ "/osek_temp/resources.txt") then begin
-	let res = open_in (Filename.dirname(Sys.executable_name) ^ "/osek_temp/resources.txt") in
-	let rec look_up line id = 
-	  if line = id then input_line res else look_up (input_line res) id in 
-	let var = makeVarinfo true (look_up (input_line res) c) (TVoid []) in
-	  close_in res; [AddrOf (Var var,NoOffset)];
-      end else begin
-	prerr_endline "Resources could not be determined." ;
-	exit 2;
-      end 
-    in
+    let make_lock varinfo = [AddrOf (Var varinfo,NoOffset)] in
     let arglist =
       match f.vname with
         | "GetResource" | "ReleaseResource" -> 
            (match arglist with 
              | [Lval l] -> [AddrOf l] 
-	     | [Const (CInt64 (c,_,_) ) ] -> constant_lock (Int64.to_string c)
+	     | [Const (CInt64 (c,_,_) ) ] -> make_lock (Hashtbl.find constantlocks (Int64.to_string c))
              | x -> x)
         | _ -> arglist
     in Mutex.NoBaseSpec.special_fn a lval f arglist gl st
@@ -110,25 +92,12 @@ struct
   (** are we still race free *)
   let race_free = ref true
 
-(*
-  (** modules used for grouping [varinfo]s by [Offset] *)
-  module OffsMap = Map.Make (Mutex.Offs)
-  (** modules used for grouping [varinfo]s by [Offset] *)
-  module OffsSet = Set.Make (ValueDomain.Offs)
-
-  module AccKeySet = Set.Make (Basetype.Variables)
-  module AccValSet = Set.Make (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (Base.Main.Flag) (IntDomain.Booleans)) (Dom) (ValueDomain.Offs))
-  module Acc = Hashtbl.Make (Basetype.Variables)
-  let accKeys : AccKeySet.t ref   = ref AccKeySet.empty
-  let acc     : AccValSet.t Acc.t = Acc.create 100
-*)
-
   type access_status = 
     | Race
     | Guarded of  Mutex.Lockset.t
+    | Priority of int
     | ReadOnly
     | ThreadLocal
-
 
   (** [postprocess_acc gl] groups and report races in [gl] *)
   let postprocess_acc gl =
@@ -175,11 +144,18 @@ struct
     in
     let is_race acc_list' =
       let acc_list = List.map (fun ((loc, fl, write), dom_elem,o) -> ((loc, fl, write), dom_elem,o)) acc_list' in
-      let locks = get_common_locks acc_list in let _ = print_endline ((Mutex.Lockset.short 80 locks)^"bla") in
+      let locks = get_common_locks acc_list in
       let rw ((_,_,x),_,_) = x in
-      let non_main ((_,x,_),_,_) = Base.Main.Flag.is_bad x in      
+      let non_main ((_,x,_),_,_) = Base.Main.Flag.is_bad x in
+      let just_locks = List.map (fun (_, dom_elem,_) -> (Mutex.Lockset.ReverseAddrSet.elements dom_elem) ) acc_list in     
+      let prys = List.map (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!"  )) just_locks in
+      let accprys = List.map (List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)) prys in
+      let maxpry = List.fold_left (fun y x -> if x > y then x else y) (min_int) accprys in
+      let minpry = List.fold_left (fun y x-> if x < y then x else y) (max_int) accprys in
         if not (Mutex.Lockset.is_empty locks || Mutex.Lockset.is_top locks) then
           Guarded locks
+	else if (maxpry=minpry) then
+	  Priority maxpry
         else if not (List.exists rw acc_list) then
           ReadOnly
         else if not (List.exists non_main acc_list) then
@@ -190,10 +166,11 @@ struct
     let report_race offset acc_list =
         let f  ((loc, fl, write), dom_elem,o) = 
           let lockstr = Mutex.Lockset.short 80 dom_elem in
-	  let priority = "-1" in
+	  let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!" ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem) in
+	  let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks  in
           let action = if write then "write" else "read" in
           let thread = if Mutex.BS.Flag.is_bad fl then "some thread" else "main thread" in
-          let warn = action ^ " in " ^ thread ^ " with priority " ^ priority ^ "and lockset: " ^ lockstr in
+          let warn = action ^ " in " ^ thread ^ " with priority " ^ (string_of_int pry) ^ " and lockset: " ^ lockstr in
             (warn,loc) in
         let warnings =  List.map f acc_list in
             let var_str = gl.vname ^ Mutex.Offs.short 80 offset in
@@ -210,6 +187,12 @@ struct
                     Mutex.M.print_group (safe_str "common mutex") warnings
                   else 
                     ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
+            | Priority pry ->
+                  if !Mutex.GU.allglobs then
+                    Mutex.M.print_group (safe_str "same priority") warnings
+                  else 
+                    ignore (printf "Found correlation: %s is guarded by priority %s\n" var_str (string_of_int pry))
+
             | ReadOnly ->
                 if !Mutex.GU.allglobs then
                   Mutex.M.print_group (safe_str "only read") warnings
@@ -218,17 +201,14 @@ struct
                   Mutex.M.print_group (safe_str "thread local") warnings
     in 
     let rw ((_,_,x),_,_) = x in
-    let _ =       print_endline ("bla1") in
     let acc = Mutex.NoBaseSpec.Acc.find acc gl in
-    let _ =       print_endline ("bla2") in
     let acc = if !Mutex.no_read then Mutex.NoBaseSpec.AccValSet.filter rw acc else acc in
-    let _ =       print_endline ("bla3") in
     let acc_info = create_map acc in
     let acc_map = if !Mutex.unmerged_fields then fst acc_info else regroup_map acc_info in
       Mutex.NoBaseSpec.OffsMap.iter report_race acc_map
     
   (** postprocess and print races and other output *)
-  let finalize () = ignore (Unix.system("rm -rf osek_temp") );Mutex.NoBaseSpec.finalize () (*
+  let finalize () =
     Mutex.NoBaseSpec.AccKeySet.iter postprocess_acc !Mutex.NoBaseSpec.accKeys;
     if !Mutex.GU.multi_threaded then begin
       match !race_free, !Messages.soundness with
@@ -250,23 +230,70 @@ struct
     end;
     ignore (Unix.system("rm -rf osek_temp") );
     Base.Main.finalize ()
-*)
+
   let init () =   
     if !oilFile != "" && Sys.file_exists(!oilFile) then begin
-      ignore (Unix.system("mkdir osek_temp") );
-      ignore (Unix.system( "ruby " ^ Filename.dirname(Sys.executable_name) ^"/scripts/parse_oil.rb " ^ !oilFile ^ " " ^ Filename.dirname(Sys.executable_name)) );
+      let _ = ignore (Unix.system "mkdir osek_temp") in
+      let path = Filename.dirname Sys.executable_name in
+      let oilp = path ^ "/osek_temp/priorities.txt" in     
+      let _ = ignore (Unix.system ("ruby " ^ path ^ "/scripts/parse_oil.rb " ^ !oilFile ^ " " ^ path)) in
+      let _ = Hashtbl.add priorities "default" (-1) in
       let tramp = Filename.dirname(!oilFile) ^ "/defaultAppWorkstation/tpl_os_generated_configuration.h" in
-      if Sys.file_exists(tramp) then begin
-	ignore (Unix.system ("ruby " ^ Filename.dirname(Sys.executable_name) ^ "/scripts/parse_trampoline.rb " ^ tramp ^ " " ^ Filename.dirname(Sys.executable_name)) )
+	if Sys.file_exists(tramp) then begin
+	  ignore (Unix.system ("ruby " ^ Filename.dirname(Sys.executable_name) ^ "/scripts/parse_trampoline.rb " ^ tramp ^ " " ^ Filename.dirname(Sys.executable_name)) )
+	end else begin
+	  prerr_endline "Trampoline headers not found." ;
+	  exit 2;
+	end;
+      let get_res_id name = 
+	if Sys.file_exists(Filename.dirname(Sys.executable_name) ^ "/osek_temp/resources.txt") then begin
+	  let res_ids = open_in (Filename.dirname(Sys.executable_name) ^ "/osek_temp/resources.txt") in
+	  let rec look_up id line = if line = name then id else look_up line (input_line res_ids) in 
+	  look_up "" (input_line res_ids)
+	end else begin
+	  prerr_endline "Resource identifiers could not be determined." ;
+	  exit 2;
+	end 
+      in
+      if (Sys.file_exists oilp) then begin
+	let oilf = open_in oilp in
+	let rec genp task line =
+	  match line with
+	  | "" -> ()
+	  | "default" -> let line' = input_line oilf in
+	     if (line' = "")  then () else begin try
+		let p = int_of_string line' in
+		Hashtbl.add priorities line p; 
+		genp task (input_line oilf)
+	      with Failure "int_of_string" -> genp task line'
+	    end
+	  | _ -> if is_task(line) then begin
+	      Hashtbl.add priorities line (int_of_string(input_line oilf));
+	      Hashtbl.add constantlocks line (makeGlobalVar line Cil.voidType);
+	      try genp line (input_line oilf)
+	      with End_of_file -> ()
+	    end else begin
+	      if not (Hashtbl.mem priorities line) then begin
+		Hashtbl.add constantlocks (get_res_id line) (makeVarinfo true line (TVoid []));
+		Hashtbl.add priorities line (Hashtbl.find priorities task);
+		try genp task (input_line oilf)      
+		with End_of_file -> ()
+	      end else if ((Hashtbl.find priorities task) > (Hashtbl.find priorities line)) then
+		Hashtbl.add priorities line (Hashtbl.find priorities task);
+	      try genp task (input_line oilf)      
+	      with End_of_file -> ()
+	    end
+	in
+	let _ = genp "default" (input_line oilf) in close_in oilf
       end else begin
-	prerr_endline "Trampoline headers not found." ;
+	prerr_endline "Priorites could not be determined." ;
+	exit 2;
+      end;
+      end else begin
+	prerr_endline "OIL-file does not exist." ;
 	exit 2;
       end
-    end else begin
-      prerr_endline "OIL-file does not exist." ;
-      exit 2;
     end
-end
 
 module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
 module Analysis : Analyses.S    = Multithread.Forward(Path)
