@@ -80,7 +80,7 @@ module RS = struct
   let replace x exp s = map (VFB.replace x exp) s
 end
 
-module P = struct 
+module RegPart = struct 
   include PartitionDomain.Make  (RS)
   let real_region r = 
     RS.cardinal r > 1 || try VFB.real_region (RS.choose r) 
@@ -88,29 +88,29 @@ module P = struct
 
   let add r p = if real_region r then add r p else p
 end
-module M = MapDomain.MapBot (VF) (RS)
+module RegMap = MapDomain.MapBot (VF) (RS)
 
 module Reg = 
 struct 
-  include Lattice.Prod (P) (M) 
+  include Lattice.Prod (RegPart) (RegMap) 
   type set = RS.t
   type elt = VF.t
   
-  let closure p m = M.map (P.closure p) m
+  let closure p m = RegMap.map (RegPart.closure p) m
 
   let is_global (v,fd) = v.vglob
 
-  let remove v (p,m) = p, M.remove (v,[]) m
+  let remove v (p,m) = p, RegMap.remove (v,[]) m
   let remove_vars (vs: varinfo list) (cp:t): t = 
     List.fold_right remove vs cp
 
   let kill x (p,m:t): t =
-    p, M.map (RS.kill x) m
+    p, RegMap.map (RS.kill x) m
 
   let kill_vars vars st = List.fold_right kill vars st
 
   let replace x exp (p,m:t): t =
-    P.map (RS.replace x exp) p, M.map (RS.replace x exp) m
+    RegPart.map (RS.replace x exp) p, RegMap.map (RS.replace x exp) m
 
   let update x rval st =
     match rval with 
@@ -145,14 +145,14 @@ struct
     if RS.has_bullet s then 
       let f key value (ys, x) = 
         if RS.has_bullet value then key::ys, RS.join value x else ys,x in
-      let ys,x = M.fold f m (llist, RS.remove_bullet s) in
+      let ys,x = RegMap.fold f m (llist, RS.remove_bullet s) in
       let x = RS.remove_bullet x in
         if RS.is_empty x then
-          p, M.add_list_set llist RS.single_bullet m
+          p, RegMap.add_list_set llist RS.single_bullet m
         else
-          P.add x p, M.add_list_set ys x m
+          RegPart.add x p, RegMap.add_list_set ys x m
     else
-      let p = P.add s p in
+      let p = RegPart.add s p in
         p, closure p m
 
   let assign (lval: lval) (rval: exp) (st: t): t =
@@ -164,17 +164,17 @@ struct
               let (p,m) = st in begin
                 match is_global x, deref_x, is_global y with
                   | false, false, true  -> 
-                      p, M.add x (P.closure p (RS.single_vf y)) m
+                      p, RegMap.add x (RegPart.closure p (RS.single_vf y)) m
                   | false, false, false -> 
-                      p, M.add x (M.find y m) m
+                      p, RegMap.add x (RegMap.find y m) m
                   | false, true , true ->
-                      add_set (RS.join (M.find x m) (RS.single_vf y)) [x] st
+                      add_set (RS.join (RegMap.find x m) (RS.single_vf y)) [x] st
                   | false, true , false ->
-                      add_set (RS.join (M.find x m) (M.find y m)) [x;y] st
+                      add_set (RS.join (RegMap.find x m) (RegMap.find y m)) [x;y] st
                   | true , _    , true  -> 
                       add_set (RS.join (RS.single_vf x) (RS.single_vf y)) [] st
                   | true , _    , false  -> 
-                      add_set (RS.join (RS.single_vf x) (M.find y m)) [y] st
+                      add_set (RS.join (RS.single_vf x) (RegMap.find y m)) [y] st
               end
         | _ -> st
     end else if isIntegralType (typeOf rval) then begin
@@ -188,16 +188,16 @@ struct
 
   let assign_bullet lval (p,m:t):t = 
     match eval_exp (Lval lval) with
-      | Some (_,x) -> p, M.add x RS.single_bullet m
+      | Some (_,x) -> p, RegMap.add x RS.single_bullet m
       | _ -> p,m
 
   let related_globals (deref_vfd: eval_t) (p,m: t): elt list = 
     match deref_vfd with
       | Some (true, vfd) -> RS.to_vf_list (
           if is_global vfd then 
-            P.find_class (VFB.of_vf vfd) p
+            RegPart.find_class (VFB.of_vf vfd) p
           else 
-            M.find vfd m)
+            RegMap.find vfd m)
       | Some (false, vfd) -> 
           if is_global vfd then [vfd] else []
       | None -> Messages.warn "Access to unknown address could be global"; [] 

@@ -206,7 +206,7 @@ struct
   let do_global_inits (file: Cil.file) : SD.t = 
     let early = !GU.earlyglobs in
     let edges = MyCFG.getGlobalInits file in
-    let theta x = Spec.Glob.Val.top () in
+    let theta x = Spec.Glob.Val.bot () in
     let transfer_func (st : Spec.Dom.t) (edge, loc) : Spec.Dom.t = 
       try
         if M.tracing then M.trace "con" (dprintf "Initializer %a\n" d_loc loc);
