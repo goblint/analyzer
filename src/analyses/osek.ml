@@ -7,6 +7,7 @@ struct
   module Glob = Mutex.NoBaseSpec.Glob
 
   let oilFile = ref ""
+  let path = Filename.dirname Sys.executable_name
 
   let priorities = Hashtbl.create 16
   let constantlocks = Hashtbl.create 16
@@ -228,26 +229,26 @@ struct
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;
-    ignore (Unix.system("rm -rf osek_temp") );
+    ignore (Unix.system("rm -rf " ^ path ^ "/osek_temp") );
     Base.Main.finalize ()
 
   let init () =   
-    if !oilFile != "" && Sys.file_exists(!oilFile) then begin
-      let _ = ignore (Unix.system "mkdir osek_temp") in
-      let path = Filename.dirname Sys.executable_name in
+    if !oilFile != "" && Sys.file_exists(!oilFile) then begin     
+      let _ = ignore (Unix.system ( "mkdir " ^ path ^ "/osek_temp")) in
       let oilp = path ^ "/osek_temp/priorities.txt" in     
-      let _ = ignore (Unix.system ("ruby " ^ path ^ "/scripts/parse_oil.rb " ^ !oilFile ^ " " ^ path)) in
+      let resp = path ^  "/osek_temp/resources.txt" in
+      let _ = ignore (Unix.system ("ruby " ^ path ^ "/scripts/parse_oil.rb " ^ (!oilFile) ^ " " ^ path)) in
       let _ = Hashtbl.add priorities "default" (-1) in
       let tramp = Filename.dirname(!oilFile) ^ "/defaultAppWorkstation/tpl_os_generated_configuration.h" in
 	if Sys.file_exists(tramp) then begin
-	  ignore (Unix.system ("ruby " ^ Filename.dirname(Sys.executable_name) ^ "/scripts/parse_trampoline.rb " ^ tramp ^ " " ^ Filename.dirname(Sys.executable_name)) )
+	  ignore (Unix.system ("ruby " ^ path ^ "/scripts/parse_trampoline.rb " ^ tramp ^ " " ^ path) )
 	end else begin
 	  prerr_endline "Trampoline headers not found." ;
 	  exit 2;
 	end;
       let get_res_id name = 
-	if Sys.file_exists(Filename.dirname(Sys.executable_name) ^ "/osek_temp/resources.txt") then begin
-	  let res_ids = open_in (Filename.dirname(Sys.executable_name) ^ "/osek_temp/resources.txt") in
+	if Sys.file_exists(resp ) then begin
+	  let res_ids = open_in (resp) in
 	  let rec look_up id line = if line = name then id else look_up line (input_line res_ids) in 
 	  look_up "" (input_line res_ids)
 	end else begin
@@ -290,7 +291,7 @@ struct
 	exit 2;
       end;
       end else begin
-	prerr_endline "OIL-file does not exist." ;
+	prerr_endline "OIL-file not found." ;
 	exit 2;
       end
     end
