@@ -71,11 +71,11 @@ struct
       | "ActivateTask" -> Mutex.Spec.special_fn a lval f arglist gl st (*call function *)
       | "ChainTask" -> Mutex.Spec.special_fn a lval f arglist gl st (*call function *)
       | "DisableAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("DEall"))) gl st
-      | "EnsableAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("DEall")))arglist gl st
-      | "SuspendAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRall")))arglist gl st
-      | "ResumeAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRall")))arglist gl st
-      | "SuspendOSInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRos")))arglist gl st
-      | "ResumeOSInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRos")))arglist gl st
+      | "EnsableAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("DEall"))) gl st
+      | "SuspendAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRall"))) gl st
+      | "ResumeAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRall"))) gl st
+      | "SuspendOSInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRos"))) gl st
+      | "ResumeOSInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRos"))) gl st
       | "TerminateTask" -> Mutex.Spec.special_fn a lval f arglist gl st (*check empty lockset*)
       | "WaitEvent" -> Mutex.Spec.special_fn a lval f arglist gl st (*check empty lockset*)
       | "SetEvent"
