@@ -101,8 +101,8 @@ let main () =
                  ("--uncalled", Arg.Set GU.print_uncalled, " Display uncalled functions.");
                  ("--result", Arg.String setstyle, "<style>  Result style: none, state, indented, compact, or pretty.");
                  ("--analysis", Arg.String setanalysis, "<name>  Deprecated: Picks the analysis: mcp.");
-                 ("--with", Arg.String (set_feature true), "<name>  Enables features: " ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList);
-                 ("--no", Arg.String (set_feature false), "<name>  Disables features: mutex, symb_locks, var_eq, uninit, malloc_null.");
+                 ("--with", Arg.String (set_feature true), "<name>  Enables features:" ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList^".");
+                 ("--no", Arg.String (set_feature false), "<name>  Disables features:" ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList^".");
                  ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
