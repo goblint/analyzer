@@ -30,28 +30,14 @@ module MakeSpec (Flag: ConcDomain.S) =
 struct
   exception Top
   module Flag = Flag
-  
-  (* interpreter begin *)
-   module CPA    = MapDomain.MapBot (Basetype.Variables) (VD) (*MemoryDomain.Stack (VD)*)
-   module Var    = Basetype.Variables    
-   module Vars   = SetDomain.Make (Printable.Prod (Var) (VD)) 
-   (*module VarSet = Ref (Vars)*)
-   module Glob = 
-   struct
-     module Var = Basetype.Variables
-     module Val = VD
-   end
-   (* Dom is a triple (CPA,Pre,Vars), but we do not print out the last part.*)
-   module Dom =
-   struct
-     module P2 = Lattice.Prod(CPA)(Flag)
-     include Lattice.Prod3 (CPA) (Flag) (Vars)
-     let short w (c,d,v)   = P2.short w (c,d)
-     let pretty_f sf () (c,d,v:t) = P2.pretty_f (fun w (x,y) -> sf w (x,y,v)) () (c,d)
-     let toXML_f sf (c,d,v:t) = P2.toXML_f (fun w (x,y) -> sf w (x,y,v)) (c,d)
-     let pretty = pretty_f short
-     let toXML  = toXML_f short
-   end
+
+  module VD     = BaseDomain.VD
+  module CPA    = BaseDomain.CPA 
+  module Var    = BaseDomain.Var    
+  module Vars   = BaseDomain.Vars
+
+  module Glob = BaseDomain.Glob 
+  module Dom  = BaseDomain.Dom (Flag)
 
   let name = "Constant Propagation Analysis"
   let startstate () = CPA.bot (), Flag.bot (), Vars.bot ()
@@ -1078,5 +1064,17 @@ end
 
 module Spec = MakeSpec (ConcDomain.Trivial)
 module Main = MakeSpec (ConcDomain.Simple)
+
+module BaseMCP = 
+  MCP.ConvertToMCPPart
+        (Main)
+        (struct let name = "base" 
+                type lf = Main.Dom.t
+                let inject_l x = `Base x
+                let extract_l x = match x with `Base x -> x | _ -> raise MCP.SpecificationConversionError
+                type gf = Main.Glob.Val.t
+                let inject_g x = `Base x
+                let extract_g x = match x with `Base x -> x | _ -> raise MCP.SpecificationConversionError
+         end)
 
 module Analysis = Multithread.Forward(Spec)

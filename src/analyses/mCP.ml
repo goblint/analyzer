@@ -1,33 +1,322 @@
-include Cil
-include Pretty
+(*
+  How to add an analysis to MCP?
+    1) Add a tag to type local_state and if needed global_state. 
+    2) Instanciate the ConvertToMCPPart module. (It will register itself to MCP.)
+
+  For example:
+  
+  type local_state = [ 
+      ...
+    | `AnalysisA of ADomain.t
+      ... ]
+    
+  module AMCP = 
+    MCP.ConvertToMCPPart
+          (<analysis spec>)
+          (struct let name = "<analysis name here>" 
+                  type lf = <analysis spec>.Dom.t
+                  let inject_l x = `AnalysisA x
+                  let extract_l x = match x with `AnalysisA x -> x | _ -> raise ToMCP.SpecificationConversionError
+                  type gf = <analysis spec>.Glob.Val.t
+                  let inject_g x = `None 
+                  let extract_g x = match x with `None -> () | _ -> raise ToMCP.SpecificationConversionError
+          end)
+          
+          
+   What we do here is to convert all specs to one type. After that we can create a 
+   list of analysis specs and use them dynamically (switching them on/off, controlling
+   path sensitivity)
+ *)
+
+open Pretty
+open Cil
+
+
+type 'a domRecord = {
+    matches: 'a -> bool;
+    equal: 'a -> 'a -> bool;
+    hash: 'a -> int;
+    compare: 'a -> 'a -> int;
+    short: int -> 'a -> string;
+    isSimple: 'a -> bool;
+    pretty: unit -> 'a -> doc;
+    why_not_leq: unit -> ('a * 'a) -> Pretty.doc;
+    toXML : 'a -> Xml.xml;
+    pretty_f: (int -> 'a -> string) -> unit -> 'a -> doc;
+    toXML_f : (int -> 'a -> string) -> 'a -> Xml.xml;
+    name: unit -> string  ;
+    leq: 'a -> 'a -> bool;
+    join: 'a -> 'a -> 'a;
+    meet: 'a -> 'a -> 'a;
+    bot: unit -> 'a;
+    is_bot: 'a -> bool;
+    top: unit -> 'a;
+    is_top: 'a -> bool;
+    widen: 'a -> 'a -> 'a;
+    narrow: 'a -> 'a -> 'a
+  }
+  
+type local_state = [ 
+    | `Base        of BaseDomain.Dom(ConcDomain.Simple).t
+    | `Mutex       of LockDomain.Lockset.t
+    | `SymbLocks   of LockDomain.Symbolic.t
+    | `VarEq       of PartitionDomain.ExpPartitions.t
+    | `Uninit      of ValueDomain.AddrSetDomain.t
+    | `Malloc_null of ValueDomain.AddrSetDomain.t
+    | `Thread      of ConcDomain.Simple.t
+    | `Region      of RegionDomain.RegionDom.t
+    | `OSEK        of LockDomain.Lockset.t
+    | `Bad ]
+    
+let analysesListLocal : local_state domRecord list ref = ref []
+
+type global_state = [
+    | `Base   of BaseDomain.Glob.Val.t
+    | `Region of RegionDomain.RegPart.t
+    | `None ]
+
+let analysesListGlobal : global_state domRecord list ref = ref []
+
+type analysisRecord = {
+    featurename : string;
+    dom_matches: local_state -> bool;
+    glob_matches: global_state -> bool;
+    analysis_name: string;
+    init: unit -> unit;
+    finalize: unit -> unit;
+    should_join: local_state -> local_state -> bool;
+    startstate: unit -> local_state;
+    otherstate: unit -> local_state;
+    es_to_string: fundec -> local_state -> string;  
+    reset_diff : local_state -> local_state;
+    get_diff : local_state -> (Basetype.Variables.t * global_state) list;
+    query: (Queries.t -> Queries.Result.t) -> (Basetype.Variables.t -> global_state) -> local_state -> Queries.t -> Queries.Result.t ;
+    assign: (Queries.t -> Queries.Result.t) ->  lval -> exp -> (Basetype.Variables.t -> global_state) -> local_state -> local_state ;
+    branch: (Queries.t -> Queries.Result.t) -> exp -> bool -> (Basetype.Variables.t -> global_state) -> local_state -> local_state;
+    body  : (Queries.t -> Queries.Result.t) -> fundec      -> (Basetype.Variables.t -> global_state) -> local_state -> local_state;
+    return: (Queries.t -> Queries.Result.t) -> exp option  -> fundec -> (Basetype.Variables.t -> global_state) -> local_state -> local_state;
+    eval_funvar: (Queries.t -> Queries.Result.t) -> exp -> (Basetype.Variables.t -> global_state) -> local_state -> varinfo list;
+    fork       : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Basetype.Variables.t -> global_state) -> local_state -> (varinfo * local_state) list  ;
+    special_fn : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Basetype.Variables.t -> global_state) -> local_state -> (local_state * Cil.exp * bool) list;
+    enter_func : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Basetype.Variables.t -> global_state) -> local_state -> (local_state * local_state) list ;
+    leave_func : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Basetype.Variables.t -> global_state) -> local_state -> local_state -> local_state
+  }
+
+let analysesList : analysisRecord list ref = ref []
+
+exception SpecificationConversionError
+
+module type MCPPartConf =
+sig
+  val name : string
+  
+  type lf
+  val inject_l  : lf -> local_state
+  val extract_l : local_state -> lf 
+  
+  type gf
+  val inject_g  : gf -> global_state
+  val extract_g : global_state -> gf
+end
+
+module type ConvConf =
+sig
+  type f
+  type t
+  val inject  : f -> t
+  val extract : t -> f 
+end
+module ConvertToDom 
+  (D:Lattice.S)
+  (C:ConvConf with type f = D.t)
+    : Lattice.S with type t = C.t =
+struct
+  type t = C.t
+  
+  let leq x y    = D.leq (C.extract x) (C.extract y)
+  let join x y   = C.inject (D.join (C.extract x) (C.extract y))
+  let meet x y   = C.inject (D.meet (C.extract x) (C.extract y))
+  let widen x y  = C.inject (D.widen (C.extract x) (C.extract y))
+  let narrow x y = C.inject (D.narrow (C.extract x) (C.extract y))
+  let top ()     = C.inject (D.top ())
+  let bot ()     = C.inject (D.bot ())
+  let is_bot x   = D.is_bot (C.extract x)
+  let is_top x   = D.is_top (C.extract x)
+
+  let equal x y        = D.equal (C.extract x) (C.extract y)
+  let hash x           = D.hash (C.extract x)
+  let compare x y      = D.compare (C.extract x) (C.extract y)
+  let short w x        = D.short w (C.extract x)
+  let isSimple x       = D.isSimple (C.extract x)
+  let pretty () x      = D.pretty () (C.extract x)
+  let toXML x          = D.toXML (C.extract x)
+  let pretty_f sf () x = D.pretty_f (fun w x -> sf w (C.inject x)) () (C.extract x)
+  let toXML_f sf  x    = D.toXML_f (fun w x -> sf w (C.inject x)) (C.extract x)
+  let name             = D.name 
+  
+  let why_not_leq () (x,y) = D.why_not_leq () (C.extract x, C.extract y) 
+end
+
+module ConvertToMCPPart 
+  (S:Analyses.Spec) 
+  (C:MCPPartConf with type lf = S.Dom.t and type gf = S.Glob.Val.t) 
+    (*: Analyses.Spec*) =
+struct
+  open C
+  let matches x = 
+    try let _ = extract_l x in
+        true
+    with SpecificationConversionError -> false
+  
+  let matches_g x = 
+    try let _ = extract_g x in
+        true
+    with SpecificationConversionError -> false
+  
+  module Dom : Lattice.S with type t = local_state =
+    ConvertToDom (S.Dom) (struct type f = C.lf
+                                 type t = local_state
+                                 let inject = C.inject_l
+                                 let extract = C.extract_l
+                          end)
+                          
+  module Glob = 
+  struct
+    module Var = Basetype.Variables
+    module Val : Lattice.S with type t = global_state =
+      ConvertToDom (S.Glob.Val) (struct type f = C.gf
+                                        type t = global_state
+                                        let inject = C.inject_g
+                                        let extract = C.extract_g
+                                 end)
+  end
+  
+  let name     = S.name
+  let init     = S.init
+  let finalize = S.finalize
+  
+  let should_join x y = S.should_join (C.extract_l x) (C.extract_l y)
+  let startstate () = C.inject_l (S.startstate ())
+  let otherstate () = C.inject_l (S.otherstate ())
+  let es_to_string f x = S.es_to_string f (C.extract_l x)
+  
+  let reset_diff x = C.inject_l (S.reset_diff (C.extract_l x))
+  let get_diff x = List.map (fun (x,y) -> x, C.inject_g y) (S.get_diff (C.extract_l x)) 
+  
+  let query uq g l q =
+    S.query uq (fun x -> C.extract_g (g x)) (C.extract_l l) q
+  
+  let assign a lval exp g l = 
+    C.inject_l (S.assign a lval exp (fun x -> C.extract_g (g x)) (C.extract_l l))
+  let branch a exp tv g l =
+    C.inject_l (S.branch a exp tv (fun x -> C.extract_g (g x)) (C.extract_l l))
+  let body a f g l =
+    C.inject_l (S.body a f (fun x -> C.extract_g (g x)) (C.extract_l l))
+  let return a r f g l =
+    C.inject_l (S.return a r f (fun x -> C.extract_g (g x)) (C.extract_l l))
+  
+  let eval_funvar a exp g l =
+    S.eval_funvar a exp (fun x -> C.extract_g (g x)) (C.extract_l l)
+  let fork a r f args g l =
+    let r = S.fork a r f args (fun x -> C.extract_g (g x)) (C.extract_l l) in
+    List.map (fun (v,d) -> v, C.inject_l d) r
+  let special_fn a r f args g l =
+    let r = S.special_fn a r f args (fun x -> C.extract_g (g x)) (C.extract_l l) in
+    List.map (fun (d,e,b) -> C.inject_l d, e, b) r
+  let enter_func a r f args g l =
+    let r = S.enter_func a r f args (fun x -> C.extract_g (g x)) (C.extract_l l) in
+    List.map (fun (d1,d2) -> C.inject_l d1, C.inject_l d2) r
+  let leave_func a r f args g l1 l2 =
+    let r = S.leave_func a r f args (fun x -> C.extract_g (g x)) (C.extract_l l1) (C.extract_l l2) in
+    C.inject_l r
+    
+  let _ = 
+    analysesListLocal :=
+      { matches     = matches;
+        top         = Dom.top; 
+        bot         = Dom.bot; 
+        narrow      = Dom.narrow; 
+        widen       = Dom.widen; 
+        is_top      = Dom.is_top; 
+        is_bot      = Dom.is_bot; 
+        meet        = Dom.meet; 
+        join        = Dom.join; 
+        leq         = Dom.leq;
+        why_not_leq = Dom.why_not_leq; 
+        short       = Dom.short; 
+        toXML       = Dom.toXML;
+        toXML_f     = Dom.toXML_f; 
+        pretty      = Dom.pretty;
+        pretty_f    = Dom.pretty_f; 
+        isSimple    = Dom.isSimple; 
+        compare     = Dom.compare; 
+        equal       = Dom.equal; 
+        name        = Dom.name; 
+        hash        = Dom.hash }
+      :: !analysesListLocal;
+    analysesListGlobal :=
+      { matches     = matches_g;
+        top         = Glob.Val.top; 
+        bot         = Glob.Val.bot; 
+        narrow      = Glob.Val.narrow; 
+        widen       = Glob.Val.widen; 
+        is_top      = Glob.Val.is_top; 
+        is_bot      = Glob.Val.is_bot; 
+        meet        = Glob.Val.meet; 
+        join        = Glob.Val.join; 
+        leq         = Glob.Val.leq;
+        why_not_leq = Glob.Val.why_not_leq; 
+        short       = Glob.Val.short; 
+        toXML       = Glob.Val.toXML;
+        toXML_f     = Glob.Val.toXML_f; 
+        pretty      = Glob.Val.pretty;
+        pretty_f    = Glob.Val.pretty_f; 
+        isSimple    = Glob.Val.isSimple; 
+        compare     = Glob.Val.compare; 
+        equal       = Glob.Val.equal; 
+        name        = Glob.Val.name; 
+        hash        = Glob.Val.hash }
+      :: !analysesListGlobal ;
+    analysesList :=
+      { featurename = C.name;
+        dom_matches   = matches;
+        glob_matches  = matches_g;
+        analysis_name = name;
+        init          = init;
+        finalize      = finalize;
+        should_join   = should_join;
+        startstate    = startstate;
+        otherstate    = otherstate;
+        es_to_string  = es_to_string;
+        reset_diff    = reset_diff;
+        get_diff      = get_diff;
+        query         = query;
+        assign        = assign;
+        branch        = branch;
+        body          = body  ;
+        return        = return;
+        eval_funvar   = eval_funvar;
+        fork          = fork ;      
+        special_fn    = special_fn ;
+        enter_func    = enter_func ;
+        leave_func    = leave_func 
+      } :: !analysesList
+end
 
 module GU = Goblintutil
 module JB = Json_type.Browse
 
-module Domain (Base : Analyses.Spec)=
+exception DomainBroken
+    
+module Domain =
 struct
-  exception DomainBroken
   
-  (* This type should contain all analyses that do not depend on base.*)
-  type e = Base        of Base.Dom.t
-         | Mutex       of Mutex.NoBaseSpec.Dom.t
-         | SymbLocks   of SymbLocks.Spec.Dom.t
-         | VarEq       of VarEq.Spec.Dom.t
-         | Uninit      of Uninit.Spec.Dom.t
-         | Malloc_null of Malloc_null.Spec.Dom.t
-         | Thread      of Thread.Spec.Dom.t
-         | Region      of Region.Spec.Dom.t
-	 | OSEK	       of Osek.Spec.Dom.t
-         | Bad
-  
-  (* We pair list of configurable analyses with multithreadidness flag domain. *)
-  type t = e list
+  type t = local_state list
   
   let take_list = ref [] 
-  
   let init () = 
-    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
-    let order = ["base";"OSEK"; "thread";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
+    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in 
+    let order = List.map (fun x -> x.featurename ) !analysesList in
     let f s y = JB.bool (JB.field int_ds s) :: y in
     take_list := List.fold_right f order []
   
@@ -36,252 +325,143 @@ struct
   let constr_scheme xs =
     let f take x xs = if take then x()::xs else xs in
     List.fold_right2 f !take_list xs []
-    
-  (* constructors *)
+
   let top () = constr_scheme
-    [(fun () -> Base   (Base.Dom.top ()))
-    ;(fun () -> OSEK   (Osek.Spec.Dom.top ()))
-    ;(fun () -> Thread  (Thread.Spec.Dom.top ()))
-    ;(fun () -> Mutex  (Mutex.NoBaseSpec.Dom.top ()))
-    ;(fun () -> SymbLocks (SymbLocks.Spec.Dom.top ()))
-    ;(fun () -> Uninit (Uninit.Spec.Dom.top ()))
-    ;(fun () -> Malloc_null (Malloc_null.Spec.Dom.top ()))
-    ;(fun () -> Region (Region.Spec.Dom.top ()))
-    ;(fun () -> VarEq  (VarEq.Spec.Dom.top ()))]
-      
+    (List.map (fun p -> p.top) !analysesListLocal)
+
   let bot () = constr_scheme
-    [(fun () -> Base   (Base.Dom.bot ()))
-    ;(fun () -> OSEK   (Osek.Spec.Dom.bot ()))
-    ;(fun () -> Thread  (Thread.Spec.Dom.bot ()))
-    ;(fun () -> Mutex  (Mutex.NoBaseSpec.Dom.bot ()))
-    ;(fun () -> SymbLocks (SymbLocks.Spec.Dom.bot ()))
-    ;(fun () -> Uninit (Uninit.Spec.Dom.bot ()))
-    ;(fun () -> Malloc_null (Malloc_null.Spec.Dom.bot ()))
-    ;(fun () -> Region (Region.Spec.Dom.bot ()))
-    ;(fun () -> VarEq  (VarEq.Spec.Dom.bot ()))]
-  
+    (List.map (fun p -> p.bot) !analysesListLocal)
 
-  let startstate () = constr_scheme
-    [(fun () -> Base   (Base.startstate ()))
-    ;(fun () -> OSEK  (Osek.Spec.startstate ()))
-    ;(fun () -> Thread  (Thread.Spec.startstate ()))
-    ;(fun () -> Mutex  (Mutex.NoBaseSpec.startstate ()))
-    ;(fun () -> SymbLocks (SymbLocks.Spec.startstate ()))
-    ;(fun () -> Uninit (Uninit.Spec.startstate ()))
-    ;(fun () -> Malloc_null (Malloc_null.Spec.startstate ()))
-    ;(fun () -> Region (Region.Spec.startstate ()))
-    ;(fun () -> VarEq  (VarEq.Spec.startstate ()))]
-
-  let otherstate () = constr_scheme
-    [(fun () -> Base   (Base.otherstate ()))
-    ;(fun () -> OSEK   (Osek.Spec.otherstate ()))
-    ;(fun () -> Thread  (Thread.Spec.otherstate ()))
-    ;(fun () -> Mutex  (Mutex.NoBaseSpec.otherstate ()))
-    ;(fun () -> SymbLocks (SymbLocks.Spec.otherstate ()))
-    ;(fun () -> Uninit (Uninit.Spec.otherstate ()))
-    ;(fun () -> Malloc_null (Malloc_null.Spec.otherstate ()))
-    ;(fun () -> Region (Region.Spec.otherstate ()))
-    ;(fun () -> VarEq  (VarEq.Spec.otherstate ()))]
+  let get_matches y =
+    let rec f xs = 
+      match xs with
+        | [] ->  raise DomainBroken
+        | x :: _ when x.matches y -> x
+        | _ :: xs -> f xs
+    in
+    f !analysesListLocal
 
   (* element lattice functions *)
-  let narrow' x y =
-    match x, y with
-      | Base x, Base y -> Base (Base.Dom.narrow x y)
-      | OSEK x, OSEK y -> OSEK (Osek.Spec.Dom.narrow x y)
-      | Thread x, Thread y -> Thread (Thread.Spec.Dom.narrow x y)
-      | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.narrow x y)
-      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.narrow x y)
-      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.narrow x y)
-      | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.narrow x y)
-      | Region x, Region y -> Region (Region.Spec.Dom.narrow x y)
-      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.narrow x y)
-      | _ -> raise DomainBroken
-
-  let widen' x y =
-    match x, y with
-      | Base x, Base y -> Base (Base.Dom.widen x y)
-      | OSEK x, OSEK y -> OSEK (Osek.Spec.Dom.widen x y)	
-      | Thread x, Thread y -> Thread (Thread.Spec.Dom.widen x y)
-      | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.widen x y)
-      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.widen x y)
-      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.widen x y)
-      | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.widen x y)
-      | Region x, Region y -> Region (Region.Spec.Dom.widen x y)
-      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.widen x y)
-      | _ -> raise DomainBroken
-
-  let is_top' x =
-    match x with
-      | Base x -> Base.Dom.is_top x
-      | OSEK x -> Osek.Spec.Dom.is_top x
-      | Thread x -> Thread.Spec.Dom.is_top x
-      | Mutex x -> Mutex.NoBaseSpec.Dom.is_top x
-      | SymbLocks x -> SymbLocks.Spec.Dom.is_top x
-      | Uninit x -> Uninit.Spec.Dom.is_top x
-      | Malloc_null x -> Malloc_null.Spec.Dom.is_top x
-      | Region x -> Region.Spec.Dom.is_top x
-      | VarEq x -> VarEq.Spec.Dom.is_top x
-      | _ -> raise DomainBroken
+  let narrow' x y = (get_matches x).narrow x y
+  let widen' x y  = (get_matches x).widen x y
+  let is_top' x   = (get_matches x).is_top x
+  let is_bot' x   = (get_matches x).is_bot x 
+  let meet' x y   = (get_matches x).meet x y
+  let join' x y   = (get_matches x).join x y
+  let leq' x y    = (get_matches x).leq x y   
+  let why_not_leq' x y acc = if leq' x y then acc else (get_matches x).why_not_leq () (x,y) 
   
-  let is_bot' x =
-    match x with
-      | Base x -> Base.Dom.is_bot x
-      | OSEK x -> Osek.Spec.Dom.is_bot x
-      | Thread x -> Thread.Spec.Dom.is_bot x
-      | Mutex x -> Mutex.NoBaseSpec.Dom.is_bot x
-      | SymbLocks x -> SymbLocks.Spec.Dom.is_bot x
-      | Uninit x -> Uninit.Spec.Dom.is_bot x
-      | Malloc_null x -> Malloc_null.Spec.Dom.is_bot x
-      | Region x -> Region.Spec.Dom.is_bot x
-      | VarEq x -> VarEq.Spec.Dom.is_bot x
-      | _ -> raise DomainBroken
+  let short' w x        = (get_matches x).short w x
+  let toXML_f' sf x     = (get_matches x).toXML_f sf x
+  let pretty_f' sf () x = (get_matches x).pretty_f sf () x
+  let isSimple' x       = (get_matches x).isSimple x
+  let compare' x y      = (get_matches x).compare x y
+  let equal' x y        = (get_matches x).equal x y  
+  let hash' x           = (get_matches x).hash x
 
-  let meet' x y =
-    match x, y with
-      | Base x, Base y -> Base (Base.Dom.meet x y)
-      | OSEK x, OSEK y -> OSEK (Osek.Spec.Dom.meet x y)
-      | Thread x, Thread y -> Thread (Thread.Spec.Dom.meet x y)
-      | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.meet x y)
-      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.meet x y)
-      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.meet x y)
-      | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.meet x y)
-      | Region x, Region y -> Region (Region.Spec.Dom.meet x y)
-      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.meet x y)
-      | _ -> raise DomainBroken
-
-  let join' x y =
-    match x, y with
-      | Base x, Base y -> Base (Base.Dom.join x y)
-      | OSEK x, OSEK y -> OSEK (Osek.Spec.Dom.join x y)
-      | Thread x, Thread y -> Thread (Thread.Spec.Dom.join x y)
-      | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Dom.join x y)
-      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Dom.join x y)
-      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Dom.join x y)
-      | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Dom.join x y)
-      | Region x, Region y -> Region (Region.Spec.Dom.join x y)
-      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Dom.join x y)
-      | _ -> raise DomainBroken
-
-  let leq' x y =
-    match x, y with
-      | Base x, Base y -> Base.Dom.leq x y
-      | OSEK x, OSEK y -> Osek.Spec.Dom.leq x y
-      | Thread x, Thread y -> Thread.Spec.Dom.leq x y
-      | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.leq x y
-      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.leq x y
-      | Uninit x, Uninit y -> Uninit.Spec.Dom.leq x y
-      | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Dom.leq x y
-      | Region x, Region y -> Region.Spec.Dom.leq x y
-      | VarEq x, VarEq y -> VarEq.Spec.Dom.leq x y
-      | _ -> raise DomainBroken
+  let toXML' x          = toXML_f' short' x
+  let pretty' x         = pretty_f' short' x
       
-  let why_not_leq' x y acc = if leq' x y then acc else
-    match x, y with
-      | Base x, Base y -> Base.Dom.why_not_leq () (x,y)
-      | OSEK x, OSEK y -> Osek.Spec.Dom.why_not_leq () (x,y)
-      | Thread x, Thread y -> Thread.Spec.Dom.why_not_leq () (x,y)
-      | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.why_not_leq () (x,y)
-      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.why_not_leq () (x,y)
-      | Uninit x, Uninit y -> Uninit.Spec.Dom.why_not_leq () (x,y)
-      | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Dom.why_not_leq () (x,y)
-      | Region x, Region y -> Region.Spec.Dom.why_not_leq () (x,y)
-      | VarEq x, VarEq y -> VarEq.Spec.Dom.why_not_leq () (x,y)
-      | _ -> raise DomainBroken
+  (* combining element functions to list functions *)
+  
+  let name () = "Domain"
+  let narrow = List.map2 narrow' 
+  let widen  = List.map2 widen'  
+  let meet   = List.map2 meet'   
+  let join   = List.map2 join'   
 
-  let short' w x =
+  let is_top = List.for_all is_top' 
+  let is_bot = List.for_all is_bot'
+  let leq    = List.for_all2 leq' 
+  let why_not_leq () (x,y): Pretty.doc = List.fold_right2 why_not_leq' x y Pretty.nil
+    
+  let short _ = List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""
+  
+  let pretty_f _ () x = 
     match x with
-      | Base x -> Base.Dom.short w x
-      | OSEK x -> Osek.Spec.Dom.short w x
-      | Thread x -> Thread.Spec.Dom.short w x
-      | Mutex x -> Mutex.NoBaseSpec.Dom.short w x
-      | SymbLocks x -> SymbLocks.Spec.Dom.short w x
-      | Uninit x -> Uninit.Spec.Dom.short w x
-      | Malloc_null x -> Malloc_null.Spec.Dom.short w x
-      | Region x -> Region.Spec.Dom.short w x
-      | VarEq x -> VarEq.Spec.Dom.short w x
-      | _ -> raise DomainBroken
-      
-  let toXML_f' sf x =
-    match x with
-      | Base x -> Base.Dom.toXML_f (fun w x -> sf w (Base x)) x
-      | OSEK x -> Osek.Spec.Dom.toXML_f (fun w x -> sf w (OSEK x)) x
-      | Thread x -> Thread.Spec.Dom.toXML_f (fun w x -> sf w (Thread x)) x
-      | Mutex x -> Mutex.NoBaseSpec.Dom.toXML_f (fun w x -> sf w (Mutex x)) x
-      | SymbLocks x -> SymbLocks.Spec.Dom.toXML_f (fun w x -> sf w (SymbLocks x)) x
-      | Uninit x -> Uninit.Spec.Dom.toXML_f (fun w x -> sf w (Uninit x)) x
-      | Malloc_null x -> Malloc_null.Spec.Dom.toXML_f (fun w x -> sf w (Malloc_null x)) x
-      | Region x -> Region.Spec.Dom.toXML_f (fun w x -> sf w (Region x)) x
-      | VarEq x -> VarEq.Spec.Dom.toXML_f (fun w x -> sf w (VarEq x)) x
-      | _ -> raise DomainBroken
-      
-  let pretty_f' sf () x =
-    match x with
-      | Base x -> Base.Dom.pretty_f (fun w x -> sf w (Base x)) () x
-      | OSEK x -> Osek.Spec.Dom.pretty_f (fun w x -> sf w (OSEK x)) () x
-      | Thread x -> Thread.Spec.Dom.pretty_f (fun w x -> sf w (Thread x)) () x
-      | Mutex x -> Mutex.NoBaseSpec.Dom.pretty_f (fun w x -> sf w (Mutex x)) () x
-      | SymbLocks x -> SymbLocks.Spec.Dom.pretty_f (fun w x -> sf w (SymbLocks x)) () x
-      | Uninit x -> Uninit.Spec.Dom.pretty_f (fun w x -> sf w (Uninit x)) () x
-      | Malloc_null x -> Malloc_null.Spec.Dom.pretty_f (fun w x -> sf w (Malloc_null x)) () x
-      | Region x -> Region.Spec.Dom.pretty_f (fun w x -> sf w (Region x)) () x
-      | VarEq x -> VarEq.Spec.Dom.pretty_f (fun w x -> sf w (VarEq x)) () x
-      | _ -> raise DomainBroken
-      
-  let toXML' x = toXML_f' short' x
-      
-  let pretty' x = pretty_f' short' x
-      
-  let isSimple' x =
-    match x with
-      | Base x -> Base.Dom.isSimple x
-      | OSEK x -> Osek.Spec.Dom.isSimple x
-      | Thread x -> Thread.Spec.Dom.isSimple x
-      | Mutex x -> Mutex.NoBaseSpec.Dom.isSimple x
-      | SymbLocks x -> SymbLocks.Spec.Dom.isSimple x
-      | Uninit x -> Uninit.Spec.Dom.isSimple x
-      | Malloc_null x -> Malloc_null.Spec.Dom.isSimple x
-      | Region x -> Region.Spec.Dom.isSimple x
-      | VarEq x -> VarEq.Spec.Dom.isSimple x
-      | _ -> raise DomainBroken
+      | [] -> text "()"
+      | x :: [] -> pretty' () x
+      | x :: y ->
+        let first = pretty' () x in
+        let rest  = List.fold_left (fun p n->p ++ text "," ++ pretty' () n) (text "") y in
+        text "(" ++ first ++ rest ++ text ")"
 
-  let compare' x y =
-    match x, y with
-      | Base x, Base y -> Base.Dom.compare x y
-      | OSEK x, OSEK y -> Osek.Spec.Dom.compare x y
-      | Thread x, Thread y -> Thread.Spec.Dom.compare x y
-      | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.compare x y
-      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.compare x y
-      | Uninit x, Uninit y -> Uninit.Spec.Dom.compare x y
-      | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Dom.compare x y
-      | Region x, Region y -> Region.Spec.Dom.compare x y
-      | VarEq x, VarEq y -> VarEq.Spec.Dom.compare x y
-      | _ -> raise DomainBroken
+  let pretty = pretty_f short 
 
-  let equal' x y =
-    match x, y with
-      | Base x, Base y -> Base.Dom.equal x y
-      | OSEK x, OSEK y -> Osek.Spec.Dom.equal x y
-      | Thread x, Thread y -> Thread.Spec.Dom.equal x y
-      | Mutex x, Mutex y -> Mutex.NoBaseSpec.Dom.equal x y
-      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Dom.equal x y
-      | Uninit x, Uninit y -> Uninit.Spec.Dom.equal x y
-      | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Dom.equal x y
-      | Region x, Region y -> Region.Spec.Dom.equal x y
-      | VarEq x, VarEq y -> VarEq.Spec.Dom.equal x y
-      | _ -> raise DomainBroken
+  let toXML_f sf x =
+    let esc = Goblintutil.escape in
+    let nodes = List.map toXML' x in
+    let node_leaf = if nodes = [] then "Leaf" else "Node" in
+      Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length x))], nodes)
 
-  let hash' x =
-    match x with
-      | Base x-> Base.Dom.hash x
-      | OSEK x-> Osek.Spec.Dom.hash x
-      | Thread x-> Thread.Spec.Dom.hash x
-      | Mutex x-> Mutex.NoBaseSpec.Dom.hash x
-      | SymbLocks x-> SymbLocks.Spec.Dom.hash x
-      | Uninit x-> Uninit.Spec.Dom.hash x
-      | Malloc_null x-> Malloc_null.Spec.Dom.hash x
-      | Region x-> Region.Spec.Dom.hash x
-      | VarEq x-> VarEq.Spec.Dom.hash x
-      | _ -> raise DomainBroken
+  let toXML = toXML_f short
+  
+  let isSimple = List.for_all isSimple'
+  let equal    = List.for_all2 equal' 
+
+  let compare =
+    let f a x y =
+      if a == 0 
+      then compare' x y
+      else a
+    in
+    List.fold_left2 f 0
+    
+  let hash = List.fold_left (fun x y -> x lxor (hash' y)) 0 
+end
+
+module GlobDomain =
+struct
+  type t = global_state list
+  
+  let take_list = ref [] 
+  let init () = 
+    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
+    let order = List.map (fun x -> x.featurename) !analysesList in
+    let f s y = JB.bool (JB.field int_ds s) :: y in
+    take_list := List.fold_right f order []
+  
+  (* Constructor scheme stuff: we take a list of values and then filter out
+     ones that are disabled. *)
+  let constr_scheme xs =
+    let f take x xs = if take then x()::xs else xs in
+    List.fold_right2 f !take_list xs []
+
+  let top () = constr_scheme
+    (List.map (fun p -> p.top) !analysesListGlobal)
+
+  let bot () = constr_scheme
+    (List.map (fun p -> p.bot) !analysesListGlobal)
+    
+  let get_matches y =
+    let rec f xs = 
+      match xs with
+        | [] ->  raise DomainBroken
+        | x :: _ when x.matches y -> x
+        | _ :: xs -> f xs
+    in
+    f !analysesListGlobal
+
+  (* element lattice functions *)
+  let narrow' x y = (get_matches x).narrow x y
+  let widen' x y  = (get_matches x).widen x y
+  let is_top' x   = (get_matches x).is_top x
+  let is_bot' x   = (get_matches x).is_bot x 
+  let meet' x y   = (get_matches x).meet x y
+  let join' x y   = (get_matches x).join x y
+  let leq' x y    = (get_matches x).leq x y   
+  let why_not_leq' x y acc = if leq' x y then acc else (get_matches x).why_not_leq () (x,y) 
+  
+  let short' w x        = (get_matches x).short w x
+  let toXML_f' sf x     = (get_matches x).toXML_f sf x
+  let pretty_f' sf () x = (get_matches x).pretty_f sf () x
+  let isSimple' x       = (get_matches x).isSimple x
+  let compare' x y      = (get_matches x).compare x y
+  let equal' x y        = (get_matches x).equal x y  
+  let hash' x           = (get_matches x).hash x
+
+  let toXML' x          = toXML_f' short' x
+  let pretty' x         = pretty_f' short' x
 
   (* combining element functions to list functions *)
   
@@ -331,612 +511,114 @@ struct
   let hash = List.fold_left (fun x y -> x lxor (hash' y)) 0 
 end
 
-module GlobalDomain (Base : Analyses.Spec)=
+
+
+
+module Spec 
+  : Analyses.Spec 
+    with type Dom.t = local_state list 
+     and type Glob.Val.t = global_state list = 
 struct
-  exception DomainBroken
-  include Printable.Std
-
-  
-  (* This type should contain all analyses. *)
-  type e = Base        of Base.Glob.Val.t
-         | Mutex       of Mutex.NoBaseSpec.Glob.Val.t
-         | SymbLocks   of SymbLocks.Spec.Glob.Val.t
-         | Uninit      of Uninit.Spec.Glob.Val.t
-         | Malloc_null of Malloc_null.Spec.Glob.Val.t
-         | VarEq       of VarEq.Spec.Glob.Val.t
-         | Thread      of Thread.Spec.Glob.Val.t
-         | Region      of Region.Spec.Glob.Val.t
-	 | OSEK        of Osek.Spec.Glob.Val.t
-         | Bad
-  
-  (* We pair list of configurable analyses with multithreadidness flag domain. *)
-  type t = e list
-  
-  let take_list = ref []   
-  let init () = 
-    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
-    let order = ["base";"OSEK";"thread";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
-    let f s y = JB.bool (JB.field int_ds s) :: y in
-    take_list := List.fold_right f order []
-  
-  (* Constructor scheme stuff: we take a list of values and then filter out
-     ones that are disabled. *)
-  let constr_scheme xs =
-    let f take x xs = if take then x()::xs else xs in
-    List.fold_right2 f !take_list xs []
-    
-    
-  (* constructors *)
-  let top () = constr_scheme
-    [(fun () -> Base   (Base.Glob.Val.top ()))
-    ;(fun () -> OSEK   (Osek.Spec.Glob.Val.top ()))
-    ;(fun () -> Thread (Thread.Spec.Glob.Val.top ()))
-    ;(fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.top ()))
-    ;(fun () -> SymbLocks (SymbLocks.Spec.Glob.Val.top ()))
-    ;(fun () -> Uninit (Uninit.Spec.Glob.Val.top ()))
-    ;(fun () -> Malloc_null (Malloc_null.Spec.Glob.Val.top ()))
-    ;(fun () -> Region (Region.Spec.Glob.Val.top ()))
-    ;(fun () -> VarEq  (VarEq.Spec.Glob.Val.top ()))]
-      
-  let bot () = constr_scheme
-    [(fun () -> Base   (Base.Glob.Val.bot ()))
-    ;(fun () -> OSEK   (Osek.Spec.Glob.Val.bot ()))
-    ;(fun () -> Thread (Thread.Spec.Glob.Val.bot ()))
-    ;(fun () -> Mutex  (Mutex.NoBaseSpec.Glob.Val.bot ()))
-    ;(fun () -> SymbLocks (SymbLocks.Spec.Glob.Val.bot ()))
-    ;(fun () -> Uninit (Uninit.Spec.Glob.Val.bot ()))
-    ;(fun () -> Malloc_null (Malloc_null.Spec.Glob.Val.bot ()))
-    ;(fun () -> Region (Region.Spec.Glob.Val.bot ()))
-    ;(fun () -> VarEq  (VarEq.Spec.Glob.Val.bot ()))]
-
-  (* element lattice functions *)
-  
-  let narrow' x y =
-    match x, y with
-      | Base x, Base y -> Base (Base.Glob.Val.narrow x y)
-      | OSEK x, OSEK y -> OSEK (Osek.Spec.Glob.Val.narrow x y)
-      | Thread x, Thread y -> Thread (Thread.Spec.Glob.Val.narrow x y)
-      | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.narrow x y)
-      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.narrow x y)
-      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.narrow x y)
-      | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.narrow x y)
-      | Region x, Region y -> Region (Region.Spec.Glob.Val.narrow x y)
-      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.narrow x y)
-      | _ -> raise DomainBroken
-
-  let widen' x y =
-    match x, y with
-      | Base x, Base y -> Base (Base.Glob.Val.widen x y)
-      | OSEK x, OSEK y -> OSEK (Osek.Spec.Glob.Val.widen x y)
-      | Thread x, Thread y -> Thread (Thread.Spec.Glob.Val.widen x y)
-      | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.widen x y)
-      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.widen x y)
-      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.widen x y)
-      | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.widen x y)
-      | Region x, Region y -> Region (Region.Spec.Glob.Val.widen x y)
-      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.widen x y)
-      | _ -> raise DomainBroken
-
-  let is_top' x =
-    match x with
-      | Base x -> Base.Glob.Val.is_top x
-      | OSEK x -> Osek.Spec.Glob.Val.is_top x
-      | Thread x -> Thread.Spec.Glob.Val.is_top x
-      | Mutex x -> Mutex.NoBaseSpec.Glob.Val.is_top x
-      | SymbLocks x -> SymbLocks.Spec.Glob.Val.is_top x
-      | Uninit x -> Uninit.Spec.Glob.Val.is_top x
-      | Malloc_null x -> Malloc_null.Spec.Glob.Val.is_top x
-      | Region x -> Region.Spec.Glob.Val.is_top x
-      | VarEq x -> VarEq.Spec.Glob.Val.is_top x
-      | _ -> raise DomainBroken
-  
-  let is_bot' x =
-    match x with
-      | Base x -> Base.Glob.Val.is_bot x
-      | OSEK x -> Osek.Spec.Glob.Val.is_bot x
-      | Thread x -> Thread.Spec.Glob.Val.is_bot x
-      | Mutex x -> Mutex.NoBaseSpec.Glob.Val.is_bot x
-      | SymbLocks x -> SymbLocks.Spec.Glob.Val.is_bot x
-      | Uninit x -> Uninit.Spec.Glob.Val.is_bot x
-      | Malloc_null x -> Malloc_null.Spec.Glob.Val.is_bot x
-      | Region x -> Region.Spec.Glob.Val.is_bot x
-      | VarEq x -> VarEq.Spec.Glob.Val.is_bot x
-      | _ -> raise DomainBroken
-
-  let meet' x y =
-    match x, y with
-      | Base x, Base y -> Base (Base.Glob.Val.meet x y)
-      | OSEK x, OSEK y -> OSEK (Osek.Spec.Glob.Val.meet x y)
-      | Thread x, Thread y -> Thread (Thread.Spec.Glob.Val.meet x y)
-      | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.meet x y)
-      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.meet x y)
-      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.meet x y)
-      | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.meet x y)
-      | Region x, Region y -> Region (Region.Spec.Glob.Val.meet x y)
-      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.meet x y)
-      | _ -> raise DomainBroken
-
-  let join' x y =
-    match x, y with
-      | Base x, Base y -> Base (Base.Glob.Val.join x y)
-      | OSEK x, OSEK y -> OSEK (Osek.Spec.Glob.Val.join x y)
-      | Thread x, Thread y -> Thread (Thread.Spec.Glob.Val.join x y)
-      | Mutex x, Mutex y -> Mutex (Mutex.NoBaseSpec.Glob.Val.join x y)
-      | SymbLocks x, SymbLocks y -> SymbLocks (SymbLocks.Spec.Glob.Val.join x y)
-      | Uninit x, Uninit y -> Uninit (Uninit.Spec.Glob.Val.join x y)
-      | Malloc_null x, Malloc_null y -> Malloc_null (Malloc_null.Spec.Glob.Val.join x y)
-      | Region x, Region y -> Region (Region.Spec.Glob.Val.join x y)
-      | VarEq x, VarEq y -> VarEq (VarEq.Spec.Glob.Val.join x y)
-      | _ -> raise DomainBroken
-
-  let leq' x y =
-    match x, y with
-      | Base x, Base y -> Base.Glob.Val.leq x y
-      | OSEK x, OSEK y -> Osek.Spec.Glob.Val.leq x y
-      | Thread x, Thread y -> Thread.Spec.Glob.Val.leq x y
-      | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.leq x y
-      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.leq x y
-      | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.leq x y
-      | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Glob.Val.leq x y
-      | Region x, Region y -> Region.Spec.Glob.Val.leq x y
-      | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.leq x y
-      | _ -> raise DomainBroken
-
-  let why_not_leq' x y acc = if leq' x y then acc else
-    match x, y with
-      | Base x, Base y -> Base.Glob.Val.why_not_leq () (x,y)
-      | OSEK x, OSEK y -> Osek.Spec.Glob.Val.why_not_leq () (x,y)
-      | Thread x, Thread y -> Thread.Spec.Glob.Val.why_not_leq () (x,y)
-      | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.why_not_leq () (x,y)
-      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.why_not_leq () (x,y)
-      | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.why_not_leq () (x,y)
-      | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Glob.Val.why_not_leq () (x,y)
-      | Region x, Region y -> Region.Spec.Glob.Val.why_not_leq () (x,y)
-      | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.why_not_leq () (x,y)
-      | _ -> raise DomainBroken
-      
-  let short' w x =
-    match x with
-      | Base x -> Base.Glob.Val.short w x
-      | OSEK x -> Osek.Spec.Glob.Val.short w x
-      | Thread x -> Thread.Spec.Glob.Val.short w x
-      | Mutex x -> Mutex.NoBaseSpec.Glob.Val.short w x
-      | SymbLocks x -> SymbLocks.Spec.Glob.Val.short w x
-      | Uninit x -> Uninit.Spec.Glob.Val.short w x
-      | Malloc_null x -> Malloc_null.Spec.Glob.Val.short w x
-      | Region x -> Region.Spec.Glob.Val.short w x
-      | VarEq x -> VarEq.Spec.Glob.Val.short w x
-      | _ -> raise DomainBroken
-      
-  let toXML_f' sf x =
-    match x with
-      | Base x -> Base.Glob.Val.toXML_f (fun w x -> sf w (Base x)) x
-      | OSEK x -> Osek.Spec.Glob.Val.toXML_f (fun w x -> sf w (OSEK x)) x
-      | Thread x -> Thread.Spec.Glob.Val.toXML_f (fun w x -> sf w (Thread x)) x
-      | Mutex x -> Mutex.NoBaseSpec.Glob.Val.toXML_f (fun w x -> sf w (Mutex x)) x
-      | SymbLocks x -> SymbLocks.Spec.Glob.Val.toXML_f (fun w x -> sf w (SymbLocks x)) x
-      | Uninit x -> Uninit.Spec.Glob.Val.toXML_f (fun w x -> sf w (Uninit x)) x
-      | Malloc_null x -> Malloc_null.Spec.Glob.Val.toXML_f (fun w x -> sf w (Malloc_null x)) x
-      | Region x -> Region.Spec.Glob.Val.toXML_f (fun w x -> sf w (Region x)) x
-      | VarEq x -> VarEq.Spec.Glob.Val.toXML_f (fun w x -> sf w (VarEq x)) x
-      | _ -> raise DomainBroken
-      
-  let pretty_f' sf () x =
-    match x with
-      | Base x -> Base.Glob.Val.pretty_f (fun w x -> sf w (Base x)) () x
-      | OSEK x -> Osek.Spec.Glob.Val.pretty_f (fun w x -> sf w (OSEK x)) () x
-      | Thread x -> Thread.Spec.Glob.Val.pretty_f (fun w x -> sf w (Thread x)) () x
-      | Mutex x -> Mutex.NoBaseSpec.Glob.Val.pretty_f (fun w x -> sf w (Mutex x)) () x
-      | SymbLocks x -> SymbLocks.Spec.Glob.Val.pretty_f (fun w x -> sf w (SymbLocks x)) () x
-      | Uninit x -> Uninit.Spec.Glob.Val.pretty_f (fun w x -> sf w (Uninit x)) () x
-      | Malloc_null x -> Malloc_null.Spec.Glob.Val.pretty_f (fun w x -> sf w (Malloc_null x)) () x
-      | Region x -> Region.Spec.Glob.Val.pretty_f (fun w x -> sf w (Region x)) () x
-      | VarEq x -> VarEq.Spec.Glob.Val.pretty_f (fun w x -> sf w (VarEq x)) () x
-      | _ -> raise DomainBroken
-      
-  let toXML' x = toXML_f' short' x
-      
-  let pretty' x = pretty_f' short' x
-      
-  let isSimple' x =
-    match x with
-      | Base x -> Base.Glob.Val.isSimple x
-      | OSEK x -> Osek.Spec.Glob.Val.isSimple x
-      | Thread x -> Thread.Spec.Glob.Val.isSimple x
-      | Mutex x -> Mutex.NoBaseSpec.Glob.Val.isSimple x
-      | SymbLocks x -> SymbLocks.Spec.Glob.Val.isSimple x
-      | Uninit x -> Uninit.Spec.Glob.Val.isSimple x
-      | Malloc_null x -> Malloc_null.Spec.Glob.Val.isSimple x
-      | Region x -> Region.Spec.Glob.Val.isSimple x
-      | VarEq x -> VarEq.Spec.Glob.Val.isSimple x
-      | _ -> raise DomainBroken
-
-  let compare' x y =
-    match x, y with
-      | Base x, Base y -> Base.Glob.Val.compare x y
-      | OSEK x, OSEK y -> Osek.Spec.Glob.Val.compare x y
-      | Thread x, Thread y -> Thread.Spec.Glob.Val.compare x y
-      | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.compare x y
-      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.compare x y
-      | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.compare x y
-      | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Glob.Val.compare x y
-      | Region x, Region y -> Region.Spec.Glob.Val.compare x y
-      | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.compare x y
-      | _ -> raise DomainBroken
-
-  let equal' x y =
-    match x, y with
-      | Base x, Base y -> Base.Glob.Val.equal x y
-      | OSEK x, OSEK y -> Osek.Spec.Glob.Val.equal x y
-      | Thread x, Thread y -> Thread.Spec.Glob.Val.equal x y
-      | Mutex x, Mutex y -> Mutex.NoBaseSpec.Glob.Val.equal x y
-      | SymbLocks x, SymbLocks y -> SymbLocks.Spec.Glob.Val.equal x y
-      | Uninit x, Uninit y -> Uninit.Spec.Glob.Val.equal x y
-      | Malloc_null x, Malloc_null y -> Malloc_null.Spec.Glob.Val.equal x y
-      | Region x, Region y -> Region.Spec.Glob.Val.equal x y
-      | VarEq x, VarEq y -> VarEq.Spec.Glob.Val.equal x y
-      | _ -> raise DomainBroken
-
-  let hash' x =
-    match x with
-      | Base x-> Base.Glob.Val.hash x
-      | OSEK x-> Osek.Spec.Glob.Val.hash x
-      | Thread x-> Thread.Spec.Glob.Val.hash x
-      | Mutex x-> Mutex.NoBaseSpec.Glob.Val.hash x
-      | SymbLocks x-> SymbLocks.Spec.Glob.Val.hash x
-      | Uninit x-> Uninit.Spec.Glob.Val.hash x
-      | Malloc_null x-> Malloc_null.Spec.Glob.Val.hash x
-      | Region x-> Region.Spec.Glob.Val.hash x
-      | VarEq x-> VarEq.Spec.Glob.Val.hash x
-      | _ -> raise DomainBroken
-
-  (* combining element functions to list functions *)
-  
-  let name () = "Domain"
-  let narrow = List.map2 narrow' 
-  let widen  = List.map2 widen'  
-  let meet   = List.map2 meet'   
-  let join   = List.map2 join'   
-
-  let is_top = List.for_all is_top' 
-  let is_bot = List.for_all is_bot'
-  let leq    = List.for_all2 leq' 
-  let why_not_leq () (x,y): Pretty.doc = List.fold_right2 why_not_leq' x y Pretty.nil
-    
-  let short _ = List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""
-  
-  let pretty_f _ () x = 
-    match x with
-      | [] -> text "()"
-      | x :: [] -> pretty' () x
-      | x :: y ->
-        let first = pretty' () x in
-        let rest  = List.fold_left (fun p n->p ++ text "," ++ pretty' () n) (text "") y in
-        text "(" ++ first ++ rest ++ text ")"
-
-  let pretty = pretty_f short 
-
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    let nodes = List.map toXML' x in
-    let node_leaf = if nodes = [] then "Leaf" else "Node" in
-      Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length x))], nodes)
-
-  let toXML = toXML_f short
-  
-  let compare =
-    let f a x y =
-      if a = 0 
-      then compare' x y
-      else 0
-    in
-    List.fold_left2 f 0
-    
-  let isSimple = List.for_all isSimple'
-  let equal    = List.for_all2 equal' 
-  let hash     = List.fold_left (fun x y -> x lxor (hash' y)) 0 
-end
-
-module MakeSpec (Base: Analyses.Spec) = 
-struct
-  module Dom  = Domain (Base)
+  module Dom  = Domain
   module Glob = 
   struct
     module Var = Basetype.Variables
-    module Val = GlobalDomain (Base)
+    module Val = GlobDomain
   end
   
-  (* elementwise operations *)
-  
-  let globalBase g (x:Glob.Var.t) : Base.Glob.Val.t =
-    let f c n = 
-      match n with
-        | Glob.Val.Base x -> Some x
-        | _ -> c 
+  let get_matches y =
+    let rec f xs = 
+      match xs with
+        | [] ->  raise DomainBroken
+        | x :: _ when x.dom_matches y -> x
+        | _ :: xs -> f xs
     in
-    match List.fold_left f None (g x) with
-      | Some x -> x
-      | None -> raise Glob.Val.DomainBroken
-
-  let globalOSEK g (x:Glob.Var.t) : Osek.Spec.Glob.Val.t =
-    let f c n = 
-      match n with
-        | Glob.Val.OSEK x -> Some x
-        | _ -> c 
-    in
-    match List.fold_left f None (g x) with
-      | Some x -> x
-      | None -> raise Glob.Val.DomainBroken
-
-  let globalThread g (x:Glob.Var.t) : Thread.Spec.Glob.Val.t =
-    let f c n = 
-      match n with
-        | Glob.Val.Thread x -> Some x
-        | _ -> c 
-    in
-    match List.fold_left f None (g x) with
-      | Some x -> x
-      | None -> raise Glob.Val.DomainBroken
-
-  let globalVarEq g (x:Glob.Var.t) : VarEq.Spec.Glob.Val.t =
-    let f c n = 
-      match n with
-        | Glob.Val.VarEq x -> Some x
-        | _ -> c 
-    in
-    match List.fold_left f None (g x) with
-      | Some x -> x
-      | None -> raise Glob.Val.DomainBroken
-
-  let globalMutex g (x:Glob.Var.t) : Mutex.NoBaseSpec.Glob.Val.t =
-    let f c n = 
-      match n with
-        | Glob.Val.Mutex x -> Some x
-        | _ -> c 
-    in
-    match List.fold_left f None (g x) with
-      | Some x -> x
-      | None -> raise Glob.Val.DomainBroken
-
-  let globalSymbLocks g (x:Glob.Var.t) : SymbLocks.Spec.Glob.Val.t =
-    let f c n = 
-      match n with
-        | Glob.Val.SymbLocks x -> Some x
-        | _ -> c 
-    in
-    match List.fold_left f None (g x) with
-      | Some x -> x
-      | None -> raise Glob.Val.DomainBroken
-
-  let globalUninit g (x:Glob.Var.t) : Uninit.Spec.Glob.Val.t =
-    let f c n = 
-      match n with
-        | Glob.Val.Uninit x -> Some x
-        | _ -> c 
-    in
-    match List.fold_left f None (g x) with
-      | Some x -> x
-      | None -> raise Glob.Val.DomainBroken
-
-  let globalMallocNull g (x:Glob.Var.t) : Malloc_null.Spec.Glob.Val.t =
-    let f c n = 
-      match n with
-        | Glob.Val.Malloc_null x -> Some x
-        | _ -> c 
-    in
-    match List.fold_left f None (g x) with
-      | Some x -> x
-      | None -> raise Glob.Val.DomainBroken
-
-  let globalRegion g (x:Glob.Var.t) : Region.Spec.Glob.Val.t =
-    let f c n = 
-      match n with
-        | Glob.Val.Region x -> Some x
-        | _ -> c 
-    in
-    match List.fold_left f None (g x) with
-      | Some x -> x
-      | None -> raise Glob.Val.DomainBroken
+    f !analysesList
   
-  let assign' a lv exp g x =
-    match x with
-      | Dom.Base x -> Dom.Base (Base.assign a lv exp (globalBase g) x)
-      | Dom.OSEK x -> Dom.OSEK (Osek.Spec.assign a lv exp (globalOSEK g) x)
-      | Dom.Thread x -> Dom.Thread (Thread.Spec.assign a lv exp (globalThread g) x)
-      | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.assign a lv exp (globalMutex g) x)
-      | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.assign a lv exp (globalSymbLocks g) x)
-      | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.assign a lv exp (globalUninit g) x)
-      | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.assign a lv exp (globalMallocNull g) x)
-      | Dom.Region x -> Dom.Region (Region.Spec.assign a lv exp (globalRegion g) x)
-      | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.assign a lv exp (globalVarEq g) x)
-      | _ -> raise Dom.DomainBroken
+  let select_g a g x =
+    let rec f = function
+      | []      -> raise DomainBroken
+      | x :: _ when a.glob_matches x -> x
+      | _ :: xs -> f xs
+    in
+    f (g x)
+  
+  let assign' a lv exp g x = 
+    let s = get_matches x in 
+    s.assign a lv exp (select_g s g) x
+  
+  let body' a fn g st = 
+    let s = get_matches st in 
+    s.body a fn (select_g s g) st  
+  
+  let return' a r fn g st =  
+    let s = get_matches st in 
+    s.return a r fn (select_g s g) st 
+    
+  let branch' a exp tv g st = 
+    let s = get_matches st in 
+    s.branch a exp tv (select_g s g) st 
+    
+  let special_fn' a r v args g st = 
+    let s = get_matches st in 
+    s.special_fn a r v args (select_g s g) st
+    
+  let enter_func' a r v args g st = 
+    let s = get_matches st in 
+    s.enter_func a r v args (select_g s g) st
+    
+  let leave_func' a r v args g st1 st2 = 
+    let s = get_matches st1 in 
+    (get_matches st1).leave_func a r v args (select_g s g) st1 st2  
 
-  let body' a fn g st =
-    match st with
-      | Dom.Base x -> Dom.Base (Base.body a fn (globalBase g) x)
-      | Dom.OSEK x -> Dom.OSEK (Osek.Spec.body a fn (globalOSEK g) x)
-      | Dom.Thread x -> Dom.Thread (Thread.Spec.body a fn (globalThread g) x)
-      | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.body a fn (globalMutex g) x)
-      | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.body a fn (globalSymbLocks g) x)
-      | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.body a fn (globalUninit g) x)
-      | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.body a fn (globalMallocNull g) x)
-      | Dom.Region x -> Dom.Region (Region.Spec.body a fn (globalRegion g) x)
-      | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.body a fn (globalVarEq g) x)
-      | _ -> raise Dom.DomainBroken
-  
-  let return' a r fn g st =
-    match st with
-      | Dom.Base x -> Dom.Base (Base.return a r fn (globalBase g) x)
-      | Dom.OSEK x -> Dom.OSEK (Osek.Spec.return a r fn (globalOSEK g) x)
-      | Dom.Thread x -> Dom.Thread (Thread.Spec.return a r fn (globalThread g) x)
-      | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.return a r fn (globalMutex g) x)
-      | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.return a r fn (globalSymbLocks g) x)
-      | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.return a r fn (globalUninit g) x)
-      | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.return a r fn (globalMallocNull g) x)
-      | Dom.Region x -> Dom.Region (Region.Spec.return a r fn (globalRegion g) x)
-      | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.return a r fn (globalVarEq g) x)
-      | _ -> raise Dom.DomainBroken
+  let eval_funvar' a exp g st = 
+    let s = get_matches st in 
+    s.eval_funvar a exp (select_g s g) st
+    
+  let fork' a r v args g st = 
+    let s = get_matches st in 
+    s.fork a r v args (select_g s g) st
+    
+  let query' a g st = 
+    let s = get_matches st in 
+    s.query a (select_g s g) st
 
-  let branch' a exp tv g st =
-    match st with
-      | Dom.Base x -> Dom.Base (Base.branch a exp tv (globalBase g) x)
-      | Dom.OSEK x -> Dom.OSEK (Osek.Spec.branch a exp tv (globalOSEK g) x)
-      | Dom.Thread x -> Dom.Thread (Thread.Spec.branch a exp tv (globalThread g) x)
-      | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.branch a exp tv (globalMutex g) x)
-      | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.branch a exp tv (globalSymbLocks g) x)
-      | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.branch a exp tv (globalUninit g) x)
-      | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.branch a exp tv (globalMallocNull g) x)
-      | Dom.Region x -> Dom.Region (Region.Spec.branch a exp tv (globalRegion g) x)
-      | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.branch a exp tv (globalVarEq g) x)
-      | _ -> raise Dom.DomainBroken
+  let reset_diff' st = (get_matches st).reset_diff st
   
-  let special_fn' a r v args g st =
-    match st with
-      | Dom.Base x -> List.map (fun (x,e,t) -> Dom.Base x,e,t) (Base.special_fn a r v args (globalBase g) x)
-      | Dom.OSEK x -> List.map (fun (x,e,t) -> Dom.OSEK x,e,t) (Osek.Spec.special_fn a r v args (globalOSEK g) x)
-      | Dom.Thread x -> List.map (fun (x,e,t) -> Dom.Thread x,e,t) (Thread.Spec.special_fn a r v args (globalThread g) x)
-      | Dom.Mutex x -> List.map (fun (x,e,t) -> Dom.Mutex x,e,t) (Mutex.NoBaseSpec.special_fn a r v args (globalMutex g) x)
-      | Dom.SymbLocks x -> List.map (fun (x,e,t) -> Dom.SymbLocks x,e,t) (SymbLocks.Spec.special_fn a r v args (globalSymbLocks g) x)
-      | Dom.Uninit x -> List.map (fun (x,e,t) -> Dom.Uninit x,e,t) (Uninit.Spec.special_fn a r v args (globalUninit g) x)
-      | Dom.Malloc_null x -> List.map (fun (x,e,t) -> Dom.Malloc_null x,e,t) (Malloc_null.Spec.special_fn a r v args (globalMallocNull g) x)
-      | Dom.Region x -> List.map (fun (x,e,t) -> Dom.Region x,e,t) (Region.Spec.special_fn a r v args (globalRegion g) x)
-      | Dom.VarEq x -> List.map (fun (x,e,t) -> Dom.VarEq x,e,t) (VarEq.Spec.special_fn a r v args (globalVarEq g) x)
-      | _ -> raise Dom.DomainBroken
+  let replace x = 
+    let matches = (Dom.get_matches x).matches in
+    let rec f ws =
+      match ws with
+        | [] -> []
+        | w :: ws when matches w ->  x :: ws
+        | w :: ws -> w :: f ws
+    in
+    f
+    
+  let replaceg x = 
+    let matches = (Glob.Val.get_matches x).matches in
+    let rec f ws =
+      match ws with
+        | [] -> []
+        | w :: ws when matches w ->  x :: ws
+        | w :: ws -> w :: f ws
+    in
+    f
 
-  let enter_func' a r v args g st =
-    match st with
-      | Dom.Base x -> List.map (fun (x,y) -> Dom.Base x, Dom.Base y) (Base.enter_func a r v args (globalBase g) x)
-      | Dom.OSEK x -> List.map (fun (x,y) -> Dom.OSEK x,Dom.OSEK y) (Osek.Spec.enter_func a r v args (globalOSEK g) x)
-      | Dom.Thread x -> List.map (fun (x,y) -> Dom.Thread x,Dom.Thread y) (Thread.Spec.enter_func a r v args (globalThread g) x)
-      | Dom.Mutex x -> List.map (fun (x,y) -> Dom.Mutex x,Dom.Mutex y) (Mutex.NoBaseSpec.enter_func a r v args (globalMutex g) x)
-      | Dom.SymbLocks x -> List.map (fun (x,y) -> Dom.SymbLocks x,Dom.SymbLocks y) (SymbLocks.Spec.enter_func a r v args (globalSymbLocks g) x)
-      | Dom.Uninit x -> List.map (fun (x,y) -> Dom.Uninit x,Dom.Uninit y) (Uninit.Spec.enter_func a r v args (globalUninit g) x)
-      | Dom.Malloc_null x -> List.map (fun (x,y) -> Dom.Malloc_null x,Dom.Malloc_null y) (Malloc_null.Spec.enter_func a r v args (globalMallocNull g) x)
-      | Dom.Region x -> List.map (fun (x,y) -> Dom.Region x,Dom.Region y) (Region.Spec.enter_func a r v args (globalRegion g) x)
-      | Dom.VarEq x -> List.map (fun (x,y) -> Dom.VarEq x,Dom.VarEq y) (VarEq.Spec.enter_func a r v args (globalVarEq g) x)
-      | _ -> raise Dom.DomainBroken
+  let get_diff' st = 
+    let difflist = (get_matches st).get_diff st in
+    List.map (fun (x,v) -> x, replaceg v (Glob.Val.bot ())) difflist
 
-  let leave_func' a r v args g st1 st2 =
-    match st1, st2 with
-      | Dom.Base x, Dom.Base y -> Dom.Base (Base.leave_func a r v args (globalBase g) x y)
-      | Dom.OSEK x, Dom.OSEK y -> Dom.OSEK (Osek.Spec.leave_func a r v args (globalOSEK g) x y)
-      | Dom.Thread x, Dom.Thread y -> Dom.Thread (Thread.Spec.leave_func a r v args (globalThread g) x y)
-      | Dom.Mutex x, Dom.Mutex y -> Dom.Mutex (Mutex.NoBaseSpec.leave_func a r v args (globalMutex g) x y)
-      | Dom.SymbLocks x, Dom.SymbLocks y -> Dom.SymbLocks (SymbLocks.Spec.leave_func a r v args (globalSymbLocks g) x y)
-      | Dom.Uninit x, Dom.Uninit y -> Dom.Uninit (Uninit.Spec.leave_func a r v args (globalUninit g) x y)
-      | Dom.Malloc_null x, Dom.Malloc_null y -> Dom.Malloc_null (Malloc_null.Spec.leave_func a r v args (globalMallocNull g) x y)
-      | Dom.Region x, Dom.Region y -> Dom.Region (Region.Spec.leave_func a r v args (globalRegion g) x y)
-      | Dom.VarEq x, Dom.VarEq y -> Dom.VarEq (VarEq.Spec.leave_func a r v args (globalVarEq g) x y)
-      | _ -> raise Dom.DomainBroken
-  
-  let eval_funvar' a exp g st : Cil.varinfo list =
-    match st with
-      | Dom.Base x -> Base.eval_funvar a exp (globalBase g) x
-      | Dom.OSEK x -> Osek.Spec.eval_funvar a exp (globalOSEK g) x
-      | Dom.Thread x -> Thread.Spec.eval_funvar a exp (globalThread g) x
-      | Dom.Mutex x -> Mutex.NoBaseSpec.eval_funvar a exp (globalMutex g) x
-      | Dom.SymbLocks x -> SymbLocks.Spec.eval_funvar a exp (globalSymbLocks g) x
-      | Dom.Uninit x -> Uninit.Spec.eval_funvar a exp (globalUninit g) x
-      | Dom.Malloc_null x -> Malloc_null.Spec.eval_funvar a exp (globalMallocNull g) x
-      | Dom.Region x -> Region.Spec.eval_funvar a exp (globalRegion g) x
-      | Dom.VarEq x -> VarEq.Spec.eval_funvar a exp (globalVarEq g) x
-      | _ -> raise Dom.DomainBroken
-  
-  let fork' a r v args g st =
-    match st with
-      | Dom.Base x -> List.map (fun (x,y) -> x, Dom.Base y) (Base.fork a r v args (globalBase g) x)
-      | Dom.OSEK x -> List.map (fun (x,y) -> x, Dom.OSEK y) (Osek.Spec.fork a r v args (globalOSEK g) x)
-      | Dom.Thread x -> List.map (fun (x,y) -> x, Dom.Thread y) (Thread.Spec.fork a r v args (globalThread g) x)
-      | Dom.Mutex x -> List.map (fun (x,y) -> x, Dom.Mutex y) (Mutex.NoBaseSpec.fork a r v args (globalMutex g) x)
-      | Dom.SymbLocks x -> List.map (fun (x,y) -> x, Dom.SymbLocks y) (SymbLocks.Spec.fork a r v args (globalSymbLocks g) x)
-      | Dom.Uninit x -> List.map (fun (x,y) -> x, Dom.Uninit y) (Uninit.Spec.fork a r v args (globalUninit g) x)
-      | Dom.Malloc_null x -> List.map (fun (x,y) -> x, Dom.Malloc_null y) (Malloc_null.Spec.fork a r v args (globalMallocNull g) x)
-      | Dom.Region x -> List.map (fun (x,y) -> x, Dom.Region y) (Region.Spec.fork a r v args (globalRegion g) x)
-      | Dom.VarEq x -> List.map (fun (x,y) -> x, Dom.VarEq y) (VarEq.Spec.fork a r v args (globalVarEq g) x)
-      | _ -> raise Dom.DomainBroken
-  
-  let reset_diff' st =
-    match st with
-      | Dom.Base x -> Dom.Base (Base.reset_diff x)
-      | Dom.OSEK x -> Dom.OSEK (Osek.Spec.reset_diff x)
-      | Dom.Thread x -> Dom.Thread (Thread.Spec.reset_diff x)
-      | Dom.Mutex x -> Dom.Mutex (Mutex.NoBaseSpec.reset_diff x)
-      | Dom.SymbLocks x -> Dom.SymbLocks (SymbLocks.Spec.reset_diff x)
-      | Dom.Uninit x -> Dom.Uninit (Uninit.Spec.reset_diff x)
-      | Dom.Malloc_null x -> Dom.Malloc_null (Malloc_null.Spec.reset_diff x)
-      | Dom.Region x -> Dom.Region (Region.Spec.reset_diff x)
-      | Dom.VarEq x -> Dom.VarEq (VarEq.Spec.reset_diff x)
-      | _ -> raise Dom.DomainBroken
-
-  let rec replaceg x ws = 
-    match ws, x with
-      | [], _ -> []
-      | Glob.Val.Base x :: ws, Glob.Val.Base y -> Glob.Val.Base y :: ws
-      | Glob.Val.OSEK x :: ws, Glob.Val.OSEK y -> Glob.Val.OSEK y :: ws
-      | Glob.Val.Thread x :: ws, Glob.Val.Thread y -> Glob.Val.Thread y :: ws
-      | Glob.Val.Mutex x :: ws, Glob.Val.Mutex y -> Glob.Val.Mutex y :: ws
-      | Glob.Val.SymbLocks x :: ws, Glob.Val.SymbLocks y -> Glob.Val.SymbLocks y :: ws
-      | Glob.Val.Uninit x :: ws, Glob.Val.Uninit y -> Glob.Val.Uninit y :: ws
-      | Glob.Val.Malloc_null x :: ws, Glob.Val.Malloc_null y -> Glob.Val.Malloc_null y :: ws
-      | Glob.Val.Region x :: ws, Glob.Val.Region y -> Glob.Val.Region y :: ws
-      | Glob.Val.VarEq x :: ws, Glob.Val.VarEq y -> Glob.Val.VarEq y :: ws
-      | w::ws, x -> w :: replaceg x ws
-      
-  let rec replace x ws = 
-    match ws, x with
-      | [], _ -> []
-      | Dom.Base x :: ws, Dom.Base y -> Dom.Base y :: ws
-      | Dom.OSEK x :: ws, Dom.OSEK y -> Dom.OSEK y :: ws
-      | Dom.Thread x :: ws, Dom.Thread y -> Dom.Thread y :: ws
-      | Dom.Mutex x :: ws, Dom.Mutex y -> Dom.Mutex y :: ws
-      | Dom.SymbLocks x :: ws, Dom.SymbLocks y -> Dom.SymbLocks y :: ws
-      | Dom.Uninit x :: ws, Dom.Uninit y -> Dom.Uninit y :: ws
-      | Dom.Malloc_null x :: ws, Dom.Malloc_null y -> Dom.Malloc_null y :: ws
-      | Dom.Region x :: ws, Dom.Region y -> Dom.Region y :: ws
-      | Dom.VarEq x :: ws, Dom.VarEq y -> Dom.VarEq y :: ws
-      | w::ws, x -> w :: replace x ws
-
-  let get_diff' st =
-    match st with
-      | Dom.Base x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Base y) (Glob.Val.bot ())) (Base.get_diff x)
-      | Dom.OSEK x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.OSEK y) (Glob.Val.bot ())) (Osek.Spec.get_diff x)
-      | Dom.Thread x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Thread y) (Glob.Val.bot ())) (Thread.Spec.get_diff x)
-      | Dom.Mutex x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Mutex y) (Glob.Val.bot ())) (Mutex.NoBaseSpec.get_diff x)
-      | Dom.SymbLocks x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.SymbLocks y) (Glob.Val.bot ())) (SymbLocks.Spec.get_diff x)
-      | Dom.Uninit x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Uninit y) (Glob.Val.bot ())) (Uninit.Spec.get_diff x)
-      | Dom.Malloc_null x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Malloc_null y) (Glob.Val.bot ())) (Malloc_null.Spec.get_diff x)
-      | Dom.Region x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.Region y) (Glob.Val.bot ())) (Region.Spec.get_diff x)
-      | Dom.VarEq x -> List.map (fun (x,y) -> x, replaceg (Glob.Val.VarEq y) (Glob.Val.bot ())) (VarEq.Spec.get_diff x)
-      | _ -> raise Dom.DomainBroken
-  
-  let query' a g st =
-    match st with
-      | Dom.Base x -> Base.query a (globalBase g) x
-      | Dom.OSEK x -> Osek.Spec.query a (globalOSEK g) x
-      | Dom.Thread x -> Thread.Spec.query a (globalThread g) x
-      | Dom.Mutex x -> Mutex.NoBaseSpec.query a (globalMutex g) x
-      | Dom.SymbLocks x -> SymbLocks.Spec.query a (globalSymbLocks g) x
-      | Dom.Uninit x -> Uninit.Spec.query a (globalUninit g) x
-      | Dom.Malloc_null x -> Malloc_null.Spec.query a (globalMallocNull g) x
-      | Dom.Region x -> Region.Spec.query a (globalRegion g) x
-      | Dom.VarEq x -> VarEq.Spec.query a (globalVarEq g) x
-      | _ -> raise Dom.DomainBroken
-  
   (* analysis spec stuff *)
   let name = "analyses"
   let finalize () =
     let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
     let uses x = JB.bool (JB.field int_ds x) in
-    (if uses "base" then Base.finalize ());
-    (if uses "OSEK" then Osek.Spec.finalize ());
-    (if uses "thread" then Thread.Spec.finalize ());
-    (if uses "mutex" then Mutex.NoBaseSpec.finalize ());
-    (if uses "symb_locks" then SymbLocks.Spec.finalize ());
-    (if uses "uninit" then Uninit.Spec.finalize ());
-    (if uses "malloc_null" then Malloc_null.Spec.finalize ());
-    (if uses "region" then Region.Spec.finalize ());
-    (if uses "var_eq" then VarEq.Spec.finalize ());
-    ()
+    List.iter (fun x ->
+        if uses x.featurename 
+        then x.finalize ()
+        else ()
+    ) !analysesList
 
   (* Generate a "drop list" (on startup) for elements that are not considered 
      path-sensitive properties. *)
@@ -947,27 +629,25 @@ struct
     Glob.Val.init ();
     let specs_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses"))  in
     let sense_ds = JB.make_table (JB.objekt (JB.field !GU.conf "sensitive")) in
-    let list_order = ["base"; "OSEK"; "thread";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
+    let list_order = List.map (fun x -> x.featurename) !analysesList in
     let f s r =
       if JB.bool (JB.field specs_ds s) then JB.bool (JB.field sense_ds s) :: r else r
     in
     take_list := List.fold_right f list_order [];
-    let specs_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses"))  in
-    let uses x = JB.bool (JB.field specs_ds x) in
-    (if uses "base" then Base.init ());
-    (if uses "OSEK" then Osek.Spec.init ());
-    (if uses "thread" then Thread.Spec.init ());
-    (if uses "mutex" then Mutex.NoBaseSpec.init ());
-    (if uses "symb_locks" then SymbLocks.Spec.init ());
-    (if uses "uninit" then Uninit.Spec.init ());
-    (if uses "malloc_null" then Malloc_null.Spec.init ());
-    (if uses "region" then Region.Spec.init ());
-    (if uses "var_eq" then VarEq.Spec.init ());
-    ()
+    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
+    let uses x = JB.bool (JB.field int_ds x) in
+    List.iter (fun x ->
+        if uses x.featurename 
+        then x.init ()
+        else ()
+    ) !analysesList
 
-  let otherstate () = Dom.otherstate ()
-  let startstate () = Dom.startstate ()
-      
+  let startstate () = Dom.constr_scheme
+    (List.map (fun p -> p.startstate) !analysesList)
+
+  let otherstate () = Dom.constr_scheme
+    (List.map (fun p -> p.otherstate) !analysesList)
+    
   (* Join when path-sensitive properties are equal. *)
   let should_join xs ys = 
     let drop_keep it_is x xs = if it_is then x :: xs else xs in
@@ -1049,7 +729,5 @@ struct
 
 end
 
-module Spec = MakeSpec (Base.Main)
 module Path = Compose.PathSensitive (Spec)
-
 module Analysis = Multithread.Forward (Path) 

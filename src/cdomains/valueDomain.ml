@@ -9,6 +9,9 @@ module Addr = Lval.Normal (ID)
 module Offs = Lval.Offset (ID)
 module M = Messages
 
+module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
+
+
 module type S =
 sig
   include Lattice.S

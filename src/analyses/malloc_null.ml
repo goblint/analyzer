@@ -7,12 +7,10 @@ module Offs = ValueDomain.Offs
 open Cil
 open Pretty
 
-module Spec : Analyses.Spec =
+module Spec =
 struct
   module Addr = ValueDomain.Addr
-  module AddrSet = SetDomain.ToppedSet (Addr) (struct let topname = "All" end)
-  
-  module Dom  = AddrSet
+  module Dom  = ValueDomain.AddrSetDomain
   module Glob = Global.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
@@ -48,7 +46,7 @@ struct
   (* We just had to dereference an lval --- warn if it was null *)
   let warn_lval (st:Dom.t) (v :varinfo * (Addr.field,Addr.idx) Lval.offs) : unit =
     try 
-      if AddrSet.exists (fun x -> List.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
+      if Dom.exists (fun x -> List.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
       then 
         let var = Addr.from_var_offset v in
         Messages.report ("Possible dereferencing of null on variable '" ^ (Addr.short 80 var) ^ "'.")
@@ -144,7 +142,7 @@ struct
     match ask (Queries.MayPointTo (mkAddrOf lv)) with
       | `LvalSet a when not (Queries.LS.is_top a) ->
           let one_addr_might (v,o) = 
-            AddrSet.exists (fun x -> List.exists (fun x -> is_prefix_of (v, conv_offset o) x) (Addr.to_var_offset x)) st
+            Dom.exists (fun x -> List.exists (fun x -> is_prefix_of (v, conv_offset o) x) (Addr.to_var_offset x)) st
           in
           Queries.LS.exists one_addr_might a 
       | _ -> false   
@@ -160,7 +158,7 @@ struct
     warn_deref_exp a st rval;
     match get_concrete_exp rval gl st, get_concrete_lval a lval with
       | Some rv , Some (Var vt,ot) when might_be_null a rv gl st -> 
-          AddrSet.add (Addr.from_var_offset (vt,ot)) st
+          Dom.add (Addr.from_var_offset (vt,ot)) st
       | _ -> st
       
   let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st:Dom.t) : Dom.t = 
@@ -174,14 +172,14 @@ struct
   let return_addr () = !return_addr_
   
   let return a (exp:exp option) (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    let remove_var x v = List.fold_right AddrSet.remove (to_addrs v) x in
+    let remove_var x v = List.fold_right Dom.remove (to_addrs v) x in
     let nst = List.fold_left remove_var st (f.slocals @ f.sformals) in
     match exp with
       | Some ret ->
           warn_deref_exp a st ret;
           begin match get_concrete_exp ret gl st with
             | Some ev when might_be_null a ev gl st ->
-                AddrSet.add (return_addr ()) nst
+                Dom.add (return_addr ()) nst
             | _ -> nst  end
       | None -> nst
   
@@ -199,12 +197,12 @@ struct
   
   let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu:Dom.t) (au:Dom.t) : Dom.t =
     let cal_st = remove_unreachable a args bu in
-    let ret_st = AddrSet.union au (AddrSet.diff bu cal_st) in
+    let ret_st = Dom.union au (Dom.diff bu cal_st) in
     let new_u = 
-      match lval, AddrSet.mem (return_addr ()) ret_st with
+      match lval, Dom.mem (return_addr ()) ret_st with
         | Some lv, true -> 
             begin match get_concrete_lval a lv with
-                    | Some (Var v,ofs) -> AddrSet.remove (return_addr ()) (AddrSet.add (Addr.from_var_offset (v,ofs)) ret_st)
+                    | Some (Var v,ofs) -> Dom.remove (return_addr ()) (Dom.add (Addr.from_var_offset (v,ofs)) ret_st)
                     | _ -> ret_st end
         | _ -> ret_st
     in
@@ -219,7 +217,7 @@ struct
           match get_concrete_lval a lv with
             | Some (Var v, offs) ->
                 [st, Lval lv, true
-                ;AddrSet.add (Addr.from_var_offset (v,offs)) st, Lval lv, false]
+                ;Dom.add (Addr.from_var_offset (v,offs)) st, Lval lv, false]
            | _ -> [st, Cil.integer 1, true]
         end
       | _ -> [st, Cil.integer 1, true]
@@ -231,8 +229,8 @@ struct
 
   let finalize () = ()
   let should_join _ _ = true
-  let startstate () = AddrSet.empty () 
-  let otherstate () = AddrSet.empty ()
+  let startstate () = Dom.empty () 
+  let otherstate () = Dom.empty ()
   let es_to_string f _ = f.svar.vname
   let init () = 
     Goblintutil.malloc_may_fail := true; 
@@ -240,5 +238,17 @@ struct
   
 end
 
+module VarEqMCP = 
+  MCP.ConvertToMCPPart
+        (Spec)
+        (struct let name = "malloc_null" 
+                type lf = Spec.Dom.t
+                let inject_l x = `Malloc_null x
+                let extract_l x = match x with `Malloc_null x -> x | _ -> raise MCP.SpecificationConversionError
+                type gf = Spec.Glob.Val.t
+                let inject_g x = `None 
+                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+         end)
+         
 module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
 module Analysis : Analyses.S    = Multithread.Forward(Path)

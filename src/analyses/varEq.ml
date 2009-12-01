@@ -10,11 +10,12 @@ module LF = LibraryFunctions
 open Cil
 open Pretty
 
-module Spec : Analyses.Spec with type Glob.Val.t = unit =
+
+module Spec =
 struct
   exception Top
 
-  module Dom = PartitionDomain.SetSet (Exp)
+  module Dom = PartitionDomain.ExpPartitions
   module Glob = Global.Make (Lattice.Unit)
 
   let name = "Partition"
@@ -227,5 +228,17 @@ struct
       | _ -> `Top
 
 end
+
+module VarEqMCP = 
+  MCP.ConvertToMCPPart
+        (Spec)
+        (struct let name = "var_eq" 
+                type lf = Spec.Dom.t
+                let inject_l x = `VarEq x
+                let extract_l x = match x with `VarEq x -> x | _ -> raise MCP.SpecificationConversionError
+                type gf = Spec.Glob.Val.t
+                let inject_g x = `None 
+                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+         end)
 
 module Analysis = Multithread.Forward(Spec)

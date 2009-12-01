@@ -7,13 +7,13 @@ module RegPart = RegionDomain.RegPart
 module Reg = RegionDomain.Reg
 module BS  = Base.Main
 
-module Spec : Analyses.Spec =
+module Spec =
 struct
-  module LD  = Lattice.Prod (Equ) (RegMap) 
-  module Lif = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end) 
-  module Var    = Basetype.Variables    
-  module Vars   = SetDomain.Make (Printable.Prod (Var) (RegPart))
-  module Dom = Lattice.Prod (Lif) (Vars)
+  module LD     = RegionDomain.LD
+  module Lif    = RegionDomain.Lif
+  module Var    = RegionDomain.Var
+  module Vars   = RegionDomain.Vars
+  module Dom    = RegionDomain.RegionDom
   module Glob = Global.Make (RegPart) 
 
   type glob_fun = Glob.Var.t -> Glob.Val.t
@@ -152,6 +152,18 @@ struct
     partition_varstore := makeVarinfo false "REGION_PARTITIONS" voidType
     
 end
+
+module RegionMCP = 
+  MCP.ConvertToMCPPart
+        (Spec)
+        (struct let name = "region" 
+                type lf = Spec.Dom.t
+                let inject_l x = `Region x
+                let extract_l x = match x with `Region x -> x | _ -> raise MCP.SpecificationConversionError
+                type gf = Spec.Glob.Val.t
+                let inject_g x = `Region x
+                let extract_g x = match x with `Region x -> x | _ -> raise MCP.SpecificationConversionError
+         end)
 
 module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
 module Analysis : Analyses.S    = Multithread.Forward(Path)

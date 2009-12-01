@@ -1,38 +1,3 @@
-(* 
- * Copyright (c) 2005-2007,
- *     * University of Tartu
- *     * Vesal Vojdani <vesal.vojdani@gmail.com>
- *     * Kalmer Apinis <kalmera@ut.ee>
- *     * Jaak Randmets <jaak.ra@gmail.com>
- *     * Toomas Römer <toomasr@gmail.com>
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- * 
- *     * Redistributions of source code must retain the above copyright notice,
- *       this list of conditions and the following disclaimer.
- * 
- *     * Redistributions in binary form must reproduce the above copyright notice,
- *       this list of conditions and the following disclaimer in the documentation
- *       and/or other materials provided with the distribution.
- * 
- *     * Neither the name of the University of Tartu nor the names of its
- *       contributors may be used to endorse or promote products derived from
- *       this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *)
-
 (** This is the main program! *)
 
 module CF = Cilfacade
@@ -72,14 +37,8 @@ let main () =
   let setdump path = GU.dump_path := Some (GU.create_dir path) in
   let add_exitfun f = GU.exitfun := f :: !GU.exitfun in
   let setcil path = cilout := open_out path in
-  let analyzer str = match str with (*legacy: use .json, --with and --no instead *)
-      | "mcp" -> MCP.Analysis.analyze
-      | "uninit" -> MCP.Analysis.analyze (*integrated*)
-      | "mutex" -> Mutex.Analysis.analyze
-      | "no_path" -> Mutex.SimpleAnalysis.analyze
-      | "base" -> Base.Analysis.analyze
-      | "malloc_null" -> MCP.Analysis.analyze (*integrated*)
-      | _ -> raise (Arg.Bad ("no such analysis: "^str))
+  let analyzer str = (*legacy: use .json, --with and --no instead *)
+      MCP.Analysis.analyze   
   in
   let analyze = ref (analyzer (JB.string (JB.field !GU.conf "analysis"))) in
   let nonstatic () = GU.allfuns := true; GU.nonstatic := true in
@@ -93,7 +52,7 @@ let main () =
   in
   let set_feature b x =
     match x with
-      | "mutex" | "symb_locks" | "var_eq" | "uninit" | "malloc_null" | "region" | "OSEK"
+      | x when List.exists (fun y -> y.MCP.featurename = x) !MCP.analysesList
           -> GU.modify_ana x b
       | _ -> raise (Arg.Bad ("no such feature: "^x))
   in
@@ -141,8 +100,8 @@ let main () =
                  ("--showtemps", Arg.Set CF.showtemps, " Shows CIL's temporary variables when printing the state.");
                  ("--uncalled", Arg.Set GU.print_uncalled, " Display uncalled functions.");
                  ("--result", Arg.String setstyle, "<style>  Result style: none, state, indented, compact, or pretty.");
-                 ("--analysis", Arg.String setanalysis, "<name>  Picks the analysis: uninit, malloc_null, mutex, no_path, base.");
-                 ("--with", Arg.String (set_feature true), "<name>  Enables features: mutex, symb_locks, var_eq, uninit, malloc_null.");
+                 ("--analysis", Arg.String setanalysis, "<name>  Deprecated: Picks the analysis: mcp.");
+                 ("--with", Arg.String (set_feature true), "<name>  Enables features: " ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList);
                  ("--no", Arg.String (set_feature false), "<name>  Disables features: mutex, symb_locks, var_eq, uninit, malloc_null.");
                  ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");

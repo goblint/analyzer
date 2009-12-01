@@ -2,7 +2,7 @@ open Cil
 open Pretty
 module Trivial =  ConcDomain.Simple
 
-module Spec : Analyses.Spec =
+module Spec =
 struct
   module Dom = Trivial
   module Glob = Global.Make (Lattice.Unit) (* no global state *)
@@ -88,6 +88,18 @@ struct
   let finalize () = ()
   let init () = ()
 end
+
+module ThreadMCP = 
+  MCP.ConvertToMCPPart
+        (Spec)
+        (struct let name = "thread" 
+                type lf = Spec.Dom.t
+                let inject_l x = `Thread x
+                let extract_l x = match x with `Thread x -> x | _ -> raise MCP.SpecificationConversionError
+                type gf = Spec.Glob.Val.t
+                let inject_g x = `None 
+                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+         end)
 
 module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
 module Analysis : Analyses.S    = Multithread.Forward(Path)

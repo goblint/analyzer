@@ -3,8 +3,8 @@ open Pretty
 
 module Spec =
 struct
-  module Dom  = Mutex.NoBaseSpec.Dom
-  module Glob = Mutex.NoBaseSpec.Glob
+  module Dom  = Mutex.Spec.Dom
+  module Glob = Mutex.Spec.Glob
 
   let oilFile = ref ""
   let path = Filename.dirname Sys.executable_name
@@ -25,41 +25,41 @@ struct
 
   (* transfer functions *)
   let assign a (lval:lval) (rval:exp) gl (st:Dom.t) : Dom.t =
-    (Mutex.NoBaseSpec.assign a lval rval gl  st)
+    (Mutex.Spec.assign a lval rval gl  st)
    
   let branch a (exp:exp) (tv:bool) gl (st:Dom.t) : Dom.t = 
-    (Mutex.NoBaseSpec.branch a (exp:exp) (tv:bool) gl st) 
+    (Mutex.Spec.branch a (exp:exp) (tv:bool) gl st) 
   
   let body a (f:fundec) gl (st:Dom.t) : Dom.t = 
-    let m_st = Mutex.NoBaseSpec.body a (f:fundec) gl st in
+    let m_st = Mutex.Spec.body a (f:fundec) gl st in
     if (is_task f.svar.vname) then 
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
       let dummy_edge = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType  in
-      match Mutex.NoBaseSpec.special_fn a None dummy_edge [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
+      match Mutex.Spec.special_fn a None dummy_edge [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
     else 
       m_st
 
   let return a (exp:exp option) (f:fundec) gl (st:Dom.t) : Dom.t =
-    let m_st = Mutex.NoBaseSpec.return a (exp:exp option) (f:fundec) gl st in
+    let m_st = Mutex.Spec.return a (exp:exp option) (f:fundec) gl st in
     if (is_task f.svar.vname) then 
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
       let dummy_edge = makeLocalVar f ?insert:(Some false) "ReleaseResource" Cil.voidType  in
-      match Mutex.NoBaseSpec.special_fn a None dummy_edge [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
+      match Mutex.Spec.special_fn a None dummy_edge [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
     else 
       m_st
   
   let eval_funvar a (fv:exp) gl (st:Dom.t) : varinfo list = 
-    Mutex.NoBaseSpec.eval_funvar a (fv:exp) gl st
+    Mutex.Spec.eval_funvar a (fv:exp) gl st
     
   let enter_func a (lval: lval option) (f:varinfo) (args:exp list) gl (st:Dom.t) : (Dom.t * Dom.t) list =
-    (Mutex.NoBaseSpec.enter_func a (lval: lval option) (f:varinfo) (args:exp list) gl st)
+    (Mutex.Spec.enter_func a (lval: lval option) (f:varinfo) (args:exp list) gl st)
   
   let leave_func a (lval:lval option) (f:varinfo) (args:exp list) gl (bu:Dom.t) (au:Dom.t) : Dom.t =
-   Mutex.NoBaseSpec.leave_func a (lval:lval option) (f:varinfo) (args:exp list) gl bu au
+   Mutex.Spec.leave_func a (lval:lval option) (f:varinfo) (args:exp list) gl bu au
   
   let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) gl (st:Dom.t) : (Dom.t * Cil.exp * bool) list =
     let make_lock varinfo = [AddrOf (Var varinfo,NoOffset)] in
@@ -71,10 +71,10 @@ struct
 	     | [Const (CInt64 (c,_,_) ) ] -> make_lock (Hashtbl.find constantlocks (Int64.to_string c))
              | x -> x)
         | _ -> arglist
-    in Mutex.NoBaseSpec.special_fn a lval f arglist gl st
+    in Mutex.Spec.special_fn a lval f arglist gl st
   
   let fork ask lv f args gs ls = 
-    Mutex.NoBaseSpec.fork ask lv f args gs ls
+    Mutex.Spec.fork ask lv f args gs ls
 
   let startstate () = Dom.top ()
   let otherstate () = Dom.top ()
@@ -103,16 +103,16 @@ struct
   (** [postprocess_acc gl] groups and report races in [gl] *)
   let postprocess_acc gl =
     (* create mapping from offset to access list; set of offsets  *)
-    let acc = Mutex.NoBaseSpec.acc in
+    let acc = Mutex.Spec.acc in
     let create_map (accesses_map) =
       let f (((_, _, rw), _, offs) as accs) (map,set) =
-        if Mutex.NoBaseSpec.OffsMap.mem offs map
-        then (Mutex.NoBaseSpec.OffsMap.add offs ([accs] @ (Mutex.NoBaseSpec.OffsMap.find offs map)) map,
-              Mutex.NoBaseSpec.OffsSet.add offs set)
-        else (Mutex.NoBaseSpec.OffsMap.add offs [accs] map,
-              Mutex.NoBaseSpec.OffsSet.add offs set)
+        if Mutex.Spec.OffsMap.mem offs map
+        then (Mutex.Spec.OffsMap.add offs ([accs] @ (Mutex.Spec.OffsMap.find offs map)) map,
+              Mutex.Spec.OffsSet.add offs set)
+        else (Mutex.Spec.OffsMap.add offs [accs] map,
+              Mutex.Spec.OffsSet.add offs set)
       in
-      Mutex.NoBaseSpec.AccValSet.fold f accesses_map (Mutex.NoBaseSpec.OffsMap.empty, Mutex.NoBaseSpec.OffsSet.empty)
+      Mutex.Spec.AccValSet.fold f accesses_map (Mutex.Spec.OffsMap.empty, Mutex.Spec.OffsSet.empty)
     in
     (* join map elements, that we cannot be sure are logically separate *)
     let regroup_map (map,set) =
@@ -121,13 +121,13 @@ struct
         let new_gr_offs = Mutex.Offs.join new_offs group_offs in
         (* we assume f is called in the right order: we get the greatest offset first (leq'wise) *)
         if (Mutex.Offs.leq new_offs group_offs || (Mutex.Offs.is_bot group_offs)) 
-        then (new_gr_offs, Mutex.NoBaseSpec.OffsMap.find offs map @ access_list, new_map) 
-        else (   new_offs, Mutex.NoBaseSpec.OffsMap.find offs map, Mutex.NoBaseSpec.OffsMap.add group_offs access_list new_map) 
+        then (new_gr_offs, Mutex.Spec.OffsMap.find offs map @ access_list, new_map) 
+        else (   new_offs, Mutex.Spec.OffsMap.find offs map, Mutex.Spec.OffsMap.add group_offs access_list new_map) 
       in
-      let (last_offs,last_set, map) = Mutex.NoBaseSpec.OffsSet.fold f set (Mutex.Offs.bot (), [], Mutex.NoBaseSpec.OffsMap.empty) in
+      let (last_offs,last_set, map) = Mutex.Spec.OffsSet.fold f set (Mutex.Offs.bot (), [], Mutex.Spec.OffsMap.empty) in
         if Mutex.Offs.is_bot last_offs
         then map
-        else Mutex.NoBaseSpec.OffsMap.add last_offs last_set map
+        else Mutex.Spec.OffsMap.add last_offs last_set map
     in
     let get_common_locks acc_list = 
       let f locks ((_,_,writing), lock, _) = 
@@ -202,15 +202,15 @@ struct
                   Mutex.M.print_group (safe_str "thread local") warnings
     in 
     let rw ((_,_,x),_,_) = x in
-    let acc = Mutex.NoBaseSpec.Acc.find acc gl in
-    let acc = if !Mutex.no_read then Mutex.NoBaseSpec.AccValSet.filter rw acc else acc in
+    let acc = Mutex.Spec.Acc.find acc gl in
+    let acc = if !Mutex.no_read then Mutex.Spec.AccValSet.filter rw acc else acc in
     let acc_info = create_map acc in
     let acc_map = if !Mutex.unmerged_fields then fst acc_info else regroup_map acc_info in
-      Mutex.NoBaseSpec.OffsMap.iter report_race acc_map
+      Mutex.Spec.OffsMap.iter report_race acc_map
     
   (** postprocess and print races and other output *)
   let finalize () =
-    Mutex.NoBaseSpec.AccKeySet.iter postprocess_acc !Mutex.NoBaseSpec.accKeys;
+    Mutex.Spec.AccKeySet.iter postprocess_acc !Mutex.Spec.accKeys;
     if !Mutex.GU.multi_threaded then begin
       match !race_free, !Messages.soundness with
         | true, true -> 
@@ -296,5 +296,17 @@ struct
       end
     end
 
+module ThreadMCP = 
+  MCP.ConvertToMCPPart
+        (Spec)
+        (struct let name = "OSEK" 
+                type lf = Spec.Dom.t
+                let inject_l x = `OSEK x
+                let extract_l x = match x with `OSEK x -> x | _ -> raise MCP.SpecificationConversionError
+                type gf = Spec.Glob.Val.t
+                let inject_g x = `None 
+                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+         end)
+         
 module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
 module Analysis : Analyses.S    = Multithread.Forward(Path)

@@ -7,7 +7,7 @@ open Pretty
 
 (* Note: This is currently more conservative than varEq --- but 
    it should suffice for tests. *)
-module Spec : Analyses.Spec =
+module Spec =
 struct
   exception Top
 
@@ -91,3 +91,15 @@ struct
           `PerElemLock triples
       | _ -> Queries.Result.top ()
 end
+
+module SymbLocksMCP = 
+  MCP.ConvertToMCPPart
+        (Spec)
+        (struct let name = "symb_locks" 
+                type lf = Spec.Dom.t
+                let inject_l x = `SymbLocks x
+                let extract_l x = match x with `SymbLocks x -> x | _ -> raise MCP.SpecificationConversionError
+                type gf = Spec.Glob.Val.t
+                let inject_g x = `None 
+                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+         end)

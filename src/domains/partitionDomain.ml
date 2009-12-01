@@ -150,3 +150,4 @@ struct
 
 end
 
+module ExpPartitions = SetSet (Exp.Exp)
