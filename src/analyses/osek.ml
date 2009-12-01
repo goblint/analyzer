@@ -63,15 +63,36 @@ struct
   
   let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) gl (st:Dom.t) : (Dom.t * Cil.exp * bool) list =
     let make_lock varinfo = [AddrOf (Var varinfo,NoOffset)] in
-    let arglist =
-      match f.vname with
-        | "GetResource" | "ReleaseResource" -> 
-           (match arglist with 
-             | [Lval l] -> [AddrOf l] 
-	     | [Const (CInt64 (c,_,_) ) ] -> make_lock (Hashtbl.find constantlocks (Int64.to_string c))
-             | x -> x)
-        | _ -> arglist
-    in Mutex.Spec.special_fn a lval f arglist gl st
+    match f.vname with
+      | "GetResource" | "ReleaseResource" -> Mutex.Spec.special_fn a lval f (match arglist with 
+        | [Lval l] -> [AddrOf l] 
+	| [Const (CInt64 (c,_,_) ) ] -> (make_lock (Hashtbl.find constantlocks (Int64.to_string c)))
+        | x -> x)  gl st
+      | "ActivateTask" -> Mutex.Spec.special_fn a lval f arglist gl st (*call function *)
+      | "ChainTask" -> Mutex.Spec.special_fn a lval f arglist gl st (*call function *)
+      | "DisableAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("DEall"))) gl st
+      | "EnsableAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("DEall")))arglist gl st
+      | "SuspendAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRall")))arglist gl st
+      | "ResumeAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRall")))arglist gl st
+      | "SuspendOSInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRos")))arglist gl st
+      | "ResumeOSInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRos")))arglist gl st
+      | "TerminateTask" -> Mutex.Spec.special_fn a lval f arglist gl st (*check empty lockset*)
+      | "WaitEvent" -> Mutex.Spec.special_fn a lval f arglist gl st (*check empty lockset*)
+      | "SetEvent"
+      | "ClearEvent"
+      | "GetEvent"
+      | "Schedule"
+      | "GetTaskID"
+      | "GetTaskState"
+      | "GetAlarmBase" 
+      | "GetAlarm" 
+      | "SetRelAlarm" 
+      | "SetAbsAlarm" 
+      | "CancelAlarm" 
+      | "GetActiveApplicationMode" 
+      | "StartOS" 
+      | "ShutdownOS" 
+      | _ -> Mutex.Spec.special_fn a lval f arglist gl st
   
   let fork ask lv f args gs ls = 
     Mutex.Spec.fork ask lv f args gs ls
@@ -82,7 +103,7 @@ struct
   let get_diff _ = []
   let reset_diff x = x
   
-  let name = "Thread analysis"
+  let name = "OSEK analysis"
   let es_to_string f _ = f.svar.vname
 
   let should_join _ _ = true
@@ -285,7 +306,16 @@ struct
 	      with End_of_file -> ()
 	    end
 	in
-	let _ = genp "default" (input_line oilf) in close_in oilf
+	let _ = genp "default" (input_line oilf) in
+	let hashmax _ next old = max next old in
+	let _ =	Hashtbl.add constantlocks "DEall" (makeGlobalVar "DEall" Cil.voidType);
+		Hashtbl.add constantlocks "SRall" (makeGlobalVar "SRall" Cil.voidType);
+		Hashtbl.add constantlocks "SRos" (makeGlobalVar "SRos" Cil.voidType);
+		Hashtbl.add priorities "DEall" (Hashtbl.fold hashmax priorities (-1) );
+		Hashtbl.add priorities "SRall" (Hashtbl.fold hashmax priorities (-1) );
+		Hashtbl.add priorities "SRos" (Hashtbl.fold hashmax priorities (-1) ); (*NOT GOOD *)
+	in 
+	close_in oilf
       end else begin
 	prerr_endline "Priorites could not be determined." ;
 	exit 2;
