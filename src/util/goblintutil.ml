@@ -75,6 +75,9 @@ let conf_malloc () =
   modify_ana "malloc_null" true;
   modify_ana "region" false
 
+let conf_osek () = 
+  modify_ana "mutex" false;
+  modify_ana "osek" true
 
 (** when goblin is in debug mode *)
 let debug = ref false 
