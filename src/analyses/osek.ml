@@ -257,14 +257,14 @@ struct
 
   let init () =   
     if !oilFile != "" && Sys.file_exists(!oilFile) then begin     
-      let _ = ignore (Unix.system ( "mkdir " ^ path ^ "/osek_temp")) in
-      let oilp = path ^ "/osek_temp/priorities.txt" in     
-      let resp = path ^  "/osek_temp/resources.txt" in
-      let _ = ignore (Unix.system ("ruby " ^ path ^ "/scripts/parse_oil.rb " ^ (!oilFile) ^ " " ^ path)) in
+      let path = Goblintutil.create_dir "osek_temp" in
+      let oilp = path ^ "/priorities.txt" in     
+      let resp = path ^  "/resources.txt" in
+      let _ = ignore (Unix.system ("ruby " ^ path ^ "/../scripts/parse_oil.rb " ^ (!oilFile) ^ " " ^ path)) in
       let _ = Hashtbl.add priorities "default" (-1) in
       let tramp = Filename.dirname(!oilFile) ^ "/defaultAppWorkstation/tpl_os_generated_configuration.h" in
 	if Sys.file_exists(tramp) then begin
-	  ignore (Unix.system ("ruby " ^ path ^ "/scripts/parse_trampoline.rb " ^ tramp ^ " " ^ path) )
+	  ignore (Unix.system ("ruby " ^ path ^ "/../scripts/parse_trampoline.rb " ^ tramp ^ " " ^ path) )
 	end else begin
 	  prerr_endline "Trampoline headers not found." ;
 	  exit 2;
