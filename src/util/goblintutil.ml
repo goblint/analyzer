@@ -19,7 +19,7 @@ let default_conf () =
                              ;"region"     , Build.bool false
                              ;"var_eq"     , Build.bool false] in
   let def_path = Build.objekt ["base"       , Build.bool false
-                              ;"OSEK"       , Build.bool false
+                              ;"OSEK"       , Build.bool true
                               ;"thread"     , Build.bool false
                               ;"mutex"      , Build.bool true
                               ;"symb_locks" , Build.bool false
@@ -77,7 +77,7 @@ let conf_malloc () =
 
 let conf_osek () = 
   modify_ana "mutex" false;
-  modify_ana "osek" true
+  modify_ana "OSEK" true
 
 (** when goblin is in debug mode *)
 let debug = ref false 
