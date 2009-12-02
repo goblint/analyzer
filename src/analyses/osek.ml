@@ -252,7 +252,7 @@ struct
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;
-    ignore (Unix.system("rm -rf " ^ path ^ "/osek_temp") );
+    Goblintutil.rm_rf path;
     Base.Main.finalize ()
 
   let init () =   
