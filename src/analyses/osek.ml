@@ -8,6 +8,7 @@ struct
 
   let oilFile = ref ""
   let path = Filename.dirname Sys.executable_name
+  let tmp_path = ref ""
 
   let priorities = Hashtbl.create 16
   let constantlocks = Hashtbl.create 16
@@ -252,19 +253,19 @@ struct
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;
-    Goblintutil.rm_rf path;
+    Goblintutil.rm_rf !tmp_path;
     Base.Main.finalize ()
 
   let init () =   
     if !oilFile != "" && Sys.file_exists(!oilFile) then begin     
-      let path = Goblintutil.create_dir "osek_temp" in
-      let oilp = path ^ "/priorities.txt" in     
-      let resp = path ^  "/resources.txt" in
-      let _ = ignore (Unix.system ("ruby " ^ path ^ "/../scripts/parse_oil.rb " ^ (!oilFile) ^ " " ^ path)) in
+      let () = tmp_path := Goblintutil.create_dir "osek_temp" in
+      let oilp = !tmp_path ^ "/priorities.txt" in     
+      let resp = !tmp_path ^  "/resources.txt" in
+      let _ = ignore (Unix.system ("ruby " ^ path ^ "/scripts/parse_oil.rb " ^ (!oilFile) ^ " " ^ !tmp_path)) in
       let _ = Hashtbl.add priorities "default" (-1) in
       let tramp = Filename.dirname(!oilFile) ^ "/defaultAppWorkstation/tpl_os_generated_configuration.h" in
 	if Sys.file_exists(tramp) then begin
-	  ignore (Unix.system ("ruby " ^ path ^ "/../scripts/parse_trampoline.rb " ^ tramp ^ " " ^ path) )
+	  ignore (Unix.system ("ruby " ^ path ^ "/scripts/parse_trampoline.rb " ^ tramp ^ " " ^ !tmp_path) )
 	end else begin
 	  prerr_endline "Trampoline headers not found." ;
 	  exit 2;
