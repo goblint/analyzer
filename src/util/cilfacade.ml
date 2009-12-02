@@ -143,6 +143,7 @@ let getFuns fileAST  : fundec list =
           def :: rest
       | GFun ({svar={vstorage=NoStorage}} as def, _) -> def :: rest
       | GFun (def, _) when not (!GU.nonstatic) -> def :: rest
+      | GFun (def, _) when (!GU.oil && (String.length def.svar.vname >= 12 && String.sub def.svar.vname 0 12 = "function_of_")) -> def :: rest
       | _ -> rest 
   in
   let others = foldGlobals fileAST f [] in

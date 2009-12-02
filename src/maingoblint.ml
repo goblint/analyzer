@@ -42,6 +42,7 @@ let main () =
   in
   let analyze = ref (analyzer (JB.string (JB.field !GU.conf "analysis"))) in
   let nonstatic () = GU.allfuns := true; GU.nonstatic := true in
+  let oil = GU.allfuns := true; GU.oil := true; Arg.Set_string Osek.Spec.oilFile in
   let setanalysis str = 
     begin match str with
             | "uninit" -> GU.conf_uninit ()
@@ -106,7 +107,7 @@ let main () =
                  ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
-		 ("--oil", Arg.Set_string Osek.Spec.oilFile, "<file>  Oil file for the analysed programm");
+		 ("--oil",oil, "<file>  Oil file for the analysed programm");
                  ] in
   let recordFile fname = 
     fileNames := fname :: (!fileNames) in

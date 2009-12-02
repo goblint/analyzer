@@ -123,6 +123,8 @@ struct
 
   (** [postprocess_acc gl] groups and report races in [gl] *)
   let postprocess_acc gl =
+    let is_no_glob (gl:varinfo) = (match gl.vtype with TFun _ -> true | _ -> false )in
+    if is_no_glob gl then () else
     (* create mapping from offset to access list; set of offsets  *)
     let acc = Mutex.Spec.acc in
     let create_map (accesses_map) =

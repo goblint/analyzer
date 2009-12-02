@@ -91,6 +91,8 @@ let cfg_print = ref false
 (** analyze all the functions in the program, rather than just main *)
 let allfuns = ref false
 let nonstatic = ref false
+(** analyze all functions corresponding to a osek task *)
+let oil = ref false
 
 (** name of the main / init function *)
 let mainfun = ref "main"
