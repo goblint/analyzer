@@ -16,10 +16,10 @@
           (struct let name = "<analysis name here>" 
                   type lf = <analysis spec>.Dom.t
                   let inject_l x = `AnalysisA x
-                  let extract_l x = match x with `AnalysisA x -> x | _ -> raise ToMCP.SpecificationConversionError
+                  let extract_l x = match x with `AnalysisA x -> x | _ -> raise MCP.SpecificationConversionError
                   type gf = <analysis spec>.Glob.Val.t
                   let inject_g x = `None 
-                  let extract_g x = match x with `None -> () | _ -> raise ToMCP.SpecificationConversionError
+                  let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
           end)
           
           
