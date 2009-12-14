@@ -16,10 +16,55 @@ struct
   (*priority function*)
   let pry lock = try Hashtbl.find priorities lock with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
 
-  (*brutal hack*)
+  (*brutal hacks*)
   let is_task f = 
     (String.length f >= 12 && String.sub f 0 12 = "function_of_")
-  (* let is_task f = is_task' f.svar.vname *)
+
+  let is_constantlock lock = Hashtbl.mem lock constantlocks
+ 
+  let dummy_release f = makeLocalVar f ?insert:(Some false) "ReleaseResource" Cil.voidType
+
+  let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType
+
+  let parse_oil oilp tmp_path = 
+    let input = open_in !oilFile in
+    let output = open_out oilp in
+    let _ = output_string output ("default" ^ "\n") in
+    let h = "function_of_" in 	
+    let task_re = Str.regexp " *\\(TASK\\|ISR\\) +\\([a-zA-Z]+\\)" in
+    let pry_re = Str.regexp " *PRIORITY *= *\\([1-9][0-9]*\\)" in
+    let res_re = Str.regexp " *RESOURCE *= *\\([a-zA-Z]+\\)" in
+    let rec read_info () = try
+      let line = input_line input
+      in
+	if Str.string_match task_re line 0 then    
+	  output_string output (h ^ (String.lowercase (Str.matched_group 1 line)) ^ "_" ^ (Str.matched_group 2 line) ^"\n");
+	if Str.string_match pry_re line 0 then output_string output ((Str.matched_group 1 line)  ^"\n");
+	if Str.string_match res_re line 0 then output_string output ((Str.matched_group 1 line)  ^"\n");
+	read_info ();
+      with 
+	| End_of_file -> ()
+	| e -> raise e
+    in read_info (); close_in input; close_out output
+
+  let parse_tramp resp tramp = 
+    let input = open_in tramp in
+    let output = open_out resp in
+    let re = Str.regexp ".*resource_id_of_\\([a-zA-Z]+\\) +\\([0-9]+\\).*" in
+    let rec read_info () = try
+      let line = input_line input
+      in
+	if Str.string_match re line 0 then begin
+	  output_string output ( (Str.matched_group 2 line) ^ "\n");
+	  output_string output ( (Str.matched_group 1 line) ^ "\n")
+	end;
+	read_info ();
+      with 
+	| End_of_file -> ()
+	| e -> raise e
+    in read_info (); close_in input;  close_out output
+
+  (*end hacks*)
 
   let query ask _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = 
     Queries.Result.top ()
@@ -35,8 +80,7 @@ struct
     let m_st = Mutex.Spec.body a (f:fundec) gl st in
     if (is_task f.svar.vname) then 
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
-      let dummy_edge = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType  in
-      match Mutex.Spec.special_fn a None dummy_edge [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
+      match Mutex.Spec.special_fn a None (dummy_get f) [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
     else 
@@ -46,8 +90,7 @@ struct
     let m_st = Mutex.Spec.return a (exp:exp option) (f:fundec) gl st in
     if (is_task f.svar.vname) then 
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
-      let dummy_edge = makeLocalVar f ?insert:(Some false) "ReleaseResource" Cil.voidType  in
-      match Mutex.Spec.special_fn a None dummy_edge [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
+      match Mutex.Spec.special_fn a None (dummy_release f) [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
     else 
@@ -71,14 +114,16 @@ struct
         | x -> x)  gl st
       | "ActivateTask" -> Mutex.Spec.special_fn a lval f arglist gl st (*call function *)
       | "ChainTask" -> Mutex.Spec.special_fn a lval f arglist gl st (*call function *)
-      | "DisableAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("DEall"))) gl st
-      | "EnsableAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("DEall"))) gl st
-      | "SuspendAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRall"))) gl st
-      | "ResumeAllInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRall"))) gl st
-      | "SuspendOSInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRos"))) gl st
-      | "ResumeOSInterrupts" -> Mutex.Spec.special_fn a lval f (make_lock (Hashtbl.find constantlocks ("SRos"))) gl st
-      | "TerminateTask" -> Mutex.Spec.special_fn a lval f arglist gl st (*check empty lockset*)
-      | "WaitEvent" -> Mutex.Spec.special_fn a lval f arglist gl st (*check empty lockset*)
+      | "DisableAllInterrupts" -> Mutex.Spec.special_fn a lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) gl st
+      | "EnsableAllInterrupts" -> Mutex.Spec.special_fn a lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) gl st
+      | "SuspendAllInterrupts" -> Mutex.Spec.special_fn a lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRall"))) gl st
+      | "ResumeAllInterrupts" -> Mutex.Spec.special_fn a lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRall"))) gl st
+      | "SuspendOSInterrupts" -> Mutex.Spec.special_fn a lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRos"))) gl st
+      | "ResumeOSInterrupts" -> Mutex.Spec.special_fn a lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRos"))) gl st
+      | "TerminateTask" -> (if not(Dom.is_empty st) then () else print_endline "Warning: Taskgetitfromtasklock? terminated while holding resources xyz!") ; 
+			    Mutex.Spec.special_fn a lval f arglist gl st (*check empty lockset*)
+      | "WaitEvent" -> (if not(Dom.is_empty st) then () else print_endline "Warning: Task ??? terminated while holding resources xyz!") ; 
+			  Mutex.Spec.special_fn a lval f arglist gl st (*check empty lockset*)
       | "SetEvent"
       | "ClearEvent"
       | "GetEvent"
@@ -261,11 +306,11 @@ struct
       let () = tmp_path := Goblintutil.create_dir "osek_temp" in
       let oilp = !tmp_path ^ "/priorities.txt" in     
       let resp = !tmp_path ^  "/resources.txt" in
-      let _ = ignore (Unix.system ("ruby " ^ path ^ "/scripts/parse_oil.rb " ^ (!oilFile) ^ " " ^ !tmp_path)) in
+      let _ = parse_oil oilp tmp_path in
       let _ = Hashtbl.add priorities "default" (-1) in
       let tramp = Filename.dirname(!oilFile) ^ "/defaultAppWorkstation/tpl_os_generated_configuration.h" in
 	if Sys.file_exists(tramp) then begin
-	  ignore (Unix.system ("ruby " ^ path ^ "/scripts/parse_trampoline.rb " ^ tramp ^ " " ^ !tmp_path) )
+	  parse_tramp resp tramp
 	end else begin
 	  prerr_endline "Trampoline headers not found." ;
 	  exit 2;
