@@ -12,6 +12,9 @@ struct
 
   let priorities = Hashtbl.create 16
   let constantlocks = Hashtbl.create 16
+  let tasks = Hashtbl.create 16
+  let resources = Hashtbl.create 16
+  let tramp_id = Hashtbl.create 16
 
   (*priority function*)
   let pry lock = try Hashtbl.find priorities lock with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
@@ -34,17 +37,40 @@ struct
     let task_re = Str.regexp " *\\(TASK\\|ISR\\) +\\([a-zA-Z]+\\)" in
     let pry_re = Str.regexp " *PRIORITY *= *\\([1-9][0-9]*\\)" in
     let res_re = Str.regexp " *RESOURCE *= *\\([a-zA-Z]+\\)" in
+    let flag = ref "" in
     let rec read_info () = try
       let line = input_line input
       in
-	if Str.string_match task_re line 0 then    
+	if Str.string_match task_re line 0 then begin   
 	  output_string output (h ^ (String.lowercase (Str.matched_group 1 line)) ^ "_" ^ (Str.matched_group 2 line) ^"\n");
-	if Str.string_match pry_re line 0 then output_string output ((Str.matched_group 1 line)  ^"\n");
-	if Str.string_match res_re line 0 then output_string output ((Str.matched_group 1 line)  ^"\n");
+	  Hashtbl.add tasks (Str.matched_group 2 line) ((Str.matched_group 1 line),-1,[]);
+	  let _ = !flag = (Str.matched_group 2 line) in (); 
+	end;
+	if Str.string_match pry_re line 0 then begin
+	  output_string output ((Str.matched_group 1 line)  ^"\n");
+	  if (not (!flag="")) then 
+	    Hashtbl.replace tasks !flag ((fun (x,_,z) y -> (x,y,z)) (Hashtbl.find tasks !flag) (int_of_string(Str.matched_group 1 line)));
+	end;
+	if Str.string_match res_re line 0 then begin
+	  let res_name = Str.matched_group 1 line in
+	  output_string output (res_name  ^"\n");
+	  if (not (!flag="")) then begin
+	    Hashtbl.replace tasks !flag ((fun (x,y,zs) z -> (x,y,z::zs)) (Hashtbl.find tasks !flag) res_name);
+	  end;
+	  if (not (Hashtbl.mem resources res_name)) then begin (Hashtbl.add resources res_name (-1)); end;
+	end;
 	read_info ();
       with 
 	| End_of_file -> ()
 	| e -> raise e
+    in
+    let helper2 res_name task value acc = (fun (x,y,z) -> 
+      if (List.mem res_name z) then (max acc y) else acc) value 
+    in
+    let helper res_name pry = let x = (Hashtbl.fold (helper2 res_name) tasks (-1)) in 
+      if x > pry then Hashtbl.replace resources res_name x 
+    in
+    let generate_ceiling_priority = Hashtbl.iter helper resources
     in read_info (); close_in input; close_out output
 
   let parse_tramp resp tramp = 
@@ -55,6 +81,7 @@ struct
       let line = input_line input
       in
 	if Str.string_match re line 0 then begin
+	  Hashtbl.add tramp_id (Str.matched_group 1 line) (Str.matched_group 2 line);
 	  output_string output ( (Str.matched_group 2 line) ^ "\n");
 	  output_string output ( (Str.matched_group 1 line) ^ "\n")
 	end;
