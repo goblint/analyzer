@@ -1,0 +1,20 @@
+1. Try if the precompiled binary works for you.
+
+     ./goblint/goblint goblint/tests/regression/04-mutex/01-simple_rc.c
+
+2. If not, you need to install o'caml and a couple of auxilliary packages.
+   On a debian-based system you can write:
+
+     sudo apt-get install ocaml-findlib libounit-ocaml-dev \
+       libxml-light-ocaml-dev libjson-wheel-ocaml-dev
+
+   Otherwise you need to manually install 
+     * O'Caml (http://caml.inria.fr)
+     * XML-light (http://tech.motion-twin.com/xmllight.html)
+     * findlibs (http://projects.camlcity.org/projects/findlib.html)
+     * json-wheel (http://martin.jambon.free.fr/json-wheel.html)
+
+3. Build Cil and Goblint by executing the usual configure/make commands.
+   If all dependencies are installed, you can just run the script:
+
+     ./build_all.sh

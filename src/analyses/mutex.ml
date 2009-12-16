@@ -659,19 +659,8 @@ struct
   let finalize () = 
     AccKeySet.iter postprocess_acc !accKeys;
     if !GU.multi_threaded then begin
-      match !race_free, !M.soundness with
-        | true, true -> 
-            print_endline "CONGRATULATIONS!\nYour program has just been certified Free of Data Races!";
-            if not (!failing_locks) then print_endline  "(Assuming locking operations always succeed.)"
-        | true, false -> 
-            print_endline "Goblint did not find any Data Races in this program!";
-            print_endline "However, the code was too complicated for Goblint to understand all of it."
-        | false, true -> 
-            print_endline "And that's all. Goblint is certain there are no other races.";
-            if not (!failing_locks) then print_endline  "(Assuming locking operations always succeed.)"
-        | _ -> 
-            print_endline "And there may be more races ...";
-            print_endline "The code was too complicated for Goblint to understand all of it."
+      if !race_free then 
+        print_endline "Goblint did not find any Data Races in this program!";
     end else if not !GU.debug then begin
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
