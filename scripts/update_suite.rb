@@ -174,7 +174,7 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
     lines = IO.readlines(File.join(testresults, warnfile))
     lines.each do |l| 
       if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
-      next unless l =~ /^(.*)\(.*\.c:(.*)\)$/
+      next unless l =~ /(.*)\(.*\.c:(.*)\)/
       obj,i = $1,$2.to_i
       warnings[i] = case obj
                     when /with lockset/: "race"
