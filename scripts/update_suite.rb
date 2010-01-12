@@ -52,6 +52,10 @@ only = ARGV[0] unless ARGV[0].nil?
 if only == "future" then
   future = true
   only = nil
+elsif only == "group" then
+  future = true
+  thegroup = ARGV[1]
+  only = nil
 else
   future = false
 end
@@ -68,6 +72,7 @@ regs.sort.each do |d|
   next if File.basename(d)[0] == ?.
   gid = d[0..1]
   groupname = d[3..-1]
+  next unless thegroup.nil? or groupname == thegroup
   grouppath = File.expand_path(d, testfiles)
   group = Dir.open(grouppath)
   group.sort.each do |f|
@@ -81,7 +86,7 @@ regs.sort.each do |d|
     size = 0
     debug = true
 
-    next if not future and lines[0] =~ /SKIP/
+    next if not future and only.nil? and lines[0] =~ /SKIP/
     debug = false unless lines[0] =~ /DEBUG/
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
@@ -126,7 +131,6 @@ end
 startdir = Dir.pwd
 projects.each do |p|
   Dir.chdir(startdir)
-  next unless only.nil? or p.name == only 
   filepath = p.path
   dirname = File.dirname(filepath)
   filename = File.basename(filepath)
