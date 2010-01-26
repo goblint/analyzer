@@ -77,18 +77,56 @@ struct
   let get_all_locks ask e st : Queries.PS.t =
     let exps = 
       match ask (Queries.EqualSet e) with
-        | `ExprSet a when not (Queries.ES.is_bot a) -> a
+(*        | `ExprSet a when not (Queries.ES.is_bot a) -> Queries.ES.add e a *)
         | _ -> Queries.ES.singleton e
     in
     let add_locks x xs = Queries.PS.union (get_locks x st) xs in
     Queries.ES.fold add_locks exps (Queries.PS.empty ())
 
+  let same_unknown_index ask exp slocks =
+    let uk_index_equal i1 i2 =
+      match Cil.constFold true i1, Cil.constFold true i2 with
+        | (Const _), _ 
+        | _,(Const _) -> false
+        | _ ->
+      match ask (Queries.ExpEq (i1, i2)) with
+        | `Int i when i <> 0L -> true
+        | _ -> false
+    in
+    let lock_index ei ee x xs =
+      match Exp.one_unknown_array_index x with
+        | Some (true, i, e) when uk_index_equal ei i ->
+            Queries.PS.add (ee, ee, e) xs
+        | _ -> xs
+    in
+    match Exp.one_unknown_array_index exp with
+      | Some (false, i, e) -> Dom.fold (lock_index i e) slocks (Queries.PS.empty ())
+      | _ -> Queries.PS.empty ()
+      
+      
+  (* Per-element returns a triple of exps, first are the "element" pointers, 
+     in the second and third positions are the respectively access and mutex.
+     Access and mutex expressions have exactly the given "elements" as "prefixes". 
+     
+     To know if a access-mutex pair matches our per-element pattern we listify 
+     the offset (adding dereferencing to our special offset type). Then we take 
+     the longest common prefix till a dereference and check if the rest is "concrete".  
+    
+     ----     
+     Array lockstep also returns a triple of exps. Second and third elements in 
+     triples are access and mutex exps. Common index is replaced with *.
+     First element is unused.
+     
+     To find if this pattern matches, we try to separate the base variable and 
+     the index from both -- access exp and mutex exp. We check if indexes match
+     and the rest is concrete. Then replace the common index with *.
+    *)
   let query a _ (x:Dom.t) (q:Queries.t) =
     match q with
       | Queries.PerElementLock e -> 
-          let triples = get_all_locks a e x in
-(*           Messages.report ((sprint 800 (d_exp () e)) ^ " accesed with " ^ (Queries.PS.short 800 triples)); *)
-          `PerElemLock triples
+          `ExpTriples (get_all_locks a e x)
+      | Queries.ArrayLockstep e ->
+          `ExpTriples (same_unknown_index a e x)
       | _ -> Queries.Result.top ()
 end
 

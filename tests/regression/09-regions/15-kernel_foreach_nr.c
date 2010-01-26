@@ -1,4 +1,4 @@
-// SKIP! PARAM: --with region --kernel --nonstatic
+// PARAM: --with var_eq --with symb_locks --with region --kernel --nonstatic
 #include<linux/module.h>
 #include<linux/list.h>
 #include<linux/mutex.h>

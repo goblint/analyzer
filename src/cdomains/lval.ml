@@ -462,7 +462,7 @@ struct
 end
 
 
-module CilLval : Printable.S with type t = Cil.varinfo * (fieldinfo, exp) offs =
+module CilLval =
 struct
   include Printable.Std
   type t = Cil.varinfo * (fieldinfo, exp) offs
@@ -473,12 +473,26 @@ struct
   let name () = "simplified Cil.lval" 
   let isSimple _ = true
 
-  let rec short_offs o a =
+  let rec short_offs (o: (fieldinfo, exp) offs) a =
     match o with
       | `NoOffset -> a
       | `Field (f,o) -> short_offs o (a^"."^f.fname) 
       | `Index (e,o) -> short_offs o (a^"["^Pretty.sprint 80 (dn_exp () e)^"]")
 
+  let rec of_ciloffs x =
+    match x with
+      | Cil.NoOffset    -> `NoOffset
+      | Cil.Index (i,o) -> `Index (i, of_ciloffs o)
+      | Cil.Field (f,o) -> `Field (f, of_ciloffs o) 
+
+  let rec to_ciloffs x =
+    match x with
+      | `NoOffset    -> Cil.NoOffset
+      | `Index (i,o) -> Cil.Index (i, to_ciloffs o)
+      | `Field (f,o) -> Cil.Field (f, to_ciloffs o) 
+
+  let to_exp (v,o) = Cil.Lval (Cil.Var v, to_ciloffs o)
+          
   let short _ (v,o) = short_offs o v.vname
   
   let pretty_f sf () x = text (sf 80 x) 

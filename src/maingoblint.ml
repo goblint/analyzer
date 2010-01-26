@@ -146,7 +146,7 @@ let main () =
     (* The actual filename of the preprocessed sourcefile *)
     let nname =  Filename.concat dirName (Filename.basename fname) in 
     (* Preprocess using gcc -E *)
-    let command = "gcc -E " ^ !cppflags ^ " " ^ !includes ^ " " ^ fname ^ " -o " ^ nname in
+    let command = "gcc --undef __BLOCKS__ -E " ^ !cppflags ^ " " ^ !includes ^ " " ^ fname ^ " -o " ^ nname in
       if !GU.verbose then print_endline command;
       ignore (Unix.system command);  (* MAYBE BAD IDEA to ingore! *)
       nname

@@ -1,4 +1,4 @@
-// SKIP! PARAM: --with region
+// PARAM: --with var_eq --with symb_locks --with region
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>

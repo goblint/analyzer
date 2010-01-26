@@ -17,7 +17,10 @@ struct
   include Lattice.Prod3 (CPA) (Flag) (Vars)
   let short w (c,d,v)   = P2.short w (c,d)
   let pretty_f sf () (c,d,v:t) = P2.pretty_f (fun w (x,y) -> sf w (x,y,v)) () (c,d)
-  let toXML_f sf (c,d,v:t) = P2.toXML_f (fun w (x,y) -> sf w (x,y,v)) (c,d)
   let pretty = pretty_f short
+  let toXML_f sf (c,d,v:t) = 
+    match P2.toXML (c,d) with
+      | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Base Analysis"], elems)
+      | x -> x
   let toXML  = toXML_f short
 end

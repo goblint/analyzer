@@ -13,7 +13,16 @@ struct
   module Lif    = RegionDomain.Lif
   module Var    = RegionDomain.Var
   module Vars   = RegionDomain.Vars
-  module Dom    = RegionDomain.RegionDom
+  module Dom = 
+  struct 
+    include RegionDomain.RegionDom
+    let toXML_f sf x = 
+      match toXML x with
+        | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Region Analysis"], elems)
+        | x -> x
+        
+    let toXML s  = toXML_f short s
+  end
   module Glob = Global.Make (RegPart) 
 
   type glob_fun = Glob.Var.t -> Glob.Val.t

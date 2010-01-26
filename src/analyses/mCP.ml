@@ -359,8 +359,8 @@ struct
   let equal' x y        = (get_matches x).equal x y  
   let hash' x           = (get_matches x).hash x
 
-  let toXML' x          = toXML_f' short' x
-  let pretty' x         = pretty_f' short' x
+  let toXML' x          = (get_matches x).toXML x
+  let pretty' () x      = (get_matches x).pretty () x
       
   (* combining element functions to list functions *)
   
@@ -375,7 +375,7 @@ struct
   let leq    = List.for_all2 leq' 
   let why_not_leq () (x,y): Pretty.doc = List.fold_right2 why_not_leq' x y Pretty.nil
     
-  let short _ = List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""
+  let short _ _ = "Analyses"(*List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""*)
   
   let pretty_f _ () x = 
     match x with

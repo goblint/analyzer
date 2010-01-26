@@ -97,6 +97,7 @@ let invalidate_actions = [
   ("getopt", writes [2]);(*keep [2]*)
   ("localtime", readsAll);(*safe*)
   ("memcpy", writes [1]);(*keep [1]*)
+  ("__builtin___memcpy_chk", writes [1]);
   ("memset", writesAll);(*unsafe*)
   ("printf", readsAll);(*safe*)
   ("printk", readsAll);(*safe*)
@@ -310,6 +311,7 @@ let invalidate_actions = [
   ("pthread_rwlock_destroy", readsAll);
   ("pthread_rwlock_init", readsAll);
   ("pthread_rwlock_unlock", readsAll);
+  ("__builtin_object_size", readsAll);
 ]
 
 (* used by get_invalidate_action to make sure

@@ -14,8 +14,18 @@ open Pretty
 module Spec =
 struct
   exception Top
-
-  module Dom = PartitionDomain.ExpPartitions
+  
+  module Dom =
+  struct
+    include PartitionDomain.ExpPartitions
+    let toXML_f sf x = 
+      match toXML x with
+        | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Variable Equalities"], elems)
+        | x -> x
+        
+    let toXML s  = toXML_f short s
+  end
+  
   module Glob = Global.Make (Lattice.Unit)
 
   let name = "Partition"
@@ -185,6 +195,7 @@ struct
   let exp_equal ask e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
     let e1 = Cil.constFold true (Cil.stripCasts e1) in
     let e2 = Cil.constFold true (Cil.stripCasts e2) in
+    if e1 = e2 then true else
     match Dom.find_class e1 s with
       | Some ss when Dom.S.mem e2 ss -> true
       | _ -> false

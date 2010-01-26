@@ -1,4 +1,5 @@
-include Pretty
+open Pretty
+open Cil
 
 module Exp =
 struct
@@ -188,7 +189,57 @@ struct
       | Cil.StartOf (Cil.Mem e,Cil.Field (f,_)) when simple_eq e q -> Some f.Cil.fcomp
       | Cil.StartOf (Cil.Mem e,o) -> base_compinfo q e
       | Cil.CastE (t,e) -> base_compinfo q e
-
+  
+  let rec conc i = 
+    match i with
+      | NoOffset -> true
+      | Index (i,o) -> isConstant i && conc o
+      | Field (_,o) -> conc o
+  
+  let rec one_unknown_array_index exp = 
+    let rec separate_fields_index o = 
+      match o with
+        | NoOffset -> None
+        | Index (ie,o) -> Some ((fun x -> x),ie,o)
+        | Field (f,o) -> 
+      match separate_fields_index o with
+        | Some (osf, ie,o) -> Some ((fun o -> Field (f,o)), ie, o)
+        | x -> x
+    in 
+    let star = kinteger64 IInt Goblintutil.inthack in
+    match exp with
+      | Lval (Mem (Lval (Var v, io)),o) when conc o -> 
+          begin match separate_fields_index io with
+            | Some (osf, ie, io) when conc io -> 
+                Some (false, ie, Lval (Mem (Lval (Var v, osf (Index (star,io)))),o))
+            | _ ->
+                None
+          end
+      | Lval (Var v, io) -> 
+          begin match separate_fields_index io with
+            | Some (osf, ie, o) when conc o -> 
+                Some (false, ie, Lval (Var v, osf (Index (star,o))))
+            | _ ->
+                None
+          end        
+      | AddrOf (Var v, io) -> 
+          begin match separate_fields_index io with
+            | Some (osf, ie, o) when conc o -> 
+                Some (true, ie, AddrOf (Var v, osf (Index (star,o)))) 
+            | _ ->
+                None
+          end                     
+      | StartOf (Var v, io) -> 
+          begin match separate_fields_index io with
+            | Some (osf, ie, o) when conc o -> 
+                Some (true, ie, StartOf (Var v, osf (Index (star,o))))
+            | _ ->
+                None
+          end                     
+      | AddrOf (Mem e, NoOffset) -> one_unknown_array_index e
+      | StartOf (Mem e, NoOffset) -> one_unknown_array_index e
+      | CastE (t,e) -> one_unknown_array_index e
+      | _ -> None
 end
 
 module LockingPattern =

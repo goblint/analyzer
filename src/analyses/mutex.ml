@@ -352,12 +352,45 @@ struct
       let b_comp = Exp.base_compinfo e a in
       List.iter with_element (query_lv e b_comp)
     in
+    let one_lockstep (_,a,m) =
+      let accs = access_one_byval ask rw a in
+      match m with
+        | AddrOf (Var v,o) -> 
+            let lock = Dom.add (ValueDomain.Addr.from_var_offset (v, conv_const_offset o),true) ust in
+            add_accesses ask accs lock
+        | _ ->  
+            Messages.warn "Internal error: found a strange lockstep pattern.";            
+            add_accesses ask accs ust
+    in
+    let do_perel e = 
     match ask (Queries.PerElementLock e) with
-      | `PerElemLock a 
+      | `ExpTriples a 
           when not (Queries.PS.is_top a || Queries.PS.is_empty a) 
           -> Queries.PS.iter one_perelem a;
              true
       | _ -> false
+    in
+    let do_lockstep e =       
+    match ask (Queries.ArrayLockstep e) with
+      | `ExpTriples a
+          when not (Queries.PS.is_top a || Queries.PS.is_empty a)
+          -> Queries.PS.iter one_lockstep a;
+             true
+      | _ -> false 
+    in 
+    let matching_exps =
+      Queries.ES.meet
+        (match ask (Queries.EqualSet e) with
+          | `ExprSet es when not (Queries.ES.is_top es || Queries.ES.is_empty es)
+              -> Queries.ES.add e es
+          | _ -> Queries.ES.singleton e)
+        (match ask (Queries.Regions e) with
+          | `LvalSet ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
+              -> Queries.LS.fold (fun x -> Queries.ES.add (Lval.CilLval.to_exp x)) ls (Queries.ES.singleton e)
+          | _ -> Queries.ES.singleton e)
+    in
+         Queries.ES.fold (fun x xs -> xs || do_lockstep x) matching_exps false
+      || Queries.ES.fold (fun x xs -> xs || do_perel x) matching_exps false
         
   (* All else must have failed --- making a last ditch effort to generate type 
       invariant if that fails then give up and become unsound. *)
@@ -592,6 +625,36 @@ struct
         then map
         else OffsMap.add last_offs last_set map
     in
+    let perel_leq_addr (x,r1) (y,r2) = 
+      match ValueDomain.Addr.to_var_offset x with
+        | [v,o] -> 
+          begin
+            match ValueDomain.Addr.to_var_offset y with
+              | [v2,o2] -> v.vid = v2.vid && Offs.perel_leq (Offs.from_offset o) (Offs.from_offset o2)
+              | _ -> false
+          end
+        | _ -> false
+    in
+    let perel_join_locks x y =
+      let module S = Lockset.ReverseAddrSet in
+      let f x xs = 
+        let max_option_x y zo = 
+          if perel_leq_addr x y then Some y
+          else if perel_leq_addr y x then Some x else zo 
+        in
+        match S.fold max_option_x y None with
+          | None -> xs
+          | Some z -> S.add z xs  
+      in
+      if Lockset.is_top x  
+      then y
+      else if Lockset.is_top y
+      then x
+      else 
+        (
+          S.fold f x (S.empty ())  
+        )
+    in
     let get_common_locks acc_list = 
       let f locks ((_,_,writing), lock, _) = 
         let lock = 
@@ -602,7 +665,7 @@ struct
             (* when reading: bump reader locks to exclusive as they protect reads *)
             Lockset.map (fun (x,_) -> (x,true)) lock 
         in
-          Lockset.join locks lock 
+          perel_join_locks locks lock 
       in
 			List.fold_left f (Lockset.bot ()) acc_list
     in

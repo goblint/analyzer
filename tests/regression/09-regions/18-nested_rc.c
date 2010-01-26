@@ -1,4 +1,4 @@
-// SKIP! PARAM: --with region
+// PARAM: --with region
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>

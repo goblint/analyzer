@@ -37,6 +37,13 @@ struct
 
   include AddrSet
 
+  let toXML_f sf x = 
+    match toXML x with
+      | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Lock Set"], elems)
+      | x -> x
+      
+  let toXML s  = toXML_f short s
+  
   let rec concrete_offset offs =
    match offs with
      | `NoOffset -> true
@@ -87,6 +94,12 @@ struct
   module S = SetDomain.ToppedSet (Exp) (struct let topname = "All mutexes" end)
   include Lattice.Reverse (S)
 
+  let toXML_f sf x = 
+    match toXML x with
+      | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Symbolic Locks"], elems)
+      | x -> x
+      
+  let toXML s  = toXML_f short s
   let empty = S.empty
   let is_empty = S.is_empty
 
