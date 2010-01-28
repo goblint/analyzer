@@ -655,7 +655,15 @@ struct
     let ys = List.fold_right2 drop_keep !take_list ys [] in
     List.for_all2 Dom.equal' xs ys
   
-  let es_to_string f _ = f.svar.vname
+  let es_to_string f xs = 
+    let find_base current x =
+      match x with
+        | `Base x -> Some (`Base x)
+        | _ -> current
+    in
+    match List.fold_left find_base None xs  with
+      | Some b -> (get_matches b).es_to_string f b
+      | None -> f.svar.vname
   
   (* Global difflist functions. *)
   let get_diff st = List.flatten (List.map get_diff' st)

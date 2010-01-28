@@ -207,14 +207,12 @@ module Equ = MusteqDomain.Equ
 module LD  = Lattice.Prod (Equ) (RegMap) 
 module Lif = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end) 
 module Var = Basetype.Variables    
-module Vars= 
+module Vars= SetDomain.Make (Printable.Prod (Var) (RegPart))
+
+module RegionDom = 
 struct 
-  include SetDomain.Make (Printable.Prod (Var) (RegPart))
-  let toXML_f sf x = 
-    match toXML x with
-      | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "?some kind of variables?"], elems)
-      | x -> x
-      
-  let toXML s  = toXML_f short s
+  include Lattice.Prod (Lif) (Vars)
+  let short n (x,_:t) = Lif.short n x
+  let toXML_f sf (x,_:t) = Lif.toXML_f (fun x -> sf max_int (x,Vars.empty ())) x
+  let toXML x = toXML_f short x
 end
-module RegionDom = Lattice.Prod (Lif) (Vars)
