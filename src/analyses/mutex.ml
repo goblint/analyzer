@@ -367,6 +367,7 @@ struct
       | `ExpTriples a 
           when not (Queries.PS.is_top a || Queries.PS.is_empty a) 
           -> Queries.PS.iter one_perelem a;
+             Messages.debug ("Found per-element pattern: " ^ Queries.PS.short 800 a);
              true
       | _ -> false
     in
@@ -375,6 +376,7 @@ struct
       | `ExpTriples a
           when not (Queries.PS.is_top a || Queries.PS.is_empty a)
           -> Queries.PS.iter one_lockstep a;
+             Messages.debug ("Found lockstep pattern: " ^ Queries.PS.short 800 a);
              true
       | _ -> false 
     in 

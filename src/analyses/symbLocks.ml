@@ -96,7 +96,7 @@ struct
     let lock_index ei ee x xs =
       match Exp.one_unknown_array_index x with
         | Some (true, i, e) when uk_index_equal ei i ->
-            Queries.PS.add (ee, ee, e) xs
+            Queries.PS.add (zero, ee, e) xs
         | _ -> xs
     in
     match Exp.one_unknown_array_index exp with

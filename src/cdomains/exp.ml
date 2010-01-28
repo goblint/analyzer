@@ -342,11 +342,11 @@ struct
         | x::xs, y::ys -> fold_left2 f (f a x y) xs ys
         | _ -> a
     in
-    let advance_prefix xs x y = 
-      match xs with
-        | `Todo (zs,xs,ys) when ee_equal x y -> `Todo (x :: zs,xs,ys)
-        | `Todo (zs,xs,ys)
-        | `Done (zs,xs,ys) ->  `Done (zs,x::xs,y::ys)
+    let rec fold_advance_prefix xs x y = 
+      match xs, x, y with
+        | `Todo (zs,fs,gs), x::xs, y::ys when ee_equal x y -> fold_advance_prefix (`Todo (x :: zs,fs,gs)) xs ys
+        | `Todo (zs,fs,gs), _, _ 
+        | `Done (zs,fs,gs), _, _ ->  `Done (zs,fs,List.rev y@gs)
     in
     let dummy = Cil.integer 42 in
     let is_concrete = 
@@ -360,10 +360,10 @@ struct
       in
       List.for_all is_concrete 
     in
-    try match fold_left2 advance_prefix (`Todo ([],[],[])) a l with
+    try match fold_advance_prefix (`Todo ([],[],[])) a l with
       | `Done ([],_,_) 
       | `Todo ([],_,_) -> None
-      | `Todo (zs,xs,ys)  
+      | `Todo (zs,xs,ys) 
       | `Done (zs,xs,ys) when is_concrete xs && is_concrete ys ->
           let elem = fromEl (List.rev (Addr::zs)) dummy in
           Some (elem, fromEl a dummy, fromEl l dummy)
