@@ -71,7 +71,7 @@ struct
       if x > pry then Hashtbl.replace resources res_name x 
     in
     let generate_ceiling_priority = Hashtbl.iter helper resources
-    in read_info (); close_in input; close_out output
+    in read_info (); close_in input; close_out output; ignore generate_ceiling_priority
 
   let parse_tramp resp tramp = 
     let input = open_in tramp in

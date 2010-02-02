@@ -310,8 +310,8 @@ struct
   
   (* Just adds accesses. It says concrete, but we use it to add verified 
      non-concrete accesses too.*)
-  let add_concrete_access fl loc ust (v, o, rv: Cil.varinfo * Offs.t * bool) =
-    if (v.vglob) then
+  let add_concrete_access ask fl loc ust (v, o, rv: Cil.varinfo * Offs.t * bool) =
+    if (Base.is_global ask v) then
       let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
       let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
       Acc.replace acc v neww;
@@ -425,14 +425,14 @@ struct
           match ax with
             | Concrete (Some e,v,o,rw) -> 
                 if   not (add_per_element_access ask loc ust (e,rw)) 
-                then add_concrete_access fl loc ust (v,o,rw)
+                then add_concrete_access ask fl loc ust (v,o,rw)
             | Concrete (None,v,o,rw) -> 
-                add_concrete_access fl loc ust (v,o,rw)
+                add_concrete_access ask fl loc ust (v,o,rw)
             | Region (Some e,v,o,rw) -> 
                 if   not (add_per_element_access ask loc ust (e,rw)) 
-                then add_concrete_access fl loc ust (v,o,rw)
+                then add_concrete_access ask fl loc ust (v,o,rw)
             | Region (None,v,o,rw) -> 
-                add_concrete_access fl loc ust (v,o,rw)
+                add_concrete_access ask fl loc ust (v,o,rw)
             | Unknown a -> 
                 if   not (add_per_element_access ask loc ust a) 
                 then add_type_access ask loc ust a 

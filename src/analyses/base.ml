@@ -3,6 +3,7 @@ open Pretty
 module A = Analyses
 module M = Messages
 module H = Hashtbl
+module Q = Queries
 
 module GU = Goblintutil
 module ID = ValueDomain.ID
@@ -25,6 +26,10 @@ let is_fun_type (t: typ): bool = match t with
   | _ -> false
 
 let is_immediate_type t = is_mutex_type t || is_fun_type t
+
+let is_global (a: Q.ask) (v: varinfo): bool = 
+  v.vglob || match a (Q.MayEscape v) with `Bool tv -> tv | _ -> false
+
 
 module MakeSpec (Flag: ConcDomain.S) =
 struct
@@ -62,22 +67,22 @@ struct
    let reset_diff (st,fl,gl) : Dom.t = (st,fl, Vars.empty ())   
    let get_diff (_,_,x) : (Glob.Var.t * Glob.Val.t) list = Vars.elements x
 
-   let globalize (cpa:cpa): (cpa * Vars.t) =
+   let globalize a (cpa:cpa): (cpa * Vars.t) =
      (* For each global variable, we create the diff *)
-     let add_var (v:Cil.varinfo) (value) (cpa,acc) =
-       if v.Cil.vglob then (CPA.remove v cpa, Vars.add (v,value) acc) else (cpa,acc)
+     let add_var (v: varinfo) (value) (cpa,acc) =
+       if is_global a v then (CPA.remove v cpa, Vars.add (v,value) acc) else (cpa,acc)
      in
        (* We fold over the local state, and collect the globals *)
        CPA.fold add_var cpa (cpa, Vars.empty ())
 
    (** [get st addr] returns the value corresponding to [addr] in [st] 
     *  adding proper dependencies *)
-   let get (gs: glob_fun) (st,fl,gl: store) (addrs:address): value =
+   let get a (gs: glob_fun) (st,fl,gl: store) (addrs:address): value =
      if M.tracing then M.tracel "get" (dprintf "address: %a\nstate: %a" AD.pretty addrs CPA.pretty st);
      (* Finding a single varinfo*offset pair *)
      let f_addr (x, offs) = 
        (* get hold of the variable value, either from local or global state *)
-       let var = if (!GU.earlyglobs || Flag.is_multi fl) && x.Cil.vglob then gs x else CPA.find x st in
+       let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then gs x else CPA.find x st in
        VD.eval_offset var offs    in 
      let f x =
        match Addr.to_var_offset x with
@@ -92,13 +97,13 @@ struct
        try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
 
    (** [set st addr val] returns a state where [addr] is set to [val] *)
-   let set ?(effect=true) (gs:glob_fun) (st,fl,gl: store) (lval: AD.t) (value: value): store =
+   let set a ?(effect=true) (gs:glob_fun) (st,fl,gl: store) (lval: AD.t) (value: value): store =
      if M.tracing then M.tracel "set" (dprintf "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st);
      (* Updating a single varinfo*offset pair. NB! This function's type does
       * not include the flag. *)
      let update_one_addr (x, offs) (nst,gd): cpa * deps = 
        (* Check if we need to side-effect this one *)
-       if (!GU.earlyglobs || Flag.is_multi fl) && x.Cil.vglob then if not effect then (nst,gd)
+       if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then if not effect then (nst,gd)
        else begin
         (* Create an update and add it to the difflist *)
         (nst,Vars.add (x, VD.update_offset (gs x) offs value) gd)
@@ -123,10 +128,10 @@ struct
        (* If any of the addresses are unknown, we ignore it!?! *)
        | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; (st,fl,gl)
 
-   let set_many (gs:glob_fun) (st,fl,gl as store: store) lval_value_list: store =
+   let set_many a (gs:glob_fun) (st,fl,gl as store: store) lval_value_list: store =
      (* Maybe this can be done with a simple fold *)
      let f (acc: store) ((lval:AD.t),(value:value)): store = 
-       set gs acc lval value 
+       set a gs acc lval value 
      in
        (* And fold over the list starting from the store turned wstore: *)
        List.fold_left f store lval_value_list
@@ -139,7 +144,7 @@ struct
       * not sure in which order! *)
      (Dom.join st1 st2, gl1 @ gl2)
 
-   let rem_many (st,fl,gl: store) (v_list: Cil.varinfo list): store = 
+   let rem_many (st,fl,gl: store) (v_list: varinfo list): store = 
      let f acc v = CPA.remove v acc in
        List.fold_left f st v_list,fl,gl
 
@@ -287,10 +292,10 @@ struct
        | _ -> ad
        
    (* evaluate value using our "query functions" *)
-   let eval_rv_pre ask exp pr =
+   let eval_rv_pre (ask: Q.ask) exp pr =
      let binop op e1 e2 =
        let equality () = 
-         match ask (Queries.ExpEq (e1,e2)) with
+         match ask (Q.ExpEq (e1,e2)) with
            | `Int 0L -> Some false
            | `Int _ -> Some true
            | _ -> None
@@ -315,7 +320,7 @@ struct
        | _ -> None
 
    (* The evaluation function as mutually recursive eval_lv & eval_rv *)
-   let rec eval_rv a (gs:glob_fun) (st: store) (exp:Cil.exp): value = 
+   let rec eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value = 
      (* First we try with query functions --- these are currently more precise.
       * Ideally we would meet both values, but we fear types might not match. (bottom) *)
      match eval_rv_pre a exp st with
@@ -329,7 +334,7 @@ struct
        | Cil.Const (Cil.CStr _)
        | Cil.Const (Cil.CWStr _) -> `Address (AD.str_ptr ())
        (* Variables and address expressions *)
-       | Cil.Lval lval -> get gs st (eval_lv a gs st lval)
+       | Cil.Lval lval -> get a gs st (eval_lv a gs st lval)
        (* Binary operators *)
        | Cil.BinOp (op,arg1,arg2,typ) -> 
            let a1 = eval_rv a gs st arg1 in
@@ -365,7 +370,7 @@ struct
        | _ -> VD.top ()
    (* A hackish evaluation of expressions that should immediately yield an
     * address, e.g. when calling functions. *)
-   and eval_fv a (gs:glob_fun) st (exp:Cil.exp): AD.t = 
+   and eval_fv a (gs:glob_fun) st (exp:exp): AD.t = 
      match exp with
        | Cil.Lval lval -> eval_lv a gs st lval
        | _ -> 
@@ -385,7 +390,7 @@ struct
              | `Top   -> `Index (ID.top (), convert_offset a gs st ofs) 
              | _ -> M.bailwith "Index not an integer value"
    (* Evaluation of lvalues to our abstract address domain. *)
-   and eval_lv a (gs:glob_fun) st (lval:Cil.lval): AD.t = 
+   and eval_lv (a: Q.ask) (gs:glob_fun) st (lval:lval): AD.t = 
      match lval with 
        (* The simpler case with an explicit variable, e.g. for [x.field] we just
         * create the address { (x,field) } *)
@@ -396,7 +401,7 @@ struct
        | Cil.Mem n, ofs -> begin
            match (eval_rv a gs st n) with 
              | `Address adr -> AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr
-             | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " Cil.d_lval lval) in
+             | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
                  M.debug ("Failed evaluating "^str^" to lvalue"); AD.top ()
            end 
 
@@ -406,7 +411,7 @@ struct
      let addr_list = try AD.to_var_offset addrs with _ -> M.warn "Access to unknown address could be global"; [] in
        List.fold_right f addr_list [] 
 
-   let rec access_one_byval a rw (gs:glob_fun) (st: store) (exp:Cil.exp): extra = 
+   let rec access_one_byval a rw (gs:glob_fun) (st: store) (exp:exp): extra = 
      match exp with 
        (* Integer literals *)
        | Cil.Const _ -> []
@@ -607,27 +612,27 @@ struct
                 if (AD.is_top addr) then
                           st
                         else
-                          let oldval = get gs st addr in
+                          let oldval = get a gs st addr in
                           let new_val = VD.meet oldval value in
                  (* make that address meet the invariant, i.e exclusion sets
                   * will be joined *)
                             if is_some_bot new_val 
                             then raise Analyses.Deadcode
                  else if VD.is_bot new_val 
-                 then set gs st addr value ~effect:false
-                 else set gs st addr new_val ~effect:false
+                 then set a gs st addr value ~effect:false
+                 else set a gs st addr new_val ~effect:false
            | None -> st
 
-   let set_savetop (gs:glob_fun) st a v =
+   let set_savetop ask (gs:glob_fun) st adr v =
      match v with
-       | `Top -> set gs st a (top_value st (AD.get_type a))
-       | v -> set gs st a v
+       | `Top -> set ask gs st adr (top_value st (AD.get_type adr))
+       | v -> set ask gs st adr v
  (**************************************************************************
   * Simple defs for the transfer functions 
   **************************************************************************)
 
-  let assign a lval rval gs st = 
-    set_savetop gs st (eval_lv a gs st lval) (eval_rv a gs st rval)
+  let assign (a: Q.ask) lval rval (gs: glob_fun) st = 
+    set_savetop a gs st (eval_lv a gs st lval) (eval_rv a gs st rval)
 
   let branch a (exp:exp) (tv:bool) gs (st: store): store =
     (* First we want to see, if we can determine a dead branch: *)
@@ -647,13 +652,13 @@ struct
     let init_var v = (AD.from_var v, init_value a gs st v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
-      set_many gs st inits
+      set_many a gs st inits
 
   let return a exp fundec gs st =
     let nst = rem_many st (fundec.sformals @ fundec.slocals) in
       match exp with
         | None -> nst
-        | Some exp -> set gs nst (return_var ()) (eval_rv a gs st exp)
+        | Some exp -> set a gs nst (return_var ()) (eval_rv a gs st exp)
 
 
 
@@ -691,18 +696,18 @@ struct
    (* Get the list of addresses accessable immediately from a given address, thus
     * all pointers within a structure should be considered, but we don't follow
     * pointers. We return a flattend representation, thus simply an address (set). *)
-   let reachable_from_address (gs:glob_fun) st (a: address): address =
-     if M.tracing then M.tracei "reachability" (dprintf "Checking for %a\n" AD.pretty a);
+   let reachable_from_address (ask: Q.ask) (gs:glob_fun) st (adr: address): address =
+     if M.tracing then M.tracei "reachability" (dprintf "Checking for %a\n" AD.pretty adr);
      let rec reachable_from_value (value: value) =
        if M.tracing then M.trace "reachability" (dprintf "Checking value %a\n" VD.pretty value);
        match value with
          | `Top -> 
-             let typ = AD.get_type a in
-             let warning = "Unknown value in " ^ AD.short 40 a ^ " could be an escaped pointer address!" in
+             let typ = AD.get_type adr in
+             let warning = "Unknown value in " ^ AD.short 40 adr ^ " could be an escaped pointer address!" in
                if is_immediate_type typ then () else M.warn warning; empty 
          | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
          | `Address adrs when AD.is_top adrs -> 
-             let warning = "Unknown address in " ^ AD.short 40 a ^ " has escaped." in
+             let warning = "Unknown address in " ^ AD.short 40 adr ^ " has escaped." in
                M.warn warning; empty
          (* The main thing is to track where pointers go: *)
          | `Address adrs -> adrs
@@ -715,7 +720,7 @@ struct
          | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD. join (reachable_from_value v) acc) s empty
          | `Int _ -> empty
      in
-     let res = reachable_from_value (get gs st a) in
+     let res = reachable_from_value (get ask gs st adr) in
        if M.tracing then M.traceu "reachability" (dprintf "Reachable addresses: %a\n" AD.pretty res);
        res
 
@@ -723,7 +728,7 @@ struct
     * This section is very confusing, because I use the same construct, a set of
     * addresses, as both AD elements abstracting individual (ambiguous) addresses
     * and the workset of visited addresses. *)
-   let reachable_vars (args: address list) (gs:glob_fun) (st: store): address list =
+   let reachable_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
      if M.tracing then M.traceli "reachability" (dprintf "Checking reachable arguments!");
      (* We begin looking at the parameters: *)
      let argset = List.fold_right AD.join args empty in
@@ -735,7 +740,7 @@ struct
          (* ok, let's visit all the variables in the workset and collect the new variables *)
          let visit_and_collect (var: AD.elt) (acc: address): address =
            let var = AD.singleton var in (* Very bad hack! Pathetic really! *)
-             AD.union (reachable_from_address gs st var) acc in
+             AD.union (reachable_from_address ask gs st var) acc in
          let collected = AD.fold visit_and_collect !workset empty in
            (* And here we remove the already visited variables *)
            workset := AD.diff collected !visited 
@@ -744,7 +749,7 @@ struct
        if M.tracing then M.traceu "reachability" (dprintf "All reachable vars: %a\n" AD.pretty !visited);
        List.map AD.singleton (AD.elements !visited)
 
-   let invalidate a (gs:glob_fun) (st:store) (exps: Cil.exp list): store = 
+   let invalidate ask (gs:glob_fun) (st:store) (exps: Cil.exp list): store = 
      (* To invalidate a single address, we create a pair with its corresponding
       * top value. *)
      let invalidate_address st a = 
@@ -754,37 +759,37 @@ struct
      (* We define the function that evaluates all the values that an address
       * expression e may point to *)
      let invalidate_exp e = 
-       match eval_rv a gs st e with
+       match eval_rv ask gs st e with
           (*a null pointer is invalid by nature*)
          | `Address a when AD.equal a (AD.null_ptr()) -> []
          | `Address a when not (AD.is_top a) -> 
-             List.map (invalidate_address st) (reachable_vars [a] gs st)
+             List.map (invalidate_address st) (reachable_vars ask [a] gs st)
          | `Int _ -> []
          | _ -> let expr = sprint ~width:80 (Cil.d_exp () e) in
              M.warn ("Failed to invalidate unknown address: " ^ expr); []
      in
      (* We concatMap the previous function on the list of expressions. *)
      let invalids = List.concat (List.map invalidate_exp exps) in
-       set_many gs st invalids
+       set_many ask gs st invalids
 
   (* Variation of the above for yet another purpose, uhm, code reuse? *)
-  let collect_funargs a (gs:glob_fun) (st:store) (exps: exp list) = 
+  let collect_funargs ask (gs:glob_fun) (st:store) (exps: exp list) = 
     let do_exp e = 
-      match eval_rv a gs st e with
+      match eval_rv ask gs st e with
         | `Address a when AD.equal a (AD.null_ptr ()) -> []
-        | `Address a when not (AD.is_top a) -> reachable_vars [a] gs st
+        | `Address a when not (AD.is_top a) -> reachable_vars ask [a] gs st
         | _-> []
     in
       List.concat (List.map do_exp exps)
    
-  let access_byref a (gs:glob_fun)  (st:store) (exps: Cil.exp list): extra = 
+  let access_byref ask (gs:glob_fun)  (st:store) (exps: Cil.exp list): extra = 
     (* Find the addresses reachable from some expression, and assume that these
     * can all be written to. *)
     let do_exp e = 
-      match eval_rv a gs st e with
+      match eval_rv ask gs st e with
         | `Address a when AD.equal a (AD.null_ptr()) -> []
         | `Address a when not (AD.is_top a) -> 
-            List.concat (List.map (access_address gs st true) (reachable_vars [a] gs st))
+            List.concat (List.map (access_address gs st true) (reachable_vars ask [a] gs st))
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _-> []
     in
@@ -822,34 +827,34 @@ struct
       | _ -> []
   
   let addrToLvalSet a = 
-    let add x y = Queries.LS.add y x in
+    let add x y = Q.LS.add y x in
     try
-      AD.fold (fun e c -> List.fold_left add c (convertToQueryLval e)) a (Queries.LS.empty ())
-    with SetDomain.Unsupported _ -> Queries.LS.top ()
+      AD.fold (fun e c -> List.fold_left add c (convertToQueryLval e)) a (Q.LS.empty ())
+    with SetDomain.Unsupported _ -> Q.LS.top ()
         
-  let query ask g st (q:Queries.t) = 
+  let query ask g st (q:Q.t) = 
     match q with
-      | Queries.MayPointTo e -> begin
+      | Q.MayPointTo e -> begin
           match eval_rv ask g st e with 
             | `Address a -> `LvalSet (addrToLvalSet a)
             | _ -> `Top
           end
-      | Queries.ReachableFrom e -> begin
+      | Q.ReachableFrom e -> begin
           match eval_rv ask g st e with
             | `Top -> `Top
             | `Bot -> `Bot
             | `Address a when AD.is_top a -> 
-                `LvalSet (Queries.LS.top ())   
+                `LvalSet (Q.LS.top ())   
             | `Address a ->
-                let xs = List.map addrToLvalSet (reachable_vars [a] g st) in 
-                let addrs = List.fold_left Queries.LS.join (Queries.LS.empty ()) xs in
+                let xs = List.map addrToLvalSet (reachable_vars ask [a] g st) in 
+                let addrs = List.fold_left Q.LS.join (Q.LS.empty ()) xs in
                 `LvalSet addrs
-            | _ -> `LvalSet (Queries.LS.empty ())      
+            | _ -> `LvalSet (Q.LS.empty ())      
           end
-      | Queries.SingleThreaded -> `Int (Queries.ID.of_bool (not (Flag.is_multi (get_fl st))))
-      | Queries.CurrentThreadId when (Flag.is_bad (get_fl st)) -> `Top
-      | Queries.CurrentThreadId -> `Int 1L
-      | _ -> Queries.Result.top ()
+      | Q.SingleThreaded -> `Int (Q.ID.of_bool (not (Flag.is_multi (get_fl st))))
+      | Q.CurrentThreadId when (Flag.is_bad (get_fl st)) -> `Top
+      | Q.CurrentThreadId -> `Int 1L
+      | _ -> Q.Result.top ()
 
  (**************************************************************************
   * Function calls
@@ -863,7 +868,7 @@ struct
       [dummyFunDec.svar] 
     
   
-  let special_fn a (lv:lval option) (f: varinfo) (args: exp list) (gs:glob_fun) (cpa,fl,gl as st:store) = 
+  let special_fn ask (lv:lval option) (f: varinfo) (args: exp list) (gs:glob_fun) (cpa,fl,gl as st:store) = 
 (*    let heap_var = heap_var !GU.current_loc in*)
     let map_true x = x, (Cil.integer 1), true in
     match f.vname with 
@@ -876,15 +881,15 @@ struct
           if Flag.is_multi fl then
             [map_true (cpa,new_fl,gl)]
           else
-            let (ncpa,ngl) = if not !GU.earlyglobs then globalize cpa else cpa, Vars.empty() in
+            let (ncpa,ngl) = if not !GU.earlyglobs then globalize ask cpa else cpa, Vars.empty() in
             [map_true (ncpa, new_fl,ngl)]
       (* handling thread joins... sort of *)
       | "pthread_join" -> begin
           match args with
             | [id; ret_var] -> begin
-                match (eval_rv a gs st ret_var) with
+                match (eval_rv ask gs st ret_var) with
                   | `Int n when n = ID.of_int 0L -> [map_true (cpa,fl,Vars.bot ())]
-                  | _      -> [map_true (invalidate a gs st [ret_var])] end
+                  | _      -> [map_true (invalidate ask gs st [ret_var])] end
             | _ -> M.bailwith "pthread_join arguments are strange!"
         end
       | "malloc" | "__kmalloc" | "usb_alloc_urb" -> begin
@@ -895,16 +900,16 @@ struct
               then AD.join (heap_var !GU.current_loc) (AD.null_ptr ()) 
               else heap_var !GU.current_loc
             in 
-            [map_true (set_many gs st [(heap_var, `Blob (VD.bot ()));  
-                                       (eval_lv a gs st lv, `Address heap_var)])]
+            [map_true (set_many ask gs st [(heap_var, `Blob (VD.bot ()));  
+                                       (eval_lv ask gs st lv, `Address heap_var)])]
           | _ -> [map_true st]
         end
       | "calloc" -> 
         begin match lv with
           | Some lv -> 
               let heap_var = get_heap_var !GU.current_loc in
-                [map_true (set_many gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
-                                           (eval_lv a gs st lv, `Address (AD.from_var_offset (heap_var, `Index (ID.of_int 0L, `NoOffset))))])]
+                [map_true (set_many ask gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
+                                           (eval_lv ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (ID.of_int 0L, `NoOffset))))])]
           | _ -> [map_true st]
         end
       (* Handling the assertions *)
@@ -914,7 +919,7 @@ struct
             | [e] -> begin
                 (* evaluate the assertion and check if we can refute it *)
                 let expr () = sprint ~width:80 (d_exp () e) in
-                match eval_rv a gs st e with 
+                match eval_rv ask gs st e with 
                   (* If the assertion is known to be false/true *)
                   | `Int v when ID.is_bool v -> 
                       (* Warn if it was false; ignore if true! The None case
@@ -930,7 +935,7 @@ struct
                         [map_true st]
                       end else
                         (* make the state meet the assertion in the rest of the code *)
-                        [map_true (invariant a gs st e true)]
+                        [map_true (invariant ask gs st e true)]
                     end
               end
             | _ -> M.bailwith "Assert argument mismatch!"
@@ -942,20 +947,20 @@ struct
               | None -> []
           in
           match LF.get_invalidate_action x with
-            | Some fnc -> [map_true (invalidate a gs st (lv_list @ (fnc `Write  args)))];
+            | Some fnc -> [map_true (invalidate ask gs st (lv_list @ (fnc `Write  args)))];
             | None -> (
                 M.warn ("Function definition missing for " ^ f.vname);
                 let st_expr (v:varinfo) (value) a = 
-                  if v.vglob then Cil.mkAddrOf (Var v, NoOffset) :: a else a
+                  if is_global ask v then Cil.mkAddrOf (Var v, NoOffset) :: a else a
                 in
                 (* This here is just to see of something got spawned. *)
-                let flist = collect_funargs a gs st args in
+                let flist = collect_funargs ask gs st args in
                 let f addr = 
                   let var = List.hd (AD.to_var_may addr) in
                   let _ = Cilfacade.getdec var in true
                 in 
                 let g a acc = try let r = f a in r || acc with _ -> acc in
-                let (cpa,fl,gl as st) = invalidate a gs st (CPA.fold st_expr cpa (lv_list @ args)) in
+                let (cpa,fl,gl as st) = invalidate ask gs st (CPA.fold st_expr cpa (lv_list @ args)) in
                   if List.fold_right g flist false then begin
                     (* Copy-pasted from the thread-spawning code above: *)
                     GU.multi_threaded := true;
@@ -963,13 +968,13 @@ struct
                       if Flag.is_multi fl then 
                         [map_true (cpa,new_fl,Vars.empty())]
                       else 
-                        let (ncpa,ngl) = if not !GU.earlyglobs then globalize cpa else cpa, Vars.empty() in 
+                        let (ncpa,ngl) = if not !GU.earlyglobs then globalize ask cpa else cpa, Vars.empty() in 
                           [map_true (ncpa, new_fl,ngl)]
                   end else [map_true st]
               )
         end
 
-  let enter_func a lval fn args gs (cpa,fl,gl as st: store): (Dom.t * Dom.t) list = 
+  let enter_func ask lval fn args gs (cpa,fl,gl as st: store): (Dom.t * Dom.t) list = 
     let make_entry pa context =
       (* If we need the globals, add them *)
       let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
@@ -979,9 +984,9 @@ struct
         st, (new_cpa, fl, Vars.bot ()) 
     in
     (* Evaluate the arguments. *)
-    let vals = List.map (eval_rv a gs st) args in
+    let vals = List.map (eval_rv ask gs st) args in
     (* List of reachable variables *)
-    let reachable = List.concat (List.map AD.to_var_may (reachable_vars (get_ptrs vals) gs st)) in
+    let reachable = List.concat (List.map AD.to_var_may (reachable_vars ask (get_ptrs vals) gs st)) in
     (* generate the entry states *)
     let add_calls_addr f norms =
       let fundec = Cilfacade.getdec fn in
@@ -1034,7 +1039,7 @@ struct
             collect_spawned a gs st args
         end
 
-  let leave_func a (lval: lval option) (f: varinfo) (args: exp list) gs (before: Dom.t) (after: Dom.t) : Dom.t =
+  let leave_func ask (lval: lval option) (f: varinfo) (args: exp list) gs (before: Dom.t) (after: Dom.t) : Dom.t =
     let combine_one (loc,lf,gl as st: Dom.t) ((fun_st,fun_fl,_) as fun_d: Dom.t) = 
       (* This function does miscelaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
@@ -1050,13 +1055,13 @@ struct
       let return_var = return_var () in
       let return_val = 
         if CPA.mem (return_varinfo ()) fun_st
-        then get gs fun_d return_var 
+        then get ask gs fun_d return_var 
         else VD.top ()  
       in
       let st = add_globals (fun_st,fun_fl) st in
         match lval with
           | None      -> st
-          | Some lval -> set_savetop gs st (eval_lv a gs st lval) return_val
+          | Some lval -> set_savetop ask gs st (eval_lv ask gs st lval) return_val
      in
      combine_one before after
 

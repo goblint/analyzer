@@ -64,6 +64,7 @@ type local_state = [
     | `Uninit      of ValueDomain.AddrSetDomain.t
     | `Malloc_null of ValueDomain.AddrSetDomain.t
     | `Thread      of ConcDomain.Simple.t
+    | `Escape      of SetDomain.HeadlessSet (Basetype.Variables).t
     | `Region      of RegionDomain.RegionDom.t
     | `OSEK        of LockDomain.Lockset.t
     | `Bad ]

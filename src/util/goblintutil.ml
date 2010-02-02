@@ -12,6 +12,7 @@ let default_conf () =
   let def_ana = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool false
                              ;"thread"     , Build.bool false
+                             ;"escape"     , Build.bool true
                              ;"mutex"      , Build.bool true
                              ;"symb_locks" , Build.bool false
                              ;"uninit"     , Build.bool false
@@ -21,6 +22,7 @@ let default_conf () =
   let def_path = Build.objekt ["base"       , Build.bool false
                               ;"OSEK"       , Build.bool true
                               ;"thread"     , Build.bool false
+                              ;"escape"     , Build.bool false
                               ;"mutex"      , Build.bool true
                               ;"symb_locks" , Build.bool false
                               ;"uninit"     , Build.bool true
@@ -45,7 +47,7 @@ let conf : (string, Json_type.t) Hashtbl.t ref =
 
 let modify_ana x b = 
   let old_ana = make_table (objekt (field !conf "analyses")) in
-  let anas = ["base";"OSEK";"thread";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
+  let anas = ["base";"OSEK";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
   let set_ana_pair fe = 
     if fe = x 
     then fe, Build.bool b
