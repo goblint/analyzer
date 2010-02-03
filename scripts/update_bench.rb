@@ -1,5 +1,7 @@
 #!/usr/bin/ruby
 
+require 'fileutils' 
+
 # trier_res = "/home/vesal/kool/magister/projects/results_rtmm/"
 goblint = File.join(Dir.getwd,"goblint")
 fail "Please run script from goblint dir!" unless File.exist?(goblint)
