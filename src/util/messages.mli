@@ -30,7 +30,7 @@ val write: string -> unit
 
 val report: string -> unit
 (** Print out a message, does not affect soundness. One message is 
-  * printed per line of code. *)
+  * printed once per line of code. *)
 
 val warn: string -> unit
 (** Prints a warning and adds the source code location where the warning

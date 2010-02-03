@@ -546,6 +546,8 @@ struct
 
   (** are we still race free *)
   let race_free = ref true
+  (** type invariants *)
+  let type_inv_spotted = ref false
 
   (** modules used for grouping [varinfo]s by [Offset] *)
   module OffsMap = Map.Make (Offs)
@@ -685,33 +687,47 @@ struct
           Race
     in
     let report_race offset acc_list =
-        let f  ((loc, fl, write), lockset,o) = 
+        let f with_str ((loc, fl, write), lockset,o) = 
           let lockstr = Lockset.short 80 lockset in
           let action = if write then "write" else "read" in
           let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
-          let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ " with lockset: " ^ lockstr in
+          let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ with_str ^ lockstr in
             (warn,loc) in 
-        let warnings =  List.map f acc_list in
+        let type_warnings () =  List.map (f " with lockset pattern: ") acc_list in
+        let warnings () =  List.map (f " with lockset: ") acc_list in
             let var_str = gl.vname ^ Offs.short 80 offset in
+        let is_type_inv gl = gl.vname.[0] = '(' && gl.vname.[1] <> 'a' in
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
+        let unproc_safe_str reason = "Type invariant recorded for " ^ var_str ^ " (" ^ reason ^ ")" in
           match is_race acc_list with
             | Race -> begin
                 race_free := false;
                 let warn = "Datarace over " ^ var_str in
-                  M.print_group warn warnings
+                  M.print_group warn (warnings ())
               end
             | Guarded locks ->
                 let lock_str = Lockset.short 80 locks in
                   if !GU.allglobs then
-                    M.print_group (safe_str "common mutex") warnings
-                  else 
+                    M.print_group (safe_str "common mutex") (warnings ())
+                  else if is_type_inv gl then begin
+                    type_inv_spotted := true;
+                    M.print_group (unproc_safe_str "common mutex") (type_warnings ())
+                  end else 
                     ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
             | ReadOnly ->
                 if !GU.allglobs then
-                  M.print_group (safe_str "only read") warnings
+                  M.print_group (safe_str "only read") (warnings ())
+                else if is_type_inv gl then begin
+                  type_inv_spotted := true;
+                  M.print_group (unproc_safe_str "only read") (type_warnings ())
+                end  
             | ThreadLocal ->
                 if !GU.allglobs then
-                  M.print_group (safe_str "thread local") warnings
+                  M.print_group (safe_str "thread local") (warnings ())
+                else if is_type_inv gl then begin
+                    type_inv_spotted := true;
+                    M.print_group (unproc_safe_str "thread local") (type_warnings ())
+                end
     in 
     let rw ((_,_,x),_,_) = x in
     let acc = (Acc.find acc gl) in
@@ -724,6 +740,8 @@ struct
   let finalize () = 
     AccKeySet.iter postprocess_acc !accKeys;
     if !GU.multi_threaded then begin
+      if !type_inv_spotted then 
+        print_endline "We assume that accesses recorded by type invariants and other accesses do not have common targets.";
       if !race_free then 
         print_endline "Goblint did not find any Data Races in this program!";
     end else if not !GU.debug then begin

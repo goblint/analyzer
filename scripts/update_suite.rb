@@ -181,9 +181,9 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
       next unless l =~ /(.*)\(.*\.c:(.*)\)/
       obj,i = $1,$2.to_i
       warnings[i] = case obj
-                    when /with lockset/: "race"
-                    when /will fail/   : "fail"
-                    when /is unknown/  : "unknown"
+                    when /with lockset:/: "race"
+                    when /will fail/    : "fail"
+                    when /is unknown/   : "unknown"
                     when /Uninitialized/ : "warn"
                     when /dereferencing of null/ : "warn"
                     else obj
