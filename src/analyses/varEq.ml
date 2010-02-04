@@ -191,11 +191,73 @@ struct
     
   (* query stuff *)
   
+  let rec const_equal c1 c2 =
+    match c1, c2 with
+      |	CStr s1  , CStr s2	 -> s1 = s2
+      |	CWStr is1, CWStr is2 -> is1 = is2
+      |	CChr c1  , CChr c2   -> c1 = c2
+      |	CInt64 (v1,k1,_), CInt64 (v2,k2,_) -> v1 = v2 && k1 = k2
+      |	CReal (f1,k1,_) , CReal (f2,k2,_)  -> f1 = f2 && k1 = k2
+      |	CEnum (_,n1,e1), CEnum (_,n2,e2) -> n1 = n2 && e1.ename = e2.ename  
+      | _ -> false
+
+  let option_eq f x y =
+    match x, y with
+      | Some x, Some y -> f x y
+      | None, None -> true
+      | _ -> false 
+  
+  let rec typ_equal t1 t2 =
+    let args_eq (s1,t1,_) (s2,t2,_) = s1 = s2 && typ_equal t1 t2 in
+    let eitem_eq (s1,e1,l1) (s2,e2,l2) = s1 = s2 && l1 = l2 && exp_equal e1 e2 in
+    match t1, t2 with
+      | TVoid _, TVoid _ -> true
+      | TInt (k1,_), TInt (k2,_) -> k1 = k2
+      | TFloat (k1,_), TFloat (k2,_) -> k1 = k2
+      | TPtr (t1,_), TPtr (t2,_) -> typ_equal t1 t2
+      | TArray (t1,d1,_), TArray (t2,d2,_) -> option_eq exp_equal d1 d2 && typ_equal t1 t2
+      | TFun (rt1, arg1, _,  b1), TFun (rt2, arg2, _, b2) -> b1 = b2 && typ_equal rt1 rt2 && option_eq (List.for_all2 args_eq) arg1 arg2
+      | TNamed (ti1, _), TNamed (ti2, _) -> ti1.tname = ti2.tname && typ_equal ti1.ttype ti2.ttype
+      | TComp (c1,_), TComp (c2,_) -> c1.ckey = c2.ckey
+      | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename & List.for_all2 eitem_eq e1.eitems e2.eitems 
+      | TBuiltin_va_list _, TBuiltin_va_list _ -> true
+      | _ -> false
+
+  and lval_equal (l1,o1) (l2,o2) =
+    let rec offs_equal o1 o2 =
+      match o1, o2 with
+        | NoOffset, NoOffset -> true
+        | Field (f1, o1), Field (f2,o2) -> f1.fcomp.ckey = f2.fcomp.ckey && f1.fname = f2.fname && offs_equal o1 o2
+        | Index (i1,o1), Index (i2,o2) -> exp_equal i1 i2 && offs_equal o1 o2   
+        | _ -> false     
+    in
+       offs_equal o1 o2 
+    && match l1, l2 with
+         | Var v1, Var v2 -> v1.vid = v2.vid
+         | Mem m1, Mem m2 -> exp_equal m1 m2
+         | _ -> false
+  
+  and exp_equal e1 e2 =
+    match e1, e2 with
+      |	Const c1,	Const c2 -> const_equal c1 c2
+      |	AddrOf l1,	AddrOf l2   
+      |	StartOf l1,	StartOf l2 
+      |	Lval l1 ,	Lval  l2 -> lval_equal l1 l2
+      |	SizeOf t1,	SizeOf t2 -> typ_equal t1 t2
+      |	SizeOfE e1,	SizeOfE e2 -> exp_equal e1 e2  
+      |	SizeOfStr s1,	SizeOfStr s2 -> s1 = s2
+      |	AlignOf t1,	AlignOf t2 -> typ_equal t1 t2
+      |	AlignOfE e1,	AlignOfE e2 -> exp_equal e1 e2
+      |	UnOp (o1,e1,t1),	UnOp (o2,e2,t2) -> o1 = o2 && typ_equal t1 t2 && exp_equal e1 e2
+      |	BinOp (o1,e11,e21,t1),	BinOp(o2,e12,e22,t2) -> o1 = o2 && typ_equal t1 t2 && exp_equal e11 e12 && exp_equal e21 e22     
+      |	CastE (t1,e1),	CastE (t2,e2) -> typ_equal t1 t2 && exp_equal e1 e2
+      | _ -> false
+    
   (* helper to decide equality *)
   let exp_equal ask e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
-    let e1 = Cil.constFold true (Cil.stripCasts e1) in
-    let e2 = Cil.constFold true (Cil.stripCasts e2) in
-    if e1 = e2 then true else
+    let e1 = Cil.constFold false (Cil.stripCasts e1) in
+    let e2 = Cil.constFold false (Cil.stripCasts e2) in
+    if exp_equal e1 e2 then true else
     match Dom.find_class e1 s with
       | Some ss when Dom.S.mem e2 ss -> true
       | _ -> false
