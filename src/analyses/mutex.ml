@@ -709,10 +709,7 @@ struct
                 let lock_str = Lockset.short 80 locks in
                   if !GU.allglobs then
                     M.print_group (safe_str "common mutex") (warnings ())
-                  else if is_type_inv gl then begin
-                    type_inv_spotted := true;
-                    M.print_group (unproc_safe_str "common mutex") (type_warnings ())
-                  end else 
+                  else 
                     ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
             | ReadOnly ->
                 if !GU.allglobs then
