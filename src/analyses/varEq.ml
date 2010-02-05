@@ -141,13 +141,18 @@ struct
   (* First assign arguments to parameters. Then join it with reachables, to get
      rid of equalities that are not reachable. *)
   let enter_func a lval f args glob st = 
+    let rec fold_left2 f r xs ys =
+      match xs, ys with
+        | x::xs, y::ys -> fold_left2 f (f r x y) xs ys
+        | _ -> r
+    in
     let assign_one_param st lv exp = 
       let rm = remove a (Var lv, NoOffset) st in 
       add_eq a (Var lv, NoOffset) exp rm 
     in
     let f = Cilfacade.getdec f in    
     let nst = 
-      try List.fold_left2 assign_one_param st f.sformals args 
+      try fold_left2 assign_one_param st f.sformals args 
       with SetDomain.Unsupported _ -> (* ignore varargs fr now *) Dom.top ()
     in
     match Dom.is_bot st with

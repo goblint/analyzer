@@ -93,14 +93,19 @@ struct
     []
     
   let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Dom.t) list =
+    let rec fold_right2 f xs ys r =
+      match xs, ys with
+        | x::xs, y::ys -> f x y (fold_right2 f xs ys r)
+        | _ -> r
+    in
     match st with
       | `Lifted (equ,reg), gd ->
            let fundec = Cilfacade.getdec f in
            let f x r eq = Equ.assign (var x) r eq in
-           let equ  = List.fold_right2 f fundec.sformals args equ in
+           let equ  = fold_right2 f fundec.sformals args equ in
            let f x r reg = Reg.assign (var x) r reg in
            let old_regpart = get_regpart gl in
-           let regpart, reg = List.fold_right2 f fundec.sformals args (old_regpart,reg) in 
+           let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in 
            if RegPart.leq regpart old_regpart
            then [st,(`Lifted (equ,reg),gd)]
            else [st,(`Lifted (equ,reg),Vars.add (partition_varinfo (), regpart) gd)]
