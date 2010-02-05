@@ -250,9 +250,10 @@ struct
       Stats.time "verification" (Solver.verify () constraints) (sol,gs)
     end;
     Spec.finalize ();
+    let firstvar = List.hd startvars in
+    let mainfile = match firstvar with (MyCFG.Function fn, _) -> fn.vdecl.file | _ -> "Impossible!" in
     if !GU.print_uncalled then
       begin
-        
         let out = M.get_out "uncalled" stdout in
         let f =
           let insrt k _ s = match k with
@@ -262,7 +263,7 @@ struct
           (* set of ids of called functions *)
           let calledFuns = Solver.VMap.fold insrt sol S.empty in
           function
-            | GFun (fn, loc) -> if not (S.mem fn.svar.vid calledFuns) then
+            | GFun (fn, loc) when loc.file = mainfile && not (S.mem fn.svar.vid calledFuns) ->
                 begin
                   let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
                   ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
@@ -271,7 +272,7 @@ struct
         in
           List.iter f file.globals;
       end;
-    let main_sol = Solver.VMap.find sol (List.hd startvars) in
+    let main_sol = Solver.VMap.find sol firstvar in
     (* check for dead code at the last state: *)
     if !GU.debug && SD.equal main_sol (SD.bot ()) then
       Printf.printf "NB! Execution does not reach the end of Main.\n";

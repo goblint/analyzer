@@ -36,6 +36,10 @@ end
 timeout = 300
 timeout = ARGV[0].to_i unless ARGV[0].nil?
 only = ARGV[1] unless ARGV[1].nil?
+if only == "group" then
+  only = nil
+  thegroup = ARGV[2]
+end
 # analyses = ["mutex", "base", "cpa", "intcpa"]
 # analyses = ["mutex", "no_path"]
 analyses = ["mutex"]
@@ -55,7 +59,7 @@ File.open(file, "r") do |f|
   while line = f.gets
     next if line =~ /^\s*$/ 
     if line =~ /Group: (.*)/
-      gname = $1
+      gname = $1.chomp
       skipgrp << gname if line =~ /SKIP/
       next
     end
@@ -70,11 +74,11 @@ File.open(file, "r") do |f|
   end
 end
 
-puts skipgrp
 #analysing the files
 gname = ""
 projects.each do |p|
   next if skipgrp.member? p.group
+  next unless thegroup.nil? or p.group == thegroup
   next unless only.nil? or p.name == only 
   if p.group != gname then
     gname = p.group
@@ -107,7 +111,7 @@ File.open(testresults + "index.html", "w") do |f|
     if p.group != gname then
       gname = p.group
       f.puts "<tr><th colspan=#{3+analyses.size}>#{gname}</th></tr>"
-      f.puts "<tr><th>Name</th><th>Description</th><th>Size (merged)</th>"
+      f.puts "<tr><th>Name</th><th>Description</th><th>Size</th>"
       analyses.each do |a| 
         f.puts "<th>#{a}</th>"
       end

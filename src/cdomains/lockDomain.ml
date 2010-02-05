@@ -49,9 +49,9 @@ struct
      | `NoOffset -> true
      | `Field (x,y) -> concrete_offset y
      | `Index (x,y) -> 
-         if !Goblintutil.regions then 
-           ID.equal x (ID.of_int Goblintutil.inthack) 
-         else 
+(*         if !Goblintutil.regions then *)
+(*           ID.equal x (ID.of_int Goblintutil.inthack) *)
+(*         else *)
            ID.is_int x && concrete_offset y
 
   let rec may_be_same_offset of1 of2 =
