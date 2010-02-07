@@ -89,7 +89,7 @@ struct
   let init () = ()
 end
 
-module ThreadMCP = 
+module ThreadMCP = (* MCP - master control program, see mCP.ml *)
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "thread" 
