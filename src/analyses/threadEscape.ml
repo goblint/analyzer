@@ -6,7 +6,16 @@ module M = Messages
 module Spec =
 struct
   let name = "Escape analysis"
-  module Dom  = SetDomain.HeadlessSet (Basetype.Variables) 
+  module Dom  = 
+  struct 
+    include SetDomain.HeadlessSet (Basetype.Variables) 
+    let toXML_f sf x = 
+      match toXML x with
+        | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Escaped variables"], elems)
+        | x -> x
+        
+    let toXML s  = toXML_f short s
+  end
   module Glob = Global.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
