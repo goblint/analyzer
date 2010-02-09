@@ -694,7 +694,6 @@ struct
         let warnings () =  List.map (f " with lockset: ") acc_list in
             let var_str = gl.vname ^ Offs.short 80 offset in
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
-        let unproc_safe_str reason = "Type invariant recorded for " ^ var_str ^ " (" ^ reason ^ ")" in
           match is_race acc_list with
             | Race -> begin
                 race_free := false;
