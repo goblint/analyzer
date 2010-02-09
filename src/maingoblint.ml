@@ -42,7 +42,6 @@ let main () =
       MCP.Analysis.analyze   
   in
   let analyze = ref (analyzer (JB.string (JB.field !GU.conf "analysis"))) in
-  let nonstatic () = GU.allfuns := true; GU.nonstatic := true in
   let oil file = GU.allfuns := true; GU.oil := true; GU.conf_osek (); Osek.Spec.oilFile := file in
   let setanalysis str = 
     begin match str with
@@ -87,7 +86,7 @@ let main () =
                  ("--stats", Arg.Set Cilutil.printStats, " Outputs timing information.");
                  ("--eclipse", Arg.Set GU.eclipse, " Flag for Goblin's Eclipse Plugin.");
                  ("--allfuns", Arg.Set GU.allfuns, " Analyzes all the functions (not just beginning from main).");
-                 ("--nonstatic", Arg.Unit nonstatic, " Analyzes all non-static functions.");
+                 ("--nonstatic", Arg.Set GU.nonstatic, " Analyzes all non-static functions.");
                  ("--mainfun", Arg.Set_string GU.mainfun, " Sets the name of the main function.");
                  ("--exitfun", Arg.String add_exitfun, " Sets the name of the main function.");
                  ("--allglobs", Arg.Set GU.allglobs, " Prints access information about all globals, not just races.");
