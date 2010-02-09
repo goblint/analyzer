@@ -58,60 +58,50 @@ Wrapper for for misc devices
 kernel/misc.c
 --kernel --nonstatic --mainfun misc_init
 
-ds1302
-DS1302 Real Time Clock
-kernel/ds1302.c
---mainfun ds1302_register
-
 vc_screen
 Provide access to virtual console memory
 kernel/vc_screen.c
---mainfun vcs_init
+--kernel --nonstatic --mainfun vcs_init
 
 dtlk
 DoubleTalk PC driver
 kernel/dtlk.c
---mainfun dtlk_init
+--kernel --mainfun dtlk_init --exitfun dtlk_cleanup
 
 ipmi_devintf
 Device interface for the IPMI message handler
 kernel/ipmi_devintf.c
---mainfun init_ipmi_devintf
+--kernel --mainfun init_ipmi_devintf --exitfun cleanup_ipmi
 
 tlclk
 Telecom Clock driver for Intel NetStructure(tm) MPCBL0010
 kernel/tlclk.c
---mainfun tlclk_init
+--kernel --mainfun tlclk_init --exitfun tlclk_cleanup
 
 ppdev
 Provide access to parport subsystem
 kernel/ppdev.c
---mainfun ppdev_init
+--kernel --mainfun ppdev_init --exitfun ppdev_cleanup
 
 mem
 Provide access to main memory
 kernel/mem.c
---mainfun chr_dev_init
+--kernel --mainfun chr_dev_init
 
 drm_drv
 Generic DRM driver template
 kernel/drm_drv.c
---mainfun drm_core_init
+--kernel -IK include/drm --mainfun drm_core_init --exitfun drm_core_exit
 
 cm4040
 Omnikey PCMCIA smartcard reader CardMan 4040
 kernel/cm4040_cs.c
---mainfun cm4040_init
+--kernel --mainfun cm4040_init --exitfun cm4040_exit
 
 cm4000
 Omnikey PCMCIA smartcard reader CardMan 4000
 kernel/cm4000_cs.c
---mainfun cmm_init
-
-ip2main
-IntelliPort family multiport serial I/O controllers
-kernel/ip2main.c
---mainfun ip2_loadmain
+--kernel --mainfun cmm_init --exitfun cmm_exit
 
 
 
@@ -203,12 +193,12 @@ Group: Regions
 atmel_tclib
 Thin libarary for TC block allocation for Atmel SoCs
 kernel/atmel_tclib.c
---with regions --allfuns
+--with region --allfuns
 
 hwmon
 Linux kernel module for hardware monitoring
 kernel/hwmon_coretemp.c
---with regions --allfuns --mainfun coretemp_init --write-races
+--with region --allfuns --mainfun coretemp_init --write-races
 
 enclosure
 Enclosure Services

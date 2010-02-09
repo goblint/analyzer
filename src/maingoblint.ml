@@ -17,6 +17,7 @@ let main () =
   let asm_dir = kernel_root ^ "/arch/x86/include" in
   let other_includes = ref "" in
   let add_include x = other_includes := "-I " ^ x ^ " " ^ !other_includes in
+  let add_include_kernel x = other_includes := "-I " ^ Filename.concat kernel_root x ^ " " ^ !other_includes in
   let use_libc = ref false in
   let justCil = ref false in
   let dopartial = ref false in
@@ -74,6 +75,7 @@ let main () =
                  ("-o", Arg.Set_string outFile, "<file>  Prints the output to file.");
                  ("-v", Arg.Set GU.verbose, " Prints some status information.");
                  ("-I", Arg.String add_include,  " Add include directory.");
+                 ("-IK", Arg.String add_include_kernel,  " Add kernel include directory.");
                  ("--includes", Arg.Set_string include_dir, " Uses custom include files.");
                  ("--libc", Arg.Set use_libc, " Merge with a custom implementation of standard libs.");
                  ("--justcil", Arg.Set justCil, " Just print the transformated CIL output.");
@@ -186,10 +188,7 @@ let main () =
     else begin
       (* we first find the functions to analyze: *)
       if !GU.verbose then print_endline "And now...  the Goblin!";
-      let funs = 
-        if !GU.allfuns then CF.getFuns merged_AST
-        else [CF.getMain merged_AST]
-      in
+      let funs = CF.getFuns merged_AST in
         if funs = [] then failwith "No suitable function to start from.";
         (* and here we run the analysis! *)
         Stats.time "analysis" (!analyze merged_AST) funs;
