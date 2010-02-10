@@ -138,22 +138,26 @@ File.open(testresults + "index.html", "w") do |f|
     analyses.each do |a|
       aname = a[0]
       outfile = File.basename(p.path,".c") + ".#{aname}.txt"
-      File.open(testresults + outfile, "r") do |g|
-        lines = g.readlines
-        warnings = lines.grep(/Datarace over/).size
-        correlations = lines.grep(/is guarded by/).size
-        uncalled = lines.grep(/will never be called/).size
-        res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
-        if res == [] then
-          res = lines.grep(/^TIMEOUT\s*(.*) s.*$/) { |x| $1 }
+      if File.exists?(testresults + outfile) then
+        File.open(testresults + outfile, "r") do |g|
+          lines = g.readlines
+          warnings = lines.grep(/Datarace over/).size
+          correlations = lines.grep(/is guarded by/).size
+          uncalled = lines.grep(/will never be called/).size
+          res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
           if res == [] then
-            f.puts "<td><a href = #{outfile}>failed</a></td>"
+            res = lines.grep(/^TIMEOUT\s*(.*) s.*$/) { |x| $1 }
+            if res == [] then
+              f.puts "<td><a href = #{outfile}>failed</a></td>"
+            else
+              f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
+            end
           else
-            f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
+            f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (<font color=\"green\">#{correlations}</font> / <font color=\"brown\">#{warnings}</font> / <font color=\"red\">#{uncalled}</font>)</td>"
           end
-        else
-          f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (<font color=\"green\">#{correlations}</font> / <font color=\"brown\">#{warnings}</font> / <font color=\"red\">#{uncalled}</font>)</td>"
         end
+      else
+        f.puts "<td>N/A</a></td>"
       end
     end
     gb_file = testresults + File.basename(p.path,".c") + ".mutex.txt"

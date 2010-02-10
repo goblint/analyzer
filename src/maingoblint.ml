@@ -117,7 +117,7 @@ let main () =
   Stats.reset Stats.HardwareIfAvail;  
   CF.init();
   Arg.parse speclist recordFile usage_str;
-  if !GU.allfuns then GU.multi_threaded := true;
+  if !GU.allfuns || !GU.nonstatic then GU.multi_threaded := true;
   if !GU.debug then M.warnings := true;
   (* GU.regions := true; *)
   let _ = match !GU.dump_path with
