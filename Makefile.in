@@ -81,15 +81,6 @@ clean: cleancaml
 	@find ./ '(' -name "*.cm[iox]" -or -name "*.o" ')' -exec rm '{}' ';'
 	@rm -f tests/*.i tests/*.goblint tests/a.out a.out
 
-dist:
-	@darcs dist
-	@mv goblint.tar.gz /var/www/goblint/latest.tgz
-
-backup: clean
-	@rm /home/vesal/goblint-backup.tgz
-	@tar czf /home/vesal/goblint-backup.tgz ../goblint
-	@scp /home/vesal/goblint-backup.tgz math.ut.ee:backup
-
 test: opt unittests
 	@./scripts/runalltests.sh
 

@@ -105,6 +105,9 @@ let mainfun = ref "main"
 (** name of the exit function, just additionally spawned ... *)
 let exitfun = ref ([]: string list)
 
+(** Automatically detect init and exit functions of kernel modules. *)
+let harness = ref false
+
 (** Whether a main function has been found. *)
 let has_main = ref false
 

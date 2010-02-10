@@ -56,52 +56,52 @@ Group: Kernel
 misc
 Wrapper for for misc devices
 kernel/misc.c
---kernel --nonstatic --mainfun misc_init
+--kernel --nonstatic
 
 vc_screen
 Provide access to virtual console memory
 kernel/vc_screen.c
---kernel --nonstatic --mainfun vcs_init
+--kernel --nonstatic
 
 dtlk
 DoubleTalk PC driver
 kernel/dtlk.c
---kernel --mainfun dtlk_init --exitfun dtlk_cleanup
+--kernel --mainfun dtlk_init
 
 ipmi_devintf
 Device interface for the IPMI message handler
 kernel/ipmi_devintf.c
---kernel --mainfun init_ipmi_devintf --exitfun cleanup_ipmi
+--kernel
 
 tlclk
 Telecom Clock driver for Intel NetStructure(tm) MPCBL0010
 kernel/tlclk.c
---kernel --mainfun tlclk_init --exitfun tlclk_cleanup
+--kernel
 
 ppdev
 Provide access to parport subsystem
 kernel/ppdev.c
---kernel --mainfun ppdev_init --exitfun ppdev_cleanup
+--kernel
 
 mem
 Provide access to main memory
 kernel/mem.c
---kernel --mainfun chr_dev_init
+--kernel
 
 drm_drv
 Generic DRM driver template
 kernel/drm_drv.c
---kernel -IK include/drm --mainfun drm_core_init --exitfun drm_core_exit
+--kernel -IK include/drm
 
 cm4040
 Omnikey PCMCIA smartcard reader CardMan 4040
 kernel/cm4040_cs.c
---kernel --mainfun cm4040_init --exitfun cm4040_exit
+--kernel
 
 cm4000
 Omnikey PCMCIA smartcard reader CardMan 4000
 kernel/cm4000_cs.c
---kernel --mainfun cmm_init --exitfun cmm_exit
+--kernel
 
 
 

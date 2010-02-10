@@ -96,22 +96,49 @@ let getMain fileAST =
   with
     | Found def -> GU.has_main := true; def
 
+
+let is_init attr_list = 
+  let f attr = match attr with
+    | Attr ("section", [AStr ".init.text"]) -> true
+    | _ -> false
+  in List.exists f attr_list
+
+let is_exit attr_list = 
+  let f attr = match attr with
+    | Attr ("section", [AStr ".exit.text"]) -> true
+    | _ -> false
+  in List.exists f attr_list
+
+
+(* The code that looks for initialization function will select the last one.
+ * This is usually, but not always, the right one. *)
 let getFuns fileAST  : fundec list =
   let mainname = !GU.mainfun in
   let main = ref dummyFunDec in
   let found = ref false in
+  let def_main = mainname = "main" in
+  let set_main def = 
+    found := true; GU.has_main := true; main := def 
+  in
   let f rest glob =
     match glob with 
-      | GFun({svar={vname=mn}} as def,_) when mn = mainname-> 
-          found := true; GU.has_main := true; main := def; rest
-      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.exitfun -> def :: rest
+      | GFun({svar={vname=mn}} as def,_) when mn = mainname-> set_main def; rest
+      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.exitfun -> 
+          def :: rest
+      | GFun({svar={vname=mn; vattr=attr}} as def, _) when !GU.kernel && is_init attr && def_main -> 
+          set_main def; rest
+      | GFun({svar={vname=mn; vattr=attr}} as def, _) when !GU.kernel && is_exit attr -> 
+          Printf.printf "Cleanup function: %s\n" mn; def :: rest 
       | GFun ({svar={vstorage=NoStorage}} as def, _) when (!GU.nonstatic)-> def :: rest
       | GFun (def, _) when (!GU.allfuns) -> def :: rest
       | GFun (def, _) when (!GU.oil && (String.length def.svar.vname >= 12 && String.sub def.svar.vname 0 12 = "function_of_")) -> def :: rest
       | _ -> rest 
   in
   let others = foldGlobals fileAST f [] in
-    if !found then !main :: others else others
+    if !found then begin
+      Printf.printf "Start function: %s\n" !main.svar.vname;
+      !main :: others 
+    end else others
 
 let getdec fv = 
   try 
