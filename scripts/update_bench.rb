@@ -1,8 +1,13 @@
 #!/usr/bin/ruby
-
 require 'fileutils' 
 
-# trier_res = "/home/vesal/kool/magister/projects/results_rtmm/"
+analyses = [
+  ["default",   ""],
+  ["var_eq",    "--with symb_locks --with var_eq"],
+  ["region",    "--with region"],
+  ["region_eq", "--with symb_locks --with var_eq --with region"]
+]
+
 goblint = File.join(Dir.getwd,"goblint")
 fail "Please run script from goblint dir!" unless File.exist?(goblint)
 testresults = File.expand_path("tests/bench_result") + "/"
@@ -11,6 +16,9 @@ bench = "../bench/"
 backup = File.join(Dir.getwd,"goblint.script_backup.json")
 json   = File.join(Dir.getwd, "goblint.json")
 FileUtils.mv(json, backup) if File.exists?(json) 
+
+$print_desc = false
+$print_desc = true if analyses.size < 2
 
 class Project
   attr_reader :name, :group, :path, :params
@@ -23,7 +31,11 @@ class Project
     @params   = params
   end
   def to_html
-    "<td>#{@name}</td>\n" + "<td><small>#{@desc}</small></td>\n" + "<td>#{@size}</td>\n"
+    if $print_desc then
+      "<td>#{@name}</td>\n" + "<td><small>#{@desc}</small></td>\n" + "<td>#{@size}</td>\n"
+    else
+      "<td>#{@name}</td>\n" + "<td>#{@size}</td>\n"
+    end
   end
   def to_s
     "#{@name} -- #{@desc}"
@@ -40,9 +52,6 @@ if only == "group" then
   only = nil
   thegroup = ARGV[2]
 end
-# analyses = ["mutex", "base", "cpa", "intcpa"]
-# analyses = ["mutex", "no_path"]
-analyses = ["mutex"]
 
 #processing the input file
 
@@ -90,9 +99,11 @@ projects.each do |p|
   Dir.chdir(dirname)
   puts "Analysing #{filename}"
   analyses.each do |a|
-    puts "  " + a
-    outfile = testresults + File.basename(filename,".c") + ".#{a}.txt"
-    `timeout #{timeout} #{goblint} --analysis #{a} #{filename} #{p.params} --uncalled --stats --cilout /dev/null 1>#{outfile} 2>&1`
+    aname = a[0]
+    aparam = a[1]
+    puts "  #{aname}"
+    outfile = testresults + File.basename(filename,".c") + ".#{aname}.txt"
+    `timeout #{timeout} #{goblint} #{aparam} #{filename} #{p.params} --uncalled --stats --cilout /dev/null 1>#{outfile} 2>&1`
     if $? != 0 then
       puts "  Timed out! (or other failure)"
       `echo "TIMEOUT                    #{timeout} s" >> #{outfile}`
@@ -111,16 +122,22 @@ File.open(testresults + "index.html", "w") do |f|
     if p.group != gname then
       gname = p.group
       f.puts "<tr><th colspan=#{3+analyses.size}>#{gname}</th></tr>"
-      f.puts "<tr><th>Name</th><th>Description</th><th>Size</th>"
+      if $print_desc then
+        f.puts "<tr><th>Name</th><th>Description</th><th>Size</th>"
+      else
+        f.puts "<tr><th>Name</th><th>Size</th>"
+      end
       analyses.each do |a| 
-        f.puts "<th>#{a}</th>"
+        aname = a[0]
+        f.puts "<th>#{aname}</th>"
       end
 #       f.puts "<th>Compared to Trier</th>"
     end
     f.puts "<tr>"
     f.puts p.to_html
     analyses.each do |a|
-      outfile = File.basename(p.path,".c") + ".#{a}.txt"
+      aname = a[0]
+      outfile = File.basename(p.path,".c") + ".#{aname}.txt"
       File.open(testresults + outfile, "r") do |g|
         lines = g.readlines
         warnings = lines.grep(/Datarace over/).size
@@ -135,11 +152,7 @@ File.open(testresults + "index.html", "w") do |f|
             f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
           end
         else
-          if uncalled == 0 then
-            f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (#{correlations} verified, #{warnings} warnings)</td>"
-          else
-            f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (#{correlations} verified, #{warnings} warnings, #{uncalled} uncalled)</td>"
-          end
+          f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (<font color=\"green\">#{correlations}</font> / <font color=\"brown\">#{warnings}</font> / <font color=\"red\">#{uncalled}</font>)</td>"
         end
       end
     end
