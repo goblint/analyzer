@@ -1,1 +1,2 @@
 #define KBUILD_MODNAME "SomeModule"
+#define CONFIG_DEBUG_SPINLOCK 1

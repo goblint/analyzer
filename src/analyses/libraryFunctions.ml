@@ -312,6 +312,8 @@ let invalidate_actions = [
   ("pthread_rwlock_init", readsAll);
   ("pthread_rwlock_unlock", readsAll);
   ("__builtin_object_size", readsAll);
+  ("usb_submit_urb", readsAll); (* first argument is written to but according to specification must not be read from anymore *)
+  ("dev_driver_string", readsAll);
 ]
 
 (* used by get_invalidate_action to make sure

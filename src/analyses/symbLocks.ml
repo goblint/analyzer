@@ -31,15 +31,22 @@ struct
   let branch a exp tv glob st = st
   let body   a f glob st = st
 
-  let assign ask lval rval glob st =
-    let not_in v xs = not (Exp.contains_var v xs) in
-    let remove_simple (v,offs) st =      
-      Dom.filter (not_in v) st
-    in
-    match ask (Queries.MayPointTo (Cil.mkAddrOf lval)) with 
+  let not_in v xs = not (Exp.contains_var v xs) 
+  let remove_simple (v,offs) st = Dom.filter (not_in v) st
+
+  let invalidate_lval ask lv st =
+    match ask (Queries.MayPointTo (Cil.mkAddrOf lv)) with 
       | `LvalSet rv when not (Queries.LS.is_top rv) -> 
           Queries.LS.fold remove_simple rv st 
-      | _ -> Dom.kill_lval lval st
+      | _ -> Dom.kill_lval lv st
+
+  let invalidate_exp ask exp st =
+    match ask (Queries.MayPointTo exp) with 
+      | `LvalSet rv when not (Queries.LS.is_top rv) -> 
+          Queries.LS.fold remove_simple rv st 
+      | _ -> Dom.top ()
+
+  let assign ask lval rval glob st = invalidate_lval ask lval st
     
   let return a exp fundec glob st = 
     List.fold_right Dom.remove_var (fundec.sformals@fundec.slocals) st  
@@ -58,7 +65,7 @@ struct
           [Dom.remove ask (List.hd arglist) st, integer 1, true]
       | x -> begin
           match LF.get_invalidate_action x with
-            | Some fnc -> [Dom.top (), integer 1, true]
+            | Some fnc -> [List.fold_left (fun st e -> invalidate_exp ask e st) st (fnc `Write arglist), integer 1, true]
             | _ -> [Dom.top (), integer 1, true]
         end
 
