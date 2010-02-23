@@ -314,6 +314,7 @@ let invalidate_actions = [
   ("__builtin_object_size", readsAll);
   ("usb_submit_urb", readsAll); (* first argument is written to but according to specification must not be read from anymore *)
   ("dev_driver_string", readsAll);
+  ("__spin_lock_init", writesAll);
 ]
 
 (* used by get_invalidate_action to make sure
