@@ -483,7 +483,7 @@ struct
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
     let unlock remove_fn =
       match arglist with
-        | [x] -> begin match  (eval_exp_addr a x) with 
+        | x::xs -> begin match  (eval_exp_addr a x) with 
                         | [] -> [(Lockset.empty ()),Cil.integer 1, true]
                         | es -> [(List.fold_right remove_fn es ls), Cil.integer 1, true]
                 end
