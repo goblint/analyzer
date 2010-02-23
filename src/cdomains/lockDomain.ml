@@ -128,6 +128,10 @@ struct
         | Cil.Lval    (Cil.Mem e,ofs) -> S.map (fun e -> Cil.Lval    (Cil.Mem e,ofs)) (eq_set ask e) 
         | Cil.CastE (_,e)           -> eq_set ask e)
   
+  let add ask e st = S.union (eq_set ask e) st
+  let remove ask e st = S.diff st (eq_set ask e)
+  let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
+
   let kill_lval (host,offset) st =
     let rec last_field os ls =
       match os with
@@ -137,11 +141,11 @@ struct
     in
     match last_field offset None with
       | Some f -> S.filter (fun x -> not (Exp.contains_field f x)) st
-      | None -> top ()
-      
-  let add ask e st = S.union (eq_set ask e) st
-  let remove ask e st = S.diff st (eq_set ask e)
-  let remove_var v st = S.filter (Exp.contains_var v) st
+      | None -> 
+    match host with
+      | Var v -> remove_var v st
+      | Mem (Lval (Var v, NoOffset)) -> remove_var v st
+      | Mem _ ->  top ()      
 
   let elements = S.elements
   let choose = S.choose

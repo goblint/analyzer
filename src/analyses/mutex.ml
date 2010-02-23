@@ -516,7 +516,7 @@ struct
           unlock (fun l -> remove_rw (drop_raw_lock l))
    (* | "sem_post"*)
       | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
-      | "mutex_unlock" | "ReleaseResource" 
+      | "mutex_unlock" | "ReleaseResource" | "_write_unlock"
       | "pthread_mutex_unlock" 
           -> unlock remove_rw
       | x -> 
