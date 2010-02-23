@@ -500,7 +500,7 @@ struct
           -> lock true !failing_locks a lv arglist ls
       | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock" 
           -> lock false !failing_locks a lv arglist ls
-      | "__raw_read_unlock" | "__raw_write_unlock" -> 
+      | "__raw_read_unlock" | "__raw_write_unlock"  -> 
           let drop_raw_lock x =
             let rec drop_offs o = 
               match o with
@@ -516,7 +516,7 @@ struct
           unlock (fun l -> remove_rw (drop_raw_lock l))
    (* | "sem_post"*)
       | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
-      | "mutex_unlock" | "ReleaseResource" | "_write_unlock"
+      | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
       | "pthread_mutex_unlock" 
           -> unlock remove_rw
       | x -> 
