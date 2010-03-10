@@ -61,3 +61,6 @@
 #define  noinline			__attribute__((noinline))
 #define __attribute_const__		__attribute__((__const__))
 #define __maybe_unused			__attribute__((unused))
+
+// XXX Added from compiler-gcc4.h
+#define uninitialized_var(x) x = x

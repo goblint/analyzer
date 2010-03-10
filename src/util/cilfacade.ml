@@ -4,7 +4,7 @@ module GU = Goblintutil
 
 let init () =
   initCIL ();
-  lineDirectiveStyle := None;
+(*  lineDirectiveStyle := None;*)
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
 
