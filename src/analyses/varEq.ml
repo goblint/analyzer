@@ -39,9 +39,285 @@ struct
   let reset_diff x = x
   let get_diff   x = []
   let should_join x y = true
+  
+  let rec const_equal c1 c2 =
+    match c1, c2 with
+      |	CStr s1  , CStr s2	 -> s1 = s2
+      |	CWStr is1, CWStr is2 -> is1 = is2
+      |	CChr c1  , CChr c2   -> c1 = c2
+      |	CInt64 (v1,k1,_), CInt64 (v2,k2,_) -> v1 = v2 && k1 = k2
+      |	CReal (f1,k1,_) , CReal (f2,k2,_)  -> f1 = f2 && k1 = k2
+      |	CEnum (_,n1,e1), CEnum (_,n2,e2) -> n1 = n2 && e1.ename = e2.ename  
+      | _ -> false
+
+  let option_eq f x y =
+    match x, y with
+      | Some x, Some y -> f x y
+      | None, None -> true
+      | _ -> false 
+  
+  let rec typ_equal t1 t2 =
+    let args_eq (s1,t1,_) (s2,t2,_) = s1 = s2 && typ_equal t1 t2 in
+    let eitem_eq (s1,e1,l1) (s2,e2,l2) = s1 = s2 && l1 = l2 && exp_equal e1 e2 in
+    match t1, t2 with
+      | TVoid _, TVoid _ -> true
+      | TInt (k1,_), TInt (k2,_) -> k1 = k2
+      | TFloat (k1,_), TFloat (k2,_) -> k1 = k2
+      | TPtr (t1,_), TPtr (t2,_) -> typ_equal t1 t2
+      | TArray (t1,d1,_), TArray (t2,d2,_) -> option_eq exp_equal d1 d2 && typ_equal t1 t2
+      | TFun (rt1, arg1, _,  b1), TFun (rt2, arg2, _, b2) -> b1 = b2 && typ_equal rt1 rt2 && option_eq (List.for_all2 args_eq) arg1 arg2
+      | TNamed (ti1, _), TNamed (ti2, _) -> ti1.tname = ti2.tname && typ_equal ti1.ttype ti2.ttype
+      | TComp (c1,_), TComp (c2,_) -> c1.ckey = c2.ckey
+      | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename & List.for_all2 eitem_eq e1.eitems e2.eitems 
+      | TBuiltin_va_list _, TBuiltin_va_list _ -> true
+      | _ -> false
+
+  and lval_equal (l1,o1) (l2,o2) =
+    let rec offs_equal o1 o2 =
+      match o1, o2 with
+        | NoOffset, NoOffset -> true
+        | Field (f1, o1), Field (f2,o2) -> f1.fcomp.ckey = f2.fcomp.ckey && f1.fname = f2.fname && offs_equal o1 o2
+        | Index (i1,o1), Index (i2,o2) -> exp_equal i1 i2 && offs_equal o1 o2   
+        | _ -> false     
+    in
+       offs_equal o1 o2 
+    && match l1, l2 with
+         | Var v1, Var v2 -> v1.vid = v2.vid
+         | Mem m1, Mem m2 -> exp_equal m1 m2
+         | _ -> false
+  
+  and exp_equal e1 e2 =
+    match e1, e2 with
+      |	Const c1,	Const c2 -> const_equal c1 c2
+      |	AddrOf l1,	AddrOf l2   
+      |	StartOf l1,	StartOf l2 
+      |	Lval l1 ,	Lval  l2 -> lval_equal l1 l2
+      |	SizeOf t1,	SizeOf t2 -> typ_equal t1 t2
+      |	SizeOfE e1,	SizeOfE e2 -> exp_equal e1 e2  
+      |	SizeOfStr s1,	SizeOfStr s2 -> s1 = s2
+      |	AlignOf t1,	AlignOf t2 -> typ_equal t1 t2
+      |	AlignOfE e1,	AlignOfE e2 -> exp_equal e1 e2
+      |	UnOp (o1,e1,t1),	UnOp (o2,e2,t2) -> o1 = o2 && typ_equal t1 t2 && exp_equal e1 e2
+      |	BinOp (o1,e11,e21,t1),	BinOp(o2,e12,e22,t2) -> o1 = o2 && typ_equal t1 t2 && exp_equal e11 e12 && exp_equal e21 e22     
+      |	CastE (t1,e1),	CastE (t2,e2) -> typ_equal t1 t2 && exp_equal e1 e2
+      | _ -> false
+    
+  (* helper to decide equality *)
+  let query_exp_equal ask e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
+    let e1 = Cil.constFold false (Cil.stripCasts e1) in
+    let e2 = Cil.constFold false (Cil.stripCasts e2) in
+    if exp_equal e1 e2 then true else
+    match Dom.find_class e1 s with
+      | Some ss when Dom.S.mem e2 ss -> true
+      | _ -> false
+  
+  (* kill predicate for must-equality kind of analyses*)
+  let may_change_t (b:exp) (a:exp) : bool =
+    let rec type_may_change_t a bt =
+      let rec may_change_t_offset o =
+        match o with  
+          | NoOffset -> false
+          | Index (e,o) -> type_may_change_t e bt || may_change_t_offset o
+          | Field (_,o) -> may_change_t_offset o
+      in
+      let at = typeOf a in
+      (isIntegralType at && isIntegralType bt) || (typ_equal at bt) ||
+      match a with
+        | Cil.Const _ 
+        | Cil.SizeOf _
+        | Cil.SizeOfE _
+        | Cil.SizeOfStr _
+        | Cil.AlignOf _  
+        | Cil.AlignOfE _ -> false
+        | Cil.UnOp (_,e,_) -> type_may_change_t e bt      
+        | Cil.BinOp (_,e1,e2,_) -> type_may_change_t e1 bt || type_may_change_t e2 bt
+        | Cil.Lval (Cil.Var _,o) 
+        | Cil.AddrOf (Cil.Var _,o)              
+        | Cil.StartOf (Cil.Var _,o) -> may_change_t_offset o
+        | Cil.Lval (Cil.Mem e,o)    
+        | Cil.AddrOf (Cil.Mem e,o)  
+        | Cil.StartOf (Cil.Mem e,o) -> may_change_t_offset o || type_may_change_t e bt
+        | Cil.CastE (t,e) -> type_may_change_t e bt
+    in
+    let bt =  unrollTypeDeep (typeOf b) in
+    type_may_change_t a bt
+    
+  let may_change_pt ask (b:exp) (a:exp) : bool =
+    let pt e = 
+      match ask (Queries.MayPointTo e) with
+        | `LvalSet ls -> ls
+        | _ -> Queries.LS.top ()
+    in
+    let rec lval_may_change_pt a bl : bool =
+      let rec may_change_pt_offset o =
+        match o with  
+          | NoOffset -> false
+          | Index (e,o) -> lval_may_change_pt e bl || may_change_pt_offset o
+          | Field (_,o) -> may_change_pt_offset o
+      in
+      let als = pt a in
+      Queries.LS.is_top als || Queries.LS.mem bl als ||
+      match a with
+        | Cil.Const _ 
+        | Cil.SizeOf _
+        | Cil.SizeOfE _
+        | Cil.SizeOfStr _
+        | Cil.AlignOf _  
+        | Cil.AlignOfE _ -> false
+        | Cil.UnOp (_,e,_) -> lval_may_change_pt e bl      
+        | Cil.BinOp (_,e1,e2,_) -> lval_may_change_pt e1 bl || lval_may_change_pt e2 bl
+        | Cil.Lval (Cil.Var _,o) 
+        | Cil.AddrOf (Cil.Var _,o)              
+        | Cil.StartOf (Cil.Var _,o) -> may_change_pt_offset o
+        | Cil.Lval (Cil.Mem e,o)    
+        | Cil.AddrOf (Cil.Mem e,o)  
+        | Cil.StartOf (Cil.Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl 
+        | Cil.CastE (t,e) -> lval_may_change_pt e bl
+    in 
+    let bls = pt b in
+    if Queries.LS.is_top bls
+    then true
+    else Queries.LS.exists (lval_may_change_pt a) bls
+  
+  let may_change ask (b:exp) (a:exp) : bool =
+    (*b should be an address of something that changes*)
+    let pt e = 
+      match ask (Queries.MayPointTo e) with
+        | `LvalSet ls -> ls
+        | _ -> Queries.LS.top ()
+    in
+    let bls = pt b in
+    let bt = 
+      match unrollTypeDeep (typeOf b) with
+        | TPtr (t,_) -> t
+        | _ -> voidType
+    in (* type of thing that changed: typeof( *b ) *)
+    let rec type_may_change_apt a = 
+      (* With abstract points-to (like in type invariants in accesses). 
+         Here we implement it in part --- minimum to protect local integers. *)
+       match a, b with
+         | Cil.Lval (Cil.Var _,NoOffset), Cil.AddrOf (Cil.Mem(Cil.Lval _),Field(_, NoOffset)) -> 
+            (* lval *.field changes -> local var stays the same *)
+            false
+         | _ -> 
+            type_may_change_t false a
+    and type_may_change_t deref a =
+      let rec may_change_t_offset o =
+        match o with  
+          | NoOffset -> false
+          | Index (e,o) -> type_may_change_apt e || may_change_t_offset o
+          | Field (_,o) -> may_change_t_offset o
+      in
+      let at = 
+        match unrollTypeDeep (typeOf a) with
+          | TPtr (t,a) -> t
+          | at -> at 
+      in
+(*      Messages.report 
+        ( sprint 80 (d_type () at)
+        ^ " : "
+        ^ sprint 80 (d_type () bt)
+        ^ (if bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt then ": yes" else ": no"));
+*)      bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt ||
+      match a with
+        | Cil.Const _ 
+        | Cil.SizeOf _
+        | Cil.SizeOfE _
+        | Cil.SizeOfStr _
+        | Cil.AlignOf _  
+        | Cil.AlignOfE _ -> false
+        | Cil.UnOp (_,e,_) -> type_may_change_t deref e      
+        | Cil.BinOp (_,e1,e2,_) -> type_may_change_t deref e1 || type_may_change_t deref e2
+        | Cil.Lval (Cil.Var _,o) 
+        | Cil.AddrOf (Cil.Var _,o)              
+        | Cil.StartOf (Cil.Var _,o) -> may_change_t_offset o
+        | Cil.Lval (Cil.Mem e,o)    -> (*Messages.report "Lval" ;*) may_change_t_offset o || type_may_change_t true e    
+        | Cil.AddrOf (Cil.Mem e,o)  -> (*Messages.report "Addr" ;*) may_change_t_offset o || type_may_change_t false e  
+        | Cil.StartOf (Cil.Mem e,o) -> (*Messages.report "Start";*) may_change_t_offset o || type_may_change_t false e
+        | Cil.CastE (t,e) -> type_may_change_t deref e 
+    
+    and lval_may_change_pt a bl : bool =
+      let rec may_change_pt_offset o =
+        match o with  
+          | NoOffset -> false
+          | Index (e,o) -> lval_may_change_pt e bl || may_change_pt_offset o
+          | Field (_,o) -> may_change_pt_offset o
+      in
+      let rec addrOfExp e = 
+        match e with
+          | Cil.Lval    (Cil.Var v,o) -> Some (AddrOf (Var v,o)) 
+          | Cil.AddrOf  (Cil.Var _,_) -> None              
+          | Cil.StartOf (Cil.Var _,_) -> None
+          | Cil.Lval    (Cil.Mem e,o) -> Some (AddrOf (Mem e, o)) 
+          | Cil.AddrOf  (Cil.Mem e,o) -> (match addrOfExp e with Some e -> Some (AddrOf (Mem e, o)) | x -> x)
+          | Cil.StartOf (Cil.Mem e,o) -> (match addrOfExp e with Some e -> Some (AddrOf (Mem e, o)) | x -> x)
+          | Cil.CastE   (t,e) -> addrOfExp e
+          | _ -> None
+      in      
+      let lval_is_not_disjoint (v,o) als = 
+        let rec oleq o s = 
+          match o, s with
+            | `NoOffset, _ -> true
+            | `Field (f1,o), `Field (f2,s) when f1.fname = f2.fname -> oleq o s
+            | `Index (i1,o), `Index (i2,s) when exp_equal i1 i2     -> oleq o s
+            | _ -> false
+        in
+        if Queries.LS.is_top als
+        then false
+        else Queries.LS.exists (fun (u,s) ->  v.vid = u.vid && oleq o s) als
+      in
+      let (als, test) = 
+      match addrOfExp a with
+        | None -> (Queries.LS.bot (), false)
+        | Some e -> 
+            let als = pt e in 
+            (als, lval_is_not_disjoint bl als)   
+      in
+(*      Messages.report 
+        ( sprint 80 (Lval.CilLval.pretty () bl)
+        ^ " in PT("
+        ^ sprint 80 (d_exp () a)
+        ^ ") = "
+        ^ sprint 80 (Queries.LS.pretty () als)
+        ^ (if Queries.LS.is_top als || test then ": yes" else ": no"));
+*)      if (Queries.LS.is_top als) 
+      then type_may_change_apt a 
+      else test ||
+      match a with
+        | Cil.Const _ 
+        | Cil.SizeOf _
+        | Cil.SizeOfE _
+        | Cil.SizeOfStr _
+        | Cil.AlignOf _  
+        | Cil.AlignOfE _ -> false
+        | Cil.UnOp (_,e,_) -> lval_may_change_pt e bl      
+        | Cil.BinOp (_,e1,e2,_) -> lval_may_change_pt e1 bl || lval_may_change_pt e2 bl
+        | Cil.Lval (Cil.Var _,o) 
+        | Cil.AddrOf (Cil.Var _,o)              
+        | Cil.StartOf (Cil.Var _,o) -> may_change_pt_offset o
+        | Cil.Lval (Cil.Mem e,o)    
+        | Cil.AddrOf (Cil.Mem e,o)  
+        | Cil.StartOf (Cil.Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl 
+        | Cil.CastE (t,e) -> lval_may_change_pt e bl
+    in 
+    let r =
+    if Queries.LS.is_top bls
+    then ((*Messages.report "No PT-set: switching to types ";*) type_may_change_apt a)
+    else Queries.LS.exists (lval_may_change_pt a) bls
+    in
+(*    if r 
+    then (Messages.report ("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)); r)
+    else (Messages.report ("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)); r) 
+    Messages.report (sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)); 
+*)    r
 
   (* Remove elements, that would change if the given lval would change.*)
+  let remove_exp ask (e:exp) (st:Dom.t) : Dom.t =
+    Dom.filter (fun x -> not (may_change ask e x)) st
+
   let remove ask (e:lval) (st:Dom.t) : Dom.t =
+    remove_exp ask (Cil.mkAddrOf e) st 
+    (*
     let not_in v xs = not (Exp.contains_var v xs) in
     let remove_simple (v,offs) st =      
       Dom.filter (not_in v) st
@@ -50,17 +326,18 @@ struct
       | `LvalSet rv when not (Queries.LS.is_top rv) -> 
           Queries.LS.fold remove_simple rv st 
       | _ -> Dom.top ()
-  
+    *)
+    
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
-    let is_local x = 
+(*    let is_local x = 
       match x with (Var v,_) -> not v.vglob | _ -> false
     in
     let st = 
-      if is_local lv && Exp.interesting rv 
+*)    if Exp.is_global_var (Lval lv) = Some false && Exp.interesting rv && Exp.is_global_var rv = Some false
       then Dom.add_eq (rv,Lval lv) (remove ask lv st)
       else remove ask lv st 
-    in
+(*    in
     match rv with
       | Lval rlval -> begin
           match ask (Queries.MayPointTo (Cil.mkAddrOf rlval)) with 
@@ -72,7 +349,7 @@ struct
             | _ -> st
           end
       | _ -> st
-  
+*)  
   (* Give the set of reachables from argument. *)
   let reachables ask es = 
     let reachable e st = 
@@ -188,85 +465,14 @@ struct
       | Some rs -> 
         let remove_reachable1 es st =
           let remove_reachable2 e st =
-            if reachable_from rs e then Dom.remove e st else st
+            if reachable_from rs e && not (isConstant e) then remove_exp ask e st else st
           in
           Dom.S.fold remove_reachable2 es st
         in
         [Dom.fold remove_reachable1 st st, true_exp, true]
     
   (* query stuff *)
-  
-  let rec const_equal c1 c2 =
-    match c1, c2 with
-      |	CStr s1  , CStr s2	 -> s1 = s2
-      |	CWStr is1, CWStr is2 -> is1 = is2
-      |	CChr c1  , CChr c2   -> c1 = c2
-      |	CInt64 (v1,k1,_), CInt64 (v2,k2,_) -> v1 = v2 && k1 = k2
-      |	CReal (f1,k1,_) , CReal (f2,k2,_)  -> f1 = f2 && k1 = k2
-      |	CEnum (_,n1,e1), CEnum (_,n2,e2) -> n1 = n2 && e1.ename = e2.ename  
-      | _ -> false
-
-  let option_eq f x y =
-    match x, y with
-      | Some x, Some y -> f x y
-      | None, None -> true
-      | _ -> false 
-  
-  let rec typ_equal t1 t2 =
-    let args_eq (s1,t1,_) (s2,t2,_) = s1 = s2 && typ_equal t1 t2 in
-    let eitem_eq (s1,e1,l1) (s2,e2,l2) = s1 = s2 && l1 = l2 && exp_equal e1 e2 in
-    match t1, t2 with
-      | TVoid _, TVoid _ -> true
-      | TInt (k1,_), TInt (k2,_) -> k1 = k2
-      | TFloat (k1,_), TFloat (k2,_) -> k1 = k2
-      | TPtr (t1,_), TPtr (t2,_) -> typ_equal t1 t2
-      | TArray (t1,d1,_), TArray (t2,d2,_) -> option_eq exp_equal d1 d2 && typ_equal t1 t2
-      | TFun (rt1, arg1, _,  b1), TFun (rt2, arg2, _, b2) -> b1 = b2 && typ_equal rt1 rt2 && option_eq (List.for_all2 args_eq) arg1 arg2
-      | TNamed (ti1, _), TNamed (ti2, _) -> ti1.tname = ti2.tname && typ_equal ti1.ttype ti2.ttype
-      | TComp (c1,_), TComp (c2,_) -> c1.ckey = c2.ckey
-      | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename & List.for_all2 eitem_eq e1.eitems e2.eitems 
-      | TBuiltin_va_list _, TBuiltin_va_list _ -> true
-      | _ -> false
-
-  and lval_equal (l1,o1) (l2,o2) =
-    let rec offs_equal o1 o2 =
-      match o1, o2 with
-        | NoOffset, NoOffset -> true
-        | Field (f1, o1), Field (f2,o2) -> f1.fcomp.ckey = f2.fcomp.ckey && f1.fname = f2.fname && offs_equal o1 o2
-        | Index (i1,o1), Index (i2,o2) -> exp_equal i1 i2 && offs_equal o1 o2   
-        | _ -> false     
-    in
-       offs_equal o1 o2 
-    && match l1, l2 with
-         | Var v1, Var v2 -> v1.vid = v2.vid
-         | Mem m1, Mem m2 -> exp_equal m1 m2
-         | _ -> false
-  
-  and exp_equal e1 e2 =
-    match e1, e2 with
-      |	Const c1,	Const c2 -> const_equal c1 c2
-      |	AddrOf l1,	AddrOf l2   
-      |	StartOf l1,	StartOf l2 
-      |	Lval l1 ,	Lval  l2 -> lval_equal l1 l2
-      |	SizeOf t1,	SizeOf t2 -> typ_equal t1 t2
-      |	SizeOfE e1,	SizeOfE e2 -> exp_equal e1 e2  
-      |	SizeOfStr s1,	SizeOfStr s2 -> s1 = s2
-      |	AlignOf t1,	AlignOf t2 -> typ_equal t1 t2
-      |	AlignOfE e1,	AlignOfE e2 -> exp_equal e1 e2
-      |	UnOp (o1,e1,t1),	UnOp (o2,e2,t2) -> o1 = o2 && typ_equal t1 t2 && exp_equal e1 e2
-      |	BinOp (o1,e11,e21,t1),	BinOp(o2,e12,e22,t2) -> o1 = o2 && typ_equal t1 t2 && exp_equal e11 e12 && exp_equal e21 e22     
-      |	CastE (t1,e1),	CastE (t2,e2) -> typ_equal t1 t2 && exp_equal e1 e2
-      | _ -> false
     
-  (* helper to decide equality *)
-  let exp_equal ask e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
-    let e1 = Cil.constFold false (Cil.stripCasts e1) in
-    let e2 = Cil.constFold false (Cil.stripCasts e2) in
-    if exp_equal e1 e2 then true else
-    match Dom.find_class e1 s with
-      | Some ss when Dom.S.mem e2 ss -> true
-      | _ -> false
-  
   let eq_set (e:Cil.exp) s =
     match Dom.find_class e s with
       | None -> Queries.ES.empty ()
@@ -298,7 +504,7 @@ struct
       
   let query a g s x = 
     match x with 
-      | Queries.ExpEq (e1,e2) when exp_equal a e1 e2 g s -> `Int (Queries.ID.of_bool true)
+      | Queries.ExpEq (e1,e2) when query_exp_equal a e1 e2 g s -> `Int (Queries.ID.of_bool true)
       | Queries.EqualSet e -> 
         let r = eq_set_clos e s in 
 (*         Messages.report ("equset of "^(sprint 80 (Cil.d_exp () e))^" is "^(Queries.ES.short 80 r)); *)

@@ -73,6 +73,12 @@ struct
       | Offs x, Offs y -> eq x y
       | Bot, Bot -> true
       | _ -> false
+
+  let rec add_offset o1 o2 = 
+    match o1 with
+      | `NoOffset -> o2
+      | `Field (f1,o1) -> `Field (f1,add_offset o1 o2)
+      | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
   
   (* The following compare is same as the Pervasives one, but that depends on the exact definition
     of ('a,'b) offs. We need leq a b ==> b <= a *)

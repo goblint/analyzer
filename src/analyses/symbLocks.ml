@@ -1,6 +1,7 @@
 module LF = LibraryFunctions
 module LP = Exp.LockingPattern
 module Exp = Exp.Exp
+module VarEq = VarEq.Spec
 
 open Cil
 open Pretty
@@ -31,20 +32,11 @@ struct
   let branch a exp tv glob st = st
   let body   a f glob st = st
 
-  let not_in v xs = not (Exp.contains_var v xs) 
-  let remove_simple (v,offs) st = Dom.filter (not_in v) st
+  let invalidate_exp ask exp st =
+    Dom.filter (fun e -> not (VarEq.may_change ask exp e)) st 
 
   let invalidate_lval ask lv st =
-    match ask (Queries.MayPointTo (Cil.mkAddrOf lv)) with 
-      | `LvalSet rv when not (Queries.LS.is_top rv) -> 
-          Queries.LS.fold remove_simple rv st 
-      | _ -> Dom.kill_lval lv st
-
-  let invalidate_exp ask exp st =
-    match ask (Queries.MayPointTo exp) with 
-      | `LvalSet rv when not (Queries.LS.is_top rv) -> 
-          Queries.LS.fold remove_simple rv st 
-      | _ -> Dom.top ()
+    invalidate_exp ask (mkAddrOf lv) st
 
   let assign ask lval rval glob st = invalidate_lval ask lval st
     
@@ -64,9 +56,17 @@ struct
       | "pthread_mutex_unlock" ->
           [Dom.remove ask (List.hd arglist) st, integer 1, true]
       | x -> begin
-          match LF.get_invalidate_action x with
-            | Some fnc -> [List.fold_left (fun st e -> invalidate_exp ask e st) st (fnc `Write arglist), integer 1, true]
-            | _ -> [Dom.top (), integer 1, true]
+          let st = 
+            match lval with
+              | Some lv -> invalidate_lval ask lv st 
+              | None -> st
+          in
+          let write_args = 
+            match LF.get_invalidate_action x with
+              | Some fnc -> fnc `Write arglist
+              | _ -> arglist
+          in
+          [List.fold_left (fun st e -> invalidate_exp ask e st) st write_args, integer 1, true]
         end
 
   let enter_func a lval f args glob st = [(st,st)]
