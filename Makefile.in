@@ -30,9 +30,9 @@ PROG_MODULES = \
 	basetype intDomain lval exp queries addressDomain partitionDomain \
 	arrayDomain structDomain unionDomain valueDomain memoryDomain \
 	musteqDomain regionDomain concDomain lockDomain  baseDomain \
-	hash progress myCFG analyses libraryFunctions global \
+	accessDomain hash progress myCFG analyses libraryFunctions global \
 	solver effectWCon effectWNCon solverConSideRR solverConSideWNRR \
-	multithread compose mCP varEq symbLocks thread threadEscape \
+	multithread compose mCP access varEq symbLocks thread threadEscape \
 	base region owner unit mutex osek uninit malloc_null memLeaks
 
 TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \

@@ -67,6 +67,7 @@ type local_state = [
     | `Escape      of SetDomain.HeadlessSet (Basetype.Variables).t
     | `Region      of RegionDomain.RegionDom.t
     | `OSEK        of LockDomain.Lockset.t
+    | `Access      of AccessDomain.Access.t
     | `Bad ]
     
 let analysesListLocal : local_state domRecord list ref = ref []
