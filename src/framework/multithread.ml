@@ -1,39 +1,3 @@
-(* 
- * Copyright (c) 2005-2007,
- *     * University of Tartu
- *     * Vesal Vojdani <vesal.vojdani@gmail.com>
- *     * Kalmer Apinis <kalmera@ut.ee>
- *     * Jaak Randmets <jaak.ra@gmail.com>
- *     * Toomas Römer <toomasr@gmail.com>
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- * 
- *     * Redistributions of source code must retain the above copyright notice,
- *       this list of conditions and the following disclaimer.
- * 
- *     * Redistributions in binary form must reproduce the above copyright notice,
- *       this list of conditions and the following disclaimer in the documentation
- *       and/or other materials provided with the distribution.
- * 
- *     * Neither the name of the University of Tartu nor the names of its
- *       contributors may be used to endorse or promote products derived from
- *       this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *)
-
-
 module A = Analyses
 module M = Messages
 module P = Progress
@@ -72,7 +36,7 @@ struct
   end
   (** name the analyzer *)
   let name = "analyzer"
-  let fake_query_fun x = Queries.Result.top () 
+  let top_query x = Queries.Result.top () 
   
   let system (cfg: MyCFG.cfg) (var: Var.t) : (Solver.var_assign * Solver.glob_assign -> Solver.var_domain * Solver.glob_diff * Solver.calls) list = 
     if M.tracing then M.trace "con" (dprintf "%a\n" Var.pretty_trace var);
@@ -108,22 +72,22 @@ struct
       Also we concatenate each [forks lval f args st] for each [f]
       *)
     let proc_call sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.glob_diff * Solver.variable list =
-      let funs  = Spec.eval_funvar fake_query_fun exp theta st in
+      let funs  = Spec.eval_funvar (A.context top_query st theta []) exp in
       let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
       let add_function st' f : Spec.Dom.t =
         let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
         if has_dec && not (LibraryFunctions.use_special f.vname) then
-          let work    = Spec.enter_func fake_query_fun lval f args theta st in
-          let leave   = Spec.leave_func fake_query_fun lval f args theta in
+          let work = Spec.enter_func (A.context top_query st theta []) lval f args in
+          let leave st1 st2 = Spec.leave_func (A.context top_query st1 theta []) lval f args st2 in
           let general_results = List.map (fun (y,x) -> y, SD.unlift (sigma (dress (f,x)))) work in
           let joined_result   = List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst tst)) (Spec.Dom.bot ()) general_results in
           Spec.Dom.join st' joined_result        
         else
           let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
-          List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn fake_query_fun lval f args theta st) 
+          List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (A.context top_query st theta []) lval f args) 
       in
       let crap  = List.fold_left add_function (Spec.Dom.bot ()) funs in      
-      let forks = List.fold_left (fun xs x -> List.map dress (Spec.fork fake_query_fun lval x args theta st) @ xs) [] funs in
+      let forks = List.fold_left (fun xs x -> List.map dress (Spec.fork (A.context top_query st theta []) lval x args) @ xs) [] funs in
       lift_st crap forks
     in
       
@@ -145,10 +109,10 @@ struct
            * the call case. There is an ALMOST constant lifting and unlifting to
            * handle the dead code -- maybe it could be avoided  *)
           match edge with
-            | MyCFG.Entry func             -> lift_st (Spec.body   fake_query_fun func theta (SD.unlift es)) []
-            | MyCFG.Assign (lval,exp)      -> lift_st (Spec.assign fake_query_fun lval exp theta (SD.unlift (sigma predvar))) []
-            | MyCFG.Test   (exp,tv)        -> lift_st (Spec.branch fake_query_fun exp tv theta (SD.unlift (sigma predvar))) []
-            | MyCFG.Ret    (ret,fundec)    -> lift_st (Spec.return fake_query_fun ret fundec theta (SD.unlift (sigma predvar))) []
+            | MyCFG.Entry func             -> lift_st (Spec.body   (A.context top_query (SD.unlift es) theta []) func ) []
+            | MyCFG.Assign (lval,exp)      -> lift_st (Spec.assign (A.context top_query (SD.unlift (sigma predvar)) theta []) lval exp) []
+            | MyCFG.Test   (exp,tv)        -> lift_st (Spec.branch (A.context top_query (SD.unlift (sigma predvar)) theta []) exp tv) []
+            | MyCFG.Ret    (ret,fundec)    -> lift_st (Spec.return (A.context top_query (SD.unlift (sigma predvar)) theta []) ret fundec) []
             | MyCFG.Proc   (lval,exp,args) -> proc_call sigma theta lval exp args (SD.unlift (sigma predvar)) 
             | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; sigma predvar, [], []
             | MyCFG.Skip                   -> sigma predvar, [], []
@@ -212,8 +176,8 @@ struct
         if M.tracing then M.trace "con" (dprintf "Initializer %a\n" d_loc loc);
         GU.current_loc := loc;
         match edge with
-          | MyCFG.Entry func        -> Spec.body fake_query_fun func theta st
-          | MyCFG.Assign (lval,exp) -> Spec.assign fake_query_fun lval exp theta st
+          | MyCFG.Entry func        -> Spec.body (A.context top_query st theta []) func
+          | MyCFG.Assign (lval,exp) -> Spec.assign (A.context top_query st theta []) lval exp
           | _                       -> raise (Failure "This iz impossible!") 
       with Failure x -> M.warn x; st
     in

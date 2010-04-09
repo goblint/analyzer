@@ -5,6 +5,7 @@ module Offs = ValueDomain.Offs
 
 open Cil
 open Pretty
+open Analyses
 
 module Spec =
 struct
@@ -31,7 +32,7 @@ struct
   let reset_diff y = y
   
   (*  queries *)
-  let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
+  let query ctx (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
@@ -251,48 +252,48 @@ struct
     Transfer functions
   *)
   
-  let assign a (lval:lval) (rval:exp) (gl:glob_fun) st : trans_out =
-    ignore (is_expr_initd a rval st);
-    init_lval a lval st
+  let assign ctx (lval:lval) (rval:exp) : trans_out =
+    ignore (is_expr_initd ctx.ask rval ctx.local);
+    init_lval ctx.ask lval ctx.local
         
-  let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st:trans_in) : trans_out = 
-    ignore (is_expr_initd a exp st);
-    st
+  let branch ctx (exp:exp) (tv:bool) : trans_out = 
+    ignore (is_expr_initd ctx.ask exp ctx.local);
+    ctx.local
   
-  let body a (f:fundec) (gl:glob_fun) (st:trans_in) : trans_out = 
+  let body ctx (f:fundec) : trans_out = 
     let add_var st v = List.fold_right Dom.add (to_addrs v) st in
-    List.fold_left add_var st f.slocals
+    List.fold_left add_var ctx.local f.slocals
   
-  let return a (exp:exp option) (f:fundec) (gl:glob_fun) (st:trans_in) : trans_out = 
+  let return ctx (exp:exp option) (f:fundec) : trans_out = 
     let remove_var x v = 
       List.fold_right Dom.remove (to_addrs v) x in
-    let nst = List.fold_left remove_var st (f.slocals @ f.sformals) in
+    let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with 
-      | Some exp -> ignore (is_expr_initd a exp st); nst
+      | Some exp -> ignore (is_expr_initd ctx.ask exp ctx.local); nst
       | _ -> nst
   
   
-  let eval_funvar a fn (gl:glob_fun) _ = []
+  let eval_funvar ctx fn = []
   
-  let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st:trans_in) : (Dom.t * Dom.t) list =
-    let nst = remove_unreachable a args st in
-    [st, nst]
+  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
+    let nst = remove_unreachable ctx.ask args ctx.local in
+    [ctx.local, nst]
   
-  let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu:Dom.t) (au:Dom.t) : trans_out =
-    ignore (List.map (fun x -> is_expr_initd a x bu) args);
-    let cal_st = remove_unreachable a args bu in
-    let ret_st = Dom.union au (Dom.diff bu cal_st) in
+  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : trans_out =
+    ignore (List.map (fun x -> is_expr_initd ctx.ask x ctx.local) args);
+    let cal_st = remove_unreachable ctx.ask args ctx.local in
+    let ret_st = Dom.union au (Dom.diff ctx.local cal_st) in
     match lval with
       | None -> ret_st
-      | Some lv -> init_lval a lv ret_st
+      | Some lv -> init_lval ctx.ask lv ret_st
 
   
-  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st:trans_in) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     match lval with
-      | Some lv -> [init_lval a lv st, Cil.integer 1, true]
-      | _ -> [st, Cil.integer 1, true]
+      | Some lv -> [init_lval ctx.ask lv ctx.local, Cil.integer 1, true]
+      | _ -> [ctx.local, Cil.integer 1, true]
       
-  let fork a (lval: lval option) (f : varinfo) (args : exp list) (gl:glob_fun) (univ : trans_in) : (varinfo * Dom.t) list =
+  let fork ctx (lval: lval option) (f : varinfo) (args : exp list) : (varinfo * Dom.t) list =
     [] (* thats wrong: should be [None, top ()] *)
 
 end

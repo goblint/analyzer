@@ -1,4 +1,3 @@
-module A = Analyses
 module M = Messages
 module GU = Goblintutil
 module Addr = ValueDomain.Addr
@@ -9,6 +8,7 @@ module BS = Base.Main
 module LF = LibraryFunctions
 open Cil
 open Pretty
+open Analyses
 
 module Owner = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "Entire heap" end)
 
@@ -36,7 +36,7 @@ struct
   let es_to_string f es = f.svar.vname
   
   let exp_equal e1 e2 g s = None
-  let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
+  let query ctx (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
   let reset_diff x = x
   let get_diff   x = []
@@ -47,18 +47,18 @@ struct
       myvar.vid <- -99;
       myvar
 
-  let assign a lval rval glob st = Dom.assign lval rval st
-  let branch a exp tv glob st = st
-  let return a exp fundec glob st = st
-  let body   a f glob st = st
-  let special a f arglist glob st = st
+  let assign ctx lval rval = Dom.assign lval rval ctx.local
+  let branch ctx exp tv = ctx.local
+  let return ctx exp fundec = ctx.local
+  let body   ctx f = ctx.local
+  let special ctx f arglist = ctx.local
 
-  let enter_func a lval f args glob st = []
-  let leave_func a lval f args glob st1 st2 = st1
-  let special_fn a lval f args glob st = []
-  let fork       a lval f args glob st = []
+  let enter_func ctx lval f args = []
+  let leave_func ctx lval f args st2 = ctx.local
+  let special_fn ctx lval f args = []
+  let fork       ctx lval f args = []
   
-  let eval_funvar a exp glob st = []
+  let eval_funvar ctx exp = []
 
 end
 

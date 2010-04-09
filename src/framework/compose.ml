@@ -1,39 +1,4 @@
-(* 
- * Copyright (c) 2005-2007,
- *     * University of Tartu
- *     * Vesal Vojdani <vesal.vojdani@gmail.com>
- *     * Kalmer Apinis <kalmera@ut.ee>
- *     * Jaak Randmets <jaak.ra@gmail.com>
- *     * Toomas Römer <toomasr@gmail.com>
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- * 
- *     * Redistributions of source code must retain the above copyright notice,
- *       this list of conditions and the following disclaimer.
- * 
- *     * Redistributions in binary form must reproduce the above copyright notice,
- *       this list of conditions and the following disclaimer in the documentation
- *       and/or other materials provided with the distribution.
- * 
- *     * Neither the name of the University of Tartu nor the names of its
- *       contributors may be used to endorse or promote products derived from
- *       this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *)
-
-
+open Analyses
 open Pretty
 open Cil
 
@@ -124,9 +89,9 @@ struct
   let es_to_string f es  = Base.es_to_string f (Dom.choose es)
   let should_join _ _ = true
   
-  let query a g s y = 
-    let f e b = Queries.Result.meet b (Base.query a g e y) in 
-    Dom.fold f s (Queries.Result.bot ())
+  let query ctx y = 
+    let f e b = Queries.Result.meet b (Base.query (Analyses.set_st ctx e) y) in 
+    Dom.fold f ctx.local (Queries.Result.bot ())
   
   (** [lift f set] is basically a map, that handles dead-code*)
   let lift f set = 
@@ -142,36 +107,36 @@ struct
   let reset_diff x = Dom.map Base.reset_diff x
   let get_diff x = Dom.fold (fun x y -> Base.get_diff x @ y) x []
 
-  let assign a lval exp gs       = lift (Base.assign a lval exp gs)
-  let branch a exp br gs         = lift (Base.branch a exp br gs)
-  let body a f gs                = lift (Base.body a f gs)
-  let return a exp f gs          = lift (Base.return a exp f gs)
+  let assign ctx lval exp  = lift (fun st -> Base.assign (set_st ctx st) lval exp) ctx.local
+  let branch ctx exp br    = lift (fun st -> Base.branch (set_st ctx st) exp br) ctx.local
+  let body ctx f           = lift (fun st -> Base.body (set_st ctx st) f) ctx.local
+  let return ctx exp f     = lift (fun st -> Base.return (set_st ctx st) exp f) ctx.local
 
-  let special_fn a lval f args gs st = 
+  let special_fn ctx lval f args = 
     let just_d_set (s,_,_) = Dom.singleton s in
     let one_special st xs =
-      List.map just_d_set (Base.special_fn a lval f args gs st)  @ xs
+      List.map just_d_set (Base.special_fn (set_st ctx st) lval f args)  @ xs
     in
     let true_exp = (Cil.integer 1) in
-    List.map (fun x -> x, true_exp, true) (Dom.fold one_special st []) 
+    List.map (fun x -> x, true_exp, true) (Dom.fold one_special ctx.local []) 
   
-  let eval_funvar a exp gs st  = Dom.fold (fun x xs -> (Base.eval_funvar a exp gs x) @ xs)  st []
+  let eval_funvar ctx exp = Dom.fold (fun x xs -> (Base.eval_funvar (set_st ctx x) exp) @ xs) ctx.local []
   
-  let fork a lval fn args gs st = 
+  let fork ctx lval fn args = 
     let add_spawn st ss =  
-      List.map (fun (x,y) -> x, Dom.singleton y) (Base.fork a lval fn args gs st) @ ss
+      List.map (fun (x,y) -> x, Dom.singleton y) (Base.fork (set_st ctx st) lval fn args) @ ss
     in
-    Dom.fold add_spawn st []
+    Dom.fold add_spawn ctx.local []
   
-  let enter_func a lval fn args gs st : (Dom.t * Dom.t) list =
+  let enter_func ctx lval fn args : (Dom.t * Dom.t) list =
     let sing_pair (x,y) =  Dom.singleton x, Dom.singleton y in
-    let add_work wrk_list st = List.map sing_pair (Base.enter_func a lval fn args gs st) @ wrk_list in
-    List.fold_left add_work [] (Dom.elements st) 
+    let add_work wrk_list st = List.map sing_pair (Base.enter_func (set_st ctx st) lval fn args) @ wrk_list in
+    List.fold_left add_work [] (Dom.elements ctx.local) 
 
-  let leave_func a lval fn args gs before after : Dom.t =
+  let leave_func ctx lval fn args after : Dom.t =
     (* we join as a general case -- but it should have been a singleton anyway *)
-    let bbf : Base.Dom.t = Dom.fold Base.Dom.join before (Base.Dom.bot ()) in
-    let leave_and_join nst result = Dom.join result (Dom.singleton (Base.leave_func a lval fn args gs bbf nst)) in
+    let bbf : Base.Dom.t = Dom.fold Base.Dom.join ctx.local (Base.Dom.bot ()) in
+    let leave_and_join nst result = Dom.join result (Dom.singleton (Base.leave_func (set_st ctx bbf) lval fn args nst)) in
     Dom.fold leave_and_join after (Dom.bot ())    
 end
 

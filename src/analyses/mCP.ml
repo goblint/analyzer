@@ -28,6 +28,7 @@
    path sensitivity)
  *)
 
+open Analyses
 open Pretty
 open Cil
 
@@ -56,19 +57,7 @@ type 'a domRecord = {
     narrow: 'a -> 'a -> 'a
   }
   
-type local_state = [ 
-    | `Base        of BaseDomain.Dom(ConcDomain.Simple).t
-    | `Mutex       of LockDomain.Lockset.t
-    | `SymbLocks   of LockDomain.Symbolic.t
-    | `VarEq       of PartitionDomain.ExpPartitions.t
-    | `Uninit      of ValueDomain.AddrSetDomain.t
-    | `Malloc_null of ValueDomain.AddrSetDomain.t
-    | `Thread      of ConcDomain.Simple.t
-    | `Escape      of SetDomain.HeadlessSet (Basetype.Variables).t
-    | `Region      of RegionDomain.RegionDom.t
-    | `OSEK        of LockDomain.Lockset.t
-    | `Access      of AccessDomain.Access.t
-    | `Bad ]
+type local_state = Analyses.local_state
     
 let analysesListLocal : local_state domRecord list ref = ref []
 
@@ -92,16 +81,16 @@ type analysisRecord = {
     es_to_string: fundec -> local_state -> string;  
     reset_diff : local_state -> local_state;
     get_diff : local_state -> (Basetype.Variables.t * global_state) list;
-    query: (Queries.t -> Queries.Result.t) -> (Basetype.Variables.t -> global_state) -> local_state -> Queries.t -> Queries.Result.t ;
-    assign: (Queries.t -> Queries.Result.t) ->  lval -> exp -> (Basetype.Variables.t -> global_state) -> local_state -> local_state ;
-    branch: (Queries.t -> Queries.Result.t) -> exp -> bool -> (Basetype.Variables.t -> global_state) -> local_state -> local_state;
-    body  : (Queries.t -> Queries.Result.t) -> fundec      -> (Basetype.Variables.t -> global_state) -> local_state -> local_state;
-    return: (Queries.t -> Queries.Result.t) -> exp option  -> fundec -> (Basetype.Variables.t -> global_state) -> local_state -> local_state;
-    eval_funvar: (Queries.t -> Queries.Result.t) -> exp -> (Basetype.Variables.t -> global_state) -> local_state -> varinfo list;
-    fork       : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Basetype.Variables.t -> global_state) -> local_state -> (varinfo * local_state) list  ;
-    special_fn : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Basetype.Variables.t -> global_state) -> local_state -> (local_state * Cil.exp * bool) list;
-    enter_func : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Basetype.Variables.t -> global_state) -> local_state -> (local_state * local_state) list ;
-    leave_func : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Basetype.Variables.t -> global_state) -> local_state -> local_state -> local_state
+    query: (local_state,Basetype.Variables.t,global_state) ctx -> Queries.t -> Queries.Result.t ;
+    assign: (local_state,Basetype.Variables.t,global_state) ctx -> lval -> exp -> local_state ;
+    branch: (local_state,Basetype.Variables.t,global_state) ctx -> exp -> bool -> local_state;
+    body  : (local_state,Basetype.Variables.t,global_state) ctx -> fundec      -> local_state;
+    return: (local_state,Basetype.Variables.t,global_state) ctx -> exp option  -> fundec -> local_state;
+    eval_funvar: (local_state,Basetype.Variables.t,global_state) ctx -> exp -> varinfo list;
+    fork       : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (varinfo * local_state) list  ;
+    special_fn : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (local_state * Cil.exp * bool) list;
+    enter_func : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (local_state * local_state) list ;
+    leave_func : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> local_state -> local_state
   }
 
 let analysesList : analysisRecord list ref = ref []
@@ -205,31 +194,51 @@ struct
   let reset_diff x = C.inject_l (S.reset_diff (C.extract_l x))
   let get_diff x = List.map (fun (x,y) -> x, C.inject_g y) (S.get_diff (C.extract_l x)) 
   
-  let query uq g l q =
-    S.query uq (fun x -> C.extract_g (g x)) (C.extract_l l) q
+  let query ctx q =
+    let st = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    S.query (set_st_gl ctx st gl) q
   
-  let assign a lval exp g l = 
-    C.inject_l (S.assign a lval exp (fun x -> C.extract_g (g x)) (C.extract_l l))
-  let branch a exp tv g l =
-    C.inject_l (S.branch a exp tv (fun x -> C.extract_g (g x)) (C.extract_l l))
-  let body a f g l =
-    C.inject_l (S.body a f (fun x -> C.extract_g (g x)) (C.extract_l l))
-  let return a r f g l =
-    C.inject_l (S.return a r f (fun x -> C.extract_g (g x)) (C.extract_l l))
+  let assign ctx lval exp = 
+    let st = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    C.inject_l (S.assign (set_st_gl ctx st gl) lval exp)
+  let branch ctx exp tv =
+    let st = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    C.inject_l (S.branch (set_st_gl ctx st gl) exp tv)
+  let body ctx f =
+    let st = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    C.inject_l (S.body (set_st_gl ctx st gl) f)
+  let return ctx r f =
+    let st = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    C.inject_l (S.return (set_st_gl ctx st gl) r f)
   
-  let eval_funvar a exp g l =
-    S.eval_funvar a exp (fun x -> C.extract_g (g x)) (C.extract_l l)
-  let fork a r f args g l =
-    let r = S.fork a r f args (fun x -> C.extract_g (g x)) (C.extract_l l) in
+  let eval_funvar ctx exp =
+    let st = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    S.eval_funvar (set_st_gl ctx st gl) exp
+  let fork ctx r f args =
+    let st = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    let r = S.fork (set_st_gl ctx st gl) r f args in
     List.map (fun (v,d) -> v, C.inject_l d) r
-  let special_fn a r f args g l =
-    let r = S.special_fn a r f args (fun x -> C.extract_g (g x)) (C.extract_l l) in
+  let special_fn ctx r f args =
+    let st = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    let r = S.special_fn (set_st_gl ctx st gl) r f args in
     List.map (fun (d,e,b) -> C.inject_l d, e, b) r
-  let enter_func a r f args g l =
-    let r = S.enter_func a r f args (fun x -> C.extract_g (g x)) (C.extract_l l) in
+  let enter_func ctx r f args =
+    let st = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    let r = S.enter_func (set_st_gl ctx st gl) r f args in
     List.map (fun (d1,d2) -> C.inject_l d1, C.inject_l d2) r
-  let leave_func a r f args g l1 l2 =
-    let r = S.leave_func a r f args (fun x -> C.extract_g (g x)) (C.extract_l l1) (C.extract_l l2) in
+  let leave_func ctx r f args l2 =
+    let st1 = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    let r = S.leave_func (set_st_gl ctx st1 gl) r f args (C.extract_l l2) in
     C.inject_l r
     
   let _ = 
@@ -545,45 +554,55 @@ struct
     in
     f (g x)
   
-  let assign' a lv exp g x = 
-    let s = get_matches x in 
-    s.assign a lv exp (select_g s g) x
+  let assign' ctx lv exp = 
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    s.assign (set_gl ctx g) lv exp
   
-  let body' a fn g st = 
-    let s = get_matches st in 
-    s.body a fn (select_g s g) st  
+  let body' ctx fn = 
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    s.body (set_gl ctx g) fn  
   
-  let return' a r fn g st =  
-    let s = get_matches st in 
-    s.return a r fn (select_g s g) st 
+  let return' ctx r fn =  
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    s.return (set_gl ctx g) r fn 
     
-  let branch' a exp tv g st = 
-    let s = get_matches st in 
-    s.branch a exp tv (select_g s g) st 
+  let branch' ctx exp tv = 
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    s.branch (set_gl ctx g) exp tv
     
-  let special_fn' a r v args g st = 
-    let s = get_matches st in 
-    s.special_fn a r v args (select_g s g) st
+  let special_fn' ctx r v args = 
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    s.special_fn (set_gl ctx g) r v args
     
-  let enter_func' a r v args g st = 
-    let s = get_matches st in 
-    s.enter_func a r v args (select_g s g) st
+  let enter_func' ctx r v args = 
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    s.enter_func (set_gl ctx g) r v args
     
-  let leave_func' a r v args g st1 st2 = 
-    let s = get_matches st1 in 
-    (get_matches st1).leave_func a r v args (select_g s g) st1 st2  
+  let leave_func' ctx r v args st2 = 
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    s.leave_func (set_gl ctx g) r v args st2  
 
-  let eval_funvar' a exp g st = 
-    let s = get_matches st in 
-    s.eval_funvar a exp (select_g s g) st
+  let eval_funvar' ctx exp = 
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    s.eval_funvar (set_gl ctx g) exp
     
-  let fork' a r v args g st = 
-    let s = get_matches st in 
-    s.fork a r v args (select_g s g) st
+  let fork' ctx r v args = 
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    s.fork (set_gl ctx g) r v args
     
-  let query' a g st = 
-    let s = get_matches st in 
-    s.query a (select_g s g) st
+  let query' ctx = 
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    s.query (set_gl ctx g)
 
   let reset_diff' st = (get_matches st).reset_diff st
   
@@ -672,26 +691,27 @@ struct
   let reset_diff = List.map reset_diff'  
 
   (* queries *)
-  let rec query_imp g s q =
-    let ls = List.map (fun x -> query' (query_imp g s) g x q) s in
+  let rec query_imp ctx q =
+    let nctx = set_q ctx (query_imp ctx) in
+    let ls = List.map (fun x -> query' (set_st nctx x) q) ctx.local in
     List.fold_left Queries.Result.meet (Queries.Result.top ()) ls
   
-  let query _ = query_imp
-
+  let query = query_imp 
+  
   (* transfer functions *)
-  let return a r fn g s   = List.map (return' (query_imp g s) r fn g) s
-  let body a fn g s       = List.map (body' (query_imp g s) fn g) s
-  let branch a exp tv g s = List.map (branch' (query_imp g s) exp tv g) s
-  let assign a lv exp g s = List.map (assign' (query_imp g s) lv exp g) s
-  let leave_func a r v args g s = List.map2 (leave_func' (query_imp g s) r v args g) s
+  let return ctx r fn   = List.map (fun t -> return' (set_q (set_st ctx t) (query ctx)) r fn) ctx.local
+  let body ctx fn       = List.map (fun t -> body'   (set_q (set_st ctx t) (query ctx)) fn) ctx.local
+  let branch ctx exp tv = List.map (fun t -> branch' (set_q (set_st ctx t) (query ctx)) exp tv) ctx.local
+  let assign ctx lv exp = List.map (fun t -> assign' (set_q (set_st ctx t) (query ctx)) lv exp) ctx.local
+  let leave_func ctx r v args = List.map2 (fun s1 s2 -> leave_func' (set_q (set_st ctx s1) (query ctx)) r v args s2) ctx.local
 
   (* return all unique variables that analyses report *)
-  let eval_funvar a exp g st : Cil.varinfo list = 
+  let eval_funvar ctx exp : Cil.varinfo list = 
     let unique x = List.fold_right (fun x xs -> if List.mem x xs then xs else x::xs) x [] in
-    unique (List.flatten (List.map (eval_funvar' (query_imp g st) exp g) st))
+    unique (List.flatten (List.map (fun t -> eval_funvar' (set_q (set_st ctx t) (query ctx)) exp) ctx.local))
 
   (* fork over all analyses and combine values of equal varinfos *)
-  let fork a r v args g st =
+  let fork ctx r v args =
     let start_val = otherstate () in 
     let f rs xs = 
       let g rs (v,s) : (Cil.varinfo * Dom.t) list=
@@ -702,31 +722,31 @@ struct
       in
       List.fold_left g rs xs
     in
-    List.fold_left f [] (List.map (fork' (query_imp g st) r v args g) st) 
+    List.fold_left f [] (List.map (fun t -> fork' (set_q (set_st ctx t) (query ctx)) r v args) ctx.local) 
 
   (* We start with maping all enter_func to analyses, then we match together all
      possible combinations. *)
-  let enter_func a r v args g st = 
+  let enter_func ctx r v args = 
     let f ps rs =
       let h (s,t) = List.map (fun (ss,tt) -> ss@[s], tt@[t]) ps in
       List.flatten (List.map h rs)
     in
-    match List.map (enter_func' (query_imp g st) r v args g) st with
+    match List.map (fun t -> enter_func' (set_q (set_st ctx t) (query ctx)) r v args) ctx.local with
        | []      -> []
        | x :: xs -> List.fold_left f (List.map (fun (x,y) -> [x],[y]) x) xs
   
   (* Gather together all possible combinations (with constraint lists) and then
      resolve the constraint by running it trough [branch]es. *)
-  let special_fn _ r v args g st =
-    let a = query_imp g st in
-    let parts = List.map (special_fn' a r v args g) st in
+  let special_fn ctx r v args =
+    let a = query ctx in
+    let parts = List.map (fun t -> special_fn' (set_q (set_st ctx t) a) r v args) ctx.local in
     let gather xs x =
       let map3r (d,e,t) = List.map (fun (x,y,z) -> d@[x], e@[y], t@[z]) x in
       List.flatten (List.map map3r xs)
     in
     let doms_with_constr = List.fold_left gather ([[],[],[]]) parts in
     let resolve_constraint xs (s,exps,tvs) =
-      let branch_one s exp tv = branch a exp tv g s in
+      let branch_one s exp tv = branch (set_st ctx s) exp tv in
       try List.fold_left2 branch_one s exps tvs :: xs
       with Analyses.Deadcode -> xs
     in

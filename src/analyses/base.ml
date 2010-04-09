@@ -1,6 +1,6 @@
 open Cil
 open Pretty
-module A = Analyses
+open Analyses
 module M = Messages
 module H = Hashtbl
 module Q = Queries
@@ -631,34 +631,36 @@ struct
   * Simple defs for the transfer functions 
   **************************************************************************)
 
-  let assign (a: Q.ask) lval rval (gs: glob_fun) st = 
-    set_savetop a gs st (eval_lv a gs st lval) (eval_rv a gs st rval)
+  let assign ctx lval rval  = 
+    set_savetop ctx.ask ctx.global ctx.local 
+      (eval_lv ctx.ask ctx.global ctx.local lval) 
+      (eval_rv ctx.ask ctx.global ctx.local rval)
 
-  let branch a (exp:exp) (tv:bool) gs (st: store): store =
+  let branch ctx (exp:exp) (tv:bool) : store =
     (* First we want to see, if we can determine a dead branch: *)
-    match eval_rv a gs st exp with
+    match eval_rv ctx.ask ctx.global ctx.local exp with
       (* For a boolean value: *)
       | `Int value when (ID.is_bool value) -> 
           (* to suppress pattern matching warnings: *)
           let fromJust x = match x with Some x -> x | None -> assert false in
           let v = fromJust (ID.to_bool value) in
             (* Eliminate the dead branch and just propagate to the true branch *)
-            if v == tv then st else raise A.Deadcode
+            if v == tv then ctx.local else raise Deadcode
       (* Otherwise we try to impose an invariant: *)
-      | _ -> invariant a gs st exp tv 
+      | _ -> invariant ctx.ask ctx.global ctx.local exp tv 
 
-  let body a f gs st = 
+  let body ctx f = 
     (* First we create a variable-initvalue pair for each varaiable *)
-    let init_var v = (AD.from_var v, init_value a gs st v.vtype) in
+    let init_var v = (AD.from_var v, init_value ctx.ask ctx.global ctx.local v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
-      set_many a gs st inits
+      set_many ctx.ask ctx.global ctx.local inits
 
-  let return a exp fundec gs st =
-    let nst = rem_many st (fundec.sformals @ fundec.slocals) in
+  let return ctx exp fundec =
+    let nst = rem_many ctx.local (fundec.sformals @ fundec.slocals) in
       match exp with
         | None -> nst
-        | Some exp -> set a gs nst (return_var ()) (eval_rv a gs st exp)
+        | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp)
 
 
 
@@ -832,27 +834,27 @@ struct
       AD.fold (fun e c -> List.fold_left add c (convertToQueryLval e)) a (Q.LS.empty ())
     with SetDomain.Unsupported _ -> Q.LS.top ()
         
-  let query ask g st (q:Q.t) = 
+  let query ctx (q:Q.t) = 
     match q with
       | Q.MayPointTo e -> begin
-          match eval_rv ask g st e with 
+          match eval_rv ctx.ask ctx.global ctx.local e with 
             | `Address a -> `LvalSet (addrToLvalSet a)
             | _ -> `Top
           end
       | Q.ReachableFrom e -> begin
-          match eval_rv ask g st e with
+          match eval_rv ctx.ask ctx.global ctx.local e with
             | `Top -> `Top
             | `Bot -> `Bot
             | `Address a when AD.is_top a -> 
                 `LvalSet (Q.LS.top ())   
             | `Address a ->
-                let xs = List.map addrToLvalSet (reachable_vars ask [a] g st) in 
+                let xs = List.map addrToLvalSet (reachable_vars ctx.ask [a] ctx.global ctx.local) in 
                 let addrs = List.fold_left Q.LS.join (Q.LS.empty ()) xs in
                 `LvalSet addrs
             | _ -> `LvalSet (Q.LS.empty ())      
           end
-      | Q.SingleThreaded -> `Int (Q.ID.of_bool (not (Flag.is_multi (get_fl st))))
-      | Q.CurrentThreadId when (Flag.is_bad (get_fl st)) -> `Top
+      | Q.SingleThreaded -> `Int (Q.ID.of_bool (not (Flag.is_multi (get_fl ctx.local))))
+      | Q.CurrentThreadId when (Flag.is_bad (get_fl ctx.local)) -> `Top
       | Q.CurrentThreadId -> `Int 1L
       | _ -> Q.Result.top ()
 
@@ -860,20 +862,22 @@ struct
   * Function calls
   **************************************************************************)
   
-  let eval_funvar a fval gs st: varinfo list =
+  let eval_funvar ctx fval: varinfo list =
     try 
-      AD.to_var_may (eval_fv a gs st fval)
+      AD.to_var_may (eval_fv ctx.ask ctx.global ctx.local fval)
     with SetDomain.Unsupported _ -> 
       M.warn ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
       [dummyFunDec.svar] 
     
   
-  let special_fn ask (lv:lval option) (f: varinfo) (args: exp list) (gs:glob_fun) (cpa,fl,gl as st:store) = 
+  let special_fn ctx (lv:lval option) (f: varinfo) (args: exp list) = 
 (*    let heap_var = heap_var !GU.current_loc in*)
+    let cpa,fl,gl as st = ctx.local in
+    let gs = ctx.global in
     let map_true x = x, (Cil.integer 1), true in
     match f.vname with 
-      | "exit" ->  raise A.Deadcode
-      | "abort" -> raise A.Deadcode
+      | "exit" ->  raise Deadcode
+      | "abort" -> raise Deadcode
       (* handling thread creations *)
       | "pthread_create" -> 
           GU.multi_threaded := true;
@@ -881,15 +885,15 @@ struct
           if Flag.is_multi fl then
             [map_true (cpa,new_fl,gl)]
           else
-            let (ncpa,ngl) = if not !GU.earlyglobs then globalize ask cpa else cpa, Vars.empty() in
+            let (ncpa,ngl) = if not !GU.earlyglobs then globalize ctx.ask cpa else cpa, Vars.empty() in
             [map_true (ncpa, new_fl,ngl)]
       (* handling thread joins... sort of *)
       | "pthread_join" -> begin
           match args with
             | [id; ret_var] -> begin
-                match (eval_rv ask gs st ret_var) with
+                match (eval_rv ctx.ask gs st ret_var) with
                   | `Int n when n = ID.of_int 0L -> [map_true (cpa,fl,Vars.bot ())]
-                  | _      -> [map_true (invalidate ask gs st [ret_var])] end
+                  | _      -> [map_true (invalidate ctx.ask gs st [ret_var])] end
             | _ -> M.bailwith "pthread_join arguments are strange!"
         end
       | "malloc" | "__kmalloc" | "usb_alloc_urb" -> begin
@@ -900,26 +904,26 @@ struct
               then AD.join (heap_var !GU.current_loc) (AD.null_ptr ()) 
               else heap_var !GU.current_loc
             in 
-            [map_true (set_many ask gs st [(heap_var, `Blob (VD.bot ()));  
-                                       (eval_lv ask gs st lv, `Address heap_var)])]
+            [map_true (set_many ctx.ask gs st [(heap_var, `Blob (VD.bot ()));  
+                                       (eval_lv ctx.ask gs st lv, `Address heap_var)])]
           | _ -> [map_true st]
         end
       | "calloc" -> 
         begin match lv with
           | Some lv -> 
               let heap_var = get_heap_var !GU.current_loc in
-                [map_true (set_many ask gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
-                                           (eval_lv ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (ID.of_int 0L, `NoOffset))))])]
+                [map_true (set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
+                                           (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (ID.of_int 0L, `NoOffset))))])]
           | _ -> [map_true st]
         end
       (* Handling the assertions *)
-      | "__assert_rtn" -> raise A.Deadcode (* gcc's built-in assert *) 
+      | "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *) 
       | "assert" -> begin
           match args with
             | [e] -> begin
                 (* evaluate the assertion and check if we can refute it *)
                 let expr () = sprint ~width:80 (d_exp () e) in
-                match eval_rv ask gs st e with 
+                match eval_rv ctx.ask gs st e with 
                   (* If the assertion is known to be false/true *)
                   | `Int v when ID.is_bool v -> 
                       (* Warn if it was false; ignore if true! The None case
@@ -935,7 +939,7 @@ struct
                         [map_true st]
                       end else
                         (* make the state meet the assertion in the rest of the code *)
-                        [map_true (invariant ask gs st e true)]
+                        [map_true (invariant ctx.ask gs st e true)]
                     end
               end
             | _ -> M.bailwith "Assert argument mismatch!"
@@ -947,20 +951,20 @@ struct
               | None -> []
           in
           match LF.get_invalidate_action x with
-            | Some fnc -> [map_true (invalidate ask gs st (lv_list @ (fnc `Write  args)))];
+            | Some fnc -> [map_true (invalidate ctx.ask gs st (lv_list @ (fnc `Write  args)))];
             | None -> (
                 M.warn ("Function definition missing for " ^ f.vname);
                 let st_expr (v:varinfo) (value) a = 
-                  if is_global ask v then Cil.mkAddrOf (Var v, NoOffset) :: a else a
+                  if is_global ctx.ask v then Cil.mkAddrOf (Var v, NoOffset) :: a else a
                 in
                 (* This here is just to see of something got spawned. *)
-                let flist = collect_funargs ask gs st args in
+                let flist = collect_funargs ctx.ask gs st args in
                 let f addr = 
                   let var = List.hd (AD.to_var_may addr) in
                   let _ = Cilfacade.getdec var in true
                 in 
                 let g a acc = try let r = f a in r || acc with _ -> acc in
-                let (cpa,fl,gl as st) = invalidate ask gs st (CPA.fold st_expr cpa (lv_list @ args)) in
+                let (cpa,fl,gl as st) = invalidate ctx.ask gs st (CPA.fold st_expr cpa (lv_list @ args)) in
                   if List.fold_right g flist false then begin
                     (* Copy-pasted from the thread-spawning code above: *)
                     GU.multi_threaded := true;
@@ -968,13 +972,14 @@ struct
                       if Flag.is_multi fl then 
                         [map_true (cpa,new_fl,Vars.empty())]
                       else 
-                        let (ncpa,ngl) = if not !GU.earlyglobs then globalize ask cpa else cpa, Vars.empty() in 
+                        let (ncpa,ngl) = if not !GU.earlyglobs then globalize ctx.ask cpa else cpa, Vars.empty() in 
                           [map_true (ncpa, new_fl,ngl)]
                   end else [map_true st]
               )
         end
 
-  let enter_func ask lval fn args gs (cpa,fl,gl as st: store): (Dom.t * Dom.t) list = 
+  let enter_func ctx lval fn args : (Dom.t * Dom.t) list = 
+    let cpa,fl,gl as st = ctx.local in
     let make_entry pa context =
       (* If we need the globals, add them *)
       let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
@@ -984,9 +989,9 @@ struct
         st, (new_cpa, fl, Vars.bot ()) 
     in
     (* Evaluate the arguments. *)
-    let vals = List.map (eval_rv ask gs st) args in
+    let vals = List.map (eval_rv ctx.ask ctx.global st) args in
     (* List of reachable variables *)
-    let reachable = List.concat (List.map AD.to_var_may (reachable_vars ask (get_ptrs vals) gs st)) in
+    let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     (* generate the entry states *)
     let add_calls_addr f norms =
       let fundec = Cilfacade.getdec fn in
@@ -1011,18 +1016,19 @@ struct
     in
       List.fold_right g flist [] 
 
-  let fork a (lv: lval option) (f: varinfo) (args: exp list) gs (cpa,fl,gl as st:store) : (varinfo * Dom.t) list = 
+  let fork ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * Dom.t) list = 
+    let cpa,fl,gl = ctx.local in
     match f.vname with 
       (* handling thread creations *)
       | "pthread_create" -> begin        
           match args with
             | [_; _; start; ptc_arg] -> begin
-                let start_addr = eval_fv a gs st start in
+                let start_addr = eval_fv ctx.ask ctx.global ctx.local start in
                 let start_vari = List.hd (AD.to_var_may start_addr) in
                 try
                   (* try to get function declaration *)
                   let _ = Cilfacade.getdec start_vari in 
-                  let sts = enter_func a None start_vari [ptc_arg] gs (cpa, Flag.get_multi (), gl) in
+                  let sts = enter_func (set_st ctx (cpa, Flag.get_multi (), gl)) None start_vari [ptc_arg]  in
                   List.map (fun (_,st) -> start_vari, st) sts
                 with Not_found -> 
                   M.warn ("creating an thread from unknown function " ^ start_vari.vname);
@@ -1036,10 +1042,10 @@ struct
               | Some fnc -> fnc `Write  args
               | None -> args
           in
-            collect_spawned a gs st args
+            collect_spawned ctx.ask ctx.global ctx.local args
         end
 
-  let leave_func ask (lval: lval option) (f: varinfo) (args: exp list) gs (before: Dom.t) (after: Dom.t) : Dom.t =
+  let leave_func ctx (lval: lval option) (f: varinfo) (args: exp list) (after: Dom.t) : Dom.t =
     let combine_one (loc,lf,gl as st: Dom.t) ((fun_st,fun_fl,_) as fun_d: Dom.t) = 
       (* This function does miscelaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
@@ -1055,15 +1061,15 @@ struct
       let return_var = return_var () in
       let return_val = 
         if CPA.mem (return_varinfo ()) fun_st
-        then get ask gs fun_d return_var 
+        then get ctx.ask ctx.global fun_d return_var 
         else VD.top ()  
       in
       let st = add_globals (fun_st,fun_fl) st in
         match lval with
           | None      -> st
-          | Some lval -> set_savetop ask gs st (eval_lv ask gs st lval) return_val
+          | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val
      in
-     combine_one before after
+     combine_one ctx.local after
 
 end
 

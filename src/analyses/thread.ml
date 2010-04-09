@@ -1,5 +1,6 @@
 open Cil
 open Pretty
+open Analyses
 module Trivial =  ConcDomain.Simple
 
 module Spec =
@@ -24,48 +25,48 @@ struct
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
   (* queries *)
-  let query ask _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = 
+  let query ctx (q:Queries.t) : Queries.Result.t = 
     Queries.Result.top ()
  
   (* transfer functions *)
-  let assign a (lval:lval) (rval:exp) (gl:glob_fun) (st:Dom.t) : Dom.t =
-    st
+  let assign ctx (lval:lval) (rval:exp) : Dom.t =
+    ctx.local
    
-  let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    st
+  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+    ctx.local
   
-  let body a (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    st
+  let body ctx (f:fundec) : Dom.t = 
+    ctx.local
 
-  let return a (exp:exp option) (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    st
+  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
+    ctx.local
   
-  let eval_funvar a (fv:exp) (gl:glob_fun) (st:Dom.t) : varinfo list = 
+  let eval_funvar ctx (fv:exp) : varinfo list = 
     []
     
-  let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Dom.t) list =
-    [st,st]
+  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
+    [ctx.local,ctx.local]
   
-  let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu:Dom.t) (au:Dom.t) : Dom.t =
+  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     au
   
-  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     match f.vname with 
        | "pthread_create" -> 
-          let new_fl = Dom.join st (Dom.get_main ()) in
+          let new_fl = Dom.join ctx.local (Dom.get_main ()) in
             [new_fl,Cil.integer 1, true]
        | _ -> 
         (* We actually want to spawn threads for some escaped function pointers,
            but lets ignore that for now. *)
-        [st,Cil.integer 1, true]
+        [ctx.local,Cil.integer 1, true]
 
   
-  let fork ask lv f args gs ls = 
+  let fork ctx lv f args = 
     let finish_him () = Messages.bailwith "pthread_create arguments are strange!" in
     let pt_create () =
       match args with
         | [_; _; start; ptc_arg] -> begin
-            match eval_fv ask start with
+            match eval_fv ctx.ask start with
               | Some v -> [v, Dom.get_multi ()]
               | None -> finish_him ()
             end

@@ -1,4 +1,5 @@
 open Cil
+open Analyses
 
 module Path = AccessDomain.Path
 
@@ -22,7 +23,7 @@ struct
   let finalize () = ()
   let init () = ()
   
-  let query ask _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = 
+  let query _ _ : Queries.Result.t = 
     Queries.Result.top ()
 
   (* todo:
@@ -30,20 +31,20 @@ struct
      and inlined into right hand sides. Assign to vars and globals work, but escaped 
      and indirect changes do not. *)
      
-  let assign a (lval:lval) (rval:exp) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    Dom.assign lval rval st
+  let assign ctx (lval:lval) (rval:exp) : Dom.t = 
+    Dom.assign lval rval ctx.local
   
-  let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st:Dom.t) : Dom.t = st
-  let body a (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t =  Dom.top ()
-  let return a (exp:exp option) (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t =  Dom.top ()
-  let eval_funvar a (fv:exp) (gl:glob_fun) (st:Dom.t) : varinfo list = []
-  let fork ask lv f args gs ls = [] 
-  let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Dom.t) list = [Dom.top (), Dom.top ()]
-  let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu:Dom.t) (au:Dom.t) : Dom.t = bu
-  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Cil.exp * bool) list =
+  let branch ctx (exp:exp) (tv:bool) : Dom.t = ctx.local
+  let body ctx (f:fundec) : Dom.t =  Dom.top ()
+  let return ctx (exp:exp option) (f:fundec) : Dom.t =  Dom.top ()
+  let eval_funvar ctx (fv:exp) : varinfo list = []
+  let fork ctx lv f args = [] 
+  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list = [Dom.top (), Dom.top ()]
+  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = ctx.local
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     match lval with 
-       | None -> [st,Cil.integer 1, true]
-       | Some (Var v,o) -> [Dom.kill (Dom.Lvals.from_var v) st,Cil.integer 1, true]
+       | None -> [ctx.local,Cil.integer 1, true]
+       | Some (Var v,o) -> [Dom.kill (Dom.Lvals.from_var v) ctx.local,Cil.integer 1, true]
        | _ -> [Dom.top (),Cil.integer 1, true] (*i think this should not happen*)
 end
 

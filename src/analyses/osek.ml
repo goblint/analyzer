@@ -1,5 +1,6 @@
 open Cil
 open Pretty
+open Analyses
 
 module Spec =
 struct
@@ -93,64 +94,64 @@ struct
 
   (*end hacks*)
 
-  let query ask _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = 
+  let query ctx (q:Queries.t) : Queries.Result.t = 
     Queries.Result.top ()
 
   (* transfer functions *)
-  let assign a (lval:lval) (rval:exp) gl (st:Dom.t) : Dom.t =
-    (Mutex.Spec.assign a lval rval gl  st)
+  let assign ctx (lval:lval) (rval:exp) : Dom.t =
+    (Mutex.Spec.assign ctx lval rval)
    
-  let branch a (exp:exp) (tv:bool) gl (st:Dom.t) : Dom.t = 
-    (Mutex.Spec.branch a (exp:exp) (tv:bool) gl st) 
+  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+    (Mutex.Spec.branch ctx (exp:exp) (tv:bool)) 
   
-  let body a (f:fundec) gl (st:Dom.t) : Dom.t = 
-    let m_st = Mutex.Spec.body a (f:fundec) gl st in
+  let body ctx (f:fundec) : Dom.t = 
+    let m_st = Mutex.Spec.body ctx (f:fundec) in
     if (is_task f.svar.vname) then 
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
-      match Mutex.Spec.special_fn a None (dummy_get f) [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
+      match Mutex.Spec.special_fn (set_st ctx m_st) None (dummy_get f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
     else 
       m_st
 
-  let return a (exp:exp option) (f:fundec) gl (st:Dom.t) : Dom.t =
-    let m_st = Mutex.Spec.return a (exp:exp option) (f:fundec) gl st in
+  let return ctx (exp:exp option) (f:fundec) : Dom.t =
+    let m_st = Mutex.Spec.return ctx (exp:exp option) (f:fundec) in
     if (is_task f.svar.vname) then 
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
-      match Mutex.Spec.special_fn a None (dummy_release f) [Cil.mkAddrOf (Var task_lock, NoOffset)] gl m_st with 
+      match Mutex.Spec.special_fn (set_st ctx m_st) None (dummy_release f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
     else 
       m_st
   
-  let eval_funvar a (fv:exp) gl (st:Dom.t) : varinfo list = 
-    Mutex.Spec.eval_funvar a (fv:exp) gl st
+  let eval_funvar ctx (fv:exp) : varinfo list = 
+    Mutex.Spec.eval_funvar ctx (fv:exp)
     
-  let enter_func a (lval: lval option) (f:varinfo) (args:exp list) gl (st:Dom.t) : (Dom.t * Dom.t) list =
-    (Mutex.Spec.enter_func a (lval: lval option) (f:varinfo) (args:exp list) gl st)
+  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
+    (Mutex.Spec.enter_func ctx (lval: lval option) (f:varinfo) (args:exp list))
   
-  let leave_func a (lval:lval option) (f:varinfo) (args:exp list) gl (bu:Dom.t) (au:Dom.t) : Dom.t =
-   Mutex.Spec.leave_func a (lval:lval option) (f:varinfo) (args:exp list) gl bu au
+  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+   Mutex.Spec.leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) au
   
-  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) gl (st:Dom.t) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let make_lock varinfo = [AddrOf (Var varinfo,NoOffset)] in
     match f.vname with
-      | "GetResource" | "ReleaseResource" -> Mutex.Spec.special_fn a lval f (match arglist with 
+      | "GetResource" | "ReleaseResource" -> Mutex.Spec.special_fn ctx lval f (match arglist with 
         | [Lval l] -> [AddrOf l] 
 	| [Const (CInt64 (c,_,_) ) ] -> (make_lock (Hashtbl.find constantlocks (Int64.to_string c)))
-        | x -> x)  gl st
-      | "ActivateTask" -> Mutex.Spec.special_fn a lval f arglist gl st (*call function *)
-      | "ChainTask" -> Mutex.Spec.special_fn a lval f arglist gl st (*call function *)
-      | "DisableAllInterrupts" -> Mutex.Spec.special_fn a lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) gl st
-      | "EnsableAllInterrupts" -> Mutex.Spec.special_fn a lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) gl st
-      | "SuspendAllInterrupts" -> Mutex.Spec.special_fn a lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRall"))) gl st
-      | "ResumeAllInterrupts" -> Mutex.Spec.special_fn a lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRall"))) gl st
-      | "SuspendOSInterrupts" -> Mutex.Spec.special_fn a lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRos"))) gl st
-      | "ResumeOSInterrupts" -> Mutex.Spec.special_fn a lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRos"))) gl st
-      | "TerminateTask" -> (if not(Dom.is_empty st) then () else print_endline "Warning: Taskgetitfromtasklock? terminated while holding resources xyz!") ; 
-			    Mutex.Spec.special_fn a lval f arglist gl st (*check empty lockset*)
-      | "WaitEvent" -> (if not(Dom.is_empty st) then () else print_endline "Warning: Task ??? terminated while holding resources xyz!") ; 
-			  Mutex.Spec.special_fn a lval f arglist gl st (*check empty lockset*)
+        | x -> x)  
+      | "ActivateTask" -> Mutex.Spec.special_fn ctx lval f arglist (*call function *)
+      | "ChainTask" -> Mutex.Spec.special_fn ctx lval f arglist (*call function *)
+      | "DisableAllInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) 
+      | "EnsableAllInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) 
+      | "SuspendAllInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRall"))) 
+      | "ResumeAllInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRall"))) 
+      | "SuspendOSInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRos"))) 
+      | "ResumeOSInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRos"))) 
+      | "TerminateTask" -> (if not(Dom.is_empty ctx.local) then () else print_endline "Warning: Taskgetitfromtasklock? terminated while holding resources xyz!") ; 
+			    Mutex.Spec.special_fn ctx lval f arglist  (*check empty lockset*)
+      | "WaitEvent" -> (if not(Dom.is_empty ctx.local) then () else print_endline "Warning: Task ??? terminated while holding resources xyz!") ; 
+			  Mutex.Spec.special_fn ctx lval f arglist (*check empty lockset*)
       | "SetEvent"
       | "ClearEvent"
       | "GetEvent"
@@ -165,10 +166,10 @@ struct
       | "GetActiveApplicationMode" 
       | "StartOS" 
       | "ShutdownOS" 
-      | _ -> Mutex.Spec.special_fn a lval f arglist gl st
+      | _ -> Mutex.Spec.special_fn ctx lval f arglist
   
-  let fork ask lv f args gs ls = 
-    Mutex.Spec.fork ask lv f args gs ls
+  let fork ctx lv f args = 
+    Mutex.Spec.fork ctx lv f args
 
   let startstate () = Dom.top ()
   let otherstate () = Dom.top ()

@@ -1,5 +1,6 @@
 open Cil
 open Pretty
+open Analyses
 
 module Equ = MusteqDomain.Equ
 module RegMap = RegionDomain.RegMap
@@ -45,21 +46,21 @@ struct
       | `Bot -> []
       
   (* queries *)
-  let query ask gf (x:Dom.t) (q:Queries.t) : Queries.Result.t = 
-    let regpart = get_regpart gf in
+  let query ctx (q:Queries.t) : Queries.Result.t = 
+    let regpart = get_regpart ctx.global in
     match q with
       | Queries.Regions e ->
-          let ls = List.fold_right Queries.LS.add (regions e regpart x) (Queries.LS.empty ()) in
+          let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
           if (Queries.LS.is_empty ls)
           then `Bot
           else `LvalSet ls
       | _ -> Queries.Result.top ()
  
   (* transfer functions *)
-  let assign a (lval:lval) (rval:exp) (gl:glob_fun) (st:Dom.t) : Dom.t =
-    match st with
+  let assign ctx (lval:lval) (rval:exp) : Dom.t =
+    match ctx.local with
       | `Lifted (equ,reg), gd -> 
-          let old_regpart = get_regpart gl in
+          let old_regpart = get_regpart ctx.global in
           let equ = Equ.assign lval rval equ in
           let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
           if RegPart.leq regpart old_regpart
@@ -67,18 +68,18 @@ struct
           else `Lifted (equ,reg), Vars.add (partition_varinfo (), regpart) gd
       | x -> x
    
-  let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    st
+  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+    ctx.local
   
-  let body a (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    st
+  let body ctx (f:fundec) : Dom.t = 
+    ctx.local
 
-  let return a (exp:exp option) (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t = 
+  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let locals = f.sformals @ f.slocals in
-    match st with
+    match ctx.local with
       | `Lifted (equ,reg), gd -> 
           let equ = Equ.kill_vars locals equ in
-          let old_regpart = get_regpart gl in
+          let old_regpart = get_regpart ctx.global in
           let part, reg = match exp with
              | Some exp -> Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
              | None -> old_regpart, reg in
@@ -89,32 +90,32 @@ struct
       | x -> x
     
   
-  let eval_funvar a (fv:exp) (gl:glob_fun) (st:Dom.t) : varinfo list = 
+  let eval_funvar ctx (fv:exp) : varinfo list = 
     []
     
-  let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Dom.t) list =
+  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     let rec fold_right2 f xs ys r =
       match xs, ys with
         | x::xs, y::ys -> f x y (fold_right2 f xs ys r)
         | _ -> r
     in
-    match st with
+    match ctx.local with
       | `Lifted (equ,reg), gd ->
            let fundec = Cilfacade.getdec f in
            let f x r eq = Equ.assign (var x) r eq in
            let equ  = fold_right2 f fundec.sformals args equ in
            let f x r reg = Reg.assign (var x) r reg in
-           let old_regpart = get_regpart gl in
+           let old_regpart = get_regpart ctx.global in
            let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in 
            if RegPart.leq regpart old_regpart
-           then [st,(`Lifted (equ,reg),gd)]
-           else [st,(`Lifted (equ,reg),Vars.add (partition_varinfo (), regpart) gd)]
+           then [ctx.local,(`Lifted (equ,reg),gd)]
+           else [ctx.local,(`Lifted (equ,reg),Vars.add (partition_varinfo (), regpart) gd)]
       | x -> [x,x]
   
-  let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu:Dom.t) (au:Dom.t) : Dom.t =
+  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     match au with
       | `Lifted (equ, reg), gd -> begin
-          let old_regpart = get_regpart gl in
+          let old_regpart = get_regpart ctx.global in
           match lval with
             | None ->
                 let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (old_regpart, reg) in
@@ -130,12 +131,12 @@ struct
           end
       | _ -> au
   
-  let special_fn ask (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     match f.vname with 
       | "malloc" | "calloc" | "__kmalloc" | "usb_alloc_urb" -> begin
-          match st, lval with
+          match ctx.local, lval with
             | (`Lifted (equ,reg), gd), Some lv -> 
-                let old_regpart = get_regpart gl in
+                let old_regpart = get_regpart ctx.global in
                 let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
                 let gd = 
                   if RegPart.leq regpart old_regpart
@@ -143,11 +144,11 @@ struct
                   else Vars.add (partition_varinfo (), regpart) gd
                 in
                 [(`Lifted (equ, reg), gd), Cil.integer 1, true]
-            | _ -> [st,Cil.integer 1, true]
+            | _ -> [ctx.local,Cil.integer 1, true]
         end
-      | _ -> [st,Cil.integer 1, true]
+      | _ -> [ctx.local,Cil.integer 1, true]
   
-  let fork ask lv f args gs ls = 
+  let fork ctx lv f args = 
     match f.vname with 
       | _ -> []
 

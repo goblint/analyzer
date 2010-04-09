@@ -1,4 +1,3 @@
-module A = Analyses
 module M = Messages
 module GU = Goblintutil
 module Addr = ValueDomain.Addr
@@ -9,6 +8,7 @@ module Exp = Exp.Exp
 module LF = LibraryFunctions
 open Cil
 open Pretty
+open Analyses
 
 
 module Spec =
@@ -396,56 +396,56 @@ struct
       | Cil.CastE (_,e)           -> reachable_from r e 
       
   (* Probably ok as is. *)
-  let body a f glob st = st
-  let fork a lval f args glob st = []
+  let body ctx f = ctx.local
+  let fork ctx lval f args = []
   
-  (* this makes it grossly unsound *)
-  let eval_funvar a exp glob st = []
+  (* this means that we need base analysis *)
+  let eval_funvar ctx exp = []
 
   (* Branch could be improved to set invariants like base tries to do. *)
-  let branch a exp tv glob st     = st
+  let branch ctx exp tv = ctx.local
   
   (* Just remove things that go out of scope. *)
-  let return a exp fundec glob st = 
-    let rm v = remove a (Var v,NoOffset) in
-    List.fold_right rm (fundec.sformals@fundec.slocals) st   
+  let return ctx exp fundec  = 
+    let rm v = remove ctx.ask (Var v,NoOffset) in
+    List.fold_right rm (fundec.sformals@fundec.slocals) ctx.local   
 
   (* removes all equalities with lval and then tries to make a new one: lval=rval *)
-  let assign ask (lval:lval) (rval:exp) (glob:Glob.Var.t -> Glob.Val.t) (st:Dom.t) : Dom.t  = 
+  let assign ctx (lval:lval) (rval:exp) : Dom.t  = 
     let rval = Cil.constFold true (Cil.stripCasts rval) in
-    add_eq ask lval rval st
+    add_eq ctx.ask lval rval ctx.local
 
   (* First assign arguments to parameters. Then join it with reachables, to get
      rid of equalities that are not reachable. *)
-  let enter_func a lval f args glob st = 
+  let enter_func ctx lval f args = 
     let rec fold_left2 f r xs ys =
       match xs, ys with
         | x::xs, y::ys -> fold_left2 f (f r x y) xs ys
         | _ -> r
     in
     let assign_one_param st lv exp = 
-      let rm = remove a (Var lv, NoOffset) st in 
-      add_eq a (Var lv, NoOffset) exp rm 
+      let rm = remove ctx.ask (Var lv, NoOffset) st in 
+      add_eq ctx.ask (Var lv, NoOffset) exp rm 
     in
     let f = Cilfacade.getdec f in    
     let nst = 
-      try fold_left2 assign_one_param st f.sformals args 
+      try fold_left2 assign_one_param ctx.local f.sformals args 
       with SetDomain.Unsupported _ -> (* ignore varargs fr now *) Dom.top ()
     in
-    match Dom.is_bot st with
+    match Dom.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
-      | false -> [st,nst]
+      | false -> [ctx.local,nst]
   
-  let leave_func ask lval f args glob st1 st2 = 
-    match Dom.is_bot st1 with
+  let leave_func ctx lval f args st2 = 
+    match Dom.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
       | false -> 
       match lval with
-        | Some lval -> remove ask lval st2
+        | Some lval -> remove ctx.ask lval st2
         | None -> st2    
 
   (* remove all variables that are reachable from arguments *)
-  let special_fn ask lval f args glob st = 
+  let special_fn ctx lval f args = 
     let args =
       match LF.get_invalidate_action f.vname with
         | Some fnc -> fnc `Write args
@@ -456,20 +456,20 @@ struct
         | Some l -> mkAddrOf l :: args
         | None -> args
     in
-    match Dom.is_bot st with
+    match Dom.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
       | false -> 
     let true_exp = Cil.integer 1 in
-    match reachables ask es with
+    match reachables ctx.ask es with
       | None -> [Dom.top (), true_exp, true]
       | Some rs -> 
         let remove_reachable1 es st =
           let remove_reachable2 e st =
-            if reachable_from rs e && not (isConstant e) then remove_exp ask e st else st
+            if reachable_from rs e && not (isConstant e) then remove_exp ctx.ask e st else st
           in
           Dom.S.fold remove_reachable2 es st
         in
-        [Dom.fold remove_reachable1 st st, true_exp, true]
+        [Dom.fold remove_reachable1 ctx.local ctx.local, true_exp, true]
     
   (* query stuff *)
     
@@ -502,11 +502,12 @@ struct
           Queries.ES.map (fun e -> Cil.CastE (t,e)) (eq_set_clos e s)
       
       
-  let query a g s x = 
+  let query ctx x = 
     match x with 
-      | Queries.ExpEq (e1,e2) when query_exp_equal a e1 e2 g s -> `Int (Queries.ID.of_bool true)
+      | Queries.ExpEq (e1,e2) when query_exp_equal ctx.ask e1 e2 ctx.global ctx.local -> 
+          `Int (Queries.ID.of_bool true)
       | Queries.EqualSet e -> 
-        let r = eq_set_clos e s in 
+        let r = eq_set_clos e ctx.local in 
 (*         Messages.report ("equset of "^(sprint 80 (Cil.d_exp () e))^" is "^(Queries.ES.short 80 r)); *)
         `ExprSet r
       | _ -> `Top

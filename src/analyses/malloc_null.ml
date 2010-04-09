@@ -6,6 +6,7 @@ module Offs = ValueDomain.Offs
 
 open Cil
 open Pretty
+open Analyses
 
 module Spec =
 struct
@@ -19,7 +20,7 @@ struct
   let reset_diff x = x
   
   (* queries *)
-  let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
+  let query ctx (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
@@ -153,76 +154,76 @@ struct
   
   (* One step tf-s *)
   
-  let assign a (lval:lval) (rval:exp) (gl:glob_fun) (st:Dom.t) : Dom.t =
-    warn_deref_exp a st (Lval lval) ;
-    warn_deref_exp a st rval;
-    match get_concrete_exp rval gl st, get_concrete_lval a lval with
-      | Some rv , Some (Var vt,ot) when might_be_null a rv gl st -> 
-          Dom.add (Addr.from_var_offset (vt,ot)) st
-      | _ -> st
+  let assign ctx (lval:lval) (rval:exp) : Dom.t =
+    warn_deref_exp ctx.ask ctx.local (Lval lval) ;
+    warn_deref_exp ctx.ask ctx.local rval;
+    match get_concrete_exp rval ctx.global ctx.local, get_concrete_lval ctx.ask lval with
+      | Some rv , Some (Var vt,ot) when might_be_null ctx.ask rv ctx.global ctx.local -> 
+          Dom.add (Addr.from_var_offset (vt,ot)) ctx.local
+      | _ -> ctx.local
       
-  let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    warn_deref_exp a st exp;
-    st
+  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+    warn_deref_exp ctx.ask ctx.local exp;
+    ctx.local
   
-  let body a (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    st
+  let body ctx (f:fundec) : Dom.t = 
+    ctx.local
   
   let return_addr_ = ref (Addr.null_ptr ())
   let return_addr () = !return_addr_
   
-  let return a (exp:exp option) (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t = 
+  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let remove_var x v = List.fold_right Dom.remove (to_addrs v) x in
-    let nst = List.fold_left remove_var st (f.slocals @ f.sformals) in
+    let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with
       | Some ret ->
-          warn_deref_exp a st ret;
-          begin match get_concrete_exp ret gl st with
-            | Some ev when might_be_null a ev gl st ->
+          warn_deref_exp ctx.ask ctx.local ret;
+          begin match get_concrete_exp ret ctx.global ctx.local with
+            | Some ev when might_be_null ctx.ask ev ctx.global ctx.local ->
                 Dom.add (return_addr ()) nst
             | _ -> nst  end
       | None -> nst
   
   (* Function calls *)
   
-  let eval_funvar a (fv:exp) (gl:glob_fun) (st:Dom.t) : varinfo list = 
-    warn_deref_exp a st fv;
+  let eval_funvar ctx (fv:exp) : varinfo list = 
+    warn_deref_exp ctx.ask ctx.local fv;
     []
     
-  let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Dom.t) list =
-    let nst = remove_unreachable a args st in
-    may (fun x -> warn_deref_exp a st (Lval x)) lval;
-    List.iter (warn_deref_exp a st) args;
-    [st,nst]
+  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
+    let nst = remove_unreachable ctx.ask args ctx.local in
+    may (fun x -> warn_deref_exp ctx.ask ctx.local (Lval x)) lval;
+    List.iter (warn_deref_exp ctx.ask ctx.local) args;
+    [ctx.local,nst]
   
-  let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu:Dom.t) (au:Dom.t) : Dom.t =
-    let cal_st = remove_unreachable a args bu in
-    let ret_st = Dom.union au (Dom.diff bu cal_st) in
+  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+    let cal_st = remove_unreachable ctx.ask args ctx.local in
+    let ret_st = Dom.union au (Dom.diff ctx.local cal_st) in
     let new_u = 
       match lval, Dom.mem (return_addr ()) ret_st with
         | Some lv, true -> 
-            begin match get_concrete_lval a lv with
+            begin match get_concrete_lval ctx.ask lv with
                     | Some (Var v,ofs) -> Dom.remove (return_addr ()) (Dom.add (Addr.from_var_offset (v,ofs)) ret_st)
                     | _ -> ret_st end
         | _ -> ret_st
     in
     new_u
   
-  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Cil.exp * bool) list =
-    may (fun x -> warn_deref_exp a st (Lval x)) lval;
-    List.iter (warn_deref_exp a st) arglist;
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+    may (fun x -> warn_deref_exp ctx.ask ctx.local (Lval x)) lval;
+    List.iter (warn_deref_exp ctx.ask ctx.local) arglist;
     match f.vname, lval with
       | "malloc", Some lv ->
         begin
-          match get_concrete_lval a lv with
+          match get_concrete_lval ctx.ask lv with
             | Some (Var v, offs) ->
-                [st, Lval lv, true
-                ;Dom.add (Addr.from_var_offset (v,offs)) st, Lval lv, false]
-           | _ -> [st, Cil.integer 1, true]
+                [ctx.local, Lval lv, true
+                ;Dom.add (Addr.from_var_offset (v,offs)) ctx.local, Lval lv, false]
+           | _ -> [ctx.local, Cil.integer 1, true]
         end
-      | _ -> [st, Cil.integer 1, true]
+      | _ -> [ctx.local, Cil.integer 1, true]
   
-  let fork a lv f args gs ls = 
+  let fork ctx lv f args = 
     []
   
   let name = "Malloc null"

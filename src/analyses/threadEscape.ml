@@ -1,5 +1,6 @@
 open Cil
 open Pretty
+open Analyses
 
 module M = Messages
 
@@ -23,31 +24,31 @@ struct
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
   (* queries *)
-  let query ask g (st: Dom.t) (q:Queries.t) : Queries.Result.t = 
+  let query ctx (q:Queries.t) : Queries.Result.t = 
     match q with
-      | Queries.MayEscape v -> `Bool (Dom.mem v st)
+      | Queries.MayEscape v -> `Bool (Dom.mem v ctx.local)
       | _ -> Queries.Result.top ()
  
   (* transfer functions *)
-  let assign a (lval:lval) (rval:exp) (gl:glob_fun) (st:Dom.t) : Dom.t =
-    st
+  let assign ctx (lval:lval) (rval:exp) : Dom.t =
+    ctx.local
    
-  let branch a (exp:exp) (tv:bool) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    st
+  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+    ctx.local
   
-  let body a (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    st
+  let body ctx (f:fundec) : Dom.t = 
+    ctx.local
 
-  let return a (exp:exp option) (f:fundec) (gl:glob_fun) (st:Dom.t) : Dom.t = 
-    st
+  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
+    ctx.local
   
-  let eval_funvar a (fv:exp) (gl:glob_fun) (st:Dom.t) : varinfo list = 
+  let eval_funvar ctx (fv:exp) : varinfo list = 
     []
     
-  let enter_func a (lval: lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Dom.t) list =
-    [st,st]
+  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
+    [ctx.local,ctx.local]
   
-  let leave_func a (lval:lval option) (f:varinfo) (args:exp list) (gl:glob_fun) (bu:Dom.t) (au:Dom.t) : Dom.t =
+  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     au
 
   let rec cut_offset x =
@@ -65,16 +66,16 @@ struct
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
       | _ -> Dom.empty ()
 
-  let special_fn a (lval: lval option) (f:varinfo) (arglist:exp list) (gl:glob_fun) (st:Dom.t) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     match f.vname with
       | "pthread_create" -> begin        
           match arglist with
             | [_; _; _; ptc_arg] -> begin
-                [reachable a ptc_arg,Cil.integer 1, true]
+                [reachable ctx.ask ptc_arg,Cil.integer 1, true]
               end
             | _ -> M.bailwith "pthread_create arguments are strange!"
         end
-      | _ -> [st,Cil.integer 1, true]
+      | _ -> [ctx.local,Cil.integer 1, true]
 
   let query_lv ask exp = 
     match ask (Queries.MayPointTo exp) with
@@ -87,14 +88,14 @@ struct
       | [(v,_)] -> Some v
       | _ -> None
 
-  let fork ask lv f args gs ls = 
+  let fork ctx lv f args = 
     let finish_him () = Messages.bailwith "pthread_create arguments are strange!" in
     match f.vname with
       | "pthread_create" -> begin        
           match args with
             | [_; _; start; ptc_arg] -> begin
-                match eval_fv ask start with
-                  | Some v -> [v, reachable ask ptc_arg]
+                match eval_fv ctx.ask start with
+                  | Some v -> [v, reachable ctx.ask ptc_arg]
                   | None -> finish_him ()
               end
             | _ -> finish_him () 

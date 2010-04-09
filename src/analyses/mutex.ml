@@ -1,4 +1,3 @@
-module A = Analyses
 module M = Messages
 module GU = Goblintutil
 module Addr = ValueDomain.Addr
@@ -13,6 +12,7 @@ module BS = Base.Main
 module LF = LibraryFunctions
 open Cil
 open Pretty
+open Analyses
 
 (** only report write races *)
 let no_read = ref false
@@ -84,7 +84,7 @@ struct
       | _ -> v, Offs.from_offset (conv_offset o)
   
   (** queries *)
-  let query _ _ (x:Dom.t) (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
+  let query ctx (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
   type access = Concrete of (exp option * Cil.varinfo * Offs.t * bool)
               | Region   of (exp option * Cil.varinfo * Offs.t * bool) 
@@ -451,55 +451,55 @@ struct
   
   (** Transfer functions: *)
   
-  let assign a lval rval gs (ust: Dom.t) : Dom.t = 
-    let b1 = access_one_top a true (Lval lval) in 
-    let b2 = access_one_top a false rval in
-    add_accesses a (b1@b2) ust;
-    ust
+  let assign ctx lval rval : Dom.t = 
+    let b1 = access_one_top ctx.ask true (Lval lval) in 
+    let b2 = access_one_top ctx.ask false rval in
+    add_accesses ctx.ask (b1@b2) ctx.local;
+    ctx.local
     
-  let branch a exp tv gs (ust: Dom.t) : Dom.t =
-    let accessed = access_one_top a false exp in
-    add_accesses a accessed ust;
-    ust
+  let branch ctx exp tv : Dom.t =
+    let accessed = access_one_top ctx.ask false exp in
+    add_accesses ctx.ask accessed ctx.local;
+    ctx.local
     
-  let return a exp fundec gs (ust: Dom.t) : Dom.t =
+  let return ctx exp fundec : Dom.t =
     begin match exp with 
       | Some exp -> 
-          let accessed = access_one_top a false exp in
-          add_accesses a accessed ust
+          let accessed = access_one_top ctx.ask false exp in
+          add_accesses ctx.ask accessed ctx.local
       | None -> () 
     end;
-    ust
+    ctx.local
         
-  let body a f gs (ust: Dom.t) : Dom.t =  ust
+  let body ctx f : Dom.t = ctx.local
 
-  let eval_funvar a exp gs bl = 
-    let read = access_one_top a false exp in
-    add_accesses a read bl; 
+  let eval_funvar ctx exp = 
+    let read = access_one_top ctx.ask false exp in
+    add_accesses ctx.ask read ctx.local; 
     []
   
   
-  let special_fn a lv f arglist gs (ls: Dom.t) : (Dom.t * exp * bool) list =
+  let special_fn ctx lv f arglist : (Dom.t * exp * bool) list =
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
     let unlock remove_fn =
       match arglist with
-        | x::xs -> begin match  (eval_exp_addr a x) with 
+        | x::xs -> begin match  (eval_exp_addr ctx.ask x) with 
                         | [] -> [(Lockset.empty ()),Cil.integer 1, true]
-                        | es -> [(List.fold_right remove_fn es ls), Cil.integer 1, true]
+                        | es -> [(List.fold_right remove_fn es ctx.local), Cil.integer 1, true]
                 end
-        | _ -> [ls, Cil.integer 1, true]
+        | _ -> [ctx.local, Cil.integer 1, true]
     in
     match f.vname with
    (* | "sem_wait"*)
       | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock" 
       | "pthread_rwlock_trywrlock"
-          ->lock true true a lv arglist ls
+          ->lock true true ctx.ask lv arglist ctx.local
       | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh"
       | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock"
       | "pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource"
-          -> lock true !failing_locks a lv arglist ls
+          -> lock true !failing_locks ctx.ask lv arglist ctx.local
       | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock" 
-          -> lock false !failing_locks a lv arglist ls
+          -> lock false !failing_locks ctx.ask lv arglist ctx.local
       | "__raw_read_unlock" | "__raw_write_unlock"  -> 
           let drop_raw_lock x =
             let rec drop_offs o = 
@@ -525,20 +525,20 @@ struct
               | Some fnc -> (fnc act arglist) 
               | _ -> []
           in
-          let r1 = access_byval a false (arg_acc `Read) in
-          let a1 = access_reachable a   (arg_acc `Write) in
-          add_accesses a (r1@a1) ls;
-          [ls, Cil.integer 1, true]
+          let r1 = access_byval ctx.ask false (arg_acc `Read) in
+          let a1 = access_reachable ctx.ask   (arg_acc `Write) in
+          add_accesses ctx.ask (r1@a1) ctx.local;
+          [ctx.local, Cil.integer 1, true]
           
-  let enter_func a lv f args gs lst : (Dom.t * Dom.t) list =
-    [(lst,lst)]
+  let enter_func ctx lv f args : (Dom.t * Dom.t) list =
+    [(ctx.local,ctx.local)]
 
-  let leave_func a lv f args gs bl al = 
-    let read = access_byval a false args in
-    add_accesses a read bl; 
+  let leave_func ctx lv f args al = 
+    let read = access_byval ctx.ask false args in
+    add_accesses ctx.ask read ctx.local; 
     al
     
-  let fork a lv f args gs ls = 
+  let fork ctx lv f args = 
     []
   
   

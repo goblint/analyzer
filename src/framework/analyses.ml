@@ -13,6 +13,53 @@ sig
   (** analyze a file -- output using Messages.* *)
 end
 
+type local_state = [ 
+    | `Base        of BaseDomain.Dom(ConcDomain.Simple).t
+    | `Mutex       of LockDomain.Lockset.t
+    | `SymbLocks   of LockDomain.Symbolic.t
+    | `VarEq       of PartitionDomain.ExpPartitions.t
+    | `Uninit      of ValueDomain.AddrSetDomain.t
+    | `Malloc_null of ValueDomain.AddrSetDomain.t
+    | `Thread      of ConcDomain.Simple.t
+    | `Escape      of SetDomain.HeadlessSet (Basetype.Variables).t
+    | `Region      of RegionDomain.RegionDom.t
+    | `OSEK        of LockDomain.Lockset.t
+    | `Access      of AccessDomain.Access.t
+    ]
+
+module Context 
+  (Dom:  Lattice.S)
+  (Glob: Global.S) =
+struct
+  type ctx = 
+    { query : Queries.t -> Queries.Result.t
+    ; local : Dom.t
+    ; global: Glob.Var.t -> Glob.Val.t 
+    ; deps  : local_state list                }
+  
+end
+
+type ('a,'b,'c) ctx = 
+    { ask   : Queries.t -> Queries.Result.t
+    ; local : 'a
+    ; global: 'b -> 'c 
+    ; sub   : local_state list                }
+
+let set_q ctx ask =
+  {ask = ask; local=ctx.local; global=ctx.global;sub=ctx.sub}
+
+let set_st ctx st =
+  {ask = ctx.ask; local=st; global=ctx.global;sub=ctx.sub}
+
+let set_gl ctx gl =
+  {ask = ctx.ask; local=ctx.local; global=gl;sub=ctx.sub}
+
+let set_st_gl ctx st gl =
+  {ask = ctx.ask; local=st; global=gl;sub=ctx.sub}
+
+let context ask st gl dp = {ask=ask; local=st; global=gl;sub=dp}
+
+
 module type VarType = 
 sig
   include Hashtbl.HashedType
@@ -28,6 +75,7 @@ sig
   module Glob : Global.S
   (** global variable and value type*)    
   
+    
   val name: string
   (** name of the analysis *)
   val init: unit -> unit
@@ -51,18 +99,18 @@ sig
   
   
   (** Query function: *)
-  val query: (Queries.t -> Queries.Result.t) -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Queries.t -> Queries.Result.t 
+  val query: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> Queries.t -> Queries.Result.t 
   (** Answers our ... ahem ... queries. *)
 
   (** Transfer functions:  *)
   
-  val assign: (Queries.t -> Queries.Result.t) ->  lval -> exp -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t 
+  val assign: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval -> exp -> Dom.t 
   (** handle assignments *)
-  val branch: (Queries.t -> Queries.Result.t) -> exp -> bool -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t
+  val branch: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> exp -> bool -> Dom.t
   (** handle branches *)
-  val body  : (Queries.t -> Queries.Result.t) -> fundec      -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t
+  val body  : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> fundec -> Dom.t
   (** steping inside of a function body *)
-  val return: (Queries.t -> Queries.Result.t) -> exp option  -> fundec -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t
+  val return: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> exp option  -> fundec -> Dom.t
   (** steping out from a function *)
   
 
@@ -76,15 +124,15 @@ sig
   *)
   
   
-  val eval_funvar: (Queries.t -> Queries.Result.t) -> exp -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> varinfo list
+  val eval_funvar: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> exp -> varinfo list
   (** [eval_funvar q f st] evaluates [f] to a list of possible functions (in state [st]) *)
-  val fork       : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> (varinfo * Dom.t) list  
+  val fork       : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (varinfo * Dom.t) list  
   (** [fork] returns list of function,input-state pairs, that the callee has spawned *)
-  val special_fn : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> (Dom.t * Cil.exp * bool) list
+  val special_fn : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (Dom.t * Cil.exp * bool) list
   (** [special_fn] is called, when given varinfo is not connected to a fundec -- no function definition is given*)
-  val enter_func : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> (Dom.t * Dom.t) list 
+  val enter_func : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (Dom.t * Dom.t) list 
   (** [enter_func] returns input-states that must be analyzed for the given function *)
-  val leave_func : (Queries.t -> Queries.Result.t) -> lval option -> varinfo -> exp list -> (Glob.Var.t -> Glob.Val.t) -> Dom.t -> Dom.t -> Dom.t
+  val leave_func : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> Dom.t -> Dom.t
   (** [leave_func q lv f a x y] does postprocessing on the analyzed [enter_func q lv f a x] output [y] -- usually readding some
      context from [x] *)
 
