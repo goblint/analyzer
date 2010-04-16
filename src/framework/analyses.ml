@@ -27,18 +27,16 @@ type local_state = [
     | `Access      of AccessDomain.Access.t
     ]
 
-module Context 
-  (Dom:  Lattice.S)
-  (Glob: Global.S) =
-struct
-  type ctx = 
-    { query : Queries.t -> Queries.Result.t
-    ; local : Dom.t
-    ; global: Glob.Var.t -> Glob.Val.t 
-    ; deps  : local_state list                }
+(* Experiment to reduce the number of arguments on transfer functions and allow
+  sub-analyses. The list sub contains the current local states of analyses in
+  the same order as writen in the dependencies list (in MCP).
   
-end
-
+  The foreign states when calling special_fn or enter are joined if the foreign 
+  analysis tries to be path-sensitive in these functions. First try to only
+  depend on simple analyses.
+ 
+  It is not clear if we need pre-states, post-states or both on foreign analyses.
+ *)
 type ('a,'b,'c) ctx = 
     { ask   : Queries.t -> Queries.Result.t
     ; local : 'a

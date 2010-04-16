@@ -738,6 +738,7 @@ module ThreadMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "mutex" 
+                let depends = []
                 type lf = Spec.Dom.t
                 let inject_l x = `Mutex x
                 let extract_l x = match x with `Mutex x -> x | _ -> raise MCP.SpecificationConversionError

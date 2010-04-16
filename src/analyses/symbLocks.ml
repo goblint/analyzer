@@ -142,6 +142,7 @@ module SymbLocksMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "symb_locks" 
+                let depends = []
                 type lf = Spec.Dom.t
                 let inject_l x = `SymbLocks x
                 let extract_l x = match x with `SymbLocks x -> x | _ -> raise MCP.SpecificationConversionError

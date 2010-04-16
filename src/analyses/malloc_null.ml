@@ -243,6 +243,7 @@ module VarEqMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "malloc_null" 
+                let depends = []
                 type lf = Spec.Dom.t
                 let inject_l x = `Malloc_null x
                 let extract_l x = match x with `Malloc_null x -> x | _ -> raise MCP.SpecificationConversionError

@@ -14,6 +14,7 @@
     MCP.ConvertToMCPPart
           (<analysis spec>)
           (struct let name = "<analysis name here>" 
+                  let depends = [<names of analyses it depends on>]
                   type lf = <analysis spec>.Dom.t
                   let inject_l x = `AnalysisA x
                   let extract_l x = match x with `AnalysisA x -> x | _ -> raise MCP.SpecificationConversionError
@@ -34,6 +35,7 @@ open Cil
 
 
 type 'a domRecord = {
+    dom_owner: string;
     matches: 'a -> bool;
     equal: 'a -> 'a -> bool;
     hash: 'a -> int;
@@ -59,6 +61,7 @@ type 'a domRecord = {
   
 type local_state = Analyses.local_state
     
+let analysesOrder : (string * string list) list ref = ref []
 let analysesListLocal : local_state domRecord list ref = ref []
 
 type global_state = [
@@ -70,6 +73,7 @@ let analysesListGlobal : global_state domRecord list ref = ref []
 
 type analysisRecord = {
     featurename : string;
+    depends_on : string list;
     dom_matches: local_state -> bool;
     glob_matches: global_state -> bool;
     analysis_name: string;
@@ -100,6 +104,8 @@ exception SpecificationConversionError
 module type MCPPartConf =
 sig
   val name : string
+  
+  val depends   : string list
   
   type lf
   val inject_l  : lf -> local_state
@@ -242,8 +248,66 @@ struct
     C.inject_l r
     
   let _ = 
-    analysesListLocal :=
-      { matches     = matches;
+    let set_add x xs = 
+      if List.exists ((=) x) xs
+      then xs
+      else x::xs
+    in
+    let set_eq x y =
+      let rec set_leq x y =
+        match x with
+          | [] -> true
+          | w::ws -> List.mem w y && set_leq ws y
+      in
+      List.length x = List.length y && set_leq x y
+    in
+    let set_union = List.fold_right set_add in
+    let get_rel x r =
+      try List.assoc x r 
+      with Not_found -> []
+    in
+    let eq_rel x y =
+      let rec le_rel x y =
+        match x with
+          | [] -> true
+          | (v,dz)::xs -> set_eq dz (get_rel v y) && le_rel xs y
+      in
+      List.length x = List.length y && le_rel x y
+    in
+    let rec closure r =
+      let step r (x,ds) =
+        let new_ds = List.fold_left (fun s x -> set_union (get_rel x r) s) ds ds in
+        (x,new_ds)::r
+      in 
+      let step = List.fold_left step [] r in
+      if eq_rel step r
+      then r
+      else closure step
+    in
+    let test_refl (x,ys) =
+      let show = List.fold_left (fun x y -> x^" "^y) "" in
+      if List.mem x ys
+      then failwith ("Analyses have circular dependencies: "^x^" needs"^show ys)
+    in
+    analysesOrder := closure ((C.name,C.depends)::!analysesOrder);
+    List.iter test_refl !analysesOrder ;
+    let ord_analyses x y =
+      let x_dep = get_rel x.featurename !analysesOrder in
+      let y_dep = get_rel y.featurename !analysesOrder in
+      if List.mem y.featurename x_dep      then 1
+      else if List.mem x.featurename y_dep then -1
+      else 0
+    in
+    let ord_dom x y =
+      let x_dep = get_rel x.dom_owner !analysesOrder in
+      let y_dep = get_rel y.dom_owner !analysesOrder in
+      if List.mem y.dom_owner x_dep      then 1
+      else if List.mem x.dom_owner y_dep then -1
+      else 0
+    in
+    analysesListLocal := List.stable_sort ord_dom
+      ({dom_owner   = C.name;
+        matches     = matches;
         top         = Dom.top; 
         bot         = Dom.bot; 
         narrow      = Dom.narrow; 
@@ -264,9 +328,10 @@ struct
         equal       = Dom.equal; 
         name        = Dom.name; 
         hash        = Dom.hash }
-      :: !analysesListLocal;
-    analysesListGlobal :=
-      { matches     = matches_g;
+      :: !analysesListLocal);
+    analysesListGlobal := List.stable_sort ord_dom
+      ({dom_owner   = C.name;
+        matches     = matches_g;
         top         = Glob.Val.top; 
         bot         = Glob.Val.bot; 
         narrow      = Glob.Val.narrow; 
@@ -287,9 +352,10 @@ struct
         equal       = Glob.Val.equal; 
         name        = Glob.Val.name; 
         hash        = Glob.Val.hash }
-      :: !analysesListGlobal ;
-    analysesList :=
-      { featurename = C.name;
+      :: !analysesListGlobal );
+    analysesList := List.stable_sort ord_analyses
+      ({featurename   = C.name;
+        depends_on    = C.depends;
         dom_matches   = matches;
         glob_matches  = matches_g;
         analysis_name = name;
@@ -311,7 +377,7 @@ struct
         special_fn    = special_fn ;
         enter_func    = enter_func ;
         leave_func    = leave_func 
-      } :: !analysesList
+      } :: !analysesList)
 end
 
 module GU = Goblintutil
@@ -697,18 +763,84 @@ struct
     List.fold_left Queries.Result.meet (Queries.Result.top ()) ls
   
   let query = query_imp 
-  
+
+  let new_ctx ctx st dp = context (query ctx) st ctx.global dp
+  let map_tf' ctx tf = 
+    let map_one ls t =
+      let s = get_matches t in
+      let ds = List.map (fun n -> List.find (fun x -> n = (get_matches x).featurename) ls) s.depends_on in
+      let new_ctx = new_ctx ctx t ds in
+      tf new_ctx::ls
+    in
+    List.rev (List.fold_left map_one [] ctx.local)
+
+  let map_tf_prev_dep ctx tf = 
+    let map_one ls t =
+      let s = get_matches t in
+      let ds = List.map (fun n -> List.find (fun x -> n = (get_matches x).featurename) ctx.local) s.depends_on in
+      let new_ctx = new_ctx ctx t ds in
+      tf new_ctx::ls
+    in
+    List.rev (List.fold_left map_one [] ctx.local)
+
+  let map_tf2 ctx tf st2 = 
+    let map_one ls t1 t2 =
+      let s = get_matches t1 in
+      let ds = List.map (fun n -> List.find (fun x -> n = (get_matches x).featurename) ls) s.depends_on in
+      let new_ctx = new_ctx ctx t1 ds in
+      tf new_ctx t2::ls
+    in
+    List.rev (List.fold_left2 map_one [] ctx.local st2)
+
+  let map_tf_special ctx tf = 
+    let map_one ls t =
+      let s = get_matches t in
+      let dep_val n = 
+        let is_n x = (get_matches x).featurename = n in
+        let rec fold_left1 f x =
+          match x with
+            | [] -> (List.find (fun x -> x.dom_owner = s.featurename) !analysesListLocal).bot ()
+            | [x] -> x
+            | x::xs -> f x (fold_left1 f xs)
+        in
+        fold_left1 Dom.join'  (List.filter is_n (List.map (fun (t,_,_) -> t) (List.concat ls)))
+      in
+      let ds = List.map dep_val s.depends_on in
+      let new_ctx = new_ctx ctx t ds in
+      tf new_ctx::ls
+    in
+    List.rev (List.fold_left map_one [] ctx.local)
+
+  let map_tf_enter ctx tf = 
+    let map_one ls t =
+      let s = get_matches t in
+      let dep_val n = 
+        let is_n x = (get_matches x).featurename = n in
+        let rec fold_left1 f x =
+          match x with
+            | [] -> (List.find (fun x -> x.dom_owner = s.featurename) !analysesListLocal).bot ()
+            | [x] -> x
+            | x::xs -> f x (fold_left1 f xs)
+        in
+         fold_left1 Dom.join' (List.filter is_n (List.map (fun (_,t) -> t) (List.concat ls)))
+      in
+      let ds = List.map dep_val s.depends_on in
+      let new_ctx = new_ctx ctx t ds in
+      tf new_ctx::ls
+    in
+    List.rev (List.fold_left map_one [] ctx.local)
+
   (* transfer functions *)
-  let return ctx r fn   = List.map (fun t -> return' (set_q (set_st ctx t) (query ctx)) r fn) ctx.local
-  let body ctx fn       = List.map (fun t -> body'   (set_q (set_st ctx t) (query ctx)) fn) ctx.local
-  let branch ctx exp tv = List.map (fun t -> branch' (set_q (set_st ctx t) (query ctx)) exp tv) ctx.local
-  let assign ctx lv exp = List.map (fun t -> assign' (set_q (set_st ctx t) (query ctx)) lv exp) ctx.local
-  let leave_func ctx r v args = List.map2 (fun s1 s2 -> leave_func' (set_q (set_st ctx s1) (query ctx)) r v args s2) ctx.local
+  let return ctx r fn   = map_tf' ctx (fun ctx -> return' ctx r fn) 
+  let body ctx fn       = map_tf' ctx (fun ctx -> body'   ctx fn)
+  let branch ctx exp tv = map_tf' ctx (fun ctx -> branch' ctx exp tv) 
+  let assign ctx lv exp = map_tf' ctx (fun ctx -> assign' ctx lv exp) 
+  let leave_func ctx r v args = map_tf2 ctx (fun ctx st2 -> leave_func' ctx r v args st2) 
 
   (* return all unique variables that analyses report *)
   let eval_funvar ctx exp : Cil.varinfo list = 
     let unique x = List.fold_right (fun x xs -> if List.mem x xs then xs else x::xs) x [] in
-    unique (List.flatten (List.map (fun t -> eval_funvar' (set_q (set_st ctx t) (query ctx)) exp) ctx.local))
+    unique (List.flatten (map_tf_prev_dep ctx (fun ctx -> eval_funvar' ctx exp) ))
 
   (* fork over all analyses and combine values of equal varinfos *)
   let fork ctx r v args =
@@ -722,7 +854,7 @@ struct
       in
       List.fold_left g rs xs
     in
-    List.fold_left f [] (List.map (fun t -> fork' (set_q (set_st ctx t) (query ctx)) r v args) ctx.local) 
+    List.fold_left f [] (map_tf_prev_dep ctx (fun ctx -> fork' ctx r v args)) 
 
   (* We start with maping all enter_func to analyses, then we match together all
      possible combinations. *)
@@ -731,15 +863,14 @@ struct
       let h (s,t) = List.map (fun (ss,tt) -> ss@[s], tt@[t]) ps in
       List.flatten (List.map h rs)
     in
-    match List.map (fun t -> enter_func' (set_q (set_st ctx t) (query ctx)) r v args) ctx.local with
+    match map_tf_enter ctx (fun ctx -> enter_func' ctx r v args) with
        | []      -> []
        | x :: xs -> List.fold_left f (List.map (fun (x,y) -> [x],[y]) x) xs
   
   (* Gather together all possible combinations (with constraint lists) and then
      resolve the constraint by running it trough [branch]es. *)
   let special_fn ctx r v args =
-    let a = query ctx in
-    let parts = List.map (fun t -> special_fn' (set_q (set_st ctx t) a) r v args) ctx.local in
+    let parts = map_tf_special ctx (fun ctx -> special_fn' ctx r v args) in
     let gather xs x =
       let map3r (d,e,t) = List.map (fun (x,y,z) -> d@[x], e@[y], t@[z]) x in
       List.flatten (List.map map3r xs)

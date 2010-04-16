@@ -302,6 +302,7 @@ module UninitMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "uninit" 
+                let depends = []
                 type lf = Spec.Dom.t
                 let inject_l x = `Uninit x
                 let extract_l x = match x with `Uninit x -> x | _ -> raise MCP.SpecificationConversionError

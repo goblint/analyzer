@@ -121,6 +121,7 @@ module ThreadMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "escape" 
+                let depends = []
                 type lf = Spec.Dom.t
                 let inject_l (x: lf): MCP.local_state = `Escape x
                 let extract_l x = match x with `Escape x -> x | _ -> raise MCP.SpecificationConversionError

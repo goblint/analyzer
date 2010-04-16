@@ -172,6 +172,7 @@ module RegionMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "region" 
+                let depends = []
                 type lf = Spec.Dom.t
                 let inject_l x = `Region x
                 let extract_l x = match x with `Region x -> x | _ -> raise MCP.SpecificationConversionError

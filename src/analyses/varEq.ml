@@ -518,6 +518,7 @@ module VarEqMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "var_eq" 
+                let depends = []
                 type lf = Spec.Dom.t
                 let inject_l x = `VarEq x
                 let extract_l x = match x with `VarEq x -> x | _ -> raise MCP.SpecificationConversionError

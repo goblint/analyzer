@@ -94,6 +94,7 @@ module ThreadMCP = (* MCP - master control program, see mCP.ml *)
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "thread" 
+                let depends = []
                 type lf = Spec.Dom.t
                 let inject_l x = `Thread x
                 let extract_l x = match x with `Thread x -> x | _ -> raise MCP.SpecificationConversionError

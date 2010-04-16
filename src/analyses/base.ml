@@ -1080,6 +1080,7 @@ module BaseMCP =
   MCP.ConvertToMCPPart
         (Main)
         (struct let name = "base" 
+                let depends = []
                 type lf = Main.Dom.t
                 let inject_l x = `Base x
                 let extract_l x = match x with `Base x -> x | _ -> raise MCP.SpecificationConversionError

@@ -30,7 +30,6 @@ struct
      Everything that changes must be dropped from PathMaps left hand side 
      and inlined into right hand sides. Assign to vars and globals work, but escaped 
      and indirect changes do not. *)
-     
   let assign ctx (lval:lval) (rval:exp) : Dom.t = 
     Dom.assign lval rval ctx.local
   
@@ -52,6 +51,7 @@ module AccessMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "access"
+                let depends = []
                 type lf = Spec.Dom.t
                 let inject_l (x:lf) = (`Access x:MCP.local_state)
                 let extract_l x = match x with `Access x -> x | _ -> raise MCP.SpecificationConversionError
