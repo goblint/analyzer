@@ -39,7 +39,7 @@ struct
   let reset_diff x = x
   let get_diff   x = []
   let should_join x y = true
-  
+    
   let rec const_equal c1 c2 =
     match c1, c2 with
       |	CStr s1  , CStr s2	 -> s1 = s2
@@ -476,8 +476,13 @@ struct
   let eq_set (e:Cil.exp) s =
     match Dom.find_class e s with
       | None -> Queries.ES.empty ()
-      | Some e when Dom.S.is_bot e -> Queries.ES.bot ()
-      | Some e -> Dom.S.fold Queries.ES.add e (Queries.ES.empty ())
+      | Some es when Dom.S.is_bot es -> Queries.ES.bot ()
+      | Some es -> 
+        let et = typeOf e in
+        let add x xs =
+          Queries.ES.add (CastE (et,x)) xs
+        in
+        Dom.S.fold add es (Queries.ES.empty ())
   
   let rec eq_set_clos e s =
     match e with
@@ -508,7 +513,7 @@ struct
           `Int (Queries.ID.of_bool true)
       | Queries.EqualSet e -> 
         let r = eq_set_clos e ctx.local in 
-(*         Messages.report ("equset of "^(sprint 80 (Cil.d_exp () e))^" is "^(Queries.ES.short 80 r)); *)
+(*          Messages.report ("equset of "^(sprint 80 (Cil.d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
         `ExprSet r
       | _ -> `Top
 

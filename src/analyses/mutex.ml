@@ -573,13 +573,17 @@ struct
     in 
     (* Change lock element offset o to match access offset a *)
     let rec offs_perel o a =
+      let v = 
       match a, o with
         | Offs.Offs `Index (i1,a), `Index (i2,o) 
             when ValueDomain.ID.equal i1 i2
             -> `Index (ValueDomain.ID.of_int GU.inthack, offs_perel o (Offs.Offs a))
-        | Offs.Offs `Index (_,a), `Index (i,o) -> `Index (i,offs_perel o (Offs.Offs a))
+        | Offs.Offs `Index (i,a), `Index (_,o) -> `Index (i,offs_perel o (Offs.Offs a))
         | Offs.Offs `Field (_,a), `Field (f,o) -> `Field (f,offs_perel o (Offs.Offs a)) 
         | _ -> o
+      in
+(*        print_endline (Offs.short 80 (Offs.from_offset o)^" - "^Offs.short 80 ( a)^" : "^Offs.short 80 (Offs.from_offset v));  *)
+      v
     in
     (* join map elements, that we cannot be sure are logically separate *)
     let regroup_map (map,set) =
@@ -588,8 +592,9 @@ struct
           let prc_acc (bs, ls, os) = 
             match per_elementize oa op ls with
               | Some (lv,lo) -> 
+(*                   print_endline (" c: "^Offs.short 80 (oa)^" grp: "^Offs.short 80 op^" ls: "^Dom.short 80 ls^" rslt: "^ Dom.short 80 (Dom.singleton (Addr.from_var_offset (lv,offs_perel lo oa), true)));  *)
                   (bs,Dom.singleton (Addr.from_var_offset (lv,offs_perel lo oa), true), os)
-              | None -> (bs,Dom.empty (),os)
+              | None -> (*print_endline "pe failed";*)(bs,Dom.empty (),os)
           in
           List.map prc_acc 
         in
@@ -648,18 +653,17 @@ struct
           | None -> xs
           | Some z -> S.add z xs  
       in
-      if Lockset.is_top x  
+      Dom.join x y
+      (*if Lockset.is_top x  
       then y
       else if Lockset.is_top y
       then x
-      else 
-        (
-          S.fold f x (S.empty ())  
-        )
+      else S.fold f x (S.empty ())  *)
     in
     let get_common_locks acc_list = 
       let f locks ((_,_,writing), lock, _) = 
         let lock = 
+(*           print_endline (Dom.short 80 lock); *)
           if writing then
             (* when writing: ignore reader locks *)
             Lockset.filter snd lock 
@@ -669,7 +673,10 @@ struct
         in
           perel_join_locks locks lock 
       in
-			List.fold_left f (Lockset.bot ()) acc_list
+(*      print_endline "--------------"; *)
+			let v = List.fold_left f (Lockset.bot ()) acc_list in
+(*       print_endline ("=========== " ^ Dom.short 80 v);       *)
+      v
     in
     let is_race acc_list =
       let locks = get_common_locks acc_list in

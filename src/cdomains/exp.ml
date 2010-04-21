@@ -330,6 +330,7 @@ struct
     let rec sf e fs = 
       match e with
         | Field f :: es -> sf es (Field f::fs)
+        | Deref :: Addr :: es -> sf es fs
         | _ -> e, fs
     in
     let el, fs = sf (List.rev e) [] in

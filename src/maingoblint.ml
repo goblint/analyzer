@@ -192,7 +192,12 @@ let main () =
         (* and here we run the analysis! *)
         Stats.time "analysis" (!analyze merged_AST) funs;
         if !Cilutil.printStats then 
+        begin
+          flush_all ();
+          prerr_endline "Solver stats:";
+          prerr_endline ("  globals changed "^string_of_int !Goblintutil.globals_changed^" times");
           Stats.print (M.get_out "timing" stderr) "Timings:\n"
+        end
     end
 
 let _ = 
