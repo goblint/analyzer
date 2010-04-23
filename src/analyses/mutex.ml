@@ -632,7 +632,7 @@ struct
         then map
         else OffsMap.add last_offs last_set map
     in
-    let perel_leq_addr (x,r1) (y,r2) = 
+(*    let perel_leq_addr (x,r1) (y,r2) = 
       match ValueDomain.Addr.to_var_offset x with
         | [v,o] -> 
           begin
@@ -653,14 +653,13 @@ struct
           | None -> xs
           | Some z -> S.add z xs  
       in
-      Dom.join x y
-      (*if Lockset.is_top x  
+      if Lockset.is_top x  
       then y
       else if Lockset.is_top y
       then x
-      else S.fold f x (S.empty ())  *)
+      else S.fold f x (S.empty ())  
     in
-    let get_common_locks acc_list = 
+*)    let get_common_locks acc_list = 
       let f locks ((_,_,writing), lock, _) = 
         let lock = 
 (*           print_endline (Dom.short 80 lock); *)
@@ -671,7 +670,7 @@ struct
             (* when reading: bump reader locks to exclusive as they protect reads *)
             Lockset.map (fun (x,_) -> (x,true)) lock 
         in
-          perel_join_locks locks lock 
+          Dom.join locks lock 
       in
 (*      print_endline "--------------"; *)
 			let v = List.fold_left f (Lockset.bot ()) acc_list in

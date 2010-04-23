@@ -331,6 +331,17 @@ struct
   let toXML = toXML_f short 
   let pretty = pretty_f short 
   let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let to_exp (f:idx -> exp) x =
+    let rec to_cil c =
+      match c with
+        | `NoOffset -> Cil.NoOffset
+        | `Field (fld, ofs) -> Field (fld  , to_cil ofs)
+        | `Index (idx, ofs) -> Index (f idx, to_cil ofs)
+    in
+    match x with
+      | Addr (v,o) -> Lval (Var v, to_cil o)
+      | StrPtr -> mkString "a string"
+      | NullPtr -> integer 0
 end
 
 module Stateless (Idx: Printable.S) =

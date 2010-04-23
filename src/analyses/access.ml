@@ -10,8 +10,8 @@ struct
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
-  let startstate () = Dom.top ()
-  let otherstate () = Dom.top ()
+  let startstate () = Dom.startstate ()
+  let otherstate () = Dom.startstate ()
 
   let get_diff _ = []
   let reset_diff x = x
@@ -27,23 +27,55 @@ struct
     Queries.Result.top ()
 
   (* todo:
+     return 
+     
      Everything that changes must be dropped from PathMaps left hand side 
      and inlined into right hand sides. Assign to vars and globals work, but escaped 
      and indirect changes do not. *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t = 
-    Dom.assign lval rval ctx.local
-  
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = ctx.local
-  let body ctx (f:fundec) : Dom.t =  Dom.top ()
-  let return ctx (exp:exp option) (f:fundec) : Dom.t =  Dom.top ()
+    List.fold_left (fun x f -> f x) ctx.local
+      [ Dom.reset_accs 
+      ; Dom.add_accsess rval true 
+      ; Dom.add_accsess (mkAddrOf lval) false 
+      ; Dom.assign ctx.ask lval rval ]    
+    
+  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+      List.fold_left (fun x f -> f x) ctx.local
+      [ Dom.reset_accs 
+      ; Dom.add_accsess exp true ]    
+      
+  let body ctx (f:fundec) : Dom.t =  
+    Dom.reset_accs ctx.local
+    
+  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
+    Dom.reset_accs ctx.local
+    
   let eval_funvar ctx (fv:exp) : varinfo list = []
   let fork ctx lv f args = [] 
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list = [Dom.top (), Dom.top ()]
-  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = ctx.local
+  
+  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list = 
+    [ctx.local, Dom.reset_accs ctx.local]
+    
+  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = 
+    List.fold_left (fun x f -> f x) au
+      (List.map (fun e -> Dom.add_accsess e true) args)
+  
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     match lval with 
-       | None -> [ctx.local,Cil.integer 1, true]
-       | Some (Var v,o) -> [Dom.kill (Dom.Lvals.from_var v) ctx.local,Cil.integer 1, true]
+       | None -> 
+          let m = 
+            List.fold_left (fun x f -> f x) ctx.local
+            (Dom.reset_accs :: List.map (fun e -> Dom.add_accsess e true) arglist)
+          in       
+          [m,Cil.integer 1, true]
+      | Some (Var v,o) ->  
+          let m = 
+            List.fold_left (fun x f -> f x) ctx.local
+            ([ Dom.reset_accs 
+             ; Dom.kill (Dom.Lvals.from_var v) ]
+            @ List.map (fun e -> Dom.add_accsess e true) arglist)
+          in       
+          [m,Cil.integer 1, true]
        | _ -> [Dom.top (),Cil.integer 1, true] (*i think this should not happen*)
 end
 
