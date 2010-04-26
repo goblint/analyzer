@@ -482,26 +482,24 @@ struct
       
   let toXML s = toXML_f short s 
   
-  exception PathBot 
+  exception AccPathBot
   (* extend the Base as long as possible *)
-  let max_path (p : pth option) mp =
+  let max_path (p : Path.t) mp : Path.t =
     let rec max_path' p mp =
       match p with
-        | Base None          -> Base None 
+        | Base None          -> Base  None 
         | Deref (x,o)        -> Deref (max_path' x mp, o)
         | Star x             -> Star  (max_path' x mp)
         | Base (Some (x, o)) -> 
-            try
-              match Map.find (Lvals.from_var_offset (x,o)) mp with
-                | Some xp -> max_path' xp mp
-                | None    -> raise PathBot
-            with Not_found ->
-              Base (Some (x,o))
+            match Map.find (Lvals.from_var_offset (x,o)) mp with
+              | Some (Base None) -> Base (Some (x,o))
+              | Some xp -> max_path' xp mp
+              | None -> raise AccPathBot
     in
     try match p with
-      | Some p -> max_path' p mp
+      | Some p -> Some (max_path' p mp)
       | None   -> None
-    with PathBot ->  None
+    with AccPathBot -> None
     
   (*todo: kill when prefix matches*)
   let kill' v mp = Map.remove v mp
@@ -586,7 +584,7 @@ struct
     let f (mp:Map.t) (st:Accs.t) : Accs.t =
       let acc = Path.from_exp exp in
       let typ = if read then "Read access from " else "Write access to " in
-      Messages.report ("LMA: "^typ^Path.short 80 acc);
+      Messages.report (":: "^typ^Path.short 80 (max_path acc mp));
       Accs.add acc st
     in
     let rec add_idx o st =
