@@ -481,12 +481,33 @@ struct
       | x -> x
       
   let toXML s = toXML_f short s 
+  
+  exception PathBot 
+  (* extend the Base as long as possible *)
+  let max_path (p : pth option) mp =
+    let rec max_path' p mp =
+      match p with
+        | Base None          -> Base None 
+        | Deref (x,o)        -> Deref (max_path' x mp, o)
+        | Star x             -> Star  (max_path' x mp)
+        | Base (Some (x, o)) -> 
+            try
+              match Map.find (Lvals.from_var_offset (x,o)) mp with
+                | Some xp -> max_path' xp mp
+                | None    -> raise PathBot
+            with Not_found ->
+              Base (Some (x,o))
+    in
+    try match p with
+      | Some p -> max_path' p mp
+      | None   -> None
+    with PathBot ->  None
     
   (*todo: kill when prefix matches*)
   let kill' v mp = Map.remove v mp
   let kill v = lift_fun (kill' v)
 
-(* Remove elements, that would change if the given lval would change.*)
+  (* Remove elements, that would change if the given lval would change.*)
   let remove_exp' ask (e:exp) (st:Map.t) : Map.t =
     let filter_key fn mp =
       let takeNotFn k v xs =
@@ -500,6 +521,7 @@ struct
 
   let remove_exp ask e = lift_fun (remove_exp' ask e)
 
+  (* remove *-s from right hand sides in the map *)
   let kill_tops' mp =
     let rem_top k v m =
       if Path.is_top v
@@ -509,10 +531,13 @@ struct
     Map.fold rem_top mp (Map.top ())
   let kill_tops = lift_fun kill_tops'
 
+  (* normalize --- remove *-s from right hand sides *)
   let join x y = 
 (*    print_endline (Pretty.sprint 80 (Pretty.dprintf "join: \n%a U\n%a\n\n" pretty  x pretty  y));*)
     kill_tops (join x y)
 
+  (* Modifies path-map to set lhs = rhs.  If lhs \in rhs then then lhs is replaced  
+     in rhs with its(lhs) previous value.*)
   let assign' ask (lhs:lval) (rhs:exp) (mp:Map.t) : Map.t =
     let rec offs_from_cil o =
       match o with
@@ -549,18 +574,44 @@ struct
     
   let assign ask (lhs:lval) (rhs:exp) : t -> t = lift_fun (assign' ask lhs rhs)
   
+  (* set access sets to empty *)
   let reset_accs (x : t) : t =
     match x with
       | `Bot -> `Bot
       | `Lifted (m,_,_) -> `Lifted (m,Accs.empty (),Accs.empty ())
   
-  let add_accsess exp read st : t =
+  (* recursively add accesses to state *)
+  let rec add_accsess exp read st : t =
+    let exp = stripCasts exp in
     let f (mp:Map.t) (st:Accs.t) : Accs.t =
-      Accs.add (Path.from_exp exp) st
+      let acc = Path.from_exp exp in
+      let typ = if read then "Read access from " else "Write access to " in
+      Messages.report ("LMA: "^typ^Path.short 80 acc);
+      Accs.add acc st
     in
-    match st, read with
+    let rec add_idx o st =
+      match o with
+        | NoOffset -> st
+        | Field (_,o) -> add_idx o st
+        | Index (i,o) -> add_idx o (add_accsess i true st)
+    in
+    let add_next st =
+      match exp with
+        | Cil.UnOp  (_,e,_) -> add_accsess e true st
+        | Cil.BinOp (_,e1,e2,_) -> add_accsess e1 true (add_accsess e2 true st)
+        | Cil.AddrOf  (Cil.Var v2,o) 
+        | Cil.StartOf (Cil.Var v2,o) 
+        | Cil.Lval    (Cil.Var v2,o) -> add_idx o st
+        | Cil.AddrOf  (Cil.Mem e,o) 
+        | Cil.StartOf (Cil.Mem e,o) 
+        | Cil.Lval    (Cil.Mem e,o) -> add_idx o (add_accsess e true st)
+        | _ -> st
+    in
+    if isConstant exp 
+    then st
+    else match st, read with
       | `Bot, _ -> `Bot
-      | `Lifted (m,a,b), true  -> `Lifted (m,f m a,b) 
-      | `Lifted (m,a,b), false -> `Lifted (m,a,f m b)    
+      | `Lifted (m,a,b), true  -> add_next (`Lifted (m,f m a,b)) 
+      | `Lifted (m,a,b), false -> add_next (`Lifted (m,a,f m b))    
     
 end
