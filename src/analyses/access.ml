@@ -36,7 +36,7 @@ struct
     List.fold_left (fun x f -> f x) ctx.local
       [ Dom.reset_accs 
       ; Dom.add_accsess rval true 
-      ; Dom.add_accsess (mkAddrOf lval) false 
+      ; Dom.add_accsess (Lval lval) false 
       ; Dom.assign ctx.ask lval rval ]    
     
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 

@@ -2,11 +2,81 @@ open Cil
 open Lval
 open Pretty
 
-
 type pth = Base  of (varinfo * (fieldinfo, int64) offs) option
          | Deref of pth * (fieldinfo, int64) offs
          | Star  of pth
+         | Ref   of pth
 
+type acc = AccBase  of (varinfo * (fieldinfo, int64) offs) option
+         | AccDeref of acc * (fieldinfo, int64) offs
+         | AccStar  of acc
+         | AccRef   of acc
+         | AccEqual of acc * varinfo * (fieldinfo, int64) offs
+         
+module Acc
+  : Printable.S with type t = acc  =
+struct
+  type t = acc
+  
+  let hash (x:t) = Hashtbl.hash x
+  
+  let compare (x:t) (y:t) = Pervasives.compare x y
+  
+  let name () = "Access"
+  
+  let rec eq_offs x y = 
+    match x, y with
+      | `NoOffset     , `NoOffset -> true
+      | `Index (i,o)  , `Index (j,u) when i=j-> eq_offs o u
+      | `Field (f1,o) , `Field (f2,u) 
+          when f1.fcomp.ckey=f2.fcomp.ckey && f1.fname = f2.fname 
+          -> eq_offs o u
+      | _ -> false
+  
+  let lval_eq x y = 
+    match x, y with
+      | None, None             -> true
+      | Some (x,o), Some (y,i) -> x.vid=y.vid && eq_offs o i
+      | _                      -> false
+
+  let rec equal x y =
+    match x, y with
+      | AccBase x       , AccBase  y       -> lval_eq x y
+      | AccDeref (x,o)  , AccDeref (y,i)   -> eq_offs o i && equal x y
+      | AccStar x       , AccStar y        -> equal x y
+      | AccRef x        , AccRef y         -> equal x y
+      | AccEqual (x,z,y), AccEqual (a,b,c) -> z.vid = b.vid && eq_offs y c && equal x a
+      | _ -> false
+
+  let isSimple _ = true
+  
+  let rec short n x =
+    let rec offs_short tt x = 
+      match x with 
+        | `NoOffset -> ""
+        | `Index (x,o) -> "[" ^ (Int64.to_string x) ^ "]" ^ (offs_short true o) 
+        | `Field (x,o) -> (if tt then "." else "") ^ (x.fname) ^ (offs_short true o) 
+    in
+    match x with 
+      | AccBase (Some (x, o)) -> x.vname  ^ offs_short true o
+      | AccBase None          -> "*" 
+      | AccDeref (x,`NoOffset)-> "(*"^short n  x^")"
+      | AccDeref (x,o)        -> short n  x ^ "→" ^ offs_short false o
+      | AccStar x             -> short n  x ^ "→*"
+      | AccRef x              -> "(&" ^ short n  x ^ ")"
+      | AccEqual (a,v,o)      -> "("^short n a^"="^v.vname^offs_short true o^")"
+
+
+  let pretty_f sf () x = Pretty.text (sf 80 x)
+  let pretty = pretty_f short
+  
+  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)],[]) 
+  let toXML = toXML_f short
+  
+  let why_not_leq () (x,y) = 
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+end
 
 module Path = 
 struct
@@ -18,25 +88,35 @@ struct
   
   let rec eq_offs x y = 
     match x, y with
-      | `NoOffset, `NoOffset -> true
-      | `Index (i,o), `Index (j,u) when i=j -> eq_offs o u
-      | `Field (f1,o), `Field (f2,u) when f1.fcomp.ckey=f2.fcomp.ckey && f1.fname = f2.fname -> eq_offs o u
+      | `NoOffset     , `NoOffset -> true
+      | `Index (i,o)  , `Index (j,u) when i=j-> eq_offs o u
+      | `Field (f1,o) , `Field (f2,u) 
+          when f1.fcomp.ckey=f2.fcomp.ckey && f1.fname = f2.fname 
+          -> eq_offs o u
       | _ -> false
   
-  let rec equal' x y = 
+  let lval_eq x y = 
     match x, y with
-      | Base     b1, Base  b2    -> b1 = b2
+      | None, None             -> true
+      | Some (x,o), Some (y,i) -> x.vid=y.vid && eq_offs o i
+      | _                      -> false
+
+  let rec equal' x y =
+    match x, y with
+      | Base x     , Base  y     -> lval_eq x y
       | Deref (x,o), Deref (y,i) -> eq_offs o i && equal' x y
-      | Star x     , Star y      ->          equal' x y
+      | Star x     , Star y      -> equal' x y
+      | Ref x      , Ref y       -> equal' x y
       | _ -> false
  
-  let rec equal x y =
+  let equal (x:t) (y:t) =
     match x, y with
-      | None  , None   -> true
+      | None , None    -> true
       | Some x, Some y -> equal' x y
       | _ -> false
     
   let hash (x:t) = Hashtbl.hash x
+  
   let compare (x:t) (y:t) = Pervasives.compare x y
   
   let isSimple _ = true
@@ -51,11 +131,13 @@ struct
       match x with 
         | Base (Some (x, o)) -> x.vname  ^ offs_short true o
         | Base None          -> "*" 
-        | Deref (x,o)        -> to_str x ^ "->" ^ offs_short false o
-        | Star x             -> to_str x ^ "->*"
+        | Deref (x,`NoOffset)-> "(*"^to_str x^")"
+        | Deref (x,o)        -> to_str x ^ "→" ^ offs_short false o
+        | Star x             -> to_str x ^ "→*"
+        | Ref x              -> "(&" ^ to_str x ^ ")"
     in
     match x with
-      | None -> ".L"
+      | None   -> "⊥"
       | Some x -> to_str x
    
   let pretty_f sf () x = Pretty.text (sf 80 x)
@@ -70,22 +152,26 @@ struct
   let top ()   = Some (Base None)
   let is_top x = Some (Base None) = x
   
-  let bot ()   = None 
+  let bot ()   = None
   let is_bot x = None = x
   
   
-  let rec leq' x y =
+  let rec leq' (x:pth) (y:pth) =
+    let r = 
     match x, y with
-      | Base (Some (x,o)), Base (Some (y,i)) -> x.vid=y.vid&& eq_offs o i 
-      | _        , Base None -> true   
-      | Base None, _         -> false
-      | _        , Base _    -> false
+      | Base x       , Base y      -> lval_eq x y 
       | Base (Some _), Deref (x,i) -> false
-      | Base (Some x), Star y    -> leq' (Base (Some x)) y      
+      | Base (Some x), Star y      -> leq' (Base (Some x)) y      
       | Deref (x,o)  , Deref (y,i) -> eq_offs i o && leq' x y
       | Star x       , Star y      -> List.exists (fun (x,y) -> leq' x y) [x,y;x,Star y]   
       | Star x       , Deref (y,i) -> false
-      | Deref (x,o)  , Star y      -> List.exists (fun (x,y) -> leq' x y) [x,y;x,Star y]
+      | Deref (x,o)  , Star y      -> List.exists (fun (x,y) -> leq' x y) [Deref (x,o),y;x,Star y]
+      | Ref x        , Ref y       -> leq' x y
+      | _ -> false (*is this ok*)
+    in
+(*     let short' x y = short x (Some y) in *)
+(*     print_endline (short' 80 x ^ " ⊑ " ^ short' 80 y ^ " = " ^ (if r then "true" else "false") ); *)
+    r
 
   let leq x y =
     match x, y with
@@ -93,43 +179,60 @@ struct
       | None  , _      -> true
       | _     , None   -> false 
        
-  let rec min x =
+  let min x =
+    let rec min' x =
+      match x with
+        | [] -> failwith "incorrect use of PathDomain.min --- argument list must not be nil" 
+        | [x] -> x
+        | x::y::ys -> if leq' x y then min' (x::ys) else min' (y::ys) 
+    in
+    let m = min' x in
+(*     print_string "min: "; *)
+(*     List.iter (fun x -> print_string (short 80 (Some x) ^ " ")) x; *)
+(*     print_endline (" = "^short 80 (Some m)); *)
+    m
+
+  let add_star x =
     match x with
-      | [] -> failwith "incorrect use of PathDomain.min --- argument must be longer than one" 
-      | [x] -> x
-      | x::y::ys -> if leq' x y then min (x::ys) else min  (y::ys) 
+      | Base None -> Base None
+      | Star x -> Star x
+      | x      -> Star x
+  
+  let add_ref x =
+    match x with
+      | Base None -> Base None
+      | x -> Ref x
   
   let join x y =
-    let add_star x =
-      match x with
-        | Base None -> Base None
-        | Star x -> Star x
-        | x      -> Star x
-    in
     let rec join' x y =
+      let r = 
       match x, y with
         | Base (Some (x,o)), Base (Some (y,i)) 
           when eq_offs o i&&x.vid=y.vid -> Base (Some (x,o))
-        | Base x, Deref (y,_) -> add_star (join' (Base x) y)
-        | Deref (x,_), Base y -> add_star (join' x (Base y))
-        | Base x, Star y -> add_star (join' (Base x) y)
-        | Star x, Base y -> add_star (join' x (Base y))
-        | Deref (x,o) , Deref (y,i) when eq_offs i o -> add_star (join' x y)
-        | Deref (x,_), Star y -> add_star (min [join' x y; join' x (Star y)])
-        | Star  x, Deref (y,_)-> add_star (min [join' x y; join' x (Star y)])
-        | Star  x, Star y -> min [join' x y; join' x (Star y); join' (Star x) y]
+        | Base x      , Deref (y,_)-> add_star (join' (Base x) y)
+        | Deref (x,_) , Base y     -> add_star (join' x (Base y))
+        | Base x      , Star y     -> add_star (join' (Base x) y)
+        | Star x      , Base y     -> add_star (join' x (Base y))
+        | Deref (x,o) , Deref (y,i) when eq_offs i o -> Deref (join' x y, i)
+        | Deref (x,o) , Deref (y,i)-> min (List.map add_star [join' x  (Deref (y,i)); join' (Deref (x,o)) y])
+        | Deref (x,o) , Star y     -> min (List.map add_star [join' (Deref (x,o)) y; join' x (Star y)])
+        | Star  x     , Deref (y,i)-> min (List.map add_star [join' x (Deref (y,i)); join' (Star x) y])
+        | Star  x     , Star y     -> min [add_star (join' x y); join' x (Star y); join' (Star x) y]
+        | Ref x       , Ref y      -> add_ref (join' x y)
+        | Ref x       , Star y      -> add_star (join' (Ref x) y)
+        | Ref x       , Deref (y,_) -> add_star (join' (Ref x) y)
+        | Star x      , Ref y       -> add_star (join' x (Ref y))
+        | Deref (x,_) , Ref y       -> add_star (join' x (Ref y))
         | _ -> Base None
+      in
+      r
     in
-    let r = 
     match x, y with
-      | Some x, Some y -> Some (join' x y)
       | None  , y      -> y
       | x     , None   -> x
-    in
-    (*Messages.report (short 80 x ^ " `join` " ^ short 80 y ^ " = " ^ short 80 r ); *)r
-
+      | Some x, Some y -> Some (join' x y)
   
-  let meet' x y = failwith "PathDomain not implemented"
+  let meet' x y = failwith "Path.meet not implemented"
 
   let meet x y =
     match x, y with
@@ -147,27 +250,72 @@ struct
       | Var x, o -> Some (Base (Some (x,offs_from_cil o)))
       | Mem e, o -> bot ()
   
+  let add_ofs x o =
+    let rec add_offset x y =
+      match x with
+        | `NoOffset -> y
+        | `Index (i,o) -> `Index (i, add_offset o y)
+        | `Field (f,o) -> `Field (f, add_offset o y)
+    in
+    match x with
+      | Base (Some (x,u)) -> Base (Some (x, add_offset u o))
+      | Base None   -> Base None
+      | Deref (x,u) -> Deref (x, add_offset u o)
+      | Star x      -> Star  x
+      | Ref x       -> Base None
+  
   (*todo: deal with offsets*)
   let rec subst_base_var x (v,o) y =
+    let rec subst_base_var_ref x y =
+      match x with
+        | Deref (Base (Some (v',o')),oa) 
+            when v.vid = v'.vid && eq_offs o o' 
+            -> add_ofs y oa 
+        | Star (Base (Some (v',o'))) 
+            when v.vid = v'.vid && eq_offs o o' 
+            -> add_star y
+        | Base (Some (v',o')) 
+            when v.vid = v'.vid && eq_offs o o'
+            -> Base None 
+        | Base x      -> Base x
+        | Deref (x,o) -> Deref (subst_base_var_ref x y, o)
+        | Star x      -> Star  (subst_base_var_ref x y)      
+        | Ref x       -> Base None
+    in
     let rec subst_base_var' x y =
       match x with
         | Base (Some (v',o')) when v.vid = v'.vid && eq_offs o o' -> y  
-        | Base x -> Base x
+        | Base x      -> Base x
         | Deref (x,o) -> Deref (subst_base_var' x y, o)
-        | Star x -> Star (subst_base_var' x y)      
+        | Star x      -> Star  (subst_base_var' x y)   
+        | Ref x       -> Ref   (subst_base_var' x y)
     in
     match x, y with
-      | Some x, Some y -> Some (subst_base_var' x y) 
-      | _ -> None 
+      | None  , _     -> None
+      | _     , None  -> None 
+      | Some (Ref (Base (Some (_,_)))), Some (Ref y) -> x 
+      | Some (Ref x)                  , Some (Ref y) -> Some (Ref (subst_base_var_ref x y))
+      | Some (Ref x)                  , Some y -> Some (Ref (subst_base_var' x y))
+      | Some (Base (Some (v',o')))    , Some (Ref y) when v.vid = v'.vid && eq_offs o o' -> Some y 
+      | Some x                        , Some (Ref y) -> Some (subst_base_var_ref x y)      
+      | Some x                        , Some y -> Some (subst_base_var' x y) 
 
-  
   let rec from_exp (e:exp) : t =
     let rec offs_from_cil o =
       match o with
         | NoOffset    -> `NoOffset
         | Field (f,o) -> `Field (f,offs_from_cil o)
         | Index (i,o) -> `Index (0L, offs_from_cil o)
-    in 
+    in
+    let addr e o =
+      match from_exp e with
+        | Some (Base None) -> Some (Deref (Base None,offs_from_cil o))
+        | None   -> None
+        | Some x -> Some (Deref (x,offs_from_cil o))
+    in
+    let add_ref x =
+      match x with Some x -> Some (add_ref x) | x -> x 
+    in
     match e with
       | Cil.SizeOf _
       | Cil.SizeOfE _
@@ -178,16 +326,13 @@ struct
       | Cil.BinOp _ 
       | Cil.Const _ -> top ()
       | Cil.AddrOf  (Cil.Var v,o) 
-      | Cil.StartOf (Cil.Var v,o) 
+      | Cil.StartOf (Cil.Var v,o) -> Some (Ref (Base (Some (v,offs_from_cil o))))
       | Cil.Lval    (Cil.Var v,o) -> Some (Base (Some (v,offs_from_cil o)))
       | Cil.AddrOf  (Cil.Mem e,o) 
-      | Cil.StartOf (Cil.Mem e,o) 
-      | Cil.Lval    (Cil.Mem e,o) ->
-          begin match from_exp e with
-            | None -> Some (Deref (Base None,offs_from_cil o))
-            | Some x -> Some (Deref (x,offs_from_cil o))
-          end
+      | Cil.StartOf (Cil.Mem e,o) -> add_ref (addr e o) 
+      | Cil.Lval    (Cil.Mem e,o) -> addr e o
       | Cil.CastE (_,e)           -> from_exp e 
+
 end
 
 
@@ -484,25 +629,50 @@ struct
   
   exception AccPathBot
   (* extend the Base as long as possible *)
-  let max_path (p : Path.t) mp : Path.t =
-    let rec max_path' p mp =
+  let to_acc (p : Path.t) mp : acc option =
+    let rec to_acc' p mp =
       match p with
-        | Base None          -> Base  None 
-        | Deref (x,o)        -> Deref (max_path' x mp, o)
-        | Star x             -> Star  (max_path' x mp)
+        | Base None -> AccBase None
         | Base (Some (x, o)) -> 
-            match Map.find (Lvals.from_var_offset (x,o)) mp with
-              | Some (Base None) -> Base (Some (x,o))
-              | Some xp -> max_path' xp mp
-              | None -> raise AccPathBot
+            begin match Map.find (Lvals.from_var_offset (x,o)) mp with
+              | Some (Base None) -> AccBase (Some (x, o))
+              | Some xp          -> AccEqual (to_acc' xp mp, x, o)
+              | None             -> raise AccPathBot
+            end
+        | Star x      -> AccStar  (to_acc' x mp)
+        | Deref (x,o) -> AccDeref (to_acc' x mp, o)
+        | Ref x       -> AccRef   (to_acc' x mp)
     in
     try match p with
-      | Some p -> Some (max_path' p mp)
-      | None   -> None
+      | Some p -> Some (to_acc' p mp)
+      | None   -> None 
     with AccPathBot -> None
-    
+   
+
+  (* remove *-s from right hand sides in the map *)
+  let kill_tops' mp =
+    let rem_top k v m =
+      if Path.is_top v
+      then m
+      else Map.add k v m
+    in
+    Map.fold rem_top mp (Map.top ())
+  let kill_tops = lift_fun kill_tops'
+
   (*todo: kill when prefix matches*)
-  let kill' v mp = Map.remove v mp
+  let kill' v mp = 
+    let old_val = 
+      try Map.find v mp
+      with Not_found -> Path.top ()
+    in
+    match Lvals.to_var_offset v with
+      | [op] ->
+          let subst_old x =
+            Path.subst_base_var x op old_val
+          in
+          Map.map subst_old (Map.remove v mp)
+      | _ -> Map.top ()
+  
   let kill v = lift_fun (kill' v)
 
   (* Remove elements, that would change if the given lval would change.*)
@@ -519,20 +689,11 @@ struct
 
   let remove_exp ask e = lift_fun (remove_exp' ask e)
 
-  (* remove *-s from right hand sides in the map *)
-  let kill_tops' mp =
-    let rem_top k v m =
-      if Path.is_top v
-      then m
-      else Map.add k v m
-    in
-    Map.fold rem_top mp (Map.top ())
-  let kill_tops = lift_fun kill_tops'
-
   (* normalize --- remove *-s from right hand sides *)
   let join x y = 
-(*    print_endline (Pretty.sprint 80 (Pretty.dprintf "join: \n%a U\n%a\n\n" pretty  x pretty  y));*)
-    kill_tops (join x y)
+    let r = kill_tops (join x y) in
+(*     print_endline (Pretty.sprint 80 (Pretty.dprintf "join: \n%a U\n%a\n=%a\n\n" pretty  x pretty y pretty r)); *)
+    r
 
   (* Modifies path-map to set lhs = rhs.  If lhs \in rhs then then lhs is replaced  
      in rhs with its(lhs) previous value.*)
@@ -556,18 +717,19 @@ struct
         begin
           let rlv = (v, offs_from_cil o) in
           let lv = Lvals.from_var_offset rlv in 
-          let new_val = Path.subst_base_var (Path.from_exp rhs) rlv (get_val lv mp) in
+          let r_exp = Path.from_exp rhs in
+          let new_val = Path.subst_base_var r_exp rlv (get_val lv mp) in
           let r = 
             if Path.is_top new_val
             then kill' lv mp
             else Map.add lv new_val mp
           in
-(*           print_endline (Pretty.sprint 80 (Pretty.dprintf "assign %s <- %a \n%a \n = \n%a\n" v.vname Path.pretty new_val Map.pretty mp Map.pretty r)); *)
+(*           print_endline (Pretty.sprint 80 (Pretty.dprintf "assign %s <- %a (%a) \n%a \n = \n%a\n" v.vname Path.pretty new_val Path.pretty r_exp Map.pretty mp Map.pretty r)); *)
           r
         end
       | (Mem e, o) -> 
         let v = remove_exp' ask (mkAddrOf lhs) mp in
-(*         print_endline (Pretty.sprint 80 (Pretty.dprintf "assign %a \n %a \n = \n%a\n" d_lval lhs Map.pretty mp Map.pretty v)); *)
+(*          print_endline (Pretty.sprint 80 (Pretty.dprintf "assign %a \n %a \n = \n%a\n" d_lval lhs Map.pretty mp Map.pretty v)); *)
         v
     
   let assign ask (lhs:lval) (rhs:exp) : t -> t = lift_fun (assign' ask lhs rhs)
@@ -582,10 +744,13 @@ struct
   let rec add_accsess exp read st : t =
     let exp = stripCasts exp in
     let f (mp:Map.t) (st:Accs.t) : Accs.t =
-      let acc = Path.from_exp exp in
+      let acp = Path.from_exp exp in
       let typ = if read then "Read access from " else "Write access to " in
-      Messages.report (":: "^typ^Path.short 80 (max_path acc mp));
-      Accs.add acc st
+      match to_acc acp mp with
+        | None -> st
+        | Some acc -> 
+            Messages.report (":: "^typ^Acc.short 80 acc ^ " ( "^Path.short 80 acp^" )");
+            Accs.add acp st
     in
     let rec add_idx o st =
       match o with
@@ -598,7 +763,7 @@ struct
         | Cil.UnOp  (_,e,_) -> add_accsess e true st
         | Cil.BinOp (_,e1,e2,_) -> add_accsess e1 true (add_accsess e2 true st)
         | Cil.AddrOf  (Cil.Var v2,o) 
-        | Cil.StartOf (Cil.Var v2,o) 
+        | Cil.StartOf (Cil.Var v2,o) -> st
         | Cil.Lval    (Cil.Var v2,o) -> add_idx o st
         | Cil.AddrOf  (Cil.Mem e,o) 
         | Cil.StartOf (Cil.Mem e,o) 
