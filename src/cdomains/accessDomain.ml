@@ -13,8 +13,7 @@ type acc = AccBase  of (varinfo * (fieldinfo, int64) offs) option
          | AccRef   of acc
          | AccEqual of acc * varinfo * (fieldinfo, int64) offs
          
-module Acc
-  : Printable.S with type t = acc  =
+module Acc =
 struct
   type t = acc
   
@@ -58,13 +57,15 @@ struct
         | `Field (x,o) -> (if tt then "." else "") ^ (x.fname) ^ (offs_short true o) 
     in
     match x with 
+      | AccRef (AccBase (Some (x, o))) -> "&" ^ short n (AccBase (Some (x, o)))
+      | AccDeref (AccBase (Some (x, o)),`NoOffset)-> "*"^short n (AccBase (Some (x, o)))
       | AccBase (Some (x, o)) -> x.vname  ^ offs_short true o
       | AccBase None          -> "*" 
       | AccDeref (x,`NoOffset)-> "(*"^short n  x^")"
       | AccDeref (x,o)        -> short n  x ^ "→" ^ offs_short false o
       | AccStar x             -> short n  x ^ "→*"
       | AccRef x              -> "(&" ^ short n  x ^ ")"
-      | AccEqual (a,v,o)      -> "("^short n a^"="^v.vname^offs_short true o^")"
+      | AccEqual (a,v,o)      -> "("^short n a^"≡"^v.vname^offs_short true o^")"
 
 
   let pretty_f sf () x = Pretty.text (sf 80 x)
@@ -75,6 +76,12 @@ struct
   
   let why_not_leq () (x,y) = 
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+  let guaranteed_local x =
+    match x with
+      | AccEqual (_,v,_)     -> not v.vglob 
+      | AccBase (Some (x,_)) -> not x.vglob
+      | _ -> false
 
 end
 
@@ -120,13 +127,14 @@ struct
   let compare (x:t) (y:t) = Pervasives.compare x y
   
   let isSimple _ = true
+  
+  let rec offs_short tt x = 
+    match x with 
+      | `NoOffset -> ""
+      | `Index (x,o) -> "[" ^ (Int64.to_string x) ^ "]" ^ (offs_short true o) 
+      | `Field (x,o) -> (if tt then "." else "") ^ (x.fname) ^ (offs_short true o) 
+  
   let short n x =
-    let rec offs_short tt x = 
-      match x with 
-        | `NoOffset -> ""
-        | `Index (x,o) -> "[" ^ (Int64.to_string x) ^ "]" ^ (offs_short true o) 
-        | `Field (x,o) -> (if tt then "." else "") ^ (x.fname) ^ (offs_short true o) 
-    in
     let rec to_str x =
       match x with 
         | Base (Some (x, o)) -> x.vname  ^ offs_short true o
@@ -134,6 +142,7 @@ struct
         | Deref (x,`NoOffset)-> "(*"^to_str x^")"
         | Deref (x,o)        -> to_str x ^ "→" ^ offs_short false o
         | Star x             -> to_str x ^ "→*"
+        | Ref (Base x)       -> "&" ^ to_str (Base x) 
         | Ref x              -> "(&" ^ to_str x ^ ")"
     in
     match x with
@@ -167,6 +176,7 @@ struct
       | Star x       , Deref (y,i) -> false
       | Deref (x,o)  , Star y      -> List.exists (fun (x,y) -> leq' x y) [Deref (x,o),y;x,Star y]
       | Ref x        , Ref y       -> leq' x y
+      | Ref x        , Star y      -> leq' (Ref x) y
       | _ -> false (*is this ok*)
     in
 (*     let short' x y = short x (Some y) in *)
@@ -227,10 +237,14 @@ struct
       in
       r
     in
+    let r =
     match x, y with
       | None  , y      -> y
       | x     , None   -> x
       | Some x, Some y -> Some (join' x y)
+    in
+(*     print_endline (sprint 80 (dprintf "%a ⊔ %a = %a" pretty x pretty y pretty r)); *)
+    r
   
   let meet' x y = failwith "Path.meet not implemented"
 
@@ -284,22 +298,24 @@ struct
     in
     let rec subst_base_var' x y =
       match x with
+        | Ref (Base (Some (_,_))) -> x
         | Base (Some (v',o')) when v.vid = v'.vid && eq_offs o o' -> y  
         | Base x      -> Base x
         | Deref (x,o) -> Deref (subst_base_var' x y, o)
         | Star x      -> Star  (subst_base_var' x y)   
         | Ref x       -> Ref   (subst_base_var' x y)
     in
+    let r =
     match x, y with
       | None  , _     -> None
       | _     , None  -> None 
-      | Some (Ref (Base (Some (_,_)))), Some (Ref y) -> x 
-      | Some (Ref x)                  , Some (Ref y) -> Some (Ref (subst_base_var_ref x y))
       | Some (Ref x)                  , Some y -> Some (Ref (subst_base_var' x y))
-      | Some (Base (Some (v',o')))    , Some (Ref y) when v.vid = v'.vid && eq_offs o o' -> Some y 
-      | Some x                        , Some (Ref y) -> Some (subst_base_var_ref x y)      
-      | Some x                        , Some y -> Some (subst_base_var' x y) 
-
+      | Some (Base (Some (v',o')))    , Some (Ref _) when v.vid = v'.vid && eq_offs o o' -> y 
+      | Some x                        , Some y -> Some (subst_base_var' x y)      
+    in
+(*     print_endline (sprint 80 (dprintf "%a[%s↦%a] = %a" pretty x (v.vname^offs_short true o) pretty y pretty r)); *)
+    r
+    
   let rec from_exp (e:exp) : t =
     let rec offs_from_cil o =
       match o with
@@ -333,8 +349,7 @@ struct
       | Cil.Lval    (Cil.Mem e,o) -> addr e o
       | Cil.CastE (_,e)           -> from_exp e 
 
-end
-
+end      
 
 module Access =
 struct 
@@ -747,10 +762,10 @@ struct
       let acp = Path.from_exp exp in
       let typ = if read then "Read access from " else "Write access to " in
       match to_acc acp mp with
-        | None -> st
-        | Some acc -> 
-            Messages.report (":: "^typ^Acc.short 80 acc ^ " ( "^Path.short 80 acp^" )");
+        | Some acc when not (Acc.guaranteed_local acc) -> 
+            Messages.report (":: "^typ^Acc.short 80 acc);
             Accs.add acp st
+        | _ -> st
     in
     let rec add_idx o st =
       match o with
