@@ -10,6 +10,7 @@ struct
   let oilFile = ref ""
   let path = Filename.dirname Sys.executable_name
   let tmp_path = ref ""
+  let resourceheaders = "/defaultAppWorkstation/tpl_os_generated_configuration.h"
 
   let priorities = Hashtbl.create 16
   let constantlocks = Hashtbl.create 16
@@ -21,8 +22,7 @@ struct
   let pry lock = try Hashtbl.find priorities lock with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
 
   (*brutal hacks*)
-  let is_task f = 
-    (String.length f >= 12 && String.sub f 0 12 = "function_of_")
+  let is_task = Cilfacade.is_task
 
   let is_constantlock lock = Hashtbl.mem lock constantlocks
  
@@ -34,8 +34,8 @@ struct
     let input = open_in !oilFile in
     let output = open_out oilp in
     let _ = output_string output ("default" ^ "\n") in
-    let h = "function_of_" in 	
-    let task_re = Str.regexp " *\\(TASK\\|ISR\\) +\\([a-zA-Z]+\\)" in
+    let h = Goblintutil.taskprefix in 	
+    let task_re = Str.regexp " *\\([tT][aA][sS][kK]\\|[iI][sS][sR]\\) +\\([a-zA-Z][a-zA-Z0-9]*\\)" in
     let pry_re = Str.regexp " *PRIORITY *= *\\([1-9][0-9]*\\)" in
     let res_re = Str.regexp " *RESOURCE *= *\\([a-zA-Z]+\\)" in
     let flag = ref "" in
@@ -43,7 +43,7 @@ struct
       let line = input_line input
       in
 	if Str.string_match task_re line 0 then begin   
-	  output_string output (h ^ (String.lowercase (Str.matched_group 1 line)) ^ "_" ^ (Str.matched_group 2 line) ^"\n");
+	  output_string output (h ^(* (String.lowercase (Str.matched_group 1 line)) ^ "_" ^*) (Str.matched_group 2 line) ^"\n");
 	  Hashtbl.add tasks (Str.matched_group 2 line) ((Str.matched_group 1 line),-1,[]);
 	  let _ = !flag = (Str.matched_group 2 line) in (); 
 	end;
@@ -106,7 +106,7 @@ struct
   
   let body ctx (f:fundec) : Dom.t = 
     let m_st = Mutex.Spec.body ctx (f:fundec) in
-    if (is_task f.svar.vname) then 
+    if (is_task f.svar.vname) then
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
       match Mutex.Spec.special_fn (set_st ctx m_st) None (dummy_get f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
         | [(x,_,_)] -> x 
@@ -325,7 +325,7 @@ struct
       let resp = !tmp_path ^  "/resources.txt" in
       let _ = parse_oil oilp tmp_path in
       let _ = Hashtbl.add priorities "default" (-1) in
-      let tramp = Filename.dirname(!oilFile) ^ "/defaultAppWorkstation/tpl_os_generated_configuration.h" in
+      let tramp = Filename.dirname(!oilFile) ^ resourceheaders in
 	if Sys.file_exists(tramp) then begin
 	  parse_tramp resp tramp
 	end else begin

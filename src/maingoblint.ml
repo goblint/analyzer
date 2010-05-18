@@ -42,7 +42,7 @@ let main () =
       MCP.Analysis.analyze   
   in
   let analyze = ref (analyzer (JB.string (JB.field !GU.conf "analysis"))) in
-  let oil file = GU.allfuns := true; GU.oil := true; GU.conf_osek (); Osek.Spec.oilFile := file in
+  let oil file = (*GU.allfuns := true;*) GU.oil := true; GU.conf_osek (); Osek.Spec.oilFile := file in
   let setanalysis str = 
     begin match str with
             | "uninit" -> GU.conf_uninit ()
@@ -117,7 +117,7 @@ let main () =
   Stats.reset Stats.HardwareIfAvail;  
   CF.init();
   Arg.parse speclist recordFile usage_str;
-  if !GU.allfuns || !GU.nonstatic then GU.multi_threaded := true;
+  if !GU.allfuns || !GU.nonstatic || !GU.oil then GU.multi_threaded := true;
   if !GU.debug then M.warnings := true;
   (* GU.regions := true; *)
   let _ = match !GU.dump_path with

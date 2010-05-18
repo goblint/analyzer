@@ -109,6 +109,9 @@ let is_exit attr_list =
     | _ -> false
   in List.exists f attr_list
 
+(*brutal osek hack*)
+  let is_task f =  (String.length f >= 12 && String.sub f 0 12 = GU.taskprefix)
+
 
 (* The code that looks for initialization function will select the last one.
  * This is usually, but not always, the right one. *)
@@ -131,7 +134,7 @@ let getFuns fileAST  : fundec list =
           Printf.printf "Cleanup function: %s\n" mn; def :: rest 
       | GFun ({svar={vstorage=NoStorage}} as def, _) when (!GU.nonstatic)-> def :: rest
       | GFun (def, _) when (!GU.allfuns) -> def :: rest
-      | GFun (def, _) when (!GU.oil && (String.length def.svar.vname >= 12 && String.sub def.svar.vname 0 12 = "function_of_")) -> def :: rest
+      | GFun (def, _) when (!GU.oil && (is_task def.svar.vname)) -> def :: rest
       | _ -> rest 
   in
   let others = foldGlobals fileAST f [] in
