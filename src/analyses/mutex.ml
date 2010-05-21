@@ -534,8 +534,11 @@ struct
     [(ctx.local,ctx.local)]
 
   let leave_func ctx lv f args al = 
+    let wr = match lv with
+      | None      -> []
+      | Some lval -> access_one_top ctx.ask true (Lval lval) in 
     let read = access_byval ctx.ask false args in
-    add_accesses ctx.ask read ctx.local; 
+    add_accesses ctx.ask (wr@read) ctx.local; 
     al
     
   let fork ctx lv f args = 
