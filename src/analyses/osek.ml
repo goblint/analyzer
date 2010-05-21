@@ -8,53 +8,44 @@ struct
   module Glob = Mutex.Spec.Glob
 
   let oilFile = ref ""
-  let path = Filename.dirname Sys.executable_name
-  let tmp_path = ref ""
   let resourceheaders = "/defaultAppWorkstation/tpl_os_generated_configuration.h"
 
-  let priorities = Hashtbl.create 16
   let constantlocks = Hashtbl.create 16
   let tasks = Hashtbl.create 16
   let resources = Hashtbl.create 16
-  let tramp_id = Hashtbl.create 16
 
   (*priority function*)
-  let pry lock = try Hashtbl.find priorities lock with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
+  let pry lock = try Hashtbl.find resources lock with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
 
-  (*brutal hacks*)
+  (*brutal hack*)
   let is_task = Cilfacade.is_task
-
-  let is_constantlock lock = Hashtbl.mem lock constantlocks
  
   let dummy_release f = makeLocalVar f ?insert:(Some false) "ReleaseResource" Cil.voidType
 
   let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType
 
-  let parse_oil oilp tmp_path = 
+  let parse_oil () = (* requires PRIORITY tag to occur before RESOURCE tag in task definitions. does not take "default" into account *)
     let input = open_in !oilFile in
-    let output = open_out oilp in
-    let _ = output_string output ("default" ^ "\n") in
-    let h = Goblintutil.taskprefix in 	
-    let task_re = Str.regexp " *\\([tT][aA][sS][kK]\\|[iI][sS][sR]\\) +\\([a-zA-Z][a-zA-Z0-9]*\\)" in
-    let pry_re = Str.regexp " *PRIORITY *= *\\([1-9][0-9]*\\)" in
-    let res_re = Str.regexp " *RESOURCE *= *\\([a-zA-Z]+\\)" in
+    let task_re = Str.regexp " *\\(TASK\\|ISR\\) *\\([a-zA-Z][a-zA-Z0-9_]*\\) *" in
+    let pry_re = Str.regexp " *PRIORITY *= *\\([1-9][0-9]*\\) *" in
+    let res_re = Str.regexp " *RESOURCE *= *\\([a-zA-Z][a-zA-Z0-9]*\\) *" in
     let flag = ref "" in
     let rec read_info () = try
-      let line = input_line input
-      in
-	if Str.string_match task_re line 0 then begin   
-	  output_string output (h ^(* (String.lowercase (Str.matched_group 1 line)) ^ "_" ^*) (Str.matched_group 2 line) ^"\n");
-	  Hashtbl.add tasks (Str.matched_group 2 line) ((Str.matched_group 1 line),-1,[]);
-	  let _ = !flag = (Str.matched_group 2 line) in (); 
+      let line = input_line input in
+	if Str.string_match task_re line 0 then begin
+          let name = Goblintutil.taskprefix ^ (Str.matched_group 2 line) in 
+          let typ = (Str.matched_group 1 line) in 
+	  Hashtbl.add tasks name (typ,-1,[name]);
+          Hashtbl.add constantlocks name (makeGlobalVar name  Cil.voidType);
+          Hashtbl.add resources name (-1);
+	  flag := name;
 	end;
 	if Str.string_match pry_re line 0 then begin
-	  output_string output ((Str.matched_group 1 line)  ^"\n");
-	  if (not (!flag="")) then 
-	    Hashtbl.replace tasks !flag ((fun (x,_,z) y -> (x,y,z)) (Hashtbl.find tasks !flag) (int_of_string(Str.matched_group 1 line)));
+	  if (not (!flag="")) then
+	      Hashtbl.replace tasks !flag ((fun (x,_,z) y -> (x,y,z)) (Hashtbl.find tasks !flag) (int_of_string(Str.matched_group 1 line)));
 	end;
 	if Str.string_match res_re line 0 then begin
 	  let res_name = Str.matched_group 1 line in
-	  output_string output (res_name  ^"\n");
 	  if (not (!flag="")) then begin
 	    Hashtbl.replace tasks !flag ((fun (x,y,zs) z -> (x,y,z::zs)) (Hashtbl.find tasks !flag) res_name);
 	  end;
@@ -65,34 +56,30 @@ struct
 	| End_of_file -> ()
 	| e -> raise e
     in
-    let helper2 res_name task value acc = (fun (x,y,z) -> 
-      if (List.mem res_name z) then (max acc y) else acc) value 
+    let ceil_pry res_name _ task_info acc = (fun (t,p,r) -> 
+      if (List.mem res_name r) then (max acc p) else acc) task_info
     in
-    let helper res_name pry = let x = (Hashtbl.fold (helper2 res_name) tasks (-1)) in 
-      if x > pry then Hashtbl.replace resources res_name x 
+    let genp res_name p = let cp = (Hashtbl.fold (ceil_pry res_name) tasks (-1)) in 
+      if cp > p then Hashtbl.replace resources res_name cp 
     in
-    let generate_ceiling_priority = Hashtbl.iter helper resources
-    in read_info (); close_in input; close_out output; ignore generate_ceiling_priority
+    let generate_ceiling_priority () = Hashtbl.iter genp resources
+    in read_info (); close_in input; generate_ceiling_priority ()
 
-  let parse_tramp resp tramp = 
+  let parse_tramp tramp = 
     let input = open_in tramp in
-    let output = open_out resp in
-    let re = Str.regexp ".*resource_id_of_\\([a-zA-Z]+\\) +\\([0-9]+\\).*" in
+    let re = Str.regexp ".*resource_id_of_\\([a-zA-Z][a-zA-Z0-9]*\\) +\\([0-9]+\\) *" in
     let rec read_info () = try
-      let line = input_line input
-      in
+      let line = input_line input in
 	if Str.string_match re line 0 then begin
-	  Hashtbl.add tramp_id (Str.matched_group 1 line) (Str.matched_group 2 line);
-	  output_string output ( (Str.matched_group 2 line) ^ "\n");
-	  output_string output ( (Str.matched_group 1 line) ^ "\n")
+          let name = (Str.matched_group 1 line) in
+          let id = Str.matched_group 2 line in
+	  Hashtbl.add constantlocks id (makeGlobalVar name  Cil.voidType);
 	end;
 	read_info ();
       with 
 	| End_of_file -> ()
 	| e -> raise e
-    in read_info (); close_in input;  close_out output
-
-  (*end hacks*)
+    in read_info (); close_in input
 
   let query ctx (q:Queries.t) : Queries.Result.t = 
     Queries.Result.top ()
@@ -150,7 +137,7 @@ struct
       | "ResumeOSInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRos"))) 
       | "TerminateTask" -> (if not(Dom.is_empty ctx.local) then () else print_endline "Warning: Taskgetitfromtasklock? terminated while holding resources xyz!") ; 
 			    Mutex.Spec.special_fn ctx lval f arglist  (*check empty lockset*)
-      | "WaitEvent" -> (if not(Dom.is_empty ctx.local) then () else print_endline "Warning: Task ??? terminated while holding resources xyz!") ; 
+      | "WaitEvent" -> (if not(Dom.is_empty ctx.local) then () else print_endline "Warning: Task ??? waited while holding resources xyz!") ; 
 			  Mutex.Spec.special_fn ctx lval f arglist (*check empty lockset*)
       | "SetEvent"
       | "ClearEvent"
@@ -315,81 +302,29 @@ struct
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;
-    Goblintutil.rm_rf !tmp_path;
     Base.Main.finalize ()
 
-  let init () =   
+  let init () = 
+    let hashmax _ next old = max next old in  
+    let tramp = Filename.dirname(!oilFile) ^ resourceheaders in
     if !oilFile != "" && Sys.file_exists(!oilFile) then begin     
-      let () = tmp_path := Goblintutil.create_dir "osek_temp" in
-      let oilp = !tmp_path ^ "/priorities.txt" in     
-      let resp = !tmp_path ^  "/resources.txt" in
-      let _ = parse_oil oilp tmp_path in
-      let _ = Hashtbl.add priorities "default" (-1) in
-      let tramp = Filename.dirname(!oilFile) ^ resourceheaders in
-	if Sys.file_exists(tramp) then begin
-	  parse_tramp resp tramp
-	end else begin
-	  prerr_endline "Trampoline headers not found." ;
-	  exit 2;
-	end;
-      let get_res_id name = 
-	if Sys.file_exists(resp ) then begin
-	  let res_ids = open_in (resp) in
-	  let rec look_up id line = if line = name then id else look_up line (input_line res_ids) in 
-	  look_up "" (input_line res_ids)
-	end else begin
-	  prerr_endline "Resource identifiers could not be determined." ;
-	  exit 2;
-	end 
-      in
-      if (Sys.file_exists oilp) then begin
-	let oilf = open_in oilp in
-	let rec genp task line =
-	  match line with
-	  | "" -> ()
-	  | "default" -> let line' = input_line oilf in
-	     if (line' = "")  then () else begin try
-		let p = int_of_string line' in
-		Hashtbl.add priorities line p; 
-		genp task (input_line oilf)
-	      with Failure "int_of_string" -> genp task line'
-	    end
-	  | _ -> if is_task(line) then begin
-	      Hashtbl.add priorities line (int_of_string(input_line oilf));
-	      Hashtbl.add constantlocks line (makeGlobalVar line Cil.voidType);
-	      try genp line (input_line oilf)
-	      with End_of_file -> ()
-	    end else begin
-	      if not (Hashtbl.mem priorities line) then begin
-		Hashtbl.add constantlocks (get_res_id line) (makeVarinfo true line (TVoid []));
-		Hashtbl.add priorities line (Hashtbl.find priorities task);
-		try genp task (input_line oilf)      
-		with End_of_file -> ()
-	      end else if ((Hashtbl.find priorities task) > (Hashtbl.find priorities line)) then
-		Hashtbl.add priorities line (Hashtbl.find priorities task);
-	      try genp task (input_line oilf)      
-	      with End_of_file -> ()
-	    end
-	in
-	let _ = genp "default" (input_line oilf) in
-	let hashmax _ next old = max next old in
-	let _ =	Hashtbl.add constantlocks "DEall" (makeGlobalVar "DEall" Cil.voidType);
-		Hashtbl.add constantlocks "SRall" (makeGlobalVar "SRall" Cil.voidType);
-		Hashtbl.add constantlocks "SRos" (makeGlobalVar "SRos" Cil.voidType);
-		Hashtbl.add priorities "DEall" (Hashtbl.fold hashmax priorities (-1) );
-		Hashtbl.add priorities "SRall" (Hashtbl.fold hashmax priorities (-1) );
-		Hashtbl.add priorities "SRos" (Hashtbl.fold hashmax priorities (-1) ); (*NOT GOOD *)
-	in 
-	close_in oilf
+      parse_oil ();
+      if Sys.file_exists(tramp) then begin
+	parse_tramp tramp;
       end else begin
-	prerr_endline "Priorites could not be determined." ;
+	prerr_endline "Trampoline headers not found." ;
 	exit 2;
       end;
-      end else begin
-	prerr_endline "OIL-file not found." ;
-	exit 2;
-      end
-    end
+      Hashtbl.add constantlocks "DEall" (makeGlobalVar "DEall" Cil.voidType);
+      Hashtbl.add constantlocks "SRall" (makeGlobalVar "SRall" Cil.voidType);
+      Hashtbl.add constantlocks "SRos" (makeGlobalVar "SRos" Cil.voidType);
+      Hashtbl.add resources "DEall" (Hashtbl.fold hashmax resources (-1) );
+      Hashtbl.add resources "SRall" (Hashtbl.fold hashmax resources (-1) );
+      Hashtbl.add resources "SRos" (Hashtbl.fold hashmax resources (-1) ); (*NOT GOOD *)
+    end else begin
+      prerr_endline "OIL-file not found." ;
+      exit 2;
+    end end
 
 module ThreadMCP = 
   MCP.ConvertToMCPPart
