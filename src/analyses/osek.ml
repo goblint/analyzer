@@ -28,11 +28,13 @@ struct
     let input = open_in !oilFile in
     let task_re = Str.regexp " *\\(TASK\\|ISR\\) *\\([a-zA-Z][a-zA-Z0-9_]*\\) *" in
     let pry_re = Str.regexp " *PRIORITY *= *\\([1-9][0-9]*\\) *" in
-    let res_re = Str.regexp " *RESOURCE *= *\\([a-zA-Z][a-zA-Z0-9]*\\) *" in
+    let res_re = Str.regexp " *RESOURCE *= *\\([a-zA-Z][a-zA-Z0-9_]*\\) *" in
     let flag = ref "" in
     let rec read_info () = try
       let line = input_line input in
+(*print_string (line ^ "\n");*)
 	if Str.string_match task_re line 0 then begin
+(*print_string "task \n";*)
           let name = Goblintutil.taskprefix ^ (Str.matched_group 2 line) in 
           let typ = (Str.matched_group 1 line) in 
 	  Hashtbl.add tasks name (typ,-1,[name]);
@@ -42,10 +44,12 @@ struct
 	end;
 	if Str.string_match pry_re line 0 then begin
 	  if (not (!flag="")) then
+(*print_string "pry \n";*)
 	      Hashtbl.replace tasks !flag ((fun (x,_,z) y -> (x,y,z)) (Hashtbl.find tasks !flag) (int_of_string(Str.matched_group 1 line)));
 	end;
 	if Str.string_match res_re line 0 then begin
 	  let res_name = Str.matched_group 1 line in
+(*print_string "res \n";*)
 	  if (not (!flag="")) then begin
 	    Hashtbl.replace tasks !flag ((fun (x,y,zs) z -> (x,y,z::zs)) (Hashtbl.find tasks !flag) res_name);
 	  end;
@@ -67,7 +71,7 @@ struct
 
   let parse_tramp tramp = 
     let input = open_in tramp in
-    let re = Str.regexp ".*resource_id_of_\\([a-zA-Z][a-zA-Z0-9]*\\) +\\([0-9]+\\) *" in
+    let re = Str.regexp ".*resource_id_of_\\([a-zA-Z][a-zA-Z0-9_]*\\) +\\([0-9]+\\) *" in
     let rec read_info () = try
       let line = input_line input in
 	if Str.string_match re line 0 then begin
