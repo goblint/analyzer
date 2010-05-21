@@ -151,6 +151,9 @@ let inthack = Int64.of_int (-19012009)
 (** number of times that globals change *)
 let globals_changed = ref 0
 
+(** use the old accesses vs. the newer path based heap abstraction *)
+let old_accesses = ref true
+
 (** The file where everything is output *)
 let out = ref stdout
 

@@ -78,10 +78,42 @@ struct
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let guaranteed_local x =
-    match x with
-      | AccEqual (_,v,_)     -> not v.vglob 
-      | AccBase (Some (x,_)) -> not x.vglob
-      | _ -> false
+    let local v = not v.vglob in 
+    let rec refs n x =
+      match x with
+        | AccRef x             -> refs (n+1) x
+        | AccDeref (x,_)       -> refs (n-1) x
+        | AccEqual (x,v,_)     -> (n=0 && local v) || refs n x
+        | AccBase (Some (x,_)) -> (n=0 && local x) 
+        | AccStar x            -> refs (n-1) x
+        | AccBase None         -> false
+    in
+    refs 0 x
+  
+  let may_alias x z =
+    let rec alias_offs x y = 
+      match x, y with
+        | `NoOffset     , `NoOffset -> true
+        | `Index (i,o)  , `Index (j,u) when i=j-> eq_offs o u
+        | `Field (f1,o) , `Field (f2,u) 
+            when f1.fcomp.ckey=f2.fcomp.ckey 
+              && f1.fname=f2.fname 
+            -> eq_offs o u
+        | `Field (f1,o) , _ when not f1.fcomp.cstruct -> true
+        | _, `Field (f1,o)  when not f1.fcomp.cstruct -> true
+        | _ -> false
+    in
+    match x, z with
+      | AccBase (Some (x,o)), AccBase (Some (z,u)) -> x.vid=z.vid && alias_offs o u
+      | AccDeref (x,`NoOffset), AccDeref (z,_)         -> true
+      | AccDeref (x,_)        , AccDeref (z,`NoOffset) -> true
+      | AccDeref (x,o)        , AccDeref (z,u)         -> alias_offs o u
+      | AccDeref (x,`NoOffset), AccBase (Some _)       -> true
+      | AccDeref (x,o)        , AccBase (Some _)       -> false
+      | AccBase (Some _), AccDeref (x,`NoOffset)       -> true
+      | AccBase (Some _), AccDeref (x,o)               -> false
+      | _ -> true
+  
 
 end
 
@@ -760,10 +792,10 @@ struct
     let exp = stripCasts exp in
     let f (mp:Map.t) (st:Accs.t) : Accs.t =
       let acp = Path.from_exp exp in
-      let typ = if read then "Read access from " else "Write access to " in
+(*       let typ = if read then "Read access from " else "Write access to " in *)
       match to_acc acp mp with
         | Some acc when not (Acc.guaranteed_local acc) -> 
-            Messages.report (":: "^typ^Acc.short 80 acc);
+(*             Messages.report (":: "^typ^Acc.short 80 acc); *)
             Accs.add acp st
         | _ -> st
     in
@@ -791,5 +823,22 @@ struct
       | `Bot, _ -> `Bot
       | `Lifted (m,a,b), true  -> add_next (`Lifted (m,f m a,b)) 
       | `Lifted (m,a,b), false -> add_next (`Lifted (m,a,f m b))    
+      
+  let get_acc write d : Acc.t list =
+    let to_acc_list (a:Accs.t) mp =
+      let f xs x =
+        match to_acc x mp with
+          | None   -> xs
+          | Some x -> x::xs 
+      in
+      if Accs.is_top a
+      then (Messages.warn "Access domain broken? It should not be top." ; [])
+      else List.fold_left f [] (Accs.elements a) 
+    in
+    match d, write with
+      | `Bot, _ -> []
+      | `Lifted (mp,r,w), true  -> to_acc_list w mp
+      | `Lifted (mp,r,w), false -> to_acc_list w mp
+    
     
 end

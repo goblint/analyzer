@@ -59,6 +59,11 @@ struct
   let get_diff _ = []
   let reset_diff x = x
   
+  let get_accesses ctx : AccessDomain.Access.t = 
+    match ctx.sub with
+      | [ `Access x ] -> x 
+      | _ -> AccessDomain.Access.top () (*failwith "Dependencies broken for mutex analysis"*)
+  
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
   let rec conv_offset x =
@@ -292,7 +297,35 @@ struct
       | Failure _ -> None
   
   (** Access counting is done using side-effect (accesses added in [add_accesses] and read in [finalize]) : *)
-  
+
+  module Acc2 = Hashtbl.Make (AccessDomain.Acc)
+  module AccKeySet2 = Set.Make (AccessDomain.Acc)
+  module AccValSet2 = Set.Make (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs))
+  let acc2     : AccValSet2.t Acc2.t = Acc2.create 100
+  let accKeys2 : AccKeySet2.t ref    = ref AccKeySet2.empty 
+
+  let add_accesses2 ctx =
+    if !Goblintutil.old_accesses  then () else
+    let loc = !GU.current_loc in
+    let fl = 
+      match ctx.ask Queries.SingleThreaded, ctx.ask Queries.CurrentThreadId with
+        | `Int is_sing, _ when Queries.ID.to_bool is_sing = Some true -> BS.Flag.get_single ()
+        | _,`Int x when  Queries.ID.to_int x = Some 1L -> BS.Flag.get_main ()
+        | _ -> BS.Flag.get_multi ()
+    in
+    let accs_dom   = get_accesses ctx in
+    let accs_read  = AccessDomain.Access.get_acc false accs_dom in
+    let accs_write = AccessDomain.Access.get_acc true  accs_dom in
+    let add_one rv v  =
+      let curr : AccValSet2.t = try Acc2.find acc2 v with _ -> AccValSet2.empty in
+      let neww : AccValSet2.t = AccValSet2.add ((loc,fl,rv),ctx.local,Offs.Bot) curr in
+      Acc2.replace acc2 v neww;
+      accKeys2 := AccKeySet2.add v !accKeys2
+    in
+    List.iter (add_one true ) accs_write ;
+    List.iter (add_one false) accs_read ;
+    ()
+    
   (* 
     Access counting using side-effects: ('|->' is a hash-map)
     
@@ -455,11 +488,13 @@ struct
     let b1 = access_one_top ctx.ask true (Lval lval) in 
     let b2 = access_one_top ctx.ask false rval in
     add_accesses ctx.ask (b1@b2) ctx.local;
+    add_accesses2 ctx;
     ctx.local
     
   let branch ctx exp tv : Dom.t =
     let accessed = access_one_top ctx.ask false exp in
     add_accesses ctx.ask accessed ctx.local;
+    add_accesses2 ctx;
     ctx.local
     
   let return ctx exp fundec : Dom.t =
@@ -469,6 +504,7 @@ struct
           add_accesses ctx.ask accessed ctx.local
       | None -> () 
     end;
+    add_accesses2 ctx;
     ctx.local
         
   let body ctx f : Dom.t = ctx.local
@@ -528,6 +564,7 @@ struct
           let r1 = access_byval ctx.ask false (arg_acc `Read) in
           let a1 = access_reachable ctx.ask   (arg_acc `Write) in
           add_accesses ctx.ask (r1@a1) ctx.local;
+          add_accesses2 ctx;
           [ctx.local, Cil.integer 1, true]
           
   let enter_func ctx lv f args : (Dom.t * Dom.t) list =
@@ -539,6 +576,7 @@ struct
       | Some lval -> access_one_top ctx.ask true (Lval lval) in 
     let read = access_byval ctx.ask false args in
     add_accesses ctx.ask (wr@read) ctx.local; 
+    add_accesses2 ctx;
     al
     
   let fork ctx lv f args = 
@@ -728,10 +766,23 @@ struct
     let acc_info = create_map acc in
     let acc_map = if !unmerged_fields then fst acc_info else regroup_map acc_info in
       OffsMap.iter report_race acc_map
+      
+  let postprocess_acc2 () = 
+     let module PartSet = 
+      struct
+        include SetDomain.Make (AccessDomain.Acc)
+        let  collapse x z = AccessDomain.Acc.may_alias (choose x) (choose z)
+      end 
+     in
+     let module AccPart = PartitionDomain.Make (PartSet) in
+     let part = AccKeySet2.fold (fun k -> AccPart.add (PartSet.singleton k)) !accKeys2 (AccPart.empty ()) in
+     print_endline (sprint 80 (AccPart.pretty () part))
     
   (** postprocess and print races and other output *)
   let finalize () = 
-    AccKeySet.iter postprocess_acc !accKeys;
+    if !GU.old_accesses
+    then AccKeySet.iter postprocess_acc !accKeys
+    else postprocess_acc2 ();
     if !GU.multi_threaded then begin
       if !race_free then 
         print_endline "Goblint did not find any Data Races in this program!";
@@ -747,7 +798,7 @@ module ThreadMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "mutex" 
-                let depends = []
+                let depends = if !Goblintutil.old_accesses then [] else ["access"]
                 type lf = Spec.Dom.t
                 let inject_l x = `Mutex x
                 let extract_l x = match x with `Mutex x -> x | _ -> raise MCP.SpecificationConversionError

@@ -305,7 +305,26 @@ struct
       else if List.mem x.dom_owner y_dep then -1
       else 0
     in
-    analysesListLocal := List.stable_sort ord_dom
+    let rec non_trans_sort comp x =
+      let rec violation x xs =
+        match xs with
+          | []    -> None
+          | y::ys when comp x y <= 0 -> 
+              begin 
+                match violation x ys with
+                  | Some (x,xs) -> Some (x, y::xs)
+                  | None        -> None
+              end
+          | y::ys -> Some (y,x::ys) 
+      in
+      match x with
+        | []    -> []
+        | x::xs -> 
+      match violation x xs with
+        | None        -> x :: non_trans_sort comp xs
+        | Some (y,ys) -> non_trans_sort comp (y::ys)
+    in
+    analysesListLocal := non_trans_sort ord_dom
       ({dom_owner   = C.name;
         matches     = matches;
         top         = Dom.top; 
@@ -329,7 +348,7 @@ struct
         name        = Dom.name; 
         hash        = Dom.hash }
       :: !analysesListLocal);
-    analysesListGlobal := List.stable_sort ord_dom
+    analysesListGlobal := non_trans_sort ord_dom
       ({dom_owner   = C.name;
         matches     = matches_g;
         top         = Glob.Val.top; 
@@ -353,7 +372,7 @@ struct
         name        = Glob.Val.name; 
         hash        = Glob.Val.hash }
       :: !analysesListGlobal );
-    analysesList := List.stable_sort ord_analyses
+    analysesList := non_trans_sort ord_analyses
       ({featurename   = C.name;
         depends_on    = C.depends;
         dom_matches   = matches;
@@ -768,7 +787,13 @@ struct
   let map_tf' ctx tf = 
     let map_one ls t =
       let s = get_matches t in
-      let ds = List.map (fun n -> List.find (fun x -> n = (get_matches x).featurename) ls) s.depends_on in
+      let ds = 
+        let f n =
+          try List.find (fun x -> n = (get_matches x).featurename) ls
+          with Not_found -> failwith ("Dependency '"^n^"' not met, needed by "^s.featurename^".")
+        in
+        List.map f s.depends_on 
+      in
       let new_ctx = new_ctx ctx t ds in
       tf new_ctx::ls
     in
