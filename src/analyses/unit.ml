@@ -4,16 +4,14 @@ open Analyses
 
 module Spec : Analyses.Spec =
 struct
+  include Analyses.DefaultSpec
+
   let name = "Unit analysis"
   module Dom  = Lattice.Unit
   module Glob = Global.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
-  (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t = 
-    Queries.Result.top ()
- 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     ctx.local
@@ -44,14 +42,5 @@ struct
 
   let startstate () = Dom.bot ()
   let otherstate () = Dom.top ()
-
-  let get_diff _ = []
-  let reset_diff x = x
-  
-  let es_to_string f _ = f.svar.vname
-
-  let should_join _ _ = true
-  let finalize () = ()
-  let init () = ()
 end
 

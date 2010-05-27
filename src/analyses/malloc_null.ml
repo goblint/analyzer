@@ -10,18 +10,14 @@ open Analyses
 
 module Spec =
 struct
+  include Analyses.DefaultSpec
+
   module Addr = ValueDomain.Addr
   module Dom  = ValueDomain.AddrSetDomain
   module Glob = Global.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
   
-  let get_diff _ = []
-  let reset_diff x = x
-  
-  (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
-
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
   let rec conv_offset x =
@@ -228,15 +224,12 @@ struct
   
   let name = "Malloc null"
 
-  let finalize () = ()
-  let should_join _ _ = true
   let startstate () = Dom.empty () 
   let otherstate () = Dom.empty ()
-  let es_to_string f _ = f.svar.vname
+  
   let init () = 
     Goblintutil.malloc_may_fail := true; 
     return_addr_ :=  Addr.from_var (makeVarinfo false "RETURN" voidType)
-  
 end
 
 module VarEqMCP = 

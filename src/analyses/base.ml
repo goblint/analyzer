@@ -33,6 +33,8 @@ let is_global (a: Q.ask) (v: varinfo): bool =
 
 module MakeSpec (Flag: ConcDomain.S) =
 struct
+  include Analyses.DefaultSpec
+
   exception Top
   module Flag = Flag
 
@@ -188,8 +190,6 @@ struct
   let init () = 
     return_varstore := makeVarinfo false "RETURN" voidType;
     H.clear heap_hash
-
-  let finalize () = ()
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -799,8 +799,6 @@ struct
        
   (* interpreter end *)
   
-    
-  let should_join _ _ = true 
   let get_fl (_,fl,_) = fl
   
   let hash    (x,y,_)             = Hashtbl.hash (x,y)

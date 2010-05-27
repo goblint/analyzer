@@ -65,7 +65,6 @@ sig
   val compare : t -> t -> int
 end
 
-
 module type Spec = 
 sig
   module Dom : Lattice.S   
@@ -81,6 +80,8 @@ sig
   val finalize: unit -> unit
   (** last function to be called when analyzing using this Spec *)
   
+  val context_top: Dom.t -> Dom.t
+  (** Keeps only context sensitive part, set rest to top. *)
   val should_join: Dom.t -> Dom.t -> bool
   (** sensitivity predicate *)
   val startstate: unit -> Dom.t
@@ -134,6 +135,35 @@ sig
   (** [leave_func q lv f a x y] does postprocessing on the analyzed [enter_func q lv f a x] output [y] -- usually readding some
      context from [x] *)
 
+end
+
+(** Relatively safe default implementations of some boring Spec functions. *)
+module DefaultSpec =
+struct
+  let init     () = ()
+  let finalize () = ()
+  (* no inits nor finalize -- only analyses like Mutex, Base, ... need 
+     these to do postprocessing or other imperative hacks. *)
+  
+  let should_join _ _ = true
+  (* hint for path sensitivity --- MCP overrides this so don't we don't bother. *)
+  
+  let es_to_string f _ = f.svar.vname
+  (* prettier name for equation variables --- currently base can do this and
+     MCP just forwards it to Base.*)
+  
+  let context_top x = x
+  (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
+  
+  let reset_diff x = x
+  let get_diff   _ = []
+  (* Most domains do not have a global part. *)
+  
+  let query _ (q:Queries.t) = Queries.Result.top ()
+  (* Don't know anything --- most will want to redefine this. *)
+  
+  let eval_funvar _ _ = []
+  (* Only base analysis should know this. *)
 end
 
 

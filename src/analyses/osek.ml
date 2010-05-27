@@ -4,6 +4,8 @@ open Analyses
 
 module Spec =
 struct
+  include Analyses.DefaultSpec
+
   module Dom  = Mutex.Spec.Dom
   module Glob = Mutex.Spec.Glob
 

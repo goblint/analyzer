@@ -13,8 +13,9 @@ struct
   type var_assign  = variable -> var_domain
   type glob_assign = global -> glob_domain
   type glob_diff   = (global * glob_domain) list
+  type diff        = [`G of global * glob_domain | `L of variable * var_domain] list
   type calls       = variable list (* spawned calls from thread creation *)
-  type rhs         = var_assign * glob_assign -> var_domain * glob_diff * calls
+  type rhs         = var_assign * glob_assign -> var_domain * diff * calls
   type lhs         = variable
   type constrain   = lhs * rhs  (* constraint is an OCaml keyword *)
   type system      = lhs -> rhs list (* a set of constraints for each variable *)
@@ -40,12 +41,17 @@ struct
         let sigma' x = VMap.find sigma x in
         let theta' x = GMap.find theta x in
         let (d,gs,s) = rhs (sigma',theta') in
-        (* First check that each global delta is included in the global
+        (* First check that each (global) delta is included in the (global)
          * invariant. *)
-        let check_glob (g,gv) = 
-          let gv' = GMap.find theta g in 
-            if not (G.Val.leq gv gv') then 
-              complain_g g gv' gv  in
+        let check_glob = function
+          | `L (l,lv) ->
+            let lv' = VMap.find sigma l in 
+              if not (VDom.leq lv lv') then 
+                complain_l l lv' lv  
+          | `G (g,gv) -> 
+            let gv' = GMap.find theta g in 
+              if not (G.Val.leq gv gv') then 
+                complain_g g gv' gv  in
         let _ = List.iter check_glob gs in
         (* Then we check that the local state satisfies this constraint. *)
           if not (VDom.leq d d') then

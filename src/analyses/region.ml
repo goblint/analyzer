@@ -10,6 +10,8 @@ module BS  = Base.Main
 
 module Spec =
 struct
+  include Analyses.DefaultSpec
+
   module LD     = RegionDomain.LD
   module Lif    = RegionDomain.Lif
   module Var    = RegionDomain.Var
@@ -89,9 +91,6 @@ struct
           else `Lifted (equ,reg), Vars.add (partition_varinfo (), part) gd 
       | x -> x
     
-  
-  let eval_funvar ctx (fv:exp) : varinfo list = 
-    []
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     let rec fold_right2 f xs ys r =
@@ -159,10 +158,7 @@ struct
     `Lifted (Equ.top (), RegMap.bot ()), Vars.empty ()
   
   let name = "Region analysis"
-  let es_to_string f _ = f.svar.vname
 
-  let should_join _ _ = true
-  let finalize () = ()
   let init () = 
     partition_varstore := makeVarinfo false "REGION_PARTITIONS" voidType
     

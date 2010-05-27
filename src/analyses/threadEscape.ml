@@ -6,6 +6,8 @@ module M = Messages
 
 module Spec =
 struct
+  include Analyses.DefaultSpec
+
   let name = "Escaped Variables"
   module Dom  = 
   struct 
@@ -41,9 +43,6 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     ctx.local
-  
-  let eval_funvar ctx (fv:exp) : varinfo list = 
-    []
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     [ctx.local,ctx.local]
@@ -104,15 +103,6 @@ struct
 
   let startstate () = Dom.bot ()
   let otherstate () = Dom.bot ()
-
-  let get_diff _ = []
-  let reset_diff x = x
-  
-  let es_to_string f _ = f.svar.vname
-
-  let should_join _ _ = true
-  let finalize () = ()
-  let init () = ()
 end
 
 module TransparentSignatureHack: Analyses.Spec = Spec

@@ -15,6 +15,8 @@ module Spec =
 struct
   exception Top
   
+  include Analyses.DefaultSpec
+  
   module Dom =
   struct
     include PartitionDomain.ExpPartitions
@@ -30,15 +32,8 @@ struct
 
   let name = "Partition"
 
-  let init () = ()
-  let finalize () = ()
   let startstate = Dom.top 
   let otherstate = Dom.top 
-  let es_to_string f es = f.svar.vname
-      
-  let reset_diff x = x
-  let get_diff   x = []
-  let should_join x y = true
     
   let rec const_equal c1 c2 =
     match c1, c2 with
@@ -398,9 +393,6 @@ struct
   (* Probably ok as is. *)
   let body ctx f = ctx.local
   let fork ctx lval f args = []
-  
-  (* this means that we need base analysis *)
-  let eval_funvar ctx exp = []
 
   (* Branch could be improved to set invariants like base tries to do. *)
   let branch ctx exp tv = ctx.local

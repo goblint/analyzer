@@ -40,17 +40,29 @@ struct
         let local_state = ref (VDom.bot ()) in 
         let constrainOneRHS (f: rhs) =
           let (nls,ngd,tc) = f (vEval (x,f), gEval (x,f)) in
-          let doOneGlobalDelta (g, gstate) = 
-            if not ( GDom.leq gstate (GDom.bot ()) ) then
-              let oldgstate = GMap.find theta g in
-              let compgs = GDom.join oldgstate gstate in
-                if not (GDom.leq compgs oldgstate) then begin
-                  let lst = GMap.find gInfl g in
-                  GMap.replace theta g compgs;
-                  incr Goblintutil.globals_changed;
-                  unsafe := lst @ !unsafe;
-                  GMap.remove gInfl g
-                end
+          let doOneGlobalDelta = function
+            | `L (v, state) ->
+              if not ( VDom.leq state (VDom.bot ()) ) then
+                let oldstate = VMap.find sigma v in
+                let compls = VDom.join oldstate state in
+                  if not (VDom.leq compls oldstate) then begin
+                    let lst = VMap.find vInfl v in
+                    VMap.replace sigma v compls;
+                    unsafe := lst @ !unsafe;
+                    VMap.remove vInfl v
+                  end
+                  
+            | `G (g, gstate) -> 
+              if not ( GDom.leq gstate (GDom.bot ()) ) then
+                let oldgstate = GMap.find theta g in
+                let compgs = GDom.join oldgstate gstate in
+                  if not (GDom.leq compgs oldgstate) then begin
+                    let lst = GMap.find gInfl g in
+                    GMap.replace theta g compgs;
+                    incr Goblintutil.globals_changed;
+                    unsafe := lst @ !unsafe;
+                    GMap.remove gInfl g
+                  end
           in
             List.iter doOneGlobalDelta ngd;
             if !GU.eclipse then show_add_work_buf (List.length tc);

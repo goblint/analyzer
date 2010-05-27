@@ -22,6 +22,8 @@ end
     *)
 module Spec : Analyses.Spec =
 struct
+  include Analyses.DefaultSpec
+
   exception Top
 
   module Dom = MusteqDomain.Equ
@@ -29,18 +31,10 @@ struct
 
   let name = "Equalities"
 
-  let init () = ()
-  let finalize () = ()
   let startstate = Dom.top 
   let otherstate = Dom.top 
-  let es_to_string f es = f.svar.vname
   
   let exp_equal e1 e2 g s = None
-  let query ctx (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
-
-  let reset_diff x = x
-  let get_diff   x = []
-  let should_join x y = true
 
   let return_var = 
     let myvar = makeVarinfo false "RETURN" voidType in
@@ -57,8 +51,6 @@ struct
   let leave_func ctx lval f args st2 = ctx.local
   let special_fn ctx lval f args = []
   let fork       ctx lval f args = []
-  
-  let eval_funvar ctx exp = []
 
 end
 

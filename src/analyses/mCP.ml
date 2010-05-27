@@ -774,6 +774,8 @@ struct
   (* Global difflist functions. *)
   let get_diff st = List.flatten (List.map get_diff' st)
   let reset_diff = List.map reset_diff'  
+  
+  let context_top x = x
 
   (* queries *)
   let rec query_imp ctx q =

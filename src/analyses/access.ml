@@ -5,6 +5,8 @@ module Path = AccessDomain.Path
 
 module Spec =
 struct 
+  include Analyses.DefaultSpec
+
   module Glob = Global.Make (Lattice.Unit)
   module Dom = AccessDomain.Access
   
@@ -13,18 +15,7 @@ struct
   let startstate () = Dom.startstate ()
   let otherstate () = Dom.startstate ()
 
-  let get_diff _ = []
-  let reset_diff x = x
-  
   let name = "Access Analysis"
-  let es_to_string f _ = f.svar.vname
-
-  let should_join _ _ = true
-  let finalize () = ()
-  let init () = ()
-  
-  let query _ _ : Queries.Result.t = 
-    Queries.Result.top ()
 
   (* todo:
      return 

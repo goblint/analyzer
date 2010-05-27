@@ -11,6 +11,8 @@ open Analyses
    it should suffice for tests. *)
 module Spec =
 struct
+  include Analyses.DefaultSpec
+
   exception Top
 
   module Dom = LockDomain.Symbolic
@@ -18,17 +20,8 @@ struct
 
   let name = "Symbolic locks"
 
-  let init     () = ()
-  let finalize () = ()
   let startstate = Dom.top 
   let otherstate = Dom.top 
-  let es_to_string f es = f.svar.vname
-  
-  let reset_diff x = x
-  let get_diff   x = []
-  let should_join x y = true
-  let eval_funvar ctx exp = []
-
 
   let branch ctx exp tv = ctx.local
   let body   ctx f = ctx.local

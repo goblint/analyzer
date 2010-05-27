@@ -9,6 +9,8 @@ open Analyses
 
 module Spec =
 struct
+  include Analyses.DefaultSpec
+
   module Addr = ValueDomain.Addr
   
   module Dom = ValueDomain.AddrSetDomain
@@ -23,16 +25,6 @@ struct
   
   let startstate () : Dom.t = Dom.empty () 
   let otherstate () : Dom.t = Dom.empty ()
-  let es_to_string (f:fundec) (es:Dom.t) : string = f.svar.vname
-  let init () = ()
-  let should_join _ _ = true
-  let finalize () = ()
-    
-  let get_diff _ = []
-  let reset_diff y = y
-  
-  (*  queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
@@ -272,8 +264,6 @@ struct
       | Some exp -> ignore (is_expr_initd ctx.ask exp ctx.local); nst
       | _ -> nst
   
-  
-  let eval_funvar ctx fn = []
   
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     let nst = remove_unreachable ctx.ask args ctx.local in

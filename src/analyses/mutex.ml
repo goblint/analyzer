@@ -40,24 +40,16 @@ let is_ignorable lval =
 (** Data race analyzer without base --- this is the new standard *)  
 module Spec =
 struct  
+  include Analyses.DefaultSpec
 
   (** name for the analysis (btw, it's "Only Mutex Must") *)
   let name = "Only Mutex Must"
-
-  (** a strange function *)
-  let es_to_string f es = f.svar.vname
-  
-  (** no init. needed -- call [BS.init] *)
-  let init () = () 
 
   (** Add current lockset alongside to the base analysis domain. Global data is collected using dirty side-effecting. *)
   module Dom = Lockset
   
   (** We do not add global state, so just lift from [BS]*)
   module Glob = Global.Make (Lattice.Unit)
-  
-  let get_diff _ = []
-  let reset_diff x = x
   
   let get_accesses ctx : AccessDomain.Access.t = 
     match ctx.sub with
@@ -88,8 +80,6 @@ struct
       | Cil.CastE (_,e)           -> replace_elem (v,o) q e
       | _ -> v, Offs.from_offset (conv_offset o)
   
-  (** queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t = Queries.Result.top ()
 
   type access = Concrete of (exp option * Cil.varinfo * Offs.t * bool)
               | Region   of (exp option * Cil.varinfo * Offs.t * bool) 
@@ -471,10 +461,7 @@ struct
                 then add_type_access ask loc ust a 
         in
           List.iter dispatch accessed
-    
-       
-  (** First we consider reasonable joining states if locksets are equal, also we don't expect precision if base state is equal*)
-  let should_join x y = true
+          
   
   (** We just lift start state, global and dependecy functions: *)
   

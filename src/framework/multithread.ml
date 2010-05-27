@@ -38,17 +38,11 @@ struct
   let name = "analyzer"
   let top_query x = Queries.Result.top () 
   
-  let system (cfg: MyCFG.cfg) (var: Var.t) : (Solver.var_assign * Solver.glob_assign -> Solver.var_domain * Solver.glob_diff * Solver.calls) list = 
-    if M.tracing then M.trace "con" (dprintf "%a\n" Var.pretty_trace var);
+  let system (cfg: MyCFG.cfg) (n,es: Var.t) : (Solver.var_assign * Solver.glob_assign -> Solver.var_domain * Solver.diff * Solver.calls) list = 
+    if M.tracing then M.trace "con" (dprintf "%a\n" Var.pretty_trace (n,es));
     
-    (* We can only solve using normal variables *)
-    let (n,es) =      
-      match var with 
-        | (n,es) -> (n,es)
-    in
-
-    let lift_st x forks: Solver.var_domain * Solver.glob_diff * Solver.variable list =
-      let diff = Spec.get_diff x in
+    let lift_st x forks: Solver.var_domain * Solver.diff * Solver.variable list =
+      let diff = List.map (fun x -> `G x) (Spec.get_diff x) in
       let rx = Spec.reset_diff x in
         (SD.lift rx, diff, forks)
     in
@@ -71,7 +65,7 @@ struct
       
       Also we concatenate each [forks lval f args st] for each [f]
       *)
-    let proc_call sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.glob_diff * Solver.variable list =
+    let proc_call sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.diff * Solver.variable list =
       let funs  = Spec.eval_funvar (A.context top_query st theta []) exp in
       let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
       let add_function st' f : Spec.Dom.t =
@@ -97,13 +91,13 @@ struct
     (* For each edge we generate a rhs: a function that takes current state
      * sigma and the global state theta; it outputs the new state, delta, and
      * spawned calls. *)      
-    let edge2rhs (edge, pred : MyCFG.edge * MyCFG.node) (sigma, theta: Solver.var_assign * Solver.glob_assign) : Solver.var_domain * Solver.glob_diff * Solver.variable list = 
+    let edge2rhs (edge, pred : MyCFG.edge * MyCFG.node) (sigma, theta: Solver.var_assign * Solver.glob_assign) : Solver.var_domain * Solver.diff * Solver.variable list = 
       let predvar = (pred, es) in
       (*if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty (sigma predvar))));*)
       
       (* This is the key computation, only we need to set and reset current_loc,
        * see below. We call a function to avoid ;-confusion *)
-      let eval () : Solver.var_domain * Solver.glob_diff * Solver.variable list = 
+      let eval () : Solver.var_domain * Solver.diff * Solver.variable list = 
         try  
           (* Generating the constraints is quite straightforward, except maybe
            * the call case. There is an ALMOST constant lifting and unlifting to

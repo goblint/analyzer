@@ -5,6 +5,8 @@ module Trivial =  ConcDomain.Simple
 
 module Spec =
 struct
+  include Analyses.DefaultSpec
+
   module Dom = Trivial
   module Glob = Global.Make (Lattice.Unit) (* no global state *)
 
@@ -24,10 +26,6 @@ struct
 
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
-  (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t = 
-    Queries.Result.top ()
- 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     ctx.local
@@ -41,9 +39,6 @@ struct
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     ctx.local
   
-  let eval_funvar ctx (fv:exp) : varinfo list = 
-    []
-    
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     [ctx.local,ctx.local]
   
@@ -79,15 +74,7 @@ struct
   let startstate () = Dom.bot ()
   let otherstate () = Dom.top ()
 
-  let get_diff _ = []
-  let reset_diff x = x
-  
   let name = "Thread analysis"
-  let es_to_string f _ = f.svar.vname
-
-  let should_join _ _ = true
-  let finalize () = ()
-  let init () = ()
 end
 
 module ThreadMCP = (* MCP - master control program, see mCP.ml *)
