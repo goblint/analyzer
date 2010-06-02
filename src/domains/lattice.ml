@@ -334,6 +334,41 @@ struct
   
 end
   
+module LiftTop (Base : S) =
+struct
+  include Printable.LiftTop (Base)
+  include StdCousot
+
+  let top () = `Top
+  let is_top x = x = `Top
+  let bot () = `Lifted (Base.bot ())
+  let is_bot x = 
+    match x with 
+      | `Lifted x -> Base.is_bot x
+      | `Top -> false
+
+  let leq x y =
+    match (x,y) with
+      | (_, `Top) -> true
+      | (`Top, _) -> false
+      | (`Lifted x, `Lifted y) -> Base.leq x y
+
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
+
+  let join x y = 
+    match (x,y) with 
+      | (`Top, x) -> `Top
+      | (x, `Top) -> `Top
+      | (`Lifted x, `Lifted y) -> `Lifted (Base.join x y)
+
+  let meet x y = 
+    match (x,y) with 
+      | (`Top, x) -> x
+      | (x, `Top) -> x
+      | (`Lifted x, `Lifted y) -> `Lifted (Base.meet x y) 
+  
+end
                                
   
 module Liszt (Base: S) = 

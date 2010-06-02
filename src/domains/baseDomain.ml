@@ -1,7 +1,7 @@
 module VD     = ValueDomain.Compound
-module CPA    = MapDomain.MapBot (Basetype.Variables) (VD) (*MemoryDomain.Stack (VD)*)
+module CPA    = MapDomain.MapBot_LiftTop (Basetype.Variables) (VD) (*MemoryDomain.Stack (VD)*)
 module Var    = Basetype.Variables    
-module Vars   = SetDomain.Make (Printable.Prod (Var) (VD)) 
+module Vars   = SetDomain.ToppedSet (Printable.Prod (Var) (VD)) (struct let topname = "Unknown diff" end)
 
 (*module VarSet = Ref (Vars)*)
 module Glob = 

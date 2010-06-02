@@ -17,7 +17,7 @@ struct
 
   module VarSet = Set.Make(Var)
   
-  let solve (system: system) (initialvars: variable list): solution' =
+  let solve (system: system) (initialvars: variable list) (start:(variable * var_domain) list): solution' =
     let recal = VMap.create 113 true in
     let sigma = VMap.create 113 (VDom.bot ()) in
     let theta = GMap.create 113 (GDom.bot ()) in
@@ -124,6 +124,7 @@ struct
     GU.may_narrow := true; 
 
     if !GU.eclipse then show_subtask "Widening Phase" 0;  
+    List.iter (fun (v,d) -> VMap.add sigma v d) start ;
     while !globals_changed do
       globals_changed := false;
       

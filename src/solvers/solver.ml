@@ -13,7 +13,7 @@ struct
   type var_assign  = variable -> var_domain
   type glob_assign = global -> glob_domain
   type glob_diff   = (global * glob_domain) list
-  type diff        = [`G of global * glob_domain | `L of variable * var_domain] list
+  type diff        = [`G of (global * glob_domain) | `L of (variable * var_domain)] list
   type calls       = variable list (* spawned calls from thread creation *)
   type rhs         = var_assign * glob_assign -> var_domain * diff * calls
   type lhs         = variable

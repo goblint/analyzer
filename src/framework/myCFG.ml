@@ -1,44 +1,10 @@
-(* 
- * Copyright (c) 2005-2007,
- *     * University of Tartu
- *     * Vesal Vojdani <vesal.vojdani@gmail.com>
- *     * Kalmer Apinis <kalmera@ut.ee>
- *     * Jaak Randmets <jaak.ra@gmail.com>
- *     * Toomas Römer <toomasr@gmail.com>
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- * 
- *     * Redistributions of source code must retain the above copyright notice,
- *       this list of conditions and the following disclaimer.
- * 
- *     * Redistributions in binary form must reproduce the above copyright notice,
- *       this list of conditions and the following disclaimer in the documentation
- *       and/or other materials provided with the distribution.
- * 
- *     * Neither the name of the University of Tartu nor the names of its
- *       contributors may be used to endorse or promote products derived from
- *       this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *)
-
 module GU = Goblintutil
 module CF = Cilfacade
 open Cil
 
 type node = 
   | Statement of stmt 
+  | FunctionEntry of varinfo
   | Function of varinfo 
 
 module Node : Hashtbl.HashedType with type t = node =
@@ -48,11 +14,14 @@ struct
     match x,y with
       | Statement s1, Statement s2 -> s1.sid = s2.sid
       | Function f1, Function f2 -> f1.vid = f2.vid
+      | FunctionEntry f1, FunctionEntry f2 -> f1.vid = f2.vid
       | _ -> false
   let hash x = 
     match x with 
       | Statement s -> Hashtbl.hash (s.sid, 0)
       | Function f -> Hashtbl.hash (f.vid, 1)
+      | FunctionEntry f -> Hashtbl.hash (f.vid, 2)
+
 end
 
 type asm_out = (string option * string * lval) list
@@ -277,6 +246,7 @@ let getLoc (node: node) =
   match node with
     | Statement stmt -> get_stmtLoc stmt.skind
     | Function fv -> fv.vdecl
+    | FunctionEntry fv -> fv.vdecl
 
 let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_index_hack stmt
 
@@ -284,3 +254,4 @@ let getFun (node: node) =
   match node with
     | Statement stmt -> get_containing_function stmt
     | Function fv -> CF.getdec fv
+    | FunctionEntry fv -> CF.getdec fv

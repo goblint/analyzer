@@ -31,9 +31,21 @@ let default_conf () =
                               ;"malloc_null", Build.bool true
                               ;"region"     , Build.bool false
                               ;"var_eq"     , Build.bool false] in
+  let def_ctx = Build.objekt ["base"       , Build.bool true
+                             ;"OSEK"       , Build.bool true
+                             ;"access"     , Build.bool true
+                             ;"thread"     , Build.bool true
+                             ;"escape"     , Build.bool true
+                             ;"mutex"      , Build.bool true
+                             ;"symb_locks" , Build.bool true
+                             ;"uninit"     , Build.bool true
+                             ;"malloc_null", Build.bool true
+                             ;"region"     , Build.bool true
+                             ;"var_eq"     , Build.bool true] in
   Build.objekt ["int_domain" , def_int
                ;"analyses"   , def_ana
                ;"sensitive"  , def_path
+               ;"context"    , def_ctx
                ;"analysis"   , Build.string "mcp"
                ;"solver"     , Build.string "effectWCon" ]
 
@@ -60,6 +72,7 @@ let modify_ana x b =
                  ;"analyses"   , Build.objekt (List.map set_ana_pair anas)
                  ;"sensitive"  , field !conf "sensitive"
                  ;"analysis"   , field !conf "analysis"
+                 ;"context"    , field !conf "context"
                  ;"solver"     , field !conf "solver"] in
   conf := make_table (objekt modif)
   

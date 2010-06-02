@@ -29,7 +29,7 @@ PROG_MODULES = \
 	printable lattice setDomain mapDomain \
 	basetype intDomain lval exp queries addressDomain partitionDomain \
 	arrayDomain structDomain unionDomain valueDomain memoryDomain \
-	musteqDomain regionDomain concDomain lockDomain  baseDomain \
+	musteqDomain regionDomain concDomain lockDomain  baseDomain escapeDomain \
 	accessDomain hash progress myCFG analyses libraryFunctions global \
 	solver effectWCon effectWNCon solverConSideRR solverConSideWNRR \
 	multithread compose mCP access varEq symbLocks thread threadEscape \

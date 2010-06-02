@@ -399,6 +399,46 @@ struct
   let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
+module LiftTop (Base : S) =
+struct
+  type t = [`Top | `Lifted of Base.t ]
+  include Std
+    
+  let lift x = `Lifted x
+    
+  let equal x y = 
+    match (x, y) with
+      | (`Top, `Top) -> true
+      | (`Lifted x, `Lifted y) -> Base.equal x y
+      | _ -> false
+
+  let short w state = 
+    match state with
+      | `Lifted n ->  Base.short w n
+      | `Top -> "top of " ^ (Base.name ())
+
+  let isSimple x = 
+    match x with
+      | `Lifted n -> Base.isSimple n
+      | _ -> true
+
+  let pretty_f _ () (state:t) = 
+    match state with
+      | `Lifted n ->  Base.pretty () n
+      | `Top -> text ("top of " ^ (Base.name ()))
+
+  let toXML_f _ (state:t) =
+    match state with
+      | `Lifted n -> Base.toXML n
+      | `Top -> Xml.Element ("Leaf", ["text","top of " ^ (Base.name ())], [])
+
+  let toXML m = toXML_f short m
+
+  let pretty () x = pretty_f short () x
+  let name () = "top or " ^ Base.name ()
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+end
+
 
 (** Concatenates a list of strings that 
    fit in the given character constraint *)

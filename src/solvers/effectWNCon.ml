@@ -15,7 +15,7 @@ struct
   module SolverTypes = Solver.Types (Var) (VDom) (G)
   include SolverTypes
 
-  let solve (system: system) (initialvars: variable list): solution' =
+  let solve (system: system) (initialvars: variable list) (start:(Var.t * VDom.t) list): solution' =
     let recal = VMap.create 113 true in
     let sigma: VDom.t VMap.t = VMap.create 113 (VDom.bot ()) in
     let theta = GMap.create 113 (GDom.bot ()) in
@@ -131,6 +131,7 @@ struct
     in
       GU.may_narrow := true;
       if !GU.eclipse then show_subtask "Constant Propagation" 0;  
+      List.iter (fun (v,d) -> VMap.add sigma v d) start ;
       while !worklist != [] do
         if !GU.eclipse then show_add_work_buf (List.length !worklist);
         let wl = !worklist in worklist := [];

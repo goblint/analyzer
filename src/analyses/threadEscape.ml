@@ -9,18 +9,7 @@ struct
   include Analyses.DefaultSpec
 
   let name = "Escaped Variables"
-  module Dom  = 
-  struct 
-    include SetDomain.HeadlessSet (Basetype.Variables) 
-    let toXML_f sf x = 
-      match toXML x with
-        | Xml.Element (node, [text, _], elems) -> 
-            let summary = "Escaped Variables: " ^ sf Goblintutil.summary_length x in
-              Xml.Element (node, [text, summary], elems)
-        | x -> x
-        
-    let toXML s  = toXML_f short s
-  end
+  module Dom  = EscapeDomain.EscapedVars
   module Glob = Global.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t

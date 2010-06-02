@@ -26,7 +26,7 @@ struct
     module EWNC = EffectWNCon.Make(Var)(SD)(Spec.Glob)
     module SCSRR= SolverConSideRR.Make(Var)(SD)(Spec.Glob)
     module WNRR = SolverConSideWNRR.Make(Var)(SD)(Spec.Glob)
-    let solve () = 
+    let solve () : system -> variable list -> (variable * var_domain) list -> solution'  = 
       match !GU.solver with 
         | "effectWNCon"     -> EWNC.solve
         | "effectWCon"      -> EWC.solve
@@ -68,21 +68,38 @@ struct
     let proc_call sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.diff * Solver.variable list =
       let funs  = Spec.eval_funvar (A.context top_query st theta []) exp in
       let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
+      let start_vals : Solver.diff ref = ref [] in
       let add_function st' f : Spec.Dom.t =
+        let add_one_call x =
+          let ctx_st = Spec.context_top x in
+          start_vals := (`L ((MyCFG.FunctionEntry f, SD.lift ctx_st), SD.lift x)) :: !start_vals ;
+          sigma (dress (f, ctx_st)) 
+        in
         let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
         if has_dec && not (LibraryFunctions.use_special f.vname) then
           let work = Spec.enter_func (A.context top_query st theta []) lval f args in
           let leave st1 st2 = Spec.leave_func (A.context top_query st1 theta []) lval f args st2 in
-          let general_results = List.map (fun (y,x) -> y, SD.unlift (sigma (dress (f,x)))) work in
+          let general_results = List.map (fun (y,x) -> y, SD.unlift (add_one_call x)) work in
           let joined_result   = List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst tst)) (Spec.Dom.bot ()) general_results in
           Spec.Dom.join st' joined_result        
         else
           let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
           List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (A.context top_query st theta []) lval f args) 
       in
-      let crap  = List.fold_left add_function (Spec.Dom.bot ()) funs in      
-      let forks = List.fold_left (fun xs x -> List.map dress (Spec.fork (A.context top_query st theta []) lval x args) @ xs) [] funs in
-      lift_st crap forks
+      let f xs x =
+        let forks = Spec.fork (A.context top_query st theta []) lval x args in
+        let add_fork_enter (x,es) = 
+          start_vals := (`L ((MyCFG.FunctionEntry x, SD.lift (Spec.context_top es)), SD.lift es)) :: !start_vals 
+        in
+        List.iter add_fork_enter forks;
+        List.map (fun (f,es) -> (MyCFG.Function f, SD.lift (Spec.context_top es))) forks @ xs
+      in
+      try 
+        let crap  = List.fold_left add_function (Spec.Dom.bot ()) funs in      
+        let forks = List.fold_left f [] funs in
+        let (d, diff, forks) = lift_st crap forks in
+        (d,diff @ !start_vals,forks)
+      with Analyses.Deadcode -> (SD.bot (), !start_vals, [])
     in
       
     (* Find the edges entering this edge *)
@@ -103,7 +120,7 @@ struct
            * the call case. There is an ALMOST constant lifting and unlifting to
            * handle the dead code -- maybe it could be avoided  *)
           match edge with
-            | MyCFG.Entry func             -> lift_st (Spec.body   (A.context top_query (SD.unlift es) theta []) func ) []
+            | MyCFG.Entry func             -> lift_st (Spec.body   (A.context top_query (SD.unlift (sigma (MyCFG.FunctionEntry func.svar, es))) theta []) func ) []
             | MyCFG.Assign (lval,exp)      -> lift_st (Spec.assign (A.context top_query (SD.unlift (sigma predvar)) theta []) lval exp) []
             | MyCFG.Test   (exp,tv)        -> lift_st (Spec.branch (A.context top_query (SD.unlift (sigma predvar)) theta []) exp tv) []
             | MyCFG.Ret    (ret,fundec)    -> lift_st (Spec.return (A.context top_query (SD.unlift (sigma predvar)) theta []) ret fundec) []
@@ -194,21 +211,24 @@ struct
     let startstate = 
       if !GU.verbose then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file in
-    let with_ostartstate x = MyCFG.Function x.svar, SD.lift (Spec.otherstate ()) in
+    let with_ostartstate x = x.svar, SD.lift (Spec.otherstate ()) in
     let startvars = match !GU.has_main, funs with 
       | true, f :: fs -> 
-          (MyCFG.Function f.svar, startstate) :: List.map with_ostartstate fs
+          (f.svar, startstate) :: List.map with_ostartstate fs
       | _ -> List.map with_ostartstate funs
     in
+    let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (Spec.context_top (SD.unlift e))) startvars in
+    let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in
+    
     let sol,gs = 
       if !GU.verbose then print_endline "Analyzing!";
-      Stats.time "solver" (Solver.solve () constraints) startvars in
+      Stats.time "solver" (Solver.solve () constraints startvars') entrystates in
     if !GU.verify then begin
       if !GU.verbose then print_endline "Analyzing!";
       Stats.time "verification" (Solver.verify () constraints) (sol,gs)
     end;
     Spec.finalize ();
-    let firstvar = List.hd startvars in
+    let firstvar = List.hd startvars' in
     let mainfile = match firstvar with (MyCFG.Function fn, _) -> fn.vdecl.file | _ -> "Impossible!" in
     if !GU.print_uncalled then
       begin

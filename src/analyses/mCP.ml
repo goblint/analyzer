@@ -730,11 +730,15 @@ struct
      path-sensitive properties. *)
   let take_list = ref []
 
+  (* *)
+  let context_list = ref []
+
   let init () = 
     Dom.init ();
     Glob.Val.init ();
     let specs_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses"))  in
     let sense_ds = JB.make_table (JB.objekt (JB.field !GU.conf "sensitive")) in
+    let context_ds = JB.make_table (JB.objekt (JB.field !GU.conf "context")) in
     let list_order = List.map (fun x -> x.featurename) !analysesList in
     let f s r =
       if JB.bool (JB.field specs_ds s) then JB.bool (JB.field sense_ds s) :: r else r
@@ -742,11 +746,20 @@ struct
     take_list := List.fold_right f list_order [];
     let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
     let uses x = JB.bool (JB.field int_ds x) in
+    context_list := List.fold_right (fun x xs -> if uses x.featurename then JB.bool (JB.field context_ds x.featurename)::xs else xs) !analysesList [];
     List.iter (fun x ->
         if uses x.featurename 
         then x.init ()
         else ()
     ) !analysesList
+
+
+   let context_top x = 
+    let disable_cfg sens el  =
+(*       print_endline ((Dom.get_matches el).dom_owner); *)
+      if sens then el else ((Dom.get_matches el).top ())
+    in
+    List.map2 disable_cfg !context_list x 
 
   let startstate () = Dom.constr_scheme
     (List.map (fun p -> p.startstate) !analysesList)
@@ -775,8 +788,6 @@ struct
   let get_diff st = List.flatten (List.map get_diff' st)
   let reset_diff = List.map reset_diff'  
   
-  let context_top x = x
-
   (* queries *)
   let rec query_imp ctx q =
     let nctx = set_q ctx (query_imp ctx) in

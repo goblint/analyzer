@@ -274,3 +274,76 @@ struct
   let widen  = map2 Range.widen
   let narrow = long_map2 Range.narrow 
 end
+
+exception Fn_over_All of string
+
+module MapBot_LiftTop (Domain: Groupable) (Range: Lattice.S): S with
+  type key = Domain.t and 
+  type value = Range.t (*and 
+  type t = [ `Lifted of Range.t ExtendedMap(Domain).t | `Top ] *)= 
+struct
+  module M = MapBot (Domain) (Range)
+  include Lattice.LiftTop (M) 
+  
+  type key   = M.key
+  type value = M.value
+  
+  let add k v = function
+    | `Top -> `Top
+    | `Lifted x -> `Lifted (M.add k v x)
+    
+  let remove k = function
+    | `Top -> `Top
+    | `Lifted x -> `Lifted (M.remove k x)
+
+  let find k = function
+    | `Top -> Range.top ()
+    | `Lifted x -> M.find k x
+   
+  let mem k = function
+    | `Top -> true
+    | `Lifted x -> M.mem k x
+
+  let map f = function 
+    | `Top -> `Top
+    | `Lifted x -> `Lifted (M.map f x)
+
+  let add_list xs = function
+    | `Top -> `Top
+    | `Lifted x -> `Lifted (M.add_list xs x)
+  
+  let add_list_set ks v = function
+    | `Top -> `Top
+    | `Lifted x -> `Lifted (M.add_list_set ks v x)
+    
+  let add_list_fun ks f = function 
+    | `Top -> `Top
+    | `Lifted x -> `Lifted (M.add_list_fun ks f x)
+    
+  let filter_class i = function
+    | `Top -> `Top
+    | `Lifted x -> `Lifted (M.filter_class i x)
+  
+  let map2 f x y =
+    match x, y with
+      | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
+      | _ -> raise (Fn_over_All "map2")
+
+  let long_map2 f x y =
+    match x, y with
+      | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
+      | _ -> raise (Fn_over_All "long_map2")
+  
+  let for_all f = function
+    | `Top -> raise (Fn_over_All "for_all")
+    | `Lifted x -> M.for_all f x
+    
+  let iter f = function
+    | `Top -> raise (Fn_over_All "iter")
+    | `Lifted x -> M.iter f x
+
+  let fold f x a = 
+    match x with 
+      | `Top -> raise (Fn_over_All "fold")
+      | `Lifted x -> M.fold f x a
+end

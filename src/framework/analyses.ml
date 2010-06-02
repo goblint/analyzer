@@ -21,7 +21,7 @@ type local_state = [
     | `Uninit      of ValueDomain.AddrSetDomain.t
     | `Malloc_null of ValueDomain.AddrSetDomain.t
     | `Thread      of ConcDomain.Simple.t
-    | `Escape      of SetDomain.HeadlessSet (Basetype.Variables).t
+    | `Escape      of EscapeDomain.EscapedVars.t
     | `Region      of RegionDomain.RegionDom.t
     | `OSEK        of LockDomain.Lockset.t
     | `Access      of AccessDomain.Access.t
@@ -173,8 +173,9 @@ struct
 
   let hash x = 
     match x with
-      | (MyCFG.Statement s,d) -> Hashtbl.hash (d, s.sid, 0)
-      | (MyCFG.Function  f,d) -> Hashtbl.hash (d, f.vid, 1)
+      | (MyCFG.Statement     s,d) -> Hashtbl.hash (d, s.sid, 0)
+      | (MyCFG.Function      f,d) -> Hashtbl.hash (d, f.vid, 1)
+      | (MyCFG.FunctionEntry f,d) -> Hashtbl.hash (d, f.vid, 2)
 
   let equal (n1,d1) (n2,d2) = MyCFG.Node.equal n1 n2 && LD.equal d1 d2
       
@@ -182,14 +183,18 @@ struct
 
   let pretty () x =
     match x with
-      | (MyCFG.Statement s,d) -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
-      | (MyCFG.Function  f,d) -> dprintf "call of %s" f.vname
+      | (MyCFG.Statement     s,d) -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
+      | (MyCFG.Function      f,d) -> dprintf "call of %s" f.vname
+      | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.vname
                 
   let pretty_trace () x = dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
 
   let compare (n1,d1) (n2,d2) =
     let comp =
     match n1, n2 with
+      | MyCFG.FunctionEntry f, MyCFG.FunctionEntry g -> compare f.vid g.vid
+      | _                    , MyCFG.FunctionEntry g -> -1 
+      | MyCFG.FunctionEntry g, _                     -> 1
       | MyCFG.Statement _, MyCFG.Function _  -> -1
       | MyCFG.Function  _, MyCFG.Statement _ -> 1
       | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
@@ -206,6 +211,7 @@ struct
     match n with
       | MyCFG.Statement s -> Hashtbl.hash (l, s.sid, 0)
       | MyCFG.Function f -> Hashtbl.hash (l, f.vid, 1)
+      | MyCFG.FunctionEntry f -> Hashtbl.hash (l, f.vid, 2)
 
   let equal (n1,d1) (n2,d2) =
     MyCFG.Node.equal n1 n2 && compareLoc d1 d1 = 0
@@ -216,6 +222,7 @@ struct
     match n with
       | MyCFG.Statement s -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
       | MyCFG.Function f -> dprintf "call of %s" f.vname
+      | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
 
   let pretty_trace () x = 
     dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)

@@ -4,6 +4,8 @@ open Cil
 type node = 
   | Statement of stmt  
   (** The statements as identified by CIL *)
+  | FunctionEntry of varinfo
+  (** *)
   | Function of varinfo  
   (** The variable information associated with the function declaration. *)
 (** A node in the Control Flow Graph is either a statement or function. Think of
