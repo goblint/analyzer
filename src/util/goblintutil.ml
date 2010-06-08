@@ -11,7 +11,7 @@ let default_conf () =
                              ;"interval"   , Build.bool false] in
   let def_ana = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool false
-                             ;"access"     , Build.bool false
+                             ;"access"     , Build.bool true
                              ;"thread"     , Build.bool false
                              ;"escape"     , Build.bool true
                              ;"mutex"      , Build.bool true

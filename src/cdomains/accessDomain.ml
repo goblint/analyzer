@@ -769,7 +769,7 @@ struct
           let r = 
             if Path.is_top new_val
             then kill' lv mp
-            else Map.add lv new_val mp
+            else Map.add lv new_val (remove_exp' ask (AddrOf lhs) mp)
           in
 (*           print_endline (Pretty.sprint 80 (Pretty.dprintf "assign %s <- %a (%a) \n%a \n = \n%a\n" v.vname Path.pretty new_val Path.pretty r_exp Map.pretty mp Map.pretty r)); *)
           r

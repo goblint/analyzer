@@ -290,7 +290,8 @@ struct
 
   module Acc2 = Hashtbl.Make (AccessDomain.Acc)
   module AccKeySet2 = Set.Make (AccessDomain.Acc)
-  module AccValSet2 = Set.Make (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs))
+  module AccVal = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs)
+  module AccValSet2 = Set.Make (AccVal)
   let acc2     : AccValSet2.t Acc2.t = Acc2.create 100
   let accKeys2 : AccKeySet2.t ref    = ref AccKeySet2.empty 
 
@@ -303,6 +304,7 @@ struct
         | _,`Int x when  Queries.ID.to_int x = Some 1L -> BS.Flag.get_main ()
         | _ -> BS.Flag.get_multi ()
     in
+    if not (BS.Flag.is_multi fl) then () else
     let accs_dom   = get_accesses ctx in
     let accs_read  = AccessDomain.Access.get_acc false accs_dom in
     let accs_write = AccessDomain.Access.get_acc true  accs_dom in
@@ -755,15 +757,35 @@ struct
       OffsMap.iter report_race acc_map
       
   let postprocess_acc2 () = 
-     let module PartSet = 
-      struct
-        include SetDomain.Make (AccessDomain.Acc)
-        let  collapse x z = AccessDomain.Acc.may_alias (choose x) (choose z)
-      end 
-     in
-     let module AccPart = PartitionDomain.Make (PartSet) in
-     let part = AccKeySet2.fold (fun k -> AccPart.add (PartSet.singleton k)) !accKeys2 (AccPart.empty ()) in
-     print_endline (sprint 80 (AccPart.pretty () part))
+    let module PartSet = 
+     struct
+       include SetDomain.Make (AccessDomain.Acc)
+       let  collapse x z = AccessDomain.Acc.may_alias (choose x) (choose z)
+     end 
+    in
+    let module AccPart = PartitionDomain.Make (PartSet) in
+    let post_part s =
+      let one_acc (e:AccessDomain.Acc.t) (s:AccValSet2.t) =        
+        try AccValSet2.union (Acc2.find acc2 e) s
+        with Not_found -> s
+      in
+      let aset = PartSet.fold one_acc s AccValSet2.empty in
+      (*  Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs) *)
+      let warnings, jls =
+        let warn_acc ((pos,mfl,rw),ls,os) (xs,m) =
+          let rw  = if rw then "write" else "read" in
+          let mfl = BS.Flag.short 80 mfl in
+          let lss = Lockset.short 80 ls in
+          ((Printf.sprintf "%s in %s with lockset: %s" rw mfl lss, pos) :: xs
+          ,Lockset.join m ls)
+        in
+        AccValSet2.fold warn_acc aset ([], Lockset.bot ())
+      in
+        let warn = "Datarace over " ^ (sprint 80 (PartSet.pretty () s)) in
+        M.print_group warn warnings
+    in
+    let part = AccKeySet2.fold (fun k -> AccPart.add (PartSet.singleton k)) !accKeys2 (AccPart.empty ()) in
+    AccPart.iter post_part part 
     
   (** postprocess and print races and other output *)
   let finalize () = 
