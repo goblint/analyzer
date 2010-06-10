@@ -370,9 +370,16 @@ struct
       | Cil.SizeOfStr _
       | Cil.AlignOf _  
       | Cil.AlignOfE _
-      | Cil.UnOp  _    
-      | Cil.BinOp _ 
-      | Cil.Const _ -> top ()
+      | Cil.Const _ -> bot ()
+      | Cil.UnOp  (_,e,_) -> from_exp e   
+      | Cil.BinOp (_,e1,e2,_) ->
+          let e1p = from_exp e1 in
+          let e2p = from_exp e2 in
+          begin match is_bot e1p, is_bot e2p with
+            | true , _    -> e2p
+            | _    , true -> e1p
+            | _ -> top ()
+          end
       | Cil.AddrOf  (Cil.Var v,o) 
       | Cil.StartOf (Cil.Var v,o) -> Some (Ref (Base (Some (v,offs_from_cil o))))
       | Cil.Lval    (Cil.Var v,o) -> Some (Base (Some (v,offs_from_cil o)))
@@ -826,7 +833,7 @@ struct
       
   let get_acc write d : Acc.t list =
     let to_acc_list (a:Accs.t) mp =
-      let f xs x =
+      let f xs x =  
         match to_acc x mp with
           | None   -> xs
           | Some x -> x::xs 
@@ -838,7 +845,7 @@ struct
     match d, write with
       | `Bot, _ -> []
       | `Lifted (mp,r,w), true  -> to_acc_list w mp
-      | `Lifted (mp,r,w), false -> to_acc_list w mp
+      | `Lifted (mp,r,w), false -> to_acc_list r mp
     
     
 end

@@ -314,6 +314,7 @@ struct
       Acc2.replace acc2 v neww;
       accKeys2 := AccKeySet2.add v !accKeys2
     in
+(*     Messages.report (Printf.sprintf "%d + %d" (List.length accs_write) (List.length accs_read));   *)
     List.iter (add_one true ) accs_write ;
     List.iter (add_one false) accs_read ;
     ()
@@ -771,21 +772,29 @@ struct
       in
       let aset = PartSet.fold one_acc s AccValSet2.empty in
       (*  Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs) *)
-      let warnings, jls =
-        let warn_acc ((pos,mfl,rw),ls,os) (xs,m) =
-          let rw  = if rw then "write" else "read" in
-          let mfl = BS.Flag.short 80 mfl in
+      let warnings, jls, write, bad =
+        let warn_acc ((pos,mfl,rw),ls,os) (xs,m,r,mt) =
+          let rws  = if rw then "write" else "read" in
+          let mfls = BS.Flag.short 80 mfl in
           let lss = Lockset.short 80 ls in
-          ((Printf.sprintf "%s in %s with lockset: %s" rw mfl lss, pos) :: xs
-          ,Lockset.join m ls)
+          ((Printf.sprintf "%s in %s with lockset: %s" rws mfls lss, pos) :: xs
+          ,Lockset.join m ls
+          ,r  || rw
+          ,mt || BS.Flag.is_bad mfl)
         in
-        AccValSet2.fold warn_acc aset ([], Lockset.bot ())
+        AccValSet2.fold warn_acc aset ([], Lockset.bot (), false, false)
       in
-        let warn = "Datarace over " ^ (sprint 80 (PartSet.pretty () s)) in
-        M.print_group warn warnings
+(*        print_endline (sprint 80 (PartSet.pretty () s));
+        print_endline (sprint 80 (Lockset.pretty () jls));
+        printf "%B\n" (Lockset.is_bot jls);
+        printf "%B\n" write;*)
+        if bad && write && (Lockset.is_bot jls) then
+          let warn = "Datarace over " ^ (sprint 80 (PartSet.pretty () s)) in
+          M.print_group warn warnings
     in
     let part = AccKeySet2.fold (fun k -> AccPart.add (PartSet.singleton k)) !accKeys2 (AccPart.empty ()) in
-    AccPart.iter post_part part 
+    AccPart.iter post_part part
+
     
   (** postprocess and print races and other output *)
   let finalize () = 

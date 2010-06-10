@@ -2,6 +2,7 @@ open Cil
 open Analyses
 
 module Path = AccessDomain.Path
+module LF   = LibraryFunctions
 
 module Spec =
 struct 
@@ -52,11 +53,18 @@ struct
       (List.map (fun e -> Dom.add_accsess e true) args)
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+    let arg_acc act = 
+      match LF.get_invalidate_action f.vname with
+        | Some fnc -> (fnc act arglist) 
+        | _ -> []
+    in
     match lval with 
        | None -> 
           let m = 
             List.fold_left (fun x f -> f x) ctx.local
-            (Dom.reset_accs :: List.map (fun e -> Dom.add_accsess e true) arglist)
+            (  Dom.reset_accs 
+            :: List.map (fun e -> Dom.add_accsess e true)  (arg_acc `Write) 
+            @  List.map (fun e -> Dom.add_accsess e false) (arg_acc `Read))
           in       
           [m,Cil.integer 1, true]
       | Some (Var v,o) ->  
@@ -64,7 +72,8 @@ struct
             List.fold_left (fun x f -> f x) ctx.local
             ([ Dom.reset_accs 
              ; Dom.kill (Dom.Lvals.from_var v) ]
-            @ List.map (fun e -> Dom.add_accsess e true) arglist)
+            @ List.map (fun e -> Dom.add_accsess e true)  (arg_acc `Write)
+            @ List.map (fun e -> Dom.add_accsess e false) (arg_acc `Read))
           in       
           [m,Cil.integer 1, true]
        | _ -> [Dom.top (),Cil.integer 1, true] (*i think this should not happen*)
