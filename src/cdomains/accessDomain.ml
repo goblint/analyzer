@@ -72,7 +72,7 @@ struct
   let pretty = pretty_f short
   
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)],[]) 
-  let toXML = toXML_f short
+  let toXML = toXML_f (fun n x -> Goblintutil.escape (short n x))
   
   let why_not_leq () (x,y) = 
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -395,14 +395,24 @@ struct
   module Lvals = Lval.Normal (IntDomain.Integers)
   module Map  = MapDomain.MapTop (Lval.Normal (IntDomain.Integers)) (Path)
   module Accs = SetDomain.ToppedSet (Path) (struct let topname = "totally unsound" end)
-  include Lattice.LiftBot (Lattice.Prod3 (Map) (Accs) (Accs))
+  module Diff = SetDomain.ToppedSet (Printable.Prod (Lvals) (Path)) (struct let topname = "Unknown diff" end)
+
+  include Lattice.LiftBot (Lattice.Prod3 (Lattice.Prod (Map) (Diff)) (Accs) (Accs))
   
-  let startstate () : t = `Lifted (Map.top (), Accs.bot (), Accs.bot ())
+  let startstate () : t = `Lifted ((Map.top (), Diff.bot ()), Accs.bot (), Accs.bot ())
+  
+  let reset_diff = function 
+    | `Top -> `Top
+    | `Lifted ((m,_),a,b) -> `Lifted ((m,Diff.bot ()), Accs.bot (), Accs.bot ())
+    
+  let get_diff  = function
+    | `Top -> Messages.warn "Access information lost."; []
+    | `Lifted ((_,d),_,_) -> Diff.elements d
   
   let lift_fun (f:Map.t -> Map.t) (mp:t) : t = 
     match mp with
     | `Bot -> `Bot
-    | `Lifted (mp,a,b) ->  `Lifted (f mp,a,b)
+    | `Lifted ((mp,d),a,b) ->  `Lifted ((f mp,d),a,b)
 
   let rec const_equal c1 c2 =
     match c1, c2 with
@@ -669,7 +679,7 @@ struct
   let toXML_f sf x = 
     match toXML x with
       | Xml.Element (node, _, 
-          [ Xml.Element (_, _, elems)
+          [ Xml.Element (_, _, _::elems)
           ; Xml.Element (sn, _, ss)
           ; Xml.Element (tn, _, ts)]) 
         -> 
@@ -828,8 +838,8 @@ struct
     then st
     else match st, read with
       | `Bot, _ -> `Bot
-      | `Lifted (m,a,b), true  -> add_next (`Lifted (m,f m a,b)) 
-      | `Lifted (m,a,b), false -> add_next (`Lifted (m,a,f m b))    
+      | `Lifted ((m,d),a,b), true  -> add_next (`Lifted ((m,d),f m a,b)) 
+      | `Lifted ((m,d),a,b), false -> add_next (`Lifted ((m,d),a,f m b))    
       
   let get_acc write d : Acc.t list =
     let to_acc_list (a:Accs.t) mp =
@@ -844,8 +854,8 @@ struct
     in
     match d, write with
       | `Bot, _ -> []
-      | `Lifted (mp,r,w), true  -> to_acc_list w mp
-      | `Lifted (mp,r,w), false -> to_acc_list r mp
+      | `Lifted ((mp,d),r,w), true  -> to_acc_list w mp
+      | `Lifted ((mp,d),r,w), false -> to_acc_list r mp
     
     
 end

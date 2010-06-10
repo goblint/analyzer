@@ -8,7 +8,7 @@ module Spec =
 struct 
   include Analyses.DefaultSpec
 
-  module Glob = Global.Make (Lattice.Unit)
+  module Glob = Global.Make (Path)
   module Dom = AccessDomain.Access
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
@@ -88,7 +88,7 @@ module AccessMCP =
                 let inject_l (x:lf) = (`Access x:MCP.local_state)
                 let extract_l x = match x with `Access x -> x | _ -> raise MCP.SpecificationConversionError
                 type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+                let inject_g x = `Access x
+                let extract_g x = match x with `Access x -> x | _ -> raise MCP.SpecificationConversionError
          end)
 

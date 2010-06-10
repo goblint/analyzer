@@ -67,6 +67,7 @@ let analysesListLocal : local_state domRecord list ref = ref []
 type global_state = [
     | `Base   of BaseDomain.Glob.Val.t
     | `Region of RegionDomain.RegPart.t
+    | `Access of AccessDomain.Path.t
     | `None ]
 
 let analysesListGlobal : global_state domRecord list ref = ref []
