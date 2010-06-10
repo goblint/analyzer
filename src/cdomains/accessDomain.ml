@@ -57,14 +57,14 @@ struct
         | `Field (x,o) -> (if tt then "." else "") ^ (x.fname) ^ (offs_short true o) 
     in
     match x with 
-      | AccRef (AccBase (Some (x, o))) -> "&" ^ short n (AccBase (Some (x, o)))
+      | AccRef (AccBase (Some (x, o))) -> "ref " ^ short n (AccBase (Some (x, o)))
       | AccDeref (AccBase (Some (x, o)),`NoOffset)-> "*"^short n (AccBase (Some (x, o)))
       | AccBase (Some (x, o)) -> x.vname  ^ offs_short true o
       | AccBase None          -> "*" 
       | AccDeref (x,`NoOffset)-> "(*"^short n  x^")"
       | AccDeref (x,o)        -> short n  x ^ "→" ^ offs_short false o
       | AccStar x             -> short n  x ^ "→*"
-      | AccRef x              -> "(&" ^ short n  x ^ ")"
+      | AccRef x              -> "(ref " ^ short n  x ^ ")"
       | AccEqual (a,v,o)      -> "("^short n a^"≡"^v.vname^offs_short true o^")"
 
 
@@ -174,8 +174,8 @@ struct
         | Deref (x,`NoOffset)-> "(*"^to_str x^")"
         | Deref (x,o)        -> to_str x ^ "→" ^ offs_short false o
         | Star x             -> to_str x ^ "→*"
-        | Ref (Base x)       -> "&" ^ to_str (Base x) 
-        | Ref x              -> "(&" ^ to_str x ^ ")"
+        | Ref (Base x)       -> "ref " ^ to_str (Base x) 
+        | Ref x              -> "(ref " ^ to_str x ^ ")"
     in
     match x with
       | None   -> "⊥"
