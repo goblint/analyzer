@@ -3,7 +3,8 @@ open Pretty
 open Cil
 
 (** Add path sensitivity to a analysis *)
-module PathSensitive (Base: Analyses.Spec) =
+module PathSensitive (Base: Analyses.Spec) 
+  : Analyses.Spec =
 struct
   (** the domain is a overloaded set with special join, meet & leq*)
   module Dom = 
