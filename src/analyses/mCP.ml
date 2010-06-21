@@ -88,6 +88,7 @@ type analysisRecord = {
     get_diff : local_state -> (Basetype.Variables.t * global_state) list;
     query: (local_state,Basetype.Variables.t,global_state) ctx -> Queries.t -> Queries.Result.t ;
     assign: (local_state,Basetype.Variables.t,global_state) ctx -> lval -> exp -> local_state ;
+    intrpt: (local_state,Basetype.Variables.t,global_state) ctx -> local_state ;
     branch: (local_state,Basetype.Variables.t,global_state) ctx -> exp -> bool -> local_state;
     body  : (local_state,Basetype.Variables.t,global_state) ctx -> fundec      -> local_state;
     return: (local_state,Basetype.Variables.t,global_state) ctx -> exp option  -> fundec -> local_state;
@@ -206,6 +207,10 @@ struct
     let gl x = C.extract_g (ctx.global x) in
     S.query (set_st_gl ctx st gl) q
   
+  let intrpt ctx = 
+    let st = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    C.inject_l (S.intrpt (set_st_gl ctx st gl))
   let assign ctx lval exp = 
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
@@ -389,6 +394,7 @@ struct
         get_diff      = get_diff;
         query         = query;
         assign        = assign;
+        intrpt        = intrpt;
         branch        = branch;
         body          = body  ;
         return        = return;
@@ -640,6 +646,11 @@ struct
     in
     f (g x)
   
+  let intrpt' ctx = 
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    s.intrpt (set_gl ctx g) 
+
   let assign' ctx lv exp = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
@@ -875,6 +886,7 @@ struct
   let branch ctx exp tv = map_tf' ctx (fun ctx -> branch' ctx exp tv) 
   let assign ctx lv exp = map_tf' ctx (fun ctx -> assign' ctx lv exp) 
   let leave_func ctx r v args = map_tf2 ctx (fun ctx st2 -> leave_func' ctx r v args st2) 
+  let intrpt ctx        = map_tf' ctx (fun ctx -> intrpt' ctx ) 
 
   (* return all unique variables that analyses report *)
   let eval_funvar ctx exp : Cil.varinfo list = 

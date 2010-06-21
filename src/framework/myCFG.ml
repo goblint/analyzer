@@ -35,6 +35,7 @@ type edge =
   | Test of exp * bool
   | ASM of string list * asm_out * asm_in
   | Skip
+  | SelfLoop
 
 type cfg = node -> (edge * node) list
 

@@ -38,6 +38,8 @@ type edge =
     * variables. *)
   | Skip 
   (** This is here for historical reasons. I never use Skip edges! *)
+  | SelfLoop 
+  (** This for interrupt edges.! *)
 
 type cfg = node -> (edge * node) list
 (** The control flow graph is a function that for each node returns the set of

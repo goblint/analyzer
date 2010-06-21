@@ -3,8 +3,7 @@ open Pretty
 open Cil
 
 (** Add path sensitivity to a analysis *)
-module PathSensitive (Base: Analyses.Spec) 
-  : Analyses.Spec =
+module PathSensitive (Base: Analyses.Spec) =
 struct
   (** the domain is a overloaded set with special join, meet & leq*)
   module Dom = 
@@ -112,6 +111,7 @@ struct
   let branch ctx exp br    = lift (fun st -> Base.branch (set_st ctx st) exp br) ctx.local
   let body ctx f           = lift (fun st -> Base.body (set_st ctx st) f) ctx.local
   let return ctx exp f     = lift (fun st -> Base.return (set_st ctx st) exp f) ctx.local
+  let intrpt ctx           = lift (fun st -> Base.intrpt (set_st ctx st)) ctx.local
 
   let special_fn ctx lval f args = 
     let just_d_set (s,_,_) = Dom.singleton s in

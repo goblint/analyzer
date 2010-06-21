@@ -77,10 +77,10 @@ let main () =
                  ("-IK", Arg.String add_include_kernel,  " Add kernel include directory.");
                  ("--includes", Arg.Set_string include_dir, " Uses custom include files.");
                  ("--libc", Arg.Set use_libc, " Merge with a custom implementation of standard libs.");
-                 ("--justcil", Arg.Set justCil, " Just print the transformated CIL output.");
+                 ("--justcil", Arg.Set justCil, " Just print the transformed CIL output.");
                  ("--dopartial", Arg.Set dopartial, " Apply CIL's constant folding and partial evaluation.");
                  ("--cfg", Arg.Set GU.cfg_print, " prints the cfg into cfg.dot.");
-                 ("--debug", Arg.Set GU.debug, " Debug mode: for testing the anlyzer itself.");
+                 ("--debug", Arg.Set GU.debug, " Debug mode: for testing the analyzer itself.");
                  ("--warnings", Arg.Set M.warnings, " Print soundness warnings.");
                  ("--trace", Arg.String set_trace, "<sys>  subsystem to show debug printfs for: con, sol.");
                  ("--stats", Arg.Set Cilutil.printStats, " Outputs timing information.");
@@ -108,7 +108,8 @@ let main () =
                  ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
-		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed programm");
+		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed program");
+                 ("--intrpts", Arg.Set GU.intrpts, " Enable constraints for interrupts.");
                  ] in
   let recordFile fname = 
     fileNames := fname :: (!fileNames) in

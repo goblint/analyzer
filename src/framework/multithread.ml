@@ -101,6 +101,12 @@ struct
         (d,diff @ !start_vals,forks)
       with Analyses.Deadcode -> (SD.bot (), !start_vals, [])
     in
+    let cfg' n = 
+      match n with 
+        | MyCFG.Statement s -> (MyCFG.SelfLoop, n) :: cfg n
+        | _ -> cfg n
+    in
+    let cfg = if !GU.intrpts then cfg' else cfg in
       
     (* Find the edges entering this edge *)
     let edges : (MyCFG.edge * MyCFG.node) list = cfg n in
@@ -122,6 +128,7 @@ struct
           match edge with
             | MyCFG.Entry func             -> lift_st (Spec.body   (A.context top_query (SD.unlift (sigma (MyCFG.FunctionEntry func.svar, es))) theta []) func ) []
             | MyCFG.Assign (lval,exp)      -> lift_st (Spec.assign (A.context top_query (SD.unlift (sigma predvar)) theta []) lval exp) []
+            | MyCFG.SelfLoop               -> lift_st (Spec.intrpt (A.context top_query (SD.unlift (sigma predvar)) theta [])) []
             | MyCFG.Test   (exp,tv)        -> lift_st (Spec.branch (A.context top_query (SD.unlift (sigma predvar)) theta []) exp tv) []
             | MyCFG.Ret    (ret,fundec)    -> lift_st (Spec.return (A.context top_query (SD.unlift (sigma predvar)) theta []) ret fundec) []
             | MyCFG.Proc   (lval,exp,args) -> proc_call sigma theta lval exp args (SD.unlift (sigma predvar)) 

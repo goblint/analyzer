@@ -135,6 +135,8 @@ sig
   (** [leave_func q lv f a x y] does postprocessing on the analyzed [enter_func q lv f a x] output [y] -- usually readding some
      context from [x] *)
 
+  val intrpt: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> Dom.t
+  (** Transfer function for interrupts. *)
 end
 
 (** Relatively safe default implementations of some boring Spec functions. *)
@@ -164,6 +166,9 @@ struct
   
   let eval_funvar _ _ = []
   (* Only base analysis should know this. *)
+
+  let intrpt x = x.local
+  (* Just ignore. *)
 end
 
 

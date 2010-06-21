@@ -145,6 +145,9 @@ let no_read = ref false
 (** Truns off field-sensitivity. *)
 let field_insensitive = ref false
 
+(** Constraints for interrupts. *)
+let intrpts = ref false
+
 (** Avoids the merging of fields, not really sound *)
 let unmerged_fields = ref false
 
