@@ -8,14 +8,26 @@ module Spec =
 struct 
   include Analyses.DefaultSpec
 
-  module Glob = Global.Make (Path)
+  module Glob = Global.Make (AccessDomain.Access.GlobDom)
   module Dom = AccessDomain.Access
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
   let startstate () = Dom.startstate ()
   let otherstate () = Dom.startstate ()
-
+  
+  let reset_diff = function 
+    | `Bot -> `Bot
+    | `Lifted ((m1,_,m2),a,b) -> `Lifted ((m1, Dom.Diff.bot (),m2), a, b)
+    
+  let get_diff (x:Dom.t) : (Glob.Var.t * Glob.Val.t) list = 
+    match x with
+      | `Bot -> Messages.warn "Access information lost."; []
+      | `Lifted ((_,d,_),_,_) -> 
+        let ds = Dom.Diff.elements d in
+(*         List.iter (fun (v,d) -> Messages.report (v.vname ^ " -> " ^ Pretty.sprint 80 (Dom.GlobDom.pretty () d))) ds; *)
+        ds
+  
   let name = "Access Analysis"
 
   (* todo:
@@ -27,14 +39,14 @@ struct
   let assign ctx (lval:lval) (rval:exp) : Dom.t = 
     List.fold_left (fun x f -> f x) ctx.local
       [ Dom.reset_accs 
-      ; Dom.add_accsess rval true 
-      ; Dom.add_accsess (Lval lval) false 
-      ; Dom.assign ctx.ask lval rval ]    
+      ; Dom.add_access rval true ctx.global
+      ; Dom.add_access (Lval lval) false ctx.global
+      ; Dom.assign ctx.ask lval rval ctx.global ]    
     
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
       List.fold_left (fun x f -> f x) ctx.local
       [ Dom.reset_accs 
-      ; Dom.add_accsess exp true ]    
+      ; Dom.add_access exp true ctx.global ]    
       
   let body ctx (f:fundec) : Dom.t =  
     Dom.reset_accs ctx.local
@@ -50,7 +62,19 @@ struct
     
   let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = 
     List.fold_left (fun x f -> f x) au
-      (List.map (fun e -> Dom.add_accsess e true) args)
+      (List.map (fun e -> Dom.add_access e true ctx.global) args)
+(*  
+  let heap_hash    = Hashtbl.create 113 
+
+  let get_heap_var loc = 
+    try H.find heap_hash loc
+    with Not_found ->
+      let name = "(alloc@" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
+      let newvar = makeGlobalVar name voidType in
+        H.add heap_hash loc newvar;
+        newvar
+
+  let heap_var loc = AD.from_var (get_heap_var loc)*)
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let arg_acc act = 
@@ -63,19 +87,25 @@ struct
           let m = 
             List.fold_left (fun x f -> f x) ctx.local
             (  Dom.reset_accs 
-            :: List.map (fun e -> Dom.add_accsess e true)  (arg_acc `Write) 
-            @  List.map (fun e -> Dom.add_accsess e false) (arg_acc `Read))
+            :: List.map (fun e -> Dom.add_access e true ctx.global)  (arg_acc `Write) 
+            @  List.map (fun e -> Dom.add_access e false ctx.global) (arg_acc `Read))
           in       
           [m,Cil.integer 1, true]
-      | Some (Var v,o) ->  
+      | Some (Var v,o) ->
           let m = 
             List.fold_left (fun x f -> f x) ctx.local
             ([ Dom.reset_accs 
-             ; Dom.kill (Dom.Lvals.from_var v) ]
-            @ List.map (fun e -> Dom.add_accsess e true)  (arg_acc `Write)
-            @ List.map (fun e -> Dom.add_accsess e false) (arg_acc `Read))
-          in       
-          [m,Cil.integer 1, true]
+            ; Dom.kill (Dom.Lvals.from_var v) ]
+            @ List.map (fun e -> Dom.add_access e true ctx.global)  (arg_acc `Write)
+            @ List.map (fun e -> Dom.add_access e false ctx.global) (arg_acc `Read))
+          in 
+          begin match f.vname with
+            | "malloc" | "__kmalloc" | "usb_alloc_urb" ->
+                [ Dom.assign ctx.ask (Var v,o) (AddrOf (Var (BaseDomain.get_heap_var !GU.current_loc), NoOffset)) ctx.global m
+                , Cil.integer 1
+                , true ]
+            | _ -> [m,Cil.integer 1, true]
+          end
        | _ -> [Dom.top (),Cil.integer 1, true] (*i think this should not happen*)
 end
 

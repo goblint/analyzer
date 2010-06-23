@@ -29,8 +29,7 @@ let is_immediate_type t = is_mutex_type t || is_fun_type t
 
 let is_global (a: Q.ask) (v: varinfo): bool = 
   v.vglob || match a (Q.MayEscape v) with `Bool tv -> tv | _ -> false
-
-
+   
 module MakeSpec (Flag: ConcDomain.S) =
 struct
   include Analyses.DefaultSpec
@@ -174,22 +173,11 @@ struct
   let return_var () = AD.from_var (return_varinfo ())
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
-  let heap_hash = H.create 113 
-  let heap_counter = ref 0
-
-  let get_heap_var loc = 
-    try H.find heap_hash loc
-    with Not_found ->
-      let name = "(alloc@" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
-      let newvar = makeGlobalVar name voidType in
-        H.add heap_hash loc newvar;
-        newvar
-
-  let heap_var loc = AD.from_var (get_heap_var loc)
+  let heap_var loc = AD.from_var (BaseDomain.get_heap_var loc)
 
   let init () = 
     return_varstore := makeVarinfo false "RETURN" voidType;
-    H.clear heap_hash
+    H.clear BaseDomain.heap_hash
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -909,7 +897,7 @@ struct
       | "calloc" -> 
         begin match lv with
           | Some lv -> 
-              let heap_var = get_heap_var !GU.current_loc in
+              let heap_var = BaseDomain.get_heap_var !GU.current_loc in
                 [map_true (set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
                                            (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (ID.of_int 0L, `NoOffset))))])]
           | _ -> [map_true st]

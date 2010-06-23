@@ -761,7 +761,8 @@ struct
     let module PartSet = 
      struct
        include SetDomain.Make (AccessDomain.Acc)
-       let  collapse x z = AccessDomain.Acc.may_alias (choose x) (choose z)
+       let  collapse x z = 
+          exists (fun x -> exists (AccessDomain.Acc.may_alias x) z) x
      end 
     in
     let module AccPart = PartitionDomain.Make (PartSet) in
@@ -788,7 +789,7 @@ struct
         print_endline (sprint 80 (Lockset.pretty () jls));
         printf "%B\n" (Lockset.is_bot jls);
         printf "%B\n" write;*)
-        if bad && write && (Lockset.is_bot jls) then
+         if bad && write && (Lockset.is_bot jls) then 
           let warn = "Datarace over " ^ (sprint 80 (PartSet.pretty () s)) in
           M.print_group warn warnings
     in
