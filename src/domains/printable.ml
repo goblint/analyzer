@@ -39,6 +39,7 @@ struct
   let pretty_f _ = pretty
   let toXML_f _ = toXML
   let name () = "blank"
+  let why_not_leq () (x,y) = dprintf "Unsupported"
 end
 
 module type Name = sig val name: string end

@@ -1,6 +1,7 @@
 (*
   How to add an analysis to MCP?
-    1) Add a tag to type local_state and if needed global_state. 
+    1) Add a tag to type local_state (in framework/analyses.ml) and if needed
+       global_state (in this file). 
     2) Instanciate the ConvertToMCPPart module. (It will register itself to MCP.)
 
   For example:
