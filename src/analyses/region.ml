@@ -111,7 +111,7 @@ struct
            else [ctx.local,(`Lifted (equ,reg),Vars.add (partition_varinfo (), regpart) gd)]
       | x -> [x,x]
   
-  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     match au with
       | `Lifted (equ, reg), gd -> begin
           let old_regpart = get_regpart ctx.global in

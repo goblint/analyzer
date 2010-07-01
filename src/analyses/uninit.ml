@@ -243,7 +243,6 @@ struct
   (*
     Transfer functions
   *)
-  
   let assign ctx (lval:lval) (rval:exp) : trans_out =
     ignore (is_expr_initd ctx.ask rval ctx.local);
     init_lval ctx.ask lval ctx.local
@@ -269,7 +268,7 @@ struct
     let nst = remove_unreachable ctx.ask args ctx.local in
     [ctx.local, nst]
   
-  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : trans_out =
+  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : trans_out =
     ignore (List.map (fun x -> is_expr_initd ctx.ask x ctx.local) args);
     let cal_st = remove_unreachable ctx.ask args ctx.local in
     let ret_st = Dom.union au (Dom.diff ctx.local cal_st) in

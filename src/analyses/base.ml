@@ -822,6 +822,11 @@ struct
         
   let query ctx (q:Q.t) = 
     match q with
+      | Q.EvalInt e -> begin
+            match eval_rv ctx.ask ctx.global ctx.local e with
+              | `Int e -> (match ID.to_int e with Some i -> `Int i | _ -> `Top) 
+              | _ -> print_endline (sprint 80 (d_exp () e)); `Top
+          end
       | Q.MayPointTo e -> begin
           match eval_rv ctx.ask ctx.global ctx.local e with 
             | `Address a -> `LvalSet (addrToLvalSet a)
@@ -853,7 +858,7 @@ struct
       AD.to_var_may (eval_fv ctx.ask ctx.global ctx.local fval)
     with SetDomain.Unsupported _ -> 
       M.warn ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
-      [dummyFunDec.svar] 
+      [dummyFunDec.svar]
     
   
   let special_fn ctx (lv:lval option) (f: varinfo) (args: exp list) = 
@@ -1031,7 +1036,7 @@ struct
             collect_spawned ctx.ask ctx.global ctx.local args
         end
 
-  let leave_func ctx (lval: lval option) (f: varinfo) (args: exp list) (after: Dom.t) : Dom.t =
+  let leave_func ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: Dom.t) : Dom.t =
     let combine_one (loc,lf,gl as st: Dom.t) ((fun_st,fun_fl,_) as fun_d: Dom.t) = 
       (* This function does miscelaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now

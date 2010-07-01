@@ -97,7 +97,7 @@ type analysisRecord = {
     fork       : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (varinfo * local_state) list  ;
     special_fn : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (local_state * Cil.exp * bool) list;
     enter_func : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (local_state * local_state) list ;
-    leave_func : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> local_state -> local_state
+    leave_func : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> exp -> varinfo -> exp list -> local_state -> local_state
   }
 
 let analysesList : analysisRecord list ref = ref []
@@ -233,6 +233,7 @@ struct
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
     S.eval_funvar (set_st_gl ctx st gl) exp
+
   let fork ctx r f args =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
@@ -248,10 +249,10 @@ struct
     let gl x = C.extract_g (ctx.global x) in
     let r = S.enter_func (set_st_gl ctx st gl) r f args in
     List.map (fun (d1,d2) -> C.inject_l d1, C.inject_l d2) r
-  let leave_func ctx r f args l2 =
+  let leave_func ctx r fexp f args l2 =
     let st1 = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    let r = S.leave_func (set_st_gl ctx st1 gl) r f args (C.extract_l l2) in
+    let r = S.leave_func (set_st_gl ctx st1 gl) r fexp f args (C.extract_l l2) in
     C.inject_l r
     
   let _ = 
@@ -886,7 +887,7 @@ struct
   let body ctx fn       = map_tf' ctx (fun ctx -> body'   ctx fn)
   let branch ctx exp tv = map_tf' ctx (fun ctx -> branch' ctx exp tv) 
   let assign ctx lv exp = map_tf' ctx (fun ctx -> assign' ctx lv exp) 
-  let leave_func ctx r v args = map_tf2 ctx (fun ctx st2 -> leave_func' ctx r v args st2) 
+  let leave_func ctx r fexp v args = map_tf2 ctx (fun ctx st2 -> leave_func' ctx r fexp v args st2) 
   let intrpt ctx        = map_tf' ctx (fun ctx -> intrpt' ctx ) 
 
   (* return all unique variables that analyses report *)

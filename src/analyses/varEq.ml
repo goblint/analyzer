@@ -428,7 +428,7 @@ struct
       | true -> raise Analyses.Deadcode
       | false -> [ctx.local,nst]
   
-  let leave_func ctx lval f args st2 = 
+  let leave_func ctx lval fexp f args st2 = 
     match Dom.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
       | false -> 

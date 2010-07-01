@@ -30,6 +30,7 @@ type t = ExpEq of exp * exp
        | MayEscape of varinfo
        | SingleThreaded       (* result is "boolean" in `Int form *)
        | CurrentThreadId      (* currently "main" -> `Int 1; "other" -> `Top *)
+       | EvalInt of exp
        | TheAnswerToLifeUniverseAndEverything
 
 type result = [

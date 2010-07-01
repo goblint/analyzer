@@ -122,7 +122,11 @@ struct
     let true_exp = (Cil.integer 1) in
     List.map (fun x -> x, true_exp, true) (Dom.fold one_special ctx.local []) 
   
-  let eval_funvar ctx exp = Dom.fold (fun x xs -> (Base.eval_funvar (set_st ctx x) exp) @ xs) ctx.local []
+  let eval_funvar ctx exp : varinfo list = 
+    let f x xs = 
+      Base.eval_funvar (set_st ctx x) exp @ xs
+    in
+    Dom.fold f ctx.local []
   
   let fork ctx lval fn args = 
     let add_spawn st ss =  
@@ -135,10 +139,10 @@ struct
     let add_work wrk_list st = List.map sing_pair (Base.enter_func (set_st ctx st) lval fn args) @ wrk_list in
     List.fold_left add_work [] (Dom.elements ctx.local) 
 
-  let leave_func ctx lval fn args after : Dom.t =
+  let leave_func ctx lval fexp fn args after : Dom.t =
     (* we join as a general case -- but it should have been a singleton anyway *)
     let bbf : Base.Dom.t = Dom.fold Base.Dom.join ctx.local (Base.Dom.bot ()) in
-    let leave_and_join nst result = Dom.join result (Dom.singleton (Base.leave_func (set_st ctx bbf) lval fn args nst)) in
+    let leave_and_join nst result = Dom.join result (Dom.singleton (Base.leave_func (set_st ctx bbf) lval fexp fn args nst)) in
     Dom.fold leave_and_join after (Dom.bot ())    
 end
 

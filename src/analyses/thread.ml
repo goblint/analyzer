@@ -23,7 +23,6 @@ struct
       | [(v,_)] -> Some v
       | _ -> None
 
-
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
   (* transfer functions *)
@@ -42,7 +41,7 @@ struct
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     [ctx.local,ctx.local]
   
-  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     au
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =

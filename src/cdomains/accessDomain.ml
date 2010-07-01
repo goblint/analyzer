@@ -13,128 +13,9 @@ type acc = AccBase  of (varinfo * (fieldinfo, int64) offs) option
          | AccRef   of acc
          | AccEqual of acc * varinfo * (fieldinfo, int64) offs
          
-module Acc =
-struct
-  type t = acc
+let is_global (a: Queries.ask) (v: varinfo): bool = 
+  v.vglob || match a (Queries.MayEscape v) with `Bool tv -> tv | _ -> false
   
-  let hash (x:t) = Hashtbl.hash x
-  
-  let compare (x:t) (y:t) = Pervasives.compare x y
-  
-  let name () = "Access"
-  
-  let rec eq_offs x y = 
-    match x, y with
-      | `NoOffset     , `NoOffset -> true
-      | `Index (i,o)  , `Index (j,u) when i=j-> eq_offs o u
-      | `Field (f1,o) , `Field (f2,u) 
-          when f1.fcomp.ckey=f2.fcomp.ckey && f1.fname = f2.fname 
-          -> eq_offs o u
-      | _ -> false
-  
-  let lval_eq x y = 
-    match x, y with
-      | None, None             -> true
-      | Some (x,o), Some (y,i) -> x.vid=y.vid && eq_offs o i
-      | _                      -> false
-
-  let rec equal x y =
-    match x, y with
-      | AccBase x       , AccBase  y       -> lval_eq x y
-      | AccDeref (x,o)  , AccDeref (y,i)   -> eq_offs o i && equal x y
-      | AccStar x       , AccStar y        -> equal x y
-      | AccRef x        , AccRef y         -> equal x y
-      | AccEqual (x,z,y), AccEqual (a,b,c) -> z.vid = b.vid && eq_offs y c && equal x a
-      | _ -> false
-
-  let isSimple _ = true
-  
-  let rec short n x =
-    let rec offs_short tt x = 
-      match x with 
-        | `NoOffset -> ""
-        | `Index (x,o) -> "[" ^ (Int64.to_string x) ^ "]" ^ (offs_short true o) 
-        | `Field (x,o) -> (if tt then "." else "") ^ (x.fname) ^ (offs_short true o) 
-    in
-    match x with 
-      | AccRef (AccBase (Some (x, o))) -> "&" ^ short n (AccBase (Some (x, o)))
-      | AccDeref (AccBase (Some (x, o)),`NoOffset)-> "*"^short n (AccBase (Some (x, o)))
-      | AccBase (Some (x, o)) -> x.vname  ^ offs_short true o
-      | AccBase None          -> "*" 
-      | AccDeref (x,`NoOffset)-> "(*"^short n  x^")"
-      | AccDeref (x,o)        -> short n  x ^ "→" ^ offs_short false o
-      | AccStar x             -> short n  x ^ "→*"
-      | AccRef x              -> "(&" ^ short n  x ^ ")"
-      | AccEqual (a,v,o)      -> "("^short n a^"≡"^v.vname^offs_short true o^")"
-
-
-  let pretty_f sf () x = Pretty.text (sf 80 x)
-  let pretty = pretty_f short
-  
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)],[]) 
-  let toXML = toXML_f (fun n x -> Goblintutil.escape (short n x))
-  
-  let why_not_leq () (x,y) = 
-    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-  let guaranteed_local x =
-    let local v = not v.vglob in 
-    let rec refs n x =
-      match x with
-        | AccRef x             -> refs (n+1) x
-        | AccDeref (x,_)       -> refs (n-1) x
-        | AccEqual (x,v,_)     -> (n=0 && local v) || refs n x
-        | AccBase (Some (x,_)) -> (n=0 && local x) 
-        | AccStar x            -> refs (n-1) x
-        | AccBase None         -> false
-    in
-    refs 0 x
-  
-  
-  let rec must_compiletime_constant (x:t) : bool = 
-    match x with
-      | AccRef _         -> true      
-      | AccEqual (x,_,_) -> must_compiletime_constant x
-      | _                -> false
-
-  let rec norm x = 
-    match x with
-      | AccEqual (e, _, _) -> e
-      | AccDeref (e, `NoOffset) ->
-          begin match norm e with
-            | AccRef x -> x
-            | e -> AccDeref (e, `NoOffset)
-          end
-      | x -> x 
-  
-  let may_alias x z =
-    let x, z = norm x, norm z in
-    let rec alias_offs x y = 
-      match x, y with
-        | `NoOffset     , `NoOffset -> true
-        | `Index (i,o)  , `Index (j,u) when i=j-> eq_offs o u
-        | `Field (f1,o) , `Field (f2,u) 
-            when f1.fcomp.ckey=f2.fcomp.ckey 
-              && f1.fname=f2.fname 
-            -> eq_offs o u
-        | `Field (f1,o) , _ when not f1.fcomp.cstruct -> true
-        | _, `Field (f1,o)  when not f1.fcomp.cstruct -> true
-        | _ -> false
-    in
-    match x, z with
-      | AccBase (Some (x,o))  , AccBase (Some (z,u))   -> x.vid=z.vid && alias_offs o u
-      | AccDeref (x,`NoOffset), AccDeref (z,_)         -> true
-      | AccDeref (x,_)        , AccDeref (z,`NoOffset) -> true
-      | AccDeref (x,o)        , AccDeref (z,u)         -> alias_offs o u
-      | AccDeref (x,`NoOffset), AccBase (Some _)       -> true
-      | AccDeref (x,o)        , AccBase (Some _)       -> false
-      | AccBase (Some _), AccDeref (x,`NoOffset)       -> true
-      | AccBase (Some _), AccDeref (x,o)               -> false
-      | _ -> true
-  
-
-end
-
 module Path = 
 struct
   type t = pth option
@@ -157,7 +38,22 @@ struct
       | None, None             -> true
       | Some (x,o), Some (y,i) -> x.vid=y.vid && eq_offs o i
       | _                      -> false
+  
+  let rec offs_from_cil ask o =
+    match o with
+      | NoOffset    -> `NoOffset
+      | Field (f,o) -> `Field (f,offs_from_cil ask o)
+      | Index (i,o) -> 
+    match ask (Queries.EvalInt i) with
+      | `Int i -> `Index (i, offs_from_cil ask o)
+      | _      -> `NoOffset
 
+  let rec append_ofs v o =
+    match v with
+      | `NoOffset     -> o
+      | `Index (x, v) -> `Index (x, append_ofs v o)
+      | `Field (x, v) -> `Field (x, append_ofs v o)
+      
   let rec equal' x y =
     match x, y with
       | Base x     , Base  y     -> lval_eq x y
@@ -304,28 +200,16 @@ struct
       | Some x, Some y -> Some (meet' x y)
       | _ -> None
       
-  let from_lval (lv:lval) : t =
-    let rec offs_from_cil o =
-      match o with
-        | NoOffset    -> `NoOffset
-        | Field (f,o) -> `Field (f,offs_from_cil o)
-        | Index (i,o) -> `Index (0L, offs_from_cil o)
-    in 
+  let from_lval ask (lv:lval) : t =
     match lv with
-      | Var x, o -> Some (Base (Some (x,offs_from_cil o)))
+      | Var x, o -> Some (Base (Some (x,offs_from_cil ask o)))
       | Mem e, o -> bot ()
   
   let add_ofs x o =
-    let rec add_offset x y =
-      match x with
-        | `NoOffset -> y
-        | `Index (i,o) -> `Index (i, add_offset o y)
-        | `Field (f,o) -> `Field (f, add_offset o y)
-    in
     match x with
-      | Base (Some (x,u)) -> Base (Some (x, add_offset u o))
+      | Base (Some (x,u)) -> Base (Some (x, append_ofs u o))
       | Base None   -> Base None
-      | Deref (x,u) -> Deref (x, add_offset u o)
+      | Deref (x,u) -> Deref (x, append_ofs u o)
       | Star x      -> Star  x
       | Ref x       -> Base None
   
@@ -366,19 +250,14 @@ struct
     in
 (*     print_endline (sprint 80 (dprintf "%a[%s↦%a] = %a" pretty x (v.vname^offs_short true o) pretty y pretty r)); *)
     r
+  
     
-  let rec from_exp (e:exp) : t =
-    let rec offs_from_cil o =
-      match o with
-        | NoOffset    -> `NoOffset
-        | Field (f,o) -> `Field (f,offs_from_cil o)
-        | Index (i,o) -> `Index (0L, offs_from_cil o)
-    in
+  let rec from_exp ask (e:exp) : t =
     let addr e o =
-      match from_exp e with
-        | Some (Base None) -> Some (Deref (Base None,offs_from_cil o))
+      match from_exp ask e with
+        | Some (Base None) -> Some (Deref (Base None,offs_from_cil ask o))
         | None   -> None
-        | Some x -> Some (Deref (x,offs_from_cil o))
+        | Some x -> Some (Deref (x,offs_from_cil ask o))
     in
     let add_ref x =
       match x with Some x -> Some (add_ref x) | x -> x 
@@ -390,24 +269,172 @@ struct
       | Cil.AlignOf _  
       | Cil.AlignOfE _
       | Cil.Const _ -> top ()
-      | Cil.UnOp  (_,e,_) -> from_exp e   
+      | Cil.UnOp  (_,e,_) -> from_exp ask e   
+      | Cil.BinOp (Cil.IndexPI, e, i, _) when isConstant i ->
+          let io = 
+            match ask (Queries.EvalInt i) with 
+              | `Int i -> `Index (i, `NoOffset)
+              | _ -> `NoOffset
+          in
+          begin match from_exp ask e with
+            | Some (Base (Some (x, v))) -> Some (Base (Some (x, append_ofs v io)))
+            | e -> e      
+          end
       | Cil.BinOp (_,e1,e2,_) ->
-          let e1p = from_exp e1 in
-          let e2p = from_exp e2 in
+          let e1p = from_exp ask e1 in
+          let e2p = from_exp ask e2 in
           begin match isConstant e1, isConstant e2 with
             | true , _    -> e2p
             | _    , true -> e1p
             | _ -> top ()
           end
       | Cil.AddrOf  (Cil.Var v,o) 
-      | Cil.StartOf (Cil.Var v,o) -> Some (Ref (Base (Some (v,offs_from_cil o))))
-      | Cil.Lval    (Cil.Var v,o) -> Some (Base (Some (v,offs_from_cil o)))
+      | Cil.StartOf (Cil.Var v,o) -> Some (Ref (Base (Some (v,offs_from_cil ask o))))
+      | Cil.Lval    (Cil.Var v,o) -> Some (Base (Some (v,offs_from_cil ask o)))
       | Cil.AddrOf  (Cil.Mem e,o) 
       | Cil.StartOf (Cil.Mem e,o) -> add_ref (addr e o) 
       | Cil.Lval    (Cil.Mem e,o) -> addr e o
-      | Cil.CastE (_,e)           -> from_exp e 
+      | Cil.CastE (_,e)           -> from_exp ask e 
 
 end      
+
+module Acc =
+struct
+  type t = acc
+  
+  let hash (x:t) = Hashtbl.hash x
+  
+  let compare (x:t) (y:t) = Pervasives.compare x y
+  
+  let name () = "Access"
+  
+  let rec eq_offs x y = 
+    match x, y with
+      | `NoOffset     , `NoOffset -> true
+      | `Index (i,o)  , `Index (j,u) when i=j-> eq_offs o u
+      | `Field (f1,o) , `Field (f2,u) 
+          when f1.fcomp.ckey=f2.fcomp.ckey && f1.fname = f2.fname 
+          -> eq_offs o u
+      | _ -> false
+  
+  let lval_eq x y = 
+    match x, y with
+      | None, None             -> true
+      | Some (x,o), Some (y,i) -> x.vid=y.vid && eq_offs o i
+      | _                      -> false
+
+  let rec equal x y =
+    match x, y with
+      | AccBase x       , AccBase  y       -> lval_eq x y
+      | AccDeref (x,o)  , AccDeref (y,i)   -> eq_offs o i && equal x y
+      | AccStar x       , AccStar y        -> equal x y
+      | AccRef x        , AccRef y         -> equal x y
+      | AccEqual (x,z,y), AccEqual (a,b,c) -> z.vid = b.vid && eq_offs y c && equal x a
+      | _ -> false
+
+  let isSimple _ = true
+  
+  let rec short n x =
+    let rec offs_short tt x = 
+      match x with 
+        | `NoOffset -> ""
+        | `Index (x,o) -> "[" ^ (Int64.to_string x) ^ "]" ^ (offs_short true o) 
+        | `Field (x,o) -> (if tt then "." else "") ^ (x.fname) ^ (offs_short true o) 
+    in
+    match x with 
+      | AccRef (AccBase (Some (x, o))) -> "(&" ^ short n (AccBase (Some (x, o))) ^")"
+      | AccDeref (AccBase (Some (x, o)),`NoOffset)-> "*"^short n (AccBase (Some (x, o)))
+      | AccBase (Some (x, o)) -> x.vname  ^ offs_short true o
+      | AccBase None          -> "*" 
+      | AccDeref (x,`NoOffset)-> "(*"^short n  x^")"
+      | AccDeref (x,o)        -> short n  x ^ "→" ^ offs_short false o
+      | AccStar x             -> short n  x ^ "→*"
+      | AccRef x              -> "(&" ^ short n  x ^ ")"
+      | AccEqual (a,v,o)      -> "("^short n a^"≡"^v.vname^offs_short true o^")"
+
+
+  let pretty_f sf () x = Pretty.text (sf 80 x)
+  let pretty = pretty_f short
+  
+  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)],[]) 
+  let toXML = toXML_f (fun n x -> Goblintutil.escape (short n x))
+  
+  let why_not_leq () (x,y) = 
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+  let guaranteed_local ask x =
+    let local v = not (is_global ask v) in 
+    let rec refs n x =
+      match x with
+        | AccRef x             -> refs (n+1) x
+        | AccDeref (x,_)       -> refs (n-1) x
+        | AccEqual (x,v,_)     -> (n=0 && local v) || refs n x
+        | AccBase (Some (x,_)) -> (n=0 && local x) 
+        | AccStar x            -> refs (n-1) x
+        | AccBase None         -> false
+    in
+    refs 0 x
+  
+  let rec norm x = 
+    match x with
+      | AccEqual (e, _, _) -> norm e 
+      | AccDeref (e, `NoOffset) ->
+          begin match norm e with
+            | AccRef x -> x
+            | e -> AccDeref (e, `NoOffset)
+          end
+      | AccDeref (e, o) ->
+          begin match norm e with
+            | AccRef (AccDeref (x, u))       -> AccDeref (x, Path.append_ofs u o)
+            | AccRef (AccBase (Some (x, u))) -> AccBase (Some (x, Path.append_ofs u o))
+            | e -> AccDeref (e, o)
+          end
+      | AccRef x -> AccRef (norm x)
+      | x -> x 
+
+  let rec must_compiletime_constant (x:t) : bool = 
+    let rec f x = 
+      match norm x with
+        | AccRef _         -> true      
+        | AccEqual (x,_,_) -> f x
+        | _                -> false
+    in
+    f x
+(*     if f x then ((Messages.report (sprint 80 (pretty () x)));true) else false *)
+ 
+  let may_alias x z =
+    let x, z = norm x, norm z in
+(*    print_string (sprint 80 (pretty () x));
+    print_string " vs. " ;
+    print_endline (sprint 80 (pretty () z));*)
+    let rec alias_offs x y = 
+      match x, y with
+        | `NoOffset     , _         -> true
+        | _             , `NoOffset -> true
+        | `Index (i,o)  , `Index (j,u) when i=j-> eq_offs o u
+        | `Field (f1,o) , `Field (f2,u) 
+            when f1.fcomp.ckey=f2.fcomp.ckey 
+              && f1.fname=f2.fname 
+            -> eq_offs o u
+        | `Field (f1,o) , _ when not f1.fcomp.cstruct -> true
+        | _, `Field (f1,o)  when not f1.fcomp.cstruct -> true
+        | _ -> false
+    in
+    match x, z with
+      | AccBase (Some (x,o))  , AccBase (Some (z,u))   -> x.vid=z.vid && alias_offs o u
+      | AccDeref (x,`NoOffset), AccDeref (z,_)         -> true
+      | AccDeref (x,_)        , AccDeref (z,`NoOffset) -> true
+      | AccDeref (x,o)        , AccDeref (z,u)         -> alias_offs o u
+      | AccDeref (x,`NoOffset), AccBase (Some _)       -> true
+      | AccDeref (x,o)        , AccBase (Some (_,`NoOffset)) -> false
+      | AccDeref (x,o)        , AccBase (Some _)             -> true
+      | AccBase (Some _)            , AccDeref (y,`NoOffset) -> true
+      | AccBase (Some (x,`NoOffset)), AccDeref (y,o)         -> false
+      | AccBase (Some _)            , AccDeref (y,o)         -> true
+      | _ -> true
+  
+
+end
 
 module Access =
 struct 
@@ -715,52 +742,51 @@ struct
       
   let toXML s = toXML_f short s 
   
-  exception AccPathBot
+(*   exception AccPathBot *)
   (* extend the Base as long as possible *)
-  let to_acc (p : Path.t) mp (f: Basetype.Variables.t -> GlobDom.t) : acc option =
-    let rec to_acc' p mp =
+  let to_acc ask (p : Path.t) mp (f: Basetype.Variables.t -> GlobDom.t) : acc list =
+    let rec to_acc' p (b:bool) : acc list  =
       match p with
-        | Base None -> AccBase None
-        | Deref (Base (Some (x, `NoOffset)),`NoOffset) when x.vglob ->
+        | Base None -> []
+        | Deref (Base (Some (x, u)),`NoOffset) when is_global ask x ->
             begin match f x with             
-              | Some (Base None), s when not (MaySet.is_top s) && MaySet.cardinal s = 1 -> 
-                  begin match Lvals.to_var_offset (MaySet.choose s) with
-                    | [v, o] -> AccBase (Some (v, o))
-                    | _ -> AccBase (Some (x, `NoOffset))
+              | Some (Base None), s when not (MaySet.is_top s)-> 
+                  begin match List.flatten (List.map Lvals.to_var_offset (MaySet.elements s)) with
+                    | [] -> AccDeref (AccBase (Some (x, u)), `NoOffset) :: []
+                    | xs -> 
+                      List.map (fun (v,o) -> AccBase (Some (v, Path.append_ofs u o))) xs
                   end 
-              | _ -> AccDeref (to_acc' (Base (Some (x, `NoOffset))) mp, `NoOffset)
+              | _ -> List.map (fun x -> AccDeref (x, `NoOffset)) (to_acc' (Base (Some (x, u))) false) 
             end
-        | Base (Some (x, `NoOffset)) when x.vglob -> 
+        | Base (Some (x, `NoOffset)) when is_global ask x -> 
             begin match f x with             
               | None, mp-> 
-                  raise AccPathBot
-              | Some (Base None), s when not (MaySet.is_top s) && MaySet.cardinal s = 1 -> 
-                  begin match Lvals.to_var_offset (MaySet.choose s) with
-                    | [v, o] -> AccRef (AccBase (Some (v, o)))
-                    | _ -> AccBase (Some (x, `NoOffset))
+                  []
+              | Some (Base None), s when not (MaySet.is_top s) -> 
+                  begin match List.flatten (List.map Lvals.to_var_offset (MaySet.elements s)) with
+                    | [] -> AccBase (Some (x, `NoOffset)) :: []
+                    | xs -> 
+                      (if b then fun z -> AccBase (Some (x, `NoOffset)) :: z else fun z -> z )
+                      (List.map (fun x -> AccRef (AccBase (Some x))) xs)
                   end               
               | Some (Base None), mp -> 
-(*                   Messages.report (sprint 80 (GlobDom.pretty () (Some (Base None), mp))); *)
-                  AccBase (Some (x, `NoOffset))
+                  AccBase (Some (x, `NoOffset)) :: []
               | Some xp, _ ->
-(*                   let r = to_acc' xp mp in *)
-(*                   Messages.report (Acc.short 80 r); *)
-                  AccEqual (to_acc' xp mp, x, `NoOffset)
+                  List.map (fun y -> AccEqual (y, x, `NoOffset)) (to_acc' xp b)
             end
         | Base (Some (x, o)) -> 
             begin match MustMap.find (Lvals.from_var_offset (x,o)) mp with
-              | Some (Base None) -> AccBase (Some (x, o))
-              | Some xp          -> AccEqual (to_acc' xp mp, x, o)
-              | None             -> raise AccPathBot
+              | Some (Base None) -> AccBase (Some (x, o)) :: []
+              | Some xp          -> List.map (fun y -> AccEqual (y, x, o)) (to_acc' xp b)
+              | None             -> []
             end
-        | Star x      -> AccStar  (to_acc' x mp)
-        | Deref (x,o) -> AccDeref (to_acc' x mp, o)
-        | Ref x       -> AccRef   (to_acc' x mp)
+        | Star x      -> List.map (fun y -> AccStar  y)     (to_acc' x true)
+        | Deref (x,o) -> List.map (fun y -> AccDeref (y,o)) (to_acc' x false)
+        | Ref x       -> List.map (fun y -> AccRef   y)     (to_acc' x true)
     in
-    try match p with
-      | Some p -> Some (to_acc' p mp)
-      | None   -> None 
-    with AccPathBot -> None
+      match p with
+        | Some p -> to_acc' p true
+        | None   -> [] 
    
 
   (* remove *-s from right hand sides in the map *)
@@ -788,7 +814,13 @@ struct
           MustMap.map subst_old (MustMap.remove v mp) , d
       | _ -> MustMap.top (), d
   
-  let kill v = lift_fun (kill' v)
+  let kill v mp = 
+    match mp with
+      | `Bot -> `Bot
+      | `Lifted ((mp,d,mm),a,b) ->  
+          let nmp, nd = kill' v mp d in
+          let nmm = MayMap.remove v mm in 
+          `Lifted ((nmp, nd, nmm), a, b)
 
   (* Remove elements, that would change if the given lval would change.*)
   let remove_exp' ask (e:exp) (st:MustMap.t) (d:Diff.t) : MustMap.t * Diff.t =
@@ -825,19 +857,19 @@ struct
       with Not_found -> Path.top ()
     in
     match lhs with
-      | (Var v,NoOffset) when v.vglob -> 
+      | (Var v,NoOffset) when is_global ask v -> 
         let rlv = (v, `NoOffset) in
         let lv = Lvals.from_var_offset rlv in 
-        let r_exp = Path.from_exp rhs in
+        let r_exp = Path.from_exp ask rhs in
         let new_val = Path.subst_base_var r_exp rlv (get_val lv mp) in
         kill' lv mp (Diff.add (v, (new_val,MaySet.bot ())) d)
-      | (Var v,n) when v.vglob -> 
+      | (Var v,n) when is_global ask v -> 
         mp, (Diff.add (v, (Path.top (),MaySet.bot ())) d)
       | (Var v,o) -> 
         begin
           let rlv = (v, offs_from_cil o) in
           let lv = Lvals.from_var_offset rlv in 
-          let r_exp = Path.from_exp rhs in
+          let r_exp = Path.from_exp ask rhs in
           let new_val = Path.subst_base_var r_exp rlv (get_val lv mp) in
           let r = 
             if Path.is_top new_val
@@ -853,12 +885,6 @@ struct
         v
 
   let assign_may ask (lhs:lval) (rhs:exp) (mp:MayMap.t) gs df : MayMap.t * Diff.t =
-    let rec offs_from_cil o =
-      match o with
-        | NoOffset    -> `NoOffset
-        | Field (f,o) -> `Field (f,offs_from_cil o)
-        | Index (i,o) -> `Index (0L, offs_from_cil o)
-    in 
     let rec from_exp e = 
       match e with
         | AlignOf _ | AlignOfE _
@@ -867,22 +893,36 @@ struct
             MaySet.bot ()
         | CastE (_,e) -> from_exp e 
         | AddrOf (Var v, o) -> 
-            MaySet.singleton (Lvals.from_var_offset (v, offs_from_cil o))
-        | Lval (Var v, o) when not v.vglob ->
-            MayMap.find (Lvals.from_var_offset (v, offs_from_cil o)) mp
+            MaySet.singleton (Lvals.from_var_offset (v, Path.offs_from_cil ask o))
+        | Lval (Var v, o) when not (is_global ask v) ->
+            MayMap.find (Lvals.from_var_offset (v, Path.offs_from_cil ask o)) mp
         | Lval (Var v, NoOffset) ->
             snd (gs v)
+        | Lval (Mem e, o) -> MaySet.top ()
+        | AddrOf (Mem e, o) ->
+            let io = Path.offs_from_cil ask o in
+            MaySet.map (fun x -> Lvals.add_offset x io) (from_exp e)
+        | BinOp (IndexPI, e, i, _) ->
+            let io = 
+              match ask (Queries.EvalInt i) with 
+                | `Int i -> `Index (i, `NoOffset)
+                | _ -> `NoOffset
+            in
+            MaySet.map (fun x -> Lvals.add_offset x io) (from_exp e)         
+        | BinOp (_, e1, e2, _) ->
+            MaySet.join (from_exp e1) (from_exp e2)         
         | _ -> 
+            Messages.report ("AccessDomain::assign_may:: " ^ sprint 80 (d_plainexp () e));
             MaySet.top ()
     in
     match lhs with
-      | (Var v,NoOffset) when v.vglob -> 
+      | (Var v,NoOffset) when is_global ask v -> 
         mp, Diff.add (v, (Path.bot (), from_exp rhs)) df
-      | (Var v,n) when v.vglob -> 
+      | (Var v,n) when is_global ask v -> 
         mp, (Diff.add (v, (Path.bot (), MaySet.top ())) df)
       | (Var v,o) ->
         begin
-          let rlv = (v, offs_from_cil o) in
+          let rlv = (v, Path.offs_from_cil ask o) in
           let lv = Lvals.from_var_offset rlv in           
           let r_exp = from_exp rhs in
           MayMap.add lv r_exp mp, df
@@ -892,7 +932,7 @@ struct
           let r_exp = from_exp rhs in
           let add (v:Lvals.t) (mp,df) = 
             match Lvals.to_var_offset v with
-              | [vv, o] when vv.vglob ->
+              | [vv, o] when is_global ask vv ->
                   mp, Diff.add (vv, (Path.bot (), r_exp)) df
               | [vv, o] ->
                   MayMap.add v r_exp mp, df
@@ -901,7 +941,7 @@ struct
                   mp, df
           in
             if MaySet.is_top l_exp
-            then mp, df (*(Messages.report "Lval is top"; mp, df)*)
+            then (Messages.warn ("Value '" ^ (sprint 80 (d_lval () lhs)) ^ "' may point anywhere. Ignoring." ); mp, df)
             else MaySet.fold add l_exp (mp, df)
          
         
@@ -920,38 +960,36 @@ struct
       | `Lifted (m,_,_) -> `Lifted (m,Accs.empty (),Accs.empty ())
   
   (* recursively add accesses to state *)
-  let rec add_access exp read gs st : t =
+  let rec add_access ask exp read gs st : t =
     let exp = stripCasts exp in
     let f (mp:MustMap.t) (st:Accs.t) : Accs.t =
-      let acp = Path.from_exp exp in
-(*       let typ = if read then "Read access from " else "Write access to " in *)
-      match to_acc acp mp gs with
-        | Some acc when not (Acc.guaranteed_local acc) -> 
-(*             Messages.report (":: "^typ^Acc.short 80 acc); *)
-            Accs.add acc st
-        | Some acc ->
-(*            Messages.report ("::? "^typ^Acc.short 80 acc); *)
-            st
-        | _ ->
-(*            Messages.report ("::: "^typ^Path.short 80 acp); *)
-            st
+      let acp = Path.from_exp ask exp in
+      let accs = to_acc ask acp mp gs in
+      (*let accs_str = List.fold_left (fun xs x -> xs ^ " " ^ Acc.short 80 x) "" accs in 
+      Messages.report (sprint 80 (Path.pretty () acp) ^ accs_str);
+      *)let f st x = 
+        if Acc.guaranteed_local ask x
+        then st
+        else Accs.add x st
+      in
+      List.fold_left f st accs
     in
     let rec add_idx o st =
       match o with
         | NoOffset -> st
         | Field (_,o) -> add_idx o st
-        | Index (i,o) -> add_idx o (add_access i true gs st)
+        | Index (i,o) -> add_idx o (add_access ask i true gs st)
     in
     let add_next st =
       match exp with
-        | Cil.UnOp  (_,e,_) -> add_access e true gs st
-        | Cil.BinOp (_,e1,e2,_) -> add_access e1 true gs (add_access e2 true gs st)
+        | Cil.UnOp  (_,e,_) -> add_access ask e true gs st
+        | Cil.BinOp (_,e1,e2,_) -> add_access ask e1 true gs (add_access ask e2 true gs st)
         | Cil.AddrOf  (Cil.Var v2,o) 
         | Cil.StartOf (Cil.Var v2,o) -> st
         | Cil.Lval    (Cil.Var v2,o) -> add_idx o st
         | Cil.AddrOf  (Cil.Mem e,o) 
         | Cil.StartOf (Cil.Mem e,o) 
-        | Cil.Lval    (Cil.Mem e,o) -> add_idx o (add_access e true gs st) 
+        | Cil.Lval    (Cil.Mem e,o) -> add_idx o (add_access ask e true gs st) 
         | _ -> st
     in
     if isConstant exp 
@@ -960,7 +998,58 @@ struct
       | `Bot, _ -> `Bot
       | `Lifted ((m1,d, m2),a,b), true  -> add_next (`Lifted ((m1,d,m2),f m1 a,b)) 
       | `Lifted ((m1,d, m2),a,b), false -> add_next (`Lifted ((m1,d,m2),a,f m1 b))    
-      
+  
+  let add_escaped ask exp write gs st =
+    match st with
+      | `Bot -> `Bot
+      | `Lifted ((mst,d,may),a,b) ->
+    let rec reachable_from (e : exp) =  
+      match e with
+        | AlignOf _ | AlignOfE _
+        | SizeOf _  | SizeOfE _ | SizeOfStr _
+        | Const _ -> MaySet.bot ()            
+        | CastE (_,e) -> reachable_from e 
+        | AddrOf (Var v, o) -> 
+            MaySet.singleton (Lvals.from_var_offset (v, Path.offs_from_cil ask o))
+        | AddrOf (Mem e, o) ->
+            let io = Path.offs_from_cil ask o in
+            MaySet.map (fun x -> Lvals.add_offset x io) (reachable_from e)
+        | Lval (Var v, o) when not (is_global ask v) ->
+            MayMap.find (Lvals.from_var_offset (v, Path.offs_from_cil ask o)) may
+        | Lval (Var v, NoOffset) ->
+            snd (gs v)
+        | Lval (Mem e, o) ->
+            let io = Path.offs_from_cil ask o in
+            MaySet.map (fun x -> Lvals.add_offset x io) (reachable_from e)
+        | BinOp (IndexPI, e, i, _) ->
+            begin match ask (Queries.EvalInt i) with 
+              | `Int i -> MaySet.map (fun x -> Lvals.add_offset x (`Index (i, `NoOffset))) (reachable_from e)
+              | _ -> MaySet.join (reachable_from e) (reachable_from i)
+            end
+        | BinOp (_, e1, e2, _) -> MaySet.join (reachable_from e1) (reachable_from e2)
+        | _ -> Messages.report ("AccessDomain::add_escaped:: " ^ sprint 80 (d_plainexp () e));
+               MaySet.top ()    
+    in
+    let reachables = reachable_from exp in
+    let f x =
+      let g x =  
+        match Lvals.to_var_offset x with
+          | [var] -> Accs.add (AccBase (Some var))
+          | _     -> fun x -> x
+      in
+      if MaySet.is_top reachables
+      then (Messages.report ("AccessDomain::add_escaped:: set of reachable from "^(sprint 80 (d_exp () exp))^" is top"); x)
+      else MaySet.fold g reachables x
+    in
+    if write 
+    then (`Lifted ((mst, d, may), f a, b))
+    else add_access ask exp true gs (`Lifted ((mst, d, may), a  , f b))
+
+  let init_local_var v st =
+    match st with
+      | `Bot -> `Bot
+      | `Lifted ((mst,d,may),a,b) -> `Lifted ((mst,d,MayMap.add (Lvals.from_var v) (MaySet.bot ()) may),a,b)    
+  
   let get_acc write d : Acc.t list =
     let to_acc_list (a:Accs.t) mp =
       if Accs.is_top a

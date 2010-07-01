@@ -124,7 +124,7 @@ sig
   *)
   
   
-  val eval_funvar: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> exp -> varinfo list
+  val eval_funvar: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> exp -> varinfo list 
   (** [eval_funvar q f st] evaluates [f] to a list of possible functions (in state [st]) *)
   val fork       : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (varinfo * Dom.t) list  
   (** [fork] returns list of function,input-state pairs, that the callee has spawned *)
@@ -132,7 +132,7 @@ sig
   (** [special_fn] is called, when given varinfo is not connected to a fundec -- no function definition is given*)
   val enter_func : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (Dom.t * Dom.t) list 
   (** [enter_func] returns input-states that must be analyzed for the given function *)
-  val leave_func : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> Dom.t -> Dom.t
+  val leave_func : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> exp -> varinfo -> exp list -> Dom.t -> Dom.t
   (** [leave_func q lv f a x y] does postprocessing on the analyzed [enter_func q lv f a x] output [y] -- usually readding some
      context from [x] *)
 

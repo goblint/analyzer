@@ -64,7 +64,7 @@ struct
         end
 
   let enter_func ctx lval f args = [(ctx.local,ctx.local)]
-  let leave_func ctx lval f args st2 = ctx.local
+  let leave_func ctx lval fexp f args st2 = ctx.local
   let fork       ctx lval f args = []  
 
   let get_locks e st =

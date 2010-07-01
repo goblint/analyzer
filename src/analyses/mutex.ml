@@ -560,7 +560,7 @@ struct
   let enter_func ctx lv f args : (Dom.t * Dom.t) list =
     [(ctx.local,ctx.local)]
 
-  let leave_func ctx lv f args al = 
+  let leave_func ctx lv fexp f args al = 
     let wr = match lv with
       | None      -> []
       | Some lval -> access_one_top ctx.ask true (Lval lval) in 
@@ -775,11 +775,16 @@ struct
       (*  Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs) *)
       let warnings, jls, write, bad =
         let warn_acc ((pos,mfl,rw),ls,os) (xs,m,r,mt) =
+          let lock = 
+            if rw 
+            then Lockset.filter snd ls 
+            else Lockset.map (fun (x,_) -> (x,true)) ls 
+          in
           let rws  = if rw then "write" else "read" in
           let mfls = BS.Flag.short 80 mfl in
           let lss = Lockset.short 80 ls in
           ((Printf.sprintf "%s in %s with lockset: %s" rws mfls lss, pos) :: xs
-          ,Lockset.join m ls
+          ,Lockset.join m lock
           ,r  || rw
           ,mt || BS.Flag.is_bad mfl)
         in
@@ -792,6 +797,9 @@ struct
          if bad && write && (Lockset.is_bot jls) then 
           let warn = "Datarace over " ^ (sprint 80 (PartSet.pretty () s)) in
           M.print_group warn warnings
+(*         else
+          let warn = "No datarace over " ^ (sprint 80 (PartSet.pretty () s)) in
+          M.print_group warn warnings*)
     in
     let part = AccKeySet2.fold (fun k -> AccPart.add (PartSet.singleton k)) !accKeys2 (AccPart.empty ()) in
     AccPart.iter post_part part

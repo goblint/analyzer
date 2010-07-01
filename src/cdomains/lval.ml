@@ -342,6 +342,16 @@ struct
       | Addr (v,o) -> Lval (Var v, to_cil o)
       | StrPtr -> mkString "a string"
       | NullPtr -> integer 0
+  let add_offset x o = 
+    let rec append x y = 
+      match x with
+        | `NoOffset    -> y
+        | `Index (i,x) -> `Index (i, append x o)
+        | `Field (f,x) -> `Field (f, append x o)
+    in
+    match x with
+      | Addr (v, u) -> Addr (v, append u o)
+      | x -> x
 end
 
 module Stateless (Idx: Printable.S) =

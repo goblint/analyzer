@@ -78,7 +78,7 @@ struct
         let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
         if has_dec && not (LibraryFunctions.use_special f.vname) then
           let work = Spec.enter_func (A.context top_query st theta []) lval f args in
-          let leave st1 st2 = Spec.leave_func (A.context top_query st1 theta []) lval f args st2 in
+          let leave st1 st2 = Spec.leave_func (A.context top_query st1 theta []) lval exp f args st2 in
           let general_results = List.map (fun (y,x) -> y, SD.unlift (add_one_call x)) work in
           let joined_result   = List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst tst)) (Spec.Dom.bot ()) general_results in
           Spec.Dom.join st' joined_result        

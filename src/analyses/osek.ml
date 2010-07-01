@@ -121,14 +121,14 @@ struct
     else 
       m_st
   
-  let eval_funvar ctx (fv:exp) : varinfo list = 
+  let eval_funvar ctx (fv:exp) = 
     Mutex.Spec.eval_funvar ctx (fv:exp)
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     (Mutex.Spec.enter_func ctx (lval: lval option) (f:varinfo) (args:exp list))
   
-  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-   Mutex.Spec.leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) au
+  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+   Mutex.Spec.leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) au
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let make_lock varinfo = [AddrOf (Var varinfo,NoOffset)] in

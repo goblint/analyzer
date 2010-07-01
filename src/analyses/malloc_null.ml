@@ -149,7 +149,6 @@ struct
   *)
   
   (* One step tf-s *)
-  
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     warn_deref_exp ctx.ask ctx.local (Lval lval) ;
     warn_deref_exp ctx.ask ctx.local rval;
@@ -192,7 +191,7 @@ struct
     List.iter (warn_deref_exp ctx.ask ctx.local) args;
     [ctx.local,nst]
   
-  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     let cal_st = remove_unreachable ctx.ask args ctx.local in
     let ret_st = Dom.union au (Dom.diff ctx.local cal_st) in
     let new_u = 
