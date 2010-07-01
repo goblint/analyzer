@@ -11,6 +11,7 @@ let default_conf () =
                              ;"interval"   , Build.bool false] in
   let def_ana = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool false
+                             ;"OSEK2"      , Build.bool false
                              ;"access"     , Build.bool true
                              ;"thread"     , Build.bool false
                              ;"escape"     , Build.bool true
@@ -22,6 +23,7 @@ let default_conf () =
                              ;"var_eq"     , Build.bool false] in
   let def_path = Build.objekt ["base"       , Build.bool false
                               ;"OSEK"       , Build.bool true
+                              ;"OSEK2"      , Build.bool true
                               ;"access"     , Build.bool false
                               ;"thread"     , Build.bool false
                               ;"escape"     , Build.bool false
@@ -33,6 +35,7 @@ let default_conf () =
                               ;"var_eq"     , Build.bool false] in
   let def_ctx = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool true
+                              ;"OSEK2"     , Build.bool false
                              ;"access"     , Build.bool true
                              ;"thread"     , Build.bool true
                              ;"escape"     , Build.bool true

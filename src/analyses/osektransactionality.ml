@@ -19,6 +19,11 @@ struct
       | (_,-1)  -> x
       | _       -> min x y
 
+  let get_lockset ctx: Osek.Spec.Dom.t =
+    match ctx.sub with
+      | [ `OSEK x ] -> x 
+      | _ -> failwith "Dependencies broken OSEK!"
+
   (* composition operator  (b \fcon a) *)
   let fcon (a1,a2,a3,a4 as a) (b1,b2,b3,b4 as b) =  if (Osektupel.is_top b) then a else
     match (a2,b2) with
