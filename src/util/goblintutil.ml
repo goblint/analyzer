@@ -64,7 +64,7 @@ let conf : (string, Json_type.t) Hashtbl.t ref =
 
 let modify_ana x b = 
   let old_ana = make_table (objekt (field !conf "analyses")) in
-  let anas = ["base";"OSEK";"access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
+  let anas = ["base";"OSEK";"OSEK2";"access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
   let set_ana_pair fe = 
     if fe = x 
     then fe, Build.bool b
@@ -97,7 +97,8 @@ let conf_malloc () =
 
 let conf_osek () = 
   modify_ana "mutex" false;
-  modify_ana "OSEK" true
+  modify_ana "OSEK" true;
+  modify_ana "OSEK2" true
 
 (** when goblin is in debug mode *)
 let debug = ref false 

@@ -7,10 +7,21 @@ struct
   include Analyses.DefaultSpec
 
   let name = "OSEK trasactionality"
-  module Dom  = Osektupel
+  module Dom  = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
   module Glob = Global.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
+
+  let get_lockset ctx: Osek.Spec.Dom.t =
+    match ctx.sub with
+      | [ `OSEK x ] -> x 
+      | _ -> failwith "Dependencies broken OSEK!"
+
+  let pry_d dom_elem = List.fold_left max 0 (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> (Osek.Spec.pry x.vname) 
+                                                              | _ -> failwith "This (hopefully) never happens!"  ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
+  
+let pry_d' dom_elem r = List.fold_left max 0 (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> if x.vname == r.vname then -1 else (Osek.Spec.pry x.vname) 
+                                                              | _ -> failwith "This (hopefully) never happens!"  ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
 
   let min' x y =  
     match (x,y) with
@@ -18,11 +29,6 @@ struct
       | (-1,_)  -> y
       | (_,-1)  -> x
       | _       -> min x y
-
-  let get_lockset ctx: Osek.Spec.Dom.t =
-    match ctx.sub with
-      | [ `OSEK x ] -> x 
-      | _ -> failwith "Dependencies broken OSEK!"
 
   (* composition operator  (b \fcon a) *)
   let fcon (a1,a2,a3,a4 as a) (b1,b2,b3,b4 as b) =  if (Osektupel.is_top b) then a else
@@ -33,17 +39,21 @@ struct
       | _       -> (min' a2 b3 ,min' a2 b4 ,min' a4 b3  ,min' a4 b4 )
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    fcon  ctx.local (-1,-1,-1,-1)
+  let assign ctx (lval:lval) (rval:exp) : Dom.t = 
+    let ((ctxs,ctxr): Dom.t) = ctx.local in
+    let p = (pry_d (get_lockset ctx)) in
+    (ctxs, fcon ctxr (-1,p,p,p))
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
-    fcon  ctx.local (-1,-1,-1,-1)
+    let (ctxs,ctxr) = ctx.local in
+    let p = (pry_d (get_lockset ctx)) in
+    (ctxs, fcon  ctxr (-1,-1,-1,p))
   
-  let body ctx (f:fundec) : Dom.t = 
-    fcon  ctx.local (-1,-1,-1,-1)
+  let body ctx (f:fundec) : Dom.t = Dom.bot()
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    fcon  ctx.local (-1,-1,-1,-1)
+    let ((_,ctxr): Dom.t) = ctx.local in
+      (ctxr, ctxr)
   
   let eval_funvar ctx (fv:exp) : varinfo list = 
     []
@@ -51,14 +61,21 @@ struct
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     [ctx.local,ctx.local]
   
-  let leave_func ctx (lval:lval option) (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-    au
+  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+    let (ctxs,ctxr) = ctx.local in
+    let (aus,aur) = au in
+    (ctxs, fcon ctxr aus)
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
 
-    match f.vname with
-      | "ReleaseResource" -> [fcon  ctx.local (-1,-1,-1,-1),Cil.integer 1, true]
-      | _ -> [fcon  ctx.local (-1,-1,-1,-1),Cil.integer 1, true]
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+    let (ctxs,ctxr) = ctx.local in
+    match f.vname with 
+      | "ReleaseResource" -> (match arglist with 
+          | [Const (CInt64 (c,_,_) ) ] -> let r = (Hashtbl.find Osek.Spec.constantlocks (Int64.to_string c)) in 
+                                            let p = (pry_d' (get_lockset ctx) r) in  
+                                               [(ctxs, fcon  ctxr (-1,-1,-1,p)) ,Cil.integer 1, true]
+          | _ -> let p = (pry_d (get_lockset ctx)) in  [(ctxs ,(fcon  ctxr (-1,-1,-1,p))) ,Cil.integer 1, true])
+      | _ -> [(ctxs, ctxr),Cil.integer 1, true]
 
   let fork ctx lv f args = 
     [] 
@@ -70,8 +87,6 @@ struct
 
   (** are we still race free *)
   let race_free = ref true
-
-  let pry = Osek.Spec.pry
 
   type access_status = 
     | Race
@@ -132,7 +147,7 @@ struct
       let non_main ((_,x,_),_,_) = Base.Main.Flag.is_bad x in
       let just_locks = List.map (fun (_, dom_elem,_) -> (Mutex.Lockset.ReverseAddrSet.elements dom_elem) ) acc_list in     
       let prys = List.map (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!"  )) just_locks in
-      let accprys = List.map (List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)) prys in
+      let accprys = List.map (List.fold_left (fun y x -> if (Osek.Spec.pry x) > y then Osek.Spec.pry x else y) (min_int)) prys in
       let maxpry = List.fold_left (fun y x -> if x > y then x else y) (min_int) accprys in
       let minpry = List.fold_left (fun y x-> if x < y then x else y) (max_int) accprys in
         if not (Mutex.Lockset.is_empty locks || Mutex.Lockset.is_top locks) then
@@ -150,7 +165,7 @@ struct
         let f  ((loc, fl, write), dom_elem,o) = 
           let lockstr = Mutex.Lockset.short 80 dom_elem in
           let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!" ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem) in
-          let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks  in
+          let pry = List.fold_left (fun y x -> if Osek.Spec.pry x > y then Osek.Spec.pry x else y) (min_int) my_locks  in
           let action = if write then "write" else "read" in
           let thread = if Mutex.BS.Flag.is_bad fl then "some thread" else "main thread" in
           let warn = action ^ " in " ^ thread ^ " with priority " ^ (string_of_int pry) ^ " and lockset: " ^ lockstr in
@@ -191,16 +206,7 @@ struct
       Mutex.Spec.OffsMap.iter report_race acc_map
     
   (** postprocess and print races and other output *)
-  let finalize () =
-    Mutex.Spec.AccKeySet.iter postprocess_acc !Mutex.Spec.accKeys;
-    if !Mutex.GU.multi_threaded then begin
-      if !race_free then 
-        print_endline "Goblint did not find any Data Races in this program!";
-    end else if not !Goblintutil.debug then begin
-      print_endline "NB! That didn't seem like a multithreaded program.";
-      print_endline "Try `goblint --help' to do something other than Data Race Analysis."
-    end;
-    Base.Main.finalize ()
+  let finalize () = ()
 
   let init () = ()
 
