@@ -24,6 +24,7 @@ type local_state = [
     | `Escape      of EscapeDomain.EscapedVars.t
     | `Region      of RegionDomain.RegionDom.t
     | `OSEK        of LockDomain.Lockset.t
+    | `OSEK2       of Osektupel.t
     | `Access      of AccessDomain.Access.t
     ]
 
