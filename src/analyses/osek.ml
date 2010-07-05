@@ -15,6 +15,7 @@ struct
   let constantlocks = Hashtbl.create 16
   let tasks = Hashtbl.create 16
   let resources = Hashtbl.create 16
+  let offensivepriorities = Hashtbl.create 16
   let irpts = ref []
 
   (*priority function*)
@@ -243,12 +244,16 @@ struct
       let locks = get_common_locks acc_list in
       let rw ((_,_,x),_,_) = x in
       let non_main ((_,x,_),_,_) = Base.Main.Flag.is_bad x in
-      let just_locks = List.map (fun (_, dom_elem,_) -> (Mutex.Lockset.ReverseAddrSet.elements dom_elem) ) acc_list in     
+      let just_locks = List.map (fun (_, dom_elem,_) -> (Mutex.Lockset.ReverseAddrSet.elements dom_elem) ) acc_list in
+
+
       let prys = List.map (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!"  )) just_locks in
       let staticprys = List.map (List.filter is_task) prys in
       let offprys = List.map (List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)) staticprys in
       let accprys = List.map (List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)) prys in
       let offpry = List.fold_left (fun y x -> if x > y then x else y) (min_int) offprys in
+      let var_str = gl.vname in
+      let _ = Hashtbl.add offensivepriorities var_str offpry in
       let maxpry = List.fold_left (fun y x -> if x > y then x else y) (min_int) accprys in
       let minpry = List.fold_left (fun y x-> if x < y then x else y) (max_int) accprys in
         if not (Mutex.Lockset.is_empty locks || Mutex.Lockset.is_top locks) then
@@ -272,7 +277,8 @@ struct
           let action = if write then "write" else "read" in
           let thread = if Mutex.BS.Flag.is_bad fl then "some thread" else "main thread" in
           let warn = action ^ " in " ^ thread ^ " with priority " ^ (string_of_int pry) ^ " and lockset: " ^ lockstr in
-            (warn,loc) in
+            (warn,loc) 
+        in
         let warnings =  List.map f acc_list in
             let var_str = gl.vname ^ Mutex.Offs.short 80 offset in
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in

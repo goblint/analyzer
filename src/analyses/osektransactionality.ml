@@ -9,7 +9,10 @@ struct
   let name = "OSEK trasactionality"
   module Dom  = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
   module Glob = Global.Make (Lattice.Unit)
-  
+  let offpry = Osek.Spec.offensivepriorities
+  let funs = Hashtbl.create 16 (* ([vars],tuple) *)
+  let openfuns = ref []
+
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
   let get_lockset ctx: Osek.Spec.Dom.t =
@@ -20,7 +23,7 @@ struct
   let pry_d dom_elem = List.fold_left max 0 (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> (Osek.Spec.pry x.vname) 
                                                               | _ -> failwith "This (hopefully) never happens!"  ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
   
-let pry_d' dom_elem r = List.fold_left max 0 (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> if x.vname == r.vname then -1 else (Osek.Spec.pry x.vname) 
+  let pry_d' dom_elem r = List.fold_left max 0 (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> if x.vname == r.vname then -1 else (Osek.Spec.pry x.vname) 
                                                               | _ -> failwith "This (hopefully) never happens!"  ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
 
   let min' x y =  
@@ -42,17 +45,31 @@ let pry_d' dom_elem r = List.fold_left max 0 (List.map (function (LockDomain.Add
   let assign ctx (lval:lval) (rval:exp) : Dom.t = 
     let ((ctxs,ctxr): Dom.t) = ctx.local in
     let p = (pry_d (get_lockset ctx)) in
+    let access_one_top = Mutex.Spec.access_one_top in
+    let b1 = access_one_top ctx.ask true (Lval lval) in 
+    let b2 = access_one_top ctx.ask false rval in
+    let helper2 vinfo fname = let (vars,t) = Hashtbl.find funs fname in
+      let vname = vinfo.vname in
+      if List.mem vname vars then () else Hashtbl.replace funs fname (vname::vars,t)
+    in
+    let helper x = match x with
+        Mutex.Spec.Concrete (_, vinfo, _, _) -> let _ = helper2 vinfo (List.hd !openfuns) in ()
+      | _ -> ()
+    in
+    let _ = List.map helper (b1@b2) in
     (ctxs, fcon ctxr (-1,p,p,p))
-   
+
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
     let (ctxs,ctxr) = ctx.local in
     let p = (pry_d (get_lockset ctx)) in
     (ctxs, fcon  ctxr (-1,-1,-1,p))
   
-  let body ctx (f:fundec) : Dom.t = Dom.bot()
+  let body ctx (f:fundec) : Dom.t = let _ = Hashtbl.add funs f.svar.vname ([],(-1,-1,-1,-1)) in let _ = openfuns := f.svar.vname::!openfuns in Dom.bot()
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let ((_,ctxr): Dom.t) = ctx.local in
+    let (vars,_) = Hashtbl.find funs f.svar.vname in
+    let _ = Hashtbl.replace funs f.svar.vname (vars,ctxr) in
       (ctxr, ctxr)
   
   let eval_funvar ctx (fv:exp) : varinfo list = 
@@ -62,6 +79,14 @@ let pry_d' dom_elem r = List.fold_left max 0 (List.map (function (LockDomain.Add
     [ctx.local,ctx.local]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+    let _ = openfuns := List.tl !openfuns in
+    let (vars,t) = Hashtbl.find funs (List.hd !openfuns) in
+    let (vars2,_) = Hashtbl.find funs f.vname in
+    let rec union l1 l2 = match l1 with
+        x::xs -> if List.mem x l2 then union xs l2 else union xs (x::l2)
+      | _ -> l2
+    in
+    let _ = if Osek.Spec.is_task f.vname then () else Hashtbl.replace funs (List.hd !openfuns) ((union vars2 vars),t) in
     let (ctxs,ctxr) = ctx.local in
     let (aus,aur) = au in
     (ctxs, fcon ctxr aus)
@@ -86,135 +111,26 @@ let pry_d' dom_elem r = List.fold_left max 0 (List.map (function (LockDomain.Add
 (** Finalization and other result printing functions: *)
 
   (** are we still race free *)
-  let race_free = ref true
+  let transactional = ref true
 
-  type access_status = 
-    | Race
-    | Guarded of  Mutex.Lockset.t
-    | Priority of int
-    | ReadOnly
-    | ThreadLocal
+  let report_trans fname (vars,(pryd,_,_,_)) =
+    let helper pry var = 
+      let pryo = Hashtbl.find offpry var in
+      if pryd < pryo then begin
+        transactional := false;
+        print_endline ("Transactionality violation in function " ^ fname ^ " : Variable " ^ var ^ " has offensive priority " ^ (string_of_int pryo) ^ " versus a defensive overall priority of " ^ (string_of_int pryd) ^ " .");         
+    end
+    in
+    if pryd = (-1) then () else begin
+      let _ = List.map (helper pryd) vars in ()
+    end
 
-  (** [postprocess_acc gl] groups and report races in [gl] *)
-  let postprocess_acc gl =
-    let is_no_glob (gl:varinfo) = (match gl.vtype with TFun _ -> true | _ -> false )in
-    if is_no_glob gl then () else
-    (* create mapping from offset to access list; set of offsets  *)
-    let acc = Mutex.Spec.acc in
-    let create_map (accesses_map) =
-      let f (((_, _, rw), _, offs) as accs) (map,set) =
-        if Mutex.Spec.OffsMap.mem offs map
-        then (Mutex.Spec.OffsMap.add offs ([accs] @ (Mutex.Spec.OffsMap.find offs map)) map,
-              Mutex.Spec.OffsSet.add offs set)
-        else (Mutex.Spec.OffsMap.add offs [accs] map,
-              Mutex.Spec.OffsSet.add offs set)
-      in
-      Mutex.Spec.AccValSet.fold f accesses_map (Mutex.Spec.OffsMap.empty, Mutex.Spec.OffsSet.empty)
-    in
-    (* join map elements, that we cannot be sure are logically separate *)
-    let regroup_map (map,set) =
-      let f offs (group_offs, access_list, new_map) = 
-        let new_offs = Mutex.Offs.definite offs in
-        let new_gr_offs = Mutex.Offs.join new_offs group_offs in
-        (* we assume f is called in the right order: we get the greatest offset first (leq'wise) *)
-        if (Mutex.Offs.leq new_offs group_offs || (Mutex.Offs.is_bot group_offs)) 
-        then (new_gr_offs, Mutex.Spec.OffsMap.find offs map @ access_list, new_map) 
-        else (   new_offs, Mutex.Spec.OffsMap.find offs map, Mutex.Spec.OffsMap.add group_offs access_list new_map) 
-      in
-      let (last_offs,last_set, map) = Mutex.Spec.OffsSet.fold f set (Mutex.Offs.bot (), [], Mutex.Spec.OffsMap.empty) in
-        if Mutex.Offs.is_bot last_offs
-        then map
-        else Mutex.Spec.OffsMap.add last_offs last_set map
-    in
-    let get_common_locks acc_list = 
-      let f locks ((_,_,writing), lock, _) = 
-        let lock = 
-          if writing then
-            (* when writing: ignore reader locks *)
-            Mutex.Lockset.filter snd lock 
-          else 
-            (* when reading: bump reader locks to exclusive as they protect reads *)
-            Mutex.Lockset.map (fun (x,_) -> (x,true)) lock 
-        in
-          Mutex.Lockset.join locks lock 
-      in
-        List.fold_left f (Mutex.Lockset.bot ()) acc_list
-    in
-    let is_race acc_list' =
-      let acc_list = List.map (fun ((loc, fl, write), dom_elem,o) -> ((loc, fl, write), dom_elem,o)) acc_list' in
-      let locks = get_common_locks acc_list in
-      let rw ((_,_,x),_,_) = x in
-      let non_main ((_,x,_),_,_) = Base.Main.Flag.is_bad x in
-      let just_locks = List.map (fun (_, dom_elem,_) -> (Mutex.Lockset.ReverseAddrSet.elements dom_elem) ) acc_list in     
-      let prys = List.map (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!"  )) just_locks in
-      let accprys = List.map (List.fold_left (fun y x -> if (Osek.Spec.pry x) > y then Osek.Spec.pry x else y) (min_int)) prys in
-      let maxpry = List.fold_left (fun y x -> if x > y then x else y) (min_int) accprys in
-      let minpry = List.fold_left (fun y x-> if x < y then x else y) (max_int) accprys in
-        if not (Mutex.Lockset.is_empty locks || Mutex.Lockset.is_top locks) then
-          Guarded locks
-        else if (maxpry=minpry) then
-          Priority maxpry
-        else if not (List.exists rw acc_list) then
-          ReadOnly
-        else if not (List.exists non_main acc_list) then
-          ThreadLocal
-        else
-          Race
-    in
-    let report_race offset acc_list =
-        let f  ((loc, fl, write), dom_elem,o) = 
-          let lockstr = Mutex.Lockset.short 80 dom_elem in
-          let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!" ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem) in
-          let pry = List.fold_left (fun y x -> if Osek.Spec.pry x > y then Osek.Spec.pry x else y) (min_int) my_locks  in
-          let action = if write then "write" else "read" in
-          let thread = if Mutex.BS.Flag.is_bad fl then "some thread" else "main thread" in
-          let warn = action ^ " in " ^ thread ^ " with priority " ^ (string_of_int pry) ^ " and lockset: " ^ lockstr in
-            (warn,loc) in
-        let warnings =  List.map f acc_list in
-            let var_str = gl.vname ^ Mutex.Offs.short 80 offset in
-        let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
-          match is_race acc_list with
-            | Race -> begin
-                race_free := false;
-                let warn = "Datarace over " ^ var_str in
-                  Mutex.M.print_group warn warnings
-              end
-            | Guarded locks ->
-                let lock_str = Mutex.Lockset.short 80 locks in
-                  if !Mutex.GU.allglobs then
-                    Mutex.M.print_group (safe_str "common mutex") warnings
-                  else 
-                    ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
-            | Priority pry ->
-                  if !Mutex.GU.allglobs then
-                    Mutex.M.print_group (safe_str "same priority") warnings
-                  else 
-                    ignore (printf "Found correlation: %s is guarded by priority %s\n" var_str (string_of_int pry))
-
-            | ReadOnly ->
-                if !Mutex.GU.allglobs then
-                  Mutex.M.print_group (safe_str "only read") warnings
-            | ThreadLocal ->
-                if !Mutex.GU.allglobs then
-                  Mutex.M.print_group (safe_str "thread local") warnings
-    in 
-    let rw ((_,_,x),_,_) = x in
-    let acc = Mutex.Spec.Acc.find acc gl in
-    let acc = if !Mutex.no_read then Mutex.Spec.AccValSet.filter rw acc else acc in
-    let acc_info = create_map acc in
-    let acc_map = if !Mutex.unmerged_fields then fst acc_info else regroup_map acc_info in
-      Mutex.Spec.OffsMap.iter report_race acc_map
-    
+ 
   (** postprocess and print races and other output *)
   let finalize () = 
-    Mutex.Spec.AccKeySet.iter postprocess_acc !Mutex.Spec.accKeys;
-    if !Mutex.GU.multi_threaded then begin
-      if !race_free then 
-        print_endline "Goblint did not find any Data Races in this program!";
-    end else if not !Goblintutil.debug then begin
-      print_endline "NB! That didn't seem like a multithreaded program.";
-      print_endline "Try `goblint --help' to do something other than Data Race Analysis."
-    end;
+    let _ = Hashtbl.iter report_trans funs in
+     if !transactional then 
+        print_endline "Goblint did not find any non-transactional behavior in this program!";
     Base.Main.finalize ()
 
   let init () = ()
