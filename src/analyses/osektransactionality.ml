@@ -206,7 +206,16 @@ let pry_d' dom_elem r = List.fold_left max 0 (List.map (function (LockDomain.Add
       Mutex.Spec.OffsMap.iter report_race acc_map
     
   (** postprocess and print races and other output *)
-  let finalize () = ()
+  let finalize () = 
+    Mutex.Spec.AccKeySet.iter postprocess_acc !Mutex.Spec.accKeys;
+    if !Mutex.GU.multi_threaded then begin
+      if !race_free then 
+        print_endline "Goblint did not find any Data Races in this program!";
+    end else if not !Goblintutil.debug then begin
+      print_endline "NB! That didn't seem like a multithreaded program.";
+      print_endline "Try `goblint --help' to do something other than Data Race Analysis."
+    end;
+    Base.Main.finalize ()
 
   let init () = ()
 

@@ -189,6 +189,7 @@ struct
     | Race
     | Guarded of  Mutex.Lockset.t
     | Priority of int
+    | Defence of int*int
     | ReadOnly
     | ThreadLocal
 
@@ -244,13 +245,18 @@ struct
       let non_main ((_,x,_),_,_) = Base.Main.Flag.is_bad x in
       let just_locks = List.map (fun (_, dom_elem,_) -> (Mutex.Lockset.ReverseAddrSet.elements dom_elem) ) acc_list in     
       let prys = List.map (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!"  )) just_locks in
+      let staticprys = List.map (List.filter is_task) prys in
+      let offprys = List.map (List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)) staticprys in
       let accprys = List.map (List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)) prys in
+      let offpry = List.fold_left (fun y x -> if x > y then x else y) (min_int) offprys in
       let maxpry = List.fold_left (fun y x -> if x > y then x else y) (min_int) accprys in
       let minpry = List.fold_left (fun y x-> if x < y then x else y) (max_int) accprys in
         if not (Mutex.Lockset.is_empty locks || Mutex.Lockset.is_top locks) then
           Guarded locks
 	else if (maxpry=minpry) then
 	  Priority maxpry
+	else if (minpry >= offpry) then
+	  Defence (minpry,offpry)
         else if not (List.exists rw acc_list) then
           ReadOnly
         else if not (List.exists non_main acc_list) then
@@ -287,7 +293,11 @@ struct
                     Mutex.M.print_group (safe_str "same priority") warnings
                   else 
                     ignore (printf "Found correlation: %s is guarded by priority %s\n" var_str (string_of_int pry))
-
+            | Defence (defpry,offpry) ->
+                  if !Mutex.GU.allglobs then
+                    Mutex.M.print_group (safe_str "defensive priority exceeds offensive priority") warnings
+                  else 
+                    ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s\n" var_str (string_of_int defpry) (string_of_int offpry))
             | ReadOnly ->
                 if !Mutex.GU.allglobs then
                   Mutex.M.print_group (safe_str "only read") warnings
