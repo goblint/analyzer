@@ -41,7 +41,7 @@ struct
 (*print_string "task \n";*)
           let name = Goblintutil.taskprefix ^ (Str.matched_group 2 line) in 
           let typ = (Str.matched_group 1 line) in
-(* let _ = print_endline ( "Adding " ^ name) in  *)
+ let _ = print_endline ( "Adding " ^ name) in  
 	  Hashtbl.add tasks name (typ,-1,[name]);
           Hashtbl.add constantlocks name (makeGlobalVar name  Cil.voidType);
           Hashtbl.add resources name (-1);
@@ -107,8 +107,8 @@ struct
   let body ctx (f:fundec) : Dom.t = 
     let m_st = Mutex.Spec.body ctx (f:fundec) in
     if (is_task f.svar.vname) then
-(*let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in
-let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
+let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in
+let _ = print_endline ( "Looking for " ^ f.svar.vname) in
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
       match Mutex.Spec.special_fn (set_st ctx m_st) None (dummy_get f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
         | [(x,_,_)] -> x 

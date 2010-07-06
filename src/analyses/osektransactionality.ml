@@ -79,7 +79,7 @@ struct
     [ctx.local,ctx.local]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-    let _ = openfuns := List.tl !openfuns in
+    let _ = if !openfuns = [] then () else openfuns := List.tl !openfuns in
     let _ = if !openfuns = [] then () else begin
       let (vars,t) = Hashtbl.find funs (List.hd !openfuns) in
       let (vars2,_) = Hashtbl.find funs f.vname in
