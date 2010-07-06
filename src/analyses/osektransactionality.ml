@@ -119,7 +119,9 @@ struct
     let helper pry var = 
 (*let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in
 let _ = print_endline ( "Looking for " ^ var) in*)
-      let pryo = Hashtbl.find offpry var in
+      let pryo = try Hashtbl.find offpry var  with 
+        | Not_found -> let _ = print_endline ( "Failed to find ofensive priority for " ^ var ^ " using -1") in -1      
+      in
       if pryd < pryo then begin
         transactional := false;
         print_endline ("Transactionality violation in function " ^ fname ^ " : Variable " ^ var ^ " has offensive priority " ^ (string_of_int pryo) ^ " versus a defensive overall priority of " ^ (string_of_int pryd) ^ " .");         
