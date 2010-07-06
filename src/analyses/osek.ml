@@ -41,7 +41,7 @@ struct
 (*print_string "task \n";*)
           let name = Goblintutil.taskprefix ^ (Str.matched_group 2 line) in 
           let typ = (Str.matched_group 1 line) in
-let _ = print_endline ( "Adding " ^ name) in 
+(* let _ = print_endline ( "Adding " ^ name) in  *)
 	  Hashtbl.add tasks name (typ,-1,[name]);
           Hashtbl.add constantlocks name (makeGlobalVar name  Cil.voidType);
           Hashtbl.add resources name (-1);
