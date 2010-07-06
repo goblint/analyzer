@@ -52,9 +52,9 @@ struct
       let vname = vinfo.vname in
       if List.mem vname vars then () else Hashtbl.replace funs fname (vname::vars,t)
     in
-    let helper x = match x with
+    let helper x = if !openfuns = [] then () else begin match x with
         Mutex.Spec.Concrete (_, vinfo, _, _) -> if vinfo.vglob then helper2 vinfo (List.hd !openfuns) else ()
-      | _ -> ()
+      | _ -> () end
     in
     let _ = List.map helper (b1@b2) in
     (ctxs, fcon ctxr (-1,p,p,p))
@@ -80,13 +80,15 @@ struct
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     let _ = openfuns := List.tl !openfuns in
-    let (vars,t) = Hashtbl.find funs (List.hd !openfuns) in
-    let (vars2,_) = Hashtbl.find funs f.vname in
-    let rec union l1 l2 = match l1 with
-        x::xs -> if List.mem x l2 then union xs l2 else union xs (x::l2)
-      | _ -> l2
-    in
-    let _ = if Osek.Spec.is_task f.vname then () else Hashtbl.replace funs (List.hd !openfuns) ((union vars2 vars),t) in
+    let _ = if !openfuns = [] then () else begin
+      let (vars,t) = Hashtbl.find funs (List.hd !openfuns) in
+      let (vars2,_) = Hashtbl.find funs f.vname in
+      let rec union l1 l2 = match l1 with
+          x::xs -> if List.mem x l2 then union xs l2 else union xs (x::l2)
+        | _ -> l2
+      in
+      let _ = if Osek.Spec.is_task f.vname then () else Hashtbl.replace funs (List.hd !openfuns) ((union vars2 vars),t) in ()
+    end in
     let (ctxs,ctxr) = ctx.local in
     let (aus,aur) = au in
     (ctxs, fcon ctxr aus)
