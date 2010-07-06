@@ -51,7 +51,8 @@ struct
 	  if (not (!flag="")) then begin
 (*print_string "pry \n";*)
 	      Hashtbl.replace tasks !flag ((fun (x,_,z) y -> (x,y,z)) (Hashtbl.find tasks !flag) (int_of_string(Str.matched_group 1 line)));
-              irpts := (function ((a,b)::xs) -> (a,int_of_string(Str.matched_group 1 line))::xs | [] -> failwith "Impossible!") !irpts;
+              let typ = (Str.matched_group 1 line) in 
+              if typ = "ISR" then irpts := (function ((a,b)::xs) -> (a,int_of_string(Str.matched_group 1 line))::xs | [] -> failwith "Impossible!") !irpts;
           end;
 	end;
 	if Str.string_match res_re line 0 then begin

@@ -53,7 +53,7 @@ struct
       if List.mem vname vars then () else Hashtbl.replace funs fname (vname::vars,t)
     in
     let helper x = match x with
-        Mutex.Spec.Concrete (_, vinfo, _, _) -> let _ = helper2 vinfo (List.hd !openfuns) in ()
+        Mutex.Spec.Concrete (_, vinfo, _, _) -> if vinfo.vglob then helper2 vinfo (List.hd !openfuns) else ()
       | _ -> ()
     in
     let _ = List.map helper (b1@b2) in
@@ -115,6 +115,8 @@ struct
 
   let report_trans fname (vars,(pryd,_,_,_)) =
     let helper pry var = 
+(*let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in
+let _ = print_endline ( "Looking for " ^ var) in*)
       let pryo = Hashtbl.find offpry var in
       if pryd < pryo then begin
         transactional := false;
