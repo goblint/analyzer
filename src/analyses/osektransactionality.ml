@@ -64,7 +64,7 @@ struct
     let p = (pry_d (get_lockset ctx)) in
     (ctxs, fcon  ctxr (-1,-1,-1,p))
   
-  let body ctx (f:fundec) : Dom.t = let _ = Hashtbl.add funs f.svar.vname ([],(-1,-1,-1,-1)) in let _ = openfuns := f.svar.vname::!openfuns in Dom.bot()
+  let body ctx (f:fundec) : Dom.t = let _ = if Hashtbl.mem funs f.svar.vname then () else Hashtbl.add funs f.svar.vname ([],(-1,-1,-1,-1)) in let _ = openfuns := f.svar.vname::!openfuns in Dom.bot()
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let ((_,ctxr): Dom.t) = ctx.local in
@@ -112,24 +112,32 @@ struct
 
 (** Finalization and other result printing functions: *)
 
-  (** are we still race free *)
   let transactional = ref true
 
   let report_trans fname (vars,(pryd,_,_,_)) =
-    let helper pry var = 
+    let helper pry warn var = 
 (*let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in
 let _ = print_endline ( "Looking for " ^ var) in*)
-      let pryo = try Hashtbl.find offpry var  with 
-        | Not_found -> let _ = print_endline ( "Failed to find ofensive priority for " ^ var ^ " using -1") in -1      
+      if pry = (-1) then warn else begin
+        let pryo = try Hashtbl.find offpry var  with 
+          | Not_found -> let _ = print_endline ( "Failed to find ofensive priority for " ^ var ^ " using -1") in -1      
+        in
+        if pry < pryo then let _ = transactional := false in
+          ("  variable " ^ var ^ " has offensive priority " ^ (string_of_int pryo))::warn 
+        else warn
+      end in  
+      let rec printlist warn = match warn with
+          [] -> ()
+        | x::xs -> (printlist xs); print_endline(x);
+      in  
+      let printwarnings warn = match warn with
+          [] -> if !transactional then () else if pryd = (-1) then () else print_endline ("Function " ^ fname ^ " is transactional with a defensive overall priority of " ^ (string_of_int pryd) ^ " .");
+        | _  -> print_endline ("Transactionality violation in function " ^ fname ^ ":");
+                (printlist warn);
+                print_endline ("versus a defensive overall priority of " ^ (string_of_int pryd) ^ " .");         
       in
-      if pryd < pryo then begin
-        transactional := false;
-        print_endline ("Transactionality violation in function " ^ fname ^ " : Variable " ^ var ^ " has offensive priority " ^ (string_of_int pryo) ^ " versus a defensive overall priority of " ^ (string_of_int pryd) ^ " .");         
-    end
-    in
-    if pryd = (-1) then () else begin
-      let _ = List.map (helper pryd) vars in ()
-    end
+      let warnings = List.fold_left (helper pryd) [] vars in 
+      printwarnings warnings
 
  
   (** postprocess and print races and other output *)
