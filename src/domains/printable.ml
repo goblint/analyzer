@@ -42,6 +42,26 @@ struct
   let why_not_leq () (x,y) = dprintf "Unsupported"
 end
 
+module PrintSimple (P: sig 
+                      type t'
+                      val short: int -> t' -> string 
+                      val name: unit -> string
+                    end) =
+struct
+  let isSimple _ = true
+  let pretty_f sf () x = text (sf max_int x)
+  let toXML_f sf st =
+    let esc = Goblintutil.escape in
+    let l = Goblintutil.summary_length in
+    let summary = esc (sf l st) in
+      Xml.Element ("Leaf", ["text", summary], [])
+  let pretty () x = pretty_f P.short () x
+  let toXML m = toXML_f P.short m
+  let why_not_leq () (x,y) = 
+    dprintf "%s: %a not leq %a" (P.name ()) pretty x pretty y
+end
+
+
 module type Name = sig val name: string end
 module UnitConf (N: Name) = 
 struct
