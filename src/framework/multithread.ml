@@ -81,6 +81,7 @@ struct
           let leave st1 st2 = Spec.leave_func (A.context top_query st1 theta []) lval exp f args st2 in
           let general_results = List.map (fun (y,x) -> y, SD.unlift (add_one_call x)) work in
           let joined_result   = List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst tst)) (Spec.Dom.bot ()) general_results in
+          if P.tracking then P.track_call f (SD.hash st) ;
           Spec.Dom.join st' joined_result        
         else
           let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
@@ -116,7 +117,7 @@ struct
      * spawned calls. *)      
     let edge2rhs (edge, pred : MyCFG.edge * MyCFG.node) (sigma, theta: Solver.var_assign * Solver.glob_assign) : Solver.var_domain * Solver.diff * Solver.variable list = 
       let predvar = (pred, es) in
-      (*if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty (sigma predvar))));*)
+      if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty (sigma predvar))));
       
       (* This is the key computation, only we need to set and reset current_loc,
        * see below. We call a function to avoid ;-confusion *)
@@ -234,6 +235,11 @@ struct
       if !GU.verbose then print_endline "Analyzing!";
       Stats.time "verification" (Solver.verify () constraints) (sol,gs)
     end;
+    if P.tracking then 
+      begin 
+        P.track_with_profile () ;
+        P.track_call_profile ()
+      end ;
     Spec.finalize ();
     let firstvar = List.hd startvars' in
     let mainfile = match firstvar with (MyCFG.Function fn, _) -> fn.vdecl.file | _ -> "Impossible!" in

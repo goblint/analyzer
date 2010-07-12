@@ -12,7 +12,7 @@ let default_conf () =
   let def_ana = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool false
                              ;"OSEK2"      , Build.bool false
-                             ;"access"     , Build.bool true
+                             ;"access"     , Build.bool false
                              ;"thread"     , Build.bool false
                              ;"escape"     , Build.bool true
                              ;"mutex"      , Build.bool true

@@ -1,38 +1,3 @@
-(* 
- * Copyright (c) 2005-2007,
- *     * University of Tartu
- *     * Vesal Vojdani <vesal.vojdani@gmail.com>
- *     * Kalmer Apinis <kalmera@ut.ee>
- *     * Jaak Randmets <jaak.ra@gmail.com>
- *     * Toomas Römer <toomasr@gmail.com>
- * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- * 
- *     * Redistributions of source code must retain the above copyright notice,
- *       this list of conditions and the following disclaimer.
- * 
- *     * Redistributions in binary form must reproduce the above copyright notice,
- *       this list of conditions and the following disclaimer in the documentation
- *       and/or other materials provided with the distribution.
- * 
- *     * Neither the name of the University of Tartu nor the names of its
- *       contributors may be used to endorse or promote products derived from
- *       this software without specific prior written permission.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *)
-
 open Cil
 open Pretty
 
@@ -43,9 +8,37 @@ module GU = Goblintutil
 let tracking = false
 let n = 2
 
+
+let call_hashtbl = Hashtbl.create 101
+
+let track_call f h =
+  if Hashtbl.mem call_hashtbl (f,h) 
+  then incr (Hashtbl.find call_hashtbl (f,h))
+  else Hashtbl.add call_hashtbl (f,h) (ref 0)
+  
+let track_call_profile () = 
+  let report_fn (x,h) v =
+    print_endline ("Profiler: Function "^x.vname^" with context hash "^string_of_int h^" called "^ string_of_int !v ^" times.")
+  in
+  Hashtbl.iter report_fn call_hashtbl
+
 (* Auxialiary data structures: *)
 let current_n = ref 64
 let reached_loc_hashtbl = Hashtbl.create 1001
+
+let track_with_profile () =
+  let rec insert n (x,l) xs =
+    match n, xs with
+      | 0, _  -> []
+      | _, [] -> [x,l]
+      | _, (lx,ll)::xs when x > lx -> (x,l) :: insert (n-1) (lx,ll) xs
+      | _, y::ys -> y::insert (n-1) (x,l) ys
+  in
+  let r = Hashtbl.fold (fun k v x -> insert 11 (!v,k) x) reached_loc_hashtbl [] in
+  let print_node (n,l) =
+    Messages.print_msg ("Hotspot: visited " ^ string_of_int n ^ " times") l
+  in
+  List.iter print_node r
 
 let track_with (notify: int -> unit): unit = 
   let loc = !GU.current_loc in
