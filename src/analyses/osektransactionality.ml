@@ -49,9 +49,8 @@ struct
     let access_one_top = Mutex.Spec.access_one_top in
     let b1 = access_one_top ctx.ask true (Lval lval) in 
     let b2 = access_one_top ctx.ask false rval in
-    let helper2 vinfo fname = let (vars,t) = Hashtbl.find funs fname in 
-()
-(*       Hashtbl.replace funs fname (StringSet.add vinfo.vname vars , t) *)
+    let helper2 vinfo fname = let (vars,t) = Hashtbl.find funs fname in
+      Hashtbl.replace funs fname (StringSet.add vinfo.vname vars , t)
     in
     let helper x = if !openfuns = [] then () else begin match x with
         Mutex.Spec.Concrete (_, vinfo, _, _) -> if vinfo.vglob then helper2 vinfo (List.hd !openfuns) else ()
