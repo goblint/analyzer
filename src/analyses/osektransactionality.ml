@@ -72,7 +72,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let ((_,ctxr): Dom.t) = ctx.local in
     let (vars,_) = Hashtbl.find funs f.svar.vname in
-(*     let _ = Hashtbl.replace funs f.svar.vname (vars,ctxr) in *)
+    let _ = Hashtbl.replace funs f.svar.vname (vars,ctxr) in
       (ctxr, ctxr)
   
   let eval_funvar ctx (fv:exp) : varinfo list = 
@@ -86,9 +86,8 @@ struct
     let _ = if !openfuns = [] then () else begin
       let (vars,t) = Hashtbl.find funs (List.hd !openfuns) in
       let (vars2,_) = Hashtbl.find funs f.vname in
-()
- (*     let _ = if Osek.Spec.is_task f.vname then () else Hashtbl.replace funs (List.hd !openfuns) ((StringSet.union vars2 vars),t) in () *)
-     end in 
+      let _ = if Osek.Spec.is_task f.vname then () else Hashtbl.replace funs (List.hd !openfuns) ((StringSet.union vars2 vars),t) in ()
+    end in
     let (ctxs,ctxr) = ctx.local in
     let (aus,aur) = au in
     (ctxs, fcon ctxr aus)
