@@ -9,8 +9,9 @@ struct
   let name = "OSEK trasactionality"
   module Dom  = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
   module Glob = Global.Make (Lattice.Unit)
+  module StringSet = Set.Make (String)
   let offpry = Osek.Spec.offensivepriorities
-  let funs = Hashtbl.create 16 (* ([vars],tuple) *)
+  let funs = Hashtbl.create 16 (* ({vars},tuple) *)
   let openfuns = ref []
 
   type glob_fun = Glob.Var.t -> Glob.Val.t
@@ -48,9 +49,9 @@ struct
     let access_one_top = Mutex.Spec.access_one_top in
     let b1 = access_one_top ctx.ask true (Lval lval) in 
     let b2 = access_one_top ctx.ask false rval in
-    let helper2 vinfo fname = let (vars,t) = Hashtbl.find funs fname in
-      let vname = vinfo.vname in
-      if List.mem vname vars then () else Hashtbl.replace funs fname (vname::vars,t)
+    let helper2 vinfo fname = let (vars,t) = Hashtbl.find funs fname in 
+()
+(*       Hashtbl.replace funs fname (StringSet.add vinfo.vname vars , t) *)
     in
     let helper x = if !openfuns = [] then () else begin match x with
         Mutex.Spec.Concrete (_, vinfo, _, _) -> if vinfo.vglob then helper2 vinfo (List.hd !openfuns) else ()
@@ -63,13 +64,15 @@ struct
     let (ctxs,ctxr) = ctx.local in
     let p = (pry_d (get_lockset ctx)) in
     (ctxs, fcon  ctxr (-1,-1,-1,p))
+
+
   
-  let body ctx (f:fundec) : Dom.t = let _ = if Hashtbl.mem funs f.svar.vname then () else Hashtbl.add funs f.svar.vname ([],(-1,-1,-1,-1)) in let _ = openfuns := f.svar.vname::!openfuns in Dom.bot()
+  let body ctx (f:fundec) : Dom.t = let _ = if Hashtbl.mem funs f.svar.vname then () else Hashtbl.add funs f.svar.vname ((StringSet.empty  )  ,(-1,-1,-1,-1)) in let _ = openfuns := f.svar.vname::!openfuns in Dom.bot()
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let ((_,ctxr): Dom.t) = ctx.local in
     let (vars,_) = Hashtbl.find funs f.svar.vname in
-    let _ = Hashtbl.replace funs f.svar.vname (vars,ctxr) in
+(*     let _ = Hashtbl.replace funs f.svar.vname (vars,ctxr) in *)
       (ctxr, ctxr)
   
   let eval_funvar ctx (fv:exp) : varinfo list = 
@@ -83,12 +86,9 @@ struct
     let _ = if !openfuns = [] then () else begin
       let (vars,t) = Hashtbl.find funs (List.hd !openfuns) in
       let (vars2,_) = Hashtbl.find funs f.vname in
-      let rec union l1 l2 = match l1 with
-          x::xs -> if List.mem x l2 then union xs l2 else union xs (x::l2)
-        | _ -> l2
-      in
-      let _ = if Osek.Spec.is_task f.vname then () else Hashtbl.replace funs (List.hd !openfuns) ((union vars2 vars),t) in ()
-    end in
+()
+ (*     let _ = if Osek.Spec.is_task f.vname then () else Hashtbl.replace funs (List.hd !openfuns) ((StringSet.union vars2 vars),t) in () *)
+     end in 
     let (ctxs,ctxr) = ctx.local in
     let (aus,aur) = au in
     (ctxs, fcon ctxr aus)
@@ -115,7 +115,7 @@ struct
   let transactional = ref true
 
   let report_trans fname (vars,(pryd,_,_,_)) =
-    let helper pry warn var = 
+    let helper pry var warn = 
 (*let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in
 let _ = print_endline ( "Looking for " ^ var) in*)
       if pry = (-1) then warn else begin
@@ -136,7 +136,7 @@ let _ = print_endline ( "Looking for " ^ var) in*)
                 (printlist warn);
                 print_endline ("versus a defensive overall priority of " ^ (string_of_int pryd) ^ " .");         
       in
-      let warnings = List.fold_left (helper pryd) [] vars in 
+      let warnings = StringSet.fold (helper pryd) vars [] in 
       printwarnings warnings
 
  

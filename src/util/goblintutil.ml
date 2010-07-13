@@ -1,4 +1,4 @@
-(** Globally accessible flags and utility functions. *)
+(* (** Globally accessible flags and utility functions. *) *)
 
 open Cil
 
@@ -115,6 +115,7 @@ let cfg_print = ref false
 (** analyze all the functions in the program, rather than just main *)
 let allfuns = ref false
 let nonstatic = ref false
+
 (** analyze all functions corresponding to a osek task *)
 let oil = ref false
 let taskprefix = "function_of_"
