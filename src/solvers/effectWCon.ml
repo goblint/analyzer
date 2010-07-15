@@ -15,6 +15,8 @@ struct
   module SolverTypes = Solver.Types (Var) (VDom) (G)
   include SolverTypes
 
+  module GCache = Cache.OneVar (G.Var)
+  
   let solve (system: system) (initialvars: variable list) (start:(Var.t * VDom.t) list): solution' =
     let sigma: VDom.t VMap.t = VMap.create 113 (VDom.bot ()) in
     let theta = GMap.create 113 (GDom.bot ()) in
@@ -39,7 +41,7 @@ struct
       else begin
         let local_state = ref (VDom.bot ()) in 
         let constrainOneRHS (f: rhs) =
-          let (nls,ngd,tc) = f (vEval (x,f), gEval (x,f)) in
+          let (nls,ngd,tc) = f (vEval (x,f), GCache.cached (gEval (x,f))) in
           let doOneGlobalDelta = function
             | `L (v, state) ->
               if not ( VDom.leq state (VDom.bot ()) ) then

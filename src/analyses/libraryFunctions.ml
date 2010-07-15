@@ -315,6 +315,7 @@ let invalidate_actions = [
   ("usb_submit_urb", readsAll); (* first argument is written to but according to specification must not be read from anymore *)
   ("dev_driver_string", readsAll);
   ("__spin_lock_init", writes [1]);
+  ("kmem_cache_create", readsAll);
 ]
 
 (* used by get_invalidate_action to make sure

@@ -27,14 +27,14 @@ let current_n = ref 64
 let reached_loc_hashtbl = Hashtbl.create 1001
 
 let track_with_profile () =
-  let rec insert n (x,l) xs =
+  let rec insert n (x,l) xs rdy =
     match n, xs with
       | 0, _  -> []
       | _, [] -> [x,l]
-      | _, (lx,ll)::xs when x > lx -> (x,l) :: insert (n-1) (lx,ll) xs
-      | _, y::ys -> y::insert (n-1) (x,l) ys
+      | _, (lx,ll)::xs when rdy || x > lx -> (x,l) :: insert (n-1) (lx,ll) xs true
+      | _, y::ys -> y::insert (n-1) (x,l) ys rdy
   in
-  let r = Hashtbl.fold (fun k v x -> insert 11 (!v,k) x) reached_loc_hashtbl [] in
+  let r = Hashtbl.fold (fun k v x -> insert 11 (!v,k) x false) reached_loc_hashtbl [] in
   let print_node (n,l) =
     Messages.print_msg ("Hotspot: visited " ^ string_of_int n ^ " times") l
   in

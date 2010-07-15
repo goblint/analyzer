@@ -118,7 +118,6 @@ struct
     let edge2rhs (edge, pred : MyCFG.edge * MyCFG.node) (sigma, theta: Solver.var_assign * Solver.glob_assign) : Solver.var_domain * Solver.diff * Solver.variable list = 
       let predvar = (pred, es) in
       if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty (sigma predvar))));
-      
       (* This is the key computation, only we need to set and reset current_loc,
        * see below. We call a function to avoid ;-confusion *)
       let eval () : Solver.var_domain * Solver.diff * Solver.variable list = 
@@ -145,10 +144,10 @@ struct
       let ans = eval () in 
       let _   = GU.current_loc := old_loc in 
         ans
-
     in
       (* and we generate a list of rh-sides *)
       List.map edge2rhs edges
+      
 
       
   (* Pretty printing stuff *)
