@@ -307,7 +307,7 @@ struct
         | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
         | `Index (v, ofs) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ off_str ofs
     in
-      x.Cil.vname ^ off_str offs
+      GU.demangle x.Cil.vname ^ off_str offs
 
   let short _ x = 
     match x with 
@@ -371,7 +371,7 @@ struct
         | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
         | `Index (v, ofs) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ off_str ofs
     in
-      (if dest then "&" else "") ^ x.Cil.vname ^ off_str offs
+      (if dest then "&" else "") ^ GU.demangle x.Cil.vname ^ off_str offs
 
   let toXML_f sf (d,x,y) = 
     let esc = Goblintutil.escape in
@@ -520,7 +520,7 @@ struct
 
   let to_exp (v,o) = Cil.Lval (Cil.Var v, to_ciloffs o)
           
-  let short _ (v,o) = short_offs o v.vname
+  let short _ (v,o) = short_offs o (GU.demangle v.vname)
   
   let pretty_f sf () x = text (sf 80 x) 
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)], [])

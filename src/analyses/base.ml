@@ -162,7 +162,7 @@ struct
         | _, v -> VD.short 30 v
     in
     let args_short = List.map short_fun f.sformals in
-      Printable.get_short_list (f.svar.vname ^ "(") ")" 80 args_short
+      Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" 80 args_short
 
 (**************************************************************************
   * Initializing my variables

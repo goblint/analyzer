@@ -250,3 +250,38 @@ let rm_rf path =
       Sys.remove path
   in
     f path
+
+let dem_prefix = Str.regexp "^_Z\\(.+\\)"
+let num_prefix = Str.regexp "^\\([0-9]+\\)\\(.+\\)"
+let ti_prefix  = Str.regexp "^TI\\(.+\\)"
+let tv_prefix  = Str.regexp "^TV\\(.+\\)"
+let ts_prefix  = Str.regexp "^TS\\(.+\\)"
+let tt_prefix  = Str.regexp "^TT\\(.+\\)"
+let tt_prefix  = Str.regexp "^TT\\(.+\\)"
+let nested     = Str.regexp "^N\\(.+\\)E"
+let strlift    = Str.regexp "^_OC_str\\([0-9]*\\)$"
+let demangle x = 
+  let take n x = String.sub x 0 n in
+  let drop n x = String.sub x n (String.length x - n) in
+  let appp p s (x,y) = (p^x^s), y in
+  let rec dem x =
+    if Str.string_match num_prefix x 0
+    then let n = int_of_string (Str.matched_group 1 x) in
+         take n (Str.matched_group 2 x), drop n (Str.matched_group 2 x)
+    else if Str.string_match ti_prefix x 0
+    then appp "typeinfo(" ")" (dem (Str.matched_group 1 x))
+    else if Str.string_match tv_prefix x 0
+    then appp "v_table(" ")" (dem (Str.matched_group 1 x))
+    else if Str.string_match ts_prefix x 0
+    then appp "typeinfo_name(" ")" (dem (Str.matched_group 1 x))
+    else if Str.string_match tt_prefix x 0
+    then appp "VTT(" ")" (dem (Str.matched_group 1 x))
+    else if Str.string_match nested x 0
+    then let x,y = dem (Str.matched_group 1 x) in appp (x^"::") "" (dem y)
+    else "???" ^ x, ""    
+  in
+  if Str.string_match dem_prefix x 0
+  then fst (dem (Str.matched_group 1 x))
+  else if Str.string_match strlift x 0
+  then "lifted_string" ^ (Str.matched_group 1 x)
+  else x
