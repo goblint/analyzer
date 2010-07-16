@@ -445,7 +445,7 @@ struct
          List.fold_left bot_field nstruct compinfo.Cil.cfields 
      in
        match t with
-         | Cil.TInt _ -> `Int (ID.bot ())
+         | Cil.TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
          | Cil.TPtr _ -> `Address (AD.bot ())
          | Cil.TComp ({Cil.cstruct=true} as ci,_) -> `Struct (bot_comp ci)
          | Cil.TComp ({Cil.cstruct=false},_) -> `Union (ValueDomain.Unions.bot ())

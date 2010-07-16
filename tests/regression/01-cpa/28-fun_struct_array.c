@@ -1,4 +1,4 @@
-// SKIP PARAM: --debug
+// PARAM: --debug
 void QQ(){
 }
 

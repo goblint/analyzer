@@ -1,4 +1,4 @@
-(* (** Globally accessible flags and utility functions. *) *)
+(** Globally accessible flags and utility functions. *)
 
 open Cil
 
@@ -115,7 +115,6 @@ let cfg_print = ref false
 (** analyze all the functions in the program, rather than just main *)
 let allfuns = ref false
 let nonstatic = ref false
-
 (** analyze all functions corresponding to a osek task *)
 let oil = ref false
 let taskprefix = "function_of_"
@@ -250,7 +249,8 @@ let rm_rf path =
       Sys.remove path
   in
     f path
-
+    
+let special    = Str.regexp "nw\\|na\\|dl\\|da\\|ps\\|ng\\|ad\\|de\\|co\\|pl\\|mi\\|ml\\|dv\\|rm\\|an\\|or\\|eo\\|aS\\|pL\\|mI\\|mL\\|dV\\|rM\\|aN \\|oR\\|eO\\|ls\\|rs\\|lS\\|rS\\|eq\\|ne\\|lt\\|gt\\|le\\|ge\\|nt\\|aa\\|oo\\|pp\\|mm\\|cm\\|pm\\|pt\\|cl\\|ix\\|qu\\|st\\|sz"
 let dem_prefix = Str.regexp "^_Z\\(.+\\)"
 let num_prefix = Str.regexp "^\\([0-9]+\\)\\(.+\\)"
 let ti_prefix  = Str.regexp "^TI\\(.+\\)"
@@ -260,6 +260,10 @@ let tt_prefix  = Str.regexp "^TT\\(.+\\)"
 let tt_prefix  = Str.regexp "^TT\\(.+\\)"
 let nested     = Str.regexp "^N\\(.+\\)E"
 let strlift    = Str.regexp "^_OC_str\\([0-9]*\\)$"
+let templ      = Str.regexp "^I\\(.+\\)"
+let ptr_to     = Str.regexp "^P\\(.+\\)"
+let constructor= Str.regexp "^C[1-3]"
+let destructor = Str.regexp "^D[0-2]"
 let demangle x = 
   let take n x = String.sub x 0 n in
   let drop n x = String.sub x n (String.length x - n) in
@@ -276,8 +280,19 @@ let demangle x =
     then appp "typeinfo_name(" ")" (dem (Str.matched_group 1 x))
     else if Str.string_match tt_prefix x 0
     then appp "VTT(" ")" (dem (Str.matched_group 1 x))
+    else if Str.string_match templ x 0
+    then let x,y = dem (Str.matched_group 1 x) in 
+         appp ("template<"^x^">") "" (dem (drop 1 y))
     else if Str.string_match nested x 0
     then let x,y = dem (Str.matched_group 1 x) in appp (x^"::") "" (dem y)
+    else if Str.string_match ptr_to x 0
+    then appp "" "*" (dem (Str.matched_group 1 x))
+    else if Str.string_match constructor x 0
+    then "constructor",""
+    else if Str.string_match destructor x 0
+    then "destructor",""
+    else if Str.string_match special x 0
+    then x,""
     else "???" ^ x, ""    
   in
   if Str.string_match dem_prefix x 0
