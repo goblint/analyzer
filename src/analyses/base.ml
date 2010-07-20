@@ -1037,7 +1037,11 @@ struct
               | GVar (v,_,_) -> (AddrOf (Var v,NoOffset)) :: vs 
               | _ -> vs
             in
-            let vars = foldGlobals !Cilfacade.ugglyImperativeHack addGlob args in
+            let vars = 
+              if !GU.kernel
+              then foldGlobals !Cilfacade.ugglyImperativeHack addGlob args 
+              else args 
+            in
             collect_spawned ctx.ask ctx.global ctx.local vars 
         end
 
