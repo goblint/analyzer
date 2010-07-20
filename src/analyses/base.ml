@@ -744,7 +744,7 @@ struct
       * top value. *)
      let invalidate_address st a = 
        let t = AD.get_type a in
-           (a, top_value st t) 
+           (a, top_value st t)
      in
      (* We define the function that evaluates all the values that an address
       * expression e may point to *)
@@ -1033,7 +1033,12 @@ struct
               | Some fnc -> fnc `Write  args
               | None -> args
           in
-            collect_spawned ctx.ask ctx.global ctx.local args
+            let addGlob vs =  function
+              | GVar (v,_,_) -> (AddrOf (Var v,NoOffset)) :: vs 
+              | _ -> vs
+            in
+            let vars = foldGlobals !Cilfacade.ugglyImperativeHack addGlob args in
+            collect_spawned ctx.ask ctx.global ctx.local vars 
         end
 
   let leave_func ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: Dom.t) : Dom.t =
