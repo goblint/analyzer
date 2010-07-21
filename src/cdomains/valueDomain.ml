@@ -282,6 +282,17 @@ struct
       | `Field (fld, offs) when fld.fcomp.cstruct -> begin
           match x with 
             | `Struct str -> `Struct (Structs.replace str fld (update_offset (Structs.get str fld) offs value))
+            | `Blob b when is_bot b -> 
+                let rec init_comp compinfo = 
+                  let nstruct = Structs.top () in
+                  let init_field nstruct fd = Structs.replace nstruct fd `Bot in
+                  List.fold_left init_field nstruct compinfo.Cil.cfields 
+                in
+                let strc = init_comp fld.fcomp in
+                `Blob (`Struct (Structs.replace strc fld (update_offset `Bot offs value)))            
+            | `Blob (`Struct str) -> 
+                let old = Structs.get str fld in
+                `Blob (`Struct (Structs.replace str fld (join old (update_offset old offs value))))
             | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
             | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
         end
