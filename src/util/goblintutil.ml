@@ -264,10 +264,20 @@ let templ      = Str.regexp "^I\\(.+\\)"
 let ptr_to     = Str.regexp "^P\\(.+\\)"
 let constructor= Str.regexp "^C[1-3]"
 let destructor = Str.regexp "^D[0-2]"
+let varlift    = Str.regexp "^llvm_cbe_\\(.+\\)$"
+let take n x = String.sub x 0 n 
+let drop n x = String.sub x n (String.length x - n) 
+let appp p s (x,y) = (p^x^s), y 
+
+let rec num_p x =
+  if Str.string_match num_prefix x 0
+  then let n = int_of_string (Str.matched_group 1 x) in
+       let t = Str.matched_group 2 x in
+       let r = drop n t in
+       let xs, r = num_p r in
+       (take n t :: xs), r
+  else ([],x)
 let demangle x = 
-  let take n x = String.sub x 0 n in
-  let drop n x = String.sub x n (String.length x - n) in
-  let appp p s (x,y) = (p^x^s), y in
   let rec dem x =
     if Str.string_match num_prefix x 0
     then let n = int_of_string (Str.matched_group 1 x) in
@@ -284,7 +294,9 @@ let demangle x =
     then let x,y = dem (Str.matched_group 1 x) in 
          appp ("template<"^x^">") "" (dem (drop 1 y))
     else if Str.string_match nested x 0
-    then let x,y = dem (Str.matched_group 1 x) in appp (x^"::") "" (dem y)
+    then match num_p (Str.matched_group 1 x) with
+           | (p::ps), r ->  List.fold_left (fun xs x -> xs ^ "::" ^ x) p ps, r
+           | _,r -> "", r 
     else if Str.string_match ptr_to x 0
     then appp "" "*" (dem (Str.matched_group 1 x))
     else if Str.string_match constructor x 0
@@ -299,4 +311,6 @@ let demangle x =
   then fst (dem (Str.matched_group 1 x))
   else if Str.string_match strlift x 0
   then "lifted_string" ^ (Str.matched_group 1 x)
+  else if Str.string_match varlift x 0
+  then Str.matched_group 1 x
   else x
