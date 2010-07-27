@@ -20,6 +20,7 @@ let default_conf () =
                              ;"uninit"     , Build.bool false
                              ;"malloc_null", Build.bool false
                              ;"region"     , Build.bool false
+                             ;"containment", Build.bool false
                              ;"var_eq"     , Build.bool false] in
   let def_path = Build.objekt ["base"       , Build.bool false
                               ;"OSEK"       , Build.bool true
@@ -32,6 +33,7 @@ let default_conf () =
                               ;"uninit"     , Build.bool true
                               ;"malloc_null", Build.bool true
                               ;"region"     , Build.bool false
+                              ;"containment", Build.bool false
                               ;"var_eq"     , Build.bool false] in
   let def_ctx = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool true
@@ -44,6 +46,7 @@ let default_conf () =
                              ;"uninit"     , Build.bool true
                              ;"malloc_null", Build.bool true
                              ;"region"     , Build.bool true
+                             ;"containment", Build.bool true
                              ;"var_eq"     , Build.bool true] in
   Build.objekt ["int_domain" , def_int
                ;"analyses"   , def_ana
@@ -64,7 +67,7 @@ let conf : (string, Json_type.t) Hashtbl.t ref =
 
 let modify_ana x b = 
   let old_ana = make_table (objekt (field !conf "analyses")) in
-  let anas = ["base";"OSEK";"OSEK2";"access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"var_eq"] in
+  let anas = ["base";"OSEK";"OSEK2";"access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"containment";"var_eq"] in
   let set_ana_pair fe = 
     if fe = x 
     then fe, Build.bool b
@@ -78,6 +81,15 @@ let modify_ana x b =
                  ;"context"    , field !conf "context"
                  ;"solver"     , field !conf "solver"] in
   conf := make_table (objekt modif)
+
+let conf_containment () = 
+  modify_ana "containment" true;
+  modify_ana "thread" false;
+  modify_ana "mutex" false;
+  modify_ana "symb_locks" false;
+  modify_ana "uninit" false;
+  modify_ana "malloc_null" false;
+  modify_ana "region" false
   
 let conf_uninit () = 
   modify_ana "thread" false;

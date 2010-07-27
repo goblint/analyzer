@@ -45,6 +45,7 @@ let main () =
   let oil file = (*GU.allfuns := true;*) GU.oil := true; GU.conf_osek (); Osek.Spec.oilFile := file in
   let setanalysis str = 
     begin match str with
+            | "containment" -> GU.conf_containment ()
             | "uninit" -> GU.conf_uninit ()
             | "malloc_null" -> GU.conf_malloc ()
             | "osek" -> GU.conf_osek ()

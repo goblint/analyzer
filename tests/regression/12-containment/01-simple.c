@@ -1,4 +1,4 @@
-// PARAM: --analysis containment
+// SKIP PARAM: --analysis containment
 #include <stdio.h>
 #include <stdlib.h>
 

@@ -1,0 +1,2 @@
+
+module Dom = Lattice.Unit
