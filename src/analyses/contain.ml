@@ -9,8 +9,6 @@ struct
   let name = "Containment analysis"
   module Dom  = ContainDomain.Dom
   module Glob = Global.Make (Lattice.Unit)
-  
-  type glob_fun = Glob.Var.t -> Glob.Val.t
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
@@ -19,11 +17,17 @@ struct
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
     ctx.local
   
-  let body ctx (f:fundec) : Dom.t = 
-    ctx.local
+  let body ctx (f:fundec) : Dom.t =
+    let add_arg st v =
+      Dom.add v (ContainDomain.ArgSet.singleton v) st
+    in
+    List.fold_left add_arg ctx.local f.sformals
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    ctx.local
+    let remove_arg st v =
+      Dom.remove v st
+    in
+    List.fold_left remove_arg ctx.local f.sformals
   
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     [ctx.local,ctx.local]
@@ -47,7 +51,7 @@ module ContainmentMCP =
         (struct let name = "containment" 
                 let depends = []
                 type lf = Spec.Dom.t
-                let inject_l x = `Contain x
+                let inject_l (x:lf) = (`Contain x:MCP.local_state)
                 let extract_l x = match x with `Contain x -> x | _ -> raise MCP.SpecificationConversionError
                 type gf = Spec.Glob.Val.t
                 let inject_g x = `None 
