@@ -7,27 +7,22 @@ struct
   include Analyses.DefaultSpec
 
   let name = "Containment analysis"
-  module Dom  = ContainDomain.Dom
+  module Dom  = ContainDomain.Danger
   module Glob = Global.Make (Lattice.Unit)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    ctx.local
+    Dom.assign_argmap ctx.ask lval rval ctx.local
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
     ctx.local
   
   let body ctx (f:fundec) : Dom.t =
-    let add_arg st v =
-      Dom.add v (ContainDomain.ArgSet.singleton v) st
-    in
-    List.fold_left add_arg ctx.local f.sformals
+    Dom.add_formals f ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    let remove_arg st v =
-      Dom.remove v st
-    in
-    List.fold_left remove_arg ctx.local f.sformals
+    Dom.remove_formals f ctx.local
+
   
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     [ctx.local,ctx.local]
@@ -36,6 +31,7 @@ struct
     au
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+    Dom.warn_bad_reachables ctx.ask arglist ctx.local;
     [ctx.local,Cil.integer 1, true]
 
   let fork ctx lv f args = 
