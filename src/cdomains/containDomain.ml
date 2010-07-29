@@ -9,24 +9,33 @@ struct
   include MapDomain.MapBot_LiftTop (Var) (ArgSet) 
   
   let remove_formals f st =
-    let remove_arg st v =
-      remove v st
+    let f k s st = 
+      let p y = List.exists (fun x -> x.vid = y.vid) f.Cil.sformals in
+      if p k
+      then st
+      else 
+        let ns = ArgSet.filter (fun x -> not (p x)) s in
+        if ArgSet.is_bot ns
+        then st
+        else add k ns st
     in
-    if is_top st
-    then st
-    else List.fold_left remove_arg st f.Cil.sformals
+    fold f st (bot ())
   
   let add_formals f st =
     let add_arg st v =
-      add v (ArgSet.singleton v) st
+      if isIntegralType v.vtype
+      then st
+      else add v (ArgSet.singleton v) st
     in
-    if is_top st
-    then st
-    else List.fold_left add_arg st f.Cil.sformals
+    List.fold_left add_arg st f.Cil.sformals
   
   
   let used_args st = 
-    let rec used_args = function 
+    let rec used_args_idx = function
+      | NoOffset -> ArgSet.bot ()
+      | Field (_,o) -> used_args_idx o
+      | Index (e,o) -> ArgSet.join (used_args_idx o) (used_args e)
+    and used_args = function 
       | SizeOf _
       | SizeOfE _
       | SizeOfStr _
@@ -37,30 +46,67 @@ struct
       | BinOp (_,e1,e2,_) -> ArgSet.join (used_args e1) (used_args e2)  
       | AddrOf  (Mem e,o) 
       | StartOf (Mem e,o) 
-      | Lval    (Mem e,o) -> used_args e
+      | Lval    (Mem e,o) -> ArgSet.join (used_args_idx o) (used_args e)
       | CastE (_,e)           -> used_args e 
       | Lval    (Var v2,o) 
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> 
-          try find v2 st
-          with Not_found _ -> ArgSet.bot ()
+          ArgSet.join (find v2 st) (used_args_idx o)
     in
     used_args
 
-  let warn_bad_reachables ask args st =
+  let used_ptrs ask = 
+    let pt e = 
+      match ask (Queries.MayPointTo e) with
+          | `LvalSet s when not (Queries.LS.is_top s) ->
+              Queries.LS.fold (fun (v,_) st -> ArgSet.add v st) s (ArgSet.empty ())
+          | _ -> ArgSet.bot ()
+    in
+    let rec used_ptrs_idx = function
+      | NoOffset -> ArgSet.bot ()
+      | Field (_,o) -> used_ptrs_idx o
+      | Index (e,o) -> ArgSet.join (used_ptrs_idx o) (used_ptrs e)
+    and used_ptrs = function 
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _  
+      | Const _ 
+      | AlignOfE _ -> ArgSet.bot () 
+      | UnOp  (_,e,_)     -> used_ptrs e      
+      | BinOp (_,e1,e2,_) -> ArgSet.join (used_ptrs e1) (used_ptrs e2)  
+      | AddrOf  (Mem e,o) 
+      | StartOf (Mem e,o) 
+      | Lval    (Mem e,o) -> ArgSet.join (ArgSet.join (pt e) (used_ptrs_idx o)) (used_ptrs e)
+      | CastE (_,e) -> used_ptrs e
+      | Lval    (Var v2,o) 
+      | AddrOf  (Var v2,o) 
+      | StartOf (Var v2,o) -> 
+          ArgSet.bot ()
+    in
+    used_ptrs
+    
+  let warn_bad_reachables ask args fromFun st =
+  
     let warn_exp e = 
-      let warn_one_lv v =
-        try 
+      let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in
+      let warn_one_lv = function
+        | v when (not fromFun) && v.vname = "this" -> ()
+        | v ->
           let args = find v st in
-          Messages.report ("Calling argument "^v.vname^" may point contain pointers from "^ArgSet.short 80 args^".")
-        with Not_found _ -> ()
+          if not (ArgSet.is_bot args)    
+          then Messages.report ("Calling argument "^v.vname^" may point contain pointers from "^ArgSet.short 80 args^".")
       in
-      ArgSet.iter warn_one_lv (used_args st e);
-      match ask (Queries.ReachableFrom e) with
-        | `LvalSet s when not (Queries.LS.is_top s) ->
-            Queries.LS.iter (fun (v,_) -> warn_one_lv v) s
-        | _ -> 
-            Messages.report ("Argument '"^(sprint 80 (d_exp () e))^"' is unknown and may point to global data.")
+      if isPointerType (typeOf (stripCasts e)) then begin 
+        ArgSet.iter warn_one_lv (used_args st e) ;
+        ArgSet.iter warn_one_lv (used_ptrs ask e) ;
+        match ask query with
+          | `LvalSet s when not (Queries.LS.is_top s) ->
+              Queries.LS.iter (fun (v,_) -> warn_one_lv v) s
+          | _ -> 
+              Messages.report ("Argument '"^(sprint 80 (d_exp () e))^"' is unknown and may point to global data.")
+  (*             () (* -- it is true but here we assume nothing important has escaped and then warn on escapes *) *)
+      end
     in
     List.iter warn_exp args
     

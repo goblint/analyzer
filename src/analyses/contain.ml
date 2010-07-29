@@ -12,6 +12,7 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
+    Dom.warn_bad_reachables ctx.ask [AddrOf lval] false ctx.local;
     Dom.assign_argmap ctx.ask lval rval ctx.local
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
@@ -21,6 +22,8 @@ struct
     Dom.add_formals f ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
+    let arglist = match exp with Some x -> [x] | _ -> [] in
+    Dom.warn_bad_reachables ctx.ask arglist true ctx.local;
     Dom.remove_formals f ctx.local
 
   
@@ -31,7 +34,7 @@ struct
     au
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    Dom.warn_bad_reachables ctx.ask arglist ctx.local;
+    Dom.warn_bad_reachables ctx.ask arglist true ctx.local;
     [ctx.local,Cil.integer 1, true]
 
   let fork ctx lv f args = 
