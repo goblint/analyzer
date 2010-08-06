@@ -19,7 +19,9 @@ struct
         then st
         else add k ns st
     in
-    fold f st (bot ())
+    if is_top st
+    then st
+    else fold f st (bot ())
   
   let add_formals f st =
     let add_arg st v =
@@ -51,7 +53,12 @@ struct
       | Lval    (Var v2,o) 
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> 
-          ArgSet.join (find v2 st) (used_args_idx o)
+          let x = find v2 st in
+          if ArgSet.is_top x then begin
+            Messages.report ("Variable '"^v2.vname^"' is unknown and may point to tainted arguments.");
+            used_args_idx o
+          end else  
+            ArgSet.join x (used_args_idx o)
     in
     used_args
 
@@ -95,7 +102,7 @@ struct
         | v ->
           let args = find v st in
           if not (ArgSet.is_bot args)    
-          then Messages.report ("Calling argument "^v.vname^" may point contain pointers from "^ArgSet.short 80 args^".")
+          then Messages.report ("Calling argument "^v.vname^" may contain pointers from "^ArgSet.short 80 args^".")
       in
       if isPointerType (typeOf (stripCasts e)) then begin 
         ArgSet.iter warn_one_lv (used_args st e) ;
