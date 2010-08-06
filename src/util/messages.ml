@@ -17,7 +17,9 @@ let get_out name alternative = match !GU.dump_path with
 let current_loc = GU.current_loc
 
 let print_msg msg loc = 
-  if !Goblintutil.eclipse then 
+  if !GU.gccwarn then    
+    Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
+  else if !Goblintutil.eclipse then 
     Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
   else
     Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line

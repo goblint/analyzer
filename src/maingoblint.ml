@@ -86,6 +86,7 @@ let main () =
                  ("--trace", Arg.String set_trace, "<sys>  subsystem to show debug printfs for: con, sol.");
                  ("--stats", Arg.Set Cilutil.printStats, " Outputs timing information.");
                  ("--eclipse", Arg.Set GU.eclipse, " Flag for Goblin's Eclipse Plugin.");
+                 ("--gccwarn", Arg.Set GU.gccwarn, " Output warnings in GCC format.");
                  ("--allfuns", Arg.Set GU.allfuns, " Analyzes all the functions (not just beginning from main).");
                  ("--nonstatic", Arg.Set GU.nonstatic, " Analyzes all non-static functions.");
                  ("--mainfun", Arg.Set_string GU.mainfun, " Sets the name of the main function.");

@@ -234,8 +234,8 @@ struct
   let compare x y = compare x.vid y.vid
   let equal x y = x.vid = y.vid
   let hash x = Hashtbl.hash x.vid
-  let toXML_f _ x = Xml.Element ("Fun", [("id", string_of_int x.vid); 
-					 ("name", x.vname)], [])
+  let toXML_f _ x = Xml.Element ("Fun", [("id", string_of_int x.vid)
+                                        ;("text", x.vname)], [])
   let short _ x = x.vname
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let toXML m = toXML_f short m

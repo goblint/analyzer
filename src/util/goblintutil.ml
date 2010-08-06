@@ -202,6 +202,9 @@ let result_style = ref None
 (** Is the goblin Eclipse Plugin calling the analyzer? *)
 let eclipse = ref false
 
+(** output warnings in GCC form *)
+let gccwarn = ref false
+
 (** Analyzing Device Drivers? *)
 let kernel = ref false
 

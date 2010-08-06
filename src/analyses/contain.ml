@@ -7,7 +7,21 @@ struct
   include Analyses.DefaultSpec
 
   let name = "Containment analysis"
-  module Dom  = ContainDomain.Danger
+  
+  module Dom  = 
+  struct
+    include ContainDomain.Dom
+    let short n (_,x:t) = Danger.short n x
+    let toXML_f sf ((_,x):t) = 
+      match Danger.toXML_f (fun _ x -> sf 800 (ContainDomain.FuncName.bot (),x)) x with
+        | Xml.Element (node, (text, _)::xs, []) -> 
+            Xml.Element (node, (text, "Containment Analysis (top)")::xs, [])              
+        | Xml.Element (node, (text, _)::xs, elems) -> 
+            Xml.Element (node, (text, "Containment Analysis")::xs, elems)     
+        | x -> x
+    let toXML x = toXML_f short x
+  end
+  
   module Glob = Global.Make (Lattice.Unit)
 
   (* transfer functions *)
@@ -19,7 +33,7 @@ struct
     ctx.local
   
   let body ctx (f:fundec) : Dom.t =
-    Dom.add_formals f ctx.local
+    Dom.set_funname f (Dom.add_formals f ctx.local)
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let arglist = match exp with Some x -> [x] | _ -> [] in
