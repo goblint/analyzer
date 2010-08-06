@@ -55,7 +55,7 @@ struct
     [] 
 
   let startstate () = Dom.bot ()
-  let otherstate () = Dom.top ()
+  let otherstate () = Dom.bot ()
 end
 
 module ContainmentMCP = 
