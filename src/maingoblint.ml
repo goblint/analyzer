@@ -28,7 +28,7 @@ let main () =
   (* Function for setting the style, basically Haskell's read function: *)
   let setstyle x = 
     GU.result_style := match x with
-      | "none" -> GU.None
+      | "none" -> GU.NoOutput
       | "state" -> GU.State
       | "indented" -> GU.Indented
       | "compact" -> GU.Compact
@@ -88,6 +88,7 @@ let main () =
                  ("--eclipse", Arg.Set GU.eclipse, " Flag for Goblin's Eclipse Plugin.");
                  ("--gccwarn", Arg.Set GU.gccwarn, " Output warnings in GCC format.");
                  ("--allfuns", Arg.Set GU.allfuns, " Analyzes all the functions (not just beginning from main).");
+                 ("--class", Arg.Set_string GU.mainclass, " Analyzes all the member functions of the class (CXX.json file required).");
                  ("--nonstatic", Arg.Set GU.nonstatic, " Analyzes all non-static functions.");
                  ("--mainfun", Arg.Set_string GU.mainfun, " Sets the name of the main function.");
                  ("--exitfun", Arg.String add_exitfun, " Sets the name of the main function.");
@@ -113,8 +114,12 @@ let main () =
 		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed program");
                  ("--intrpts", Arg.Set GU.intrpts, " Enable constraints for interrupts.");
                  ] in
+  let jsonRegex = Str.regexp ".+\\.json$" in
   let recordFile fname = 
-    fileNames := fname :: (!fileNames) in
+    if Str.string_match jsonRegex fname 0
+    then GU.jsonFiles := fname :: !GU.jsonFiles 
+    else fileNames := fname :: !fileNames
+  in
   (* The temp directory for preprocessing the input files *)
   let dirName = GU.create_dir "goblin_temp" in
   Stats.reset Stats.HardwareIfAvail;  

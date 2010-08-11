@@ -149,6 +149,12 @@ let allglobs = ref false
 (** an optional path to dump all output *)
 let dump_path = ref (None : string option)
 
+(** Json files that are given as arguments *)
+let jsonFiles : string list ref = ref [] 
+
+(** Name of the class to analyse (containment) *)
+let mainclass : string ref = ref "" 
+
 (** has any threads have been spawned *)
 let multi_threaded = ref false
 
@@ -190,14 +196,14 @@ let old_accesses = ref true
 let out = ref stdout
 
 type result_style =
-  | None (** Do not print any output except warnings *)
+  | NoOutput (** Do not print any output except warnings *)
   | State (** Only output the state of main function *)
   | Indented (** Output indented XML *)
   | Compact (** Output compact XML, for Eclipse plugin *)
   | Pretty (** Pretty-printed text outpu *)
 
 (** The specified result style *)
-let result_style = ref None
+let result_style = ref NoOutput
 
 (** Is the goblin Eclipse Plugin calling the analyzer? *)
 let eclipse = ref false
@@ -265,6 +271,37 @@ let rm_rf path =
   in
     f path
     
+type name = 
+   | Cons     
+   | Dest     
+   | Name     of string
+   | Unknown  of string
+   | Template of name * name
+   | Nested   of name * name
+   | PtrTo    of name
+   | TypeFun  of string * name
+   
+let rec name_to_string = function
+  | Cons -> "constructor"
+  | Dest -> "destructor"
+  | Name x -> x
+  | Unknown x -> "?"^x^"?"
+  | Template (a,c) -> "template<"^name_to_string a^">"^name_to_string c
+  | Nested (x,y) -> name_to_string x ^ "::" ^ name_to_string y
+  | PtrTo x -> name_to_string x ^ "*"
+  | TypeFun (f,x) -> f ^ "(" ^ name_to_string x ^ ")"
+
+let rec show = function
+  | Cons -> "Cons"
+  | Dest -> "Dest"
+  | Name x -> "Name \""^x^"\""
+  | Unknown x -> "Unknown \""^x^"\""
+  | Template (a,c) -> "Template ("^show a^","^show c^")"
+  | Nested (x,y) -> "Nested ("^show x^","^show y^")"
+  | PtrTo x -> "PtrTo ("^show x^")"
+  | TypeFun (f,x) -> "TypeFun ("^f^","^ name_to_string x ^ ")"
+
+ 
 let special    = Str.regexp "nw\\|na\\|dl\\|da\\|ps\\|ng\\|ad\\|de\\|co\\|pl\\|mi\\|ml\\|dv\\|rm\\|an\\|or\\|eo\\|aS\\|pL\\|mI\\|mL\\|dV\\|rM\\|aN \\|oR\\|eO\\|ls\\|rs\\|lS\\|rS\\|eq\\|ne\\|lt\\|gt\\|le\\|ge\\|nt\\|aa\\|oo\\|pp\\|mm\\|cm\\|pm\\|pt\\|cl\\|ix\\|qu\\|st\\|sz"
 let dem_prefix = Str.regexp "^_Z\\(.+\\)"
 let num_prefix = Str.regexp "^\\([0-9]+\\)\\(.+\\)"
@@ -282,50 +319,72 @@ let destructor = Str.regexp "^D[0-2]"
 let varlift    = Str.regexp "^llvm_cbe_\\(.+\\)$"
 let take n x = String.sub x 0 n 
 let drop n x = String.sub x n (String.length x - n) 
-let appp p s (x,y) = (p^x^s), y 
+let appp f (x,y) = f x, y
 
-let rec num_p x =
+let rec num_p x : name list * string =
   if Str.string_match num_prefix x 0
   then let n = int_of_string (Str.matched_group 1 x) in
        let t = Str.matched_group 2 x in
        let r = drop n t in
        let xs, r = num_p r in
-       (take n t :: xs), r
+       (Name (take n t) :: xs), r
+  else if Str.string_match constructor x 0
+  then [Cons],Str.string_after x (Str.match_end ()) 
+  else if Str.string_match destructor x 0
+  then [Dest],Str.string_after x (Str.match_end ()) 
+  else if Str.string_match special x 0
+  then [Name x],Str.string_after x (Str.match_end ()) 
   else ([],x)
-let demangle x = 
-  let rec dem x =
+  
+let to_name x = 
+  let rec conv x : name * string =
     if Str.string_match num_prefix x 0
     then let n = int_of_string (Str.matched_group 1 x) in
-         take n (Str.matched_group 2 x), drop n (Str.matched_group 2 x)
+         Name (take n (Str.matched_group 2 x)), drop n (Str.matched_group 2 x)
     else if Str.string_match ti_prefix x 0
-    then appp "typeinfo(" ")" (dem (Str.matched_group 1 x))
+    then appp (fun x -> TypeFun ("typeinfo", x)) (conv (Str.matched_group 1 x))
     else if Str.string_match tv_prefix x 0
-    then appp "v_table(" ")" (dem (Str.matched_group 1 x))
+    then appp (fun x -> TypeFun ("v_table", x)) (conv (Str.matched_group 1 x))
     else if Str.string_match ts_prefix x 0
-    then appp "typeinfo_name(" ")" (dem (Str.matched_group 1 x))
+    then appp (fun x -> TypeFun ("typeinfo_name", x)) (conv (Str.matched_group 1 x))
     else if Str.string_match tt_prefix x 0
-    then appp "VTT(" ")" (dem (Str.matched_group 1 x))
+    then appp (fun x -> TypeFun ("VTT", x)) (conv (Str.matched_group 1 x))
     else if Str.string_match templ x 0
-    then let x,y = dem (Str.matched_group 1 x) in 
-         appp ("template<"^x^">") "" (dem (drop 1 y))
+    then let x,y = conv (Str.matched_group 1 x) in 
+         appp (fun z -> Template (x,z)) (conv (drop 1 y))
     else if Str.string_match nested x 0
-    then match num_p (Str.matched_group 1 x) with
-           | (p::ps), r ->  List.fold_left (fun xs x -> xs ^ "::" ^ x) p ps, r
-           | _,r -> "", r 
+    then let ps, r = num_p (Str.matched_group 1 x) in
+         match List.rev ps with
+           | p::ps -> List.fold_right (fun x xs -> Nested (x,xs)) ps p, r
+           | _ -> Unknown "", r 
     else if Str.string_match ptr_to x 0
-    then appp "" "*" (dem (Str.matched_group 1 x))
+    then appp (fun x -> PtrTo x) (conv (Str.matched_group 1 x))
     else if Str.string_match constructor x 0
-    then "constructor",""
+    then Cons,""
     else if Str.string_match destructor x 0
-    then "destructor",""
+    then Dest,""
     else if Str.string_match special x 0
-    then x,""
-    else "???" ^ x, ""    
+    then Name x,""
+    else Unknown x, ""    
   in
   if Str.string_match dem_prefix x 0
-  then fst (dem (Str.matched_group 1 x))
+  then fst (conv (Str.matched_group 1 x))
   else if Str.string_match strlift x 0
-  then "lifted_string" ^ (Str.matched_group 1 x)
+  then Name ("lifted_string" ^ Str.matched_group 1 x)
   else if Str.string_match varlift x 0
-  then Str.matched_group 1 x
-  else x
+  then Name (Str.matched_group 1 x)
+  else Name x
+
+let get_class x : string option = 
+  let rec git : name -> string option = function 
+    | Cons | Dest | Name _ | Unknown _ | PtrTo _ | TypeFun _ -> None
+    | Template (a,c) -> git c
+    | Nested (x,y) -> 
+      begin match git y with 
+        | None -> begin match x with Name x -> Some x | _ -> None  end
+        | x -> x 
+      end
+  in
+  git (to_name x)
+  
+let demangle x = name_to_string (to_name x) 

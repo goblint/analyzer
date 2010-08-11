@@ -14,6 +14,11 @@ struct
   let from_fun_name = function
     | `Lifted x -> Some x
     | _ -> None
+    
+  let get_class (x:t) : string option =
+    match from_fun_name x with
+      | Some x -> Goblintutil.get_class x.svar.vname
+      | None   -> None
   
 end
 
