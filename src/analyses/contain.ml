@@ -10,7 +10,7 @@ module GU = Goblintutil
 module Spec =
 struct
   include Analyses.DefaultSpec  
-  
+
   module StringPair =
   struct
     type t = string * string
@@ -22,7 +22,7 @@ struct
   module InhRel = Set.Make(StringPair)
   let inc : InhRel.t ref = ref InhRel.empty  
 
-  let init () = 
+  let init_inh_rel () = 
     let module StringH =
     struct
       type t = string
@@ -50,15 +50,18 @@ struct
     with Json_error x -> 
         failwith ("Contaimnent analysis failed to read CXX.json: " ^ x)
 
-
+  let init () =
+    init_inh_rel ();
+    ContainDomain.Dom.tainted_varstore := makeVarinfo false "TAINTED_FIELDS" voidType
+    
   let name = "Containment analysis"
   
   module Dom  = 
   struct
     include ContainDomain.Dom
-    let short n (_,x:t) = Danger.short n x
-    let toXML_f sf ((_,x):t) = 
-      match Danger.toXML_f (fun _ x -> sf 800 (ContainDomain.FuncName.bot (),x)) x with
+    let short n (_,x,_:t) = Danger.short n x
+    let toXML_f sf (_,x,_:t) = 
+      match Danger.toXML_f (fun _ x -> sf 800 (ContainDomain.FuncName.bot (),x,ContainDomain.Diff.bot ())) x with
         | Xml.Element (node, (text, _)::xs, []) -> 
             Xml.Element (node, (text, "Containment Analysis (top)")::xs, [])              
         | Xml.Element (node, (text, _)::xs, elems) -> 
@@ -67,9 +70,9 @@ struct
     let toXML x = toXML_f short x
   end
   
-  module Glob = Global.Make (Lattice.Unit)
-  
-  let ignore_this (fn,_) =
+  module Glob = Global.Make (ContainDomain.FieldSet)
+
+  let ignore_this (fn,_,_) =
     ContainDomain.FuncName.is_bot fn ||
     match ContainDomain.FuncName.get_class fn with
       | Some x -> 
@@ -78,15 +81,26 @@ struct
           r
       | _ ->
           true
+          
+  let get_diff (_,_,df:Dom.t)  = ContainDomain.Diff.elements df
   
+  let reset_diff (x,y,z:Dom.t) = x, y, ContainDomain.Diff.empty ()
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     if ignore_this ctx.local then ctx.local else begin
-      Dom.warn_bad_reachables ctx.ask [AddrOf lval] false ctx.local;
-      Dom.assign_argmap ctx.ask lval rval ctx.local
+      let fs = Dom.get_tainted_fields ctx.global in
+      Dom.warn_tainted fs rval;
+      Dom.warn_tainted fs (Lval lval);
+      if Dom.constructed_from_this (Lval lval) then ()
+      else Dom.warn_bad_reachables ctx.ask [AddrOf lval] false ctx.local;
+      let st = Dom.assign_to_local ctx.ask lval (Some rval) ctx.local in
+      Dom.assign_argmap ctx.ask lval rval st
     end
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+    let fs = Dom.get_tainted_fields ctx.global in
+    Dom.warn_tainted fs exp;
     ctx.local
   
   let body ctx (f:fundec) : Dom.t =
@@ -94,6 +108,10 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     if ignore_this ctx.local then ctx.local else begin
+      begin match exp with
+        | None -> ()
+        | Some e -> Dom.warn_tainted (Dom.get_tainted_fields ctx.global) e;
+      end ;
       let arglist = match exp with Some x -> [x] | _ -> [] in
       Dom.warn_bad_reachables ctx.ask arglist true ctx.local;
       Dom.remove_formals f ctx.local
@@ -103,12 +121,37 @@ struct
     [ctx.local,ctx.local]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-    fst ctx.local, snd au
-  
+    let a, _, c = ctx.local in
+    let _, b, _ = au in
+    let ret_is_glob () = 
+      match f.vtype with
+        | TFun (r,_,_,_) when isPointerType(r) -> true
+        | _ -> false 
+    in
+    if ignore_this ctx.local then a, b, c else begin
+      let fs = Dom.get_tainted_fields ctx.global in
+      List.iter (Dom.warn_tainted fs) args;
+      match lval with
+        | Some v -> 
+            Dom.warn_tainted fs (Lval v);
+            if ret_is_glob () 
+            then Dom.assign_to_local ctx.ask v None (a,b,c)
+            else (a,b,c)
+        | None -> a, b, c
+    end
+    
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     if ignore_this ctx.local then [ctx.local,Cil.integer 1, true] else begin
       Dom.warn_bad_reachables ctx.ask arglist true ctx.local;
-      [ctx.local,Cil.integer 1, true]
+      let fs = Dom.get_tainted_fields ctx.global in
+      List.iter (Dom.warn_tainted fs) arglist;
+      begin match lval with
+        | Some v -> 
+            Dom.warn_tainted fs (Lval v);
+            [Dom.assign_to_local ctx.ask v None ctx.local,Cil.integer 1, true]
+        | None -> 
+            [ctx.local,Cil.integer 1, true]
+      end
     end
 
   let fork ctx lv f args = 
@@ -127,7 +170,7 @@ module ContainmentMCP =
                 let inject_l (x:lf) = (`Contain x:MCP.local_state)
                 let extract_l x = match x with `Contain x -> x | _ -> raise MCP.SpecificationConversionError
                 type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+                let inject_g x = `Contain x
+                let extract_g x = match x with `Contain x -> x | _ -> raise MCP.SpecificationConversionError
          end)
 
