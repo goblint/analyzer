@@ -28,38 +28,6 @@ struct
   module InhRel = Set.Make(StringPair)
   let inc : InhRel.t ref = ref InhRel.empty  
 
-  let init_inh_rel () = 
-    let module StringH =
-    struct
-      type t = string
-      let equal (x:t) (y:t) = x = y
-      let hash (x:t) = Hashtbl.hash x
-    end in
-    let module InhMap = Hashtbl.Make (StringH) in
-    let inh : string list InhMap.t = InhMap.create 111 in
-    let rec closure_add x y (acc:InhRel.t) =
-      let inhy = try InhMap.find inh y with _ -> [] in
-      List.fold_right (closure_add x) inhy (InhRel.add (x,y) acc)
-    in
-    let add_entry (cn, xs)  =
-      let xs = List.map string (array xs) in
-      InhMap.add inh cn xs
-    in
-    match List.filter (fun x -> Str.string_match (Str.regexp ".*CXX\\.json$") x 0) !Goblintutil.jsonFiles with
-      | [] -> Messages.bailwith "Containment analysis needs a CXX.json file."
-      | f :: _ ->
-    try 
-      let inhr_tbl = make_table (objekt (Json_io.load_json f)) in
-      let xs = objekt (field inhr_tbl "inheritance") in
-      List.iter add_entry xs;
-      inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !inc;
-    with Json_error x -> 
-        failwith ("Contaimnent analysis failed to read CXX.json: " ^ x)
-
-  let init () =
-    init_inh_rel ();
-    ContainDomain.Dom.tainted_varstore := makeVarinfo false "TAINTED_FIELDS" voidType
-    
   let name = "Containment analysis"
   
   module Dom  = 
@@ -78,6 +46,44 @@ struct
   
   module Glob = Global.Make (ContainDomain.FieldSet)
 
+  let init_inh_rel () = 
+    let module StringH =
+    struct
+      type t = string
+      let equal (x:t) (y:t) = x = y
+      let hash (x:t) = Hashtbl.hash x
+    end in
+    let module InhMap = Hashtbl.Make (StringH) in
+    let inh : string list InhMap.t = InhMap.create 111 in
+    let rec closure_add x y (acc:InhRel.t) =
+      let inhy = try InhMap.find inh y with _ -> [] in
+      List.fold_right (closure_add x) inhy (InhRel.add (x,y) acc)
+    in
+    let add_inh_entry (cn, xs)  =
+      let xs = List.map string (array xs) in
+      InhMap.add inh cn xs
+    in
+    let add_htbl htbl (cn,xs) =
+      let xs = List.map string (array xs) in
+      Hashtbl.add htbl cn xs
+    in
+    match List.filter (fun x -> Str.string_match (Str.regexp ".*CXX\\.json$") x 0) !Goblintutil.jsonFiles with
+      | [] -> Messages.bailwith "Containment analysis needs a CXX.json file."
+      | f :: _ ->
+    try 
+      let inhr_tbl = make_table (objekt (Json_io.load_json f)) in
+      List.iter add_inh_entry (objekt (field inhr_tbl "inheritance"));
+      List.iter (add_htbl Dom.public_vars) (objekt (field inhr_tbl "public_vars"));
+      List.iter (add_htbl Dom.public_methods) (objekt (field inhr_tbl "public_methods"));
+      List.iter (add_htbl Dom.friends) (objekt (field inhr_tbl "friends"));
+      inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !inc;
+    with Json_error x -> 
+        failwith ("Contaimnent analysis failed to read CXX.json: " ^ x)
+
+  let init () =
+    init_inh_rel ();
+    ContainDomain.Dom.tainted_varstore := makeVarinfo false "TAINTED_FIELDS" voidType
+    
   let ignore_this (fn,_,_) =
     ContainDomain.FuncName.is_bot fn ||
     match ContainDomain.FuncName.get_class fn with

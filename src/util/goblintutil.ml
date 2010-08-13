@@ -276,7 +276,7 @@ type name =
    | Dest     
    | Name     of string
    | Unknown  of string
-   | Template of name * name
+   | Template of name 
    | Nested   of name * name
    | PtrTo    of name
    | TypeFun  of string * name
@@ -286,7 +286,8 @@ let rec name_to_string = function
   | Dest -> "destructor"
   | Name x -> x
   | Unknown x -> "?"^x^"?"
-  | Template (a,c) -> "template<"^name_to_string a^">"^name_to_string c
+  | Template a -> "template<"^name_to_string a^">"
+  | Nested (Template x,y) -> "template<"^name_to_string x^ ">" ^ name_to_string y
   | Nested (x,y) -> name_to_string x ^ "::" ^ name_to_string y
   | PtrTo x -> name_to_string x ^ "*"
   | TypeFun (f,x) -> f ^ "(" ^ name_to_string x ^ ")"
@@ -296,7 +297,7 @@ let rec show = function
   | Dest -> "Dest"
   | Name x -> "Name \""^x^"\""
   | Unknown x -> "Unknown \""^x^"\""
-  | Template (a,c) -> "Template ("^show a^","^show c^")"
+  | Template (a) -> "Template ("^show a^")"
   | Nested (x,y) -> "Nested ("^show x^","^show y^")"
   | PtrTo x -> "PtrTo ("^show x^")"
   | TypeFun (f,x) -> "TypeFun ("^f^","^ name_to_string x ^ ")"
@@ -312,7 +313,7 @@ let tt_prefix  = Str.regexp "^TT\\(.+\\)"
 let tt_prefix  = Str.regexp "^TT\\(.+\\)"
 let nested     = Str.regexp "^N\\(.+\\)E"
 let strlift    = Str.regexp "^_OC_str\\([0-9]*\\)$"
-let templ      = Str.regexp "^I\\(.+\\)"
+let templ      = Str.regexp "^I\\(.+\\)E"
 let ptr_to     = Str.regexp "^P\\(.+\\)"
 let constructor= Str.regexp "^C[1-3]"
 let destructor = Str.regexp "^D[0-2]"
@@ -328,6 +329,11 @@ let rec num_p x : name list * string =
        let r = drop n t in
        let xs, r = num_p r in
        (Name (take n t) :: xs), r
+  else if Str.string_match templ x 0
+  then let nn = Str.string_after x (Str.match_end ()) in
+       let t,_ = conv (Str.matched_group 1 x) in
+       let xs, r = num_p nn in
+       (Template t::xs), r
   else if Str.string_match constructor x 0
   then [Cons],Str.string_after x (Str.match_end ()) 
   else if Str.string_match destructor x 0
@@ -336,49 +342,49 @@ let rec num_p x : name list * string =
   then [Name x],Str.string_after x (Str.match_end ()) 
   else ([],x)
   
+and conv x : name * string =
+  if Str.string_match num_prefix x 0
+  then let n = int_of_string (Str.matched_group 1 x) in
+        Name (take n (Str.matched_group 2 x)), drop n (Str.matched_group 2 x)
+  else if Str.string_match ti_prefix x 0
+  then appp (fun x -> TypeFun ("typeinfo", x)) (conv (Str.matched_group 1 x))
+  else if Str.string_match tv_prefix x 0
+  then appp (fun x -> TypeFun ("v_table", x)) (conv (Str.matched_group 1 x))
+  else if Str.string_match ts_prefix x 0
+  then appp (fun x -> TypeFun ("typeinfo_name", x)) (conv (Str.matched_group 1 x))
+  else if Str.string_match tt_prefix x 0
+  then appp (fun x -> TypeFun ("VTT", x)) (conv (Str.matched_group 1 x))
+  else if Str.string_match templ x 0
+  then let x,y = conv (Str.matched_group 1 x) in 
+        appp (fun z -> Nested (Template x, z)) (conv (drop 1 y))
+  else if Str.string_match nested x 0
+  then let ps, r = num_p (Str.matched_group 1 x) in
+        match List.rev ps with
+          | p::ps -> List.fold_left (fun xs x -> Nested (x,xs)) p ps, r
+          | _ -> Unknown "", r 
+  else if Str.string_match ptr_to x 0
+  then appp (fun x -> PtrTo x) (conv (Str.matched_group 1 x))
+  else if Str.string_match constructor x 0
+  then Cons,""
+  else if Str.string_match destructor x 0
+  then Dest,""
+  else if Str.string_match special x 0
+  then Name x,""
+  else Unknown x, ""    
+  
+
 let to_name x = 
-  let rec conv x : name * string =
-    if Str.string_match num_prefix x 0
-    then let n = int_of_string (Str.matched_group 1 x) in
-         Name (take n (Str.matched_group 2 x)), drop n (Str.matched_group 2 x)
-    else if Str.string_match ti_prefix x 0
-    then appp (fun x -> TypeFun ("typeinfo", x)) (conv (Str.matched_group 1 x))
-    else if Str.string_match tv_prefix x 0
-    then appp (fun x -> TypeFun ("v_table", x)) (conv (Str.matched_group 1 x))
-    else if Str.string_match ts_prefix x 0
-    then appp (fun x -> TypeFun ("typeinfo_name", x)) (conv (Str.matched_group 1 x))
-    else if Str.string_match tt_prefix x 0
-    then appp (fun x -> TypeFun ("VTT", x)) (conv (Str.matched_group 1 x))
-    else if Str.string_match templ x 0
-    then let x,y = conv (Str.matched_group 1 x) in 
-         appp (fun z -> Template (x,z)) (conv (drop 1 y))
-    else if Str.string_match nested x 0
-    then let ps, r = num_p (Str.matched_group 1 x) in
-         match List.rev ps with
-           | p::ps -> List.fold_right (fun x xs -> Nested (x,xs)) ps p, r
-           | _ -> Unknown "", r 
-    else if Str.string_match ptr_to x 0
-    then appp (fun x -> PtrTo x) (conv (Str.matched_group 1 x))
-    else if Str.string_match constructor x 0
-    then Cons,""
-    else if Str.string_match destructor x 0
-    then Dest,""
-    else if Str.string_match special x 0
-    then Name x,""
-    else Unknown x, ""    
-  in
   if Str.string_match dem_prefix x 0
   then fst (conv (Str.matched_group 1 x))
   else if Str.string_match strlift x 0
-  then Name ("lifted_string" ^ Str.matched_group 1 x)
+  then Name ("str" ^ Str.matched_group 1 x)
   else if Str.string_match varlift x 0
   then Name (Str.matched_group 1 x)
   else Name x
 
 let get_class x : string option = 
   let rec git : name -> string option = function 
-    | Cons | Dest | Name _ | Unknown _ | PtrTo _ | TypeFun _ -> None
-    | Template (a,c) -> git c
+    | Cons | Dest | Name _ | Unknown _ | PtrTo _ | TypeFun _ | Template _ -> None 
     | Nested (x,y) -> 
       begin match git y with 
         | None -> begin match x with Name x -> Some x | _ -> None  end
@@ -386,5 +392,19 @@ let get_class x : string option =
       end
   in
   git (to_name x)
+
+let get_class_and_name x : (string * string) option = 
+  let rec git = function 
+    | Cons | Dest | Name _ | Unknown _ | PtrTo _ | TypeFun _ | Template _ -> None
+    | Nested (x,y) -> 
+      begin match git y with 
+        | None -> begin match x, y with Name x, Name y -> Some (x,y) | _ -> None  end
+        | x -> x 
+      end
+  in
+  git (to_name x)
   
-let demangle x = name_to_string (to_name x) 
+let demangle x = 
+  let y = to_name x in
+(*   Printf.printf "%s -> %s -> %s\n" x (show y) (name_to_string y);   *)
+  name_to_string y

@@ -32,6 +32,10 @@ struct
 
   include Lattice.Prod3 (FuncName) (Danger) (Diff)
   
+  let public_vars : (string, string list) Hashtbl.t = Hashtbl.create 111
+  let public_methods : (string, string list) Hashtbl.t = Hashtbl.create 111
+  let friends : (string, string list) Hashtbl.t = Hashtbl.create 23
+  
   let tainted_varstore = ref dummyFunDec.svar
   let tainted_varinfo () = !tainted_varstore 
   
@@ -285,28 +289,36 @@ struct
     && is_tainted fs e
     then Messages.report ("Use of tainted field found in " ^ sprint 80 (d_exp () e))
     
-  let contians_gobals = 
-    let rec check_exp n = function 
+  let get_gobals = 
+    let rec check_offs = function
+      | NoOffset -> []
+      | Index (e,o) -> check_exp 0 e @ check_offs o
+      | Field (f,o) -> check_offs o
+    and check_exp n = function 
       | SizeOf _ | SizeOfE _ 
       | SizeOfStr _ | AlignOf _  
-      | Const _ | AlignOfE _ -> false
+      | Const _ | AlignOfE _ -> []
       | UnOp  (_,e,_)     -> check_exp n e     
-      | BinOp (_,e1,e2,_) -> check_exp n e1 || check_exp n e2 
+      | BinOp (_,e1,e2,_) -> check_exp n e1 @ check_exp n e2 
       | AddrOf  (Mem e,o) 
-      | StartOf (Mem e,o) -> check_exp n e
-      | Lval    (Mem e,o) -> check_exp (n+1) e
+      | StartOf (Mem e,o) -> check_exp n e @ check_offs o
+      | Lval    (Mem e,o) -> check_exp (n+1) e @ check_offs o
       | CastE (_,e) -> check_exp n e 
-      | Lval    (Var v2,o) when n>0 -> true
-      | Lval    (Var v2,o) -> v2.vglob
+      | Lval    (Var v2,o)
       | AddrOf  (Var v2,o) 
-      | StartOf (Var v2,o) when n>1 -> true
-      | AddrOf  (Var v2,o) 
-      | StartOf (Var v2,o) -> n=1 && v2.vglob
+      | StartOf (Var v2,o) -> (if v2.vglob then [v2] else []) @ check_offs o
     in
     check_exp 0
 
   let warn_glob (e:exp) =
-    if contians_gobals e
+    let p x =
+      match unrollType x.vtype, Goblintutil.get_class_and_name x.vname with
+        | TFun _, Some (c,n) ->
+            begin try List.exists ((=) n) (Hashtbl.find public_methods c)
+            with _ -> false end
+        | _ -> true
+    in
+    if List.exists p (get_gobals e)
     then Messages.report ("Possible use of globals in " ^ sprint 80 (d_exp () e))
 
 end
