@@ -7,6 +7,12 @@ open Json_type.Browse
 
 module GU = Goblintutil
 
+(* todo:
+     - function pointers to private functions
+     - usage of statics/globals 
+     
+     
+     *)
 module Spec =
 struct
   include Analyses.DefaultSpec  
@@ -39,8 +45,8 @@ struct
       let xs = List.map string (array xs) in
       InhMap.add inh cn xs
     in
-    match List.filter ((=) "CXX.json") !Goblintutil.jsonFiles with
-      | [] -> Messages.bailwith "Contaimnent analysis needs a CXX.json file."
+    match List.filter (fun x -> Str.string_match (Str.regexp ".*CXX\\.json$") x 0) !Goblintutil.jsonFiles with
+      | [] -> Messages.bailwith "Containment analysis needs a CXX.json file."
       | f :: _ ->
     try 
       let inhr_tbl = make_table (objekt (Json_io.load_json f)) in
@@ -89,6 +95,7 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     if ignore_this ctx.local then ctx.local else begin
+      Dom.warn_glob lval;
       let fs = Dom.get_tainted_fields ctx.global in
       Dom.warn_tainted fs rval;
       Dom.warn_tainted fs (Lval lval);

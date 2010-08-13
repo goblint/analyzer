@@ -285,5 +285,28 @@ struct
     && is_tainted fs e
     then Messages.report ("Use of tainted field found in " ^ sprint 80 (d_exp () e))
     
-  
+  let contians_gobals = 
+    let rec check_exp n = function 
+      | SizeOf _ | SizeOfE _ 
+      | SizeOfStr _ | AlignOf _  
+      | Const _ | AlignOfE _ -> false
+      | UnOp  (_,e,_)     -> check_exp n e     
+      | BinOp (_,e1,e2,_) -> check_exp n e1 || check_exp n e2 
+      | AddrOf  (Mem e,o) 
+      | StartOf (Mem e,o) -> check_exp n e
+      | Lval    (Mem e,o) -> check_exp (n+1) e
+      | CastE (_,e) -> check_exp n e 
+      | Lval    (Var v2,o) when n>0 -> true
+      | Lval    (Var v2,o) -> v2.vglob
+      | AddrOf  (Var v2,o) 
+      | StartOf (Var v2,o) when n>1 -> true
+      | AddrOf  (Var v2,o) 
+      | StartOf (Var v2,o) -> n=1 && v2.vglob
+    in
+    check_exp 0
+
+  let warn_glob (v:lval) =
+    if contians_gobals (Lval v)
+    then Messages.report ("Possible use of globals in " ^ sprint 80 (d_lval () v))
+
 end
