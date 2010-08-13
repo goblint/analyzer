@@ -305,8 +305,8 @@ struct
     in
     check_exp 0
 
-  let warn_glob (v:lval) =
-    if contians_gobals (Lval v)
-    then Messages.report ("Possible use of globals in " ^ sprint 80 (d_lval () v))
+  let warn_glob (e:exp) =
+    if contians_gobals e
+    then Messages.report ("Possible use of globals in " ^ sprint 80 (d_exp () e))
 
 end
