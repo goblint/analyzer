@@ -95,7 +95,8 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     if ignore_this ctx.local then ctx.local else begin
-      Dom.warn_glob lval;
+      Dom.warn_glob (Lval lval);
+      Dom.warn_glob rval;
       let fs = Dom.get_tainted_fields ctx.global in
       Dom.warn_tainted fs rval;
       Dom.warn_tainted fs (Lval lval);
@@ -106,10 +107,13 @@ struct
     end
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
-    let fs = Dom.get_tainted_fields ctx.global in
-    Dom.warn_tainted fs exp;
-    ctx.local
-  
+    if ignore_this ctx.local then ctx.local else begin
+      let fs = Dom.get_tainted_fields ctx.global in
+      Dom.warn_glob exp;
+      Dom.warn_tainted fs exp;
+      ctx.local
+    end
+    
   let body ctx (f:fundec) : Dom.t =
     Dom.set_funname f (Dom.add_formals f ctx.local)
 
@@ -117,7 +121,9 @@ struct
     if ignore_this ctx.local then ctx.local else begin
       begin match exp with
         | None -> ()
-        | Some e -> Dom.warn_tainted (Dom.get_tainted_fields ctx.global) e;
+        | Some e -> 
+          Dom.warn_glob e;
+          Dom.warn_tainted (Dom.get_tainted_fields ctx.global) e
       end ;
       let arglist = match exp with Some x -> [x] | _ -> [] in
       Dom.warn_bad_reachables ctx.ask arglist true ctx.local;
@@ -138,8 +144,10 @@ struct
     if ignore_this ctx.local then a, b, c else begin
       let fs = Dom.get_tainted_fields ctx.global in
       List.iter (Dom.warn_tainted fs) args;
+      List.iter Dom.warn_glob args;
       match lval with
         | Some v -> 
+            Dom.warn_glob (Lval v);
             Dom.warn_tainted fs (Lval v);
             if ret_is_glob () 
             then Dom.assign_to_local ctx.ask v None (a,b,c)
