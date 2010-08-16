@@ -104,9 +104,10 @@ struct
       Dom.warn_glob (Lval lval);
       Dom.warn_glob rval;
       let fs = Dom.get_tainted_fields ctx.global in
-      Dom.warn_tainted fs rval;
-      Dom.warn_tainted fs (Lval lval);
-      if Dom.constructed_from_this (Lval lval) then ()
+      Dom.warn_tainted fs ctx.local rval;
+      Dom.warn_tainted fs ctx.local (Lval lval);
+      let _, ds, _ = ctx.local in
+      if Dom.constructed_from_this ds (Lval lval) then ()
       else Dom.warn_bad_reachables ctx.ask [AddrOf lval] false ctx.local;
       let st = Dom.assign_to_local ctx.ask lval (Some rval) ctx.local in
       Dom.assign_argmap ctx.ask lval rval st
@@ -116,7 +117,7 @@ struct
     if ignore_this ctx.local then ctx.local else begin
       let fs = Dom.get_tainted_fields ctx.global in
       Dom.warn_glob exp;
-      Dom.warn_tainted fs exp;
+      Dom.warn_tainted fs ctx.local exp;
       ctx.local
     end
     
@@ -129,7 +130,7 @@ struct
         | None -> ()
         | Some e -> 
           Dom.warn_glob e;
-          Dom.warn_tainted (Dom.get_tainted_fields ctx.global) e
+          Dom.warn_tainted (Dom.get_tainted_fields ctx.global) ctx.local e
       end ;
       let arglist = match exp with Some x -> [x] | _ -> [] in
       Dom.warn_bad_reachables ctx.ask arglist true ctx.local;
@@ -149,12 +150,12 @@ struct
     in
     if ignore_this ctx.local then a, b, c else begin
       let fs = Dom.get_tainted_fields ctx.global in
-      List.iter (Dom.warn_tainted fs) args;
+      List.iter (Dom.warn_tainted fs ctx.local) args;
       List.iter Dom.warn_glob args;
       match lval with
         | Some v -> 
             Dom.warn_glob (Lval v);
-            Dom.warn_tainted fs (Lval v);
+            Dom.warn_tainted fs ctx.local (Lval v);
             if ret_is_glob () 
             then Dom.assign_to_local ctx.ask v None (a,b,c)
             else (a,b,c)
@@ -165,10 +166,10 @@ struct
     if ignore_this ctx.local then [ctx.local,Cil.integer 1, true] else begin
       Dom.warn_bad_reachables ctx.ask arglist true ctx.local;
       let fs = Dom.get_tainted_fields ctx.global in
-      List.iter (Dom.warn_tainted fs) arglist;
+      List.iter (Dom.warn_tainted fs ctx.local) arglist;
       begin match lval with
         | Some v -> 
-            Dom.warn_tainted fs (Lval v);
+            Dom.warn_tainted fs ctx.local (Lval v);
             [Dom.assign_to_local ctx.ask v None ctx.local,Cil.integer 1, true]
         | None -> 
             [ctx.local,Cil.integer 1, true]

@@ -1,6 +1,8 @@
 open Cil
 open Pretty
 
+let this_name = "llvm_cbe_this"
+
 module Var = Basetype.Variables
 module ArgSet = SetDomain.ToppedSet (Var) (struct let topname = "all args" end) 
 
@@ -23,7 +25,12 @@ struct
     match from_fun_name x with
       | Some x -> Goblintutil.get_class x.svar.vname
       | None   -> None
-  
+
+  let get_class_and_name (x:t) : (string * string) option =
+    match from_fun_name x with
+      | Some x -> Goblintutil.get_class_and_name x.svar.vname
+      | None   -> None
+
 end
 
 module Dom = 
@@ -100,7 +107,7 @@ struct
     in
     used_args
 
-  let constructed_from_this = 
+  let constructed_from_this ds = 
     let xor a b = (a || b) && not (a && b) in
     let rec from_this = function 
       | SizeOf _
@@ -117,7 +124,11 @@ struct
       | CastE (_,e)       -> from_this e 
       | Lval    (Var v2,o) 
       | AddrOf  (Var v2,o) 
-      | StartOf (Var v2,o) -> "this" = v2.vname
+      | StartOf (Var v2,o) -> 
+          let x = Danger.find v2 ds in
+(*           (if v2.vname = "llvm_cbe_tmp10" then Messages.report (sprint 80 (ArgSet.pretty () x)) else ()); *)
+          this_name = v2.vname ||
+          ArgSet.for_all (fun v -> v.vname = this_name) x 
     in
     from_this
     
@@ -184,7 +195,7 @@ struct
   let may_be_a_perfectly_normal_global ask e fromFun st = 
     let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in
     let one_lv = function
-      | v when (not fromFun) && v.vname = "this" -> false
+      | v when (not fromFun) && v.vname = this_name -> false
       | v -> not (ArgSet.is_bot (Danger.find v st))    
     in
     isPointerType (typeOf (stripCasts e)) ||
@@ -201,7 +212,7 @@ struct
     let warn_exp e = 
       let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in
       let warn_one_lv = function
-        | v when (not fromFun) && v.vname = "this" -> ()
+        | v when (not fromFun) && v.vname = this_name -> ()
         | v ->
           let args = Danger.find v st in
           if not (ArgSet.is_bot args)    
@@ -253,7 +264,7 @@ struct
     in
     let flds = get_field_from_this (Lval lval) in
     if  p rval
-    && constructed_from_this (Lval lval)
+    && constructed_from_this st (Lval lval)
     && not (FieldSet.is_bot flds)
     then begin
 (*       Messages.report ("Fields "^sprint 80 (FieldSet.pretty () flds)^" tainted."); *)
@@ -284,8 +295,8 @@ struct
     in
     check_exp
     
-  let warn_tainted fs (e:exp) =
-    if constructed_from_this e
+  let warn_tainted fs (_,ds,_) (e:exp) =
+    if constructed_from_this ds e
     && is_tainted fs e
     then Messages.report ("Use of tainted field found in " ^ sprint 80 (d_exp () e))
     
@@ -320,5 +331,12 @@ struct
     in
     if List.exists p (get_gobals e)
     then Messages.report ("Possible use of globals in " ^ sprint 80 (d_exp () e))
+    
+  let is_public_method (fn,_,_) = 
+    match FuncName.get_class_and_name fn with
+      | Some (c,n) ->
+        begin try List.exists ((=) n) (Hashtbl.find public_methods c)
+        with _ -> false end
+      | _ -> false
 
 end

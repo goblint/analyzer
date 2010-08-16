@@ -92,8 +92,12 @@ regs.sort.each do |d|
     if $1 then params = $1 else params = "" end
 
     hash = Hash.new
-    lines.each_with_index do |obj, i|
+    i = 0
+    lines.each do |obj|
       i = i + 1
+      if obj =~ /#line ([0-9]+) .*$/ then
+        i = $1.to_i - 1
+      end
       next if obj =~ /^\s*\/\//
       if obj =~ /RACE/ then
         hash[i] = if obj =~ /NORACE/ then "norace" else "race" end

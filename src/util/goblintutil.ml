@@ -288,6 +288,8 @@ let rec name_to_string = function
   | Unknown x -> "?"^x^"?"
   | Template a -> "template<"^name_to_string a^">"
   | Nested (Template x,y) -> "template<"^name_to_string x^ ">" ^ name_to_string y
+  | Nested (x,Cons) -> let c = name_to_string x in c ^ "::" ^ c
+  | Nested (x,Dest) -> let c = name_to_string x in c ^ "::~" ^ c
   | Nested (x,y) -> name_to_string x ^ "::" ^ name_to_string y
   | PtrTo x -> name_to_string x ^ "*"
   | TypeFun (f,x) -> f ^ "(" ^ name_to_string x ^ ")"
@@ -322,6 +324,67 @@ let take n x = String.sub x 0 n
 let drop n x = String.sub x n (String.length x - n) 
 let appp f (x,y) = f x, y
 
+let op_name x = 
+  let op_name = function
+    | "nw"  -> "new" (* new   *)
+    | "na"  -> "new[]" (* new[] *)
+    | "dl"  -> "delete" (* delete         *)
+    | "da"  -> "delete[]" (* delete[]       *)
+    | "ps"  -> "+" (* + (unary) *)
+    | "ng"  -> "-" (* - (unary)      *)
+    | "ad"  -> "&" (* & (unary)      *)
+    | "de"  -> "*" (* * (unary)      *)
+    | "co"  -> "~" (* ~              *)
+    | "pl"  -> "+" (* +              *)
+    | "mi"  -> "-" (* -              *)
+    | "ml"  -> "*" (* *              *)
+    | "dv"  -> "/" (* /              *)
+    | "rm"  -> "%" (* %              *)
+    | "an"  -> "&" (* &              *)
+    | "or"  -> "|" (* |              *)
+    | "eo"  -> "^" (* ^              *)
+    | "aS"  -> "=" (* =              *)
+    | "pL"  -> "+=" (* +=             *)
+    | "mI"  -> "-=" (* -=             *)
+    | "mL"  -> "*=" (* *=             *)
+    | "dV"  -> "/=" (* /=             *)
+    | "rM"  -> "%=" (* %=             *)
+    | "aN"  -> "&=" (* &=             *)
+    | "oR"  -> "|=" (* |=             *)
+    | "eO"  -> "^=" (* ^=             *)
+    | "ls"  -> "<<" (* <<             *)
+    | "rs"  -> ">>" (* >>             *)
+    | "lS"  -> "<<=" (* <<=            *)
+    | "rS"  -> ">>=" (* >>=            *)
+    | "eq"  -> "==" (* ==             *)
+    | "ne"  -> "!=" (* !=             *)
+    | "lt"  -> "<" (* <              *)
+    | "gt"  -> ">" (* >              *)
+    | "le"  -> "<=" (* <=             *)
+    | "ge"  -> ">=" (* >=             *)
+    | "nt"  -> "!" (* !              *)
+    | "aa"  -> "&&" (* &&             *)
+    | "oo"  -> "||" (* ||             *)
+    | "pp"  -> "++" (* ++             *)
+    | "mm"  -> "--" (* --             *)
+    | "cm"  -> "," (* ,              *)
+    | "pm"  -> "->*" (* ->*            *)
+    | "pt"  -> "->" (* ->             *)
+    | "cl"  -> "()" (* ()             *)
+    | "ix"  -> "[]" (* []             *)
+    | "qu"  -> "?" (* ?              *)
+    | "st"  -> "sizeof" (* sizeof (a type) *)
+    | "sz"  -> "sizeof" (* sizeof (an expression) *)
+    | "at"  -> "alignof" (* alignof (a type) *)
+    | "az"  -> "alignof" (* alignof (an expression) *)
+    | x -> x 
+  (*   | "cv" <type> -> "(cast)" (* (cast)         *)
+    | "v" <digit> <source-name> -> "vendor" (* vendor extended operator *)
+  *)
+  in 
+  let on = op_name x in
+  if on = x then x else "operator" ^ on
+
 let rec num_p x : name list * string =
   if Str.string_match num_prefix x 0
   then let n = int_of_string (Str.matched_group 1 x) in
@@ -339,7 +402,7 @@ let rec num_p x : name list * string =
   else if Str.string_match destructor x 0
   then [Dest],Str.string_after x (Str.match_end ()) 
   else if Str.string_match special x 0
-  then [Name x],Str.string_after x (Str.match_end ()) 
+  then [Name (op_name x)],Str.string_after x (Str.match_end ()) 
   else ([],x)
   
 and conv x : name * string =
@@ -396,6 +459,8 @@ let get_class x : string option =
 let get_class_and_name x : (string * string) option = 
   let rec git = function 
     | Cons | Dest | Name _ | Unknown _ | PtrTo _ | TypeFun _ | Template _ -> None
+    | Nested (Name x,Cons) -> Some (x,x) 
+    | Nested (Name x,Dest) -> Some (x,"~"^x)
     | Nested (x,y) -> 
       begin match git y with 
         | None -> begin match x, y with Name x, Name y -> Some (x,y) | _ -> None  end
