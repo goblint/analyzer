@@ -1,0 +1,25 @@
+{
+	"inheritance":
+	{
+	"Log" : [],
+	"CBaseFSM" : [],
+	"FSM" : ["CBaseFSM"],
+	"UES" : ["FSM","Log"],
+	"SubUES_X" : ["FSM","Log"]
+	},
+	"public_vars":
+	{
+	"Log" : ["field1","field3","field4"],
+	"FSM" : ["field1"]
+	},
+	"public_methods":
+	{
+	"Log" : ["doLog","get_prifv_fun","Log"],
+	"FSM" : ["UseSuperStatic","FSM"],
+	"UES" : ["UES","~UES","InsertGlobalData","ReceiveEvent"],
+	"SubUES_X" : ["SubUES_X","~SubUES_X","ReceiveEvent"]
+	},
+	"friends":
+	{
+	}
+}
