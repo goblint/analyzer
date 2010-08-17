@@ -51,7 +51,7 @@ struct
   let equal x y = x.vid = y.vid
   let compare x y = compare x.vid y.vid
   let hash x = Hashtbl.hash x.vid
-  let short _ x = GU.demangle x.vname ^ "@" ^ string_of_int x.vid
+  let short _ x = GU.demangle x.vname
   let toXML_f sf x = 
     let esc = Goblintutil.escape in
     let typeinf = Pretty.sprint Goblintutil.summary_length (d_type () x.vtype) in

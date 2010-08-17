@@ -190,6 +190,7 @@ struct
             if isPointerType (typeOfLval v)
             then 
               let fn,st,gd = Dom.assign_to_local ctx.ask v None (a,b,c) fs in
+              let st = Dom.Danger.add f (ContainDomain.ArgSet.singleton f) st in
               fn,Dom.assign_to_lval ctx.ask v st (ContainDomain.ArgSet.singleton f), gd
             else 
               a, b, c
@@ -207,6 +208,7 @@ struct
               if isPointerType (typeOfLval v)
               then begin
                 let fn,st,gd = Dom.assign_to_local ctx.ask v None ctx.local fs in
+                let st = Dom.Danger.add f (ContainDomain.ArgSet.singleton f) st in
                 fn,Dom.assign_to_lval ctx.ask v st (ContainDomain.ArgSet.singleton f), gd
               end else ctx.local
             in
