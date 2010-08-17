@@ -100,9 +100,8 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     if ignore_this ctx.local 
-    || not (Dom.is_public_method ctx.local)
     then ctx.local 
-    else begin
+    else begin 
       Dom.warn_glob (Lval lval);
       Dom.warn_glob rval;
       let fs = Dom.get_tainted_fields ctx.global in
@@ -111,9 +110,9 @@ struct
       let _, ds, _ = ctx.local in
       if Dom.constructed_from_this ds (Lval lval) then ()
       else Dom.warn_bad_reachables ctx.ask [AddrOf lval] false ctx.local;
-      let st = Dom.assign_to_local ctx.ask lval (Some rval) ctx.local in
+      let st = Dom.assign_to_local ctx.ask lval (Some rval) ctx.local fs in
       Dom.assign_argmap ctx.ask lval rval st
-    end
+    end 
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
     if ignore_this ctx.local then ctx.local else begin
@@ -130,13 +129,10 @@ struct
     then st
     else Dom.add_formals f st
 
-
-
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     if ignore_this ctx.local 
-    ||  not (Dom.is_public_method ctx.local)
     then ctx.local 
-    else begin
+    else begin 
       begin match exp with
         | None -> ()
         | Some e -> 
@@ -146,7 +142,7 @@ struct
       let arglist = match exp with Some x -> [x] | _ -> [] in
       Dom.warn_bad_reachables ctx.ask arglist true ctx.local;
       Dom.remove_formals f ctx.local
-    end
+    end 
   
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     let no_mainclass = 
@@ -165,13 +161,14 @@ struct
           | _ -> [] 
       in
       let g (v, e) = 
-        let r = Dom.may_be_a_perfectly_normal_global ctx.ask e false ctx.local in
-(*         printf "global? %a == %b\n" d_exp e r; *)
+        let fs = Dom.get_tainted_fields ctx.global in
+        let r = Dom.may_be_a_perfectly_normal_global ctx.ask e false ctx.local fs in
+(*          printf "global? %a == %b: %s\n" d_exp e r v.vname;  *)
         r
       in
       let bad_vars = List.filter g (zip fd.sformals args) in
       let add_arg st (v,_) =
-(*         printf "%s -- %s\n" (Goblintutil.demangle f.vname) v.vname; *)
+(*          printf "%s -- %s\n" (Goblintutil.demangle f.vname) v.vname;  *)
         Dom.Danger.add v (ContainDomain.ArgSet.singleton v) st
       in
       let f,st,gd = ctx.local in
@@ -182,11 +179,6 @@ struct
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     let a, _, c = ctx.local in
     let _, b, _ = au in
-    let ret_is_glob () = 
-      match f.vtype with
-        | TFun (r,_,_,_) when isPointerType(r) -> true
-        | _ -> false 
-    in
     if ignore_this ctx.local then a, b, c else begin
       let fs = Dom.get_tainted_fields ctx.global in
       List.iter (Dom.warn_tainted fs ctx.local) args;
@@ -195,9 +187,12 @@ struct
         | Some v -> 
             Dom.warn_glob (Lval v);
             Dom.warn_tainted fs ctx.local (Lval v);
-            if ret_is_glob () 
-            then Dom.assign_to_local ctx.ask v None (a,b,c)
-            else (a,b,c)
+            if isPointerType (typeOfLval v)
+            then 
+              let fn,st,gd = Dom.assign_to_local ctx.ask v None (a,b,c) fs in
+              fn,Dom.assign_to_lval ctx.ask v st (ContainDomain.ArgSet.singleton f), gd
+            else 
+              a, b, c
         | None -> a, b, c
     end
     
@@ -207,9 +202,16 @@ struct
       let fs = Dom.get_tainted_fields ctx.global in
       List.iter (Dom.warn_tainted fs ctx.local) arglist;
       begin match lval with
-        | Some v -> 
+        | Some v ->
+            let st = 
+              if isPointerType (typeOfLval v)
+              then begin
+                let fn,st,gd = Dom.assign_to_local ctx.ask v None ctx.local fs in
+                fn,Dom.assign_to_lval ctx.ask v st (ContainDomain.ArgSet.singleton f), gd
+              end else ctx.local
+            in
             Dom.warn_tainted fs ctx.local (Lval v);
-            [Dom.assign_to_local ctx.ask v None ctx.local,Cil.integer 1, true]
+            [Dom.assign_to_local ctx.ask v None st fs,Cil.integer 1, true] 
         | None -> 
             [ctx.local,Cil.integer 1, true]
       end
