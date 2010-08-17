@@ -43,6 +43,9 @@ struct
   let public_methods : (string, string list) Hashtbl.t = Hashtbl.create 111
   let friends : (string, string list) Hashtbl.t = Hashtbl.create 23
   
+  let report x = 
+    Messages.report ("CW: "^x)
+  
   let tainted_varstore = ref dummyFunDec.svar
   let tainted_varinfo () = !tainted_varstore 
   
@@ -100,7 +103,7 @@ struct
       | StartOf (Var v2,o) -> 
           let x = Danger.find v2 st in
           if ArgSet.is_top x then begin
-            Messages.report ("Variable '"^v2.vname^"' is unknown and may point to tainted arguments.");
+            report ("Variable '"^v2.vname^"' is not known and may point to tainted arguments.");
             used_args_idx o
           end else  
             ArgSet.join x (used_args_idx o)
@@ -126,7 +129,7 @@ struct
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> 
           let x = Danger.find v2 ds in
-(*           (if v2.vname = "llvm_cbe_tmp10" then Messages.report (sprint 80 (ArgSet.pretty () x)) else ()); *)
+(*           (if v2.vname = "llvm_cbe_tmp10" then report (sprint 80 (ArgSet.pretty () x)) else ()); *)
           this_name = v2.vname ||
           ArgSet.for_all (fun v -> v.vname = this_name) x 
     in
@@ -216,7 +219,7 @@ struct
         | v ->
           let args = Danger.find v st in
           if not (ArgSet.is_bot args)    
-          then Messages.report ("Expression "^sprint 80 (d_exp () e)^" may contain pointers from "^ArgSet.short 80 args^".")
+          then report ("Expression "^sprint 80 (d_exp () e)^" may contain pointers from "^ArgSet.short 80 args^".")
       in
       if isPointerType (typeOf (stripCasts e)) then begin 
         ArgSet.iter warn_one_lv (used_args st e) ;
@@ -225,7 +228,7 @@ struct
           | `LvalSet s when not (Queries.LS.is_top s) ->
               Queries.LS.iter (fun (v,_) -> warn_one_lv v) s
           | _ -> 
-              Messages.report ("Argument '"^(sprint 80 (d_exp () e))^"' is unknown and may point to global data.")
+              report ("Argument '"^(sprint 80 (d_exp () e))^"' is not known and may point to global data.")
   (*             () (* -- it is true but here we assume nothing important has escaped and then warn on escapes *) *)
       end
     in
@@ -267,7 +270,7 @@ struct
     && constructed_from_this st (Lval lval)
     && not (FieldSet.is_bot flds)
     then begin
-(*       Messages.report ("Fields "^sprint 80 (FieldSet.pretty () flds)^" tainted."); *)
+(*       report ("Fields "^sprint 80 (FieldSet.pretty () flds)^" tainted."); *)
       (fd,st,Diff.add (tainted_varinfo (), flds) df)
     end else (fd,st,df)
     
@@ -298,7 +301,7 @@ struct
   let warn_tainted fs (_,ds,_) (e:exp) =
     if constructed_from_this ds e
     && is_tainted fs e
-    then Messages.report ("Use of tainted field found in " ^ sprint 80 (d_exp () e))
+    then report ("Use of tainted field found in " ^ sprint 80 (d_exp () e))
     
   let get_gobals = 
     let rec check_offs = function
@@ -330,7 +333,7 @@ struct
         | _ -> true
     in
     if List.exists p (get_gobals e)
-    then Messages.report ("Possible use of globals in " ^ sprint 80 (d_exp () e))
+    then report ("Possible use of globals in " ^ sprint 80 (d_exp () e))
 
   let is_public_method_name x = 
     match Goblintutil.get_class_and_name x with

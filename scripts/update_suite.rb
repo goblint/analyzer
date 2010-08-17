@@ -91,7 +91,7 @@ regs.sort.each do |d|
     debug = false unless lines[0] =~ /DEBUG/
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
-
+      
     hash = Hash.new
     i = 0
     lines.each do |obj|
@@ -99,7 +99,7 @@ regs.sort.each do |d|
       if obj =~ /#line ([0-9]+).*$/ then
         i = $1.to_i - 1
       end
-      next if obj =~ /^\/\//
+       next if obj =~ /^\/\//
       if obj =~ /RACE/ then
         hash[i] = if obj =~ /NORACE/ then "norace" else "race" end
       elsif obj =~ /assert.*\(/ then
@@ -191,7 +191,7 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
                     when /is unknown/   : "unknown"
                     when /Uninitialized/ : "warn"
                     when /dereferencing of null/ : "warn"
-                    when /warning/ : "warn"
+                    when /CW:/ : "warn"
                     else obj
                     end
     end
