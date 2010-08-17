@@ -37,7 +37,7 @@ struct
     let toXML_f sf (_,x,_:t) = 
       match Danger.toXML_f (fun _ x -> sf 800 (ContainDomain.FuncName.bot (),x,ContainDomain.Diff.bot ())) x with
         | Xml.Element (node, (text, _)::xs, []) -> 
-            Xml.Element (node, (text, "Containment Analysis (top)")::xs, [])              
+            Xml.Element (node, (text, "Containment Analysis (top/bot)")::xs, [])              
         | Xml.Element (node, (text, _)::xs, elems) -> 
             Xml.Element (node, (text, "Containment Analysis")::xs, elems)     
         | x -> x
@@ -84,13 +84,12 @@ struct
     init_inh_rel ();
     ContainDomain.Dom.tainted_varstore := makeVarinfo false "TAINTED_FIELDS" voidType
     
+  let isnot_mainclass x = (x <> !GU.mainclass) && not (InhRel.mem (!GU.mainclass, x) !inc)
+  
   let ignore_this (fn,_,_) =
     ContainDomain.FuncName.is_bot fn ||
     match ContainDomain.FuncName.get_class fn with
-      | Some x -> 
-          let r = (x <> !GU.mainclass) && not (InhRel.mem (!GU.mainclass, x) !inc) in
-(*          Printf.printf "%s ~ %s %b ?\n" x !GU.mainclass r;*)
-          r
+      | Some x -> isnot_mainclass x
       | _ ->
           true
           
@@ -100,7 +99,10 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    if ignore_this ctx.local then ctx.local else begin
+    if ignore_this ctx.local 
+    || not (Dom.is_public_method ctx.local)
+    then ctx.local 
+    else begin
       Dom.warn_glob (Lval lval);
       Dom.warn_glob rval;
       let fs = Dom.get_tainted_fields ctx.global in
@@ -122,10 +124,19 @@ struct
     end
     
   let body ctx (f:fundec) : Dom.t =
-    Dom.set_funname f (Dom.add_formals f ctx.local)
+    let st = Dom.set_funname f ctx.local in
+    if ignore_this st 
+    || not (Dom.is_public_method st)
+    then st
+    else Dom.add_formals f st
+
+
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    if ignore_this ctx.local then ctx.local else begin
+    if ignore_this ctx.local 
+    ||  not (Dom.is_public_method ctx.local)
+    then ctx.local 
+    else begin
       begin match exp with
         | None -> ()
         | Some e -> 
@@ -138,8 +149,36 @@ struct
     end
   
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    [ctx.local,ctx.local]
-  
+    let no_mainclass = 
+      match GU.get_class f.vname with
+        | Some x -> isnot_mainclass x
+        | _ -> true 
+    in
+    if (not no_mainclass) && (not (Dom.is_public_method_name f.vname))
+    then begin  
+(*     Dom.warn_bad_reachables ctx.ask args false ctx.local; *)
+(*       printf ":: no_mainclass:%b public:%b \n" no_mainclass (Dom.is_public_method_name f.vname); *)
+      let fd = Cilfacade.getdec f in
+      let rec zip x y = 
+        match x, y with
+          | x::xs, y::ys -> (x, y) :: zip xs ys
+          | _ -> [] 
+      in
+      let g (v, e) = 
+        let r = Dom.may_be_a_perfectly_normal_global ctx.ask e false ctx.local in
+(*         printf "global? %a == %b\n" d_exp e r; *)
+        r
+      in
+      let bad_vars = List.filter g (zip fd.sformals args) in
+      let add_arg st (v,_) =
+(*         printf "%s -- %s\n" (Goblintutil.demangle f.vname) v.vname; *)
+        Dom.Danger.add v (ContainDomain.ArgSet.singleton v) st
+      in
+      let f,st,gd = ctx.local in
+      let new_st = f, List.fold_left add_arg st bad_vars, gd in 
+      [ctx.local, new_st]
+    end else [ctx.local, ctx.local]
+    
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     let a, _, c = ctx.local in
     let _, b, _ = au in

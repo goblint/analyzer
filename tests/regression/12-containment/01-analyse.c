@@ -1,4 +1,4 @@
-// PARAM: --analysis containment --class UES --gccwarn --allfuns CXX.json
+// PARAM: --analysis containment --class UES --allfuns CXX.json
 /* I2 Goblint Version with debug info*/
 #line 0 "LLVM INTERNAL"
 /* Provide Declarations */

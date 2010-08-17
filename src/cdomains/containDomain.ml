@@ -192,20 +192,20 @@ struct
     in
     used_ptrs
 
-  let may_be_a_perfectly_normal_global ask e fromFun st = 
+  let may_be_a_perfectly_normal_global ask e fromFun (_,st,_) = 
     let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in
     let one_lv = function
       | v when (not fromFun) && v.vname = this_name -> false
       | v -> not (ArgSet.is_bot (Danger.find v st))    
     in
-    isPointerType (typeOf (stripCasts e)) ||
+    isPointerType (typeOf (stripCasts e)) && (
     ArgSet.fold (fun x y -> y || one_lv x) (used_args st e)  false ||
     ArgSet.fold (fun x y -> y || one_lv x) (used_ptrs ask e) false ||
     match ask query with
       | `LvalSet s when not (Queries.LS.is_top s) ->
           Queries.LS.fold (fun (v,_) q -> q || one_lv v) s false
       | _ -> 
-          true
+          true)
 
 
   let warn_bad_reachables ask args fromFun (fd, st,_) =
@@ -259,7 +259,7 @@ struct
     let p = function
       | Some e -> 
           isPointerType (typeOf (stripCasts e)) &&
-          may_be_a_perfectly_normal_global ask e false st
+          may_be_a_perfectly_normal_global ask e false (fd,st,df)
       | None -> true 
     in
     let flds = get_field_from_this (Lval lval) in
@@ -331,12 +331,17 @@ struct
     in
     if List.exists p (get_gobals e)
     then Messages.report ("Possible use of globals in " ^ sprint 80 (d_exp () e))
-    
-  let is_public_method (fn,_,_) = 
-    match FuncName.get_class_and_name fn with
+
+  let is_public_method_name x = 
+    match Goblintutil.get_class_and_name x with
       | Some (c,n) ->
         begin try List.exists ((=) n) (Hashtbl.find public_methods c)
         with _ -> false end
+      | _ -> false
+
+  let is_public_method ((fn,_,_):t) = 
+    match FuncName.from_fun_name fn with
+      | Some x -> is_public_method_name x.svar.vname
       | _ -> false
 
 end

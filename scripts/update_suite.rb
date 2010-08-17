@@ -78,6 +78,7 @@ regs.sort.each do |d|
   group.sort.each do |f|
     next if File.basename(f)[0] == ?.
     next if f =~ /goblin_temp/ 
+    next unless f =~ /.*\.c$/ 
     id = gid + "/" + f[0..1]
     testname = f[3..-3]
     next unless only.nil? or testname == only 
@@ -95,10 +96,10 @@ regs.sort.each do |d|
     i = 0
     lines.each do |obj|
       i = i + 1
-      if obj =~ /#line ([0-9]+) .*$/ then
+      if obj =~ /#line ([0-9]+).*$/ then
         i = $1.to_i - 1
       end
-      next if obj =~ /^\s*\/\//
+      next if obj =~ /^\/\//
       if obj =~ /RACE/ then
         hash[i] = if obj =~ /NORACE/ then "norace" else "race" end
       elsif obj =~ /assert.*\(/ then
@@ -182,7 +183,7 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
     lines = IO.readlines(File.join(testresults, warnfile))
     lines.each do |l| 
       if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
-      next unless l =~ /(.*)\(.*\.c:(.*)\)/
+      next unless l =~ /(.*)\(.*\:(.*)\)/
       obj,i = $1,$2.to_i
       warnings[i] = case obj
                     when /with lockset:/: "race"
@@ -190,6 +191,7 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
                     when /is unknown/   : "unknown"
                     when /Uninitialized/ : "warn"
                     when /dereferencing of null/ : "warn"
+                    when /warning/ : "warn"
                     else obj
                     end
     end
