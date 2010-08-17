@@ -1,7 +1,8 @@
 {
 	"inheritance":
 	{
-	"Log" : [],
+	"Log" : ["Test2"],
+	"Test2" : [],
 	"CBaseFSM" : [],
 	"FSM" : ["CBaseFSM"],
 	"UES" : ["FSM","Log"],
@@ -14,12 +15,14 @@
 	},
 	"public_methods":
 	{
+	"Test2" : ["Test2"],
 	"Log" : ["doLog","get_prifv_fun","Log"],
-	"FSM" : ["UseSuperStatic","FSM"],
+	"FSM" : ["FSM"],
 	"UES" : ["UES","~UES","InsertGlobalData","ReceiveEvent"],
 	"SubUES_X" : ["SubUES_X","~SubUES_X","ReceiveEvent"]
 	},
 	"friends":
 	{
+	"Test2" : ["CBaseFSM"]
 	}
 }
