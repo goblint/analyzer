@@ -166,9 +166,9 @@ struct l_unnamed15 { float array[4]; };
 
 struct l_class_OC_my_namespace_KD__KD_FSM {  unsigned int  (**field0) ( int, ...);  struct l_unnamed12 field1;  struct l_unnamed15 field2;};
 
-struct l_unnamed8 { unsigned int array[10]; };
+struct l_unnamed5 { unsigned int array[10]; };
 
-struct l_class_OC_my_namespace_KD__KD_Log {  struct l_unnamed12 field0;  unsigned int field1;  struct l_unnamed8 field2;  struct l_unnamed8 field3;  unsigned int field4;};
+struct l_class_OC_my_namespace_KD__KD_Log {  struct l_unnamed12 field0;  unsigned int field1;  struct l_unnamed5 field2;  struct l_unnamed5 field3;  unsigned int field4;};
 
 struct l_unnamed1 { unsigned char array[28]; };
 
@@ -194,13 +194,13 @@ struct l_unnamed2 { unsigned char *array[3]; };
 
 struct l_unnamed3 { unsigned char array[5]; };
 
-struct l_unnamed5 {  unsigned char *field0;  unsigned char *field1;};
-
 struct l_unnamed6 { unsigned char array[15]; };
 
 struct l_unnamed7 {  unsigned char *field0;  unsigned char *field1;  unsigned int field2;  unsigned int field3;  unsigned char *field4;  unsigned long long field5;  unsigned char *field6;  unsigned long long field7;};
 
-struct l_unnamed9 {  unsigned char *field0;  unsigned char *field1;  unsigned int field2;  unsigned int field3;  unsigned char *field4;  unsigned long long field5;};
+struct l_unnamed8 {  unsigned char *field0;  unsigned char *field1;  unsigned int field2;  unsigned int field3;  unsigned char *field4;  unsigned long long field5;};
+
+struct l_unnamed9 {  unsigned char *field0;  unsigned char *field1;};
 
 
 /* External Global Variable Declarations */
@@ -256,12 +256,12 @@ extern struct l_unnamed11 _ZTVN12my_namespace3UESE __ATTRIBUTE_WEAK__;
 extern struct l_unnamed13 _ZTSN12my_namespace3UESE __ATTRIBUTE_WEAK__;
 extern struct l_unnamed13 _ZTSN12my_namespace3FSME __ATTRIBUTE_WEAK__;
 extern struct l_unnamed10 _ZTSN12my_namespace8CBaseFSME __ATTRIBUTE_WEAK__;
-extern struct l_unnamed5 _ZTIN12my_namespace8CBaseFSME __ATTRIBUTE_WEAK__;
-extern struct l_unnamed9 _ZTIN12my_namespace3FSME __ATTRIBUTE_WEAK__;
+extern struct l_unnamed9 _ZTIN12my_namespace8CBaseFSME __ATTRIBUTE_WEAK__;
+extern struct l_unnamed8 _ZTIN12my_namespace3FSME __ATTRIBUTE_WEAK__;
 extern struct l_unnamed13 _ZTSN12my_namespace3LogE __ATTRIBUTE_WEAK__;
 extern struct l_unnamed0 _ZTSN12my_namespace5Test2E __ATTRIBUTE_WEAK__;
-extern struct l_unnamed5 _ZTIN12my_namespace5Test2E __ATTRIBUTE_WEAK__;
-extern struct l_unnamed9 _ZTIN12my_namespace3LogE __ATTRIBUTE_WEAK__;
+extern struct l_unnamed9 _ZTIN12my_namespace5Test2E __ATTRIBUTE_WEAK__;
+extern struct l_unnamed8 _ZTIN12my_namespace3LogE __ATTRIBUTE_WEAK__;
 extern struct l_unnamed7 _ZTIN12my_namespace3UESE __ATTRIBUTE_WEAK__;
 static struct l_unnamed6 _OC_str;
 extern struct l_unnamed11 _ZTVN12my_namespace8SubUES_XE __ATTRIBUTE_WEAK__;
@@ -278,12 +278,12 @@ struct l_unnamed11 _ZTVN12my_namespace3UESE __ATTRIBUTE_WEAK__ = { { ((unsigned 
 struct l_unnamed13 _ZTSN12my_namespace3UESE __ATTRIBUTE_WEAK__ = { "N12my_namespace3UESE" };
 struct l_unnamed13 _ZTSN12my_namespace3FSME __ATTRIBUTE_WEAK__ = { "N12my_namespace3FSME" };
 struct l_unnamed10 _ZTSN12my_namespace8CBaseFSME __ATTRIBUTE_WEAK__ = { "N12my_namespace8CBaseFSME" };
-struct l_unnamed5 _ZTIN12my_namespace8CBaseFSME __ATTRIBUTE_WEAK__ = { ((unsigned char *)((&(&_ZTVN10__cxxabiv117__class_type_infoE)[((signed long long )2ull)]))), ((&_ZTSN12my_namespace8CBaseFSME.array[((signed int )0u)])) };
-struct l_unnamed9 _ZTIN12my_namespace3FSME __ATTRIBUTE_WEAK__ = { ((unsigned char *)((&(&_ZTVN10__cxxabiv121__vmi_class_type_infoE)[((signed long long )2ull)]))), ((&_ZTSN12my_namespace3FSME.array[((signed int )0u)])), 0u, 1u, ((unsigned char *)(&_ZTIN12my_namespace8CBaseFSME)), 2050ull };
+struct l_unnamed9 _ZTIN12my_namespace8CBaseFSME __ATTRIBUTE_WEAK__ = { ((unsigned char *)((&(&_ZTVN10__cxxabiv117__class_type_infoE)[((signed long long )2ull)]))), ((&_ZTSN12my_namespace8CBaseFSME.array[((signed int )0u)])) };
+struct l_unnamed8 _ZTIN12my_namespace3FSME __ATTRIBUTE_WEAK__ = { ((unsigned char *)((&(&_ZTVN10__cxxabiv121__vmi_class_type_infoE)[((signed long long )2ull)]))), ((&_ZTSN12my_namespace3FSME.array[((signed int )0u)])), 0u, 1u, ((unsigned char *)(&_ZTIN12my_namespace8CBaseFSME)), 2050ull };
 struct l_unnamed13 _ZTSN12my_namespace3LogE __ATTRIBUTE_WEAK__ = { "N12my_namespace3LogE" };
 struct l_unnamed0 _ZTSN12my_namespace5Test2E __ATTRIBUTE_WEAK__ = { "N12my_namespace5Test2E" };
-struct l_unnamed5 _ZTIN12my_namespace5Test2E __ATTRIBUTE_WEAK__ = { ((unsigned char *)((&(&_ZTVN10__cxxabiv117__class_type_infoE)[((signed long long )2ull)]))), ((&_ZTSN12my_namespace5Test2E.array[((signed int )0u)])) };
-struct l_unnamed9 _ZTIN12my_namespace3LogE __ATTRIBUTE_WEAK__ = { ((unsigned char *)((&(&_ZTVN10__cxxabiv121__vmi_class_type_infoE)[((signed long long )2ull)]))), ((&_ZTSN12my_namespace3LogE.array[((signed int )0u)])), 0u, 1u, ((unsigned char *)(&_ZTIN12my_namespace5Test2E)), 0ull };
+struct l_unnamed9 _ZTIN12my_namespace5Test2E __ATTRIBUTE_WEAK__ = { ((unsigned char *)((&(&_ZTVN10__cxxabiv117__class_type_infoE)[((signed long long )2ull)]))), ((&_ZTSN12my_namespace5Test2E.array[((signed int )0u)])) };
+struct l_unnamed8 _ZTIN12my_namespace3LogE __ATTRIBUTE_WEAK__ = { ((unsigned char *)((&(&_ZTVN10__cxxabiv121__vmi_class_type_infoE)[((signed long long )2ull)]))), ((&_ZTSN12my_namespace3LogE.array[((signed int )0u)])), 0u, 1u, ((unsigned char *)(&_ZTIN12my_namespace5Test2E)), 0ull };
 struct l_unnamed7 _ZTIN12my_namespace3UESE __ATTRIBUTE_WEAK__ = { ((unsigned char *)((&(&_ZTVN10__cxxabiv121__vmi_class_type_infoE)[((signed long long )2ull)]))), ((&_ZTSN12my_namespace3UESE.array[((signed int )0u)])), 0u, 2u, ((unsigned char *)(&_ZTIN12my_namespace3FSME)), 2ull, ((unsigned char *)(&_ZTIN12my_namespace3LogE)), 7170ull };
 static struct l_unnamed6 _OC_str = { "received event" };
 struct l_unnamed11 _ZTVN12my_namespace8SubUES_XE __ATTRIBUTE_WEAK__ = { { ((unsigned char *)/*NULL*/0), ((unsigned char *)(&_ZTIN12my_namespace8SubUES_XE)), ((unsigned char *)_ZN12my_namespace8SubUES_X12ReceiveEventEPNS_9UEC_EventE), ((unsigned char *)_ZN12my_namespace8SubUES_XD1Ev), ((unsigned char *)_ZN12my_namespace8SubUES_XD0Ev) } };
@@ -395,11 +395,11 @@ void _ZN12my_namespace3UES16InsertGlobalDataEPi(struct l_class_OC_my_namespace_K
   *(&llvm_cbe_pglob_2e_addr) = llvm_cbe_pglob;
 #line 0 "LLVM INTERNAL"
   llvm_cbe_this1 = *(&llvm_cbe_this_2e_addr);
-#line 170 "small.cpp"
+#line 172 "small.cpp"
   llvm_cbe_tmp = *(&llvm_cbe_pglob_2e_addr);
-#line 170 "small.cpp"
+#line 172 "small.cpp"
   *((&llvm_cbe_this1->field5)) = llvm_cbe_tmp;
-#line 171 "small.cpp"
+#line 173 "small.cpp"
   return;
 }
 
@@ -489,215 +489,215 @@ struct l_class_OC_my_namespace_KD__KD_CBaseFSM *_ZN12my_namespace3UES12ReceiveEv
   *(&llvm_cbe_ev_2e_addr) = llvm_cbe_ev;
 #line 0 "LLVM INTERNAL"
   llvm_cbe_this1 = *(&llvm_cbe_this_2e_addr);
-#line 175 "small.cpp"
+#line 177 "small.cpp"
   llvm_cbe_tmp2 = *((&llvm_cbe_this1->field5));
-#line 175 "small.cpp"
+#line 177 "small.cpp"
   llvm_cbe_tmp3 = *((&(*llvm_cbe_tmp2)));
-#line 175 "small.cpp"
+#line 177 "small.cpp"
   *(&llvm_cbe_mi) = llvm_cbe_tmp3;
-#line 175 "small.cpp"
-   // WARN;
 #line 177 "small.cpp"
+   // WARN;
+#line 179 "small.cpp"
   llvm_cbe_call = _ZN12my_namespace3UES13PrivateMemberEPii(llvm_cbe_this1, ((&llvm_cbe_this1->field2)), 0u);
-#line 177 "small.cpp"
-   // WARN;
-#line 178 "small.cpp"
+#line 179 "small.cpp"
+   // NOWARN;
+#line 180 "small.cpp"
   llvm_cbe_tmp5 = *(&llvm_cbe_ev_2e_addr);
-#line 178 "small.cpp"
+#line 180 "small.cpp"
   llvm_cbe_call6 = _ZN12my_namespace3UES14PrivateMember2EPii(llvm_cbe_this1, (((unsigned int *)llvm_cbe_tmp5)), 0u);
-#line 178 "small.cpp"
-   // WARN;
 #line 180 "small.cpp"
+   // NOWARN;
+#line 182 "small.cpp"
   _ZN12my_namespace3Log5doLogEPc((((struct l_class_OC_my_namespace_KD__KD_Log *)((&(((unsigned char *)llvm_cbe_this1))[((signed long long )28ull)])))), ((&_OC_str.array[((signed int )0u)])));
-#line 180 "small.cpp"
-   // WARN;
-#line 181 "small.cpp"
+#line 182 "small.cpp"
+   // NOWARN;
+#line 183 "small.cpp"
   llvm_cbe_tmp8 = (&(((struct l_class_OC_my_namespace_KD__KD_Log *)((&(((unsigned char *)llvm_cbe_this1))[((signed long long )28ull)]))))->field1);
-#line 181 "small.cpp"
+#line 183 "small.cpp"
   llvm_cbe_tmp9 = *llvm_cbe_tmp8;
-#line 181 "small.cpp"
+#line 183 "small.cpp"
   *llvm_cbe_tmp8 = (((unsigned int )(((unsigned int )llvm_cbe_tmp9) + ((unsigned int )1u))));
-#line 181 "small.cpp"
-   // WARN;
 #line 183 "small.cpp"
+   // NOWARN;
+#line 185 "small.cpp"
   llvm_cbe_tmp10 = *(&llvm_cbe_ev_2e_addr);
-#line 183 "small.cpp"
+#line 185 "small.cpp"
   *((&llvm_cbe_tmp10->field1)) = 0u;
-#line 183 "small.cpp"
-   // WARN;
 #line 185 "small.cpp"
+   // WARN;
+#line 187 "small.cpp"
   llvm_cbe_tmp12 = (&llvm_cbe_this1->field2);
-#line 185 "small.cpp"
+#line 187 "small.cpp"
   llvm_cbe_tmp13 = *llvm_cbe_tmp12;
-#line 185 "small.cpp"
+#line 187 "small.cpp"
   *llvm_cbe_tmp12 = (((unsigned int )(((unsigned int )llvm_cbe_tmp13) + ((unsigned int )1u))));
-#line 185 "small.cpp"
-   // WARN;
-#line 186 "small.cpp"
+#line 187 "small.cpp"
+   // NOWARN;
+#line 188 "small.cpp"
   llvm_cbe_tmp15 = *(&llvm_cbe_ev_2e_addr);
-#line 186 "small.cpp"
+#line 188 "small.cpp"
   llvm_cbe_tmp17 = *((&llvm_cbe_tmp15->field1));
-#line 186 "small.cpp"
+#line 188 "small.cpp"
   *((&llvm_cbe_this1->field2)) = llvm_cbe_tmp17;
-#line 186 "small.cpp"
-   // WARN;
 #line 188 "small.cpp"
+   // NOWARN;
+#line 190 "small.cpp"
   llvm_cbe_tmp20 = *((&llvm_cbe_this1->field2));
-#line 188 "small.cpp"
+#line 190 "small.cpp"
   if (((((signed int )(((signed int )llvm_cbe_tmp20) % ((signed int )2u)))) == 0u)) {    goto llvm_cbe_if_2e_then;  } else {    goto llvm_cbe_if_2e_end;  }
 
 
 llvm_cbe_if_2e_then:
-#line 189 "small.cpp"
+#line 191 "small.cpp"
   llvm_cbe_call21 = _Z9API_CALL0i(0u);
-#line 189 "small.cpp"
+#line 191 "small.cpp"
   goto llvm_cbe_if_2e_end;
 
 llvm_cbe_if_2e_end:
-#line 189 "small.cpp"
-   // WARN;
-#line 190 "small.cpp"
+#line 191 "small.cpp"
+   // NOWARN;
+#line 192 "small.cpp"
   llvm_cbe_tmp23 = *((&llvm_cbe_this1->field2));
-#line 190 "small.cpp"
+#line 192 "small.cpp"
   if (((((signed int )(((signed int )llvm_cbe_tmp23) % ((signed int )2u)))) != 0u)) {    goto llvm_cbe_if_2e_then26;  } else {    goto llvm_cbe_if_2e_else;  }
 
 
 llvm_cbe_if_2e_then26:
-#line 192 "small.cpp"
+#line 194 "small.cpp"
   llvm_cbe_tmp27 = (&llvm_cbe_this1->field4);
-#line 192 "small.cpp"
+#line 194 "small.cpp"
   llvm_cbe_tmp__1 = *(((struct l_class_OC_my_namespace_KD__KD_CBaseFSM * (***) (struct l_class_OC_my_namespace_KD__KD_SubUES_X *, struct l_struct_OC_my_namespace_KD__KD_UEC_Event *))llvm_cbe_tmp27));
-#line 192 "small.cpp"
+#line 194 "small.cpp"
   llvm_cbe_tmp__2 = *((&(*llvm_cbe_tmp__1)));
-#line 192 "small.cpp"
+#line 194 "small.cpp"
   llvm_cbe_tmp28 = *(&llvm_cbe_ev_2e_addr);
-#line 192 "small.cpp"
+#line 194 "small.cpp"
   llvm_cbe_call29 = llvm_cbe_tmp__2(llvm_cbe_tmp27, llvm_cbe_tmp28);
-#line 192 "small.cpp"
-   // WARN;
-#line 193 "small.cpp"
+#line 194 "small.cpp"
+   // NOWARN;
+#line 195 "small.cpp"
   goto llvm_cbe_if_2e_end31;
 
 llvm_cbe_if_2e_else:
-#line 195 "small.cpp"
+#line 197 "small.cpp"
   llvm_cbe_tmp30 = *(&llvm_cbe_ev_2e_addr);
-#line 195 "small.cpp"
+#line 197 "small.cpp"
   if ((llvm_cbe_tmp30 == ((struct l_struct_OC_my_namespace_KD__KD_UEC_Event *)/*NULL*/0))) {    goto llvm_cbe_if_2e_end31;  } else {    goto llvm_cbe_delete_2e_notnull;  }
 
 
 llvm_cbe_delete_2e_notnull:
-#line 195 "small.cpp"
+#line 197 "small.cpp"
   _ZdlPv((((unsigned char *)llvm_cbe_tmp30)));
-#line 195 "small.cpp"
+#line 197 "small.cpp"
   goto llvm_cbe_if_2e_end31;
 
 llvm_cbe_if_2e_end31:
-#line 197 "small.cpp"
+#line 199 "small.cpp"
   llvm_cbe_tmp32 = *(&llvm_cbe_ev_2e_addr);
-#line 197 "small.cpp"
+#line 199 "small.cpp"
   llvm_cbe_tmp34 = *((&llvm_cbe_tmp32->field1));
-#line 197 "small.cpp"
+#line 199 "small.cpp"
   if ((llvm_cbe_tmp34 == 1u)) {    goto llvm_cbe_if_2e_then36;  } else {    goto llvm_cbe_if_2e_end38;  }
 
 
 llvm_cbe_if_2e_then36:
-#line 198 "small.cpp"
+#line 200 "small.cpp"
   llvm_cbe_tmp37 = *(&llvm_cbe_ev_2e_addr);
-#line 198 "small.cpp"
+#line 200 "small.cpp"
   *(&llvm_cbe_retval) = (((struct l_class_OC_my_namespace_KD__KD_CBaseFSM *)llvm_cbe_tmp37));
-#line 198 "small.cpp"
+#line 200 "small.cpp"
   goto llvm_cbe_return;
 
 llvm_cbe_if_2e_end38:
-#line 198 "small.cpp"
+#line 200 "small.cpp"
    // WARN;
-#line 200 "small.cpp"
+#line 202 "small.cpp"
   llvm_cbe_tmp39 = *(&llvm_cbe_ev_2e_addr);
-#line 200 "small.cpp"
+#line 202 "small.cpp"
   llvm_cbe_tmp41 = *((&llvm_cbe_tmp39->field1));
-#line 200 "small.cpp"
+#line 202 "small.cpp"
   if ((llvm_cbe_tmp41 == 2u)) {    goto llvm_cbe_if_2e_then43;  } else {    goto llvm_cbe_if_2e_end47;  }
 
 
 llvm_cbe_if_2e_then43:
-#line 201 "small.cpp"
+#line 203 "small.cpp"
   llvm_cbe_tmp44 = *(&llvm_cbe_ev_2e_addr);
-#line 201 "small.cpp"
+#line 203 "small.cpp"
   llvm_cbe_tmp46 = *((&llvm_cbe_tmp44->field1));
-#line 201 "small.cpp"
+#line 203 "small.cpp"
   *(&llvm_cbe_retval) = (((struct l_class_OC_my_namespace_KD__KD_CBaseFSM *)(unsigned long)(((unsigned long long )(unsigned int )llvm_cbe_tmp46))));
-#line 201 "small.cpp"
+#line 203 "small.cpp"
   goto llvm_cbe_return;
 
 llvm_cbe_if_2e_end47:
-#line 201 "small.cpp"
-   // WARN;
 #line 203 "small.cpp"
+   // NOWARN;
+#line 205 "small.cpp"
   llvm_cbe_tmp48 = *(&llvm_cbe_ev_2e_addr);
-#line 203 "small.cpp"
+#line 205 "small.cpp"
   llvm_cbe_tmp50 = *((&llvm_cbe_tmp48->field1));
-#line 203 "small.cpp"
+#line 205 "small.cpp"
   if ((llvm_cbe_tmp50 == 3u)) {    goto llvm_cbe_if_2e_then52;  } else {    goto llvm_cbe_if_2e_end56;  }
 
 
 llvm_cbe_if_2e_then52:
-#line 204 "small.cpp"
+#line 206 "small.cpp"
   llvm_cbe_tmp54 = *((&llvm_cbe_this1->field2));
-#line 204 "small.cpp"
+#line 206 "small.cpp"
   *(&llvm_cbe_retval) = (((struct l_class_OC_my_namespace_KD__KD_CBaseFSM *)(unsigned long)(((signed long long )(signed int )llvm_cbe_tmp54))));
-#line 204 "small.cpp"
+#line 206 "small.cpp"
   goto llvm_cbe_return;
 
 llvm_cbe_if_2e_end56:
-#line 204 "small.cpp"
-   // WARN;
 #line 206 "small.cpp"
+   // NOWARN;
+#line 208 "small.cpp"
   llvm_cbe_tmp57 = *(&llvm_cbe_ev_2e_addr);
-#line 206 "small.cpp"
+#line 208 "small.cpp"
   llvm_cbe_tmp59 = *((&llvm_cbe_tmp57->field1));
-#line 206 "small.cpp"
+#line 208 "small.cpp"
   if ((llvm_cbe_tmp59 == 4u)) {    goto llvm_cbe_if_2e_then61;  } else {    goto llvm_cbe_if_2e_end62;  }
 
 
 llvm_cbe_if_2e_then61:
-#line 207 "small.cpp"
+#line 209 "small.cpp"
   *(&llvm_cbe_retval) = (((struct l_class_OC_my_namespace_KD__KD_CBaseFSM *)llvm_cbe_this1));
-#line 207 "small.cpp"
+#line 209 "small.cpp"
   goto llvm_cbe_return;
 
 llvm_cbe_if_2e_end62:
-#line 207 "small.cpp"
+#line 209 "small.cpp"
    // WARN;
-#line 209 "small.cpp"
+#line 211 "small.cpp"
   llvm_cbe_tmp63 = *(&llvm_cbe_ev_2e_addr);
-#line 209 "small.cpp"
+#line 211 "small.cpp"
   llvm_cbe_tmp65 = *((&llvm_cbe_tmp63->field1));
-#line 209 "small.cpp"
+#line 211 "small.cpp"
   if ((llvm_cbe_tmp65 == 5u)) {    goto llvm_cbe_if_2e_then67;  } else {    goto llvm_cbe_if_2e_end69;  }
 
 
 llvm_cbe_if_2e_then67:
-#line 210 "small.cpp"
+#line 212 "small.cpp"
   *(&llvm_cbe_retval) = (((struct l_class_OC_my_namespace_KD__KD_CBaseFSM *)((&llvm_cbe_this1->field2))));
-#line 210 "small.cpp"
+#line 212 "small.cpp"
   goto llvm_cbe_return;
 
 llvm_cbe_if_2e_end69:
-#line 210 "small.cpp"
+#line 212 "small.cpp"
    // WARN;
-#line 212 "small.cpp"
+#line 214 "small.cpp"
   *(&llvm_cbe_psx) = (((unsigned int *)llvm_cbe_this1));
-#line 212 "small.cpp"
+#line 214 "small.cpp"
    // ERROR;
-#line 214 "small.cpp"
+#line 216 "small.cpp"
   *(&llvm_cbe_retval) = ((struct l_class_OC_my_namespace_KD__KD_CBaseFSM *)/*NULL*/0);
-#line 214 "small.cpp"
+#line 216 "small.cpp"
   goto llvm_cbe_return;
 
 llvm_cbe_return:
-#line 215 "small.cpp"
+#line 217 "small.cpp"
   llvm_cbe_tmp__3 = *(&llvm_cbe_retval);
-#line 215 "small.cpp"
+#line 217 "small.cpp"
   return llvm_cbe_tmp__3;
 }
 
@@ -755,7 +755,7 @@ unsigned char *_ZN12my_namespace3UES13PrivateMemberEPii(struct l_class_OC_my_nam
 #line 144 "small.cpp"
   *llvm_cbe_tmp = 0u;
 #line 144 "small.cpp"
-   // WARN;
+   // NOWARN;
 #line 145 "small.cpp"
   llvm_cbe_tmp2 = *(&llvm_cbe_i_2e_addr);
 #line 145 "small.cpp"
@@ -773,7 +773,7 @@ unsigned char *_ZN12my_namespace3UES13PrivateMemberEPii(struct l_class_OC_my_nam
 #line 146 "small.cpp"
   llvm_cbe_call8 = _Z9API_CALL1iPv(llvm_cbe_tmp6, (((unsigned char *)(&llvm_cbe_y_2e_addr))));
 #line 146 "small.cpp"
-   // WARN;
+   // NOWARN;
 #line 148 "small.cpp"
   llvm_cbe_call11 = _Z9API_CALL1iPv(0u, (((unsigned char *)((&llvm_cbe_this1->field2)))));
 #line 148 "small.cpp"
@@ -783,7 +783,7 @@ unsigned char *_ZN12my_namespace3UES13PrivateMemberEPii(struct l_class_OC_my_nam
 #line 149 "small.cpp"
   llvm_cbe_call14 = _Z9API_CALL0i(llvm_cbe_tmp13);
 #line 149 "small.cpp"
-   // WARN;
+   // NOWARN;
 #line 151 "small.cpp"
   llvm_cbe_tmp15 = *(&llvm_cbe_y_2e_addr);
 #line 151 "small.cpp"
@@ -821,6 +821,8 @@ unsigned char *_ZN12my_namespace3UES14PrivateMember2EPii(struct l_class_OC_my_na
   struct l_class_OC_my_namespace_KD__KD_UES *llvm_cbe_this1;
   unsigned int *llvm_cbe_tmp;
   unsigned int *llvm_cbe_tmp2;
+  unsigned int llvm_cbe_call;
+  unsigned int *llvm_cbe_tmp3;
   unsigned char *llvm_cbe_tmp__5;
 
 #line 0 "LLVM INTERNAL"
@@ -840,10 +842,16 @@ unsigned char *_ZN12my_namespace3UES14PrivateMember2EPii(struct l_class_OC_my_na
 #line 163 "small.cpp"
   llvm_cbe_tmp2 = *(&llvm_cbe_i_2e_addr);
 #line 163 "small.cpp"
-  *(&llvm_cbe_retval) = (((unsigned char *)llvm_cbe_tmp2));
-#line 164 "small.cpp"
+  llvm_cbe_call = _Z9API_CALL1iPv(0u, (((unsigned char *)llvm_cbe_tmp2)));
+#line 163 "small.cpp"
+   // WARN;
+#line 165 "small.cpp"
+  llvm_cbe_tmp3 = *(&llvm_cbe_i_2e_addr);
+#line 165 "small.cpp"
+  *(&llvm_cbe_retval) = (((unsigned char *)llvm_cbe_tmp3));
+#line 166 "small.cpp"
   llvm_cbe_tmp__5 = *(&llvm_cbe_retval);
-#line 164 "small.cpp"
+#line 166 "small.cpp"
   return llvm_cbe_tmp__5;
 }
 
@@ -885,7 +893,7 @@ void _ZN12my_namespace8SubUES_XD2Ev(struct l_class_OC_my_namespace_KD__KD_SubUES
 #line 109 "small.cpp"
   *((&llvm_cbe_this1->field2)) = 0u;
 #line 109 "small.cpp"
-   // WARN;
+   // NOWARN;
 #line 110 "small.cpp"
   return;
 }
@@ -917,7 +925,7 @@ struct l_class_OC_my_namespace_KD__KD_CBaseFSM *_ZN12my_namespace8SubUES_X12Rece
 #line 114 "small.cpp"
   ((struct __attribute__ ((packed, aligned(1))) {struct l_unnamed14 data; } *)(&llvm_cbe_coerce))->data = llvm_cbe_call;
 #line 114 "small.cpp"
-   // WARN;
+   // NOWARN;
 #line 115 "small.cpp"
   llvm_cbe_tmp = (&llvm_cbe_this1->field2);
 #line 115 "small.cpp"
@@ -925,7 +933,7 @@ struct l_class_OC_my_namespace_KD__KD_CBaseFSM *_ZN12my_namespace8SubUES_X12Rece
 #line 115 "small.cpp"
   *llvm_cbe_tmp = (((unsigned int )(((unsigned int )llvm_cbe_tmp2) + ((unsigned int )1u))));
 #line 115 "small.cpp"
-   // WARN;
+   // NOWARN;
 #line 116 "small.cpp"
   llvm_cbe_tmp4 = *((&llvm_cbe_this1->field2));
 #line 116 "small.cpp"
