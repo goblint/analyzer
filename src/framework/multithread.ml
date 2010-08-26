@@ -231,7 +231,7 @@ struct
       if !GU.verbose then print_endline "Analyzing!";
       Stats.time "solver" (Solver.solve () constraints startvars') entrystates in
     if !GU.verify then begin
-      if !GU.verbose then print_endline "Analyzing!";
+      if !GU.verbose then print_endline "Verifying!";
       Stats.time "verification" (Solver.verify () constraints) (sol,gs)
     end;
     if P.tracking then 

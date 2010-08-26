@@ -32,6 +32,10 @@ val report: string -> unit
 (** Print out a message, does not affect soundness. One message is 
   * printed once per line of code. *)
 
+val report_error: string -> unit
+(** Print out a message, does not affect soundness. One message is 
+  * printed once per line of code. Used in case analysis has failed. *)
+
 val warn: string -> unit
 (** Prints a warning and adds the source code location where the warning
   * occured. This should also be called from within transfer functions. 

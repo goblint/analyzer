@@ -316,6 +316,7 @@ let tt_prefix  = Str.regexp "^TT\\(.+\\)"
 let nested     = Str.regexp "^N\\(.+\\)E"
 let strlift    = Str.regexp "^_OC_str\\([0-9]*\\)$"
 let templ      = Str.regexp "^I\\(.+\\)E"
+let const      = Str.regexp "^K"
 let ptr_to     = Str.regexp "^P\\(.+\\)"
 let constructor= Str.regexp "^C[1-3]"
 let destructor = Str.regexp "^D[0-2]"
@@ -397,6 +398,8 @@ let rec num_p x : name list * string =
        let t,_ = conv (Str.matched_group 1 x) in
        let xs, r = num_p nn in
        (Template t::xs), r
+  else if Str.string_match const x 0
+  then num_p (Str.string_after x (Str.match_end ())) 
   else if Str.string_match constructor x 0
   then [Cons],Str.string_after x (Str.match_end ()) 
   else if Str.string_match destructor x 0

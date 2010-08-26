@@ -24,6 +24,15 @@ let print_msg msg loc =
   else
     Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
 
+let print_err msg loc = 
+  if !GU.gccwarn then    
+    Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
+  else if !Goblintutil.eclipse then 
+    Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
+  else
+    Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
+
+
 let print_group group_name errors =
   if !Goblintutil.eclipse then
     List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
@@ -58,7 +67,13 @@ let report msg =
         Hashtbl.add report_lin_hashtbl (msg,loc) true
       end
   end
-  
+
+let report_error msg = 
+  if not !GU.may_narrow then begin
+    let loc = !current_loc in
+		  print_err msg loc
+  end	
+		  
 let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
 

@@ -45,6 +45,35 @@ struct
   end
   
   module Glob = Global.Make (ContainDomain.FieldSet)
+  
+	let add_analyzed_fun f =
+	   let get_pure_name x=
+	  let get_string so =
+	    match so with
+	    | Some (a,b) -> (a,b)
+	    | _ -> ("unkown","function")
+	  in
+	   let (_,fn) = get_string (GU.get_class_and_name x) in
+	     fn
+	    in
+	   Hashtbl.replace Dom.analyzed_funs (get_pure_name f.svar.vname) ()
+		
+    let add_required_fun f =
+       let get_pure_name x=
+      let get_string so =
+        match so with
+        | Some (a,b) -> (a,b)
+        | _ -> ("unkown","function")
+      in
+       get_string (GU.get_class_and_name x) in
+			let cn,fn =(get_pure_name f) in
+			 try 
+				let entry=Hashtbl.find Dom.required_non_public_funs cn
+				in 
+				   if not (List.fold_right (fun x y -> y || (x=fn)) entry false) then
+				        Hashtbl.replace Dom.required_non_public_funs cn (fn::entry)
+			 with e->
+        Hashtbl.replace Dom.required_non_public_funs cn [fn]		
 
   let init_inh_rel () = 
     let module StringH =
@@ -67,24 +96,62 @@ struct
       let xs = List.map string (array xs) in
       Hashtbl.add htbl cn xs
     in
+    let add_htbl_re htbl (cn,xs) =
+      let xs = List.map (fun x -> Str.regexp (string x)) (array xs) in
+      Hashtbl.add htbl cn xs
+    in
+		let json=
     match List.filter (fun x -> Str.string_match (Str.regexp ".*CXX\\.json$") x 0) !Goblintutil.jsonFiles with
       | [] -> Messages.bailwith "Containment analysis needs a CXX.json file."
       | f :: _ ->
+		begin
     try 
       let inhr_tbl = make_table (objekt (Json_io.load_json f)) in
       List.iter add_inh_entry (objekt (field inhr_tbl "inheritance"));
       List.iter (add_htbl Dom.public_vars) (objekt (field inhr_tbl "public_vars"));
       List.iter (add_htbl Dom.public_methods) (objekt (field inhr_tbl "public_methods"));
+      List.iter (add_htbl Dom.private_methods) (objekt (field inhr_tbl "private_methods"));			
       List.iter (add_htbl Dom.friends) (objekt (field inhr_tbl "friends"));
       inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !inc;
     with Json_error x -> 
-        failwith ("Contaimnent analysis failed to read CXX.json: " ^ x)
+        failwith ("Contaimnent analysis failed to read CXX.json: " ^ x)		
+		end
+		in
+		json; 
+    match List.filter (fun x -> Str.string_match (Str.regexp ".*SAFE\\.json$") x 0) !Goblintutil.jsonFiles with
+			| [] -> ()
+      | f :: _ ->
+    try
+			Messages.report "Problems for safe objecst from SAFE.json are suppressed!";
+			let safe_tbl = make_table (objekt (Json_io.load_json f)) in
+      List.iter (add_htbl_re Dom.safe_vars) (objekt (field safe_tbl "variables"));
+      List.iter (add_htbl_re Dom.safe_methods) (objekt (field safe_tbl "methods"));
+    with Json_error x -> 
+        failwith ("Contaimnent analysis failed to read SAFE.json: " ^ x)  
 
+  let isnot_mainclass x = (x <> !GU.mainclass) && not (InhRel.mem (!GU.mainclass, x) !inc)
+	
   let init () =
     init_inh_rel ();
     ContainDomain.Dom.tainted_varstore := makeVarinfo false "TAINTED_FIELDS" voidType
-    
-  let isnot_mainclass x = (x <> !GU.mainclass) && not (InhRel.mem (!GU.mainclass, x) !inc)
+   
+  let is_structor x c = (* given fun name and class name, return if it's a con or destructor*)
+		((compare x c) = 0) || (compare x ("~"^c) = 0)
+
+  let finalize () =	(*check that all necessary funs have been analyzed*)	 
+		  let check_fun c x =
+				if not (is_structor x c) then
+	        try 
+	            Hashtbl.find Dom.analyzed_funs x 
+	        with e -> Dom.error ("Missing function definition "^c^"::"^x)
+	    in  
+    	let check_fun_list x y =
+				if not (isnot_mainclass x) then
+            List.iter (check_fun x) y			
+		in
+	    Hashtbl.iter check_fun_list Dom.public_methods;
+	    Hashtbl.iter check_fun_list Dom.required_non_public_funs (*only error if the missing priv fun was actually used*)
+		    
   
   let ignore_this (fn,_,_) =
     ContainDomain.FuncName.is_bot fn ||
@@ -121,16 +188,19 @@ struct
       Dom.warn_tainted fs ctx.local exp;
       ctx.local
     end
-    
+		
   let body ctx (f:fundec) : Dom.t =
     let st = Dom.set_funname f ctx.local in
+    if not (ignore_this st) then
+		  add_analyzed_fun f; (*keep track of analyzed funs*)
+		
     if ignore_this st 
     || not (Dom.is_public_method st)
     then st
     else Dom.add_formals f st
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    if ignore_this ctx.local 
+    if ignore_this ctx.local
     then ctx.local 
     else begin 
       begin match exp with
@@ -198,7 +268,18 @@ struct
     end
     
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    if ignore_this ctx.local then [ctx.local,Cil.integer 1, true] else begin
+    if ignore_this ctx.local || Dom.is_safe_name f.vname then [ctx.local,Cil.integer 1, true] else begin
+			
+	    let no_mainclass = 
+	      match GU.get_class f.vname with
+	        | Some x -> isnot_mainclass x
+	        | _ -> true 
+	    in
+				if not no_mainclass && not (Dom.is_public_method_name f.vname) then (*store all called priv member funs*)
+				begin
+			    add_required_fun f.vname
+			  end; 
+					
       Dom.warn_bad_reachables ctx.ask arglist true ctx.local;
       let fs = Dom.get_tainted_fields ctx.global in
       List.iter (Dom.warn_tainted fs ctx.local) arglist;
@@ -217,6 +298,7 @@ struct
         | None -> 
             [ctx.local,Cil.integer 1, true]
       end
+			
     end
 
   let fork ctx lv f args = 

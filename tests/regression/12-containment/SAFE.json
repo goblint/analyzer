@@ -1,0 +1,11 @@
+{
+	"variables":
+	{
+	"global" : ["mout","_OC_str[0-9]*"]
+	},
+	"methods":
+	{
+	"global" : ["_Z11TS_API_SOMEPi","_ZdlPv"],
+	"DummyStream" : ["operator<<"]
+	}
+}

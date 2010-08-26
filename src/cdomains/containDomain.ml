@@ -41,10 +41,20 @@ struct
   
   let public_vars : (string, string list) Hashtbl.t = Hashtbl.create 111
   let public_methods : (string, string list) Hashtbl.t = Hashtbl.create 111
+  let private_methods : (string, string list) Hashtbl.t = Hashtbl.create 111
   let friends : (string, string list) Hashtbl.t = Hashtbl.create 23
+	
+  let analyzed_funs : (string, unit) Hashtbl.t = Hashtbl.create 111 (*list of funs that we have inspected*)
+  let required_non_public_funs : (string, string list) Hashtbl.t = Hashtbl.create 111 (*private/protected funs that were actually used*)
+  
+	let safe_methods : (string, Str.regexp list) Hashtbl.t = Hashtbl.create 111 (*imported list of safe methods*) 
+  let safe_vars : (string, Str.regexp list) Hashtbl.t = Hashtbl.create 111 (*imported list of safe vars*)
   
   let report x = 
     Messages.report ("CW: "^x)
+
+  let error x = 
+    Messages.report_error ("CW: "^x)
   
   let tainted_varstore = ref dummyFunDec.svar
   let tainted_varinfo () = !tainted_varstore 
@@ -237,31 +247,36 @@ struct
             Queries.LS.fold (fun (v,_) q -> q || one_lv v) s false
         | _ -> 
             not must_be_no_global)
-
-
+		
   let warn_bad_reachables ask args fromFun (fd, st,_) =
     let warn_exp e = 
       let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in
       let warn_one_lv = function
-        | v when (not fromFun) && v.vname = this_name -> ()
+        | v when (not fromFun) && v.vname = this_name -> false
         | v ->
           let args = Danger.find v st in
           if not (ArgSet.is_bot args)    
-          then report ("Expression "^sprint 80 (d_exp () e)^" may contain pointers from "^ArgSet.short 80 args^".")
+          then begin
+						  report ("Expression "^sprint 80 (d_exp () e)^" may contain pointers from "^ArgSet.short 80 args^".");true
+					end
+					else false
       in
       if isPointerType (typeOf (stripCasts e)) then begin 
-        ArgSet.iter warn_one_lv (used_args st e) ;
-        ArgSet.iter warn_one_lv (used_ptrs ask e) ;
-        match ask query with
-          | `LvalSet s when not (Queries.LS.is_top s) ->
-              Queries.LS.iter (fun (v,_) -> warn_one_lv v) s
-          | _ -> 
-              report ("Argument '"^(sprint 80 (d_exp () e))^"' is not known and may point to global data.")
+        if not (ArgSet.fold (fun x a -> warn_one_lv x ||a) (used_args st e) false) then
+				begin
+            if not (ArgSet.fold (fun x a -> warn_one_lv x ||a) (used_ptrs ask e) false) then
+						begin
+	            match ask query with
+		          | `LvalSet s when not (Queries.LS.is_top s) ->
+		              Queries.LS.iter (fun (v,_) -> ignore(warn_one_lv v)) s
+		          | _ -> 
+		              report ("Argument '"^(sprint 80 (d_exp () e))^"' is not known and may point to global data.")
+						end
+				end
   (*             () (* -- it is true but here we assume nothing important has escaped and then warn on escapes *) *)
       end
     in
-    List.iter warn_exp args
-    
+    List.iter warn_exp args    
  
   let assign_to_lval ask lval st args =
     match lval with 
@@ -327,7 +342,26 @@ struct
       | StartOf (Var v2,o) -> (if v2.vglob then [v2] else []) @ check_offs o
     in
     check_exp 0
-
+	
+	let check_safety ht xn =
+      match Goblintutil.get_class_and_name xn with
+        | Some (c,n) ->
+            begin try List.exists (fun x -> Str.string_match x n 0) (Hashtbl.find ht c)
+            with _ -> false end
+        | _ -> begin try List.exists (fun y -> Str.string_match y xn 0) (Hashtbl.find ht "global")
+            with _ -> false end
+											
+  let is_safe e =
+    let p ht x = check_safety ht x.vname in
+		let safed=(List.exists (p safe_vars) (get_gobals e) )||(List.exists (p safe_methods) (get_gobals e) ) in
+		if !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" (sprint 80 (d_exp () e)));
+		safed	
+		
+	let is_safe_name n =
+    let safed=(List.exists (check_safety safe_vars) [n] )||(List.exists (check_safety safe_methods) [n] ) in
+    if !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" n);
+    safed   
+						
   let warn_glob (e:exp) =
     let p x =
       match unrollType x.vtype, Goblintutil.get_class_and_name x.vname with
@@ -336,7 +370,7 @@ struct
             with _ -> false end
         | _ -> true
     in
-    if List.exists p (get_gobals e)
+    if List.exists p (get_gobals e) && not (is_safe e)
     then report ("Possible use of globals in " ^ sprint 80 (d_exp () e))
 
   let is_public_method_name x = 
