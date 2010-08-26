@@ -120,7 +120,7 @@ struct
     in
     used_args
 
-  let constructed_from_this ds = 
+  let constructed_from_this ds e = 
     let xor a b = (a || b) && not (a && b) in
     let rec from_this = function 
       | SizeOf _
@@ -139,11 +139,12 @@ struct
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> 
           let x = Danger.find v2 ds in
-(*           (if v2.vname = "llvm_cbe_tmp10" then report (sprint 80 (ArgSet.pretty () x)) else ()); *)
-          this_name = v2.vname ||
-          ArgSet.for_all (fun v -> v.vname = this_name) x 
+          let res1=(this_name = v2.vname) in
+          let res2=not (ArgSet.is_bot x) && (ArgSet.for_all (fun v -> v.vname = this_name) x)
+					in (*ignore(if res1||res2 then ignore(printf "--- exp:%a - %s(%b,%b)\n" d_exp e (sprint 80 (ArgSet.pretty () x)) res1 res2));*)
+					res1||res2 (*ArgSet.for_all () ArgSet.bot() is always true????*) 
     in
-    from_this
+    from_this e
     
   let get_field_from_this : exp -> FieldSet.t = 
     let first_field = function
@@ -227,7 +228,28 @@ struct
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> check_offs o
     in
-    check_exp    
+    check_exp
+		
+  let get_globals = 
+    let rec check_offs = function
+      | NoOffset -> []
+      | Index (e,o) -> check_exp 0 e @ check_offs o
+      | Field (f,o) -> check_offs o
+    and check_exp n = function 
+      | SizeOf _ | SizeOfE _ 
+      | SizeOfStr _ | AlignOf _  
+      | Const _ | AlignOfE _ -> []
+      | UnOp  (_,e,_)     -> check_exp n e     
+      | BinOp (_,e1,e2,_) -> check_exp n e1 @ check_exp n e2 
+      | AddrOf  (Mem e,o) 
+      | StartOf (Mem e,o) -> check_exp n e @ check_offs o
+      | Lval    (Mem e,o) -> check_exp (n+1) e @ check_offs o
+      | CastE (_,e) -> check_exp n e 
+      | Lval    (Var v2,o)
+      | AddrOf  (Var v2,o) 
+      | StartOf (Var v2,o) -> (if v2.vglob then [v2] else []) @ check_offs o
+    in
+    check_exp 0				    
 
   let may_be_a_perfectly_normal_global ask e fromFun (_,st,_) fs = 
     let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in
@@ -248,7 +270,7 @@ struct
         | _ -> 
             not must_be_no_global)
 		
-  let warn_bad_reachables ask args fromFun (fd, st,_) =
+  let warn_bad_reachables ask args fromFun (fd, st,df) fs =
     let warn_exp e = 
       let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in
       let warn_one_lv = function
@@ -262,15 +284,18 @@ struct
 					else false
       in
       if isPointerType (typeOf (stripCasts e)) then begin 
+				let may_glob=(List.fold_right (fun a b->(may_be_a_perfectly_normal_global ask e false (fd,st,df) fs)||b) (get_globals e) false) in
         if not (ArgSet.fold (fun x a -> warn_one_lv x ||a) (used_args st e) false) then
 				begin
             if not (ArgSet.fold (fun x a -> warn_one_lv x ||a) (used_ptrs ask e) false) then
 						begin
+							(*let's try the more exact check first, then fall back onto points to*)
+              if may_glob then 
 	            match ask query with
 		          | `LvalSet s when not (Queries.LS.is_top s) ->
 		              Queries.LS.iter (fun (v,_) -> ignore(warn_one_lv v)) s
 		          | _ -> 
-		              report ("Argument '"^(sprint 80 (d_exp () e))^"' is not known and may point to global data.")
+                  report ("Argument '"^(sprint 80 (d_exp () e))^"' is not known and may point to global data.")
 						end
 				end
   (*             () (* -- it is true but here we assume nothing important has escaped and then warn on escapes *) *)
@@ -320,28 +345,7 @@ struct
   let warn_tainted fs (_,ds,_) (e:exp) =
     if constructed_from_this ds e
     && is_tainted fs e
-    then report ("Use of tainted field found in " ^ sprint 80 (d_exp () e))
-    
-  let get_gobals = 
-    let rec check_offs = function
-      | NoOffset -> []
-      | Index (e,o) -> check_exp 0 e @ check_offs o
-      | Field (f,o) -> check_offs o
-    and check_exp n = function 
-      | SizeOf _ | SizeOfE _ 
-      | SizeOfStr _ | AlignOf _  
-      | Const _ | AlignOfE _ -> []
-      | UnOp  (_,e,_)     -> check_exp n e     
-      | BinOp (_,e1,e2,_) -> check_exp n e1 @ check_exp n e2 
-      | AddrOf  (Mem e,o) 
-      | StartOf (Mem e,o) -> check_exp n e @ check_offs o
-      | Lval    (Mem e,o) -> check_exp (n+1) e @ check_offs o
-      | CastE (_,e) -> check_exp n e 
-      | Lval    (Var v2,o)
-      | AddrOf  (Var v2,o) 
-      | StartOf (Var v2,o) -> (if v2.vglob then [v2] else []) @ check_offs o
-    in
-    check_exp 0
+    then report ("Use of tainted field found in " ^ sprint 80 (d_exp () e))    
 	
 	let check_safety ht xn =
       match Goblintutil.get_class_and_name xn with
@@ -353,7 +357,7 @@ struct
 											
   let is_safe e =
     let p ht x = check_safety ht x.vname in
-		let safed=(List.exists (p safe_vars) (get_gobals e) )||(List.exists (p safe_methods) (get_gobals e) ) in
+		let safed=(List.exists (p safe_vars) (get_globals e) )||(List.exists (p safe_methods) (get_globals e) ) in
 		if !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" (sprint 80 (d_exp () e)));
 		safed	
 		
@@ -370,7 +374,7 @@ struct
             with _ -> false end
         | _ -> true
     in
-    if List.exists p (get_gobals e) && not (is_safe e)
+    if List.exists p (get_globals e) && not (is_safe e)
     then report ("Possible use of globals in " ^ sprint 80 (d_exp () e))
 
   let is_public_method_name x = 

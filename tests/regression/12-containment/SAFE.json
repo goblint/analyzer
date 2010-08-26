@@ -5,7 +5,7 @@
 	},
 	"methods":
 	{
-	"global" : ["_Z11TS_API_SOMEPi","_ZdlPv"],
+	"global" : ["printf","_Z11TS_API_SOMEPi","_ZdlPv"],
 	"DummyStream" : ["operator<<"]
 	}
 }

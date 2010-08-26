@@ -159,6 +159,14 @@ struct
       | Some x -> isnot_mainclass x
       | _ ->
           true
+					
+  let is_private f =
+		let no_mainclass = 
+      match GU.get_class f.vname with
+        | Some x -> isnot_mainclass x
+        | _ -> true 
+    in
+       (not no_mainclass) && (not (Dom.is_public_method_name f.vname))
           
   let get_diff (_,_,df:Dom.t)  = ContainDomain.Diff.elements df
   
@@ -176,9 +184,11 @@ struct
       Dom.warn_tainted fs ctx.local (Lval lval);
       let _, ds, _ = ctx.local in
       if Dom.constructed_from_this ds (Lval lval) then ()
-      else Dom.warn_bad_reachables ctx.ask [AddrOf lval] false ctx.local;
+      else Dom.warn_bad_reachables ctx.ask [AddrOf lval] false ctx.local fs;
       let st = Dom.assign_to_local ctx.ask lval (Some rval) ctx.local fs in
-      Dom.assign_argmap ctx.ask lval rval st
+			if isPointerType (typeOf (stripCasts rval)) then
+        Dom.assign_argmap ctx.ask lval rval st
+			else st
     end 
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
@@ -210,18 +220,15 @@ struct
           Dom.warn_tainted (Dom.get_tainted_fields ctx.global) ctx.local e
       end ;
       let arglist = match exp with Some x -> [x] | _ -> [] in
-      Dom.warn_bad_reachables ctx.ask arglist true ctx.local;
+      let fs=Dom.get_tainted_fields ctx.global in
+			let allow_from_this = is_private f.svar in			               
+      Dom.warn_bad_reachables ctx.ask arglist (not allow_from_this) ctx.local fs;
       Dom.remove_formals f ctx.local
     end 
   
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    let no_mainclass = 
-      match GU.get_class f.vname with
-        | Some x -> isnot_mainclass x
-        | _ -> true 
-    in
-    if (not no_mainclass) && (not (Dom.is_public_method_name f.vname))
-    then begin  
+		if is_private f then 
+		begin  
 (*     Dom.warn_bad_reachables ctx.ask args false ctx.local; *)
 (*       printf ":: no_mainclass:%b public:%b \n" no_mainclass (Dom.is_public_method_name f.vname); *)
       let fd = Cilfacade.getdec f in
@@ -232,18 +239,26 @@ struct
       in
       let g (v, e) = 
         let fs = Dom.get_tainted_fields ctx.global in
-        let r = Dom.may_be_a_perfectly_normal_global ctx.ask e false ctx.local fs in
-(*          printf "global? %a == %b: %s\n" d_exp e r v.vname;  *)
-        r
+          let r = Dom.may_be_a_perfectly_normal_global ctx.ask e false ctx.local fs in          
+            r
       in
-      let bad_vars = List.filter g (zip fd.sformals args) in
+      let t (v, e) = 
+        let _, ds, _ = ctx.local in
+          let res = (Dom.constructed_from_this ds e) in
+            res		
+			in
+      let bad_vars ff = List.filter ff (zip fd.sformals args) in
       let add_arg st (v,_) =
-(*          printf "%s -- %s\n" (Goblintutil.demangle f.vname) v.vname;  *)
+          (*printf "g: %s -- %s\n" (Goblintutil.demangle f.vname) v.vname;*)  
         Dom.Danger.add v (ContainDomain.ArgSet.singleton v) st
-      in
-      let f,st,gd = ctx.local in
-      let new_st = f, List.fold_left add_arg st bad_vars, gd in 
-      [ctx.local, new_st]
+			in
+      let add_arg_map st (v,_) =
+          (*printf "t: %s -- %s\n" (Goblintutil.demangle f.vname) v.vname;*)  
+        Dom.assign_argmap ctx.ask (Var v,NoOffset) (List.hd args) st
+      in      
+      let f,st,gd = List.fold_left add_arg_map ctx.local (bad_vars t) in			 
+      let new_ctx = f,List.fold_left add_arg st (bad_vars g),gd in
+      [ctx.local, new_ctx]
     end else [ctx.local, ctx.local]
     
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
@@ -270,17 +285,10 @@ struct
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     if ignore_this ctx.local || Dom.is_safe_name f.vname then [ctx.local,Cil.integer 1, true] else begin
 			
-	    let no_mainclass = 
-	      match GU.get_class f.vname with
-	        | Some x -> isnot_mainclass x
-	        | _ -> true 
-	    in
-				if not no_mainclass && not (Dom.is_public_method_name f.vname) then (*store all called priv member funs*)
-				begin
-			    add_required_fun f.vname
-			  end; 
-					
-      Dom.warn_bad_reachables ctx.ask arglist true ctx.local;
+			if is_private f then
+			    add_required_fun f.vname;
+      let fs=Dom.get_tainted_fields ctx.global in					
+      Dom.warn_bad_reachables ctx.ask arglist true ctx.local fs;
       let fs = Dom.get_tainted_fields ctx.global in
       List.iter (Dom.warn_tainted fs ctx.local) arglist;
       begin match lval with
