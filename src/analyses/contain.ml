@@ -57,7 +57,7 @@ struct
 	     fn
 	    in
 	   Hashtbl.replace Dom.analyzed_funs (get_pure_name f.svar.vname) ()
-		
+
     let add_required_fun f =
        let get_pure_name x=
       let get_string so =
@@ -134,23 +134,26 @@ struct
   let init () =
     init_inh_rel ();
     ContainDomain.Dom.tainted_varstore := makeVarinfo false "TAINTED_FIELDS" voidType
+		
    
   let is_structor x c = (* given fun name and class name, return if it's a con or destructor*)
 		((compare x c) = 0) || (compare x ("~"^c) = 0)
 
   let finalize () =	(*check that all necessary funs have been analyzed*)	 
-		  let check_fun c x =
+		  let check_fun c err x =
 				if not (is_structor x c) then
 	        try 
 	            Hashtbl.find Dom.analyzed_funs x 
-	        with e -> Dom.error ("Missing function definition "^c^"::"^x)
+	        with e -> Dom.error (err^c^"::"^x)
 	    in  
-    	let check_fun_list x y =
+    	let check_fun_list err x y =
 				if not (isnot_mainclass x) then
-            List.iter (check_fun x) y			
+            List.iter (check_fun x err) y			
 		in
-	    Hashtbl.iter check_fun_list Dom.public_methods;
-	    Hashtbl.iter check_fun_list Dom.required_non_public_funs (*only error if the missing priv fun was actually used*)
+	    Hashtbl.iter (check_fun_list "Missing function definition ") Dom.public_methods;
+	    Hashtbl.iter (check_fun_list "Missing function definition ") Dom.required_non_public_funs; (*only error if the missing priv fun was actually used*)
+		  Hashtbl.iter (check_fun_list "Analysis unsound due to use of public variable ") Dom.public_vars;
+		  Hashtbl.iter (check_fun_list "Analysis unsound due to use of friend class ") Dom.friends
 		    
   
   let ignore_this (fn,_,_) =
@@ -166,11 +169,45 @@ struct
         | Some x -> isnot_mainclass x
         | _ -> true 
     in
-       (not no_mainclass) && (not (Dom.is_public_method_name f.vname))
-          
+       (not no_mainclass) && (Dom.is_private_method_name f.vname) 
+         
   let get_diff (_,_,df:Dom.t)  = ContainDomain.Diff.elements df
   
   let reset_diff (x,y,z:Dom.t) = x, y, ContainDomain.Diff.empty ()
+
+  let body ctx (f:fundec) : Dom.t =
+    let st = Dom.set_funname f ctx.local in
+    if not (ignore_this st) then
+          add_analyzed_fun f; (*keep track of analyzed funs*)
+        
+    if ignore_this st 
+    then st
+    else
+          begin
+                if (Dom.is_public_method st) then  
+                Dom.add_formals f st
+            else
+                st
+        end
+
+  let handle_func_ptr (rval:exp) st ctx =
+    let cast_free = (stripCasts rval) in (*find func ptrs*)
+    let vars=Dom.get_vars cast_free in
+    let f,lst,gd=st in
+    let (lst,uses_fp)=
+     List.fold_right 
+     (fun x (st,y)->if is_private x then 
+        begin 
+            (*add_required_fun x.vname;*) (*func ptr found, add to required list and danger map*)
+						Dom.add_priv_fun_to_public x; 
+						let st=(Dom.Danger.add x (ContainDomain.ArgSet.singleton x) st) in
+						(st,true)						             
+						(*Dom.add_priv_fun_to_tainted*)  
+      end 
+         else (st,y)) 
+     vars (lst,false) 
+		in  
+    (f,lst,gd), (uses_fp||Dom.may_be_fp rval lst false)    		
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
@@ -186,8 +223,11 @@ struct
       if Dom.constructed_from_this ds (Lval lval) then ()
       else Dom.warn_bad_reachables ctx.ask [AddrOf lval] false ctx.local fs;
       let st = Dom.assign_to_local ctx.ask lval (Some rval) ctx.local fs in
-			if isPointerType (typeOf (stripCasts rval)) then
+      let st,uses_fp = handle_func_ptr rval st ctx in
+			if uses_fp||isPointerType (typeOf (stripCasts rval)) then
+			begin
         Dom.assign_argmap ctx.ask lval rval st
+			end
 			else st
     end 
    
@@ -198,16 +238,6 @@ struct
       Dom.warn_tainted fs ctx.local exp;
       ctx.local
     end
-		
-  let body ctx (f:fundec) : Dom.t =
-    let st = Dom.set_funname f ctx.local in
-    if not (ignore_this st) then
-		  add_analyzed_fun f; (*keep track of analyzed funs*)
-		
-    if ignore_this st 
-    || not (Dom.is_public_method st)
-    then st
-    else Dom.add_formals f st
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     if ignore_this ctx.local
@@ -216,6 +246,11 @@ struct
       begin match exp with
         | None -> ()
         | Some e -> 
+					(*printf "return %s\n" (sprint 80 (d_exp () e));*)
+          let cast_free = (stripCasts e) in
+          let vars=Dom.get_vars cast_free in
+					let _,st,_= ctx.local in
+          List.iter (fun x->if is_private x || Dom.may_be_fp e st true then Dom.error ("Analysis unsound due to possible export of function pointer to private function "^(sprint 80 (d_exp () e)))) vars;					
           Dom.warn_glob e;
           Dom.warn_tainted (Dom.get_tainted_fields ctx.global) ctx.local e
       end ;
@@ -281,6 +316,9 @@ struct
               a, b, c
         | None -> a, b, c
     end
+		
+	let isBad fs ask fromFun ctx e =
+		Dom.is_tainted fs e||Dom.may_be_a_perfectly_normal_global ask e fromFun ctx fs
     
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     if ignore_this ctx.local || Dom.is_safe_name f.vname then [ctx.local,Cil.integer 1, true] else begin
@@ -291,20 +329,47 @@ struct
       Dom.warn_bad_reachables ctx.ask arglist true ctx.local fs;
       let fs = Dom.get_tainted_fields ctx.global in
       List.iter (Dom.warn_tainted fs ctx.local) arglist;
+			let (good_args,bad_args) = List.fold_right 
+			  (fun x (g,b) -> if not (isBad fs ctx.ask false ctx.local x) then (x::g,b) else (g,x::b)) 
+				arglist 
+				([],[]) 
+			in
+			let nctx =
+				let gal=List.length good_args in
+				if gal>0 && gal < List.length arglist then
+				begin
+					(*printf "assignment via args: %s\n" f.vname;*)
+					let fn,st,gd=ctx.local in
+					let st = Dom.Danger.add f (ContainDomain.ArgSet.singleton f) st in
+					let assign_lvals ga (st:Dom.Danger.t) =
+						let vars = Dom.get_vars ga in
+            let st=List.fold_right (fun x y->(*printf "%s has bekome bad\n" x.vname;*)Dom.assign_to_lval ctx.ask (Var x,NoOffset) y (ContainDomain.ArgSet.singleton f)) vars st
+							in
+							let transfer_culprits v (st:Dom.Danger.t)=
+								List.fold_right (fun x (y:Dom.Danger.t)->Dom.assign_argmap_st ctx.ask (Var v,NoOffset) x st) bad_args st
+							in
+            List.fold_right transfer_culprits vars st						
+					in (*if ga is ptr or contains ptrs*)
+					let st = List.fold_right (fun ga st -> if isPointerType (typeOf (stripCasts ga)) then begin assign_lvals ga st end else st) good_args st
+					in fn,st,gd
+				end
+				else ctx.local
+			in
+      (*List.iter (fun x->if isPointerType (typeOf (stripCasts rval))&&(Dom.is_tainted fs )then ) arglist*)
       begin match lval with
         | Some v ->
             let st = 
               if isPointerType (typeOfLval v)
               then begin
-                let fn,st,gd = Dom.assign_to_local ctx.ask v None ctx.local fs in
+                let fn,st,gd = Dom.assign_to_local ctx.ask v None nctx fs in
                 let st = Dom.Danger.add f (ContainDomain.ArgSet.singleton f) st in
                 fn,Dom.assign_to_lval ctx.ask v st (ContainDomain.ArgSet.singleton f), gd
-              end else ctx.local
+              end else nctx
             in
-            Dom.warn_tainted fs ctx.local (Lval v);
+            Dom.warn_tainted fs nctx (Lval v);
             [Dom.assign_to_local ctx.ask v None st fs,Cil.integer 1, true] 
         | None -> 
-            [ctx.local,Cil.integer 1, true]
+            [nctx,Cil.integer 1, true]
       end
 			
     end

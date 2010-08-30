@@ -51,10 +51,14 @@ struct
   let safe_vars : (string, Str.regexp list) Hashtbl.t = Hashtbl.create 111 (*imported list of safe vars*)
   
   let report x = 
-    Messages.report ("CW: "^x)
+		let loc = !Goblintutil.current_loc in
+		  if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
+        Messages.report ("CW: "^x)
 
   let error x = 
-    Messages.report_error ("CW: "^x)
+    let loc = !Goblintutil.current_loc in
+      if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
+        Messages.report_error ("CW: "^x)
   
   let tainted_varstore = ref dummyFunDec.svar
   let tainted_varinfo () = !tainted_varstore 
@@ -89,6 +93,30 @@ struct
     in
     fd, List.fold_left add_arg st f.Cil.sformals, df
   
+	
+  let is_public_method_name x = 
+    match Goblintutil.get_class_and_name x with
+      | Some (c,n) ->
+        begin try List.exists ((=) n) (Hashtbl.find public_methods c)
+        with _ -> false end
+      | _ -> false
+
+  let is_private_method_name x = 
+    match Goblintutil.get_class_and_name x with
+      | Some (c,n) ->
+        begin try List.exists ((=) n) (Hashtbl.find private_methods c)
+        with _ -> false end
+      | _ -> false
+            
+  let is_public_method ((fn,_,_):t) = 
+    match FuncName.from_fun_name fn with
+      | Some x -> is_public_method_name x.svar.vname
+      | _ -> false
+
+  let is_private_method ((fn,_,_):t) = 
+    match FuncName.from_fun_name fn with
+      | Some x -> is_private_method_name x.svar.vname
+      | _ -> false       	
   
   let used_args st = 
     let rec used_args_idx = function
@@ -249,7 +277,29 @@ struct
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> (if v2.vglob then [v2] else []) @ check_offs o
     in
-    check_exp 0				    
+    check_exp 0					
+		
+  let get_vars = 
+    let rec check_offs = function
+      | NoOffset -> []
+      | Index (e,o) -> check_exp 0 e @ check_offs o
+      | Field (f,o) -> check_offs o
+    and check_exp n = function 
+      | SizeOf _ | SizeOfE _ 
+      | SizeOfStr _ | AlignOf _  
+      | Const _ | AlignOfE _ -> []
+      | UnOp  (_,e,_)     -> check_exp n e     
+      | BinOp (_,e1,e2,_) -> check_exp n e1 @ check_exp n e2 
+      | AddrOf  (Mem e,o) 
+      | StartOf (Mem e,o) -> check_exp n e @ check_offs o
+      | Lval    (Mem e,o) -> check_exp (n+1) e @ check_offs o
+      | CastE (_,e) -> check_exp n e 
+      | Lval    (Var v2,o)
+      | AddrOf  (Var v2,o) 
+      | StartOf (Var v2,o) -> [v2] @ check_offs o
+    in
+    check_exp 0			
+		
 
   let may_be_a_perfectly_normal_global ask e fromFun (_,st,_) fs = 
     let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in
@@ -326,22 +376,59 @@ struct
       | s when ArgSet.is_bot s -> fd, st, df
       | s -> fd, assign_to_lval ask lval st s, df
 
+  let assign_argmap_st ask lval exp st =
+    match used_args st exp with
+      | s when ArgSet.is_top s ->
+          Messages.warn ("Expression "^(sprint 80 (d_exp () exp))^" too complicated.");
+          st
+      | s when ArgSet.is_bot s -> st
+      | s -> assign_to_lval ask lval st s
+
+  let is_method e =
+      match e with
+            | Some e->
+            let globs=get_globals e in
+                let res=List.fold_right (fun x y-> y||(is_public_method_name x.vname || is_private_method_name x.vname)) globs false 
+                in (*printf "%s is method: %b\n" (sprint 80 (d_exp () e)) res ;*)res
+            | _ -> false        
+        
+
   let assign_to_local ask (lval:lval) (rval:exp option) (fd,st,df) fs =
     let p = function
       | Some e -> 
           isPointerType (typeOf (stripCasts e)) &&
-          may_be_a_perfectly_normal_global ask e false (fd,st,df) fs
+          may_be_a_perfectly_normal_global ask e false (fd,st,df) fs 
+					(*&& not (is_method e)*)
       | None -> true 
     in
     let flds = get_field_from_this (Lval lval) in
     if  p rval
     && constructed_from_this st (Lval lval)
-    && not (FieldSet.is_bot flds)
+    && not (FieldSet.is_bot flds) 
+		&& not (is_method rval)
     then begin
-(*       report ("Fields "^sprint 80 (FieldSet.pretty () flds)^" tainted."); *)
-      (fd,st,Diff.add (tainted_varinfo (), flds) df)
+      (* report ("Fields "^sprint 80 (FieldSet.pretty () flds)^" tainted."); *) 
+      (fd,st, Diff.add (tainted_varinfo (), flds)  df)
     end else (fd,st,df)
-    
+		
+	let remove_htbl_entry ht c n =
+		try 
+			let cb=Hashtbl.find ht c
+			in Hashtbl.replace ht c (List.filter (fun x-> not (x=n) ) cb) 
+		with e->()
+		
+  let add_htbl_entry ht c n =
+    try 
+        let cb=Hashtbl.find ht c in 
+	       if not (List.fold_right (fun x y -> y || (x=n)) cb false) then
+           Hashtbl.replace ht c (n::cb)
+    with e->Hashtbl.add ht c [n]
+		
+	let add_priv_fun_to_public f = (*move fun to pub (also stays in priv) FIXME: side efect!*)
+		match Goblintutil.get_class_and_name f.vname with
+			| Some (c,n) ->add_htbl_entry public_methods c n (*FIXME: reanalyze f!!*)
+			| _ -> ()
+		    
   let warn_tainted fs (_,ds,_) (e:exp) =
     if constructed_from_this ds e
     && is_tainted fs e
@@ -365,28 +452,29 @@ struct
     let safed=(List.exists (check_safety safe_vars) [n] )||(List.exists (check_safety safe_methods) [n] ) in
     if !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" n);
     safed   
-						
+		
+	let may_be_fp e st err =
+	    let vars = get_vars e in
+	    let danger_find v =
+	      let ds=Danger.find v st in
+	      let res=not (ArgSet.is_bot ds) && (ArgSet.for_all (fun a -> (*printf "is_fp(%s): %s\n" v.vname a.vname ;*)is_private_method_name a.vname) ds)
+				in                   
+				if err&&res then report ("Function pointer to private function : "^(Goblintutil.demangle v.vname)^" may point to "^sprint 80 (ArgSet.pretty () ds));
+				res
+	    in 
+	    List.fold_right (fun x y->if danger_find x then true else y) vars false			
+    							
   let warn_glob (e:exp) =
     let p x =
       match unrollType x.vtype, Goblintutil.get_class_and_name x.vname with
-        | TFun _, Some (c,n) ->
-            begin try List.exists ((=) n) (Hashtbl.find public_methods c)
-            with _ -> false end
+        | TFun _, Some (c,n) -> false
+            (*begin try List.exists ((=) n) (Hashtbl.find public_methods c)
+            with _ -> false end*) 
         | _ -> true
     in
-    if List.exists p (get_globals e) && not (is_safe e)
+    if List.exists p (get_globals e) && not (is_safe e) 
     then report ("Possible use of globals in " ^ sprint 80 (d_exp () e))
 
-  let is_public_method_name x = 
-    match Goblintutil.get_class_and_name x with
-      | Some (c,n) ->
-        begin try List.exists ((=) n) (Hashtbl.find public_methods c)
-        with _ -> false end
-      | _ -> false
 
-  let is_public_method ((fn,_,_):t) = 
-    match FuncName.from_fun_name fn with
-      | Some x -> is_public_method_name x.svar.vname
-      | _ -> false
 
 end

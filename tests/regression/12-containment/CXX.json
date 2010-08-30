@@ -11,28 +11,28 @@
 	},
 	"public_vars":
 	{
-	"Log" : ["field1","field3","field4"],
+	"Log" : ["field3","field7","field8"],
 	"FSM" : ["field1"]
 	},
 	"public_methods":
 	{
 	"Test2" : ["Test2"],
-	"Log" : ["doLog","get_prifv_fun","Log"],
+	"Log" : ["doLog","Log","call_fp","get_priv_fun"],
 	"CBaseFSM" : ["CBaseFSM"],
 	"FSM" : ["FSM"],
 	"Dummy" : ["Dummy"],
-	"UES" : ["UES","~UES","RetTest1","RetTest2","RetTest3","RetTest4","RetTest5","InsertGlobalData","ReceiveEvent"],
+	"UES" : ["UES","~UES","RetTest7","RetTest1","RetTest2","RetTest3","RetTest4","RetTest5","InsertGlobalData","ReceiveEvent"],
 	"SubUES_X" : ["SubUES_X","~SubUES_X","ReceiveEvent"]
 	},
 	"private_methods":
 	{
-	"Log" : ["my_priv_fun"],
+	"Log" : ["my_undef_fp_fun","my_priv_fun"],
 	"FSM" : ["ReceiveEvent"],
 	"Dummy" : ["dummy"],
 	"UES" : ["undef_fun","unneeded_fun","PrivateMember","PrivateMember2","RetTest6"]
 	},
 	"friends":
 	{
-	"Test2" : ["CBaseFSM"]
+	"Test2" : ["TestClass"]
 	}
 }
