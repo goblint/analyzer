@@ -46,7 +46,7 @@ struct
   
   module Glob = Global.Make (ContainDomain.FieldSet)
   
-	let add_analyzed_fun f =
+	let add_analyzed_fun f = (*build list of funs that actually have been analyzed*)
 	   let get_pure_name x=
 	  let get_string so =
 	    match so with
@@ -58,8 +58,8 @@ struct
 	    in
 	   Hashtbl.replace Dom.analyzed_funs (get_pure_name f.svar.vname) ()
 
-    let add_required_fun f =
-       let get_pure_name x=
+    let add_required_fun f = (*build list of funs that should have been analyzed*)
+       let get_pure_name x =
       let get_string so =
         match so with
         | Some (a,b) -> (a,b)
@@ -99,7 +99,7 @@ struct
     let add_htbl_re htbl (cn,xs) =
       let xs = List.map (fun x -> Str.regexp (string x)) (array xs) in
       Hashtbl.add htbl cn xs
-    in
+    in (*read CXX.json; FIXME: use mangled names including namespaces*)
 		let json=
     match List.filter (fun x -> Str.string_match (Str.regexp ".*CXX\\.json$") x 0) !Goblintutil.jsonFiles with
       | [] -> Messages.bailwith "Containment analysis needs a CXX.json file."
@@ -116,7 +116,7 @@ struct
     with Json_error x -> 
         failwith ("Contaimnent analysis failed to read CXX.json: " ^ x)		
 		end
-		in
+		in (*read in SAFE.json, supress warnings for safe funs/vars*)
 		json; 
     match List.filter (fun x -> Str.string_match (Str.regexp ".*SAFE\\.json$") x 0) !Goblintutil.jsonFiles with
 			| [] -> ()
@@ -129,7 +129,7 @@ struct
     with Json_error x -> 
         failwith ("Contaimnent analysis failed to read SAFE.json: " ^ x)  
 
-  let isnot_mainclass x = (x <> !GU.mainclass) && not (InhRel.mem (!GU.mainclass, x) !inc)
+  let isnot_mainclass x = (x <> !GU.mainclass) && not (InhRel.mem (!GU.mainclass, x) !inc)(*check inheritance*)
 	
   let init () =
     init_inh_rel ();
@@ -150,10 +150,11 @@ struct
 				if not (isnot_mainclass x) then
             List.iter (check_fun x err) y			
 		in
-	    Hashtbl.iter (check_fun_list "Missing function definition ") Dom.public_methods;
-	    Hashtbl.iter (check_fun_list "Missing function definition ") Dom.required_non_public_funs; (*only error if the missing priv fun was actually used*)
-		  Hashtbl.iter (check_fun_list "Analysis unsound due to use of public variable ") Dom.public_vars;
-		  Hashtbl.iter (check_fun_list "Analysis unsound due to use of friend class ") Dom.friends
+		(*err on undef funs etc*)
+	    Hashtbl.iter (check_fun_list " (4) Missing function definition ") Dom.public_methods;
+	    Hashtbl.iter (check_fun_list " (5) Missing function definition ") Dom.required_non_public_funs; (*only error if the missing priv fun was actually used*)
+		  Hashtbl.iter (check_fun_list " (2) Analysis unsound due to use of public variable ") Dom.public_vars;
+		  Hashtbl.iter (check_fun_list " (3) Analysis unsound due to use of friend class ") Dom.friends
 		    
   
   let ignore_this (fn,_,_) =
@@ -169,18 +170,23 @@ struct
         | Some x -> isnot_mainclass x
         | _ -> true 
     in
-       (not no_mainclass) && (Dom.is_private_method_name f.vname) 
+       (not no_mainclass) && (Dom.is_private_method_name f.vname) (*uncommenting the rest brakes fptr propagation*)(*&& not (Dom.is_public_method_name f.vname)*) (*fun may be priv andpub simultaneously*)
          
   let get_diff (_,_,df:Dom.t)  = ContainDomain.Diff.elements df
   
   let reset_diff (x,y,z:Dom.t) = x, y, ContainDomain.Diff.empty ()
+	
+	let time_transfer n f =
+		if true || !GU.verbose then Stats.time n f 0
+        else f 0
 
-  let body ctx (f:fundec) : Dom.t =
+  let body ctx (f:fundec) : Dom.t = (*return unchanged ctx to avoid reanalysis due to changed global*)
+    let time_wrapper dummy =
     let st = Dom.set_funname f ctx.local in
     if not (ignore_this st) then
           add_analyzed_fun f; (*keep track of analyzed funs*)
         
-    if ignore_this st 
+    if ignore_this st (*analyze only public member funs,priv ones are only analyzed if they are caled from a public one*)
     then st
     else
           begin
@@ -189,6 +195,8 @@ struct
             else
                 st
         end
+    in 
+    time_transfer "body" time_wrapper
 
   let handle_func_ptr (rval:exp) st ctx =
     let cast_free = (stripCasts rval) in (*find func ptrs*)
@@ -198,11 +206,13 @@ struct
      List.fold_right 
      (fun x (st,y)->if is_private x then 
         begin 
-            (*add_required_fun x.vname;*) (*func ptr found, add to required list and danger map*)
-						Dom.add_priv_fun_to_public x; 
-						let st=(Dom.Danger.add x (ContainDomain.ArgSet.singleton x) st) in
+            (*func ptr found, add to required list and danger map*)
+						Dom.add_priv_fun_to_public x; (*we add priv mem fun to the public ones(but also keep it in the priv list)*)
+						(*we don't know how the priv fun is called, so we analyze it as public*)
+						let st=(Dom.Danger.add x (ContainDomain.ArgSet.singleton x) st) in 
 						(st,true)						             
-						(*Dom.add_priv_fun_to_tainted*)  
+						(*we add the fptr to the danger dom so we can track vars that use it the usual way*)
+            (*FIXME: reanalyze x*)
       end 
          else (st,y)) 
      vars (lst,false) 
@@ -211,6 +221,7 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
+    let time_wrapper dummy =
     if ignore_this ctx.local 
     then ctx.local 
     else begin 
@@ -223,23 +234,29 @@ struct
       if Dom.constructed_from_this ds (Lval lval) then ()
       else Dom.warn_bad_reachables ctx.ask [AddrOf lval] false ctx.local fs;
       let st = Dom.assign_to_local ctx.ask lval (Some rval) ctx.local fs in
-      let st,uses_fp = handle_func_ptr rval st ctx in
+      let st,uses_fp = handle_func_ptr rval st ctx in (*warn/error on ret of fptr to priv fun, fptrs don't have ptr type :(; *)
 			if uses_fp||isPointerType (typeOf (stripCasts rval)) then
 			begin
         Dom.assign_argmap ctx.ask lval rval st
 			end
 			else st
     end 
+    in 
+    time_transfer "assign" time_wrapper
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+    let time_wrapper dummy =
     if ignore_this ctx.local then ctx.local else begin
       let fs = Dom.get_tainted_fields ctx.global in
       Dom.warn_glob exp;
       Dom.warn_tainted fs ctx.local exp;
       ctx.local
     end
+    in 
+    time_transfer "branch" time_wrapper
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
+    let time_wrapper dummy =
     if ignore_this ctx.local
     then ctx.local 
     else begin 
@@ -250,19 +267,23 @@ struct
           let cast_free = (stripCasts e) in
           let vars=Dom.get_vars cast_free in
 					let _,st,_= ctx.local in
-          List.iter (fun x->if is_private x || Dom.may_be_fp e st true then Dom.error ("Analysis unsound due to possible export of function pointer to private function "^(sprint 80 (d_exp () e)))) vars;					
+          (*special handling of function ptrs (they are not really ptr types)*)
+          List.iter (fun x->if is_private x || Dom.may_be_fp e st true then Dom.error (" (4) Analysis unsound due to possible export of function pointer to private function "^(sprint 80 (d_exp () e)))) vars;					
           Dom.warn_glob e;
           Dom.warn_tainted (Dom.get_tainted_fields ctx.global) ctx.local e
       end ;
       let arglist = match exp with Some x -> [x] | _ -> [] in
       let fs=Dom.get_tainted_fields ctx.global in
-			let allow_from_this = is_private f.svar in			               
+			let allow_from_this = is_private f.svar in (*private funcs may return ptrs constructed from this*)			               
       Dom.warn_bad_reachables ctx.ask arglist (not allow_from_this) ctx.local fs;
       Dom.remove_formals f ctx.local
     end 
+    in 
+    time_transfer "return" time_wrapper
   
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-		if is_private f then 
+    let time_wrapper dummy =
+		if is_private f then (*special handling of priv funs, they may return loc data and write to ptrs which are local (also args)*) 
 		begin  
 (*     Dom.warn_bad_reachables ctx.ask args false ctx.local; *)
 (*       printf ":: no_mainclass:%b public:%b \n" no_mainclass (Dom.is_public_method_name f.vname); *)
@@ -291,12 +312,15 @@ struct
           (*printf "t: %s -- %s\n" (Goblintutil.demangle f.vname) v.vname;*)  
         Dom.assign_argmap ctx.ask (Var v,NoOffset) (List.hd args) st
       in      
-      let f,st,gd = List.fold_left add_arg_map ctx.local (bad_vars t) in			 
-      let new_ctx = f,List.fold_left add_arg st (bad_vars g),gd in
+      let f,st,gd = List.fold_left add_arg_map ctx.local (bad_vars t) in (*add const from this to argmap, so that we can warn when const from this is passed to special_fn*)			 
+      let new_ctx = f,List.fold_left add_arg st (bad_vars g),gd in (*add globs to danger map*)
       [ctx.local, new_ctx]
     end else [ctx.local, ctx.local]
-    
+    in 
+    time_transfer "enter_func" time_wrapper
+  
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+    let time_wrapper dummy =
     let a, _, c = ctx.local in
     let _, b, _ = au in
     if ignore_this ctx.local then a, b, c else begin
@@ -316,19 +340,23 @@ struct
               a, b, c
         | None -> a, b, c
     end
+    in 
+    time_transfer "leave_func" time_wrapper
 		
-	let isBad fs ask fromFun ctx e =
+	let isBad fs ask fromFun ctx e = (*inside priv funs only tainted and globals are bad when assigned to a local*)
 		Dom.is_tainted fs e||Dom.may_be_a_perfectly_normal_global ask e fromFun ctx fs
     
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+    let time_wrapper dummy =
     if ignore_this ctx.local || Dom.is_safe_name f.vname then [ctx.local,Cil.integer 1, true] else begin
 			
 			if is_private f then
-			    add_required_fun f.vname;
+			    add_required_fun f.vname; (*called priv member funs should be analyzed!*)
       let fs=Dom.get_tainted_fields ctx.global in					
       Dom.warn_bad_reachables ctx.ask arglist true ctx.local fs;
       let fs = Dom.get_tainted_fields ctx.global in
       List.iter (Dom.warn_tainted fs ctx.local) arglist;
+			(*funcs can ret values not only via ret val but also via pointer args, propagate possible ret vals:*)
 			let (good_args,bad_args) = List.fold_right 
 			  (fun x (g,b) -> if not (isBad fs ctx.ask false ctx.local x) then (x::g,b) else (g,x::b)) 
 				arglist 
@@ -336,27 +364,29 @@ struct
 			in
 			let nctx =
 				let gal=List.length good_args in
-				if gal>0 && gal < List.length arglist then
+				if (*fixme:true*) gal>0 && gal < List.length arglist then (*even if there ar no bad vals passed, internally the fun may make good ptrs bad*)
 				begin
 					(*printf "assignment via args: %s\n" f.vname;*)
+					(*since we don't know what the spec_fn does we must assume it copys the passed bad vals into the good ones*)
 					let fn,st,gd=ctx.local in
 					let st = Dom.Danger.add f (ContainDomain.ArgSet.singleton f) st in
 					let assign_lvals ga (st:Dom.Danger.t) =
 						let vars = Dom.get_vars ga in
             let st=List.fold_right (fun x y->(*printf "%s has bekome bad\n" x.vname;*)Dom.assign_to_lval ctx.ask (Var x,NoOffset) y (ContainDomain.ArgSet.singleton f)) vars st
 							in
+							(*in addition to the function also add the bad var's reason for being bad to the newly bad var, required for function ptrs*)
 							let transfer_culprits v (st:Dom.Danger.t)=
 								List.fold_right (fun x (y:Dom.Danger.t)->Dom.assign_argmap_st ctx.ask (Var v,NoOffset) x st) bad_args st
 							in
             List.fold_right transfer_culprits vars st						
-					in (*if ga is ptr or contains ptrs*)
+					in (*FIXME: if ga is ptr and (contains ptrs or there is an fptr among the badies)*)
 					let st = List.fold_right (fun ga st -> if isPointerType (typeOf (stripCasts ga)) then begin assign_lvals ga st end else st) good_args st
 					in fn,st,gd
 				end
 				else ctx.local
 			in
       (*List.iter (fun x->if isPointerType (typeOf (stripCasts rval))&&(Dom.is_tainted fs )then ) arglist*)
-      begin match lval with
+      begin match lval with (*handle retval*)
         | Some v ->
             let st = 
               if isPointerType (typeOfLval v)
@@ -372,7 +402,9 @@ struct
             [nctx,Cil.integer 1, true]
       end
 			
-    end
+    end 
+		in 
+    time_transfer "special_fn" time_wrapper
 
   let fork ctx lv f args = 
     [] 
