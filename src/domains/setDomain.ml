@@ -112,7 +112,7 @@ struct
     if leq x y then dprintf "%s: These are fine!" (name ()) else begin
       let evil = choose (diff x y) in
       let other = choose y in
-      Pretty.dprintf "%s: %a not leq %a\n  @[for example: %a@]" (name ()) pretty x pretty y
+      Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y
         Base.why_not_leq (evil,other)
     end
 end

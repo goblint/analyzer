@@ -353,9 +353,6 @@ struct
       | (`Top, _) -> false
       | (`Lifted x, `Lifted y) -> Base.leq x y
 
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
-    Pretty.dprintf "%a not leq %a" pretty x pretty y
-
   let join x y = 
     match (x,y) with 
       | (`Top, x) -> `Top

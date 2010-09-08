@@ -1,56 +1,3 @@
-Group: Locksmith POSIX Apps
-
-aget
-Multithreaded wget
-pthread/aget_comb.c
--
-
-knot
-Multithreaded web server
-pthread/knot_comb.c
--
-
-pfscan
-Multithreaded file scanner
-pthread/pfscan_comb.c
---libc
-
-ctrace
-Library for tracing multithreaded programs
-pthread/ctrace_comb.c
--
-
-smtprc
-SMTP Open Relay Checker
-pthread/smtprc_comb.c
---earlyglobs
-
-
-
-Group: Larger programs
-
-ypbind
-Linux NIS daemon: ypbind-mt
-pthread/ypbind_comb.c
---allfuns
-
-zebedee
-Zebedee: Secure IP tunnel
-pthread/zebedee_comb.c
---earlyglobs
-
-automount
-kernel-based automounter for linux
-pthread/automount_comb.c
---allfuns
-
-zfs-fuse
-ZFS file system
-pthread/zfs-fuse_comb.c
---allfuns
-
-
-
 Group: Kernel
 
 misc
@@ -154,32 +101,32 @@ Group: Regions
 atmel_tclib
 Thin libarary for TC block allocation for Atmel SoCs
 kernel/atmel_tclib.c
---kernel --nonstatic
+--kernel
 
 hwmon
 Linux kernel module for hardware monitoring
 kernel/hwmon_coretemp.c
---kernel --nonstatic
+--kernel
 
 enclosure
 Enclosure Services
 kernel/enclosure.c
---kernel --nonstatic
+--kernel
 
 scsi_dh
 SCSI device handler infrastruture.
 kernel/scsi_dh.c
---kernel --nonstatic
+--kernel
 
 dmaengine
 HW-neutral interface to DMA subsystem
 kernel/dmaengine.c
---kernel --nonstatic
+--kernel
 
 scsi_rdac
 Engenio/LSI RDAC SCSI Device Handler
 kernel/scsi_dh_rdac.c
---kernel --nonstatic
+--kernel
 
 usb_hcd
 USB Host Controller Driver framework
@@ -189,12 +136,12 @@ kernel/hcd.c
 avc
 Access Vector Cache implementation of SELinux
 kernel/avc.c
---kernel --nonstatic --write-races
+--kernel
 
 ppp_generic
 Generic PPP layer for Linux.
 kernel/ppp_generic.c
---kernel --nonstatic --write-races
+--kernel
 
 
 
@@ -245,9 +192,9 @@ kernel/serio.c
 --kernel
 
 power_main
-Where the driver meets power management
+Where the driver meets power management (drivers/base/power/main.c)
 kernel/power_main.c
---kernel
+--kernel --nonstatic
 
 soc_camera
 Camera image capture (abstract) bus driver
@@ -257,12 +204,12 @@ kernel/soc_camera.c
 grant-table
 Granting foreign access to XenBus memory reservation
 kernel/grant-table.c
---kernel
+--kernel --mainfun gnttab_init
 
 parport_share
 Parallel-port resource manager code
 kernel/share.c
---kernel
+--kernel --nonstatic
 
 cxgb3_offload
 Some network card (uses rwlocks)
@@ -337,4 +284,14 @@ kernel/spidev.c
 pci_slot
 ACPI PCI Slot Driver
 kernel/pci_slot.c
+--kernel
+
+uhci-hcd
+USB Universal Host Controller Interface driver
+kernel/usb-core/uhci-hcd_comb.c
+--kernel
+
+usb-skel
+USB Skeleton driver
+kernel/usb-core/usb-skel_comb.c
 --kernel

@@ -2,43 +2,339 @@ Group: Locksmith POSIX Apps
 
 aget
 Multithreaded wget
-locksmith/aget_comb.c
-
-ctrace
-Library for tracing multithreaded programs
-locksmith/ctrace_comb.c
-
-pfscan
-Multithreaded file scanner
-locksmith/pfscan_comb.c
-
-smtprc
-SMTP Open Relay Checker
-locksmith/smtprc_comb.c
+pthread/aget_comb.c
+-
 
 knot
 Multithreaded web server
-locksmith/knot_comb.c
+pthread/knot_comb.c
+-
+
+pfscan
+Multithreaded file scanner
+pthread/pfscan_comb.c
+--libc
+
+ctrace
+Library for tracing multithreaded programs
+pthread/ctrace_comb.c
+-
+
+smtprc
+SMTP Open Relay Checker
+pthread/smtprc_comb.c
+--earlyglobs
+
 
 
 Group: Larger programs
 
-zfs-fuse
-ZFS file system
-pthread/zfs-fuse_comb.c
-
-automount
-kernel-based automounter for linux
-pthread/automount_comb.c
-
 ypbind
 Linux NIS daemon: ypbind-mt
 pthread/ypbind_comb.c
+--allfuns
 
 zebedee
 Zebedee: Secure IP tunnel
 pthread/zebedee_comb.c
+--earlyglobs
 
-mt-daapd
-Multithreaded DAAP server
-locksmith/mt-daapd_comb.c
+automount
+kernel-based automounter for linux
+pthread/automount_comb.c
+--allfuns
+
+zfs-fuse
+ZFS file system
+pthread/zfs-fuse_comb.c
+--allfuns
+
+
+
+Group: Kernel
+
+misc
+Wrapper for for misc devices
+kernel/misc.c
+--kernel --nonstatic
+
+vc_screen
+Provide access to virtual console memory
+kernel/vc_screen.c
+--kernel --nonstatic
+
+dtlk
+DoubleTalk PC driver
+kernel/dtlk.c
+--kernel --mainfun dtlk_init
+
+ipmi_devintf
+Device interface for the IPMI message handler
+kernel/ipmi_devintf.c
+--kernel
+
+tlclk
+Telecom Clock driver for Intel NetStructure(tm) MPCBL0010
+kernel/tlclk.c
+--kernel
+
+ppdev
+Provide access to parport subsystem
+kernel/ppdev.c
+--kernel
+
+mem
+Provide access to main memory
+kernel/mem.c
+--kernel
+
+drm_drv
+Generic DRM driver template
+kernel/drm_drv.c
+--kernel -IK include/drm
+
+cm4040
+Omnikey PCMCIA smartcard reader CardMan 4040
+kernel/cm4040_cs.c
+--kernel
+
+cm4000
+Omnikey PCMCIA smartcard reader CardMan 4000
+kernel/cm4000_cs.c
+--kernel
+
+
+
+Group: Per-element locking
+
+aircable
+AIRcable USB Driver
+kernel/aircable.c
+--kernel
+
+ark3116
+driver for the arkmicro ark3116 chipset
+kernel/ark3116.c
+--kernel
+
+belkin_sa
+USB Belkin Serial converter driver
+kernel/belkin_sa.c
+--kernel
+
+cyberjack
+Reiner SCT Cyberjack USB card reader
+kernel/cyberjack.c
+--kernel
+
+empeg
+USB Empeg Mark I/II Driver
+kernel/empeg.c
+--kernel
+
+mos7720
+Moschip 2 port adapter
+kernel/mos7720.c
+--kernel
+
+whiteheat
+USB ConnectTech WhiteHEAT driver
+kernel/whiteheat.c
+--kernel
+
+ti_3410_5052
+TI USB 3410/5052 Serial Driver
+kernel/ti_usb_3410_5052.c
+--kernel
+
+
+
+Group: Regions
+
+atmel_tclib
+Thin libarary for TC block allocation for Atmel SoCs
+kernel/atmel_tclib.c
+--kernel --nonstatic
+
+hwmon
+Linux kernel module for hardware monitoring
+kernel/hwmon_coretemp.c
+--kernel --nonstatic
+
+enclosure
+Enclosure Services
+kernel/enclosure.c
+--kernel --nonstatic
+
+scsi_dh
+SCSI device handler infrastruture.
+kernel/scsi_dh.c
+--kernel --nonstatic
+
+dmaengine
+HW-neutral interface to DMA subsystem
+kernel/dmaengine.c
+--kernel --nonstatic
+
+scsi_rdac
+Engenio/LSI RDAC SCSI Device Handler
+kernel/scsi_dh_rdac.c
+--kernel --nonstatic
+
+usb_hcd
+USB Host Controller Driver framework
+kernel/hcd.c
+--kernel --nonstatic
+
+avc
+Access Vector Cache implementation of SELinux
+kernel/avc.c
+--kernel --nonstatic --write-races
+
+ppp_generic
+Generic PPP layer for Linux.
+kernel/ppp_generic.c
+--kernel --nonstatic --write-races
+
+
+
+Group: Kernel Arrays
+
+applicom
+Driver for Applicom cards
+kernel/applicom.c
+--kernel
+
+iphase
+Device driver for Interphase ATM PCI adapter cards
+kernel/iphase.c
+--kernel
+
+lp
+Generic parallel printer driver
+kernel/lp.c
+--kernel
+
+cassini
+Sun's Cassini ethernet driver.
+kernel/cassini.c
+--kernel
+
+isicom
+Driver for Isicom profibus cards
+kernel/isicom.c
+--kernel
+
+sc26xx
+Serial driver for Philiphs SC2681/SC2692 devices
+kernel/sc26xx.c
+--kernel
+
+pcm_oss
+Digital Audio (PCM) abstract layer
+kernel/pcm_oss.c
+--kernel
+
+
+
+Group: More Kernel
+
+serio
+The Serio abstraction module
+kernel/serio.c
+--kernel
+
+power_main
+Where the driver meets power management
+kernel/power_main.c
+--kernel
+
+soc_camera
+Camera image capture (abstract) bus driver
+kernel/soc_camera.c
+--kernel
+
+grant-table
+Granting foreign access to XenBus memory reservation
+kernel/grant-table.c
+--kernel
+
+parport_share
+Parallel-port resource manager code
+kernel/share.c
+--kernel
+
+cxgb3_offload
+Some network card (uses rwlocks)
+kernel/cxgb3_offload.c
+--kernel
+
+aoedev
+AoE device utility functions; maintains device list.
+kernel/aoedev.c
+--kernel
+
+w9968cf
+Video4Linux driver for W996[87]CF JPEG USB Dual Mode Camera Chip
+kernel/w9968cf.c
+--kernel
+
+cafe_ccic
+Driver for controller in Marvell 88ALP01 "cafe" multifunction chip
+kernel/cafe_ccic.c
+--kernel
+
+capi.c
+CAPI 2.0 Interface for Linux
+kernel/capi.c
+--kernel
+
+pppol2tp
+PPP over L2TP (PPPoX/PPPoL2TP) Sockets
+kernel/pppol2tp.c
+--kernel
+
+via-velocity
+Driver for VIA Networking card
+kernel/via-velocity.c
+--kernel
+
+netconsole
+Kernel console ithat outputs messages to the network
+kernel/netconsole.c
+--kernel
+
+scsi_debug
+Simulates a host adapter with n disks and shared RAM.
+kernel/scsi_debug.c
+--kernel
+
+thermal_sys
+Generic Thermal Management Sysfs support.
+kernel/thermal_sys.c
+--kernel
+
+scx200_acb
+National Semiconductor SCx200 ACCESS.bus support
+kernel/scx200_acb.c
+--kernel
+
+i2c-dev
+i2c-bus driver, char device interface
+kernel/i2c-dev.c
+--kernel
+
+acpiphp_glue
+ACPI PCI HotPlug glue functions to ACPI CA subsystem
+kernel/acpiphp_glue.c
+--kernel
+
+spidev
+simple synchronous userspace interface to SPI devices
+kernel/spidev.c
+--kernel
+
+pci_slot
+ACPI PCI Slot Driver
+kernel/pci_slot.c
+--kernel

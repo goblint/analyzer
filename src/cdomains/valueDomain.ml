@@ -161,7 +161,14 @@ struct
   let pretty () x = pretty_f short () x
   let toXML s = toXML_f short s
   let why_not_leq () (x,y) = 
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    match (x,y) with
+      | (`Int x, `Int y) -> ID.why_not_leq () (x,y)
+      | (`Address x, `Address y) -> AD.why_not_leq () (x,y)
+      | (`Struct x, `Struct y) -> Structs.why_not_leq () (x,y)
+      | (`Union x, `Union y) -> Unions.why_not_leq () (x,y)
+      | (`Array x, `Array y) -> CArrays.why_not_leq () (x,y)
+      | (`Blob x, `Blob y) -> Blobs.why_not_leq () (x,y)
+      | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
 
   let leq x y =
     match (x,y) with

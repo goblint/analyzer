@@ -106,6 +106,12 @@ struct
     let f key value = if p key value then () else raise Done in
       try iter f m; true with Done -> false
 
+  exception Found of key
+  let find_first p m = 
+    let f key value = if p key value then raise (Found key) else () in
+      try iter f m; raise Not_found with Found x -> x 
+
+
   let add_list keyvalues m = 
     List.fold_left (fun acc (key,value) -> add key value acc) m keyvalues
 
@@ -212,6 +218,9 @@ struct
 
   let filter_class g m = 
     fold (fun key value acc -> if Domain.classify key = g then add key value acc else acc) m M.empty 
+
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+    Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
 end
 
 
@@ -229,9 +238,6 @@ struct
     in
       m1 == m2 || for_all p m1
 
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
-    Pretty.dprintf "MapBot: %a not leq %a" pretty x pretty y
-
   let find x m = try find x m with | Not_found -> Range.bot ()
   let top () = Lattice.unsupported "partial map top"
   let bot () = M.empty
@@ -243,6 +249,14 @@ struct
   
   let widen  = long_map2 Range.widen
   let narrow = map2 Range.narrow 
+
+  let why_not_leq () ((m1:t),(m2:t)): Pretty.doc = 
+    let p key value = 
+      not (try Range.leq value (find key m2) with Not_found -> false)
+    in
+    let key = find_first p m1 in
+      Pretty.dprintf "PMap: there is a problem with key %a\n  @[because %a@]"
+         Domain.pretty key Range.why_not_leq (find key m1,find key m2)
 end
 
 module MapTop (Domain: Groupable) (Range: Lattice.S): S with
@@ -258,9 +272,6 @@ struct
       try Range.leq (find key m1) value with Not_found -> false
     in
       m1 == m2 || for_all p m2
-
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
-    Pretty.dprintf "MapTop: %a not leq %a" pretty x pretty y
 
   let find x m = try find x m with | Not_found -> Range.top ()
   let top () = M.empty

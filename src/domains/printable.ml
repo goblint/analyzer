@@ -457,7 +457,10 @@ struct
 
   let pretty () x = pretty_f short () x
   let name () = "top or " ^ Base.name ()
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let why_not_leq () (x,y) = 
+    match (x,y) with
+      | `Lifted x, `Lifted y -> Base.why_not_leq () (x,y)
+      | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 
