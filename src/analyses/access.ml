@@ -125,7 +125,7 @@ struct
             @ List.map (fun e -> Dom.add_escaped ctx.ask e false ctx.global) (arg_acc `Read))
           in 
           begin match f.vname with
-            | "malloc" | "__kmalloc" | "usb_alloc_urb" | "calloc" ->
+            | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "calloc" ->
                 let h_var = BaseDomain.get_heap_var !GU.current_loc in
                 [ Dom.assign ctx.ask (Var v,o) (AddrOf (Var h_var, NoOffset)) ctx.global m
                 , Cil.integer 1

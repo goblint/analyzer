@@ -521,10 +521,10 @@ struct
       | "pthread_rwlock_trywrlock"
           ->lock true true ctx.ask lv arglist ctx.local
       | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh"
-      | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock"
+      | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
       | "pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource"
           -> lock true !failing_locks ctx.ask lv arglist ctx.local
-      | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock" 
+      | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
           -> lock false !failing_locks ctx.ask lv arglist ctx.local
       | "__raw_read_unlock" | "__raw_write_unlock"  -> 
           let drop_raw_lock x =

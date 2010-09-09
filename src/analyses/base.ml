@@ -887,7 +887,7 @@ struct
                   | _      -> [map_true (invalidate ctx.ask gs st [ret_var])] end
             | _ -> M.bailwith "pthread_join arguments are strange!"
         end
-      | "malloc" | "__kmalloc" | "usb_alloc_urb" -> begin
+      | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
         match lv with
           | Some lv -> 
             let heap_var = 

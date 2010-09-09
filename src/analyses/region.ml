@@ -132,7 +132,7 @@ struct
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     match f.vname with 
-      | "malloc" | "calloc" | "__kmalloc" | "usb_alloc_urb" -> begin
+      | "malloc" | "calloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
           match ctx.local, lval with
             | (`Lifted (equ,reg), gd), Some lv -> 
                 let old_regpart = get_regpart ctx.global in

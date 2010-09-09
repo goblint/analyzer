@@ -50,23 +50,22 @@ pthread/zfs-fuse_comb.c
 --allfuns
 
 
-
 Group: Kernel
 
 misc
 Wrapper for for misc devices
 kernel/misc.c
---kernel --nonstatic
+--kernel
 
 vc_screen
 Provide access to virtual console memory
 kernel/vc_screen.c
---kernel --nonstatic
+--kernel
 
 dtlk
-DoubleTalk PC driver
+DoubleTalk PC driver (uses the big kernel lock)
 kernel/dtlk.c
---kernel --mainfun dtlk_init
+--kernel
 
 ipmi_devintf
 Device interface for the IPMI message handler
@@ -154,32 +153,32 @@ Group: Regions
 atmel_tclib
 Thin libarary for TC block allocation for Atmel SoCs
 kernel/atmel_tclib.c
---kernel --nonstatic
+--kernel
 
 hwmon
 Linux kernel module for hardware monitoring
 kernel/hwmon_coretemp.c
---kernel --nonstatic
+--kernel
 
 enclosure
 Enclosure Services
 kernel/enclosure.c
---kernel --nonstatic
+--kernel
 
 scsi_dh
 SCSI device handler infrastruture.
 kernel/scsi_dh.c
---kernel --nonstatic
+--kernel
 
 dmaengine
 HW-neutral interface to DMA subsystem
 kernel/dmaengine.c
---kernel --nonstatic
+--kernel
 
 scsi_rdac
 Engenio/LSI RDAC SCSI Device Handler
 kernel/scsi_dh_rdac.c
---kernel --nonstatic
+--kernel
 
 usb_hcd
 USB Host Controller Driver framework
@@ -189,12 +188,12 @@ kernel/hcd.c
 avc
 Access Vector Cache implementation of SELinux
 kernel/avc.c
---kernel --nonstatic --write-races
+--kernel
 
 ppp_generic
 Generic PPP layer for Linux.
 kernel/ppp_generic.c
---kernel --nonstatic --write-races
+--kernel
 
 
 
@@ -245,9 +244,9 @@ kernel/serio.c
 --kernel
 
 power_main
-Where the driver meets power management
+Where the driver meets power management (drivers/base/power/main.c)
 kernel/power_main.c
---kernel
+--kernel --nonstatic
 
 soc_camera
 Camera image capture (abstract) bus driver
@@ -257,12 +256,12 @@ kernel/soc_camera.c
 grant-table
 Granting foreign access to XenBus memory reservation
 kernel/grant-table.c
---kernel
+--kernel --mainfun gnttab_init
 
 parport_share
 Parallel-port resource manager code
 kernel/share.c
---kernel
+--kernel --nonstatic
 
 cxgb3_offload
 Some network card (uses rwlocks)
@@ -337,4 +336,14 @@ kernel/spidev.c
 pci_slot
 ACPI PCI Slot Driver
 kernel/pci_slot.c
+--kernel
+
+uhci-hcd
+USB Universal Host Controller Interface driver
+kernel/usb-core/uhci-hcd_comb.c
+--kernel
+
+usb-skel
+USB Skeleton driver
+kernel/usb-core/usb-skel_comb.c
 --kernel
