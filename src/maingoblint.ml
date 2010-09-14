@@ -147,7 +147,7 @@ let main () =
   if !GU.kernel then begin
     let preconf = Filename.concat !include_dir "linux/goblint_preconf.h" in 
     let autoconf = Filename.concat kernel_dir "generated/autoconf.h" in 
-    cppflags := "-D__KERNEL__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
+    cppflags := "-D__KERNEL__ -U__i386__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
     includes := !includes ^ " -I" ^ kernel_dir ^ " -I" ^ asm_dir ^ " -I" ^ asm_dir ^ "/asm/mach-default"
   end;
   (* preprocess all the files *)
