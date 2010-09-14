@@ -17,28 +17,21 @@ backup = File.join(Dir.getwd,"goblint.script_backup.json")
 json   = File.join(Dir.getwd, "goblint.json")
 FileUtils.mv(json, backup) if File.exists?(json) 
 
-$print_desc = false
-$print_desc = true if analyses.size < 2
-
 class Project
   attr_reader :name, :group, :path, :params
-  def initialize(name, size, desc, group, path, params)
+  def initialize(name, size, url, group, path, params)
     @name     = name
     @size     = size
-    @desc     = desc
+    @url      = url
     @group    = group
     @path     = path
     @params   = params
   end
   def to_html
-    if $print_desc then
-      "<td>#{@name}</td>\n" + "<td><small>#{@desc}</small></td>\n" + "<td>#{@size}</td>\n"
-    else
-      "<td>#{@name}</td>\n" + "<td>#{@size}</td>\n"
-    end
+    "<td><a href=\"#{@url}\">#{@name}</a></td>\n" + "<td>#{@size}</td>\n"
   end
   def to_s
-    "#{@name} -- #{@desc}"
+    "#{@name}"
   end
 end
 
@@ -97,6 +90,8 @@ projects.each do |p|
   dirname = File.dirname(filepath)
   filename = File.basename(filepath)
   Dir.chdir(dirname)
+  outfiles = testresults + File.basename(filename,".c") + "*"
+  `rm -f #{outfiles}`
   puts "Analysing #{filename}"
   analyses.each do |a|
     aname = a[0]
@@ -107,6 +102,7 @@ projects.each do |p|
     if $? != 0 then
       puts "  Timed out! (or other failure)"
       `echo "TIMEOUT                    #{timeout} s" >> #{outfile}`
+      break
     end
   end
 end
@@ -118,14 +114,15 @@ File.open(testresults + "index.html", "w") do |f|
   f.puts "<body>"
   f.puts "<table border=2 cellpadding=4>"
   gname = ""
+  counter = 0
   projects.each do |p|
     if p.group != gname then
       gname = p.group
-      f.puts "<tr><th colspan=#{3+analyses.size}>#{gname}</th></tr>"
+      f.puts "<tr><th colspan=#{4+analyses.size}>#{gname}</th></tr>"
       if $print_desc then
-        f.puts "<tr><th>Name</th><th>Description</th><th>Size</th>"
+        f.puts "<tr><th>#</th><th>Name</th><th>Description</th><th>Size</th>"
       else
-        f.puts "<tr><th>Name</th><th>Size</th>"
+        f.puts "<tr><th>#</th><th>Name</th><th>Size</th>"
       end
       analyses.each do |a| 
         aname = a[0]
@@ -134,6 +131,8 @@ File.open(testresults + "index.html", "w") do |f|
 #       f.puts "<th>Compared to Trier</th>"
     end
     f.puts "<tr>"
+    counter = counter + 1
+    f.puts "<td>#{counter}</td>"
     f.puts p.to_html
     analyses.each do |a|
       aname = a[0]
@@ -146,10 +145,11 @@ File.open(testresults + "index.html", "w") do |f|
           uncalled = lines.grep(/will never be called/).size
           res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
           if res == [] then
-            res = lines.grep(/^TIMEOUT\s*(.*) s.*$/) { |x| $1 }
+            res = lines.grep(/^Timeout: aborting command/)
             if res == [] then
               f.puts "<td><a href = #{outfile}>failed</a></td>"
             else
+              res = lines.grep(/^TIMEOUT\s*(.*) s.*$/) { |x| $1 }
               f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
             end
           else
