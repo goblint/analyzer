@@ -133,7 +133,7 @@ kernel/pty.c
 random.c
 http://lxr.linux.no/#linux+v2.6.35/drivers/char/random.c
 kernel/random.c
---kernel
+--kernel --nonstatic
 
 raw.c
 http://lxr.linux.no/#linux+v2.6.35/drivers/char/raw.c
