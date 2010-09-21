@@ -29,7 +29,7 @@
 	"Log" : ["my_undef_fp_fun","my_priv_fun"],
 	"FSM" : ["ReceiveEvent"],
 	"Dummy" : ["dummy"],
-	"UES" : ["undef_fun","unneeded_fun","PrivateMember","PrivateMember2","RetTest6"]
+	"UES" : ["undef_fun","unneeded_fun","PrivateMember","PrivateMember2","RetTest6","GetGlob"]
 	},
 	"friends":
 	{

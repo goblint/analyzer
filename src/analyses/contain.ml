@@ -46,19 +46,19 @@ struct
   
   module Glob = Global.Make (ContainDomain.FieldSet)
   
-	let add_analyzed_fun f = (*build list of funs that actually have been analyzed*)
-	   let get_pure_name x=
-	  let get_string so =
-	    match so with
-	    | Some (a,b) -> (a,b)
-	    | _ -> ("unkown","function")
-	  in
-	   let (_,fn) = get_string (GU.get_class_and_name x) in
-	     fn
-	    in
-	   Hashtbl.replace Dom.analyzed_funs (get_pure_name f.svar.vname) ()
+    let add_analyzed_fun f = (*build list of funs that actually have been analyzed*)
+       let get_pure_name x=
+      let get_string so =
+        match so with
+        | Some (a,b) -> (a,b)
+        | _ -> ("unkown","function")
+      in
+       let (_,fn) = get_string (GU.get_class_and_name x) in
+         fn
+        in
+       Hashtbl.replace Dom.analyzed_funs (get_pure_name f.svar.vname) ()
 
-    let add_required_fun f = (*build list of funs that should have been analyzed*)
+    let add_required_fun f ht = (*build list of funs that should have been analyzed*)
        let get_pure_name x =
       let get_string so =
         match so with
@@ -66,14 +66,17 @@ struct
         | _ -> ("unkown","function")
       in
        get_string (GU.get_class_and_name x) in
-			let cn,fn =(get_pure_name f) in
-			 try 
-				let entry=Hashtbl.find Dom.required_non_public_funs cn
-				in 
-				   if not (List.fold_right (fun x y -> y || (x=fn)) entry false) then
-				        Hashtbl.replace Dom.required_non_public_funs cn (fn::entry)
-			 with e->
-        Hashtbl.replace Dom.required_non_public_funs cn [fn]		
+            let cn,fn =(get_pure_name f) in
+             try 
+                let entry=Hashtbl.find ht cn
+                in 
+                   if not (List.fold_right (fun x y -> y || (x=fn)) entry false) then
+                        Hashtbl.replace ht cn (fn::entry)
+             with e->
+        Hashtbl.replace ht cn [fn]        
+				
+    let add_required_fun_priv f = (*build list of funs that should have been analyzed*)
+        add_required_fun f Dom.required_non_public_funs  
 
   let init_inh_rel () = 
     let module StringH =
@@ -154,7 +157,8 @@ struct
 	    Hashtbl.iter (check_fun_list " (4) Missing function definition ") Dom.public_methods;
 	    Hashtbl.iter (check_fun_list " (5) Missing function definition ") Dom.required_non_public_funs; (*only error if the missing priv fun was actually used*)
 		  Hashtbl.iter (check_fun_list " (2) Analysis unsound due to use of public variable ") Dom.public_vars;
-		  Hashtbl.iter (check_fun_list " (3) Analysis unsound due to use of friend class ") Dom.friends
+		  Hashtbl.iter (check_fun_list " (3) Analysis unsound due to use of friend class ") Dom.friends;
+      Hashtbl.iter (fun fn v->Dom.report (" (6) Function "^fn^" might be called from several threads and should be threat safe.")) Dom.reentrant_funs 
 		    
   
   let ignore_this (fn,_,_) =
@@ -163,6 +167,15 @@ struct
       | Some x -> isnot_mainclass x
       | _ ->
           true
+					
+	let is_ext fn=match GU.get_class fn with
+	  | Some x -> isnot_mainclass x
+	  | _ ->
+	      true
+				
+	let add_reentrant_fun fn = (*build list of funs that should be thread safe*)
+	   if is_ext fn then Hashtbl.replace Dom.reentrant_funs (Goblintutil.demangle fn) ()
+    
 					
   let is_private f =
 		let no_mainclass = 
@@ -237,6 +250,7 @@ struct
       let st,uses_fp = handle_func_ptr rval st ctx in (*warn/error on ret of fptr to priv fun, fptrs don't have ptr type :(; *)
 			if uses_fp||isPointerType (typeOf (stripCasts rval)) then
 			begin
+				(*Dom.report ("assign: " ^(sprint 80 (d_lval () lval))^ " = "^(sprint 80 (d_exp () rval))^"\n");*)
         Dom.assign_argmap ctx.ask lval rval st
 			end
 			else st
@@ -265,7 +279,7 @@ struct
         | Some e -> 
 					(*printf "return %s\n" (sprint 80 (d_exp () e));*)
           let cast_free = (stripCasts e) in
-          let vars=Dom.get_vars cast_free in
+          let vars = Dom.get_vars cast_free in
 					let _,st,_= ctx.local in
           (*special handling of function ptrs (they are not really ptr types)*)
           List.iter (fun x->if is_private x || Dom.may_be_fp e st true then Dom.error (" (4) Analysis unsound due to possible export of function pointer to private function "^(sprint 80 (d_exp () e)))) vars;					
@@ -349,39 +363,45 @@ struct
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let time_wrapper dummy =
     if ignore_this ctx.local || Dom.is_safe_name f.vname then [ctx.local,Cil.integer 1, true] else begin
-			
+      (* Dom.report (" (6) Function '"^f.vname^"' must be reentrant."); *)
+			add_reentrant_fun f.vname;
 			if is_private f then
-			    add_required_fun f.vname; (*called priv member funs should be analyzed!*)
+			    add_required_fun_priv f.vname; (*called priv member funs should be analyzed!*)			
       let fs=Dom.get_tainted_fields ctx.global in					
       Dom.warn_bad_reachables ctx.ask arglist true ctx.local fs;
       let fs = Dom.get_tainted_fields ctx.global in
       List.iter (Dom.warn_tainted fs ctx.local) arglist;
 			(*funcs can ret values not only via ret val but also via pointer args, propagate possible ret vals:*)
+			let arglist=if is_ext f.vname then arglist else (*discard first arg for *) 
+				match arglist with
+					| a::b -> b
+					| _ -> []
+			in				
 			let (good_args,bad_args) = List.fold_right 
 			  (fun x (g,b) -> if not (isBad fs ctx.ask false ctx.local x) then (x::g,b) else (g,x::b)) 
 				arglist 
 				([],[]) 
 			in
+			
 			let nctx =
-				let gal=List.length good_args in
-				if (*fixme:true*) gal>0 && gal < List.length arglist then (*even if there ar no bad vals passed, internally the fun may make good ptrs bad*)
+				if (*fixme:true*) true then (*even if there ar no bad vals passed, internally the fun may make good ptrs bad*)
 				begin
 					(*printf "assignment via args: %s\n" f.vname;*)
 					(*since we don't know what the spec_fn does we must assume it copys the passed bad vals into the good ones*)
-					let fn,st,gd=ctx.local in
-					let st = Dom.Danger.add f (ContainDomain.ArgSet.singleton f) st in
-					let assign_lvals ga (st:Dom.Danger.t) =
-						let vars = Dom.get_vars ga in
-            let st=List.fold_right (fun x y->(*printf "%s has bekome bad\n" x.vname;*)Dom.assign_to_lval ctx.ask (Var x,NoOffset) y (ContainDomain.ArgSet.singleton f)) vars st
+					let assign_lvals globa (fn,st,gd) =
+            let st=(Dom.assign_to_lval ctx.ask (Mem globa,NoOffset) st (ContainDomain.ArgSet.singleton f))
+						in
+						let fn,st,gd = (Dom.assign_to_local ctx.ask (Mem globa,NoOffset) None (fn,st,gd) fs)  
 							in
 							(*in addition to the function also add the bad var's reason for being bad to the newly bad var, required for function ptrs*)
-							let transfer_culprits v (st:Dom.Danger.t)=
-								List.fold_right (fun x (y:Dom.Danger.t)->Dom.assign_argmap_st ctx.ask (Var v,NoOffset) x st) bad_args st
+							let transfer_culprits v (fn,st,gd)=
+								fn,(List.fold_right (fun x (y:Dom.Danger.t)->Dom.assign_argmap_st ctx.ask (Mem v,NoOffset) x st) bad_args st),gd
 							in
-            List.fold_right transfer_culprits vars st						
-					in (*FIXME: if ga is ptr and (contains ptrs or there is an fptr among the badies)*)
-					let st = List.fold_right (fun ga st -> if isPointerType (typeOf (stripCasts ga)) then begin assign_lvals ga st end else st) good_args st
-					in fn,st,gd
+            transfer_culprits globa (fn,st,gd)						
+					in (*FIXME: if globa is ptr and (contains ptrs or there is an fptr among the badies)*)
+	        let fn,st,gd=ctx.local in
+	        let st = Dom.Danger.add f (ContainDomain.ArgSet.singleton f) st in
+					List.fold_right (fun globa lctx -> if isPointerType (typeOf (stripCasts globa)) then begin assign_lvals globa lctx end else lctx) good_args (fn,st,gd)							
 				end
 				else ctx.local
 			in

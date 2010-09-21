@@ -46,6 +46,7 @@ struct
 	
   let analyzed_funs : (string, unit) Hashtbl.t = Hashtbl.create 111 (*list of funs that we have inspected*)
   let required_non_public_funs : (string, string list) Hashtbl.t = Hashtbl.create 111 (*private/protected funs that were actually used*)
+  let reentrant_funs : (string, unit) Hashtbl.t = Hashtbl.create 111 (*private/protected funs that were actually used*)
   
 	let safe_methods : (string, Str.regexp list) Hashtbl.t = Hashtbl.create 111 (*imported list of safe methods*) 
   let safe_vars : (string, Str.regexp list) Hashtbl.t = Hashtbl.create 111 (*imported list of safe vars*)
@@ -144,7 +145,10 @@ struct
             report (" (0) Variable '"^v2.vname^"' is not known and may point to tainted arguments.");
             used_args_idx o
           end else  
+					begin
+						(* report ("used args" ^v2.vname^":"^sprint 80 (ArgSet.pretty () x)^"\n"); *)
             ArgSet.join x (used_args_idx o)
+					end
     in
     used_args
 
@@ -302,31 +306,43 @@ struct
 		
   (*fromFun (dis-)allows ptrs that are constructed from this*)
 	(*FIXME: is this sound?*)
-  let may_be_a_perfectly_normal_global ask e fromFun (_,st,_) fs = 
+  let may_be_a_perfectly_normal_global ask e fromFun (fn,st,gd) fs = 
     let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in
-    let one_lv = function
-      | v when (not fromFun) && v.vname = this_name -> false (*allow from this?*)
-      | v -> not (ArgSet.is_bot (Danger.find v st))    
+    let one_lv fromFun = function
+      | v when (not fromFun) && v.vname = this_name -> 
+				   false
+      | v -> begin
+				    not (ArgSet.is_bot (Danger.find v st))
+						end    
     in
-    isPointerType (typeOf (stripCasts e)) && 
-    (
+    if isPointerType (typeOf (stripCasts e)) then 
+    begin
     let is_local = (constructed_from_this st e) && ( not (is_tainted fs e) )
-    in
-      let must_be_no_global = is_local
-      && not (ArgSet.fold (fun x y -> y || one_lv x) (used_args st e)  false)  
-      in 
+    in		  
+      let is_danger= (ArgSet.fold (fun x y -> y || one_lv fromFun x) (used_args st e)  false) in
+      let must_be_no_global = is_local && not is_danger  
+      in
+			(*report ("mbg: " ^(sprint 80 (d_exp () e))^ "\tlocal : "^(string_of_bool is_local)^"\tdanger : "^string_of_bool is_danger^"\n");*)
+			if must_be_no_global then false (*if it cannot be a global then we don't warn on unkownk ptrs, otherwise we do*)
+			else
+			begin
         match ask query with
         | `LvalSet s when not (Queries.LS.is_top s) ->
-            Queries.LS.fold (fun (v,_) q -> q || one_lv v) s false
+            Queries.LS.fold (fun (v,_) q -> q || one_lv fromFun v) s false
         | _ -> 
-            not must_be_no_global) (*if it cannot be a global then we don't warn on unkownk ptrs, otherwise we do*)
+            true 
+			end
+		end
+		else
+			false
 		
 	(*analog to may_be_.._global, prints warnings*)
   let warn_bad_reachables ask args fromFun (fd, st,df) fs =
     let warn_exp e = 
       let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in
       let warn_one_lv = function
-        | v when (not fromFun) && v.vname = this_name -> false
+        | v when (not fromFun) && v.vname = this_name -> 
+					false
         | v ->
           let args = Danger.find v st in
           if not (ArgSet.is_bot args)    
@@ -335,7 +351,22 @@ struct
 					end
 					else false
       in
-      if isPointerType (typeOf (stripCasts e)) then begin 
+      if isPointerType (typeOf (stripCasts e)) then begin
+				(*
+		    let one_lv fromFun = function
+		      | v when (not fromFun) && v.vname = this_name -> 
+		                   false
+		      | v -> begin
+		                    not (ArgSet.is_bot (Danger.find v st))
+		                        end    
+		    in
+				
+        let is_local = (constructed_from_this st e) && ( not (is_tainted fs e) ) in
+	      let is_danger= (ArgSet.fold (fun x y -> y || one_lv fromFun x) (used_args st e)  false) in
+	      let must_be_no_global = is_local && not is_danger  
+	      in
+	            report ("mbg: " ^(sprint 80 (d_exp () e))^ "\tlocal : "^(string_of_bool is_local)^"\tdanger : "^string_of_bool is_danger^"\n");				
+				*)
 				let may_glob=(List.fold_right (fun a b->(may_be_a_perfectly_normal_global ask e false (fd,st,df) fs)||b) (get_globals e) false) in
         if not (ArgSet.fold (fun x a -> warn_one_lv x ||a) (used_args st e) false) then (*avoid multiple warnings*)
 				begin
@@ -376,7 +407,9 @@ struct
           Messages.warn ("Expression "^(sprint 80 (d_exp () exp))^" too complicated.");
           fd, st, df
       | s when ArgSet.is_bot s -> fd, st, df
-      | s -> fd, assign_to_lval ask lval st s, df
+      | s -> (*report ("assign: " ^(sprint 80 (d_lval () lval))^ " = "^(sprint 80 (d_exp () exp))^":"^sprint 80 (ArgSet.pretty () s)^"\n");*)
+			         fd, assign_to_lval ask lval st s, df
+
 
   let assign_argmap_st ask lval exp st = (*same as above, just using only the danger domain*)
     match used_args st exp with
@@ -399,7 +432,7 @@ struct
     let p = function
       | Some e -> 
           isPointerType (typeOf (stripCasts e)) &&
-          may_be_a_perfectly_normal_global ask e false (fd,st,df) fs 
+          (may_be_a_perfectly_normal_global ask e false (fd,st,df) fs) 
 					(*&& not (is_method e)*)
       | None -> true 
     in
@@ -430,6 +463,7 @@ struct
 		match Goblintutil.get_class_and_name f.vname with
 			| Some (c,n) ->add_htbl_entry public_methods c n
 			| _ -> ()
+	
 		    
   let warn_tainted fs (_,ds,_) (e:exp) =
     if constructed_from_this ds e
