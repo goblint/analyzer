@@ -335,8 +335,8 @@ struct
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     let time_wrapper dummy =
-    let a, _, c = ctx.local in
-    let _, b, _ = au in
+    let a, b, c = ctx.local in
+(*     let _, b, _ = au in *)
     if ignore_this ctx.local then a, b, c else begin
       let fs = Dom.get_tainted_fields ctx.global in
       List.iter (Dom.warn_tainted fs ctx.local) args;

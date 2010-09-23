@@ -56,6 +56,8 @@ let do_the_params (fd: fundec) =
   in
     List.iter create_extra_var fd.sformals
 
+let dummy_func = emptyFunction "__goblint_dummy_init" 
+
 let createCFG (file: file) =
   let cfg = H.create 113 in
   (* Utility function to add stmt edges to the cfg *)
@@ -83,6 +85,7 @@ let createCFG (file: file) =
         | Failure "hd" -> if ie then stmt else raise (Failure "hd")
     in realnode ie [] stmt
   in
+  H.add cfg (Function dummy_func.svar) (Ret (None, dummy_func), FunctionEntry dummy_func.svar);
   (* We iterate over all globals looking for functions: *)
   iterGlobals file (fun glob -> 
     match glob with

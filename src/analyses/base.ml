@@ -71,7 +71,10 @@ struct
    let globalize a (cpa:cpa): (cpa * Vars.t) =
      (* For each global variable, we create the diff *)
      let add_var (v: varinfo) (value) (cpa,acc) =
-       if is_global a v then (CPA.remove v cpa, Vars.add (v,value) acc) else (cpa,acc)
+       if is_global a v then 
+        (CPA.remove v cpa, Vars.add (v,value) acc) 
+       else 
+        (cpa,acc)
      in
        (* We fold over the local state, and collect the globals *)
        CPA.fold add_var cpa (cpa, Vars.empty ())
@@ -645,10 +648,17 @@ struct
       set_many ctx.ask ctx.global ctx.local inits
 
   let return ctx exp fundec =
-    let nst = rem_many ctx.local (fundec.sformals @ fundec.slocals) in
-      match exp with
-        | None -> nst
-        | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp)
+    if fundec.svar.vname = "__goblint_dummy_init" then begin
+      let (cp,fl,df) = ctx.local in
+      if Flag.is_multi fl then ctx.local else begin
+        let d,v = globalize ctx.ask cp in
+        (d, Flag.get_main (), Vars.union df v)
+      end
+    end else
+      let nst = rem_many ctx.local (fundec.sformals @ fundec.slocals) in
+        match exp with
+          | None -> nst
+          | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp)
 
 
 
@@ -767,7 +777,12 @@ struct
     let do_exp e = 
       match eval_rv ask gs st e with
         | `Address a when AD.equal a (AD.null_ptr ()) -> []
-        | `Address a when not (AD.is_top a) -> reachable_vars ask [a] gs st
+        | `Address a when not (AD.is_top a) -> 
+            let rble = reachable_vars ask [a] gs st in
+(*             ignore (Pretty.printf "collect_funargs: %a =" AD.pretty a); *)
+(*             List.iter (fun x -> ignore (Pretty.printf "%a " AD.pretty x)) rble; *)
+(*             ignore (Pretty.printf "\n\n"); *)
+            rble
         | _-> []
     in
       List.concat (List.map do_exp exps)

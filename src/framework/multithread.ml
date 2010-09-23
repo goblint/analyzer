@@ -185,24 +185,32 @@ struct
       res
 
   (** analyze cil's global-inits function to get a starting state *)
-  let do_global_inits (file: Cil.file) : SD.t = 
+  let do_global_inits (file: Cil.file) : SD.t * Cil.fundec list = 
     let early = !GU.earlyglobs in
     let edges = MyCFG.getGlobalInits file in
     let theta x = Spec.Glob.Val.bot () in
+    let funs = ref [] in
     let transfer_func (st : Spec.Dom.t) (edge, loc) : Spec.Dom.t = 
       try
         if M.tracing then M.trace "con" (dprintf "Initializer %a\n" d_loc loc);
         GU.current_loc := loc;
         match edge with
           | MyCFG.Entry func        -> Spec.body (A.context top_query st theta []) func
-          | MyCFG.Assign (lval,exp) -> Spec.assign (A.context top_query st theta []) lval exp
+          | MyCFG.Assign (lval,exp) -> 
+              begin match lval, exp with
+                | (Var v,o), (Cil.AddrOf (Cil.Var f,Cil.NoOffset)) 
+                  when v.Cil.vstorage <> Static && isFunctionType f.vtype -> 
+                  begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end 
+                | _ -> ()
+              end;
+              Spec.assign (A.context top_query st theta []) lval exp
           | _                       -> raise (Failure "This iz impossible!") 
       with Failure x -> M.warn x; st
     in
     let _ = GU.earlyglobs := false in
     let result : Spec.Dom.t = List.fold_left transfer_func (Spec.startstate ()) edges in
     let _ = GU.earlyglobs := early in
-      SD.lift result
+      SD.lift result, !funs
      
   module S = Set.Make(struct
                         type t = int
@@ -215,14 +223,23 @@ struct
       if !GU.verbose then print_endline "Generating constraints."; 
       system (MyCFG.getCFG file) in
     Spec.init ();
-    let startstate = 
+    let startstate, more_funs = 
       if !GU.verbose then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file in
+    let funs = 
+      if !GU.kernel && !GU.nonstatic 
+      then funs@more_funs
+      else funs in
     let with_ostartstate x = x.svar, SD.lift (Spec.otherstate ()) in
+
     let startvars = match !GU.has_main, funs with 
       | true, f :: fs -> 
           (f.svar, startstate) :: List.map with_ostartstate fs
-      | _ -> List.map with_ostartstate funs
+      | _ ->
+          try 
+            MyCFG.dummy_func.svar.vdecl <- (List.hd funs).svar.vdecl;
+            (MyCFG.dummy_func.svar, startstate) :: List.map with_ostartstate funs
+          with Failure _ -> []
     in
     let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (Spec.context_top (SD.unlift e))) startvars in
     let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in

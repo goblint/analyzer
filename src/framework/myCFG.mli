@@ -46,6 +46,10 @@ type cfg = node -> (edge * node) list
   * edges entering the node and the node each edge originated from. This will
   * only work for forward analyses! *)
 
+val dummy_func: fundec
+(** An additional function added to the CFG. As of now it only has a direct 
+  * edge (Return) to its entry.*)
+
 val getCFG: file -> cfg
 (** Returns the cfg of the given AST. Note that if the variable
   * {!Goblinutil.cfg_print} is set (by the flag "--cfg"), this function will
