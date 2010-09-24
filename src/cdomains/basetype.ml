@@ -79,6 +79,7 @@ struct
   let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
+
 module VarStatus =
 struct
   include Printable.Std
@@ -283,6 +284,75 @@ struct
   let pretty () x = pretty_f short () x
   let name () = "field"
   let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+end
+
+module FieldVariables = 
+struct
+  include Printable.Std
+	
+  type t = varinfo*fieldinfo option
+	
+	let gen v = (v,None)
+	let gen_f v f = (v,Some f) 
+	
+  let get_var x = fst x
+	let get_field x = snd x
+	
+	let has_field x = match get_field x with
+		| Some x -> true
+		| _ -> false
+	
+	let apply_field f default v = match get_field v with
+		| Some x -> f x
+		| _ -> default 
+	
+  let isSimple _  = true
+  let is_global v = (get_var v).vglob
+  let copy x = x
+  let equal x y = (get_var x).vid = (get_var y).vid && (apply_field (fun v->v.fname) "" x)=(apply_field (fun v->v.fname) "" y) 
+	
+  let short _ x = GU.demangle (get_var x).vname^
+	              (*"("^string_of_int (get_var x).vid ^")"^*)
+								(apply_field (fun x->"::"^x.fname) "" x)	
+	
+	let compare x y = let cmp = compare (get_var x).vid (get_var y).vid in
+	                  if cmp = 0 then  
+										  compare (apply_field (fun v->v.fname) "" x) (apply_field (fun v->v.fname) "" y)
+										else
+											cmp										  
+	
+  let hash x = Hashtbl.hash ((get_var x).vname^"("^string_of_int (get_var x).vid ^")"^(apply_field (fun x->"::"^x.fname) "" x))	             
+								
+  let toXML_f sf x = 
+    let esc = Goblintutil.escape in
+		let typeinf = Pretty.sprint Goblintutil.summary_length (d_type () (apply_field (fun x->x.ftype) (get_var x).vtype x)) in  
+    let info = "id=" ^ string_of_int (get_var x).vid ^ "; type=" ^ esc typeinf in
+      Xml.Element ("Leaf", [("text", esc (sf max_int x)); ("info", info)],[])
+			
+  let pretty_f sf () x = Pretty.text (sf max_int x)
+  let pretty_trace () x = let name = short 0 x in
+		Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
+		
+  let get_location x = (get_var x).vdecl
+  let classify x = match (get_var x) with
+    | x when x.vglob -> 2
+    | x when x.vdecl.line = -1 -> -1
+    | x when x.vdecl.line = -3 -> 5
+    | x when x.vdecl.line = -4 -> 4
+    | _ -> 1
+  let class_name n = match n with
+    |  1 -> "Local"
+    |  2 -> "Global"
+    |  4 -> "Context"
+    |  5 -> "Parameter"
+    | -1 -> "Temp"
+    |  _ -> "None"
+	
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
+  let name () = "variables and fields"
+  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+	
 end
 
 module CilType =
