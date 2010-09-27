@@ -589,7 +589,7 @@ struct
     if  p rval
     && constructed_from_this st (Lval lval)
     && not (FieldSet.is_bot flds) 
-		&& not (is_method rval) (*fprs are globals but they are handled separately*)
+		&& not (is_method rval) (*fptrs are globals but they are handled separately*)
     then begin		
 			
 			 let str=match rval with 

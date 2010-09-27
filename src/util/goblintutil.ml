@@ -291,18 +291,27 @@ type name =
    | PtrTo    of name
    | TypeFun  of string * name
    
-let rec name_to_string = function
+let rec name_to_string_hlp = function
   | Cons -> "constructor"
   | Dest -> "destructor"
   | Name x -> x
   | Unknown x -> "?"^x^"?"
-  | Template a -> "template<"^name_to_string a^">"
-  | Nested (Template x,y) -> "template<"^name_to_string x^ ">" ^ name_to_string y
-  | Nested (x,Cons) -> let c = name_to_string x in c ^ "::" ^ c
-  | Nested (x,Dest) -> let c = name_to_string x in c ^ "::~" ^ c
-  | Nested (x,y) -> name_to_string x ^ "::" ^ name_to_string y
-  | PtrTo x -> name_to_string x ^ "*"
-  | TypeFun (f,x) -> f ^ "(" ^ name_to_string x ^ ")"
+  | Template a -> "<"^name_to_string_hlp a^">"
+  | Nested (Template x,y) -> "<"^name_to_string_hlp x^ ">::" ^ name_to_string_hlp y
+  | Nested (x,Cons) -> let c = name_to_string_hlp x in "::" ^c ^ "::" ^ c
+  | Nested (x,Dest) -> let c = name_to_string_hlp x in "::" ^c ^ "::~" ^ c
+  | Nested (x,Name "") -> name_to_string_hlp x
+  | Nested (x,y) -> "::" ^name_to_string_hlp x ^ name_to_string_hlp y
+  | PtrTo x -> name_to_string_hlp x ^ "*"
+  | TypeFun (f,x) -> "::" ^f ^ "(" ^ name_to_string_hlp x ^ ")"
+
+let prefix = Str.regexp "^::.*"
+
+let name_to_string x =
+	let res = name_to_string_hlp x in
+	if Str.string_match prefix res 0 then
+	   Str.string_after res 2
+	else res
 
 let rec show = function
   | Cons -> "Cons"
@@ -324,6 +333,9 @@ let ts_prefix  = Str.regexp "^TS\\(.+\\)"
 let tt_prefix  = Str.regexp "^TT\\(.+\\)"
 let tt_prefix  = Str.regexp "^TT\\(.+\\)"
 let nested     = Str.regexp "^N\\(.+\\)E"
+let nested_std_t  = Str.regexp "^NSt\\(.+\\)E"
+let nested_std_a  = Str.regexp "^NSa\\(.+\\)E"
+let nested_std_s  = Str.regexp "^NSs\\(.+\\)E"
 let strlift    = Str.regexp "^_OC_str\\([0-9]*\\)$"
 let templ      = Str.regexp "^I\\(.+\\)E"
 let const      = Str.regexp "^K"
@@ -433,11 +445,31 @@ and conv x : name * string =
   else if Str.string_match templ x 0
   then let x,y = conv (Str.matched_group 1 x) in 
         appp (fun z -> Nested (Template x, z)) (conv (drop 1 y))
+				
+  else if Str.string_match nested_std_a x 0 then
+		let ps, r = num_p ("9allocator"^(Str.matched_group 1 x)) in
+        match List.rev ps with
+          | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
+                       Nested (Name "std",fst r),snd r        
+          | _ -> Unknown x, r
+  else if Str.string_match nested_std_s x 0
+  then let ps, r = num_p ("6string"^(Str.matched_group 1 x)) in
+        match List.rev ps with
+          | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
+                       Nested (Name "std",fst r),snd r        
+          | _ -> Unknown x, r
+  else if Str.string_match nested_std_t x 0
+  then let ps, r = num_p (Str.matched_group 1 x) in
+        match List.rev ps with
+          | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
+					   Nested (Name "std",fst r),snd r        
+          | _ -> Unknown x, r
+ 
   else if Str.string_match nested x 0
   then let ps, r = num_p (Str.matched_group 1 x) in
         match List.rev ps with
           | p::ps -> List.fold_left (fun xs x -> Nested (x,xs)) p ps, r
-          | _ -> Unknown "", r 
+          | _ -> Unknown x, r 
   else if Str.string_match ptr_to x 0
   then appp (fun x -> PtrTo x) (conv (Str.matched_group 1 x))
   else if Str.string_match constructor x 0
@@ -485,4 +517,5 @@ let get_class_and_name x : (string * string) option =
 let demangle x = 
   let y = to_name x in
 (*   Printf.printf "%s -> %s -> %s\n" x (show y) (name_to_string y);   *)
-  name_to_string y
+  let res=name_to_string y in
+	if res="??" then x else res
