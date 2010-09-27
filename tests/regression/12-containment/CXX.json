@@ -12,7 +12,7 @@
 	"public_vars":
 	{
 	"Log" : ["field3","field7","field8"],
-	"FSM" : ["field1"]
+	"FSM" : ["_vptr$FSM"]
 	},
 	"public_methods":
 	{
@@ -21,15 +21,15 @@
 	"CBaseFSM" : ["CBaseFSM"],
 	"FSM" : ["FSM"],
 	"Dummy" : ["Dummy"],
-	"UES" : ["UES","~UES","RetTest7","RetTest1","RetTest2","RetTest3","RetTest4","RetTest5","InsertGlobalData","ReceiveEvent"],
-	"SubUES_X" : ["SubUES_X","~SubUES_X","ReceiveEvent"]
+	"UES" : ["UES","~UES","Entry","RetTest7","RetTest1","RetTest2","RetTest3","RetTest4","RetTest5","InsertGlobalData","ReceiveEvent"],
+	"SubUES_X" : ["SubUES_X","ADD","~SubUES_X","ReceiveEvent"]
 	},
 	"private_methods":
 	{
-	"Log" : ["my_undef_fp_fun","my_priv_fun"],
+	"Log" : ["my_undef_fp_fun","my_priv_fun","my_priv_fun2"],
 	"FSM" : ["ReceiveEvent"],
 	"Dummy" : ["dummy"],
-	"UES" : ["undef_fun","unneeded_fun","PrivateMember","PrivateMember2","RetTest6","GetGlob"]
+	"UES" : ["undef_fun","unneeded_fun","PrivateMember4","PrivateMember","PrivateMember2","PrivateMember3","RetTest6","GetGlob","PrivateMember5"]
 	},
 	"friends":
 	{

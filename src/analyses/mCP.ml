@@ -69,7 +69,7 @@ type global_state = [
     | `Base   of BaseDomain.Glob.Val.t
     | `Region of RegionDomain.RegPart.t
     | `Access of AccessDomain.Access.GlobDom.t
-    | `Contain of ContainDomain.FieldSet.t
+    | `Contain of ContainDomain.Globals.t
     | `None ]
 
 let analysesListGlobal : global_state domRecord list ref = ref []

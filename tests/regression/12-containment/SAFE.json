@@ -1,7 +1,7 @@
 {
 	"variables":
 	{
-	"global" : ["mout","_OC_str[0-9]*"]
+	"global" : ["mout","_OC_str[0-9]*","_ZTVN*","_vptr$*"]
 	},
 	"methods":
 	{
