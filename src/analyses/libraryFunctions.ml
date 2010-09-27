@@ -316,6 +316,7 @@ let invalidate_actions = [
   ("dev_driver_string", readsAll);
   ("__spin_lock_init", writes [1]);
   ("kmem_cache_create", readsAll);
+  ("pthread_create", writes [1]);
 ]
 
 (* used by get_invalidate_action to make sure
