@@ -107,6 +107,16 @@ let conf_malloc () =
   modify_ana "malloc_null" true;
   modify_ana "region" false
 
+let conf_base () = 
+  modify_ana "base" true;
+  modify_ana "containment" false;
+  modify_ana "thread" false;
+  modify_ana "mutex" false;
+  modify_ana "symb_locks" false;
+  modify_ana "uninit" false;
+  modify_ana "malloc_null" false;
+  modify_ana "region" false
+  
 let conf_osek () = 
   modify_ana "mutex" false;
   modify_ana "OSEK" true;

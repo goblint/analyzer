@@ -549,7 +549,7 @@ struct
           let arg_acc act = 
             match LF.get_invalidate_action x with
               | Some fnc -> (fnc act arglist) 
-              | _ -> []
+              | _ -> arglist
           in
           let r1 = access_byval ctx.ask false (arg_acc `Read) in
           let a1 = access_reachable ctx.ask   (arg_acc `Write) in

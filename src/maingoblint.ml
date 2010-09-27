@@ -49,7 +49,9 @@ let main () =
             | "uninit" -> GU.conf_uninit ()
             | "malloc_null" -> GU.conf_malloc ()
             | "osek" -> GU.conf_osek ()
-            | _ -> ()
+            | "base" -> GU.conf_base ()
+            | "mutex" -> ()
+            | _ -> raise (Arg.Bad ("Don't know what to do for '--analysis "^str^"'"))
     end;
     analyze := analyzer str 
   in

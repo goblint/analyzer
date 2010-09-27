@@ -1,3 +1,5 @@
+// PARAM: --analysis base
+
 #include<pthread.h>
 #include<stdio.h>
 #include<assert.h>
