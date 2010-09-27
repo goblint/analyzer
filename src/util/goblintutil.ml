@@ -297,7 +297,7 @@ let rec name_to_string_hlp = function
   | Name x -> x
   | Unknown x -> "?"^x^"?"
   | Template a -> "<"^name_to_string_hlp a^">"
-  | Nested (Template x,y) -> "<"^name_to_string_hlp x^ ">::" ^ name_to_string_hlp y
+  | Nested (Template x,y) -> "["^name_to_string_hlp x^ "]::" ^ name_to_string_hlp y
   | Nested (x,Cons) -> let c = name_to_string_hlp x in "::" ^c ^ "::" ^ c
   | Nested (x,Dest) -> let c = name_to_string_hlp x in "::" ^c ^ "::~" ^ c
   | Nested (x,Name "") -> name_to_string_hlp x
