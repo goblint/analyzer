@@ -109,36 +109,31 @@ let is_exit attr_list =
 (*brutal osek hack*)
   let is_task f =  (String.length f >= 12 && String.sub f 0 12 = GU.taskprefix)
 
-
-(* The code that looks for initialization function will select the last one.
- * This is usually, but not always, the right one. *)
 let getFuns fileAST  : fundec list =
   let mainname = !GU.mainfun in
-  let main = ref dummyFunDec in
-  let found = ref false in
+  let override = ref None in
   let def_main = mainname = "main" in
-  let set_main def = 
-    found := true; GU.has_main := true; main := def 
-  in
-  let f rest glob =
+  let f (m,o) glob =
     match glob with 
-      | GFun({svar={vname=mn}} as def,_) when mn = mainname-> set_main def; rest
-      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.exitfun -> 
-          def :: rest
-      | GFun({svar={vname=mn; vattr=attr}} as def, _) when !GU.kernel && is_init attr && def_main -> 
-          set_main def; rest
+      | GFun({svar={vname=mn}} as def,_) when mn = mainname -> override := Some def; (m,o)
+      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.exitfun -> (m, def :: o)
+      | GFun({svar={vname=mn; vattr=attr}} as def, _) 
+        when !GU.kernel && is_init attr && def_main -> (def :: m, o)
       | GFun({svar={vname=mn; vattr=attr}} as def, _) when !GU.kernel && is_exit attr -> 
-          Printf.printf "Cleanup function: %s\n" mn; def :: rest 
-      | GFun ({svar={vstorage=NoStorage}} as def, _) when (!GU.nonstatic)-> def :: rest
-      | GFun (def, _) when (!GU.allfuns) -> def :: rest
-      | GFun (def, _) when (!GU.oil && (is_task def.svar.vname)) -> def :: rest
-      | _ -> rest 
+          Printf.printf "Cleanup function: %s\n" mn; (m, def :: o) 
+      | GFun ({svar={vstorage=NoStorage}} as def, _) when (!GU.nonstatic)-> (m, def :: o)
+      | GFun (def, _) when (!GU.allfuns) -> (m, def :: o)
+      | GFun (def, _) when (!GU.oil && (is_task def.svar.vname)) -> (m, def :: o)
+      | _ -> (m, o)
   in
-  let others = foldGlobals fileAST f [] in
-    if !found then begin
-      Printf.printf "Start function: %s\n" !main.svar.vname;
-      !main :: others 
-    end else others
+  let mains, others = foldGlobals fileAST f ([],[]) in
+    match !override, mains with
+      | Some x, _ 
+      | None, [x] ->
+          Printf.printf "Start function: %s\n" x.svar.vname;
+          GU.has_main := true;
+          x :: mains @ others
+      | _ -> mains @ others
 
 let getdec fv = 
   try 
