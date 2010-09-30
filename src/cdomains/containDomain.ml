@@ -113,6 +113,7 @@ struct
       then st
       else Danger.add v (ArgSet.singleton (FieldVars.gen v)) st
     in
+    let st = Danger.add unresFunDec.svar (ArgSet.singleton (FieldVars.gen unresFunDec.svar)) st in 
     fd, List.fold_left add_arg st f.Cil.sformals, df  
 	
   let is_public_method_name x = 
@@ -376,12 +377,26 @@ struct
     check_exp 0
 		
 	let check_safety ht xn = (*check regexps from SAFE.json*)
+	(*
 	  match Goblintutil.get_class_and_name xn with
 	    | Some (c,n) ->
 	        begin try List.exists (fun x -> Str.string_match x n 0) (Hashtbl.find ht c)
 	        with _ -> false end
-	    | _ -> begin try List.exists (fun y -> Str.string_match y xn 0) (Hashtbl.find ht "global")
-	        with _ -> false end
+	    | _ -> begin
+	*)
+				    try 
+							if not (List.exists (fun y -> Str.string_match y xn 0) (Hashtbl.find ht "global")) then
+							begin 
+		            let xn=Goblintutil.demangle xn in 
+		            List.exists (fun y -> Str.string_match y xn 0) (Hashtbl.find ht "global")
+							end
+							else true
+	          with _ ->
+            let xn=Goblintutil.demangle xn in 
+            try List.exists (fun y -> Str.string_match y xn 0) (Hashtbl.find ht "global")
+            with _ -> 
+						false 
+				(*	end*)
 								
 				
   let is_safe e = (*check exp*)
@@ -415,12 +430,24 @@ struct
 							(fd,st,gd)
 							end	
 						end
-						else (fd,st,gd)
+						else 
+						begin (*propagate non 'const from this' vals*)
+							let update_non_this var ds_args st =
+								ArgSet.fold (fun x y->if not ((FieldVars.get_var x).vglob) &&not ((FieldVars.get_var x).vid=v.vid) &&(FieldVars.get_var x).vid=(FieldVars.get_var fv).vid && not (constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) then 
+									begin (*report("danger.prop "^v.vname^" -> "^(FieldVars.get_var x).vname^" = "^sprint 160 (ArgSet.pretty () args));*)
+									Danger.add (FieldVars.get_var x) args st 
+									end else st) ds_args st 									 
+							in
+							(*("danger.prop_non_this "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
+							let st = Danger.fold (fun var args y -> update_non_this var args y) st st 
+              in								
+							(fd,st,gd)
+						end
 					in
 					ArgSet.fold (fun x y -> update_this x y) ds (fd,st,gd)  									 
 				end
-				else		
-	       (fd, st,gd)
+				else	
+	       (fd,st,gd)
 			in 
       (*printf "Danger.add %s(%d)\n" v.vname v.vid;*)
 			(fd, Danger.add v args st,gd)
@@ -460,8 +487,8 @@ struct
 			false
 		
 	(*analog to may_be_.._global, prints warnings*)
-  let warn_bad_reachables ask args fromFun (fd, st,df) fs = (**)
-	
+  let warn_bad_reachables ask args fromFun (fd, st,df) fs ss = (**)
+
     let warn_exp e = 
       (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
       let warn_one_lv = function
@@ -471,8 +498,8 @@ struct
           let args = Danger.find v st in
           if not (ArgSet.is_bot args)    
           then begin
-						  if ArgSet.fold (fun x y -> if y then true else not (is_safe_name (FieldVars.get_var x).vname)) args false then
-						  report (" (1) Expression "^sprint 160 (d_exp () e)^" may contain pointers from "^ArgSet.short 160 args^".");true
+						  if ArgSet.fold (fun x y -> if y then true else begin not (is_safe_name (FieldVars.get_var x).vname) end) args false then
+						  report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");true
 					end
 					else false
       in
@@ -537,7 +564,8 @@ struct
           Messages.warn ("Need to know where "^(sprint 160 (d_exp () e))^" may point.");
           (fd,st,gd)
 			*)								
-  
+  let string_of_int64 = Int64.to_string
+		
   let assign_argmap ask lval exp (fd, st, df) = (*keep track of used fun args*)
 			match used_args st exp with
           | s when ArgSet.is_top s ->
@@ -551,19 +579,36 @@ struct
 							else 
 							(fd, st, df)
           | s -> 
-						 (*report ("assign_argmap :assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () exp))^":"^sprint 160 (ArgSet.pretty () s)^"\n");*)
+						 (*report ("assign_argmap :assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_plainexp () exp))^":"^sprint 160 (ArgSet.pretty () s)^"\n");*)
 					   begin							  
 					      let fs = get_field_from_this exp st in
-							  let (fd, st, df) = if FieldSet.is_bot fs || not (constructed_from_this st exp) then 
-									assign_to_lval ask lval (fd, st, df) s
+								let cft = (constructed_from_this st exp) in
+								let fse = FieldSet.is_bot fs  in
+							  let (fd, st, df) = 
+								if fse || not cft then
+								begin
+									let no_vtbl = assign_to_lval ask lval (fd, st, df) s in
+									if not cft then
+                    no_vtbl
+									else
+										  match exp with
+                    (*Lval(Mem(IndexPI(Lval(Var(llvm_cbe_tmp__8, NoOffset)), Const(Int64(1,long long,None))), NoOffset))*)
+                        | Lval(Mem(BinOp (IndexPI, (Lval(Var var, NoOffset)), (Const (CInt64 (offs,_,None))), tp )),NoOffset)  ->
+                            report ("VTBL_ACCESS offset : "^string_of_int64 offs^" type: "^(sprint 160 (d_type () tp)));
+														no_vtbl
+												| _ -> no_vtbl
+                end
 								else
 								begin
-									let merge v fs (fd, st, df) = (*propagate the fields*)
-										let s = FieldSet.fold (fun x y->(*report ("added "^v.vname^"::"^x.fname);*)ArgSet.add (FieldVars.gen_f v x) y) fs (ArgSet.empty()) in
-										(*report (sprint 160 (ArgSet.pretty () s));*)
-										assign_to_lval ask lval (fd, st, df) s
-									in
-									ArgSet.fold (fun x y->if (FieldVars.get_var x).vname = this_name then begin  merge (FieldVars.get_var x) fs y end else y) s (fd,st,df)
+									let no_vtbl = 
+                    let merge v fs (fd, st, df) = (*propagate the fields*)
+		                    let s = FieldSet.fold (fun x y->(*report ("added "^v.vname^"::"^x.fname);*)ArgSet.add (FieldVars.gen_f v x) y) fs (ArgSet.empty()) in
+		                    (*report (sprint 160 (ArgSet.pretty () s));*)
+		                    assign_to_lval ask lval (fd, st, df) s
+		                in
+		                ArgSet.fold (fun x y->if (FieldVars.get_var x).vname = this_name then begin  merge (FieldVars.get_var x) fs y end else y) s (fd,st,df)
+                  in
+                 no_vtbl
 							  end
 								in
                   fd, st , df
@@ -643,17 +688,17 @@ struct
 			| Some (c,n) -> add_htbl_entry func_ptrs c n
 			| _ -> ()
 *)				    
-  let warn_tainted fs (_,ds,_) (e:exp) =
+  let warn_tainted fs (_,ds,_) (e:exp) ss =
 		let cft = constructed_from_this ds e in
 		let (it,dargs) = get_tainted fs ds e in
 		(*report (sprint 160 (d_exp () e)^" cft: "^string_of_bool cft^" it: "^string_of_bool it);*) 
     if cft && it then
       if not (ArgSet.is_bot dargs)    
       then begin
-          report (" (3) Use of tainted field found in " ^ sprint 160 (d_exp () e)^" which may point to "^ArgSet.short 160 dargs^".");
+          report (" (3) Use of tainted field found in " ^ sprint 160 (d_exp () e)^" which is used in "^ss^" may point to "^ArgSet.short 160 dargs^".");
       end
 			else			
-        report (" (3) Use of tainted field found in " ^ sprint 160 (d_exp () e))    											
+        report (" (3) Use of tainted field found in " ^ sprint 160 (d_exp () e)^" which is used in "^ss)    											
 		
 	let may_be_fp e st err = (*check if an expression might be a function ptr *)
 	(*WARNING: doesn't check if it's an fp itself but only if it's a var that might contain a fp!*)
@@ -667,7 +712,7 @@ struct
 	    in 
 	    List.fold_right (fun x y->if danger_find x then true else y) vars false			
     							
-  let warn_glob (e:exp) =
+  let warn_glob (e:exp) ss =
     let p x =
       match unrollType x.vtype, Goblintutil.get_class_and_name x.vname with
         | TFun _, Some (c,n) -> false (*don't warn on pub member funs*)
@@ -676,7 +721,7 @@ struct
         | _ -> true
     in
     if List.exists p (get_globals e) && not (is_safe e) 
-    then report (" (5) Possible use of globals in " ^ sprint 160 (d_exp () e))
+    then report (" (5) Possible use of globals in " ^ sprint 160 (d_exp () e)^" which is used in "^ss)
 
 
 
