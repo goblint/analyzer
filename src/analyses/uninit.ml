@@ -282,8 +282,8 @@ struct
       | Some lv -> [init_lval ctx.ask lv ctx.local, Cil.integer 1, true]
       | _ -> [ctx.local, Cil.integer 1, true]
       
-  let fork ctx (lval: lval option) (f : varinfo) (args : exp list) : (varinfo * Dom.t) list =
-    [] (* thats wrong: should be [None, top ()] *)
+(*  let fork ctx (lval: lval option) (f : varinfo) (args : exp list) : (varinfo * Dom.t) list =
+    [] (* thats wrong: should be [None, top ()] *)*)
 
 end
 

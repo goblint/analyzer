@@ -60,8 +60,6 @@ struct
     
   let eval_funvar ctx (fv:exp) = 
     []
-    
-  let fork ctx lv f args = [] 
   
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list = 
     let fundec = Cilfacade.getdec f in

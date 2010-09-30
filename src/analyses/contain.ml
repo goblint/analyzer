@@ -504,9 +504,6 @@ struct
     in 
     time_transfer "leave_func" time_wrapper
 		
-  let fork ctx lv f args = 
-    [] 
-
   let startstate () = Dom.bot ()
   let otherstate () = Dom.bot ()  
 end

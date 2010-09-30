@@ -43,18 +43,7 @@ struct
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     au
-  
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    match f.vname with 
-       | "pthread_create" -> 
-          let new_fl = Dom.join ctx.local (Dom.get_main ()) in
-            [new_fl,Cil.integer 1, true]
-       | _ -> 
-        (* We actually want to spawn threads for some escaped function pointers,
-           but lets ignore that for now. *)
-        [ctx.local,Cil.integer 1, true]
-
-  
+    
   let fork ctx lv f args = 
     let finish_him () = Messages.bailwith "pthread_create arguments are strange!" in
     let pt_create () =
@@ -69,6 +58,19 @@ struct
     match f.vname with 
        | "pthread_create" -> pt_create ()
        | _ -> [] (* NB! unknown funktion spawns are covered with otherstate *)
+
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+    let forks = fork ctx lval f arglist in
+    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
+    match f.vname with 
+       | "pthread_create" -> 
+          let new_fl = Dom.join ctx.local (Dom.get_main ()) in
+            [new_fl,Cil.integer 1, true]
+       | _ -> 
+        (* We actually want to spawn threads for some escaped function pointers,
+           but lets ignore that for now. *)
+        [ctx.local,Cil.integer 1, true]
+
 
   let startstate () = Dom.bot ()
   let otherstate () = Dom.top ()

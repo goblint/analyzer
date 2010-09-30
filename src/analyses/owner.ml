@@ -50,7 +50,6 @@ struct
   let enter_func ctx lval f args = []
   let leave_func ctx lval fexp f args st2 = ctx.local
   let special_fn ctx lval f args = []
-  let fork       ctx lval f args = []
 
 end
 

@@ -569,9 +569,6 @@ struct
     add_accesses2 ctx;
     al
     
-  let fork ctx lv f args = 
-    []
-  
   
   (** Finalization and other result printing functions: *)
 
