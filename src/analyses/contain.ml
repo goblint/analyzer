@@ -397,8 +397,8 @@ struct
                     in (*FIXME: if globa is ptr and (contains ptrs or there is an fptr among the badies)*)
             let fn,st,gd=ctx.local in
             let fn,st,gd = Dom.danger_propagate f (ContainDomain.ArgSet.singleton (FieldVars.gen f)) (fn,st,gd) in
-                    let mctx,uses_fp = List.fold_right (fun globa (lctx,y) -> let (mlctx,my)=handle_func_ptr globa lctx in (mlctx,y||my) ) good_args ((fn,st,gd),false) in
-                    let mctx,_ =  List.fold_right (fun globa (lctx,arg_num) -> (*Dom.report ("check arg: "^(sprint 160 (d_exp () globa))) ;*)if uses_fp||isPointerType (typeOf (stripCasts globa))  then begin (assign_lvals globa lctx arg_num,arg_num+1) end else (lctx,arg_num+1)) good_args ((fn,st,gd),0)
+                    let mctx,uses_fp = List.fold_right (fun globa (lctx,y) -> let (mlctx,my)=handle_func_ptr globa lctx in (mlctx,y||my) ) arglist ((fn,st,gd),false) in
+                    let mctx,_ =  List.fold_right (fun globa (lctx,arg_num) -> (*Dom.report ("check arg: "^(sprint 160 (d_exp () globa))) ;*)if uses_fp||isPointerType (typeOf (stripCasts globa))  then begin (assign_lvals globa lctx arg_num,arg_num+1) end else (lctx,arg_num+1)) arglist ((fn,st,gd),0)
                     in mctx                         
                 end
                 else ctx.local
@@ -409,9 +409,12 @@ struct
             let st = 
               if isPointerType (typeOfLval v)
               then begin
-                let fn,st,gd = if not (Dom.is_safe_name f.vname) then Dom.assign_to_local ctx.ask v from nctx fs else nctx in
+								if not (Dom.is_safe_name f.vname) then 
+                let fn,st,gd =Dom.assign_to_local ctx.ask v from nctx fs in
                 let fn,st,gd = Dom.danger_propagate f (ContainDomain.ArgSet.singleton (FieldVars.gen f)) (fn,st,gd) in
                 Dom.assign_to_lval ctx.ask v (fn,st,gd) (ContainDomain.ArgSet.singleton (FieldVars.gen f))
+								else
+									nctx
               end else nctx
             in
             if not (Dom.is_safe_name f.vname) then Dom.warn_tainted fs nctx (Lval v) ("return val of "^(GU.demangle f.vname));
