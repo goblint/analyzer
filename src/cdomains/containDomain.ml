@@ -69,6 +69,15 @@ struct
 		let loc = !Goblintutil.current_loc in
 		  if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
         Messages.report ("CW: "^x)
+ 
+  let enable_dbg = false
+
+  let dbg_report x = 
+		    if enable_dbg then
+        let loc = !Goblintutil.current_loc in
+          if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
+        Messages.report ("CW: "^x)
+
 
   let error x = 
     let loc = !Goblintutil.current_loc in
@@ -174,7 +183,7 @@ struct
             used_args_idx o
           end else  
 					begin
-						(*report ("used args "^v2.vname^":"^sprint 160 (ArgSet.pretty () x)^"\n");*)
+						(*dbg_report ("used args "^v2.vname^":"^sprint 160 (ArgSet.pretty () x)^"\n");*)
 						if not (ArgSet.is_bot x) then
                 ArgSet.join x (used_args_idx o)
 						else 
@@ -208,8 +217,8 @@ struct
           let res1=(this_name = v2.vname) in
           let res2=not (ArgSet.is_bot x) && (ArgSet.for_all (fun v -> (FieldVars.get_var v).vname = this_name) x)
 					in (*ignore(if res1||res2 then ignore(printf "--- exp:%a - %s(%b,%b)\n" d_exp e (sprint 160 (ArgSet.pretty () x)) res1 res2));*)
-					(*if (ArgSet.is_bot x) then report ("bot_args: " ^(sprint 160 (d_exp () e)));
-					report ("cft: " ^(sprint 160 (d_exp () e))^" name : "^v2.vname^" as : "^(sprint 160 (ArgSet.pretty () x))^"\n");*)
+					(*if (ArgSet.is_bot x) then dbg_report ("bot_args: " ^(sprint 160 (d_exp () e)));
+					dbg_report ("cft: " ^(sprint 160 (d_exp () e))^" name : "^v2.vname^" as : "^(sprint 160 (ArgSet.pretty () x))^"\n");*)
 					res1||res2 (*ArgSet.for_all () ArgSet.bot() is always true????*) 
     in
     from_this e
@@ -420,91 +429,123 @@ struct
     if !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" n);
     safed   
 		
-    let danger_propagate v args (fd,st,gd) = (*checks if the new danger val points to this->something and updates this->something*)
+  (*fromFun (dis-)allows ptrs that are constructed from this*)
+    (*FIXME: is this sound?*)
+  let may_be_a_perfectly_normal_global e fromFun (fn,st,gd) fs = 
+    (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
+    let one_lv fromFun = function
+      | v when (not fromFun) && v.vname = this_name -> 
+                   false
+      | v -> begin
+                    not (ArgSet.is_bot (Danger.find v st))                      
+                        end    
+    in
+    if isPointerType (typeOf (stripCasts e)) then 
+    begin
+            (*dbg_report ("mbg_start: " ^(sprint 160 (d_exp () e)));*)
+    (*let is_local = (constructed_from_this st e)
+    in*)                  
+      let is_danger = (ArgSet.fold (fun x y -> y || one_lv false (FieldVars.get_var x)) (used_args st e)  false) in
+			let is_tainted = (is_tainted fs st e) in
+      let must_be_no_global = not is_tainted && not is_danger 
+      in
+            dbg_report ("mbg: " ^(sprint 160 (d_exp () e))^ "\ttaint : "^(string_of_bool is_tainted)^"\tdanger : "^string_of_bool is_danger^"\n");
+            not must_be_no_global (*if it cannot be a global then we don't warn on unkownk ptrs, otherwise we do*)
+
+    end
+        else
+            false		
+
+		let danger_assign v args (fd,st,gd) must_assign fs = (*checks if the new danger val points to this->something and updates this->something*)
+      let danger_upd = if must_assign || (v.vglob) then Danger.add else Danger.merge
+      in
+        (fd, danger_upd v args st,gd)
+		
+    let danger_propagate v args (fd,st,gd) must_assign fs = (*checks if the new danger val points to this->something and updates this->something*)
+      dbg_report("danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
 		  (*printf "%s\n" ("danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
+			  let danger_upd = if must_assign || (v.vglob) then Danger.add
+				                 else Danger.merge
+				in
         let update_this fv (fd,st,gd) ds = 
-            if (constructed_from_this st (Lval (Var (FieldVars.get_var fv),NoOffset))) then
-            begin
-       (* report("danger.prop_this "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args)); *)                  
-               if FieldVars.apply_field (fun x->isPointerType (x.ftype)) false fv then
-                let field=(FieldVars.apply_field (fun x->FieldSet.add x (FieldSet.empty())) (FieldSet.empty()) fv)
-                in 
-       report ("Write to local state : this->"^sprint 160 (FieldSet.pretty () field) ^" via "^v.vname);
-            (fd,st, Diff.add (tainted_varinfo (), (field,FuncNameSet.bot () ) )  gd) (*update this->field?*)
+        if (constructed_from_this st (Lval (Var (FieldVars.get_var fv),NoOffset))) then
+        begin
+					let rhs_cft = ArgSet.fold (fun x y->
+						let cft= (constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) in
+					  if not cft
+					  ||(cft && (is_tainted fs st (Lval (Var (FieldVars.get_var x),NoOffset)))) 
+					  then false else y) 
+					args true 
+					in
+						if not rhs_cft&& not (FieldVars.get_var fv).vglob then
+						begin
+	            dbg_report("danger.prop_this "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));                   
+	            if not (FieldVars.has_field fv) then 
+							  begin
+									error ("This has become tainted "^v.vname);
+	                (fd,st,gd)
+								end
+								else
+								begin
+	                if FieldVars.apply_field (fun x->isPointerType (x.ftype)) false fv then
+									begin
+		                let field=(FieldVars.apply_field (fun x->FieldSet.add x (FieldSet.empty())) (FieldSet.empty()) fv)
+		                in 
+			              report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () field) ^" via "^v.vname);
+				            (fd,st, Diff.add (tainted_varinfo (), (field,FuncNameSet.bot () ) )  gd) (*update this->field?*)
+									end
+									else
+										(fd,st,gd)
+								end
+							end
             else
             begin
-            if not (FieldVars.has_field fv) then error ("This has become tainted "^v.vname);
-            (fd,st,gd)
-            end 
-        end
+							(fd,st,gd)
+            end						
+			  end 
         else 
         begin (*propagate non 'const from this' vals*)
             let update_non_this var ds_args st =
-        (*report("danger.prop_non_this "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));*)                  
-                ArgSet.fold (fun x y->if (*report("check "^var.vname^" -> "^(FieldVars.get_var x).vname^" == "^(FieldVars.get_var fv).vname);*)
-								not ((FieldVars.get_var x).vglob)&& not ((FieldVars.get_var var).vglob) (*&&not ((FieldVars.get_var x).vid=v.vid)*) 
+                (*dbg_report("danger.prop_non_this "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));*)                  
+                ArgSet.fold (fun x y->if (*dbg_report("check "^var.vname^" -> "^(FieldVars.get_var x).vname^" == "^(FieldVars.get_var fv).vname);*)
+								not ((FieldVars.get_var x).vglob)&& not (var.vglob) &&not ((FieldVars.get_var x).vid=var.vid) 
 								&&(FieldVars.get_var x).vid=(FieldVars.get_var fv).vid 
                 && not (constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) then 
                   begin 
-										(*report("danger.prop_non_this "^var.vname^" -> "^sprint 160 (ArgSet.pretty () args));*)
+										dbg_report("danger.prop_non_this "^var.vname^" -> "^sprint 160 (ArgSet.pretty () args));
                     Danger.merge var args st 
                   end else st) ds_args st                                      
             in
-            (*report("danger.prop_non_this_check "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
-                let st = Danger.fold (fun var args y -> update_non_this var args y) st st 
+            (*dbg_report("danger.prop_non_this_check "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
+            let st = Danger.fold (fun var args y -> update_non_this var args y) st st 
             in                                
                 (fd,st,gd)
          end			
 				in
-			(*report("danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
+			(*dbg_report("danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
 			let ds = Danger.find v st in
 				let (fd,st,gd)=
 				if not (ArgSet.is_bot ds) then
 				begin
-          (*report("danger.prop_ds "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));*)
+          dbg_report("danger.prop_ds_1 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));
 					ArgSet.fold (fun x y -> update_this x y ds) ds (fd,st,gd)  									 
 				end
 				else	
 	       (fd,st,gd)
-			in				  
-       (*let fd,st,gd = ArgSet.fold (fun x y -> update_this x y args) args (fd,st,gd) in*)			
-      (*printf "Danger.add %s(%d)\n" v.vname v.vid;*)
-      let fd,st,gd = update_this (FieldVars.gen v) (fd,st,gd) args in
-			(fd, Danger.merge v args st,gd)
-						
-  (*fromFun (dis-)allows ptrs that are constructed from this*)
-	(*FIXME: is this sound?*)
-  let may_be_a_perfectly_normal_global ask e fromFun (fn,st,gd) fs = 
-    (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
-    let one_lv fromFun = function
-      | v when (not fromFun) && v.vname = this_name -> 
-				   false
-      | v -> begin
-				    not (ArgSet.is_bot (Danger.find v st))						
-						end    
-    in
-    if isPointerType (typeOf (stripCasts e)) then 
-    begin
-			(*report ("mbg_start: " ^(sprint 160 (d_exp () e)));*)
-    (*let is_local = (constructed_from_this st e)
-    in*)		 		  
-      let is_danger = (ArgSet.fold (fun x y -> y || one_lv false (FieldVars.get_var x)) (used_args st e)  false) in
-      let must_be_no_global = not (is_tainted fs st e) && not is_danger 
-      in
-			(*report ("mbg: " ^(sprint 160 (d_exp () e))^ "\tlocal : "^(string_of_bool is_local)^"\tdanger : "^string_of_bool is_danger^"\n");*)
-			if must_be_no_global then false (*if it cannot be a global then we don't warn on unkownk ptrs, otherwise we do*)
-			else true	
-			(*				
-			begin								
-        match ask query with
-        | `LvalSet s when not (Queries.LS.is_top s) ->
-            Queries.LS.fold (fun (v,_) q -> q || one_lv fromFun v) s false
-        | _ ->  true
+			in				
+			let cft_lhs = constructed_from_this st (Lval (Var v,NoOffset)) in  
+			let mbg_lhs = may_be_a_perfectly_normal_global (Lval (Var v,NoOffset)) true (fd,st,gd) (FieldSet.bot ()) in
+      let fd,st,gd =  if (not cft_lhs || mbg_lhs) && not (v.vglob) then
+			begin 
+        dbg_report("danger.prop_ds_2 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));
+				update_this (FieldVars.gen v) (fd,st,gd) args
 			end
-			*)			
-		end
-		else
-			false
+			else fd,st,gd
+			in
+			 (fd, danger_upd v args st,gd)
+				
+						
+
 		
 	(*analog to may_be_.._global, prints warnings*)
   let warn_bad_reachables ask args fromFun (fd, st,df) fs ss = (**)
@@ -525,7 +566,7 @@ struct
       in
       if isPointerType (typeOf (stripCasts e)) then begin
 	       (*
-	            report ("mbg: " ^(sprint 160 (d_exp () e))^ "\tlocal : "^(string_of_bool is_local)^"\tdanger : "^string_of_bool is_danger^"\n");				
+	            dbg_report ("mbg: " ^(sprint 160 (d_exp () e))^ "\tlocal : "^(string_of_bool is_local)^"\tdanger : "^string_of_bool is_danger^"\n");				
 				*)
 				(*let may_glob=may_be_a_perfectly_normal_global ask e false (fd,st,df) fs in*)
         if not (ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_args st e) false) then (*avoid multiple warnings*)
@@ -558,32 +599,46 @@ struct
   let join_this_fs_to_args this fs =
 		FieldSet.fold (fun x y -> ArgSet.add (FieldVars.gen_f this x) y) fs (ArgSet.bot ())
  
-  let assign_to_lval ask lval (fd,st,gd) args = (*propagate dangerous vals*)
+  let assign_to_lval fs lval (fd,st,gd) args must_assign = (*propagate dangerous vals*)
     match lval with 
-      | Var v , ofs -> (*report ("danger.add v"^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
+      | Var v , ofs -> dbg_report ("danger.add v "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
 			                 (*Danger.add v args st*)
+											 
 											 if not (is_safe_name v.vname) then
-											 danger_propagate v args (fd,st,gd)
-											 else (fd,st,gd)
+											 danger_propagate v args (fd,st,gd) must_assign fs
+											 else
+												 
+												(fd,st,gd)
       | Mem e , ofs -> (*if it's either not const from this or has no fields*)
 			
 			    let cft = (constructed_from_this st (Lval lval)) in
-					let fs = (get_field_from_this (Lval lval) st) in
-					let fse = (FieldSet.is_bot fs) in 
-					(*report ((sprint 160 (d_lval () lval))^" cft "^(string_of_bool cft)^" fse "^(string_of_bool fse));*)         
+					let fst = (get_field_from_this (Lval lval) st) in
+					let fse = (FieldSet.is_bot fst) in 
+					(*dbg_report ((sprint 160 (d_lval () lval))^" cft "^(string_of_bool cft)^" fse "^(string_of_bool fse));*)         
 					if  (cft && fse) || (not cft) then 
 					begin                              
 						let vars = get_vars e in (*not very exact for huge compount statements*)
 						List.fold_right 
-	            (fun x y->(*report ("danger.add e"^x.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
-	                 if not (is_safe_name x.vname) then danger_propagate x args y else y) vars (fd,st,gd)
+	            (fun x y->dbg_report ("danger.add e "^x.vname^" = "^sprint 160 (ArgSet.pretty () args));
+	                 if not (is_safe_name x.vname) then danger_propagate x args y must_assign fs else y) vars (fd,st,gd)
 					end
 					else
 					begin	
 						if cft then
 						begin
+							
 							let this = get_this st e in	
-							ArgSet.fold (fun x y -> danger_propagate (FieldVars.get_var x) (join_this_fs_to_args this fs) y) args (fd,st,gd) 							 
+							ArgSet.fold (fun x y -> 
+                if not ((FieldVars.get_var x).vglob)
+								&& 
+								not (constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) 
+								then
+								begin
+                (*dbg_report ("assign.lval "^(sprint 160 (d_exp () (Lval lval)))^" "^(FieldVars.get_var x).vname^" = "^sprint 160 (ArgSet.pretty () (join_this_fs_to_args this fst)));*)									
+								danger_propagate (FieldVars.get_var x) (join_this_fs_to_args this fst) y must_assign fs
+								end
+                else (fd,st,gd)			
+								) args (fd,st,gd)  							 
 					  end
 						  else						                                       
                (fd,st,gd)
@@ -595,7 +650,7 @@ struct
       | `Bot -> (fd,Danger.bot (),gd)
       | `LvalSet s when not (Queries.LS.is_top s) ->
           let add_lv (v,_) (fd,st,gd) = 
-						(*report ("danger.add "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
+						(*dbg_report ("danger.add "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
             danger_propagate v args (fd,st,gd)
           in
           Queries.LS.fold add_lv s (fd,st,gd)
@@ -605,20 +660,20 @@ struct
 			*)								
   let string_of_int64 = Int64.to_string
 		
-  let assign_argmap ask lval exp (fd, st, df) = (*keep track of used fun args*)
+  let assign_argmap fs lval exp (fd, st, df) must_assign = (*keep track of used fun args*)
 			match used_args st exp with
           | s when ArgSet.is_top s ->
               Messages.warn ("Expression "^(sprint 160 (d_exp () exp))^" too complicated.");
               fd, st, df
           | s when ArgSet.is_bot s -> let vars= get_vars exp in 
               let s = List.fold_right (fun x y->if not (is_safe_name x.vname) then begin ArgSet.add (FieldVars.gen x) y end else y) vars (ArgSet.empty()) in
-							(*report ("assign_argmap :no args: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () exp))^":"^sprint 160 (ArgSet.pretty () s)^"\n");*)
+							dbg_report ("assign_argmap :no args: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () exp))^":"^sprint 160 (ArgSet.pretty () s)^"\n");
 							if not (ArgSet.is_bot s) then					
-					    assign_to_lval ask lval (fd, st, df) s
+					    assign_to_lval fs lval (fd, st, df) s must_assign
 							else 
 							(fd, st, df)
           | s -> 
-						 (*report ("assign_argmap :assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () exp))^":"^sprint 160 (ArgSet.pretty () s)^"\n");*)
+						 dbg_report ("assign_argmap :assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () exp))^":"^sprint 160 (ArgSet.pretty () s)^"\n");
 					   begin							  
 					      let fs = get_field_from_this exp st in
 								let cft = (constructed_from_this st exp) in
@@ -626,7 +681,9 @@ struct
 							  let (fd, st, df) = 
 								if fse || not cft then
 								begin
-									let no_vtbl = assign_to_lval ask lval (fd, st, df) s in
+									let no_vtbl = 
+										dbg_report ("no_vtbl1 : "^(sprint 160 (d_lval () lval))^ " = "^sprint 160 (ArgSet.pretty () s));
+										assign_to_lval fs lval (fd, st, df) s must_assign in
 									if not cft then
                     no_vtbl
 									else
@@ -641,9 +698,9 @@ struct
 								begin
 									let no_vtbl = 
                     let merge v fs (fd, st, df) = (*propagate the fields*)
-		                    let s = FieldSet.fold (fun x y->(*report ("added "^v.vname^"::"^x.fname);*)ArgSet.add (FieldVars.gen_f v x) y) fs (ArgSet.empty()) in
-		                    (*report (sprint 160 (ArgSet.pretty () s));*)
-		                    assign_to_lval ask lval (fd, st, df) s
+		                    let s = FieldSet.fold (fun x y->(*dbg_report ("added "^v.vname^"::"^x.fname);*)ArgSet.add (FieldVars.gen_f v x) y) fs (ArgSet.empty()) in
+		                    dbg_report ("no_vtbl2t : "^(sprint 160 (d_lval () lval))^ " = "^sprint 160 (ArgSet.pretty () s));
+		                    assign_to_lval fs lval (fd, st, df) s must_assign 
 		                in
 		                ArgSet.fold (fun x y->if (FieldVars.get_var x).vname = this_name then begin  merge (FieldVars.get_var x) fs y end else y) s (fd,st,df)
                   in
@@ -665,7 +722,7 @@ struct
     let p = function
       | Some e -> 
           isPointerType (typeOf (stripCasts e)) &&
-          (may_be_a_perfectly_normal_global ask e false (fd,st,df) fs) 
+          (may_be_a_perfectly_normal_global e false (fd,st,df) fs) 
 					(*&& not (is_method e)*)
       | None -> true 
     in
@@ -680,7 +737,7 @@ struct
 				| Some rval -> 	 sprint 160 (d_exp () rval)
 				| _ -> "??"
 			in
-			report ("Write to local state : this->"^sprint 160 (FieldSet.pretty () flds)^" via "^str);  
+			report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () flds)^" via "^str);  
       (fd,st, Diff.add (tainted_varinfo (), (flds,FuncNameSet.bot ()))  df)
     end else (fd,st,df)
 		
@@ -730,7 +787,7 @@ struct
   let warn_tainted fs (_,ds,_) (e:exp) ss =
 		let cft = constructed_from_this ds e in
 		let (it,dargs) = get_tainted fs ds e in
-		(*report (sprint 160 (d_exp () e)^" cft: "^string_of_bool cft^" it: "^string_of_bool it);*) 
+		(*dbg_report (sprint 160 (d_exp () e)^" cft: "^string_of_bool cft^" it: "^string_of_bool it);*) 
     if cft && it then
       if not (ArgSet.is_bot dargs)    
       then begin
