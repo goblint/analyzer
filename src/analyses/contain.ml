@@ -219,6 +219,8 @@ struct
 		(*Dom.report("check vtbl : "^(sprint 160 (d_exp () rval))^"\n");*)
     if Dom.constructed_from_this st rval then
 		begin
+			(*true*)
+			
       (*Dom.report("check vtbl : const from this ok :"^(sprint 160 (d_exp () rval)));*)
 			let fs = Dom.get_field_from_this rval st in
 			if not (ContainDomain.FieldSet.is_bot fs) then
@@ -229,6 +231,7 @@ struct
 				res
 			end 
 			else false
+			(**)
 		end
 		else false
 				
@@ -323,10 +326,12 @@ struct
   
   let eval_funvar ctx fval: varinfo list =
 		(*Dom.report (sprint 160 (d_plainexp () fval) );*)
-		(*let fd,st,gd = ctx.local in*)
+		let fd,st,gd = ctx.local in
     match fval with
       | Lval (Var v,NoOffset) -> [v]  (*just a func*) (*fixme, tmp__11 not in dangermap*)
-      | Lval (Mem (Lval (Var v,NoOffset)),NoOffset) when check_vtbl fval ctx.local  -> (*fptr!*)
+      | Lval (Mem e,NoOffset)  -> (*fptr!*)
+			    let cft = Dom.may_be_constructed_from_this st e in
+			    Dom.report("fptr cft : "^string_of_bool cft);
 			    let fns = Dom.get_fptr_items ctx.global in
 					let add_svar x y = 
 					   match ContainDomain.FuncName.from_fun_name x with

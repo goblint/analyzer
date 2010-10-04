@@ -106,8 +106,11 @@ struct
     FuncName.from_fun_name fd
 		
   let unkown_this = (emptyFunction "@unkown_this").svar
-
-  
+(*
+	let top () =
+	  report "TOP";
+	  top ()
+*)	  
   let remove_formals f (fd, st,df) = 
     let f k s st = 
       let p y = List.exists (fun x -> x.vid = y.vid) f.Cil.sformals in
@@ -222,6 +225,37 @@ struct
 					res1||res2 (*ArgSet.for_all () ArgSet.bot() is always true????*) 
     in
     from_this e
+		
+  let may_be_constructed_from_this ds e = 
+    let xor a b = (a || b) && not (a && b) in
+    let rec from_this = function 
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _  
+      | Const _ 
+      | AlignOfE _ -> false
+      | UnOp  (_,e,_)     -> from_this e      
+      | BinOp (_,e1,e2,_) -> xor (from_this e1) (from_this e2)
+      | AddrOf  (Mem e,o) 
+      | StartOf (Mem e,o) 
+      | Lval    (Mem e,o) -> from_this e (* PT(e) *)
+      | CastE (_,e)       -> from_this e 
+      | Lval    (Var v2,o) 
+      | AddrOf  (Var v2,o) 
+      | StartOf (Var v2,o) -> 
+                  (*if Danger.is_bot ds then true
+                    else*)                      
+                  (*printf "Danger.find %s(%d)\n" v2.vname v2.vid;*)
+          let x = Danger.find v2 ds in
+          let res1=(this_name = v2.vname) in
+          let res2=not (ArgSet.is_bot x) && (ArgSet.fold (fun x y -> y||(FieldVars.get_var x).vname = this_name) x false)
+                    in (*ignore(if res1||res2 then ignore(printf "--- exp:%a - %s(%b,%b)\n" d_exp e (sprint 160 (ArgSet.pretty () x)) res1 res2));*)
+                    (*if (ArgSet.is_bot x) then dbg_report ("bot_args: " ^(sprint 160 (d_exp () e)));
+                    dbg_report ("cft: " ^(sprint 160 (d_exp () e))^" name : "^v2.vname^" as : "^(sprint 160 (ArgSet.pretty () x))^"\n");*)
+                    res1||res2 (*ArgSet.for_all () ArgSet.bot() is always true????*) 
+    in
+    from_this e		
     
   let get_field_from_this e ds  = 
     let first_field = function
@@ -558,8 +592,12 @@ struct
         | v ->
           let args = Danger.find v st in
           if not (ArgSet.is_bot args)    
-          then begin
-						  if ArgSet.fold (fun x y -> if y then true else begin not (is_safe_name (FieldVars.get_var x).vname) end) args false then
+          then begin						
+						  if ArgSet.fold (fun x y -> if y then true else begin not (is_safe_name (FieldVars.get_var x).vname) 
+							&&( (fromFun) 
+							|| not (constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) )  
+							end) args false 
+							then
 						  report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");true
 					end
 					else false
