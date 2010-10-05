@@ -46,7 +46,7 @@
 	"vector" : ["_M_range_check","_M_fill_initialize","_M_fill_assign","_M_fill_insert","_M_insert_aux","_M_check_len","_M_erase_at_end"],
 	"basic_string" : ["_M_data","_M_rep","_M_ibegin","_M_iend","_M_leak","_M_check","_M_check_length","_M_limit","_M_disjunct","_M_copy","_M_move","_M_assign","_S_copy_chars","_S_compare","_M_mutate","_M_leak_hard","_S_empty_rep","_M_replace_aux","_M_replace_safe","_S_construct"],
 	"Dummy" : ["dummy"],
-	"UES" : ["undef_fun","unneeded_fun","PrivateMember4","PrivateMember","PrivateMember2","PrivateMember3","RetTest6","GetGlob","PrivateMember5"]
+	"UES" : ["undef_fun","unneeded_fun","PrivateMember4","PrivateMember0","PrivateMember2","PrivateMember3","RetTest6","GetGlob","PrivateMember5"]
 	},
 	"friends":
 	{

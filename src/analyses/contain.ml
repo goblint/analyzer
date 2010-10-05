@@ -220,17 +220,8 @@ struct
     if Dom.constructed_from_this st rval then
 		begin
 			(*true*)
-			
-      (*Dom.report("check vtbl : const from this ok :"^(sprint 160 (d_exp () rval)));*)
-			let fs = Dom.get_field_from_this rval st in
-			if not (ContainDomain.FieldSet.is_bot fs) then
-			begin
-        (*Dom.report("check vtbl : field set non empty : "^(sprint 160 (d_exp () rval)));*)
-				let res=ContainDomain.FieldSet.fold (fun x y -> if x.fname="field1" then true else y ) (*fixme:check if vtbl is available*) fs false in
-				(*if res then Dom.report("use of vtbl function found in : "^(sprint 160 (d_exp () rval))^"\n");*)
-				res
-			end 
-			else false
+      let vars = Dom.get_vars rval in
+		  List.fold_right (fun x y -> if y || is_private x then true else y ) vars false
 			(**)
 		end
 		else false
@@ -243,8 +234,11 @@ struct
      List.fold_right 
      (fun x (alld,y)->if is_private x && x.vglob then 
         begin 
+            (*Dom.report("handle_func_ptr : "^x.vname^"\n");*)
             (*func ptr found, add to required list and danger map*)
 						let alld = Dom.add_func_ptr x alld in (*we add priv mem fun to the public ones(but also keep it in the priv list)*)
+            (*let _,lst,diff= alld in
+            Dom.report("asdfSD : "^sprint 80 (ContainDomain.Diff.pretty () diff)^"\n");*)
 						(*we don't know how the priv fun is called, so we analyze it as public*)
 						let alld = (Dom.danger_assign x (ContainDomain.ArgSet.singleton (FieldVars.gen x)) alld) true fs in 
 						(alld,true)						             
@@ -253,7 +247,7 @@ struct
          else (alld,y)) 
      vars (alld,false) 
 		in 
-		let _,lst,_= alld in 
+		let _,lst,diff= alld in 
    alld, uses_fp||Dom.may_be_fp rval lst false ||check_vtbl rval alld
 		    		
 
@@ -272,9 +266,10 @@ struct
       let _, ds, _ = ctx.local in
       if Dom.constructed_from_this ds (Lval lval) then ()
       else Dom.warn_bad_reachables ctx.ask [AddrOf lval] false ctx.local fs "assignment";
+	    (*Dom.report("tainted : "^sprint 80 (ContainDomain.FieldSet.pretty () fs)^"\n");*)
+      (*Dom.report ("before assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () rval))^"\n");*)
       let nctx = Dom.assign_to_local ctx.ask lval (Some rval) ctx.local fs in
       let nctx,uses_fp = handle_func_ptr rval nctx fs in (*warn/error on ret of fptr to priv fun, fptrs don't have ptr type :(; *)
-      (*Dom.report ("before assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () rval))^"\n");*)
 			if uses_fp||isPointerType (typeOf (stripCasts rval)) then
 			begin
 				(*Dom.report ("assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () rval))^"\n");*)
@@ -303,48 +298,86 @@ struct
     if ignore_this ctx.local
     then ctx.local 
     else begin 
-      begin match exp with
-        | None -> ()
+			let fn,st,gd= ctx.local in
+			let st =
+	    begin 
+			match exp with
+        | None -> st
         | Some e -> 
 					(*printf "return %s\n" (sprint 160 (d_exp () e));*)
           let cast_free = (stripCasts e) in
           let vars = Dom.get_vars cast_free in
-					let _,st,_= ctx.local in
-          (*special handling of function ptrs (they are not really ptr types)*)
-          List.iter (fun x->if is_private x || Dom.may_be_fp e st true then Dom.error (" (4) Analysis unsound due to possible export of function pointer to private function "^(sprint 160 (d_exp () e)))) vars;					
-          Dom.warn_glob e ("return statement of "^(GU.demangle f.svar.vname));
-          Dom.warn_tainted (Dom.get_tainted_fields ctx.global) ctx.local e ("return statement of "^(GU.demangle f.svar.vname))
-      end ;
+				  begin
+  		      let fs = Dom.get_tainted_fields ctx.global in
+	          (*special handling of function ptrs (they are not really ptr types)*)
+	          List.iter (fun x->if is_private x || Dom.may_be_fp e st true then Dom.error (" (4) Analysis unsound due to possible export of function pointer to private function "^(sprint 160 (d_exp () e)))) vars;					
+	          Dom.warn_glob e ("return statement of "^(GU.demangle f.svar.vname));
+	          Dom.warn_tainted (Dom.get_tainted_fields ctx.global) ctx.local e ("return statement of "^(GU.demangle f.svar.vname));
+						let add_retval v st =
+							let cft = Dom.may_be_constructed_from_this st (Lval (Var v,NoOffset)) in
+							if Dom.may_be_a_perfectly_normal_global (Lval (Var v,NoOffset)) false ctx.local fs 
+							 || cft then
+							begin 
+						  let args = Dom.Danger.find v st in
+							if ContainDomain.ArgSet.is_bot args then 
+								st
+							else
+							  let add_var v st = 
+									Dom.Danger.merge Dom.return_var (ContainDomain.ArgSet.add v (ContainDomain.ArgSet.bot ())) st in
+							  ContainDomain.ArgSet.fold (fun x y->add_var x y) args st
+							end
+							else
+								st 	
+						in
+	          List.fold_right (fun x y -> add_retval x y) vars st
+				  end                  
+      end 
+			in
       let arglist = match exp with Some x -> [x] | _ -> [] in
       let fs=Dom.get_tainted_fields ctx.global in
 			let allow_from_this = is_private f.svar in (*private funcs may return ptrs constructed from this*)			               
-      Dom.warn_bad_reachables ctx.ask arglist (not allow_from_this) ctx.local fs ("return statement of "^(GU.demangle f.svar.vname));
-      Dom.remove_formals f ctx.local
+      Dom.warn_bad_reachables ctx.ask arglist (not allow_from_this) (fn,st,gd) fs ("return statement of "^(GU.demangle f.svar.vname));
+      Dom.remove_formals f (fn,st,gd)
     end 
     in 
     time_transfer "return" time_wrapper
   
   let eval_funvar ctx fval: varinfo list =
-		(*Dom.report (sprint 160 (d_plainexp () fval) );*)
+		(*Dom.report (sprint 160 (d_exp () fval) );*)
 		let fd,st,gd = ctx.local in
     match fval with
       | Lval (Var v,NoOffset) -> [v]  (*just a func*) (*fixme, tmp__11 not in dangermap*)
       | Lval (Mem e,NoOffset)  -> (*fptr!*)
 			    let cft = Dom.may_be_constructed_from_this st e in
-			    Dom.report("fptr cft : "^string_of_bool cft);
-			    let fns = Dom.get_fptr_items ctx.global in
-					let add_svar x y = 
-					   match ContainDomain.FuncName.from_fun_name x with
-							| Some x -> Dom.report ("fptr check: "^x.svar.vname );(x.svar)::y
-							| _ -> y
-					in
-					ContainDomain.FuncNameSet.fold (fun x y ->  add_svar x y) fns [] 
+					let flds = Dom.get_field_from_this e st in
+					let flds_bot = ContainDomain.FieldSet.is_bot flds in				
+					if cft && flds_bot then
+					begin	
+				    Dom.report("fptr cft : "^string_of_bool cft);
+				    let fns = Dom.get_fptr_items ctx.global in
+						let add_svar x y = 
+						   match ContainDomain.FuncName.from_fun_name x with
+								| Some x -> Dom.report ("fptr check: "^x.vname );(x)::y
+								| _ -> y
+						in
+						ContainDomain.VarNameSet.fold (fun x y ->  add_svar x y) fns []
+					end 
+					else
+					begin
+						let rvs =
+							let vars = Dom.get_vars e in
+							List.fold_right (fun x y -> ContainDomain.ArgSet.join (Dom.Danger.find x st) y) vars (ContainDomain.ArgSet.bot ()) 
+						in
+						Dom.report(" (6) unresolved function pointer in "^sprint 160 (d_exp () fval)^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));[Dom.unresFunDec.svar]
+					end
 				  (*Hashtbl.fold (f x y -> x::y) Dom.func_ptrs []*)
 			| _ -> if not (ignore_this ctx.local) then Dom.report(" (6) unresolved function in "^sprint 160 (d_exp () fval));[Dom.unresFunDec.svar]	
 
 	let isBad fs ask fromFun ctx e = (*inside priv funs only tainted and globals are bad when assigned to a local*)
 	  let fd,st,gd=ctx.local in
-	    Dom.is_tainted fs st e||Dom.may_be_a_perfectly_normal_global e fromFun ctx.local fs||check_vtbl e ctx.local
+	    let res = Dom.is_tainted fs st e||Dom.may_be_a_perfectly_normal_global e fromFun ctx.local fs||check_vtbl e ctx.local in
+			(*Dom.report ("is_bad "^(sprint 160 (d_exp () e))^" "^string_of_bool res);*)
+			res 
 
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let time_wrapper dummy =
@@ -376,7 +409,7 @@ struct
                 begin
                     (*printf "assignment via args: %s\n" f.vname;*)
                     (*since we don't know what the spec_fn does we must assume it copys the passed bad vals into the good ones*)
-                    let assign_lvals globa (fn,st,gd) arg_num =
+            let assign_lvals globa (fn,st,gd) arg_num =
             (*in addition to the function also add the bad var's reason for being bad to the newly bad var, required for function ptrs*)
             let transfer_culprits v (fn,st,gd) = 
                 (List.fold_right (fun x y->
@@ -384,28 +417,38 @@ struct
             in
                 if not is_memcpy then
                 begin									
-                  let (fn,st,gd)=(Dom.assign_to_lval fs (Mem globa,NoOffset) (fn,st,gd) (ContainDomain.ArgSet.singleton (FieldVars.gen f)) false)
-	                in													
 	                let fn,st,gd = if not (Dom.is_safe_name f.vname) then (Dom.assign_to_local ctx.ask (Mem globa,NoOffset) from (fn,st,gd) fs) else fn,st,gd             
 	                in
-                  transfer_culprits globa (fn,st,gd)
+                  (*Dom.report ("transfer_culprit : "^(sprint 160 (d_exp () globa))^" = "^(Goblintutil.demangle f.vname)^"\n");*)
+                  let (fn,st,gd)=transfer_culprits globa (fn,st,gd) in
+                  (Dom.assign_to_lval fs (Mem globa,NoOffset) (fn,st,gd) (ContainDomain.ArgSet.singleton (FieldVars.gen f)) false)									
                 end
                 else
                 begin (*for memcpy only the first args is assigned to*)
-                    if arg_num = 1 then
+                    if (List.length arglist)-arg_num = 1 then
                     begin
-                    (*Dom.report ("transfer_culprit_memcpy : "^(sprint 160 (d_exp () globa))^" = "^(Goblintutil.demangle f.vname)^"\n");*)
+                        (*Dom.report ("transfer_culprit_memcpy : "^(sprint 160 (d_exp () globa))^" = "^(Goblintutil.demangle f.vname)^"\n");*)
                         transfer_culprits globa (fn,st,gd)
                     end
                     else
                         (fn,st,gd)
-                        end
+                    end
                     in 
 				            let fn,st,gd=ctx.local in
 				            let fn,st,gd = Dom.danger_assign f (ContainDomain.ArgSet.singleton (FieldVars.gen f)) (fn,st,gd) true fs in
-                    let mctx,uses_fp = List.fold_right (fun globa (lctx,y) -> let (mlctx,my)=handle_func_ptr globa lctx fs in (mlctx,y||my) ) arglist ((fn,st,gd),false) in
-                    let mctx,_ =  List.fold_right (fun globa (lctx,arg_num) -> (*Dom.report ("check arg: "^(sprint 160 (d_exp () globa))) ;*)if uses_fp||isPointerType (typeOf (stripCasts globa))  then begin (assign_lvals globa lctx arg_num,arg_num+1) end else (lctx,arg_num+1)) arglist ((fn,st,gd),0)
-                    in mctx                         
+                    let (fn,st,gd),uses_fp = List.fold_right (fun globa (lctx,y) -> let (mlctx,my)=handle_func_ptr globa lctx fs in (mlctx,y||my) ) arglist ((fn,st,gd),false) in
+                    let (fn,st,gd),_ =  List.fold_right 
+										(fun globa (lctx,arg_num) -> (*Dom.report ("check arg: "^(sprint 160 (d_exp () globa))) ;*)
+										if uses_fp||isPointerType (typeOf (stripCasts globa))  then 
+											begin 
+												(assign_lvals globa lctx arg_num,arg_num+1) 
+											end 
+											else (lctx,arg_num+1))
+											 arglist ((fn,st,gd),0)
+										(*in
+                    let (fn,st,gd),_ =  List.fold_right (fun globa (lctx,arg_num) -> (*Dom.report ("check arg: "^(sprint 160 (d_exp () globa))) ;*)if uses_fp||isPointerType (typeOf (stripCasts globa))  then begin (assign_lvals globa lctx arg_num,arg_num+1) end else (lctx,arg_num+1)) arglist ((fn,st,gd),0)
+										*)
+                    in (fn,st,gd)                         
                 end
                 else ctx.local
             in
@@ -500,13 +543,34 @@ struct
       match lval with
         | Some v -> 
             Dom.warn_glob (Lval v) ("return val of "^GU.demangle f.vname);
-            Dom.warn_tainted fs ctx.local (Lval v) ("return val of "^(GU.demangle f.vname));
-            if isPointerType (typeOfLval v)
+            Dom.warn_tainted fs (*ctx.local*) au (Lval v) ("return val of "^(GU.demangle f.vname));
+            if isPointerType (typeOfLval v) 
             then 
-							let arg_single = (ContainDomain.ArgSet.singleton (FieldVars.gen f)) in
-              let fn,st,gd = Dom.assign_to_local ctx.ask v from (a,b,c) fs in
-              let fn,st,gd = Dom.danger_propagate f arg_single (fn,st,gd) true fs in
-              Dom.assign_to_lval fs v (fn,st,gd) arg_single true
+							if is_ext f.vname then
+							begin 
+								let arg_single = (ContainDomain.ArgSet.singleton (FieldVars.gen f)) in
+	              let fn,st,gd = Dom.assign_to_local ctx.ask v from (a,b,c) fs in
+	              let fn,st,gd = Dom.danger_assign f arg_single (fn,st,gd) true fs in
+	              Dom.assign_to_lval fs v (fn,st,gd) arg_single true
+							end
+							else 
+              let _,au_st,_ = au in
+							let rvs = Dom.Danger.find Dom.return_var au_st in	
+							(*Dom.report ("Func returned : "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)
+							if is_private f then
+  						begin
+								let apply_var var (fn,st,gd) = 
+									begin
+		                let arg_single = (ContainDomain.ArgSet.singleton var) in
+                    let fn,st,gd = Dom.danger_assign (FieldVars.get_var var) arg_single (fn,st,gd) true fs in
+			              let fn,st,gd = Dom.assign_to_local ctx.ask v from (fn,st,gd) fs in
+			              Dom.assign_to_lval fs v (fn,st,gd) rvs true
+									end 
+								in
+								ContainDomain.ArgSet.fold (fun x y ->apply_var x y) rvs (a,b,c)
+							end
+							else
+								a,b,c
             else 
               a, b, c
         | None -> a, b, c

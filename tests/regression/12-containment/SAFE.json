@@ -1,11 +1,10 @@
 {
 	"variables":
 	{
-	"global" : ["mout","_OC_str[0-9].*","_ZTVN.*","_vptr$.*","std::vector(.*^\\*)::operator.*","nam"]
+	"global" : ["mout","_OC_str[0-9].*","_ZTVN.*","_vptr$.*","std::vector(.*^\\*)::operator.*","nam","_ZdlPv"]
 	},
 	"methods":
 	{
-	"global" : ["printf","_Z11TS_API_SOMEPi","_ZdlPv"],
-	"DummyStream" : ["operator<<"]
+	"global" : ["printf","_Z11TS_API_SOMEPi","_ZdlPv","DummyStream::.*"]
 	}
 }
