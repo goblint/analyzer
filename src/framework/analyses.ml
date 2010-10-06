@@ -43,26 +43,22 @@ type ('a,'b,'c) ctx =
     { ask   : Queries.t -> Queries.Result.t
     ; local : 'a
     ; global: 'b -> 'c 
-    ; sub   : local_state list
-    ; spawn : varinfo -> 'a -> unit
-    }
+    ; sub   : local_state list                }
 
 let set_q ctx ask =
-  {ask = ask; local=ctx.local; global=ctx.global;sub=ctx.sub;spawn=ctx.spawn}
+  {ask = ask; local=ctx.local; global=ctx.global;sub=ctx.sub}
 
-let set_st ctx st spawn_tr =
-  {ask = ctx.ask; local=st; global=ctx.global;sub=ctx.sub;spawn=spawn_tr ctx.spawn}
-
-let swap_st ctx st =
-  {ask = ctx.ask; local=st; global=ctx.global;sub=ctx.sub;spawn=ctx.spawn}
+let set_st ctx st =
+  {ask = ctx.ask; local=st; global=ctx.global;sub=ctx.sub}
 
 let set_gl ctx gl =
-  {ask = ctx.ask; local=ctx.local; global=gl;sub=ctx.sub;spawn=ctx.spawn}
+  {ask = ctx.ask; local=ctx.local; global=gl;sub=ctx.sub}
 
-let set_st_gl ctx st gl spawn_tr =
-  {ask = ctx.ask; local=st; global=gl;sub=ctx.sub;spawn=spawn_tr ctx.spawn}
+let set_st_gl ctx st gl =
+  {ask = ctx.ask; local=st; global=gl;sub=ctx.sub}
 
-let context ask st gl dp sp = {ask=ask; local=st; global=gl;sub=dp;spawn=sp}
+let context ask st gl dp = {ask=ask; local=st; global=gl;sub=dp}
+
 
 module type VarType = 
 sig
@@ -131,8 +127,8 @@ sig
   
   val eval_funvar: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> exp -> varinfo list 
   (** [eval_funvar q f st] evaluates [f] to a list of possible functions (in state [st]) *)
-(*   val fork       : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (varinfo * Dom.t) list   *)
-(*   (** [fork] returns list of function,input-state pairs, that the callee has spawned *) *)
+  val fork       : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (varinfo * Dom.t) list  
+  (** [fork] returns list of function,input-state pairs, that the callee has spawned *)
   val special_fn : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (Dom.t * Cil.exp * bool) list
   (** [special_fn] is called, when given varinfo is not connected to a fundec -- no function definition is given*)
   val enter_func : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (Dom.t * Dom.t) list 

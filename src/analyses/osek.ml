@@ -110,7 +110,7 @@ struct
 (*let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in*)
 (*let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
-      match Mutex.Spec.special_fn (swap_st ctx m_st) None (dummy_get f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
+      match Mutex.Spec.special_fn (set_st ctx m_st) None (dummy_get f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
     else 
@@ -120,7 +120,7 @@ struct
     let m_st = Mutex.Spec.return ctx (exp:exp option) (f:fundec) in
     if (is_task f.svar.vname) then 
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
-      match Mutex.Spec.special_fn (swap_st ctx m_st) None (dummy_release f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
+      match Mutex.Spec.special_fn (set_st ctx m_st) None (dummy_release f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
     else 
@@ -169,6 +169,9 @@ struct
       | "StartOS" 
       | "ShutdownOS" 
       | _ -> Mutex.Spec.special_fn ctx lval f arglist
+  
+  let fork ctx lv f args = 
+    Mutex.Spec.fork ctx lv f args
 
   let startstate () = Dom.top ()
   let otherstate () = Dom.top ()

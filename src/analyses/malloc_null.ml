@@ -217,7 +217,10 @@ struct
            | _ -> [ctx.local, Cil.integer 1, true]
         end
       | _ -> [ctx.local, Cil.integer 1, true]
-
+  
+  let fork ctx lv f args = 
+    []
+  
   let name = "Malloc null"
 
   let startstate () = Dom.empty () 

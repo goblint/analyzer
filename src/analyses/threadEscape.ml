@@ -53,13 +53,24 @@ struct
             Queries.LS.fold to_extra a (Dom.empty ())
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
       | _ -> Dom.empty ()
- 
+
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+    match f.vname with
+      | "pthread_create" -> begin        
+          match arglist with
+            | [_; _; _; ptc_arg] -> begin
+                [reachable ctx.ask ptc_arg,Cil.integer 1, true]
+              end
+            | _ -> M.bailwith "pthread_create arguments are strange!"
+        end
+      | _ -> [ctx.local,Cil.integer 1, true]
+
   let query_lv ask exp = 
     match ask (Queries.MayPointTo exp) with
       | `LvalSet l when not (Queries.LS.is_top l) -> 
           Queries.LS.elements l
       | _ -> []
-
+ 
   let rec eval_fv ask (exp:Cil.exp): varinfo option = 
     match query_lv ask exp with
       | [(v,_)] -> Some v
@@ -78,19 +89,6 @@ struct
             | _ -> finish_him () 
         end
       | _ -> [] 
-
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    let forks = fork ctx lval f arglist in
-    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
-    match f.vname with
-      | "pthread_create" -> begin        
-          match arglist with
-            | [_; _; _; ptc_arg] -> begin
-                [reachable ctx.ask ptc_arg,Cil.integer 1, true]
-              end
-            | _ -> M.bailwith "pthread_create arguments are strange!"
-        end
-      | _ -> [ctx.local,Cil.integer 1, true]
 
   let startstate () = Dom.bot ()
   let otherstate () = Dom.bot ()

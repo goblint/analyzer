@@ -147,6 +147,10 @@ struct
         end
       | _ -> [ctx.local,Cil.integer 1, true]
   
+  let fork ctx lv f args = 
+    match f.vname with 
+      | _ -> []
+
   let startstate () = 
     `Lifted (Equ.top (), RegMap.bot ()), Vars.empty ()       
     

@@ -91,8 +91,7 @@ struct
   let context_top x = Dom.map Base.context_top x
   
   let query ctx y = 
-    let spawn f v d = f v (Dom.singleton d) in
-    let f e b = Queries.Result.meet b (Base.query (Analyses.set_st ctx e spawn) y) in 
+    let f e b = Queries.Result.meet b (Base.query (Analyses.set_st ctx e) y) in 
     Dom.fold f ctx.local (Queries.Result.bot ())
   
   (** [lift f set] is basically a map, that handles dead-code*)
@@ -109,43 +108,41 @@ struct
   let reset_diff x = Dom.map Base.reset_diff x
   let get_diff x = Dom.fold (fun x y -> Base.get_diff x @ y) x []
 
-  let spawner f v d = f v (Dom.singleton d) 
-  
-  let assign ctx lval exp  = lift (fun st -> Base.assign (set_st ctx st spawner) lval exp) ctx.local
-  let branch ctx exp br    = lift (fun st -> Base.branch (set_st ctx st spawner) exp br) ctx.local
-  let body ctx f           = lift (fun st -> Base.body (set_st ctx st spawner) f) ctx.local
-  let return ctx exp f     = lift (fun st -> Base.return (set_st ctx st spawner) exp f) ctx.local
-  let intrpt ctx           = lift (fun st -> Base.intrpt (set_st ctx st spawner)) ctx.local
+  let assign ctx lval exp  = lift (fun st -> Base.assign (set_st ctx st) lval exp) ctx.local
+  let branch ctx exp br    = lift (fun st -> Base.branch (set_st ctx st) exp br) ctx.local
+  let body ctx f           = lift (fun st -> Base.body (set_st ctx st) f) ctx.local
+  let return ctx exp f     = lift (fun st -> Base.return (set_st ctx st) exp f) ctx.local
+  let intrpt ctx           = lift (fun st -> Base.intrpt (set_st ctx st)) ctx.local
 
   let special_fn ctx lval f args = 
     let just_d_set (s,_,_) = Dom.singleton s in
     let one_special st xs =
-      List.map just_d_set (Base.special_fn (set_st ctx st spawner) lval f args)  @ xs
+      List.map just_d_set (Base.special_fn (set_st ctx st) lval f args)  @ xs
     in
     let true_exp = (Cil.integer 1) in
     List.map (fun x -> x, true_exp, true) (Dom.fold one_special ctx.local []) 
   
   let eval_funvar ctx exp : varinfo list = 
     let f x xs = 
-      Base.eval_funvar (set_st ctx x spawner) exp @ xs
+      Base.eval_funvar (set_st ctx x) exp @ xs
     in
     Dom.fold f ctx.local []
   
-(*  let fork ctx lval fn args = 
+  let fork ctx lval fn args = 
     let add_spawn st ss =  
-      List.map (fun (x,y) -> x, Dom.singleton y) (Base.fork (set_st ctx st spawner) lval fn args) @ ss
+      List.map (fun (x,y) -> x, Dom.singleton y) (Base.fork (set_st ctx st) lval fn args) @ ss
     in
     Dom.fold add_spawn ctx.local []
-  *)
+  
   let enter_func ctx lval fn args : (Dom.t * Dom.t) list =
     let sing_pair (x,y) =  Dom.singleton x, Dom.singleton y in
-    let add_work wrk_list st = List.map sing_pair (Base.enter_func (set_st ctx st spawner) lval fn args) @ wrk_list in
+    let add_work wrk_list st = List.map sing_pair (Base.enter_func (set_st ctx st) lval fn args) @ wrk_list in
     List.fold_left add_work [] (Dom.elements ctx.local) 
 
   let leave_func ctx lval fexp fn args after : Dom.t =
     (* we join as a general case -- but it should have been a singleton anyway *)
     let bbf : Base.Dom.t = Dom.fold Base.Dom.join ctx.local (Base.Dom.bot ()) in
-    let leave_and_join nst result = Dom.join result (Dom.singleton (Base.leave_func (set_st ctx bbf spawner) lval fexp fn args nst)) in
+    let leave_and_join nst result = Dom.join result (Dom.singleton (Base.leave_func (set_st ctx bbf) lval fexp fn args nst)) in
     Dom.fold leave_and_join after (Dom.bot ())    
 end
 

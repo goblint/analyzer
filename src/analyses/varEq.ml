@@ -392,6 +392,7 @@ struct
       
   (* Probably ok as is. *)
   let body ctx f = ctx.local
+  let fork ctx lval f args = []
 
   (* Branch could be improved to set invariants like base tries to do. *)
   let branch ctx exp tv = ctx.local

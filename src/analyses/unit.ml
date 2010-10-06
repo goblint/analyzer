@@ -34,6 +34,9 @@ struct
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     [ctx.local,Cil.integer 1, true]
 
+  let fork ctx lv f args = 
+    [] 
+
   let startstate () = Dom.bot ()
   let otherstate () = Dom.top ()
 end
