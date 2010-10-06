@@ -623,9 +623,22 @@ struct
   **************************************************************************)
 
   let assign ctx lval rval  = 
-    set_savetop ctx.ask ctx.global ctx.local 
-      (eval_lv ctx.ask ctx.global ctx.local lval) 
-      (eval_rv ctx.ask ctx.global ctx.local rval)
+    let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
+    let ret = 
+      set_savetop ctx.ask ctx.global ctx.local 
+        (eval_lv ctx.ask ctx.global ctx.local lval) 
+        rval_val
+    in
+    (*begin match rval_val with
+      | `Address adrs when not (AD.is_top adrs) ->
+          let find_fps e xs = Addr.to_var_must e @ xs in
+          let vars = AD.fold find_fps adrs [] in
+          let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
+          List.iter (fun x -> ctx.spawn x (otherstate ())) funs 
+          
+      | _ -> ()
+    end;*)
+    ret
 
   let branch ctx (exp:exp) (tv:bool) : store =
     (* First we want to see, if we can determine a dead branch: *)
@@ -876,16 +889,91 @@ struct
       [dummyFunDec.svar]
     
   
+
+  let collect_spawned a gs st args: (varinfo * Dom.t) list = 
+    let flist = collect_funargs a gs st args in
+    let f addr = 
+      let var = List.hd (AD.to_var_may addr) in
+      let _ = Cilfacade.getdec var in 
+        var, otherstate ()
+    in 
+    let g a acc = try 
+      let r = f a in r :: acc 
+    with 
+      | Not_found -> acc 
+      | x -> M.debug ("Ignoring exception: " ^ Printexc.to_string x); acc 
+    in
+      List.fold_right g flist [] 
+
+  let rec fork ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * Dom.t) list = 
+    let cpa,fl,gl = ctx.local in
+    match LF.classify f.vname args with 
+      (* handling thread creations *)
+      | `ThreadCreate (start,ptc_arg) -> begin        
+          let start_addr = eval_fv ctx.ask ctx.global ctx.local start in
+          let start_vari = List.hd (AD.to_var_may start_addr) in
+          try
+            (* try to get function declaration *)
+            let _ = Cilfacade.getdec start_vari in 
+            let sts = enter_func (set_st ctx (cpa, Flag.get_multi (), gl)) None start_vari [ptc_arg]  in
+            List.map (fun (_,st) -> start_vari, st) sts
+          with Not_found -> 
+            M.warn ("creating an thread from unknown function " ^ start_vari.vname);
+            [start_vari,(cpa, Flag.get_multi (), Vars.bot())]
+        end
+      | `Unknown _ -> begin
+          let args = 
+            match LF.get_invalidate_action f.vname with
+              | Some fnc -> fnc `Write  args
+              | None -> args
+          in
+            let addGlob vs =  function
+              | GVar (v,_,_) -> (AddrOf (Var v,NoOffset)) :: vs 
+              | _ -> vs
+            in
+            let vars = 
+              if !GU.kernel
+              then foldGlobals !Cilfacade.ugglyImperativeHack addGlob args 
+              else args 
+            in
+            collect_spawned ctx.ask ctx.global ctx.local vars 
+        end
+      | _ ->  []
+
+  and enter_func ctx lval fn args : (Dom.t * Dom.t) list = 
+    let cpa,fl,gl as st = ctx.local in
+    let make_entry pa context =
+      (* If we need the globals, add them *)
+      let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
+      (* Assign parameters to arguments *)
+      let new_cpa = CPA.add_list pa new_cpa in
+      let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
+        st, (new_cpa, fl, Vars.bot ()) 
+    in
+    (* Evaluate the arguments. *)
+    let vals = List.map (eval_rv ctx.ask ctx.global st) args in
+    (* List of reachable variables *)
+    let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
+    (* generate the entry states *)
+    let add_calls_addr f norms =
+      let fundec = Cilfacade.getdec fn in
+      (* And we prepare the entry state *)
+      let entry_state = make_entry (zip fundec.sformals vals) reachable in
+        entry_state :: norms
+    in
+    add_calls_addr fn []
+
+
   let special_fn ctx (lv:lval option) (f: varinfo) (args: exp list) = 
 (*    let heap_var = heap_var !GU.current_loc in*)
     let cpa,fl,gl as st = ctx.local in
     let gs = ctx.global in
     let map_true x = x, (Cil.integer 1), true in
-    match f.vname with 
-      | "exit" ->  raise Deadcode
-      | "abort" -> raise Deadcode
+    match LF.classify f.vname args with 
+      | `Unknown "exit" ->  raise Deadcode
+      | `Unknown "abort" -> raise Deadcode
       (* handling thread creations *)
-      | "pthread_create" -> 
+      | `ThreadCreate (f,x) -> 
           GU.multi_threaded := true;
           let new_fl = Flag.join fl (Flag.get_main ()) in
           if Flag.is_multi fl then
@@ -894,15 +982,12 @@ struct
             let (ncpa,ngl) = if not !GU.earlyglobs then globalize ctx.ask cpa else cpa, Vars.empty() in
             [map_true (ncpa, new_fl,ngl)]
       (* handling thread joins... sort of *)
-      | "pthread_join" -> begin
-          match args with
-            | [id; ret_var] -> begin
-                match (eval_rv ctx.ask gs st ret_var) with
-                  | `Int n when n = ID.of_int 0L -> [map_true (cpa,fl,Vars.bot ())]
-                  | _      -> [map_true (invalidate ctx.ask gs st [ret_var])] end
-            | _ -> M.bailwith "pthread_join arguments are strange!"
-        end
-      | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
+      | `ThreadJoin (id,ret_var) -> 
+          begin match (eval_rv ctx.ask gs st ret_var) with
+            | `Int n when n = ID.of_int 0L -> [map_true (cpa,fl,Vars.bot ())]
+            | _      -> [map_true (invalidate ctx.ask gs st [ret_var])] 
+          end
+      | `Malloc  -> begin
         match lv with
           | Some lv -> 
             let heap_var = 
@@ -914,7 +999,7 @@ struct
                                        (eval_lv ctx.ask gs st lv, `Address heap_var)])]
           | _ -> [map_true st]
         end
-      | "calloc" -> 
+      | `Calloc -> 
         begin match lv with
           | Some lv -> 
               let heap_var = BaseDomain.get_heap_var !GU.current_loc in
@@ -923,40 +1008,36 @@ struct
           | _ -> [map_true st]
         end
       (* Handling the assertions *)
-      | "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *) 
-      | "assert" -> begin
-          match args with
-            | [e] -> begin
-                (* evaluate the assertion and check if we can refute it *)
-                let expr () = sprint ~width:80 (d_exp () e) in
-                match eval_rv ctx.ask gs st e with 
-                  (* If the assertion is known to be false/true *)
-                  | `Int v when ID.is_bool v -> 
-                      (* Warn if it was false; ignore if true! The None case
-                       * should not happen! *)
-                      (match ID.to_bool v with
-                        | Some false -> M.warn_each ("Assertion \"" ^ expr () ^ "\" will fail")
-                        | _ -> ()); 
-                      (* Just propagate the state *)
-                      [map_true st]
-                  | _ -> begin 
-                      if !GU.debug then begin
-                        M.warn_each ("Assertion \"" ^ expr () ^ "\" is unknown");
-                        [map_true st]
-                      end else
-                        (* make the state meet the assertion in the rest of the code *)
-                        [map_true (invariant ctx.ask gs st e true)]
-                    end
+      | `Unknown "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *) 
+      | `Assert e -> begin
+          (* evaluate the assertion and check if we can refute it *)
+          let expr () = sprint ~width:80 (d_exp () e) in
+          match eval_rv ctx.ask gs st e with 
+            (* If the assertion is known to be false/true *)
+            | `Int v when ID.is_bool v -> 
+                (* Warn if it was false; ignore if true! The None case
+                  * should not happen! *)
+                (match ID.to_bool v with
+                  | Some false -> M.warn_each ("Assertion \"" ^ expr () ^ "\" will fail")
+                  | _ -> ()); 
+                (* Just propagate the state *)
+                [map_true st]
+            | _ -> begin 
+                if !GU.debug then begin
+                  M.warn_each ("Assertion \"" ^ expr () ^ "\" is unknown");
+                  [map_true st]
+                end else
+                  (* make the state meet the assertion in the rest of the code *)
+                  [map_true (invariant ctx.ask gs st e true)]
               end
-            | _ -> M.bailwith "Assert argument mismatch!"
         end
-      | x -> begin
+      | _ -> begin
           let lv_list = 
             match lv with
               | Some x -> [Cil.mkAddrOrStartOf x]
               | None -> []
           in
-          match LF.get_invalidate_action x with
+          match LF.get_invalidate_action f.vname with
             | Some fnc -> [map_true (invalidate ctx.ask gs st (lv_list @ (fnc `Write  args)))];
             | None -> (
                 M.warn ("Function definition missing for " ^ f.vname);

@@ -436,8 +436,7 @@ struct
         | Some lval -> remove ctx.ask lval st2
         | None -> st2    
 
-  (* remove all variables that are reachable from arguments *)
-  let special_fn ctx lval f args = 
+  let unknown_fn ctx lval f args =
     let args =
       match LF.get_invalidate_action f.vname with
         | Some fnc -> fnc `Write args
@@ -462,7 +461,16 @@ struct
           Dom.S.fold remove_reachable2 es st
         in
         [Dom.fold remove_reachable1 ctx.local ctx.local, true_exp, true]
-    
+
+  (* remove all variables that are reachable from arguments *)
+  let special_fn ctx lval f args = 
+    match f.vname with
+      | "spinlock_check" -> 
+        begin match lval with
+          | Some x -> [assign ctx x (List.hd args), Cil.integer 1, true]
+          | None -> unknown_fn ctx lval f args
+        end
+      | _ -> unknown_fn ctx lval f args
   (* query stuff *)
     
   let eq_set (e:Cil.exp) s =

@@ -1,5 +1,25 @@
 (** This allows us to query information about library functions. *)
 
+open Cil
+
+val failing_locks : bool ref 
+
+type categories = [
+  | `Malloc       
+  | `Calloc       
+  | `Assert       of exp
+  | `Lock         of bool * bool (* try? * write? *)
+  | `Unlock       
+  | `ThreadCreate of exp * exp
+  | `ThreadJoin   of exp * exp
+  | `Unknown      of string ]
+
+(** Categories of special functions *)
+ 
+val classify : string -> exp list -> categories
+
+(** *)
+  
 type action = [ `Write  (** argument may be read or written to *)
               | `Read   (** argument may be read *)
               ]

@@ -38,16 +38,10 @@ struct
     List.fold_right Dom.remove_var (fundec.sformals@fundec.slocals) ctx.local  
     
   let special_fn ctx lval f arglist = 
-      match f.vname with
-   (* | "sem_wait"*)
-      | "_spin_lock" | "_spin_lock_irqsave" | "_spin_trylock" | "_spin_trylock_irqsave" | "_spin_lock_bh"
-      | "mutex_lock" | "mutex_lock_interruptible"
-      | "pthread_mutex_lock" ->
+      match LF.classify f.vname arglist with
+      | `Lock _ ->
           [Dom.add ctx.ask (List.hd arglist) ctx.local, integer 1, true]
-   (* | "sem_post"*)
-      | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
-      | "mutex_unlock"
-      | "pthread_mutex_unlock" ->
+      | `Unlock ->
           [Dom.remove ctx.ask (List.hd arglist) ctx.local, integer 1, true]
       | x -> begin
           let st = 
@@ -56,7 +50,7 @@ struct
               | None -> ctx.local
           in
           let write_args = 
-            match LF.get_invalidate_action x with
+            match LF.get_invalidate_action f.vname with
               | Some fnc -> fnc `Write arglist
               | _ -> arglist
           in
@@ -64,8 +58,8 @@ struct
         end
 
   let enter_func ctx lval f args = [(ctx.local,ctx.local)]
-  let leave_func ctx lval fexp f args st2 = ctx.local
-  let fork       ctx lval f args = []  
+  let leave_func ctx lval fexp f args st2 = ctx.local 
+  let fork       ctx lval f args = []
 
   let get_locks e st =
     let add_perel x xs =

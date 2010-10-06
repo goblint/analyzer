@@ -20,8 +20,6 @@ let no_read = ref false
 let field_insensitive = ref false
 (** Avoids the merging of fields, not really sound *)
 let unmerged_fields = ref false
-(** Take the possible failing of standard locking operations into account. *)
-let failing_locks = ref false
 
 (* Some helper functions ... *)
 let is_atomic_type (t: typ): bool = match t with
@@ -35,7 +33,8 @@ let is_atomic lval =
 
 let is_ignorable lval = 
   Base.is_mutex_type (typeOfLval lval) || is_atomic lval
-
+  
+let big_kernel_lock = LockDomain.Addr.from_var (Cil.makeGlobalVar "[big kernel lock]" Cil.intType)
 
 (** Data race analyzer without base --- this is the new standard *)  
 module Spec =
@@ -515,18 +514,15 @@ struct
                 end
         | _ -> [ctx.local, Cil.integer 1, true]
     in
-    match f.vname with
-   (* | "sem_wait"*)
-      | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock" 
-      | "pthread_rwlock_trywrlock"
-          ->lock true true ctx.ask lv arglist ctx.local
-      | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh"
-      | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
-      | "pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource"
-          -> lock true !failing_locks ctx.ask lv arglist ctx.local
-      | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
-          -> lock false !failing_locks ctx.ask lv arglist ctx.local
-      | "__raw_read_unlock" | "__raw_write_unlock"  -> 
+    match (LF.classify f.vname arglist, f.vname) with
+      | _, "_lock_kernel"
+          -> [(Lockset.add (big_kernel_lock,true) ctx.local),Cil.integer 1, true]
+      | _, "_unlock_kernel"
+          -> [(Lockset.remove (big_kernel_lock,true) ctx.local),Cil.integer 1, true]
+      | `Lock (failing, rw), _
+          -> lock rw failing ctx.ask lv arglist ctx.local
+      | `Unlock, "__raw_read_unlock" 
+      | `Unlock, "__raw_write_unlock"  -> 
           let drop_raw_lock x =
             let rec drop_offs o = 
               match o with
@@ -540,12 +536,9 @@ struct
               | _ -> x
           in
           unlock (fun l -> remove_rw (drop_raw_lock l))
-   (* | "sem_post"*)
-      | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
-      | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
-      | "pthread_mutex_unlock" 
+      | `Unlock, _ 
           -> unlock remove_rw
-      | x -> 
+      | _, x -> 
           let arg_acc act = 
             match LF.get_invalidate_action x with
               | Some fnc -> (fnc act arglist) 

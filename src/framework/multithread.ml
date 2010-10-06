@@ -234,7 +234,8 @@ struct
 
     let startvars = match !GU.has_main, funs with 
       | true, f :: fs -> 
-          (f.svar, startstate) :: List.map with_ostartstate fs
+          let nonf_fs = List.filter (fun x -> x.svar.vid <> f.svar.vid) fs in
+          (f.svar, startstate) :: List.map with_ostartstate nonf_fs
       | _ ->
           try 
             MyCFG.dummy_func.svar.vdecl <- (List.hd funs).svar.vdecl;

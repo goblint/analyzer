@@ -1,4 +1,58 @@
 open Cil
+open Goblintutil
+
+(** Take the possible failing of standard locking operations into account. *)
+let failing_locks = ref false
+
+module M = Messages
+
+type categories = [
+  | `Malloc       
+  | `Calloc       
+  | `Assert       of exp
+  | `Lock         of bool * bool (* try? * write? *)
+  | `Unlock       
+  | `ThreadCreate of exp * exp (* f  * x       *)
+  | `ThreadJoin   of exp * exp (* id * ret_var *)
+  | `Unknown      of string ]
+  
+let classify fn exps =
+  match fn with
+    | "pthread_create" -> 
+        begin match exps with
+          | [_;_;fn;x] -> `ThreadCreate (fn, x)
+          | _ -> M.bailwith "pthread_create arguments are strange!"
+        end 
+    | "pthread_join" -> 
+        begin match exps with
+          | [id; ret_var] -> `ThreadJoin (id, ret_var)
+          | _ -> M.bailwith "pthread_join arguments are strange!"
+        end
+    | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" -> `Malloc 
+    | "calloc" -> `Calloc
+    | "assert" ->  
+        begin match exps with
+            | [e] -> `Assert e 
+            | _ -> M.bailwith "Assert argument mismatch!"
+        end
+    | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock" 
+    | "pthread_rwlock_trywrlock" 
+        -> `Lock (true, true)
+    | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
+    | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
+    | "pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource" 
+    | "_raw_spin_lock" | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" 
+        -> `Lock (!failing_locks, true) 
+    | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
+    | "down_read"
+        -> `Lock (!failing_locks, false) 
+    | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
+    | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
+    | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
+    | "pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
+        -> `Unlock        
+    | x -> `Unknown x
+
 
 type action = [ `Write | `Read ]
   
@@ -346,5 +400,7 @@ let use_special fn_name =
   match fn_name with
     | "__raw_read_unlock"
     | "__raw_write_unlock" 
+    | "spinlock_check"
+    | "spin_unlock_irqrestore"
         -> true
     | _ -> false
