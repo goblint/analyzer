@@ -48,6 +48,12 @@
 	"Dummy" : ["dummy"],
 	"UES" : ["undef_fun","unneeded_fun","PrivateMember4","PrivateMember0","PrivateMember2","PrivateMember3","RetTest6","GetGlob","PrivateMember5"]
 	},
+	"vtbls":
+	{
+	"_ZTVN12my_namespace8SubUES_XE" : ["_ZTIN12my_namespace8SubUES_XE","_ZN12my_namespace3FSM7FakeFunEPNS_9UEC_EventE","_ZN12my_namespace8SubUES_X12ReceiveEventEPNS_9UEC_EventE","_ZN12my_namespace8SubUES_XD1Ev","_ZN12my_namespace8SubUES_XD0Ev"],
+	"_ZTVN12my_namespace3FSME" : ["_ZTIN12my_namespace3FSME","_ZN12my_namespace3FSM7FakeFunEPNS_9UEC_EventE","__cxa_pure_virtual"],
+	"_ZTVN12my_namespace3UESE" : ["_ZTIN12my_namespace3UESE","_ZN12my_namespace3FSM7FakeFunEPNS_9UEC_EventE","_ZN12my_namespace3UES12ReceiveEventEPNS_9UEC_EventE","_ZN12my_namespace3UESD1Ev","_ZN12my_namespace3UESD0Ev"]
+	},
 	"friends":
 	{
 	"Test2" : ["TestClass"]
