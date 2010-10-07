@@ -36,7 +36,7 @@ let classify fn exps =
             | _ -> M.bailwith "Assert argument mismatch!"
         end
     | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock" 
-    | "pthread_rwlock_trywrlock" 
+    | "pthread_rwlock_trywrlock" | "mutex_trylock"
         -> `Lock (true, true)
     | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
     | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"

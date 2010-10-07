@@ -35,6 +35,7 @@ let is_ignorable lval =
   Base.is_mutex_type (typeOfLval lval) || is_atomic lval
   
 let big_kernel_lock = LockDomain.Addr.from_var (Cil.makeGlobalVar "[big kernel lock]" Cil.intType)
+let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphore]" Cil.intType)
 
 (** Data race analyzer without base --- this is the new standard *)  
 module Spec =
@@ -538,6 +539,11 @@ struct
           unlock (fun l -> remove_rw (drop_raw_lock l))
       | `Unlock, _ 
           -> unlock remove_rw
+      | _, "spinlock_check" -> [ctx.local, Cil.integer 1, true]
+      | _, "acquire_console_sem" when !GU.kernel -> 
+          [(Lockset.add (console_sem,true) ctx.local),Cil.integer 1, true]
+      | _, "release_console_sem" when !GU.kernel -> 
+          [(Lockset.remove (console_sem,true) ctx.local),Cil.integer 1, true]
       | _, x -> 
           let arg_acc act = 
             match LF.get_invalidate_action x with

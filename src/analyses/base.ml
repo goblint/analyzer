@@ -972,6 +972,11 @@ struct
     match LF.classify f.vname args with 
       | `Unknown "exit" ->  raise Deadcode
       | `Unknown "abort" -> raise Deadcode
+      | `Unknown "spinlock_check" -> 
+          begin match lv with
+            | Some x -> map_true (assign ctx x (List.hd args)) :: []
+            | None -> map_true ctx.local :: []
+          end
       (* handling thread creations *)
       | `ThreadCreate (f,x) -> 
           GU.multi_threaded := true;

@@ -128,7 +128,10 @@ struct
         | Cil.Lval    (Cil.Mem e,ofs) -> S.map (fun e -> Cil.Lval    (Cil.Mem e,ofs)) (eq_set ask e) 
         | Cil.CastE (_,e)           -> eq_set ask e)
   
-  let add ask e st = S.union (eq_set ask e) st
+  let add ask e st = 
+    let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
+    let addrs = S.filter (function Cil.AddrOf _ -> true | _ -> false) no_casts in
+    S.union addrs st
   let remove ask e st = S.diff st (eq_set ask e)
   let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
 

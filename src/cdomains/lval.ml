@@ -97,7 +97,7 @@ struct
     match x, y with
       | Bot, _ -> true
       | Offs _, Offs `NoOffset -> true
-      | Offs `Index (i1,o1), Offs `Index (i2,o2)  when Idx.equal i1 i2 -> leq (Offs o1) (Offs o2)
+      | Offs `Index (i1,o1), Offs `Index (i2,o2)  when Idx.leq i1 i2 -> leq (Offs o1) (Offs o2)
       | Offs `Field (f1,o1), Offs `Field (f2,o2) when f1.fname = f2.fname -> leq (Offs o1) (Offs o2)
       | _ -> false      
 

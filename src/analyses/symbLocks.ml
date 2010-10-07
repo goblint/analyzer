@@ -37,26 +37,6 @@ struct
   let return ctx exp fundec = 
     List.fold_right Dom.remove_var (fundec.sformals@fundec.slocals) ctx.local  
     
-  let special_fn ctx lval f arglist = 
-      match LF.classify f.vname arglist with
-      | `Lock _ ->
-          [Dom.add ctx.ask (List.hd arglist) ctx.local, integer 1, true]
-      | `Unlock ->
-          [Dom.remove ctx.ask (List.hd arglist) ctx.local, integer 1, true]
-      | x -> begin
-          let st = 
-            match lval with
-              | Some lv -> invalidate_lval ctx.ask lv ctx.local
-              | None -> ctx.local
-          in
-          let write_args = 
-            match LF.get_invalidate_action f.vname with
-              | Some fnc -> fnc `Write arglist
-              | _ -> arglist
-          in
-          [List.fold_left (fun st e -> invalidate_exp ctx.ask e st) st write_args, integer 1, true]
-        end
-
   let enter_func ctx lval f args = [(ctx.local,ctx.local)]
   let leave_func ctx lval fexp f args st2 = ctx.local 
   let fork       ctx lval f args = []
@@ -98,6 +78,25 @@ struct
       | Some (false, i, e) -> Dom.fold (lock_index i e) slocks (Queries.PS.empty ())
       | _ -> Queries.PS.empty ()
       
+  let special_fn ctx lval f arglist = 
+      match LF.classify f.vname arglist with
+      | `Lock _ ->
+          [Dom.add ctx.ask (List.hd arglist) ctx.local, integer 1, true]
+      | `Unlock ->
+          [Dom.remove ctx.ask (List.hd arglist) ctx.local, integer 1, true]
+      | x -> begin
+          let st = 
+            match lval with
+              | Some lv -> invalidate_lval ctx.ask lv ctx.local
+              | None -> ctx.local
+          in
+          let write_args = 
+            match LF.get_invalidate_action f.vname with
+              | Some fnc -> fnc `Write arglist
+              | _ -> arglist
+          in
+          [List.fold_left (fun st e -> invalidate_exp ctx.ask e st) st write_args, integer 1, true]
+        end
       
   (* Per-element returns a triple of exps, first are the "element" pointers, 
      in the second and third positions are the respectively access and mutex.
