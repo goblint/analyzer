@@ -220,13 +220,23 @@ sig
   (** Finds the type of the address location. *)
 end
 
-module Normal (Idx: Printable.S) = 
+module Normal (Idx: IntDomain.S) = 
 struct
+  module Offs = Offset (Idx)
   type field = fieldinfo
   type idx = Idx.t
   type t = Addr of (varinfo * (field, idx) offs) | NullPtr | StrPtr
   include Printable.Std
   let name () = "Normal Lvals"
+
+  let leq x y = match (x,y) with
+    | NullPtr, NullPtr -> true
+    | StrPtr, StrPtr -> true
+    | Addr (v,ofs), Addr (v',ofs') -> 
+        Basetype.Variables.equal v v' && 
+        Offs.leq (Offs.from_offset ofs) (Offs.from_offset ofs')
+    | _ -> false
+
   
   let null_ptr () = NullPtr
   let str_ptr () = StrPtr

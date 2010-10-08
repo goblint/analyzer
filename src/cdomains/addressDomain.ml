@@ -15,7 +15,7 @@ sig
   val get_type: t -> typ
 end
 
-module AddressSet (Idx: Lattice.S) = 
+module AddressSet (Idx: IntDomain.S) = 
 struct 
   module Addr = Lval.Normal (Idx)
   include SetDomain.ToppedSet (Addr) (struct let topname = "Anywhere" end)
@@ -83,6 +83,7 @@ struct
 
   let join (s1:t) (s2:t) = merge_idxs Idx.join  (join s1 s2)
   let meet (s1:t) (s2:t) = merge_idxs Idx.meet  (meet s1 s2)
+  let leq (s1:t) (s2:t) = for_all (fun x -> exists (Addr.leq x) s2) s1
 
   let from_var x = singleton (Addr.from_var x)
   let from_var_offset x = singleton (Addr.from_var_offset x)
