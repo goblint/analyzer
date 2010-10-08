@@ -48,11 +48,23 @@
 	"Dummy" : ["dummy"],
 	"UES" : ["undef_fun","unneeded_fun","PrivateMember4","PrivateMember0","PrivateMember2","PrivateMember3","RetTest6","GetGlob","PrivateMember5"]
 	},
+	"derived":
+	{
+	"_Rep_base" : ["_Rep"],
+	"allocator" : ["_Alloc_hider"],
+	"Log" : ["UES","SubUES_X"],
+	"Test2" : ["Log","Dummy"],
+	"CBaseFSM" : ["FSM"],
+	"FSM" : ["UES","SubUES_X"],
+	"new_allocator" : ["allocator"],
+	"_Vector_base" : ["vector"],
+	"_Tp_alloc_type" : ["_Vector_impl"]
+	},
 	"vtbls":
 	{
-	"_ZTVN12my_namespace8SubUES_XE" : ["_ZTIN12my_namespace8SubUES_XE","_ZN12my_namespace3FSM7FakeFunEPNS_9UEC_EventE","_ZN12my_namespace8SubUES_X12ReceiveEventEPNS_9UEC_EventE","_ZN12my_namespace8SubUES_XD1Ev","_ZN12my_namespace8SubUES_XD0Ev"],
-	"_ZTVN12my_namespace3FSME" : ["_ZTIN12my_namespace3FSME","_ZN12my_namespace3FSM7FakeFunEPNS_9UEC_EventE","__cxa_pure_virtual"],
-	"_ZTVN12my_namespace3UESE" : ["_ZTIN12my_namespace3UESE","_ZN12my_namespace3FSM7FakeFunEPNS_9UEC_EventE","_ZN12my_namespace3UES12ReceiveEventEPNS_9UEC_EventE","_ZN12my_namespace3UESD1Ev","_ZN12my_namespace3UESD0Ev"]
+	"_ZTVN5outer12my_namespace8SubUES_XE" : ["_ZTIN5outer12my_namespace8SubUES_XE","_ZN5outer12my_namespace3FSM7FakeFunEPNS0_9UEC_EventE","_ZN5outer12my_namespace8SubUES_X12ReceiveEventEPNS0_9UEC_EventE","_ZN5outer12my_namespace8SubUES_XD1Ev","_ZN5outer12my_namespace8SubUES_XD0Ev"],
+	"_ZTVN5outer12my_namespace3FSME" : ["_ZTIN5outer12my_namespace3FSME","_ZN5outer12my_namespace3FSM7FakeFunEPNS0_9UEC_EventE","__cxa_pure_virtual"],
+	"_ZTVN5outer12my_namespace3UESE" : ["_ZTIN5outer12my_namespace3UESE","_ZN5outer12my_namespace3FSM7FakeFunEPNS0_9UEC_EventE","_ZN5outer12my_namespace3UES12ReceiveEventEPNS0_9UEC_EventE","_ZN5outer12my_namespace3UESD1Ev","_ZN5outer12my_namespace3UESD0Ev"]
 	},
 	"friends":
 	{

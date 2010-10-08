@@ -84,6 +84,18 @@ struct
 		
 	  let merge k v mp = add k (ArgSet.join v (find k mp)) mp
 	end 
+	
+  module StringPair =
+  struct
+    type t = string * string
+    let compare (x1,x2) (y1,y2) = 
+      match compare x1 y1 with
+        | 0 -> compare x2 y2
+        | x -> x        
+  end
+  module InhRel = Set.Make(StringPair)
+  let inc : InhRel.t ref = ref InhRel.empty  
+	
 
   include Lattice.Prod3 (FuncName) (Danger) (Diff) 
   
@@ -92,6 +104,8 @@ struct
   let func_ptrs : (string, string list) Hashtbl.t = Hashtbl.create 111
   let private_methods : (string, string list) Hashtbl.t = Hashtbl.create 111
   let friends : (string, string list) Hashtbl.t = Hashtbl.create 23
+  let derived : (string, string list) Hashtbl.t = Hashtbl.create 111	
+  let vtbls : (string, string list) Hashtbl.t = Hashtbl.create 111
 	
   let analyzed_funs : (string, unit) Hashtbl.t = Hashtbl.create 111 (*list of funs that we have inspected*)
   let required_non_public_funs : (string, string list) Hashtbl.t = Hashtbl.create 111 (*private/protected funs that were actually used*)
@@ -138,6 +152,23 @@ struct
 		
   let unkown_this = (emptyFunction "@unkown_this").svar
   let return_var = (emptyFunction "@return_var").svar
+	
+  let isnot_mainclass x = (x <> !Goblintutil.mainclass) && not (InhRel.mem (!Goblintutil.mainclass, x) !inc)(*check inheritance*)
+
+  let is_ext fn=match Goblintutil.get_class fn with
+      | Some x -> (*report("is_main ? "^x);*) isnot_mainclass x
+      | _ ->
+          true
+					
+	let get_inherited_from fn =
+		let rec add_classes c l =
+			try (List.filter (fun x -> not (isnot_mainclass x)) (Hashtbl.find derived c)) @l with _ -> l
+		in
+		match Goblintutil.get_class fn with
+	      | Some x -> 
+            add_classes x [x]					
+	      | _ ->
+	          []
 (*
   let do_throw = ref 0 
 	
@@ -762,21 +793,78 @@ struct
                (fd,st,gd)
 					end
 									
-		(*alex: points to doesn't deliver relyable info here!*)
-		(*
-    match ask (Queries.MayPointTo e) with
-      | `Bot -> (fd,Danger.bot (),gd)
-      | `LvalSet s when not (Queries.LS.is_top s) ->
-          let add_lv (v,_) (fd,st,gd) = 
-						(*dbg_report ("danger.add "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
-            danger_propagate v args (fd,st,gd)
-          in
-          Queries.LS.fold add_lv s (fd,st,gd)
-      | _ ->  
-          Messages.warn ("Need to know where "^(sprint 160 (d_exp () e))^" may point.");
-          (fd,st,gd)
-			*)								
   let string_of_int64 = Int64.to_string
+	
+  let filter_type  = Str.regexp ".*(\\*\\*)(struct l_class_OC_\\([^,^)]*_KD__KD_\\)*\\([^ ^*]*\\).*,\\|).*"
+
+	let split s p = List.rev (Str.split (Str.regexp_string p) s)
+			
+	(*string_of_int64 offs^" type: "^*)
+	let gen_vtbl_name s = 
+		try
+		  if Str.string_match filter_type s 0 then
+	    begin
+		    let ns = (Str.matched_group 1 s) in
+		    let cls = (Str.matched_group 2 s) in
+				let nsl = split ns "_KD__KD_" in
+				let pn = List.fold_right (fun x y -> y^(string_of_int (String.length x))^x) nsl "" in
+        let mangled_name = "_ZTVN"^pn^string_of_int (String.length cls)^cls^"E" in
+        (*let const_name = "_ZN"^pn^string_of_int (String.length cls)^cls^"C2Ev" in*)
+				(*let cn = Goblintutil.get_class mangled_name in*)
+				if is_ext mangled_name then 
+				begin
+          (*report ("EXT_VTBL : "^(Goblintutil.demangle mangled_name));*)
+          "INVALID_VTBL"
+				end
+				else
+				begin  
+          (*report ("INT_VTBL : "^(Goblintutil.demangle mangled_name));*)
+          mangled_name
+				end                                                        
+	    end
+			else
+			begin
+				(*report ("GEN_VTBL : INVALID");*)
+				"INVALID_VTBL"
+		  end
+		with _ -> report ("GEN_VTBL : INVALID");"INVALID_VTBL"
+		
+
+	let get_vfunc_set vtn n =
+		let ihl = get_inherited_from vtn in
+		(*List.iter (fun x->report("DERIVED_FROM : "^x)) ihl;*)
+		List.fold_right (fun x y->
+	    let fn = try 				
+	        let cb = Hashtbl.find vtbls x in
+						List.nth cb n
+	    with e-> ""
+			in
+			if fn = "" then y else fn::y
+			)
+			ihl []
+		
+		
+	let add_required_fun f ht = (*build list of funs that should have been analyzed*)
+	   let get_pure_name x =
+	  let get_string so =
+	    match so with
+	    | Some (a,b) -> (a,b)
+	    | _ -> ("global",f)
+	  in
+	   get_string (Goblintutil.get_class_and_name x) in
+	        let cn,fn =(get_pure_name f) in
+	         try 
+	            let entry=Hashtbl.find ht cn
+	            in 
+	               if not (List.fold_right (fun x y -> y || (x=fn)) entry false) then
+	                    Hashtbl.replace ht cn (fn::entry)
+	         with e->
+	    Hashtbl.replace ht cn [fn]        
+	            
+	let add_required_fun_priv f = (*build list of funs that should have been analyzed*)
+	   (*report("ADD_REQ_FUN : "^f);*)
+	    add_required_fun f required_non_public_funs  
+		
 		
   let assign_argmap fs lval exp (fd, st, df) must_assign = (*keep track of used fun args*)
 			match used_args st exp with
@@ -808,8 +896,16 @@ struct
 										  match exp with
                     (*Lval(Mem(IndexPI(Lval(Var(llvm_cbe_tmp__8, NoOffset)), Const(Int64(1,long long,None))), NoOffset))*)
                         | Lval(Mem(BinOp (IndexPI, (Lval(Var var, NoOffset)), (Const (CInt64 (offs,_,None))), tp )),NoOffset)  ->
-                            report ("VTBL_ACCESS offset : "^string_of_int64 offs^" type: "^(sprint 160 (d_type () tp)));
-														no_vtbl
+                            (*report ("VTBL_ACCESS offset : "^string_of_int64 offs^" type: "^(sprint 160 (d_type () tp)));*)
+													begin
+														let vtn = gen_vtbl_name (sprint 160 (d_type () tp)) in
+                            let vfs = get_vfunc_set vtn ((Int64.to_int offs)+1) in
+                            (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
+														let fun_set = List.fold_right (fun x y -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) vfs (ArgSet.bot ()) in
+														let set = ArgSet.join fun_set s in 
+														assign_to_lval fs lval (fd, st, df) set must_assign
+														(*no_vtbl*)
+													end														  
 												| _ -> no_vtbl
                 end
 								else
@@ -873,27 +969,7 @@ struct
            Hashtbl.replace ht c (n::cb)
     with e->Hashtbl.add ht c [n]
 		
-		
-	let add_required_fun f ht = (*build list of funs that should have been analyzed*)
-	   let get_pure_name x =
-	  let get_string so =
-	    match so with
-	    | Some (a,b) -> (a,b)
-	    | _ -> ("unkown","function")
-	  in
-	   get_string (Goblintutil.get_class_and_name x) in
-	        let cn,fn =(get_pure_name f) in
-	         try 
-	            let entry=Hashtbl.find ht cn
-	            in 
-	               if not (List.fold_right (fun x y -> y || (x=fn)) entry false) then
-	                    Hashtbl.replace ht cn (fn::entry)
-	         with e->
-	    Hashtbl.replace ht cn [fn]        
-	            
-	let add_required_fun_priv f = (*build list of funs that should have been analyzed*)
-	    add_required_fun f required_non_public_funs  
-		
+				
 	let add_func_ptr f (fd,st,gd) = 
 	   try 
 	   fd,st, (Diff.add (fptr_varinfo (), (FieldSet.bot (), VarNameSet.singleton (VarName.to_fun_name f)) )  gd)

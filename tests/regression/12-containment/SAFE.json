@@ -5,6 +5,6 @@
 	},
 	"methods":
 	{
-	"global" : ["printf","_Z11TS_API_SOMEPi","_ZdlPv","DummyStream::.*"]
+	"global" : ["printf","_Z11TS_API_SOMEPi","_ZdlPv","DummyStream::.*","dlPv","__cxa_pure_virtual"]
 	}
 }

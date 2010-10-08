@@ -296,7 +296,7 @@ let rec name_to_string_hlp = function
   | Dest -> "destructor"
   | Name x -> x
   | Unknown x -> "?"^x^"?"
-  | Template a -> "<"^name_to_string_hlp a^">"
+  | Template a -> "("^name_to_string_hlp a^")"
   | Nested (Template x,y) -> "("^name_to_string_hlp x^ ")::" ^ name_to_string_hlp y
   | Nested (x,Cons) -> let c = name_to_string_hlp x in c ^ "::" ^ c
   | Nested (x,Dest) -> let c = name_to_string_hlp x in c ^ "::~" ^ c
@@ -488,15 +488,18 @@ let to_name x =
   else Name x
 
 let get_class x : string option = 
-  let rec git : name -> string option = function 
-    | Cons | Dest | Name _ | Unknown _ | PtrTo _ | TypeFun _ | Template _ -> None 
+  let rec git tf : name -> string option = function 
+    | Cons | Dest | Name _ | Unknown _ | PtrTo _ | Template _ -> None 
+    | TypeFun (x,y) -> git true y (*vtables don't have a function name*)
     | Nested (x,y) -> 
-      begin match git y with 
-        | None -> begin match x with Name x -> Some x | _ -> None  end
+      begin match git tf y with 
+        | None ->
+					if not tf then begin match x with Name x -> Some x | _ -> None  end
+					else begin match y with | Name s -> Some s | _ -> None end
         | x -> x 
       end
   in
-  git (to_name x)
+  git false (to_name x)
 
 let get_class_and_name x : (string * string) option = 
   let rec git = function 

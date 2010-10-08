@@ -18,17 +18,6 @@ module Spec =
 struct
   include Analyses.DefaultSpec  
 
-  module StringPair =
-  struct
-    type t = string * string
-    let compare (x1,x2) (y1,y2) = 
-      match compare x1 y1 with
-        | 0 -> compare x2 y2
-        | x -> x        
-  end
-  module InhRel = Set.Make(StringPair)
-  let inc : InhRel.t ref = ref InhRel.empty  
-
   let name = "Containment analysis"
   
   module Dom  = 
@@ -70,9 +59,9 @@ struct
     end in
     let module InhMap = Hashtbl.Make (StringH) in
     let inh : string list InhMap.t = InhMap.create 111 in
-    let rec closure_add x y (acc:InhRel.t) =
+    let rec closure_add x y (acc:Dom.InhRel.t) =
       let inhy = try InhMap.find inh y with _ -> [] in
-      List.fold_right (closure_add x) inhy (InhRel.add (x,y) acc)
+      List.fold_right (closure_add x) inhy (Dom.InhRel.add (x,y) acc)
     in
     let add_inh_entry (cn, xs)  =
       let xs = List.map string (array xs) in
@@ -81,6 +70,14 @@ struct
     let add_htbl htbl (cn,xs) =
       let xs = List.map string (array xs) in
       Hashtbl.add htbl cn xs
+    in
+    let add_htbl_demangle htbl (cn,xs) =
+      let xs = List.map string (array xs) in
+			match (GU.get_class cn) with
+				| Some c ->
+					(*printf "ADD_VTBL %s\n" c;*)
+          Hashtbl.add htbl c xs
+				| _ -> ()
     in
     let add_htbl_re htbl (cn,xs) =
       let xs = List.map (fun x -> Str.regexp (string x)) (array xs) in
@@ -98,7 +95,9 @@ struct
       List.iter (add_htbl Dom.public_methods) (objekt (field inhr_tbl "public_methods"));
       List.iter (add_htbl Dom.private_methods) (objekt (field inhr_tbl "private_methods"));			
       List.iter (add_htbl Dom.friends) (objekt (field inhr_tbl "friends"));
-      inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !inc;
+      List.iter (add_htbl_demangle Dom.vtbls) (objekt (field inhr_tbl "vtbls"));
+      List.iter (add_htbl Dom.derived) (objekt (field inhr_tbl "derived"));						
+      Dom.inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !Dom.inc;
     with Json_error x -> 
         failwith ("Contaimnent analysis failed to read CXX.json: " ^ x)		
 		end
@@ -114,8 +113,6 @@ struct
       List.iter (add_htbl_re Dom.safe_methods) (objekt (field safe_tbl "methods"));
     with Json_error x -> 
         failwith ("Contaimnent analysis failed to read SAFE.json: " ^ x)  
-
-  let isnot_mainclass x = (x <> !GU.mainclass) && not (InhRel.mem (!GU.mainclass, x) !inc)(*check inheritance*)
 	
   let init () =
 		(*
@@ -140,28 +137,29 @@ struct
 	            Hashtbl.find Dom.analyzed_funs x 
 	        with e -> if not (Dom.is_safe_name x) then Dom.error (err^c^"::"^x)
 	    in  
-    	let check_fun_list err x y =
-				if not (isnot_mainclass x) then
+    	let check_fun_list err foreign x y =
+				if not (Dom.isnot_mainclass x)||foreign then
             List.iter (check_fun x err) y			
 		in
 		(*err on undef funs etc*)
-	    Hashtbl.iter (check_fun_list " (4) Missing function definition ") Dom.public_methods;
-	    Hashtbl.iter (check_fun_list " (5) Missing function definition ") Dom.required_non_public_funs; (*only error if the missing priv fun was actually used*)
-		  Hashtbl.iter (check_fun_list " (2) Analysis unsound due to use of public variable ") Dom.public_vars;
-		  Hashtbl.iter (check_fun_list " (3) Analysis unsound due to use of friend class ") Dom.friends;
+	    Hashtbl.iter (check_fun_list " (4) Missing function definition " false) Dom.public_methods;
+	    Hashtbl.iter (check_fun_list " (5) Missing function definition " true) Dom.required_non_public_funs; (*only error if the missing priv fun was actually used*)
+		  Hashtbl.iter (check_fun_list " (2) Analysis unsound due to use of public variable " false) Dom.public_vars;
+		  Hashtbl.iter (check_fun_list " (3) Analysis unsound due to use of friend class " false) Dom.friends;
       Hashtbl.iter (fun fn v->Dom.report (" (6) Function "^fn^" might be called from several threads and should be threat safe.")) Dom.reentrant_funs;
 			Dom.report ("Finialze Finished!")
+			(*failwith "Finished"*)
 		    
   
   let ignore_this (fn,_,_) =
     ContainDomain.FuncName.is_bot fn ||
     match ContainDomain.FuncName.get_class fn with
-      | Some x -> isnot_mainclass x
+      | Some x -> Dom.isnot_mainclass x
       | _ ->
           true
 					
 	let is_ext fn=match GU.get_class fn with
-	  | Some x -> isnot_mainclass x
+	  | Some x -> Dom.isnot_mainclass x
 	  | _ ->
 	      true
 				
@@ -172,7 +170,7 @@ struct
   let is_private f =
 		let no_mainclass = 
       match GU.get_class f.vname with
-        | Some x -> isnot_mainclass x
+        | Some x -> Dom.isnot_mainclass x
         | _ -> true 
     in
        (not no_mainclass) && (Dom.is_private_method_name f.vname) (*uncommenting the rest brakes fptr propagation*)(*&& not (Dom.is_public_method_name f.vname)*) (*fun may be priv andpub simultaneously*)
@@ -234,17 +232,28 @@ struct
     in 
     time_transfer "body" time_wrapper
 		
-	let check_vtbl (rval:exp) alld =
-		let fd,st,gd=alld in
-		(*Dom.report("check vtbl : "^(sprint 160 (d_exp () rval))^"\n");*)
+    let check_vtbl (rval:exp) alld =
+        let fd,st,gd=alld in
+        (*Dom.report("check vtbl : "^(sprint 160 (d_exp () rval))^"\n");*)
     if Dom.may_be_constructed_from_this st rval then
-		begin
-			(*true*)
+        begin
+            (*true*)
       let vars = Dom.get_vars rval in
-		  List.fold_right (fun x y -> if y || is_private x then true else y ) vars false
-			(**)
-		end
-		else false
+          List.fold_right (fun x y -> if y || not (is_ext x.vname) then true else y ) vars false
+            (**)
+        end
+        else false
+				
+    let get_vtbl (rval:exp) alld =
+      let fd,st,gd=alld in			 
+      let vars = Dom.get_vars rval in
+			let extract_funs ds =
+				if not (ContainDomain.ArgSet.is_bot ds) then
+					ContainDomain.ArgSet.fold (fun x y -> if not (is_ext (FieldVars.get_var x).vname) then (FieldVars.get_var x)::y else y ) ds []
+				else
+					[] 
+			in
+      List.fold_right (fun x y -> let ds = Dom.Danger.find x st in let lst = extract_funs ds in lst@y ) vars []
 				
   let handle_func_ptr (rval:exp) alld fs =
     (*Dom.report("handle_func_ptr : "^(sprint 160 (d_exp () rval))^"\n");*)
@@ -368,7 +377,7 @@ struct
       let arglist = match exp with Some x -> [x] | _ -> [] in
       let fs=Dom.get_tainted_fields ctx.global in
 			let allow_from_this = is_private f.svar in (*private funcs may return ptrs constructed from this*)			               
-      Dom.warn_bad_reachables ctx.ask arglist (not allow_from_this) (fn,st,gd) fs ("return statement of "^(GU.demangle f.svar.vname));
+      if not allow_from_this then Dom.warn_bad_reachables ctx.ask arglist (not allow_from_this) (fn,st,gd) fs ("return statement of "^(GU.demangle f.svar.vname));
       Dom.remove_formals f (fn,st,gd)
     end 
     in 
@@ -380,6 +389,13 @@ struct
     match fval with
       | Lval (Var v,NoOffset) -> [v]  (*just a func*) (*fixme, tmp__11 not in dangermap*)
       | Lval (Mem e,NoOffset)  -> (*fptr!*)
+			    let vtbl_lst = get_vtbl e (fd,st,gd) in
+			    if not (vtbl_lst=[]) then
+					begin
+						(*List.iter (fun x -> Dom.report("VFUNC_CALL_RESOLVED : "^x.vname)) vtbl_lst;*)
+						vtbl_lst
+					end
+					else 
 			    let cft = Dom.may_be_constructed_from_this st e in
 					let flds = Dom.get_field_from_this e st in
 					let flds_bot = ContainDomain.FieldSet.is_bot flds in				
