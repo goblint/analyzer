@@ -1,5 +1,12 @@
+(** Abstract domains representing sets. *)
 open Pretty
 
+(* Exception raised when the set domain can not support the requested operation.
+ * This will be raised, when trying to iterate a set that has been set to Top *)
+exception Unsupported of string
+
+(** A set domain must support all the standard library set operations, which
+  * thanks to ocaml's inflexible module system have been copy-pasted. *)
 module type S = 
 sig
   include Lattice.S
@@ -29,8 +36,8 @@ sig
   val split: elt -> t -> t * bool * t
 end
 
-exception Unsupported of string
-
+(** A functor for creating a simple set domain, there is no top element, and
+  * calling [top ()] will raise an exception *)
 module Blank = 
 struct
   let empty _ = raise (Unsupported "empty")
@@ -58,6 +65,8 @@ struct
   let split _ _ = raise (Unsupported "split") 
 end
 
+(** A functor for creating a simple set domain, there is no top element, and
+  * calling [top ()] will raise an exception *)
 module Make (Base: Printable.S) = 
 struct
   include Printable.Blank
@@ -117,6 +126,9 @@ struct
     end
 end
 
+(** A functor for creating a path sensitive set domain, that joins the base
+  * analysis whenever the user elements coincide. Just as above there is no top
+  * element, and calling [top ()] will raise an exception *)
 module SensitiveConf (C: Printable.ProdConfiguration) (Base: Lattice.S) (User: Printable.S) = 
 struct
   module Elt = Printable.ProdConf (C) (Base) (User)
@@ -170,11 +182,13 @@ module Sensitive = SensitiveConf (struct
                                     let expand_snd = true
                                   end)
 
+(** Auxiliary signature for naming the top element *)
 module type ToppedSetNames = 
 sig
   val topname: string
 end
 
+(** Functor for creating artificially topped set domains. *)
 module ToppedSet (Base: Printable.S) (N: ToppedSetNames) =
 struct 
   module S = Make (Base) 

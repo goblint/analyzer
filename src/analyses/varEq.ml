@@ -103,7 +103,7 @@ struct
     let e2 = Cil.constFold false (Cil.stripCasts e2) in
     if exp_equal e1 e2 then true else
     match Dom.find_class e1 s with
-      | Some ss when Dom.S.mem e2 ss -> true
+      | Some ss when Dom.B.mem e2 ss -> true
       | _ -> false
   
   (* kill predicate for must-equality kind of analyses*)
@@ -458,7 +458,7 @@ struct
           let remove_reachable2 e st =
             if reachable_from rs e && not (isConstant e) then remove_exp ctx.ask e st else st
           in
-          Dom.S.fold remove_reachable2 es st
+          Dom.B.fold remove_reachable2 es st
         in
         [Dom.fold remove_reachable1 ctx.local ctx.local, true_exp, true]
 
@@ -476,13 +476,13 @@ struct
   let eq_set (e:Cil.exp) s =
     match Dom.find_class e s with
       | None -> Queries.ES.empty ()
-      | Some es when Dom.S.is_bot es -> Queries.ES.bot ()
+      | Some es when Dom.B.is_bot es -> Queries.ES.bot ()
       | Some es -> 
         let et = typeOf e in
         let add x xs =
           Queries.ES.add (CastE (et,x)) xs
         in
-        Dom.S.fold add es (Queries.ES.empty ())
+        Dom.B.fold add es (Queries.ES.empty ())
   
   let rec eq_set_clos e s =
     match e with

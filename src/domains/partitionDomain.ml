@@ -88,10 +88,10 @@ end
 
 module SetSet (Base: Printable.S) = 
 struct
-  module S = SetDomain.Make (Base)
-  module E =  SetDomain.ToppedSet (S) (struct let topname = "Bot" end)
+  module B = SetDomain.Make (Base)
+  module E =  SetDomain.ToppedSet (B) (struct let topname = "Bot" end)
   include E
-  type set = S.t
+  type set = B.t
   type partition = t
 
   let short w _ = "Partitions"
@@ -104,49 +104,49 @@ struct
   let is_bot = E.is_top
 
   let leq y x = if is_bot y then true else if is_bot x then false else
-    for_all (fun p -> exists (S.leq p) y) x
+    for_all (fun p -> exists (B.leq p) y) x
 
   let meet xs ys = if is_bot xs || is_bot ys then bot () else
     let f (x: set) (zs: partition): partition = 
-      let p z = S.is_empty (S.inter x z) in
+      let p z = B.is_empty (B.inter x z) in
       let (rest, joinem) = partition p zs in
-      let joined = fold S.union joinem x in
+      let joined = fold B.union joinem x in
         add joined rest
     in
       fold f xs ys
 
   let join xs ys = if is_bot xs then ys else if is_bot ys then xs else
     let f (x: set) (zs: partition): partition = 
-      let p z = not (S.is_empty (S.inter x z)) in
+      let p z = not (B.is_empty (B.inter x z)) in
       let joinem = filter p ys in
         if is_empty joinem then 
           zs 
         else 
-          let joined = fold S.inter joinem x in
-          if S.cardinal joined > 1 then add joined zs else zs
+          let joined = fold B.inter joinem x in
+          if B.cardinal joined > 1 then add joined zs else zs
     in
       fold f xs (empty ())
 
   let remove x ss = if is_bot ss then ss else
     let f (z: set) (zz: partition) = 
-      let res = S.remove x z in
-        if S.cardinal res > 1 then add res zz else zz
+      let res = B.remove x z in
+        if B.cardinal res > 1 then add res zz else zz
     in
       fold f ss (empty ())
 
   let add_eq (x,y) ss = if Base.equal x y then ss else
-    let myset = S.add y (S.singleton x) in
+    let myset = B.add y (B.singleton x) in
       meet ss (singleton myset)
 
   let filter f ss = if is_bot ss then ss else
     let f (z: set) (zz: partition) = 
-      let res = S.filter f z in
-        if S.cardinal res > 1 then add res zz else zz
+      let res = B.filter f z in
+        if B.cardinal res > 1 then add res zz else zz
     in
       fold f ss (empty ())
          
   let find_class (x: Base.t) (ss: t): set option = 
-    try Some (E.choose (E.filter (S.mem x) ss)) with Not_found -> None
+    try Some (E.choose (E.filter (B.mem x) ss)) with Not_found -> None
 
 end
 

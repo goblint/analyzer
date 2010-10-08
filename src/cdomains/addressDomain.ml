@@ -83,7 +83,10 @@ struct
 
   let join (s1:t) (s2:t) = merge_idxs Idx.join  (join s1 s2)
   let meet (s1:t) (s2:t) = merge_idxs Idx.meet  (meet s1 s2)
-  let leq (s1:t) (s2:t) = for_all (fun x -> exists (Addr.leq x) s2) s1
+  let leq (s1:t) (s2:t) = match (s1,s2) with
+    | _, All -> true
+    | All, _ -> false
+    | Set s1, Set s2 -> S.for_all (fun x -> S.exists (Addr.leq x) s2) s1
 
   let from_var x = singleton (Addr.from_var x)
   let from_var_offset x = singleton (Addr.from_var_offset x)
