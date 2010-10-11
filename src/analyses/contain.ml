@@ -147,6 +147,16 @@ struct
 		  Hashtbl.iter (check_fun_list " (2) Analysis unsound due to use of public variable " false) Dom.public_vars;
 		  Hashtbl.iter (check_fun_list " (3) Analysis unsound due to use of friend class " false) Dom.friends;
       Hashtbl.iter (fun fn v->Dom.report (" (6) Function "^fn^" might be called from several threads and should be threat safe.")) Dom.reentrant_funs;
+(*
+	    let vtbl = Dom.gen_vtbl_name "unsigned int (**)(struct l_class_OC_Uec_KD__KD_UecServiceBase * )" in 
+			(*"struct l_class_OC_my_namespace_KD__KD_CBaseFSM *(**) (struct l_class_OC_my_namespace_KD__KD_FSM * , struct l_struct_OC_my_namespace_KD__KD_UEC_Event * )" in*)
+	    let vtbl2 = Dom.gen_vtbl_name "struct l_class_OC_my_namespace_KD__KD_CBaseFSM *(**)(struct l_class_OC_my_namespace_KD__KD_FSM * )" in
+			let vtbl3 = Dom.gen_vtbl_name "struct l_class_OC_CBaseFSM *(**)(struct l_class_OC_FSM * , struct l_struct_OC_UEC_Event *)" in
+			(*"struct l_class_OC_my_namespace_KD__KD_CBaseFSM *(**) (struct l_class_OC_my_namespace_KD__KD_FSM * , struct l_struct_OC_my_namespace_KD__KD_UEC_Event * )"*)
+	    (*in
+	    printf "VTBL_NAME : %s\n%s\n" vtbl vtbl2;*)
+			ignore(match Goblintutil.get_class vtbl3 with | Some x -> Dom.report("class_name of "^vtbl3^": "^x) | _ -> Dom.report("class_name of "^vtbl3^": UNKOWN"));
+*)
 			Dom.report ("Finialze Finished!")
 			(*failwith "Finished"*)
 		    
@@ -397,7 +407,7 @@ struct
 			    let vtbl_lst = get_vtbl e (fd,st,gd) in
 			    if not (vtbl_lst=[]) then
 					begin
-						(*List.iter (fun x -> Dom.report("VFUNC_CALL_RESOLVED : "^x.vname)) vtbl_lst;*)
+						List.iter (fun x -> Dom.report("VFUNC_CALL_RESOLVED : "^x.vname)) vtbl_lst;
 						vtbl_lst
 					end
 					else 

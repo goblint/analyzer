@@ -28,7 +28,7 @@
 	"allocator" : ["allocator","~allocator"],
 	"Log" : ["Test","doLog","Log","test_cycle","call_fp","get_priv_fun"],
 	"CBaseFSM" : ["CBaseFSM"],
-	"FSM" : ["FakeFun","ReceiveEvent","FSM"],
+	"FSM" : ["FakeFun","ReceiveEvent","Virt","FSM"],
 	"new_allocator" : ["new_allocator","~new_allocator","address","allocate","deallocate","max_size","construct","destroy"],
 	"Dummy" : ["Dummy"],
 	"UES" : ["UES","~UES","Entry","RetTest7","RetTest1","RetTest2","RetTest3","RetTest4","RetTest5","InsertGlobalData","ReceiveEvent"],
@@ -62,9 +62,9 @@
 	},
 	"vtbls":
 	{
-	"_ZTVN5outer12my_namespace8SubUES_XE" : ["_ZTIN5outer12my_namespace8SubUES_XE","_ZN5outer12my_namespace3FSM7FakeFunEPNS0_9UEC_EventE","_ZN5outer12my_namespace8SubUES_X12ReceiveEventEPNS0_9UEC_EventE","_ZN5outer12my_namespace8SubUES_XD1Ev","_ZN5outer12my_namespace8SubUES_XD0Ev"],
-	"_ZTVN5outer12my_namespace3FSME" : ["_ZTIN5outer12my_namespace3FSME","_ZN5outer12my_namespace3FSM7FakeFunEPNS0_9UEC_EventE","__cxa_pure_virtual"],
-	"_ZTVN5outer12my_namespace3UESE" : ["_ZTIN5outer12my_namespace3UESE","_ZN5outer12my_namespace3FSM7FakeFunEPNS0_9UEC_EventE","_ZN5outer12my_namespace3UES12ReceiveEventEPNS0_9UEC_EventE","_ZN5outer12my_namespace3UESD1Ev","_ZN5outer12my_namespace3UESD0Ev"]
+	"_ZTV3UES" : ["_ZTI3UES","_ZN3FSM7FakeFunEP9UEC_Event","_ZN3UES12ReceiveEventEP9UEC_Event","_ZN3FSM4VirtEv","_ZN3UESD1Ev","_ZN3UESD0Ev"],
+	"_ZTV8SubUES_X" : ["_ZTI8SubUES_X","_ZN3FSM7FakeFunEP9UEC_Event","_ZN8SubUES_X12ReceiveEventEP9UEC_Event","_ZN3FSM4VirtEv","_ZN8SubUES_XD1Ev","_ZN8SubUES_XD0Ev"],
+	"_ZTV3FSM" : ["_ZTI3FSM","_ZN3FSM7FakeFunEP9UEC_Event","__cxa_pure_virtual","_ZN3FSM4VirtEv"]
 	},
 	"friends":
 	{

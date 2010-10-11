@@ -489,7 +489,9 @@ let to_name x =
 
 let get_class x : string option = 
   let rec git tf : name -> string option = function 
-    | Cons | Dest | Name _ | Unknown _ | PtrTo _ | Template _ -> None 
+    | Cons | Dest | Unknown _ | PtrTo _ | Template _ -> None
+		| Name x when tf -> Some x 
+		| Name _ -> None
     | TypeFun (x,y) -> git true y (*vtables don't have a function name*)
     | Nested (x,y) -> 
       begin match git tf y with 

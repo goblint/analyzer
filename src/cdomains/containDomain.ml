@@ -839,7 +839,7 @@ struct
 									
   let string_of_int64 = Int64.to_string
 	
-  let filter_type  = Str.regexp ".*(\\*\\*)(struct l_class_OC_\\([^,^)]*_KD__KD_\\)*\\([^ ^*]*\\).*,\\|).*"
+  let filter_type  = Str.regexp ".*(\\*\\*)(struct l_class_OC_\\([^,^)]*_KD__KD_\\)*\\([^ ^*]*\\).*[,\\|)].*"
 
 	let split s p = List.rev (Str.split (Str.regexp_string p) s)
 			
@@ -848,35 +848,40 @@ struct
 		try
 		  if Str.string_match filter_type s 0 then
 	    begin
-		    let ns = (Str.matched_group 1 s) in
+		    let ns = try (Str.matched_group 1 s) with _ -> "" in
 		    let cls = (Str.matched_group 2 s) in
 				let nsl = split ns "_KD__KD_" in
 				let pn = List.fold_right (fun x y -> y^(string_of_int (String.length x))^x) nsl "" in
-        let mangled_name = "_ZTVN"^pn^string_of_int (String.length cls)^cls^"E" in
+				let mangled_name = if String.length pn > 0 then
+          "_ZTVN"^pn^string_of_int (String.length cls)^cls^"E"
+				else
+          "_ZTV"^pn^string_of_int (String.length cls)^cls^"E"
+				in
         (*let const_name = "_ZN"^pn^string_of_int (String.length cls)^cls^"C2Ev" in*)
 				(*let cn = Goblintutil.get_class mangled_name in*)
+        ignore(match Goblintutil.get_class mangled_name with | Some x -> report("class_name : "^x) | _ -> report("class_name : UNKOWN"));		
 				if is_ext mangled_name then 
 				begin
-          (*report ("EXT_VTBL : "^(Goblintutil.demangle mangled_name));*)
-          "INVALID_VTBL"
+          report ("EXT_VTBL : "^(Goblintutil.demangle mangled_name));
+          mangled_name(*"INVALID_VTBL"*)
 				end
 				else
 				begin  
-          (*report ("INT_VTBL : "^(Goblintutil.demangle mangled_name));*)
+          report ("INT_VTBL : "^(Goblintutil.demangle mangled_name));
           mangled_name
 				end                                                        
 	    end
-			else
-			begin
-				(*report ("GEN_VTBL : INVALID");*)
-				"INVALID_VTBL"
-		  end
-		with _ -> report ("GEN_VTBL : INVALID");"INVALID_VTBL"
+	    else
+	    begin
+	        report ("GEN_VTBL : INVALID_GRP");
+	        "INVALID_VTBL"
+      end
+      with _ -> report ("GEN_VTBL : INVALID_MATCH");"INVALID_VTBL"
 		
 
 	let get_vfunc_set vtn n =
 		let ihl = get_inherited_from vtn in
-		(*List.iter (fun x->report("DERIVED_FROM : "^x)) ihl;*)
+		List.iter (fun x->report("DERIVED_FROM : "^x)) ihl;
 		List.fold_right (fun x y->
 	    let fn = try 				
 	        let cb = Hashtbl.find vtbls x in
@@ -940,7 +945,7 @@ struct
 										  match exp with
                     (*Lval(Mem(IndexPI(Lval(Var(llvm_cbe_tmp__8, NoOffset)), Const(Int64(1,long long,None))), NoOffset))*)
                         | Lval(Mem(BinOp (IndexPI, (Lval(Var var, NoOffset)), (Const (CInt64 (offs,_,None))), tp )),NoOffset)  ->
-                            (*report ("VTBL_ACCESS offset : "^string_of_int64 offs^" type: "^(sprint 160 (d_type () tp)));*)
+                            report ("VTBL_ACCESS offset : "^string_of_int64 offs^" type: "^(sprint 160 (d_type () tp)));
 													begin
 														let vtn = gen_vtbl_name (sprint 160 (d_type () tp)) in
                             let vfs = get_vfunc_set vtn ((Int64.to_int offs)+1) in
