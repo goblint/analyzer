@@ -692,12 +692,50 @@ struct
 			in
 			 (fd, danger_upd v args st,gd)
 				
-						
+    (*analog to may_be_.._global, prints warnings*)
+  let warn_bad_dereference e fromFun (fd, st,df) fs ss = (**)
+    
+    let warn_exp e = 
+      (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
+      let warn_one_lv = function
+        | v when (not fromFun) && v.vname = this_name -> 
+                    false
+        | v ->
+          let args = Danger.find v st in
+          (*report ("warn_bad_reachables: check "^v.vname);*)
+          if not (ArgSet.is_bot args)    
+          then begin    
+                        (*report ("warn_bad_reachables: "^(sprint 160 (d_exp () e))^" -> NOT bot ");*)
+                          if ArgSet.fold (fun x y -> if y then true else begin
+                            let is = (is_safe_name (FieldVars.get_var x).vname) in
+                            let cft = (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) in
+                            (*report ("warn_bad_reachables: "^(sprint 160 (d_exp () e))^" -> "^(sprint 160 (FieldVars.pretty () x))^ "safe : "^string_of_bool is^" cft : "^string_of_bool cft );*)  
+                            not is 
+                            &&( (fromFun) 
+                            || not cft )  
+                            end) args false 
+                            then
+                          report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");true
+                    end
+                    else 
+                    begin   
+                        (*report ("warn_bad_reachables: "^(sprint 160 (d_exp () e))^" -> bot ");*)
+                        false
+                    end
+      in
+      if (*isPointerType (typeOf (stripCasts e))*)true then 
+				begin
+        let res = (ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_ptrs st e) false)  (*avoid multiple warnings*)
+				in ()
+  (*             () (* -- it is true but here we assume nothing important has escaped and then warn on escapes *) *)
+      end
+    in
+    warn_exp e 						
 
 		
 	(*analog to may_be_.._global, prints warnings*)
   let warn_bad_reachables ask args fromFun (fd, st,df) fs ss = (**)
-
+	
     let warn_exp e = 
       (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
       let warn_one_lv = function
@@ -705,22 +743,28 @@ struct
 					false
         | v ->
           let args = Danger.find v st in
+          (*report ("warn_bad_reachables: check "^v.vname);*)
           if not (ArgSet.is_bot args)    
           then begin	
-						  					
-						  if ArgSet.fold (fun x y -> if y then true else begin not (is_safe_name (FieldVars.get_var x).vname) 
+						(*report ("warn_bad_reachables: "^(sprint 160 (d_exp () e))^" -> NOT bot ");*)
+						  if ArgSet.fold (fun x y -> if y then true else begin
+							let is = (is_safe_name (FieldVars.get_var x).vname) in
+							let cft = (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) in
+							(*report ("warn_bad_reachables: "^(sprint 160 (d_exp () e))^" -> "^(sprint 160 (FieldVars.pretty () x))^ "safe : "^string_of_bool is^" cft : "^string_of_bool cft );*)  
+							not is 
 							&&( (fromFun) 
-							|| not (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) )  
+							|| not cft )  
 							end) args false 
 							then
 						  report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");true
 					end
-					else false
+					else 
+					begin	
+						(*report ("warn_bad_reachables: "^(sprint 160 (d_exp () e))^" -> bot ");*)
+						false
+					end
       in
       if isPointerType (typeOf (stripCasts e)) then begin
-	       (*
-	            dbg_report ("mbg: " ^(sprint 160 (d_exp () e))^ "\tlocal : "^(string_of_bool is_local)^"\tdanger : "^string_of_bool is_danger^"\n");				
-				*)
         if not (ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_args st e) false) then (*avoid multiple warnings*)
 				begin
             if not (ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_ptrs st e) false) then (*avoid multiple warnings*)

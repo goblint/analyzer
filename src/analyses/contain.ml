@@ -295,6 +295,7 @@ struct
       let _, ds, _ = ctx.local in
       if Dom.must_be_constructed_from_this ds (Lval lval) then ()
       else Dom.warn_bad_reachables ctx.ask [AddrOf lval] false ctx.local fs "assignment";
+			Dom.warn_bad_dereference rval false ctx.local fs "assignment";
 	    (*Dom.report("tainted : "^sprint 80 (ContainDomain.FieldSet.pretty () fs)^"\n");*)
       (*Dom.report ("before assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () rval))^"\n");*)
       let nctx = Dom.assign_to_local ctx.ask lval (Some rval) ctx.local fs in
@@ -316,6 +317,10 @@ struct
       let fs = Dom.get_tainted_fields ctx.global in
       Dom.warn_glob exp "branch";
       Dom.warn_tainted fs ctx.local exp "branch";
+      let _, ds, _ = ctx.local in
+      if Dom.must_be_constructed_from_this ds exp then ()
+      else
+      Dom.warn_bad_dereference exp false ctx.local fs "branch";
       ctx.local
     end
     in 
