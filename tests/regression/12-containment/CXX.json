@@ -26,7 +26,7 @@
 	"public_methods":
 	{
 	"allocator" : ["allocator","~allocator"],
-	"Log" : ["Test","doLog","Log","call_fp","get_priv_fun"],
+	"Log" : ["Test","doLog","Log","test_cycle","call_fp","get_priv_fun"],
 	"CBaseFSM" : ["CBaseFSM"],
 	"FSM" : ["FakeFun","ReceiveEvent","FSM"],
 	"new_allocator" : ["new_allocator","~new_allocator","address","allocate","deallocate","max_size","construct","destroy"],

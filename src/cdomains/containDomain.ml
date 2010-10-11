@@ -673,7 +673,7 @@ struct
 			dbg_report("danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
 			let ds = Danger.find v st in
 				let (fd,st,gd) =
-				if not must_assign && not (ArgSet.is_bot ds) then
+				if (*not must_assign && MUST PROPAGATE HERE!!!*)not (ArgSet.is_bot ds) then
 				begin
           dbg_report("danger.prop_ds_1 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));
 					ArgSet.fold (fun x y -> update_this x y ds) ds (fd,st,gd) 
