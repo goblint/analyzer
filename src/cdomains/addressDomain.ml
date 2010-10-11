@@ -68,7 +68,7 @@ struct
     match Addr.to_var_offset x, Addr.to_var_offset y with
       | [x],[y]  -> same_mod_idx_addr x y
       | _ -> false
-
+(*
   let merge_idxs op (s:t) : t = 
     let rec f xs acc = 
       if is_empty xs then begin acc 
@@ -87,7 +87,7 @@ struct
     | _, All -> true
     | All, _ -> false
     | Set s1, Set s2 -> S.for_all (fun x -> S.exists (Addr.leq x) s2) s1
-
+*)
   let from_var x = singleton (Addr.from_var x)
   let from_var_offset x = singleton (Addr.from_var_offset x)
   let to_var_may x = List.concat (List.map Addr.to_var_may (elements x))

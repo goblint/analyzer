@@ -368,7 +368,7 @@ struct
       | x -> x
 end
 
-module NormalLat (Idx: Lattice.S) = 
+module NormalLat (Idx: IntDomain.S) = 
 struct
   include Normal (Idx)
 
