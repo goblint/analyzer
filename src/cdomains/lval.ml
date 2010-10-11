@@ -225,7 +225,7 @@ struct
   module Offs = Offset (Idx)
   type field = fieldinfo
   type idx = Idx.t
-  type t = Addr of (varinfo * (field, idx) offs) | NullPtr | StrPtr
+  type t = Addr of (varinfo * (field, idx) offs) | NullPtr | StrPtr | Top | Bot
   include Printable.Std
   let name () = "Normal Lvals"
 
@@ -273,17 +273,15 @@ struct
   let to_var a =
     match a with
       | Addr (x,_) -> [x]
-      | StrPtr
-      | NullPtr    -> []
+      | _          -> []
   let to_var_may a =
     match a with
       | Addr (x,_) -> [x]
-      | StrPtr
-      | NullPtr    -> []
+      | _          -> []
   let to_var_must a = 
     match a with
       | Addr (x,`NoOffset) -> [x]
-      | _ -> []
+      | _                  -> []
       
   let to_var_offset a =
     match a with
@@ -306,6 +304,8 @@ struct
       | Addr x  -> get_type_addr x
       | StrPtr  -> charPtrType
       | NullPtr -> voidType
+      | Bot     -> voidType
+      | Top     -> voidPtrType
 
   let copy x = x
   let isSimple _  = true
@@ -324,6 +324,8 @@ struct
       | Addr x  -> short_addr x
       | StrPtr  -> "STRING"
       | NullPtr -> "NULL"
+      | Bot     -> "bot"
+      | Top     -> "top"
 
   let toXML_f_addr sf (x,y) = 
     let esc = Goblintutil.escape in
@@ -334,7 +336,7 @@ struct
   let toXML_f sf x =
     match x with 
       | Addr x  -> toXML_f_addr sf x
-      | StrPtr | NullPtr -> Xml.Element ("Leaf", [("text", short max_int x)],[])
+      | _ -> Xml.Element ("Leaf", [("text", short max_int x)],[])
 
   let pretty_f sf () x = Pretty.text (sf max_int x)
 
@@ -352,6 +354,8 @@ struct
       | Addr (v,o) -> Lval (Var v, to_cil o)
       | StrPtr -> mkString "a string"
       | NullPtr -> integer 0
+      | Top     -> raise Lattice.TopValue 
+      | Bot     -> raise Lattice.BotValue 
   let add_offset x o = 
     let rec append x y = 
       match x with
@@ -362,6 +366,77 @@ struct
     match x with
       | Addr (v, u) -> Addr (v, append u o)
       | x -> x
+end
+
+module NormalLat (Idx: Lattice.S) = 
+struct
+  include Normal (Idx)
+
+  let is_top = function
+    | Top -> true
+    | _   -> false
+  
+  let is_bot = function
+    | Bot -> false
+    | _   -> true
+  
+  let top () = Top
+  let bot () = Bot
+  
+  include Lattice.StdCousot
+  
+  let leq x y =
+    let rec leq_offs x y =
+      match x, y with
+        | _           , `NoOffset    -> true
+        | `Index (i,x), `Index (o,y) -> Idx.leq i o && leq_offs x y
+        | `Field (f,x), `Field (g,y) -> f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname &&  leq_offs x y
+        | _                          -> false
+    in
+    match x, y with 
+      | _      , Top           -> true
+      | Top    , _             -> false
+      | Bot    , _             -> true
+      | _      , Bot           -> false
+      | NullPtr, NullPtr       -> true
+      | StrPtr , StrPtr        -> true
+      | Addr (x,o), Addr (y,u) when x.vid = y.vid -> leq_offs o u
+      | _                      -> false
+      
+  let join x y = 
+    let rec join_offs x y =
+      match x, y with
+      | `Index (i,x), `Index (o,y) -> `Index (Idx.join i o, join_offs x y)
+      | `Field (f,x), `Field (g,y) when f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname -> `Field (f,join_offs x y)
+      | _ -> `NoOffset
+    in
+    match x, y with
+      | Top       , _       -> Top
+      | _         , Top     -> Top
+      | Bot       , y       -> y
+      | x         , Bot     -> x
+      | NullPtr   , NullPtr -> NullPtr
+      | StrPtr    , StrPtr  -> StrPtr
+      | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x,join_offs o u)
+      | _ -> Top
+    
+  let meet x y = 
+    let rec meet_offs x y =
+      match x, y with
+      | `Index (i,x), `Index (o,y) -> `Index (Idx.meet i o, meet_offs x y)
+      | `Field (f,x), `Field (g,y) when f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname -> `Field (f,meet_offs x y)
+      | _ -> `NoOffset
+    in
+    match x, y with
+      | Bot       , _       -> Bot
+      | _         , Bot     -> Bot
+      | Top       , y       -> y
+      | x         , Top     -> x
+      | NullPtr   , NullPtr -> NullPtr
+      | StrPtr    , StrPtr  -> StrPtr
+      | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (y, meet_offs o u)
+      | _ -> Bot
+
 end
 
 module Stateless (Idx: Printable.S) =

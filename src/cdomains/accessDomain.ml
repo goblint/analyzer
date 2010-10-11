@@ -832,7 +832,11 @@ struct
       in
       MustMap.fold takeNotFn mp (mp, d)
     in
-    let change x = may_change ask e (Lvals.to_exp (kinteger64 IInt) x) in    
+    let change x = 
+      try may_change ask e (Lvals.to_exp (kinteger64 IInt) x) 
+      with Lattice.BotValue -> false 
+        |  Lattice.TopValue -> true      
+    in    
     filter_key change (st, d)
 
   let remove_exp ask e = lift_fun (remove_exp' ask e)

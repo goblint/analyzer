@@ -414,7 +414,12 @@ struct
           | _ -> Queries.ES.singleton e)
         (match ask (Queries.Regions e) with
           | `LvalSet ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
-              -> Queries.LS.fold (fun x -> Queries.ES.add (Lval.CilLval.to_exp x)) ls (Queries.ES.singleton e)
+              -> let add_exp x xs = 
+                    try Queries.ES.add (Lval.CilLval.to_exp x) xs
+                    with Lattice.BotValue -> xs
+                 in begin 
+                 try Queries.LS.fold add_exp ls (Queries.ES.singleton e)
+                 with Lattice.TopValue -> Queries.ES.top () end
           | _ -> Queries.ES.singleton e)
     in
          Queries.ES.fold (fun x xs -> xs || do_lockstep x) matching_exps false

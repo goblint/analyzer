@@ -18,6 +18,8 @@ struct
   let narrow x y = x
 end
 
+exception TopValue
+exception BotValue
 exception Unsupported of string
 let unsupported x = raise (Unsupported x)
 

@@ -17,8 +17,8 @@ end
 
 module AddressSet (Idx: IntDomain.S) = 
 struct 
-  module Addr = Lval.Normal (Idx)
-  include SetDomain.ToppedSet (Addr) (struct let topname = "Anywhere" end)
+  module Addr = Lval.NormalLat (Idx)
+  include SetDomain.MacroSet (Addr) (struct let topname = "Anywhere" end)
   
   type field = Addr.field
   type idx = Idx.t

@@ -306,6 +306,22 @@ struct
       | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
+module MacroSet (B: Lattice.S) (N: ToppedSetNames)=
+struct
+  include ToppedSet (B) (N)
+
+  let leq x y =
+    match x, y with
+      | Set x, Set y -> S.for_all (fun x -> S.exists (B.leq x) y) x
+      | _, All -> true
+      | All, _ -> false
+
+  let why_not_leq () ((x:t),(y:t)): Pretty.doc =
+    match x,y with
+      | Set x, Set y -> S.why_not_leq () (x,y)
+      | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+end
+
 (* This one just removes the extra "{" notation and also by always returning
  * false for the isSimple, the answer looks better, but this is essentially a
  * hack. All the pretty printing needs some rethinking. *)
