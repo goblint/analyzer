@@ -61,6 +61,12 @@ let main () =
           -> GU.modify_ana x b
       | _ -> raise (Arg.Bad ("no such feature: "^x))
   in
+  let set_context b x =
+    match x with
+      | x when List.exists (fun y -> y.MCP.featurename = x) !MCP.analysesList
+          -> GU.modify_context x b
+      | _ -> raise (Arg.Bad ("no such feature: "^x))
+  in
   let setsolver str = 
     GU.solver := match str with
       | "effectWCon"
@@ -111,6 +117,8 @@ let main () =
                  ("--analysis", Arg.String setanalysis, "<name>  Deprecated: Picks the analysis: mcp.");
                  ("--with", Arg.String (set_feature true), "<name>  Enables features:" ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList^".");
                  ("--no", Arg.String (set_feature false), "<name>  Disables features:" ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList^".");
+                 ("--context", Arg.String (set_context true), "<name>  Enables context sensitivity on a feature.");
+                 ("--no-context", Arg.String (set_context false), "<name>  Disables context sensitivity on a feature.");
                  ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");

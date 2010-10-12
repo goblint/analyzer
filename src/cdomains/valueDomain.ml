@@ -5,7 +5,7 @@ open Pretty
 module ID: IntDomain.S = IntDomain.IntDomList
 (* module ID: IntDomain.S = IntDomain.IncExcInterval *)
 module AD = AddressDomain.AddressSet (ID)
-module Addr = Lval.Normal (ID)
+module Addr = Lval.NormalLat (ID)
 module Offs = Lval.Offset (ID)
 module M = Messages
 

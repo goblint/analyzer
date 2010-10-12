@@ -82,6 +82,23 @@ let modify_ana x b =
                  ;"solver"     , field !conf "solver"] in
   conf := make_table (objekt modif)
 
+let modify_context x b = 
+  let old_ana = make_table (objekt (field !conf "analyses")) in
+  let anas = ["base";"OSEK";"OSEK2";"access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"containment";"var_eq"] in
+  let set_ana_pair fe = 
+    if fe = x 
+    then fe, Build.bool b
+    else  fe, field old_ana fe 
+  in
+  let modif = 
+    Build.objekt ["int_domain" , field !conf "int_domain"
+                 ;"analyses"   , field !conf "analyses"
+                 ;"sensitive"  , field !conf "sensitive"
+                 ;"analysis"   , field !conf "analysis"
+                 ;"context"    , Build.objekt (List.map set_ana_pair anas)
+                 ;"solver"     , field !conf "solver"] in
+  conf := make_table (objekt modif)
+
 let conf_containment () = 
   modify_ana "containment" true;
   modify_ana "thread" false;
@@ -236,6 +253,9 @@ let print_uncalled = ref false
 (** A very nice imperative hack to get the current location. This can be
   * referenced from within any transfer function. *)
 let current_loc = ref locUnknown
+
+let global_initialization = ref false 
+(** A hack to see if we are currently doing global inits *)
 
 let solver = ref (string (field !conf "solver"))
 

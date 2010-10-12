@@ -624,21 +624,25 @@ struct
 
   let assign ctx lval rval  = 
     let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
-    let ret = 
-      set_savetop ctx.ask ctx.global ctx.local 
-        (eval_lv ctx.ask ctx.global ctx.local lval) 
-        rval_val
+    let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
+    let not_local xs = 
+      let not_local x = 
+        match Addr.to_var_may x with
+          | [x] -> is_global ctx.ask x 
+          | _ -> Addr.is_top x
+      in
+      AD.is_top xs || AD.exists not_local xs
     in
-    (*begin match rval_val with
-      | `Address adrs when not (AD.is_top adrs) ->
+    begin match rval_val, lval_val with
+      | `Address adrs, lval
+        when not !GU.global_initialization && !GU.kernel && not_local lval && not (AD.is_top adrs) ->
           let find_fps e xs = Addr.to_var_must e @ xs in
           let vars = AD.fold find_fps adrs [] in
           let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-          List.iter (fun x -> ctx.spawn x (otherstate ())) funs 
-          
+          List.iter (fun x -> ctx.spawn x (otherstate ())) funs  
       | _ -> ()
-    end;*)
-    ret
+    end;
+    set_savetop ctx.ask ctx.global ctx.local lval_val rval_val
 
   let branch ctx (exp:exp) (tv:bool) : store =
     (* First we want to see, if we can determine a dead branch: *)
@@ -915,7 +919,7 @@ struct
           try
             (* try to get function declaration *)
             let _ = Cilfacade.getdec start_vari in 
-            let sts = enter_func (set_st ctx (cpa, Flag.get_multi (), gl)) None start_vari [ptc_arg]  in
+            let sts = enter_func (swap_st ctx (cpa, Flag.get_multi (), gl)) None start_vari [ptc_arg]  in
             List.map (fun (_,st) -> start_vari, st) sts
           with Not_found -> 
             M.warn ("creating an thread from unknown function " ^ start_vari.vname);
@@ -941,6 +945,8 @@ struct
       | _ ->  []
 
   and enter_func ctx lval fn args : (Dom.t * Dom.t) list = 
+    let forks = fork ctx lval fn args in
+    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
     let cpa,fl,gl as st = ctx.local in
     let make_entry pa context =
       (* If we need the globals, add them *)
@@ -966,6 +972,8 @@ struct
 
   let special_fn ctx (lv:lval option) (f: varinfo) (args: exp list) = 
 (*    let heap_var = heap_var !GU.current_loc in*)
+    let forks = fork ctx lv f args in
+    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
     let cpa,fl,gl as st = ctx.local in
     let gs = ctx.global in
     let map_true x = x, (Cil.integer 1), true in
@@ -1068,82 +1076,6 @@ struct
                           [map_true (ncpa, new_fl,ngl)]
                   end else [map_true st]
               )
-        end
-
-  let enter_func ctx lval fn args : (Dom.t * Dom.t) list = 
-    let cpa,fl,gl as st = ctx.local in
-    let make_entry pa context =
-      (* If we need the globals, add them *)
-      let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
-      (* Assign parameters to arguments *)
-      let new_cpa = CPA.add_list pa new_cpa in
-      let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
-        st, (new_cpa, fl, Vars.bot ()) 
-    in
-    (* Evaluate the arguments. *)
-    let vals = List.map (eval_rv ctx.ask ctx.global st) args in
-    (* List of reachable variables *)
-    let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
-    (* generate the entry states *)
-    let add_calls_addr f norms =
-      let fundec = Cilfacade.getdec fn in
-      (* And we prepare the entry state *)
-      let entry_state = make_entry (zip fundec.sformals vals) reachable in
-        entry_state :: norms
-    in
-    add_calls_addr fn []
-
-  let collect_spawned a gs st args: (varinfo * Dom.t) list = 
-    let flist = collect_funargs a gs st args in
-    let f addr = 
-      let var = List.hd (AD.to_var_may addr) in
-      let _ = Cilfacade.getdec var in 
-        var, otherstate ()
-    in 
-    let g a acc = try 
-      let r = f a in r :: acc 
-    with 
-      | Not_found -> acc 
-      | x -> M.debug ("Ignoring exception: " ^ Printexc.to_string x); acc 
-    in
-      List.fold_right g flist [] 
-
-  let fork ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * Dom.t) list = 
-    let cpa,fl,gl = ctx.local in
-    match f.vname with 
-      (* handling thread creations *)
-      | "pthread_create" -> begin        
-          match args with
-            | [_; _; start; ptc_arg] -> begin
-                let start_addr = eval_fv ctx.ask ctx.global ctx.local start in
-                let start_vari = List.hd (AD.to_var_may start_addr) in
-                try
-                  (* try to get function declaration *)
-                  let _ = Cilfacade.getdec start_vari in 
-                  let sts = enter_func (set_st ctx (cpa, Flag.get_multi (), gl)) None start_vari [ptc_arg]  in
-                  List.map (fun (_,st) -> start_vari, st) sts
-                with Not_found -> 
-                  M.warn ("creating an thread from unknown function " ^ start_vari.vname);
-                  [start_vari,(cpa, Flag.get_multi (), Vars.bot())]
-                end
-            | _ -> M.bailwith "pthread_create arguments are strange!"
-        end
-      | _ -> begin
-          let args = 
-            match LF.get_invalidate_action f.vname with
-              | Some fnc -> fnc `Write  args
-              | None -> args
-          in
-            let addGlob vs =  function
-              | GVar (v,_,_) -> (AddrOf (Var v,NoOffset)) :: vs 
-              | _ -> vs
-            in
-            let vars = 
-              if !GU.kernel
-              then foldGlobals !Cilfacade.ugglyImperativeHack addGlob args 
-              else args 
-            in
-            collect_spawned ctx.ask ctx.global ctx.local vars 
         end
 
   let leave_func ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: Dom.t) : Dom.t =

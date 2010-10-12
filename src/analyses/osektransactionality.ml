@@ -102,9 +102,6 @@ struct
           | _ -> let p = (pry_d (get_lockset ctx)) in  [(ctxs ,(fcon  ctxr (-1,-1,-1,p))) ,Cil.integer 1, true])
       | _ -> [(ctxs, ctxr),Cil.integer 1, true]
 
-  let fork ctx lv f args = 
-    [] 
-
   let startstate () = Dom.bot ()
   let otherstate () = Dom.top ()
 

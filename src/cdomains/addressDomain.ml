@@ -15,7 +15,7 @@ sig
   val get_type: t -> typ
 end
 
-module AddressSet (Idx: IntDomain.S) = 
+module AddressSet (Idx: Lattice.S) = 
 struct 
   module Addr = Lval.NormalLat (Idx)
   include SetDomain.MacroSet (Addr) (struct let topname = "Anywhere" end)

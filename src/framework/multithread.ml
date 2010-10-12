@@ -47,6 +47,13 @@ struct
         (SD.lift rx, diff, forks)
     in
     
+    let prepare_forks (xs: (varinfo * Spec.Dom.t) list) : Solver.diff * Solver.variable list =
+      let f (diff, vars) (fork_fun, fork_st) =
+        ( (`L ((MyCFG.FunctionEntry fork_fun, SD.lift (Spec.context_top fork_st)), SD.lift fork_st)) :: diff
+        , (MyCFG.Function fork_fun, SD.lift (Spec.context_top fork_st)) :: vars)
+      in
+      List.fold_left f ([],[]) xs
+    in
     (*
       Compiles a transfer function that handles function calls. The reason for this is
       that we do not want the analyzer to decend into function calls, but rather we want 
@@ -66,7 +73,9 @@ struct
       Also we concatenate each [forks lval f args st] for each [f]
       *)
     let proc_call sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.diff * Solver.variable list =
-      let funs  = Spec.eval_funvar (A.context top_query st theta []) exp in
+      let forks = ref [] in
+      let add_var v d = forks := (v,d) :: !forks in
+      let funs  = Spec.eval_funvar (A.context top_query st theta [] add_var) exp in
       let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
       let start_vals : Solver.diff ref = ref [] in
       let add_function st' f : Spec.Dom.t =
@@ -77,29 +86,21 @@ struct
         in
         let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
         if has_dec && not (LibraryFunctions.use_special f.vname) then
-          let work = Spec.enter_func (A.context top_query st theta []) lval f args in
-          let leave st1 st2 = Spec.leave_func (A.context top_query st1 theta []) lval exp f args st2 in
+          let work = Spec.enter_func (A.context top_query st theta [] add_var) lval f args in
+          let leave st1 st2 = Spec.leave_func (A.context top_query st1 theta [] add_var) lval exp f args st2 in
           let general_results = List.map (fun (y,x) -> y, SD.unlift (add_one_call x)) work in
           let joined_result   = List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst tst)) (Spec.Dom.bot ()) general_results in
           if P.tracking then P.track_call f (SD.hash st) ;
           Spec.Dom.join st' joined_result        
         else
           let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
-          List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (A.context top_query st theta []) lval f args) 
-      in
-      let f xs x =
-        let forks = Spec.fork (A.context top_query st theta []) lval x args in
-        let add_fork_enter (x,es) = 
-          start_vals := (`L ((MyCFG.FunctionEntry x, SD.lift (Spec.context_top es)), SD.lift es)) :: !start_vals 
-        in
-        List.iter add_fork_enter forks;
-        List.map (fun (f,es) -> (MyCFG.Function f, SD.lift (Spec.context_top es))) forks @ xs
+          List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (A.context top_query st theta [] add_var) lval f args) 
       in
       try 
         let crap  = List.fold_left add_function (Spec.Dom.bot ()) funs in      
-        let forks = List.fold_left f [] funs in
-        let (d, diff, forks) = lift_st crap forks in
-        (d,diff @ !start_vals,forks)
+        let fdiff, fvars = prepare_forks !forks in
+        let (d, diff, forks) = lift_st crap fvars in
+        (d,diff @ fdiff @ !start_vals,forks)
       with Analyses.Deadcode -> (SD.bot (), !start_vals, [])
     in
     let cfg' n = 
@@ -121,16 +122,25 @@ struct
       (* This is the key computation, only we need to set and reset current_loc,
        * see below. We call a function to avoid ;-confusion *)
       let eval () : Solver.var_domain * Solver.diff * Solver.variable list = 
+        (* gives add_var callback into context so that every edge can spawn threads *)
+        let getctx var = A.context top_query (SD.unlift (sigma var)) theta [] in
+        let lift f pre =        
+          let forks = ref [] in
+          let add_var v d = forks := (v,d) :: !forks in
+          let x, y, z = lift_st (f (getctx pre add_var)) [] in
+          let y', z' = prepare_forks !forks in
+          x, y @ y', z @ z'
+        in
         try  
           (* Generating the constraints is quite straightforward, except maybe
            * the call case. There is an ALMOST constant lifting and unlifting to
            * handle the dead code -- maybe it could be avoided  *)
           match edge with
-            | MyCFG.Entry func             -> lift_st (Spec.body   (A.context top_query (SD.unlift (sigma (MyCFG.FunctionEntry func.svar, es))) theta []) func ) []
-            | MyCFG.Assign (lval,exp)      -> lift_st (Spec.assign (A.context top_query (SD.unlift (sigma predvar)) theta []) lval exp) []
-            | MyCFG.SelfLoop               -> lift_st (Spec.intrpt (A.context top_query (SD.unlift (sigma predvar)) theta [])) []
-            | MyCFG.Test   (exp,tv)        -> lift_st (Spec.branch (A.context top_query (SD.unlift (sigma predvar)) theta []) exp tv) []
-            | MyCFG.Ret    (ret,fundec)    -> lift_st (Spec.return (A.context top_query (SD.unlift (sigma predvar)) theta []) ret fundec) []
+            | MyCFG.Entry func             -> lift (fun ctx -> Spec.body   ctx func      ) (MyCFG.FunctionEntry func.svar, es)
+            | MyCFG.Assign (lval,exp)      -> lift (fun ctx -> Spec.assign ctx lval exp  ) predvar
+            | MyCFG.SelfLoop               -> lift (fun ctx -> Spec.intrpt ctx           ) predvar
+            | MyCFG.Test   (exp,tv)        -> lift (fun ctx -> Spec.branch ctx exp tv    ) predvar
+            | MyCFG.Ret    (ret,fundec)    -> lift (fun ctx -> Spec.return ctx ret fundec) predvar
             | MyCFG.Proc   (lval,exp,args) -> proc_call sigma theta lval exp args (SD.unlift (sigma predvar)) 
             | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; sigma predvar, [], []
             | MyCFG.Skip                   -> sigma predvar, [], []
@@ -191,11 +201,12 @@ struct
     let theta x = Spec.Glob.Val.bot () in
     let funs = ref [] in
     let transfer_func (st : Spec.Dom.t) (edge, loc) : Spec.Dom.t = 
+      let add_var _ _ = raise (Failure "Global initializers should never spawn threads. What is going on?")  in
       try
         if M.tracing then M.trace "con" (dprintf "Initializer %a\n" d_loc loc);
         GU.current_loc := loc;
         match edge with
-          | MyCFG.Entry func        -> Spec.body (A.context top_query st theta []) func
+          | MyCFG.Entry func        -> Spec.body (A.context top_query st theta [] add_var) func
           | MyCFG.Assign (lval,exp) -> 
               begin match lval, exp with
                 | (Var v,o), (Cil.AddrOf (Cil.Var f,Cil.NoOffset)) 
@@ -203,13 +214,15 @@ struct
                   begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end 
                 | _ -> ()
               end;
-              Spec.assign (A.context top_query st theta []) lval exp
+              Spec.assign (A.context top_query st theta [] add_var) lval exp
           | _                       -> raise (Failure "This iz impossible!") 
       with Failure x -> M.warn x; st
     in
+    let _ = GU.global_initialization := true in
     let _ = GU.earlyglobs := false in
     let result : Spec.Dom.t = List.fold_left transfer_func (Spec.startstate ()) edges in
     let _ = GU.earlyglobs := early in
+    let _ = GU.global_initialization := false in
       SD.lift result, !funs
      
   module S = Set.Make(struct
