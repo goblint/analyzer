@@ -1,7 +1,7 @@
 {
 	"variables":
 	{
-	"global" : ["mout","_OC_str[0-9].*","_ZTVN.*","_vptr$.*","std::vector(.*^\\*)::operator.*","nam","_ZdlPv"]
+	"global" : ["v_table.*","mout","_OC_str[0-9].*","_ZTVN.*","_vptr$.*","std::vector(.*^\\*)::operator.*","nam","_ZdlPv"]
 	},
 	"methods":
 	{

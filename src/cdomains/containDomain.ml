@@ -100,6 +100,7 @@ struct
   include Lattice.Prod3 (FuncName) (Danger) (Diff) 
   
   let public_vars : (string, string list) Hashtbl.t = Hashtbl.create 111
+  let private_vars : (string, string list) Hashtbl.t = Hashtbl.create 111
   let public_methods : (string, string list) Hashtbl.t = Hashtbl.create 111
   let func_ptrs : (string, string list) Hashtbl.t = Hashtbl.create 111
   let private_methods : (string, string list) Hashtbl.t = Hashtbl.create 111
@@ -515,6 +516,7 @@ struct
     let is_safe_name n =
     let safed=(List.exists (check_safety safe_vars) [n] )||(List.exists (check_safety safe_methods) [n] ) in
     if !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" n);
+    (*report("check_safe "^n^" : "^string_of_bool safed);*)
     safed   
     
   let is_public_method_name x =
@@ -597,10 +599,15 @@ struct
 								(Lval (Var (FieldVars.get_var x),NoOffset)) x 								 
 							in
 							(is_tainted fs st exp) in
-						(*report("is_tainted "^(sprint 160 (FieldVars.pretty () x))^" : "^string_of_bool it);*)
-						let cft= (may_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) in
-					  if not cft || it 
-					  then false else y) 
+						let cft = (may_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset)))
+						 in            
+					  if (not cft || it) && (is_ext (FieldVars.get_var x).vname) && not (is_safe_name (FieldVars.get_var x).vname)
+					  then 
+						begin	
+							(*report((sprint 160 (FieldVars.pretty () x))^" it "^string_of_bool it^" cft "^string_of_bool cft);*)
+							false
+						end 
+						else y) 
 					args true 
 					in
             dbg_report("danger.UPDATE_THIS_2 "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args)^" rhs_ctf : "^string_of_bool rhs_cft);                  
@@ -724,9 +731,10 @@ struct
                     end
       in
       if (*isPointerType (typeOf (stripCasts e))*)true then 
-				begin
-        let res = (ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_ptrs st e) false)  (*avoid multiple warnings*)
-				in ()
+			begin
+        let res = 
+					(ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_ptrs st e) false)  (*avoid multiple warnings*)
+				in ignore (res)
   (*             () (* -- it is true but here we assume nothing important has escaped and then warn on escapes *) *)
       end
     in
@@ -886,7 +894,7 @@ struct
 	    let fn = try 				
 	        let cb = Hashtbl.find vtbls x in
 						List.nth cb n
-	    with e-> ""
+	    with e-> report("VTBL not found : "^x);""
 			in
 			if fn = "" then y else fn::y
 			)
@@ -914,7 +922,8 @@ struct
 	   (*report("ADD_REQ_FUN : "^f);*)
 	    add_required_fun f required_non_public_funs  
 		
-		
+  let filter_vtbl  = Str.regexp "_ZTV.*"
+
   let assign_argmap fs lval exp (fd, st, df) must_assign = (*keep track of used fun args*)
 			match used_args st exp with
           | s when ArgSet.is_top s ->
@@ -928,7 +937,7 @@ struct
 							else 
 							(fd, st, df)
           | s -> 
-						 dbg_report ("assign_argmap :assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () exp))^":"^sprint 160 (ArgSet.pretty () s)^"\n");
+						 dbg_report ("assign_argmap :assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_plainexp () exp))^":"^sprint 160 (ArgSet.pretty () s)^"\n");
 					   begin							  
 					      let fs = get_field_from_this exp st in
 								let cft = (must_be_constructed_from_this st exp) in
@@ -940,7 +949,17 @@ struct
 										dbg_report ("no_vtbl1 : "^(sprint 160 (d_lval () lval))^ " = "^sprint 160 (ArgSet.pretty () s));
 										assign_to_lval fs lval (fd, st, df) s must_assign in
 									if not cft then
-                    no_vtbl
+                    match exp with
+											(*AddrOf(Var(_ZTV3FSM, Field(array:TArray(TPtr(TInt(unsigned char, ), ), Some(Const(Int64(7,int,None))), ), Index(Const(Int64(2,long long,None)), NoOffset))))*)
+											| AddrOf ((Var vi, Field(_, Index(Const(CInt64(offs, _ ,None)), NoOffset)) ) )  
+											when Str.string_match filter_vtbl vi.vname 0 ->
+											     report("DIRECT_VTBL_ACCESS : "^vi.vname^"["^string_of_int64 offs^"]");											
+                           let vfs = get_vfunc_set vi.vname ((Int64.to_int offs)+2) in
+                           List.iter (fun x -> report("VFUNC : "^x)) vfs;
+                           let fun_set = List.fold_right (fun x y -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> report("UNDEF : "^x);y ) vfs (ArgSet.bot ()) in
+                           let set = ArgSet.join fun_set s in 
+                           assign_to_lval fs lval (fd, st, df) set must_assign											 
+											| _ -> no_vtbl                
 									else
 										  match exp with
                     (*Lval(Mem(IndexPI(Lval(Var(llvm_cbe_tmp__8, NoOffset)), Const(Int64(1,long long,None))), NoOffset))*)
@@ -949,12 +968,12 @@ struct
 													begin
 														let vtn = gen_vtbl_name (sprint 160 (d_type () tp)) in
                             let vfs = get_vfunc_set vtn ((Int64.to_int offs)+1) in
-                            (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
-														let fun_set = List.fold_right (fun x y -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) vfs (ArgSet.bot ()) in
+                            List.iter (fun x -> report("VFUNC : "^x)) vfs;
+														let fun_set = List.fold_right (fun x y -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> report("UNDEF : "^x);y ) vfs (ArgSet.bot ()) in
 														let set = ArgSet.join fun_set s in 
 														assign_to_lval fs lval (fd, st, df) set must_assign
 														(*no_vtbl*)
-													end														  
+													end	
 												| _ -> no_vtbl
                 end
 								else
@@ -1018,6 +1037,7 @@ struct
            Hashtbl.replace ht c (n::cb)
     with e->Hashtbl.add ht c [n]
 		
+  let filter_vtbl  = Str.regexp "^_ZTV.*"		
 				
 	let add_func_ptr f (fd,st,gd) = 
 	   try 

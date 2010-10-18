@@ -23,15 +23,28 @@
 	"Log" : ["field3","field7","field8"],
 	"FSM" : ["_vptr$FSM"]
 	},
+	"private_vars":
+	{
+	"__normal_iterator" : ["field1"],
+	"Log" : ["field1","field2","field4","field5","field6","field9","field10","field11","field12","field13","field14","field15","field16","field17","field18"],
+	"Test2" : ["field1"],
+	"CBaseFSM" : ["field1"],
+	"UecFSMImpl" : ["field1","field2"],
+	"FSM" : ["field2"],
+	"basic_string" : ["field1"],
+	"UecManagerBase" : ["field1"],
+	"UES" : ["field1","field2","field3","field4","field5","field6","field7","field8","field9","field10","field11"],
+	"SubUES_X" : ["field1"]
+	},
 	"public_methods":
 	{
 	"allocator" : ["allocator","~allocator"],
 	"Log" : ["Test","doLog","Log","test_cycle","call_fp","get_priv_fun"],
 	"CBaseFSM" : ["CBaseFSM"],
-	"FSM" : ["FakeFun","ReceiveEvent","Virt","FSM"],
+	"FSM" : ["FakeFun","ReceiveEvent","Virt","FSM","~FSM"],
 	"new_allocator" : ["new_allocator","~new_allocator","address","allocate","deallocate","max_size","construct","destroy"],
 	"Dummy" : ["Dummy"],
-	"UES" : ["UES","~UES","Entry","RetTest7","RetTest1","RetTest2","RetTest3","RetTest4","RetTest5","InsertGlobalData","ReceiveEvent"],
+	"UES" : ["UES","Kill","~UES","Entry","RetTest7","RetTest1","RetTest2","RetTest3","RetTest4","RetTest5","InsertGlobalData","ReceiveEvent"],
 	"SubUES_X" : ["SubUES_X","ADD","~SubUES_X","ReceiveEvent"],
 	"__normal_iterator" : ["__normal_iterator","operator*","operator->","operator++","operator--","operator[]","operator+=","operator+","operator-=","operator-","base"],
 	"Test2" : ["Test2"],
@@ -64,7 +77,7 @@
 	{
 	"_ZTV3UES" : ["_ZTI3UES","_ZN3FSM7FakeFunEP9UEC_Event","_ZN3UES12ReceiveEventEP9UEC_Event","_ZN3FSM4VirtEv","_ZN3UESD1Ev","_ZN3UESD0Ev"],
 	"_ZTV8SubUES_X" : ["_ZTI8SubUES_X","_ZN3FSM7FakeFunEP9UEC_Event","_ZN8SubUES_X12ReceiveEventEP9UEC_Event","_ZN3FSM4VirtEv","_ZN8SubUES_XD1Ev","_ZN8SubUES_XD0Ev"],
-	"_ZTV3FSM" : ["_ZTI3FSM","_ZN3FSM7FakeFunEP9UEC_Event","__cxa_pure_virtual","_ZN3FSM4VirtEv"]
+	"_ZTV3FSM" : ["_ZTI3FSM","_ZN3FSM7FakeFunEP9UEC_Event","__cxa_pure_virtual","_ZN3FSM4VirtEv","_ZN3FSMD1Ev","_ZN3FSMD0Ev"]
 	},
 	"friends":
 	{

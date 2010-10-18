@@ -92,6 +92,7 @@ struct
       let inhr_tbl = make_table (objekt (Json_io.load_json f)) in
       List.iter add_inh_entry (objekt (field inhr_tbl "inheritance"));
       List.iter (add_htbl Dom.public_vars) (objekt (field inhr_tbl "public_vars"));
+      List.iter (add_htbl Dom.private_vars) (objekt (field inhr_tbl "private_vars"));
       List.iter (add_htbl Dom.public_methods) (objekt (field inhr_tbl "public_methods"));
       List.iter (add_htbl Dom.private_methods) (objekt (field inhr_tbl "private_methods"));			
       List.iter (add_htbl Dom.friends) (objekt (field inhr_tbl "friends"));
@@ -178,6 +179,9 @@ struct
     
 					
   let is_private f =
+    if (Str.string_match Dom.filter_vtbl f.vname 0) then (*filter vtbls!*)
+        false
+    else
 		let no_mainclass = 
       match GU.get_class f.vname with
         | Some x -> Dom.isnot_mainclass x
@@ -259,7 +263,7 @@ struct
       let vars = Dom.get_vars rval in
 			let extract_funs ds =
 				if not (ContainDomain.ArgSet.is_bot ds) then
-					ContainDomain.ArgSet.fold (fun x y -> if not (is_ext (FieldVars.get_var x).vname) then (FieldVars.get_var x)::y else y ) ds []
+					ContainDomain.ArgSet.fold (fun x y -> if not (is_ext (FieldVars.get_var x).vname) && not (Str.string_match Dom.filter_vtbl (FieldVars.get_var x).vname 0) then (FieldVars.get_var x)::y else y ) ds []
 				else
 					[] 
 			in
