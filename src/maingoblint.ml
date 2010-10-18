@@ -119,6 +119,7 @@ let main () =
                  ("--no", Arg.String (set_feature false), "<name>  Disables features:" ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList^".");
                  ("--context", Arg.String (set_context true), "<name>  Enables context sensitivity on a feature.");
                  ("--no-context", Arg.String (set_context false), "<name>  Disables context sensitivity on a feature.");
+                 ("--type-inv", Arg.Bool ((:=) GU.use_type_invariants), "<bool>  Should we use type invariants?");
                  ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");

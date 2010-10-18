@@ -257,6 +257,9 @@ let current_loc = ref locUnknown
 let global_initialization = ref false 
 (** A hack to see if we are currently doing global inits *)
 
+let use_type_invariants = ref false 
+(** Use type invariants. *)
+
 let solver = ref (string (field !conf "solver"))
 
 let escape (x:string):string =

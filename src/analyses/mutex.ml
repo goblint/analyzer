@@ -90,16 +90,16 @@ struct
     M.warn "Access to unknown address could be global"
   
   let access_address ask regs write lv : accesses =
+    let add_reg (v,o) = 
+      Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
+    in 
     match ask (Queries.MayPointTo (mkAddrOf lv)) with
       | `LvalSet a when not (Queries.LS.is_top a) -> 
           let to_accs (v,o) xs = 
-            Concrete (Some (Lval lv), v, Offs.from_offset (conv_offset o), write) :: xs  
+            Concrete (Some (Lval lv), v, Offs.from_offset (conv_offset o), write) :: List.map add_reg regs @ xs  
           in
           Queries.LS.fold to_accs a []
       | _ ->         
-          let add_reg (v,o) = 
-            Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
-          in 
           if List.length regs = 0 
           then [Unknown (Lval lv,write)]
           else List.map add_reg regs
@@ -342,7 +342,42 @@ struct
       let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
       Acc.replace acc v neww;
       accKeys := AccKeySet.add v !accKeys
-  
+      
+   
+  let struct_type_inv (v:varinfo) (o:Offs.t) : (Cil.varinfo * Offs.t) option =
+    let rec append os = function
+      | `NoOffset    -> os
+      | `Field (f,o) -> `Field (f,append o os)
+      | `Index (i,o) -> `Index (i,append o os)
+    in
+    let replace_struct t (v,o) = 
+        begin match t with
+          | TComp (c,_) when c.cstruct -> 
+              begin match type_inv c with
+                | [(v,_)] -> (v,`NoOffset)
+                | _   -> (v,o)
+              end
+          | _ -> (v,o)
+        end
+    in
+    let rec get_lv t (v,u) = function
+      | `NoOffset    -> (v,u)
+      | `Field (f,o) -> get_lv f.ftype (replace_struct f.ftype (v, append (`Field (f,`NoOffset)) u)) o
+      | `Index (i,o) -> 
+        begin match unrollType t with
+          | TPtr (t,_)     -> get_lv t (replace_struct t (v, append (`Index (i,`NoOffset)) u)) o
+          | TArray (t,_,_) -> get_lv t (replace_struct t (v, append (`Index (i,`NoOffset)) u)) o
+          | _ -> raise Not_found
+        end
+    in
+    match Offs.to_offset o with
+      | [o] -> 
+          begin try 
+            let a,b = (get_lv (v.vtype) (replace_struct v.vtype (v,`NoOffset)) o) in
+            Some (a, Offs.from_offset b)
+          with Not_found -> None end
+      | _ -> None     
+
   (* Try to add symbolic locks --- returns [false] on failure.*)
   let rec add_per_element_access ask loc ust (e,rw:exp * bool) =
     let query_lv exp ci =
@@ -425,6 +460,10 @@ struct
          Queries.ES.fold (fun x xs -> xs || do_lockstep x) matching_exps false
       || Queries.ES.fold (fun x xs -> xs || do_perel x) matching_exps false
         
+  and add_type ask ust ti rw =
+    let accs = access_one_byval ask rw (mkAddrOf (mkMem ti NoOffset)) in
+    add_accesses ask accs ust
+  
   (* All else must have failed --- making a last ditch effort to generate type 
       invariant if that fails then give up and become unsound. *)
   and add_type_access ask loc ust (e,rw:exp * bool) =
@@ -437,9 +476,7 @@ struct
     in
       match best_type_inv eqset with
         | None -> unknown_access ()
-        | Some ti -> 
-          let accs = access_one_byval ask rw (mkAddrOf (mkMem ti NoOffset)) in
-          add_accesses ask accs ust
+        | Some ti -> add_type ask ust ti rw
     
   (** Function [add_accesses accs st] fills the hash-map [acc] *)
   and add_accesses ask (accessed: accesses) (ust:Dom.t) = 
@@ -454,11 +491,16 @@ struct
         let loc = !GU.current_loc in
         let dispatch ax =
           match ax with
-            | Concrete (Some e,v,o,rw) -> 
-                if   not (add_per_element_access ask loc ust (e,rw)) 
-                then add_concrete_access ask fl loc ust (v,o,rw)
-            | Concrete (None,v,o,rw) -> 
-                add_concrete_access ask fl loc ust (v,o,rw)
+            | Concrete (me,v,o,rw) ->
+                begin match me, struct_type_inv v o with 
+                  | _, Some (v,o) when !GU.use_type_invariants ->
+                      add_concrete_access ask fl loc ust (v,o,rw)
+                  | Some e,_ -> 
+                      if   not (add_per_element_access ask loc ust (e,rw)) 
+                      then add_concrete_access ask fl loc ust (v,o,rw)
+                  | None,_ -> 
+                      add_concrete_access ask fl loc ust (v,o,rw)
+                end
             | Region (Some e,v,o,rw) -> 
                 if   not (add_per_element_access ask loc ust (e,rw)) 
                 then add_concrete_access ask fl loc ust (v,o,rw)
