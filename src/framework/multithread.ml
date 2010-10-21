@@ -74,7 +74,7 @@ struct
       *)
     let proc_call sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.diff * Solver.variable list =
       let forks = ref [] in
-      let add_var v d = forks := (v,d) :: !forks in
+      let add_var v d = if v.vname <> !GU.mainfun then forks := (v,d) :: !forks in
       let funs  = Spec.eval_funvar (A.context top_query st theta [] add_var) exp in
       let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
       let start_vals : Solver.diff ref = ref [] in
@@ -247,6 +247,7 @@ struct
 
     let startvars = match !GU.has_main, funs with 
       | true, f :: fs -> 
+          GU.mainfun := f.svar.vname;
           let nonf_fs = List.filter (fun x -> x.svar.vid <> f.svar.vid) fs in
           (f.svar, startstate) :: List.map with_ostartstate nonf_fs
       | _ ->

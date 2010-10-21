@@ -653,7 +653,7 @@ struct
     in
     begin match rval_val, lval_val with
       | `Address adrs, lval
-        when not !GU.global_initialization && !GU.kernel && not_local lval && not (AD.is_top adrs) ->
+        when (not !GU.global_initialization) && !GU.kernel && not_local lval && not (AD.is_top adrs) ->
           let find_fps e xs = Addr.to_var_must e @ xs in
           let vars = AD.fold find_fps adrs [] in
           let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
