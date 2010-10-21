@@ -28,7 +28,7 @@ PROG_MODULES = \
 	goblintutil messages printer cilfacade xmldump \
 	printable lattice setDomain mapDomain osektupel\
 	basetype intDomain lval exp queries addressDomain partitionDomain \
-	arrayDomain structDomain unionDomain valueDomain memoryDomain \
+	arrayDomain listDomain structDomain unionDomain valueDomain memoryDomain \
 	musteqDomain regionDomain concDomain lockDomain  baseDomain escapeDomain \
 	accessDomain containDomain hash progress myCFG analyses libraryFunctions global cache \
 	solver effectWCon effectWNCon solverConSideRR solverConSideWNRR \

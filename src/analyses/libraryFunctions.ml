@@ -371,6 +371,7 @@ let invalidate_actions = [
   ("__spin_lock_init", writes [1]);
   ("kmem_cache_create", readsAll);
   ("pthread_create", writes [1]);
+  ("__builtin_prefetch", readsAll);
 ]
 
 (* used by get_invalidate_action to make sure
@@ -401,6 +402,7 @@ let use_special fn_name =
     | "__raw_read_unlock"
     | "__raw_write_unlock" 
     | "spinlock_check"
-    | "spin_unlock_irqrestore"
-        -> true
+    | "spin_unlock_irqrestore" -> true
+    | "list_add" when !Goblintutil.use_list_type -> true
+    | "list_del" when !Goblintutil.use_list_type -> true
     | _ -> false

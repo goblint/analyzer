@@ -260,6 +260,9 @@ let global_initialization = ref false
 let use_type_invariants = ref false 
 (** Use type invariants. *)
 
+let use_list_type = ref false 
+(** Use abstract list type instead of kernel struct list_head! *)
+
 let solver = ref (string (field !conf "solver"))
 
 let escape (x:string):string =

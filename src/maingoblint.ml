@@ -120,6 +120,7 @@ let main () =
                  ("--context", Arg.String (set_context true), "<name>  Enables context sensitivity on a feature.");
                  ("--no-context", Arg.String (set_context false), "<name>  Disables context sensitivity on a feature.");
                  ("--type-inv", Arg.Bool ((:=) GU.use_type_invariants), "<bool>  Should we use type invariants?");
+                 ("--list-type", Arg.Bool ((:=) GU.use_list_type), "<bool>  Should we use list types?");
                  ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");

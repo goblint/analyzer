@@ -16,7 +16,7 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: t -> offs -> t
+  val eval_offset: (AD.t -> t) -> t -> offs -> t
   val update_offset: t -> offs -> t -> t
 end
 
@@ -46,6 +46,7 @@ module rec Compound: S with type t = [
     | `Union of Unions.t
     | `Array of CArrays.t
     | `Blob of Blobs.t
+    | `List of Lists.t
     | `Bot
     ] and type offs = (fieldinfo,ID.t) Lval.offs = 
 struct 
@@ -57,6 +58,7 @@ struct
     | `Union of Unions.t
     | `Array of CArrays.t
     | `Blob of Blobs.t
+    | `List of Lists.t
     | `Bot
     ]
 
@@ -104,6 +106,7 @@ struct
         | `Union _ -> 6
         | `Array _ -> 7
         | `Blob _ -> 9
+        | `List _ -> 10
         | `Top -> 100
     in match x,y with
       | `Int x, `Int y -> ID.compare x y
@@ -111,6 +114,7 @@ struct
       | `Struct x, `Struct y -> Structs.compare x y
       | `Union x, `Union y -> Unions.compare x y
       | `Array x, `Array y -> CArrays.compare x y
+      | `List x, `List y -> Lists.compare x y
       | `Blob x, `Blob y -> Blobs.compare x y
       | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
 
@@ -122,6 +126,7 @@ struct
       | `Union n ->  Unions.pretty () n
       | `Array n ->  CArrays.pretty () n
       | `Blob n ->  Blobs.pretty () n
+      | `List n ->  Lists.pretty () n
       | `Bot -> text bot_name
       | `Top -> text top_name
 
@@ -133,6 +138,7 @@ struct
       | `Union n ->  Unions.short w n
       | `Array n ->  CArrays.short w n
       | `Blob n ->  Blobs.short w n
+      | `List n ->  Lists.short w n
       | `Bot -> bot_name
       | `Top -> top_name
 
@@ -143,6 +149,7 @@ struct
       | `Struct n ->  Structs.isSimple n
       | `Union n ->  Unions.isSimple n
       | `Array n ->  CArrays.isSimple n
+      | `List n ->  Lists.isSimple n
       | `Blob n ->  Blobs.isSimple n
       | _ -> true
 
@@ -155,6 +162,7 @@ struct
       | `Array n -> CArrays.toXML n
           (* let (node, attr, children) = Base.toXML n in (node, ("lifted", !liftname)::attr, children) *)
       | `Blob n -> Blobs.toXML n
+      | `List n -> Lists.toXML n
       | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
       | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
 
@@ -167,6 +175,7 @@ struct
       | (`Struct x, `Struct y) -> Structs.why_not_leq () (x,y)
       | (`Union x, `Union y) -> Unions.why_not_leq () (x,y)
       | (`Array x, `Array y) -> CArrays.why_not_leq () (x,y)
+      | (`List x, `List y) -> Lists.why_not_leq () (x,y)
       | (`Blob x, `Blob y) -> Blobs.why_not_leq () (x,y)
       | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
 
@@ -181,6 +190,7 @@ struct
       | (`Struct x, `Struct y) -> Structs.leq x y
       | (`Union x, `Union y) -> Unions.leq x y
       | (`Array x, `Array y) -> CArrays.leq x y
+      | (`List x, `List y) -> Lists.leq x y
       | (`Blob x, `Blob y) -> Blobs.leq x y
       | _ -> false
 
@@ -195,6 +205,7 @@ struct
       | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
       | (`Union x, `Union y) -> `Union (Unions.join x y) 
       | (`Array x, `Array y) -> `Array (CArrays.join x y) 
+      | (`List x, `List y) -> `List (Lists.join x y) 
       | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) 
       | _ -> `Top
 
@@ -209,6 +220,7 @@ struct
       | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
       | (`Union x, `Union y) -> `Union (Unions.meet x y)
       | (`Array x, `Array y) -> `Array (CArrays.meet x y)
+      | (`List x, `List y) -> `List (Lists.meet x y)
       | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
       | _ -> `Bot
 
@@ -223,6 +235,7 @@ struct
       | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
       | (`Union x, `Union y) -> `Union (Unions.widen x y) 
       | (`Array x, `Array y) -> `Array (CArrays.widen x y) 
+      | (`List x, `List y) -> `List (Lists.widen x y) 
       | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) 
       | _ -> `Top    
 
@@ -233,6 +246,7 @@ struct
       | (`Struct x, `Struct y) -> `Struct (Structs.narrow x y)
       | (`Union x, `Union y) -> `Union (Unions.narrow x y) 
       | (`Array x, `Array y) -> `Array (CArrays.narrow x y) 
+      | (`List x, `List y) -> `List (Lists.narrow x y) 
       | (`Blob x, `Blob y) -> `Blob (Blobs.narrow x y) 
       | (x,_) -> x
 
@@ -247,7 +261,7 @@ struct
       | _ -> top ()
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset (x: t) (offs:offs): t =
+  let rec eval_offset f (x: t) (offs:offs): t =
     match offs with
       | `NoOffset -> begin 
           match x with
@@ -256,9 +270,17 @@ struct
         end
       | `Field (fld, offs) when fld.fcomp.cstruct -> begin
           match x with 
+            | `List ls when fld.fname = "next" || fld.fname = "prev" ->
+              `Address (Lists.entry_rand ls)
+            | `Address ad when fld.fcomp.cname = "list_head" || fld.fname = "next" || fld.fname = "prev" ->
+              (*hack for lists*)
+              begin match f ad with
+                | `List l -> `Address (Lists.entry_rand l)
+                | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
+              end
             | `Struct str -> 
                 let x = Structs.get str fld in
-                  eval_offset x offs
+                  eval_offset f x offs
             | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
             | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
         end
@@ -266,16 +288,17 @@ struct
           match x with 
             | `Union (`Lifted l_fld, valu) -> 
                 let x = do_cast l_fld.ftype fld.ftype valu in
-                  eval_offset x offs
+                  eval_offset f x offs
             | `Union (_, valu) -> top ()
             | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
             | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
         end
       | `Index (idx, offs) -> begin
           match x with 
-            | `Array x -> eval_offset (CArrays.get x idx) offs
+            | `Array x -> eval_offset f (CArrays.get x idx) offs
+            | x when ID.to_int idx = Some 0L -> eval_offset f x offs
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn "Trying to update an index, but was not given an array"; top ()
+            | _ -> M.warn ("Trying to read an index, but was not given an array"); top ()
         end
 
   let rec update_offset (x:t) (offs:offs) (value:t): t =
@@ -330,6 +353,7 @@ struct
             | `Array x' ->
                 let nval = update_offset (CArrays.get x' idx) offs value in
                   `Array (CArrays.set x' idx nval)
+            | x when ID.to_int idx = Some 0L -> update_offset x offs value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | _ -> M.warn_each "Trying to update an index, but was not given an array"; top ()
         end
@@ -345,4 +369,6 @@ and CArrays: ArrayDomain.S with type idx = ID.t and type value = Compound.t =
   ArrayDomain.Trivial (Compound) (ID) 
 
 and Blobs: Lattice.S with type t = Compound.t = Blob (Compound) 
+
+and Lists: ListDomain.S with type elem = AD.t = ListDomain.SimpleList (AD) 
 

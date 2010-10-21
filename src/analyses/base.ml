@@ -81,13 +81,13 @@ struct
 
    (** [get st addr] returns the value corresponding to [addr] in [st] 
     *  adding proper dependencies *)
-   let get a (gs: glob_fun) (st,fl,gl: store) (addrs:address): value =
+   let rec get a (gs: glob_fun) (st,fl,gl: store) (addrs:address): value =
      if M.tracing then M.tracel "get" (dprintf "address: %a\nstate: %a" AD.pretty addrs CPA.pretty st);
      (* Finding a single varinfo*offset pair *)
      let f_addr (x, offs) = 
        (* get hold of the variable value, either from local or global state *)
        let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then gs x else CPA.find x st in
-       VD.eval_offset var offs    in 
+       VD.eval_offset (get a gs (st,fl,gl)) var offs    in 
      let f x =
        match Addr.to_var_offset x with
        | [x] -> f_addr x                    (* norml reference *)
@@ -594,6 +594,7 @@ struct
            | `Union n ->  ValueDomain.Unions.is_bot n
            | `Array n ->  ValueDomain.CArrays.is_bot n
            | `Blob n ->  ValueDomain.Blobs.is_bot n
+           | `List n ->  ValueDomain.Lists.is_bot n
            | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast approprietly) *)
            | `Top -> false
        in
@@ -622,7 +623,24 @@ struct
   * Simple defs for the transfer functions 
   **************************************************************************)
 
-  let assign ctx lval rval  = 
+  let assign ctx (lval:lval) (rval:exp)  = 
+    let is_list_init () =
+      match lval, rval with
+      | (Var a, Field (fi,NoOffset)), AddrOf((Var b, NoOffset)) 
+          when !GU.global_initialization && a.vid = b.vid 
+            && fi.fcomp.cname = "list_head" 
+            && (fi.fname = "prev" || fi.fname = "next")
+          -> Some a
+      | _ -> None
+    in
+    match is_list_init () with
+      | Some a when !GU.use_list_type -> 
+          begin 
+            set ctx.ask ctx.global ctx.local 
+                (AD.singleton (Addr.from_var a)) 
+                (`List (ValueDomain.Lists.bot ()))
+          end
+      | _ -> 
     let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
     let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
     let not_local xs = 
@@ -734,6 +752,7 @@ struct
           * join all its values. *)
          | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (ID.top ()))
          | `Blob e -> reachable_from_value e
+         | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
          | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD. join (reachable_from_value v) acc) s empty
          | `Int _ -> empty
      in
@@ -904,7 +923,8 @@ struct
     let g a acc = try 
       let r = f a in r :: acc 
     with 
-      | Not_found -> acc 
+      | Not_found 
+      | Failure "hd" -> acc
       | x -> M.debug ("Ignoring exception: " ^ Printexc.to_string x); acc 
     in
       List.fold_right g flist [] 
@@ -978,6 +998,45 @@ struct
     let gs = ctx.global in
     let map_true x = x, (Cil.integer 1), true in
     match LF.classify f.vname args with 
+      | `Unknown "list_add" when !GU.use_list_type -> 
+          begin match args with
+            | [ AddrOf (Var elm,next);(AddrOf (Var lst,NoOffset))] -> 
+                begin
+                  let ladr = AD.singleton (Addr.from_var lst) in
+                  match get ctx.ask ctx.global ctx.local ladr with
+                    | `List ld ->
+                      let eadr = AD.singleton (Addr.from_var elm) in
+                      let eitemadr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
+                      let new_list = `List (ValueDomain.Lists.add eadr ld) in
+                      let s1 = set ctx.ask ctx.global ctx.local ladr new_list in
+                      let s2 = set ctx.ask ctx.global s1 eitemadr (`Address (AD.singleton (Addr.from_var lst))) in
+                      [map_true s2]
+                    | _ -> [map_true (set ctx.ask ctx.global ctx.local ladr `Top)]
+                end
+            | _ -> M.bailwith "List function arguments are strange/complicated."
+          end
+      | `Unknown "list_del" when !GU.use_list_type -> 
+          begin match args with
+            | [ AddrOf (Var elm,next) ] -> 
+                begin
+                  let eadr = AD.singleton (Addr.from_var elm) in
+                  let lptr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
+                  let lprt_val = get ctx.ask ctx.global ctx.local lptr in
+                  let lst_poison = `Address (AD.singleton (Addr.from_var ListDomain.list_poison)) in
+                  let s1 = set ctx.ask ctx.global ctx.local lptr (VD.join lprt_val lst_poison) in
+                  match get ctx.ask ctx.global ctx.local lptr with
+                    | `Address ladr ->
+                      begin match get ctx.ask ctx.global ctx.local ladr with
+                        | `List ld ->
+                          let del_ls = ValueDomain.Lists.del eadr ld in
+                          let s2 = set ctx.ask ctx.global s1 ladr (`List del_ls) in
+                          [map_true s2]
+                        | _ -> [map_true s1]
+                      end
+                    | _ -> [map_true s1]
+                end
+            | _ -> M.bailwith "List function arguments are strange/complicated."
+          end
       | `Unknown "exit" ->  raise Deadcode
       | `Unknown "abort" -> raise Deadcode
       | `Unknown "spinlock_check" -> 
