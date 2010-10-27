@@ -240,7 +240,7 @@ struct
       if !GU.verbose then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file in
     let funs = 
-      if !GU.kernel && !GU.nonstatic 
+      if !GU.kernel
       then funs@more_funs
       else funs in
     let with_ostartstate x = x.svar, SD.lift (Spec.otherstate ()) in
