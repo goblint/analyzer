@@ -39,7 +39,9 @@ let main () =
   let add_exitfun f = GU.exitfun := f :: !GU.exitfun in
   let setcil path = cilout := open_out path in
   let analyzer str = (*legacy: use .json, --with and --no instead *)
-      MCP.Analysis.analyze   
+      match str with
+	| "containment" -> Contain.Analysis.analyze
+ 	| _ -> MCP.Analysis.analyze   
   in
   let analyze = ref (analyzer (JB.string (JB.field !GU.conf "analysis"))) in
   let oil file = (*GU.allfuns := true;*) GU.oil := true; GU.conf_osek (); Osek.Spec.oilFile := file in

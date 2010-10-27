@@ -658,6 +658,8 @@ struct
   let otherstate () = Dom.bot ()  
 end
 
+module Analysis = Multithread.Forward (Spec)
+
 module ContainmentMCP = 
   MCP.ConvertToMCPPart
         (Spec)
