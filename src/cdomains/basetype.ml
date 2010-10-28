@@ -321,7 +321,7 @@ struct
 										else
 											cmp										  
 	
-  let hash x = Hashtbl.hash ((get_var x).vname^"("^string_of_int (get_var x).vid ^")"^(apply_field (fun x->"::"^x.fname) "" x))	             
+  let hash x = Hashtbl.hash ((get_var x).vid,(apply_field (fun x->"::"^x.fname) "" x))	             
 								
   let toXML_f sf x = 
     let esc = Goblintutil.escape in

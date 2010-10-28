@@ -4,14 +4,97 @@ open Pretty
 let this_name = "llvm_cbe_this"
 
 module Var = Basetype.Variables
-module Field = Basetype.CilField 
-module FieldVars = Basetype.FieldVariables
+module Field = Basetype.CilField
+
+let fields : (string, string list) Hashtbl.t = Hashtbl.create 111  
+
+
+let filter_type  = Str.regexp "^struct l_class_OC_\\([^,^)]*_KD__KD_\\)*\\([^ ^*]*\\).*"
+
+let split s p = List.rev (Str.split (Str.regexp_string p) s)
+        
+(*string_of_int64 offs^" type: "^*)
+let gen_class s = 
+    try
+      if Str.string_match filter_type s 0 then
+    begin
+        let ns = try (Str.matched_group 1 s) with _ -> "" in
+        let cls = (Str.matched_group 2 s) in
+            let nsl = split ns "_KD__KD_" in
+            let pn = List.fold_right (fun x y -> y^(string_of_int (String.length x))^x) nsl "" in
+            let mangled_name = if String.length pn > 0 then
+            "_ZTVN"^pn^string_of_int (String.length cls)^cls^"E"
+            else
+            "_ZTV"^pn^string_of_int (String.length cls)^cls^"E"
+            in
+            match Goblintutil.get_class mangled_name with | Some x -> x | _ -> ""       
+    end
+    else
+    begin
+        ""
+  end
+  with _ -> ""
+            
+let report x = 
+    let loc = !Goblintutil.current_loc in
+      if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
+    Messages.report ("CW: "^x)          
+ 
+module FieldVars = 
+struct	
+	include Basetype.FieldVariables
+	
+	let lookup x = 
+		if has_field x then
+		begin
+    let cls = gen_class (sprint 160 (d_type () (get_var x).vtype)) in
+		(*printf "FIELD_VAR_LOOKUP : %s\n" cls;*)  		
+	  try 
+	    let sl = Hashtbl.find fields (apply_field (fun x->cls^"::"^x.fname) "" x) in
+			let res = List.hd sl in
+			(*report("FOUND : "^cls^"::"^res);*)
+			cls^"::"^res
+		with _ -> 
+			(apply_field (fun y->(*report("FAILED : "^cls^"::"^y.fname);*)
+		  (Goblintutil.demangle (get_var x).vname)^"::"^y.fname) "" x)
+		end
+		else Goblintutil.demangle (get_var x).vname
+				
+  let short _ x = lookup x  
+		
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x		
+														 
+end
+
+module PrettyField =
+struct
+    include Field
+			
+    let lookup x = 
+      let cls = gen_class (sprint 160 (d_type () (TComp (x.fcomp,[])) )) in
+        (*printf "FIELD_VAR_LOOKUP : %s\n" cls;*)       
+      try 
+        let sl = Hashtbl.find fields (cls^"::"^x.fname) in
+            let res = List.hd sl in
+            (*report("FOUND : "^cls^"::"^res);*)
+            cls^"::"^res
+      with _ -> 
+          (*report("FAILED : "^cls^"::"^x.fname);*)
+          short 0 x
+                
+  let short _ x = lookup x  
+        
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x     	
+	
+end
 
 module ArgSet = SetDomain.ToppedSet (FieldVars) (struct let topname = "all fieldvars" end) 
 
 (*module ArgSet = SetDomain.ToppedSet (Var) (struct let topname = "all args" end)*) 
 
-module FieldSet = SetDomain.ToppedSet (Field) (struct let topname = "all fields" end) 
+module FieldSet = SetDomain.ToppedSet (PrettyField) (struct let topname = "all fields" end) 
 
 module FuncName = 
 struct

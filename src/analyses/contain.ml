@@ -97,7 +97,8 @@ struct
       List.iter (add_htbl Dom.private_methods) (objekt (field inhr_tbl "private_methods"));			
       List.iter (add_htbl Dom.friends) (objekt (field inhr_tbl "friends"));
       List.iter (add_htbl_demangle Dom.vtbls) (objekt (field inhr_tbl "vtbls"));
-      List.iter (add_htbl Dom.derived) (objekt (field inhr_tbl "derived"));						
+      List.iter (add_htbl Dom.derived) (objekt (field inhr_tbl "derived"));     
+      List.iter (add_htbl ContainDomain.fields) (objekt (field inhr_tbl "fields"));     							
       Dom.inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !Dom.inc;
     with Json_error x -> 
         failwith ("Contaimnent analysis failed to read CXX.json: " ^ x)		
