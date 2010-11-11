@@ -10,6 +10,7 @@ analyses = [
 
 goblint = File.join(Dir.getwd,"goblint")
 fail "Please run script from goblint dir!" unless File.exist?(goblint)
+rev = `svn info`.grep(/Last Changed Rev: (.*)/) { |x| $1} 
 testresults = File.expand_path("tests/bench_result") + "/"
 bench = "../bench/"
 
@@ -38,7 +39,7 @@ end
 
 #Command line parameters
 
-timeout = 20
+timeout = 60
 timeout = ARGV[0].to_i unless ARGV[0].nil?
 only = ARGV[1] unless ARGV[1].nil?
 if only == "group" then
@@ -98,10 +99,22 @@ projects.each do |p|
     aparam = a[1]
     puts "  #{aname}"
     outfile = testresults + File.basename(filename,".c") + ".#{aname}.txt"
+    starttime = Time.now
     `timeout #{timeout} #{goblint} #{aparam} #{filename} #{p.params} --uncalled --stats --cilout /dev/null 1>#{outfile} 2>&1`
-    if $? != 0 then
+    status = $?
+    endtime   = Time.now
+    File.open(outfile, "a") do |f|
+      f.puts "\n=== APPENDED BY BENCHMARKING SCRIPT ==="
+      f.puts "Analysis began: #{starttime}"
+      f.puts "Analysis ended: #{endtime}"
+      f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
+      f.puts "SVN info: r#{rev}"
+    end
+    if status != 0 then
       puts "  Timed out! (or other failure)"
-      `echo "TIMEOUT                    #{timeout} s" >> #{outfile}`
+      if status == 124 then
+        `echo "TIMEOUT                    #{timeout} s" >> #{outfile}`
+      end
       break
     end
   end
@@ -145,11 +158,10 @@ File.open(testresults + "index.html", "w") do |f|
           uncalled = lines.grep(/will never be called/).size
           res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
           if res == [] then
-            res = lines.grep(/^Timeout: aborting command/)
+            res = lines.grep(/TIMEOUT\s*(.*) s.*$/) { |x| $1 }
             if res == [] then
               f.puts "<td><a href = #{outfile}>failed</a></td>"
             else
-              res = lines.grep(/^TIMEOUT\s*(.*) s.*$/) { |x| $1 }
               f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
             end
           else
@@ -174,6 +186,8 @@ File.open(testresults + "index.html", "w") do |f|
     f.puts "</tr>"
   end
   f.puts "</table>"
+  f.puts "<p>Last updated: #{Time.now} <br />"
+  f.puts "SVN info: r#{rev}</p>"
   f.puts "</body>"
   f.puts "</html>"
 end
