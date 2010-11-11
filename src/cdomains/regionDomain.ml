@@ -121,7 +121,7 @@ struct
           replace x (BinOp (PlusA, Lval (Var y, NoOffset), c, typ)) st
       | _ -> kill x st
 
-  type eval_t = (bool * elt) option
+  type eval_t = (bool * elt * F.t) option
   let eval_exp exp: eval_t = 
     let rec eval_rval deref rval =
       match rval with
@@ -134,10 +134,13 @@ struct
         | _ -> None
     and eval_lval deref lval =
       match lval with 
-        | (Var x, offs) -> Some (deref, (x, F.listify offs))
-        | (Mem exp,  _) -> eval_rval true exp
+        | (Var x, offs) -> Some (deref, (x, F.listify offs), [])
+        | (Mem exp,offs) ->
+      match eval_rval true exp with
+        | Some (deref, v, _) -> Some (deref, v, F.listify offs)
+        | x -> x
     in
-      eval_rval false exp
+      eval_rval false exp 
 
   (* This is the main logic for dealing with the bullet and finding it an
    * owner... *)
@@ -159,7 +162,7 @@ struct
 (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
     if isPointerType (typeOf rval) then begin
       match eval_exp (Lval lval), eval_exp rval with
-        | Some (deref_x, x), Some (deref_y,y) ->
+        | Some (deref_x, x,_), Some (deref_y,y,_) ->
             if VF.equal x y then st else 
               let (p,m) = st in begin
                 match is_global x, deref_x, is_global y with
@@ -183,22 +186,27 @@ struct
         | _ -> st
     end else 
       match eval_exp (Lval lval) with 
-        | Some (false, (x,_)) -> remove x st
+        | Some (false, (x,_),_) -> remove x st
         | _ -> st
 
   let assign_bullet lval (p,m:t):t = 
     match eval_exp (Lval lval) with
-      | Some (_,x) -> p, RegMap.add x RS.single_bullet m
+      | Some (_,x,_) -> p, RegMap.add x RS.single_bullet m
       | _ -> p,m
 
-  let related_globals (deref_vfd: eval_t) (p,m: t): elt list = 
+  let related_globals (deref_vfd: eval_t) (p,m: t): elt list =
+    let add_o o2 (v,o) = (v,o@o2) in
     match deref_vfd with
-      | Some (true, vfd) -> RS.to_vf_list (
-          if is_global vfd then 
-            RegPart.find_class (VFB.of_vf vfd) p
-          else 
-            RegMap.find vfd m)
-      | Some (false, vfd) -> 
+      | Some (true, vfd, os) -> 
+          let vfd_class = 
+            if is_global vfd then 
+              RegPart.find_class (VFB.of_vf vfd) p
+            else 
+              RegMap.find vfd m
+          in
+(*           Messages.report ("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd)));  *)
+          List.map (add_o os) (RS.to_vf_list vfd_class)
+      | Some (false, vfd, os) -> 
           if is_global vfd then [vfd] else []
       | None -> Messages.warn "Access to unknown address could be global"; [] 
 end

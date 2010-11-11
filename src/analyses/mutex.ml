@@ -91,6 +91,7 @@ struct
   
   let access_address ask regs write lv : accesses =
     let add_reg (v,o) = 
+(*       Messages.report ("Region: "^(sprint 80 (d_lval () lv))^" = "^v.vname^(Offs.short 80 (Offs.from_offset (conv_offset o)))); *)
       Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
     in 
     match ask (Queries.MayPointTo (mkAddrOf lv)) with
@@ -131,10 +132,10 @@ struct
     let is_unknown x = match x with Unknown _ -> true | _ -> false in
     match a (Queries.Regions exp) with
       | `Bot -> 
-(*          Messages.report ((sprint 80 (d_exp () exp))^" is thread local");*)
+(*          Messages.report ((sprint 80 (d_exp () exp))^" is thread local"); *)
           List.filter is_unknown (accs [])
       | `LvalSet regs -> 
-(*          Messages.report ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs);*)
+(*           Messages.report ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs); *)
           accs (Queries.LS.elements regs)
       | _ -> accs []
   (* Accesses during the evaluation of an lval, not the lval itself! *)

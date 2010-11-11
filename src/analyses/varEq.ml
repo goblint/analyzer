@@ -461,6 +461,10 @@ struct
         in
         [Dom.fold remove_reachable1 ctx.local ctx.local, true_exp, true]
 
+  let safe_fn = function
+    | "memcpy" -> true
+    | _ -> false
+
   (* remove all variables that are reachable from arguments *)
   let special_fn ctx lval f args = 
     match f.vname with
@@ -469,6 +473,7 @@ struct
           | Some x -> [assign ctx x (List.hd args), Cil.integer 1, true]
           | None -> unknown_fn ctx lval f args
         end
+      | x when safe_fn x -> [ctx.local, Cil.integer 1, true]
       | _ -> unknown_fn ctx lval f args
   (* query stuff *)
     

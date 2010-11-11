@@ -76,14 +76,17 @@ struct
     match Exp.one_unknown_array_index exp with
       | Some (false, i, e) -> Dom.fold (lock_index i e) slocks (Queries.PS.empty ())
       | _ -> Queries.PS.empty ()
-      
+  
   let special_fn ctx lval f arglist = 
       match LF.classify f.vname arglist with
       | `Lock _ ->
           [Dom.add ctx.ask (List.hd arglist) ctx.local, integer 1, true]
       | `Unlock ->
           [Dom.remove ctx.ask (List.hd arglist) ctx.local, integer 1, true]
-      | x -> begin
+      | `Unknown fn when VarEq.safe_fn fn ->
+          Messages.warn ("Assume that "^fn^" does not change lockset.");
+          [ctx.local, integer 1, true]
+      | `Unknown x -> begin
           let st = 
             match lval with
               | Some lv -> invalidate_lval ctx.ask lv ctx.local
@@ -96,6 +99,8 @@ struct
           in
           [List.fold_left (fun st e -> invalidate_exp ctx.ask e st) st write_args, integer 1, true]
         end
+      | _ ->
+          [ctx.local, integer 1, true]
       
   (* Per-element returns a triple of exps, first are the "element" pointers, 
      in the second and third positions are the respectively access and mutex.
