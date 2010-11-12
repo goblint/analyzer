@@ -7,6 +7,7 @@ analyses = [
   ["region",    "--with region"],
   ["region_eq", "--with symb_locks --with var_eq --with region"]
 ]
+maxlen = analyses.map { |x| x[0].length }.max + 1
 
 goblint = File.join(Dir.getwd,"goblint")
 fail "Please run script from goblint dir!" unless File.exist?(goblint)
@@ -19,8 +20,9 @@ json   = File.join(Dir.getwd, "goblint.json")
 FileUtils.mv(json, backup) if File.exists?(json) 
 
 class Project
-  attr_reader :name, :group, :path, :params
-  def initialize(name, size, url, group, path, params)
+  attr_reader :id, :name, :group, :path, :params
+  def initialize(id, name, size, url, group, path, params)
+    @id       = id
     @name     = name
     @size     = size
     @url      = url
@@ -29,7 +31,7 @@ class Project
     @params   = params
   end
   def to_html
-    "<td><a href=\"#{@url}\">#{@name}</a></td>\n" + "<td>#{@size}</td>\n"
+    "<td>#{@id}</td><td><a href=\"#{@url}\">#{@name}</a></td>\n" + "<td>#{@size}</td>\n"
   end
   def to_s
     "#{@name}"
@@ -58,7 +60,7 @@ file = if FileTest.exists? "tests/mybench.txt"
        end
 
 File.open(file, "r") do |f|
-  i = 0
+  id = 0
   while line = f.gets
     next if line =~ /^\s*$/ 
     if line =~ /Group: (.*)/
@@ -72,7 +74,8 @@ File.open(file, "r") do |f|
     size = `wc -l #{path}`.split[0] + " lines"
     params = f.gets.chomp
     params = "" if params == "-"
-    p = Project.new(name,size,description,gname,path,params)
+    id += 1
+    p = Project.new(id,name,size,description,gname,path,params)
     projects << p
   end
 end
@@ -91,13 +94,14 @@ projects.each do |p|
   dirname = File.dirname(filepath)
   filename = File.basename(filepath)
   Dir.chdir(dirname)
-  outfiles = testresults + File.basename(filename,".c") + "*"
+  outfiles = testresults + File.basename(filename,".c") + ".*"
   `rm -f #{outfiles}`
-  puts "Analysing #{filename}"
+  puts "Analysing #{filename} (#{p.id}/#{projects.length})"
   analyses.each do |a|
     aname = a[0]
     aparam = a[1]
-    puts "  #{aname}"
+    print "  #{format("%*s", -maxlen, aname)}"
+    STDOUT.flush
     outfile = testresults + File.basename(filename,".c") + ".#{aname}.txt"
     starttime = Time.now
     cmd = "timeout #{timeout} #{goblint} #{aparam} #{filename} #{p.params} --uncalled --stats --cilout /dev/null 1>#{outfile} 2>&1"
@@ -112,11 +116,15 @@ projects.each do |p|
       f.puts "SVN info: r#{rev}"
     end
     if status != 0 then
-      puts "  Timed out! (or other failure)"
       if status == 124 then
+        puts "-- Timeout!"
         `echo "TIMEOUT                    #{timeout} s" >> #{outfile}`
+      else
+        puts "-- Failed!"
       end
       break
+    else
+      puts "-- Done!"
     end
   end
 end
@@ -128,7 +136,6 @@ File.open(testresults + "index.html", "w") do |f|
   f.puts "<body>"
   f.puts "<table border=2 cellpadding=4>"
   gname = ""
-  counter = 0
   projects.each do |p|
     if p.group != gname then
       gname = p.group
@@ -145,8 +152,6 @@ File.open(testresults + "index.html", "w") do |f|
 #       f.puts "<th>Compared to Trier</th>"
     end
     f.puts "<tr>"
-    counter = counter + 1
-    f.puts "<td>#{counter}</td>"
     f.puts p.to_html
     analyses.each do |a|
       aname = a[0]
