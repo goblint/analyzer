@@ -100,8 +100,9 @@ projects.each do |p|
     puts "  #{aname}"
     outfile = testresults + File.basename(filename,".c") + ".#{aname}.txt"
     starttime = Time.now
-    `timeout #{timeout} #{goblint} #{aparam} #{filename} #{p.params} --uncalled --stats --cilout /dev/null 1>#{outfile} 2>&1`
-    status = $?
+    cmd = "timeout #{timeout} #{goblint} #{aparam} #{filename} #{p.params} --uncalled --stats --cilout /dev/null 1>#{outfile} 2>&1"
+    system(cmd)
+    status = $?.exitstatus
     endtime   = Time.now
     File.open(outfile, "a") do |f|
       f.puts "\n=== APPENDED BY BENCHMARKING SCRIPT ==="
