@@ -130,7 +130,7 @@ let main () =
 		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed program");
                  ("--intrpts", Arg.Set GU.intrpts, " Enable constraints for interrupts.");
                  ("--timeout", Arg.Set_float max_time, " Maximal time for analysis. (0 -- no timeout)");
-                 ("--solver-progrss", Arg.Bool ((:=) GU.solver_progress), " <bool> Used for debugging. Prints out a symbol on solving a rhs.");
+                 ("--solver-progress", Arg.Bool ((:=) GU.solver_progress), " <bool> Used for debugging. Prints out a symbol on solving a rhs.");
                  ] in
   let jsonRegex = Str.regexp ".+\\.json$" in
   let recordFile fname = 

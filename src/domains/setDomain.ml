@@ -118,7 +118,8 @@ struct
     (List.length (elements x)) < 3
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
-    if leq x y then dprintf "%s: These are fine!" (name ()) else begin
+    if leq x y then dprintf "%s: These are fine!" (name ()) else 
+    if is_bot y then dprintf "%s: %a instead of bot" (name ()) pretty x else begin
       let evil = choose (diff x y) in
       let other = choose y in
       Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y
