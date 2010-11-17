@@ -263,6 +263,9 @@ let use_type_invariants = ref false
 let use_list_type = ref false 
 (** Use abstract list type instead of kernel struct list_head! *)
 
+let solver_progress = ref false 
+(** display a char for each processed rhs and each constraint *)
+
 let solver = ref (string (field !conf "solver"))
 
 let escape (x:string):string =
@@ -546,4 +549,25 @@ let demangle x =
   let y = to_name x in
 (*   Printf.printf "%s -> %s -> %s\n" x (show y) (name_to_string y);   *)
   let res=name_to_string y in
-	if res="??" then x else res
+  if res="??" then x else res
+
+let set_timer tsecs =
+  ignore (Unix.setitimer Unix.ITIMER_REAL
+                         { Unix.it_interval = 0.0; Unix.it_value = tsecs })
+
+exception Timeout
+
+let handle_sigalrm signo = raise Timeout
+
+let timeout f arg tsecs defaultval =
+  let oldsig = Sys.signal Sys.sigalrm (Sys.Signal_handle handle_sigalrm) in
+  try
+    set_timer tsecs;
+    let res = f arg in
+    set_timer 0.0;
+    Sys.set_signal Sys.sigalrm oldsig;
+    res
+  with Timeout ->
+    Sys.set_signal Sys.sigalrm oldsig;
+    defaultval
+

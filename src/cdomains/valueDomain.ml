@@ -168,15 +168,15 @@ struct
 
   let pretty () x = pretty_f short () x
   let toXML s = toXML_f short s
-  let why_not_leq () (x,y) = 
+  let pretty_diff () (x,y) = 
     match (x,y) with
-      | (`Int x, `Int y) -> ID.why_not_leq () (x,y)
-      | (`Address x, `Address y) -> AD.why_not_leq () (x,y)
-      | (`Struct x, `Struct y) -> Structs.why_not_leq () (x,y)
-      | (`Union x, `Union y) -> Unions.why_not_leq () (x,y)
-      | (`Array x, `Array y) -> CArrays.why_not_leq () (x,y)
-      | (`List x, `List y) -> Lists.why_not_leq () (x,y)
-      | (`Blob x, `Blob y) -> Blobs.why_not_leq () (x,y)
+      | (`Int x, `Int y) -> ID.pretty_diff () (x,y)
+      | (`Address x, `Address y) -> AD.pretty_diff () (x,y)
+      | (`Struct x, `Struct y) -> Structs.pretty_diff () (x,y)
+      | (`Union x, `Union y) -> Unions.pretty_diff () (x,y)
+      | (`Array x, `Array y) -> CArrays.pretty_diff () (x,y)
+      | (`List x, `List y) -> Lists.pretty_diff () (x,y)
+      | (`Blob x, `Blob y) -> Blobs.pretty_diff () (x,y)
       | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
 
   let leq x y =

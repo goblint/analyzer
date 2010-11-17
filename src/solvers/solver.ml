@@ -1,8 +1,19 @@
 
+module type RHS =
+sig
+  include Set.OrderedType
+  type domain
+  type codomain
+  val pretty : unit -> t -> Pretty.doc
+  val get_fun : t -> domain -> codomain
+end
+
 module Types
   (Var: Analyses.VarType) 
   (VDom: Lattice.S) 
-  (G: Global.S) = 
+  (G: Global.S) 
+  (Rhs: RHS with type domain   = (Var.t -> VDom.t) * (G.Var.t -> G.Val.t) 
+             and type codomain = VDom.t * ([`G of (G.Var.t * G.Val.t) | `L of (Var.t * VDom.t)] list) * Var.t list) = 
 struct
   module VMap = Hash.Make(Var)  
   module GMap = Hash.Make(G.Var)
@@ -15,7 +26,7 @@ struct
   type glob_diff   = (global * glob_domain) list
   type diff        = [`G of (global * glob_domain) | `L of (variable * var_domain)] list
   type calls       = variable list (* spawned calls from thread creation *)
-  type rhs         = var_assign * glob_assign -> var_domain * diff * calls
+  type rhs         = Rhs.t
   type lhs         = variable
   type constrain   = lhs * rhs  (* constraint is an OCaml keyword *)
   type system      = lhs -> rhs list (* a set of constraints for each variable *)
@@ -26,8 +37,8 @@ struct
     let correct = ref true in
     let complain_l (v: variable) lhs rhs = 
       correct := false; 
-      ignore (Pretty.printf "Unsatisfied constraint at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nReason: %a\n@]" 
-                Var.pretty_trace v VDom.pretty lhs VDom.pretty rhs VDom.why_not_leq (rhs,lhs))
+      ignore (Pretty.printf "Fixpoint not reached at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" 
+                Var.pretty_trace v VDom.pretty lhs VDom.pretty rhs VDom.pretty_diff (rhs,lhs))
     in
     let complain_g (g: global) lhs rhs = 
       correct := false; 
@@ -40,7 +51,7 @@ struct
       let verify_constraint rhs =
         let sigma' x = VMap.find sigma x in
         let theta' x = GMap.find theta x in
-        let (d,gs,s) = rhs (sigma',theta') in
+        let (d,gs,s) = Rhs.get_fun rhs (sigma',theta') in
         (* First check that each (global) delta is included in the (global)
          * invariant. *)
         let check_glob = function

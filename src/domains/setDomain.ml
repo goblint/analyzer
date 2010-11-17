@@ -117,12 +117,12 @@ struct
   let isSimple x = 
     (List.length (elements x)) < 3
 
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     if leq x y then dprintf "%s: These are fine!" (name ()) else begin
       let evil = choose (diff x y) in
       let other = choose y in
       Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y
-        Base.why_not_leq (evil,other)
+        Base.pretty_diff (evil,other)
     end
 end
 
@@ -141,7 +141,7 @@ struct
     let p (b1,u1) = exists (fun (b2,u2) -> User.equal u1 u2 && Base.leq b1 b2) s2 in
       for_all p s1
 
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let join s1 s2 = 
@@ -300,9 +300,9 @@ struct
   let leq = subset
   let join = union
   let meet = inter
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     match x,y with
-      | Set x, Set y -> S.why_not_leq () (x,y)
+      | Set x, Set y -> S.pretty_diff () (x,y)
       | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
@@ -316,9 +316,9 @@ struct
       | _, All -> true
       | All, _ -> false
 
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc =
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
-      | Set x, Set y -> S.why_not_leq () (x,y)
+      | Set x, Set y -> S.pretty_diff () (x,y)
       | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
@@ -346,7 +346,7 @@ struct
       content 
 
   let pretty () x = pretty_f short () x
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 

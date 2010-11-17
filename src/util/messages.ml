@@ -99,9 +99,9 @@ let warn_each msg =
 let debug msg =
   if !GU.debug then warn msg
 
-let trace = Trace.trace
-let tracei = Trace.tracei
-let traceu = Trace.traceu
+let trace n x = Trace.trace n (align++x++unalign)
+let tracei n x = Trace.tracei n (align++x++unalign)
+let traceu n x = Trace.traceu n (align++x++unalign)
 
 let tracel sys doc = 
   let loc = !current_loc in

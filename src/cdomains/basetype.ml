@@ -13,12 +13,12 @@ struct
   let compare x y = compare (x.file, x.line) (y.file, y.line)
   let hash x = Hashtbl.hash (x.line, x.file)
   let toXML_f _ x = Xml.Element ("Loc", [("file", x.file); ("line", string_of_int x.line)], [])
-  let short _ x = x.file ^ ":" ^ string_of_int x.line
+  let short _ x = Filename.basename x.file ^ ":" ^ string_of_int x.line
   let pretty_f sf () x = text (sf max_int x)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "proglines"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module ProgLinesFun: Printable.S with type t = location * fundec =
@@ -38,7 +38,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "proglinesfun"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module Variables = 
@@ -76,7 +76,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "variables"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 
@@ -115,7 +115,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "variables"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module RawStrings: Printable.S with type t = string = 
@@ -132,7 +132,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "raw strings"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
@@ -199,7 +199,7 @@ struct
     in
       constFold true (replace_rv e)
 
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilStmt: Printable.S with type t = stmt =
@@ -213,17 +213,17 @@ struct
   let hash x = Hashtbl.hash (x.sid)
   let short _ x = "<stmt>"
   let toXML_f _ x = Xml.Element ("Stmt", [("id", string_of_int x.sid); 
-					  ("sourcecode", Pretty.sprint ~width:0 (d_stmt () x))], [])
+					  ("sourcecode", Pretty.sprint ~width:0 (dn_stmt () x))], [])
   let pretty_f _ () x = 
     match x.skind with
-      | Instr (y::ys) -> d_instr () y
-      | If (exp,_,_,_) -> d_exp () exp
-      | _ -> d_stmt () x
+      | Instr (y::ys) -> dn_instr () y
+      | If (exp,_,_,_) -> dn_exp () exp
+      | _ -> dn_stmt () x
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "expressions"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilFun: Printable.S with type t = varinfo =
@@ -242,7 +242,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "functions"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilFundec =
@@ -261,7 +261,7 @@ struct
   let pretty () x = pretty_f short () x
   let name () = "function decs"
   let dummy = dummyFunDec
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilField =
@@ -283,7 +283,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "field"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module FieldVariables = 
@@ -351,7 +351,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "variables and fields"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 	
 end
 
@@ -372,5 +372,5 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "types"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end

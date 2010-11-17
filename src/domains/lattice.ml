@@ -99,8 +99,9 @@ struct
       | (_, `Bot) -> false
       | (`Lifted x, `Lifted y) -> Base.equal x y
 
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
-    Pretty.dprintf "%a not leq %a" pretty x pretty y
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
+    if leq x y then Pretty.text "No Changes" else
+    Pretty.dprintf "%a instead of %a" pretty x pretty y
 
   let join x y = 
     match (x,y) with 
@@ -139,10 +140,11 @@ struct
       | (_, `Bot) -> false
       | (`Lifted x, `Lifted y) -> Base.leq x y
 
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     match (x,y) with
-      | (`Lifted x, `Lifted y) -> Base.why_not_leq () (x,y)
-      | _ -> Pretty.dprintf "%a not leq %a" pretty x pretty y
+      | (`Lifted x, `Lifted y) -> Base.pretty_diff () (x,y)
+      | _ -> if leq x y then Pretty.text "No Changes" else
+             Pretty.dprintf "%a instead of %a" pretty x pretty y
 
   let join x y = 
     match (x,y) with 
@@ -193,8 +195,9 @@ struct
       | (`Lifted2 x, `Lifted2 y) -> Base2.leq x y
       | _ -> false
 
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
-    Pretty.dprintf "%a not leq %a" pretty x pretty y
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
+    if leq x y then Pretty.text "No Changes" else
+    Pretty.dprintf "%a instead of %a" pretty x pretty y
 
   let join x y = 
     match (x,y) with 
@@ -257,11 +260,11 @@ struct
 
   let leq (x1,x2) (y1,y2) = Base1.leq x1 y1 && Base2.leq x2 y2
 
-  let why_not_leq () ((x1,x2:t),(y1,y2:t)): Pretty.doc = 
+  let pretty_diff () ((x1,x2:t),(y1,y2:t)): Pretty.doc = 
     if Base1.leq x1 y1 then
-      Base2.why_not_leq () (x2,y2)
+      Base2.pretty_diff () (x2,y2)
     else 
-      Base1.why_not_leq () (x1,y1)
+      Base1.pretty_diff () (x1,y1)
 
   let op_scheme op1 op2 (x1,x2) (y1,y2): t = (op1 x1 y1, op2 x2 y2)
   let join = op_scheme Base1.join Base2.join
@@ -285,13 +288,13 @@ struct
 
   let leq (x1,x2,x3) (y1,y2,y3) = Base1.leq x1 y1 && Base2.leq x2 y2 && Base3.leq x3 y3
 
-  let why_not_leq () ((x1,x2,x3:t),(y1,y2,y3:t)): Pretty.doc = 
+  let pretty_diff () ((x1,x2,x3:t),(y1,y2,y3:t)): Pretty.doc = 
     if not (Base1.leq x1 y1) then
-      Base1.why_not_leq () (x1,y1)
+      Base1.pretty_diff () (x1,y1)
     else if not (Base2.leq x2 y2) then
-      Base2.why_not_leq () (x2,y2)
+      Base2.pretty_diff () (x2,y2)
     else 
-      Base3.why_not_leq () (x3,y3)
+      Base3.pretty_diff () (x3,y3)
 
   let op_scheme op1 op2 op3 (x1,x2,x3) (y1,y2,y3): t = (op1 x1 y1, op2 x2 y2, op3 x3 y3)
   let join = op_scheme Base1.join Base2.join Base3.join
@@ -319,8 +322,9 @@ struct
       | (_, `Bot) -> false
       | (`Lifted x, `Lifted y) -> Base.leq x y
 
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
-    Pretty.dprintf "%a not leq %a" pretty x pretty y
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
+    if leq x y then Pretty.text "No Changes" else
+    Pretty.dprintf "%a instead of %a" pretty x pretty y
 
   let join x y = 
     match (x,y) with 

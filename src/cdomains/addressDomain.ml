@@ -60,7 +60,7 @@ struct
         match x,y with
           | `NoOffset, `NoOffset -> true
           | `Index (_,x), `Index (_,y) -> same_offs x y
-          | `Field (f1,x), `Field (f2,y) when Util.equals f1 f2 -> same_offs x y
+          | `Field (f1,x), `Field (f2,y) when f1.fcomp.ckey=f2.fcomp.ckey && f1.fname=f2.fname -> same_offs x y
           | _ -> false
       in
         v1.vid = v2.vid && same_offs ofs1 ofs2
@@ -68,7 +68,7 @@ struct
     match Addr.to_var_offset x, Addr.to_var_offset y with
       | [x],[y]  -> same_mod_idx_addr x y
       | _ -> false
-(*
+
   let merge_idxs op (s:t) : t = 
     let rec f xs acc = 
       if is_empty xs then begin acc 
@@ -81,13 +81,13 @@ struct
     in 
       try f s (empty ()) with SetDomain.Unsupported _ -> top ()
 
-  let join (s1:t) (s2:t) = merge_idxs Idx.join  (join s1 s2)
+  let join (s1:t) (s2:t) = merge_idxs Idx.join  (join s1 s2) 
   let meet (s1:t) (s2:t) = merge_idxs Idx.meet  (meet s1 s2)
   let leq (s1:t) (s2:t) = match (s1,s2) with
     | _, All -> true
     | All, _ -> false
     | Set s1, Set s2 -> S.for_all (fun x -> S.exists (Addr.leq x) s2) s1
-*)
+
   let from_var x = singleton (Addr.from_var x)
   let from_var_offset x = singleton (Addr.from_var_offset x)
   let to_var_may x = List.concat (List.map Addr.to_var_may (elements x))

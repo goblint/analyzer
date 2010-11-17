@@ -212,8 +212,6 @@ struct
 		    ContainDomain.FuncNameSet.fold (fun a y -> y || cmp_svar a x) fns false		
 *)
   let body ctx (f:fundec) : Dom.t = (*return unchanged ctx to avoid reanalysis due to changed global*)
-    (*Dom.report("INIT BODY : "^f.svar.vname);*)
-    let time_wrapper dummy =
     let st = Dom.set_funname f ctx.local in
     (*printf "%s\n" ("body: "^f.svar.vname^" ig: "^string_of_bool (ignore_this st)^" pub "^string_of_bool (Dom.is_public_method st) );*)        
     (*Dom.report("CHECK BODY : "^f.svar.vname);*)
@@ -244,8 +242,6 @@ struct
 				end
 			end
     end
-    in 
-    time_transfer "body" time_wrapper
 		
     let check_vtbl (rval:exp) alld =
         let fd,st,gd=alld in
@@ -297,7 +293,6 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    let time_wrapper dummy =
     if danger_bot ctx then ctx.local else  
     if ignore_this ctx.local 
     then ctx.local 
@@ -322,11 +317,9 @@ struct
 			end
 			else nctx
     end 
-    in 
-    time_transfer "assign" time_wrapper
+
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
-    let time_wrapper dummy =
     if danger_bot ctx then ctx.local else  
     if ignore_this ctx.local then ctx.local else begin
       let fs = Dom.get_tainted_fields ctx.global in
@@ -338,11 +331,9 @@ struct
       Dom.warn_bad_dereference exp false ctx.local fs "branch";
       ctx.local
     end
-    in 
-    time_transfer "branch" time_wrapper
+
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    let time_wrapper dummy =
     if danger_bot ctx then Dom.remove_formals f ctx.local else  
     if ignore_this ctx.local
     then ctx.local 
@@ -400,8 +391,6 @@ struct
       if not allow_from_this then Dom.warn_bad_reachables ctx.ask arglist (not allow_from_this) (fn,st,gd) fs ("return statement of "^(GU.demangle f.svar.vname));
       Dom.remove_formals f (fn,st,gd)
     end 
-    in 
-    time_transfer "return" time_wrapper
   
   let eval_funvar ctx fval: varinfo list =
 		(*Dom.report (sprint 160 (d_exp () fval) );*)
@@ -548,7 +537,6 @@ struct
 	
 	(*let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list*)
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    let time_wrapper dummy =
     (*if Dom.is_top ctx.local then failwith "ARGH!";*)
     if danger_bot ctx then [ctx.local, ctx.local] else  
     if is_ext f.vname then
@@ -598,11 +586,9 @@ struct
       (*Dom.report ("DANGER : is_bot "^string_of_bool (Dom.Danger.is_bot st));*)
       [ctx.local, (f,st,gd)]
     end else [ctx.local, ctx.local]
-    in 
-    time_transfer "enter_func" time_wrapper
+
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-    let time_wrapper dummy =
 		if danger_bot ctx then ctx.local else  
     let a, b, c = ctx.local in
 		
@@ -652,8 +638,6 @@ struct
               a, b, c
         | None -> a, b, c
     end
-    in 
-    time_transfer "leave_func" time_wrapper
   
   let startstate () = Dom.bot ()
   let otherstate () = Dom.bot ()  

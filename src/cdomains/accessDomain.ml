@@ -101,7 +101,7 @@ struct
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)],[]) 
   let toXML = toXML_f (fun n x -> Goblintutil.escape (short n x))
   
-  let why_not_leq () (x,y) = 
+  let pretty_diff () (x,y) = 
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
     
   let top ()   = Some (Base None)
@@ -359,7 +359,7 @@ struct
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)],[]) 
   let toXML = toXML_f (fun n x -> Goblintutil.escape (short n x))
   
-  let why_not_leq () (x,y) = 
+  let pretty_diff () (x,y) = 
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let guaranteed_local ask x =

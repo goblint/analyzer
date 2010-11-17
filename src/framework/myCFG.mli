@@ -12,6 +12,8 @@ type node =
   * the function node as last node that all the returning nodes point to.  So
   * the result of the function call is contained in the fucntion node. *)
 
+val pretty_node : unit -> node -> Pretty.doc
+
 module Node : Hashtbl.HashedType with type t = node
 (** The HashedType module for nodes *)
 
@@ -40,6 +42,8 @@ type edge =
   (** This is here for historical reasons. I never use Skip edges! *)
   | SelfLoop 
   (** This for interrupt edges.! *)
+
+val pretty_edge : unit -> edge -> Pretty.doc
 
 type cfg = node -> (edge * node) list
 (** The control flow graph is a function that for each node returns the set of

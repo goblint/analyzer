@@ -69,6 +69,7 @@ sig
   include Hashtbl.HashedType
   val pretty_trace: unit -> t -> doc
   val compare : t -> t -> int
+  val category : t -> int
 end
 
 module type Spec = 
@@ -145,6 +146,65 @@ sig
   (** Transfer function for interrupts. *)
 end
 
+module StatsTrace (D : Spec) = 
+struct
+  let time_f n f =
+    let padr n s : string = 
+      let len = String.length s in
+      if len > n then s else 
+        let res = String.create n in
+        String.blit s 0 res 0 len;
+        String.fill res len (n-len) ' '; 
+        res
+    in      
+    if !GU.debug then Stats.time (padr 50 (D.name^" ⇢ "^n)) f
+        else f
+  
+  module Dom = 
+  struct
+    include D.Dom
+    
+    let join x y = time_f "Dom ↣ join" (join x) y
+    let meet x y = time_f "Dom ↣ meet" (meet x) y
+    let leq x y = time_f "Dom ↣ leq" (leq x) y
+  end       
+
+  module Glob = D.Glob
+    
+  let name         = D.name
+  let init         = D.init
+  let finalize     = D.finalize
+  let context_top  = D.context_top
+  let should_join  = D.should_join
+  let startstate   = D.startstate
+  let otherstate   = D.otherstate
+  let es_to_string = D.es_to_string
+  let reset_diff   = D.reset_diff 
+  let get_diff     = D.get_diff  
+  let query        = D.query 
+  let assign       = D.assign
+  let branch       = D.branch
+  let body         = D.body  
+  let return       = D.return
+  let eval_funvar  = D.eval_funvar   
+  let special_fn   = D.special_fn 
+  let enter_func   = D.enter_func 
+  let leave_func   = D.leave_func 
+  let intrpt       = D.intrpt
+  
+  
+  (* transfer functions *)
+  let assign ctx lval rval = time_f "assign" (assign ctx lval) rval  
+  let branch ctx exp tv = time_f "branch" (branch ctx exp) tv 
+  let body ctx fundec = time_f "body" (body ctx) fundec
+  let return ctx exp f = time_f "return" (return ctx exp) f  
+  let enter_func ctx lval f args = time_f "enter_func" (enter_func ctx lval f) args  
+  let leave_func ctx lval fexp f args au = time_f "leave_func" (leave_func ctx lval fexp f args) au  
+  let special_fn ctx lval f arglist = time_f "special_fn" (special_fn ctx lval f) arglist
+
+end
+
+
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
@@ -182,6 +242,11 @@ module VarF (LD: Printable.S) =
 struct
   type t = MyCFG.node * LD.t
 
+  let category = function
+    | (MyCFG.Statement     s,_) -> 1
+    | (MyCFG.Function      f,_) -> 2
+    | (MyCFG.FunctionEntry f,_) -> 3
+  
   let hash x = 
     match x with
       | (MyCFG.Statement     s,d) -> Hashtbl.hash (d, s.sid, 0)
@@ -198,7 +263,11 @@ struct
       | (MyCFG.Function      f,d) -> dprintf "call of %s" f.vname
       | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.vname
                 
-  let pretty_trace () x = dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
+  let pretty_trace () x = 
+      match x with
+      | ((*MyCFG.FunctionEntry f*)_,d) -> dprintf "%a on %a \n%a\n" pretty x Basetype.ProgLines.pretty (getLocation x) LD.pretty d
+(*       | _ -> dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x) *)
+
 
   let compare (n1,d1) (n2,d2) =
     let comp =

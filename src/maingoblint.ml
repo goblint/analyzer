@@ -25,6 +25,7 @@ let main () =
   let cppflags = ref "" in
   let outFile = ref "" in 
   let cilout = ref stderr in
+  let max_time = ref 0.0 in
   (* Function for setting the style, basically Haskell's read function: *)
   let setstyle x = 
     GU.result_style := match x with
@@ -128,6 +129,8 @@ let main () =
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
 		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed program");
                  ("--intrpts", Arg.Set GU.intrpts, " Enable constraints for interrupts.");
+                 ("--timeout", Arg.Set_float max_time, " Maximal time for analysis. (0 -- no timeout)");
+                 ("--solver-progrss", Arg.Bool ((:=) GU.solver_progress), " <bool> Used for debugging. Prints out a symbol on solving a rhs.");
                  ] in
   let jsonRegex = Str.regexp ".+\\.json$" in
   let recordFile fname = 
@@ -213,14 +216,19 @@ let main () =
       let funs = CF.getFuns merged_AST in
         if funs = [] then failwith "No suitable function to start from.";
         (* and here we run the analysis! *)
-        Stats.time "analysis" (!analyze merged_AST) funs;
+        let do_analysis () =
+          Stats.time "analysis" (!analyze merged_AST) funs;
+          fun () -> () 
+        in
+        Goblintutil.timeout do_analysis () !max_time 
+          (fun () ->  print_endline "\nTimeout reached!") ();
         if !Cilutil.printStats then 
         begin
           flush_all ();
           prerr_endline "Solver stats:";
           prerr_endline ("  globals changed "^string_of_int !Goblintutil.globals_changed^" times");
           Stats.print (M.get_out "timing" stderr) "Timings:\n"
-        end
+        end 
     end
 
 let _ = 

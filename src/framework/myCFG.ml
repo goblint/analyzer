@@ -1,11 +1,18 @@
 module GU = Goblintutil
 module CF = Cilfacade
 open Cil
+open Pretty
 
 type node = 
   | Statement of stmt 
   | FunctionEntry of varinfo
   | Function of varinfo 
+  
+let pretty_node () = function
+  | Statement s -> text "Statement " ++ d_stmt () s
+  | Function f -> text "Function " ++ text f.vname
+  | FunctionEntry f -> text "FunctionEntry " ++ text f.vname
+
 
 module Node : Hashtbl.HashedType with type t = node =
 struct
@@ -36,6 +43,18 @@ type edge =
   | ASM of string list * asm_out * asm_in
   | Skip
   | SelfLoop
+
+let pretty_edge () = function
+  | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv  
+  | Proc (None  ,f,ars) -> dprintf "Proc '%a(%a)'" d_exp f (d_list ", " d_exp) ars
+  | Proc (Some r,f,ars) -> dprintf "Proc '%a = %a(%a)'" d_lval r d_exp f (d_list ", " d_exp) ars
+  | Entry f -> dprintf "Entry %s" f.svar.vname
+  | Ret (None,fd) -> dprintf "Ret (None, %s)" fd.svar.vname
+  | Ret (Some r,fd) -> dprintf "Ret (Some %a, %s)" d_exp r fd.svar.vname
+  | Test (p,b) -> dprintf "Test (%a,%b)" d_exp p b
+  | ASM _ -> text "ASM ..."
+  | Skip -> text "Skip"
+  | SelfLoop -> text "SelfLoop"
 
 type cfg = node -> (edge * node) list
 

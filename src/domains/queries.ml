@@ -137,7 +137,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let toXML s = toXML_f short s
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let leq x y =
     match (x,y) with

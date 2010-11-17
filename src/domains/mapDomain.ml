@@ -81,7 +81,7 @@ end
 
 module PMap (Domain: Groupable) (Range: Lattice.S) =
 struct
-  module M = ExtendedMap (Domain)
+  module M = Map.Make (Domain)
   include Printable.Std
   type key = Domain.t
   type value = Range.t
@@ -219,7 +219,7 @@ struct
   let filter_class g m = 
     fold (fun key value acc -> if Domain.classify key = g then add key value acc else acc) m M.empty 
 
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
 end
 
@@ -227,7 +227,7 @@ end
 module MapBot (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and 
   type value = Range.t and 
-  type t = Range.t ExtendedMap(Domain).t =
+  type t = Range.t Map.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
@@ -250,19 +250,28 @@ struct
   let widen  = long_map2 Range.widen
   let narrow = map2 Range.narrow 
 
-  let why_not_leq () ((m1:t),(m2:t)): Pretty.doc = 
+  let pretty_diff () ((m1:t),(m2:t)): Pretty.doc = 
     let p key value = 
       not (try Range.leq value (find key m2) with Not_found -> false)
     in
-    let key = find_first p m1 in
-      Pretty.dprintf "PMap: there is a problem with key %a\n  @[because %a@]"
-         Domain.pretty key Range.why_not_leq (find key m1,find key m2)
+    let report key v1 v2 =
+      Pretty.dprintf "Map: %a =@?@[%a@]"
+         Domain.pretty key Range.pretty_diff (v1,v2)
+    in
+    let diff_key k v = function
+      | None   when p k v -> Some (report k v (find k m2))
+      | Some w when p k v -> Some (w++Pretty.line++report k v (find k m2))
+      | x -> x
+    in 
+    match fold diff_key m1 None with
+      | Some w -> w
+      | None -> Pretty.dprintf "No binding grew."
 end
 
 module MapTop (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and 
   type value = Range.t and 
-  type t = Range.t ExtendedMap(Domain).t =
+  type t = Range.t Map.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
@@ -284,6 +293,23 @@ struct
   
   let widen  = map2 Range.widen
   let narrow = long_map2 Range.narrow 
+
+  let pretty_diff () ((m1:t),(m2:t)): Pretty.doc = 
+    let p key value = 
+      not (try Range.leq value (find key m2) with Not_found -> true)
+    in
+    let report key v1 v2 =
+      Pretty.dprintf "Map: %a =@?@[%a@]"
+         Domain.pretty key Range.pretty_diff (v1,v2)
+    in
+    let diff_key k v = function
+      | None   when p k v -> Some (report k v (find k m2))
+      | Some w when p k v -> Some (w++Pretty.line++report k v (find k m2))
+      | x -> x
+    in 
+    match fold diff_key m1 None with
+      | Some w -> w
+      | None -> Pretty.dprintf "No binding grew."
 end
 
 exception Fn_over_All of string

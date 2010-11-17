@@ -17,15 +17,15 @@ struct
       let p t = exists (fun s -> Base.Dom.leq t s) s2 in
       for_all p s1
 
-    let why_not_leq () ((s1:t),(s2:t)): Pretty.doc = 
+    let pretty_diff () ((s1:t),(s2:t)): Pretty.doc = 
       if leq s1 s2 then dprintf "%s: These are fine!" (name ()) else begin
         let p t = not (exists (fun s -> Base.Dom.leq t s) s2) in
         let evil = choose (filter p s1) in
         let other = choose s2 in
           (* dprintf "%s has a problem with %a not leq %a because %a" (name ()) 
             Base.Dom.pretty evil Base.Dom.pretty other 
-            Base.Dom.why_not_leq (evil,other) *)
-          Base.Dom.why_not_leq () (evil,other)
+            Base.Dom.pretty_diff (evil,other) *)
+          Base.Dom.pretty_diff () (evil,other)
 
       end
     

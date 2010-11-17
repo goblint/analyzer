@@ -9,7 +9,7 @@ sig
   val short: int -> t -> string
   val isSimple: t -> bool
   val pretty: unit -> t -> doc
-  val why_not_leq: unit -> (t * t) -> Pretty.doc
+  val pretty_diff: unit -> (t * t) -> Pretty.doc
   val toXML : t -> Xml.xml
   (* These two let's us reuse the short function, and allows some overriding
    * possibilities. *)
@@ -39,7 +39,7 @@ struct
   let pretty_f _ = pretty
   let toXML_f _ = toXML
   let name () = "blank"
-  let why_not_leq () (x,y) = dprintf "Unsupported"
+  let pretty_diff () (x,y) = dprintf "Unsupported"
 end
 
 module PrintSimple (P: sig 
@@ -57,7 +57,7 @@ struct
       Xml.Element ("Leaf", ["text", summary], [])
   let pretty () x = pretty_f P.short () x
   let toXML m = toXML_f P.short m
-  let why_not_leq () (x,y) = 
+  let pretty_diff () (x,y) = 
     dprintf "%s: %a not leq %a" (P.name ()) pretty x pretty y
 end
 
@@ -74,7 +74,7 @@ struct
   let pretty_f _ = pretty
   let toXML_f _ = toXML
   let name () = "Unit"
-  let why_not_leq () (x,y) = 
+  let pretty_diff () (x,y) = 
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 module Unit = UnitConf (struct let name = "()" end)
@@ -131,7 +131,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let name () = "lifted " ^ Base.name ()
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module Either (Base1: S) (Base2: S) =
@@ -169,10 +169,10 @@ struct
 
   let pretty () x = pretty_f short () x
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
-  let why_not_leq () (x,y) = 
+  let pretty_diff () (x,y) = 
     match (x,y) with
-      | `Left x, `Left y ->  Base1.why_not_leq () (x,y)
-      | `Right x, `Right y ->  Base2.why_not_leq () (x,y)
+      | `Left x, `Left y ->  Base1.pretty_diff () (x,y)
+      | `Right x, `Right y ->  Base2.pretty_diff () (x,y)
       | _ -> Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
@@ -221,7 +221,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name ()
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module type ProdConfiguration =
@@ -284,11 +284,11 @@ struct
       Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length st))], nodes)
 
   let toXML m = toXML_f short m
-  let why_not_leq () ((x1,x2:t),(y1,y2:t)): Pretty.doc = 
+  let pretty_diff () ((x1,x2:t),(y1,y2:t)): Pretty.doc = 
     if Base1.equal x1 y1 then
-      Base2.why_not_leq () (x2,y2)
+      Base2.pretty_diff () (x2,y2)
     else 
-      Base1.why_not_leq () (x1,y1)
+      Base1.pretty_diff () (x1,y1)
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
@@ -328,7 +328,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module Liszt (Base: S) =
@@ -355,7 +355,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = Base.name () ^ " list"
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
@@ -376,7 +376,7 @@ struct
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let why_not_leq () ((x:t),(y:t)): Pretty.doc = 
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
@@ -417,7 +417,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let name () = "bottom or " ^ Base.name ()
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module LiftTop (Base : S) =
@@ -457,9 +457,9 @@ struct
 
   let pretty () x = pretty_f short () x
   let name () = "top or " ^ Base.name ()
-  let why_not_leq () (x,y) = 
+  let pretty_diff () (x,y) = 
     match (x,y) with
-      | `Lifted x, `Lifted y -> Base.why_not_leq () (x,y)
+      | `Lifted x, `Lifted y -> Base.pretty_diff () (x,y)
       | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 

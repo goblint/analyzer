@@ -25,7 +25,7 @@ struct
 
   let short w x = "Array: " ^ Val.short (w - 7) x
   let pretty () x = pretty_f short () x
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
   let get a i = a
   let set a i v = join a v
@@ -126,7 +126,7 @@ struct
 
   let pretty ()  x = pretty_f short () x
   let toXML s = toXML_f short s
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let get a i =
     let folded () = 
@@ -327,7 +327,7 @@ struct
 
   let pretty () x = pretty_f short () x
   let toXML m = toXML_f short m
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let make i v = 
     if i > 25 then 
@@ -423,7 +423,7 @@ struct
       (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
 
   let pretty () = pretty_f short () 
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let toXML_f s x =
     let text = s Goblintutil.summary_length x in
@@ -823,7 +823,7 @@ struct
 
 
   let name () = "strict map based arrays"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   
 end
 
@@ -951,7 +951,7 @@ struct
 *)
 
   let name () = "loose map based arrays"
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   
 end
 
@@ -1019,7 +1019,7 @@ struct
 
   let make i v = `Lifted (A.make i v)
 
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 

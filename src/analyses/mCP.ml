@@ -44,7 +44,7 @@ type 'a domRecord = {
     short: int -> 'a -> string;
     isSimple: 'a -> bool;
     pretty: unit -> 'a -> doc;
-    why_not_leq: unit -> ('a * 'a) -> Pretty.doc;
+    pretty_diff: unit -> ('a * 'a) -> Pretty.doc;
     toXML : 'a -> Xml.xml;
     pretty_f: (int -> 'a -> string) -> unit -> 'a -> doc;
     toXML_f : (int -> 'a -> string) -> 'a -> Xml.xml;
@@ -155,7 +155,7 @@ struct
   let toXML_f sf  x    = D.toXML_f (fun w x -> sf w (C.inject x)) (C.extract x)
   let name             = D.name 
   
-  let why_not_leq () (x,y) = D.why_not_leq () (C.extract x, C.extract y) 
+  let pretty_diff () (x,y) = D.pretty_diff () (C.extract x, C.extract y) 
 end
 
 module ConvertToMCPPart 
@@ -163,6 +163,7 @@ module ConvertToMCPPart
   (C:MCPPartConf with type lf = S.Dom.t and type gf = S.Glob.Val.t) 
     (*: Analyses.Spec*) =
 struct
+  module S = Analyses.StatsTrace (S)
   open C
   let matches x = 
     try let _ = extract_l x in
@@ -347,7 +348,7 @@ struct
         meet        = Dom.meet; 
         join        = Dom.join; 
         leq         = Dom.leq;
-        why_not_leq = Dom.why_not_leq; 
+        pretty_diff = Dom.pretty_diff; 
         short       = Dom.short; 
         toXML       = Dom.toXML;
         toXML_f     = Dom.toXML_f; 
@@ -371,7 +372,7 @@ struct
         meet        = Glob.Val.meet; 
         join        = Glob.Val.join; 
         leq         = Glob.Val.leq;
-        why_not_leq = Glob.Val.why_not_leq; 
+        pretty_diff = Glob.Val.pretty_diff; 
         short       = Glob.Val.short; 
         toXML       = Glob.Val.toXML;
         toXML_f     = Glob.Val.toXML_f; 
@@ -457,7 +458,7 @@ struct
   let meet' x y   = (get_matches x).meet x y
   let join' x y   = (get_matches x).join x y
   let leq' x y    = (get_matches x).leq x y   
-  let why_not_leq' x y acc = if leq' x y then acc else (get_matches x).why_not_leq () (x,y) 
+  let pretty_diff' x y acc = if leq' x y then acc else (get_matches x).pretty_diff () (x,y) 
   
   let short' w x        = (get_matches x).short w x
   let toXML_f' sf x     = (get_matches x).toXML_f sf x
@@ -481,7 +482,7 @@ struct
   let is_top = List.for_all is_top' 
   let is_bot = List.for_all is_bot'
   let leq    = List.for_all2 leq' 
-  let why_not_leq () (x,y): Pretty.doc = List.fold_right2 why_not_leq' x y Pretty.nil
+  let pretty_diff () (x,y): Pretty.doc = List.fold_right2 pretty_diff' x y Pretty.nil
     
   let short _ _ = "Analyses"(*List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""*)
   
@@ -558,7 +559,7 @@ struct
   let meet' x y   = (get_matches x).meet x y
   let join' x y   = (get_matches x).join x y
   let leq' x y    = (get_matches x).leq x y   
-  let why_not_leq' x y acc = if leq' x y then acc else (get_matches x).why_not_leq () (x,y) 
+  let pretty_diff' x y acc = if leq' x y then acc else (get_matches x).pretty_diff () (x,y) 
   
   let short' w x        = (get_matches x).short w x
   let toXML_f' sf x     = (get_matches x).toXML_f sf x
@@ -582,7 +583,7 @@ struct
   let is_top = List.for_all is_top' 
   let is_bot = List.for_all is_bot'
   let leq    = List.for_all2 leq' 
-  let why_not_leq () (x,y): Pretty.doc = List.fold_right2 why_not_leq' x y Pretty.nil
+  let pretty_diff () (x,y): Pretty.doc = List.fold_right2 pretty_diff' x y Pretty.nil
     
   let short _ = List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""
   

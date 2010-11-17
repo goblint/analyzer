@@ -68,7 +68,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let leq x y = x <= y
-  let why_not_leq () (x,y) = Pretty.dprintf "Integer %a not <= %a" pretty x pretty y
+  let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
   let join x y = if Int64.compare x y < 0 then y else x
   let meet x y = if Int64.compare x y > 0 then y else x
 
@@ -113,7 +113,7 @@ struct
   let lognot n1    = of_bool (not (to_bool' n1))
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
 end
 
 module FlatPureIntegers =
@@ -123,7 +123,7 @@ struct
   let top () = raise Unknown
   let bot () = raise Error
   let leq = equal
-  let why_not_leq () (x,y) = Pretty.dprintf "Integer %a /= %a" pretty x pretty y
+  let pretty_diff () (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y
   let join x y = if equal x y then x else top ()
   let meet x y = if equal x y then x else bot ()
 end
@@ -311,7 +311,7 @@ struct
     (* Excluding X <= Excluding Y whenever Y <= X *)
     | `Excluded x, `Excluded y -> S.subset y x
 
-  let why_not_leq () (x,y) = Pretty.dprintf "Integer %a is not leq %a" pretty x pretty y
+  let pretty_diff () (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y
 
   let join x y = 
     match (x,y) with
@@ -619,7 +619,7 @@ struct
   let pretty = pretty_f short
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
   let toXML = toXML_f short
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   
   let leq  (x1,x2) (y1,y2) = I.leq y1 x1 && I.leq x2 y2
   let join (x1,x2) (y1,y2) = (I.min x1 y1, I.max x2 y2)
@@ -847,7 +847,7 @@ struct
   let toXML_f sf (x:t) = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   
   let top () : t = `Included (I.top ())
   let bot () : t = `Included (I.bot ())
@@ -1167,7 +1167,7 @@ struct
   let lognot = (not)
   let logand = (&&)
   let logor  = (||)
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
 end
 
 module Booleans = MakeBooleans (
@@ -1234,7 +1234,7 @@ struct
   let lognot n1    = ()
   let logand n1 n2 = ()
   let logor  n1 n2 = ()
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
 end
 
 
@@ -1877,6 +1877,6 @@ struct
     try List.fold_left f None x
     with Inconsistent -> None
 
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
 
 end

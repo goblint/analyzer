@@ -19,7 +19,7 @@ struct
   let isSimple _ = true
   let pretty_f _ = pretty
   let toXML_f _ = toXML
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   
   let rec interesting x =
     match x with
@@ -260,7 +260,7 @@ struct
   let isSimple _ = true
   let pretty_f _ = pretty
   let toXML_f _ = toXML
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   
   type ee = Var of Cil.varinfo
           | Addr

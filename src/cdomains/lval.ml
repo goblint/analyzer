@@ -188,7 +188,7 @@ struct
   
   let pretty = pretty_f short
   let toXML = toXML_f short
-  let why_not_leq () (x,y) = 
+  let pretty_diff () (x,y) = 
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
@@ -332,7 +332,7 @@ struct
 
   let toXML = toXML_f short 
   let pretty = pretty_f short 
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let to_exp (f:idx -> exp) x =
     let rec to_cil c =
       match c with
@@ -458,7 +458,7 @@ struct
 
   let toXML x = toXML_f short x
   let pretty () x = pretty_f short () x
-  let why_not_leq () (x,y) = 
+  let pretty_diff () (x,y) = 
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
@@ -601,7 +601,7 @@ struct
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)], [])
   let pretty  = pretty_f short
   let toXML = toXML_f short
-  let why_not_leq () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 

@@ -7,12 +7,14 @@ module GU = Goblintutil
 module Make 
   (Var: Analyses.VarType)  
   (VDom: Lattice.S) 
-  (G: Global.S) = 
+  (G: Global.S)
+  (Rhs: Solver.RHS with type domain   = (Var.t -> VDom.t) * (G.Var.t -> G.Val.t) 
+                    and type codomain = VDom.t * ([`G of (G.Var.t * G.Val.t) | `L of (Var.t * VDom.t)] list) * Var.t list) = 
 struct
   module Glob = G.Var
   module GDom = G.Val
 
-  module SolverTypes = Solver.Types (Var) (VDom) (G)
+  module SolverTypes = Solver.Types (Var) (VDom) (G) (Rhs)
   include SolverTypes
 
   module VarSet = Set.Make(Var)
@@ -45,7 +47,7 @@ struct
       let old_state = VMap.find sigma x in
       
       let addOneRHS local_state (f: rhs) =
-        let (nls,ngd,tc) = f (vEval (x,f), gEval (x,f)) in
+        let (nls,ngd,tc) = Rhs.get_fun f (vEval (x,f), gEval (x,f)) in
         let doOneGlobalDelta = function
           | `L (v, state) ->
             if not ( VDom.leq state (VDom.bot ()) ) then

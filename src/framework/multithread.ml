@@ -19,13 +19,27 @@ struct
 
   module Solver = 
   struct
-    module Sol = Solver.Types (Var) (SD) (Spec.Glob)
+    module Rhs = 
+    struct 
+      type f = (Var.t -> SD.t) * (Spec.Glob.Var.t -> Spec.Glob.Val.t) -> SD.t * ([`G of (Spec.Glob.Var.t * Spec.Glob.Val.t) | `L of (Var.t * SD.t)] list) * (Var.t list)
+      type t = MyCFG.edge * Var.t * f
+      type domain = (Var.t -> SD.t) * (Spec.Glob.Var.t -> Spec.Glob.Val.t)
+      type codomain  = SD.t * ([`G of (Spec.Glob.Var.t * Spec.Glob.Val.t) | `L of (Var.t * SD.t)] list) * (Var.t list)
+      let compare (x1,x2,_) (y1,y2,_) = 
+        match compare x1 y1 with
+          | 0 -> Var.compare x2 y2
+          | x -> x
+      let pretty () f = text "function"
+      let get_fun (_,_,f) = f
+    end
+    
+    module Sol = Solver.Types (Var) (SD) (Spec.Glob) (Rhs)
     include Sol
     
-    module EWC  = EffectWCon.Make(Var)(SD)(Spec.Glob)
-    module EWNC = EffectWNCon.Make(Var)(SD)(Spec.Glob)
-    module SCSRR= SolverConSideRR.Make(Var)(SD)(Spec.Glob)
-    module WNRR = SolverConSideWNRR.Make(Var)(SD)(Spec.Glob)
+    module EWC  = EffectWCon.Make(Var)(SD)(Spec.Glob)(Rhs)
+    module EWNC = EffectWNCon.Make(Var)(SD)(Spec.Glob)(Rhs)
+    module SCSRR= SolverConSideRR.Make(Var)(SD)(Spec.Glob)(Rhs)
+    module WNRR = SolverConSideWNRR.Make(Var)(SD)(Spec.Glob)(Rhs)
     let solve () : system -> variable list -> (variable * var_domain) list -> solution'  = 
       match !GU.solver with 
         | "effectWNCon"     -> EWNC.solve
@@ -38,7 +52,7 @@ struct
   let name = "analyzer"
   let top_query x = Queries.Result.top () 
   
-  let system (cfg: MyCFG.cfg) (n,es: Var.t) : (Solver.var_assign * Solver.glob_assign -> Solver.var_domain * Solver.diff * Solver.calls) list = 
+  let system (cfg: MyCFG.cfg) (n,es: Var.t) : Solver.Rhs.t list = 
     if M.tracing then M.trace "con" (dprintf "%a\n" Var.pretty_trace (n,es));
     
     let lift_st x forks: Solver.var_domain * Solver.diff * Solver.variable list =
@@ -155,11 +169,15 @@ struct
       let _   = GU.current_loc := old_loc in 
         ans
     in
+    let makerhs (ed,nd) =
+      let fn = edge2rhs (ed,nd) in
+      match ed with
+        | MyCFG.Entry func -> (ed,(MyCFG.FunctionEntry func.svar, es),fn)
+        | _ -> (ed,(nd,es),fn)
+    in
       (* and we generate a list of rh-sides *)
-      List.map edge2rhs edges
-      
-
-      
+      List.map makerhs edges
+            
   (* Pretty printing stuff *)
   module RT = A.ResultType (Spec) (Spec.Dom) (SD)
   module LT = SetDomain.HeadlessSet (RT)  (* Multiple results for each node *)
