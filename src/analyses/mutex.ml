@@ -407,6 +407,7 @@ struct
         let no_recurse x =
           match x with
             | Concrete (_,v,o,rw) -> Concrete (None,v,o,rw)
+            | Region (_,v,o,rw)  -> Region (None,v,o,rw)
             | x -> x
         in
         add_accesses ask (List.map no_recurse accs) lock
