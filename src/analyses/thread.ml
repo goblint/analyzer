@@ -1,16 +1,13 @@
 open Cil
 open Pretty
 open Analyses
-module Trivial =  ConcDomain.Simple
 
 module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module Dom = Trivial
+  module Dom = ConcDomain.IdSet
   module Glob = Global.Make (Lattice.Unit) (* no global state *)
-
-  (* helper functions *)
   
   let query_lv ask exp = 
     match ask (Queries.MayPointTo exp) with
@@ -18,12 +15,10 @@ struct
           Queries.LS.elements l
       | _ -> []
  
-  let rec eval_fv ask (exp:Cil.exp): varinfo option = 
+  let eval_fv ask exp = 
     match query_lv ask exp with
-      | [(v,_)] -> Some v
+      | [(v,_)] -> Some v (* This currently assumes that there is a single possible l-value? *)
       | _ -> None
-
-  type glob_fun = Glob.Var.t -> Glob.Val.t
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
@@ -44,35 +39,47 @@ struct
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     au
     
-  let fork ctx lv f args = 
-    let finish_him () = Messages.bailwith "pthread_create arguments are strange!" in
-    let pt_create () =
-      match args with
-        | [_; _; start; ptc_arg] -> begin
-            match eval_fv ctx.ask start with
-              | Some v -> [v, Dom.get_multi ()]
-              | None -> finish_him ()
-            end
-        | _ -> finish_him ()
-    in
-    match f.vname with 
-       | "pthread_create" -> pt_create ()
-       | _ -> [] (* NB! unknown funktion spawns are covered with otherstate *)
+  let call_unusable (fname:string) =
+    Messages.bailwith (Printf.sprintf "%s has unusable arguments!" fname)
+    
+  let eval_arg ctx (arg:exp) =
+    match eval_fv ctx.ask arg with
+      | Some v -> v
+      | None   -> Messages.bailwith "cannot extract arg"
+    
+  (* Handles the call of pthread_create. *)
+  let pt_create ctx (args:exp list) =
+	  match args with
+	    | [id; _; start; _] ->
+        let start_routine = eval_arg ctx start in
+        let thread_id = eval_arg ctx id in
+          (* forks here, sends it current thread id *)
+          ctx.spawn start_routine (Dom.singleton thread_id);
+          (* new state - same as old *)
+          [ctx.local, Cil.integer 1, true]
+	    | _ -> call_unusable "pthread_create"
 
+  (* Handles the call of pthread_join. *)
+  let pt_join ctx (args:exp list) =
+    match args with
+      | [Lval id; _] ->
+        let thread_id = eval_arg ctx (mkAddrOf id) in
+          (* Removes joined thread thread_id from the context. *)
+          [Dom.remove thread_id ctx.local, Cil.integer 1, true]
+      | _ -> call_unusable "pthread_join"
+
+  (* special_fn is called, when given varinfo is not connected to a fundec -- no function definition is given
+  in definition of varinfo. *)
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    let forks = fork ctx lval f arglist in
-    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
-    match f.vname with 
-       | "pthread_create" -> 
-          let new_fl = Dom.join ctx.local (Dom.get_main ()) in
-            [new_fl,Cil.integer 1, true]
-       | _ -> 
+    match f.vname with (* special_fn - value after function call *)
+       | "pthread_create" -> pt_create ctx arglist
+       | "pthread_join"   -> pt_join ctx arglist
+       | _                -> [ctx.local,Cil.integer 1, true]
         (* We actually want to spawn threads for some escaped function pointers,
            but lets ignore that for now. *)
-        [ctx.local,Cil.integer 1, true]
-
-
-  let startstate () = Dom.bot ()
+        
+  (* Main should have type of pthread_t but how to lookup the type? *)      
+  let startstate () = Dom.singleton (makeGlobalVar "main" (intType))
   let otherstate () = Dom.top ()
 
   let name = "Thread analysis"

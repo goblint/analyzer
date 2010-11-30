@@ -20,7 +20,7 @@ type local_state = [
     | `VarEq       of PartitionDomain.ExpPartitions.t
     | `Uninit      of ValueDomain.AddrSetDomain.t
     | `Malloc_null of ValueDomain.AddrSetDomain.t
-    | `Thread      of ConcDomain.Simple.t
+    | `Thread      of ConcDomain.IdSet.t
     | `Escape      of EscapeDomain.EscapedVars.t
     | `Region      of RegionDomain.RegionDom.t
     | `OSEK        of LockDomain.Lockset.t

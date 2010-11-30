@@ -24,7 +24,6 @@ module Trivial = struct
   let switch x y = x <> y
 end
 
-
 module SimpleNames = struct
   let n = 3
   let names = function
@@ -47,3 +46,11 @@ module Simple = struct
     | _,0 -> true
     | _   -> false
 end
+
+(** Provides the name ("all") for the top element of the thread id set. *)
+module IdSetTop : SetDomain.ToppedSetNames = struct
+  let topname = "all"
+end
+
+(** A set domain (with a top element) for thread id's. *)
+module IdSet = SetDomain.ToppedSet (Basetype.Variables) (IdSetTop)
