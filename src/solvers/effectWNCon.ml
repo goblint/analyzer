@@ -7,14 +7,12 @@ module GU = Goblintutil
 module Make 
   (Var: Analyses.VarType)  (* the equation variables *)
   (VDom: Lattice.S) (* the domain *)
-  (G: Global.S) 
-  (Rhs: Solver.RHS with type domain   = (Var.t -> VDom.t) * (G.Var.t -> G.Val.t) 
-                    and type codomain = VDom.t * ([`G of (G.Var.t * G.Val.t) | `L of (Var.t * VDom.t)] list) * Var.t list) = 
+  (G: Global.S) =
 struct
   module Glob = G.Var
   module GDom = G.Val
 
-  module SolverTypes = Solver.Types (Var) (VDom) (G) (Rhs)
+  module SolverTypes = Solver.Types (Var) (VDom) (G)
   include SolverTypes
 
   let solve (system: system) (initialvars: variable list) (start:(Var.t * VDom.t) list): solution' =
@@ -43,7 +41,7 @@ struct
       begin if rhsides = [] then ()
       else begin
         let constrainOneRHS old_state (f: rhs) =
-          let (nls,ngd,tc) = Rhs.get_fun f (vEval (x,f), gEval (x,f)) in
+          let (nls,ngd,tc) = f (vEval (x,f), gEval (x,f)) in
           let doOneGlobalDelta = function 
             | `L (v, state) ->
               if not ( VDom.leq state (VDom.bot ()) ) then

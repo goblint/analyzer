@@ -7,14 +7,12 @@ module GU = Goblintutil
 module Make 
   (Var: Analyses.VarType)  (* the equation variables *)
   (VDom: Lattice.S) (* the domain *)
-  (G: Global.S)   
-  (Rhs: Solver.RHS with type domain   = (Var.t -> VDom.t) * (G.Var.t -> G.Val.t) 
-                    and type codomain = VDom.t * ([`G of (G.Var.t * G.Val.t) | `L of (Var.t * VDom.t)] list) * Var.t list) = 
+  (G: Global.S) =
 struct
   module Glob = G.Var
   module GDom = G.Val
 
-  module SolverTypes = Solver.Types (Var) (VDom) (G) (Rhs)
+  module SolverTypes = Solver.Types (Var) (VDom) (G)
   include SolverTypes
 
   module GCache = Cache.OneVar (G.Var)
@@ -50,16 +48,21 @@ struct
         set v 1;
         Hashtbl.add histo v 1
     end
-    
-  module RhsSet = Set.Make (Rhs)
+  
+  let cons_unique key x xs =
+    let xk = key x in
+    if List.exists (fun y -> xk = key y) xs
+    then xs
+    else x::xs
+  
   
   let solve (system: system) (initialvars: variable list) (start:(Var.t * VDom.t) list): solution' =
     let sigma: VDom.t VMap.t = VMap.create 113 (VDom.bot ()) in
     let theta = GMap.create 113 (GDom.bot ()) in
-    let vInfl = VMap.create 113 ([]: constrain list) in
-    let gInfl = GMap.create 113 ([]: constrain list) in
-    let todo  = VMap.create 113 (RhsSet.empty) in
-    let unsafe = ref ([]: constrain list) in
+    let vInfl = VMap.create 113 ([]: (constrain * int) list) in
+    let gInfl = GMap.create 113 ([]: (constrain * int) list) in
+    let todo  = VMap.create 113 ([]: (rhs * int) list) in
+    let unsafe = ref ([]: (constrain * int) list) in
     let workset = ref (List.fold_right WorkSet.add initialvars WorkSet.empty) in
     
     let rec constrainOneVar (x: variable) =
@@ -70,16 +73,16 @@ struct
           else begin
             if tracing && Var.category x = 3 then trace "sol" (dprintf "New %a\n" Var.pretty_trace x);
             VMap.add sigma x (VDom.bot ());  (* danger! Adding default value!!! If the datastruct refuses this,  membership test will fail -> inf. loop *)
-            List.fold_right RhsSet.add (system x) RhsSet.empty
+            fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system x) ([],0))
           end
       in 
 	
-      begin if RhsSet.is_empty rhsides then ()
+      begin if rhsides=[] then ()
       else begin
         let local_state = ref (VDom.bot ()) in 
-        let constrainOneRHS (rhs: rhs) =
+        let constrainOneRHS (f, i) =
           (if !GU.solver_progress then (incr stack_d; print_int !stack_d; flush stdout)); 
-          let (nls,ngd,tc) = Rhs.get_fun rhs (vEval (x,rhs), GCache.cached (gEval (x,rhs))) in
+          let (nls,ngd,tc) = f (vEval ((x,f),i), GCache.cached (gEval ((x,f),i))) in
           let doOneGlobalDelta = function
             | `L (v, state) ->
               if not ( VDom.leq state (VDom.bot ()) ) then
@@ -111,7 +114,7 @@ struct
             if !GU.solver_progress then decr stack_d 
         in
           (if !GU.solver_progress then (print_string "<"; flush stdout)); 
-          RhsSet.iter constrainOneRHS rhsides;
+          List.iter constrainOneRHS rhsides;
           (if !GU.solver_progress then (print_string ">"; flush stdout));
           let old_state = VMap.find sigma x in
           (if tracing then increase x); (*update the histogram*)
@@ -123,8 +126,8 @@ struct
           if not (VDom.leq new_val old_state) then begin
             VMap.replace sigma x new_val;
             let influenced_vars = ref WorkSet.empty in
-            let collectInfluence (y,f) = 
-              VMap.replace todo y (RhsSet.add f (VMap.find todo y));             
+            let collectInfluence ((y,f),i) = 
+              VMap.replace todo y (cons_unique snd (f,i) (VMap.find todo y));             
               influenced_vars := WorkSet.add y !influenced_vars
             in
               List.iter collectInfluence (VMap.find vInfl x);
@@ -136,13 +139,13 @@ struct
     if !GU.eclipse then show_worked_buf 1
           
 
-    and vEval (c: constrain) var =
+    and vEval (c: constrain * int) var =
       if !GU.eclipse then show_add_work_buf 1;
       constrainOneVar var;
       VMap.replace vInfl var (c :: VMap.find vInfl var);
       VMap.find sigma var 
     
-    and gEval (c: constrain) glob = 
+    and gEval (c: constrain * int) glob = 
       GMap.replace gInfl glob (c :: GMap.find gInfl glob);
       GMap.find theta glob 
 
@@ -154,8 +157,8 @@ struct
         if !GU.eclipse then show_add_work_buf (WorkSet.cardinal !workset);
         WorkSet.iter constrainOneVar !workset;
         workset := WorkSet.empty;
-        let recallConstraint (y,f) = 
-          VMap.replace todo y (RhsSet.add f (VMap.find todo y));
+        let recallConstraint ((y,f),i) = 
+          VMap.replace todo y (cons_unique snd (f,i) (VMap.find todo y));
           workset := WorkSet.add y !workset;
         in
           List.iter recallConstraint !unsafe;
