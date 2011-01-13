@@ -12,6 +12,7 @@ maxlen = $analyses.map { |x| x[0].length }.max + 1
 goblint = File.join(Dir.getwd,"goblint")
 fail "Please run script from goblint dir!" unless File.exist?(goblint)
 $rev = `svn info`.grep(/Last Changed Rev: (.*)/) { |x| $1} 
+$cilrev = `svn info ../cil`.grep(/Last Changed Rev: (.*)/) { |x| $1} 
 $testresults = File.expand_path("tests/bench_result") + "/"
 bench = "../bench/"
 
@@ -45,7 +46,7 @@ def print_res (i)
     f.puts "<head><title>Test Results</title></head>"
     f.puts "<body>"
     f.puts "<p>Benchmarking in progress: #{i}/#{$projects.length}</p>" unless i.nil?
-    f.puts "<table border=2 cellpadding=4>"
+    f.puts "<table border=2 cellpadding=4 style=\"font-size: 90%\">"
     gname = ""
     $projects.each do |p|
       if p.group != gname then
@@ -74,7 +75,7 @@ def print_res (i)
             safely = lines.grep(/Safely accessed/)
             correlations = safely.grep(/common mutex/).size
             safely = safely.size - correlations
-            uncalled = lines.grep(/will never be called/).size
+            uncalled = lines.grep(/will never be called/).reject {|x| x =~ /__check/}.size
             res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
             if res == [] then
               res = lines.grep(/TIMEOUT\s*(.*) s.*$/) { |x| $1 }
@@ -107,7 +108,7 @@ def print_res (i)
     end
     f.puts "</table>"
     f.puts "<p>Last updated: #{Time.now}<br />"
-    f.puts "SVN info: r#{$rev}</p>"
+    f.puts "SVN info: r#{$rev} (goblint), r#{$cilrev} (CIL)</p>"
     f.puts "</body>"
     f.puts "</html>"
   end
@@ -187,6 +188,7 @@ $projects.each do |p|
       f.puts "Analysis ended: #{endtime}"
       f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
       f.puts "SVN info: r#{$rev}"
+      f.puts "Goblint params: #{cmd}"
     end
     if status != 0 then
       if status == 124 then
