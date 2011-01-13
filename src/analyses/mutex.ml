@@ -32,7 +32,7 @@ let is_atomic lval =
     is_atomic_type typ
 
 let is_ignorable lval = 
-  Base.is_mutex_type (typeOfLval lval) || is_atomic lval
+  Base.is_immediate_type (typeOfLval lval) || is_atomic lval
   
 let big_kernel_lock = LockDomain.Addr.from_var (Cil.makeGlobalVar "[big kernel lock]" Cil.intType)
 let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphore]" Cil.intType)
@@ -90,6 +90,7 @@ struct
     M.warn "Access to unknown address could be global"
   
   let access_address ask regs write lv : accesses =
+    if is_ignorable lv then [] else
     let add_reg (v,o) = 
 (*       Messages.report ("Region: "^(sprint 80 (d_lval () lv))^" = "^v.vname^(Offs.short 80 (Offs.from_offset (conv_offset o)))); *)
       Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
