@@ -86,7 +86,7 @@ def print_res (i)
                 f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
               end
             else
-              f.puts "<td><a href = #{outfile}>#{res.to_s} s</a> (<font color=\"green\">#{correlations}</font> / <font color=\"seagreen\">#{safely}</font> / <font color=\"brown\">#{warnings}</font> / <font color=\"red\">#{uncalled}</font>)</td>"
+              f.puts "<td><a href = #{outfile}>#{"%.2f" % res} s</a> (<font color=\"green\">#{correlations}</font> / <font color=\"seagreen\">#{safely}</font> / <font color=\"brown\">#{warnings}</font> / <font color=\"red\">#{uncalled}</font>)</td>"
             end
           end
         else
