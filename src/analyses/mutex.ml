@@ -23,43 +23,18 @@ let unmerged_fields = ref false
 
 (* Some helper functions ... *)
 
-exception Invalid
-
-(* Copied from CIL to avoid warnings due to our bastardized lval expressions,
- * which are artificially constructed in per-element accesses, etc. *)
-let rec typeOffset_hack basetyp =
-  function
-    | NoOffset -> basetyp
-    | Index (_, o) -> begin
-        match unrollType basetyp with
-          | TArray (t, _, baseAttrs) -> typeOffset_hack t o 
-          | t -> raise Invalid
-      end 
-    | Field (fi, o) ->
-        match unrollType basetyp with
-          |  TComp (_, baseAttrs) -> typeOffset_hack fi.ftype o
-          | _ -> raise Invalid
-
-let typeOfLval_hack = function
-    Var vi, off -> typeOffset_hack vi.vtype off
-  | Mem addr, off -> begin
-      match unrollType (typeOf addr) with
-        TPtr (t, _) -> typeOffset t off
-      | _ -> raise Invalid
-  end
-
 let is_atomic_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "atomic_t"
   | _ -> false
 
 let is_atomic lval = 
   let (lval, _) = removeOffsetLval lval in
-  let typ = typeOfLval_hack lval in
+  let typ = typeOfLval lval in
     is_atomic_type typ
 
 let is_ignorable lval = 
-  try Base.is_immediate_type (typeOfLval_hack lval) || is_atomic lval
-  with Invalid -> false
+  try Base.is_immediate_type (typeOfLval lval) || is_atomic lval
+  with Errormsg.Error -> false
   
 let big_kernel_lock = LockDomain.Addr.from_var (Cil.makeGlobalVar "[big kernel lock]" Cil.intType)
 let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphore]" Cil.intType)
