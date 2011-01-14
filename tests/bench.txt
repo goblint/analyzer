@@ -50,6 +50,11 @@ http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/hvc_console.c
 kernel/hvc_console.c
 --kernel
 
+ipmi_devintf.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/ipmi/ipmi_devintf.c
+kernel/ipmi_devintf.c
+--kernel
+
 isicom.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/isicom.c
 kernel/isicom.c

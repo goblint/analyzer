@@ -170,7 +170,9 @@ struct
      let do_exp e = 
        match ask (Queries.ReachableFrom e) with
          | `LvalSet a when not (Queries.LS.is_top a) -> 
-            let to_extra (v,o) xs = Concrete (None, v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
+            let to_extra (v,o) xs = 
+              if is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
+                Concrete (None, v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
             Queries.LS.fold to_extra a [] 
          (* Ignore soundness warnings, as invalidation proper will raise them. *)
          | _ -> []
