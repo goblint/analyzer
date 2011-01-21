@@ -94,24 +94,32 @@ let getFun fun_name =
   with
     | Found def -> def
 
-let is_init attr_list = 
+let in_section check attr_list = 
   let f attr = match attr with
-    | Attr ("section", [AStr ".init.text"]) -> true
+    | Attr ("section", [AStr str]) -> check str
     | _ -> false
   in List.exists f attr_list
 
-let is_exit attr_list = 
-  let f attr = match attr with
-    | Attr ("section", [AStr ".exit.text"]) -> true
-    | _ -> false
-  in List.exists f attr_list
+let is_init = in_section (fun s -> s = ".init.text")
+let is_initptr = in_section (fun s -> s = ".initcall6.init")
+let is_exit = in_section (fun s -> s = ".exit.text")
 
 (*brutal osek hack*)
   let is_task f =  (String.length f >= 12 && String.sub f 0 12 = GU.taskprefix)
 
+let rec get_varinfo exp: varinfo = 
+  (* ignore (Pretty.printf "expression: %a\n" (printExp plainCilPrinter) exp); *)
+  match exp with
+    | AddrOf (Var v, _) -> v
+    | CastE (_,e) -> get_varinfo e
+    | _ -> failwith "Unimplemented: searching for variable in more complicated expression"
+
+exception MyException of varinfo
+
 let getFuns fileAST  : fundec list =
   let mainname = !GU.mainfun in
   let override = ref None in
+  (* Do we have the default main name? *)
   let def_main = mainname = "main" in
   let f (m,o) glob =
     match glob with 
@@ -128,12 +136,26 @@ let getFuns fileAST  : fundec list =
   in
   let mains, others = foldGlobals fileAST f ([],[]) in
     match !override, mains with
-      | Some x, _ 
-      | None, [x] ->
-          Printf.printf "Start function: %s\n" x.svar.vname;
-          GU.has_main := true;
+      | Some x, _ ->
+          Printf.printf "Start function: %s\n" x.svar.vname; GU.has_main := true;
           x :: mains @ others
-      | _ -> mains @ others
+      | None, [x] ->
+          Printf.printf "Start function: %s\n" x.svar.vname; GU.has_main := true;
+          x :: others
+      | _ -> 
+          try iterGlobals fileAST (
+            function 
+              | GVar ({vattr=attr}, {init=Some (SingleInit exp) }, _) when is_initptr attr -> 
+                  raise (MyException (get_varinfo exp))
+              | _ -> ()
+            ); 
+            mains @ others
+          with MyException var -> 
+            let f (s:fundec) = s.svar.vname = var.vname in
+            let (main, rest) = List.partition f mains in
+            let main = List.hd main in
+              Printf.printf "Start function: %s\n" main.svar.vname; GU.has_main := true;
+              main :: rest @ others
 
 let getdec fv = 
   try 
