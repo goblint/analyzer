@@ -225,7 +225,10 @@ struct
 			begin  
 				(*Dom.report("PUBLIC METHOD : "^f.svar.vname);*)
         add_analyzed_fun f; (*keep track of analyzed funs*)
-        Dom.add_formals f st
+				if Dom.is_bot ctx.local then
+          Dom.add_formals f st
+				else 
+					st
 			end
       else
 			begin
@@ -556,7 +559,7 @@ struct
         [ctx.local, nctx]
     end 
     else
-		if is_private f then (*special handling of priv funs, they may return loc data and write to ptrs which are local (also args)*) 
+		if is_private f||true then (*special handling of priv funs, they may return loc data and write to ptrs which are local (also args)*) 
 		begin  
 (*     Dom.warn_bad_reachables ctx.ask args false ctx.local; *)
 (*       printf ":: no_mainclass:%b public:%b \n" no_mainclass (Dom.is_public_method_name f.vname); *)
@@ -599,6 +602,7 @@ struct
 		if danger_bot ctx then ctx.local else  
     let a, b, c = ctx.local in
 		
+		
     if ignore_this ctx.local then a, b, c else begin
       let from = (Some (AddrOf (Var f,NoOffset))) in        			
       let fs = Dom.get_tainted_fields ctx.global in
@@ -623,7 +627,7 @@ struct
               let _,au_st,au_gd = au in
 							let rvs = Dom.Danger.find Dom.return_var au_st in	
 							(*Dom.report ("Func returned : "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)
-							if is_private f then
+							if is_private f||true then
   						begin
 								let apply_var var (fn,st,gd) v rvs = 
 									begin
