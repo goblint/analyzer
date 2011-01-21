@@ -892,6 +892,8 @@ struct
 
   let join_this_fs_to_args this fs =
 		FieldSet.fold (fun x y -> ArgSet.add (FieldVars.gen_f this x) y) fs (ArgSet.bot ())
+		
+	let get_lval_from_exp exp = ((Mem exp),NoOffset)
  
   let assign_to_lval fs lval (fd,st,gd) args must_assign = (*propagate dangerous vals*)
     match lval with 

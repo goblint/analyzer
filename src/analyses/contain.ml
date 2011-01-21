@@ -625,22 +625,29 @@ struct
 							(*Dom.report ("Func returned : "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)
 							if is_private f then
   						begin
-								let apply_var var (fn,st,gd) v = 
+								let apply_var var (fn,st,gd) v rvs = 
 									begin
-										(*let pts = Dom.Danger.find (FieldVars.get_var var) st in*)
+										(*
+										let pts = Dom.Danger.find (FieldVars.get_var var) st in
 		                let arg_single = (ContainDomain.ArgSet.singleton var) in
 										let mcft = Dom.may_be_constructed_from_this st (Lval (Var (FieldVars.get_var var),NoOffset)) in
+										
 										let fn,st,gd =
-                      (*Dom.report ("return "^(FieldVars.get_var var).vname^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () pts));*)
-											let retvals = Dom.used_ptrs st (Lval v) in                        
-											if not mcft then ContainDomain.ArgSet.fold (fun x y-> Dom.danger_assign (FieldVars.get_var x) arg_single y true fs ) retvals (fn,st,gd)
+                      
+                      if not mcft then
+    										let retvals = Dom.used_ptrs st (Lval v) in                        
+												ContainDomain.ArgSet.fold (fun x y->
+												Dom.report ((FieldVars.get_var x).vname ^" = "^(FieldVars.get_var var).vname^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () pts)); 
+												Dom.danger_assign (FieldVars.get_var x) arg_single y true fs ) retvals (fn,st,gd)
                       else fn,st,gd 
-									  in				
+									  in
+										*)				
 			              let fn,st,gd = Dom.assign_to_local ctx.ask v from (fn,st,gd) fs in
+                    (*Dom.report ("return : "^(sprint 160 (d_exp () (Lval v)))^" = "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)										
 			              Dom.assign_to_lval fs v (fn,st,gd) rvs true
 									end 
 								in
-    					  let (a,b,c)=ContainDomain.ArgSet.fold (fun x y ->apply_var x y v) rvs (a,b,c) in
+    					  let (a,b,c)=ContainDomain.ArgSet.fold (fun x y ->apply_var x y v rvs) rvs (a,b,c) in
 								
                 let fd = Cilfacade.getdec f in
 								let ll = match (zip fd.sformals args) with (*remove this*)
@@ -649,18 +656,16 @@ struct
 									| (f,a)::t when f.vname=ContainDomain.this_name -> t
 									| z -> z 								
 								in
-								(*
+								
 								let (a,b,c) =
 								List.fold_right (fun (f,a) y->
 								let rvs = Dom.Danger.find f au_st in
-                (*Dom.report ("find : "^f.vname^" : "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)
-								List.fold_right (fun q w->
-								(*Dom.report ("Func returned : "^sprint 160 (ContainDomain.ArgSet.pretty () rvs)^" via "^q.vname);*)
-								ContainDomain.ArgSet.fold (fun x y -> apply_var x y (Var q,NoOffset)) rvs w)
-								(Dom.get_vars a) y)
-								ll (a,b,c) in
+								(*Dom.report ("return_arg : "^(sprint 160 (d_exp () a))^" = "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)
+								ContainDomain.ArgSet.fold (fun x y ->apply_var x y (Dom.get_lval_from_exp a) rvs) rvs y)
+								ll (a,b,c)
+								in
 								(*Dom.remove_formals fd.sformals (a,b,c)*)
-								*)
+								
                 (a,b,c)
 							end
 							else
