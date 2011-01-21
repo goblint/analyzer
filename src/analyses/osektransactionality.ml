@@ -12,6 +12,7 @@ struct
   module StringSet = Set.Make (String)
   let offpry = Osek.Spec.offensivepriorities
   let funs = Hashtbl.create 16 (* ({vars},tuple) *)
+  let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((StringSet.empty  )  ,(-1,-1,-1,-1)) 
   let openfuns = ref []
 
   type glob_fun = Glob.Var.t -> Glob.Val.t
