@@ -880,7 +880,8 @@ struct
 		
 	let get_this st e = 
 		let vars = get_vars e in
-		let res = List.fold_right (fun x y -> if y = None && may_be_constructed_from_this st (Lval (Var x,NoOffset)) then Some x else y) vars None in
+    let res = List.fold_left (fun y x -> if y = None && may_be_constructed_from_this st (Lval (Var x,NoOffset)) then Some x else y) None vars  in
+(*		let res = List.fold_right (fun x y -> if y = None && may_be_constructed_from_this st (Lval (Var x,NoOffset)) then Some x else y) vars None  in*)
 		match res with 
 			| Some x-> (*x*)
 			      let args = Danger.find x st in
@@ -915,9 +916,9 @@ struct
 					if  (mcft && fse) || (not cft) then 
 					begin                              
 						let vars = get_vars e in (*not very exact for huge compount statements*)
-						List.fold_right 
-	            (fun x y->dbg_report ("danger.add e "^x.vname^" = "^sprint 160 (ArgSet.pretty () args));
-	                 if not (is_safe_name x.vname) then danger_propagate x args y must_assign fs else y) vars (fd,st,gd)
+						List.fold_left 
+	            (fun y x->dbg_report ("danger.add e "^x.vname^" = "^sprint 160 (ArgSet.pretty () args));
+	                 if not (is_safe_name x.vname) then danger_propagate x args y must_assign fs else y) (fd,st,gd) vars
 					end
 					else
 					begin	
@@ -986,7 +987,7 @@ struct
 	let get_vfunc_set vtn n =
 		let ihl = get_inherited_from vtn in
 		List.iter (fun x->report("DERIVED_FROM : "^x)) ihl;
-		List.fold_right (fun x y->
+		List.fold_left (fun y x->
 	    let fn = try 				
 	        let cb = Hashtbl.find vtbls x in
 						List.nth cb n
@@ -994,7 +995,7 @@ struct
 			in
 			if fn = "" then y else fn::y
 			)
-			ihl []
+			[] ihl 
 		
 		
 	let add_required_fun f ht = (*build list of funs that should have been analyzed*)
@@ -1009,7 +1010,7 @@ struct
 	         try 
 	            let entry=Hashtbl.find ht cn
 	            in 
-	               if not (List.fold_right (fun x y -> y || (x=fn)) entry false) then
+	               if not (List.fold_left (fun y x -> y || (x=fn)) false entry) then
 	                    Hashtbl.replace ht cn (fn::entry)
 	         with e->
 	    Hashtbl.replace ht cn [fn]        
@@ -1026,7 +1027,7 @@ struct
               Messages.warn ("Expression "^(sprint 160 (d_exp () exp))^" too complicated.");
               fd, st, df
           | s when ArgSet.is_bot s -> let vars= get_vars exp in 
-              let s = List.fold_right (fun x y->if not (is_safe_name x.vname) then begin ArgSet.add (FieldVars.gen x) y end else y) vars (ArgSet.empty()) in
+              let s = List.fold_left (fun y x->if not (is_safe_name x.vname) then begin ArgSet.add (FieldVars.gen x) y end else y) (ArgSet.empty()) vars in
 							dbg_report ("assign_argmap :no args: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () exp))^":"^sprint 160 (ArgSet.pretty () s)^"\n");
 							if not (ArgSet.is_bot s) then					
 					    assign_to_lval fs lval (fd, st, df) s must_assign
@@ -1052,7 +1053,7 @@ struct
 											     report("DIRECT_VTBL_ACCESS : "^vi.vname^"["^string_of_int64 offs^"]");											
                            let vfs = get_vfunc_set vi.vname ((Int64.to_int offs)+2) in
                            List.iter (fun x -> report("VFUNC : "^x)) vfs;
-                           let fun_set = List.fold_right (fun x y -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> report("UNDEF : "^x);y ) vfs (ArgSet.bot ()) in
+                           let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> report("UNDEF : "^x);y ) (ArgSet.bot ()) vfs  in
                            let set = ArgSet.join fun_set s in 
                            assign_to_lval fs lval (fd, st, df) set must_assign											 
 											| _ -> no_vtbl                
@@ -1065,7 +1066,7 @@ struct
 														let vtn = gen_vtbl_name (sprint 160 (d_type () tp)) in
                             let vfs = get_vfunc_set vtn ((Int64.to_int offs)+1) in
                             List.iter (fun x -> report("VFUNC : "^x)) vfs;
-														let fun_set = List.fold_right (fun x y -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> report("UNDEF : "^x);y ) vfs (ArgSet.bot ()) in
+														let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> report("UNDEF : "^x);y ) (ArgSet.bot ()) vfs in
 														let set = ArgSet.join fun_set s in 
 														assign_to_lval fs lval (fd, st, df) set must_assign
 														(*no_vtbl*)
@@ -1092,7 +1093,7 @@ struct
       match e with
             | Some e->
             let globs=get_globals e in
-                let res=List.fold_right (fun x y-> y||(is_public_method_name x.vname || is_private_method_name x.vname)) globs false 
+                let res=List.fold_left (fun y x-> y||(is_public_method_name x.vname || is_private_method_name x.vname)) false globs 
                 in (*printf "%s is method: %b\n" (sprint 160 (d_exp () e)) res ;*)res
             | _ -> false        
         
@@ -1129,7 +1130,7 @@ struct
   let add_htbl_entry ht c n =
     try 
         let cb=Hashtbl.find ht c in 
-	       if not (List.fold_right (fun x y -> y || (x=n)) cb false) then
+	       if not (List.fold_left (fun y x-> y || (x=n)) false cb) then
            Hashtbl.replace ht c (n::cb)
     with e->Hashtbl.add ht c [n]
 		
@@ -1164,7 +1165,7 @@ struct
 				if err&&res then report (" (4) Function pointer to private function : "^(Goblintutil.demangle v.vname)^" may point to "^sprint 160 (ArgSet.pretty () ds));
 				res
 	    in 
-	    List.fold_right (fun x y->if danger_find x then true else y) vars false			
+	    List.fold_left (fun y x->if danger_find x then true else y) false vars			
     							
   let warn_glob (e:exp) ss =
     let p x =

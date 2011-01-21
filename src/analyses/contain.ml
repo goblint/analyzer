@@ -253,7 +253,7 @@ struct
         begin
             (*true*)
       let vars = Dom.get_vars rval in
-          List.fold_right (fun x y -> if y || not (is_ext x.vname) then true else y ) vars false
+          List.fold_left (fun y x -> if y || not (is_ext x.vname) then true else y ) false vars
             (**)
         end
         else false
@@ -267,7 +267,7 @@ struct
 				else
 					[] 
 			in
-      List.fold_right (fun x y -> let ds = Dom.Danger.find x st in let lst = extract_funs ds in lst@y ) vars []
+      List.fold_left (fun y x -> let ds = Dom.Danger.find x st in let lst = extract_funs ds in lst@y ) [] vars
 
      let rec zip x y = 
         match x, y with
@@ -279,8 +279,8 @@ struct
     let cast_free = (stripCasts rval) in (*find func ptrs*)
     let vars = Dom.get_vars cast_free in
     let (alld,uses_fp) =
-     List.fold_right 
-     (fun x (alld,y)->if is_private x && x.vglob then 
+     List.fold_left 
+     (fun (alld,y) x->if is_private x && x.vglob then 
         begin 
             (*Dom.report("handle_func_ptr : "^x.vname^"\n");*)
             (*func ptr found, add to required list and danger map*)
@@ -293,7 +293,7 @@ struct
 						(*we add the fptr to the danger dom so we can track vars that use it the usual way*)
       end 
          else (alld,y)) 
-     vars (alld,false) 
+     (alld,false) vars 
 		in 
 		let _,lst,diff= alld in 
    alld, uses_fp||Dom.may_be_fp rval lst false ||check_vtbl rval alld
@@ -384,7 +384,7 @@ struct
 						  else
 							  st 	
 						in
-	          let st = List.fold_right (fun x y -> add_retval x y) vars st in
+	          let st = List.fold_left (fun y x -> add_retval x y) st vars in
 						let cft = Dom.may_be_constructed_from_this st e in
 						if cft then
 							let flds = Dom.get_field_from_this e st in
@@ -436,7 +436,7 @@ struct
 					begin
 						let rvs =
 							let vars = Dom.get_vars e in
-							List.fold_right (fun x y -> ContainDomain.ArgSet.join (Dom.Danger.find x st) y) vars (ContainDomain.ArgSet.bot ()) 
+							List.fold_left (fun y x -> ContainDomain.ArgSet.join (Dom.Danger.find x st) y)  (ContainDomain.ArgSet.bot ()) vars 
 						in
 						if not (ignore_this ctx.local) then	
 						Dom.report(" (6) unresolved function pointer in "^sprint 160 (d_exp () fval)^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));
@@ -470,10 +470,10 @@ struct
                     | a::b -> b
                     | _ -> []
             in              
-            let (good_args,bad_args) = List.fold_right 
-              (fun x (g,b) -> if not (isBad fs ctx.ask false ctx x) then (x::g,b) else (g,x::b)) 
-                arglist 
-                ([],[]) 
+            let (good_args,bad_args) = List.fold_left 
+              (fun (g,b) x  -> if not (isBad fs ctx.ask false ctx x) then (x::g,b) else (g,x::b)) 
+                ([],[]) arglist 
+                 
             in
             let is_memcpy=f.vname="memcpy" in (*memcpy is used by the llvm and we know what it does...*)
             let nctx =
@@ -484,8 +484,8 @@ struct
             let assign_lvals globa (fn,st,gd) arg_num =
             (*in addition to the function also add the bad var's reason for being bad to the newly bad var, required for function ptrs*)
             let transfer_culprits v (fn,st,gd) = 
-                (List.fold_right (fun x y->
-									Dom.assign_argmap fs (Mem v,NoOffset) x y false) bad_args (fn,st,gd))
+                (List.fold_left (fun y x->
+									Dom.assign_argmap fs (Mem v,NoOffset) x y false)  (fn,st,gd) bad_args)
             in
                 if not is_memcpy then
                 begin									
@@ -508,15 +508,15 @@ struct
                     in 
 				            let fn,st,gd=ctx.local in
 				            let fn,st,gd = Dom.danger_assign f (ContainDomain.ArgSet.singleton (FieldVars.gen f)) (fn,st,gd) true fs in
-                    let (fn,st,gd),uses_fp = List.fold_right (fun globa (lctx,y) -> let (mlctx,my)=handle_func_ptr globa lctx fs in (mlctx,y||my) ) arglist ((fn,st,gd),false) in
-                    let (fn,st,gd),_ =  List.fold_right 
-										(fun globa (lctx,arg_num) -> (*Dom.report ("check arg: "^(sprint 160 (d_exp () globa))) ;*)
+                    let (fn,st,gd),uses_fp = List.fold_left (fun (lctx,y) globa -> let (mlctx,my)=handle_func_ptr globa lctx fs in (mlctx,y||my) ) ((fn,st,gd),false) arglist  in
+                    let (fn,st,gd),_ =  List.fold_left 
+										(fun (lctx,arg_num) globa -> (*Dom.report ("check arg: "^(sprint 160 (d_exp () globa))) ;*)
 										if uses_fp||isPointerType (typeOf (stripCasts globa))  then 
 											begin 
 												(assign_lvals globa lctx arg_num,arg_num+1) 
 											end 
 											else (lctx,arg_num+1))
-											 arglist ((fn,st,gd),0)
+											 ((fn,st,gd),0) arglist 
 										(*in
                     let (fn,st,gd),_ =  List.fold_right (fun globa (lctx,arg_num) -> (*Dom.report ("check arg: "^(sprint 160 (d_exp () globa))) ;*)if uses_fp||isPointerType (typeOf (stripCasts globa))  then begin (assign_lvals globa lctx arg_num,arg_num+1) end else (lctx,arg_num+1)) arglist ((fn,st,gd),0)
 										*)
@@ -662,11 +662,11 @@ struct
 								in
 								
 								let (a,b,c) =
-								List.fold_right (fun (f,a) y->
+								List.fold_left (fun y (f,a)->
 								let rvs = Dom.Danger.find f au_st in
 								(*Dom.report ("return_arg : "^(sprint 160 (d_exp () a))^" = "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)
 								ContainDomain.ArgSet.fold (fun x y ->apply_var x y (Dom.get_lval_from_exp a) rvs) rvs y)
-								ll (a,b,c)
+								(a,b,c) ll 
 								in
 								(*Dom.remove_formals fd.sformals (a,b,c)*)
 								
