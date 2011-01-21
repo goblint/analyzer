@@ -274,9 +274,9 @@ struct
 			inc_throw;
 	  top ()
 *)	  
-  let remove_formals f (fd, st,df) = 
+  let remove_formals sformals (fd, st,df) = 
     let f k s st = 
-      let p y = List.exists (fun x -> x.vid = y.vid) f.Cil.sformals in
+      let p y = List.exists (fun x -> x.vid = y.vid) sformals in
       if p k
       then st
       else 
@@ -716,7 +716,7 @@ struct
 								  in
                   (*report("danger.prop_this "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));*)									
 									if not (FieldSet.is_bot fields2) then 
-		              report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () fields2) ^" via "^v.vname);
+		              report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () fields2) ^"("^(FieldVars.get_var fv).vname^")"^" via "^v.vname);
 			            (fd,st, Diff.add (tainted_varinfo (), (fields2,VarNameSet.bot () ) )  gd) (*update this->field?*)
 								end
 							end
@@ -781,7 +781,13 @@ struct
 			else fd,st,gd
 			in
 			 (fd, danger_upd v args st,gd)
-				
+        
+    let is_bad_reachable v st =
+        let args = Danger.find v st in
+        if not (ArgSet.is_bot args) then
+          ArgSet.fold (fun x y -> y || (FieldVars.get_var x).vid=v.vid) args false
+      else false 
+								
     (*analog to may_be_.._global, prints warnings*)
   let warn_bad_dereference e fromFun (fd, st,df) fs ss = (**)
     
@@ -794,7 +800,9 @@ struct
           let args = Danger.find v st in
           (*report ("warn_bad_reachables: check "^v.vname);*)
           if not (ArgSet.is_bot args)    
-          then begin    
+                    &&
+            (is_bad_reachable v st|| ArgSet.fold (fun x y -> y || is_bad_reachable (FieldVars.get_var x) st) args false)
+         then begin    
                         (*report ("warn_bad_reachables: "^(sprint 160 (d_exp () e))^" -> NOT bot ");*)
                           if ArgSet.fold (fun x y -> if y then true else begin
                             let is = (is_safe_name (FieldVars.get_var x).vname) in
@@ -830,12 +838,15 @@ struct
     let warn_exp e = 
       (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
       let warn_one_lv = function
-        | v when (not fromFun) && v.vname = this_name -> 
+        | v when (not fromFun) && (v.vname = this_name) -> 
 					false
         | v ->
           let args = Danger.find v st in
           (*report ("warn_bad_reachables: check "^v.vname);*)
-          if not (ArgSet.is_bot args)    
+          if not (ArgSet.is_bot args)
+					&&
+            (is_bad_reachable v st|| ArgSet.fold (fun x y -> y || is_bad_reachable (FieldVars.get_var x) st) args false)
+					    
           then begin	
 						(*report ("warn_bad_reachables: "^(sprint 160 (d_exp () e))^" -> NOT bot ");*)
 						  if ArgSet.fold (fun x y -> if y then true else begin

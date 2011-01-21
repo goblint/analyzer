@@ -265,6 +265,11 @@ struct
 					[] 
 			in
       List.fold_right (fun x y -> let ds = Dom.Danger.find x st in let lst = extract_funs ds in lst@y ) vars []
+
+     let rec zip x y = 
+        match x, y with
+          | x::xs, y::ys -> (x, y) :: zip xs ys
+          | _ -> [] 
 				
   let handle_func_ptr (rval:exp) alld fs =
     (*Dom.report("handle_func_ptr : "^(sprint 160 (d_exp () rval))^"\n");*)
@@ -334,7 +339,7 @@ struct
 
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    if danger_bot ctx then Dom.remove_formals f ctx.local else  
+    if danger_bot ctx then Dom.remove_formals (f.Cil.sformals) ctx.local else  
     if ignore_this ctx.local
     then ctx.local 
     else begin 
@@ -357,20 +362,24 @@ struct
 	          Dom.warn_tainted (Dom.get_tainted_fields ctx.global) ctx.local e ("return statement of "^(GU.demangle f.svar.vname));
 						let add_retval v st =
 							(*let cft = Dom.may_be_constructed_from_this st (Lval (Var v,NoOffset)) in*)
-							if Dom.may_be_a_perfectly_normal_global (Lval (Var v,NoOffset)) false ctx.local fs 
+							(*if Dom.may_be_a_perfectly_normal_global (Lval (Var v,NoOffset)) false ctx.local fs*)
+							if isPointerType v.vtype
 							then
 							begin 
-						  let args = Dom.Danger.find v st in
-							if ContainDomain.ArgSet.is_bot args then 
-                (*Dom.Danger.merge Dom.return_var (ContainDomain.ArgSet.add (FieldVars.gen v) (ContainDomain.ArgSet.bot ())) st*) 
-								st
-							else
-							  let add_var v st = 
-									Dom.Danger.merge Dom.return_var (ContainDomain.ArgSet.add v (ContainDomain.ArgSet.bot ())) st in
-							  ContainDomain.ArgSet.fold (fun x y->add_var x y) args st
+							  let args = Dom.Danger.find v st in
+								if ContainDomain.ArgSet.is_bot args then 
+	                (*Dom.Danger.merge Dom.return_var (ContainDomain.ArgSet.add (FieldVars.gen v) (ContainDomain.ArgSet.bot ())) st*) 
+									st
+								else									
+								  let add_var vv st =
+										(*Dom.report ("return "^v.vname^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () (Dom.Danger.find (FieldVars.get_var vv) st)));*)
+										Dom.Danger.merge Dom.return_var (ContainDomain.ArgSet.add vv (ContainDomain.ArgSet.bot ())) st
+										in
+								  ContainDomain.ArgSet.fold (fun x y->add_var x y) args st
+									
 							end
-							else
-								st 	
+						  else
+							  st 	
 						in
 	          let st = List.fold_right (fun x y -> add_retval x y) vars st in
 						let cft = Dom.may_be_constructed_from_this st e in
@@ -389,7 +398,8 @@ struct
       let fs=Dom.get_tainted_fields ctx.global in
 			let allow_from_this = is_private f.svar in (*private funcs may return ptrs constructed from this*)			               
       if not allow_from_this then Dom.warn_bad_reachables ctx.ask arglist (not allow_from_this) (fn,st,gd) fs ("return statement of "^(GU.demangle f.svar.vname));
-      Dom.remove_formals f (fn,st,gd)
+      (*Dom.remove_formals (f.Cil.sformals) (fn,st,gd)*)
+			(fn,st,gd)
     end 
   
   let eval_funvar ctx fval: varinfo list =
@@ -553,22 +563,19 @@ struct
       (*Dom.report("ENTER_FUN : "^f.vname);*)
       let fs = Dom.get_tainted_fields ctx.global in                   
       let fd = Cilfacade.getdec f in
-      let rec zip x y = 
-        match x, y with
-          | x::xs, y::ys -> (x, y) :: zip xs ys
-          | _ -> [] 
-      in
-      let t (v, e) = 
+      let t (v, e) = true 
+			(*
         let _, ds, _ = ctx.local in
           let res = (Dom.may_be_constructed_from_this ds e) in
-            res     
+            res
+						(*true*) (*do all args, not just const from this*)
+			*)
             in
       let g (v, e) = 
         let fs = Dom.get_tainted_fields ctx.global in
 				(*why is stack_i maybe_glob??*)
           let r = Dom.may_be_a_perfectly_normal_global e false ctx.local fs in          
-            r
-				(*not (t (v,e))*) 
+            r (*&& not (t (v,e))*)
 	    in
        let bad_vars ff = List.filter ff (zip fd.sformals args) in
       let add_arg st (v,a) =
@@ -580,8 +587,8 @@ struct
         Dom.assign_argmap fs (Var v,NoOffset) a st true
       in 
 			let f,st,gd = ctx.local in
-      let f,st,gd = List.fold_left add_arg_map (f,st,gd) (bad_vars t) in (*add const from this to argmap, so that we can warn when const from this is passed to special_fn*)			 
       let f,st,gd = List.fold_left add_arg (f,st,gd)  (bad_vars g) in (*add globs to danger map*)
+      let f,st,gd = List.fold_left add_arg_map (f,st,gd) (bad_vars t) in (*add const from this to argmap, so that we can warn when const from this is passed to special_fn*)             
  			let st = Dom.Danger.add Dom.unresFunDec.svar (ContainDomain.ArgSet.singleton (FieldVars.gen Dom.unresFunDec.svar)) st in
       (*Dom.report ("DANGER : is_bot "^string_of_bool (Dom.Danger.is_bot st));*)
       [ctx.local, (f,st,gd)]
@@ -613,24 +620,48 @@ struct
 	              Dom.assign_to_lval fs v (fn,st,gd) arg_single true
 							end
 							else 
-              let _,au_st,_ = au in
+              let _,au_st,au_gd = au in
 							let rvs = Dom.Danger.find Dom.return_var au_st in	
 							(*Dom.report ("Func returned : "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)
 							if is_private f then
   						begin
-								let apply_var var (fn,st,gd) = 
+								let apply_var var (fn,st,gd) v = 
 									begin
+										(*let pts = Dom.Danger.find (FieldVars.get_var var) st in*)
 		                let arg_single = (ContainDomain.ArgSet.singleton var) in
 										let mcft = Dom.may_be_constructed_from_this st (Lval (Var (FieldVars.get_var var),NoOffset)) in
-										let fn,st,gd = 
-											if not mcft then Dom.danger_assign (FieldVars.get_var var) arg_single (fn,st,gd) true fs 
+										let fn,st,gd =
+                      (*Dom.report ("return "^(FieldVars.get_var var).vname^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () pts));*)
+											let retvals = Dom.used_ptrs st (Lval v) in                        
+											if not mcft then ContainDomain.ArgSet.fold (fun x y-> Dom.danger_assign (FieldVars.get_var x) arg_single y true fs ) retvals (fn,st,gd)
                       else fn,st,gd 
-									  in										
+									  in				
 			              let fn,st,gd = Dom.assign_to_local ctx.ask v from (fn,st,gd) fs in
 			              Dom.assign_to_lval fs v (fn,st,gd) rvs true
 									end 
 								in
-								ContainDomain.ArgSet.fold (fun x y ->apply_var x y) rvs (a,b,c)
+    					  let (a,b,c)=ContainDomain.ArgSet.fold (fun x y ->apply_var x y v) rvs (a,b,c) in
+								
+                let fd = Cilfacade.getdec f in
+								let ll = match (zip fd.sformals args) with (*remove this*)
+									| [] -> []
+									| [x] -> []
+									| (f,a)::t when f.vname=ContainDomain.this_name -> t
+									| z -> z 								
+								in
+								(*
+								let (a,b,c) =
+								List.fold_right (fun (f,a) y->
+								let rvs = Dom.Danger.find f au_st in
+                (*Dom.report ("find : "^f.vname^" : "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)
+								List.fold_right (fun q w->
+								(*Dom.report ("Func returned : "^sprint 160 (ContainDomain.ArgSet.pretty () rvs)^" via "^q.vname);*)
+								ContainDomain.ArgSet.fold (fun x y -> apply_var x y (Var q,NoOffset)) rvs w)
+								(Dom.get_vars a) y)
+								ll (a,b,c) in
+								(*Dom.remove_formals fd.sformals (a,b,c)*)
+								*)
+                (a,b,c)
 							end
 							else
 								a,b,c
