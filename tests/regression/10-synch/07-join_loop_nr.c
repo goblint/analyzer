@@ -20,8 +20,8 @@ int main(void) {
   pthread_mutex_lock(&mutex);
   myglobal=myglobal+1;
   pthread_mutex_unlock(&mutex);
-  for (i=0; i<9; i++)
+  for (i=0; i<10; i++)
     pthread_join(&id[i], NULL, t_fun, NULL);
-  myglobal=myglobal+1; //RACE
+  myglobal=myglobal+1; //NOWARN
   return 0;
 }
