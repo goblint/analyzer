@@ -100,9 +100,12 @@ struct
     match ask (Queries.MayPointTo (mkAddrOf lv)) with
       | `LvalSet a when not (Queries.LS.is_top a) -> 
           let to_accs (v,o) xs = 
-            Concrete (Some (Lval lv), v, Offs.from_offset (conv_offset o), write) :: List.map add_reg regs @ xs  
+            Concrete (Some (Lval lv), v, Offs.from_offset (conv_offset o), write) :: xs  
           in
-          Queries.LS.fold to_accs a []
+          let ra = List.map add_reg regs in
+          if List.length ra = 0 
+          then Queries.LS.fold to_accs a []
+          else ra
       | _ ->         
           if List.length regs = 0 
           then [Unknown (Lval lv,write)]
@@ -117,7 +120,7 @@ struct
         | Cil.Lval lval -> 
           let a1 = access_address a regs rw lval in
           let a2 = access_lv_byval a lval in
-            a1 @ a2
+            a1 @  a2
         (* Binary operators *)
         | Cil.BinOp (op,arg1,arg2,typ) -> 
             let a1 = access_one_byval a rw arg1 in
