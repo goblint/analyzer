@@ -88,6 +88,7 @@ type analysisRecord = {
     es_to_string: fundec -> local_state -> string;  
     reset_diff : local_state -> local_state;
     get_diff : local_state -> (Basetype.Variables.t * global_state) list;
+    sync : (local_state,Basetype.Variables.t,global_state) ctx -> local_state * (Basetype.Variables.t * global_state) list;
     query: (local_state,Basetype.Variables.t,global_state) ctx -> Queries.t -> Queries.Result.t ;
     assign: (local_state,Basetype.Variables.t,global_state) ctx -> lval -> exp -> local_state ;
     intrpt: (local_state,Basetype.Variables.t,global_state) ctx -> local_state ;
@@ -203,10 +204,16 @@ struct
   let es_to_string f x = S.es_to_string f (C.extract_l x)
   
   let reset_diff x = C.inject_l (S.reset_diff (C.extract_l x))
-  let get_diff x = List.map (fun (x,y) -> x, C.inject_g y) (S.get_diff (C.extract_l x)) 
+  let inject_gd_list = List.map (fun (x,y) -> x, C.inject_g y)
+  let get_diff x =  inject_gd_list (S.get_diff (C.extract_l x)) 
   
   let spawn f v d = f v (C.inject_l d)
   
+  let sync ctx =
+    let st = C.extract_l ctx.local in
+    let gl x = C.extract_g (ctx.global x) in
+    let (l,g) = S.sync (set_st_gl ctx st gl spawn) in
+      (C.inject_l l, inject_gd_list g)
   let query ctx q =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
@@ -398,6 +405,7 @@ struct
         es_to_string  = es_to_string;
         reset_diff    = reset_diff;
         get_diff      = get_diff;
+        sync          = sync;
         query         = query;
         assign        = assign;
         intrpt        = intrpt;
@@ -733,6 +741,12 @@ struct
     let difflist = (get_matches st).get_diff st in
     List.map (fun (x,v) -> x, replaceg v (Glob.Val.bot ())) difflist
 
+  let sync' (ctx: (local_state, Basetype.Variables.t, global_state list) ctx) = 
+    let s = get_matches ctx.local in
+    let g = select_g s ctx.global in
+    let (l,difflist) = s.sync (set_gl ctx g) in
+      l, List.map (fun (x,v) -> x, replaceg v (Glob.Val.bot ())) difflist
+
   (* analysis spec stuff *)
   let name = "analyses"
   let finalize () =
@@ -841,7 +855,7 @@ struct
       context (query full_ctx) ctx.local ctx.global dp ctx.spawn
   
   let map_tf' ctx (tf:(local_state, Basetype.Variables.t, global_state list) ctx  -> 'a) : Dom.t = 
-    let map_one (set_st : local_state -> (local_state, Basetype.Variables.t, global_state list) ctx) ls (t : local_state) : local_state list =
+    let map_one (set_st : local_state -> (local_state, Basetype.Variables.t, global_state list) ctx) ls (t : local_state): local_state list =
       let s = get_matches t in
       let ds = 
         let f n =
@@ -905,6 +919,23 @@ struct
       tf (set_sub ctx (set_st t) ds)::ls
     in
     List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one set_st) [] ctx.local))
+
+  let sync ctx = 
+    let map_one (ls,gs) (t: local_state) =
+      let s = get_matches t in
+      let ds = 
+        let f n =
+          try List.find (fun x -> n = (get_matches x).featurename) ls
+          with Not_found -> failwith ("Dependency '"^n^"' not met, needed by "^s.featurename^".")
+        in
+        List.map f s.depends_on 
+      in
+      let subctx = context (query ctx) t ctx.global ds (fun a b -> ()) in
+      let l,g = sync' subctx in
+        l::ls, g @ gs
+    in
+    let ls,gs = List.fold_left map_one ([],[]) ctx.local in
+      List.rev ls, gs
 
   (* transfer functions *)
   let return ctx r fn   = map_tf' ctx (fun ctx -> return' ctx r fn) 

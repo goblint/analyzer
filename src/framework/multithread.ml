@@ -117,13 +117,17 @@ struct
      * sigma and the global state theta; it outputs the new state, delta, and
      * spawned calls. *)      
     let edge2rhs (edge, pred : MyCFG.edge * MyCFG.node) (sigma, theta: Solver.var_assign * Solver.glob_assign) : Solver.var_domain * Solver.diff * Solver.variable list = 
-      let predvar = (pred, es) in
-      if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty (sigma predvar))));
+      let predvar = 
+        match edge with 
+          | MyCFG.Entry f -> (MyCFG.FunctionEntry f.svar, es)
+          | _ -> (pred, es) 
+      in
       (* This is the key computation, only we need to set and reset current_loc,
        * see below. We call a function to avoid ;-confusion *)
-      let eval () : Solver.var_domain * Solver.diff * Solver.variable list = 
+      let eval predval : Solver.var_domain * Solver.diff * Solver.variable list = 
+        if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty predval)));
         (* gives add_var callback into context so that every edge can spawn threads *)
-        let getctx var = A.context top_query (SD.unlift (sigma var)) theta [] in
+        let getctx v = A.context top_query v theta [] in
         let lift f pre =        
           let forks = ref [] in
           let add_var v d = forks := (v,d) :: !forks in
@@ -132,26 +136,34 @@ struct
           x, y @ y', z @ z'
         in
         try  
+          (* We synchronize the predecessor value with the global invariant and
+           * then feed the updated value to the transfer functions. *)
+          let add_novar v d = () in
+          let predval', diff = Spec.sync (getctx (SD.unlift predval) add_novar) in
+          let diff = List.map (fun x -> `G x) diff in
           (* Generating the constraints is quite straightforward, except maybe
            * the call case. There is an ALMOST constant lifting and unlifting to
            * handle the dead code -- maybe it could be avoided  *)
+          let l,gd,sp =
           match edge with
-            | MyCFG.Entry func             -> lift (fun ctx -> Spec.body   ctx func      ) (MyCFG.FunctionEntry func.svar, es)
-            | MyCFG.Assign (lval,exp)      -> lift (fun ctx -> Spec.assign ctx lval exp  ) predvar
-            | MyCFG.SelfLoop               -> lift (fun ctx -> Spec.intrpt ctx           ) predvar
-            | MyCFG.Test   (exp,tv)        -> lift (fun ctx -> Spec.branch ctx exp tv    ) predvar
-            | MyCFG.Ret    (ret,fundec)    -> lift (fun ctx -> Spec.return ctx ret fundec) predvar
-            | MyCFG.Proc   (lval,exp,args) -> proc_call sigma theta lval exp args (SD.unlift (sigma predvar)) 
-            | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; sigma predvar, [], []
-            | MyCFG.Skip                   -> sigma predvar, [], []
+            | MyCFG.Entry func             -> lift (fun ctx -> Spec.body   ctx func      ) predval'
+            | MyCFG.Assign (lval,exp)      -> lift (fun ctx -> Spec.assign ctx lval exp  ) predval'
+            | MyCFG.SelfLoop               -> lift (fun ctx -> Spec.intrpt ctx           ) predval'
+            | MyCFG.Test   (exp,tv)        -> lift (fun ctx -> Spec.branch ctx exp tv    ) predval'
+            | MyCFG.Ret    (ret,fundec)    -> lift (fun ctx -> Spec.return ctx ret fundec) predval'
+            | MyCFG.Proc   (lval,exp,args) -> proc_call sigma theta lval exp args predval'
+            | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; SD.lift predval', [], []
+            | MyCFG.Skip                   -> SD.lift predval', [], []
+          in
+            l, gd @ diff, sp
         with
           | A.Deadcode  -> SD.bot (), [], []
-          | M.Bailure s -> M.warn_each s; (sigma predvar, [], [])
+          | M.Bailure s -> M.warn_each s; (predval, [], [])
           | x -> M.warn_urgent "Oh no! Something terrible just happened"; raise x
       in
       let old_loc = !GU.current_loc in
       let _   = GU.current_loc := MyCFG.getLoc pred in
-      let ans = eval () in 
+      let ans = eval (sigma predvar) in 
       let _   = GU.current_loc := old_loc in 
         ans
     in

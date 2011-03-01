@@ -79,6 +79,12 @@ struct
        (* We fold over the local state, and collect the globals *)
        CPA.fold add_var cpa (cpa, Vars.empty ())
 
+  let sync ctx: Dom.t * (Glob.Var.t * Glob.Val.t) list = 
+    let cpa,fl,gl = ctx.local in
+    let cpa, gl' = if Flag.is_multi fl then globalize ctx.ask cpa else (cpa,gl) in
+    let gl = Vars.join gl' gl in
+      (cpa,fl,Vars.empty()), Vars.elements gl
+
    (** [get st addr] returns the value corresponding to [addr] in [st] 
     *  adding proper dependencies *)
    let rec get a (gs: glob_fun) (st,fl,gl: store) (addrs:address): value =

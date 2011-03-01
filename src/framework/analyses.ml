@@ -27,6 +27,7 @@ type local_state = [
     | `OSEK2       of Osektupel.t*Osektupel.t
     | `Access      of AccessDomain.Access.t
     | `Contain     of ContainDomain.Dom.t
+    | `Shape       of Lattice.Unit.t
     ]
 
 (* Experiment to reduce the number of arguments on transfer functions and allow
@@ -47,20 +48,20 @@ type ('a,'b,'c) ctx =
     ; spawn : varinfo -> 'a -> unit
     }
 
-let set_q ctx ask =
-  {ask = ask; local=ctx.local; global=ctx.global;sub=ctx.sub;spawn=ctx.spawn}
+let set_q ctx ask = 
+  {ctx with ask = ask} 
 
 let set_st ctx st spawn_tr =
-  {ask = ctx.ask; local=st; global=ctx.global;sub=ctx.sub;spawn=spawn_tr ctx.spawn}
+  {ctx with local=st; spawn=spawn_tr ctx.spawn}
 
 let swap_st ctx st =
-  {ask = ctx.ask; local=st; global=ctx.global;sub=ctx.sub;spawn=ctx.spawn}
+  {ctx with local=st}
 
 let set_gl ctx gl =
-  {ask = ctx.ask; local=ctx.local; global=gl;sub=ctx.sub;spawn=ctx.spawn}
+  {ctx with global=gl}
 
 let set_st_gl ctx st gl spawn_tr =
-  {ask = ctx.ask; local=st; global=gl;sub=ctx.sub;spawn=spawn_tr ctx.spawn}
+  {ctx with local=st; global=gl; spawn=spawn_tr ctx.spawn}
 
 let context ask st gl dp sp = {ask=ask; local=st; global=gl;sub=dp;spawn=sp}
 
@@ -102,7 +103,10 @@ sig
   (** resets the global difference part of the state *)
   val get_diff : Dom.t -> (Glob.Var.t * Glob.Val.t) list
   (** returns global differences from state *)
-  
+
+  val sync: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> Dom.t * (Glob.Var.t * Glob.Val.t) list
+  (** Synchronize with the global invariant. This is applied after joining with
+    * the previous state, see test 02/04 for an example why this is needed. *)
   
   (** Query function: *)
   val query: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> Queries.t -> Queries.Result.t 
@@ -181,6 +185,7 @@ struct
   let es_to_string = D.es_to_string
   let reset_diff   = D.reset_diff 
   let get_diff     = D.get_diff  
+  let sync         = D.sync
   let query        = D.query 
   let assign       = D.assign
   let branch       = D.branch
@@ -225,6 +230,7 @@ struct
   
   let reset_diff x = x
   let get_diff   _ = []
+  let sync ctx     = (ctx.local,[])
   (* Most domains do not have a global part. *)
   
   let query _ (q:Queries.t) = Queries.Result.top ()

@@ -5,6 +5,10 @@ open Cil
 open Json_type
 open Json_type.Browse
 
+(* Add analysis here ... *)
+let anas = ["base";"OSEK";"OSEK2";"access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"containment";"shape";"var_eq"]
+
+
 (* generate a default configuration *)
 let default_conf () =
   let def_int = Build.objekt ["trier"      , Build.bool true
@@ -21,6 +25,7 @@ let default_conf () =
                              ;"malloc_null", Build.bool false
                              ;"region"     , Build.bool false
                              ;"containment", Build.bool false
+                             ;"shape"      , Build.bool false
                              ;"var_eq"     , Build.bool false] in
   let def_path = Build.objekt ["base"       , Build.bool false
                               ;"OSEK"       , Build.bool true
@@ -34,10 +39,11 @@ let default_conf () =
                               ;"malloc_null", Build.bool true
                               ;"region"     , Build.bool false
                               ;"containment", Build.bool false
+                              ;"shape"      , Build.bool false
                               ;"var_eq"     , Build.bool false] in
   let def_ctx = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool true
-                              ;"OSEK2"     , Build.bool false
+                             ;"OSEK2"      , Build.bool false
                              ;"access"     , Build.bool true
                              ;"thread"     , Build.bool true
                              ;"escape"     , Build.bool true
@@ -47,6 +53,7 @@ let default_conf () =
                              ;"malloc_null", Build.bool true
                              ;"region"     , Build.bool true
                              ;"containment", Build.bool true
+                             ;"shape"      , Build.bool true
                              ;"var_eq"     , Build.bool true] in
   Build.objekt ["int_domain" , def_int
                ;"analyses"   , def_ana
@@ -67,7 +74,6 @@ let conf : (string, Json_type.t) Hashtbl.t ref =
 
 let modify_ana x b = 
   let old_ana = make_table (objekt (field !conf "analyses")) in
-  let anas = ["base";"OSEK";"OSEK2";"access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"containment";"var_eq"] in
   let set_ana_pair fe = 
     if fe = x 
     then fe, Build.bool b
@@ -84,7 +90,6 @@ let modify_ana x b =
 
 let modify_context x b = 
   let old_ana = make_table (objekt (field !conf "analyses")) in
-  let anas = ["base";"OSEK";"OSEK2";"access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"containment";"var_eq"] in
   let set_ana_pair fe = 
     if fe = x 
     then fe, Build.bool b

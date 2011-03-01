@@ -34,7 +34,7 @@ PROG_MODULES = \
 	solver effectWCon effectWNCon solverConSideRR solverConSideWNRR \
 	multithread compose mCP access varEq symbLocks thread threadEscape \
 	base region owner unit mutex osek osektransactionality uninit \
-	malloc_null memLeaks contain
+	malloc_null memLeaks contain shapes
 
 TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \
 	intDomainTest mapDomainTest collapsingArrayDomainTest \

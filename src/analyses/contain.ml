@@ -358,7 +358,7 @@ struct
           let cast_free = (stripCasts e) in
           let vars = Dom.get_vars cast_free in
 				  begin
-  		      let fs = Dom.get_tainted_fields ctx.global in
+  		      let fs = Dom.get_tainted_fields ctx.global in ignore fs;
 	          (*special handling of function ptrs (they are not really ptr types)*)
 	          List.iter (fun x->if is_private x || Dom.may_be_fp e st true then Dom.error (" (4) Analysis unsound due to possible export of function pointer to private function "^(sprint 160 (d_exp () e)))) vars;					
 	          Dom.warn_glob e ("return statement of "^(GU.demangle f.svar.vname));

@@ -109,8 +109,11 @@ struct
   let reset_diff x = Dom.map Base.reset_diff x
   let get_diff x = Dom.fold (fun x y -> Base.get_diff x @ y) x []
 
+
   let spawner f v d = f v (Dom.singleton d) 
   
+  let sync ctx = Dom.fold (fun l (ls,gs) -> let (l',gs') = Base.sync (set_st ctx l spawner) in (Dom.add l' ls, gs' @ gs)) ctx.local (Dom.bot (), [])
+
   let assign ctx lval exp  = lift (fun st -> Base.assign (set_st ctx st spawner) lval exp) ctx.local
   let branch ctx exp br    = lift (fun st -> Base.branch (set_st ctx st spawner) exp br) ctx.local
   let body ctx f           = lift (fun st -> Base.body (set_st ctx st spawner) f) ctx.local
