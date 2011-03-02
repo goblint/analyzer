@@ -1,5 +1,5 @@
 #!/bin/bash
-REL=goblint-0.9.5-alpha1
+REL=goblint-0.9.5
 mkdir $REL
 cp goblint.exe $REL
 cp LICENSE* $REL

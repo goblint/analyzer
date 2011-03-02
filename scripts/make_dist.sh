@@ -1,5 +1,5 @@
 #!/bin/bash
-REL=goblint-0.9.5-alpha1
+REL=goblint-0.9.5
 mkdir $REL
 svn export . $REL/goblint
 svn export ../cil $REL/cil
