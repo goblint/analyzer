@@ -103,12 +103,11 @@ regs.sort.each do |d|
       if obj =~ /RACE/ then
         hash[i] = if obj =~ /NORACE/ then "norace" else "race" end
       elsif obj =~ /assert.*\(/ then
+        debug = true
         if obj =~ /FAIL/ then
           hash[i] = "fail"
-          debug = true
         elsif obj =~ /UNKNOWN/ then
           hash[i] = "unknown"
-          debug = true
         else
           hash[i] = "assert"
         end
@@ -185,15 +184,23 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
       if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
       next unless l =~ /(.*)\(.*\:(.*)\)/
       obj,i = $1,$2.to_i
-      warnings[i] = case obj
+
+      ranking = ["other", "warn", "race", "norace", "assert", "unknown", "fail", "term", "noterm"]
+      thiswarn =  case obj
                     when /with lockset:/: "race"
                     when /will fail/    : "fail"
                     when /is unknown/   : "unknown"
                     when /Uninitialized/ : "warn"
                     when /dereferencing of null/ : "warn"
                     when /CW:/ : "warn"
-                    else obj
-                    end
+                    else "other"
+                  end
+      oldwarn = warnings[i]
+      if oldwarn.nil? then 
+        warnings[i] = thiswarn
+      else
+        warnings[i] = ranking[[ranking.index(thiswarn), ranking.index(oldwarn)].max]
+      end
     end
     correct = 0
     ferr = nil
@@ -203,6 +210,7 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
         if warnings[idx] == type then 
           correct += 1 
         else 
+          #puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}"
           ferr = idx if ferr.nil? or idx < ferr
         end
       when "assert", "nowarn" 

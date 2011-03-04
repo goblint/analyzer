@@ -39,7 +39,7 @@ int main(void) {
       exit(-1);
   }
 
-  assert(0); // WARN
+  assert(0); // FAIL
   *u = 40; // NOWARN
   *v = 40; // NOWARN
         

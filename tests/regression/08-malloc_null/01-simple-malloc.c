@@ -24,9 +24,9 @@ int main(void) {
         
         v = (int*)malloc(sizeof(*v));
         if (v == 0){
-                assert(0); // WARN
+                assert(0); // FAIL
   } else {
-                assert(0); // WARN
+                assert(0); // FAIL
                 *v != 0; // NOWARN
         }
         

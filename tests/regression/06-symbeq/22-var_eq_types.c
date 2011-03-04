@@ -43,7 +43,7 @@ int t17(){
 	assert(ps == &ss[i]);
 
 	i = 2;
-	assert(ps == &ss[i]); // unknown
+	assert(ps == &ss[i]); // UNKNOWN
 
 	return 0;
 }
@@ -57,7 +57,7 @@ int t16(){
 	assert(pt->ss->i == i);
 
 	tt = tt2;
-	assert(pt->ss->i == i); // unknown
+	assert(pt->ss->i == i); // UNKNOWN
 
 	return 0;
 }
@@ -74,7 +74,7 @@ int t15(){
 	assert(pt->ss->i == i);
 
 	ss = ss2;
-	assert(pt->ss->i == i); // unknown
+	assert(pt->ss->i == i); // UNKNOWN
 
 	return 0;
 }
@@ -90,7 +90,7 @@ int t14(){
 	pt->ss->i = i;
 	assert(pt->ss->i == i);
 	ss.i = 1;
-	assert(pt->ss->i == i); // unknown
+	assert(pt->ss->i == i); // UNKNOWN
 
 	return 0;
 }
@@ -106,7 +106,7 @@ int t13(){
 	pt->ss->i = i;
 	assert(pt->ss->i == i);
 	ss = ss2;
-	assert(pt->ss->i == i); // unknown
+	assert(pt->ss->i == i); // UNKNOWN
 
 	return 0;
 }
@@ -122,7 +122,7 @@ int t12(){
 	pt->ss->i = i;
 	assert(pt->ss->i == i);
 	ss.i = 1;
-	assert(pt->ss->i == i); // unknown
+	assert(pt->ss->i == i); // UNKNOWN
 
 	return 0;
 }
@@ -138,8 +138,8 @@ int t11(){
 	z.i = 8;
 	*(get_s()) = a;
 
-	assert(q == &a->i); // unknown
-	assert(y == a->cp); // unknown
+	assert(q == &a->i); // UNKNOWN
+	assert(y == a->cp); // UNKNOWN
 	assert(z.i == 8);
 
 	return 0;
@@ -156,8 +156,8 @@ int t10(){
 	z.i = 8;
 	a = b;
 
-	assert(q == &a->i); // unknown
-	assert(y == a->cp); // unknown
+	assert(q == &a->i); // UNKNOWN
+	assert(y == a->cp); // UNKNOWN
 	assert(z.i == 8);
 
 	return 0;
@@ -223,7 +223,7 @@ int t5(){
 
 	x = y;
 	*a = 3;
-	assert(x == y); // unknown
+	assert(x == y); // UNKNOWN
 
 	return 0;
 }
@@ -234,8 +234,8 @@ int t4(){
 
 	x = y;
 	*a = 3;
-	assert(x == y); // unknown
-	assert(a == &z); // unknown
+	assert(x == y); // UNKNOWN
+	assert(a == &z); // UNKNOWN
 
 	return 0;
 }
@@ -264,7 +264,7 @@ int t2(){
 
 	x = y;	assert(x == y);
 	*a = 3;
-	assert(x == y); // unknown
+	assert(x == y); // UNKNOWN
 	assert(a == &y);
 
 	return 0;
@@ -279,7 +279,7 @@ int t1(){
 	x = y;
 	assert(x == y);
 	f(a);
-	assert(x == y); // unknown
+	assert(x == y); // UNKNOWN
 	assert(a == &y);
 
 	return 0;
