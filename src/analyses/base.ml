@@ -39,58 +39,56 @@ struct
 
   module VD     = BaseDomain.VD
   module CPA    = BaseDomain.CPA 
-  module Var    = BaseDomain.Var    
-  module Vars   = BaseDomain.Vars
 
   module Glob = BaseDomain.Glob 
   module Dom  = BaseDomain.Dom (Flag)
 
   let name = "Constant Propagation Analysis"
-  let startstate () = CPA.bot (), Flag.bot (), Vars.bot ()
-  let otherstate () = CPA.bot (), Flag.top (), Vars.bot ()
+  let startstate () = CPA.bot (), Flag.bot ()
+  let otherstate () = CPA.bot (), Flag.top ()
 
-   type cpa = CPA.t
-   type flag = Flag.t
-   type deps = Vars.t
-   type trans_in = Dom.t 
-   type trans_out = Dom.t
-   type transfer = trans_in -> trans_out
-   type extra = (Cil.varinfo * Offs.t * bool) list
-   type store = Dom.t
-   type value = VD.t
-   type address = AD.t
-   type glob_fun = Glob.Var.t -> Glob.Val.t
+  type cpa = CPA.t
+  type flag = Flag.t
+  type trans_in = Dom.t 
+  type trans_out = Dom.t
+  type transfer = trans_in -> trans_out
+  type extra = (Cil.varinfo * Offs.t * bool) list
+  type store = Dom.t
+  type value = VD.t
+  type address = AD.t
+  type glob_fun  = Glob.Var.t -> Glob.Val.t
+  type glob_diff = (Glob.Var.t * Glob.Val.t) list
+  
 
   (**************************************************************************
    * State functions
    **************************************************************************)
 
-   let globalize a (cpa:cpa): (cpa * Vars.t) =
+   let globalize a (cpa:cpa): cpa * glob_diff  =
      (* For each global variable, we create the diff *)
      let add_var (v: varinfo) (value) (cpa,acc) =
        if is_global a v then 
-        (CPA.remove v cpa, Vars.add (v,value) acc) 
+        (CPA.remove v cpa, (v,value) :: acc) 
        else 
         (cpa,acc)
      in
        (* We fold over the local state, and collect the globals *)
-       CPA.fold add_var cpa (cpa, Vars.empty ())
+       CPA.fold add_var cpa (cpa, [])
 
-  let sync ctx: Dom.t * (Glob.Var.t * Glob.Val.t) list = 
-    let cpa,fl,gl = ctx.local in
-    let cpa, gl' = if Flag.is_multi fl then globalize ctx.ask cpa else (cpa,gl) in
-    let gl = Vars.join gl' gl in
-      (cpa,fl,Vars.empty()), Vars.elements gl
+  let sync ctx: Dom.t * glob_diff = 
+    let cpa,fl = ctx.local in
+    let cpa, diff = if Flag.is_multi fl then globalize ctx.ask cpa else (cpa,[]) in
+      (cpa,fl), diff
 
    (** [get st addr] returns the value corresponding to [addr] in [st] 
     *  adding proper dependencies *)
-   let rec get a (gs: glob_fun) (st,fl,gl: store) (addrs:address): value =
+   let rec get a (gs: glob_fun) (st,fl: store) (addrs:address): value =
      if M.tracing then M.tracel "get" (dprintf "address: %a\nstate: %a" AD.pretty addrs CPA.pretty st);
      (* Finding a single varinfo*offset pair *)
      let f_addr (x, offs) = 
        (* get hold of the variable value, either from local or global state *)
        let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then gs x else CPA.find x st in
-       VD.eval_offset (get a gs (st,fl,gl)) var offs    in 
+       VD.eval_offset (get a gs (st,fl)) var offs    in 
      let f x =
        match Addr.to_var_offset x with
        | [x] -> f_addr x                    (* norml reference *)
@@ -104,43 +102,43 @@ struct
        try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
 
    (** [set st addr val] returns a state where [addr] is set to [val] *)
-   let set a ?(effect=true) (gs:glob_fun) (st,fl,gl: store) (lval: AD.t) (value: value): store =
+   let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value): store =
      if M.tracing then M.tracel "set" (dprintf "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st);
      (* Updating a single varinfo*offset pair. NB! This function's type does
       * not include the flag. *)
-     let update_one_addr (x, offs) (nst,gd): cpa * deps = 
+     let update_one_addr (x, offs) nst: cpa = 
        (* Check if we need to side-effect this one. We no longer generate
         * side-effects here, but the code still distinguishes these cases. *)
        if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then 
          (* Check if we should avoid producing a side-effect, such as updates to
           * the state when following conditional guards. *)
-         if not effect then (nst,gd)
+         if not effect then nst
          else begin
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst, gd
+          CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst
          end 
        else
         (* Normal update of the local state *)
-        CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst, gd
+        CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst
      in 
-     let update_one x (y: cpa * deps) =
+     let update_one x (y: cpa) =
        match Addr.to_var_offset x with
          | [x] -> update_one_addr x y
          | _ -> y
      in try 
        (* We start from the current state and an empty list of global deltas,
         * and we assign to all the the different possible places: *)
-       let (nst,gd) = AD.fold update_one lval (st,gl) in
+       let nst = AD.fold update_one lval st in
        (* If the address was definite, then we just return it. If the address
         * was ambiguous, we have to join it with the initial state. *)
        let nst = if AD.cardinal lval > 1 then CPA.join st nst else nst in
-         (nst,fl,gd)
+         (nst,fl)
      with 
        (* If any of the addresses are unknown, we ignore it!?! *)
-       | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; (st,fl,gl)
+       | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; (st,fl)
 
-   let set_many a (gs:glob_fun) (st,fl,gl as store: store) lval_value_list: store =
+   let set_many a (gs:glob_fun) (st,fl as store: store) lval_value_list: store =
      (* Maybe this can be done with a simple fold *)
      let f (acc: store) ((lval:AD.t),(value:value)): store = 
        set a gs acc lval value 
@@ -149,18 +147,18 @@ struct
        List.fold_left f store lval_value_list
 
    (* The function for invalidating a list of addresses *)
-   let set_top (st,fl,gl:store) (lvals: AD.t list) = ()
+   let set_top (st,fl:store) (lvals: AD.t list) = ()
 
    let join_writes (st1,gl1) (st2,gl2) = 
      (* It's the join of the local state and concatenate the global deltas, I'm
       * not sure in which order! *)
      (Dom.join st1 st2, gl1 @ gl2)
 
-   let rem_many (st,fl,gl: store) (v_list: varinfo list): store = 
+   let rem_many (st,fl: store) (v_list: varinfo list): store = 
      let f acc v = CPA.remove v acc in
-       List.fold_left f st v_list,fl,gl
+       List.fold_left f st v_list, fl
 
-  let es_to_string f (es,fl,_) = 
+  let es_to_string f (es,fl) = 
     let short_fun x = 
       match x.vtype, CPA.find x es with
         | TPtr (t, attr), `Address a 
@@ -405,7 +403,7 @@ struct
            end 
 
 
-   let access_address (gs:glob_fun) (_,fl,_) write (addrs: address): extra =
+   let access_address (gs:glob_fun) (_,fl) write (addrs: address): extra =
      let f (v,o) acc = (v, Offs.from_offset o, write) :: acc in 
      let addr_list = try AD.to_var_offset addrs with _ -> M.warn "Access to unknown address could be global"; [] in
        List.fold_right f addr_list [] 
@@ -692,11 +690,8 @@ struct
 
   let return ctx exp fundec =
     if fundec.svar.vname = "__goblint_dummy_init" then begin
-      let (cp,fl,df) = ctx.local in
-      if Flag.is_multi fl then ctx.local else begin
-        let d,v = globalize ctx.ask cp in
-        (d, Flag.get_main (), Vars.union df v)
-      end
+      let (cp,fl) = ctx.local in
+      if Flag.is_multi fl then ctx.local else (cp, Flag.get_main ())
     end else
       let nst = rem_many ctx.local (fundec.sformals @ fundec.slocals) in
         match exp with
@@ -846,7 +841,7 @@ struct
        
   (* interpreter end *)
   
-  let get_fl (_,fl,_) = fl
+  let get_fl (_,fl) = fl
   
   let hash    (x,y,_)             = Hashtbl.hash (x,y)
   let equal   (x1,x2,_) (y1,y2,_) = CPA.equal x1 y1 && Flag.equal x2 y2
@@ -938,7 +933,7 @@ struct
       List.fold_right g flist [] 
 
   let rec fork ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * Dom.t) list = 
-    let cpa,fl,gl = ctx.local in
+    let cpa,fl = ctx.local in
     match LF.classify f.vname args with 
       (* handling thread creations *)
       | `ThreadCreate (start,ptc_arg) -> begin        
@@ -947,11 +942,11 @@ struct
           try
             (* try to get function declaration *)
             let _ = Cilfacade.getdec start_vari in 
-            let sts = enter_func (swap_st ctx (cpa, Flag.get_multi (), gl)) None start_vari [ptc_arg]  in
+            let sts = enter_func (swap_st ctx (cpa, Flag.get_multi ())) None start_vari [ptc_arg]  in
             List.map (fun (_,st) -> start_vari, st) sts
           with Not_found -> 
             M.warn ("creating an thread from unknown function " ^ start_vari.vname);
-            [start_vari,(cpa, Flag.get_multi (), Vars.bot())]
+            [start_vari,(cpa, Flag.get_multi ())]
         end
       | `Unknown _ -> begin
           let args = 
@@ -975,14 +970,14 @@ struct
   and enter_func ctx lval fn args : (Dom.t * Dom.t) list = 
     let forks = fork ctx lval fn args in
     let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
-    let cpa,fl,gl as st = ctx.local in
+    let cpa,fl as st = ctx.local in
     let make_entry pa context =
       (* If we need the globals, add them *)
       let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
       (* Assign parameters to arguments *)
       let new_cpa = CPA.add_list pa new_cpa in
       let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
-        st, (new_cpa, fl, Vars.bot ()) 
+        st, (new_cpa, fl) 
     in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv ctx.ask ctx.global st) args in
@@ -1002,7 +997,7 @@ struct
 (*    let heap_var = heap_var !GU.current_loc in*)
     let forks = fork ctx lv f args in
     let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
-    let cpa,fl,gl as st = ctx.local in
+    let cpa,fl as st = ctx.local in
     let gs = ctx.global in
     let map_true x = x, (Cil.integer 1), true in
     match LF.classify f.vname args with 
@@ -1056,15 +1051,11 @@ struct
       | `ThreadCreate (f,x) -> 
           GU.multi_threaded := true;
           let new_fl = Flag.join fl (Flag.get_main ()) in
-          if Flag.is_multi fl then
-            [map_true (cpa,new_fl,gl)]
-          else
-            let (ncpa,ngl) = if not !GU.earlyglobs then globalize ctx.ask cpa else cpa, Vars.empty() in
-            [map_true (ncpa, new_fl,ngl)]
+            [map_true (cpa, new_fl)]
       (* handling thread joins... sort of *)
       | `ThreadJoin (id,ret_var) -> 
           begin match (eval_rv ctx.ask gs st ret_var) with
-            | `Int n when n = ID.of_int 0L -> [map_true (cpa,fl,Vars.bot ())]
+            | `Int n when n = ID.of_int 0L -> [map_true (cpa,fl)]
             | _      -> [map_true (invalidate ctx.ask gs st [ret_var])] 
           end
       | `Malloc  -> begin
@@ -1131,32 +1122,28 @@ struct
                   let _ = Cilfacade.getdec var in true
                 in 
                 let g a acc = try let r = f a in r || acc with _ -> acc in
-                let (cpa,fl,gl as st) = invalidate ctx.ask gs st (CPA.fold st_expr cpa (lv_list @ args)) in
+                let (cpa,fl as st) = invalidate ctx.ask gs st (CPA.fold st_expr cpa (lv_list @ args)) in
                   if List.fold_right g flist false then begin
                     (* Copy-pasted from the thread-spawning code above: *)
                     GU.multi_threaded := true;
                     let new_fl = Flag.join fl (Flag.get_main ()) in
-                      if Flag.is_multi fl then 
-                        [map_true (cpa,new_fl,Vars.empty())]
-                      else 
-                        let (ncpa,ngl) = if not !GU.earlyglobs then globalize ctx.ask cpa else cpa, Vars.empty() in 
-                          [map_true (ncpa, new_fl,ngl)]
+                      [map_true (cpa,new_fl)]
                   end else [map_true st]
               )
         end
 
   let leave_func ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: Dom.t) : Dom.t =
-    let combine_one (loc,lf,gl as st: Dom.t) ((fun_st,fun_fl,_) as fun_d: Dom.t) = 
+    let combine_one (loc,lf as st: Dom.t) ((fun_st,fun_fl) as fun_d: Dom.t) = 
       (* This function does miscelaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
        * Note that, the function return above has to remove all the local
        * variables of the called function from cpa_s. *)
-      let add_globals (cpa_s,fl_s) (cpa_d,fl_d,gl) = 
+      let add_globals (cpa_s,fl_s) (cpa_d,fl_dl) = 
         (* Remove the return value as this is dealt with separately. *)
         let cpa_s = CPA.remove (return_varinfo ()) cpa_s in
         let new_cpa = CPA.fold CPA.add cpa_s cpa_d in
-          (new_cpa, fl_s, gl)
+          (new_cpa, fl_s)
       in 
       let return_var = return_var () in
       let return_val = 
