@@ -83,7 +83,7 @@ struct
    (** [get st addr] returns the value corresponding to [addr] in [st] 
     *  adding proper dependencies *)
    let rec get a (gs: glob_fun) (st,fl: store) (addrs:address): value =
-     if M.tracing then M.tracel "get" (dprintf "address: %a\nstate: %a" AD.pretty addrs CPA.pretty st);
+     let res = 
      (* Finding a single varinfo*offset pair *)
      let f_addr (x, offs) = 
        (* get hold of the variable value, either from local or global state *)
@@ -100,6 +100,10 @@ struct
        (* Finally we join over all the addresses in the set. If any of the
         * addresses is a topped value, joining will fail. *)
        try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
+     in
+     if M.tracing then M.tracel "get" (dprintf "Address: %a\nState: %a\nResult: %a\n" 
+                                         AD.pretty addrs CPA.pretty st VD.pretty res);
+     res
 
    (** [set st addr val] returns a state where [addr] is set to [val] *)
    let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value): store =
@@ -257,6 +261,8 @@ struct
               | _ -> VD.top ()
           end
         (* For other values, we just give up! *)
+        | `Bot, _ -> `Bot
+        | _, `Bot -> `Bot
         | _ -> VD.top ()
 
 
@@ -270,6 +276,7 @@ struct
      in
        match a1 with
          | `Int v1 -> `Int (the_op v1)
+         | `Bot -> `Bot
          | _ -> VD.top ()
 
    (* Auxiliary function to append an additional offset to a given offset. *)
@@ -1093,6 +1100,7 @@ struct
                   | _ -> ()); 
                 (* Just propagate the state *)
                 [map_true st]
+            | `Bot -> [map_true st]
             | _ -> begin 
                 if !GU.debug then begin
                   M.warn_each ("Assertion \"" ^ expr () ^ "\" is unknown");

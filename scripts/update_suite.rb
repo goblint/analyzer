@@ -185,7 +185,7 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
       next unless l =~ /(.*)\(.*\:(.*)\)/
       obj,i = $1,$2.to_i
 
-      ranking = ["other", "warn", "race", "norace", "assert", "unknown", "fail", "term", "noterm"]
+      ranking = ["other", "warn", "race", "norace", "assert", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
                     when /with lockset:/: "race"
                     when /will fail/    : "fail"

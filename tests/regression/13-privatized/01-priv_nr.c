@@ -14,7 +14,6 @@ void *t_fun(void *arg) {
   assert(glob1 == -10);
   glob1 = t;
   pthread_mutex_unlock(&mutex1);
-  x = -1;
   return NULL;
 }
 
