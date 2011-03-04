@@ -65,9 +65,6 @@ struct
    * State functions
    **************************************************************************)
 
-   let reset_diff (st,fl,gl) : Dom.t = (st,fl, Vars.empty ())   
-   let get_diff (_,_,x) : (Glob.Var.t * Glob.Val.t) list = Vars.elements x
-
    let globalize a (cpa:cpa): (cpa * Vars.t) =
      (* For each global variable, we create the diff *)
      let add_var (v: varinfo) (value) (cpa,acc) =
@@ -112,16 +109,21 @@ struct
      (* Updating a single varinfo*offset pair. NB! This function's type does
       * not include the flag. *)
      let update_one_addr (x, offs) (nst,gd): cpa * deps = 
-       (* Check if we need to side-effect this one *)
-       if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then if not effect then (nst,gd)
-       else begin
-        (* Create an update and add it to the difflist *)
-        (nst,Vars.add (x, VD.update_offset (gs x) offs value) gd)
-       end else
+       (* Check if we need to side-effect this one. We no longer generate
+        * side-effects here, but the code still distinguishes these cases. *)
+       if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then 
+         (* Check if we should avoid producing a side-effect, such as updates to
+          * the state when following conditional guards. *)
+         if not effect then (nst,gd)
+         else begin
+          (* Here, an effect should be generated, but we add it to the local
+           * state, waiting for the sync function to publish it. *)
+          CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst, gd
+         end 
+       else
         (* Normal update of the local state *)
-        let nst = CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst in
-        (nst,gd)  
-       in 
+        CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst, gd
+     in 
      let update_one x (y: cpa * deps) =
        match Addr.to_var_offset x with
          | [x] -> update_one_addr x y

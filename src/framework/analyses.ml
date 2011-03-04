@@ -99,11 +99,6 @@ sig
   val es_to_string: fundec -> Dom.t -> string
   (** no-one knows .. somehow used when generating final output *)
   
-  val reset_diff : Dom.t -> Dom.t
-  (** resets the global difference part of the state *)
-  val get_diff : Dom.t -> (Glob.Var.t * Glob.Val.t) list
-  (** returns global differences from state *)
-
   val sync: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> Dom.t * (Glob.Var.t * Glob.Val.t) list
   (** Synchronize with the global invariant. This is applied after joining with
     * the previous state, see test 02/04 for an example why this is needed. *)
@@ -183,8 +178,6 @@ struct
   let startstate   = D.startstate
   let otherstate   = D.otherstate
   let es_to_string = D.es_to_string
-  let reset_diff   = D.reset_diff 
-  let get_diff     = D.get_diff  
   let sync         = D.sync
   let query        = D.query 
   let assign       = D.assign
@@ -228,8 +221,6 @@ struct
   let context_top x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
   
-  let reset_diff x = x
-  let get_diff   _ = []
   let sync ctx     = (ctx.local,[])
   (* Most domains do not have a global part. *)
   

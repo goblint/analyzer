@@ -172,9 +172,6 @@ struct
 
   let startstate () = Dom.top ()
   let otherstate () = Dom.top ()
-
-  let get_diff _ = []
-  let reset_diff x = x
   
   let name = "OSEK analysis"
   let es_to_string f _ = f.svar.vname

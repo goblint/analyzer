@@ -42,8 +42,8 @@ struct
     if M.tracing then M.trace "con" (dprintf "%a\n" Var.pretty_trace (n,es));
     
     let lift_st x forks: Solver.var_domain * Solver.diff * Solver.variable list =
-      let diff = List.map (fun x -> `G x) (Spec.get_diff x) in
-      let rx = Spec.reset_diff x in
+      let diff = [] in
+      let rx = x in
         (SD.lift rx, diff, forks)
     in
     

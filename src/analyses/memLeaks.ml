@@ -196,8 +196,9 @@ struct
     
   module Glob = BS.Glob
   
-  let get_diff (_,x) = BS.get_diff x
-  let reset_diff (y,x) = (y,BS.reset_diff x)
+  let sync ctx = 
+    let (y,x) = ctx.local in
+      (y, BS.reset_diff x), BS.get_diff x
     
   let name = "Memory leaks analysis"
   

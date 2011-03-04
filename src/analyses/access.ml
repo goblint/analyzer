@@ -16,17 +16,10 @@ struct
   let startstate () = Dom.startstate ()
   let otherstate () = Dom.startstate ()
   
-  let reset_diff = function 
-    | `Bot -> `Bot
-    | `Lifted ((m1,_,m2),a,b) -> `Lifted ((m1, Dom.Diff.bot (),m2), a, b)
-    
-  let get_diff (x:Dom.t) : (Glob.Var.t * Glob.Val.t) list = 
-    match x with
-      | `Bot -> Messages.warn "Access information lost."; []
-      | `Lifted ((_,d,_),_,_) -> 
-        let ds = Dom.Diff.elements d in
-(*         List.iter (fun (v,d) -> Messages.report (v.vname ^ " -> " ^ Pretty.sprint 80 (Dom.GlobDom.pretty () d))) ds; *)
-        ds
+  let sync ctx = 
+    match ctx.local with
+      | `Bot -> Messages.warn "Access information lost."; (`Bot, [])
+      | `Lifted ((m1,d,m2),a,b) -> `Lifted ((m1, Dom.Diff.bot (), m2), a, b), Dom.Diff.elements d
   
   let name = "Access Analysis"
 

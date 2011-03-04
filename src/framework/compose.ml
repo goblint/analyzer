@@ -106,10 +106,6 @@ struct
     then raise Analyses.Deadcode
     else rslt
   
-  let reset_diff x = Dom.map Base.reset_diff x
-  let get_diff x = Dom.fold (fun x y -> Base.get_diff x @ y) x []
-
-
   let spawner f v d = f v (Dom.singleton d) 
   
   let sync ctx = Dom.fold (fun l (ls,gs) -> let (l',gs') = Base.sync (set_st ctx l spawner) in (Dom.add l' ls, gs' @ gs)) ctx.local (Dom.bot (), [])

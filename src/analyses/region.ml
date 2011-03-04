@@ -35,8 +35,9 @@ struct
   
   let get_regpart gf = gf (partition_varinfo ())
   
-  let get_diff (_,x) = Vars.elements x
-  let reset_diff (e,_) = (e,Vars.empty ())
+  let sync ctx = 
+    let (e,x) = ctx.local in
+      (e, Vars.empty ()), Vars.elements x
 
   let regions exp part (st,_) : Lval.CilLval.t list =
     match st with

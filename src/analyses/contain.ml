@@ -190,9 +190,9 @@ struct
     in
        (not no_mainclass) && (Dom.is_private_method_name f.vname) (*uncommenting the rest brakes fptr propagation*)(*&& not (Dom.is_public_method_name f.vname)*) (*fun may be priv andpub simultaneously*)
          
-  let get_diff (_,_,df:Dom.t)  = ContainDomain.Diff.elements df
   
-  let reset_diff (x,y,z:Dom.t) = x, y, ContainDomain.Diff.empty ()
+  let sync ctx = 
+    let (x,y,z:Dom.t) = ctx.local in (x, y, ContainDomain.Diff.empty ()), ContainDomain.Diff.elements z
 	
 	let time_transfer n f =
 		if true || !GU.verbose then Stats.time n f 0

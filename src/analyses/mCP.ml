@@ -86,8 +86,6 @@ type analysisRecord = {
     startstate: unit -> local_state;
     otherstate: unit -> local_state;
     es_to_string: fundec -> local_state -> string;  
-    reset_diff : local_state -> local_state;
-    get_diff : local_state -> (Basetype.Variables.t * global_state) list;
     sync : (local_state,Basetype.Variables.t,global_state) ctx -> local_state * (Basetype.Variables.t * global_state) list;
     query: (local_state,Basetype.Variables.t,global_state) ctx -> Queries.t -> Queries.Result.t ;
     assign: (local_state,Basetype.Variables.t,global_state) ctx -> lval -> exp -> local_state ;
@@ -202,18 +200,16 @@ struct
   let startstate () = C.inject_l (S.startstate ())
   let otherstate () = C.inject_l (S.otherstate ())
   let es_to_string f x = S.es_to_string f (C.extract_l x)
-  
-  let reset_diff x = C.inject_l (S.reset_diff (C.extract_l x))
-  let inject_gd_list = List.map (fun (x,y) -> x, C.inject_g y)
-  let get_diff x =  inject_gd_list (S.get_diff (C.extract_l x)) 
-  
+
   let spawn f v d = f v (C.inject_l d)
   
+  let inject_gd_list = List.map (fun (x,y) -> x, C.inject_g y)
   let sync ctx =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
     let (l,g) = S.sync (set_st_gl ctx st gl spawn) in
       (C.inject_l l, inject_gd_list g)
+
   let query ctx q =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
@@ -403,8 +399,6 @@ struct
         startstate    = startstate;
         otherstate    = otherstate;
         es_to_string  = es_to_string;
-        reset_diff    = reset_diff;
-        get_diff      = get_diff;
         sync          = sync;
         query         = query;
         assign        = assign;
@@ -715,8 +709,6 @@ struct
     let g = select_g s ctx.global in
     s.query (set_gl ctx g)
 
-  let reset_diff' st = (get_matches st).reset_diff st
-  
   let replace x = 
     let matches = (Dom.get_matches x).matches in
     let rec f ws =
@@ -736,10 +728,6 @@ struct
         | w :: ws -> w :: f ws
     in
     f
-
-  let get_diff' st = 
-    let difflist = (get_matches st).get_diff st in
-    List.map (fun (x,v) -> x, replaceg v (Glob.Val.bot ())) difflist
 
   let sync' (ctx: (local_state, Basetype.Variables.t, global_state list) ctx) = 
     let s = get_matches ctx.local in
@@ -814,10 +802,6 @@ struct
     match List.fold_left find_base None xs  with
       | Some b -> (get_matches b).es_to_string f b
       | None -> f.svar.vname
-  
-  (* Global difflist functions. *)
-  let get_diff st = List.flatten (List.map get_diff' st)
-  let reset_diff = List.map reset_diff'  
 
   (* fork over all analyses and combine values of equal varinfos *)
   let lift_spawn ctx f  =
