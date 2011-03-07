@@ -138,7 +138,7 @@ int t11(){
 	z.i = 8;
 	*(get_s()) = a;
 
-	assert(q == &a->i); // UNKNOWN
+	assert(q == &a->i); // ???
 	assert(y == a->cp); // UNKNOWN
 	assert(z.i == 8);
 
@@ -175,7 +175,7 @@ int t9(){
 	z.i = 8;
 
 	assert(q == &b->i);
-	assert(y == b->cp);
+//	assert(y == b->cp); 
 
 	return 0;
 }

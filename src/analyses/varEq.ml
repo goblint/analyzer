@@ -190,10 +190,15 @@ struct
     let rec type_may_change_apt a = 
       (* With abstract points-to (like in type invariants in accesses). 
          Here we implement it in part --- minimum to protect local integers. *)
-       match a, b with
-         | Cil.Lval (Cil.Var _,NoOffset), Cil.AddrOf (Cil.Mem(Cil.Lval _),Field(_, NoOffset)) -> 
+(*       Messages.report ("a: "^sprint 80 (d_plainexp () a)); *)
+(*       Messages.report ("b: "^sprint 80 (d_plainexp () b)); *)
+      match a, b with
+         | Cil.Lval (Cil.Var _,NoOffset), Cil.AddrOf (Cil.Mem(Cil.Lval _),Field(_, _)) -> 
             (* lval *.field changes -> local var stays the same *)
             false
+(*         | dr, Cil.Lval (Cil.Var lv,NoOffset) when (Cil.isIntegralType (Cil.typeOf dr)) && (Cil.isPointerType (lv.vtype)) && not (Cil.isIntegralType (Cil.typeOf (Cil.Lval (Cil.Mem (Cil.Lval (Cil.Var lv,NoOffset)),NoOffset)))) -> 
+            (* lval *x changes -> local var stays the same *)
+            false*)
          | _ -> 
             type_may_change_t false a
     and type_may_change_t deref a =
@@ -297,7 +302,7 @@ struct
     in 
     let r =
     if Queries.LS.is_top bls
-    then ((*Messages.report "No PT-set: switching to types ";*) type_may_change_apt a)
+    then ((*Messages.report "No PT-set: switching to types ";*) type_may_change_apt a )
     else Queries.LS.exists (lval_may_change_pt a) bls
     in
 (*    if r 
@@ -329,7 +334,12 @@ struct
       match x with (Var v,_) -> not v.vglob | _ -> false
     in
     let st = 
-*)    if Exp.is_global_var (Lval lv) = Some false && Exp.interesting rv && Exp.is_global_var rv = Some false
+*)  let lvt = Cil.typeOf (Lval lv) in
+(*     Messages.report (sprint 80 (d_type () lvt)); *)
+      if Exp.is_global_var (Lval lv) = Some false 
+      && Exp.interesting rv 
+      && Exp.is_global_var rv = Some false
+      && (Cil.isArithmeticType lvt || Cil.isPointerType lvt)
       then Dom.add_eq (rv,Lval lv) (remove ask lv st)
       else remove ask lv st 
 (*    in

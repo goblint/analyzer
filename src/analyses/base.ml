@@ -254,10 +254,17 @@ struct
          * bother to find the result, but it's an integer. *)
         | `Address p1, `Address p2 -> begin
             let single a = try AD.cardinal a = 1 with _ -> false in 
+            let eq x y = 
+              let xl = AD.to_var_must x in
+              let yl = AD.to_var_must y in
+              if List.length xl = 1 && List.length yl = 1 
+              then ID.of_bool (List.exists2 (fun x y -> x.vid = y.vid) xl yl)
+              else ID.top ()
+            in  
             match op with
               | MinusPP -> `Int (ID.top ())
-              | Eq -> `Int (if (single p1)&&(single p2) then ID.of_bool (AD.equal p1 p2) else ID.top())
-              | Ne -> `Int (if (single p1)&&(single p2) then ID.of_bool (not (AD.equal p1 p2)) else ID.top())
+              | Eq -> `Int (if (single p1)&&(single p2) then (eq p1 p2) else ID.top())
+              | Ne -> `Int (if (single p1)&&(single p2) then ID.lognot (eq p1 p2) else ID.top())
               | _ -> VD.top ()
           end
         (* For other values, we just give up! *)
