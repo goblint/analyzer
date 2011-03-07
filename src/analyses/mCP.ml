@@ -201,45 +201,46 @@ struct
   let otherstate () = C.inject_l (S.otherstate ())
   let es_to_string f x = S.es_to_string f (C.extract_l x)
 
-  let spawn f v d = f v (C.inject_l d)
+  let spawn  f v d = f v (C.inject_l d)
+  let effect f v g = f v (C.inject_g g)
   
   let inject_gd_list = List.map (fun (x,y) -> x, C.inject_g y)
   let sync ctx =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    let (l,g) = S.sync (set_st_gl ctx st gl spawn) in
+    let (l,g) = S.sync (set_st_gl ctx st gl spawn effect) in
       (C.inject_l l, inject_gd_list g)
 
   let query ctx q =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    S.query (set_st_gl ctx st gl spawn) q
+    S.query (set_st_gl ctx st gl spawn effect) q
   
   let intrpt ctx = 
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    C.inject_l (S.intrpt (set_st_gl ctx st gl spawn))
+    C.inject_l (S.intrpt (set_st_gl ctx st gl spawn effect))
   let assign ctx lval exp = 
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    C.inject_l (S.assign (set_st_gl ctx st gl spawn) lval exp)
+    C.inject_l (S.assign (set_st_gl ctx st gl spawn effect) lval exp)
   let branch ctx exp tv =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    C.inject_l (S.branch (set_st_gl ctx st gl spawn) exp tv)
+    C.inject_l (S.branch (set_st_gl ctx st gl spawn effect) exp tv)
   let body ctx f =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    C.inject_l (S.body (set_st_gl ctx st gl spawn) f)
+    C.inject_l (S.body (set_st_gl ctx st gl spawn effect) f)
   let return ctx r f =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    C.inject_l (S.return (set_st_gl ctx st gl spawn) r f)
+    C.inject_l (S.return (set_st_gl ctx st gl spawn effect) r f)
   
   let eval_funvar ctx exp =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    S.eval_funvar (set_st_gl ctx st gl spawn) exp
+    S.eval_funvar (set_st_gl ctx st gl spawn effect) exp
 
 (*  let fork ctx r f args =
     let st = C.extract_l ctx.local in
@@ -249,17 +250,17 @@ struct
   let special_fn ctx r f args =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    let r = S.special_fn (set_st_gl ctx st gl spawn) r f args in
+    let r = S.special_fn (set_st_gl ctx st gl spawn effect) r f args in
     List.map (fun (d,e,b) -> C.inject_l d, e, b) r
   let enter_func ctx r f args =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    let r = S.enter_func (set_st_gl ctx st gl spawn) r f args in
+    let r = S.enter_func (set_st_gl ctx st gl spawn effect) r f args in
     List.map (fun (d1,d2) -> C.inject_l d1, C.inject_l d2) r
   let leave_func ctx r fexp f args l2 =
     let st1 = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
-    let r = S.leave_func (set_st_gl ctx st1 gl spawn) r fexp f args (C.extract_l l2) in
+    let r = S.leave_func (set_st_gl ctx st1 gl spawn effect) r fexp f args (C.extract_l l2) in
     C.inject_l r
     
   let _ = 
@@ -653,51 +654,64 @@ struct
       | _ :: xs -> f xs
     in
     f (g x)
-  
+
+  let replaceg x = 
+    let matches = (Glob.Val.get_matches x).matches in
+    let rec f ws =
+      match ws with
+        | [] -> []
+        | w :: ws when matches w ->  x :: ws
+        | w :: ws -> w :: f ws
+    in
+    f
+
+  let effect (f:Glob.Var.t -> global_state list -> unit) (v:Glob.Var.t) (g:global_state) : unit = 
+    f v (replaceg g (Glob.Val.bot ()))
+
   let intrpt' ctx = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
-    s.intrpt (set_gl ctx g) 
+    s.intrpt (set_gl ctx g effect) 
 
   let assign' ctx lv exp = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
-    s.assign (set_gl ctx g) lv exp
+    s.assign (set_gl ctx g effect) lv exp
   
   let body' ctx fn = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
-    s.body (set_gl ctx g) fn  
+    s.body (set_gl ctx g effect) fn  
   
   let return' ctx r fn =  
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
-    s.return (set_gl ctx g) r fn 
+    s.return (set_gl ctx g effect) r fn 
     
   let branch' ctx exp tv = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
-    s.branch (set_gl ctx g) exp tv
+    s.branch (set_gl ctx g effect) exp tv
     
   let special_fn' ctx r v args = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
-    s.special_fn (set_gl ctx g) r v args
+    s.special_fn (set_gl ctx g effect) r v args
     
   let enter_func' ctx r v args = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
-    s.enter_func (set_gl ctx g) r v args
+    s.enter_func (set_gl ctx g effect) r v args
     
   let leave_func' ctx r v args st2 = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
-    s.leave_func (set_gl ctx g) r v args st2  
+    s.leave_func (set_gl ctx g effect) r v args st2  
 
   let eval_funvar' ctx exp = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
-    s.eval_funvar (set_gl ctx g) exp
+    s.eval_funvar (set_gl ctx g effect) exp
     
 (*  let fork' ctx r v args = 
     let s = get_matches ctx.local in
@@ -707,7 +721,7 @@ struct
   let query' ctx = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
-    s.query (set_gl ctx g)
+    s.query (set_gl ctx g effect)
 
   let replace x = 
     let matches = (Dom.get_matches x).matches in
@@ -719,20 +733,11 @@ struct
     in
     f
     
-  let replaceg x = 
-    let matches = (Glob.Val.get_matches x).matches in
-    let rec f ws =
-      match ws with
-        | [] -> []
-        | w :: ws when matches w ->  x :: ws
-        | w :: ws -> w :: f ws
-    in
-    f
 
   let sync' (ctx: (local_state, Basetype.Variables.t, global_state list) ctx) = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
-    let (l,difflist) = s.sync (set_gl ctx g) in
+    let (l,difflist) = s.sync (set_gl ctx g effect) in
       l, List.map (fun (x,v) -> x, replaceg v (Glob.Val.bot ())) difflist
 
   (* analysis spec stuff *)
@@ -836,7 +841,7 @@ struct
   let query = query_imp 
 
   let set_sub full_ctx (ctx:(local_state,'b,'c) ctx) (dp:local_state list) : (local_state,'b,'c) ctx = 
-      context (query full_ctx) ctx.local ctx.global dp ctx.spawn
+      context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect
   
   let map_tf' ctx (tf:(local_state, Basetype.Variables.t, global_state list) ctx  -> 'a) : Dom.t = 
     let map_one (set_st : local_state -> (local_state, Basetype.Variables.t, global_state list) ctx) ls (t : local_state): local_state list =
@@ -914,7 +919,7 @@ struct
         in
         List.map f s.depends_on 
       in
-      let subctx = context (query ctx) t ctx.global ds (fun a b -> ()) in
+      let subctx = context (query ctx) t ctx.global ds (fun a b -> ()) ctx.geffect in
       let l,g = sync' subctx in
         l::ls, g @ gs
     in

@@ -46,6 +46,7 @@ type ('a,'b,'c) ctx =
     ; global: 'b -> 'c 
     ; sub   : local_state list
     ; spawn : varinfo -> 'a -> unit
+    ; geffect : 'b -> 'c -> unit 
     }
 
 let set_q ctx ask = 
@@ -57,13 +58,13 @@ let set_st ctx st spawn_tr =
 let swap_st ctx st =
   {ctx with local=st}
 
-let set_gl ctx gl =
-  {ctx with global=gl}
+let set_gl ctx gl eff_tr =
+  {ctx with global=gl; geffect=eff_tr ctx.geffect}
 
-let set_st_gl ctx st gl spawn_tr =
-  {ctx with local=st; global=gl; spawn=spawn_tr ctx.spawn}
+let set_st_gl ctx st gl spawn_tr eff_tr =
+  {ctx with local=st; global=gl; spawn=spawn_tr ctx.spawn; geffect=eff_tr ctx.geffect}
 
-let context ask st gl dp sp = {ask=ask; local=st; global=gl;sub=dp;spawn=sp}
+let context ask st gl dp sp ge = {ask=ask; local=st; global=gl;sub=dp;spawn=sp;geffect=ge}
 
 module type VarType = 
 sig
