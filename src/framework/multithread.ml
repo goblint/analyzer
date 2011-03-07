@@ -177,7 +177,8 @@ struct
   (* Pretty printing stuff *)
   module RT = A.ResultType (Spec) (Spec.Dom) (SD)
   module LT = SetDomain.HeadlessSet (RT)  (* Multiple results for each node *)
-  module Result = A.Result (LT) (struct let result_name = "Analysis" end)
+  module RC = struct let result_name = "Analysis" end
+  module Result = A.Result (LT) (RC)
     
   type solver_result = Solver.solution'
   type source_result = Result.t
@@ -203,10 +204,16 @@ struct
          * analysis result, we generate a warning. *)
       with Not_found -> M.warn ("Undefined function has escaped.")
     in
-
       (* Iterate over all solved equations... *)
       Solver.VMap.iter add_local_var sol;
       res
+
+  let print_globals glob = 
+    let out = M.get_out RC.result_name !GU.out in
+    let print_one v st =
+      ignore (Pretty.fprintf out "%a -> %a\n" Spec.Glob.Var.pretty_trace v Spec.Glob.Val.pretty st)
+    in
+      Solver.GMap.iter print_one glob
 
   (** analyze cil's global-inits function to get a starting state *)
   let do_global_inits (file: Cil.file) : SD.t * Cil.fundec list = 
@@ -314,6 +321,7 @@ struct
     (* check for dead code at the last state: *)
     if !GU.debug && SD.equal main_sol (SD.bot ()) then
       Printf.printf "NB! Execution does not reach the end of Main.\n";
-    Result.output (solver2source_result (sol,gs))
+    Result.output (solver2source_result (sol,gs));
+    if !GU.dump_global_inv then print_globals gs
     
 end

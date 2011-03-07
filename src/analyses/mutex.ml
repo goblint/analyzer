@@ -51,7 +51,7 @@ struct
   module Dom = Lockset
   
   (** We do not add global state, so just lift from [BS]*)
-  module Glob = Global.Make (Lattice.Unit)
+  module Glob = LockDomain.Glob
   
   let get_accesses ctx : AccessDomain.Access.t = 
     match ctx.sub with
@@ -345,12 +345,14 @@ struct
   
   (* Just adds accesses. It says concrete, but we use it to add verified 
      non-concrete accesses too.*)
-  let add_concrete_access ask fl loc ust (v, o, rv: Cil.varinfo * Offs.t * bool) =
-    if (Base.is_global ask v) then
+  let add_concrete_access ctx fl loc ust (v, o, rv: Cil.varinfo * Offs.t * bool) =
+    if (Base.is_global ctx.ask v) then
       let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
       let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
       Acc.replace acc v neww;
-      accKeys := AccKeySet.add v !accKeys
+      accKeys := AccKeySet.add v !accKeys;
+      let ls = if rv then Lockset.filter snd ust else ust in
+      ctx.geffect v (Lockset.export_locks ls)
       
    
   let struct_type_inv (v:varinfo) (o:Offs.t) : (Cil.varinfo * Offs.t) option =
@@ -388,9 +390,9 @@ struct
       | _ -> None     
 
   (* Try to add symbolic locks --- returns [false] on failure.*)
-  let rec add_per_element_access ask loc ust (e,rw:exp * bool) =
+  let rec add_per_element_access ctx loc ust (e,rw:exp * bool) =
     let query_lv exp ci =
-        match ask (Queries.MayPointTo exp), ci with
+        match ctx.ask (Queries.MayPointTo exp), ci with
         | `LvalSet l, _ when not (Queries.LS.is_top l) -> Queries.LS.elements l
         | `Top, Some ci
         | `LvalSet _, Some ci-> type_inv ci
@@ -406,7 +408,7 @@ struct
     in
     let one_perelem (e,a,l) =
       let with_element (v,o) = 
-        let accs = access_one_byval ask rw (Exp.replace_base (v,offs_perel o) e a) in
+        let accs = access_one_byval ctx.ask rw (Exp.replace_base (v,offs_perel o) e a) in
         let lock = 
           match Exp.fold_offs (Exp.replace_base (v,offs_perel o) e l) with
             | Some (v, o) -> Dom.ReverseAddrSet.add (LockDomain.Addr.from_var_offset (v,conv_const_offset o) ,true) ust
@@ -418,23 +420,23 @@ struct
             | Region (_,v,o,rw)  -> Region (None,v,o,rw)
             | x -> x
         in
-        add_accesses ask (List.map no_recurse accs) lock
+        add_accesses ctx (List.map no_recurse accs) lock
       in
       let b_comp = Exp.base_compinfo e a in
       List.iter with_element (query_lv e b_comp)
     in
     let one_lockstep (_,a,m) =
-      let accs = access_one_byval ask rw a in
+      let accs = access_one_byval ctx.ask rw a in
       match m with
         | AddrOf (Var v,o) -> 
             let lock = Dom.add (ValueDomain.Addr.from_var_offset (v, conv_const_offset o),true) ust in
-            add_accesses ask accs lock
+            add_accesses ctx accs lock
         | _ ->  
             Messages.warn "Internal error: found a strange lockstep pattern.";            
-            add_accesses ask accs ust
+            add_accesses ctx accs ust
     in
     let do_perel e = 
-    match ask (Queries.PerElementLock e) with
+    match ctx.ask (Queries.PerElementLock e) with
       | `ExpTriples a 
           when not (Queries.PS.is_top a || Queries.PS.is_empty a) 
           -> Queries.PS.iter one_perelem a;
@@ -443,7 +445,7 @@ struct
       | _ -> false
     in
     let do_lockstep e =       
-    match ask (Queries.ArrayLockstep e) with
+    match ctx.ask (Queries.ArrayLockstep e) with
       | `ExpTriples a
           when not (Queries.PS.is_top a || Queries.PS.is_empty a)
           -> Queries.PS.iter one_lockstep a;
@@ -453,11 +455,11 @@ struct
     in 
     let matching_exps =
       Queries.ES.meet
-        (match ask (Queries.EqualSet e) with
+        (match ctx.ask (Queries.EqualSet e) with
           | `ExprSet es when not (Queries.ES.is_top es || Queries.ES.is_empty es)
               -> Queries.ES.add e es
           | _ -> Queries.ES.singleton e)
-        (match ask (Queries.Regions e) with
+        (match ctx.ask (Queries.Regions e) with
           | `LvalSet ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
               -> let add_exp x xs = 
                     try Queries.ES.add (Lval.CilLval.to_exp x) xs
@@ -470,15 +472,15 @@ struct
          Queries.ES.fold (fun x xs -> xs || do_lockstep x) matching_exps false
       || Queries.ES.fold (fun x xs -> xs || do_perel x) matching_exps false
         
-  and add_type ask ust ti rw =
-    let accs = access_one_byval ask rw (mkAddrOf (mkMem ti NoOffset)) in
-    add_accesses ask accs ust
+  and add_type ctx ust ti rw =
+    let accs = access_one_byval ctx.ask rw (mkAddrOf (mkMem ti NoOffset)) in
+    add_accesses ctx accs ust
   
   (* All else must have failed --- making a last ditch effort to generate type 
       invariant if that fails then give up and become unsound. *)
-  and add_type_access ask loc ust (e,rw:exp * bool) =
+  and add_type_access ctx loc ust (e,rw:exp * bool) =
     let eqset =
-      match ask (Queries.EqualSet e) with
+      match ctx.ask (Queries.EqualSet e) with
         | `ExprSet es 
             when not (Queries.ES.is_bot es) 
             -> Queries.ES.elements es
@@ -486,13 +488,13 @@ struct
     in
       match best_type_inv eqset with
         | None -> unknown_access ()
-        | Some ti -> add_type ask ust ti rw
+        | Some ti -> add_type ctx ust ti rw
     
   (** Function [add_accesses accs st] fills the hash-map [acc] *)
-  and add_accesses ask (accessed: accesses) (ust:Dom.t) = 
+  and add_accesses ctx (accessed: accesses) (ust:Dom.t) = 
     if not !GU.may_narrow then
       let fl = 
-        match ask Queries.SingleThreaded, ask Queries.CurrentThreadId with
+        match ctx.ask Queries.SingleThreaded, ctx.ask Queries.CurrentThreadId with
           | `Int is_sing, _ when Queries.ID.to_bool is_sing = Some true -> BS.Flag.get_single ()
           | _,`Int x when  Queries.ID.to_int x = Some 1L -> BS.Flag.get_main ()
           | _ -> BS.Flag.get_multi ()
@@ -504,21 +506,21 @@ struct
             | Concrete (me,v,o,rw) ->
                 begin match me, struct_type_inv v o with 
                   | _, Some (v,o) when !GU.use_type_invariants ->
-                      add_concrete_access ask fl loc ust (v,o,rw)
+                      add_concrete_access ctx fl loc ust (v,o,rw)
                   | Some e,_ -> 
-                      if   not (add_per_element_access ask loc ust (e,rw)) 
-                      then add_concrete_access ask fl loc ust (v,o,rw)
+                      if   not (add_per_element_access ctx loc ust (e,rw)) 
+                      then add_concrete_access ctx fl loc ust (v,o,rw)
                   | None,_ -> 
-                      add_concrete_access ask fl loc ust (v,o,rw)
+                      add_concrete_access ctx fl loc ust (v,o,rw)
                 end
             | Region (Some e,v,o,rw) -> 
-                if   not (add_per_element_access ask loc ust (e,rw)) 
-                then add_concrete_access ask fl loc ust (v,o,rw)
+                if   not (add_per_element_access ctx loc ust (e,rw)) 
+                then add_concrete_access ctx fl loc ust (v,o,rw)
             | Region (None,v,o,rw) -> 
-                add_concrete_access ask fl loc ust (v,o,rw)
+                add_concrete_access ctx fl loc ust (v,o,rw)
             | Unknown a -> 
-                if   not (add_per_element_access ask loc ust a) 
-                then add_type_access ask loc ust a 
+                if   not (add_per_element_access ctx loc ust a) 
+                then add_type_access ctx loc ust a 
         in
           List.iter dispatch accessed
           
@@ -534,13 +536,13 @@ struct
   let assign ctx lval rval : Dom.t = 
     let b1 = access_one_top ctx.ask true (Lval lval) in 
     let b2 = access_one_top ctx.ask false rval in
-    add_accesses ctx.ask (b1@b2) ctx.local;
+    add_accesses ctx (b1@b2) ctx.local;
     add_accesses2 ctx;
     ctx.local
     
   let branch ctx exp tv : Dom.t =
     let accessed = access_one_top ctx.ask false exp in
-    add_accesses ctx.ask accessed ctx.local;
+    add_accesses ctx accessed ctx.local;
     add_accesses2 ctx;
     ctx.local
     
@@ -548,7 +550,7 @@ struct
     begin match exp with 
       | Some exp -> 
           let accessed = access_one_top ctx.ask false exp in
-          add_accesses ctx.ask accessed ctx.local
+          add_accesses ctx accessed ctx.local
       | None -> () 
     end;
     add_accesses2 ctx;
@@ -558,7 +560,7 @@ struct
 
   let eval_funvar ctx exp = 
     let read = access_one_top ctx.ask false exp in
-    add_accesses ctx.ask read ctx.local; 
+    add_accesses ctx read ctx.local; 
     []
   
   
@@ -609,7 +611,7 @@ struct
           in
           let r1 = access_byval ctx.ask false (arg_acc `Read) in
           let a1 = access_reachable ctx.ask   (arg_acc `Write) in
-          add_accesses ctx.ask (r1@a1) ctx.local;
+          add_accesses ctx (r1@a1) ctx.local;
           add_accesses2 ctx;
           [ctx.local, Cil.integer 1, true]
           
@@ -621,7 +623,7 @@ struct
       | None      -> []
       | Some lval -> access_one_top ctx.ask true (Lval lval) in 
     let read = access_byval ctx.ask false args in
-    add_accesses ctx.ask (wr@read) ctx.local; 
+    add_accesses ctx (wr@read) ctx.local; 
     add_accesses2 ctx;
     al
     
@@ -883,6 +885,6 @@ module ThreadMCP =
                 let inject_l x = `Mutex x
                 let extract_l x = match x with `Mutex x -> x | _ -> raise MCP.SpecificationConversionError
                 type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+                let inject_g x = `Mutex x 
+                let extract_g x = match x with `Mutex x-> x | _ -> raise MCP.SpecificationConversionError
          end)

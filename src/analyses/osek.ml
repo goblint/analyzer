@@ -359,8 +359,8 @@ module ThreadMCP =
                 let inject_l x = `OSEK x
                 let extract_l x = match x with `OSEK x -> x | _ -> raise MCP.SpecificationConversionError
                 type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+                let inject_g x = `Mutex x 
+                let extract_g x = match x with `Mutex x -> x | _ -> raise MCP.SpecificationConversionError
          end)
          
 module Path     : Analyses.Spec = Compose.PathSensitive (Spec)

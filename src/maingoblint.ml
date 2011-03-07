@@ -27,13 +27,12 @@ let main () =
   let cilout = ref stderr in
   let max_time = ref 0.0 in
   (* Function for setting the style, basically Haskell's read function: *)
-  let setstyle x = 
-    GU.result_style := match x with
-      | "none" -> GU.NoOutput
-      | "state" -> GU.State
-      | "indented" -> GU.Indented
-      | "compact" -> GU.Compact
-      | "pretty" -> GU.Pretty
+  let setstyle = function
+      | "none" -> GU.result_style := GU.NoOutput
+      | "indented" -> GU.result_style := GU.Indented
+      | "compact" -> GU.result_style := GU.Compact
+      | "pretty" -> GU.result_style := GU.Pretty
+      | "glob" -> GU.dump_global_inv := true
       | _ -> raise (Arg.Bad "invalid result style") 
   in
   let setdump path = GU.dump_path := Some (GU.create_dir path) in

@@ -229,13 +229,15 @@ let out = ref stdout
 
 type result_style =
   | NoOutput (** Do not print any output except warnings *)
-  | State (** Only output the state of main function *)
   | Indented (** Output indented XML *)
   | Compact (** Output compact XML, for Eclipse plugin *)
   | Pretty (** Pretty-printed text outpu *)
 
 (** The specified result style *)
 let result_style = ref NoOutput
+
+(** Whether to pretty print the global invariant. *)
+let dump_global_inv = ref false
 
 (** Is the goblin Eclipse Plugin calling the analyzer? *)
 let eclipse = ref false

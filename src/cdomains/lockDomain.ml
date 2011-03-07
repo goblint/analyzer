@@ -6,6 +6,15 @@ module ID = ValueDomain.ID
 open Cil
 open Pretty
 
+module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end)
+module Simple = Lattice.Reverse (Mutexes)
+
+module Glob = 
+struct
+  module Var = Basetype.Variables
+  module Val = Simple
+end
+
 module Lockset =
 struct
 
@@ -89,6 +98,10 @@ struct
   let filter = ReverseAddrSet.filter
   let fold = ReverseAddrSet.fold
   let singleton = ReverseAddrSet.singleton
+
+  let export_locks ls = 
+    let f (x,_) set = Mutexes.add x set in
+      fold f ls (Mutexes.empty ())
 end
 
 module Symbolic = 

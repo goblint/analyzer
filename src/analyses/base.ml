@@ -417,45 +417,6 @@ struct
            end 
 
 
-   let access_address (gs:glob_fun) (_,fl) write (addrs: address): extra =
-     let f (v,o) acc = (v, Offs.from_offset o, write) :: acc in 
-     let addr_list = try AD.to_var_offset addrs with _ -> M.warn "Access to unknown address could be global"; [] in
-       List.fold_right f addr_list [] 
-
-   let rec access_one_byval a rw (gs:glob_fun) (st: store) (exp:exp): extra = 
-     match exp with 
-       (* Integer literals *)
-       | Cil.Const _ -> []
-       (* Variables and address expressions *)
-       | Cil.Lval lval -> access_address gs st rw (eval_lv a gs st lval) @ (access_lv_byval a gs st lval)
-       (* Binary operators *)
-       | Cil.BinOp (op,arg1,arg2,typ) -> 
-           let a1 = access_one_byval a rw gs st arg1 in
-           let a2 = access_one_byval a rw gs st arg2 in
-             a1 @ a2
-       (* Unary operators *)
-       | Cil.UnOp (op,arg1,typ) -> access_one_byval a rw gs st arg1
-       (* The address operators, we just check the accesses under them *)
-       | Cil.AddrOf lval -> access_lv_byval a gs st lval
-       | Cil.StartOf lval -> access_lv_byval a gs st lval
-       (* Most casts are currently just ignored, that's probably not a good idea! *)
-       | Cil.CastE  (t, exp) -> access_one_byval a rw gs st exp
-       | _ -> []    
-   (* Accesses during the evaluation of an lval, not the lval itself! *)
-   and access_lv_byval a (gs:glob_fun) st (lval:Cil.lval): extra = 
-     let rec access_offset (gs:glob_fun) (st: store) (ofs: Cil.offset): extra = 
-       match ofs with 
-         | Cil.NoOffset -> []
-         | Cil.Field (fld, ofs) -> access_offset gs st ofs
-         | Cil.Index (exp, ofs) -> access_one_byval a false gs st exp @ access_offset gs st ofs
-     in 
-       match lval with 
-         | Cil.Var x, ofs -> access_offset gs st ofs
-         | Cil.Mem n, ofs -> access_one_byval a false gs st n @ access_offset gs st ofs
-
-   let access_byval a (rw: bool) (gs:glob_fun) (st: store) (exps: Cil.exp list): extra =
-     List.concat (List.map (access_one_byval a rw gs st) exps)
-
 
   (**************************************************************************
    * Auxilliary functions
@@ -639,6 +600,8 @@ struct
      match v with
        | `Top -> set ask gs st adr (top_value st (AD.get_type adr))
        | v -> set ask gs st adr v
+
+
  (**************************************************************************
   * Simple defs for the transfer functions 
   **************************************************************************)
@@ -711,11 +674,6 @@ struct
         match exp with
           | None -> nst
           | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp)
-
-
-
-
-
 
 
   (**************************************************************************
@@ -839,21 +797,9 @@ struct
         | _-> []
     in
       List.concat (List.map do_exp exps)
-   
-  let access_byref ask (gs:glob_fun)  (st:store) (exps: Cil.exp list): extra = 
-    (* Find the addresses reachable from some expression, and assume that these
-    * can all be written to. *)
-    let do_exp e = 
-      match eval_rv ask gs st e with
-        | `Address a when AD.equal a (AD.null_ptr()) -> []
-        | `Address a when not (AD.is_top a) -> 
-            List.concat (List.map (access_address gs st true) (reachable_vars ask [a] gs st))
-        (* Ignore soundness warnings, as invalidation proper will raise them. *)
-        | _-> []
-    in
-      List.concat (List.map do_exp exps)
        
   (* interpreter end *)
+
   
   let get_fl (_,fl) = fl
   
