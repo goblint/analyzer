@@ -3,6 +3,7 @@ module GU = Goblintutil
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module Lockset = LockDomain.Lockset
+module Mutexes = LockDomain.Mutexes
 module AD = ValueDomain.AD
 module ID = ValueDomain.ID
 module LockingPattern = Exp.LockingPattern
@@ -530,6 +531,15 @@ struct
   let startstate () = Lockset.empty ()
   let otherstate () = Lockset.empty ()
   
+  let query ctx (q:Queries.t) : Queries.Result.t = 
+    match q with
+      | Queries.IsPrivate v -> 
+          let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
+          let lambda_v = ctx.global v in
+          let intersect = Mutexes.inter held_locks lambda_v in
+          let tv = not (Mutexes.is_empty intersect) in
+            `Bool (tv)
+      | _ -> Queries.Result.top ()
   
   (** Transfer functions: *)
   

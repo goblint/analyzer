@@ -29,6 +29,9 @@ let is_immediate_type t = is_mutex_type t || is_fun_type t
 
 let is_global (a: Q.ask) (v: varinfo): bool = 
   v.vglob || match a (Q.MayEscape v) with `Bool tv -> tv | _ -> false
+
+let is_private (a: Q.ask) (v: varinfo): bool = 
+  match a (Q.IsPrivate v) with `Bool tv -> tv | _ -> false
    
 module MakeSpec (Flag: ConcDomain.S) =
 struct
@@ -64,16 +67,16 @@ struct
    * State functions
    **************************************************************************)
 
-   let globalize a (cpa:cpa): cpa * glob_diff  =
-     (* For each global variable, we create the diff *)
-     let add_var (v: varinfo) (value) (cpa,acc) =
-       if is_global a v then 
-        (CPA.remove v cpa, (v,value) :: acc) 
-       else 
-        (cpa,acc)
-     in
-       (* We fold over the local state, and collect the globals *)
-       CPA.fold add_var cpa (cpa, [])
+  let globalize a (cpa:cpa): cpa * glob_diff  =
+    (* For each global variable, we create the diff *)
+    let add_var (v: varinfo) (value) (cpa,acc) =
+      if is_global a v && not (is_private a v) then 
+       (CPA.remove v cpa, (v,value) :: acc) 
+      else 
+       (cpa,acc)
+    in
+      (* We fold over the local state, and collect the globals *)
+      CPA.fold add_var cpa (cpa, [])
 
   let sync ctx: Dom.t * glob_diff = 
     let cpa,fl = ctx.local in
@@ -87,7 +90,13 @@ struct
      (* Finding a single varinfo*offset pair *)
      let f_addr (x, offs) = 
        (* get hold of the variable value, either from local or global state *)
-       let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then gs x else CPA.find x st in
+       let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then 
+         match CPA.find x st with
+           | `Bot -> gs x
+           | x -> x
+       else 
+         CPA.find x st 
+       in
        VD.eval_offset (get a gs (st,fl)) var offs    in 
      let f x =
        match Addr.to_var_offset x with
@@ -655,6 +664,7 @@ struct
           let v = fromJust (ID.to_bool value) in
             (* Eliminate the dead branch and just propagate to the true branch *)
             if v == tv then ctx.local else raise Deadcode
+      | `Bot -> raise Deadcode
       (* Otherwise we try to impose an invariant: *)
       | _ -> invariant ctx.ask ctx.global ctx.local exp tv 
 
