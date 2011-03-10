@@ -1,0 +1,79 @@
+Name : <name of the analysis>
+Input : <list of input data for the analysis eg. list of files, strings, ...> : <list of help string for each item>
+Info : <description of the analysis, details about precisions and caveat>
+Preprocessing : <yes/no> Command line; <one help string>
+Interval Domain : <yes/no>
+                    [ ] Trier ; [help string for the trier domain]      
+                    [ ] Interval ; [help string for the interval domain]  
+Options : <list of strings>; additional command line options for the goblint
+Result : format string for errors ; <help text describing the analysis output>
+         format string for warnings ; <help text describing the analysis output>
+Dependencies : <list of analyses this analysis depends on, these analyses must be configured as well>
+Solver : <list of solvers that can be used for that analysis>
+Goblint : <list of command line options for the analysis> (not modifiable for the users)
+
+/*
+ format string syntax: 
+  %m : error message
+  %f : file name
+  %l : line 
+  
+ solvers: 
+  demand driven (effectWCon) ; cannot solve interval domains "Global invariants for analyzing multithreaded applications" Seidl/Vene/Müller-Olm
+  round robin (solverConSideRR) ; cannot solve interval domains 
+  round robin with widening and narrowing (solverConSideWNRR) ; can solve interval domains
+ 
+ (If "interval domain" is selected in options somewhere then use round robin with widening and narrowing.)
+  
+Usage: goblint [options] source-files
+  -o <file>  Prints the output to file.
+  -v  Prints some status information.
+  -I  Add include directory.
+  -IK  Add kernel include directory.
+  --includes  Uses custom include files.
+  --libc  Merge with a custom implementation of standard libs.
+  --justcil  Just print the transformed CIL output.
+  --dopartial  Apply CIL's constant folding and partial evaluation.
+  --cfg  prints the cfg into cfg.dot.
+  --debug  Debug mode: for testing the analyzer itself.
+  --warnings  Print soundness warnings.
+  --trace <sys>  subsystem to show debug printfs for: con, sol.
+  --stats  Outputs timing information.
+  --eclipse  Flag for Goblin's Eclipse Plugin.
+  --gccwarn  Output warnings in GCC format.
+  --allfuns  Analyzes all the functions (not just beginning from main).
+  --noverify  Skip the verification phase.
+  --class  Analyzes all the member functions of the class (CXX.json file required).
+  --nonstatic  Analyzes all non-static functions.
+  --mainfun  Sets the name of the main function.
+  --exitfun  Sets the name of the main function.
+  --allglobs  Prints access information about all globals, not just races.
+  --earlyglobs  Side-effecting of globals right after initialization.
+  --write-races  Ignores read accesses altogether in reporting races.
+  --failing-locks  Takes the possible failing of locking operations into account.
+  --field-insensitive  Turns off field-sensitivity.
+  --unmerged-fields  Does not merge accesses to possibly same fields, unsound.
+  --die-on-collapse  Raise an exception as soon as an array collapses.
+  --keepcpp  Keep the intermediate output of running the C preprocessor.
+  --cppflags <flags>  Pre-processing parameters.
+  --kernel For analyzing Linux Device Drivers.
+  --showtemps  Shows CIL's temporary variables when printing the state.
+  --uncalled  Display uncalled functions.
+  --result <style>  Result style: none, state, indented, compact, or pretty.
+  --analysis <name>  Deprecated: Picks the analysis: mcp.
+  --with <name>  Enables features: containment malloc_null uninit OSEK OSEK2 mutex region base escape thread symb_locks var_eq access.
+  --no <name>  Disables features: containment malloc_null uninit OSEK OSEK2 mutex region base escape thread symb_locks var_eq access.
+  --context <name>  Enables context sensitivity on a feature.
+  --no-context <name>  Disables context sensitivity on a feature.
+  --type-inv <bool>  Should we use type invariants?
+  --list-type <bool>  Should we use list types?
+  --solver <name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.
+  --dump <path>  Dumps the results to the given path
+  --cilout <path>  Where to dump cil output
+  --oil <file>  Oil file for the analysed program
+  --intrpts  Enable constraints for interrupts.
+  --timeout  Maximal time for analysis. (0 -- no timeout)
+  --solver-progress  <bool> Used for debugging. Prints out a symbol on solving a rhs.
+  -help  Display this list of options
+  --help  Display this list of options
+*/ 
