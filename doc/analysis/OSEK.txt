@@ -1,13 +1,15 @@
 Name : OSEK
-Input : C-source-file, oil-file: source code, task/resource spec
-Info : Exploits the prioritized execution of OSEK programs to determine data-races and transactionality violations. VERY prototypical. Requires the TASK and ISR macros resolve to function_of...
+Input : C-source-file, oil-file: "source code", "task/resource spec"
+Info : Exploits the prioritized execution of OSEK programs to determine data-races and transactionality violations. VERY prototypical. Requires the TASK and ISR macros to resolve to "function_of...". The analysis is precise with respect to the results of the Mutex-Analysis.
 
 Preprocessing : yes Command line; make sure TASK, ISR macros are as expected
 Interval Domain :no
                     [ ] Trier ; [help string for the trier domain]      
                     [ ] Interval ; [help string for the interval domain]  
+Context Sensitive : no [ ] Context 
+Path Sensitive : no [ ] Path 
 Options : list of strings; additional command line options for the goblint
-Result : format string for errors ; <help text describing the analysis output>
+Result : format string for errors ; 
 	    "Datarace over <var>:
 	    write in some thread with priority <p_a> and lockset: <lockset_a> (<path_a>:<line_a>)
 	    write in some thread with priority <p_b> and lockset: <lockset_b> (<path_b>:<line_b>)" 
@@ -18,8 +20,9 @@ Result : format string for errors ; <help text describing the analysis output>
 	    versus a defensive overall priority of <n>"
 	    means, that during the execution of <fun> <var> may be accessed elsewhere.
 
-         format string for warnings ; 
-	 format string for misc results ; 
+      format string for warnings ; 
+      
+	 		format string for misc results ; 
 	    "Found correlation: <var> is guarded by defensive priority <n> against offensive priority <m>" 
 	    means, that <var> is always accessed with priority at least <n> and only interrupts with priority at most <m> lead to an access to <var>.
 

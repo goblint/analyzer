@@ -1,19 +1,19 @@
-Name : <name of the analysis>
-Input : <list of input data for the analysis eg. list of files, strings, ...> : <list of help string for each item>
-Info : <description of the analysis, details about precisions and caveat>
-Preprocessing : <yes/no> Command line; <one help string>
-Interval Domain : <yes/no>
+Name : Containment
+Input : name_of_the_class_to_analyse, list of .cpp files : "This class and all classes this class is derived from will be analyzed","cpp files containing the implementations of the class hierarchy"
+Info : "The analysis assumes that you want to run several instances of the given class in parallel. So member functions of two different instances may be called in parallel but public functions of a single instance are called sequentially (basically implementing a worker thread pattern). Given this assumption, the analysis determins where pointer to unsafe data may enter or leave the class instance indicating that a race condition may occur when the class instances are parallelized. The problems found might be fixed by using locks or copying data rather than passing pointers to data around."
+Preprocessing : YES Command line; "command to generate .c file from list of .cpp files"
+Interval Domain : NO
                     [ ] Trier ; [help string for the trier domain]      
                     [ ] Interval ; [help string for the interval domain]  
-Context Sensitive : <yes/no> [ ] Context 
-Path Sensitive : <yes/no> [ ] Context 
+Context Sensitive : no [ ] Context 
+Path Sensitive : no [ ] Context 
 Options : list of strings; additional command line options for the goblint
-Result : format string for errors ; <help text describing the analysis output>
-         format string for warnings ; <help text describing the analysis output>
-         format string for misc messages ; <help text describing the analysis output>
-Dependencies : <list of analyses this analysis depends on, these analyses must be configured as well>
-Solver : <list of solvers that can be used for that analysis>
-Goblint : <list of command line options for the analysis> (not modifiable for the users)
+Result : format string for errors ; "If the error is justified, then the analysis has become unsound."
+         format string for warnings ; "If the warning is justified, then the semantics of the program is not invariant when parallelizing instances of this class. The problems must be fixed (e.g. using locks)."
+         format string for misc messages ; "not used"
+Dependencies : none
+Solver : all
+Goblint : --analysis containment --class name_of_the_class_to_analyse --gccwarn --stats --allfuns --noverify --result compact CXX.json SAFE.json
 
 /*
  format string syntax: 
