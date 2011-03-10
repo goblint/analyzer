@@ -5,7 +5,7 @@ Preprocessing : <yes/no> Command line; <one help string>
 Interval Domain : <yes/no>
                     [ ] Trier ; [help string for the trier domain]      
                     [ ] Interval ; [help string for the interval domain]  
-Options : <list of strings>; additional command line options for the goblint
+Options : list of strings; additional command line options for the goblint
 Result : format string for errors ; <help text describing the analysis output>
          format string for warnings ; <help text describing the analysis output>
 Dependencies : <list of analyses this analysis depends on, these analyses must be configured as well>
