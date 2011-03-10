@@ -8,6 +8,7 @@ Interval Domain : <yes/no>
 Options : list of strings; additional command line options for the goblint
 Result : format string for errors ; <help text describing the analysis output>
          format string for warnings ; <help text describing the analysis output>
+         format string for misc messages ; <help text describing the analysis output>
 Dependencies : <list of analyses this analysis depends on, these analyses must be configured as well>
 Solver : <list of solvers that can be used for that analysis>
 Goblint : <list of command line options for the analysis> (not modifiable for the users)
