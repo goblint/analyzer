@@ -631,24 +631,9 @@ struct
   						begin
 								let apply_var var (fn,st,gd) v rvs = 
 									begin
-										(*
-										let pts = Dom.Danger.find (FieldVars.get_var var) st in
-		                let arg_single = (ContainDomain.ArgSet.singleton var) in
-										let mcft = Dom.may_be_constructed_from_this st (Lval (Var (FieldVars.get_var var),NoOffset)) in
-										
-										let fn,st,gd =
-                      
-                      if not mcft then
-    										let retvals = Dom.used_ptrs st (Lval v) in                        
-												ContainDomain.ArgSet.fold (fun x y->
-												Dom.report ((FieldVars.get_var x).vname ^" = "^(FieldVars.get_var var).vname^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () pts)); 
-												Dom.danger_assign (FieldVars.get_var x) arg_single y true fs ) retvals (fn,st,gd)
-                      else fn,st,gd 
-									  in
-										*)				
+(*                    Dom.report ("return_arg : "^(sprint 160 (d_exp () (Lval v)))^" = "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)
 			              let fn,st,gd = Dom.assign_to_local ctx.ask v from (fn,st,gd) fs in
-                    (*Dom.report ("return : "^(sprint 160 (d_exp () (Lval v)))^" = "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)										
-			              Dom.assign_to_lval fs v (fn,st,gd) rvs true
+			              Dom.assign_to_lval fs v (fn,st,gd) rvs false
 									end 
 								in
     					  let (a,b,c)=ContainDomain.ArgSet.fold (fun x y ->apply_var x y v rvs) rvs (a,b,c) in
@@ -665,7 +650,7 @@ struct
 								List.fold_left (fun y (f,a)->
 								let rvs = Dom.Danger.find f au_st in
 								(*Dom.report ("return_arg : "^(sprint 160 (d_exp () a))^" = "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)
-								ContainDomain.ArgSet.fold (fun x y ->apply_var x y (Dom.get_lval_from_exp a) rvs) rvs y)
+								ContainDomain.ArgSet.fold (fun x y ->apply_var x y (Dom.get_lval_from_exp a) (Dom.filter_argset_self a rvs b)) rvs y)
 								(a,b,c) ll 
 								in
 								(*Dom.remove_formals fd.sformals (a,b,c)*)

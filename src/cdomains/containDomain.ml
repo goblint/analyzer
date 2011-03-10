@@ -288,8 +288,8 @@ struct
     if Danger.is_top st
     then fd, st, df
     else fd, Danger.fold f st (Danger.bot ()), df
-  
-  let add_formals f (fd, st, df) =
+		
+   let add_formals f (fd, st, df) =
     let add_arg st v =
       if isIntegralType v.vtype
       then st
@@ -297,6 +297,10 @@ struct
     in
     let st = Danger.add unresFunDec.svar (ArgSet.singleton (FieldVars.gen unresFunDec.svar)) st in 
     fd, List.fold_left add_arg st f.Cil.sformals, df  
+		
+ let empty_formals f sformals (fd, st,df) = 
+    add_formals f (remove_formals sformals (fd, st,df))
+  
 
   let used_args st = 
     let rec used_args_idx = function
@@ -663,15 +667,18 @@ struct
       let danger_upd = if must_assign || (v.vglob) then Danger.add else Danger.merge
       in
         (fd, danger_upd v args st,gd)
+				
+		let uid = ref 0
 		
     let danger_propagate v args (fd,st,gd) must_assign fs = (*checks if the new danger val points to this->something and updates this->something*)
-      dbg_report("danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
+		  uid:=!uid+1;
+      dbg_report((string_of_int (!uid) )^":"^"danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
 		  (*printf "%s\n" ("danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
 			  let danger_upd = if must_assign || (v.vglob) then Danger.add
 				                 else Danger.merge
 				in
         let update_this fv (fd,st,gd) ds = 
-        dbg_report("danger.UPDATE_THIS "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));                  
+        dbg_report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));                  
         let (fd,st,gd) = if (may_be_constructed_from_this st (Lval (Var (FieldVars.get_var fv),NoOffset))) then
         begin
 					let rhs_cft = ArgSet.fold (fun x y->
@@ -687,16 +694,16 @@ struct
 					  if (not cft || it) && (is_ext (FieldVars.get_var x).vname) && not (is_safe_name (FieldVars.get_var x).vname)
 					  then 
 						begin	
-							(*report((sprint 160 (FieldVars.pretty () x))^" it "^string_of_bool it^" cft "^string_of_bool cft);*)
+							(*report((string_of_int (!uid) )^":"^(sprint 160 (FieldVars.pretty () x))^" it "^string_of_bool it^" cft "^string_of_bool cft);*)
 							false
 						end 
 						else y) 
 					args true 
 					in
-            dbg_report("danger.UPDATE_THIS_2 "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args)^" rhs_ctf : "^string_of_bool rhs_cft);                  
+            dbg_report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS_2 "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args)^" rhs_ctf : "^string_of_bool rhs_cft);                  
 						if not rhs_cft&& not (FieldVars.get_var fv).vglob then
 						begin
-	            dbg_report("danger.prop_this "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));
+	            dbg_report((string_of_int (!uid) )^":"^"danger.prop_this "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));
 							let flds = get_field_from_this (Lval (Var (FieldVars.get_var fv),NoOffset)) st in                
 	            if FieldSet.is_bot flds&& not (FieldVars.has_field fv) then 
 							  begin
@@ -739,11 +746,11 @@ struct
                 (*&& not (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset)))*) 
 								then 
                   begin 
-										dbg_report("danger.prop_non_this "^var.vname^" -> "^sprint 160 (ArgSet.pretty () args));
+										dbg_report((string_of_int (!uid) )^":"^"danger.prop_non_this "^var.vname^" -> "^sprint 160 (ArgSet.pretty () args));
                     Danger.merge var args st 
                   end else st) ds_args st                                      
             in
-            dbg_report("danger.prop_non_this_check "^v.vname^" = "^(sprint 160 (FieldVars.pretty () fv)));
+            dbg_report((string_of_int (!uid) )^":"^"danger.prop_non_this_check "^v.vname^" = "^(sprint 160 (FieldVars.pretty () fv)));
             let st = if (*not (constructed_from_this st (Lval (Var (FieldVars.get_var fv),NoOffset))) &&*)
 						ArgSet.is_bot (Danger.find (FieldVars.get_var fv) st) then
 							  danger_upd (FieldVars.get_var fv) args st
@@ -760,12 +767,12 @@ struct
                 (fd,st,gd)
          end			
 				in
-			dbg_report("danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
+			dbg_report((string_of_int (!uid) )^":"^"danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
 			let ds = Danger.find v st in
 				let (fd,st,gd) =
 				if (*not must_assign && MUST PROPAGATE HERE!!!*)not (ArgSet.is_bot ds) then
 				begin
-          dbg_report("danger.prop_ds_1 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));
+          dbg_report((string_of_int (!uid) )^":"^"danger.prop_ds_1 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));
 					ArgSet.fold (fun x y -> update_this x y ds) ds (fd,st,gd) 
 				end
 				else	
@@ -775,7 +782,7 @@ struct
 			let mbg_lhs = may_be_a_perfectly_normal_global (Lval (Var v,NoOffset)) true (fd,st,gd) (FieldSet.bot ()) in
       let fd,st,gd =  if (not cft_lhs || mbg_lhs) && not (v.vglob) then
 			begin 
-        dbg_report("danger.prop_ds_2 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));
+        dbg_report((string_of_int (!uid) )^":"^"danger.prop_ds_2 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));
 				update_this (FieldVars.gen v) (fd,st,gd) args
 			end
 			else fd,st,gd
@@ -895,6 +902,20 @@ struct
 		FieldSet.fold (fun x y -> ArgSet.add (FieldVars.gen_f this x) y) fs (ArgSet.bot ())
 		
 	let get_lval_from_exp exp = ((Mem exp),NoOffset)
+	
+	let filter_argset_self exp args st = 
+    let vars = get_vars exp in
+		let res = List.fold_left 
+		  (fun ags v-> 
+		      let tmp = ArgSet.filter (fun x->(FieldVars.get_var x).vid!=v.vid) ags
+					in 
+		      let args2 = Danger.find v st in
+					ArgSet.filter (fun x->ArgSet.fold (fun q v-> (FieldVars.get_var x).vid!=(FieldVars.get_var q).vid && v ) args2 true) tmp
+			)
+			args vars in
+(*    report ("filter "^(sprint 160 (d_exp () exp))^" , "^sprint 160 (ArgSet.pretty () (args))^" = "^sprint 160 (ArgSet.pretty () (res)));*)
+    res
+		
  
   let assign_to_lval fs lval (fd,st,gd) args must_assign = (*propagate dangerous vals*)
     match lval with 
@@ -918,7 +939,7 @@ struct
 						let vars = get_vars e in (*not very exact for huge compount statements*)
 						List.fold_left 
 	            (fun y x->dbg_report ("danger.add e "^x.vname^" = "^sprint 160 (ArgSet.pretty () args));
-	                 if not (is_safe_name x.vname) then danger_propagate x args y must_assign fs else y) (fd,st,gd) vars
+	                 if not (is_safe_name x.vname) then danger_propagate x args y false fs else y) (fd,st,gd) vars
 					end
 					else
 					begin	
@@ -933,7 +954,7 @@ struct
 								then
 								begin
                 (*report ("assign.lval "^(sprint 160 (d_exp () (Lval lval)))^" "^(FieldVars.get_var x).vname^" = "^sprint 160 (ArgSet.pretty () (join_this_fs_to_args this fst)));*)									
-								danger_propagate (FieldVars.get_var x) (join_this_fs_to_args this fst) y must_assign fs
+								danger_propagate (FieldVars.get_var x) (join_this_fs_to_args this fst) y false fs
 								end
                 else (fd,st,gd)			
 								) args (fd,st,gd)  							 
