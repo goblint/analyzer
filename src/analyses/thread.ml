@@ -6,7 +6,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module Dom = ConcDomain.IdSet
+  module Dom = ConcDomain.ThreadDomain
   module Glob = Global.Make (Lattice.Unit) (* no global state *)
   
   let query_lv ask exp = 
@@ -53,10 +53,9 @@ struct
 	    | [id; _; start; _] ->
         let start_routine = eval_arg ctx start in
         let thread_id = eval_arg ctx id in
-          (* forks here, sends it current thread id *)
-          ctx.spawn start_routine (Dom.singleton thread_id);
-          (* new state - same as old *)
-          [ctx.local, Cil.integer 1, true]
+        let n = Dom.create_thread thread_id ctx.local in
+          ctx.spawn start_routine n;
+          [n, Cil.integer 1, true]
 	    | _ -> call_unusable "pthread_create"
 
   (* Handles the call of pthread_join. *)
@@ -64,8 +63,7 @@ struct
     match args with
       | [Lval id; _] ->
         let thread_id = eval_arg ctx (mkAddrOf id) in
-          (* Removes joined thread thread_id from the context. *)
-          [Dom.remove thread_id ctx.local, Cil.integer 1, true]
+          [Dom.join_thread thread_id ctx.local, Cil.integer 1, true]
       | _ -> call_unusable "pthread_join"
 
   (* special_fn is called, when given varinfo is not connected to a fundec -- no function definition is given
@@ -77,10 +75,9 @@ struct
        | _                -> [ctx.local,Cil.integer 1, true]
         (* We actually want to spawn threads for some escaped function pointers,
            but lets ignore that for now. *)
-        
-  (* Main should have type of pthread_t but how to lookup the type? *)      
-  let startstate () = Dom.singleton (makeGlobalVar "main" (intType))
-  let otherstate () = Dom.top ()
+      
+  let startstate () = Dom.bot ()
+  let otherstate () = Dom.bot () (* should be top? *)
 
   let name = "Thread analysis"
 end

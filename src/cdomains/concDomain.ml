@@ -47,10 +47,40 @@ module Simple = struct
     | _   -> false
 end
 
-(** Provides the name ("all") for the top element of the thread id set. *)
-module IdSetTop : SetDomain.ToppedSetNames = struct
-  let topname = "all"
+module ThreadStateNames = struct
+  exception InvalidStateValue
+  let n = 4
+  
+  let zero = 0
+  let joined = 1
+  let created = 2
+  let many_many = 3
+  
+  let names = function
+    | 0 -> "zero"
+    | 1 -> "joined"
+    | 2 -> "created"
+    | 3 -> "many/many"
+    | _ -> raise InvalidStateValue
 end
 
-(** A set domain (with a top element) for thread id's. *)
-module IdSet = SetDomain.ToppedSet (Basetype.Variables) (IdSetTop)
+module ThreadState = struct
+  include Lattice.Chain (ThreadStateNames)
+end
+
+module ThreadDomain = struct
+  include MapDomain.MapBot (Basetype.Variables) (ThreadState)
+  
+  module V = ThreadStateNames
+  
+  let create_thread t m =
+    let o = (find t m) in
+    let n = if o == V.zero then V.created else V.many_many in
+    add t n (remove t m)
+  
+  let join_thread t m =
+    let o = (find t m) in
+    let n = if o == V.created then V.joined else V.many_many in
+    add t n (remove t m)
+    
+end
