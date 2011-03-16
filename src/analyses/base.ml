@@ -341,6 +341,8 @@ struct
 
    (* The evaluation function as mutually recursive eval_lv & eval_rv *)
    let rec eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value = 
+     (* we have a special expression that should evalueate to top ... *)
+     if exp = MyCFG.unknown_exp then VD.top () else
      (* First we try with query functions --- these are currently more precise.
       * Ideally we would meet both values, but we fear types might not match. (bottom) *)
      match eval_rv_pre a exp st with
@@ -614,7 +616,7 @@ struct
  (**************************************************************************
   * Simple defs for the transfer functions 
   **************************************************************************)
-
+  
   let assign ctx (lval:lval) (rval:exp)  = 
     let is_list_init () =
       match lval, rval with
@@ -809,7 +811,6 @@ struct
       List.concat (List.map do_exp exps)
        
   (* interpreter end *)
-
   
   let get_fl (_,fl) = fl
   
@@ -886,15 +887,17 @@ struct
     
   
 
-  let collect_spawned a gs st args: (varinfo * Dom.t) list = 
-    let flist = collect_funargs a gs st args in
+  let rec collect_spawned ctx args: (varinfo * Dom.t) list = 
+    let flist = collect_funargs ctx.ask ctx.global ctx.local args in
     let f addr = 
       let var = List.hd (AD.to_var_may addr) in
-      let _ = Cilfacade.getdec var in 
-        var, otherstate ()
+      let g = Cilfacade.getdec var in 
+      let args = List.map (fun x -> MyCFG.unknown_exp) g.sformals in
+      let ents = enter_func_wo_spawns (Analyses.swap_st ctx (otherstate ())) None var args in
+      List.map (fun (_,s) -> var, s) ents
     in 
     let g a acc = try 
-      let r = f a in r :: acc 
+      let r = f a in r @ acc 
     with 
       | Not_found 
       | Failure "hd" -> acc
@@ -902,7 +905,7 @@ struct
     in
       List.fold_right g flist [] 
 
-  let rec fork ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * Dom.t) list = 
+  and fork ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * Dom.t) list = 
     let cpa,fl = ctx.local in
     match LF.classify f.vname args with 
       (* handling thread creations *)
@@ -912,7 +915,7 @@ struct
           try
             (* try to get function declaration *)
             let _ = Cilfacade.getdec start_vari in 
-            let sts = enter_func (swap_st ctx (cpa, Flag.get_multi ())) None start_vari [ptc_arg]  in
+            let sts = enter_func_wo_spawns (swap_st ctx (cpa, Flag.get_multi ())) None start_vari [ptc_arg]  in
             List.map (fun (_,st) -> start_vari, st) sts
           with Not_found -> 
             M.warn ("creating an thread from unknown function " ^ start_vari.vname);
@@ -933,13 +936,16 @@ struct
               then foldGlobals !Cilfacade.ugglyImperativeHack addGlob args 
               else args 
             in
-            collect_spawned ctx.ask ctx.global ctx.local vars 
+            collect_spawned ctx vars 
         end
       | _ ->  []
 
   and enter_func ctx lval fn args : (Dom.t * Dom.t) list = 
     let forks = fork ctx lval fn args in
     let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
+    enter_func_wo_spawns ctx lval fn args
+
+  and enter_func_wo_spawns ctx lval fn args : (Dom.t * Dom.t) list = 
     let cpa,fl as st = ctx.local in
     let make_entry pa context =
       (* If we need the globals, add them *)

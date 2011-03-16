@@ -139,17 +139,29 @@ struct
           let y', z' = prepare_forks !forks in
           x, y @ y', z @ z'
         in
-        try  
+        try
           (* We synchronize the predecessor value with the global invariant and
            * then feed the updated value to the transfer functions. *)
-          let add_novar v d = () in
+          let add_novar v d = M.bailwith "Bug: Sync should not be able to spawn threads. Ignored!" in
           let predval', diff = Spec.sync (getctx (SD.unlift predval) add_novar) in
           let diff = List.map (fun x -> `G x) diff in
+          (* For single threaded execution all global information is stored in the local state and 
+             data is moved to global state if threads are spawned. In the kernel init. functions
+             no threads are spawned and so the global information got lost.*)
+          let toplevel_kernel_return r fd ctx =
+            let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.Analyses.local else Spec.return ctx r fd in
+            let spawning_return = Spec.return (A.swap_st ctx st) None MyCFG.dummy_func in
+            let nval, ndiff = Spec.sync (getctx spawning_return add_novar) in
+            List.iter (fun (x,y) -> add_diff x y) ndiff;
+            nval
+          in
           (* Generating the constraints is quite straightforward, except maybe
            * the call case. There is an ALMOST constant lifting and unlifting to
            * handle the dead code -- maybe it could be avoided  *)
           let l,gd,sp =
           match edge with
+            | MyCFG.Ret    (ret,fundec)    when (fundec.svar.vname = MyCFG.dummy_func.svar.vname || fundec.svar.vname = !GU.mainfun) && !GU.kernel
+                                           -> lift (toplevel_kernel_return ret fundec    ) predval'
             | MyCFG.Entry func             -> lift (fun ctx -> Spec.body   ctx func      ) predval'
             | MyCFG.Assign (lval,exp)      -> lift (fun ctx -> Spec.assign ctx lval exp  ) predval'
             | MyCFG.SelfLoop               -> lift (fun ctx -> Spec.intrpt ctx           ) predval'
@@ -215,6 +227,26 @@ struct
     in
       Solver.GMap.iter print_one glob
 
+  (** add extern ariables to local state *)
+  let do_extern_inits (file : Cil.file) : Spec.Dom.t =
+    let module VS = Set.Make (Basetype.Variables) in    
+    let add_glob s = function
+        GVar (v,_,_) -> VS.add v s
+      | _            -> s
+    in
+    let vars = Cil.foldGlobals file add_glob VS.empty in
+    let set_bad v st =
+      let theta x = Spec.Glob.Val.bot () in
+      let error _ = failwith "Bug: Using enter_func for toplevel functions." in 
+      let ctx = A.context top_query st theta [] error error in
+      Spec.assign ctx (var v) MyCFG.unknown_exp 
+    in
+    let add_externs s = function
+      | GVarDecl (v,_) when not (VS.mem v vars) -> set_bad v s
+      | _                -> s
+    in    
+    Cil.foldGlobals file add_externs (Spec.startstate ())
+  
   (** analyze cil's global-inits function to get a starting state *)
   let do_global_inits (file: Cil.file) : SD.t * Cil.fundec list = 
     let early = !GU.earlyglobs in
@@ -243,7 +275,8 @@ struct
     in
     let _ = GU.global_initialization := true in
     let _ = GU.earlyglobs := false in
-    let result : Spec.Dom.t = List.fold_left transfer_func (Spec.startstate ()) edges in
+    let with_externs = do_extern_inits file in
+    let result : Spec.Dom.t = List.fold_left transfer_func with_externs edges in
     let _ = GU.earlyglobs := early in
     let _ = GU.global_initialization := false in
       SD.lift result, !funs
@@ -266,18 +299,23 @@ struct
       if !GU.kernel
       then funs@more_funs
       else funs in
-    let with_ostartstate x = x.svar, SD.lift (Spec.otherstate ()) in
-
-    let startvars = match !GU.has_main, funs with 
-      | true, f :: fs -> 
-          GU.mainfun := f.svar.vname;
-          let nonf_fs = List.filter (fun x -> x.svar.vid <> f.svar.vid) fs in
-          (f.svar, startstate) :: List.map with_ostartstate nonf_fs
-      | _ ->
-          try 
-            MyCFG.dummy_func.svar.vdecl <- (List.hd funs).svar.vdecl;
-            (MyCFG.dummy_func.svar, startstate) :: List.map with_ostartstate funs
-          with Failure _ -> []
+    let with_ostartstate g = 
+      let args = List.map (fun x -> MyCFG.unknown_exp) g.sformals in
+      let theta x = Spec.Glob.Val.bot () in
+      let error _ = failwith "Bug: Using enter_func for toplevel functions with 'otherstate'." in 
+      let ctx = A.context top_query (Spec.otherstate ()) theta [] error error in
+      let ents = Spec.enter_func ctx None g.svar args in
+      List.map (fun (_,s) -> g.svar, SD.lift s) ents  
+    in
+    let startvars = 
+      begin try MyCFG.dummy_func.svar.vdecl <- (List.hd funs).svar.vdecl with Failure _ -> () end;
+      match !GU.has_main, funs with 
+        | true, f :: fs -> 
+            GU.mainfun := f.svar.vname;
+            let nonf_fs = List.filter (fun x -> x.svar.vid <> f.svar.vid) fs in
+            (f.svar, startstate) :: List.concat (List.map with_ostartstate nonf_fs)
+        | _ ->
+            (MyCFG.dummy_func.svar, startstate) :: List.concat (List.map with_ostartstate funs)
     in
     let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (Spec.context_top (SD.unlift e))) startvars in
     let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in

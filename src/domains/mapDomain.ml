@@ -148,24 +148,16 @@ struct
 
   let toXML_f _ mapping =
     let esc = Goblintutil.escape in
-    let groups =
-      let group_fold key itm gps = 
-	let cl = Domain.classify key in
-	  match gps with
-	    | (a,n) when cl <>  n -> ((cl,(M.add key itm M.empty))::a, cl)
-	    | (a,_) -> ((fst (List.hd a),(M.add key itm (snd (List.hd a))))::(List.tl a),cl) in	
-	fst (fold group_fold mapping ([],min_int))
-    in
     let f (key,st) = 
       match Domain.toXML key with
         | Xml.Element ("Loc",attr,[]) ->
             Xml.Element ("Loc", attr, [Range.toXML st])
         | Xml.Element ("Leaf",attr,[]) ->
-	    let w = Goblintutil.summary_length - 4 in
-	    let key_str = Domain.short w key in
-	    let summary = 
-	      let st_str = Range.short (w - String.length key_str) st in
-		esc key_str ^ " -> " ^ esc st_str in
+            let w = Goblintutil.summary_length - 4 in
+            let key_str = Domain.short w key in
+            let summary = 
+              let st_str = Range.short (w - String.length key_str) st in
+          esc key_str ^ " -> " ^ esc st_str in
 
             let attr = [("text", summary);("id",key_str)] in begin
               match Range.toXML st with
@@ -176,19 +168,24 @@ struct
             end
         | _ -> Xml.Element ("Node", [("text","map:")], [Domain.toXML key; Range.toXML st])
     in
-    let assoclist map = fold (fun x y rest -> (x,y)::rest) map [] in
-    let children map = List.rev_map f (assoclist map) in
-    let grouped_children = 
-      let folder a b = 
-	let group_name a = Domain.class_name a in
-	  match fst b with
-	    | 0 -> List.append (children (snd b)) a (* no group *)
-	    | -1 when not !Goblintutil.show_temps -> a (* temps *)
-	    | n -> (Xml.Element ("Node", [("text", group_name n);("id",group_name n)], children (snd b)))::a in 
-	List.fold_left folder [] groups 
+    let module IMap = Map.Make (struct type t = int let compare (x:int) (y:int) = Pervasives.compare x y end) in
+    let groups = 
+      let add_grpd k v m = 
+        let group = Domain.classify k in
+        IMap.add group ((k,v) :: try IMap.find group m with Not_found -> []) m
+      in
+      M.fold add_grpd mapping IMap.empty
+    in
+    let children = 
+        let h g (kvs:(Domain.t * Range.t) list) xs = 
+          match g = -1 && not !Goblintutil.show_temps with
+            | true  -> xs
+            | false -> (Xml.Element ("Node", [("text", Domain.class_name g);("id",Domain.class_name g)], List.map f kvs))::xs
+        in
+        IMap.fold h groups []
     in
     let node_attrs = [("text", esc (short Goblintutil.summary_length mapping));("id","map")] in
-      Xml.Element ("Node", node_attrs, grouped_children)
+      Xml.Element ("Node", node_attrs, children)
 
   let pretty_f short () mapping = 
     let groups =

@@ -75,6 +75,7 @@ let do_the_params (fd: fundec) =
   in
     List.iter create_extra_var fd.sformals
 
+let unknown_exp : exp = mkString "__unknown_value__" 
 let dummy_func = emptyFunction "__goblint_dummy_init" 
 
 let createCFG (file: file) =
