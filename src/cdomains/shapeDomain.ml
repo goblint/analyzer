@@ -221,49 +221,65 @@ let rec add_alias (lhs:ListPtr.t) ((rhs,side):lexp) (sm:SHMap.t) : SHMap.t list 
     | `Prev, `Lifted2 s, _ -> push_summary `Prev rhs lhs (ListPtrSet.choose s) sm :: add_alias lhs (rhs,side) (collapse_summary rhs (ListPtrSet.choose s) sm)
     | _, _, _ -> [alias_top lhs sm]
 
-(*  let ((rhs_prev,rhs_next),(rhs_eq, rhs_bp)) = SHMap.find rhs sm in
-  match side, rhs_prev, rhs_next with
-    | `Next, _, `Lifted1 s
-    | `Prev, `Lifted1 s, _ ->
-      (* pick out a element that we are now equal to*)
-      let specimen = ListPtrSet.choose s in
-      let (sp,sn), (eq,bp) = SHMap.find specimen sm in
-      (* fix everithing in our alias set *)
-      let new_eq = EQSet.add lhs eq in
-      let sm_with_lhs = change_all new_eq ((sp,sn), (new_eq,bp)) sm in
-      (* helper to fix everithing that point to me *)
-      let alias_lhs k sm =
-        let ((p,n),(e, b)) = SHMap.find k sm in
-        let app_edge f = function 
-          | `Lifted1 s -> `Lifted1 (f s)
-          | `Lifted2 s -> `Lifted2 (f s)
-          | x -> x 
-        in
-        let add_sp_if_exists s = if ListPtrSet.mem specimen s then ListPtrSet.add lhs s else s in 
-        let np = app_edge add_sp_if_exists p in
-        let nn = app_edge add_sp_if_exists n in
-        SHMap.add k ((np,nn),(e, b)) sm
-      in
-      (* helper to fix back pointers *)
-      let add_back_ptr k sm =
-        let ((p, n),(e, b)) = SHMap.find k sm in
-        let nb = ListPtrSet.add lhs b in
-        SHMap.add k ((p,n),(e, nb)) sm
-      in
-      let drop_lift = function 
-        | `Lifted1 x -> x
-        | `Lifted2 x -> x
-        | _ -> ListPtrSet.empty ()
-      in
-      let s1 = ListPtrSet.fold alias_lhs bp sm_with_lhs in
-      let s2 = ListPtrSet.fold add_back_ptr (drop_lift sp) s1 in
-      let s3 = ListPtrSet.fold add_back_ptr (drop_lift sn) s2 in
-      s3
-    | `Next, _,`Lifted2 s  
-    | `Prev, `Lifted2 s, _ -> sm
-    | _, _, _ -> alias_top lhs sm*)
+let rec proper_list_segment (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : bool =
+  if ListPtr.equal lp1 lp2 then true else
+  let (p, n), (e, b) = SHMap.find lp1 sm in
+  let app_edge f = function 
+    | `Lifted1 s -> f s
+    | `Lifted2 s -> f s
+    | `Bot -> true
+    | `Top -> false
+  in
+  let app_edge' f = function 
+    | `Lifted1 s -> f s
+    | `Lifted2 s -> f s
+    | `Bot ->  Messages.bailwith "not implemented"
+    | `Top ->  Messages.bailwith "not implemented"
+  in
+  let point_to_me lp = 
+    let (p, n), (e, b) = SHMap.find lp sm in
+    app_edge (ListPtrSet.mem lp1) p
+  in
+  let lp' = app_edge' ListPtrSet.choose n in
+  app_edge (ListPtrSet.for_all point_to_me) n &&
+  proper_list_segment lp' lp2 sm
+  
 
 let kill (lp:ListPtr.t) (sm:SHMap.t) : SHMap.t =
-  sm
+  let (p, n), (e, b) = SHMap.find lp sm in
+  let sm = SHMap.remove lp sm in
+  let kill_from k sm = 
+    let ((p,n),(e, b)) = SHMap.find k sm in
+    let app_edge f = function 
+      | `Lifted1 s -> `Lifted1 (f s)
+      | `Lifted2 s -> `Lifted2 (f s)
+      | x -> x 
+    in
+    let remove_mention s = 
+      if ListPtrSet.mem lp s then begin
+        if ListPtrSet.cardinal s = 1 then ListPtrSet.top () else  ListPtrSet.remove lp s
+      end else s 
+    in 
+    let np = app_edge remove_mention p in
+    let nn = app_edge remove_mention n in
+    SHMap.add k ((np,nn),(e, ListPtrSet.remove lp b)) sm    
+  in
+  let ne = ListPtrSet.remove lp e in
+  let sm = change_all ne ((p, n), (ne, b)) sm in
+  let sm = ListPtrSet.fold kill_from b sm in
+  let edge f = function 
+    | `Lifted1 s -> f s
+    | `Lifted2 s -> f s
+    | `Bot -> Messages.bailwith "not implemented"
+    | `Top -> Messages.bailwith "not implemented"
+  in
+  let prev = edge ListPtrSet.choose p in  
+  let next = edge ListPtrSet.choose n in
+  if proper_list_segment prev next sm then begin
+    let sm = summ prev `Next next sm in
+    let sm = summ next `Prev prev sm in
+    sm
+  end else sm
+  
 
-module Dom = SHMap
+module Dom = SetDomain.ToppedSet (SHMap) (struct let topname="Shapes are messed up!" end)
