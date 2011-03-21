@@ -27,7 +27,7 @@ type local_state = [
     | `OSEK2       of Osektupel.t*Osektupel.t
     | `Access      of AccessDomain.Access.t
     | `Contain     of ContainDomain.Dom.t
-    | `Shape       of Lattice.Unit.t
+    | `Shape       of ShapeDomain.Dom.t
     ]
 
 (* Experiment to reduce the number of arguments on transfer functions and allow

@@ -2,18 +2,21 @@ open Cil
 open Pretty
 open Analyses
 
+open ShapeDomain
+
 module Spec =
 struct
   include Analyses.DefaultSpec
 
   let name = "Shape Analysis for Cyclic Doubly Linked Lists"
-  module Dom  = Lattice.Unit
+  module Dom  = ShapeDomain.SHMap
   module Glob = Global.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
+    ignore (Pretty.printf "%a:\n %a\n\n" d_exp rval d_plainexp rval);
     ctx.local
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
