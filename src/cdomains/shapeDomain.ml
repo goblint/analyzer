@@ -196,14 +196,14 @@ let summary_ok (lh:ListPtr.t) (s:[`Next | `Prev]) (sm:SHMap.t) : bool =
     match s, p, n with
       | `Prev, _, `Lifted2 s 
       | `Next, `Lifted2 s, _ -> ListPtrSet.equal s e
-      | _ -> Messages.report "1";false
+      | _ -> false
   in
   match s, p, n with
     | `Next, _, `Lifted2 s 
-    | `Prev, `Lifted2 s, _ -> ListPtrSet.for_all check s
+    | `Prev, `Lifted2 s, _ -> not (ListPtrSet.is_top s) && ListPtrSet.for_all check s
     | `Next, _, `Bot 
-    | `Prev, `Bot, _ -> Messages.report "2";true
-    | _ -> Messages.report "3";false
+    | `Prev, `Bot, _ -> true
+    | _ -> false
 
 let push_summary dir lp1 lp2 lp3 sm =  
   let rdir = 
@@ -329,28 +329,26 @@ let kill (lp:ListPtr.t) (sm:SHMap.t) : SHMap.t =
     end else nsm
   with Not_found -> nsm
   
-let rec add_alias_ (lhs:ListPtr.t) ((rhs,side):lexp) (sm:SHMap.t) : SHMap.t list =
+let rec add_alias (lhs:ListPtr.t) ((rhs,side):lexp) (sm:SHMap.t) : SHMap.t list =
+  let sm = kill lhs sm in
   let ((rhs_prev,rhs_next),(rhs_eq, rhs_bp)) = SHMap.find rhs sm in
-  let nsm = kill lhs sm in
   match side, rhs_prev, rhs_next with
     | `Next, _, `Lifted1 s
     | `Prev, `Lifted1 s, _ when not (ListPtrSet.is_top s) && ListPtrSet.cardinal s > 0 -> 
       (* pick out a element that we are now equal to*)
       let lp = ListPtrSet.choose s in
-      [alias lp lhs nsm]
+      [alias lp lhs sm]
     | `Next, _,`Lifted2 s  -> 
-        push_summary `Next rhs lhs (ListPtrSet.choose s) nsm :: add_alias_ lhs (rhs,side) (collapse_summary rhs (ListPtrSet.choose s) sm)
+        push_summary `Next rhs lhs (ListPtrSet.choose s) sm :: add_alias lhs (rhs,side) (collapse_summary rhs (ListPtrSet.choose s) sm)
     | `Prev, `Lifted2 s, _ ->
-        push_summary `Prev rhs lhs (ListPtrSet.choose s) nsm :: add_alias_ lhs (rhs,side) (collapse_summary rhs (ListPtrSet.choose s) sm)
-    | `NA, _, _ -> [alias rhs lhs nsm]
-    | _, _, _ -> [alias_top lhs nsm]
-
-let rec add_alias (lhs:ListPtr.t) ((rhs,side):lexp) (sm:SHMap.t) : SHMap.t list =
-  let r = add_alias_ lhs (rhs,side) sm in
-  Messages.report (string_of_int (List.length r));
-  r
+        push_summary `Prev rhs lhs (ListPtrSet.choose s) sm :: add_alias lhs (rhs,side) (collapse_summary rhs (ListPtrSet.choose s) sm)
+    | `NA, _, _ -> [alias rhs lhs sm]
+    | _, _, _ -> [alias_top lhs sm]
 
 
 let unknown_list (lp:ListPtr.t): Rhs.t = (RhsEdges.top ()), (ListPtrSet.singleton (lp), ListPtrSet.singleton (lp))
 
-module Dom = SetDomain.ToppedSet (SHMap) (struct let topname="Shapes are messed up!" end)
+module Dom = 
+struct 
+  include SetDomain.ToppedSet (SHMap) (struct let topname="Shapes are messed up!" end)
+end
