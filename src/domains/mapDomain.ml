@@ -159,14 +159,14 @@ struct
               let st_str = Range.short (w - String.length key_str) st in
           esc key_str ^ " -> " ^ esc st_str in
 
-            let attr = [("text", summary);("id",key_str)] in begin
+            let attr = [("text", summary);("id",esc key_str)] in begin
               match Range.toXML st with
                 | Xml.Element (_, chattr, children) -> 
                     if Range.isSimple st then Xml.Element ("Leaf", attr, [])
                     else Xml.Element ("Node", attr, children)
                 | x -> x
             end
-        | _ -> Xml.Element ("Node", [("text","map:")], [Domain.toXML key; Range.toXML st])
+        | _ -> Xml.Element ("Node", [("text",esc (Domain.short 40 key^" -> "^Range.short 40 st))], [Domain.toXML key; Range.toXML st])
     in
     let module IMap = Map.Make (struct type t = int let compare (x:int) (y:int) = Pervasives.compare x y end) in
     let groups = 
@@ -379,5 +379,76 @@ struct
   let fold f x a = 
     match x with 
       | `Top -> raise (Fn_over_All "fold")
+      | `Lifted x -> M.fold f x a
+end
+
+module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with
+  type key = Domain.t and 
+  type value = Range.t (*and 
+  type t = [ `Lifted of Range.t ExtendedMap(Domain).t | `Top ] *)= 
+struct
+  module M = MapTop (Domain) (Range)
+  include Lattice.LiftBot (M) 
+  
+  type key   = M.key
+  type value = M.value
+  
+  let add k v = function
+    | `Bot -> `Bot
+    | `Lifted x -> `Lifted (M.add k v x)
+    
+  let remove k = function
+    | `Bot -> `Bot
+    | `Lifted x -> `Lifted (M.remove k x)
+
+  let find k = function
+    | `Bot -> Range.top ()
+    | `Lifted x -> M.find k x
+   
+  let mem k = function
+    | `Bot -> true
+    | `Lifted x -> M.mem k x
+
+  let map f = function 
+    | `Bot -> `Bot
+    | `Lifted x -> `Lifted (M.map f x)
+
+  let add_list xs = function
+    | `Bot -> `Bot
+    | `Lifted x -> `Lifted (M.add_list xs x)
+  
+  let add_list_set ks v = function
+    | `Bot -> `Bot
+    | `Lifted x -> `Lifted (M.add_list_set ks v x)
+    
+  let add_list_fun ks f = function 
+    | `Bot -> `Bot
+    | `Lifted x -> `Lifted (M.add_list_fun ks f x)
+    
+  let filter_class i = function
+    | `Bot -> `Bot
+    | `Lifted x -> `Lifted (M.filter_class i x)
+  
+  let map2 f x y =
+    match x, y with
+      | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
+      | _ -> raise (Fn_over_All "map2")
+
+  let long_map2 f x y =
+    match x, y with
+      | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
+      | _ -> raise (Fn_over_All "long_map2")
+  
+  let for_all f = function
+    | `Bot -> raise (Fn_over_All "for_all")
+    | `Lifted x -> M.for_all f x
+    
+  let iter f = function
+    | `Bot -> raise (Fn_over_All "iter")
+    | `Lifted x -> M.iter f x
+
+  let fold f x a = 
+    match x with 
+      | `Bot -> raise (Fn_over_All "fold")
       | `Lifted x -> M.fold f x a
 end
