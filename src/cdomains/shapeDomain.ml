@@ -108,7 +108,7 @@ let list_head_ptr_type : typ -> bool = function
 
 
 (* evaluate an expression to a "variable" *)
-let eval_lp_ (ask:Q.ask) (e:exp) : lexp option =
+let eval_lp (ask:Q.ask) (e:exp) : lexp option =
   match constFold true e with
     (* B.next -> list is &B and field is next *)
     | Lval (Var l,Field (fd,NoOffset)) when fd.fname = "next" || fd.fname = "prev" ->
@@ -132,13 +132,6 @@ let eval_lp_ (ask:Q.ask) (e:exp) : lexp option =
         Some (`Right ((v, CLval.of_ciloffs ofs), Offs.from_offset `NoOffset),`NA)
     | _ -> None 
 
-let eval_lp (ask:Q.ask) (e:exp) : lexp option =
-  let r = eval_lp_ ask e in
-  match r with
-    | Some (v,`Next) -> Messages.report (Pretty.sprint 80 (d_exp () e)^" -> "^Pretty.sprint 80 (ListPtr.pretty () v)^" Next"); r
-    | Some (v,`Prev) -> Messages.report (Pretty.sprint 80 (d_exp () e)^" -> "^Pretty.sprint 80 (ListPtr.pretty () v)^" Prev"); r
-    | Some (v,`NA)   -> Messages.report (Pretty.sprint 80 (d_exp () e)^" -> "^Pretty.sprint 80 (ListPtr.pretty () v)^" "); r
-    | None -> r
 
 let warn_todo () = Messages.warn ("NotImplemented exception! ")
 
