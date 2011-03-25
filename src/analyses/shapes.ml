@@ -19,17 +19,34 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     let st = ctx.local in
-    try 
+(*     try  *)
     match eval_lp ctx.ask (Lval lval), eval_lp ctx.ask rval with
       | Some (l,`Next), Some (r,`NA) -> Dom.map (normal l `Next r) st
       | Some (l,`Prev), Some (r,`NA) -> Dom.map (normal l `Prev r) st
       | Some (l,`NA), Some (r,dir) -> 
           Dom.fold (fun d xs -> List.fold_right Dom.add (add_alias l (r,dir) d) xs) st (Dom.empty ()) 
       | _ -> st
-    with x -> ignore (Pretty.printf "Exception %s \n" (Printexc.to_string x)); st
+(*     with x -> ignore (Pretty.printf "Exception %s \n" (Printexc.to_string x)); st *)
     
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
-    ctx.local
+    let xor x y = if x then not y else y in
+    let invariant lp1 lp2 b = 
+      let inv_one (sm:SHMap.t) (xs:Dom.t) =
+        if xor (xor tv b) (must_alias lp1 lp2 sm)
+        then Dom.add sm xs 
+        else xs
+      in
+      Dom.fold inv_one ctx.local (Dom.empty ())
+    in
+    let eval_lps e1 e2 b = 
+      match eval_lp ctx.ask e1, eval_lp ctx.ask e2 with
+        | Some lpe1, Some lpe2 -> invariant lpe1 lpe2 b
+        | _ -> ctx.local 
+    in
+    match stripCasts exp with
+      | BinOp (Ne,e1,e2,_) -> eval_lps (stripCasts e1) (stripCasts e2) false 
+      | BinOp (Eq,e1,e2,_) -> eval_lps (stripCasts e1) (stripCasts e2) true
+      | _ -> ctx.local
   
   let body ctx (f:fundec) : Dom.t = 
     ctx.local  

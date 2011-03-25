@@ -83,8 +83,12 @@ struct
     then find k m
     else Rhs.unknown k
   
-  let add k v m =
-    add k v m
+  let add k ((p,n),(e,bp)) m =
+    if Edges.is_top p && Edges.is_top n
+    && (not (ListPtrSet.is_top e)  && ListPtrSet.cardinal e = 1) 
+    && (not (ListPtrSet.is_top bp) && ListPtrSet.is_empty (ListPtrSet.remove k bp))
+    then remove k m
+    else add k ((p,n),(e,bp)) m
 end
 
 type listField = [`Prev | `Next | `NA]
@@ -143,6 +147,23 @@ let alias_top lp = SHMap.remove lp
 let change_all eqset v = 
   ListPtrSet.fold (fun k -> SHMap.add k v) eqset
 
+let decrease_bptrs (lh:ListPtr.t) (sm:SHMap.t) : SHMap.t =
+  let points_to_me (lp:ListPtr.t) =
+    let (p,n), _ = SHMap.find lp sm in
+    let app_edge f = function 
+      | `Lifted1 s -> f s
+      | `Lifted2 s -> f s
+      | `Bot -> false
+      | `Top -> true
+    in    
+    app_edge (ListPtrSet.mem lh) p ||
+    app_edge (ListPtrSet.mem lh) n
+  in
+  let es, (oe, obp) = SHMap.find lh sm in
+  let new_bp = ListPtrSet.filter points_to_me obp in
+  SHMap.add lh (es, (oe, new_bp)) sm
+
+
 let write_edge f (lh:ListPtr.t) (s:[`Next | `Prev]) (rh:ListPtr.t) (sm:SHMap.t) : SHMap.t =
   (* old value *)
   let (op, on), (oe, obp) = SHMap.find lh sm in
@@ -159,14 +180,10 @@ let write_edge f (lh:ListPtr.t) (s:[`Next | `Prev]) (rh:ListPtr.t) (sm:SHMap.t) 
       | `Prev, `Top, _ -> warn_todo (); ListPtrSet.empty ()
       | `Prev, `Bot, _ -> ListPtrSet.empty ()
   in
-  let remove_back_ptrs lp sm = 
-    let (xp, xn), (xe, xbp) = SHMap.find lp sm in
-    SHMap.add lp ((xp, xn), (xe, ListPtrSet.diff xbp oe)) sm
-  in
   let no_bps = 
     if ListPtrSet.is_top pset
     then (warn_todo (); sm)
-    else ListPtrSet.fold remove_back_ptrs pset sm 
+    else ListPtrSet.fold decrease_bptrs pset sm 
   in
   (* add the edge *)
   let with_added = 
@@ -235,7 +252,6 @@ let alias (lp_old:ListPtr.t) (lp_new:ListPtr.t) (sm:SHMap.t) : SHMap.t =
   (* fix everithing in our alias set *)
   let new_eq = ListPtrSet.add lp_new eq in
   let new_bp = ListPtrSet.add lp_new bp in
-  Messages.report (ListPtrSet.short 80 new_eq);
   let sm_with_lhs = change_all new_eq ((sp,sn), (new_eq,new_bp)) sm in
   (* helper to fix everithing that point to me *)
   let alias_lhs k sm =
@@ -257,8 +273,8 @@ let alias (lp_old:ListPtr.t) (lp_new:ListPtr.t) (sm:SHMap.t) : SHMap.t =
     SHMap.add k ((p,n),(e, nb)) sm
   in
   let drop_lift = function 
-    | `Lifted1 x -> x
-    | `Lifted2 x -> x
+    | `Lifted1 x -> ListPtrSet.diff x new_eq
+    | `Lifted2 x -> ListPtrSet.diff x new_eq
     | _ -> ListPtrSet.empty ()
   in
   let s1 = ListPtrSet.fold alias_lhs new_bp sm_with_lhs in
@@ -303,7 +319,7 @@ let kill (lp:ListPtr.t) (sm:SHMap.t) : SHMap.t =
     in
     let remove_mention s = 
       if ListPtrSet.mem lp s then begin
-        if ListPtrSet.cardinal s = 1 then ListPtrSet.top () else  ListPtrSet.remove lp s
+        if ListPtrSet.is_top s || ListPtrSet.cardinal s = 1 then ListPtrSet.top () else  ListPtrSet.remove lp s
       end else s 
     in 
     let np = app_edge remove_mention p in
@@ -327,7 +343,7 @@ let kill (lp:ListPtr.t) (sm:SHMap.t) : SHMap.t =
       let nsm = summ next `Prev prev nsm in
       nsm
     end else nsm
-  with Not_found -> nsm
+  with SetDomain.Unsupported _ | Not_found -> nsm
   
 let rec add_alias (lhs:ListPtr.t) ((rhs,side):lexp) (sm:SHMap.t) : SHMap.t list =
   let sm = kill lhs sm in
@@ -338,14 +354,41 @@ let rec add_alias (lhs:ListPtr.t) ((rhs,side):lexp) (sm:SHMap.t) : SHMap.t list 
       (* pick out a element that we are now equal to*)
       let lp = ListPtrSet.choose s in
       [alias lp lhs sm]
-    | `Next, _,`Lifted2 s  -> 
-        push_summary `Next rhs lhs (ListPtrSet.choose s) sm :: add_alias lhs (rhs,side) (collapse_summary rhs (ListPtrSet.choose s) sm)
-    | `Prev, `Lifted2 s, _ ->
-        push_summary `Prev rhs lhs (ListPtrSet.choose s) sm :: add_alias lhs (rhs,side) (collapse_summary rhs (ListPtrSet.choose s) sm)
+    | `Next, _,`Lifted2 s when not (ListPtrSet.is_top s) -> 
+        let sumto = ListPtrSet.choose s in
+        let psm = push_summary `Next rhs lhs sumto sm in
+        let csm = collapse_summary lhs sumto psm in
+        [psm;csm]
+    | `Prev, `Lifted2 s, _ when not (ListPtrSet.is_top s) ->
+        let sumto = ListPtrSet.choose s in
+        let psm = push_summary `Prev rhs lhs sumto sm in
+        let csm = collapse_summary sumto lhs psm in
+        [psm;csm]
     | `NA, _, _ -> [alias rhs lhs sm]
     | _, _, _ -> [alias_top lhs sm]
 
-
+let must_alias (lpe1:lexp) (lpe2:lexp) (sm:SHMap.t) : bool =
+  let get_lp = function
+    | (lp, `NA) -> Some lp
+    | (lp, `Next) -> 
+        begin match SHMap.find lp sm with
+          | ((_,`Lifted1 s),_) when not (ListPtrSet.is_top s) && ListPtrSet.cardinal s >= 1 
+              -> Some (ListPtrSet.choose s)
+          | _ -> None
+        end
+    | (lp, `Prev) -> 
+        begin match SHMap.find lp sm with
+          | ((`Lifted1 s,_),_) when not (ListPtrSet.is_top s) && ListPtrSet.cardinal s >= 1 
+              -> Some (ListPtrSet.choose s)
+          | _ -> None
+        end
+  in
+  match get_lp lpe1, get_lp lpe2 with
+    | Some x, Some y -> 
+      let (_,(eq, _)) = SHMap.find x sm in
+      ListPtrSet.mem y eq
+    | _ -> false
+  
 let unknown_list (lp:ListPtr.t): Rhs.t = (RhsEdges.top ()), (ListPtrSet.singleton (lp), ListPtrSet.singleton (lp))
 
 module Dom = 
