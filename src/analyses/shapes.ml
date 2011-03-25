@@ -52,10 +52,17 @@ struct
     ctx.local  
     
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    ctx.local
+    Dom.map (kill_vars (f.sformals @ f.slocals)) ctx.local
   
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    [ctx.local,ctx.local]
+    let rec zip xs ys =
+      match xs, ys with
+        | x::xs, y::ys -> (x, y) :: zip xs ys 
+        | _ -> []
+    in
+    let fd = Cilfacade.getdec f in
+    let asg (v,e) d = assign (swap_st ctx d) (Var v,NoOffset) e in
+    [ctx.local, List.fold_right asg (zip fd.sformals args) ctx.local]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     au
@@ -73,10 +80,17 @@ struct
             | Some (lp1, _), Some (lp2, _) -> lift_st (Dom.map (collapse_summary lp1 lp2) ctx.local)
             | _ -> lift_st ctx.local
         end
-      | _ -> lift_st ctx.local
-      
+      | _ -> 
+    match lval with
+      | None -> lift_st ctx.local
+      | Some x -> 
+    match eval_lp ctx.ask (Lval x) with
+      | Some (lp,`NA) -> lift_st (Dom.map (kill lp) ctx.local) 
+      | Some (lp,dir) -> lift_st (Dom.map (alias_top lp) ctx.local)
+      | None -> lift_st ctx.local
+     
   let startstate () = Dom.singleton (SHMap.top ())
-  let otherstate () = Dom.top ()
+  let otherstate () = Dom.singleton (SHMap.top ())
 end
 
 module ShapeMCP = 

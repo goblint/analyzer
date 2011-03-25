@@ -265,14 +265,17 @@ let alias (lp_old:ListPtr.t) (lp_new:ListPtr.t) (sm:SHMap.t) : SHMap.t =
     let nb = ListPtrSet.add lp_new b in
     SHMap.add k ((p,n),(e, nb)) sm
   in
-  let drop_lift = function 
+  let drop_lift = function
     | `Lifted1 x -> ListPtrSet.diff x new_eq
     | `Lifted2 x -> ListPtrSet.diff x new_eq
     | _ -> ListPtrSet.empty ()
   in
   let s1 = ListPtrSet.fold alias_lhs new_bp sm_with_lhs in
-  let s2 = ListPtrSet.fold add_back_ptr (drop_lift sp) s1 in
-  let s3 = ListPtrSet.fold add_back_ptr (drop_lift sn) s2 in
+  let spset = drop_lift sp in
+  let snset = drop_lift sn in
+  if ListPtrSet.is_top spset || ListPtrSet.is_top snset then (Messages.report "LOST!"; SHMap.top ()) else
+  let s2 = ListPtrSet.fold add_back_ptr spset s1 in
+  let s3 = ListPtrSet.fold add_back_ptr spset s2 in
   s3
 
 let rec proper_list_segment (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : bool =
@@ -337,6 +340,15 @@ let kill (lp:ListPtr.t) (sm:SHMap.t) : SHMap.t =
       nsm
     end else nsm
   with SetDomain.Unsupported _ | Not_found -> nsm
+  
+let kill_vars lvs sm = 
+  let sm = List.fold_right (fun v -> kill (`Left v)) lvs sm in
+  let kill_adrs (v:ListPtr.t) _ (sm:SHMap.t) = 
+    match v with
+      | `Right ((v',_),_) when List.exists (Var.equal v') lvs -> kill v sm 
+      | _ -> sm
+  in
+  SHMap.fold kill_adrs sm sm
   
 let rec add_alias (lhs:ListPtr.t) ((rhs,side):lexp) (sm:SHMap.t) : SHMap.t list =
   let sm = kill lhs sm in
