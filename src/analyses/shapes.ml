@@ -5,14 +5,14 @@ open Analyses
 open ShapeDomain
 
 module GU = Goblintutil
-module Re = Regions.Spec
+module Re = Region.Spec
 
 module Spec =
 struct
   include Analyses.DefaultSpec
 
   let name = "Shape Analysis for Cyclic Doubly Linked Lists"
-  module Dom  = Lattice.Prod (ShapeDomain.Dom) (Re.Dom)
+  module Dom  = ShapeDomain.Dom
   module Glob = Global.Make (IntDomain.Booleans)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
