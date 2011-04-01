@@ -30,7 +30,7 @@ PROG_MODULES = \
 	basetype intDomain lval exp queries addressDomain partitionDomain \
 	arrayDomain listDomain structDomain unionDomain valueDomain memoryDomain \
 	musteqDomain regionDomain concDomain lockDomain  baseDomain escapeDomain \
-	accessDomain containDomain shapeDomain \
+	accessDomain containDomain myLiveness shapeDomain \
 	hash progress myCFG analyses libraryFunctions global cache \
 	solver effectWCon effectWNCon solverConSideRR solverConSideWNRR \
 	multithread compose mCP access varEq symbLocks thread threadEscape \

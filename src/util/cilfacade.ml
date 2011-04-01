@@ -8,6 +8,7 @@ let init () =
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
 
+let currentStatement = ref dummyStmt
 let ugglyImperativeHack = ref dummyFile
 let showtemps = ref false
     

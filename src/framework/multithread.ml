@@ -140,6 +140,10 @@ struct
           x, y @ y', z @ z'
         in
         try
+          begin match pred with
+            | MyCFG.Statement s -> Cilfacade.currentStatement := s 
+            | _ -> ()
+          end;
           (* We synchronize the predecessor value with the global invariant and
            * then feed the updated value to the transfer functions. *)
           let add_novar v d = M.bailwith "Bug: Sync should not be able to spawn threads. Ignored!" in

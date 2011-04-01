@@ -27,7 +27,7 @@ end
     | `Right (l,o) when Offs.to_offset o = [`NoOffset] -> "&"^Lval.CilLval.short w l
     | `Right (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
   
-  let get_var = function `Right ((v,_),_) | `Left v -> v
+  let get_var = function `Right ((v,_),_) | `Left v -> v | _ -> failwith "WTF?"
   
   let pretty = pretty_f short
   let toXML  = toXML_f short
@@ -63,18 +63,15 @@ struct
   let toXML  = toXML_f short
 end
 
-module RhsEdges = Lattice.Prod (Edges) (Edges) 
-module RhsExtra = Lattice.Prod (ListPtrSetR) (ListPtrSetR)
-
 module Rhs = 
 struct
-  include Lattice.Prod (RhsEdges) (RhsExtra)
-  module TR = Printable.Prod3 (Edges) (Edges) (ListPtrSetR)
+  include Lattice.Prod3 (Edges) (Edges) (ListPtrSetR)
+(*  module TR = Printable.Prod3 (Edges) (Edges) (ListPtrSetR)
   
   let short w ((p,n),(e,_)) = TR.short w (p,n,e)
   let pretty = pretty_f short
   let toXML_f _ ((p,n),(e,_)) = TR.toXML_f TR.short (p,n,e)
-  let toXML  = toXML_f short
+  let toXML  = toXML_f short*)
 end
 
 let is_private ask (lp:ListPtr.t) =
@@ -100,15 +97,15 @@ let is_broken gl (lp:ListPtr.t) =
 
 let empty_list (lp:ListPtr.t) : Rhs.t = 
   let lps = ListPtrSet.singleton lp in
-  (`Lifted1 lps, `Lifted1 lps) , (lps, lps)
+  (`Lifted1 lps, `Lifted1 lps, lps) 
 
 let nonempty_list (lp:ListPtr.t) : Rhs.t = 
   let lps = ListPtrSet.singleton lp in
-  (`Lifted2 lps, `Lifted2 lps) , (lps, lps)
+  (`Lifted2 lps, `Lifted2 lps, lps) 
 
 let unknown (lp:ListPtr.t) : Rhs.t = 
   let lps = ListPtrSet.singleton lp in
-  (Edges.top (), Edges.top ()) , (lps, lps)
+  (Edges.top (), Edges.top (), lps) 
 
 exception PleaseMaterialize of ListPtr.t
 
@@ -136,13 +133,12 @@ struct
     then unknown k
     else raise (PleaseMaterialize k)
     
-  let add ask gl upd k ((p,n),(e,bp)) m =
+  let add ask gl upd k (p,n,e) m =
     if Edges.is_top p && Edges.is_top n
     && (not (ListPtrSet.is_top e)  && ListPtrSet.cardinal e = 1) 
-    && (not (ListPtrSet.is_top bp) && ListPtrSet.is_empty (ListPtrSet.remove k bp))
     then remove k m
     else if is_private ask k
-    then add k ((p,n),(e,bp)) m
+    then add k (p,n,e) m
     else break gl upd k m
 end
 
@@ -196,58 +192,26 @@ let alias_top lp = SHMap.remove lp
 let change_all ask gl upd eqset v = 
   ListPtrSet.fold (fun k -> SHMap.add ask gl upd k v) eqset
 
-let decrease_bptrs ask gl upd (lh:ListPtr.t) (sm:SHMap.t) : SHMap.t =
-  let points_to_me (lp:ListPtr.t) =
-    let (p,n), _ = SHMap.find' ask gl lp sm in
-    let app_edge f = function 
-      | `Lifted1 s -> f s
-      | `Lifted2 s -> f s
-      | `Bot -> false
-      | `Top -> true
-    in    
-    app_edge (ListPtrSet.mem lh) p ||
-    app_edge (ListPtrSet.mem lh) n
+let get_backpointers (lp:ListPtr.t) (sm:SHMap.t) : ListPtrSet.t =
+  let get_bp k (p,n,e) bp = 
+    let do_edge bp = function 
+      | `Top ->  ListPtrSet.add k bp
+      | `Lifted1 s 
+      | `Lifted2 s when ListPtrSet.mem lp s -> ListPtrSet.add k bp
+      | _ ->  bp
+    in
+    do_edge (do_edge bp n) p
   in
-  let es, (oe, obp) = SHMap.find' ask gl lh sm in
-  let new_bp = ListPtrSet.filter points_to_me obp in
-  SHMap.add ask gl upd lh (es, (oe, new_bp)) sm
-
+  SHMap.fold get_bp sm (ListPtrSet.empty ())
 
 let write_edge ask gl upd f (lh:ListPtr.t) (s:[`Next | `Prev]) (rh:ListPtr.t) (sm:SHMap.t) : SHMap.t =
   (* old value *)
-  let (op, on), (oe, obp) = SHMap.find' ask gl lh sm in (* this sucks ! *)
-  let (_, _), (re, _)     = SHMap.find' ask gl rh sm in
-  (* remove old back pointers *)
-  let pset = 
-    match s, op, on with
-      | `Next, _, `Lifted1 s -> s
-      | `Next, _, `Lifted2 s -> s
-      | `Next, _, `Top -> warn_todo "1"; ListPtrSet.empty ()
-      | `Next, _, `Bot -> ListPtrSet.empty ()
-      | `Prev, `Lifted1 s, _ -> s
-      | `Prev, `Lifted2 s, _ -> s
-      | `Prev, `Top, _ -> warn_todo "2"; ListPtrSet.empty ()
-      | `Prev, `Bot, _ -> ListPtrSet.empty ()
-  in
-  let no_bps = 
-    if ListPtrSet.is_top pset
-    then sm
-    else ListPtrSet.fold (decrease_bptrs ask gl upd) pset sm 
-  in
-  (* add the edge *)
-  let with_added = 
-      match s with
-      | `Next -> change_all ask gl upd oe ((op, f re), (oe, obp)) no_bps
-      | `Prev -> change_all ask gl upd oe ((f re, on), (oe, obp)) no_bps
-  in
-  (* add new back pointers *)
-  let add_back_ptrs lp sm = 
-    let (xp, xn), (xe, xbp) = SHMap.find' ask gl lp sm in
-    SHMap.add ask gl upd lp ((xp, xn), (xe, ListPtrSet.union xbp oe)) sm
-  in
-  if ListPtrSet.is_top re 
-  then (warn_todo "4"; with_added)
-  else ListPtrSet.fold add_back_ptrs re with_added
+  let (op, on, oe) = SHMap.find' ask gl lh sm in (* this sucks ! *)
+  let (_, _, re)   = SHMap.find' ask gl rh sm in
+  match s with
+    | `Next -> change_all ask gl upd oe (op, f re, oe) sm
+    | `Prev -> change_all ask gl upd oe (f re, on, oe) sm
+
 
 let normal ask gl upd (lh:ListPtr.t) (s:[`Next | `Prev]) (rh:ListPtr.t) (sm:SHMap.t) : SHMap.t =
   write_edge ask gl upd (fun x -> `Lifted1 x) lh s rh sm
@@ -256,9 +220,9 @@ let summ ask gl upd (lh:ListPtr.t) (s:[`Next | `Prev]) (rh:ListPtr.t) (sm:SHMap.
   write_edge ask gl upd (fun x -> `Lifted2 x) lh s rh sm
 
 let summary_ok ask gl (lh:ListPtr.t) (s:[`Next | `Prev]) (sm:SHMap.t) : bool =
-  let (p, n), (e, b) = SHMap.find' ask gl lh sm in
+  let (p, n, e) = SHMap.find' ask gl lh sm in
   let check lp =
-    let (p, n), (_, _) = SHMap.find' ask gl lp sm in
+    let (p, n, _) = SHMap.find' ask gl lp sm in
     match s, p, n with
       | `Prev, _, `Lifted2 s 
       | `Next, `Lifted2 s, _ -> ListPtrSet.equal s e
@@ -287,24 +251,24 @@ let push_summary ask gl upd dir lp1 lp2 lp3 sm =
 let collapse_summary ask gl upd (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : SHMap.t =
   if summary_ok ask gl lp1 `Next sm 
   then begin 
-    let (p1, n1), (e1, b1) = SHMap.find' ask gl lp1 sm in
-    let (_ , _ ), (e2, _ ) = SHMap.find' ask gl lp2 sm in
-    let sm1 = change_all ask gl upd e1 ((p1, `Lifted1 e2), (e1, b1)) sm in 
-    let (p2, n2), (e2, b2) = SHMap.find' ask gl lp2 sm1 in
-    let sm2 = change_all ask gl upd e2 ((`Lifted1 e1, n2), (e2, b2)) sm1 in 
+    let (p1, n1, e1) = SHMap.find' ask gl lp1 sm in
+    let (_ ,  _, e2) = SHMap.find' ask gl lp2 sm in
+    let sm1 = change_all ask gl upd e1 (p1, `Lifted1 e2, e1) sm in 
+    let (p2, n2, e2) = SHMap.find' ask gl lp2 sm1 in
+    let sm2 = change_all ask gl upd e2 (`Lifted1 e1, n2, e2) sm1 in 
     sm2
   end else SHMap.top ()
 
 
 let alias ask gl upd (lp_old:ListPtr.t) (lp_new:ListPtr.t) (sm:SHMap.t) : SHMap.t =
-  let (sp,sn), (eq,bp) = SHMap.find ask gl lp_old sm in
+  let (sp,sn,eq) = SHMap.find ask gl lp_old sm in
   (* fix everithing in our alias set *)
   let new_eq = ListPtrSet.add lp_new eq in
-  let new_bp = ListPtrSet.add lp_new bp in
-  let sm_with_lhs = change_all ask gl upd new_eq ((sp,sn), (new_eq,new_bp)) sm in
+  let new_bp = ListPtrSet.add lp_new (get_backpointers lp_old sm) in
+  let sm_with_lhs = change_all ask gl upd new_eq (sp,sn,new_eq) sm in
   (* helper to fix everithing that point to me *)
   let alias_lhs k sm =
-    let ((p,n),(e, b)) = SHMap.find' ask gl k sm in
+    let (p,n,e) = SHMap.find' ask gl k sm in
     let app_edge f = function 
       | `Lifted1 s -> `Lifted1 (f s)
       | `Lifted2 s -> `Lifted2 (f s)
@@ -313,13 +277,7 @@ let alias ask gl upd (lp_old:ListPtr.t) (lp_new:ListPtr.t) (sm:SHMap.t) : SHMap.
     let add_sp_if_exists s = if ListPtrSet.mem lp_old s then ListPtrSet.add lp_new s else s in 
     let np = app_edge add_sp_if_exists p in
     let nn = app_edge add_sp_if_exists n in
-    SHMap.add ask gl upd k ((np,nn),(e, b)) sm
-  in
-  (* helper to fix back pointers *)
-  let add_back_ptr k sm =
-    let ((p, n),(e, b)) = SHMap.find' ask gl k sm in
-    let nb = ListPtrSet.add lp_new b in
-    SHMap.add ask gl upd k ((p,n),(e, nb)) sm
+    SHMap.add ask gl upd k (np,nn,e) sm
   in
   let drop_lift = function
     | `Lifted1 x -> ListPtrSet.diff x new_eq
@@ -329,10 +287,8 @@ let alias ask gl upd (lp_old:ListPtr.t) (lp_new:ListPtr.t) (sm:SHMap.t) : SHMap.
   let s1 = ListPtrSet.fold alias_lhs new_bp sm_with_lhs in
   let spset = drop_lift sp in
   let snset = drop_lift sn in
-  if ListPtrSet.is_top spset || ListPtrSet.is_top snset then (Messages.report "LOST!"; SHMap.top ()) else
-  let s2 = ListPtrSet.fold add_back_ptr spset s1 in
-  let s3 = ListPtrSet.fold add_back_ptr spset s2 in
-  s3
+  if ListPtrSet.is_top spset || ListPtrSet.is_top snset then (Messages.report "LOST!"; SHMap.top ()) else s1
+
 
 
 let proper_list_segment ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : bool =
@@ -340,7 +296,7 @@ let proper_list_segment ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : bo
   let rec visited s lp1 lp2 = 
     if S.mem lp1 s then false else
     if ListPtr.equal lp1 lp2 then true else
-    let (p, n), (e, b) = SHMap.find' ask gl lp1 sm in
+    let (p, n, e) = SHMap.find' ask gl lp1 sm in
     let app_edge f = function 
       | `Lifted1 s -> f s
       | `Lifted2 s -> f s
@@ -354,7 +310,7 @@ let proper_list_segment ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : bo
       | `Top ->  s ()
     in
     let point_to_me lp = 
-      let (p, n), (e, b) = SHMap.find' ask gl lp sm in
+      let (p, n, e) = SHMap.find' ask gl lp sm in
       app_edge (ListPtrSet.mem lp1) p
     in
     app_edge' (fun x -> not (ListPtrSet.is_top x)) (fun () -> false) n &&
@@ -365,11 +321,11 @@ let proper_list_segment ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : bo
     visited S.empty lp1 lp2
 
 let kill ask gl upd (lp:ListPtr.t) (sm:SHMap.t) : SHMap.t =
-  let (p, n), (e, b) = SHMap.find ask gl lp sm in
+  let (p, n, e) = SHMap.find ask gl lp sm in
   let nsm = SHMap.remove lp sm in
   let kill_from k sm = 
     if ListPtr.equal k lp then sm else
-    let ((p,n),(e, b)) = SHMap.find' ask gl k sm in
+    let (p,n,e) = SHMap.find' ask gl k sm in
     let app_edge f = function 
       | `Lifted1 s -> `Lifted1 (f s)
       | `Lifted2 s -> `Lifted2 (f s)
@@ -382,10 +338,11 @@ let kill ask gl upd (lp:ListPtr.t) (sm:SHMap.t) : SHMap.t =
     in 
     let np = app_edge remove_mention p in
     let nn = app_edge remove_mention n in
-    SHMap.add ask gl upd k ((np,nn),(e, ListPtrSet.remove lp b)) sm    
+    SHMap.add ask gl upd k (np,nn,e) sm    
   in
   let ne = ListPtrSet.remove lp e in
-  let nsm = change_all ask gl upd ne ((p, n), (ne, b)) nsm in
+  let nsm = change_all ask gl upd ne (p, n, ne) nsm in
+  let b = get_backpointers lp sm in
   let nsm = ListPtrSet.fold kill_from (ListPtrSet.remove lp b) nsm in
   let edge f = function 
     | `Lifted1 s -> f (ListPtrSet.remove lp s)
@@ -414,7 +371,7 @@ let kill_vars ask gl upd lvs sm =
   
 let rec add_alias ask gl upd (lhs:ListPtr.t) ((rhs,side):lexp) (sm:SHMap.t) : SHMap.t list =
   let sm = kill ask gl upd lhs sm in
-  let ((rhs_prev,rhs_next),(rhs_eq, rhs_bp)) = SHMap.find ask gl rhs sm in
+  let (rhs_prev,rhs_next,rhs_eq) = SHMap.find ask gl rhs sm in
   match side, rhs_prev, rhs_next with
     | `Next, _, `Lifted1 s
     | `Prev, `Lifted1 s, _ when not (ListPtrSet.is_top s) && ListPtrSet.cardinal s > 0 -> 
@@ -439,26 +396,37 @@ let must_alias ask gl (lpe1:lexp) (lpe2:lexp) (sm:SHMap.t) : bool =
     | (lp, `NA) -> Some lp
     | (lp, `Next) -> 
         begin match SHMap.find ask gl lp sm with
-          | ((_,`Lifted1 s),_) when not (ListPtrSet.is_top s) && ListPtrSet.cardinal s >= 1 
+          | (_,`Lifted1 s,_) when not (ListPtrSet.is_top s) && ListPtrSet.cardinal s >= 1 
               -> Some (ListPtrSet.choose s)
           | _ -> None
         end
     | (lp, `Prev) -> 
         begin match SHMap.find ask gl lp sm with
-          | ((`Lifted1 s,_),_) when not (ListPtrSet.is_top s) && ListPtrSet.cardinal s >= 1 
+          | (`Lifted1 s,_,_) when not (ListPtrSet.is_top s) && ListPtrSet.cardinal s >= 1 
               -> Some (ListPtrSet.choose s)
           | _ -> None
         end
   in
   match get_lp lpe1, get_lp lpe2 with
     | Some x, Some y -> 
-      let (_,(eq, _)) = SHMap.find ask gl x sm in
+      let (_,_,eq) = SHMap.find ask gl x sm in
       ListPtrSet.mem y eq
     | _ -> false
-  
+
+(* reflexive transitive closure on back pointers *)
+let rec reflTransBack ask gl sm c bp =
+  if ListPtrSet.mem c bp then bp else 
+  let b = get_backpointers c sm in
+  let bp = ListPtrSet.add c bp in
+  if ListPtrSet.is_top b then b else
+  ListPtrSet.fold (reflTransBack ask gl sm) b bp
+
 let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) =
+  let blab  b (f:unit->'a) = if b then true else ((*ignore (f ());*) false) in
+(*   let blab2 b (f:unit->'a) = if b then (f (); true) else false in *)
   let proper_list lp =
-    let (p, n), (e, b) = SHMap.find ask gl lp sm in
+    let (p, n, e) = SHMap.find' ask gl lp sm in
+    let lpv = ListPtr.get_var lp in
     let edge f = function 
       | `Lifted1 s -> f s
       | `Lifted2 s -> f s
@@ -466,17 +434,47 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) =
       | `Top -> raise Not_found
     in
     try 
+(*       Messages.report ("try killing: "^ (ListPtr.short 80 lp) );  *)
       let prev = edge ListPtrSet.choose p in  
       let next = edge ListPtrSet.choose n in
-      proper_list_segment ask gl prev next sm
-    with SetDomain.Unsupported _ | Not_found -> false
+      blab (proper_list_segment ask gl prev next sm) (fun () -> Pretty.printf "no donut\n") &&
+      let pointedBy = reflTransBack ask gl sm (lp) (ListPtrSet.empty ()) in
+      let alive = 
+        match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
+          | Some x -> x
+          | _      -> Usedef.VS.empty
+      in
+      let dead lp' = 
+        let lpv' = ListPtr.get_var lp' in 
+        lpv'.vid = lpv.vid || 
+        (blab (not (lpv'.vglob)) (fun () -> Pretty.printf "global %s is never dead\n" lpv'.vname) && 
+        let killer = ref dummyFunDec.svar in 
+        blab (if Usedef.VS.exists (fun x -> if lpv'.vid = x.vid then (killer := x; true) else false) alive
+        then (ignore (Messages.report ("List "^ListPtr.short 80 lp^" totally destroyed by "^(!killer).vname));false) 
+        else true) (fun () -> Pretty.printf "%s in alive list\n" lpv'.vname ))
+      in
+      blab (not (ListPtrSet.is_top pointedBy)) (fun () -> Pretty.printf "everything points at me\n") &&
+      ((*Pretty.printf "{\n";
+      ListPtrSet.iter (fun x -> ignore (Pretty.printf "%a\n" ListPtr.pretty x)) pointedBy;
+      Pretty.printf "}\n";
+      Pretty.printf "<\n";
+      Usedef.VS.iter (fun x -> ignore (Pretty.printf "%s\n" x.vname)) alive;
+      Pretty.printf ">\n";*)
+      (ListPtrSet.for_all dead pointedBy))
+    with SetDomain.Unsupported _  -> (Messages.report "bla "; false)
+     | Not_found -> if gl lpv then false else (Messages.report ("List "^ListPtr.short 80 lp^" is like totally destroyed"); false) 
   in
   let f k v (sm,ds) =
     if is_private ask k
     then (sm,ds) 
-    else (kill ask gl upd k sm, (ListPtr.get_var k, not (proper_list k)) :: ds)
+    else 
+      let lpv = ListPtr.get_var k in
+      let pr = not (proper_list k) in
+      let old = gl lpv in
+      (if not old && pr then ignore (Pretty.printf "killing %a %b %b:\n%a\n\n\n" ListPtr.pretty k old pr SHMap.pretty sm));
+      (kill ask gl upd k sm, (ListPtr.get_var k, pr) :: ds)
   in
-  SHMap.fold f sm (sm,[])
+  SHMap.fold f sm (sm,[]) 
 
 module Dom = 
 struct 

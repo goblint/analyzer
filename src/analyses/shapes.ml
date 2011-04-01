@@ -105,6 +105,7 @@ struct
     tryReallyHard ctx.ask ctx.global ctx.geffect (fun st -> branch (swap_st ctx st) exp tv) ctx.local
 
   let body ctx (f:fundec) : Dom.t = 
+    MyLiveness.computeLiveness f; 
     ctx.local  
     
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
