@@ -12,19 +12,21 @@ struct
   include Analyses.DefaultSpec
 
   let name = "Shape Analysis for Cyclic Doubly Linked Lists"
-  module Dom  = ShapeDomain.Dom
-  module Glob = Global.Make (IntDomain.Booleans)
+  module LD   = ShapeDomain.Dom
+  module Dom  = Lattice.Prod (ShapeDomain.Dom) (Re.Dom)
+  module GD   = Lattice.Prod (IntDomain.Booleans) (Re.Glob.Val)
+  module Glob = Global.Make (GD)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
-
+  
   let rec tryReallyHard ask gl upd f st =
     try f st
     with PleaseMaterialize k ->
-      let st = Dom.union 
-                  (Dom.map (SHMap.add ask gl upd k (empty_list k   )) st) 
-                  (Dom.map (SHMap.add ask gl upd k (nonempty_list k)) st)
+      let st = LD.union 
+                  (LD.map (SHMap.add' k (empty_list k   )) st) 
+                  (LD.map (SHMap.add' k (nonempty_list k)) st)
       in
-      assert (Dom.for_all (fun sm -> SHMap.mem k sm) st);
+      assert (LD.for_all (fun sm -> SHMap.mem k sm) st);
       tryReallyHard ask gl upd f st
       
   let vars e = 
@@ -53,103 +55,148 @@ struct
         | Cil.StartOf (Cil.Var v2,o) -> S.add v2 (offs_contains o)
     in
     S.elements (cv e)
+    
+  let re_context ctx (re:Re.Dom.t) =
+    let ge v = let a,b = ctx.global v in b in
+    let spawn f v x = f v (LD.singleton (SHMap.top ()), x) in
+    let geffect f v d = f v (false, d) in
+    set_st_gl ctx re ge spawn geffect
 
-  let sync ctx =
+  let sync_ld ask gl upd st =
     let f sm (st, ds)=
-      let (nsm,nds) = sync_one ctx.ask ctx.global ctx.geffect sm in
-      (Dom.add nsm st, nds@ds)
+      let (nsm,nds) = sync_one ask gl upd sm in
+      (LD.add nsm st, nds@ds)
     in
-    Dom.fold f ctx.local (Dom.empty (), [])
+    LD.fold f st (LD.empty (), [])
 
-  let sync ctx =
-    tryReallyHard ctx.ask ctx.global ctx.geffect (fun st -> sync (swap_st ctx st)) ctx.local
+  let sync ctx : Dom.t * (varinfo*GD.t) list =
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
+    let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
+    let nst, dst = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
+    let nre, dre = Re.sync (re_context ctx re) in
+    let is_public (v,_) = gl v in
+    if List.length dst <> 0 then (Messages.report "here"); 
+    (nst,nre), 
+    (List.map (fun (v,d) -> (v,(false,d))) (List.filter is_public dre) 
+    @ List.map (fun (v,d) -> (v,(d, Re.Glob.Val.bot ()))) dst)
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    let st = ctx.local in
-(*     try  *)
-    match eval_lp ctx.ask (Lval lval), eval_lp ctx.ask rval with
-      | Some (l,`Next), Some (r,`NA) -> Dom.map (normal ctx.ask ctx.global ctx.geffect l `Next r) st
-      | Some (l,`Prev), Some (r,`NA) -> Dom.map (normal ctx.ask ctx.global ctx.geffect l `Prev r) st
+  let assign_ld ask gl dup (lval:lval) (rval:exp) st : LD.t =
+    match eval_lp ask (Lval lval), eval_lp ask rval with
+      | Some (l,`Next), Some (r,`NA) -> LD.map (normal ask gl dup l `Next r) st
+      | Some (l,`Prev), Some (r,`NA) -> LD.map (normal ask gl dup l `Prev r) st
       | Some (l,`NA), Some (r,dir) -> 
-          Dom.fold (fun d xs -> List.fold_right Dom.add (add_alias ctx.ask ctx.global ctx.geffect l (r,dir) d) xs) st (Dom.empty ()) 
+          LD.fold (fun d xs -> List.fold_right LD.add (add_alias ask gl dup l (r,dir) d) xs) st (LD.empty ()) 
       | _ -> 
           let ls = vars (Lval lval) in
-          Dom.map (kill_vars ctx.ask ctx.global ctx.geffect ls) ctx.local
+          LD.map (kill_vars ask gl dup ls) st
 
-(*     with x -> ignore (Pretty.printf "Exception %s \n" (Printexc.to_string x)); st *)
-  
+ 
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    tryReallyHard ctx.ask ctx.global ctx.geffect (fun st -> assign (swap_st ctx st) lval rval) ctx.local
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
+    let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
+    tryReallyHard ctx.ask gl upd (assign_ld ctx.ask gl upd lval rval) st,
+    Re.assign (re_context ctx re) lval rval
 
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+  let branch_ld ask gl st (exp:exp) (tv:bool) : LD.t = 
     let xor x y = if x then not y else y in
     let invariant lp1 lp2 b = 
-      let inv_one (sm:SHMap.t) (xs:Dom.t) =
-        if xor (xor tv b) (must_alias ctx.ask ctx.global lp1 lp2 sm)
-        then Dom.add sm xs 
+      let inv_one (sm:SHMap.t) (xs:LD.t) =
+        if xor (xor tv b) (must_alias ask gl lp1 lp2 sm)
+        then LD.add sm xs 
         else xs
       in
-      Dom.fold inv_one ctx.local (Dom.empty ())
+      LD.fold inv_one st (LD.empty ())
     in
     let eval_lps e1 e2 b = 
-      match eval_lp ctx.ask e1, eval_lp ctx.ask e2 with
+      match eval_lp ask e1, eval_lp ask e2 with
         | Some lpe1, Some lpe2 -> invariant lpe1 lpe2 b
-        | _ -> ctx.local 
+        | _ -> st 
     in
     match stripCasts exp with
       | BinOp (Ne,e1,e2,_) -> eval_lps (stripCasts e1) (stripCasts e2) false 
       | BinOp (Eq,e1,e2,_) -> eval_lps (stripCasts e1) (stripCasts e2) true
-      | _ -> ctx.local
+      | _ -> st
   
-  let branch ctx exp tv =
-    tryReallyHard ctx.ask ctx.global ctx.geffect (fun st -> branch (swap_st ctx st) exp tv) ctx.local
+  let branch ctx exp tv : Dom.t =
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
+    let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
+    tryReallyHard ctx.ask gl upd (fun st -> branch_ld ctx.ask gl st exp tv) st,
+    Re.branch (re_context ctx re) exp tv
 
   let body ctx (f:fundec) : Dom.t = 
+    let st, re = ctx.local in
     MyLiveness.computeLiveness f; 
-    ctx.local  
+    st, Re.body (re_context ctx re) f 
     
-  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    Dom.map (kill_vars ctx.ask ctx.global ctx.geffect (f.sformals @ f.slocals)) ctx.local
+  let return_ld ask gl dup st (exp:exp option) (f:fundec) : LD.t = 
+    LD.map (kill_vars ask gl dup (f.sformals @ f.slocals)) st
 
-  let return ctx exp f =
-    tryReallyHard ctx.ask ctx.global ctx.geffect (fun st -> return (swap_st ctx st) exp f) ctx.local
+  let return ctx exp f : Dom.t =
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
+    let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
+    tryReallyHard ctx.ask gl upd (fun st -> return_ld ctx.ask gl upd st exp f) st,
+    Re.return (re_context ctx re) exp f
 
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
+  let enter_func_ld ask gl dup st (lval: lval option) (f:varinfo) (args:exp list) : LD.t =
     let rec zip xs ys =
       match xs, ys with
         | x::xs, y::ys -> (x, y) :: zip xs ys 
         | _ -> []
     in
     let fd = Cilfacade.getdec f in
-    let asg (v,e) d = assign (swap_st ctx d) (Var v,NoOffset) e in
-    [ctx.local, List.fold_right asg (zip fd.sformals args) ctx.local]
+    let asg (v,e) d = assign_ld ask gl dup (Var v,NoOffset) e st in
+    List.fold_right asg (zip fd.sformals args) st
+  
+  let enter_func ctx lval f args =
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
+    let upd v d = () in
+    let es = enter_func_ld ctx.ask gl upd st lval f args in
+    let es' = Re.enter_func (re_context ctx re) lval f args in 
+    List.map (fun (x,y) -> (st,x),(es,y)) es'
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     au
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    let lift_st x = [x, Cil.integer 1, true] in
+  let special_fn_ld ask gl dup st (lval: lval option) (f:varinfo) (arglist:exp list) : LD.t =
+    let lift_st x = x in
     match f.vname, arglist with
       | "kill", [ee] -> begin
-          match eval_lp ctx.ask ee with
-            | Some (lp, _) -> lift_st (Dom.map (kill ctx.ask ctx.global ctx.geffect lp) ctx.local)
-            | _ -> lift_st ctx.local
+          match eval_lp ask ee with
+            | Some (lp, _) -> lift_st (LD.map (kill ask gl dup lp) st)
+            | _ -> lift_st st
         end
       | "collapse", [e1;e2] -> begin
-          match eval_lp ctx.ask e1, eval_lp ctx.ask e2 with
-            | Some (lp1, _), Some (lp2, _) -> lift_st (Dom.map (collapse_summary ctx.ask ctx.global ctx.geffect lp1 lp2) ctx.local)
-            | _ -> lift_st ctx.local
+          match eval_lp ask e1, eval_lp ask e2 with
+            | Some (lp1, _), Some (lp2, _) -> lift_st (LD.map (collapse_summary ask gl dup lp1 lp2) st)
+            | _ -> lift_st st
         end
       | _ -> 
     match lval with
-      | None -> lift_st ctx.local
+      | None -> lift_st st
       | Some x -> 
     let ls = vars (Lval x) in
-    lift_st (Dom.map (kill_vars ctx.ask ctx.global ctx.geffect ls) ctx.local) 
+    lift_st (LD.map (kill_vars ask gl dup ls) st) 
     
-  let startstate () = Dom.singleton (SHMap.top ())
-  let otherstate () = Dom.singleton (SHMap.top ())
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
+    let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
+    let s1 = special_fn_ld ctx.ask gl upd st lval f arglist in
+    let s2 = Re.special_fn (re_context ctx re) lval f arglist in
+    List.map (fun (x,y,z) -> ((s1,x),y,z)) s2
+    
+  let query ctx (q:Queries.t) : Queries.Result.t = 
+    let st, re = ctx.local in
+    Re.query (re_context ctx re) q
+ 
+  let startstate () = LD.singleton (SHMap.top ()), Re.startstate ()
+  let otherstate () = LD.singleton (SHMap.top ()), Re.otherstate ()
 end
 
 module ShapeMCP = 

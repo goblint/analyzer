@@ -71,7 +71,7 @@ type global_state = [
     | `Region of RegionDomain.RegPart.t
     | `Access of AccessDomain.Access.GlobDom.t
     | `Contain of ContainDomain.Globals.t
-    | `Shapes of ShapeDomain.Bool.t
+    | `Shapes of ShapeDomain.Bool.t * RegionDomain.RegPart.t
     | `None ]
 
 let analysesListGlobal : global_state domRecord list ref = ref []

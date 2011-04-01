@@ -117,8 +117,6 @@ struct
     match lp with
       | `Right ((v,_),_) 
       | `Left v -> 
-    if not (gl v) then Messages.report ("Global "^v.vname^" no more a proper list.");
-    upd v true; 
     remove lp sm
 
   let find' ask gl k m = 
@@ -129,10 +127,12 @@ struct
   let find ask gl k m = 
     if mem k m
     then find k m
-    else if not (ListPtr.get_var k).vglob || is_broken gl k
+    else if (not (ListPtr.get_var k).vglob) || is_broken gl k
     then unknown k
     else raise (PleaseMaterialize k)
-    
+
+  let add' = add  
+
   let add ask gl upd k (p,n,e) m =
     if Edges.is_top p && Edges.is_top n
     && (not (ListPtrSet.is_top e)  && ListPtrSet.cardinal e = 1) 
@@ -422,7 +422,7 @@ let rec reflTransBack ask gl sm c bp =
   ListPtrSet.fold (reflTransBack ask gl sm) b bp
 
 let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) =
-  let blab  b (f:unit->'a) = if b then true else ((*ignore (f ());*) false) in
+  let blab  b (f:unit->'a) = if b then true else (ignore (f ()); false) in
 (*   let blab2 b (f:unit->'a) = if b then (f (); true) else false in *)
   let proper_list lp =
     let (p, n, e) = SHMap.find' ask gl lp sm in
@@ -471,7 +471,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) =
       let lpv = ListPtr.get_var k in
       let pr = not (proper_list k) in
       let old = gl lpv in
-      (if not old && pr then ignore (Pretty.printf "killing %a %b %b:\n%a\n\n\n" ListPtr.pretty k old pr SHMap.pretty sm));
+      (if not old && pr then ignore (Pretty.printf "at %a\n killing %a %b %b:\n%a\n\n\n" d_stmt !Cilfacade.currentStatement ListPtr.pretty k old pr SHMap.pretty sm));
       (kill ask gl upd k sm, (ListPtr.get_var k, pr) :: ds)
   in
   SHMap.fold f sm (sm,[]) 
