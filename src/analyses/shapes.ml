@@ -3,6 +3,7 @@ open Pretty
 open Analyses
 
 open ShapeDomain
+open RegionDomain
 
 module GU = Goblintutil
 module Re = Region.Spec
@@ -63,31 +64,47 @@ struct
     set_st_gl ctx re ge spawn geffect
 
   let sync_ld ask gl upd st =
-    let f sm (st, ds)=
-      let (nsm,nds) = sync_one ask gl upd sm in
-      (LD.add nsm st, nds@ds)
+    let f sm (st, ds, rm)=
+      let (nsm,nds,rmd) = sync_one ask gl upd sm in
+      let add_regmap (ls,gs) rm = 
+        let set = List.fold_right (fun x -> RS.add (VFB.of_vf (x,[]))) gs (RS.empty ()) in
+        let write_map l rm =
+          RegMap.add (l,[]) set rm
+        in
+        RegMap.join rm (List.fold_right write_map ls (RegMap.bot ()))
+      in
+      let nrm = List.fold_right add_regmap rmd rm in
+      (LD.add nsm st, nds@ds,nrm)
     in
-    LD.fold f st (LD.empty (), [])
+    LD.fold f st (LD.empty (), [], RegMap.bot ())
 
   let sync ctx : Dom.t * (varinfo*GD.t) list =
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
-    let nst, dst = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
-    let nre, dre = Re.sync (re_context ctx re) in
+    let nst, dst, rm = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
+    let (nre,nvar), dre = Re.sync (re_context ctx re) in
+    let nre = 
+      match nre with
+        | `Lifted (e,m) -> `Lifted (e,RegMap.fold RegMap.add rm m)
+        | x -> x
+    in
     let is_public (v,_) = gl v in
-    if List.length dst <> 0 then (Messages.report "here"); 
-    (nst,nre), 
+    (nst,(nre,nvar)), 
     (List.map (fun (v,d) -> (v,(false,d))) (List.filter is_public dre) 
     @ List.map (fun (v,d) -> (v,(d, Re.Glob.Val.bot ()))) dst)
 
   (* transfer functions *)
   let assign_ld ask gl dup (lval:lval) (rval:exp) st : LD.t =
-    match eval_lp ask (Lval lval), eval_lp ask rval with
-      | Some (l,`Next), Some (r,`NA) -> LD.map (normal ask gl dup l `Next r) st
-      | Some (l,`Prev), Some (r,`NA) -> LD.map (normal ask gl dup l `Prev r) st
-      | Some (l,`NA), Some (r,dir) -> 
+    match eval_lp ask (Lval lval), eval_lp ask rval, rval with
+      | Some (l,`Next), Some (r,`NA),_ -> LD.map (normal ask gl dup l `Next r) st
+      | Some (l,`Prev), Some (r,`NA),_ -> LD.map (normal ask gl dup l `Prev r) st
+      | Some (l,`NA)  , Some (r,dir),_ -> 
           LD.fold (fun d xs -> List.fold_right LD.add (add_alias ask gl dup l (r,dir) d) xs) st (LD.empty ()) 
+      | Some (l,`Next)  , _, c when isZero c ->
+          LD.map (write_null ask gl dup l `Next) st
+      | Some (l,`Prev)  , _, c when isZero c -> 
+          LD.map (write_null ask gl dup l `Prev) st
       | _ -> 
           let ls = vars (Lval lval) in
           LD.map (kill_vars ask gl dup ls) st

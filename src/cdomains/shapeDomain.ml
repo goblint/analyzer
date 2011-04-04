@@ -413,6 +413,13 @@ let must_alias ask gl (lpe1:lexp) (lpe2:lexp) (sm:SHMap.t) : bool =
       ListPtrSet.mem y eq
     | _ -> false
 
+let write_null ask gl upd lp side (sm:SHMap.t) : SHMap.t =
+  let (p, n, e) = SHMap.find' ask gl lp sm in
+  let null = `Lifted1 (ListPtrSet.bot ()) in
+  match side with
+    | `Next -> change_all ask gl upd e (   p, null, e) sm
+    | `Prev -> change_all ask gl upd e (null,    n, e) sm
+
 (* reflexive transitive closure on back pointers *)
 let rec reflTransBack ask gl sm c bp =
   if ListPtrSet.mem c bp then bp else 
@@ -421,9 +428,30 @@ let rec reflTransBack ask gl sm c bp =
   if ListPtrSet.is_top b then b else
   ListPtrSet.fold (reflTransBack ask gl sm) b bp
 
-let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) =
-  let blab  b (f:unit->'a) = if b then true else (ignore (f ()); false) in
-(*   let blab2 b (f:unit->'a) = if b then (f (); true) else false in *)
+let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((varinfo list) * (varinfo list)) list =
+  let blab  b (f:unit->'a) = if b then true else ((*ignore (f ());*) false) in
+  let reg_for k' = 
+    let locals  = ref [] in
+    let globals = ref [] in
+    let rec f k = 
+      let (p, n, e) = SHMap.find' ask gl k sm in
+      begin match n with
+        | `Lifted1 s | `Lifted2 s ->
+          let add_vars v =
+            match ListPtr.get_var v with
+              | v when v.vglob -> globals := v :: !globals
+              | v              -> locals  := v :: !locals
+          in
+          ListPtrSet.iter add_vars s;
+          ListPtrSet.iter add_vars e;
+          begin try 
+            if ListPtrSet.mem k' s then () else f (ListPtrSet.choose s)
+          with SetDomain.Unsupported _  -> () end
+        | _ -> Messages.bailwith "BUG: shape sync changes regions for a nonproper list."
+      end 
+    in f k' ;
+    (!locals, !globals) 
+  in
   let proper_list lp =
     let (p, n, e) = SHMap.find' ask gl lp sm in
     let lpv = ListPtr.get_var lp in
@@ -434,7 +462,6 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) =
       | `Top -> raise Not_found
     in
     try 
-(*       Messages.report ("try killing: "^ (ListPtr.short 80 lp) );  *)
       let prev = edge ListPtrSet.choose p in  
       let next = edge ListPtrSet.choose n in
       blab (proper_list_segment ask gl prev next sm) (fun () -> Pretty.printf "no donut\n") &&
@@ -454,27 +481,22 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) =
         else true) (fun () -> Pretty.printf "%s in alive list\n" lpv'.vname ))
       in
       blab (not (ListPtrSet.is_top pointedBy)) (fun () -> Pretty.printf "everything points at me\n") &&
-      ((*Pretty.printf "{\n";
-      ListPtrSet.iter (fun x -> ignore (Pretty.printf "%a\n" ListPtr.pretty x)) pointedBy;
-      Pretty.printf "}\n";
-      Pretty.printf "<\n";
-      Usedef.VS.iter (fun x -> ignore (Pretty.printf "%s\n" x.vname)) alive;
-      Pretty.printf ">\n";*)
-      (ListPtrSet.for_all dead pointedBy))
+      (ListPtrSet.for_all dead pointedBy)
     with SetDomain.Unsupported _  -> (Messages.report "bla "; false)
      | Not_found -> if gl lpv then false else (Messages.report ("List "^ListPtr.short 80 lp^" is like totally destroyed"); false) 
   in
-  let f k v (sm,ds) =
-    if is_private ask k
-    then (sm,ds) 
-    else 
-      let lpv = ListPtr.get_var k in
-      let pr = not (proper_list k) in
-      let old = gl lpv in
-      (if not old && pr then ignore (Pretty.printf "at %a\n killing %a %b %b:\n%a\n\n\n" d_stmt !Cilfacade.currentStatement ListPtr.pretty k old pr SHMap.pretty sm));
-      (kill ask gl upd k sm, (ListPtr.get_var k, pr) :: ds)
+  let single_nonlist k = 
+    (not (ListPtr.get_var k).vglob) &&
+    match SHMap.find' ask gl k sm with
+      | (`Lifted1 p, `Lifted1 n, _) -> ListPtrSet.is_empty p && ListPtrSet.is_empty n
+      | _ -> false
   in
-  SHMap.fold f sm (sm,[]) 
+  let f k v (sm,ds,rms) =
+    if is_private ask k
+    then (if single_nonlist k then (sm, ds, ([ListPtr.get_var k],[])::rms) else (sm, ds, rms)) 
+    else (kill ask gl upd k sm, (ListPtr.get_var k, not (proper_list k)) :: ds, reg_for k :: rms)
+  in
+  SHMap.fold f sm (sm,[],[]) 
 
 module Dom = 
 struct 
