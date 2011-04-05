@@ -1,4 +1,4 @@
-// PARAM: --kernel --mainfun test_init --debug --list-type true
+// SKIP PARAM: --kernel --mainfun test_init --debug --list-type true
 
 #include <linux/mutex.h>
 #include <linux/list.h>
