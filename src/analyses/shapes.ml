@@ -64,31 +64,49 @@ struct
     set_st_gl ctx re ge spawn geffect
 
   let sync_ld ask gl upd st =
-    let f sm (st, ds, rm)=
+    let f sm (st, ds, rm, part)=
       let (nsm,nds,rmd) = sync_one ask gl upd sm in
-      let add_regmap (ls,gs) rm = 
-        let set = List.fold_right (fun x -> RS.add (VFB.of_vf (x,[]))) gs (RS.empty ()) in
+      let add_regmap (ls,gs) (rm,part) = 
+        let set = List.fold_right (fun x -> RS.add (VFB.of_vf (x,[]))) gs (RS.empty ()) in 
         let write_map l rm =
           RegMap.add (l,[]) set rm
         in
-        RegMap.join rm (List.fold_right write_map ls (RegMap.bot ()))
+        RegMap.join rm (List.fold_right write_map ls (RegMap.bot ())),
+        RegPart.join part (RegPart.singleton set) 
       in
-      let nrm = List.fold_right add_regmap rmd rm in
-      (LD.add nsm st, nds@ds,nrm)
+      let nrm, part = List.fold_right add_regmap rmd (rm,part) in
+      (LD.add nsm st, nds@ds,nrm, part)
     in
-    LD.fold f st (LD.empty (), [], RegMap.bot ())
+    LD.fold f st (LD.empty (), [], RegMap.bot (), RegPart.bot ())
+
+  let reclaimLostRegions ctx _ v =
+    let is_priv = function
+      | `Left (v,_) -> not (is_private ctx.ask (`Left v)) 
+      | `Right _    -> false
+    in
+    let rs = RS.filter is_priv v in
+    if not (RS.is_empty rs) then ctx.geffect (Re.partition_varinfo ()) (false, RegPart.singleton rs)
+
+  
 
   let sync ctx : Dom.t * (varinfo*GD.t) list =
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
-    let nst, dst, rm = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
+    let nst, dst, rm, part = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
     let (nre,nvar), dre = Re.sync (re_context ctx re) in
     let nre = 
       match nre with
         | `Lifted (e,m) -> `Lifted (e,RegMap.fold RegMap.add rm m)
         | x -> x
     in
+    let _ = 
+      match nre with
+        | `Lifted (_,m) -> 
+          RegMap.iter (reclaimLostRegions ctx) m
+        | x -> ()
+    in
+    ctx.geffect (Re.partition_varinfo ()) (false, part);
     let is_public (v,_) = gl v in
     (nst,(nre,nvar)), 
     (List.map (fun (v,d) -> (v,(false,d))) (List.filter is_public dre) 

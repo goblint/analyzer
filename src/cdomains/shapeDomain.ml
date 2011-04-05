@@ -295,7 +295,6 @@ let proper_list_segment ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : bo
   let module S = Set.Make (ListPtr) in
   let rec visited s lp1 lp2 = 
     if S.mem lp1 s then false else
-    if ListPtr.equal lp1 lp2 then true else
     let (p, n, e) = SHMap.find' ask gl lp1 sm in
     let app_edge f = function 
       | `Lifted1 s -> f s
@@ -310,12 +309,15 @@ let proper_list_segment ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : bo
       | `Top ->  s ()
     in
     let point_to_me lp = 
-      let (p, n, e) = SHMap.find' ask gl lp sm in
-      app_edge (ListPtrSet.mem lp1) p
+      let (p, n, _) = SHMap.find' ask gl lp sm in
+      app_edge (ListPtrSet.equal e) p
     in
     app_edge' (fun x -> not (ListPtrSet.is_top x)) (fun () -> false) n &&
+    app_edge' (fun x -> not (ListPtrSet.is_top x)) (fun () -> false) p &&
     let lp' = app_edge' ListPtrSet.choose (fun () -> Messages.bailwith "not implemented2") n in
     app_edge (ListPtrSet.for_all point_to_me) n &&
+(*     app_edge (ListPtrSet.mem lp1) p && *)
+    if ListPtr.equal lp1 lp2 then true else
     visited (S.add lp1 s) lp' lp2 
   in
     visited S.empty lp1 lp2
@@ -431,9 +433,10 @@ let rec reflTransBack ask gl sm c bp =
 let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((varinfo list) * (varinfo list)) list =
   let blab  b (f:unit->'a) = if b then true else ((*ignore (f ());*) false) in
   let reg_for k' = 
+    let module S = Set.Make (ListPtr) in
     let locals  = ref [] in
     let globals = ref [] in
-    let rec f k = 
+    let rec f k ts = 
       let (p, n, e) = SHMap.find' ask gl k sm in
       begin match n with
         | `Lifted1 s | `Lifted2 s ->
@@ -445,11 +448,12 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
           ListPtrSet.iter add_vars s;
           ListPtrSet.iter add_vars e;
           begin try 
-            if ListPtrSet.mem k' s then () else f (ListPtrSet.choose s)
-          with SetDomain.Unsupported _  -> () end
+            let lp = ListPtrSet.choose s in
+            if S.mem k ts then () else f lp (S.add lp ts)
+          with  Not_found | SetDomain.Unsupported _  -> () end
         | _ -> Messages.bailwith "BUG: shape sync changes regions for a nonproper list."
       end 
-    in f k' ;
+    in f k' S.empty;
     (!locals, !globals) 
   in
   let proper_list lp =
@@ -465,6 +469,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
       let prev = edge ListPtrSet.choose p in  
       let next = edge ListPtrSet.choose n in
       blab (proper_list_segment ask gl prev next sm) (fun () -> Pretty.printf "no donut\n") &&
+      blab (proper_list_segment ask gl next prev sm) (fun () -> Pretty.printf "no donut\n") &&
       let pointedBy = reflTransBack ask gl sm (lp) (ListPtrSet.empty ()) in
       let alive = 
         match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
@@ -477,13 +482,13 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
         (blab (not (lpv'.vglob)) (fun () -> Pretty.printf "global %s is never dead\n" lpv'.vname) && 
         let killer = ref dummyFunDec.svar in 
         blab (if Usedef.VS.exists (fun x -> if lpv'.vid = x.vid then (killer := x; true) else false) alive
-        then (ignore (Messages.report ("List "^ListPtr.short 80 lp^" totally destroyed by "^(!killer).vname));false) 
+        then ((*ignore (Messages.report ("List "^ListPtr.short 80 lp^" totally destroyed by "^(!killer).vname));*)false) 
         else true) (fun () -> Pretty.printf "%s in alive list\n" lpv'.vname ))
       in
       blab (not (ListPtrSet.is_top pointedBy)) (fun () -> Pretty.printf "everything points at me\n") &&
       (ListPtrSet.for_all dead pointedBy)
     with SetDomain.Unsupported _  -> (Messages.report "bla "; false)
-     | Not_found -> if gl lpv then false else (Messages.report ("List "^ListPtr.short 80 lp^" is like totally destroyed"); false) 
+     | Not_found -> if gl lpv then false else ((*Messages.report ("List "^ListPtr.short 80 lp^" is like totally destroyed");*) false) 
   in
   let single_nonlist k = 
     (not (ListPtr.get_var k).vglob) &&
@@ -494,7 +499,11 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
   let f k v (sm,ds,rms) =
     if is_private ask k
     then (if single_nonlist k then (sm, ds, ([ListPtr.get_var k],[])::rms) else (sm, ds, rms)) 
-    else (kill ask gl upd k sm, (ListPtr.get_var k, not (proper_list k)) :: ds, reg_for k :: rms)
+    else 
+      let isbroken = not (proper_list k) in
+(*       Messages.report ("checking :"^ListPtr.short 80 k^" -- "^if isbroken then " broken " else "still a list"); *)
+      let nrms = if isbroken then rms else reg_for k :: rms in
+      (kill ask gl upd k sm, (ListPtr.get_var k, isbroken) :: ds, nrms)
   in
   SHMap.fold f sm (sm,[],[]) 
 
