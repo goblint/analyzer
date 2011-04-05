@@ -1,5 +1,9 @@
 open Cil
 
+exception StopTheWorld
+val worldStopped : bool ref
+val waitWhat : string -> unit 
+  
 exception Bailure of string
 (** Raise this when you want to bail out of doing any analysis. This will
   * continue the analysis with a warning and leaving the state untouched. *)

@@ -487,8 +487,8 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
       in
       blab (not (ListPtrSet.is_top pointedBy)) (fun () -> Pretty.printf "everything points at me\n") &&
       (ListPtrSet.for_all dead pointedBy)
-    with SetDomain.Unsupported _  -> (Messages.report "bla "; false)
-     | Not_found -> if gl lpv then false else ((*Messages.report ("List "^ListPtr.short 80 lp^" is like totally destroyed");*) false) 
+    with SetDomain.Unsupported _  -> ((*Messages.waitWhat "bla";*) false)
+     | Not_found -> (*Messages.waitWhat "bla2";*) false
   in
   let single_nonlist k = 
     (not (ListPtr.get_var k).vglob) &&
@@ -501,6 +501,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
     then (if single_nonlist k then (sm, ds, ([ListPtr.get_var k],[])::rms) else (sm, ds, rms)) 
     else 
       let isbroken = not (proper_list k) in
+(*       if isbroken then Messages.waitWhat (ListPtr.short 80 k) ; *)
 (*       Messages.report ("checking :"^ListPtr.short 80 k^" -- "^if isbroken then " broken " else "still a list"); *)
       let nrms = if isbroken then rms else reg_for k :: rms in
       (kill ask gl upd k sm, (ListPtr.get_var k, isbroken) :: ds, nrms)
@@ -510,4 +511,17 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
 module Dom = 
 struct 
   include SetDomain.ToppedSet (SHMap) (struct let topname="Shapes are messed up!" end)
+  
+  let add m ms = if SHMap.is_top m then singleton m else add m ms
+  
+  let join m1 m2 =
+    match m1, m2 with
+      | Set _, Set _ when (cardinal m1 = 1 && SHMap.is_top (choose m1)) 
+                        ||(cardinal m2 = 1 && SHMap.is_top (choose m2)) -> singleton (SHMap.top ())
+      | _ -> join m1 m2
+  let leq m1 m2 =
+    match m1, m2 with
+      | _ , Set s when cardinal m2 = 1 && SHMap.is_top (choose m2) -> true
+      |  _ -> leq m1 m2 
+  
 end

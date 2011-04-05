@@ -2,6 +2,7 @@ open Cil
 open Pretty
 module GU = Goblintutil
 
+
 exception Bailure of string
 let bailwith s = raise (Bailure s)
 
@@ -55,6 +56,13 @@ let warn_all msg =
       print_msg msg (!current_loc);
     soundness := false
   end
+  
+let worldStopped = ref false
+exception StopTheWorld
+let waitWhat s = 
+  worldStopped := true;
+  warn_urgent s;
+  raise StopTheWorld
   
 let report_lin_hashtbl  = Hashtbl.create 10
 

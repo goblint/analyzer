@@ -140,6 +140,7 @@ struct
           x, y @ y', z @ z'
         in
         try
+          if !Messages.worldStopped then raise M.StopTheWorld else
           begin match pred with
             | MyCFG.Statement s -> Cilfacade.currentStatement := s 
             | _ -> ()
@@ -177,6 +178,7 @@ struct
           in
             l, gd @ diff @ !diffs, sp
         with
+          | M.StopTheWorld
           | A.Deadcode  -> SD.bot (), [], []
           | M.Bailure s -> M.warn_each s; (predval, [], [])
           | x -> M.warn_urgent "Oh no! Something terrible just happened"; raise x

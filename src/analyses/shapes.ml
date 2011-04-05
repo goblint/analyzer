@@ -168,7 +168,7 @@ struct
     st, Re.body (re_context ctx re) f 
     
   let return_ld ask gl dup st (exp:exp option) (f:fundec) : LD.t = 
-    LD.map (kill_vars ask gl dup (f.sformals @ f.slocals)) st
+    (*LD.map (kill_vars ask gl dup (f.sformals @ f.slocals))*) st
 
   let return ctx exp f : Dom.t =
     let st, re = ctx.local in
@@ -177,7 +177,7 @@ struct
     tryReallyHard ctx.ask gl upd (fun st -> return_ld ctx.ask gl upd st exp f) st,
     Re.return (re_context ctx re) exp f
 
-  let enter_func_ld ask gl dup st (lval: lval option) (f:varinfo) (args:exp list) : LD.t =
+  let enter_func_ld ask gl dup (lval: lval option) (f:varinfo) (args:exp list) st : LD.t =
     let rec zip xs ys =
       match xs, ys with
         | x::xs, y::ys -> (x, y) :: zip xs ys 
@@ -191,14 +191,14 @@ struct
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = () in
-    let es = enter_func_ld ctx.ask gl upd st lval f args in
+    let es = tryReallyHard ctx.ask gl upd (enter_func_ld ctx.ask gl upd lval f args) st  in
     let es' = Re.enter_func (re_context ctx re) lval f args in 
     List.map (fun (x,y) -> (st,x),(es,y)) es'
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     au
   
-  let special_fn_ld ask gl dup st (lval: lval option) (f:varinfo) (arglist:exp list) : LD.t =
+  let special_fn_ld ask gl dup (lval: lval option) (f:varinfo) (arglist:exp list) st : LD.t =
     let lift_st x = x in
     match f.vname, arglist with
       | "kill", [ee] -> begin
@@ -222,7 +222,7 @@ struct
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
-    let s1 = special_fn_ld ctx.ask gl upd st lval f arglist in
+    let s1 = tryReallyHard ctx.ask gl upd (special_fn_ld ctx.ask gl upd lval f arglist) st in
     let s2 = Re.special_fn (re_context ctx re) lval f arglist in
     List.map (fun (x,y,z) -> ((s1,x),y,z)) s2
     
