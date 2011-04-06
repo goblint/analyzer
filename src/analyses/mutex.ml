@@ -22,7 +22,8 @@ let field_insensitive = ref false
 (** Avoids the merging of fields, not really sound *)
 let unmerged_fields = ref false
 
-(* Some helper functions ... *)
+(* Some helper functions to avoid flagging race warnings on atomic types, and
+ * other irrelevant stuff, such as mutexes and functions. *)
 
 let is_atomic_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "atomic_t"
@@ -30,12 +31,18 @@ let is_atomic_type (t: typ): bool = match t with
 
 let is_atomic lval = 
   let (lval, _) = removeOffsetLval lval in
-  let typ = typeOfLval lval in
+  let typ = typeOfLval lval in 
     is_atomic_type typ
 
+(* Detect our fake void typed variables that drive CIL crazy because of the
+ * missing type information. *)
+let is_void_var = function
+  | Var { vtype=t}, off -> isVoidType t
+  | _ -> false
+
 let is_ignorable lval = 
-  try Base.is_immediate_type (typeOfLval lval) || is_atomic lval
-  with Errormsg.Error -> false
+  not (is_void_var lval) && 
+    (Base.is_immediate_type (typeOfLval lval) || is_atomic lval)
   
 let big_kernel_lock = LockDomain.Addr.from_var (Cil.makeGlobalVar "[big kernel lock]" Cil.intType)
 let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphore]" Cil.intType)
