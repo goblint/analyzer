@@ -117,6 +117,8 @@ struct
     match lp with
       | `Right ((v,_),_) 
       | `Left v -> 
+    upd v true;
+(*     Messages.waitWhat ("Improper use of "^v.vname^"."); *)
     remove lp sm
 
   let find' ask gl k m = 

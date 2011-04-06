@@ -79,12 +79,13 @@ struct
     in
     LD.fold f st (LD.empty (), [], RegMap.bot (), RegPart.bot ())
 
-  let reclaimLostRegions ctx _ v =
+  let reclaimLostRegions ctx (e,_) v =
     let is_priv = function
       | `Left (v,_) -> not (is_private ctx.ask (`Left v)) 
       | `Right _    -> false
     in
     let rs = RS.filter is_priv v in
+(*     if RS.cardinal rs >= 2 then  Messages.waitWhat (e.vname^": "^RS.short 80 rs); *)
     if not (RS.is_empty rs) then ctx.geffect (Re.partition_varinfo ()) (false, RegPart.singleton rs)
 
   
@@ -135,19 +136,21 @@ struct
     tryReallyHard ctx.ask gl upd (assign_ld ctx.ask gl upd lval rval) st,
     Re.assign (re_context ctx re) lval rval
 
+  let invariant ask gl lp1 lp2 st b = 
+    let xor x y = if x then not y else y in
+    let inv_one (sm:SHMap.t) (xs:LD.t) =
+      if xor b (must_alias ask gl lp1 lp2 sm)
+      then LD.add sm xs 
+      else xs
+    in
+    LD.fold inv_one st (LD.empty ())
+  
+
   let branch_ld ask gl st (exp:exp) (tv:bool) : LD.t = 
     let xor x y = if x then not y else y in
-    let invariant lp1 lp2 b = 
-      let inv_one (sm:SHMap.t) (xs:LD.t) =
-        if xor (xor tv b) (must_alias ask gl lp1 lp2 sm)
-        then LD.add sm xs 
-        else xs
-      in
-      LD.fold inv_one st (LD.empty ())
-    in
     let eval_lps e1 e2 b = 
       match eval_lp ask e1, eval_lp ask e2 with
-        | Some lpe1, Some lpe2 -> invariant lpe1 lpe2 b
+        | Some lpe1, Some lpe2 -> invariant ask gl lpe1 lpe2 st (xor tv b)
         | _ -> st 
     in
     match stripCasts exp with
@@ -168,7 +171,7 @@ struct
     st, Re.body (re_context ctx re) f 
     
   let return_ld ask gl dup st (exp:exp option) (f:fundec) : LD.t = 
-    (*LD.map (kill_vars ask gl dup (f.sformals @ f.slocals))*) st
+    LD.map (kill_vars ask gl dup (f.sformals @ f.slocals)) st
 
   let return ctx exp f : Dom.t =
     let st, re = ctx.local in
@@ -184,7 +187,7 @@ struct
         | _ -> []
     in
     let fd = Cilfacade.getdec f in
-    let asg (v,e) d = assign_ld ask gl dup (Var v,NoOffset) e st in
+    let asg (v,e) d = assign_ld ask gl dup (Var v,NoOffset) e d in
     List.fold_right asg (zip fd.sformals args) st
   
   let enter_func ctx lval f args =
@@ -198,19 +201,27 @@ struct
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     au
   
-  let special_fn_ld ask gl dup (lval: lval option) (f:varinfo) (arglist:exp list) st : LD.t =
-    let lift_st x = x in
-    match f.vname, arglist with
-      | "kill", [ee] -> begin
+  let special_fn_ld ask gl dup (lval: lval option) (f:varinfo) (arglist:exp list) st  =
+    let lift_st x = [x,Cil.integer 1, true] in
+    match f.vname, arglist, lval with
+      | "kill", [ee], _ -> begin
           match eval_lp ask ee with
             | Some (lp, _) -> lift_st (LD.map (kill ask gl dup lp) st)
             | _ -> lift_st st
         end
-      | "collapse", [e1;e2] -> begin
+      | "collapse", [e1;e2], _ -> begin
           match eval_lp ask e1, eval_lp ask e2 with
             | Some (lp1, _), Some (lp2, _) -> lift_st (LD.map (collapse_summary ask gl dup lp1 lp2) st)
             | _ -> lift_st st
         end
+      | "list_empty", [e], Some lv ->
+          begin match eval_lp ask (stripCasts e) with
+            | Some (lp, `NA) -> 
+                let branch = invariant ask gl (lp,`NA) (lp,`Next) st in
+                [ branch true , Lval lv, false
+                ; branch false, Lval lv, true ]
+            | _ -> lift_st st
+          end
       | _ -> 
     match lval with
       | None -> lift_st st
@@ -219,12 +230,15 @@ struct
     lift_st (LD.map (kill_vars ask gl dup ls) st) 
     
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+    let lift_st x = [x,Cil.integer 1, true] in
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
     let s1 = tryReallyHard ctx.ask gl upd (special_fn_ld ctx.ask gl upd lval f arglist) st in
-    let s2 = Re.special_fn (re_context ctx re) lval f arglist in
-    List.map (fun (x,y,z) -> ((s1,x),y,z)) s2
+    match Re.special_fn (re_context ctx re) lval f arglist with
+      | [(s2,_,_)] -> 
+        List.map (fun (x,y,z) -> ((x,s2),y,z)) s1
+      | _ -> lift_st (Dom.top ())
     
   let query ctx (q:Queries.t) : Queries.Result.t = 
     let st, re = ctx.local in

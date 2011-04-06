@@ -353,7 +353,9 @@ struct
       Acc.replace acc v neww;
       accKeys := AccKeySet.add v !accKeys;
       let ls = if rv then Lockset.filter snd ust else ust in
-      ctx.geffect v (Lockset.export_locks ls)
+      let el = Lockset.export_locks ls in
+(*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
+      ctx.geffect v el
       
    
   let struct_type_inv (v:varinfo) (o:Offs.t) : (Cil.varinfo * Offs.t) option =

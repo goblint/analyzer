@@ -399,6 +399,7 @@ let get_invalidate_action name =
 
 let use_special fn_name =
   match fn_name with
+    | "list_empty"
     | "__raw_read_unlock"
     | "__raw_write_unlock" 
     | "spinlock_check"
