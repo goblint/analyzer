@@ -44,7 +44,7 @@ $projects = []
 def print_res (i)
   File.open($testresults + "index.html", "w") do |f|
     f.puts "<html>"
-    f.puts "<head><title>Test Results</title></head>"
+    f.puts "<head><title>r#{$rev} (#{`uname -n`.chomp})</title></head>"
     f.puts "<body>"
     f.puts "<p>Benchmarking in progress: #{i}/#{$projects.length}</p>" unless i.nil?
     f.puts "<table border=2 cellpadding=4 style=\"font-size: 90%\">"

@@ -158,7 +158,7 @@ FileUtils.mv(backup,json) if File.exists?(backup)
 #Outputting
 File.open(File.join(testresults, "index.html"), "w") do |f|
   f.puts "<html>"
-  f.puts "<head><title>Test Results</title></head>"
+  f.puts "<head><title>Tests (#{`uname -n`.chomp})</title></head>"
   f.puts "<body>"
   f.puts "<table border=2 cellpadding=4>"
   gname = ""

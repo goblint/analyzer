@@ -274,7 +274,7 @@ let solver_progress = ref false
 (** display a char for each processed rhs and each constraint *)
 
 let region_offsets = ref true
-(** display a char for each processed rhs and each constraint *)
+(** Field-sensitive regions? *)
 
 let solver = ref (string (field !conf "solver"))
 

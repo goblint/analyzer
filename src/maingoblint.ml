@@ -108,6 +108,7 @@ let main () =
                  ("--write-races", Arg.Set Mutex.no_read, " Ignores read accesses altogether in reporting races.");
                  ("--failing-locks", Arg.Set LibraryFunctions.failing_locks, " Takes the possible failing of locking operations into account.");
                  ("--field-insensitive", Arg.Set Mutex.field_insensitive, " Turns off field-sensitivity.");
+                 ("--no-region-offsets", Arg.Clear GU.region_offsets, " Ignores offsets for region accesses.");
                  ("--unmerged-fields", Arg.Set Mutex.unmerged_fields, " Does not merge accesses to possibly same fields, unsound.");
                  ("--die-on-collapse", Arg.Set GU.die_on_collapse, " Raise an exception as soon as an array collapses.");
                  ("--keepcpp", Arg.Set keep_cpp, " Keep the intermediate output of running the C preprocessor.");
