@@ -32,7 +32,7 @@ void *generate(void *arg) {
     l->next = l; // NORACE
     l->prev = l; // NORACE
 
-    n->datum = i; //RACE
+    n->datum = i; // NORACE
 
     pthread_mutex_lock(&mutex_A);
     // list_add(&n->list, &A); 

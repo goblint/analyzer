@@ -145,7 +145,7 @@ struct
         | Cil.CastE  (t, exp) -> access_one_byval a rw exp
         | _ -> []
     in
-    let is_unknown x = match x with Unknown _ -> true | _ -> false in
+(*    let is_unknown x = match x with Unknown _ -> true | _ -> false in*)
     match a (Queries.Regions exp) with
       | `Bot -> 
 (*          Messages.report ((sprint 80 (d_exp () exp))^" is thread local"); *)
