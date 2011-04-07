@@ -381,7 +381,11 @@ let rec add_alias ask gl upd (lhs:ListPtr.t) ((rhs,side):lexp) (sm:SHMap.t) : SH
     | `Prev, `Lifted1 s, _ when not (ListPtrSet.is_top s) && ListPtrSet.cardinal s > 0 -> 
       (* pick out a element that we are now equal to*)
       let lp = ListPtrSet.choose s in
-      [alias ask gl upd lp lhs sm]
+      begin try 
+        [alias ask gl upd lp lhs sm]
+      with PleaseMaterialize lp ->  
+        [alias ask gl upd lp lhs (SHMap.add' lp (empty_list lp) sm)
+        ;alias ask gl upd lp lhs (SHMap.add' lp (nonempty_list lp) sm)] end
     | `Next, _,`Lifted2 s when not (ListPtrSet.is_top s) -> 
         let sumto = ListPtrSet.choose s in
         let psm = push_summary ask gl upd `Next rhs lhs sumto sm in

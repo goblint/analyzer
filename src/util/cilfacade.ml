@@ -158,16 +158,24 @@ let getFuns fileAST  : fundec list =
               Printf.printf "Start function: %s\n" main.svar.vname; GU.has_main := true;
               main :: rest @ others
 
-let getdec fv = 
-  try 
-    iterGlobals !ugglyImperativeHack (fun glob ->
-      match glob with 
-        | GFun({svar={vid=vid}} as def,_) when vid = fv.vid -> raise (Found def)
-        | _ -> ()
-    );
-    raise Not_found
-  with
-    | Found def -> def
+let dec_table_ok = ref false
+let dec_table = Hashtbl.create 111
+let dec_make () : unit =
+  dec_table_ok := true ;
+  Hashtbl.clear dec_table;
+  iterGlobals !ugglyImperativeHack (fun glob ->
+    match glob with 
+      | GFun({svar={vid=vid}} as def,_) -> Hashtbl.add dec_table vid def
+      | _ -> ()
+  )
+  
+let rec getdec fv = 
+  if !dec_table_ok then
+    Hashtbl.find dec_table fv.vid
+  else begin
+    dec_make ();
+    getdec fv
+  end
 
 let getFirstStmt fd = List.hd fd.sbody.bstmts
 

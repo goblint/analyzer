@@ -932,9 +932,10 @@ struct
               | _ -> vs
             in
             let vars = 
-              if !GU.kernel
-              then foldGlobals !Cilfacade.ugglyImperativeHack addGlob args 
-              else args 
+              match ctx.ask Queries.SingleThreaded with
+                | `Int i when Queries.ID.to_bool i = Some true && !GU.kernel ->
+                    foldGlobals !Cilfacade.ugglyImperativeHack addGlob args 
+                | _ ->  args 
             in
             collect_spawned ctx vars 
         end
