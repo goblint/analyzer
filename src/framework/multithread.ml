@@ -305,13 +305,14 @@ struct
       if !GU.kernel
       then funs@more_funs
       else funs in
-    let with_ostartstate g = 
-      let args = List.map (fun x -> MyCFG.unknown_exp) g.sformals in
+    let enter_with st fd =
+      let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
       let theta x = Spec.Glob.Val.bot () in
+      let ignore2 _ _ = () in 
       let error _ = failwith "Bug: Using enter_func for toplevel functions with 'otherstate'." in 
-      let ctx = A.context top_query (Spec.otherstate ()) theta [] error error in
-      let ents = Spec.enter_func ctx None g.svar args in
-      List.map (fun (_,s) -> g.svar, SD.lift s) ents  
+      let ctx = A.context top_query st theta [] ignore2 error in
+      let ents = Spec.enter_func ctx None fd.svar args in
+      List.map (fun (_,s) -> fd.svar, SD.lift s) ents  
     in
     let startvars = 
       begin try MyCFG.dummy_func.svar.vdecl <- (List.hd funs).svar.vdecl with Failure _ -> () end;
@@ -319,9 +320,9 @@ struct
         | true, f :: fs -> 
             GU.mainfun := f.svar.vname;
             let nonf_fs = List.filter (fun x -> x.svar.vid <> f.svar.vid) fs in
-            (f.svar, startstate) :: List.concat (List.map with_ostartstate nonf_fs)
+            enter_with (SD.unlift startstate) f @ List.concat (List.map (enter_with (Spec.otherstate ())) nonf_fs)
         | _ ->
-            (MyCFG.dummy_func.svar, startstate) :: List.concat (List.map with_ostartstate funs)
+            (MyCFG.dummy_func.svar, startstate) :: List.concat (List.map (enter_with (Spec.otherstate ())) funs)
     in
     let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (Spec.context_top (SD.unlift e))) startvars in
     let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in
