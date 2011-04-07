@@ -34,17 +34,9 @@ let is_atomic lval =
   let typ = typeOfLval lval in 
     is_atomic_type typ
 
-(* Detect our fake void typed variables that drive CIL crazy because of the
- * missing type information. *)
-let is_void_var = function
-  | Var { vtype=t}, off -> isVoidType t
-  | _ -> false
-
 let is_ignorable lval = 
-  try 
-  not (is_void_var lval) && 
-    (Base.is_immediate_type (typeOfLval lval) || is_atomic lval)
-  with Errormsg.Error -> false (* printf "%a\n" d_lval lval; failwith "stop!" *)
+  try Base.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
+  with Not_found -> false (* printf "%a\n" d_lval lval; failwith "stop!" *)
   
 let big_kernel_lock = LockDomain.Addr.from_var (Cil.makeGlobalVar "[big kernel lock]" Cil.intType)
 let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphore]" Cil.intType)

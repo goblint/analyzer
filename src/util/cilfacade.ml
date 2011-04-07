@@ -175,3 +175,71 @@ let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 
 let p_expr exp = Pretty.printf "%a\n" (printExp defaultCilPrinter) exp
 let d_expr exp = Pretty.printf "%a\n" (printExp plainCilPrinter) exp
+
+let rec typeOf (e: exp) : typ = 
+  match e with
+  | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
+
+    (* Character constants have type int.  ISO/IEC 9899:1999 (E),
+     * section 6.4.4.4 [Character constants], paragraph 10, if you
+     * don't believe me. *)
+  | Const(CChr _) -> intType
+
+    (* The type of a string is a pointer to characters ! The only case when 
+     * you would want it to be an array is as an argument to sizeof, but we 
+     * have SizeOfStr for that *)
+  | Const(CStr s) -> charPtrType
+
+  | Const(CWStr s) -> TPtr(!wcharType,[])
+
+  | Const(CReal (_, fk, _)) -> TFloat(fk, [])
+
+  | Const(CEnum(tag, _, ei)) -> typeOf tag
+
+  | Lval(lv) -> typeOfLval lv
+  | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
+  | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
+  | UnOp (_, _, t) -> t
+  | BinOp (_, _, _, t) -> t
+  | CastE (t, _) -> t
+  | AddrOf (lv) -> TPtr(typeOfLval lv, [])
+  | StartOf (lv) -> begin
+      match unrollType (typeOfLval lv) with
+        TArray (t,_, a) -> TPtr(t, a)
+     | _ -> raise Not_found
+  end
+
+and typeOfInit (i: init) : typ = 
+  match i with 
+    SingleInit e -> typeOf e
+  | CompoundInit (t, _) -> t
+
+and typeOfLval = function
+    Var vi, off -> typeOffset vi.vtype off
+  | Mem addr, off -> begin
+      match unrollType (typeOf addr) with
+        TPtr (t, _) -> typeOffset t off
+      | _ -> raise Not_found
+  end
+
+and typeOffset basetyp =
+  let blendAttributes baseAttrs =
+    let (_, _, contageous) = 
+      partitionAttributes ~default:(AttrName false) baseAttrs in
+    typeAddAttributes contageous
+  in
+  function
+    NoOffset -> basetyp
+  | Index (_, o) -> begin
+      match unrollType basetyp with
+        TArray (t, _, baseAttrs) ->
+	  let elementType = typeOffset t o in
+	  blendAttributes baseAttrs elementType
+      | t -> raise Not_found
+  end 
+  | Field (fi, o) ->
+      match unrollType basetyp with
+        TComp (_, baseAttrs) ->
+	  let fieldType = typeOffset fi.ftype o in
+	  blendAttributes baseAttrs fieldType
+      | _ -> raise Not_found
