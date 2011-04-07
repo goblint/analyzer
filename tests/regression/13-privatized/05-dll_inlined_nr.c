@@ -32,7 +32,7 @@ void *generate(void *arg) {
     l->next = l; // NORACE
     l->prev = l; // NORACE
 
-    n->datum = i;
+    n->datum = i; // NORACE
 
     pthread_mutex_lock(&mutex_A);
     // list_add(&n->list, &A); 
@@ -94,8 +94,9 @@ void *dispose(void *arg) {
       l->next = NULL; // NORACE
       l->prev = NULL; // NORACE
       pthread_mutex_unlock(&mutex_B);
-      n = list_entry(l, struct node, list); // NORACE
-      printf("Data disposed: %d\n", n->datum); // NORACE
+      n = list_entry(l, struct node, list);
+      printf("Data disposed: %d\n", n->datum);
+      n->datum *= -1; // NORACE
     }
     else
       pthread_mutex_unlock(&mutex_B);

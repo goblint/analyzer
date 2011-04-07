@@ -246,6 +246,9 @@ struct
  
   let startstate () = LD.singleton (SHMap.top ()), Re.startstate ()
   let otherstate () = LD.singleton (SHMap.top ()), Re.otherstate ()
+                                                     
+  let init () = 
+    Goblintutil.region_offsets := false
 end
 
 module ShapeMCP = 

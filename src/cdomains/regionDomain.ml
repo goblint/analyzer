@@ -133,12 +133,13 @@ struct
         | BinOp (IndexPI, p, i, typ) -> eval_rval deref p
         | _ -> None
     and eval_lval deref lval =
+      let offsornot offs = if !Goblintutil.region_offsets then F.listify offs else [] in
       match lval with 
-        | (Var x, offs) -> Some (deref, (x, []), [])
+        | (Var x, offs) -> Some (deref, (x, offsornot offs), [])
         | (Mem exp,offs) ->
-      match eval_rval true exp with
-        | Some (deref, v, _) -> Some (deref, v, [])
-        | x -> x
+            match eval_rval true exp with
+              | Some (deref, v, _) -> Some (deref, v, offsornot offs)
+              | x -> x
     in
       eval_rval false exp 
 
