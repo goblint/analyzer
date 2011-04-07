@@ -432,6 +432,19 @@ let rec reflTransBack ask gl sm c bp =
   if ListPtrSet.is_top b then b else
   ListPtrSet.fold (reflTransBack ask gl sm) b bp
 
+let noone_points_at_me k sm =
+  let doesnt_point_at_me k' (p,n,_) =
+    if ListPtr.equal k k' then true else
+    let edge f = function 
+      | `Lifted1 s -> f s
+      | `Lifted2 s -> f s
+      | `Bot -> true
+      | `Top -> false
+    in
+    not (edge (ListPtrSet.mem k) p || edge (ListPtrSet.mem k) n) 
+  in
+  SHMap.for_all doesnt_point_at_me sm
+
 let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((varinfo list) * (varinfo list)) list =
   let blab  b (f:unit->'a) = if b then true else ((*ignore (f ());*) false) in
   let reg_for k' = 
@@ -500,7 +513,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
   in
   let f k v (sm,ds,rms) =
     if is_private ask k
-    then (if single_nonlist k then (sm, ds, ([ListPtr.get_var k],[])::rms) else (sm, ds, rms)) 
+    then (if single_nonlist k && noone_points_at_me k sm then (sm, ds, ([ListPtr.get_var k],[])::rms) else (sm, ds, rms)) 
     else 
       let isbroken = not (proper_list k) in
 (*       if isbroken then Messages.waitWhat (ListPtr.short 80 k) ; *)

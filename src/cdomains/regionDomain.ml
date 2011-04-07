@@ -134,10 +134,10 @@ struct
         | _ -> None
     and eval_lval deref lval =
       match lval with 
-        | (Var x, offs) -> Some (deref, (x, F.listify offs), [])
+        | (Var x, offs) -> Some (deref, (x, []), [])
         | (Mem exp,offs) ->
       match eval_rval true exp with
-        | Some (deref, v, _) -> Some (deref, v, F.listify offs)
+        | Some (deref, v, _) -> Some (deref, v, [])
         | x -> x
     in
       eval_rval false exp 
