@@ -149,7 +149,7 @@ struct
     match a (Queries.Regions exp) with
       | `Bot -> 
 (*          Messages.report ((sprint 80 (d_exp () exp))^" is thread local"); *)
-          List.filter is_unknown (accs [])
+          [] (*List.filter is_unknown (accs [])*)
       | `LvalSet regs -> 
 (*           Messages.report ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs); *)
           accs (Queries.LS.elements regs)

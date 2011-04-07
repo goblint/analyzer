@@ -67,7 +67,10 @@ struct
     let f sm (st, ds, rm, part)=
       let (nsm,nds,rmd) = sync_one ask gl upd sm in
       let add_regmap (ls,gs) (rm,part) = 
-        let set = List.fold_right (fun x -> RS.add (VFB.of_vf (x,[]))) gs (RS.empty ()) in 
+        let set = 
+          if List.length gs = 0 then RS.singleton VFB.bullet else
+          List.fold_right (fun x -> RS.add (VFB.of_vf (x,[]))) gs (RS.empty ())         
+        in 
         let write_map l rm =
           RegMap.add (l,[]) set rm
         in
@@ -218,6 +221,10 @@ struct
           begin match eval_lp ask (stripCasts e) with
             | Some (lp, `NA) -> 
                 let branch = invariant ask gl (lp,`NA) (lp,`Next) st in
+                let s1 = branch true in
+                let s2 = branch false in
+                if LD.is_empty s1 then [s2, Lval lv, true] else
+                if LD.is_empty s2 then [s1, Lval lv, false] else                
                 [ branch true , Lval lv, false
                 ; branch false, Lval lv, true ]
             | _ -> lift_st st
@@ -246,7 +253,7 @@ struct
  
   let startstate () = LD.singleton (SHMap.top ()), Re.startstate ()
   let otherstate () = LD.singleton (SHMap.top ()), Re.otherstate ()
-                                                     
+                                                   
   let init () = 
     Goblintutil.region_offsets := false
 end

@@ -502,7 +502,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
       in
       blab (not (ListPtrSet.is_top pointedBy)) (fun () -> Pretty.printf "everything points at me\n") &&
       (ListPtrSet.for_all dead pointedBy)
-    with SetDomain.Unsupported _  -> ((*Messages.waitWhat "bla";*) false)
+    with SetDomain.Unsupported _  -> ((*Messages.waitWhat "bla"; *)false)
      | Not_found -> (*Messages.waitWhat "bla2";*) false
   in
   let single_nonlist k = 
