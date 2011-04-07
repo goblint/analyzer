@@ -36,11 +36,11 @@ void *generate(void *arg) {
 
     pthread_mutex_lock(&mutex_A);
     // list_add(&n->list, &A); 
-    an = A.next;
-    an->prev = l;
-    l->next = an;
-    l->prev = &A;
-    A.next = l;
+    an = A.next; // NORACE
+    an->prev = l; // NORACE
+    l->next = an; // NORACE
+    l->prev = &A; // NORACE
+    A.next = l; // NORACE
 
     pthread_mutex_unlock(&mutex_A);
     sleep(1);
@@ -49,31 +49,33 @@ void *generate(void *arg) {
 }
 
 void *process(void *arg) {
-  struct list_head *l, *ln, *lp, *bn;
+  struct list_head *list, *head, *next, *prev, *first, *last;
   while (1) {
     pthread_mutex_lock(&mutex_A);
-    // ! empty(&A)
-    if (A.next != &A) {
-      l = A.next;
-      pthread_mutex_lock(&mutex_B);
-      //list_move(l,&B);
-      //  remove from A
-      ln = l->next;
-      lp = l->prev;
-      ln->prev = lp;
-      lp->next = ln;
-      //  add to B
-      bn = B.next;
-      bn->prev = l;
-      l->next = bn;
-      l->prev = &B;
-      B.next = l;
+    pthread_mutex_lock(&mutex_B);
+    // list_splice_init(&A, &B);
+    list = &A;
+    head = &B;
+    if (list->next != list) { // NORACE
+      // __list_splice(list, head, head->next);
+      prev = head; // NORACE
+      next = head->next; // NORACE
 
-      pthread_mutex_unlock(&mutex_B);
-      pthread_mutex_unlock(&mutex_A);
+      first = list->next; // NORACE
+      last = list->prev; // NORACE
+
+      first->prev = prev; // NORACE
+      prev->next = first; // NORACE
+
+      last->next = next; // NORACE
+      next->prev = last; // NORACE
+      
+      // INIT_LIST_HEAD(list);
+      list->next = list; // NORACE
+      list->prev = list; // NORACE
     }
-    else
-      pthread_mutex_unlock(&mutex_A);
+    pthread_mutex_unlock(&mutex_B);
+    pthread_mutex_unlock(&mutex_A);
     sleep(2);
   }
   return NULL;
@@ -84,18 +86,18 @@ void *dispose(void *arg) {
   struct node *n;
   while (1) {
     pthread_mutex_lock(&mutex_B);
-    if (B.next != &B) {
-      l = B.next;
+    if (B.next != &B) { // NORACE
+      l = B.next; // NORACE
       // list_del(l);
-      ln = l->next;
-      lp = l->prev;
-      ln->prev = l; // RACE
-      lp->next = l; // RACE
-      l->next = NULL;
-      l->prev = NULL;
+      ln = l->next; // NORACE
+      lp = l->prev; // NORACE
+      ln->prev = lp; // NORACE
+      lp->next = ln; // NORACE
+      l->next = NULL; // NORACE
+      l->prev = NULL; // NORACE
       pthread_mutex_unlock(&mutex_B);
-      n = list_entry(l, struct node, list);
-      printf("Data disposed: %d\n", n->datum);
+      n = list_entry(l, struct node, list); // NORACE
+      printf("Data disposed: %d\n", n->datum); // NORACE
     }
     else
       pthread_mutex_unlock(&mutex_B);

@@ -49,31 +49,33 @@ void *generate(void *arg) {
 }
 
 void *process(void *arg) {
-  struct list_head *l, *ln, *lp, *bn;
+  struct list_head *list, *head, *next, *prev, *first, *last;
   while (1) {
     pthread_mutex_lock(&mutex_A);
-    // ! empty(&A)
-    if (A.next != &A) {
-      l = A.next;
-      pthread_mutex_lock(&mutex_B);
-      //list_move(l,&B);
-      //  remove from A
-      ln = l->next;
-      lp = l->prev;
-      ln->prev = lp;
-      lp->next = ln;
-      //  add to B
-      bn = B.next;
-      bn->prev = l;
-      l->next = bn;
-      l->prev = &B;
-      B.next = l;
+    pthread_mutex_lock(&mutex_B);
+    // list_splice_init(&A, &B);
+    list = &A;
+    head = &B;
+    if (list->next != list) {
+      // __list_splice(list, head, head->next);
+      prev = head;
+      next = head->next; // RACE
 
-      pthread_mutex_unlock(&mutex_B);
-      pthread_mutex_unlock(&mutex_A);
+      first = list->next; // RACE
+      last = list->prev; // RACE
+
+      first->prev = prev; // RACE
+      prev->next = last; // RACE
+
+      last->next = next; // RACE
+      next->prev = last; // RACE
+      
+      // INIT_LIST_HEAD(list);
+      list->next = list;
+      list->prev = list;
     }
-    else
-      pthread_mutex_unlock(&mutex_A);
+    pthread_mutex_unlock(&mutex_B);
+    pthread_mutex_unlock(&mutex_A);
     sleep(2);
   }
   return NULL;
@@ -89,8 +91,8 @@ void *dispose(void *arg) {
       // list_del(l);
       ln = l->next;
       lp = l->prev;
-      ln->prev = l; // RACE
-      lp->next = l; // RACE
+      ln->prev = lp;
+      lp->next = ln;
       l->next = NULL;
       l->prev = NULL;
       pthread_mutex_unlock(&mutex_B);
