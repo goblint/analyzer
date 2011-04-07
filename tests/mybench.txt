@@ -8,7 +8,7 @@ kernel/drivers/infiniband/core/ucma.c
 usb-gadget-serial
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/gadget/u_serial.c
 kernel/drivers/usb/gadget/u_serial.c
---kernel --no-region-offsets
+--kernel --no-region-offsets --mainfun gserial_setup --nonstatic
 
 ssb-main
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/ssb/main.c
