@@ -492,12 +492,12 @@ kernel/sound/core/timer.c
 ssb-main
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/ssb/main.c
 kernel/drivers/ssb/main.c
---kernel
+--kernel --exitfun ssb_devices_freeze --exitfun ssb_devices_thaw  --exitfun ssb_for_each_bus_call
 
 usb-gadget-serial
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/gadget/u_serial.c
 kernel/drivers/usb/gadget/u_serial.c
---kernel
+--kernel --mainfun gserial_setup --nonstatic
 
 infiniband-ulp
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/ulp/srp/ib_srp.c

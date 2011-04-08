@@ -28,7 +28,7 @@ let classify fn exps =
           | [id; ret_var] -> `ThreadJoin (id, ret_var)
           | _ -> M.bailwith "pthread_join arguments are strange!"
         end
-    | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" -> `Malloc 
+    | "malloc" | "kmalloc"  | "kzalloc" | "__kmalloc" | "usb_alloc_urb" -> `Malloc 
     | "calloc" -> `Calloc
     | "assert" ->  
         begin match exps with
@@ -368,10 +368,12 @@ let invalidate_actions = [
   ("__builtin_object_size", readsAll);
   ("usb_submit_urb", readsAll); (* first argument is written to but according to specification must not be read from anymore *)
   ("dev_driver_string", readsAll);
+  ("dev_driver_string", readsAll);
   ("__spin_lock_init", writes [1]);
   ("kmem_cache_create", readsAll);
   ("pthread_create", writes [1]);
   ("__builtin_prefetch", readsAll);
+  ("idr_pre_get", readsAll);
 ]
 
 (* used by get_invalidate_action to make sure
@@ -400,6 +402,8 @@ let get_invalidate_action name =
 let use_special fn_name =
   match fn_name with
     | "list_empty"
+    | "kzalloc"
+    | "kmalloc"
     | "__raw_read_unlock"
     | "__raw_write_unlock" 
     | "spinlock_check"

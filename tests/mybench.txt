@@ -3,34 +3,34 @@ Group: List Intensive
 infiniband-ucma
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/core/ucma.c
 kernel/drivers/infiniband/core/ucma.c
---kernel --no-region-offsets
+--kernel
 
 usb-gadget-serial
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/gadget/u_serial.c
 kernel/drivers/usb/gadget/u_serial.c
---kernel --no-region-offsets --mainfun gserial_setup --nonstatic
+--kernel --mainfun gserial_setup --nonstatic
 
 ssb-main
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/ssb/main.c
 kernel/drivers/ssb/main.c
---kernel --no-region-offsets
+--kernel --exitfun ssb_devices_freeze --exitfun ssb_devices_thaw  --exitfun ssb_for_each_bus_call
 
 sound-core-timer
 http://lxr.linux.no/#linux+v2.6.35.4/sound/core/timer.c
 kernel/sound/core/timer.c
---kernel --no-region-offsets
+--kernel
 
 infiniband-ulp
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/ulp/srp/ib_srp.c
 kernel/drivers/infiniband/ulp/srp/ib_srp.c
---kernel --no-region-offsets
+--kernel
 
 ieee1394-raw
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/ieee1394/raw1394.c
 kernel/drivers/ieee1394/raw1394.c
---kernel --no-region-offsets
+--kernel
 
 char-ipmi
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/ipmi/ipmi_msghandler.c
 kernel/drivers/char/ipmi/ipmi_msghandler.c
---kernel --no-region-offsets
+--kernel
