@@ -292,8 +292,42 @@ let alias ask gl upd (lp_old:ListPtr.t) (lp_new:ListPtr.t) (sm:SHMap.t) : SHMap.
   if ListPtrSet.is_top spset || ListPtrSet.is_top snset then (Messages.report "LOST!"; SHMap.top ()) else s1
 
 
+let proper_list_segment ask gl (lp1:ListPtr.t) (sm:SHMap.t) : bool =
+  let module S = Set.Make (ListPtr) in
+  let check_one_step lp1 =
+    let (p, n, e) = SHMap.find' ask gl lp1 sm in
+    let app_edge f = function 
+      | `Lifted1 s -> f s
+      | `Lifted2 s -> f s
+      | `Bot -> true
+      | `Top -> false
+    in
+    let app_edge' f s = function 
+      | `Lifted1 s -> f s
+      | `Lifted2 s -> f s
+      | `Bot ->  Messages.bailwith "not implemented1"
+      | `Top ->  s ()
+    in
+    let point_to_me lp = 
+      let (p, n, _) = SHMap.find' ask gl lp sm in
+      app_edge (ListPtrSet.equal e) p
+    in
+    if Edges.is_top n 
+    || app_edge' (fun x -> ListPtrSet.is_top x) (fun () -> true) n 
+    then None else 
+    let lp' = app_edge' ListPtrSet.choose (fun () -> Messages.bailwith "not implemented2") n in
+    if app_edge (ListPtrSet.for_all point_to_me) n 
+    then Some lp' else None
+  in
+  let rec df lp s =
+    match check_one_step lp with
+      | Some lp2 when S.mem lp2 s -> true
+      | Some lp2 ->  df lp2 (S.add lp s)  
+      | None -> false
+  in
+  df lp1 S.empty
 
-let proper_list_segment ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : bool =
+let proper_list_segment' ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : bool =
   let module S = Set.Make (ListPtr) in
   let rec visited s lp1 lp2 = 
     if S.mem lp1 s then false else
@@ -357,7 +391,7 @@ let kill ask gl upd (lp:ListPtr.t) (sm:SHMap.t) : SHMap.t =
   try 
     let prev = edge ListPtrSet.choose p in  
     let next = edge ListPtrSet.choose n in
-    if ListPtrSet.cardinal e = 1 && proper_list_segment ask gl prev next sm then begin
+    if ListPtrSet.cardinal e = 1 && proper_list_segment' ask gl prev next sm then begin
       let nsm = summ ask gl upd prev `Next next nsm in
       let nsm = summ ask gl upd next `Prev prev nsm in
       nsm
@@ -476,19 +510,9 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
     (!locals, !globals) 
   in
   let proper_list lp =
-    let (p, n, e) = SHMap.find' ask gl lp sm in
     let lpv = ListPtr.get_var lp in
-    let edge f = function 
-      | `Lifted1 s -> f s
-      | `Lifted2 s -> f s
-      | `Bot -> raise Not_found
-      | `Top -> raise Not_found
-    in
     try 
-      let prev = edge ListPtrSet.choose p in  
-      let next = edge ListPtrSet.choose n in
-      blab (proper_list_segment ask gl prev next sm) (fun () -> Pretty.printf "no donut\n") &&
-      blab (proper_list_segment ask gl next prev sm) (fun () -> Pretty.printf "no donut\n") &&
+      blab (proper_list_segment ask gl lp sm) (fun () -> Pretty.printf "no donut\n") &&
       let pointedBy = reflTransBack ask gl sm (lp) (ListPtrSet.empty ()) in
       let alive = 
         match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
