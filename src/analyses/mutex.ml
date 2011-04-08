@@ -25,8 +25,11 @@ let unmerged_fields = ref false
 (* Some helper functions to avoid flagging race warnings on atomic types, and
  * other irrelevant stuff, such as mutexes and functions. *)
 
-let is_atomic_type (t: typ): bool = match t with
-  | TNamed (info, attr) -> info.tname = "atomic_t"
+let is_atomic_type (t: typ): bool = 
+(*  ignore (printf "Type %a\n" (printType plainCilPrinter) t);*)
+  match t with
+  | TNamed (info, attr) -> info.tname = "atomic_t" 
+  | TComp (info, attr) -> info.cname = "lock_class_key"
   | _ -> false
 
 let is_atomic lval = 
@@ -35,8 +38,9 @@ let is_atomic lval =
     is_atomic_type typ
 
 let is_ignorable lval = 
+(*  ignore (printf "Var %a\n" d_lval lval);*)
   try Base.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
-  with Not_found -> false (* printf "%a\n" d_lval lval; failwith "stop!" *)
+  with Not_found -> false
   
 let big_kernel_lock = LockDomain.Addr.from_var (Cil.makeGlobalVar "[big kernel lock]" Cil.intType)
 let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphore]" Cil.intType)
