@@ -30,6 +30,8 @@ struct
       in
       assert (LD.for_all (fun sm -> SHMap.mem k sm) st);
       tryReallyHard ask gl upd f st
+    | PleaseKillMe k -> raise Deadcode
+      
       
   let vars e = 
     let module S = Set.Make (Var) in
@@ -66,7 +68,7 @@ struct
 
   let sync_ld ask gl upd st =
     let f sm (st, ds, rm, part)=
-      let (nsm,nds,rmd,rc) = sync_one ask gl upd sm in
+      let (nsm,nds,rmd) = sync_one ask gl upd sm in
       let add_regmap (ls,gs) (rm,part) = 
         let set = 
           if List.length gs = 0 then RS.singleton VFB.bullet else
@@ -79,6 +81,7 @@ struct
         RegPart.join part (RegPart.singleton set) 
       in
       let nrm, part = List.fold_right add_regmap rmd (rm,part) in
+      let rc = List.map (fun (_,x) -> x) rmd in
       let part2 = List.fold_right (fun x xs -> RegPart.join xs (RegPart.singleton (List.fold_left (fun xs x -> RS.add (VFB.of_vf (x,[])) xs) (RS.empty ()) x))) rc part in
       (LD.add nsm st, nds@ds,nrm, part2)
     in

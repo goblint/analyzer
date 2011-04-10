@@ -109,6 +109,7 @@ let unknown (lp:ListPtr.t) : Rhs.t =
   (Edges.top (), Edges.top (), lps) 
 
 exception PleaseMaterialize of ListPtr.t
+exception PleaseKillMe of ListPtr.t
 
 module SHMap = 
 struct 
@@ -129,7 +130,7 @@ struct
   
   let find ask gl k m = 
     if mem k m
-    then find k m
+    then (if is_broken gl k then raise (PleaseKillMe k) else find k m)
     else if (not (ListPtr.get_var k).vglob) || is_broken gl k
     then unknown k
     else raise (PleaseMaterialize k)
@@ -358,7 +359,7 @@ let proper_list_segment' ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : b
     visited S.empty lp1 lp2
 
 let kill ask gl upd (lp:ListPtr.t) (sm:SHMap.t) : SHMap.t =
-  let (p, n, e) = SHMap.find ask gl lp sm in
+  let (p, n, e) = SHMap.find' ask gl lp sm in
   let nsm = SHMap.remove lp sm in
   let kill_from k sm = 
     if ListPtr.equal k lp then sm else
@@ -498,7 +499,7 @@ let reachable ask gl k sm =
   in
   search k (ListPtrSet.empty ())
 
-let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((varinfo list) * (varinfo list)) list * (varinfo list list)  =
+let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((varinfo list) * (varinfo list)) list  =
   let blab  b (f:unit->'a) = if b then true else ((*ignore (f ());*) false) in
   let reg_for k' = 
     let module S = Set.Make (ListPtr) in
@@ -519,7 +520,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
             let lp = ListPtrSet.choose s in
             if S.mem k ts then () else f lp (S.add lp ts)
           with  Not_found | SetDomain.Unsupported _  -> () end
-        | _ -> Messages.bailwith "BUG: shape sync changes regions for a nonproper list."
+        | _ -> () 
       end 
     in f k' S.empty;
     (!locals, !globals) 
@@ -554,19 +555,16 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
       | (`Lifted1 p, `Lifted1 n, _) -> ListPtrSet.is_empty p && ListPtrSet.is_empty n
       | _ -> false
   in
-  let f k v (sm,ds,rms,rc) =
+  let f k v (sm,ds,rms) =
     if is_private ask k
-    then (if single_nonlist k && noone_points_at_me k sm then (sm, ds, ([ListPtr.get_var k],[])::rms,rc) else (sm, ds, rms, rc)) 
+    then (if single_nonlist k && noone_points_at_me k sm then (sm, ds, ([ListPtr.get_var k],[])::rms) else (sm, ds, rms)) 
     else 
       let isbroken = not (proper_list k) in
 (*      if isbroken then Messages.waitWhat (ListPtr.short 80 k) ;*)
 (*       Messages.report ("checking :"^ListPtr.short 80 k^" -- "^if isbroken then " broken " else "still a list"); *)
-      let nrms = if isbroken then rms else reg_for k :: rms in
-      let nrc = List.filter (fun x -> x.vglob) (List.map ListPtr.get_var (ListPtrSet.elements (reachable ask gl k sm))) in
-      let nrc = if nrc = [] then rc else nrc :: rc in
-      (kill ask gl upd k sm, (ListPtr.get_var k, isbroken) :: ds, nrms,nrc)
+      (kill ask gl upd k sm, (ListPtr.get_var k, isbroken) :: ds, reg_for k :: rms)
   in
-  SHMap.fold f sm (sm,[],[],[]) 
+  SHMap.fold f sm (sm,[],[]) 
 
 module Dom = 
 struct 
