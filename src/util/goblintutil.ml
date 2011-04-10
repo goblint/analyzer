@@ -238,8 +238,8 @@ let type_inv (c:compinfo) : varinfo =
 
 let is_blessed (t:typ): varinfo option =
   let me_gusta = function
-    (*| "SuperStruct" 
-        -> true*)
+    | "usb_bus" 
+        -> true
     | _ -> false
   in
   match unrollType t with

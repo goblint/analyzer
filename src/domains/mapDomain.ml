@@ -36,8 +36,8 @@ end
 
 (* Map structure that keeps keys in such order in which
     they were initially added*)
-module ExtendedMap (Dom: Groupable) : Map.S  with
-  type key = Dom.t  =
+module ExtendedMap (Dom: Groupable) (*: Map.S  with
+  type key = Dom.t *) =
 struct
   module M = Map.Make (Dom)
   type key = Dom.t
