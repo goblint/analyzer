@@ -341,6 +341,15 @@ struct
 
    (* The evaluation function as mutually recursive eval_lv & eval_rv *)
    let rec eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value = 
+     let rec do_offs def = function 
+       | Field (fd, offs) -> begin
+           match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
+             | Some v -> do_offs (`Address (AD.singleton (Addr.from_var_offset (v,convert_offset a gs st (Field (fd, offs)))))) offs
+  	         | None -> do_offs def offs  
+           end
+       | Index (_, offs) -> do_offs def offs
+       | NoOffset -> def
+     in
      (* we have a special expression that should evalueate to top ... *)
      if exp = MyCFG.unknown_exp then VD.top () else
      (* First we try with query functions --- these are currently more precise.
@@ -356,7 +365,8 @@ struct
        | Cil.Const (Cil.CStr _)
        | Cil.Const (Cil.CWStr _) -> `Address (AD.str_ptr ())
        (* Variables and address expressions *)
-       | Cil.Lval lval -> get a gs st (eval_lv a gs st lval)
+       | Cil.Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
+       | Cil.Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs
        (* Binary operators *)
        | Cil.BinOp (op,arg1,arg2,typ) -> 
            let a1 = eval_rv a gs st arg1 in
@@ -413,23 +423,35 @@ struct
              | _ -> M.bailwith "Index not an integer value"
    (* Evaluation of lvalues to our abstract address domain. *)
    and eval_lv (a: Q.ask) (gs:glob_fun) st (lval:lval): AD.t = 
+     let rec do_offs def = function 
+       | Field (fd, offs) -> begin
+           match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
+             | Some v -> do_offs (AD.singleton (Addr.from_var_offset (v,convert_offset a gs st (Field (fd, offs))))) offs
+  	         | None -> do_offs def offs  
+           end
+       | Index (_, offs) -> do_offs def offs
+       | NoOffset -> def
+     in
      match lval with 
        | Cil.Var x, NoOffset when (not x.vglob) && Goblintutil.is_blessed x.vtype<> None ->  
-          begin match Cil.unrollType x.vtype with
-            | TComp (c,_) -> AD.singleton (Addr.from_var (Goblintutil.type_inv c))
+          begin match Goblintutil.is_blessed x.vtype with
+            | Some v -> AD.singleton (Addr.from_var v)
             | _ ->  AD.singleton (Addr.from_var_offset (x, convert_offset a gs st NoOffset))
           end
        (* The simpler case with an explicit variable, e.g. for [x.field] we just
         * create the address { (x,field) } *)
-       | Cil.Var x, ofs ->  AD.singleton (Addr.from_var_offset (x, convert_offset a gs st ofs))
+       | Cil.Var x, ofs -> 
+          if x.vglob 
+          then AD.singleton (Addr.from_var_offset (x, convert_offset a gs st ofs))
+          else do_offs (AD.singleton (Addr.from_var_offset (x, convert_offset a gs st ofs))) ofs
        (* The more complicated case when [exp = & x.field] and we are asked to
         * evaluate [(\*exp).subfield]. We first evaluate [exp] to { (x,field) }
         * and then add the subfield to it: { (x,field.subfield) }. *)
        | Cil.Mem n, ofs -> begin
            match (eval_rv a gs st n) with 
-             | `Address adr -> AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr
+             | `Address adr -> do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
              | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-                 M.debug ("Failed evaluating "^str^" to lvalue"); AD.top ()
+                 M.debug ("Failed evaluating "^str^" to lvalue"); do_offs (AD.top ()) ofs
            end 
 
 

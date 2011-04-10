@@ -584,9 +584,15 @@ struct
   let special_fn ctx lv f arglist : (Dom.t * exp * bool) list =
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
     let unlock remove_fn =
+      let remove_nonspecial =
+        Lockset.filter (fun (v,_) -> match LockDomain.Addr.to_var v with
+          | [v] when v.vname.[0] = '{' -> true 
+          | _ -> false
+          ) 
+      in
       match arglist with
         | x::xs -> begin match  (eval_exp_addr ctx.ask x) with 
-                        | [] -> [(Lockset.empty ()),Cil.integer 1, true]
+                        | [] -> [remove_nonspecial ctx.local  ,Cil.integer 1, true]
                         | es -> [(List.fold_right remove_fn es ctx.local), Cil.integer 1, true]
                 end
         | _ -> [ctx.local, Cil.integer 1, true]
@@ -620,6 +626,8 @@ struct
           [(Lockset.add (console_sem,true) ctx.local),Cil.integer 1, true]
       | _, "release_console_sem" when !GU.kernel -> 
           [(Lockset.remove (console_sem,true) ctx.local),Cil.integer 1, true]
+      | _, "__builtin_prefetch"  -> 
+          [ctx.local,Cil.integer 1, true]
       | _, x -> 
           let arg_acc act = 
             match LF.get_invalidate_action x with
