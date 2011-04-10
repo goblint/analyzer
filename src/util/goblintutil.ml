@@ -144,6 +144,9 @@ let conf_osek () =
   modify_ana "OSEK" true;
   modify_ana "OSEK2" true
 
+(** singleton types *)
+let singles = ref []
+
 (** when goblin is in debug mode *)
 let debug = ref false 
 
@@ -237,11 +240,7 @@ let type_inv (c:compinfo) : varinfo =
       i
 
 let is_blessed (t:typ): varinfo option =
-  let me_gusta = function
-    | "usb_drv" 
-        -> true 
-    | _ -> false
-  in
+  let me_gusta x = List.mem x !singles in 
   match unrollType t with
     | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
     | _ -> (None : Cil.varinfo option)

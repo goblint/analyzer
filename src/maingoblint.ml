@@ -125,6 +125,7 @@ let main () =
                  ("--type-inv", Arg.Bool ((:=) GU.use_type_invariants), "<bool>  Should we use type invariants?");
                  ("--list-type", Arg.Bool ((:=) GU.use_list_type), "<bool>  Should we use list types?");
                  ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
+                 ("--unique", Arg.String (fun x -> GU.singles := x::!GU.singles), "<type name>  For types that have only one value.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
 		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed program");
