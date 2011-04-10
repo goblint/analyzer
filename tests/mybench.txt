@@ -46,22 +46,22 @@ Group: USB Serial Drivers
 bus.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/bus.c
 kernel/bus.c
---kernel --nonstatic
+--kernel --nonstatic --unique usb_serial_driver
 
 garmin_gps.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/garmin_gps.c
 kernel/garmin_gps.c
---kernel
+--kernel --unique garmin_data
 
 mos7720.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/mos7720.c
 kernel/mos7720.c
---kernel
+--kernel --unique mos7715_parport
 
 whiteheat.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/whiteheat.c
 kernel/whiteheat.c
---kernel
+--kernel --unique whiteheat_private
 
 
 Group: USB Core
@@ -69,12 +69,12 @@ Group: USB Core
 devio.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/devio.c
 kernel/devio.c
---kernel
+--kernel --unique dev_state
 
 driver.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/driver.c
 kernel/driver.c
---kernel --nonstatic
+--kernel --nonstatic --unique usb_driver
 
 hcd.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/hcd.c
@@ -94,7 +94,7 @@ kernel/message.c
 urb.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/urb.c
 kernel/urb.c
---kernel --nonstatic
+--kernel --nonstatic --unique usb_anchor
 
 
 Group: List Intensive
@@ -112,7 +112,7 @@ kernel/drivers/ieee1394/raw1394.c
 infiniband-ucma
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/core/ucma.c
 kernel/drivers/infiniband/core/ucma.c
---kernel
+--kernel --unique ucma_file
 
 sound-core-timer
 http://lxr.linux.no/#linux+v2.6.35.4/sound/core/timer.c
@@ -132,4 +132,4 @@ kernel/drivers/usb/gadget/u_serial.c
 infiniband-ulp
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/ulp/srp/ib_srp.c
 kernel/drivers/infiniband/ulp/srp/ib_srp.c
---kernel
+--kernel --unique srp_host

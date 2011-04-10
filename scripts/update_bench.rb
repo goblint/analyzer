@@ -4,9 +4,11 @@ require 'fileutils'
 $analyses = [
   ["default",   ""],
 #   ["var_eq",    "--with symb_locks --with var_eq"],
+#   ["region",    "--with region"],
   ["region",    "--with region --no-region-offsets"],
 #   ["region_eq", "--with symb_locks --with var_eq --with region"]
-  ["shape",    "--with shape"],
+#   ["shape",    "--with shape"],
+  ["shape",    "--with shape --no-region-offsets"],
 ]
 maxlen = $analyses.map { |x| x[0].length }.max + 1
 
