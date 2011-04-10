@@ -67,6 +67,10 @@ module RS = struct
   let single_bullet = singleton (VFB.bullet)
   let remove_bullet x = remove VFB.bullet x
   let has_bullet x = exists VFB.is_bullet x
+  let is_single_bullet rs =
+    not (is_top rs) &&
+    cardinal rs = 1 &&
+    has_bullet rs
 
   let to_vf_list s = 
     let lst = elements s in
@@ -123,6 +127,17 @@ struct
 
   type eval_t = (bool * elt * F.t) option
   let eval_exp exp: eval_t = 
+    let offsornot offs = if !Goblintutil.region_offsets then F.listify offs else [] in
+    let rec do_offs deref def = function 
+      | x -> def 
+      | Field (fd, offs) -> begin
+          match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
+            | Some v -> do_offs deref (Some (deref, (v, offsornot offs), [])) offs
+	    | None -> do_offs deref def offs  
+          end
+      | Index (_, offs) -> do_offs deref def offs
+      | NoOffset -> def
+    in
     let rec eval_rval deref rval =
       match rval with
         | Lval lval -> eval_lval deref lval 
@@ -133,13 +148,12 @@ struct
         | BinOp (IndexPI, p, i, typ) -> eval_rval deref p
         | _ -> None
     and eval_lval deref lval =
-      let offsornot offs = if !Goblintutil.region_offsets then F.listify offs else [] in
       match lval with 
-        | (Var x, offs) -> Some (deref, (x, offsornot offs), [])
-        | (Mem exp,offs) ->
-            match eval_rval true exp with
-              | Some (deref, v, _) -> Some (deref, v, offsornot offs)
-              | x -> x
+        | (Var x, offs) -> do_offs deref (Some (deref, (x, offsornot offs), [])) offs
+	| (Mem exp,offs) ->
+           match eval_rval true exp with
+              | Some (deref, v, _) -> do_offs deref (Some (deref, v, offsornot offs)) offs
+              | x -> do_offs deref x offs
     in
       eval_rval false exp 
 

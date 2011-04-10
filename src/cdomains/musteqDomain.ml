@@ -115,6 +115,8 @@ struct
           let st = kill x st in
           (* let _ = printf "Here: %a\n" (printExp plainCilPrinter) rval in *)
             match rval with
+              | Lval   (Var y, NoOffset) when y.vname.[0] = '{' -> st
+              | AddrOf (Var y, NoOffset) when y.vname.[0] = '{' -> st
               | Lval (Var y, NoOffset) -> add_eq (x,y) st 
               | AddrOf (Var y, ofs) -> add (x,y) (F.listify ofs) st 
               | AddrOf (Mem (Lval (Var y, NoOffset)),  ofs) -> 

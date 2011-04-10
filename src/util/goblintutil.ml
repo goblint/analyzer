@@ -227,6 +227,26 @@ let old_accesses = ref true
 (** The file where everything is output *)
 let out = ref stdout
 
+(* Type invariant variables. *)
+let type_inv_tbl = Hashtbl.create 13 
+let type_inv (c:compinfo) : varinfo =
+  try Hashtbl.find type_inv_tbl c.ckey
+  with Not_found ->
+      let i = makeGlobalVar ("{struct "^c.cname^"}") (TComp (c,[])) in
+      Hashtbl.add type_inv_tbl c.ckey i;
+      i
+
+let is_blessed (t:typ): varinfo option =
+  let me_gusta = function
+    (*| "SuperStruct" 
+        -> true*)
+    | _ -> false
+  in
+  match unrollType t with
+    | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
+    | _ -> (None : Cil.varinfo option)
+
+
 type result_style =
   | NoOutput (** Do not print any output except warnings *)
   | Indented (** Output indented XML *)

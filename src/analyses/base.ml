@@ -414,6 +414,11 @@ struct
    (* Evaluation of lvalues to our abstract address domain. *)
    and eval_lv (a: Q.ask) (gs:glob_fun) st (lval:lval): AD.t = 
      match lval with 
+       | Cil.Var x, NoOffset when (not x.vglob) && Goblintutil.is_blessed x.vtype<> None ->  
+          begin match Cil.unrollType x.vtype with
+            | TComp (c,_) -> AD.singleton (Addr.from_var (Goblintutil.type_inv c))
+            | _ ->  AD.singleton (Addr.from_var_offset (x, convert_offset a gs st NoOffset))
+          end
        (* The simpler case with an explicit variable, e.g. for [x.field] we just
         * create the address { (x,field) } *)
        | Cil.Var x, ofs ->  AD.singleton (Addr.from_var_offset (x, convert_offset a gs st ofs))

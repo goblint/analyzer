@@ -48,15 +48,24 @@ struct
       | `Top -> Messages.warn "Region state is broken :("; []
       | `Bot -> []
       
+  let is_bullet exp part (st,_) : bool =
+    match st with
+      | `Lifted (equ,reg) ->
+          begin match Reg.eval_exp exp with
+            | Some (_,v,_) -> (try RegionDomain.RS.is_single_bullet (RegMap.find v reg) with Not_found -> false)
+            | _ -> false
+          end
+      | `Top -> false
+      | `Bot -> true   
+      
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t = 
     let regpart = get_regpart ctx.global in
     match q with
       | Queries.Regions e ->
+          if is_bullet e regpart ctx.local then `Bot else
           let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
-          if (Queries.LS.is_empty ls)
-          then `Bot
-          else `LvalSet ls
+          `LvalSet ls
       | _ -> Queries.Result.top ()
  
   (* transfer functions *)
@@ -146,6 +155,14 @@ struct
                 [(`Lifted (equ, reg), gd), Cil.integer 1, true]
             | _ -> [ctx.local,Cil.integer 1, true]
         end
+      | _ -> 
+    let t, _, _, _ = Cil.splitFunctionTypeVI  f in
+    match unrollType t with
+      | TPtr (t,_) ->
+    begin match Goblintutil.is_blessed t, lval with
+      | Some rv, Some lv -> [assign ctx lv (AddrOf (Var rv, NoOffset)), Cil.integer 1, true]
+      | _ -> [ctx.local,Cil.integer 1, true]
+    end
       | _ -> [ctx.local,Cil.integer 1, true]
   
   let startstate () = 

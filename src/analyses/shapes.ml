@@ -21,6 +21,7 @@ struct
   type glob_fun = Glob.Var.t -> Glob.Val.t
   
   let rec tryReallyHard ask gl upd f st =
+    if LD.is_empty st then raise Deadcode else
     try f st
     with PleaseMaterialize k ->
       let st = LD.union 
@@ -65,7 +66,7 @@ struct
 
   let sync_ld ask gl upd st =
     let f sm (st, ds, rm, part)=
-      let (nsm,nds,rmd) = sync_one ask gl upd sm in
+      let (nsm,nds,rmd,rc) = sync_one ask gl upd sm in
       let add_regmap (ls,gs) (rm,part) = 
         let set = 
           if List.length gs = 0 then RS.singleton VFB.bullet else
@@ -78,17 +79,19 @@ struct
         RegPart.join part (RegPart.singleton set) 
       in
       let nrm, part = List.fold_right add_regmap rmd (rm,part) in
-      (LD.add nsm st, nds@ds,nrm, part)
+      let part2 = List.fold_right (fun x xs -> RegPart.join xs (RegPart.singleton (List.fold_left (fun xs x -> RS.add (VFB.of_vf (x,[])) xs) (RS.empty ()) x))) rc part in
+      (LD.add nsm st, nds@ds,nrm, part2)
     in
     LD.fold f st (LD.empty (), [], RegMap.bot (), RegPart.bot ())
 
-  let reclaimLostRegions ctx (e,_) v =
-    let is_priv = function
-      | `Left (v,_) -> not (is_private ctx.ask (`Left v)) 
+  let reclaimLostRegions alive ctx (e,_) v =
+    if (not e.vglob) &&  (not (Usedef.VS.mem e alive)) then () else
+    let is_public = function
+      | `Left (v,_) -> (not (is_private ctx.ask (`Left v)))  
       | `Right _    -> false
     in
-    let rs = RS.filter is_priv v in
-(*     if RS.cardinal rs >= 2 then  Messages.waitWhat (e.vname^": "^RS.short 80 rs); *)
+    let rs = RS.filter is_public v in
+(*    if RS.cardinal rs >= 2 then  Messages.waitWhat (e.vname^": "^RS.short 80 rs);*)
     if not (RS.is_empty rs) then ctx.geffect (Re.partition_varinfo ()) (false, RegPart.singleton rs)
 
   
@@ -99,15 +102,26 @@ struct
     let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
     let nst, dst, rm, part = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
     let (nre,nvar), dre = Re.sync (re_context ctx re) in
+    let update k v m = 
+      let old = try RegMap.find k m with Not_found -> RS.empty () in
+      if (not (RS.is_top old)) && RS.for_all (function  (`Left (v,_)) -> not (gl v) |  `Right _ -> true)  old
+      then RegMap.add k v m
+      else ((*ctx.geffect (Re.partition_varinfo ()) (false, RegPart.singleton v);*) m)
+    in 
     let nre = 
       match nre with
-        | `Lifted (e,m) -> `Lifted (e,RegMap.fold RegMap.add rm m)
+        | `Lifted (e,m) -> `Lifted (e,RegMap.fold update rm m)
         | x -> x
     in
     let _ = 
       match nre with
-        | `Lifted (_,m) -> 
-          RegMap.iter (reclaimLostRegions ctx) m
+        | `Lifted (_,m) ->
+          let alive =
+            match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
+              | Some x -> x
+              | _      -> Usedef.VS.empty
+    	  in
+          RegMap.iter (reclaimLostRegions alive ctx) m
         | x -> ()
     in
     ctx.geffect (Re.partition_varinfo ()) (false, part);

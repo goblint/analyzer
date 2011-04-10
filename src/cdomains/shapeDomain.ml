@@ -85,6 +85,7 @@ let is_private ask (lp:ListPtr.t) =
       | b -> false
   in
   match lp with
+    | `Right ((v,_),_) when v.vname.[0] = '{' -> true 
     | `Right ((v,_),_) 
     | `Left v when v.Cil.vglob -> check v
     | _ -> true
@@ -118,7 +119,7 @@ struct
       | `Right ((v,_),_) 
       | `Left v -> 
     upd v true;
-(*     Messages.waitWhat ("Improper use of "^v.vname^"."); *)
+    (*Messages.waitWhat ("Improper use of "^v.vname^".");*)
     remove lp sm
 
   let find' ask gl k m = 
@@ -180,8 +181,14 @@ let eval_lp (ask:Q.ask) (e:exp) : lexp option =
     | Lval (Mem (Lval (Var v,NoOffset)),NoOffset) ->
         Some (`Left v,`NA)
     (* &lp.field1->list -> list &lp.field1->list and field is unknown *)
-    |  AddrOf (Mem (Lval (Var v, os)),Field (fd, NoOffset)) when fd.fname = "list" -> (*TODO: has type list_head *)
-        Some (`Right((v, CLval.of_ciloffs os),Offs.from_offset (`Field (fd,`NoOffset))),`NA)
+(*    |  AddrOf (Mem (Lval (Var v, os)),Field (fd, NoOffset)) when fd.fname = "list" -> (*TODO: has type list_head *)
+        Some (`Right((v, CLval.of_ciloffs os),Offs.from_offset (`Field (fd,`NoOffset))),`NA)*)
+    |  AddrOf (Mem _,Field (fd, NoOffset))  -> 
+        begin match GU.is_blessed (TComp (fd.fcomp,[])) with 
+          | Some v ->
+              Some (`Right ((v, `NoOffset),Offs.from_offset (`Field (fd,`NoOffset))),`NA)
+          | _ -> None
+        end
     | AddrOf (Var v, ofs) ->
         Some (`Right ((v, CLval.of_ciloffs ofs), Offs.from_offset `NoOffset),`NA)
     | _ -> None 
@@ -281,15 +288,7 @@ let alias ask gl upd (lp_old:ListPtr.t) (lp_new:ListPtr.t) (sm:SHMap.t) : SHMap.
     let nn = app_edge add_sp_if_exists n in
     SHMap.add ask gl upd k (np,nn,e) sm
   in
-  let drop_lift = function
-    | `Lifted1 x -> ListPtrSet.diff x new_eq
-    | `Lifted2 x -> ListPtrSet.diff x new_eq
-    | _ -> ListPtrSet.empty ()
-  in
-  let s1 = ListPtrSet.fold alias_lhs new_bp sm_with_lhs in
-  let spset = drop_lift sp in
-  let snset = drop_lift sn in
-  if ListPtrSet.is_top spset || ListPtrSet.is_top snset then (Messages.report "LOST!"; SHMap.top ()) else s1
+  ListPtrSet.fold alias_lhs new_bp sm_with_lhs 
 
 
 let proper_list_segment ask gl (lp1:ListPtr.t) (sm:SHMap.t) : bool =
@@ -483,7 +482,23 @@ let noone_points_at_me k sm =
   in
   SHMap.for_all doesnt_point_at_me sm
 
-let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((varinfo list) * (varinfo list)) list =
+let reachable ask gl k sm = 
+  let rec search k s = 
+    if ListPtrSet.mem k s then s else
+    let p, n, _ = SHMap.find' ask gl k sm in
+    let edge = function 
+      | `Lifted1 s when not (ListPtrSet.is_top s) -> s
+      | `Lifted2 s when not (ListPtrSet.is_top s) -> s
+      | _ -> ListPtrSet.empty ()
+    in
+    let ns = ListPtrSet.add k s in
+    let ns1 = ListPtrSet.fold search (edge p) ns in
+    let ns2 = ListPtrSet.fold search (edge n) ns1 in
+    ns2
+  in
+  search k (ListPtrSet.empty ())
+
+let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((varinfo list) * (varinfo list)) list * (varinfo list list)  =
   let blab  b (f:unit->'a) = if b then true else ((*ignore (f ());*) false) in
   let reg_for k' = 
     let module S = Set.Make (ListPtr) in
@@ -530,7 +545,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
       in
       blab (not (ListPtrSet.is_top pointedBy)) (fun () -> Pretty.printf "everything points at me\n") &&
       (ListPtrSet.for_all dead pointedBy)
-    with SetDomain.Unsupported _  -> ((*Messages.waitWhat "bla"; *)false)
+    with SetDomain.Unsupported _  -> ((*Messages.waitWhat "bla";*) false)
      | Not_found -> (*Messages.waitWhat "bla2";*) false
   in
   let single_nonlist k = 
@@ -539,17 +554,19 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
       | (`Lifted1 p, `Lifted1 n, _) -> ListPtrSet.is_empty p && ListPtrSet.is_empty n
       | _ -> false
   in
-  let f k v (sm,ds,rms) =
+  let f k v (sm,ds,rms,rc) =
     if is_private ask k
-    then (if single_nonlist k && noone_points_at_me k sm then (sm, ds, ([ListPtr.get_var k],[])::rms) else (sm, ds, rms)) 
+    then (if single_nonlist k && noone_points_at_me k sm then (sm, ds, ([ListPtr.get_var k],[])::rms,rc) else (sm, ds, rms, rc)) 
     else 
       let isbroken = not (proper_list k) in
-(*       if isbroken then Messages.waitWhat (ListPtr.short 80 k) ; *)
+(*      if isbroken then Messages.waitWhat (ListPtr.short 80 k) ;*)
 (*       Messages.report ("checking :"^ListPtr.short 80 k^" -- "^if isbroken then " broken " else "still a list"); *)
       let nrms = if isbroken then rms else reg_for k :: rms in
-      (kill ask gl upd k sm, (ListPtr.get_var k, isbroken) :: ds, nrms)
+      let nrc = List.filter (fun x -> x.vglob) (List.map ListPtr.get_var (ListPtrSet.elements (reachable ask gl k sm))) in
+      let nrc = if nrc = [] then rc else nrc :: rc in
+      (kill ask gl upd k sm, (ListPtr.get_var k, isbroken) :: ds, nrms,nrc)
   in
-  SHMap.fold f sm (sm,[],[]) 
+  SHMap.fold f sm (sm,[],[],[]) 
 
 module Dom = 
 struct 
