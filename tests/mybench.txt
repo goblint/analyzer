@@ -1,28 +1,107 @@
+Group: Character Drivers
+
+apm-emulation.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/apm-emulation.c
+kernel/apm-emulation.c
+--kernel
+
+hvc_console.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/hvc_console.c
+kernel/hvc_console.c
+--kernel
+
+ipmi_devintf.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/ipmi/ipmi_devintf.c
+kernel/ipmi_devintf.c
+--kernel
+
+mem.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/mem.c
+kernel/mem.c
+--kernel
+
+misc.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/misc.c
+kernel/misc.c
+--kernel
+
+tty_io.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/tty_io.c
+kernel/tty_io.c
+--kernel
+
+virtio_console.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/virtio_console.c
+kernel/virtio_console.c
+--kernel
+
+vt_ioctl.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/vt_ioctl.c
+kernel/vt_ioctl.c
+--kernel --nonstatic
+
+
+Group: USB Serial Drivers
+
+bus.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/bus.c
+kernel/bus.c
+--kernel --nonstatic
+
+garmin_gps.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/garmin_gps.c
+kernel/garmin_gps.c
+--kernel
+
+mos7720.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/mos7720.c
+kernel/mos7720.c
+--kernel
+
+whiteheat.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/whiteheat.c
+kernel/whiteheat.c
+--kernel
+
+
+Group: USB Core
+
+devio.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/devio.c
+kernel/devio.c
+--kernel
+
+driver.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/driver.c
+kernel/driver.c
+--kernel --nonstatic
+
+hcd.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/hcd.c
+kernel/hcd.c
+--kernel --nonstatic
+
+hub.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/hub.c
+kernel/hub.c
+--kernel --nonstatic
+
+message.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/message.c
+kernel/message.c
+--kernel --nonstatic
+
+urb.c
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/urb.c
+kernel/urb.c
+--kernel --nonstatic
+
+
 Group: List Intensive
 
-infiniband-ucma
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/core/ucma.c
-kernel/drivers/infiniband/core/ucma.c
---kernel
-
-usb-gadget-serial
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/gadget/u_serial.c
-kernel/drivers/usb/gadget/u_serial.c
---kernel --mainfun gserial_setup --nonstatic
-
-ssb-main
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/ssb/main.c
-kernel/drivers/ssb/main.c
---kernel --exitfun ssb_devices_freeze --exitfun ssb_devices_thaw  --exitfun ssb_for_each_bus_call
-
-sound-core-timer
-http://lxr.linux.no/#linux+v2.6.35.4/sound/core/timer.c
-kernel/sound/core/timer.c
---kernel
-
-infiniband-ulp
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/ulp/srp/ib_srp.c
-kernel/drivers/infiniband/ulp/srp/ib_srp.c
+char-ipmi
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/ipmi/ipmi_msghandler.c
+kernel/drivers/char/ipmi/ipmi_msghandler.c
 --kernel
 
 ieee1394-raw
@@ -30,7 +109,27 @@ http://lxr.linux.no/#linux+v2.6.35.4/drivers/ieee1394/raw1394.c
 kernel/drivers/ieee1394/raw1394.c
 --kernel
 
-char-ipmi
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/ipmi/ipmi_msghandler.c
-kernel/drivers/char/ipmi/ipmi_msghandler.c
+infiniband-ucma
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/core/ucma.c
+kernel/drivers/infiniband/core/ucma.c
+--kernel
+
+sound-core-timer
+http://lxr.linux.no/#linux+v2.6.35.4/sound/core/timer.c
+kernel/sound/core/timer.c
+--kernel
+
+ssb-main
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/ssb/main.c
+kernel/drivers/ssb/main.c
+--kernel --exitfun ssb_devices_freeze --exitfun ssb_devices_thaw  --exitfun ssb_for_each_bus_call
+
+usb-gadget-serial
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/gadget/u_serial.c
+kernel/drivers/usb/gadget/u_serial.c
+--kernel --mainfun gserial_setup --nonstatic
+
+infiniband-ulp
+http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/ulp/srp/ib_srp.c
+kernel/drivers/infiniband/ulp/srp/ib_srp.c
 --kernel
