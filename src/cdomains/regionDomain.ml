@@ -129,7 +129,6 @@ struct
   let eval_exp exp: eval_t = 
     let offsornot offs = if !Goblintutil.region_offsets then F.listify offs else [] in
     let rec do_offs deref def = function 
-      | x -> def 
       | Field (fd, offs) -> begin
           match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
             | Some v -> do_offs deref (Some (deref, (v, offsornot offs), [])) offs
