@@ -1,4 +1,4 @@
-// PARAM: --with region --with var_eq --with symb_locks --kernel --nonstatic
+// PARAM: --with region --with var_eq --with symb_locks --kernel --nonstatic --region-offsets
 #include<linux/module.h>
 #include<linux/list.h>
 #include<linux/mutex.h>

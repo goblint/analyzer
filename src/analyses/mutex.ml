@@ -21,6 +21,8 @@ let no_read = ref false
 let field_insensitive = ref false
 (** Avoids the merging of fields, not really sound *)
 let unmerged_fields = ref false
+(** Only report races on these variables/types. *)
+let vips = ref ([]: string list)
 
 (* Some helper functions to avoid flagging race warnings on atomic types, and
  * other irrelevant stuff, such as mutexes and functions. *)
@@ -671,6 +673,7 @@ struct
 
   (** [postprocess_acc gl] groups and report races in [gl] *)
   let postprocess_acc (gl : Cil.varinfo) =
+    if not (!vips = []  || List.mem gl.vname !vips) then () else
     (* create mapping from offset to access list; set of offsets  *)
     let create_map (accesses_map: AccValSet.t) =
       let f (((_, _, rw), _, offs) as accs) (map,set) =

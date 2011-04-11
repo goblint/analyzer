@@ -1,135 +1,94 @@
-Group: Character Drivers
+Group: Synthetic Modules
+
+move.c
+
+synthetic/move.c
+--kernel
+
+tail.c
+
+synthetic/tail.c
+--kernel
+
+splice.c
+
+synthetic/splice.c
+--kernel
+
+splice-inl.c
+
+synthetic/splice-inl.c
+--kernel
+
+backptr.c
+
+synthetic/backptr.c
+--kernel --nonstatic --unique usb_drv
+
+
+Group: Kernel Modules
 
 apm-emulation.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/apm-emulation.c
 kernel/apm-emulation.c
---kernel
-
-hvc_console.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/hvc_console.c
-kernel/hvc_console.c
---kernel
+--kernel --check apm_user_list
 
 ipmi_devintf.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/ipmi/ipmi_devintf.c
 kernel/ipmi_devintf.c
---kernel
-
-mem.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/mem.c
-kernel/mem.c
---kernel
-
-misc.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/misc.c
-kernel/misc.c
---kernel
-
-tty_io.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/tty_io.c
-kernel/tty_io.c
---kernel
+--kernel --check reg_list
 
 virtio_console.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/virtio_console.c
 kernel/virtio_console.c
---kernel
+--kernel --check pdrvdata
 
 vt_ioctl.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/vt_ioctl.c
 kernel/vt_ioctl.c
---kernel --nonstatic
-
-
-Group: USB Serial Drivers
-
-bus.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/bus.c
-kernel/bus.c
---kernel --nonstatic --unique usb_serial_driver
+--kernel --nonstatic --check vt_events
 
 garmin_gps.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/garmin_gps.c
 kernel/garmin_gps.c
---kernel --unique garmin_data
-
-mos7720.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/mos7720.c
-kernel/mos7720.c
---kernel --unique mos7715_parport
+--kernel --unique garmin_data --check "{struct garmin_data}"
 
 whiteheat.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/whiteheat.c
 kernel/whiteheat.c
---kernel --unique whiteheat_private
-
-
-Group: USB Core
-
-devio.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/devio.c
-kernel/devio.c
---kernel --unique dev_state
-
-driver.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/driver.c
-kernel/driver.c
---kernel --nonstatic --unique usb_driver
+--kernel --unique whiteheat_private --check "{struct whiteheat_private}"
 
 hcd.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/hcd.c
 kernel/hcd.c
---kernel --nonstatic
-
-hub.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/hub.c
-kernel/hub.c
---kernel --nonstatic
+--kernel --nonstatic --check usb_bus_list
 
 message.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/message.c
 kernel/message.c
---kernel --nonstatic
+--kernel --nonstatic --check set_config_list
 
 urb.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/urb.c
 kernel/urb.c
---kernel --nonstatic --unique usb_anchor
-
-
-Group: List Intensive
-
-char-ipmi
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/ipmi/ipmi_msghandler.c
-kernel/drivers/char/ipmi/ipmi_msghandler.c
---kernel
+--kernel --nonstatic --unique usb_anchor --check "{struct usb_anchor}"
 
 ieee1394-raw
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/ieee1394/raw1394.c
 kernel/drivers/ieee1394/raw1394.c
---kernel
+--kernel --check host_info_list
 
 infiniband-ucma
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/core/ucma.c
 kernel/drivers/infiniband/core/ucma.c
---kernel --unique ucma_file
+--kernel --unique ucma_file --check "{struct ucma_file}"
 
 sound-core-timer
 http://lxr.linux.no/#linux+v2.6.35.4/sound/core/timer.c
 kernel/sound/core/timer.c
---kernel
+--kernel --check snd_timer_list
 
 ssb-main
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/ssb/main.c
 kernel/drivers/ssb/main.c
---kernel --exitfun ssb_devices_freeze --exitfun ssb_devices_thaw  --exitfun ssb_for_each_bus_call
-
-usb-gadget-serial
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/gadget/u_serial.c
-kernel/drivers/usb/gadget/u_serial.c
---kernel --mainfun gserial_setup --nonstatic
-
-infiniband-ulp
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/ulp/srp/ib_srp.c
-kernel/drivers/infiniband/ulp/srp/ib_srp.c
---kernel --unique srp_host
+--kernel --exitfun ssb_devices_freeze --exitfun ssb_devices_thaw  --exitfun ssb_for_each_bus_call --check buses --check attach_queue

@@ -1,4 +1,4 @@
-// PARAM: --with var_eq --with symb_locks --with region
+// PARAM: --with var_eq --with symb_locks --with region --region-offsets
 #include<pthread.h>
 
 struct list_head {

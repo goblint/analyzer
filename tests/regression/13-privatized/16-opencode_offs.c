@@ -1,4 +1,4 @@
-// PARAM: --with shape --nonstatic --unique usb_drv --unique usb_bus
+// PARAM: --with shape --nonstatic --unique usb_drv --unique usb_bus --region-offsets
 #include<linuxlight.h>
 
 struct usb_drv { 

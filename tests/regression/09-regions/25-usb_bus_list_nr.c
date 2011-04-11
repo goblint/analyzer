@@ -1,4 +1,4 @@
-// SKIP PARAM: --with region --kernel --nonstatic
+// SKIP PARAM: --with region --kernel --nonstatic --region-offsets
 #include<linux/module.h>
 #include<linux/list.h>
 #include<linux/mutex.h>

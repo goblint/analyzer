@@ -1,4 +1,4 @@
-// SKIP! PARAM: --with var_eq --with symb_locks --with region
+// SKIP! PARAM: --with var_eq --with symb_locks --with region --region-offsets
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>
