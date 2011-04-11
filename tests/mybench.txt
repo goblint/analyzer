@@ -12,11 +12,6 @@ synthetic/tail.c
 
 splice.c
 
-synthetic/splice.c
---kernel
-
-splice-inl.c
-
 synthetic/splice-inl.c
 --kernel
 
