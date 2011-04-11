@@ -129,6 +129,7 @@ let getFuns fileAST  : fundec list =
       | GFun({svar={vname=mn; vattr=attr}} as def, _) 
         when !GU.kernel && is_init attr && def_main -> (def :: m, o)
       | GFun({svar={vname=mn; vattr=attr}} as def, _) when !GU.kernel && is_exit attr -> 
+          GU.exitfun :=  mn :: !GU.exitfun;
           Printf.printf "Cleanup function: %s\n" mn; (m, def :: o) 
       | GFun ({svar={vstorage=NoStorage}} as def, _) when (!GU.nonstatic)-> (m, def :: o)
       | GFun (def, _) when (!GU.allfuns) -> (m, def :: o)
