@@ -2,10 +2,7 @@
 require 'fileutils' 
 
 $analyses = [
-  ["default",   ""],
-#   ["var_eq",    "--with symb_locks --with var_eq"],
-  ["region",    "--with region"],
-#   ["region_eq", "--with symb_locks --with var_eq --with region"]
+#   ["default",   ""],
   ["shape",    "--with shape"],
 ]
 maxlen = $analyses.map { |x| x[0].length }.max + 1
@@ -87,7 +84,11 @@ def print_res (i)
                 f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
               end
             else
-              f.puts "<td><a href = #{outfile}>#{"%.2f" % res} s</a> (<font color=\"green\">#{correlations}</font> / <font color=\"seagreen\">#{safely}</font> / <font color=\"brown\">#{warnings}</font> / <font color=\"red\">#{uncalled}</font>)</td>"
+              thenumbers =  "<font color=\"green\">#{correlations}</font> / "
+              thenumbers << "<font color=\"seagreen\">#{safely}</font> / " if safely > 0
+              thenumbers << "<font color=\"brown\">#{warnings}</font>"
+              thenumbers << " / <font color=\"red\">#{uncalled}</font>" if uncalled > 0
+              f.puts "<td><a href = #{outfile}>#{"%.2f" % res} s</a> (#{thenumbers})</td>"
             end
           end
         else

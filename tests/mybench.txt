@@ -63,11 +63,6 @@ http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/message.c
 kernel/message.c
 --kernel --nonstatic --check set_config_list
 
-urb.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/urb.c
-kernel/urb.c
---kernel --nonstatic --unique usb_anchor --check "{struct usb_anchor}"
-
 ieee1394-raw
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/ieee1394/raw1394.c
 kernel/drivers/ieee1394/raw1394.c
@@ -77,13 +72,3 @@ infiniband-ucma
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/core/ucma.c
 kernel/drivers/infiniband/core/ucma.c
 --kernel --unique ucma_file --check "{struct ucma_file}"
-
-sound-core-timer
-http://lxr.linux.no/#linux+v2.6.35.4/sound/core/timer.c
-kernel/sound/core/timer.c
---kernel --check snd_timer_list
-
-ssb-main
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/ssb/main.c
-kernel/drivers/ssb/main.c
---kernel --exitfun ssb_devices_freeze --exitfun ssb_devices_thaw  --exitfun ssb_for_each_bus_call --check buses --check attach_queue
