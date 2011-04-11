@@ -314,15 +314,23 @@ struct
       let ents = Spec.enter_func ctx None fd.svar args in
       List.map (fun (_,s) -> fd.svar, SD.lift s) ents  
     in
+    let do_otherfuns =
+      let f x =
+        if List.mem x.svar.vname !GU.exitfun
+        then enter_with (SD.unlift startstate) x
+        else enter_with (Spec.otherstate ())   x
+      in
+      List.map f
+    in
     let startvars = 
       begin try MyCFG.dummy_func.svar.vdecl <- (List.hd funs).svar.vdecl with Failure _ -> () end;
       match !GU.has_main, funs with 
         | true, f :: fs -> 
             GU.mainfun := f.svar.vname;
             let nonf_fs = List.filter (fun x -> x.svar.vid <> f.svar.vid) fs in
-            enter_with (SD.unlift startstate) f @ List.concat (List.map (enter_with (Spec.otherstate ())) nonf_fs)
+            enter_with (SD.unlift startstate) f @ List.concat (do_otherfuns nonf_fs)
         | _ ->
-            (MyCFG.dummy_func.svar, startstate) :: List.concat (List.map (enter_with (Spec.otherstate ())) funs)
+            (MyCFG.dummy_func.svar, startstate) :: List.concat (do_otherfuns funs)
     in
     let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (Spec.context_top (SD.unlift e))) startvars in
     let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in
