@@ -628,7 +628,7 @@ struct
           [(Lockset.add (console_sem,true) ctx.local),Cil.integer 1, true]
       | _, "release_console_sem" when !GU.kernel -> 
           [(Lockset.remove (console_sem,true) ctx.local),Cil.integer 1, true]
-      | _, "__builtin_prefetch"  -> 
+      | _, "__builtin_prefetch" | _, "misc_deregister" -> 
           [ctx.local,Cil.integer 1, true]
       | _, x -> 
           let arg_acc act = 

@@ -120,7 +120,7 @@ struct
       | `Right ((v,_),_) 
       | `Left v -> 
     upd v true;
-    (*Messages.waitWhat ("Improper use of "^v.vname^".");*)
+(*     Messages.waitWhat ("Improper use of "^v.vname^"."); *)
     remove lp sm
 
   let find' ask gl k m = 
@@ -514,8 +514,8 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
               | v when v.vglob -> globals := v :: !globals
               | v              -> locals  := v :: !locals
           in
-          ListPtrSet.iter add_vars s;
-          ListPtrSet.iter add_vars e;
+          if not (ListPtrSet.is_top s) then ListPtrSet.iter add_vars s;
+          if not (ListPtrSet.is_top e) then ListPtrSet.iter add_vars e;
           begin try 
             let lp = ListPtrSet.choose s in
             if S.mem k ts then () else f lp (S.add lp ts)
@@ -546,8 +546,8 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
       in
       blab (not (ListPtrSet.is_top pointedBy)) (fun () -> Pretty.printf "everything points at me\n") &&
       (ListPtrSet.for_all dead pointedBy)
-    with SetDomain.Unsupported _  -> ((*Messages.waitWhat "bla";*) false)
-     | Not_found -> (*Messages.waitWhat "bla2";*) false
+    with SetDomain.Unsupported _  -> ((*Messages.waitWhat "bla"; *)false)
+     | Not_found -> (*Messages.waitWhat "bla2"; *)false
   in
   let single_nonlist k = 
     (not (ListPtr.get_var k).vglob) &&
@@ -560,7 +560,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
     then (if single_nonlist k && noone_points_at_me k sm then (sm, ds, ([ListPtr.get_var k],[])::rms) else (sm, ds, rms)) 
     else 
       let isbroken = not (proper_list k) in
-(*      if isbroken then Messages.waitWhat (ListPtr.short 80 k) ;*)
+(*      if isbroken then Messages.waitWhat (ListPtr.short 80 k) ; *)
 (*       Messages.report ("checking :"^ListPtr.short 80 k^" -- "^if isbroken then " broken " else "still a list"); *)
       (kill ask gl upd k sm, (ListPtr.get_var k, isbroken) :: ds, reg_for k :: rms)
   in
