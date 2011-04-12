@@ -34,7 +34,7 @@ class Project
     @warnings = warnings
   end
   def to_html
-    orgfile = name + ".c.txt"
+    orgfile = name + ".c.html"
     cilfile = name + ".cil.txt"
     "<td>#{@id}</td>\n" +
     "<td><a href=\"#{orgfile}\">#{@name}</a></td>\n" +
@@ -145,8 +145,8 @@ projects.each do |p|
   confile = File.join(testresults, p.name + ".con.txt")
   solfile = File.join(testresults, p.name + ".sol.txt")
   cilfile = File.join(testresults, p.name + ".cil.txt")
-  orgfile = File.join(testresults, p.name + ".c.txt")
-  `cat -n #{filename} > #{orgfile}`
+  orgfile = File.join(testresults, p.name + ".c.html")
+  `code2html -l c -n #{filename} > #{orgfile}`
   `#{goblint} #{filename} --justcil #{p.params} >#{cilfile} 2> /dev/null`
   p.size = `wc -l #{cilfile}`.split[0]
   `#{goblint} #{filename} #{p.params} 1>#{warnfile} --stats 2>#{statsfile}`
@@ -156,9 +156,20 @@ end
 FileUtils.mv(backup,json) if File.exists?(backup) 
 
 #Outputting
+header = <<END
+<head>
+  <title>Tests (#{`uname -n`.chomp})</title>
+  <style type="text/css">
+    A:link {text-decoration: none}
+    A:visited {text-decoration: none}
+    A:active {text-decoration: none}
+    A:hover {text-decoration: underline}
+</style>
+</head>
+END
 File.open(File.join(testresults, "index.html"), "w") do |f|
   f.puts "<html>"
-  f.puts "<head><title>Tests (#{`uname -n`.chomp})</title></head>"
+  f.puts header
   f.puts "<body>"
   f.puts "<table border=2 cellpadding=4>"
   gname = ""
@@ -251,7 +262,8 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
       if ferr.nil? then
         f.puts "<td style =\"color: red\">FAILED</td>"
       else
-        f.puts "<td style =\"color: red\">LINE #{ferr}</td>"
+        whataglorifiedmess = p.name + ".c.html"
+        f.puts "<td><a href=\"#{whataglorifiedmess}#line#{ferr}\" style =\"color: red\">LINE #{ferr}</a></td>"
       end
     end
 

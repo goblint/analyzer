@@ -20,6 +20,7 @@ FileUtils.mv(json, backup) if File.exists?(json)
 
 class Project
   attr_reader :id, :name, :group, :path, :params
+  attr_accessor :url
   def initialize(id, name, size, url, group, path, params)
     @id       = id
     @name     = name
@@ -38,10 +39,21 @@ class Project
 end
 $projects = []
 
+$header = <<END
+<head>
+  <title>r#{$rev} (#{`uname -n`.chomp})</title>
+  <style type="text/css">
+    A:link {text-decoration: none}
+    A:visited {text-decoration: none}
+    A:active {text-decoration: none}
+    A:hover {text-decoration: underline}
+</style>
+</head>
+END
 def print_res (i)
   File.open($testresults + "index.html", "w") do |f|
     f.puts "<html>"
-    f.puts "<head><title>r#{$rev} (#{`uname -n`.chomp})</title></head>"
+    f.puts $header
     f.puts "<body>"
     f.puts "<p>Benchmarking in progress: #{i}/#{$projects.length}</p>" unless i.nil?
     f.puts "<table border=2 cellpadding=4 style=\"font-size: 90%\">"
@@ -145,13 +157,13 @@ File.open(file, "r") do |f|
       next
     end
     name = line.chomp
-    description = f.gets.chomp
+    url = f.gets.chomp
     path = File.expand_path(f.gets.chomp, bench)
     size = `wc -l #{path}`.split[0] + " lines"
     params = f.gets.chomp
     params = "" if params == "-"
     id += 1
-    p = Project.new(id,name,size,description,gname,path,params)
+    p = Project.new(id,name,size,url,gname,path,params)
     $projects << p
   end
 end
@@ -172,6 +184,10 @@ $projects.each do |p|
   Dir.chdir(dirname)
   outfiles = $testresults + File.basename(filename,".c") + ".*"
   `rm -f #{outfiles}`
+  if p.url == "generate!" then
+    `code2html -l c -n #{p.path} #{$testresults + p.name}.html`
+    p.url = p.name + ".html"
+  end
   puts "Analysing #{filename} (#{p.id}/#{$projects.length})"
   $analyses.each do |a|
     aname = a[0]
