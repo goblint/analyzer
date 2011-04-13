@@ -5,6 +5,11 @@ generate!
 synthetic/move.c
 --kernel
 
+inlined.c
+generate!
+synthetic/move-inl.c
+
+
 tail.c
 generate!
 synthetic/tail.c
@@ -12,7 +17,7 @@ synthetic/tail.c
 
 splice.c
 generate!
-synthetic/splice-inl.c
+synthetic/splice.c
 --kernel
 
 backptr.c
