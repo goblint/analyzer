@@ -6,7 +6,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module Dom = ConcDomain.ThreadDomain
+  module Dom = ConcDomain.ThreadRhombDomain
   module Glob = Global.Make (Lattice.Unit) (* no global state *)
   
   let query_lv ask exp = 

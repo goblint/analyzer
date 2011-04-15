@@ -47,6 +47,8 @@ module Simple = struct
     | _   -> false
 end
 
+(* Thread state where state is chain. *)
+
 module ThreadStateNames = struct
   exception InvalidStateValue
   let n = 4
@@ -83,4 +85,51 @@ module ThreadDomain = struct
     let n = if o == V.created then V.joined else V.many_many in
     add t n (remove t m)
     
+end
+
+(* Alternative domain where the thread state is a rhomb lattice. *)
+
+module ThreadRhombNames = struct
+  let truename = "created" 
+  let falsename = "joined"
+end
+
+module ThreadRhombCJState = struct
+  include IntDomain.MakeBooleans (ThreadRhombNames)
+end
+
+module ThreadRhombLiftNames = struct
+  let bot_name = "zero" 
+  let top_name = "many/many"
+end
+
+module ThreadRhombState = struct
+  include Lattice.Flat (ThreadRhombCJState) (ThreadRhombLiftNames)
+end
+
+module ThreadRhombDomain = struct
+  include MapDomain.MapBot (Basetype.Variables) (ThreadRhombState)
+  
+  let zero = ThreadRhombState.bot()
+  let many_many = ThreadRhombState.top()
+  
+  let created = `Lifted true
+  let joined = `Lifted false
+  
+  let create_thread t m =
+    let o = (find t m) in
+    let n = if o == zero then created else many_many in
+    add t n (remove t m)
+    
+  let join_thread t m =
+    let o = (find t m) in
+    let n = if o == created then joined else many_many in
+    add t n (remove t m)
+    
+end
+
+module Glob = 
+struct
+  module Var = Basetype.Variables
+  module Val = ThreadState
 end
