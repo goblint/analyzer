@@ -88,22 +88,28 @@ struct
         in
         let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
         if has_dec && not (LibraryFunctions.use_special f.vname) then
+			  begin
           let work = Spec.enter_func (A.context top_query st theta [] add_var add_diff) lval f args in
           let leave st1 st2 = Spec.leave_func (A.context top_query st1 theta [] add_var add_diff) lval exp f args st2 in
-          let general_results = List.map (fun (y,x) -> y, SD.unlift (add_one_call x)) work in
-          let joined_result   = List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst tst)) (Spec.Dom.bot ()) general_results in
+          let general_results = List.map (fun (y,x) -> y, add_one_call x) work in
+          let non_bottoms     = List.filter (fun (_,x) -> not (SD.is_bot x)) general_results in
+          let joined_result   = List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst (SD.unlift tst))) (Spec.Dom.bot ()) non_bottoms in
           if P.tracking then P.track_call f (SD.hash st) ;
-          Spec.Dom.join st' joined_result        
+          Spec.Dom.join st' joined_result
+			  end        
         else
+				begin
           let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
-          List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (A.context top_query st theta [] add_var add_diff) lval f args) 
+          List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (A.context top_query st theta [] add_var add_diff) lval f args)
+			  end 
       in
       try 
         let crap  = List.fold_left add_function (Spec.Dom.bot ()) funs in      
         let fdiff, fvars = prepare_forks !forks in
         let (d, diff, forks) = lift_st crap fvars in
         (d,diff @ fdiff @ !start_vals @ !diffs,forks)
-      with Analyses.Deadcode -> (SD.bot (), !start_vals, [])
+      with 
+				Analyses.Deadcode -> (SD.bot (), !start_vals, [])
     in
     let cfg' n = 
       match n with 
