@@ -122,7 +122,7 @@ end
 module VarName = 
 struct
   include Lattice.Flat (Basetype.Variables) (struct let bot_name = "Error" 
-                                                    let top_name = "Any function" end)
+                                                    let top_name = "Any Var" end)
                                                     
   let to_fun_name (x) = `Lifted x
   
@@ -142,8 +142,23 @@ struct
 
 end
 
-module VarNameSet = SetDomain.ToppedSet (VarName) (struct let topname = "unkown fptr" end) 
-module Globals = Lattice.Prod (FieldSet) (VarNameSet)
+module ClassName = 
+struct
+  include Lattice.Flat (Basetype.RawStrings) (struct let bot_name = "Error" 
+                                                    let top_name = "Any Var" end)
+                                                    
+  let to_fun_name (x) = `Lifted x
+  
+  let from_fun_name = function
+    | `Lifted x -> x
+    | _ -> ""
+
+end
+
+
+module VarNameSet = SetDomain.ToppedSet (VarName) (struct let topname = "unkown func ptr" end) 
+module ClassNameSet = SetDomain.ToppedSet (ClassName) (struct let topname = "unkown class name" end) 
+module Globals = Lattice.Prod3 (FieldSet) (VarNameSet) (ClassNameSet) (*tainted fields * func ptrs * local classes *)
 
 module Diff = SetDomain.ToppedSet (Printable.Prod (Var) (Globals)) (struct let topname = "Unknown fieldset diff" end)
 
@@ -194,16 +209,22 @@ struct
   let analyzed_funs : (string, unit) Hashtbl.t = Hashtbl.create 111 (*list of funs that we have inspected*)
   let required_non_public_funs : (string, string list) Hashtbl.t = Hashtbl.create 111 (*private/protected funs that were actually used*)
   let reentrant_funs : (string, unit) Hashtbl.t = Hashtbl.create 111 (*private/protected funs that were actually used*)
-  
+
+  let danger_funs : (string, string list) Hashtbl.t = Hashtbl.create 111 (*list of funs that we have inspected*)
+  let local_classes : (string, unit) Hashtbl.t = Hashtbl.create 111 (*list of funs that we have inspected*)
+		  
 	let safe_methods : (string, Str.regexp list) Hashtbl.t = Hashtbl.create 111 (*imported list of safe methods*) 
   let safe_vars : (string, Str.regexp list) Hashtbl.t = Hashtbl.create 111 (*imported list of safe vars*)
    
   let enable_dbg = false
 
-	let dbg_report x = 
-		    if enable_dbg then
-				(*counter := !counter + 1;*)
-        let loc = !Goblintutil.current_loc in
+  let dbg_line_start = 437
+	let dbg_line_end = 437
+
+	let dbg_report x =
+		let loc = !Goblintutil.current_loc in 
+		    if enable_dbg && loc.line>=dbg_line_start && loc.line<=dbg_line_end then
+				(*counter := !counter + 1;*)        
           if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
         Messages.report ((*(string_of_int !counter)^*)"CW: "^x)
 
@@ -213,19 +234,18 @@ struct
       if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
         Messages.report_error ("CW: "^x)
 				
-  let taintedFunDec = emptyFunction "@tainted_fields"               
-  
-  let tainted_varstore = ref taintedFunDec.svar
-  let tainted_varinfo () = !tainted_varstore 
-  
-  let get_tainted_fields gf = fst (gf (tainted_varinfo ()))
-
+  let taintedFunDec = (emptyFunction "@tainted_fields").svar               
+    
+  let get_tainted_fields gf = let (a,b,c) = (gf taintedFunDec) in a
+  let get_fptr_items gf = let (a,b,c) = (gf taintedFunDec) in b
+  let get_class_items gf = let (a,b,c) = (gf taintedFunDec) in c
+		
+(*
   let fptrFunDec = emptyFunction "@fptrs"
 	               
   let fptr_varstore = ref fptrFunDec.svar
   let fptr_varinfo () = !fptr_varstore 
-  
-  let get_fptr_items gf = snd (gf (fptr_varinfo ()))
+*)  
 
   let unresFunDec = emptyFunction "@unresolved_function"	
 		  
@@ -239,14 +259,29 @@ struct
 	
   let isnot_mainclass x = (x <> !Goblintutil.mainclass) && not (InhRel.mem (!Goblintutil.mainclass, x) !inc)(*check inheritance*)
 
-  let is_ext fn=match Goblintutil.get_class fn with
-      | Some x -> (*report("is_main ? "^x);*) isnot_mainclass x
+	let dump_local_classes glob =
+		ClassNameSet.iter (fun x -> report(ClassName.from_fun_name x)) (get_class_items glob)
+			
+	let isnot_localclass n glob = let tm= isnot_mainclass n in
+	                              let lc= (ClassNameSet.fold (fun x y -> y && (ClassName.from_fun_name x)<> n && not (InhRel.mem (ClassName.from_fun_name x, n) !inc) ) (get_class_items glob) true) in
+																(*dump_local_classes glob;report("notlocal ? "^n^" : "^string_of_bool (tm&&lc));*)
+																tm&&lc  
+ 
+
+	let islocal_notmainclass n glob = 
+	                              let lc= (ClassNameSet.fold (fun x y -> y && (ClassName.from_fun_name x)<> n && not (InhRel.mem (ClassName.from_fun_name x, n) !inc) ) (get_class_items glob) true) in
+	                                                            (*dump_local_classes glob;report("notlocal ? "^n^" : "^string_of_bool (tm&&lc));*)
+	                                                             not lc && isnot_mainclass n
+	
+	
+  let is_ext fn glob = match Goblintutil.get_class fn with
+      | Some x -> (*report("is_main ? "^x);*) isnot_localclass x glob
       | _ ->
           true
 					
 	let get_inherited_from fn =
 		let rec add_classes c l =
-			try (List.filter (fun x -> not (isnot_mainclass x)) (Hashtbl.find derived c)) @l with _ -> l
+			try (List.filter (fun x -> (*not (isnot_mainclass x)*) true) (Hashtbl.find derived c)) @l with _ -> l
 		in
 		match Goblintutil.get_class fn with
 	      | Some x -> 
@@ -361,13 +396,42 @@ struct
 				  (*printf "Danger.find %s(%d)\n" v2.vname v2.vid;*)
           let x = Danger.find v2 ds in
           let res1=(this_name = v2.vname) in
-          let res2=not (ArgSet.is_bot x) && (ArgSet.for_all (fun v -> (FieldVars.get_var v).vname = this_name) x)
+					(*dbg_report ("cft?"^(FieldVars.get_var v).vname^" : "^string_of_bool (Str.string_match (Str.regexp "_ZTV.*") ((FieldVars.get_var v).vname) 0));*)
+          let res2=not (ArgSet.is_bot x) && 
+					(ArgSet.for_all 
+					   (fun v -> (FieldVars.get_var v).vname = this_name 
+						  || Str.string_match (Str.regexp "_ZTV.*") ((FieldVars.get_var v).vname) 0
+							(*|| try Cilfacade.getFun ((FieldVars.get_var v).vname);true with _ -> false*)  
+						 )
+						 x)
 					in (*ignore(if res1||res2 then ignore(printf "--- exp:%a - %s(%b,%b)\n" d_exp e (sprint 160 (ArgSet.pretty () x)) res1 res2));*)
 					(*if (ArgSet.is_bot x) then dbg_report ("bot_args: " ^(sprint 160 (d_exp () e)));
 					dbg_report ("cft: " ^(sprint 160 (d_exp () e))^" name : "^v2.vname^" as : "^(sprint 160 (ArgSet.pretty () x))^"\n");*)
 					res1||res2 (*ArgSet.for_all () ArgSet.bot() is always true????*) 
     in
     from_this e
+		
+  let may_be_constructed_from_this_direct ds e = 
+    let xor a b = (a || b) && not (a && b) in
+    let rec from_this = function 
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _  
+      | Const _ 
+      | AlignOfE _ -> false
+      | UnOp  (_,e,_)     -> from_this e      
+      | BinOp (_,e1,e2,_) -> xor (from_this e1) (from_this e2)
+      | AddrOf  (Mem e,o) 
+      | StartOf (Mem e,o) 
+      | Lval    (Mem e,o) -> from_this e (* PT(e) *)
+      | CastE (_,e)       -> from_this e 
+      | Lval    (Var v2,o) 
+      | AddrOf  (Var v2,o) 
+      | StartOf (Var v2,o) -> 
+          (this_name = v2.vname) 
+    in
+    from_this e		
 		
   let may_be_constructed_from_this ds e = 
     let xor a b = (a || b) && not (a && b) in
@@ -398,7 +462,7 @@ struct
                     dbg_report ("cft: " ^(sprint 160 (d_exp () e))^" name : "^v2.vname^" as : "^(sprint 160 (ArgSet.pretty () x))^"\n");*)
                     res1||res2 (*ArgSet.for_all () ArgSet.bot() is always true????*) 
     in
-    from_this e		
+    from_this e     		
     
   let get_field_from_this e ds  = 
     let first_field = function
@@ -662,6 +726,13 @@ struct
     end
         else
             false		
+												
+    let rec maybe_deref exp =
+        match exp with
+            | Lval(Mem (AddrOf(ep,_)),_) -> maybe_deref (Lval(ep,NoOffset))
+            | Lval(Var v,_) -> false
+            | _ -> true	(*FIXME: very crude*)	
+
 
 		let danger_assign v args (fd,st,gd) must_assign fs = (*checks if the new danger val points to this->something and updates this->something*)
       let danger_upd = if must_assign || (v.vglob) then Danger.add else Danger.merge
@@ -669,8 +740,8 @@ struct
         (fd, danger_upd v args st,gd)
 				
 		let uid = ref 0
-		
-    let danger_propagate v args (fd,st,gd) must_assign fs = (*checks if the new danger val points to this->something and updates this->something*)
+			
+    let danger_propagate v args (fd,st,(gd:Diff.t)) must_assign fs glob = (*checks if the new danger val points to this->something and updates this->something*)
 		  uid:=!uid+1;
       dbg_report((string_of_int (!uid) )^":"^"danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
 		  (*printf "%s\n" ("danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
@@ -678,7 +749,7 @@ struct
 				                 else Danger.merge
 				in
         let update_this fv (fd,st,gd) ds = 
-        dbg_report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));                  
+        (*dbg_report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));*)                  
         let (fd,st,gd) = if (may_be_constructed_from_this st (Lval (Var (FieldVars.get_var fv),NoOffset))) then
         begin
 					let rhs_cft = ArgSet.fold (fun x y->
@@ -691,26 +762,49 @@ struct
 							(is_tainted fs st exp) in
 						let cft = (may_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset)))
 						 in            
-					  if (not cft || it) && (is_ext (FieldVars.get_var x).vname) && not (is_safe_name (FieldVars.get_var x).vname)
+					  if (not cft || it) && (is_ext (FieldVars.get_var x).vname) glob && not (is_safe_name (FieldVars.get_var x).vname)
 					  then 
 						begin	
 							(*report((string_of_int (!uid) )^":"^(sprint 160 (FieldVars.pretty () x))^" it "^string_of_bool it^" cft "^string_of_bool cft);*)
 							false
 						end 
 						else y) 
-					args true 
+					args true
 					in
-            dbg_report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS_2 "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args)^" rhs_ctf : "^string_of_bool rhs_cft);                  
+					(*
+            let must_rhs_cft = ArgSet.fold (fun x y->
+                let it =
+                    let exp = 
+                        FieldVars.apply_field 
+                        (fun y->(Lval (Var (FieldVars.get_var x),(Field (y,NoOffset)) ))) 
+                        (Lval (Var (FieldVars.get_var x),NoOffset)) x                                
+                    in
+                    (is_tainted fs st exp) in
+                let cft = (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset)))
+                 in            
+              if (not cft || it) && (is_ext (FieldVars.get_var x).vname) glob && not (is_safe_name (FieldVars.get_var x).vname)
+              then 
+                begin   
+                    (*report((string_of_int (!uid) )^":"^(sprint 160 (FieldVars.pretty () x))^" it "^string_of_bool it^" cft "^string_of_bool cft);*)
+                    false
+                end 
+                else y) 
+            args true 					 
+					in
+					*)
+            (*dbg_report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS_2 "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args)^" rhs_ctf : "^string_of_bool rhs_cft);*)                  
 						if not rhs_cft&& not (FieldVars.get_var fv).vglob then
 						begin
-	            dbg_report((string_of_int (!uid) )^":"^"danger.prop_this "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));
-							let flds = get_field_from_this (Lval (Var (FieldVars.get_var fv),NoOffset)) st in                
-	            if FieldSet.is_bot flds&& not (FieldVars.has_field fv) then 
+	            (*dbg_report((string_of_int (!uid) )^":"^"danger.prop_this "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));*)
+							let flds = get_field_from_this (Lval (Var (FieldVars.get_var fv),NoOffset)) st in     
+							           
+	            if false&&FieldSet.is_bot flds&& not (FieldVars.has_field fv) then 
 							  begin
 									error ("This has become tainted "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));
 	                (fd,st,gd)
 								end
 								else
+							
 								begin
 	                let fields1= (*filter pointers*)
 										FieldSet.fold (fun x y -> if isPointerType(x.ftype) then FieldSet.add x y else y) flds (FieldSet.bot ())
@@ -722,9 +816,9 @@ struct
 										else fields1) (fields1) fv
 								  in
                   (*report("danger.prop_this "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));*)									
-									if not (FieldSet.is_bot fields2) then 
+									if not (FieldSet.is_bot fields2) then									  	 
 		              report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () fields2) ^"("^(FieldVars.get_var fv).vname^")"^" via "^v.vname);
-			            (fd,st, Diff.add (tainted_varinfo (), (fields2,VarNameSet.bot () ) )  gd) (*update this->field?*)
+			            (fd,st, Diff.add (taintedFunDec, (fields2,VarNameSet.bot (),ClassNameSet.bot () ) )  gd) (*update this->field?*)
 								end
 							end
             else
@@ -746,11 +840,11 @@ struct
                 (*&& not (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset)))*) 
 								then 
                   begin 
-										dbg_report((string_of_int (!uid) )^":"^"danger.prop_non_this "^var.vname^" -> "^sprint 160 (ArgSet.pretty () args));
+										(*dbg_report((string_of_int (!uid) )^":"^"danger.prop_non_this "^var.vname^" -> "^sprint 160 (ArgSet.pretty () args));*)
                     Danger.merge var args st 
                   end else st) ds_args st                                      
             in
-            dbg_report((string_of_int (!uid) )^":"^"danger.prop_non_this_check "^v.vname^" = "^(sprint 160 (FieldVars.pretty () fv)));
+            (*dbg_report((string_of_int (!uid) )^":"^"danger.prop_non_this_check "^v.vname^" = "^(sprint 160 (FieldVars.pretty () fv)));*)
             let st = if (*not (constructed_from_this st (Lval (Var (FieldVars.get_var fv),NoOffset))) &&*)
 						ArgSet.is_bot (Danger.find (FieldVars.get_var fv) st) then
 							  danger_upd (FieldVars.get_var fv) args st
@@ -767,12 +861,12 @@ struct
                 (fd,st,gd)
          end			
 				in
-			dbg_report((string_of_int (!uid) )^":"^"danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
+			(*dbg_report((string_of_int (!uid) )^":"^"danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
 			let ds = Danger.find v st in
 				let (fd,st,gd) =
 				if (*not must_assign && MUST PROPAGATE HERE!!!*)not (ArgSet.is_bot ds) then
 				begin
-          dbg_report((string_of_int (!uid) )^":"^"danger.prop_ds_1 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));
+          (*dbg_report((string_of_int (!uid) )^":"^"danger.prop_ds_1 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));*)
 					ArgSet.fold (fun x y -> update_this x y ds) ds (fd,st,gd) 
 				end
 				else	
@@ -782,7 +876,7 @@ struct
 			let mbg_lhs = may_be_a_perfectly_normal_global (Lval (Var v,NoOffset)) true (fd,st,gd) (FieldSet.bot ()) in
       let fd,st,gd =  if (not cft_lhs || mbg_lhs) && not (v.vglob) then
 			begin 
-        dbg_report((string_of_int (!uid) )^":"^"danger.prop_ds_2 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));
+        (*dbg_report((string_of_int (!uid) )^":"^"danger.prop_ds_2 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));*)
 				update_this (FieldVars.gen v) (fd,st,gd) args
 			end
 			else fd,st,gd
@@ -796,14 +890,15 @@ struct
       else false 
 								
     (*analog to may_be_.._global, prints warnings*)
-  let warn_bad_dereference e fromFun (fd, st,df) fs ss = (**)
-    
+  let rec warn_bad_dereference e fromFun (fd, st,df) fs ss = (**)
+
+    if (maybe_deref e) then				
     let warn_exp e = 
       (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
       let warn_one_lv = function
         | v when (not fromFun) && v.vname = this_name -> 
-                    false
-        | v ->
+                    false			 
+        | v ->					
           let args = Danger.find v st in
           (*report ("warn_bad_reachables: check "^v.vname);*)
           if not (ArgSet.is_bot args)    
@@ -838,10 +933,55 @@ struct
     in
     warn_exp e 						
 
+
+    (*analog to may_be_.._global, prints warnings*)
+  let has_bad_reachables ask args fromFun (fd, st,df) fs ss = (**)
+    
+    let warn_exp e = 
+      (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
+      let warn_one_lv = function
+        | v when (not fromFun) && (v.vname = this_name) -> 
+                    false
+        | v ->
+          let args = Danger.find v st in
+          (*report ("warn_bad_reachables: check "^v.vname);*)
+          if not (ArgSet.is_bot args)
+                    &&
+            (is_bad_reachable v st|| ArgSet.fold (fun x y -> y || is_bad_reachable (FieldVars.get_var x) st) args false)
+                        
+          then begin    
+                        (*report ("warn_bad_reachables: "^(sprint 160 (d_exp () e))^" -> NOT bot ");*)
+                          if ArgSet.fold (fun x y -> if y then true else begin
+                            let is = (is_safe_name (FieldVars.get_var x).vname) in
+                            let cft = (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) in
+                            (*report ("warn_bad_reachables: "^(sprint 160 (d_exp () e))^" -> "^(sprint 160 (FieldVars.pretty () x))^ "safe : "^string_of_bool is^" cft : "^string_of_bool cft );*)  
+                            not is 
+                            &&( (fromFun) 
+                            || not cft )  
+                            end) args false 
+                            then                          											
+													true
+													else
+														false
+                    end
+                    else 
+                    begin   
+                        (*report ("warn_bad_reachables: "^(sprint 160 (d_exp () e))^" -> bot ");*)
+                        false
+                    end
+      in
+      if isPointerType (typeOf (stripCasts e)) then 
+			begin
+        (ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_args st e) false)
+				||(ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_ptrs st e) false)  (*avoid multiple warnings*)
+      end
+			else false
+    in
+    List.exists warn_exp args 
 		
 	(*analog to may_be_.._global, prints warnings*)
   let warn_bad_reachables ask args fromFun (fd, st,df) fs ss = (**)
-	
+	  
     let warn_exp e = 
       (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
       let warn_one_lv = function
@@ -865,7 +1005,12 @@ struct
 							|| not cft )  
 							end) args false 
 							then
-						  report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");true
+							begin
+								  report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");
+									true
+							end
+							else
+								false
 					end
 					else 
 					begin	
@@ -917,29 +1062,32 @@ struct
     res
 		
  
-  let assign_to_lval fs lval (fd,st,gd) args must_assign = (*propagate dangerous vals*)
+  let assign_to_lval fs lval (fd,st,gd) args must_assign glob = (*propagate dangerous vals*)
+	  (*dbg_report ("assign_to_lval "^(sprint 160 (d_plainexp () (Lval lval))));*)
     match lval with 
       | Var v , ofs -> dbg_report ("danger.add v "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
 			                 (*Danger.add v args st*)
 											 
-											 if not (is_safe_name v.vname) then
-											 danger_propagate v args (fd,st,gd) must_assign fs
-											 else
-												 
-												(fd,st,gd)
+											 if not (is_safe_name v.vname) then (*MUST BE PROPAGATE, we don't know if we alias or reference*)
+											     (*if maybe_deref (Lval lval) then*)
+											        danger_propagate v args (fd,st,gd) must_assign fs glob
+													 (*else
+														  danger_assign v args (fd,st,gd) must_assign fs*)
+											 else												 
+											     (fd,st,gd)
       | Mem e , ofs -> (*if it's either not const from this or has no fields*)
 			
 	        let cft = (must_be_constructed_from_this st (Lval lval)) in
 	        let mcft = (may_be_constructed_from_this st (Lval lval)) in
 					let fst = (get_field_from_this (Lval lval) st) in
-					let fse = (FieldSet.is_bot fst) in 
-					(*dbg_report ((sprint 160 (d_lval () lval))^" cft "^(string_of_bool cft)^" fse "^(string_of_bool fse));*)         
+					let fse = (FieldSet.is_bot fst) in 					
+					dbg_report ((sprint 160 (d_lval () lval))^" cft "^(string_of_bool cft)^" fse "^(string_of_bool fse));         
 					if  (mcft && fse) || (not cft) then 
 					begin                              
 						let vars = get_vars e in (*not very exact for huge compount statements*)
 						List.fold_left 
 	            (fun y x->dbg_report ("danger.add e "^x.vname^" = "^sprint 160 (ArgSet.pretty () args));
-	                 if not (is_safe_name x.vname) then danger_propagate x args y false fs else y) (fd,st,gd) vars
+	                 if not (is_safe_name x.vname) then danger_propagate x args y false fs glob else y) (fd,st,gd) vars
 					end
 					else
 					begin	
@@ -953,8 +1101,8 @@ struct
 								not (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) 								
 								then
 								begin
-                (*report ("assign.lval "^(sprint 160 (d_exp () (Lval lval)))^" "^(FieldVars.get_var x).vname^" = "^sprint 160 (ArgSet.pretty () (join_this_fs_to_args this fst)));*)									
-								danger_propagate (FieldVars.get_var x) (join_this_fs_to_args this fst) y false fs
+                dbg_report ("assign.lval "^(sprint 160 (d_exp () (Lval lval)))^" "^(FieldVars.get_var x).vname^" = "^sprint 160 (ArgSet.pretty () (join_this_fs_to_args this fst)));									
+								danger_propagate (FieldVars.get_var x) (join_this_fs_to_args this fst) y false fs glob
 								end
                 else (fd,st,gd)			
 								) args (fd,st,gd)  							 
@@ -962,6 +1110,51 @@ struct
 						  else						                                       
                (fd,st,gd)
 					end
+					
+  let assign_to_lval_no_prop fs lval (fd,st,gd) args must_assign glob = (*propagate dangerous vals*)
+    match lval with 
+      | Var v , ofs -> (*dbg_report ("danger.add v "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
+                             (*Danger.add v args st*)
+                                             
+                                             if not (is_safe_name v.vname) then
+                                                 danger_assign v args (fd,st,gd) must_assign fs
+                                             else                                                
+                                                 (fd,st,gd)
+      | Mem e , ofs -> (*if it's either not const from this or has no fields*)
+            
+            let cft = (must_be_constructed_from_this st (Lval lval)) in
+            let mcft = (may_be_constructed_from_this st (Lval lval)) in
+                    let fst = (get_field_from_this (Lval lval) st) in
+                    let fse = (FieldSet.is_bot fst) in 
+                    (*dbg_report ((sprint 160 (d_lval () lval))^" cft "^(string_of_bool cft)^" fse "^(string_of_bool fse));*)         
+                    if  (mcft && fse) || (not cft) then 
+                    begin                              
+                        let vars = get_vars e in (*not very exact for huge compount statements*)
+                        List.fold_left 
+                (fun y x->(*dbg_report ("danger.add e "^x.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
+                     if not (is_safe_name x.vname) then danger_assign x args y false fs else y) (fd,st,gd) vars
+                    end
+                    else
+                    begin   
+                        if cft then
+                        begin
+                            
+                            let this = get_this st e in 
+                            ArgSet.fold (fun x y -> 
+                if not ((FieldVars.get_var x).vglob)
+                                && 
+                                not (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset)))                              
+                                then
+                                begin
+                (*report ("assign.lval "^(sprint 160 (d_exp () (Lval lval)))^" "^(FieldVars.get_var x).vname^" = "^sprint 160 (ArgSet.pretty () (join_this_fs_to_args this fst)));*)                                    
+                                danger_assign (FieldVars.get_var x) (join_this_fs_to_args this fst) y false fs
+                                end
+                else (fd,st,gd)         
+                                ) args (fd,st,gd)                            
+                      end
+                          else                                                             
+               (fd,st,gd)
+                    end					
 									
   let string_of_int64 = Int64.to_string
 	
@@ -970,7 +1163,7 @@ struct
 	let split s p = List.rev (Str.split (Str.regexp_string p) s)
 			
 	(*string_of_int64 offs^" type: "^*)
-	let gen_vtbl_name s = 
+	let gen_vtbl_name s glob = 
 		try
 		  if Str.string_match filter_type s 0 then
 	    begin
@@ -985,15 +1178,15 @@ struct
 				in
         (*let const_name = "_ZN"^pn^string_of_int (String.length cls)^cls^"C2Ev" in*)
 				(*let cn = Goblintutil.get_class mangled_name in*)
-        ignore(match Goblintutil.get_class mangled_name with | Some x -> report("class_name : "^x) | _ -> report("class_name : UNKOWN"));		
-				if is_ext mangled_name then 
+        (*ignore(match Goblintutil.get_class mangled_name with | Some x -> report("class_name : "^x) | _ -> report("class_name : UNKOWN"));*)		
+				if is_ext mangled_name glob then 
 				begin
-          report ("EXT_VTBL : "^(Goblintutil.demangle mangled_name));
+          (*report ("EXT_VTBL : "^(Goblintutil.demangle mangled_name));*)
           mangled_name(*"INVALID_VTBL"*)
 				end
 				else
 				begin  
-          report ("INT_VTBL : "^(Goblintutil.demangle mangled_name));
+          (*report ("INT_VTBL : "^(Goblintutil.demangle mangled_name));*)
           mangled_name
 				end                                                        
 	    end
@@ -1003,22 +1196,8 @@ struct
 	        "INVALID_VTBL"
       end
       with _ -> report ("GEN_VTBL : INVALID_MATCH");"INVALID_VTBL"
-		
-
-	let get_vfunc_set vtn n =
-		let ihl = get_inherited_from vtn in
-		List.iter (fun x->report("DERIVED_FROM : "^x)) ihl;
-		List.fold_left (fun y x->
-	    let fn = try 				
-	        let cb = Hashtbl.find vtbls x in
-						List.nth cb n
-	    with e-> report("VTBL not found : "^x);""
-			in
-			if fn = "" then y else fn::y
-			)
-			[] ihl 
-		
-		
+			
+			
 	let add_required_fun f ht = (*build list of funs that should have been analyzed*)
 	   let get_pure_name x =
 	  let get_string so =
@@ -1034,15 +1213,42 @@ struct
 	               if not (List.fold_left (fun y x -> y || (x=fn)) false entry) then
 	                    Hashtbl.replace ht cn (fn::entry)
 	         with e->
-	    Hashtbl.replace ht cn [fn]        
-	            
+	    Hashtbl.replace ht cn [fn]   			
+				   			
 	let add_required_fun_priv f = (*build list of funs that should have been analyzed*)
 	   (*report("ADD_REQ_FUN : "^f);*)
-	    add_required_fun f required_non_public_funs  
-		
+	    add_required_fun f required_non_public_funs  	
+		    
+	let add_local_class (lc:string) (fd,st,gd) = 
+		 (*report("ADD_LOC_CLASS : "^lc);*)
+		 Hashtbl.replace local_classes lc ();
+	   fd,st, (Diff.add (taintedFunDec, (FieldSet.bot (),VarNameSet.bot (), ClassNameSet.singleton (ClassName.to_fun_name lc) ) )  gd)
+
+	let get_vfunc_set vtn n dom =
+		let ihl = get_inherited_from vtn in
+		(
+			(*List.iter (fun x->report("DERIVED_FROM "^vtn^": "^x);add_local_class x dom) ihl;*)
+			List.fold_left 
+			(fun y x -> (*report("DERIVED_FROM "^vtn^": "^x);*)
+			add_local_class x y) 
+			dom ihl
+		,
+		  List.fold_left 
+		(fun y x->
+	    let fn = try 				
+	        let cb = Hashtbl.find vtbls x in
+						List.nth cb n
+	    with e-> report("VTBL not found : "^x);""
+			in
+			if fn = "" then y else fn::y
+			)
+			[] ihl
+		)
+     
+	            		
   let filter_vtbl  = Str.regexp "_ZTV.*"
 
-  let assign_argmap fs lval exp (fd, st, df) must_assign = (*keep track of used fun args*)
+  let assign_argmap fs lval exp (fd, st, df) must_assign glob = (*keep track of used fun args*)
 			match used_args st exp with
           | s when ArgSet.is_top s ->
               Messages.warn ("Expression "^(sprint 160 (d_exp () exp))^" too complicated.");
@@ -1051,7 +1257,7 @@ struct
               let s = List.fold_left (fun y x->if not (is_safe_name x.vname) then begin ArgSet.add (FieldVars.gen x) y end else y) (ArgSet.empty()) vars in
 							dbg_report ("assign_argmap :no args: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () exp))^":"^sprint 160 (ArgSet.pretty () s)^"\n");
 							if not (ArgSet.is_bot s) then					
-					    assign_to_lval fs lval (fd, st, df) s must_assign
+					    assign_to_lval fs lval (fd, st, df) s must_assign glob
 							else 
 							(fd, st, df)
           | s -> 
@@ -1065,31 +1271,31 @@ struct
 								begin
 									let no_vtbl = 
 										dbg_report ("no_vtbl1 : "^(sprint 160 (d_lval () lval))^ " = "^sprint 160 (ArgSet.pretty () s));
-										assign_to_lval fs lval (fd, st, df) s must_assign in
+										assign_to_lval fs lval (fd, st, df) s must_assign glob in
 									if not cft then
                     match exp with
 											(*AddrOf(Var(_ZTV3FSM, Field(array:TArray(TPtr(TInt(unsigned char, ), ), Some(Const(Int64(7,int,None))), ), Index(Const(Int64(2,long long,None)), NoOffset))))*)
 											| AddrOf ((Var vi, Field(_, Index(Const(CInt64(offs, _ ,None)), NoOffset)) ) )  
 											when Str.string_match filter_vtbl vi.vname 0 ->
-											     report("DIRECT_VTBL_ACCESS : "^vi.vname^"["^string_of_int64 offs^"]");											
-                           let vfs = get_vfunc_set vi.vname ((Int64.to_int offs)+2) in
-                           List.iter (fun x -> report("VFUNC : "^x)) vfs;
-                           let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> report("UNDEF : "^x);y ) (ArgSet.bot ()) vfs  in
+											     (*report("DIRECT_VTBL_ACCESS : "^vi.vname^"["^string_of_int64 offs^"]");*)											
+                           let ((fd, st, df),vfs) = get_vfunc_set vi.vname ((Int64.to_int offs)+2) (fd, st, df) in
+                           (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
+                           let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs  in
                            let set = ArgSet.join fun_set s in 
-                           assign_to_lval fs lval (fd, st, df) set must_assign											 
+                           assign_to_lval fs lval (fd, st, df) set must_assign glob											 
 											| _ -> no_vtbl                
 									else
 										  match exp with
                     (*Lval(Mem(IndexPI(Lval(Var(llvm_cbe_tmp__8, NoOffset)), Const(Int64(1,long long,None))), NoOffset))*)
                         | Lval(Mem(BinOp (IndexPI, (Lval(Var var, NoOffset)), (Const (CInt64 (offs,_,None))), tp )),NoOffset)  ->
-                            report ("VTBL_ACCESS offset : "^string_of_int64 offs^" type: "^(sprint 160 (d_type () tp)));
+                            (*report ("VTBL_ACCESS offset : "^string_of_int64 offs^" type: "^(sprint 160 (d_type () tp)));*)
 													begin
-														let vtn = gen_vtbl_name (sprint 160 (d_type () tp)) in
-                            let vfs = get_vfunc_set vtn ((Int64.to_int offs)+1) in
-                            List.iter (fun x -> report("VFUNC : "^x)) vfs;
-														let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> report("UNDEF : "^x);y ) (ArgSet.bot ()) vfs in
+														let vtn = gen_vtbl_name (sprint 160 (d_type () tp)) glob in
+                            let ((fd, st, df),vfs) = get_vfunc_set vtn ((Int64.to_int offs)+1) (fd, st, df) in
+                            (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
+														let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
 														let set = ArgSet.join fun_set s in 
-														assign_to_lval fs lval (fd, st, df) set must_assign
+														assign_to_lval fs lval (fd, st, df) set must_assign glob
 														(*no_vtbl*)
 													end	
 												| _ -> no_vtbl
@@ -1100,11 +1306,26 @@ struct
                     let merge v fs (fd, st, df) = (*propagate the fields*)
 		                    let s = FieldSet.fold (fun x y->(*dbg_report ("added "^v.vname^"::"^x.fname);*)ArgSet.add (FieldVars.gen_f v x) y) fs (ArgSet.empty()) in
 		                    dbg_report ("no_vtbl2t : "^(sprint 160 (d_lval () lval))^ " = "^sprint 160 (ArgSet.pretty () s));
-		                    assign_to_lval fs lval (fd, st, df) s must_assign 
+		                    assign_to_lval fs lval (fd, st, df) s must_assign glob 
 		                in
 		                ArgSet.fold (fun x y->if (FieldVars.get_var x).vname = this_name then begin  merge (FieldVars.get_var x) fs y end else y) s (fd,st,df)
                   in
-                 no_vtbl
+                 (*no_vtbl*)
+                 match exp with
+                    (*Lval(Mem(IndexPI(Lval(Var(llvm_cbe_tmp__8, NoOffset)), Const(Int64(1,long long,None))), NoOffset))*)
+                        | Lval(Mem(BinOp (IndexPI, (Lval(Var var, NoOffset)), (Const (CInt64 (offs,_,None))), tp )),NoOffset)  ->
+                            (*report ("this->VTBL_ACCESS offset : "^string_of_int64 offs^" type: "^(sprint 160 (d_type () tp)));*)
+														begin
+														  let vtn = gen_vtbl_name (sprint 160 (d_type () tp)) glob in
+															let ((fd, st, df),vfs) = get_vfunc_set vtn ((Int64.to_int offs)+1) (fd, st, df) in
+															(*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
+															let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
+															(*let set = ArgSet.join fun_set s in*) 
+															assign_to_lval_no_prop fs lval (fd, st, df) fun_set must_assign glob
+															(*no_vtbl*)
+														end 
+                                                | _ -> no_vtbl
+								
 							  end
 								in
                   fd, st , df
@@ -1116,9 +1337,10 @@ struct
             let globs=get_globals e in
                 let res=List.fold_left (fun y x-> y||(is_public_method_name x.vname || is_private_method_name x.vname)) false globs 
                 in (*printf "%s is method: %b\n" (sprint 160 (d_exp () e)) res ;*)res
-            | _ -> false        
+            | _ -> false       
         
   let assign_to_local ask (lval:lval) (rval:exp option) (fd,st,df) fs = (*tainting*)
+	  
     let p = function
       | Some e -> 
           isPointerType (typeOf (stripCasts e)) &&
@@ -1128,20 +1350,34 @@ struct
     in
     let flds = get_field_from_this (Lval lval) st in
 		let flds = FieldSet.filter (fun x -> isPointerType (x.ftype) ) flds in
+    let str=match rval with 
+        | Some rval ->   sprint 160 (d_exp () rval)
+        | _ -> "??"
+    in
+		dbg_report("assign_to_local "^(sprint 160 (d_exp () (Lval lval)))^" = "^str);
     if  p rval
     && may_be_constructed_from_this st (Lval lval)
     && not (FieldSet.is_bot flds) 
 		&& not (is_method rval) (*fptrs are globals but they are handled separately*)
-    then begin		
-			
-			 let str=match rval with 
-				| Some rval -> 	 sprint 160 (d_exp () rval)
-				| _ -> "??"
-			in
-			report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () flds)^" via "^str);  
-      (fd,st, Diff.add (tainted_varinfo (), (flds,VarNameSet.bot ()))  df)
+    then begin					
+			if 
+			(maybe_deref (Lval lval)) || may_be_constructed_from_this_direct st (Lval lval)  
+			&& 
+			(match rval with
+				| None -> true
+				| Some rexp ->
+			may_be_a_perfectly_normal_global rexp true (fd,st,df) fs
+			)
+			then
+			begin
+			report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () flds)^" via "^str);
+			(*report ("isPtr "^string_of_bool (isPointerType (typeOf (Lval lval)))^" mayderef "^string_of_bool (maybe_deref (Lval lval))^" direct_this "^ string_of_bool (may_be_constructed_from_this_direct st (Lval lval)));*)  
+      (fd,st, Diff.add (taintedFunDec, (flds,VarNameSet.bot (),ClassNameSet.bot ()))  df)
+			end
+			else
+				(fd,st,df)
     end else (fd,st,df)
-		
+	
 	let remove_htbl_entry ht c n =
 		try 
 			let cb=Hashtbl.find ht c
@@ -1159,12 +1395,11 @@ struct
 				
 	let add_func_ptr f (fd,st,gd) = 
 	   try 
-	   fd,st, (Diff.add (fptr_varinfo (), (FieldSet.bot (), VarNameSet.singleton (VarName.to_fun_name f)) )  gd)
+	   fd,st, (Diff.add (taintedFunDec, (FieldSet.bot (), VarNameSet.singleton (VarName.to_fun_name f),ClassNameSet.bot ()) )  gd)
 		 with Not_found -> 			
 			add_required_fun_priv f.vname;
 			(*fd,st, (Diff.add (fptr_varinfo (), (FieldSet.bot (), FuncNameSet.singleton (FuncName.to_fun_name (emptyFunction f.vname))) )  gd)**)
 			 fd,st,gd
-			
 	
 (*		match Goblintutil.get_class_and_name f.vname with
 			| Some (c,n) -> add_htbl_entry func_ptrs c n
