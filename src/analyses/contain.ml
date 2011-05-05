@@ -132,8 +132,14 @@ struct
    
   let is_structor x c = (* given fun name and class name, return if it's a con or destructor*)
 		((compare x c) = 0) || (compare x ("~"^c) = 0)
+		
+	let is_ext fn glob = match GU.get_class fn with
+	  | Some x -> Dom.isnot_localclass x glob
+	  | _ ->
+	      true
 
-  let finalize () =	(*check that all necessary funs have been analyzed*)	 
+  let finalize () =	(*check that all necessary funs have been analyzed*)
+	    Dom.final:=true;	 
 		  let check_fun c err x =
 				if not (is_structor x c) then
 	        try 
@@ -161,7 +167,8 @@ struct
 	    printf "VTBL_NAME : %s\n%s\n" vtbl vtbl2;*)
 			ignore(match Goblintutil.get_class vtbl3 with | Some x -> Dom.report("class_name of "^vtbl3^": "^x) | _ -> Dom.report("class_name of "^vtbl3^": UNKOWN"));
 *)
-			Dom.report ("Finialze Finished!")
+			Dom.report ("Finialze Finished!");
+			Dom.final:=false
 			(*failwith "Finished"*)
 		    
   
@@ -172,10 +179,6 @@ struct
       | _ ->
           true
 					
-	let is_ext fn glob = match GU.get_class fn with
-	  | Some x -> Dom.isnot_localclass x glob
-	  | _ ->
-	      true
 				
 	let islocal_notmain fn glob = match GU.get_class fn with
 	  | Some x -> Dom.islocal_notmainclass x glob
@@ -184,8 +187,7 @@ struct
 				
 	let add_reentrant_fun fn dom= (*build list of funs that should be thread safe*)
 	   if is_ext fn dom then Hashtbl.replace Dom.reentrant_funs (Goblintutil.demangle fn) ()
-    
-					
+    					
   let is_private f dom =
     if (Str.string_match Dom.filter_vtbl f.vname 0) then (*filter vtbls!*)
         false
@@ -489,7 +491,7 @@ struct
     (*Dom.report (" SPECIAL_FN '"^f.vname^"'.");*) 
     if danger_bot ctx || ignore_this ctx.local ctx.global (*|| (Dom.is_safe_name f.vname)*) then [ctx.local,Cil.integer 1, true] else begin
       let from = (Some (AddrOf (Var f,NoOffset))) in        
-            if not (Dom.is_safe_name f.vname) then add_reentrant_fun f.vname ctx.global;
+            if not (Dom.is_safe_name f.vname)&& !Goblintutil.in_verifying_stage then add_reentrant_fun f.vname ctx.global;
             if is_private f ctx.global then
                 Dom.add_required_fun_priv f.vname; (*called priv member funs should be analyzed!*)          
       let fs=Dom.get_tainted_fields ctx.global in                   

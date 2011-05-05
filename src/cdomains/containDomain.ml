@@ -37,7 +37,8 @@ let gen_class s =
             
 let report x = 
     let loc = !Goblintutil.current_loc in
-      if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
+      if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) && 
+			!Goblintutil.in_verifying_stage then (*filter noise*)
     Messages.report ("CW: "^x)          
  
 module FieldVars = 
@@ -166,9 +167,12 @@ module Diff = SetDomain.ToppedSet (Printable.Prod (Var) (Globals)) (struct let t
 module Dom = 
 struct
 	
+	let final = ref false
+	
   let report x = 
         let loc = !Goblintutil.current_loc in
-          if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
+          if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) && 
+					(!Goblintutil.in_verifying_stage|| !final) then (*filter noise*)
         Messages.report ("CW: "^x)
 	
   module Danger = 
@@ -231,7 +235,7 @@ struct
 
   let error x = 
     let loc = !Goblintutil.current_loc in
-      if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
+      if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1))&& !Goblintutil.in_verifying_stage  then (*filter noise*)
         Messages.report_error ("CW: "^x)
 				
   let taintedFunDec = (emptyFunction "@tainted_fields").svar               
