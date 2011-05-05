@@ -22,6 +22,7 @@ struct
   type solution'   = var_domain VMap.t * glob_domain GMap.t
 
   let verify () (system: system) (sigma,theta: solution') =
+    Goblintutil.in_verifying_stage := true;
     let correct = ref true in
     let complain_l (v: variable) lhs rhs = 
       correct := false; 
@@ -57,7 +58,9 @@ struct
             complain_l v d' d
       in
       let rhs = system v in
-        List.iter verify_constraint rhs 
+        List.iter verify_constraint rhs;
+        Goblintutil.in_verifying_stage := false
+
     in
       VMap.iter verify_var sigma
 end

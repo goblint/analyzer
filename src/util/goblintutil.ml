@@ -295,6 +295,9 @@ let solver_progress = ref false
 let region_offsets = ref false
 (** Field-sensitive regions? *)
 
+let in_verifying_stage = ref false
+(** true if in verifying stage *)
+
 let solver = ref (string (field !conf "solver"))
 
 let escape (x:string):string =
