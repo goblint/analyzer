@@ -58,10 +58,9 @@ struct
             complain_l v d' d
       in
       let rhs = system v in
-        List.iter verify_constraint rhs;
-        Goblintutil.in_verifying_stage := false
-
+        List.iter verify_constraint rhs
     in
-      VMap.iter verify_var sigma
+      VMap.iter verify_var sigma;
+	    Goblintutil.in_verifying_stage := false
 end
 
