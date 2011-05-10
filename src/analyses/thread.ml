@@ -6,7 +6,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module Dom = ConcDomain.ThreadRhombDomain
+  module Dom = ConcDomain.ThreadDomain
   module Glob = Global.Make (Lattice.Unit) (* no global state *)
   
   let query_lv ask exp = 
@@ -20,7 +20,6 @@ struct
       | [(v,_)] -> Some v (* This currently assumes that there is a single possible l-value? *)
       | _ -> None
 
-  (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     ctx.local
    
@@ -46,38 +45,56 @@ struct
     match eval_fv ctx.ask arg with
       | Some v -> v
       | None   -> Messages.bailwith "cannot extract arg"
-    
-  (* Handles the call of pthread_create. *)
-  let pt_create ctx (args:exp list) =
+
+  (** Retrieves the current thread id from the domain value. *)
+  let current_thread (state : Dom.t) : Basetype.Variables.t =
+    let thread_id_set = ConcDomain.ThreadIdSet.elements (Dom.current_thread state) in
+    match thread_id_set with
+      | [thread_id] -> thread_id
+      | _           -> Messages.bailwith "Current thread id is unusable"
+
+  (** Handles creation of the new thread. thread_id has been already resolved. *)
+  let pthread_create_id ctx start_routine (thread_id : Basetype.Variables.t) =
+    let current_thread_id = current_thread ctx.local in
+    let new_state = Dom.create_thread ctx.local current_thread_id thread_id in
+      ctx.spawn start_routine (Dom.make_entry new_state thread_id);
+      [new_state, Cil.integer 1, true]
+  
+  (** Handles creation of the new thread. Resolves pthread_create arguments. *)    
+  let pthread_create ctx (args:exp list) =
 	  match args with
 	    | [id; _; start; _] ->
         let start_routine = eval_arg ctx start in
         let thread_id = eval_arg ctx id in
-        let n = Dom.create_thread thread_id ctx.local in
-          ctx.spawn start_routine n;
-          [n, Cil.integer 1, true]
+          pthread_create_id ctx start_routine thread_id
 	    | _ -> call_unusable "pthread_create"
 
-  (* Handles the call of pthread_join. *)
-  let pt_join ctx (args:exp list) =
-    match args with
-      | [Lval id; _] ->
-        let thread_id = eval_arg ctx (mkAddrOf id) in
-          [Dom.join_thread thread_id ctx.local, Cil.integer 1, true]
-      | _ -> call_unusable "pthread_join"
+  (** Handles join with another thread. thread_id has been already resolved. *)
+  let pthread_join_id (state : Dom.t) (thread_id : Basetype.Variables.t) =
+    let current_thread_id = current_thread state in
+      [Dom.join_thread state current_thread_id thread_id, Cil.integer 1, true]
 
-  (* special_fn is called, when given varinfo is not connected to a fundec -- no function definition is given
-  in definition of varinfo. *)
+  (** Handles join with another thread. Resolves pthread_join arguments. *)
+  let pthread_join ctx (args:exp list) =
+    match args with
+      | [Lval id; _] -> pthread_join_id ctx.local (eval_arg ctx (mkAddrOf id))
+      | _            -> call_unusable "pthread_join"
+
+  (** Handles unknown functions (functions without known definition). We
+      catch both pthread_create and pthread_join here. *)
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    match f.vname with (* special_fn - value after function call *)
-       | "pthread_create" -> pt_create ctx arglist
-       | "pthread_join"   -> pt_join ctx arglist
+    print_string "special_fn";
+    print_string f.vname;
+    match f.vname with
+       | "pthread_create" -> pthread_create ctx arglist
+       | "pthread_join"   -> pthread_join ctx arglist
        | _                -> [ctx.local,Cil.integer 1, true]
-        (* We actually want to spawn threads for some escaped function pointers,
-           but lets ignore that for now. *)
-      
-  let startstate () = Dom.bot ()
-  let otherstate () = Dom.bot () (* should be top? *)
+  
+  let startstate () = (
+    ConcDomain.ThreadIdSet.singleton (Cil.makeGlobalVar "main" Cil.voidType),
+    ConcDomain.ThreadsVector.bot())
+    
+  let otherstate () = Dom.bot ()
 
   let name = "Thread analysis"
 end
@@ -85,7 +102,7 @@ end
 module ThreadMCP = (* MCP - master control program, see mCP.ml *)
   MCP.ConvertToMCPPart
         (Spec)
-        (struct let name = "thread" 
+        (struct let name = "thread"
                 let depends = []
                 type lf = Spec.Dom.t
                 let inject_l x = `Thread x
