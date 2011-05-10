@@ -313,7 +313,7 @@ let proper_list_segment ask gl (lp1:ListPtr.t) (sm:SHMap.t) : bool =
       app_edge (ListPtrSet.equal e) p
     in
     if Edges.is_top n 
-    || app_edge' (fun x -> ListPtrSet.is_top x) (fun () -> true) n 
+    || app_edge' (fun x -> ListPtrSet.is_empty x) (fun () -> true) n 
     then None else 
     let lp' = app_edge' ListPtrSet.choose (fun () -> Messages.bailwith "not implemented2") n in
     if app_edge (ListPtrSet.for_all point_to_me) n 
@@ -560,12 +560,12 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
     then (if single_nonlist k && noone_points_at_me k sm then (sm, ds, ([ListPtr.get_var k],[])::rms) else (sm, ds, rms)) 
     else 
       let isbroken = not (proper_list k) in
-(*      if isbroken then Messages.waitWhat (ListPtr.short 80 k) ; *)
+     (*if isbroken then Messages.waitWhat (ListPtr.short 80 k) ;*)
 (*       Messages.report ("checking :"^ListPtr.short 80 k^" -- "^if isbroken then " broken " else "still a list"); *)
       (kill ask gl upd k sm, (ListPtr.get_var k, isbroken) :: ds, reg_for k :: rms)
   in
   SHMap.fold f sm (sm,[],[]) 
-
+  
 module Dom = 
 struct 
   include SetDomain.ToppedSet (SHMap) (struct let topname="Shapes are messed up!" end)
