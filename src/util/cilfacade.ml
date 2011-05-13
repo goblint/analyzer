@@ -105,9 +105,6 @@ let is_init = in_section (fun s -> s = ".init.text")
 let is_initptr = in_section (fun s -> s = ".initcall6.init")
 let is_exit = in_section (fun s -> s = ".exit.text")
 
-(*brutal osek hack*)
-  let is_task f =  (String.length f >= 12 && String.sub f 0 12 = GU.taskprefix)
-
 let rec get_varinfo exp: varinfo = 
   (* ignore (Pretty.printf "expression: %a\n" (printExp plainCilPrinter) exp); *)
   match exp with
@@ -116,48 +113,41 @@ let rec get_varinfo exp: varinfo =
     | _ -> failwith "Unimplemented: searching for variable in more complicated expression"
 
 exception MyException of varinfo
+let find_module_init funs fileAST = 
+  try iterGlobals fileAST (
+    function 
+      | GVar ({vattr=attr}, {init=Some (SingleInit exp) }, _) when is_initptr attr -> 
+          raise (MyException (get_varinfo exp))
+      | _ -> ()
+    ); 
+    (funs, [])
+  with MyException var -> 
+    let f (s:fundec) = s.svar.vname = var.vname in
+      List.partition f funs
 
-let getFuns fileAST  : fundec list =
-  let mainname = !GU.mainfun in
-  let override = ref None in
-  (* Do we have the default main name? *)
-  let def_main = mainname = "main" in
-  let f (m,o) glob =
+(*brutal osek hack*)
+  let is_task f =  (String.length f >= 12 && String.sub f 0 12 = GU.taskprefix)
+
+type startfuns = fundec list * fundec list * fundec list
+
+let getFuns fileAST : startfuns =
+  let add_main f (m,e,o) = (f::m,e,o) in
+  let add_exit f (m,e,o) = (m,f::e,o) in
+  let add_other f (m,e,o) = (m,e,f::o) in
+  let f acc glob =
     match glob with 
-      | GFun({svar={vname=mn}} as def,_) when mn = mainname -> override := Some def; (m,o)
-      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.exitfun -> (m, def :: o)
-      | GFun({svar={vname=mn; vattr=attr}} as def, _) 
-        when !GU.kernel && is_init attr && def_main -> (def :: m, o)
+      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.mainfuns -> add_main def acc
+      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.exitfuns -> add_exit def acc
+      | GFun({svar={vname=mn; vattr=attr}} as def, _) when !GU.kernel && is_init attr -> 
+          Printf.printf "Start function: %s\n" mn; add_main def acc
       | GFun({svar={vname=mn; vattr=attr}} as def, _) when !GU.kernel && is_exit attr -> 
-          GU.exitfun :=  mn :: !GU.exitfun;
-          Printf.printf "Cleanup function: %s\n" mn; (m, def :: o) 
-      | GFun ({svar={vstorage=NoStorage}} as def, _) when (!GU.nonstatic)-> (m, def :: o)
-      | GFun (def, _) when (!GU.allfuns) -> (m, def :: o)
-      | GFun (def, _) when (!GU.oil && (is_task def.svar.vname)) -> (m, def :: o)
-      | _ -> (m, o)
+          Printf.printf "Cleanup function: %s\n" mn; add_exit def acc
+      | GFun ({svar={vstorage=NoStorage}} as def, _) when !GU.nonstatic -> add_other def acc
+      | GFun (def, _) when (!GU.allfuns) ->  add_other def  acc
+      | GFun (def, _) when !GU.oil && is_task def.svar.vname -> add_other def acc
+      | _ -> acc
   in
-  let mains, others = foldGlobals fileAST f ([],[]) in
-    match !override, mains with
-      | Some x, _ ->
-          Printf.printf "Start function: %s\n" x.svar.vname; GU.has_main := true;
-          x :: mains @ others
-      | None, [x] ->
-          Printf.printf "Start function: %s\n" x.svar.vname; GU.has_main := true;
-          x :: others
-      | _ -> 
-          try iterGlobals fileAST (
-            function 
-              | GVar ({vattr=attr}, {init=Some (SingleInit exp) }, _) when is_initptr attr -> 
-                  raise (MyException (get_varinfo exp))
-              | _ -> ()
-            ); 
-            mains @ others
-          with MyException var -> 
-            let f (s:fundec) = s.svar.vname = var.vname in
-            let (main, rest) = List.partition f mains in
-            let main = List.hd main in
-              Printf.printf "Start function: %s\n" main.svar.vname; GU.has_main := true;
-              main :: rest @ others
+  foldGlobals fileAST f ([],[],[])
 
 let dec_table_ok = ref false
 let dec_table = Hashtbl.create 111

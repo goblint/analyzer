@@ -18,6 +18,7 @@ let main () =
   let other_includes = ref "" in
   let add_include x = other_includes := "-I " ^ x ^ " " ^ !other_includes in
   let add_include_kernel x = other_includes := "-I " ^ Filename.concat kernel_root x ^ " " ^ !other_includes in
+  let add_string l = let f str = l := str :: !l in Arg.String f in
   let use_libc = ref false in
   let justCil = ref false in
   let dopartial = ref false in
@@ -36,7 +37,6 @@ let main () =
       | _ -> raise (Arg.Bad "invalid result style") 
   in
   let setdump path = GU.dump_path := Some (GU.create_dir path) in
-  let add_exitfun f = GU.exitfun := f :: !GU.exitfun in
   let setcil path = cilout := open_out path in
   let analyzer str = (*legacy: use .json, --with and --no instead *)
       match str with
@@ -101,10 +101,11 @@ let main () =
 				 ("--noverify", Arg.Clear GU.verify, " Skip the verification phase.");
                  ("--class", Arg.Set_string GU.mainclass, " Analyzes all the member functions of the class (CXX.json file required).");
                  ("--nonstatic", Arg.Set GU.nonstatic, " Analyzes all non-static functions.");
-                 ("--mainfun", Arg.Set_string GU.mainfun, " Sets the name of the main function.");
-                 ("--exitfun", Arg.String add_exitfun, " Sets the name of the main function.");
+                 ("--mainfun", add_string GU.mainfuns, " Sets the name of the main functions.");
+                 ("--exitfun", add_string GU.exitfuns, " Sets the name of the cleanup functions.");
+                 ("--otherfun", add_string GU.otherfuns, " Sets the name of other functions.");
                  ("--allglobs", Arg.Set GU.allglobs, " Prints access information about all globals, not just races.");
-                 ("--check", Arg.String (fun x -> Mutex.vips := x::!Mutex.vips), "<variable/type name>  Check whether there is a race involving this variable.");
+                 ("--check", add_string Mutex.vips, "<variable/type name>  Check whether there is a race involving this variable.");
                  ("--earlyglobs", Arg.Set GU.earlyglobs, " Side-effecting of globals right after initialization.");
                  ("--write-races", Arg.Set Mutex.no_read, " Ignores read accesses altogether in reporting races.");
                  ("--failing-locks", Arg.Set LibraryFunctions.failing_locks, " Takes the possible failing of locking operations into account.");
@@ -126,7 +127,7 @@ let main () =
                  ("--type-inv", Arg.Bool ((:=) GU.use_type_invariants), "<bool>  Should we use type invariants?");
                  ("--list-type", Arg.Bool ((:=) GU.use_list_type), "<bool>  Should we use list types?");
                  ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
-                 ("--unique", Arg.String (fun x -> GU.singles := x::!GU.singles), "<type name>  For types that have only one value.");
+                 ("--unique", add_string GU.singles, "<type name>  For types that have only one value.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
 		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed program");
@@ -215,8 +216,8 @@ let main () =
     else begin
       (* we first find the functions to analyze: *)
       if !GU.verbose then print_endline "And now...  the Goblin!";
-      let funs = CF.getFuns merged_AST in
-        if funs = [] then failwith "No suitable function to start from.";
+      let (stf,exf,otf as funs) = CF.getFuns merged_AST in
+        if stf@exf@otf = [] then failwith "No suitable function to start from.";
         (* and here we run the analysis! *)
         let do_analysis () =
           Stats.time "analysis" (!analyze merged_AST) funs;

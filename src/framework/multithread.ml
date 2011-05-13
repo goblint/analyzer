@@ -75,7 +75,7 @@ struct
     let proc_call sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.diff * Solver.variable list =
       let forks = ref [] in
       let diffs = ref [] in
-      let add_var v d = if v.vname <> !GU.mainfun then forks := (v,d) :: !forks in
+      let add_var v d = if not (List.mem v.vname !GU.mainfuns) then forks := (v,d) :: !forks in
       let add_diff g d = diffs := (`G (g,d)) :: !diffs in 
       let funs  = Spec.eval_funvar (A.context top_query st theta [] add_var add_diff) exp in
       let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
@@ -171,7 +171,7 @@ struct
            * handle the dead code -- maybe it could be avoided  *)
           let l,gd,sp =
           match edge with
-            | MyCFG.Ret    (ret,fundec)    when (fundec.svar.vname = MyCFG.dummy_func.svar.vname || fundec.svar.vname = !GU.mainfun) && !GU.kernel
+            | MyCFG.Ret    (ret,fundec)    when (fundec.svar.vname = MyCFG.dummy_func.svar.vname || List.mem fundec.svar.vname !GU.mainfuns) && !GU.kernel
                                            -> lift (toplevel_kernel_return ret fundec    ) predval'
             | MyCFG.Entry func             -> lift (fun ctx -> Spec.body   ctx func      ) predval'
             | MyCFG.Assign (lval,exp)      -> lift (fun ctx -> Spec.assign ctx lval exp  ) predval'
@@ -299,7 +299,7 @@ struct
                       end)
 
   (** do the analysis and do the output according to flags*)
-  let analyze (file: Cil.file) (funs: Cil.fundec list) =
+  let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: A.fundecs) =
     let constraints = 
       if !GU.verbose then print_endline "Generating constraints."; 
       system (MyCFG.getCFG file) in
@@ -307,10 +307,10 @@ struct
     let startstate, more_funs = 
       if !GU.verbose then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file in
-    let funs = 
+    let otherfuns = 
       if !GU.kernel
-      then funs@more_funs
-      else funs in
+      then otherfuns @ more_funs
+      else otherfuns in
     let enter_with st fd =
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
       let theta x = Spec.Glob.Val.bot () in
@@ -318,26 +318,17 @@ struct
       let error _ = failwith "Bug: Using enter_func for toplevel functions with 'otherstate'." in 
       let ctx = A.context top_query st theta [] ignore2 error in
       let ents = Spec.enter_func ctx None fd.svar args in
-      List.map (fun (_,s) -> fd.svar, SD.lift s) ents  
+        List.map (fun (_,s) -> fd.svar, SD.lift s) ents  
     in
-    let do_otherfuns =
-      let f x =
-        if List.mem x.svar.vname !GU.exitfun
-        then enter_with (SD.unlift startstate) x
-        else enter_with (Spec.otherstate ())   x
-      in
-      List.map f
-    in
+    let _ = try MyCFG.dummy_func.svar.vdecl <- (List.hd otherfuns).svar.vdecl with Failure _ -> () in
     let startvars = 
-      begin try MyCFG.dummy_func.svar.vdecl <- (List.hd funs).svar.vdecl with Failure _ -> () end;
-      match !GU.has_main, funs with 
-        | true, f :: fs -> 
-            GU.mainfun := f.svar.vname;
-            let nonf_fs = List.filter (fun x -> x.svar.vid <> f.svar.vid) fs in
-            enter_with (SD.unlift startstate) f @ List.concat (do_otherfuns nonf_fs)
-        | _ ->
-            (MyCFG.dummy_func.svar, startstate) :: List.concat (do_otherfuns funs)
-    in
+      if startfuns = [] then
+        [[MyCFG.dummy_func.svar, startstate]]
+      else 
+        List.map (enter_with (SD.unlift startstate)) startfuns in
+    let exitvars = List.map (enter_with (SD.unlift startstate)) exitfuns in
+    let othervars = List.map (enter_with (Spec.otherstate ())) otherfuns in
+    let startvars = List.concat (startvars @ exitvars @ othervars) in
     let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (Spec.context_top (SD.unlift e))) startvars in
     let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in
     

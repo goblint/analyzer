@@ -166,17 +166,20 @@ let nonstatic = ref false
 let oil = ref false
 let taskprefix = "function_of_"
 
-(** name of the main / init function *)
-let mainfun = ref "main"
+(** Name of the main / init function. 
+  * FIXME: Any function named main will be considered a main function even
+  * if user specifies otherwise.  *)
+let mainfuns = ref ["main"]
 
-(** name of the exit function, just additionally spawned ... *)
-let exitfun = ref ([]: string list)
+(** Name of the exit function, same ID as main function, but runs in
+  * multithreaded mode. *)
+let exitfuns = ref ([]: string list)
+
+(** Name of other functions, just additionally spawned ... *)
+let otherfuns = ref ([]: string list)
 
 (** Automatically detect init and exit functions of kernel modules. *)
 let harness = ref false
-
-(** Whether a main function has been found. *)
-let has_main = ref false
 
 (** print information about all globals, not just races *)
 let allglobs = ref false

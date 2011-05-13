@@ -4,12 +4,16 @@ open Pretty
 module GU = Goblintutil
 module M  = Messages
 
+(** Analysis starts from lists of functions: start functions, exit functions, and
+  * other functions. *)
+type fundecs = fundec list * fundec list * fundec list
+
 (** General type of an analyzer. *)
 module type S =
 sig
   val name: string
   (** name of the analyzer*)
-  val analyze: file -> fundec list -> unit
+  val analyze: file -> fundecs -> unit
   (** analyze a file -- output using Messages.* *)
 end
 
