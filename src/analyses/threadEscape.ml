@@ -94,6 +94,7 @@ struct
 
   let startstate () = Dom.bot ()
   let otherstate () = Dom.bot ()
+  let exitstate  () = Dom.bot ()
 end
 
 module TransparentSignatureHack: Analyses.Spec = Spec

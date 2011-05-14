@@ -25,6 +25,7 @@ struct
   
   let startstate () : Dom.t = Dom.empty () 
   let otherstate () : Dom.t = Dom.empty ()
+  let exitstate  () : Dom.t = Dom.empty ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)

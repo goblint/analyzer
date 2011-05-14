@@ -222,6 +222,7 @@ struct
 
   let startstate () = Dom.empty () 
   let otherstate () = Dom.empty ()
+  let exitstate  () = Dom.empty ()
   
   let init () = 
     Goblintutil.malloc_may_fail := true; 

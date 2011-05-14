@@ -87,6 +87,7 @@ type analysisRecord = {
     should_join: local_state -> local_state -> bool;
     startstate: unit -> local_state;
     otherstate: unit -> local_state;
+    exitstate : unit -> local_state;
     es_to_string: fundec -> local_state -> string;  
     sync : (local_state,Basetype.Variables.t,global_state) ctx -> local_state * (Basetype.Variables.t * global_state) list;
     query: (local_state,Basetype.Variables.t,global_state) ctx -> Queries.t -> Queries.Result.t ;
@@ -201,6 +202,7 @@ struct
   let should_join x y = S.should_join (C.extract_l x) (C.extract_l y)
   let startstate () = C.inject_l (S.startstate ())
   let otherstate () = C.inject_l (S.otherstate ())
+  let exitstate () = C.inject_l (S.exitstate ())
   let es_to_string f x = S.es_to_string f (C.extract_l x)
 
   let spawn  f v d = f v (C.inject_l d)
@@ -401,6 +403,7 @@ struct
         should_join   = should_join;
         startstate    = startstate;
         otherstate    = otherstate;
+        exitstate     = exitstate;
         es_to_string  = es_to_string;
         sync          = sync;
         query         = query;
@@ -792,6 +795,9 @@ struct
 
   let otherstate () = Dom.constr_scheme
     (List.map (fun p -> p.otherstate) !analysesList)
+
+  let exitstate () = Dom.constr_scheme
+    (List.map (fun p -> p.exitstate) !analysesList)
     
   (* Join when path-sensitive properties are equal. *)
   let should_join xs ys = 

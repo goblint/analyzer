@@ -326,7 +326,7 @@ struct
         [[MyCFG.dummy_func.svar, startstate]]
       else 
         List.map (enter_with (SD.unlift startstate)) startfuns in
-    let exitvars = List.map (enter_with (SD.unlift startstate)) exitfuns in
+    let exitvars = List.map (enter_with (Spec.exitstate ())) exitfuns in
     let othervars = List.map (enter_with (Spec.otherstate ())) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
     let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (Spec.context_top (SD.unlift e))) startvars in

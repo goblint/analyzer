@@ -170,6 +170,8 @@ struct
     
   let otherstate () = 
     `Lifted (Equ.top (), RegMap.bot ()), Vars.empty ()
+
+  let exitstate = otherstate
   
   let name = "Region analysis"
 

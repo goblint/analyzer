@@ -105,6 +105,7 @@ struct
 
   let startstate () = Dom.bot ()
   let otherstate () = Dom.top ()
+  let exitstate  () = Dom.top ()
 
 (** Finalization and other result printing functions: *)
 

@@ -15,6 +15,7 @@ struct
 
   let startstate () = Dom.startstate ()
   let otherstate () = Dom.startstate ()
+  let exitstate  () = Dom.startstate ()
   
   let sync ctx = 
     match ctx.local with

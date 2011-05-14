@@ -109,12 +109,12 @@ static int __init test_init(void) {
   return ret;
 }
 
-/*static void __exit test_exit(void) {
+static void __exit test_exit(void) {
   misc_deregister(&test_dev);
-}*/
+}
 
 module_init(test_init);
-/*module_exit(test_exit);*/
+module_exit(test_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Vesal Vojdani <vojdanig@in.tum.de>");

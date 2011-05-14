@@ -36,5 +36,6 @@ struct
 
   let startstate () = Dom.bot ()
   let otherstate () = Dom.top ()
+  let exitstate  () = Dom.top ()
 end
 

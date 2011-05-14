@@ -33,6 +33,7 @@ struct
 
   let startstate = Dom.top 
   let otherstate = Dom.top 
+  let exitstate  = Dom.top 
   
   let exp_equal e1 e2 g s = None
 

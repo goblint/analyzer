@@ -172,6 +172,7 @@ struct
 
   let startstate () = Dom.top ()
   let otherstate () = Dom.top ()
+  let exitstate  () = Dom.top ()
   
   let name = "OSEK analysis"
   let es_to_string f _ = f.svar.vname

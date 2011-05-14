@@ -49,6 +49,7 @@ struct
   let name = "Constant Propagation Analysis"
   let startstate () = CPA.bot (), Flag.bot ()
   let otherstate () = CPA.bot (), Flag.top ()
+  let exitstate  () = CPA.bot (), Flag.get_main ()
 
   type cpa = CPA.t
   type flag = Flag.t

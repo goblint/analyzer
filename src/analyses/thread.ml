@@ -95,6 +95,7 @@ struct
     ConcDomain.ThreadsVector.bot())
     
   let otherstate () = Dom.bot ()
+  let exitstate  () = Dom.bot ()
 
   let name = "Thread analysis"
 end

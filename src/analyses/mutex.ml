@@ -539,6 +539,7 @@ struct
   
   let startstate () = Lockset.empty ()
   let otherstate () = Lockset.empty ()
+  let exitstate  () = Lockset.empty ()
   
   let query ctx (q:Queries.t) : Queries.Result.t = 
     match q with

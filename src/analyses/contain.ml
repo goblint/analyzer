@@ -708,6 +708,7 @@ struct
   
   let startstate () = Dom.bot ()
   let otherstate () = Dom.bot ()  
+  let exitstate  () = Dom.bot ()  
 end
 
 module Analysis = Multithread.Forward (Spec)

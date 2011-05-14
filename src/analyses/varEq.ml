@@ -34,6 +34,7 @@ struct
 
   let startstate = Dom.top 
   let otherstate = Dom.top 
+  let exitstate  = Dom.top 
     
   let rec const_equal c1 c2 =
     match c1, c2 with

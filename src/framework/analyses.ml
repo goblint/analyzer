@@ -98,7 +98,9 @@ sig
   val should_join: Dom.t -> Dom.t -> bool
   (** sensitivity predicate *)
   val startstate: unit -> Dom.t
-  (** state to start analyzing the main function*)
+  (** state to start analyzing the start functions *)
+  val exitstate: unit -> Dom.t
+  (** state to start analyzing the exit functions *)
   val otherstate: unit -> Dom.t
   (** state to start analyzing other functions (usual when calling './goblint --allfuns ...') *)
   val es_to_string: fundec -> Dom.t -> string
@@ -182,6 +184,7 @@ struct
   let should_join  = D.should_join
   let startstate   = D.startstate
   let otherstate   = D.otherstate
+  let exitstate    = D.exitstate
   let es_to_string = D.es_to_string
   let sync         = D.sync
   let query        = D.query 
