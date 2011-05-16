@@ -83,9 +83,11 @@ module ThreadState = struct
   include Lattice.Flat (ThreadCJState) (ThreadLiftNames)
 end
 
+module Variables = MapDomain.StripClasses (Basetype.Variables)
+
 (** Single vector-like domain (tid -> state) for thread states. *)
 module ThreadVector = struct
-  include MapDomain.MapBot (Basetype.Variables) (ThreadState)
+  include MapDomain.MapBot (Variables) (ThreadState)
   
   let zero = ThreadState.bot()
   let many_many = ThreadState.top()
@@ -112,7 +114,7 @@ end
   Double-thread vector. Maps thread id into vector of thread id's
   that the thread creates and joins. *)
 module ThreadsVector = struct
-  include MapDomain.MapBot (Basetype.Variables) (ThreadVector)
+  include MapDomain.MapBot (Variables) (ThreadVector)
   
   let create_thread v t1 t2 =
     let o = (find t1 v) in

@@ -34,51 +34,12 @@ sig
   val class_name: int -> string
 end
 
-(* Map structure that keeps keys in such order in which
-    they were initially added*)
-module ExtendedMap (Dom: Groupable) (*: Map.S  with
-  type key = Dom.t *) =
-struct
-  module M = Map.Make (Dom)
-  type key = Dom.t
-  type 'a t = 'a Map.Make (Dom).t * Dom.t list
-
-  (* trivial map definitions*)
-  let empty = M.empty,[]
-  let is_empty a = M.is_empty (fst a)
-  let find k m = M.find k (fst m)
-  let mem k m = M.mem k (fst m)
-  let map f m = M.map f (fst m),snd m
-  let mapi f m = M.mapi f (fst m), snd m
-  let compare f a b = (M.compare f (fst a) (fst b))
-  let equal f a b = M.equal f (fst a) (fst b)
-
-  (* keep initial order of keys *)
-  let add k e m =
-    M.add k e (fst m),
-    if List.mem k (snd m) then
-      snd m
-    else
-      let group a b = (Dom.classify a) - (Dom.classify b) in
-      List.stable_sort group (k::(snd m))
-
-  let remove k m =
-    M.remove k (fst m),
-    List.filter (fun s -> not (Dom.equal s k)) (snd m)
-
-  (* fold map in special stored order*)
-  let fold f m n =
-    let func k = f k (find k m) in
-    List.fold_right func (snd m) n
-
-  (* iter over map in special stored order*)
-  let iter (f:key -> 'a -> unit) (m:'a t):unit =
-    let key_list = snd m in
-    let value_list = List.map (fun n -> find n m) key_list in
-    List.iter2 f key_list value_list
-
+module StripClasses (G: Groupable) =
+struct 
+  include G
+  let classify x = 0
 end
-
+                      
 module PMap (Domain: Groupable) (Range: Lattice.S) =
 struct
   module M = Map.Make (Domain)
@@ -178,9 +139,10 @@ struct
     in
     let children = 
         let h g (kvs:(Domain.t * Range.t) list) xs = 
-          match g = -1 && not !Goblintutil.show_temps with
-            | true  -> xs
-            | false -> (Xml.Element ("Node", [("text", Domain.class_name g);("id",Domain.class_name g)], List.map f kvs))::xs
+          match g with 
+            | -1 when not !Goblintutil.show_temps ->  xs
+            | 0 -> List.map f kvs @ xs
+            | _ -> (Xml.Element ("Node", [("text", Domain.class_name g);("id",Domain.class_name g)], List.map f kvs))::xs
         in
         IMap.fold h groups []
     in
@@ -313,8 +275,7 @@ exception Fn_over_All of string
 
 module MapBot_LiftTop (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and 
-  type value = Range.t (*and 
-  type t = [ `Lifted of Range.t ExtendedMap(Domain).t | `Top ] *)= 
+  type value = Range.t = 
 struct
   module M = MapBot (Domain) (Range)
   include Lattice.LiftTop (M) 
@@ -384,8 +345,7 @@ end
 
 module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and 
-  type value = Range.t (*and 
-  type t = [ `Lifted of Range.t ExtendedMap(Domain).t | `Top ] *)= 
+  type value = Range.t = 
 struct
   module M = MapTop (Domain) (Range)
   include Lattice.LiftBot (M) 
