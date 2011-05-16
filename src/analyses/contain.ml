@@ -38,7 +38,7 @@ struct
   
   module Glob = Global.Make (ContainDomain.Globals)
   
-    let add_analyzed_fun f = (*build list of funs that actually have been analyzed*)
+    let add_analyzed_fun f ht = (*build list of funs that actually have been analyzed*)
        let get_pure_name x=
       let get_string so =
         match so with
@@ -48,7 +48,8 @@ struct
        let (_,fn) = get_string (GU.get_class_and_name x) in
          fn
         in
-       Hashtbl.replace Dom.analyzed_funs (get_pure_name f.svar.vname) ()
+			 (*printf "adding %s" (get_pure_name f.svar.vname);*)
+       Hashtbl.replace ht (get_pure_name f.svar.vname) ()
 
   let init_inh_rel () = 
     let module StringH =
@@ -115,6 +116,8 @@ struct
       List.iter (add_htbl_re Dom.safe_methods) (objekt (field safe_tbl "methods"));
     with Json_error x -> 
         failwith ("Contaimnent analysis failed to read SAFE.json: " ^ x)  
+				
+  let funcount = ref 0	
 	
   let init () =
 		(*
@@ -126,7 +129,13 @@ struct
 		test;
 		*)
     init_inh_rel ();
-		Printexc.record_backtrace true
+		Printexc.record_backtrace true;
+		Cil.iterGlobals (!Cilfacade.ugglyImperativeHack) (function GFun (f,_) -> incr funcount| _ -> ());
+		printf "#Funs : %d\n" !funcount;
+		ignore (if !Goblintutil.allfuns then ignore (printf "ALL FUNS\n"));
+		let ctrl = Gc.get () in
+		ctrl.Gc.verbose <- 5; 
+		Gc.set ctrl
 (*    ContainDomain.Dom.tainted_varstore := makeVarinfo false "TAINTED_FIELDS" voidType *)
 		
    
@@ -137,6 +146,8 @@ struct
 	  | Some x -> Dom.isnot_localclass x glob
 	  | _ ->
 	      true
+				
+  let entered_funs : (string, int) Hashtbl.t = Hashtbl.create 1000 (*list of funs that we have inspected*)				
 
   let finalize () =	(*check that all necessary funs have been analyzed*)
 	    Dom.final:=true;	 
@@ -157,6 +168,7 @@ struct
 		  Hashtbl.iter (check_fun_list " (3) Analysis unsound due to use of friend class " false) Dom.friends;
       Hashtbl.iter (fun fn v->Dom.report (" (6) Function "^fn^" might be called from several threads and should be threat safe.")) Dom.reentrant_funs;
       Hashtbl.iter (fun fn v->Dom.report (" (6) Class "^fn^" is local.")) Dom.local_classes;
+      (*Hashtbl.iter (fun fn v->Dom.report (fn^" was entered")) entered_funs;*)
 (*
 	    let vtbl = Dom.gen_vtbl_name "unsigned int (**)(struct l_class_OC_Uec_KD__KD_UecServiceBase * )" in 
 			(*"struct l_class_OC_my_namespace_KD__KD_CBaseFSM *(**) (struct l_class_OC_my_namespace_KD__KD_FSM * , struct l_struct_OC_my_namespace_KD__KD_UEC_Event * )" in*)
@@ -221,10 +233,55 @@ struct
 		    ContainDomain.FuncNameSet.fold (fun a y -> y || cmp_svar a x) fns false		
 *)
 
+  let last_globs = ref 0
+	let repeat = ref 0
+	let last_pp = ref 0
+	
+  let value_size o = let t = Obj.repr o in if Obj.is_block t then 1 + Obj.size t else 0     	
+
+  let print_progress f (a,b,c) = 
+		if f.svar.vname<>"goblin_initfun" then
+		begin
+         if !last_globs <> !Goblintutil.globals_changed then
+         begin
+            last_globs := !Goblintutil.globals_changed;
+            (*Hashtbl.iter (fun n c-> if c> 10 then ignore (printf "%s : %d \n" n c )) entered_funs;*)
+						(*printf "*** DOMAIN SIZE *** (%d)" (value_size b);*)
+						Hashtbl.clear entered_funs
+         end;
+				 try 
+				 let count = Hashtbl.find entered_funs (f.svar.vname)
+         in
+         Hashtbl.replace entered_funs (f.svar.vname) (count+1)
+				 with e -> 
+				 let count = 1 
+         in
+         Hashtbl.replace entered_funs (f.svar.vname) (count+1);
+         let pp = (Hashtbl.length entered_funs * 100 / !funcount) in
+					if !last_pp = pp then
+						begin 
+							incr repeat;
+							if !repeat mod 10 = 0 then ignore(printf ".");
+						  if !repeat mod 50 = 0 then
+							begin 
+								Hashtbl.iter (fun n c-> if c> 30 then ignore (printf "%s : %d \n" n c ) ) entered_funs;
+							  ignore (printf "********************50 REPEATS******************** \n")
+							end
+						end 
+						else 
+						begin
+								last_pp := pp;
+								repeat := 0;
+					      ignore(printf "%d%% " pp)
+						end;  
+            flush stdout
+    end			
+		
+
   let body ctx (f:fundec) : Dom.t = (*return unchanged ctx to avoid reanalysis due to changed global*)
+    print_progress f ctx.local;			  
     let st = Dom.set_funname f ctx.local in
     (*printf "%s\n" ("body: "^f.svar.vname^" ig: "^string_of_bool (ignore_this st)^" pub "^string_of_bool (Dom.is_public_method st) );*)        
-    (*Dom.report("CHECK BODY : "^f.svar.vname);*)
     if ignore_this st ctx.global (*analyze only public member funs,priv ones are only analyzed if they are called from a public one*)
     then 
 			begin
@@ -233,12 +290,13 @@ struct
 			end
     else			
     begin
-      (*Dom.report("CHECK METHOD : "^f.svar.vname);*)
+      (*Messages.report("CHECK METHOD : "^f.svar.vname);*)
 			(*if Dom.is_top st then failwith "ARGH!";*)
       if (Dom.is_public_method_name f.svar.vname) (*|| is_fptr f.svar ctx*) then
-			begin  
-				(*Dom.report("PUBLIC METHOD : "^f.svar.vname);*)
-        add_analyzed_fun f; (*keep track of analyzed funs*)
+			begin
+				(*printf ("P");*)  
+				(*Messages.report("PUBLIC METHOD : "^f.svar.vname);*)
+        add_analyzed_fun f Dom.analyzed_funs; (*keep track of analyzed funs*)
 				if Dom.is_bot ctx.local && not (islocal_notmain f.svar.vname ctx.global) 
 				then 
           Dom.add_formals f st
@@ -247,11 +305,13 @@ struct
 			end
       else
 			begin
-        (*Dom.report("PRIVATE METHOD : "^f.svar.vname);*)
+        (*rintf ("p");*)  
+        (*Messages.report("PRIVATE METHOD : "^f.svar.vname);*)
         (*Dom.report("Dom : "^sprint 80 (Dom.pretty () ctx.local)^"\n");*)
         if not (danger_bot ctx) then
 				begin 
-            add_analyzed_fun f;st (*keep track of analyzed funs*)
+            add_analyzed_fun f Dom.analyzed_funs;
+						st (*keep track of analyzed funs*)            
 				end
         else
 				begin
@@ -593,6 +653,7 @@ struct
     (*Dom.report("ENTER ZERO : "^f.vname);*)
     (*Dom.report("ENTER BOT : "^f.vname);*)
     (*if Dom.is_top ctx.local then failwith "ARGH!";*)
+    (*print_progress (Cilfacade.getdec f);*)                   
     if danger_bot ctx then [ctx.local, ctx.local] else  
     if is_ext f.vname ctx.global then
     begin

@@ -665,12 +665,12 @@ struct
   let is_safe e = (*check exp*)
     let p ht x = check_safety ht x.vname in
         let safed=(List.exists (p safe_vars) (get_globals e) )||(List.exists (p safe_methods) (get_globals e) ) in
-        if !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" (sprint 160 (d_exp () e)));
+        if false&& !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" (sprint 160 (d_exp () e)));
         safed   
         
     let is_safe_name n =
     let safed=(List.exists (check_safety safe_vars) [n] )||(List.exists (check_safety safe_methods) [n] ) in
-    if !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" n);
+    if false&& !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" n);
     (*report("check_safe "^n^" : "^string_of_bool safed);*)
     safed   
     
@@ -737,6 +737,12 @@ struct
             | Lval(Var v,_) -> false
             | _ -> true	(*FIXME: very crude*)	
 
+(*
+    let danger_propagate v args (fd,st,(gd:Diff.t)) must_assign fs glob = (*checks if the new danger val points to this->something and updates this->something*)
+      let danger_upd = if must_assign || (v.vglob) then Danger.add else Danger.merge
+      in
+        (fd, danger_upd v args st,gd)
+*)
 
 		let danger_assign v args (fd,st,gd) must_assign fs = (*checks if the new danger val points to this->something and updates this->something*)
       let danger_upd = if must_assign || (v.vglob) then Danger.add else Danger.merge
