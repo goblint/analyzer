@@ -205,6 +205,7 @@ let print cfg  =
       | Test (exp,false) when isConstant  exp -> "extra"
       | Test (exp,tv) -> string_of_bool tv
       | Skip -> "skip"
+| SelfLoop -> "SelfLoop"
       | _  -> ""
   in
   let printNode (toNode: node) ((edge:edge), (fromNode: node)) = 
@@ -260,10 +261,18 @@ let getGlobalInits (file: file) : (edge * location) list  =
   initfun.slocals <- List.rev !vars;
   (Entry initfun, {line = 0; file="nofile"; byte= 0} ) :: List.rev !inits
 
+let generate_irpt_edges cfg =
+  let make_irpt_edge toNode (_, fromNode) = 
+    match toNode with 
+      | FunctionEntry f -> let _ = print_endline ( " Entry " ) in ()
+      | _ -> let _ = let _ = print_endline ( " Add loop " ) in H.add cfg toNode (SelfLoop, toNode) in ()
+  in
+    H.iter make_irpt_edge cfg
   
 let getCFG (file: file): cfg = 
   let cfg = createCFG file in
-    if !GU.cfg_print then print cfg;
+    if !GU.oil then generate_irpt_edges cfg;
+    if !GU.cfg_print then print cfg;      
     H.find_all cfg
 
 let getLoc (node: node) = 

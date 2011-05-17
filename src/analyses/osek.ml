@@ -20,6 +20,9 @@ struct
 
   (*priority function*)
   let pry lock = try Hashtbl.find resources lock with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
+  (*lockset -> priority helper*)
+  let names = function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!"
+  let resourceset_to_priority = List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)
 
   (*brutal hack*)
   let is_task = Cilfacade.is_task
@@ -94,10 +97,17 @@ struct
 	| e -> raise e
     in read_info (); close_in input
 
-  let query ctx (q:Queries.t) : Queries.Result.t = 
-    Queries.Result.top ()
+  let query ctx (q:Queries.t) : Queries.Result.t = match q with
+    | Queries.Priority taskname -> 
+	let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) 
+	in `Int (Int64.of_int pry) 
+    | _ -> Queries.Result.top ()
+
 
   (* transfer functions *)
+  let intrpt ctx : Dom.t =
+    (Mutex.Spec.intrpt ctx)
+
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     (Mutex.Spec.assign ctx lval rval)
    
@@ -172,7 +182,6 @@ struct
 
   let startstate () = Dom.top ()
   let otherstate () = Dom.top ()
-  let exitstate  () = Dom.top ()
   
   let name = "OSEK analysis"
   let es_to_string f _ = f.svar.vname
@@ -246,10 +255,10 @@ struct
       let just_locks = List.map (fun (_, dom_elem,_) -> (Mutex.Lockset.ReverseAddrSet.elements dom_elem) ) acc_list in
 
 
-      let prys = List.map (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!"  )) just_locks in
+      let prys = List.map (List.map names) just_locks in
       let staticprys = List.map (List.filter is_task) prys in
-      let offprys = List.map (List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)) staticprys in
-      let accprys = List.map (List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)) prys in
+      let offprys = List.map resourceset_to_priority staticprys in
+      let accprys = List.map resourceset_to_priority prys in
       let offpry = List.fold_left (fun y x -> if x > y then x else y) (min_int) offprys in
       let var_str = gl.vname in
       let _ = Hashtbl.add offensivepriorities var_str offpry in
