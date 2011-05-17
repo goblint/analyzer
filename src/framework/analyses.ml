@@ -29,6 +29,7 @@ type local_state = [
     | `Region      of RegionDomain.RegionDom.t
     | `OSEK        of LockDomain.Lockset.t
     | `OSEK2       of Osektupel.t*Osektupel.t
+    | `OSEK3       of IntDomain.Flattened.t
     | `Access      of AccessDomain.Access.t
     | `Contain     of ContainDomain.Dom.t
     | `Shape       of ShapeDomain.Dom.t*RegionDomain.RegionDom.t
