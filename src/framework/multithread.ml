@@ -329,6 +329,7 @@ struct
     let exitvars = List.map (enter_with (Spec.exitstate ())) exitfuns in
     let othervars = List.map (enter_with (Spec.otherstate ())) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
+    let _ = if startvars = [] then failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list." in
     let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (Spec.context_top (SD.unlift e))) startvars in
     let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in
     
