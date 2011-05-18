@@ -274,7 +274,7 @@ struct
 								repeat := 0;
 					      ignore(fprintf stderr "%d%% " pp)
 						end;  
-            flush stdout
+            flush stderr
     end			
 		
 
