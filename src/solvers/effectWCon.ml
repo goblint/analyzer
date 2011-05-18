@@ -103,6 +103,7 @@ struct
                     let lst = GMap.find gInfl g in
                     GMap.replace theta g compgs;
                     incr Goblintutil.globals_changed;
+										if !Goblintutil.verbose then begin printf "\n********************GLOBALS CHANGED********************* (%d)\n" !Goblintutil.globals_changed;flush stdout end;
                     unsafe := lst @ !unsafe;
                     GMap.remove gInfl g
                   end
