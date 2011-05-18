@@ -265,14 +265,14 @@ struct
 						  if !repeat mod 50 = 0 then
 							begin 
 								Hashtbl.iter (fun n c-> if c> 30 then ignore (printf "%s : %d \n" n c ) ) entered_funs;
-							  ignore (printf "********************50 REPEATS******************** \n")
+							  ignore (fprintf stderr "********************50 REPEATS******************** \n")
 							end
 						end 
 						else 
 						begin
 								last_pp := pp;
 								repeat := 0;
-					      ignore(printf "%d%% " pp)
+					      ignore(fprintf stderr "%d%% " pp)
 						end;  
             flush stdout
     end			
