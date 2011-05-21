@@ -47,24 +47,6 @@ module Simple = struct
     | _   -> false
 end
 
-(* Thread state where state is chain. *)
-module ThreadStateNames = struct
-  exception InvalidStateValue
-  let n = 4
-  
-  let zero = 0
-  let joined = 1
-  let created = 2
-  let many_many = 3
-  
-  let names = function
-    | 0 -> "zero"
-    | 1 -> "joined"
-    | 2 -> "created"
-    | 3 -> "many/many"
-    | _ -> raise InvalidStateValue
-end
-
 module ThreadCJNames = struct
   let truename = "created" 
   let falsename = "joined"
@@ -104,7 +86,9 @@ module ThreadVector = struct
     let o = (find t v) in
     let n = if o == created then joined else many_many in
     add t n (remove t v)
-    
+  
+  (** Returns whether the given thread has been
+      created in this lattice value. *)  
   let is_created v t =
     fold (fun _ value l -> l or value == created) v false
     
@@ -130,10 +114,52 @@ module ThreadsVector = struct
   let is_unique_created v t = true
   
   let is_singleton v t = true
-    
   
+  (*
+  let creation_path v t = creation_path_visited v t []
+  
+  let creation_path_visited v t vs*)
+  
+  (** Returns all threads that create the give thread. *)
+  let creators v t =
+    fold (fun creator tv creators ->
+      if ThreadVector.is_created tv t then t :: creators else creators) v []
+
+  (** Returns (Some creator) when the thread t has a single creator.
+      Othwerwise returns None. *)
+  let creating_parent v t =
+    match creators v t with
+      | [creator] -> Some creator
+      | _         -> None
+
+  (** Checks whether path contains the given thread. *)
+  let rec contains t path =
+    match path with
+      | thread :: rest -> t == thread or contains t rest
+      | []             -> false
+
+  (*FIXME stub*)
+  let is_main t = true
+
+  (** Finds path from main to given thread taking
+      into account the suffix path which is also used for
+      detecting cyclic path. *)
+  let rec creating_path_vs v t path =
+    match creating_parent v t with
+      | Some creator -> if contains creator path then None
+                        else if is_main creator then Some [creator]
+                        else creating_path_vs v creator (creator :: path)
+      | None         -> None
+
+  (** Wrapper around creating_path_vs,
+      starts with empty suffix path. *)
+  let creating_path v t =
+    creating_path_vs v t []
+
 end
 
+(** Helper structure to store the current thread id in the
+    thread analysis domain below. *)
 module ThreadIdSet = SetDomain.Make (Basetype.Variables)
 
 (** Thread analysis domain. Embeds the current thread id
