@@ -47,24 +47,32 @@ module Simple = struct
     | _   -> false
 end
 
+(** Value names for thread state lattices below. *)
 module ThreadCJNames = struct
   let truename = "created" 
   let falsename = "joined"
 end
 
+(** Base values for thread state. Bottom (zero)
+    and top (many) are added later. *)
 module ThreadCJState = struct
   include IntDomain.MakeBooleans (ThreadCJNames)
 end
 
+(** Value names for bottom (zero) and top (many). *)
 module ThreadLiftNames = struct
   let bot_name = "zero" 
-  let top_name = "many/many"
+  let top_name = "many"
 end
 
+(** Rhomb lattice for thread states. *)
 module ThreadState = struct
   include Lattice.Flat (ThreadCJState) (ThreadLiftNames)
 end
 
+(** Strips grouping (see Groupable) information. Makes
+    threads state printout less verbose (aux thread variable
+    for the main thread is defined as global variable). *)
 module Variables = MapDomain.StripClasses (Basetype.Variables)
 
 (** Single vector-like domain (tid -> state) for thread states. *)
@@ -77,11 +85,15 @@ module ThreadVector = struct
   let created = `Lifted true
   let joined = `Lifted false
   
+  (** Helper method for thread creation. Used by
+      the transfer function for creation edges. *)
   let create_thread v t =
     let o = (find t v) in
     let n = if o == zero then created else many_many in
     add t n (remove t v)
     
+  (** Helper method for thread join. Used by
+      the transfer function for join edges. *)    
   let join_thread v t =
     let o = (find t v) in
     let n = if o == created then joined else many_many in
@@ -100,25 +112,19 @@ end
 module ThreadsVector = struct
   include MapDomain.MapBot (Variables) (ThreadVector)
   
+  (** Helper method for thread creation. Used by
+      the transfer function for creation edges. *)
   let create_thread v t1 t2 =
     let o = (find t1 v) in
     let n = ThreadVector.create_thread o t2 in
     add t1 n (remove t1 v)
   
+  (** Helper method for thread join. Used by
+      the transfer function for join edges. *)  
   let join_thread v t1 t2 =
     let o = (find t1 v) in
     let n = ThreadVector.join_thread o t2 in
     add t1 n (remove t1 v)
-  
-  (*FIXME stubs*)
-  let is_unique_created v t = true
-  
-  let is_singleton v t = true
-  
-  (*
-  let creation_path v t = creation_path_visited v t []
-  
-  let creation_path_visited v t vs*)
   
   (** Returns all threads that create the give thread. *)
   let creators v t =
@@ -138,7 +144,8 @@ module ThreadsVector = struct
       | thread :: rest -> t == thread or contains t rest
       | []             -> false
 
-  (*FIXME stub*)
+  (** FIXME stub. Identifies the main thread. Needs to be
+      consistent with the main thread id definition in thread.ml. *)
   let is_main t = true
 
   (** Finds path from main to given thread taking
@@ -154,7 +161,64 @@ module ThreadsVector = struct
   (** Wrapper around creating_path_vs,
       starts with empty suffix path. *)
   let creating_path v t =
-    creating_path_vs v t []
+    match creating_path_vs v t [] with
+      | Some path -> Some (List.rev path)
+      | None      -> None
+    
+  (** Implementation of unique predicate. Tries to find
+      the unique creation path from main to this thread and
+      returns whether is exists. *)
+  let is_unique v t =
+    match creating_path v t with
+      | Some _ -> true
+      | None   -> false
+
+  (** Returns true if the given thread has not been
+      created in the threads vector. *)
+  let is_not_created v t =
+    None == creating_parent v t
+  
+  (** Helper method to calculate last common prefix element for the given two list
+      and aux element t which is returned in the case that the lists do
+      not have common prefix. *)
+  let rec lcpe l1 l2 t =
+    if l1 == [] then t
+    else if l2 == [] then t
+    else if List.hd l1 == List.hd l2 then lcpe (List.tl l1) (List.tl l2) (List.hd l1)
+    else t
+  
+  (** Helper method to calculate LCA for two paths represented
+      as lists. Assumes that first element of both is main thread. *)  
+  let lcap l1 l2 =
+    lcpe (List.tl l1) (List.tl l2) (List.hd l1)
+    
+  (** Calculates least common anchestor (LCA) per given two threads and the vector. *)
+  let lca v t1 t2 =
+    let path1 = creating_path v t1 in
+    let path2 = creating_path v t2 in
+    match path1 with
+      | Some p1 -> begin
+                     match path2 with
+                       | Some p2 -> lcap p1 p2
+                       | None    -> None
+                     end
+      | None -> None  
+
+  (** FIXME stub. Returns true when there is full join path from
+      t1 to t2 (t2 is joined with respect to t1). *)
+  let is_join_path v t1 t2 = true
+
+  (** Returns whether the Case B holds in the current vector
+      for given two threads. *)
+  let is_case_b_in_value v t1 t2 =
+    let t_lca = lca v t1 t2 in
+    match t_lca with
+      | Some t -> is_unique v t
+                  && (
+                    (is_join_path v t t1 && is_unique v t2)
+                    or (is_join_path v t t2 && is_unique v t1)
+                  ) 
+      | None   -> false
 
 end
 
@@ -170,11 +234,11 @@ module ThreadDomain = struct
   (** Entry state for the created thread. *)
   let make_entry d t = (ThreadIdSet.singleton t, snd d)
   
-  (** State after creating a thread. *)
+  (** Transfer function. State after creating a thread. *)
   let create_thread d t1 t2 =
     (fst d, ThreadsVector.create_thread (snd d) t1 t2)
  
-  (** State after joining a thread. *) 
+  (** Transfer function. State after joining a thread. *) 
   let join_thread d t1 t2 =
     (fst d, ThreadsVector.join_thread (snd d) t1 t2)
     
@@ -182,6 +246,25 @@ module ThreadDomain = struct
   let current_thread d = fst d
   
   (** Returns true if thread t has been created only once. *)
-  let is_unique_created d t = ThreadsVector.is_unique_created (snd d)
+  let is_unique d t = ThreadsVector.is_unique (snd d)
+  
+  (** Given two domain values representing two program
+      points including current thread value, returns whether
+      the Case A holds between them. *)
+  let is_case_a d1 d2 =
+    ThreadsVector.is_not_created (snd d2) (fst d1)
+    or ThreadsVector.is_not_created (snd d1) (fst d2)
+  
+  (** Given two domain values in two program points,
+      returns whether the Case B holds between them. *)  
+  let is_case_b d1 d2 =
+    ThreadsVector.is_case_b_in_value (snd d1) (fst d1) (fst d2)
+    or ThreadsVector.is_case_b_in_value (snd d2) (fst d1) (fst d2)
+  
+  (** For two program points, check whether the points
+      are non-parallel by checking whether Case A or Case B applies. *)  
+  let is_non_parallel d1 d2 =
+    is_case_a d1 d2
+    or is_case_b d1 d2
   
 end
