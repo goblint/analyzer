@@ -9,6 +9,9 @@ struct
   module Dom = ConcDomain.ThreadDomain
   module Glob = Global.Make (Lattice.Unit) (* no global state *)
   
+  (* query_lv and eval_lv are used for resolving function pointers
+     into function bodies. *)
+  
   let query_lv ask exp = 
     match ask (Queries.MayPointTo exp) with
       | `LvalSet l when not (Queries.LS.is_top l) -> 
@@ -17,8 +20,11 @@ struct
  
   let eval_fv ask exp = 
     match query_lv ask exp with
-      | [(v,_)] -> Some v (* This currently assumes that there is a single possible l-value? *)
+      | [(v,_)] -> Some v (* This currently assumes that there is a single possible l-value. *)
       | _ -> None
+
+  (* Transfer functions for instructions that do not deal with threads,
+      have no influence for this analysis. *)
 
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     ctx.local
@@ -90,6 +96,7 @@ struct
        | "pthread_join"   -> pthread_join ctx arglist
        | _                -> [ctx.local,Cil.integer 1, true]
   
+  (* We denote the main thread by the global thread id variable named "main" *)
   let startstate () = (
     ConcDomain.ThreadIdSet.singleton (Cil.makeGlobalVar "main" Cil.voidType),
     ConcDomain.ThreadsVector.bot())
