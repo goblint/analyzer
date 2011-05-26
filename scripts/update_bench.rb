@@ -87,7 +87,7 @@ def print_res (i)
             correlations = safely.grep(/common mutex/).size
             safely = safely.size - correlations
             uncalled = lines.grep(/will never be called/).reject {|x| x =~ /__check/}.size
-            res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
+            res = lines.grep(/^Duration: (.*) s/) { |x| $1 }
             if res == [] then
               res = lines.grep(/TIMEOUT\s*(.*) s.*$/) { |x| $1 }
               if res == [] then
