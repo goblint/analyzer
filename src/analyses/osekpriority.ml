@@ -9,22 +9,24 @@ struct
   module Dom  = IntDomain.Flattened
   module Glob = Global.Make (Lattice.Unit)
 
+  let ask_it ctx = let q = ctx.ask (Queries.Priority "") in 
+    match q with (`Int p) -> `Lifted p | _ -> failwith "This (hopefully3) never happens!"
+
   (* transfer functions *)
-  let intrpt ctx : Dom.t = Dom.top()
 
-  let assign ctx (lval:lval) (rval:exp) : Dom.t = Dom.top()
+  let assign ctx (lval:lval) (rval:exp) : Dom.t = ask_it ctx
    
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = Dom.top()
+  let branch ctx (exp:exp) (tv:bool) : Dom.t = ask_it ctx
       
-  let body ctx (f:fundec) : Dom.t = Dom.top()
+  let body ctx (f:fundec) : Dom.t = ask_it ctx
 
-  let return ctx (exp:exp option) (f:fundec) : Dom.t = Dom.top()
+  let return ctx (exp:exp option) (f:fundec) : Dom.t = ask_it ctx
   
-  let eval_funvar ctx (fv:exp) =  []
+(*   let eval_funvar ctx (fv:exp) =  [(ctx.local,ctx.local)] *)
    
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list = []
+  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list = [(ctx.local,ctx.local)]
   
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = Dom.top()
+  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = ask_it ctx
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list = 
     match f.vname with
@@ -54,21 +56,18 @@ struct
       | "GetActiveApplicationMode" 
       | "StartOS" 
       | "ShutdownOS" 
-      | _ -> []
+      | _ -> [ctx.local,Cil.integer 1, true]
 
   let startstate () = Dom.top ()
   let otherstate () = Dom.top ()
   let exitstate  () = Dom.top ()
   
-  let name = "OSEK priorities"
+  let name = "OSEK3"
 
   let should_join _ _ = true
-
-
-(** Finalization and other result printing functions: *)
-   
+ 
   (** postprocess and print races and other output *)
-  let finalize () = Base.Main.finalize ()
+  let finalize () =  ()
 
   let init () =  ()
 
@@ -77,7 +76,7 @@ end
 module ThreadMCP = 
   MCP.ConvertToMCPPart
         (Spec)
-        (struct let name = "OSEK priorities" 
+        (struct let name = "OSEK3" 
                 let depends = ["OSEK"]
                 type lf = Spec.Dom.t
                 let inject_l x = `OSEK3 x

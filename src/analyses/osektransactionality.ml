@@ -23,10 +23,10 @@ struct
       | _ -> failwith "Dependencies broken OSEK!"
 
   let pry_d dom_elem = List.fold_left max 0 (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> (Osek.Spec.pry x.vname) 
-                                                              | _ -> failwith "This (hopefully) never happens!"  ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
+                                                              | _ -> failwith "This (hopefully5) never happens!"  ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
   
   let pry_d' dom_elem r = List.fold_left max 0 (List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> if x.vname == r.vname then -1 else (Osek.Spec.pry x.vname) 
-                                                              | _ -> failwith "This (hopefully) never happens!"  ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
+                                                              | _ -> failwith "This (hopefully6) never happens!"  ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
 
   let min' x y =  
     match (x,y) with

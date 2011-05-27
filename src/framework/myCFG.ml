@@ -265,7 +265,7 @@ let generate_irpt_edges cfg =
   let make_irpt_edge toNode (_, fromNode) = 
     match toNode with 
       | FunctionEntry f -> let _ = print_endline ( " Entry " ) in ()
-      | _ -> let _ = let _ = print_endline ( " Add loop " ) in H.add cfg toNode (SelfLoop, toNode) in ()
+      | _ -> H.add cfg toNode (SelfLoop, toNode)
   in
     H.iter make_irpt_edge cfg
   

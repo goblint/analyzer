@@ -6,7 +6,7 @@ open Json_type
 open Json_type.Browse
 
 (* Add analysis here ... *)
-let anas = ["base";"OSEK";"OSEK2";"access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"containment";"shape";"var_eq"]
+let anas = ["base";"OSEK";"OSEK2"; "OSEK3"; "access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"containment";"shape";"var_eq"]
 
 
 (* generate a default configuration *)
@@ -16,6 +16,7 @@ let default_conf () =
   let def_ana = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool false
                              ;"OSEK2"      , Build.bool false
+                             ;"OSEK3"      , Build.bool false
                              ;"access"     , Build.bool false
                              ;"thread"     , Build.bool false
                              ;"escape"     , Build.bool true
@@ -30,6 +31,7 @@ let default_conf () =
   let def_path = Build.objekt ["base"       , Build.bool false
                               ;"OSEK"       , Build.bool true
                               ;"OSEK2"      , Build.bool true
+                              ;"OSEK3"      , Build.bool false
                               ;"access"     , Build.bool false
                               ;"thread"     , Build.bool false
                               ;"escape"     , Build.bool false
@@ -44,6 +46,7 @@ let default_conf () =
   let def_ctx = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool true
                              ;"OSEK2"      , Build.bool false
+                             ;"OSEK3"      , Build.bool false
                              ;"access"     , Build.bool true
                              ;"thread"     , Build.bool true
                              ;"escape"     , Build.bool true
@@ -64,6 +67,7 @@ let default_conf () =
 
 (* configuration structure -- get it from a file or generate a new one *)
 let conf : (string, Json_type.t) Hashtbl.t ref = 
+  let _ = print_endline (Filename.dirname (Sys.argv.(0))) in
   let fn = Filename.concat (Filename.dirname (Sys.argv.(0))) "goblint.json" in
   try
     ref (make_table (objekt (Json_io.load_json ~allow_comments:true fn)))
@@ -142,7 +146,8 @@ let conf_base () =
 let conf_osek () = 
   modify_ana "mutex" false;
   modify_ana "OSEK" true;
-  modify_ana "OSEK2" true
+  modify_ana "OSEK2" true;
+  modify_ana "OSEK3" true
 
 (** singleton types *)
 let singles = ref []

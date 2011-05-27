@@ -21,7 +21,7 @@ struct
   (*priority function*)
   let pry lock = try Hashtbl.find resources lock with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
   (*lockset -> priority helper*)
-  let names = function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!"
+  let names = function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully1) never happens!"
   let resourceset_to_priority = List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)
 
   (*brutal hack*)
@@ -44,7 +44,7 @@ struct
 (*print_string "task \n";*)
           let name = Goblintutil.taskprefix ^ (Str.matched_group 2 line) in 
           let typ = (Str.matched_group 1 line) in
- (*let _ = print_endline ( "Adding " ^ name) in  f*)
+(*  let _ = print_endline ( "Adding " ^ name) in  *)
 	  Hashtbl.add tasks name (typ,-1,[name]);
           Hashtbl.add constantlocks name (makeGlobalVar name  Cil.voidType);
           Hashtbl.add resources name (-1);
@@ -97,10 +97,12 @@ struct
 	| e -> raise e
     in read_info (); close_in input
 
-  let query ctx (q:Queries.t) : Queries.Result.t = match q with
-    | Queries.Priority taskname -> 
-	let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) 
-	in `Int (Int64.of_int pry) 
+  let query ctx (q:Queries.t) : Queries.Result.t = 
+    let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
+    match q with
+    | Queries.Priority "" ->  `Int (Int64.of_int pry)
+    | Queries.Priority vname -> `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) )
+    | Queries.IsPrivate v ->  print_endline v.vname; (try let res = Hashtbl.find offensivepriorities v.vname < pry in printf "Variable %s is %B\n" v.vname res; `Bool res with Not_found -> Queries.Result.top ())
     | _ -> Queries.Result.top ()
 
 
@@ -117,8 +119,8 @@ struct
   let body ctx (f:fundec) : Dom.t = 
     let m_st = Mutex.Spec.body ctx (f:fundec) in
     if (is_task f.svar.vname) then
-(*let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in*)
-(*let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
+(*let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in
+let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
       match Mutex.Spec.special_fn (swap_st ctx m_st) None (dummy_get f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
         | [(x,_,_)] -> x 
@@ -281,7 +283,7 @@ struct
     let report_race offset acc_list =
         let f  ((loc, fl, write), dom_elem,o) = 
           let lockstr = Mutex.Lockset.short 80 dom_elem in
-	  let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully) never happens!" ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem) in
+	  let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully2) never happens!" ) (Mutex.Lockset.ReverseAddrSet.elements dom_elem) in
 	  let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks  in
           let action = if write then "write" else "read" in
           let thread = if Mutex.BS.Flag.is_bad fl then "some thread" else "main thread" in

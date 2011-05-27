@@ -27,8 +27,8 @@ type t = ExpEq of exp * exp
        | PerElementLock of exp
        | ArrayLockstep of exp
        | Regions of exp  
-       | Priority of string
        | MayEscape of varinfo
+       | Priority of string
        | IsPrivate of varinfo
        | SingleThreaded       (* result is "boolean" in `Int form *)
        | CurrentThreadId      (* currently "main" -> `Int 1; "other" -> `Top *)

@@ -131,7 +131,7 @@ struct
     init_inh_rel ();
 		Printexc.record_backtrace true;
 		Cil.iterGlobals (!Cilfacade.ugglyImperativeHack) (function GFun (f,_) -> incr funcount| _ -> ());
-		printf "#Funs : %d\n" !funcount;
+(* 		printf "#Funs : %d\n" !funcount; *)
 		ignore (if !Goblintutil.allfuns then ignore (printf "ALL FUNS\n"));
 		let ctrl = Gc.get () in
 		ctrl.Gc.verbose <- 5; 
