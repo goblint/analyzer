@@ -47,8 +47,14 @@ let is_ignorable lval =
 let big_kernel_lock = LockDomain.Addr.from_var (Cil.makeGlobalVar "[big kernel lock]" Cil.intType)
 let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphore]" Cil.intType)
 
+module type SpecParam =
+sig
+  module Glob: Global.S
+  val effect_fun: Lockset.t -> Glob.Val.t
+end
+
 (** Data race analyzer without base --- this is the new standard *)  
-module Spec =
+module MakeSpec (P: SpecParam) =
 struct  
   include Analyses.DefaultSpec
 
@@ -59,7 +65,7 @@ struct
   module Dom = Lockset
   
   (** We do not add global state, so just lift from [BS]*)
-  module Glob = LockDomain.Glob
+  module Glob = P.Glob
   
   let get_accesses ctx : AccessDomain.Access.t = 
     match ctx.sub with
@@ -360,7 +366,7 @@ struct
       Acc.replace acc v neww;
       accKeys := AccKeySet.add v !accKeys;
       let ls = if rv then Lockset.filter snd ust else ust in
-      let el = Lockset.export_locks ls in
+      let el = P.effect_fun ls in
 (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
       ctx.geffect v el
       
@@ -904,6 +910,14 @@ struct
     BS.finalize ()
 
 end
+
+module MyParam = 
+struct
+  module Glob = LockDomain.Glob
+  let effect_fun ls = Lockset.export_locks ls
+end
+
+module Spec = MakeSpec (MyParam)
 
 module ThreadMCP = 
   MCP.ConvertToMCPPart

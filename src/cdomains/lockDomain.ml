@@ -8,6 +8,13 @@ open Pretty
 
 module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end)
 module Simple = Lattice.Reverse (Mutexes)
+module Priorities = IntDomain.Lifted
+
+module OsekGlob = 
+struct
+  module Var = Basetype.Variables
+  module Val = Priorities
+end
 
 module Glob = 
 struct

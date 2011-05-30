@@ -6,9 +6,6 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module Dom  = Mutex.Spec.Dom
-  module Glob = Mutex.Spec.Glob
-
   let oilFile = ref ""
   let resourceheaders = "/defaultAppWorkstation/tpl_os_generated_configuration.h"
 
@@ -23,6 +20,20 @@ struct
   (*lockset -> priority helper*)
   let names = function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully1) never happens!"
   let resourceset_to_priority = List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)
+
+  module MyParam = 
+  struct
+    module Glob = LockDomain.OsekGlob
+    let effect_fun (ls: LockDomain.Lockset.t) = 
+      let locks = LockDomain.Lockset.ReverseAddrSet.elements ls in
+      let pry = resourceset_to_priority (List.map names locks) in
+        if pry = min_int then `Bot else `Lifted (Int64.of_int pry)
+  end
+
+  module M = Mutex.MakeSpec (MyParam)
+
+  module Dom  = M.Dom
+  module Glob = M.Glob
 
   (*brutal hack*)
   let is_task = Cilfacade.is_task
@@ -102,70 +113,76 @@ struct
     match q with
     | Queries.Priority "" ->  `Int (Int64.of_int pry)
     | Queries.Priority vname -> `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) )
-    | Queries.IsPrivate v ->  print_endline v.vname; (try let res = Hashtbl.find offensivepriorities v.vname < pry in printf "Variable %s is %B\n" v.vname res; `Bool res with Not_found -> Queries.Result.top ())
+    | Queries.IsPrivate v ->  begin
+        let _ = print_endline v.vname in 
+        try 
+          let res = Hashtbl.find offensivepriorities v.vname < pry in 
+          let _ = printf "Variable %s is %B\n" v.vname res in `Bool res 
+         with Not_found -> Queries.Result.top ()
+      end
     | _ -> Queries.Result.top ()
 
 
   (* transfer functions *)
   let intrpt ctx : Dom.t =
-    (Mutex.Spec.intrpt ctx)
+    (M.intrpt ctx)
 
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    (Mutex.Spec.assign ctx lval rval)
+    (M.assign ctx lval rval)
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
-    (Mutex.Spec.branch ctx (exp:exp) (tv:bool)) 
+    (M.branch ctx (exp:exp) (tv:bool)) 
   
   let body ctx (f:fundec) : Dom.t = 
-    let m_st = Mutex.Spec.body ctx (f:fundec) in
+    let m_st = M.body ctx (f:fundec) in
     if (is_task f.svar.vname) then
 (*let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in
 let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
-      match Mutex.Spec.special_fn (swap_st ctx m_st) None (dummy_get f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
+      match M.special_fn (swap_st ctx m_st) None (dummy_get f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
     else 
       m_st
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t =
-    let m_st = Mutex.Spec.return ctx (exp:exp option) (f:fundec) in
+    let m_st = M.return ctx (exp:exp option) (f:fundec) in
     if (is_task f.svar.vname) then 
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
-      match Mutex.Spec.special_fn (swap_st ctx m_st) None (dummy_release f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
+      match M.special_fn (swap_st ctx m_st) None (dummy_release f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
     else 
       m_st
   
   let eval_funvar ctx (fv:exp) = 
-    Mutex.Spec.eval_funvar ctx (fv:exp)
+    M.eval_funvar ctx (fv:exp)
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    (Mutex.Spec.enter_func ctx (lval: lval option) (f:varinfo) (args:exp list))
+    (M.enter_func ctx (lval: lval option) (f:varinfo) (args:exp list))
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-   Mutex.Spec.leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) au
+   M.leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) au
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let make_lock varinfo = [AddrOf (Var varinfo,NoOffset)] in
     match f.vname with
-      | "GetResource" | "ReleaseResource" -> Mutex.Spec.special_fn ctx lval f (match arglist with 
+      | "GetResource" | "ReleaseResource" -> M.special_fn ctx lval f (match arglist with 
         | [Lval l] -> [AddrOf l] 
 	| [Const (CInt64 (c,_,_) ) ] -> (make_lock (Hashtbl.find constantlocks (Int64.to_string c)))
         | x -> x)  
-      | "ActivateTask" -> Mutex.Spec.special_fn ctx lval f arglist (*call function *)
-      | "ChainTask" -> Mutex.Spec.special_fn ctx lval f arglist (*call function *)
-      | "DisableAllInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) 
-      | "EnsableAllInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) 
-      | "SuspendAllInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRall"))) 
-      | "ResumeAllInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRall"))) 
-      | "SuspendOSInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRos"))) 
-      | "ResumeOSInterrupts" -> Mutex.Spec.special_fn ctx lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRos"))) 
+      | "ActivateTask" -> M.special_fn ctx lval f arglist (*call function *)
+      | "ChainTask" -> M.special_fn ctx lval f arglist (*call function *)
+      | "DisableAllInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) 
+      | "EnsableAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) 
+      | "SuspendAllInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRall"))) 
+      | "ResumeAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRall"))) 
+      | "SuspendOSInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRos"))) 
+      | "ResumeOSInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("SRos"))) 
       | "TerminateTask" -> (if not(Dom.is_empty ctx.local) then () else print_endline "Warning: Taskgetitfromtasklock? terminated while holding resources xyz!") ; 
-			    Mutex.Spec.special_fn ctx lval f arglist  (*check empty lockset*)
+			    M.special_fn ctx lval f arglist  (*check empty lockset*)
       | "WaitEvent" -> (if not(Dom.is_empty ctx.local) then () else print_endline "Warning: Task ??? waited while holding resources xyz!") ; 
-			  Mutex.Spec.special_fn ctx lval f arglist (*check empty lockset*)
+			  M.special_fn ctx lval f arglist (*check empty lockset*)
       | "SetEvent"
       | "ClearEvent"
       | "GetEvent"
@@ -180,7 +197,7 @@ let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
       | "GetActiveApplicationMode" 
       | "StartOS" 
       | "ShutdownOS" 
-      | _ -> Mutex.Spec.special_fn ctx lval f arglist
+      | _ -> M.special_fn ctx lval f arglist
 
   let startstate () = Dom.top ()
   let otherstate () = Dom.top ()
@@ -210,16 +227,16 @@ let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
     let is_no_glob (gl:varinfo) = (match gl.vtype with TFun _ -> true | _ -> false )in
     if is_no_glob gl then () else
     (* create mapping from offset to access list; set of offsets  *)
-    let acc = Mutex.Spec.acc in
+    let acc = M.acc in
     let create_map (accesses_map) =
       let f (((_, _, rw), _, offs) as accs) (map,set) =
-        if Mutex.Spec.OffsMap.mem offs map
-        then (Mutex.Spec.OffsMap.add offs ([accs] @ (Mutex.Spec.OffsMap.find offs map)) map,
-              Mutex.Spec.OffsSet.add offs set)
-        else (Mutex.Spec.OffsMap.add offs [accs] map,
-              Mutex.Spec.OffsSet.add offs set)
+        if M.OffsMap.mem offs map
+        then (M.OffsMap.add offs ([accs] @ (M.OffsMap.find offs map)) map,
+              M.OffsSet.add offs set)
+        else (M.OffsMap.add offs [accs] map,
+              M.OffsSet.add offs set)
       in
-      Mutex.Spec.AccValSet.fold f accesses_map (Mutex.Spec.OffsMap.empty, Mutex.Spec.OffsSet.empty)
+      M.AccValSet.fold f accesses_map (M.OffsMap.empty, M.OffsSet.empty)
     in
     (* join map elements, that we cannot be sure are logically separate *)
     let regroup_map (map,set) =
@@ -228,13 +245,13 @@ let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
         let new_gr_offs = Mutex.Offs.join new_offs group_offs in
         (* we assume f is called in the right order: we get the greatest offset first (leq'wise) *)
         if (Mutex.Offs.leq new_offs group_offs || (Mutex.Offs.is_bot group_offs)) 
-        then (new_gr_offs, Mutex.Spec.OffsMap.find offs map @ access_list, new_map) 
-        else (   new_offs, Mutex.Spec.OffsMap.find offs map, Mutex.Spec.OffsMap.add group_offs access_list new_map) 
+        then (new_gr_offs, M.OffsMap.find offs map @ access_list, new_map) 
+        else (   new_offs, M.OffsMap.find offs map, M.OffsMap.add group_offs access_list new_map) 
       in
-      let (last_offs,last_set, map) = Mutex.Spec.OffsSet.fold f set (Mutex.Offs.bot (), [], Mutex.Spec.OffsMap.empty) in
+      let (last_offs,last_set, map) = M.OffsSet.fold f set (Mutex.Offs.bot (), [], M.OffsMap.empty) in
         if Mutex.Offs.is_bot last_offs
         then map
-        else Mutex.Spec.OffsMap.add last_offs last_set map
+        else M.OffsMap.add last_offs last_set map
     in
     let get_common_locks acc_list = 
       let f locks ((_,_,writing), lock, _) = 
@@ -323,15 +340,15 @@ let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
                   Mutex.M.print_group (safe_str "thread local") warnings
     in 
     let rw ((_,_,x),_,_) = x in
-    let acc = Mutex.Spec.Acc.find acc gl in
-    let acc = if !Mutex.no_read then Mutex.Spec.AccValSet.filter rw acc else acc in
+    let acc = M.Acc.find acc gl in
+    let acc = if !Mutex.no_read then M.AccValSet.filter rw acc else acc in
     let acc_info = create_map acc in
     let acc_map = if !Mutex.unmerged_fields then fst acc_info else regroup_map acc_info in
-      Mutex.Spec.OffsMap.iter report_race acc_map
+      M.OffsMap.iter report_race acc_map
     
   (** postprocess and print races and other output *)
   let finalize () =
-    Mutex.Spec.AccKeySet.iter postprocess_acc !Mutex.Spec.accKeys;
+    M.AccKeySet.iter postprocess_acc !M.accKeys;
     if !Mutex.GU.multi_threaded then begin
       if !race_free then 
         print_endline "Goblint did not find any Data Races in this program!";
@@ -372,8 +389,8 @@ module ThreadMCP =
                 let inject_l x = `OSEK x
                 let extract_l x = match x with `OSEK x -> x | _ -> raise MCP.SpecificationConversionError
                 type gf = Spec.Glob.Val.t
-                let inject_g x = `Mutex x 
-                let extract_g x = match x with `Mutex x -> x | _ -> raise MCP.SpecificationConversionError
+                let inject_g x = `Osek x 
+                let extract_g x = match x with `Osek x -> x | _ -> raise MCP.SpecificationConversionError
          end)
          
 module Path     : Analyses.Spec = Compose.PathSensitive (Spec)

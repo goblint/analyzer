@@ -118,6 +118,9 @@ module Flattened : S with type t = [`Top | `Lifted of int64 | `Bot]
 (** This is the typical flattened integer domain used in Kildall's constant
   * propagation. *)
 
+module Lifted : S with type t = [`Top | `Lifted of int64 | `Bot]
+(** Artificially bounded integers in their natural ordering. *)
+
 module Trier 
 : S with type t = [
     | `Excluded of SetDomain.Make(Integers).t

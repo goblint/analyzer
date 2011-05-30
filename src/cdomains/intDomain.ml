@@ -257,6 +257,7 @@ struct
 end
 
 module Flattened = Flat (Integers) 
+module Lifted    = Lift (Integers) 
 
 module Trier = 
 struct
