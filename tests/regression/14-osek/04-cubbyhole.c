@@ -1,5 +1,4 @@
-// PARAM: --oil 04-cubbyhole.oil --tramp 04-defaultAppWorkstation/tpl_os_generated_configuration.h -I 04-defaultAppWorkstation/os -I 04-defaultAppWorkstation/
-
+// PARAM: --oil 04-cubbyhole.oil --tramp 04-defaultAppWorkstation/tpl_os_generated_configuration.h -I 04-defaultAppWorkstation/ -I 04-defaultAppWorkstation/os-minimalheaders/os_machine/posix-libpcl/ -I 04-defaultAppWorkstation/os-minimalheaders/
 
 #include <stdio.h>
 #include <string.h>
