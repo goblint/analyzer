@@ -1,7 +1,6 @@
-// PARAM: --oil example.oil -I defaultAppWorkstation/
+// PARAM: --oil 01-privatize.oil l -tramp 01-defaultAppWorkstation/tpl_os_generated_configuration.h
 
-
-#include "defaultAppWorkstation/tpl_os_generated_configuration.h"
+// #include "01-defaultAppWorkstation/tpl_os_generated_configuration.h"
 
 int x;
 int y;
