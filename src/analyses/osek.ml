@@ -124,7 +124,7 @@ struct
             | `Top -> max_int
         in
         let res = off <= pry in 
-        let _ = if v.vname = "x" then ignore (printf "Variable %s is %B because %d <= %d\n" v.vname res off pry) else () in `Bool res 
+        let _ = if false then Messages.write (Pretty.sprint ~width:80 (dprintf "Variable %s is %B because %d <= %d" v.vname res off pry)) else () in `Bool res 
     | _ -> Queries.Result.top ()
 
 

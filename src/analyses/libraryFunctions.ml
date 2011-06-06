@@ -138,6 +138,8 @@ let writesAll a x =
 
 (* just add your library functions here *)
 let invalidate_actions = [
+  ("GetResource", readsAll);
+  ("ReleaseResource", readsAll);
   ("atoi", readsAll);             (*safe*)
   ("bzero", writes [1]); (*keep 1*)
   ("connect", readsAll);          (*safe*)

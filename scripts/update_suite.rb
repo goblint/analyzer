@@ -224,8 +224,11 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
           #puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}"
           ferr = idx if ferr.nil? or idx < ferr
         end
-      when "assert", "nowarn" 
+      when "nowarn" 
         if warnings[idx].nil? then correct += 1 
+        else ferr = idx if ferr.nil? or idx < ferr end
+      when "assert" 
+        if warnings[idx] != "fail"  and warnings[idx] != "unknown" then correct += 1 
         else ferr = idx if ferr.nil? or idx < ferr end
       when "norace"
         if warnings[idx] != "race" then correct += 1 

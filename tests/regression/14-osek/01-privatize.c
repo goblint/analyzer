@@ -17,7 +17,6 @@ ISR( ii ) {
 ISR( i) {
    GetResource(r);
    x++;
-   x = 2;
    assert(x == 2);
    x--;
    ReleaseResource(r);
@@ -27,8 +26,10 @@ ISR( i) {
 
 TASK(t) {
    y=0;
+   assert(y == 0);
    x=1;
    assert(x == 1);
    y=x;
+   assert(y == 1);
    return;
 }
