@@ -7,7 +7,8 @@ struct
   include Analyses.DefaultSpec
 
   let oilFile = ref ""
-  let resourceheaders = "/defaultAppWorkstation/tpl_os_generated_configuration.h"
+  let resourceheaders = ref ""
+(* "/defaultAppWorkstation/tpl_os_generated_configuration.h" *)
 
   let constantlocks = Hashtbl.create 16
   let tasks = Hashtbl.create 16
@@ -361,7 +362,7 @@ let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
 
   let init () = 
     let hashmax _ next old = max next old in  
-    let tramp = Filename.dirname(!oilFile) ^ resourceheaders in
+    let tramp = !resourceheaders in
     if !oilFile != "" && Sys.file_exists(!oilFile) then begin     
       parse_oil ();
       if Sys.file_exists(tramp) then begin

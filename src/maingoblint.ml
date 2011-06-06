@@ -17,6 +17,7 @@ let main () =
   let asm_dir = kernel_root ^ "/arch/x86/include" in
   let other_includes = ref "" in
   let add_include x = other_includes := "-I " ^ x ^ " " ^ !other_includes in
+  let add_include_file x = other_includes := "-include " ^ x ^ " " ^ !other_includes in
   let add_include_kernel x = other_includes := "-I " ^ Filename.concat kernel_root x ^ " " ^ !other_includes in
   let add_string l = let f str = l := str :: !l in Arg.String f in
   let use_libc = ref false in
@@ -45,6 +46,7 @@ let main () =
   in
   let analyze = ref (analyzer (JB.string (JB.field !GU.conf "analysis"))) in
   let oil file = (*GU.allfuns := true;*) GU.oil := true; GU.conf_osek (); Osek.Spec.oilFile := file in
+  let tramp file = Osek.Spec.resourceheaders := file; add_include_file file in
   let setanalysis str = 
     begin match str with
             | "containment" -> GU.conf_containment ()
@@ -131,6 +133,7 @@ let main () =
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
 		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed program");
+		 ("--tramp", Arg.String tramp, "<file>  Resource-ID-headers for the analysed program");
                  ("--intrpts", Arg.Set GU.intrpts, " Enable constraints for interrupts.");
                  ("--timeout", Arg.Set_float max_time, " Maximal time for analysis. (0 -- no timeout)");
                  ("--solver-progress", Arg.Bool ((:=) GU.solver_progress), " <bool> Used for debugging. Prints out a symbol on solving a rhs.");
