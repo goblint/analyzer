@@ -1,7 +1,10 @@
+// PARAM: --oil 04-cubbyhole.oil -tramp 04-defaultAppWorkstation/tpl_os_generated_configuration.h -I 04-defaultAppWorkstation/os -I 04-defaultAppWorkstation/
+
+
 #include <stdio.h>
 #include <string.h>
 #include "tpl_os.h"
-#include "tpl_os_generated_configuration.h"
+// #include "tpl_os_generated_configuration.h"
 
 #define _XOPEN_SOURCE 500
 #include <unistd.h>
