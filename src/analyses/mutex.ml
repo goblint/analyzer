@@ -50,7 +50,7 @@ let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphor
 module type SpecParam =
 sig
   module Glob: Global.S
-  val effect_fun: (Cil.varinfo * Offs.t * bool) -> Lockset.t -> Glob.Val.t
+  val effect_fun: Lockset.t -> Glob.Val.t
 end
 
 (** Data race analyzer without base --- this is the new standard *)  
@@ -366,7 +366,7 @@ struct
       Acc.replace acc v neww;
       accKeys := AccKeySet.add v !accKeys;
       let ls = if rv then Lockset.filter snd ust else ust in
-      let el = P.effect_fun (v,o,rv) ls in
+      let el = P.effect_fun ls in
 (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
       ctx.geffect v el
       
@@ -914,7 +914,7 @@ end
 module MyParam = 
 struct
   module Glob = LockDomain.Glob
-  let effect_fun info ls = Lockset.export_locks ls
+  let effect_fun ls = Lockset.export_locks ls
 end
 
 module Spec = MakeSpec (MyParam)

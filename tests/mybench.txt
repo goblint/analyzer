@@ -31,49 +31,49 @@ Group: Kernel Modules
 apm-emulation.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/apm-emulation.c
 kernel/apm-emulation.c
---kernel --check apm_user_list
+--kernel
 
 ipmi_devintf.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/ipmi/ipmi_devintf.c
 kernel/ipmi_devintf.c
---kernel --check reg_list
+--kernel
 
 virtio_console.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/virtio_console.c
 kernel/virtio_console.c
---kernel --check pdrvdata
+--kernel
 
 vt_ioctl.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/vt_ioctl.c
 kernel/vt_ioctl.c
---kernel --nonstatic --check vt_events
+--kernel --nonstatic
 
 garmin_gps.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/garmin_gps.c
 kernel/garmin_gps.c
---kernel --unique garmin_data --check "{struct garmin_data}"
+--kernel --unique garmin_data
 
 whiteheat.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/whiteheat.c
 kernel/whiteheat.c
---kernel --unique whiteheat_private --check "{struct whiteheat_private}"
+--kernel --unique whiteheat_private
 
 hcd.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/hcd.c
 kernel/hcd.c
---kernel --nonstatic --check usb_bus_list
+--kernel --nonstatic
 
 message.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/message.c
 kernel/message.c
---kernel --nonstatic --check set_config_list
+--kernel --nonstatic
 
 ieee1394-raw
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/ieee1394/raw1394.c
 kernel/drivers/ieee1394/raw1394.c
---kernel --check host_info_list
+--kernel
 
 infiniband-ucma
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/core/ucma.c
 kernel/drivers/infiniband/core/ucma.c
---kernel --unique ucma_file --check "{struct ucma_file}"
+--kernel --unique ucma_file

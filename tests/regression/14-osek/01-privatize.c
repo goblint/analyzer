@@ -9,6 +9,7 @@ int t;
 
 ISR( ii ) {
    x = 1;
+   assert(x == 1);
    return;
 }
 
@@ -16,6 +17,7 @@ ISR( ii ) {
 ISR( i) {
    GetResource(r);
    x++;
+   assert(x == 2);
    x--;
    ReleaseResource(r);
    return;
@@ -25,4 +27,6 @@ TASK(t) {
    y=0;
    x=1;
    y=x;
-return;}
+   assert(y == 1);
+   return;
+}
