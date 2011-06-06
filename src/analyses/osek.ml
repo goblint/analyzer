@@ -24,7 +24,7 @@ struct
   module MyParam = 
   struct
     module Glob = LockDomain.OsekGlob
-    let effect_fun (ls: LockDomain.Lockset.t) = 
+    let effect_fun info (ls: LockDomain.Lockset.t) = 
       let locks = LockDomain.Lockset.ReverseAddrSet.elements ls in
       let pry = resourceset_to_priority (List.map names locks) in
         if pry = min_int then `Bot else `Lifted (Int64.of_int pry)
@@ -268,7 +268,8 @@ let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
 	List.fold_left f (Mutex.Lockset.bot ()) acc_list
     in
     let is_race acc_list' =
-      let acc_list = List.map (fun ((loc, fl, write), dom_elem,o) -> ((loc, fl, write), dom_elem,o)) acc_list' in
+      let acc_list =  acc_list' in
+(* List.map (fun ((loc, fl, write), dom_elem,o) -> ((loc, fl, write), dom_elem,o)) acc_list' in *)
       let locks = get_common_locks acc_list in
       let rw ((_,_,x),_,_) = x in
       let non_main ((_,x,_),_,_) = Base.Main.Flag.is_bad x in
