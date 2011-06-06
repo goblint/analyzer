@@ -1,4 +1,4 @@
-// PARAM: --oil 01-privatize.oil l --tramp 01-defaultAppWorkstation/tpl_os_generated_configuration.h
+// PARAM: --oil 01-privatize.oil --tramp 01-defaultAppWorkstation/tpl_os_generated_configuration.h
 
 // #include "01-defaultAppWorkstation/tpl_os_generated_configuration.h"
 
