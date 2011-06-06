@@ -195,7 +195,7 @@ end
 
 module Lift (Base: S) =
 struct
-  include Lattice.Flat (Base) (struct
+  include Lattice.Lift (Base) (struct
                                  let top_name = "MaxInt"
                                  let bot_name = "MinInt"
                                end)

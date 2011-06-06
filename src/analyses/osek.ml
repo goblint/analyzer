@@ -21,13 +21,18 @@ struct
   (*lockset -> priority helper*)
   let names = function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully1) never happens!"
   let resourceset_to_priority = List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)
+  (*brutal hack*)
+  let is_task = Cilfacade.is_task
+ 
 
   module MyParam = 
   struct
     module Glob = LockDomain.OsekGlob
     let effect_fun (ls: LockDomain.Lockset.t) = 
       let locks = LockDomain.Lockset.ReverseAddrSet.elements ls in
-      let pry = resourceset_to_priority (List.map names locks) in
+      let prys = List.map names locks in
+      let staticprys = List.filter is_task prys in
+      let pry = resourceset_to_priority staticprys in
         if pry = min_int then `Bot else `Lifted (Int64.of_int pry)
   end
 
@@ -36,9 +41,6 @@ struct
   module Dom  = M.Dom
   module Glob = M.Glob
 
-  (*brutal hack*)
-  let is_task = Cilfacade.is_task
- 
   let dummy_release f = makeLocalVar f ?insert:(Some false) "ReleaseResource" Cil.voidType
 
   let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType
@@ -114,13 +116,15 @@ struct
     match q with
     | Queries.Priority "" ->  `Int (Int64.of_int pry)
     | Queries.Priority vname -> `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) )
-    | Queries.IsPrivate v ->  begin
-        let _ = print_endline v.vname in 
-        try 
-          let res = Hashtbl.find offensivepriorities v.vname < pry in 
-          let _ = printf "Variable %s is %B\n" v.vname res in `Bool res 
-         with Not_found -> Queries.Result.top ()
-      end
+    | Queries.IsPrivate v ->
+        let off = 
+          match (ctx.global v: Glob.Val.t) with
+            | `Bot -> min_int 
+            | `Lifted i -> Int64.to_int i
+            | `Top -> max_int
+        in
+        let res = off <= pry in 
+        let _ = if v.vname = "x" then ignore (printf "Variable %s is %B because %d <= %d\n" v.vname res off pry) else () in `Bool res 
     | _ -> Queries.Result.top ()
 
 

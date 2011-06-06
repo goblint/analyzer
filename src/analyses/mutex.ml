@@ -368,6 +368,7 @@ struct
       let ls = if rv then Lockset.filter snd ust else ust in
       let el = P.effect_fun ls in
 (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
+(*      let _ = printf "Access to %s with offense priority %a\n" v.vname P.Glob.Val.pretty el in*)
       ctx.geffect v el
       
    
