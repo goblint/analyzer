@@ -139,6 +139,7 @@ let getFuns fileAST : startfuns =
     match glob with 
       | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.mainfuns -> add_main def acc
       | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.exitfuns -> add_exit def acc
+      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.otherfuns -> add_other def acc
       | GFun({svar={vname=mn; vattr=attr}} as def, _) when !GU.kernel && is_init attr -> 
           Printf.printf "Start function: %s\n" mn; add_funname mn GU.mainfuns; add_main def acc
       | GFun({svar={vname=mn; vattr=attr}} as def, _) when !GU.kernel && is_exit attr -> 

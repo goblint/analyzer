@@ -61,7 +61,7 @@ kernel/whiteheat.c
 hcd.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/hcd.c
 kernel/hcd.c
---kernel --nonstatic
+--kernel --nonstatic --otherfun usb_host_authorized_default_show --otherfun usb_host_authorized_default_store
 
 message.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/message.c
