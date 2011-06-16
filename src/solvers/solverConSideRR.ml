@@ -78,10 +78,10 @@ struct
       else begin
         let old_state   = VMap.find sigma x in
         let local_state = List.fold_left addOneRHS old_state rhsides in
-          if tracing then tracei "sol" (dprintf "Entered %a.\n" Var.pretty_trace x);
-          if tracing then trace "sol" (dprintf "Current state:\n    %a\n" VDom.pretty old_state );
+          if tracing then tracei "sol" "Entered %a.\n" Var.pretty_trace x;
+          if tracing then trace "sol" "Current state:\n    %a\n" VDom.pretty old_state;
           if not (VDom.leq local_state old_state) then begin
-            if tracing then traceu "sol" (dprintf "Set state to:\n    %a\n" VDom.pretty local_state );
+            if tracing then traceu "sol" "Set state to:\n    %a\n" VDom.pretty local_state;
             VMap.replace sigma x local_state;
             let influenced_vars = ref [] in
             let collectInfluence (y,f) = 
@@ -93,7 +93,7 @@ struct
               if !GU.eclipse then show_add_work_buf (List.length !influenced_vars);
               List.iter constrainOneVar !influenced_vars;
           end else 
-            if tracing then traceu "sol" (dprintf "State didn't change!\n")
+            if tracing then traceu "sol" "State didn't change!\n"
       end;
       if !GU.eclipse then show_worked_buf 1
           

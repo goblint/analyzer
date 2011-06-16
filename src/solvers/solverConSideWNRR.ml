@@ -96,15 +96,15 @@ struct
 
         let con_state = List.fold_left addOneRHS start_state rhsides in
 
-        if tracing then tracei "sol" (dprintf "Entering %a.\n" Var.pretty_trace x);
-        if tracing then trace "sol" (dprintf "Current state:\n    %a\n" VDom.pretty old_state );
+        if tracing then tracei "sol" "Entering %a.\n" Var.pretty_trace x;
+        if tracing then trace "sol" "Current state:\n    %a\n" VDom.pretty old_state;
         if change old_state con_state then begin
           let new_state = oper old_state con_state in
-          if tracing then traceu "sol" (dprintf "Set state to:\n    %a\n" VDom.pretty new_state );
+          if tracing then traceu "sol" "Set state to:\n    %a\n" VDom.pretty new_state;
           VMap.replace sigma x new_state;
           write_down_influences ()
         end else 
-          if tracing then traceu "sol" (dprintf "State didn't change!\n")
+          if tracing then traceu "sol" "State didn't change!\n"
     end;
       if !GU.eclipse then show_worked_buf 1
           

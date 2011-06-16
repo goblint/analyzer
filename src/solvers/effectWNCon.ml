@@ -86,9 +86,9 @@ struct
               if !GU.eclipse then show_add_work_buf (List.length !influenced_vars);
               List.iter constrainOneVar !influenced_vars;
 (*               worklist := !influenced_vars @ !worklist; *)
-              if tracing then traceu "sol" (dprintf "Set state to:\n    %a\n" VDom.pretty new_w )
+              if tracing then traceu "sol" "Set state to:\n    %a\n" VDom.pretty new_w
           end else 
-            if tracing then traceu "sol" (dprintf "State didn't change!\n") ;
+            if tracing then traceu "sol" "State didn't change!\n" ;
 
 
           (* narrow *)
@@ -96,8 +96,8 @@ struct
           let con_n = List.fold_left constrainOneRHS (VDom.bot ()) rhsides in
           let new_n = VDom.narrow old_n con_n in
 
-          if tracing then tracei "sol" (dprintf "Narrowing %a.\n" Var.pretty_trace x);
-          if tracing then trace "sol" (dprintf "Old state:\n    %a\n" VDom.pretty old_n );
+          if tracing then tracei "sol" "Narrowing %a.\n" Var.pretty_trace x;
+          if tracing then trace "sol" "Old state:\n    %a\n" VDom.pretty old_n;
 
           if not (VDom.leq old_n new_n) then begin
             VMap.replace sigma x new_n;
@@ -111,9 +111,9 @@ struct
               if !GU.eclipse then show_add_work_buf (List.length !influenced_vars);
               List.iter constrainOneVar !influenced_vars;
 (*               worklist := !influenced_vars @ !worklist; *)
-              if tracing then traceu "sol" (dprintf "Set state to:\n    %a\n" VDom.pretty new_w )
+              if tracing then traceu "sol" "Set state to:\n    %a\n" VDom.pretty new_w
           end else
-            if tracing then traceu "sol" (dprintf "State didn't change!\n") 
+            if tracing then traceu "sol" "State didn't change!\n" 
     end end;
     if !GU.eclipse then show_worked_buf 1
           

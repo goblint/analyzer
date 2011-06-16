@@ -107,17 +107,92 @@ let warn_each msg =
 let debug msg =
   if !GU.debug then warn msg
 
-let trace n x = Trace.trace n (align++x++unalign)
-let tracei n x = Trace.tracei n (align++x++unalign)
-let traceu n x = Trace.traceu n (align++x++unalign)
 
-let tracel sys doc = 
+(* Parses a format string to generate a nop-function of the correct type. *)
+let mygprintf (format : ('a, unit, doc, 'b) format4) : 'a =
+  let format = (Obj.magic format : string) in
+  let flen    = String.length format in
+  let fget    = String.unsafe_get format in
+  let rec literal acc i = 
+    let rec skipChars j = 
+      if j >= flen || (match fget j with '%' | '@' | '\n' -> true | _ -> false) then
+        collect nil j
+      else
+        skipChars (succ j)
+    in
+    skipChars (succ i)
+  and collect (acc: doc) (i: int) = 
+    if i >= flen then begin
+      Obj.magic (()) 
+    end else begin
+      let c = fget i in
+      if c = '%' then begin
+        let j = skip_args (succ i) in
+        match fget j with
+          '%' -> literal acc j 
+	| ',' -> collect acc (succ j)
+        | 's' | 'c' | 'd' | 'i' | 'o' | 'x' | 'X' | 'u'
+        | 'f' | 'e' | 'E' | 'g' | 'G' | 'b' | 'B' -> 
+            Obj.magic(fun b -> collect nil (succ j))
+	| 'L' | 'l' | 'n' -> Obj.magic(fun n -> collect nil (succ (succ j)))
+        | 'a' -> Obj.magic(fun pprinter arg -> collect nil (succ j))
+        | 't' -> Obj.magic(fun pprinter -> collect nil (succ j))
+        | c -> invalid_arg ("dprintf: unknown format %s" ^ String.make 1 c)
+      end else if c = '@' then begin
+        if i + 1 < flen then begin
+          match fget (succ i) with
+            '[' | ']' | '!' | '?' | '^' | '@' -> collect nil (i + 2)
+          | '<' | '>' -> collect nil (i + 1)
+          | c -> invalid_arg ("dprintf: unknown format @" ^ String.make 1 c)
+        end else
+          invalid_arg "dprintf: incomplete format @"
+      end else if c = '\n' then begin
+        collect nil (i + 1)
+      end else
+        literal acc i
+    end
+  and skip_args j =
+    match String.unsafe_get format j with
+      '0' .. '9' | ' ' | '.' | '-' -> skip_args (succ j)
+    | c -> j
+  in
+  collect nil 0
+
+let traceTag (sys : string) : Pretty.doc =
+  let rec ind (i : int) : string = if (i <= 0) then "" else " " ^ (ind (i-1)) in
+    (text ((ind !Trace.traceIndentLevel) ^ "%%% " ^ sys ^ ": "))
+
+let printtrace sys d: unit = 
+  fprint stderr 80 ((traceTag sys) ++ align ++ d ++ unalign); 
+  flush stderr 
+
+let gtrace f sys fmt = 
+  if Trace.traceActive sys then
+    gprintf (f sys) fmt
+  else
+    mygprintf fmt
+
+let trace sys fmt = gtrace printtrace sys fmt
+
+let tracei sys fmt =  
+  let f sys d = printtrace sys d; Trace.traceIndent sys in
+    gtrace f sys fmt
+
+let traceu sys fmt =  
+  let f sys d = printtrace sys d; Trace.traceOutdent sys in
+    gtrace f sys fmt
+
+let tracel sys fmt = 
   let loc = !current_loc in
-  let docloc = text loc.file ++ text ":" ++ num loc.line ++ line ++ indent 2 doc in
-    Trace.trace sys docloc
+  let docloc sys doc = 
+    printtrace sys (text loc.file ++ text ":" ++ num loc.line ++ line ++ indent 2 doc) 
+  in
+    gtrace docloc sys fmt
 
-let traceli sys doc =
+let traceli sys fmt = 
   let loc = !current_loc in
-  let doc = text loc.file ++ text ":" ++ num loc.line ++ line ++ indent 2 doc in
-    Trace.tracei sys doc
-
+  let docloc sys doc: unit = 
+    printtrace sys (text loc.file ++ text ":" ++ num loc.line ++ line ++ indent 2 doc);
+    Trace.traceIndent sys
+  in
+    gtrace docloc sys fmt

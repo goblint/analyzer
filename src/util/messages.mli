@@ -63,17 +63,17 @@ val debug: string -> unit
 val tracing: bool
 (** Static flag to turn off tracing (improves performance) *)
 
-val trace: string -> Pretty.doc -> unit
+val trace: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
 (** A wrapper around {!Trace.trace}. *)
 
-val tracei: string -> Pretty.doc -> unit
+val tracei: string -> ('a, unit, Pretty.doc, unit) format4-> 'a
 (** A wrapper around {!Trace.tracei}. *)
 
-val traceu: string -> Pretty.doc -> unit
+val traceu: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
 (** A wrapper around {!Trace.traceu}. *)
 
-val tracel: string -> Pretty.doc -> unit
+val tracel: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
 (** Like {!Analyses.trace}, but adds the location information to the message. *)
 
-val traceli: string -> Pretty.doc -> unit
+val traceli: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
 (** Like {!Analyses.tracei}, but adds the location information to the message. *)

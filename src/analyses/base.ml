@@ -111,13 +111,13 @@ struct
         * addresses is a topped value, joining will fail. *)
        try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
      in
-     if M.tracing then M.tracel "get" (dprintf "Address: %a\nState: %a\nResult: %a\n" 
-                                         AD.pretty addrs CPA.pretty st VD.pretty res);
+     if M.tracing then M.tracel "get" "Address: %a\nState: %a\nResult: %a\n" 
+                                         AD.pretty addrs CPA.pretty st VD.pretty res;
      res
 
    (** [set st addr val] returns a state where [addr] is set to [val] *)
    let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value): store =
-     if M.tracing then M.tracel "set" (dprintf "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st);
+     if M.tracing then M.trace "set" "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st;
      (* Updating a single varinfo*offset pair. NB! This function's type does
       * not include the flag. *)
      let update_one_addr (x, offs) nst: cpa = 
@@ -524,7 +524,7 @@ struct
        match (op, lval, value, tv) with
          (* The true-branch where x == value: *)
          | Cil.Eq, x, value, true -> 
-             if M.tracing then M.trace "invariant" (dprintf "Yes, success! %a equals %a\n\n" Cil.d_lval x VD.pretty value);
+             if M.tracing then M.trace "invariant" "Yes, success! %a equals %a\n\n" Cil.d_lval x VD.pretty value;
              Some (x, value)
          (* The false-branch for x == value: *)
          | Cil.Eq, x, value, false -> begin
@@ -533,12 +533,12 @@ struct
                    match ID.to_int n with
                      | Some n ->
                          (* When x != n, we can return a singleton exclusion set *)
-                         if M.tracing then M.trace "invariant" (dprintf "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n);
+                         if M.tracing then M.trace "invariant" "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n;
                          Some (x, `Int (ID.of_excl_list [n]))
                      | None -> None
                  end
                | `Address n ->
-                   if M.tracing then M.trace "invariant" (dprintf "Yes, success! %a is not NULL\n\n" Cil.d_lval x);
+                   if M.tracing then M.trace "invariant" "Yes, success! %a is not NULL\n\n" Cil.d_lval x;
                    let x_rv = 
                      match eval_rv a gs st (Cil.Lval x) with
                       | `Address a -> a
@@ -547,7 +547,7 @@ struct
                | _ -> 
                  (* We can't say anything else, exclusion sets are finite, so not
                   * being in one means an infinite number of values *)
-                 if M.tracing then M.trace "invariant" (dprintf "Failed! (not a definite value)\n\n");
+                 if M.tracing then M.trace "invariant" "Failed! (not a definite value)\n\n";
                  None
            end
          | Cil.Ne, x, value, _ -> helper Cil.Eq x value (not tv)
@@ -558,7 +558,7 @@ struct
               | `Int n -> begin 
                   match limit_from n with
                     | Some n ->
-                         if M.tracing then M.trace "invariant" (dprintf "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n);
+                         if M.tracing then M.trace "invariant" "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n;
                          Some (x, `Int (range_from n))
                     | None -> None
               end
@@ -571,7 +571,7 @@ struct
               | `Int n -> begin 
                   match limit_from n with
                     | Some n ->
-                         if M.tracing then M.trace "invariant" (dprintf "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n);
+                         if M.tracing then M.trace "invariant" "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n;
                          Some (x, `Int (range_from n))
                     | None -> None
               end
@@ -580,10 +580,10 @@ struct
          | Cil.Gt, x, value, _ -> helper Cil.Le x value (not tv)
          | Cil.Ge, x, value, _ -> helper Cil.Lt x value (not tv)
          | _ -> 
-             if M.tracing then M.trace "invariant" (dprintf "Failed! (operation not supported)\n\n");
+             if M.tracing then M.trace "invariant" "Failed! (operation not supported)\n\n";
              None
      in
-       if M.tracing then M.tracel "invariant" (dprintf "expression: %a is %B\n" Cil.d_exp exp tv);
+       if M.tracing then M.tracel "invariant" "expression: %a is %B\n" Cil.d_exp exp tv;
          let null_val typ =
            match typ with
              | Cil.TPtr _ -> `Address (AD.null_ptr())
@@ -603,7 +603,7 @@ struct
                helper Cil.Ne x (null_val (Cil.typeOf exp)) tv
            | Cil.UnOp (Cil.LNot,uexp,typ) -> derived_invariant uexp (not tv)
            | _ -> 
-               if M.tracing then M.trace "invariant" (dprintf "Failed! (expression %a not understood)\n\n" Cil.d_exp exp);
+               if M.tracing then M.trace "invariant" "Failed! (expression %a not understood)\n\n" Cil.d_exp exp;
                None
        in
        let is_some_bot x =
@@ -747,9 +747,9 @@ struct
     * all pointers within a structure should be considered, but we don't follow
     * pointers. We return a flattend representation, thus simply an address (set). *)
    let reachable_from_address (ask: Q.ask) (gs:glob_fun) st (adr: address): address =
-     if M.tracing then M.tracei "reachability" (dprintf "Checking for %a\n" AD.pretty adr);
+     if M.tracing then M.tracei "reachability" "Checking for %a\n" AD.pretty adr;
      let rec reachable_from_value (value: value) =
-       if M.tracing then M.trace "reachability" (dprintf "Checking value %a\n" VD.pretty value);
+       if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
        match value with
          | `Top -> 
              let typ = AD.get_type adr in
@@ -772,7 +772,7 @@ struct
          | `Int _ -> empty
      in
      let res = reachable_from_value (get ask gs st adr) in
-       if M.tracing then M.traceu "reachability" (dprintf "Reachable addresses: %a\n" AD.pretty res);
+       if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
        res
 
    (* The code for getting the variables reachable from the list of parameters.
@@ -780,7 +780,7 @@ struct
     * addresses, as both AD elements abstracting individual (ambiguous) addresses
     * and the workset of visited addresses. *)
    let reachable_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
-     if M.tracing then M.traceli "reachability" (dprintf "Checking reachable arguments!");
+     if M.tracing then M.traceli "reachability" "Checking reachable arguments!";
      (* We begin looking at the parameters: *)
      let argset = List.fold_right AD.join args empty in
      let workset = ref argset in
@@ -797,7 +797,7 @@ struct
            workset := AD.diff collected !visited 
        done;
        (* Return the list of elements that have been visited. *)
-       if M.tracing then M.traceu "reachability" (dprintf "All reachable vars: %a\n" AD.pretty !visited);
+       if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
        List.map AD.singleton (AD.elements !visited)
 
    let invalidate ask (gs:glob_fun) (st:store) (exps: Cil.exp list): store = 
@@ -933,7 +933,7 @@ struct
     in
       List.fold_right g flist [] 
 
-  and fork ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * Dom.t) list = 
+  and forkfun ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * Dom.t) list = 
     let cpa,fl = ctx.local in
     match LF.classify f.vname args with 
       (* handling thread creations *)
@@ -970,7 +970,7 @@ struct
       | _ ->  []
 
   and enter_func ctx lval fn args : (Dom.t * Dom.t) list = 
-    let forks = fork ctx lval fn args in
+    let forks = forkfun ctx lval fn args in
     let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
     enter_func_wo_spawns ctx lval fn args
 
@@ -1000,7 +1000,7 @@ struct
 
   let special_fn ctx (lv:lval option) (f: varinfo) (args: exp list) = 
 (*    let heap_var = heap_var !GU.current_loc in*)
-    let forks = fork ctx lv f args in
+    let forks = forkfun ctx lv f args in
     let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
     let cpa,fl as st = ctx.local in
     let gs = ctx.global in

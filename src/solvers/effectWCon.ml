@@ -36,7 +36,7 @@ struct
   let increase (v:Var.t) = 
     let set v c = 
       if not full_trace && (c > start_c && c > !max_c && (not (is_some !max_var) || not (Var.equal (from_some !max_var) v))) then begin
-        trace "sol" (dprintf "Swiched tracing to %a\n" Var.pretty_trace v);
+        if tracing then trace "sol" "Swiched tracing to %a\n" Var.pretty_trace v;
         max_c := c;
         max_var := Some v
       end
@@ -71,7 +71,7 @@ struct
           if notnew x then
             let temp = VMap.find todo x in VMap.remove todo x; temp
           else begin
-            if tracing && Var.category x = 3 then trace "sol" (dprintf "New %a\n" Var.pretty_trace x);
+            if tracing && Var.category x = 3 then trace "sol" "New %a\n" Var.pretty_trace x;
             VMap.add sigma x (VDom.bot ());  (* danger! Adding default value!!! If the datastruct refuses this,  membership test will fail -> inf. loop *)
             fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system x) ([],0))
           end
@@ -120,8 +120,8 @@ struct
           let old_state = VMap.find sigma x in
           (if tracing then increase x); (*update the histogram*)
           if full_trace || ((not (VDom.is_bot old_state)) && is_some !max_var && Var.equal (from_some !max_var) x) then begin
-            if tracing then tracei "sol" (dprintf "(%d) Entered %a.\n" !max_c Var.pretty_trace x);
-            if tracing then traceu "sol" (dprintf "%a\n\n" VDom.pretty_diff (!local_state, old_state) )
+            if tracing then tracei "sol" "(%d) Entered %a.\n" !max_c Var.pretty_trace x;
+            if tracing then traceu "sol" "%a\n\n" VDom.pretty_diff (!local_state, old_state)
           end;
           let new_val = VDom.join !local_state old_state in
           if not (VDom.leq new_val old_state) then begin

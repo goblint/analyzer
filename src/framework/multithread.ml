@@ -39,7 +39,7 @@ struct
   let top_query x = Queries.Result.top () 
   
   let system (cfg: MyCFG.cfg) (n,es: Var.t) : Solver.rhs list = 
-    if M.tracing then M.trace "con" (dprintf "%a\n" Var.pretty_trace (n,es));
+    if M.tracing then M.trace "con" "%a\n" Var.pretty_trace (n,es);
     
     let lift_st x forks: Solver.var_domain * Solver.diff * Solver.variable list =
       let diff = [] in
@@ -270,7 +270,7 @@ struct
     let transfer_func (st : Spec.Dom.t) (edge, loc) : Spec.Dom.t = 
       let add_var _ _ = raise (Failure "Global initializers should never spawn threads. What is going on?")  in
       try
-        if M.tracing then M.trace "con" (dprintf "Initializer %a\n" d_loc loc);
+        if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
         GU.current_loc := loc;
         match edge with
           | MyCFG.Entry func        -> Spec.body (A.context top_query st theta [] add_var add_diff) func
