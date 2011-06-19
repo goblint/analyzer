@@ -780,7 +780,7 @@ struct
     * addresses, as both AD elements abstracting individual (ambiguous) addresses
     * and the workset of visited addresses. *)
    let reachable_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
-     if M.tracing then M.traceli "reachability" "Checking reachable arguments!";
+     if M.tracing then M.traceli "reachability" "Checking reachable arguments!\n";
      (* We begin looking at the parameters: *)
      let argset = List.fold_right AD.join args empty in
      let workset = ref argset in
@@ -950,7 +950,7 @@ struct
             [start_vari,(cpa, Flag.get_multi ())]
         end
       | `Unknown _ -> begin
-          if M.tracing then M.traceli "forkfun" ~var:f.vname ~subsys:["reachability"] "Hello!\nHello Again!\n";
+          if M.tracing then M.traceli "forkfun" ~var:f.vname ~subsys:["reachability"] "Tracing reachable functions for %s\n" f.vname;
           let args = 
             match LF.get_invalidate_action f.vname with
               | Some fnc -> fnc `Write  args
