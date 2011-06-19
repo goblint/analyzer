@@ -80,8 +80,8 @@ let main () =
       | _ -> raise (Arg.Bad "no such solver")
   in
   let set_trace sys = 
-    if M.tracing then Trace.traceAddMulti sys
-    else (prerr_endline "Goblin has been compiled without tracing, run ./trace_on to recompile."; exit 2)
+    if M.tracing then M.activate sys
+    else (prerr_endline "Goblin has been compiled without tracing, run ./scripts/trace_on.sh to recompile."; exit 2)
   in
   let speclist = [
                  ("-o", Arg.Set_string outFile, "<file>  Prints the output to file.");
@@ -95,7 +95,8 @@ let main () =
                  ("--cfg", Arg.Set GU.cfg_print, " prints the cfg into cfg.dot.");
                  ("--debug", Arg.Set GU.debug, " Debug mode: for testing the analyzer itself.");
                  ("--warnings", Arg.Set M.warnings, " Print soundness warnings.");
-                 ("--trace", Arg.String set_trace, "<sys>  subsystem to show debug printfs for: con, sol.");
+                 ("--trace", Arg.String set_trace, "<sys>  subsystem to show debug printfs for, such as con, sol.");
+                 ("--trace-var", add_string M.trace_vars, "<id> identifier name of interest for tracing.");
                  ("--stats", Arg.Set Cilutil.printStats, " Outputs timing information.");
                  ("--eclipse", Arg.Set GU.eclipse, " Flag for Goblin's Eclipse Plugin.");
                  ("--gccwarn", Arg.Set GU.gccwarn, " Output warnings in GCC format.");

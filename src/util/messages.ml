@@ -2,7 +2,6 @@ open Cil
 open Pretty
 module GU = Goblintutil
 
-
 exception Bailure of string
 let bailwith s = raise (Bailure s)
 
@@ -108,6 +107,23 @@ let debug msg =
   if !GU.debug then warn msg
 
 
+(* TRACING STUFF. A rewrite of Cil's tracing framework which is too slow for the
+ * large domains we output. The original code generated the document object
+ * even when the subsystem is not activated. *)
+
+let trace_sys = ref ([]: string list)
+let trace_vars = ref ([]: string list)
+
+let activate sys = trace_sys := sys :: !trace_sys
+let deactivate sys = trace_sys := List.filter (fun x -> x <> sys) !trace_sys
+let trace_active sys = List.mem sys !trace_sys
+
+let indent_level = ref 0
+let traceIndent sys = 
+  if trace_active sys then indent_level := !indent_level + 2
+let traceOutdent sys = 
+  if trace_active sys && !indent_level >= 2 then indent_level := !indent_level - 2
+
 (* Parses a format string to generate a nop-function of the correct type. *)
 let mygprintf (format : ('a, unit, doc, 'b) format4) : 'a =
   let format = (Obj.magic format : string) in
@@ -160,39 +176,48 @@ let mygprintf (format : ('a, unit, doc, 'b) format4) : 'a =
 
 let traceTag (sys : string) : Pretty.doc =
   let rec ind (i : int) : string = if (i <= 0) then "" else " " ^ (ind (i-1)) in
-    (text ((ind !Trace.traceIndentLevel) ^ "%%% " ^ sys ^ ": "))
+    (text ((ind !indent_level) ^ "%%% " ^ sys ^ ": "))
 
 let printtrace sys d: unit = 
-  fprint stderr 80 ((traceTag sys) ++ align ++ d ++ unalign); 
+  fprint stderr 80 ((traceTag sys) ++ d); 
   flush stderr 
 
-let gtrace f sys fmt = 
-  if Trace.traceActive sys then
+let gtrace f sys var do_subsys fmt = 
+  let doit = 
+    match var with 
+      | Some s -> !trace_vars = [] || List.mem s !trace_vars
+      | None -> true
+  in
+  if doit && trace_active sys then begin
+    do_subsys ();
     gprintf (f sys) fmt
-  else
+  end else
     mygprintf fmt
 
-let trace sys fmt = gtrace printtrace sys fmt
+let trace sys ?var fmt = gtrace printtrace sys var (fun x -> x) fmt
 
-let tracei sys fmt =  
-  let f sys d = printtrace sys d; Trace.traceIndent sys in
-    gtrace f sys fmt
+let tracei sys ?var ?(subsys=[]) fmt =  
+  let f sys d = printtrace sys d; traceIndent sys in
+  let g () = List.iter activate subsys in
+    gtrace f sys var g fmt
 
-let traceu sys fmt =  
-  let f sys d = printtrace sys d; Trace.traceOutdent sys in
-    gtrace f sys fmt
+let traceu sys ?var ?(subsys=[]) fmt =  
+  let f sys d = printtrace sys d; traceOutdent sys in
+  let g () = List.iter deactivate subsys in
+    gtrace f sys var g fmt
 
-let tracel sys fmt = 
+let tracel sys ?var fmt = 
   let loc = !current_loc in
   let docloc sys doc = 
     printtrace sys (text loc.file ++ text ":" ++ num loc.line ++ line ++ indent 2 doc) 
   in
-    gtrace docloc sys fmt
+    gtrace docloc sys var (fun x -> x) fmt
 
-let traceli sys fmt = 
+let traceli sys ?var ?(subsys=[]) fmt = 
   let loc = !current_loc in
+  let g () = List.iter activate subsys in
   let docloc sys doc: unit = 
     printtrace sys (text loc.file ++ text ":" ++ num loc.line ++ line ++ indent 2 doc);
-    Trace.traceIndent sys
+    traceIndent sys
   in
-    gtrace docloc sys fmt
+    gtrace docloc sys var g fmt

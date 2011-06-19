@@ -61,19 +61,25 @@ val debug: string -> unit
 (** Prints a debugging warning with location. *)
 
 val tracing: bool
-(** Static flag to turn off tracing (improves performance) *)
+(** Static flag to turn off tracing (significantly improves performance) *)
 
-val trace: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
-(** A wrapper around {!Trace.trace}. *)
+val trace_vars: string list ref
+(** List of identifier names that the below functions may care about. *)
 
-val tracei: string -> ('a, unit, Pretty.doc, unit) format4-> 'a
-(** A wrapper around {!Trace.tracei}. *)
+val activate: string -> unit
+(** Activates one of the tracing subsystems. *)
 
-val traceu: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
-(** A wrapper around {!Trace.traceu}. *)
+val trace: string -> ?var:string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
+(** Similar to {!Trace.trace}. *)
 
-val tracel: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
+val tracei: string -> ?var:string -> ?subsys: string list -> ('a, unit, Pretty.doc, unit) format4-> 'a
+(** Similar to {!Trace.tracei}.  *)
+
+val traceu: string -> ?var:string -> ?subsys: string list -> ('a, unit, Pretty.doc, unit) format4 -> 'a
+(** Similar to {!Trace.traceu}. *)
+
+val tracel: string -> ?var:string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
 (** Like {!Analyses.trace}, but adds the location information to the message. *)
 
-val traceli: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
+val traceli: string -> ?var:string -> ?subsys: string list -> ('a, unit, Pretty.doc, unit) format4 -> 'a
 (** Like {!Analyses.tracei}, but adds the location information to the message. *)

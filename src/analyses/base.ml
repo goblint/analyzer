@@ -950,6 +950,7 @@ struct
             [start_vari,(cpa, Flag.get_multi ())]
         end
       | `Unknown _ -> begin
+          if M.tracing then M.traceli "forkfun" ~var:f.vname ~subsys:["reachability"] "Hello!\nHello Again!\n";
           let args = 
             match LF.get_invalidate_action f.vname with
               | Some fnc -> fnc `Write  args
@@ -965,7 +966,8 @@ struct
                     foldGlobals !Cilfacade.ugglyImperativeHack addGlob args 
                 | _ ->  args 
             in
-            collect_spawned ctx vars 
+            let res = collect_spawned ctx vars in
+              if M.tracing then M.traceu "forkfun" ~var:f.vname ~subsys:["reachability"] "Done!\n"; res
         end
       | _ ->  []
 
