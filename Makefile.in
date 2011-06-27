@@ -8,7 +8,6 @@
 CIL=@CIL@
 CILLIB=@CIL@/@CILOBJ@
 XML=@XML@
-JSON=@JSON@
 
 LINK_LIBS  = @LINKLIBS@
 CAMLDIR    = @CAMLDIR@ 
@@ -25,6 +24,7 @@ LINKFLAGS = @COMPILEFLAGS@ -ccopt -L$(CILLIB) -I $(CILLIB)
 DOCFLAGS = @DOCFLAGS@ -stars -t 'Goblint API documentation' -dot-reduce -dot -html -d doc -v
 
 PROG_MODULES = \
+	json jsonParser jsonLexer \
 	goblintutil messages printer cilfacade xmldump \
 	printable lattice setDomain mapDomain osektupel\
 	basetype intDomain lval exp queries addressDomain partitionDomain \
@@ -93,13 +93,13 @@ tags:
 
 # DOCS
 DOC_ARG = -I $(OBJDIR) \
-	-I $(CILLIB) -I $(XML) -I $(JSON) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*\.mli*'` \
+	-I $(CILLIB) -I $(XML) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*\.mli*'` \
 	$(CIL)src/cil.mli $(CIL)src/formatcil.mli \
 	$(CIL)ocamlutil/pretty.mli $(CIL)ocamlutil/errormsg.mli \
 	$(CIL)ocamlutil/trace.mli $(CIL)ocamlutil/stats.mli \
 	$(CIL)ocamlutil/alpha.mli $(CIL)ocamlutil/util.mli \
 	$(CIL)ocamlutil/clist.mli \
-	$(XML)/xml.mli $(JSON)/json_type.mli \
+	$(XML)/xml.mli \
 
 docs: 
 	@rm -f doc/*

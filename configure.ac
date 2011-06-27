@@ -20,11 +20,10 @@ AC_INIT(goblint, 0.9.2)
 
 m4_include([scripts/ax_compare_version.m4])
 
-LINKLIBS="unix str nums cil xml-light pcre netsys netstring jsonwheel"
+LINKLIBS="unix str nums cil xml-light"
 DEFAULTCIL="../cil/"
 DEFAULTXML="../xml-light/"
 DEFAULTOUNIT="../ounit/"
-DEFAULTJSON="../json-wheel/"
 DEFAULTDOC="ocamldoc.opt"
 
 
@@ -196,43 +195,6 @@ else
     COMPILEFLAGS="$COMPILEFLAGS -I $OUNIT/"
   fi
 fi	
-
-#json
-if test -z "$JSON" 
-then
-  if test ! "$NO_FIND"  
-  then
-    JSON=`$OCAMLFIND query json-wheel`
-    USE_FIND=true
-  fi 
-fi
-
-if test -z $JSON
-then
-  JSON=$DEFAULTJSON
-fi
-
-# Is oUnit built
-AC_CHECK_FILE($JSON/jsonwheel.cma,ok=true,ok="")
-AC_CHECK_FILE($JSON/jsonwheel.cmxa,      ,ok="")
-
-if test -z $ok
-then
-  AC_MSG_ERROR([
-  Can't find json-wheel!
-  Specify by running "./configure JSON=<Path>"])
-else
-  AC_MSG_RESULT(using json-wheel from $JSON)
-
-  # Now we are ready for the ride.
-  if test $USE_FIND
-  then
-    COMPILEFLAGS="$COMPILEFLAGS -package json-wheel"
-    USE_FIND=""
-  else
-    COMPILEFLAGS="$COMPILEFLAGS -I $JSON/ -ccopt -L$JSON"
-  fi
-fi  
 
 
 # Do we know where to look?

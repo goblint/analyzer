@@ -2,8 +2,10 @@
 
 open Cil
 
-open Json_type
-open Json_type.Browse
+open Json
+open JsonParser
+open JsonLexer
+
 
 (* Add analysis here ... *)
 let anas = ["base";"OSEK";"OSEK2"; "OSEK3"; "access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"containment";"shape";"var_eq"]
@@ -66,18 +68,22 @@ let default_conf () =
                ;"solver"     , Build.string "effectWCon" ]
 
 (* configuration structure -- get it from a file or generate a new one *)
-let conf : (string, Json_type.t) Hashtbl.t ref = 
-  let _ = print_endline (Filename.dirname (Sys.argv.(0))) in
+let conf : jvalue Object.t ref = 
   let fn = Filename.concat (Filename.dirname (Sys.argv.(0))) "goblint.json" in
   try
-    ref (make_table (objekt (Json_io.load_json ~allow_comments:true fn)))
+    match value token (Lexing.from_channel (open_in fn)) with
+      | Object o -> ref o
+      | _ -> raise (Sys_error "Bad json file: must be an object.")
   with (Sys_error x) -> 
     let c = default_conf () in
-    Json_io.save_json fn c;
-    ref (make_table (objekt c))
-
+    let unwrap = function
+      | Object o -> o
+      | _ -> raise (Sys_error "Bad default conf: fix, recompile, etc.") in
+    save_json fn c;
+    ref (unwrap c)
+    
 let modify_ana x b = 
-  let old_ana = make_table (objekt (field !conf "analyses")) in
+  let old_ana = objekt (field !conf "analyses") in
   let set_ana_pair fe = 
     if fe = x 
     then fe, Build.bool b
@@ -90,10 +96,10 @@ let modify_ana x b =
                  ;"analysis"   , field !conf "analysis"
                  ;"context"    , field !conf "context"
                  ;"solver"     , field !conf "solver"] in
-  conf := make_table (objekt modif)
+  conf := objekt modif
 
 let modify_context x b = 
-  let old_ana = make_table (objekt (field !conf "analyses")) in
+  let old_ana = objekt (field !conf "analyses") in
   let set_ana_pair fe = 
     if fe = x 
     then fe, Build.bool b
@@ -106,7 +112,7 @@ let modify_context x b =
                  ;"analysis"   , field !conf "analysis"
                  ;"context"    , Build.objekt (List.map set_ana_pair anas)
                  ;"solver"     , field !conf "solver"] in
-  conf := make_table (objekt modif)
+  conf := objekt modif
 
 let conf_containment () = 
   modify_ana "containment" true;

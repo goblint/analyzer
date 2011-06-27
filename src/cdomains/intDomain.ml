@@ -1,6 +1,6 @@
 open Pretty
 module GU = Goblintutil
-module JB = Json_type.Browse
+module JB = Json
 
 module type S =
 sig
@@ -1437,7 +1437,7 @@ struct
   let name () = Trier.name ()
         
   let constr_scheme xs =
-    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "int_domain")) in
+    let int_ds = JB.objekt (JB.field !GU.conf "int_domain") in
     let f (s,g) y : t = 
       if JB.bool (JB.field int_ds s) 
       then (g ()) :: y

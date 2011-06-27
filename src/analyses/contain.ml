@@ -1,9 +1,7 @@
 open Cil
 open Pretty
 open Analyses
-open Json_io
-open Json_type
-open Json_type.Browse
+open Json
 
 module GU = Goblintutil
 module FieldVars = Basetype.FieldVariables
@@ -64,15 +62,15 @@ struct
       let inhy = try InhMap.find inh y with _ -> [] in
       List.fold_right (closure_add x) inhy (Dom.InhRel.add (x,y) acc)
     in
-    let add_inh_entry (cn, xs)  =
+    let add_inh_entry cn xs  =
       let xs = List.map string (array xs) in
       InhMap.add inh cn xs
     in
-    let add_htbl htbl (cn,xs) =
+    let add_htbl htbl cn xs =
       let xs = List.map string (array xs) in
       Hashtbl.add htbl cn xs
     in
-    let add_htbl_demangle htbl (cn,xs) =
+    let add_htbl_demangle htbl cn xs =
       let xs = List.map string (array xs) in
 			match (GU.get_class cn) with
 				| Some c ->
@@ -80,7 +78,7 @@ struct
           Hashtbl.add htbl c xs
 				| _ -> ()
     in
-    let add_htbl_re htbl (cn,xs) =
+    let add_htbl_re htbl cn xs  =
       let xs = List.map (fun x -> Str.regexp (string x)) (array xs) in
       Hashtbl.add htbl cn xs
     in (*read CXX.json; FIXME: use mangled names including namespaces*)
@@ -90,18 +88,18 @@ struct
       | f :: _ ->
 		begin
     try 
-      let inhr_tbl = make_table (objekt (Json_io.load_json f)) in
-      List.iter add_inh_entry (objekt (field inhr_tbl "inheritance"));
-      List.iter (add_htbl Dom.public_vars) (objekt (field inhr_tbl "public_vars"));
-      List.iter (add_htbl Dom.private_vars) (objekt (field inhr_tbl "private_vars"));
-      List.iter (add_htbl Dom.public_methods) (objekt (field inhr_tbl "public_methods"));
-      List.iter (add_htbl Dom.private_methods) (objekt (field inhr_tbl "private_methods"));			
-      List.iter (add_htbl Dom.friends) (objekt (field inhr_tbl "friends"));
-      List.iter (add_htbl_demangle Dom.vtbls) (objekt (field inhr_tbl "vtbls"));
-      List.iter (add_htbl Dom.derived) (objekt (field inhr_tbl "derived"));     
-      List.iter (add_htbl ContainDomain.fields) (objekt (field inhr_tbl "fields"));     							
+      let inhr_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
+      Object.iter add_inh_entry (objekt (field inhr_tbl "inheritance"));
+      Object.iter (add_htbl Dom.public_vars) (objekt (field inhr_tbl "public_vars"));
+      Object.iter (add_htbl Dom.private_vars) (objekt (field inhr_tbl "private_vars"));
+      Object.iter (add_htbl Dom.public_methods) (objekt (field inhr_tbl "public_methods"));
+      Object.iter (add_htbl Dom.private_methods) (objekt (field inhr_tbl "private_methods"));			
+      Object.iter (add_htbl Dom.friends) (objekt (field inhr_tbl "friends"));
+      Object.iter (add_htbl_demangle Dom.vtbls) (objekt (field inhr_tbl "vtbls"));
+      Object.iter (add_htbl Dom.derived) (objekt (field inhr_tbl "derived"));     
+      Object.iter (add_htbl ContainDomain.fields) (objekt (field inhr_tbl "fields"));     							
       Dom.inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !Dom.inc;
-    with Json_error x -> 
+    with JsonE x -> 
         failwith ("Contaimnent analysis failed to read CXX.json: " ^ x)		
 		end
 		in (*read in SAFE.json, supress warnings for safe funs/vars*)
@@ -111,10 +109,10 @@ struct
       | f :: _ ->
     try
 			Messages.report "Problems for safe objecst from SAFE.json are suppressed!";
-			let safe_tbl = make_table (objekt (Json_io.load_json f)) in
-      List.iter (add_htbl_re Dom.safe_vars) (objekt (field safe_tbl "variables"));
-      List.iter (add_htbl_re Dom.safe_methods) (objekt (field safe_tbl "methods"));
-    with Json_error x -> 
+			let safe_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
+      Object.iter (add_htbl_re Dom.safe_vars) (objekt (field safe_tbl "variables"));
+      Object.iter (add_htbl_re Dom.safe_methods) (objekt (field safe_tbl "methods"));
+    with JsonE x -> 
         failwith ("Contaimnent analysis failed to read SAFE.json: " ^ x)  
 				
   let funcount = ref 0	

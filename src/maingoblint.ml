@@ -2,7 +2,7 @@
 
 module CF = Cilfacade
 module GU = Goblintutil
-module JB = Json_type.Browse
+module JB = Json
 module M = Messages
 
 let main () =

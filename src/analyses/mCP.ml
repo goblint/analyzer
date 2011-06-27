@@ -422,7 +422,7 @@ struct
 end
 
 module GU = Goblintutil
-module JB = Json_type.Browse
+module JB = Json
 
 exception DomainBroken
     
@@ -433,7 +433,7 @@ struct
   
   let take_list = ref [] 
   let init () = 
-    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in 
+    let int_ds = JB.objekt (JB.field !GU.conf "analyses") in 
     let order = List.map (fun x -> x.featurename ) !analysesList in
     let f s y = JB.bool (JB.field int_ds s) :: y in
     take_list := List.fold_right f order []
@@ -534,7 +534,7 @@ struct
   
   let take_list = ref [] 
   let init () = 
-    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
+    let int_ds = JB.objekt (JB.field !GU.conf "analyses") in
     let order = List.map (fun x -> x.featurename) !analysesList in
     let f s y = JB.bool (JB.field int_ds s) :: y in
     take_list := List.fold_right f order []
@@ -749,7 +749,7 @@ struct
   (* analysis spec stuff *)
   let name = "analyses"
   let finalize () =
-    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
+    let int_ds = JB.objekt (JB.field !GU.conf "analyses") in
     let uses x = JB.bool (JB.field int_ds x) in
     List.iter (fun x ->
         if uses x.featurename 
@@ -767,15 +767,15 @@ struct
   let init () = 
     Dom.init ();
     Glob.Val.init ();
-    let specs_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses"))  in
-    let sense_ds = JB.make_table (JB.objekt (JB.field !GU.conf "sensitive")) in
-    let context_ds = JB.make_table (JB.objekt (JB.field !GU.conf "context")) in
+    let specs_ds = JB.objekt (JB.field !GU.conf "analyses") in
+    let sense_ds = JB.objekt (JB.field !GU.conf "sensitive") in
+    let context_ds = JB.objekt (JB.field !GU.conf "context") in
     let list_order = List.map (fun x -> x.featurename) !analysesList in
     let f s r =
       if JB.bool (JB.field specs_ds s) then JB.bool (JB.field sense_ds s) :: r else r
     in
     take_list := List.fold_right f list_order [];
-    let int_ds = JB.make_table (JB.objekt (JB.field !GU.conf "analyses")) in
+    let int_ds = JB.objekt (JB.field !GU.conf "analyses") in
     let uses x = JB.bool (JB.field int_ds x) in
     context_list := List.fold_right (fun x xs -> if uses x.featurename then JB.bool (JB.field context_ds x.featurename)::xs else xs) !analysesList [];
     List.iter (fun x ->
