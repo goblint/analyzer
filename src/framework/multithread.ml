@@ -17,6 +17,9 @@ struct
   (** Solver variables use global part from [Spec.Dep] *)
   module Var = A.VarF (SD)
 
+  module SP_SOL = Hashtbl.Make (Solver.Prod (Analyses.Var) (SD))
+  module SP = SharirPnueli.Algorithm (Analyses.Var) (SD)
+
   module Solver = 
   struct
     module Sol = Solver.Types (Var) (SD) (Spec.Glob)
@@ -125,11 +128,7 @@ struct
      * sigma and the global state theta; it outputs the new state, delta, and
      * spawned calls. *)      
     let edge2rhs (edge, pred : MyCFG.edge * MyCFG.node) (sigma, theta: Solver.var_assign * Solver.glob_assign) : Solver.var_domain * Solver.diff * Solver.variable list = 
-      let predvar = 
-        match edge with 
-          | MyCFG.Entry f -> (MyCFG.FunctionEntry f.svar, es)
-          | _ -> (pred, es) 
-      in
+      let predvar = (pred, es) in
       (* This is the key computation, only we need to set and reset current_loc,
        * see below. We call a function to avoid ;-confusion *)
       let eval predval : Solver.var_domain * Solver.diff * Solver.variable list = 
@@ -239,6 +238,96 @@ struct
     in
       Solver.GMap.iter print_one glob
 
+  let applySP (cfg: MyCFG.cfg) startvars : SD.t SP_SOL.t =
+    let r x = MyCFG.FunctionEntry x in
+    let e x = MyCFG.Function x in
+    let succ x =
+      List.map (fun (x,y) -> y) (cfg x) 
+    in
+    let theta x = failwith "SP: partial invariant not supported." in
+    let add_var _ _ = failwith "SP: spawning not supported" in
+    let add_diff _ = failwith "SP: partial invariant not supported" in
+    let getctx x = A.context top_query x theta [] add_var add_diff in
+    let is_special p x =
+      let x' = SD.unlift x in
+      match p with
+        | MyCFG.Statement {skind = Instr [Call (_,f,_,_)]} ->
+            begin try 
+              let fs = Spec.eval_funvar (getctx x') f in
+              let _  = List.map Cilfacade.getdec fs in
+                LibraryFunctions.use_special (List.hd fs).vname
+            with Not_found 
+               | Failure "hd" -> true end
+        | _ -> (* the most "special" case *) true
+    in 
+    let special lv f args st =
+      let fs = Spec.eval_funvar (getctx st) f in
+      let f = List.hd fs in
+      let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
+      List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (getctx st) lv f args)    
+    in
+    let enter p (x:SD.t) =
+      let x' = SD.unlift x in
+      match p with
+        | MyCFG.Statement {skind = Instr [Call (lv,f,args,_)]} ->
+            let fs = Spec.eval_funvar (getctx x') f in
+            List.concat (List.map (fun f -> List.map (fun (_,y) -> (f, SD.lift y)) (Spec.enter_func (getctx x') lv f args)) fs)
+        | _ -> failwith "SP: cannot enter a non-call node."
+    in 
+    let comb n p x y = 
+      let x' = SD.unlift x in
+      let y' = SD.unlift y in
+      match n with
+        | MyCFG.Statement {skind = Instr [Call (lv,f,args,_)]} ->
+            SD.lift (Spec.leave_func (getctx x') lv f p args y')
+        | _ -> failwith "SP: cannot enter a non-call node."      
+    in
+    let get_edge n m = 
+      try 
+        fst (List.find (fun (_,y) -> Analyses.Var.equal m y)(cfg n))
+      with Not_found -> 
+        ignore (Pretty.printf "edge from \n%a\nto\n%a\n\n" MyCFG.pretty_node n MyCFG.pretty_node m);
+        flush stdout;
+        failwith "."
+    in
+    let f (n,m) v =
+      let edge = get_edge n m in
+      GU.current_loc := MyCFG.getLoc n ;
+      let v' = SD.unlift v in
+      let next = 
+        match edge with
+          | MyCFG.Proc (l,f,args)        -> special l f args v'
+          | MyCFG.Entry func             -> Spec.body   (getctx v') func      
+          | MyCFG.Assign (lval,exp)      -> Spec.assign (getctx v') lval exp  
+          | MyCFG.SelfLoop               -> Spec.intrpt (getctx v')           
+          | MyCFG.Test   (exp,tv)        -> Spec.branch (getctx v') exp tv    
+          | MyCFG.Ret    (ret,fundec)    -> Spec.return (getctx v') ret fundec
+          | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; v'
+          | MyCFG.Skip                   -> v'
+          (*| _ -> failwith "SP: unsupported edge"*)
+      in
+      SD.lift next
+    in
+    let dolift f d b =
+      try f () with
+        | M.StopTheWorld
+        | A.Deadcode  -> d
+        | M.Bailure s -> M.warn_each s; b
+        | x -> M.warn_urgent "Oh no! Something terrible just happened"; raise x
+    in
+    let f' x y = dolift (fun () -> f x y) (SD.bot ()) y in
+    let enter' x y = dolift (fun () -> enter x y) [] [] in
+    let comb' x y  z w = dolift (fun () -> comb x y z w) (SD.bot ()) w in
+    GU.may_narrow := false ;
+    SP.solve r e succ startvars f' enter' comb' is_special
+
+  let sp_to_solver_result (r:SD.t SP_SOL.t) : solver_result =
+    let vm = Solver.VMap.create (SP_SOL.length r * 2) (SD.bot ()) in
+    let gm = Solver.GMap.create 1 (Spec.Glob.Val.bot ()) in
+    let f (x,y) z = Solver.VMap.add vm (x,y) z  in
+    SP_SOL.iter f r;
+    vm, gm
+
   (** add extern ariables to local state *)
   let do_extern_inits (file : Cil.file) : Spec.Dom.t =
     let module VS = Set.Make (Basetype.Variables) in    
@@ -302,7 +391,7 @@ struct
   let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: A.fundecs) =
     let constraints = 
       if !GU.verbose then print_endline "Generating constraints."; 
-      system (MyCFG.getCFG file) in
+      system (MyCFG.getCFG file true) in
     Spec.init ();
     let startstate, more_funs = 
       if !GU.verbose then print_endline "Initializing globals.";
@@ -325,17 +414,28 @@ struct
       if startfuns = [] then
         [[MyCFG.dummy_func.svar, startstate]]
       else 
-        List.map (enter_with (SD.unlift startstate)) startfuns in
+        List.map (enter_with (SD.unlift startstate)) startfuns in 
     let exitvars = List.map (enter_with (Spec.exitstate ())) exitfuns in
     let othervars = List.map (enter_with (Spec.otherstate ())) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
     let _ = if startvars = [] then failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list." in
     let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (Spec.context_top (SD.unlift e))) startvars in
     let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in
-    
+    let procs = 
+      let f = function
+        | ((MyCFG.FunctionEntry n, e), d) -> (n,e,d)
+        | _ -> failwith "SP: entry states strange."
+      in
+      List.map f 
+    in
     let sol,gs = 
+      let solve () =
+        if !Goblintutil.sharir_pnueli 
+        then sp_to_solver_result (applySP (MyCFG.getCFG file false) (procs entrystates))
+        else Solver.solve () constraints startvars' entrystates
+      in
       if !GU.verbose then print_endline "Analyzing!";
-      Stats.time "solver" (Solver.solve () constraints startvars') entrystates in
+      Stats.time "solver" solve () in
     if !GU.verify then begin
       if !GU.verbose then print_endline "Verifying!";
       Stats.time "verification" (Solver.verify () constraints) (sol,gs)

@@ -243,6 +243,49 @@ struct
   (* Just ignore. *)
 end
 
+module Var =  
+struct
+  type t = MyCFG.node
+
+  let category = function
+    | MyCFG.Statement     s -> 1
+    | MyCFG.Function      f -> 2
+    | MyCFG.FunctionEntry f -> 3
+  
+  let hash x = 
+    match x with
+      | MyCFG.Statement     s -> Hashtbl.hash (s.sid, 0)
+      | MyCFG.Function      f -> Hashtbl.hash (f.vid, 1)
+      | MyCFG.FunctionEntry f -> Hashtbl.hash (f.vid, 2)
+
+  let equal = MyCFG.Node.equal
+  
+  let getLocation n = MyCFG.getLoc n
+
+  let pretty () x =
+    match x with
+      | MyCFG.Statement     s -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
+      | MyCFG.Function      f -> dprintf "call of %s" f.vname
+      | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
+                
+  let pretty_trace () x =  dprintf "%a on %a \n" pretty x Basetype.ProgLines.pretty (getLocation x)
+
+  let compare n1 n2 =
+    match n1, n2 with
+      | MyCFG.FunctionEntry f, MyCFG.FunctionEntry g -> compare f.vid g.vid
+      | _                    , MyCFG.FunctionEntry g -> -1 
+      | MyCFG.FunctionEntry g, _                     -> 1
+      | MyCFG.Statement _, MyCFG.Function _  -> -1
+      | MyCFG.Function  _, MyCFG.Statement _ -> 1
+      | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
+      | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
+  
+  let kind = function
+    | MyCFG.Function f                         -> `ExitOfProc f
+    | MyCFG.Statement {skind = Instr [Call _]} -> `ProcCall
+    | _ -> `Other   
+end
+
 
 module VarF (LD: Printable.S) =  
 struct

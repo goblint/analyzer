@@ -78,10 +78,11 @@ let do_the_params (fd: fundec) =
 let unknown_exp : exp = mkString "__unknown_value__" 
 let dummy_func = emptyFunction "__goblint_dummy_init" 
 
-let createCFG (file: file) =
+let createCFG (file: file) backw =
   let cfg = H.create 113 in
   (* Utility function to add stmt edges to the cfg *)
-  let mkEdge fromNode edge toNode = H.add cfg (Statement toNode) (edge, Statement fromNode) in
+  let addCfg t (e,f) = if backw then H.add cfg t (e,f) else H.add cfg f (e,t) in
+  let mkEdge fromNode edge toNode = addCfg (Statement toNode) (edge, Statement fromNode) in
   (* Function for finding the next real successor of a statement. CIL tends to
    * put a lot of junk between stuff: *)
   let realnode ie stmt = 
@@ -105,7 +106,7 @@ let createCFG (file: file) =
         | Failure "hd" -> if ie then stmt else raise (Failure "hd")
     in realnode ie [] stmt
   in
-  H.add cfg (Function dummy_func.svar) (Ret (None, dummy_func), FunctionEntry dummy_func.svar);
+  addCfg (Function dummy_func.svar) (Ret (None, dummy_func), FunctionEntry dummy_func.svar);
   (* We iterate over all globals looking for functions: *)
   iterGlobals file (fun glob -> 
     match glob with
@@ -114,9 +115,8 @@ let createCFG (file: file) =
           do_the_params fd;
           (* Find the first statement in the function *)
           let entrynode = realnode true (CF.getFirstStmt fd) in
-          (* I just add the entry edge to that node (pointing to itself).
-           * Strange, but it works fine. *)
-          let _ = mkEdge entrynode (Entry fd) entrynode in
+          (* Add the entry edge to that node *)
+          let _ = addCfg (Statement entrynode) ((Entry fd), (FunctionEntry fd.svar)) in
           (* So for each statement in the function body, we do the following: *)
           let handle stmt = 
             (* Please ignore the next line. It creates an index of statements
@@ -142,7 +142,7 @@ let createCFG (file: file) =
                      * the last statement of a function is a call to exit. 
                      * Also see test 00/11. Code changed in revision 244. *)
                     match stmt.succs with
-                      | [] -> H.add cfg (Function fd.svar) (Ret (None, fd), Statement stmt)
+                      | [] -> addCfg (Function fd.svar) (Ret (None, fd), Statement stmt)
                       | _ -> List.iter foreach (List.map (realnode true) stmt.succs)
                   end
               (* If expressions are a bit more interesting, but CIL has done
@@ -173,10 +173,10 @@ let createCFG (file: file) =
                         let newst = mkStmt (Return (None, locUnknown)) in
                           newst.sid <- new_sid ();
                           mkEdge (realnode true stmt) (Test (one, false)) newst;
-                          H.add cfg (Function fd.svar) (Ret (None,fd), Statement newst);
+                          addCfg (Function fd.svar) (Ret (None,fd), Statement newst);
                 end
               (* The return edges are connected to the function *)
-              | Return (exp,loc) -> H.add cfg (Function fd.svar) (Ret (exp,fd), Statement stmt)
+              | Return (exp,loc) -> addCfg (Function fd.svar) (Ret (exp,fd), Statement stmt)
               | _ -> ()
           in
             List.iter handle fd.sallstmts
@@ -269,8 +269,8 @@ let generate_irpt_edges cfg =
   in
     H.iter make_irpt_edge cfg
   
-let getCFG (file: file): cfg = 
-  let cfg = createCFG file in
+let getCFG (file: file) backw : cfg = 
+  let cfg = createCFG file backw in
     if !GU.oil then generate_irpt_edges cfg;
     if !GU.cfg_print then print cfg;      
     H.find_all cfg

@@ -64,3 +64,33 @@ struct
 	    Goblintutil.in_verifying_stage := false
 end
 
+(* SharirPnueli algo *)
+
+type proc = Cil.varinfo (* CIL.something *)
+
+type nodeKind = 
+  [ `ProcCall  
+  | `ExitOfProc of proc
+  | `Other               ]
+
+module type NodeType =
+sig
+  include Analyses.VarType 
+  val kind : t -> nodeKind
+end
+
+module Prod (O1:NodeType) (O2:Lattice.S) =
+struct
+  type t = O1.t * O2.t
+  let compare (u1,u2) (v1,v2) =
+    match O1.compare u1 v1 with
+      | 0 -> O2.compare u2 v2
+      | n -> n
+  let equal (u1,u2) (v1,v2) = O1.equal u1 v1 && O2.equal u2 v2
+  let category (u,_) = O1.category u
+  let hash (u,v) = O1.hash u lxor O2.hash v
+  let pretty_trace () (u,v) =
+    Pretty.dprintf "(%a,%a)" O1.pretty_trace u O2.pretty v
+end
+
+

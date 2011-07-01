@@ -155,6 +155,9 @@ let conf_osek () =
   modify_ana "OSEK2" true;
   modify_ana "OSEK3" true
 
+(** use the Sharir-Pnueli algorithm *)
+let sharir_pnueli = ref false
+
 (** singleton types *)
 let singles = ref []
 

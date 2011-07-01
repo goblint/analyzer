@@ -56,7 +56,7 @@ val dummy_func: fundec
 (** An additional function added to the CFG. As of now it only has a direct 
   * edge (Return) to its entry.*)
 
-val getCFG: file -> cfg
+val getCFG: file -> bool -> cfg
 (** Returns the cfg of the given AST. Note that if the variable
   * {!Goblinutil.cfg_print} is set (by the flag "--cfg"), this function will
   * also write to the file cfg.dot *)
