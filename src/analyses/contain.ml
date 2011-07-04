@@ -192,7 +192,7 @@ struct
 			Dom.Danger.pp_vars;
       fprintf stderr "\nSUM VARS:%d\n" !sum;
 			*)
-      fprintf stderr "\n************************finialize finished******************\n";
+      ignore (fprintf stderr "\n************************finialize finished******************\n");
 			flush stderr;
 			Dom.final:=false
 			(*failwith "Finished"*)

@@ -956,18 +956,8 @@ struct
               | Some fnc -> fnc `Write  args
               | None -> args
           in
-            let addGlob vs =  function
-              | GVar (v,_,_) -> (AddrOf (Var v,NoOffset)) :: vs 
-              | _ -> vs
-            in
-            let vars = 
-              match ctx.ask Queries.SingleThreaded with
-                | `Int i when Queries.ID.to_bool i = Some true && !GU.kernel ->
-                    foldGlobals !Cilfacade.ugglyImperativeHack addGlob args 
-                | _ ->  args 
-            in
-            let res = collect_spawned ctx vars in
-              if M.tracing then M.traceu "forkfun" ~var:f.vname ~subsys:["reachability"] "Done!\n"; res
+          let res = collect_spawned ctx args in
+            if M.tracing then M.traceu "forkfun" ~var:f.vname ~subsys:["reachability"] "Done!\n"; res
         end
       | _ ->  []
 
