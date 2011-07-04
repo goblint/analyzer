@@ -183,6 +183,28 @@ struct
 		                 if k.vname = this_name && (ArgSet.fold (fun x y-> y+1) v 0)>1 then failwith "bad this"; 
 		                  add k v mp
 		*)
+				
+		let dummy = (emptyFunction "@dummy").svar
+    let vars : (varinfo, unit) Hashtbl.t = Hashtbl.create 1111 (*list of funs that we have inspected*)
+    let pp_vars : (t, varinfo list) Hashtbl.t = Hashtbl.create 1111 (*list of funs that we have inspected*)
+
+    (*let add k v mp = add k (ArgSet.empty ()) (remove k mp)*)
+    (*
+    let add k v mp = 
+			(*
+			let cl = (!Goblintutil.current_loc).line
+				in
+			let ns =
+				try 
+					Hashtbl.find pp_vars mp
+				with _ -> []				
+		  in
+			  let added = if List.exists (fun i->i.vid=k.vid) ns then ns else k::ns 
+				in
+			  Hashtbl.replace pp_vars mp added;
+			*)
+			add k (ArgSet.empty ()) mp
+		*)
 		
 	  let merge k v mp = add k (ArgSet.join v (find k mp)) mp
 	end 
@@ -747,14 +769,28 @@ struct
 		let danger_assign v args (fd,st,gd) must_assign fs = (*checks if the new danger val points to this->something and updates this->something*)
       let danger_upd = if must_assign || (v.vglob) then Danger.add else Danger.merge
       in
-        (fd, danger_upd v args st,gd)
+        (fd, danger_upd v args st,gd)				
 				
 		let uid = ref 0
+		
+		let dumpDomSize st =
+			(*if !uid mod 1000 = 0 then*) 
+		  begin
+			  let count = Danger.fold (fun var args y ->
+                            begin
+															 y + ArgSet.fold (fun arg z -> z+1) args 0
+                            end
+                            ) st 0 in
+        report("DangerSize : "^string_of_int count);
+				flush stdout
+			end  
+			
 			
     let danger_propagate v args (fd,st,(gd:Diff.t)) must_assign fs glob = (*checks if the new danger val points to this->something and updates this->something*)
 		  uid:=!uid+1;
       dbg_report((string_of_int (!uid) )^":"^"danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
-		  (*printf "%s\n" ("danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));*)
+			(*dumpDomSize st;*)
+        (*fprintf stderr "(size: %d free:%d live:%d fragments:%d)\n" ((Gc.stat ()).Gc.heap_words) ((Gc.stat ()).Gc.free_words) ((Gc.stat ()).Gc.live_words) ((Gc.stat ()).Gc.fragments);*)			
 			  let danger_upd = if must_assign || (v.vglob) then Danger.add
 				                 else Danger.merge
 				in
@@ -781,27 +817,6 @@ struct
 						else y) 
 					args true
 					in
-					(*
-            let must_rhs_cft = ArgSet.fold (fun x y->
-                let it =
-                    let exp = 
-                        FieldVars.apply_field 
-                        (fun y->(Lval (Var (FieldVars.get_var x),(Field (y,NoOffset)) ))) 
-                        (Lval (Var (FieldVars.get_var x),NoOffset)) x                                
-                    in
-                    (is_tainted fs st exp) in
-                let cft = (must_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset)))
-                 in            
-              if (not cft || it) && (is_ext (FieldVars.get_var x).vname) glob && not (is_safe_name (FieldVars.get_var x).vname)
-              then 
-                begin   
-                    (*report((string_of_int (!uid) )^":"^(sprint 160 (FieldVars.pretty () x))^" it "^string_of_bool it^" cft "^string_of_bool cft);*)
-                    false
-                end 
-                else y) 
-            args true 					 
-					in
-					*)
             (*dbg_report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS_2 "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args)^" rhs_ctf : "^string_of_bool rhs_cft);*)                  
 						if not rhs_cft&& not (FieldVars.get_var fv).vglob then
 						begin
@@ -1399,7 +1414,7 @@ struct
         let cb=Hashtbl.find ht c in 
 	       if not (List.fold_left (fun y x-> y || (x=n)) false cb) then
            Hashtbl.replace ht c (n::cb)
-    with e->Hashtbl.add ht c [n]
+    with e->Hashtbl.replace ht c [n]
 		
   let filter_vtbl  = Str.regexp "^_ZTV.*"		
 				

@@ -17,7 +17,7 @@ struct
   include Analyses.DefaultSpec  
 
   let name = "Containment analysis"
-  
+	  
   module Dom  = 
   struct
     include ContainDomain.Dom
@@ -34,6 +34,8 @@ struct
     let toXML x = toXML_f short x
   end
   
+	let context_top x = Dom.top ()
+
   module Glob = Global.Make (ContainDomain.Globals)
   
     let add_analyzed_fun f ht = (*build list of funs that actually have been analyzed*)
@@ -68,19 +70,19 @@ struct
     in
     let add_htbl htbl cn xs =
       let xs = List.map string (array xs) in
-      Hashtbl.add htbl cn xs
+      Hashtbl.replace htbl cn xs
     in
     let add_htbl_demangle htbl cn xs =
       let xs = List.map string (array xs) in
 			match (GU.get_class cn) with
 				| Some c ->
 					(*printf "ADD_VTBL %s\n" c;*)
-          Hashtbl.add htbl c xs
+          Hashtbl.replace htbl c xs
 				| _ -> ()
     in
     let add_htbl_re htbl cn xs  =
       let xs = List.map (fun x -> Str.regexp (string x)) (array xs) in
-      Hashtbl.add htbl cn xs
+      Hashtbl.replace htbl cn xs
     in (*read CXX.json; FIXME: use mangled names including namespaces*)
 		let json=
     match List.filter (fun x -> Str.string_match (Str.regexp ".*CXX\\.json$") x 0) !Goblintutil.jsonFiles with
@@ -132,7 +134,7 @@ struct
 (* 		printf "#Funs : %d\n" !funcount; *)
 		ignore (if !Goblintutil.allfuns then ignore (printf "ALL FUNS\n"));
 		let ctrl = Gc.get () in
-		ctrl.Gc.verbose <- 5; 
+		ctrl.Gc.verbose <- 0; 
 		Gc.set ctrl
 (*    ContainDomain.Dom.tainted_varstore := makeVarinfo false "TAINTED_FIELDS" voidType *)
 		
@@ -178,6 +180,20 @@ struct
 			ignore(match Goblintutil.get_class vtbl3 with | Some x -> Dom.report("class_name of "^vtbl3^": "^x) | _ -> Dom.report("class_name of "^vtbl3^": UNKOWN"));
 *)
 			Dom.report ("Finialze Finished!");
+			flush stdout;
+			(*fprintf stderr "\nVars in Danger : %d\n" (Hashtbl.length Dom.Danger.vars);*)
+			(*
+			let sum=ref 0 in
+			let cc=ref 0 in
+			Hashtbl.iter 
+			(
+				fun v w-> ignore(fprintf stderr "PGP: %d : vars: %d\n" !cc (List.length w);cc :=!cc+1;sum :=!sum+(List.length w))  
+			) 
+			Dom.Danger.pp_vars;
+      fprintf stderr "\nSUM VARS:%d\n" !sum;
+			*)
+      fprintf stderr "\n************************finialize finished******************\n";
+			flush stderr;
 			Dom.final:=false
 			(*failwith "Finished"*)
 		    
