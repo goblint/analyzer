@@ -5,7 +5,7 @@ module GU = Goblintutil
 exception Bailure of string
 let bailwith s = raise (Bailure s)
 
-let tracing = false  (* Hopefully, when set to false optimizations will kick in *)
+let tracing = true  (* Hopefully, when set to false optimizations will kick in *)
 let warnings = ref false
 let soundness = ref true
 let warn_out = ref stdout
@@ -111,18 +111,24 @@ let debug msg =
  * large domains we output. The original code generated the document object
  * even when the subsystem is not activated. *)
 
-let trace_sys = ref ([]: string list)
-let trace_vars = ref ([]: string list)
+module Strs = Set.Make (String)
 
-let activate sys = trace_sys := sys :: !trace_sys
-let deactivate sys = trace_sys := List.filter (fun x -> x <> sys) !trace_sys
-let trace_active sys = List.mem sys !trace_sys
+let trace_sys = ref Strs.empty
+let activated = ref Strs.empty
+let active_dep = Hashtbl.create 9 
+let tracevars = ref ([]: string list)
+let tracelocs = ref ([]: int list)
+
+let addsystem sys = trace_sys := Strs.add sys !trace_sys
+let activate (sys:string) (subsys: string list): unit = 
+  let subs = List.fold_right Strs.add subsys (Strs.add sys Strs.empty) in 
+    activated := Strs.union !activated subs;
+    Hashtbl.add active_dep sys subs
+let deactivate (sys:string): unit = activated := Strs.diff !activated (Hashtbl.find active_dep sys)
 
 let indent_level = ref 0
-let traceIndent sys = 
-  if trace_active sys then indent_level := !indent_level + 2
-let traceOutdent sys = 
-  if trace_active sys && !indent_level >= 2 then indent_level := !indent_level - 2
+let traceIndent () = indent_level := !indent_level + 2
+let traceOutdent () = indent_level := !indent_level - 2
 
 (* Parses a format string to generate a nop-function of the correct type. *)
 let mygprintf (format : ('a, unit, doc, 'b) format4) : 'a =
@@ -182,42 +188,49 @@ let printtrace sys d: unit =
   fprint stderr 80 ((traceTag sys) ++ d); 
   flush stderr 
 
-let gtrace f sys var do_subsys fmt = 
-  let doit = 
-    match var with 
-      | Some s -> !trace_vars = [] || List.mem s !trace_vars
-      | None -> true
+let gtrace always f sys var ?loc do_subsys fmt = 
+  let cond = 
+    Strs.mem sys (if always then !trace_sys else !activated) && 
+    match var,loc with 
+      | Some s, Some l -> (!tracevars = [] || List.mem s !tracevars) &&
+                          (!tracelocs = [] || List.mem l !tracelocs)
+      | Some s, None   -> (!tracevars = [] || List.mem s !tracevars)
+      | None  , Some l -> (!tracelocs = [] || List.mem l !tracelocs)
+      | _ -> true
   in
-  if doit && trace_active sys then begin
+  if cond then begin
     do_subsys ();
     gprintf (f sys) fmt
   end else
     mygprintf fmt
 
-let trace sys ?var fmt = gtrace printtrace sys var (fun x -> x) fmt
-
-let tracei sys ?var ?(subsys=[]) fmt =  
-  let f sys d = printtrace sys d; traceIndent sys in
-  let g () = List.iter activate subsys in
-    gtrace f sys var g fmt
-
-let traceu sys ?var ?(subsys=[]) fmt =  
-  let f sys d = printtrace sys d; traceOutdent sys in
-  let g () = List.iter deactivate subsys in
-    gtrace f sys var g fmt
+let trace sys ?var fmt = gtrace true printtrace sys var (fun x -> x) fmt
 
 let tracel sys ?var fmt = 
   let loc = !current_loc in
   let docloc sys doc = 
     printtrace sys (text loc.file ++ text ":" ++ num loc.line ++ line ++ indent 2 doc) 
   in
-    gtrace docloc sys var (fun x -> x) fmt
+    gtrace true docloc sys var ~loc:loc.line (fun x -> x) fmt
+
+let tracei (sys:string) ?var ?(subsys=[]) fmt =  
+  let f sys d = printtrace sys d; traceIndent () in
+  let g () = activate sys subsys in
+    gtrace true f sys var g fmt
+
+let tracec sys fmt = gtrace false printtrace sys None (fun x -> x) fmt
+
+let traceu sys fmt =  
+  let f sys d = printtrace sys d; traceOutdent () in
+  let g () = deactivate sys in
+    gtrace false f sys None g fmt
+
 
 let traceli sys ?var ?(subsys=[]) fmt = 
   let loc = !current_loc in
-  let g () = List.iter activate subsys in
+  let g () = activate sys subsys in
   let docloc sys doc: unit = 
     printtrace sys (text loc.file ++ text ":" ++ num loc.line ++ line ++ indent 2 doc);
-    traceIndent sys
+    traceIndent ()
   in
-    gtrace docloc sys var g fmt
+    gtrace true docloc sys var ~loc:loc.line g fmt

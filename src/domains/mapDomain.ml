@@ -32,6 +32,7 @@ sig
   include Printable.S
   val classify: t -> int
   val class_name: int -> string
+  val trace_enabled: bool
 end
 
 module StripClasses (G: Groupable) =
@@ -39,6 +40,8 @@ struct
   include G
   let classify x = 0
 end
+
+(* Just a global hack for tracing individual variables. *)
                       
 module PMap (Domain: Groupable) (Range: Lattice.S) =
 struct
@@ -47,6 +50,7 @@ struct
   type key = Domain.t
   type value = Range.t
   type t = Range.t M.t  (* key -> value  mapping *)
+  let trace_enabled = Domain.trace_enabled
 
   (* And some braindead definitions, because I would want to do
    * include Map.Make (Domain) with type t = Range.t t *)
@@ -159,8 +163,12 @@ struct
 	List.rev (fst (fold group_fold mapping ([],min_int))) 
     in      
     let f key st dok = 
-      dok ++ (if Range.isSimple st then dprintf "%a -> %a\n" else 
-        dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st 
+      if ME.tracing && trace_enabled && !ME.tracevars <> [] && 
+        not (List.mem (Domain.short 80 key) !ME.tracevars) then 
+          dok
+      else
+        dok ++ (if Range.isSimple st then dprintf "%a -> %a\n" else 
+                  dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
     in
     let group_name a () = text (Domain.class_name a) in
     let pretty_group  map () = fold f map nil in

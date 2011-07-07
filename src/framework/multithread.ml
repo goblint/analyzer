@@ -396,6 +396,7 @@ struct
     let startstate, more_funs = 
       if !GU.verbose then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file in
+    let _ = if M.tracing then M.trace "postinit" "The initial state is: %a\n" SD.pretty startstate else () in
     let otherfuns = 
       if !GU.kernel
       then otherfuns @ more_funs

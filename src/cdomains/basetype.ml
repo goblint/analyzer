@@ -45,6 +45,7 @@ module Variables =
 struct
   include Printable.Std
   type t = varinfo
+  let trace_enabled = true
   let isSimple _  = true
   let is_global v = v.vglob
   let copy x = x

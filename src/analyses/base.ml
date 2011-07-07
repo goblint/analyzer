@@ -87,18 +87,23 @@ struct
    (** [get st addr] returns the value corresponding to [addr] in [st] 
     *  adding proper dependencies *)
    let rec get a (gs: glob_fun) (st,fl: store) (addrs:address): value =
-     let res = 
+     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
+     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
      (* Finding a single varinfo*offset pair *)
+     let res = 
      let f_addr (x, offs) = 
        (* get hold of the variable value, either from local or global state *)
-       let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then 
+       let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
          match CPA.find x st with
-           | `Bot -> gs x
-           | x -> x
-       else 
+           | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; gs x)
+           | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
+       else begin
+         if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
          CPA.find x st 
+       end
        in
-       VD.eval_offset (get a gs (st,fl)) var offs    in 
+       VD.eval_offset (get a gs (st,fl)) var offs    
+     in 
      let f x =
        match Addr.to_var_offset x with
        | [x] -> f_addr x                    (* norml reference *)
@@ -111,9 +116,8 @@ struct
         * addresses is a topped value, joining will fail. *)
        try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
      in
-     if M.tracing then M.tracel "get" "Address: %a\nState: %a\nResult: %a\n" 
-                                         AD.pretty addrs CPA.pretty st VD.pretty res;
-     res
+       if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
+       res
 
    (** [set st addr val] returns a state where [addr] is set to [val] *)
    let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value): store =
@@ -957,7 +961,7 @@ struct
               | None -> args
           in
           let res = collect_spawned ctx args in
-            if M.tracing then M.traceu "forkfun" ~var:f.vname ~subsys:["reachability"] "Done!\n"; res
+            if M.tracing then M.traceu "forkfun" "Done!\n"; res
         end
       | _ ->  []
 

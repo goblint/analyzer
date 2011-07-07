@@ -63,10 +63,13 @@ val debug: string -> unit
 val tracing: bool
 (** Static flag to turn off tracing (significantly improves performance) *)
 
-val trace_vars: string list ref
+val tracevars: string list ref
 (** List of identifier names that the below functions may care about. *)
 
-val activate: string -> unit
+val tracelocs: int list ref
+(** List of source locations that the below functions may care about. *)
+
+val addsystem: string -> unit
 (** Activates one of the tracing subsystems. *)
 
 val trace: string -> ?var:string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
@@ -75,7 +78,10 @@ val trace: string -> ?var:string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
 val tracei: string -> ?var:string -> ?subsys: string list -> ('a, unit, Pretty.doc, unit) format4-> 'a
 (** Similar to {!Trace.tracei}.  *)
 
-val traceu: string -> ?var:string -> ?subsys: string list -> ('a, unit, Pretty.doc, unit) format4 -> 'a
+val tracec: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
+(** Similar to {!Trace.trace}, but to be used within indent/outdent. *)
+
+val traceu: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
 (** Similar to {!Trace.traceu}. *)
 
 val tracel: string -> ?var:string -> ('a, unit, Pretty.doc, unit) format4 -> 'a

@@ -102,7 +102,7 @@ DOC_ARG = -I $(OBJDIR) \
 	$(XML)/xml.mli \
 
 docs: 
-	@rm -f doc/*
+	@rm -rf doc/*
 	$(OCAMLDOC) $(DOCFLAGS) $(DOC_ARG)
 
 dot:

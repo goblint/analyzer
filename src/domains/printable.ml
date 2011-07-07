@@ -27,6 +27,7 @@ struct
   let classify _ = 0
   let class_name _ = "None"
   let name () = "std"
+  let trace_enabled = false
 end
 
 module Blank = 
