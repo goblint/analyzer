@@ -1,0 +1,7 @@
+Makefile
+config.log
+config.status
+*.swp
+obj
+goblint
+goblint.json

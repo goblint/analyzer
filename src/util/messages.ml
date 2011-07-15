@@ -5,7 +5,7 @@ module GU = Goblintutil
 exception Bailure of string
 let bailwith s = raise (Bailure s)
 
-let tracing = true  (* Hopefully, when set to false optimizations will kick in *)
+let tracing = false  (* Hopefully, when set to false optimizations will kick in *)
 let warnings = ref false
 let soundness = ref true
 let warn_out = ref stdout
