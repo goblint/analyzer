@@ -114,7 +114,7 @@ let yyact = [|
     let _3 = (Parsing.peek_val __caml_parser_env 0 : Json.jvalue) in
     Obj.repr(
 # 20 "src/util/jsonParser.mly"
-                                      ( Object.add _1 _3 Object.empty )
+                                      ( Object.add _1 (ref _3) Object.empty )
 # 119 "src/util/jsonParser.ml"
                : 'pmembers))
 ; (fun __caml_parser_env ->
@@ -123,20 +123,20 @@ let yyact = [|
     let _5 = (Parsing.peek_val __caml_parser_env 0 : Json.jvalue) in
     Obj.repr(
 # 21 "src/util/jsonParser.mly"
-                                      ( Object.add _3 _5 _1 )
+                                      ( Object.add _3 (ref _5) _1 )
 # 128 "src/util/jsonParser.ml"
                : 'pmembers))
 ; (fun __caml_parser_env ->
     Obj.repr(
 # 25 "src/util/jsonParser.mly"
-                             ( Array [] )
+                             ( Array (ref [])            )
 # 134 "src/util/jsonParser.ml"
                : 'parray))
 ; (fun __caml_parser_env ->
     let _2 = (Parsing.peek_val __caml_parser_env 1 : 'pelements) in
     Obj.repr(
 # 26 "src/util/jsonParser.mly"
-                             ( Array _2 )
+                             ( Array (ref (List.rev _2)) )
 # 141 "src/util/jsonParser.ml"
                : 'parray))
 ; (fun __caml_parser_env ->

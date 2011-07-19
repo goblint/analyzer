@@ -6,16 +6,19 @@ open Json
 open JsonParser
 open JsonLexer
 
-
-(* Add analysis here ... *)
-let anas = ["base";"OSEK";"OSEK2"; "OSEK3"; "access";"thread";"escape";"mutex";"symb_locks";"uninit";"malloc_null";"region";"containment";"shape";"var_eq"]
-
+(* MCP adds analysis here ... *)
+let anas : string list ref = ref []
+(* Phase of the analysis *)
+let phase = ref 0
 
 (* generate a default configuration *)
 let default_conf () =
   let def_int = Build.objekt ["trier"      , Build.bool true
                              ;"interval"   , Build.bool false] in
-  let def_ana = Build.objekt ["base"       , Build.bool true
+  let def_ana = Build.array [Build.array [Build.string "base"
+                                         ;Build.string "escape"
+                                         ;Build.string "mutex"]] in
+(*  let def_ana = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool false
                              ;"OSEK2"      , Build.bool false
                              ;"OSEK3"      , Build.bool false
@@ -29,7 +32,7 @@ let default_conf () =
                              ;"region"     , Build.bool false
                              ;"containment", Build.bool false
                              ;"shape"      , Build.bool false
-                             ;"var_eq"     , Build.bool false] in
+                             ;"var_eq"     , Build.bool false] in  *)
   let def_path = Build.objekt ["base"       , Build.bool false
                               ;"OSEK"       , Build.bool true
                               ;"OSEK2"      , Build.bool true
@@ -68,7 +71,7 @@ let default_conf () =
                ;"solver"     , Build.string "effectWCon" ]
 
 (* configuration structure -- get it from a file or generate a new one *)
-let conf : jvalue Object.t ref = 
+let conf : jvalue ref Object.t ref = 
   let fn = Filename.concat (Filename.dirname (Sys.argv.(0))) "goblint.json" in
   try
     match value token (Lexing.from_channel (open_in fn)) with
@@ -83,36 +86,23 @@ let conf : jvalue Object.t ref =
     ref (unwrap c)
     
 let modify_ana x b = 
-  let old_ana = objekt (field !conf "analyses") in
-  let set_ana_pair fe = 
-    if fe = x 
-    then fe, Build.bool b
-    else  fe, field old_ana fe 
+  let rec dropNth = function
+    | []    -> fun x -> []
+    | x::xs -> function 
+            | 0 -> xs 
+            | n -> x :: dropNth xs (n-1) 
   in
-  let modif = 
-    Build.objekt ["int_domain" , field !conf "int_domain"
-                 ;"analyses"   , Build.objekt (List.map set_ana_pair anas)
-                 ;"sensitive"  , field !conf "sensitive"
-                 ;"analysis"   , field !conf "analysis"
-                 ;"context"    , field !conf "context"
-                 ;"solver"     , field !conf "solver"] in
-  conf := objekt modif
+  let an = array !(field !conf "analyses") in
+  let ph = array (List.nth !an !phase) in
+  let rem_x = List.filter (fun y -> not (string y = x)) !ph in
+  if List.length rem_x > 0 then
+    (if b then ph := Build.string x :: rem_x else ph := rem_x)
+  else
+    an := dropNth !an !phase
 
 let modify_context x b = 
-  let old_ana = objekt (field !conf "analyses") in
-  let set_ana_pair fe = 
-    if fe = x 
-    then fe, Build.bool b
-    else  fe, field old_ana fe 
-  in
-  let modif = 
-    Build.objekt ["int_domain" , field !conf "int_domain"
-                 ;"analyses"   , field !conf "analyses"
-                 ;"sensitive"  , field !conf "sensitive"
-                 ;"analysis"   , field !conf "analysis"
-                 ;"context"    , Build.objekt (List.map set_ana_pair anas)
-                 ;"solver"     , field !conf "solver"] in
-  conf := objekt modif
+  let ct = Object.find x (objekt !(field !conf "context")) in
+  ct := Build.bool b
 
 let conf_containment () = 
   modify_ana "containment" true;
@@ -315,7 +305,7 @@ let region_offsets = ref false
 let in_verifying_stage = ref false
 (** true if in verifying stage *)
 
-let solver = ref (string (field !conf "solver"))
+let solver = ref (string !(field !conf "solver"))
 
 let escape (x:string):string =
   let esc_1 = Str.global_replace (Str.regexp "&") "&amp;" x in

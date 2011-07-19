@@ -192,6 +192,3 @@ module RegionMCP =
                 let inject_g x = `Region x
                 let extract_g x = match x with `Region x -> x | _ -> raise MCP.SpecificationConversionError
          end)
-
-module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
-module Analysis : Analyses.S    = Multithread.Forward(Path)

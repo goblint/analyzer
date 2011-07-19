@@ -877,8 +877,21 @@ struct
       AD.fold (fun e c -> List.fold_left add c (convertToQueryLval e)) a (Q.LS.empty ())
     with SetDomain.Unsupported _ -> Q.LS.top ()
         
+    let eval_funvar ctx fval: varinfo list =
+      try 
+        AD.to_var_may (eval_fv ctx.ask ctx.global ctx.local fval)
+      with SetDomain.Unsupported _ -> 
+        M.warn ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
+        [dummyFunDec.svar]
+
   let query ctx (q:Q.t) = 
     match q with
+      | Q.EvalFunvar e ->
+        begin
+          let fs = eval_funvar ctx e in
+(*          Messages.report ("Base: I should know it! "^string_of_int (List.length fs));*)
+          `LvalSet (List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs)
+        end
       | Q.EvalInt e -> begin
             match eval_rv ctx.ask ctx.global ctx.local e with
               | `Int e -> (match ID.to_int e with Some i -> `Int i | _ -> `Top) 
@@ -909,15 +922,7 @@ struct
  (**************************************************************************
   * Function calls
   **************************************************************************)
-  
-  let eval_funvar ctx fval: varinfo list =
-    try 
-      AD.to_var_may (eval_fv ctx.ask ctx.global ctx.local fval)
-    with SetDomain.Unsupported _ -> 
-      M.warn ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
-      [dummyFunDec.svar]
     
-  
 
   let rec collect_spawned ctx args: (varinfo * Dom.t) list = 
     let flist = collect_funargs ctx.ask ctx.global ctx.local args in
@@ -1177,5 +1182,3 @@ module BaseMCP =
                 let inject_g x = `Base x
                 let extract_g x = match x with `Base x -> x | _ -> raise MCP.SpecificationConversionError
          end)
-
-module Analysis = Multithread.Forward(Spec)

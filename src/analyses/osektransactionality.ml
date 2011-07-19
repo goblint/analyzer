@@ -160,6 +160,3 @@ module ThreadMCP =
                 let inject_g x = `None 
                 let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
          end)
-         
-module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
-module Analysis : Analyses.S    = Multithread.Forward(Path)

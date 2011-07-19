@@ -38,6 +38,17 @@ let main () =
       | "glob" -> GU.dump_global_inv := true
       | _ -> raise (Arg.Bad "invalid result style") 
   in
+  let phase x = 
+    let rec appendTimes x y = function 
+      | n when n < 0 -> x
+      | 0 -> x
+      | n -> appendTimes (x@y) y (n-1)
+    in
+    let n = int_of_string x in
+    let cfs = Json.array !(Json.field !GU.conf "analyses") in
+    GU.phase := n;
+    cfs := appendTimes !cfs [Json.Build.array []] (n-(List.length !cfs))       
+  in
   let setdump path = GU.dump_path := Some (GU.create_dir path) in
   let setcil path = cilout := open_out path in
   let analyzer str = (*legacy: use .json, --with and --no instead *)
@@ -45,7 +56,7 @@ let main () =
 	| "containment" -> Contain.Analysis.analyze
  	| _ -> MCP.Analysis.analyze   
   in
-  let analyze = ref (analyzer (JB.string (JB.field !GU.conf "analysis"))) in
+  let analyze = ref (analyzer (JB.string !(JB.field !GU.conf "analysis"))) in
   let oil file = (*GU.allfuns := true;*) GU.oil := true; GU.conf_osek (); Osek.Spec.oilFile := file in
   let tramp file = Osek.Spec.resourceheaders := file; add_include_file file in
   let setanalysis str = 
@@ -125,8 +136,9 @@ let main () =
                  ("--uncalled", Arg.Set GU.print_uncalled, " Display uncalled functions.");
                  ("--result", Arg.String setstyle, "<style>  Result style: none, glob, indented, compact, or pretty.");
                  ("--analysis", Arg.String setanalysis, "<name>  Deprecated: Picks the analysis: mcp.");
-                 ("--with", Arg.String (set_feature true), "<name>  Enables features:" ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList^".");
-                 ("--no", Arg.String (set_feature false), "<name>  Disables features:" ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList^".");
+                 ("--phase", Arg.String phase, "<nr>  Selects a phase. (<nr> >= 0) ");
+                 ("--with", Arg.String (set_feature true), "<name>  Enables features in current phase:" ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList^".");
+                 ("--no", Arg.String (set_feature false), "<name>  Disables features in current phase:" ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList^".");
                  ("--context", Arg.String (set_context true), "<name>  Enables context sensitivity on a feature.");
                  ("--no-context", Arg.String (set_context false), "<name>  Disables context sensitivity on a feature.");
                  ("--type-inv", Arg.Bool ((:=) GU.use_type_invariants), "<bool>  Should we use type invariants?");

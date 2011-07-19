@@ -10,7 +10,14 @@ open Cil
 open Pretty
 
 (** Forward analysis using a specification [Spec] *)
-module Forward (Spec : Analyses.Spec) : Analyses.S = 
+module Forward 
+  (Spec : Analyses.Spec) 
+  (ToStd: Analyses.DomainTranslator 
+          with type from_type = Spec.Dom.t
+          and  type to_type   = A.local_state list list
+  ) 
+  : Analyses.S 
+  =
 struct
   (** Augment domain to lift dead code *)
   module SD  = A.Dom (Spec.Dom)
@@ -19,6 +26,8 @@ struct
 
   module SP_SOL = Hashtbl.Make (Solver.Prod (Analyses.Var) (SD))
   module SP = SharirPnueli.Algorithm (Analyses.Var) (SD)
+  
+  module PH = Hashtbl.Make (Analyses.Var)
 
   module Solver = 
   struct
@@ -41,7 +50,7 @@ struct
   let name = "analyzer"
   let top_query x = Queries.Result.top () 
   
-  let system (cfg: MyCFG.cfg) (n,es: Var.t) : Solver.rhs list = 
+  let system (cfg: MyCFG.cfg) (old : Analyses.local_state list list PH.t list) (n,es: Var.t) : Solver.rhs list = 
     if M.tracing then M.trace "con" "%a\n" Var.pretty_trace (n,es);
     
     let lift_st x forks: Solver.var_domain * Solver.diff * Solver.variable list =
@@ -75,12 +84,23 @@ struct
       
       Also we concatenate each [forks lval f args st] for each [f]
       *)
-    let proc_call sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.diff * Solver.variable list =
+    let proc_call pred sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.diff * Solver.variable list =
       let forks = ref [] in
       let diffs = ref [] in
       let add_var v d = if not (List.mem v.vname !GU.mainfuns) then forks := (v,d) :: !forks in
       let add_diff g d = diffs := (`G (g,d)) :: !diffs in 
-      let funs  = Spec.eval_funvar (A.context top_query st theta [] add_var add_diff) exp in
+      let getctx v= 
+        try
+          let oldstate = List.concat (List.map (fun m -> PH.find m pred) old) in
+          A.set_preproc (A.context top_query v theta [] add_var add_diff) oldstate  
+        with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
+                           raise A.Deadcode
+      in
+      let funs  = 
+        match Spec.query (getctx st) (Queries.EvalFunvar exp) with
+          | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
+          | _ -> Messages.bailwith ("Failed to evaluate function expression "^(sprint 80 (d_exp () exp)))
+      in
       let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
       let start_vals : Solver.diff ref = ref [] in
       let add_function st' f : Spec.Dom.t =
@@ -92,8 +112,8 @@ struct
         let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
         if has_dec && not (LibraryFunctions.use_special f.vname) then
 			  begin
-          let work = Spec.enter_func (A.context top_query st theta [] add_var add_diff) lval f args in
-          let leave st1 st2 = Spec.leave_func (A.context top_query st1 theta [] add_var add_diff) lval exp f args st2 in
+          let work = Spec.enter_func (getctx st) lval f args in
+          let leave st1 st2 = Spec.leave_func (getctx st1) lval exp f args st2 in
           let general_results = List.map (fun (y,x) -> y, add_one_call x) work in
           let non_bottoms     = List.filter (fun (_,x) -> not (SD.is_bot x)) general_results in
           let joined_result   = List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst (SD.unlift tst))) (Spec.Dom.bot ()) non_bottoms in
@@ -103,7 +123,7 @@ struct
         else
 				begin
           let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
-          List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (A.context top_query st theta [] add_var add_diff) lval f args)
+          List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (getctx st) lval f args)
 			  end 
       in
       try 
@@ -136,7 +156,13 @@ struct
         (* gives add_var callback into context so that every edge can spawn threads *)
         let diffs = ref [] in
         let add_diff g d = diffs := (`G (g,d)) :: !diffs in 
-        let getctx v y  = A.context top_query v theta [] y add_diff in
+        let getctx v y = 
+          try
+            let oldstate = List.concat (List.map (fun m -> PH.find m pred) old) in
+            A.set_preproc (A.context top_query v theta [] y add_diff) oldstate  
+          with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
+                             raise A.Deadcode
+        in
         let lift f pre =        
           let forks = ref [] in
           let add_var v d = forks := (v,d) :: !forks in
@@ -177,7 +203,7 @@ struct
             | MyCFG.SelfLoop               -> lift (fun ctx -> Spec.intrpt ctx           ) predval'
             | MyCFG.Test   (exp,tv)        -> lift (fun ctx -> Spec.branch ctx exp tv    ) predval'
             | MyCFG.Ret    (ret,fundec)    -> lift (fun ctx -> Spec.return ctx ret fundec) predval'
-            | MyCFG.Proc   (lval,exp,args) -> proc_call sigma theta lval exp args predval'
+            | MyCFG.Proc   (lval,exp,args) -> proc_call pred sigma theta lval exp args predval'
             | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; SD.lift predval', [], []
             | MyCFG.Skip                   -> SD.lift predval', [], []
           in
@@ -207,7 +233,7 @@ struct
   type source_result = Result.t
   
   (** convert result that can be out-put *)
-  let solver2source_result (sol,_: solver_result) : source_result =
+  let solver2source_result (ress: solver_result list) : source_result =
     (* processed result *)
     let res : source_result = Result.create 113 in
     
@@ -228,7 +254,7 @@ struct
       with Not_found -> M.warn ("Undefined function has escaped.")
     in
       (* Iterate over all solved equations... *)
-      Solver.VMap.iter add_local_var sol;
+      List.iter (fun (sol,_) -> Solver.VMap.iter add_local_var sol) ress;
       res
 
   let print_globals glob = 
@@ -238,7 +264,7 @@ struct
     in
       Solver.GMap.iter print_one glob
 
-  let applySP (cfg: MyCFG.cfg) startvars : SD.t SP_SOL.t =
+  let applySP (cfg: MyCFG.cfg) (old : Analyses.local_state list list PH.t list) startvars : SD.t SP_SOL.t =
     let r x = MyCFG.FunctionEntry x in
     let e x = MyCFG.Function x in
     let succ x =
@@ -247,31 +273,51 @@ struct
     let theta x = failwith "SP: partial invariant not supported." in
     let add_var _ _ = failwith "SP: spawning not supported" in
     let add_diff _ = failwith "SP: partial invariant not supported" in
-    let getctx x = A.context top_query x theta [] add_var add_diff in
+    let getctx v x = 
+      try
+        let oldstate = List.concat (List.map (fun m -> PH.find m v) old) in
+        A.set_preproc (A.context top_query x theta [] add_var add_diff) oldstate  
+      with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
+                         raise A.Deadcode
+    in
     let is_special p x =
       let x' = SD.unlift x in
       match p with
         | MyCFG.Statement {skind = Instr [Call (_,f,_,_)]} ->
             begin try 
-              let fs = Spec.eval_funvar (getctx x') f in
+              let fs =  
+                match Spec.query (getctx p x') (Queries.EvalFunvar f) with
+                  | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
+                  | _ -> Messages.bailwith ("Failed to evaluate function expression "^(sprint 80 (d_exp () f)))  
+              in
               let _  = List.map Cilfacade.getdec fs in
                 LibraryFunctions.use_special (List.hd fs).vname
             with Not_found 
                | Failure "hd" -> true end
         | _ -> (* the most "special" case *) true
     in 
-    let special lv f args st =
-      let fs = Spec.eval_funvar (getctx st) f in
+    let special v lv f args st =
+      let ctx = getctx v st in
+      let fs = 
+        match Spec.query ctx (Queries.EvalFunvar f) with
+          | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
+          | _ -> Messages.bailwith ("Failed to evaluate function expression "^(sprint 80 (d_exp () f)))  
+      in
       let f = List.hd fs in
       let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
-      List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (getctx st) lv f args)    
+      List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn ctx lv f args)    
     in
     let enter p (x:SD.t) =
       let x' = SD.unlift x in
       match p with
         | MyCFG.Statement {skind = Instr [Call (lv,f,args,_)]} ->
-            let fs = Spec.eval_funvar (getctx x') f in
-            List.concat (List.map (fun f -> List.map (fun (_,y) -> (f, SD.lift y)) (Spec.enter_func (getctx x') lv f args)) fs)
+            let ctx = getctx p x' in
+            let fs = 
+              match Spec.query ctx (Queries.EvalFunvar f) with
+                | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
+                | _ -> Messages.bailwith ("Failed to evaluate function expression "^(sprint 80 (d_exp () f)))  
+            in
+            List.concat (List.map (fun f -> List.map (fun (_,y) -> (f, SD.lift y)) (Spec.enter_func ctx lv f args)) fs)
         | _ -> failwith "SP: cannot enter a non-call node."
     in 
     let comb n p x y = 
@@ -279,7 +325,7 @@ struct
       let y' = SD.unlift y in
       match n with
         | MyCFG.Statement {skind = Instr [Call (lv,f,args,_)]} ->
-            SD.lift (Spec.leave_func (getctx x') lv f p args y')
+            SD.lift (Spec.leave_func (getctx n x') lv f p args y')
         | _ -> failwith "SP: cannot enter a non-call node."      
     in
     let get_edge n m = 
@@ -296,12 +342,12 @@ struct
       let v' = SD.unlift v in
       let next = 
         match edge with
-          | MyCFG.Proc (l,f,args)        -> special l f args v'
-          | MyCFG.Entry func             -> Spec.body   (getctx v') func      
-          | MyCFG.Assign (lval,exp)      -> Spec.assign (getctx v') lval exp  
-          | MyCFG.SelfLoop               -> Spec.intrpt (getctx v')           
-          | MyCFG.Test   (exp,tv)        -> Spec.branch (getctx v') exp tv    
-          | MyCFG.Ret    (ret,fundec)    -> Spec.return (getctx v') ret fundec
+          | MyCFG.Proc (l,f,args)        -> special n l f args v'
+          | MyCFG.Entry func             -> Spec.body   (getctx n v') func      
+          | MyCFG.Assign (lval,exp)      -> Spec.assign (getctx n v') lval exp  
+          | MyCFG.SelfLoop               -> Spec.intrpt (getctx n v')           
+          | MyCFG.Test   (exp,tv)        -> Spec.branch (getctx n v') exp tv    
+          | MyCFG.Ret    (ret,fundec)    -> Spec.return (getctx n v') ret fundec
           | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; v'
           | MyCFG.Skip                   -> v'
           (*| _ -> failwith "SP: unsupported edge"*)
@@ -317,7 +363,7 @@ struct
     in
     let f' x y = dolift (fun () -> f x y) (SD.bot ()) y in
     let enter' x y = dolift (fun () -> enter x y) [] [] in
-    let comb' x y  z w = dolift (fun () -> comb x y z w) (SD.bot ()) w in
+    let comb' x y z w = dolift (fun () -> comb x y z w) (SD.bot ()) w in
     GU.may_narrow := false ;
     SP.solve r e succ startvars f' enter' comb' is_special
 
@@ -386,13 +432,9 @@ struct
                         type t = int
                         let compare = compare
                       end)
-
+                      
   (** do the analysis and do the output according to flags*)
-  let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: A.fundecs) =
-    let constraints = 
-      if !GU.verbose then print_endline "Generating constraints."; 
-      system (MyCFG.getCFG file true) in
-    Spec.init ();
+  let analyze_phase file cfg phase (old : Analyses.local_state list list PH.t list) (startfuns, exitfuns, otherfuns: A.fundecs) =
     let startstate, more_funs = 
       if !GU.verbose then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file in
@@ -432,21 +474,20 @@ struct
     let sol,gs = 
       let solve () =
         if !Goblintutil.sharir_pnueli 
-        then sp_to_solver_result (applySP (MyCFG.getCFG file false) (procs entrystates))
-        else Solver.solve () constraints startvars' entrystates
+        then sp_to_solver_result (applySP cfg old (procs entrystates))
+        else Solver.solve () (system cfg old) startvars' entrystates
       in
-      if !GU.verbose then print_endline "Analyzing!";
+      if !GU.verbose then print_endline ("Analyzing phase "^string_of_int phase^"!");
       Stats.time "solver" solve () in
     if !GU.verify then begin
       if !GU.verbose then print_endline "Verifying!";
-      Stats.time "verification" (Solver.verify () constraints) (sol,gs)
+      Stats.time "verification" (Solver.verify () (system cfg old)) (sol,gs)
     end;
     if P.tracking then 
       begin 
         P.track_with_profile () ;
         P.track_call_profile ()
       end ;
-    Spec.finalize ();
     let firstvar = List.hd startvars' in
     let mainfile = match firstvar with (MyCFG.Function fn, _) -> fn.vdecl.file | _ -> "Impossible!" in
     if !GU.print_uncalled then
@@ -462,7 +503,7 @@ struct
           function
             | GFun (fn, loc) when loc.file = mainfile && not (S.mem fn.svar.vid calledFuns) ->
                 begin
-                  let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+                  let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called in phase "^string_of_int phase^"." in
                   ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
                 end
             | _ -> ()
@@ -471,9 +512,48 @@ struct
       end;
     let main_sol = Solver.VMap.find sol firstvar in
     (* check for dead code at the last state: *)
-    if !GU.debug && SD.equal main_sol (SD.bot ()) then
-      Printf.printf "NB! Execution does not reach the end of Main.\n";
-    Result.output (solver2source_result (sol,gs));
-    if !GU.dump_global_inv then print_globals gs
+    (if !GU.debug && SD.equal main_sol (SD.bot ()) then
+      Printf.printf "NB! Execution does not reach the end of Main.\n");
+    (sol,gs)
+  
+  (* multi staged analyses will throw away contexts using this function *)
+  let join_contexts (r,_:solver_result) : Analyses.local_state list list PH.t =
+    let hm = PH.create (Solver.VMap.length r) in
+    let f (k,_) v =
+      let old = try PH.find hm k with Not_found -> SD.bot () in
+      PH.replace hm k (SD.join v old)
+    in
+    Solver.VMap.iter f  r;
+    let ha = PH.create (PH.length hm) in
+    let f k v = PH.add ha k (try ToStd.translate (SD.unlift v) with Analyses.Deadcode -> [])
+    in
+    PH.iter f hm;
+    ha
     
+  
+  let analyze (file: Cil.file) (fds: A.fundecs) = 
+    (*ignore (Printf.printf "Effective conf:%s" (Json.jsonString (Json.Object !GU.conf)));*)
+    (* number of phases *)
+    let phs = List.length !(Json.array !(Json.field !GU.conf "analyses")) in
+    (* get the control flow graph *)
+    let cfg = 
+      if !GU.verbose then print_endline "Generating constraints."; 
+      MyCFG.getCFG file (not !Goblintutil.sharir_pnueli) 
+    in
+    let oldsol = ref [] in (* list of solutions from previous phases *)
+    let precmp = ref [] in (* same as oldsol but without contexts  *)
+    (* loop over phases *)
+    for ph = 0 to phs -1 do
+      GU.phase := ph;
+      Spec.init ();
+      let sv = (analyze_phase file cfg ph !precmp fds) in
+      oldsol := sv :: !oldsol;
+      (if ph != phs then precmp := join_contexts sv :: !precmp);
+      Spec.finalize ()
+    done;
+    (* output the result if needed *)
+    Result.output (solver2source_result !oldsol);
+    if !GU.dump_global_inv then 
+      List.iter (fun (_,gs) -> print_globals gs) !oldsol
+
 end

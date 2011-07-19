@@ -4,7 +4,9 @@ open Cil
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive (Base: Analyses.Spec) 
-  : Analyses.Spec =
+  : Analyses.Spec 
+  with type Dom.t = SetDomain.Make(Base.Dom).t
+  =
 struct
   (** the domain is a overloaded set with special join, meet & leq*)
   module Dom = 
@@ -94,7 +96,7 @@ struct
   let query ctx y = 
     let spawn f v d = f v (Dom.singleton d) in
     let f e b = Queries.Result.meet b (Base.query (Analyses.set_st ctx e spawn) y) in 
-    Dom.fold f ctx.local (Queries.Result.bot ())
+    Dom.fold f ctx.local (Queries.Result.top ())
   
   (** [lift f set] is basically a map, that handles dead-code*)
   let lift f set = 
@@ -124,13 +126,7 @@ struct
     in
     let true_exp = (Cil.integer 1) in
     List.map (fun x -> x, true_exp, true) (Dom.fold one_special ctx.local []) 
-  
-  let eval_funvar ctx exp : varinfo list = 
-    let f x xs = 
-      Base.eval_funvar (set_st ctx x spawner) exp @ xs
-    in
-    Dom.fold f ctx.local []
-  
+    
 (*  let fork ctx lval fn args = 
     let add_spawn st ss =  
       List.map (fun (x,y) -> x, Dom.singleton y) (Base.fork (set_st ctx st spawner) lval fn args) @ ss
@@ -147,6 +143,4 @@ struct
     let bbf : Base.Dom.t = Dom.fold Base.Dom.join ctx.local (Base.Dom.bot ()) in
     let leave_and_join nst result = Dom.join result (Dom.singleton (Base.leave_func (set_st ctx bbf spawner) lval fexp fn args nst)) in
     Dom.fold leave_and_join after (Dom.bot ())    
-end
-
-                                  
+end                                  

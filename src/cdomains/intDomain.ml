@@ -1437,9 +1437,9 @@ struct
   let name () = Trier.name ()
         
   let constr_scheme xs =
-    let int_ds = JB.objekt (JB.field !GU.conf "int_domain") in
+    let int_ds = JB.objekt !(JB.field !GU.conf "int_domain") in
     let f (s,g) y : t = 
-      if JB.bool (JB.field int_ds s) 
+      if JB.bool !(JB.field int_ds s) 
       then (g ()) :: y
       else y
     in

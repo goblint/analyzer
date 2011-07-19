@@ -97,7 +97,7 @@ type analysisRecord = {
     branch: (local_state,Basetype.Variables.t,global_state) ctx -> exp -> bool -> local_state;
     body  : (local_state,Basetype.Variables.t,global_state) ctx -> fundec      -> local_state;
     return: (local_state,Basetype.Variables.t,global_state) ctx -> exp option  -> fundec -> local_state;
-    eval_funvar: (local_state,Basetype.Variables.t,global_state) ctx -> exp -> varinfo list;
+(*    eval_funvar: (local_state,Basetype.Variables.t,global_state) ctx -> exp -> varinfo list;*)
 (*     fork       : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (varinfo * local_state) list  ; *)
     special_fn : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (local_state * Cil.exp * bool) list;
     enter_func : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (local_state * local_state) list ;
@@ -242,11 +242,11 @@ struct
     let gl x = C.extract_g (ctx.global x) in
     C.inject_l (S.return (set_st_gl ctx st gl spawn effect) r f)
   
-  let eval_funvar ctx exp =
+(*  let eval_funvar ctx exp =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
     S.eval_funvar (set_st_gl ctx st gl spawn effect) exp
-
+*)
 (*  let fork ctx r f args =
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
@@ -269,6 +269,7 @@ struct
     C.inject_l r
     
   let _ = 
+    GU.anas := name :: !GU.anas;
     let set_add x xs = 
       if List.exists ((=) x) xs
       then xs
@@ -413,7 +414,7 @@ struct
         branch        = branch;
         body          = body  ;
         return        = return;
-        eval_funvar   = eval_funvar;
+(*        eval_funvar   = eval_funvar;  *)
 (*         fork          = fork ;       *)
         special_fn    = special_fn ;
         enter_func    = enter_func ;
@@ -433,9 +434,9 @@ struct
   
   let take_list = ref [] 
   let init () = 
-    let int_ds = JB.objekt (JB.field !GU.conf "analyses") in 
+    let int_ds = JB.array (List.nth !(JB.array !(JB.field !GU.conf "analyses")) !GU.phase) in 
     let order = List.map (fun x -> x.featurename ) !analysesList in
-    let f s y = JB.bool (JB.field int_ds s) :: y in
+    let f s y = List.exists (fun a -> s=JB.string a) !int_ds :: y in
     take_list := List.fold_right f order []
   
   (* Constructor scheme stuff: we take a list of values and then filter out
@@ -534,9 +535,9 @@ struct
   
   let take_list = ref [] 
   let init () = 
-    let int_ds = JB.objekt (JB.field !GU.conf "analyses") in
-    let order = List.map (fun x -> x.featurename) !analysesList in
-    let f s y = JB.bool (JB.field int_ds s) :: y in
+    let int_ds = JB.array (List.nth !(JB.array !(JB.field !GU.conf "analyses")) !GU.phase) in 
+    let order = List.map (fun x -> x.featurename ) !analysesList in
+    let f s y = List.exists (fun a -> s=JB.string a) !int_ds :: y in
     take_list := List.fold_right f order []
   
   (* Constructor scheme stuff: we take a list of values and then filter out
@@ -713,12 +714,12 @@ struct
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
     s.leave_func (set_gl ctx g effect) r v args st2  
-
+(*
   let eval_funvar' ctx exp = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
     s.eval_funvar (set_gl ctx g effect) exp
-    
+*)    
 (*  let fork' ctx r v args = 
     let s = get_matches ctx.local in
     let g = select_g s ctx.global in
@@ -749,8 +750,8 @@ struct
   (* analysis spec stuff *)
   let name = "analyses"
   let finalize () =
-    let int_ds = JB.objekt (JB.field !GU.conf "analyses") in
-    let uses x = JB.bool (JB.field int_ds x) in
+    let int_ds = JB.array (List.nth !(JB.array !(JB.field !GU.conf "analyses")) !GU.phase) in 
+    let uses x = List.exists (fun a -> x=JB.string a) !int_ds in
     List.iter (fun x ->
         if uses x.featurename 
         then x.finalize ()
@@ -767,17 +768,17 @@ struct
   let init () = 
     Dom.init ();
     Glob.Val.init ();
-    let specs_ds = JB.objekt (JB.field !GU.conf "analyses") in
-    let sense_ds = JB.objekt (JB.field !GU.conf "sensitive") in
-    let context_ds = JB.objekt (JB.field !GU.conf "context") in
-    let list_order = List.map (fun x -> x.featurename) !analysesList in
-    let f s r =
-      if JB.bool (JB.field specs_ds s) then JB.bool (JB.field sense_ds s) :: r else r
-    in
-    take_list := List.fold_right f list_order [];
-    let int_ds = JB.objekt (JB.field !GU.conf "analyses") in
-    let uses x = JB.bool (JB.field int_ds x) in
-    context_list := List.fold_right (fun x xs -> if uses x.featurename then JB.bool (JB.field context_ds x.featurename)::xs else xs) !analysesList [];
+    let sense_ds = JB.objekt !(JB.field !GU.conf "sensitive") in
+    let context_ds = JB.objekt !(JB.field !GU.conf "context") in
+    let int_ds = JB.array (List.nth !(JB.array !(JB.field !GU.conf "analyses")) !GU.phase) in 
+    let uses x = List.exists (fun a -> x=JB.string a) !int_ds in
+
+    let order = List.map (fun x -> x.featurename ) !analysesList in
+    let f s y = if uses s then JB.bool !(JB.field sense_ds s) :: y else y in
+    take_list := List.fold_right f order [];
+
+    let uses x = List.exists (fun a -> x=JB.string a) !int_ds in
+    context_list := List.fold_right (fun x xs -> if uses x.featurename then JB.bool !(JB.field context_ds x.featurename)::xs else xs) !analysesList [];
     List.iter (fun x ->
         if uses x.featurename 
         then x.init ()
@@ -844,13 +845,13 @@ struct
   (* queries *)
   let rec query_imp ctx q =
     let nctx = set_q ctx (query_imp ctx) in
-    let ls = lift_spawn nctx (fun set_st -> List.map (fun x -> query' (set_st x) q) ctx.local) in
+    let ls = lift_spawn nctx (fun set_st -> List.concat (List.map (List.map (fun x -> query' (set_st x) q)) (ctx.local::ctx.precomp))) in
     List.fold_left Queries.Result.meet (Queries.Result.top ()) ls
   
   let query = query_imp 
 
   let set_sub full_ctx (ctx:(local_state,'b,'c) ctx) (dp:local_state list) : (local_state,'b,'c) ctx = 
-      context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect
+      set_preproc (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect) ctx.precomp
   
   let map_tf' ctx (tf:(local_state, Basetype.Variables.t, global_state list) ctx  -> 'a) : Dom.t = 
     let map_one (set_st : local_state -> (local_state, Basetype.Variables.t, global_state list) ctx) ls (t : local_state): local_state list =
@@ -928,7 +929,7 @@ struct
         in
         List.map f s.depends_on 
       in
-      let subctx = context (query ctx) t ctx.global ds (fun a b -> ()) ctx.geffect in
+      let subctx = set_preproc (context (query ctx) t ctx.global ds (fun a b -> ()) ctx.geffect) ctx.precomp in
       let l,g = sync' subctx in
         l::ls, g @ gs
     in
@@ -945,8 +946,9 @@ struct
 
   (* return all unique variables that analyses report *)
   let eval_funvar ctx exp : Cil.varinfo list = 
-    let unique x = List.fold_right (fun x xs -> if List.mem x xs then xs else x::xs) x [] in
-    unique (List.flatten (map_tf_prev_dep ctx (fun ctx -> eval_funvar' ctx exp) ))
+    match query ctx (Queries.EvalFunvar exp) with
+      | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
+      | _ -> Messages.bailwith ("Failed to evaluate function expression "^(sprint 80 (d_exp () exp)))
 
 (*  (* fork over all analyses and combine values of equal varinfos *)
   let fork ctx r v args =
@@ -996,5 +998,14 @@ struct
 
 end
 
+module PDom  = SetDomain.Make(Spec.Dom)
+module Trans = 
+struct
+  type from_type = PDom.t
+  type to_type   = Analyses.local_state list list 
+  
+  let translate (x:from_type) : to_type = PDom.elements x
+end
+
 module Path = Compose.PathSensitive (Spec)
-module Analysis = Multithread.Forward (Path) 
+module Analysis = Multithread.Forward (Path) (Trans)

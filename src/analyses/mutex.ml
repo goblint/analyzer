@@ -587,9 +587,7 @@ struct
 
   let eval_funvar ctx exp = 
     let read = access_one_top ctx.ask false exp in
-    add_accesses ctx read ctx.local; 
-    []
-  
+    add_accesses ctx read ctx.local  
   
   let special_fn ctx lv f arglist : (Dom.t * exp * bool) list =
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
@@ -654,6 +652,7 @@ struct
     [(ctx.local,ctx.local)]
 
   let leave_func ctx lv fexp f args al = 
+    eval_funvar ctx fexp;
     let wr = match lv with
       | None      -> []
       | Some lval -> access_one_top ctx.ask true (Lval lval) in 

@@ -52,6 +52,7 @@ type ('a,'b,'c) ctx =
     ; sub   : local_state list
     ; spawn : varinfo -> 'a -> unit
     ; geffect : 'b -> 'c -> unit 
+    ; precomp : local_state list list 
     }
 
 let set_q ctx ask = 
@@ -69,7 +70,18 @@ let set_gl ctx gl eff_tr =
 let set_st_gl ctx st gl spawn_tr eff_tr =
   {ctx with local=st; global=gl; spawn=spawn_tr ctx.spawn; geffect=eff_tr ctx.geffect}
 
-let context ask st gl dp sp ge = {ask=ask; local=st; global=gl;sub=dp;spawn=sp;geffect=ge}
+let set_preproc ctx pc = 
+  {ctx with precomp = pc}
+
+let context ask st gl dp sp ge = {ask=ask; local=st; global=gl;sub=dp;spawn=sp;geffect=ge;precomp=[]}
+
+module type DomainTranslator =
+sig
+  type from_type
+  type to_type
+  
+  val translate : from_type -> to_type 
+end
 
 module type VarType = 
 sig
@@ -131,14 +143,12 @@ sig
   
   (* Basic scheme:
     
-                 |-> enter_func -> <analyze the functions> -> leave_func -> join -> ...
-    eval_funvar -|-> special_fn ----------------------------------------------^
-                 |-> fork  ------------------------------------------------------->
+    |-> enter_func -> <analyze the functions> -> leave_func -> join -> ...
+    |-> special_fn ----------------------------------------------^
+    |-> fork  ------------------------------------------------------->
   *)
   
   
-  val eval_funvar: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> exp -> varinfo list 
-  (** [eval_funvar q f st] evaluates [f] to a list of possible functions (in state [st]) *)
 (*   val fork       : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (varinfo * Dom.t) list   *)
 (*   (** [fork] returns list of function,input-state pairs, that the callee has spawned *) *)
   val special_fn : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (Dom.t * Cil.exp * bool) list
@@ -193,7 +203,6 @@ struct
   let branch       = D.branch
   let body         = D.body  
   let return       = D.return
-  let eval_funvar  = D.eval_funvar   
   let special_fn   = D.special_fn 
   let enter_func   = D.enter_func 
   let leave_func   = D.leave_func 

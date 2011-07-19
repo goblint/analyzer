@@ -8,8 +8,8 @@ module Object = Map.Make (String)
 type jvalue =
   | String of string
   | Number of big_int
-  | Object of jvalue Object.t
-  | Array  of jvalue list
+  | Object of jvalue ref Object.t
+  | Array  of jvalue list ref
   | True | False
   | Null
 
@@ -22,14 +22,14 @@ let rec prettyJson = function
   | False -> text "false"
   | Null  -> text "null"
 
-and pretty_of_array = function
+and pretty_of_array x = match !x with
   | [] -> text "[]"
-  | x::xs -> List.fold_left (fun xs x -> xs ++ text", " ++ prettyJson x) (text "[ " ++ prettyJson x) xs ++ text " ]"
+  | x::xs -> List.fold_left (fun xs x -> xs ++ text ", " ++ prettyJson x) (text "[ " ++ prettyJson x) xs ++ text " ]"
 
 and pretty_of_object = function
   | m when Object.is_empty m -> text "{}"
   | m -> 
-    let xs = Object.fold (fun k v o -> (text"\""++text k++text"\":"++prettyJson v)::o) m [] in
+    let xs = Object.fold (fun k v o -> (text"\""++text k++text"\":"++prettyJson !v)::o) m [] in
     break++align++text"{ " ++ seq (line++text", ") (fun x -> x) xs ++text"\n}"++unalign
 
 
@@ -61,7 +61,7 @@ struct
   let objekt o = 
     let rec objekt' = function
       | [] -> Object.empty
-      | (k,v)::xs -> Object.add k v (objekt' xs)
+      | (k,v)::xs -> Object.add k (ref v) (objekt' xs)
     in 
     Object (objekt' o)
 
@@ -70,6 +70,8 @@ struct
     | false -> False
 
   let string x = String x  
+  
+  let array x = Array (ref x)
 end
 
 let save_json fn j = 

@@ -17,13 +17,13 @@ pobject
   ;
   
 pmembers
-  : STRING COLON value                { Object.add $1 $3 Object.empty }
-  | pmembers COMMA STRING COLON value { Object.add $3 $5 $1 } 
+  : STRING COLON value                { Object.add $1 (ref $3) Object.empty }
+  | pmembers COMMA STRING COLON value { Object.add $3 (ref $5) $1 } 
   ;
   
 parray 
-  : LBRACK RBRACK            { Array [] }
-  | LBRACK pelements RBRACK  { Array $2 }
+  : LBRACK RBRACK            { Array (ref [])            }
+  | LBRACK pelements RBRACK  { Array (ref (List.rev $2)) }
   ;
   
 pelements 

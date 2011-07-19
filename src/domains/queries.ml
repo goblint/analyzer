@@ -32,6 +32,7 @@ type t = ExpEq of exp * exp
        | IsPrivate of varinfo
        | SingleThreaded       (* result is "boolean" in `Int form *)
        | CurrentThreadId      (* currently "main" -> `Int 1; "other" -> `Top *)
+       | EvalFunvar of exp
        | EvalInt of exp
        | TheAnswerToLifeUniverseAndEverything
 

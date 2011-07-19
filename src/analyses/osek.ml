@@ -397,6 +397,3 @@ module ThreadMCP =
                 let inject_g x = `Osek x 
                 let extract_g x = match x with `Osek x -> x | _ -> raise MCP.SpecificationConversionError
          end)
-         
-module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
-module Analysis : Analyses.S    = Multithread.Forward(Path)
