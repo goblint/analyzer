@@ -128,6 +128,7 @@ struct
 		in 
 		test;
 		*)
+		ignore (fprintf stdout "RIGHT VERSION");
     init_inh_rel ();
 		Printexc.record_backtrace true;
 		Cil.iterGlobals (!Cilfacade.ugglyImperativeHack) (function GFun (f,_) -> incr funcount| _ -> ());
@@ -513,17 +514,17 @@ struct
     end 
   
   let eval_funvar ctx fval: varinfo list = (*also called for ignore funs*)
-		(*Dom.report (sprint 160 (d_exp () fval) );*)
+		(*Messages.report (sprint 160 (d_exp () fval) );*)
 		if danger_bot ctx then [] else
 		let fd,st,gd = ctx.local in
     match fval with
       | Lval (Var v,NoOffset) -> [v]  (*just a func*) (*fixme, tmp__11 not in dangermap*)
       | Lval (Mem e,NoOffset)  -> (*fptr!*)
-			    (*Dom.report("fcheck vtbl : "^sprint 160 (d_exp () e));*)
+		    	(*Messages.report("fcheck vtbl : "^sprint 160 (d_exp () e));*)
 			    let vtbl_lst = get_vtbl e (fd,st,gd) ctx.global in
 			    if not (vtbl_lst=[]) then
 					begin
-						(*List.iter (fun x -> Dom.report("VFUNC_CALL_RESOLVED : "^x.vname)) vtbl_lst;*)
+						List.iter (fun x -> Messages.report("VFUNC_CALL_RESOLVED : "^x.vname)) vtbl_lst;
 						vtbl_lst
 					end
 					else 
@@ -532,24 +533,43 @@ struct
 					let flds_bot = ContainDomain.FieldSet.is_bot flds in				
 					if cft && flds_bot then
 					begin	
-				    Dom.report("fptr cft : "^string_of_bool cft);
+				    (*Messages.report("fptr cft : "^string_of_bool cft);*)
 				    let fns = Dom.get_fptr_items ctx.global in
 						let add_svar x y = 
 						   match ContainDomain.FuncName.from_fun_name x with
-								| Some x -> Dom.report ("fptr check: "^x.vname );(x)::y
+								| Some x -> Messages.report ("fptr check: "^x.vname );(x)::y
 								| _ -> y
 						in
 						ContainDomain.VarNameSet.fold (fun x y ->  add_svar x y) fns []
 					end 
 					else
 					begin
+						(*Messages.report("VARS:");*)
+            let vars = Dom.get_vars e in
 						let rvs =
-							let vars = Dom.get_vars e in
 							List.fold_left (fun y x -> ContainDomain.ArgSet.join (Dom.Danger.find x st) y)  (ContainDomain.ArgSet.bot ()) vars 
 						in
 						if not (ignore_this ctx.local ctx.global) then	
-						Dom.report(" (6) unresolved function pointer in "^sprint 160 (d_exp () fval)^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));
-					  [Dom.unresFunDec.svar]
+						begin
+							
+						  let res = List.fold_left (fun y x -> try ignore(Cilfacade.getdec x);x::y with _ -> y) [] vars in
+							begin
+								if List.length res = 0 then
+								begin
+	                begin
+										Dom.report(" (6) unresolved function pointer in "^sprint 160 (d_exp () fval)^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));
+									  [Dom.unresFunDec.svar]
+								  end
+								end
+								else
+									res
+							end		
+						end	
+						else
+						begin
+              Dom.report(" (6) unresolved function pointer in "^sprint 160 (d_exp () fval)^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));
+              [Dom.unresFunDec.svar]
+						end		
 					end
 				  (*Hashtbl.fold (f x y -> x::y) Dom.func_ptrs []*)
 			| _ -> if not (ignore_this ctx.local ctx.global) then Dom.report(" (6) unresolved function in "^sprint 160 (d_exp () fval));[Dom.unresFunDec.svar]	
@@ -559,6 +579,11 @@ struct
 	    let res = Dom.is_tainted fs st e||Dom.may_be_a_perfectly_normal_global e fromFun ctx.local fs||check_vtbl e ctx.local ctx.global in
 			(*Dom.report ("is_bad "^(sprint 160 (d_exp () e))^" "^string_of_bool res);*)
 			res 
+
+   let query ctx q =
+      match q with
+        | Queries.EvalFunvar e -> `LvalSet (List.fold_left (fun xs x -> Queries.LS.add (x,`NoOffset) xs) (Queries.LS.empty ()) (eval_funvar ctx e))
+        | _ -> Queries.Result.top ()
 
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let time_wrapper dummy =
@@ -716,6 +741,7 @@ struct
 
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+  	(*eval_funvar ctx fexp;*)
 		if danger_bot ctx then ctx.local else  
     let a, b, c = ctx.local in
 		
