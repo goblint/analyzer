@@ -64,16 +64,22 @@ let print_attr chan (n,v) =
 	done;
 	output_char chan '"'
 
+let get_file alist =
+    List.fold_left (fun xs (n,v)-> if n="file" then v else xs) "" alist
+
+let filter tag alist =
+    tag <> "Loc" || (Str.string_match (!Goblintutil.result_regexp) (get_file alist) 0)
+
 let print chan x =
 	let pcdata = ref false in
-	let rec loop = function
-		| Element (tag,alist,[]) ->
+	let rec loop = function                        
+		| Element (tag,alist,[]) when filter tag alist ->
 			output_char chan '<';
 			output_string chan tag;
 			List.iter (print_attr chan) alist;
 			output_string chan "/>";
 			pcdata := false;
-		| Element (tag,alist,l) ->
+		| Element (tag,alist,l) when filter tag alist ->
 			output_char chan '<';
 			output_string chan tag;
 			List.iter (print_attr chan) alist;
@@ -84,6 +90,7 @@ let print chan x =
 			output_string chan tag;
 			output_char chan '>';
 			pcdata := false;
+                | Element _ -> pcdata := false
 		| PCData text ->
 			if !pcdata then output_char chan ' ';
 			print_pcdata chan text;
@@ -93,14 +100,14 @@ let print chan x =
 
 let print_fmt chan x =
 	let rec loop ?(newl=false) tab = function
-		| Element (tag,alist,[]) ->
+		| Element (tag,alist,[]) when filter tag alist  ->
 			output_string chan tab;
 			output_char chan '<';
 			output_string chan tag;
 			List.iter (print_attr chan) alist;
 			output_string chan "/>";
 			if newl then output_char chan '\n';
-		| Element (tag,alist,[PCData text]) ->
+		| Element (tag,alist,[PCData text]) when filter tag alist  ->
 			output_string chan tab;
 			output_char chan '<';
 			output_string chan tag;
@@ -111,7 +118,7 @@ let print_fmt chan x =
 			output_string chan tag;
 			output_char chan '>';
 			if newl then output_char chan '\n';
-		| Element (tag,alist,l) ->
+		| Element (tag,alist,l) when filter tag alist  ->
 			output_string chan tab;
 			output_char chan '<';
 			output_string chan tag;
@@ -123,6 +130,7 @@ let print_fmt chan x =
 			output_string chan tag;
 			output_char chan '>';
 			if newl then output_char chan '\n';
+                | Element _ -> ();
 		| PCData text ->
 			print_pcdata chan text;
 			if newl then output_char chan '\n';

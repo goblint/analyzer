@@ -97,6 +97,7 @@ let main () =
   in
   let speclist = [
                  ("-o", Arg.Set_string outFile, "<file>  Prints the output to file.");
+                 ("--filter", Arg.Set_string GU.result_filter, "regexp filtering output file.");
                  ("-v", Arg.Set GU.verbose, " Prints some status information.");
                  ("-I", Arg.String add_include,  " Add include directory.");
                  ("-IK", Arg.String add_include_kernel,  " Add kernel include directory.");

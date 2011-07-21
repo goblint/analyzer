@@ -524,7 +524,7 @@ struct
 			    let vtbl_lst = get_vtbl e (fd,st,gd) ctx.global in
 			    if not (vtbl_lst=[]) then
 					begin
-						List.iter (fun x -> Messages.report("VFUNC_CALL_RESOLVED : "^x.vname)) vtbl_lst;
+						(*List.iter (fun x -> Messages.report("VFUNC_CALL_RESOLVED : "^x.vname)) vtbl_lst;*)
 						vtbl_lst
 					end
 					else 

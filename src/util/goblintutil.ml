@@ -163,6 +163,11 @@ let verbose = ref false
 (** prints the CFG on [getCFG] *)
 let cfg_print = ref false 
 
+(** filter result xml *)
+let result_filter = ref ".*"
+
+let result_regexp = ref (Str.regexp "")
+
 (** analyze all the functions in the program, rather than just main *)
 let allfuns = ref false
 let nonstatic = ref false
