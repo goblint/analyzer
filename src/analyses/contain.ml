@@ -503,9 +503,8 @@ struct
 			then 
 				begin
 					(*FIXME: Dom.may_be_a_perfectly_normal_global doesn't trigger where Dom.warn_bad_reachables did*)
-            (*Dom.warn_bad_reachables ctx.ask arglist (not allow_from_this) (fn,st,gd) fs ("return statement of "^(GU.demangle f.svar.vname));*)
-          						
-					  Dom.report ("potentially dangerous : "^f.svar.vname); 
+                                    Dom.warn_bad_reachables ctx.ask arglist (not allow_from_this) (fn,st,gd) fs ("return statement of "^(GU.demangle f.svar.vname));
+                                    Dom.report ("potentially dangerous : "^f.svar.vname);
 				    Dom.add_required_fun (f.svar.vname) Dom.danger_funs;
 				end;
 				
@@ -588,7 +587,7 @@ struct
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let time_wrapper dummy =
     (*Dom.report (" SPECIAL_FN '"^f.vname^"'.");*) 
-    if danger_bot ctx || ignore_this ctx.local ctx.global (*|| (Dom.is_safe_name f.vname)*) then [ctx.local,Cil.integer 1, true] else begin
+    if danger_bot ctx || ignore_this ctx.local ctx.global || (Dom.is_safe_name f.vname) then [ctx.local,Cil.integer 1, true] else begin
       let from = (Some (AddrOf (Var f,NoOffset))) in        
             if not (Dom.is_safe_name f.vname)&& !Goblintutil.in_verifying_stage then add_reentrant_fun f.vname ctx.global;
             if is_private f ctx.global then
