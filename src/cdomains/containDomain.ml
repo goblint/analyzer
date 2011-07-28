@@ -842,7 +842,7 @@ struct
 								  in
                   (*report("danger.prop_this "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));*)									
 									if not (FieldSet.is_bot fields2) then									  	 
-		              report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () fields2) ^"("^(FieldVars.get_var fv).vname^")"^" via "^v.vname);
+		              report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () fields2) ^"("^(FieldVars.get_var fv).vname^")"^" via "^v.vname^ (sprint 160 (ArgSet.pretty () (Danger.find v st))));
 			            (fd,st, Diff.add (taintedFunDec, (fields2,VarNameSet.bot (),ClassNameSet.bot () ) )  gd) (*update this->field?*)
 								end
 							end
@@ -1395,9 +1395,20 @@ struct
 			)
 			then
 			begin
-			report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () flds)^" via "^str);
+                        let ars =
+                        (match rval with
+                            | None -> ArgSet.bot ()
+                            | Some rexp ->
+                                let vars = get_vars rexp in
+                                List.fold_left
+                                (fun xs x -> ArgSet.join (Danger.find x st) xs)
+                                (ArgSet.bot ())
+                                vars
+                        )
+                        in
+                                report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () flds)^" via "^str^ (sprint 160 (ArgSet.pretty () ars)));
 			(*report ("isPtr "^string_of_bool (isPointerType (typeOf (Lval lval)))^" mayderef "^string_of_bool (maybe_deref (Lval lval))^" direct_this "^ string_of_bool (may_be_constructed_from_this_direct st (Lval lval)));*)  
-      (fd,st, Diff.add (taintedFunDec, (flds,VarNameSet.bot (),ClassNameSet.bot ()))  df)
+                                (fd,st, Diff.add (taintedFunDec, (flds,VarNameSet.bot (),ClassNameSet.bot ()))  df)
 			end
 			else
 				(fd,st,df)
