@@ -10,8 +10,9 @@ maxlen = $analyses.map { |x| x[0].length }.max + 1
 
 goblint = File.join(Dir.getwd,"goblint")
 fail "Please run script from goblint dir!" unless File.exist?(goblint)
-$rev = `svn info`.grep(/Last Changed Rev: (.*)/) { |x| $1} 
-$cilrev = `svn info ../cil`.grep(/Last Changed Rev: (.*)/) { |x| $1} 
+$rev = `git log -1 --pretty=format:'%h (%ai)'`
+$revshort = `git log -1 --pretty=format:'%h'`
+$cilrev = `git --git-dir=../cil/.git log -1 --pretty=format:'%h (%ai)'`
 $testresults = File.expand_path("tests/bench_result") + "/"
 bench = "../bench/"
 
@@ -42,7 +43,7 @@ $projects = []
 
 $header = <<END
 <head>
-  <title>r#{$rev} (#{`uname -n`.chomp})</title>
+  <title>#{$revshort} (#{`uname -n`.chomp})</title>
   <style type="text/css">
     A:link {text-decoration: none}
     A:visited {text-decoration: none}
@@ -122,8 +123,9 @@ def print_res (i)
       f.puts "</tr>"
     end
     f.puts "</table>"
-    f.puts "<p>Last updated: #{Time.now}<br />"
-    f.puts "SVN info: r#{$rev} (goblint), r#{$cilrev} (CIL)</p>"
+    f.puts "<p>Last updated: #{Time.now.strftime("%Y-%m-%d %H:%M:%S %z")}<br />"
+    f.puts "Goblint revision: #{$rev}<br />"
+    f.puts "Cil revision: #{$cilrev}</p>"
     f.puts "</body>"
     f.puts "</html>"
   end
@@ -206,7 +208,7 @@ $projects.each do |p|
       f.puts "Analysis began: #{starttime}"
       f.puts "Analysis ended: #{endtime}"
       f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
-      f.puts "SVN info: r#{$rev}"
+      f.puts "Git log: #{$rev}"
       f.puts "Goblint params: #{cmd}"
     end
     if status != 0 then
