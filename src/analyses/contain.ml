@@ -519,6 +519,8 @@ struct
     match fval with
       | Lval (Var v,NoOffset) -> [v]  (*just a func*) (*fixme, tmp__11 not in dangermap*)
       | Lval (Mem e,NoOffset)  -> (*fptr!*)
+                            if not (!Goblintutil.local_class) then [Dom.unresFunDec.svar]
+                            else
 		    	(*Messages.report("fcheck vtbl : "^sprint 160 (d_exp () e));*)
 			    let vtbl_lst = get_vtbl e (fd,st,gd) ctx.global in
 			    if not (vtbl_lst=[]) then

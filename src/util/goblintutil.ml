@@ -200,7 +200,11 @@ let dump_path = ref (None : string option)
 let jsonFiles : string list ref = ref [] 
 
 (** Name of the class to analyse (containment) *)
-let mainclass : string ref = ref "" 
+let mainclass : string ref = ref ""
+
+(** Dive into locally defined classes (containment) *)
+let local_class = ref false
+
 
 (** has any threads have been spawned *)
 let multi_threaded = ref false

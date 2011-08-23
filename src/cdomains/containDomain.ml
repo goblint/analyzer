@@ -1244,7 +1244,8 @@ struct
 	   (*report("ADD_REQ_FUN : "^f);*)
 	    add_required_fun f required_non_public_funs  	
 		    
-	let add_local_class (lc:string) (fd,st,gd) = 
+	let add_local_class (lc:string) (fd,st,gd) =
+                if (!Goblintutil.local_class) then
 		 (*report("ADD_LOC_CLASS : "^lc);*)
 		 Hashtbl.replace local_classes lc ();
 	   fd,st, (Diff.add (taintedFunDec, (FieldSet.bot (),VarNameSet.bot (), ClassNameSet.singleton (ClassName.to_fun_name lc) ) )  gd)

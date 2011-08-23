@@ -114,6 +114,8 @@ let main () =
                  ("--stats", Arg.Set Cilutil.printStats, " Outputs timing information.");
                  ("--eclipse", Arg.Set GU.eclipse, " Flag for Goblin's Eclipse Plugin.");
                  ("--gccwarn", Arg.Set GU.gccwarn, " Output warnings in GCC format.");
+
+                 ("--localclass", Arg.Set GU.local_class, " Analyzes classes defined in main Class.");
                  ("--allfuns", Arg.Set GU.allfuns, " Analyzes all the functions (not just beginning from main).");
 				 ("--noverify", Arg.Clear GU.verify, " Skip the verification phase.");
                  ("--class", Arg.Set_string GU.mainclass, " Analyzes all the member functions of the class (CXX.json file required).");
