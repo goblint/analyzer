@@ -791,7 +791,7 @@ struct
    * addresses, as both AD elements abstracting individual (ambiguous) addresses
    * and the workset of visited addresses. *)
   let reachable_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
-    if M.tracing then M.traceli "reachability" "Checking reachable arguments!\n";
+    if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!\n" (d_list ", " AD.pretty) args;
     (* We begin looking at the parameters: *)
     let argset = List.fold_right AD.join args empty in
     let workset = ref argset in
@@ -995,13 +995,8 @@ struct
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     (* generate the entry states *)
-    let add_calls_addr f norms =
-      let fundec = Cilfacade.getdec fn in
-      (* And we prepare the entry state *)
-      let entry_state = make_entry (zip fundec.sformals vals) reachable in
-        entry_state :: norms
-    in
-    add_calls_addr fn []
+    let fundec = Cilfacade.getdec fn in
+      [make_entry (zip fundec.sformals vals) reachable]
 
 
   let special_fn ctx (lv:lval option) (f: varinfo) (args: exp list) = 
