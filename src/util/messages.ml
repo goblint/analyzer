@@ -124,7 +124,8 @@ let activate (sys:string) (subsys: string list): unit =
   let subs = List.fold_right Strs.add subsys (Strs.add sys Strs.empty) in 
     activated := Strs.union !activated subs;
     Hashtbl.add active_dep sys subs
-let deactivate (sys:string): unit = activated := Strs.diff !activated (Hashtbl.find active_dep sys)
+let deactivate (sys:string): unit =
+  activated := Strs.diff !activated (try Hashtbl.find active_dep sys with Not_found -> print_endline ("WTF? " ^ sys); Strs.empty)
 
 let indent_level = ref 0
 let traceIndent () = indent_level := !indent_level + 2
@@ -190,7 +191,7 @@ let printtrace sys d: unit =
 
 let gtrace always f sys var ?loc do_subsys fmt = 
   let cond = 
-    Strs.mem sys (if always then !trace_sys else !activated) && 
+    (Strs.mem sys !activated || always && Strs.mem sys !trace_sys) &&
     match var,loc with 
       | Some s, Some l -> (!tracevars = [] || List.mem s !tracevars) &&
                           (!tracelocs = [] || List.mem l !tracelocs)
