@@ -4,7 +4,7 @@
 	"UECProtocolA" : ["UECProtocolInterface"],
 	"UECProtocolInterface" : [],
 	"UECProtocolB" : ["UECProtocolInterface"],
-	"UECManagerFSM" : ["UECProtocolInterface"]
+	"small" : ["UECProtocolInterface"]
 	},
 	"public_vars":
 	{
@@ -15,40 +15,42 @@
 	{
 	"UECProtocolA" : ["field1","field2"],
 	"UECProtocolB" : ["mManager","mState"],
-	"UECManagerFSM" : ["field1"]
+	"small" : ["field1","field2","field3"]
 	},
 	"public_methods":
 	{
-	"UECProtocolInterface" : ["Init","ShutDown","ProcessEvent","UECProtocolInterface"],
-	"UECProtocolA" : ["UECProtocolA","SetManager","Init","ShutDown","ProcessEvent"],
+	"UECProtocolInterface" : ["Init","ShutDown","ProcessEvent","Set","UECProtocolInterface"],
 	"UECProtocolB" : ["UECProtocolB","Init","ShutDown","ProcessEvent"],
-	"UECManagerFSM" : ["ShutDown","ProcessEvent","Init","Get"]
+	"UECProtocolA" : ["UECProtocolA","SetManager","Init","ShutDown","ProcessEvent"],
+	"small" : ["ShutDown","ProcessEvent","ttt","Init","Set","Get"]
 	},
 	"private_methods":
 	{
 	},
 	"derived":
 	{
-	"UECProtocolInterface" : ["UECProtocolA","UECManagerFSM","UECProtocolB"]
+	"UECProtocolInterface" : ["UECProtocolA","small","UECProtocolB"]
 	},
 	"vtbls":
 	{
+	"_ZTV5small" : ["_ZTI5small","_ZN5small4InitEv","_ZN5small8ShutDownEv","_ZN5small12ProcessEventEP8UECEvent"],
 	"_ZTV20UECProtocolInterface" : ["_ZTI20UECProtocolInterface","__cxa_pure_virtual","__cxa_pure_virtual","__cxa_pure_virtual"],
 	"_ZTV12UECProtocolA" : ["_ZTI12UECProtocolA","_ZN12UECProtocolA4InitEv","_ZN12UECProtocolA8ShutDownEv","_ZN12UECProtocolA12ProcessEventEP8UECEvent"],
-	"_ZTV12UECProtocolB" : ["_ZTI12UECProtocolB","_ZN12UECProtocolB4InitEv","_ZN12UECProtocolB8ShutDownEv","_ZN12UECProtocolB12ProcessEventEP8UECEvent"],
-	"_ZTV13UECManagerFSM" : ["_ZTI13UECManagerFSM","_ZN13UECManagerFSM4InitEv","_ZN13UECManagerFSM8ShutDownEv","_ZN13UECManagerFSM12ProcessEventEP8UECEvent"]
+	"_ZTV12UECProtocolB" : ["_ZTI12UECProtocolB","_ZN12UECProtocolB4InitEv","_ZN12UECProtocolB8ShutDownEv","_ZN12UECProtocolB12ProcessEventEP8UECEvent"]
 	},
 	"fields":
 	{
-	"UECProtocolB::mState" : ["mState"],
+	"small::field0" : [""],
+	"small::field1" : ["mProtocols"],
+	"small::field2" : ["lev"],
+	"small::field3" : ["mProtB"],
 	"UECProtocolB::" : [""],
-	"UECManagerFSM::field0" : [""],
+	"UECProtocolB::mState" : ["mState"],
 	"UECEvent::field0" : ["mData"],
 	"UECProtocolA::field0" : [""],
 	"UECProtocolA::field1" : ["mManager"],
 	"UECProtocolA::field2" : ["mState"],
 	"UECProtocolInterface::field0" : ["_vptr$UECProtocolInterface"],
-	"UECManagerFSM::field1" : ["mProtocols"],
 	"UECProtocolB::mManager" : ["mManager"]
 	},
 	"friends":

@@ -178,11 +178,20 @@ struct
   module Danger = 
   struct 
 		include MapDomain.MapBot_LiftTop (Var) (ArgSet)
-		(*
-		let add k v mp = report("Danger.add "^k.vname^" -> "^sprint 160 (ArgSet.pretty () v)^" was "^sprint 160 (ArgSet.pretty () (find k mp)));
-		                 if k.vname = this_name && (ArgSet.fold (fun x y-> y+1) v 0)>1 then failwith "bad this"; 
-		                  add k v mp
-		*)
+(*    
+		let dbg_line_start = 587
+    let dbg_line_end = 595
+
+    let dbg_report x =
+        let loc = !Goblintutil.current_loc in 
+            if loc.line>=dbg_line_start && loc.line<=dbg_line_end then
+                (*counter := !counter + 1;*)        
+          if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
+        Messages.report ((*(string_of_int !counter)^*)"CW: "^x)
+		
+		let add k v mp = dbg_report("Danger.add "^k.vname^" -> "^sprint 160 (ArgSet.pretty () v)^" was "^sprint 160 (ArgSet.pretty () (find k mp)));
+		                 add k v mp
+*)		
 				
 		let dummy = (emptyFunction "@dummy").svar
     let vars : (varinfo, unit) Hashtbl.t = Hashtbl.create 1111 (*list of funs that we have inspected*)
@@ -244,8 +253,8 @@ struct
    
   let enable_dbg = false
 
-  let dbg_line_start = 437
-	let dbg_line_end = 437
+  let dbg_line_start = 587
+	let dbg_line_end = 595
 
 	let dbg_report x =
 		let loc = !Goblintutil.current_loc in 
@@ -784,6 +793,11 @@ struct
         report("DangerSize : "^string_of_int count);
 				flush stdout
 			end  
+			 
+		let dangerDump m st =
+			Danger.iter (fun var args ->                             
+                                report(m^var.vname^"->" ^sprint 160 (ArgSet.pretty () args))                            
+                            ) st
 			
 			
     let danger_propagate v args (fd,st,(gd:Diff.t)) must_assign fs glob = (*checks if the new danger val points to this->something and updates this->something*)
@@ -820,12 +834,11 @@ struct
             (*dbg_report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS_2 "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args)^" rhs_ctf : "^string_of_bool rhs_cft);*)                  
 						if not rhs_cft&& not (FieldVars.get_var fv).vglob then
 						begin
-	            (*dbg_report((string_of_int (!uid) )^":"^"danger.prop_this "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));*)
 							let flds = get_field_from_this (Lval (Var (FieldVars.get_var fv),NoOffset)) st in     
 							           
 	            if false&&FieldSet.is_bot flds&& not (FieldVars.has_field fv) then 
 							  begin
-									error ("This has become tainted "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));
+									report ("This has become tainted "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));
 	                (fd,st,gd)
 								end
 								else
@@ -842,12 +855,13 @@ struct
 								  in
                   (*report("danger.prop_this "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));*)									
 									if not (FieldSet.is_bot fields2) then									  	 
-		              report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () fields2) ^"("^(FieldVars.get_var fv).vname^")"^" via "^v.vname^ (sprint 160 (ArgSet.pretty () (Danger.find v st))));
+		              report ("INFO2 : Write to local state : this->"^sprint 160 (FieldSet.pretty () fields2) ^"("^(FieldVars.get_var fv).vname^")"^" via "^v.vname^ (sprint 160 (ArgSet.pretty () (Danger.find v st))));
 			            (fd,st, Diff.add (taintedFunDec, (fields2,VarNameSet.bot (),ClassNameSet.bot () ) )  gd) (*update this->field?*)
 								end
 							end
             else
             begin
+							(*dbg_report ("CFT=TRUE for "^sprint 160 (ArgSet.pretty () args));*)
 							(fd,st,gd)
             end						
 				  end 
@@ -870,11 +884,16 @@ struct
                   end else st) ds_args st                                      
             in
             (*dbg_report((string_of_int (!uid) )^":"^"danger.prop_non_this_check "^v.vname^" = "^(sprint 160 (FieldVars.pretty () fv)));*)
+            						
             let st = if (*not (constructed_from_this st (Lval (Var (FieldVars.get_var fv),NoOffset))) &&*)
 						ArgSet.is_bot (Danger.find (FieldVars.get_var fv) st) then
+							begin
 							  danger_upd (FieldVars.get_var fv) args st
+							end
 							else
+							begin
 								st
+						  end
             in                   
             let st = Danger.fold (fun var args y ->
 							begin 
@@ -892,12 +911,13 @@ struct
 				if (*not must_assign && MUST PROPAGATE HERE!!!*)not (ArgSet.is_bot ds) then
 				begin
           (*dbg_report((string_of_int (!uid) )^":"^"danger.prop_ds_1 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));*)
-					ArgSet.fold (fun x y -> update_this x y ds) ds (fd,st,gd) 
+					ArgSet.fold (fun x y -> update_this x y ds) ds (fd,st,gd) (*args???*) 
 				end
 				else	
 	       (fd,st,gd)
 			in				
 			let cft_lhs = must_be_constructed_from_this st (Lval (Var v,NoOffset)) in  
+			(*dbg_report("mbg prop:"^(sprint 160 (d_exp () (Lval (Var v,NoOffset)))));*)
 			let mbg_lhs = may_be_a_perfectly_normal_global (Lval (Var v,NoOffset)) true (fd,st,gd) (FieldSet.bot ()) in
       let fd,st,gd =  if (not cft_lhs || mbg_lhs) && not (v.vglob) then
 			begin 
@@ -905,7 +925,7 @@ struct
 				update_this (FieldVars.gen v) (fd,st,gd) args
 			end
 			else fd,st,gd
-			in
+			in			 
 			 (fd, danger_upd v args st,gd)
         
     let is_bad_reachable v st =
@@ -1004,8 +1024,16 @@ struct
     in
     List.exists warn_exp args 
 		
+  let is_loc_method e glob = (*FIXME: is this correct?*)
+      match e with
+            | Some e->
+            let globs=get_globals e in
+                let res=List.fold_left (fun y x-> y||(is_public_method_name x.vname || is_private_method_name x.vname)&&not (is_ext x.vname glob)) false globs 
+                in (*printf "%s is method: %b\n" (sprint 160 (d_exp () e)) res ;*)res
+            | _ -> false   		
+		
 	(*analog to may_be_.._global, prints warnings*)
-  let warn_bad_reachables ask args fromFun (fd, st,df) fs ss = (**)
+  let warn_bad_reachables ask args fromFun (fd, st,df) fs ss glob= (**)
 	  
     let warn_exp e = 
       (*let query = if fromFun then Queries.ReachableFrom e else Queries.MayPointTo e in*)
@@ -1031,8 +1059,17 @@ struct
 							end) args false 
 							then
 							begin
-								  report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");
+								if may_be_constructed_from_this st e && not (is_loc_method (Some e) glob)then
+								begin
+								  let fst = (get_field_from_this e st) in
+									report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^FieldSet.short 160 fst^".");
 									true
+								end
+								else
+									begin
+								    report (" (1) Expression "^sprint 160 (d_exp () e)^" which is used in "^ss^" may contain pointers from "^ArgSet.short 160 args^".");
+										true	
+									end						
 							end
 							else
 								false
@@ -1088,7 +1125,7 @@ struct
 		
  
   let assign_to_lval fs lval (fd,st,gd) args must_assign glob = (*propagate dangerous vals*)
-	  (*dbg_report ("assign_to_lval "^(sprint 160 (d_plainexp () (Lval lval))));*)
+	  dbg_report ("assign_to_lval "^(sprint 160 (d_plainexp () (Lval lval))));
     match lval with 
       | Var v , ofs -> dbg_report ("danger.add v "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
 			                 (*Danger.add v args st*)
@@ -1118,7 +1155,7 @@ struct
 					begin	
 						if cft then
 						begin
-							
+							(**)
 							let this = get_this st e in	
 							ArgSet.fold (fun x y -> 
                 if not ((FieldVars.get_var x).vglob)
@@ -1129,11 +1166,12 @@ struct
                 dbg_report ("assign.lval "^(sprint 160 (d_exp () (Lval lval)))^" "^(FieldVars.get_var x).vname^" = "^sprint 160 (ArgSet.pretty () (join_this_fs_to_args this fst)));									
 								danger_propagate (FieldVars.get_var x) (join_this_fs_to_args this fst) y false fs glob
 								end
-                else (fd,st,gd)			
+                else 
+									   (fd,st,gd) 
 								) args (fd,st,gd)  							 
 					  end
 						  else						                                       
-               (fd,st,gd)
+               begin (fd,st,gd) end
 					end
 					
   let assign_to_lval_no_prop fs lval (fd,st,gd) args must_assign glob = (*propagate dangerous vals*)
@@ -1246,9 +1284,12 @@ struct
 		    
 	let add_local_class (lc:string) (fd,st,gd) =
                 if (!Goblintutil.local_class) then
-		 (*report("ADD_LOC_CLASS : "^lc);*)
-		 Hashtbl.replace local_classes lc ();
-	   fd,st, (Diff.add (taintedFunDec, (FieldSet.bot (),VarNameSet.bot (), ClassNameSet.singleton (ClassName.to_fun_name lc) ) )  gd)
+                 begin
+                    (*report("ADD_LOC_CLASS : "^lc);*)
+                    Hashtbl.replace local_classes lc ();
+                    fd,st, (Diff.add (taintedFunDec, (FieldSet.bot (),VarNameSet.bot (), ClassNameSet.singleton (ClassName.to_fun_name lc) ) )  gd)
+                 end
+                 else (fd,st,gd)
 
 	let get_vfunc_set vtn n dom =
 		let ihl = get_inherited_from vtn in
@@ -1363,9 +1404,9 @@ struct
             let globs=get_globals e in
                 let res=List.fold_left (fun y x-> y||(is_public_method_name x.vname || is_private_method_name x.vname)) false globs 
                 in (*printf "%s is method: %b\n" (sprint 160 (d_exp () e)) res ;*)res
-            | _ -> false       
+            | _ -> false      
         
-  let assign_to_local ask (lval:lval) (rval:exp option) (fd,st,df) fs = (*tainting*)
+  let assign_to_local ask (lval:lval) (rval:exp option) (fd,st,df) fs glob = (*tainting*)
 	  
     let p = function
       | Some e -> 
@@ -1380,11 +1421,11 @@ struct
         | Some rval ->   sprint 160 (d_exp () rval)
         | _ -> "??"
     in
-		dbg_report("assign_to_local "^(sprint 160 (d_exp () (Lval lval)))^" = "^str);
+		(*dbg_report("assign_to_local "^(sprint 160 (d_exp () (Lval lval)))^" = "^str);*)
     if  p rval
     && may_be_constructed_from_this st (Lval lval)
     && not (FieldSet.is_bot flds) 
-		&& not (is_method rval) (*fptrs are globals but they are handled separately*)
+		&& (not (is_loc_method rval glob)) (*fptrs are globals but they are handled separately*)
     then begin					
 			if 
 			(maybe_deref (Lval lval)) || may_be_constructed_from_this_direct st (Lval lval)  
@@ -1469,7 +1510,9 @@ struct
         | _ -> true
     in
     if List.exists p (get_globals e) && not (is_safe e) 
-    then report (" (5) Possible use of globals in " ^ sprint 160 (d_exp () e)^" which is used in "^ss)
+    then
+	let glob_list= (List.fold_left (fun y x->y^","^x.vname) "{" (get_globals e) )^"}" in
+	report (" (5) Possible use of globals "^glob_list^" in " ^ sprint 160 (d_exp () e)^" which is used in "^ss)
 
 
 
