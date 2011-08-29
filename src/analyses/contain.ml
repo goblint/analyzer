@@ -407,6 +407,7 @@ struct
 			if uses_fp||isPointerType (typeOf (stripCasts rval)) then
 			begin
 				(*Dom.report ("assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () rval))^"\n");*)
+        (*let a,b,c=nctx in Dom.dangerDump "BF ASS:" b;*)  
         Dom.assign_argmap fs lval rval nctx true ctx.global
 			end
 			else nctx
@@ -627,7 +628,7 @@ struct
                   let (fn,st,gd)=
 										Dom.assign_to_local ctx.ask (Mem globa,NoOffset) (Some (Lval (Var f,NoOffset))) (fn,st,gd) fs ctx.global
 									in
-										(Dom.assign_to_lval fs (Mem globa,NoOffset) (fn,st,gd) (ContainDomain.ArgSet.singleton (FieldVars.gen f)) false ctx.global)
+										(Dom.assign_to_lval fs (Mem globa,NoOffset) (fn,st,gd) (ContainDomain.ArgSet.singleton (FieldVars.gen f)) false ctx.global "C631")
 								  
                 end
                 else
@@ -675,7 +676,7 @@ struct
 								if not (Dom.is_safe_name f.vname) then 
                 let fn,st,gd = Dom.assign_to_local ctx.ask v from nctx fs ctx.global in
                 let fn,st,gd = Dom.danger_assign f (ContainDomain.ArgSet.singleton (FieldVars.gen f)) (fn,st,gd) true fs in
-                Dom.assign_to_lval fs v (fn,st,gd) (ContainDomain.ArgSet.singleton (FieldVars.gen f)) true ctx.global
+                Dom.assign_to_lval fs v (fn,st,gd) (ContainDomain.ArgSet.singleton (FieldVars.gen f)) true ctx.global "C679"
 								else
 									nctx
               end else nctx
@@ -697,7 +698,7 @@ struct
     (*if Dom.is_top ctx.local then failwith "ARGH!";*)
     (*print_progress (Cilfacade.getdec f);*)                   
     if danger_bot ctx then [ctx.local, ctx.local] else  
-    if is_ext f.vname ctx.global then
+    if not (!GU.local_class) && is_ext f.vname ctx.global then
     begin
         (*ignore(Dom.report("SPECIAL_FN instead of enter : "^f.vname));*)
         let nctx,_,_= List.hd (special_fn ctx lval f args) in
@@ -770,7 +771,7 @@ struct
 								let arg_single = (ContainDomain.ArgSet.singleton (FieldVars.gen f)) in
 	              let fn,st,gd = Dom.assign_to_local ctx.ask v from (a,b,c) fs ctx.global in
 	              let fn,st,gd = Dom.danger_assign f arg_single (fn,st,gd) true fs in
-	              Dom.assign_to_lval fs v (fn,st,gd) arg_single true ctx.global
+	              Dom.assign_to_lval fs v (fn,st,gd) arg_single true ctx.global "C774"
 							end
 							else 
               let _,au_st,au_gd = au in
@@ -782,7 +783,7 @@ struct
 									begin
 (*                    Dom.report ("return_arg : "^(sprint 160 (d_exp () (Lval v)))^" = "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));*)
 			              let fn,st,gd = Dom.assign_to_local ctx.ask v from (fn,st,gd) fs ctx.global in
-			              Dom.assign_to_lval fs v (fn,st,gd) rvs false ctx.global
+			              Dom.assign_to_lval fs v (fn,st,gd) rvs false ctx.global "C786"
 									end 
 								in
     					  let (a,b,c)=ContainDomain.ArgSet.fold (fun x y ->apply_var x y v rvs) rvs (a,b,c) in

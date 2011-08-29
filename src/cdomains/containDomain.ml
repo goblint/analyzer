@@ -251,10 +251,10 @@ struct
 	let safe_methods : (string, Str.regexp list) Hashtbl.t = Hashtbl.create 111 (*imported list of safe methods*) 
   let safe_vars : (string, Str.regexp list) Hashtbl.t = Hashtbl.create 111 (*imported list of safe vars*)
    
-  let enable_dbg = false
+  let enable_dbg = false 
 
-  let dbg_line_start = 587
-	let dbg_line_end = 595
+  let dbg_line_start = 696
+	let dbg_line_end = 696
 
 	let dbg_report x =
 		let loc = !Goblintutil.current_loc in 
@@ -796,20 +796,21 @@ struct
 			 
 		let dangerDump m st =
 			Danger.iter (fun var args ->                             
-                                report(m^var.vname^"->" ^sprint 160 (ArgSet.pretty () args))                            
+                                dbg_report(m^var.vname^"->" ^sprint 160 (ArgSet.pretty () args))                            
                             ) st
 			
 			
-    let danger_propagate v args (fd,st,(gd:Diff.t)) must_assign fs glob = (*checks if the new danger val points to this->something and updates this->something*)
+    let danger_propagate v args (fd,st,(gd:Diff.t)) must_assign fs glob comm = (*checks if the new danger val points to this->something and updates this->something*)
 		  uid:=!uid+1;
-      dbg_report((string_of_int (!uid) )^":"^"danger.prop "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
+      let ds = Danger.find v st in
+      dbg_report((string_of_int (!uid) )^":"^comm^":"^"danger.prop "^v.vname^"->"^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));			
 			(*dumpDomSize st;*)
         (*fprintf stderr "(size: %d free:%d live:%d fragments:%d)\n" ((Gc.stat ()).Gc.heap_words) ((Gc.stat ()).Gc.free_words) ((Gc.stat ()).Gc.live_words) ((Gc.stat ()).Gc.fragments);*)			
 			  let danger_upd = if must_assign || (v.vglob) then Danger.add
 				                 else Danger.merge
 				in
         let update_this fv (fd,st,gd) ds = 
-        (*dbg_report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));*)                  
+        dbg_report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args));                  
         let (fd,st,gd) = if (may_be_constructed_from_this st (Lval (Var (FieldVars.get_var fv),NoOffset))) then
         begin
 					let rhs_cft = ArgSet.fold (fun x y->
@@ -820,18 +821,18 @@ struct
 								(Lval (Var (FieldVars.get_var x),NoOffset)) x 								 
 							in
 							(is_tainted fs st exp) in
-						let cft = (may_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset)))
+						let cft = (may_be_constructed_from_this st (Lval (Var (FieldVars.get_var x),NoOffset))) 
 						 in            
 					  if (not cft || it) && (is_ext (FieldVars.get_var x).vname) glob && not (is_safe_name (FieldVars.get_var x).vname)
 					  then 
 						begin	
-							(*report((string_of_int (!uid) )^":"^(sprint 160 (FieldVars.pretty () x))^" it "^string_of_bool it^" cft "^string_of_bool cft);*)
+							(*Messages.report((string_of_int (!uid) )^":"^(sprint 160 (FieldVars.pretty () x))^" it "^string_of_bool it^" cft "^string_of_bool cft);*)
 							false
 						end 
 						else y) 
 					args true
 					in
-            (*dbg_report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS_2 "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args)^" rhs_ctf : "^string_of_bool rhs_cft);*)                  
+            (*Messages.report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS_2 "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args)^" rhs_ctf : "^string_of_bool rhs_cft);*)                  
 						if not rhs_cft&& not (FieldVars.get_var fv).vglob then
 						begin
 							let flds = get_field_from_this (Lval (Var (FieldVars.get_var fv),NoOffset)) st in     
@@ -910,21 +911,21 @@ struct
 				let (fd,st,gd) =
 				if (*not must_assign && MUST PROPAGATE HERE!!!*)not (ArgSet.is_bot ds) then
 				begin
-          (*dbg_report((string_of_int (!uid) )^":"^"danger.prop_ds_1 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));*)
-					ArgSet.fold (fun x y -> update_this x y ds) ds (fd,st,gd) (*args???*) 
+          (*Messages.report((string_of_int (!uid) )^":"^"danger.prop_ds_1 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));*)
+					ArgSet.fold (fun x y -> update_this x y args) ds (fd,st,gd) (*args???*) 
 				end
 				else	
 	       (fd,st,gd)
-			in				
+			in						
 			let cft_lhs = must_be_constructed_from_this st (Lval (Var v,NoOffset)) in  
 			(*dbg_report("mbg prop:"^(sprint 160 (d_exp () (Lval (Var v,NoOffset)))));*)
 			let mbg_lhs = may_be_a_perfectly_normal_global (Lval (Var v,NoOffset)) true (fd,st,gd) (FieldSet.bot ()) in
       let fd,st,gd =  if (not cft_lhs || mbg_lhs) && not (v.vglob) then
 			begin 
-        (*dbg_report((string_of_int (!uid) )^":"^"danger.prop_ds_2 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));*)
+        dbg_report((string_of_int (!uid) )^":"^"danger.prop_ds_2 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));
 				update_this (FieldVars.gen v) (fd,st,gd) args
 			end
-			else fd,st,gd
+			else fd,st,gd			
 			in			 
 			 (fd, danger_upd v args st,gd)
         
@@ -1124,7 +1125,7 @@ struct
     res
 		
  
-  let assign_to_lval fs lval (fd,st,gd) args must_assign glob = (*propagate dangerous vals*)
+  let assign_to_lval fs lval (fd,st,gd) args must_assign glob comm = (*propagate dangerous vals*)
 	  dbg_report ("assign_to_lval "^(sprint 160 (d_plainexp () (Lval lval))));
     match lval with 
       | Var v , ofs -> dbg_report ("danger.add v "^v.vname^" = "^sprint 160 (ArgSet.pretty () args));
@@ -1132,7 +1133,7 @@ struct
 											 
 											 if not (is_safe_name v.vname) then (*MUST BE PROPAGATE, we don't know if we alias or reference*)
 											     (*if maybe_deref (Lval lval) then*)
-											        danger_propagate v args (fd,st,gd) must_assign fs glob
+											        danger_propagate v args (fd,st,gd) must_assign fs glob comm
 													 (*else
 														  danger_assign v args (fd,st,gd) must_assign fs*)
 											 else												 
@@ -1149,7 +1150,7 @@ struct
 						let vars = get_vars e in (*not very exact for huge compount statements*)
 						List.fold_left 
 	            (fun y x->dbg_report ("danger.add e "^x.vname^" = "^sprint 160 (ArgSet.pretty () args));
-	                 if not (is_safe_name x.vname) then danger_propagate x args y false fs glob else y) (fd,st,gd) vars
+	                 if not (is_safe_name x.vname) then danger_propagate x args y false fs glob "L1153" else y) (fd,st,gd) vars
 					end
 					else
 					begin	
@@ -1164,7 +1165,7 @@ struct
 								then
 								begin
                 dbg_report ("assign.lval "^(sprint 160 (d_exp () (Lval lval)))^" "^(FieldVars.get_var x).vname^" = "^sprint 160 (ArgSet.pretty () (join_this_fs_to_args this fst)));									
-								danger_propagate (FieldVars.get_var x) (join_this_fs_to_args this fst) y false fs glob
+								danger_propagate (FieldVars.get_var x) (join_this_fs_to_args this fst) y false fs glob "L1168"
 								end
                 else 
 									   (fd,st,gd) 
@@ -1314,6 +1315,8 @@ struct
      
 	            		
   let filter_vtbl  = Str.regexp "_ZTV.*"
+	
+	let muid = ref 0
 
   let assign_argmap fs lval exp (fd, st, df) must_assign glob = (*keep track of used fun args*)
 			match used_args st exp with
@@ -1324,7 +1327,7 @@ struct
               let s = List.fold_left (fun y x->if not (is_safe_name x.vname) then begin ArgSet.add (FieldVars.gen x) y end else y) (ArgSet.empty()) vars in
 							dbg_report ("assign_argmap :no args: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () exp))^":"^sprint 160 (ArgSet.pretty () s)^"\n");
 							if not (ArgSet.is_bot s) then					
-					    assign_to_lval fs lval (fd, st, df) s must_assign glob
+					    assign_to_lval fs lval (fd, st, df) s must_assign glob "L1328"
 							else 
 							(fd, st, df)
           | s -> 
@@ -1338,7 +1341,7 @@ struct
 								begin
 									let no_vtbl = 
 										dbg_report ("no_vtbl1 : "^(sprint 160 (d_lval () lval))^ " = "^sprint 160 (ArgSet.pretty () s));
-										assign_to_lval fs lval (fd, st, df) s must_assign glob in
+										assign_to_lval fs lval (fd, st, df) s must_assign glob "L1342" in
 									if not cft then
                     match exp with
 											(*AddrOf(Var(_ZTV3FSM, Field(array:TArray(TPtr(TInt(unsigned char, ), ), Some(Const(Int64(7,int,None))), ), Index(Const(Int64(2,long long,None)), NoOffset))))*)
@@ -1349,7 +1352,7 @@ struct
                            (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
                            let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs  in
                            let set = ArgSet.join fun_set s in 
-                           assign_to_lval fs lval (fd, st, df) set must_assign glob											 
+                           assign_to_lval fs lval (fd, st, df) set must_assign glob "L1353"											 
 											| _ -> no_vtbl                
 									else
 										  match exp with
@@ -1362,7 +1365,7 @@ struct
                             (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
 														let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
 														let set = ArgSet.join fun_set s in 
-														assign_to_lval fs lval (fd, st, df) set must_assign glob
+														assign_to_lval fs lval (fd, st, df) set must_assign glob "1366"
 														(*no_vtbl*)
 													end	
 												| _ -> no_vtbl
@@ -1370,12 +1373,22 @@ struct
 								else
 								begin
 									let no_vtbl = 
-                    let merge v fs (fd, st, df) = (*propagate the fields*)
-		                    let s = FieldSet.fold (fun x y->(*dbg_report ("added "^v.vname^"::"^x.fname);*)ArgSet.add (FieldVars.gen_f v x) y) fs (ArgSet.empty()) in
-		                    dbg_report ("no_vtbl2t : "^(sprint 160 (d_lval () lval))^ " = "^sprint 160 (ArgSet.pretty () s));
-		                    assign_to_lval fs lval (fd, st, df) s must_assign glob 
+										
+                    let merge v fs is = (*propagate the fields*)
+		                    FieldSet.fold (fun x y->(*dbg_report ("added "^v.vname^"::"^x.fname);*)ArgSet.add (FieldVars.gen_f v x) y) fs (is)			                    
 		                in
-		                ArgSet.fold (fun x y->if (FieldVars.get_var x).vname = this_name then begin  merge (FieldVars.get_var x) fs y end else y) s (fd,st,df)
+										begin
+										let ns=ArgSet.fold (
+                                            fun x y->if (FieldVars.get_var x).vname = this_name then begin 
+                                            merge (FieldVars.get_var x) fs y end else y
+                                            ) s (ArgSet.empty())
+									  in 
+										begin 
+                    (*muid := !muid +1;
+                    Messages.report ((string_of_int !muid)^":no_vtbl2t : "^(sprint 160 (d_lval () lval))^ " = "^sprint 160 (ArgSet.pretty () ns));*)
+										assign_to_lval fs lval (fd, st, df) ns must_assign glob "L1388:"                                                   
+		                end
+									end
                   in
                  (*no_vtbl*)
                  match exp with

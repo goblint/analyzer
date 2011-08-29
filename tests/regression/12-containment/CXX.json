@@ -20,9 +20,9 @@
 	"public_methods":
 	{
 	"UECProtocolInterface" : ["Init","ShutDown","ProcessEvent","Set","UECProtocolInterface"],
-	"UECProtocolB" : ["UECProtocolB","Init","ShutDown","ProcessEvent"],
+	"UECProtocolB" : ["UECProtocolB","Init","TheFun","ShutDown","ProcessEvent"],
 	"UECProtocolA" : ["UECProtocolA","SetManager","Init","ShutDown","ProcessEvent"],
-	"small" : ["ShutDown","ProcessEvent","ttt","Init","Set","Get"]
+	"small" : ["ttt","ShutDown","ProcessEvent","Init","Set","Get"]
 	},
 	"private_methods":
 	{
