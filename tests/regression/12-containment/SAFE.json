@@ -1,10 +1,10 @@
 {
 	"variables":
 	{
-	"global" : ["nwm","daPv","dlPv","v_table.*","_vptr*"]
+	"global" : ["v_table.*","mout","_OC_str[0-9].*","_ZTVN.*","_vptr$.*","std::vector(.*^\\*)::operator.*","nam","_ZdlPv"]
 	},
 	"methods":
 	{
-	"global" : ["__cxa_pure_virtual"]
+	"global" : ["printf","_Z11TS_API_SOMEPi","_ZdlPv","DummyStream::.*","dlPv","__cxa_pure_virtual"]
 	}
 }

@@ -1,59 +1,144 @@
 {
 	"inheritance":
 	{
-	"UECProtocolA" : ["UECProtocolInterface"],
-	"UECProtocolInterface" : [],
-	"UECProtocolB" : ["UECProtocolInterface"],
-	"small" : ["UECProtocolInterface"]
+	"_Rep_base" : [],
+	"allocator" : ["new_allocator"],
+	"Log" : ["Test2"],
+	"_Vector_impl" : ["_Tp_alloc_type"],
+	"CBaseFSM" : [],
+	"FSM" : ["CBaseFSM"],
+	"_Rep" : ["_Rep_base"],
+	"new_allocator" : [],
+	"_Vector_base" : [],
+	"Dummy" : ["Test2"],
+	"_Tp_alloc_type" : [],
+	"Test2" : [],
+	"vector" : ["_Vector_base"],
+	"_Alloc_hider" : ["allocator"],
+	"small" : ["FSM","Log"],
+	"Subsmall_X" : ["FSM","Log"]
 	},
 	"public_vars":
 	{
-	"UECProtocolInterface" : ["_vptr$UECProtocolInterface"],
-	"UECEvent" : ["field0"]
+	"Log" : ["field9","field13","field14"],
+	"FSM" : ["_vptr$FSM"]
 	},
 	"private_vars":
 	{
-	"UECProtocolA" : ["field1","field2"],
-	"UECProtocolB" : ["mManager","mState"],
-	"small" : ["field1","field2","field3"]
+	"__normal_iterator" : ["field0"],
+	"Log" : ["field1","field2","field3","field4","field5","field6","field7","field8","field10","field11","field12","field15","field16","field17","field18","field19","field20","field21","field22","field23","field24"],
+	"Test2" : ["field0"],
+	"CBaseFSM" : ["field0"],
+	"UecFSMImpl" : ["field0","field1"],
+	"FSM" : ["field2"],
+	"basic_string" : ["field0"],
+	"small" : ["field3","field4","field5","field6","field7","field8","field9","field10","field11","field12","field13","field14"],
+	"Subsmall_X" : ["field3"],
+	"UecManagerBase" : ["mSharedData"]
 	},
 	"public_methods":
 	{
-	"UECProtocolInterface" : ["Init","ShutDown","ProcessEvent","Set","UECProtocolInterface"],
-	"UECProtocolB" : ["UECProtocolB","Init","TheFun","ShutDown","ProcessEvent"],
-	"UECProtocolA" : ["UECProtocolA","SetManager","Init","ShutDown","ProcessEvent"],
-	"small" : ["ttt","ShutDown","ProcessEvent","Init","Set","Get"]
+	"allocator" : ["allocator","~allocator"],
+	"Log" : ["Test","doLog","Log","test_cycle","call_fp","get_priv_fun"],
+	"CBaseFSM" : ["CBaseFSM"],
+	"FSM" : ["FakeFun","ReceiveEvent","Virt","FSM","~FSM"],
+	"new_allocator" : ["new_allocator","~new_allocator","address","allocate","deallocate","max_size","construct","destroy"],
+	"Dummy" : ["Dummy"],
+	"__normal_iterator" : ["__normal_iterator","operator*","operator->","operator++","operator--","operator[]","operator+=","operator+","operator-=","operator-","base"],
+	"Test2" : ["Test2"],
+	"vector" : ["vector","~vector","operator=","assign","begin","end","rbegin","rend","size","max_size","resize","capacity","empty","reserve","operator[]","at","front","back","data","push_back","pop_back","insert","erase","swap","clear"],
+	"UecManagerBase" : ["UecManagerBase","GetSharedData"],
+	"UecFSMImpl" : ["UecFSMImpl","Public_UecFSMImpl_Func"],
+	"basic_string" : ["basic_string","~basic_string","operator=","begin","end","rbegin","rend","size","length","max_size","resize","capacity","reserve","clear","empty","operator[]","at","operator+=","append","push_back","assign","insert","erase","replace","copy","swap","c_str","data","get_allocator","find","rfind","find_first_of","find_last_of","find_first_not_of","find_last_not_of","substr","compare"],
+	"small" : ["small","Kill","~small","TestCycle","Entry","RetTest7","RetTest1","RetTest2","RetTest3","RetTest4","RetTest5","InsertGlobalData","Prv","ArgTest","ReceiveEvent"],
+	"Subsmall_X" : ["Subsmall_X","ADD","BadIfNotAna","~Subsmall_X","ReceiveEvent"]
 	},
 	"private_methods":
 	{
+	"Log" : ["TestFields","my_undef_fp_fun","my_priv_fun","my_priv_fun2"],
+	"vector" : ["_M_range_check","_M_fill_initialize","_M_fill_assign","_M_fill_insert","_M_insert_aux","_M_check_len","_M_erase_at_end"],
+	"basic_string" : ["_M_data","_M_rep","_M_ibegin","_M_iend","_M_leak","_M_check","_M_check_length","_M_limit","_M_disjunct","_M_copy","_M_move","_M_assign","_S_copy_chars","_S_compare","_M_mutate","_M_leak_hard","_S_empty_rep","_M_replace_aux","_M_replace_safe","_S_construct"],
+	"small" : ["undef_fun","unneeded_fun","PrivateMember4","PrivateMember0","PrivateMember2","PrivateMember3","RetTest6","GetGlob","PrivateMember5","GetNULL"],
+	"Dummy" : ["dummy"]
 	},
 	"derived":
 	{
-	"UECProtocolInterface" : ["UECProtocolA","small","UECProtocolB"]
+	"_Rep_base" : ["_Rep"],
+	"allocator" : ["_Alloc_hider"],
+	"Log" : ["small","Subsmall_X"],
+	"Test2" : ["Log","Dummy"],
+	"CBaseFSM" : ["FSM"],
+	"FSM" : ["small","Subsmall_X"],
+	"new_allocator" : ["allocator"],
+	"_Vector_base" : ["vector"],
+	"_Tp_alloc_type" : ["_Vector_impl"]
 	},
 	"vtbls":
 	{
-	"_ZTV5small" : ["_ZTI5small","_ZN5small4InitEv","_ZN5small8ShutDownEv","_ZN5small12ProcessEventEP8UECEvent"],
-	"_ZTV20UECProtocolInterface" : ["_ZTI20UECProtocolInterface","__cxa_pure_virtual","__cxa_pure_virtual","__cxa_pure_virtual"],
-	"_ZTV12UECProtocolA" : ["_ZTI12UECProtocolA","_ZN12UECProtocolA4InitEv","_ZN12UECProtocolA8ShutDownEv","_ZN12UECProtocolA12ProcessEventEP8UECEvent"],
-	"_ZTV12UECProtocolB" : ["_ZTI12UECProtocolB","_ZN12UECProtocolB4InitEv","_ZN12UECProtocolB8ShutDownEv","_ZN12UECProtocolB12ProcessEventEP8UECEvent"]
+	"_ZTV5small" : ["_ZTI5small","_ZN3FSM7FakeFunEP9UEC_Event","_ZN5small12ReceiveEventEP9UEC_Event","_ZN3FSM4VirtEv","_ZN5smallD1Ev","_ZN5smallD0Ev"],
+	"_ZTV3FSM" : ["_ZTI3FSM","_ZN3FSM7FakeFunEP9UEC_Event","__cxa_pure_virtual","_ZN3FSM4VirtEv","_ZN3FSMD1Ev","_ZN3FSMD0Ev"],
+	"_ZTV10Subsmall_X" : ["_ZTI10Subsmall_X","_ZN3FSM7FakeFunEP9UEC_Event","_ZN10Subsmall_X12ReceiveEventEP9UEC_Event","_ZN3FSM4VirtEv","_ZN10Subsmall_XD1Ev","_ZN10Subsmall_XD0Ev"]
 	},
 	"fields":
 	{
+	"Log::field0" : [""],
+	"Log::field1" : ["xxx0"],
+	"Log::field2" : ["xxx1"],
+	"Log::field3" : ["xxx2"],
+	"Log::field4" : ["xxx3"],
+	"Log::field5" : ["xxx4"],
+	"Log::field6" : ["xxx5"],
+	"Log::field7" : ["mfp1"],
+	"Log::field8" : ["mfp2"],
+	"Log::field9" : ["mLogData"],
+	"Log::field10" : ["ma"],
+	"Log::field11" : ["priv_int"],
+	"Log::field12" : ["mtv"],
+	"Log::field13" : ["ma2"],
+	"Log::field14" : ["dummy"],
+	"Log::field15" : ["sdlkjf1"],
+	"Log::field16" : ["sdlkjf2"],
+	"Log::field17" : ["sdlkjf3"],
+	"Log::field18" : ["sdlkjf4"],
+	"Log::field19" : ["sdlkjf5"],
+	"CBaseFSM::field0" : ["xx"],
+	"small::field10" : ["mpT1"],
+	"small::field11" : ["mpT3"],
+	"small::field12" : ["mpT2"],
+	"small::field13" : ["mpT4"],
+	"small::field14" : ["pubptr"],
+	"Log::field20" : ["sdlkjf6"],
+	"Log::field21" : ["sdlkjf7"],
+	"Log::field22" : ["sdlkjf8"],
+	"Log::field23" : ["sdlkjf9"],
+	"Log::field24" : ["mpE"],
 	"small::field0" : [""],
-	"small::field1" : ["mProtocols"],
-	"small::field2" : ["lev"],
-	"small::field3" : ["mProtB"],
-	"UECProtocolB::" : [""],
-	"UECProtocolB::mState" : ["mState"],
-	"UECEvent::field0" : ["mData"],
-	"UECProtocolA::field0" : [""],
-	"UECProtocolA::field1" : ["mManager"],
-	"UECProtocolA::field2" : ["mState"],
-	"UECProtocolInterface::field0" : ["_vptr$UECProtocolInterface"],
-	"UECProtocolB::mManager" : ["mManager"]
+	"small::field2" : [""],
+	"small::field3" : ["mState"],
+	"small::field4" : ["mState2"],
+	"small::field5" : ["mSubFSM"],
+	"small::field6" : ["mpGlob"],
+	"small::field7" : ["mG2"],
+	"small::field8" : ["mpL"],
+	"small::field9" : ["mpL2"],
+	"UecManagerBase::mSharedData" : ["mSharedData"],
+	"FSM::field0" : ["_vptr$FSM"],
+	"FSM::field1" : [""],
+	"FSM::field2" : ["mDummy"],
+	"Dummy::field0" : [""],
+	"allocator::" : [""],
+	"vector::field0" : [""],
+	"UecFSMImpl::field0" : ["m_stateIdle"],
+	"UecFSMImpl::field1" : ["m_uecManagerBasePtr"],
+	"basic_string::field0" : ["_M_dataplus"],
+	"Subsmall_X::field0" : [""],
+	"Subsmall_X::field2" : [""],
+	"Subsmall_X::field3" : ["mState"],
+	"__normal_iterator::field0" : ["_M_current"],
+	"Test2::field0" : ["xxx"]
 	},
 	"friends":
 	{
+	"Test2" : ["TestClass"]
 	}
 }
