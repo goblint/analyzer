@@ -299,7 +299,6 @@ end
 module LiftBot (Base : S) =
 struct
   include Printable.LiftBot (Base)
-  include StdCousot
 
   let bot () = `Bot
   let is_bot x = x = `Bot

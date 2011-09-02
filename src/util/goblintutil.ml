@@ -100,9 +100,11 @@ let modify_ana x b =
   else
     an := dropNth !an !phase
 
-let modify_context x b = 
-  let ct = Object.find x (objekt !(field !conf "context")) in
-  ct := Build.bool b
+let modify_prop prop name b = 
+  let d  = Object.find name (objekt !(field !conf prop)) in
+    d := Build.bool b
+
+let modify_context x b = modify_prop "context" x b
 
 let conf_containment () = 
   modify_ana "containment" true;

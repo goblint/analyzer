@@ -54,7 +54,7 @@ let bool = function
 
 let field v f = 
   try Object.find f v
-  with Not_found -> raise (JsonE ("Json Error: '"^jsonString (Object v)^"' not an object containing '"^f^"'."))
+  with Not_found -> raise (JsonE ("Json Error: field '" ^f^ "' is not contained in object: '"^jsonString (Object v)^"'."))
 
 module Build = (* backward compatibility *)
 struct

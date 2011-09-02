@@ -71,6 +71,8 @@ let main () =
     end;
     analyze := analyzer str 
   in
+  let tmp_arg = ref "" in
+  let set_prop b x = GU.modify_prop !tmp_arg x b in
   let set_feature b x =
     match x with
       | x when List.exists (fun y -> y.MCP.featurename = x) !MCP.analysesList
@@ -95,6 +97,7 @@ let main () =
     if M.tracing then M.addsystem sys
     else (prerr_endline "Goblin has been compiled without tracing, run ./scripts/trace_on.sh to recompile."; exit 2)
   in
+  let featurelist = List.map (fun x -> x.MCP.featurename) !MCP.analysesList in
   let speclist = [
                  ("-o", Arg.Set_string outFile, "<file>  Prints the output to file.");
                  ("--filter", Arg.Set_string GU.result_filter, "regexp filtering output file.");
@@ -114,10 +117,9 @@ let main () =
                  ("--stats", Arg.Set Cilutil.printStats, " Outputs timing information.");
                  ("--eclipse", Arg.Set GU.eclipse, " Flag for Goblin's Eclipse Plugin.");
                  ("--gccwarn", Arg.Set GU.gccwarn, " Output warnings in GCC format.");
-
                  ("--localclass", Arg.Set GU.local_class, " Analyzes classes defined in main Class.");
                  ("--allfuns", Arg.Set GU.allfuns, " Analyzes all the functions (not just beginning from main).");
-				 ("--noverify", Arg.Clear GU.verify, " Skip the verification phase.");
+                 ("--noverify", Arg.Clear GU.verify, " Skip the verification phase.");
                  ("--class", Arg.Set_string GU.mainclass, " Analyzes all the member functions of the class (CXX.json file required).");
                  ("--nonstatic", Arg.Set GU.nonstatic, " Analyzes all non-static functions.");
                  ("--mainfun", add_string GU.mainfuns, " Sets the name of the main functions.");
@@ -140,13 +142,15 @@ let main () =
                  ("--result", Arg.String setstyle, "<style>  Result style: none, glob, indented, compact, or pretty.");
                  ("--analysis", Arg.String setanalysis, "<name>  Deprecated: Picks the analysis: mcp.");
                  ("--phase", Arg.String phase, "<nr>  Selects a phase. (<nr> >= 0) ");
-                 ("--with", Arg.String (set_feature true), "<name>  Enables features in current phase:" ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList^".");
-                 ("--no", Arg.String (set_feature false), "<name>  Disables features in current phase:" ^ List.fold_left (fun xs x -> xs ^ " " ^ x.MCP.featurename) "" !MCP.analysesList^".");
+                 ("--with", Arg.Symbol (featurelist, set_feature true), " Enables features in current phase.");
+                 ("--no", Arg.Symbol (featurelist, set_feature false), " Disables features in current phase.");
                  ("--context", Arg.String (set_context true), "<name>  Enables context sensitivity on a feature.");
                  ("--no-context", Arg.String (set_context false), "<name>  Disables context sensitivity on a feature.");
+                 ("--propset", Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (set_prop true)], "<prop> <name> Enables a propery, e.g., --propset int_domain interval.");
+                 ("--propdel", Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (set_prop false)], "<prop> <name> Disables a propery, e.g., --propdel int_domain interval.");
                  ("--type-inv", Arg.Bool ((:=) GU.use_type_invariants), "<bool>  Should we use type invariants?");
                  ("--list-type", Arg.Bool ((:=) GU.use_list_type), "<bool>  Should we use list types?");
-                 ("--solver", Arg.String setsolver, "<name>  Picks the solver: effectWCon, effectWNCon, solverConSideRR, solverConSideWNRR.");
+                 ("--solver", Arg.Symbol (["effectWCon"; "effectWNCon"; "solverConSideRR"; "solverConSideWNRR"], setsolver), " Picks the solver.");
                  ("--unique", add_string GU.singles, "<type name>  For types that have only one value.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
