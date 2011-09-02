@@ -164,16 +164,13 @@ struct
       
   let widen x y = 
     match (x,y) with 
-      | (`Top, _) -> `Top
-      | (_, `Top) -> `Top
-      | (`Bot, x) -> x
-      | (x, `Bot) -> x
       | (`Lifted x, `Lifted y) -> `Lifted (Base.widen x y)
+      | _ -> y
 
   let narrow x y = 
     match (x,y) with 
       | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
-      | (x, _) -> x
+      | _ -> x
 end
 
 module Lift2 (Base1: S) (Base2: S) (N: Printable.LiftingNames) = 
@@ -233,19 +230,15 @@ struct
 
   let widen x y = 
     match (x,y) with 
-      | (`Top, _) -> `Top
-      | (_, `Top) -> `Top
-      | (`Bot, x) -> x
-      | (x, `Bot) -> x
       | (`Lifted1 x, `Lifted1 y) -> `Lifted1 (Base1.widen x y) 
       | (`Lifted2 x, `Lifted2 y) -> `Lifted2 (Base2.widen x y) 
-      | _ -> `Top
+      | _ -> y
 
   let narrow x y = 
     match (x,y) with 
       | (`Lifted1 x, `Lifted1 y) -> `Lifted1 (Base1.narrow x y) 
       | (`Lifted2 x, `Lifted2 y) -> `Lifted2 (Base2.narrow x y) 
-      | (x,_) -> x
+      | _ -> x
       
 end
 
@@ -338,12 +331,20 @@ struct
       | (_, `Bot) -> `Bot
       | (`Lifted x, `Lifted y) -> `Lifted (Base.meet x y) 
   
+  let widen x y =
+    match (x,y) with
+      | (`Lifted x, `Lifted y) -> `Lifted (Base.widen x y)
+      | _ -> y
+
+  let narrow x y =
+    match (x,y) with
+      | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
+      | _ -> x
 end
   
 module LiftTop (Base : S) =
 struct
   include Printable.LiftTop (Base)
-  include StdCousot
 
   let top () = `Top
   let is_top x = x = `Top
@@ -370,7 +371,16 @@ struct
       | (`Top, x) -> x
       | (x, `Top) -> x
       | (`Lifted x, `Lifted y) -> `Lifted (Base.meet x y) 
-  
+
+  let widen x y =
+    match (x,y) with
+      | (`Lifted x, `Lifted y) -> `Lifted (Base.widen x y)
+      | _ -> y
+
+  let narrow x y =
+    match (x,y) with
+      | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
+      | _ -> x
 end
                                
   
