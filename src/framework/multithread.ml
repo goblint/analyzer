@@ -99,7 +99,7 @@ struct
       let funs  = 
         match Spec.query (getctx st) (Queries.EvalFunvar exp) with
           | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
-          | _ -> Messages.bailwith ("Failed to evaluate function expression "^(sprint 80 (d_exp () exp)))
+          | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () exp)))
       in
       let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
       let start_vals : Solver.diff ref = ref [] in
@@ -288,7 +288,7 @@ struct
               let fs =  
                 match Spec.query (getctx p x') (Queries.EvalFunvar f) with
                   | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
-                  | _ -> Messages.bailwith ("Failed to evaluate function expression "^(sprint 80 (d_exp () f)))  
+                  | _ -> Messages.bailwith ("Is_special: Failed to evaluate function expression "^(sprint 80 (d_exp () f)))
               in
               let _  = List.map Cilfacade.getdec fs in
                 LibraryFunctions.use_special (List.hd fs).vname
@@ -301,7 +301,7 @@ struct
       let fs = 
         match Spec.query ctx (Queries.EvalFunvar f) with
           | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
-          | _ -> Messages.bailwith ("Failed to evaluate function expression "^(sprint 80 (d_exp () f)))  
+          | _ -> Messages.bailwith ("Special: Failed to evaluate function expression "^(sprint 80 (d_exp () f)))
       in
       let f = List.hd fs in
       let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
@@ -315,7 +315,7 @@ struct
             let fs = 
               match Spec.query ctx (Queries.EvalFunvar f) with
                 | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
-                | _ -> Messages.bailwith ("Failed to evaluate function expression "^(sprint 80 (d_exp () f)))  
+                | _ -> Messages.bailwith ("Enter: Failed to evaluate function expression "^(sprint 80 (d_exp () f)))
             in
             List.concat (List.map (fun f -> List.map (fun (_,y) -> (f, SD.lift y)) (Spec.enter_func ctx lv f args)) fs)
         | _ -> failwith "SP: cannot enter a non-call node."

@@ -948,7 +948,7 @@ struct
   let eval_funvar ctx exp : Cil.varinfo list = 
     match query ctx (Queries.EvalFunvar exp) with
       | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
-      | _ -> Messages.bailwith ("Failed to evaluate function expression "^(sprint 80 (d_exp () exp)))
+      | _ -> Messages.bailwith ("EvalFunvar: Failed to evaluate function expression "^(sprint 80 (d_exp () exp)))
 
 (*  (* fork over all analyses and combine values of equal varinfos *)
   let fork ctx r v args =
