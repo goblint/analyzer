@@ -374,7 +374,7 @@ struct
     SP_SOL.iter f r;
     vm, gm
 
-  (** add extern ariables to local state *)
+  (** add extern variables to local state *)
   let do_extern_inits (file : Cil.file) : Spec.Dom.t =
     let module VS = Set.Make (Basetype.Variables) in    
     let add_glob s = function
@@ -389,8 +389,8 @@ struct
       Spec.assign ctx (var v) MyCFG.unknown_exp 
     in
     let add_externs s = function
-      | GVarDecl (v,_) when not (VS.mem v vars) -> set_bad v s
-      | _                -> s
+      | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) -> set_bad v s
+      | _ -> s
     in    
     Cil.foldGlobals file add_externs (Spec.startstate ())
   

@@ -21,11 +21,7 @@ let is_mutex_type (t: typ): bool = match t with
   | TInt (IInt, attr) -> hasAttribute "mutex" attr
   | _ -> false
 
-let is_fun_type (t: typ): bool = match t with
-  | TFun _ -> true
-  | _ -> false
-
-let is_immediate_type t = is_mutex_type t || is_fun_type t
+let is_immediate_type t = is_mutex_type t || isFunctionType t
 
 let is_global (a: Q.ask) (v: varinfo): bool = 
   v.vglob || match a (Q.MayEscape v) with `Bool tv -> tv | _ -> false
@@ -745,7 +741,7 @@ struct
       | `Address adrs when AD.to_var_may adrs = [] -> acc
       | `Address adrs -> 
           let typ = AD.get_type adrs in
-            if is_fun_type typ then acc else adrs :: acc
+            if isFunctionType typ then acc else adrs :: acc
       | `Top -> M.warn "Unkown value type given as function argument"; acc
       | _ -> acc
     in 
