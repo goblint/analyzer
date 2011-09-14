@@ -70,11 +70,12 @@ let default_conf () =
                ;"analysis"   , Build.string "mcp"
                ;"solver"     , Build.string "effectWCon" ]
 
+let conf_file = Filename.concat (Sys.getcwd ()) "goblint.json"
+
 (* configuration structure -- get it from a file or generate a new one *)
 let conf : jvalue ref Object.t ref = 
-  let fn = Filename.concat (Filename.dirname (Sys.argv.(0))) "goblint.json" in
   try
-    match value token (Lexing.from_channel (open_in fn)) with
+    match value token (Lexing.from_channel (open_in conf_file)) with
       | Object o -> ref o
       | _ -> raise (Sys_error "Bad json file: must be an object.")
   with (Sys_error x) -> 
@@ -82,7 +83,7 @@ let conf : jvalue ref Object.t ref =
     let unwrap = function
       | Object o -> o
       | _ -> raise (Sys_error "Bad default conf: fix, recompile, etc.") in
-    save_json fn c;
+    save_json conf_file c;
     ref (unwrap c)
     
 let modify_ana x b = 
