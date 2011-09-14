@@ -22,6 +22,8 @@ FileUtils.mv(json, backup) if File.exists?(json)
 testresults = File.expand_path("tests/suite_result") 
 testfiles   = File.expand_path("tests/regression")
 
+alliswell = true
+
 class Project
   attr_reader :name, :group, :path, :params, :warnings
   attr_writer :size
@@ -275,6 +277,7 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
     if correct == p.warnings.size && is_ok then
       f.puts "<td style =\"color: green\">NONE</td>"
     else
+      alliswell = false
       if ferr.nil? then
         f.puts "<td style =\"color: red\">FAILED</td>"
       else
@@ -289,3 +292,5 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
   f.puts "</body>"
   f.puts "</html>"
 end
+
+exit alliswell

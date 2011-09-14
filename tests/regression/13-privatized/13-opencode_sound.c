@@ -1,3 +1,4 @@
+// SKIP
 // PARAM: --with shape --nonstatic
 #include<linuxlight.h>
 
