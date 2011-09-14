@@ -2,6 +2,6 @@
 cd cil
 ./configure
 make
-cd ../goblint
+cd ../analyzer
 ./configure
 make

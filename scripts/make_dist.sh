@@ -1,9 +1,13 @@
 #!/bin/bash
-REL=goblint-0.9.5
+VERSION=`git describe --tags`
+REL=goblint-$VERSION
+OLD=$PWD
 mkdir $REL
-svn export . $REL/goblint
-svn export ../cil $REL/cil
-cp goblint $REL/goblint
+git checkout-index -a --prefix=$REL/analyzer/
+cd ../cil
+git checkout-index -a --prefix=$OLD/$REL/cil/
+cd $OLD
+cp goblint $REL/analyzer
 cp scripts/make_dist.sh-aux/* $REL
 tar czf $REL.tgz $REL
 rm -rf $REL

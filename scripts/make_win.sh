@@ -1,10 +1,12 @@
 #!/bin/bash
-REL=goblint-0.9.5
+VERSION=`git describe --tags`
+REL=goblint-$VERSION
 mkdir $REL
 cp goblint.exe $REL
 cp LICENSE* $REL
-cp ../cygpcre-7.dll $REL
-svn export includes $REL/includes
-svn export tests $REL/tests
+git checkout-index -a --prefix=$REL/tmp/
+mv $REL/tmp/includes $REL
+mv $REL/tmp/tests $REL
+rm -rf $REL/tmp
 zip -qr $REL.zip $REL
 rm -rf $REL
