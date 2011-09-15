@@ -83,7 +83,7 @@ def print_res (i)
         if File.exists?($testresults + outfile) then
           File.open($testresults + outfile, "r") do |g|
             lines = g.readlines
-            warnings = lines.grep(/Datarace over/).size
+            warnings = lines.grep(/Datarace at/).size
             safely = lines.grep(/Safely accessed/)
             correlations = safely.grep(/common mutex/).size
             safely = safely.size - correlations

@@ -318,7 +318,7 @@ let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
           match is_race acc_list with
             | Race -> begin
                 race_free := false;
-                let warn = "Datarace over " ^ var_str in
+                let warn = "Datarace at " ^ var_str in
                   Mutex.M.print_group warn warnings
               end
             | Guarded locks ->

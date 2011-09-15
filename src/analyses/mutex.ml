@@ -824,7 +824,7 @@ struct
           match is_race acc_list with
             | Race -> begin
                 race_free := false;
-                let warn = "Datarace over " ^ var_str in
+                let warn = "Datarace at " ^ var_str in
                   M.print_group warn (warnings ())
               end
             | Guarded locks ->
@@ -885,10 +885,10 @@ struct
         printf "%B\n" (Lockset.is_bot jls);
         printf "%B\n" write;*)
          if bad && write && (Lockset.is_bot jls) then 
-          let warn = "Datarace over " ^ (sprint 80 (PartSet.pretty () s)) in
+          let warn = "Datarace at " ^ (sprint 80 (PartSet.pretty () s)) in
           M.print_group warn warnings
 (*         else
-          let warn = "No datarace over " ^ (sprint 80 (PartSet.pretty () s)) in
+          let warn = "No datarace at " ^ (sprint 80 (PartSet.pretty () s)) in
           M.print_group warn warnings*)
     in
     let part = AccKeySet2.fold (fun k -> AccPart.add (PartSet.singleton k)) !accKeys2 (AccPart.empty ()) in
