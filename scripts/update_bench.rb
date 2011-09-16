@@ -10,9 +10,9 @@ maxlen = $analyses.map { |x| x[0].length }.max + 1
 
 goblint = File.join(Dir.getwd,"goblint")
 fail "Please run script from goblint dir!" unless File.exist?(goblint)
-$rev = `git log -1 --pretty=format:'%h (%ai)'`
-$revshort = `git log -1 --pretty=format:'%h'`
-$cilrev = `git --git-dir=../cil/.git log -1 --pretty=format:'%h (%ai)'`
+$revshort = `git describe --tags --long`[/.*-\d+/]
+$rev = `git describe --tags --long`.chomp + `git log -1 --pretty=format:' (%ai)'`
+$cilrev = `git --git-dir=../cil/.git describe --tags --long`.chomp + `git --git-dir=../cil/.git log -1 --pretty=format:' (%ai)'`
 $testresults = File.expand_path("tests/bench_result") + "/"
 bench = "../bench/"
 
@@ -57,7 +57,7 @@ def print_res (i)
     f.puts "<html>"
     f.puts $header
     f.puts "<body>"
-    f.puts "<p>Benchmarking in progress: #{i}/#{$projects.length}</p>" unless i.nil?
+    f.puts "<p>Benchmarking in progress: #{i}/#{$projects.length} <progress value=\"#{i}\" max=\"#{$projects.length}\" /></p>" unless i.nil?
     f.puts "<table border=2 cellpadding=4 style=\"font-size: 90%\">"
     gname = ""
     $projects.each do |p|
@@ -88,21 +88,21 @@ def print_res (i)
             correlations = safely.grep(/common mutex/).size
             safely = safely.size - correlations
             uncalled = lines.grep(/will never be called/).reject {|x| x =~ /__check/}.size
-            res = lines.grep(/^Duration: (.*) s/) { |x| $1 }
+            res = lines.grep(/TIMEOUT\s*(.*) s.*$/) { |x| $1 }
             if res == [] then
-              res = lines.grep(/TIMEOUT\s*(.*) s.*$/) { |x| $1 }
+              res = lines.grep(/^Duration: (.*) s/) { |x| $1 }
               if res == [] then
                 res = lines.grep(/EXITCODE\s*(.*)$/) { |x| $1 }
                 f.puts "<td><a href = #{outfile}>failed (code: #{res.to_s})</a></td>"
               else
-                f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
+                thenumbers =  "<font color=\"green\">#{correlations}</font> / "
+                thenumbers << "<font color=\"seagreen\">#{safely}</font> / " if safely > 0
+                thenumbers << "<font color=\"brown\">#{warnings}</font>"
+                thenumbers << " / <font color=\"red\">#{uncalled}</font>" if uncalled > 0
+                f.puts "<td><a href = #{outfile}>#{"%.2f" % res} s</a> (#{thenumbers})</td>"
               end
             else
-              thenumbers =  "<font color=\"green\">#{correlations}</font> / "
-              thenumbers << "<font color=\"seagreen\">#{safely}</font> / " if safely > 0
-              thenumbers << "<font color=\"brown\">#{warnings}</font>"
-              thenumbers << " / <font color=\"red\">#{uncalled}</font>" if uncalled > 0
-              f.puts "<td><a href = #{outfile}>#{"%.2f" % res} s</a> (#{thenumbers})</td>"
+              f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
             end
           end
         else
@@ -123,7 +123,7 @@ def print_res (i)
       f.puts "</tr>"
     end
     f.puts "</table>"
-    f.puts "<p>Last updated: #{Time.now.strftime("%Y-%m-%d %H:%M:%S %z")}<br />"
+    f.puts "<p style=\"font-size: 80%\">Last updated: #{Time.now.strftime("%Y-%m-%d %H:%M:%S %z")}<br />"
     f.puts "Goblint revision: #{$rev}<br />"
     f.puts "Cil revision: #{$cilrev}</p>"
     f.puts "</body>"
@@ -133,7 +133,7 @@ end
 
 #Command line parameters
 
-timeout = 60
+timeout = 900
 timeout = ARGV[0].to_i unless ARGV[0].nil?
 only = ARGV[1] unless ARGV[1].nil?
 if only == "group" then
@@ -208,7 +208,7 @@ $projects.each do |p|
       f.puts "Analysis began: #{starttime}"
       f.puts "Analysis ended: #{endtime}"
       f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
-      f.puts "Git log: #{$rev}"
+      f.puts "Git describe: #{$rev}"
       f.puts "Goblint params: #{cmd}"
     end
     if status != 0 then

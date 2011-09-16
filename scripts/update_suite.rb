@@ -13,7 +13,7 @@ else
   fail "Please run script from goblint dir!" unless File.exist?(goblint)
   `make`
 end
-$rev = `git log -1 --pretty=format:'%h (%ai)'`
+$rev = `git describe --tags`.chomp + `git log -1 --pretty=format:' (%ai)'`
 
 backup = File.join(Dir.getwd,"goblint.script_backup.json")
 json   = File.join(Dir.getwd, "goblint.json")
@@ -164,7 +164,7 @@ projects.each do |p|
     f.puts "Analysis began: #{starttime}"
     f.puts "Analysis ended: #{endtime}"
     f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
-    f.puts "Git log: #{$rev}"
+    f.puts "Git describe: #{$rev}"
     f.puts "Goblint params: #{cmd}"
   end
 end
