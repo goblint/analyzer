@@ -35,6 +35,16 @@ type local_state = [
     | `Shape       of ShapeDomain.Dom.t*RegionDomain.RegionDom.t
     ]
 
+type global_state = [
+    | `Base   of BaseDomain.Glob.Val.t
+    | `Mutex  of LockDomain.Glob.Val.t
+    | `Osek  of LockDomain.OsekGlob.Val.t
+    | `Region of RegionDomain.RegPart.t
+    | `Access of AccessDomain.Access.GlobDom.t
+    | `Contain of ContainDomain.Globals.t
+    | `Shapes of ShapeDomain.Bool.t * RegionDomain.RegPart.t
+    | `None ]
+
 (* Experiment to reduce the number of arguments on transfer functions and allow
   sub-analyses. The list sub contains the current local states of analyses in
   the same order as writen in the dependencies list (in MCP).
@@ -53,6 +63,7 @@ type ('a,'b,'c) ctx =
     ; spawn : varinfo -> 'a -> unit
     ; geffect : 'b -> 'c -> unit 
     ; precomp : local_state list list 
+    ; preglob : (varinfo -> global_state list) list 
     }
 
 let set_q ctx ask = 
@@ -70,10 +81,13 @@ let set_gl ctx gl eff_tr =
 let set_st_gl ctx st gl spawn_tr eff_tr =
   {ctx with local=st; global=gl; spawn=spawn_tr ctx.spawn; geffect=eff_tr ctx.geffect}
 
-let set_preproc ctx pc = 
+let set_precomp ctx pc = 
   {ctx with precomp = pc}
 
-let context ask st gl dp sp ge = {ask=ask; local=st; global=gl;sub=dp;spawn=sp;geffect=ge;precomp=[]}
+let set_preglob ctx pg = 
+  {ctx with preglob = pg}
+
+let context ask st gl dp sp ge = {ask=ask; local=st; global=gl;sub=dp;spawn=sp;geffect=ge;precomp=[];preglob=[]}
 
 module type DomainTranslator =
 sig
@@ -364,6 +378,35 @@ struct
 
   let pretty_trace () x = 
     dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
+end
+
+module Edge : Hashtbl.HashedType with type t = MyCFG.node * MyCFG.edge * MyCFG.node =
+struct
+  type t = MyCFG.node * MyCFG.edge * MyCFG.node
+  let rec list_eq eq xs ys =
+    match xs, ys with 
+      | [], [] -> true
+      | x::xs, y::ys when eq x y -> list_eq eq xs ys
+      | _ -> false
+
+  let eq_lval l1 l2 = Util.equals (Lval l1) (Lval l2)
+       
+  open MyCFG 
+  let eq_edge e1 e2 =
+    match e1, e2 with
+      | Assign (l1,e1), Assign (l2,e2) -> Util.equals e1 e2 && eq_lval l1 l2
+      | Proc (Some l1, e1, es1), Proc (Some l2, e2, es2) -> eq_lval l1 l2 && Util.equals e1 e2 && list_eq Util.equals es1 es2
+      | Proc (None, e1, es1), Proc (None, e2, es2) -> Util.equals e1 e2 && list_eq Util.equals es1 es2
+      | Entry f1, Entry f2 -> f1.svar.vid = f2.svar.vid
+      | Ret (Some e1,f1), Ret (Some e2,f2)-> Util.equals e1 e2 && f1.svar.vid = f2.svar.vid
+      | Ret (None,f1), Ret (None,f2) -> f1.svar.vid = f2.svar.vid       
+      | Test (e1,b1), Test (e2,b2) -> b1 = b2 && Util.equals e1 e2
+      | ASM (s1,o1,i1), ASM (s2,o2,i2) -> s1 = s2
+      | Skip, Skip -> true
+      | SelfLoop, SelfLoop -> true
+      | _ -> false
+	let equal (f1,e1,t1) (f2,e2,t2) = MyCFG.Node.equal f1 f2 && MyCFG.Node.equal t1 t2 && eq_edge e1 e2
+  let hash (f,e,t) = MyCFG.Node.hash f lxor MyCFG.Node.hash t
 end
 
 exception Deadcode

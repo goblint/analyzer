@@ -839,4 +839,11 @@ struct
  let translate _ = []
 end
 
-module Analysis : Analyses.S    = Multithread.Forward (Spec) (ContainNoStages)
+module ContainGNoStages =
+struct
+ type from_type = Spec.Glob.Val.t
+ type to_type = Analyses.global_state list
+ let translate _ = []
+end
+
+module Analysis : Analyses.S    = Multithread.Forward (Spec) (ContainNoStages) (ContainGNoStages)

@@ -64,17 +64,6 @@ type local_state = Analyses.local_state
     
 let analysesOrder : (string * string list) list ref = ref []
 let analysesListLocal : local_state domRecord list ref = ref []
-
-type global_state = [
-    | `Base   of BaseDomain.Glob.Val.t
-    | `Mutex  of LockDomain.Glob.Val.t
-    | `Osek  of LockDomain.OsekGlob.Val.t
-    | `Region of RegionDomain.RegPart.t
-    | `Access of AccessDomain.Access.GlobDom.t
-    | `Contain of ContainDomain.Globals.t
-    | `Shapes of ShapeDomain.Bool.t * RegionDomain.RegPart.t
-    | `None ]
-
 let analysesListGlobal : global_state domRecord list ref = ref []
 
 type analysisRecord = {
@@ -834,9 +823,9 @@ struct
     let add_fork v d = 
       forks := ((v, d) :: List.hd !forks) :: List.tl !forks 
     in
-    let mk_ctx d = 
+    let mk_ctx d g = 
       forks := [] :: !forks;
-      set_st ctx d (fun _ -> add_fork) 
+      set_st_gl ctx d g (fun _ -> add_fork) (fun x -> x) 
     in
     let ret = f mk_ctx in
     List.iter register_one (List.fold_left combine_forks [] !forks);
@@ -845,13 +834,13 @@ struct
   (* queries *)
   let rec query_imp ctx q =
     let nctx = set_q ctx (query_imp ctx) in
-    let ls = lift_spawn nctx (fun set_st -> List.concat (List.map (List.map (fun x -> query' (set_st x) q)) (ctx.local::ctx.precomp))) in
+    let ls = lift_spawn nctx (fun set_st -> List.concat (List.map2 (fun y -> List.map (fun x-> query' (set_st x y) q)) (ctx.global::ctx.preglob) (ctx.local::ctx.precomp))) in
     List.fold_left Queries.Result.meet (Queries.Result.top ()) ls
   
   let query = query_imp 
 
   let set_sub full_ctx (ctx:(local_state,'b,'c) ctx) (dp:local_state list) : (local_state,'b,'c) ctx = 
-      set_preproc (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect) ctx.precomp
+      set_precomp (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect) ctx.precomp
   
   let map_tf' ctx (tf:(local_state, Basetype.Variables.t, global_state list) ctx  -> 'a) : Dom.t = 
     let map_one (set_st : local_state -> (local_state, Basetype.Variables.t, global_state list) ctx) ls (t : local_state): local_state list =
@@ -865,7 +854,7 @@ struct
       in
       (tf (set_sub ctx (set_st t) ds)) :: ls
     in
-    List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one set_st) [] ctx.local))
+    List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one (fun s -> set_st s ctx.global)) [] ctx.local))
 
   let map_tf_prev_dep ctx tf = 
     let map_one set_st ls t =
@@ -873,7 +862,7 @@ struct
       let ds = List.map (fun n -> List.find (fun x -> n = (get_matches x).featurename) ctx.local) s.depends_on in
       tf (set_sub ctx (set_st t) ds)::ls
     in
-    List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one set_st) [] ctx.local))
+    List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one (fun s -> set_st s ctx.global)) [] ctx.local))
 
   let map_tf2 ctx tf st2 = 
     let map_one set_st ls t1 t2 =
@@ -881,7 +870,7 @@ struct
       let ds = List.map (fun n -> List.find (fun x -> n = (get_matches x).featurename) ls) s.depends_on in
       tf (set_sub ctx (set_st t1) ds) t2::ls
     in
-    List.rev (lift_spawn ctx (fun set_st -> List.fold_left2 (map_one set_st) [] ctx.local st2))
+    List.rev (lift_spawn ctx (fun set_st -> List.fold_left2 (map_one (fun s -> set_st s ctx.global)) [] ctx.local st2))
 
   let map_tf_special ctx tf = 
     let map_one set_st ls t =
@@ -899,7 +888,7 @@ struct
       let ds = List.map dep_val s.depends_on in
       tf (set_sub ctx (set_st t) ds)::ls
     in
-    List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one set_st) [] ctx.local))
+    List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one (fun s -> set_st s ctx.global)) [] ctx.local))
 
   let map_tf_enter ctx tf = 
     let map_one set_st ls t =
@@ -917,7 +906,7 @@ struct
       let ds = List.map dep_val s.depends_on in
       tf (set_sub ctx (set_st t) ds)::ls
     in
-    List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one set_st) [] ctx.local))
+    List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one (fun s -> set_st s ctx.global)) [] ctx.local))
 
   let sync ctx = 
     let map_one (ls,gs) (t: local_state) =
@@ -929,7 +918,7 @@ struct
         in
         List.map f s.depends_on 
       in
-      let subctx = set_preproc (context (query ctx) t ctx.global ds (fun a b -> ()) ctx.geffect) ctx.precomp in
+      let subctx = set_precomp (context (query ctx) t ctx.global ds (fun a b -> ()) ctx.geffect) ctx.precomp in
       let l,g = sync' subctx in
         l::ls, g @ gs
     in
@@ -1008,4 +997,13 @@ struct
 end
 
 module Path = Compose.PathSensitive (Spec)
-module Analysis = Multithread.Forward (Path) (Trans)
+
+module TransG = 
+struct
+  type from_type = Path.Glob.Val.t
+  type to_type   = Analyses.global_state list 
+  
+  let translate (x:from_type) : to_type = x
+end
+
+module Analysis = Multithread.Forward (Path) (Trans) (TransG)

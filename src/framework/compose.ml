@@ -6,6 +6,7 @@ open Cil
 module PathSensitive (Base: Analyses.Spec) 
   : Analyses.Spec 
   with type Dom.t = SetDomain.Make(Base.Dom).t
+   and module Glob = Base.Glob
   =
 struct
   (** the domain is a overloaded set with special join, meet & leq*)

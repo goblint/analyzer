@@ -16,6 +16,10 @@ module Forward
           with type from_type = Spec.Dom.t
           and  type to_type   = A.local_state list list
   ) 
+  (ToStdG: Analyses.DomainTranslator 
+          with type from_type = Spec.Glob.Val.t
+          and  type to_type   = Analyses.global_state list
+  ) 
   : Analyses.S 
   =
 struct
@@ -27,7 +31,9 @@ struct
   module SP_SOL = Hashtbl.Make (Solver.Prod (Analyses.Var) (SD))
   module SP = SharirPnueli.Algorithm (Analyses.Var) (SD)
   
-  module PH = Hashtbl.Make (Analyses.Var)
+  module PH = Hashtbl.Make (Analyses.Var)        (* local info from previous phases *)
+  module PHG = Hashtbl.Make (Basetype.Variables) (* global info from previous phases *)
+  module SH = Hashtbl.Make (Analyses.Edge)       (* spawns from previous phases *)
 
   module Solver = 
   struct
@@ -50,7 +56,7 @@ struct
   let name = "analyzer"
   let top_query x = Queries.Result.top () 
   
-  let system (cfg: MyCFG.cfg) (old : Analyses.local_state list list PH.t list) (n,es: Var.t) : Solver.rhs list = 
+  let system (cfg: MyCFG.cfg) (old : Analyses.local_state list list PH.t list) (old_g : Analyses.global_state list PHG.t list) (old_s : (varinfo * int) list SH.t) phase (n,es: Var.t) : Solver.rhs list = 
     if M.tracing then M.trace "con" "%a\n" Var.pretty_trace (n,es);
     
     let lift_st x forks: Solver.var_domain * Solver.diff * Solver.variable list =
@@ -59,12 +65,20 @@ struct
         (SD.lift rx, diff, forks)
     in
     
-    let prepare_forks (xs: (varinfo * Spec.Dom.t) list) : Solver.diff * Solver.variable list =
+    (* this function used to take the spawned function and prepare a solver variable to it --
+       now it also assures that spawning is monotone between analysis stages *)
+    let prepare_forks phase (fn,ed,tn : MyCFG.node * MyCFG.edge * MyCFG.node) (xs: (varinfo * Spec.Dom.t) list) : Solver.diff * Solver.variable list =
       let f (diff, vars) (fork_fun, fork_st) =
         ( (`L ((MyCFG.FunctionEntry fork_fun, SD.lift (Spec.context_top fork_st)), SD.lift fork_st)) :: diff
         , (MyCFG.Function fork_fun, SD.lift (Spec.context_top fork_st)) :: vars)
       in
-      List.fold_left f ([],[]) xs
+      let diffs, spawns = List.fold_left f ([],[]) xs in
+      let spawnfuns = List.map fst xs in
+      let old_spawns =  try SH.find old_s (fn,ed,tn) with Not_found -> [] in
+      let mon_spawns = List.filter (fun (x,y) -> phase>y && not (List.exists (Basetype.Variables.equal x) spawnfuns)) old_spawns in
+      let new_spawns = List.filter (fun x -> List.for_all (fun (z,_) -> not (Basetype.Variables.equal x z)) old_spawns) spawnfuns in
+      SH.replace old_s (fn,ed,tn) (List.map (fun x -> (x,phase)) new_spawns@(try SH.find old_s (fn,ed,tn) with Not_found -> [])); 
+      List.fold_left f (diffs, spawns) (List.map (fun (x,_) -> (x, Spec.otherstate ())) mon_spawns)
     in
     (*
       Compiles a transfer function that handles function calls. The reason for this is
@@ -84,15 +98,16 @@ struct
       
       Also we concatenate each [forks lval f args st] for each [f]
       *)
-    let proc_call pred sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.diff * Solver.variable list =
+    let proc_call (fn,ed,tn) sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.diff * Solver.variable list =
       let forks = ref [] in
       let diffs = ref [] in
       let add_var v d = if not (List.mem v.vname !GU.mainfuns) then forks := (v,d) :: !forks in
       let add_diff g d = diffs := (`G (g,d)) :: !diffs in 
       let getctx v= 
         try
-          let oldstate = List.concat (List.map (fun m -> PH.find m pred) old) in
-          A.set_preproc (A.context top_query v theta [] add_var add_diff) oldstate  
+          let oldstate = List.concat (List.map (fun m -> PH.find m tn) old) in
+	  	  let oldglob = List.map PHG.find old_g in
+          A.set_preglob (A.set_precomp (A.context top_query v theta [] add_var add_diff) oldstate) oldglob 
         with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
                            raise A.Deadcode
       in
@@ -116,7 +131,10 @@ struct
           let leave st1 st2 = Spec.leave_func (getctx st1) lval exp f args st2 in
           let general_results = List.map (fun (y,x) -> y, add_one_call x) work in
           let non_bottoms     = List.filter (fun (_,x) -> not (SD.is_bot x)) general_results in
-          let joined_result   = List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst (SD.unlift tst))) (Spec.Dom.bot ()) non_bottoms in
+          let joined_result   = 
+            if List.length non_bottoms = 0 
+              then raise A.Deadcode 
+              else List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst (SD.unlift tst))) (Spec.Dom.bot ()) non_bottoms in
           if P.tracking then P.track_call f (SD.hash st) ;
           Spec.Dom.join st' joined_result
 			  end        
@@ -127,10 +145,9 @@ struct
 			  end 
       in
       try 
-        let crap  = List.fold_left add_function (Spec.Dom.bot ()) funs in      
-        let fdiff, fvars = prepare_forks !forks in
-        let (d, diff, forks) = lift_st crap fvars in
-        (d,diff @ fdiff @ !start_vals @ !diffs,forks)
+        let d = List.fold_left add_function (Spec.Dom.bot ()) funs in      
+        let fdiff, fvars = prepare_forks phase (fn,ed,tn) !forks in
+        (SD.lift d, fdiff @ !start_vals @ !diffs, fvars)
       with 
 				Analyses.Deadcode -> (SD.bot (), !start_vals, [])
     in
@@ -159,7 +176,8 @@ struct
         let getctx v y = 
           try
             let oldstate = List.concat (List.map (fun m -> PH.find m pred) old) in
-            A.set_preproc (A.context top_query v theta [] y add_diff) oldstate  
+	  	  	let oldglob = List.map PHG.find old_g in
+          	A.set_preglob (A.set_precomp (A.context top_query v theta [] y add_diff) oldstate) oldglob 
           with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
                              raise A.Deadcode
         in
@@ -167,7 +185,7 @@ struct
           let forks = ref [] in
           let add_var v d = forks := (v,d) :: !forks in
           let x, y, z = lift_st (f (getctx pre add_var)) [] in
-          let y', z' = prepare_forks !forks in
+          let y', z' = prepare_forks phase (n,edge,pred) !forks in
           x, y @ y', z @ z'
         in
         try
@@ -203,7 +221,7 @@ struct
             | MyCFG.SelfLoop               -> lift (fun ctx -> Spec.intrpt ctx           ) predval'
             | MyCFG.Test   (exp,tv)        -> lift (fun ctx -> Spec.branch ctx exp tv    ) predval'
             | MyCFG.Ret    (ret,fundec)    -> lift (fun ctx -> Spec.return ctx ret fundec) predval'
-            | MyCFG.Proc   (lval,exp,args) -> proc_call pred sigma theta lval exp args predval'
+            | MyCFG.Proc   (lval,exp,args) -> proc_call (n,edge,pred) sigma theta lval exp args predval'
             | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; SD.lift predval', [], []
             | MyCFG.Skip                   -> SD.lift predval', [], []
           in
@@ -264,7 +282,7 @@ struct
     in
       Solver.GMap.iter print_one glob
 
-  let applySP (cfg: MyCFG.cfg) (old : Analyses.local_state list list PH.t list) startvars : SD.t SP_SOL.t =
+  let applySP (cfg: MyCFG.cfg) (old : Analyses.local_state list list PH.t list) (old_g : Analyses.global_state list PHG.t list) (old_s : (varinfo * int) list SH.t) phase startvars : SD.t SP_SOL.t =
     let r x = MyCFG.FunctionEntry x in
     let e x = MyCFG.Function x in
     let succ x =
@@ -276,7 +294,7 @@ struct
     let getctx v x = 
       try
         let oldstate = List.concat (List.map (fun m -> PH.find m v) old) in
-        A.set_preproc (A.context top_query x theta [] add_var add_diff) oldstate  
+        A.set_precomp (A.context top_query x theta [] add_var add_diff) oldstate  
       with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
                          raise A.Deadcode
     in
@@ -434,8 +452,13 @@ struct
                       end)
                       
   (** do the analysis and do the output according to flags*)
-  let analyze_phase file cfg phase (old : Analyses.local_state list list PH.t list) (startfuns, exitfuns, otherfuns: A.fundecs) =
-    let startstate, more_funs = 
+  let analyze_phase 
+        file cfg phase 
+        (old : Analyses.local_state list list PH.t list) 
+        (old_g : Analyses.global_state list PHG.t list)
+        (old_s : (varinfo * int) list SH.t) 
+        (startfuns, exitfuns, otherfuns: A.fundecs) =
+	let startstate, more_funs = 
       if !GU.verbose then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file in
     let _ = if M.tracing then M.trace "postinit" "The initial state is: %a\n" SD.pretty startstate else () in
@@ -474,14 +497,14 @@ struct
     let sol,gs = 
       let solve () =
         if !Goblintutil.sharir_pnueli 
-        then sp_to_solver_result (applySP cfg old (procs entrystates))
-        else Solver.solve () (system cfg old) startvars' entrystates
+        then sp_to_solver_result (applySP cfg old old_g old_s phase (procs entrystates))
+        else Solver.solve () (system cfg old old_g old_s phase) startvars' entrystates
       in
       if !GU.verbose then print_endline ("Analyzing phase "^string_of_int phase^"!");
       Stats.time "solver" solve () in
     if !GU.verify then begin
       if !GU.verbose then print_endline "Verifying!";
-      Stats.time "verification" (Solver.verify () (system cfg old)) (sol,gs)
+      Stats.time "verification" (Solver.verify () (system cfg old old_g old_s phase)) (sol,gs)
     end;
     if P.tracking then 
       begin 
@@ -529,7 +552,13 @@ struct
     in
     PH.iter f hm;
     ha
-    
+  
+  (* type conversions for globals *)
+  let conserve_globs (_,g:solver_result) : Analyses.global_state list PHG.t =	
+	let res = PHG.create 5 in
+	let f v x = PHG.add res v (ToStdG.translate x) in
+	Solver.GMap.iter f g;
+	res
   
   let analyze (file: Cil.file) (fds: A.fundecs) = 
     (*ignore (Printf.printf "Effective conf:%s" (Json.jsonString (Json.Object !GU.conf)));*)
@@ -542,12 +571,15 @@ struct
     in
     let oldsol = ref [] in (* list of solutions from previous phases *)
     let precmp = ref [] in (* same as oldsol but without contexts  *)
+    let oldgsol = ref [] in (* old globals *)
+    let oldspawns = SH.create 23 in 
     (* loop over phases *)
     for ph = 0 to phs -1 do
       GU.phase := ph;
       Spec.init ();
-      let sv = (analyze_phase file cfg ph !precmp fds) in
+      let sv = (analyze_phase file cfg ph !precmp !oldgsol oldspawns fds) in
       oldsol := sv :: !oldsol;
+	  oldgsol := conserve_globs sv :: !oldgsol;
       (if ph != phs then precmp := join_contexts sv :: !precmp);
       Spec.finalize ()
     done;

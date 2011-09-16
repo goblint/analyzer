@@ -280,9 +280,8 @@ struct
         Hashtbl.add type_inv_tbl c.ckey i;
         [i, `NoOffset]
 
-  (* Try to find a suitable type invarinat --- and by that we mean a struct.
-     We peel away field accesses, then take the type and put the fields back. *)
-  let best_type_inv exs : Cil.exp option =
+  (* Try to find a suitable type invarinat --- and by that we mean a struct. *)
+  let best_type_inv exs : (Cil.varinfo * Offs.t) option =
     let add_el es e : LockingPattern.ee list list = 
       try LockingPattern.toEl e :: es
       with LockingPattern.NotSimpleEnough -> es
@@ -301,10 +300,7 @@ struct
     try 
       let es, c, fs = List.hd (List.fold_left add_struct [] el_os) in
       let e_inv = type_inv c in
-      let add_fields_back (v,o) = 
-        LockingPattern.fromEl fs (Lval (Var v,NoOffset))
-      in
-      Some (add_fields_back (List.hd e_inv))
+      Some (fst (List.hd e_inv), Offs.from_offset (LockingPattern.ees_to_offs fs))
     with
       | LockingPattern.NotSimpleEnough -> None
       | Failure _ -> None
@@ -495,7 +491,7 @@ struct
   
   (* All else must have failed --- making a last ditch effort to generate type 
       invariant if that fails then give up and become unsound. *)
-  and add_type_access ctx loc ust (e,rw:exp * bool) =
+  and add_type_access ctx fl loc ust (e,rw:exp * bool) =
     let eqset =
       match ctx.ask (Queries.EqualSet e) with
         | `ExprSet es 
@@ -504,8 +500,9 @@ struct
         | _ -> [e]
     in
       match best_type_inv eqset with
-        | None -> unknown_access ()
-        | Some ti -> add_type ctx ust ti rw
+      	| Some (v,o) -> 
+			      add_concrete_access ctx fl loc ust (v,o,rw)
+        | _ -> unknown_access ()
     
   (** Function [add_accesses accs st] fills the hash-map [acc] *)
   and add_accesses ctx (accessed: accesses) (ust:Dom.t) = 
@@ -537,7 +534,7 @@ struct
                 add_concrete_access ctx fl loc ust (v,o,rw)
             | Unknown a -> 
                 if   not (add_per_element_access ctx loc ust a) 
-                then add_type_access ctx loc ust a 
+                then add_type_access ctx fl loc ust a 
         in
           List.iter dispatch accessed
           
@@ -634,7 +631,7 @@ struct
           [(Lockset.add (console_sem,true) ctx.local),Cil.integer 1, true]
       | _, "release_console_sem" when !GU.kernel -> 
           [(Lockset.remove (console_sem,true) ctx.local),Cil.integer 1, true]
-      | _, "__builtin_prefetch" | _, "misc_deregister" -> 
+      | _, "__builtin_prefetch" | _, "misc_deregister" ->
           [ctx.local,Cil.integer 1, true]
       | _, x -> 
           let arg_acc act = 
