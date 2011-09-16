@@ -4,6 +4,7 @@
 # Popular targets: all=opt test clean docs unittests
 #
 
+VRSNHACK := $(shell scripts/set_version.sh)
 
 CIL=@CIL@
 CILLIB=@CIL@/@CILOBJ@
@@ -24,7 +25,7 @@ LINKFLAGS = @COMPILEFLAGS@ -ccopt -L$(CILLIB) -I $(CILLIB)
 DOCFLAGS = @DOCFLAGS@ -stars -t 'Goblint API documentation' -dot-reduce -dot -html -d doc -v
 
 PROG_MODULES = \
-	json jsonParser jsonLexer \
+	version json jsonParser jsonLexer \
 	goblintutil messages printer cilfacade xmldump \
 	printable lattice setDomain mapDomain osektupel\
 	basetype intDomain lval addressDomain arrayDomain listDomain \
@@ -66,7 +67,6 @@ opt   : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) $(OBJDIR)/maingoblint.cmx
                     $(LINK_LIBS:%=%.cmxa) \
                     $^
 
-
 unittests  : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) \
 			$(TEST_MODULES:%=$(OBJDIR)/%.cmx) \
 			$(OBJDIR)/mainTest.cmx
@@ -82,6 +82,7 @@ clean: cleancaml
 	@rm -f goblint.unittest
 	@find ./ '(' -name "*.cm[iox]" -or -name "*.o" ')' -exec rm '{}' ';'
 	@rm -f tests/*.i tests/*.goblint tests/a.out a.out
+	@rm -f src/version.ml
 
 test: opt unittests
 	@./scripts/runalltests.sh

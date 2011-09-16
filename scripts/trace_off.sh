@@ -1,6 +1,4 @@
 #/bin/bash
-cd src/util
-sed 's/tracing = true/tracing = false/' messages.ml > messages.out
-mv messages.out messages.ml
-cd ../..
+grep -q 'tracing = true' src/util/messages.ml && \
+  sed -i 's/tracing = true/tracing = false/' src/util/messages.ml
 make

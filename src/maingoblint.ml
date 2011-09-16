@@ -1,9 +1,13 @@
 (** This is the main program! *)
-
 module CF = Cilfacade
 module GU = Goblintutil
 module JB = Json
 module M = Messages
+
+let print_version () = 
+  print_endline ("Goblint version: " ^ Version.goblint); 
+  print_endline ("Cil version:     " ^ Version.cil); 
+  exit 0
 
 let main () =
   let usage_str = "Usage: goblint [options] source-files" in
@@ -29,7 +33,7 @@ let main () =
   let outFile = ref "" in 
   let cilout = ref stderr in
   let max_time = ref 0.0 in
-  (* Function for setting the style, basically Haskell's read function: *)
+  (* Function for setting the style: *)
   let setstyle = function
       | "none" -> GU.result_style := GU.NoOutput
       | "indented" -> GU.result_style := GU.Indented
@@ -100,10 +104,11 @@ let main () =
   let featurelist = List.map (fun x -> x.MCP.featurename) !MCP.analysesList in
   let speclist = [
                  ("-o", Arg.Set_string outFile, "<file>  Prints the output to file.");
-                 ("--filter", Arg.Set_string GU.result_filter, "regexp filtering output file.");
                  ("-v", Arg.Set GU.verbose, " Prints some status information.");
                  ("-I", Arg.String add_include,  " Add include directory.");
                  ("-IK", Arg.String add_include_kernel,  " Add kernel include directory.");
+                 ("--version", Arg.Unit print_version, "Prints version information.");
+                 ("--filter", Arg.Set_string GU.result_filter, "regexp filtering output file.");
                  ("--includes", Arg.Set_string include_dir, " Uses custom include files.");
                  ("--libc", Arg.Set use_libc, " Merge with a custom implementation of standard libs.");
                  ("--justcil", Arg.Set justCil, " Just print the transformed CIL output.");
@@ -167,8 +172,6 @@ let main () =
     then GU.jsonFiles := fname :: !GU.jsonFiles 
     else fileNames := fname :: !fileNames
   in
-  (* The temp directory for preprocessing the input files *)
-  let dirName = GU.create_dir "goblin_temp" in
   Stats.reset Stats.HardwareIfAvail;  
   CF.init();
   Arg.parse speclist recordFile usage_str;
@@ -197,6 +200,8 @@ let main () =
     includes := !includes ^ " -I" ^ kernel_dir ^ " -I" ^ asm_dir ^ " -I" ^ asm_dir ^ "/asm/mach-default"
   end;
   if !GU.verbose then print_endline ("JSON file: " ^ GU.conf_file);
+  (* The temp directory for preprocessing the input files *)
+  let dirName = GU.create_dir "goblin_temp" in
   (* preprocess all the files *)
   let preproFile fname =
     (* The actual filename of the preprocessed sourcefile *)

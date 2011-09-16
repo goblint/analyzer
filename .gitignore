@@ -6,3 +6,4 @@ config.status
 obj
 goblint
 goblint.json
+src/version.ml
