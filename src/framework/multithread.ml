@@ -106,7 +106,7 @@ struct
       let getctx v= 
         try
           let oldstate = List.concat (List.map (fun m -> match PH.find m tn with [] -> raise A.Deadcode | x -> x) old) in
-	  	    let oldglob = List.map PHG.find old_g in
+          let oldglob = List.map PHG.find old_g in
           A.set_preglob (A.set_precomp (A.context top_query v theta [] add_var add_diff) oldstate) oldglob 
         with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
                            raise A.Deadcode
@@ -175,7 +175,7 @@ struct
         let add_diff g d = diffs := (`G (g,d)) :: !diffs in 
         let getctx v y = 
           try
-            let oldstate = List.concat (List.map (fun m -> PH.find m pred) old) in
+            let oldstate = List.concat (List.map (fun m -> match PH.find m pred with [] -> raise A.Deadcode | x -> x) old) in
             let oldglob = List.map PHG.find old_g in
             A.set_preglob (A.set_precomp (A.context top_query v theta [] y add_diff) oldstate) oldglob 
           with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
@@ -293,8 +293,8 @@ struct
     let add_diff _ = failwith "SP: partial invariant not supported" in
     let getctx v x = 
       try
-        let oldstate = List.concat (List.map (fun m -> PH.find m v) old) in
-	  	  let oldglob = List.map PHG.find old_g in
+        let oldstate = List.concat (List.map (fun m -> match PH.find m v with [] -> raise A.Deadcode | x -> x) old) in
+        let oldglob = List.map PHG.find old_g in
         A.set_preglob (A.set_precomp (A.context top_query x theta [] add_var add_diff) oldstate) oldglob  
       with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
                          raise A.Deadcode
