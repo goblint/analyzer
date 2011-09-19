@@ -832,7 +832,7 @@ struct
     ret
 
   (* queries *)
-  let rec query_imp ctx q =
+  let rec query_imp ctx q =    
     let nctx = set_q ctx (query_imp ctx) in
     let ls = lift_spawn nctx (fun set_st -> List.concat (List.map2 (fun y -> List.map (fun x-> query' (set_st x y) q)) (ctx.global::ctx.preglob) (ctx.local::ctx.precomp))) in
     List.fold_left Queries.Result.meet (Queries.Result.top ()) ls
@@ -840,7 +840,7 @@ struct
   let query = query_imp 
 
   let set_sub full_ctx (ctx:(local_state,'b,'c) ctx) (dp:local_state list) : (local_state,'b,'c) ctx = 
-      set_precomp (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect) ctx.precomp
+      set_preglob (set_precomp (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect) ctx.precomp) ctx.preglob
   
   let map_tf' ctx (tf:(local_state, Basetype.Variables.t, global_state list) ctx  -> 'a) : Dom.t = 
     let map_one (set_st : local_state -> (local_state, Basetype.Variables.t, global_state list) ctx) ls (t : local_state): local_state list =
@@ -918,7 +918,7 @@ struct
         in
         List.map f s.depends_on 
       in
-      let subctx = set_precomp (context (query ctx) t ctx.global ds (fun a b -> ()) ctx.geffect) ctx.precomp in
+      let subctx = set_preglob (set_precomp (context (query ctx) t ctx.global ds (fun a b -> ()) ctx.geffect) ctx.precomp) ctx.preglob in
       let l,g = sync' subctx in
         l::ls, g @ gs
     in
