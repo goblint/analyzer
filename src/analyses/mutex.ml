@@ -558,6 +558,8 @@ struct
   (** Transfer functions: *)
   
   let assign ctx lval rval : Dom.t = 
+    (* ignore global inits *)
+    if !GU.global_initialization then ctx.local else
     let b1 = access_one_top ctx.ask true (Lval lval) in 
     let b2 = access_one_top ctx.ask false rval in
     add_accesses ctx (b1@b2) ctx.local;
