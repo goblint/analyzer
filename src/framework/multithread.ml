@@ -69,8 +69,11 @@ struct
        now it also assures that spawning is monotone between analysis stages *)
     let prepare_forks phase (fn,ed,tn : MyCFG.node * MyCFG.edge * MyCFG.node) (xs: (varinfo * Spec.Dom.t) list) : Solver.diff * Solver.variable list =
       let f (diff, vars) (fork_fun, fork_st) =
-        ( (`L ((MyCFG.FunctionEntry fork_fun, SD.lift (Spec.context_top fork_st)), SD.lift fork_st)) :: diff
-        , (MyCFG.Function fork_fun, SD.lift (Spec.context_top fork_st)) :: vars)
+        if !GU.full_context then
+          ( diff, (MyCFG.Function fork_fun, SD.lift fork_st) :: vars)
+        else
+          ( (`L ((MyCFG.FunctionEntry fork_fun, SD.lift (Spec.context_top fork_st)), SD.lift fork_st)) :: diff
+          , (MyCFG.Function fork_fun, SD.lift (Spec.context_top fork_st)) :: vars)
       in
       let diffs, spawns = List.fold_left f ([],[]) xs in
       let spawnfuns = List.map fst xs in
@@ -120,9 +123,13 @@ struct
       let start_vals : Solver.diff ref = ref [] in
       let add_function st' f : Spec.Dom.t =
         let add_one_call x =
-          let ctx_st = Spec.context_top x in
-          start_vals := (`L ((MyCFG.FunctionEntry f, SD.lift ctx_st), SD.lift x)) :: !start_vals ;
-          sigma (dress (f, ctx_st)) 
+          if !GU.full_context then
+            sigma (dress (f, x)) 
+          else begin
+            let ctx_st = Spec.context_top x in
+            start_vals := (`L ((MyCFG.FunctionEntry f, SD.lift ctx_st), SD.lift x)) :: !start_vals ;
+            sigma (dress (f, ctx_st)) 
+          end
         in
         let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
         if has_dec && not (LibraryFunctions.use_special f.vname) then
@@ -165,10 +172,16 @@ struct
      * sigma and the global state theta; it outputs the new state, delta, and
      * spawned calls. *)      
     let edge2rhs (edge, pred : MyCFG.edge * MyCFG.node) (sigma, theta: Solver.var_assign * Solver.glob_assign) : Solver.var_domain * Solver.diff * Solver.variable list = 
-      let predvar = (pred, es) in
       (* This is the key computation, only we need to set and reset current_loc,
        * see below. We call a function to avoid ;-confusion *)
-      let eval predval : Solver.var_domain * Solver.diff * Solver.variable list = 
+      let eval predvar : Solver.var_domain * Solver.diff * Solver.variable list = 
+        (* if we use full contexts then the value at entry is the entry state -- if we do 
+           not use full contexts then we hope that someting meaningful was side-effected there *)
+        let predval =
+          match edge with
+            | MyCFG.Entry _ when !GU.full_context -> es
+            | _ -> sigma predvar 
+        in
         if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty predval)));
         (* gives add_var callback into context so that every edge can spawn threads *)
         let diffs = ref [] in
@@ -234,7 +247,7 @@ struct
       in
       let old_loc = !GU.current_loc in
       let _   = GU.current_loc := MyCFG.getLoc pred in
-      let ans = eval (sigma predvar) in 
+      let ans = eval (pred, es) in 
       let _   = GU.current_loc := old_loc in 
         ans
     in
@@ -486,7 +499,8 @@ struct
     let othervars = List.map (enter_with (Spec.otherstate ())) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
     let _ = if startvars = [] then failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list." in
-    let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (Spec.context_top (SD.unlift e))) startvars in
+    let context_fn = if !GU.full_context then fun x->x else Spec.context_top in
+    let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (context_fn (SD.unlift e))) startvars in
     let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in
     let procs = 
       let f = function

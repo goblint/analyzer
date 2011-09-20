@@ -148,6 +148,9 @@ let conf_osek () =
   modify_ana "OSEK2" true;
   modify_ana "OSEK3" true
 
+(** Do we side-effect function entries? If we use full contexts then there is no need. *)
+let full_context = ref false
+
 (** use the Sharir-Pnueli algorithm *)
 let sharir_pnueli = ref false
 
