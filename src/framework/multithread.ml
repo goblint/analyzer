@@ -517,7 +517,7 @@ struct
       in
       if !GU.verbose then print_endline ("Analyzing phase "^string_of_int phase^"!");
       Stats.time "solver" solve () in
-    if !GU.verify then begin
+    if !GU.verify && (not !GU.sharir_pnueli) then begin
       if !GU.verbose then print_endline "Verifying!";
       Stats.time "verification" (Solver.verify () (system cfg old old_g old_s phase)) (sol,gs)
     end;
