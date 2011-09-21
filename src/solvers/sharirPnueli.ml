@@ -69,10 +69,14 @@ struct
                 let z = SOL.find phi (e p, y') in
                 (* let m be the unique block such that (n,m)\in E^1_q (m=succ n), and propagate (x,z) to m 
                   [ By this we mean: assign PHI(m,x) := PHI(m,x) /\ z where undefined PHI(m,x) is 
-                  interpreted as \Omega; if the value has changed, then add (m,x) to WORK]*)
-                let m = match succ n with [x] -> x | _ -> failwith "Call edge not unique‽" in
-                let z' = comb n p y z in
-                propagate x z' m
+                  interpreted as \Omega; if the value has changed, then add (m,x) to WORK]
+                  Kalmer: Why must m be unique? *)
+                (*let m = match succ n with [x] -> x | _ -> failwith "Call edge not unique‽" in*)
+                let nextNode m =
+                  let z' = comb n p y z in
+                  propagate x z' m
+                in
+                List.iter nextNode (succ n)
               else
                 (* Otherwise, propagate (y,y) to r_p. This will propagation through p, which will later
                    trigger propagation to the block following n in q.*)
