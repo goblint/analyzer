@@ -91,6 +91,11 @@ struct
   let hash (u,v) = O1.hash u lxor O2.hash v
   let pretty_trace () (u,v) =
     Pretty.dprintf "(%a,%a)" O1.pretty_trace u O2.pretty v
+    
+  let line_nr (n,_) = O1.line_nr n 
+  let file_name (n,_) = O1.file_name n 
+  let description (n,_) = O1.description n 
+  let context () (_,c) = O1.context () c 
 end
 
 

@@ -103,6 +103,11 @@ sig
   val pretty_trace: unit -> t -> doc
   val compare : t -> t -> int
   val category : t -> int
+  
+  val line_nr : t -> int
+  val file_name : t -> string
+  val description : t -> string
+  val context : unit -> t -> doc
 end
 
 module type Spec = 
@@ -307,6 +312,11 @@ struct
     | MyCFG.Function f                         -> `ExitOfProc f
     | MyCFG.Statement {skind = Instr [Call _]} -> `ProcCall
     | _ -> `Other   
+
+  let line_nr n = (MyCFG.getLoc n).line 
+  let file_name n = (MyCFG.getLoc n).file
+  let description n = sprint 80 (pretty () n)
+  let context () _ = Pretty.nil
 end
 
 
@@ -353,6 +363,11 @@ struct
       | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
     in
     if comp == 0 then LD.compare d1 d2 else comp
+    
+  let line_nr (n,_) = (MyCFG.getLoc n).line 
+  let file_name (n,_) = (MyCFG.getLoc n).file
+  let description (n,_) = sprint 80 (Var.pretty () n)
+  let context () (_,c) = LD.pretty () c
 end
 
 module VarCS =

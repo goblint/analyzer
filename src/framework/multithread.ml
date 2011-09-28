@@ -44,12 +44,14 @@ struct
     module EWNC = EffectWNCon.Make(Var)(SD)(Spec.Glob)
     module SCSRR= SolverConSideRR.Make(Var)(SD)(Spec.Glob)
     module WNRR = SolverConSideWNRR.Make(Var)(SD)(Spec.Glob)
+    module INTR = Interactive.Make(Var)(SD)(Spec.Glob)
     let solve () : system -> variable list -> (variable * var_domain) list -> solution'  = 
       match !GU.solver with 
         | "effectWNCon"     -> EWNC.solve
         | "effectWCon"      -> EWC.solve
         | "solverConSideRR" -> SCSRR.solve
         | "solverConSideWNRR" -> WNRR.solve
+        | "interactive"     -> INTR.solve
         | _ -> EWC.solve
   end
   (** name the analyzer *)

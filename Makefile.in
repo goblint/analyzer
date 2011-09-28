@@ -33,7 +33,7 @@ PROG_MODULES = \
 	musteqDomain regionDomain concDomain lockDomain  baseDomain escapeDomain \
 	accessDomain containDomain myLiveness shapeDomain \
 	hash progress myCFG analyses libraryFunctions global cache \
-	solver sharirPnueli effectWCon effectWNCon solverConSideRR solverConSideWNRR \
+	solver sharirPnueli effectWCon effectWNCon solverConSideRR solverConSideWNRR interactive \
 	multithread compose mCP access varEq symbLocks thread threadEscape \
 	base region owner unit mutex osek osektransactionality uninit \
 	malloc_null memLeaks contain shapes
