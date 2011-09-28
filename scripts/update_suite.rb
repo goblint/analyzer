@@ -182,7 +182,8 @@ header = <<END
 </style>
 </head>
 END
-File.open(File.join(testresults, "index.html"), "w") do |f|
+theresultfile = File.join(testresults, "index.html")
+File.open(theresultfile, "w") do |f|
   f.puts "<html>"
   f.puts header
   f.puts "<body>"
@@ -293,5 +294,6 @@ File.open(File.join(testresults, "index.html"), "w") do |f|
   f.puts "</html>"
 end
 
-if alliswell then puts "All is well!" else puts "All is not well!" end
+puts ("Results: " + theresultfile)
+if alliswell then puts "\e[32mAll is well!\e[0m" else puts "\e[31mAll is not well!\e[0m" end
 exit alliswell

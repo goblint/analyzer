@@ -26,6 +26,8 @@ let is_immediate_type t = is_mutex_type t || isFunctionType t
 let is_global (a: Q.ask) (v: varinfo): bool = 
   v.vglob || match a (Q.MayEscape v) with `Bool tv -> tv | _ -> false
 
+let is_static (v:varinfo): bool = v.vstorage == Static
+
 let is_private (a: Q.ask) (v: varinfo): bool = 
   match a (Q.IsPrivate v) with `Bool tv -> tv | _ -> false
    
@@ -1116,22 +1118,27 @@ struct
             | None -> (
                 M.warn ("Function definition missing for " ^ f.vname);
                 let st_expr (v:varinfo) (value) a = 
-                  if is_global ctx.ask v then Cil.mkAddrOf (Var v, NoOffset) :: a else a
+                  if is_global ctx.ask v && not (is_static v) then 
+                    Cil.mkAddrOf (Var v, NoOffset) :: a 
+                  else a
                 in
-                (* This here is just to see of something got spawned. *)
+                let addrs = CPA.fold st_expr cpa (lv_list @ args) in
+                let (cpa,fl as st) = invalidate ctx.ask gs st addrs in
+                (* This rest here is just to see of something got spawned. *)
                 let flist = collect_funargs ctx.ask gs st args in
-                let f addr = 
-                  let var = List.hd (AD.to_var_may addr) in
-                  let _ = Cilfacade.getdec var in true
+                let f addr acc = 
+                  try 
+                    let var = List.hd (AD.to_var_may addr) in
+                    let _ = Cilfacade.getdec var in true 
+                  with _ -> acc
                 in 
-                let g a acc = try let r = f a in r || acc with _ -> acc in
-                let (cpa,fl as st) = invalidate ctx.ask gs st (CPA.fold st_expr cpa (lv_list @ args)) in
-                  if List.fold_right g flist false then begin
-                    (* Copy-pasted from the thread-spawning code above: *)
-                    GU.multi_threaded := true;
-                    let new_fl = Flag.join fl (Flag.get_main ()) in
-                      [map_true (cpa,new_fl)]
-                  end else [map_true st]
+                if List.fold_right f flist false then begin
+                  (* Copy-pasted from the thread-spawning code above: *)
+                  GU.multi_threaded := true;
+                  let new_fl = Flag.join fl (Flag.get_main ()) in
+                  [map_true (cpa,new_fl)]
+                end else 
+                  [map_true st]
               )
         end
 
