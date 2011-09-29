@@ -148,6 +148,33 @@ let conf_osek () =
   modify_ana "OSEK2" true;
   modify_ana "OSEK3" true
 
+(** command port for eclipse debuger support *)
+let command_port = ref (-1)
+(** event port for eclipse debuger support *)
+let event_port = ref (-1)
+let command_socket = Unix.socket (Unix.PF_INET) (Unix.SOCK_STREAM) 0
+let event_socket   = Unix.socket (Unix.PF_INET) (Unix.SOCK_STREAM) 0
+let command_in  = ref stdin
+let command_out = ref stdout
+let event_out   = ref stdout
+
+let open_sockets i =
+  event_port := i;
+  Unix.setsockopt command_socket Unix.SO_REUSEADDR true;
+  Unix.bind command_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, !command_port));
+  Unix.listen command_socket 1;
+  let (client,_) = Unix.accept command_socket in 
+  command_in  := Unix.in_channel_of_descr client;
+  command_out := Unix.out_channel_of_descr client;
+  set_binary_mode_in !command_in false;
+  set_binary_mode_out !command_out false;
+  Unix.setsockopt event_socket Unix.SO_REUSEADDR true;
+  Unix.bind event_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, i));
+  Unix.listen event_socket 1;
+  let (client,_) = Unix.accept event_socket in 
+  event_out  := Unix.out_channel_of_descr client;
+  set_binary_mode_out !event_out false
+
 (** Do we side-effect function entries? If we use full contexts then there is no need. *)
 let full_context = ref false
 

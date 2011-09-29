@@ -167,6 +167,7 @@ let main () =
                  ("--solver-progress", Arg.Bool ((:=) GU.solver_progress), " <bool> Used for debugging. Prints out a symbol on solving a rhs.");
                  ("--sharirpnueli", Arg.Set GU.sharir_pnueli, " Solve using the Sharir-Pnueli algorithm.");
                  ("--full-context", Arg.Set GU.full_context, " Do not side-effect function entries.");
+                 ("--debug-sockets", Arg.Tuple [Arg.Set_int GU.command_port;Arg.Int GU.open_sockets], "<port> <port> Eclipse debuger plugin support.");
                  ] in
   let jsonRegex = Str.regexp ".+\\.json$" in
   let recordFile fname = 

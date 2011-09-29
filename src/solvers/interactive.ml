@@ -5,9 +5,13 @@ open Pretty
 let run = ref false
 let break = ref []
 let oldcommand = ref []
-let read  = read_line
-let write = print_endline 
-let event = print_endline
+let read () = 
+  flush_all ();
+  input_line !Goblintutil.command_in
+let event x =   
+  output_string !Goblintutil.event_out x;
+  output_string !Goblintutil.event_out "\n";
+  flush !Goblintutil.event_out
 
 module GU = Goblintutil
 
@@ -43,15 +47,15 @@ struct
     let rec constrainOneVar (x: variable) =
       let rec debugger os ls = 
         let print_globs () =
-          let print_one x d = ignore (Pretty.printf "%s " x.Cil.vname) in
-          ignore (Pretty.printf "globals: ");          
+          let print_one x d = ignore (Pretty.fprintf !Goblintutil.command_out "%s " x.Cil.vname) in
+          ignore (Pretty.fprintf !Goblintutil.command_out "globals: ");          
           GMap.iter print_one theta;
-          ignore (Pretty.printf "\n");          
+          ignore (Pretty.fprintf !Goblintutil.command_out "\n");          
         in
         let print_glob x =
           let print_one y d = 
             if Some y.Cil.vname = x 
-            then ignore (Pretty.printf "%s = %a\n" y.Cil.vname GDom.pretty d)
+            then ignore (Pretty.fprintf !Goblintutil.command_out "%s = %a\n" y.Cil.vname GDom.pretty d)
           in
           GMap.iter print_one theta
         in
@@ -90,7 +94,7 @@ struct
           ]
         in
         let action () =
-          ignore (Printf.printf "(goblint) ");
+          if !GU.command_port=-1 then ignore (Pretty.fprintf !Goblintutil.command_out "(goblint) ");
           let command = split (read ()) in
           if command<>[] then oldcommand := command;
           match !oldcommand with
@@ -98,19 +102,19 @@ struct
             | ["run"]  -> run := true; raise Exit
             | ["step"] -> raise Exit
             | ["break";y] when try ignore (int_of_string y); true with Failure _ -> false ->
-                ignore (Pretty.printf "break at %s:%s\n" (Var.file_name x) y);
+                if !GU.command_port=-1 then ignore (Pretty.fprintf !Goblintutil.command_out "break at %s:%s\n" (Var.file_name x) y);
                 break := (Var.file_name x,int_of_string y) :: !break
             | ["unbreak";y] when try ignore (int_of_string y); true with Failure _ -> false ->
                 break := List.filter ((<>) (Var.file_name x, int_of_string y)) !break
-            | ["old"]  -> ignore (Pretty.printf "Old local state:\n%a\n" VDom.pretty os)
-            | ["state"]  -> ignore (Pretty.printf "New local state:\n%a\n" VDom.pretty ls)
-            | ["context"]  -> ignore (Pretty.printf "Context:\n%a\n" Var.context x)
+            | ["old"]  -> ignore (Pretty.fprintf !Goblintutil.command_out "Old local state:\n%a\n" VDom.pretty os)
+            | ["state"]  -> ignore (Pretty.fprintf !Goblintutil.command_out "New local state:\n%a\n" VDom.pretty ls)
+            | ["context"]  -> ignore (Pretty.fprintf !Goblintutil.command_out "Context:\n%a\n" Var.context x)
             | ["allglobs"] -> print_glob None
             | ["globs"] -> print_globs ()
             | ["glob";x] -> print_glob (Some x)
             | ["list"] -> listing ()
             | ["help"] -> List.iter print_endline help
-            | x -> ignore (Printf.printf "Unrecognized command '%s', maybe you need 'help'.\n" (unsplit x))
+            | x -> ignore (Pretty.fprintf !Goblintutil.command_out "Unrecognized command '%s', maybe you need 'help'.\n" (unsplit x))
           in
           try action (); debugger os ls with Exit -> ()
       in
@@ -162,7 +166,7 @@ struct
           let old_state = VMap.find sigma x in
           if (!run && List.mem (Var.file_name x,Var.line_nr x) !break) then run := false;
           if (not !run) then begin
-            ignore (Pretty.printf "File: %s\n%d: %s\n" (Var.file_name x) (Var.line_nr x) (Var.description x));
+            ignore (Pretty.fprintf !Goblintutil.command_out "File: %s\n%d: %s\n" (Var.file_name x) (Var.line_nr x) (Var.description x));
             debugger old_state !local_state
           end;
           let new_val = VDom.join !local_state old_state in
