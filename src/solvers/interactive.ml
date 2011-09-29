@@ -12,6 +12,9 @@ let event x =
   output_string !Goblintutil.event_out x;
   output_string !Goblintutil.event_out "\n";
   flush !Goblintutil.event_out
+let close_sockets () =
+  Unix.close Goblintutil.command_socket;
+  Unix.close Goblintutil.event_socket
 
 module GU = Goblintutil
 
@@ -94,15 +97,15 @@ struct
           ]
         in
         let action () =
-          if !GU.command_port=-1 then ignore (Pretty.fprintf !Goblintutil.command_out "(goblint) ");
+          if !GU.command_port=(-1) then ignore (Pretty.fprintf !Goblintutil.command_out "(goblint) ");
           let command = split (read ()) in
           if command<>[] then oldcommand := command;
           match !oldcommand with
-            | ["q"]    -> exit 0
-            | ["run"]  -> run := true; raise Exit
-            | ["step"] -> raise Exit
+            | ["q"]    -> event "terminated"; close_sockets (); exit 0
+            | ["run"]  -> event "resume run";  run := true; raise Exit
+            | ["step"] -> event "resume step"; raise Exit
             | ["break";y] when try ignore (int_of_string y); true with Failure _ -> false ->
-                if !GU.command_port=-1 then ignore (Pretty.fprintf !Goblintutil.command_out "break at %s:%s\n" (Var.file_name x) y);
+                if !GU.command_port=(-1) then ignore (Pretty.fprintf !Goblintutil.command_out "break at %s:%s\n" (Var.file_name x) y);
                 break := (Var.file_name x,int_of_string y) :: !break
             | ["unbreak";y] when try ignore (int_of_string y); true with Failure _ -> false ->
                 break := List.filter ((<>) (Var.file_name x, int_of_string y)) !break
@@ -164,7 +167,11 @@ struct
         in
           List.iter constrainOneRHS rhsides;
           let old_state = VMap.find sigma x in
-          if (!run && List.mem (Var.file_name x,Var.line_nr x) !break) then run := false;
+          if (not !run) then event "suspend step";
+          if (!run && List.mem (Var.file_name x,Var.line_nr x) !break) then begin
+            event "suspend run";
+            run := false
+          end;
           if (not !run) then begin
             ignore (Pretty.fprintf !Goblintutil.command_out "File: %s\n%d: %s\n" (Var.file_name x) (Var.line_nr x) (Var.description x));
             debugger old_state !local_state
@@ -194,6 +201,7 @@ struct
       GMap.find theta glob 
 
     in
+      event "started";
       GU.may_narrow := false;
       List.iter (fun (v,d) -> VMap.add sigma v d) start ;
       while not (WorkSet.is_empty !workset) do
@@ -206,5 +214,7 @@ struct
           List.iter recallConstraint !unsafe;
           unsafe := [];
       done;
+      event "terminated";
+      close_sockets ();
       (sigma, theta)
 end 
