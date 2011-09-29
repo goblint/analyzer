@@ -13,7 +13,7 @@ else
   fail "Please run script from goblint dir!" unless File.exist?(goblint)
   `make`
 end
-$rev = `git describe --tags`.chomp + `git log -1 --pretty=format:' (%ai)'`
+vrsn = `#{goblint} --version`
 
 backup = File.join(Dir.getwd,"goblint.script_backup.json")
 json   = File.join(Dir.getwd, "goblint.json")
@@ -102,9 +102,13 @@ regs.sort.each do |d|
       if obj =~ /#line ([0-9]+).*$/ then
         i = $1.to_i - 1
       end
-       next if obj =~ /^\/\//
+      next if obj =~ /^\s*\/\//
       if obj =~ /RACE/ then
         hash[i] = if obj =~ /NORACE/ then "norace" else "race" end
+      elsif obj =~ /NOWARN/ then
+        hash[i] = "nowarn"
+      elsif obj =~ /WARN/ then
+        hash[i] = "warn"
       elsif obj =~ /assert.*\(/ then
         debug = true
         if obj =~ /FAIL/ then
@@ -114,10 +118,6 @@ regs.sort.each do |d|
         else
           hash[i] = "assert"
         end
-      elsif obj =~ /NOWARN/ then
-        hash[i] = "nowarn"
-      elsif obj =~ /WARN/ then
-        hash[i] = "warn"
       end
     end
     case lines[0]
@@ -164,8 +164,8 @@ projects.each do |p|
     f.puts "Analysis began: #{starttime}"
     f.puts "Analysis ended: #{endtime}"
     f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
-    f.puts "Git describe: #{$rev}"
     f.puts "Goblint params: #{cmd}"
+    f.puts vrsn
   end
 end
 FileUtils.mv(backup,json) if File.exists?(backup) 
@@ -212,10 +212,11 @@ File.open(theresultfile, "w") do |f|
       next unless l =~ /(.*)\(.*\:(.*)\)/
       obj,i = $1,$2.to_i
 
-      ranking = ["other", "warn", "race", "norace", "assert", "fail", "unknown", "term", "noterm"]
+      ranking = ["other", "warn", "race", "norace", "success", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
                     when /with lockset:/: "race"
                     when /will fail/    : "fail"
+                    when /will succeed/ : "success"
                     when /is unknown/   : "unknown"
                     when /Uninitialized/ : "warn"
                     when /dereferencing of null/ : "warn"
@@ -244,7 +245,7 @@ File.open(theresultfile, "w") do |f|
         if warnings[idx].nil? then correct += 1 
         else ferr = idx if ferr.nil? or idx < ferr end
       when "assert" 
-        if warnings[idx] != "fail"  and warnings[idx] != "unknown" then correct += 1 
+        if warnings[idx] == "success" then correct += 1 
         else ferr = idx if ferr.nil? or idx < ferr end
       when "norace"
         if warnings[idx] != "race" then correct += 1 
@@ -290,6 +291,10 @@ File.open(theresultfile, "w") do |f|
     f.puts "</tr>"
   end
   f.puts "</table>"
+  f.print "<p style=\"font-size: 90%; white-space: pre-line\">"
+  f.puts "Last updated: #{Time.now.strftime("%Y-%m-%d %H:%M:%S %z")}"
+  f.puts "#{vrsn}"
+  f.puts "</p>"
   f.puts "</body>"
   f.puts "</html>"
 end

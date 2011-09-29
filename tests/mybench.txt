@@ -31,7 +31,7 @@ Group: Kernel Modules
 apm-emulation.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/apm-emulation.c
 kernel/apm-emulation.c
---kernel
+--kernel --otherfun apm_queue_event
 
 ipmi_devintf.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/ipmi/ipmi_devintf.c
@@ -41,7 +41,7 @@ kernel/ipmi_devintf.c
 virtio_console.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/virtio_console.c
 kernel/virtio_console.c
---kernel
+--kernel --otherfun show_port_name
 
 vt_ioctl.c
 http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/vt_ioctl.c

@@ -10,9 +10,8 @@ maxlen = $analyses.map { |x| x[0].length }.max + 1
 
 goblint = File.join(Dir.getwd,"goblint")
 fail "Please run script from goblint dir!" unless File.exist?(goblint)
-$revshort = `git describe --tags --long`[/.*-\d+/]
-$rev = `git describe --tags --long`.chomp + `git log -1 --pretty=format:' (%ai)'`
-$cilrev = `git --git-dir=../cil/.git describe --tags --long`.chomp + `git --git-dir=../cil/.git log -1 --pretty=format:' (%ai)'`
+revshort = `git describe --tags --long`[/.*-\d+/]
+$vrsn = `#{goblint} --version`
 $testresults = File.expand_path("tests/bench_result") + "/"
 bench = "../bench/"
 
@@ -43,7 +42,7 @@ $projects = []
 
 $header = <<END
 <head>
-  <title>#{$revshort} (#{`uname -n`.chomp})</title>
+  <title>#{revshort} (#{`uname -n`.chomp})</title>
   <style type="text/css">
     A:link {text-decoration: none}
     A:visited {text-decoration: none}
@@ -52,8 +51,9 @@ $header = <<END
 </style>
 </head>
 END
+$theresultfile = File.join($testresults, "index.html")
 def print_res (i)
-  File.open($testresults + "index.html", "w") do |f|
+  File.open($theresultfile, "w") do |f|
     f.puts "<html>"
     f.puts $header
     f.puts "<body>"
@@ -123,9 +123,10 @@ def print_res (i)
       f.puts "</tr>"
     end
     f.puts "</table>"
-    f.puts "<p style=\"font-size: 80%\">Last updated: #{Time.now.strftime("%Y-%m-%d %H:%M:%S %z")}<br />"
-    f.puts "Goblint revision: #{$rev}<br />"
-    f.puts "Cil revision: #{$cilrev}</p>"
+    f.print "<p style=\"font-size: 80%; white-space: pre-line\">"
+    f.puts "Last updated: #{Time.now.strftime("%Y-%m-%d %H:%M:%S %z")}"
+    f.puts "#{$vrsn}"
+    f.puts "</p>"
     f.puts "</body>"
     f.puts "</html>"
   end
@@ -208,8 +209,8 @@ $projects.each do |p|
       f.puts "Analysis began: #{starttime}"
       f.puts "Analysis ended: #{endtime}"
       f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
-      f.puts "Git describe: #{$rev}"
       f.puts "Goblint params: #{cmd}"
+      f.puts $vrsn
     end
     if status != 0 then
       if status == 124 then
@@ -228,5 +229,6 @@ $projects.each do |p|
   end
 end
 print_res nil
+puts ("Results: " + $theresultfile)
 FileUtils.mv(backup,json) if File.exists?(backup) 
 
