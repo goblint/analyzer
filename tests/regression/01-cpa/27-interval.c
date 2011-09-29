@@ -1,4 +1,4 @@
-// SKIP PARAM: --analysis base --solver effectWNCon
+// PARAM: --solver effectWNCon --propset int_domain interval
 #include<stdio.h>
 #include<assert.h>
 
@@ -10,7 +10,7 @@ int main () {
   int true = 42;
   
   if (x){
-//    assert(x == 0);
+    assert(x != 0);
   } else {
     assert(x == 0);
   }
@@ -21,11 +21,11 @@ int main () {
   if (a){
     a = a;
   } else
-    assert(0);
+    assert(0); // NOWARN
 
   
   if (!a)
-    assert(0);
+    assert(0); // NOWARN
   else
     a = a;
   

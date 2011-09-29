@@ -6,6 +6,27 @@ int main() {
   int x,y;
   int *p,*q;
 
+  assert(unknown);      // UNKNOWN
+  assert(unknown == 0); // UNKNOWN
+
+  assert(x);            // UNKNOWN
+  assert(y);            // UNKNOWN
+  assert(x == y);       // UNKNOWN
+
+  assert(p);            // UNKNOWN
+  assert(q);            // UNKNOWN
+  assert(p == q);       // UNKNOWN
+
+  if (unknown)
+    assert(1);
+  else
+    assert(1);
+
+  if (x == y)
+    assert(1);
+  else
+    assert(1);
+
   if (p == q)
     assert(1);
   else

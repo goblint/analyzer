@@ -215,9 +215,9 @@ File.open(theresultfile, "w") do |f|
       ranking = ["other", "warn", "race", "norace", "success", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
                     when /with lockset:/: "race"
-                    when /will fail/    : "fail"
-                    when /will succeed/ : "success"
-                    when /is unknown/   : "unknown"
+                    when /Assertion .* will fail/    : "fail"
+                    when /Assertion .* will succeed/ : "success"
+                    when /Assertion .* is unknown/   : "unknown"
                     when /Uninitialized/ : "warn"
                     when /dereferencing of null/ : "warn"
                     when /CW:/ : "warn"
@@ -280,7 +280,7 @@ File.open(theresultfile, "w") do |f|
       f.puts "<td style =\"color: green\">NONE</td>"
     else
       alliswell = false
-      if ferr.nil? then
+      if not is_ok or ferr.nil? then
         f.puts "<td style =\"color: red\">FAILED</td>"
       else
         whataglorifiedmess = p.name + ".c.html"

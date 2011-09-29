@@ -1,5 +1,4 @@
-// SKIP
-// PARAM: --with shape --nonstatic
+// SKIP PARAM: --with shape --nonstatic
 #include<linuxlight.h>
 
 LIST_HEAD (usb_bus_list);
