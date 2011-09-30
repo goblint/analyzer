@@ -160,6 +160,7 @@ let event_out   = ref stdout
 
 let open_sockets i =
   event_port := i;
+  ignore (Printf.printf "connecting...");
   Unix.setsockopt command_socket Unix.SO_REUSEADDR true;
   Unix.bind command_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, !command_port));
   Unix.listen command_socket 1;
@@ -173,7 +174,8 @@ let open_sockets i =
   Unix.listen event_socket 1;
   let (client,_) = Unix.accept event_socket in 
   event_out  := Unix.out_channel_of_descr client;
-  set_binary_mode_out !event_out false
+  set_binary_mode_out !event_out false;
+  ignore (Printf.printf "done.\n")
 
 (** Do we side-effect function entries? If we use full contexts then there is no need. *)
 let full_context = ref false

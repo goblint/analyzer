@@ -7,7 +7,10 @@ let break = ref []
 let oldcommand = ref []
 let read () = 
   flush_all ();
-  input_line !Goblintutil.command_in
+  let x = input_line !Goblintutil.command_in in
+  flush_all ();
+  if !Goblintutil.command_port <> 0 then ignore (Printf.printf "'%s'\n" x);
+  x 
 let event x =   
   output_string !Goblintutil.event_out x;
   output_string !Goblintutil.event_out "\n";
@@ -68,7 +71,7 @@ struct
           ignore (Unix.system ("cat -n "^f^" | sed -n '"^string_of_int(n-1)^","^string_of_int(n+1)^ " p'"))
         in
         let split s =
-          Str.split (Str.regexp "[ \t]+") s
+          Str.split (Str.regexp "[ \t\r\n]+") s
         in
         let rec unsplit = function
           | [] -> ""
@@ -104,7 +107,8 @@ struct
             | ["q"]    -> event "terminated"; close_sockets (); exit 0
             | ["run"]  -> event "resume run";  run := true; raise Exit
             | ["step"] -> event "resume step"; raise Exit
-            | ["break";y] when try ignore (int_of_string y); true with Failure _ -> false ->
+            | ["position"] -> ignore (Pretty.fprintf !Goblintutil.command_out "%d|%s\n" (Var.line_nr x) (Var.file_name x))
+            | ["break";y] when try ignore (int_of_string y); true with Failure _ -> false -> 
                 if !GU.command_port=(-1) then ignore (Pretty.fprintf !Goblintutil.command_out "break at %s:%s\n" (Var.file_name x) y);
                 break := (Var.file_name x,int_of_string y) :: !break
             | ["unbreak";y] when try ignore (int_of_string y); true with Failure _ -> false ->
@@ -117,7 +121,7 @@ struct
             | ["glob";x] -> print_glob (Some x)
             | ["list"] -> listing ()
             | ["help"] -> List.iter print_endline help
-            | x -> ignore (Pretty.fprintf !Goblintutil.command_out "Unrecognized command '%s', maybe you need 'help'.\n" (unsplit x))
+            | x -> if !GU.command_port=(-1) then ignore (Pretty.fprintf !Goblintutil.command_out "Unrecognized command '%s', maybe you need 'help'.\n" (unsplit x))
           in
           try action (); debugger os ls with Exit -> ()
       in
@@ -173,7 +177,7 @@ struct
             run := false
           end;
           if (not !run) then begin
-            ignore (Pretty.fprintf !Goblintutil.command_out "File: %s\n%d: %s\n" (Var.file_name x) (Var.line_nr x) (Var.description x));
+            if !GU.command_port=(-1) then ignore (Pretty.fprintf !Goblintutil.command_out "File: %s\n%d: %s\n" (Var.file_name x) (Var.line_nr x) (Var.description x));
             debugger old_state !local_state
           end;
           let new_val = VDom.join !local_state old_state in
