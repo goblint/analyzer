@@ -32,5 +32,16 @@ int main() {
   else
     assert(1);
 
+  p = &x;
+  if (p == q)
+    assert(1);
+  else
+    assert(1);
+
+  assert(p == &x);
+  if (q == p)
+    assert(1);
+  else
+    assert(1);
   return 0;
 }

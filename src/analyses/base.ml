@@ -549,7 +549,7 @@ struct
               | `Address n -> begin
                   if M.tracing then M.trace "invariant" "Yes, %a is not %a\n" Cil.d_lval x AD.pretty n;
                   match eval_rv a gs st (Cil.Lval x) with
-                   | `Address a when not (AD.is_top a) -> Some (x, `Address (AD.diff a n))                  
+                   | `Address a when not (AD.is_top n) -> Some (x, `Address (AD.diff a n))
                    | _ -> None
                 end
               | _ -> 
