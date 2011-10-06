@@ -533,7 +533,7 @@ struct
       match (op, lval, value, tv) with
         (* The true-branch where x == value: *)
         | Cil.Eq, x, value, true -> 
-            if M.tracing then M.trace "invariant" "Yes, %a equals %a\n" Cil.d_lval x VD.pretty value;
+            if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" Cil.d_lval x VD.pretty value;
             Some (x, value)
         (* The false-branch for x == value: *)
         | Cil.Eq, x, value, false -> begin
@@ -542,12 +542,12 @@ struct
                   match ID.to_int n with
                     | Some n ->
                         (* When x != n, we can return a singleton exclusion set *)
-                        if M.tracing then M.trace "invariant" "Yes, %a is not %Ld\n" Cil.d_lval x n;
+                        if M.tracing then M.tracec "invariant" "Yes, %a is not %Ld\n" Cil.d_lval x n;
                         Some (x, `Int (ID.of_excl_list [n]))
                     | None -> None
                 end
               | `Address n -> begin
-                  if M.tracing then M.trace "invariant" "Yes, %a is not %a\n" Cil.d_lval x AD.pretty n;
+                  if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" Cil.d_lval x AD.pretty n;
                   match eval_rv a gs st (Cil.Lval x) with
                    | `Address a when not (AD.is_top n) -> Some (x, `Address (AD.diff a n))
                    | _ -> None
@@ -555,7 +555,7 @@ struct
               | _ -> 
                 (* We can't say anything else, exclusion sets are finite, so not
                  * being in one means an infinite number of values *)
-                if M.tracing then M.trace "invariant" "Failed! (not a definite value)\n";
+                if M.tracing then M.tracec "invariant" "Failed! (not a definite value)\n";
                 None
           end
         | Cil.Ne, x, value, _ -> helper Cil.Eq x value (not tv)
@@ -566,7 +566,7 @@ struct
              | `Int n -> begin 
                  match limit_from n with
                    | Some n ->
-                        if M.tracing then M.trace "invariant" "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n;
+                        if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n;
                         Some (x, `Int (range_from n))
                    | None -> None
              end
@@ -579,7 +579,7 @@ struct
              | `Int n -> begin 
                  match limit_from n with
                    | Some n ->
-                        if M.tracing then M.trace "invariant" "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n;
+                        if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n;
                         Some (x, `Int (range_from n))
                    | None -> None
              end
@@ -591,7 +591,7 @@ struct
             if M.tracing then M.trace "invariant" "Failed! (operation not supported)\n\n";
             None
     in
-      if M.tracing then M.tracel "invariant" "assume expression %a is %B\n" Cil.d_exp exp tv;
+      if M.tracing then M.traceli "invariant" "assume expression %a is %B\n" Cil.d_exp exp tv;
         let null_val typ =
           match typ with
             | Cil.TPtr _ -> `Address (AD.null_ptr())
@@ -611,7 +611,7 @@ struct
               helper Cil.Ne x (null_val (Cil.typeOf exp)) tv
           | Cil.UnOp (Cil.LNot,uexp,typ) -> derived_invariant uexp (not tv)
           | _ -> 
-              if M.tracing then M.trace "invariant" "Failed! (expression %a not understood)\n\n" Cil.d_exp exp;
+              if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)\n\n" Cil.d_exp exp;
               None
       in
       let is_some_bot x =
@@ -628,6 +628,7 @@ struct
       in
         match derived_invariant exp tv with
           | Some (lval, value) -> 
+              if M.tracing then M.traceu "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
               let addr = eval_lv a gs st lval in
                if (AD.is_top addr) then
                          st
@@ -641,7 +642,9 @@ struct
                 else if VD.is_bot new_val 
                 then set a gs st addr value ~effect:false
                 else set a gs st addr new_val ~effect:false
-          | None -> st
+          | None ->
+              if M.tracing then M.traceu "invariant" "Doing nothing.\n";
+              st
 
   let set_savetop ask (gs:glob_fun) st adr v =
     match v with
@@ -693,19 +696,26 @@ struct
     set_savetop ctx.ask ctx.global ctx.local lval_val rval_val
 
   let branch ctx (exp:exp) (tv:bool) : store =
+    let valu = eval_rv ctx.ask ctx.global ctx.local exp in
+    if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
     (* First we want to see, if we can determine a dead branch: *)
     match eval_rv ctx.ask ctx.global ctx.local exp with
       (* For a boolean value: *)
       | `Int value when (ID.is_bool value) -> 
-          M.tracel "branch" "Expression %a evaluated to %a\n" d_exp exp ID.pretty value;
+          if M.tracing then M.traceu "branch" "Expression %a evaluated to %a\n" d_exp exp ID.pretty value;
           (* to suppress pattern matching warnings: *)
           let fromJust x = match x with Some x -> x | None -> assert false in
           let v = fromJust (ID.to_bool value) in
             (* Eliminate the dead branch and just propagate to the true branch *)
             if v == tv then ctx.local else raise Deadcode
-      | `Bot -> raise Deadcode
+      | `Bot ->
+          if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
+          raise Deadcode
       (* Otherwise we try to impose an invariant: *)
-      | _ -> invariant ctx.ask ctx.global ctx.local exp tv 
+      | _ ->
+          let res = invariant ctx.ask ctx.global ctx.local exp tv in
+            if M.tracing then M.traceu "branch" "Invariant enforced!\n";
+            res
 
   let body ctx f = 
     (* First we create a variable-initvalue pair for each varaiable *)

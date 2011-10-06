@@ -5,8 +5,9 @@ module JB = Json
 module M = Messages
 
 let print_version () = 
-  print_endline ("Goblint version: " ^ Version.goblint); 
-  print_endline ("Cil version:     " ^ Version.cil); 
+  Printf.printf "Goblint version: %s\n" Version.goblint;
+  Printf.printf "Cil version:     %s\n" Version.cil;
+  Printf.printf "Tracing enabled: %b\n" Version.tracing;
   exit 0
 
 let main () =
