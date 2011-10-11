@@ -52,7 +52,7 @@ let main () =
     let n = int_of_string x in
     let cfs = Json.array !(Json.field !GU.conf "analyses") in
     GU.phase := n;
-    cfs := appendTimes !cfs [Json.Build.array []] (n-(List.length !cfs))       
+    cfs := appendTimes !cfs [Json.Build.array []] (n-(List.length !cfs)+1)       
   in
   let setdump path = GU.dump_path := Some (GU.create_dir path) in
   let setcil path = cilout := open_out path in
