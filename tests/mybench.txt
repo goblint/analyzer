@@ -1,79 +1,56 @@
-Group: Synthetic Modules
+Group: Pthread
 
-move.c
-generate!
-synthetic/move.c
---kernel
+aget_comb.c
+http://google.com
+pthread/aget_comb.c
+-
 
-inlined.c
-generate!
-synthetic/move-inl.c
+ctrace_comb.c
+http://google.com
+pthread/ctrace_comb.c
+-
 
+pfscan_comb.c
+http://google.com
+pthread/pfscan_comb.c
+-
 
-tail.c
-generate!
-synthetic/tail.c
---kernel
+zfs-fuse_comb.c
+http://google.com
+pthread/zfs-fuse_comb.c
+-
 
-splice.c
-generate!
-synthetic/splice.c
---kernel
+automount_comb.c
+http://google.com
+pthread/automount_comb.c
+--nonstatic
 
-backptr.c
-generate!
-synthetic/backptr.c
---kernel --nonstatic --unique usb_drv
+knot_comb.c
+http://google.com
+pthread/knot_comb.c
+-
 
+ptester.c
+http://google.com
+pthread/ptester.c
+-
 
-Group: Kernel Modules
+ypbind_comb.c
+http://google.com
+pthread/ypbind_comb.c
+-
 
-apm-emulation.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/apm-emulation.c
-kernel/apm-emulation.c
---kernel --otherfun apm_queue_event
+automount_incl_lib_comb.c
+http://google.com
+pthread/automount_incl_lib_comb.c
+-
 
-ipmi_devintf.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/ipmi/ipmi_devintf.c
-kernel/ipmi_devintf.c
---kernel
+smtprc_comb.c
+http://google.com
+pthread/smtprc_comb.c
+-
 
-virtio_console.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/virtio_console.c
-kernel/virtio_console.c
---kernel --otherfun show_port_name
-
-vt_ioctl.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/vt_ioctl.c
-kernel/vt_ioctl.c
---kernel --nonstatic
-
-garmin_gps.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/garmin_gps.c
-kernel/garmin_gps.c
---kernel --unique garmin_data
-
-whiteheat.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/whiteheat.c
-kernel/whiteheat.c
---kernel --unique whiteheat_private
-
-hcd.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/hcd.c
-kernel/hcd.c
---kernel --nonstatic --otherfun usb_host_authorized_default_show --otherfun usb_host_authorized_default_store
-
-message.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/message.c
-kernel/message.c
---kernel --nonstatic
-
-ieee1394-raw
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/ieee1394/raw1394.c
-kernel/drivers/ieee1394/raw1394.c
---kernel
-
-infiniband-ucma
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/core/ucma.c
-kernel/drivers/infiniband/core/ucma.c
---kernel --unique ucma_file
+zebedee_comb.c
+http://google.com
+pthread/zebedee_comb.c
+-

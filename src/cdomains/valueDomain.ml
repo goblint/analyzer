@@ -208,6 +208,13 @@ struct
       | (`List x, `List y) -> `List (Lists.join x y) 
       | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) 
       | _ -> `Top
+  
+  let join x y = 
+    if x == y then x else
+    let j = join x y in
+    if equal x j then x else
+    if equal y j then y else
+    j
 
   let meet x y = 
     match (x,y) with 
