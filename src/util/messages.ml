@@ -2,13 +2,14 @@ open Cil
 open Pretty
 module GU = Goblintutil
 
+
 exception Bailure of string
 let bailwith s = raise (Bailure s)
 
-let tracing = false  (* Hopefully, when set to false optimizations will kick in *)
 let warnings = ref false
 let soundness = ref true
 let warn_out = ref stdout
+let tracing = Version.tracing
 
 let get_out name alternative = match !GU.dump_path with
   | Some path -> open_out (Filename.concat path (name ^ ".out"))
@@ -210,7 +211,7 @@ let trace sys ?var fmt = gtrace true printtrace sys var (fun x -> x) fmt
 let tracel sys ?var fmt = 
   let loc = !current_loc in
   let docloc sys doc = 
-    printtrace sys (text loc.file ++ text ":" ++ num loc.line ++ line ++ indent 2 doc) 
+    printtrace sys (dprintf "(%s:%d)" loc.file loc.line ++ indent 2 doc);
   in
     gtrace true docloc sys var ~loc:loc.line (fun x -> x) fmt
 
@@ -231,7 +232,7 @@ let traceli sys ?var ?(subsys=[]) fmt =
   let loc = !current_loc in
   let g () = activate sys subsys in
   let docloc sys doc: unit = 
-    printtrace sys (text loc.file ++ text ":" ++ num loc.line ++ line ++ indent 2 doc);
+    printtrace sys (dprintf "(%s:%d)" loc.file loc.line ++ indent 2 doc);
     traceIndent ()
   in
     gtrace true docloc sys var ~loc:loc.line g fmt

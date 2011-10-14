@@ -259,7 +259,7 @@ let getGlobalInits (file: file) : (edge * location) list  =
   in 
   iterGlobals file f;
   initfun.slocals <- List.rev !vars;
-  (Entry initfun, {line = 0; file="nofile"; byte= 0} ) :: List.rev !inits
+  (Entry initfun, {line = 0; file="initfun"; byte= 0} ) :: List.rev !inits
 
 let generate_irpt_edges cfg =
   let make_irpt_edge toNode (_, fromNode) = 

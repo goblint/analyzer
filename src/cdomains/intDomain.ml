@@ -1,6 +1,7 @@
 open Pretty
 module GU = Goblintutil
 module JB = Json
+module M = Messages
 
 module type S =
 sig
@@ -626,9 +627,11 @@ struct
   let join (x1,x2) (y1,y2) = (I.min x1 y1, I.max x2 y2)
   let meet (x1,x2) (y1,y2) = (I.max x1 y1, I.min x2 y2)
   
-  let widen (l0,u0) (l1,u1) = 
-    (if I.lt l1 l0 then I.NInf else l0),
-    (if I.lt u0 u1 then I.PInf else u0)
+  let widen (l0,u0 as i1) (l1,u1 as i2) =
+    let res = (if I.lt l1 l0 then I.NInf else l0), (if I.lt u0 u1 then I.PInf else u0) in
+      if M.tracing then M.tracel "widen" "Widening %a and %a yields %a\n" pretty i1 pretty i2 pretty res;
+      res
+
 
   let narrow (l0,u0) (l1,u1) =
     let lr = match l0 with

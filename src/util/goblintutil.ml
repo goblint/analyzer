@@ -96,7 +96,7 @@ let modify_ana x b =
   let an = array !(field !conf "analyses") in
   let ph = array (List.nth !an !phase) in
   let rem_x = List.filter (fun y -> not (string y = x)) !ph in
-  if List.length rem_x > 0 then
+  if b || List.length rem_x > 0 then
     (if b then ph := Build.string x :: rem_x else ph := rem_x)
   else
     an := dropNth !an !phase

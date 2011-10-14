@@ -2,9 +2,8 @@
 require 'fileutils' 
 
 $analyses = [
-  ["default",   ""],
-  ["region",    "--with region"],
-  ["shape",     "--with shape"],
+  ["one",   ""],
+  ["two",    "--phase 0 --no mutex --phase 1 --with mutex --no-context base"],
 ]
 maxlen = $analyses.map { |x| x[0].length }.max + 1
 

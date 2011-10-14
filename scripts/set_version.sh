@@ -5,6 +5,7 @@ CILVERSION=`git --git-dir=../cil/.git describe --tags 2> /dev/null | sed s/^cil-
 if [ ! -f src/version.ml ]; then
   echo "let goblint = \"unknown\"" > src/version.ml
   echo "let cil = \"unknown\"" >> src/version.ml
+  echo "let tracing = false" >> src/version.ml
 fi
 
 if [ $VERSION ]; then

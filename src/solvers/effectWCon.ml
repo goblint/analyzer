@@ -36,7 +36,7 @@ struct
   let increase (v:Var.t) = 
     let set v c = 
       if not full_trace && (c > start_c && c > !max_c && (not (is_some !max_var) || not (Var.equal (from_some !max_var) v))) then begin
-        if tracing then trace "sol" "Swiched tracing to %a\n" Var.pretty_trace v;
+        if tracing then trace "sol" "Switched tracing to %a\n" Var.pretty_trace v;
         max_c := c;
         max_var := Some v
       end
@@ -101,7 +101,7 @@ struct
                 let compgs = GDom.join oldgstate gstate in
                   if not (GDom.leq compgs oldgstate) then begin
                     let lst = GMap.find gInfl g in
-                    GMap.replace theta g (GDom.widen oldgstate compgs);
+                    GMap.replace theta g compgs;
                     incr Goblintutil.globals_changed;
                     if !Goblintutil.verbose then begin ignore (fprintf stderr "\n********************GLOBALS CHANGED********************* (%d)\n" !Goblintutil.globals_changed); flush stderr end;
                     unsafe := lst @ !unsafe;
@@ -125,7 +125,7 @@ struct
           end;
           let new_val = VDom.join !local_state old_state in
           if not (VDom.leq new_val old_state) then begin
-            VMap.replace sigma x (VDom.widen old_state new_val);
+            VMap.replace sigma x new_val;
             let influenced_vars = ref WorkSet.empty in
             let collectInfluence ((y,f),i) = 
               VMap.replace todo y (cons_unique snd (f,i) (VMap.find todo y));             
