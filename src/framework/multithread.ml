@@ -596,8 +596,10 @@ struct
       Spec.init ();
       let sv = (analyze_phase file cfg ph !precmp !oldgsol oldspawns fds) in
       oldsol := sv :: !oldsol;
-      oldgsol := (conserve_globs sv, ToStdG.translate (Spec.Glob.Val.top ())) :: !oldgsol;
-      (if ph != phs then precmp := join_contexts sv :: !precmp);
+      if ph != phs-1 then begin
+        oldgsol := (conserve_globs sv, ToStdG.translate (Spec.Glob.Val.top ())) :: !oldgsol;
+        precmp := join_contexts sv :: !precmp
+      end;
       Spec.finalize ()
     done;
     (* output the result if needed *)
