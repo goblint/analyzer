@@ -98,7 +98,7 @@ struct
     match y with 
       | 0L -> raise Division_by_zero  (* -- this is for a bug (#253) where div throws *) 
       | _  -> Int64.div x y           (*    sigfpe and ocaml has somehow forgotten how to deal with it*)
-  let rem  = 
+  let rem x y = 
     match y with 
       | 0L -> raise Division_by_zero  (* ditto *) 
       | _  -> Int64.rem x y           
