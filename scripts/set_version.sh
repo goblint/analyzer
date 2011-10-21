@@ -15,10 +15,10 @@ fi
 
 if [ $VERSION ]; then
   grep -q "goblint = \"$VERSION\"" src/version.ml 2> /dev/null ||
-    sed -i"" "s/goblint = .*/goblint = \"$VERSION\"/" src/version.ml
+    (sed "s/goblint = .*/goblint = \"$VERSION\"/" src/version.ml > src/version.tmp && mv src/version.tmp src/version.ml)
 fi
 
 if [ $CILVERSION ]; then
   grep -q "cil = \"$CILVERSION\"" src/version.ml 2> /dev/null ||
-    sed -i"" "s/cil = .*/cil = \"$CILVERSION\"/" src/version.ml
+    (sed "s/cil = .*/cil = \"$CILVERSION\"/" src/version.ml > src/version.tmp && mv src/version.tmp src/version.ml)
 fi
