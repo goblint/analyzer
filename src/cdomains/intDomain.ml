@@ -98,7 +98,10 @@ struct
     match y with 
       | 0L -> raise Division_by_zero  (* -- this is for a bug (#253) where div throws *) 
       | _  -> Int64.div x y           (*    sigfpe and ocaml has somehow forgotten how to deal with it*)
-  let rem  = Int64.rem
+  let rem  = 
+    match y with 
+      | 0L -> raise Division_by_zero  (* ditto *) 
+      | _  -> Int64.rem x y           
   let lt n1 n2 = of_bool (n1 <  n2)
   let gt n1 n2 = of_bool (n1 >  n2)
   let le n1 n2 = of_bool (n1 <= n2)
