@@ -6,7 +6,7 @@
 #include <linux/spinlock.h>
 
 static int data;
-static rwlock_t rwlock = RW_LOCK_UNLOCKED;
+static DEFINE_RWLOCK(rwlock);
 
 static ssize_t my_read(struct file *file, char __user *buf, size_t count, loff_t *ppos) {
   int ret;

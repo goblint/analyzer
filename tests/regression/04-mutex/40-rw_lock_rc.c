@@ -7,8 +7,8 @@
 
 static int data1;
 static int data2;
-static rwlock_t rwlock1 = RW_LOCK_UNLOCKED;
-static rwlock_t rwlock2 = RW_LOCK_UNLOCKED;
+static DEFINE_RWLOCK(rwlock1);
+static DEFINE_RWLOCK(rwlock2);
 
 static ssize_t my_read(struct file *file, char __user *buf, size_t count, loff_t *ppos) {
   int ret;
