@@ -67,14 +67,10 @@ else
   ECHO        := @
 endif
 
-
-
-
-ifdef STATIC
-    COMPILEFLAGS.OPT   += -ccopt -static
-    LINKFLAGS.OPT      += -ccopt -static
-endif
-
+COMPILEFLAGS.OPT := $(COMPILEFLAGS) -inline 10
+COMPILEFLAGS.BYTE:= $(COMPILEFLAGS)
+LINKFLAGS.OPT    := $(LINKFLAGS) -inline 10
+LINKFLAGS.BYTE   := $(LINKFLAGS)
 
 ifdef WIN32
     COMPILEFLAGS.BYTE += -ccopt /Zi -ccopt /Od
@@ -88,10 +84,16 @@ else
     EXE               := 
 endif
 
-COMPILEFLAGS.OPT := $(COMPILEFLAGS) -inline 10
-COMPILEFLAGS.BYTE:= $(COMPILEFLAGS)
-LINKFLAGS.OPT    := $(LINKFLAGS) -inline 10
-LINKFLAGS.BYTE   := $(LINKFLAGS)
+ifdef STATIC
+    COMPILEFLAGS.OPT   += -ccopt -static
+    LINKFLAGS.OPT      += -ccopt -static
+endif
+
+ifdef PROFILE
+  COMPILEFLAGS.OPT   += -p
+  LINKFLAGS.OPT      += -p
+endif
+
 
 CAMLC.OPT      = $(CAMLDIR)ocamlopt  $(COMPILEFLAGS.OPT)
 CAMLLINK.OPT   = $(CAMLDIR)ocamlopt  $(LINKFLAGS.OPT)

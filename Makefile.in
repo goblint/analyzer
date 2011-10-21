@@ -48,9 +48,10 @@ MODULES    = $(PROG_MODULES) maingoblint $(TEST_MODULES) mainTest
 
 all : opt
 
-#ECHOSTYLE_SCOTT=1
+# ECHOSTYLE_SCOTT=1
+# PROFILE=1
+# STATIC=1
 UNSAFE=1
-STATIC=1
 include Makefile.ocaml
 
 
