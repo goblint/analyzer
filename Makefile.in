@@ -25,7 +25,7 @@ LINKFLAGS = @COMPILEFLAGS@ -ccopt -L$(CILLIB) -I $(CILLIB)
 DOCFLAGS = @DOCFLAGS@ -stars -t 'Goblint API documentation' -dot-reduce -dot -html -d doc -v
 
 PROG_MODULES = \
-	version json jsonParser jsonLexer \
+	version config json jsonParser jsonLexer \
 	goblintutil messages printer cilfacade xmldump \
 	printable lattice setDomain mapDomain osektupel\
 	basetype intDomain lval addressDomain arrayDomain listDomain \
@@ -82,7 +82,7 @@ clean: cleancaml
 	@rm -f goblint.unittest
 	@find ./ '(' -name "*.cm[iox]" -or -name "*.o" ')' -exec rm '{}' ';'
 	@rm -f tests/*.i tests/*.goblint tests/a.out a.out
-	@rm -f src/version.ml
+	@rm -f src/version.ml src/config.ml
 
 test: opt unittests
 	@./scripts/runalltests.sh

@@ -5,8 +5,8 @@ module M = Messages
 module GU = Goblintutil
 
 (* Compile time constants: *)
-let tracking = false
-let n = 2
+let tracking = Config.tracking
+let n =        Config.track_n
 
 
 let call_hashtbl = Hashtbl.create 101

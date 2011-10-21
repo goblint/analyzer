@@ -7,3 +7,4 @@ obj
 goblint
 goblint.json
 src/version.ml
+src/config.ml

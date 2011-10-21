@@ -1,6 +1,4 @@
 #/bin/bash
-cd src/util
-sed 's/tracking = false/tracking = true/' progress.ml > progress.out
-mv progress.out progress.ml
-cd ../..
+grep -q 'tracking = false' src/config.ml && \
+  sed -i"" 's/tracking = false/tracking = true/' src/config.ml
 make

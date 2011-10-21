@@ -5,9 +5,11 @@ module JB = Json
 module M = Messages
 
 let print_version () = 
+  let f b = if b then "enabled" else "disabled" in
   Printf.printf "Goblint version: %s\n" Version.goblint;
   Printf.printf "Cil version:     %s\n" Version.cil;
-  Printf.printf "Tracing enabled: %b\n" Version.tracing;
+  Printf.printf "Configuration:   tracing %s, tracking %s (n=%d)\n" 
+    (f Config.tracing) (f Config.tracking) Config.track_n;
   exit 0
 
 let main () =
