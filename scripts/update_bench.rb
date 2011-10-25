@@ -88,7 +88,7 @@ def print_res (i)
             if res == [] then
               dur = lines.grep(/^Duration: (.*) s/) { |x| $1 }
               cod = lines.grep(/EXITCODE\s*(.*)$/) { |x| $1 }
-              if cod == [] then
+              if cod == [] and not dur == [] then
                 thenumbers =  "<font color=\"green\">#{correlations}</font> / "
                 thenumbers << "<font color=\"seagreen\">#{safely}</font> / " if safely > 0
                 thenumbers << "<font color=\"brown\">#{warnings}</font>"
