@@ -29,43 +29,43 @@ synthetic/backptr.c
 Group: Kernel Modules
 
 apm-emulation.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/apm-emulation.c
-kernel/apm-emulation.c
+http://lxr.linux.no/#linux+v3.1/drivers/char/apm-emulation.c
+kernel/drivers/char/apm-emulation.c
 --kernel --otherfun apm_queue_event
 
 ipmi_devintf.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/ipmi/ipmi_devintf.c
-kernel/ipmi_devintf.c
+http://lxr.linux.no/#linux+v3.1/drivers/char/ipmi/ipmi_devintf.c
+kernel/drivers/char/ipmi/ipmi_devintf.c
 --kernel
 
 virtio_console.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/virtio_console.c
-kernel/virtio_console.c
+http://lxr.linux.no/#linux+v3.1/drivers/char/virtio_console.c
+kernel/drivers/char/virtio_console.c
 --kernel --otherfun show_port_name
 
 vt_ioctl.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/char/vt_ioctl.c
-kernel/vt_ioctl.c
+http://lxr.linux.no/#linux+v3.1/drivers/char/vt_ioctl.c
+kernel/drivers/tty/vt/vt_ioctl.c
 --kernel --nonstatic
 
 garmin_gps.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/garmin_gps.c
-kernel/garmin_gps.c
+http://lxr.linux.no/#linux+v3.1/drivers/usb/serial/garmin_gps.c
+kernel/drivers/usb/serial/garmin_gps.c
 --kernel --unique garmin_data
 
 whiteheat.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/serial/whiteheat.c
-kernel/whiteheat.c
+http://lxr.linux.no/#linux+v3.1/drivers/usb/serial/whiteheat.c
+kernel/drivers/usb/serial/whiteheat.c
 --kernel --unique whiteheat_private
 
 hcd.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/hcd.c
-kernel/hcd.c
+http://lxr.linux.no/#linux+v3.1/drivers/usb/core/hcd.c
+kernel/drivers/usb/core/hcd.c
 --kernel --nonstatic --otherfun usb_host_authorized_default_show --otherfun usb_host_authorized_default_store
 
 message.c
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/usb/core/message.c
-kernel/message.c
+http://lxr.linux.no/#linux+v3.1/drivers/usb/core/message.c
+kernel/drivers/usb/core/message.c
 --kernel --nonstatic
 
 ieee1394-raw
@@ -74,6 +74,6 @@ kernel/drivers/ieee1394/raw1394.c
 --kernel
 
 infiniband-ucma
-http://lxr.linux.no/#linux+v2.6.35.4/drivers/infiniband/core/ucma.c
+http://lxr.linux.no/#linux+v3.1/drivers/infiniband/core/ucma.c
 kernel/drivers/infiniband/core/ucma.c
 --kernel --unique ucma_file

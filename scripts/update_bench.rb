@@ -15,10 +15,6 @@ $vrsn = `#{goblint} --version`
 $testresults = File.expand_path("tests/bench_result") + "/"
 bench = "../bench/"
 
-backup = File.join(Dir.getwd,"goblint.script_backup.json")
-json   = File.join(Dir.getwd, "goblint.json")
-FileUtils.mv(json, backup) if File.exists?(json) 
-
 class Project
   attr_reader :id, :name, :group, :path, :params
   attr_accessor :url
@@ -90,16 +86,16 @@ def print_res (i)
             uncalled = lines.grep(/will never be called/).reject {|x| x =~ /__check/}.size
             res = lines.grep(/TIMEOUT\s*(.*) s.*$/) { |x| $1 }
             if res == [] then
-              res = lines.grep(/^Duration: (.*) s/) { |x| $1 }
-              if res == [] then
-                res = lines.grep(/EXITCODE\s*(.*)$/) { |x| $1 }
-                f.puts "<td><a href = #{outfile}>failed (code: #{res.to_s})</a></td>"
-              else
+              dur = lines.grep(/^Duration: (.*) s/) { |x| $1 }
+              cod = lines.grep(/EXITCODE\s*(.*)$/) { |x| $1 }
+              if cod == [] then
                 thenumbers =  "<font color=\"green\">#{correlations}</font> / "
                 thenumbers << "<font color=\"seagreen\">#{safely}</font> / " if safely > 0
                 thenumbers << "<font color=\"brown\">#{warnings}</font>"
                 thenumbers << " / <font color=\"red\">#{uncalled}</font>" if uncalled > 0
-                f.puts "<td><a href = #{outfile}>#{"%.2f" % res} s</a> (#{thenumbers})</td>"
+                f.puts "<td><a href = #{outfile}>#{"%.2f" % dur} s</a> (#{thenumbers})</td>"
+              else
+                f.puts "<td><a href = #{outfile}>failed (code: #{cod.to_s})</a></td>"
               end
             else
               f.puts "<td><a href=\"#{outfile}\">#{res.to_s} s</a> (limit)</td>"
@@ -227,8 +223,7 @@ $projects.each do |p|
     end
     print_res p.id
   end
+  `rm goblint.json`
 end
 print_res nil
 puts ("Results: " + $theresultfile)
-FileUtils.mv(backup,json) if File.exists?(backup) 
-
