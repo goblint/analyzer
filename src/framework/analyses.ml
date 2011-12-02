@@ -33,6 +33,7 @@ type local_state = [
     | `Access      of AccessDomain.Access.t
     | `Contain     of ContainDomain.Dom.t
     | `Shape       of ShapeDomain.Dom.t*RegionDomain.RegionDom.t
+    | `Stack       of StackDomain.Dom.t
     ]
 
 type global_state = [

@@ -46,6 +46,7 @@ let default_conf () =
                               ;"malloc_null", Build.bool true
                               ;"region"     , Build.bool false
                               ;"containment", Build.bool false
+                              ;"stack_trace", Build.bool false
                               ;"shape"      , Build.bool true
                               ;"var_eq"     , Build.bool false] in
   let def_ctx = Build.objekt ["base"       , Build.bool true
@@ -60,6 +61,7 @@ let default_conf () =
                              ;"uninit"     , Build.bool true
                              ;"malloc_null", Build.bool true
                              ;"region"     , Build.bool true
+                             ;"stack_trace", Build.bool true
                              ;"containment", Build.bool true
                              ;"shape"      , Build.bool true
                              ;"var_eq"     , Build.bool true] in

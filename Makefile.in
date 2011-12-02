@@ -31,11 +31,11 @@ PROG_MODULES = \
 	basetype intDomain lval addressDomain arrayDomain listDomain \
 	structDomain unionDomain valueDomain exp queries partitionDomain memoryDomain \
 	musteqDomain regionDomain concDomain lockDomain  baseDomain escapeDomain \
-	accessDomain containDomain myLiveness shapeDomain \
+	accessDomain containDomain myLiveness shapeDomain stackDomain \
 	hash progress myCFG analyses libraryFunctions global cache \
 	solver sharirPnueli effectWCon effectWNCon solverConSideRR solverConSideWNRR interactive \
 	multithread compose mCP access varEq symbLocks thread threadEscape \
-	base region owner unit mutex osek osektransactionality uninit \
+	base region owner unit mutex osek osektransactionality uninit stackTrace \
 	malloc_null memLeaks contain shapes
 
 TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \

@@ -394,7 +394,7 @@ struct
 
   let rec leq = 
     let f acc x y = Base.leq x y && acc in
-      List.fold_left2 f 
+      List.fold_left2 f true
 
   let join = List.map2 Base.join
   let meet = List.map2 Base.meet
