@@ -126,7 +126,7 @@ sig
   val finalize: unit -> unit
   (** last function to be called when analyzing using this Spec *)
   
-  val context_top: Dom.t -> Dom.t
+  val context_top: varinfo -> Dom.t -> Dom.t
   (** Keeps only context sensitive part, set rest to top. *)
   val should_join: Dom.t -> Dom.t -> bool
   (** sensitivity predicate *)
@@ -256,7 +256,7 @@ struct
   (* prettier name for equation variables --- currently base can do this and
      MCP just forwards it to Base.*)
   
-  let context_top x = x
+  let context_top f x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
   
   let sync ctx     = (ctx.local,[])

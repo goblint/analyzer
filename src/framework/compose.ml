@@ -99,7 +99,7 @@ struct
   let finalize = Base.finalize
   let es_to_string f es  = Base.es_to_string f (Dom.choose es)
   let should_join _ _ = true
-  let context_top x = Dom.map Base.context_top x
+  let context_top f x = Dom.map (Base.context_top f) x
   
   let query ctx y = 
     let spawn f v d = f v (Dom.singleton d) in

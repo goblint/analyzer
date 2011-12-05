@@ -775,7 +775,7 @@ struct
     ) !analysesList
 
 
-   let context_top x = 
+   let context_top f x = 
     let disable_cfg sens el  =
       if sens then el else ((Dom.get_matches el).top ())
     in

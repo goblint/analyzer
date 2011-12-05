@@ -74,8 +74,8 @@ struct
         if !GU.full_context then
           ( diff, (MyCFG.Function fork_fun, SD.lift fork_st) :: vars)
         else
-          ( (`L ((MyCFG.FunctionEntry fork_fun, SD.lift (Spec.context_top fork_st)), SD.lift fork_st)) :: diff
-          , (MyCFG.Function fork_fun, SD.lift (Spec.context_top fork_st)) :: vars)
+          ( (`L ((MyCFG.FunctionEntry fork_fun, SD.lift (Spec.context_top fork_fun fork_st)), SD.lift fork_st)) :: diff
+          , (MyCFG.Function fork_fun, SD.lift (Spec.context_top fork_fun fork_st)) :: vars)
       in
       let diffs, spawns = List.fold_left f ([],[]) xs in
       let spawnfuns = List.map fst xs in
@@ -128,7 +128,7 @@ struct
           if !GU.full_context then
             sigma (dress (f, x)) 
           else begin
-            let ctx_st = Spec.context_top x in
+            let ctx_st = Spec.context_top f x in
             start_vals := (`L ((MyCFG.FunctionEntry f, SD.lift ctx_st), SD.lift x)) :: !start_vals ;
             sigma (dress (f, ctx_st)) 
           end
@@ -501,8 +501,8 @@ struct
     let othervars = List.map (enter_with (Spec.otherstate ())) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
     let _ = if startvars = [] then failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list." in
-    let context_fn = if !GU.full_context then fun x->x else Spec.context_top in
-    let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (context_fn (SD.unlift e))) startvars in
+    let context_fn f = if !GU.full_context then fun x->x else Spec.context_top f in
+    let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (context_fn n (SD.unlift e))) startvars in
     let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in
     let procs = 
       let f = function
