@@ -20,6 +20,31 @@ struct
   type system      = lhs -> rhs list (* a set of constraints for each variable *)
   type solution    = var_assign * glob_assign
   type solution'   = var_domain VMap.t * glob_domain GMap.t
+  
+  let garbage_collect (system:system) (vars:variable list) (sigma, theta: solution') : solution' =
+    let nsigma = VMap.create (VMap.length sigma) (VDom.bot ()) in
+    let ntheta = GMap.create (GMap.length theta) (G.Val.bot ()) in
+    let visited = VMap.create 111 false in
+    let apply_diff = function
+      | `G (var, value) -> GMap.replace ntheta var (G.Val.join value (GMap.find ntheta var))
+      | `L (var, value) -> VMap.replace nsigma var (VDom.join value (VMap.find nsigma var))      
+    in
+    let rec visit_lhs var =
+      if VMap.find visited var then () else begin
+        VMap.replace visited var true;
+        List.iter (visit_rhs var) (system var)
+      end
+    and visit_rhs var rhs = 
+      let v, d, c = rhs (get_local, GMap.find ntheta) in
+      VMap.replace nsigma var (VDom.join v (VMap.find nsigma var));
+      List.iter apply_diff d;
+      List.iter visit_lhs c
+    and get_local var =
+      visit_lhs var;
+      VMap.find nsigma var
+    in
+    List.iter visit_lhs vars;
+    (nsigma,ntheta)
 
   let verify () (system: system) (sigma,theta: solution') =
     Goblintutil.in_verifying_stage := true;
