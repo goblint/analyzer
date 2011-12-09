@@ -178,7 +178,7 @@ let main () =
     then GU.jsonFiles := fname :: !GU.jsonFiles 
     else fileNames := fname :: !fileNames
   in
-  Stats.reset Stats.HardwareIfAvail;  
+  Stats.reset Stats.SoftwareTimer;  
   CF.init();
   Arg.parse speclist recordFile usage_str;
   if !GU.allfuns || !GU.nonstatic || !GU.oil then GU.multi_threaded := true;
