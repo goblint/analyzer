@@ -1,0 +1,253 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<head>
+  <title>%filename%</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+  <style type="text/css">
+    <!--
+    html , body {
+      background-color: #FFFFFF;
+      margin: 0;
+      padding: 0;
+    }
+  
+    .mywindow 
+    {
+        border: 1px solid #C0C0C0;
+        position: fixed;
+        overflow: hidden;
+        width: auto;
+        height: auto;
+        background-color: #F0F0F0;
+        overflow: hidden;
+    }
+  
+    .mywindow_header 
+    {
+        background-color: #E0E0E0;
+        border-bottom: 1px solid #C0C0C0;
+        color: #4050A0;
+        font-family: Arial;
+        font-weight: bold;
+        font-size: 16px;
+        padding: 2px;
+    }
+  
+    .mywindow_content 
+    {
+        overflow: scroll;
+        padding: 0px;
+        width: 0px;
+        height: 0px;
+    }
+  
+    #leftWindowContent
+    {
+      background-color: #F0F0F0;
+      padding: 0px;
+      margin-right: 0px;
+      font-size: 14px;
+      font-family: Arial,Monospace;     
+    }  
+ 
+    #codeWindowContent
+    {
+      background-color: #F8F8F8;
+    }
+        
+    #codeWindowContent a 
+    {
+      text-decoration: none;
+      color: #000000;
+      font-weight: bold;
+    }
+        
+    #codeWindowContent a:hover 
+    {
+      text-decoration: underline;
+      color: #0000C0;
+    }
+        
+    #codeWindowContent pre 
+    {
+      padding: 0px;
+      margin: 0px;
+    }
+  
+    .linetype0
+    {
+      background-color: #F0F0F0;
+    }
+        
+    .linetype1
+    {
+      background-color: #F8F8F8;
+    }
+  
+    .cpp_datatype
+    {
+      color: blue;
+    }
+        
+    .cpp_keyword
+    {
+      color: blue;            
+    }
+        
+    .cpp_stringDQ
+    {
+      color: red;            
+    }
+        
+    .cpp_stringSQ
+    {
+      color: red;            
+    }
+        
+    .cpp_comment
+    {
+      color: Green;
+    }
+    -->
+  </style>
+
+  <script type="text/javascript">
+
+     var lineSelected = 0;
+
+    function resizeAll() {
+      var leftWindow = document.getElementById('leftWindow');
+      var leftWindowContent = document.getElementById('leftWindowContent');
+      var rightWindow = document.getElementById('rightWindow');
+      var rightWindowContent = document.getElementById('rightWindowContent');
+      var bottomWindow = document.getElementById('bottomWindow');
+      var bottomWindowContent = document.getElementById('bottomWindowContent');
+      var codeWindow = document.getElementById('codeWindow');
+      var codeWindowContent = document.getElementById('codeWindowContent');
+
+      rightWindow.style.display = 'none';
+
+      var codeWindowTop = 35;
+      var leftWindowWidth = 300;
+      var rightWindowWidth = 250;
+      if (rightWindow.style.display == 'none') rightWindowWidth = 0;
+      var bottomWindowHeight = 130;
+      if (bottomWindow.style.display == 'none') bottomWindowHeight = 0;
+      var bottomWindowTop = (window.innerHeight - bottomWindowHeight - 35);
+      var codeWindowHeight = bottomWindowTop - codeWindowTop - 35;
+      var codeWindowWidth = (window.innerWidth - (leftWindowWidth + rightWindowWidth + 2 + 2 + 10 + 10 + 10 + 10));
+
+      leftWindow.style.top = codeWindowTop + 'px';
+      leftWindow.style.left = '10px';
+      leftWindowContent.style.width = leftWindowWidth + 'px';
+      leftWindowContent.style.height = codeWindowHeight + 'px';
+
+      rightWindow.style.top = codeWindowTop + 'px';
+      rightWindow.style.left = (window.innerWidth - rightWindowWidth - 2 - 10) + 'px';
+      rightWindowContent.style.width = rightWindowWidth + 'px';
+      rightWindowContent.style.height = codeWindowHeight + 'px';
+
+      bottomWindow.style.top = bottomWindowTop + 'px';
+      bottomWindow.style.left = '10px';
+      bottomWindowContent.style.width = (window.innerWidth - 20) + 'px';
+      bottomWindowContent.style.height = bottomWindowHeight + 'px';
+
+      codeWindow.style.top = codeWindowTop + 'px';
+      codeWindow.style.left = (leftWindowWidth + 2 + 10 + 10) + 'px';
+      codeWindowContent.style.width = codeWindowWidth + 'px';
+      codeWindowContent.style.height = codeWindowHeight + 'px';
+    }
+
+    function onLoad() {
+      resizeAll();
+      window.onresize = resizeAll;
+      showLine(0);
+    }
+
+    function hideAllLineAnalysis() {
+      var el;
+      for (var i = 0; i <= %linecount%; i++) {
+        el = document.getElementById('analysis_line' + i);
+        if (el != null) el.style.display = 'none';
+      }
+    }
+
+    function showLine(i) {
+      hideAllLineAnalysis();
+      document.getElementById('analysis_line' + i).style.display = '';
+      if (lineSelected != 0) {
+        if ((lineSelected % 2) == 0) document.getElementById('line'+lineSelected).style.background = '#F0F0F0';
+        if ((lineSelected % 2) == 1) document.getElementById('line'+lineSelected).style.background = '#F8F8F8';
+        lineSelected = 0;
+      }
+      if (i != 0) {
+        lineSelected = i;
+        document.getElementById('line'+lineSelected).style.background = '#FFFFD8';        
+      }
+    }
+
+    function changeContentVisibility(e) {
+      if (e.parentNode.childNodes[2].style.display == 'none') {
+        e.parentNode.childNodes[2].style.display = '';
+        e.firstChild.nodeValue = '-' + e.firstChild.nodeValue.substr(1, e.firstChild.nodeValue.length);
+      }
+      else {
+        e.parentNode.childNodes[2].style.display = 'none';
+        e.firstChild.nodeValue = '+' + e.firstChild.nodeValue.substr(1, e.firstChild.nodeValue.length);
+      }
+    }
+
+    function hideWindow(windowName) {
+      document.getElementById(windowName).style.display = 'none';
+      resizeAll();
+    }
+  </script>
+</head>
+
+<body onload="onLoad();">
+
+  <div style="border-bottom: 1px solid #808080;">
+    <div style="border-bottom: 1px solid #000000; color: #5060C0; background-color: #F0F0F0; font-size: 16px; padding: 2px; font-weight: bold;">
+      Filename: %filename%
+    </div>
+   </div>
+
+   <noscript><span style="padding: 10px; font-size: 18px; border: 2px solid Red;">Javascript is <b>not</b> enabled!</noscript>
+
+  <div id="leftWindow" class="mywindow">
+    <div class="mywindow_header">Analysis</div>
+    <div id="leftWindowContent" class="mywindow_content">
+      
+      <div id="analysis_line0">
+        No line selected
+      </div>
+
+      %analysis_divs%
+
+    </div>
+  </div>
+
+  <div id="codeWindow" class="mywindow">
+    <div class="mywindow_header">Source code</div>
+    <div id="codeWindowContent" class="mywindow_content">
+      %codelines%
+      <div id="lastline" class="linetype0" style="border-top: 1px solid #C0C0C0;"><pre></pre></div>
+    </div>
+  </div>
+
+  <div id="rightWindow" class="mywindow">
+    <div class="mywindow_header">Empty <a style="text-decoration: none; color: #000080;" href="javascript:hideWindow('rightWindow');">[X]</a></div>
+    <div id="rightWindowContent" class="mywindow_content">
+      Currently no content
+    </div>
+  </div>
+
+  <div id="bottomWindow" class="mywindow">
+    <div class="mywindow_header">Empty <a style="text-decoration: none; color: #000080;" href="javascript:hideWindow('bottomWindow');">[X]</a></div>
+    <div id="bottomWindowContent" class="mywindow_content">
+      Currently no content
+    </div>
+  </div>
+
+</body>
+</html>
