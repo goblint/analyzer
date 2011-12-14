@@ -167,8 +167,8 @@ let main () =
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
 		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed program");
 		 ("--tramp", Arg.String tramp, "<file>  Resource-ID-headers for the analysed program");
-		 ("--osekisrprefix", Arg.String osekisrprefix, "Prefix added by the ISR macro");
-		 ("--osektaskprefix", Arg.String osektaskprefix, "Prefix added by the TASK macro");
+		 ("--osekisrprefix", Arg.String isrprefix, "Prefix added by the ISR macro");
+		 ("--osektaskprefix", Arg.String taskprefix, "Prefix added by the TASK macro");
                  ("--intrpts", Arg.Set GU.intrpts, " Enable constraints for interrupts.");
                  ("--timeout", Arg.Set_float max_time, " Maximal time for analysis. (0 -- no timeout)");
                  ("--solver-progress", Arg.Bool ((:=) GU.solver_progress), " <bool> Used for debugging. Prints out a symbol on solving a rhs.");

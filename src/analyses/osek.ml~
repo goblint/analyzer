@@ -56,8 +56,8 @@ struct
 (*print_string (line ^ "\n");*)
 	if Str.string_match task_re line 0 then begin
 (*print_string "task \n";*)
+          let name = Goblintutil.taskprefix ^ (Str.matched_group 2 line) in 
           let typ = (Str.matched_group 1 line) in
-          let name = if (typ = "ISR") then !Goblintutil.isrprefix ^ (Str.matched_group 2 line) else !Goblintutil.taskprefix ^ (Str.matched_group 2 line) in 
 (*  let _ = print_endline ( "Adding " ^ name) in  *)
 	  Hashtbl.add tasks name (typ,-1,[name]);
           Hashtbl.add constantlocks name (makeGlobalVar name  Cil.voidType);

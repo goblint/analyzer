@@ -117,7 +117,7 @@ struct
 let _ = print_endline ( "Looking for " ^ var) in*)
       if pry = (-1) then warn else begin
         let pryo = try Hashtbl.find offpry var  with 
-          | Not_found -> let _ = print_endline ( "Failed to find offensive priority for " ^ var ^ " using -1") in -1      
+          | Not_found -> let _ = print_endline ( "Failed to find ofensive priority for " ^ var ^ " using -1") in -1      
         in
         if pry < pryo then let _ = transactional := false in
           ("  variable " ^ var ^ " has offensive priority " ^ (string_of_int pryo))::warn 
