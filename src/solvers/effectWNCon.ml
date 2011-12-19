@@ -41,7 +41,6 @@ struct
       begin if rhsides = [] then ()
       else begin
         let constrainOneRHS old_state (f: rhs) =
-          let (nls,ngd,tc) = f (vEval (x,f), gEval (x,f)) in
           let doOneGlobalDelta = function 
             | `L (v, state) ->
               if not ( VDom.leq state (VDom.bot ()) ) then
@@ -64,7 +63,7 @@ struct
                     GMap.remove gInfl g
                   end
           in
-            List.iter doOneGlobalDelta ngd;
+			let (nls,tc) = f (vEval (x,f), gEval (x,f)) doOneGlobalDelta in
             if !GU.eclipse then show_add_work_buf (List.length tc);
             worklist := tc @ !worklist;
             VDom.join old_state nls

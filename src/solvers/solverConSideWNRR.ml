@@ -45,7 +45,6 @@ struct
       let old_state = VMap.find sigma x in
       
       let addOneRHS local_state (f: rhs) =
-        let (nls,ngd,tc) = f (vEval (x,f), gEval (x,f)) in
         let doOneGlobalDelta = function
           | `L (v, state) ->
             if not ( VDom.leq state (VDom.bot ()) ) then
@@ -70,7 +69,7 @@ struct
                   GMap.replace theta g (GDom.widen oldgstate compgs)
                 end
         in
-          List.iter doOneGlobalDelta ngd;
+          let (nls,tc) = f (vEval (x,f), gEval (x,f)) doOneGlobalDelta in
           if !GU.eclipse then show_add_work_buf (List.length tc);
           List.iter constrainOneVar tc;
           VDom.join local_state nls

@@ -12,9 +12,9 @@ struct
   type var_assign  = variable -> var_domain
   type glob_assign = global -> glob_domain
   type glob_diff   = (global * glob_domain) list
-  type diff        = [`G of (global * glob_domain) | `L of (variable * var_domain)] list
+  type effect_fun  = [`G of (global * glob_domain) | `L of (variable * var_domain)] -> unit
   type calls       = variable list (* spawned calls from thread creation *)
-  type rhs         = var_assign * glob_assign -> var_domain * diff * calls
+  type rhs         = var_assign * glob_assign -> effect_fun -> var_domain * calls
   type lhs         = variable
   type constrain   = lhs * rhs  (* constraint is an OCaml keyword *)
   type system      = lhs -> rhs list (* a set of constraints for each variable *)
@@ -35,9 +35,8 @@ struct
         List.iter (visit_rhs var) (system var)
       end
     and visit_rhs var rhs = 
-      let v, d, c = rhs (get_local, GMap.find ntheta) in
+      let v, c = rhs (get_local, GMap.find ntheta) apply_diff in
       VMap.replace nsigma var (VDom.join v (VMap.find nsigma var));
-      List.iter apply_diff d;
       List.iter visit_lhs c
     and get_local var =
       visit_lhs var;
@@ -65,7 +64,6 @@ struct
       let verify_constraint rhs =
         let sigma' x = VMap.find sigma x in
         let theta' x = GMap.find theta x in
-        let (d,gs,s) = rhs (sigma',theta') in
         (* First check that each (global) delta is included in the (global)
          * invariant. *)
         let check_glob = function
@@ -77,7 +75,7 @@ struct
             let gv' = GMap.find theta g in 
               if not (G.Val.leq gv gv') then 
                 complain_g g gv' gv  in
-        let _ = List.iter check_glob gs in
+        let (d,s) = rhs (sigma',theta') check_glob in
         (* Then we check that the local state satisfies this constraint. *)
           if not (VDom.leq d d') then
             complain_l v d' d
@@ -86,7 +84,7 @@ struct
         List.iter verify_constraint rhs
     in
       VMap.iter verify_var sigma;
-	    Goblintutil.in_verifying_stage := false
+      Goblintutil.in_verifying_stage := false
 end
 
 (* SharirPnueli algo *)

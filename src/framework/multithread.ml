@@ -61,29 +61,28 @@ struct
   let system (cfg: MyCFG.cfg) (old : Analyses.local_state list list PH.t list) old_g (old_s : (varinfo * int) list SH.t) phase (n,es: Var.t) : Solver.rhs list = 
     if M.tracing then M.trace "con" "%a\n" Var.pretty_trace (n,es);
     
-    let lift_st x forks: Solver.var_domain * Solver.diff * Solver.variable list =
-      let diff = [] in
-      let rx = x in
-        (SD.lift rx, diff, forks)
+    let lift_st x forks: Solver.var_domain * Solver.variable list =
+        (SD.lift x, forks)
     in
     
     (* this function used to take the spawned function and prepare a solver variable to it --
        now it also assures that spawning is monotone between analysis stages *)
-    let prepare_forks phase (fn,ed,tn : MyCFG.node * MyCFG.edge * MyCFG.node) (xs: (varinfo * Spec.Dom.t) list) : Solver.diff * Solver.variable list =
-      let f (diff, vars) (fork_fun, fork_st) =
+    let prepare_forks phase (effect:Solver.effect_fun)  (fn,ed,tn : MyCFG.node * MyCFG.edge * MyCFG.node) (xs: (varinfo * Spec.Dom.t) list) : Solver.variable list =
+      let f vars (fork_fun, fork_st) =
         if !GU.full_context then
-          ( diff, (MyCFG.Function fork_fun, SD.lift fork_st) :: vars)
-        else
-          ( (`L ((MyCFG.FunctionEntry fork_fun, SD.lift (Spec.context_top fork_fun fork_st)), SD.lift fork_st)) :: diff
-          , (MyCFG.Function fork_fun, SD.lift (Spec.context_top fork_fun fork_st)) :: vars)
+          (MyCFG.Function fork_fun, SD.lift fork_st) :: vars
+        else begin
+          effect (`L ((MyCFG.FunctionEntry fork_fun, SD.lift (Spec.context_top fork_fun fork_st)), SD.lift fork_st));
+          (MyCFG.Function fork_fun, SD.lift (Spec.context_top fork_fun fork_st)) :: vars
+        end
       in
-      let diffs, spawns = List.fold_left f ([],[]) xs in
+      let spawns = List.fold_left f [] xs in
       let spawnfuns = List.map fst xs in
       let old_spawns =  try SH.find old_s (fn,ed,tn) with Not_found -> [] in
       let mon_spawns = List.filter (fun (x,y) -> phase>y && not (List.exists (Basetype.Variables.equal x) spawnfuns)) old_spawns in
       let new_spawns = List.filter (fun x -> List.for_all (fun (z,_) -> not (Basetype.Variables.equal x z)) old_spawns) spawnfuns in
       SH.replace old_s (fn,ed,tn) (List.map (fun x -> (x,phase)) new_spawns@(try SH.find old_s (fn,ed,tn) with Not_found -> [])); 
-      List.fold_left f (diffs, spawns) (List.map (fun (x,_) -> (x, Spec.otherstate ())) mon_spawns)
+      List.fold_left f spawns (List.map (fun (x,_) -> (x, Spec.otherstate ())) mon_spawns)
     in
     (*
       Compiles a transfer function that handles function calls. The reason for this is
@@ -103,11 +102,10 @@ struct
       
       Also we concatenate each [forks lval f args st] for each [f]
       *)
-    let proc_call (fn,ed,tn) sigma (theta:Solver.glob_assign) lval exp args st : Solver.var_domain * Solver.diff * Solver.variable list =
+    let proc_call (fn,ed,tn) sigma (theta:Solver.glob_assign) effect lval exp args st : Solver.var_domain * Solver.variable list =
       let forks = ref [] in
-      let diffs = ref [] in
       let add_var v d = if not (List.mem v.vname !GU.mainfuns) then forks := (v,d) :: !forks in
-      let add_diff g d = diffs := (`G (g,d)) :: !diffs in 
+      let add_diff g d = effect (`G (g,d)) in 
       let getctx v= 
         try
           let oldstate = List.concat (List.map (fun m -> match PH.find m tn with [] -> raise A.Deadcode | x -> x) old) in
@@ -122,14 +120,13 @@ struct
           | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () exp)))
       in
       let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
-      let start_vals : Solver.diff ref = ref [] in
       let add_function st' f : Spec.Dom.t =
         let add_one_call x =
           if !GU.full_context then
             sigma (dress (f, x)) 
           else begin
             let ctx_st = Spec.context_top f x in
-            start_vals := (`L ((MyCFG.FunctionEntry f, SD.lift ctx_st), SD.lift x)) :: !start_vals ;
+            effect (`L ((MyCFG.FunctionEntry f, SD.lift ctx_st), SD.lift x));
             sigma (dress (f, ctx_st)) 
           end
         in
@@ -155,10 +152,10 @@ struct
       in
       try 
         let d = List.fold_left add_function (Spec.Dom.bot ()) funs in      
-        let fdiff, fvars = prepare_forks phase (fn,ed,tn) !forks in
-        (SD.lift d, fdiff @ !start_vals @ !diffs, fvars)
+        let fvars = prepare_forks phase effect (fn,ed,tn) !forks in
+        (SD.lift d, fvars)
       with 
-				Analyses.Deadcode -> (SD.bot (), !start_vals, [])
+				Analyses.Deadcode -> (SD.bot (), [])
     in
     let cfg' n = 
       match n with 
@@ -173,10 +170,10 @@ struct
     (* For each edge we generate a rhs: a function that takes current state
      * sigma and the global state theta; it outputs the new state, delta, and
      * spawned calls. *)      
-    let edge2rhs (edge, pred : MyCFG.edge * MyCFG.node) (sigma, theta: Solver.var_assign * Solver.glob_assign) : Solver.var_domain * Solver.diff * Solver.variable list = 
+    let edge2rhs (edge, pred : MyCFG.edge * MyCFG.node) (sigma, theta: Solver.var_assign * Solver.glob_assign) (effect:Solver.effect_fun)  : Solver.var_domain * Solver.variable list = 
       (* This is the key computation, only we need to set and reset current_loc,
        * see below. We call a function to avoid ;-confusion *)
-      let eval predvar : Solver.var_domain * Solver.diff * Solver.variable list = 
+      let eval predvar : Solver.var_domain * Solver.variable list = 
         (* if we use full contexts then the value at entry is the entry state -- if we do 
            not use full contexts then we hope that someting meaningful was side-effected there *)
         let predval =
@@ -186,8 +183,7 @@ struct
         in
         if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty predval)));
         (* gives add_var callback into context so that every edge can spawn threads *)
-        let diffs = ref [] in
-        let add_diff g d = diffs := (`G (g,d)) :: !diffs in 
+        let add_diff g d = effect (`G (g,d)) in 
         let getctx v y = 
           try
             let oldstate = List.concat (List.map (fun m -> match PH.find m pred with [] -> raise A.Deadcode | x -> x) old) in
@@ -199,9 +195,9 @@ struct
         let lift f pre =        
           let forks = ref [] in
           let add_var v d = forks := (v,d) :: !forks in
-          let x, y, z = lift_st (f (getctx pre add_var)) [] in
-          let y', z' = prepare_forks phase (n,edge,pred) !forks in
-          x, y @ y', z @ z'
+          let x, z = lift_st (f (getctx pre add_var)) [] in
+          let z' = prepare_forks phase effect (n,edge,pred) !forks in
+          x, z @ z'
         in
         try
           if !Messages.worldStopped then raise M.StopTheWorld else
@@ -213,7 +209,7 @@ struct
            * then feed the updated value to the transfer functions. *)
           let add_novar v d = M.bailwith "Bug: Sync should not be able to spawn threads. Ignored!" in
           let predval', diff = Spec.sync (getctx (SD.unlift predval) add_novar) in
-          let diff = List.map (fun x -> `G x) diff in
+          let _ = List.iter (fun x -> effect (`G x)) diff in
           (* For single threaded execution all global information is stored in the local state and 
              data is moved to global state if threads are spawned. In the kernel init. functions
              no threads are spawned and so the global information got lost.*)
@@ -227,7 +223,7 @@ struct
           (* Generating the constraints is quite straightforward, except maybe
            * the call case. There is an ALMOST constant lifting and unlifting to
            * handle the dead code -- maybe it could be avoided  *)
-          let l,gd,sp =
+          let l,sp =
           match edge with
             | MyCFG.Ret    (ret,fundec)    when (fundec.svar.vname = MyCFG.dummy_func.svar.vname || List.mem fundec.svar.vname !GU.mainfuns) && !GU.kernel
                                            -> lift (toplevel_kernel_return ret fundec    ) predval'
@@ -236,15 +232,15 @@ struct
             | MyCFG.SelfLoop               -> lift (fun ctx -> Spec.intrpt ctx           ) predval'
             | MyCFG.Test   (exp,tv)        -> lift (fun ctx -> Spec.branch ctx exp tv    ) predval'
             | MyCFG.Ret    (ret,fundec)    -> lift (fun ctx -> Spec.return ctx ret fundec) predval'
-            | MyCFG.Proc   (lval,exp,args) -> proc_call (n,edge,pred) sigma theta lval exp args predval'
-            | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; SD.lift predval', [], []
-            | MyCFG.Skip                   -> SD.lift predval', [], []
+            | MyCFG.Proc   (lval,exp,args) -> proc_call (n,edge,pred) sigma theta effect lval exp args predval'
+            | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; SD.lift predval', []
+            | MyCFG.Skip                   -> SD.lift predval', []
           in
-            l, gd @ diff @ !diffs, sp
+            l, sp
         with
           | M.StopTheWorld
-          | A.Deadcode  -> SD.bot (), [], []
-          | M.Bailure s -> M.warn_each s; (predval, [], [])
+          | A.Deadcode  -> SD.bot (), []
+          | M.Bailure s -> M.warn_each s; (predval, [])
           | x -> M.warn_urgent "Oh no! Something terrible just happened"; raise x
       in
       let old_loc = !GU.current_loc in
