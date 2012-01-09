@@ -61,28 +61,27 @@ struct
   let system (cfg: MyCFG.cfg) (old : Analyses.local_state list list PH.t list) old_g (old_s : (varinfo * int) list SH.t) phase (n,es: Var.t) : Solver.rhs list = 
     if M.tracing then M.trace "con" "%a\n" Var.pretty_trace (n,es);
     
-    let lift_st x forks: Solver.var_domain * Solver.variable list =
-        (SD.lift x, forks)
-    in
-    
     (* this function used to take the spawned function and prepare a solver variable to it --
        now it also assures that spawning is monotone between analysis stages *)
     let prepare_forks phase (effect:Solver.effect_fun)  (fn,ed,tn : MyCFG.node * MyCFG.edge * MyCFG.node) (xs: (varinfo * Spec.Dom.t) list) : Solver.variable list =
-      let f vars (fork_fun, fork_st) =
+      let do_one_function (fork_fun, fork_st) =
         if !GU.full_context then
-          (MyCFG.Function fork_fun, SD.lift fork_st) :: vars
+          (MyCFG.Function fork_fun, SD.lift fork_st) 
         else begin
           effect (`L ((MyCFG.FunctionEntry fork_fun, SD.lift (Spec.context_top fork_fun fork_st)), SD.lift fork_st));
-          (MyCFG.Function fork_fun, SD.lift (Spec.context_top fork_fun fork_st)) :: vars
+          (MyCFG.Function fork_fun, SD.lift (Spec.context_top fork_fun fork_st)) 
         end
       in
-      let spawns = List.fold_left f [] xs in
-      let spawnfuns = List.map fst xs in
-      let old_spawns =  try SH.find old_s (fn,ed,tn) with Not_found -> [] in
-      let mon_spawns = List.filter (fun (x,y) -> phase>y && not (List.exists (Basetype.Variables.equal x) spawnfuns)) old_spawns in
-      let new_spawns = List.filter (fun x -> List.for_all (fun (z,_) -> not (Basetype.Variables.equal x z)) old_spawns) spawnfuns in
-      SH.replace old_s (fn,ed,tn) (List.map (fun x -> (x,phase)) new_spawns@(try SH.find old_s (fn,ed,tn) with Not_found -> [])); 
-      List.fold_left f spawns (List.map (fun (x,_) -> (x, Spec.otherstate ())) mon_spawns)
+      let spawns = List.map do_one_function xs in
+      (* if no phases, do not try to monotonize them *)
+      if phase = 0 then spawns else begin 
+        let spawnfuns = List.map fst xs in
+        let old_spawns =  try SH.find old_s (fn,ed,tn) with Not_found -> [] in
+        let mon_spawns = List.filter (fun (x,y) -> phase>y && not (List.exists (Basetype.Variables.equal x) spawnfuns)) old_spawns in
+        let new_spawns = List.filter (fun x -> List.for_all (fun (z,_) -> not (Basetype.Variables.equal x z)) old_spawns) spawnfuns in
+        SH.replace old_s (fn,ed,tn) (List.map (fun x -> (x,phase)) new_spawns@(try SH.find old_s (fn,ed,tn) with Not_found -> [])); 
+        spawns @ List.map do_one_function (List.map (fun (x,_) -> (x, Spec.otherstate ())) mon_spawns)
+      end
     in
     (*
       Compiles a transfer function that handles function calls. The reason for this is
@@ -195,9 +194,9 @@ struct
         let lift f pre =        
           let forks = ref [] in
           let add_var v d = forks := (v,d) :: !forks in
-          let x, z = lift_st (f (getctx pre add_var)) [] in
-          let z' = prepare_forks phase effect (n,edge,pred) !forks in
-          x, z @ z'
+          let x = SD.lift (f (getctx pre add_var)) in
+          let z = prepare_forks phase effect (n,edge,pred) !forks in
+          x, z
         in
         try
           if !Messages.worldStopped then raise M.StopTheWorld else
@@ -244,10 +243,19 @@ struct
           | x -> M.warn_urgent "Oh no! Something terrible just happened"; raise x
       in
       let old_loc = !GU.current_loc in
-      let _   = GU.current_loc := MyCFG.getLoc pred in
-      let ans = eval (pred, es) in 
+      let _   = GU.current_loc := if !GU.forward || !GU.sharir_pnueli then MyCFG.getLoc n else MyCFG.getLoc pred in
+      let d, vars = 
+        (** calculate the "next" value given the var to the "current" value *)
+        if !GU.forward 
+        then eval (n, es) 
+        else eval (pred, es) 
+      in 
       let _   = GU.current_loc := old_loc in 
-        ans
+        if !GU.forward then begin
+          (** side-effect the "next" value *)
+          effect (`L ((pred, es), d));
+          SD.bot (), vars
+        end else (d, vars)
     in
       (* and we generate a list of rh-sides *)
       List.map edge2rhs edges
@@ -500,6 +508,7 @@ struct
     let context_fn f = if !GU.full_context then fun x->x else Spec.context_top f in
     let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (context_fn n (SD.unlift e))) startvars in
     let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in
+    let startvars'' = if !GU.forward then [] else startvars' in
     let procs = 
       let f = function
         | ((MyCFG.FunctionEntry n, e), d) -> (n,e,d)
@@ -511,7 +520,7 @@ struct
       let solve () =
         if !Goblintutil.sharir_pnueli 
         then sp_to_solver_result (applySP cfg old old_g old_s phase (procs entrystates))
-        else Solver.solve () (system cfg old old_g old_s phase) startvars' entrystates
+        else Solver.solve () (system cfg old old_g old_s phase) startvars'' entrystates
       in
       if !GU.verbose then print_endline ("Analyzing phase "^string_of_int phase^"!");
       Stats.time "solver" solve () in
@@ -580,7 +589,7 @@ struct
     (* get the control flow graph *)
     let cfg = 
       if !GU.verbose then print_endline "Generating constraints."; 
-      MyCFG.getCFG file (not !Goblintutil.sharir_pnueli) 
+      MyCFG.getCFG file (not (!Goblintutil.sharir_pnueli || !Goblintutil.forward)) 
     in
     let oldsol = ref [] in (* list of solutions from previous phases *)
     let precmp = ref [] in (* same as oldsol but without contexts  *)

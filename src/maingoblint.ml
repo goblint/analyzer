@@ -173,6 +173,7 @@ let main () =
                  ("--timeout", Arg.Set_float max_time, " Maximal time for analysis. (0 -- no timeout)");
                  ("--solver-progress", Arg.Bool ((:=) GU.solver_progress), " <bool> Used for debugging. Prints out a symbol on solving a rhs.");
                  ("--sharirpnueli", Arg.Set GU.sharir_pnueli, " Solve using the Sharir-Pnueli algorithm.");
+                 ("--forward", Arg.Set GU.forward, " Use implicit forward propagation instead of the demand driven approatch.");
                  ("--full-context", Arg.Set GU.full_context, " Do not side-effect function entries.");
                  ("--debug-sockets", Arg.Tuple [Arg.Set_int GU.command_port;Arg.Int GU.open_sockets], "<port> <port> Eclipse debuger plugin support.");
                  ] in

@@ -185,6 +185,9 @@ let full_context = ref false
 (** use the Sharir-Pnueli algorithm *)
 let sharir_pnueli = ref false
 
+(** forward propagation *)
+let forward = ref false
+
 (** singleton types *)
 let singles = ref []
 

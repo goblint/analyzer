@@ -114,6 +114,10 @@ struct
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
+  let equal x y = 
+       cardinal x = cardinal y 
+    && for_all (fun e -> exists (Base.equal e) y) x
+
   let isSimple x = 
     (List.length (elements x)) < 3
 
@@ -199,6 +203,11 @@ struct
   type elt = Base.t
 
   let name () = "Topped " ^ S.name ()
+  let equal x y =
+    match x, y with
+    | All, All -> true
+    | Set x, Set y -> S.equal x y
+    | _ -> false
   let empty () = Set (S.empty ())
   let is_empty x = 
     match x with

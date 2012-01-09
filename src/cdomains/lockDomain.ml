@@ -44,6 +44,7 @@ struct
     let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
     let toXML m = toXML_f short m
     let pretty_f sf () x = text (sf max_int x)
+    let pretty = pretty_f short
   end
 
   module ReverseAddrSet = SetDomain.ToppedSet (Lock) 

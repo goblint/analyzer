@@ -44,6 +44,9 @@ struct
           let doOneGlobalDelta = function 
             | `L (v, state) ->
               if not ( VDom.leq state (VDom.bot ()) ) then
+                (* If a variable has become live we must solve it "manually" 
+                   because there are no dependecies to it yet. *)
+                begin if not (VMap.mem sigma v) then constrainOneVar v end;
                 let oldstate = VMap.find sigma v in
                 let compls = VDom.join oldstate state in
                   if not (VDom.leq compls oldstate) then begin
@@ -130,7 +133,13 @@ struct
     in
       GU.may_narrow := true;
       if !GU.eclipse then show_subtask "Constant Propagation" 0;  
-      List.iter (fun (v,d) -> VMap.add sigma v d) start ;
+      let add_start (v,d) = 
+        VMap.add sigma v d;
+        let edges = system v in
+        VMap.add todo v edges;
+        worklist := v :: !worklist
+      in
+      List.iter add_start start ;
       while !worklist != [] do
         if !GU.eclipse then show_add_work_buf (List.length !worklist);
         let wl = !worklist in worklist := [];

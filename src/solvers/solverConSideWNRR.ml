@@ -48,6 +48,9 @@ struct
         let doOneGlobalDelta = function
           | `L (v, state) ->
             if not ( VDom.leq state (VDom.bot ()) ) then
+              (* If a variable has become live we must solve it "manually" 
+                 because there are no dependecies to it yet. *)
+              begin if not (VMap.mem sigma v) then constrainOneVar v end;
               let oldstate = VMap.find sigma v in
               let compls = VDom.join oldstate state in
                 if not (VDom.leq compls oldstate) then begin
@@ -123,7 +126,12 @@ struct
     GU.may_narrow := true; 
 
     if !GU.eclipse then show_subtask "Widening Phase" 0;  
-    List.iter (fun (v,d) -> VMap.add sigma v d) start ;
+    let add_start (v,d) = 
+      VMap.add sigma v d;
+      VMap.add todo v (system v);
+      worklist := v :: !worklist
+    in
+    List.iter add_start start ;
     while !globals_changed do
       globals_changed := false;
       
