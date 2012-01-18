@@ -8,3 +8,7 @@ goblint
 goblint.json
 src/version.ml
 src/config.ml
+
+.DS_Store
+
+.tm_properties

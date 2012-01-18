@@ -117,7 +117,7 @@ struct
   let equal x y = 
        cardinal x = cardinal y 
     && for_all (fun e -> exists (Base.equal e) y) x
-
+    
   let isSimple x = 
     (List.length (elements x)) < 3
 

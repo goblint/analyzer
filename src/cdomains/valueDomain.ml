@@ -269,12 +269,12 @@ struct
 
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset f (x: t) (offs:offs): t =
+    match x with 
+      | `Blob c -> eval_offset f c offs
+      | `Bot -> `Bot
+      | _ ->
     match offs with
-      | `NoOffset -> begin 
-          match x with
-            | `Blob x -> x
-            | _ -> x
-        end
+      | `NoOffset -> x
       | `Field (fld, offs) when fld.fcomp.cstruct -> begin
           match x with 
             | `List ls when fld.fname = "next" || fld.fname = "prev" ->
@@ -303,67 +303,74 @@ struct
       | `Index (idx, offs) -> begin
           match x with 
             | `Array x -> eval_offset f (CArrays.get x idx) offs
+            | `Address _ ->  eval_offset f x offs (* this used to be `blob `address -> we ignore the index *)
             | x when ID.to_int idx = Some 0L -> eval_offset f x offs
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn ("Trying to read an index, but was not given an array"); top ()
+            | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
 
   let rec update_offset (x:t) (offs:offs) (value:t): t =
-    match offs with
-      | `NoOffset -> begin
-          match x, value with
-            | `Blob x, `Blob y -> `Blob (join x y)
-            | `Blob x, y -> `Blob (join x y)
-            | _ -> value
-        end
-      | `Field (fld, offs) when fld.fcomp.cstruct -> begin
-          match x with 
-            | `Struct str -> `Struct (Structs.replace str fld (update_offset (Structs.get str fld) offs value))
-            | `Blob b when is_bot b -> 
-                let rec init_comp compinfo = 
-                  let nstruct = Structs.top () in
-                  let init_field nstruct fd = Structs.replace nstruct fd `Bot in
-                  List.fold_left init_field nstruct compinfo.Cil.cfields 
-                in
-                let strc = init_comp fld.fcomp in
-                `Blob (`Struct (Structs.replace strc fld (update_offset `Bot offs value)))            
-            | `Blob (`Struct str) -> 
-                let old = Structs.get str fld in
-                `Blob (`Struct (Structs.replace str fld (join old (update_offset old offs value))))
-            | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
-            | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
-        end
-      | `Field (fld, offs) -> begin
-          match x with 
-            | `Union (last_fld, prev_val) -> 
-                let tempval, tempoffs = 
-                  if UnionDomain.Field.equal last_fld (`Lifted fld) then 
-                    prev_val, offs
-                  else begin
-                    match offs with
-                      | `Field (fld, _) when fld.fcomp.cstruct -> 
-                          `Struct (Structs.top ()), offs
-                      | `Field (fld, _) -> `Union (Unions.top ()), offs
-                      | `NoOffset -> top (), offs
-                      | `Index (idx, _) when ID.equal idx (ID.of_int 0L) -> 
-                          (* Why does cil index unions? We'll just pick the first field. *)
-                          top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset) 
-                      | _ -> M.warn_each "Why are you indexing on a union? Normal people give a field name."; top (), offs
-                  end
-                in
-                  `Union (`Lifted fld, update_offset tempval tempoffs value)
-            | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
-            | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
-        end
-      | `Index (idx, offs) -> begin
-          match x with 
-            | `Array x' ->
-                let nval = update_offset (CArrays.get x' idx) offs value in
-                  `Array (CArrays.set x' idx nval)
-            | x when ID.to_int idx = Some 0L -> update_offset x offs value
-            | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
-            | _ -> M.warn_each "Trying to update an index, but was not given an array"; top ()
-        end
+    let mu = function `Blob (`Blob y) -> `Blob y | x -> x in
+    match x with
+      | `Blob x -> mu (`Blob (join x (update_offset x offs value)))
+      | _ -> 
+    let result =   
+      match offs with
+        | `NoOffset -> begin
+            match value with
+              | `Blob y -> `Blob (join x y)
+              | _ -> value
+          end
+        | `Field (fld, offs) when fld.fcomp.cstruct -> begin
+            match x with 
+              | `Struct str -> `Struct (Structs.replace str fld (update_offset (Structs.get str fld) offs value))
+              | `Bot -> 
+                  let rec init_comp compinfo = 
+                    let nstruct = Structs.top () in
+                    let init_field nstruct fd = Structs.replace nstruct fd `Bot in
+                    List.fold_left init_field nstruct compinfo.Cil.cfields 
+                  in
+                  let strc = init_comp fld.fcomp in
+                  `Struct (Structs.replace strc fld (update_offset `Bot offs value))        
+              | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
+              | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
+          end
+        | `Field (fld, offs) -> begin
+            match x with 
+              | `Union (last_fld, prev_val) -> 
+                  let tempval, tempoffs = 
+                    if UnionDomain.Field.equal last_fld (`Lifted fld) then 
+                      prev_val, offs
+                    else begin
+                      match offs with
+                        | `Field (fld, _) when fld.fcomp.cstruct -> 
+                            `Struct (Structs.top ()), offs
+                        | `Field (fld, _) -> `Union (Unions.top ()), offs
+                        | `NoOffset -> top (), offs
+                        | `Index (idx, _) when ID.equal idx (ID.of_int 0L) -> 
+                            (* Why does cil index unions? We'll just pick the first field. *)
+                            top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset) 
+                        | _ -> M.warn_each "Why are you indexing on a union? Normal people give a field name."; 
+                               top (), offs
+                    end
+                  in
+                    `Union (`Lifted fld, update_offset tempval tempoffs value)
+              | `Bot -> `Union (`Lifted fld, update_offset `Bot offs value)
+              | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
+              | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
+          end
+        | `Index (idx, offs) -> begin
+            match x with 
+              | `Array x' ->
+                  let nval = update_offset (CArrays.get x' idx) offs value in
+                    `Array (CArrays.set x' idx nval)
+              | x when ID.to_int idx = Some 0L -> update_offset x offs value
+              | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value))
+              | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
+              | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
+          end
+      in mu result
+        
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t = 

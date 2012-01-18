@@ -224,12 +224,15 @@ module Normal (Idx: Printable.S) =
 struct
   type field = fieldinfo
   type idx = Idx.t
-  type t = Addr of (varinfo * (field, idx) offs) | NullPtr | StrPtr | Top | Bot
+  type t = Addr of (varinfo * (field, idx) offs) | NullPtr | StrPtr | UnknownPtr | Top | Bot
   include Printable.Std
   let name () = "Normal Lvals"
   
   let null_ptr () = NullPtr
   let str_ptr () = StrPtr
+  let unknown_ptr () = UnknownPtr
+  let is_unknown = function UnknownPtr -> true | _ -> false
+  
   let is_null a =
     match a with 
       | NullPtr -> true
@@ -295,7 +298,7 @@ struct
       | StrPtr  -> charPtrType
       | NullPtr -> voidType
       | Bot     -> voidType
-      | Top     -> voidPtrType
+      | Top | UnknownPtr -> voidPtrType
 
   let copy x = x
   let isSimple _  = true
@@ -311,11 +314,12 @@ struct
 
   let short _ x = 
     match x with 
-      | Addr x  -> short_addr x
-      | StrPtr  -> "STRING"
-      | NullPtr -> "NULL"
-      | Bot     -> "bot"
-      | Top     -> "top"
+      | Addr x     -> short_addr x
+      | UnknownPtr -> "?"
+      | StrPtr     -> "STRING"
+      | NullPtr    -> "NULL"
+      | Bot        -> "bot"
+      | Top        -> "top"
 
   let toXML_f_addr sf (x,y) = 
     let esc = Goblintutil.escape in
@@ -344,6 +348,7 @@ struct
       | Addr (v,o) -> Lval (Var v, to_cil o)
       | StrPtr -> mkString "a string"
       | NullPtr -> integer 0
+      | UnknownPtr 
       | Top     -> raise Lattice.TopValue 
       | Bot     -> raise Lattice.BotValue 
   let add_offset x o = 
@@ -384,12 +389,13 @@ struct
         | _                          -> false
     in
     match x, y with 
-      | _      , Top           -> true
-      | Top    , _             -> false
-      | Bot    , _             -> true
-      | _      , Bot           -> false
-      | NullPtr, NullPtr       -> true
-      | StrPtr , StrPtr        -> true
+      | _         , Top           -> true
+      | Top       , _             -> false
+      | Bot       , _             -> true
+      | _         , Bot           -> false
+      | UnknownPtr, UnknownPtr    -> true 
+      | NullPtr   , NullPtr       -> true
+      | StrPtr    , StrPtr        -> true
       | Addr (x,o), Addr (y,u) when x.vid = y.vid -> leq_offs o u
       | _                      -> false
       
@@ -405,6 +411,7 @@ struct
       | _         , Top     -> Top
       | Bot       , y       -> y
       | x         , Bot     -> x
+      | UnknownPtr, UnknownPtr -> UnknownPtr
       | NullPtr   , NullPtr -> NullPtr
       | StrPtr    , StrPtr  -> StrPtr
       | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x,join_offs o u)
@@ -418,12 +425,13 @@ struct
       | _ -> `NoOffset
     in
     match x, y with
-      | Bot       , _       -> Bot
-      | _         , Bot     -> Bot
-      | Top       , y       -> y
-      | x         , Top     -> x
-      | NullPtr   , NullPtr -> NullPtr
-      | StrPtr    , StrPtr  -> StrPtr
+      | Bot       , _          -> Bot
+      | _         , Bot        -> Bot
+      | Top       , y          -> y
+      | x         , Top        -> x
+      | UnknownPtr, UnknownPtr -> UnknownPtr
+      | NullPtr   , NullPtr    -> NullPtr
+      | StrPtr    , StrPtr     -> StrPtr
       | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (y, meet_offs o u)
       | _ -> Bot
 

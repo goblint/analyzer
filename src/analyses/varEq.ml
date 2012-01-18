@@ -152,7 +152,7 @@ struct
           | Field (_,o) -> may_change_pt_offset o
       in
       let als = pt a in
-      Queries.LS.is_top als || Queries.LS.mem bl als ||
+      Queries.LS.is_top als || Queries.LS.mem (dummyFunDec.svar, `NoOffset) als || Queries.LS.mem bl als ||
       match a with
         | Cil.Const _ 
         | Cil.SizeOf _
@@ -281,7 +281,7 @@ struct
         ^ ") = "
         ^ sprint 80 (Queries.LS.pretty () als)
         ^ (if Queries.LS.is_top als || test then ": yes" else ": no"));
-*)      if (Queries.LS.is_top als) 
+*)      if (Queries.LS.is_top als) || Queries.LS.mem (dummyFunDec.svar, `NoOffset) als
       then type_may_change_apt a 
       else test ||
       match a with
@@ -302,7 +302,7 @@ struct
         | Cil.CastE (t,e) -> lval_may_change_pt e bl
     in 
     let r =
-    if Queries.LS.is_top bls
+    if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
     then ((*Messages.report "No PT-set: switching to types ";*) type_may_change_apt a )
     else Queries.LS.exists (lval_may_change_pt a) bls
     in

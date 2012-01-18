@@ -540,7 +540,8 @@ struct
         let out = M.get_out "uncalled" stdout in
         let f =
           let insrt k _ s = match k with
-            | (MyCFG.Function fn,_) -> S.add fn.vid s
+            | (MyCFG.Function fn,_) -> if not !GU.forward then S.add fn.vid s else s
+            | (MyCFG.FunctionEntry fn,_) -> if !GU.forward then S.add fn.vid s else s
             | _ -> s
           in
           (* set of ids of called functions *)

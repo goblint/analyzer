@@ -117,9 +117,12 @@ struct
             Concrete (Some (Lval lv), v, Offs.from_offset (conv_offset o), write) :: xs  
           in
           let ra = List.map add_reg regs in
-          if List.length ra = 0 
-          then Queries.LS.fold to_accs a []
-          else ra
+          if List.length ra = 0 then begin
+            if Queries.LS.mem (dummyFunDec.svar,`NoOffset) a 
+            then [Unknown (Lval lv,write)]
+                 @ Queries.LS.fold to_accs (Queries.LS.remove (dummyFunDec.svar,`NoOffset) a) []
+            else Queries.LS.fold to_accs a []
+          end else ra
       | _ ->         
           if List.length regs = 0 
           then [Unknown (Lval lv,write)]
@@ -200,7 +203,7 @@ struct
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a (Queries.MayPointTo exp) with
       | `LvalSet a when not (Queries.LS.is_top a) -> 
-          Queries.LS.fold gather_addr a []    
+          Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []    
       | _ -> []
   
   let lock rw may_fail a lv arglist ls =
@@ -406,7 +409,10 @@ struct
   let rec add_per_element_access ctx loc ust (e,rw:exp * bool) =
     let query_lv exp ci =
         match ctx.ask (Queries.MayPointTo exp), ci with
-        | `LvalSet l, _ when not (Queries.LS.is_top l) -> Queries.LS.elements l
+        | `LvalSet l, _ when not (Queries.LS.is_top l || Queries.LS.mem (dummyFunDec.svar, `NoOffset) l) -> 
+            Queries.LS.elements l
+        | `LvalSet l, Some ci when not (Queries.LS.is_top l) -> 
+            type_inv ci @ Queries.LS.elements (Queries.LS.remove (dummyFunDec.svar, `NoOffset) l)
         | `Top, Some ci
         | `LvalSet _, Some ci-> type_inv ci
         | _ ->  unknown_access (); []
