@@ -1,13 +1,6 @@
 #!/usr/bin/ruby
 require 'fileutils' 
 
-$analyses = [
-  ["default",   ""],
-  ["region",    "--with region"],
-  ["shape",     "--with shape"],
-]
-maxlen = $analyses.map { |x| x[0].length }.max + 1
-
 goblint = File.join(Dir.getwd,"goblint")
 fail "Please run script from goblint dir!" unless File.exist?(goblint)
 revshort = `git describe --tags --long`[/.*-\d+/]
@@ -141,12 +134,10 @@ end
 #processing the input file
 
 skipgrp = []
-file = if FileTest.exists? "tests/mybench.txt"
-         "tests/mybench.txt"
-       else
-         "tests/bench.txt"
-       end
+file = "tests/bench.txt"
+File.symlink("benches/dd.txt",file) unless FileTest.exists? file
 
+$analyses = []
 File.open(file, "r") do |f|
   id = 0
   while line = f.gets
@@ -154,22 +145,25 @@ File.open(file, "r") do |f|
     if line =~ /Group: (.*)/
       gname = $1.chomp
       skipgrp << gname if line =~ /SKIP/
-      next
+    elsif line =~ /(.*): ?(.*)/
+      $analyses << [$1,$2]
+    else
+      name = line.chomp
+      url = f.gets.chomp
+      path = File.expand_path(f.gets.chomp, bench)
+      size = `wc -l #{path}`.split[0] + " lines"
+      params = f.gets.chomp
+      params = "" if params == "-"
+      id += 1
+      p = Project.new(id,name,size,url,gname,path,params)
+      $projects << p
     end
-    name = line.chomp
-    url = f.gets.chomp
-    path = File.expand_path(f.gets.chomp, bench)
-    size = `wc -l #{path}`.split[0] + " lines"
-    params = f.gets.chomp
-    params = "" if params == "-"
-    id += 1
-    p = Project.new(id,name,size,url,gname,path,params)
-    $projects << p
   end
 end
 
 #analysing the files
 gname = ""
+maxlen = $analyses.map { |x| x[0].length }.max + 1
 $projects.each do |p|
   next if skipgrp.member? p.group
   next unless thegroup.nil? or p.group == thegroup
