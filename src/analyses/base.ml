@@ -265,9 +265,9 @@ struct
               | MinusPI -> let n = ID.neg n in
                   `Address (AD.map (addToAddr n) p)
               | Mod -> `Int (ID.top ()) (* we assume that address is actually casted to int first*)
-              | _ -> `Address (AD.top ())
+              | _ -> `Address (AD.unknown_ptr ())
             with
-              | Top -> `Address (AD.top ())
+              | Top -> `Address (AD.unknown_ptr ())
           end
         (* If both are pointer values, we can subtract them and well, we don't
          * bother to find the result, but it's an integer. *)
@@ -402,7 +402,7 @@ struct
       (* Most casts are currently just ignored, that's probably not a good idea! *)
        | Cil.CastE  (t, exp) -> begin
            match t,eval_rv a gs st exp with
-             | Cil.TPtr (_,_), `Top -> `Address (AD.top ())
+             | Cil.TPtr (_,_), `Top -> `Address (AD.unknown_ptr ())
               | Cil.TPtr _, `Int a when Some Int64.zero = ID.to_int a -> 
                   `Address (AD.null_ptr ())
               | Cil.TInt _, `Address a when AD.equal a (AD.null_ptr()) -> 
@@ -461,7 +461,7 @@ struct
           match (eval_rv a gs st n) with 
             | `Address adr -> do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
             | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-                M.debug ("Failed evaluating "^str^" to lvalue"); do_offs (AD.top ()) ofs
+                M.debug ("Failed evaluating "^str^" to lvalue"); do_offs (AD.unknown_ptr ()) ofs
           end 
 
 
@@ -504,7 +504,7 @@ struct
       match t with
         | t when is_mutex_type t -> `Top
         | Cil.TInt _ -> `Int (ID.top ())
-        | Cil.TPtr _ -> `Address (AD.top ())
+        | Cil.TPtr _ -> `Address (AD.unknown_ptr ())
         | Cil.TComp ({Cil.cstruct=true} as ci,_) -> `Struct (init_comp ci)
         | Cil.TComp ({Cil.cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
         | Cil.TArray _ -> bot_value a gs st t
@@ -519,7 +519,7 @@ struct
     in
       match t with
         | Cil.TInt _ -> `Int (ID.top ())
-        | Cil.TPtr _ -> `Address (AD.top ())
+        | Cil.TPtr _ -> `Address (AD.unknown_ptr ())
         | Cil.TComp ({Cil.cstruct=true} as ci,_) -> `Struct (top_comp ci)
         | Cil.TComp ({Cil.cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
         | Cil.TArray _ -> `Array (ValueDomain.CArrays.top ())
@@ -549,7 +549,8 @@ struct
               | `Address n -> begin
                   if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" Cil.d_lval x AD.pretty n;
                   match eval_rv a gs st (Cil.Lval x) with
-                   | `Address a when not (AD.is_top n) -> Some (x, `Address (AD.diff a n))
+                   | `Address a when not (AD.is_top n) && not (AD.mem (Addr.unknown_ptr ()) n) -> 
+                       Some (x, `Address (AD.diff a n))
                    | _ -> None
                 end
               | _ -> 
@@ -626,6 +627,14 @@ struct
           | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast approprietly) *)
           | `Top -> false
       in
+      let apply_invariant oldv newv =
+        match oldv, newv with
+          | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n ->
+              `Address (AD.join o n)
+          | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o -> `Address n
+          | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) n -> `Address o
+          | _ -> VD.meet oldv newv
+      in      
         match derived_invariant exp tv with
           | Some (lval, value) -> 
               if M.tracing then M.traceu "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
@@ -634,7 +643,7 @@ struct
                          st
                        else
                          let oldval = get a gs st addr in
-                         let new_val = VD.meet oldval value in
+                         let new_val = apply_invariant oldval value in
                 (* make that address meet the invariant, i.e exclusion sets
                  * will be joined *)
                            if is_some_bot new_val 
@@ -680,7 +689,7 @@ struct
       let not_local x = 
         match Addr.to_var_may x with
           | [x] -> is_global ctx.ask x 
-          | _ -> Addr.is_top x
+          | _ -> Addr.is_top x || Addr.is_unknown x 
       in
       AD.is_top xs || AD.exists not_local xs
     in
@@ -913,6 +922,7 @@ struct
           end
       | Q.MayPointTo e -> begin
           match eval_rv ctx.ask ctx.global ctx.local e with 
+            | `Address a when AD.mem (Addr.unknown_ptr ()) a -> `LvalSet (Q.LS.top ())
             | `Address a -> `LvalSet (addrToLvalSet a)
             | _ -> `Top
           end
@@ -920,7 +930,7 @@ struct
           match eval_rv ctx.ask ctx.global ctx.local e with
             | `Top -> `Top
             | `Bot -> `Bot
-            | `Address a when AD.is_top a -> 
+            | `Address a when AD.is_top a || AD.mem (Addr.unknown_ptr ()) a -> 
                 `LvalSet (Q.LS.top ())   
             | `Address a ->
                 let xs = List.map addrToLvalSet (reachable_vars ctx.ask [a] ctx.global ctx.local) in 
@@ -1134,9 +1144,9 @@ struct
                   else a
                 in
                 let addrs = CPA.fold st_expr cpa (lv_list @ args) in
-                let (cpa,fl as st) = invalidate ctx.ask gs st addrs in
                 (* This rest here is just to see of something got spawned. *)
                 let flist = collect_funargs ctx.ask gs st args in
+                let (cpa,fl as st) = invalidate ctx.ask gs st addrs in
                 let f addr acc = 
                   try 
                     let var = List.hd (AD.to_var_may addr) in
