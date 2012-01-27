@@ -902,7 +902,12 @@ struct
         
   let eval_funvar ctx fval: varinfo list =
     try 
-      AD.to_var_may (eval_fv ctx.ask ctx.global ctx.local fval)
+    let fp = eval_fv ctx.ask ctx.global ctx.local fval in
+      if AD.mem (Addr.unknown_ptr ()) fp then begin
+        M.warn ("Function pointer " ^ Pretty.sprint 100 (d_exp () fval) ^ " may contain unknown functions.");
+        dummyFunDec.svar :: AD.to_var_may fp
+      end else 
+        AD.to_var_may fp
     with SetDomain.Unsupported _ -> 
       M.warn ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
       [dummyFunDec.svar]
