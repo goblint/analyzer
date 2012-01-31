@@ -237,13 +237,13 @@ let main () =
   (* we use CIL to merge all inputs to ONE file *)
   let merged_AST = 
     match files_AST with
-      | [one] -> one
+      | [one] -> CF.callConstructors one
       | [] -> 
           prerr_endline "No arguments for Goblint?"; 
           prerr_endline usage_str; 	  
           prerr_endline "Try `goblint --help' for more information."; 
           exit 2
-      | xs -> CF.getMergedAST xs 
+      | xs -> CF.callConstructors (CF.getMergedAST xs) 
   in
     (* using CIL's partial evaluation and constant folding! *)
     if !dopartial then CF.partial merged_AST;

@@ -77,11 +77,47 @@ let getAST fileName =
     (*  simplify fileAST;*)
     fileAST
 
+    (* a visitor that puts calls to constructors at the starting points to main *)
+class addConstructors cons = object
+  inherit nopCilVisitor 
+  val mutable cons1 = cons
+  method vfunc fd =
+    if List.mem fd.svar.vname !GU.mainfuns then begin
+      let loc = try get_stmtLoc (List.hd fd.sbody.bstmts).skind with Failure _ -> locUnknown in
+      let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc)]) in
+      let call_cons = List.map f cons1 in
+      let body = mkBlock (call_cons @ fd.sbody.bstmts) in
+      fd.sbody <- body;
+      ChangeTo fd
+    end else SkipChildren
+      
+  method vstmt _ = SkipChildren
+  method vvdec _ = SkipChildren
+  method vexpr _ = SkipChildren
+  method vlval _ = SkipChildren
+  method vtype _ = SkipChildren
+end 
+    
 let getMergedAST fileASTs = 
   let merged = Mergecil.merge fileASTs "stdout" in
-    if !E.hadErrors then
-      E.s (E.error "There were errors during merging\n");
-    merged
+  if !E.hadErrors then
+    E.s (E.error "There were errors during merging\n");
+  merged
+
+  (* call constructors at start of main functions *)
+let callConstructors ast =
+  let constructors =
+    let cons = ref [] in
+    iterGlobals ast (fun glob ->
+      match glob with 
+        | GFun({svar={vattr=attr}} as def, _) when hasAttribute "constructor" attr -> 
+            cons := def::!cons
+        | _ -> ()
+      );
+      !cons
+  in
+    visitCilFileSameGlobals (new addConstructors constructors) ast;
+    ast
 
 exception Found of fundec
 let getFun fun_name = 
