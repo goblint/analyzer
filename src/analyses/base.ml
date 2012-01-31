@@ -137,9 +137,14 @@ struct
          * the state when following conditional guards. *)
         if not effect then nst
         else begin
-         (* Here, an effect should be generated, but we add it to the local
-          * state, waiting for the sync function to publish it. *)
-         CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst
+          let get x st = 
+            match CPA.find x st with
+              | `Bot -> (if M.tracing then M.tracec "set" "Reading from global invariant.\n"; gs x)
+              | x -> (if M.tracing then M.tracec "set" "Reading from privatized version.\n"; x)
+          in
+          (* Here, an effect should be generated, but we add it to the local
+           * state, waiting for the sync function to publish it. *)
+          CPA.add x (VD.update_offset (get x nst) offs value) nst
         end 
       else
        (* Normal update of the local state *)
