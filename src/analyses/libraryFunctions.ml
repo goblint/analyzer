@@ -322,7 +322,7 @@ let invalidate_actions = [
   ("accept", writesAll); (*keep [1]*)
   ("getpeername", writes [1]); (*keep [1]*)
   ("times", writesAll); (*unsafe*)
-  ("fgets", writes [3]); (*keep [3]*)
+  ("fgets", writes [1;3]); (*keep [3]*)
   ("strtoul", readsAll); (*safe*)
   ("__tolower", readsAll); (*safe*)
   ("signal", writesAll); (*unsafe*)
