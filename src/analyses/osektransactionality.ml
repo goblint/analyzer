@@ -113,12 +113,19 @@ struct
 
   let report_trans fname (vars,(pryd,_,_,_)) =
     let helper pry var warn = 
-(*let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in
-let _ = print_endline ( "Looking for " ^ var) in*)
-      if pry = (-1) then warn else begin
+(* let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in *)
+(* let _ = print_endline ( "Looking for " ^ var) in *)
+      if pry = (-1) then begin
+(* let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in *)
+(* let _ = print_endline ( "Looking for (pry -1) " ^ var) in *)
+	  warn
+      end else begin
+(* let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in *)
+(* let _ = print_endline ( "Looking for " ^ var) in *)
         let pryo = try Hashtbl.find offpry var  with 
-          | Not_found -> let _ = print_endline ( "Failed to find offensive priority for " ^ var ^ " using -1") in -1      
+          | Not_found -> let _ = print_endline ( "Failed to find offensive priority for " ^ var ^ " using -1") in -1  
         in
+(* let _ = if (pryo > -1) then print_endline ( "Offensive priority for " ^ var ^ ": " ^ (string_of_int pryo)) in *)
         if pry < pryo then let _ = transactional := false in
           ("  variable " ^ var ^ " has offensive priority " ^ (string_of_int pryo))::warn 
         else warn

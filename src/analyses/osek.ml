@@ -24,6 +24,20 @@ struct
   (*brutal hack*)
   let is_task = Cilfacade.is_task
  
+let trim str =   if str = "" then "" else   let search_pos init p next =
+    let rec search i =
+      if p i then raise(Failure "empty") else
+      match str.[i] with
+      | ' ' | '\n' | '\r' | '\t' -> search (next i)
+      | _ -> i
+    in
+    search init   in   let len = String.length str in   try
+    let left = search_pos 0 (fun i -> i >= len) (succ)
+    and right = search_pos (len - 1) (fun i -> i < 0) (pred)
+    in
+    String.sub str left (right - left + 1)   with   | Failure "empty" -> "" ;;
+
+
 
   module MyParam = 
   struct
@@ -47,15 +61,15 @@ struct
 
   let parse_oil () = (* requires PRIORITY tag to occur before RESOURCE tag in task definitions. does not take "default" into account *)
     let input = open_in !oilFile in
-    let task_re = Str.regexp " *\\(TASK\\|ISR\\) *\\([a-zA-Z][a-zA-Z0-9_]*\\) *" in
-    let pry_re = Str.regexp " *PRIORITY *= *\\([1-9][0-9]*\\) *" in
-    let res_re = Str.regexp " *RESOURCE *= *\\([a-zA-Z][a-zA-Z0-9_]*\\) *" in
+    let task_re = Str.regexp "\\(TASK\\|ISR\\) *\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
+    let pry_re = Str.regexp "PRIORITY *= *\\([1-9][0-9]*\\)" in
+    let res_re = Str.regexp "RESOURCE *= *\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
     let flag = ref "" in
     let rec read_info () = try
-      let line = input_line input in
-(*print_string (line ^ "\n");*)
+      let line = trim (input_line input) in
+(* print_string (line ^ "---line \n"); *)
 	if Str.string_match task_re line 0 then begin
-(*print_string "task \n";*)
+(* print_string "task \n"; *)
           let typ = (Str.matched_group 1 line) in
           let name = if (typ = "ISR") then !Goblintutil.isrprefix ^ (Str.matched_group 2 line) else !Goblintutil.taskprefix ^ (Str.matched_group 2 line) in 
 (*  let _ = print_endline ( "Adding " ^ name) in  *)
@@ -67,7 +81,7 @@ struct
 	end;
 	if Str.string_match pry_re line 0 then begin
 	  if (not (!flag="")) then begin
-(*print_string "pry \n";*)
+(* print_string "pry \n"; *)
 	      Hashtbl.replace tasks !flag ((fun (x,_,z) y -> (x,y,z)) (Hashtbl.find tasks !flag) (int_of_string(Str.matched_group 1 line)));
               let typ = (Str.matched_group 1 line) in 
               if typ = "ISR" then irpts := (function ((a,b)::xs) -> (a,int_of_string(Str.matched_group 1 line))::xs | [] -> failwith "Impossible!") !irpts;
@@ -75,7 +89,7 @@ struct
 	end;
 	if Str.string_match res_re line 0 then begin
 	  let res_name = Str.matched_group 1 line in
-(*print_string "res \n";*)
+(* print_string "res \n"; *)
 	  if (not (!flag="")) then begin
 	    Hashtbl.replace tasks !flag ((fun (x,y,zs) z -> (x,y,z::zs)) (Hashtbl.find tasks !flag) res_name);
 	  end;
@@ -133,6 +147,14 @@ struct
     (M.intrpt ctx)
 
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
+    let access_one_top = Mutex.Spec.access_one_top in
+    let b1 = access_one_top ctx.ask true (Lval lval) in 
+    let b2 = access_one_top ctx.ask false rval in
+    let helper x = match x with
+(*         Mutex.Spec.Concrete (_, vinfo, _, _) -> if vinfo.vglob then if !Mutex.GU.global_initialization then print_endline("Init") else print_endline ( "seeing Var " ^ vinfo.vname) else () *)
+      | _ -> ()
+    in
+    let _ = List.map helper (b1@b2) in
     (M.assign ctx lval rval)
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
@@ -140,14 +162,14 @@ struct
   
   let body ctx (f:fundec) : Dom.t = 
     let m_st = M.body ctx (f:fundec) in
-    if (is_task f.svar.vname) then
-(*let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in
-let _ = print_endline ( "Looking for " ^ f.svar.vname) in*)
+    if (is_task f.svar.vname) then begin
+(* print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file); *)
+(* print_endline ( "Looking for " ^ f.svar.vname); *)
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
       match M.special_fn (swap_st ctx m_st) None (dummy_get f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
-    else 
+    end else 
       m_st
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t =

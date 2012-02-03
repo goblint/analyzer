@@ -1,6 +1,6 @@
-// PARAM: --oil 02-example.oil --tramp 02-defaultAppWorkstation/tpl_os_generated_configuration.h
+// PARAM: --oil 02-example.oil --tramp 02-example-tramp.h
 
-// #include "02-defaultAppWorkstation/tpl_os_generated_configuration.h"
+// #include "02-example-tramp.h"
 
 
 int x;
