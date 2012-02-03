@@ -308,6 +308,7 @@ type result_style =
   | Indented (** Output indented XML *)
   | Compact (** Output compact XML, for Eclipse plugin *)
   | Pretty (** Pretty-printed text outpu *)
+  | Html (** HTML output *)
 
 (** The specified result style *)
 let result_style = ref NoOutput

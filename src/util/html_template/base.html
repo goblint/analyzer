@@ -93,6 +93,11 @@
     {
       color: blue;            
     }
+
+    .cpp_preprocessor
+    {
+      color: purple;            
+    }
         
     .cpp_stringDQ
     {
@@ -108,12 +113,70 @@
     {
       color: Green;
     }
+
+    .cpp_function
+    {
+    }
+
+    .cpp_function a
+    {
+      color: Green;
+      text-decoration: none;
+      font-weight: normal;
+    }
     -->
   </style>
 
   <script type="text/javascript">
 
-     var lineSelected = 0;
+    var loadedPage = -1;
+    var requestedLine = 0;
+    var lineSelected = 0;
+    var functionSelected = 0;
+    var dynamicLoading = false;
+
+    // Try to create and initialize a HttpObject
+    var xmlHttpObject = false;
+
+    if (typeof XMLHttpRequest != 'undefined') 
+    {
+        xmlHttpObject = new XMLHttpRequest();
+    }
+    if (!xmlHttpObject) 
+    {
+        try 
+        {
+            xmlHttpObject = new ActiveXObject("Msxml2.XMLHTTP");
+        }
+        catch(e) 
+        {
+            try 
+            {
+                xmlHttpObject = new ActiveXObject("Microsoft.XMLHTTP");
+            }
+            catch(e) 
+            {
+                xmlHttpObject = null;
+            }
+        }
+    }
+
+    function htmlHandleContent()
+    {
+        if (xmlHttpObject.readyState == 4)
+        {
+            document.getElementById('dynamicanalysis').innerHTML = xmlHttpObject.responseText;
+            MakeLineVisible(requestedLine);
+         }
+    }
+
+    function htmlLoadContent(i)
+    {
+        xmlHttpObject.open('get','%shortfilename%_data/analysis'+i+'.html');
+        xmlHttpObject.onreadystatechange = htmlHandleContent;
+        xmlHttpObject.send(null);
+        return false;
+    }
 
     function resizeAll() {
       var leftWindow = document.getElementById('leftWindow');
@@ -161,19 +224,13 @@
     function onLoad() {
       resizeAll();
       window.onresize = resizeAll;
-      showLine(0);
     }
 
-    function hideAllLineAnalysis() {
+    function MakeLineVisible(i) {
       var el;
-      for (var i = 0; i <= %linecount%; i++) {
-        el = document.getElementById('analysis_line' + i);
-        if (el != null) el.style.display = 'none';
-      }
-    }
-
-    function showLine(i) {
-      hideAllLineAnalysis();
+      el = document.getElementById('analysis_line' + lineSelected);
+      if (el != null) el.style.display = 'none';
+      
       document.getElementById('analysis_line' + i).style.display = '';
       if (lineSelected != 0) {
         if ((lineSelected % 2) == 0) document.getElementById('line'+lineSelected).style.background = '#F0F0F0';
@@ -184,6 +241,29 @@
         lineSelected = i;
         document.getElementById('line'+lineSelected).style.background = '#FFFFD8';        
       }
+
+    }
+
+    function showLine(i) {
+      var remainder = i % 1000;
+      var reqPage = ( i - remainder ) / 1000;
+
+      if (reqPage != loadedPage) {
+        requestedLine = i;
+        htmlLoadContent(reqPage);
+        loadedPage = reqPage;
+      }
+      else {
+        MakeLineVisible(i);
+      }
+    }
+
+    function showFunctionInfo(i) {
+      var el;
+      el = document.getElementById('function_info' + functionSelected);
+      if (el != null) el.style.display = 'none';
+      document.getElementById('function_info' + i).style.display = '';
+      functionSelected = i;
     }
 
     function changeContentVisibility(e) {
@@ -222,8 +302,9 @@
         No line selected
       </div>
 
-      %analysis_divs%
+      <div id="dynamicanalysis">
 
+      </div>
     </div>
   </div>
 
@@ -243,9 +324,9 @@
   </div>
 
   <div id="bottomWindow" class="mywindow">
-    <div class="mywindow_header">Empty <a style="text-decoration: none; color: #000080;" href="javascript:hideWindow('bottomWindow');">[X]</a></div>
+    <div class="mywindow_header">Function info<a style="text-decoration: none; color: #000080;" href="javascript:hideWindow('bottomWindow');">[X]</a></div>
     <div id="bottomWindowContent" class="mywindow_content">
-      Currently no content
+      %functioninfos%
     </div>
   </div>
 

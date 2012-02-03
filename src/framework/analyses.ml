@@ -518,7 +518,7 @@ struct
  
   let resultXML x = toXML x
 
-  let output table =
+  let output table (file: Cil.file) =
     if !GU.verbose then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
     GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = M.get_out result_name !GU.out in
@@ -532,6 +532,7 @@ struct
           Xmldump.print out (resultXML table);
           output_char out '\n'
         end
+      | GU.Html -> Htmldump.print_html out (resultXML table) file
       | _ -> ()
 end
 

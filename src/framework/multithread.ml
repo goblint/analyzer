@@ -609,7 +609,7 @@ struct
       Spec.finalize ()
     done;
     (* output the result if needed *)
-    Result.output (solver2source_result !oldsol);
+    Result.output (solver2source_result !oldsol) file;
     if !GU.dump_global_inv then 
       List.iter (fun (_,gs) -> print_globals gs) !oldsol
 

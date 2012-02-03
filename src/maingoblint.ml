@@ -42,6 +42,7 @@ let main () =
       | "indented" -> GU.result_style := GU.Indented
       | "compact" -> GU.result_style := GU.Compact
       | "pretty" -> GU.result_style := GU.Pretty
+      | "html" -> GU.result_style := GU.Html
       | "glob" -> GU.dump_global_inv := true
       | _ -> raise (Arg.Bad "invalid result style") 
   in
