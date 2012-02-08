@@ -8,9 +8,18 @@ let print_version () =
   let f b = if b then "enabled" else "disabled" in
   Printf.printf "Goblint version: %s\n" Version.goblint;
   Printf.printf "Cil version:     %s\n" Version.cil;
-  Printf.printf "Configuration:   tracing %s, tracking %s (n=%d)\n" 
-    (f Config.tracing) (f Config.tracking) Config.track_n;
+  Printf.printf "Configuration:   tracing %s, tracking %s (n=%d), experimental %s\n" 
+    (f Config.tracing) (f Config.tracking) Config.track_n (f Config.experimental);
   exit 0
+
+let check_solver () = 
+  match !GU.solver with
+    | "solverConSideRR"
+    | "solverConSideWNRR" -> 
+        prerr_endline "Experimental solver selected!";
+        prerr_endline "Requires experimental features to be enabled in src/config.ml."; 
+        exit 2
+    | _ -> ()
 
 let main () =
   let usage_str = "Usage: goblint [options] source-files" in
@@ -99,9 +108,9 @@ let main () =
     GU.solver := match str with
       | "interactive"
       | "effectWCon"
+      | "effectWNCon"
       | "solverConSideRR"
-      | "solverConSideWNRR"
-      | "effectWNCon" -> str
+      | "solverConSideWNRR" -> str
       | _ -> raise (Arg.Bad "no such solver")
   in
   let set_trace sys = 
@@ -264,6 +273,7 @@ let main () =
         if stf@exf@otf = [] then failwith "No suitable function to start from.";
         (* and here we run the analysis! *)
         let do_analysis () =
+          if not Config.experimental then check_solver (); 
           Stats.time "analysis" (!analyze merged_AST) funs;
           fun () -> () 
         in

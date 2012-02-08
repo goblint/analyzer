@@ -11,6 +11,7 @@ if [ ! -f src/config.ml ]; then
   echo "let tracing = false" > src/config.ml
   echo "let tracking = false" >> src/config.ml
   echo "let track_n = 2" >> src/config.ml
+  echo "let experimental = false" >> src/config.ml
 fi
 
 if [ $VERSION ]; then
