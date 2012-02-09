@@ -130,6 +130,7 @@ struct
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) nst: cpa = 
+      if Cil.isFunctionType x.vtype then nst else 
       (* Check if we need to side-effect this one. We no longer generate
        * side-effects here, but the code still distinguishes these cases. *)
       if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then 
@@ -833,12 +834,14 @@ struct
       if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
       List.map AD.singleton (AD.elements !visited)
 
-  let invalidate ask (gs:glob_fun) (st:store) (exps: Cil.exp list): store = 
+  let invalidate ask (gs:glob_fun) (st:store) (exps: Cil.exp list): store =   
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a = 
       let t = AD.get_type a in
-          (a, top_value st t)
+      let v = get ask gs st a in
+      let nv =  VD.invalidate_value t v in
+        (a, nv)
     in
     (* We define the function that evaluates all the values that an address
      * expression e may point to *)
@@ -1147,7 +1150,7 @@ struct
           match LF.get_invalidate_action f.vname with
             | Some fnc -> [map_true (invalidate ctx.ask gs st (lv_list @ (fnc `Write  args)))];
             | None -> (
-                M.warn ("Function definition missing for " ^ f.vname);
+                (if f.vid <> dummyFunDec.svar.vid then M.warn ("Function definition missing for " ^ f.vname));
                 let st_expr (v:varinfo) (value) a = 
                   if is_global ctx.ask v && not (is_static v) then 
                     Cil.mkAddrOf (Var v, NoOffset) :: a 

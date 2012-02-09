@@ -116,13 +116,12 @@ struct
           let to_accs (v,o) xs = 
             Concrete (Some (Lval lv), v, Offs.from_offset (conv_offset o), write) :: xs  
           in
-          let ra = List.map add_reg regs in
-          if List.length ra = 0 then begin
+          if List.length regs = 0 then begin
             if Queries.LS.mem (dummyFunDec.svar,`NoOffset) a 
             then [Unknown (Lval lv,write)]
                  @ Queries.LS.fold to_accs (Queries.LS.remove (dummyFunDec.svar,`NoOffset) a) []
             else Queries.LS.fold to_accs a []
-          end else ra
+          end else List.map add_reg regs
       | _ ->         
           if List.length regs = 0 
           then [Unknown (Lval lv,write)]

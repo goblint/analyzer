@@ -8,6 +8,7 @@ sig
   val get: t -> field -> value
   val replace: t -> field -> value -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
+  val map: (value -> value) -> t -> t
 end
 
 module Simple (Val: Lattice.S) =
@@ -34,7 +35,8 @@ struct
   let replace s field value = M.add field value s
   let get s field = M.find field s
   let fold = M.fold
-
+  let map = M.map
+  
   (* Add these or the byte code will segfault ... *)
   let equal x y = M.equal x y
   let compare x y = M.compare x y

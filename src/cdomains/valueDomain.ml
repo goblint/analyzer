@@ -18,6 +18,7 @@ sig
   type offs
   val eval_offset: (AD.t -> t) -> t -> offs -> t
   val update_offset: t -> offs -> t -> t
+  val invalidate_value: typ -> t -> t
 end
 
 module Blob (Val: Lattice.S): Lattice.S with type t = Val.t =
@@ -267,6 +268,45 @@ struct
       | _, TInt _     -> `Int (ID.top ())
       | _ -> top ()
 
+  let rec top_value (t: Cil.typ) = 
+    let rec top_comp compinfo: Structs.t = 
+      let nstruct = Structs.top () in
+      let top_field nstruct fd = Structs.replace nstruct fd (top_value fd.Cil.ftype) in
+        List.fold_left top_field nstruct compinfo.Cil.cfields 
+    in
+      match t with
+        | Cil.TInt _ -> `Int (ID.top ())
+        | Cil.TPtr _ -> `Address (AD.unknown_ptr ())
+        | Cil.TComp ({Cil.cstruct=true} as ci,_) -> `Struct (top_comp ci)
+        | Cil.TComp ({Cil.cstruct=false},_) -> `Union (Unions.top ())
+        | Cil.TArray _ -> `Array (CArrays.top ())
+        | Cil.TNamed ({Cil.ttype=t}, _) -> top_value t
+        | _ -> `Top 
+
+  let rec invalidate_value typ (state:t) : t =
+    let typ = unrollType typ in
+    let rec invalid_struct compinfo old = 
+      let nstruct = Structs.top () in
+      let top_field nstruct fd = 
+        Structs.replace nstruct fd (invalidate_value fd.ftype (Structs.get old fd)) 
+      in
+        List.fold_left top_field nstruct compinfo.Cil.cfields 
+    in
+    match typ, state with
+      |                 _ , `Address n    -> `Address (AD.add (Addr.unknown_ptr ()) n)
+      | Cil.TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
+      |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value voidType x) n)
+      | Cil.TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n)
+      | Cil.TArray (t,_,_), `Array n      -> 
+          let v = invalidate_value t (CArrays.get n (ID.top ())) in
+            `Array (CArrays.set n (ID.top ()) v)
+      |                 _ , `Array n      -> 
+          let v = invalidate_value voidType (CArrays.get n (ID.top ())) in
+            `Array (CArrays.set n (ID.top ()) v)
+      |                 t , `Blob n       -> `Blob (invalidate_value t n)
+      |                 _ , `List n       -> `Top
+      |                 t , _             -> top_value t
+      
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset f (x: t) (offs:offs): t =
     match x with 

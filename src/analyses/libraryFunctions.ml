@@ -21,7 +21,7 @@ let classify fn exps =
     | "pthread_create" -> 
         begin match exps with
           | [_;_;fn;x] -> `ThreadCreate (fn, x)
-          | _ -> M.bailwith "pthread_create arguments are strange!"
+          | _ -> M.bailwith "pthread_create arguments are strange."
         end 
     | "pthread_join" -> 
         begin match exps with

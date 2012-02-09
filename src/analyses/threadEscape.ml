@@ -66,16 +66,13 @@ struct
       | _ -> None
 
   let fork ctx lv f args = 
-    let finish_him () = Messages.bailwith "pthread_create arguments are strange!" in
     match f.vname with
       | "pthread_create" -> begin        
           match args with
-            | [_; _; start; ptc_arg] -> begin
-                match eval_fv ctx.ask start with
-                  | Some v -> [v, reachable ctx.ask ptc_arg]
-                  | None -> finish_him ()
-              end
-            | _ -> finish_him () 
+            | [_; _; start; ptc_arg] ->
+				let r = reachable ctx.ask ptc_arg in
+				  List.map (fun (v,_) -> (v,r)) (query_lv ctx.ask start)
+            | _ -> Messages.bailwith "pthread_create arguments are strange!"
         end
       | _ -> [] 
 
