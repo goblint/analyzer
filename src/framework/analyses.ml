@@ -523,16 +523,16 @@ struct
     GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = M.get_out result_name !GU.out in
     match !GU.result_style with
-      | GU.Pretty -> ignore (fprintf out "%a\n" pretty table)
+      | GU.Pretty -> ignore (fprintf out "%a\n" pretty (table ()))
       | GU.Indented -> begin
-          Xmldump.print_fmt out (resultXML table);
+          Xmldump.print_fmt out (resultXML (table ()));
           output_char out '\n'
         end
       | GU.Compact -> begin
-          Xmldump.print out (resultXML table);
+          Xmldump.print out (resultXML (table ()));
           output_char out '\n'
         end
-      | GU.Html -> Htmldump.print_html out (resultXML table) file
+      | GU.Html -> Htmldump.print_html out (resultXML (table ())) file
       | _ -> ()
 end
 
