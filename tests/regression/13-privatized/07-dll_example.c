@@ -1,4 +1,4 @@
-// PARAM: --with shape --kernel
+// SKIP PARAM: --with shape --kernel
 #include<linux/module.h>
 #include<linux/miscdevice.h>
 #include<linux/init.h>
