@@ -50,6 +50,7 @@ all : opt
 
 # ECHOSTYLE_SCOTT=1
 # PROFILE=1
+# DEBUG=1
 # STATIC=1
 UNSAFE=1
 include Makefile.ocaml
