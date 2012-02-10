@@ -126,11 +126,13 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
     in read_info (); close_in input
 
   let query ctx (q:Queries.t) : Queries.Result.t = 
-    let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
     match q with
-    | Queries.Priority "" ->  `Int (Int64.of_int pry)
+    | Queries.Priority "" ->  
+        let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
+          `Int (Int64.of_int pry)
     | Queries.Priority vname -> `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) )
     | Queries.IsPrivate v ->
+        let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
         let off = 
           match (ctx.global v: Glob.Val.t) with
             | `Bot -> min_int 
