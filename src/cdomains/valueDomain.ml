@@ -90,12 +90,12 @@ struct
 
   let hash x =
     match x with
-      | `Int n -> ID.hash n
-      | `Address n -> AD.hash n
-      | `Struct n -> Structs.hash n
-      | `Union n -> Unions.hash n
-      | `Array n -> CArrays.hash n
-      | `Blob n -> Blobs.hash n
+      | `Int n -> 17 * ID.hash n
+      | `Address n -> 19 * AD.hash n
+      | `Struct n -> 23 * Structs.hash n
+      | `Union n -> 29 * Unions.hash n
+      | `Array n -> 31 * CArrays.hash n
+      | `Blob n -> 37 * Blobs.hash n
       | _ -> Hashtbl.hash x
 
   let compare x y = 

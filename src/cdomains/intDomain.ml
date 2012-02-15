@@ -57,6 +57,8 @@ struct
   include Lattice.StdCousot
   let name () = "integers"
   type t = int64
+  let hash (x:t) = ((Int64.to_int x) - 787) * 17
+  let equal (x:t) (y:t) = x=y 
   let copy x = x
   let top () = raise Unknown
   let is_top _ = false
@@ -273,6 +275,19 @@ struct
     | `Definite of Integers.t
     | `Bot
     ]
+
+  let hash (x:t) =
+    match x with
+      | `Excluded s -> S.hash s
+      | `Definite i -> 83*Integers.hash i
+      | `Bot -> 61426164
+      
+  let equal x y =
+    match x, y with
+      | `Bot, `Bot -> true
+      | `Definite x, `Definite y -> Integers.equal x y 
+      | `Excluded xs, `Excluded ys -> S.equal xs ys
+      | _ -> false
 
   let name () = "trier"
   let top () = `Excluded (S.empty ())
@@ -1120,6 +1135,8 @@ struct
   include Printable.Std
   include Lattice.StdCousot
   type t = bool
+  let hash = function true -> 51534333 | _ -> 561123444
+  let equal (x:t) (y:t) = x=y 
   let name () = "booleans"
   let copy x = x
   let isSimple _ = true
@@ -1189,6 +1206,8 @@ struct
   include Lattice.StdCousot
   let name () = "none"
   type t = unit
+  let hash () = 101010
+  let equal _ _ = true
   let copy x = () 
   let top () = ()
   let is_top _ = true
@@ -1370,7 +1389,7 @@ struct
       | 0 -> I2.compare x2 y2
       | x -> x
       
-  let hash (x1,x2) = (I1.hash x1) lxor (I2.hash x2)
+  let hash (x1,x2) = (I1.hash x1) lxor (I2.hash x2*33)
 
   let minimal (x1, x2) = 
     match I1.minimal x1 with
@@ -1692,7 +1711,7 @@ struct
   let hash' x =
     match x with
       | Trier x-> Trier.hash x
-      | Interval x-> Interval.hash x
+      | Interval x-> 17*Interval.hash x
       | _ -> raise IntDomListBroken
 
   let minimal' x =

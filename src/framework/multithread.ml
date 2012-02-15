@@ -23,6 +23,7 @@ module Forward
   : Analyses.S 
   =
 struct
+  module Spec = Analyses.StatsTrace (Spec)
   (** Augment domain to lift dead code *)
   module SD  = A.Dom (Spec.Dom)
   (** Solver variables use global part from [Spec.Dep] *)
@@ -140,7 +141,7 @@ struct
             if List.length non_bottoms = 0 
               then raise A.Deadcode 
               else List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst (SD.unlift tst))) (Spec.Dom.bot ()) non_bottoms in
-          if P.tracking then P.track_call f (SD.hash st) ;
+          if P.tracking then P.track_call f (Spec.Dom.hash st) ;
           Spec.Dom.join st' joined_result
 			  end        
         else

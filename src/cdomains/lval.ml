@@ -29,6 +29,7 @@ struct
   include Printable.Std
   include Lattice.StdCousot
   
+  let hash _ = 35166
   let name () = "Offset"
   
   let from_offset x = Offs x  
@@ -321,6 +322,37 @@ struct
       | Bot        -> "bot"
       | Top        -> "top"
 
+  let hash x = 
+    let rec hash = function
+      | `NoOffset -> 1 
+      | `Index(i,o) -> Idx.hash i * 35 * hash o
+      | `Field(f,o) -> Hashtbl.hash f.fname * hash o
+    in
+    match x with 
+      | Addr (v,o) -> v.vid * hash o
+      | UnknownPtr -> 12341234
+      | StrPtr     -> 46263754
+      | NullPtr    -> 1265262
+      | Bot        -> 4554434
+      | Top        -> 445225637
+      
+  let equal x y =
+    let rec eq_offs x y =
+      match x, y with
+        | `NoOffset, `NoOffset -> true 
+        | `Index (i,x), `Index (o,y) -> Idx.equal i o && eq_offs x y
+        | `Field (i,x), `Field (o,y) -> i.fcomp.ckey=o.fcomp.ckey && i.fname = o.fname && eq_offs x y
+        | _ -> false
+    in
+    match x, y with
+      | Addr (v,o), Addr (u,p) -> v.vid = u.vid && eq_offs o p  
+      | UnknownPtr, UnknownPtr 
+      | StrPtr    , StrPtr     
+      | NullPtr   , NullPtr    
+      | Bot       , Bot        
+      | Top       , Top        -> true
+      | _ -> false
+      
   let toXML_f_addr sf (x,y) = 
     let esc = Goblintutil.escape in
     let typeinf = esc (Pretty.sprint Goblintutil.summary_length (Cil.d_type () x.Cil.vtype)) in
@@ -379,7 +411,7 @@ struct
   let bot () = Bot
   
   include Lattice.StdCousot
-  
+    
   let leq x y =
     let rec leq_offs x y =
       match x, y with

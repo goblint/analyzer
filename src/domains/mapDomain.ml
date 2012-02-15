@@ -65,6 +65,7 @@ struct
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal = for_all2 Range.equal
+  let hash xs = fold (fun k v a -> a lxor (Domain.hash k * Range.hash v)) xs 0
 
   exception Done
   let for_all p m = 

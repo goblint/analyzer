@@ -7,15 +7,14 @@ struct
   let create size def = (H.create size, def)
   let find (map,def) key = try H.find map key with Not_found -> def
   let find_all (map,def) key = H.find_all map key @ [def]
-
   let copy (map,def) = (H.copy map, def)  (* NB! maybe default should be copied? *)
 
    (* and this is inheritance???   *)
-  let lift f (map,_) = f map
+  let lift f (map,_) = f map 
   let clear x = lift H.clear x
-  let add x = lift H.add x
+  let add x k = lift H.add x k
   let remove x = lift H.remove x
-  let replace x = lift H.replace x
+  let replace x =  lift H.replace x
   let mem x = lift H.mem x (* or const true??? *)
   let iter f = lift (H.iter f)
   let fold f = lift (H.fold f)
@@ -81,7 +80,12 @@ struct
   let fold = M.fold
   let length = M.length
 
-
+  let equal x y = 
+    let forall2 f x y =
+      let ch k v t = t && try f (find x k) v with Not_found -> false in 
+      fold ch y true
+    in length x = length y && forall2 Range.equal x y
+  let hash xs = fold (fun k v xs -> xs lxor (Domain.hash k) lxor (Range.hash v)) xs 0
   let short _ x = "mapping"
   let isSimple _ = false
 

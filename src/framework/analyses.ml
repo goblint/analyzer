@@ -194,13 +194,14 @@ struct
         String.fill res len (n-len) ' '; 
         res
     in      
-    if !GU.debug then Stats.time (padr 50 (D.name^" ⇢ "^n)) f
+    if !GU.debug then Stats.time (padr 40 (D.name^" ⇢ "^n)) f
         else f
   
   module Dom = 
   struct
     include D.Dom
     
+    let equal x y = time_f "Dom ↣ equal" (equal x) y
     let join x y = time_f "Dom ↣ join" (join x) y
     let meet x y = time_f "Dom ↣ meet" (meet x) y
     let leq x y = time_f "Dom ↣ leq" (leq x) y
@@ -230,6 +231,9 @@ struct
   
   
   (* transfer functions *)
+  let sync ctx  = time_f "sync" sync ctx  
+  let should_join x y  = time_f "should_join" (should_join x) y
+  let query ctx q  = time_f "query" (query ctx) q
   let assign ctx lval rval = time_f "assign" (assign ctx lval) rval  
   let branch ctx exp tv = time_f "branch" (branch ctx exp) tv 
   let body ctx fundec = time_f "body" (body ctx) fundec
@@ -332,9 +336,9 @@ struct
   
   let hash x = 
     match x with
-      | (MyCFG.Statement     s,d) -> Hashtbl.hash (d, s.sid, 0)
-      | (MyCFG.Function      f,d) -> Hashtbl.hash (d, f.vid, 1)
-      | (MyCFG.FunctionEntry f,d) -> Hashtbl.hash (d, f.vid, 2)
+      | (MyCFG.Statement     s,d) -> LD.hash d*s.sid*17
+      | (MyCFG.Function      f,d) -> LD.hash d*f.vid*19
+      | (MyCFG.FunctionEntry f,d) -> LD.hash d*f.vid*23
 
   let equal (n1,d1) (n2,d2) = MyCFG.Node.equal n1 n2 && LD.equal d1 d2
       
@@ -431,21 +435,98 @@ exception Deadcode
 (** [Dom (D)] produces D lifted where bottom means dead-code *)
 module Dom (LD: Lattice.S) = 
 struct 
-  include Lattice.Lift (LD) (struct
+  module P = 
+  struct
+    include Lattice.Prod (LD) (IntDomain.FlatPureIntegers)
+    let hash (_,x) = Int64.to_int x 
+  end
+  include Lattice.Lift (P) (struct
                                let bot_name = "Dead code"
                                let top_name = "Totally unknown & messed up"
                              end)
-  let lift x = `Lifted x
+  let lift (x:LD.t) : t = `Lifted (x, Int64.of_int (LD.hash x))
 
   let unlift x = 
     match x with
-      | `Lifted x -> x
+      | `Lifted (x,_) -> x
       | _ -> raise Deadcode
 
   let lifted f x = 
     match x with
-      | `Lifted x -> `Lifted (f x)
+      | `Lifted (x,_) -> let y = f x in `Lifted (y, Int64.of_int (LD.hash y))
       | tb -> tb
+
+  let leq x y =
+    match (x,y) with
+      | (_, `Top) -> true
+      | (`Top, _) -> false
+      | (`Bot, _) -> true
+      | (_, `Bot) -> false
+      | (`Lifted (x,_), `Lifted (y,_)) -> LD.leq x y
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
+    match (x,y) with
+      | (`Lifted (x,_), `Lifted (y,_)) -> LD.pretty_diff () (x,y)
+      | _ -> if leq x y then Pretty.text "No Changes" else
+             Pretty.dprintf "%a instead of %a" pretty x pretty y
+
+  let join (x:t) (y:t) : t = 
+    match (x,y) with 
+      | (`Top, _) -> `Top
+      | (_, `Top) -> `Top
+      | (`Bot, x) -> x
+      | (x, `Bot) -> x
+      | (`Lifted (x,_)), `Lifted (y,_) -> lift (LD.join x y)
+
+  let meet x y = 
+    match (x,y) with 
+      | (`Bot, _) -> `Bot
+      | (_, `Bot) -> `Bot
+      | (`Top, x) -> x
+      | (x, `Top) -> x
+      | (`Lifted (x,_)), `Lifted (y,_) -> lift (LD.meet x y)
+      
+  let widen x y = 
+    match (x,y) with 
+      | (`Lifted (x,_)), `Lifted (y,_) -> lift (LD.widen x y)
+      | _ -> y
+
+  let narrow x y = 
+    match (x,y) with 
+      | (`Lifted (x,_)), `Lifted (y,_) -> lift (LD.narrow x y)
+      | _ -> x
+
+  let equal (x:t) (y:t) = 
+    match (x, y) with
+      | (`Top, `Top) -> true
+      | (`Bot, `Bot) -> true
+      | (`Lifted (x,h1), `Lifted (y,h2)) -> 
+        if h1=h2 then LD.equal x y 
+        else false
+      | _ -> false
+
+  let short w state = 
+    match state with
+      | `Lifted (n,_) ->  LD.short w n
+      | `Bot -> bot_name
+      | `Top -> top_name
+
+  let pretty_f _ () (state:t) = 
+    match state with
+      | `Lifted (n,_) -> LD.pretty () n
+      | `Bot -> text bot_name
+      | `Top -> text top_name
+
+  let toXML_f _ (state:t) =
+    match state with
+      | `Lifted (n,_) -> LD.toXML n
+      | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
+      | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
+
+  let toXML m = toXML_f short m
+
+  let pretty () x = pretty_f short () x
+  
 end
 
 

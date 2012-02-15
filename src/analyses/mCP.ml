@@ -155,7 +155,7 @@ module ConvertToMCPPart
   (C:MCPPartConf with type lf = S.Dom.t and type gf = S.Glob.Val.t) 
     (*: Analyses.Spec*) =
 struct
-  module S = Analyses.StatsTrace (S)
+  (*module S = Analyses.StatsTrace (S)*)
   open C
   let matches x = 
     try let _ = extract_l x in

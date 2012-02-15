@@ -29,7 +29,7 @@ struct
   let copy x = x
   let equal (x,_) (y,_) = ProgLines.equal x y
   let compare (x,_) (y,_) = ProgLines.compare x y
-  let hash (x,_) = ProgLines.hash x
+  let hash (x,f) = ProgLines.hash x * f.svar.vid
   let toXML_f _ (x,f) = Xml.Element ("Loc", [("file", x.file); 
 					     ("line", string_of_int x.line); 
 					     ("fun", f.svar.vname)], [])
@@ -51,7 +51,7 @@ struct
   let copy x = x
   let equal x y = x.vid = y.vid
   let compare x y = compare x.vid y.vid
-  let hash x = Hashtbl.hash x.vid
+  let hash x = x.vid - 4773
   let short _ x = GU.demangle x.vname
   let toXML_f sf x = 
     let esc = Goblintutil.escape in
@@ -124,6 +124,8 @@ struct
   include Printable.Std
   open Pretty
   type t = string
+  let hash (x:t) = Hashtbl.hash x
+  let equal (x:t) (y:t) = x=y
   let isSimple _ = true
   let short _ x = "\"" ^ x ^ "\""
   let toXML_f sf x = 
@@ -211,7 +213,7 @@ struct
   let copy x = x
   let compare x y = compare x.sid y.sid
   let equal x y = x.sid = y.sid
-  let hash x = Hashtbl.hash (x.sid)
+  let hash x = Hashtbl.hash (x.sid) * 97
   let short _ x = "<stmt>"
   let toXML_f _ x = Xml.Element ("Stmt", [("id", string_of_int x.sid); 
 					  ("sourcecode", Pretty.sprint ~width:0 (dn_stmt () x))], [])
@@ -254,7 +256,7 @@ struct
   type t = fundec
   let compare x y = compare x.svar.vid y.svar.vid
   let equal x y = x.svar.vid = y.svar.vid
-  let hash x = Hashtbl.hash x.svar.vid
+  let hash x = x.svar.vid * 3
   let toXML_f _ x = CilFun.toXML x.svar
   let short _ x = x.svar.vname
   let pretty_f _ () x = CilFun.pretty () x.svar
@@ -272,7 +274,7 @@ struct
   let copy x = x
   type t = fieldinfo
   let compare x y = compare (x.fname,x.fcomp.ckey) (y.fname,y.fcomp.ckey)
-  let equal x y = x.fname = y.fname && x.fcomp.ckey = y.fcomp.ckey
+  let equal x y = x.fcomp.ckey = y.fcomp.ckey && x.fname = y.fname
   let hash x = Hashtbl.hash (x.fname, x.fcomp.ckey)
   let short _ x = x.fname
   let toXML_f sf x = 
@@ -363,7 +365,7 @@ struct
   type t = typ
   let compare x y = Pervasives.compare x y
   let equal x y = Util.equals x y
-  let hash x = Hashtbl.hash x
+  let hash (x:typ) = Hashtbl.hash x
   let short w x = sprint ~width:w (d_type () x)
   let toXML_f sf x = 
     let esc = Goblintutil.escape in

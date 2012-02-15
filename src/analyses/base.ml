@@ -714,7 +714,7 @@ struct
     let valu = eval_rv ctx.ask ctx.global ctx.local exp in
     if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
     (* First we want to see, if we can determine a dead branch: *)
-    match eval_rv ctx.ask ctx.global ctx.local exp with
+    match valu with
       (* For a boolean value: *)
       | `Int value when (ID.is_bool value) -> 
           if M.tracing then M.traceu "branch" "Expression %a evaluated to %a\n" d_exp exp ID.pretty value;

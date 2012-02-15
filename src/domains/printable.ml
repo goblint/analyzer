@@ -21,8 +21,8 @@ end
 
 module Std =
 struct 
-  let equal = Util.equals
-  let hash = Hashtbl.hash
+(*  let equal = Util.equals
+  let hash = Hashtbl.hash*)
   let compare = Pervasives.compare
   let classify _ = 0
   let class_name _ = "None"
@@ -68,6 +68,8 @@ module UnitConf (N: Name) =
 struct
   type t = unit
   include Std
+  let hash () = 9867134679
+  let equal _ _ = true
   let pretty () _ = text N.name
   let short _ _ = N.name
   let toXML x = Xml.Element ("Leaf", [("text", N.name)], [])
@@ -97,6 +99,11 @@ struct
   type t = [`Bot | `Lifted of Base.t | `Top]
   include Std
   include N
+
+  let hash = function 
+    | `Top -> 7524627833
+    | `Bot -> -30385673
+    | `Lifted x -> Base.hash x * 13
 
   let equal x y = 
     match (x, y) with
@@ -139,6 +146,11 @@ module Either (Base1: S) (Base2: S) =
 struct
   type t = [`Left of Base1.t | `Right of Base2.t]
   include Std
+
+  let hash state = 
+    match state with
+      | `Left n ->  Base1.hash n
+      | `Right n ->  133 * Base2.hash n
 
   let equal x y = 
     match (x, y) with
@@ -191,6 +203,13 @@ struct
       | (`Lifted2 x, `Lifted2 y) -> Base2.equal x y
       | _ -> false
 
+  let hash state = 
+    match state with
+      | `Lifted1 n -> Base1.hash n
+      | `Lifted2 n -> 77 * Base2.hash n
+      | `Bot -> 13432255
+      | `Top -> -33434577
+
   let pretty_f _ () (state:t) = 
     match state with
       | `Lifted1 n ->  Base1.pretty () n
@@ -239,6 +258,7 @@ struct
 
   include Std
   
+  let hash (x,y) = Base1.hash x lxor Base2.hash y * 17
   let equal (x1,x2) (y1,y2) = Base1.equal x1 y1 && Base2.equal x2 y2
 
   let compare (x1,x2) (y1,y2) = 
@@ -299,6 +319,7 @@ module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct 
   type t = Base1.t * Base2.t * Base3.t
   include Std
+  let hash (x,y,z) = Base1.hash x lxor Base2.hash y * 17 lxor Base3.hash z * 33
   let equal (x1,x2,x3) (y1,y2,y3) = 
     Base1.equal x1 y1 && Base2.equal x2 y2 && Base3.equal x3 y3
   let short w (x,y,z) = 
@@ -337,7 +358,8 @@ struct
   type t = Base.t list
   include Std
   let equal x y = try List.for_all2 Base.equal x y with Invalid_argument _ -> false
-
+  let hash = List.fold_left (fun xs x -> xs lxor Base.hash x) 996699
+  
   let short _ x = 
     let elems = List.map (Base.short max_int) x in
       "[" ^ (String.concat ", " elems) ^ "]"
@@ -374,6 +396,8 @@ struct
   let pretty_f f () x = text (f max_int x)
   let toXML_f f x = Xml.Element ("Leaf", ["text",f 80 x], [])
   let isSimple _ = true
+  let hash x = x-5284
+  let equal (x:int) (y:int) = x=y
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
@@ -394,6 +418,10 @@ struct
       | (`Lifted x, `Lifted y) -> Base.equal x y
       | _ -> false
 
+  let hash = function 
+    | `Bot -> 12456613454
+    | `Lifted n -> Base.hash n
+      
   let short w state = 
     match state with
       | `Lifted n ->  Base.short w n
@@ -433,6 +461,10 @@ struct
       | (`Top, `Top) -> true
       | (`Lifted x, `Lifted y) -> Base.equal x y
       | _ -> false
+
+  let hash = function 
+    | `Top -> 7890
+    | `Lifted n -> Base.hash n
 
   let short w state = 
     match state with

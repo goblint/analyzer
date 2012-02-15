@@ -120,6 +120,8 @@ struct
     
   let isSimple x = 
     (List.length (elements x)) < 3
+    
+  let hash x = fold (fun x y -> y lxor Base.hash x) x 1
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     if leq x y then dprintf "%s: These are fine!" (name ()) else 
@@ -201,7 +203,10 @@ struct
   include Lattice.StdCousot
   type t = All | Set of S.t
   type elt = Base.t
-
+  
+  let hash = function
+     | All -> 999999
+     | Set x -> S.hash x
   let name () = "Topped " ^ S.name ()
   let equal x y =
     match x, y with
