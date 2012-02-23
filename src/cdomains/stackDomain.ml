@@ -1,3 +1,5 @@
+module GU = Goblintutil
+
 module Dom = 
 struct
   let n = 3
@@ -31,7 +33,17 @@ struct
     let f acc x y = Var.leq x y && acc in
       fold_left2 f true false x y
     
-  let join (x:t) y = map2 Var.join x y 
+  let join x y = 
+    let f (p,po) x y =
+      let e = Var.join x y in
+      (GU.descVal x y e::p, GU.joinDesc po e)
+    in
+    match List.fold_left2 f ([], None) x y with
+      | _, Some `Equal -> `Equal
+      | _, Some `Left  -> `Left
+      | _, Some `Right -> `Right
+      | [], _ when x=[] -> `Equal
+      | r , _ -> `New (List.rev r)   
   let meet (x:t) y = map2 Var.meet x y
 
   let push x (xs:t) = take n ((`Lifted x) :: xs)

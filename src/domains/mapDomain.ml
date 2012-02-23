@@ -1,5 +1,6 @@
 open Pretty
 module ME = Messages
+module GU = Goblintutil
 
 module type S =
 sig
@@ -45,7 +46,7 @@ end
                       
 module PMap (Domain: Groupable) (Range: Lattice.S) =
 struct
-  module M = Map.Make (Domain)
+  module M = BatMap.Make (Domain)
   include Printable.Std
   type key = Domain.t
   type value = Range.t
@@ -53,7 +54,7 @@ struct
   let trace_enabled = Domain.trace_enabled
 
   (* And some braindead definitions, because I would want to do
-   * include Map.Make (Domain) with type t = Range.t t *)
+   * include BatMap.Make (Domain) with type t = Range.t t *)
   let add = M.add
   let remove = M.remove
   let find = M.find
@@ -65,7 +66,7 @@ struct
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal = for_all2 Range.equal
-  let hash xs = fold (fun k v a -> a lxor (Domain.hash k * Range.hash v)) xs 0
+  let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
 
   exception Done
   let for_all p m = 
@@ -86,28 +87,26 @@ struct
   
   let add_list_fun keys f m =
     List.fold_left (fun acc key -> add key (f key) acc) m keys
-
-  let long_map2 op m1 m2 =
-    (* For each key-value pair in m1, we accumulate the merged mapping:  *)
-    let f key value acc =
-      try (* Here we try to do pointwise operation on the values *)
-        add key (op value (find key acc)) acc
-      with (* If not there, we just add it *)
-        | Not_found -> add key value acc 
+    
+  let long_map2 op =
+    let f k v1 v2 = 
+      match v1, v2 with 
+        | Some v1, Some v2 -> Some (op v1 v2)
+        | Some _, _ -> v1
+        | _, Some _ -> v2
+        | _ -> None
     in
-      (* we start building from m2 *)
-      fold f m1 m2
+    M.merge f 
 
-  let map2 op m1 m2 = 
+  let map2 op = 
     (* Similar to the previous, except we ignore elements that only occur in one
      * of the mappings, so we start from an empty map *)
-    let f key value acc =
-      try add key (op value (find key m2)) acc with 
-        | Not_found -> acc
-        | Lattice.Unsupported _ -> 
-            ME.debug "Ignoring Unsupported!"; acc
-    in
-      fold f m1 M.empty
+     let f k v1 v2 = 
+       match v1, v2 with 
+         | Some v1, Some v2 -> Some (op v1 v2)
+         | _ -> None
+     in
+     M.merge f 
 
   let short _ x = "mapping"
   let isSimple _ = false
@@ -134,7 +133,7 @@ struct
             end
         | _ -> Xml.Element ("Node", [("text",esc (Domain.short 40 key^" -> "^Range.short 40 st))], [Domain.toXML key; Range.toXML st])
     in
-    let module IMap = Map.Make (struct type t = int let compare (x:int) (y:int) = Pervasives.compare x y end) in
+    let module IMap = BatMap.IntMap in
     let groups = 
       let add_grpd k v m = 
         let group = Domain.classify k in
@@ -195,7 +194,7 @@ end
 module MapBot (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and 
   type value = Range.t and 
-  type t = Range.t Map.Make(Domain).t =
+  type t = Range.t BatMap.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
@@ -211,12 +210,6 @@ struct
   let bot () = M.empty
   let is_top _ = false
   let is_bot = M.is_empty
-
-  let join m1 m2 = if m1 == m2 then m1 else long_map2 Range.join m1 m2
-  let meet m1 m2 = if m1 == m2 then m1 else map2 Range.meet m1 m2
-  
-  let widen  = long_map2 Range.widen
-  let narrow = map2 Range.narrow 
 
   let pretty_diff () ((m1:t),(m2:t)): Pretty.doc = 
     let p key value = 
@@ -234,12 +227,45 @@ struct
     match fold diff_key m1 None with
       | Some w -> w
       | None -> Pretty.dprintf "No binding grew."
+
+  (* inlined long_map2 and added `Left & `Right & `New *)
+  let join m1 m2 = 
+    let o = ref None in
+    let f k v1 v2 = 
+      match v1, v2 with 
+        | Some v1, Some v2 -> 
+            let e = Range.join v1 v2 in
+            o := GU.joinDesc !o e;
+            Some (GU.descVal v1 v2 e)
+        | Some _, _ -> o := GU.joinDesc !o `Left ; v1 
+        | _, Some _ -> o := GU.joinDesc !o `Right; v2
+        | _ -> None
+    in
+    let r = M.merge f m1 m2 in 
+    match !o with
+      | None        -> `Equal
+      | Some `Left  -> `Left
+      | Some `Right -> `Right
+      | Some `Equal -> `Equal
+      | Some `New   -> `New r
+  let meet m1 m2 = if m1 == m2 then m1 else map2 Range.meet m1 m2
+  let oldjoin m1 m2 = if m1 == m2 then m1 else long_map2 Range.oldjoin m1 m2
+(*  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  -> `Left
+      | `Right -> `Right
+      | `New q -> assert (equal d q); `New q 
+*)  
+  let widen  = long_map2 Range.widen
+  let narrow = map2 Range.narrow 
 end
 
 module MapTop (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and 
   type value = Range.t and 
-  type t = Range.t Map.Make(Domain).t =
+  type t = Range.t BatMap.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
@@ -256,9 +282,35 @@ struct
   let is_top = M.is_empty
   let is_bot _ = false
 
-  let join m1 m2 = if m1 == m2 then m1 else map2 Range.join m1 m2
+  let join m1 m2 = 
+    let o = ref None in
+    let f k v1 v2 = 
+      match v1, v2 with 
+        | Some v1, Some v2 -> 
+            let e = Range.join v1 v2 in
+            o := GU.joinDesc !o e;
+            Some (GU.descVal v1 v2 e)
+        | Some _, _ -> o := GU.joinDesc !o `Right ; v1 
+        | _, Some _ -> o := GU.joinDesc !o `Left  ; v2
+        | _ -> None
+    in
+    let r = M.merge f m1 m2 in 
+    match !o with
+      | None        -> `Equal
+      | Some `Left  -> `Left
+      | Some `Right -> `Right
+      | Some `Equal -> `Equal
+      | Some `New   -> `New r
   let meet m1 m2 = if m1 == m2 then m1 else long_map2 Range.meet m1 m2
-  
+  let oldjoin m1 m2 = if m1 == m2 then m1 else map2 Range.oldjoin m1 m2
+(*  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  -> assert (equal x d); `Left
+      | `Right -> assert (equal y d); `Right
+      | `New q -> assert (equal d q); `New q 
+*)  
   let widen  = map2 Range.widen
   let narrow = long_map2 Range.narrow 
 
@@ -335,7 +387,7 @@ struct
 
   let long_map2 f x y =
     match x, y with
-      | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
+      | `Lifted x, `Lifted y -> `Lifted (M.long_map2 f x y)
       | _ -> raise (Fn_over_All "long_map2")
   
   let for_all f = function
@@ -405,7 +457,7 @@ struct
 
   let long_map2 f x y =
     match x, y with
-      | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
+      | `Lifted x, `Lifted y -> `Lifted (M.long_map2 f x y)
       | _ -> raise (Fn_over_All "long_map2")
   
   let for_all f = function

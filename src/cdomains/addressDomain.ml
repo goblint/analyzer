@@ -1,6 +1,8 @@
 open Cil
 open Pretty
 
+module GU = Goblintutil
+
 module type S = 
 sig
   include Lattice.S
@@ -83,7 +85,9 @@ struct
     in 
       try f s (empty ()) with SetDomain.Unsupported _ -> top ()
 
-  let join (s1:t) (s2:t) = merge_idxs Idx.join  (join s1 s2) 
+  let join (s1:t) (s2:t) = 
+    GU.liftDesc (fun q -> merge_idxs (GU.joinvalue Idx.join) q) (join s1 s2)
+  let oldjoin (s1:t) (s2:t) = merge_idxs Idx.oldjoin (oldjoin s1 s2)
   let meet (s1:t) (s2:t) = merge_idxs Idx.meet  (meet s1 s2)
   let leq (s1:t) (s2:t) = match (s1,s2) with
     | _, All -> true

@@ -23,8 +23,8 @@ module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and 
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is taken as a parameter to satisfy the type system, it is not
   * used in the implementation. *)
-
-
+  
+(*
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S): S with type value = Base.t and type idx = Idx.t 
 (** Stores values in a real array *)
 
@@ -49,5 +49,5 @@ module LooseMapArrayDomain
   : S with type value = Base.t and type idx = Idx.t 
 (** Arrays as maps --  keeps at some I.n items in map plus 
     a magic rest (top) indexed element *)
-
+*)
 

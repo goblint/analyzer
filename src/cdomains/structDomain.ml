@@ -46,6 +46,7 @@ struct
   let bot () = M.bot ()
   let meet x y = M.meet x y
   let join x y = M.join x y
+  let oldjoin x y = M.oldjoin x y
   let leq x y = M.leq x y
   let isSimple x = M.isSimple x
   let hash x = M.hash x

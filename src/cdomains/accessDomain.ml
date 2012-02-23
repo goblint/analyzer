@@ -1,7 +1,7 @@
 open Cil
 open Lval
 open Pretty
-
+(*
 type pth = Base  of (varinfo * (fieldinfo, int64) offs) option
          | Deref of pth * (fieldinfo, int64) offs
          | Star  of pth
@@ -1067,3 +1067,4 @@ struct
     
     
 end
+*)

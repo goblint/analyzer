@@ -67,11 +67,11 @@ struct
   (** We do not add global state, so just lift from [BS]*)
   module Glob = P.Glob
   
-  let get_accesses ctx : AccessDomain.Access.t = 
+(*  let get_accesses ctx : AccessDomain.Access.t = 
     match ctx.sub with
       | [ `Access x ] -> x 
       | _ -> AccessDomain.Access.top () (*failwith "Dependencies broken for mutex analysis"*)
-  
+*)
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
   let rec conv_offset x =
@@ -309,7 +309,7 @@ struct
   
   (** Access counting is done using side-effect (accesses added in [add_accesses] and read in [finalize]) : *)
 
-  module Acc2 = Hashtbl.Make (AccessDomain.Acc)
+(*  module Acc2 = Hashtbl.Make (AccessDomain.Acc)
   module AccKeySet2 = Set.Make (AccessDomain.Acc)
   module AccVal = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs)
   module AccValSet2 = Set.Make (AccVal)
@@ -339,7 +339,7 @@ struct
     List.iter (add_one true ) accs_write ;
     List.iter (add_one false) accs_read ;
     ()
-    
+    *)
   (* 
     Access counting using side-effects: ('|->' is a hash-map)
     
@@ -568,13 +568,13 @@ struct
     let b1 = access_one_top ctx.ask true (Lval lval) in 
     let b2 = access_one_top ctx.ask false rval in
     add_accesses ctx (b1@b2) ctx.local;
-    add_accesses2 ctx;
+(*    add_accesses2 ctx;*)
     ctx.local
     
   let branch ctx exp tv : Dom.t =
     let accessed = access_one_top ctx.ask false exp in
     add_accesses ctx accessed ctx.local;
-    add_accesses2 ctx;
+(*    add_accesses2 ctx;*)
     ctx.local
     
   let return ctx exp fundec : Dom.t =
@@ -584,7 +584,7 @@ struct
           add_accesses ctx accessed ctx.local
       | None -> () 
     end;
-    add_accesses2 ctx;
+(*    add_accesses2 ctx;*)
     ctx.local
         
   let body ctx f : Dom.t = ctx.local
@@ -649,7 +649,7 @@ struct
           let r1 = access_byval ctx.ask false (arg_acc `Read) in
           let a1 = access_reachable ctx.ask   (arg_acc `Write) in
           add_accesses ctx (r1@a1) ctx.local;
-          add_accesses2 ctx;
+          (*add_accesses2 ctx;*)
           [ctx.local, Cil.integer 1, true]
           
   let enter_func ctx lv f args : (Dom.t * Dom.t) list =
@@ -662,7 +662,7 @@ struct
       | Some lval -> access_one_top ctx.ask true (Lval lval) in 
     let read = access_byval ctx.ask false args in
     add_accesses ctx (wr@read) ctx.local; 
-    add_accesses2 ctx;
+    (*add_accesses2 ctx;*)
     al
     
   
@@ -732,7 +732,7 @@ struct
         let f_definite () = 
           (* Offset was definite -- current offset the offsets that follow and are 
             smaller (have extra indexes ond/or fields) are to be considered as one.*)
-          let new_gr_offs = Offs.join new_offs group_offs in
+          let new_gr_offs = GU.joinvalue Offs.join new_offs group_offs in
           if (Offs.leq new_offs group_offs || (Offs.is_bot group_offs)) 
           then (new_gr_offs, OffsMap.find offs map @ access_list, new_map) 
           else (   new_offs, OffsMap.find offs map, OffsMap.add group_offs access_list new_map)         
@@ -740,7 +740,7 @@ struct
         let f_perel () =
           (* Offset was not definite --- almost same as with f_definite, but keep only 
              per-element locks. *)
-          let new_gr_offs = Offs.perelem_join offs group_offs in
+          let new_gr_offs = GU.joinvalue Offs.perelem_join offs group_offs in
           let accs = OffsMap.find offs map in
           if (Offs.perel_leq offs group_offs || (Offs.is_bot group_offs)) 
           then (new_gr_offs, process offs new_gr_offs accs @ access_list, new_map) 
@@ -795,7 +795,7 @@ struct
             (* when reading: bump reader locks to exclusive as they protect reads *)
             Lockset.map (fun (x,_) -> (x,true)) lock 
         in
-          Dom.join locks lock 
+          GU.joinvalue Dom.join locks lock 
       in
 (*      print_endline "--------------"; *)
 			let v = List.fold_left f (Lockset.bot ()) acc_list in
@@ -851,7 +851,7 @@ struct
     let acc_map = if !unmerged_fields then fst acc_info else regroup_map acc_info in
       OffsMap.iter report_race acc_map
       
-  let postprocess_acc2 () = 
+  (*let postprocess_acc2 () = 
     let module PartSet = 
      struct
        include SetDomain.Make (AccessDomain.Acc)
@@ -898,12 +898,12 @@ struct
     let part = AccKeySet2.fold (fun k -> AccPart.add (PartSet.singleton k)) !accKeys2 (AccPart.empty ()) in
     AccPart.iter post_part part
 
-    
+    *)
   (** postprocess and print races and other output *)
   let finalize () = 
     if !GU.old_accesses
     then AccKeySet.iter postprocess_acc !accKeys
-    else postprocess_acc2 ();
+    else (*postprocess_acc2*) ();
     if !GU.multi_threaded then begin
       if !race_free then 
         print_endline "Goblint did not find any Data Races in this program!";

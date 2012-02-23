@@ -1,6 +1,6 @@
 open Cil
 open Analyses
-
+(*
 module Path = AccessDomain.Path
 module LF   = LibraryFunctions
 
@@ -139,4 +139,5 @@ module AccessMCP =
                 let inject_g x = `Access x
                 let extract_g x = match x with `Access x -> x | _ -> raise MCP.SpecificationConversionError
          end)
+ *)
 

@@ -1,10 +1,13 @@
 open Pretty
 
+module GU = Goblintutil
+
 module type Collapse = sig
   include Printable.S
   val collapse: t -> t -> bool
   val leq: t -> t -> bool
-  val join: t -> t -> t
+  val join: t -> t -> [`Left | `Equal | `Right | `New of t]
+  val oldjoin: t -> t -> t
 end
 
 module Set (S: Collapse) =
@@ -15,17 +18,19 @@ struct
     let p vf1 = exists (fun vf2 -> S.leq vf1 vf2) s2 in
       for_all p s1
 
-  let join (s1:t) (s2:t): t = 
+  let join (s1:t) (s2:t) = 
+    if equal s1 s2 then `Equal else
     (* Ok, so for each element vf2 in s2, we check in s1 for elements that
      * collapse with it and join with them. These are put in res and removed
      * from s1 as we don't need to compare with them anymore. *)
     let f vf2 (s1,res) = 
       let (s1_match, s1_rest) = partition (fun vf1 -> S.collapse vf1 vf2) s1 in
-      let el = fold S.join s1_match vf2 in
-        (s1_rest, add el res)
+        (s1_rest, add (fold (GU.joinvalue S.join) s1_match vf2) res)
     in
     let (s1', res) = fold f s2 (s1, empty ()) in
-      union s1' res
+    let r = union s1' res in
+    if equal r s1 then `Left else
+    if equal r s2 then `Right else `New r
 
   let collapse (s1:t) (s2:t): bool = 
     let f vf2 res = 
@@ -33,7 +38,7 @@ struct
     in
       fold f s2 false
 
-  let add e s = join s (singleton e)
+  let add e s = GU.joinvalue join s (singleton e)
 end
 
 module type CollapseSet = sig
@@ -54,15 +59,35 @@ struct
 
   let leq x y =
     for_all (fun p -> exists (S.leq p) y) x
-
-  let join xs ys =
-    let f (x: set) (zs: t): t = 
+      
+  let oldjoin (s1:t) (s2:t): t = 
+    (* Ok, so for each element vf2 in s2, we check in s1 for elements that
+     * collapse with it and join with them. These are put in res and removed
+     * from s1 as we don't need to compare with them anymore. *)
+    let f (x: set) zs = 
       let (joinem, rest) = partition (S.collapse x) zs in
-      let joined = fold S.join joinem x in
-        add joined rest
+        add (fold (GU.joinvalue S.join) joinem x) rest
     in
-      fold f xs ys
+    fold f s1 s2
+      
+  let join xs ys =
+    if equal xs ys then `Equal else
+    let f (x: set) zs = 
+      let (joinem, rest) = partition (S.collapse x) zs in
+        add (fold (GU.joinvalue S.join) joinem x) rest
+    in
+    let r = fold f xs ys in
+    if equal r xs then `Left else
+    if equal r ys then `Right else `New r
 
+(*  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  ->  (if not (equal x d) then ignore (Pretty.printf "joining\n%a\nwith\n%a\ninto\n%a\n" pretty x pretty y pretty d)); assert (equal x d); `Left
+      | `Right -> (if not (equal y d) then ignore (Pretty.printf "joining\n%a\nwith\n%a\ninto\n%a\n" pretty x pretty y pretty d)); assert (equal y d); `Right
+      | `New q -> assert (equal d q); `New q 
+      *)
   let meet xs ys =
     let f (x: set) (zs: t): t = 
       let p z = not (S.is_empty (S.inter x z)) in
@@ -78,10 +103,13 @@ struct
     with Not_found -> s
 
   let closure (p:t) (s:set): set =
-    let f x res = S.join (find_class x p) res in
+    let f x res = 
+      let xc = find_class x p in
+        GU.joinvalue S.join xc res
+    in
       S.fold f s (S.empty ())
 
-  let add (s:set) (p:t): t = join p (singleton s)
+  let add (s:set) (p:t): t = GU.joinvalue join p (singleton s)
 
 end
 
@@ -115,7 +143,7 @@ struct
     in
       fold f xs ys
 
-  let join xs ys = if is_bot xs then ys else if is_bot ys then xs else
+  let oldjoin xs ys = if is_bot xs then ys else if is_bot ys then xs else
     let f (x: set) (zs: partition): partition = 
       let p z = not (B.is_empty (B.inter x z)) in
       let joinem = filter p ys in
@@ -126,6 +154,35 @@ struct
           if B.cardinal joined > 1 then add joined zs else zs
     in
       fold f xs (empty ())
+
+  let join xs ys = 
+    match is_bot xs, is_bot ys with
+    | true, true -> `Equal
+    | true, _    -> `Right
+    | _   , true -> `Left
+    | _ ->
+      if equal xs ys then `Equal else
+      let f (x: set) (zs: partition): partition = 
+        let p z = not (B.is_empty (B.inter x z)) in
+        let joinem = filter p ys in
+          if is_empty joinem then 
+            zs 
+          else 
+            let joined = fold B.inter joinem x in
+            if B.cardinal joined > 1 then add joined zs else zs
+      in
+      let r = fold f xs (empty ()) in
+      if equal r xs then `Left else
+      if equal r ys then `Right else `New r
+      (*
+  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  -> (if not (equal x d) then ignore (Pretty.printf "joining\n%a\nwith\n%a\ninto\n%a\n" pretty x pretty y pretty d)); assert (equal x d); `Left
+      | `Right -> assert (equal y d); `Right
+      | `New q -> assert (equal d q); `New q 
+*)  
 
   let remove x ss = if is_bot ss then ss else
     let f (z: set) (zz: partition) = 

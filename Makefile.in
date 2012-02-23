@@ -10,7 +10,7 @@ CIL=@CIL@
 CILLIB=@CIL@/@CILOBJ@
 XML=@XML@
 
-LINK_LIBS  = @LINKLIBS@
+LINK_LIBS  = @LINKLIBS@ bigarray camomile batteries
 CAMLDIR    = @CAMLDIR@ 
 OCAMLDOC   = @OCAMLDOC@
 

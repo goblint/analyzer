@@ -271,7 +271,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
     let regroup_map (map,set) =
       let f offs (group_offs, access_list, new_map) = 
         let new_offs = Mutex.Offs.definite offs in
-        let new_gr_offs = Mutex.Offs.join new_offs group_offs in
+        let new_gr_offs = GU.joinvalue Mutex.Offs.join new_offs group_offs in
         (* we assume f is called in the right order: we get the greatest offset first (leq'wise) *)
         if (Mutex.Offs.leq new_offs group_offs || (Mutex.Offs.is_bot group_offs)) 
         then (new_gr_offs, M.OffsMap.find offs map @ access_list, new_map) 
@@ -292,7 +292,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
             (* when reading: bump reader locks to exclusive as they protect reads *)
             Mutex.Lockset.map (fun (x,_) -> (x,true)) lock 
         in
-          Mutex.Lockset.join locks lock 
+          GU.joinvalue Mutex.Lockset.join locks lock 
       in
 	List.fold_left f (Mutex.Lockset.bot ()) acc_list
     in

@@ -50,7 +50,8 @@ type 'a domRecord = {
     toXML_f : (int -> 'a -> string) -> 'a -> Xml.xml;
     name: unit -> string  ;
     leq: 'a -> 'a -> bool;
-    join: 'a -> 'a -> 'a;
+    join: 'a -> 'a -> [`Left|`Equal|`Right|`New of 'a];
+    oldjoin: 'a -> 'a -> 'a;
     meet: 'a -> 'a -> 'a;
     bot: unit -> 'a;
     is_bot: 'a -> bool;
@@ -127,7 +128,9 @@ struct
   type t = C.t
   
   let leq x y    = D.leq (C.extract x) (C.extract y)
-  let join x y   = C.inject (D.join (C.extract x) (C.extract y))
+  let join x y   = 
+    GU.liftDesc C.inject (D.join (C.extract x) (C.extract y))
+  let oldjoin x y= C.inject (D.oldjoin (C.extract x) (C.extract y))
   let meet x y   = C.inject (D.meet (C.extract x) (C.extract y))
   let widen x y  = C.inject (D.widen (C.extract x) (C.extract y))
   let narrow x y = C.inject (D.narrow (C.extract x) (C.extract y))
@@ -155,7 +158,21 @@ module ConvertToMCPPart
   (C:MCPPartConf with type lf = S.Dom.t and type gf = S.Glob.Val.t) 
     (*: Analyses.Spec*) =
 struct
-  (*module S = Analyses.StatsTrace (S)*)
+  (*module S = Analyses.HCLift (S)
+  module C1 = 
+  struct
+    let name = C.name
+    let depends = C.depends
+  
+    type lf = S.Dom.t
+    let inject_l x = C.inject_l (S.Dom.unlift x)
+    let extract_l x = S.Dom.lift (C.extract_l x)
+  
+    type gf = C.gf
+    let inject_g  = C.inject_g
+    let extract_g = C.extract_g  
+  end
+  module C = C1*)
   open C
   let matches x = 
     try let _ = extract_l x in
@@ -345,7 +362,8 @@ struct
         is_top      = Dom.is_top; 
         is_bot      = Dom.is_bot; 
         meet        = Dom.meet; 
-        join        = Dom.join; 
+        join        = Dom.join;
+        oldjoin     = Dom.oldjoin; 
         leq         = Dom.leq;
         pretty_diff = Dom.pretty_diff; 
         short       = Dom.short; 
@@ -369,7 +387,8 @@ struct
         is_top      = Glob.Val.is_top; 
         is_bot      = Glob.Val.is_bot; 
         meet        = Glob.Val.meet; 
-        join        = Glob.Val.join; 
+        join        = Glob.Val.join;
+        oldjoin     = Glob.Val.oldjoin; 
         leq         = Glob.Val.leq;
         pretty_diff = Glob.Val.pretty_diff; 
         short       = Glob.Val.short; 
@@ -455,6 +474,7 @@ struct
   let is_top' x   = (get_matches x).is_top x
   let is_bot' x   = (get_matches x).is_bot x 
   let meet' x y   = (get_matches x).meet x y
+  let oldjoin' x y= (get_matches x).oldjoin x y
   let join' x y   = (get_matches x).join x y
   let leq' x y    = (get_matches x).leq x y   
   let pretty_diff' x y acc = if leq' x y then acc else (get_matches x).pretty_diff () (x,y) 
@@ -476,7 +496,19 @@ struct
   let narrow = List.map2 narrow' 
   let widen  = List.map2 widen'  
   let meet   = List.map2 meet'   
-  let join   = List.map2 join'   
+  let oldjoin= List.map2 oldjoin'
+  let join x y = 
+    let f (xs,o) x y =
+      let e = join' x y in
+      (GU.descVal x y e::xs, GU.joinDesc o e)
+    in
+    let r, o = List.fold_left2 f ([],None) x y in
+    match o with 
+      | None -> `Equal
+      | Some `Left -> `Left
+      | Some `Equal -> `Equal
+      | Some `Right -> `Right
+      | Some `New -> `New (List.rev r)    
 
   let is_top = List.for_all is_top' 
   let is_bot = List.for_all is_bot'
@@ -557,6 +589,7 @@ struct
   let is_bot' x   = (get_matches x).is_bot x 
   let meet' x y   = (get_matches x).meet x y
   let join' x y   = (get_matches x).join x y
+  let oldjoin' x y= (get_matches x).oldjoin x y
   let leq' x y    = (get_matches x).leq x y   
   let pretty_diff' x y acc = if leq' x y then acc else (get_matches x).pretty_diff () (x,y) 
   
@@ -577,7 +610,20 @@ struct
   let narrow = List.map2 narrow' 
   let widen  = List.map2 widen'  
   let meet   = List.map2 meet'   
-  let join   = List.map2 join'   
+  let oldjoin= List.map2 oldjoin'
+  
+  let join x y = 
+    let f (xs,o) x y =
+      let e = join' x y in
+      (GU.descVal x y e::xs, GU.joinDesc o e)
+    in
+    let r, o = List.fold_left2 f ([],None) x y in
+    match o with 
+      | None -> `Equal
+      | Some `Equal -> `Equal
+      | Some `Left  -> `Left
+      | Some `Right -> `Right
+      | Some `New -> `New (List.rev r)
 
   let is_top = List.for_all is_top' 
   let is_bot = List.for_all is_bot'
@@ -791,7 +837,7 @@ struct
     (List.map (fun p -> p.exitstate) !analysesList)
     
   (* Join when path-sensitive properties are equal. *)
-  let should_join xs ys = 
+  let should_join  xs ys = 
     let drop_keep it_is x xs = if it_is then x :: xs else xs in
     let xs = List.fold_right2 drop_keep !take_list xs [] in
     let ys = List.fold_right2 drop_keep !take_list ys [] in
@@ -883,7 +929,7 @@ struct
             | [x] -> x
             | x::xs -> f x (fold_left1 f xs)
         in
-        fold_left1 Dom.join'  (List.filter is_n (List.map (fun (t,_,_) -> t) (List.concat ls)))
+        fold_left1 (GU.joinvalue Dom.join')  (List.filter is_n (List.map (fun (t,_,_) -> t) (List.concat ls)))
       in
       let ds = List.map dep_val s.depends_on in
       tf (set_sub ctx (set_st t) ds)::ls
@@ -901,7 +947,7 @@ struct
             | [x] -> x
             | x::xs -> f x (fold_left1 f xs)
         in
-         fold_left1 Dom.join' (List.filter is_n (List.map (fun (_,t) -> t) (List.concat ls)))
+         fold_left1 (GU.joinvalue Dom.join') (List.filter is_n (List.map (fun (_,t) -> t) (List.concat ls)))
       in
       let ds = List.map dep_val s.depends_on in
       tf (set_sub ctx (set_st t) ds)::ls

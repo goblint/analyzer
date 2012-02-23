@@ -145,7 +145,7 @@ module Lift (Base: S): S
 module Interval : S
 (** Interval domain with int64-s --- use with caution! *)
 
-module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] 
+(*module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
 
 module ManyInts : S 

@@ -30,7 +30,7 @@ type local_state = [
     | `OSEK        of LockDomain.Lockset.t
     | `OSEK2       of Osektupel.t*Osektupel.t
     | `OSEK3       of IntDomain.Flattened.t
-    | `Access      of AccessDomain.Access.t
+(*    | `Access      of AccessDomain.Access.t*)
     | `Contain     of ContainDomain.Dom.t
     | `Shape       of ShapeDomain.Dom.t*RegionDomain.RegionDom.t
     | `Stack       of StackDomain.Dom.t
@@ -41,7 +41,7 @@ type global_state = [
     | `Mutex  of LockDomain.Glob.Val.t
     | `Osek  of LockDomain.OsekGlob.Val.t
     | `Region of RegionDomain.RegPart.t
-    | `Access of AccessDomain.Access.GlobDom.t
+(*    | `Access of AccessDomain.Access.GlobDom.t *)
     | `Contain of ContainDomain.Globals.t
     | `Shapes of ShapeDomain.Bool.t * RegionDomain.RegPart.t
     | `None ]
@@ -201,6 +201,7 @@ struct
   struct
     include D.Dom
     
+    let hash x = time_f "Dom ↣ hash" hash x
     let equal x y = time_f "Dom ↣ equal" (equal x) y
     let join x y = time_f "Dom ↣ join" (join x) y
     let meet x y = time_f "Dom ↣ meet" (meet x) y
@@ -242,6 +243,37 @@ struct
   let leave_func ctx lval fexp f args au = time_f "leave_func" (leave_func ctx lval fexp f args) au  
   let special_fn ctx lval f arglist = time_f "special_fn" (special_fn ctx lval f) arglist
 
+end
+
+module HCLift (D : Spec) = 
+struct
+  module Dom = Lattice.HConsed (D.Dom)
+  module Glob = D.Glob
+  
+  let lift_f1 f x = Dom.lift (f (Dom.unlift x))
+  let lift_f2 f x y = Dom.lift (f (Dom.unlift x) (Dom.unlift y))
+  let lift_f2s f x y = f (Dom.unlift x) (Dom.unlift y)
+  let lift_f1s f x = f (Dom.unlift x)
+  let lift_fc f x = f (set_st x (Dom.unlift x.local) (fun sp f x -> sp f (Dom.lift x)))
+  let name         = D.name
+  let init         = D.init
+  let finalize     = D.finalize
+  let context_top f = lift_f1 (D.context_top f)
+  let should_join  = lift_f2s D.should_join
+  let startstate   () = Dom.lift (D.startstate ())
+  let otherstate   () = Dom.lift (D.otherstate ())
+  let exitstate    () = Dom.lift (D.exitstate  ())
+  let es_to_string f = lift_f1s (D.es_to_string f)
+  let sync x        = let x, y = lift_fc D.sync x in Dom.lift x, y
+  let query        = lift_fc D.query 
+  let assign c l r = Dom.lift (lift_fc D.assign c l r)
+  let branch c e t = Dom.lift (lift_fc D.branch c e t)
+  let body c f     = Dom.lift (lift_fc D.body c f)  
+  let return c e f = Dom.lift (lift_fc D.return c e f)
+  let special_fn c r f xs = List.map (fun (x,y,z) -> Dom.lift x, y, z) (lift_fc D.special_fn c r f xs) 
+  let enter_func c r f xs = List.map (fun (x,y) -> Dom.lift x, Dom.lift y) (lift_fc D.enter_func c r f xs)
+  let leave_func c r fe f xs d  = Dom.lift (lift_fc D.leave_func c r fe f xs (Dom.unlift d))
+  let intrpt c     = Dom.lift (lift_fc D.intrpt c)
 end
 
 
@@ -435,98 +467,22 @@ exception Deadcode
 (** [Dom (D)] produces D lifted where bottom means dead-code *)
 module Dom (LD: Lattice.S) = 
 struct 
-  module P = 
-  struct
-    include Lattice.Prod (LD) (IntDomain.FlatPureIntegers)
-    let hash (_,x) = Int64.to_int x 
-  end
-  include Lattice.Lift (P) (struct
+  include Lattice.Lift (LD) (struct
                                let bot_name = "Dead code"
                                let top_name = "Totally unknown & messed up"
                              end)
-  let lift (x:LD.t) : t = `Lifted (x, Int64.of_int (LD.hash x))
+
+  let lift (x:LD.t) : t = `Lifted x
 
   let unlift x = 
     match x with
-      | `Lifted (x,_) -> x
+      | `Lifted x -> x
       | _ -> raise Deadcode
 
   let lifted f x = 
     match x with
-      | `Lifted (x,_) -> let y = f x in `Lifted (y, Int64.of_int (LD.hash y))
+      | `Lifted x -> `Lifted (f x)
       | tb -> tb
-
-  let leq x y =
-    match (x,y) with
-      | (_, `Top) -> true
-      | (`Top, _) -> false
-      | (`Bot, _) -> true
-      | (_, `Bot) -> false
-      | (`Lifted (x,_), `Lifted (y,_)) -> LD.leq x y
-
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
-    match (x,y) with
-      | (`Lifted (x,_), `Lifted (y,_)) -> LD.pretty_diff () (x,y)
-      | _ -> if leq x y then Pretty.text "No Changes" else
-             Pretty.dprintf "%a instead of %a" pretty x pretty y
-
-  let join (x:t) (y:t) : t = 
-    match (x,y) with 
-      | (`Top, _) -> `Top
-      | (_, `Top) -> `Top
-      | (`Bot, x) -> x
-      | (x, `Bot) -> x
-      | (`Lifted (x,_)), `Lifted (y,_) -> lift (LD.join x y)
-
-  let meet x y = 
-    match (x,y) with 
-      | (`Bot, _) -> `Bot
-      | (_, `Bot) -> `Bot
-      | (`Top, x) -> x
-      | (x, `Top) -> x
-      | (`Lifted (x,_)), `Lifted (y,_) -> lift (LD.meet x y)
-      
-  let widen x y = 
-    match (x,y) with 
-      | (`Lifted (x,_)), `Lifted (y,_) -> lift (LD.widen x y)
-      | _ -> y
-
-  let narrow x y = 
-    match (x,y) with 
-      | (`Lifted (x,_)), `Lifted (y,_) -> lift (LD.narrow x y)
-      | _ -> x
-
-  let equal (x:t) (y:t) = 
-    match (x, y) with
-      | (`Top, `Top) -> true
-      | (`Bot, `Bot) -> true
-      | (`Lifted (x,h1), `Lifted (y,h2)) -> 
-        if h1=h2 then LD.equal x y 
-        else false
-      | _ -> false
-
-  let short w state = 
-    match state with
-      | `Lifted (n,_) ->  LD.short w n
-      | `Bot -> bot_name
-      | `Top -> top_name
-
-  let pretty_f _ () (state:t) = 
-    match state with
-      | `Lifted (n,_) -> LD.pretty () n
-      | `Bot -> text bot_name
-      | `Top -> text top_name
-
-  let toXML_f _ (state:t) =
-    match state with
-      | `Lifted (n,_) -> LD.toXML n
-      | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
-      | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
-
-  let toXML m = toXML_f short m
-
-  let pretty () x = pretty_f short () x
-  
 end
 
 

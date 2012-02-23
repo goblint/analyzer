@@ -115,7 +115,7 @@ struct
       | _ -> `Int (ID.top ())              (* string pointer *)
     in
     (* We form the collecting function by joining *)
-    let f x a = VD.join (f x) a in
+    let f x a = GU.joinvalue VD.join (f x) a in
       (* Finally we join over all the addresses in the set. If any of the
        * addresses is a topped value, joining will fail. *)
       try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
@@ -161,7 +161,7 @@ struct
       let nst = AD.fold update_one lval st in
       (* If the address was definite, then we just return it. If the address
        * was ambiguous, we have to join it with the initial state. *)
-      let nst = if AD.cardinal lval > 1 then CPA.join st nst else nst in
+      let nst = if AD.cardinal lval > 1 then GU.joinvalue CPA.join st nst else nst in
         (nst,fl)
     with 
       (* If any of the addresses are unknown, we ignore it!?! *)
@@ -636,7 +636,7 @@ struct
       let apply_invariant oldv newv =
         match oldv, newv with
           | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n ->
-              `Address (AD.join o n)
+              `Address (GU.joinvalue AD.join o n)
           | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o -> `Address n
           | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) n -> `Address o
           | _ -> VD.meet oldv newv
@@ -802,7 +802,7 @@ struct
         | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (ID.top ()))
         | `Blob e -> reachable_from_value e
         | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
-        | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD. join (reachable_from_value v) acc) s empty
+        | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> GU.joinvalue AD.join (reachable_from_value v) acc) s empty
         | `Int _ -> empty
     in
     let res = reachable_from_value (get ask gs st adr) in
@@ -816,7 +816,7 @@ struct
   let reachable_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
     if M.tracing then M.traceli "reachability" "Checking reachable arguments from [%a]!\n" (d_list ", " AD.pretty) args;
     (* We begin looking at the parameters: *)
-    let argset = List.fold_right AD.join args empty in
+    let argset = List.fold_right (GU.joinvalue AD.join) args empty in
     let workset = ref argset in
     (* And we keep a set of already visited variables *)
     let visited = ref empty in
@@ -947,7 +947,7 @@ struct
                 `LvalSet (Q.LS.top ())   
             | `Address a ->
                 let xs = List.map addrToLvalSet (reachable_vars ctx.ask [a] ctx.global ctx.local) in 
-                let addrs = List.fold_left Q.LS.join (Q.LS.empty ()) xs in
+                let addrs = List.fold_left (GU.joinvalue Q.LS.join) (Q.LS.empty ()) xs in
                 `LvalSet addrs
             | _ -> `LvalSet (Q.LS.empty ())      
           end
@@ -1063,7 +1063,7 @@ struct
                   let lptr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
                   let lprt_val = get ctx.ask ctx.global ctx.local lptr in
                   let lst_poison = `Address (AD.singleton (Addr.from_var ListDomain.list_poison)) in
-                  let s1 = set ctx.ask ctx.global ctx.local lptr (VD.join lprt_val lst_poison) in
+                  let s1 = set ctx.ask ctx.global ctx.local lptr (GU.joinvalue VD.join lprt_val lst_poison) in
                   match get ctx.ask ctx.global ctx.local lptr with
                     | `Address ladr ->
                       begin match get ctx.ask ctx.global ctx.local ladr with
@@ -1087,7 +1087,7 @@ struct
       (* handling thread creations *)
       | `ThreadCreate (f,x) -> 
           GU.multi_threaded := true;
-          let new_fl = Flag.join fl (Flag.get_main ()) in
+          let new_fl = GU.joinvalue Flag.join fl (Flag.get_main ()) in
             [map_true (cpa, new_fl)]
       (* handling thread joins... sort of *)
       | `ThreadJoin (id,ret_var) -> 
@@ -1100,7 +1100,7 @@ struct
           | Some lv -> 
             let heap_var = 
               if !GU.malloc_may_fail 
-              then AD.join (heap_var !GU.current_loc) (AD.null_ptr ()) 
+              then GU.joinvalue AD.join (heap_var !GU.current_loc) (AD.null_ptr ()) 
               else heap_var !GU.current_loc
             in 
             [map_true (set_many ctx.ask gs st [(heap_var, `Blob (VD.bot ()));  
@@ -1169,7 +1169,7 @@ struct
                 if List.fold_right f flist false then begin
                   (* Copy-pasted from the thread-spawning code above: *)
                   GU.multi_threaded := true;
-                  let new_fl = Flag.join fl (Flag.get_main ()) in
+                  let new_fl = GU.joinvalue Flag.join fl (Flag.get_main ()) in
                   [map_true (cpa,new_fl)]
                 end else 
                   [map_true st]

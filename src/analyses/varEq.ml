@@ -363,7 +363,7 @@ struct
         | None -> None
         | Some st ->
       match ask (Queries.ReachableFrom e) with
-        | `LvalSet vs -> Some (Queries.LS.join vs st)
+        | `LvalSet vs -> Some (GU.joinvalue Queries.LS.join vs st)
         | _ -> None
     in
     List.fold_right reachable es (Some (Queries.LS.empty ()))   

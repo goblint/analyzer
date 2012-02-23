@@ -1,3 +1,4 @@
+module GU = Goblintutil
 module Types
   (Var: Analyses.VarType) 
   (VDom: Lattice.S) 
@@ -26,8 +27,8 @@ struct
     let ntheta = GMap.create (GMap.length theta) (G.Val.bot ()) in
     let visited = VMap.create 111 false in
     let apply_diff = function
-      | `G (var, value) -> GMap.replace ntheta var (G.Val.join value (GMap.find ntheta var))
-      | `L (var, value) -> VMap.replace nsigma var (VDom.join value (VMap.find nsigma var))      
+      | `G (var, value) -> GMap.replace ntheta var (GU.joinvalue G.Val.join value (GMap.find ntheta var))
+      | `L (var, value) -> VMap.replace nsigma var (GU.joinvalue VDom.join value (VMap.find nsigma var))      
     in
     let rec visit_lhs var =
       if VMap.find visited var then () else begin
@@ -36,7 +37,7 @@ struct
       end
     and visit_rhs var rhs = 
       let v, c = rhs (get_local, GMap.find ntheta) apply_diff in
-      VMap.replace nsigma var (VDom.join v (VMap.find nsigma var));
+      VMap.replace nsigma var (GU.joinvalue VDom.join v (VMap.find nsigma var));
       List.iter visit_lhs c
     and get_local var =
       visit_lhs var;

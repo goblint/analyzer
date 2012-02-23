@@ -99,11 +99,11 @@ ifdef DEBUG
   LINKFLAGS.OPT      += -g
 endif
 
-CAMLC.OPT      = $(CAMLDIR)ocamlopt  $(COMPILEFLAGS.OPT)
-CAMLLINK.OPT   = $(CAMLDIR)ocamlopt  $(LINKFLAGS.OPT)
+CAMLC.OPT      = $(CAMLDIR)ocamlopt -package batteries $(COMPILEFLAGS.OPT)
+CAMLLINK.OPT   = $(CAMLDIR)ocamlopt -package batteries  $(LINKFLAGS.OPT)
 
-CAMLC.BYTE     = $(CAMLDIR)ocamlc         $(COMPILEFLAGS.BYTE)
-CAMLLINK.BYTE  = $(CAMLDIR)ocamlc -custom $(LINKFLAGS.BYTE)
+CAMLC.BYTE     = $(CAMLDIR)ocamlc         -package batteries $(COMPILEFLAGS.BYTE)
+CAMLLINK.BYTE  = $(CAMLDIR)ocamlc -custom -package batteries $(LINKFLAGS.BYTE)
 
 
 ifdef UNSAFE 

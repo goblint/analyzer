@@ -1,4 +1,4 @@
-// PARAM: --oil 05-pi.oil --tramp 05-pi-tramp.h --propset int_domain interval --propdel int_domain trier --solver effectWNcon
+// SKIP PARAM: --oil 05-pi.oil --tramp 05-pi-tramp.h --propset int_domain interval --propdel int_domain trier --solver effectWNCon
 
 // #include "05-pi-tramp.h"
 

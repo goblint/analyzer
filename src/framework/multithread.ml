@@ -27,7 +27,8 @@ struct
   (** Augment domain to lift dead code *)
   module SD  = A.Dom (Spec.Dom)
   (** Solver variables use global part from [Spec.Dep] *)
-  module Var = A.VarF (SD)
+  module HCSD = Lattice.HConsed (SD)
+  module Var = A.VarF (HCSD)
 
   module SP_SOL = Hashtbl.Make (Solver.Prod (Analyses.Var) (SD))
   module SP = SharirPnueli.Algorithm (Analyses.Var) (SD)
@@ -67,10 +68,10 @@ struct
     let prepare_forks phase (effect:Solver.effect_fun)  (fn,ed,tn : MyCFG.node * MyCFG.edge * MyCFG.node) (xs: (varinfo * Spec.Dom.t) list) : Solver.variable list =
       let do_one_function (fork_fun, fork_st) =
         if !GU.full_context then
-          (MyCFG.Function fork_fun, SD.lift fork_st) 
+          (MyCFG.Function fork_fun, HCSD.lift (SD.lift fork_st)) 
         else begin
-          effect (`L ((MyCFG.FunctionEntry fork_fun, SD.lift (Spec.context_top fork_fun fork_st)), SD.lift fork_st));
-          (MyCFG.Function fork_fun, SD.lift (Spec.context_top fork_fun fork_st)) 
+          effect (`L ((MyCFG.FunctionEntry fork_fun, HCSD.lift (SD.lift (Spec.context_top fork_fun fork_st))), SD.lift fork_st));
+          (MyCFG.Function fork_fun, HCSD.lift (SD.lift (Spec.context_top fork_fun fork_st))) 
         end
       in
       let spawns = List.map do_one_function xs in
@@ -119,14 +120,14 @@ struct
           | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
           | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () exp)))
       in
-      let dress (f,es)  = (MyCFG.Function f, SD.lift es) in
+      let dress (f,es)  = (MyCFG.Function f, HCSD.lift (SD.lift es)) in
       let add_function st' f : Spec.Dom.t =
         let add_one_call x =
           if !GU.full_context then
             sigma (dress (f, x)) 
           else begin
             let ctx_st = Spec.context_top f x in
-            effect (`L ((MyCFG.FunctionEntry f, SD.lift ctx_st), SD.lift x));
+            effect (`L ((MyCFG.FunctionEntry f, HCSD.lift (SD.lift ctx_st)), SD.lift x));
             sigma (dress (f, ctx_st)) 
           end
         in
@@ -140,13 +141,14 @@ struct
           let joined_result   = 
             if List.length non_bottoms = 0 
               then raise A.Deadcode 
-              else List.fold_left (fun st (fst,tst) -> Spec.Dom.join st (leave fst (SD.unlift tst))) (Spec.Dom.bot ()) non_bottoms in
+              else List.fold_left 
+                  (fun st (fst,tst) -> GU.joinvalue Spec.Dom.join st (leave fst (SD.unlift tst))) (Spec.Dom.bot ()) non_bottoms in
           if P.tracking then P.track_call f (Spec.Dom.hash st) ;
-          Spec.Dom.join st' joined_result
+          GU.joinvalue Spec.Dom.join st' joined_result
 			  end        
         else
 				begin
-          let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
+          let joiner d1 (d2,_,_) = GU.joinvalue Spec.Dom.join d1 d2 in 
           List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (getctx st) lval f args)
 			  end 
       in
@@ -178,7 +180,7 @@ struct
            not use full contexts then we hope that someting meaningful was side-effected there *)
         let predval =
           match edge with
-            | MyCFG.Entry _ when !GU.full_context -> es
+            | MyCFG.Entry _ when !GU.full_context -> HCSD.unlift es
             | _ -> sigma predvar 
         in
         if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty predval)));
@@ -284,9 +286,9 @@ struct
           (* If this source location has been added before, we look it up
            * and add another node to it information to it. *)
           let prev = Result.find res p in
-          Result.replace res p (LT.add (SD.unlift es,state,fundec) prev)
+          Result.replace res p (LT.add (SD.unlift (HCSD.unlift es),state,fundec) prev)
         else 
-          Result.add res p (LT.singleton (SD.unlift es,state,fundec))
+          Result.add res p (LT.singleton (SD.unlift (HCSD.unlift es),state,fundec))
         (* If the function is not defined, and yet has been included to the
          * analysis result, we generate a warning. *)
       with Not_found -> M.warn ("Undefined function has escaped.")
@@ -343,7 +345,7 @@ struct
           | _ -> Messages.bailwith ("Special: Failed to evaluate function expression "^(sprint 80 (d_exp () f)))
       in
       let f = List.hd fs in
-      let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
+      let joiner d1 (d2,_,_) = GU.joinvalue Spec.Dom.join d1 d2 in 
       List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn ctx lv f args)    
     in
     let enter p (x:SD.t) =
@@ -409,7 +411,7 @@ struct
   let sp_to_solver_result (r:SD.t SP_SOL.t) : solver_result =
     let vm = Solver.VMap.create (SP_SOL.length r * 2) (SD.bot ()) in
     let gm = Solver.GMap.create 1 (Spec.Glob.Val.bot ()) in
-    let f (x,y) z = Solver.VMap.add vm (x,y) z  in
+    let f (x,y) z = Solver.VMap.add vm (x,HCSD.lift y) z  in
     SP_SOL.iter f r;
     vm, gm
 
@@ -507,8 +509,9 @@ struct
     let startvars = List.concat (startvars @ exitvars @ othervars) in
     let _ = if startvars = [] then failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list." in
     let context_fn f = if !GU.full_context then fun x->x else Spec.context_top f in
-    let startvars' = List.map (fun (n,e) -> MyCFG.Function n, SD.lift (context_fn n (SD.unlift e))) startvars in
-    let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n,e), d) startvars' startvars in
+    let startvars' = List.map (fun (n,e) -> MyCFG.Function n, HCSD.lift (SD.lift (context_fn n (SD.unlift e)))) startvars in
+    let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n, HCSD.unlift e), d) startvars' startvars in
+    let entrystatesq = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n, e), d) startvars' startvars in
     let startvars'' = if !GU.forward then [] else startvars' in
     let procs = 
       let f = function
@@ -521,7 +524,7 @@ struct
       let solve () =
         if !Goblintutil.sharir_pnueli 
         then sp_to_solver_result (applySP cfg old old_g old_s phase (procs entrystates))
-        else Solver.solve () (system cfg old old_g old_s phase) startvars'' entrystates
+        else Solver.solve () (system cfg old old_g old_s phase) startvars'' entrystatesq
       in
       if !GU.verbose then print_endline ("Analyzing phase "^string_of_int phase^"!");
       Stats.time "solver" solve () in
@@ -568,7 +571,7 @@ struct
     let hm = PH.create (Solver.VMap.length r) in
     let f (k,_) v =
       let old = try PH.find hm k with Not_found -> SD.bot () in
-      PH.replace hm k (SD.join v old)
+      PH.replace hm k (GU.joinvalue SD.join v old)
     in
     Solver.VMap.iter f  r;
     let ha = PH.create (PH.length hm) in
@@ -609,6 +612,9 @@ struct
       end;
       Spec.finalize ()
     done;
+    (*let module VSet = Set.Make (A.Var) in
+    let vs = List.fold_left (fun s (st,_) -> Solver.VMap.fold (fun (n,_) _ -> VSet.add n) st s) VSet.empty !oldsol in
+    ignore (Pretty.printf "# program points = %d\n" (VSet.cardinal vs));*)
     (* output the result if needed *)
     Result.output (fun () -> solver2source_result !oldsol) file;
     if !GU.dump_global_inv then 

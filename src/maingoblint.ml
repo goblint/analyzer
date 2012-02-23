@@ -281,6 +281,7 @@ let main () =
           (fun () ->  print_endline "\nTimeout reached!") ();
         if !Cilutil.printStats then 
         begin
+          ignore (Pretty.printf "vars = %d    evals = %d\n" !EffectWCon.vars !EffectWCon.evals);
           flush_all ();
           prerr_endline "Solver stats:";
           prerr_endline ("  globals changed "^string_of_int !Goblintutil.globals_changed^" times");

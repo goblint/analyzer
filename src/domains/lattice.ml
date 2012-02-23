@@ -1,8 +1,11 @@
+module GU = Goblintutil
+
 module type S =
 sig
   include Printable.S
   val leq: t -> t -> bool
-  val join: t -> t -> t
+  val join: t -> t -> [ `Left | `Right | `Equal | `New of t]
+  val oldjoin: t -> t -> t
   val meet: t -> t -> t
   val bot: unit -> t
   val is_bot: t -> bool
@@ -28,7 +31,8 @@ struct
   include Printable.Unit
   include StdCousot
   let leq _ _ = true
-  let join _ _ = ()
+  let join _ _ = `Equal
+  let oldjoin _ _ = ()
   let meet _ _ = ()
   let top () = ()
   let is_top _ = true
@@ -44,6 +48,8 @@ struct
   include StdCousot
   let leq = equal
   let join x y = 
+    if equal x y then `Equal else raise (Unsupported "fake join")
+  let oldjoin x y =
     if equal x y then x else raise (Unsupported "fake join")
   let meet x y = 
     if equal x y then x else raise (Unsupported "fake meet")
@@ -62,7 +68,8 @@ end
 module UnsafeFake (Base: PD) =
 struct
   include Fake (Base)
-  let join x y = x
+  let oldjoin x y = x
+  let join x y = `Left
   let meet x y = x
   let top () = Base.dummy
   let bot () = Base.dummy
@@ -77,8 +84,40 @@ struct
   let bot = Base.top
   let top = Base.bot
   let leq x y = Base.leq y x
-  let join = Base.meet
-  let meet = Base.join
+  let join x y = 
+    if Base.equal x y then `Equal else
+    let l = Base.meet x y in 
+    if Base.equal x l then `Left else if Base.equal y l then `Right else `New l
+  let oldjoin x y = Base.meet x y
+  let meet x y = match Base.join x y with `Left | `Equal -> x | `Right -> y | `New y -> y
+end
+
+(* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
+module HConsed (Base:S) =
+struct
+  include Printable.HConsed (Base)
+  let lift_f2 f x y = f (unlift x) (unlift y)
+  let narrow x y = lift (lift_f2 Base.narrow x y)
+  let widen x y = lift (lift_f2 Base.widen x y)
+  let meet x y = lift (lift_f2 Base.meet x y)
+  let oldjoin x y = lift (lift_f2 Base.oldjoin x y)
+  let join x y = match lift_f2 Base.join x y with
+                     `New w -> `New (lift w) 
+                   | `Left  -> `Left 
+                   | `Right -> `Right
+                   | `Equal -> `Equal
+(* let join x y = 
+   let d = oldjoin x y in
+   match join x y with
+     | `Equal -> assert (equal x y && equal d x); `Equal
+     | `Left  -> assert (equal x d); `Left
+     | `Right -> assert (equal y d); `Right
+     | `New q -> assert (equal d q); `New q *)
+  let leq = lift_f2 Base.leq 
+  let is_top = lift_f Base.is_top 
+  let is_bot = lift_f Base.is_bot 
+  let top () = lift (Base.top ())
+  let bot () = lift (Base.bot ())
 end
 
 module Flat (Base: Printable.S) (N: Printable.LiftingNames) = 
@@ -103,7 +142,7 @@ struct
     if leq x y then Pretty.text "No Changes" else
     Pretty.dprintf "%a instead of %a" pretty x pretty y
 
-  let join x y = 
+  let oldjoin x y = 
     match (x,y) with 
       | (`Top, _) -> `Top
       | (_, `Top) -> `Top
@@ -112,6 +151,25 @@ struct
       | (`Lifted x, `Lifted y) when Base.equal x y -> `Lifted x
       | _ -> `Top
 
+  let join x y = 
+    match (x,y) with 
+      | (`Top, `Top) -> `Equal
+      | (`Top, _) -> `Left
+      | (_, `Top) -> `Right
+      | (`Bot, `Bot) -> `Equal
+      | (`Bot, x) -> `Right
+      | (x, `Bot) -> `Left
+      | (`Lifted x, `Lifted y) when Base.equal x y -> `Equal
+      | _ -> `New `Top
+      (*
+  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  -> assert (equal x d); `Left
+      | `Right -> assert (equal y d); `Right
+      | `New q -> assert (equal d q); `New q 
+      *)
   let meet x y = 
     match (x,y) with 
       | (`Bot, _) -> `Bot
@@ -146,14 +204,37 @@ struct
       | _ -> if leq x y then Pretty.text "No Changes" else
              Pretty.dprintf "%a instead of %a" pretty x pretty y
 
-  let join x y = 
+  let oldjoin x y = 
     match (x,y) with 
       | (`Top, _) -> `Top
       | (_, `Top) -> `Top
       | (`Bot, x) -> x
       | (x, `Bot) -> x
-      | (`Lifted x, `Lifted y) -> `Lifted (Base.join x y)
-
+      | (`Lifted x, `Lifted y) -> `Lifted (Base.oldjoin x y)
+  
+  let join x y = 
+    match (x,y) with 
+      | (`Top, `Top) -> `Equal
+      | (`Top, _) -> `Left
+      | (_, `Top) -> `Right
+      | (`Bot, `Bot) -> `Equal
+      | (`Bot, x) -> `Right
+      | (x, `Bot) -> `Left
+      | (`Lifted x, `Lifted y) -> 
+    match Base.join x y with
+      | `Equal -> `Equal
+      | `Left  -> `Left
+      | `Right -> `Right
+      | `New t -> `New (`Lifted t)
+      (*
+  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  -> assert (equal x d); `Left
+      | `Right -> assert (equal y d); `Right
+      | `New q -> (if not (equal q d) then ignore (Pretty.printf "joining:\n%a\nand\n%a\nto\n%a\n" pretty x pretty y pretty d)); assert(equal q d); `New q 
+      *)
   let meet x y = 
     match (x,y) with 
       | (`Bot, _) -> `Bot
@@ -196,21 +277,47 @@ struct
     if leq x y then Pretty.text "No Changes" else
     Pretty.dprintf "%a instead of %a" pretty x pretty y
 
-  let join x y = 
+  let oldjoin x y = 
     match (x,y) with 
       | (`Top, _) -> `Top
       | (_, `Top) -> `Top
       | (`Bot, x) -> x
       | (x, `Bot) -> x
       | (`Lifted1 x, `Lifted1 y) -> begin
-          try `Lifted1 (Base1.join x y) 
+          try `Lifted1 (Base1.oldjoin x y) 
           with Unsupported _ -> `Top
         end
       | (`Lifted2 x, `Lifted2 y) -> begin
-          try `Lifted2 (Base2.join x y) 
+          try `Lifted2 (Base2.oldjoin x y) 
           with Unsupported _ -> `Top
         end
       | _ -> `Top
+
+  let join x y = 
+    match (x,y) with 
+      | (`Top, `Top) -> `Equal
+      | (`Top, _)    -> `Left
+      | (_, `Top)    -> `Right
+      | (`Bot, `Bot) -> `Equal
+      | (`Bot, x)    -> `Right
+      | (x, `Bot)    -> `Left
+      | (`Lifted1 x, `Lifted1 y) -> begin
+          try match Base1.join x y with
+            | `Equal -> `Equal
+            | `Left  -> `Left
+            | `Right -> `Right
+            | `New y -> `New (`Lifted1 y)
+          with Unsupported _ -> `New `Top
+        end
+      | (`Lifted2 x, `Lifted2 y) -> begin
+          try match Base2.join x y with
+            | `Equal -> `Equal
+            | `Left  -> `Left
+            | `Right -> `Right
+            | `New y -> `New (`Lifted2 y)
+          with Unsupported _ -> `New `Top
+        end
+      | _ -> `New `Top
 
   let meet x y = 
     match (x,y) with
@@ -227,7 +334,15 @@ struct
           with Unsupported _ -> `Bot
         end
       | _ -> `Bot
-
+      (*
+  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  -> assert (equal x d); `Left
+      | `Right -> assert (equal y d); `Right
+      | `New q -> assert (equal d q); `New q 
+      *)
   let widen x y = 
     match (x,y) with 
       | (`Lifted1 x, `Lifted1 y) -> `Lifted1 (Base1.widen x y) 
@@ -260,7 +375,24 @@ struct
       Base1.pretty_diff () (x1,y1)
 
   let op_scheme op1 op2 (x1,x2) (y1,y2): t = (op1 x1 y1, op2 x2 y2)
-  let join = op_scheme Base1.join Base2.join
+  let oldjoin = op_scheme Base1.oldjoin Base2.oldjoin
+  let join (x1,x2) (y1,y2) = 
+    match Base1.join x1 y1, Base2.join x2 y2 with
+      | (`Equal, `Equal) -> `Equal
+      | (`Equal, `Left)  -> `Left
+      | (`Equal, `Right) -> `Right
+      | (`Left, `Equal)  -> `Left
+      | (`Right, `Equal) -> `Right
+      | (`Left, `Left)   -> `Left
+      | (`Right, `Right) -> `Right
+      | (x,y) -> `New (GU.descVal x1 y1 x,GU.descVal x2 y2 y)
+(*  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  -> (if not (equal x d) then ignore (Pretty.printf "joining\n%a\nwith\n%a\ninto\n%a\n" pretty x pretty y pretty d));assert (equal x d); `Left
+      | `Right -> assert (equal y d); `Right
+      | `New q -> assert (equal d q); `New q *)
   let meet = op_scheme Base1.meet Base2.meet
   let narrow = op_scheme Base1.narrow Base2.narrow
   let widen = op_scheme Base1.widen Base2.widen
@@ -290,7 +422,32 @@ struct
       Base3.pretty_diff () (x3,y3)
 
   let op_scheme op1 op2 op3 (x1,x2,x3) (y1,y2,y3): t = (op1 x1 y1, op2 x2 y2, op3 x3 y3)
-  let join = op_scheme Base1.join Base2.join Base3.join
+  let oldjoin = op_scheme Base1.oldjoin Base2.oldjoin Base3.oldjoin
+  let join (x1,x2,x3) (y1,y2,y3) = 
+    match Base1.join x1 y1, Base2.join x2 y2, Base3.join x3 y3 with
+      | (`Equal, `Left , `Left) 
+      | (`Left , `Equal, `Left) 
+      | (`Left , `Left , `Equal) 
+      | (`Equal, `Equal, `Left) 
+      | (`Equal, `Left , `Equal) 
+      | (`Left , `Equal, `Equal) 
+      | (`Left , `Left , `Left) -> `Left
+      | (`Equal, `Right, `Right) 
+      | (`Right, `Equal, `Right) 
+      | (`Right, `Right, `Equal) 
+      | (`Equal, `Equal, `Right) 
+      | (`Equal, `Right, `Equal) 
+      | (`Right, `Equal, `Equal) 
+      | (`Right, `Right, `Right) -> `Right
+      | (x,y,z) -> `New (GU.descVal x1 y1 x,GU.descVal x2 y2 y, GU.descVal x3 y3 z)  
+(*  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  -> assert (equal x d); `Left
+      | `Right -> assert (equal y d); `Right
+      | `New q -> assert (equal d q); `New q 
+*)      
   let meet = op_scheme Base1.meet Base2.meet Base3.meet
   let widen = op_scheme Base1.widen Base2.widen Base3.widen
   let narrow = op_scheme Base1.narrow Base2.narrow Base3.narrow
@@ -318,12 +475,32 @@ struct
     if leq x y then Pretty.text "No Changes" else
     Pretty.dprintf "%a instead of %a" pretty x pretty y
 
-  let join x y = 
+  let oldjoin x y = 
     match (x,y) with 
       | (`Bot, x) -> x
       | (x, `Bot) -> x
-      | (`Lifted x, `Lifted y) -> `Lifted (Base.join x y)
+      | (`Lifted x, `Lifted y) -> `Lifted (Base.oldjoin x y)
+      
+  let join x y = 
+    match (x,y) with 
+      | (`Bot, `Bot) -> `Equal
+      | (`Bot, x) -> `Right
+      | (x, `Bot) -> `Left
+      | (`Lifted x, `Lifted y) -> 
+    match Base.join x y with 
+      | `Equal -> `Equal
+      | `Left  -> `Left
+      | `Right -> `Right
+      | `New y -> `New (`Lifted y)
 
+(*  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  -> assert (equal x d); `Left
+      | `Right -> assert (equal y d); `Right
+      | `New q -> assert (equal d q); `New q 
+      *)
   let meet x y = 
     match (x,y) with 
       | (`Bot, _) -> `Bot
@@ -359,11 +536,31 @@ struct
       | (`Top, _) -> false
       | (`Lifted x, `Lifted y) -> Base.leq x y
 
-  let join x y = 
+  let oldjoin x y = 
     match (x,y) with 
       | (`Top, x) -> `Top
       | (x, `Top) -> `Top
-      | (`Lifted x, `Lifted y) -> `Lifted (Base.join x y)
+      | (`Lifted x, `Lifted y) -> `Lifted (Base.oldjoin x y)
+
+  let join x y = 
+    match (x,y) with 
+      | (`Top, `Top) -> `Equal
+      | (`Top, x)    -> `Left
+      | (x, `Top)    -> `Right
+      | (`Lifted x, `Lifted y) -> 
+    match Base.join x y with
+      | `Equal -> `Equal
+      | `Left  -> `Left
+      | `Right -> `Right
+      | `New y -> `New (`Lifted y)
+      
+(*  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  ->  (if not (equal x d) then ignore (Pretty.printf "joining\n%a\nwith\n%a\ninto\n%a\n" pretty x pretty y pretty d)); assert (equal x d); `Left
+      | `Right -> assert (equal y d); `Right
+      | `New q -> assert (equal d q); `New q*) 
 
   let meet x y = 
     match (x,y) with 
@@ -396,7 +593,29 @@ struct
     let f acc x y = Base.leq x y && acc in
       List.fold_left2 f true
 
-  let join = List.map2 Base.join
+  let join x y = 
+    let f (p,po) x y =
+      match Base.join x y with
+        | `Equal -> (x::p, GU.joinDesc po `Equal   )
+        | `Left  -> (x::p, GU.joinDesc po `Left   )
+        | `Right -> (y::p, GU.joinDesc po `Right  )
+        | `New q -> (q::p, Some `New)
+    in
+    match List.fold_left2 f ([], None) x y with
+      | _, Some `Equal -> `Equal
+      | _, Some `Left  -> `Left
+      | _, Some `Right -> `Right
+      | [], None -> `Equal
+      | r , _    -> `New (List.rev r)   
+  let oldjoin = List.map2 Base.oldjoin
+(*  let join x y = 
+    let d = oldjoin x y in
+    match join x y with
+      | `Equal -> assert (equal x y && equal d x); `Equal
+      | `Left  -> assert (equal x d); `Left
+      | `Right -> assert (equal y d); `Right
+      | `New q -> assert (equal d q); `New q 
+*)  
   let meet = List.map2 Base.meet
 end
 
@@ -411,6 +630,8 @@ struct
   let is_top x = x = P.n - 1
 
   let leq x y = x <= y
-  let join x y = max x y
+  let join x y = 
+      if x=y then `Equal else if x>y then `Left else `Right
+  let oldjoin x y = max x y
   let meet x y = min x y
 end

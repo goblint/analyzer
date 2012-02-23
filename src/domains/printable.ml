@@ -94,6 +94,29 @@ struct
   let top_name = "top"
 end
 
+(* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
+module HConsed (Base:S) =
+struct
+  module HC = BatHashcons.MakeTable (Base)
+  let htable = HC.create 1000000
+   
+  type t = Base.t BatHashcons.hobj
+  let unlift x = x.BatHashcons.obj
+  let lift = HC.hashcons htable
+  let lift_f f (x:Base.t BatHashcons.hobj) = f (x.BatHashcons.obj)
+  let name () = "HConsed "^Base.name ()
+  let hash x = x.BatHashcons.hcode
+  let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
+  let compare x y =  Pervasives.compare x.BatHashcons.tag y.BatHashcons.tag
+  let short w = lift_f (Base.short w) 
+  let pretty_f sf () = lift_f (Base.pretty_f (fun w x -> sf w (lift x)) ())
+  let pretty = pretty_f short
+  let toXML_f sf = lift_f (Base.toXML_f (fun w x -> sf w (lift x)))
+  let toXML = toXML_f short 
+  let isSimple = lift_f Base.isSimple  
+  let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
+end
+
 module Lift (Base: S) (N: LiftingNames) =
 struct
   type t = [`Bot | `Lifted of Base.t | `Top]
@@ -258,7 +281,7 @@ struct
 
   include Std
   
-  let hash (x,y) = Base1.hash x lxor Base2.hash y * 17
+  let hash (x,y) = Base1.hash x + Base2.hash y * 17
   let equal (x1,x2) (y1,y2) = Base1.equal x1 y1 && Base2.equal x2 y2
 
   let compare (x1,x2) (y1,y2) = 
@@ -319,7 +342,7 @@ module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct 
   type t = Base1.t * Base2.t * Base3.t
   include Std
-  let hash (x,y,z) = Base1.hash x lxor Base2.hash y * 17 lxor Base3.hash z * 33
+  let hash (x,y,z) = Base1.hash x + Base2.hash y * 17 + Base3.hash z * 33
   let equal (x1,x2,x3) (y1,y2,y3) = 
     Base1.equal x1 y1 && Base2.equal x2 y2 && Base3.equal x3 y3
   let short w (x,y,z) = 
@@ -358,7 +381,7 @@ struct
   type t = Base.t list
   include Std
   let equal x y = try List.for_all2 Base.equal x y with Invalid_argument _ -> false
-  let hash = List.fold_left (fun xs x -> xs lxor Base.hash x) 996699
+  let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
   
   let short _ x = 
     let elems = List.map (Base.short max_int) x in

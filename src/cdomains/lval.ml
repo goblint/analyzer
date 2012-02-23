@@ -29,6 +29,25 @@ struct
   include Printable.Std
   include Lattice.StdCousot
   
+  let short _ x =
+    let rec offs_short x = 
+      match x with 
+        | `NoOffset -> ""
+        | `Index (x,o) -> "[" ^ (Idx.short 80 x) ^ "]" ^ (offs_short o) 
+        | `Field (x,o) -> "." ^ (x.fname) ^ (offs_short o) 
+    in
+    match x with 
+      | Offs x -> offs_short x
+      | Bot -> "Erronous offset"
+      
+  let pretty_f sf () x = text (sf 80 x)
+  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)],[]) 
+  
+  let pretty = pretty_f short
+  let toXML = toXML_f short
+  let pretty_diff () (x,y) = 
+    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  
   let hash _ = 35166
   let name () = "Offset"
   
@@ -134,7 +153,7 @@ struct
       | Offs (`Index x), Offs (`Field y) -> Bot
       | Offs x, Offs y -> Offs (offs_meet x y)
 
-  let join x y =
+  let oldjoin x y =
     let rec offs_join x y =
       match x, y with
         | `NoOffset, x -> `NoOffset
@@ -151,46 +170,51 @@ struct
       | Offs (`Field x), Offs (`Index y) -> Offs `NoOffset 
       | Offs (`Index x), Offs (`Field y) -> Offs `NoOffset
       | Offs x, Offs y -> Offs (offs_join x y)
+ 
+  let join x y =
+    let rec offs_join x y =
+      match x, y with
+        | `NoOffset, `NoOffset -> `Equal
+        | `NoOffset, x -> `Left
+        | x, `NoOffset -> `Right
+        | `Field (x1,y1), `Field (x2,y2) when x1 == x2 
+            -> GU.liftDesc (fun x -> `Field (x1, x)) (offs_join y1 y2)
+        | `Index (x1,y1), `Index (x2,y2) when Idx.equal x1 x2
+            -> GU.liftDesc (fun x -> `Index (x1, x)) (offs_join y1 y2)
+        | _ -> `New `NoOffset
+    in
+    match x, y with
+      | Bot, Bot -> `Equal
+      | Bot, x -> `Right 
+      | x, Bot -> `Left
+      | Offs (`Field x), Offs (`Index y) -> `New (Offs `NoOffset) 
+      | Offs (`Index x), Offs (`Field y) -> `New (Offs `NoOffset)
+      | Offs x, Offs y -> GU.liftDesc (fun x -> Offs x) (offs_join x y)
 
   let perelem_join x y =
     let rec offs_join x y =
       match x, y with
-        | `NoOffset, x -> `NoOffset
-        | x, `NoOffset -> `NoOffset
+        | `NoOffset, `NoOffset -> `Equal
+        | `NoOffset, x -> `Left
+        | x, `NoOffset -> `Right
         | `Field (x1,y1), `Field (x2,y2) when x1 == x2 
-            -> `Field (x1, offs_join y1 y2)
+            -> GU.liftDesc (fun x -> `Field (x1, x)) (offs_join y1 y2)
         | `Index (x1,y1), `Index (x2,y2) 
             when Idx.to_int x1 = Some (GU.inthack) || Idx.to_int x2 = Some (GU.inthack)
-            -> `Index (Idx.of_int GU.inthack, offs_join y1 y2)
+            -> if Idx.to_int x1 = Idx.to_int x2
+               then GU.liftDesc (fun x -> `Index (Idx.of_int GU.inthack, x)) (offs_join y1 y2)
+               else `New (`Index (Idx.of_int GU.inthack, GU.joinvalue offs_join y1 y2))
         | `Index (x1,y1), `Index (x2,y2) 
-            -> `Index (Idx.join x1 x2, offs_join y1 y2)
-        | _ -> `NoOffset
+            -> GU.liftDesc2 (fun x y -> `Index (y, x)) y1 y2 (offs_join y1 y2) x1 x2 (Idx.join x1 x2)
+        | _ -> `New `NoOffset
     in
     match x, y with
-      | Bot, x -> x 
-      | x, Bot -> x 
-      | Offs (`Field x), Offs (`Index y) -> Offs `NoOffset 
-      | Offs (`Index x), Offs (`Field y) -> Offs `NoOffset
-      | Offs x, Offs y -> Offs (offs_join x y)
-      
-  let short _ x =
-    let rec offs_short x = 
-      match x with 
-        | `NoOffset -> ""
-        | `Index (x,o) -> "[" ^ (Idx.short 80 x) ^ "]" ^ (offs_short o) 
-        | `Field (x,o) -> "." ^ (x.fname) ^ (offs_short o) 
-    in
-    match x with 
-      | Offs x -> offs_short x
-      | Bot -> "Erronous offset"
-      
-  let pretty_f sf () x = text (sf 80 x)
-  let toXML_f sf x = Xml.Element ("Leaf", [("text", sf 80 x)],[]) 
-  
-  let pretty = pretty_f short
-  let toXML = toXML_f short
-  let pretty_diff () (x,y) = 
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+      | Bot, Bot -> `Equal
+      | Bot, x -> `Right 
+      | x, Bot -> `Left
+      | Offs (`Field x), Offs (`Index y) -> `New (Offs `NoOffset) 
+      | Offs (`Index x), Offs (`Field y) -> `New (Offs `NoOffset)
+      | Offs x, Offs y -> GU.liftDesc (fun x -> Offs x) (offs_join x y) 
 end
 
 module type S =
@@ -431,11 +455,12 @@ struct
       | Addr (x,o), Addr (y,u) when x.vid = y.vid -> leq_offs o u
       | _                      -> false
       
-  let join x y = 
+  let oldjoin x y = 
     let rec join_offs x y =
       match x, y with
-      | `Index (i,x), `Index (o,y) -> `Index (Idx.join i o, join_offs x y)
-      | `Field (f,x), `Field (g,y) when f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname -> `Field (f,join_offs x y)
+      | `Index (i,x), `Index (o,y) -> `Index (Idx.oldjoin i o, join_offs x y)
+      | `Field (f,x), `Field (g,y) when f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname 
+          -> `Field (f,join_offs x y)
       | _ -> `NoOffset
     in
     match x, y with
@@ -448,6 +473,33 @@ struct
       | StrPtr    , StrPtr  -> StrPtr
       | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x,join_offs o u)
       | _ -> Top
+
+  let join x y = 
+    let rec join_offs x y =
+      match x, y with
+      | `Index (i,x), `Index (o,y) -> begin
+          GU.liftDesc2 (fun x y -> `Index (x,y)) i o (Idx.join i o) x y (join_offs x y)
+      end
+      | `Field (f,x), `Field (g,y) when f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname -> 
+          GU.liftDesc (fun x -> `Field (f,x)) (join_offs x y)
+      | `NoOffset, `NoOffset -> `Equal
+      | `NoOffset, _ -> `Left
+      | _, `NoOffset -> `Right
+      | _ -> `New `NoOffset
+    in
+    match x, y with
+      | Top       , Top     -> `Equal
+      | Top       , _       -> `Left
+      | _         , Top     -> `Right
+      | Bot       , Bot     -> `Equal
+      | Bot       , y       -> `Right
+      | x         , Bot     -> `Left
+      | UnknownPtr, UnknownPtr -> `Equal
+      | NullPtr   , NullPtr -> `Equal
+      | StrPtr    , StrPtr  -> `Equal
+      | Addr (x,o), Addr (y,u) when x.vid = y.vid -> 
+          GU.liftDesc (fun y -> Addr (x,y)) (join_offs o u)
+      | _ -> `New Top
     
   let meet x y = 
     let rec meet_offs x y =
@@ -581,10 +633,19 @@ struct
       | x::xs, y::ys when FI.equal x y -> x :: meet xs ys
       | _ -> failwith "Arguments do not meet"
 
+  let rec oldjoin x y = 
+    match x,y with
+      | x::xs, y::ys when FI.equal x y -> x :: oldjoin xs ys
+      | _ -> []
+      
   let rec join x y = 
     match x,y with
-      | x::xs, y::ys when FI.equal x y -> x :: join xs ys
-      | _ -> []
+      | x::xs, y::ys when FI.equal x y -> 
+          GU.liftDesc (fun q -> x::q) (join xs ys)
+      | x::xs, y::ys -> `New []
+      | [], [] -> `Equal
+      | _ , [] -> `Right
+      | [], _  -> `Left
 
   let rec collapse x y = 
     match x,y with
