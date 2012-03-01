@@ -46,7 +46,7 @@ end
                       
 module PMap (Domain: Groupable) (Range: Lattice.S) =
 struct
-  module M = BatMap.Make (Domain)
+  module M = MyMap.Make (Domain)
   include Printable.Std
   type key = Domain.t
   type value = Range.t
@@ -54,7 +54,7 @@ struct
   let trace_enabled = Domain.trace_enabled
 
   (* And some braindead definitions, because I would want to do
-   * include BatMap.Make (Domain) with type t = Range.t t *)
+   * include MyMap.Make (Domain) with type t = Range.t t *)
   let add = M.add
   let remove = M.remove
   let find = M.find
@@ -98,6 +98,17 @@ struct
     in
     M.merge f 
 
+  let long_map2' op =
+    let f k v1 v2 =
+      match v1, v2 with
+        | Some v1, Some v2 -> Some (op v1 v2)
+        | Some _, _ -> Some `Left
+        | _, Some _ -> Some `Right
+        | _ -> None
+    in
+      M.mymerge f
+
+
   let map2 op = 
     (* Similar to the previous, except we ignore elements that only occur in one
      * of the mappings, so we start from an empty map *)
@@ -107,6 +118,14 @@ struct
          | _ -> None
      in
      M.merge f 
+
+  let map2' op =
+    let f k v1 v2 =
+      match v1, v2 with
+        | Some v1, Some v2 -> Some (op v1 v2)
+        | _ -> None
+    in
+      M.mymerge f
 
   let short _ x = "mapping"
   let isSimple _ = false
@@ -133,7 +152,7 @@ struct
             end
         | _ -> Xml.Element ("Node", [("text",esc (Domain.short 40 key^" -> "^Range.short 40 st))], [Domain.toXML key; Range.toXML st])
     in
-    let module IMap = BatMap.IntMap in
+    let module IMap = Map.Make (struct type t = int let compare = Pervasives.compare end) in
     let groups = 
       let add_grpd k v m = 
         let group = Domain.classify k in
@@ -194,7 +213,7 @@ end
 module MapBot (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and 
   type value = Range.t and 
-  type t = Range.t BatMap.Make(Domain).t =
+  type t = Range.t MyMap.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
@@ -229,25 +248,8 @@ struct
       | None -> Pretty.dprintf "No binding grew."
 
   (* inlined long_map2 and added `Left & `Right & `New *)
-  let join m1 m2 = 
-    let o = ref None in
-    let f k v1 v2 = 
-      match v1, v2 with 
-        | Some v1, Some v2 -> 
-            let e = Range.join v1 v2 in
-            o := GU.joinDesc !o e;
-            Some (GU.descVal v1 v2 e)
-        | Some _, _ -> o := GU.joinDesc !o `Left ; v1 
-        | _, Some _ -> o := GU.joinDesc !o `Right; v2
-        | _ -> None
-    in
-    let r = M.merge f m1 m2 in 
-    match !o with
-      | None        -> `Equal
-      | Some `Left  -> `Left
-      | Some `Right -> `Right
-      | Some `Equal -> `Equal
-      | Some `New   -> `New r
+  let join m1 m2 = long_map2' Range.join m1 m2
+
   let meet m1 m2 = if m1 == m2 then m1 else map2 Range.meet m1 m2
   let oldjoin m1 m2 = if m1 == m2 then m1 else long_map2 Range.oldjoin m1 m2
 (*  let join x y = 
@@ -265,7 +267,7 @@ end
 module MapTop (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and 
   type value = Range.t and 
-  type t = Range.t BatMap.Make(Domain).t =
+  type t = Range.t MyMap.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
@@ -282,25 +284,8 @@ struct
   let is_top = M.is_empty
   let is_bot _ = false
 
-  let join m1 m2 = 
-    let o = ref None in
-    let f k v1 v2 = 
-      match v1, v2 with 
-        | Some v1, Some v2 -> 
-            let e = Range.join v1 v2 in
-            o := GU.joinDesc !o e;
-            Some (GU.descVal v1 v2 e)
-        | Some _, _ -> o := GU.joinDesc !o `Right ; v1 
-        | _, Some _ -> o := GU.joinDesc !o `Left  ; v2
-        | _ -> None
-    in
-    let r = M.merge f m1 m2 in 
-    match !o with
-      | None        -> `Equal
-      | Some `Left  -> `Left
-      | Some `Right -> `Right
-      | Some `Equal -> `Equal
-      | Some `New   -> `New r
+  let join m1 m2 = map2' Range.join m1 m2
+
   let meet m1 m2 = if m1 == m2 then m1 else long_map2 Range.meet m1 m2
   let oldjoin m1 m2 = if m1 == m2 then m1 else map2 Range.oldjoin m1 m2
 (*  let join x y = 

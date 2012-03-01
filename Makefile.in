@@ -26,7 +26,7 @@ DOCFLAGS = @DOCFLAGS@ -stars -t 'Goblint API documentation' -dot-reduce -dot -ht
 
 PROG_MODULES = \
 	version config json jsonParser jsonLexer \
-	goblintutil messages printer cilfacade xmldump htmldump \
+	goblintutil messages printer cilfacade xmldump htmldump myMap \
 	printable lattice setDomain mapDomain osektupel\
 	basetype intDomain lval addressDomain arrayDomain listDomain \
 	structDomain unionDomain valueDomain exp queries partitionDomain memoryDomain \
