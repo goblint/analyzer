@@ -497,6 +497,7 @@ struct
   (* All else must have failed --- making a last ditch effort to generate type 
       invariant if that fails then give up and become unsound. *)
   and add_type_access ctx fl loc ust (e,rw:exp * bool) =
+    if not !GU.use_type_invariants then unknown_access () else
     let eqset =
       match ctx.ask (Queries.EqualSet e) with
         | `ExprSet es 

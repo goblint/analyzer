@@ -125,7 +125,9 @@ struct
 
   (** [set st addr val] returns a state where [addr] is set to [val] *)
   let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value): store =
-    let firstvar = if M.tracing then try (List.hd (AD.to_var_may lval)).vname with _ -> "" else "" in
+    let firstvar = if M.tracing then 
+      try (List.hd (AD.to_var_may (AD.remove (Addr.unknown_ptr ()) lval))).vname with _ -> "" else "" 
+    in
     if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st;
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
@@ -264,16 +266,18 @@ struct
         | `Address p, `Int n  -> begin
             try match op with
               (* For array indexing, e[i] we have *)
-              | IndexPI -> `Address (AD.map (addToAddr n) p)
+              | IndexPI 
               (* Pointer addition e + i, it's the same: *)
-              | PlusPI -> `Address (AD.map (addToAddr n) p)
+              | PlusPI -> 
+                  begin try `Address (AD.map (addToAddr n) p)
+                  with Top -> `Address (GU.joinvalue AD.join p (AD.unknown_ptr ())) end
               (* Pointer subtracted by a value (e-i) is very similar *)
               | MinusPI -> let n = ID.neg n in
                   `Address (AD.map (addToAddr n) p)
               | Mod -> `Int (ID.top ()) (* we assume that address is actually casted to int first*)
-              | _ -> `Address (AD.unknown_ptr ())
+              | _ -> `Address (GU.joinvalue AD.join p (AD.unknown_ptr ()))
             with
-              | Top -> `Address (AD.unknown_ptr ())
+              | Top -> `Address (GU.joinvalue AD.join p (AD.unknown_ptr ()))
           end
         (* If both are pointer values, we can subtract them and well, we don't
          * bother to find the result, but it's an integer. *)
@@ -292,6 +296,7 @@ struct
               | Ne -> `Int (if (single p1)&&(single p2) then ID.lognot (eq p1 p2) else ID.top())
               | _ -> VD.top ()
           end
+        | `Address p, _  -> `Address (GU.joinvalue AD.join p (AD.unknown_ptr ()))
         (* For other values, we just give up! *)
         | `Bot, _ -> `Bot
         | _, `Bot -> `Bot
