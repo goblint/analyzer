@@ -76,15 +76,12 @@ struct
       in
       let spawns = List.map do_one_function xs in
       (* if no phases, do not try to monotonize them *)
-      if phase = 0 then begin 
-        SH.replace old_s (fn,ed,tn) (List.map (fun (x,_) -> (x,phase)) xs); 
-        spawns 
-      end else begin 
+      if phase = 0 then spawns else begin 
         let spawnfuns = List.map fst xs in
         let old_spawns =  try SH.find old_s (fn,ed,tn) with Not_found -> [] in
         let mon_spawns = List.filter (fun (x,y) -> phase>y && not (List.exists (Basetype.Variables.equal x) spawnfuns)) old_spawns in
         let new_spawns = List.filter (fun x -> List.for_all (fun (z,_) -> not (Basetype.Variables.equal x z)) old_spawns) spawnfuns in
-        SH.replace old_s (fn,ed,tn) (List.map (fun x -> (x,phase)) new_spawns@old_spawns); 
+        SH.replace old_s (fn,ed,tn) (List.map (fun x -> (x,phase)) new_spawns@(try SH.find old_s (fn,ed,tn) with Not_found -> [])); 
         spawns @ List.map do_one_function (List.map (fun (x,_) -> (x, Spec.otherstate ())) mon_spawns)
       end
     in
