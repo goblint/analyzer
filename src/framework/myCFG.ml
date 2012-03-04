@@ -25,9 +25,9 @@ struct
       | _ -> false
   let hash x = 
     match x with 
-      | Statement s -> Hashtbl.hash (s.sid, 0)
-      | Function f -> Hashtbl.hash (f.vid, 1)
-      | FunctionEntry f -> Hashtbl.hash (f.vid, 2)
+      | Statement s     -> s.sid * 17
+      | Function f      -> f.vid 
+      | FunctionEntry f -> -f.vid  
 
 end
 

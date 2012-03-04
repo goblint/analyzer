@@ -65,6 +65,7 @@ type ('a,'b,'c) ctx =
     ; geffect : 'b -> 'c -> unit 
     ; precomp : local_state list list 
     ; preglob : (varinfo -> global_state list) list 
+    ; report_access : [ `Lval of lval * bool | `Reach of exp * bool ] -> unit
     }
 
 let set_q ctx ask = 
@@ -88,7 +89,7 @@ let set_precomp ctx pc =
 let set_preglob ctx pg = 
   {ctx with preglob = pg}
 
-let context ask st gl dp sp ge = {ask=ask; local=st; global=gl;sub=dp;spawn=sp;geffect=ge;precomp=[];preglob=[]}
+let context ask st gl dp sp ge rep = {ask=ask; local=st; global=gl;sub=dp;spawn=sp;geffect=ge;precomp=[];preglob=[]; report_access=rep}
 
 module type DomainTranslator =
 sig
@@ -138,6 +139,8 @@ sig
   (** state to start analyzing other functions (usual when calling './goblint --allfuns ...') *)
   val es_to_string: fundec -> Dom.t -> string
   (** no-one knows .. somehow used when generating final output *)
+  val may_race: (Glob.Var.t -> Glob.Val.t) -> Queries.ask -> (Dom.t * [ `Lval of lval * bool | `Reach of exp * bool ]) -> Queries.ask -> (Dom.t * [ `Lval of lval * bool | `Reach of exp * bool ]) -> bool 
+  (** query if two accesses may conflict *)
   
   val sync: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> Dom.t * (Glob.Var.t * Glob.Val.t) list
   (** Synchronize with the global invariant. This is applied after joining with
@@ -229,6 +232,7 @@ struct
   let enter_func   = D.enter_func 
   let leave_func   = D.leave_func 
   let intrpt       = D.intrpt
+  let may_race     = D.may_race
   
   
   (* transfer functions *)
@@ -300,6 +304,9 @@ struct
   
   let query _ (q:Queries.t) = Queries.Result.top ()
   (* Don't know anything --- most will want to redefine this. *)
+  
+  let may_race _ _ _ _ _ = true
+  (* Don't know anything --- may lead to a race *)
   
   let eval_funvar _ _ = []
   (* Only base analysis should know this. *)

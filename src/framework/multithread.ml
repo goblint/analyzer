@@ -29,6 +29,7 @@ struct
   (** Solver variables use global part from [Spec.Dep] *)
   module HCSD = Lattice.HConsed (SD)
   module Var = A.VarF (HCSD)
+  module VarSet = BatSet.Make (Var)
 
   module SP_SOL = Hashtbl.Make (Solver.Prod (Analyses.Var) (SD))
   module SP = SharirPnueli.Algorithm (Analyses.Var) (SD)
@@ -36,7 +37,7 @@ struct
   module PH = Hashtbl.Make (Analyses.Var)        (* local info from previous phases *)
   module PHG = Hashtbl.Make (Basetype.Variables) (* global info from previous phases *)
   module SH = Hashtbl.Make (Analyses.Edge)       (* spawns from previous phases *)
-
+  
   module Solver = 
   struct
     module Sol = Solver.Types (Var) (SD) (Spec.Glob)
@@ -59,7 +60,75 @@ struct
   (** name the analyzer *)
   let name = "analyzer"
   let top_query x = Queries.Result.top () 
+  let access_tbl = BatHashtbl.create 10000
+  let context_tbl = BatHashtbl.create 10000
   
+  let d_ac = 
+    let f = function true -> "write" | _ -> "read" in
+    let d_ac () = function 
+      | `Lval  (l, rw) -> dprintf "%a (%s)" d_lval l (f rw)
+      | `Reach (e, rw) -> dprintf "reachable from %a (%s)" d_exp e (f rw)
+    in
+    d_ac
+  let report_access x ac =
+    (*Messages.report (Pretty.sprint 80 (d_ac () ac));*)
+    let old_set = try BatHashtbl.find context_tbl (fst x) with Not_found -> VarSet.empty in
+    BatHashtbl.replace context_tbl (fst x) (VarSet.add x old_set);
+    BatHashtbl.replace access_tbl (fst x, ac) ()
+  let for_pairs (f:'a -> 'a -> unit) ht =
+    let ht = BatHashtbl.copy ht in
+    let process a () = 
+      BatHashtbl.iter (fun b () -> f a b) ht;
+      BatHashtbl.remove ht a
+    in
+    BatHashtbl.iter process ht  
+  let postprocess_accesses (ls,gs) =
+    let trivial = ref 0 in
+    let yes = ref 0 in
+    let no  = ref 0 in
+    let gstate = Solver.GMap.find gs in
+    let fast_may_alias ac1 ac2 = 
+      let rec offs_may_alias o1 o2 = 
+        match o1, o2 with
+          | NoOffset, NoOffset | NoOffset, _ | _, NoOffset -> true
+          | Index (_,o1), Index (_,o2)   -> offs_may_alias o1 o2
+          | Field (f1,o1), Field (f2,o2) -> 
+              (not f1.fcomp.cstruct) || (f1.fname = f2.fname && offs_may_alias o1 o2)
+          | _ -> false
+      in
+      match ac1, ac2 with
+        | `Lval ((Var v1,o1),rw1) , `Lval ((Var v2,o2),rw2)  -> 
+            (rw1 || rw2) && v1.vid=v2.vid && offs_may_alias o1 o2
+        | `Lval (_,rw1) , `Lval (_,rw2)  -> (rw1 || rw2) 
+        | `Reach (e1,rw1), `Reach (e2,rw2) -> (rw1 || rw2) 
+        | `Reach (e1,rw1), `Lval (l2,rw2)  -> (rw1 || rw2) 
+        | `Lval (l1,rw1) , `Reach (e2,rw2) -> (rw1 || rw2) 
+    in
+    let f (x1,ac1) (x2,ac2) = 
+      if fast_may_alias ac1 ac2 then begin
+        let xs1 = BatHashtbl.find context_tbl x1 in
+        let xs2 = BatHashtbl.find context_tbl x2 in
+        let may_race x1 x2 =
+          let d1 = SD.unlift (Solver.VMap.find ls x1) in 
+          let d2 = SD.unlift (Solver.VMap.find ls x2) in 
+          let unknown_query _ = Queries.Result.top () in 
+          Spec.may_race gstate unknown_query (d1,ac1) unknown_query (d2,ac2)
+        in
+        let potential_race = VarSet.exists (fun x -> VarSet.exists (may_race x) xs2) xs1 in
+        if potential_race then begin
+          incr no;
+          let dmsg = dprintf "Problem %d: Data race between %a and %a 'with lockset:'" !no d_ac ac1 d_ac ac2 in
+          let msg = sprint 80 dmsg in
+          Messages.print_msg msg (MyCFG.getLoc x1);
+          Messages.print_msg msg (MyCFG.getLoc x2);
+        end else incr yes
+      end else
+        incr trivial
+      in
+      for_pairs f access_tbl;
+      ignore (Pretty.printf "#races = %d / #clean = %d / #trivial = %d  (|S| = %d)\n" !no !yes !trivial (BatHashtbl.length access_tbl))
+    
+    
   let system (cfg: MyCFG.cfg) (old : Analyses.local_state list list PH.t list) old_g (old_s : (varinfo * int) list SH.t) phase (n,es: Var.t) : Solver.rhs list = 
     if M.tracing then M.trace "con" "%a\n" Var.pretty_trace (n,es);
     
@@ -111,7 +180,8 @@ struct
         try
           let oldstate = List.concat (List.map (fun m -> match PH.find m tn with [] -> raise A.Deadcode | x -> x) old) in
           let oldglob = List.map (fun (h,t) x -> try PHG.find h x with Not_found -> t) old_g in
-          A.set_preglob (A.set_precomp (A.context top_query v theta [] add_var add_diff) oldstate) oldglob 
+          let reporter = if !GU.forward then report_access (n,es) else report_access (tn,es) in
+          A.set_preglob (A.set_precomp (A.context top_query v theta [] add_var add_diff reporter) oldstate) oldglob 
         with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
                            raise A.Deadcode
       in
@@ -190,7 +260,7 @@ struct
           try
             let oldstate = List.concat (List.map (fun m -> match PH.find m pred with [] -> raise A.Deadcode | x -> x) old) in
             let oldglob = List.map (fun (h,t) x -> try PHG.find h x with Not_found -> t) old_g in
-            A.set_preglob (A.set_precomp (A.context top_query v theta [] y add_diff) oldstate) oldglob 
+            A.set_preglob (A.set_precomp (A.context top_query v theta [] y add_diff (report_access predvar)) oldstate) oldglob 
           with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
                              raise A.Deadcode
         in
@@ -317,7 +387,8 @@ struct
       try
         let oldstate = List.concat (List.map (fun m -> match PH.find m v with [] -> raise A.Deadcode | x -> x) old) in
         let oldglob = List.map (fun (h,t) x -> try PHG.find h x with Not_found -> t) old_g in
-        A.set_preglob (A.set_precomp (A.context top_query x theta [] add_no_var add_diff) oldstate) oldglob  
+    		let undefined _ = failwith "sharir-pnueli does not support our new accessing system" in
+        A.set_preglob (A.set_precomp (A.context top_query x theta [] add_no_var add_diff undefined) oldstate) oldglob  
       with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
                          raise A.Deadcode
     in
@@ -426,7 +497,7 @@ struct
     let set_bad v st =
       let theta x = Spec.Glob.Val.bot () in
       let error _ = failwith "Bug: Using enter_func for toplevel functions." in 
-      let ctx = A.context top_query st theta [] error error in
+      let ctx = A.context top_query st theta [] error error error in
       Spec.assign ctx (var v) MyCFG.unknown_exp 
     in
     let add_externs s = function
@@ -437,6 +508,7 @@ struct
   
   (** analyze cil's global-inits function to get a starting state *)
   let do_global_inits (file: Cil.file) : SD.t * Cil.fundec list = 
+	  let undefined _ = failwith "undefined" in
     let early = !GU.earlyglobs in
     let edges = MyCFG.getGlobalInits file in
     let theta x = Spec.Glob.Val.bot () in
@@ -449,7 +521,7 @@ struct
         if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
         GU.current_loc := loc;
         match edge with
-          | MyCFG.Entry func        -> Spec.body (A.context top_query st theta [] add_var add_diff) func
+          | MyCFG.Entry func        -> Spec.body (A.context top_query st theta [] add_var add_diff undefined) func
           | MyCFG.Assign (lval,exp) -> 
               begin match lval, exp with
                 | (Var v,o), (Cil.AddrOf (Cil.Var f,Cil.NoOffset)) 
@@ -457,7 +529,7 @@ struct
                   begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end 
                 | _ -> ()
               end;
-              Spec.assign (A.context top_query st theta [] add_var add_diff) lval exp
+              Spec.assign (A.context top_query st theta [] add_var add_diff undefined) lval exp
           | _                       -> raise (Failure "This iz impossible!") 
       with Failure x -> M.warn x; st
     in
@@ -494,7 +566,7 @@ struct
       let theta x = Spec.Glob.Val.bot () in
       let ignore2 _ _ = () in 
       let error _ = failwith "Bug: Using enter_func for toplevel functions with 'otherstate'." in 
-      let ctx = A.context top_query st theta [] ignore2 error in
+      let ctx = A.context top_query st theta [] ignore2 error error in
       let ents = Spec.enter_func ctx None fd.svar args in
         List.map (fun (_,s) -> fd.svar, SD.lift s) ents  
     in
@@ -561,6 +633,9 @@ struct
           List.iter f file.globals;
       end;
     let main_sol = Solver.VMap.find sol firstvar in
+    if not !GU.old_accesses then begin
+      Stats.time "post" postprocess_accesses (sol,gs)
+    end;
     (* check for dead code at the last state: *)
     (if !GU.debug && SD.equal main_sol (SD.bot ()) then
       Printf.printf "NB! Execution does not reach the end of Main.\n");

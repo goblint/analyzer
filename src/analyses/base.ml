@@ -466,6 +466,7 @@ struct
       | Cil.Mem n, ofs -> begin
           match (eval_rv a gs st n) with 
             | `Address adr -> do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
+            | `Bot -> AD.bot ()
             | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
                 M.debug ("Failed evaluating "^str^" to lvalue"); do_offs (AD.unknown_ptr ()) ofs
           end 
@@ -510,7 +511,7 @@ struct
       match t with
         | t when is_mutex_type t -> `Top
         | Cil.TInt _ -> `Int (ID.top ())
-        | Cil.TPtr _ -> `Address (AD.unknown_ptr ())
+        | Cil.TPtr _ -> `Address (AD.safe_ptr ())
         | Cil.TComp ({Cil.cstruct=true} as ci,_) -> `Struct (init_comp ci)
         | Cil.TComp ({Cil.cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
         | Cil.TArray _ -> bot_value a gs st t
@@ -555,8 +556,12 @@ struct
               | `Address n -> begin
                   if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" Cil.d_lval x AD.pretty n;
                   match eval_rv a gs st (Cil.Lval x) with
-                   | `Address a when not (AD.is_top n) && not (AD.mem (Addr.unknown_ptr ()) n) -> 
+                   | `Address a when not (AD.is_top n) 
+                                  && not (AD.mem (Addr.unknown_ptr ()) n) 
+                                  && not (AD.mem (Addr.safe_ptr ()) n)-> 
                        Some (x, `Address (AD.diff a n))
+                   | `Address a when not (AD.is_top n) && AD.mem (Addr.safe_ptr ()) n -> 
+                       Some (x, `Address (AD.add (Addr.safe_ptr ()) (AD.diff a n)))
                    | _ -> None
                 end
               | _ -> 
@@ -920,6 +925,43 @@ struct
       M.warn ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
       [dummyFunDec.svar]
 
+  let may_race gs ask1 ((cpa1,f1),ac1) ask2 ((cpa2,f2),ac2) =
+    let rt_closure f d = 
+      let rec loop don todo = 
+        if AD.is_empty todo then don else
+          let fd = f todo in
+          let new_done = AD.union todo don in
+          loop new_done (AD.diff fd new_done)
+      in
+      loop (AD.empty ()) d
+    in
+    let is_glob ask lv = 
+      (not (Addr.equal (Addr.str_ptr ()) lv)) && 
+      (not (Addr.is_null lv)) &&
+      match Addr.to_var lv with 
+        | [v] -> is_global ask v
+        | _ -> true
+    in
+    Flag.is_multi f1 &&
+    Flag.is_multi f2 && 
+    not (Flag.get_main ()=f1 && f1=f2) &&
+    let changed_addrs st ac = 
+      match ac with 
+        | `Lval (l,rw) -> eval_lv (fun _ -> Q.Result.top ()) gs st l 
+        | `Reach (e,rw) -> 
+      match eval_rv (fun _ -> Q.Result.top ()) gs st e with
+        | `Address a -> rt_closure (reachable_from_address (fun _ -> Q.Result.top ()) gs st) a
+        | `Top -> AD.top ()
+        | _ -> AD.bot ()
+    in
+    let filter p x = if AD.is_top x then x else AD.filter p x in
+    let val1 = changed_addrs (cpa1,f1) ac1 in
+    let val2 = changed_addrs (cpa2,f2) ac2 in
+    let val_inter = AD.meet (filter (is_glob ask1) val1) (filter (is_glob ask2) val2) in
+    (  AD.is_top val1 || AD.mem (Addr.unknown_ptr ()) val1
+    || AD.is_top val2 || AD.mem (Addr.unknown_ptr ()) val2 
+    || not (AD.is_bot val_inter) )
+    
   let query ctx (q:Q.t) = 
     match q with
       | Q.EvalFunvar e ->

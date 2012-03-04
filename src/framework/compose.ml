@@ -123,6 +123,9 @@ struct
     let f e b = Queries.Result.meet b (Base.query (Analyses.set_st ctx e spawn) y) in 
     Dom.fold f ctx.local (Queries.Result.top ())
   
+  let may_race gs ask1 (d1,ac1) ask2 (d2,ac2) =
+    Dom.exists (fun x -> Dom.exists (fun y -> Base.may_race gs ask1 (x,ac1) ask2 (y,ac2)) d2) d1
+  
   (** [lift f set] is basically a map, that handles dead-code*)
   let lift f set = 
     let apply_add st = 

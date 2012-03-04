@@ -28,6 +28,7 @@ struct
 
   let null_ptr () = singleton (Addr.null_ptr ())
   let str_ptr () = singleton (Addr.str_ptr ())
+  let safe_ptr () = singleton (Addr.safe_ptr ())
   let unknown_ptr () = singleton (Addr.unknown_ptr ())
   let is_unknown x = cardinal x = 1 && Addr.is_unknown (choose x)
 

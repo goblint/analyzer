@@ -67,6 +67,51 @@ struct
   (** We do not add global state, so just lift from [BS]*)
   module Glob = P.Glob
   
+  let rec access_ofs ctx = function
+    | NoOffset -> ()
+    | Index (i,o) ->
+        access_exp ctx false 0 i;
+        access_ofs ctx o
+    | Field (_,o) -> 
+        access_ofs ctx o
+  and access_lval ctx rw n = function 
+    | (Mem m, ofs as lv) ->
+        if n >= 0 then begin
+          ctx.report_access (`Lval (lv, rw)) ;
+          access_exp ctx false (n+1) m
+        end;
+        access_ofs ctx ofs
+    | (Var _, ofs as lv) ->
+        if n >= 0 then begin
+          ctx.report_access (`Lval (lv, rw)) 
+        end;
+        access_ofs ctx ofs
+  and access_exp  ctx rw n = function
+    | Const _ -> ()
+    | Lval lv -> 
+        access_lval ctx rw n lv
+    | BinOp (_,arg1,arg2,_) -> 
+        access_exp ctx rw n arg1;
+        access_exp ctx rw n arg2
+    | UnOp (_,arg1,_) ->
+        access_exp ctx rw n arg1
+    | AddrOf lval  -> access_lval ctx false (n-1) lval
+    | StartOf lval -> access_lval ctx false (n-1) lval
+    | CastE  (_, exp) -> access_exp ctx rw n exp
+    | _ -> ()
+  let rec access_reach ctx rw = function 
+    | Const _         -> ()   
+    | Lval _ as e     -> ctx.report_access (`Reach (e,rw))
+    | BinOp _ as e    -> ctx.report_access (`Reach (e,rw))
+    | UnOp _ as e     -> ctx.report_access (`Reach (e,rw))
+    | AddrOf _ as e   -> ctx.report_access (`Reach (e,rw))
+    | StartOf _ as e  -> ctx.report_access (`Reach (e,rw))
+    | CastE  (_, exp) -> access_reach  ctx rw exp
+    | _ -> ()
+    
+  
+  let access_lval ctx rw = access_lval ctx rw 0
+  let access_exp ctx rw  = access_exp ctx rw 0
 (*  let get_accesses ctx : AccessDomain.Access.t = 
     match ctx.sub with
       | [ `Access x ] -> x 
@@ -560,38 +605,63 @@ struct
             `Bool (tv)
       | _ -> Queries.Result.top ()
   
+  let may_race _ _ (ls1,ac1) _ (ls2,ac2) =
+    let write = function `Lval (_,b) | `Reach (_,b) -> b in
+    let prot_locks b ls = if b then Dom.filter snd ls else Dom.map (fun (x,_) -> (x,true)) ls in
+    let ls1 = prot_locks (write ac1) ls1 in
+    let ls2 = prot_locks (write ac2) ls2 in
+    Lockset.is_empty (Lockset.ReverseAddrSet.inter ls1 ls2)
+    
+    
   (** Transfer functions: *)
   
   let assign ctx lval rval : Dom.t = 
     (* ignore global inits *)
     if !GU.global_initialization then ctx.local else
-    let b1 = access_one_top ctx.ask true (Lval lval) in 
-    let b2 = access_one_top ctx.ask false rval in
-    add_accesses ctx (b1@b2) ctx.local;
-(*    add_accesses2 ctx;*)
-    ctx.local
+    if !GU.old_accesses then begin
+      let b1 = access_one_top ctx.ask true (Lval lval) in 
+      let b2 = access_one_top ctx.ask false rval in
+      add_accesses ctx (b1@b2) ctx.local;
+      ctx.local
+    end else begin 
+      access_lval ctx true lval;
+      access_exp ctx false rval;
+      ctx.local
+    end 
     
   let branch ctx exp tv : Dom.t =
-    let accessed = access_one_top ctx.ask false exp in
-    add_accesses ctx accessed ctx.local;
-(*    add_accesses2 ctx;*)
-    ctx.local
+    if !GU.old_accesses then begin
+      let accessed = access_one_top ctx.ask false exp in
+      add_accesses ctx accessed ctx.local;
+      ctx.local
+    end else begin 
+      access_exp ctx false exp;
+      ctx.local
+    end 
     
   let return ctx exp fundec : Dom.t =
     begin match exp with 
       | Some exp -> 
+        if !GU.old_accesses then begin
           let accessed = access_one_top ctx.ask false exp in
-          add_accesses ctx accessed ctx.local
-      | None -> () 
-    end;
-(*    add_accesses2 ctx;*)
-    ctx.local
+          add_accesses ctx accessed ctx.local;
+          ctx.local
+        end else begin
+          access_exp ctx true exp;
+          ctx.local
+        end
+      | None -> ctx.local
+    end
         
   let body ctx f : Dom.t = ctx.local
 
   let eval_funvar ctx exp = 
-    let read = access_one_top ctx.ask false exp in
-    add_accesses ctx read ctx.local  
+    if !GU.old_accesses then begin
+      let read = access_one_top ctx.ask false exp in
+      add_accesses ctx read ctx.local  
+    end else begin
+      access_exp ctx false exp
+    end
   
   let special_fn ctx lv f arglist : (Dom.t * exp * bool) list =
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
@@ -646,10 +716,15 @@ struct
               | Some fnc -> (fnc act arglist) 
               | _ -> arglist
           in
-          let r1 = access_byval ctx.ask false (arg_acc `Read) in
-          let a1 = access_reachable ctx.ask   (arg_acc `Write) in
-          add_accesses ctx (r1@a1) ctx.local;
-          (*add_accesses2 ctx;*)
+          begin if !GU.old_accesses then begin
+            let r1 = access_byval ctx.ask false (arg_acc `Read) in
+            let a1 = access_reachable ctx.ask   (arg_acc `Write) in
+            add_accesses ctx (r1@a1) ctx.local
+          end else begin
+            List.iter (access_reach ctx true) (arg_acc `Write);
+            List.iter (access_exp ctx true) (arg_acc `Write);
+            List.iter (access_exp ctx false) (arg_acc `Read)            
+          end end;
           [ctx.local, Cil.integer 1, true]
           
   let enter_func ctx lv f args : (Dom.t * Dom.t) list =
@@ -657,12 +732,18 @@ struct
 
   let leave_func ctx lv fexp f args al = 
     eval_funvar ctx fexp;
-    let wr = match lv with
-      | None      -> []
-      | Some lval -> access_one_top ctx.ask true (Lval lval) in 
-    let read = access_byval ctx.ask false args in
-    add_accesses ctx (wr@read) ctx.local; 
-    (*add_accesses2 ctx;*)
+    begin if !GU.old_accesses then begin
+      let wr = match lv with
+        | None      -> []
+        | Some lval -> access_one_top ctx.ask true (Lval lval) in 
+      let read = access_byval ctx.ask false args in
+      add_accesses ctx (wr@read) ctx.local;   
+    end else begin
+      List.iter (access_exp ctx true) args;
+      match lv with
+        | None -> ()
+        | Some lv -> access_lval ctx true lv
+    end end;
     al
     
   
@@ -927,7 +1008,7 @@ module ThreadMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "mutex" 
-                let depends = if !Goblintutil.old_accesses then [] else ["access"]
+                let depends = []
                 type lf = Spec.Dom.t
                 let inject_l x = `Mutex x
                 let extract_l x = match x with `Mutex x -> x | _ -> raise MCP.SpecificationConversionError

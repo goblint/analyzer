@@ -1,10 +1,13 @@
 // Making sure unknown conditions result in evaluating both branches.
 #include<assert.h>
 
+extern int * anIntPlease();
 int main() {
   int unknown;
   int x,y;
   int *p,*q;
+  p = anIntPlease();
+  q = anIntPlease();
 
   assert(unknown);      // UNKNOWN
   assert(unknown == 0); // UNKNOWN

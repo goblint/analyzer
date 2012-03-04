@@ -164,7 +164,7 @@ let list_head_ptr_type : typ -> bool = function
 
 
 (* evaluate an expression to a "variable" *)
-let eval_lp (ask:Q.ask) (e:exp) : lexp option =
+let eval_lp ask (e:exp) : lexp option =
   match constFold true e with
     (* B.next -> list is &B and field is next *)
     | Lval (Var l,Field (fd,NoOffset)) when fd.fname = "next" || fd.fname = "prev" ->

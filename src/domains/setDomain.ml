@@ -383,6 +383,14 @@ struct
     match x,y with
       | Set x, Set y -> S.pretty_diff () (x,y)
       | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+      
+  let meet x y = 
+    let f y r = 
+      (* assume that only one  *)
+      let yay, nay = partition (fun x -> B.leq x y) x in
+      if is_empty yay then r else add (fold (GU.joinvalue B.join) yay (B.bot ())) r
+    in
+    fold f y (empty ())
 end
 
 (* This one just removes the extra "{" notation and also by always returning

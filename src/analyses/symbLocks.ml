@@ -102,7 +102,40 @@ struct
         end
       | _ ->
           [ctx.local, integer 1, true]
-      
+  
+  module ExpSet = BatSet.Make (Exp)
+  let one_perelem (e,a,l) =
+    ExpSet.add (Exp.replace_base (dummyFunDec.svar,`NoOffset) e a)
+  
+  let one_lockstep (_,a,m) ust =
+    let rec conv_const_offset x =
+      match x with
+        | Cil.NoOffset    -> `NoOffset
+        | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.ID.of_int i, conv_const_offset o)
+        | Cil.Index (_,o) -> `Index (ValueDomain.ID.top (), conv_const_offset o)
+        | Cil.Field (f,o) -> `Field (f, conv_const_offset o)
+    in
+    match m with
+      | AddrOf (Var v,o) -> 
+          LockDomain.Lockset.add (ValueDomain.Addr.from_var_offset (v, conv_const_offset o),true) ust 
+      | _ ->  
+          ust
+  
+  let may_race gs asl1 (d1,ac1) asl2 (d2,ac2) =
+    match ac1, ac2 with 
+      | `Lval (l1,r1), `Lval (l2,r2) -> 
+          let ls1 = get_all_locks asl1 (Lval l1) d1 in
+          let ls1 = Queries.PS.fold one_perelem ls1 (ExpSet.empty) in
+          let ls2 = get_all_locks asl2 (Lval l2) d2 in
+          let ls2 = Queries.PS.fold one_perelem ls2 (ExpSet.empty) in
+          ExpSet.is_empty (ExpSet.inter ls1 ls2) &&
+          let ls1 = same_unknown_index asl1 (Lval l1) d1 in
+          let ls1 = Queries.PS.fold one_lockstep ls1 (LockDomain.Lockset.empty ()) in
+          let ls2 = same_unknown_index asl2 (Lval l2) d2 in
+          let ls2 = Queries.PS.fold one_lockstep ls2 (LockDomain.Lockset.empty ()) in
+          LockDomain.Lockset.is_empty (LockDomain.Lockset.ReverseAddrSet.inter ls1 ls2) 
+          
+      | _ -> true
   (* Per-element returns a triple of exps, first are the "element" pointers, 
      in the second and third positions are the respectively access and mutex.
      Access and mutex expressions have exactly the given "elements" as "prefixes". 

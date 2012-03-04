@@ -1,6 +1,8 @@
-// PARAM: --with var_eq 
+// PARAM: --with var_eq
 #include <stdio.h>
 
+extern short * anShortPlease();
+extern int * anIntPlease();
 int main(){
 	t1();
 	t2();
@@ -175,7 +177,7 @@ int t9(){
 	z.i = 8;
 
 	assert(q == &b->i);
-//	assert(y == b->cp); 
+//	assert(y == b->cp);
 
 	return 0;
 }
@@ -217,9 +219,10 @@ int t6(){
 	return 0;
 }
 
+
 int t5(){
 	int x, y, z;
-	short *a;
+	short *a = anShortPlease();
 
 	x = y;
 	*a = 3;
@@ -230,7 +233,7 @@ int t5(){
 
 int t4(){
 	int x, y, z;
-	int *a;
+	int *a = anIntPlease();
 
 	x = y;
 	*a = 3;

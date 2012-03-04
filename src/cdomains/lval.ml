@@ -249,12 +249,13 @@ module Normal (Idx: Printable.S) =
 struct
   type field = fieldinfo
   type idx = Idx.t
-  type t = Addr of (varinfo * (field, idx) offs) | NullPtr | StrPtr | UnknownPtr | Top | Bot
+  type t = Addr of (varinfo * (field, idx) offs) | NullPtr | SafePtr | UnknownPtr | Top | Bot
   include Printable.Std
   let name () = "Normal Lvals"
   
   let null_ptr () = NullPtr
-  let str_ptr () = StrPtr
+  let str_ptr () = SafePtr
+  let safe_ptr () = SafePtr
   let unknown_ptr () = UnknownPtr
   let is_unknown = function UnknownPtr -> true | _ -> false
   
@@ -320,7 +321,7 @@ struct
   let get_type x =
     match x with
       | Addr x  -> get_type_addr x
-      | StrPtr  -> charPtrType
+      | SafePtr -> charPtrType
       | NullPtr -> voidType
       | Bot     -> voidType
       | Top | UnknownPtr -> voidPtrType
@@ -341,7 +342,7 @@ struct
     match x with 
       | Addr x     -> short_addr x
       | UnknownPtr -> "?"
-      | StrPtr     -> "STRING"
+      | SafePtr    -> "SAFE"
       | NullPtr    -> "NULL"
       | Bot        -> "bot"
       | Top        -> "top"
@@ -355,7 +356,7 @@ struct
     match x with 
       | Addr (v,o) -> v.vid * hash o
       | UnknownPtr -> 12341234
-      | StrPtr     -> 46263754
+      | SafePtr    -> 46263754
       | NullPtr    -> 1265262
       | Bot        -> 4554434
       | Top        -> 445225637
@@ -371,7 +372,7 @@ struct
     match x, y with
       | Addr (v,o), Addr (u,p) -> v.vid = u.vid && eq_offs o p  
       | UnknownPtr, UnknownPtr 
-      | StrPtr    , StrPtr     
+      | SafePtr   , SafePtr
       | NullPtr   , NullPtr    
       | Bot       , Bot        
       | Top       , Top        -> true
@@ -402,7 +403,7 @@ struct
     in
     match x with
       | Addr (v,o) -> Lval (Var v, to_cil o)
-      | StrPtr -> mkString "a string"
+      | SafePtr -> mkString "a safe pointer/string"
       | NullPtr -> integer 0
       | UnknownPtr 
       | Top     -> raise Lattice.TopValue 
@@ -451,7 +452,7 @@ struct
       | _         , Bot           -> false
       | UnknownPtr, UnknownPtr    -> true 
       | NullPtr   , NullPtr       -> true
-      | StrPtr    , StrPtr        -> true
+      | SafePtr   , SafePtr       -> true
       | Addr (x,o), Addr (y,u) when x.vid = y.vid -> leq_offs o u
       | _                      -> false
       
@@ -470,7 +471,7 @@ struct
       | x         , Bot     -> x
       | UnknownPtr, UnknownPtr -> UnknownPtr
       | NullPtr   , NullPtr -> NullPtr
-      | StrPtr    , StrPtr  -> StrPtr
+      | SafePtr   , SafePtr -> SafePtr
       | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x,join_offs o u)
       | _ -> Top
 
@@ -496,7 +497,7 @@ struct
       | x         , Bot     -> `Left
       | UnknownPtr, UnknownPtr -> `Equal
       | NullPtr   , NullPtr -> `Equal
-      | StrPtr    , StrPtr  -> `Equal
+      | SafePtr   , SafePtr -> `Equal
       | Addr (x,o), Addr (y,u) when x.vid = y.vid -> 
           GU.liftDesc (fun y -> Addr (x,y)) (join_offs o u)
       | _ -> `New Top
@@ -515,7 +516,7 @@ struct
       | x         , Top        -> x
       | UnknownPtr, UnknownPtr -> UnknownPtr
       | NullPtr   , NullPtr    -> NullPtr
-      | StrPtr    , StrPtr     -> StrPtr
+      | SafePtr   , SafePtr    -> SafePtr
       | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (y, meet_offs o u)
       | _ -> Bot
 

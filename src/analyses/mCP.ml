@@ -82,6 +82,7 @@ type analysisRecord = {
     es_to_string: fundec -> local_state -> string;  
     sync : (local_state,Basetype.Variables.t,global_state) ctx -> local_state * (Basetype.Variables.t * global_state) list;
     query: (local_state,Basetype.Variables.t,global_state) ctx -> Queries.t -> Queries.Result.t ;
+    may_race : (Basetype.Variables.t -> global_state) -> Queries.ask -> (local_state*[ `Lval of lval * bool | `Reach of exp * bool ]) -> Queries.ask -> (local_state*[ `Lval of lval * bool | `Reach of exp * bool ]) -> bool;
     assign: (local_state,Basetype.Variables.t,global_state) ctx -> lval -> exp -> local_state ;
     intrpt: (local_state,Basetype.Variables.t,global_state) ctx -> local_state ;
     branch: (local_state,Basetype.Variables.t,global_state) ctx -> exp -> bool -> local_state;
@@ -227,6 +228,9 @@ struct
     let gl x = C.extract_g (ctx.global x) in
     S.query (set_st_gl ctx st gl spawn effect) q
   
+  let may_race gs ask1 (d1,ac1) ask2 (d2,ac2) =
+    let gl x = C.extract_g (gs x) in
+    S.may_race gl ask1 (C.extract_l d1,ac1) ask2 (C.extract_l d2,ac2)
   let intrpt ctx = 
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
@@ -422,6 +426,7 @@ struct
         branch        = branch;
         body          = body  ;
         return        = return;
+        may_race      = may_race;
 (*        eval_funvar   = eval_funvar;  *)
 (*         fork          = fork ;       *)
         special_fn    = special_fn ;
@@ -765,6 +770,11 @@ struct
     let g = select_g s ctx.global in
     s.query (set_gl ctx g effect)
 
+  let may_race' gs ask1 (x1,ac1) ask2 (x2,ac2) =
+    let s = get_matches x1 in
+    let g = select_g s gs in
+    s.may_race g ask1 (x1,ac1) ask2 (x2,ac2)
+
   let replace x = 
     let matches = (Dom.get_matches x).matches in
     let rec f ws =
@@ -883,10 +893,17 @@ struct
     let ls = lift_spawn nctx (fun set_st -> List.concat (List.map2 (fun y -> List.map (fun x-> query' (set_st x y) q)) (ctx.global::ctx.preglob) (ctx.local::ctx.precomp))) in
     List.fold_left Queries.Result.meet (Queries.Result.top ()) ls
   
+  let may_race gs asl1 (d1,ac1) asl2 (d2,ac2) =
+    let undefined _ = failwith "undefined" in
+    let ctx1 = context asl1 d1 gs [] undefined undefined undefined in
+    let ctx2 = context asl2 d2 gs [] undefined undefined undefined in
+    let f b x y = b && may_race' gs (query_imp ctx1) (x,ac1) (query_imp ctx2) (y,ac2) in
+    List.fold_left2 f true d1 d2 
+  
   let query = query_imp 
 
   let set_sub full_ctx (ctx:(local_state,'b,'c) ctx) (dp:local_state list) : (local_state,'b,'c) ctx = 
-      set_preglob (set_precomp (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect) ctx.precomp) ctx.preglob
+      set_preglob (set_precomp (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect ctx.report_access) ctx.precomp) ctx.preglob
   
   let map_tf' ctx (tf:(local_state, Basetype.Variables.t, global_state list) ctx  -> 'a) : Dom.t = 
     let map_one (set_st : local_state -> (local_state, Basetype.Variables.t, global_state list) ctx) ls (t : local_state): local_state list =
@@ -964,7 +981,7 @@ struct
         in
         List.map f s.depends_on 
       in
-      let subctx = set_preglob (set_precomp (context (query ctx) t ctx.global ds (fun a b -> ()) ctx.geffect) ctx.precomp) ctx.preglob in
+      let subctx = set_preglob (set_precomp (context (query ctx) t ctx.global ds (fun a b -> ()) ctx.geffect ctx.report_access) ctx.precomp) ctx.preglob in
       let l,g = sync' subctx in
         l::ls, g @ gs
     in
