@@ -904,9 +904,20 @@ struct
       set_preglob (set_precomp (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect ctx.report_access) ctx.precomp) ctx.preglob
   
   let may_race (ctx1,ac1) (ctx2,ac2) =
+    let rec fold_left3 f a xs ys zs = 
+      match xs, ys, zs with
+        | x::xs, y::ys, z::zs -> fold_left3 f (f a x y z) xs ys zs
+        | _ -> a
+    in
     let spawner f v d = () in
-    let f b x y = b && may_race' (set_sub ctx1 (set_st ctx1 x spawner) ctx1.sub,ac1) (set_sub ctx2 (set_st ctx2 y spawner) ctx2.sub,ac2) in
-    List.fold_left2 f true ctx1.local ctx2.local 
+    let effect f _ _ = () in
+    let f g b x y = 
+        b && 
+        may_race' (set_sub ctx1 (set_st_gl ctx1 x g spawner effect) ctx1.sub,ac1) 
+                  (set_sub ctx2 (set_st_gl ctx2 y g spawner effect) ctx2.sub,ac2) 
+    in
+    fold_left3 (fun b x y g -> List.fold_left2 (f g) b x y) true 
+          (ctx1.local::ctx1.precomp) (ctx2.local::ctx2.precomp) (ctx1.global::ctx1.preglob) 
     
   let map_tf' ctx (tf:(local_state, Basetype.Variables.t, global_state list) ctx  -> 'a) : Dom.t = 
     let map_one (set_st : local_state -> (local_state, Basetype.Variables.t, global_state list) ctx) ls (t : local_state): local_state list =
