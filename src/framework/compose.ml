@@ -118,13 +118,17 @@ struct
   let should_join _ _ = true
   let context_top f x = Dom.map (Base.context_top f) x
   
+  let spawner f v d = f v (Dom.singleton d) 
+
   let query ctx y = 
-    let spawn f v d = f v (Dom.singleton d) in
-    let f e b = Queries.Result.meet b (Base.query (Analyses.set_st ctx e spawn) y) in 
+    let f e b = Queries.Result.meet b (Base.query (Analyses.set_st ctx e spawner) y) in 
     Dom.fold f ctx.local (Queries.Result.top ())
   
-  let may_race gs ask1 (d1,ac1) ask2 (d2,ac2) =
-    Dom.exists (fun x -> Dom.exists (fun y -> Base.may_race gs ask1 (x,ac1) ask2 (y,ac2)) d2) d1
+  let may_race (ctx1,ac1) (ctx2,ac2) =
+    let f x y = 
+      Base.may_race (set_st ctx1 x spawner,ac1) (set_st ctx2 y spawner,ac2)
+    in
+    Dom.exists (fun x -> Dom.exists (f x) ctx2.local) ctx1.local
   
   (** [lift f set] is basically a map, that handles dead-code*)
   let lift f set = 
@@ -137,7 +141,6 @@ struct
     then raise Analyses.Deadcode
     else rslt
   
-  let spawner f v d = f v (Dom.singleton d) 
   
   let sync ctx = 
     let f l (ls,gs) = 

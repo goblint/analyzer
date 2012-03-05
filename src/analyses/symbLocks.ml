@@ -52,7 +52,7 @@ struct
   let get_all_locks ask e st : Queries.PS.t =
     let exps = 
       match ask (Queries.EqualSet e) with
-(*        | `ExprSet a when not (Queries.ES.is_bot a) -> Queries.ES.add e a *)
+        | `ExprSet a when not (Queries.ES.is_bot a) -> Queries.ES.add e a 
         | _ -> Queries.ES.singleton e
     in
     let add_locks x xs = Queries.PS.union (get_locks x st) xs in
@@ -104,8 +104,32 @@ struct
           [ctx.local, integer 1, true]
   
   module ExpSet = BatSet.Make (Exp)
-  let one_perelem (e,a,l) =
-    ExpSet.add (Exp.replace_base (dummyFunDec.svar,`NoOffset) e a)
+  let type_inv_tbl = Hashtbl.create 13 
+  let type_inv (c:compinfo) : Lval.CilLval.t list =
+    try [Hashtbl.find type_inv_tbl c.ckey,`NoOffset]
+    with Not_found ->
+        let i = makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[])) in
+        Hashtbl.add type_inv_tbl c.ckey i;
+        [i, `NoOffset]
+  
+  let rec conv_const_offset x =
+    match x with
+      | Cil.NoOffset    -> `NoOffset
+      | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.ID.of_int i, conv_const_offset o)
+      | Cil.Index (_,o) -> `Index (ValueDomain.ID.top (), conv_const_offset o)
+      | Cil.Field (f,o) -> `Field (f, conv_const_offset o)
+  
+  let one_perelem ask (e,a,l) es =
+    (* Type invariant variables. *)
+    let b_comp = Exp.base_compinfo e a in
+    let f es (v,o) = 
+      match Exp.fold_offs (Exp.replace_base (v,o) e l) with
+        | Some (v,o) -> ExpSet.add (Cil.Lval (Cil.Var v,o)) es      
+        | None -> es
+    in
+    match b_comp with
+      | Some ci -> List.fold_left f es (type_inv ci) 
+      | None -> es
   
   let one_lockstep (_,a,m) ust =
     let rec conv_const_offset x =
@@ -121,17 +145,18 @@ struct
       | _ ->  
           ust
   
-  let may_race gs asl1 (d1,ac1) asl2 (d2,ac2) =
+  let may_race (ctx1,ac1) (ctx2,ac2) =
     match ac1, ac2 with 
       | `Lval (l1,r1), `Lval (l2,r2) -> 
-          let ls1 = get_all_locks asl1 (Lval l1) d1 in
-          let ls1 = Queries.PS.fold one_perelem ls1 (ExpSet.empty) in
-          let ls2 = get_all_locks asl2 (Lval l2) d2 in
-          let ls2 = Queries.PS.fold one_perelem ls2 (ExpSet.empty) in
+          let ls1 = get_all_locks ctx1.ask (Lval l1) ctx1.local in
+          let ls1 = Queries.PS.fold (one_perelem ctx1.ask) ls1 (ExpSet.empty) in
+          let ls2 = get_all_locks ctx1.ask (Lval l2) ctx2.local in
+          let ls2 = Queries.PS.fold (one_perelem ctx1.ask) ls2 (ExpSet.empty) in
+          (*ignore (Pretty.printf "{%a} inter {%a} = {%a}\n" (Pretty.d_list ", " Exp.pretty) (ExpSet.elements ls1) (Pretty.d_list ", " Exp.pretty) (ExpSet.elements ls2) (Pretty.d_list ", " Exp.pretty) (ExpSet.elements (ExpSet.inter ls1 ls2)));*)
           ExpSet.is_empty (ExpSet.inter ls1 ls2) &&
-          let ls1 = same_unknown_index asl1 (Lval l1) d1 in
+          let ls1 = same_unknown_index ctx1.ask (Lval l1) ctx1.local in
           let ls1 = Queries.PS.fold one_lockstep ls1 (LockDomain.Lockset.empty ()) in
-          let ls2 = same_unknown_index asl2 (Lval l2) d2 in
+          let ls2 = same_unknown_index ctx1.ask (Lval l2) ctx2.local in
           let ls2 = Queries.PS.fold one_lockstep ls2 (LockDomain.Lockset.empty ()) in
           LockDomain.Lockset.is_empty (LockDomain.Lockset.ReverseAddrSet.inter ls1 ls2) 
           

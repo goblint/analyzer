@@ -605,11 +605,11 @@ struct
             `Bool (tv)
       | _ -> Queries.Result.top ()
   
-  let may_race _ _ (ls1,ac1) _ (ls2,ac2) =
+  let may_race (ctx1,ac1) (ctx2,ac2) =
     let write = function `Lval (_,b) | `Reach (_,b) -> b in
     let prot_locks b ls = if b then Dom.filter snd ls else Dom.map (fun (x,_) -> (x,true)) ls in
-    let ls1 = prot_locks (write ac1) ls1 in
-    let ls2 = prot_locks (write ac2) ls2 in
+    let ls1 = prot_locks (write ac1) ctx1.local in
+    let ls2 = prot_locks (write ac2) ctx2.local in
     Lockset.is_empty (Lockset.ReverseAddrSet.inter ls1 ls2)
     
     

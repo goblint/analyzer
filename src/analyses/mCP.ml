@@ -82,7 +82,8 @@ type analysisRecord = {
     es_to_string: fundec -> local_state -> string;  
     sync : (local_state,Basetype.Variables.t,global_state) ctx -> local_state * (Basetype.Variables.t * global_state) list;
     query: (local_state,Basetype.Variables.t,global_state) ctx -> Queries.t -> Queries.Result.t ;
-    may_race : (Basetype.Variables.t -> global_state) -> Queries.ask -> (local_state*[ `Lval of lval * bool | `Reach of exp * bool ]) -> Queries.ask -> (local_state*[ `Lval of lval * bool | `Reach of exp * bool ]) -> bool;
+    may_race : ((local_state,Basetype.Variables.t,global_state) ctx*[ `Lval of lval * bool | `Reach of exp * bool ]) -> 
+               ((local_state,Basetype.Variables.t,global_state) ctx*[ `Lval of lval * bool | `Reach of exp * bool ]) -> bool;
     assign: (local_state,Basetype.Variables.t,global_state) ctx -> lval -> exp -> local_state ;
     intrpt: (local_state,Basetype.Variables.t,global_state) ctx -> local_state ;
     branch: (local_state,Basetype.Variables.t,global_state) ctx -> exp -> bool -> local_state;
@@ -228,9 +229,12 @@ struct
     let gl x = C.extract_g (ctx.global x) in
     S.query (set_st_gl ctx st gl spawn effect) q
   
-  let may_race gs ask1 (d1,ac1) ask2 (d2,ac2) =
-    let gl x = C.extract_g (gs x) in
-    S.may_race gl ask1 (C.extract_l d1,ac1) ask2 (C.extract_l d2,ac2)
+  let may_race (ctx1,ac1) (ctx2,ac2) =
+    let st1 = C.extract_l ctx1.local in
+    let st2 = C.extract_l ctx2.local in
+    let gl1 x = C.extract_g (ctx1.global x) in
+    let gl2 x = C.extract_g (ctx2.global x) in
+    S.may_race (set_st_gl ctx1 st1 gl1 spawn effect,ac1) (set_st_gl ctx2 st2 gl2 spawn effect,ac2)
   let intrpt ctx = 
     let st = C.extract_l ctx.local in
     let gl x = C.extract_g (ctx.global x) in
@@ -770,10 +774,11 @@ struct
     let g = select_g s ctx.global in
     s.query (set_gl ctx g effect)
 
-  let may_race' gs ask1 (x1,ac1) ask2 (x2,ac2) =
-    let s = get_matches x1 in
-    let g = select_g s gs in
-    s.may_race g ask1 (x1,ac1) ask2 (x2,ac2)
+  let may_race' (ctx1,ac1) (ctx2,ac2) =
+    let s = get_matches ctx1.local in
+    let g1 = select_g s ctx1.global in
+    let g2 = select_g s ctx2.global in
+    s.may_race (set_gl ctx1 g1 effect,ac1) (set_gl ctx2 g2 effect,ac2)
 
   let replace x = 
     let matches = (Dom.get_matches x).matches in
@@ -893,18 +898,16 @@ struct
     let ls = lift_spawn nctx (fun set_st -> List.concat (List.map2 (fun y -> List.map (fun x-> query' (set_st x y) q)) (ctx.global::ctx.preglob) (ctx.local::ctx.precomp))) in
     List.fold_left Queries.Result.meet (Queries.Result.top ()) ls
   
-  let may_race gs asl1 (d1,ac1) asl2 (d2,ac2) =
-    let undefined _ = failwith "undefined" in
-    let ctx1 = context asl1 d1 gs [] undefined undefined undefined in
-    let ctx2 = context asl2 d2 gs [] undefined undefined undefined in
-    let f b x y = b && may_race' gs (query_imp ctx1) (x,ac1) (query_imp ctx2) (y,ac2) in
-    List.fold_left2 f true d1 d2 
-  
   let query = query_imp 
 
   let set_sub full_ctx (ctx:(local_state,'b,'c) ctx) (dp:local_state list) : (local_state,'b,'c) ctx = 
       set_preglob (set_precomp (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect ctx.report_access) ctx.precomp) ctx.preglob
   
+  let may_race (ctx1,ac1) (ctx2,ac2) =
+    let spawner f v d = () in
+    let f b x y = b && may_race' (set_sub ctx1 (set_st ctx1 x spawner) ctx1.sub,ac1) (set_sub ctx2 (set_st ctx2 y spawner) ctx2.sub,ac2) in
+    List.fold_left2 f true ctx1.local ctx2.local 
+    
   let map_tf' ctx (tf:(local_state, Basetype.Variables.t, global_state list) ctx  -> 'a) : Dom.t = 
     let map_one (set_st : local_state -> (local_state, Basetype.Variables.t, global_state list) ctx) ls (t : local_state): local_state list =
       let s = get_matches t in

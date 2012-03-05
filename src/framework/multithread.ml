@@ -82,7 +82,7 @@ struct
       BatHashtbl.remove ht a
     in
     BatHashtbl.iter process ht  
-  let postprocess_accesses (ls,gs) =
+  let postprocess_accesses (ls,gs) phase (old : Analyses.local_state list list PH.t list) old_g =
     let trivial = ref 0 in
     let yes = ref 0 in
     let no  = ref 0 in
@@ -104,6 +104,17 @@ struct
         | `Reach (e1,rw1), `Lval (l2,rw2)  -> (rw1 || rw2) 
         | `Lval (l1,rw1) , `Reach (e2,rw2) -> (rw1 || rw2) 
     in
+    let getctx var v = 
+      let oldstate = 
+        let f m = match PH.find m var with [] -> raise A.Deadcode | x -> x in
+        List.concat (List.map f old)  
+      in
+      let oldglob = List.map (fun (h,t) x -> try PHG.find h x with Not_found -> t) old_g in
+      let reporter _ = () in
+      let add_var v d = () in
+      let add_diff g d = () in 
+        A.set_preglob (A.set_precomp (A.context top_query v gstate [] add_var add_diff reporter) oldstate) oldglob 
+    in
     let f (x1,ac1) (x2,ac2) = 
       if fast_may_alias ac1 ac2 then begin
         let xs1 = BatHashtbl.find context_tbl x1 in
@@ -111,8 +122,7 @@ struct
         let may_race x1 x2 =
           let d1 = SD.unlift (Solver.VMap.find ls x1) in 
           let d2 = SD.unlift (Solver.VMap.find ls x2) in 
-          let unknown_query _ = Queries.Result.top () in 
-          Spec.may_race gstate unknown_query (d1,ac1) unknown_query (d2,ac2)
+          Spec.may_race (getctx (fst x1) d1,ac1) (getctx (fst x2) d2,ac2)
         in
         let potential_race = VarSet.exists (fun x -> VarSet.exists (may_race x) xs2) xs1 in
         if potential_race then begin
@@ -634,7 +644,7 @@ struct
       end;
     let main_sol = Solver.VMap.find sol firstvar in
     if not !GU.old_accesses then begin
-      Stats.time "post" postprocess_accesses (sol,gs)
+      Stats.time "post" (postprocess_accesses (sol,gs) phase old) old_g
     end;
     (* check for dead code at the last state: *)
     (if !GU.debug && SD.equal main_sol (SD.bot ()) then

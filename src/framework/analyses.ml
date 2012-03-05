@@ -139,7 +139,8 @@ sig
   (** state to start analyzing other functions (usual when calling './goblint --allfuns ...') *)
   val es_to_string: fundec -> Dom.t -> string
   (** no-one knows .. somehow used when generating final output *)
-  val may_race: (Glob.Var.t -> Glob.Val.t) -> Queries.ask -> (Dom.t * [ `Lval of lval * bool | `Reach of exp * bool ]) -> Queries.ask -> (Dom.t * [ `Lval of lval * bool | `Reach of exp * bool ]) -> bool 
+  val may_race: ((Dom.t, Glob.Var.t, Glob.Val.t) ctx * [ `Lval of lval * bool | `Reach of exp * bool ]) 
+                -> ((Dom.t, Glob.Var.t, Glob.Val.t) ctx * [ `Lval of lval * bool | `Reach of exp * bool ]) -> bool 
   (** query if two accesses may conflict *)
   
   val sync: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> Dom.t * (Glob.Var.t * Glob.Val.t) list
@@ -305,7 +306,7 @@ struct
   let query _ (q:Queries.t) = Queries.Result.top ()
   (* Don't know anything --- most will want to redefine this. *)
   
-  let may_race _ _ _ _ _ = true
+  let may_race _ _ = true
   (* Don't know anything --- may lead to a race *)
   
   let eval_funvar _ _ = []

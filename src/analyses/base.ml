@@ -925,7 +925,12 @@ struct
       M.warn ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
       [dummyFunDec.svar]
 
-  let may_race gs ask1 ((cpa1,f1),ac1) ask2 ((cpa2,f2),ac2) =
+  let may_race (ctx1,ac1) (ctx2,ac2) =
+    let gs = ctx1.global in
+    let ask1 = ctx1.ask in
+    let ask2 = ctx2.ask in
+    let cpa1, f1 = ctx1.local in
+    let cpa2, f2 = ctx2.local in
     let rt_closure f d = 
       let rec loop don todo = 
         if AD.is_empty todo then don else
@@ -939,7 +944,7 @@ struct
       (not (Addr.equal (Addr.str_ptr ()) lv)) && 
       (not (Addr.is_null lv)) &&
       match Addr.to_var lv with 
-        | [v] -> is_global ask v
+        | [v] ->not(isFunctionType v.vtype) && is_global ask v
         | _ -> true
     in
     Flag.is_multi f1 &&
@@ -957,9 +962,11 @@ struct
     let filter p x = if AD.is_top x then x else AD.filter p x in
     let val1 = changed_addrs (cpa1,f1) ac1 in
     let val2 = changed_addrs (cpa2,f2) ac2 in
-    let val_inter = AD.meet (filter (is_glob ask1) val1) (filter (is_glob ask2) val2) in
-    (  AD.is_top val1 || AD.mem (Addr.unknown_ptr ()) val1
-    || AD.is_top val2 || AD.mem (Addr.unknown_ptr ()) val2 
+    let gval1 = filter (is_glob ask1) val1 in
+    let gval2 = filter (is_glob ask2) val2 in
+    let val_inter = AD.meet gval1 gval2 in
+    (( AD.mem (Addr.unknown_ptr ()) val1 && not (AD.is_empty gval2))
+    ||(AD.mem (Addr.unknown_ptr ()) val2 && not (AD.is_empty gval1))
     || not (AD.is_bot val_inter) )
     
   let query ctx (q:Q.t) = 
