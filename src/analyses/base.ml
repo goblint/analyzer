@@ -950,24 +950,23 @@ struct
     Flag.is_multi f1 &&
     Flag.is_multi f2 && 
     not (Flag.get_main ()=f1 && f1=f2) &&
-    let changed_addrs st ac = 
+    let changed_addrs ask st ac = 
       match ac with 
-        | `Lval (l,rw) -> eval_lv (fun _ -> Q.Result.top ()) gs st l 
+        | `Lval (l,rw) -> eval_lv ask gs st l 
         | `Reach (e,rw) -> 
-      match eval_rv (fun _ -> Q.Result.top ()) gs st e with
-        | `Address a -> rt_closure (reachable_from_address (fun _ -> Q.Result.top ()) gs st) a
+      match eval_rv ask gs st e with
+        | `Address a -> rt_closure (reachable_from_address ask gs st) a
         | `Top -> AD.top ()
         | _ -> AD.bot ()
     in
     let filter p x = if AD.is_top x then x else AD.filter p x in
-    let val1 = changed_addrs (cpa1,f1) ac1 in
-    let val2 = changed_addrs (cpa2,f2) ac2 in
+    let val1 = changed_addrs ctx1.ask (cpa1,f1) ac1 in
+    let val2 = changed_addrs ctx2.ask (cpa2,f2) ac2 in
     let gval1 = filter (is_glob ask1) val1 in
     let gval2 = filter (is_glob ask2) val2 in
-    let val_inter = AD.meet gval1 gval2 in
     (( AD.mem (Addr.unknown_ptr ()) val1 && not (AD.is_empty gval2))
     ||(AD.mem (Addr.unknown_ptr ()) val2 && not (AD.is_empty gval1))
-    || not (AD.is_bot val_inter) )
+    || not (AD.is_bot (AD.meet gval1 gval2)) )
     
   let query ctx (q:Q.t) = 
     match q with

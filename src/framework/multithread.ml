@@ -60,8 +60,9 @@ struct
   (** name the analyzer *)
   let name = "analyzer"
   let top_query x = Queries.Result.top () 
+  module CtxHash = BatHashtbl.Make (MyCFG.Node)
   let access_tbl = BatHashtbl.create 10000
-  let context_tbl = BatHashtbl.create 10000
+  let context_tbl = CtxHash.create 10000
   
   let d_ac = 
     let f = function true -> "write" | _ -> "read" in
@@ -72,16 +73,26 @@ struct
     d_ac
   let report_access x ac =
     (*Messages.report (Pretty.sprint 80 (d_ac () ac));*)
-    let old_set = try BatHashtbl.find context_tbl (fst x) with Not_found -> VarSet.empty in
-    BatHashtbl.replace context_tbl (fst x) (VarSet.add x old_set);
+    let old_set = try CtxHash.find context_tbl (fst x) with Not_found -> VarSet.empty in
+    CtxHash.replace context_tbl (fst x) (VarSet.add x old_set);
     BatHashtbl.replace access_tbl (fst x, ac) ()
-  let for_pairs (f:'a -> 'a -> unit) ht =
-    let ht = BatHashtbl.copy ht in
-    let process a () = 
-      BatHashtbl.iter (fun b () -> f a b) ht;
-      BatHashtbl.remove ht a
-    in
-    BatHashtbl.iter process ht  
+    
+  let for_pairs f ht =
+    let a = BatArray.of_enum (BatHashtbl.keys ht) in
+    let n = BatHashtbl.length ht in
+    Printf.printf "|S| = %d %!\n" n;
+    let prc = ref 0 in
+    let x, y = ref 0, ref 0 in
+    while !x < n do
+      (if !x * 100 / n > !prc then begin Printf.printf "%d %!" !prc; prc:=!x * 100 / n end);
+      y := !x;
+      while !y < n do
+        f a.(!x) a.(!y);
+        incr y
+      done;
+      incr x
+    done
+    
   let postprocess_accesses (ls,gs) phase (old : Analyses.local_state list list PH.t list) old_g =
     let trivial = ref 0 in
     let yes = ref 0 in
@@ -104,7 +115,7 @@ struct
         | `Reach (e1,rw1), `Lval (l2,rw2)  -> (rw1 || rw2) 
         | `Lval (l1,rw1) , `Reach (e2,rw2) -> (rw1 || rw2) 
     in
-    let getctx var v = 
+    let getctx var = 
       let oldstate = 
         let f m = match PH.find m var with [] -> raise A.Deadcode | x -> x in
         List.concat (List.map f old)  
@@ -113,16 +124,20 @@ struct
       let reporter _ = () in
       let add_var v d = () in
       let add_diff g d = () in 
-        A.set_preglob (A.set_precomp (A.context top_query v gstate [] add_var add_diff reporter) oldstate) oldglob 
+        fun v -> A.set_preglob (A.set_precomp (A.context top_query v gstate [] add_var add_diff reporter) oldstate) oldglob 
     in
     let f (x1,ac1) (x2,ac2) = 
       if fast_may_alias ac1 ac2 then begin
-        let xs1 = BatHashtbl.find context_tbl x1 in
-        let xs2 = BatHashtbl.find context_tbl x2 in
-        let may_race x1 x2 =
+        let xs1 = CtxHash.find context_tbl x1 in
+        let xs2 = CtxHash.find context_tbl x2 in
+        let getctx1 = getctx x1 in
+        let getctx2 = getctx x2 in
+        let may_race x1 = 
           let d1 = SD.unlift (Solver.VMap.find ls x1) in 
-          let d2 = SD.unlift (Solver.VMap.find ls x2) in 
-          Spec.may_race (getctx (fst x1) d1,ac1) (getctx (fst x2) d2,ac2)
+          let ctx1 = (getctx1 d1,ac1) in
+          fun x2 ->
+            let d2 = SD.unlift (Solver.VMap.find ls x2) in 
+            Spec.may_race ctx1 (getctx2 d2,ac2)
         in
         let potential_race = VarSet.exists (fun x -> VarSet.exists (may_race x) xs2) xs1 in
         if potential_race then begin
@@ -155,7 +170,10 @@ struct
       in
       let spawns = List.map do_one_function xs in
       (* if no phases, do not try to monotonize them *)
-      if phase = 0 then spawns else begin 
+      if phase = 0 then begin 
+        SH.replace old_s (fn,ed,tn) (List.map (fun (x,_) -> (x,phase)) xs); 
+        spawns 
+      end else begin 
         let spawnfuns = List.map fst xs in
         let old_spawns =  try SH.find old_s (fn,ed,tn) with Not_found -> [] in
         let mon_spawns = List.filter (fun (x,y) -> phase>y && not (List.exists (Basetype.Variables.equal x) spawnfuns)) old_spawns in

@@ -390,7 +390,7 @@ struct
       let yay, nay = partition (fun x -> B.leq x y) x in
       if is_empty yay then r else add (fold (GU.joinvalue B.join) yay (B.bot ())) r
     in
-    fold f y (empty ())
+    if is_top y then y else if is_top x then x else fold f y (empty ())
 end
 
 (* This one just removes the extra "{" notation and also by always returning

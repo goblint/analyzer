@@ -160,6 +160,7 @@ module ConvertToMCPPart
   (C:MCPPartConf with type lf = S.Dom.t and type gf = S.Glob.Val.t) 
     (*: Analyses.Spec*) =
 struct
+  module S = Analyses.StatsTrace (S)
   (*module S = Analyses.HCLift (S)
   module C1 = 
   struct
@@ -905,18 +906,24 @@ struct
   
   let may_race (ctx1,ac1) (ctx2,ac2) =
     let rec fold_left3 f a xs ys zs = 
+      a &&
       match xs, ys, zs with
         | x::xs, y::ys, z::zs -> fold_left3 f (f a x y z) xs ys zs
+        | _ -> a
+    in
+    let rec fold_left2 f a xs ys = 
+      a &&
+      match xs, ys with
+        | x::xs, y::ys -> fold_left2 f (f a x y) xs ys 
         | _ -> a
     in
     let spawner f v d = () in
     let effect f _ _ = () in
     let f g b x y = 
-        b && 
         may_race' (set_sub ctx1 (set_st_gl ctx1 x g spawner effect) ctx1.sub,ac1) 
                   (set_sub ctx2 (set_st_gl ctx2 y g spawner effect) ctx2.sub,ac2) 
     in
-    fold_left3 (fun b x y g -> List.fold_left2 (f g) b x y) true 
+    fold_left3 (fun b x y g -> fold_left2 (f g) b x y) true 
           (ctx1.local::ctx1.precomp) (ctx2.local::ctx2.precomp) (ctx1.global::ctx1.preglob) 
     
   let map_tf' ctx (tf:(local_state, Basetype.Variables.t, global_state list) ctx  -> 'a) : Dom.t = 

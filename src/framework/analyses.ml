@@ -233,10 +233,10 @@ struct
   let enter_func   = D.enter_func 
   let leave_func   = D.leave_func 
   let intrpt       = D.intrpt
-  let may_race     = D.may_race
   
   
   (* transfer functions *)
+  let may_race x = time_f "may_race" (D.may_race x)
   let sync ctx  = time_f "sync" sync ctx  
   let should_join x y  = time_f "should_join" (should_join x) y
   let query ctx q  = time_f "query" (query ctx) q
