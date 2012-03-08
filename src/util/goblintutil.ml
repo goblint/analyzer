@@ -49,7 +49,8 @@ let default_conf () =
                               ;"containment", Build.bool false
                               ;"stack_trace", Build.bool false
                               ;"shape"      , Build.bool true
-                              ;"var_eq"     , Build.bool false] in
+                              ;"var_eq"     , Build.bool false
+                              ;"mtflag"     , Build.bool false] in
   let def_ctx = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool true
                              ;"OSEK2"      , Build.bool false
@@ -65,7 +66,8 @@ let default_conf () =
                              ;"stack_trace", Build.bool true
                              ;"containment", Build.bool true
                              ;"shape"      , Build.bool true
-                             ;"var_eq"     , Build.bool true] in
+                             ;"var_eq"     , Build.bool true
+                             ;"mtflag"     , Build.bool true] in
   Build.objekt ["int_domain" , def_int
                ;"analyses"   , def_ana
                ;"sensitive"  , def_path
@@ -188,6 +190,9 @@ let sharir_pnueli = ref false
 
 (** forward propagation *)
 let forward = ref false
+
+(** Address contexts *)
+let addr_contexts = ref false
 
 (** singleton types *)
 let singles = ref []

@@ -412,7 +412,7 @@ struct
     | `Lifted x -> M.find k x
    
   let mem k = function
-    | `Bot -> true
+    | `Bot -> false
     | `Lifted x -> M.mem k x
 
   let map f = function 

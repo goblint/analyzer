@@ -185,6 +185,7 @@ let main () =
                  ("--sharirpnueli", Arg.Set GU.sharir_pnueli, " Solve using the Sharir-Pnueli algorithm.");
                  ("--forward", Arg.Set GU.forward, " Use implicit forward propagation instead of the demand driven approatch.");
                  ("--full-context", Arg.Set GU.full_context, " Do not side-effect function entries.");
+                 ("--addr-context", Arg.Set GU.addr_contexts, " Ignore non-address values in function contexts.");
                  ("--debug-sockets", Arg.Tuple [Arg.Set_int GU.command_port;Arg.Int GU.open_sockets], "<port> <port> Eclipse debuger plugin support.");
                  ] in
   let jsonRegex = Str.regexp ".+\\.json$" in
@@ -281,7 +282,7 @@ let main () =
           (fun () ->  print_endline "\nTimeout reached!") ();
         if !Cilutil.printStats then 
         begin
-          ignore (Pretty.printf "vars = %d    evals = %d\n" !EffectWCon.vars !EffectWCon.evals);
+          ignore (Pretty.printf "vars = %d    evals = %d  \n" !EffectWCon.vars !EffectWCon.evals);
           flush_all ();
           prerr_endline "Solver stats:";
           prerr_endline ("  globals changed "^string_of_int !Goblintutil.globals_changed^" times");

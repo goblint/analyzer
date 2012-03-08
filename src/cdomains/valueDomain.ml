@@ -325,9 +325,10 @@ struct
       
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset f (x: t) (offs:offs): t =
-    match x with 
-      | `Blob c -> eval_offset f c offs
-      | `Bot -> `Bot
+    match x, offs with 
+      | `Blob c, `Index (_,o) -> eval_offset f c o
+      | `Blob c, _ -> eval_offset f c offs
+      | `Bot, _ -> `Bot
       | _ ->
     match offs with
       | `NoOffset -> x
@@ -367,14 +368,15 @@ struct
 
   let rec update_offset (x:t) (offs:offs) (value:t): t =
     let mu = function `Blob (`Blob y) -> `Blob y | x -> x in
-    match x with
-      | `Blob x -> mu (`Blob (GU.joinvalue join x (update_offset x offs value)))
+    match x, offs with
+      | `Blob x, `Index (_,o) -> mu (`Blob (GU.joinvalue join x (update_offset x o value)))
+      | `Blob x,_ -> mu (`Blob (GU.joinvalue join x (update_offset x offs value)))
       | _ -> 
     let result =   
       match offs with
         | `NoOffset -> begin
             match value with
-              | `Blob y -> `Blob (GU.joinvalue join x y)
+              | `Blob y -> mu (`Blob (GU.joinvalue join x y))
               | _ -> value
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
@@ -426,7 +428,6 @@ struct
               | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
       in mu result
-        
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t = 

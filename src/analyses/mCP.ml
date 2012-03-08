@@ -80,6 +80,7 @@ type analysisRecord = {
     otherstate: unit -> local_state;
     exitstate : unit -> local_state;
     es_to_string: fundec -> local_state -> string;  
+    context_top: varinfo -> local_state -> local_state;
     sync : (local_state,Basetype.Variables.t,global_state) ctx -> local_state * (Basetype.Variables.t * global_state) list;
     query: (local_state,Basetype.Variables.t,global_state) ctx -> Queries.t -> Queries.Result.t ;
     may_race : ((local_state,Basetype.Variables.t,global_state) ctx*[ `Lval of lval * bool | `Reach of exp * bool ]) -> 
@@ -160,7 +161,6 @@ module ConvertToMCPPart
   (C:MCPPartConf with type lf = S.Dom.t and type gf = S.Glob.Val.t) 
     (*: Analyses.Spec*) =
 struct
-  module S = Analyses.StatsTrace (S)
   (*module S = Analyses.HCLift (S)
   module C1 = 
   struct
@@ -214,7 +214,8 @@ struct
   let otherstate () = C.inject_l (S.otherstate ())
   let exitstate () = C.inject_l (S.exitstate ())
   let es_to_string f x = S.es_to_string f (C.extract_l x)
-
+  let context_top f x = C.inject_l (S.context_top f (C.extract_l x))
+  
   let spawn  f v d = f v (C.inject_l d)
   let effect f v g = f v (C.inject_g g)
   
@@ -432,6 +433,7 @@ struct
         body          = body  ;
         return        = return;
         may_race      = may_race;
+        context_top   = context_top;
 (*        eval_funvar   = eval_funvar;  *)
 (*         fork          = fork ;       *)
         special_fn    = special_fn ;
@@ -839,7 +841,7 @@ struct
 
    let context_top f x = 
     let disable_cfg sens el  =
-      if sens then el else ((Dom.get_matches el).top ())
+      if sens then (get_matches el).context_top f el else ((Dom.get_matches el).top ())
     in
     List.map2 disable_cfg !context_list x 
 
