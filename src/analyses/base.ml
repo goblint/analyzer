@@ -46,9 +46,9 @@ struct
   module Dom  = BaseDomain.Dom (Flag)
 
   let name = "Constant Propagation Analysis"
-  let startstate () = CPA.empty (), Flag.bot ()
-  let otherstate () = CPA.empty (), Flag.top ()
-  let exitstate  () = CPA.empty (), Flag.get_main ()
+  let startstate () = CPA.bot (), Flag.bot ()
+  let otherstate () = CPA.bot (), Flag.top ()
+  let exitstate  () = CPA.bot (), Flag.get_main ()
 
   type cpa = CPA.t
   type flag = Flag.t
@@ -82,7 +82,6 @@ struct
         res
     in
       (* We fold over the local state, and collect the globals *)
-      if CPA.is_bot cpa then (cpa, []) else
       CPA.fold add_var cpa (cpa, [])
 
   let sync ctx: Dom.t * glob_diff = 
@@ -100,9 +99,9 @@ struct
     let f_addr (x, offs) = 
       (* get hold of the variable value, either from local or global state *)
       let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
-        match CPA.mem x st with
-          | false -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; gs x)
-          | true -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; CPA.find x st)
+        match CPA.find x st with
+          | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; gs x)
+          | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
       else begin
         if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
         CPA.find x st 
@@ -141,9 +140,9 @@ struct
         if not effect then nst
         else begin
           let get x st = 
-            match CPA.mem x st with
-              | false -> (if M.tracing then M.tracec "set" "Reading from global invariant.\n"; gs x)
-              | true -> (if M.tracing then M.tracec "set" "Reading from privatized version.\n"; CPA.find x st)
+            match CPA.find x st with
+              | `Bot -> (if M.tracing then M.tracec "set" "Reading from global invariant.\n"; gs x)
+              | x -> (if M.tracing then M.tracec "set" "Reading from privatized version.\n"; x)
           in
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
@@ -1088,7 +1087,7 @@ struct
     let cpa,fl as st = ctx.local in
     let make_entry pa context =
       (* If we need the globals, add them *)
-      let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.empty () in 
+      let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
       (* Assign parameters to arguments *)
       let new_cpa = CPA.add_list pa new_cpa in
       let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
@@ -1229,7 +1228,7 @@ struct
                     Cil.mkAddrOf (Var v, NoOffset) :: a 
                   else a
                 in
-                let addrs = if CPA.is_bot cpa then [] else CPA.fold st_expr cpa (lv_list @ args) in
+                let addrs = CPA.fold st_expr cpa (lv_list @ args) in
                 (* This rest here is just to see of something got spawned. *)
                 let flist = collect_funargs ctx.ask gs st args in
                 let (cpa,fl as st) = invalidate ctx.ask gs st addrs in
@@ -1259,7 +1258,7 @@ struct
       let add_globals (cpa_s,fl_s) (cpa_d,fl_dl) = 
         (* Remove the return value as this is dealt with separately. *)
         let cpa_s = CPA.remove (return_varinfo ()) cpa_s in
-        let new_cpa = if CPA.is_bot cpa_s then cpa_s else CPA.fold CPA.add cpa_s cpa_d in
+        let new_cpa = CPA.fold CPA.add cpa_s cpa_d in
           (new_cpa, fl_s)
       in 
       let return_var = return_var () in
