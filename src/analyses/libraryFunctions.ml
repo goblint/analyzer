@@ -376,6 +376,7 @@ let invalidate_actions = [
   ("pthread_create", writes [1]);
   ("__builtin_prefetch", readsAll);
   ("idr_pre_get", readsAll);
+  ("zil_replay", writes [1;2;3;5]);
 ]
 
 (* used by get_invalidate_action to make sure
