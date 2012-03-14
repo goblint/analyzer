@@ -57,7 +57,8 @@ struct
       match e with
         | Lval (Var v, offs) ->            
             begin match a (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
-                    | `LvalSet a when not (Queries.LS.is_top a) ->
+                    | `LvalSet a when not (Queries.LS.is_top a) 
+                                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
                         Queries.LS.iter (fun (v,o) -> warn_lval st (v, conv_offset o)) a
                     | _ -> ()
             end
@@ -124,7 +125,8 @@ struct
 
   let get_concrete_lval ask (lval:lval) =
     match ask (Queries.MayPointTo (mkAddrOf lval)) with
-      | `LvalSet a when Queries.LS.cardinal a = 1 ->
+      | `LvalSet a when Queries.LS.cardinal a = 1 
+                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
           let v, o = Queries.LS.choose a in
           Some (Var v, conv_offset o)
       | _ -> None 
@@ -137,7 +139,7 @@ struct
 
   let might_be_null ask lv gl st =
     match ask (Queries.MayPointTo (mkAddrOf lv)) with
-      | `LvalSet a when not (Queries.LS.is_top a) ->
+      | `LvalSet a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
           let one_addr_might (v,o) = 
             Dom.exists (fun x -> List.exists (fun x -> is_prefix_of (v, conv_offset o) x) (Addr.to_var_offset x)) st
           in

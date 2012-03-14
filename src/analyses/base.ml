@@ -512,7 +512,7 @@ struct
       match t with
         | t when is_mutex_type t -> `Top
         | Cil.TInt _ -> `Int (ID.top ())
-        | Cil.TPtr _ -> `Address (AD.safe_ptr ())
+        | Cil.TPtr _ -> `Address (GU.joinvalue AD.join (AD.safe_ptr ()) (AD.null_ptr ()))
         | Cil.TComp ({Cil.cstruct=true} as ci,_) -> `Struct (init_comp ci)
         | Cil.TComp ({Cil.cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
         | Cil.TArray _ -> bot_value a gs st t
@@ -1008,7 +1008,11 @@ struct
       | Q.MayPointTo e -> begin
           match eval_rv ctx.ask ctx.global ctx.local e with 
             | `Address a when AD.mem (Addr.unknown_ptr ()) a -> `LvalSet (Q.LS.top ())
-            | `Address a -> `LvalSet (addrToLvalSet a)
+            | `Address a -> 
+                let s = addrToLvalSet a in
+                if AD.mem (Addr.unknown_ptr ()) a 
+                then `LvalSet (Q.LS.add (dummyFunDec.svar, `NoOffset) s)
+                else `LvalSet s
             | _ -> `Top
           end
       | Q.ReachableFrom e -> begin

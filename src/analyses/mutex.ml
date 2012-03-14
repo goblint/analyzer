@@ -146,6 +146,11 @@ struct
               | Region   of (exp option * Cil.varinfo * Offs.t * bool) 
               | Unknown  of (exp * bool)
   type accesses = access list
+  
+  let short_access = function 
+    | Concrete (_,v,_,_) -> v.vname
+    | Region (_,v,_,_) -> "region "^v.vname
+    | Unknown (e,_) -> "unknown"
 
   let unknown_access () =
     M.warn "Access to unknown address could be global"
@@ -233,20 +238,22 @@ struct
       * can all be written to. *)
      let do_exp e = 
        match ask (Queries.ReachableFrom e) with
-         | `LvalSet a when not (Queries.LS.is_top a) -> 
+         | `LvalSet a when not (Queries.LS.is_top a) 
+                        && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->  
             let to_extra (v,o) xs = 
               if is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
                 Concrete (None, v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
             Queries.LS.fold to_extra a [] 
          (* Ignore soundness warnings, as invalidation proper will raise them. *)
-         | _ -> []
+         | _ -> [Unknown (e,true)]
      in
        List.concat (List.map do_exp exps)
   
   let eval_exp_addr a exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a (Queries.MayPointTo exp) with
-      | `LvalSet a when not (Queries.LS.is_top a) -> 
+      | `LvalSet a when not (Queries.LS.is_top a)
+                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) -> 
           Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []    
       | _ -> []
   
