@@ -857,7 +857,7 @@ struct
         | `Address a when AD.equal a (AD.null_ptr()) -> []
         | `Address a when not (AD.is_top a) -> 
             List.map (invalidate_address st) (reachable_vars ask [a] gs st)
-        | `Int _ -> []
+        | `Bot | `Int _ -> []
         | _ -> let expr = sprint ~width:80 (Cil.d_exp () e) in
             M.warn ("Failed to invalidate unknown address: " ^ expr); []
     in
