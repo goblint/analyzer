@@ -401,6 +401,30 @@ let get_invalidate_action name =
     then Some (Hashtbl.find tbl name)
     else None
 
+let threadSafe =
+  let rec threadSafe n ns xs =    
+    match ns, xs with
+      | n'::ns, x::xs when n=n' -> Cil.mone::threadSafe (n+1) ns xs
+      | n'::ns, x::xs -> x::threadSafe (n+1) (n'::ns) xs
+      | _ -> xs
+  in 
+  threadSafe 1
+
+let thread_safe_fn =
+  ["strerror", threadSafe [1];
+   "fprintf",  threadSafe [1];
+   "fgets",    threadSafe [3];
+   "strerror_r", threadSafe [1];
+   "fclose", threadSafe [1];
+  ]
+
+let get_threadsafe_inv_ac name =
+  try 
+    let f = List.assoc name thread_safe_fn in
+    match get_invalidate_action name with
+      | Some g -> Some (fun a xs -> g a (f xs))
+      | None -> Some (fun a xs -> f xs)
+  with Not_found -> get_invalidate_action name
 
 let use_special fn_name =
   match fn_name with

@@ -1155,6 +1155,11 @@ struct
           end
       | `Unknown "exit" ->  raise Deadcode
       | `Unknown "abort" -> raise Deadcode
+      | `Unknown "__builtin_expect" -> 
+        begin match lv with
+          | Some v -> [map_true (assign ctx v (List.hd args))]
+          | _ -> M.bailwith "Strange use of '__builtin_expect' detected --- ignoring."
+        end
       | `Unknown "spinlock_check" -> 
           begin match lv with
             | Some x -> map_true (assign ctx x (List.hd args)) :: []

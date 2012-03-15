@@ -153,6 +153,7 @@ struct
     | Unknown (e,_) -> "unknown"
 
   let unknown_access () =
+    (*M.report "unknown access 'with lockset:'";*)
     M.warn "Access to unknown address could be global"
   
   let access_address ask regs write lv : accesses =
@@ -244,6 +245,7 @@ struct
               if is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
                 Concrete (None, v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
             Queries.LS.fold to_extra a [] 
+         | `Bot -> []
          (* Ignore soundness warnings, as invalidation proper will raise them. *)
          | _ -> [Unknown (e,true)]
      in
@@ -719,7 +721,7 @@ struct
           [ctx.local,Cil.integer 1, true]
       | _, x -> 
           let arg_acc act = 
-            match LF.get_invalidate_action x with
+            match LF.get_threadsafe_inv_ac x with
               | Some fnc -> (fnc act arglist) 
               | _ -> arglist
           in

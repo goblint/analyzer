@@ -31,6 +31,10 @@ val get_invalidate_action : string -> (action -> Cil.exp list -> Cil.exp list) o
   * that may be read or also written to.
   *)
 
+val get_threadsafe_inv_ac : string -> (action -> Cil.exp list -> Cil.exp list) option
+(** Same as [get_invalidate_action], but replaces arguments for thread-safe functions.
+  *)
+
 val use_special : string -> bool
 (** This is for when we need to use special transfer function on functions calls that have definitions. 
   *)
