@@ -321,7 +321,6 @@ struct
             `Array (CArrays.set n (ID.top ()) v)
       |                 t , `Blob n       -> `Blob (invalidate_value t n)
       |                 _ , `List n       -> `Top
-      |                 _ , `Bot          -> `Bot
       |                 t , _             -> top_value t
       
   (* Funny, this does not compile without the final type annotation! *)
