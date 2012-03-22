@@ -703,18 +703,22 @@ struct
     let precmp = ref [] in (* same as oldsol but without contexts  *)
     let oldgsol = ref [] in (* old globals *)
     let oldspawns = SH.create 23 in 
-    (* loop over phases *)
-    for ph = 0 to phs -1 do
-      GU.phase := ph;
-      Spec.init ();
-      let sv = (analyze_phase file cfg ph !precmp !oldgsol oldspawns fds) in
-      oldsol := sv :: !oldsol;
-      if ph != phs-1 then begin
-        oldgsol := (conserve_globs sv, ToStdG.translate (Spec.Glob.Val.top ())) :: !oldgsol;
-        precmp := join_contexts sv :: !precmp
-      end;
-      Spec.finalize ()
-    done;
+    let do_analyze () =
+      (* loop over phases *)
+      for ph = 0 to phs -1 do
+        GU.phase := ph;
+        Spec.init ();
+        let sv = (analyze_phase file cfg ph !precmp !oldgsol oldspawns fds) in
+        oldsol := sv :: !oldsol;
+        if ph != phs-1 then begin
+          oldgsol := (conserve_globs sv, ToStdG.translate (Spec.Glob.Val.top ())) :: !oldgsol;
+          precmp := join_contexts sv :: !precmp
+        end;
+        Spec.finalize ()
+      done
+    in
+    Goblintutil.timeout do_analyze () !GU.anayzer_timeout 
+      (fun () -> M.waitWhat "Timeout reached!");
     (*let module VSet = Set.Make (A.Var) in
     let vs = List.fold_left (fun s (st,_) -> Solver.VMap.fold (fun (n,_) _ -> VSet.add n) st s) VSet.empty !oldsol in
     ignore (Pretty.printf "# program points = %d\n" (VSet.cardinal vs));*)

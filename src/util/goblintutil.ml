@@ -182,6 +182,9 @@ let open_sockets i =
   set_binary_mode_out !event_out false;
   ignore (Printf.printf "done.\n")
 
+(** the number of seconds the analyzer is aborted after; 0.0 means no timeout *)
+let anayzer_timeout = ref 0.0
+
 (** Do we side-effect function entries? If we use full contexts then there is no need. *)
 let full_context = ref false
 
@@ -702,15 +705,11 @@ exception Timeout
 
 let handle_sigalrm signo = raise Timeout
 
-let timeout f arg tsecs defaultval =
-  let oldsig = Sys.signal Sys.sigalrm (Sys.Signal_handle handle_sigalrm) in
-  try
-    set_timer tsecs;
-    let res = f arg in
-    set_timer 0.0;
-    Sys.set_signal Sys.sigalrm oldsig;
-    res
-  with Timeout ->
-    Sys.set_signal Sys.sigalrm oldsig;
-    defaultval
+let timeout f arg tsecs timeout_fn =
+  let oldsig = Sys.signal Sys.sigalrm (Sys.Signal_handle (fun _ -> timeout_fn ())) in
+  set_timer tsecs;
+  let res = f arg in
+  set_timer 0.0;
+  Sys.set_signal Sys.sigalrm oldsig;
+  res
 

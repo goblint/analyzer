@@ -44,7 +44,6 @@ let main () =
   let cppflags = ref "" in
   let outFile = ref "" in 
   let cilout = ref stderr in
-  let max_time = ref 0.0 in
   (* Function for setting the style: *)
   let setstyle = function
       | "none" -> GU.result_style := GU.NoOutput
@@ -180,7 +179,7 @@ let main () =
 		 ("--osekisrprefix", Arg.String osekisrprefix, "Prefix added by the ISR macro");
 		 ("--osektaskprefix", Arg.String osektaskprefix, "Prefix added by the TASK macro");
                  ("--intrpts", Arg.Set GU.intrpts, " Enable constraints for interrupts.");
-                 ("--timeout", Arg.Set_float max_time, " Maximal time for analysis. (0 -- no timeout)");
+                 ("--timeout", Arg.Set_float GU.anayzer_timeout, " Maximal time for analysis. (0 -- no timeout)");
                  ("--solver-progress", Arg.Bool ((:=) GU.solver_progress), " <bool> Used for debugging. Prints out a symbol on solving a rhs.");
                  ("--sharirpnueli", Arg.Set GU.sharir_pnueli, " Solve using the Sharir-Pnueli algorithm.");
                  ("--forward", Arg.Set GU.forward, " Use implicit forward propagation instead of the demand driven approatch.");
@@ -273,13 +272,8 @@ let main () =
       let (stf,exf,otf as funs) = CF.getFuns merged_AST in
         if stf@exf@otf = [] then failwith "No suitable function to start from.";
         (* and here we run the analysis! *)
-        let do_analysis () =
-          if not Config.experimental then check_solver (); 
-          Stats.time "analysis" (!analyze merged_AST) funs;
-          fun () -> () 
-        in
-        Goblintutil.timeout do_analysis () !max_time 
-          (fun () ->  print_endline "\nTimeout reached!") ();
+        if not Config.experimental then check_solver (); 
+        Stats.time "analysis" (!analyze merged_AST) funs;
         if !Cilutil.printStats then 
         begin
           ignore (Pretty.printf "vars = %d    evals = %d  \n" !EffectWCon.vars !EffectWCon.evals);
