@@ -122,4 +122,246 @@ struct
   let context () (_,c) = O1.context () c 
 end
 
+(* xxxxxxxxxxxxxxxxxxxxx *)
 
+module type Oracle =
+sig
+  type t
+  module Quest : Hashtbl.HashedType 
+  type answ
+  val ask          : t -> Quest.t -> answ
+  val changed      : t -> Quest.t list
+  val new_instance : unit -> t
+end
+
+module WiseGuy 
+  : Oracle with type t = unit 
+            and type Quest.t = unit 
+            and type answ = unit =
+struct
+  type t     = unit
+
+  module Quest = 
+  struct
+    type t = unit 
+    let equal () () = true
+    let hash () = 1
+  end
+  type answ  = unit
+  
+  let ask () ()       = ()
+  let changed ()      = []
+  let new_instance () = ()
+end
+
+module type CSys =
+sig
+  module O : Oracle
+  module V : Analyses.VarType
+  module D : Lattice.S
+  
+  val initvals : (V.t * D.t) list
+  val constr   : V.t -> ((V.t -> D.t) -> (V.t -> D.t -> unit) -> (O.Quest.t -> O.answ) -> D.t) list
+end
+
+module type Solver = functor (C:CSys) ->
+sig
+  type t
+  val solve : C.V.t list -> t
+    
+  module Quest : Hashtbl.HashedType with type t = C.V.t
+  type answ  = C.D.t
+  
+  val ask     : t -> C.V.t -> C.D.t
+  val changed : t -> C.V.t list 
+end
+
+let cons_unique key x xs =
+  let xk = key x in
+  if List.exists (fun y -> xk = key y) xs then 
+    xs
+  else 
+    x::xs
+    
+let zipNumRev xs = fst (List.fold_left (fun (xs,i) x -> (x,i)::xs, i+1) ([],0) xs)
+
+module WLSolver (C:CSys) =
+struct
+  open C
+  module VMap = Hash.Make (V)
+  module QMap = Hash.Make (O.Quest)
+  type rhs = (V.t -> D.t) -> (V.t -> D.t -> unit) -> (O.Quest.t -> O.answ) -> D.t 
+  type t = O.t 
+         * (D.t VMap.t) 
+         * ((rhs * int) list VMap.t) 
+         * ((V.t * (rhs * int)) list VMap.t) 
+         * ((V.t * (rhs * int)) list QMap.t) 
+         * ((V.t * (rhs * int)) list ref)
+  
+  let init sigma = 
+    List.iter (fun (v,d) -> VMap.replace sigma v d) initvals
+  
+  let new_instance () =
+    let oracle   = O.new_instance () in
+    let sigma    = VMap.create 1024 (D.top ()) in
+    let todo     = VMap.create 1024 [] in
+    let infl     = VMap.create 1024 [] in
+    let inflo    = QMap.create 1024 [] in
+    let unsafe   = ref [] in
+    init sigma;
+    (oracle, sigma, todo, infl, inflo, unsafe)
+    
+  let solve_list (oracle, sigma, todo, infl, inflo, unsafe:t) (xs:V.t list) = 
+    let worklist = ref xs in
+    let rec one_var (x:V.t) = 
+      let rhss, newval =
+        if VMap.mem sigma x then begin
+          let rx = VMap.find todo x in
+          VMap.remove todo x;
+          rx, ref (VMap.find sigma x)
+        end else begin
+          VMap.replace sigma x (D.bot ());
+          zipNumRev (C.constr x), ref (D.bot ()) 
+        end
+      in
+      let update_val (x:V.t) (newval:D.t) = 
+        begin if not (VMap.mem sigma x) then one_var x end;
+        let oldval = VMap.find sigma x in
+        if not (D.leq newval oldval) then begin
+          VMap.replace sigma x (GU.joinvalue D.join oldval newval);
+          let u = ref [] in
+          let one_infl (y,c) =
+            VMap.replace todo y (cons_unique snd c (VMap.find todo y));
+            u := y::!u
+          in
+          List.iter one_infl (VMap.find infl x);
+          VMap.remove infl x;
+          List.iter one_var !u
+        end  
+      in
+      let one_rhs (f,i) = 
+        let d = f (eval (x,(f,i))) update_val (evalq (x,(f,i))) in
+        newval := GU.joinvalue D.join !newval d
+      in
+      if [] = rhss then () else
+      List.iter one_rhs rhss;
+      update_val x !newval
+    and eval c y =
+      one_var y;
+      VMap.replace infl y (c :: (VMap.find infl y));
+      VMap.find sigma y 
+    and evalq c y =
+      QMap.replace inflo y (c :: (QMap.find inflo y));
+      let r = O.ask oracle y in
+      let oracle_change x = 
+        let one_infl (y,c) =
+          unsafe := (y,c) :: !unsafe;
+        in
+        List.iter one_infl (QMap.find inflo x);
+        QMap.remove inflo x
+      in
+      List.iter oracle_change (O.changed oracle);
+      r
+    in 
+    
+    while [] <> !worklist do
+      List.iter one_var !worklist;
+      worklist := [];
+      let oneUnsafe (y,c) =
+        VMap.replace todo y (cons_unique snd c (VMap.find todo y));
+        worklist := y :: !worklist
+      in
+      List.iter oneUnsafe !unsafe;
+      unsafe := []
+    done;
+    (oracle, sigma, todo, infl, inflo, unsafe)
+  
+  let solve = solve_list (new_instance ())
+  module Quest = V
+  type answ  = D.t
+  
+  let ask (_,sigma,_,_,_,_) = VMap.find sigma
+  let changed _ = []
+end
+module MC1 : Solver = WLSolver 
+module MC2 (C:CSys) : Oracle = WLSolver (C)
+
+module HashMapOracle (Var:Hashtbl.HashedType) (Val:Lattice.S) 
+  : Oracle 
+  with type Quest.t = [ `Get of Var.t | `Set of Var.t * Val.t ] 
+   and type answ    = [ `Ok | `Val of Val.t ] 
+   and type t       = Val.t Hashtbl.Make(Var).t * Var.t list ref =
+struct
+  module M = Hashtbl.Make (Var)
+  type t = Val.t M.t * Var.t list ref
+  let new_instance () : t = (M.create 11, ref [])
+  module Quest = 
+  struct 
+    type t = [ `Get of Var.t | `Set of Var.t * Val.t ] 
+    let hash = function `Get x -> Var.hash x | `Set (x,v) -> (Var.hash x + 201) * (Val.hash v)
+    let equal x y =
+      match x, y with
+        | `Get x, `Get y -> Var.equal x y
+        | `Set (x,v), `Set (y,u) -> Var.equal x y && Val.equal v u
+        | _ -> false
+  end
+  
+  type answ = [ `Ok | `Val of Val.t ]
+  let changed (_,xs:t) = 
+    let r = List.map (fun x -> `Get x) !xs in
+    xs := [];
+    r
+  
+  let ask (m,xs) = function 
+    | `Get x -> (try `Val (M.find m x) with Not_found -> `Val (Val.bot ()))
+    | `Set (x,v) -> 
+        let oldval = try M.find m x with Not_found -> Val.bot () in
+        let newval = GU.joinvalue Val.join oldval v in
+        if not (Val.equal newval oldval) then begin
+          M.replace m x newval;
+          xs := x :: !xs
+        end;
+        `Ok
+end
+
+module SolverTransformer
+  (Var: Analyses.VarType) 
+  (VDom: Lattice.S) 
+  (G: Global.S) =
+struct
+  include Types (Var) (VDom) (G) 
+  module GlobM = Hashtbl.Make (G.Var)
+  module Globs = HashMapOracle (G.Var) (G.Val)
+  
+  let solve (system: system) (initialvars: variable list) (start:(Var.t * VDom.t) list): solution' = 
+    let module C = 
+    struct
+      module V = Var
+      module D = VDom
+      module O = Globs
+      let initvals = start
+      let constr (x:V.t) = 
+        let one_rhs rhs (sigma:V.t -> D.t) (side:V.t -> D.t -> unit) (oracle:O.Quest.t -> O.answ) = 
+          let vf x = sigma x in
+          let gf x = match oracle (`Get x) with `Val v -> v | _ -> failwith "1" in
+          let eff = function 
+            | `G (x, v) -> ignore (oracle (`Set (x,v)))
+            | `L (x, v) -> side x v
+          in
+          let constr, calls = rhs (vf, gf) eff in
+          List.iter (fun x -> ignore (sigma x)) calls;
+          constr
+        in
+        List.map one_rhs (system x)
+    end in
+    let module Sol = WLSolver (C) in
+    GU.may_narrow := false;
+    let (oh,_), map, _, _, _, _ = Sol.solve initialvars in
+    let gm = GMap.create (GlobM.length oh) (G.Val.bot ()) in
+    let lm = VMap.create (GlobM.length oh) (VDom.bot ()) in
+    GlobM.iter    (GMap.add gm) oh;
+    Sol.VMap.iter (VMap.add lm) map;
+    lm, gm
+    
+end
+  
