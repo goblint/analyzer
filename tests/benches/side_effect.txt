@@ -1,0 +1,50 @@
+full_ctx_dep: --noverify  
+half_ctx_dep: --noverify           --addr-context
+no_ctx_dep:   --noverify           --no-context base --no-context mutex --no-context escape --propdel sensitive mutex
+full_ctx_for: --noverify --forward  
+half_ctx_for: --noverify --forward --addr-context 
+no_ctx_for:   --noverify --forward --no-context base --no-context mutex --no-context escape --propdel sensitive mutex
+
+
+Group: POSIX Apps
+
+aget
+Multithreaded wget
+pthread/aget_comb.c
+-
+
+pfscan
+Multithreaded file scanner
+pthread/pfscan_comb.c
+--libc
+
+ctrace
+Library for tracing multithreaded programs
+pthread/ctrace_comb.c
+-
+
+knot
+Multithreaded web server
+pthread/knot_comb.c
+-
+
+smtprc
+SMTP Open Relay Checker
+pthread/smtprc_comb.c
+-
+
+ypbind
+Linux NIS daemon: ypbind-mt
+pthread/ypbind_comb.c
+-
+
+automount
+kernel-based automounter for linux
+pthread/automount_comb.c
+-
+
+zfs-fuse
+ZFS file system
+pthread/zfs-fuse_comb.c
+-
+

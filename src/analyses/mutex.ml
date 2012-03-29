@@ -154,7 +154,7 @@ struct
 
   let unknown_access () =
     (*M.report "unknown access 'with lockset:'";*)
-    M.warn "Access to unknown address could be global"
+    M.warn_all "Access to unknown address could be global"
   
   let access_address ask regs write lv : accesses =
     if is_ignorable lv then [] else
