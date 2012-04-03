@@ -578,7 +578,53 @@ struct
       | (`Lifted x, `Lifted y) -> `Lifted (Base.narrow x y)
       | _ -> x
 end
-                               
+  
+module Either (B1: S) (B2: S) =
+struct 
+  include Printable.Either (B1) (B2)
+  let top () = `Left (B1.top ())
+  let bot () = `Right (B2.bot ())
+  let is_top = function 
+    | `Left x -> B1.is_top x
+    | `Right x -> false
+  let is_bot = function 
+    | `Left x -> false
+    | `Right x -> B2.is_bot x
+  let leq x y =
+    match x, y with
+      | `Left  x, `Left  y -> B1.leq x y
+      | `Right x, `Right y -> B2.leq x y
+      | `Left  _, `Right _ -> false
+      | `Right _, `Left  _ -> true
+  let join x y =
+    match x, y with
+      | `Left  x, `Left  y -> GU.liftDesc (fun x -> `Left x) (B1.join x y)
+      | `Right x, `Right y -> GU.liftDesc (fun x -> `Right x) (B2.join x y)
+      | `Left  _, `Right _ -> `Left
+      | `Right _, `Left  _ -> `Right
+  let oldjoin x y =
+    match x, y with
+      | `Left  x, `Left  y -> `Left (B1.oldjoin x y)
+      | `Right x, `Right y -> `Right (B2.oldjoin x y)
+      | `Left  _, `Right _ -> x
+      | `Right _, `Left  _ -> y
+  let meet x y =
+    match x, y with
+      | `Left  x, `Left  y -> `Left (B1.meet x y)
+      | `Right x, `Right y -> `Right (B2.meet x y)
+      | `Left  _, `Right _ -> y
+      | `Right _, `Left  _ -> x
+  let widen x y =
+    match x, y with
+      | `Left  x, `Left  y -> `Left  (B1.widen x y)
+      | `Right x, `Right y -> `Right (B2.widen x y)
+      | _ -> failwith "invalid argument for widen"
+  let narrow x y =
+    match x, y with
+      | `Left  x, `Left  y -> `Left  (B1.narrow x y)
+      | `Right x, `Right y -> `Right (B2.narrow x y)
+      | _ -> failwith "invalid argument for narrow"
+end                             
   
 module Liszt (Base: S) = 
 struct

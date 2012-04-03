@@ -185,7 +185,7 @@ let cons_unique key x xs =
     
 let zipNumRev xs = fst (List.fold_left (fun (xs,i) x -> (x,i)::xs, i+1) ([],0) xs)
 
-module WLSolver (C:CSys) =
+module DepSolver (C:CSys) =
 struct
   open C
   module VMap = Hash.Make (V)
@@ -203,7 +203,7 @@ struct
   
   let new_instance () =
     let oracle   = O.new_instance () in
-    let sigma    = VMap.create 1024 (D.top ()) in
+    let sigma    = VMap.create 1024 (D.bot ()) in
     let todo     = VMap.create 1024 [] in
     let infl     = VMap.create 1024 [] in
     let inflo    = QMap.create 1024 [] in
@@ -224,28 +224,34 @@ struct
           zipNumRev (C.constr x), ref (D.bot ()) 
         end
       in
-      let update_val (x:V.t) (newval:D.t) = 
-        begin if not (VMap.mem sigma x) then one_var x end;
+      let handle_change (c:V.t) = 
+        let u = ref [] in
+        let one_infl (y,c) =
+          VMap.replace todo y (cons_unique snd c (VMap.find todo y));
+          u := y::!u
+        in
+        List.iter one_infl (VMap.find infl x);
+        VMap.remove infl x;
+        List.iter one_var !u
+      in
+      let side_val (x:V.t) (newval:D.t) = 
+        (* side-effecting makes it live *)
+        if not (VMap.mem sigma x) then one_var x;
+        (* increase the value, if needed *)
         let oldval = VMap.find sigma x in
         if not (D.leq newval oldval) then begin
           VMap.replace sigma x (GU.joinvalue D.join oldval newval);
-          let u = ref [] in
-          let one_infl (y,c) =
-            VMap.replace todo y (cons_unique snd c (VMap.find todo y));
-            u := y::!u
-          in
-          List.iter one_infl (VMap.find infl x);
-          VMap.remove infl x;
-          List.iter one_var !u
+          (* update dependencies *)
+          handle_change x
         end  
       in
       let one_rhs (f,i) = 
-        let d = f (eval (x,(f,i))) update_val (evalq (x,(f,i))) in
+        let d = f (eval (x,(f,i))) side_val (evalq (x,(f,i))) in
         newval := GU.joinvalue D.join !newval d
       in
       if [] = rhss then () else
       List.iter one_rhs rhss;
-      update_val x !newval
+      side_val x !newval
     and eval c y =
       one_var y;
       VMap.replace infl y (c :: (VMap.find infl y));
@@ -283,8 +289,270 @@ struct
   let ask (_,sigma,_,_,_,_) = VMap.find sigma
   let changed _ = []
 end
-module MC1 : Solver = WLSolver 
-module MC2 (C:CSys) : Oracle = WLSolver (C)
+module MC1 : Solver = DepSolver 
+module MC2 (C:CSys) : Oracle = DepSolver (C)
+
+module SolverConf (C:CSys) =
+struct
+  module type S =
+  sig
+    open C
+    val start_val : V.t -> D.t 
+    val update_val: V.t -> D.t -> D.t -> D.t
+  end
+end
+
+module WidenConf (C:CSys) : SolverConf(C).S =
+struct
+  open C
+  let start_val _ = D.bot ()
+  let update_val _ = D.widen 
+end
+
+module AccuConf (C:CSys) : SolverConf(C).S =
+struct
+  open C
+  let start_val _ = D.bot ()
+  let update_val _ = GU.joinvalue D.join
+end
+
+module WidenNarrowConf (C:CSys) =
+struct
+  open C
+  let start_val = function 
+    | (false, _) -> `Left (D.bot ())
+    | (true, _)  -> `Right (D.bot (),D.top ())
+    
+  let update_val = function 
+     | (false, _) -> fun x y -> begin match x, y with
+         | `Left x, `Left y -> `Left (C.D.widen x y)
+         | _ -> failwith "domain broken1"
+       end
+     | (true, _)  -> fun x y -> begin match x, y with
+         | `Right (x1,x2), `Right (y1,y2) -> 
+            `Right (GU.joinvalue D.join x1 y1, D.meet x2 y2)
+         | _ -> failwith "domain broken2"
+       end
+end
+
+module WidenNarrowSys (C:CSys) =
+struct 
+  open Pretty
+  module O = C.O
+  module D = 
+  struct
+    open C
+    module DR = Lattice.Reverse (D)
+    module ND = Lattice.Prod (D) (DR)
+    include Lattice.Either (D) (ND)
+  end
+  module V = 
+  struct
+    open C
+    type t = bool * V.t
+    let context () (_,x)  = V.context () x
+    let description (_,x) = V.description x
+    let file_name (_,x)   = V.file_name x
+    let line_nr (_,x)     = V.line_nr x
+    let category (_,x)    = V.category x
+    let pretty_trace () (b,x) = (if b then text "N " else text "W ")++V.pretty_trace () x
+    let hash = function (true,x)  -> 2*V.hash x
+                      | (false,x) -> 2*V.hash x+1
+    let equal (b1,x) (b2,y) = b1 = b2 && V.equal x y
+    let compare x y =
+      match x, y with
+        | (true, x), (true, y) -> V.compare x y
+        | (false,x), (false,y) -> V.compare x y
+        | (true, _), (false,_) -> 1
+        | (false,_), (true, _) -> -1
+  end
+  let initvals : (V.t * D.t) list = 
+    List.map (fun (x, d) -> (false, x), `Left d) C.initvals 
+    
+  let getL  = function `Left      x -> x | _ -> failwith "domain brokenQ1"
+  let getRL = function `Right (x,_) -> x | _ -> failwith "domain brokenQ2"
+  let getRR = function `Right (_,x) -> x | _ -> failwith "domain brokenQ3"
+
+  let constr = function 
+    | (false,x) -> 
+        let one_rhs f get set ora = 
+          let get x = getL (get (false, x)) in
+          let set x v = set (false, x) (`Left v) in
+          `Left (f get set ora)
+        in 
+        List.map one_rhs (C.constr x)
+    | (true, x) -> 
+        let crhs get set ora = 
+          let v = getL (get (false, x)) in
+          `Right (v,v) 
+        in
+        let nrhs get set ora = 
+          try 
+            let wrhs = C.constr x in
+            let oldn = get (true, x) in
+            let joinwrhs d f =
+              let get x = getRR (get (true, x)) in
+              let set x v = set (true, x) (`Right (v, v)) in
+              GU.joinvalue C.D.join d (f get set ora)
+            in 
+            let contr = List.fold_left joinwrhs (C.D.bot ()) wrhs in
+            `Right (getRL oldn, C.D.narrow (getRR oldn) contr)
+          with Failure _ -> D.bot ()
+        in
+        [crhs; nrhs]
+    
+end
+
+
+module GenConfSolver (C:CSys) (WN:SolverConf(C).S) =
+struct
+  open C
+  module VMap = Hash.Make (V)
+  module QMap = Hash.Make (O.Quest)
+  module IMap = BatMap.IntMap
+  type rhs = (V.t -> D.t) -> (V.t -> D.t -> unit) -> (O.Quest.t -> O.answ) -> D.t 
+  type t = O.t 
+         * (D.t VMap.t) 
+         * (D.t IMap.t VMap.t) 
+         * ((rhs * int) list VMap.t) 
+         * ((V.t * (rhs * int)) list VMap.t) 
+         * ((V.t * (rhs * int)) list QMap.t) 
+         * ((V.t * (rhs * int)) list ref)
+  
+  let init sigma = 
+    List.iter (fun (v,d) -> VMap.replace sigma v d) initvals
+  
+  let new_instance () =
+    let oracle   = O.new_instance () in
+    let sigma    = VMap.create 1024 (D.bot ()) in
+    let sigmaw   = VMap.create 1024 IMap.empty in
+    let todo     = VMap.create 1024 [] in
+    let infl     = VMap.create 1024 [] in
+    let inflo    = QMap.create 1024 [] in
+    let unsafe   = ref [] in
+    init sigma;
+    (oracle, sigma, sigmaw, todo, infl, inflo, unsafe)
+    
+  let solve_list (oracle, sigma, sigmaw, todo, infl, inflo, unsafe:t) (xs:V.t list) = 
+    let worklist = ref xs in
+    let rec one_var (dirty:bool) (x:V.t) = 
+      let rhss =
+        if VMap.mem sigma x then begin
+          let rx = VMap.find todo x in
+          VMap.remove todo x;
+          rx
+        end else begin
+          VMap.replace sigma x (WN.start_val x);
+          zipNumRev (C.constr x)
+        end
+      in
+      let dirty = ref dirty in
+      let handle_change (x:V.t) = 
+        let u = ref [] in
+        let one_infl (y,c) =
+          VMap.replace todo y (cons_unique snd c (VMap.find todo y));
+          u := y::!u
+        in
+        List.iter one_infl (VMap.find infl x);
+        VMap.remove infl x;
+        List.iter (one_var false) !u
+      in
+      let update_con_value x =
+        let oldval = VMap.find sigma x in
+        let newval = IMap.fold (fun _ -> GU.joinvalue D.join) (VMap.find sigmaw x) (D.bot ()) in
+        if not (D.equal newval oldval) then begin
+          let newval = WN.update_val x oldval newval in
+          VMap.replace sigma x newval;
+          handle_change x
+        end
+      in
+      let update_rhs_value i x d = 
+        let oldm = try VMap.find sigmaw x with Not_found -> IMap.empty in
+        let oldv = try IMap.find i oldm with Not_found -> D.bot () in
+        if not (D.equal d oldv) then begin
+          VMap.replace sigmaw x (IMap.add i (GU.joinvalue D.join oldv d) oldm);
+          true
+        end else 
+          false
+      in
+      let side_val (x:V.t) (newval:D.t) = 
+        let side_changed = update_rhs_value (-1) x newval in 
+        if not (VMap.mem sigma x) then 
+          one_var side_changed x 
+        else
+          update_con_value x
+      in
+      let one_rhs (f,i) = 
+        let d = f (eval (x,(f,i))) side_val (evalq (x,(f,i))) in
+        if update_rhs_value i x d then
+          dirty := true
+      in
+      if [] = rhss then () else
+      List.iter one_rhs rhss;
+      if !dirty then 
+        update_con_value x
+    and eval c y =
+      one_var false y;
+      VMap.replace infl y (c :: (VMap.find infl y));
+      VMap.find sigma y 
+    and evalq c y =
+      QMap.replace inflo y (c :: (QMap.find inflo y));
+      let r = O.ask oracle y in
+      let oracle_change x = 
+        let one_infl (y,c) =
+          unsafe := (y,c) :: !unsafe;
+        in
+        List.iter one_infl (QMap.find inflo x);
+        QMap.remove inflo x
+      in
+      List.iter oracle_change (O.changed oracle);
+      r
+    in 
+    
+    while [] <> !worklist do
+      List.iter (one_var false) !worklist;
+      worklist := [];
+      let oneUnsafe (y,c) =
+        VMap.replace todo y (cons_unique snd c (VMap.find todo y));
+        worklist := y :: !worklist
+      in
+      List.iter oneUnsafe !unsafe;
+      unsafe := []
+    done;
+    (oracle, sigma, sigmaw, todo, infl, inflo, unsafe)
+  
+  let solve = solve_list (new_instance ())
+  module Quest = V
+  type answ  = D.t
+  
+  let ask (_,sigma,_,_,_,_,_) = VMap.find sigma
+  let changed _ = []
+end
+
+module WNSolver (C:CSys) =
+struct  
+  module WNC    = WidenNarrowSys (C)
+  module WNConf = WidenNarrowConf (C)
+  module Sol = GenConfSolver (WNC) (WNConf)
+
+  module VMap = Sol.VMap
+  module QMap = Sol.QMap
+
+  (* ---- *)
+  type t = Sol.t
+  type answ = C.D.t
+  module Quest = C.V
+  
+  let solve xs = Sol.solve (List.map (fun x -> (true,x)) xs)
+  let ask d x = 
+    match Sol.ask d (true, x) with
+      | `Right (_,x) -> x
+      | _ -> failwith "somethings proken"
+  let changed x = List.map (fun (_,x) -> x) (List.filter (fun (b,x) -> b) (Sol.changed x))
+  let new_instance = Sol.new_instance
+end 
+module MWC1 : Solver = WNSolver 
+module MWC2 (C:CSys) : Oracle = WNSolver (C)
 
 module HashMapOracle (Var:Hashtbl.HashedType) (Val:Lattice.S) 
   : Oracle 
@@ -354,13 +622,17 @@ struct
         in
         List.map one_rhs (system x)
     end in
-    let module Sol = WLSolver (C) in
+    let module Sol = WNSolver (C) in
     GU.may_narrow := false;
-    let (oh,_), map, _, _, _, _ = Sol.solve initialvars in
+    let (oh,_), map, _, _, _, _, _ = Sol.solve initialvars in
     let gm = GMap.create (GlobM.length oh) (G.Val.bot ()) in
     let lm = VMap.create (GlobM.length oh) (VDom.bot ()) in
     GlobM.iter    (GMap.add gm) oh;
-    Sol.VMap.iter (VMap.add lm) map;
+    let f (b,k) = function 
+      | `Left d -> ()
+      | `Right (_,d) -> if b then VMap.add lm k d
+    in
+    Sol.VMap.iter f map;
     lm, gm
     
 end
