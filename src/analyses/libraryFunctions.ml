@@ -40,7 +40,7 @@ let classify fn exps =
         -> `Lock (true, true)
     | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
     | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
-    | "pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource" 
+    | "pthread_mutex_lock" | "__pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource" 
     | "_raw_spin_lock" | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" 
         -> `Lock (!failing_locks, true) 
     | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
@@ -49,7 +49,7 @@ let classify fn exps =
     | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
     | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
     | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
-    | "pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
+    | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
         -> `Unlock        
     | x -> `Unknown x
 
@@ -161,6 +161,9 @@ let invalidate_actions = [
   ("pthread_mutex_lock", readsAll);(*safe*)
   ("pthread_mutex_trylock", readsAll);
   ("pthread_mutex_unlock", readsAll);(*safe*)
+  ("__pthread_mutex_lock", readsAll);(*safe*)
+  ("__pthread_mutex_trylock", readsAll);
+  ("__pthread_mutex_unlock", readsAll);(*safe*)
   ("__mutex_init", readsAll);(*safe*)
   ("mutex_init", readsAll);(*safe*)
   ("mutex_lock", readsAll);(*safe*)
@@ -228,6 +231,10 @@ let invalidate_actions = [
   ("pthread_cond_wait", readsAll); (*safe*)
   ("pthread_cond_signal", readsAll);(*safe*)
   ("pthread_cond_broadcast", readsAll);(*safe*)
+  ("__pthread_cond_init", readsAll); (*safe*)
+  ("__pthread_cond_wait", readsAll); (*safe*)
+  ("__pthread_cond_signal", readsAll);(*safe*)
+  ("__pthread_cond_broadcast", readsAll);(*safe*)
   ("pthread_key_create", writesAll);(*unsafe*)
   ("sigemptyset", writesAll);(*unsafe*)
   ("sigaddset", writesAll);(*unsafe*)
