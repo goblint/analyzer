@@ -18,14 +18,14 @@ OBJDIR     = obj
 DEPENDDIR  = obj/.depend
 SOURCEDIRS = src/ src/util/ src/domains/ src/cdomains/ src/framework/ \
              src/solvers/ src/analyses/ unittest/ unittest/solver \
-             unittest/cdomains unittest/domains
+             unittest/cdomains unittest/domains src/util/html_template/
 
 COMPILEFLAGS = @COMPILEFLAGS@ -I $(CILLIB)  
 LINKFLAGS = @COMPILEFLAGS@ -ccopt -L$(CILLIB) -I $(CILLIB)  
 DOCFLAGS = @DOCFLAGS@ -stars -t 'Goblint API documentation' -dot-reduce -dot -html -d doc -v
 
 PROG_MODULES = \
-	version config json jsonParser jsonLexer \
+	version config json jsonParser jsonLexer htmlutil css_template js_template \
 	goblintutil messages printer cilfacade xmldump htmldump myMap \
 	printable lattice setDomain mapDomain osektupel\
 	basetype intDomain lval addressDomain arrayDomain listDomain \
@@ -36,7 +36,7 @@ PROG_MODULES = \
 	solver sharirPnueli effectWCon effectWNCon solverConSideRR solverConSideWNRR interactive \
 	multithread compose mCP access varEq symbLocks thread threadEscape \
 	base region owner unit mutex osek osektransactionality uninit stackTrace \
-	malloc_null memLeaks contain shapes mTFlag
+	malloc_null memLeaks contain shapes mTFlag report 
 
 TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \
 	intDomainTest mapDomainTest collapsingArrayDomainTest \

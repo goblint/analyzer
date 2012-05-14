@@ -61,7 +61,7 @@ struct
                 let compgs = GU.joinvalue GDom.join oldgstate gstate in
                   if not (GDom.leq compgs oldgstate) then begin
                     let lst = GMap.find gInfl g in
-                    GMap.replace theta g (GDom.widen oldgstate compgs);
+                    GMap.replace theta g (GU.joinvalue GDom.join oldgstate compgs);
                     unsafe := lst @ !unsafe;
                     GMap.remove gInfl g
                   end

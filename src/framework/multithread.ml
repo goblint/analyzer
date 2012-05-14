@@ -728,5 +728,6 @@ struct
     Result.output (fun () -> solver2source_result !oldsol) file;
     if !GU.dump_global_inv then 
       List.iter (fun (_,gs) -> print_globals gs) !oldsol
+    
 
 end

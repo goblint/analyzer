@@ -329,8 +329,16 @@ struct
          | _ -> failwith "domain broken1"
        end
      | (true, _)  -> fun x y -> begin match x, y with
-         | `Right (x1,x2), `Right (y1,y2) -> 
-            `Right (GU.joinvalue D.join x1 y1, D.meet x2 y2)
+         | `Right (x1,x2), `Right (y1,y2) ->
+             begin
+               if D.equal x1 y1 then 
+                 `Right (x1, D.meet x2 y2)
+               else if D.leq x1 y1 then 
+                 `Right (y1, y2)
+               else if D.leq y1 x1 then 
+                 `Right (x1, x2)
+               else `Right (GU.joinvalue D.join x1 y1, D.bot ())
+             end
          | _ -> failwith "domain broken2"
        end
 end
@@ -392,18 +400,18 @@ struct
             let oldn = get (true, x) in
             let joinwrhs d f =
               let get x = getRR (get (true, x)) in
-              let set x v = set (true, x) (`Right (v, v)) in
+              let set x v = set (false, x) (`Left v) in
               GU.joinvalue C.D.join d (f get set ora)
             in 
             let contr = List.fold_left joinwrhs (C.D.bot ()) wrhs in
             `Right (getRL oldn, C.D.narrow (getRR oldn) contr)
           with Failure _ -> D.bot ()
         in
-        [crhs; nrhs]
+        [crhs;nrhs]
     
 end
 
-
+open Pretty
 module GenConfSolver (C:CSys) (WN:SolverConf(C).S) =
 struct
   open C
@@ -436,6 +444,7 @@ struct
   let solve_list (oracle, sigma, sigmaw, todo, infl, inflo, unsafe:t) (xs:V.t list) = 
     let worklist = ref xs in
     let rec one_var (dirty:bool) (x:V.t) = 
+(*      ignore (printf "considering %a\n" V.pretty_trace x);*)
       let rhss =
         if VMap.mem sigma x then begin
           let rx = VMap.find todo x in
@@ -456,7 +465,7 @@ struct
         List.iter one_infl (VMap.find infl x);
         VMap.remove infl x;
         List.iter (one_var false) !u
-      in
+      in 
       let update_con_value x =
         let oldval = VMap.find sigma x in
         let newval = IMap.fold (fun _ -> GU.joinvalue D.join) (VMap.find sigmaw x) (D.bot ()) in
@@ -489,8 +498,10 @@ struct
       in
       if [] = rhss then () else
       List.iter one_rhs rhss;
-      if !dirty then 
-        update_con_value x
+      if !dirty then begin
+        update_con_value x(*;
+        ignore (printf " ... someting changed in %a to \n  %a\n" V.pretty_trace x D.pretty (VMap.find sigma x));
+*)      end
     and eval c y =
       one_var false y;
       VMap.replace infl y (c :: (VMap.find infl y));
@@ -532,7 +543,7 @@ end
 module WNSolver (C:CSys) =
 struct  
   module WNC    = WidenNarrowSys (C)
-  module WNConf = WidenNarrowConf (C)
+  module WNConf = WidenNarrowConf (C) 
   module Sol = GenConfSolver (WNC) (WNConf)
 
   module VMap = Sol.VMap

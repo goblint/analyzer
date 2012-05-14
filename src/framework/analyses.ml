@@ -578,7 +578,8 @@ struct
           Xmldump.print out (resultXML (table ()));
           output_char out '\n'
         end
-      | GU.Html -> Htmldump.print_html out (resultXML (table ())) file
+      | GU.Html -> 
+          Htmldump.print_html out (resultXML (table ())) file
       | _ -> ()
 end
 

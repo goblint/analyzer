@@ -8,18 +8,9 @@ let print_version () =
   let f b = if b then "enabled" else "disabled" in
   Printf.printf "Goblint version: %s\n" Version.goblint;
   Printf.printf "Cil version:     %s\n" Version.cil;
-  Printf.printf "Configuration:   tracing %s, tracking %s (n=%d), experimental %s\n" 
-    (f Config.tracing) (f Config.tracking) Config.track_n (f Config.experimental);
+  Printf.printf "Configuration:   tracing %s, tracking %s (n=%d)\n"
+    (f Config.tracing) (f Config.tracking) Config.track_n ;
   exit 0
-
-let check_solver () = 
-  match !GU.solver with
-    | "solverConSideRR"
-    | "solverConSideWNRR" -> 
-        prerr_endline "Experimental solver selected!";
-        prerr_endline "Requires experimental features to be enabled in src/config.ml."; 
-        exit 2
-    | _ -> ()
 
 let main () =
   let usage_str = "Usage: goblint [options] source-files" in
@@ -273,16 +264,9 @@ let main () =
       let (stf,exf,otf as funs) = CF.getFuns merged_AST in
         if stf@exf@otf = [] then failwith "No suitable function to start from.";
         (* and here we run the analysis! *)
-        if not Config.experimental then check_solver (); 
+        if !GU.result_style = GU.Html then Report.prepare_html_report ();
         Stats.time "analysis" (!analyze merged_AST) funs;
-        if !Cilutil.printStats then 
-        begin
-          ignore (Pretty.printf "vars = %d    evals = %d  \n" !EffectWCon.vars !EffectWCon.evals);
-          flush_all ();
-          prerr_endline "Solver stats:";
-          prerr_endline ("  globals changed "^string_of_int !Goblintutil.globals_changed^" times");
-          Stats.print (M.get_out "timing" stderr) "Timings:\n"
-        end 
+        Report.do_stats !fileNames
     end
 
 let _ = 
