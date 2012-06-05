@@ -78,7 +78,17 @@ struct
   
     (** We dont have good info for this operation -- only thing is to [meet] all elements.*)
     let meet s1 s2 = 
-      singleton (fold Base.Dom.meet (union s1 s2) (Base.Dom.top()))
+      (* Try to not use top, as it is often not implemented. *)
+      let fold1 f s =
+        let g x = function
+          | None -> Some x
+          | Some y -> Some (f x y)
+        in
+        match fold g s None with  
+          | Some x -> x
+          | None -> Base.Dom.top()
+      in
+      singleton (fold1 Base.Dom.meet (union s1 s2))
     
     (** Widening operator. We take all possible (growing) paths, do elementwise 
         widenging and join them together. When the used path sensitivity is 

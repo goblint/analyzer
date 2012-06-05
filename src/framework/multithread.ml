@@ -57,7 +57,7 @@ struct
         | "solverConSideWNRR" -> WNRR.solve
         | "interactive"     -> INTR.solve
         | "new"             -> NEW.solve 
-        | _ -> EWC.solve
+        | _ -> EWC.solve 
   end
   (** name the analyzer *)
   let name = "analyzer"
@@ -667,7 +667,7 @@ struct
       Stats.time "post" (postprocess_accesses (sol,gs) phase old) old_g
     end;
     (* check for dead code at the last state: *)
-    (if !GU.debug && SD.equal main_sol (SD.bot ()) then
+    (if !GU.debug && SD.is_bot main_sol then
       Printf.printf "NB! Execution does not reach the end of Main.\n");
     (sol,gs)
   

@@ -413,10 +413,12 @@ struct
      non-concrete accesses too.*)
   let add_concrete_access ctx fl loc ust (v, o, rv: Cil.varinfo * Offs.t * bool) =
     if (Base.is_global ctx.ask v) then
-      let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
-      let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
-      Acc.replace acc v neww;
-      accKeys := AccKeySet.add v !accKeys;
+      if not !GU.may_narrow then begin 
+        let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
+        let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
+        Acc.replace acc v neww;
+        accKeys := AccKeySet.add v !accKeys
+      end ;
       let ls = if rv then Lockset.filter snd ust else ust in
       let el = P.effect_fun ls in
 (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
@@ -565,7 +567,6 @@ struct
     
   (** Function [add_accesses accs st] fills the hash-map [acc] *)
   and add_accesses ctx (accessed: accesses) (ust:Dom.t) = 
-    if not !GU.may_narrow then
       let fl = 
         match ctx.ask Queries.SingleThreaded, ctx.ask Queries.CurrentThreadId with
           | `Int is_sing, _ when Queries.ID.to_bool is_sing = Some true -> BS.Flag.get_single ()
@@ -675,11 +676,12 @@ struct
   let special_fn ctx lv f arglist : (Dom.t * exp * bool) list =
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
     let unlock remove_fn =
-      let remove_nonspecial =
+      let remove_nonspecial x =
+        if Lockset.is_top x then x else
         Lockset.filter (fun (v,_) -> match LockDomain.Addr.to_var v with
           | [v] when v.vname.[0] = '{' -> true 
           | _ -> false
-          ) 
+          ) x
       in
       match arglist with
         | x::xs -> begin match  (eval_exp_addr ctx.ask x) with 

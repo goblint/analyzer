@@ -111,6 +111,7 @@ sig
   val file_name : t -> string
   val description : t -> string
   val context : unit -> t -> doc
+  val loopSep : t -> bool
 end
 
 module type Spec = 
@@ -363,6 +364,7 @@ struct
   let file_name n = (MyCFG.getLoc n).file
   let description n = sprint 80 (pretty () n)
   let context () _ = Pretty.nil
+  let loopSep _ = true
 end
 
 
@@ -393,7 +395,7 @@ struct
                 
   let pretty_trace () x = 
       match x with
-      | ((*MyCFG.FunctionEntry f*)_,d) -> dprintf "%a on %a \n%a\n" pretty x Basetype.ProgLines.pretty (getLocation x) LD.pretty d
+      | ((*MyCFG.FunctionEntry f*)_,d) -> dprintf "%a" pretty x 
 (*       | _ -> dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x) *)
 
 
@@ -414,6 +416,9 @@ struct
   let file_name (n,_) = (MyCFG.getLoc n).file
   let description (n,_) = sprint 80 (Var.pretty () n)
   let context () (_,c) = LD.pretty () c
+  let loopSep = function
+    | (MyCFG.FunctionEntry _,_) -> false
+    | _ -> true
 end
 
 module VarCS =
