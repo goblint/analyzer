@@ -316,6 +316,13 @@ struct
   let update_val _ = GU.joinvalue D.join
 end
 
+module SimplWConf (C:CSys) : SolverConf(C).S =
+struct
+  open C
+  let start_val _ = D.bot ()
+  let update_val _ x y = if D.leq y x then D.narrow x y else D.widen x y 
+end
+
 let debug = false
 
 module WidenNarrowConf (C:CSys) =
@@ -489,7 +496,7 @@ struct
         let oldval = VMap.find sigma x in
         let newval = IMap.fold (fun _ -> GU.joinvalue D.join) (VMap.find sigmaw x) (D.bot ()) in
         if not (D.equal newval oldval) then begin
-          let newval = WN.update_val x oldval newval in
+          (*let newval = WN.update_val x oldval newval in*)
           if debug then ignore (printf " with a new value:\n%a\n" D.pretty newval);        
           VMap.replace sigma x newval;
           handle_change x
@@ -501,7 +508,8 @@ struct
         let oldm = try VMap.find sigmaw x with Not_found -> IMap.empty in
         let oldv = try IMap.find i oldm with Not_found -> D.bot () in
         if not (D.equal d oldv) then begin
-          VMap.replace sigmaw x (IMap.add i (if i = -1 then GU.joinvalue C.D.join oldv d else d) oldm);
+          let newval = if i = -1 then GU.joinvalue C.D.join oldv d else WN.update_val x oldv d in
+          VMap.replace sigmaw x (IMap.add i newval oldm);
           true
         end else 
           false
@@ -658,7 +666,7 @@ struct
         in
         List.map one_rhs (system x)
     end in
-    let module Sol = WNSolver (C) in
+    let module Sol = GenConfSolver (C) (SimplWConf (C))  in
     GU.may_narrow := true;
     let (oh,_), map, _, _, _, _, _ = Sol.solve initialvars in
     let gm = GMap.create (GlobM.length oh) (G.Val.bot ()) in
@@ -670,7 +678,7 @@ struct
         (*printf "%a \n>>>>>>\n%a\n----------\n" C.D.pretty s C.D.pretty d;*)
         if b then VMap.add lm k d
     in
-    Sol.VMap.iter f map;
+    Sol.VMap.iter (VMap.add lm) map;
     GU.may_narrow := false;
     lm, gm
     
