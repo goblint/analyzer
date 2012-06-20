@@ -74,10 +74,10 @@ def print_res (i)
           dur = "?"            
           File.open($testresults + outfile, "r") do |g|
             lines = g.readlines
-            dur = lines.grep(/^Duration: (.*) s/) { |x| $1 }
+            dur = lines.grep(/^vars = \d+    evals = (\d+)/) { |x| $1 }
           end
           thenumbers =  "<font color=\"red\">#{badlines}</font>"
-          f.puts "<td><a href = #{outfile}>#{"%.2f" % dur} s</a> (#{thenumbers})</td>"
+          f.puts "<td><a href = #{outfile}>#{dur} rhs calls</a> (#{thenumbers})</td>"
         else
           f.puts "<td>N/A</a></td>"
         end
