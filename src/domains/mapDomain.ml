@@ -46,7 +46,7 @@ end
                       
 module PMap (Domain: Groupable) (Range: Lattice.S) =
 struct
-  module M = MyMap.Make (Domain)
+  module M = Map.Make (Domain)
   include Printable.Std
   type key = Domain.t
   type value = Range.t
@@ -54,7 +54,7 @@ struct
   let trace_enabled = Domain.trace_enabled
 
   (* And some braindead definitions, because I would want to do
-   * include MyMap.Make (Domain) with type t = Range.t t *)
+   * include Map.Make (Domain) with type t = Range.t t *)
   let add = M.add
   let remove = M.remove
   let find = M.find
@@ -96,18 +96,7 @@ struct
         | _, Some _ -> v2
         | _ -> None
     in
-    M.merge f 
-
-  let long_map2' op =
-    let f k v1 v2 =
-      match v1, v2 with
-        | Some v1, Some v2 -> Some (op v1 v2)
-        | Some _, _ -> Some `Left
-        | _, Some _ -> Some `Right
-        | _ -> None
-    in
-      M.mymerge f
-
+    M.merge f
 
   let map2 op = 
     (* Similar to the previous, except we ignore elements that only occur in one
@@ -125,7 +114,7 @@ struct
         | Some v1, Some v2 -> Some (op v1 v2)
         | _ -> None
     in
-      M.mymerge f
+      M.merge f
 
   let short _ x = "mapping"
   let isSimple _ = false
@@ -213,7 +202,7 @@ end
 module MapBot (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and 
   type value = Range.t and 
-  type t = Range.t MyMap.Make(Domain).t =
+  type t = Range.t Map.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
@@ -247,19 +236,8 @@ struct
       | Some w -> w
       | None -> Pretty.dprintf "No binding grew."
 
-  (* inlined long_map2 and added `Left & `Right & `New *)
-  let join m1 m2 = long_map2' Range.join m1 m2
-
   let meet m1 m2 = if m1 == m2 then m1 else map2 Range.meet m1 m2
-  let oldjoin m1 m2 = if m1 == m2 then m1 else long_map2 Range.oldjoin m1 m2
-(*  let join x y = 
-    let d = oldjoin x y in
-    match join x y with
-      | `Equal -> assert (equal x y && equal d x); `Equal
-      | `Left  -> `Left
-      | `Right -> `Right
-      | `New q -> assert (equal d q); `New q 
-*)  
+  let join m1 m2 = if m1 == m2 then m1 else long_map2 Range.join m1 m2
   let widen  = long_map2 Range.widen
   let narrow = map2 Range.narrow 
 end
@@ -267,7 +245,7 @@ end
 module MapTop (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and 
   type value = Range.t and 
-  type t = Range.t MyMap.Make(Domain).t =
+  type t = Range.t Map.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
@@ -284,18 +262,9 @@ struct
   let is_top = M.is_empty
   let is_bot _ = false
 
-  let join m1 m2 = map2' Range.join m1 m2
-
   let meet m1 m2 = if m1 == m2 then m1 else long_map2 Range.meet m1 m2
-  let oldjoin m1 m2 = if m1 == m2 then m1 else map2 Range.oldjoin m1 m2
-(*  let join x y = 
-    let d = oldjoin x y in
-    match join x y with
-      | `Equal -> assert (equal x y && equal d x); `Equal
-      | `Left  -> assert (equal x d); `Left
-      | `Right -> assert (equal y d); `Right
-      | `New q -> assert (equal d q); `New q 
-*)  
+  let join m1 m2 = if m1 == m2 then m1 else map2 Range.join m1 m2
+
   let widen  = map2 Range.widen
   let narrow = long_map2 Range.narrow 
 

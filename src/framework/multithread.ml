@@ -242,13 +242,13 @@ struct
             if List.length non_bottoms = 0 
               then raise A.Deadcode 
               else List.fold_left 
-                  (fun st (fst,tst) -> GU.joinvalue Spec.Dom.join st (leave fst (SD.unlift tst))) (Spec.Dom.bot ()) non_bottoms in
+                  (fun st (fst,tst) -> Spec.Dom.join st (leave fst (SD.unlift tst))) (Spec.Dom.bot ()) non_bottoms in
           if P.tracking then P.track_call f (Spec.Dom.hash st) ;
-          GU.joinvalue Spec.Dom.join st' joined_result
+          Spec.Dom.join st' joined_result
 			  end        
         else
 				begin
-          let joiner d1 (d2,_,_) = GU.joinvalue Spec.Dom.join d1 d2 in 
+          let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
           List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn (getctx st) lval f args)
 			  end 
       in
@@ -446,7 +446,7 @@ struct
           | _ -> Messages.bailwith ("Special: Failed to evaluate function expression "^(sprint 80 (d_exp () f)))
       in
       let f = List.hd fs in
-      let joiner d1 (d2,_,_) = GU.joinvalue Spec.Dom.join d1 d2 in 
+      let joiner d1 (d2,_,_) = Spec.Dom.join d1 d2 in 
       List.fold_left joiner (Spec.Dom.bot ()) (Spec.special_fn ctx lv f args)    
     in
     let enter p (x:SD.t) =
@@ -676,7 +676,7 @@ struct
     let hm = PH.create (Solver.VMap.length r) in
     let f (k,_) v =
       let old = try PH.find hm k with Not_found -> SD.bot () in
-      PH.replace hm k (GU.joinvalue SD.join v old)
+      PH.replace hm k (SD.join v old)
     in
     Solver.VMap.iter f  r;
     let ha = PH.create (PH.length hm) in

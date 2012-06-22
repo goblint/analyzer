@@ -43,7 +43,7 @@ struct
       (* propagate (x,z) to m [ By this we mean: assign PHI(m,x) := PHI(m,x) /\ z where undefined PHI(m,x) is 
         interpreted as \Omega; if the value has changed, then add (m,x) to WORK]*)
       let phi_m_x = find_bot (m,x) in
-      let new_val = (GU.joinvalue L.join phi_m_x z) in
+      let new_val = (L.join phi_m_x z) in
       SOL.replace phi (m,x) new_val;
       (if not (L.equal new_val phi_m_x) then work := WS.add (m,x) !work) 
     in

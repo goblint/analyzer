@@ -72,8 +72,7 @@ struct
   let pretty () x = pretty_f short () x
   let leq x y = x <= y
   let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
-  let oldjoin x y = if Int64.compare x y > 0 then x else y
-  let join x y = match Int64.compare x y with 0 -> `Equal | x when x>0 -> `Left | _ -> `Right
+  let join x y = if Int64.compare x y > 0 then x else y
   let meet x y = if Int64.compare x y > 0 then y else x
 
   let of_bool x = if x then Int64.one else Int64.zero
@@ -131,8 +130,7 @@ struct
   let bot () = raise Error
   let leq = equal
   let pretty_diff () (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y
-  let oldjoin x y = if equal x y then x else top ()
-  let join x y = if equal x y then `Equal else top ()
+  let join x y = if equal x y then x else top ()
   let meet x y = if equal x y then x else bot ()
 end
 
@@ -335,7 +333,7 @@ struct
 
   let pretty_diff () (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y
   
-  let oldjoin x y = 
+  let join x y = 
    match (x,y) with
      (* The least upper bound with the bottom element: *)
      | `Bot, x -> x
@@ -354,38 +352,6 @@ struct
      (* For two exclusion sets, only their intersection can be excluded: *)
      | `Excluded x, `Excluded y -> `Excluded (S.inter x y)
 
-  let join x y = 
-    match (x,y) with
-      (* The least upper bound with the bottom element: *)
-      | `Bot, `Bot -> `Equal
-      | `Bot, x -> `Right
-      | x, `Bot -> `Left
-      (* The case for two known values: *)
-      | `Definite x, `Definite y -> 
-          (* If they're equal, it's just THAT value *)
-          if x=y then `Equal
-          (* Unless one of them is zero, we can exclude it: *)
-          else if x = Int64.zero || y = Int64.zero then `New (top ())
-          else `New (`Excluded (S.singleton Int64.zero))
-      (* A known value and an exclusion set... the definite value should no
-       * longer be excluded: *)
-      | `Excluded s, `Definite x -> if S.mem x s then `New (`Excluded (S.remove x s)) else `Left
-      | `Definite x, `Excluded s -> if S.mem x s then `New (`Excluded (S.remove x s)) else `Right
-      (* For two exclusion sets, only their intersection can be excluded: *)
-      | `Excluded x, `Excluded y -> 
-        if S.equal x y then `Equal else
-        if S.subset x y then `Left else
-        if S.subset y x then `Right else
-           `New (`Excluded (S.inter x y)) 
-
-(*  let join x y = 
-    let d = oldjoin x y in
-    match join x y with
-      | `Equal -> assert (equal x y && equal d x); `Equal
-      | `Left  -> assert (equal x d); `Left
-      | `Right ->  (if not (equal y d) then ignore (Pretty.printf "joining\n%a\nwith\n%a\ninto\n%a\n" pretty x pretty y pretty d));assert (equal y d); `Right
-      | `New q -> assert (equal d q); `New q 
-      *)
   let meet x y = 
     match (x,y) with
       (* Gretest LOWER bound with the least element is trivial: *)
@@ -676,13 +642,7 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   
   let leq  (x1,x2) (y1,y2) = I.leq y1 x1 && I.leq x2 y2
-  let join (x1,x2) (y1,y2) = 
-    match I.compare x1 y1, I.compare x2 y2 with
-      | 0, 0 -> `Equal
-      | x, y when x<=0 && y>=0 -> `Left
-      | x, y when x>=0 && y<=0 -> `Right
-      | _ -> `New (I.min x1 y1, I.max x2 y2)
-  let oldjoin (x1,x2) (y1,y2) = (I.min x1 y1, I.max x2 y2)
+  let join (x1,x2) (y1,y2) = (I.min x1 y1, I.max x2 y2)
   let meet (x1,x2) (y1,y2) = (I.max x1 y1, I.min x2 y2)
   
   let widen (l0,u0 as i1) (l1,u1 as i2) =
@@ -1189,8 +1149,7 @@ struct
   let bot () = false
   let is_bot x = not x
   let leq x y = not x || y
-  let join x y = if x=y then `Equal else if x then `Left else `Right
-  let oldjoin = (||)
+  let join = (||)
   let meet = (&&)
 
   let of_bool x = x
@@ -1259,8 +1218,7 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let leq x y = true
-  let join x y = `Equal
-  let oldjoin () () = ()
+  let join () () = ()
   let meet x y = ()
 
   let of_bool _ = ()
@@ -1572,14 +1530,8 @@ struct
 
   let join' x y =
     match x, y with
-      | Trier x, Trier y -> GU.liftDesc (fun x -> Trier x) (Trier.join x y)
-      | Interval x, Interval y -> GU.liftDesc (fun x -> Interval x) (Interval.join x y)
-      | _ -> raise IntDomListBroken
-
-  let oldjoin' x y =
-    match x, y with
-      | Trier x, Trier y -> Trier (Trier.oldjoin x y)
-      | Interval x, Interval y -> Interval (Interval.oldjoin x y)
+      | Trier x, Trier y -> Trier (Trier.join x y)
+      | Interval x, Interval y -> Interval (Interval.join x y)
       | _ -> raise IntDomListBroken
 
   let leq' x y =
@@ -1857,20 +1809,8 @@ struct
   let narrow = List.map2 narrow'
   let widen  = List.map2 widen'
   let meet   = List.map2 meet'
-  let oldjoin= List.map2 oldjoin'
+  let join= List.map2 join'
   
-  let join x y = 
-    let f (l,o) x y = 
-      let e = join' x y in
-      (GU.descVal x y e::l, GU.joinDesc o e)
-    in
-    match List.fold_left2 f ([], None) x y with
-      | _, None -> `Equal
-      | _, Some `Equal -> `Equal
-      | _, Some `Left -> `Left
-      | _, Some `Right -> `Right
-      | r, Some `New -> `New (List.rev r)
-
   let is_top = List.for_all is_top' 
   let is_bot = List.for_all is_bot' 
   let leq    = List.for_all2 leq' 

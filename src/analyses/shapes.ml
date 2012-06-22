@@ -77,12 +77,12 @@ struct
         let write_map l rm =
           RegMap.add (l,[]) set rm
         in
-        GU.joinvalue RegMap.join rm (List.fold_right write_map ls (RegMap.bot ())),
-        GU.joinvalue RegPart.join part (RegPart.singleton set) 
+        RegMap.join rm (List.fold_right write_map ls (RegMap.bot ())),
+        RegPart.join part (RegPart.singleton set) 
       in
       let nrm, part = List.fold_right add_regmap rmd (rm,part) in
       let rc = List.map (fun (_,x) -> x) rmd in
-      let part2 = List.fold_right (fun x xs -> GU.joinvalue RegPart.join xs (RegPart.singleton (List.fold_left (fun xs x -> RS.add (VFB.of_vf (x,[])) xs) (RS.empty ()) x))) rc part in
+      let part2 = List.fold_right (fun x xs -> RegPart.join xs (RegPart.singleton (List.fold_left (fun xs x -> RS.add (VFB.of_vf (x,[])) xs) (RS.empty ()) x))) rc part in
       (LD.add nsm st, nds@ds,nrm, part2)
     in
     LD.fold f st (LD.empty (), [], RegMap.bot (), RegPart.bot ())

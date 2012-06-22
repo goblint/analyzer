@@ -29,7 +29,7 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
   let get a i = a
-  let set a i v = GU.joinvalue join a v
+  let set a i v = join a v
   let make i v = v
   let length _ = None
 
@@ -89,22 +89,7 @@ struct
   failwith "Arrays have different lengths"
 
   let join a b =
-    let o = ref None in
-    let f x y = 
-      let e = Base.join x y in
-      o := GU.joinDesc !o e;
-      GU.descVal x y e
-    in
-    let l = map_arrays f a b in
-    match !o with
-      | None        -> `Equal
-      | Some `Equal -> `Equal
-      | Some `Left  -> `Left
-      | Some `Right -> `Right
-      | Some `New   -> `New l
-
-  let oldjoin a b =
-    map_arrays Base.oldjoin a b
+    map_arrays Base.join a b
 
   let meet a b =
     map_arrays Base.meet a b
@@ -146,7 +131,7 @@ struct
 
   let get a i =
     let folded () = 
-      Array.fold_left (GU.joinvalue Base.join) (Base.bot ()) a in
+      Array.fold_left Base.join (Base.bot ()) a in
     let get_index i =
       if (i >= 0 && i < Array.length a) then
         A.get a i 
@@ -169,7 +154,7 @@ struct
       let top_value () =
         Array.map (fun x -> Base.top ()) a in
       let joined_value () =
-        Array.map (GU.joinvalue Base.join v) a in
+        Array.map (Base.join v) a in
       let set_index i =
         A.set a i v;
         a in

@@ -32,17 +32,17 @@ struct
   include Base
   type elem = Base.t    
   
-  let add      = GU.joinvalue join
-  let add_tail = GU.joinvalue join
+  let add      = join
+  let add_tail = join
   
   let del      v x = x (*Base.diff x v*)
   
-  let move      a b = let x = GU.joinvalue join a b in x, x
-  let move_tail a b = let x = GU.joinvalue join a b in x, x
+  let move      a b = let x = join a b in x, x
+  let move_tail a b = let x = join a b in x, x
 
   let list_empty x = if Base.is_bot x then Some true else None
   
-  let splice = GU.joinvalue join
+  let splice = join
   
   let entry      x = x
   let entry_tail x = x

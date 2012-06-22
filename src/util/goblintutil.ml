@@ -650,53 +650,6 @@ let demangle x =
   let res=name_to_string y in
   if res="??" then x else res
 
-let joinDesc o e = 
-  match o, e with
-    | None       , `Equal -> Some `Equal
-    | None       , `Left  -> Some `Left
-    | None       , `Right -> Some `Right
-    | Some `Left , `Left  -> o
-    | Some `Equal, `Left  -> Some `Left
-    | Some `Right, `Right -> o
-    | Some `Equal, `Right -> Some `Right
-    | _          , `Equal -> o
-    | _                   -> Some `New
-
-let descVal x y = function 
-  | `Left | `Equal -> x
-  | `Right -> y
-  | `New q -> q
-
-let joinvalue (jf:'a -> 'a -> [`Left|`Equal|`Right|`New of 'a]) (x:'a) (y:'a) : 'a =
-  match jf x y with
-    | `Equal -> x
-    | `Left  -> x
-    | `Right -> y
-    | `New q -> q
-
-let liftDesc f = function
-  | `Equal -> `Equal
-  | `Left  -> `Left
-  | `Right -> `Right
-  | `New q -> `New (f q)
-
-let liftDesc2 f a b x c d y =
-  match x, y with
-  | `Equal, `Equal -> `Equal
-  | `Left , `Equal
-  | `Equal, `Left
-  | `Left , `Left   -> `Left
-  | `Equal, `Right
-  | `Right, `Equal
-  | `Right, `Right -> `Right
-  | _ -> `New (f (descVal a b x) (descVal c d y))
-
-let pretty_desc p () = function
-  | `Equal -> text "Equal"
-  | `Left  -> text "Left"
-  | `Right -> text "Right"
-  | `New q -> text "New" ++ p () q
-
 let set_timer tsecs =
   ignore (Unix.setitimer Unix.ITIMER_REAL
                          { Unix.it_interval = 0.0; Unix.it_value = tsecs })

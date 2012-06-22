@@ -574,9 +574,10 @@ struct
   
   let join m1 m2 =
     match m1, m2 with
-      | Set _, Set _ when (cardinal m1 = 1 && SHMap.is_top (choose m1)) -> `Left
-      | Set _, Set _ when (cardinal m2 = 1 && SHMap.is_top (choose m2)) -> `Right
+      | Set _, Set _ when (cardinal m1 = 1 && SHMap.is_top (choose m1)) -> m1
+      | Set _, Set _ when (cardinal m2 = 1 && SHMap.is_top (choose m2)) -> m2
       | _ -> join m1 m2
+      
   let leq m1 m2 =
     match m1, m2 with
       | _ , Set s when cardinal m2 = 1 && SHMap.is_top (choose m2) -> true

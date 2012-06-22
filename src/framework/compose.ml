@@ -43,26 +43,7 @@ struct
           if cardinal joinable = 0 then
             (add b ok, todo)
           else
-            let joint = fold (GU.joinvalue Base.Dom.join) joinable b in
-            (fold remove joinable ok, add joint todo)
-        in
-        let (ok, todo) = fold f s2 (s1, empty ()) in
-          if is_empty todo then 
-            ok
-          else
-            loop ok todo
-      in
-      let r = loop s1 s2 in
-      `New r
-
-    let oldjoin s1 s2 =
-      let rec loop s1 s2 = 
-        let f b (ok, todo) =
-          let joinable, rest = partition (Base.should_join b) ok in
-          if cardinal joinable = 0 then
-            (add b ok, todo)
-          else
-            let joint = fold (GU.joinvalue Base.Dom.join) joinable b in
+            let joint = fold (Base.Dom.join) joinable b in
             (fold remove joinable ok, add joint todo)
         in
         let (ok, todo) = fold f s2 (s1, empty ()) in
@@ -74,7 +55,7 @@ struct
       loop s1 s2    
   
     (** carefully add element (because we might have to join something)*)
-    let add e s = GU.joinvalue join s (singleton e)
+    let add e s = join s (singleton e)
   
     (** We dont have good info for this operation -- only thing is to [meet] all elements.*)
     let meet s1 s2 = 
@@ -97,7 +78,7 @@ struct
       let f e =
         let l = filter (fun x -> Base.Dom.leq x e) s1 in
         let m = map (fun x -> Base.Dom.widen x e) l in
-        fold (GU.joinvalue Base.Dom.join) m e
+        fold (Base.Dom.join) m e
       in
       map f s2
 
@@ -106,7 +87,7 @@ struct
       let f e =
         let l = filter (fun x -> Base.Dom.leq x e) s2 in
         let m = map (Base.Dom.narrow e) l in
-        fold (GU.joinvalue Base.Dom.join) m (Base.Dom.bot ())
+        fold (Base.Dom.join) m (Base.Dom.bot ())
       in
       map f s1
    end
@@ -186,7 +167,7 @@ struct
 
   let leave_func ctx lval fexp fn args after : Dom.t =
     (* we join as a general case -- but it should have been a singleton anyway *)
-    let bbf : Base.Dom.t = Dom.fold (GU.joinvalue Base.Dom.join) ctx.local (Base.Dom.bot ()) in
-    let leave_and_join nst result = GU.joinvalue Dom.join result (Dom.singleton (Base.leave_func (set_st ctx bbf spawner) lval fexp fn args nst)) in
+    let bbf : Base.Dom.t = Dom.fold (Base.Dom.join) ctx.local (Base.Dom.bot ()) in
+    let leave_and_join nst result = Dom.join result (Dom.singleton (Base.leave_func (set_st ctx bbf spawner) lval fexp fn args nst)) in
     Dom.fold leave_and_join after (Dom.bot ())    
 end                                  

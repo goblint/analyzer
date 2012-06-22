@@ -147,7 +147,7 @@ struct
                    because there are no dependecies to it yet. *)
                 begin if not (VMap.mem sigma v) then constrainOneVar v end;
                 let oldstate = VMap.find sigma v in
-                let compls = GU.joinvalue VDom.join oldstate state in
+                let compls = VDom.join oldstate state in
                   if not (VDom.leq compls oldstate) then begin
                     let lst = VMap.find vInfl v in
                     VMap.replace sigma v compls;
@@ -158,7 +158,7 @@ struct
             | `G (g, gstate) -> 
               if not ( GDom.leq gstate (GDom.bot ()) ) then
                 let oldgstate = GMap.find theta g in
-                let compgs = GU.joinvalue GDom.join oldgstate gstate in
+                let compgs = GDom.join oldgstate gstate in
                   if not (GDom.leq compgs oldgstate) then begin
                     let lst = GMap.find gInfl g in
                     GMap.replace theta g (GDom.widen oldgstate compgs);
@@ -169,7 +169,7 @@ struct
             let (nls,tc) = f (vEval ((x,f),i), GCache.cached (gEval ((x,f),i))) doOneGlobalDelta in
             if !GU.eclipse then show_add_work_buf (List.length tc);
             List.iter constrainOneVar tc;
-            local_state := GU.joinvalue VDom.join !local_state nls;
+            local_state := VDom.join !local_state nls;
         in
           List.iter constrainOneRHS rhsides;
           let old_state = VMap.find sigma x in
@@ -182,7 +182,7 @@ struct
             if !GU.command_port=(-1) then ignore (Pretty.fprintf !Goblintutil.command_out "File: %s\n%d: %s\n" (Var.file_name x) (Var.line_nr x) (Var.description x));
             debugger old_state !local_state
           end;
-          let new_val = GU.joinvalue VDom.join !local_state old_state in
+          let new_val = VDom.join !local_state old_state in
           if not (VDom.leq new_val old_state) then begin
             VMap.replace sigma x (VDom.widen old_state new_val);
             let influenced_vars = ref WorkSet.empty in

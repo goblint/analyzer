@@ -48,7 +48,7 @@ struct
                    because there are no dependecies to it yet. *)
                 begin if not (VMap.mem sigma v) then constrainOneVar v end;
                 let oldstate = VMap.find sigma v in
-                let compls = GU.joinvalue VDom.join oldstate state in
+                let compls = VDom.join oldstate state in
                   if not (VDom.leq compls oldstate) then begin
                     let lst = VMap.find vInfl v in
                     VMap.replace sigma v compls;
@@ -58,10 +58,10 @@ struct
             | `G (g, gstate) ->        
               if not ( GDom.leq gstate (GDom.bot ()) ) then
                 let oldgstate = GMap.find theta g in
-                let compgs = GU.joinvalue GDom.join oldgstate gstate in
+                let compgs = GDom.join oldgstate gstate in
                   if not (GDom.leq compgs oldgstate) then begin
                     let lst = GMap.find gInfl g in
-                    GMap.replace theta g (GU.joinvalue GDom.join oldgstate compgs);
+                    GMap.replace theta g (GDom.join oldgstate compgs);
                     unsafe := lst @ !unsafe;
                     GMap.remove gInfl g
                   end
@@ -69,7 +69,7 @@ struct
 			let (nls,tc) = f (vEval (x,f), gEval (x,f)) doOneGlobalDelta in
             if !GU.eclipse then show_add_work_buf (List.length tc);
             worklist := tc @ !worklist;
-            GU.joinvalue VDom.join old_state nls
+            VDom.join old_state nls
         in
           (* widen *)
           let old_w = VMap.find sigma x in

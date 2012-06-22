@@ -537,7 +537,7 @@ struct
 						(*Messages.report("VARS:");*)
             let vars = Dom.get_vars e in
 						let rvs =
-							List.fold_left (fun y x -> GU.joinvalue ContainDomain.ArgSet.join (Dom.Danger.find x st) y)  (ContainDomain.ArgSet.bot ()) vars 
+							List.fold_left (fun y x -> ContainDomain.ArgSet.join (Dom.Danger.find x st) y)  (ContainDomain.ArgSet.bot ()) vars 
 						in
 						if not (ignore_this ctx.local ctx.global) then	
 						begin

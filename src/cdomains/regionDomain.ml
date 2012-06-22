@@ -20,9 +20,7 @@ struct
   let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
   let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
   (* Joins the fields, assuming the vars are equal. *)
-  let join (v1,f1) (v2,f2) = 
-    GU.liftDesc (fun q -> (v1,q)) (F.join f1 f2)
-  let oldjoin (v1,f1) (v2,f2) = (v1,F.oldjoin f1 f2)
+  let join (v1,f1) (v2,f2) = (v1,F.join f1 f2)
   let is_glob (v,f) = v.vglob
   let kill x (v,f) = v, F.kill x f
   let replace x exp (v,fd) = v, F.replace x exp fd
@@ -44,18 +42,11 @@ struct
       | `Right (), _ | _, `Right () -> false
       | `Left x, `Left y -> VF.leq x y
 
-  let oldjoin (x:t) (y:t) :t = 
+  let join (x:t) (y:t) :t = 
     match x,y with
       | `Right (), _ -> `Right ()
       | _, `Right () -> `Right ()
-      | `Left x, `Left y -> `Left (VF.oldjoin x y)
-
-  let join x y = 
-    match x,y with
-      | `Right (), `Right () -> `Equal
-      | `Right (), _ -> `Left 
-      | _, `Right () -> `Right
-      | `Left x, `Left y -> GU.liftDesc (fun x -> `Left x) (VF.join x y)
+      | `Left x, `Left y -> `Left (VF.join x y)
 
   let lift f y = match y with
     | `Left y -> `Left (f y)
@@ -178,7 +169,7 @@ struct
   let add_set (s:set) llist (p,m:t): t =
     if RS.has_bullet s then 
       let f key value (ys, x) = 
-        if RS.has_bullet value then key::ys, GU.joinvalue RS.join value x else ys,x in
+        if RS.has_bullet value then key::ys, RS.join value x else ys,x in
       let ys,x = RegMap.fold f m (llist, RS.remove_bullet s) in
       let x = RS.remove_bullet x in
         if RS.is_empty x then
@@ -202,13 +193,13 @@ struct
                   | false, false, false -> 
                       p, RegMap.add x (RegMap.find y m) m
                   | false, true , true ->
-                      add_set (GU.joinvalue RS.join (RegMap.find x m) (RS.single_vf y)) [x] st
+                      add_set (RS.join (RegMap.find x m) (RS.single_vf y)) [x] st
                   | false, true , false ->
-                      add_set (GU.joinvalue RS.join (RegMap.find x m) (RegMap.find y m)) [x;y] st
+                      add_set (RS.join (RegMap.find x m) (RegMap.find y m)) [x;y] st
                   | true , _    , true  -> 
-                      add_set (GU.joinvalue RS.join (RS.single_vf x) (RS.single_vf y)) [] st
+                      add_set (RS.join (RS.single_vf x) (RS.single_vf y)) [] st
                   | true , _    , false  -> 
-                      add_set (GU.joinvalue RS.join (RS.single_vf x) (RegMap.find y m)) [y] st
+                      add_set (RS.join (RS.single_vf x) (RegMap.find y m)) [y] st
               end
         | _ -> st
     end else if isIntegralType (typeOf rval) then begin

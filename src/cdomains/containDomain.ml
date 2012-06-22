@@ -215,7 +215,7 @@ struct
 			*)
 			add k (ArgSet.empty ()) mp
 		*)
-	  let merge k v mp = add k (GU.joinvalue ArgSet.join v (find k mp)) mp
+	  let merge k v mp = add k (ArgSet.join v (find k mp)) mp
 	end 
 	
   module StringPair =
@@ -375,7 +375,7 @@ struct
     let rec used_args_idx = function
       | NoOffset -> ArgSet.bot ()
       | Field (_,o) -> used_args_idx o
-      | Index (e,o) -> GU.joinvalue ArgSet.join (used_args_idx o) (used_args e)
+      | Index (e,o) -> ArgSet.join (used_args_idx o) (used_args e)
     and used_args = function 
       | SizeOf _
       | SizeOfE _
@@ -384,10 +384,10 @@ struct
       | Const _ 
       | AlignOfE _ -> ArgSet.bot () 
       | UnOp  (_,e,_)     -> used_args e      
-      | BinOp (_,e1,e2,_) -> GU.joinvalue ArgSet.join (used_args e1) (used_args e2)  
+      | BinOp (_,e1,e2,_) -> ArgSet.join (used_args e1) (used_args e2)  
       | AddrOf  (Mem e,o) 
       | StartOf (Mem e,o) 
-      | Lval    (Mem e,o) -> GU.joinvalue ArgSet.join (used_args_idx o) (used_args e)
+      | Lval    (Mem e,o) -> ArgSet.join (used_args_idx o) (used_args e)
       | CastE (_,e)           -> used_args e 
       | Lval    (Var v2,o) 
       | AddrOf  (Var v2,o) 
@@ -400,7 +400,7 @@ struct
 					begin
 						(*dbg_report ("used args "^v2.vname^":"^sprint 160 (ArgSet.pretty () x)^"\n");*)
 						if not (ArgSet.is_bot x) then
-                GU.joinvalue ArgSet.join x (used_args_idx o)
+                ArgSet.join x (used_args_idx o)
 						else 
 							ArgSet.add (FieldVars.gen v2) (used_args_idx o)
 					end
@@ -512,7 +512,7 @@ struct
       | Const _ 
       | AlignOfE _ -> FieldSet.bot ()
       | UnOp  (_,e,_)     -> from_this e      
-      | BinOp (_,e1,e2,_) -> GU.joinvalue FieldSet.join (from_this e1) (from_this e2)
+      | BinOp (_,e1,e2,_) -> FieldSet.join (from_this e1) (from_this e2)
       | AddrOf  (Mem e,o) 
       | StartOf (Mem e,o) 
       | Lval    (Mem e,o) -> 
@@ -547,7 +547,7 @@ struct
     let rec used_ptrs_idx = function
       | NoOffset -> ArgSet.bot ()
       | Field (_,o) -> used_ptrs_idx o
-      | Index (e,o) -> GU.joinvalue ArgSet.join (used_ptrs_idx o) (used_ptrs e)
+      | Index (e,o) -> ArgSet.join (used_ptrs_idx o) (used_ptrs e)
     and used_ptrs = function 
       | SizeOf _
       | SizeOfE _
@@ -556,10 +556,10 @@ struct
       | Const _ 
       | AlignOfE _ -> ArgSet.bot () 
       | UnOp  (_,e,_)     -> used_ptrs e      
-      | BinOp (_,e1,e2,_) -> GU.joinvalue ArgSet.join (used_ptrs e1) (used_ptrs e2)  
+      | BinOp (_,e1,e2,_) -> ArgSet.join (used_ptrs e1) (used_ptrs e2)  
       | AddrOf  (Mem e,o) 
       | StartOf (Mem e,o) 
-      | Lval    (Mem e,o) -> GU.joinvalue ArgSet.join (GU.joinvalue ArgSet.join (pt e) (used_ptrs_idx o)) (used_ptrs e)
+      | Lval    (Mem e,o) -> ArgSet.join (ArgSet.join (pt e) (used_ptrs_idx o)) (used_ptrs e)
       | CastE (_,e) -> used_ptrs e
       | Lval    (Var v2,o) 
       | AddrOf  (Var v2,o) 
@@ -1350,7 +1350,7 @@ struct
                            let ((fd, st, df),vfs) = get_vfunc_set vi.vname ((Int64.to_int offs)+2) (fd, st, df) in
                            (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
                            let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs  in
-                           let set = GU.joinvalue ArgSet.join fun_set s in 
+                           let set = ArgSet.join fun_set s in 
                            assign_to_lval fs lval (fd, st, df) set must_assign glob "L1353"											 
 											| _ -> no_vtbl                
 									else
@@ -1363,7 +1363,7 @@ struct
                             let ((fd, st, df),vfs) = get_vfunc_set vtn ((Int64.to_int offs)+1) (fd, st, df) in
                             (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
 														let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
-														let set = GU.joinvalue ArgSet.join fun_set s in 
+														let set = ArgSet.join fun_set s in 
 														assign_to_lval fs lval (fd, st, df) set must_assign glob "1366"
 														(*no_vtbl*)
 													end	
@@ -1455,7 +1455,7 @@ struct
                             | Some rexp ->
                                 let vars = get_vars rexp in
                                 List.fold_left
-                                (fun xs x -> GU.joinvalue ArgSet.join (Danger.find x st) xs)
+                                (fun xs x -> ArgSet.join (Danger.find x st) xs)
                                 (ArgSet.bot ())
                                 vars
                         )

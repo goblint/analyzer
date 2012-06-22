@@ -27,8 +27,8 @@ struct
     let ntheta = GMap.create (GMap.length theta) (G.Val.bot ()) in
     let visited = VMap.create 111 false in
     let apply_diff = function
-      | `G (var, value) -> GMap.replace ntheta var (GU.joinvalue G.Val.join value (GMap.find ntheta var))
-      | `L (var, value) -> VMap.replace nsigma var (GU.joinvalue VDom.join value (VMap.find nsigma var))      
+      | `G (var, value) -> GMap.replace ntheta var (G.Val.join value (GMap.find ntheta var))
+      | `L (var, value) -> VMap.replace nsigma var (VDom.join value (VMap.find nsigma var))      
     in
     let rec visit_lhs var =
       if VMap.find visited var then () else begin
@@ -37,7 +37,7 @@ struct
       end
     and visit_rhs var rhs = 
       let v, c = rhs (get_local, GMap.find ntheta) apply_diff in
-      VMap.replace nsigma var (GU.joinvalue VDom.join v (VMap.find nsigma var));
+      VMap.replace nsigma var (VDom.join v (VMap.find nsigma var));
       List.iter visit_lhs c
     and get_local var =
       visit_lhs var;
@@ -240,14 +240,14 @@ struct
         (* increase the value, if needed *)
         let oldval = VMap.find sigma x in
         if not (D.leq newval oldval) then begin
-          VMap.replace sigma x (GU.joinvalue D.join oldval newval);
+          VMap.replace sigma x (D.join oldval newval);
           (* update dependencies *)
           handle_change x
         end  
       in
       let one_rhs (f,i) = 
         let d = f (eval (x,(f,i))) side_val (evalq (x,(f,i))) in
-        newval := GU.joinvalue D.join !newval d
+        newval := D.join !newval d
       in
       if [] = rhss then () else
       List.iter one_rhs rhss;
@@ -313,7 +313,7 @@ module AccuConf (C:CSys) : SolverConf(C).S =
 struct
   open C
   let start_val _ = D.bot ()
-  let update_val _ = GU.joinvalue D.join
+  let update_val _ = D.join
 end
 
 module SimplWConf (C:CSys) : SolverConf(C).S =
@@ -349,7 +349,7 @@ struct
                  (y1, y2)
                else if D.leq y1 x1 then 
                  (x1, x2)
-               else (GU.joinvalue D.join x1 y1, D.top ())
+               else (D.join x1 y1, D.top ())
              end in
              if debug then ignore (Pretty.printf "update tuple -- old:\n(%a,%a)\nnew:(%a,%a)" D.pretty x1 D.pretty x2 D.pretty t1 D.pretty t2); 
              `Right (t1,t2)
@@ -416,7 +416,7 @@ struct
             let joinwrhs d f =
               let get x = getRR (get (true, x)) in
               let set x v = set (false, x) (`Left v) in (* writing to (false,x) = (`Right (v,v)) is a bug *)
-              GU.joinvalue C.D.join d (f get set ora)
+              C.D.join d (f get set ora)
             in 
             let contr = List.fold_left joinwrhs (C.D.bot ()) wrhs in
             if C.D.leq contr (getRR oldn) then begin
@@ -424,7 +424,7 @@ struct
               if debug then ignore (printf "%a:\n%a narrow %a \n>>>>>>\n%a\n----------\n" 
                   C.V.pretty_trace x C.D.pretty (getRR oldn) C.D.pretty (contr) C.D.pretty u);
               `Right (getRL oldn, u)
-            end else `Right (getRL oldn, GU.joinvalue C.D.join (getRR oldn) contr)
+            end else `Right (getRL oldn, C.D.join (getRR oldn) contr)
           with Failure d -> failwith ("bla2"^d)
         in
         if List.length wrhs <> 0 then 
@@ -494,7 +494,7 @@ struct
       let update_con_value x =
         if debug then ignore (printf "updating value for %a" V.pretty_trace x);        
         let oldval = VMap.find sigma x in
-        let newval = IMap.fold (fun _ -> GU.joinvalue D.join) (VMap.find sigmaw x) (D.bot ()) in
+        let newval = IMap.fold (fun _ -> D.join) (VMap.find sigmaw x) (D.bot ()) in
         if not (D.equal newval oldval) then begin
           (*let newval = WN.update_val x oldval newval in*)
           if debug then ignore (printf " with a new value:\n%a\n" D.pretty newval);        
@@ -508,7 +508,7 @@ struct
         let oldm = try VMap.find sigmaw x with Not_found -> IMap.empty in
         let oldv = try IMap.find i oldm with Not_found -> D.bot () in
         if not (D.equal d oldv) then begin
-          let newval = if i = -1 then GU.joinvalue C.D.join oldv d else WN.update_val x oldv d in
+          let newval = if i = -1 then C.D.join oldv d else WN.update_val x oldv d in
           VMap.replace sigmaw x (IMap.add i newval oldm);
           true
         end else 
@@ -628,7 +628,7 @@ struct
     | `Get x -> (try `Val (M.find m x) with Not_found -> `Val (Val.bot ()))
     | `Set (x,v) -> 
         let oldval = try M.find m x with Not_found -> Val.bot () in
-        let newval = GU.joinvalue Val.join oldval v in
+        let newval = Val.join oldval v in
         if not (Val.equal newval oldval) then begin
           M.replace m x newval;
           xs := x :: !xs
@@ -672,12 +672,12 @@ struct
     let gm = GMap.create (GlobM.length oh) (G.Val.bot ()) in
     let lm = VMap.create (GlobM.length oh) (VDom.bot ()) in
     GlobM.iter    (GMap.add gm) oh;
-    let f (b,k) = function 
+    (*let f (b,k) = function 
       | `Left d -> ()
       | `Right (s,d) -> 
         (*printf "%a \n>>>>>>\n%a\n----------\n" C.D.pretty s C.D.pretty d;*)
         if b then VMap.add lm k d
-    in
+    in*)
     Sol.VMap.iter (VMap.add lm) map;
     GU.may_narrow := false;
     lm, gm

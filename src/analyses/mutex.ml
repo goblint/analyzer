@@ -824,7 +824,7 @@ struct
         let f_definite () = 
           (* Offset was definite -- current offset the offsets that follow and are 
             smaller (have extra indexes ond/or fields) are to be considered as one.*)
-          let new_gr_offs = GU.joinvalue Offs.join new_offs group_offs in
+          let new_gr_offs = Offs.join new_offs group_offs in
           if (Offs.leq new_offs group_offs || (Offs.is_bot group_offs)) 
           then (new_gr_offs, OffsMap.find offs map @ access_list, new_map) 
           else (   new_offs, OffsMap.find offs map, OffsMap.add group_offs access_list new_map)         
@@ -832,7 +832,7 @@ struct
         let f_perel () =
           (* Offset was not definite --- almost same as with f_definite, but keep only 
              per-element locks. *)
-          let new_gr_offs = GU.joinvalue Offs.perelem_join offs group_offs in
+          let new_gr_offs = Offs.perelem_join offs group_offs in
           let accs = OffsMap.find offs map in
           if (Offs.perel_leq offs group_offs || (Offs.is_bot group_offs)) 
           then (new_gr_offs, process offs new_gr_offs accs @ access_list, new_map) 
@@ -887,7 +887,7 @@ struct
             (* when reading: bump reader locks to exclusive as they protect reads *)
             Lockset.map (fun (x,_) -> (x,true)) lock 
         in
-          GU.joinvalue Dom.join locks lock 
+          Dom.join locks lock 
       in
 (*      print_endline "--------------"; *)
 			let v = List.fold_left f (Lockset.bot ()) acc_list in

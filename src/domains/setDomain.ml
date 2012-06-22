@@ -77,13 +77,7 @@ struct
   let name () = "Set (" ^ Base.name () ^ ")"
   let empty _ = empty
   let leq  = subset
-  let oldjoin = union
-  let join x y =
-    if equal y x then `Equal else
-    let l = union x y in
-    if equal l x then `Left else
-    if equal l y then `Right else `New l
-    
+  let join = union
   let meet = inter
   let bot = empty
   let is_bot = is_empty
@@ -159,14 +153,14 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let oldjoin s1 s2 = 
+  let join s1 s2 = 
     (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
      * equal user values (there should be at most 1) and we either join with it, or
      * just add the element to our accumulator res and remove it from s1 *)
     let f (b2,u2) (s1,res) = 
       let (s1_match, s1_rest) = partition (fun (b1,u1) -> User.equal u1 u2) s1 in
       let el = 
-        try let (b1,u1) = choose s1_match in (Base.oldjoin b1 b2, u2)
+        try let (b1,u1) = choose s1_match in (Base.join b1 b2, u2)
         with Not_found -> (b2,u2)
       in
         (s1_rest, add el res)
@@ -174,29 +168,7 @@ struct
     let (s1', res) = fold f s2 (s1, empty ()) in
       union s1' res
       
-  let join s1 s2 = 
-    (* Ok, so for each element (b2,u2) in s2, we check in s1 for elements that have
-     * equal user values (there should be at most 1) and we either join with it, or
-     * just add the element to our accumulator res and remove it from s1 *)
-    let f (b2,u2) (s1,res,o) = 
-      let (s1_match, s1_rest) = partition (fun (b1,u1) -> User.equal u1 u2) s1 in
-      let el, o = 
-        try let (b1,u1) = choose s1_match in 
-            let e = Base.join b1 b2 in
-            ((GU.descVal b1 b2 e, u2), GU.joinDesc o e)
-        with Not_found -> ((b2, u2), GU.joinDesc o `Right)
-      in
-        (s1_rest, add el res, o)
-    in
-    let (s1', res, v) = fold f s2 (s1, empty (), None) in
-    match v with
-      | Some `Equal -> `Equal
-      | Some `Left  -> `Left
-      | Some `Right -> `Right
-      | Some `New   -> `New (union s1' res)
-      | None -> if cardinal s1 = 0 then `Equal else `New s1'
-
-  let add e s = GU.joinvalue join (singleton e) s
+  let add e s = join (singleton e) s
 
   (* The meet operation is slightly different from the above, I think this is
    * the right thing, the intuition is from thinking of this as a MapBot *)
@@ -343,25 +315,7 @@ struct
   let is_top x = x = All
 
   let leq = subset
-  let join x y = 
-    match x, y with
-      | All, All -> `Equal
-      | All, _   -> `Left
-      | _  , All -> `Right
-      | Set x, Set y ->   
-    if S.equal x y then `Equal else 
-    let l = S.union x y in
-    if S.equal x l then `Left else
-    if S.equal y l then `Right else `New (Set l)
-  
-  let oldjoin = union
-(*  let join x y = 
-    let d = oldjoin x y in
-    match join x y with
-      | `Equal -> assert (equal x y && equal d x); `Equal
-      | `Left  -> assert (equal x d); `Left
-      | `Right -> assert (equal y d); `Right
-      | `New q -> assert (equal d q); `New q *)
+  let join = union
   let meet = inter
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     match x,y with
@@ -388,7 +342,7 @@ struct
     let f y r = 
       (* assume that only one  *)
       let yay, nay = partition (fun x -> B.leq x y) x in
-      if is_empty yay then r else add (fold (GU.joinvalue B.join) yay (B.bot ())) r
+      if is_empty yay then r else add (fold B.join yay (B.bot ())) r
     in
     if is_top y then y else if is_top x then x else fold f y (empty ())
 end

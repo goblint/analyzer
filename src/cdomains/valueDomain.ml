@@ -196,42 +196,20 @@ struct
       | (`Blob x, `Blob y) -> Blobs.leq x y
       | _ -> false
 
-  let oldjoin x y = 
+  let join x y = 
     match (x,y) with 
       | (`Top, _) -> `Top
       | (_, `Top) -> `Top
       | (`Bot, x) -> x
       | (x, `Bot) -> x
-      | (`Int x, `Int y) -> `Int (ID.oldjoin x y)
-      | (`Address x, `Address y) -> `Address (AD.oldjoin x y)
-      | (`Struct x, `Struct y) -> `Struct (Structs.oldjoin x y)
-      | (`Union x, `Union y) -> `Union (Unions.oldjoin x y) 
-      | (`Array x, `Array y) -> `Array (CArrays.oldjoin x y) 
-      | (`List x, `List y) -> `List (Lists.oldjoin x y) 
-      | (`Blob x, `Blob y) -> `Blob (Blobs.oldjoin x y) 
+      | (`Int x, `Int y) -> `Int (ID.join x y)
+      | (`Address x, `Address y) -> `Address (AD.join x y)
+      | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
+      | (`Union x, `Union y) -> `Union (Unions.join x y) 
+      | (`Array x, `Array y) -> `Array (CArrays.join x y) 
+      | (`List x, `List y) -> `List (Lists.join x y) 
+      | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) 
       | _ -> `Top
-
-  let lift_join f = function 
-    | `Left  -> `Left
-    | `Right -> `Right
-    | `New q -> `New (f q)
-   
-  let join x y = 
-    match (x,y) with 
-      | (`Top, `Top) -> `Equal
-      | (`Top, _) -> `Left
-      | (_, `Top) -> `Right
-      | (`Bot, `Bot) -> `Equal
-      | (`Bot, x) -> `Right
-      | (x, `Bot) -> `Left
-      | (`Int x, `Int y) -> GU.liftDesc (fun x -> `Int x) (ID.join x y)
-      | (`Address x, `Address y) -> GU.liftDesc (fun x -> `Address x) (AD.join x y)
-      | (`Struct x, `Struct y) -> GU.liftDesc (fun x -> `Struct x) (Structs.join x y)
-      | (`Union x, `Union y) -> GU.liftDesc (fun x -> `Union x) (Unions.join x y) 
-      | (`Array x, `Array y) -> GU.liftDesc (fun x -> `Array x) (CArrays.join x y) 
-      | (`List x, `List y) -> GU.liftDesc (fun x -> `List x) (Lists.join x y) 
-      | (`Blob x, `Blob y) -> GU.liftDesc (fun x -> `Blob x) (Blobs.join x y) 
-      | _ -> `New `Top
     
   let meet x y = 
     match (x,y) with 
@@ -369,14 +347,14 @@ struct
   let rec update_offset (x:t) (offs:offs) (value:t): t =
     let mu = function `Blob (`Blob y) -> `Blob y | x -> x in
     match x, offs with
-      | `Blob x, `Index (_,o) -> mu (`Blob (GU.joinvalue join x (update_offset x o value)))
-      | `Blob x,_ -> mu (`Blob (GU.joinvalue join x (update_offset x offs value)))
+      | `Blob x, `Index (_,o) -> mu (`Blob (join x (update_offset x o value)))
+      | `Blob x,_ -> mu (`Blob (join x (update_offset x offs value)))
       | _ -> 
     let result =   
       match offs with
         | `NoOffset -> begin
             match value with
-              | `Blob y -> mu (`Blob (GU.joinvalue join x y))
+              | `Blob y -> mu (`Blob (join x y))
               | _ -> value
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin

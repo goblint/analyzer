@@ -18,12 +18,8 @@ struct
   let bot = ES_r.top
   let top = ES_r.bot
   let leq x y = ES_r.leq y x
-  let join x y = 
-    if equal x y then `Equal else 
-    if leq x y then `Right else 
-    if leq y x then `Left else `New (ES_r.meet x y)
-  let oldjoin = ES_r.meet 
-  let meet x y = GU.joinvalue ES_r.join x y
+  let join = ES_r.meet 
+  let meet x y = ES_r.join x y
 end
 
 type t = ExpEq of exp * exp 
@@ -161,36 +157,20 @@ struct
       | (`ExpTriples x, `ExpTriples y) -> PS.leq x y
       | _ -> false
       
-  let oldjoin x y = 
+  let join x y = 
     try match (x,y) with 
       | (`Top, _) 
       | (_, `Top) -> `Top
       | (`Bot, x) 
       | (x, `Bot) -> x
-      | (`Int x, `Int y) -> `Int (ID.oldjoin x y)
-      | (`Bool x, `Bool y) -> `Bool (BD.oldjoin x y)
-      | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.oldjoin x y)
-      | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.oldjoin x y)
-      | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.oldjoin x y)
+      | (`Int x, `Int y) -> `Int (ID.join x y)
+      | (`Bool x, `Bool y) -> `Bool (BD.join x y)
+      | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.join x y)
+      | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.join x y)
+      | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.join x y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
   
-  let join x y = 
-    try match (x,y) with 
-      | (`Top, `Top) -> `Equal
-      | (`Top, _)    -> `Left 
-      | (_, `Top)    -> `Right
-      | (`Bot, `Bot) -> `Equal 
-      | (`Bot, x)    -> `Right
-      | (x, `Bot)    -> `Left
-      | (`Int x, `Int y) -> GU.liftDesc (fun x -> `Int x) (ID.join x y)
-      | (`Bool x, `Bool y) -> GU.liftDesc (fun x -> `Bool x) (BD.join x y)
-      | (`LvalSet x, `LvalSet y) -> GU.liftDesc (fun x -> `LvalSet x) (LS.join x y)
-      | (`ExprSet x, `ExprSet y) -> GU.liftDesc (fun x -> `ExprSet x)  (ES.join x y)
-      | (`ExpTriples x, `ExpTriples y) -> GU.liftDesc (fun x -> `ExpTriples x) (PS.join x y)
-      | _ -> `New `Top
-    with IntDomain.Unknown -> `New `Top
-
   let meet x y = 
     try match (x,y) with 
       | (`Bot, _) 
