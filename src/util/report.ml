@@ -71,6 +71,7 @@ let do_stats fileNames =
           tag "head" 
           begin
             tag "title" (str "Goblint Report") <:>
+            tag "meta" ~tp:["http-equiv","Content-Type";"content","text/html; charset=utf-8"] (str "") <:>
             tag "link" ~tp:["rel","stylesheet";"href","style.css";"type","text/css"] (str "") <:>
             tag "script" ~tp:["type","text/javascript";"src","script.js"] (str "")
           end <:>
