@@ -68,7 +68,7 @@ module UnitConf (N: Name) =
 struct
   type t = unit
   include Std
-  let hash () = 9867134679
+  let hash () = 7134679
   let equal _ _ = true
   let pretty () _ = text N.name
   let short _ _ = N.name
@@ -124,7 +124,7 @@ struct
   include N
 
   let hash = function 
-    | `Top -> 7524627833
+    | `Top -> 4627833
     | `Bot -> -30385673
     | `Lifted x -> Base.hash x * 13
 
@@ -442,7 +442,7 @@ struct
       | _ -> false
 
   let hash = function 
-    | `Bot -> 12456613454
+    | `Bot -> 56613454
     | `Lifted n -> Base.hash n
       
   let short w state = 
