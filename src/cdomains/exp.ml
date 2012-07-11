@@ -38,6 +38,7 @@ struct
       | Cil.StartOf (Cil.Mem e,_) 
       | Cil.Lval    (Cil.Mem e,_)
       | Cil.CastE (_,e)           -> interesting e 
+      | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
       
   let  contains_var v e =
     let rec offs_contains o =
@@ -65,6 +66,7 @@ struct
           if deref  
           then v.Cil.vid = v2.Cil.vid || offs_contains o 
           else offs_contains o 
+        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
       cv false e
   
@@ -91,6 +93,7 @@ struct
         | Cil.Lval    (Cil.Var v2,o) -> offs_contains o
         | Cil.AddrOf  (Cil.Var v2,o) 
         | Cil.StartOf (Cil.Var v2,o) -> offs_contains o 
+        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
       cv e
       
@@ -109,6 +112,7 @@ struct
       | Cil.CastE (t,e) -> is_global_var e 
       | Cil.AddrOf lval -> Some false  
       | Cil.StartOf lval -> Some false
+      | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
   
   let rec conv_offs (offs:(Cil.fieldinfo,Cil.exp) Lval.offs) : Cil.offset =
     match offs with
@@ -168,6 +172,7 @@ struct
       | Cil.StartOf (Cil.Mem e,o) when simple_eq e q -> Cil.StartOf (Cil.Var v, Cil.addOffset o (conv_offs offs))
       | Cil.StartOf (Cil.Mem e,o)                    -> Cil.StartOf (Cil.Mem (replace_base (v,offs) q e), o)
       | Cil.CastE (t,e) -> Cil.CastE (t, replace_base (v,offs) q e)
+      | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
 
   let rec base_compinfo q exp =
     match exp with
@@ -189,6 +194,7 @@ struct
       | Cil.StartOf (Cil.Mem e,Cil.Field (f,_)) when simple_eq e q -> Some f.Cil.fcomp
       | Cil.StartOf (Cil.Mem e,o) -> base_compinfo q e
       | Cil.CastE (t,e) -> base_compinfo q e
+      | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
   
   let rec conc i = 
     match i with
@@ -323,6 +329,7 @@ struct
         | Cil.AddrOf (Cil.Var v, os) -> Var v :: conv_o os @ [Addr]
         | Cil.AddrOf (Cil.Mem e, os) -> helper e @ [Deref] @ conv_o os @ [Addr]
         | Cil.CastE (_,e) -> helper e 
+        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
       try helper exp 
       with NotSimpleEnough -> []

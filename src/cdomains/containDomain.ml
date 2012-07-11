@@ -404,6 +404,7 @@ struct
 						else 
 							ArgSet.add (FieldVars.gen v2) (used_args_idx o)
 					end
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
     used_args
 
@@ -442,6 +443,7 @@ struct
 					(*if (ArgSet.is_bot x) then dbg_report ("bot_args: " ^(sprint 160 (d_exp () e)));
 					dbg_report ("cft: " ^(sprint 160 (d_exp () e))^" name : "^v2.vname^" as : "^(sprint 160 (ArgSet.pretty () x))^"\n");*)
 					res1||res2 (*ArgSet.for_all () ArgSet.bot() is always true????*) 
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
     from_this e
 		
@@ -464,6 +466,7 @@ struct
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> 
           (this_name = v2.vname) 
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
     from_this e		
 		
@@ -495,6 +498,7 @@ struct
                     (*if (ArgSet.is_bot x) then dbg_report ("bot_args: " ^(sprint 160 (d_exp () e)));
                     dbg_report ("cft: " ^(sprint 160 (d_exp () e))^" name : "^v2.vname^" as : "^(sprint 160 (ArgSet.pretty () x))^"\n");*)
                     res1||res2 (*ArgSet.for_all () ArgSet.bot() is always true????*) 
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
     from_this e     		
     
@@ -531,6 +535,7 @@ struct
 						(ArgSet.fold (fun v fs -> if (FieldVars.get_var v).vname = this_name then add_field v fs else fs) x (FieldSet.empty ()))
 					 else 
 						FieldSet.bot ()				
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
     from_this e   
     
@@ -565,6 +570,7 @@ struct
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> 
           ArgSet.bot ()
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
     used_ptrs
     
@@ -593,6 +599,7 @@ struct
 	      let x = Danger.find v2 ds in
 				let check_field v = FieldVars.apply_field (fun v -> FieldSet.mem v fs) false v in
 	      not (ArgSet.is_bot x) && (ArgSet.exists (fun v -> check_field v) x)
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
     check_exp
 (*		
@@ -647,6 +654,7 @@ struct
       | Lval    (Var v2,o)
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> (if v2.vglob then [v2] else []) @ check_offs o
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
     check_exp 0					
 		
@@ -668,6 +676,7 @@ struct
       | Lval    (Var v2,o)
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> [v2] @ check_offs o
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
     check_exp 0
 	

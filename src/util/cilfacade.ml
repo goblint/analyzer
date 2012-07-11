@@ -245,7 +245,8 @@ let rec typeOf (e: exp) : typ =
       match unrollType (typeOfLval lv) with
         TArray (t,_, a) -> TPtr(t, a)
      | _ -> raise Not_found
-  end
+    end
+  | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
 
 and typeOfInit (i: init) : typ = 
   match i with 

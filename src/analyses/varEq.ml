@@ -134,6 +134,7 @@ struct
         | Cil.AddrOf (Cil.Mem e,o)  
         | Cil.StartOf (Cil.Mem e,o) -> may_change_t_offset o || type_may_change_t e bt
         | Cil.CastE (t,e) -> type_may_change_t e bt
+        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
     let bt =  unrollTypeDeep (typeOf b) in
     type_may_change_t a bt
@@ -169,6 +170,7 @@ struct
         | Cil.AddrOf (Cil.Mem e,o)  
         | Cil.StartOf (Cil.Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl 
         | Cil.CastE (t,e) -> lval_may_change_pt e bl
+        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
     in 
     let bls = pt b in
     if Queries.LS.is_top bls
@@ -236,6 +238,7 @@ struct
         | Cil.AddrOf (Cil.Mem e,o)  -> (*Messages.report "Addr" ;*) may_change_t_offset o || type_may_change_t false e  
         | Cil.StartOf (Cil.Mem e,o) -> (*Messages.report "Start";*) may_change_t_offset o || type_may_change_t false e
         | Cil.CastE (t,e) -> type_may_change_t deref e 
+        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
     
     and lval_may_change_pt a bl : bool =
       let rec may_change_pt_offset o =
@@ -300,6 +303,7 @@ struct
         | Cil.AddrOf (Cil.Mem e,o)  
         | Cil.StartOf (Cil.Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl 
         | Cil.CastE (t,e) -> lval_may_change_pt e bl
+        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
     in 
     let r =
     if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
@@ -400,6 +404,7 @@ struct
       | Cil.StartOf (Cil.Mem e,_) 
       | Cil.Lval    (Cil.Mem e,_)
       | Cil.CastE (_,e)           -> reachable_from r e 
+      | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
       
   (* Probably ok as is. *)
   let body ctx f = ctx.local
@@ -520,6 +525,7 @@ struct
           Queries.ES.map (fun e -> Cil.Lval (Cil.mkMem e ofs)) (eq_set_clos e s)
       | Cil.CastE (t,e) -> 
           Queries.ES.map (fun e -> Cil.CastE (t,e)) (eq_set_clos e s)
+      | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
       
       
   let query ctx x = 

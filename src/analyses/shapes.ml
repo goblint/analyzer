@@ -57,6 +57,7 @@ struct
         | Cil.Lval    (Cil.Var v2,o) -> S.add v2 (offs_contains o)
         | Cil.AddrOf  (Cil.Var v2,o) 
         | Cil.StartOf (Cil.Var v2,o) -> S.add v2 (offs_contains o)
+        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
     in
     S.elements (cv e)
     
