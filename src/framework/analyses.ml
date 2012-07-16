@@ -417,8 +417,9 @@ struct
   let description (n,_) = sprint 80 (Var.pretty () n)
   let context () (_,c) = LD.pretty () c
   let loopSep = function
-    | (MyCFG.FunctionEntry _,_) -> false
-    | _ -> true
+    | (MyCFG.Statement s,_) -> s.labels <> [] (* note that this works only because 
+                                                 cil inserts continue_while breakpoints *)
+    | _ -> false
 end
 
 module VarCS =
