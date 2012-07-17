@@ -17,7 +17,12 @@ let main () =
   let fileNames : string list ref = ref [] in
   (* default settings for the command line arguments: *)
   let myname = Filename.dirname Sys.executable_name in
-  let include_dir = ref (Filename.concat myname "includes") in 
+  let include_dir = 
+    let incl = Filename.concat myname "includes" in 
+    if Sys.file_exists incl then ref incl else 
+      let incl = "/usr/share/goblint/includes" in
+      if Sys.file_exists incl then ref incl else 
+        ref "/usr/local/share/goblint/includes" in
 (*  let kernel_root = "/lib/modules/`uname -r`/build" in*)
   let kernel_root = Filename.concat myname "../bench/linux-headers" in
   let kernel_dir = kernel_root ^ "/include" in
@@ -200,7 +205,7 @@ let main () =
     | _ -> ()
   in
   (* The include files, libc stuff  *)
-  let warn_includes () = print_endline "Warning, cannot find goblin's custom include files." in
+  let warn_includes () = print_endline "Warning, cannot find goblint's custom include files." in
   let includes = ref (if Sys.file_exists(!include_dir) then "-I" ^ !include_dir else (warn_includes () ; "")) in
   let _ = includes := !includes ^ " " ^ !other_includes in
   let libc = Filename.concat !include_dir "lib.c" in 
