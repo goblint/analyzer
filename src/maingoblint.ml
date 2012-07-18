@@ -229,16 +229,14 @@ let main () =
       if !GU.verbose then print_endline command;
       let status = try Unix.system command with 
           | Unix.Unix_error (e, f, a) -> 
-              let _ = if !keep_cpp then () else ignore (GU.rm_rf dirName) in
-                Printf.eprintf "%s at syscall %s with argument \"%s\".\n" 
-                  (Unix.error_message e) f a; 
-                exit 2
+              Printf.eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; 
+              if !keep_cpp then () else ignore (GU.rm_rf dirName); exit 2
       in
         match status with
           | Unix.WEXITED 0 -> nname
-          | _ ->
-              let _ = if !keep_cpp then () else ignore (GU.rm_rf dirName) in
-              prerr_endline "Goblint: Preprocessing failed."; exit 2
+          | _ -> 
+              prerr_endline "Goblint: Preprocessing failed."; 
+              if !keep_cpp then () else ignore (GU.rm_rf dirName); exit 2
   in
   let cpp_file_names = 
     if !GU.verbose then print_endline "Preprocessing files.";
