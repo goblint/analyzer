@@ -219,7 +219,7 @@ let main () =
   end;
   if !GU.verbose then print_endline ("JSON file: " ^ GU.conf_file);
   (* The temp directory for preprocessing the input files *)
-  let dirName = GU.create_dir "goblin_temp" in
+  let dirName = GU.create_dir "goblint_temp" in
   (* preprocess all the files *)
   let preproFile fname =
     (* The actual filename of the preprocessed sourcefile *)
@@ -227,16 +227,26 @@ let main () =
     (* Preprocess using gcc -E *)
     let command = "gcc --undef __BLOCKS__ -E " ^ !cppflags ^ " " ^ !includes ^ " " ^ fname ^ " -o " ^ nname in
       if !GU.verbose then print_endline command;
-      ignore (Unix.system command);  (* MAYBE BAD IDEA to ingore! *)
-      nname
+      let status = try Unix.system command with 
+          | Unix.Unix_error (e, f, a) -> 
+              let _ = if !keep_cpp then () else ignore (GU.rm_rf dirName) in
+                Printf.eprintf "%s at syscall %s with argument \"%s\".\n" 
+                  (Unix.error_message e) f a; 
+                exit 2
+      in
+        match status with
+          | Unix.WEXITED 0 -> nname
+          | _ ->
+              let _ = if !keep_cpp then () else ignore (GU.rm_rf dirName) in
+              prerr_endline "Goblint: Preprocessing failed."; exit 2
   in
   let cpp_file_names = 
     if !GU.verbose then print_endline "Preprocessing files.";
-    List.map preproFile !fileNames in
+    List.rev_map preproFile !fileNames in
   (* and get their AST *)
   let files_AST = 
     if !GU.verbose then print_endline "Parsing files.";
-    List.map CF.getAST cpp_file_names in
+    List.rev_map CF.getAST cpp_file_names in
   let _ = if !keep_cpp then () else ignore (GU.rm_rf dirName) in
   (* direct the output to file if requested  *)
   let _ = if not (!outFile = "") then GU.out :=  open_out !outFile in
