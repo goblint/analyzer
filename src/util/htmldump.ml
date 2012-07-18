@@ -219,7 +219,7 @@ let print_html chan xmlNode (file: Cil.file) =
 
 		(* Print analysis data *)
 		(*fprintf outchan "       Line %i\n" lineNo;*)
-		processAnalysisXmlNode outchan (List.hd (Xml.children xmlNodeLine));		
+		List.iter (processAnalysisXmlNode outchan) (Xml.children xmlNodeLine);		
 
 		(* Print end line div container *)
 		fprintf outchan "     </div>\n";
