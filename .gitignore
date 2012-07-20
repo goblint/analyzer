@@ -5,9 +5,13 @@ config.status
 *.swp
 obj
 goblint
+goblint.byte
 goblint.json
 src/version.ml
 src/config.ml
 tests/bench.txt
 .DS_Store
 .tm_properties
+_build
+_tags
+docs
