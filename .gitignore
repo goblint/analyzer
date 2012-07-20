@@ -13,5 +13,4 @@ tests/bench.txt
 .DS_Store
 .tm_properties
 _build
-_tags
 docs
