@@ -1,5 +1,5 @@
 <src> or <src/**>: include
-<src/**/*.*> : package(cil), package(batteries)
+<src/**/*.*> : package(cil), package(batteries), package(xml-light)
 
 <src/util/jsonLexer.ml>: precious
 <src/util/jsonParser.ml>: precious
