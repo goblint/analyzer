@@ -321,8 +321,8 @@ struct
   open C
   let start_val _ = D.bot ()
   let update_val v x y = 
-  if not (V.loopSep v) then D.join x y
-  else if D.leq y x then D.narrow x y else D.widen x (D.join x y) 
+  (*if not (V.loopSep v) then D.join x y
+  else*) if D.leq y x then D.narrow x y else D.widen x (D.join x y) 
 end
 
 let debug = false
