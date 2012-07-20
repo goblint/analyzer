@@ -1,0 +1,31 @@
+
+This is the API of the Goblint static analyzer framework; developed in Technical University of Munich ({b TUM})
+and University of Tartu ({b UT}). 
+
+The API is divided in four logical sections: 
+the framework, constraint solvers, domains, and analysis instances.
+
+{2 Framework}
+{!modules:  Maingoblint Multithread Analyses Compose MyCFG Cache}
+
+{4 Util}
+{!modules: Goblintutil Cilfacade MyLiveness Json JsonLexer JsonParser Printer Messages Progress Report Xmldump Htmldump Htmlutil Hash}
+
+
+{2 Solvers}
+{!modules: Solver EffectWCon EffectWNCon Interactive OracleSolver SharirPnueli SolverConSideRR SolverConSideWNRR}
+
+
+{2 Domains}
+{!modules: AccessDomain AddressDomain ArrayDomain Basetype ConcDomain ContainDomain EscapeDomain Exp IntDomain ListDomain LockDomain Lval MemoryDomain MusteqDomain RegionDomain ShapeDomain StackDomain StructDomain UnionDomain ValueDomain Config BaseDomain Global}
+
+{4 General Lattice Functors} 
+
+{!modules: Lattice MapDomain Osektupel PartitionDomain Printable Queries SetDomain}
+
+{2 Analyses}
+{!modules: Access Base Contain LibraryFunctions MCP MTFlag Malloc_null MemLeaks Mutex Osek Osekpriority Osektransactionality Owner Region Shapes StackTrace SymbLocks Thread ThreadEscape Uninit Unit VarEq}
+
+{9 Indexes}
+
+{!indexlist}
