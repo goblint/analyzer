@@ -48,7 +48,7 @@ struct
     module SCSRR= SolverConSideRR.Make(Var)(SD)(Spec.Glob)
     module WNRR = SolverConSideWNRR.Make(Var)(SD)(Spec.Glob)
     module INTR = Interactive.Make(Var)(SD)(Spec.Glob)
-    module NEW  = Solver.SolverTransformer(Var)(SD)(Spec.Glob)
+    module NEW  = OracleSolver.SolverTransformer(Var)(SD)(Spec.Glob)
     let solve () : system -> variable list -> (variable * var_domain) list -> solution'  = 
       match !GU.solver with 
         | "effectWNCon"     -> EWNC.solve
