@@ -17,25 +17,29 @@ rule() {
     clean)   rm -rf goblint goblint.byte;
              ocb -clean
              ;;
-    native)  ocb $TARGET.native;
-             ln -sf _build/src/maingoblint.native goblint
+    opt | nat*)
+             ocb $TARGET.native &&
+             mv _build/src/maingoblint.native goblint
              ;;
-    debug)   ocb -tag debug $TARGET.native;
-             ln -sf _build/src/maingoblint.native goblint
+    debug)   ocb -tag debug $TARGET.native &&
+             mv _build/src/maingoblint.native goblint
              ;;
-    profile) ocb -tag profile $TARGET.native;
-             ln -sf _build/src/maingoblint.native goblint
+    profile) ocb -tag profile $TARGET.native &&
+             mv _build/src/maingoblint.native goblint
              ;;
-    byte)    ocb $TARGET.byte;
-             ln -sf _build/src/maingoblint.byte goblint.byte
+    byte)    ocb $TARGET.byte &&
+             mv _build/src/maingoblint.byte goblint.byte
              ;;
-    all)     ocb $TARGET.native $TARGET.byte;
-             ln -sf _build/src/maingoblint.native goblint;
-             ln -sf _build/src/maingoblint.byte goblint.byte
+    all)     ocb $TARGET.native $TARGET.byte &&
+             mv _build/src/maingoblint.native goblint &&
+             mv _build/src/maingoblint.byte goblint.byte
              ;;
-    doc)     ls src/*/*.ml src/*.ml | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
+    doc*)    rm -rf doc;
+             ls src/*/*.ml src/*.ml | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
              ocb doclist.docdir/index.html;
-             ln -sf _build/doclist.docdir doc;;
+             rm doclist.odocl;
+             ln -sf _build/doclist.docdir doc
+             ;;
     depend)  echo "No!";;
     *)       echo "Unknown action '$1'. Try clean, native, debug, profile, byte, or doc.";;
   esac; }

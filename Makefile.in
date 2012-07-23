@@ -96,7 +96,7 @@ tags:
 
 # DOCS
 DOC_ARG = -I $(OBJDIR) \
-	-I $(CILLIB) -I $(XML) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*\.mli*'` \
+	-I +batteries -I $(CILLIB) -I $(XML) $(SOURCEDIRS:%=-I %) `find src/ -regex '.*\.mli*'` \
 	$(CIL)src/cil.mli $(CIL)src/formatcil.mli \
 	$(CIL)ocamlutil/pretty.mli $(CIL)ocamlutil/errormsg.mli \
 	$(CIL)ocamlutil/trace.mli $(CIL)ocamlutil/stats.mli \
@@ -105,7 +105,7 @@ DOC_ARG = -I $(OBJDIR) \
 	$(XML)/xml.mli \
 
 docs: 
-	@rm -rf doc/*
+	@rm -rf doc && mkdir doc
 	$(OCAMLDOC) $(DOCFLAGS) $(DOC_ARG)
 
 dot:
