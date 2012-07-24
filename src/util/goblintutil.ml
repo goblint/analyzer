@@ -1,6 +1,7 @@
 (** Globally accessible flags and utility functions. *)
 
 open Cil
+open Cil_types
 open Pretty
 
 open Json
@@ -301,15 +302,15 @@ let type_inv_tbl = Hashtbl.create 13
 let type_inv (c:compinfo) : varinfo =
   try Hashtbl.find type_inv_tbl c.ckey
   with Not_found ->
-      let i = makeGlobalVar ("{struct "^c.cname^"}") (TComp (c,[])) in
+      let i = makeGlobalVar ("{struct "^c.cname^"}") (TComp (c, { scache = Not_Computed },[])) in
       Hashtbl.add type_inv_tbl c.ckey i;
       i
 
 let is_blessed (t:typ): varinfo option =
   let me_gusta x = List.mem x !singles in 
   match unrollType t with
-    | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
-    | _ -> (None : Cil.varinfo option)
+    | TComp (ci,_,_) when me_gusta ci.cname -> Some (type_inv ci)
+    | _ -> (None : varinfo option)
 
 
 type result_style =
@@ -345,7 +346,7 @@ let print_uncalled = ref false
 
 (** A very nice imperative hack to get the current location. This can be
   * referenced from within any transfer function. *)
-let current_loc = ref locUnknown
+let current_loc = ref Errorloc.locUnknown
 
 let global_initialization = ref false 
 (** A hack to see if we are currently doing global inits *)

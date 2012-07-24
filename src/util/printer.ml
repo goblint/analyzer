@@ -34,6 +34,7 @@
  *)
 
 open Cil
+open Cil_types
 open Pretty
 
 let enclose tag doc =
@@ -43,11 +44,11 @@ class debugCilPrinterClass =
 object (self)
   inherit defaultCilPrinterClass as super
 
-  method pStmtKind (next: stmt) () =
+  method pStmtKind (next: stmt) fmt () =
     function
       | Instr _ as x -> 
-          enclose "INSTR LIST" (super#pStmtKind next () x)
-      | x -> super#pStmtKind next () x
+          enclose "INSTR LIST" (super#pStmtKind next fmt () x)
+      | x -> super#pStmtKind next fmt () x
 
 (*
   method pBlock () (b : block) = 

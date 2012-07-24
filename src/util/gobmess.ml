@@ -1,5 +1,6 @@
 open Cil
 open Pretty
+open Errorloc
 module GU = Goblintutil
 
 
@@ -9,7 +10,7 @@ let bailwith s = raise (Bailure s)
 let warnings = ref false
 let soundness = ref true
 let warn_out = ref stdout
-let tracing = Config.tracing
+let tracing = Gobconfig.tracing
 
 let get_out name alternative = match !GU.dump_path with
   | Some path -> open_out (Filename.concat path (name ^ ".out"))

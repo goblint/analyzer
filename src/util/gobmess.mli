@@ -1,4 +1,5 @@
 open Cil
+open Errorloc
 
 exception StopTheWorld
 val worldStopped : bool ref

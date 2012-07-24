@@ -6,9 +6,8 @@
 
 VRSNHACK := $(shell scripts/set_version.sh)
 
-CIL=@CIL@
-CILLIB=@CIL@/@CILOBJ@
 XML=@XML@
+FRAMA=/usr/lib/frama-c
 
 LINK_LIBS  = @LINKLIBS@ bigarray camomile batteries
 CAMLDIR    = @CAMLDIR@ 
@@ -20,13 +19,13 @@ SOURCEDIRS = src/ src/util/ src/domains/ src/cdomains/ src/framework/ \
              src/solvers/ src/analyses/ unittest/ unittest/solver \
              unittest/cdomains unittest/domains src/util/html_template/
 
-COMPILEFLAGS = @COMPILEFLAGS@ -I $(CILLIB)  
-LINKFLAGS = @COMPILEFLAGS@ -ccopt -L$(CILLIB) -I $(CILLIB)  
+COMPILEFLAGS = @COMPILEFLAGS@ -I $(FRAMA)
+LINKFLAGS = @COMPILEFLAGS@ -I $(FRAMA)
 DOCFLAGS = @DOCFLAGS@ -stars -t 'Goblint API documentation' -dot-reduce -dot -html -d doc -v
 
 PROG_MODULES = \
-	version config json jsonParser jsonLexer htmlutil css_template js_template \
-	goblintutil messages printer cilfacade xmldump htmldump \
+	pretty version gobconfig json jsonParser jsonLexer htmlutil css_template js_template \
+	goblintutil gobmess printer cilfacade xmldump htmldump \
 	printable lattice setDomain mapDomain osektupel\
 	basetype intDomain lval addressDomain arrayDomain listDomain \
 	structDomain unionDomain valueDomain exp queries partitionDomain memoryDomain \
@@ -43,7 +42,7 @@ TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \
 	pMapArrayDomainTest lMapArrayDomainTest solverTest
 
 
-MODULES    = $(PROG_MODULES) maingoblint $(TEST_MODULES) mainTest
+MODULES    = $(PROG_MODULES) maingoblint $(TEST_MODULES) mainTest frama
 
 
 all : opt
@@ -68,6 +67,13 @@ opt   : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) $(OBJDIR)/maingoblint.cmx
 	$(AT)$(CAMLLINK.OPT) -o goblint$(EXE) \
                     $(LINK_LIBS:%=%.cmxa) \
                     $^
+
+plug  : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) $(OBJDIR)/frama.cmx
+	@$(NARRATIVE) "Creating Plug-In $(COMPILETOWHAT) goblint$(EXE) $(LINKMSG)"
+	$(AT)$(CAMLLINK.OPT) -shared -o Goblint.cmxs \
+                    $(LINK_LIBS:%=%.cmxa) \
+                    $^
+
 
 unittests  : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) \
 			$(TEST_MODULES:%=$(OBJDIR)/%.cmx) \

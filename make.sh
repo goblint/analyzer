@@ -5,7 +5,7 @@ set -e
 scripts/set_version.sh
 
 TARGET=src/maingoblint
-FLAGS="-no-links -use-ocamlfind -j 8 -no-log"
+FLAGS="-cflags -for-pack,Goblint -no-links -use-ocamlfind -j 8 -no-log"
 OCAMLBUILD=ocamlbuild
 
 ocb() {
@@ -29,6 +29,9 @@ rule() {
              ;;
     byte)    ocb $TARGET.byte &&
              mv _build/src/maingoblint.byte goblint.byte
+             ;;
+    plug*)   FLAGS="-cflags -I,/usr/lib/frama-c -lflags -I,/usr/lib/frama-c $FLAGS";
+             ocb src/frama.cmxs && sudo mv _build/src/frama.cmxs /usr/lib/frama-c/plugins/Goblint.cmxs
              ;;
     all)     ocb $TARGET.native $TARGET.byte &&
              mv _build/src/maingoblint.native goblint &&

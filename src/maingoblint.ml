@@ -9,7 +9,7 @@ let print_version () =
   Printf.printf "Goblint version: %s\n" Version.goblint;
   Printf.printf "Cil version:     %s (%s)\n" Cil.cilVersion Version.cil;
   Printf.printf "Configuration:   tracing %s, tracking %s (n=%d)\n"
-    (f Config.tracing) (f Config.tracking) Config.track_n ;
+    (f Gobconfig.tracing) (f Gobconfig.tracking) Gobconfig.track_n ;
   exit 0
 
 let main () =
