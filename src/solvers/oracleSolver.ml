@@ -450,6 +450,139 @@ struct
   let changed _ = []
 end
 
+
+module GenConfWLSolver (C:CSys) (WN:SolverConf(C).S) =
+struct
+  open C
+  module Q = Queue
+  module VMap = Hash.Make (V)
+  module QMap = Hash.Make (O.Quest)
+  module IMap = BatMap.IntMap
+  type rhs = (V.t -> D.t) -> (V.t -> D.t -> unit) -> (O.Quest.t -> O.answ) -> D.t 
+  type t = O.t 
+         * (D.t VMap.t) 
+         * (D.t IMap.t VMap.t) 
+         * ((rhs * int) list VMap.t) 
+         * ((V.t * (rhs * int)) list VMap.t) 
+         * ((V.t * (rhs * int)) list QMap.t) 
+         * ((V.t * (rhs * int)) list ref)
+  
+  let init sigma = 
+    List.iter (fun (v,d) -> VMap.replace sigma v d) initvals
+  
+  let new_instance () =
+    let oracle   = O.new_instance () in
+    let sigma    = VMap.create 1024 (D.bot ()) in
+    let sigmaw   = VMap.create 1024 IMap.empty in
+    let todo     = VMap.create 1024 [] in
+    let infl     = VMap.create 1024 [] in
+    let inflo    = QMap.create 1024 [] in
+    let unsafe   = ref [] in
+    init sigma;
+    (oracle, sigma, sigmaw, todo, infl, inflo, unsafe)
+    
+  let solve_list (oracle, sigma, sigmaw, todo, infl, inflo, unsafe:t) (xs:V.t list) = 
+    let w = Q.create () in
+    let rec one_var (x:V.t) = 
+      if debug then ignore (printf "considering %a " V.pretty_trace x);
+      let rhss =
+        if VMap.mem sigma x then begin
+          if debug then ignore (printf "(is in sigma)\n");
+          let rx = VMap.find todo x in
+          VMap.remove todo x;
+          rx
+        end else begin
+          if debug then ignore (printf "(is NOT in sigma)\n");
+          VMap.replace sigma x (WN.start_val x);
+          zipNumRev (C.constr x)
+        end
+      in
+      let handle_change (x:V.t) = 
+        let one_infl (y,c) =
+          VMap.replace todo y (cons_unique snd c (VMap.find todo y));
+          Q.add y w
+        in
+        List.iter one_infl (VMap.find infl x);
+      in 
+      let update_con_value x =
+        if debug then ignore (printf "updating value for %a" V.pretty_trace x);        
+        let oldval = VMap.find sigma x in
+        let newval = IMap.fold (fun _ -> D.join) (VMap.find sigmaw x) (D.bot ()) in
+        if not (D.equal newval oldval) then begin
+          (*let newval = WN.update_val x oldval newval in*)
+          if debug then ignore (printf " with a new value:\n%a\n" D.pretty newval);        
+          VMap.replace sigma x newval;
+          handle_change x
+        end else 
+          if debug then ignore (printf " but it does not change\n");        
+      in
+      let update_rhs_value i x d = 
+        if debug then ignore (printf "update rhs #%d for %a to:\n%a\n" i V.pretty_trace x D.pretty d);        
+        let oldm = try VMap.find sigmaw x with Not_found -> IMap.empty in
+        let oldv = try IMap.find i oldm with Not_found -> D.bot () in
+        if not (D.equal d oldv) then begin
+          let newval = if i = -1 then C.D.join oldv d else WN.update_val x oldv d in
+          VMap.replace sigmaw x (IMap.add i newval oldm);
+          true
+        end else 
+          false
+      in
+      let side_val (x:V.t) (newval:D.t) = 
+        if debug then ignore (printf "side-effect ");
+        let _ = update_rhs_value (-1) x newval in 
+        if not (VMap.mem sigma x) then 
+          Q.add x w
+        else
+          update_con_value x
+      in
+      let one_rhs (f,i) = 
+        if debug then ignore (printf "considering rhs %d for %a\n" i V.pretty_trace x);
+        let d = f (eval (x,(f,i))) side_val (evalq (x,(f,i))) in
+        if debug then ignore (printf "considering rhs %d for %a DONE.\n" i V.pretty_trace x);
+        ignore (update_rhs_value i x d) 
+      in
+      if [] = rhss then () else
+      List.iter one_rhs rhss;
+      update_con_value x
+    and eval c y =
+      if debug then ignore (printf "i need value of %a\n" V.pretty_trace y);
+      Q.add y w;
+      VMap.replace infl y (c :: (VMap.find infl y));
+      VMap.find sigma y 
+    and evalq c y =
+      QMap.replace inflo y (c :: (QMap.find inflo y));
+      let r = O.ask oracle y in
+      let oracle_change x = 
+        let one_infl (y,c) =
+          unsafe := (y,c) :: !unsafe;
+        in
+        List.iter one_infl (QMap.find inflo x);
+        QMap.remove inflo x
+      in
+      List.iter oracle_change (O.changed oracle);
+      r
+    in 
+    
+    while not (Q.is_empty w) do
+      let wc = Q.copy w in Q.clear w;
+      Q.iter one_var wc;
+      let oneUnsafe (y,c) =
+        VMap.replace todo y (cons_unique snd c (VMap.find todo y));
+        Q.add y w
+      in
+      List.iter oneUnsafe !unsafe;
+      unsafe := []
+    done;
+    (oracle, sigma, sigmaw, todo, infl, inflo, unsafe)
+  
+  let solve = solve_list (new_instance ())
+  module Quest = V
+  type answ  = D.t
+  
+  let ask (_,sigma,_,_,_,_,_) = VMap.find sigma
+  let changed _ = []
+end
+
 module WNSolver (C:CSys) =
 struct  
   module WNC    = WidenNarrowSys (C)
