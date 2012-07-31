@@ -64,6 +64,7 @@ case "$target" in
   *86*cygwin*)
     AC_MSG_RESULT(configuring for Cygwin on win32/x86)
     ARCHOS=x86_WIN32
+    EXE=.exe
     ;;
 
   # Solaris
@@ -244,6 +245,7 @@ AC_SUBST(DOCFLAGS)
 AC_SUBST(OUNIT)
 AC_SUBST(XML)
 AC_SUBST(JSON)
+AC_SUBST(EXE)
 
 
 AC_OUTPUT(Makefile)

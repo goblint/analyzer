@@ -67,22 +67,10 @@ else
   ECHO        := @
 endif
 
-COMPILEFLAGS.OPT := $(COMPILEFLAGS) -inline 10
-COMPILEFLAGS.BYTE:= $(COMPILEFLAGS)
+COMPILEFLAGS.OPT := $(COMPILEFLAGS) -inline 10 -ccopt -O3
 LINKFLAGS.OPT    := $(LINKFLAGS) -inline 10
-LINKFLAGS.BYTE   := $(LINKFLAGS)
-
-ifdef WIN32
-    COMPILEFLAGS.BYTE += -ccopt /Zi -ccopt /Od
-    LINKFLAGS.BYTE    += -ccopt /Zi -ccopt /Od
-    COMPILEFLAGS.OPT  += -ccopt /Ox
-    EXE               := .exe
-else
-    COMPILEFLAGS.BYTE += -g -ccopt -g
-    LINKFLAGS.BYTE    += -g -ccopt -g
-    COMPILEFLAGS.OPT  += -ccopt -O3
-    EXE               := 
-endif
+COMPILEFLAGS.BYTE:= $(COMPILEFLAGS) -g -ccopt -g
+LINKFLAGS.BYTE   := $(LINKFLAGS) -g -ccopt -g
 
 ifdef STATIC
     COMPILEFLAGS.OPT   += -ccopt -static

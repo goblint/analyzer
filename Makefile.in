@@ -9,6 +9,7 @@ VRSNHACK := $(shell scripts/set_version.sh)
 CIL=@CIL@
 CILLIB=@CIL@/@CILOBJ@
 XML=@XML@
+EXE=@EXE@
 
 LINK_LIBS  = @LINKLIBS@ bigarray camomile batteries
 CAMLDIR    = @CAMLDIR@ 

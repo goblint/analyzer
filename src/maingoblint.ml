@@ -195,6 +195,11 @@ let main () =
   Arg.parse speclist recordFile usage_str;
   if !GU.allfuns || !GU.nonstatic || !GU.oil then GU.multi_threaded := true;
   if !GU.debug then M.warnings := true;
+  if !GU.verbose then begin
+    Printexc.record_backtrace true;
+    Errormsg.debugFlag := true;
+    Errormsg.verboseFlag := true;
+  end;
   (* GU.regions := true; *)
   let _ = match !GU.dump_path with
     | Some path -> begin
