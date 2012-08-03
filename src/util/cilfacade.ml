@@ -4,6 +4,7 @@ module GU = Goblintutil
 
 let init () =
   initCIL ();
+  Mergecil.ignore_merge_conflicts := true;
 (*  lineDirectiveStyle := None;*)
   Rmtmps.keepUnused := true;
   print_CIL_Input := true

@@ -152,6 +152,7 @@ let main () =
                  ("--unmerged-fields", Arg.Set Mutex.unmerged_fields, " Does not merge accesses to possibly same fields, unsound.");
                  ("--die-on-collapse", Arg.Set GU.die_on_collapse, " Raise an exception as soon as an array collapses.");
                  ("--keepcpp", Arg.Set keep_cpp, " Keep the intermediate output of running the C preprocessor.");
+                 ("--merge-conflicts", Arg.Clear Mergecil.ignore_merge_conflicts, " Abort on merging conflicts.");
                  ("--cppflags", Arg.Set_string cppflags, "<flags>  Pre-processing parameters.");
                  ("--kernel", Arg.Set GU.kernel, "For analyzing Linux Device Drivers.");
                  ("--showtemps", Arg.Set CF.showtemps, " Shows CIL's temporary variables when printing the state.");
