@@ -1,9 +1,9 @@
 open Cil
-module E = Errormsg
+module E = Gobmess
 module GU = Goblintutil
 
 let init () =
-  initCIL ();
+  initCIL init_builtins;
 (*  lineDirectiveStyle := None;*)
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
@@ -19,7 +19,7 @@ let print (fileAST: file) =
   dumpFile defaultCilPrinter stdout "stdout" fileAST
     
 let printDebug fileAST = 
-  dumpFile Printer.debugCilPrinter stdout "stdout" fileAST
+  dumpFile defaultCilPrinter stdout "stdout" fileAST
 
 let rmTemps fileAST = 
   Rmtmps.removeUnusedTemps fileAST
