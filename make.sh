@@ -14,7 +14,7 @@ ocb() {
 
 rule() {
   case $1 in
-    clean)   rm -rf goblint goblint.byte goblint.ml;
+    clean)   rm -rf goblint goblint.byte goblint.ml doclist.odocl;
              ocb -clean
              ;;
     opt | nat*)

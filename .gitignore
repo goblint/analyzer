@@ -15,4 +15,5 @@ tests/bench.txt
 .tm_properties
 _build
 doc
+doclist.odocl
 autom4te.cache
