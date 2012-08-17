@@ -356,11 +356,11 @@ struct
   
   let from_exps a l : t option =
     let a, l = toEl a, toEl l in
-    let rec fold_left2 f a xs ys =
+    (*let rec fold_left2 f a xs ys =
       match xs, ys with
         | x::xs, y::ys -> fold_left2 f (f a x y) xs ys
         | _ -> a
-    in
+    in*)
     let rec fold_advance_prefix xs x y = 
       match xs, x, y with
         | `Todo (zs,fs,gs), x::xs, y::ys when ee_equal x y -> fold_advance_prefix (`Todo (x :: zs,fs,gs)) xs ys
