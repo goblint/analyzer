@@ -89,11 +89,12 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 	end;
 	if Str.string_match res_re line 0 then begin
 	  let res_name = Str.matched_group 1 line in
-(* print_string "res \n"; *)
 	  if (not (!flag="")) then begin
 	    Hashtbl.replace tasks !flag ((fun (x,y,zs) z -> (x,y,z::zs)) (Hashtbl.find tasks !flag) res_name);
 	  end;
-	  if (not (Hashtbl.mem resources res_name)) then begin (Hashtbl.add resources res_name (-1)); end;
+	  if (not (Hashtbl.mem resources res_name)) then begin 
+(* ignore (printf "res %s\n" res_name); *)
+            (Hashtbl.add resources res_name (-1)); end;
 	end;
 	read_info ();
       with 
@@ -198,7 +199,11 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
     match f.vname with
       | "GetResource" | "ReleaseResource" -> M.special_fn ctx lval f (match arglist with 
         | [Lval l] -> [AddrOf l] 
-	| [Const (CInt64 (c,_,_) ) ] -> (make_lock (Hashtbl.find constantlocks (Int64.to_string c)))
+	| [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> 
+            let l = Hashtbl.find constantlocks (Int64.to_string c) in
+(*            let _ = printf "(Un)locking %s\n" l.vname in *)
+              make_lock l
+(*        | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
         | x -> x)  
       | "ActivateTask" -> M.special_fn ctx lval f arglist (*call function *)
       | "ChainTask" -> M.special_fn ctx lval f arglist (*call function *)
