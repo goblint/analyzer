@@ -90,7 +90,7 @@ struct
     let _ = if !openfuns = [] then () else begin
       let (vars,t) = Hashtbl.find funs (List.hd !openfuns) in
       let (vars2,_) = Hashtbl.find funs f.vname in
-      let _ = if Osek.Spec.is_task f.vname then () else Hashtbl.replace funs (List.hd !openfuns) ((StringSet.union vars2 vars),t) in ()
+      let _ = if Cilfacade.is_task f.vname then () else Hashtbl.replace funs (List.hd !openfuns) ((StringSet.union vars2 vars),t) in ()
     end in
     let (ctxs,ctxr) = ctx.local in
     let (aus,aur) = au in

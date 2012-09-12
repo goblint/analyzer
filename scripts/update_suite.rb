@@ -214,7 +214,7 @@ File.open(theresultfile, "w") do |f|
 
       ranking = ["other", "warn", "race", "norace", "success", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
-                    when /with lockset:/: "race"
+                    when /lockset:/: "race"
                     when /Assertion .* will fail/    : "fail"
                     when /Assertion .* will succeed/ : "success"
                     when /Assertion .* is unknown/   : "unknown"

@@ -1,4 +1,4 @@
-// PARAM: --oil 03-example_fun.oil --tramp 03-example_fun-tramp.h
+// PARAM: --oil 03-example_fun.oil --tramp 03-example_fun-tramp.h --osektaskprefix function_of_ --osekisrprefix function_of_
 
 // #include "03-example_fun-tramp.h"
 
@@ -26,7 +26,7 @@ ISR( i) {
 
 void g(void){   
    ReleaseResource(r);
-   z= 2*t;
+   z= 2*t; // RACE!
    GetResource(r);
    return;
 }    

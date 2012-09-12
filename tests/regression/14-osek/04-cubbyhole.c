@@ -1,4 +1,4 @@
-// PARAM: --oil 04-cubbyhole.oil --tramp 04-defaultAppWorkstation/tpl_os_generated_configuration.h -I 04-defaultAppWorkstation/ -I 04-defaultAppWorkstation/os-minimalheaders/os_machine/posix-libpcl/ -I 04-defaultAppWorkstation/os-minimalheaders/
+// PARAM: --oil 04-cubbyhole.oil --tramp 04-defaultAppWorkstation/tpl_os_generated_configuration.h -I 04-defaultAppWorkstation/ -I 04-defaultAppWorkstation/os-minimalheaders/os_machine/posix-libpcl/ -I 04-defaultAppWorkstation/os-minimalheaders/ --osektaskprefix function_of_ --osekisrprefix function_of_
 
 #include <stdio.h>
 #include <string.h>
@@ -24,7 +24,7 @@ TASK(ping)
 /*    	WaitEvent(pong_deployed);
         ClearEvent(pong_deployed);*/
         GetResource(cubbyHoleMutex);
-	cubbyHole = "ping";
+	cubbyHole = "ping"; //NORACE
         printf("Current state is: %s\n", cubbyHole);
         ReleaseResource(cubbyHoleMutex);
 //         SetEvent(pong, ping_deployed);
@@ -40,7 +40,7 @@ TASK(pong)
 /*    	WaitEvent(ping_deployed);
         ClearEvent(ping_deployed);*/
         GetResource(cubbyHoleMutex);
-        cubbyHole = "pong";
+        cubbyHole = "pong"; //NORACE
 	printf("Current state is: %s\n", cubbyHole);
         ReleaseResource(cubbyHoleMutex);
 //         SetEvent(ping, pong_deployed);

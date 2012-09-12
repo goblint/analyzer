@@ -1,4 +1,4 @@
-// PARAM: --oil 02-example.oil --tramp 02-example-tramp.h --osektaskprefix function_of_ --osekisrprefix function_of_
+// PARAM: --oil 02-example.oil --tramp 06-suffix-tramp.h --osektasksuffix _func --osekisrsuffix _func
 
 // #include "02-example-tramp.h"
 

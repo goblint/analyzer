@@ -1,4 +1,4 @@
-// PARAM: --oil 01-privatize.oil --tramp 01-privatize-tramp.h
+// PARAM: --oil 01-privatize.oil --tramp 01-privatize-tramp.h --osektaskprefix function_of_ --osekisrprefix function_of_
 
 // #include "01-privatize-tramp.h"
 

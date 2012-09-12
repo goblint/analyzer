@@ -1,6 +1,7 @@
 open Cil
 open Pretty
 open Analyses
+module CF = Cilfacade
 
 module Spec =
 struct
@@ -11,7 +12,6 @@ struct
 (* "/defaultAppWorkstation/tpl_os_generated_configuration.h" *)
 
   let constantlocks = Hashtbl.create 16
-  let tasks = Hashtbl.create 16
   let resources = Hashtbl.create 16
   let offensivepriorities = Hashtbl.create 16
   let irpts = ref []
@@ -21,8 +21,6 @@ struct
   (*lockset -> priority helper*)
   let names = function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully1) never happens!"
   let resourceset_to_priority = List.fold_left (fun y x -> if (pry x) > y then pry x else y) (min_int)
-  (*brutal hack*)
-  let is_task = Cilfacade.is_task
  
 let trim str =   if str = "" then "" else   let search_pos init p next =
     let rec search i =
@@ -45,7 +43,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
     let effect_fun (ls: LockDomain.Lockset.t) = 
       let locks = LockDomain.Lockset.ReverseAddrSet.elements ls in
       let prys = List.map names locks in
-      let staticprys = List.filter is_task prys in
+      let staticprys = List.filter CF.is_task prys in
       let pry = resourceset_to_priority staticprys in
         if pry = min_int then `Bot else `Lifted (Int64.of_int pry)
   end
@@ -60,6 +58,10 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
   let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType
 
   let parse_oil () = (* requires PRIORITY tag to occur before RESOURCE tag in task definitions. does not take "default" into account *)
+    if not (!oilFile != "" && Sys.file_exists(!oilFile)) then begin     
+      prerr_endline "OIL-file not found." ;
+      exit 2;
+    end else 
     let input = open_in !oilFile in
     let task_re = Str.regexp "\\(TASK\\|ISR\\) *\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
     let pry_re = Str.regexp "PRIORITY *= *\\([1-9][0-9]*\\)" in
@@ -71,18 +73,19 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 	if Str.string_match task_re line 0 then begin
 (* print_string "task \n"; *)
           let typ = (Str.matched_group 1 line) in
-          let name = if (typ = "ISR") then !Goblintutil.isrprefix ^ (Str.matched_group 2 line) else !Goblintutil.taskprefix ^ (Str.matched_group 2 line) in 
+          let name = if (typ = "ISR") then !Goblintutil.isrprefix ^ (Str.matched_group 2 line) ^ !Goblintutil.isrsuffix
+          else !Goblintutil.taskprefix ^ (Str.matched_group 2 line) ^ !Goblintutil.tasksuffix in 
 (*  let _ = print_endline ( "Adding " ^ name) in  *)
-	  Hashtbl.add tasks name (typ,-1,[name]);
+	  Hashtbl.add CF.tasks name (typ,-1,[name]);
           Hashtbl.add constantlocks name (makeGlobalVar name  Cil.voidType);
           Hashtbl.add resources name (-1);
 	  flag := name;
-          if typ = "ISR" then irpts := (Cilfacade.getFun name, -1) :: !irpts;
+          if typ = "ISR" then irpts := (CF.getFun name, -1) :: !irpts;
 	end;
 	if Str.string_match pry_re line 0 then begin
 	  if (not (!flag="")) then begin
 (* print_string "pry \n"; *)
-	      Hashtbl.replace tasks !flag ((fun (x,_,z) y -> (x,y,z)) (Hashtbl.find tasks !flag) (int_of_string(Str.matched_group 1 line)));
+	      Hashtbl.replace CF.tasks !flag ((fun (x,_,z) y -> (x,y,z)) (Hashtbl.find CF.tasks !flag) (int_of_string(Str.matched_group 1 line)));
               let typ = (Str.matched_group 1 line) in 
               if typ = "ISR" then irpts := (function ((a,b)::xs) -> (a,int_of_string(Str.matched_group 1 line))::xs | [] -> failwith "Impossible!") !irpts;
           end;
@@ -90,7 +93,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 	if Str.string_match res_re line 0 then begin
 	  let res_name = Str.matched_group 1 line in
 	  if (not (!flag="")) then begin
-	    Hashtbl.replace tasks !flag ((fun (x,y,zs) z -> (x,y,z::zs)) (Hashtbl.find tasks !flag) res_name);
+	    Hashtbl.replace CF.tasks !flag ((fun (x,y,zs) z -> (x,y,z::zs)) (Hashtbl.find CF.tasks !flag) res_name);
 	  end;
 	  if (not (Hashtbl.mem resources res_name)) then begin 
 (* ignore (printf "res %s\n" res_name); *)
@@ -104,7 +107,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
     let ceil_pry res_name _ task_info acc = (fun (t,p,r) -> 
       if (List.mem res_name r) then (max acc p) else acc) task_info
     in
-    let genp res_name p = let cp = (Hashtbl.fold (ceil_pry res_name) tasks (-1)) in 
+    let genp res_name p = let cp = (Hashtbl.fold (ceil_pry res_name) CF.tasks (-1)) in 
       if cp > p then Hashtbl.replace resources res_name cp 
     in
     let generate_ceiling_priority () = Hashtbl.iter genp resources
@@ -165,7 +168,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
   
   let body ctx (f:fundec) : Dom.t = 
     let m_st = M.body ctx (f:fundec) in
-    if (is_task f.svar.vname) then begin
+    if (CF.is_task f.svar.vname) then begin
 (* print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file); *)
 (* print_endline ( "Looking for " ^ f.svar.vname); *)
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
@@ -177,7 +180,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t =
     let m_st = M.return ctx (exp:exp option) (f:fundec) in
-    if (is_task f.svar.vname) then 
+    if (CF.is_task f.svar.vname) then 
       let task_lock = Hashtbl.find constantlocks f.svar.vname in
       match M.special_fn (swap_st ctx m_st) None (dummy_release f) [Cil.mkAddrOf (Var task_lock, NoOffset)] with 
         | [(x,_,_)] -> x 
@@ -310,7 +313,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 
 
       let prys = List.map (List.map names) just_locks in
-      let staticprys = List.map (List.filter is_task) prys in
+      let staticprys = List.map (List.filter CF.is_task) prys in
       let offprys = List.map resourceset_to_priority staticprys in
       let accprys = List.map resourceset_to_priority prys in
       let offpry = List.fold_left (fun y x -> if x > y then x else y) (min_int) offprys in
@@ -395,24 +398,19 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
   let init () = 
     let hashmax _ next old = max next old in  
     let tramp = !resourceheaders in
-    if !oilFile != "" && Sys.file_exists(!oilFile) then begin     
-      parse_oil ();
-      if Sys.file_exists(tramp) then begin
-	parse_tramp tramp;
-      end else begin
-	prerr_endline "Trampoline headers not found." ;
-	exit 2;
-      end;
+    if Sys.file_exists(tramp) then begin
+      parse_tramp tramp;
       Hashtbl.add constantlocks "DEall" (makeGlobalVar "DEall" Cil.voidType);
       Hashtbl.add constantlocks "SRall" (makeGlobalVar "SRall" Cil.voidType);
       Hashtbl.add constantlocks "SRos" (makeGlobalVar "SRos" Cil.voidType);
       Hashtbl.add resources "DEall" (Hashtbl.fold hashmax resources (-1) );
       Hashtbl.add resources "SRall" (Hashtbl.fold hashmax resources (-1) );
-      Hashtbl.add resources "SRos" (Hashtbl.fold hashmax resources (-1) ); (*NOT GOOD *)
+      Hashtbl.add resources "SRos" (Hashtbl.fold hashmax resources (-1) ) (*NOT GOOD *)
     end else begin
-      prerr_endline "OIL-file not found." ;
+      prerr_endline "Trampoline headers not found." ;
       exit 2;
-    end end
+    end
+end
 
 module ThreadMCP = 
   MCP.ConvertToMCPPart

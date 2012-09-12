@@ -73,6 +73,8 @@ let main () =
   let tramp file = Osek.Spec.resourceheaders := file; add_include_file file in
   let osekisrprefix prefix = GU.isrprefix := prefix in
   let osektaskprefix prefix = GU.taskprefix := prefix in
+  let osekisrsuffix suffix = GU.isrsuffix := suffix in
+  let osektasksuffix suffix = GU.tasksuffix := suffix in
   let setanalysis str = 
     begin match str with
             | "containment" -> GU.conf_containment ()
@@ -169,6 +171,8 @@ let main () =
 		 ("--tramp", Arg.String tramp, "<file>  Resource-ID-headers for the analysed program");
 		 ("--osekisrprefix", Arg.String osekisrprefix, "Prefix added by the ISR macro");
 		 ("--osektaskprefix", Arg.String osektaskprefix, "Prefix added by the TASK macro");
+		 ("--osekisrsuffix", Arg.String osekisrsuffix, "Suffix added by the ISR macro");
+		 ("--osektasksuffix", Arg.String osektasksuffix, "Suffix added by the TASK macro");
                  ("--intrpts", Arg.Set GU.intrpts, " Enable constraints for interrupts.");
                  ("--timeout", Arg.Set_float GU.anayzer_timeout, " Maximal time for analysis. (0 -- no timeout)");
                  ("--solver-progress", Arg.Bool ((:=) GU.solver_progress), " <bool> Used for debugging. Prints out a symbol on solving a rhs.");
@@ -272,6 +276,7 @@ let main () =
       CF.print merged_AST
     else begin
       (* we first find the functions to analyze: *)
+      if !GU.oil then Osek.Spec.parse_oil ();
       if !GU.verbose then print_endline "And now...  the Goblin!";
       let (stf,exf,otf as funs) = CF.getFuns merged_AST in
         if stf@exf@otf = [] then failwith "No suitable function to start from.";

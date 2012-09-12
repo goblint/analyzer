@@ -222,8 +222,10 @@ let allfuns = ref false
 let nonstatic = ref false
 (** analyze all functions corresponding to a osek task *)
 let oil = ref false
-let taskprefix = ref "function_of_"
-let isrprefix = ref "function_of_"
+let taskprefix = ref ""
+let isrprefix = ref ""
+let tasksuffix = ref ""
+let isrsuffix = ref ""
 
 (** Name of the main / init function. 
   * FIXME: Any function named main will be considered a main function even

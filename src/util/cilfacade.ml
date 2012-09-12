@@ -2,6 +2,10 @@ open Cil
 module E = Errormsg
 module GU = Goblintutil
 
+(* OSEK hack: *)
+let tasks : (string,  string * int * string list) Hashtbl.t = Hashtbl.create 16
+let is_task f = Hashtbl.mem tasks f
+
 let init () =
   initCIL ();
   Mergecil.ignore_merge_conflicts := true;
@@ -161,10 +165,6 @@ let find_module_init funs fileAST =
   with MyException var -> 
     let f (s:fundec) = s.svar.vname = var.vname in
       List.partition f funs
-
-(*brutal osek hack*)
-  let is_task f =  (String.length f >= String.length(!GU.taskprefix) && String.sub f 0 (String.length(!GU.taskprefix)) = !GU.taskprefix) || 
-		   (String.length f >= String.length(!GU.isrprefix)  && String.sub f 0 (String.length(!GU.isrprefix)) = !GU.isrprefix)
 
 type startfuns = fundec list * fundec list * fundec list
 

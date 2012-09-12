@@ -10,6 +10,7 @@ goblint.byte
 goblint.json
 src/version.ml
 src/config.ml
+src/goblint.ml
 tests/bench.txt
 .DS_Store
 .tm_properties
