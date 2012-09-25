@@ -1,4 +1,4 @@
-// PARAM: --solver effectWNCon --propset int_domain interval
+// PARAM: --solver new --propset int_domain interval
 #include<stdio.h>
 #include<assert.h>
 

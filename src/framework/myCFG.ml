@@ -271,7 +271,7 @@ let generate_irpt_edges cfg =
   
 let getCFG (file: file) backw : cfg = 
   let cfg = createCFG file backw in
-    if !GU.oil then generate_irpt_edges cfg;
+(*    if !GU.oil then generate_irpt_edges cfg;*)
     if !GU.cfg_print then print cfg;      
     H.find_all cfg
 

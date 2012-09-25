@@ -168,7 +168,7 @@ sig
   (** Transfer function for function calls: *)
   
   (* Basic scheme:
-    
+    |----------------------------------------------v
     |-> enter_func -> <analyze the functions> -> leave_func -> join -> ...
     |-> special_fn ----------------------------------------------^
     |-> fork  ------------------------------------------------------->

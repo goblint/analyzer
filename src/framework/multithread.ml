@@ -312,7 +312,8 @@ struct
           (* We synchronize the predecessor value with the global invariant and
            * then feed the updated value to the transfer functions. *)
           let add_novar v d = M.bailwith "Bug: Sync should not be able to spawn threads. Ignored!" in
-          let predval', diff = Spec.sync (getctx (SD.unlift predval) add_novar) in
+          let do_sync d = Spec.sync (getctx d add_novar) in
+          let predval', diff = do_sync (SD.unlift predval) in
           let _ = List.iter (fun x -> effect (`G x)) diff in
           (* For single threaded execution all global information is stored in the local state and 
              data is moved to global state if threads are spawned. In the kernel init. functions
@@ -320,7 +321,13 @@ struct
           let toplevel_kernel_return r fd ctx =
             let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.Analyses.local else Spec.return ctx r fd in
             let spawning_return = Spec.return (A.swap_st ctx st) None MyCFG.dummy_func in
-            let nval, ndiff = Spec.sync (getctx spawning_return add_novar) in
+            let nval, ndiff = do_sync spawning_return in
+            List.iter (fun (x,y) -> add_diff x y) ndiff;
+            nval
+          in
+          let normal_return r fd ctx = 
+            let rval = Spec.return ctx r fd in
+            let nval, ndiff = do_sync rval in
             List.iter (fun (x,y) -> add_diff x y) ndiff;
             nval
           in
@@ -331,11 +338,11 @@ struct
           match edge with
             | MyCFG.Ret    (ret,fundec)    when (fundec.svar.vname = MyCFG.dummy_func.svar.vname || List.mem fundec.svar.vname !GU.mainfuns) && !GU.kernel
                                            -> lift (toplevel_kernel_return ret fundec    ) predval'
+            | MyCFG.Ret    (ret,fundec)    -> lift (normal_return          ret fundec    ) predval'
             | MyCFG.Entry func             -> lift (fun ctx -> Spec.body   ctx func      ) predval'
             | MyCFG.Assign (lval,exp)      -> lift (fun ctx -> Spec.assign ctx lval exp  ) predval'
             | MyCFG.SelfLoop               -> lift (fun ctx -> Spec.intrpt ctx           ) predval'
             | MyCFG.Test   (exp,tv)        -> lift (fun ctx -> Spec.branch ctx exp tv    ) predval'
-            | MyCFG.Ret    (ret,fundec)    -> lift (fun ctx -> Spec.return ctx ret fundec) predval'
             | MyCFG.Proc   (lval,exp,args) -> proc_call (n,edge,pred) sigma theta effect lval exp args predval'
             | MyCFG.ASM _                  -> M.warn "ASM statement ignored."; SD.lift predval', []
             | MyCFG.Skip                   -> SD.lift predval', []
