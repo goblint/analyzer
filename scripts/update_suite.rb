@@ -121,10 +121,10 @@ regs.sort.each do |d|
       end
     end
     case lines[0]
-    when /NON?TERM/ 
+    when /NON?TERM/
       hash[-1] = "noterm"
       debug = true
-    when /TERM/: 
+    when /TERM/
       hash[-1] = "term"
       debug = true
     end
@@ -214,13 +214,13 @@ File.open(theresultfile, "w") do |f|
 
       ranking = ["other", "warn", "race", "norace", "success", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
-                    when /lockset:/: "race"
-                    when /Assertion .* will fail/    : "fail"
-                    when /Assertion .* will succeed/ : "success"
-                    when /Assertion .* is unknown/   : "unknown"
-                    when /Uninitialized/ : "warn"
-                    when /dereferencing of null/ : "warn"
-                    when /CW:/ : "warn"
+                    when /lockset:/                  then "race"
+                    when /Assertion .* will fail/    then "fail"
+                    when /Assertion .* will succeed/ then "success"
+                    when /Assertion .* is unknown/   then "unknown"
+                    when /Uninitialized/             then "warn"
+                    when /dereferencing of null/     then "warn"
+                    when /CW:/                       then "warn"
                     else "other"
                   end
       oldwarn = warnings[i]

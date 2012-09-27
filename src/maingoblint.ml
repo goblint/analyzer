@@ -3,6 +3,7 @@ module CF = Cilfacade
 module GU = Goblintutil
 module JB = Json
 module M = Messages
+module L = Printable.Liszt (Basetype.CilFundec)
 
 let print_version () = 
   let f b = if b then "enabled" else "disabled" in
@@ -280,6 +281,8 @@ let main () =
       if !GU.verbose then print_endline "And now...  the Goblin!";
       let (stf,exf,otf as funs) = CF.getFuns merged_AST in
         if stf@exf@otf = [] then failwith "No suitable function to start from.";
+        if !GU.verbose then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
+                                                   L.pretty stf L.pretty exf L.pretty otf);
         (* and here we run the analysis! *)
         if !GU.result_style = GU.Html then Report.prepare_html_report ();
         Stats.time "analysis" (!analyze merged_AST) funs;
