@@ -195,9 +195,26 @@ module SimplWConf (C:CSys) : SolverConf(C).S =
 struct
   open C
   let start_val _ = D.bot ()
+  
+  module VM = Hashtbl.Make (V)
+  let box_mode       = VM.create 100 (* true -> widen, false -> narrow *)
+  let box_statistics = VM.create 100 (* (widen, narrow, switches) *)
+  
   let update_val v x y = 
+    (*let m = try VM.find box_mode v with Not_found -> ref true in
+    let s = try VM.find box_statistics v with Not_found -> ref (0,0,0) in
+    let (w,n,sw) = !s in*)
   (*if not (V.loopSep v) then D.join x y
-  else*) if D.leq y x then D.narrow x y else D.widen x (D.join x y) 
+  else*) 
+  if D.leq y x then begin 
+(*    s := (w,n+1,if !m then sw+1 else sw);
+    m := false;*)
+    D.narrow x y 
+  end else begin (*
+    s := (w+1,n,sw);
+    m := false;*)
+    D.widen x (D.join x y) 
+  end
 end
 
 let debug = false
