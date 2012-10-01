@@ -13,6 +13,15 @@ let pretty_node () = function
   | Function f -> text "Function " ++ text f.vname
   | FunctionEntry f -> text "FunctionEntry " ++ text f.vname
 
+let node_compare n1 n2 =
+  match n1, n2 with
+    | FunctionEntry f, FunctionEntry g -> compare f.vid g.vid
+    | _                    , FunctionEntry g -> -1 
+    | FunctionEntry g, _                     -> 1
+    | Statement _, Function _  -> -1
+    | Function  _, Statement _ -> 1
+    | Statement s, Statement l -> compare s.sid l.sid
+    | Function  f, Function g  -> compare f.vid g.vid
 
 module Node : Hashtbl.HashedType with type t = node =
 struct

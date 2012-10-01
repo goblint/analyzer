@@ -48,6 +48,7 @@ let main () =
       | "compact" -> GU.result_style := GU.Compact
       | "pretty" -> GU.result_style := GU.Pretty
       | "html" -> GU.result_style := GU.Html
+      | "newhtml" -> GU.result_style := GU.NewHtml
       | "glob" -> GU.dump_global_inv := true
       | _ -> raise (Arg.Bad "invalid result style") 
   in

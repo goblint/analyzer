@@ -1562,12 +1562,6 @@ struct
       
   let pretty' x = pretty_f' short' x
       
-  let isSimple' x =
-    match x with
-      | Trier x -> Trier.isSimple x
-      | Interval x -> Interval.isSimple x
-      | _ -> raise IntDomListBroken
-
   let compare' x y =
     match x, y with
       | Trier x, Trier y -> Trier.compare x y
@@ -1834,9 +1828,7 @@ struct
 
   let toXML_f sf x =
     let esc = Goblintutil.escape in
-    let nodes = List.map toXML' x in
-    let node_leaf = if nodes = [] then "Leaf" else "Node" in
-      Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length x))], nodes)
+      Xml.Element ("Leaf", [("text", esc (sf Goblintutil.summary_length x))], [])
 
   let toXML = toXML_f short
   
@@ -1848,7 +1840,7 @@ struct
     in
     List.fold_left2 f 0
     
-  let isSimple = List.for_all isSimple'
+  let isSimple _ = true
   let hash     = List.fold_left (fun x y -> x lxor (hash' y)) 0 
   let equal    = List.for_all2 equal' 
 

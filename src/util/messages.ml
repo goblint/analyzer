@@ -1,5 +1,6 @@
 open Cil
 open Pretty
+open Htmlutil
 module GU = Goblintutil
 
 
@@ -17,8 +18,13 @@ let get_out name alternative = match !GU.dump_path with
 
 let current_loc = GU.current_loc
 
+let xml_warn = Hashtbl.create 10  
+
 let print_msg msg loc = 
-  if !GU.gccwarn then    
+  if !GU.result_style = GU.NewHtml then
+    let old = try Hashtbl.find xml_warn loc with Not_found -> [] in
+    Hashtbl.replace xml_warn loc (("m",msg)::old)
+  else if !GU.gccwarn then    
     Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
   else if !Goblintutil.eclipse then 
     Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
@@ -26,7 +32,10 @@ let print_msg msg loc =
     Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
 
 let print_err msg loc = 
-  if !GU.gccwarn then    
+  if !GU.result_style = GU.NewHtml then
+    let old = try Hashtbl.find xml_warn loc with Not_found -> [] in
+    Hashtbl.replace xml_warn loc (("e",msg)::old)
+  else if !GU.gccwarn then    
     Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
   else if !Goblintutil.eclipse then 
     Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
@@ -35,7 +44,7 @@ let print_err msg loc =
 
 
 let print_group group_name errors =
-  if !Goblintutil.eclipse then
+  if !Goblintutil.eclipse || !GU.result_style=GU.NewHtml then
     List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
   else
     let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in

@@ -320,6 +320,7 @@ type result_style =
   | Compact (** Output compact XML, for Eclipse plugin *)
   | Pretty (** Pretty-printed text outpu *)
   | Html (** HTML output *)
+  | NewHtml
 
 (** The specified result style *)
 let result_style = ref NoOutput

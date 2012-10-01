@@ -625,9 +625,10 @@ struct
 
   let toXML_f sf x =
     let esc = Goblintutil.escape in
-    let nodes = List.map toXML' x in
-    let node_leaf = if nodes = [] then "Leaf" else "Node" in
-      Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length x))], nodes)
+    if List.for_all isSimple' x then 
+      Xml.Element ("Leaf", [("text", esc (sf Goblintutil.summary_length x))], [])
+    else
+      Xml.Element ("Node", [("text", esc (sf Goblintutil.summary_length x))], List.map toXML' x)
 
   let toXML = toXML_f short
   

@@ -95,14 +95,12 @@ struct
         | Xml.Element ("Loc",attr,[]) ->
             Xml.Element ("Loc", attr, [Range.toXML st])
         | Xml.Element ("Leaf",attr,[]) ->
-	    let summary = 
-	      let w = Goblintutil.summary_length - 4 in
-	      let key_str = ref "" in
-	      let st_str  = ref "" in
-		key_str := Domain.short w key;
-		st_str  := Range.short (w - String.length !key_str) st;
-		!key_str ^ " -> " ^ !st_str in
-
+      	    let summary = 
+      	      let w = Goblintutil.summary_length - 4 in
+      	      let key_str = Domain.short w key in
+      	      let st_str  = Range.short (w - String.length key_str) st in
+      		      key_str ^ " -> " ^ st_str 
+            in
             let attr = [("text", summary)] in begin
               match Range.toXML st with
                 | Xml.Element (_, chattr, children) -> 

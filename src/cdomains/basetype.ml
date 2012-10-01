@@ -21,19 +21,26 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-module ProgLinesFun: Printable.S with type t = location * fundec =
+module ProgLinesFun: Printable.S with type t = location * MyCFG.node * fundec =
 struct
   include Printable.Std
-  type t = location * fundec
+  type t = location * MyCFG.node * fundec
   let isSimple _  = true
   let copy x = x
-  let equal (x,_) (y,_) = ProgLines.equal x y
-  let compare (x,_) (y,_) = ProgLines.compare x y
-  let hash (x,f) = ProgLines.hash x * f.svar.vid
-  let toXML_f _ (x,f) = Xml.Element ("Loc", [("file", x.file); 
-					     ("line", string_of_int x.line); 
+  let equal (x,a,_) (y,b,_) = ProgLines.equal x y && MyCFG.Node.equal a b
+  let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> MyCFG.node_compare a b | x -> x
+  let hash (x,a,f) = ProgLines.hash x * f.svar.vid * MyCFG.Node.hash a
+  let pretty_node () (l,x) =
+    match x with
+      | MyCFG.Statement     s -> dprintf "statement \"%a\" at %a" dn_stmt s ProgLines.pretty l
+      | MyCFG.Function      f -> dprintf "result of %s at %a" f.vname ProgLines.pretty l
+      | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.vname ProgLines.pretty l
+  
+  let toXML_f _ (x,a,f) = Xml.Element ("Loc", [("file", x.file); 
+               ("line", string_of_int x.line); 
+               ("node", sprint 80 (pretty_node () (x,a))); 
 					     ("fun", f.svar.vname)], [])
-  let short w (x,f) = ProgLines.short w x ^ "(" ^ f.svar.vname ^ ")"
+  let short w (x,a,f) = ProgLines.short w x ^ "(" ^ f.svar.vname ^ ")"
   let pretty_f sf () x = text (sf max_int x)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x

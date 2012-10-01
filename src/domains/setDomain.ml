@@ -110,8 +110,11 @@ struct
 
   let toXML_f sf x = 
     let esc = Goblintutil.escape in
-    let elems = List.map Base.toXML (elements x) in
-      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
+    if cardinal x<2 && for_all Base.isSimple x then
+      Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
+    else
+      let elems = List.map Base.toXML (elements x) in
+        Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
 
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x

@@ -12,6 +12,7 @@ type node =
   * the function node as last node that all the returning nodes point to.  So
   * the result of the function call is contained in the fucntion node. *)
 
+val node_compare : node -> node -> int
 val pretty_node : unit -> node -> Pretty.doc
 
 module Node : Hashtbl.HashedType with type t = node

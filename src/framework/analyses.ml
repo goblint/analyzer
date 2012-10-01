@@ -506,12 +506,18 @@ struct
   include Printable.Prod3 (LD) (SD) (Basetype.CilFundec)
   let isSimple _ = false
   let short w (es,x,f) = Spec.es_to_string f es
-  let toXML (_,x,_ as st) = 
+  let toXML (es,x,_ as st) = 
+    let open Xml in
+    let flatten_single = function
+      | Element (_,_,[x]) | x ->  x in
+    let try_replace_text s = function
+    	| Element (tag, attr, children) -> Element (tag, ["text", s], children) 
+    	| x -> x
+    in
     let esc = Goblintutil.escape in
-      match SD.toXML x with 
-	| Xml.Element (tag, attr, children) ->
-            Xml.Element (tag, [("text", esc (short 80 st))], children)
-	| x -> x
+    let ctx = try_replace_text "Context" (flatten_single (Spec.Dom.toXML es)) in
+    let res = try_replace_text "Value" (flatten_single (SD.toXML x)) in
+      Element ("Node",["text",esc (short 80 st)],[ctx;res])            
   let pretty () (_,x,_) = SD.pretty () x
 end
 
@@ -554,13 +560,13 @@ struct
     let full_result = toXML x in
     let fatten_maps  (o:xml list) (x:xml) :xml list = 
       match x with 
-	| Xml.Element (_,_,child) -> child @ o
-	| z -> z::o in
+        | Xml.Element (_,_,child) -> child @ o
+      	| z -> z::o in
 
     let group_loc_ch x = 
       match x with 
-	| Xml.Element ("Loc",b,c) -> Xml.Element ("Loc",b,List.fold_left fatten_maps [] c)
-	| z -> z in
+      	| Xml.Element ("Loc",b,c) -> Xml.Element ("Loc",b,List.fold_left fatten_maps [] c)
+      	| z -> z in
 
     match full_result with 
       | Xml.Element (_,_,child) ->
@@ -570,7 +576,7 @@ struct
  
   let resultXML x = toXML x
 
-  let output table (file: Cil.file) =
+  let output table gtable (file: Cil.file) =
     if !GU.verbose then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
     GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = M.get_out result_name !GU.out in
@@ -586,6 +592,8 @@ struct
         end
       | GU.Html -> 
           Htmldump.print_html out (resultXML (table ())) file
+      | GU.NewHtml -> 
+          Htmldump.printFiles file (resultXML (table ())) (gtable ())
       | _ -> ()
 end
 

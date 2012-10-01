@@ -130,16 +130,18 @@ struct
             let key_str = Domain.short w key in
             let summary = 
               let st_str = Range.short (w - String.length key_str) st in
-          esc key_str ^ " -> " ^ esc st_str in
+                esc key_str ^ " -> " ^ esc st_str 
+            in
 
             let attr = [("text", summary);("id",esc key_str)] in begin
               match Range.toXML st with
                 | Xml.Element (_, chattr, children) -> 
-                    if Range.isSimple st then Xml.Element ("Leaf", attr, [])
+                    if List.length children=0 || Range.isSimple st 
+                    then Xml.Element ("Leaf", attr, [])
                     else Xml.Element ("Node", attr, children)
                 | x -> x
             end
-        | _ -> Xml.Element ("Node", [("text",esc (Domain.short 40 key^" -> "^Range.short 40 st))], [Domain.toXML key; Range.toXML st])
+        | kd -> Xml.Element ("Node", [("text",esc (Domain.short 40 key^" -> "^Range.short 40 st))], [kd; Range.toXML st])
     in
     let module IMap = Map.Make (struct type t = int let compare = Pervasives.compare end) in
     let groups = 

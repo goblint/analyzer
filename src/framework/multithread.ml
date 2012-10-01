@@ -390,7 +390,7 @@ struct
     let add_local_var (n,es) state =
       let loc = MyCFG.getLoc n in
       if loc <> locUnknown then try 
-        let (_, fundec) as p = loc, MyCFG.getFun n in
+        let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
         if Result.mem res p then 
           (* If this source location has been added before, we look it up
            * and add another node to it information to it. *)
@@ -734,7 +734,21 @@ struct
     let vs = List.fold_left (fun s (st,_) -> Solver.VMap.fold (fun (n,_) _ -> VSet.add n) st s) VSet.empty !oldsol in
     ignore (Pretty.printf "# program points = %d\n" (VSet.cardinal vs));*)
     (* output the result if needed *)
-    Result.output (fun () -> solver2source_result !oldsol) file;
+    let global_xml g =
+      let one_glob k v = 
+        let k = Xml.PCData k.vname in
+        let varname = Xml.Element ("td",[],[k]) in
+        let varvalue = Xml.Element ("td",[],[Spec.Glob.Val.toXML v]) in
+        Xml.Element ("tr",[],[varname; varvalue])
+      in
+      let head = 
+        Xml.Element ("tr",[],[Xml.Element ("th",[],[Xml.PCData "var"])
+                             ;Xml.Element ("th",[],[Xml.PCData "value"])])
+      in 
+      Xml.Element ("table",[],head :: Solver.GMap.fold (fun k v b -> one_glob k v :: b) g [])
+    in
+    Result.output (fun () -> solver2source_result !oldsol) 
+          (fun () -> List.map (fun (_,g) -> global_xml g) !oldsol) file;
     if !GU.dump_global_inv then 
       List.iter (fun (_,gs) -> print_globals gs) !oldsol
     
