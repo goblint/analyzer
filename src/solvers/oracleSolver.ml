@@ -785,7 +785,16 @@ struct
   module S2 = ClassicalSolver (Var) (VDom) (G)
   
   let solve (system: system) (initialvars: variable list) (start:(Var.t * VDom.t) list): solution' = 
-    let s1 = S1.solve system initialvars start in
-    let s2 = S2.solve system initialvars start in
-    s1
+    let f s k e1 =
+      let e2 = VMap.find s k in
+      match VDom.leq e1 e2, VDom.leq e2 e1 with
+        | true , true  -> Printf.printf "="
+        | true , false -> Printf.printf "<"
+        | false, true  -> Printf.printf ">"
+        | false, false -> Printf.printf "?"
+    in
+    let s1,g1 = S1.solve system initialvars start in
+    let s2,_ = S2.solve system initialvars start in
+    VMap.iter (f s1) s2;
+    s1,g1
 end
