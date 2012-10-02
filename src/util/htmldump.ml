@@ -1,4 +1,3 @@
-(*  todo: ids to markers *)
 open Pretty
 open Printf;;
 open Xml;;
@@ -6,6 +5,7 @@ open Cil;;
 open Unix;;
 open Htmlutil
 
+(*
 (** Format string for markers.  *)
 let marker_s n id l : ('a, 'c, 'd) format = 
   match l with
@@ -13,10 +13,22 @@ let marker_s n id l : ('a, 'c, 'd) format =
     | "m" -> "<span class=\"marker marker_%s message\" onclick=\"marker_click('%s')\"></span>"
     | "e" -> "<span class=\"marker marker_%s error\" onclick=\"marker_click('%s')\">!</span>"
     | _   -> "<span class=\"marker marker_%s\" onclick=\"marker_click('%s')\">@</span>"
-
+    *)
+    
 (** output of markers *)
-let marker n id l ch = fprintf ch (marker_s n id l) id id
-let marker_str n id l = sprintf (marker_s n id l) id id
+let marker n id l ch = 
+  match l with
+    | "v" -> fprintf ch "<span class=\"marker marker_%s var\" onclick=\"marker_click('%s')\"></span>"  id id
+    | "m" -> fprintf ch "<span class=\"marker marker_%s message\" onclick=\"marker_click('%s')\"></span>" id id
+    | "e" -> fprintf ch "<span class=\"marker marker_%s error\" onclick=\"marker_click('%s')\">!</span>" id id
+    | _   -> fprintf ch "<span class=\"marker marker_%s\" onclick=\"marker_click('%s')\">@</span>" id id
+  
+let marker_str n id l = 
+  match l with
+    | "v" -> sprintf "<span class=\"marker marker_%s var\" onclick=\"marker_click('%s')\"></span>"  id id
+    | "m" -> sprintf "<span class=\"marker marker_%s message\" onclick=\"marker_click('%s')\"></span>" id id
+    | "e" -> sprintf "<span class=\"marker marker_%s error\" onclick=\"marker_click('%s')\">!</span>" id id
+    | _   -> sprintf "<span class=\"marker marker_%s\" onclick=\"marker_click('%s')\">@</span>" id id
 
 (** Hash table from locations. *)
 module MS = Hashtbl.Make (Basetype.ProgLines)  
