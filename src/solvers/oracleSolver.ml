@@ -625,6 +625,7 @@ end
 module MWC1 : Solver = WNSolver 
 module MWC2 (C:CSys) : Oracle = WNSolver (C)
 
+
 module HashMapOracle (Var:Hashtbl.HashedType) (Val:Lattice.S) 
   : Oracle 
   with type Quest.t = [ `Get of Var.t | `Set of Var.t * Val.t ] 
@@ -710,4 +711,81 @@ struct
     GU.may_narrow := false;
     lm, gm
     
+end
+
+module ClassicalSolver
+  (Var: Analyses.VarType) 
+  (VDom: Lattice.S) 
+  (G: Global.S) =
+struct
+  open Solver
+  include Types (Var) (VDom) (G) 
+  module GlobM = Hashtbl.Make (G.Var)
+  module Globs = HashMapOracle (G.Var) (G.Val)
+  
+  let solve (system: system) (initialvars: variable list) (start:(Var.t * VDom.t) list): solution' = 
+    let module C = 
+    struct
+      module V = Var
+      module D = VDom
+      module O = Globs
+      let initvals = start
+      let constr (x:V.t) = 
+        let one_rhs rhs (sigma:V.t -> D.t) (side:V.t -> D.t -> unit) (oracle:O.Quest.t -> O.answ) = 
+          let vf x = sigma x in
+          let gf x = match oracle (`Get x) with `Val v -> v | _ -> failwith "1" in
+          let eff = function 
+            | `G (x, v) -> ignore (oracle (`Set (x,v)))
+            | `L (x, v) -> side x v
+          in
+          let constr, calls = rhs (vf, gf) eff in
+          List.iter (fun x -> ignore (sigma x)) calls;
+          constr
+        in
+        List.map one_rhs (system x)
+    end in
+    let module WConf : SolverConf(C).S =
+    struct
+      open C
+      let start_val _ = D.bot ()
+      module VM = Hashtbl.Make (V)  
+      let update_val v =  D.widen
+    end
+    in
+    let module WSol = GenConfSolver (C) (WConf)  in
+    GU.may_narrow := true;
+    let _, map', _, _, _, _, _ = WSol.solve initialvars in
+    let module NConf : SolverConf(C).S =
+    struct
+      open C
+      let start_val = WSol.VMap.find map' 
+      module VM = Hashtbl.Make (V)  
+      let update_val v =  D.narrow
+    end
+    in
+    let module Sol = GenConfSolver (C) (WConf)  in
+    GU.may_narrow := true;
+    let (oh,_), map, _, _, _, _, _ = Sol.solve initialvars in
+    let gm = GMap.create (GlobM.length oh) (G.Val.bot ()) in
+    let lm = VMap.create (GlobM.length oh) (VDom.bot ()) in
+    GlobM.iter    (GMap.add gm) oh;
+    Sol.VMap.iter (VMap.add lm) map;
+    GU.may_narrow := false;
+    lm, gm
+    
+end
+module Compare
+  (Var: Analyses.VarType) 
+  (VDom: Lattice.S) 
+  (G: Global.S) =
+struct
+  open Solver
+  include Types (Var) (VDom) (G) 
+  module S1 = SolverTransformer (Var) (VDom) (G)
+  module S2 = ClassicalSolver (Var) (VDom) (G)
+  
+  let solve (system: system) (initialvars: variable list) (start:(Var.t * VDom.t) list): solution' = 
+    let s1 = S1.solve system initialvars start in
+    let s2 = S2.solve system initialvars start in
+    s1
 end

@@ -49,6 +49,8 @@ struct
     module WNRR = SolverConSideWNRR.Make(Var)(SD)(Spec.Glob)
     module INTR = Interactive.Make(Var)(SD)(Spec.Glob)
     module NEW  = OracleSolver.SolverTransformer(Var)(SD)(Spec.Glob)
+    module FWTN = OracleSolver.ClassicalSolver(Var)(SD)(Spec.Glob)
+    module CMP  = OracleSolver.Compare(Var)(SD)(Spec.Glob)
     module TD   = TopDown.Make(Var)(SD)(Spec.Glob)
     let solve () : system -> variable list -> (variable * var_domain) list -> solution'  = 
       match !GU.solver with 
@@ -58,6 +60,8 @@ struct
         | "solverConSideWNRR" -> WNRR.solve
         | "interactive"     -> INTR.solve
         | "new"             -> NEW.solve 
+        | "fwtn"            -> FWTN.solve 
+        | "cmp"            -> CMP.solve 
         | "TD"             -> TD.solve 
         | _ -> EWC.solve 
   end
