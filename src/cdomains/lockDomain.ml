@@ -1,7 +1,7 @@
 module Addr = ValueDomain.Addr
 module Equ = MusteqDomain.Equ
 module Exp = Exp.Exp
-module ID = ValueDomain.ID
+module IdxDom = ValueDomain.IndexDomain
 
 open Cil
 open Pretty
@@ -69,17 +69,17 @@ struct
      | `Field (x,y) -> concrete_offset y
      | `Index (x,y) -> 
 (*         if !Goblintutil.regions then *)
-(*           ID.equal x (ID.of_int Goblintutil.inthack) *)
+(*           IdxDom.equal x (IdxDom.of_int Goblintutil.inthack) *)
 (*         else *)
-           ID.is_int x && concrete_offset y
+           IdxDom.is_int x && concrete_offset y
 
   let rec may_be_same_offset of1 of2 =
     match of1, of2 with
       | `NoOffset , `NoOffset -> true
       | `Field (x1,y1) , `Field (x2,y2) -> x1.fcomp.ckey = x2.fcomp.ckey && may_be_same_offset y1 y2
       | `Index (x1,y1) , `Index (x2,y2) 
-        -> (not (ID.is_int x1) || not (ID.is_int x2)) 
-        || ID.equal x1 x2 && may_be_same_offset y1 y2
+        -> (not (IdxDom.is_int x1) || not (IdxDom.is_int x2)) 
+        || IdxDom.equal x1 x2 && may_be_same_offset y1 y2
       | _ -> false
 
   let add (addr,rw) set = 

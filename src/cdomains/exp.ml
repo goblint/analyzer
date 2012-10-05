@@ -302,7 +302,7 @@ struct
 *)	| Addr :: Deref :: x -> ees_to_offs x
 	| Deref :: Addr :: x -> ees_to_offs x
 	| Field f :: x -> `Field (f,ees_to_offs x)
-	| Index (Cil.Const (CInt64 (i,_,_))) :: x -> `Index (ValueDomain.ID.of_int i,ees_to_offs x)
+	| Index (Cil.Const (CInt64 (i,_,_))) :: x -> `Index (ValueDomain.IndexDomain.of_int i,ees_to_offs x)
 	| Index i :: x -> `NoOffset 
 	| x  -> raise NotSimpleEnough
   

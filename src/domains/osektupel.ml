@@ -13,6 +13,7 @@ let short w (a,b,c,d) =
   (string_of_int d) ^ ")"
 
 include Printable.PrintSimple (struct type t' = t let short = short let name = name end)
+let pretty () x = Pretty.nil
 
 let bot () = ((-1),(-1),(-1),(-1))
 let is_bot (a1,a2,a3,a4) = ((a1,a2,a3,a4) == bot())

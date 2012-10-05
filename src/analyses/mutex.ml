@@ -6,6 +6,7 @@ module Lockset = LockDomain.Lockset
 module Mutexes = LockDomain.Mutexes
 module AD = ValueDomain.AD
 module ID = ValueDomain.ID
+module IdxDom = ValueDomain.IndexDomain
 module LockingPattern = Exp.LockingPattern
 module Exp = Exp.Exp
 (*module BS = Base.Spec*)
@@ -122,15 +123,15 @@ struct
   let rec conv_offset x =
     match x with
       | `NoOffset    -> `NoOffset
-      | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.ID.of_int i, conv_offset o)
-      | `Index (_,o) -> `Index (ValueDomain.ID.top (), conv_offset o)
+      | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
+      | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
       | `Field (f,o) -> `Field (f, conv_offset o)
 
   let rec conv_const_offset x =
     match x with
       | Cil.NoOffset    -> `NoOffset
-      | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.ID.of_int i, conv_const_offset o)
-      | Cil.Index (_,o) -> `Index (ValueDomain.ID.top (), conv_const_offset o)
+      | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+      | Cil.Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
       | Cil.Field (f,o) -> `Field (f, conv_const_offset o)
 
   let rec replace_elem (v,o) q ex =
@@ -290,11 +291,11 @@ struct
      quantified access offset [op] and lockset and returns a quantified 
      lock lval *)
   let per_elementize oa op (locks:Dom.t) =
-    let wildcard_ok ip il ia = ID.is_top ip && ID.equal ia il in
+    let wildcard_ok ip il ia = IdxDom.is_top ip && IdxDom.equal ia il in
     let rec no_wildcards x =
       match x with
         | `NoOffset -> true
-        | `Index (i,o) -> not (ID.is_top i) && no_wildcards o
+        | `Index (i,o) -> not (IdxDom.is_top i) && no_wildcards o
         | `Field (_,o) -> no_wildcards o
     in
     let rec get_perel_lock_offs oa op ol =
@@ -304,7 +305,7 @@ struct
             when wildcard_ok ip il ia ->
             `Index (ip,get_perel_lock_offs oa op ol)            
         | `Index (ia,oa), `Index (ip,op), `Index (il,ol) 
-            when not (ID.is_top ip) ->
+            when not (IdxDom.is_top ip) ->
             `Index (il,get_perel_lock_offs oa op ol)  
         | _, `Index (ip,op), _ 
             when no_wildcards ol ->
@@ -793,8 +794,8 @@ struct
       let v = 
       match a, o with
         | Offs.Offs `Index (i1,a), `Index (i2,o) 
-            when ValueDomain.ID.equal i1 i2
-            -> `Index (ValueDomain.ID.of_int GU.inthack, offs_perel o (Offs.Offs a))
+            when IdxDom.equal i1 i2
+            -> `Index (IdxDom.of_int GU.inthack, offs_perel o (Offs.Offs a))
         | Offs.Offs `Index (i,a), `Index (_,o) -> `Index (i,offs_perel o (Offs.Offs a))
         | Offs.Offs `Field (_,a), `Field (f,o) -> `Field (f,offs_perel o (Offs.Offs a)) 
         | _ -> o

@@ -115,8 +115,8 @@ struct
   let rec conv_const_offset x =
     match x with
       | Cil.NoOffset    -> `NoOffset
-      | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.ID.of_int i, conv_const_offset o)
-      | Cil.Index (_,o) -> `Index (ValueDomain.ID.top (), conv_const_offset o)
+      | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+      | Cil.Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
       | Cil.Field (f,o) -> `Field (f, conv_const_offset o)
   
   let one_perelem ask (e,a,l) es =
@@ -135,8 +135,8 @@ struct
     let rec conv_const_offset x =
       match x with
         | Cil.NoOffset    -> `NoOffset
-        | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.ID.of_int i, conv_const_offset o)
-        | Cil.Index (_,o) -> `Index (ValueDomain.ID.top (), conv_const_offset o)
+        | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+        | Cil.Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
         | Cil.Field (f,o) -> `Field (f, conv_const_offset o)
     in
     match m with

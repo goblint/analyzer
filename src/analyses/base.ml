@@ -8,6 +8,7 @@ module Q = Queries
 
 module GU = Goblintutil
 module ID = ValueDomain.ID
+module IdxDom = ValueDomain.IndexDomain
 module IntSet = SetDomain.Make (IntDomain.Integers)
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
@@ -137,7 +138,7 @@ struct
       if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then 
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
-        if not effect then nst
+        if not effect && not (is_private a x) then nst
         else begin
           let get x st = 
             match CPA.find x st with
@@ -222,6 +223,11 @@ struct
    * Abstract evaluation functions
    **************************************************************************)
 
+   let iDtoIdx n = 
+     match ID.to_int n with 
+         None -> IdxDom.top () 
+       | Some n -> IdxDom.of_int n 
+  
   (* Evaluate Cil.binop for two abstract values: *)
   let evalbinop (op: binop) (a1:value) (a2:value): value = 
     (* We define a conversion function for the easy cases when we can just use
@@ -250,10 +256,10 @@ struct
     (* An auxiliary function for ptr arithmetic on array values. *)
     in let addToAddr n (addr:Addr.t) =
       match Addr.to_var_offset addr with
-        | [x,`Index (i, offs)] when ID.is_int i -> 
-            Addr.from_var_offset (x, `Index (ID.add i n, offs))
+        | [x,`Index (i, offs)] when IdxDom.is_int i -> 
+            Addr.from_var_offset (x, `Index (IdxDom.add i (iDtoIdx n), offs))
         | [x,`NoOffset] ->
-            Addr.from_var_offset (x, `Index (n, `NoOffset))          
+            Addr.from_var_offset (x, `Index (iDtoIdx n, `NoOffset))          
         | [_] -> raise Top 
         | _ -> addr
     in
@@ -398,7 +404,7 @@ struct
       (* CIL's very nice implicit conversion of an array name [a] to a pointer
        * to its first element [&a[0]]. *)
       | Cil.StartOf lval -> 
-          let array_ofs = `Index (ID.of_int 0L, `NoOffset) in
+          let array_ofs = `Index (IdxDom.of_int 0L, `NoOffset) in
           let array_start ad = 
             match Addr.to_var_offset ad with
               | [x, offs] -> Addr.from_var_offset (x, add_offset offs array_ofs) 
@@ -435,8 +441,8 @@ struct
       | Cil.Index (exp, ofs) -> 
           let exp_rv = eval_rv a gs st exp in
           match exp_rv with
-            | `Int i -> `Index (i, convert_offset a gs st ofs)
-            | `Top   -> `Index (ID.top (), convert_offset a gs st ofs) 
+            | `Int i -> `Index (iDtoIdx i, convert_offset a gs st ofs)
+            | `Top   -> `Index (IdxDom.top (), convert_offset a gs st ofs) 
             | _ -> M.bailwith "Index not an integer value"
   (* Evaluation of lvalues to our abstract address domain. *)
   and eval_lv (a: Q.ask) (gs:glob_fun) st (lval:lval): AD.t = 
@@ -649,13 +655,14 @@ struct
       in      
         match derived_invariant exp tv with
           | Some (lval, value) -> 
-              if M.tracing then M.traceu "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
+              if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
               let addr = eval_lv a gs st lval in
                if (AD.is_top addr) then
                          st
                        else
                          let oldval = get a gs st addr in
                          let new_val = apply_invariant oldval value in
+                         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
                 (* make that address meet the invariant, i.e exclusion sets
                  * will be joined *)
                            if is_some_bot new_val 
@@ -805,7 +812,7 @@ struct
         | `Union (t,e) -> reachable_from_value e
         (* For arrays, we ask to read from an unknown index, this will cause it
          * join all its values. *)
-        | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (ID.top ()))
+        | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (IdxDom.top ()))
         | `Blob e -> reachable_from_value e
         | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
         | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
@@ -917,7 +924,7 @@ struct
   let convertToQueryLval x =
     let rec offsNormal o = 
       let toInt i = 
-        match ValueDomain.ID.to_int i with
+        match IdxDom.to_int i with
           | Some x -> Const (CInt64 (x,IInt, None))
           | _ -> mkCast (Const (CStr "unknown")) Cil.intType
                                        
@@ -1193,7 +1200,7 @@ struct
           | Some lv -> 
               let heap_var = BaseDomain.get_heap_var !GU.current_loc in
                 [map_true (set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
-                                           (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (ID.of_int 0L, `NoOffset))))])]
+                                           (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))])]
           | _ -> [map_true st]
         end
       (* Handling the assertions *)

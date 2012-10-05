@@ -3,10 +3,11 @@ open Pretty
 (*module ID: IntDomain.ExclList = IntDomain.None*)
 (* module ID: IntDomain.S = IntDomain.Trier   *)
 module ID: IntDomain.S = IntDomain.IntDomList
+module IndexDomain: IntDomain.S = ID
 (* module ID: IntDomain.S = IntDomain.IncExcInterval *)
-module AD = AddressDomain.AddressSet (ID)
-module Addr = Lval.NormalLat (ID)
-module Offs = Lval.Offset (ID)
+module AD = AddressDomain.AddressSet (IndexDomain)
+module Addr = Lval.NormalLat (IndexDomain)
+module Offs = Lval.Offset (IndexDomain)
 module M = Messages
 module GU = Goblintutil
 
@@ -50,7 +51,7 @@ module rec Compound: S with type t = [
     | `Blob of Blobs.t
     | `List of Lists.t
     | `Bot
-    ] and type offs = (fieldinfo,ID.t) Lval.offs = 
+    ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs = 
 struct 
   type t = [
     | `Top
@@ -67,7 +68,7 @@ struct
   include Printable.Std
   let name () = "compound"
 
-  type offs = (fieldinfo,ID.t) Lval.offs
+  type offs = (fieldinfo,IndexDomain.t) Lval.offs
 
   exception Unsupported of string
   let bot () = `Bot
@@ -292,11 +293,11 @@ struct
       |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value voidType x) n)
       | Cil.TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n)
       | Cil.TArray (t,_,_), `Array n      -> 
-          let v = invalidate_value t (CArrays.get n (ID.top ())) in
-            `Array (CArrays.set n (ID.top ()) v)
+          let v = invalidate_value t (CArrays.get n (IndexDomain.top ())) in
+            `Array (CArrays.set n (IndexDomain.top ()) v)
       |                 _ , `Array n      -> 
-          let v = invalidate_value voidType (CArrays.get n (ID.top ())) in
-            `Array (CArrays.set n (ID.top ()) v)
+          let v = invalidate_value voidType (CArrays.get n (IndexDomain.top ())) in
+            `Array (CArrays.set n (IndexDomain.top ()) v)
       |                 t , `Blob n       -> `Blob (invalidate_value t n)
       |                 _ , `List n       -> `Top
       |                 t , _             -> top_value t
@@ -339,7 +340,7 @@ struct
           match x with 
             | `Array x -> eval_offset f (CArrays.get x idx) offs
             | `Address _ ->  eval_offset f x offs (* this used to be `blob `address -> we ignore the index *)
-            | x when ID.to_int idx = Some 0L -> eval_offset f x offs
+            | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
@@ -383,7 +384,7 @@ struct
                             `Struct (Structs.top ()), offs
                         | `Field (fld, _) -> `Union (Unions.top ()), offs
                         | `NoOffset -> top (), offs
-                        | `Index (idx, _) when ID.equal idx (ID.of_int 0L) -> 
+                        | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int 0L) -> 
                             (* Why does cil index unions? We'll just pick the first field. *)
                             top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset) 
                         | _ -> M.warn_each "Why are you indexing on a union? Normal people give a field name."; 
@@ -400,7 +401,7 @@ struct
               | `Array x' ->
                   let nval = update_offset (CArrays.get x' idx) offs value in
                     `Array (CArrays.set x' idx nval)
-              | x when ID.to_int idx = Some 0L -> update_offset x offs value
+              | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value
               | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value))
               | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
               | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
@@ -414,8 +415,8 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t = 
   UnionDomain.Simple (Compound)
 
-and CArrays: ArrayDomain.S with type idx = ID.t and type value = Compound.t = 
-  ArrayDomain.Trivial (Compound) (ID) 
+and CArrays: ArrayDomain.S with type idx = IndexDomain.t and type value = Compound.t = 
+  ArrayDomain.Trivial (Compound) (IndexDomain) 
 
 and Blobs: Lattice.S with type t = Compound.t = Blob (Compound) 
 
