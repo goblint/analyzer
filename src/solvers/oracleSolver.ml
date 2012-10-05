@@ -358,6 +358,12 @@ struct
     init sigma;
     (oracle, sigma, sigmaw, todo, infl, inflo, unsafe)
     
+  let change_counter = VMap.create 1024 (-1)
+  let max_n = ref 50 
+  let print_diff v d d' = 
+    ignore (printf "Variable changed %d times:\n%a\nfrom:\n%a\nto:\n%a\n" !max_n V.pretty_trace v D.pretty d D.pretty d');
+    max_n := !max_n * 10
+    
   let solve_list (oracle, sigma, sigmaw, todo, infl, inflo, unsafe:t) (xs:V.t list) = 
     let worklist = ref xs in
     let rec one_var (dirty:bool) (x:V.t) = 
@@ -369,6 +375,7 @@ struct
           VMap.remove todo x;
           rx
         end else begin
+          (*VMap.add change_counter x 0;*)
           if debug then ignore (printf "(is NOT in sigma)\n");
           VMap.replace sigma x (WN.start_val x);
           zipNumRev (C.constr x)
@@ -390,12 +397,15 @@ struct
         let oldval = VMap.find sigma x in
         let newval = IMap.fold (fun _ -> D.join) (VMap.find sigmaw x) (D.bot ()) in
         if not (D.equal newval oldval) then begin
+          (*VMap.replace change_counter x (VMap.find change_counter x + 1);
+          if !max_n <= VMap.find change_counter x then print_diff x oldval newval*)
           (*let newval = WN.update_val x oldval newval in*)
           if debug then ignore (printf " with a new value:\n%a\n" D.pretty newval);        
           VMap.replace sigma x newval;
           handle_change x
-        end else 
-          if debug then ignore (printf " but it does not change\n");        
+        end else begin
+          if debug then ignore (printf " but it does not change\n")
+        end        
       in
       let update_rhs_value i x d = 
         if debug then ignore (printf "update rhs #%d for %a to:\n%a\n" i V.pretty_trace x D.pretty d);        
