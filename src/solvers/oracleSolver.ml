@@ -677,7 +677,7 @@ end
 module SolverTransformer
   (Var: Analyses.VarType) 
   (VDom: Lattice.S) 
-  (G: Global.S) =
+  (G: Glob.S) =
 struct
   open Solver
   include Types (Var) (VDom) (G) 
@@ -726,7 +726,7 @@ end
 module ClassicalSolver
   (Var: Analyses.VarType) 
   (VDom: Lattice.S) 
-  (G: Global.S) =
+  (G: Glob.S) =
 struct
   open Solver
   include Types (Var) (VDom) (G) 
@@ -787,7 +787,7 @@ end
 module Compare
   (Var: Analyses.VarType) 
   (VDom: Lattice.S) 
-  (G: Global.S) =
+  (G: Glob.S) =
 struct
   open Solver
   include Types (Var) (VDom) (G) 

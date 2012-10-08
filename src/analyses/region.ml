@@ -26,7 +26,7 @@ struct
         
     let toXML s  = toXML_f short s
   end
-  module Glob = Global.Make (RegPart) 
+  module Glob = Glob.Make (RegPart) 
 
   type glob_fun = Glob.Var.t -> Glob.Val.t
 

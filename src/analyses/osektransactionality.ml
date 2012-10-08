@@ -8,7 +8,7 @@ struct
 
   let name = "OSEK trasactionality"
   module Dom  = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
-  module Glob = Global.Make (Lattice.Unit)
+  module Glob = Glob.Make (Lattice.Unit)
   module StringSet = Set.Make (String)
   let offpry = Osek.Spec.offensivepriorities
   let funs = Hashtbl.create 16 (* ({vars},tuple) *)

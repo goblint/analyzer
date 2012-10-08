@@ -27,7 +27,7 @@ struct
   exception Top
 
   module Dom = MusteqDomain.Equ
-  module Glob = Global.Make (Lattice.Unit)
+  module Glob = Glob.Make (Lattice.Unit)
 
   let name = "Equalities"
 

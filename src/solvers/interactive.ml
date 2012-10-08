@@ -24,7 +24,7 @@ module GU = Goblintutil
 module Make 
   (Var: Analyses.VarType)  (* the equation variables *)
   (VDom: Lattice.S) (* the domain *)
-  (G: Global.S) =
+  (G: Glob.S) =
 struct
   module Glob = G.Var
   module GDom = G.Val

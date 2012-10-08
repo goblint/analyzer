@@ -10,7 +10,7 @@ struct
 
   let name = "Escaped Variables"
   module Dom  = EscapeDomain.EscapedVars
-  module Glob = Global.Make (Lattice.Unit)
+  module Glob = Glob.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
 

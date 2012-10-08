@@ -12,7 +12,7 @@ struct
   
   module Flag = ConcDomain.Trivial
   module Dom  = Flag
-  module Glob = Global.Make (Lattice.Unit)
+  module Glob = Glob.Make (Lattice.Unit)
 
   let name = "multi-threaded"
 

@@ -7,7 +7,7 @@ struct
   include Analyses.DefaultSpec
 
   module Dom = ConcDomain.ThreadDomain
-  module Glob = Global.Make (Lattice.Unit) (* no global state *)
+  module Glob = Glob.Make (Lattice.Unit) (* no global state *)
   
   (* query_lv and eval_lv are used for resolving function pointers
      into function bodies. *)

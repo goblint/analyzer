@@ -28,7 +28,7 @@ struct
     let toXML s  = toXML_f short s
   end
   
-  module Glob = Global.Make (Lattice.Unit)
+  module Glob = Glob.Make (Lattice.Unit)
 
   let name = "Partition"
 

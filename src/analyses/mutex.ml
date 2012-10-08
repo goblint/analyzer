@@ -50,7 +50,7 @@ let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphor
 
 module type SpecParam =
 sig
-  module Glob: Global.S
+  module Glob: Glob.S
   val effect_fun: Lockset.t -> Glob.Val.t
 end
 

@@ -34,7 +34,7 @@ struct
     let toXML x = toXML_f short x
   end
   
-  module Glob = Global.Make (ContainDomain.Globals)
+  module Glob = Glob.Make (ContainDomain.Globals)
   
     let add_analyzed_fun f ht = (*build list of funs that actually have been analyzed*)
        let get_pure_name x=

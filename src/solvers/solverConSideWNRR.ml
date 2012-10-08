@@ -7,7 +7,7 @@ module GU = Goblintutil
 module Make 
   (Var: Analyses.VarType)  
   (VDom: Lattice.S) 
-  (G: Global.S) =
+  (G: Glob.S) =
 struct
   module Glob = G.Var
   module GDom = G.Val

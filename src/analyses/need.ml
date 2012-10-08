@@ -2,12 +2,15 @@ open Cil
 open Pretty
 open Analyses
 
-module Spec =
+module Spec 
+  : Analyses.Spec 
+  with type Dom.t = unit 
+   and type Glob.Val.t = unit =
 struct
   include Analyses.DefaultSpec
 
-  let name = "stack trace"
-  module Dom  = StackDomain.Dom
+  let name = "Unit analysis"
+  module Dom  = Lattice.Unit
   module Glob = Glob.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
@@ -20,7 +23,7 @@ struct
     ctx.local
   
   let body ctx (f:fundec) : Dom.t = 
-    if f.svar.vname = "goblin_initfun" then ctx.local else Dom.push f.svar ctx.local
+    ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     ctx.local
@@ -29,7 +32,7 @@ struct
     [ctx.local,ctx.local]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-    ctx.local
+    au
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     [ctx.local,Cil.integer 1, true]
@@ -39,16 +42,16 @@ struct
   let exitstate  () = Dom.top ()
 end
 
-module UninitMCP = 
+
+module ThreadMCP = 
   MCP.ConvertToMCPPart
         (Spec)
-        (struct let name = "stack_trace" 
+        (struct let name = "lval_need" 
                 let depends = []
                 type lf = Spec.Dom.t
-                let inject_l x = `Stack x
-                let extract_l x = match x with `Stack x -> x | _ -> raise MCP.SpecificationConversionError
+                let inject_l () = `Need ()
+                let extract_l = function `Need x -> x | _ -> raise MCP.SpecificationConversionError
                 type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+                let inject_g () = `None  
+                let extract_g = function `None -> () | _ -> raise MCP.SpecificationConversionError
          end)
-

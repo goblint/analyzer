@@ -16,7 +16,7 @@ struct
   module LD   = ShapeDomain.Dom
   module Dom  = Lattice.Prod (ShapeDomain.Dom) (Re.Dom)
   module GD   = Lattice.Prod (IntDomain.Booleans) (Re.Glob.Val)
-  module Glob = Global.Make (GD)
+  module Glob = Glob.Make (GD)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
   

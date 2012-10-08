@@ -16,7 +16,7 @@ struct
   exception Top
 
   module Dom = LockDomain.Symbolic
-  module Glob = Global.Make (Lattice.Unit)
+  module Glob = Glob.Make (Lattice.Unit)
 
   let name = "Symbolic locks"
 

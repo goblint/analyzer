@@ -35,6 +35,7 @@ type local_state = [
     | `Shape       of ShapeDomain.Dom.t*RegionDomain.RegionDom.t
     | `Stack       of StackDomain.Dom.t
     | `Flag        of ConcDomain.Trivial.t
+    | `Need        of unit
     ]
 
 type global_state = [
@@ -118,7 +119,7 @@ module type Spec =
 sig
   module Dom : Lattice.S   
   (** THE data structure *)
-  module Glob : Global.S
+  module Glob : Glob.S
   (** global variable and value type*)    
   
     

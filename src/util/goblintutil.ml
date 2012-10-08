@@ -50,7 +50,8 @@ let default_conf () =
                               ;"stack_trace", Build.bool false
                               ;"shape"      , Build.bool true
                               ;"var_eq"     , Build.bool false
-                              ;"mtflag"     , Build.bool false] in
+                              ;"mtflag"     , Build.bool false
+                              ;"lval_need"  , Build.bool false] in
   let def_ctx = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool true
                              ;"OSEK2"      , Build.bool false
@@ -67,7 +68,8 @@ let default_conf () =
                              ;"containment", Build.bool true
                              ;"shape"      , Build.bool true
                              ;"var_eq"     , Build.bool true
-                             ;"mtflag"     , Build.bool true] in
+                             ;"mtflag"     , Build.bool true
+                             ;"lval_need"  , Build.bool true] in
   Build.objekt ["int_domain" , def_int
                ;"analyses"   , def_ana
                ;"sensitive"  , def_path

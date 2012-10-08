@@ -4,7 +4,7 @@ module GU = Goblintutil
 module Types
   (Var: Analyses.VarType) 
   (VDom: Lattice.S) 
-  (G: Global.S) =
+  (G: Glob.S) =
 struct
   module VMap = Hash.Make(Var)  
   module GMap = Hash.Make(G.Var)

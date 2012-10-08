@@ -15,7 +15,7 @@ struct
   module Addr = ValueDomain.Addr
   
   module Dom = ValueDomain.AddrSetDomain
-  module Glob = Global.Make (Lattice.Unit)
+  module Glob = Glob.Make (Lattice.Unit)
   
   type trans_in  = Dom.t 
   type trans_out = Dom.t 
