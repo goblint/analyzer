@@ -358,7 +358,7 @@ struct
     init sigma;
     (oracle, sigma, sigmaw, todo, infl, inflo, unsafe)
     
-  let change_counter = VMap.create 1024 (-1)
+  let change_counter : int VMap.t = VMap.create 1024 (-1)
   let max_n = ref 50 
   let print_diff v d d' = 
     ignore (printf "Variable changed %d times:\n%a\nfrom:\n%a\nto:\n%a\n" !max_n V.pretty_trace v D.pretty d D.pretty d');

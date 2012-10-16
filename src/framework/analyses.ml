@@ -580,7 +580,7 @@ struct
   let output table gtable (file: Cil.file) =
     if !GU.verbose then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
     GU.result_regexp := (Str.regexp (!GU.result_filter));
-    let out = M.get_out result_name !GU.out in
+    let out = Messages.get_out result_name !GU.out in
     match !GU.result_style with
       | GU.Pretty -> ignore (fprintf out "%a\n" pretty (table ()))
       | GU.Indented -> begin

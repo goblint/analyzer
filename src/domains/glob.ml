@@ -5,6 +5,7 @@ sig
   sig
     include Hashtbl.HashedType
     val pretty_trace: unit -> t -> Pretty.doc
+    val compare : t -> t -> int
   end with type t = Basetype.Variables.t
 
 end

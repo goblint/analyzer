@@ -28,14 +28,14 @@ DOCFLAGS = @DOCFLAGS@ -stars -t 'Goblint API documentation' -dot-reduce -dot -ht
 PROG_MODULES = \
 	version config json jsonParser jsonLexer htmlutil css_template js_template stylesheet script \
 	goblintutil messages printer cilfacade myCFG xmldump \
-	printable lattice setDomain mapDomain osektupel\
+	printable lattice setDomain mapDomain osektupel \
 	basetype intDomain lval addressDomain arrayDomain listDomain htmldump \
 	structDomain unionDomain valueDomain exp queries partitionDomain memoryDomain \
 	musteqDomain regionDomain concDomain lockDomain  baseDomain escapeDomain \
 	accessDomain containDomain myLiveness shapeDomain stackDomain \
 	hash progress analyses libraryFunctions glob cache generic \
 	solver sharirPnueli effectWCon effectWNCon solverConSideRR solverConSideWNRR interactive oracleSolver topDown \
-	multithread compose mCP access varEq symbLocks thread threadEscape \
+	multithread compose mCP access varEq symbLocks thread threadEscape constraints \
 	base region owner unit mutex osek osektransactionality uninit stackTrace \
 	malloc_null memLeaks contain shapes mTFlag report need
 

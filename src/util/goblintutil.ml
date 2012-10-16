@@ -300,6 +300,9 @@ let old_accesses = ref true
 (** The file where everything is output *)
 let out = ref stdout
 
+(** use the new framework *)
+let new_fwk = ref false
+
 (* Type invariant variables. *)
 let type_inv_tbl = Hashtbl.create 13 
 let type_inv (c:compinfo) : varinfo =

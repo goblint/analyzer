@@ -183,7 +183,8 @@ let main () =
                  ("--full-context", Arg.Set GU.full_context, " Do not side-effect function entries.");
                  ("--addr-context", Arg.Set GU.addr_contexts, " Ignore non-address values in function contexts.");
                  ("--debug-sockets", Arg.Tuple [Arg.Set_int GU.command_port;Arg.Int GU.open_sockets], "<port> <port> Eclipse debuger plugin support.");
-                 ] in
+                 ("--new_fwk", Arg.Set GU.new_fwk, " Use the new framework.")                  
+    ] in
   let jsonRegex = Str.regexp ".+\\.json$" in
   let recordFile fname = 
     if Str.string_match jsonRegex fname 0
@@ -286,6 +287,7 @@ let main () =
                                                    L.pretty stf L.pretty exf L.pretty otf);
         (* and here we run the analysis! *)
         if !GU.result_style = GU.Html then Report.prepare_html_report ();
+        if !GU.new_fwk then analyze := Constraints.analyze ;
         Stats.time "analysis" (!analyze merged_AST) funs;
         Report.do_stats !fileNames
     end

@@ -87,7 +87,7 @@ struct
 
   let sync ctx: Dom.t * glob_diff = 
     let cpa,fl = ctx.local in
-    let cpa, diff = if Flag.is_multi fl then globalize ctx.ask cpa else (cpa,[]) in
+    let cpa, diff = if !GU.earlyglobs || Flag.is_multi fl then globalize ctx.ask cpa else (cpa,[]) in
       (cpa,fl), diff
 
   (** [get st addr] returns the value corresponding to [addr] in [st] 

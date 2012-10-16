@@ -58,9 +58,9 @@ struct
       | n -> n
   let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1
   let category (u,_) = B.category u
-  let hash (u,v) = B.hash u * 13 * v
-  let pretty_trace () (u,v) =
-    Pretty.dprintf "(%a,%n)" B.pretty_trace u  v
+  let hash (u,v) = B.hash u + 131233 * v
+  let pretty_trace () (u,v:t) =
+    Pretty.dprintf "(%a,%d)" B.pretty_trace u v
     
   let line_nr (n,_) = B.line_nr n 
   let file_name (n,_) = B.file_name n 
@@ -90,7 +90,7 @@ struct
 
   let conv x = 
     match S.system x with
-      | [_] -> (x,0)
+      | [] | [_] -> (x,0)
       | _ -> (x,-1)
     
   let system (x,n) : ((v -> d) -> (v -> d -> unit) -> d) option = 
@@ -115,18 +115,82 @@ end
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericLocalBoxSolver =
   functor (S:GenericEqSystem) ->
-  functor (H:Hashtbl.S with type key=S.v) ->
+  functor (H:Hash.H with type key=S.v) ->
 sig
   (** The hash-map [solve xs vs] is a local solution for interesting variables [vs],
       reached from starting values [xs].  *)
   val solve : (S.v*S.d) list -> S.v list -> S.d H.t
 end
 
+module SolverStats (S:GenericEqSystem) =
+struct
+  open S
+  open Messages
+  
+  module GU = Goblintutil
+
+  let vars = ref 0
+  let evals = ref 0
+  let stack_d = ref 0
+  let full_trace = false
+  let start_c = 0  
+  let max_c   : int ref = ref (-1) 
+  let max_var : Var.t option ref = ref None 
+  
+  let is_some = function 
+    | Some _ -> true
+    | _ -> false
+  
+  let from_some = function
+    | Some x -> x
+    | None -> raise Not_found
+  
+  let histo = Hashtbl.create 1024
+  let increase (v:Var.t) = 
+    let set v c = 
+      if not full_trace && (c > start_c && c > !max_c && (not (is_some !max_var) || not (Var.equal (from_some !max_var) v))) then begin
+        if tracing then trace "sol" "Switched tracing to %a\n" Var.pretty_trace v;
+        max_c := c;
+        max_var := Some v
+      end
+    in
+    try let c = Hashtbl.find histo v in
+        set v (c+1);
+        Hashtbl.replace histo v (c+1)
+    with Not_found -> begin
+        set v 1;
+        Hashtbl.add histo v 1
+    end
+
+  let start_event () = ()
+  let stop_event () = ()
+  
+  let new_var_event x = 
+    vars := !vars + 1;
+    if tracing
+    then trace "sol" "New %a\n" Var.pretty_trace x
+
+  let get_var_event x = ()
+    
+  let eval_rhs_event x = 
+    evals := !evals + 1;
+    if !GU.solver_progress then (incr stack_d; print_int !stack_d; flush stdout)
+    
+  let update_var_event x o n = 
+    if tracing then increase x;
+    if full_trace || ((not (Dom.is_bot o)) && is_some !max_var && Var.equal (from_some !max_var) x) then begin
+      if tracing then tracei "sol" "(%d) Entered %a.\n" !max_c Var.pretty_trace x;
+      if tracing then traceu "sol" "%a\n\n" Dom.pretty_diff (n, o)
+    end
+    
+end
+
 (** use this if your [box] is [join] *)
 module DirtyBoxSolver : GenericLocalBoxSolver =
   functor (S:GenericEqSystem) ->
-  functor (H:Hashtbl.S with type key = S.v) ->
+  functor (H:Hash.H with type key = S.v) ->
 struct
+  include SolverStats (S)
 
   let solve xs vs = 
     (* the stabile "set" *)
@@ -134,35 +198,38 @@ struct
     (* the influence map *)
     let infl = H.create 1024 in
     (* the solution map *)
-    let sol  = H.of_enum (List.enum xs) in
+    let sol  = H.create 1024 in
     
     (* solve the variable [x] *)
     let rec solve_one x = 
       (* solve [x] only if it is not stable *)
       if not (H.mem stbl x) then begin
         (* initialize [sol] for [x], if [x] is [sol] then we have "seen" it *)
-        if not (H.mem sol x) then H.add sol x (S.Dom.bot ());
+        if not (H.mem sol x) then (new_var_event x; H.add sol x (S.Dom.bot ()));
         (* mark [x] stable *)
         H.replace stbl x ();
         (* set the new value for [x] *)
+        eval_rhs_event x;
         Option.may (fun f -> set x (f (eval x) set)) (S.system x)
       end
       
     (** return the value for [y] and mark its influence on [x] *)
     and eval x y =
       (* solve variable [y] *)
+      get_var_event y;
       solve_one y;
       (* add that [x] will be influenced by [y] *)
       H.replace infl y (x :: H.find_default infl y []);
       (* return the value for [y] *)
-      H.find sol y
+      H.find sol y 
       
     and set x d =
       (* solve variable [y] if it has not been seen before *)
       if not (H.mem sol x) then solve_one x;
       (* do nothing if we have stabilized [x] *)
       let old = H.find sol x in
-      if S.Dom.equal old d then begin
+      update_var_event x old d;
+      if not (S.Dom.equal old d) then begin
         (* set the new value for [x] *)
         H.replace sol x (S.box x old d);
         (* mark dependencies unstable *)
@@ -180,40 +247,47 @@ struct
     in
     
     (* solve interesting variables and then return the produced table *)
-    solve_all vs; sol
+    start_event ();     
+    List.iter (fun (k,v) -> set k v) xs;
+    solve_all vs; 
+    stop_event (); 
+    sol
 end
 
 (* use this if you do widenings & narrowings (but no narrowings for globals) *)
 module SoundBoxSolver : GenericLocalBoxSolver =
   functor (S:GenericEqSystem) ->
-  functor (H:Hashtbl.S with type key = S.v) ->
+  functor (H:Hash.H with type key = S.v) ->
 struct
-
+  include SolverStats (S)
+  
   let solve xs vs = 
     (* the stabile "set" *)
     let stbl = H.create 1024 in
     (* the influence map *)
     let infl = H.create 1024 in
     (* the solution map  *)
-    let sol  = H.of_enum (List.enum xs) in
+    let sol  = H.create 1024 in
     (* the side-effected solution map  *)
-    let sols = H.of_enum (List.enum xs) in
+    let sols = H.create 1024 in
     
     (* solve the variable [x] *)
     let rec solve_one x = 
       (* solve [x] only if it is not stable *)
       if not (H.mem stbl x) then begin
         (* initialize [sol] for [x], if [x] is [sol] then we have "seen" it *)
-        if not (H.mem sol x) then H.add sol x (S.Dom.bot ());
+        if not (H.mem sol x) then (new_var_event x; H.add sol x (S.Dom.bot ()));
         (* mark [x] stable *)
         H.replace stbl x ();
         (* set the new value for [x] *)
+        eval_rhs_event x;
         Option.may (fun f -> set x (f (eval x) side)) (S.system x)
       end
       
     (** return the value for [y] and mark its influence on [x] *)
     and eval x y =
       (* solve variable [y] *)
+      get_var_event y;
       solve_one y;
       (* add that [x] will be influenced by [y] *)
       H.replace infl y (x :: H.find_default infl y []);
@@ -233,7 +307,8 @@ struct
       if not (H.mem sol x) then solve_one x;
       (* do nothing if we have stabilized [x] *)
       let old = H.find sol x in
-      if S.Dom.equal old d then begin
+      update_var_event x old d;
+      if not (S.Dom.equal old d) then begin
         (* set the new value for [x] *)
         H.replace sol x (S.box x old d);
         (* mark dependencies unstable *)
@@ -251,28 +326,32 @@ struct
     in
     
     (* solve interesting variables and then return the produced table *)
-    solve_all vs; sol
+    start_event (); 
+    List.iter (fun (k,v) -> side k v) xs;
+    solve_all vs; stop_event (); 
+    sol
 end
 
 
 (* use this if you do widenings & narrowings for globals *)
 module PreciseSideEffectBoxSolver : GenericLocalBoxSolver =
   functor (S:GenericEqSystem) ->
-  functor (H:Hashtbl.S with type key = S.v) ->
+  functor (H:Hash.H with type key = S.v) ->
 struct
-
+  include SolverStats (S)
+  
   module VM = Map.Make (S.Var)
   module VS = Set.Make (S.Var)
 
   let solve xs vs = 
     (* the stabile "set" *)
-    let stbl = H.create 1024 in
+    let stbl  = H.create 1024 in
     (* the influence map *)
-    let infl = H.create 1024 in
+    let infl  = H.create 1024 in
     (* the solution map  *)
-    let sol  = H.create 1024 in
+    let sol   = H.create 1024 in
     (* the side-effected solution map  *)
-    let sols = H.create 1024 in
+    let sols  = H.create 1024 in
     (* the side-effected solution map  *)
     let sdeps = H.create 1024 in
     
@@ -281,18 +360,20 @@ struct
       (* solve [x] only if it is not stable *)
       if not (H.mem stbl x) then begin
         (* initialize [sol] for [x], if [x] is [sol] then we have "seen" it *)
-        if not (H.mem sol x) then H.add sol x (S.Dom.bot ());
+        if not (H.mem sol x) then (new_var_event x; H.add sol x (S.Dom.bot ()));
         (* mark [x] stable *)
         H.replace stbl x ();
         (* remove side-effected values *)
         H.remove sols x;
         (* set the new value for [x] *)
+        eval_rhs_event x;
         Option.may (fun f -> set x (f (eval x) (side x))) (S.system x)
       end
       
     (** return the value for [y] and mark its influence on [x] *)
     and eval x y =
       (* solve variable [y] *)
+      get_var_event y;
       solve_one y;
       (* add that [x] will be influenced by [y] *)
       H.replace infl y (x :: H.find_default infl y []);
@@ -321,7 +402,8 @@ struct
       if not (H.mem sol x) then solve_one x;
       (* do nothing if we have stabilized [x] *)
       let old = H.find sol x in
-      if S.Dom.equal old d then begin
+      update_var_event x old d;
+      if not (S.Dom.equal old d) then begin
         (* set the new value for [x] *)
         H.replace sol x (S.box x old d);
         (* mark dependencies unstable *)
@@ -339,7 +421,11 @@ struct
     in
     
     (* solve interesting variables and then return the produced table *)
-    solve_all vs; sol
+    start_event (); 
+    List.iter (fun (k,v) -> side k k v) xs;
+    solve_all vs; 
+    stop_event ();
+    sol
 end
 
 
