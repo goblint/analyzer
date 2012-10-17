@@ -94,6 +94,9 @@ struct
    *  adding proper dependencies *)
   let rec get a (gs: glob_fun) (st,fl: store) (addrs:address): value =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
+    let get_global x =
+      if x.Cil.vstorage = Extern then VD.join (gs x) (VD.top ()) else gs x
+    in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
     (* Finding a single varinfo*offset pair *)
     let res = 
@@ -101,7 +104,7 @@ struct
       (* get hold of the variable value, either from local or global state *)
       let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
         match CPA.find x st with
-          | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; gs x)
+          | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
           | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
       else begin
         if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
