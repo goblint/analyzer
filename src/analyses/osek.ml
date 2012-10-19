@@ -59,19 +59,25 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 
   let parse_oil () = (* requires PRIORITY tag to occur before RESOURCE tag in task definitions. does not take "default" into account *)
     if not (!oilFile != "" && Sys.file_exists(!oilFile)) then begin     
-      prerr_endline "OIL-file not found." ;
+      prerr_endline "Parsing OIL: File not found." ;
       exit 2;
     end else 
     let input = open_in !oilFile in
     let task_re = Str.regexp "\\(TASK\\|ISR\\) *\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
-    let pry_re = Str.regexp "PRIORITY *= *\\([1-9][0-9]*\\)" in
+    let pry_re = Str.regexp "\\(PRIORITY\\|Interrupt Priority\\) *= *\\([1-9][0-9]*\\)" in
     let res_re = Str.regexp "RESOURCE *= *\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
     let flag = ref "" in
+    let debug_tasks = ref 0 in
+    let debug_pry = ref 0 in
     let rec read_info () = try
       let line = trim (input_line input) in
 (* print_string (line ^ "---line \n"); *)
+(* print_endline ("debug_pry " ^ string_of_int !debug_pry); *)
 	if Str.string_match task_re line 0 then begin
 (* print_string "task \n"; *)
+	  debug_tasks := !debug_tasks +1;
+	  if (!debug_pry != 0) then begin debug_pry :=0; print_endline ("Parsing OIL: No priority information found for task: " ^ !flag) end;
+	  debug_pry := 1;
           let typ = (Str.matched_group 1 line) in
           let name = if (typ = "ISR") then !Goblintutil.isrprefix ^ (Str.matched_group 2 line) ^ !Goblintutil.isrsuffix
           else !Goblintutil.taskprefix ^ (Str.matched_group 2 line) ^ !Goblintutil.tasksuffix in 
@@ -85,14 +91,16 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 	if Str.string_match pry_re line 0 then begin
 	  if (not (!flag="")) then begin
 (* print_string "pry \n"; *)
-	      Hashtbl.replace CF.tasks !flag ((fun (x,_,z) y -> (x,y,z)) (Hashtbl.find CF.tasks !flag) (int_of_string(Str.matched_group 1 line)));
+	      Hashtbl.replace CF.tasks !flag ((fun (x,_,z) y -> (x,y,z)) (Hashtbl.find CF.tasks !flag) (int_of_string(Str.matched_group 2 line)));
               let typ = (Str.matched_group 1 line) in 
-              if typ = "ISR" then irpts := (function ((a,b)::xs) -> (a,int_of_string(Str.matched_group 1 line))::xs | [] -> failwith "Impossible!") !irpts;
+              if typ = "ISR" then irpts := (function ((a,b)::xs) -> (a,int_of_string(Str.matched_group 1 line))::xs | [] -> failwith "Parsing OIL: Impossible!") !irpts;
           end;
+	  debug_pry := 0;
 	end;
 	if Str.string_match res_re line 0 then begin
 	  let res_name = Str.matched_group 1 line in
 	  if (not (!flag="")) then begin
+(* 	    if (!(!debug_pry == 0)) then debug_pry := 0; print_endline ("Parsing OIL: RESOURCE tag before PRIORITY tag in " ^ !flag ^ ". Sorry can't currently parse that correctly."); *)
 	    Hashtbl.replace CF.tasks !flag ((fun (x,y,zs) z -> (x,y,z::zs)) (Hashtbl.find CF.tasks !flag) res_name);
 	  end;
 	  if (not (Hashtbl.mem resources res_name)) then begin 
@@ -101,7 +109,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 	end;
 	read_info ();
       with 
-	| End_of_file -> ()
+	| End_of_file -> if (!debug_tasks == 0) then print_endline ("Parsing OIL: No tasks found. Check OIL tags.")
 	| e -> raise e
     in
     let ceil_pry res_name _ task_info acc = (fun (t,p,r) -> 
