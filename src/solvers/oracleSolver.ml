@@ -759,11 +759,12 @@ struct
       open C
       let start_val _ = D.bot ()
       module VM = Hashtbl.Make (V)  
-      let update_val v =  D.widen
+      let update_val v x y = D.widen x (D.join x y)
     end
     in
     let module WSol = GenConfSolver (C) (WConf)  in
     GU.may_narrow := true;
+    Printf.printf "Widening phase\n%!";
     let _, map', _, _, _, _, _ = WSol.solve initialvars in
     let module NConf : SolverConf(C).S =
     struct
@@ -775,6 +776,7 @@ struct
     in
     let module Sol = GenConfSolver (C) (WConf)  in
     GU.may_narrow := true;
+    Printf.printf "Narrowing phase\n%!";
     let (oh,_), map, _, _, _, _, _ = Sol.solve initialvars in
     let gm = GMap.create (GlobM.length oh) (G.Val.bot ()) in
     let lm = VMap.create (GlobM.length oh) (VDom.bot ()) in

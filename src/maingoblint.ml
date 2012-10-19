@@ -183,7 +183,8 @@ let main () =
                  ("--full-context", Arg.Set GU.full_context, " Do not side-effect function entries.");
                  ("--addr-context", Arg.Set GU.addr_contexts, " Ignore non-address values in function contexts.");
                  ("--debug-sockets", Arg.Tuple [Arg.Set_int GU.command_port;Arg.Int GU.open_sockets], "<port> <port> Eclipse debuger plugin support.");
-                 ("--new_fwk", Arg.Set GU.new_fwk, " Use the new framework.")                  
+                 ("--new_fwk", Arg.Set GU.new_fwk, " Use the new framework.") ;
+                 ("--print_dead_code", Arg.Set GU.print_dead_code, " Print information about dead code")
     ] in
   let jsonRegex = Str.regexp ".+\\.json$" in
   let recordFile fname = 

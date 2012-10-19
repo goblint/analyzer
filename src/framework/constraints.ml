@@ -269,7 +269,7 @@ let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) 
   Goblintutil.timeout do_analyze () !Goblintutil.anayzer_timeout 
     (fun () -> Messages.waitWhat "Timeout reached!");
     
-  Result.output (fun () -> !local_xml) (fun () -> !global_xml :: []) file
+  Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file
   
     
     
