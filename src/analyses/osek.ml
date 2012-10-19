@@ -64,7 +64,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
     end else 
     let input = open_in !oilFile in
     let task_re = Str.regexp "\\(TASK\\|ISR\\) *\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
-    let pry_re = Str.regexp "\\(PRIORITY\\|Interrupt Priority\\) *= *\\([1-9][0-9]*\\)" in
+    let pry_re = Str.regexp "\\(PRIORITY\\|Interrupt Priority\\) *= *\\([0-9][0-9]*\\)" in
     let res_re = Str.regexp "RESOURCE *= *\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
     let flag = ref "" in
     let debug_tasks = ref 0 in
