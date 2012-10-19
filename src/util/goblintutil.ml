@@ -303,6 +303,9 @@ let out = ref stdout
 (** use the new framework *)
 let new_fwk = ref false
 
+(* Print out dead code *)
+let print_dead_code = ref false
+
 (* Type invariant variables. *)
 let type_inv_tbl = Hashtbl.create 13 
 let type_inv (c:compinfo) : varinfo =
