@@ -48,6 +48,7 @@ let default_conf () =
                               ;"region"     , Build.bool false
                               ;"containment", Build.bool false
                               ;"stack_trace", Build.bool false
+                              ;"stack_trace_set", Build.bool false
                               ;"shape"      , Build.bool true
                               ;"var_eq"     , Build.bool false
                               ;"mtflag"     , Build.bool false
@@ -65,6 +66,7 @@ let default_conf () =
                              ;"malloc_null", Build.bool true
                              ;"region"     , Build.bool true
                              ;"stack_trace", Build.bool true
+                             ;"stack_trace_set", Build.bool false
                              ;"containment", Build.bool true
                              ;"shape"      , Build.bool true
                              ;"var_eq"     , Build.bool true
@@ -153,7 +155,8 @@ let conf_osek () =
   modify_ana "mutex" false;
   modify_ana "OSEK" true;
   modify_ana "OSEK2" true;
-  modify_ana "OSEK3" true
+  modify_ana "OSEK3" true;
+  modify_ana "stack_trace_set" true
 
 (** command port for eclipse debuger support *)
 let command_port = ref (-1)

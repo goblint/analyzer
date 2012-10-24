@@ -216,7 +216,12 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
               make_lock l
 (*        | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
         | x -> x)  
-      | "ActivateTask" -> M.special_fn ctx lval f arglist (*call function *)
+      | "ActivateTask" -> M.special_fn ctx lval f (match arglist with 
+       | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x]
+        | x -> x)
+
+
+(*call function *)
       | "ChainTask" -> M.special_fn ctx lval f arglist (*call function *)
       | "DisableAllInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) 
       | "EnsableAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction f.vname)) (make_lock (Hashtbl.find constantlocks ("DEall"))) 
@@ -327,6 +332,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
       let offpry = List.fold_left (fun y x -> if x > y then x else y) (min_int) offprys in
       let var_str = gl.vname in
       let _ = Hashtbl.add offensivepriorities var_str offpry in
+(* let _ = print_endline ("Adding offensivepriority for " ^ var_str) in *)
       let maxpry = List.fold_left (fun y x -> if x > y then x else y) (min_int) accprys in
       let minpry = List.fold_left (fun y x-> if x < y then x else y) (max_int) accprys in
         if not (Mutex.Lockset.is_empty locks || Mutex.Lockset.is_top locks) then

@@ -3,6 +3,7 @@
     1) Add a tag to type local_state (in framework/analyses.ml) and if needed
        global_state (in this file). 
     2) Instanciate the ConvertToMCPPart module. (It will register itself to MCP.)
+    3) Add the name to the default json-file (in goblintutil.ml)
 
   For example:
   
