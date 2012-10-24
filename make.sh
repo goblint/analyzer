@@ -19,20 +19,20 @@ rule() {
              ;;
     opt | nat*)
              ocb $TARGET.native &&
-             mv _build/src/goblint.native goblint
+             mv _build/$TARGET.native goblint
              ;;
     debug)   ocb -tag debug $TARGET.native &&
-             mv _build/src/goblint.native goblint
+             mv _build/$TARGET.native goblint
              ;;
     profile) ocb -tag profile $TARGET.native &&
-             mv _build/src/goblint.native goblint
+             mv _build/$TARGET.native goblint
              ;;
     byte)    ocb $TARGET.byte &&
-             mv _build/src/goblint.byte goblint.byte
+             mv _build/$TARGET.byte goblint.byte
              ;;
     all)     ocb $TARGET.native $TARGET.byte &&
-             mv _build/src/goblint.native goblint &&
-             mv _build/src/goblint.byte goblint.byte
+             mv _build/$TARGET.native goblint &&
+             mv _build/$TARGET.byte goblint.byte
              ;;
     doc*)    rm -rf doc;
              ls src/*/*.ml src/*.ml | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
@@ -41,11 +41,11 @@ rule() {
              ln -sf _build/doclist.docdir doc
              ;;
     depend)  echo "No!";;
-    *)       echo "Unknown action '$1'. Try clean, native, debug, profile, byte, or doc.";;
+    *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
 
-ls -1 src/analyses/*.ml | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > src/goblint.ml
-echo "open Maingoblint" >> src/goblint.ml
+ls -1 src/*/*.ml | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
+echo "open Maingoblint" >> $TARGET.ml
 
 if [ $# -eq 0 ]; then
   rule all
@@ -56,4 +56,4 @@ else
   done
 fi
 
-rm -f src/goblint.ml
+rm -f $TARGET.ml

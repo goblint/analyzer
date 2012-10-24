@@ -7,7 +7,7 @@ struct
   include Analyses.DefaultSpec
 
   module Dom  = IntDomain.Flattened
-  module Glob = Global.Make (Lattice.Unit)
+  module Glob = Glob.Make (Lattice.Unit)
 
   let ask_it ctx = let q = ctx.ask (Queries.Priority "") in 
     match q with (`Int p) -> `Lifted p | _ -> failwith "This (hopefully3) never happens!"

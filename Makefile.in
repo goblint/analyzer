@@ -1,3 +1,15 @@
+ifeq ($(MAKECMDGOALS),$(filter $(MAKECMDGOALS),all opt byte)) 
+  CLEANING := 1
+endif
+
+all : opt
+
+opt : oldclean 
+	./make.sh opt
+
+byte : oldclean 
+	./make.sh byte
+
 # 
 # Makefile for building goblint.
 #
@@ -27,7 +39,7 @@ DOCFLAGS = @DOCFLAGS@ -stars -t 'Goblint API documentation' -dot-reduce -dot -ht
 
 PROG_MODULES = \
 	version config json jsonParser jsonLexer htmlutil css_template js_template stylesheet script \
-	goblintutil messages printer cilfacade myCFG xmldump \
+	goblintutil messages printer cilfacade myCFG xmldump gobConfig \
 	printable lattice setDomain mapDomain osektupel \
 	basetype intDomain lval addressDomain arrayDomain listDomain htmldump \
 	structDomain unionDomain valueDomain exp queries partitionDomain memoryDomain \
@@ -47,7 +59,7 @@ TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \
 MODULES    = $(PROG_MODULES) maingoblint $(TEST_MODULES) mainTest
 
 
-all : opt
+oldall : oldopt
 
 # ECHOSTYLE_SCOTT=1
 # PROFILE=1
@@ -58,19 +70,19 @@ include Makefile.ocaml
 
 
 
-byte  : $(PROG_MODULES:%=$(OBJDIR)/%.cmo) $(OBJDIR)/maingoblint.cmo
+oldbyte  : $(PROG_MODULES:%=$(OBJDIR)/%.cmo) $(OBJDIR)/maingoblint.cmo
 	@$(NARRATIVE) "Linking $(COMPILETOWHAT) goblint.byte$(EXE) $(LINKMSG)"
 	$(AT)$(CAMLLINK.BYTE) -g -o goblint.byte$(EXE) \
                     $(LINK_LIBS:%=%.cma) \
                     $^
 
-opt   : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) $(OBJDIR)/maingoblint.cmx
+oldopt   : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) $(OBJDIR)/maingoblint.cmx
 	@$(NARRATIVE) "Linking $(COMPILETOWHAT) goblint$(EXE) $(LINKMSG)"
 	$(AT)$(CAMLLINK.OPT) -o goblint$(EXE) \
                     $(LINK_LIBS:%=%.cmxa) \
                     $^
 
-unittests  : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) \
+oldunittests  : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) \
 			$(TEST_MODULES:%=$(OBJDIR)/%.cmx) \
 			$(OBJDIR)/mainTest.cmx
 	@$(NARRATIVE) "Linking $(COMPILETOWHAT) goblint.unittest $(LINKMSG)"
@@ -80,19 +92,19 @@ unittests  : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) \
                     $^
 
 # Clean up
-clean: cleancaml
+oldclean: cleancaml
 	@rm -f goblint goblint.exe goblint.byte goblint.byte.exe
 	@rm -f goblint.unittest
 	@find ./ '(' -name "*.cm[iox]" -or -name "*.o" ')' -exec rm '{}' ';'
 	@rm -f tests/*.i tests/*.goblint tests/a.out a.out
 	@rm -f src/version.ml src/config.ml
 
-test: opt unittests
+oldtest: opt unittests
 	@./scripts/runalltests.sh
 
 
 # TAGS
-tags:
+oldtags:
 	otags -vi $(SOURCEDIRS:%=%*) $(CIL)/src/* $(CIL)/src/frontc/* $(CIL)/src/ext/* $(CIL)/ocamlutil/*
 
 # DOCS
@@ -105,9 +117,9 @@ DOC_ARG = -I $(OBJDIR) \
 	$(CIL)ocamlutil/clist.mli \
 	$(XML)/xml.mli \
 
-docs: 
+olddocs: 
 	@rm -rf doc && mkdir doc
 	$(OCAMLDOC) $(DOCFLAGS) $(DOC_ARG)
 
-dot:
+olddot:
 	ocamldoc.opt -dot-reduce -dot -v $(DOC_ARG)

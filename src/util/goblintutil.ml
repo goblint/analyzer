@@ -85,7 +85,7 @@ let conf_file = Filename.concat (Sys.getcwd ()) "goblint.json"
 let conf : jvalue ref Object.t ref = 
   try
     match value token (Lexing.from_channel (open_in conf_file)) with
-      | Object o -> ref o
+      | Object o -> o
       | _ -> raise (Sys_error "Bad json file: must be an object.")
   with (Sys_error x) -> 
     let c = default_conf () in
@@ -93,7 +93,7 @@ let conf : jvalue ref Object.t ref =
       | Object o -> o
       | _ -> raise (Sys_error "Bad default conf: fix, recompile, etc.") in
     save_json conf_file c;
-    ref (unwrap c)
+    (unwrap c)
     
 let modify_ana x b = 
   let rec dropNth = function
@@ -102,16 +102,16 @@ let modify_ana x b =
             | 0 -> xs 
             | n -> x :: dropNth xs (n-1) 
   in
-  let an = array !(field !conf "analyses") in
-  let ph = array (List.nth !an !phase) in
-  let rem_x = List.filter (fun y -> not (string y = x)) !ph in
+  let an = array !(field conf "analyses") in
+  let ph = array !(List.nth !an !phase) in
+  let rem_x = List.filter (fun y -> not (string !y = x)) !ph in
   if b || List.length rem_x > 0 then
-    (if b then ph := Build.string x :: rem_x else ph := rem_x)
+    (if b then ph := ref (Build.string x) :: rem_x else ph := rem_x)
   else
     an := dropNth !an !phase
 
 let modify_prop prop name b = 
-  let d  = Object.find name (objekt !(field !conf prop)) in
+  let d  = Object.find name !(objekt !(field conf prop)) in
     d := Build.bool b
 
 let modify_context x b = modify_prop "context" x b
@@ -379,7 +379,7 @@ let region_offsets = ref false
 let in_verifying_stage = ref false
 (** true if in verifying stage *)
 
-let solver = ref (string !(field !conf "solver"))
+let solver = ref (string !(field conf "solver"))
 
 let escape (x:string):string =
   let esc_1 = Str.global_replace (Str.regexp "&") "&amp;" x in

@@ -15,17 +15,17 @@ let prepare_html_report () =
   fprintf js_ch "%s" Js_template.js_string
 
 let do_stats fileNames =
-  let an = array !(field !GU.conf "analyses") in
-  let cn = objekt !(field !GU.conf "context") in
-  let sn = objekt !(field !GU.conf "sensitive") in
+  let an = array !(field GU.conf "analyses") in
+  let cn = objekt !(field GU.conf "context") in
+  let sn = objekt !(field GU.conf "sensitive") in
   let cont x = bool !(field cn x) in
   let path x = bool !(field sn x) in
   let sens x = if x then str "Sensitive" else str "Insensitive" in
   let yesno x = if x then str "Yes" else str "No" in
   let listp x = str (String.concat ", " x) in
   let intd = 
-    let tr = bool !(field (objekt !(field !GU.conf "int_domain")) "trier") in
-    let inv = bool !(field (objekt !(field !GU.conf "int_domain")) "interval") in
+    let tr = bool !(field (objekt !(field GU.conf "int_domain")) "trier") in
+    let inv = bool !(field (objekt !(field GU.conf "int_domain")) "interval") in
     match tr, inv with
       | true , true  -> str "Kildall domain with exclusion sets & intervals"
       | true , false -> str "Kildall domain with exclusion sets "
@@ -35,7 +35,7 @@ let do_stats fileNames =
   let phase x =
     let rec phase' n = function
       | [] -> None
-      | xs::xss when List.exists (fun y->x=string y) (!(array xs)) -> Some n
+      | xs::xss when List.exists (fun y->x=string !y) (!(array !xs)) -> Some n
       | xs::xss -> phase' (n+1) xss
     in
     phase' 1 !an

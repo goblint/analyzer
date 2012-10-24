@@ -63,15 +63,15 @@ struct
       List.fold_right (closure_add x) inhy (Dom.InhRel.add (x,y) acc)
     in
     let add_inh_entry cn xs  =
-      let xs = List.map string !(array !xs) in
+      let xs = List.map (fun x -> string !x) !(array !xs) in
       InhMap.add inh cn xs
     in
     let add_htbl htbl cn xs =
-      let xs = List.map string !(array !xs) in
+      let xs = List.map (fun x -> string !x) !(array !xs) in
       Hashtbl.replace htbl cn xs
     in
     let add_htbl_demangle htbl cn xs =
-      let xs = List.map string !(array !xs) in
+      let xs = List.map (fun x -> string !x) !(array !xs) in
 			match (GU.get_class cn) with
 				| Some c ->
 					(*printf "ADD_VTBL %s\n" c;*)
@@ -79,7 +79,7 @@ struct
 				| _ -> ()
     in
     let add_htbl_re htbl cn xs  =
-      let xs = List.map (fun x -> Str.regexp (string x)) !(array !xs) in
+      let xs = List.map (fun x -> Str.regexp (string !x)) !(array !xs) in
       Hashtbl.replace htbl cn xs
     in (*read CXX.json; FIXME: use mangled names including namespaces*)
 		let json=
@@ -89,15 +89,15 @@ struct
 		begin
     try 
       let inhr_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
-      Object.iter add_inh_entry (objekt !(field inhr_tbl "inheritance"));
-      Object.iter (add_htbl Dom.public_vars) (objekt !(field inhr_tbl "public_vars"));
-      Object.iter (add_htbl Dom.private_vars) (objekt !(field inhr_tbl "private_vars"));
-      Object.iter (add_htbl Dom.public_methods) (objekt !(field inhr_tbl "public_methods"));
-      Object.iter (add_htbl Dom.private_methods) (objekt !(field inhr_tbl "private_methods"));			
-      Object.iter (add_htbl Dom.friends) (objekt !(field inhr_tbl "friends"));
-      Object.iter (add_htbl_demangle Dom.vtbls) (objekt !(field inhr_tbl "vtbls"));
-      Object.iter (add_htbl Dom.derived) (objekt !(field inhr_tbl "derived"));     
-      Object.iter (add_htbl ContainDomain.fields) (objekt !(field inhr_tbl "fields"));     							
+      Object.iter add_inh_entry !(objekt !(field inhr_tbl "inheritance"));
+      Object.iter (add_htbl Dom.public_vars) !(objekt !(field inhr_tbl "public_vars"));
+      Object.iter (add_htbl Dom.private_vars) !(objekt !(field inhr_tbl "private_vars"));
+      Object.iter (add_htbl Dom.public_methods) !(objekt !(field inhr_tbl "public_methods"));
+      Object.iter (add_htbl Dom.private_methods) !(objekt !(field inhr_tbl "private_methods"));			
+      Object.iter (add_htbl Dom.friends) !(objekt !(field inhr_tbl "friends"));
+      Object.iter (add_htbl_demangle Dom.vtbls) !(objekt !(field inhr_tbl "vtbls"));
+      Object.iter (add_htbl Dom.derived) !(objekt !(field inhr_tbl "derived"));     
+      Object.iter (add_htbl ContainDomain.fields) !(objekt !(field inhr_tbl "fields"));     							
       Dom.inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !Dom.inc;
     with JsonE x -> 
         failwith ("Contaimnent analysis failed to read CXX.json: " ^ x)		
@@ -110,8 +110,8 @@ struct
     try
 			Messages.report "Problems for safe objecst from SAFE.json are suppressed!";
 			let safe_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
-      Object.iter (add_htbl_re Dom.safe_vars) (objekt !(field safe_tbl "variables"));
-      Object.iter (add_htbl_re Dom.safe_methods) (objekt !(field safe_tbl "methods"));
+      Object.iter (add_htbl_re Dom.safe_vars) !(objekt !(field safe_tbl "variables"));
+      Object.iter (add_htbl_re Dom.safe_methods) !(objekt !(field safe_tbl "methods"));
     with JsonE x -> 
         failwith ("Contaimnent analysis failed to read SAFE.json: " ^ x)  
 				
