@@ -211,7 +211,7 @@ File.open(theresultfile, "w") do |f|
       if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
       next unless l =~ /(.*)\(.*\:(.*)\)/
       obj,i = $1,$2.to_i
-
+      
       ranking = ["other", "warn", "race", "norace", "success", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
                     when /lockset:/                  then "race"
@@ -221,6 +221,7 @@ File.open(theresultfile, "w") do |f|
                     when /Uninitialized/             then "warn"
                     when /dereferencing of null/     then "warn"
                     when /CW:/                       then "warn"
+                    when /Fixpoint not reached/      then "warn"
                     else "other"
                   end
       oldwarn = warnings[i]

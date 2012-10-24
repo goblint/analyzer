@@ -53,8 +53,8 @@ struct
     let correct = ref true in
     let complain_l (v: variable) lhs rhs = 
       correct := false; 
-      ignore (Pretty.printf "Fixpoint not reached at %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" 
-                Var.pretty_trace v VDom.pretty lhs VDom.pretty rhs VDom.pretty_diff (rhs,lhs))
+      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" 
+                Var.pretty_trace v (Var.file_name v) (Var.line_nr v) VDom.pretty lhs VDom.pretty rhs VDom.pretty_diff (rhs,lhs))
     in
     let complain_g (g: global) lhs rhs = 
       correct := false; 
