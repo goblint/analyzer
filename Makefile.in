@@ -36,7 +36,7 @@ PROG_MODULES = \
 	hash progress analyses libraryFunctions glob cache generic \
 	solver sharirPnueli effectWCon effectWNCon solverConSideRR solverConSideWNRR interactive oracleSolver topDown \
 	multithread compose mCP access varEq symbLocks thread threadEscape constraints \
-	base region owner unit mutex osek osektransactionality uninit stackTrace \
+	base region owner unit mutex osek osektransactionality uninit stackTrace stackTrace2 \
 	malloc_null memLeaks contain shapes mTFlag report need
 
 TEST_MODULES = testutils generalArrayTest nativeArrayDomainTest \
