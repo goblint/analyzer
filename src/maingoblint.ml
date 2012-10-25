@@ -71,7 +71,7 @@ let main () =
  	| _ -> MCP.Analysis.analyze   
   in
   let analyze = ref (analyzer (JB.string !(JB.field GU.conf "analysis"))) in
-  let oil file = (*GU.allfuns := true;*) GU.oil := true; GU.conf_osek (); Osek.Spec.oilFile := file in
+  let oil file = (*GU.allfuns := true;*) GU.oil := true; GU.mainfuns := []; GU.conf_osek (); Osek.Spec.oilFile := file in
   let tramp file = Osek.Spec.resourceheaders := file; add_include_file file in
   let osekisrprefix prefix = GU.isrprefix := prefix in
   let osektaskprefix prefix = GU.taskprefix := prefix in

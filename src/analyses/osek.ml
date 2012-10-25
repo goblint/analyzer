@@ -175,6 +175,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
     (M.branch ctx (exp:exp) (tv:bool)) 
   
   let body ctx (f:fundec) : Dom.t = 
+(* print_endline ( "Analyszing function " ^ f.svar.vname); *)
     let m_st = M.body ctx (f:fundec) in
     if (CF.is_task f.svar.vname) then begin
 (* print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file); *)
