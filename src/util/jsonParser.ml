@@ -12,9 +12,9 @@ type token =
   | NUMBER of (Big_int.big_int)
 
 open Parsing;;
-# 2 "src/util/jsonParser.mly"
+# 2 "jsonParser.mly"
   open Json
-# 18 "src/util/jsonParser.ml"
+# 18 "jsonParser.ml"
 let yytransl_const = [|
   257 (* RBRACK *);
   258 (* LBRACK *);
@@ -99,106 +99,106 @@ let yyact = [|
 ; (fun __caml_parser_env ->
     let _2 = (Parsing.peek_val __caml_parser_env 1 : 'pmembers) in
     Obj.repr(
-# 15 "src/util/jsonParser.mly"
-                         ( Object _2 )
-# 105 "src/util/jsonParser.ml"
+# 15 "jsonParser.mly"
+                         ( Object (ref _2) )
+# 105 "jsonParser.ml"
                : 'pobject))
 ; (fun __caml_parser_env ->
     Obj.repr(
-# 16 "src/util/jsonParser.mly"
-                         ( Object Object.empty )
-# 111 "src/util/jsonParser.ml"
+# 16 "jsonParser.mly"
+                         ( Object (ref Object.empty) )
+# 111 "jsonParser.ml"
                : 'pobject))
 ; (fun __caml_parser_env ->
     let _1 = (Parsing.peek_val __caml_parser_env 2 : string) in
     let _3 = (Parsing.peek_val __caml_parser_env 0 : Json.jvalue) in
     Obj.repr(
-# 20 "src/util/jsonParser.mly"
+# 20 "jsonParser.mly"
                                       ( Object.add _1 (ref _3) Object.empty )
-# 119 "src/util/jsonParser.ml"
+# 119 "jsonParser.ml"
                : 'pmembers))
 ; (fun __caml_parser_env ->
     let _1 = (Parsing.peek_val __caml_parser_env 4 : 'pmembers) in
     let _3 = (Parsing.peek_val __caml_parser_env 2 : string) in
     let _5 = (Parsing.peek_val __caml_parser_env 0 : Json.jvalue) in
     Obj.repr(
-# 21 "src/util/jsonParser.mly"
+# 21 "jsonParser.mly"
                                       ( Object.add _3 (ref _5) _1 )
-# 128 "src/util/jsonParser.ml"
+# 128 "jsonParser.ml"
                : 'pmembers))
 ; (fun __caml_parser_env ->
     Obj.repr(
-# 25 "src/util/jsonParser.mly"
+# 25 "jsonParser.mly"
                              ( Array (ref [])            )
-# 134 "src/util/jsonParser.ml"
+# 134 "jsonParser.ml"
                : 'parray))
 ; (fun __caml_parser_env ->
     let _2 = (Parsing.peek_val __caml_parser_env 1 : 'pelements) in
     Obj.repr(
-# 26 "src/util/jsonParser.mly"
+# 26 "jsonParser.mly"
                              ( Array (ref (List.rev _2)) )
-# 141 "src/util/jsonParser.ml"
+# 141 "jsonParser.ml"
                : 'parray))
 ; (fun __caml_parser_env ->
     let _1 = (Parsing.peek_val __caml_parser_env 0 : Json.jvalue) in
     Obj.repr(
-# 30 "src/util/jsonParser.mly"
-                          ( _1 :: [] )
-# 148 "src/util/jsonParser.ml"
+# 30 "jsonParser.mly"
+                          ( (ref _1) :: [] )
+# 148 "jsonParser.ml"
                : 'pelements))
 ; (fun __caml_parser_env ->
     let _1 = (Parsing.peek_val __caml_parser_env 2 : 'pelements) in
     let _3 = (Parsing.peek_val __caml_parser_env 0 : Json.jvalue) in
     Obj.repr(
-# 31 "src/util/jsonParser.mly"
-                          ( _3 :: _1 )
-# 156 "src/util/jsonParser.ml"
+# 31 "jsonParser.mly"
+                          ( (ref _3) :: _1 )
+# 156 "jsonParser.ml"
                : 'pelements))
 ; (fun __caml_parser_env ->
     let _1 = (Parsing.peek_val __caml_parser_env 0 : string) in
     Obj.repr(
-# 35 "src/util/jsonParser.mly"
+# 35 "jsonParser.mly"
             ( String _1 )
-# 163 "src/util/jsonParser.ml"
+# 163 "jsonParser.ml"
                : Json.jvalue))
 ; (fun __caml_parser_env ->
     let _1 = (Parsing.peek_val __caml_parser_env 0 : Big_int.big_int) in
     Obj.repr(
-# 36 "src/util/jsonParser.mly"
+# 36 "jsonParser.mly"
             ( Number _1 )
-# 170 "src/util/jsonParser.ml"
+# 170 "jsonParser.ml"
                : Json.jvalue))
 ; (fun __caml_parser_env ->
     let _1 = (Parsing.peek_val __caml_parser_env 0 : 'pobject) in
     Obj.repr(
-# 37 "src/util/jsonParser.mly"
+# 37 "jsonParser.mly"
             ( _1        )
-# 177 "src/util/jsonParser.ml"
+# 177 "jsonParser.ml"
                : Json.jvalue))
 ; (fun __caml_parser_env ->
     let _1 = (Parsing.peek_val __caml_parser_env 0 : 'parray) in
     Obj.repr(
-# 38 "src/util/jsonParser.mly"
+# 38 "jsonParser.mly"
             ( _1        )
-# 184 "src/util/jsonParser.ml"
+# 184 "jsonParser.ml"
                : Json.jvalue))
 ; (fun __caml_parser_env ->
     Obj.repr(
-# 39 "src/util/jsonParser.mly"
+# 39 "jsonParser.mly"
             ( True      )
-# 190 "src/util/jsonParser.ml"
+# 190 "jsonParser.ml"
                : Json.jvalue))
 ; (fun __caml_parser_env ->
     Obj.repr(
-# 40 "src/util/jsonParser.mly"
+# 40 "jsonParser.mly"
             ( False     )
-# 196 "src/util/jsonParser.ml"
+# 196 "jsonParser.ml"
                : Json.jvalue))
 ; (fun __caml_parser_env ->
     Obj.repr(
-# 41 "src/util/jsonParser.mly"
+# 41 "jsonParser.mly"
             ( Null      )
-# 202 "src/util/jsonParser.ml"
+# 202 "jsonParser.ml"
                : Json.jvalue))
 (* Entry value *)
 ; (fun __caml_parser_env -> raise (Parsing.YYexit (Parsing.peek_val __caml_parser_env 0)))

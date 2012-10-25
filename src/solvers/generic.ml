@@ -429,7 +429,3 @@ struct
 end
 
 
-module JustUseEWC =
-struct
-
-end

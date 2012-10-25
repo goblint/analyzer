@@ -209,6 +209,7 @@ struct
   if D.leq y x then begin 
 (*    s := (w,n+1,if !m then sw+1 else sw);
     m := false;*)
+    ignore (Pretty.printf "narrowing %a from\n%a\nto\n%a\n" V.pretty_trace v D.pretty x D.pretty y);
     D.narrow x y 
   end else begin (*
     s := (w+1,n,sw);
@@ -763,7 +764,7 @@ struct
     end
     in
     let module WSol = GenConfSolver (C) (WConf)  in
-    GU.may_narrow := true;
+    GU.may_narrow := false;
     Printf.printf "Widening phase\n%!";
     let _, map', _, _, _, _, _ = WSol.solve initialvars in
     let module NConf : SolverConf(C).S =
@@ -774,7 +775,7 @@ struct
       let update_val v =  D.narrow
     end
     in
-    let module Sol = GenConfSolver (C) (WConf)  in
+    let module Sol = GenConfSolver (C) (NConf)  in
     GU.may_narrow := true;
     Printf.printf "Narrowing phase\n%!";
     let (oh,_), map, _, _, _, _, _ = Sol.solve initialvars in

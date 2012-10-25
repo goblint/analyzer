@@ -38,6 +38,53 @@ struct
   module PHG = Hashtbl.Make (Basetype.Variables) (* global info from previous phases *)
   module SH = Hashtbl.Make (Analyses.Edge)       (* spawns from previous phases *)
   
+  (** Combined variables for the solver.  This is Copy-Pasted from constraints.ml and should be removed asap. *)
+  module NewVar 
+    : Analyses.VarType 
+      with type t = [ `L of Var.t  | `G of Spec.Glob.Var.t ]
+    = 
+  struct
+    module LV = Var
+    module GV = Spec.Glob.Var
+    type t = [ `L of LV.t  | `G of GV.t ]
+  
+    let equal x y =
+      match x, y with
+        | `L a, `L b -> LV.equal a b
+        | `G a, `G b -> GV.equal a b
+        | _ -> false
+  
+    let hash = function
+      | `L a -> LV.hash a
+      | `G a -> 113 * GV.hash a
+    
+    let compare x y =
+      match x, y with
+        | `L a, `L b -> LV.compare a b
+        | `G a, `G b -> GV.compare a b
+        | `L a, _ -> -1 | _ -> 1
+      
+    let category = function
+      | `L a -> LV.category a
+      | `G _ -> -1
+    
+    let pretty_trace () = function
+      | `L a -> LV.pretty_trace () a
+      | `G a -> dprintf "Global %a" GV.pretty_trace a
+      
+    let line_nr = function
+      | `L a -> LV.line_nr a
+      | `G a -> a.Cil.vdecl.Cil.line
+    
+    let file_name = function
+      | `L a -> LV.file_name a
+      | `G a -> a.Cil.vdecl.Cil.file
+    
+    let description n = sprint 80 (pretty_trace () n)
+    let context () _ = Pretty.nil
+    let loopSep _ = true
+  end
+  
   module Solver = 
   struct
     module Sol = Solver.Types (Var) (SD) (Spec.Glob)
@@ -649,20 +696,122 @@ struct
     let _ = if startvars = [] then failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list." in
     let context_fn f = if !GU.full_context then fun x->x else Spec.context_top f in
     let startvars' = List.map (fun (n,e) -> MyCFG.Function n, HCSD.lift (SD.lift (context_fn n (SD.unlift e)))) startvars in
-    let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n, HCSD.unlift e), d) startvars' startvars in
+    (*let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n, HCSD.unlift e), d) startvars' startvars in*)
     let entrystatesq = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n, e), d) startvars' startvars in
     let startvars'' = if !GU.forward then [] else startvars' in
-    let procs = 
+    (*let procs = 
       let f = function
         | ((MyCFG.FunctionEntry n, e), d) -> (n,e,d)
         | _ -> failwith "SP: entry states strange."
       in
       List.map f 
+    in*)
+    (* Integration with new solvers -- a constraint system is now a module. *)
+    let module IneqSys = 
+      struct
+        (* Unfortunately, we have to define a module Var but then we cannot access the old Var *)
+        module LVar = Var
+        module Var = NewVar
+        type v = Var.t
+        module Dom = Lattice.Either (SD) (Spec.Glob.Val)
+        type d = Dom.t
+        
+        (* the box operator *)
+        let box _ = Dom.join
+        
+        (* the constraint system, defined functionally *)
+        let system : v -> ((v -> d) -> (v -> d -> unit) -> d) list = function
+            | `G _ -> [] (* globals have no constraints *)
+            | `L v -> 
+              (* this converts one rhs into the new format *)
+              let conv f get set = 
+                (* sigma function int the old solver system *)
+                let var_assign (x:LVar.t) : SD.t = 
+                  match get (`L x) with 
+                    | v when Dom.is_bot v -> SD.bot ()
+                    | `Left y -> y 
+                    | _ -> SD.top ()
+                in
+                (* the global state function *)
+                let glob_assing (x:Spec.Glob.Var.t) : Spec.Glob.Val.t = 
+                  match get (`G x) with 
+                    | v when Dom.is_bot v -> Spec.Glob.Val.bot ()
+                    | `Right y -> y 
+                    | _ -> Spec.Glob.Val.top ()
+                in
+                (* side effects translation into the new signature *)
+                let side = function `L (x,v) -> set (`L x) (`Left v) | `G (x,v) -> set (`G x) (`Right v) in
+                (* side-effect to the variable should make it live -- spawning *)
+                let spawn x = set (`L x) (Dom.bot ()) in
+                (* get the value and spanwed variables *)
+                let d, s = f (var_assign, glob_assing) side in
+                (* make spawned vars live & return the value *)
+                List.iter spawn s; `Left d
+              in
+                (* convert all rhs-s *)
+                List.map conv (system cfg old old_g old_s phase v)
+      end
+    in
+    
+    (* the new solvers are all equation based so we need to make conversions  *)
+    let module EqSysDirty  = Generic.SimpleSysConverter (IneqSys) in
+    let module EqSysNormal = Generic.NormalSysConverter (IneqSys) in
+    
+    (* Hash table modules for the solvers. *)
+    let module H1 = BatHashtbl.Make (EqSysDirty.Var)  in
+    let module H2 = BatHashtbl.Make (EqSysNormal.Var) in
+
+    (* Instanciate all 2*3 combinations. *)
+    let module S1 = Generic.DirtyBoxSolver             (EqSysDirty)  (H1) in
+    let module S2 = Generic.SoundBoxSolver             (EqSysDirty)  (H1) in
+    let module S3 = Generic.PreciseSideEffectBoxSolver (EqSysDirty)  (H1) in
+    let module S4 = Generic.DirtyBoxSolver             (EqSysNormal) (H2) in
+    let module S5 = Generic.SoundBoxSolver             (EqSysNormal) (H2) in
+    let module S6 = Generic.PreciseSideEffectBoxSolver (EqSysNormal) (H2) in
+    
+    (* chooses a solver & translates input and output *)
+    let new_fwk_solve svar sval = 
+      (* local & global hash tables *)
+      let ls = Solver.VMap.create 100 (SD.bot ()) in
+      let gs = Solver.GMap.create 100 (Spec.Glob.Val.bot ()) in
+      (* functions to translate for SimpleSysConverter *)
+      let svar1 = List.map (fun x -> `L x) svar in
+      let sval1 = List.map (fun (x,d) -> (`L x,`Left d)) sval in
+      let add1 (k:IneqSys.v) (v:IneqSys.d) =
+        match k, v with
+          | `L k, `Left v  -> Solver.VMap.add ls k v 
+          | `G k, `Right v -> Solver.GMap.add gs k v 
+          | _ -> ()
+      in
+      (* functions to translate for NormalSysConverter *)
+      let conv2 x = 
+        match IneqSys.system (`L x) with
+          | [] | [_] -> 0
+          | _ -> -1 
+      in
+      let svar2 = List.map (fun x -> `L x, conv2 x) svar in
+      let sval2 = List.map (fun (x,d) -> ((`L x, conv2 x), `Left d)) sval in
+      let add2 (k:IneqSys.v*int) (v:IneqSys.d) =
+        match k, v with
+          | (`L k, i), `Left v when i=conv2 k -> Solver.VMap.add ls k v 
+          | (`G k, 0), `Right v -> Solver.GMap.add gs k v 
+          | _ -> ()
+      in
+      (* choose solver and translate output *)
+      begin match !GU.solver with 
+        | "s1" -> H1.iter add1 (S1.solve sval1 svar1)
+        | "s2" -> H1.iter add1 (S2.solve sval1 svar1)
+        | "s3" -> H1.iter add1 (S3.solve sval1 svar1)
+        | "n1" -> H2.iter add2 (S4.solve sval2 svar2)
+        | "n2" -> H2.iter add2 (S5.solve sval2 svar2)
+        | "n3" -> H2.iter add2 (S6.solve sval2 svar2)
+        | _ -> () end;
+      (ls,gs)
     in
     let sol,gs = 
       let solve () =
-        if !Goblintutil.sharir_pnueli 
-        then sp_to_solver_result (applySP cfg old old_g old_s phase (procs entrystates))
+        if List.mem !GU.solver ["s1";"s2";"s3";"n1";"n2";"n3"]
+        then new_fwk_solve startvars'' entrystatesq
         else Solver.solve () (system cfg old old_g old_s phase) startvars'' entrystatesq
       in
       if !GU.verbose then print_endline ("Analyzing phase "^string_of_int phase^"!");
@@ -732,7 +881,7 @@ struct
   let analyze (file: Cil.file) (fds: A.fundecs) = 
     (*ignore (Printf.printf "Effective conf:%s" (Json.jsonString (Json.Object !GU.conf)));*)
     (* number of phases *)
-    let phs = List.length !(Json.array !(Json.field !GU.conf "analyses")) in
+    let phs = List.length !(Json.array !(Json.field GU.conf "analyses")) in
     (* get the control flow graph *)
     let cfg = 
       if !GU.verbose then print_endline "Generating constraints."; 

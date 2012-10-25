@@ -12,8 +12,8 @@
 %%
 
 pobject
-  : LCURL pmembers RCURL { Object $2 }
-  | LCURL RCURL          { Object Object.empty }
+  : LCURL pmembers RCURL { Object (ref $2) }
+  | LCURL RCURL          { Object (ref Object.empty) }
   ;
   
 pmembers
@@ -27,8 +27,8 @@ parray
   ;
   
 pelements 
-  : value                 { $1 :: [] }
-  | pelements COMMA value { $3 :: $1 }
+  : value                 { (ref $1) :: [] }
+  | pelements COMMA value { (ref $3) :: $1 }
   ;
   
 value 

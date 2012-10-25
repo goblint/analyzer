@@ -9,7 +9,7 @@ the framework, constraint solvers, domains, and analysis instances.
 {!modules:  Maingoblint Multithread Analyses Compose MyCFG Cache}
 
 {4 Util}
-{!modules: Goblintutil Cilfacade MyLiveness Json JsonLexer JsonParser Printer Messages Progress Report Xmldump Htmldump Htmlutil Hash}
+{!modules: Goblintutil Cilfacade MyLiveness Json JsonLexer JsonParser Printer Messages Progress Report Xmldump Htmldump Htmlutil Hash GobConfig}
 
 
 {2 Solvers}

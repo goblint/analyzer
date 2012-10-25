@@ -450,9 +450,9 @@ struct
   
   let take_list = ref [] 
   let init () = 
-    let int_ds = JB.array (List.nth !(JB.array !(JB.field !GU.conf "analyses")) !GU.phase) in 
+    let int_ds = JB.array !(List.nth !(JB.array !(JB.field GU.conf "analyses")) !GU.phase) in 
     let order = List.map (fun x -> x.featurename ) !analysesList in
-    let f s y = List.exists (fun a -> s=JB.string a) !int_ds :: y in
+    let f s y = List.exists (fun a -> s=JB.string !a) !int_ds :: y in
     take_list := List.fold_right f order []
   
   (* Constructor scheme stuff: we take a list of values and then filter out
@@ -551,9 +551,9 @@ struct
   
   let take_list = ref [] 
   let init () = 
-    let int_ds = JB.array (List.nth !(JB.array !(JB.field !GU.conf "analyses")) !GU.phase) in 
+    let int_ds = JB.array !(List.nth !(JB.array !(JB.field GU.conf "analyses")) !GU.phase) in 
     let order = List.map (fun x -> x.featurename ) !analysesList in
-    let f s y = List.exists (fun a -> s=JB.string a) !int_ds :: y in
+    let f s y = List.exists (fun a -> s=JB.string !a) !int_ds :: y in
     take_list := List.fold_right f order []
   
   (* Constructor scheme stuff: we take a list of values and then filter out
@@ -773,8 +773,8 @@ struct
   (* analysis spec stuff *)
   let name = "analyses"
   let finalize () =
-    let int_ds = JB.array (List.nth !(JB.array !(JB.field !GU.conf "analyses")) !GU.phase) in 
-    let uses x = List.exists (fun a -> x=JB.string a) !int_ds in
+    let int_ds = JB.array !(List.nth !(JB.array !(JB.field GU.conf "analyses")) !GU.phase) in 
+    let uses x = List.exists (fun a -> x=JB.string !a) !int_ds in
     List.iter (fun x ->
         if uses x.featurename 
         then x.finalize ()
@@ -791,16 +791,16 @@ struct
   let init () = 
     Dom.init ();
     Glob.Val.init ();
-    let sense_ds = JB.objekt !(JB.field !GU.conf "sensitive") in
-    let context_ds = JB.objekt !(JB.field !GU.conf "context") in
-    let int_ds = JB.array (List.nth !(JB.array !(JB.field !GU.conf "analyses")) !GU.phase) in 
-    let uses x = List.exists (fun a -> x=JB.string a) !int_ds in
+    let sense_ds = JB.objekt !(JB.field GU.conf "sensitive") in
+    let context_ds = JB.objekt !(JB.field GU.conf "context") in
+    let int_ds = JB.array !(List.nth !(JB.array !(JB.field GU.conf "analyses")) !GU.phase) in 
+    let uses x = List.exists (fun a -> x=JB.string !a) !int_ds in
 
     let order = List.map (fun x -> x.featurename ) !analysesList in
     let f s y = if uses s then JB.bool !(JB.field sense_ds s) :: y else y in
     take_list := List.fold_right f order [];
 
-    let uses x = List.exists (fun a -> x=JB.string a) !int_ds in
+    let uses x = List.exists (fun a -> x=JB.string !a) !int_ds in
     context_list := List.fold_right (fun x xs -> if uses x.featurename then JB.bool !(JB.field context_ds x.featurename)::xs else xs) !analysesList [];
     List.iter (fun x ->
         if uses x.featurename 
