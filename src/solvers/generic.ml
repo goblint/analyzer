@@ -227,11 +227,12 @@ struct
       (* solve variable [y] if it has not been seen before *)
       if not (H.mem sol x) then solve_one x;
       (* do nothing if we have stabilized [x] *)
-      let old = H.find sol x in
-      update_var_event x old d;
-      if not (S.Dom.equal old d) then begin
+      let oldd = H.find sol x in
+      let newd = S.box x oldd d in
+      update_var_event x oldd newd;
+      if not (S.Dom.equal oldd newd) then begin
         (* set the new value for [x] *)
-        H.replace sol x (S.box x old d);
+        H.replace sol x newd;
         (* mark dependencies unstable *)
         let deps = H.find_default infl x [] in
         List.iter (H.remove stbl) deps;
@@ -306,11 +307,13 @@ struct
       (* solve variable [y] if it has not been seen before *)
       if not (H.mem sol x) then solve_one x;
       (* do nothing if we have stabilized [x] *)
-      let old = H.find sol x in
-      update_var_event x old d;
-      if not (S.Dom.equal old d) then begin
+      let oldd = H.find sol x in
+      (* compute the new value *)
+      let newd = S.box x oldd (S.Dom.join d (H.find_default sols x (S.Dom.bot ()))) in
+      update_var_event x oldd newd;
+      if not (S.Dom.equal oldd newd) then begin
         (* set the new value for [x] *)
-        H.replace sol x (S.box x old d);
+        H.replace sol x newd;
         (* mark dependencies unstable *)
         let deps = H.find_default infl x [] in
         List.iter (H.remove stbl) deps;
@@ -384,28 +387,28 @@ struct
     and side y x d =
       (* mark that [y] has a side-effect to [x] *)
       H.replace sdeps x (VS.add y (H.find_default sdeps x VS.empty));
-      (* accumulate all side-effects in [sols] *)
-      let find_join_sides z d = 
-        try S.Dom.join d (VM.find y (H.find sols z))
-        with Not_found -> d
-      in
-      let nd = VS.fold find_join_sides (H.find_default sdeps x VS.empty) d in
       (* save the value in [sols] *)
       let om = H.find_default sols y VM.empty in
       let nm = VM.modify_def (S.Dom.bot ()) x (S.Dom.join d) om in
       H.replace sols y nm;
       (* do the normal writing operation with the accumulated value *)
-      set x nd
+      set x d
       
     and set x d =
       (* solve variable [y] if it has not been seen before *)
       if not (H.mem sol x) then solve_one x;
       (* do nothing if we have stabilized [x] *)
-      let old = H.find sol x in
-      update_var_event x old d;
-      if not (S.Dom.equal old d) then begin
+      let oldd = H.find sol x in
+      (* accumulate all side-effects in [sols] *)
+      let find_join_sides z d = 
+        try S.Dom.join d (VM.find x (H.find sols z))
+        with Not_found -> d
+      in
+      let newd = S.box x oldd (VS.fold find_join_sides (H.find_default sdeps x VS.empty) d) in
+      update_var_event x oldd newd;
+      if not (S.Dom.equal oldd newd) then begin
         (* set the new value for [x] *)
-        H.replace sol x (S.box x old d);
+        H.replace sol x newd;
         (* mark dependencies unstable *)
         let deps = H.find_default infl x [] in
         List.iter (H.remove stbl) deps;
