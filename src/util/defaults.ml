@@ -29,7 +29,7 @@ let _ =
 
 
 let _ =
-  reg Analyses "ana.activated" "true"  "Context sensitivity for the mutex analysis";
+  reg Analyses "ana.activated" "[['base','escape','mutex']]"  "Lists of activated analyses, split into phases.";
   
   reg Analyses "ana.ctx_sens.mutex" "true"  "Context sensitivity for the mutex analysis";
   reg Analyses "ana.ctx_sens.base"  "true"  "Context sensitivity for the base analysis";
@@ -40,6 +40,10 @@ let _ =
   reg Analyses "ana.pth_sens.osek"  "false" "Path sensitivity for the osek analysis"
   
 (** {4 category [Experimental]} *)
+
+let _ =
+  reg Experimental "exp.field_insensitive" "false" "Control the field sensitivity of the Base analysis.";
+  
 (** {4 category [Debugging]} *)
 
 (*

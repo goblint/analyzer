@@ -36,7 +36,8 @@ sig
   val get_string : string -> string
   (** Functions to modify conf variables of type string. *)
   val set_string : string -> string -> unit
-  (** Functions to modify conf variables by trying to parse the value. *)
+  (** Functions to modify conf variables by trying to parse the value. 
+      The second argument must be valid Json exept single quotes represent double quotes. *)
   val set_auto   : string -> string -> unit
   (** Functions to set a conf variables to null. *)
   val set_null   : string -> unit
@@ -241,7 +242,18 @@ struct
         set_string st v  
 
   (** The ultimate convienience functions for writing values. *)    
-  let rec set_auto st s = ()      
+  let one_quote = Str.regexp "\'" 
+  let rec set_auto st s = 
+    if s="null" then set_null st else
+    if s="" then set_string st "" else
+    try
+      let s' = Str.global_replace one_quote "\"" s in
+      let v = JsonParser.value JsonLexer.token (Lexing.from_string s') in
+      set_path_string_trace st v
+    with _ ->          
+      eprintf "Cannot set %s to '%s'.\n" st s;
+      failwith "set_auto"
+
 
   (** Functions to drop one element of an 'array' *)
   let drop_index st i = 
@@ -256,5 +268,5 @@ struct
 end
 
 include Impl
-
+  
 
