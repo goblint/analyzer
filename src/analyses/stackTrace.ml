@@ -2,12 +2,12 @@ open Cil
 open Pretty
 open Analyses
 
-module Spec =
+module Spec (D: StackDomain.S)=
 struct
   include Analyses.DefaultSpec
 
   let name = "stack trace"
-  module Dom  = StackDomain.Dom
+  module Dom  = D
   module Glob = Glob.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
@@ -35,20 +35,32 @@ struct
     [ctx.local,Cil.integer 1, true]
 
   let startstate () = Dom.bot ()
-  let otherstate () = Dom.top ()
+  let otherstate () = Dom.bot ()
   let exitstate  () = Dom.top ()
 end
 
 module UninitMCP = 
   MCP.ConvertToMCPPart
-        (Spec)
+        (Spec (StackDomain.Dom))
         (struct let name = "stack_trace" 
                 let depends = []
-                type lf = Spec.Dom.t
+                type lf = Spec(StackDomain.Dom).Dom.t
                 let inject_l x = `Stack x
                 let extract_l x = match x with `Stack x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
+                type gf = Spec(StackDomain.Dom).Glob.Val.t
                 let inject_g x = `None 
                 let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
          end)
 
+module UninitMCP2 = 
+  MCP.ConvertToMCPPart
+        (Spec (StackDomain.Dom2))
+        (struct let name = "stack_trace_set" 
+                let depends = []
+                type lf = Spec(StackDomain.Dom2).Dom.t
+                let inject_l x = `Stack2 x
+                let extract_l x = match x with `Stack2 x -> x | _ -> raise MCP.SpecificationConversionError
+                type gf = Spec(StackDomain.Dom2).Glob.Val.t
+                let inject_g x = `None 
+                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+         end)
