@@ -5,7 +5,7 @@ set -e
 scripts/set_version.sh
 
 TARGET=src/goblint
-FLAGS="-no-links -use-ocamlfind -j 8 -no-log"
+FLAGS="-no-links -use-ocamlfind -j 8 -no-log -ocamlopt ocamlopt.opt"
 OCAMLBUILD=ocamlbuild
 
 ocb() {
@@ -18,21 +18,21 @@ rule() {
              ocb -clean
              ;;
     opt | nat*)
-             ocb $TARGET.native &&
-             mv _build/$TARGET.native goblint
+             ocb -no-plugin $TARGET.native &&
+             cp _build/$TARGET.native goblint
              ;;
     debug)   ocb -tag debug $TARGET.native &&
-             mv _build/$TARGET.native goblint
+             cp _build/$TARGET.native goblint
              ;;
     profile) ocb -tag profile $TARGET.native &&
-             mv _build/$TARGET.native goblint
+             cp _build/$TARGET.native goblint
              ;;
     byte)    ocb $TARGET.byte &&
-             mv _build/$TARGET.byte goblint.byte
+             cp _build/$TARGET.byte goblint.byte
              ;;
     all)     ocb $TARGET.native $TARGET.byte &&
-             mv _build/$TARGET.native goblint &&
-             mv _build/$TARGET.byte goblint.byte
+             cp _build/$TARGET.native goblint &&
+             cp _build/$TARGET.byte goblint.byte
              ;;
     doc*)    rm -rf doc;
              ls src/*/*.ml src/*.ml | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;

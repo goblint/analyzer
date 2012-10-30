@@ -10,6 +10,9 @@ opt : oldclean
 byte : oldclean 
 	./make.sh byte
 
+clean : oldclean 
+	./make.sh clean
+
 # 
 # Makefile for building goblint.
 #
@@ -95,7 +98,7 @@ oldunittests  : $(PROG_MODULES:%=$(OBJDIR)/%.cmx) \
 oldclean: cleancaml
 	@rm -f goblint goblint.exe goblint.byte goblint.byte.exe
 	@rm -f goblint.unittest
-	@find ./ '(' -name "*.cm[iox]" -or -name "*.o" ')' -exec rm '{}' ';'
+	@find ./obj '(' -name "*.cm[iox]" -or -name "*.o" ')' -exec rm '{}' ';'
 	@rm -f tests/*.i tests/*.goblint tests/a.out a.out
 	@rm -f src/version.ml src/config.ml
 
