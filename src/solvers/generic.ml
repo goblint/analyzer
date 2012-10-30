@@ -170,16 +170,21 @@ struct
     if tracing
     then trace "sol" "New %a\n" Var.pretty_trace x
 
-  let get_var_event x = ()
+  let get_var_event x = 
+    if full_trace
+    then trace "sol" "Querying %a\n" Var.pretty_trace x
+    
     
   let eval_rhs_event x = 
+    if full_trace
+    then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
     evals := !evals + 1;
     if !GU.solver_progress then (incr stack_d; print_int !stack_d; flush stdout)
     
   let update_var_event x o n = 
     if tracing then increase x;
     if full_trace || ((not (Dom.is_bot o)) && is_some !max_var && Var.equal (from_some !max_var) x) then begin
-      if tracing then tracei "sol" "(%d) Entered %a.\n" !max_c Var.pretty_trace x;
+      if tracing then tracei "sol" "(%d) Update to %a.\n" !max_c Var.pretty_trace x;
       if tracing then traceu "sol" "%a\n\n" Dom.pretty_diff (n, o)
     end
     
@@ -191,6 +196,10 @@ module DirtyBoxSolver : GenericLocalBoxSolver =
   functor (H:Hash.H with type key = S.v) ->
 struct
   include SolverStats (S)
+
+  let h_find_default h x d =
+    try H.find h x 
+    with Not_found -> d
 
   let solve xs vs = 
     (* the stabile "set" *)
@@ -219,7 +228,7 @@ struct
       get_var_event y;
       solve_one y;
       (* add that [x] will be influenced by [y] *)
-      H.replace infl y (x :: H.find_default infl y []);
+      H.replace infl y (x :: h_find_default infl y []);
       (* return the value for [y] *)
       H.find sol y 
       
@@ -234,7 +243,7 @@ struct
         (* set the new value for [x] *)
         H.replace sol x newd;
         (* mark dependencies unstable *)
-        let deps = H.find_default infl x [] in
+        let deps = h_find_default infl x [] in
         List.iter (H.remove stbl) deps;
         (* remove old influences of [x] -- they will be re-generated if still needed *)
         H.remove infl x;
@@ -262,6 +271,10 @@ module SoundBoxSolver : GenericLocalBoxSolver =
 struct
   include SolverStats (S)
   
+  let h_find_default h x d =
+    try H.find h x 
+    with Not_found -> d
+    
   let solve xs vs = 
     (* the stabile "set" *)
     let stbl = H.create 1024 in
@@ -271,6 +284,8 @@ struct
     let sol  = H.create 1024 in
     (* the side-effected solution map  *)
     let sols = H.create 1024 in
+    (* the called set *)
+    let called = H.create 1024 in
     
     (* solve the variable [x] *)
     let rec solve_one x = 
@@ -280,9 +295,14 @@ struct
         if not (H.mem sol x) then (new_var_event x; H.add sol x (S.Dom.bot ()));
         (* mark [x] stable *)
         H.replace stbl x ();
+        (* mark [x] called *)
+        H.replace called x ();
         (* set the new value for [x] *)
         eval_rhs_event x;
-        Option.may (fun f -> set x (f (eval x) side)) (S.system x)
+        let set_x d = if H.mem called x then set x d else Printf.printf "not called\n" in
+        Option.may (fun f -> set_x (f (eval x) side)) (S.system x);
+        (* remove [x] from called *)
+        H.remove called x        
       end
       
     (** return the value for [y] and mark its influence on [x] *)
@@ -291,14 +311,14 @@ struct
       get_var_event y;
       solve_one y;
       (* add that [x] will be influenced by [y] *)
-      H.replace infl y (x :: H.find_default infl y []);
+      H.replace infl y (x :: h_find_default infl y []);
       (* return the value for [y] *)
       H.find sol y
     
     (* this is the function we give to [S.system] *)
     and side x d =
       (* accumulate all side-effects in [sols] *)
-      let nd = S.Dom.join d (H.find_default sols x (S.Dom.bot ())) in
+      let nd = S.Dom.join d (h_find_default sols x (S.Dom.bot ())) in
       H.replace sols x nd;
       (* do the normal writing operation with the accumulated value *)
       set x nd
@@ -309,16 +329,18 @@ struct
       (* do nothing if we have stabilized [x] *)
       let oldd = H.find sol x in
       (* compute the new value *)
-      let newd = S.box x oldd (S.Dom.join d (H.find_default sols x (S.Dom.bot ()))) in
-      update_var_event x oldd newd;
+      let newd = S.box x oldd (S.Dom.join d (h_find_default sols x (S.Dom.bot ()))) in
       if not (S.Dom.equal oldd newd) then begin
+        update_var_event x oldd newd;
         (* set the new value for [x] *)
         H.replace sol x newd;
         (* mark dependencies unstable *)
-        let deps = H.find_default infl x [] in
+        let deps = h_find_default infl x [] in
         List.iter (H.remove stbl) deps;
         (* remove old influences of [x] -- they will be re-generated if still needed *)
-        H.remove infl x;
+        (*H.remove infl x;*)
+        if full_trace
+        then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps);
         (* solve all dependencies *)
         solve_all deps        
       end
@@ -343,6 +365,10 @@ module PreciseSideEffectBoxSolver : GenericLocalBoxSolver =
 struct
   include SolverStats (S)
   
+  let h_find_default h x d =
+    try H.find h x 
+    with Not_found -> d
+  
   module VM = Map.Make (S.Var)
   module VS = Set.Make (S.Var)
 
@@ -357,6 +383,8 @@ struct
     let sols  = H.create 1024 in
     (* the side-effected solution map  *)
     let sdeps = H.create 1024 in
+    (* the side-effected solution map  *)
+    let called = H.create 1024 in
     
     (* solve the variable [x] *)
     let rec solve_one x = 
@@ -366,11 +394,15 @@ struct
         if not (H.mem sol x) then (new_var_event x; H.add sol x (S.Dom.bot ()));
         (* mark [x] stable *)
         H.replace stbl x ();
+        (* mark [x] called *)
+        H.replace called x ();
         (* remove side-effected values *)
         H.remove sols x;
         (* set the new value for [x] *)
         eval_rhs_event x;
-        Option.may (fun f -> set x (f (eval x) (side x))) (S.system x)
+        Option.may (fun f -> set x (f (eval x) (side x))) (S.system x);
+        (* remove [x] from called *)
+        H.remove called x        
       end
       
     (** return the value for [y] and mark its influence on [x] *)
@@ -379,16 +411,16 @@ struct
       get_var_event y;
       solve_one y;
       (* add that [x] will be influenced by [y] *)
-      H.replace infl y (x :: H.find_default infl y []);
+      H.replace infl y (x :: h_find_default infl y []);
       (* return the value for [y] *)
       H.find sol y
     
     (* this is the function we give to [S.system] *)
     and side y x d =
       (* mark that [y] has a side-effect to [x] *)
-      H.replace sdeps x (VS.add y (H.find_default sdeps x VS.empty));
+      H.replace sdeps x (VS.add y (h_find_default sdeps x VS.empty));
       (* save the value in [sols] *)
-      let om = H.find_default sols y VM.empty in
+      let om = h_find_default sols y VM.empty in
       let nm = VM.modify_def (S.Dom.bot ()) x (S.Dom.join d) om in
       H.replace sols y nm;
       (* do the normal writing operation with the accumulated value *)
@@ -404,13 +436,13 @@ struct
         try S.Dom.join d (VM.find x (H.find sols z))
         with Not_found -> d
       in
-      let newd = S.box x oldd (VS.fold find_join_sides (H.find_default sdeps x VS.empty) d) in
+      let newd = S.box x oldd (VS.fold find_join_sides (h_find_default sdeps x VS.empty) d) in
       update_var_event x oldd newd;
       if not (S.Dom.equal oldd newd) then begin
         (* set the new value for [x] *)
         H.replace sol x newd;
         (* mark dependencies unstable *)
-        let deps = H.find_default infl x [] in
+        let deps = h_find_default infl x [] in
         List.iter (H.remove stbl) deps;
         (* remove old influences of [x] -- they will be re-generated if still needed *)
         H.remove infl x;
