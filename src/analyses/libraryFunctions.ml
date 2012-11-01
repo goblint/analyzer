@@ -1,4 +1,5 @@
 open Cil
+open GobConfig
 open Goblintutil
 
 (** Take the possible failing of standard locking operations into account. *)
@@ -468,6 +469,6 @@ let use_special fn_name =
     | "__raw_write_unlock" 
     | "spinlock_check"
     | "spin_unlock_irqrestore" -> true
-    | "list_add" when !Goblintutil.use_list_type -> true
-    | "list_del" when !Goblintutil.use_list_type -> true
+    | "list_add" when (get_bool "exp.list-type") -> true
+    | "list_del" when (get_bool "exp.list-type") -> true
     | _ -> false

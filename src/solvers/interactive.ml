@@ -1,3 +1,4 @@
+open GobConfig
 open Messages
 open Progress
 open Pretty
@@ -167,7 +168,7 @@ struct
                   end
           in
             let (nls,tc) = f (vEval ((x,f),i), GCache.cached (gEval ((x,f),i))) doOneGlobalDelta in
-            if !GU.eclipse then show_add_work_buf (List.length tc);
+            if get_bool "exp.eclipse" then show_add_work_buf (List.length tc);
             List.iter constrainOneVar tc;
             local_state := VDom.join !local_state nls;
         in
@@ -197,7 +198,7 @@ struct
     end end          
 
     and vEval (c: constrain * int) var =
-      if !GU.eclipse then show_add_work_buf 1;
+      if get_bool "exp.eclipse" then show_add_work_buf 1;
       constrainOneVar var;
       VMap.replace vInfl var (c :: VMap.find vInfl var);
       VMap.find sigma var 

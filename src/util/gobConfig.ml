@@ -18,6 +18,8 @@
 *)
 
 open Batteries_uni
+open Tracing
+open Config
 open Printf
 open Json
 
@@ -188,7 +190,7 @@ struct
             o := create_new v pth
         | _ -> 
             let new_v = create_new v pth in
-            if !Goblintutil.verbose && not (json_type_equals !o new_v) then
+            if not (json_type_equals !o new_v) then
               printf "Warning, changing '%a' from '%a' to '%a'.\n" 
                         print_path orig_pth printJson !o printJson new_v; 
             o := new_v
@@ -225,7 +227,7 @@ struct
 
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v = 
-    if Messages.tracing then Messages.trace "conf" "Setting '%s' to %a." st prettyJson v;
+    if tracing then trace "conf" "Setting '%s' to %a." st prettyJson v;
     set_path_string st v
     
   (** Convienience functions for writing values. *)    
@@ -268,8 +270,8 @@ struct
   (** Functions to drop one element of an 'array' *)
   let drop_index st i = 
     let old = get_path_string array "array" st in
-    if Messages.tracing then 
-      Messages.trace "conf" "Removing index %d from '%s' to %a." i st prettyJson (Array old);
+    if tracing then 
+      trace "conf" "Removing index %d from '%s' to %a." i st prettyJson (Array old);
     match List.split_at i !old with
       | pre, _::post -> set_path_string st (Array (ref (pre@post)))
       | _ -> 

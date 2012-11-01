@@ -1,3 +1,4 @@
+open GobConfig
 open Messages
 open Progress
 open Pretty
@@ -67,7 +68,7 @@ struct
                   end
           in
 			let (nls,tc) = f (vEval (x,f), gEval (x,f)) doOneGlobalDelta in
-            if !GU.eclipse then show_add_work_buf (List.length tc);
+            if get_bool "exp.eclipse" then show_add_work_buf (List.length tc);
             worklist := tc @ !worklist;
             VDom.join old_state nls
         in
@@ -85,7 +86,7 @@ struct
             in
               List.iter collectInfluence (VMap.find vInfl x);
               VMap.remove vInfl x;
-              if !GU.eclipse then show_add_work_buf (List.length !influenced_vars);
+              if get_bool "exp.eclipse" then show_add_work_buf (List.length !influenced_vars);
               List.iter constrainOneVar !influenced_vars;
 (*               worklist := !influenced_vars @ !worklist; *)
               if tracing then traceu "sol" "Set state to:\n    %a\n" VDom.pretty new_w
@@ -110,18 +111,18 @@ struct
             in
               List.iter collectInfluence (VMap.find vInfl x);
               VMap.remove vInfl x;
-              if !GU.eclipse then show_add_work_buf (List.length !influenced_vars);
+              if get_bool "exp.eclipse" then show_add_work_buf (List.length !influenced_vars);
               List.iter constrainOneVar !influenced_vars;
 (*               worklist := !influenced_vars @ !worklist; *)
               if tracing then traceu "sol" "Set state to:\n    %a\n" VDom.pretty new_w
           end else
             if tracing then traceu "sol" "State didn't change!\n" 
     end end;
-    if !GU.eclipse then show_worked_buf 1
+    if get_bool "exp.eclipse" then show_worked_buf 1
           
 
     and vEval (c: constrain) var =
-      if !GU.eclipse then show_add_work_buf 1;
+      if get_bool "exp.eclipse" then show_add_work_buf 1;
       constrainOneVar var;
       VMap.replace vInfl var (c :: VMap.find vInfl var);
       VMap.find sigma var
@@ -132,7 +133,7 @@ struct
 
     in
       GU.may_narrow := true;
-      if !GU.eclipse then show_subtask "Constant Propagation" 0;  
+      if get_bool "exp.eclipse" then show_subtask "Constant Propagation" 0;  
       let add_start (v,d) = 
         VMap.add sigma v d;
         let edges = system v in
@@ -141,7 +142,7 @@ struct
       in
       List.iter add_start start ;
       while !worklist != [] do
-        if !GU.eclipse then show_add_work_buf (List.length !worklist);
+        if get_bool "exp.eclipse" then show_add_work_buf (List.length !worklist);
         let wl = !worklist in worklist := [];
         List.iter constrainOneVar wl;
         let recallConstraint (y,f) = 
@@ -155,9 +156,9 @@ struct
       VMap.clear recal;
       GU.may_narrow := false;
       worklist := initialvars;
-      if !GU.eclipse then show_subtask "Reporting Phase" 0;  
+      if get_bool "exp.eclipse" then show_subtask "Reporting Phase" 0;  
       while !worklist != [] do
-        if !GU.eclipse then show_add_work_buf (List.length !worklist);
+        if get_bool "exp.eclipse" then show_add_work_buf (List.length !worklist);
         let wl = !worklist in worklist := [];
         List.iter constrainOneVar wl;
         let recallConstraint (y,f) = 

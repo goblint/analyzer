@@ -1,3 +1,4 @@
+open GobConfig 
 open Messages
 open Progress
 open Pretty
@@ -90,7 +91,7 @@ struct
         let local_state = ref (VDom.bot ()) in 
         let constrainOneRHS (f, i) =
           evals := !evals + 1;
-          (if !GU.solver_progress then (incr stack_d; print_int !stack_d; flush stdout)); 
+          (if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)); 
           let doOneGlobalDelta = function
             | `L (v, state) ->
               if not ( VDom.leq state (VDom.bot ()) ) then
@@ -122,7 +123,7 @@ struct
           let (nls,tc) = f (vEval ((x,f),i), GCache.cached (gEval ((x,f),i))) doOneGlobalDelta in
             iter constrainOneVar tc;
             local_state := VDom.join !local_state nls;
-            if !GU.solver_progress then decr stack_d 
+            if (get_bool "dbg.solver-progress") then decr stack_d 
         in
           iter constrainOneRHS rhsides;
           let old_state = VMap.find sigma x in

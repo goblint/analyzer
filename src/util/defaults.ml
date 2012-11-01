@@ -2,6 +2,8 @@ open Batteries_uni
 open Printf
 open List
 
+(* TODO: add consistency checking *)
+
 (** Main categories of configuration variables. *)
 type category = Std           (** Parsing input, includes, standard stuff, etc. *)
               | Analyses      (** Analyses                                      *)
@@ -64,7 +66,8 @@ let _ =
   reg Std "merge-conflicts" "true"         "Abort on merging conflicts.";
   reg Std "cppflags"        "''"           "Pre-processing parameters.";
   reg Std "kernel"          "false"        "For analyzing Linux Device Drivers.";
-  reg Std "result"          "'none'"       "Result style: none, glob, indented, compact, or pretty.";
+  reg Std "dump_globs"      "false"        "Print out the global invariant.";
+  reg Std "result"          "'none'"       "Result style: none, indented, compact, or pretty.";
   reg Std "solver"          "'effectWCon'" "Picks the solver.";
   reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main).";
   reg Std "nonstatic"       "false"        "Analyzes all non-static functions."
@@ -86,7 +89,9 @@ let _ =
   reg Analyses "ana.osek.taskprefix" "''"    "Prefix added by the TASK macro";
   reg Analyses "ana.osek.isrsuffix"  "''"    "Suffix added by the ISR macro";
   reg Analyses "ana.osek.tasksuffix" "''"    "Suffix added by the TASK macro";
-  reg Analyses "ana.osek.intrpts"    "false" "Enable constraints for interrupts."
+  reg Analyses "ana.osek.intrpts"    "false" "Enable constraints for interrupts.";
+  reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain.";
+  reg Analyses "ana.int.interval"    "false" "Interval based integer domain."
   
 (* {4 category [Experimental]} *)
 
@@ -99,11 +104,12 @@ let _ =
   reg Experimental "exp.failing-locks"     "false" "Takes the possible failing of locking operations into account.";
   reg Experimental "exp.field-insensitive" "false" "Turns off field-sensitivity.";
   reg Experimental "exp.region-offsets"    "false" "Considers offsets for region accesses.";
-  reg Experimental "exp.unmerged-fields"   "false" "Does not merge accesses to possibly same fields, unsound.";
-  reg Experimental "exp.die-on-collapse"   "false" "Raise an exception as soon as an array collapses.";
+(*  reg Experimental "exp.unmerged-fields"   "false" "Does not merge accesses to possibly same fields, unsound.";
+  reg Experimental "exp.die-on-collapse"   "false" "Raise an exception as soon as an array collapses.";*)
   reg Experimental "exp.type-inv"          "false" "Should we use type invariants?";
   reg Experimental "exp.list-type"         "false" "Should we use list types?";
   reg Experimental "exp.unique"            "[]"    "For types that have only one value.";
+  reg Experimental "exp.sharir-pnueli"     "false" "Use the Sharir/Pnueli algorithm for solving.";
   reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach.";
   reg Experimental "exp.full-context"      "false" "Do not side-effect function entries.";
   reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts.";

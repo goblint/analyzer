@@ -1,4 +1,5 @@
 open Batteries_uni
+open GobConfig
 
 
 (** A side-effecting system. *)
@@ -179,7 +180,7 @@ struct
     if full_trace
     then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
     evals := !evals + 1;
-    if !GU.solver_progress then (incr stack_d; print_int !stack_d; flush stdout)
+    if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
     
   let update_var_event x o n = 
     if tracing then increase x;

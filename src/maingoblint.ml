@@ -530,7 +530,7 @@ let main () =
                                                    L.pretty stf L.pretty exf L.pretty otf);
         (* and here we run the analysis! *)
         if !GU.result_style = GU.Html then Report.prepare_html_report ();
-        if !GU.new_fwk then analyze := Constraints.analyze ;
+        if (get_bool "exp.new_fwk") then analyze := Constraints.analyze ;
         Stats.time "analysis" (!analyze merged_AST) funs;
         Report.do_stats !fileNames
     end
