@@ -180,9 +180,6 @@ struct
       (* And fold over the list starting from the store turned wstore: *)
       List.fold_left f store lval_value_list
 
-  (* The function for invalidating a list of addresses *)
-  let set_top (st,fl:store) (lvals: AD.t list) = ()
-
   let join_writes (st1,gl1) (st2,gl2) = 
     (* It's the join of the local state and concatenate the global deltas, I'm
      * not sure in which order! *)
@@ -1115,6 +1112,39 @@ struct
     let fundec = Cilfacade.getdec fn in
       [make_entry (zip fundec.sformals vals) reachable]
 
+  let assert_fn ctx e warn change = 
+    let check_assert e st = 
+      match eval_rv ctx.ask ctx.global st e with 
+        | `Int v when ID.is_bool v -> 
+             begin match ID.to_bool v with
+               | Some false ->  `False
+               | Some true  ->  `True
+               | _ -> `Top
+             end
+        | `Bot -> `Bot
+        | _ -> `Top
+    in
+    let map_true x = x, (Cil.integer 1), true in
+    let expr () = sprint ~width:80 (d_exp () e) in
+    match check_assert e ctx.local with 
+      | `False -> 
+          if warn then M.warn_each ("Assertion \"" ^ expr () ^ "\" will fail.");
+          if change then raise Analyses.Deadcode else [map_true ctx.local]
+      | `True -> 
+          if warn then M.warn_each ("Assertion \"" ^ expr () ^ "\" will succeed");
+          [map_true ctx.local]
+      | `Bot -> 
+          M.warn_each ("Assertion \"" ^ expr () ^ "\" produces a bottom. What does that mean?");
+          [map_true ctx.local]
+      | `Top -> 
+          if warn then M.warn_each ("Assertion \"" ^ expr () ^ "\" is unknown.");
+          (* make the state meet the assertion in the rest of the code *)
+          if not change then [map_true ctx.local] else begin
+            let newst = invariant ctx.ask ctx.global ctx.local e true in
+            if check_assert e newst <> `True then 
+              M.warn_each ("Invariant \"" ^ expr () ^ "\" does not stick.");
+            [map_true newst]
+          end
 
   let special_fn ctx (lv:lval option) (f: varinfo) (args: exp list) = 
 (*    let heap_var = heap_var !GU.current_loc in*)
@@ -1206,32 +1236,20 @@ struct
                                            (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))])]
           | _ -> [map_true st]
         end
+      | `Unknown "__goblint_unknown" ->
+          begin match args with 
+            | [Lval lv] | [CastE (_,AddrOf lv)] -> 
+                let st = set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global st lv) `Top  in
+                [map_true st]
+            | _ -> 
+                M.bailwith "Function __goblint_unknown expected one address-of argument."
+          end
       (* Handling the assertions *)
       | `Unknown "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *) 
-      | `Assert e -> begin
-          (* evaluate the assertion and check if we can refute it *)
-          let expr () = sprint ~width:80 (d_exp () e) in
-          match eval_rv ctx.ask gs st e with 
-            (* If the assertion is known to be false/true *)
-            | `Int v when ID.is_bool v -> 
-                (* Warn if it was false; ignore if true! The None case
-                  * should not happen! *)
-                (match ID.to_bool v with
-                  | Some false -> M.warn_each ("Assertion \"" ^ expr () ^ "\" will fail")
-                  | Some true  -> M.warn_each ("Assertion \"" ^ expr () ^ "\" will succeed")
-                  | _ -> ()); 
-                (* Just propagate the state *)
-                [map_true st]
-            | `Bot -> [map_true st]
-            | _ -> begin 
-                if !GU.debug then begin
-                  M.warn_each ("Assertion \"" ^ expr () ^ "\" is unknown");
-                  [map_true st]
-                end else
-                  (* make the state meet the assertion in the rest of the code *)
-                  [map_true (invariant ctx.ask gs st e true)]
-              end
-        end
+      | `Unknown "__goblint_check" -> assert_fn ctx (List.hd args) true false 
+      | `Unknown "__goblint_commit" -> assert_fn ctx (List.hd args) false true 
+      | `Unknown "__goblint_assert" -> assert_fn ctx (List.hd args) true true 
+      | `Assert e -> assert_fn ctx e !GU.debug (not !GU.debug) 
       | _ -> begin
           let lv_list = 
             match lv with
