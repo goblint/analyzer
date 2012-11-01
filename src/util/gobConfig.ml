@@ -39,12 +39,16 @@ sig
   (** Functions to modify conf variables by trying to parse the value. 
       The second argument must be valid Json exept single quotes represent double quotes. *)
   val set_auto   : string -> string -> unit
+  (** Get a list of values *)
+  val get_list : string -> jvalue list
   (** Functions to set a conf variables to null. *)
   val set_null   : string -> unit
   (** Functions to query the length of conf array variable. *)
   val get_length : string -> int
   (** Functions to modify conf array variables to drop one index. *)
   val drop_index : string -> int    -> unit
+  (** Merge configurations form a file with current. *)
+  val merge_file : string -> unit
   
 
   (** printer for the current configuration *)
@@ -212,6 +216,8 @@ struct
   let get_string = get_path_string string "string"
   (** Convienience functions for reading values. *)
   let get_length = List.length -| (!) -| get_path_string array "array"
+  (** Convienience functions for reading lists. *)
+  let get_list = List.map (!) -| (!) -| get_path_string array "array"
 
   (** Helper functions for writing values. *)
   let set_path_string st v = 
@@ -254,6 +260,10 @@ struct
       eprintf "Cannot set %s to '%s'.\n" st s;
       failwith "set_auto"
 
+  (** Merge configurations form a file with current. *)
+  let merge_file fn = 
+    let v = JsonParser.value JsonLexer.token -| Lexing.from_channel |> File.with_file_in fn in
+    json_conf := merge !json_conf v 
 
   (** Functions to drop one element of an 'array' *)
   let drop_index st i = 
