@@ -1,6 +1,10 @@
 open Cil
 open Pretty
 open Analyses
+
+open OilParser
+open OilLexer
+
 module CF = Cilfacade
 
 module Spec =
@@ -57,14 +61,24 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 
   let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType
 
+let oil_info () = 
+print_string ("Parsing oil");
+  try
+    match file token (Lexing.from_channel (open_in !oilFile)) with
+      | _ -> raise (Sys_error "Bad json file: must be an object.")
+  with (Sys_error x) -> 
+    ()
+
+
   let parse_oil () = (* requires PRIORITY tag to occur before RESOURCE tag in task definitions. does not take "default" into account *)
+    oil_info ();
     if not (!oilFile != "" && Sys.file_exists(!oilFile)) then begin     
       prerr_endline "Parsing OIL: File not found." ;
       exit 2;
     end else 
     let input = open_in !oilFile in
     let task_re = Str.regexp "\\(TASK\\|ISR\\) *\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
-    let pry_re = Str.regexp "\\(PRIORITY\\|Interrupt Priority\\) *= *\\([0-9][0-9]*\\)" in
+    let pry_re = Str.regexp "\\(PRIORITY\\|InterruptPriority\\) *= *\\([0-9][0-9]*\\)" in
     let res_re = Str.regexp "RESOURCE *= *\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
     let flag = ref "" in
     let debug_tasks = ref 0 in
