@@ -95,7 +95,7 @@ struct
   let rec get a (gs: glob_fun) (st,fl: store) (addrs:address): value =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
     let get_global x =
-      if x.Cil.vstorage = Extern then VD.join (gs x) (VD.top ()) else gs x
+      if x.Cil.vstorage = Extern || Cil.hasAttribute "volatile" (x.Cil.vattr) then VD.join (gs x) (VD.top ()) else gs x
     in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
     (* Finding a single varinfo*offset pair *)

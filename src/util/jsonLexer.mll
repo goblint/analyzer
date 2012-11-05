@@ -6,18 +6,18 @@
 }
 
 rule token = parse
-  | ['\t' '\n' ' ']   { token lexbuf }	
-  | "//" [^'\n'] '\n' { token lexbuf }	
-  | "/*" _* "*/"      { token lexbuf }	
-  | "true"            { TRUE   }
-  | "false"           { FALSE  }
-  | "null"            { NULL   }
-  | ","               { COMMA  }
-  | ":"               { COLON  }
-  | "{"               { LCURL  }
-  | "}"               { RCURL  }
-  | "["               { LBRACK }
-  | "]"               { RBRACK }
+  | ['\t' '\n' '\r' ' ']    { token lexbuf }	
+  | "//" [^'\n']* '\r'?'\n' { token lexbuf }	
+  | "/*" [^'*']* "*/"       { token lexbuf }	
+  | "true"                  { TRUE   }
+  | "false"                 { FALSE  }
+  | "null"                  { NULL   }
+  | ","                     { COMMA  }
+  | ":"                     { COLON  }
+  | "{"                     { LCURL  }
+  | "}"                     { RCURL  }
+  | "["                     { LBRACK }
+  | "]"                     { RBRACK }
   | ('\"'[^'\"']*'\"') | ('\''[^'\'']*'\'')
       { let str = Lexing.lexeme lexbuf in
         let sl  = String.length str in
