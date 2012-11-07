@@ -56,10 +56,10 @@ struct
       ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" 
                 Var.pretty_trace v (Var.file_name v) (Var.line_nr v) VDom.pretty lhs VDom.pretty rhs VDom.pretty_diff (rhs,lhs))
     in
-    let complain_g (g: global) lhs rhs = 
+    let complain_g v (g: global) lhs rhs = 
       correct := false; 
-      ignore (Pretty.printf "Unsatisfied constraint for global %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]" 
-                G.Var.pretty_trace g G.Val.pretty lhs G.Val.pretty rhs)
+      ignore (Pretty.printf "Unsatisfied constraint for global %a at variable %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]" 
+                G.Var.pretty_trace g Var.pretty_trace v G.Val.pretty lhs G.Val.pretty rhs)
     in
     (* For each variable v which has been assigned value d', would like to check
      * that d' satisfied all constraints. *)
@@ -77,7 +77,7 @@ struct
           | `G (g,gv) -> 
             let gv' = GMap.find theta g in 
               if not (G.Val.leq gv gv') then 
-                complain_g g gv' gv  in
+                complain_g v g gv' gv  in
         let (d,s) = rhs (sigma',theta') check_glob in
         (* Then we check that the local state satisfies this constraint. *)
           if not (VDom.leq d d') then

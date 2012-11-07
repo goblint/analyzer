@@ -768,6 +768,7 @@ struct
     let module S4 = Generic.DirtyBoxSolver             (EqSysNormal) (H2) in
     let module S5 = Generic.SoundBoxSolver             (EqSysNormal) (H2) in
     let module S6 = Generic.PreciseSideEffectBoxSolver (EqSysNormal) (H2) in
+    let module HS = Generic.HelmutBoxSolver            (EqSysNormal) (H2) in
     
     (* chooses a solver & translates input and output *)
     let new_fwk_solve svar sval = 
@@ -805,12 +806,13 @@ struct
         | "n1" -> H2.iter add2 (S4.solve sval2 svar2)
         | "n2" -> H2.iter add2 (S5.solve sval2 svar2)
         | "n3" -> H2.iter add2 (S6.solve sval2 svar2)
+        | "hbox" -> H2.iter add2 (HS.solve sval2 svar2)
         | _ -> () end;
       (ls,gs)
     in
     let sol,gs = 
       let solve () =
-        if List.mem !GU.solver ["s1";"s2";"s3";"n1";"n2";"n3"]
+        if List.mem !GU.solver ["s1";"s2";"s3";"n1";"n2";"n3";"hbox"]
         then new_fwk_solve startvars'' entrystatesq
         else Solver.solve () (system cfg old old_g old_s phase) startvars'' entrystatesq
       in

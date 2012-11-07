@@ -209,7 +209,6 @@ struct
   if D.leq y x then begin 
 (*    s := (w,n+1,if !m then sw+1 else sw);
     m := false;*)
-    ignore (Pretty.printf "narrowing %a from\n%a\nto\n%a\n" V.pretty_trace v D.pretty x D.pretty y);
     D.narrow x y 
   end else begin (*
     s := (w+1,n,sw);
