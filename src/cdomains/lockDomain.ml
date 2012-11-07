@@ -148,7 +148,8 @@ struct
         | Cil.StartOf (Cil.Mem e,ofs) -> S.map (fun e -> Cil.StartOf (Cil.Mem e,ofs)) (eq_set ask e) 
         | Cil.Lval    (Cil.Mem e,ofs) -> S.map (fun e -> Cil.Lval    (Cil.Mem e,ofs)) (eq_set ask e) 
         | Cil.CastE (_,e)           -> eq_set ask e
-        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL.")
+        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+	| _ -> failwith "Unmatched pattern.")
   
   let add ask e st = 
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
