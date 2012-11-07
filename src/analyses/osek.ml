@@ -3,6 +3,9 @@ open Pretty
 open Analyses
 module CF = Cilfacade
 
+open OilParser
+open OilLexer
+
 module Spec =
 struct
   include Analyses.DefaultSpec
@@ -11,9 +14,19 @@ struct
   let resourceheaders = ref ""
 (* "/defaultAppWorkstation/tpl_os_generated_configuration.h" *)
 
-  let constantlocks = Hashtbl.create 16
   let resources = Hashtbl.create 16
+(*  let tasks = Hashtbl.create 16
+  let timed_tasks = Hashtbl.create 16
+  let isr_1 = Hashtbl.create 16
+  let isr_2 = Hashtbl.create 16
+  let events = Hashtbl.create 16*)
+
+  let constantlocks = Hashtbl.create 16
   let offensivepriorities = Hashtbl.create 16
+
+(*   let schedule = ref true (* make default a param? *) *)
+(*   let startuphook = ref true *)
+
   let irpts = ref []
 
   (*priority function*)
@@ -57,7 +70,17 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 
   let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType
 
+let oil_info () = 
+print_string ("Parsing oil");
+  try
+    match file token (Lexing.from_channel (open_in !oilFile)) with
+      | _ -> raise (Sys_error "Bad json file: must be an object.")
+  with (Sys_error x) -> 
+    ()
+
+
   let parse_oil () = (* requires PRIORITY tag to occur before RESOURCE tag in task definitions. does not take "default" into account *)
+    oil_info ();
     if not (!oilFile != "" && Sys.file_exists(!oilFile)) then begin     
       prerr_endline "Parsing OIL: File not found." ;
       exit 2;
