@@ -1,8 +1,8 @@
 open Cil
 open Pretty
 open Htmlutil
+open Htmldump
 module GU = Goblintutil
-
 
 exception Bailure of string
 let bailwith s = raise (Bailure s)
@@ -21,6 +21,7 @@ let current_loc = GU.current_loc
 let xml_warn = Hashtbl.create 10  
 
 let print_msg msg loc = 
+	printf "print_msg!\n";
   if !GU.result_style = GU.NewHtml then
     let old = try Hashtbl.find xml_warn loc with Not_found -> [] in
     Hashtbl.replace xml_warn loc (("m",msg)::old)
@@ -32,6 +33,7 @@ let print_msg msg loc =
     Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
 
 let print_err msg loc = 
+	printf "print_err!\n";
   if !GU.result_style = GU.NewHtml then
     let old = try Hashtbl.find xml_warn loc with Not_found -> [] in
     Hashtbl.replace xml_warn loc (("e",msg)::old)
@@ -44,6 +46,9 @@ let print_err msg loc =
 
 
 let print_group group_name errors =
+  (* Add warnings to global warning list *)
+  List.iter (fun (msg,loc) -> htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,(group_name^" : "^msg))];() ) errors;
+
   if !Goblintutil.eclipse || !GU.result_style=GU.NewHtml then
     List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
   else

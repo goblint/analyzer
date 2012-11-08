@@ -594,8 +594,8 @@ struct
         end
       | GU.Html -> 
           Htmldump.print_html out (resultXML (Lazy.force table)) file
-      | GU.NewHtml -> 
-          Htmldump.printFiles file (resultXML (Lazy.force table)) (Lazy.force gtable)
+      (*| GU.NewHtml -> 
+          Htmldump.printFiles file (resultXML (Lazy.force table)) (Lazy.force gtable) *)
       | _ -> ()
 end
 
