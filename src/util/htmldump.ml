@@ -5,12 +5,13 @@ open Cil;;
 open Unix;;
 
 let htmlGlobalWarningList : (string*int*string) list ref = ref []
+let warningLineNumberList = ref []
 
 let htmlTemp_BasePartOne = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\n<head>\n  <title>%filename%</title>\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\n\n  
 <link rel=\"stylesheet\" href=\"style.css\" type=\"text/css\"></link>\n
 <script type=\"text/javascript\" src=\"script.js\"></script>\n
 </head>\n\n<body onload=\"onLoad();\">\n\n  <div style=\"border-bottom: 1px solid #808080;\">\n    <div style=\"border-bottom: 1px solid #000000; color: #5060C0; background-color: #F0F0F0; font-size: 16px; padding: 2px; font-weight: bold;\">\n      Filename: %filename%\n    </div>\n   </div>\n\n   <noscript><span style=\"padding: 10px; font-size: 18px; border: 2px solid Red;\">Javascript is <b>not</b> enabled!</noscript>\n\n  <div id=\"leftWindow\" class=\"mywindow\">\n    <div class=\"mywindow_header\">Analysis</div>\n    <div id=\"leftWindowContent\" class=\"mywindow_content\">\n      \n      <div id=\"analysis_line0\">\n        No line selected\n      </div>\n\n      <div id=\"dynamicanalysis\">\n\n      </div>\n    </div>\n  </div>\n\n  <div id=\"codeWindow\" class=\"mywindow\">\n    <div class=\"mywindow_header\">Source code</div>\n    <div id=\"codeWindowContent\" class=\"mywindow_content\">\n\n";;
-let htmlTemp_BasePartTwo = "      <div id=\"lastline\" class=\"linetype0\" style=\"border-top: 1px solid #C0C0C0;\"><pre></pre></div>\n    </div>\n  </div>\n\n  <div id=\"rightWindow\" class=\"mywindow\">\n    <div class=\"mywindow_header\">Empty <a style=\"text-decoration: none; color: #000080;\" href=\"javascript:hideWindow('rightWindow');\">[X]</a></div>\n    <div id=\"rightWindowContent\" class=\"mywindow_content\">\n      Currently no content\n    </div>\n  </div>\n\n  <div id=\"bottomWindow\" class=\"mywindow\">\n    <div class=\"mywindow_header\">Function info<a style=\"text-decoration: none; color: #000080;\" href=\"javascript:hideWindow('bottomWindow');\">[X]</a></div>\n    <div id=\"bottomWindowContent\" class=\"mywindow_content\">\n\n";;
+let htmlTemp_BasePartTwo = "      <div id=\"lastline\" class=\"linetype0\" style=\"border-top: 1px solid #C0C0C0;\"><pre></pre></div>\n    </div>\n  </div>\n\n  <div id=\"rightWindow\" class=\"mywindow\">\n    <div class=\"mywindow_header\">Empty <a style=\"text-decoration: none; color: #000080;\" href=\"javascript:hideWindow('rightWindow');\">[X]</a></div>\n    <div id=\"rightWindowContent\" class=\"mywindow_content\">\n      Currently no content\n    </div>\n  </div>\n\n  <div id=\"bottomWindow\" class=\"mywindow\">\n    <div class=\"mywindow_header\"><span id=\"title_function_info\" style=\"display: none;\">Function Info</span><span id=\"title_warning_info\" style=\"display: none;\">Warning Info</span><a style=\"text-decoration: none; color: #000080;\" href=\"javascript:hideWindow('bottomWindow');\">[X]</a></div>\n    <div id=\"bottomWindowContent\" class=\"mywindow_content\">\n\n";;
 let htmlTemp_BasePartThree = "    </div>\n  </div>\n\n</body>\n</html>\n\n";;
 
 (* Some lists for syntax highlighting *)
@@ -42,11 +43,13 @@ let createHtmlFunctionInfo outchan cilFile =
 	List.iter (iterGlobals) cilFile.globals;
 	();;
 
-let createHtmlWarningsInfo outchan cilFile = ()
-	(*let htmlprintWarningBox (filename,line,msg) = 
-		()
+let createHtmlWarningsInfo outchan cilFile = 
+	let htmlprintWarningBox lineno = 
+		fprintf outchan "<div id=\"warning_info%i\" style=\"display: none;\">" lineno;
+		List.iter (fun (filename,line,msg) -> fprintf outchan "%s <br/>\n" msg) !htmlGlobalWarningList;
+		fprintf outchan "</div>"
 	in
-	List.iter htmlprintWarningBox !htmlGlobalWarningList;*)
+	List.iter htmlprintWarningBox !warningLineNumberList;;
 
 let createCodeLines outchan filename xmlNode lineCount = 
 	let shortFilename = Filename.basename filename in
@@ -119,7 +122,8 @@ let createCodeLines outchan filename xmlNode lineCount =
 
 	let createLine line = 
 		let isAnalyzed = isLineAnalyzed !currentLine in
-		let linkStart = if (isAnalyzed = true) then "<a href=\"javascript:showLine('"^shortFilename^"',"^(string_of_int !currentLine)^");\">" else "" in
+		let linkColor = (if (List.exists (fun l -> (l = !currentLine)) !warningLineNumberList) then "red" else "black") in
+		let linkStart = if (isAnalyzed = true) then "<a style=\"color: "^linkColor^"\" href=\"javascript:showLine('"^shortFilename^"',"^(string_of_int !currentLine)^");\">" else "" in
 		let linkEnd = if (isAnalyzed = true) then "</a>" else "" in
 		fprintf outchan "      <div id=\"line%i\" class=\"linetype%i\"><pre> %s%i:%s %s</pre></div>\n" !currentLine (!currentLine mod 2) linkStart !currentLine linkEnd (prepareLine line);
 		currentLine := !currentLine + 1;
@@ -233,6 +237,9 @@ let print_html chan xmlNode (file: Cil.file) =
 
 	(* Create function infos *)
 	createFunctionInfoList file;
+
+	(* Create warning line number list *)
+	warningLineNumberList := List.fold_left (fun l (filename,line,msg) -> if ((List.exists (fun ti -> ti = line) l) != true) then l@[line] else l) [] !htmlGlobalWarningList;
 
 	(* Walk through the analysis lines in the xml file *)
 	Xml.iter (fun x -> processAnalysisLineEntry x) xmlNode;
