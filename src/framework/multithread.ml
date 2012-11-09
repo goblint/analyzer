@@ -929,7 +929,7 @@ struct
     let ltable = lazy (solver2source_result !oldsol) in
     let gtable = lazy (List.map (fun (_,g) -> global_xml g) !oldsol) in
     if !GU.print_dead_code then print_dead_code (Lazy.force ltable);
-    Result.output ltable gtable file;
+    Stats.time "result output" (Result.output ltable gtable) file;
     if !GU.dump_global_inv then 
       List.iter (fun (_,gs) -> print_globals gs) !oldsol
     

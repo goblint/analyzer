@@ -196,7 +196,7 @@ let print_html chan xmlNode (file: Cil.file) =
 		List.find (fun entry -> (String.compare entry.filename lineFile) == 0) !fileList
 		with Not_found -> begin
 			let newEntry = createFileListEntry lineFile in
-			fileList := !fileList @ [newEntry];
+			fileList := newEntry :: !fileList;
 			newEntry;
 		end
 	in
