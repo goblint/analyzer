@@ -265,7 +265,7 @@ struct
 end
 
 (* use this if you do widenings & narrowings (but no narrowings for globals) *)
-module SoundBoxSolver : GenericLocalBoxSolver =
+module SoundBoxSolverImpl =
   functor (S:GenericEqSystem) ->
   functor (H:Hash.H with type key = S.v) ->
 struct
@@ -275,15 +275,15 @@ struct
     try H.find h x 
     with Not_found -> d
     
-  let solve xs vs = 
+  let solveWithStart (ht,hts) xs vs = 
     (* the stabile "set" *)
     let stbl = H.create 1024 in
     (* the influence map *)
     let infl = H.create 1024 in
     (* the solution map  *)
-    let sol  = H.create 1024 in
+    let sol  = ht (*H.create 1024*) in
     (* the side-effected solution map  *)
-    let sols = H.create 1024 in
+    let sols = hts(*H.create 1024*) in
     (* the called set *)
     let called = H.create 1024 in
     
@@ -299,7 +299,7 @@ struct
         H.replace called x ();
         (* set the new value for [x] *)
         eval_rhs_event x;
-        let set_x d = if H.mem called x then set x d else Printf.printf "not called\n" in
+        let set_x d = if H.mem called x then set x d else () in
         Option.may (fun f -> set_x (f (eval x) side)) (S.system x);
         (* remove [x] from called *)
         H.remove called x        
@@ -338,7 +338,8 @@ struct
         let deps = h_find_default infl x [] in
         List.iter (H.remove stbl) deps;
         (* remove old influences of [x] -- they will be re-generated if still needed *)
-        (*H.remove infl x;*)
+        H.remove infl x;
+        H.replace infl x [x];
         if full_trace
         then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps);
         (* solve all dependencies *)
@@ -354,8 +355,14 @@ struct
     start_event (); 
     List.iter (fun (k,v) -> side k v) xs;
     solve_all vs; stop_event (); 
-    sol
+    sol, sols
+    
+  (** the solve function *)
+  let solve xs ys = solveWithStart (H.create 1024, H.create 1024) xs ys |> fst
 end
+
+module SoundBoxSolver : GenericLocalBoxSolver = SoundBoxSolverImpl
+
 
 
 (* use this if you do widenings & narrowings for globals *)
@@ -463,9 +470,33 @@ struct
     sol
 end
 
+module CousotNonBoxSolver : GenericLocalBoxSolver =
+  functor (S:GenericEqSystem) ->
+  functor (H:Hash.H with type key = S.v) ->
+struct
+  module SW =
+  struct
+    include S
+    let box _ x y = S.Dom.widen x (S.Dom.join x y)
+  end
+  module SolveW = SoundBoxSolverImpl (SW) (H)
+  
+  module SN =
+  struct
+    include S
+    let box _ = S.Dom.narrow
+  end
+  module SolveN = SoundBoxSolverImpl (SN) (H)
+  
+  let solve xs vs = 
+    ignore (Pretty.printf "Widening ...\n");
+    let wsol = SolveW.solveWithStart (H.create 1024, H.create 1024) xs vs in
+    ignore (Pretty.printf "Narrowing ...\n");
+    SolveN.solveWithStart wsol xs vs |> fst
+end
 
 (** its the best *)
-module HelmutBoxSolver : GenericLocalBoxSolver =
+module HelmutBoxSolver (*: GenericLocalBoxSolver*) =
   functor (S:GenericEqSystem) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
@@ -478,7 +509,7 @@ struct
     try HM.find h x 
     with Not_found -> d
 
-        module X = 
+  module X = 
   struct 
     let keys = HM.create 1024 
     let vals = HM.create 1024 
@@ -569,13 +600,11 @@ struct
         let stable = HM.create 1024
         let infl = HM.create 1024
         let set = HM.create 1024
-
-        let box x y = if D.leq y x then D.narrow x y 
-                      else D.widen x (D.join x y)
-
-        let solve eq list = 
-
-                          let work = ref (H.from_list list) 
+        let work = ref H.empty
+        
+        let solve box eq list = 
+                        
+                          let _ = work := H.merge (H.from_list list) !work 
                           
                           in let _ = List.iter (fun x -> L.add infl x x) list 
 
@@ -651,7 +680,7 @@ struct
                           in X.to_list ()
     
 
-  let solve st x = 
+  let solve' box st x = 
     let sys x get set = 
 	    match S.system x with
         | None -> S.Dom.bot ()
@@ -667,5 +696,100 @@ struct
             d
     in 
     List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update set x (P.single x)) st;
-    solve sys x
+    solve box sys x
+    
+  let box x y = if D.leq y x then D.narrow x y 
+                else D.widen x (D.join x y)
+  
+  let solve = solve' box
+end
+
+module CompareBoxSolvers' : GenericLocalBoxSolver =
+  functor (S:GenericEqSystem) ->
+  functor (H:Hash.H with type key = S.v) ->
+struct
+  module Solve1 = CousotNonBoxSolver (S) (H)  
+  module Solve2 = HelmutBoxSolver    (S) (H)
+  
+  let equal = ref 0
+  let smaller = ref 0
+  let bigger = ref 0
+  let uncomp = ref 0
+  let bla = ref true
+  
+  let print x y = 
+    if !bla then begin
+      ignore (Pretty.printf "\n%a\n\n%a\n\n" S.Dom.pretty x S.Dom.pretty y);
+      bla := false
+    end
+  
+  let report s1 s2 k =
+    try
+      let e1 = H.find s1 k in
+      try
+        let e2 = H.find s2 k in
+        match S.Dom.leq e1 e2, S.Dom.leq e2 e1 with
+          | true , true  -> Printf.printf "="; incr equal
+          | true , false -> Printf.printf "<"; incr smaller
+          | false, true  -> Printf.printf ">"; incr bigger
+          | false, false -> Printf.printf "?"; incr uncomp
+      with Not_found -> Printf.printf ">"; incr bigger
+    with Not_found -> Printf.printf "<"; incr smaller
+  
+  let solve xs vs = 
+    let module S = Set.Make (S.Var) in
+    let s1 = Solve1.solve xs vs in
+    let s2 = Solve2.solve xs vs in
+    let s = ref S.empty in
+    H.iter (fun k v -> s := S.add k !s) s1;
+    H.iter (fun k v -> s := S.add k !s) s2;
+    S.iter (report s1 s2) !s;
+    Printf.printf "\nequal=%d\tsmaller=%d\tbigger=%d\tuncomp=%d\ttotal=%d\n" !equal !smaller !bigger !uncomp (S.cardinal !s);
+    s1
+end
+
+module CompareBoxSolvers : GenericLocalBoxSolver =
+  functor (S:GenericEqSystem) ->
+  functor (H:Hash.H with type key = S.v) ->
+struct
+  module Solver = HelmutBoxSolver (S) (H)
+  
+  let equal = ref 0
+  let smaller = ref 0
+  let bigger = ref 0
+  let uncomp = ref 0
+  let bla = ref true
+  
+  let print x y = 
+    if !bla then begin
+      ignore (Pretty.printf "\n%a\n\n%a\n\n" S.Dom.pretty x S.Dom.pretty y);
+      bla := false
+    end
+  
+  let report s1 s2 k =
+    try
+      let e1 = H.find s1 k in
+      try
+        let e2 = H.find s2 k in
+        match S.Dom.leq e1 e2, S.Dom.leq e2 e1 with
+          | true , true  -> Printf.printf "="; incr equal
+          | true , false -> Printf.printf "<"; incr smaller
+          | false, true  -> Printf.printf ">"; incr bigger
+          | false, false -> Printf.printf "?"; incr uncomp
+      with Not_found -> Printf.printf ">"; incr bigger
+    with Not_found -> Printf.printf "<"; incr smaller
+  
+  let solve xs vs = 
+    let box1 x y = S.Dom.widen x (S.Dom.join x y) in
+    let s1 = Solver.solve' box1 xs vs |> H.copy in
+    let box2 = S.Dom.narrow in
+    let _ = H.iter (fun k v -> Solver.work := Solver.H.add k !Solver.work) Solver.stable in
+    let s2 = Solver.solve' box2 [] [] in
+    let module S = Set.Make (S.Var) in
+    let s = ref S.empty in
+    H.iter (fun k v -> s := S.add k !s) s1;
+    H.iter (fun k v -> s := S.add k !s) s2;
+    S.iter (report s1 s2) !s;
+    Printf.printf "\nequal=%d\tsmaller=%d\tbigger=%d\tuncomp=%d\ttotal=%d\n" !equal !smaller !bigger !uncomp (S.cardinal !s);
+    s1
 end
