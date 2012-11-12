@@ -202,6 +202,9 @@ let forward = ref false
 (** Address contexts *)
 let addr_contexts = ref false
 
+(** No integer contexts *)
+let no_int_contexts = ref false
+
 (** singleton types *)
 let singles = ref []
 

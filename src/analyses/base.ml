@@ -906,8 +906,19 @@ struct
       | _ -> `Top
     in
     CPA.map replace_val st
+
+  let drop_ints (st:CPA.t) : CPA.t = 
+    if CPA.is_top st then st else 
+    let rec replace_val = function
+      | `Int _ -> `Top
+      | x -> x
+    in
+    CPA.map replace_val st
   
-  let context_top f (cpa,fl) = if !GU.addr_contexts then (drop_non_ptrs cpa, fl) else (cpa,fl)
+  let context_top f (cpa,fl) = 
+    if !GU.addr_contexts then (drop_non_ptrs cpa, fl) 
+    else if !GU.no_int_contexts then (drop_ints cpa, fl)
+    else (cpa,fl)
   
   (* interpreter end *)
   
