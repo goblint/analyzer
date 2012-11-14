@@ -621,7 +621,7 @@ struct
           (* Since we only handle equalities the order is not important *)
           | Cil.BinOp(op, Cil.Lval x, rval, typ) -> helper op x (eval_rv a gs st rval) tv
           | Cil.BinOp(op, rval, Cil.Lval x, typ) -> helper op x (eval_rv a gs st rval) tv
-          | Cil.BinOp(op, Cil.CastE (xt,x), Cil.CastE (yt,y), typ) when xt = yt 
+          | Cil.BinOp(op, Cil.CastE (xt,x), Cil.CastE (yt,y), typ) when Basetype.CilType.equal xt yt 
             -> derived_invariant (Cil.BinOp (op, x, y, typ)) tv
           (* Cases like if (x) are treated like if (x != 0) *)
           | Cil.Lval x -> 
