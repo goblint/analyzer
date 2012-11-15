@@ -1,37 +1,7 @@
-
 %{
 (* 	Header - Ocaml declarations (Ocaml code) *)
-let add_to_table object_type object_name attribute_list = 
-  match object_type with 
-    | "OS" ->  print_endline("Found alarm " ^ object_name)
-    | "TASK" -> print_endline("Found task " ^ object_name)
-    | "ALARM" -> print_endline("Found alarm " ^ object_name)
-    | "RESOURCE" -> print_endline("Found resource " ^ object_name)
-    | "EVENT" -> print_endline("Found event " ^ object_name)
-    | "ISR"  -> print_endline("Found interrupt " ^ object_name)
-    | "COUNTER"
-    | "MESSAGE" 
-    | "COM" 
-    | "NM" 
-    | "APPMODE" 
-    | "IPDU" -> print_endline("Ignored unhandled OIL object " ^ object_type)
-    | _ -> failwith ("Unknown OIL object !" ^ object_type)
 
-let handle_os attribute_list = ()
-(* handle the following attributes: *)
-(*    SCHEDULE = AUTO;
-      STARTUPHOOK = TRUE;
-      ERRORHOOK = TRUE;
-      SHUTDOWNHOOK = TRUE;
-      PRETASKHOOK = FALSE;
-      POSTTASKHOOK = FALSE;
-    Conformanceclass
-*)
-
-
-
-
-type attribute_v = Name of (string * ( (string * attribute_v) list) option)  | Bool of (bool * ((string * attribute_v) list) option) | Int of int | Float of float | String of string | Auto
+open OilUtil
 
 %}
 
@@ -48,14 +18,13 @@ type attribute_v = Name of (string * ( (string * attribute_v) list) option)  | B
 %token <string> NAME 
 
 %start file
-%type <unit> file
+%type <(string*string*(OilUtil.param_t list)) list> file
 
 %%
 /*(* 	Grammar rules *) */
 
-file			  : oil_version implementation_definition application_definition EOF		{()}
-			  | oil_version implementation_definition application_definition		{()}
-;
+file			  : oil_version implementation_definition application_definition EOF		{$3}
+			  | oil_version implementation_definition application_definition		{$3}
 
 /* version details */
 oil_version 		  : /* empty definition */							{}
@@ -78,8 +47,8 @@ implementation_list 	  :  /* empty list */								{}
 implementation_def	  : impl_attr_def								{}
 			  | impl_ref_def								{}
 ;
-description		  :  /* empty definition */							{()}
-			  | COLON OIL_STRING								{()}
+description		  :  /* empty definition */							{}
+			  | COLON OIL_STRING								{}
 
 impl_attr_def		  : UINT32	auto_specifier number_range attribute_name multiple_specifier default_number description SEMICOLON 	{}
 			  | INT32 	auto_specifier number_range attribute_name multiple_specifier default_number description SEMICOLON 	{}
@@ -152,16 +121,16 @@ multiple_specifier	  : /* empty definition */							{}
 ;
 
 /* appplication definitions */
-application_definition	  : CPU NAME LCURL object_definition_list RCURL description SEMICOLON		{()}
-			  | object_definition_list							{()}
+application_definition	  : CPU NAME LCURL object_definition_list RCURL description SEMICOLON		{$4}
+			  | object_definition_list							{$1}
 ;
 
 /* this is the part we are actually interessted in */
 object_definition_list	  : /* empty definition */ 							{[]}
 			  | object_definition object_definition_list 					{$1 :: $2}
 ;
-object_definition	  : OBJECT NAME description SEMICOLON						{add_to_table $1 $2 [] }
-			  | OBJECT NAME LCURL parameter_list RCURL description SEMICOLON			{add_to_table $1 $2 $4}
+object_definition	  : OBJECT NAME description SEMICOLON						{($1, $2, []) }
+			  | OBJECT NAME LCURL parameter_list RCURL description SEMICOLON			{($1, $2, $4)}
 ;
 parameter_list		  : /* empty definition */							{[]}
 			  | parameter parameter_list							{$1::$2}

@@ -1,6 +1,7 @@
 open Cil
 open Pretty
 open Analyses
+open OilUtil
 
 module Spec =
 struct
@@ -29,7 +30,8 @@ struct
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = ask_it ctx
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list = 
-    match f.vname with
+    let fvname = get_api_names f.vname in
+    match fvname with
       | "GetResource" 
       | "ReleaseResource"  
       | "ActivateTask"
