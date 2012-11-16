@@ -61,9 +61,8 @@ end*)
     let ev = Str.regexp ".*event_id_of_\\([a-zA-Z][a-zA-Z0-9_]*\\) +\\([0-9]+\\) *" in
     let rec read_info () = try
       let line = input_line input in
-	if tracing then trace "osek" "Line: %s\n" line;
-	let line_back = line in
-	if (Str.string_match comment line_back 0) then begin
+(* 	if tracing then trace "osek" "Line: %s\n" line; *)
+	if (Str.string_match comment line 0) then begin
 	  if tracing then trace "osek" "Trampolineish: Skipping (JUST 1!) line: %s\n" line;
 	end else begin
 	  if Str.string_match re line 0 then begin
@@ -87,6 +86,34 @@ end*)
 	| e -> raise e
     in read_info (); 
     if tracing then trace "osek" "Done parsing trampolineish header\n";
+    close_in input
+
+  let parse_names names = 
+    if tracing then trace "osek" "Parsing API (re)names...\n";
+    let input = open_in names in
+    let comment = Str.regexp "//.* \\|/\\*.*" in
+    let newname = Str.regexp " *\\(#define \\| *\\)\\([a-zA-Z][a-zA-Z0-9_]*\\) +\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
+    let rec read_info () = try
+      let line = input_line input in
+	if tracing then trace "osek" "Line: %s\n" line;
+	if (Str.string_match comment line 0) then begin
+	  if tracing then trace "osek" "API names: Skipping (JUST 1!) line: %s\n" line;
+	end else begin
+	  if Str.string_match newname line 0 then begin
+	    let newname = (Str.matched_group 3 line) in
+	    let oldname = (Str.matched_group 2 line) in
+	    if tracing then trace "osek" "Adding newname (%s) for function %s\n" newname oldname;
+	    Hashtbl.add osek_names newname oldname;
+	    LibraryFunctions.add_lib_funs [newname]
+	  end;
+	end;
+	read_info ();
+      with 
+	| End_of_file -> ()
+	| e -> raise e
+    in read_info (); 
+    LibraryFunctions.osek_renames := true;
+    if tracing then trace "osek" "Done parsing API (re)names\n";
     close_in input
 
   module MyParam = 
@@ -265,42 +292,19 @@ end*)
     match fvname with
       | "GetResource" | "ReleaseResource" -> M.special_fn ctx lval f (match arglist with 
         | [Lval l] -> [AddrOf l] 
-	| [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> 
-(*            let l = Hashtbl.find constantlocks (Int64.to_string c) in*)
-(*             let l = makeGlobalVar (find_name (Int64.to_string c)) Cil.voidType in *)
-            let l = find_name (Int64.to_string c) in
-(*            let _ = printf "(Un)locking %s\n" l.vname in *)
-              [get_lock l]
+	| [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> [get_lock (find_name (Int64.to_string c))]      
 (*        | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
         | x -> x)  
       | "ActivateTask" -> M.special_fn ctx lval f (match arglist with (*call function *)
        | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x]
         | x -> x)
       | "ChainTask" -> M.special_fn ctx lval f arglist (*call function *)
-      | "DisableAllInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock
-(* 	(Hashtbl.find constantlocks ("DisableAllInterrupts")) *)
-	"DisableAllInterrupts"
-      ]
-      | "EnableAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock
-(* 	(Hashtbl.find constantlocks ("DisableAllInterrupts")) *)
-	"DisableAllInterrupts"
-      ]
-      | "SuspendAllInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock
-(* 	(Hashtbl.find constantlocks ("SuspendAllInterrupts"))) *)
-	"SuspendAllInterrupts"
-      ]
-      | "ResumeAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock
-(*  (Hashtbl.find constantlocks ("SuspendAllInterrupts")))  *)
-	"SuspendAllInterrupts"
-      ] 
-      | "SuspendOSInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock
-(*  (Hashtbl.find constantlocks ("SuspendOSInterrupts")))  *)
-	"SuspendOSInterrupts"
-      ]
-      | "ResumeOSInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock
-(*  (Hashtbl.find constantlocks ("SuspendOSInterrupts")))  *)
-	"SuspendOSInterrupts"
-      ]
+      | "DisableAllInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock "DisableAllInterrupts"]
+      | "EnableAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "DisableAllInterrupts"]
+      | "SuspendAllInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
+      | "ResumeAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "SuspendAllInterrupts"] 
+      | "SuspendOSInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
+      | "ResumeOSInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
       | "TerminateTask" -> (if (Dom.is_empty ctx.local) then () else print_endline "Warning: Task getitfromtasklock? terminated while holding resources xyz!") ; 
 			    M.special_fn ctx lval f arglist  (*check empty lockset*)
       | "WaitEvent" -> (if (Dom.is_empty ctx.local) then () else print_endline "Warning: Task ??? waited while holding resources xyz!") ; 
@@ -493,8 +497,13 @@ end*)
     end else begin
       prerr_endline "Trampoline headers not found." ;
       exit 2;
-    end
-end
+    end;
+    LibraryFunctions.add_lib_funs osek_API_funs;
+    let names = !osek_renames in
+    if Sys.file_exists(names) then begin
+      parse_names names;
+    end;
+  end
 
 module ThreadMCP = 
   MCP.ConvertToMCPPart

@@ -73,6 +73,7 @@ let main () =
   let analyze = ref (analyzer (JB.string !(JB.field GU.conf "analysis"))) in
   let oil file = (*GU.allfuns := true;*) GU.oil := true; GU.mainfuns := []; GU.conf_osek (); OilUtil.oilFile := file in
   let tramp file = OilUtil.resourceheaders := file; add_include_file file in
+  let osek_names file = OilUtil.osek_renames := file in
   let osekisrprefix prefix = GU.isrprefix := prefix in
   let osektaskprefix prefix = GU.taskprefix := prefix in
   let osekisrsuffix suffix = GU.isrsuffix := suffix in
@@ -171,6 +172,7 @@ let main () =
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
 		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed program");
 		 ("--tramp", Arg.String tramp, "<file>  Resource-ID-headers for the analysed program");
+		 ("--osek_names", Arg.String osek_names, "<file>  OSEK API function (re)names for the analysed program");
 		 ("--osekisrprefix", Arg.String osekisrprefix, "Prefix added by the ISR macro");
 		 ("--osektaskprefix", Arg.String osektaskprefix, "Prefix added by the TASK macro");
 		 ("--osekisrsuffix", Arg.String osekisrsuffix, "Suffix added by the ISR macro");

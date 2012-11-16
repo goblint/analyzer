@@ -15,38 +15,14 @@ type task_t = 	bool*		int*	(string list)*	(string list)*	bool*		bool*		int
 (*		pry	res		category *)
 type isr_t = 	int*	(string list)*	int
 
-(*Oil/tramp files*)
+(*Oil/tramp/names files*)
 let oilFile = ref ""
 let resourceheaders = ref ""
 (* "/defaultAppWorkstation/tpl_os_generated_configuration.h" *)
+let osek_renames = ref ""
 
 (*API function names *)
-let osek_ActivateTask = ref ("ActivateTask")
-let osek_TerminateTask = ref ("TerminateTask")
-let osek_ChainTask = ref ("ChainTask")
-let osek_Schedule = ref ("Schedule")
-let osek_GetTaskID = ref ("GetTaskID")
-let osek_GetTaskState = ref ("GetTaskState")
-let osek_DisableAllInterrupts = ref ("DisableAllInterrupts")
-let osek_EnableAllInterrupts = ref ("EnableAllInterrupts")
-let osek_SuspendAllInterrupts = ref ("SuspendAllInterrupts")
-let osek_ResumeAllInterrupts = ref ("ResumeAllInterrupts")
-let osek_SuspendOSInterrupts = ref ("SuspendOSInterrupts")
-let osek_ResumeOSInterrupts = ref ("ResumeOSInterrupts")
-let osek_GetResource = ref ("GetResource")
-let osek_ReleaseResource = ref ("ReleaseResource")
-let osek_SetEvent = ref ("SetEvent")
-let osek_ClearEvent = ref ("ClearEvent")
-let osek_GetEvent = ref ("GetEvent")
-let osek_WaitEvent = ref ("WaitEvent")
-let osek_GetAlarmBase = ref ("GetAlarmBase")
-let osek_GetAlarm = ref ("GetAlarm")
-let osek_SetRelAlarm = ref ("SetRelAlarm")
-let osek_SetAbsAlarm = ref ("SetAbsAlarm")
-let osek_CancelAlarm = ref ("CancelAlarm")
-let osek_GetActiveApplicationMode = ref ("GetActiveApplicationMode")
-let osek_StartOS = ref ("StartOS")
-let osek_ShutdownOS = ref ("ShutdownOS")
+let osek_names : (string,string) Hashtbl.t = Hashtbl.create 16
 
 let osek_ISR_PRIORITY = ref ["PRIORITY"; "InterruptPriority"]
 
@@ -80,34 +56,18 @@ let task_maxpry = ref (-1)
 
 (*DeclareTask "external" *)
 
+let osek_API_funs = ["ActivateTask"; "TerminateTask"; "ChainTask"; "Schedule"; "GetTaskID"; "GetTaskState"; "DisableAllInterrupts"; "EnableAllInterrupts"; "SuspendAllInterrupts"; "ResumeAllInterrupts"; "SuspendOSInterrupts"; "ResumeOSInterrupts"; "GetResource"; "ReleaseResource"; "SetEvent"; "GetEvent"; "ClearEvent"; "WaitEvent"; "GetAlarmBase"; "GetAlarm"; "SetRelAlarm"; "SetAbsAlarm"; "CancelAlarm"; "GetActiveApplicationMode"; "StartOS"; "ShutdownOS"]
+
 let get_api_names name =
-  if name = !osek_ActivateTask then "ActivateTask" else
-  if name = !osek_TerminateTask then "TerminateTask" else
-  if name = !osek_ChainTask then "ChainTask" else
-  if name = !osek_Schedule then "Schedule" else
-  if name = !osek_GetTaskID then "GetTaskID" else
-  if name = !osek_GetTaskState then "GetTaskState" else
-  if name = !osek_DisableAllInterrupts then "DisableAllInterrupts" else
-  if name = !osek_EnableAllInterrupts then "EnableAllInterrupts" else
-  if name = !osek_SuspendAllInterrupts then "SuspendAllInterrupts" else
-  if name = !osek_ResumeAllInterrupts then "ResumeAllInterrupts" else
-  if name = !osek_SuspendOSInterrupts then "SuspendOSInterrupts" else
-  if name = !osek_ResumeOSInterrupts then "ResumeOSInterrupts" else
-  if name = !osek_GetResource then "GetResource" else
-  if name = !osek_ReleaseResource then "ReleaseResource" else
-  if name = !osek_SetEvent then "SetEvent" else
-  if name = !osek_ClearEvent then "ClearEvent" else
-  if name = !osek_GetEvent then "GetEvent" else
-  if name = !osek_WaitEvent then "WaitEvent" else
-  if name = !osek_GetAlarmBase then "GetAlarmBase" else
-  if name = !osek_GetAlarm then "GetAlarm" else
-  if name = !osek_SetRelAlarm then "SetRelAlarm" else
-  if name = !osek_SetAbsAlarm then "SetAbsAlarm" else
-  if name = !osek_CancelAlarm then "CancelAlarm" else
-  if name = !osek_GetActiveApplicationMode then "GetActiveApplicationMode" else
-  if name = !osek_StartOS then "StartOS" else
-  if name = !osek_ShutdownOS then "ShutdownOS" else
-  name
+  try
+    let res = Hashtbl.find osek_names name in
+    if tracing then trace "osek" "Renameing %s to %s\n" name res;
+    res
+  with 
+    | Not_found -> 
+	if tracing then trace "osek" "API name for %s not found\n" name;
+name
+    | e -> raise e
 
 let is_task f = (Hashtbl.mem tasks f) || (Hashtbl.mem isrs f)
 
