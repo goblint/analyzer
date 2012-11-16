@@ -4,6 +4,7 @@ var loadedPage = -1;
 var requestedLine = 0;
 var lineSelected = 0;
 var functionSelected = 0;
+var warningSelected = 0;
 var dynamicLoading = false;
 
 
@@ -151,6 +152,30 @@ function MakeLineVisible(i) {
     document.getElementById('line'+lineSelected).style.background = '#FFFFD8';        
   }
 
+  showWarning(i);
+}
+
+function hideWarning() {
+  var el3;
+  el3 = document.getElementById('warning_info' + warningSelected);
+  if (el3 != null) {
+    warningSelected = 0;
+    el3.style.display = 'none';
+    document.getElementById('title_warning_info').style.display = 'none';
+  }
+}
+
+function showWarning(i) {
+  hideWarning();
+  hideFunctionInfo();
+
+  var el;
+  el = document.getElementById('warning_info' + i);
+  if (el != null) {
+    el.style.display = '';
+    document.getElementById('title_warning_info').style.display = '';
+  }
+  warningSelected = i;
 }
 
 function showLine(sfile,i) {
@@ -167,11 +192,26 @@ function showLine(sfile,i) {
   }
 }
 
+function hideFunctionInfo()  {
+  var el3;
+  el3 = document.getElementById('function_info' + functionSelected);
+  if (el3 != null) {
+    functionSelected = 0;
+    el3.style.display = 'none';
+    document.getElementById('title_function_info').style.display = 'none';
+  }
+}
+
 function showFunctionInfo(i) {
-  var el;
-  el = document.getElementById('function_info' + functionSelected);
-  if (el != null) el.style.display = 'none';
-  document.getElementById('function_info' + i).style.display = '';
+  hideWarning();
+  hideFunctionInfo();
+
+  var el2;
+  el2 = document.getElementById('function_info' + i);
+  if (el2 != null) {
+    el2.style.display = '';
+    document.getElementById('title_function_info').style.display = '';
+  }
   functionSelected = i;
 }
 

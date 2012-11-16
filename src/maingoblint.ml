@@ -166,7 +166,7 @@ let main () =
                  ("--propdel", Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (set_prop false)], "<prop> <name> Disables a propery, e.g., --propdel int_domain interval.");
                  ("--type-inv", Arg.Bool ((:=) GU.use_type_invariants), "<bool>  Should we use type invariants?");
                  ("--list-type", Arg.Bool ((:=) GU.use_list_type), "<bool>  Should we use list types?");
-                 ("--solver", Arg.Symbol (["effectWCon"; "effectWNCon"; "solverConSideRR"; "solverConSideWNRR"; "interactive"; "new"; "TD";"fwtn";"cmp";"s1";"s2";"s3";"n1";"n2";"n3"], setsolver), " Picks the solver.");
+                 ("--solver", Arg.Symbol (["effectWCon"; "effectWNCon"; "solverConSideRR"; "solverConSideWNRR"; "interactive"; "new"; "TD";"fwtn";"cmp";"s1";"s2";"s3";"n1";"n2";"n3";"hbox";"widen"], setsolver), " Picks the solver.");
                  ("--unique", add_string GU.singles, "<type name>  For types that have only one value.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
@@ -184,6 +184,7 @@ let main () =
                  ("--forward", Arg.Set GU.forward, " Use implicit forward propagation instead of the demand driven approatch.");
                  ("--full-context", Arg.Set GU.full_context, " Do not side-effect function entries.");
                  ("--addr-context", Arg.Set GU.addr_contexts, " Ignore non-address values in function contexts.");
+                 ("--no-int-context", Arg.Set GU.no_int_contexts, " Ignore integer values in function contexts.");
                  ("--debug-sockets", Arg.Tuple [Arg.Set_int GU.command_port;Arg.Int GU.open_sockets], "<port> <port> Eclipse debuger plugin support.");
                  ("--new_fwk", Arg.Set GU.new_fwk, " Use the new framework.") ;
                  ("--print_dead_code", Arg.Set GU.print_dead_code, " Print information about dead code")

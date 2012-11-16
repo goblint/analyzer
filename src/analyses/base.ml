@@ -621,7 +621,7 @@ struct
           (* Since we only handle equalities the order is not important *)
           | Cil.BinOp(op, Cil.Lval x, rval, typ) -> helper op x (eval_rv a gs st rval) tv
           | Cil.BinOp(op, rval, Cil.Lval x, typ) -> helper op x (eval_rv a gs st rval) tv
-          | Cil.BinOp(op, Cil.CastE (xt,x), Cil.CastE (yt,y), typ) when xt = yt 
+          | Cil.BinOp(op, Cil.CastE (xt,x), Cil.CastE (yt,y), typ) when Basetype.CilType.equal xt yt 
             -> derived_invariant (Cil.BinOp (op, x, y, typ)) tv
           (* Cases like if (x) are treated like if (x != 0) *)
           | Cil.Lval x -> 
@@ -906,8 +906,19 @@ struct
       | _ -> `Top
     in
     CPA.map replace_val st
+
+  let drop_ints (st:CPA.t) : CPA.t = 
+    if CPA.is_top st then st else 
+    let rec replace_val = function
+      | `Int _ -> `Top
+      | x -> x
+    in
+    CPA.map replace_val st
   
-  let context_top f (cpa,fl) = if !GU.addr_contexts then (drop_non_ptrs cpa, fl) else (cpa,fl)
+  let context_top f (cpa,fl) = 
+    if !GU.addr_contexts then (drop_non_ptrs cpa, fl) 
+    else if !GU.no_int_contexts then (drop_ints cpa, fl)
+    else (cpa,fl)
   
   (* interpreter end *)
   
