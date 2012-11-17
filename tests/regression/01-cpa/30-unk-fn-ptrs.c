@@ -1,4 +1,4 @@
-// PARAM: --analysis base
+// PARAM: --set ana.activated "[['base','escape']]"
 extern void f_everything_up();
 
 struct s {

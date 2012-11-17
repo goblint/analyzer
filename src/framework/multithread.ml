@@ -259,7 +259,7 @@ struct
       *)
     let proc_call (fn,ed,tn) sigma (theta:Solver.glob_assign) effect lval exp args st : Solver.var_domain * Solver.variable list =
       let forks = ref [] in
-      let add_var v d = if not (List.mem v.vname (List.map string (get_list "mainfuns"))) then forks := (v,d) :: !forks in
+      let add_var v d = if not (List.mem v.vname (List.map string (get_list "mainfun"))) then forks := (v,d) :: !forks in
       let add_diff g d = effect (`G (g,d)) in 
       let getctx v= 
         try
@@ -389,7 +389,7 @@ struct
            * handle the dead code -- maybe it could be avoided  *)
           let l,sp =
           match edge with
-            | MyCFG.Ret    (ret,fundec)    when (fundec.svar.vname = MyCFG.dummy_func.svar.vname || List.mem fundec.svar.vname (List.map string (get_list "mainfuns"))) && get_bool "kernel"
+            | MyCFG.Ret    (ret,fundec)    when (fundec.svar.vname = MyCFG.dummy_func.svar.vname || List.mem fundec.svar.vname (List.map string (get_list "mainfun"))) && get_bool "kernel"
                                            -> lift (toplevel_kernel_return ret fundec    ) predval'
             | MyCFG.Ret    (ret,fundec)    -> lift (normal_return          ret fundec    ) predval'
             | MyCFG.Entry func             -> lift (fun ctx -> Spec.body   ctx func      ) predval'
@@ -829,7 +829,7 @@ struct
       end ;
     let firstvar = List.hd startvars' in
     let mainfile = match firstvar with (MyCFG.Function fn, _) -> fn.vdecl.file | _ -> "Impossible!" in
-    if (get_bool "dbg.print_uncalled") then
+    if (get_bool "dbg.uncalled") then
       begin
         let out = M.get_out "uncalled" stdout in
         let f =
@@ -855,7 +855,7 @@ struct
       Stats.time "post" (postprocess_accesses (sol,gs) phase old) old_g
     end;
     (* check for dead code at the last state: *)
-    (if !GU.debug && SD.is_bot main_sol then
+    (if (get_bool "dbg.debug") && SD.is_bot main_sol then
       Printf.printf "NB! Execution does not reach the end of Main.\n");
     (sol,gs)
   
@@ -907,7 +907,7 @@ struct
         Spec.finalize ()
       done
     in
-    Goblintutil.timeout do_analyze () (float_of_string (get_string "dbg.timeout"))
+    Goblintutil.timeout do_analyze () (float_of_int (get_int "dbg.timeout"))
       (fun () -> M.waitWhat "Timeout reached!");
     (*let module VSet = Set.Make (A.Var) in
     let vs = List.fold_left (fun s (st,_) -> Solver.VMap.fold (fun (n,_) _ -> VSet.add n) st s) VSet.empty !oldsol in

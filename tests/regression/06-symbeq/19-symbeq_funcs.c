@@ -1,4 +1,4 @@
-// PARAM: --debug --with var_eq
+// PARAM: --set dbg.debug true --set ana.activated[0][+] "'var_eq'" 
 #include <assert.h>
 
 void inc(int * a){

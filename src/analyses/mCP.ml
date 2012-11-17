@@ -845,13 +845,25 @@ struct
       | Some b -> (get_matches b).es_to_string f b
       | None -> f.svar.vname
 
+  let var_mem_assoc v = List.exists (Basetype.Variables.equal v -| fst)
+      
+  let rec var_assoc v = function
+    | [] -> raise Not_found
+    | (x,y)::_ when Basetype.Variables.equal x v -> y
+    | _::xs -> var_assoc v xs
+    
+  let rec var_remove_assoc v = function
+    | [] -> []
+    | (x,y)::xs when Basetype.Variables.equal x v -> xs
+    | _::xs -> var_remove_assoc v xs
+
   (* fork over all analyses and combine values of equal varinfos *)
   let lift_spawn ctx f  =
     let start_val = otherstate () in 
     let combine_forks rs xs = 
       let g rs (v,s) : (Cil.varinfo * Dom.t) list=
-        if List.mem_assoc v rs 
-        then (v, replace s (List.assoc v rs)) :: List.remove_assoc v rs 
+        if var_mem_assoc v rs 
+        then (v, replace s (var_assoc v rs)) :: var_remove_assoc v rs 
         else (v, replace s start_val) :: rs
       in
       List.fold_left g rs xs

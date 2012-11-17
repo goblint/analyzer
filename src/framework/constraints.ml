@@ -267,7 +267,7 @@ let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) 
   in
   Spec.finalize ();
   
-  Goblintutil.timeout do_analyze () (float_of_string (get_string "dbg.timeout"))
+  Goblintutil.timeout do_analyze () (float_of_int (get_int "dbg.timeout"))
     (fun () -> Messages.waitWhat "Timeout reached!");
     
   Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file

@@ -1,4 +1,4 @@
-// SKIP PARAM: --no mutex --solver new --no-context base --no-context escape
+// SKIP PARAM: --no mutex --set solver "'new'" --no-context base --no-context escape
 void write(int **p){
   *p=1;
 }

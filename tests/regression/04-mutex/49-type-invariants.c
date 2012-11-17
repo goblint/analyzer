@@ -1,4 +1,4 @@
-//PARAM: --type-inv true
+//PARAM: --set exp.type-inv true
 #include <pthread.h>
 #include <stdio.h>
 

@@ -1,4 +1,4 @@
-// PARAM: --with region
+// PARAM: --set ana.activated[0][+] "'region'" 
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>

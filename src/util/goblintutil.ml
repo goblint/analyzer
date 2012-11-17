@@ -43,9 +43,6 @@ let open_sockets i =
   ignore (Printf.printf "done.\n")
 
 
-(** when goblin is in debug mode *)
-let debug = ref false 
-
 (** whether to verify result *)
 let verify = ref true 
 
@@ -60,24 +57,11 @@ let result_filter = ref ".*"
 
 let result_regexp = ref (Str.regexp "")
 
-(** analyze all the functions in the program, rather than just main *)
-let allfuns = ref false
-let nonstatic = ref false
-(** analyze all functions corresponding to a osek task *)
-let oil = ref false
-let taskprefix = ref ""
-let isrprefix = ref ""
-let tasksuffix = ref ""
-let isrsuffix = ref ""
-
 (** Json files that are given as arguments *)
 let jsonFiles : string list ref = ref [] 
 
 (** has any threads have been spawned *)
 let multi_threaded = ref false
-
-(** Adds support to failing mallocs. *)
-let malloc_may_fail = ref false 
 
 (** Tells the spec that result may still get smaller (on narrowing). 
    If this is false we can output messages and collect accesses. *)

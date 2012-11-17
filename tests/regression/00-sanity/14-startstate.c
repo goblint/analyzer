@@ -1,4 +1,4 @@
-// PARAM: --kernel
+// PARAM: --set kernel true
 #include <linux/device.h>
 
 int __init start (unsigned count) {

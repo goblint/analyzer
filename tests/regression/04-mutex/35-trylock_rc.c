@@ -1,4 +1,4 @@
-// PARAM: --failing-locks
+// PARAM: --set exp.failing-locks true
 /* Based on trylock.c in Butenof's Programming with Posix C. */
 #include <pthread.h>
 #include <errno.h>

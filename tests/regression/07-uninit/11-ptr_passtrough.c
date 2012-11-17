@@ -1,4 +1,4 @@
-// PARAM: --analysis uninit
+// PARAM: --set ana.activated "[['base','escape','uninit']]"
 int* some_function(int * x){
 	return x; //NOWARN
 }

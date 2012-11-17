@@ -1,4 +1,4 @@
-// PARAM: --earlyglobs
+// PARAM: --set exp.earlyglobs true
 
 int g = 10;
 int main(void){

@@ -1,4 +1,4 @@
-// PARAM: --allfuns
+// PARAM: --set allfuns true
 #include<pthread.h>
 
 int myglobal;

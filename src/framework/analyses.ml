@@ -203,7 +203,7 @@ struct
         String.fill res len (n-len) ' '; 
         res
     in      
-    if !GU.debug then Stats.time (padr 40 (D.name^" ⇢ "^n)) f
+    if (get_bool "dbg.debug") then Stats.time (padr 40 (D.name^" ⇢ "^n)) f
         else f
   
   module Dom = 
@@ -583,7 +583,7 @@ struct
     if !GU.verbose then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
     GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = Messages.get_out result_name !GU.out in
-    match get_string "result_style" with
+    match get_string "result" with
       | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
       | "indented" -> begin
           Xmldump.print_fmt out (resultXML (Lazy.force table));

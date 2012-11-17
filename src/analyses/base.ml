@@ -1250,7 +1250,7 @@ struct
       | `Unknown "__goblint_check" -> assert_fn ctx (List.hd args) true false 
       | `Unknown "__goblint_commit" -> assert_fn ctx (List.hd args) false true 
       | `Unknown "__goblint_assert" -> assert_fn ctx (List.hd args) true true 
-      | `Assert e -> assert_fn ctx e !GU.debug (not !GU.debug) 
+      | `Assert e -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug")) 
       | _ -> begin
           let lv_list = 
             match lv with

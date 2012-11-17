@@ -1,4 +1,4 @@
-// PARAM: --with symb_locks --with var_eq
+// PARAM: --set ana.activated[0][+] "'symb_locks'"  --set ana.activated[0][+] "'var_eq'" 
 typedef long long pthread_t;
 typedef long long pthread_mutex_t;
 

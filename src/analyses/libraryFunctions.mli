@@ -2,8 +2,6 @@
 
 open Cil
 
-val failing_locks : bool ref 
-
 type categories = [
   | `Malloc       
   | `Calloc       

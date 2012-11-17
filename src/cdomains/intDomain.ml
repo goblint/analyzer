@@ -1463,7 +1463,7 @@ struct
         
   let constr_scheme xs =
     let f (s,g) y : t = 
-      if get_bool ("ana.int.")
+      if get_bool ("ana.int."^s)
       then (g ()) :: y
       else y
     in

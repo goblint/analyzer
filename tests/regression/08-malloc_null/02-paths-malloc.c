@@ -1,4 +1,4 @@
-// PARAM: --analysis malloc_null
+// PARAM: --set ana.activated "[['base','escape','malloc_null']]"
 #include <stdlib.h>
 #include <stdio.h>
 

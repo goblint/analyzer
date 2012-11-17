@@ -40,17 +40,24 @@ let print_help ch =
   
 (** [Arg] option specification *)
 let option_spec_list = 
+  let set_trace sys = 
+    let msg = "Goblin has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
+    if Config.tracing then Tracing.addsystem sys
+    else (prerr_endline msg; raise BailFromMain)
+  in
   let tmp_arg = ref "" in
     [ "-o"                   , Arg.String (set_string "outfile"), ""
     ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true), ""
     ; "-I"                   , Arg.String (set_string "includes[+]"), ""
     ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
-    ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (set_auto !tmp_arg)], ""
+    ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
+    ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_string !tmp_arg x)], ""
     ; "--conf"               , Arg.String merge_file, ""
     ; "--writeconf"          , Arg.String (fun fn -> File.with_file_out fn print; raise BailFromMain), ""
     ; "--version"            , Arg.Unit print_version, ""
     ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; raise BailFromMain), ""
     ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; raise BailFromMain), ""
+    ; "--trace"              , Arg.String set_trace, ""
     ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "--halp"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "-help"                , Arg.Unit (fun _ -> print_help stdout),""
@@ -133,7 +140,8 @@ let preprocess_files () =
   let includes = ref "" in
   
   (* fill include flags *)
-  let one_include_f f x = includes := "-I " ^ f (string x) ^ !includes in
+  let one_include_f f x = includes := "-I " ^ f (string x) ^ " " ^ !includes in
+  if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes;
   get_list "includes" |> List.iter (one_include_f identity);
   get_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
   
@@ -218,7 +226,7 @@ let do_analyze merged_AST =
       if get_bool "dbg.verbose" then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
                                                  L.pretty stf L.pretty exf L.pretty otf);
       (* and here we run the analysis! *)
-      if get_string "result_style" = "html" then Report.prepare_html_report ();
+      if get_string "result" = "html" then Report.prepare_html_report ();
       
       (* Analyze with the new experimental framework or with the usual framework *)
       if get_bool "exp.new_fwk" 
@@ -437,8 +445,8 @@ let main () =
   Arg.parse speclist recordFile usage_str;
   
   
-  if !GU.allfuns || !GU.nonstatic || !GU.oil then GU.multi_threaded := true;
-  if !GU.debug then M.warnings := true;
+  if (get_bool "allfuns") || (get_bool "nonstatic") || !GU.oil then GU.multi_threaded := true;
+  if (get_bool "dbg.debug") then M.warnings := true;
   if !GU.verbose then begin
     Printexc.record_backtrace true;
     Errormsg.debugFlag := true;

@@ -1001,7 +1001,7 @@ struct
     if !GU.multi_threaded then begin
       if !race_free then 
         print_endline "Goblint did not find any Data Races in this program!";
-    end else if not !GU.debug then begin
+    end else if not (get_bool "dbg.debug") then begin
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;

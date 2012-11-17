@@ -1,14 +1,13 @@
 open Cil
 open Pretty
 open Analyses
+open GobConfig
 module CF = Cilfacade
 
 module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let oilFile = ref ""
-  let resourceheaders = ref ""
 (* "/defaultAppWorkstation/tpl_os_generated_configuration.h" *)
 
   let constantlocks = Hashtbl.create 16
@@ -58,11 +57,11 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
   let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType
 
   let parse_oil () = (* requires PRIORITY tag to occur before RESOURCE tag in task definitions. does not take "default" into account *)
-    if not (!oilFile != "" && Sys.file_exists(!oilFile)) then begin     
+    if not (get_string "ana.osek.oil" != "" && Sys.file_exists(get_string "ana.osek.oil")) then begin     
       prerr_endline "Parsing OIL: File not found." ;
       exit 2;
     end else 
-    let input = open_in !oilFile in
+    let input = open_in (get_string "ana.osek.oil") in
     let task_re = Str.regexp "\\(TASK\\|ISR\\) *\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
     let pry_re = Str.regexp "\\(PRIORITY\\|Interrupt Priority\\) *= *\\([0-9][0-9]*\\)" in
     let res_re = Str.regexp "RESOURCE *= *\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
@@ -79,8 +78,8 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 	  if (!debug_pry != 0) then begin debug_pry :=0; print_endline ("Parsing OIL: No priority information found for task: " ^ !flag) end;
 	  debug_pry := 1;
           let typ = (Str.matched_group 1 line) in
-          let name = if (typ = "ISR") then !Goblintutil.isrprefix ^ (Str.matched_group 2 line) ^ !Goblintutil.isrsuffix
-          else !Goblintutil.taskprefix ^ (Str.matched_group 2 line) ^ !Goblintutil.tasksuffix in 
+          let name = if (typ = "ISR") then get_string "ana.osek.isrprefix" ^ (Str.matched_group 2 line) ^ get_string "ana.osek.isrsuffix"
+          else (get_string "ana.osek.taskprefix") ^ (Str.matched_group 2 line) ^ (get_string "ana.osek.tasksuffix") in 
 (*  let _ = print_endline ( "Adding " ^ name) in  *)
 	  Hashtbl.add CF.tasks name (typ,-1,[name]);
           Hashtbl.add constantlocks name (makeGlobalVar name  Cil.voidType);
@@ -370,25 +369,25 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
               end
             | Guarded locks ->
                 let lock_str = Mutex.Lockset.short 80 locks in
-                  if !Mutex.GU.allglobs then
+                  if (get_bool "allglobs") then
                     Mutex.M.print_group (safe_str "common mutex") warnings
                   else 
                     ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
             | Priority pry ->
-                  if !Mutex.GU.allglobs then
+                  if (get_bool "allglobs") then
                     Mutex.M.print_group (safe_str "same priority") warnings
                   else 
                     ignore (printf "Found correlation: %s is guarded by priority %s\n" var_str (string_of_int pry))
             | Defence (defpry,offpry) ->
-                  if !Mutex.GU.allglobs then
+                  if (get_bool "allglobs") then
                     Mutex.M.print_group (safe_str "defensive priority exceeds offensive priority") warnings
                   else 
                     ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s\n" var_str (string_of_int defpry) (string_of_int offpry))
             | ReadOnly ->
-                if !Mutex.GU.allglobs then
+                if (get_bool "allglobs") then
                   Mutex.M.print_group (safe_str "only read") warnings
             | ThreadLocal ->
-                if !Mutex.GU.allglobs then
+                if (get_bool "allglobs") then
                   Mutex.M.print_group (safe_str "thread local") warnings
     in 
     let rw ((_,_,x),_,_) = x in
@@ -404,7 +403,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
     if !Mutex.GU.multi_threaded then begin
       if !race_free then 
         print_endline "Goblint did not find any Data Races in this program!";
-    end else if not !Goblintutil.debug then begin
+    end else if not (get_bool "dbg.debug") then begin
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;
@@ -412,7 +411,7 @@ let trim str =   if str = "" then "" else   let search_pos init p next =
 
   let init () = 
     let hashmax _ next old = max next old in  
-    let tramp = !resourceheaders in
+    let tramp = get_string "ana.osek.tramp" in
     if Sys.file_exists(tramp) then begin
       parse_tramp tramp;
       Hashtbl.add constantlocks "DEall" (makeGlobalVar "DEall" Cil.voidType);

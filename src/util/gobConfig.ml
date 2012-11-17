@@ -199,7 +199,9 @@ struct
       
   (** Helper function for reading values. Handles error messages. *)
   let get_path_string f typ st = 
-    try let x = get_value !json_conf (parse_path st) in
+    try 
+      let x = get_value !json_conf (parse_path st) in
+      if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyJson x;
       try f x
       with JsonE _ -> 
           eprintf "The value for '%s' does not have type %s, it is actually %a.\n"
@@ -227,7 +229,7 @@ struct
 
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v = 
-    if tracing then trace "conf" "Setting '%s' to %a." st prettyJson v;
+    if tracing then trace "conf" "Setting '%s' to %a.\n" st prettyJson v;
     set_path_string st v
     
   (** Convienience functions for writing values. *)    
@@ -265,7 +267,9 @@ struct
   (** Merge configurations form a file with current. *)
   let merge_file fn = 
     let v = JsonParser.value JsonLexer.token -| Lexing.from_channel |> File.with_file_in fn in
-    json_conf := merge !json_conf v 
+    json_conf := merge !json_conf v;
+    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyJson !json_conf
+    
 
   (** Functions to drop one element of an 'array' *)
   let drop_index st i = 

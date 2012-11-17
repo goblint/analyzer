@@ -1,4 +1,4 @@
-// PARAM: --with region --region-offsets
+// PARAM: --set ana.activated[0][+] "'region'"  --set exp.region-offsets true
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>

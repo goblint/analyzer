@@ -50,7 +50,7 @@ let do_stats fileNames =
     in
     List.fold_left f [] !MCP.analysesList 
   in
-  match !Cilutil.printStats, get_string "result_style" with
+  match get_bool "printstats", get_string "result" with
     | _ , "html" ->
       begin
         let filesTable = 
@@ -95,11 +95,11 @@ let do_stats fileNames =
                               ;[str "Solver" ; str (get_string "solver")]
                               ;[str "Propagation"; if (get_bool "exp.forward") then str "Forward" else str "Demand-driven"]
                               ;[str "Total phases" ; str (string_of_int (List.length an))]
-                              ;[str "Starting with all functions"; yesno !GU.allfuns]
-                              ;[str "Starting with non-static functions"; yesno !GU.nonstatic]
-                              ;[str "Main functions"; listp (List.map string (get_list "mainfuns"))]
-                              ;[str "Other functions"; listp (List.map string (get_list "otherfuns"))]
-                              ;[str "Exit functions"; listp (List.map string (get_list "exitfuns"))]
+                              ;[str "Starting with all functions"; yesno (get_bool "allfuns")]
+                              ;[str "Starting with non-static functions"; yesno (get_bool "nonstatic")]
+                              ;[str "Main functions"; listp (List.map string (get_list "mainfun"))]
+                              ;[str "Other functions"; listp (List.map string (get_list "otherfun"))]
+                              ;[str "Exit functions"; listp (List.map string (get_list "exitfun"))]
                               ] 
                           ]
                         ; [ tag "h5" ~tp:["class","toggle_ttl";"title","ana"] (str "Enabled&nbsp;Analyses")
@@ -112,7 +112,7 @@ let do_stats fileNames =
                               [[str "Property"; str "Value"]
                               ;[str "Integer domain"; intd]
                               ;[str "Ignoring read-races"; yesno !Mutex.no_read]
-                              ;[str "Assume locking succeeds"; yesno (not !LibraryFunctions.failing_locks)]
+(*                              ;[str "Assume locking succeeds"; yesno (not !LibraryFunctions.failing_locks)]*)
                               ;[str "Field insensitive accesses"; yesno !Mutex.field_insensitive]
                               ;[str "Globalize early"; yesno (get_bool "exp.earlyglobs")]
                               ;[str "Ignoring read-races"; yesno (get_bool "exp.region-offsets")]

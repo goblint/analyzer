@@ -20,7 +20,7 @@ let get_out name alternative = match get_string "dbg.dump" with
 let xml_warn = Hashtbl.create 10  
 
 let print_msg msg loc = 
-  if get_string "result_style" = "newhtml" then
+  if get_string "result" = "newhtml" then
     let old = try Hashtbl.find xml_warn loc with Not_found -> [] in
     Hashtbl.replace xml_warn loc (("m",msg)::old)
   else if get_bool "gccwarn" then    
@@ -31,7 +31,7 @@ let print_msg msg loc =
     Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
 
 let print_err msg loc = 
-  if get_string "result_style" = "newhtml" then
+  if get_string "result" = "newhtml" then
     let old = try Hashtbl.find xml_warn loc with Not_found -> [] in
     Hashtbl.replace xml_warn loc (("e",msg)::old)
   else if get_bool "gccwarn" then    
@@ -43,7 +43,7 @@ let print_err msg loc =
 
 
 let print_group group_name errors =
-  if get_bool "exp.eclipse" || get_string "result_style"="newhtml" then
+  if get_bool "exp.eclipse" || get_string "result"="newhtml" then
     List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
   else
     let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
@@ -113,6 +113,6 @@ let warn_each msg =
   end
   
 let debug msg =
-  if !GU.debug then warn msg
+  if (get_bool "dbg.debug") then warn msg
 
 include Tracing

@@ -46,7 +46,7 @@ let printAllCategories ch =
 (* {4 category [Std]} *)
 
 let _ =
-  reg Std "outfile"         "null"         "File to print output to.";
+  reg Std "outfile"         ""             "File to print output to.";
   reg Std "includes"        "[]"           "List of directories to include.";
   reg Std "kernel_includes" "[]"           "List of kernel directories to include.";
   reg Std "custom_includes" "[]"           "List of custom directories to include.";
@@ -84,7 +84,7 @@ let _ =
   reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class.";
   reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required).";
   reg Analyses "ana.osek.oil"        "''"    "Oil file for the analyzed program";
-  reg Analyses "ana.oesk.tramp"      "''"    "Resource-ID-headers for the analyzed program";
+  reg Analyses "ana.osek.tramp"      "''"    "Resource-ID-headers for the analyzed program";
   reg Analyses "ana.osek.isrprefix"  "''"    "Prefix added by the ISR macro";
   reg Analyses "ana.osek.taskprefix" "''"    "Prefix added by the TASK macro";
   reg Analyses "ana.osek.isrsuffix"  "''"    "Suffix added by the ISR macro";
@@ -113,7 +113,8 @@ let _ =
   reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach.";
   reg Experimental "exp.full-context"      "false" "Do not side-effect function entries.";
   reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts.";
-  reg Experimental "exp.new_fwk"           "false" "Use the new framework."
+  reg Experimental "exp.new_fwk"           "false" "Use the new framework.";
+  reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails."
   
 (* {4 category [Debugging]} *)
 

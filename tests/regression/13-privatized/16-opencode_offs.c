@@ -1,4 +1,4 @@
-// PARAM: --with shape --nonstatic --unique usb_drv --unique usb_bus --region-offsets
+// PARAM: --set ana.activated[0][+] "'shape'"  --set nonstatic true --sets exp.unique[+] usb_drv --sets exp.unique[+] usb_bus --set exp.region-offsets true
 #include<linuxlight.h>
 
 struct usb_drv { 
