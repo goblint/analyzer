@@ -23,7 +23,7 @@ ISR i{
 };
 
 TASK t {
-   AUTOSTART = TRUE
+   AUTOSTART = TRUE;
    PRIORITY = 1;
    ACTIVATION = 1;
    SCHEDULE = FULL;

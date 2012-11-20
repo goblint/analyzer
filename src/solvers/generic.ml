@@ -477,14 +477,21 @@ struct
   module SW =
   struct
     include S
-    let box _ x y = S.Dom.widen x (S.Dom.join x y)
+    let box v x y = 
+      if (S.Var.loopSep v) 
+      then S.Dom.widen x (S.Dom.join x y)
+      else S.Dom.join x y
   end
   module SolveW = SoundBoxSolverImpl (SW) (H)
   
   module SN =
   struct
     include S
-    let box _ = S.Dom.narrow
+    let box v x y = 
+      if S.Var.loopSep v 
+      then S.Dom.narrow x y
+      else S.Dom.narrow x y
+        
   end
   module SolveN = SoundBoxSolverImpl (SN) (H)
   
@@ -525,10 +532,13 @@ struct
         last_key := !last_key - 1;
         HM.add keys x !last_key;
         !last_key
-        
+                        
     let get_index c = 
       try (HM.find keys c, true) 
-      with Not_found -> last_key := !last_key - 1; (!last_key, false)
+      with Not_found -> 
+        last_key := !last_key - 1; 
+        HM.add keys c !last_key;
+        (!last_key, false)
       
       let to_list () = vals 
   end  
@@ -539,7 +549,7 @@ struct
     struct
       type t = S.Var.t * S.Var.t
       let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
-      let hash (x1,x2) = S.Var.hash x1 * S.Var.hash x2 
+      let hash (x1,x2) = (S.Var.hash x1 - 800) * S.Var.hash x2 
     end
     module HPM = Hashtbl.Make (P)
     let hpm_find_default h x d =
@@ -559,19 +569,40 @@ struct
     let compare x y = Pervasives.compare (X.get_key x) (X.get_key y)
   end
   
-        module H = 
+  (*module H = 
+  struct
+    module H' = Heap.Make (HeapCompare)
+    module S  = Set.IntSet
+    
+    type t = H'.t * S.t
+    
+    let from_list xs = (List.enum xs |> H'.of_enum, List.enum xs |> Enum.map X.get_key |> S.of_enum)
+    let is_empty (_,x) = S.is_empty x
+    let get_root_key (x,_) = H'.find_min x |> X.get_key 
+    let extract_min (h,s) = 
+      let mn = H'.find_min h in 
+      (mn, (H'.del_min h, S.remove (X.get_key mn) s))
+    let empty = (H'.empty, S.empty)
+    let insert (h1,s1) x = 
+      if S.mem (X.get_key x) s1
+      then (h1,s1) 
+      else (H'.insert h1 x, S.add (X.get_key x) s1) 
+    let add k v = insert v k
+    let merge (h1,s1) (h2,s2) = (H'.merge h1 h2, S.union s1 s2)
+  end*)
+  module H = 
   struct
     include Heap.Make (HeapCompare)
-    let from_list = of_enum -| List.enum
+    let from_list xs = List.enum xs |> of_enum
     let is_empty x = size x = 0
-    let get_root_key = X.get_key -| find_min
+    let get_root_key x = find_min x |> X.get_key 
     let extract_min h = (find_min h, del_min h)
   end
   module L = 
   struct
-    let add = HM.add  
-    let sub = HM.find_all
-    let rem_item = HM.remove
+    let add h k v = HM.replace h k (v::h_find_default h k [])
+    let sub h k = h_find_default h k []
+    let rem_item = HM.remove 
   end
   module P = 
   struct 
@@ -580,7 +611,7 @@ struct
     let to_list s = HM.fold (fun x y z -> x :: z ) s []
     let has_item = HM.mem 
     let rem_item = HM.remove
-    let insert m = flip (HM.add m) ()
+    let insert m = flip (HM.replace m) ()
   end
   
   module T = 
@@ -624,7 +655,7 @@ struct
                                            in 
 
                                            let old = XY.get_value (x,y)
-                                           in let tmp = box old d
+                                           in let tmp = box x old d
                                            in if  D.eq tmp old then ()
                                               else let _ = XY.set_value (x,y) tmp in
                                                    let (i,nonfresh) = X.get_index y in
@@ -645,12 +676,13 @@ struct
                                                                   ) a list
 
                           and solve x   = if P.has_item stable x then ()
-                                  else         let _ = P.insert stable x in
+                                  else    let _ = P.insert stable x in
                                           let old = X.get_value x in
                                           let tmp = do_side x (eq x (eval x) (side x)) in 
-                                          let tmp = box old tmp in
+                                          let tmp = box x old tmp in
                                           if D.eq tmp old then loop (X.get_key x)
-                                          else    let _ = X.set_value x tmp in
+                                          else begin 
+                                                  let _ = X.set_value x tmp in
 					(*
                                                   let _ = Pretty.printf "%a : %a\n" S.Var.pretty_trace x D.pretty tmp in
 					*)
@@ -660,7 +692,7 @@ struct
                                                   let h = List.fold_left H.insert (!work) w in
                                                   let _ = work := h in
                                                           List.iter (P.rem_item stable) w;
-                                                          loop (X.get_key x) 
+                                                          loop (X.get_key x) end
         
                           and loop a =  if H.is_empty (!work) then ()
                                                   else if H.get_root_key (!work) <= a
@@ -685,22 +717,21 @@ struct
 	    match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> 
-            let sides = ref [] in
+            let sides = HM.create 10 in
             let collect_set x v = 
-              let old, ns = try List.assoc x !sides, List.remove_assoc x !sides 
-                            with Not_found -> (S.Dom.bot (), !sides) in
-              sides := (x,S.Dom.join old v)::ns 
+              h_find_default sides x (S.Dom.bot ()) |> S.Dom.join v |> HM.replace sides x
             in
             let d = f get collect_set in
-            List.iter (uncurry set) !sides;
+            HM.iter set sides;
+            HM.clear sides;
             d
     in 
     List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update set x (P.single x)) st;
     solve box sys x
     
-  let box x y = if D.leq y x then D.narrow x y 
-                else D.widen x (D.join x y)
-  
+  let box v x y = 
+    if D.leq y x then D.narrow x y else D.widen x (D.join x y)
+    
   let solve = solve' box
 end
 
@@ -752,7 +783,8 @@ module CompareBoxSolvers : GenericLocalBoxSolver =
   functor (S:GenericEqSystem) ->
   functor (H:Hash.H with type key = S.v) ->
 struct
-  module Solver = HelmutBoxSolver (S) (H)
+  module Solver0 = HelmutBoxSolver (S) (H)
+  module Solver1 = HelmutBoxSolver (S) (H)
   
   let equal = ref 0
   let smaller = ref 0
@@ -780,11 +812,12 @@ struct
     with Not_found -> Printf.printf "<"; incr smaller
   
   let solve xs vs = 
-    let box1 x y = S.Dom.widen x (S.Dom.join x y) in
-    let s1 = Solver.solve' box1 xs vs |> H.copy in
-    let box2 = S.Dom.narrow in
-    let _ = H.iter (fun k v -> Solver.work := Solver.H.add k !Solver.work) Solver.stable in
-    let s2 = Solver.solve' box2 [] [] in
+    let box1 v x y = S.Dom.widen x (S.Dom.join x y) in
+    let _ = Solver0.solve' box1 xs vs in
+    let box2 v x y = S.Dom.narrow x y in
+    let _ = H.iter (fun k v -> Solver0.work := Solver0.H.add k !Solver0.work) Solver0.stable in
+    let s1 = Solver0.solve' box2 [] [] in
+    let s2 = Solver1.solve xs vs in
     let module S = Set.Make (S.Var) in
     let s = ref S.empty in
     H.iter (fun k v -> s := S.add k !s) s1;
@@ -792,4 +825,31 @@ struct
     S.iter (report s1 s2) !s;
     Printf.printf "\nequal=%d\tsmaller=%d\tbigger=%d\tuncomp=%d\ttotal=%d\n" !equal !smaller !bigger !uncomp (S.cardinal !s);
     s1
+end
+
+module WideningSolver : GenericLocalBoxSolver =
+  functor (S:GenericEqSystem) ->
+  functor (H:Hash.H with type key = S.v) ->
+struct
+  module Solver = HelmutBoxSolver (S) (H)
+    
+  let solve xs vs = 
+    let box1 v x y = 
+      S.Dom.join x (S.Dom.widen x (S.Dom.join x y))
+    in
+    let s = Solver.solve' box1 xs vs in
+    Printf.printf "|X|=%d\n\n" (H.length s);
+    s
+end
+
+module HBoxSolver : GenericLocalBoxSolver =
+  functor (S:GenericEqSystem) ->
+  functor (H:Hash.H with type key = S.v) ->
+struct
+  module Solver = HelmutBoxSolver (S) (H)
+    
+  let solve xs vs = 
+    let s = Solver.solve xs vs in
+    Printf.printf "|X|=%d\n\n" (H.length s);
+    s
 end

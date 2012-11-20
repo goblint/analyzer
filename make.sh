@@ -24,8 +24,8 @@ rule() {
     debug)   ocb -tag debug $TARGET.native &&
              cp _build/$TARGET.native goblint
              ;;
-    profile) ocb -tag profile $TARGET.native &&
-             cp _build/$TARGET.native goblint
+    profile) ocb -tag profile $TARGET.p.native &&
+             cp _build/$TARGET.p.native goblint
              ;;
     byte)    ocb $TARGET.byte &&
              cp _build/$TARGET.byte goblint.byte
