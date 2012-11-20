@@ -26,6 +26,7 @@ type local_state = [
     | `Malloc_null of ValueDomain.AddrSetDomain.t
     | `Thread      of ConcDomain.ThreadDomain.t
     | `Escape      of EscapeDomain.EscapedVars.t
+    | `File        of FileDomain.FileUses.t
     | `Region      of RegionDomain.RegionDom.t
     | `OSEK        of LockDomain.Lockset.t
     | `OSEK2       of Osektupel.t*Osektupel.t

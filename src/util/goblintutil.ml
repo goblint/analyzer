@@ -18,6 +18,7 @@ let default_conf () =
                              ;"interval"   , Build.bool false] in
   let def_ana = Build.array [Build.array [Build.string "base"
                                          ;Build.string "escape"
+                                         ;Build.string "file"
                                          ;Build.string "mutex"]] in
 (*  let def_ana = Build.objekt ["base"       , Build.bool true
                              ;"OSEK"       , Build.bool false
@@ -41,6 +42,7 @@ let default_conf () =
                               ;"access"     , Build.bool false
                               ;"thread"     , Build.bool false
                               ;"escape"     , Build.bool false
+                              ;"file"       , Build.bool false
                               ;"mutex"      , Build.bool true
                               ;"symb_locks" , Build.bool false
                               ;"uninit"     , Build.bool true
@@ -60,6 +62,7 @@ let default_conf () =
                              ;"access"     , Build.bool true
                              ;"thread"     , Build.bool true
                              ;"escape"     , Build.bool true
+                             ;"file"       , Build.bool true
                              ;"mutex"      , Build.bool true
                              ;"symb_locks" , Build.bool true
                              ;"uninit"     , Build.bool true

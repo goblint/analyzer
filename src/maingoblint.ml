@@ -155,7 +155,7 @@ let main () =
                  ("--kernel", Arg.Set GU.kernel, "For analyzing Linux Device Drivers.");
                  ("--showtemps", Arg.Set CF.showtemps, " Shows CIL's temporary variables when printing the state.");
                  ("--uncalled", Arg.Set GU.print_uncalled, " Display uncalled functions.");
-                 ("--result", Arg.String setstyle, "<style>  Result style: none, glob, indented, compact, or pretty.");
+                 ("--result", Arg.String setstyle, "<style>  Result style: none, glob, indented, compact, pretty or html.");
                  ("--analysis", Arg.String setanalysis, "<name>  Deprecated: Picks the analysis: mcp.");
                  ("--phase", Arg.String phase, "<nr>  Selects a phase. (<nr> >= 0) ");
                  ("--with", Arg.Symbol (featurelist, set_feature true), " Enables features in current phase.");
