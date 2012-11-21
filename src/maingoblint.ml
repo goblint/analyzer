@@ -172,12 +172,13 @@ let main () =
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
 		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed program");
 		 ("--tramp", Arg.String tramp, "<file>  Resource-ID-headers for the analysed program");
-		 ("--osek_names", Arg.String osek_names, "<file>  OSEK API function (re)names for the analysed program");
+		 ("--oseknames", Arg.String osek_names, "<file>  OSEK API function (re)names for the analysed program");
 		 ("--osekisrprefix", Arg.String osekisrprefix, "Prefix added by the ISR macro");
 		 ("--osektaskprefix", Arg.String osektaskprefix, "Prefix added by the TASK macro");
 		 ("--osekisrsuffix", Arg.String osekisrsuffix, "Suffix added by the ISR macro");
 		 ("--osektasksuffix", Arg.String osektasksuffix, "Suffix added by the TASK macro");
-                 ("--intrpts", Arg.Set GU.intrpts, " Enable constraints for interrupts.");
+		 ("--osekcheck", Arg.Set OilUtil.check, "Check if (assumed) OSEK conventions are fullfilled");
+                 ("--intrpts", Arg.Set GU.intrpts, "Enable constraints for interrupts.");
                  ("--timeout", Arg.Set_float GU.anayzer_timeout, " Maximal time for analysis. (0 -- no timeout)");
                  ("--solver-progress", Arg.Bool ((:=) GU.solver_progress), " <bool> Used for debugging. Prints out a symbol on solving a rhs.");
                  ("--sharirpnueli", Arg.Set GU.sharir_pnueli, " Solve using the Sharir-Pnueli algorithm.");
