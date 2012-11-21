@@ -13,8 +13,10 @@ type categories = [
   | `ThreadCreate of exp * exp (* f  * x       *)
   | `ThreadJoin   of exp * exp (* id * ret_var *)
   | `Unknown      of string ]
-  
-let classify fn exps =
+ 
+let osek_renames = ref false
+ 
+let classify' fn exps =
   match fn with
     | "pthread_create" -> 
         begin match exps with
@@ -51,6 +53,8 @@ let classify fn exps =
         -> `Unlock        
     | x -> `Unknown x
 
+let classify fn exps =
+  if not(!osek_renames) then classify' fn exps else classify' (OilUtil.get_api_names fn) exps
 
 type action = [ `Write | `Read ]
   
@@ -131,8 +135,6 @@ let writesAll a x =
   match a with
     | `Write -> x
     | `Read  -> []
-
-
 
 (* just add your library functions here *)
 let invalidate_actions = [
@@ -431,41 +433,10 @@ let get_threadsafe_inv_ac name =
       | None -> Some (fun a xs -> f xs)
   with Not_found -> get_invalidate_action name
 
-let use_special fn_name =
-  match fn_name with
-    | "ActivateTask"
-    | "TerminateTask"
-    | "ChainTask"
-    | "Schedule"
-    | "GetTaskID"
-    | "GetTaskState"
-    | "DisableAllInterrupts"
-    | "EnableAllInterrupts"
-    | "SuspendAllInterrupts"
-    | "ResumeAllInterrupts"
-    | "SuspendOSInterrupts"
-    | "ResumeOSInterrupts"
-    | "GetResource"
-    | "ReleaseResource"
-    | "SetEvent"
-    | "GetEvent"
-    | "ClearEvent"
-    | "WaitEvent"
-    | "GetAlarmBase"
-    | "GetAlarm"
-    | "SetRelAlarm"
-    | "SetAbsAlarm"
-    | "CancelAlarm"
-    | "GetActiveApplicationMode"
-    | "StartOS"
-    | "ShutdownOS"
-    | "list_empty"
-    | "kzalloc"
-    | "kmalloc"
-    | "__raw_read_unlock"
-    | "__raw_write_unlock" 
-    | "spinlock_check"
-    | "spin_unlock_irqrestore" -> true
-    | "list_add" when (get_bool "exp.list-type") -> true
-    | "list_del" when (get_bool "exp.list-type") -> true
-    | _ -> false
+
+module StringSet = Set.Make(String)
+let lib_funs = ref (List.fold_right StringSet.add ["list_empty"; "kzalloc"; "kmalloc"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_unlock_irqrestore"] StringSet.empty)
+
+let use_special fn_name = StringSet.mem fn_name !lib_funs
+
+let add_lib_funs funs = lib_funs := List.fold_right StringSet.add funs !lib_funs

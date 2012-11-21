@@ -1,3 +1,5 @@
+(** Default values for [GobConfig]-style configuration. *)
+
 open Batteries_uni
 open Printf
 open List
@@ -107,12 +109,12 @@ let _ =
 (*  reg Experimental "exp.unmerged-fields"   "false" "Does not merge accesses to possibly same fields, unsound.";
   reg Experimental "exp.die-on-collapse"   "false" "Raise an exception as soon as an array collapses.";*)
   reg Experimental "exp.type-inv"          "false" "Should we use type invariants?";
-  reg Experimental "exp.list-type"         "false" "Should we use list types?";
   reg Experimental "exp.unique"            "[]"    "For types that have only one value.";
   reg Experimental "exp.sharir-pnueli"     "false" "Use the Sharir/Pnueli algorithm for solving.";
   reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach.";
   reg Experimental "exp.full-context"      "false" "Do not side-effect function entries.";
   reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts.";
+  reg Experimental "exp.no-int-context"    "false" "Ignore integer values in function contexts.";
   reg Experimental "exp.new_fwk"           "false" "Use the new framework.";
   reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails."
   

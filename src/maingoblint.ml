@@ -21,7 +21,7 @@ let print_version ch =
 (* Print helpful messages. *)
 let print_help ch = 
   fprintf ch "Usage: goblint [options] source-files\nOptions\n";
-  fprintf ch "    -v                        Prints some status information.                 \n";
+  fprintf ch "    -v                        Prints more status information.                 \n";
   fprintf ch "    -o <file>                 Prints the output to file.                      \n";
   fprintf ch "    -I <dir>                  Add include directory.                          \n";                 
   fprintf ch "    -IK <dir>                 Add kernel include directory.                   \n\n";                
@@ -29,7 +29,8 @@ let print_help ch =
   fprintf ch "    --version                 Print out current version information.          \n\n";          
   fprintf ch "    --conf <file>             Merge the configuration from the <file>.        \n";             
   fprintf ch "    --writeconf <file>        Write the effective configuration to <file>     \n";        
-  fprintf ch "    --set <jpath> <jvalue>    Set a configuration variable <jpath> to the specified <jvalue>.\n\n"; 
+  fprintf ch "    --set <jpath> <jvalue>    Set a configuration variable <jpath> to the specified <jvalue>.\n"; 
+  fprintf ch "    --sets <jpath> <string>   Set a configuration variable <jpath> to the string.\n\n"; 
   fprintf ch "    --print_options           Print out commonly used configuration variables.\n";    
   fprintf ch "    --print_all_options       Print out all configuration variables.          \n";
   fprintf ch "\n";
@@ -305,8 +306,9 @@ let main () =
  	| _ -> MCP.Analysis.analyze   
   in
   let analyze = ref (analyzer (JB.string !(JB.field GU.conf "analysis"))) in
-  let oil file = (*GU.allfuns := true;*) GU.oil := true; GU.mainfuns := []; GU.conf_osek (); Osek.Spec.oilFile := file in
-  let tramp file = Osek.Spec.resourceheaders := file; add_include_file file in
+  let oil file = (*GU.allfuns := true;*) GU.oil := true; GU.mainfuns := []; GU.conf_osek (); OilUtil.oilFile := file in
+  let tramp file = OilUtil.resourceheaders := file; add_include_file file in
+  let osek_names file = OilUtil.osek_renames := file in
   let osekisrprefix prefix = GU.isrprefix := prefix in
   let osektaskprefix prefix = GU.taskprefix := prefix in
   let osekisrsuffix suffix = GU.isrsuffix := suffix in
@@ -413,12 +415,13 @@ let main () =
                  ("--propdel", Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (set_prop false)], "<prop> <name> Disables a propery, e.g., --propdel int_domain interval.");
                  ("--type-inv", Arg.Bool ((:=) GU.use_type_invariants), "<bool>  Should we use type invariants?");
                  ("--list-type", Arg.Bool ((:=) GU.use_list_type), "<bool>  Should we use list types?");
-                 ("--solver", Arg.Symbol (["effectWCon"; "effectWNCon"; "solverConSideRR"; "solverConSideWNRR"; "interactive"; "new"; "TD";"fwtn";"cmp";"s1";"s2";"s3";"n1";"n2";"n3"], setsolver), " Picks the solver.");
+                 ("--solver", Arg.Symbol (["effectWCon"; "effectWNCon"; "solverConSideRR"; "solverConSideWNRR"; "interactive"; "new"; "TD";"fwtn";"cmp";"s1";"s2";"s3";"n1";"n2";"n3";"hbox";"widen"], setsolver), " Picks the solver.");
                  ("--unique", add_string GU.singles, "<type name>  For types that have only one value.");
                  ("--dump", Arg.String setdump, "<path>  Dumps the results to the given path");
                  ("--cilout", Arg.String setcil, "<path>  Where to dump cil output");
 		 ("--oil", Arg.String oil, "<file>  Oil file for the analysed program");
 		 ("--tramp", Arg.String tramp, "<file>  Resource-ID-headers for the analysed program");
+		 ("--osek_names", Arg.String osek_names, "<file>  OSEK API function (re)names for the analysed program");
 		 ("--osekisrprefix", Arg.String osekisrprefix, "Prefix added by the ISR macro");
 		 ("--osektaskprefix", Arg.String osektaskprefix, "Prefix added by the TASK macro");
 		 ("--osekisrsuffix", Arg.String osekisrsuffix, "Suffix added by the ISR macro");
@@ -430,6 +433,7 @@ let main () =
                  ("--forward", Arg.Set GU.forward, " Use implicit forward propagation instead of the demand driven approatch.");
                  ("--full-context", Arg.Set GU.full_context, " Do not side-effect function entries.");
                  ("--addr-context", Arg.Set GU.addr_contexts, " Ignore non-address values in function contexts.");
+                 ("--no-int-context", Arg.Set GU.no_int_contexts, " Ignore integer values in function contexts.");
                  ("--debug-sockets", Arg.Tuple [Arg.Set_int GU.command_port;Arg.Int GU.open_sockets], "<port> <port> Eclipse debuger plugin support.");
                  ("--new_fwk", Arg.Set GU.new_fwk, " Use the new framework.") ;
                  ("--print_dead_code", Arg.Set GU.print_dead_code, " Print information about dead code")

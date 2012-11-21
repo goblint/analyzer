@@ -4,9 +4,7 @@ open Cil
 module E = Errormsg
 module GU = Goblintutil
 
-(* OSEK hack: *)
-let tasks : (string,  string * int * string list) Hashtbl.t = Hashtbl.create 16
-let is_task f = Hashtbl.mem tasks f
+
 
 let init () =
   initCIL ();
@@ -185,7 +183,7 @@ let getFuns fileAST : startfuns =
           Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
       | GFun ({svar={vstorage=NoStorage}} as def, _) when (get_bool "nonstatic") -> add_other def acc
       | GFun (def, _) when ((get_bool "allfuns")) ->  add_other def  acc
-      | GFun (def, _) when get_string "ana.osek.oil" <> "" && is_task def.svar.vname -> add_other def acc
+      | GFun (def, _) when get_string "ana.osek.oil" <> "" && OilUtil.is_task def.svar.vname -> add_other def acc
       | _ -> acc
   in
   foldGlobals fileAST f ([],[],[])
@@ -249,6 +247,7 @@ let rec typeOf (e: exp) : typ =
      | _ -> raise Not_found
     end
   | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+  | _ -> failwith "Unmatched pattern."
 
 and typeOfInit (i: init) : typ = 
   match i with 

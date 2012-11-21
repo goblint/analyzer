@@ -406,6 +406,7 @@ struct
 							ArgSet.add (FieldVars.gen v2) (used_args_idx o)
 					end
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | _ -> failwith "Unmatched pattern."
     in
     used_args
 
@@ -445,6 +446,7 @@ struct
 					dbg_report ("cft: " ^(sprint 160 (d_exp () e))^" name : "^v2.vname^" as : "^(sprint 160 (ArgSet.pretty () x))^"\n");*)
 					res1||res2 (*ArgSet.for_all () ArgSet.bot() is always true????*) 
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | _ -> failwith "Unmatched pattern."
     in
     from_this e
 		
@@ -468,6 +470,7 @@ struct
       | StartOf (Var v2,o) -> 
           (this_name = v2.vname) 
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | _ -> failwith "Unmatched pattern."
     in
     from_this e		
 		
@@ -500,6 +503,7 @@ struct
                     dbg_report ("cft: " ^(sprint 160 (d_exp () e))^" name : "^v2.vname^" as : "^(sprint 160 (ArgSet.pretty () x))^"\n");*)
                     res1||res2 (*ArgSet.for_all () ArgSet.bot() is always true????*) 
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | _ -> failwith "Unmatched pattern."
     in
     from_this e     		
     
@@ -537,6 +541,7 @@ struct
 					 else 
 						FieldSet.bot ()				
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | _ -> failwith "Unmatched pattern."
     in
     from_this e   
     
@@ -572,6 +577,7 @@ struct
       | StartOf (Var v2,o) -> 
           ArgSet.bot ()
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | _ -> failwith "Unmatched pattern."
     in
     used_ptrs
     
@@ -601,6 +607,7 @@ struct
 				let check_field v = FieldVars.apply_field (fun v -> FieldSet.mem v fs) false v in
 	      not (ArgSet.is_bot x) && (ArgSet.exists (fun v -> check_field v) x)
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | _ -> failwith "Unmatched pattern."
     in
     check_exp
 (*		
@@ -656,6 +663,7 @@ struct
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> (if v2.vglob then [v2] else []) @ check_offs o
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | _ -> failwith "Unmatched pattern."
     in
     check_exp 0					
 		
@@ -678,6 +686,7 @@ struct
       | AddrOf  (Var v2,o) 
       | StartOf (Var v2,o) -> [v2] @ check_offs o
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | _ -> failwith "Unmatched pattern."
     in
     check_exp 0
 	

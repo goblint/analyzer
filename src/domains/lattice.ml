@@ -468,12 +468,14 @@ struct
     match x, y with
       | `Left  x, `Left  y -> `Left  (B1.widen x y)
       | `Right x, `Right y -> `Right (B2.widen x y)
-      | _ -> failwith "invalid argument for widen"
+      | `Left  x, `Right y -> `Left x
+      | `Right  x, `Left y -> `Left y
   let narrow x y =
     match x, y with
       | `Left  x, `Left  y -> `Left  (B1.narrow x y)
       | `Right x, `Right y -> `Right (B2.narrow x y)
-      | _ -> failwith "invalid argument for narrow"
+      | `Left  x, `Right y -> `Right y
+      | `Right  x, `Left y -> `Right x
 end                             
   
 module Liszt (Base: S) = 

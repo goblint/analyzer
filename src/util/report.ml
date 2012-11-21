@@ -13,8 +13,10 @@ let prepare_html_report () =
   let dr = GU.create_dir report_dir in
   let css_ch = open_out (dr^"/style.css") in
   fprintf css_ch "%s" Css_template.css_string;
+  close_out css_ch;
   let js_ch = open_out (dr^"/script.js") in
-  fprintf js_ch "%s" Js_template.js_string
+  fprintf js_ch "%s" Js_template.js_string;
+  close_out js_ch
 
 let do_stats fileNames =
   let an = get_list "ana.activated" in

@@ -1,6 +1,7 @@
 open Cil
 open Pretty
 open Analyses
+open OilUtil
 
 module Spec =
 struct
@@ -115,9 +116,11 @@ struct
 
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let (ctxs,ctxr) = ctx.local in
-    match f.vname with 
+    let fvname = get_api_names f.vname in
+    match fvname with 
       | "ReleaseResource" -> (match arglist with 
-          | [Const (CInt64 (c,_,_) ) ] -> let r = (Hashtbl.find Osek.Spec.constantlocks (Int64.to_string c)) in 
+          | [Const (CInt64 (c,_,_) ) ] -> let r = makeGlobalVar (find_name (Int64.to_string c)) Cil.voidType in
+(* (Hashtbl.find Osek.Spec.constantlocks (Int64.to_string c)) in  *)
                                             let p = (pry_d' (get_lockset ctx) r) in  
                                                [(ctxs, fcon  ctxr (-1,-1,-1,p)) ,Cil.integer 1, true]
           | _ -> let p = (pry_d (get_lockset ctx)) in  [(ctxs ,(fcon  ctxr (-1,-1,-1,p))) ,Cil.integer 1, true])

@@ -96,7 +96,7 @@ struct
   let rec get a (gs: glob_fun) (st,fl: store) (addrs:address): value =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
     let get_global x =
-      if x.Cil.vstorage = Extern then VD.join (gs x) (VD.top ()) else gs x
+      if x.Cil.vstorage = Extern || Cil.hasAttribute "volatile" (x.Cil.vattr) then VD.join (gs x) (VD.top ()) else gs x
     in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
     (* Finding a single varinfo*offset pair *)
@@ -622,7 +622,7 @@ struct
           (* Since we only handle equalities the order is not important *)
           | Cil.BinOp(op, Cil.Lval x, rval, typ) -> helper op x (eval_rv a gs st rval) tv
           | Cil.BinOp(op, rval, Cil.Lval x, typ) -> helper op x (eval_rv a gs st rval) tv
-          | Cil.BinOp(op, Cil.CastE (xt,x), Cil.CastE (yt,y), typ) when xt = yt 
+          | Cil.BinOp(op, Cil.CastE (xt,x), Cil.CastE (yt,y), typ) when Basetype.CilType.equal xt yt 
             -> derived_invariant (Cil.BinOp (op, x, y, typ)) tv
           (* Cases like if (x) are treated like if (x != 0) *)
           | Cil.Lval x -> 
@@ -907,8 +907,19 @@ struct
       | _ -> `Top
     in
     CPA.map replace_val st
+
+  let drop_ints (st:CPA.t) : CPA.t = 
+    if CPA.is_top st then st else 
+    let rec replace_val = function
+      | `Int _ -> `Top
+      | x -> x
+    in
+    CPA.map replace_val st
   
-  let context_top f (cpa,fl) = if (get_bool "exp.addr-context") then (drop_non_ptrs cpa, fl) else (cpa,fl)
+  let context_top f (cpa,fl) = 
+    if (get_bool "exp.addr-context") then (drop_non_ptrs cpa, fl) 
+    else if (get_bool "exp.no-int-context") then (drop_ints cpa, fl)  
+    else (cpa,fl)
   
   (* interpreter end *)
   

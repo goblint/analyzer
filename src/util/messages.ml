@@ -1,9 +1,9 @@
 open Cil
 open Pretty
 open Htmlutil
+open Htmldump
 open GobConfig
 module GU = Goblintutil
-
 
 exception Bailure of string
 let bailwith s = raise (Bailure s)
@@ -43,6 +43,9 @@ let print_err msg loc =
 
 
 let print_group group_name errors =
+  (* Add warnings to global warning list *)
+  List.iter (fun (msg,loc) -> htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,(group_name^" : "^msg))];() ) errors;
+
   if get_bool "exp.eclipse" || get_string "result"="newhtml" then
     List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
   else

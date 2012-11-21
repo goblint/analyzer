@@ -84,7 +84,9 @@ struct
     
     let description n = sprint 80 (pretty_trace () n)
     let context () _ = Pretty.nil
-    let loopSep _ = true
+    let loopSep = function
+      | `G a -> true
+      | `L a -> LV.loopSep a
   end
   
   module Solver = 
@@ -98,8 +100,6 @@ struct
     module WNRR = SolverConSideWNRR.Make(Var)(SD)(Spec.Glob)
     module INTR = Interactive.Make(Var)(SD)(Spec.Glob)
     module NEW  = OracleSolver.SolverTransformer(Var)(SD)(Spec.Glob)
-    module FWTN = OracleSolver.ClassicalSolver(Var)(SD)(Spec.Glob)
-    module CMP  = OracleSolver.Compare(Var)(SD)(Spec.Glob)
     module TD   = TopDown.Make(Var)(SD)(Spec.Glob)
     let solve () : system -> variable list -> (variable * var_domain) list -> solution'  = 
       match get_string "solver" with 
@@ -109,9 +109,7 @@ struct
         | "solverConSideWNRR" -> WNRR.solve
         | "interactive"     -> INTR.solve
         | "new"             -> NEW.solve 
-        | "fwtn"            -> FWTN.solve 
-        | "cmp"            -> CMP.solve 
-        | "TD"             -> TD.solve 
+        | "TD"              -> TD.solve 
         | _ -> EWC.solve 
   end
   (** name the analyzer *)
@@ -719,7 +717,7 @@ struct
         type d = Dom.t
         
         (* the box operator *)
-        let box _ = Dom.join
+        let box _ x y = if Dom.leq y x then Dom.narrow x y else Dom.widen x (Dom.join x y)
         
         (* the constraint system, defined functionally *)
         let system : v -> ((v -> d) -> (v -> d -> unit) -> d) list = function
@@ -770,6 +768,10 @@ struct
     let module S4 = Generic.DirtyBoxSolver             (EqSysNormal) (H2) in
     let module S5 = Generic.SoundBoxSolver             (EqSysNormal) (H2) in
     let module S6 = Generic.PreciseSideEffectBoxSolver (EqSysNormal) (H2) in
+    let module HS = Generic.HBoxSolver                 (EqSysNormal) (H2) in
+    let module TP = Generic.CousotNonBoxSolver         (EqSysNormal) (H2) in
+    let module CM = Generic.CompareBoxSolvers          (EqSysNormal) (H2) in
+    let module WS = Generic.WideningSolver             (EqSysNormal) (H2) in
     
     (* chooses a solver & translates input and output *)
     let new_fwk_solve svar sval = 
@@ -807,12 +809,16 @@ struct
         | "n1" -> H2.iter add2 (S4.solve sval2 svar2)
         | "n2" -> H2.iter add2 (S5.solve sval2 svar2)
         | "n3" -> H2.iter add2 (S6.solve sval2 svar2)
+        | "hbox" -> H2.iter add2 (HS.solve sval2 svar2)
+        | "fwtn" -> H2.iter add2 (TP.solve sval2 svar2)
+        | "cmp"  -> H2.iter add2 (CM.solve sval2 svar2)
+        | "widen" -> H2.iter add2 (WS.solve sval2 svar2)
         | _ -> () end;
       (ls,gs)
     in
     let sol,gs = 
       let solve () =
-        if List.mem (get_string "solver") ["s1";"s2";"s3";"n1";"n2";"n3"]
+        if List.mem (get_string "solver") ["s1";"s2";"s3";"n1";"n2";"n3";"hbox";"cmp";"fwtn";"widen"]
         then new_fwk_solve startvars'' entrystatesq
         else Solver.solve () (system cfg old old_g old_s phase) startvars'' entrystatesq
       in
@@ -929,7 +935,7 @@ struct
     let ltable = lazy (solver2source_result !oldsol) in
     let gtable = lazy (List.map (fun (_,g) -> global_xml g) !oldsol) in
     if (get_bool "dbg.print_dead_code") then print_dead_code (Lazy.force ltable);
-    Result.output ltable gtable file;
+    Stats.time "result output" (Result.output ltable gtable) file;
     if get_bool "dump_globs" then 
       List.iter (fun (_,gs) -> print_globals gs) !oldsol
     
