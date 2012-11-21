@@ -5,7 +5,8 @@ module M = Messages
 
 module FileUses  = 
 struct 
-  include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
+  module VarSet = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
+  include Lattice.Prod (VarSet) (VarSet)
   let toXML_f sf x = 
     match toXML x with
       | Xml.Element (node, [text, _], elems) -> 

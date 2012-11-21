@@ -17,7 +17,7 @@ struct
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t = 
     match q with
-      | Queries.MayEscape v -> `Bool (Dom.mem v ctx.local)
+      (* | Queries.MayEscape v -> `Bool (Dom.mem v ctx.local) *)
       | _ -> Queries.Result.top ()
  
   (* transfer functions *)
@@ -47,12 +47,12 @@ struct
   
   let reachable ask e: Dom.t = 
     match ask (Queries.ReachableFrom e) with
-      | `LvalSet a when not (Queries.LS.is_top a) -> 
+      | `LvalSet a when not (Queries.LS.is_top a) -> Dom.bot ()
            (* let to_extra (v,o) set = Dom.add (Addr.from_var_offset (v, cut_offset o)) set in *)
-          let to_extra (v,o) set = Dom.add v set in
-            Queries.LS.fold to_extra a (Dom.empty ())
+(*           let to_extra (v,o) set = Dom.add v set in
+            Queries.LS.fold to_extra a (Dom.empty ()) *)
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
-      | _ -> Dom.empty ()
+      | _ -> Dom.bot ()
  
   let query_lv ask exp = 
     match ask (Queries.MayPointTo exp) with
