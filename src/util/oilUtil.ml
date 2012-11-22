@@ -46,10 +46,8 @@ let tasks  : (string,task_t) Hashtbl.t = Hashtbl.create 16
 let isrs   : (string,isr_t) Hashtbl.t = Hashtbl.create 16
 
 (*unsused*)
-let regular_tasks = ref ([] : string list)
-let timed_tasks = ref ([] : string list)
-let isr1 = ref ([] : string list)
-let isr2 = ref ([] : string list)
+let starting_tasks = ref ([] : string list)
+let concurrent_tasks = ref ([] : string list)
 (*/unsused*)
 let warned = ref ([] :string list)
 
@@ -73,6 +71,8 @@ name
     | e -> raise e
 
 let is_task f = (Hashtbl.mem tasks f) || (Hashtbl.mem isrs f)
+
+let is_starting f = (List.mem f !concurrent_tasks) || (List.mem f !starting_tasks)
 
 let compare_objs obj1 obj2 =
   match obj1,obj2 with
@@ -146,7 +146,6 @@ let check_osek () =
   let min_cat1_pry = pry "SuspendOSInterrupts" in
   Hashtbl.iter (check_isr min_cat2_pry min_cat1_pry) isrs;  
   Hashtbl.iter check_task  tasks;
-  
   ()
 
 let compute_ceiling_priority res r_value = 
@@ -227,7 +226,9 @@ let handle_attribute_task object_name t_value (attr : (string*attribute_v)) =
 	  t_value
       )
   | "AUTOSTART" -> (match value with
-      | Bool (start,_)  -> sched,pry,res_list,event_list,timetriggered,start,activation
+      | Bool (true,_)  -> starting_tasks := object_name :: !starting_tasks;
+	sched,pry,res_list,event_list,timetriggered,true,activation
+      | Bool (false,_)  -> sched,pry,res_list,event_list,timetriggered,false,activation
       | _  ->
 	if tracing then trace "osek" "Wrong value (_) for attribute AUTOSTART of TASK %s\n" object_name;
 	  t_value
@@ -296,7 +297,8 @@ let handle_action_alarm object_name attr =
 	| "TASK" -> let helper (a,b,c,d,_,f,g) = (a,b,c,d,true,f,g) in (match target with
 	  | Name (name,None) -> let task = !Goblintutil.taskprefix ^ name ^ !Goblintutil.tasksuffix in
 	    if tracing then trace "osek" "ActivateTask %s as Name\n" task;
-	    Hashtbl.replace tasks task (helper (Hashtbl.find tasks task))
+	    Hashtbl.replace tasks task (helper (Hashtbl.find tasks task));
+	    concurrent_tasks :=  task :: !concurrent_tasks
 	  | String name  -> let task = !Goblintutil.taskprefix ^ name ^ !Goblintutil.tasksuffix in
 	    if tracing then trace "osek" "ActivateTask %s as String\n" task;
 	    Hashtbl.replace tasks task (helper (Hashtbl.find tasks task))
@@ -438,6 +440,7 @@ let add_to_table oil_info =
     | "ISR"  -> let name = !Goblintutil.taskprefix ^ object_name ^ !Goblintutil.tasksuffix in
 		let def_isr = (-1,[name; "SuspendOSInterrupts"],-1) in
 		let _ = Hashtbl.add resources name (name,-1, make_lock name) in
+		concurrent_tasks := name :: !concurrent_tasks;
 		(match attribute_list with
 		  | [] -> 
 		    if tracing then trace "osek" "Empty attribute list for task %s. Using defaults.\n" object_name;

@@ -177,7 +177,7 @@ let main () =
 		 ("--osektaskprefix", Arg.String osektaskprefix, "Prefix added by the TASK macro");
 		 ("--osekisrsuffix", Arg.String osekisrsuffix, "Suffix added by the ISR macro");
 		 ("--osektasksuffix", Arg.String osektasksuffix, "Suffix added by the TASK macro");
-		 ("--osekcheck", Arg.Set OilUtil.check, "Check if (assumed) OSEK conventions are fullfilled");
+		 ("--osekcheck", Arg.Set OilUtil.check, "Check if (assumed) OSEK conventions are fulfilled");
                  ("--intrpts", Arg.Set GU.intrpts, "Enable constraints for interrupts.");
                  ("--timeout", Arg.Set_float GU.anayzer_timeout, " Maximal time for analysis. (0 -- no timeout)");
                  ("--solver-progress", Arg.Bool ((:=) GU.solver_progress), " <bool> Used for debugging. Prints out a symbol on solving a rhs.");

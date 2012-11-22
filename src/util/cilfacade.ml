@@ -182,7 +182,7 @@ let getFuns fileAST : startfuns =
           Printf.printf "Cleanup function: %s\n" mn; add_funname mn GU.exitfuns; add_exit def acc
       | GFun ({svar={vstorage=NoStorage}} as def, _) when !GU.nonstatic -> add_other def acc
       | GFun (def, _) when (!GU.allfuns) ->  add_other def  acc
-      | GFun (def, _) when !GU.oil && OilUtil.is_task def.svar.vname -> add_other def acc
+      | GFun (def, _) when !GU.oil && OilUtil.is_starting def.svar.vname -> add_other def acc
       | _ -> acc
   in
   foldGlobals fileAST f ([],[],[])
