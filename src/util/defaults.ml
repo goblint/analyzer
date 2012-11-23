@@ -92,6 +92,8 @@ let _ =
   reg Analyses "ana.osek.isrsuffix"  "''"    "Suffix added by the ISR macro";
   reg Analyses "ana.osek.tasksuffix" "''"    "Suffix added by the TASK macro";
   reg Analyses "ana.osek.intrpts"    "false" "Enable constraints for interrupts.";
+  reg Analyses "ana.osek.check"      "false" "Check if (assumed) OSEK conventions are fullfilled.";
+  reg Analyses "ana.osek.names"      "[]"    "OSEK API function (re)names for the analysed program";
   reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain.";
   reg Analyses "ana.int.interval"    "false" "Interval based integer domain."
   

@@ -33,7 +33,7 @@ struct
 	();
     if tracing then trace "osek" "Computing ceiling priorities...\n";
     Hashtbl.iter compute_ceiling_priority resources;
-    if !check then check_osek ();
+    if (get_bool "ana.osek.check") then check_osek ();
     ()
 
   let parse_tramp tramp = 
@@ -184,7 +184,7 @@ struct
     if (is_task fname) then 
 (* let _ = print_endline ( "Leaving task " ^ f.svar.vname) in *)
       match M.special_fn (swap_st ctx m_st) None (dummy_release f) [get_lock fname] with 
-        | [(x,_,_)] -> if !check && not(List.mem fname !warned) && not(Dom.is_empty x) then begin
+        | [(x,_,_)] -> if (get_bool "ana.osek.check") && not(List.mem fname !warned) && not(Dom.is_empty x) then begin
 	  warned := fname :: !warned;
 	  let typ = if (Hashtbl.mem isrs fname) then "Interrupt " else "Task " in
 	  let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (Dom.ReverseAddrSet.elements x) in
@@ -208,27 +208,27 @@ struct
     let fvname = get_api_names f.vname in
     if tracing then trace "osek" "SPECIAL_FN '%s'\n" fvname;
     match fvname with
-      | "GetResource" | "ReleaseResource" -> if !check then check_api_use 1 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
+      | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
 	M.special_fn ctx lval f (match arglist with 
 	  | [Lval l] -> [AddrOf l] 
 	  | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> [get_lock (find_name (Int64.to_string c))]      
 (* | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
 	  | x -> x)  
       | "DisableAllInterrupts" -> let res = get_lock "DisableAllInterrupts" in
-	if !check then if (mem res ctx.local) then print_endline ( "Nested calls of DisableAllInterrupts are not allowed!");
+	if (get_bool "ana.osek.check") then if (mem res ctx.local) then print_endline ( "Nested calls of DisableAllInterrupts are not allowed!");
 	M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [res]
       | "EnableAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "DisableAllInterrupts"]
       | "SuspendAllInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
       | "ResumeAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "SuspendAllInterrupts"] 
       | "SuspendOSInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
       | "ResumeOSInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
-      | "ActivateTask" -> if !check then check_api_use 1 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
+      | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
 	M.special_fn ctx lval f (match arglist with (*call function *)
 	  | [x] -> let _ = printf "ActivateTask: %a" (printExp plainCilPrinter) x in [x]
 	  | x -> x)
-      | "ChainTask" ->  if !check then check_api_use 2 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
+      | "ChainTask" ->  if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
 	M.special_fn ctx lval f arglist (*call function *)
-      | "WaitEvent" -> (if !check then begin
+      | "WaitEvent" -> (if (get_bool "ana.osek.check") then begin
 	let _ = check_api_use 2 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local))) in
 	let static,regular = partition ctx.local in
 	let task = lockset_to_task static in
@@ -251,13 +251,13 @@ struct
       | "SetAbsAlarm" 
       | "CancelAlarm" 
       | "GetActiveApplicationMode" 
-      | "ShutdownOS" -> let _ = if !check then check_api_use 1 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local))) in 
+      | "ShutdownOS" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local))) in 
 	M.special_fn ctx lval f arglist
       | "ClearEvent"
       | "TerminateTask"
-      | "Schedule" -> let _ = if !check then check_api_use 2 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local))) in
+      | "Schedule" -> let _ = if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local))) in
 	M.special_fn ctx lval f arglist
-      | "StartOS" -> let _ =if !check then check_api_use 0 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local))) in 
+      | "StartOS" -> let _ =if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local))) in 
 	M.special_fn ctx lval f arglist
       | _ -> M.special_fn ctx lval f arglist
 

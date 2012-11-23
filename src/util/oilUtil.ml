@@ -38,7 +38,6 @@ let bcc2 = ref false
 let ecc1 = ref false
 let ecc2 = ref false
 let use_res_scheduler = ref false
-let check = ref false
 
 (* object tables *)
 let resources : (string,res_t) Hashtbl.t = Hashtbl.create 16
