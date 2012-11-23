@@ -38,6 +38,7 @@ let bcc2 = ref false
 let ecc1 = ref false
 let ecc2 = ref false
 let use_res_scheduler = ref false
+let check = ref false
 
 (* object tables *)
 let resources : (string,res_t) Hashtbl.t = Hashtbl.create 16
@@ -46,18 +47,18 @@ let tasks  : (string,task_t) Hashtbl.t = Hashtbl.create 16
 let isrs   : (string,isr_t) Hashtbl.t = Hashtbl.create 16
 
 (*unsused*)
-let regular_tasks = ref ([] : string list)
-let timed_tasks = ref ([] : string list)
-let isr1 = ref ([] : string list)
-let isr2 = ref ([] : string list)
-let isr1_maxpry = ref (-1)
-let isr2_maxpry = ref (-1)
-let task_maxpry = ref (-1)
+let starting_tasks = ref ([] : string list)
+let concurrent_tasks = ref ([] : string list)
 (*/unsused*)
+let warned = ref ([] :string list)
 
 (*DeclareTask "external" *)
 
 let osek_API_funs = ["ActivateTask"; "TerminateTask"; "ChainTask"; "Schedule"; "GetTaskID"; "GetTaskState"; "DisableAllInterrupts"; "EnableAllInterrupts"; "SuspendAllInterrupts"; "ResumeAllInterrupts"; "SuspendOSInterrupts"; "ResumeOSInterrupts"; "GetResource"; "ReleaseResource"; "SetEvent"; "GetEvent"; "ClearEvent"; "WaitEvent"; "GetAlarmBase"; "GetAlarm"; "SetRelAlarm"; "SetAbsAlarm"; "CancelAlarm"; "GetActiveApplicationMode"; "StartOS"; "ShutdownOS"]
+
+(*priority function*)
+let pry res = try let (_,pry,_) =Hashtbl.find resources res in pry with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
+
 
 let get_api_names name =
   try
@@ -72,16 +73,30 @@ name
 
 let is_task f = (Hashtbl.mem tasks f) || (Hashtbl.mem isrs f)
 
+let is_starting f = (List.mem f !concurrent_tasks) || (List.mem f !starting_tasks)
+
 let compare_objs obj1 obj2 =
   match obj1,obj2 with
     |(x,_,_),(y,_,_) when x=y -> 0
-    |_,("ALARM",_,_) -> -1
-    |(y,_,_),("EVENT",_,_) -> if y = "RESOURCE" then -1 else 1
+    |_,("OS",_,_) -> 1 
+    |("OS",_,_),_ -> -1 
     |_,("RESOURCE",_,_) -> 1
     |("RESOURCE",_,_),_ -> -1
-    |("EVENT",_,_), (y,_,_) -> if y = "RESOURCE" then 1 else -1
+    |_,("EVENT",_,_) -> 1
+    |("EVENT",_,_),_ -> -1
+    |_,("ALARM",_,_) -> -1
     |("ALARM",_,_), _ -> 1
     | _,_ -> 0
+
+let check_api_use cat fname task =
+  if task = "???" then let _ = printf "Unable to determine task while checking api usage." in () else
+  match cat with
+    | 1 -> if Hashtbl.mem isrs task then
+      let _,_,c = Hashtbl.find isrs task in if c = 1 then let _ = printf "OSEK function %s must not be called in the category 1 interrupt %s!" fname task in ()
+    | 2 ->  if Hashtbl.mem isrs task then
+       let _ = printf "OSEK function %s must not be called in the interrupt %s!" fname task in ()
+    | 0 -> let _ = printf "OSEK function %s must not be called in the task/interupt %s!" fname task in ()
+    | _ -> failwith "Wrong category specified for check_api_usage."
 
 let get_lock name = 
   if tracing then trace "osek" "Looking for lock %s\n" name;
@@ -117,6 +132,23 @@ let check_task task t_value =
     let _ = List.map check_event_decl event_list in
       ()
 
+let check_isr min_cat2_pry min_cat1_pry isr i_value =
+  let (pry,res_list,category) = i_value in
+    if (pry = -1) then (failwith ("No priority found for isr "^ isr ^ "!") );
+    if (category = 2 && pry <= min_cat2_pry) then (failwith ("Priority of interrupt "^ isr ^ "below task priorities!") );
+    if (category = 1 && pry <= min_cat1_pry) then (failwith ("Priority of category 1 interrupt "^ isr ^ "below category 2 priorities!") );
+    let _ = List.map check_res_decl res_list in
+      ()
+
+
+let check_osek () =
+  if tracing then trace "osek" "Checking conventions\n";
+  let min_cat2_pry = pry "RES_SCHEDULER" in
+  let min_cat1_pry = pry "SuspendOSInterrupts" in
+  Hashtbl.iter (check_isr min_cat2_pry min_cat1_pry) isrs;  
+  Hashtbl.iter check_task  tasks;
+  ()
+
 let compute_ceiling_priority res r_value = 
   let id,pry,lock = r_value in
   let max_pry_t res task t_value acc =
@@ -140,7 +172,7 @@ let handle_attribute_os attr =
       | _ -> false
   in
   match name with
-  | "USERESSCHEDULER" -> Hashtbl.add resources "RES_SCHEDULER" ("-1",-1, make_lock "RES_SCHEDULER"); use_res_scheduler := true; ()
+  | "USERESSCHEDULER" -> use_res_scheduler := true; ()
   | "STARTUPHOOK" -> startuphook := get_bool value
   | "SHUTDOWNHOOK" -> shutdownhook:= get_bool value
   | "ERRORHOOK" -> errorhook := get_bool value
@@ -195,7 +227,9 @@ let handle_attribute_task object_name t_value (attr : (string*attribute_v)) =
 	  t_value
       )
   | "AUTOSTART" -> (match value with
-      | Bool (start,_)  -> sched,pry,res_list,event_list,timetriggered,start,activation
+      | Bool (true,_)  -> starting_tasks := object_name :: !starting_tasks;
+	sched,pry,res_list,event_list,timetriggered,true,activation
+      | Bool (false,_)  -> sched,pry,res_list,event_list,timetriggered,false,activation
       | _  ->
 	if tracing then trace "osek" "Wrong value (_) for attribute AUTOSTART of TASK %s\n" object_name;
 	  t_value
@@ -227,11 +261,10 @@ let handle_attribute_isr object_name t_value (attr : (string*attribute_v)) =
   let a_name = String.uppercase tmp in
   match a_name with
   | "CATEGORY" -> (match value with
-      | Int c  -> if (c < 1 || c > 2) then begin
-		    if tracing then trace "osek" "Wrong CATEGORY for ISR %s\n" object_name;
-		    t_value
-		  end
-		  else (pry,res_list,c)
+      | Int c  -> (match c with 
+		  | 1 -> (pry,"DisableAllInterrupts"::"SuspendAllInterrupts"::res_list,c)
+		  | 2 -> (pry,res_list,c)
+		  | _ -> if tracing then trace "osek" "Wrong CATEGORY for ISR %s\n" object_name; t_value)
       | _  ->
 	if tracing then trace "osek" "Wrong value (_) for attribute CATEGORY of ISR %s\n" object_name;
 	  t_value
@@ -265,7 +298,8 @@ let handle_action_alarm object_name attr =
 	| "TASK" -> let helper (a,b,c,d,_,f,g) = (a,b,c,d,true,f,g) in (match target with
 	  | Name (name,None) -> let task = (get_string "ana.osek.taskprefix") ^ name ^ (get_string "ana.osek.tasksuffix") in
 	    if tracing then trace "osek" "ActivateTask %s as Name\n" task;
-	    Hashtbl.replace tasks task (helper (Hashtbl.find tasks task))
+	    Hashtbl.replace tasks task (helper (Hashtbl.find tasks task));
+	    concurrent_tasks :=  task :: !concurrent_tasks
 	  | String name  -> let task = (get_string "ana.osek.taskprefix") ^ name ^ (get_string "ana.osek.tasksuffix") in
 	    if tracing then trace "osek" "ActivateTask %s as String\n" task;
 	    Hashtbl.replace tasks task (helper (Hashtbl.find tasks task))
@@ -396,7 +430,7 @@ let add_to_table oil_info =
 		    | _ -> let _ = List.map handle_attribute_os attribute_list in ()
 		 )
     | "TASK" -> let name = (get_string "ana.osek.taskprefix") ^ object_name ^ (get_string "ana.osek.tasksuffix") in
-		let def_task = (false,-1,[name],[],false,false,16) in
+		let def_task = (false,-1,[name;"RES_SCHEDULER"],[],false,false,16) in	
 		let _ = Hashtbl.add resources name (name,-1,make_lock name) in
 		(match attribute_list with
 		  | [] -> 
@@ -405,8 +439,9 @@ let add_to_table oil_info =
 		  | _ -> Hashtbl.add tasks name (List.fold_left (handle_attribute_task name) def_task attribute_list)
 		)
     | "ISR"  -> let name = (get_string "ana.osek.taskprefix") ^ object_name ^ (get_string "ana.osek.tasksuffix") in
-		let def_isr = (-1,[name],-1) in
+		let def_isr = (-1,[name; "SuspendOSInterrupts"],-1) in
 		let _ = Hashtbl.add resources name (name,-1, make_lock name) in
+		concurrent_tasks := name :: !concurrent_tasks;
 		(match attribute_list with
 		  | [] -> 
 		    if tracing then trace "osek" "Empty attribute list for task %s. Using defaults.\n" object_name;

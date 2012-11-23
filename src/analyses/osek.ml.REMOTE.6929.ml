@@ -1,17 +1,14 @@
 open Cil
 open Pretty
 open Analyses
-open GobConfig
 open Messages
 
 open OilParser
 open OilLexer
 open OilUtil
-module CF = Cilfacade
 
 module Spec =
 struct
-  
   include Analyses.DefaultSpec
 
   let offensivepriorities = Hashtbl.create 16
@@ -26,7 +23,7 @@ struct
     Hashtbl.add resources "DisableAllInterrupts" ("DisableAllInterrupts",-1, make_lock "DisableAllInterrupts");
     Hashtbl.add resources "SuspendAllInterrupts" ("SuspendAllInterrupts",-1, make_lock "SuspendAllInterrupts");
     Hashtbl.add resources "SuspendOSInterrupts" ("SuspendOSInterrupts",-1, make_lock "SuspendOSInterrupts");
-    match file token (Lexing.from_channel (open_in (get_string "ana.osek.oil"))) with
+    match file token (Lexing.from_channel (open_in !oilFile)) with
       | [] -> failwith ( "No OIL-Objects found!")
       | objs -> let _ = List.map add_to_table (List.sort compare_objs objs) in
 	if tracing then trace "osek" "Done parsing OIL-file\n";
@@ -379,25 +376,25 @@ struct
               end
             | Guarded locks ->
                 let lock_str = Mutex.Lockset.short 80 locks in
-                  if (get_bool "allglobs") then
+                  if !Mutex.GU.allglobs then
                     Mutex.M.print_group (safe_str "common mutex") warnings
                   else 
                     ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
             | Priority pry ->
-                  if (get_bool "allglobs") then
+                  if !Mutex.GU.allglobs then
                     Mutex.M.print_group (safe_str "same priority") warnings
                   else 
                     ignore (printf "Found correlation: %s is guarded by priority %s\n" var_str (string_of_int pry))
             | Defence (defpry,offpry) ->
-                  if (get_bool "allglobs") then
+                  if !Mutex.GU.allglobs then
                     Mutex.M.print_group (safe_str "defensive priority exceeds offensive priority") warnings
                   else 
                     ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s\n" var_str (string_of_int defpry) (string_of_int offpry))
             | ReadOnly ->
-                if (get_bool "allglobs") then
+                if !Mutex.GU.allglobs then
                   Mutex.M.print_group (safe_str "only read") warnings
             | ThreadLocal ->
-                if (get_bool "allglobs") then
+                if !Mutex.GU.allglobs then
                   Mutex.M.print_group (safe_str "thread local") warnings
     in 
     let rw ((_,_,x),_,_) = x in
@@ -413,14 +410,14 @@ struct
     if !Mutex.GU.multi_threaded then begin
       if !race_free then 
         print_endline "Goblint did not find any Data Races in this program!";
-    end else if not (get_bool "dbg.debug") then begin
+    end else if not !Goblintutil.debug then begin
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;
     Base.Main.finalize ()
 
   let init () = 
-    let tramp = get_string "ana.osek.tramp" in
+    let tramp = !resourceheaders in
     if Sys.file_exists(tramp) then begin
       parse_tramp tramp;
     end else begin
