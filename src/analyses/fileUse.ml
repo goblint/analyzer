@@ -22,7 +22,7 @@ struct
  
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    ctx.local
+    let fo, fc = ctx.local in (fo, fc)
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
     ctx.local
@@ -31,6 +31,7 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
+    Messages.report ("return: ctx.local="^(Dom.short 50 ctx.local));
     ctx.local
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
@@ -65,29 +66,34 @@ struct
       | [(v,_)] -> Some v
       | _ -> None
 
-  let fork ctx lv f args = 
-    match f.vname with
-      | "pthread_create" -> begin        
-          match args with
-            | [_; _; start; ptc_arg] ->
-				let r = reachable ctx.ask ptc_arg in
-				  List.map (fun (v,_) -> (v,r)) (query_lv ctx.ask start)
-            | _ -> Messages.bailwith "pthread_create arguments are strange!"
-        end
-      | _ -> [] 
-
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    let forks = fork ctx lval f arglist in
-    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
+    let fo, fc = ctx.local in
+    let dummy = [ctx.local, Cil.integer 1, true] in
     match f.vname with
-      | "pthread_create" -> begin        
+      | "fopen" -> begin Messages.report "special_fn: found fopen";
+          match lval with
+            | None -> Messages.report "file handle is not saved..."; dummy
+            | Some lval -> let lhost, offset = lval in
+                match lhost with
+                  | Var varinfo -> Messages.report ("file handle saved in variable "^varinfo.vname);
+                      [(Dom.VarSet.add varinfo fo, fc), Cil.integer 1, true] (* TODO: return FILE pointer *)
+                  | Mem exp -> Messages.report "TODO: save to object in memory"; dummy
+          end
+      | "fclose" -> begin Messages.report "special_fn: found fclose";
           match arglist with
-            | [_; _; _; ptc_arg] -> begin
-                [reachable ctx.ask ptc_arg,Cil.integer 1, true]
+            | [fp] -> begin match fp with
+                | Lval lval -> begin let lhost, offset = lval in
+                    match lhost with
+                      | Var varinfo -> Messages.report ("closing file handle "^varinfo.vname);
+                          [(fo, Dom.VarSet.add varinfo fc), Cil.integer 1, true]
+                      | Mem exp -> dummy
+                    end
+                | _ -> dummy (* TODO: only considers variables as arguments *)
               end
-            | _ -> M.bailwith "pthread_create arguments are strange!"
-        end
-      | _ -> [ctx.local,Cil.integer 1, true]
+            | _ -> M.bailwith "fclose needs exactly one argument"
+          end
+      | "fprintf" -> Messages.report ("fprintf: ctx.local="^(Dom.short 50 ctx.local)); dummy
+      | _ -> dummy
 
   let startstate () = Dom.bot ()
   let otherstate () = Dom.bot ()
