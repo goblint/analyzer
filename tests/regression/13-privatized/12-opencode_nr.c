@@ -1,4 +1,4 @@
-// SKIP PARAM: --with shape --nonstatic
+// SKIP PARAM: --set ana.activated[0][+] "'shape'"  --set nonstatic true
 #include<linuxlight.h>
 
 LIST_HEAD (usb_bus_list);

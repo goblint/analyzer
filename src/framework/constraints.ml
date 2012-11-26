@@ -1,4 +1,5 @@
 open Generic
+open GobConfig
 open Pretty
 
 (** The selected specification. *)
@@ -127,10 +128,10 @@ struct
       | x -> Messages.warn_urgent "Oh noes! Something terrible just happened"; raise x
         
   let one_edge es v (e,u) get set =
-    let old_loc = !Goblintutil.current_loc in
-    let _       = Goblintutil.current_loc := getLoc u in
+    let old_loc = !Tracing.current_loc in
+    let _       = Tracing.current_loc := getLoc u in
     let d       = edge_tf es v (e,u) get set in
-    let _       = Goblintutil.current_loc := old_loc in 
+    let _       = Tracing.current_loc := old_loc in 
       d
     
   let system = function 
@@ -215,7 +216,7 @@ let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) 
     Stats.time "initializers" do_global_inits file 
   in
   
-  let otherfuns = if !Goblintutil.kernel then otherfuns @ more_funs else otherfuns in
+  let otherfuns = if get_bool "kernel" then otherfuns @ more_funs else otherfuns in
   
   let enter_with st fd =
     let top_query _ = Queries.Result.top () in
@@ -246,7 +247,7 @@ let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) 
        enter_func of any analysis returns an empty list." 
   in
   
-  let context_fn f = if !Goblintutil.full_context then fun x->x else Spec.context_top f in
+  let context_fn f = if get_bool "exp.full-context" then fun x->x else Spec.context_top f in
   
   let startvars' = 
     List.map (fun (n,e) -> (`L (MyCFG.Function n, HCLD.lift (LD.lift (context_fn n (LD.unlift e)))),0)) startvars in
@@ -266,7 +267,7 @@ let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) 
   in
   Spec.finalize ();
   
-  Goblintutil.timeout do_analyze () !Goblintutil.anayzer_timeout 
+  Goblintutil.timeout do_analyze () (float_of_int (get_int "dbg.timeout"))
     (fun () -> Messages.waitWhat "Timeout reached!");
     
   Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file

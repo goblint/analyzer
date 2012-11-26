@@ -1,3 +1,4 @@
+open GobConfig
 open Pretty
 module ME = Messages
 module GU = Goblintutil
@@ -154,7 +155,7 @@ struct
     let children = 
         let h g (kvs:(Domain.t * Range.t) list) xs = 
           match g with 
-            | -1 when not !Goblintutil.show_temps ->  xs
+            | -1 when not (get_bool "dbg.showtemps") ->  xs
             | 0 -> List.map f kvs @ xs
             | _ -> (Xml.Element ("Node", [("text", Domain.class_name g);("id",Domain.class_name g)], List.map f kvs))::xs
         in

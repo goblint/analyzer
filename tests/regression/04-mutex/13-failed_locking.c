@@ -1,4 +1,4 @@
-// PARAM: --failing-locks
+// PARAM: --set exp.failing-locks true
 #include <pthread.h>
 #include <stdio.h>
 

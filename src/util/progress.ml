@@ -41,7 +41,7 @@ let track_with_profile () =
   List.iter print_node r
 
 let track_with (notify: int -> unit): unit = 
-  let loc = !GU.current_loc in
+  let loc = !Tracing.current_loc in
   if (Hashtbl.mem reached_loc_hashtbl loc) then
     begin
       let visited_count = Hashtbl.find reached_loc_hashtbl loc in

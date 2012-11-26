@@ -1,4 +1,4 @@
-// PARAM: --libc
+// PARAM: --set custom_libc true
 #include<pthread.h>
 #include<ftw.h>
 

@@ -1,5 +1,6 @@
 open Cil
 open Pretty
+open GobConfig
 
 module GU = Goblintutil
 module V = Basetype.Variables
@@ -129,7 +130,7 @@ struct
 
   type eval_t = (bool * elt * F.t) option
   let eval_exp exp: eval_t = 
-    let offsornot offs = if !Goblintutil.region_offsets then F.listify offs else [] in
+    let offsornot offs = if (get_bool "exp.region-offsets") then F.listify offs else [] in
     let rec do_offs deref def = function 
       | Field (fd, offs) -> begin
           match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with

@@ -1,4 +1,4 @@
-// PARAM: --with region --kernel --nonstatic 
+// PARAM: --set ana.activated[0][+] "'region'"  --set kernel true --set nonstatic true 
 #include<linux/module.h>
 #include<linux/list.h>
 #include<linux/mutex.h>

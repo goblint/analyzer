@@ -7,7 +7,9 @@ module Stmt = Basetype.CilStmt
 module Func = Basetype.CilFun
 
 open Cil
+open Json
 open Pretty
+open GobConfig
 
 (** Forward analysis using a specification [Spec] *)
 module Forward 
@@ -100,7 +102,7 @@ struct
     module NEW  = OracleSolver.SolverTransformer(Var)(SD)(Spec.Glob)
     module TD   = TopDown.Make(Var)(SD)(Spec.Glob)
     let solve () : system -> variable list -> (variable * var_domain) list -> solution'  = 
-      match !GU.solver with 
+      match get_string "solver" with 
         | "effectWNCon"     -> EWNC.solve
         | "effectWCon"      -> EWC.solve
         | "solverConSideRR" -> SCSRR.solve
@@ -214,7 +216,7 @@ struct
        now it also assures that spawning is monotone between analysis stages *)
     let prepare_forks phase (effect:Solver.effect_fun)  (fn,ed,tn : MyCFG.node * MyCFG.edge * MyCFG.node) (xs: (varinfo * Spec.Dom.t) list) : Solver.variable list =
       let do_one_function (fork_fun, fork_st) =
-        if !GU.full_context then
+        if get_bool "exp.full-context" then
           (MyCFG.Function fork_fun, HCSD.lift (SD.lift fork_st)) 
         else begin
           effect (`L ((MyCFG.FunctionEntry fork_fun, HCSD.lift (SD.lift (Spec.context_top fork_fun fork_st))), SD.lift fork_st));
@@ -255,13 +257,13 @@ struct
       *)
     let proc_call (fn,ed,tn) sigma (theta:Solver.glob_assign) effect lval exp args st : Solver.var_domain * Solver.variable list =
       let forks = ref [] in
-      let add_var v d = if not (List.mem v.vname !GU.mainfuns) then forks := (v,d) :: !forks in
+      let add_var v d = if not (List.mem v.vname (List.map string (get_list "mainfun"))) then forks := (v,d) :: !forks in
       let add_diff g d = effect (`G (g,d)) in 
       let getctx v= 
         try
           let oldstate = List.concat (List.map (fun m -> match PH.find m tn with [] -> raise A.Deadcode | x -> x) old) in
           let oldglob = List.map (fun (h,t) x -> try PHG.find h x with Not_found -> t) old_g in
-          let reporter = if !GU.forward then report_access (n,es) else report_access (tn,es) in
+          let reporter = if (get_bool "exp.forward") then report_access (n,es) else report_access (tn,es) in
           A.set_preglob (A.set_precomp (A.context top_query v theta [] add_var add_diff reporter) oldstate) oldglob 
         with Not_found  -> Messages.warn "Analyzing a program point that was thought to be unreachable.";
                            raise A.Deadcode
@@ -274,7 +276,7 @@ struct
       let dress (f,es)  = (MyCFG.Function f, HCSD.lift (SD.lift es)) in
       let add_function st' f : Spec.Dom.t =
         let add_one_call x =
-          if !GU.full_context then
+          if get_bool "exp.full-context" then
             sigma (dress (f, x)) 
           else begin
             let ctx_st = Spec.context_top f x in
@@ -315,7 +317,7 @@ struct
         | MyCFG.Statement s -> (MyCFG.SelfLoop, n) :: cfg n
         | _ -> cfg n
     in
-    let cfg = if !GU.intrpts then cfg' else cfg in
+    let cfg = if (get_bool "ana.osek.intrpts") then cfg' else cfg in
       
     (* Find the edges entering this edge *)
     let edges : (MyCFG.edge * MyCFG.node) list = cfg n in
@@ -331,7 +333,7 @@ struct
            not use full contexts then we hope that someting meaningful was side-effected there *)
         let predval =
           match edge with
-            | MyCFG.Entry _ when !GU.full_context -> HCSD.unlift es
+            | MyCFG.Entry _ when get_bool "exp.full-context" -> HCSD.unlift es
             | _ -> sigma predvar 
         in
         if P.tracking then P.track_with (fun n -> M.warn_all (sprint ~width:80 (dprintf "Line visited more than %d times. State:\n%a\n" n SD.pretty predval)));
@@ -385,7 +387,7 @@ struct
            * handle the dead code -- maybe it could be avoided  *)
           let l,sp =
           match edge with
-            | MyCFG.Ret    (ret,fundec)    when (fundec.svar.vname = MyCFG.dummy_func.svar.vname || List.mem fundec.svar.vname !GU.mainfuns) && !GU.kernel
+            | MyCFG.Ret    (ret,fundec)    when (fundec.svar.vname = MyCFG.dummy_func.svar.vname || List.mem fundec.svar.vname (List.map string (get_list "mainfun"))) && get_bool "kernel"
                                            -> lift (toplevel_kernel_return ret fundec    ) predval'
             | MyCFG.Ret    (ret,fundec)    -> lift (normal_return          ret fundec    ) predval'
             | MyCFG.Entry func             -> lift (fun ctx -> Spec.body   ctx func      ) predval'
@@ -403,16 +405,16 @@ struct
           | M.Bailure s -> M.warn_each s; (predval, [])
           | x -> M.warn_urgent "Oh no! Something terrible just happened"; raise x
       in
-      let old_loc = !GU.current_loc in
-      let _   = GU.current_loc := if !GU.forward || !GU.sharir_pnueli then MyCFG.getLoc n else MyCFG.getLoc pred in
+      let old_loc = !Tracing.current_loc in
+      let _   = Tracing.current_loc := if (get_bool "exp.forward") || get_bool "exp.sharir-pnueli" then MyCFG.getLoc n else MyCFG.getLoc pred in
       let d, vars = 
         (** calculate the "next" value given the var to the "current" value *)
-        if !GU.forward 
+        if (get_bool "exp.forward") 
         then eval (n, es) 
         else eval (pred, es) 
       in 
-      let _   = GU.current_loc := old_loc in 
-        if !GU.forward then begin
+      let _   = Tracing.current_loc := old_loc in 
+        if (get_bool "exp.forward") then begin
           (** side-effect the "next" value *)
           effect (`L ((pred, es), d));
           SD.bot (), vars
@@ -562,7 +564,7 @@ struct
     in
     let f (n,m) v =
       let edge = get_edge n m in
-      GU.current_loc := MyCFG.getLoc n ;
+      Tracing.current_loc := MyCFG.getLoc n ;
       let v' = SD.unlift v in
       let next = 
         match edge with
@@ -621,7 +623,7 @@ struct
   (** analyze cil's global-inits function to get a starting state *)
   let do_global_inits (file: Cil.file) : SD.t * Cil.fundec list = 
 	  let undefined _ = failwith "undefined" in
-    let early = !GU.earlyglobs in
+    let early = (get_bool "exp.earlyglobs") in
     let edges = MyCFG.getGlobalInits file in
     let theta x = Spec.Glob.Val.bot () in
     let funs = ref [] in
@@ -631,7 +633,7 @@ struct
       let add_var _ _ = raise (Failure "Global initializers should never spawn threads. What is going on?")  in
       try
         if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
-        GU.current_loc := loc;
+        Tracing.current_loc := loc;
         match edge with
           | MyCFG.Entry func        -> Spec.body (A.context top_query st theta [] add_var add_diff undefined) func
           | MyCFG.Assign (lval,exp) -> 
@@ -646,10 +648,10 @@ struct
       with Failure x -> M.warn x; st
     in
     let _ = GU.global_initialization := true in
-    let _ = GU.earlyglobs := false in
+    let _ = set_bool "exp.earlyglobs" false in
     let with_externs = do_extern_inits file in
     let result : Spec.Dom.t = List.fold_left transfer_func with_externs edges in
-    let _ = GU.earlyglobs := early in
+    let _ = set_bool "exp.earlyglobs" early in
     let _ = GU.global_initialization := false in
       SD.lift result, !funs
      
@@ -670,7 +672,7 @@ struct
       Stats.time "initializers" do_global_inits file in
     let _ = if M.tracing then M.trace "postinit" "The initial state is: %a\n" SD.pretty startstate else () in
     let otherfuns = 
-      if !GU.kernel
+      if get_bool "kernel"
       then otherfuns @ more_funs
       else otherfuns in
     let enter_with st fd =
@@ -692,11 +694,11 @@ struct
     let othervars = List.map (enter_with (Spec.otherstate ())) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
     let _ = if startvars = [] then failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list." in
-    let context_fn f = if !GU.full_context then fun x->x else Spec.context_top f in
+    let context_fn f = if get_bool "exp.full-context" then fun x->x else Spec.context_top f in
     let startvars' = List.map (fun (n,e) -> MyCFG.Function n, HCSD.lift (SD.lift (context_fn n (SD.unlift e)))) startvars in
     (*let entrystates = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n, HCSD.unlift e), d) startvars' startvars in*)
     let entrystatesq = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n, e), d) startvars' startvars in
-    let startvars'' = if !GU.forward then [] else startvars' in
+    let startvars'' = if (get_bool "exp.forward") then [] else startvars' in
     (*let procs = 
       let f = function
         | ((MyCFG.FunctionEntry n, e), d) -> (n,e,d)
@@ -800,7 +802,7 @@ struct
           | _ -> ()
       in
       (* choose solver and translate output *)
-      begin match !GU.solver with 
+      begin match get_string "solver" with 
         | "s1" -> H1.iter add1 (S1.solve sval1 svar1)
         | "s2" -> H1.iter add1 (S2.solve sval1 svar1)
         | "s3" -> H1.iter add1 (S3.solve sval1 svar1)
@@ -816,13 +818,13 @@ struct
     in
     let sol,gs = 
       let solve () =
-        if List.mem !GU.solver ["s1";"s2";"s3";"n1";"n2";"n3";"hbox";"cmp";"fwtn";"widen"]
+        if List.mem (get_string "solver") ["s1";"s2";"s3";"n1";"n2";"n3";"hbox";"cmp";"fwtn";"widen"]
         then new_fwk_solve startvars'' entrystatesq
         else Solver.solve () (system cfg old old_g old_s phase) startvars'' entrystatesq
       in
       if !GU.verbose then print_endline ("Analyzing phase "^string_of_int phase^"!");
       Stats.time "solver" solve () in
-    if !GU.verify && (not !GU.sharir_pnueli) then begin
+    if !GU.verify && (not (get_bool "exp.sharir-pnueli")) then begin
       if !GU.verbose then print_endline "Verifying!";
       Stats.time "verification" (Solver.verify () (system cfg old old_g old_s phase)) (sol,gs)
     end;
@@ -833,13 +835,13 @@ struct
       end ;
     let firstvar = List.hd startvars' in
     let mainfile = match firstvar with (MyCFG.Function fn, _) -> fn.vdecl.file | _ -> "Impossible!" in
-    if !GU.print_uncalled then
+    if (get_bool "dbg.uncalled") then
       begin
         let out = M.get_out "uncalled" stdout in
         let f =
           let insrt k _ s = match k with
-            | (MyCFG.Function fn,_) -> if not !GU.forward then S.add fn.vid s else s
-            | (MyCFG.FunctionEntry fn,_) -> if !GU.forward then S.add fn.vid s else s
+            | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then S.add fn.vid s else s
+            | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then S.add fn.vid s else s
             | _ -> s
           in
           (* set of ids of called functions *)
@@ -859,7 +861,7 @@ struct
       Stats.time "post" (postprocess_accesses (sol,gs) phase old) old_g
     end;
     (* check for dead code at the last state: *)
-    (if !GU.debug && SD.is_bot main_sol then
+    (if (get_bool "dbg.debug") && SD.is_bot main_sol then
       Printf.printf "NB! Execution does not reach the end of Main.\n");
     (sol,gs)
   
@@ -887,11 +889,11 @@ struct
   let analyze (file: Cil.file) (fds: A.fundecs) = 
     (*ignore (Printf.printf "Effective conf:%s" (Json.jsonString (Json.Object !GU.conf)));*)
     (* number of phases *)
-    let phs = List.length !(Json.array !(Json.field GU.conf "analyses")) in
+    let phs = get_length "ana.activated" in
     (* get the control flow graph *)
     let cfg = 
       if !GU.verbose then print_endline "Generating constraints."; 
-      MyCFG.getCFG file (not (!Goblintutil.sharir_pnueli || !Goblintutil.forward)) 
+      MyCFG.getCFG file (not (get_bool "exp.sharir-pnueli" || (get_bool "exp.forward"))) 
     in
     let oldsol = ref [] in (* list of solutions from previous phases *)
     let precmp = ref [] in (* same as oldsol but without contexts  *)
@@ -911,7 +913,7 @@ struct
         Spec.finalize ()
       done
     in
-    Goblintutil.timeout do_analyze () !GU.anayzer_timeout 
+    Goblintutil.timeout do_analyze () (float_of_int (get_int "dbg.timeout"))
       (fun () -> M.waitWhat "Timeout reached!");
     (*let module VSet = Set.Make (A.Var) in
     let vs = List.fold_left (fun s (st,_) -> Solver.VMap.fold (fun (n,_) _ -> VSet.add n) st s) VSet.empty !oldsol in
@@ -932,9 +934,9 @@ struct
     in
     let ltable = lazy (solver2source_result !oldsol) in
     let gtable = lazy (List.map (fun (_,g) -> global_xml g) !oldsol) in
-    if !GU.print_dead_code then print_dead_code (Lazy.force ltable);
+    if (get_bool "dbg.print_dead_code") then print_dead_code (Lazy.force ltable);
     Stats.time "result output" (Result.output ltable gtable) file;
-    if !GU.dump_global_inv then 
+    if get_bool "dump_globs" then 
       List.iter (fun (_,gs) -> print_globals gs) !oldsol
     
 

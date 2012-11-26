@@ -1,5 +1,6 @@
 open Cil
 open Pretty
+open GobConfig
 
 module GU = Goblintutil
 module M  = Messages
@@ -203,7 +204,7 @@ struct
         String.fill res len (n-len) ' '; 
         res
     in      
-    if !GU.debug then Stats.time (padr 40 (D.name^" ⇢ "^n)) f
+    if (get_bool "dbg.debug") then Stats.time (padr 40 (D.name^" ⇢ "^n)) f
         else f
   
   module Dom = 
@@ -583,20 +584,18 @@ struct
     if !GU.verbose then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
     GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = Messages.get_out result_name !GU.out in
-    match !GU.result_style with
-      | GU.Pretty -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
-      | GU.Indented -> begin
+    match get_string "result" with
+      | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
+      | "indented" -> begin
           Xmldump.print_fmt out (resultXML (Lazy.force table));
           output_char out '\n'
         end
-      | GU.Compact -> begin
+      | "compact" -> begin
           Xmldump.print out (resultXML (Lazy.force table));
           output_char out '\n'
         end
-      | GU.Html -> 
+      | "html" -> 
           Htmldump.print_html out (resultXML (Lazy.force table)) file
-      (*| GU.NewHtml -> 
-          Htmldump.printFiles file (resultXML (Lazy.force table)) (Lazy.force gtable) *)
       | _ -> ()
 end
 

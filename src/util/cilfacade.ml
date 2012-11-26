@@ -1,3 +1,5 @@
+open GobConfig
+open Json
 open Cil
 module E = Errormsg
 module GU = Goblintutil
@@ -85,7 +87,7 @@ class addConstructors cons = object
   inherit nopCilVisitor 
   val mutable cons1 = cons
   method vfunc fd =
-    if List.mem fd.svar.vname !GU.mainfuns then begin
+    if List.mem fd.svar.vname (List.map string (get_list "mainfun")) then begin
       let loc = try get_stmtLoc (List.hd fd.sbody.bstmts).skind with Failure _ -> locUnknown in
       let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc)]) in
       let call_cons = List.map f cons1 in
@@ -170,19 +172,18 @@ let getFuns fileAST : startfuns =
   let add_main f (m,e,o) = (f::m,e,o) in
   let add_exit f (m,e,o) = (m,f::e,o) in
   let add_other f (m,e,o) = (m,e,f::o) in
-  let add_funname fn lst = lst := fn :: !lst in
   let f acc glob =
     match glob with 
-      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.mainfuns -> add_main def acc
-      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.exitfuns -> add_exit def acc
-      | GFun({svar={vname=mn}} as def,_) when List.mem mn !GU.otherfuns -> add_other def acc
-      | GFun({svar={vname=mn; vattr=attr}} as def, _) when !GU.kernel && is_init attr -> 
-          Printf.printf "Start function: %s\n" mn; add_funname mn GU.mainfuns; add_main def acc
-      | GFun({svar={vname=mn; vattr=attr}} as def, _) when !GU.kernel && is_exit attr -> 
-          Printf.printf "Cleanup function: %s\n" mn; add_funname mn GU.exitfuns; add_exit def acc
-      | GFun ({svar={vstorage=NoStorage}} as def, _) when !GU.nonstatic -> add_other def acc
-      | GFun (def, _) when (!GU.allfuns) ->  add_other def  acc
-      | GFun (def, _) when !GU.oil && OilUtil.is_task def.svar.vname -> add_other def acc
+      | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "mainfun")) -> add_main def acc
+      | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "exitfun")) -> add_exit def acc
+      | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "otherfun")) -> add_other def acc
+      | GFun({svar={vname=mn; vattr=attr}} as def, _) when get_bool "kernel" && is_init attr -> 
+          Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
+      | GFun({svar={vname=mn; vattr=attr}} as def, _) when get_bool "kernel" && is_exit attr -> 
+          Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
+      | GFun ({svar={vstorage=NoStorage}} as def, _) when (get_bool "nonstatic") -> add_other def acc
+      | GFun (def, _) when ((get_bool "allfuns")) ->  add_other def  acc
+      | GFun (def, _) when get_string "ana.osek.oil" <> "" && OilUtil.is_starting def.svar.vname -> add_other def acc
       | _ -> acc
   in
   foldGlobals fileAST f ([],[],[])

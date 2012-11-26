@@ -31,6 +31,8 @@
    path sensitivity)
  *)
 
+open Batteries_uni
+open GobConfig
 open Analyses
 open Pretty
 open Cil
@@ -450,7 +452,7 @@ struct
   
   let take_list = ref [] 
   let init () = 
-    let int_ds = JB.array !(List.nth !(JB.array !(JB.field GU.conf "analyses")) !GU.phase) in 
+    let int_ds = JB.array (List.nth (get_list "ana.activated") !GU.phase) in 
     let order = List.map (fun x -> x.featurename ) !analysesList in
     let f s y = List.exists (fun a -> s=JB.string !a) !int_ds :: y in
     take_list := List.fold_right f order []
@@ -551,7 +553,7 @@ struct
   
   let take_list = ref [] 
   let init () = 
-    let int_ds = JB.array !(List.nth !(JB.array !(JB.field GU.conf "analyses")) !GU.phase) in 
+    let int_ds = JB.array (List.nth (get_list "ana.activated") !GU.phase) in 
     let order = List.map (fun x -> x.featurename ) !analysesList in
     let f s y = List.exists (fun a -> s=JB.string !a) !int_ds :: y in
     take_list := List.fold_right f order []
@@ -773,7 +775,7 @@ struct
   (* analysis spec stuff *)
   let name = "analyses"
   let finalize () =
-    let int_ds = JB.array !(List.nth !(JB.array !(JB.field GU.conf "analyses")) !GU.phase) in 
+    let int_ds = JB.array (List.nth (get_list "ana.activated") !GU.phase) in 
     let uses x = List.exists (fun a -> x=JB.string !a) !int_ds in
     List.iter (fun x ->
         if uses x.featurename 
@@ -791,17 +793,19 @@ struct
   let init () = 
     Dom.init ();
     Glob.Val.init ();
-    let sense_ds = JB.objekt !(JB.field GU.conf "sensitive") in
-    let context_ds = JB.objekt !(JB.field GU.conf "context") in
-    let int_ds = JB.array !(List.nth !(JB.array !(JB.field GU.conf "analyses")) !GU.phase) in 
+    let sense_ds = get_list "ana.path_sens" |> List.map Json.string in
+    let sense_ds_f = flip List.mem sense_ds in
+    let context_ds = get_list "ana.ctx_insens" |> List.map Json.string  in
+    let context_ds_f = not -| flip List.mem context_ds in
+    let int_ds = JB.array (List.nth (get_list "ana.activated") !GU.phase) in 
     let uses x = List.exists (fun a -> x=JB.string !a) !int_ds in
 
     let order = List.map (fun x -> x.featurename ) !analysesList in
-    let f s y = if uses s then JB.bool !(JB.field sense_ds s) :: y else y in
+    let f s y = if uses s then sense_ds_f s :: y else y in
     take_list := List.fold_right f order [];
 
     let uses x = List.exists (fun a -> x=JB.string !a) !int_ds in
-    context_list := List.fold_right (fun x xs -> if uses x.featurename then JB.bool !(JB.field context_ds x.featurename)::xs else xs) !analysesList [];
+    context_list := List.fold_right (fun x xs -> if uses x.featurename then context_ds_f x.featurename::xs else xs) !analysesList [];
     List.iter (fun x ->
         if uses x.featurename 
         then x.init ()
@@ -841,13 +845,25 @@ struct
       | Some b -> (get_matches b).es_to_string f b
       | None -> f.svar.vname
 
+  let var_mem_assoc v = List.exists (Basetype.Variables.equal v -| fst)
+      
+  let rec var_assoc v = function
+    | [] -> raise Not_found
+    | (x,y)::_ when Basetype.Variables.equal x v -> y
+    | _::xs -> var_assoc v xs
+    
+  let rec var_remove_assoc v = function
+    | [] -> []
+    | (x,y)::xs when Basetype.Variables.equal x v -> xs
+    | _::xs -> var_remove_assoc v xs
+
   (* fork over all analyses and combine values of equal varinfos *)
   let lift_spawn ctx f  =
     let start_val = otherstate () in 
     let combine_forks rs xs = 
       let g rs (v,s) : (Cil.varinfo * Dom.t) list=
-        if List.mem_assoc v rs 
-        then (v, replace s (List.assoc v rs)) :: List.remove_assoc v rs 
+        if var_mem_assoc v rs 
+        then (v, replace s (var_assoc v rs)) :: var_remove_assoc v rs 
         else (v, replace s start_val) :: rs
       in
       List.fold_left g rs xs

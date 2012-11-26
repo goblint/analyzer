@@ -100,7 +100,7 @@ oldclean: cleancaml
 	@rm -f goblint.unittest
 	@find ./obj '(' -name "*.cm[iox]" -or -name "*.o" ')' -exec rm '{}' ';'
 	@rm -f tests/*.i tests/*.goblint tests/a.out a.out
-	@rm -f src/version.ml src/config.ml
+#	@rm -f src/version.ml src/config.ml
 
 oldtest: opt unittests
 	@./scripts/runalltests.sh

@@ -1,4 +1,4 @@
-// PARAM: --debug
+// PARAM: --set dbg.debug true
 #include <assert.h>
 
 extern int q;

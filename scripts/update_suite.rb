@@ -128,7 +128,7 @@ regs.sort.each do |d|
       hash[-1] = "term"
       debug = true
     end
-    params << " --debug" if debug
+    params << " --set dbg.debug true" if debug
     p = Project.new(id,testname,size,groupname,path,params,hash)
     projects << p 
   end
@@ -150,10 +150,10 @@ projects.each do |p|
   cilfile = File.join(testresults, p.name + ".cil.txt")
   orgfile = File.join(testresults, p.name + ".c.html")
   `code2html -l c -n #{filename} > #{orgfile}`
-  `#{goblint} #{filename} --justcil #{p.params} >#{cilfile} 2> /dev/null`
+  `#{goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
   p.size = `wc -l #{cilfile}`.split[0]
   starttime = Time.now
-  cmd = "#{goblint} #{filename} #{p.params} 1>#{warnfile} --stats 2>#{statsfile}"
+  cmd = "#{goblint} #{filename} #{p.params} 1>#{warnfile} --set printstats true  2>#{statsfile}"
   system(cmd)
   endtime   = Time.now
   #status = $?.exitstatus

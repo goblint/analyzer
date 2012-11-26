@@ -1,4 +1,6 @@
+open GobConfig
 open Pretty
+
 module GU = Goblintutil
 module JB = Json
 module M = Messages
@@ -1460,9 +1462,8 @@ struct
   let name () = Trier.name ()
         
   let constr_scheme xs =
-    let int_ds = JB.objekt !(JB.field GU.conf "int_domain") in
     let f (s,g) y : t = 
-      if JB.bool !(JB.field int_ds s) 
+      if get_bool ("ana.int."^s)
       then (g ()) :: y
       else y
     in

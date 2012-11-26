@@ -1,4 +1,4 @@
-// PARAM: --oil 02-example.oil --tramp 06-suffix-tramp.h --osektasksuffix _func --osekisrsuffix _func
+// PARAM: --set ana.activated "[['base','escape','OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 02-example.oil --sets ana.osek.tramp 06-suffix-tramp.h --sets ana.osek.tasksuffix _func --sets ana.osek.isrsuffix _func
 
 // #include "02-example-tramp.h"
 

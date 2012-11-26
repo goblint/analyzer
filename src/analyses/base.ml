@@ -1,6 +1,7 @@
 open Cil
 open Pretty
 open Analyses
+open GobConfig
 module A = Analyses
 module M = Messages
 module H = Hashtbl
@@ -87,7 +88,7 @@ struct
 
   let sync ctx: Dom.t * glob_diff = 
     let cpa,fl = ctx.local in
-    let cpa, diff = if !GU.earlyglobs || Flag.is_multi fl then globalize ctx.ask cpa else (cpa,[]) in
+    let cpa, diff = if (get_bool "exp.earlyglobs") || Flag.is_multi fl then globalize ctx.ask cpa else (cpa,[]) in
       (cpa,fl), diff
 
   (** [get st addr] returns the value corresponding to [addr] in [st] 
@@ -102,7 +103,7 @@ struct
     let res = 
     let f_addr (x, offs) = 
       (* get hold of the variable value, either from local or global state *)
-      let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
+      let var = if ((get_bool "exp.earlyglobs") || Flag.is_multi fl) && is_global a x then
         match CPA.find x st with
           | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
           | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
@@ -138,7 +139,7 @@ struct
       if Cil.isFunctionType x.vtype then nst else 
       (* Check if we need to side-effect this one. We no longer generate
        * side-effects here, but the code still distinguishes these cases. *)
-      if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then 
+      if ((get_bool "exp.earlyglobs") || Flag.is_multi fl) && is_global a x then 
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
         if not effect && not (is_private a x) then nst
@@ -695,7 +696,7 @@ struct
       | _ -> None
     in
     match is_list_init () with
-      | Some a when !GU.use_list_type -> 
+      | Some a when (get_bool "exp.list-type") -> 
           begin 
             set ctx.ask ctx.global ctx.local 
                 (AD.singleton (Addr.from_var a)) 
@@ -714,7 +715,7 @@ struct
     in
     begin match rval_val, lval_val with
       | `Address adrs, lval
-        when (not !GU.global_initialization) && !GU.kernel && not_local lval && not (AD.is_top adrs) ->
+        when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
           let find_fps e xs = Addr.to_var_must e @ xs in
           let vars = AD.fold find_fps adrs [] in
           let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
@@ -916,8 +917,8 @@ struct
     CPA.map replace_val st
   
   let context_top f (cpa,fl) = 
-    if !GU.addr_contexts then (drop_non_ptrs cpa, fl) 
-    else if !GU.no_int_contexts then (drop_ints cpa, fl)
+    if (get_bool "exp.addr-context") then (drop_non_ptrs cpa, fl) 
+    else if (get_bool "exp.no-int-context") then (drop_ints cpa, fl)  
     else (cpa,fl)
   
   (* interpreter end *)
@@ -1109,7 +1110,7 @@ struct
     let cpa,fl as st = ctx.local in
     let make_entry pa context =
       (* If we need the globals, add them *)
-      let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
+      let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
       (* Assign parameters to arguments *)
       let new_cpa = CPA.add_list pa new_cpa in
       let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
@@ -1158,14 +1159,14 @@ struct
           end
 
   let special_fn ctx (lv:lval option) (f: varinfo) (args: exp list) = 
-(*    let heap_var = heap_var !GU.current_loc in*)
+(*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
     let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
     let cpa,fl as st = ctx.local in
     let gs = ctx.global in
     let map_true x = x, (Cil.integer 1), true in
     match LF.classify f.vname args with 
-      | `Unknown "list_add" when !GU.use_list_type -> 
+      | `Unknown "list_add" when (get_bool "exp.list-type") -> 
           begin match args with
             | [ AddrOf (Var elm,next);(AddrOf (Var lst,NoOffset))] -> 
                 begin
@@ -1182,7 +1183,7 @@ struct
                 end
             | _ -> M.bailwith "List function arguments are strange/complicated."
           end
-      | `Unknown "list_del" when !GU.use_list_type -> 
+      | `Unknown "list_del" when (get_bool "exp.list-type") -> 
           begin match args with
             | [ AddrOf (Var elm,next) ] -> 
                 begin
@@ -1231,9 +1232,9 @@ struct
         match lv with
           | Some lv -> 
             let heap_var = 
-              if !GU.malloc_may_fail 
-              then AD.join (heap_var !GU.current_loc) (AD.null_ptr ()) 
-              else heap_var !GU.current_loc
+              if (get_bool "exp.malloc-fail") 
+              then AD.join (heap_var !Tracing.current_loc) (AD.null_ptr ()) 
+              else heap_var !Tracing.current_loc
             in 
             [map_true (set_many ctx.ask gs st [(heap_var, `Blob (VD.bot ()));  
                                        (eval_lv ctx.ask gs st lv, `Address heap_var)])]
@@ -1242,7 +1243,7 @@ struct
       | `Calloc -> 
         begin match lv with
           | Some lv -> 
-              let heap_var = BaseDomain.get_heap_var !GU.current_loc in
+              let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in
                 [map_true (set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
                                            (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))])]
           | _ -> [map_true st]
@@ -1260,7 +1261,7 @@ struct
       | `Unknown "__goblint_check" -> assert_fn ctx (List.hd args) true false 
       | `Unknown "__goblint_commit" -> assert_fn ctx (List.hd args) false true 
       | `Unknown "__goblint_assert" -> assert_fn ctx (List.hd args) true true 
-      | `Assert e -> assert_fn ctx e !GU.debug (not !GU.debug) 
+      | `Assert e -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug")) 
       | _ -> begin
           let lv_list = 
             match lv with

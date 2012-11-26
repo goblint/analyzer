@@ -1,6 +1,8 @@
 module GU = Goblintutil
 module M = Messages
 
+open Batteries_uni
+open GobConfig
 open Htmlutil
 open Printf
 open Json
@@ -17,17 +19,17 @@ let prepare_html_report () =
   close_out js_ch
 
 let do_stats fileNames =
-  let an = array !(field GU.conf "analyses") in
-  let cn = objekt !(field GU.conf "context") in
-  let sn = objekt !(field GU.conf "sensitive") in
-  let cont x = bool !(field cn x) in
-  let path x = bool !(field sn x) in
+  let an = get_list "ana.activated" in
+  let cn = get_list "ana.ctx_insens" |> List.map Json.string in
+  let sn = get_list "ana.path_sens" |> List.map Json.string in
+  let cont x = List.mem x cn |> not in
+  let path x = List.mem x sn in
   let sens x = if x then str "Sensitive" else str "Insensitive" in
   let yesno x = if x then str "Yes" else str "No" in
   let listp x = str (String.concat ", " x) in
   let intd = 
-    let tr = bool !(field (objekt !(field GU.conf "int_domain")) "trier") in
-    let inv = bool !(field (objekt !(field GU.conf "int_domain")) "interval") in
+    let tr = get_bool "ana.int.trier" in
+    let inv = get_bool "ana.int.interval" in
     match tr, inv with
       | true , true  -> str "Kildall domain with exclusion sets & intervals"
       | true , false -> str "Kildall domain with exclusion sets "
@@ -37,10 +39,10 @@ let do_stats fileNames =
   let phase x =
     let rec phase' n = function
       | [] -> None
-      | xs::xss when List.exists (fun y->x=string !y) (!(array !xs)) -> Some n
+      | xs::xss when List.exists (fun y->x=string !y) (!(array xs)) -> Some n
       | xs::xss -> phase' (n+1) xss
     in
-    phase' 1 !an
+    phase' 1 an
   in      
   let phaseTbl = 
     let f xs x = 
@@ -50,8 +52,8 @@ let do_stats fileNames =
     in
     List.fold_left f [] !MCP.analysesList 
   in
-  match !Cilutil.printStats, !GU.result_style with
-    | _ , GU.Html ->
+  match get_bool "printstats", get_string "result" with
+    | _ , "html" ->
       begin
         let filesTable = 
           tag "ol"
@@ -63,7 +65,7 @@ let do_stats fileNames =
             List.fold_left f (fun _ -> ()) fileNames 
           end
         in
-        let o = open_out (Filename.concat "result" "report.html") in
+        let o = Legacy.open_out (Filename.concat "result" "report.html") in
         (*let o = stdout in*)
         let t = Unix.localtime (Unix.time ()) in
         let months = [| "Jan"; "Feb"; "Mar"; "Apr"; "May"; "Jun";
@@ -92,14 +94,14 @@ let do_stats fileNames =
                         [ [ tag "h5" ~tp:["class","toggle_ttl";"title","gprop"] (str "General&nbsp;Properties")
                           ; table ~tp:["id","gprop"] 
                               [[str "Property"; str "Value"]
-                              ;[str "Solver" ; str !GU.solver]
-                              ;[str "Propagation"; if !GU.forward then str "Forward" else str "Demand-driven"]
-                              ;[str "Total phases" ; str (string_of_int (List.length !an))]
-                              ;[str "Starting with all functions"; yesno !GU.allfuns]
-                              ;[str "Starting with non-static functions"; yesno !GU.nonstatic]
-                              ;[str "Main functions"; listp !GU.mainfuns]
-                              ;[str "Other functions"; listp !GU.otherfuns]
-                              ;[str "Exit functions"; listp !GU.exitfuns]
+                              ;[str "Solver" ; str (get_string "solver")]
+                              ;[str "Propagation"; if (get_bool "exp.forward") then str "Forward" else str "Demand-driven"]
+                              ;[str "Total phases" ; str (string_of_int (List.length an))]
+                              ;[str "Starting with all functions"; yesno (get_bool "allfuns")]
+                              ;[str "Starting with non-static functions"; yesno (get_bool "nonstatic")]
+                              ;[str "Main functions"; listp (List.map string (get_list "mainfun"))]
+                              ;[str "Other functions"; listp (List.map string (get_list "otherfun"))]
+                              ;[str "Exit functions"; listp (List.map string (get_list "exitfun"))]
                               ] 
                           ]
                         ; [ tag "h5" ~tp:["class","toggle_ttl";"title","ana"] (str "Enabled&nbsp;Analyses")
@@ -112,11 +114,11 @@ let do_stats fileNames =
                               [[str "Property"; str "Value"]
                               ;[str "Integer domain"; intd]
                               ;[str "Ignoring read-races"; yesno !Mutex.no_read]
-                              ;[str "Assume locking succeeds"; yesno (not !LibraryFunctions.failing_locks)]
+(*                              ;[str "Assume locking succeeds"; yesno (not !LibraryFunctions.failing_locks)]*)
                               ;[str "Field insensitive accesses"; yesno !Mutex.field_insensitive]
-                              ;[str "Globalize early"; yesno !GU.earlyglobs]
-                              ;[str "Ignoring read-races"; yesno !GU.region_offsets]
-                              ;[str "Analyze kernel modules"; yesno !GU.kernel]
+                              ;[str "Globalize early"; yesno (get_bool "exp.earlyglobs")]
+                              ;[str "Ignoring read-races"; yesno (get_bool "exp.region-offsets")]
+                              ;[str "Analyze kernel modules"; yesno (get_bool "kernel")]
                               ] 
                           ]
                         ]
@@ -135,7 +137,7 @@ let do_stats fileNames =
                       table 
                       [[str "Goblint Build Option"; str "Status"]
                       ;[str "Tracing"     ; str (f Config.tracing)]
-                      ;[str "Tracking"    ; (fun c -> fprintf c "%s (n=%d)" (f Config.tracking) Config.track_n)]
+                      ;[str "Tracking"    ; (fun c -> Legacy.Printf.fprintf c "%s (n=%d)" (f Config.tracking) Config.track_n)]
                       (*;[str "Experimental"; str (f Config.experimental)]*)
                       ]
                     end] 
@@ -143,7 +145,7 @@ let do_stats fileNames =
             end
           end
           <:> tag "div"~tp:["id","date"]
-                (fun c -> Printf.fprintf c "generated on %02d %s %04d.\n" 
+                (fun c -> Legacy.Printf.fprintf c "generated on %02d %s %04d.\n" 
                                 (t.Unix.tm_mday) months.(t.Unix.tm_mon) (1900+t.Unix.tm_year))         
         end 
       end
@@ -152,6 +154,6 @@ let do_stats fileNames =
       flush_all ();
       prerr_endline "Solver stats:";
       prerr_endline ("  globals changed "^string_of_int !Goblintutil.globals_changed^" times");
-      Stats.print (M.get_out "timing" stderr) "Timings:\n"
+      Stats.print (M.get_out "timing" Legacy.stderr) "Timings:\n"
     | _ -> ()
 

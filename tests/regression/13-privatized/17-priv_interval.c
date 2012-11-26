@@ -1,4 +1,4 @@
-// PARAM: --propset int_domain interval --solver new
+// PARAM: --set ana.int.interval true --set solver "'new'"
 #include<pthread.h>
 #include<assert.h>
 

@@ -1,4 +1,4 @@
-// SKIP PARAM: --oil 05-pi.oil --tramp 05-pi-tramp.h --propset int_domain interval --propdel int_domain trier --solver new --osektaskprefix function_of_ --osekisrprefix function_of_
+// SKIP PARAM: --set ana.activated "[['base','escape','OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 05-pi.oil --sets ana.osek.tramp 05-pi-tramp.h --set ana.int.interval true --propdel int_domain trier --set solver "'new'" --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
 
 // #include "05-pi-tramp.h"
 

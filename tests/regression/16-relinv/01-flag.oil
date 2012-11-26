@@ -1,0 +1,71 @@
+OIL_VERSION = "2.5" : "test" ;
+
+IMPLEMENTATION trampoline {
+    TASK {
+        UINT32 STACKSIZE = 32768 ;
+        UINT32 PRIORITY = 1 ;
+    } ;
+    ISR {
+        UINT32 STACKSIZE = 32768 ;
+    } ;
+};
+
+CPU test {
+
+    OS config {
+        STATUS = STANDARD;
+        ERRORHOOK = FALSE;
+        PRETASKHOOK = FALSE;
+        STARTUPHOOK = FALSE;
+        SHUTDOWNHOOK = FALSE;
+    } ;
+
+    APPMODE std {};
+
+    TASK printer {
+        PRIORITY = 2;              //Numbers impose relative priority. Absolute value does not matter. (Larger numbers mean higher (sic!) priority.)
+        AUTOSTART = TRUE{};        //Start after system start up.
+        ACTIVATION = 1;            //Limits the number of instances if a task gets activated more than once.
+        SCHEDULE = FULL;           //Make task fully preemtible.
+        RESOURCE = Counter2;   
+        RESOURCE = Mutex;
+        RESOURCE = Counter;
+    };
+
+    TASK shutdown {
+        PRIORITY = 3;              //Has higher priority than ping and pong. If it didn't, program would never terminate due to starvation.
+        AUTOSTART = FALSE;         //Gets activated through ALARM, see below.
+        ACTIVATION = 1;
+        SCHEDULE = FULL;           //Make fully preemtible.
+    };
+
+    ISR PosixSignal_USR2{
+        CATEGORY = 2;
+        PRIORITY = 30;
+        STACKSIZE = 32768;
+        SIGNAL = SIGUSR2;
+        RESOURCE = Mutex;
+    };
+
+    //default tick is 50 ms
+    COUNTER counter100ms {
+        TICKSPERBASE = 2;          //Freqeuncy prescaler. Counter increases by one every 100ms.
+        MAXALLOWEDVALUE = 255;     //
+        MINCYCLE = 1;              //Limits minimal cycle length of all attached alarms. Protects from too frequent alarms.
+    };
+
+    ALARM ShutdownTask{            //Shutdown task has higer priority than ping-pong, so it can prevail over ping-pong.
+        COUNTER = counter100ms;
+        ACTION = ACTIVATETASK {
+            TASK = shutdown;
+        };
+        AUTOSTART = TRUE { 
+            ALARMTIME = 100;       //After 10 seconds trigger system shutdown.
+            APPMODE = std;
+        };
+    };
+
+    RESOURCE Mutex { RESOURCEPROPERTY = STANDARD; };
+    RESOURCE Counter { RESOURCEPROPERTY = STANDARD; };
+    RESOURCE Counter2 { RESOURCEPROPERTY = STANDARD; };
+};

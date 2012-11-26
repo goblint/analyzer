@@ -1,4 +1,4 @@
-// PARAM: --analysis base
+// PARAM: --set ana.activated "[['base','escape']]"
 #include <assert.h>
 
 /**

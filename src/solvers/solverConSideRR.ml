@@ -1,3 +1,4 @@
+open GobConfig
 open Messages
 open Progress
 open Pretty
@@ -71,7 +72,7 @@ struct
                 end
         in
 		  let (nls,tc) = f (vEval (x,f), gEval (x,f)) doOneGlobalDelta in
-          if !GU.eclipse then show_add_work_buf (List.length tc);
+          if get_bool "exp.eclipse" then show_add_work_buf (List.length tc);
           List.iter constrainOneVar tc;
           VDom.join local_state nls
       in
@@ -92,16 +93,16 @@ struct
             in
               List.iter collectInfluence (VMap.find vInfl x);
               VMap.remove vInfl x;
-              if !GU.eclipse then show_add_work_buf (List.length !influenced_vars);
+              if get_bool "exp.eclipse" then show_add_work_buf (List.length !influenced_vars);
               List.iter constrainOneVar !influenced_vars;
           end else 
             if tracing then traceu "sol" "State didn't change!\n"
       end;
-      if !GU.eclipse then show_worked_buf 1
+      if get_bool "exp.eclipse" then show_worked_buf 1
           
 
     and vEval (c: constrain) var =
-      if !GU.eclipse then show_add_work_buf 1;
+      if get_bool "exp.eclipse" then show_add_work_buf 1;
       constrainOneVar var;
       VMap.replace vInfl var (c :: VMap.find vInfl var);
       VMap.find sigma var 
@@ -112,7 +113,7 @@ struct
     in
     
     GU.may_narrow := true;
-    if !GU.eclipse then show_subtask "Constant Propagation" 0;  
+    if get_bool "exp.eclipse" then show_subtask "Constant Propagation" 0;  
     let add_start (v,d) = 
       VMap.add sigma v d;
       VMap.add todo v (system v);
@@ -122,7 +123,7 @@ struct
     while !globals_changed do
       globals_changed := false;
       
-      if !GU.eclipse then show_add_work_buf (List.length !worklist);
+      if get_bool "exp.eclipse" then show_add_work_buf (List.length !worklist);
       List.iter constrainOneVar !worklist;
         
       let add_to_work v =
@@ -135,7 +136,7 @@ struct
     
     GU.may_narrow := false;
     VMap.clear recal;
-    if !GU.eclipse then show_subtask "Result Postprocess" 0;  
+    if get_bool "exp.eclipse" then show_subtask "Result Postprocess" 0;  
     List.iter constrainOneVar initialvars;
 
       (sigma, theta)

@@ -1,4 +1,4 @@
-// PARAM: --with var_eq --with symb_locks 
+// PARAM: --set ana.activated[0][+] "'var_eq'"  --set ana.activated[0][+] "'symb_locks'"  
 #include<pthread.h>
 
 struct s {

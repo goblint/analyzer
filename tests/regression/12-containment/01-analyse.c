@@ -1,4 +1,4 @@
-// PARAM: --analysis containment --class small --allfuns CXX.json SAFE.json
+// PARAM: --set ana.activated "[['containment']]" --sets ana.cont.class small --set allfuns true CXX.json SAFE.json
 /* I2 Goblint Version with debug info*/
 #line 0 "LLVM INTERNAL"
 /* Provide Declarations */

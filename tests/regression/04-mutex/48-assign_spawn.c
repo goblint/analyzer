@@ -1,4 +1,4 @@
-// PARAM: --kernel --debug
+// PARAM: --set kernel true --set dbg.debug true
 #include <linux/module.h>
 #include <linux/miscdevice.h>
 #include <linux/device.h>

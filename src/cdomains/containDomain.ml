@@ -1,5 +1,6 @@
 open Cil
 open Pretty
+open GobConfig
 
 let this_name = "llvm_cbe_this"
 
@@ -37,7 +38,7 @@ let gen_class s =
   with _ -> ""
             
 let report x = 
-    let loc = !Goblintutil.current_loc in
+    let loc = !Tracing.current_loc in
       if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) && 
 			!Goblintutil.in_verifying_stage then (*filter noise*)
     Messages.report ("CW: "^x)          
@@ -171,7 +172,7 @@ struct
 	let final = ref false
 	
   let report x = 
-        let loc = !Goblintutil.current_loc in
+        let loc = !Tracing.current_loc in
           if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) && 
 					(!Goblintutil.in_verifying_stage|| !final) then (*filter noise*)
         Messages.report ("CW: "^x)
@@ -184,7 +185,7 @@ struct
     let dbg_line_end = 595
 
     let dbg_report x =
-        let loc = !Goblintutil.current_loc in 
+        let loc = !Tracing.current_loc in 
             if loc.line>=dbg_line_start && loc.line<=dbg_line_end then
                 (*counter := !counter + 1;*)        
           if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
@@ -202,7 +203,7 @@ struct
     (*
     let add k v mp = 
 			(*
-			let cl = (!Goblintutil.current_loc).line
+			let cl = (!Tracing.current_loc).line
 				in
 			let ns =
 				try 
@@ -257,7 +258,7 @@ struct
 	let dbg_line_end = 696
 
 	let dbg_report x =
-		let loc = !Goblintutil.current_loc in 
+		let loc = !Tracing.current_loc in 
 		    if enable_dbg && loc.line>=dbg_line_start && loc.line<=dbg_line_end then
 				(*counter := !counter + 1;*)        
           if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
@@ -265,7 +266,7 @@ struct
 
 
   let error x = 
-    let loc = !Goblintutil.current_loc in
+    let loc = !Tracing.current_loc in
       if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1))&& !Goblintutil.in_verifying_stage  then (*filter noise*)
         Messages.report_error ("CW: "^x)
 				
@@ -292,7 +293,7 @@ struct
   let unkown_this = (emptyFunction "@unkown_this").svar
   let return_var = (emptyFunction "@return_var").svar
 	
-  let isnot_mainclass x = (x <> !Goblintutil.mainclass) && not (InhRel.mem (!Goblintutil.mainclass, x) !inc)(*check inheritance*)
+  let isnot_mainclass x = (x <> (get_string "ana.cont.class")) && not (InhRel.mem ((get_string "ana.cont.class"), x) !inc)(*check inheritance*)
 
 	let dump_local_classes glob =
 		ClassNameSet.iter (fun x -> report(ClassName.from_fun_name x)) (get_class_items glob)
@@ -1301,7 +1302,7 @@ struct
 	    add_required_fun f required_non_public_funs  	
 		    
 	let add_local_class (lc:string) (fd,st,gd) =
-                if (!Goblintutil.local_class) then
+                if ((get_bool "ana.cont.localclass")) then
                  begin
                     (*report("ADD_LOC_CLASS : "^lc);*)
                     Hashtbl.replace local_classes lc ();

@@ -1,4 +1,4 @@
-// PARAM: --allfuns
+// PARAM: --set allfuns true
 
 /*extern void g(void);*/
 

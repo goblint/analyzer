@@ -32,11 +32,11 @@ struct
 
   let pry_d dom_elem = 
     if Mutex.Lockset.is_top dom_elem then -1 else 
-      List.fold_left max 0 (List.map (fun x -> (Osek.Spec.pry (Osek.Spec.names x)))  (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
+      List.fold_left max 0 (List.map (fun x -> (pry (Osek.Spec.names x)))  (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
   
   let pry_d' dom_elem r = 
     if Mutex.Lockset.is_top dom_elem then -1 else 
-      List.fold_left max 0 (List.map (fun x -> ((fun y -> if y == r.vname then -1 else Osek.Spec.pry y) (Osek.Spec.names x)))  (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
+      List.fold_left max 0 (List.map (fun x -> ((fun y -> if y == r.vname then -1 else pry y) (Osek.Spec.names x)))  (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
     
   let min' x y =  
     match (x,y) with

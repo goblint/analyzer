@@ -15,6 +15,7 @@ module LF = LibraryFunctions
 open Cil
 open Pretty
 open Analyses
+open GobConfig
 
 (** only report write races *)
 let no_read = ref false
@@ -373,7 +374,7 @@ struct
 
   let add_accesses2 ctx =
     if !Goblintutil.old_accesses  then () else
-    let loc = !GU.current_loc in
+    let loc = !Tracing.current_loc in
     let fl = 
       match ctx.ask Queries.SingleThreaded, ctx.ask Queries.CurrentThreadId with
         | `Int is_sing, _ when Queries.ID.to_bool is_sing = Some true -> BS.Flag.get_single ()
@@ -575,12 +576,12 @@ struct
           | _ -> BS.Flag.get_multi ()
       in
       if BS.Flag.is_multi fl then
-        let loc = !GU.current_loc in
+        let loc = !Tracing.current_loc in
         let dispatch ax =
           match ax with
             | Concrete (me,v,o,rw) ->
                 begin match me, struct_type_inv v o with 
-                  | _, Some (v,o) when !GU.use_type_invariants ->
+                  | _, Some (v,o) when (get_bool "exp.type-inv") ->
                       add_concrete_access ctx fl loc ust (v,o,rw)
                   | Some e,_ -> 
                       if   not (add_per_element_access ctx loc ust (e,rw)) 
@@ -716,9 +717,9 @@ struct
       | `Unlock, _ 
           -> unlock remove_rw
       | _, "spinlock_check" -> [ctx.local, Cil.integer 1, true]
-      | _, "acquire_console_sem" when !GU.kernel -> 
+      | _, "acquire_console_sem" when get_bool "kernel" -> 
           [(Lockset.add (console_sem,true) ctx.local),Cil.integer 1, true]
-      | _, "release_console_sem" when !GU.kernel -> 
+      | _, "release_console_sem" when get_bool "kernel" -> 
           [(Lockset.remove (console_sem,true) ctx.local),Cil.integer 1, true]
       | _, "__builtin_prefetch" | _, "misc_deregister" ->
           [ctx.local,Cil.integer 1, true]
@@ -926,15 +927,15 @@ struct
               end
             | Guarded locks ->
                 let lock_str = Lockset.short 80 locks in
-                  if !GU.allglobs then
+                  if (get_bool "allglobs") then
                     M.print_group (safe_str "common mutex") (warnings ())
                   else 
                     ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
             | ReadOnly ->
-                if !GU.allglobs then
+                if (get_bool "allglobs") then
                   M.print_group (safe_str "only read") (warnings ())
             | ThreadLocal ->
-                if !GU.allglobs then
+                if (get_bool "allglobs") then
                   M.print_group (safe_str "thread local") (warnings ())
     in 
     let rw ((_,_,x),_,_) = x in
@@ -1000,7 +1001,7 @@ struct
     if !GU.multi_threaded then begin
       if !race_free then 
         print_endline "Goblint did not find any Data Races in this program!";
-    end else if not !GU.debug then begin
+    end else if not (get_bool "dbg.debug") then begin
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;

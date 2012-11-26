@@ -1,4 +1,4 @@
-// PARAM: --oil 01-privatize.oil --tramp 01-privatize-tramp.h --osektaskprefix function_of_ --osekisrprefix function_of_
+// PARAM: --set ana.activated "[['base','escape','OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 01-privatize.oil --sets ana.osek.tramp 01-privatize-tramp.h --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
 
 // #include "01-privatize-tramp.h"
 

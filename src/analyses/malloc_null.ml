@@ -8,6 +8,7 @@ module Offs = ValueDomain.Offs
 open Cil
 open Pretty
 open Analyses
+open GobConfig
 
 module Spec =
 struct
@@ -228,7 +229,7 @@ struct
   let exitstate  () = Dom.empty ()
   
   let init () = 
-    Goblintutil.malloc_may_fail := true; 
+    set_bool "exp.malloc-fail" true;
     return_addr_ :=  Addr.from_var (makeVarinfo false "RETURN" voidType)
 end
 

@@ -1,6 +1,7 @@
 open Cil 
 open Pretty
 open Analyses
+open GobConfig
 open Json
 
 module GU = Goblintutil
@@ -121,7 +122,7 @@ struct
     init_inh_rel ();
 		Printexc.record_backtrace true;
 		Cil.iterGlobals (!Cilfacade.ugglyImperativeHack) (function GFun (f,_) -> incr funcount| _ -> ());
-		ignore (if !Goblintutil.allfuns then ignore (printf "CUR VER_ALL FUNS\n"));
+		ignore (if (get_bool "allfuns") then ignore (printf "CUR VER_ALL FUNS\n"));
 		let ctrl = Gc.get () in
 		ctrl.Gc.verbose <- 0; 
 		Gc.set ctrl
@@ -490,7 +491,7 @@ struct
 			then 
 				begin
 					(*FIXME: Dom.may_be_a_perfectly_normal_global doesn't trigger where Dom.warn_bad_reachables did*)
-					if not (!GU.local_class) then
+					if not ((get_bool "ana.cont.localclass")) then
             Dom.warn_bad_reachables ctx.ask arglist (not allow_from_this) (fn,st,gd) fs ("return statement of "^(GU.demangle f.svar.vname))  ctx.global
 					else
             Dom.report ("potentially dangerous : "^f.svar.vname);
@@ -508,7 +509,7 @@ struct
     match fval with
       | Lval (Var v,NoOffset) -> [v]  (*just a func*) (*fixme, tmp__11 not in dangermap*)
       | Lval (Mem e,NoOffset)  -> (*fptr!*)
-                            if not (!Goblintutil.local_class) then [Dom.unresFunDec.svar]
+                            if not ((get_bool "ana.cont.localclass")) then [Dom.unresFunDec.svar]
                             else
 		    	(*Messages.report("fcheck vtbl : "^sprint 160 (d_exp () e));*)
 			    let vtbl_lst = get_vtbl e (fd,st,gd) ctx.global in
@@ -696,7 +697,7 @@ struct
     (*if Dom.is_top ctx.local then failwith "ARGH!";*)
     (*print_progress (Cilfacade.getdec f);*)                   
     if danger_bot ctx then [ctx.local, ctx.local] else  
-    if not (!GU.local_class) && is_ext f.vname ctx.global then
+    if not ((get_bool "ana.cont.localclass")) && is_ext f.vname ctx.global then
     begin
         (*ignore(Dom.report("SPECIAL_FN instead of enter : "^f.vname));*)
         let nctx,_,_= List.hd (special_fn ctx lval f args) in

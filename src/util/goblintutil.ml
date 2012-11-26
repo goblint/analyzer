@@ -2,6 +2,7 @@
 
 open Cil
 open Pretty
+open GobConfig
 
 open Json
 open JsonParser
@@ -11,155 +12,6 @@ open JsonLexer
 let anas : string list ref = ref []
 (* Phase of the analysis *)
 let phase = ref 0
-
-(* generate a default configuration *)
-let default_conf () =
-  let def_int = Build.objekt ["trier"      , Build.bool true
-                             ;"interval"   , Build.bool false] in
-  let def_ana = Build.array [Build.array [Build.string "base"
-                                         ;Build.string "escape"
-                                         ;Build.string "file"
-                                         ;Build.string "mutex"]] in
-(*  let def_ana = Build.objekt ["base"       , Build.bool true
-                             ;"OSEK"       , Build.bool false
-                             ;"OSEK2"      , Build.bool false
-                             ;"OSEK3"      , Build.bool false
-                             ;"access"     , Build.bool false
-                             ;"thread"     , Build.bool false
-                             ;"escape"     , Build.bool true
-                             ;"mutex"      , Build.bool true
-                             ;"symb_locks" , Build.bool false
-                             ;"uninit"     , Build.bool false
-                             ;"malloc_null", Build.bool false
-                             ;"region"     , Build.bool false
-                             ;"containment", Build.bool false
-                             ;"shape"      , Build.bool false
-                             ;"var_eq"     , Build.bool false] in  *)
-  let def_path = Build.objekt ["base"       , Build.bool false
-                              ;"OSEK"       , Build.bool true
-                              ;"OSEK2"      , Build.bool true
-                              ;"OSEK3"      , Build.bool false
-                              ;"access"     , Build.bool false
-                              ;"thread"     , Build.bool false
-                              ;"escape"     , Build.bool false
-                              ;"file"       , Build.bool false
-                              ;"mutex"      , Build.bool true
-                              ;"symb_locks" , Build.bool false
-                              ;"uninit"     , Build.bool true
-                              ;"malloc_null", Build.bool true
-                              ;"region"     , Build.bool false
-                              ;"containment", Build.bool false
-                              ;"stack_trace", Build.bool false
-                              ;"stack_trace_set", Build.bool false
-                              ;"shape"      , Build.bool true
-                              ;"var_eq"     , Build.bool false
-                              ;"mtflag"     , Build.bool false
-                              ;"lval_need"  , Build.bool false] in
-  let def_ctx = Build.objekt ["base"       , Build.bool true
-                             ;"OSEK"       , Build.bool true
-                             ;"OSEK2"      , Build.bool false
-                             ;"OSEK3"      , Build.bool false
-                             ;"access"     , Build.bool true
-                             ;"thread"     , Build.bool true
-                             ;"escape"     , Build.bool true
-                             ;"file"       , Build.bool true
-                             ;"mutex"      , Build.bool true
-                             ;"symb_locks" , Build.bool true
-                             ;"uninit"     , Build.bool true
-                             ;"malloc_null", Build.bool true
-                             ;"region"     , Build.bool true
-                             ;"stack_trace", Build.bool true
-                             ;"stack_trace_set", Build.bool false
-                             ;"containment", Build.bool true
-                             ;"shape"      , Build.bool true
-                             ;"var_eq"     , Build.bool true
-                             ;"mtflag"     , Build.bool true
-                             ;"lval_need"  , Build.bool true] in
-  Build.objekt ["int_domain" , def_int
-               ;"analyses"   , def_ana
-               ;"sensitive"  , def_path
-               ;"context"    , def_ctx
-               ;"analysis"   , Build.string "mcp"
-               ;"solver"     , Build.string "effectWCon" ]
-
-let conf_file = Filename.concat (Sys.getcwd ()) "goblint.json"
-
-(* configuration structure -- get it from a file or generate a new one *)
-let conf : jvalue ref Object.t ref = 
-  try
-    match value token (Lexing.from_channel (open_in conf_file)) with
-      | Object o -> o
-      | _ -> raise (Sys_error "Bad json file: must be an object.")
-  with (Sys_error x) -> 
-    let c = default_conf () in
-    let unwrap = function
-      | Object o -> o
-      | _ -> raise (Sys_error "Bad default conf: fix, recompile, etc.") in
-    save_json conf_file c;
-    (unwrap c)
-    
-let modify_ana x b = 
-  let rec dropNth = function
-    | []    -> fun x -> []
-    | x::xs -> function 
-            | 0 -> xs 
-            | n -> x :: dropNth xs (n-1) 
-  in
-  let an = array !(field conf "analyses") in
-  let ph = array !(List.nth !an !phase) in
-  let rem_x = List.filter (fun y -> not (string !y = x)) !ph in
-  if b || List.length rem_x > 0 then
-    (if b then ph := ref (Build.string x) :: rem_x else ph := rem_x)
-  else
-    an := dropNth !an !phase
-
-let modify_prop prop name b = 
-  let d  = Object.find name !(objekt !(field conf prop)) in
-    d := Build.bool b
-
-let modify_context x b = modify_prop "context" x b
-
-let conf_containment () = 
-  modify_ana "containment" true;
-  modify_ana "thread" false;
-  modify_ana "mutex" false;
-  modify_ana "symb_locks" false;
-  modify_ana "uninit" false;
-  modify_ana "malloc_null" false;
-  modify_ana "region" false
-  
-let conf_uninit () = 
-  modify_ana "thread" false;
-  modify_ana "mutex" false;
-  modify_ana "symb_locks" false;
-  modify_ana "uninit" true;
-  modify_ana "malloc_null" false;
-  modify_ana "region" false
-
-let conf_malloc () = 
-  modify_ana "thread" false;
-  modify_ana "mutex" false;
-  modify_ana "symb_locks" false;
-  modify_ana "uninit" false;
-  modify_ana "malloc_null" true;
-  modify_ana "region" false
-
-let conf_base () = 
-  modify_ana "base" true;
-  modify_ana "containment" false;
-  modify_ana "thread" false;
-  modify_ana "mutex" false;
-  modify_ana "symb_locks" false;
-  modify_ana "uninit" false;
-  modify_ana "malloc_null" false;
-  modify_ana "region" false
-  
-let conf_osek () = 
-  modify_ana "mutex" false;
-  modify_ana "OSEK" true;
-  modify_ana "OSEK2" true;
-  modify_ana "OSEK3" true;
-  modify_ana "stack_trace_set" true
 
 (** command port for eclipse debuger support *)
 let command_port = ref (-1)
@@ -190,30 +42,6 @@ let open_sockets i =
   set_binary_mode_out !event_out false;
   ignore (Printf.printf "done.\n")
 
-(** the number of seconds the analyzer is aborted after; 0.0 means no timeout *)
-let anayzer_timeout = ref 0.0
-
-(** Do we side-effect function entries? If we use full contexts then there is no need. *)
-let full_context = ref false
-
-(** use the Sharir-Pnueli algorithm *)
-let sharir_pnueli = ref false
-
-(** forward propagation *)
-let forward = ref false
-
-(** Address contexts *)
-let addr_contexts = ref false
-
-(** No integer contexts *)
-let no_int_contexts = ref false
-
-(** singleton types *)
-let singles = ref []
-
-(** when goblin is in debug mode *)
-let debug = ref false 
-
 (** whether to verify result *)
 let verify = ref true 
 
@@ -228,70 +56,11 @@ let result_filter = ref ".*"
 
 let result_regexp = ref (Str.regexp "")
 
-(** analyze all the functions in the program, rather than just main *)
-let allfuns = ref false
-let nonstatic = ref false
-(** analyze all functions corresponding to a osek task *)
-let oil = ref false
-let taskprefix = ref ""
-let isrprefix = ref ""
-let tasksuffix = ref ""
-let isrsuffix = ref ""
-
-(** Name of the main / init function. 
-  * FIXME: Any function named main will be considered a main function even
-  * if user specifies otherwise.  *)
-let mainfuns = ref ["main"]
-
-(** Name of the exit function, same ID as main function, but runs in
-  * multithreaded mode. *)
-let exitfuns = ref ([]: string list)
-
-(** Name of other functions, just additionally spawned ... *)
-let otherfuns = ref ([]: string list)
-
-(** Automatically detect init and exit functions of kernel modules. *)
-let harness = ref false
-
-(** print information about all globals, not just races *)
-let allglobs = ref false
-
-(** an optional path to dump all output *)
-let dump_path = ref (None : string option)
-
 (** Json files that are given as arguments *)
 let jsonFiles : string list ref = ref [] 
 
-(** Name of the class to analyse (containment) *)
-let mainclass : string ref = ref ""
-
-(** Dive into locally defined classes (containment) *)
-let local_class = ref false
-
-
 (** has any threads have been spawned *)
 let multi_threaded = ref false
-
-(** should globals be side-effected early *)
-let earlyglobs = ref false
-
-(** only report write races *)
-let no_read = ref false
-
-(** Truns off field-sensitivity. *)
-let field_insensitive = ref false
-
-(** Constraints for interrupts. *)
-let intrpts = ref false
-
-(** Avoids the merging of fields, not really sound *)
-let unmerged_fields = ref false
-
-(** Will terminate on a collapsed array --- for debugging. *)
-let die_on_collapse = ref false
-
-(** Adds support to failing mallocs. *)
-let malloc_may_fail = ref false 
 
 (** Tells the spec that result may still get smaller (on narrowing). 
    If this is false we can output messages and collect accesses. *)
@@ -309,11 +78,6 @@ let old_accesses = ref true
 (** The file where everything is output *)
 let out = ref stdout
 
-(** use the new framework *)
-let new_fwk = ref false
-
-(* Print out dead code *)
-let print_dead_code = ref false
 
 (* Type invariant variables. *)
 let type_inv_tbl = Hashtbl.create 13 
@@ -325,67 +89,20 @@ let type_inv (c:compinfo) : varinfo =
       i
 
 let is_blessed (t:typ): varinfo option =
-  let me_gusta x = List.mem x !singles in 
+  let me_gusta x = List.mem x (List.map string (get_list "exp.unique")) in 
   match unrollType t with
     | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
     | _ -> (None : Cil.varinfo option)
 
 
-type result_style =
-  | NoOutput (** Do not print any output except warnings *)
-  | Indented (** Output indented XML *)
-  | Compact (** Output compact XML, for Eclipse plugin *)
-  | Pretty (** Pretty-printed text outpu *)
-  | Html (** HTML output *)
-  | NewHtml
-
-(** The specified result style *)
-let result_style = ref NoOutput
-
-(** Whether to pretty print the global invariant. *)
-let dump_global_inv = ref false
-
-(** Is the goblin Eclipse Plugin calling the analyzer? *)
-let eclipse = ref false
-
-(** output warnings in GCC form *)
-let gccwarn = ref false
-
-(** Analyzing Device Drivers? *)
-let kernel = ref false
-
 (** Length of summary description in XML output *)
 let summary_length = 80
 
-(** Do we need to print CIL's temporary variables? *)
-let show_temps = ref true
-
-(** If we want to display functions that are not called *)
-let print_uncalled = ref false
-
-(** A very nice imperative hack to get the current location. This can be
-  * referenced from within any transfer function. *)
-let current_loc = ref locUnknown
-
-let global_initialization = ref false 
 (** A hack to see if we are currently doing global inits *)
+let global_initialization = ref false 
 
-let use_type_invariants = ref false 
-(** Use type invariants. *)
-
-let use_list_type = ref false 
-(** Use abstract list type instead of kernel struct list_head! *)
-
-let solver_progress = ref false 
-(** display a char for each processed rhs and each constraint *)
-
-let region_offsets = ref false
-(** Field-sensitive regions? *)
-
-let in_verifying_stage = ref false
 (** true if in verifying stage *)
-
-let solver = ref (string !(field conf "solver"))
+let in_verifying_stage = ref false
 
 let escape (x:string):string =
   let esc_1 = Str.global_replace (Str.regexp "&") "&amp;" x in

@@ -1,4 +1,4 @@
-// PARAM: --analysis uninit
+// PARAM: --set ana.activated "[['base','escape','uninit']]"
 typedef union {
 	double i;
 	int j;
