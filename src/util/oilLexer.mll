@@ -3,6 +3,10 @@
 }
 
 let nl = '\r'?'\n'
+let endlinecomment = "//" [^'\n']* nl
+let multlinecomment = "/*"([^'*']|('*'+[^'*''/'])|nl)*'*'+'/'
+let comments = endlinecomment|multlinecomment
+let include = "#include" [^'\n']* nl
 
 let hex_digit = ['0'-'9''a'-'f''A'-'F']
 let zero_digit = '0'
@@ -29,9 +33,8 @@ let object_ref_type = "OS_TYPE" | "TASK_TYPE" | "COUNTER_TYPE" | "ALARM_TYPE" | 
 
 rule token = parse
   | ['\t'' '] | nl  	{ token lexbuf }	
-  | "//" [^'\n']* nl 	{ token lexbuf }	
-  | "/*" [^'*']* "*/"   { token lexbuf }
-  | "#include" [^'\n']* nl { token lexbuf }	
+  | comments   		{ token lexbuf }
+  | include		{ token lexbuf }	
   | "="               	{ ASSIGN  }
   | ","               	{ COMMA  }
   | ":"               	{ COLON  }

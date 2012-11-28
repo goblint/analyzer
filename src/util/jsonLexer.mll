@@ -5,10 +5,14 @@
   
 }
 
+let nl = '\r'?'\n'
+let endlinecomment = "//" [^'\n']* nl
+let multlinecomment = "/*"([^'*']|('*'+[^'*''/'])|nl)*'*'+'/'
+let comments = endlinecomment|multlinecomment
+
 rule token = parse
   | ['\t' '\n' '\r' ' ']    { token lexbuf }	
-  | "//" [^'\n']* '\r'?'\n' { token lexbuf }	
-  | "/*" [^'*']* "*/"       { token lexbuf }	
+  | comments		    { token lexbuf }
   | "true"                  { TRUE   }
   | "false"                 { FALSE  }
   | "null"                  { NULL   }
