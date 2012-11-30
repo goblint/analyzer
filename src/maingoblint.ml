@@ -46,6 +46,11 @@ let option_spec_list =
     if Config.tracing then Tracing.addsystem sys
     else (prerr_endline msg; raise BailFromMain)
   in
+  let oil file =
+    set_string "ana.osek.oil" file;
+    set_auto "ana.activated" "[['base','escape','OSEK','OSEK2','OSEK3','stack_trace_set']]";
+    set_auto "mainfun" "[]"
+  in
   let tmp_arg = ref "" in
     [ "-o"                   , Arg.String (set_string "outfile"), ""
     ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true), ""
@@ -62,7 +67,7 @@ let option_spec_list =
     ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "--halp"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "-help"                , Arg.Unit (fun _ -> print_help stdout),""
-    ; "--oil"                , Arg.String (set_string "ana.osek.oil"), ""
+    ; "--oil"                , Arg.String oil, ""
     ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""
     ; "--osektaskprefix"     , Arg.String (set_string "ana.osek.taskprefix"), ""
     ; "--osekisrprefix"      , Arg.String (set_string "ana.osek.isrprefix"), ""
