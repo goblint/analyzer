@@ -42,8 +42,6 @@ let open_sockets i =
   set_binary_mode_out !event_out false;
   ignore (Printf.printf "done.\n")
 
-(** whether to verify result *)
-let verify = ref true 
 
 (** Outputs information about what the goblin is doing *)
 let verbose = ref false
