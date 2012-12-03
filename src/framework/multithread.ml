@@ -824,7 +824,7 @@ struct
       in
       if (get_bool "dbg.verbose") then print_endline ("Analyzing phase "^string_of_int phase^"!");
       Stats.time "solver" solve () in
-    if !GU.verify && (not (get_bool "exp.sharir-pnueli")) then begin
+    if (not (get_bool "noverify")) && (not (get_bool "exp.sharir-pnueli")) then begin
       if (get_bool "dbg.verbose") then print_endline "Verifying!";
       Stats.time "verification" (Solver.verify () (system cfg old old_g old_s phase)) (sol,gs)
     end;
