@@ -38,5 +38,5 @@ int main(){
 	// bad style:
 	// opening file but not doing anything
 
-	return 0;
+	return 0;			// WARN about all unclosed files
 }

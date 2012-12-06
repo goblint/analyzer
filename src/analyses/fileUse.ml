@@ -32,12 +32,16 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    (* Messages.report ("return: ctx.local="^(Dom.short 50 ctx.local)); *)
+    (* M.report ("return: ctx.local="^(Dom.short 50 ctx.local)); *)
     let loc = !Tracing.current_loc in
     let fo, fc = ctx.local in
     let diff = Dom.VarSet.diff fo fc in
-    if not (Dom.VarSet.is_empty diff) then (let vars = String.concat ", " (List.map (fun v -> v.vname) (Dom.VarSet.elements diff)) in
-      Messages.print_group "file" ["unclosed files: "^vars, loc]);
+    if not (Dom.VarSet.is_empty diff) then (
+      let vars = (Dom.VarSet.elements diff) in
+      let vnames = String.concat ", " (List.map (fun v -> v.vname) vars) in
+      M.print_group "file" ["unclosed files: "^vnames, loc];
+      List.iter (fun var -> M.print_group "file" ["file is never closed", var.vdecl]) vars
+    );
     ctx.local
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
