@@ -77,22 +77,22 @@ struct
     let fo, fc = ctx.local in
     let dummy = [ctx.local, Cil.integer 1, true] in
     match f.vname with
-      | "fopen" -> begin (* Messages.report "special_fn: found fopen"; *)
+      | "fopen" -> begin (* M.report "special_fn: found fopen"; *)
           match lval with
-            | None -> Messages.print_group "file" ["file handle is not saved!", loc]; dummy
+            | None -> M.print_group "file" ["file handle is not saved!", loc]; dummy
             | Some (lhost,offset) ->
                 match lhost with
-                  | Var varinfo -> (* Messages.report ("file handle saved in variable "^varinfo.vname); *)
+                  | Var varinfo -> (* M.report ("file handle saved in variable "^varinfo.vname); *)
                       [(Dom.VarSet.add varinfo fo, fc), Cil.integer 1, true]
-                  | Mem exp -> Messages.report "TODO: save to object in memory"; dummy
+                  | Mem exp -> M.report "TODO: save to object in memory"; dummy
           end
-      | "fclose" -> begin (* Messages.report "special_fn: found fclose"; *)
+      | "fclose" -> begin (* M.report "special_fn: found fclose"; *)
           match arglist with
             | [fp] -> begin match fp with
                 | Lval (lhost,offset) -> begin
                     match lhost with
-                      | Var varinfo -> (* Messages.report ("closing file handle "^varinfo.vname); *)
-                          if not (Dom.VarSet.mem varinfo fo) then (Messages.print_group "file" ["closed unopened file handle "^varinfo.vname, loc]);
+                      | Var varinfo -> (* M.report ("closing file handle "^varinfo.vname); *)
+                          if not (Dom.VarSet.mem varinfo fo) then (M.print_group "file" ["closed unopened file handle "^varinfo.vname, loc]);
                           [(fo, Dom.VarSet.add varinfo fc), Cil.integer 1, true]
                       | Mem exp -> dummy
                     end
@@ -100,20 +100,20 @@ struct
               end
             | _ -> M.bailwith "fclose needs exactly one argument"
           end
-      | "fprintf" -> begin (* Messages.report ("fprintf: ctx.local="^(Dom.short 50 ctx.local)); *)
+      | "fprintf" -> begin (* M.report ("fprintf: ctx.local="^(Dom.short 50 ctx.local)); *)
           match arglist with
             | fp::xs -> begin match fp with
                 | Lval (lhost,offset) -> begin
                     match lhost with
-                      | Var varinfo -> Messages.report ("printf to file handle "^varinfo.vname);
-                          if not (Dom.VarSet.mem varinfo fo) then (Messages.print_group "file" ["writing to unopened file handle "^varinfo.vname, loc]);
-                          if     (Dom.VarSet.mem varinfo fc) then (Messages.print_group "file" ["writing to closed file handle "^varinfo.vname, loc]);
+                      | Var varinfo -> M.report ("printf to file handle "^varinfo.vname);
+                          if not (Dom.VarSet.mem varinfo fo) then (M.print_group "file" ["writing to unopened file handle "^varinfo.vname, loc]);
+                          if     (Dom.VarSet.mem varinfo fc) then (M.print_group "file" ["writing to closed file handle "^varinfo.vname, loc]);
                           dummy
                       | Mem exp -> dummy
                     end
                 | _ -> (* let _ = List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) arglist in *)
-                       let _ = List.iter (fun exp -> Messages.report ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp) in
-                       Messages.report ("printf not Lval"); dummy
+                       let _ = List.iter (fun exp -> M.report ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp) in
+                       M.report ("printf not Lval"); dummy
               end
             | _ -> M.bailwith "fprintf needs at least two arguments"
           end
