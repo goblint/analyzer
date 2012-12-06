@@ -110,11 +110,12 @@ let createCFG (file: file) backw =
   (* Utility function to add stmt edges to the cfg *)
   let addCfg t (e,f) = 
     if Messages.tracing then 
-      Messages.trace "cfg" "Adding edge (%a) from\n\t%a\nto\n\t%a\n\n" 
+      Messages.trace "cfg" "Adding edge (%a) from\n\t%a\nto\n\t%a ... " 
           pretty_edge_kind e 
           pretty_short_node f 
           pretty_short_node t;
-    if backw then H.add cfg t (e,f) else H.add cfg f (e,t) 
+    (if backw then H.add cfg t (e,f) else H.add cfg f (e,t));
+    Messages.trace "cfg" "done\n\n" 
   in
   let mkEdge fromNode edge toNode = addCfg (Statement toNode) (edge, Statement fromNode) in
   (* Function for finding the next real successor of a statement. CIL tends to
@@ -157,7 +158,7 @@ let createCFG (file: file) backw =
             (* Please ignore the next line. It creates an index of statements
              * so the Eclipse plug-in can know what function a given result
              * belongs to. *)
-            Hashtbl.add stmt_index_hack stmt fd;
+            Hashtbl.add stmt_index_hack stmt.sid fd;
             if Messages.tracing then Messages.trace "cfg" "Statement at %a.\n" d_loc (get_stmtLoc stmt.skind);
             match stmt.skind with 
               (* Normal instructions are easy. They should be a list of a single
@@ -318,7 +319,7 @@ let getLoc (node: node) =
     | Function fv -> fv.vdecl
     | FunctionEntry fv -> fv.vdecl
 
-let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_index_hack stmt
+let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_index_hack stmt.sid
 
 let getFun (node: node) = 
   match node with
