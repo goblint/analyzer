@@ -892,7 +892,7 @@ struct
     let phs = get_length "ana.activated" in
     (* get the control flow graph *)
     let cfg = 
-      if (get_bool "dbg.verbose") then print_endline "Generating constraints."; 
+      if (get_bool "dbg.verbose") then print_endline "Generating Constraints."; 
       MyCFG.getCFG file (not (get_bool "exp.sharir-pnueli" || (get_bool "exp.forward"))) 
     in
     let oldsol = ref [] in (* list of solutions from previous phases *)

@@ -128,7 +128,7 @@ let rec merge (x:jvalue) (y:jvalue) : jvalue =
         let rec zipWith' x y : jvalue ref list =
           match x, y with 
             | x::xs, y::ys    -> (ref (merge !x !y)) :: zipWith' xs ys
-            | [], xs | xs, [] -> xs
+            | [], xs | xs, [] -> y
         in
         Array (ref (zipWith' !l1 !l2))
     | _ -> y
