@@ -22,6 +22,7 @@ struct
  
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
+    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in
     let fo, fc = ctx.local in (fo, fc)
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
@@ -75,7 +76,7 @@ struct
             | None -> Messages.report "file handle is not saved..."; dummy
             | Some lval -> let lhost, offset = lval in
                 match lhost with
-                  | Var varinfo -> Messages.report ("file handle saved in variable "^varinfo.vname);
+                  | Var varinfo -> Messages.print_group "file" ["file handle saved in variable "^varinfo.vname, varinfo.vdecl];
                       [(Dom.VarSet.add varinfo fo, fc), Cil.integer 1, true] (* TODO: return FILE pointer *)
                   | Mem exp -> Messages.report "TODO: save to object in memory"; dummy
           end
@@ -92,7 +93,7 @@ struct
               end
             | _ -> M.bailwith "fclose needs exactly one argument"
           end
-      | "fprintf" -> Messages.report ("fprintf: ctx.local="^(Dom.short 50 ctx.local)); dummy
+      | "fprintf" -> Messages.print_group "file" ["fprintf: ctx.local="^(Dom.short 50 ctx.local), f.vdecl]; dummy
       | _ -> dummy
 
   let startstate () = Dom.bot ()
