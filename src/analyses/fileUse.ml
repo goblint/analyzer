@@ -32,7 +32,12 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    Messages.report ("return: ctx.local="^(Dom.short 50 ctx.local));
+    (* Messages.report ("return: ctx.local="^(Dom.short 50 ctx.local)); *)
+    let loc = !Tracing.current_loc in
+    let fo, fc = ctx.local in
+    let diff = Dom.VarSet.diff fo fc in
+    if not (Dom.VarSet.is_empty diff) then (let vars = String.concat ", " (List.map (fun v -> v.vname) (Dom.VarSet.elements diff)) in
+      Messages.print_group "file" ["unclosed files: "^vars, loc]);
     ctx.local
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
@@ -106,7 +111,8 @@ struct
                           dummy
                       | Mem exp -> dummy
                     end
-                | _ -> let _ = List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) arglist in
+                | _ -> (* let _ = List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) arglist in *)
+                       let _ = List.iter (fun exp -> Messages.report ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp) in
                        Messages.report ("printf not Lval"); dummy
               end
             | _ -> M.bailwith "fprintf needs at least two arguments"
