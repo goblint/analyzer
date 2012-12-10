@@ -52,15 +52,25 @@ struct
 	    let name = (Str.matched_group 1 line) in
 	    let id = Str.matched_group 2 line in
 	    if tracing then trace "osek" "Adding id (%s) for resource %s\n" id name;
-	    let (_,p,l) = Hashtbl.find resources name in
-	    Hashtbl.replace resources name (id,p,l);
+	    let _ = try 
+	      let (_,p,l) = Hashtbl.find resources name in
+	      Hashtbl.replace resources name (id,p,l)
+	    with
+	      | Not_found -> print_endline ("Error: Resource " ^ name ^ " not found. ID not added.")
+	      | e -> raise e
+	    in ()
 	  end;
 	  if Str.string_match ev line 0 then begin
 	  let name = (Str.matched_group 1 line) in
 	    let id = Str.matched_group 2 line in
 	    if tracing then trace "osek" "Adding id (%s) for event %s\n" id name;
-	    let (_,b) = Hashtbl.find events name in
-	    Hashtbl.replace events name (id,b);
+	    let _ = try
+	      let (_,b) = Hashtbl.find events name in
+	      Hashtbl.replace events name (id,b);
+	    with
+	      | Not_found -> print_endline ("Error: Event " ^ name ^ " not found. ID not added.")
+	      | e -> raise e
+	    in ()
 	  end;
 	end;
 	read_info ();
@@ -68,6 +78,7 @@ struct
 	| End_of_file -> ()
 	| e -> raise e
     in read_info (); 
+    if (get_bool "ana.osek.check") then check_tramp ();
     if tracing then trace "osek" "Done parsing trampolineish header\n";
     close_in input
 
