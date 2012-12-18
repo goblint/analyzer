@@ -242,7 +242,7 @@ let print_html chan xmlNode (file: Cil.file) =
 	createFunctionInfoList file;
 
 	(* Create warning line number list *)
-	warningLineNumberList := List.fold_left (fun l (filename,line,msg) -> if ((List.exists (fun ti -> ti = line) l) != true) then l@[line] else l) [] (!htmlLocalWarningList @ !htmlGlobalWarningList);
+	warningLineNumberList := List.fold_left (fun l (filename,line,msg) -> if List.mem line l then l else l@[line]) [] (!htmlLocalWarningList @ !htmlGlobalWarningList);
 
 	(* Walk through the analysis lines in the xml file *)
 	Xml.iter (fun x -> processAnalysisLineEntry x) xmlNode;

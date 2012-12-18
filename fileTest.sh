@@ -1,4 +1,4 @@
-result=${2-"pretty"}
+result=${2-"html"}
 case "$1" in
   1) args="--sets ana.activated[0][0] file"
   ;;
