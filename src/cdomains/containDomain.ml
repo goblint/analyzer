@@ -714,12 +714,12 @@ struct
   let is_safe e = (*check exp*)
     let p ht x = check_safety ht x.vname in
         let safed=(List.exists (p safe_vars) (get_globals e) )||(List.exists (p safe_methods) (get_globals e) ) in
-        if false&& !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" (sprint 160 (d_exp () e)));
+        if false&&(get_bool "dbg.verbose")&&safed then ignore(printf "suppressed: %s\n" (sprint 160 (d_exp () e)));
         safed   
         
     let is_safe_name n =
     let safed=(List.exists (check_safety safe_vars) [n] )||(List.exists (check_safety safe_methods) [n] ) in
-    if false&& !Goblintutil.verbose&&safed then ignore(printf "suppressed: %s\n" n);
+    if false&&(get_bool "dbg.verbose")&&safed then ignore(printf "suppressed: %s\n" n);
     (*report("check_safe "^n^" : "^string_of_bool safed);*)
     safed   
     

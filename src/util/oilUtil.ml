@@ -139,13 +139,26 @@ let check_isr min_cat2_pry min_cat1_pry isr i_value =
     let _ = List.map check_res_decl res_list in
       ()
 
-
 let check_osek () =
   if tracing then trace "osek" "Checking conventions\n";
   let min_cat2_pry = pry "RES_SCHEDULER" in
   let min_cat1_pry = pry "SuspendOSInterrupts" in
   Hashtbl.iter (check_isr min_cat2_pry min_cat1_pry) isrs;  
   Hashtbl.iter check_task  tasks;
+  ()
+
+let check_tramp () =
+  if tracing then trace "osek" "Checking trampoline IDs\n";
+  let check_res_id res_name res_value = match res_value with
+    | ("-1",_,_) ->let _ = printf "Warning: No ID found for resource %s!" res_name in ()
+    | _ -> ()
+  in
+  Hashtbl.iter check_res_id resources;
+  let check_ev_id ev_name ev_value = match ev_value with
+    | ("-1",_) -> let _ = printf "Warning: No ID found for event %s!" ev_name in ()
+    | _ -> ()
+  in
+  Hashtbl.iter check_ev_id events;
   ()
 
 let compute_ceiling_priority res r_value = 

@@ -218,7 +218,7 @@ struct
     let (x,y,z:Dom.t) = ctx.local in (x, y, ContainDomain.Diff.empty ()), ContainDomain.Diff.elements z
 	
 	let time_transfer n f =
-		if true || !GU.verbose then Stats.time n f 0
+		if true || (get_bool "dbg.verbose") then Stats.time n f 0
         else f 0
 				
 	let danger_bot ctx =

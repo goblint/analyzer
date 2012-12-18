@@ -208,11 +208,11 @@ let do_global_inits file = LD.lift (Spec.startstate ()), []
 let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) = 
   Spec.init ();
     
-  if !Goblintutil.verbose then print_endline "Generating constraints."; 
+  if (get_bool "dbg.verbose") then print_endline "Generating constraints."; 
   cfg := MyCFG.getCFG file true;
   
 	let startstate, more_funs = 
-    if !Goblintutil.verbose then print_endline "Initializing globals.";
+    if (get_bool "dbg.verbose") then print_endline "Initializing globals.";
     Stats.time "initializers" do_global_inits file 
   in
   

@@ -9,7 +9,13 @@ type node =
   | Function of varinfo 
   
 let pretty_node () = function
-  | Statement s -> text "Statement " ++ d_stmt () s
+  | Statement s -> text "Statement " ++ dn_stmt () s
+  | Function f -> text "Function " ++ text f.vname
+  | FunctionEntry f -> text "FunctionEntry " ++ text f.vname
+
+
+let pretty_short_node () = function
+  | Statement s -> text "Statement @ " ++ d_loc () (get_stmtLoc s.skind)
   | Function f -> text "Function " ++ text f.vname
   | FunctionEntry f -> text "FunctionEntry " ++ text f.vname
 
@@ -65,6 +71,16 @@ let pretty_edge () = function
   | Skip -> text "Skip"
   | SelfLoop -> text "SelfLoop"
 
+let pretty_edge_kind () = function
+  | Assign (lv,rv) -> dprintf "Assign"
+  | Proc (_  ,f,ars) -> dprintf "Proc"
+  | Entry f -> dprintf "Entry %s" f.svar.vname
+  | Ret (r,fd) -> dprintf "Ret"
+  | Test (p,b) -> dprintf "Test"
+  | ASM _ -> text "ASM"
+  | Skip -> text "Skip"
+  | SelfLoop -> text "SelfLoop"
+
 type cfg = node -> (edge * node) list
 
 module H = Hashtbl.Make(Node)
@@ -89,8 +105,18 @@ let dummy_func = emptyFunction "__goblint_dummy_init"
 
 let createCFG (file: file) backw =
   let cfg = H.create 113 in
+  if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
+  
   (* Utility function to add stmt edges to the cfg *)
-  let addCfg t (e,f) = if backw then H.add cfg t (e,f) else H.add cfg f (e,t) in
+  let addCfg t (e,f) = 
+    if Messages.tracing then 
+      Messages.trace "cfg" "Adding edge (%a) from\n\t%a\nto\n\t%a ... " 
+          pretty_edge_kind e 
+          pretty_short_node f 
+          pretty_short_node t;
+    (if backw then H.add cfg t (e,f) else H.add cfg f (e,t));
+    Messages.trace "cfg" "done\n\n" 
+  in
   let mkEdge fromNode edge toNode = addCfg (Statement toNode) (edge, Statement fromNode) in
   (* Function for finding the next real successor of a statement. CIL tends to
    * put a lot of junk between stuff: *)
@@ -120,6 +146,7 @@ let createCFG (file: file) backw =
   iterGlobals file (fun glob -> 
     match glob with
       | GFun (fd,loc) ->
+        if Messages.tracing then Messages.trace "cfg" "Looking at the function %s.\n" fd.svar.vname;    
           (* Walk through the parameters and pre-process them a bit... *)
           do_the_params fd;
           (* Find the first statement in the function *)
@@ -131,7 +158,8 @@ let createCFG (file: file) backw =
             (* Please ignore the next line. It creates an index of statements
              * so the Eclipse plug-in can know what function a given result
              * belongs to. *)
-            Hashtbl.add stmt_index_hack stmt fd;
+            Hashtbl.add stmt_index_hack stmt.sid fd;
+            if Messages.tracing then Messages.trace "cfg" "Statement at %a.\n" d_loc (get_stmtLoc stmt.skind);
             match stmt.skind with 
               (* Normal instructions are easy. They should be a list of a single
                * instruction, either Set, Call or ASM: *)
@@ -191,6 +219,7 @@ let createCFG (file: file) backw =
             List.iter handle fd.sallstmts
       | _ -> ()
   );
+  if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
   cfg
 
 
@@ -290,7 +319,7 @@ let getLoc (node: node) =
     | Function fv -> fv.vdecl
     | FunctionEntry fv -> fv.vdecl
 
-let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_index_hack stmt
+let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_index_hack stmt.sid
 
 let getFun (node: node) = 
   match node with

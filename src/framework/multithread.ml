@@ -668,7 +668,7 @@ struct
         (old_s : (varinfo * int) list SH.t) 
         (startfuns, exitfuns, otherfuns: A.fundecs) =
 	let startstate, more_funs = 
-      if !GU.verbose then print_endline "Initializing globals.";
+      if (get_bool "dbg.verbose") then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file in
     let _ = if M.tracing then M.trace "postinit" "The initial state is: %a\n" SD.pretty startstate else () in
     let otherfuns = 
@@ -822,10 +822,10 @@ struct
         then new_fwk_solve startvars'' entrystatesq
         else Solver.solve () (system cfg old old_g old_s phase) startvars'' entrystatesq
       in
-      if !GU.verbose then print_endline ("Analyzing phase "^string_of_int phase^"!");
+      if (get_bool "dbg.verbose") then print_endline ("Analyzing phase "^string_of_int phase^"!");
       Stats.time "solver" solve () in
-    if !GU.verify && (not (get_bool "exp.sharir-pnueli")) then begin
-      if !GU.verbose then print_endline "Verifying!";
+    if (not (get_bool "noverify")) && (not (get_bool "exp.sharir-pnueli")) then begin
+      if (get_bool "dbg.verbose") then print_endline "Verifying!";
       Stats.time "verification" (Solver.verify () (system cfg old old_g old_s phase)) (sol,gs)
     end;
     if P.tracking then 
@@ -892,7 +892,7 @@ struct
     let phs = get_length "ana.activated" in
     (* get the control flow graph *)
     let cfg = 
-      if !GU.verbose then print_endline "Generating constraints."; 
+      if (get_bool "dbg.verbose") then print_endline "Generating Constraints."; 
       MyCFG.getCFG file (not (get_bool "exp.sharir-pnueli" || (get_bool "exp.forward"))) 
     in
     let oldsol = ref [] in (* list of solutions from previous phases *)

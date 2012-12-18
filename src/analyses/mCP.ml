@@ -791,6 +791,7 @@ struct
   let context_list = ref []
 
   let init () = 
+    if Messages.tracing then Messages.trace "spec_init" "Initializing ...\n\n";
     Dom.init ();
     Glob.Val.init ();
     let sense_ds = get_list "ana.path_sens" |> List.map Json.string in
@@ -808,8 +809,10 @@ struct
     context_list := List.fold_right (fun x xs -> if uses x.featurename then context_ds_f x.featurename::xs else xs) !analysesList [];
     List.iter (fun x ->
         if uses x.featurename 
-        then x.init ()
-        else ()
+        then begin 
+          if Messages.tracing then Messages.trace "spec_init" "Initializing %s.\n\n" x.featurename;
+          x.init ()
+        end else ()
     ) !analysesList
 
 
