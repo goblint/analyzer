@@ -33,14 +33,13 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     (* M.report ("return: ctx.local="^(Dom.short 50 ctx.local)); *)
-    let loc = !Tracing.current_loc in
     let fo, fc = ctx.local in
     let diff = Dom.VarSet.diff fo fc in
     if not (Dom.VarSet.is_empty diff) then (
       let vars = (Dom.VarSet.elements diff) in
       let vnames = String.concat ", " (List.map (fun v -> v.vname) vars) in
-      M.print_group "file" ["unclosed files: "^vnames, loc];
-      List.iter (fun var -> M.print_group "file" ["file is never closed", var.vdecl]) vars
+      M.report ("unclosed files: "^vnames);
+      List.iter (fun var -> M.report ~loc:var.vdecl "file is never closed") vars
     );
     ctx.local
     
@@ -77,13 +76,12 @@ struct
       | _ -> None
 
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    let loc = !Tracing.current_loc in
     let fo, fc = ctx.local in
     let dummy = [ctx.local, Cil.integer 1, true] in
     match f.vname with
       | "fopen" -> begin (* M.report "special_fn: found fopen"; *)
           match lval with
-            | None -> M.print_group "file" ["file handle is not saved!", loc]; dummy
+            | None -> M.report "file handle is not saved!"; dummy
             | Some (lhost,offset) ->
                 match lhost with
                   | Var varinfo -> (* M.report ("file handle saved in variable "^varinfo.vname); *)
@@ -96,7 +94,7 @@ struct
                 | Lval (lhost,offset) -> begin
                     match lhost with
                       | Var varinfo -> (* M.report ("closing file handle "^varinfo.vname); *)
-                          if not (Dom.VarSet.mem varinfo fo) then (M.print_group "file" ["closed unopened file handle "^varinfo.vname, loc]);
+                          if not (Dom.VarSet.mem varinfo fo) then (M.report ("closed unopened file handle "^varinfo.vname));
                           [(fo, Dom.VarSet.add varinfo fc), Cil.integer 1, true]
                       | Mem exp -> dummy
                     end
@@ -106,12 +104,12 @@ struct
           end
       | "fprintf" -> begin (* M.report ("fprintf: ctx.local="^(Dom.short 50 ctx.local)); *)
           match arglist with
-            | fp::xs -> begin match fp with
+            | fp::xs -> let fp = Cil.stripCasts fp in begin match fp with
                 | Lval (lhost,offset) -> begin
                     match lhost with
-                      | Var varinfo -> M.report ("printf to file handle "^varinfo.vname);
-                          if not (Dom.VarSet.mem varinfo fo) then (M.print_group "file" ["writing to unopened file handle "^varinfo.vname, loc]);
-                          if     (Dom.VarSet.mem varinfo fc) then (M.print_group "file" ["writing to closed file handle "^varinfo.vname, loc]);
+                      | Var varinfo -> (* M.report ("printf to file handle "^varinfo.vname); *)
+                          if not (Dom.VarSet.mem varinfo fo) then (M.report ("writing to unopened file handle "^varinfo.vname));
+                          if     (Dom.VarSet.mem varinfo fc) then (M.report ("writing to closed file handle "^varinfo.vname));
                           dummy
                       | Mem exp -> dummy
                     end

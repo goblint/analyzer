@@ -4,6 +4,7 @@ open Xml;;
 open Cil;;
 open Unix;;
 
+let htmlLocalWarningList : (string*int*string) list ref = ref []
 let htmlGlobalWarningList : (string*int*string) list ref = ref []
 let warningLineNumberList = ref []
 
@@ -46,6 +47,8 @@ let createHtmlFunctionInfo outchan cilFile =
 let createHtmlWarningsInfo outchan cilFile = 
 	let htmlprintWarningBox lineno = 
 		fprintf outchan "<div id=\"warning_info%i\" style=\"display: none;\">" lineno;
+		let lineWarnings = List.filter (fun (_,line,_) -> line==lineno) !htmlLocalWarningList in
+		List.iter (fun (filename,line,msg) -> fprintf outchan "%s <br/>\n" msg) lineWarnings;
 		List.iter (fun (filename,line,msg) -> fprintf outchan "%s <br/>\n" msg) !htmlGlobalWarningList;
 		fprintf outchan "</div>"
 	in
@@ -171,7 +174,7 @@ let print_html chan xmlNode (file: Cil.file) =
 		(* Write function infos *)
 		createHtmlFunctionInfo outputChannel file;
 
-		(* Write function infos *)
+		(* Write warning infos *)
 		createHtmlWarningsInfo outputChannel file;
 
 		(* Write third part *)
@@ -208,7 +211,7 @@ let print_html chan xmlNode (file: Cil.file) =
 			(* Tree node directory start *)
 			fprintf outchan "<div><span class=\"toggle entrydir\" >%s</span><div class=\"entrydircontent\">\n" (Xml.attrib xmlParentNode "text");
 
-			(* Process childs *)
+			(* Process children *)
 			Xml.iter (fun x -> processAnalysisXmlNode outchan x) xmlParentNode;
 
 			(* Tree node directory end *)
@@ -239,7 +242,7 @@ let print_html chan xmlNode (file: Cil.file) =
 	createFunctionInfoList file;
 
 	(* Create warning line number list *)
-	warningLineNumberList := List.fold_left (fun l (filename,line,msg) -> if ((List.exists (fun ti -> ti = line) l) != true) then l@[line] else l) [] !htmlGlobalWarningList;
+	warningLineNumberList := List.fold_left (fun l (filename,line,msg) -> if ((List.exists (fun ti -> ti = line) l) != true) then l@[line] else l) [] (!htmlLocalWarningList @ !htmlGlobalWarningList);
 
 	(* Walk through the analysis lines in the xml file *)
 	Xml.iter (fun x -> processAnalysisLineEntry x) xmlNode;

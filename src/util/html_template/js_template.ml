@@ -141,7 +141,8 @@ function MakeLineVisible(i) {
   el = document.getElementById('analysis_line' + lineSelected);
   if (el != null) el.style.display = 'none';
       
-  document.getElementById('analysis_line' + i).style.display = '';
+  var analysis_line = document.getElementById('analysis_line' + i);
+  if(analysis_line) analysis_line.style.display = '';
   if (lineSelected != 0) {
     if ((lineSelected % 2) == 0) document.getElementById('line'+lineSelected).style.background = '#F0F0F0';
     if ((lineSelected % 2) == 1) document.getElementById('line'+lineSelected).style.background = '#F8F8F8';

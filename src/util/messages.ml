@@ -77,12 +77,12 @@ let waitWhat s =
   
 let report_lin_hashtbl  = Hashtbl.create 10
 
-let report msg = 
+let report ?loc:(loc= !Tracing.current_loc) msg = 
   if not !GU.may_narrow then begin
-    let loc = !Tracing.current_loc in
     if (Hashtbl.mem report_lin_hashtbl (msg,loc) == false) then
       begin
         print_msg msg loc;
+        htmlLocalWarningList := (!htmlLocalWarningList)@[(loc.file,loc.line,msg)];
         Hashtbl.add report_lin_hashtbl (msg,loc) true
       end
   end

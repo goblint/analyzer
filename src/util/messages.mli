@@ -33,7 +33,7 @@ val warnings: bool ref
 val write: string -> unit
 (** Print out a message, does not affect soundness. *)
 
-val report: string -> unit
+val report: ?loc:Cil.location -> string -> unit
 (** Print out a message, does not affect soundness. One message is 
   * printed once per line of code. *)
 
