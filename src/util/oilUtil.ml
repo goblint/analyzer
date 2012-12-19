@@ -25,7 +25,7 @@ let osek_renames = ref ""
 (*API function names *)
 let osek_names : (string,string) Hashtbl.t = Hashtbl.create 16
 
-let osek_ISR_PRIORITY = ref ["PRIORITY"; "InterruptPriority"]
+let osek_ISR_PRIORITY = ref ["PRIORITY"; "INTERRUPTPRIORITY"]
 
 (* boolean flags *)
 let startuphook = ref false
