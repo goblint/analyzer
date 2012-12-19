@@ -3,13 +3,13 @@
 FILE *fp;
 
 int main(){
-  int i;
+	int i;
 	fp = fopen("test.txt", "a");  // Warn here: fp might not be closed?
-  
+
 	while (i){
-    fprintf(fp, "Testing...\n");
-    i++;
-  }
-  
+		fprintf(fp, "Testing...\n");
+		i++;
+	}
+
 	//fclose(fp);  
 }

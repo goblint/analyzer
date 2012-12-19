@@ -23,6 +23,7 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     (* let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
+    (* TODO: test 15 *)
     let fo, fc = ctx.local in (fo, fc)
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
@@ -33,15 +34,18 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     (* M.report ("return: ctx.local="^(Dom.short 50 ctx.local)); *)
-    let fo, fc = ctx.local in
-    let diff = Dom.VarSet.diff fo fc in
-    if not (Dom.VarSet.is_empty diff) then (
-      let vars = (Dom.VarSet.elements diff) in
-      let vnames = String.concat ", " (List.map (fun v -> v.vname) vars) in
-      M.report ("unclosed files: "^vnames);
-      List.iter (fun var -> M.report ~loc:var.vdecl "file is never closed") vars
+    if f.svar.vname = "main" then (
+      let fo, fc = ctx.local in
+      let diff = Dom.VarSet.diff fo fc in
+      if not (Dom.VarSet.is_empty diff) then (
+        let vars = (Dom.VarSet.elements diff) in
+        let vnames = String.concat ", " (List.map (fun v -> v.vname) vars) in
+        M.report ("unclosed files: "^vnames);
+        List.iter (fun var -> M.report ~loc:var.vdecl "file is never closed") vars
+      )
     );
     ctx.local
+
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     [ctx.local,ctx.local]
@@ -77,25 +81,31 @@ struct
 
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let fo, fc = ctx.local in
-    let dummy = [ctx.local, Cil.integer 1, true] in
+    let ret dom = [dom, Cil.integer 1, true] in
+    let dummy = ret ctx.local in
     match f.vname with
-      | "fopen" -> begin (* M.report "special_fn: found fopen"; *)
+      | "fopen" -> begin
           match lval with
             | None -> M.report "file handle is not saved!"; dummy
             | Some (lhost,offset) ->
                 match lhost with
                   | Var varinfo -> (* M.report ("file handle saved in variable "^varinfo.vname); *)
-                      [(Dom.VarSet.add varinfo fo, fc), Cil.integer 1, true]
+                      (* if opened again, check if file before was closed *)
+                      if Dom.VarSet.mem varinfo fo && not (Dom.VarSet.mem varinfo fc) then M.report ("overwriting unclosed file handle "^varinfo.vname);
+                      (* if opened again, remove from closed list *)
+                      let fc = if Dom.VarSet.mem varinfo fo then Dom.VarSet.remove varinfo fc else fc in
+                      ret (Dom.VarSet.add varinfo fo, fc)
                   | Mem exp -> M.report "TODO: save to object in memory"; dummy
           end
-      | "fclose" -> begin (* M.report "special_fn: found fclose"; *)
+      | "fclose" -> begin
           match arglist with
             | [fp] -> begin match fp with
                 | Lval (lhost,offset) -> begin
                     match lhost with
                       | Var varinfo -> (* M.report ("closing file handle "^varinfo.vname); *)
-                          if not (Dom.VarSet.mem varinfo fo) then (M.report ("closed unopened file handle "^varinfo.vname));
-                          [(fo, Dom.VarSet.add varinfo fc), Cil.integer 1, true]
+                          if not (Dom.VarSet.mem varinfo fo) then M.report ("closeing unopened file handle "^varinfo.vname);
+                          if      Dom.VarSet.mem varinfo fc  then M.report ("closeing already closed file handle "^varinfo.vname);
+                          ret (fo, Dom.VarSet.add varinfo fc)
                       | Mem exp -> dummy
                     end
                 | _ -> dummy (* TODO: only considers variables as arguments *)
@@ -108,14 +118,14 @@ struct
                 | Lval (lhost,offset) -> begin
                     match lhost with
                       | Var varinfo -> (* M.report ("printf to file handle "^varinfo.vname); *)
-                          if not (Dom.VarSet.mem varinfo fo) then (M.report ("writing to unopened file handle "^varinfo.vname));
-                          if     (Dom.VarSet.mem varinfo fc) then (M.report ("writing to closed file handle "^varinfo.vname));
+                          if not (Dom.VarSet.mem varinfo fo) then M.report ("writing to unopened file handle "^varinfo.vname);
+                          if      Dom.VarSet.mem varinfo fc  then M.report ("writing to closed file handle "^varinfo.vname);
                           dummy
                       | Mem exp -> dummy
                     end
-                | _ -> (* let _ = List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) arglist in *)
-                       let _ = List.iter (fun exp -> M.report ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp) in
-                       M.report ("printf not Lval"); dummy
+                | _ -> (* List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) arglist; *)
+                       List.iter (fun exp -> M.report ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp);
+                       M.report "printf not Lval"; dummy
               end
             | _ -> M.bailwith "fprintf needs at least two arguments"
           end

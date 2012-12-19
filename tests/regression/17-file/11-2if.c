@@ -3,14 +3,14 @@
 FILE *fp;
 
 int main(){
-  int b;
+	int b;
 	fp = fopen("test.txt", "a");  
-  
-  if (b)
-  	fclose(fp);  
+
+	if (b)
+		fclose(fp);
 
 	fprintf(fp, "Testing...\n"); // Warn here: fp might be closed?
 
-  if (!b)
-  	fclose(fp);    // may warn
+	if (!b)
+		fclose(fp);    // may warn
 }

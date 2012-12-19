@@ -7,7 +7,7 @@ void f(){
 }
 
 int main(){
-  f();
+	f();
 	fprintf(fp, "Testing...\n");  
 	fclose(fp);    
 }
