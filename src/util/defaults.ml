@@ -118,7 +118,8 @@ let _ =
   reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts.";
   reg Experimental "exp.no-int-context"    "false" "Ignore integer values in function contexts.";
   reg Experimental "exp.new_fwk"           "false" "Use the new framework.";
-  reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails."
+  reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails.";
+  reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top"
   
 (* {4 category [Debugging]} *)
 
