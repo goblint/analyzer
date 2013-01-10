@@ -38,6 +38,7 @@ type local_state = [
     | `Stack2       of StackDomain.Dom2.t
     | `Flag        of ConcDomain.Trivial.t
     | `Need        of unit
+    | `MayLocks    of LockDomain.MayLockset.t
     ]
 
 type global_state = [
