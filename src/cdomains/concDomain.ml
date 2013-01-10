@@ -268,3 +268,17 @@ module ThreadDomain = struct
     or is_case_b d1 d2
   
 end
+
+module ThreadStringSet = 
+struct 
+  include SetDomain.ToppedSet (Printable.Strings) (struct let topname = "All Threads" end)
+
+  let toXML_f sf x = 
+    match toXML x with
+      | Xml.Element (node, [text, _], elems) -> 
+          let summary = "Thread: " ^ sf Goblintutil.summary_length x in
+            Xml.Element (node, [text, summary], elems)
+      | x -> x
+      
+  let toXML s  = toXML_f short s
+end

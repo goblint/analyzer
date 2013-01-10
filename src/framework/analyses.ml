@@ -39,6 +39,7 @@ type local_state = [
     | `Flag        of ConcDomain.Trivial.t
     | `Need        of unit
     | `MayLocks    of LockDomain.MayLockset.t
+    | `ThreadLocSet of ConcDomain.ThreadStringSet.t
     ]
 
 type global_state = [

@@ -119,3 +119,69 @@ module ThreadMCP = (* MCP - master control program, see mCP.ml *)
                 let inject_g x = `None 
                 let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
          end)
+
+(* really stupid thread-ids *)
+module StartLocIDs =
+struct
+  include Analyses.DefaultSpec
+
+  let name = "Unit analysis"
+  module Dom  = ConcDomain.ThreadStringSet
+  module Glob = Glob.Make (Lattice.Unit)
+  
+  type glob_fun = Glob.Var.t -> Glob.Val.t
+
+  (* transfer functions *)
+  let assign ctx (lval:lval) (rval:exp) : Dom.t = ctx.local
+  let branch ctx (exp:exp) (tv:bool) : Dom.t =  ctx.local
+  let body ctx (f:fundec) : Dom.t =  ctx.local
+  let return ctx (exp:exp option) (f:fundec) : Dom.t = ctx.local
+  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list = [ctx.local,ctx.local]
+  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = ctx.local
+    
+  (* Helper function to convert query-offsets to valuedomain-offsets *)
+  let rec conv_offset x =
+    match x with
+      | `NoOffset    -> `NoOffset
+      | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
+      | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
+      | `Field (f,o) -> `Field (f, conv_offset o)
+    
+  (* Query the value (of the locking argument) to a list of locks. *)
+  let eval_exp_addr a exp =
+    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
+    match a (Queries.MayPointTo exp) with
+      | `LvalSet a when not (Queries.LS.is_top a)
+                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) -> 
+          Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []    
+      | _ -> []
+  
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+    begin match LibraryFunctions.classify f.vname arglist with
+      | `ThreadCreate (fn, x) -> 
+          let fns = eval_exp_addr ctx.ask fn in
+          let location x = let l = !Tracing.current_loc in l.file ^ ":" ^ string_of_int l.line ^ ":" ^ x.vname in
+          let new_thread x = ctx.spawn x (Dom.singleton (location x)) in
+          List.iter new_thread (List.concat (List.map ValueDomain.Addr.to_var_may fns))
+      | _ -> ()
+    end;
+    [ctx.local,Cil.integer 1, true]
+
+  let main = Dom.singleton "main"
+  let startstate () = main
+  let otherstate () = Dom.top ()
+  let exitstate  () = Dom.top ()
+end
+
+module ThreadLocIDMCP =
+  MCP.ConvertToMCPPart
+        (StartLocIDs)
+        (struct let name = "thread-id-location"
+                let depends = []
+                type lf = StartLocIDs.Dom.t
+                let inject_l x = `ThreadLocSet x
+                let extract_l x = match x with `ThreadLocSet x -> x | _ -> raise MCP.SpecificationConversionError
+                type gf = StartLocIDs.Glob.Val.t
+                let inject_g x = `None 
+                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
+         end)

@@ -520,6 +520,24 @@ struct
 end
 
 
+module Strings = 
+struct
+  type t = string
+  include Std
+  let hash (x:t) = Hashtbl.hash x
+  let equal (x:t) (y:t) = x=y
+  let pretty () n = text n
+  let short _ n = n
+  let toXML x = Xml.Element ("Leaf", [("text", x)], [])
+  let isSimple _ = true
+  let pretty_f _ = pretty
+  let toXML_f _ = toXML
+  let name () = "String"
+  let pretty_diff () (x,y) = 
+    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+end
+
+
 (** Concatenates a list of strings that 
    fit in the given character constraint *)
 let get_short_list begin_str end_str w list =
