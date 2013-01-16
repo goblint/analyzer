@@ -2,6 +2,7 @@
 
 int main(){
 	FILE *fp;
+	int b;
 	fp = fopen("test.txt", "a");
 	fprintf(fp, "Testing...\n");
 
