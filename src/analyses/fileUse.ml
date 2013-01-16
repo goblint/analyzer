@@ -4,7 +4,6 @@ open Analyses
 
 module M = Messages
 
-let loc_stack = ref []
 
 module Spec =
 struct
@@ -16,7 +15,12 @@ struct
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
- let lval2var (lhost,offset) = match lhost with
+  let loc_stack = ref []
+  let return_var = ref (Cil.makeVarinfo false "dummy" Cil.voidType)
+  (* let return_val = ref (Dom.V.dummy ()) *)
+  let return_val = ref None
+
+  let lval2var (lhost,offset) = match lhost with
                   | Var varinfo -> varinfo
                   | Mem exp -> M.bailwith "lval not var"
 
@@ -46,6 +50,7 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
+    let m = ctx.local in
     (* M.report ("return: ctx.local="^(Dom.short 50 ctx.local)); *)
     if f.svar.vname = "main" then (
       (* Dom.iter (fun k v -> let v,l,s,c = v in
@@ -54,7 +59,7 @@ struct
             | _ -> ())
         ctx.local *)
       let vars = Dom.filterVars (fun v l s c ->
-          match s with Dom.V.Open(_) -> true | _ -> false) ctx.local in
+          match s with Dom.V.Open(_) -> true | _ -> false) m in
       if List.length vars > 0 then
         let vnames = String.concat ", " (List.map (fun v -> v.vname) vars) in
         M.report ("unclosed files: "^vnames);
@@ -64,19 +69,31 @@ struct
     (match exp with
       | Some exp -> ignore(printf "return %a (%i)\n" (printExp plainCilPrinter) exp loc.line)
       | _ -> ignore(1));
+    (match exp with
+      | Some(Lval(Var(varinfo),offset)) ->
+          return_var := varinfo;
+          if Dom.mem varinfo m then
+            return_val := Some(Dom.find varinfo m)
+          else
+            return_val := None;
+      | _ -> ignore(1));
     ctx.local
 
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    M.report ("entering function "^f.vname); (* TODO push loc on stack in ctx *)
+    (* M.report ("entering function "^f.vname); *) (* TODO push loc on stack in ctx *)
     let loc = !Tracing.current_loc in
     loc_stack := loc :: !loc_stack;
     [ctx.local,ctx.local]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-    M.report ("leaving function "^f.vname); (* TODO pop loc from stack in ctx *)
+    (* M.report ("leaving function "^f.vname); *) (* TODO pop loc from stack in ctx *)
+    (* let loc = !Tracing.current_loc in *)
     loc_stack := List.tl !loc_stack;
-    au
+    match lval, !return_val with
+      | Some lval, Some rval ->
+          let var = lval2var lval in Dom.add var rval (Dom.remove !return_var au)
+      | _ -> au
 
   let rec cut_offset x =
     match x with

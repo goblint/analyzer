@@ -27,8 +27,8 @@ struct
   let equal = Util.equals
   let hash = Hashtbl.hash
   let leq x y = true
-  let join x y = x
-  let meet x y = x
+  let join x y = M.report "JOIN"; x
+  let meet x y = M.report "MEET"; x
   let top () = raise Unknown
   let is_top x = match x with (_, Top, _, _) -> true | _ -> false
   let bot () = raise Error
@@ -44,6 +44,8 @@ struct
     | Open(filename, m) -> "open "^filename^(mode m)^(loc l)^(mustmay c)
     | Close -> "closed "^(loc l)^(mustmay c)
   let short i x = toString x
+
+  let dummy () = ((Cil.makeVarinfo false "dummy" Cil.voidType), Bot, Close, Must)
 end
 
 module FileUses  = 
