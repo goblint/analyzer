@@ -79,3 +79,6 @@ val initfun: fundec
 (** All the global initializers are put into this function, so that the assign
   * transfer function will take care of initializers in a uniform way... very
   * nice! *)
+
+val loopSep: stmt -> bool
+(** Answers true if the statement is a loop separator *)

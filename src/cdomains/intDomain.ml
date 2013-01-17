@@ -480,9 +480,41 @@ struct
   let lognot = eq (of_int 0L) 
 end
 
+module OverflowInt64 =
+struct
+  exception Overflow of string
+
+  include Int64
+  
+  let add (a:int64) (b:int64) =
+    if logor (logxor a b) (logxor a (lognot (add a b))) < 0L  (* no kidding! *)
+    then add a b
+    else raise (Overflow (Printf.sprintf "%Ld + %Ld" a b))
+
+  let sub (a:int64) (b:int64) =
+    if b = min_int
+    then
+      if a >= 0L
+      then raise (Overflow (Printf.sprintf "%Ld - %Ld" a b))
+      else sub a b
+    else
+      let oppb = neg b in
+      add a oppb
+
+  let mul (a:int64) (b:int64) =
+    if a = 0L then 0L
+    else
+      let x = mul a b in
+      if b = div x a
+      then x
+      else raise (Overflow (Printf.sprintf "%Ld * %Ld" a b))
+
+end
 
 module InfInt =
 struct
+  (*module Int64 = OverflowInt64*)
+  
   type t = NInf | Fin of int64 | PInf
  
   let equal x y =
@@ -820,6 +852,11 @@ struct
   let of_excl_list l = top ()
   let is_excl_list l = false
   let to_excl_list x = None
+(*  
+  let add x y = try add x y with OverflowInt64.Overflow _ -> top ()
+  let sub x y = try sub x y with OverflowInt64.Overflow _ -> top ()
+  let mul x y = try mul x y with OverflowInt64.Overflow _ -> top ()
+  *)
 end
 
 (*module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] = 
