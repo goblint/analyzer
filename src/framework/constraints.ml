@@ -1,6 +1,8 @@
-open Generic
-open GobConfig
 open Pretty
+open Generic
+open Analyses
+open GobConfig
+open Batteries_uni
 
 (** The selected specification. *)
 module Spec = MCP.Path
@@ -66,7 +68,7 @@ let cfg = ref (fun _ -> [])
 
 (** Our main constraint system. *)
 module System 
-  : GenericIneqSystem 
+  : IneqConstrSys 
   with type v = Var.t
    and type d = Dom.t 
    and module Var = Var
@@ -261,7 +263,7 @@ let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) 
   let local_xml = ref (Result.create 0) in
   let global_xml = ref (Xml.PCData "not-ready" ) in
   let do_analyze () =
-    let h = Slvr.solve entrystates startvars' in
+    let h = Slvr.solve EQSys.box entrystates startvars' in
     local_xml := solver2source_result h;
     global_xml := make_global_xml h
   in

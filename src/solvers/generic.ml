@@ -1,34 +1,10 @@
 open Batteries_uni
 open GobConfig
+open Analyses
 
-
-(** A side-effecting system. *)
-module type GenericMonSystem =
-sig
-  type v    (** variables *)
-  type d    (** values    *)
-  type 'a m (** basically a monad carrier *)
-  
-  (** Variables must be hashable, comparable, etc.  *)
-  module Var : Analyses.VarType with type t = v
-  (** Values must form a lattice. *)
-  module Dom : Lattice.S with type t = d
-  
-  (** the box-operator to be used *)
-  val box : v -> d -> d -> d 
-  (** The system in functional form. *)
-  val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
-end
-
-(** Any system of side-effecting inequations over lattices. *)
-module type GenericIneqSystem = GenericMonSystem with type 'a m := 'a list 
-
-(** Any system of side-effecting equations over lattices. *)
-module type GenericEqSystem = GenericMonSystem with type 'a m := 'a option 
-
-(** Convert a an [GenericIneqSystem] into an equation system by joining all right-hand sides. *)
-module SimpleSysConverter (S:GenericIneqSystem) 
-  : GenericEqSystem 
+(** Convert a an [IneqConstrSys] into an equation system by joining all right-hand sides. *)
+module SimpleSysConverter (S:IneqConstrSys) 
+  : EqConstrSys 
   with type v = S.v
    and type d = S.d
    and module Var = S.Var
@@ -71,9 +47,9 @@ struct
 end
   
 
-(** Convert a an [GenericIneqSystem] into an equation system. *)
-module NormalSysConverter (S:GenericIneqSystem) 
-  : GenericEqSystem 
+(** Convert a an [IneqConstrSys] into an equation system. *)
+module NormalSysConverter (S:IneqConstrSys) 
+  : EqConstrSys 
   with type v = S.v * int
    and type d = S.d
    and module Var = ExtendInt (S.Var)
@@ -113,17 +89,8 @@ struct
         with Invalid_argument _ -> None 
 end 
 
-(** A solver is something that can translate a system into a solution (hash-table) *)
-module type GenericLocalBoxSolver =
-  functor (S:GenericEqSystem) ->
-  functor (H:Hash.H with type key=S.v) ->
-sig
-  (** The hash-map [solve xs vs] is a local solution for interesting variables [vs],
-      reached from starting values [xs].  *)
-  val solve : (S.v*S.d) list -> S.v list -> S.d H.t
-end
 
-module SolverStats (S:GenericEqSystem) =
+module SolverStats (S:EqConstrSys) =
 struct
   open S
   open Messages
@@ -192,8 +159,8 @@ struct
 end
 
 (** use this if your [box] is [join] *)
-module DirtyBoxSolver : GenericLocalBoxSolver =
-  functor (S:GenericEqSystem) ->
+module DirtyBoxSolver : GenericEqBoxSolver =
+  functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
 struct
   include SolverStats (S)
@@ -202,7 +169,7 @@ struct
     try H.find h x 
     with Not_found -> d
 
-  let solve xs vs = 
+  let solve box xs vs = 
     (* the stabile "set" *)
     let stbl = H.create 1024 in
     (* the influence map *)
@@ -238,7 +205,7 @@ struct
       if not (H.mem sol x) then solve_one x;
       (* do nothing if we have stabilized [x] *)
       let oldd = H.find sol x in
-      let newd = S.box x oldd d in
+      let newd = box x oldd d in
       update_var_event x oldd newd;
       if not (S.Dom.equal oldd newd) then begin
         (* set the new value for [x] *)
@@ -267,7 +234,7 @@ end
 
 (* use this if you do widenings & narrowings (but no narrowings for globals) *)
 module SoundBoxSolverImpl =
-  functor (S:GenericEqSystem) ->
+  functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
 struct
   include SolverStats (S)
@@ -276,7 +243,7 @@ struct
     try H.find h x 
     with Not_found -> d
     
-  let solveWithStart (ht,hts) xs vs = 
+  let solveWithStart box (ht,hts) xs vs = 
     (* the stabile "set" *)
     let stbl = H.create 1024 in
     (* the influence map *)
@@ -330,7 +297,7 @@ struct
       (* do nothing if we have stabilized [x] *)
       let oldd = H.find sol x in
       (* compute the new value *)
-      let newd = S.box x oldd (S.Dom.join d (h_find_default sols x (S.Dom.bot ()))) in
+      let newd = box x oldd (S.Dom.join d (h_find_default sols x (S.Dom.bot ()))) in
       if not (S.Dom.equal oldd newd) then begin
         update_var_event x oldd newd;
         (* set the new value for [x] *)
@@ -359,16 +326,16 @@ struct
     sol, sols
     
   (** the solve function *)
-  let solve xs ys = solveWithStart (H.create 1024, H.create 1024) xs ys |> fst
+  let solve box xs ys = solveWithStart box (H.create 1024, H.create 1024) xs ys |> fst
 end
 
-module SoundBoxSolver : GenericLocalBoxSolver = SoundBoxSolverImpl
+module SoundBoxSolver : GenericEqBoxSolver = SoundBoxSolverImpl
 
 
 
 (* use this if you do widenings & narrowings for globals *)
-module PreciseSideEffectBoxSolver : GenericLocalBoxSolver =
-  functor (S:GenericEqSystem) ->
+module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
+  functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
 struct
   include SolverStats (S)
@@ -380,7 +347,7 @@ struct
   module VM = Map.Make (S.Var)
   module VS = Set.Make (S.Var)
 
-  let solve xs vs = 
+  let solve box xs vs = 
     (* the stabile "set" *)
     let stbl  = H.create 1024 in
     (* the influence map *)
@@ -444,7 +411,7 @@ struct
         try S.Dom.join d (VM.find x (H.find sols z))
         with Not_found -> d
       in
-      let newd = S.box x oldd (VS.fold find_join_sides (h_find_default sdeps x VS.empty) d) in
+      let newd = box x oldd (VS.fold find_join_sides (h_find_default sdeps x VS.empty) d) in
       update_var_event x oldd newd;
       if not (S.Dom.equal oldd newd) then begin
         (* set the new value for [x] *)
@@ -471,8 +438,8 @@ struct
     sol
 end
 
-module CousotNonBoxSolver : GenericLocalBoxSolver =
-  functor (S:GenericEqSystem) ->
+module CousotNonBoxSolver : GenericEqBoxSolver =
+  functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
 struct
   module SW =
@@ -493,16 +460,16 @@ struct
   end
   module SolveN = SoundBoxSolverImpl (SN) (H)
   
-  let solve xs vs = 
+  let solve box xs vs = 
     ignore (Pretty.printf "Widening ...\n");
-    let wsol = SolveW.solveWithStart (H.create 1024, H.create 1024) xs vs in
+    let wsol = SolveW.solveWithStart box (H.create 1024, H.create 1024) xs vs in
     ignore (Pretty.printf "Narrowing ...\n");
-    SolveN.solveWithStart wsol xs vs |> fst
+    SolveN.solveWithStart box wsol xs vs |> fst
 end
 
 (** its the best *)
-module HelmutBoxSolver (*: GenericLocalBoxSolver*) =
-  functor (S:GenericEqSystem) ->
+module HelmutBoxSolver (*: GenericEqBoxSolver*) =
+  functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
 
@@ -717,7 +684,7 @@ struct
                           in X.to_list ()
     
 
-  let solve' box st x = 
+  let solve box st x = 
     let sys x get set = 
 	    match S.system x with
         | None -> S.Dom.bot ()
@@ -738,12 +705,10 @@ struct
     if S.Var.loopSep v
     then (if D.leq y x then D.narrow x y else D.widen x (D.join x y))
     else (if D.leq y x then y else D.join x y)
-    
-  let solve = solve' box
 end
 
-module CompareBoxSolvers' : GenericLocalBoxSolver =
-  functor (S:GenericEqSystem) ->
+module CompareBoxSolvers' : GenericEqBoxSolver =
+  functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
 struct
   module Solve1 = CousotNonBoxSolver (S) (H)  
@@ -774,10 +739,10 @@ struct
       with Not_found -> Printf.printf ">"; incr bigger
     with Not_found -> Printf.printf "<"; incr smaller
   
-  let solve xs vs = 
+  let solve box xs vs = 
     let module S = Set.Make (S.Var) in
-    let s1 = Solve1.solve xs vs in
-    let s2 = Solve2.solve xs vs in
+    let s1 = Solve1.solve box xs vs in
+    let s2 = Solve2.solve box xs vs in
     let s = ref S.empty in
     H.iter (fun k v -> s := S.add k !s) s1;
     H.iter (fun k v -> s := S.add k !s) s2;
@@ -786,8 +751,8 @@ struct
     s1
 end
 
-module CompareBoxSolvers : GenericLocalBoxSolver =
-  functor (S:GenericEqSystem) ->
+module CompareBoxSolvers : GenericEqBoxSolver =
+  functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
 struct
   module Solver0 = HelmutBoxSolver (S) (H)
@@ -818,13 +783,13 @@ struct
       with Not_found -> Printf.printf ">"; incr bigger
     with Not_found -> Printf.printf "<"; incr smaller
   
-  let solve xs vs = 
+  let solve box xs vs = 
     let box1 v x y = if S.Var.loopSep v then S.Dom.widen x (S.Dom.join x y) else S.Dom.join x y in
-    let _ = Solver0.solve' box1 xs vs in
+    let _ = Solver0.solve box1 xs vs in
     let box2 v x y = S.Dom.narrow x y in
     let _ = H.iter (fun k v -> Solver0.work := Solver0.H.add k !Solver0.work) Solver0.stable in
-    let s1 = Solver0.solve' box2 [] [] in
-    let s2 = Solver1.solve xs vs in
+    let s1 = Solver0.solve box2 [] [] in
+    let s2 = Solver1.solve box xs vs in
     let module S = Set.Make (S.Var) in
     let s = ref S.empty in
     H.iter (fun k v -> s := S.add k !s) s1;
@@ -834,8 +799,8 @@ struct
     s1
 end
 
-module CompareWPoints : GenericLocalBoxSolver =
-  functor (S:GenericEqSystem) ->
+module CompareWPoints : GenericEqBoxSolver =
+  functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
 struct
   module Solver0 = HelmutBoxSolver (S) (H)
@@ -866,11 +831,11 @@ struct
       with Not_found -> Printf.printf ">"; incr bigger
     with Not_found -> Printf.printf "<"; incr smaller
   
-  let solve xs vs = 
+  let solve box xs vs = 
     set_bool "exp.back_loop_sep" false;
-    let s1 = Solver0.solve xs vs in
+    let s1 = Solver0.solve box xs vs in
     set_bool "exp.back_loop_sep" true;
-    let s2 = Solver1.solve xs vs in
+    let s2 = Solver1.solve box xs vs in
     let module S = Set.Make (S.Var) in
     let s = ref S.empty in
     H.iter (fun k v -> s := S.add k !s) s1;
@@ -881,29 +846,29 @@ struct
 end
 
 
-module WideningSolver : GenericLocalBoxSolver =
-  functor (S:GenericEqSystem) ->
+module WideningSolver : GenericEqBoxSolver =
+  functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
 struct
   module Solver = HelmutBoxSolver (S) (H)
     
-  let solve xs vs = 
+  let solve box xs vs = 
     let box1 v x y = 
       S.Dom.join x (S.Dom.widen x (S.Dom.join x y))
     in
-    let s = Solver.solve' box1 xs vs in
+    let s = Solver.solve box1 xs vs in
     Printf.printf "|X|=%d\n\n" (H.length s);
     s
 end
 
-module HBoxSolver : GenericLocalBoxSolver =
-  functor (S:GenericEqSystem) ->
+module HBoxSolver : GenericEqBoxSolver =
+  functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
 struct
   module Solver = HelmutBoxSolver (S) (H)
     
-  let solve xs vs = 
-    let s = Solver.solve xs vs in
+  let solve box xs vs = 
+    let s = Solver.solve box xs vs in
     Printf.printf "|X|=%d\n\n" (H.length s);
     s
 end
