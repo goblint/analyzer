@@ -6,7 +6,8 @@ open GobConfig
 open Constraints
 open Batteries_uni
 
-module Spec = Spec2OfSpec (Base.Spec)
+
+module Spec = DeadCodeLifter (Spec2OfSpec (Base.Spec))
 
 module SystemFromCFG (Cfg:CfgBackward) =
 struct
@@ -16,7 +17,7 @@ struct
   module GHT   = BatHashtbl.Make (EQSys.GVar)
   module Slvr  = EffectWCon.Make2 (EQSys) (LHT) (GHT)
   
-  module RT = Analyses.ResultType (Base.Spec) (Spec.D) (Spec.C)
+  module RT = Analyses.ResultType (Base.Spec) (Spec.C) (Spec.D)
   module LT = SetDomain.HeadlessSet (RT)
   module RC = struct let result_name = "Analysis" end
   module Result = Analyses.Result (LT) (RC)
@@ -119,10 +120,10 @@ let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) 
   (*let context_fn f = if get_bool "exp.full-context" then fun x->x else Spec.context in*)
   
   let startvars' = 
-    List.map (fun (n,e) -> (MyCFG.Function n, e)) startvars in
+    List.map (fun (n,e) -> (MyCFG.Function n, Spec.context e)) startvars in
   
   let entrystates = 
-    List.map (fun (n,e) -> (MyCFG.FunctionEntry n, e), e) startvars in
+    List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
   
     
   let local_xml = ref (Result.create 0) in

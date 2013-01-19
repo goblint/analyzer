@@ -636,7 +636,7 @@ module type Spec2 =
 sig
   module D : Lattice.S
   module G : Lattice.S
-  module C : Hashtbl.HashedType
+  module C : Printable.S
   
   val name : string
   
@@ -704,7 +704,7 @@ sig
   type gd
   
   type c
-  module C : Hashtbl.HashedType
+  module C : Printable.S
   
   module LVar : VarType  with type t = lv
   module GVar : GVarType with type t = gv

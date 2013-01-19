@@ -7,6 +7,79 @@ open GobConfig
 open Batteries_uni
 
 
+module DeadCodeLifter (S:Spec2)
+  : Spec2 with module D = Dom (S.D)
+           and module G = S.G
+           and module C = S.C
+  = 
+struct
+  module D = Dom (S.D)
+  module G = S.G
+  module C = S.C
+  
+  let name = S.name^" lifted"
+  
+  let init = S.init
+  let finalize = S.finalize
+  
+  let startstate () = `Lifted (S.startstate ())
+  let exitstate () = `Lifted (S.exitstate ())
+  let otherstate () = `Lifted (S.otherstate ())
+
+  let context = S.context -| D.unlift
+  let call_descr f = S.call_descr f -| D.unlift
+
+  let conv ctx = 
+    { ctx with local2 = D.unlift ctx.local2 
+             ; spawn2 = (fun v -> ctx.spawn2 v -| D.lift )
+             ; split2 = (fun d e tv -> ctx.split2 (D.lift d) e tv )
+    }
+  
+  let sync ctx = 
+    try let d, diff = S.sync (conv ctx) in
+        D.lift d, diff
+    with Deadcode -> `Bot, []
+    
+  let query ctx q = 
+    try S.query (conv ctx) q
+    with Deadcode -> `Top
+    
+  let assign ctx lv e = 
+    try D.lift **> S.assign (conv ctx) lv e
+    with Deadcode -> `Bot
+    
+  let branch ctx e tv = 
+    try D.lift **> S.branch (conv ctx) e tv
+    with Deadcode -> `Bot
+  
+  let body ctx f = 
+    try D.lift **> S.body (conv ctx) f
+    with Deadcode -> `Bot
+
+  let return ctx r f = 
+    try D.lift **> S.return (conv ctx) r f
+    with Deadcode -> `Bot
+    
+  let intrpt ctx = 
+    try D.lift **> S.intrpt (conv ctx)
+    with Deadcode -> `Bot
+  
+  let enter ctx r f args = 
+    try List.map (fun (x,y) -> D.lift x, D.lift y) **> S.enter (conv ctx) r f args
+    with Deadcode -> []
+    
+  let special ctx r f args = 
+    try D.lift **> S.special (conv ctx) r f args
+    with Deadcode -> `Bot
+    
+  let combine ctx r fe f args es = 
+    try D.lift **> S.combine (conv ctx) r fe f args (D.unlift es) 
+    with Deadcode -> `Bot
+
+end 
+
+
+
 module Spec2OfSpec (S:Spec with module Glob.Var = Basetype.Variables) 
   : Spec2 with module D = S.Dom
            and module G = S.Glob.Val 
@@ -61,30 +134,30 @@ end
 
 
 module FromSpec (S:Spec2) (Cfg:CfgBackward)
-  : GlobConstrSys with type lv = node * S.D.t
+  : GlobConstrSys with type lv = node * S.C.t
                    and type gv = varinfo
                    and type ld = S.D.t
                    and type gd = S.G.t
-                   and type c  = S.D.t
-                   and module C = S.D
-                   and module LVar = VarF (S.D)
+                   and type c  = S.C.t
+                   and module C = S.C
+                   and module LVar = VarF (S.C)
                    and module GVar = Basetype.Variables
                    and module D = S.D
                    and module G = S.G
   =
 struct
-  type lv = MyCFG.node * S.D.t
+  type lv = MyCFG.node * S.C.t
   type gv = varinfo
   type ld = S.D.t
   type gd = S.G.t
-  type c  = S.D.t
-  module C = S.D
-  module LVar = VarF (S.D)
+  type c  = S.C.t
+  module C = S.C
+  module LVar = VarF (S.C)
   module GVar = Basetype.Variables
   module D = S.D
   module G = S.G
   
-  let context = fun x -> x
+  let context = S.context
 
   let common_ctx (v,c) u (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx2 = 
     let pval = getl (u,c) in 
@@ -95,7 +168,7 @@ struct
       ; global2  = getg
       ; presub2  = []
       ; postsub2 = []
-      ; spawn2   = (fun f d -> sidel (Function f, d) (D.bot ()))
+      ; spawn2   = (fun f d -> sidel (Function f, S.context d) (D.bot ()))
       ; split2   = (fun (d:D.t) _ _ -> sidel (v,c) d)
       ; sideg2   = sideg
       } 
@@ -133,7 +206,8 @@ struct
     let one_function f = 
       let combine (cd, fd) = S.combine {ctx with local2 = cd} lv e f args fd in
       let paths = S.enter ctx lv f args in
-      let paths = List.map (fun (c,v) -> (c, getl (Function f,v))) paths in
+      let _     = List.iter (fun (c,v) -> sidel (FunctionEntry f, S.context v) v) paths in
+      let paths = List.map (fun (c,v) -> (c, getl (Function f, S.context v))) paths in
       let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
       let paths = List.map combine paths in
       List.fold_left D.join (D.bot ()) paths

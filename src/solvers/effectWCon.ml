@@ -186,6 +186,9 @@ module Make2
   (GH:Hash.H with type key=S.gv) =
 struct
   open S
+  
+  let lh_find_default t x a = try LH.find t x with Not_found -> a 
+  let gh_find_default t x a = try GH.find t x with Not_found -> a 
 
   let cons_unique key x xs =
     let xk = key x in
@@ -205,7 +208,7 @@ struct
       let rhsides = 
         let notnew = LH.mem sigma in 
         if notnew x then
-          let temp = LH.find_default todo x [] in 
+          let temp = lh_find_default todo x [] in 
           let _ = LH.remove todo x in
             temp
         else begin
@@ -218,11 +221,11 @@ struct
         let constrainOneRHS (f, i) =
           let local_side v state = 
             if not ( D.leq state (D.bot ()) ) then
-              let oldstate = LH.find_default sigma v (D.bot ()) in
+              let oldstate = lh_find_default sigma v (D.bot ()) in
               begin if not (LH.mem sigma v) then constrainOneVar v end;
               let compls = D.join oldstate state in
                 if not (D.leq compls oldstate) then begin
-                  let lst = LH.find_default vInfl v [] in
+                  let lst = lh_find_default vInfl v [] in
                   LH.replace sigma v compls;
                   unsafe := lst @ !unsafe;
                   LH.remove vInfl v
@@ -230,7 +233,7 @@ struct
           in
           let global_side g gstate = 
             if not ( G.leq gstate (G.bot ()) ) then
-              let oldgstate = GH.find_default theta g (G.bot ()) in
+              let oldgstate = gh_find_default theta g (G.bot ()) in
               let compgs = G.join oldgstate gstate in
                 if not (G.leq compgs oldgstate) then begin
                   let lst = GH.find gInfl g in
@@ -243,28 +246,28 @@ struct
             local_state := D.join !local_state nls
         in
         List.iter constrainOneRHS rhsides;
-        let old_state = LH.find_default sigma x (D.bot ()) in
+        let old_state = lh_find_default sigma x (D.bot ()) in
         let new_val = D.join !local_state old_state in
         if not (D.leq new_val old_state) then begin
           LH.replace sigma x new_val;
           let influenced_vars = ref [] in
           let collectInfluence ((y,f),i) = 
-            LH.replace todo y (cons_unique snd (f,i) (LH.find_default todo y []));             
+            LH.replace todo y (cons_unique snd (f,i) (lh_find_default todo y []));             
             influenced_vars := y :: !influenced_vars
           in
-            List.iter collectInfluence (LH.find_default vInfl x []);
+            List.iter collectInfluence (lh_find_default vInfl x []);
             LH.remove vInfl x;
             List.iter constrainOneVar !influenced_vars
         end 
       end
     and vEval c var =
       constrainOneVar var;
-      LH.replace vInfl var (c :: LH.find_default vInfl var []);
-      LH.find_default sigma var (D.bot ())
+      LH.replace vInfl var (c :: lh_find_default vInfl var []);
+      lh_find_default sigma var (D.bot ())
     
     and gEval c glob = 
-      GH.replace gInfl glob (c :: GH.find_default gInfl glob []);
-      GH.find_default theta glob (G.bot ()) 
+      GH.replace gInfl glob (c :: gh_find_default gInfl glob []);
+      gh_find_default theta glob (G.bot ()) 
 
     in
       GU.may_narrow := false;
@@ -280,7 +283,7 @@ struct
         List.iter constrainOneVar !workset;
         workset := [];
         let recallConstraint ((y,f),i) = 
-          LH.replace todo y (cons_unique snd (f,i) (LH.find_default todo y []));
+          LH.replace todo y (cons_unique snd (f,i) (lh_find_default todo y []));
           workset := y :: !workset;
         in
           List.iter recallConstraint !unsafe;
