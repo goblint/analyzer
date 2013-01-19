@@ -5,9 +5,16 @@ open Pretty
 open GobConfig
 
 type node = 
-  | Statement of stmt 
+  | Statement of stmt  
+  (** The statements as identified by CIL *)
   | FunctionEntry of varinfo
-  | Function of varinfo 
+  (** *)
+  | Function of varinfo  
+  (** The variable information associated with the function declaration. *)
+(** A node in the Control Flow Graph is either a statement or function. Think of
+  * the function node as last node that all the returning nodes point to.  So
+  * the result of the function call is contained in the fucntion node. *)
+
   
 let pretty_node () = function
   | Statement s -> text "Statement " ++ dn_stmt () s
@@ -51,14 +58,27 @@ type asm_out = (string option * string * lval) list
 type asm_in  = (string option * string * exp ) list
 
 type edge = 
-  | Assign of lval * exp
-  | Proc of lval option * exp * exp list
-  | Entry of fundec
+  | Assign of lval * exp  
+  (** Assignments lval = exp *)
+  | Proc of lval option * exp * exp list 
+  (** Function calls of the form lva = fexp (e1, e2, ...) *)
+  | Entry of fundec 
+  (** Entry edge that relates function declaration to function body. You can use 
+    * this to initialize the local variables. *)
   | Ret of exp option * fundec
-  | Test of exp * bool
+  (** Return edge is between the return statement, which may optionally contain
+    * a return value, and the function. The result of the call is then
+    * transfered to the function node! *)
+  | Test of exp * bool 
+  (** The true-branch or false-branch of a conditional exp *) 
   | ASM of string list * asm_out * asm_in
-  | Skip
-  | SelfLoop
+  (** Inline assembly statements, and the annotations for output and input
+    * variables. *)
+  | Skip 
+  (** This is here for historical reasons. I never use Skip edges! *)
+  | SelfLoop 
+  (** This for interrupt edges.! *)
+
 
 let pretty_edge () = function
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv  
@@ -83,6 +103,22 @@ let pretty_edge_kind () = function
   | SelfLoop -> text "SelfLoop"
 
 type cfg = node -> (edge * node) list
+
+module type CfgBackward =
+sig
+  val prev : node -> (edge * node) list
+end
+
+module type CfgForward =
+sig
+  val next : node -> (edge * node) list
+end
+
+module type CfgBidir =
+sig
+  include CfgBackward
+  include CfgForward
+end
 
 module H = Hashtbl.Make(Node)
 

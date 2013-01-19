@@ -703,12 +703,16 @@ sig
   type ld
   type gd
   
+  type c
+  module C : Hashtbl.HashedType
+  
   module LVar : VarType  with type t = lv
   module GVar : GVarType with type t = gv
 
   module D : Lattice.S with type t = ld
   module G : Lattice.S with type t = gd
-    
+  
+  val context : ld -> c 
   val system : lv -> ((lv -> ld) -> (lv -> ld -> unit) -> (gv -> gd) -> (gv -> gd -> unit) -> ld) list
 end
 

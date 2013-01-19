@@ -1,8 +1,115 @@
+open Cil
+open MyCFG
 open Pretty
 open Generic
 open Analyses
 open GobConfig
 open Batteries_uni
+
+
+module FromSpec (S:Spec2) (Cfg:CfgBackward)
+  : GlobConstrSys with type lv = node * S.D.t
+                   and type gv = varinfo
+                   and type ld = S.D.t
+                   and type gd = S.G.t
+                   and type c  = S.D.t
+                   and module C = S.D
+                   and module LVar = VarF (S.D)
+                   and module GVar = Basetype.Variables
+                   and module D = S.D
+                   and module G = S.G
+  =
+struct
+  type lv = MyCFG.node * S.D.t
+  type gv = varinfo
+  type ld = S.D.t
+  type gd = S.G.t
+  type c  = S.D.t
+  module C = S.D
+  module LVar = VarF (S.D)
+  module GVar = Basetype.Variables
+  module D = S.D
+  module G = S.G
+  
+  let context = fun x -> x
+
+  let common_ctx (v,c) u (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx2 = 
+    let pval = getl (u,c) in 
+    (* now wach this ... *)
+    let rec ctx = 
+      { ask2     = query
+      ; local2   = pval
+      ; global2  = getg
+      ; presub2  = []
+      ; postsub2 = []
+      ; spawn2   = (fun f d -> sidel (Function f, d) (D.bot ()))
+      ; split2   = (fun (d:D.t) _ _ -> sidel (v,c) d)
+      ; sideg2   = sideg
+      } 
+    and query x = S.query ctx x in
+    (* ... nice, right! *)
+    ctx
+
+  let tf_loop (v,c) u getl sidel getg sideg = 
+    let ctx = common_ctx (v,c) u getl sidel getg sideg 
+    in S.intrpt ctx
+  
+  let tf_assign lv e (v,c) u getl sidel getg sideg = 
+    let ctx = common_ctx (v,c) u getl sidel getg sideg 
+    in S.assign ctx lv e
+    
+  let tf_ret ret fd (v,c) u getl sidel getg sideg = 
+    let ctx = common_ctx (v,c) u getl sidel getg sideg 
+    in S.return ctx ret fd
+    
+  let tf_entry fd (v,c) u getl sidel getg sideg = 
+    let ctx = common_ctx (v,c) u getl sidel getg sideg 
+    in S.body ctx fd
+
+  let tf_test e tv (v,c) u getl sidel getg sideg =
+    let ctx = common_ctx (v,c) u getl sidel getg sideg 
+    in S.branch ctx e tv
+
+  let tf_proc lv e args (v,c) u getl sidel getg sideg = 
+    let ctx = common_ctx (v,c) u getl sidel getg sideg in 
+    let functions = 
+      match ctx.ask2 (Queries.EvalFunvar e) with 
+        | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
+        | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
+    in
+    let one_function f = 
+      let combine (cd, fd) = S.combine {ctx with local2 = cd} lv e f args fd in
+      let paths = S.enter ctx lv f args in
+      let paths = List.map (fun (c,v) -> (c, getl (Function f,v))) paths in
+      let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
+      let paths = List.map combine paths in
+      List.fold_left D.join (D.bot ()) paths
+    in
+    let funs = List.map one_function functions in
+    List.fold_left D.join (D.bot ()) funs
+
+  
+  let tf (v,c) (edge, u) = 
+    begin match edge with
+      | Assign (lv,rv) -> tf_assign lv rv
+      | Proc (r,f,ars) -> tf_proc r f ars
+      | Entry f        -> tf_entry f
+      | Ret (r,fd)     -> tf_ret r fd
+      | Test (p,b)     -> tf_test p b
+      | ASM _          -> fun _ _ getl _ _ _ -> ignore (warn "ASM statement ignored."); getl (u,c)
+      | Skip           -> fun _ _ getl _ _ _ -> getl (u,c)
+      | SelfLoop       -> tf_loop 
+    end (v,c) u
+    
+  let tf (v,c) (e,u) getl sidel getg sideg =
+    let old_loc = !Tracing.current_loc in
+    let _       = Tracing.current_loc := getLoc u in
+    let d       = tf (v,c) (e,u) getl sidel getg sideg in
+    let _       = Tracing.current_loc := old_loc in 
+      d
+  
+  let system (v,c) = List.map (tf (v,c)) (Cfg.prev v)
+end
 
 (** The selected specification. *)
 module Spec = MCP.Path
