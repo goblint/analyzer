@@ -7,6 +7,59 @@ open GobConfig
 open Batteries_uni
 
 
+module Spec2OfSpec (S:Spec with module Glob.Var = Basetype.Variables) 
+  : Spec2 with module D = S.Dom
+           and module G = S.Glob.Val 
+           and module C = S.Dom 
+  =
+struct
+  module D = S.Dom
+  module G = S.Glob.Val
+  module C = S.Dom
+  
+  let name = S.name
+  
+  let init = S.init
+  let finalize = S.finalize
+  
+  let startstate = S.startstate
+  let exitstate = S.exitstate
+  let otherstate = S.otherstate
+
+  let context = identity
+  let call_descr = S.es_to_string
+  
+  let conv_ctx ctx2 =
+    { ask = ctx2.ask2
+    ; local = ctx2.local2
+    ; global = ctx2.global2
+    ; sub = ctx2.postsub2
+    ; spawn = ctx2.spawn2
+    ; geffect = ctx2.sideg2
+    ; precomp = []
+    ; preglob = []
+    ; report_access = (fun _ -> ())
+    }
+  
+  let sync   = S.sync   -| conv_ctx
+  let query  = S.query  -| conv_ctx
+  let assign = S.assign -| conv_ctx
+  let branch = S.branch -| conv_ctx
+  let body   = S.body   -| conv_ctx
+  let return = S.return -| conv_ctx
+  let intrpt = S.intrpt -| conv_ctx
+  
+
+  let enter   = S.enter_func -| conv_ctx
+  let combine = S.leave_func -| conv_ctx
+
+  let special ctx2 r f args = 
+    match S.special_fn (conv_ctx ctx2) r f args with
+     | (d,exp,tv)::[] when tv && isInteger exp = Some 1L -> d
+     | xs -> List.iter (fun (d,e,tv) -> ctx2.split2 d e tv) xs; D.bot ()
+end
+
+
 module FromSpec (S:Spec2) (Cfg:CfgBackward)
   : GlobConstrSys with type lv = node * S.D.t
                    and type gv = varinfo
@@ -248,138 +301,4 @@ struct
     | `L (v,es) -> List.map (one_edge es v) (!cfg v)
     
 end
-
-(* this should end up in another file *)
-
-module EQSys = Generic.NormalSysConverter (System) 
-module HT    = BatHashtbl.Make (EQSys.Var)
-module Slvr  = Generic.DirtyBoxSolver (EQSys) (HT) 
-
-
-module RT = Analyses.ResultType (Spec) (Spec.Dom) (LD)
-module LT = SetDomain.HeadlessSet (RT)
-module RC = struct let result_name = "Analysis" end
-module Result = Analyses.Result (LT) (RC)
-    
-
-(** convert result that can be out-put *)
-let solver2source_result h : Result.t =
-  (* processed result *)
-  let res = Result.create 113 in
-    
-  (* Adding the state at each system variable to the final result *)
-  let add_local_var (n,es) state =
-    let loc = MyCFG.getLoc n in
-    if loc <> Cil.locUnknown then try 
-      let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
-      if Result.mem res p then 
-        (* If this source location has been added before, we look it up
-         * and add another node to it information to it. *)
-        let prev = Result.find res p in
-        Result.replace res p (LT.add (LD.unlift (HCLD.unlift es),state,fundec) prev)
-      else 
-        Result.add res p (LT.singleton (LD.unlift (HCLD.unlift es),state,fundec))
-      (* If the function is not defined, and yet has been included to the
-       * analysis result, we generate a warning. *)
-    with Not_found -> Messages.warn ("Undefined function has escaped.")
-  in
   
-  let collect_locals (k,n) v =
-    match k, v with
-      | `L k, `Left d -> add_local_var k d
-      | _ -> () 
-  in
-    HT.iter collect_locals h;
-    res
-    
-(** exctract global xml from result *)
-let make_global_xml g =
-  let one_glob k v = 
-    let k = Xml.PCData k.Cil.vname in
-    let varname = Xml.Element ("td",[],[k]) in
-    let varvalue = Xml.Element ("td",[],[Spec.Glob.Val.toXML v]) in
-    Xml.Element ("tr",[],[varname; varvalue])
-  in
-  let head = 
-    Xml.Element ("tr",[],[Xml.Element ("th",[],[Xml.PCData "var"])
-                         ;Xml.Element ("th",[],[Xml.PCData "value"])])
-  in 
-  let collect_globals (k,_:System.Var.t*int) v b =
-    match k, v with
-      | `G k, `Right v -> one_glob k v :: b
-      | _ -> b
-  in
-    Xml.Element ("table", [], head :: HT.fold collect_globals g [])
-
-
-let do_global_inits file = LD.lift (Spec.startstate ()), []
-
-let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) = 
-  Spec.init ();
-    
-  if (get_bool "dbg.verbose") then print_endline "Generating constraints."; 
-  cfg := MyCFG.getCFG file true;
-  
-	let startstate, more_funs = 
-    if (get_bool "dbg.verbose") then print_endline "Initializing globals.";
-    Stats.time "initializers" do_global_inits file 
-  in
-  
-  let otherfuns = if get_bool "kernel" then otherfuns @ more_funs else otherfuns in
-  
-  let enter_with st fd =
-    let top_query _ = Queries.Result.top () in
-    let args = List.map (fun x -> MyCFG.unknown_exp) fd.Cil.sformals in
-    let theta x = Spec.Glob.Val.bot () in
-    let ignore2 _ _ = () in 
-    let error _ = failwith "Bug: Using enter_func for toplevel functions with 'otherstate'." in 
-    let ctx = Analyses.context top_query st theta [] ignore2 error error in
-    let ents = Spec.enter_func ctx None fd.Cil.svar args in
-      List.map (fun (_,s) -> fd.Cil.svar, LD.lift s) ents  
-  in
-  
-  let _ = try MyCFG.dummy_func.Cil.svar.Cil.vdecl <- (List.hd otherfuns).Cil.svar.Cil.vdecl with Failure _ -> () in
-  
-  let startvars = 
-    if startfuns = [] 
-    then [[MyCFG.dummy_func.Cil.svar, startstate]]
-    else List.map (enter_with (LD.unlift startstate)) startfuns 
-  in
-   
-  let exitvars = List.map (enter_with (Spec.exitstate ())) exitfuns in
-  let othervars = List.map (enter_with (Spec.otherstate ())) otherfuns in
-  let startvars = List.concat (startvars @ exitvars @ othervars) in
-  
-  let _ = 
-  if startvars = [] 
-    then failwith "BUG: Empty set of start variables; may happen if\
-       enter_func of any analysis returns an empty list." 
-  in
-  
-  let context_fn f = if get_bool "exp.full-context" then fun x->x else Spec.context_top f in
-  
-  let startvars' = 
-    List.map (fun (n,e) -> (`L (MyCFG.Function n, HCLD.lift (LD.lift (context_fn n (LD.unlift e)))),0)) startvars in
-  
-  let entrystates = List.map2 (fun (`L (_,e),i) (n,d) -> ((`L (MyCFG.FunctionEntry n, e), i), `Left d)) startvars' startvars in
-  (*
-  let entrystatesq = List.map2 (fun (_,e) (n,d) -> (MyCFG.FunctionEntry n, e), d) startvars' startvars in
-  let startvars'' = if !Goblintutil.forward then [] else startvars' in
-  *)
-  
-  let local_xml = ref (Result.create 0) in
-  let global_xml = ref (Xml.PCData "not-ready" ) in
-  let do_analyze () =
-    let h = Slvr.solve EQSys.box entrystates startvars' in
-    local_xml := solver2source_result h;
-    global_xml := make_global_xml h
-  in
-  Spec.finalize ();
-  
-  Goblintutil.timeout do_analyze () (float_of_int (get_int "dbg.timeout"))
-    (fun () -> Messages.waitWhat "Timeout reached!");
-    
-  Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file
-  
-    
-    
