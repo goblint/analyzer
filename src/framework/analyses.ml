@@ -648,7 +648,7 @@ sig
   val otherstate : unit -> D.t
 
   val context : D.t -> C.t
-  val call_descr : fundec -> D.t -> string
+  val call_descr : fundec -> C.t -> string
   
   val sync  : (D.t, G.t) ctx2 -> D.t * (varinfo * G.t) list
   val query : (D.t, G.t) ctx2 -> Queries.t -> Queries.Result.t 
@@ -662,6 +662,26 @@ sig
   val special : (D.t, G.t) ctx2 -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t) ctx2 -> lval option -> varinfo -> exp list -> (D.t * D.t) list 
   val combine : (D.t, G.t) ctx2 -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
+end
+
+module ResultType2 (Spec: Spec2) = 
+struct
+  include Printable.Prod3 (Spec.C) (Spec.D) (Basetype.CilFundec)
+  let isSimple _ = false
+  let short w (es,x,f:t) = Spec.call_descr f es
+  let toXML (es,x,_ as st:t) = 
+    let open Xml in
+    let flatten_single = function
+      | Element (_,_,[x]) | x ->  x in
+    let try_replace_text s = function
+    	| Element (tag, attr, children) -> Element (tag, ["text", s], children) 
+    	| x -> x
+    in
+    let esc = Goblintutil.escape in
+    let ctx = try_replace_text "Context" (flatten_single (Spec.C.toXML es)) in
+    let res = try_replace_text "Value" (flatten_single (Spec.D.toXML x)) in
+      Element ("Node",["text",esc (short 80 st)],[ctx;res])            
+  let pretty () (_,x,_) = Spec.D.pretty () x
 end
 
 (** A side-effecting system. *)

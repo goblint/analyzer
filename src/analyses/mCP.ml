@@ -655,7 +655,8 @@ end
 module Spec 
   : Analyses.Spec 
     with type Dom.t = local_state list 
-     and type Glob.Val.t = global_state list = 
+     and type Glob.Val.t = global_state list 
+     and module Glob.Var = Basetype.Variables = 
 struct
   module Dom  = Domain
   module Glob = 

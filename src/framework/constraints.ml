@@ -7,6 +7,67 @@ open GobConfig
 open Batteries_uni
 
 
+
+module HashconsLifter (S:Spec2)
+  : Spec2 with module D = Lattice.HConsed (S.D)
+           and module G = S.G
+           and module C = Printable.HConsed (S.C)
+  = 
+struct
+  module D = Lattice.HConsed (S.D)
+  module G = S.G
+  module C = Printable.HConsed (S.C)
+  
+  let name = S.name^" hashconsed"
+  
+  let init = S.init
+  let finalize = S.finalize
+  
+  let startstate () = D.lift (S.startstate ())
+  let exitstate () = D.lift (S.exitstate ())
+  let otherstate () = D.lift (S.otherstate ())
+
+  let context = C.lift -| S.context -| D.unlift
+  let call_descr f = S.call_descr f -| D.unlift
+
+  let conv ctx = 
+    { ctx with local2 = D.unlift ctx.local2 
+             ; spawn2 = (fun v -> ctx.spawn2 v -| D.lift )
+             ; split2 = (fun d e tv -> ctx.split2 (D.lift d) e tv )
+    }
+  
+  let sync ctx = 
+    let d, diff = S.sync (conv ctx) in
+    D.lift d, diff
+    
+  let query ctx q = 
+    S.query (conv ctx) q
+    
+  let assign ctx lv e = 
+    D.lift **> S.assign (conv ctx) lv e
+    
+  let branch ctx e tv = 
+    D.lift **> S.branch (conv ctx) e tv
+    
+  let body ctx f = 
+    D.lift **> S.body (conv ctx) f
+    
+  let return ctx r f = 
+    D.lift **> S.return (conv ctx) r f
+    
+  let intrpt ctx = 
+    D.lift **> S.intrpt (conv ctx)
+    
+  let enter ctx r f args = 
+    List.map (fun (x,y) -> D.lift x, D.lift y) **> S.enter (conv ctx) r f args
+    
+  let special ctx r f args = 
+    D.lift **> S.special (conv ctx) r f args
+      
+  let combine ctx r fe f args es = 
+    D.lift **> S.combine (conv ctx) r fe f args (D.unlift es) 
+end 
+
 module DeadCodeLifter (S:Spec2)
   : Spec2 with module D = Dom (S.D)
            and module G = S.G
@@ -27,55 +88,35 @@ struct
   let otherstate () = `Lifted (S.otherstate ())
 
   let context = S.context -| D.unlift
-  let call_descr f = S.call_descr f -| D.unlift
+  let call_descr f = S.call_descr f 
 
   let conv ctx = 
     { ctx with local2 = D.unlift ctx.local2 
              ; spawn2 = (fun v -> ctx.spawn2 v -| D.lift )
              ; split2 = (fun d e tv -> ctx.split2 (D.lift d) e tv )
     }
+    
+  let lift_fun ctx f g h b =
+    try f **> h (g (conv ctx)) 
+    with Deadcode -> b
   
   let sync ctx = 
-    try let d, diff = S.sync (conv ctx) in
-        D.lift d, diff
-    with Deadcode -> `Bot, []
-    
-  let query ctx q = 
-    try S.query (conv ctx) q
-    with Deadcode -> `Top
-    
-  let assign ctx lv e = 
-    try D.lift **> S.assign (conv ctx) lv e
-    with Deadcode -> `Bot
-    
-  let branch ctx e tv = 
-    try D.lift **> S.branch (conv ctx) e tv
-    with Deadcode -> `Bot
-  
-  let body ctx f = 
-    try D.lift **> S.body (conv ctx) f
-    with Deadcode -> `Bot
+    let liftpair (x,y) = D.lift x, y in
+    lift_fun ctx liftpair S.sync identity (`Bot, [])
 
-  let return ctx r f = 
-    try D.lift **> S.return (conv ctx) r f
-    with Deadcode -> `Bot
-    
-  let intrpt ctx = 
-    try D.lift **> S.intrpt (conv ctx)
-    with Deadcode -> `Bot
-  
   let enter ctx r f args = 
-    try List.map (fun (x,y) -> D.lift x, D.lift y) **> S.enter (conv ctx) r f args
-    with Deadcode -> []
+    let liftmap = List.map (fun (x,y) -> D.lift x, D.lift y) in
+    lift_fun ctx liftmap S.enter ((|>) args -| (|>) f -| (|>) r) []
     
-  let special ctx r f args = 
-    try D.lift **> S.special (conv ctx) r f args
-    with Deadcode -> `Bot
-    
-  let combine ctx r fe f args es = 
-    try D.lift **> S.combine (conv ctx) r fe f args (D.unlift es) 
-    with Deadcode -> `Bot
-
+  let query ctx q     = lift_fun ctx identity S.query  ((|>) q)            `Bot    
+  let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e -| (|>) lv) `Bot
+  let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv -| (|>) e) `Bot
+  let body ctx f      = lift_fun ctx D.lift   S.body   ((|>) f)            `Bot
+  let return ctx r f  = lift_fun ctx D.lift   S.return ((|>) f -| (|>) r)  `Bot
+  let intrpt ctx      = lift_fun ctx D.lift   S.intrpt identity            `Bot
+  let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args -| (|>) f -| (|>) r)        `Bot
+  let combine ctx r fe f args es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args (D.unlift es)) `Bot
+  
 end 
 
 
@@ -99,7 +140,7 @@ struct
   let exitstate = S.exitstate
   let otherstate = S.otherstate
 
-  let context = identity
+  let context = S.context_top dummyFunDec.svar
   let call_descr = S.es_to_string
   
   let conv_ctx ctx2 =
@@ -160,7 +201,8 @@ struct
   let context = S.context
 
   let common_ctx (v,c) u (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx2 = 
-    let pval = getl (u,c) in 
+    let pval = getl (u,c) in     
+    if !Messages.worldStopped then raise M.StopTheWorld;
     (* now wach this ... *)
     let rec ctx = 
       { ask2     = query
@@ -168,13 +210,18 @@ struct
       ; global2  = getg
       ; presub2  = []
       ; postsub2 = []
-      ; spawn2   = (fun f d -> sidel (Function f, S.context d) (D.bot ()))
+      ; spawn2   = (fun f d -> let c = S.context d in 
+                                sidel (FunctionEntry f, c) d; 
+                                ignore (getl (Function f, c)))
       ; split2   = (fun (d:D.t) _ _ -> sidel (v,c) d)
       ; sideg2   = sideg
       } 
     and query x = S.query ctx x in
     (* ... nice, right! *)
-    ctx
+    let pval, diff = S.sync ctx in
+    let _ = List.iter (uncurry sideg) diff in
+    { ctx with local2 = pval }
+    
 
   let tf_loop (v,c) u getl sidel getg sideg = 
     let ctx = common_ctx (v,c) u getl sidel getg sideg 
@@ -196,21 +243,30 @@ struct
     let ctx = common_ctx (v,c) u getl sidel getg sideg 
     in S.branch ctx e tv
 
+  let tf_normal_call ctx lv e f args  getl sidel getg sideg =
+    let combine (cd, fd) = S.combine {ctx with local2 = cd} lv e f args fd in
+    let paths = S.enter ctx lv f args in
+    let _     = List.iter (fun (c,v) -> sidel (FunctionEntry f, S.context v) v) paths in
+    let paths = List.map (fun (c,v) -> (c, getl (Function f, S.context v))) paths in
+    let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
+    let paths = List.map combine paths in
+      List.fold_left D.join (D.bot ()) paths
+      
+  let tf_special_call ctx lv f args = S.special ctx lv f args 
+
   let tf_proc lv e args (v,c) u getl sidel getg sideg = 
     let ctx = common_ctx (v,c) u getl sidel getg sideg in 
     let functions = 
       match ctx.ask2 (Queries.EvalFunvar e) with 
         | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
+        | `Bot -> []
         | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
     in
     let one_function f = 
-      let combine (cd, fd) = S.combine {ctx with local2 = cd} lv e f args fd in
-      let paths = S.enter ctx lv f args in
-      let _     = List.iter (fun (c,v) -> sidel (FunctionEntry f, S.context v) v) paths in
-      let paths = List.map (fun (c,v) -> (c, getl (Function f, S.context v))) paths in
-      let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
-      let paths = List.map combine paths in
-      List.fold_left D.join (D.bot ()) paths
+      let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
+      if has_dec && not (LibraryFunctions.use_special f.vname) 
+      then tf_normal_call ctx lv e f args getl sidel getg sideg
+      else tf_special_call ctx lv f args
     in
     let funs = List.map one_function functions in
     List.fold_left D.join (D.bot ()) funs
@@ -231,7 +287,9 @@ struct
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_loc = !Tracing.current_loc in
     let _       = Tracing.current_loc := getLoc u in
-    let d       = tf (v,c) (e,u) getl sidel getg sideg in
+    let d       = try tf (v,c) (e,u) getl sidel getg sideg 
+                  with M.StopTheWorld -> D.bot ()
+                     | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
     let _       = Tracing.current_loc := old_loc in 
       d
   

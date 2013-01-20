@@ -236,7 +236,7 @@ struct
               let oldgstate = gh_find_default theta g (G.bot ()) in
               let compgs = G.join oldgstate gstate in
                 if not (G.leq compgs oldgstate) then begin
-                  let lst = GH.find gInfl g in
+                  let lst = gh_find_default gInfl g [] in
                   GH.replace theta g compgs;
                   unsafe := lst @ !unsafe;
                   GH.remove gInfl g

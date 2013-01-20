@@ -98,7 +98,7 @@ end
 module HConsed (Base:S) =
 struct
   module HC = BatHashcons.MakeTable (Base)
-  let htable = HC.create 1000000
+  let htable = HC.create 100000
    
   type t = Base.t BatHashcons.hobj
   let unlift x = x.BatHashcons.obj
