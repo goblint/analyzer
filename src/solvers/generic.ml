@@ -49,7 +49,7 @@ end
 
 (** Convert a an [IneqConstrSys] into an equation system. *)
 module NormalSysConverter (S:IneqConstrSys) 
-  : EqConstrSys 
+  : sig include EqConstrSys val conv : S.v -> (S.v * int) end
   with type v = S.v * int
    and type d = S.d
    and module Var = ExtendInt (S.Var)

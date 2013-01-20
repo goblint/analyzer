@@ -708,13 +708,6 @@ module type IneqConstrSys = MonSystem with type 'a m := 'a list
 (** Any system of side-effecting equations over lattices. *)
 module type EqConstrSys = MonSystem with type 'a m := 'a option 
 
-module type GVarType =
-sig
-  include Hashtbl.HashedType
-  val pretty_trace: unit -> t -> Pretty.doc
-  val compare : t -> t -> int
-end 
-
 (** A side-effecting system with globals. *)
 module type GlobConstrSys =
 sig
@@ -727,7 +720,7 @@ sig
   module C : Printable.S
   
   module LVar : VarType  with type t = lv
-  module GVar : GVarType with type t = gv
+  module GVar : VarType with type t = gv
 
   module D : Lattice.S with type t = ld
   module G : Lattice.S with type t = gd

@@ -85,6 +85,12 @@ struct
   let pretty () x = pretty_f short () x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let category _ = -1          
+  let line_nr a = a.Cil.vdecl.Cil.line
+  let file_name a = a.Cil.vdecl.Cil.file
+  let description n = sprint 80 (pretty_trace () n)
+  let context () _ = Pretty.nil
+  let loopSep _ = true
 end
 
 
