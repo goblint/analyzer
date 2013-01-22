@@ -95,9 +95,7 @@ struct
    *  adding proper dependencies *)
   let rec get a (gs: glob_fun) (st,fl: store) (addrs:address): value =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
-    let get_global x =
-      if x.Cil.vstorage = Extern || Cil.hasAttribute "volatile" (x.Cil.vattr) then VD.join (gs x) (VD.top ()) else gs x
-    in
+    let get_global x = gs x in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
     (* Finding a single varinfo*offset pair *)
     let res = 
@@ -129,6 +127,15 @@ struct
       if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
       res
 
+  let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
+
+  let update_variable variable value state =
+    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then 
+      CPA.add variable (VD.top ()) state
+    else
+      CPA.add variable value state
+    
+
   (** [set st addr val] returns a state where [addr] is set to [val] *)
   let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value): store =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may lval)).vname with _ -> "" else "" in
@@ -151,11 +158,11 @@ struct
           in
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          CPA.add x (VD.update_offset (get x nst) offs value) nst
+          update_variable x (VD.update_offset (get x nst) offs value) nst
         end 
       else
        (* Normal update of the local state *)
-       CPA.add x (VD.update_offset (CPA.find x nst) offs value) nst
+       update_variable x (VD.update_offset (CPA.find x nst) offs value) nst
     in 
     let update_one x (y: cpa) =
       match Addr.to_var_offset x with

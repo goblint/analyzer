@@ -771,6 +771,7 @@ struct
     let module HS = Generic.HBoxSolver                 (EqSysNormal) (H2) in
     let module TP = Generic.CousotNonBoxSolver         (EqSysNormal) (H2) in
     let module CM = Generic.CompareBoxSolvers          (EqSysNormal) (H2) in
+    let module CM2= Generic.CompareWPoints             (EqSysNormal) (H2) in
     let module WS = Generic.WideningSolver             (EqSysNormal) (H2) in
     
     (* chooses a solver & translates input and output *)
@@ -803,22 +804,23 @@ struct
       in
       (* choose solver and translate output *)
       begin match get_string "solver" with 
-        | "s1" -> H1.iter add1 (S1.solve sval1 svar1)
-        | "s2" -> H1.iter add1 (S2.solve sval1 svar1)
-        | "s3" -> H1.iter add1 (S3.solve sval1 svar1)
-        | "n1" -> H2.iter add2 (S4.solve sval2 svar2)
-        | "n2" -> H2.iter add2 (S5.solve sval2 svar2)
-        | "n3" -> H2.iter add2 (S6.solve sval2 svar2)
-        | "hbox" -> H2.iter add2 (HS.solve sval2 svar2)
-        | "fwtn" -> H2.iter add2 (TP.solve sval2 svar2)
-        | "cmp"  -> H2.iter add2 (CM.solve sval2 svar2)
-        | "widen" -> H2.iter add2 (WS.solve sval2 svar2)
+        | "s1"    -> H1.iter add1 (S1.solve EqSysDirty.box sval1 svar1)
+        | "s2"    -> H1.iter add1 (S2.solve EqSysDirty.box sval1 svar1)
+        | "s3"    -> H1.iter add1 (S3.solve EqSysDirty.box sval1 svar1)
+        | "n1"    -> H2.iter add2 (S4.solve EqSysNormal.box sval2 svar2)
+        | "n2"    -> H2.iter add2 (S5.solve EqSysNormal.box sval2 svar2)
+        | "n3"    -> H2.iter add2 (S6.solve EqSysNormal.box sval2 svar2)
+        | "hbox"  -> H2.iter add2 (HS.solve EqSysNormal.box sval2 svar2)
+        | "fwtn"  -> H2.iter add2 (TP.solve EqSysNormal.box sval2 svar2)
+        | "cmp"   -> H2.iter add2 (CM.solve EqSysNormal.box sval2 svar2)
+        | "cmp2"  -> H2.iter add2 (CM2.solve EqSysNormal.box  sval2 svar2)
+        | "widen" -> H2.iter add2 (WS.solve EqSysNormal.box sval2 svar2)
         | _ -> () end;
       (ls,gs)
     in
     let sol,gs = 
       let solve () =
-        if List.mem (get_string "solver") ["s1";"s2";"s3";"n1";"n2";"n3";"hbox";"cmp";"fwtn";"widen"]
+        if List.mem (get_string "solver") ["s1";"s2";"s3";"n1";"n2";"n3";"hbox";"cmp";"cmp2";"fwtn";"widen"]
         then new_fwk_solve startvars'' entrystatesq
         else Solver.solve () (system cfg old old_g old_s phase) startvars'' entrystatesq
       in

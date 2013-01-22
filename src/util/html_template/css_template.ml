@@ -70,12 +70,12 @@ html , body {
   margin: 0px;
 }
   
-.linetype0
+.lt0
 {
   background-color: #F0F0F0;
 }
         
-.linetype1
+.lt1
 {
   background-color: #F8F8F8;
 }
@@ -170,6 +170,15 @@ table {
 }
 .entrydircontent {
 	margin-left: 15px;
+}
+
+.tabheader {
+	float: left;
+	margin-left: 2px;
+	padding: 2px;
+	border: 1px solid #C0C0C0;
+	background-color: #F8F8F8;
+	font-size: 14px;
 }
 
 "

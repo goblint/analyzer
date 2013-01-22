@@ -112,6 +112,16 @@ struct
       fold f ls (Mutexes.empty ())
 end
 
+module MayLockset = 
+struct
+  include Lockset
+  let leq x y = leq y x
+  let join = Lockset.meet
+  let meet = Lockset.join
+  let top = Lockset.bot
+  let bot = Lockset.top
+end
+
 module Symbolic = 
 struct
   module S = SetDomain.ToppedSet (Exp) (struct let topname = "All mutexes" end)

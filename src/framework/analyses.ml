@@ -39,6 +39,8 @@ type local_state = [
     | `Stack2       of StackDomain.Dom2.t
     | `Flag        of ConcDomain.Trivial.t
     | `Need        of unit
+    | `MayLocks    of LockDomain.MayLockset.t
+    | `ThreadLocSet of ConcDomain.ThreadStringSet.t
     ]
 
 type global_state = [
@@ -368,7 +370,9 @@ struct
   let file_name n = (MyCFG.getLoc n).file
   let description n = sprint 80 (pretty () n)
   let context () _ = Pretty.nil
-  let loopSep _ = true
+  let loopSep =  function 
+    | MyCFG.Statement s -> MyCFG.loopSep s
+    | _ -> false
 end
 
 
@@ -420,10 +424,10 @@ struct
   let file_name (n,_) = (MyCFG.getLoc n).file
   let description (n,_) = sprint 80 (Var.pretty () n)
   let context () (_,c) = LD.pretty () c
-  let loopSep = function
-    | (MyCFG.Statement s,_) -> s.labels <> [] (* note that this works only because 
-                                                 cil inserts continue_while breakpoints *)
-    | _ -> false
+  let loopSep =  function 
+    | MyCFG.Statement s, _ -> MyCFG.loopSep s
+    | MyCFG.FunctionEntry _, _ -> true
+    | MyCFG.Function _, _ -> false
 end
 
 module VarCS =
@@ -614,4 +618,135 @@ struct
       H1.iter f h1;
       H2.iter g h2;
       hash
+end
+
+(*********************)
+
+type ('d,'g) ctx2 = 
+    { ask2      : Queries.t -> Queries.Result.t
+    ; local2    : 'd
+    ; global2   : varinfo -> 'g 
+    ; presub2   : local_state list
+    ; postsub2  : local_state list
+    ; spawn2    : varinfo -> 'd -> unit
+    ; split2    : 'd -> exp -> bool -> unit
+    ; sideg2    : varinfo -> 'g -> unit 
+    }
+
+module type Spec2 =
+sig
+  module D : Lattice.S
+  module G : Lattice.S
+  module C : Printable.S
+  
+  val name : string
+  
+  val init : unit -> unit
+  val finalize : unit -> unit
+  
+  val startstate : unit -> D.t
+  val exitstate : unit -> D.t
+  val otherstate : unit -> D.t
+
+  val context : D.t -> C.t
+  val call_descr : fundec -> C.t -> string
+  
+  val sync  : (D.t, G.t) ctx2 -> D.t * (varinfo * G.t) list
+  val query : (D.t, G.t) ctx2 -> Queries.t -> Queries.Result.t 
+  val assign: (D.t, G.t) ctx2 -> lval -> exp -> D.t 
+  val branch: (D.t, G.t) ctx2 -> exp -> bool -> D.t
+  val body  : (D.t, G.t) ctx2 -> fundec -> D.t
+  val return: (D.t, G.t) ctx2 -> exp option  -> fundec -> D.t
+  val intrpt: (D.t, G.t) ctx2 -> D.t
+  
+
+  val special : (D.t, G.t) ctx2 -> lval option -> varinfo -> exp list -> D.t
+  val enter   : (D.t, G.t) ctx2 -> lval option -> varinfo -> exp list -> (D.t * D.t) list 
+  val combine : (D.t, G.t) ctx2 -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
+end
+
+module ResultType2 (Spec: Spec2) = 
+struct
+  include Printable.Prod3 (Spec.C) (Spec.D) (Basetype.CilFundec)
+  let isSimple _ = false
+  let short w (es,x,f:t) = Spec.call_descr f es
+  let toXML (es,x,_ as st:t) = 
+    let open Xml in
+    let flatten_single = function
+      | Element (_,_,[x]) | x ->  x in
+    let try_replace_text s = function
+    	| Element (tag, attr, children) -> Element (tag, ["text", s], children) 
+    	| x -> x
+    in
+    let esc = Goblintutil.escape in
+    let ctx = try_replace_text "Context" (flatten_single (Spec.C.toXML es)) in
+    let res = try_replace_text "Value" (flatten_single (Spec.D.toXML x)) in
+      Element ("Node",["text",esc (short 80 st)],[ctx;res])            
+  let pretty () (_,x,_) = Spec.D.pretty () x
+end
+
+(** A side-effecting system. *)
+module type MonSystem =
+sig
+  type v    (** variables *)
+  type d    (** values    *)
+  type 'a m (** basically a monad carrier *)
+  
+  (** Variables must be hashable, comparable, etc.  *)
+  module Var : VarType with type t = v
+  (** Values must form a lattice. *)
+  module Dom : Lattice.S with type t = d
+  (** box --- needed here for transformations *)
+  val box : v -> d -> d -> d
+  
+  (** The system in functional form. *)
+  val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
+end
+
+(** Any system of side-effecting inequations over lattices. *)
+module type IneqConstrSys = MonSystem with type 'a m := 'a list 
+
+(** Any system of side-effecting equations over lattices. *)
+module type EqConstrSys = MonSystem with type 'a m := 'a option 
+
+(** A side-effecting system with globals. *)
+module type GlobConstrSys =
+sig
+  type lv
+  type gv
+  type ld
+  type gd
+  
+  type c
+  module C : Printable.S
+  
+  module LVar : VarType  with type t = lv
+  module GVar : VarType with type t = gv
+
+  module D : Lattice.S with type t = ld
+  module G : Lattice.S with type t = gd
+  
+  val context : ld -> c 
+  val system : lv -> ((lv -> ld) -> (lv -> ld -> unit) -> (gv -> gd) -> (gv -> gd -> unit) -> ld) list
+end
+
+(** A solver is something that can translate a system into a solution (hash-table) *)
+module type GenericEqBoxSolver =
+  functor (S:EqConstrSys) ->
+  functor (H:Hash.H with type key=S.v) ->
+sig
+  (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
+      reached from starting values [xs].  *)
+  val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
+end
+
+(** A solver is something that can translate a system into a solution (hash-table) *)
+module type GenericGlobSolver =
+  functor (S:GlobConstrSys) ->
+  functor (LH:Hash.H with type key=S.lv) ->
+  functor (GH:Hash.H with type key=S.gv) ->
+sig
+  (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
+      reached from starting values [xs].  *)
+  val solve : (S.lv*S.ld) list -> (S.gv*S.gd) list -> S.lv list -> S.ld LH.t * S.gd GH.t
 end

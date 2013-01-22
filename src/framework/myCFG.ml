@@ -2,11 +2,19 @@ module GU = Goblintutil
 module CF = Cilfacade
 open Cil
 open Pretty
+open GobConfig
 
 type node = 
-  | Statement of stmt 
+  | Statement of stmt  
+  (** The statements as identified by CIL *)
   | FunctionEntry of varinfo
-  | Function of varinfo 
+  (** *)
+  | Function of varinfo  
+  (** The variable information associated with the function declaration. *)
+(** A node in the Control Flow Graph is either a statement or function. Think of
+  * the function node as last node that all the returning nodes point to.  So
+  * the result of the function call is contained in the fucntion node. *)
+
   
 let pretty_node () = function
   | Statement s -> text "Statement " ++ dn_stmt () s
@@ -50,14 +58,27 @@ type asm_out = (string option * string * lval) list
 type asm_in  = (string option * string * exp ) list
 
 type edge = 
-  | Assign of lval * exp
-  | Proc of lval option * exp * exp list
-  | Entry of fundec
+  | Assign of lval * exp  
+  (** Assignments lval = exp *)
+  | Proc of lval option * exp * exp list 
+  (** Function calls of the form lva = fexp (e1, e2, ...) *)
+  | Entry of fundec 
+  (** Entry edge that relates function declaration to function body. You can use 
+    * this to initialize the local variables. *)
   | Ret of exp option * fundec
-  | Test of exp * bool
+  (** Return edge is between the return statement, which may optionally contain
+    * a return value, and the function. The result of the call is then
+    * transfered to the function node! *)
+  | Test of exp * bool 
+  (** The true-branch or false-branch of a conditional exp *) 
   | ASM of string list * asm_out * asm_in
-  | Skip
-  | SelfLoop
+  (** Inline assembly statements, and the annotations for output and input
+    * variables. *)
+  | Skip 
+  (** This is here for historical reasons. I never use Skip edges! *)
+  | SelfLoop 
+  (** This for interrupt edges.! *)
+
 
 let pretty_edge () = function
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv  
@@ -82,6 +103,22 @@ let pretty_edge_kind () = function
   | SelfLoop -> text "SelfLoop"
 
 type cfg = node -> (edge * node) list
+
+module type CfgBackward =
+sig
+  val prev : node -> (edge * node) list
+end
+
+module type CfgForward =
+sig
+  val next : node -> (edge * node) list
+end
+
+module type CfgBidir =
+sig
+  include CfgBackward
+  include CfgForward
+end
 
 module H = Hashtbl.Make(Node)
 
@@ -222,51 +259,58 @@ let createCFG (file: file) backw =
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
   cfg
 
+let hasBackEdges = ref BatSet.IntSet.empty 
+let collectBackEdges cfg = 
+  let note_back_edge t (_,f) = 
+    match t, f with
+    | (Statement t, Statement f) -> 
+        if t.sid < f.sid then hasBackEdges := BatSet.IntSet.add t.sid !hasBackEdges 
+    | _ -> ()
+  in
+  H.iter note_back_edge cfg 
+
 
 let print cfg  =
   let out = open_out "cfg.dot" in
-  let printf fmt = Printf.fprintf out fmt in
-  let pc arg = Pretty.sprint 80 arg in
-  let _ = printf "digraph cfg {\n" in
-  let p_node node = 
-    match node.skind with
-      | Instr [Set(lval,exp,loc)] -> pc (Pretty.dprintf "%a = %a" d_lval lval d_exp exp)
-      | Instr [Call _] -> pc (Pretty.dprintf "%a" d_stmt node)
-      | Return (Some exp,loc) -> pc (Pretty.dprintf "return %a" d_exp exp)
-      | Return (None,loc) -> "return"
-      | If (exp,_,_,_) -> pc (Pretty.dprintf "%a" d_exp exp)
-      | _ -> string_of_int node.sid
+  let module NH = Hashtbl.Make (Node) in
+  let node_table = NH.create 113 in
+  let _ = Printf.fprintf out "digraph cfg {\n" in
+  let p_node () = function
+      | Statement stmt  -> Pretty.dprintf "%d" stmt.sid
+      | Function f      -> Pretty.dprintf "ret%d" f.vid
+      | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
   in
-  let p_edge edge = 
-    match edge with
-      | Test (exp,true)  when isZero exp -> "extra"
-      | Test (exp,false) when isConstant  exp -> "extra"
-      | Test (exp,tv) -> string_of_bool tv
-      | Skip -> "skip"
-| SelfLoop -> "SelfLoop"
-      | _  -> ""
+  let p_edge () = function
+      | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
+      | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
+      | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (d_list ", " dn_exp) args
+      | Proc (None,f,args) -> Pretty.dprintf "%a(%a)" dn_exp f (d_list ", " dn_exp) args
+      | Entry (f) -> Pretty.nil
+      | Ret (Some e,f) -> Pretty.dprintf "return %a" dn_exp e
+      | Ret (None,f) -> Pretty.dprintf "return"
+      | ASM (_,_,_) -> Pretty.text "ASM ..."
+      | Skip -> Pretty.text "skip"
+      | SelfLoop -> Pretty.text "SelfLoop"
   in
-  let printNode (toNode: node) ((edge:edge), (fromNode: node)) = 
-    match toNode, edge, fromNode with 
-      | Statement toNode, Entry {svar=fv}, _ -> begin
-          printf "\tfun%d -> %d [label = \"%s\"] ;\n" fv.vid toNode.sid (p_edge edge);
-          printf "\tfun%d [label=\"%s()\", shape=box]\n" fv.vid fv.vname
-        end
-      | _, Ret _, Statement stmt ->
-          printf "\t%d [label=\"%s\", shape=box]\n" stmt.sid (p_node stmt)
-      | Statement toNode, _, Statement fromNode -> begin
-          printf "\t%d -> %d [label = \"%s\"] ;\n" fromNode.sid toNode.sid (p_edge edge);
-          match edge with
-            | Test (_,true) -> printf "\t%d [label=\"%s\", shape=diamond]\n" fromNode.sid (p_node fromNode)
-            | Test (_,false) -> ()
-            | _ -> printf "\t%d [label=\"%s\"]\n" fromNode.sid (p_node fromNode)
-        end
-      | _ -> ()
+  let printNodeStyle (n:node) () = 
+    match n with 
+      | Statement {skind=If (_,_,_,_)} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
+      | Statement stmt  -> ()
+      | Function f      -> ignore (Pretty.fprintf out "\t%a [shape=box];\n" p_node (Function f))
+      | FunctionEntry f -> ignore (Pretty.fprintf out "\t%a [label =\"%s()\",shape=box];\n" p_node (FunctionEntry f) f.vname)
   in
-    H.iter printNode cfg;
-    printf "}\n";
-    flush out
-
+  let printEdge (toNode: node) ((edge:edge), (fromNode: node)) = 
+    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edge edge);
+    NH.add node_table toNode ();
+    NH.add node_table fromNode ()
+  in
+    H.iter printEdge cfg;    
+    NH.iter printNodeStyle node_table;
+    BatSet.IntSet.iter (Printf.fprintf out "\t%d [style=filled, fillcolor=yellow];\n") !hasBackEdges;
+    Printf.fprintf out "}\n";
+    flush out;
+    close_out_noerr out
+    
 let initfun = emptyFunction "goblin_initfun"
 let getGlobalInits (file: file) : (edge * location) list  =
   let vars = ref [] in
@@ -306,11 +350,20 @@ let generate_irpt_edges cfg =
       | _ -> H.add cfg toNode (SelfLoop, toNode)
   in
     H.iter make_irpt_edge cfg
+    
+let __use_back_loop_cache = ref None
+let rec loopSep x = 
+  match Some (get_bool "exp.back_loop_sep") with
+    | None -> __use_back_loop_cache := Some (get_bool "exp.back_loop_sep"); loopSep x
+    | Some true -> BatSet.IntSet.mem x.sid !hasBackEdges
+    | Some false -> true
+    
   
 let getCFG (file: file) backw : cfg = 
   let cfg = createCFG file backw in
+    collectBackEdges cfg;
 (*    if !GU.oil then generate_irpt_edges cfg;*)
-    if !GU.cfg_print then print cfg;      
+    if get_bool "justcfg" then print cfg;      
     H.find_all cfg
 
 let getLoc (node: node) = 

@@ -134,6 +134,8 @@ function resizeAll() {
 function onLoad() {
   resizeAll();
   window.onresize = resizeAll;
+
+  init_all();
 }
 
 function MakeLineVisible(i) {
@@ -241,6 +243,29 @@ function toggleVisibility(e,title) {
 function hideWindow(windowName) {
   document.getElementById(windowName).style.display = 'none';
   resizeAll();
+}
+
+function showLeftTab(no) {
+  if (no == 0) {
+    document.getElementById('analysisbox').style.display = '';
+    document.getElementById('globalsbox').style.display = 'none';
+    document.getElementById('warningsbox').style.display = 'none';
+  }
+  if (no == 1) {
+    document.getElementById('analysisbox').style.display = 'none';
+    document.getElementById('globalsbox').style.display = '';
+    document.getElementById('warningsbox').style.display = 'none';
+  }
+  if (no == 2) {
+    document.getElementById('analysisbox').style.display = 'none';
+    document.getElementById('globalsbox').style.display = 'none';
+    document.getElementById('warningsbox').style.display = '';
+  }
+}
+
+function ScrollToLine(line) {
+  document.getElementById('codeWindowContent').scrollTop = (line-1)*document.getElementById('line1').clientHeight;
+
 }
 
 "

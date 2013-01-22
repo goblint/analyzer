@@ -98,7 +98,7 @@ end
 module HConsed (Base:S) =
 struct
   module HC = BatHashcons.MakeTable (Base)
-  let htable = HC.create 1000000
+  let htable = HC.create 100000
    
   type t = Base.t BatHashcons.hobj
   let unlift x = x.BatHashcons.obj
@@ -517,6 +517,24 @@ struct
     match (x,y) with
       | `Lifted x, `Lifted y -> Base.pretty_diff () (x,y)
       | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+end
+
+
+module Strings = 
+struct
+  type t = string
+  include Std
+  let hash (x:t) = Hashtbl.hash x
+  let equal (x:t) (y:t) = x=y
+  let pretty () n = text n
+  let short _ n = n
+  let toXML x = Xml.Element ("Leaf", [("text", x)], [])
+  let isSimple _ = true
+  let pretty_f _ = pretty
+  let toXML_f _ = toXML
+  let name () = "String"
+  let pretty_diff () (x,y) = 
+    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 

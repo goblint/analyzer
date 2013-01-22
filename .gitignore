@@ -1,5 +1,4 @@
 TAGS
-Makefile
 config.log
 config.status
 *.swp
@@ -19,5 +18,5 @@ doc
 doclist.odocl
 autom4te.cache
 mytests
+result/*
 ma.sublime-workspace
-result

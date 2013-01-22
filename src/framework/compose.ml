@@ -5,7 +5,7 @@ open Cil
 module GU = Goblintutil
 
 (** Add path sensitivity to a analysis *)
-module PathSensitive (Base: Analyses.Spec) 
+module PathSensitive (Base: Analyses.Spec with module Glob.Var = Basetype.Variables) 
   : Analyses.Spec 
   with type Dom.t = SetDomain.Make(Base.Dom).t
    and module Glob = Base.Glob
