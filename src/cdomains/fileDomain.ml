@@ -64,14 +64,17 @@ struct
   include MD
   module M = Map.Make (Basetype.Variables) (* why does Map.Make (K) not work? *)
 
+  (* other map functions *)
   (* val filter : (key -> 'a -> bool) -> 'a t -> 'a t
   filter p m returns the map with all the bindings in m that satisfy predicate p. *)
   let filter p m = M.filter p m
-
   (* val bindings : 'a t -> (key * 'a) list
   Return the list of all bindings of the given map. The returned list is sorted in increasing order with respect to the ordering Ord.compare, where Ord is the argument given to Map.Make. *)
   let bindings m = M.bindings m
+  (* own map functions *)
+  let findOption k m = if mem k m then Some(find k m) else None
 
+  (* domain specific *)
   let predicate v p = let v,l,s,c = v in p v l s c
   let filterOnVal p m = M.filter (fun k v -> predicate v p) m
   let filterVars p m = List.map (fun (k,v) -> let v,l,s,c = v in v) (M.bindings (filterOnVal p m))

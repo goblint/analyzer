@@ -16,13 +16,12 @@ struct
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
   let loc_stack = ref []
-  let return_var = ref (Cil.makeVarinfo false "dummy" Cil.voidType)
-  (* let return_val = ref (Dom.V.dummy ()) *) (* base: 212, 222 *)
-  let return_val = ref None (* replace (already in map)*)
+  let return_var = ref dummyFunDec.svar (* base: 219 *)
 
-  let lval2var (lhost,offset) = match lhost with
-                  | Var varinfo -> varinfo
-                  | Mem exp -> M.bailwith "lval not var"
+  let lval2var (lhost,offset) =
+    match lhost with
+      | Var varinfo -> varinfo
+      | Mem exp -> M.bailwith "lval not var"
 
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t = 
@@ -71,12 +70,12 @@ struct
       | _ -> ignore(1));
     (match exp with
       | Some(Lval(Var(varinfo),offset)) ->
-          return_var := varinfo;
+          return_var := varinfo(* ;
           if Dom.mem varinfo m then
             return_val := Some(Dom.find varinfo m)
           else
-            return_val := None;
-      | _ -> ignore(1));
+            return_val := None; *)
+      | _ -> M.report "didn't return a variable?!");
     ctx.local
 
     
@@ -90,7 +89,8 @@ struct
     (* M.report ("leaving function "^f.vname); *) (* TODO pop loc from stack in ctx *)
     (* let loc = !Tracing.current_loc in *)
     loc_stack := List.tl !loc_stack;
-    match lval, !return_val with
+    let return_val = Dom.findOption !return_var au in
+    match lval, return_val with
       | Some lval, Some rval ->
           let var = lval2var lval in Dom.add var rval (Dom.remove !return_var au)
       | _ -> au
