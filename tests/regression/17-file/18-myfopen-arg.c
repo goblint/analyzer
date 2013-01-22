@@ -1,15 +1,15 @@
 #include <stdio.h>
 
 
-FILE* myfopen(){
-	return fopen("test.txt", "a");  
+FILE* myfopen(char* f){
+	return fopen(f, "a");  
 }
 
 int main(){
 	FILE *fp1;
 	FILE *fp2;
-	fp1 = myfopen();
-	fp2 = myfopen();	// Warn here: fp2 not closed
+	fp1 = myfopen("test1.txt");
+	fp2 = myfopen("test2.txt");	// Warn here: fp2 not closed
 
 	fprintf(fp1, "Testing...\n");  
 	fclose(fp1);
