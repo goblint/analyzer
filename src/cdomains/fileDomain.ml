@@ -17,12 +17,8 @@ struct
   type state = Open of string*mode | Close
   type cert = Must | May
   type t = varinfo * loc * state * cert
-
-  include Printable.PrintSimple (struct
-    type t' = t
-    let name () = "File pointers"
-    let short i x = "bla" (* why isn't this used? *)
-  end) 
+  (* Must of t | May of t list *)
+  
 
   let equal = Util.equals
   let hash = Hashtbl.hash
@@ -44,6 +40,12 @@ struct
     | Open(filename, m) -> "open "^filename^(mode m)^(loc l)^(mustmay c)
     | Close -> "closed "^(loc l)^(mustmay c)
   let short i x = toString x
+
+  include Printable.PrintSimple (struct
+    type t' = t
+    let name () = "File pointers"
+    let short = short
+  end) 
 
   let dummy () = ((Cil.makeVarinfo false "dummy" Cil.voidType), Bot, Close, Must)
 end

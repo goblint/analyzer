@@ -17,8 +17,8 @@ struct
 
   let loc_stack = ref []
   let return_var = ref (Cil.makeVarinfo false "dummy" Cil.voidType)
-  (* let return_val = ref (Dom.V.dummy ()) *)
-  let return_val = ref None
+  (* let return_val = ref (Dom.V.dummy ()) *) (* base: 212, 222 *)
+  let return_val = ref None (* replace (already in map)*)
 
   let lval2var (lhost,offset) = match lhost with
                   | Var varinfo -> varinfo
