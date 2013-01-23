@@ -16,7 +16,7 @@ struct
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
   let loc_stack = ref []
-  let return_var = ref dummyFunDec.svar (* base: 219 *)
+  let return_var = ref dummyFunDec.svar (* see base.ml: 219 *)
 
   let lval2var (lhost,offset) =
     match lhost with
@@ -43,6 +43,8 @@ struct
       m
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+    let loc = !Tracing.current_loc in
+    (* ignore(printf "if %a = %s (line %i)\n" (printExp plainCilPrinter) exp (string_of_bool tv) loc.line); *)
     ctx.local
   
   let body ctx (f:fundec) : Dom.t = 
@@ -52,11 +54,6 @@ struct
     let m = ctx.local in
     (* M.report ("return: ctx.local="^(Dom.short 50 ctx.local)); *)
     if f.svar.vname = "main" then (
-      (* Dom.iter (fun k v -> let v,l,s,c = v in
-          match s with
-            | Dom.V.Open(mode) -> M.report ~loc:v.vdecl "file is never closed"
-            | _ -> ())
-        ctx.local *)
       let vars = Dom.filterVars (fun v l s c ->
           match s with Dom.V.Open(_) -> true | _ -> false) m in
       if List.length vars > 0 then
@@ -68,15 +65,10 @@ struct
     (match exp with
       | Some exp -> ignore(printf "return %a (%i)\n" (printExp plainCilPrinter) exp loc.line)
       | _ -> ignore(1));
-    (match exp with
-      | Some(Lval(Var(varinfo),offset)) ->
-          return_var := varinfo(* ;
-          if Dom.mem varinfo m then
-            return_val := Some(Dom.find varinfo m)
-          else
-            return_val := None; *)
-      | _ -> M.report "didn't return a variable?!");
-    ctx.local
+    match exp with
+      | Some(Lval(Var(varinfo),offset)) -> (* return_var := varinfo *)
+          Dom.add !return_var (Dom.find varinfo m) m
+      | _ -> m
 
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =

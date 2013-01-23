@@ -19,17 +19,6 @@ struct
   type t = varinfo * loc * state * cert
   (* Must of t | May of t list *)
   
-
-  let equal = Util.equals
-  let hash = Hashtbl.hash
-  let leq x y = true
-  let join x y = M.report "JOIN"; x
-  let meet x y = M.report "MEET"; x
-  let top () = raise Unknown
-  let is_top x = match x with (_, Top, _, _) -> true | _ -> false
-  let bot () = raise Error
-  let is_bot x = match x with (_, Bot, _, _) -> true | _ -> false
-
   let toString (v,l,s,c) =
     let loc x = match x with
       | Loc(loc) -> String.concat ", " (List.map (fun x -> string_of_int x.line) loc)
@@ -37,8 +26,9 @@ struct
     let mode x = match x with Read -> "Read" | Write -> "Write" in
     let mustmay x = match x with Must -> "Must" | May -> "May" in
     match s with
-    | Open(filename, m) -> "open "^filename^(mode m)^(loc l)^(mustmay c)
-    | Close -> "closed "^(loc l)^(mustmay c)
+    | Open(filename, m) -> "open "^filename^" "^(mode m)^" ("^(loc l)^") "^(mustmay c)
+    | Close -> "closed ("^(loc l)^") "^(mustmay c)
+
   let short i x = toString x
 
   include Printable.PrintSimple (struct
@@ -46,6 +36,17 @@ struct
     let name () = "File pointers"
     let short = short
   end) 
+
+  let equal = Util.equals
+  let hash = Hashtbl.hash
+  let leq x y = true
+  let join x y = M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString x)); x
+  let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString x)); x
+  let top () = raise Unknown
+  let is_top x = match x with (_, Top, _, _) -> true | _ -> false
+  let bot () = raise Error
+  let is_bot x = match x with (_, Bot, _, _) -> true | _ -> false
+
 
   let dummy () = ((Cil.makeVarinfo false "dummy" Cil.voidType), Bot, Close, Must)
 end

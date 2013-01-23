@@ -14,7 +14,7 @@ echo $cmd
 $cmd
 
 # focuses Firefox and reloads current tab
-if command -v xdotool >/dev/null 2>&1; then
+if false && command -v xdotool >/dev/null 2>&1; then
   WID=`xdotool search --name "Mozilla Firefox" | head -1`
   xdotool windowactivate $WID
   #xdotool key F5
