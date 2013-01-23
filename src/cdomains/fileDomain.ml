@@ -9,25 +9,33 @@ exception Error
 
 module Val = 
 struct
+  module T =
+  struct
+    (* assign Top on any pointer modification *)
+    type loc = Loc of (location list) | Bot | Top
+    type mode = Read | Write
+    type state = Open of string*mode | Close
+    type record = { var: varinfo; loc: loc; state: state }
+    type t' = Must of record | May of record list
+  end
+
   include Printable.Std
   include Lattice.StdCousot
-  (* assign Top on any pointer modification *)
-  type loc = Loc of (location list) | Bot | Top
-  type mode = Read | Write
-  type state = Open of string*mode | Close
-  type cert = Must | May
-  type t = varinfo * loc * state * cert
-  (* Must of t | May of t list *)
+  include T
+  type t = t'
   
-  let toString (v,l,s,c) =
+  let toStringRecord x =
     let loc x = match x with
       | Loc(loc) -> String.concat ", " (List.map (fun x -> string_of_int x.line) loc)
       | Bot -> "Bot" | Top -> "Top" in
     let mode x = match x with Read -> "Read" | Write -> "Write" in
-    let mustmay x = match x with Must -> "Must" | May -> "May" in
-    match s with
-    | Open(filename, m) -> "open "^filename^" "^(mode m)^" ("^(loc l)^") "^(mustmay c)
-    | Close -> "closed ("^(loc l)^") "^(mustmay c)
+    match x.state with
+    | Open(filename, m) -> "open "^filename^" "^(mode m)^" ("^(loc x.loc)^")"
+    | Close -> "closed ("^(loc x.loc)^")"
+
+  let toString = function
+    | Must x -> "Must "^(toStringRecord x)
+    | May xs -> "May "^(String.concat ", " (List.map toStringRecord xs))
 
   let short i x = toString x
 
@@ -43,12 +51,12 @@ struct
   let join x y = M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString x)); x
   let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString x)); x
   let top () = raise Unknown
-  let is_top x = match x with (_, Top, _, _) -> true | _ -> false
+  let is_top x = (* x.loc = Top *)false 
   let bot () = raise Error
-  let is_bot x = match x with (_, Bot, _, _) -> true | _ -> false
+  let is_bot x = (* x.loc = Bot *)false
 
-
-  let dummy () = ((Cil.makeVarinfo false "dummy" Cil.voidType), Bot, Close, Must)
+  let create v l s = { var=v; loc=l; state=s }
+  let dummy () = { var=(Cil.makeVarinfo false "dummy" Cil.voidType); loc=Bot; state=Close }
 end
 
 module FileUses  = 
@@ -64,6 +72,7 @@ struct
   module MD = MapDomain.MapBot (Basetype.Variables) (Val)
   include MD
   module M = Map.Make (Basetype.Variables) (* why does Map.Make (K) not work? *)
+  include V.T
 
   (* other map functions *)
   (* val filter : (key -> 'a -> bool) -> 'a t -> 'a t
@@ -76,19 +85,22 @@ struct
   let findOption k m = if mem k m then Some(find k m) else None
 
   (* domain specific *)
-  let predicate v p = let v,l,s,c = v in p v l s c
+  let predicate v p = match v with Must x -> p x | May xs -> List.for_all p xs
   let filterOnVal p m = M.filter (fun k v -> predicate v p) m
-  let filterVars p m = List.map (fun (k,v) -> let v,l,s,c = v in v) (M.bindings (filterOnVal p m))
+  let filterVars p m = List.map (fun (k,v) -> k) (M.bindings (filterOnVal p m))
 
   let check m var p = if mem var m then predicate (find var m) p else false
-  let opened m var = check m var (fun v l s c -> match s with V.Open(_) -> true | _ -> false)
-  let closed m var = check m var (fun v l s c -> match s with V.Close -> true | _ -> false)
-  let writable m var = check m var (fun v l s c -> match s with V.Open((_,V.Write)) -> true | _ -> false)
+  let opened m var = check m var (fun x -> x.state <> Close)
+  let closed m var = check m var (fun x -> x.state = Close)
+  let writable m var = check m var (fun x -> match x.state with Open((_,Write)) -> true | _ -> false)
 
-  let fopen m var loc filename mode cert =
-    let mode = match String.lowercase mode with "r" -> V.Read | _ -> V.Write in
-    add var (var, loc, (V.Open(filename, mode)), cert) m
-  let fclose m var loc cert = add var (var, loc, V.Close, cert) m
+  let fopen m var loc filename mode =
+    let mode = match String.lowercase mode with "r" -> Read | _ -> Write in
+    add var (Must(V.create var loc (Open(filename, mode)))) m
+  let fclose m var loc = add var (Must(V.create var loc Close)) m
+
+  let mayVal = function Must x -> May [x] | xs -> xs
+  let may m var = add var (mayVal (find var m)) m
 
 (*   let toXML_f sf x = 
     match toXML x with
