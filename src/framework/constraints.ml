@@ -6,7 +6,7 @@ open GobConfig
 open Batteries_uni
 
 
-
+(** Lifts a [Spec2] so that the domain and the context are [Hashcons]d. *)
 module HashconsLifter (S:Spec2)
   : Spec2 with module D = Lattice.HConsed (S.D)
            and module G = S.G
@@ -67,6 +67,7 @@ struct
     D.lift **> S.combine (conv ctx) r fe f args (D.unlift es) 
 end 
 
+(** Lifts a [Spec2] with a special bottom element that represent unreachable code. *)
 module DeadCodeLifter (S:Spec2)
   : Spec2 with module D = Dom (S.D)
            and module G = S.G
@@ -119,7 +120,7 @@ struct
 end 
 
 
-
+(** Translate the old [Spec] into the new [Spec2] system. *)
 module Spec2OfSpec (S:Spec with module Glob.Var = Basetype.Variables) 
   : Spec2 with module D = S.Dom
            and module G = S.Glob.Val 
@@ -147,6 +148,7 @@ struct
     ; local = ctx2.local2
     ; global = ctx2.global2
     ; sub = ctx2.postsub2
+    ; presub = ctx2.presub2
     ; spawn = ctx2.spawn2
     ; geffect = ctx2.sideg2
     ; precomp = []
@@ -172,7 +174,7 @@ struct
      | xs -> List.iter (fun (d,e,tv) -> ctx2.split2 d e tv) xs; D.bot ()
 end
 
-
+(** The main point of this file---generating a [GlobConstrSys] from a [Spec2]. *)
 module FromSpec (S:Spec2) (Cfg:CfgBackward)
   : GlobConstrSys with type lv = node * S.C.t
                    and type gv = varinfo
@@ -202,7 +204,7 @@ struct
   let common_ctx (v,c) u (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx2 = 
     let pval = getl (u,c) in     
     if !Messages.worldStopped then raise M.StopTheWorld;
-    (* now wach this ... *)
+    (* now watch this ... *)
     let rec ctx = 
       { ask2     = query
       ; local2   = pval
@@ -297,7 +299,8 @@ end
 
 
 
-(** Combined variables for the solver. *)
+(** Combined variables so that we can also use the more common [IneqConstrSys], and [EqConstrSys]
+    that use only one kind of a variable. *)
 module Var2 (LV:VarType) (GV:VarType)
   : VarType 
     with type t = [ `L of LV.t  | `G of GV.t ]
@@ -342,6 +345,7 @@ struct
   let loopSep _ = true
 end
 
+(** Translate a [GlobConstrSys] into a [IneqConstrSys] *)
 module IneqConstrSysFromGlobConstrSys (S:GlobConstrSys)
   : IneqConstrSys with type v = Var2(S.LVar)(S.GVar).t 
                    and type d = Lattice.Either(S.D)(S.G).t
@@ -359,6 +363,7 @@ struct
   
   let getL = function
     | `Left x -> x
+    | `Right _ -> S.D.bot ()
     | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Left!"
 
   let getR = function
@@ -379,7 +384,7 @@ struct
 end
 
 
-module GlobSolverFromEqSolverWhat (Sol:GenericEqBoxSolver)
+(*module GlobSolverFromEqSolverWhat (Sol:GenericEqBoxSolver)
   : GenericGlobSolver 
   = functor (S:GlobConstrSys) ->
     functor (LH:Hash.H with type key=S.lv) ->
@@ -395,7 +400,7 @@ struct
     let create n = (LH.create n, GH.create n)
     let clear (l,g) = LH.clear l; GH.clear g
     let copy (l,g) = (LH.copy l, GH.copy g)
-    
+        
     let lift (f:'a LH.t -> S.lv -> 'b) (h:'a GH.t -> S.gv -> 'b) 
              (l,g:'a t) : [`L of S.lv | `G of S.gv] -> 'b  = function
       | `L x -> f l x
@@ -443,8 +448,9 @@ struct
     LH.iter (fun k v -> LH.add l' k (getL v)) l;
     GH.iter (fun k v -> GH.add g' k (getR v)) g;
     (l', g')
-end
+end*)
 
+(** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
   : GenericGlobSolver 
   = functor (S:GlobConstrSys) ->
@@ -471,7 +477,8 @@ struct
   let solve ls gs l = 
     let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Left v) ls 
            @ List.map (fun (x,v) -> EqSys.conv (`G x), `Right v) gs in 
-    let hm = Sol'.solve EqSys.box vs [] in
+    let sv = List.map (fun x -> EqSys.conv (`L x)) l in
+    let hm = Sol'.solve EqSys.box vs sv in
     let l' = LH.create 113 in
     let g' = GH.create 113 in
     let split_vars = function
@@ -481,142 +488,3 @@ struct
     VH.iter split_vars hm;
     (l', g')
 end
-
-(** The selected specification. *)
-module Spec = MCP.Path
-  
-(** Our local domain and variables. *)
-module LD   = Analyses.Dom (Spec.Dom)
-module HCLD = Lattice.HConsed (LD)
-module LV   = Analyses.VarF (HCLD)
-
-(** Our global domain and variables. *)
-module GD   = Spec.Glob.Val
-module GV   = Spec.Glob.Var
-
-(** Combined variables for the solver. *)
-module Var 
-  : Analyses.VarType 
-    with type t = [ `L of LV.t  | `G of GV.t ]
-  = 
-struct
-  type t = [ `L of LV.t  | `G of GV.t ]
-  
-  let equal x y =
-    match x, y with
-      | `L a, `L b -> LV.equal a b
-      | `G a, `G b -> GV.equal a b
-      | _ -> false
-  
-  let hash = function
-    | `L a -> LV.hash a
-    | `G a -> 113 * GV.hash a
-    
-  let compare x y =
-    match x, y with
-      | `L a, `L b -> LV.compare a b
-      | `G a, `G b -> GV.compare a b
-      | `L a, _ -> -1 | _ -> 1
-      
-  let category = function
-    | `L a -> LV.category a
-    | `G _ -> -1
-    
-  let pretty_trace () = function
-    | `L a -> LV.pretty_trace () a
-    | `G a -> dprintf "Global %a" GV.pretty_trace a
-      
-  let line_nr = function
-    | `L a -> LV.line_nr a
-    | `G a -> a.Cil.vdecl.Cil.line
-    
-  let file_name = function
-    | `L a -> LV.file_name a
-    | `G a -> a.Cil.vdecl.Cil.file
-    
-  let description n = sprint 80 (pretty_trace () n)
-  let context () _ = Pretty.nil
-  let loopSep _ = true
-end
-
-(** Combine lattices. *)
-module Dom = Lattice.Either (LD) (GD) 
-
-let cfg = ref (fun _ -> [])
-
-(** Our main constraint system. *)
-module System 
-  : IneqConstrSys 
-  with type v = Var.t
-   and type d = Dom.t 
-   and module Var = Var
-   and module Dom = Dom
-  =
-struct  
-  open Messages
-  open MyCFG
-  
-  type v = Var.t
-  type d = Dom.t
-  
-  module Var = Var
-  module Dom = Dom
-  
-  let box _ x y =
-    match x, y with
-      | `Left a , `Left b -> `Left (LD.join a b)
-      | `Right a, `Right b -> `Right (GD.join a b)
-      | `Right a , `Left b -> y
-      | _ -> Dom.top ()
-      
-
-  let getctx v y get set = 
-    let top_query _ = Queries.Result.top () in
-    let theta g = 
-      match get (`G g) with
-        | `Right x -> x
-        | _ -> failwith "Global domain out of range!"
-    in
-    let add_diff g d = set (`G g) (`Right d) in 
-      Analyses.context top_query v theta [] y add_diff (fun _ -> ())
-      
-  
-  let tf_ret    ret fd    pval get set = pval
-  let tf_entry  fd        pval get set = pval (*SD.lift (Spec.body (getctx pre add_var)) pval*)
-  let tf_assign lv e      pval get set = pval
-  let tf_loop             pval get set = pval
-  let tf_test   e tv      pval get set = pval
-  let tf_proc   lv e args pval get set = pval
-  let tf_asm              pval get set = warn "ASM statement ignored."; pval
-  
-  let edge_tf es v (e,u) get set = 
-    let pval = get (`L (u,es)) in
-    try
-      match e with
-        | Ret    (ret,fd)    -> tf_ret    ret fd    pval get set 
-        | Entry  fd          -> tf_entry  fd        pval get set 
-        | Assign (lv,e)      -> tf_assign lv e      pval get set 
-        | SelfLoop           -> tf_loop             pval get set 
-        | Test   (e,tv)      -> tf_test   e tv      pval get set 
-        | Proc   (lv,e,args) -> tf_proc   lv e args pval get set     
-        | ASM _              -> tf_asm              pval get set 
-        | Skip               -> pval 
-    with
-      | Messages.StopTheWorld
-      | Analyses.Deadcode  -> Dom.bot ()
-      | Messages.Bailure s -> Messages.warn_each s; pval 
-      | x -> Messages.warn_urgent "Oh noes! Something terrible just happened"; raise x
-        
-  let one_edge es v (e,u) get set =
-    let old_loc = !Tracing.current_loc in
-    let _       = Tracing.current_loc := getLoc u in
-    let d       = edge_tf es v (e,u) get set in
-    let _       = Tracing.current_loc := old_loc in 
-      d
-    
-  let system = function 
-    | `G _ -> []
-    | `L (v,es) -> List.map (one_edge es v) (!cfg v)
-    
-end
-  

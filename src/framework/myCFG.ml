@@ -4,6 +4,9 @@ open Cil
 open Pretty
 open GobConfig
 
+(** A node in the Control Flow Graph is either a statement or function. Think of
+* the function node as last node that all the returning nodes point to.  So
+* the result of the function call is contained in the fucntion node. *)
 type node = 
   | Statement of stmt  
   (** The statements as identified by CIL *)
@@ -11,9 +14,6 @@ type node =
   (** *)
   | Function of varinfo  
   (** The variable information associated with the function declaration. *)
-(** A node in the Control Flow Graph is either a statement or function. Think of
-  * the function node as last node that all the returning nodes point to.  So
-  * the result of the function call is contained in the fucntion node. *)
 
   
 let pretty_node () = function

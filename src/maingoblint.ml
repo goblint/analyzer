@@ -260,4 +260,4 @@ let main () =
   with BailFromMain -> () 
   
 let _ = 
-  main ()
+  at_exit main 

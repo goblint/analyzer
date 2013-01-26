@@ -6,14 +6,14 @@ The API is divided in four logical sections:
 the framework, constraint solvers, domains, and analysis instances.
 
 {2 Framework}
-{!modules:  Maingoblint Multithread Analyses Compose MyCFG Cache}
+{!modules:  Maingoblint Multithread Analyses Compose MyCFG Cache Control Constraints}
 
 {4 Util}
 {!modules: Goblintutil Cilfacade MyLiveness Json JsonLexer JsonParser Printer Messages Progress Report Xmldump Htmldump Htmlutil Hash GobConfig}
 
 
 {2 Solvers}
-{!modules: Solver EffectWCon EffectWNCon Interactive OracleSolver SharirPnueli SolverConSideRR SolverConSideWNRR}
+{!modules: Solver EffectWCon EffectWNCon Interactive OracleSolver SharirPnueli SolverConSideRR SolverConSideWNRR Generic SLR TopDown Selector}
 
 
 {2 Domains}
