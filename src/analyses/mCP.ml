@@ -895,6 +895,9 @@ struct
 
   let set_sub full_ctx (ctx:(local_state,'b,'c) ctx) (dp:local_state list) : (local_state,'b,'c) ctx = 
       set_preglob (set_precomp (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect ctx.report_access) ctx.precomp) ctx.preglob
+
+  let set_subs full_ctx ctx dp (dp2:local_state list) = 
+    let ctx = set_sub full_ctx ctx dp in { ctx with presub = dp2 }
   
   let may_race (ctx1,ac1) (ctx2,ac2) =
     let rec fold_left3 f a xs ys zs = 
@@ -928,7 +931,14 @@ struct
         in
         List.map f s.depends_on 
       in
-      (tf (set_sub ctx (set_st t) ds)) :: ls
+      let subds = 
+        let f n =
+          try List.find (fun x -> n = (get_matches x).featurename) ctx.local
+          with Not_found -> failwith ("D2ependency '"^n^"' not met, needed by "^s.featurename^".")
+        in
+        List.map f s.depends_on 
+      in
+      (tf (set_subs ctx (set_st t) ds subds)) :: ls
     in
     List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one (fun s -> set_st s ctx.global)) [] ctx.local))
 
@@ -962,7 +972,14 @@ struct
         fold_left1 (Dom.join')  (List.filter is_n (List.map (fun (t,_,_) -> t) (List.concat ls)))
       in
       let ds = List.map dep_val s.depends_on in
-      tf (set_sub ctx (set_st t) ds)::ls
+      let subds = 
+        let f n =
+          try List.find (fun x -> n = (get_matches x).featurename) ctx.local
+          with Not_found -> failwith ("Dependency '"^n^"' not met, needed by "^s.featurename^".")
+        in
+        List.map f s.depends_on 
+      in
+      tf (set_subs ctx (set_st t) ds subds)::ls
     in
     List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one (fun s -> set_st s ctx.global)) [] ctx.local))
 
