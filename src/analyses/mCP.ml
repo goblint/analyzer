@@ -1251,6 +1251,7 @@ type spec_modules = { spec : (module Spec2)
                     ; cont : (module Printable.S) }
                    
 let analyses_list : (string * spec_modules) list ref = ref []
+let analyses_list' : (string * spec_modules) list ref = ref []
 
 let register_analysis n (module S:Spec2) = 
   let s = { spec = (module S : Spec2)
@@ -1259,7 +1260,7 @@ let register_analysis n (module S:Spec2) =
           ; cont = (module S.C : Printable.S)
           }
   in
-  analyses_list := (n,s) :: !analyses_list
+  analyses_list' := (n,s) :: !analyses_list'
 
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
@@ -1296,7 +1297,10 @@ struct
   
   let name = "MCP2"
     
-  let init     () = iter (fun (_,{spec=(module S:Spec2)}) -> S.init     ()) !analyses_list
+  let init     () = 
+    analyses_list := map (fun s -> s, assoc s !analyses_list') 
+        **> List.map Json.string **> get_list "ana.activated[0]";
+    iter (fun (_,{spec=(module S:Spec2)}) -> S.init     ()) !analyses_list
   let finalize () = iter (fun (_,{spec=(module S:Spec2)}) -> S.finalize ()) !analyses_list
 
   let otherstate () = map (fun (n,{spec=(module S:Spec2)}) -> n, repr **> S.otherstate ()) !analyses_list
@@ -1314,24 +1318,30 @@ struct
   let combine    x = undefined x
   let enter      x = undefined x
   
-  (** [assoc_split [(1,a);(1,b);(2,x)] = ([a,b],[(2,x)])] *)
-  let assoc_split (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
+  (** [assoc_split_eq (=) [(1,a);(1,b);(2,x)] = ([a,b],[(2,x)])] *)
+  let assoc_split_eq (=) (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
     let rec f a b = function 
        | [] -> a, b
        | (k',v)::xs when k=k' -> f (v::a) b xs
        | x::xs -> f a (x::b) xs
     in
     f [] [] xs
+
+  let assoc_split k xs = assoc_split_eq (=) k xs
     
-  (** [regroup_assoc [(1,a);(1,b);(2,x);(2,y)] = [(1,[a,b]),(2,[x,y])]] *)
-  let group_assoc (xs: ('a * 'b) list) : ('a * ('b list)) list  =
+
+  (** [group_assoc_eq (=) [(1,a);(1,b);(2,x);(2,y)] = [(1,[a,b]),(2,[x,y])]] *)
+  let group_assoc_eq eq (xs: ('a * 'b) list) : ('a * ('b list)) list  =
     let rec f a = function
       | [] -> a
       | (k,v)::xs -> 
-        let a', b = assoc_split k xs in
+        let a', b = assoc_split_eq eq k xs in
         f ((k,v::a')::a) b
     in f [] xs
-            
+
+  (** [group_assoc [(1,a);(1,b);(2,x);(2,y)] = [(1,[a,b]),(2,[x,y])]] *)
+  let group_assoc xs = group_assoc_eq (=) xs
+          
   
   let do_spawns ctx (xs:(varinfo * (string * Obj.t)) list) =
     let spawn_one v d = 
@@ -1340,7 +1350,7 @@ struct
       in
       ctx.spawn2 v **> map join_vals **> spec_list **> group_assoc (d @ D.bot ())
     in
-    iter (uncurry spawn_one) **> group_assoc xs
+    iter (uncurry spawn_one) **> group_assoc_eq Basetype.Variables.equal xs
 
   let do_sideg ctx (xs:(varinfo * (string * Obj.t)) list) =
     let side_one v d = 
@@ -1349,7 +1359,7 @@ struct
       in
       ctx.sideg2 v **> map join_vals **> spec_list **> group_assoc (d @ G.bot ())
     in
-    iter (uncurry side_one) **> group_assoc xs
+    iter (uncurry side_one) **> group_assoc_eq Basetype.Variables.equal xs
 
   
   let rec do_splits ctx pv (xs:(string * (Obj.t * exp * bool)) list) =
