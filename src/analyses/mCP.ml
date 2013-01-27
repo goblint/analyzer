@@ -1252,6 +1252,15 @@ type spec_modules = { spec : (module Spec2)
                    
 let analyses_list : (string * spec_modules) list ref = ref []
 
+let register_analysis n (module S:Spec2) = 
+  let s = { spec = (module S : Spec2)
+          ; dom  = (module S.D : Lattice.S)
+          ; glob = (module S.G : Lattice.S)
+          ; cont = (module S.C : Printable.S)
+          }
+  in
+  analyses_list := (n,s) :: !analyses_list
+
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
   open Tuple4
@@ -1379,9 +1388,9 @@ struct
         { ctx with local2  = obj d
                  ; ask2    = query ctx
                  ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
-                 ; spawn2  = (fun v d    -> undefined ~message:"Cannot \"spawn\" in query context." ())
-                 ; split2  = (fun d e tv -> undefined ~message:"Cannot \"split\" in query context." ())
-                 ; sideg2  = (fun v g    -> undefined ~message:"Cannot \"sideg\" in query context." ())
+                 ; spawn2  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+                 ; split2  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
+                 ; sideg2  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
                  } 
       in
       Queries.Result.meet a **> S.query ctx' q
@@ -1521,27 +1530,44 @@ struct
       do_splits ctx d !splits;
       d, cs
 
-  (*let enter (ctx:(D.t, G.t) ctx2) r f a =
+  let enter (ctx:(D.t, G.t) ctx2) r f a =
     let spawns = ref [] in
-    let splits = ref [] in
     let sides  = ref [] in
-    let f (dl,cs) (n,(module S:Spec2),d) =
+    let f (n,(module S:Spec2),d) =
       let ctx' : (S.D.t, S.G.t) ctx2 = 
         { ctx with local2  = obj d
                  ; ask2    = query ctx
                  ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
                  ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
-                 ; split2  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+                 ; split2  = (fun _ _    -> failwith "Cannot \"split\" in enter context." )
                  ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
                  } 
       in
-      let xs = S.enter ctx' r f a in
-      (n, repr d)::dl, (map (fun (v,d) -> v, (n,repr d)::remove_assoc n **> D.bot ()) ds) @ cs
+      map (fun (c,d) -> ((n, repr c), (n, repr d))) **> S.enter ctx' r f a
     in
-    let d,cs = fold_left f ([],[]) **> spec_list ctx.local2 in
+    let css = map f **> spec_list ctx.local2 in
       do_spawns ctx !spawns;
       do_sideg ctx !sides;
-      do_splits ctx d !splits;
-      d, cs*)
-
+      map (fun xs -> (map fst xs, map snd xs)) **> n_cartesian_product css
+  
+  let combine (ctx:(D.t, G.t) ctx2) r fe f a fd =
+    let spawns = ref [] in
+    let sides  = ref [] in
+    let f (n,(module S:Spec2),d) =
+      let ctx' : (S.D.t, S.G.t) ctx2 = 
+        { ctx with local2  = obj d
+                 ; ask2    = query ctx
+                 ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
+                 ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+                 ; split2  = (undefined ~message:"Cannot \"split\" in enter context." ())
+                 ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+                 } 
+      in
+      n, repr **> S.combine ctx' r fe f a **> obj **> assoc n fd
+    in
+    let d = map f **> spec_list ctx.local2 in
+      do_spawns ctx !spawns;
+      do_sideg ctx !sides;
+      d
+    
 end
