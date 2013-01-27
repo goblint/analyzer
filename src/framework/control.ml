@@ -28,7 +28,7 @@ struct
   (** Set of triples [RT] *)
   module LT = SetDomain.HeadlessSet (RT)
   (** Analysis result structure---a hashtable from porgram points to [LT] *)
-  module Result = Analyses.Result (LT) (struct let result_name = "Analysis" end)
+  module Result = Analyses.Result (LT) (struct let result_name = Spec.name end)
       
   
   (** convert result that can be out-put *)
