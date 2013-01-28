@@ -651,6 +651,7 @@ sig
   val exitstate : unit -> D.t
   val otherstate : unit -> D.t
 
+  val should_join : D.t -> D.t -> bool
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
   

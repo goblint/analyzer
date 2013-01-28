@@ -76,3 +76,6 @@ module ThreadMCP =
          end)
 
 
+module Spec2 = Constraints.Spec2OfSpec (Spec)
+let _ = 
+  MCP.register_analysis "oslo" (module Spec2 : Spec2)

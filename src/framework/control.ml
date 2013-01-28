@@ -10,7 +10,7 @@ open Batteries_uni
 module AnalyzeCFG (Cfg:CfgBackward) =
 struct
   (** The specification. *)
-  module Spec : Spec2 = DeadCodeLifter (HashconsLifter (MCP.MCP2))
+  module Spec : Spec2 = DeadCodeLifter (HashconsLifter (PathSensitive2 (MCP.MCP2)))
   
   (** The Equation system *)
   module EQSys = FromSpec (Spec) (Cfg)

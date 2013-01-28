@@ -90,3 +90,7 @@ module ThreadMCP =
          
 (*module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
 module Analysis : Analyses.S    = Multithread.Forward(Path)*)
+
+module Spec2 = Constraints.Spec2OfSpec (Spec)
+let _ = 
+  MCP.register_analysis "OSEK3" (module Spec2 : Spec2)         

@@ -64,3 +64,9 @@ module UninitMCP2 =
                 let inject_g x = `None 
                 let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
          end)
+
+module Spec2 = Constraints.Spec2OfSpec (Spec (StackDomain.Dom))
+module Spec2' = Constraints.Spec2OfSpec (Spec (StackDomain.Dom2))
+let _ = 
+  MCP.register_analysis "stack_trace" (module Spec2 : Spec2);        
+  MCP.register_analysis "stack_trace_set" (module Spec2' : Spec2)         

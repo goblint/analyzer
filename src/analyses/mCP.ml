@@ -1102,18 +1102,43 @@ end
 module Analysis = Multithread.Forward (Path) (Trans) (TransG)
 (************************)
 
+
+type spec_modules = { spec : (module Spec2)
+                    ; dom  : (module Lattice.S)
+                    ; glob : (module Lattice.S)
+                    ; cont : (module Printable.S) }
+                   
+let analyses_list : (int * spec_modules) list ref = ref []
+let analyses_list' : (int * spec_modules) list ref = ref []
+
+let analyses_table = ref []
+
+let register_analysis =
+  let count = ref 0 in
+  fun n (module S:Spec2) ->
+    let s = { spec = (module S : Spec2)
+            ; dom  = (module S.D : Lattice.S)
+            ; glob = (module S.G : Lattice.S)
+            ; cont = (module S.C : Printable.S)
+            }
+    in
+    analyses_table := (!count,n) :: !analyses_table;
+    analyses_list' := (!count,s) :: !analyses_list';
+    count := !count + 1
+
+
 type unknown = Obj.t
 
 module type DomainListPrintableSpec =
 sig
-  val assoc_dom : string -> (module Printable.S)
-  val domain_list : unit -> (string * (module Printable.S)) list
+  val assoc_dom : int -> (module Printable.S)
+  val domain_list : unit -> (int * (module Printable.S)) list
 end
 
 module type DomainListLatticeSpec =
 sig
-  val assoc_dom : string -> (module Lattice.S)
-  val domain_list : unit -> (string * (module Lattice.S)) list
+  val assoc_dom : int -> (module Lattice.S)
+  val domain_list : unit -> (int * (module Lattice.S)) list
 end
 
 module PrintableOfLatticeSpec (D:DomainListLatticeSpec) : DomainListPrintableSpec =
@@ -1139,7 +1164,7 @@ struct
   open List
   open Obj
   
-  type t = (string * unknown) list
+  type t = (int * unknown) list
     
   let binop_fold f a (x:t) (y:t) =
     let f a n d1 d2 =
@@ -1167,10 +1192,10 @@ struct
   let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a **> S.hash (obj x)) 0
   let isSimple = unop_fold (fun a n (module S : Printable.S) x -> a && S.isSimple (obj x)) true
   
-  let name () = IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map fst **> domain_list ())
+  let name () = IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map (flip assoc !analyses_table) **> map fst **> domain_list ())
 
   let short w x = 
-    let w2 = w / List.length x in
+    let w2 = let n = List.length x in if n=0 then w else w / n in
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.short w2 (obj x) :: a) [] x in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs
 
@@ -1200,11 +1225,11 @@ struct
 end
 
 let _ =
-  let module Test : functor (DLSpec : DomainListPrintableSpec) -> Printable.S with type t = (string * unknown) list = DomListPrintable  in
+  let module Test : functor (DLSpec : DomainListPrintableSpec) -> Printable.S with type t = (int * unknown) list = DomListPrintable  in
   ()
 
 module DomListLattice (DLSpec : DomainListLatticeSpec) 
-  : Lattice.S with type t = (string * unknown) list 
+  : Lattice.S with type t = (int * unknown) list 
   =
 struct
   open DLSpec
@@ -1245,23 +1270,6 @@ struct
   let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr **> S.bot ())) **> domain_list ()
 end
 
-type spec_modules = { spec : (module Spec2)
-                    ; dom  : (module Lattice.S)
-                    ; glob : (module Lattice.S)
-                    ; cont : (module Printable.S) }
-                   
-let analyses_list : (string * spec_modules) list ref = ref []
-let analyses_list' : (string * spec_modules) list ref = ref []
-
-let register_analysis n (module S:Spec2) = 
-  let s = { spec = (module S : Spec2)
-          ; dom  = (module S.D : Lattice.S)
-          ; glob = (module S.G : Lattice.S)
-          ; cont = (module S.C : Printable.S)
-          }
-  in
-  analyses_list' := (n,s) :: !analyses_list'
-
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
   open Tuple4
@@ -1297,26 +1305,43 @@ struct
   
   let name = "MCP2"
     
+  let path_sens = ref []
+  let cont_inse = ref []
+  let base_id   = ref (-1)
+  
   let init     () = 
-    analyses_list := map (fun s -> s, assoc s !analyses_list') 
-        **> List.map Json.string **> get_list "ana.activated[0]";
-    iter (fun (_,{spec=(module S:Spec2)}) -> S.init     ()) !analyses_list
+    let assoc' c v = try assoc c v with Not_found -> 666 in
+    let xs = map Json.string **> get_list "ana.activated[0]" in
+    let re = map (fun (x,y) -> y, x) !analyses_table in
+    let xs = map (flip assoc' re) xs in
+      base_id := assoc' "base" re;
+      analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
+      path_sens :=  map (flip assoc' re) **> map Json.string **> get_list "ana.path_sens";
+      cont_inse :=  map (flip assoc' re) **> map Json.string **> get_list "ana.ctx_insens";
+      iter (fun (_,{spec=(module S:Spec2)}) -> S.init ()) !analyses_list
+    
   let finalize () = iter (fun (_,{spec=(module S:Spec2)}) -> S.finalize ()) !analyses_list
 
+  let spec x = (assoc x !analyses_list).spec
+  let spec_list xs = map (fun (n,x) -> (n,spec n,x)) xs
+
+  let context x = 
+    let x = filter (fun (x,_) -> not (mem x !cont_inse)) x in
+    let x = spec_list x in
+      map (fun (n,(module S:Spec2),d) -> n, repr **> S.context (obj d)) x
+
+  let should_join x y = 
+    let xs = filter (fun (x,_) -> mem x !path_sens) x in
+    let ys = filter (fun (x,_) -> mem x !path_sens) y in
+    D.equal xs ys
+    
   let otherstate () = map (fun (n,{spec=(module S:Spec2)}) -> n, repr **> S.otherstate ()) !analyses_list
   let exitstate  () = map (fun (n,{spec=(module S:Spec2)}) -> n, repr **> S.exitstate  ()) !analyses_list
   let startstate () = map (fun (n,{spec=(module S:Spec2)}) -> n, repr **> S.startstate ()) !analyses_list
-  
-  let spec x = (assoc x !analyses_list).spec
-  let spec_list xs = map (fun (n,x) -> (n,spec n,x)) xs
-  
-  let call_descr f = fold_left (fun a (n,(module S:Spec2),d) -> S.call_descr f (obj d)^a) "" -| spec_list 
-
-  let context = map (fun (n,(module S:Spec2),d) -> n, repr **> S.context (obj d)) -| spec_list
-  
-
-  let combine    x = undefined x
-  let enter      x = undefined x
+    
+  let call_descr f xs = 
+    let xs = filter (fun (x,_) -> x = !base_id) xs in
+    fold_left (fun a (n,(module S:Spec2),d) -> S.call_descr f (obj d)) f.svar.vname **> spec_list xs
   
   (** [assoc_split_eq (=) [(1,a);(1,b);(2,x)] = ([a,b],[(2,x)])] *)
   let assoc_split_eq (=) (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
@@ -1343,16 +1368,16 @@ struct
   let group_assoc xs = group_assoc_eq (=) xs
           
   
-  let do_spawns ctx (xs:(varinfo * (string * Obj.t)) list) =
+  let do_spawns ctx (xs:(varinfo * (int * Obj.t)) list) =
     let spawn_one v d = 
       let join_vals (n,(module S:Spec2),d) =
         n, repr **> fold_left (fun x y -> S.D.join x (obj y)) (S.D.bot ()) d
       in
-      ctx.spawn2 v **> map join_vals **> spec_list **> group_assoc (d @ D.bot ())
+      ctx.spawn2 v **> map join_vals **> spec_list **> group_assoc (d @ otherstate ())
     in
     iter (uncurry spawn_one) **> group_assoc_eq Basetype.Variables.equal xs
 
-  let do_sideg ctx (xs:(varinfo * (string * Obj.t)) list) =
+  let do_sideg ctx (xs:(varinfo * (int * Obj.t)) list) =
     let side_one v d = 
       let join_vals (n,(module S:Spec2),d) =
         n, repr **> fold_left (fun x y -> S.G.join x (obj y)) (S.G.bot ()) d
@@ -1362,7 +1387,7 @@ struct
     iter (uncurry side_one) **> group_assoc_eq Basetype.Variables.equal xs
 
   
-  let rec do_splits ctx pv (xs:(string * (Obj.t * exp * bool)) list) =
+  let rec do_splits ctx pv (xs:(int * (Obj.t * exp * bool)) list) =
     let split_one n (d,e,tv) = 
       let nv = (n,d)::(remove_assoc n pv) in
       ctx.split2 (branch {ctx with local2 = nv} e tv) Cil.one true
@@ -1569,7 +1594,7 @@ struct
                  ; ask2    = query ctx
                  ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
                  ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
-                 ; split2  = (undefined ~message:"Cannot \"split\" in enter context." ())
+                 ; split2  = (fun d e tv -> failwith "Cannot \"split\" in combine context.")
                  ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
                  } 
       in

@@ -22,6 +22,8 @@ struct
   let init = S.init
   let finalize = S.finalize
   
+  let should_join x y = S.should_join (D.unlift x) (D.unlift y)
+  
   let startstate () = D.lift (S.startstate ())
   let exitstate () = D.lift (S.exitstate ())
   let otherstate () = D.lift (S.otherstate ())
@@ -83,6 +85,11 @@ struct
   let init = S.init
   let finalize = S.finalize
   
+  let should_join x y = 
+    match x, y with 
+      | `Lifted a, `Lifted b -> S.should_join a b
+      | _ -> true
+  
   let startstate () = `Lifted (S.startstate ())
   let exitstate () = `Lifted (S.exitstate ())
   let otherstate () = `Lifted (S.otherstate ())
@@ -135,6 +142,8 @@ struct
   
   let init = S.init
   let finalize = S.finalize
+  
+  let should_join = S.should_join
   
   let startstate = S.startstate
   let exitstate = S.exitstate
@@ -488,3 +497,176 @@ struct
     VH.iter split_vars hm;
     (l', g')
 end
+
+(** Add path sensitivity to a analysis *)
+module PathSensitive2 (S:Spec2) 
+  : Spec2 
+  with type D.t = SetDomain.Make(S.D).t
+   and module G = S.G
+   and module C = S.C
+  =
+struct    
+  module D = 
+  struct
+    include SetDomain.Make (S.D)
+    let name () = "PathSensitive (" ^ name () ^ ")"
+    
+    (** [leq a b] iff each element in [a] has a [leq] counterpart in [b]*)
+    let leq s1 s2 = 
+    let p t = exists (fun s -> S.D.leq t s) s2 in
+    for_all p s1
+
+    let pretty_diff () ((s1:t),(s2:t)): Pretty.doc = 
+    if leq s1 s2 then dprintf "%s: These are fine!" (name ()) else begin
+     let p t = not (exists (fun s -> S.D.leq t s) s2) in
+     let evil = choose (filter p s1) in
+     let other = choose s2 in
+       (* dprintf "%s has a problem with %a not leq %a because %a" (name ()) 
+         S.D.pretty evil S.D.pretty other 
+         S.D.pretty_diff (evil,other) *)
+       S.D.pretty_diff () (evil,other)
+
+    end
+    
+    (** For [join x y] we take a union of [x] & [y] and join elements 
+    * which base analysis suggests us to.*)
+    let join s1 s2 =
+    let rec loop s1 s2 = 
+     let f b (ok, todo) =
+       let joinable, rest = partition (S.should_join b) ok in
+       if cardinal joinable = 0 then
+         (add b ok, todo)
+       else
+         let joint = fold (S.D.join) joinable b in
+         (fold remove joinable ok, add joint todo)
+     in
+     let (ok, todo) = fold f s2 (s1, empty ()) in
+       if is_empty todo then 
+         ok
+       else
+         loop ok todo
+    in
+    loop s1 s2    
+  
+    (** carefully add element (because we might have to join something)*)
+    let add e s = join s (singleton e)
+  
+    (** We dont have good info for this operation -- only thing is to [meet] all elements.*)
+    let meet s1 s2 = 
+    (* Try to not use top, as it is often not implemented. *)
+    let fold1 f s =
+     let g x = function
+       | None -> Some x
+       | Some y -> Some (f x y)
+     in
+     match fold g s None with  
+       | Some x -> x
+       | None -> S.D.top()
+    in
+    singleton (fold1 S.D.meet (union s1 s2))
+    
+    (** Widening operator. We take all possible (growing) paths, do elementwise 
+       widenging and join them together. When the used path sensitivity is 
+       not overly dynamic then no joining occurs.*)
+    let widen s1 s2 = 
+      let f e =
+      let l = filter (fun x -> S.D.leq x e) s1 in
+      let m = map (fun x -> S.D.widen x e) l in
+      fold (S.D.join) m e
+      in
+        map f s2
+
+    (** Narrowing operator. As with [widen] some precision loss might occur.*)
+    let narrow s1 s2 = 
+      let f e =
+      let l = filter (fun x -> S.D.leq x e) s2 in
+      let m = map (S.D.narrow e) l in
+      fold (S.D.join) m (S.D.bot ())
+      in
+        map f s1
+  end
+  
+  module G = S.G
+  module C = S.C
+  
+  let name = "PathSensitive2("^S.name^")"
+  
+  let init = S.init
+  let finalize = S.finalize
+  
+  let should_join x y = true
+  
+  let otherstate () = D.singleton (S.otherstate ())
+  let exitstate  () = D.singleton (S.exitstate  ())
+  let startstate () = D.singleton (S.startstate ())
+  
+  let call_descr = S.call_descr 
+  
+  let context l =
+    if D.cardinal l <> 1 then
+      failwith "PathSensitive2.context must be called with a singleton set."
+    else
+      S.context **> D.choose l
+      
+
+  let combine x = undefined x
+
+  let conv ctx x = 
+    let rec ctx' = { ctx with ask2   = query
+                            ; local2 = x
+                            ; spawn2 = (fun v -> ctx.spawn2 v -| D.singleton )
+                            ; split2 = (ctx.split2 -| D.singleton) }
+    and query x = S.query ctx' x in
+    ctx'
+          
+  let map ctx f g =
+    let h x xs = 
+      try D.add (g (f (conv ctx x))) xs
+      with Deadcode -> xs
+    in
+    let d = D.fold h ctx.local2 (D.empty ()) in
+    if D.is_bot d then raise Deadcode else d
+    
+  let assign ctx l e    = map ctx S.assign  (fun h -> h l e )
+  let body   ctx f      = map ctx S.body    (fun h -> h f   )
+  let return ctx e f    = map ctx S.return  (fun h -> h e f )
+  let branch ctx e tv   = map ctx S.branch  (fun h -> h e tv)
+  let intrpt ctx        = map ctx S.intrpt  identity
+  let special ctx l f a = map ctx S.special (fun h -> h l f a)
+  
+  let fold ctx f g h a =
+    let k x a = 
+      try h a **> g **> f **> conv ctx x 
+      with Deadcode -> a
+    in
+    let d = D.fold k ctx.local2 a in
+    if D.is_bot d then raise Deadcode else d
+
+  let fold' ctx f g h a =
+    let k x a = 
+      try h a **> g **> f **> conv ctx x 
+      with Deadcode -> a
+    in
+    D.fold k ctx.local2 a 
+  
+  let sync ctx = 
+    fold' ctx S.sync identity (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
+
+  let query ctx q = 
+    fold' ctx S.query identity (fun x f -> Queries.Result.meet x (f q)) `Top
+    
+  let enter ctx l f a =
+    let g xs ys = (List.map (fun (x,y) -> D.singleton x, D.singleton y) ys) @ xs in   
+    fold' ctx S.enter (fun h -> h l f a) g []
+
+  let combine ctx l fe f a d =
+    assert (D.cardinal ctx.local2 = 1);
+    let cd = D.choose ctx.local2 in
+    let k x y = 
+      try D.add (S.combine (conv ctx cd) l fe f a x) y
+      with Deadcode -> y 
+    in
+    let d = D.fold k d (D.bot ()) in
+    if D.is_bot d then raise Deadcode else d
+
+end  

@@ -301,3 +301,7 @@ module UninitMCP =
                 let inject_g x = `None 
                 let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
          end)
+
+module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec)
+let _ = 
+  MCP.register_analysis "uninit" (module Spec2 : Spec2)

@@ -292,3 +292,7 @@ module ShapeMCP =
                 let inject_g x = `Shapes x
                 let extract_g x = match x with `Shapes x -> x | _ -> raise MCP.SpecificationConversionError
          end)
+
+module Spec2 = Constraints.Spec2OfSpec (Spec)
+let _ = 
+  MCP.register_analysis "shape" (module Spec2 : Spec2)         
