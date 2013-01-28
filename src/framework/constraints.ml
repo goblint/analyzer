@@ -670,3 +670,55 @@ struct
     if D.is_bot d then raise Deadcode else d
 
 end  
+
+(** Verify if the hashmap pair is really a (partial) solution. *)
+module Verify2 
+  (S:GlobConstrSys) 
+  (LH:Hash.H with type key=S.lv) 
+  (GH:Hash.H with type key=S.gv) 
+  =
+struct
+  open S
+  
+  let verify (sigma:ld LH.t) (theta:gd GH.t) =
+    Goblintutil.in_verifying_stage := true;
+    let correct = ref true in
+    let complain_l (v:lv) lhs rhs = 
+      correct := false; 
+      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" 
+                LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
+    in
+    let complain_g v (g:gv) lhs rhs = 
+      correct := false; 
+      ignore (Pretty.printf "Unsatisfied constraint for global %a at variable %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]" 
+                GVar.pretty_trace g LVar.pretty_trace v G.pretty lhs G.pretty rhs)
+    in
+    (* For each variable v which has been assigned value d', would like to check
+     * that d' satisfied all constraints. *)
+    let verify_var v d' = 
+      let verify_constraint rhs =
+        let sigma' x = LH.find sigma x in
+        let theta' x = GH.find theta x in
+        (* First check that each (global) delta is included in the (global)
+         * invariant. *)
+        let check_local l lv =
+          let lv' = LH.find sigma l in 
+            if not (D.leq lv lv') then 
+              complain_l l lv' lv  
+        in
+        let check_glob g gv = 
+          let gv' = GH.find theta g in 
+            if not (G.leq gv gv') then 
+              complain_g v g gv' gv  
+        in    
+        let d = rhs sigma' check_local theta' check_glob in
+        (* Then we check that the local state satisfies this constraint. *)
+          if not (D.leq d d') then
+            complain_l v d' d
+      in
+      let rhs = system v in
+        List.iter verify_constraint rhs
+    in
+      LH.iter verify_var sigma;
+      Goblintutil.in_verifying_stage := false
+end

@@ -22,6 +22,8 @@ struct
   
   (** The solver *)
   module Slvr  = Selector.Make (EQSys) (LHT) (GHT)
+  (** The verifyer *)
+  module Vrfyr = Verify2 (EQSys) (LHT) (GHT)
   
   (** Triple of the function, context, and the local value. *)
   module RT = Analyses.ResultType2 (Spec)
@@ -188,8 +190,15 @@ struct
     let global_xml = ref (Xml.PCData "not-ready" ) in
     let do_analyze () = 
       let lh, gh = Slvr.solve entrystates [] startvars' in
+      
+      if not (get_bool "noverify") then begin
+        if (get_bool "dbg.verbose") then print_endline "Verifying the result.";
+        Vrfyr.verify lh gh;
+      end;
+      
       local_xml := solver2source_result lh;
       global_xml := make_global_xml gh;
+      
       (* check for dead code at the last state: *)
       let main_sol = LHT.find lh (List.hd startvars') in
       (if (get_bool "dbg.debug") && Spec.D.is_bot main_sol then
