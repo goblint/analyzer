@@ -213,13 +213,20 @@ struct
     
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
     Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file;
-  
+    
+    if get_bool "dump_globs" then 
+      List.iter (fun (_,gs) -> print_globals gs) !oldsol
 end
 
 (** The main function to preform the selected analyses. *)
 let analyze (file: Cil.file) fs = 
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph."; 
   let cfg = MyCFG.getCFG file true in
+  let cfg' = function
+      | MyCFG.Statement s -> (MyCFG.SelfLoop, n) :: cfg n
+      | _ -> cfg n
+  in
+  let cfg = if (get_bool "ana.osek.intrpts") then cfg' else cfg in
   let module CFG = struct let prev = cfg end in
   let module A = AnalyzeCFG (CFG) in
     A.analyze file fs 
