@@ -126,6 +126,12 @@ struct
     let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
       result, !funs
   
+  let print_globals glob = 
+    let out = M.get_out Spec.name !GU.out in
+    let print_one v st =
+      ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v Spec.G.pretty st)
+    in
+      GHT.iter print_one glob
   
 
   (** The main function to preform the selected analyses. *)
@@ -203,6 +209,9 @@ struct
       let main_sol = LHT.find lh (List.hd startvars') in
       (if (get_bool "dbg.debug") && Spec.D.is_bot main_sol then
         Printf.printf "NB! Execution does not reach the end of Main.\n");
+        
+      if get_bool "dump_globs" then 
+        print_globals gh  
     in
   
     if (get_bool "dbg.verbose") then print_endline "Solving the constraint system.";
@@ -213,9 +222,6 @@ struct
     
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
     Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file;
-    
-    if get_bool "dump_globs" then 
-      List.iter (fun (_,gs) -> print_globals gs) !oldsol
 end
 
 (** The main function to preform the selected analyses. *)
@@ -223,8 +229,8 @@ let analyze (file: Cil.file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph."; 
   let cfg = MyCFG.getCFG file true in
   let cfg' = function
-      | MyCFG.Statement s -> (MyCFG.SelfLoop, n) :: cfg n
-      | _ -> cfg n
+      | MyCFG.Statement s as n -> (MyCFG.SelfLoop, n) :: cfg n
+      | n -> cfg n
   in
   let cfg = if (get_bool "ana.osek.intrpts") then cfg' else cfg in
   let module CFG = struct let prev = cfg end in
