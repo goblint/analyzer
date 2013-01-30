@@ -439,8 +439,8 @@ struct
     let print_one (l,_,f) v =
       if LT.for_all (fun (_,x,f) -> SD.is_bot x) v then
         let add_fun  = IntSet.add l.line in
-        let add_file = StringMap.modify_def IntSet.empty l.file add_fun in
-        m := StringMap.modify_def StringMap.empty f.svar.vname add_file !m
+        let add_file = StringMap.modify_def IntSet.empty f.svar.vname add_fun in
+        m := StringMap.modify_def StringMap.empty l.file add_file !m
     in
     Result.iter print_one xs;
     let print_func f xs =
