@@ -192,3 +192,7 @@ module RegionMCP =
                 let inject_g x = `Region x
                 let extract_g x = match x with `Region x -> x | _ -> raise MCP.SpecificationConversionError
          end)
+
+module Spec2 = Constraints.Spec2OfSpec (Spec)
+let _ = 
+  MCP.register_analysis "region" (module Spec2 : Spec2)         

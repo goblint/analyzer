@@ -434,18 +434,27 @@ struct
   
   (** print out information about dead code *)
   let print_dead_code (xs:source_result) = 
-    let open BatMap in let open BatSet in let open BatPrintf in
+    let open BatMap in let open BatPrintf in
     let m = ref StringMap.empty in
-    let print_one (l,_,f) v =
-      if LT.for_all (fun (_,x,f) -> SD.is_bot x) v then
-        let add_fun  = IntSet.add l.line in
-        let add_file = StringMap.modify_def IntSet.empty l.file add_fun in
-        m := StringMap.modify_def StringMap.empty f.svar.vname add_file !m
+    let add_one (l,_,f) v =
+      if LT.for_all (fun (_,x,f) -> SD.is_bot x) v &&f.svar.vdecl<>l then
+        let add_fun  = BatISet.add l.line in
+        let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
+        m := StringMap.modify_def StringMap.empty l.file add_file !m
     in
-    Result.iter print_one xs;
+    Result.iter add_one xs;
     let print_func f xs =
-      printf "  function '%s' has dead code on lines: %a.\n" f 
-          (IntSet.print ~first:"" ~last:"" ~sep:", " BatInt.print) xs
+      let one_range b e first =
+        if not first then printf ", ";
+        begin if b=e then
+          printf "%d" b
+        else
+          printf "%d..%d" b e
+        end; false
+      in
+      printf "  function '%s' has dead code on lines: " f;
+      ignore (BatISet.fold_range one_range xs true);
+      printf "\n"
     in
     let print_file f =
       printf "File '%s':\n" f;

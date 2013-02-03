@@ -185,3 +185,7 @@ module ThreadLocIDMCP =
                 let inject_g x = `None 
                 let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
          end)
+
+module Spec2 = Constraints.Spec2OfSpec (StartLocIDs)
+let _ = 
+  MCP.register_analysis "thread-id-location" (module Spec2 : Spec2)         

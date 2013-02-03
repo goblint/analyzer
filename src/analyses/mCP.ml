@@ -895,6 +895,9 @@ struct
 
   let set_sub full_ctx (ctx:(local_state,'b,'c) ctx) (dp:local_state list) : (local_state,'b,'c) ctx = 
       set_preglob (set_precomp (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect ctx.report_access) ctx.precomp) ctx.preglob
+
+  let set_subs full_ctx ctx dp (dp2:local_state list) = 
+    let ctx = set_sub full_ctx ctx dp in { ctx with presub = dp2 }
   
   let may_race (ctx1,ac1) (ctx2,ac2) =
     let rec fold_left3 f a xs ys zs = 
@@ -928,7 +931,14 @@ struct
         in
         List.map f s.depends_on 
       in
-      (tf (set_sub ctx (set_st t) ds)) :: ls
+      let subds = 
+        let f n =
+          try List.find (fun x -> n = (get_matches x).featurename) ctx.local
+          with Not_found -> failwith ("D2ependency '"^n^"' not met, needed by "^s.featurename^".")
+        in
+        List.map f s.depends_on 
+      in
+      (tf (set_subs ctx (set_st t) ds subds)) :: ls
     in
     List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one (fun s -> set_st s ctx.global)) [] ctx.local))
 
@@ -962,7 +972,14 @@ struct
         fold_left1 (Dom.join')  (List.filter is_n (List.map (fun (t,_,_) -> t) (List.concat ls)))
       in
       let ds = List.map dep_val s.depends_on in
-      tf (set_sub ctx (set_st t) ds)::ls
+      let subds = 
+        let f n =
+          try List.find (fun x -> n = (get_matches x).featurename) ctx.local
+          with Not_found -> failwith ("Dependency '"^n^"' not met, needed by "^s.featurename^".")
+        in
+        List.map f s.depends_on 
+      in
+      tf (set_subs ctx (set_st t) ds subds)::ls
     in
     List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one (fun s -> set_st s ctx.global)) [] ctx.local))
 
@@ -1083,3 +1100,509 @@ struct
 end
 
 module Analysis = Multithread.Forward (Path) (Trans) (TransG)
+(************************)
+
+
+type spec_modules = { spec : (module Spec2)
+                    ; dom  : (module Lattice.S)
+                    ; glob : (module Lattice.S)
+                    ; cont : (module Printable.S) }
+                   
+let analyses_list : (int * spec_modules) list ref = ref []
+let analyses_list' : (int * spec_modules) list ref = ref []
+
+let analyses_table = ref []
+
+let register_analysis =
+  let count = ref 0 in
+  fun n (module S:Spec2) ->
+    let s = { spec = (module S : Spec2)
+            ; dom  = (module S.D : Lattice.S)
+            ; glob = (module S.G : Lattice.S)
+            ; cont = (module S.C : Printable.S)
+            }
+    in
+    analyses_table := (!count,n) :: !analyses_table;
+    analyses_list' := (!count,s) :: !analyses_list';
+    count := !count + 1
+
+
+type unknown = Obj.t
+
+module type DomainListPrintableSpec =
+sig
+  val assoc_dom : int -> (module Printable.S)
+  val domain_list : unit -> (int * (module Printable.S)) list
+end
+
+module type DomainListLatticeSpec =
+sig
+  val assoc_dom : int -> (module Lattice.S)
+  val domain_list : unit -> (int * (module Lattice.S)) list
+end
+
+module PrintableOfLatticeSpec (D:DomainListLatticeSpec) : DomainListPrintableSpec =
+struct
+  let assoc_dom n =
+    let f (module L:Lattice.S) = (module L : Printable.S)
+  in
+    f (D.assoc_dom n)
+
+  let domain_list () =
+    let f (module L:Lattice.S) = (module L : Printable.S)
+  in
+    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+end
+
+exception DomListBroken of string
+
+module DomListPrintable (DLSpec : DomainListPrintableSpec) 
+(*  : Printable.S with type t = (string * unknown) list *)
+  =
+struct
+  open DLSpec
+  open List
+  open Obj
+  
+  type t = (int * unknown) list
+    
+  let binop_fold f a (x:t) (y:t) =
+    let f a n d1 d2 =
+      f a n (assoc_dom n) d1 d2 
+    in
+    try if length x <> length y 
+        then raise (DomListBroken "binop_fold : differing lengths") 
+        else fold_left (fun a (n,d) -> f a n d **> assoc n y) a x
+    with Not_found -> raise (DomListBroken "binop_fold : assoc failure") 
+
+  let binop_map_rev (f: (module Printable.S) -> Obj.t -> Obj.t -> Obj.t) = 
+    binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) []
+  
+  let equal   = binop_fold (fun a n (module S : Printable.S) x y -> a && S.equal (obj x) (obj y)) true 
+  let compare = binop_fold (fun a n (module S : Printable.S) x y -> if a <> 0 then a else S.compare (obj x) (obj y)) 0 
+
+  let unop_fold f a (x:t) =
+    let f a n d =
+      f a n (assoc_dom n) d
+    in
+    fold_left (fun a (n,d) -> f a n d) a x
+  
+  let hashmul x y = if x=0 then y else if y=0 then x else x*y
+  
+  let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a **> S.hash (obj x)) 0
+  let isSimple = unop_fold (fun a n (module S : Printable.S) x -> a && S.isSimple (obj x)) true
+  
+  let name () = IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map (flip assoc !analyses_table) **> map fst **> domain_list ())
+
+  let short w x = 
+    let w2 = let n = List.length x in if n=0 then w else w / n in
+    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.short w2 (obj x) :: a) [] x in
+    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs
+
+
+  let pretty_f _ () x = 
+    let xs = unop_fold (fun a n (module S :Printable.S) x -> S.pretty () (obj x) :: a) [] x in
+    match xs with
+      | [] -> text "[]"
+      | x :: [] -> x
+      | x :: y ->
+        let rest  = List.fold_left (fun p n->p ++ text "," ++ n) nil y in
+        text "[" ++ x ++ rest ++ text "]"
+
+  let pretty = pretty_f short 
+
+  let toXML_f sf x =
+    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.toXML (obj x) :: a) [] x in
+    let esc = Goblintutil.escape in
+    let node_leaf = if xs = [] then "Leaf" else "Node" in
+      Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length x))], xs)
+
+  let toXML = toXML_f short
+  
+  let pretty_diff () (x,y) = 
+    let f a n (module S : Printable.S) x y = a ++ S.pretty_diff () (obj x, obj y) in
+    binop_fold f nil x y 
+end
+
+let _ =
+  let module Test : functor (DLSpec : DomainListPrintableSpec) -> Printable.S with type t = (int * unknown) list = DomListPrintable  in
+  ()
+
+module DomListLattice (DLSpec : DomainListLatticeSpec) 
+  : Lattice.S with type t = (int * unknown) list 
+  =
+struct
+  open DLSpec
+  open List
+  open Obj
+  
+  include DomListPrintable (PrintableOfLatticeSpec (DLSpec))
+
+  let binop_fold f a (x:t) (y:t) =
+    let f a n d1 d2 =
+      f a n (assoc_dom n) d1 d2 
+    in
+    try if length x <> length y 
+        then raise (DomListBroken "binop_fold : differing lengths") 
+        else fold_left (fun a (n,d) -> f a n d **> assoc n y) a x
+    with Not_found -> raise (DomListBroken "binop_fold : assoc failure") 
+
+  let binop_map_rev (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) = 
+    binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) []
+
+  let unop_fold f a (x:t) =
+    let f a n d =
+      f a n (assoc_dom n) d
+    in
+    fold_left (fun a (n,d) -> f a n d) a x
+
+  let narrow = binop_map_rev (fun (module S : Lattice.S) x y -> repr **> S.narrow (obj x) (obj y)) 
+  let widen  = binop_map_rev (fun (module S : Lattice.S) x y -> repr **> S.widen  (obj x) (obj y)) 
+  let meet   = binop_map_rev (fun (module S : Lattice.S) x y -> repr **> S.meet   (obj x) (obj y)) 
+  let join   = binop_map_rev (fun (module S : Lattice.S) x y -> repr **> S.join   (obj x) (obj y)) 
+
+  let leq     = binop_fold (fun a n (module S : Lattice.S) x y -> a && S.leq (obj x) (obj y)) true 
+
+  let is_top   = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_top (obj x)) true
+  let is_bot   = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_bot (obj x)) true
+
+  let top () = map (fun (n,(module S : Lattice.S)) -> (n,repr **> S.top ())) **> domain_list ()
+  let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr **> S.bot ())) **> domain_list ()
+end
+
+module LocalDomainListSpec : DomainListLatticeSpec =
+struct
+  open Tuple4
+  let assoc_dom n = (List.assoc n !analyses_list).dom
+  let domain_list () = List.map (fun (n,p) -> n, p.dom) !analyses_list
+end
+
+module GlobalDomainListSpec : DomainListLatticeSpec =
+struct
+  open Tuple4
+  let assoc_dom n = (List.assoc n !analyses_list).glob
+  let domain_list () = List.map (fun (n,p) -> n, p.glob) !analyses_list
+end
+
+module ContextListSpec : DomainListPrintableSpec =
+struct
+  open Tuple4
+  let assoc_dom n = (List.assoc n !analyses_list).cont
+  let domain_list () = List.map (fun (n,p) -> n, p.cont) !analyses_list
+end
+
+
+module MCP2 : Analyses.Spec2
+    with module D = DomListLattice (LocalDomainListSpec) 
+     and module G = DomListLattice (GlobalDomainListSpec) 
+     and module C = DomListPrintable (ContextListSpec) =
+struct 
+  module D = DomListLattice (LocalDomainListSpec) 
+  module G = DomListLattice (GlobalDomainListSpec) 
+  module C = DomListPrintable (ContextListSpec) 
+  
+  open List open Obj
+  
+  let name = "MCP2"
+    
+  let path_sens = ref []
+  let cont_inse = ref []
+  let base_id   = ref (-1)
+  
+  let init     () = 
+    let assoc' c v = try assoc c v with Not_found -> 666 in
+    let xs = map Json.string **> get_list "ana.activated[0]" in
+    let re = map (fun (x,y) -> y, x) !analyses_table in
+    let xs = map (flip assoc' re) xs in
+      base_id := assoc' "base" re;
+      analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
+      path_sens :=  map (flip assoc' re) **> map Json.string **> get_list "ana.path_sens";
+      cont_inse :=  map (flip assoc' re) **> map Json.string **> get_list "ana.ctx_insens";
+      iter (fun (_,{spec=(module S:Spec2)}) -> S.init ()) !analyses_list
+    
+  let finalize () = iter (fun (_,{spec=(module S:Spec2)}) -> S.finalize ()) !analyses_list
+
+  let spec x = (assoc x !analyses_list).spec
+  let spec_list xs = map (fun (n,x) -> (n,spec n,x)) xs
+
+  let context x = 
+    let x = filter (fun (x,_) -> not (mem x !cont_inse)) x in
+    let x = spec_list x in
+      map (fun (n,(module S:Spec2),d) -> n, repr **> S.context (obj d)) x
+
+  let should_join x y = 
+    let xs = filter (fun (x,_) -> mem x !path_sens) x in
+    let ys = filter (fun (x,_) -> mem x !path_sens) y in
+    D.equal xs ys
+    
+  let otherstate () = map (fun (n,{spec=(module S:Spec2)}) -> n, repr **> S.otherstate ()) !analyses_list
+  let exitstate  () = map (fun (n,{spec=(module S:Spec2)}) -> n, repr **> S.exitstate  ()) !analyses_list
+  let startstate () = map (fun (n,{spec=(module S:Spec2)}) -> n, repr **> S.startstate ()) !analyses_list
+    
+  let call_descr f xs = 
+    let xs = filter (fun (x,_) -> x = !base_id) xs in
+    fold_left (fun a (n,(module S:Spec2),d) -> S.call_descr f (obj d)) f.svar.vname **> spec_list xs
+  
+  (** [assoc_split_eq (=) [(1,a);(1,b);(2,x)] = ([a,b],[(2,x)])] *)
+  let assoc_split_eq (=) (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
+    let rec f a b = function 
+       | [] -> a, b
+       | (k',v)::xs when k=k' -> f (v::a) b xs
+       | x::xs -> f a (x::b) xs
+    in
+    f [] [] xs
+
+  let assoc_split k xs = assoc_split_eq (=) k xs
+    
+
+  (** [group_assoc_eq (=) [(1,a);(1,b);(2,x);(2,y)] = [(1,[a,b]),(2,[x,y])]] *)
+  let group_assoc_eq eq (xs: ('a * 'b) list) : ('a * ('b list)) list  =
+    let rec f a = function
+      | [] -> a
+      | (k,v)::xs -> 
+        let a', b = assoc_split_eq eq k xs in
+        f ((k,v::a')::a) b
+    in f [] xs
+
+  (** [group_assoc [(1,a);(1,b);(2,x);(2,y)] = [(1,[a,b]),(2,[x,y])]] *)
+  let group_assoc xs = group_assoc_eq (=) xs
+          
+  
+  let do_spawns ctx (xs:(varinfo * (int * Obj.t)) list) =
+    let spawn_one v d = 
+      let join_vals (n,(module S:Spec2),d) =
+        n, repr **> fold_left (fun x y -> S.D.join x (obj y)) (S.D.bot ()) d
+      in
+      ctx.spawn2 v **> map join_vals **> spec_list **> group_assoc (d @ otherstate ())
+    in
+    iter (uncurry spawn_one) **> group_assoc_eq Basetype.Variables.equal xs
+
+  let do_sideg ctx (xs:(varinfo * (int * Obj.t)) list) =
+    let side_one v d = 
+      let join_vals (n,(module S:Spec2),d) =
+        n, repr **> fold_left (fun x y -> S.G.join x (obj y)) (S.G.bot ()) d
+      in
+      ctx.sideg2 v **> map join_vals **> spec_list **> group_assoc (d @ G.bot ())
+    in
+    iter (uncurry side_one) **> group_assoc_eq Basetype.Variables.equal xs
+
+  
+  let rec do_splits ctx pv (xs:(int * (Obj.t * exp * bool)) list) =
+    let split_one n (d,e,tv) = 
+      let nv = (n,d)::(remove_assoc n pv) in
+      ctx.split2 (branch {ctx with local2 = nv} e tv) Cil.one true
+    in
+    iter (uncurry split_one) xs
+
+  
+  and branch (ctx:(D.t, G.t) ctx2) (e:exp) (tv:bool) =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let f (n,(module S:Spec2),d) =
+      let ctx' : (S.D.t, S.G.t) ctx2 = 
+        { ctx with local2  = obj d
+                 ; ask2    = query ctx
+                 ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
+                 ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+                 ; split2  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+                 ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+                 } 
+      in
+      n, repr **> S.branch ctx' e tv
+    in
+    let d = map f **> spec_list ctx.local2 in
+      do_spawns ctx !spawns;
+      do_sideg ctx !sides;
+      do_splits ctx d !splits;
+      d
+      
+  and query (ctx:(D.t, G.t) ctx2) q =
+    let f a (n,(module S:Spec2),d) =
+      let ctx' : (S.D.t, S.G.t) ctx2 = 
+        { ctx with local2  = obj d
+                 ; ask2    = query ctx
+                 ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
+                 ; spawn2  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+                 ; split2  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
+                 ; sideg2  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
+                 } 
+      in
+      Queries.Result.meet a **> S.query ctx' q
+    in
+      fold_left f `Top **> spec_list ctx.local2 
+
+  let assign (ctx:(D.t, G.t) ctx2) l e =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let f (n,(module S:Spec2),d) =
+      let ctx' : (S.D.t, S.G.t) ctx2 = 
+        { ctx with local2  = obj d
+                 ; ask2    = query ctx
+                 ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
+                 ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+                 ; split2  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+                 ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+                 } 
+      in
+      n, repr **> S.assign ctx' l e 
+    in
+    let d = map f **> spec_list ctx.local2 in
+      do_spawns ctx !spawns;
+      do_sideg ctx !sides;
+      do_splits ctx d !splits;
+      d
+  
+  let body (ctx:(D.t, G.t) ctx2) f =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let f (n,(module S:Spec2),d) =
+      let ctx' : (S.D.t, S.G.t) ctx2 = 
+        { ctx with local2  = obj d
+                 ; ask2    = query ctx
+                 ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
+                 ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+                 ; split2  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+                 ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+                 } 
+      in
+      n, repr **> S.body ctx' f 
+    in
+    let d = map f **> spec_list ctx.local2 in
+      do_spawns ctx !spawns;
+      do_sideg ctx !sides;
+      do_splits ctx d !splits;
+      d
+  
+  let return (ctx:(D.t, G.t) ctx2) e f =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let f (n,(module S:Spec2),d) =
+      let ctx' : (S.D.t, S.G.t) ctx2 = 
+        { ctx with local2  = obj d
+                 ; ask2    = query ctx
+                 ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
+                 ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+                 ; split2  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+                 ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+                 } 
+      in
+      n, repr **> S.return ctx' e f
+    in
+    let d = map f **> spec_list ctx.local2 in
+      do_spawns ctx !spawns;
+      do_sideg ctx !sides;
+      do_splits ctx d !splits;
+      d
+      
+  let intrpt (ctx:(D.t, G.t) ctx2) =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let f (n,(module S:Spec2),d) =
+      let ctx' : (S.D.t, S.G.t) ctx2 = 
+        { ctx with local2  = obj d
+                 ; ask2    = query ctx
+                 ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
+                 ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+                 ; split2  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+                 ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+                 } 
+      in
+      n, repr **> S.intrpt ctx'
+    in
+    let d = map f **> spec_list ctx.local2 in
+      do_spawns ctx !spawns;
+      do_sideg ctx !sides;
+      do_splits ctx d !splits;
+      d
+      
+  let special (ctx:(D.t, G.t) ctx2) r f a =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let f (n,(module S:Spec2),d) =
+      let ctx' : (S.D.t, S.G.t) ctx2 = 
+        { ctx with local2  = obj d
+                 ; ask2    = query ctx
+                 ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
+                 ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+                 ; split2  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+                 ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+                 } 
+      in
+      n, repr **> S.special ctx' r f a
+    in
+    let d = map f **> spec_list ctx.local2 in
+      do_spawns ctx !spawns;
+      do_sideg ctx !sides;
+      do_splits ctx d !splits;
+      d
+
+  let sync (ctx:(D.t, G.t) ctx2) =
+    let spawns = ref [] in
+    let splits = ref [] in
+    let sides  = ref [] in
+    let f (dl,cs) (n,(module S:Spec2),d) =
+      let ctx' : (S.D.t, S.G.t) ctx2 = 
+        { ctx with local2  = obj d
+                 ; ask2    = query ctx
+                 ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
+                 ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+                 ; split2  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
+                 ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+                 } 
+      in
+      let d, ds = S.sync ctx' in
+      (n, repr d)::dl, (map (fun (v,d) -> v, (n,repr d)::remove_assoc n **> D.bot ()) ds) @ cs
+    in
+    let d,cs = fold_left f ([],[]) **> spec_list ctx.local2 in
+      do_spawns ctx !spawns;
+      do_sideg ctx !sides;
+      do_splits ctx d !splits;
+      d, cs
+
+  let enter (ctx:(D.t, G.t) ctx2) r f a =
+    let spawns = ref [] in
+    let sides  = ref [] in
+    let f (n,(module S:Spec2),d) =
+      let ctx' : (S.D.t, S.G.t) ctx2 = 
+        { ctx with local2  = obj d
+                 ; ask2    = query ctx
+                 ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
+                 ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+                 ; split2  = (fun _ _    -> failwith "Cannot \"split\" in enter context." )
+                 ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+                 } 
+      in
+      map (fun (c,d) -> ((n, repr c), (n, repr d))) **> S.enter ctx' r f a
+    in
+    let css = map f **> spec_list ctx.local2 in
+      do_spawns ctx !spawns;
+      do_sideg ctx !sides;
+      map (fun xs -> (map fst xs, map snd xs)) **> n_cartesian_product css
+  
+  let combine (ctx:(D.t, G.t) ctx2) r fe f a fd =
+    let spawns = ref [] in
+    let sides  = ref [] in
+    let f (n,(module S:Spec2),d) =
+      let ctx' : (S.D.t, S.G.t) ctx2 = 
+        { ctx with local2  = obj d
+                 ; ask2    = query ctx
+                 ; global2 = (fun v      -> ctx.global2 v |> assoc n |> obj)
+                 ; spawn2  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
+                 ; split2  = (fun d e tv -> failwith "Cannot \"split\" in combine context.")
+                 ; sideg2  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+                 } 
+      in
+      n, repr **> S.combine ctx' r fe f a **> obj **> assoc n fd
+    in
+    let d = map f **> spec_list ctx.local2 in
+      do_spawns ctx !spawns;
+      do_sideg ctx !sides;
+      d
+    
+end

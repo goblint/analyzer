@@ -53,7 +53,7 @@ struct
   module AddrSet = Lattice.Reverse (ReverseAddrSet)
 
   include AddrSet
-
+  
   let toXML_f sf x = 
     match toXML x with
       | Xml.Element (node, [text, _], elems) -> 
@@ -120,6 +120,15 @@ struct
   let meet = Lockset.join
   let top = Lockset.bot
   let bot = Lockset.top
+  
+  let toXML_f sf x = 
+    match toXML x with
+      | Xml.Element (node, [text, _], elems) -> 
+          let summary = "May-Lock Set: " ^ sf Goblintutil.summary_length x in
+            Xml.Element (node, [text, summary], elems)
+      | x -> x
+      
+  let toXML s  = toXML_f short s
 end
 
 module Symbolic = 

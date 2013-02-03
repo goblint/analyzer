@@ -248,8 +248,11 @@ let do_analyze merged_AST =
       else Stats.time "analysis" (MCP.Analysis.analyze merged_AST) funs
   end
   
+let main_running = ref false
 (* the main function *)
 let main () = 
+  if !main_running then () else
+  let _ = main_running := true in
   try
     Stats.reset Stats.SoftwareTimer;  
     Cilfacade.init ();
@@ -260,4 +263,4 @@ let main () =
   with BailFromMain -> () 
   
 let _ = 
-  main ()
+  at_exit main 

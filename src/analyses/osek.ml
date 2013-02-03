@@ -457,3 +457,7 @@ module ThreadMCP =
                 let inject_g x = `Osek x 
                 let extract_g x = match x with `Osek x -> x | _ -> raise MCP.SpecificationConversionError
          end)
+
+module Spec2 = Constraints.Spec2OfSpec (Spec)
+let _ = 
+  MCP.register_analysis "OSEK" (module Spec2 : Spec2)         

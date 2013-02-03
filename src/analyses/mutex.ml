@@ -51,7 +51,7 @@ let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphor
 
 module type SpecParam =
 sig
-  module Glob: Glob.S
+  module Glob: Glob.S with module Var = Basetype.Variables
   val effect_fun: Lockset.t -> Glob.Val.t
 end
 
@@ -1029,3 +1029,7 @@ module ThreadMCP =
                 let inject_g x = `Mutex x 
                 let extract_g x = match x with `Mutex x-> x | _ -> raise MCP.SpecificationConversionError
          end)
+
+module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec)
+let _ = 
+  MCP.register_analysis "mutex" (module Spec2 : Spec2)

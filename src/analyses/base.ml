@@ -1346,3 +1346,7 @@ module BaseMCP =
                 let inject_g x = `Base x
                 let extract_g x = match x with `Base x -> x | _ -> raise MCP.SpecificationConversionError
          end)
+
+module Spec2 = Constraints.Spec2OfSpec (Spec)
+let _ = 
+  MCP.register_analysis "base" (module Spec2 : Spec2)

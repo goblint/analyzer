@@ -5,7 +5,8 @@ open Analyses
 module Spec 
   : Analyses.Spec 
   with type Dom.t = unit 
-   and type Glob.Val.t = unit =
+   and type Glob.Val.t = unit 
+   and module Glob.Var = Basetype.Variables =
 struct
   include Analyses.DefaultSpec
 
@@ -55,3 +56,7 @@ module ThreadMCP =
                 let inject_g () = `None  
                 let extract_g = function `None -> () | _ -> raise MCP.SpecificationConversionError
          end)
+
+module Spec2 = Constraints.Spec2OfSpec (Spec)
+let _ = 
+  MCP.register_analysis "lval_need" (module Spec2 : Spec2)         

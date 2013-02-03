@@ -79,8 +79,8 @@ let _ =
 let _ =
   reg Analyses "ana.activated" "[['base','escape','mutex']]"  "Lists of activated analyses, split into phases.";
 
-  reg Analyses "ana.path_sens"  "['OESK','OESK2','mutex','malloc_null','uninit','shape']"  "List of path-sensitive analyses";
-  reg Analyses "ana.ctx_insens" "['OESK2','OESK3','stack_trace_set']"                      "List of context-insensitive analyses";
+  reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit','shape']"  "List of path-sensitive analyses";
+  reg Analyses "ana.ctx_insens" "['OSEK2','OSEK3','stack_trace_set']"                      "List of context-insensitive analyses";
   
   reg Analyses "ana.warnings"        "false" "Print soundness warnings.";
   reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class.";

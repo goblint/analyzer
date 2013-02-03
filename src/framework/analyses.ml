@@ -41,11 +41,14 @@ type local_state = [
     | `Need        of unit
     | `MayLocks    of LockDomain.MayLockset.t
     | `ThreadLocSet of ConcDomain.ThreadStringSet.t
+    | `Oslo         of LockDomain.Lockset.t
+    | `Unit
     ]
 
 type global_state = [
     | `Base   of BaseDomain.Glob.Val.t
     | `Mutex  of LockDomain.Glob.Val.t
+    | `Oslo  of LockDomain.Glob.Val.t
     | `Osek  of LockDomain.OsekGlob.Val.t
     | `Region of RegionDomain.RegPart.t
 (*    | `Access of AccessDomain.Access.GlobDom.t *)
@@ -67,6 +70,7 @@ type ('a,'b,'c) ctx =
     { ask   : Queries.t -> Queries.Result.t
     ; local : 'a
     ; global: 'b -> 'c 
+    ; presub: local_state list
     ; sub   : local_state list
     ; spawn : varinfo -> 'a -> unit
     ; geffect : 'b -> 'c -> unit 
@@ -96,7 +100,7 @@ let set_precomp ctx pc =
 let set_preglob ctx pg = 
   {ctx with preglob = pg}
 
-let context ask st gl dp sp ge rep = {ask=ask; local=st; global=gl;sub=dp;spawn=sp;geffect=ge;precomp=[];preglob=[]; report_access=rep}
+let context ask st gl dp sp ge rep = {ask=ask; local=st; global=gl;sub=dp;presub=[];spawn=sp;geffect=ge;precomp=[];preglob=[]; report_access=rep}
 
 module type DomainTranslator =
 sig
@@ -648,6 +652,7 @@ sig
   val exitstate : unit -> D.t
   val otherstate : unit -> D.t
 
+  val should_join : D.t -> D.t -> bool
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
   
