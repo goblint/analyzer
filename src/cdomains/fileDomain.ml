@@ -45,17 +45,23 @@ struct
     let short = short
   end) 
 
+  let create v l s = { var=v; loc=l; state=s }
+  let may = function Must x -> May [x] | xs -> xs
+  let recordList = function Must x -> [x] | May xs -> xs
+
   let equal = Util.equals
   let hash = Hashtbl.hash
   let leq x y = true
-  let join x y = M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString x)); x
-  let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString x)); x
+  let join x y = M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y));
+    let r = May ((recordList x)@(recordList y)) in
+    M.report ("result: "^(toString r));
+    r
+  let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); x
   let top () = raise Unknown
   let is_top x = (* x.loc = Top *)false 
   let bot () = raise Error
   let is_bot x = (* x.loc = Bot *)false
-
-  let create v l s = { var=v; loc=l; state=s }
+  
   let dummy () = { var=(Cil.makeVarinfo false "dummy" Cil.voidType); loc=Bot; state=Close }
 end
 
@@ -72,7 +78,7 @@ struct
   module MD = MapDomain.MapBot (Basetype.Variables) (Val)
   include MD
   module M = Map.Make (Basetype.Variables) (* why does Map.Make (K) not work? *)
-  include V.T
+  open V.T
 
   (* other map functions *)
   (* val filter : (key -> 'a -> bool) -> 'a t -> 'a t
@@ -99,8 +105,7 @@ struct
     add var (Must(V.create var loc (Open(filename, mode)))) m
   let fclose m var loc = add var (Must(V.create var loc Close)) m
 
-  let mayVal = function Must x -> May [x] | xs -> xs
-  let may m var = add var (mayVal (find var m)) m
+  let may m var = add var (V.may (find var m)) m
 
 (*   let toXML_f sf x = 
     match toXML x with

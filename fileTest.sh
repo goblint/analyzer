@@ -10,7 +10,7 @@ case "$mode" in
   ;;
 esac
 cmd="./goblint --sets result $result $args $file"
-echo $cmd
+echo -e "$(tput setaf 6)$cmd$(tput sgr 0)"
 $cmd
 
 # focuses Firefox and reloads current tab

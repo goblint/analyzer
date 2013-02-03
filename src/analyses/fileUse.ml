@@ -11,13 +11,13 @@ struct
 
   let name = "File Use"
   module Dom  = FileDomain.FileUses
-  include Dom.V.T
+  open Dom.V.T
   module Glob = Glob.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
   let loc_stack = ref []
-  let return_var = ref dummyFunDec.svar (* see base.ml: 219 *)
+  let return_var = dummyFunDec.svar (* see base.ml: 219 *)
 
   let lval2var (lhost,offset) =
     match lhost with
@@ -43,8 +43,8 @@ struct
       m
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
-    let loc = !Tracing.current_loc in
-    (* ignore(printf "if %a = %s (line %i)\n" (printExp plainCilPrinter) exp (string_of_bool tv) loc.line); *)
+(*     let loc = !Tracing.current_loc in
+    ignore(printf "if %a = %s (line %i)\n" (printExp plainCilPrinter) exp (string_of_bool tv) loc.line); *)
     ctx.local
   
   let body ctx (f:fundec) : Dom.t = 
@@ -61,13 +61,13 @@ struct
         M.report ("unclosed files: "^vnames);
         List.iter (fun var -> M.report ~loc:var.vdecl "file is never closed") vars
     );
-    let loc = !Tracing.current_loc in
+(*     let loc = !Tracing.current_loc in
     (match exp with
       | Some exp -> ignore(printf "return %a (%i)\n" (printExp plainCilPrinter) exp loc.line)
-      | _ -> ignore(1));
+      | _ -> ignore(1)); *)
     match exp with
       | Some(Lval(Var(varinfo),offset)) -> (* return_var := varinfo *)
-          Dom.add !return_var (Dom.find varinfo m) m
+          Dom.add return_var (Dom.find varinfo m) m
       | _ -> m
 
     
@@ -81,10 +81,10 @@ struct
     (* M.report ("leaving function "^f.vname); *) (* TODO pop loc from stack in ctx *)
     (* let loc = !Tracing.current_loc in *)
     loc_stack := List.tl !loc_stack;
-    let return_val = Dom.findOption !return_var au in
+    let return_val = Dom.findOption return_var au in
     match lval, return_val with
       | Some lval, Some rval ->
-          let var = lval2var lval in Dom.add var rval (Dom.remove !return_var au)
+          let var = lval2var lval in Dom.add var rval (Dom.remove return_var au)
       | _ -> au
 
   let rec cut_offset x =
