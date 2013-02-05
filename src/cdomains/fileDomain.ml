@@ -97,8 +97,8 @@ struct
 
   (* domain specific *)
   let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then List.exists p xs else List.for_all p xs
-  let filterOnVal p m = M.filter (fun k v -> predicate v p) m
-  let filterVars p m = List.map (fun (k,v) -> k) (M.bindings (filterOnVal p m))
+  let filterOnVal ?may:(may=false) p m = M.filter (fun k v -> predicate ~may:may v p) m
+  let filterVars ?may:(may=false) p m = List.map (fun (k,v) -> k) (M.bindings (filterOnVal ~may:may p m))
 
   let check m var p = if mem var m then predicate (find var m) p else false
   let opened m var = check m var (fun x -> x.state <> Close)

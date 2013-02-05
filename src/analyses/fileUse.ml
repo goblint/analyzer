@@ -54,12 +54,17 @@ struct
     let m = ctx.local in
     (* M.report ("return: ctx.local="^(Dom.short 50 ctx.local)); *)
     if f.svar.vname = "main" then (
-      let vars = Dom.filterVars (fun x ->
-          match x.state with Dom.V.Open(_) -> true | _ -> false) m in
+      let p = (fun x -> match x.state with Dom.V.Open(_) -> true | _ -> false) in
+      let vnames vars = String.concat ", " (List.map (fun v -> v.vname) vars) in
+      let vars = Dom.filterVars p m in
       if List.length vars > 0 then
-        let vnames = String.concat ", " (List.map (fun v -> v.vname) vars) in
-        M.report ("unclosed files: "^vnames);
-        List.iter (fun var -> M.report ~loc:var.vdecl "file is never closed") vars
+        M.report ("unclosed files: "^(vnames vars));
+        List.iter (fun var -> M.report ~loc:var.vdecl "file is never closed") vars;
+      let may_vars = Dom.filterVars ~may:true p m in
+      let vars = List.filter (fun x -> not (List.mem x vars)) may_vars in
+      if List.length vars > 0 then
+        M.report ("maybe unclosed files: "^(vnames vars));
+        List.iter (fun var -> M.report ~loc:var.vdecl "file may be never closed") vars
     );
 (*     let loc = !Tracing.current_loc in
     (match exp with
