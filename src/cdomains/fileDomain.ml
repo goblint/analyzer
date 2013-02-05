@@ -105,15 +105,22 @@ struct
   let closed m var = check m var (fun x -> x.state = Close)
   let writable m var = check m var (fun x -> match x.state with Open((_,Write)) -> true | _ -> false)
 
-  let report ?neg:(neg=false) m var p msg = let f s = Messages.report s in
-    if mem var m then(
+  let report_ ?neg:(neg=false) m var p msg = let f s = Messages.report s; true in
+    if mem var m then
       let v = find var m in
       let p x = if neg then not (p x) else p x in
       match v with
-        | Must x -> if p x then f msg
+        | Must x -> if p x then f msg else false
         | May xs -> if List.for_all p xs then f msg
                     else if List.exists p xs then f ("might be "^msg)
-    )else if neg then f msg
+                    else false
+    else if neg then f msg else false
+
+  let report ?neg:(neg=false) m var p msg = ignore(report_ ~neg:neg m var p msg)
+
+  let reports xs =
+    let uncurry (neg, m, var, p, msg) = report_ ~neg:neg m var p msg in
+    ignore(List.exists uncurry xs) (* stops after first hit. like if .. else if .. else ..*)
 
   let fopen m var loc filename mode =
     let mode = match String.lowercase mode with "r" -> Read | _ -> Write in

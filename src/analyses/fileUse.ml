@@ -164,9 +164,15 @@ struct
                           (* if           Dom.closed m varinfo  then M.report ("writing to closed file handle "^varinfo.vname) *)
                           (* else if not (Dom.opened m varinfo) then M.report ("writing to unopened file handle "^varinfo.vname) *)
                           (* else if not (Dom.writable m varinfo) then M.report ("writing to read-only file handle "^varinfo.vname); *)
-                          Dom.report m varinfo Dom.V.closed ("writing to closed file handle "^varinfo.vname);
-                          Dom.report ~neg:true m varinfo Dom.V.opened ("writing to unopened file handle "^varinfo.vname);
-                          Dom.report ~neg:true m varinfo Dom.V.writable ("writing to read-only file handle "^varinfo.vname);
+                    
+                          (* Dom.report m varinfo Dom.V.closed ("writing to closed file handle "^varinfo.vname); *)
+                          (* Dom.report ~neg:true m varinfo Dom.V.opened ("writing to unopened file handle "^varinfo.vname); *)
+                          (* Dom.report ~neg:true m varinfo Dom.V.writable ("writing to read-only file handle "^varinfo.vname); *)
+                          Dom.reports [
+                            false, m, varinfo, Dom.V.closed,   "writing to closed file handle "^varinfo.vname;
+                            true,  m, varinfo, Dom.V.opened,   "writing to unopened file handle "^varinfo.vname;
+                            true,  m, varinfo, Dom.V.writable, "writing to read-only file handle "^varinfo.vname;
+                          ];
                           dummy
                       | Mem exp -> dummy
                     end
