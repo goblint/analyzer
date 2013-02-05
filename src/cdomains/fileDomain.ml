@@ -30,7 +30,7 @@ struct
       | Bot -> "Bot" | Top -> "Top" in
     let mode x = match x with Read -> "Read" | Write -> "Write" in
     match x.state with
-    | Open(filename, m) -> "open "^filename^" "^(mode m)^" ("^(loc x.loc)^")"
+    | Open(filename, m) -> "open("^filename^", "^(mode m)^") ("^(loc x.loc)^")"
     | Close -> "closed ("^(loc x.loc)^")"
 
   let toString = function
@@ -62,7 +62,12 @@ struct
   let bot () = raise Error
   let is_bot x = (* x.loc = Bot *)false
   
-  let dummy () = { var=(Cil.makeVarinfo false "dummy" Cil.voidType); loc=Bot; state=Close }
+  (* let dummy () = { var=(Cil.makeVarinfo false "dummy" Cil.voidType); loc=Bot; state=Close } *)
+
+  (* properties used by FileUses.report *)
+  let opened x = x.state <> Close
+  let closed x = x.state = Close
+  let writable x = match x.state with Open((_,Write)) -> true | _ -> false
 end
 
 module FileUses  = 
@@ -91,7 +96,7 @@ struct
   let findOption k m = if mem k m then Some(find k m) else None
 
   (* domain specific *)
-  let predicate v p = match v with Must x -> p x | May xs -> List.for_all p xs
+  let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then List.exists p xs else List.for_all p xs
   let filterOnVal p m = M.filter (fun k v -> predicate v p) m
   let filterVars p m = List.map (fun (k,v) -> k) (M.bindings (filterOnVal p m))
 
@@ -99,6 +104,16 @@ struct
   let opened m var = check m var (fun x -> x.state <> Close)
   let closed m var = check m var (fun x -> x.state = Close)
   let writable m var = check m var (fun x -> match x.state with Open((_,Write)) -> true | _ -> false)
+
+  let report ?neg:(neg=false) m var p msg = let f s = Messages.report s in
+    if mem var m then(
+      let v = find var m in
+      let p x = if neg then not (p x) else p x in
+      match v with
+        | Must x -> if p x then f msg
+        | May xs -> if List.for_all p xs then f msg
+                    else if List.exists p xs then f ("might be "^msg)
+    )else if neg then f msg
 
   let fopen m var loc filename mode =
     let mode = match String.lowercase mode with "r" -> Read | _ -> Write in

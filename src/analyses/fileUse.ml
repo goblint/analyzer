@@ -127,7 +127,8 @@ struct
                 match lhost with
                   | Var varinfo -> (* M.report ("file handle saved in variable "^varinfo.vname); *)
                       (* opened again, not closed before *)
-                      if Dom.opened m varinfo then M.report ("overwriting unclosed file handle "^varinfo.vname);
+                      (* if Dom.opened m varinfo then M.report ("overwriting unclosed file handle "^varinfo.vname); *)
+                      Dom.report m varinfo Dom.V.opened ("overwriting unclosed file handle "^varinfo.vname);
                       begin match List.map (Cil.stripCasts) arglist with
                         | Const(CStr(filename))::Const(CStr(mode))::xs -> 
                             ret (Dom.fopen m varinfo dloc filename mode)
@@ -143,8 +144,10 @@ struct
                 | Lval (lhost,offset) -> begin
                     match lhost with
                       | Var varinfo -> (* M.report ("closing file handle "^varinfo.vname); *)
-                          if not (Dom.opened m varinfo) then M.report ("closeing unopened file handle "^varinfo.vname);
-                          if      Dom.closed m varinfo  then M.report ("closeing already closed file handle "^varinfo.vname);
+                          (* if not (Dom.opened m varinfo) then M.report ("closeing unopened file handle "^varinfo.vname); *)
+                          (* if      Dom.closed m varinfo  then M.report ("closeing already closed file handle "^varinfo.vname); *)
+                          Dom.report ~neg:true m varinfo Dom.V.opened ("closeing unopened file handle "^varinfo.vname);
+                          Dom.report m varinfo Dom.V.closed ("closeing already closed file handle "^varinfo.vname);
                           ret (Dom.fclose m varinfo dloc)
                       | Mem exp -> dummy
                     end
@@ -158,9 +161,12 @@ struct
                 | Lval (lhost,offset) -> begin
                     match lhost with
                       | Var varinfo -> (* M.report ("printf to file handle "^varinfo.vname); *)
-                          if           Dom.closed m varinfo  then M.report ("writing to closed file handle "^varinfo.vname)
-                          else if not (Dom.opened m varinfo) then M.report ("writing to unopened file handle "^varinfo.vname)
-                          else if not (Dom.writable m varinfo) then M.report ("writing to read-only file handle "^varinfo.vname);
+                          (* if           Dom.closed m varinfo  then M.report ("writing to closed file handle "^varinfo.vname) *)
+                          (* else if not (Dom.opened m varinfo) then M.report ("writing to unopened file handle "^varinfo.vname) *)
+                          (* else if not (Dom.writable m varinfo) then M.report ("writing to read-only file handle "^varinfo.vname); *)
+                          Dom.report m varinfo Dom.V.closed ("writing to closed file handle "^varinfo.vname);
+                          Dom.report ~neg:true m varinfo Dom.V.opened ("writing to unopened file handle "^varinfo.vname);
+                          Dom.report ~neg:true m varinfo Dom.V.writable ("writing to read-only file handle "^varinfo.vname);
                           dummy
                       | Mem exp -> dummy
                     end
