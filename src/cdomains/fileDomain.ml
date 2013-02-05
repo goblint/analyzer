@@ -53,6 +53,8 @@ struct
   let hash = Hashtbl.hash
   let leq x y = true
   let join x y = M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y));
+    (* Out_of_memory?? *)
+    (* let r = May (BatList.unique ((recordList x)@(recordList y))) in *)
     let r = May ((recordList x)@(recordList y)) in
     M.report ("result: "^(toString r));
     r
