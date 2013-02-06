@@ -11,7 +11,7 @@ int main(){
 		if(i%2){
 			// i -> Unknown int
 			// fprintf(fp, "Testing...%s\n", i); // Segmentation fault!
-			fprintf(fp, "Testing...%i\n", i); // TODO: only warn maybe closed
+			fprintf(fp, "Testing...%i\n", i);
 			fclose(fp);  
 		}else{
 			fp = fopen("test.txt", "a");

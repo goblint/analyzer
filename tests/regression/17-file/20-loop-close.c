@@ -12,5 +12,5 @@ int main(){
 		i++;
 	}
 	// why: fp -> Must open(test.txt, Write) (7, 3)
-	// -> because loop would't exit?
+	// -> because loop wouldn't exit?
 }

@@ -110,11 +110,12 @@ struct
   let closed m var = check m var (fun x -> x.state = Close)
   let writable m var = check m var (fun x -> match x.state with Open((_,Write)) -> true | _ -> false)
 
+  (* returns a tuple (thunk, result) *)
   let report_ ?neg:(neg=false) m var p msg =
     let f ?may:(may=false) s =
-      Messages.report (if may then ("might be "^s) else s);
-      if may then `May true else `Must true in
-    let mf = `Must false in
+      let f () = Messages.report (if may then ("might be "^s) else s) in
+      if may then f, `May true else f, `Must true in
+    let mf = (fun () -> ()), `Must false in
     if mem var m then
       let v = find var m in
       let p x = if neg then not (p x) else p x in
@@ -125,12 +126,18 @@ struct
                     else mf
     else if neg then f msg else mf
 
-  let report ?neg:(neg=false) m var p msg = ignore(report_ ~neg:neg m var p msg)
+  let report ?neg:(neg=false) m var p msg = (fst (report_ ~neg:neg m var p msg)) () (* evaluate thunk *)
 
   let reports xs =
     let uncurry (neg, m, var, p, msg) = report_ ~neg:neg m var p msg in
-    let f x = uncurry x = `Must true in (* TODO: only first Must true; if there are none output only first May true *)
-    ignore(List.exists f xs) (* stops after first `Must true. like if .. else if .. else ..*)
+(*     let f x = uncurry x = `Must true in
+    ignore(List.exists f xs) (* stops after first `Must true. like if .. else if .. else ..*) *)
+    let f result x = if snd (uncurry x) = result then Some (fst (uncurry x)) else None in
+    let must_true = BatList.filter_map (f (`Must true)) xs in
+    let may_true  = BatList.filter_map (f (`May true)) xs in
+    (* output first must and first may *)
+    if List.length must_true > 0 then (List.hd must_true) ();
+    if List.length may_true  > 0 then (List.hd may_true) ()
 
   let fopen m var loc filename mode =
     let mode = match String.lowercase mode with "r" -> Read | _ -> Write in
