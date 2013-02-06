@@ -8,8 +8,9 @@ int main(){
 
 	while (i){ // May closed (11, 3), open(test.txt, Write) (7, 3) 
 		fprintf(fp, "Testing...\n"); // why: fp -> Must open(test.txt, Write) (7, 3)
-		fclose(fp);  
+		fclose(fp);
 		i++;
 	}
 	// why: fp -> Must open(test.txt, Write) (7, 3)
+	// -> because loop would't exit?
 }

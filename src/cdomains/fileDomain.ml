@@ -53,7 +53,10 @@ struct
   let hash = Hashtbl.hash
   let leq x y = true
   let join x y = M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y));
-    (* Out_of_memory?? *)
+    (* Out_of_memory:
+    unique runs out because it keeps the latest element -> ordering of list changes -> no fixpoint reached
+    unique_cmp doesn't because it keeps the first
+    -> better use Set *)
     let r = May (BatList.unique_cmp ((recordList x)@(recordList y))) in
     (* let r = May ((recordList x)@(recordList y)) in *)
     M.report ("result: "^(toString r));
@@ -126,7 +129,7 @@ struct
 
   let reports xs =
     let uncurry (neg, m, var, p, msg) = report_ ~neg:neg m var p msg in
-    let f x = uncurry x = `Must true in
+    let f x = uncurry x = `Must true in (* TODO: only first Must true; if there are none output only first May true *)
     ignore(List.exists f xs) (* stops after first `Must true. like if .. else if .. else ..*)
 
   let fopen m var loc filename mode =
