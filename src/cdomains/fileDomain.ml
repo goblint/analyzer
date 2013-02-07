@@ -1,5 +1,6 @@
 open Cil
 open Pretty
+open BatPervasives
 
 module M = Messages
 
@@ -118,7 +119,7 @@ struct
     let mf = (fun () -> ()), `Must false in
     if mem var m then
       let v = find var m in
-      let p x = if neg then not (p x) else p x in
+      let p = if neg then not -| p else p in
       match v with
         | Must x -> if p x then f msg else mf
         | May xs -> if List.for_all p xs then f msg
