@@ -185,13 +185,7 @@ end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec2]. *)
 module FromSpec (S:Spec2) (Cfg:CfgBackward)
-  : GlobConstrSys with type lv = node * S.C.t
-                   and type gv = varinfo
-                   and type ld = S.D.t
-                   and type gd = S.G.t
-                   and type c  = S.C.t
-                   and module C = S.C
-                   and module LVar = VarF (S.C)
+  : GlobConstrSys with module LVar = VarF (S.C)
                    and module GVar = Basetype.Variables
                    and module D = S.D
                    and module G = S.G
@@ -201,14 +195,10 @@ struct
   type gv = varinfo
   type ld = S.D.t
   type gd = S.G.t
-  type c  = S.C.t
-  module C = S.C
   module LVar = VarF (S.C)
   module GVar = Basetype.Variables
   module D = S.D
   module G = S.G
-  
-  let context = S.context
 
   let common_ctx (v,c) u (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx2 = 
     let pval = getl (u,c) in     
@@ -463,8 +453,8 @@ end*)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
   : GenericGlobSolver 
   = functor (S:GlobConstrSys) ->
-    functor (LH:Hash.H with type key=S.lv) ->
-    functor (GH:Hash.H with type key=S.gv) ->
+    functor (LH:Hash.H with type key=S.LVar.t) ->
+    functor (GH:Hash.H with type key=S.GVar.t) ->
 struct
   let lh_find_default h k d = try LH.find h k with Not_found -> d
   let gh_find_default h k d = try GH.find h k with Not_found -> d
@@ -674,21 +664,21 @@ end
 (** Verify if the hashmap pair is really a (partial) solution. *)
 module Verify2 
   (S:GlobConstrSys) 
-  (LH:Hash.H with type key=S.lv) 
-  (GH:Hash.H with type key=S.gv) 
+  (LH:Hash.H with type key=S.LVar.t) 
+  (GH:Hash.H with type key=S.GVar.t) 
   =
 struct
   open S
   
-  let verify (sigma:ld LH.t) (theta:gd GH.t) =
+  let verify (sigma:D.t LH.t) (theta:G.t GH.t) =
     Goblintutil.in_verifying_stage := true;
     let correct = ref true in
-    let complain_l (v:lv) lhs rhs = 
+    let complain_l (v:LVar.t) lhs rhs = 
       correct := false; 
       ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]" 
                 LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
     in
-    let complain_g v (g:gv) lhs rhs = 
+    let complain_g v (g:GVar.t) lhs rhs = 
       correct := false; 
       ignore (Pretty.printf "Unsatisfied constraint for global %a at variable %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]" 
                 GVar.pretty_trace g LVar.pretty_trace v G.pretty lhs G.pretty rhs)

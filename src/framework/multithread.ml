@@ -904,7 +904,7 @@ struct
     (* get the control flow graph *)
     let cfg = 
       if (get_bool "dbg.verbose") then print_endline "Generating Constraints."; 
-      MyCFG.getCFG file (not (get_bool "exp.sharir-pnueli" || (get_bool "exp.forward"))) 
+      (if not (get_bool "exp.sharir-pnueli" || (get_bool "exp.forward")) then snd else fst) (MyCFG.getCFG file)
     in
     let oldsol = ref [] in (* list of solutions from previous phases *)
     let precmp = ref [] in (* same as oldsol but without contexts  *)

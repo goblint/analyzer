@@ -11,8 +11,8 @@ let add_solver x = solvers := x::!solvers
 (** The solver that actually uses the implementation based of [get_string "solver"]. *)
 module Make : GenericGlobSolver =
   functor (S:GlobConstrSys) ->
-  functor (LH:Hash.H with type key=S.lv) ->
-  functor (GH:Hash.H with type key=S.gv) ->
+  functor (LH:Hash.H with type key=S.LVar.t) ->
+  functor (GH:Hash.H with type key=S.GVar.t) ->
 struct  
 
   (** Dynamically choose the solver. Fall back to 'effectWCon' in case the 
