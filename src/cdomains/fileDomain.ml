@@ -52,9 +52,7 @@ struct
   let may = function Must x -> May (PSet.singleton x) | xs -> xs
   let records = function Must x -> (PSet.singleton x) | May xs -> xs
 
-  (* let equal = Util.equals *)
-  let equal x y = let xs = records x in let ys = records y in
-    PSet.for_all (fun x -> PSet.mem x ys) xs && PSet.for_all (fun y -> PSet.mem y xs) ys
+  let equal = Util.equals
   let leq x y = PSet.subset (records x) (records y)
   let hash = Hashtbl.hash
   let join x y = M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y));
