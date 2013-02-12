@@ -670,26 +670,6 @@ sig
   val combine : (D.t, G.t) ctx2 -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
 end
 
-module ResultType2 (Spec: Spec2) = 
-struct
-  include Printable.Prod3 (Spec.C) (Spec.D) (Basetype.CilFundec)
-  let isSimple _ = false
-  let short w (es,x,f:t) = Spec.call_descr f es
-  let toXML (es,x,_ as st:t) = 
-    let open Xml in
-    let flatten_single = function
-      | Element (_,_,[x]) | x ->  x in
-    let try_replace_text s = function
-    	| Element (tag, attr, children) -> Element (tag, ["text", s], children) 
-    	| x -> x
-    in
-    let esc = Goblintutil.escape in
-    let ctx = try_replace_text "Context" (flatten_single (Spec.C.toXML es)) in
-    let res = try_replace_text "Value" (flatten_single (Spec.D.toXML x)) in
-      Element ("Node",["text",esc (short 80 st)],[ctx;res])            
-  let pretty () (_,x,_) = Spec.D.pretty () x
-end
-
 (** A side-effecting system. *)
 module type MonSystem =
 sig
@@ -717,22 +697,13 @@ module type EqConstrSys = MonSystem with type 'a m := 'a option
 (** A side-effecting system with globals. *)
 module type GlobConstrSys =
 sig
-  type lv
-  type gv
-  type ld
-  type gd
-  
-  type c
-  module C : Printable.S
-  
-  module LVar : VarType  with type t = lv
-  module GVar : VarType with type t = gv
+  module LVar : VarType 
+  module GVar : VarType 
 
-  module D : Lattice.S with type t = ld
-  module G : Lattice.S with type t = gd
+  module D : Lattice.S 
+  module G : Lattice.S 
   
-  val context : ld -> c 
-  val system : lv -> ((lv -> ld) -> (lv -> ld -> unit) -> (gv -> gd) -> (gv -> gd -> unit) -> ld) list
+  val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
 end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
@@ -748,10 +719,31 @@ end
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericGlobSolver =
   functor (S:GlobConstrSys) ->
-  functor (LH:Hash.H with type key=S.lv) ->
-  functor (GH:Hash.H with type key=S.gv) ->
+  functor (LH:Hash.H with type key=S.LVar.t) ->
+  functor (GH:Hash.H with type key=S.GVar.t) ->
 sig
   (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
       reached from starting values [xs].  *)
-  val solve : (S.lv*S.ld) list -> (S.gv*S.gd) list -> S.lv list -> S.ld LH.t * S.gd GH.t
+  val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> S.D.t LH.t * S.G.t GH.t
+end
+
+module ResultType2 (S:Spec2) = 
+struct
+  open S
+  include Printable.Prod3 (C) (D) (Basetype.CilFundec)
+  let isSimple _ = false
+  let short w (es,x,f:t) = call_descr f es
+  let toXML (es,x,_ as st:t) = 
+    let open Xml in
+    let flatten_single = function
+      | Element (_,_,[x]) | x ->  x in
+    let try_replace_text s = function
+    	| Element (tag, attr, children) -> Element (tag, ["text", s], children) 
+    	| x -> x
+    in
+    let esc = Goblintutil.escape in
+    let ctx = try_replace_text "Context" (flatten_single (C.toXML es)) in
+    let res = try_replace_text "Value" (flatten_single (D.toXML x)) in
+      Element ("Node",["text",esc (short 80 st)],[ctx;res])            
+  let pretty () (_,x,_) = D.pretty () x
 end
