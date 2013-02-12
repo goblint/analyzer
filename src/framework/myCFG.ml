@@ -140,8 +140,9 @@ let do_the_params (fd: fundec) =
 let unknown_exp : exp = mkString "__unknown_value__" 
 let dummy_func = emptyFunction "__goblint_dummy_init" 
 
-let createCFG (file: file) backw =
-  let cfg = H.create 113 in
+let createCFG (file: file) =
+  let cfgF = H.create 113 in
+  let cfgB = H.create 113 in
   if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
   
   (* Utility function to add stmt edges to the cfg *)
@@ -151,7 +152,8 @@ let createCFG (file: file) backw =
           pretty_edge_kind e 
           pretty_short_node f 
           pretty_short_node t;
-    (if backw then H.add cfg t (e,f) else H.add cfg f (e,t));
+    H.add cfgB t (e,f);
+    H.add cfgF f (e,t);
     Messages.trace "cfg" "done\n\n" 
   in
   let mkEdge fromNode edge toNode = addCfg (Statement toNode) (edge, Statement fromNode) in
@@ -257,7 +259,7 @@ let createCFG (file: file) backw =
       | _ -> ()
   );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
-  cfg
+  cfgF, cfgB
 
 let hasBackEdges = ref BatSet.IntSet.empty 
 let collectBackEdges cfg = 
@@ -359,12 +361,12 @@ let rec loopSep x =
     | Some false -> true
     
   
-let getCFG (file: file) backw : cfg = 
-  let cfg = createCFG file backw in
-    collectBackEdges cfg;
+let getCFG (file: file) : cfg * cfg = 
+  let cfgF, cfgB = createCFG file in
+    collectBackEdges cfgB;
 (*    if !GU.oil then generate_irpt_edges cfg;*)
-    if get_bool "justcfg" then print cfg;      
-    H.find_all cfg
+    if get_bool "justcfg" then print cfgB;      
+    H.find_all cfgF, H.find_all cfgB
 
 let getLoc (node: node) = 
   match node with

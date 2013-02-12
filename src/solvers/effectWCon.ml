@@ -182,8 +182,8 @@ end
 
 module Make2
   (S:Analyses.GlobConstrSys) 
-  (LH:Hash.H with type key=S.lv) 
-  (GH:Hash.H with type key=S.gv) =
+  (LH:Hash.H with type key=S.LVar.t) 
+  (GH:Hash.H with type key=S.GVar.t) =
 struct
   open S
   
@@ -196,7 +196,7 @@ struct
     then xs
     else x::xs
 
-  let solve : (lv*ld) list -> (gv*gd) list -> lv list -> ld LH.t * gd GH.t = fun sl sg iv ->
+  let solve : (LVar.t*D.t) list -> (GVar.t*G.t) list -> LVar.t list -> D.t LH.t * G.t GH.t = fun sl sg iv ->
     let sigma = LH.create 113 in
     let theta = GH.create 113 in
     let vInfl = LH.create 113 in
@@ -204,7 +204,7 @@ struct
     let todo  = LH.create 113 in
     let unsafe = ref [] in
     let workset = ref iv in
-    let rec constrainOneVar (x:lv) =
+    let rec constrainOneVar (x:LVar.t) =
       let rhsides = 
         let notnew = LH.mem sigma in 
         if notnew x then
