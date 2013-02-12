@@ -1,6 +1,7 @@
 open Cil
 open Pretty
-open BatPervasives
+module OMap = Map (* save Ocaml's Map before overwriting it with BatMap*)
+open Batteries_uni
 
 module M = Messages
 
@@ -17,7 +18,7 @@ struct
     type mode = Read | Write
     type state = Open of string*mode | Close
     type record = { var: varinfo; loc: loc; state: state }
-    type t' = Must of record | May of record list
+    type t' = Must of record | May of record PSet.t
   end
 
   include Printable.Std
@@ -36,7 +37,8 @@ struct
 
   let toString = function
     | Must x -> "Must "^(toStringRecord x)
-    | May xs -> "May "^(String.concat ", " (List.map toStringRecord xs))
+    | May xs -> "May "^(String.concat ", " (List.map toStringRecord (List.of_enum (PSet.enum xs))))
+    (* IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs *)
 
   let short i x = toString x
 
@@ -47,23 +49,18 @@ struct
   end) 
 
   let create v l s = { var=v; loc=l; state=s }
-  let may = function Must x -> May [x] | xs -> xs
-  let recordList = function Must x -> [x] | May xs -> xs
+  let may = function Must x -> May (PSet.singleton x) | xs -> xs
+  let records = function Must x -> (PSet.singleton x) | May xs -> xs
 
   (* let equal = Util.equals *)
-  let equal x y = let xs = recordList x in let ys = recordList y in
-    List.for_all (fun x -> List.mem x ys) xs && List.for_all (fun y -> List.mem y xs) ys
+  let equal x y = let xs = records x in let ys = records y in
+    PSet.for_all (fun x -> PSet.mem x ys) xs && PSet.for_all (fun y -> PSet.mem y xs) ys
+  let leq x y = PSet.subset (records x) (records y)
   let hash = Hashtbl.hash
   let join x y = M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y));
-    (* Out_of_memory:
-    unique runs out because it keeps the latest element -> ordering of list changes -> no fixpoint reached
-    unique_cmp doesn't because it keeps the first
-    -> better use Set *)
-    let r = May (BatList.unique_cmp ((recordList x)@(recordList y))) in
-    (* let r = May ((recordList x)@(recordList y)) in *)
+    let r = May (PSet.union (records x) (records y)) in
     M.report ("result: "^(toString r));
     r
-  let leq x y = equal y (join x y)
   let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); x
   let top () = raise Unknown
   let is_top x = (* x.loc = Top *)false 
@@ -90,7 +87,8 @@ struct
   module V = Val
   module MD = MapDomain.MapBot (Basetype.Variables) (Val)
   include MD
-  module M = Map.Make (Basetype.Variables) (* why does Map.Make (K) not work? *)
+  (* don't use BatMap to avoid dependencies for other files using the following functions *)
+  module M = OMap.Make (Basetype.Variables) (* why does Map.Make (K) not work? *)
   open V.T
 
   (* other map functions *)
@@ -104,8 +102,8 @@ struct
   let findOption k m = if mem k m then Some(find k m) else None
 
   (* domain specific *)
-  let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then List.exists p xs else List.for_all p xs
-  let filterOnVal ?may:(may=false) p m = M.filter (fun k v -> predicate ~may:may v p) m
+  let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then PSet.exists p xs else PSet.for_all p xs
+  let filterOnVal ?may:(may=false) p m = M.filter (fun k v -> predicate ~may:may v p) m (* this is OCaml's Map.filter which corresponds to BatMap.filteri *)
   let filterVars ?may:(may=false) p m = List.map (fun (k,v) -> k) (M.bindings (filterOnVal ~may:may p m))
 
   let check m var p = if mem var m then predicate (find var m) p else false
@@ -124,8 +122,8 @@ struct
       let p = if neg then not -| p else p in
       match v with
         | Must x -> if p x then f msg else mf
-        | May xs -> if List.for_all p xs then f msg
-                    else if List.exists p xs then f ~may:true msg
+        | May xs -> if PSet.for_all p xs then f msg
+                    else if PSet.exists p xs then f ~may:true msg
                     else mf
     else if neg then f msg else mf
 
