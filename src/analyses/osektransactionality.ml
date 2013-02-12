@@ -13,7 +13,7 @@ struct
   module StringSet = Set.Make (String)
   let offpry = Osek.Spec.offensivepriorities
   let funs = Hashtbl.create 16 (* ({vars},tuple) *)
-  let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((StringSet.empty  )  ,(-1,-1,-1,-1)) 
+  let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((StringSet.empty  )  , Osektupel.bot()) 
 
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
@@ -38,21 +38,6 @@ struct
     if Mutex.Lockset.is_top dom_elem then -1 else 
       List.fold_left max 0 (List.map (fun x -> ((fun y -> if y == r.vname then -1 else pry y) (Osek.Spec.names x)))  (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
     
-  let min' x y =  
-    match (x,y) with
-      | (-1,-1) -> -1
-      | (-1,_)  -> y
-      | (_,-1)  -> x
-      | _       -> min x y
-
-  (* composition operator  (b \fcon a) *)
-  let fcon (a1,a2,a3,a4 as a) (b1,b2,b3,b4 as b) =  if (Osektupel.is_top b) then a else
-    match (a2,b2) with
-      | (-1,-1) -> (a1,         a2,         a3,          min' a4 b4 )
-      | (-1,_)  -> (b1,         b2,         min' a4 b3  ,min' a4 b4 )
-      | (_,-1)  -> (a1,         min' a2 b4 ,a3,          min' a4 b4 )
-      | _       -> (min' a2 b3 ,min' a2 b4 ,min' a4 b3  ,min' a4 b4 )
-
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t = 
     let ((ctxs,ctxr): Dom.t) = ctx.local in
@@ -81,20 +66,18 @@ struct
 	      () end
     in
     let _ = List.map checkvars (b1@b2) in
-    (ctxs, fcon ctxr (-1,p,p,p))
+    (ctxs, Osektupel.fcon ctxr (Osektupel.Bot,Osektupel.Val p, Osektupel.Val p, Osektupel.Val p))
 
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
     let (ctxs,ctxr) = ctx.local in
     let p = (pry_d (get_lockset ctx)) in
-    (ctxs, fcon  ctxr (-1,-1,-1,p))
+    (ctxs, Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p))
 
-
-  
   let body ctx (f:fundec) : Dom.t = 
 (* let _ = print_endline ( "Body " ^f.svar.vname) in  *)
     let _ = if Hashtbl.mem funs f.svar.vname then () else 
 (*let _ = print_endline ( "Adding to funs " ^f.svar.vname) in *)
-	Hashtbl.add funs f.svar.vname ((StringSet.empty  )  ,(-1,-1,-1,-1)) in Dom.bot()
+	Hashtbl.add funs f.svar.vname ((StringSet.empty  )  ,Osektupel.bot()) in Dom.bot()
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let ((_,ctxr): Dom.t) = ctx.local in
@@ -111,7 +94,7 @@ struct
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     let (ctxs,ctxr) = ctx.local in
     let (aus,aur) = au in
-    (ctxs, fcon ctxr aus)
+    (ctxs, Osektupel.fcon ctxr aus)
   
 
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
@@ -122,8 +105,8 @@ struct
           | [Const (CInt64 (c,_,_) ) ] -> let r = makeGlobalVar (find_name (Int64.to_string c)) Cil.voidType in
 (* (Hashtbl.find Osek.Spec.constantlocks (Int64.to_string c)) in  *)
                                             let p = (pry_d' (get_lockset ctx) r) in  
-                                               [(ctxs, fcon  ctxr (-1,-1,-1,p)) ,Cil.integer 1, true]
-          | _ -> let p = (pry_d (get_lockset ctx)) in  [(ctxs ,(fcon  ctxr (-1,-1,-1,p))) ,Cil.integer 1, true])
+                                               [(ctxs, Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p)) ,Cil.integer 1, true]
+          | _ -> let p = (pry_d (get_lockset ctx)) in  [(ctxs ,(Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p))) ,Cil.integer 1, true])
       | _ -> 
 (* let _ = print_endline ( "Specialfn " ^f.vname) in  *)
 	      [(ctxs, ctxr),Cil.integer 1, true]
@@ -136,7 +119,8 @@ struct
 
   let transactional = ref true
 
-  let report_trans fname (vars,(pryd,_,_,_)) =
+  let report_trans fname (vars,(a,_,_,_)) =
+    let pryd = match a with Osektupel.Bot ->(-1) | Osektupel.Val a' -> a' in
 (* let _ = print_endline ( "in report_trans") in *)
     let helper pry var warn = 
 (* let _ = print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file) in *)
