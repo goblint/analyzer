@@ -50,9 +50,10 @@ struct
   let may = function Must x -> May [x] | xs -> xs
   let recordList = function Must x -> [x] | May xs -> xs
 
-  let equal = Util.equals
+  (* let equal = Util.equals *)
+  let equal x y = let xs = recordList x in let ys = recordList y in
+    List.for_all (fun x -> List.mem x ys) xs && List.for_all (fun y -> List.mem y xs) ys
   let hash = Hashtbl.hash
-  let leq x y = true
   let join x y = M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y));
     (* Out_of_memory:
     unique runs out because it keeps the latest element -> ordering of list changes -> no fixpoint reached
@@ -62,6 +63,7 @@ struct
     (* let r = May ((recordList x)@(recordList y)) in *)
     M.report ("result: "^(toString r));
     r
+  let leq x y = equal y (join x y)
   let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); x
   let top () = raise Unknown
   let is_top x = (* x.loc = Top *)false 
