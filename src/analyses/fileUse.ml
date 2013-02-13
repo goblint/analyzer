@@ -37,7 +37,7 @@ struct
     let m = ctx.local in
     let var = lval2var lval in
     if Dom.mem var m then (
-      M.report ("assigned something to file pointer "^var.vname^" (no longer safe)");
+      M.report ("changed file pointer "^var.vname^" (no longer safe)");
       Dom.may m var
     )else
       m

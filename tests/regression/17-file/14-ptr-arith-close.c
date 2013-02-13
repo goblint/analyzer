@@ -5,7 +5,7 @@ int main(){
 	fp = fopen("test.txt", "a");
 	fprintf(fp, "Testing...\n");
 
-	fp++;
+	fp++; // WARN: changed file pointer fp (no longer safe)
 
-	fclose(fp); // Warn here: fp not closed 
+	fclose(fp); // WARN: file may be never closed
 }

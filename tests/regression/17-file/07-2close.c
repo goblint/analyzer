@@ -5,5 +5,5 @@ int main(){
 	fp = fopen("test.txt", "a");
 	fprintf(fp, "Testing...\n");
 	fclose(fp);
-	fclose(fp); // Warn here: fp is already closed
+	fclose(fp); // WARN: closeing already closed file handle fp
 }

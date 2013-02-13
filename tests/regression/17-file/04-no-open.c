@@ -3,6 +3,6 @@
 FILE *fp;
 
 int main(){
-	fprintf(fp, "Testing...\n"); // Warn here: fp not open?
-	fclose(fp);
+	fprintf(fp, "Testing...\n"); // WARN: writing to unopened file handle fp
+	fclose(fp); // WARN: closeing unopened file handle fp
 }

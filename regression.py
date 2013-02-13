@@ -18,7 +18,7 @@ for line in sys.stdin.readlines():
 source = {}
 lines = open(path).readlines()
 for i,line in zip(range(1, len(lines)+1), lines):
-    m = re.match(r".+ // Warn here: (.+)", line)
+    m = re.match(r".+ // WARN: (.+)", line)
     if m: source[i] = m.group(1)
 
 diff = {}; 

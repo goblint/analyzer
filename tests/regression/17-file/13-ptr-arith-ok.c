@@ -5,8 +5,8 @@ int main(){
 	fp = fopen("test.txt", "a");
 	fprintf(fp, "Testing...\n");
 
-	fp++;
-	fp--;
+	fp++; // WARN: changed file pointer fp (no longer safe)
+	fp--; // WARN: changed file pointer fp (no longer safe)
 
 	fclose(fp); 
 }

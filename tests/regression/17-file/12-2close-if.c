@@ -9,5 +9,5 @@ int main(){
 	if (b)
 		fclose(fp);
 
-	fclose(fp); // Warn here: fp might already be closed
+	fclose(fp); // WARN: might be closeing already closed file handle fp
 }

@@ -4,7 +4,7 @@ FILE *fp;
 
 int main(){
 	int i;
-	fp = fopen("test.txt", "a");  // Warn here: fp might not be closed?
+	fp = fopen("test.txt", "a");  // WARN: file is never closed
 
 	while (i){
 		fprintf(fp, "Testing...\n");
@@ -12,4 +12,4 @@ int main(){
 	}
 
 	//fclose(fp);  
-}
+} // WARN: unclosed files: fp
