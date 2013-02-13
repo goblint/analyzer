@@ -55,9 +55,9 @@ struct
   let equal = Util.equals
   let leq x y = PSet.subset (records x) (records y)
   let hash = Hashtbl.hash
-  let join x y = M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y));
+  let join x y = (* M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); *)
     let r = May (PSet.union (records x) (records y)) in
-    M.report ("result: "^(toString r));
+    (* M.report ("result: "^(toString r)); *)
     r
   let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); x
   let top () = raise Unknown
