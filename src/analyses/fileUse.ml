@@ -54,17 +54,17 @@ struct
     let m = ctx.local in
     (* M.report ("return: ctx.local="^(Dom.short 50 ctx.local)); *)
     if f.svar.vname = "main" then (
-      let p = (fun x -> match x.state with Dom.V.Open(_) -> true | _ -> false) in
-      let vnames vars = String.concat ", " (List.map (fun v -> v.vname) vars) in
-      let vars = Dom.filterVars p m in
-      if List.length vars > 0 then
-        M.report ("unclosed files: "^(vnames vars));
-        List.iter (fun var -> M.report ~loc:var.vdecl "file is never closed") vars;
-      let may_vars = Dom.filterVars ~may:true p m in
-      let vars = List.filter (fun x -> not (List.mem x vars)) may_vars in
-      if List.length vars > 0 then
-        M.report ("maybe unclosed files: "^(vnames vars));
-        List.iter (fun var -> M.report ~loc:var.vdecl "file may be never closed") vars
+      let vnames xs = String.concat ", " (List.map (fun v -> v.var.vname) xs) in
+      let mustOpen = Dom.filterValues Dom.V.opened m in
+      if List.length mustOpen > 0 then
+        M.report ("unclosed files: "^(vnames mustOpen));
+        List.iter (fun v -> M.report ~loc:(List.hd v.loc) "file is never closed") mustOpen;
+      let mustOpenVars = List.map (fun x -> x.var) mustOpen in
+      let mayOpenAll = Dom.filterValues ~may:true Dom.V.opened m in
+      let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpenAll in (* ignore values that are already in mustOpen *)
+      if List.length mayOpen > 0 then
+        M.report ("maybe unclosed files: "^(vnames (BatList.unique ~cmp:(fun a b -> a.var.vname=b.var.vname) mayOpen)));
+        List.iter (fun v -> M.report ~loc:(List.hd v.loc) "file may be never closed") mayOpen
     );
 (*     let loc = !Tracing.current_loc in
     (match exp with
@@ -123,7 +123,7 @@ struct
     let ret dom = [dom, Cil.integer 1, true] in
     let dummy = ret ctx.local in
     let loc = !Tracing.current_loc in
-    let dloc = Dom.V.Loc(loc :: !loc_stack) in
+    let dloc = loc :: !loc_stack in
     match f.vname with
       | "fopen" -> begin
           match lval with

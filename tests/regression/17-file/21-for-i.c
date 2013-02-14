@@ -4,7 +4,7 @@ FILE *fp;
 
 int main(){
 	int i;
-	fp = fopen("test.txt", "w");  // WARN: file may be never closed
+	fp = fopen("test.txt", "w"); // WARN: file may be never closed
 
 	for(i=1; i<10; i++){ // join
 		// i -> Unknown int
@@ -15,7 +15,7 @@ int main(){
 			fprintf(fp, "Testing...%i\n", i); // WARN: might be writing to closed file handle fp
 			fclose(fp); // WARN: might be closeing already closed file handle fp
 		}else{
-			fp = fopen("test.txt", "a");
+			fp = fopen("test.txt", "a"); // WARN: file may be never closed
 		}
 		// why no join?
 	}

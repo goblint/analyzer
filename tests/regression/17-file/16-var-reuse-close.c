@@ -6,7 +6,7 @@ int main(){
 	fprintf(fp, "Testing...\n");
 	fclose(fp);	
 
-	fp = fopen("test.txt", "a"); // WARN: file is never flosed
+	fp = fopen("test.txt", "a"); // WARN: file is never closed
 	fprintf(fp, "Testing...\n");
 	// fclose(fp);
 } // WARN: unclosed files: fp

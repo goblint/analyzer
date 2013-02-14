@@ -4,7 +4,7 @@ FILE *fp;
 
 int main(){
 	int b;
-	fp = fopen("test.txt", "a");  // WARN: file may be never closed
+	fp = fopen("test.txt", "a");
 
 	if (b)
 		fclose(fp);

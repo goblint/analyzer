@@ -14,7 +14,7 @@ struct
   module T =
   struct
     (* assign Top on any pointer modification *)
-    type loc = Loc of (location list) | Bot | Top
+    type loc = location list
     type mode = Read | Write
     type state = Open of string*mode | Close
     type record = { var: varinfo; loc: loc; state: state }
@@ -27,9 +27,7 @@ struct
   type t = t'
   
   let toStringRecord x =
-    let loc x = match x with
-      | Loc(loc) -> String.concat ", " (List.map (fun x -> string_of_int x.line) loc)
-      | Bot -> "Bot" | Top -> "Top" in
+    let loc xs = String.concat ", " (List.map (fun x -> string_of_int x.line) xs) in
     let mode x = match x with Read -> "Read" | Write -> "Write" in
     match x.state with
     | Open(filename, m) -> "open("^filename^", "^(mode m)^") ("^(loc x.loc)^")"
@@ -51,6 +49,7 @@ struct
   let create v l s = { var=v; loc=l; state=s }
   let may = function Must x -> May (PSet.singleton x) | xs -> xs
   let records = function Must x -> (PSet.singleton x) | May xs -> xs
+  let recordsList = function Must x -> [x] | May xs -> List.of_enum (PSet.enum xs)
 
   let equal = Util.equals
   let leq x y = PSet.subset (records x) (records y)
@@ -101,8 +100,10 @@ struct
 
   (* domain specific *)
   let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then PSet.exists p xs else PSet.for_all p xs
-  let filterOnVal ?may:(may=false) p m = M.filter (fun k v -> predicate ~may:may v p) m (* this is OCaml's Map.filter which corresponds to BatMap.filteri *)
-  let filterVars ?may:(may=false) p m = List.map (fun (k,v) -> k) (M.bindings (filterOnVal ~may:may p m))
+  let filterMap ?may:(may=false) p m = M.filter (fun k v -> predicate ~may:may v p) m (* this is OCaml's Map.filter which corresponds to BatMap.filteri *)
+  let filterValues ?may:(may=false) p m = List.concat (
+    List.map (fun (k,v) -> List.filter p (V.recordsList v)) (* can't use BatMap.values *)
+    (M.bindings (filterMap ~may:may p m)))
 
   let check m var p = if mem var m then predicate (find var m) p else false
   let opened m var = check m var (fun x -> x.state <> Close)
