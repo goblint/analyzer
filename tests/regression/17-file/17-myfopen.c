@@ -2,7 +2,8 @@
 
 
 FILE* myfopen(){
-	return fopen("test.txt", "a");  
+	// FILE *fp_tmp = fopen("test.txt", "a"); // local!
+	return fopen("test.txt", "a");
 }
 
 int main(){

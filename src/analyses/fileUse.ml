@@ -58,13 +58,13 @@ struct
       let mustOpen = Dom.filterValues Dom.V.opened m in
       if List.length mustOpen > 0 then
         M.report ("unclosed files: "^(vnames mustOpen));
-        List.iter (fun v -> M.report ~loc:(List.hd v.loc) "file is never closed") mustOpen;
+        List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file is never closed") mustOpen;
       let mustOpenVars = List.map (fun x -> x.var) mustOpen in
       let mayOpenAll = Dom.filterValues ~may:true Dom.V.opened m in
       let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpenAll in (* ignore values that are already in mustOpen *)
       if List.length mayOpen > 0 then
         M.report ("maybe unclosed files: "^(vnames (BatList.unique ~cmp:(fun a b -> a.var.vname=b.var.vname) mayOpen)));
-        List.iter (fun v -> M.report ~loc:(List.hd v.loc) "file may be never closed") mayOpen
+        List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file may be never closed") mayOpen
     );
 (*     let loc = !Tracing.current_loc in
     (match exp with
@@ -78,8 +78,10 @@ struct
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     (* M.report ("entering function "^f.vname); *) (* TODO push loc on stack in ctx *)
-    let loc = !Tracing.current_loc in
-    loc_stack := loc :: !loc_stack;
+    if f.vname <> "main" then (
+      let loc = !Tracing.current_loc in
+      loc_stack := loc :: !loc_stack
+    );
     [ctx.local,ctx.local]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
@@ -88,8 +90,10 @@ struct
     loc_stack := List.tl !loc_stack;
     let return_val = Dom.findOption return_var au in
     match lval, return_val with
-      | Some lval, Some rval ->
-          let var = lval2var lval in Dom.add var rval (Dom.remove return_var au)
+      | Some lval, Some rval -> 
+          let var = lval2var lval in
+          let rval = Dom.V.rebind rval var in (* change rval.var to lval *)
+          Dom.add var rval (Dom.remove return_var au)
       | _ -> au
 
   let rec cut_offset x =

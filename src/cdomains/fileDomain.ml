@@ -47,11 +47,15 @@ struct
   end) 
 
   let create v l s = { var=v; loc=l; state=s }
+  let map f = function Must x -> Must (f x) | May xs -> May (PSet.map f xs)
+  let rebind x var = map (fun x -> {x with var=var}) x
   let may = function Must x -> May (PSet.singleton x) | xs -> xs
   let records = function Must x -> (PSet.singleton x) | May xs -> xs
   let recordsList = function Must x -> [x] | May xs -> List.of_enum (PSet.enum xs)
 
   let equal = Util.equals
+  (* let leq x y = true *)
+  (* let leq x y = equal y (join x y) *)
   let leq x y = PSet.subset (records x) (records y)
   let hash = Hashtbl.hash
   let join x y = (* M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); *)
