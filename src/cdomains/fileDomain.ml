@@ -52,6 +52,7 @@ struct
   let may = function Must x -> May (PSet.singleton x) | xs -> xs
   let records = function Must x -> (PSet.singleton x) | May xs -> xs
   let recordsList = function Must x -> [x] | May xs -> List.of_enum (PSet.enum xs)
+  let vnames x = String.concat ", " (List.map (fun x -> x.var.vname) (recordsList x))
 
   let equal = Util.equals
   (* let leq x y = true *)

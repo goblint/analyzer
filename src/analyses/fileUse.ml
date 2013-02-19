@@ -50,9 +50,12 @@ struct
   let body ctx (f:fundec) : Dom.t = 
     ctx.local
 
+  let callStack () = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) !loc_stack))^"]"
+
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let m = ctx.local in
-    M.report ("return: ctx.local="^(Dom.short 50 ctx.local));
+    M.write ("return: ctx.local="^(Dom.short 50 ctx.local)^(callStack ()));
+    if f.svar.vname <> "main" && BatList.is_empty !loc_stack then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!");
     if f.svar.vname = "main" then (
       let vnames xs = String.concat ", " (List.map (fun v -> v.var.vname) xs) in
       let mustOpen = Dom.filterValues Dom.V.opened m in
@@ -66,32 +69,34 @@ struct
         M.report ("maybe unclosed files: "^(vnames (BatList.unique ~cmp:(fun a b -> a.var.vname=b.var.vname) mayOpen)));
         List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file may be never closed") mayOpen
     );
-(*     let loc = !Tracing.current_loc in
+    let loc = !Tracing.current_loc in
     (match exp with
       | Some exp -> ignore(printf "return %a (%i)\n" (printExp plainCilPrinter) exp loc.line)
-      | _ -> ignore(1)); *)
+      | _ -> ignore(1));
     match exp with
       | Some(Lval(Var(varinfo),offset)) -> (* return_var := varinfo *)
+          M.write ("return variable "^varinfo.vname^" (dummy: "^return_var.vname^")");
           Dom.add return_var (Dom.find varinfo m) m
       | _ -> m
 
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    M.report ("entering function "^f.vname); (* TODO push loc on stack in ctx *)
+    M.write ("entering function "^f.vname^(callStack ()));
     if f.vname <> "main" then (
       let loc = !Tracing.current_loc in
-      loc_stack := loc :: !loc_stack
+      loc_stack := loc :: !loc_stack  (* push loc on stack *)
     );
     [ctx.local,ctx.local]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-    M.report ("leaving function "^f.vname); (* TODO pop loc from stack in ctx *)
+    M.write ("leaving function "^f.vname^(callStack ()));
     (* let loc = !Tracing.current_loc in *)
-    loc_stack := List.tl !loc_stack;
+    loc_stack := List.tl !loc_stack; (* pop loc from stack *)
     let return_val = Dom.findOption return_var au in
     match lval, return_val with
       | Some lval, Some rval -> 
           let var = lval2var lval in
+          M.write ("setting "^var.vname^" to content of "^(Dom.V.vnames rval));
           let rval = Dom.V.rebind rval var in (* change rval.var to lval *)
           Dom.add var rval (Dom.remove return_var au)
       | _ -> au
