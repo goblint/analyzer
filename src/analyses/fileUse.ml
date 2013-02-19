@@ -52,7 +52,7 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let m = ctx.local in
-    (* M.report ("return: ctx.local="^(Dom.short 50 ctx.local)); *)
+    M.report ("return: ctx.local="^(Dom.short 50 ctx.local));
     if f.svar.vname = "main" then (
       let vnames xs = String.concat ", " (List.map (fun v -> v.var.vname) xs) in
       let mustOpen = Dom.filterValues Dom.V.opened m in
@@ -77,7 +77,7 @@ struct
 
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    (* M.report ("entering function "^f.vname); *) (* TODO push loc on stack in ctx *)
+    M.report ("entering function "^f.vname); (* TODO push loc on stack in ctx *)
     if f.vname <> "main" then (
       let loc = !Tracing.current_loc in
       loc_stack := loc :: !loc_stack
@@ -85,7 +85,7 @@ struct
     [ctx.local,ctx.local]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-    (* M.report ("leaving function "^f.vname); *) (* TODO pop loc from stack in ctx *)
+    M.report ("leaving function "^f.vname); (* TODO pop loc from stack in ctx *)
     (* let loc = !Tracing.current_loc in *)
     loc_stack := List.tl !loc_stack;
     let return_val = Dom.findOption return_var au in
