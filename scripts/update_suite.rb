@@ -257,13 +257,13 @@ File.open(theresultfile, "w") do |f|
 
     statsfile = p.name + ".stats.txt"
     lines = IO.readlines(File.join(testresults, statsfile))
-    res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
+    res = lines.grep(/^TOTAL\s*(.*) s.*$/) { $1 }
     errors = lines.grep(/Error:/)
     if res == [] or not errors == [] then
       is_ok = false
       f.puts "<td><a href=\"#{statsfile}\">failure</a></td>"
     else
-      f.puts "<td><a href=\"#{statsfile}\">#{res.to_s} s</a></td>"
+      f.puts "<td><a href=\"#{statsfile}\">#{"%.2f" % res} s</a></td>"
     end
 
     if tracing then

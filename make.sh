@@ -40,6 +40,7 @@ rule() {
              rm doclist.odocl;
              ln -sf _build/doclist.docdir doc
              ;;
+    tag*)    otags -vi `find src/ -iregex [^.]*\.mli?`;;
     depend)  echo "No!";;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
