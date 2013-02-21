@@ -11,10 +11,10 @@ sig
   module B : Spec2
   module N : SetDomain.S with type elt = varinfo
   
-  val restrict : B.C.t -> N.t -> B.C.t
+  val restrict : B.D.t -> N.t -> N.t -> B.D.t * N.t
   
   val special : N.t -> lval option -> varinfo -> exp list -> N.t
-  val enter   : N.t -> lval option -> varinfo -> exp list -> (N.t * N.t) list 
+  val enter   : N.t -> lval option -> varinfo -> exp list -> N.t  
   val combine : N.t -> lval option -> exp -> varinfo -> exp list -> N.t -> N.t
 end
 
@@ -123,8 +123,8 @@ struct
     | `Lifted1 d -> B.call_descr f d
     | _ -> f.svar.vname
 
-  let common_ctx (v,c) u getl sidel getg sideg = 
-    let pval = getl (u,c) in     
+  let common_ctx (v,cf,cb) u getl sidel getg sideg = 
+    let pval = match getl (u, `F (cf,cb)) with `Lifted1 d -> d | `Bot -> B.D.bot () | _ -> failwith "2"  in
     if !Messages.worldStopped then raise M.StopTheWorld;
     (* now watch this ... *)
     let rec ctx = 
@@ -133,10 +133,10 @@ struct
       ; global2  = getg
       ; presub2  = []
       ; postsub2 = []
-      ; spawn2   = (fun f d -> let c = B.context d in 
-                               sidel (FunctionEntry f, c) d; 
-                               ignore (getl (Function f, c)))
-      ; split2   = (fun d _ _ -> sidel (v,c) d)
+      ; spawn2   = (fun f d -> let cf = B.context d in 
+                               sidel (FunctionEntry f, `F(cf,cb)) (`Lifted1 d); 
+                               ignore (getl (Function f, `F(cf,cb))))
+      ; split2   = (fun d _ _ -> sidel (v,`F(cf,cb)) (`Lifted1 d))
       ; sideg2   = sideg
       } 
     and query x = B.query ctx x in
@@ -146,41 +146,70 @@ struct
     { ctx with local2 = pval }
     
 
-  let tf_loop (v,c) u getl sidel getg sideg = 
-    let ctx = common_ctx (v,c) u getl sidel getg sideg 
-    in B.intrpt ctx
+  let tf_loop (v,cf,cb) u getl sidel getg sideg = 
+    let imp = match getl (v, `B (cf,cb)) with `Lifted2 d -> d | `Bot -> N.bot () | _ -> failwith "3" in
+    if N.is_empty imp then `Lifted1 (B.D.bot ()) else
+    let ctx = common_ctx (v,cf,cb) u getl sidel getg sideg 
+    in `Lifted1 (B.intrpt ctx)
   
-  let tf_assign lv e (v,c) u getl sidel getg sideg = 
-    let ctx = common_ctx (v,c) u getl sidel getg sideg 
-    in B.assign ctx lv e
+  let tf_assign lv e (v,cf,cb) u getl sidel getg sideg = 
+    let imp = match getl (v, `B (cf,cb)) with `Lifted2 d -> d | `Bot -> N.bot () | _ -> failwith "3" in
+    if N.is_empty imp then `Lifted1 (B.D.bot ()) else
+    match lv with
+      | (Var x, NoOffset) when N.mem x imp ->
+          let ctx = common_ctx (v,cf,cb) u getl sidel getg sideg 
+          in `Lifted1 (B.assign ctx lv e)
+      | _ ->
+          getl (u,`F(cf,cb))
     
-  let tf_ret ret fd (v,c) u getl sidel getg sideg = 
-    let ctx = common_ctx (v,c) u getl sidel getg sideg 
-    in B.return ctx ret fd
+  let tf_ret ret fd (v,cf,cb) u getl sidel getg sideg = 
+    let imp = match getl (v, `B (cf,cb)) with `Lifted2 d -> d | `Bot -> N.bot () | _ -> failwith "3" in
+    if N.is_empty imp then `Lifted1 (B.D.bot ()) else
+    let ctx = common_ctx (v,cf,cb) u getl sidel getg sideg 
+    in `Lifted1 (B.return ctx ret fd)
     
-  let tf_entry fd (v,c) u getl sidel getg sideg = 
-    let ctx = common_ctx (v,c) u getl sidel getg sideg 
-    in B.body ctx fd
+  let tf_entry fd (v,cf,cb) u getl sidel getg sideg = 
+    let imp = match getl (v, `B (cf,cb)) with `Lifted2 d -> d | `Bot -> N.bot () | _ -> failwith "3" in
+    if N.is_empty imp then `Lifted1 (B.D.bot ()) else
+    let ctx = common_ctx (v,cf,cb) u getl sidel getg sideg 
+    in `Lifted1 (B.body ctx fd)
 
-  let tf_test e tv (v,c) u getl sidel getg sideg =
-    let ctx = common_ctx (v,c) u getl sidel getg sideg 
-    in B.branch ctx e tv
+  let tf_test e tv (v,cf,cb) u getl sidel getg sideg =
+    let imp = match getl (v, `B (cf,cb)) with `Lifted2 d -> d | `Bot -> N.bot () | _ -> failwith "3" in
+    if N.is_empty imp then `Lifted1 (B.D.bot ()) else
+    let ctx = common_ctx (v,cf,cb) u getl sidel getg sideg 
+    in `Lifted1 (B.branch ctx e tv)
     
-    
-
-  let tf_normal_call ctx lv e f args  getl sidel getg sideg =
+  let tf_special_call ctx lv f args (v,cf,cb) u getl = 
+    let imp = match getl (v, `B (cf,cb)) with `Lifted2 d -> d | `Bot -> N.bot () | _ -> failwith "3" in
+    if N.is_empty imp then 
+      B.D.bot () 
+    else 
+      B.special ctx lv f args
+      
+  let tf_normal_call ctx lv e f args (v,cf,cb) u getl sidel getg sideg =
+    let imp  = match getl (v, `B (cf,cb)) with `Lifted2 d -> d | `Bot -> N.bot () | _ -> failwith "3" in
+    let imp_d = match getl (u, `C (v,CF.getdec f,cf,cb)) with `Lifted2 d -> d | `Bot -> N.bot () | _ -> failwith "3" in
     let combine (cd, fd) = B.combine {ctx with local2 = cd} lv e f args fd in
+    let cb'  = enter imp lv f args in
     let paths = B.enter ctx lv f args in
-    let _     = List.iter (fun (c,v) -> sidel (FunctionEntry f, B.context v) v) paths in
-    let paths = List.map (fun (c,v) -> (c, getl (Function f, B.context v))) paths in
+    let paths' = List.map (fun (c,v) -> c, restrict v cb' imp_d) paths in
+    let _     = List.iter (fun (c,(v,cb)) -> sidel (FunctionEntry f, `F (B.context v,cb)) (`Lifted1 v);
+                                             sidel (Function f, `B (B.context v,cb)) (`Lifted2 cb)) paths' in
+    let paths = List.map (fun (c,(v,cb)) -> (c, match getl (Function f, `F (B.context v,cb)) with `Lifted1 d -> d | _ -> B.D.bot ())) paths' in
     let paths = List.filter (fun (c,v) -> B.D.is_bot v = false) paths in
     let paths = List.map combine paths in
+    let _ = 
+      let f (c,(r,cb)) = 
+        let q = getl (FunctionEntry f, `B (B.context r,cb)) in
+        sidel (u,`C (v,CF.getdec f,cf,cb)) q
+      in List.iter f paths' 
+    in
       List.fold_left B.D.join (B.D.bot ()) paths
-      
-  let tf_special_call ctx lv f args = B.special ctx lv f args 
 
-  let tf_proc lv e args (v,c) u getl sidel getg sideg = 
-    let ctx = common_ctx (v,c) u getl sidel getg sideg in 
+    
+  let tf_proc lv e args (v,cf,cb) u getl sidel getg sideg = 
+    let ctx = common_ctx (v,cf,cb) u getl sidel getg sideg in 
     let functions = 
       match ctx.ask2 (Queries.EvalFunvar e) with 
         | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
@@ -190,24 +219,24 @@ struct
     let one_function f = 
       let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
       if has_dec && not (LibraryFunctions.use_special f.vname) 
-      then tf_normal_call ctx lv e f args getl sidel getg sideg
-      else tf_special_call ctx lv f args
+      then tf_normal_call ctx lv e f args (v,cf,cb) u getl sidel getg sideg
+      else tf_special_call ctx lv f args (v,cf,cb) u getl
     in
     let funs = List.map one_function functions in
-    List.fold_left B.D.join (B.D.bot ()) funs
-
+    `Lifted1 (List.fold_left B.D.join (B.D.bot ()) funs)
+    
   
-  (*let tf_f (v,cf,cb) (edge, u) = 
+  let tf_f (v,cf,cb) (edge, u) = 
     begin match edge with
       | Assign (lv,rv) -> tf_assign lv rv
       | Proc (r,f,ars) -> tf_proc r f ars
       | Entry f        -> tf_entry f
       | Ret (r,fd)     -> tf_ret r fd
       | Test (p,b)     -> tf_test p b
-      | ASM _          -> fun _ _ getl _ _ _ -> ignore (warn "ASM statement ignored."); getl (u,cf,cb)
-      | Skip           -> fun _ _ getl _ _ _ -> getl (u,cf,cb)
+      | ASM _          -> fun _ _ getl _ _ _ -> ignore (warn "ASM statement ignored."); getl (u, `F(cf,cb))
       | SelfLoop       -> tf_loop 
-    end (v,cf,cb) u*)
+      | _              -> fun _ _ getl _ _ _ -> getl (u,`F(cf,cb))
+    end (v,cf,cb) u
     
   let rec add_vars d = function
     | UnOp  (_,e,_)     -> add_vars d e
@@ -245,11 +274,12 @@ struct
 
   let tf_b_assign lv e (v,cf,cb) u (getl:lv -> ld) sidel getg sideg = 
     let old = match getl (u, `B (cf,cb)) with `Lifted2 d -> d | `Bot -> N.empty () | _ -> failwith "1"  in
-    let lv_vars = get_vars [] (Lval lv) in
-    if List.exists (fun x -> N.mem x old) lv_vars then
-      `Lifted2 (add_vars old e)
-    else 
-      `Lifted2 old    
+    match get_vars [] (Lval lv) with
+      | [x] when N.mem x old -> 
+          `Lifted2 (add_vars (N.remove x old) e)    
+      | lv_vars when List.exists (fun x -> N.mem x old) lv_vars ->
+          `Lifted2 (add_vars old e)    
+      | _ -> `Lifted2 old
   
   let tf_b_proc lv e args (v,cf,cb) u (getl:lv -> ld) sidel getg sideg =
     match e, args with
@@ -257,7 +287,9 @@ struct
           begin
             match getl (u, `B (cf,cb)) with
               | `Bot -> `Lifted2 (N.singleton x)
-              | `Lifted2 d -> `Lifted2 (N.add x d)
+              | `Lifted2 d -> 
+                  let _ = getl (u, `F (cf,cb)) in
+                  `Lifted2 (N.add x d)
               | d -> d
           end
       | _ -> getl (u, `B (cf,cb))
@@ -274,14 +306,14 @@ struct
       | _              -> fun _ _ getl _ _ _ -> getl (u, `B (cf,cb))
     end (v,cf,cb) u
     
-  (*let tf_f (v,cf,cb) (e,u) getl sidel getg sideg =
+  let tf_f (v,cf,cb) (e,u) getl sidel getg sideg : ld =
     let old_loc = !Tracing.current_loc in
     let _       = Tracing.current_loc := getLoc u in
-    let d       = try tf_f (v,cf,cb) (e,u) getl sidel getg sideg 
-                  with M.StopTheWorld -> B.D.bot ()
-                     | M.Bailure s -> Messages.warn_each s; (getl (u,cf,cb))  in
+    let d       = try tf_f (v,cf,cb) (e,u) getl sidel getg sideg
+                  with M.StopTheWorld -> `Lifted1 (B.D.bot ())
+                     | M.Bailure s -> Messages.warn_each s; (getl (u, `F(cf,cb)))  in
     let _       = Tracing.current_loc := old_loc in 
-      d*)
+      d
 
   let tf_b (v,cf,cb) (e,u) getl sidel getg sideg : ld =
     let old_loc = !Tracing.current_loc in
@@ -293,7 +325,7 @@ struct
       d
   
   let system : lv -> ((lv -> ld) -> (lv -> ld -> unit) -> (gv -> gd) -> (gv -> gd -> unit) -> ld) list = function
-    | (n , `F (cf,cb))      -> [](*List.map (tf_f (n,cf,cb)) (Cfg.prev v)*)
+    | (n , `F (cf,cb))      -> List.map (tf_f (n,cf,cb)) (Cfg.prev n)
     | (n , `B (cf,cb))      -> List.map (tf_b (n,cf,cb)) (Cfg.next n)
     | (n1, `C (n2,f,cf,cb)) -> []
 end
@@ -314,9 +346,14 @@ struct
   module B = Constraints.Spec2OfSpec (Base.Spec)
   module N = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "everything needed" end)
   
-  let restrict x _ = x
+  let restrict (cpa,fl) d dd  = 
+    let cpa1 = BaseDomain.CPA.filter (fun q w -> not (N.exists (Basetype.Variables.equal q) dd)) cpa in
+    let cb = N.filter (fun x -> BaseDomain.CPA.mem x cpa1) d in
+    ((cpa1,fl),cb)
+      
+    
   let special d l f a = d
-  let enter _ _ _ _ = []
+  let enter c _ _ _ = c
   let combine _ _ _ _ _ x = x
 end
 

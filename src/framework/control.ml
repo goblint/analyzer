@@ -209,10 +209,13 @@ struct
     let _ = GU.global_initialization := false in
     
     let startvars' = 
-      List.map (fun (n,e) -> (MyCFG.FunctionEntry n, `B (EQSys.B.context e,EQSys.N.bot ()))) startvars in
+      List.map (fun (n,e) -> (MyCFG.FunctionEntry n, `B (EQSys.B.context e,EQSys.N.bot ()))) startvars 
+      @ List.map (fun (n,e) -> (MyCFG.Function n, `F (EQSys.B.context e,EQSys.N.bot ()))) startvars 
+    in
   
     let entrystates = 
       List.map (fun (n,e) -> (MyCFG.Function n, `B (EQSys.B.context e,EQSys.N.bot ())), `Lifted2 (EQSys.N.bot ())) startvars 
+      @ List.map (fun (n,e) -> (MyCFG.FunctionEntry n, `F (EQSys.B.context e,EQSys.N.bot ())), `Lifted1 e) startvars 
     in
   
     
