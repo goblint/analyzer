@@ -84,22 +84,21 @@ struct
           Dom.add return_var (Dom.find varinfo m) m
       | _ -> m
 
+  let editStack f m =
+    let v = match Dom.findOption stack_var m with
+      | Some(Must(v)) -> {v with loc=(f v.loc)}
+      | _ -> Dom.V.create stack_var (f []) Dom.V.Close in
+    Dom.add stack_var (Must v) m
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    let m = ctx.local in
     (* M.write ("entering function "^f.vname^(callStackStr m)); *)
-    let m = if f.vname <> "main" then (
-      let loc = !Tracing.current_loc in
-      match Dom.findOption stack_var m with
-        | Some(Must(v)) -> Dom.add stack_var (Must({v with loc=(loc::v.loc)})) m
-        | _ -> Dom.add stack_var (Must(Dom.V.create stack_var [loc] Dom.V.Close)) m
-    ) else m in [m,m]
+    let m = if f.vname <> "main" then
+      editStack (BatList.cons !Tracing.current_loc) ctx.local
+    else ctx.local in [m,m]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     (* M.write ("leaving function "^f.vname^(callStackStr au)); *)
-    let au = match Dom.findOption stack_var au with
-      | Some(Must(v)) -> Dom.add stack_var (Must({v with loc=(List.tl v.loc)})) au
-      | _ -> au in
+    let au = editStack List.tl au in
     let return_val = Dom.findOption return_var au in
     match lval, return_val with
       | Some lval, Some rval -> 
@@ -140,10 +139,7 @@ struct
     let ret dom = [dom, Cil.integer 1, true] in
     let dummy = ret ctx.local in
     let loc = !Tracing.current_loc in
-    (* let dloc = loc :: !loc_stack in *)
-    let dloc = match Dom.findOption stack_var m with
-      | Some(Must(v)) -> loc::(v.loc)
-      | _ -> [loc] in
+    let dloc = loc::(callStack m) in
     match f.vname with
       | "fopen" -> begin
           match lval with
