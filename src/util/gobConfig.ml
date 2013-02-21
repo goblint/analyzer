@@ -17,11 +17,18 @@
   There is a "conf" [trace] option that traces setting. 
 *)
 
-open Batteries_uni
+open Batteries
 open Tracing
 open Config
 open Printf
 open Json
+
+(** Pointless operators that Kalmer use from Batteries 1.5. *)
+let ( |> ) x f = f x
+let ( <| ) f x = f x
+let ( |- ) f g x = g (f x)
+let ( -| ) f g x = f (g x)
+let ( **> )      = ( <| )
 
 (** The type for [gobConfig] module. *)
 module type S =

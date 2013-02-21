@@ -1,6 +1,6 @@
 open Analyses
 open GobConfig
-open Batteries_uni
+open Batteries
 
 (* Registered solvers. *)
 let solvers = ref ["effectWCon", (module EffectWCon.Make2 : GenericGlobSolver)]

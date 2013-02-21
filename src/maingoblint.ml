@@ -1,6 +1,6 @@
 (** This is the main program! *)
 
-open Batteries_uni
+open Batteries
 open GobConfig
 open Defaults
 open Printf

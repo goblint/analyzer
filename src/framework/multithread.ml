@@ -435,6 +435,7 @@ struct
   (** print out information about dead code *)
   let print_dead_code (xs:source_result) = 
     let open BatMap in let open BatPrintf in
+    let module StringMap = Make (String) in
     let m = ref StringMap.empty in
     let add_one (l,_,f) v =
       if LT.for_all (fun (_,x,f) -> SD.is_bot x) v &&f.svar.vdecl<>l then

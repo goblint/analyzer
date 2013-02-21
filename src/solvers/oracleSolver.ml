@@ -334,7 +334,7 @@ struct
   open C
   module VMap = Hash.Make (V)
   module QMap = Hash.Make (O.Quest)
-  module IMap = BatMap.IntMap
+  module IMap = BatMap.Make (BatInt)
   type rhs = (V.t -> D.t) -> (V.t -> D.t -> unit) -> (O.Quest.t -> O.answ) -> D.t 
   type t = O.t 
          * (D.t VMap.t) 
@@ -484,7 +484,7 @@ struct
   module Q = Queue
   module VMap = Hash.Make (V)
   module QMap = Hash.Make (O.Quest)
-  module IMap = BatMap.IntMap
+  module IMap = BatMap.Make (BatInt)
   type rhs = (V.t -> D.t) -> (V.t -> D.t -> unit) -> (O.Quest.t -> O.answ) -> D.t 
   type t = O.t 
          * (D.t VMap.t) 

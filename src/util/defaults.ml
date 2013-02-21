@@ -1,6 +1,6 @@
 (** Default values for [GobConfig]-style configuration. *)
 
-open Batteries_uni
+open Batteries
 open Printf
 open List
 
