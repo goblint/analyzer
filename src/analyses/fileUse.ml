@@ -16,7 +16,6 @@ struct
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
-  (* let loc_stack = ref [] *)
   (* let return_var = dummyFunDec.svar (* see base.ml: 219 *) *)
   let return_var = Cil.makeVarinfo false "@return" Cil.voidType
   let stack_var = Cil.makeVarinfo false "@stack" Cil.voidType
@@ -52,16 +51,16 @@ struct
   let body ctx (f:fundec) : Dom.t = 
     ctx.local
 
-  let callStack m =
-    let loc_stack = match Dom.findOption stack_var m with
+  let callStack m = match Dom.findOption stack_var m with
       | Some(Must(v)) -> v.loc
-      | _ -> [] in
-    " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) loc_stack))^"]"
+      | _ -> []
+
+  let callStackStr m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callStack m)))^"]"
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let m = ctx.local in
-    M.write ("return: ctx.local="^(Dom.short 50 ctx.local)^(callStack m));
-    (* if f.svar.vname <> "main" && BatList.is_empty !loc_stack then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
+    (* M.write ("return: ctx.local="^(Dom.short 50 ctx.local)^(callStackStr m)); *)
+    (* if f.svar.vname <> "main" && BatList.is_empty (callStack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
       let vnames xs = String.concat ", " (List.map (fun v -> v.var.vname) xs) in
       let mustOpen = Dom.filterValues Dom.V.opened m in
@@ -75,32 +74,29 @@ struct
         M.report ("maybe unclosed files: "^(vnames (BatList.unique ~eq:(fun a b -> a.var.vname=b.var.vname) mayOpen)));
         List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file may be never closed") mayOpen
     );
-    let loc = !Tracing.current_loc in
+(*     let loc = !Tracing.current_loc in
     (match exp with
       | Some exp -> ignore(printf "return %a (%i)\n" (printExp plainCilPrinter) exp loc.line)
-      | _ -> ignore(1));
+      | _ -> ignore(1)); *)
     match exp with
-      | Some(Lval(Var(varinfo),offset)) -> (* return_var := varinfo *)
-          M.write ("return variable "^varinfo.vname^" (dummy: "^return_var.vname^")");
+      | Some(Lval(Var(varinfo),offset)) ->
+          (* M.write ("return variable "^varinfo.vname^" (dummy: "^return_var.vname^")"); *)
           Dom.add return_var (Dom.find varinfo m) m
       | _ -> m
 
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     let m = ctx.local in
-    M.write ("entering function "^f.vname^(callStack m));
+    (* M.write ("entering function "^f.vname^(callStackStr m)); *)
     let m = if f.vname <> "main" then (
       let loc = !Tracing.current_loc in
-      (* loc_stack := loc :: !loc_stack  (* push loc on stack *) *)
       match Dom.findOption stack_var m with
         | Some(Must(v)) -> Dom.add stack_var (Must({v with loc=(loc::v.loc)})) m
         | _ -> Dom.add stack_var (Must(Dom.V.create stack_var [loc] Dom.V.Close)) m
     ) else m in [m,m]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-    M.write ("leaving function "^f.vname^(callStack au));
-    (* let loc = !Tracing.current_loc in *)
-    (* loc_stack := List.tl !loc_stack; (* pop loc from stack *) *)
+    (* M.write ("leaving function "^f.vname^(callStackStr au)); *)
     let au = match Dom.findOption stack_var au with
       | Some(Must(v)) -> Dom.add stack_var (Must({v with loc=(List.tl v.loc)})) au
       | _ -> au in
@@ -108,7 +104,7 @@ struct
     match lval, return_val with
       | Some lval, Some rval -> 
           let var = lval2var lval in
-          M.write ("setting "^var.vname^" to content of "^(Dom.V.vnames rval));
+          (* M.write ("setting "^var.vname^" to content of "^(Dom.V.vnames rval)); *)
           let rval = Dom.V.rebind rval var in (* change rval.var to lval *)
           Dom.add var rval (Dom.remove return_var au)
       | _ -> au
@@ -154,16 +150,15 @@ struct
             | None -> M.report "file handle is not saved!"; dummy
             | Some (lhost,offset) ->
                 match lhost with
-                  | Var varinfo -> (* M.report ("file handle saved in variable "^varinfo.vname); *)
+                  | Var varinfo ->
                       (* opened again, not closed before *)
-                      (* if Dom.opened m varinfo then M.report ("overwriting unclosed file handle "^varinfo.vname); *)
                       Dom.report m varinfo Dom.V.opened ("overwriting still opened file handle "^varinfo.vname);
                       begin match List.map (Cil.stripCasts) arglist with
-                        | Const(CStr(filename))::Const(CStr(mode))::xs -> 
+                        | Const(CStr(filename))::Const(CStr(mode))::[] -> 
                             ret (Dom.fopen m varinfo dloc filename mode)
-                        | _ -> (* M.bailwith "fopen needs at two strings as arguments" *)
-                                List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) arglist;
-                                M.report "fopen needs at two strings as arguments"; dummy
+                        | _ -> 
+                            List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) arglist;
+                            M.bailwith "fopen needs two strings as arguments"
                       end
                   | Mem exp -> M.report "TODO: save to object in memory"; dummy
           end
@@ -172,9 +167,7 @@ struct
             | [fp] -> begin match fp with
                 | Lval (lhost,offset) -> begin
                     match lhost with
-                      | Var varinfo -> (* M.report ("closing file handle "^varinfo.vname); *)
-                          (* if not (Dom.opened m varinfo) then M.report ("closeing unopened file handle "^varinfo.vname); *)
-                          (* if      Dom.closed m varinfo  then M.report ("closeing already closed file handle "^varinfo.vname); *)
+                      | Var varinfo ->
                           if not (Dom.mem varinfo m) then M.report ("closeing unopened file handle "^varinfo.vname);
                           Dom.report m varinfo Dom.V.closed ("closeing already closed file handle "^varinfo.vname);
                           ret (Dom.fclose m varinfo dloc)
@@ -184,19 +177,12 @@ struct
               end
             | _ -> M.bailwith "fclose needs exactly one argument"
           end
-      | "fprintf" -> begin (* M.report ("fprintf: ctx.local="^(Dom.short 50 ctx.local)); *)
+      | "fprintf" -> begin
           match arglist with
             | fp::xs -> let fp = Cil.stripCasts fp in begin match fp with
                 | Lval (lhost,offset) -> begin
                     match lhost with
-                      | Var varinfo -> (* M.report ("printf to file handle "^varinfo.vname); *)
-                          (* if           Dom.closed m varinfo  then M.report ("writing to closed file handle "^varinfo.vname) *)
-                          (* else if not (Dom.opened m varinfo) then M.report ("writing to unopened file handle "^varinfo.vname) *)
-                          (* else if not (Dom.writable m varinfo) then M.report ("writing to read-only file handle "^varinfo.vname); *)
-                    
-                          (* Dom.report m varinfo Dom.V.closed ("writing to closed file handle "^varinfo.vname); *)
-                          (* Dom.report ~neg:true m varinfo Dom.V.opened ("writing to unopened file handle "^varinfo.vname); *)
-                          (* Dom.report ~neg:true m varinfo Dom.V.writable ("writing to read-only file handle "^varinfo.vname); *)
+                      | Var varinfo ->
                           Dom.reports [
                             false, m, varinfo, Dom.V.closed,   "writing to closed file handle "^varinfo.vname;
                             true,  m, varinfo, Dom.V.opened,   "writing to unopened file handle "^varinfo.vname;

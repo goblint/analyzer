@@ -1,6 +1,6 @@
 open Cil
 open Pretty
-module OMap = Map (* save Ocaml's Map before overwriting it with BatMap*)
+module OMap = Map (* save Ocaml's Map before overwriting it with BatMap *)
 open Batteries
 
 module M = Messages
@@ -13,7 +13,6 @@ module Val =
 struct
   module T =
   struct
-    (* assign Top on any pointer modification *)
     type loc = location list
     type mode = Read | Write
     type state = Open of string*mode | Close
@@ -79,24 +78,15 @@ end
 
 module FileUses  = 
 struct 
-(*   module VarSet = SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
-  include Lattice.Prod (VarSet) (VarSet) (* Base1: open file handles, Base2: closed file handles *) *)
-
-  (* include Printable.Std *)
-  (* include Lattice.StdCousot *)
-
   module K = Basetype.Variables
   module V = Val
   module MD = MapDomain.MapBot (Basetype.Variables) (Val)
   include MD
   (* don't use BatMap to avoid dependencies for other files using the following functions *)
-  module M = OMap.Make (Basetype.Variables) (* why does Map.Make (K) not work? *)
+  module M = OMap.Make (Basetype.Variables) (* why does OMap.Make (K) not work? *)
   open V.T
 
   (* other map functions *)
-  (* val filter : (key -> 'a -> bool) -> 'a t -> 'a t
-  filter p m returns the map with all the bindings in m that satisfy predicate p. *)
-  let filter p m = M.filter p m
   (* val bindings : 'a t -> (key * 'a) list
   Return the list of all bindings of the given map. The returned list is sorted in increasing order with respect to the ordering Ord.compare, where Ord is the argument given to Map.Make. *)
   let bindings m = M.bindings m
@@ -105,7 +95,7 @@ struct
 
   (* domain specific *)
   let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then Set.exists p xs else Set.for_all p xs
-  let filterMap ?may:(may=false) p m = M.filter (fun k v -> predicate ~may:may v p) m (* this is OCaml's Map.filter which corresponds to BatMap.filteri *)
+  let filterMap ?may:(may=false) p m = filter (fun k v -> predicate ~may:may v p) m (* this is OCaml's Map.filter which corresponds to BatMap.filteri *)
   let filterValues ?may:(may=false) p m = List.concat (
     List.map (fun (k,v) -> List.filter p (V.recordsList v)) (* can't use BatMap.values *)
     (M.bindings (filterMap ~may:may p m)))
@@ -135,8 +125,6 @@ struct
 
   let reports xs =
     let uncurry (neg, m, var, p, msg) = report_ ~neg:neg m var p msg in
-(*     let f x = uncurry x = `Must true in
-    ignore(List.exists f xs) (* stops after first `Must true. like if .. else if .. else ..*) *)
     let f result x = if snd (uncurry x) = result then Some (fst (uncurry x)) else None in
     let must_true = BatList.filter_map (f (`Must true)) xs in
     let may_true  = BatList.filter_map (f (`May true)) xs in
@@ -151,12 +139,4 @@ struct
 
   let may m var = add var (V.may (find var m)) m
 
-(*   let toXML_f sf x = 
-    match toXML x with
-      | Xml.Element (node, [text, _], elems) -> 
-          let summary = "File Uses: " ^ sf Goblintutil.summary_length x in
-            Xml.Element (node, [text, summary], elems)
-      | x -> x
-      
-  let toXML s  = toXML_f short s *)
 end
