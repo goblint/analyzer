@@ -1,31 +1,36 @@
-1. Download ocaml 4.00.1
+1. Ocaml 4.00.1
+http://caml.inria.fr/pub/distrib/ocaml-4.00/ocaml-4.00.1.tar.gz
 ./configure
 make world.opt
 sudo make install
 
-2. get findlib 1.3.3 
+2. findlib 1.3.3 
+http://download.camlcity.org/download/findlib-1.3.3.tar.gz
 ./configure
 make all
 make opt
 sudo make install
 
-3. get camomile 0.8.3
+3. camomile 0.8.3
+http://prdownloads.sourceforge.net/camomile/camomile-0.8.3.tar.bz2
 ./configure
 make
 sudo make install
 
-4. get batteries 1.5.0 (!!!)
+4. batteries 2.0
+https://forge.ocamlcore.org/frs/download.php/1096/batteries-2.0.tar.gz
 make 
 sudo make install
 
 
-5. get Cil
+5. Cil
 git clone git://cil.git.sourceforge.net/gitroot/cil/cil
 ./configure
-make opt
+make
 sudo make install
 
-6. get xml-light 2.2
+6. xml-light 2.2
+http://tech.motion-twin.com/zip/xml-light-2.2.zip
 make 
 make opt
 echo 'version="2.2"' > META

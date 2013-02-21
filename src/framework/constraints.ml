@@ -3,7 +3,7 @@ open MyCFG
 open Pretty
 open Analyses
 open GobConfig
-open Batteries_uni
+open Batteries
 
 
 (** Lifts a [Spec2] so that the domain and the context are [Hashcons]d. *)

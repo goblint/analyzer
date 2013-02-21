@@ -62,7 +62,6 @@ def print_res (i)
           aname = a[0]
           f.puts "<th>#{aname}</th>"
         end
-  #       f.puts "<th>Compared to Trier</th>"
       end
       f.puts "<tr>"
       f.puts p.to_html
@@ -99,15 +98,6 @@ def print_res (i)
         end
       end
       gb_file = $testresults + File.basename(p.path,".c") + ".mutex.txt"
-  #     tr_file = trier_res + p.name + "/warnings.txt"
-  #     if FileTest.exists? tr_file then
-  #       comp_file = File.basename(p.path,".c") + ".comparison.txt" 
-  #       `/home/vesal/kool/magister/goblint/scripts/mit_Trier_vergleichen.rb #{gb_file} #{tr_file} > #{$testresults + comp_file}`
-  #       summary = File.new($testresults + comp_file).readlines[-1]
-  #       f.puts "<td><a href=\"#{comp_file}\">#{summary}</td>"
-  #     else
-  #       f.puts "<td>No Trier!</td>"
-  #     end
       f.puts "</tr>"
       f.puts "</tr>"
     end
@@ -190,7 +180,8 @@ $projects.each do |p|
     STDOUT.flush
     outfile = $testresults + File.basename(filename,".c") + ".#{aname}.txt"
     starttime = Time.now
-    cmd = "timeout #{timeout} #{goblint} #{aparam} #{filename} #{p.params} --uncalled --allglobs --stats --cilout /dev/null 1>#{outfile} 2>&1"
+    #Add --sets cilout /dev/null to ignore CIL output.
+    cmd = "timeout #{timeout} #{goblint} #{aparam} #{filename} #{p.params} --enable uncalled --enable allglobs --enable stats 1>#{outfile} 2>&1"
     system(cmd)
     status = $?.exitstatus
     endtime   = Time.now
@@ -217,7 +208,6 @@ $projects.each do |p|
     end
     print_res p.id
   end
-  `rm goblint.json`
 end
 print_res nil
 puts ("Results: " + $theresultfile)

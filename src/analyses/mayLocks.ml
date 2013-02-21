@@ -2,7 +2,7 @@ open Cil
 open Pretty
 open Analyses
 open GobConfig
-open Batteries_uni
+open Batteries
 
 module Spec =
 struct

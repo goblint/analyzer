@@ -1,7 +1,7 @@
 module GU = Goblintutil
 module M = Messages
 
-open Batteries_uni
+open Batteries
 open GobConfig
 open Htmlutil
 open Printf

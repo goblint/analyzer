@@ -1,6 +1,6 @@
 (** This is the main program! *)
 
-open Batteries_uni
+open Batteries
 open GobConfig
 open Defaults
 open Printf
@@ -30,7 +30,9 @@ let print_help ch =
   fprintf ch "    --conf <file>             Merge the configuration from the <file>.        \n";             
   fprintf ch "    --writeconf <file>        Write the effective configuration to <file>     \n";        
   fprintf ch "    --set <jpath> <jvalue>    Set a configuration variable <jpath> to the specified <jvalue>.\n"; 
-  fprintf ch "    --sets <jpath> <string>   Set a configuration variable <jpath> to the string.\n\n"; 
+  fprintf ch "    --sets <jpath> <string>   Set a configuration variable <jpath> to the string.\n"; 
+  fprintf ch "    --enable  <jpath>         Set a configuration variable <jpath> to true.   \n"; 
+  fprintf ch "    --disable <jpath>         Set a configuration variable <jpath> to false.  \n\n"; 
   fprintf ch "    --print_options           Print out commonly used configuration variables.\n";    
   fprintf ch "    --print_all_options       Print out all configuration variables.          \n";
   fprintf ch "\n";
@@ -58,6 +60,8 @@ let option_spec_list =
     ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
     ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
     ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_string !tmp_arg x)], ""
+    ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
+    ; "--disable"            , Arg.String (fun x -> set_bool x false), ""
     ; "--conf"               , Arg.String merge_file, ""
     ; "--writeconf"          , Arg.String (fun fn -> File.with_file_out fn print; raise BailFromMain), ""
     ; "--version"            , Arg.Unit print_version, ""

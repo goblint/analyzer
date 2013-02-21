@@ -4,6 +4,8 @@ open Cil
 open Pretty
 open GobConfig
 
+module BISet = BatSet.Make (BatInt)
+
 (** A node in the Control Flow Graph is either a statement or function. Think of
 * the function node as last node that all the returning nodes point to.  So
 * the result of the function call is contained in the fucntion node. *)
@@ -261,12 +263,12 @@ let createCFG (file: file) =
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
   cfgF, cfgB
 
-let hasBackEdges = ref BatSet.IntSet.empty 
+let hasBackEdges = ref BISet.empty 
 let collectBackEdges cfg = 
   let note_back_edge t (_,f) = 
     match t, f with
     | (Statement t, Statement f) -> 
-        if t.sid < f.sid then hasBackEdges := BatSet.IntSet.add t.sid !hasBackEdges 
+        if t.sid < f.sid then hasBackEdges := BISet.add t.sid !hasBackEdges 
     | _ -> ()
   in
   H.iter note_back_edge cfg 
@@ -308,7 +310,7 @@ let print cfg  =
   in
     H.iter printEdge cfg;    
     NH.iter printNodeStyle node_table;
-    BatSet.IntSet.iter (Printf.fprintf out "\t%d [style=filled, fillcolor=yellow];\n") !hasBackEdges;
+    BISet.iter (Printf.fprintf out "\t%d [style=filled, fillcolor=yellow];\n") !hasBackEdges;
     Printf.fprintf out "}\n";
     flush out;
     close_out_noerr out
@@ -357,7 +359,7 @@ let __use_back_loop_cache = ref None
 let rec loopSep x = 
   match Some (get_bool "exp.back_loop_sep") with
     | None -> __use_back_loop_cache := Some (get_bool "exp.back_loop_sep"); loopSep x
-    | Some true -> BatSet.IntSet.mem x.sid !hasBackEdges
+    | Some true -> BISet.mem x.sid !hasBackEdges
     | Some false -> true
     
   

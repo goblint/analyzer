@@ -15,10 +15,6 @@ else
 end
 vrsn = `#{goblint} --version`
 
-backup = File.join(Dir.getwd,"goblint.script_backup.json")
-json   = File.join(Dir.getwd, "goblint.json")
-FileUtils.mv(json, backup) if File.exists?(json) 
-
 testresults = File.expand_path("tests/suite_result") 
 testfiles   = File.expand_path("tests/regression")
 
@@ -168,7 +164,6 @@ projects.each do |p|
     f.puts vrsn
   end
 end
-FileUtils.mv(backup,json) if File.exists?(backup) 
 
 #Outputting
 header = <<END
@@ -257,13 +252,13 @@ File.open(theresultfile, "w") do |f|
 
     statsfile = p.name + ".stats.txt"
     lines = IO.readlines(File.join(testresults, statsfile))
-    res = lines.grep(/^TOTAL\s*(.*) s.*$/) { |x| $1 }
+    res = lines.grep(/^TOTAL\s*(.*) s.*$/) { $1 }
     errors = lines.grep(/Error:/)
     if res == [] or not errors == [] then
       is_ok = false
       f.puts "<td><a href=\"#{statsfile}\">failure</a></td>"
     else
-      f.puts "<td><a href=\"#{statsfile}\">#{res.to_s} s</a></td>"
+      f.puts "<td><a href=\"#{statsfile}\">#{"%.2f" % res} s</a></td>"
     end
 
     if tracing then
