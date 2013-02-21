@@ -16,8 +16,10 @@ struct
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
-  let loc_stack = ref []
-  let return_var = dummyFunDec.svar (* see base.ml: 219 *)
+  (* let loc_stack = ref [] *)
+  (* let return_var = dummyFunDec.svar (* see base.ml: 219 *) *)
+  let return_var = Cil.makeVarinfo false "@return" Cil.voidType
+  let stack_var = Cil.makeVarinfo false "@stack" Cil.voidType
 
   let lval2var (lhost,offset) =
     match lhost with
@@ -50,12 +52,16 @@ struct
   let body ctx (f:fundec) : Dom.t = 
     ctx.local
 
-  let callStack () = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) !loc_stack))^"]"
+  let callStack m =
+    let loc_stack = match Dom.findOption stack_var m with
+      | Some(Must(v)) -> v.loc
+      | _ -> [] in
+    " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) loc_stack))^"]"
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
     let m = ctx.local in
-    M.write ("return: ctx.local="^(Dom.short 50 ctx.local)^(callStack ()));
-    if f.svar.vname <> "main" && BatList.is_empty !loc_stack then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!");
+    M.write ("return: ctx.local="^(Dom.short 50 ctx.local)^(callStack m));
+    (* if f.svar.vname <> "main" && BatList.is_empty !loc_stack then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
       let vnames xs = String.concat ", " (List.map (fun v -> v.var.vname) xs) in
       let mustOpen = Dom.filterValues Dom.V.opened m in
@@ -81,17 +87,23 @@ struct
 
     
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    M.write ("entering function "^f.vname^(callStack ()));
-    if f.vname <> "main" then (
+    let m = ctx.local in
+    M.write ("entering function "^f.vname^(callStack m));
+    let m = if f.vname <> "main" then (
       let loc = !Tracing.current_loc in
-      loc_stack := loc :: !loc_stack  (* push loc on stack *)
-    );
-    [ctx.local,ctx.local]
+      (* loc_stack := loc :: !loc_stack  (* push loc on stack *) *)
+      match Dom.findOption stack_var m with
+        | Some(Must(v)) -> Dom.add stack_var (Must({v with loc=(loc::v.loc)})) m
+        | _ -> Dom.add stack_var (Must(Dom.V.create stack_var [loc] Dom.V.Close)) m
+    ) else m in [m,m]
   
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-    M.write ("leaving function "^f.vname^(callStack ()));
+    M.write ("leaving function "^f.vname^(callStack au));
     (* let loc = !Tracing.current_loc in *)
-    loc_stack := List.tl !loc_stack; (* pop loc from stack *)
+    (* loc_stack := List.tl !loc_stack; (* pop loc from stack *) *)
+    let au = match Dom.findOption stack_var au with
+      | Some(Must(v)) -> Dom.add stack_var (Must({v with loc=(List.tl v.loc)})) au
+      | _ -> au in
     let return_val = Dom.findOption return_var au in
     match lval, return_val with
       | Some lval, Some rval -> 
@@ -132,7 +144,10 @@ struct
     let ret dom = [dom, Cil.integer 1, true] in
     let dummy = ret ctx.local in
     let loc = !Tracing.current_loc in
-    let dloc = loc :: !loc_stack in
+    (* let dloc = loc :: !loc_stack in *)
+    let dloc = match Dom.findOption stack_var m with
+      | Some(Must(v)) -> loc::(v.loc)
+      | _ -> [loc] in
     match f.vname with
       | "fopen" -> begin
           match lval with
