@@ -66,7 +66,7 @@ struct
       let mayOpenAll = Dom.filterValues ~may:true Dom.V.opened m in
       let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpenAll in (* ignore values that are already in mustOpen *)
       if List.length mayOpen > 0 then
-        M.report ("maybe unclosed files: "^(vnames (BatList.unique ~cmp:(fun a b -> a.var.vname=b.var.vname) mayOpen)));
+        M.report ("maybe unclosed files: "^(vnames (BatList.unique ~eq:(fun a b -> a.var.vname=b.var.vname) mayOpen)));
         List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file may be never closed") mayOpen
     );
     let loc = !Tracing.current_loc in

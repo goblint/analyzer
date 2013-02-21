@@ -1,7 +1,7 @@
 open Cil
 open Pretty
 module OMap = Map (* save Ocaml's Map before overwriting it with BatMap*)
-open Batteries_uni
+open Batteries
 
 module M = Messages
 
@@ -18,7 +18,7 @@ struct
     type mode = Read | Write
     type state = Open of string*mode | Close
     type record = { var: varinfo; loc: loc; state: state }
-    type t' = Must of record | May of record PSet.t
+    type t' = Must of record | May of record Set.t
   end
 
   include Printable.Std
@@ -35,7 +35,7 @@ struct
 
   let toString = function
     | Must x -> "Must "^(toStringRecord x)
-    | May xs -> "May "^(String.concat ", " (List.map toStringRecord (List.of_enum (PSet.enum xs))))
+    | May xs -> "May "^(String.concat ", " (List.map toStringRecord (List.of_enum (Set.enum xs))))
     (* IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs *)
 
   let short i x = toString x
@@ -47,20 +47,20 @@ struct
   end) 
 
   let create v l s = { var=v; loc=l; state=s }
-  let map f = function Must x -> Must (f x) | May xs -> May (PSet.map f xs)
+  let map f = function Must x -> Must (f x) | May xs -> May (Set.map f xs)
   let rebind x var = map (fun x -> {x with var=var}) x
-  let may = function Must x -> May (PSet.singleton x) | xs -> xs
-  let records = function Must x -> (PSet.singleton x) | May xs -> xs
-  let recordsList = function Must x -> [x] | May xs -> List.of_enum (PSet.enum xs)
+  let may = function Must x -> May (Set.singleton x) | xs -> xs
+  let records = function Must x -> (Set.singleton x) | May xs -> xs
+  let recordsList = function Must x -> [x] | May xs -> List.of_enum (Set.enum xs)
   let vnames x = String.concat ", " (List.map (fun x -> x.var.vname) (recordsList x))
 
   let equal = Util.equals
   (* let leq x y = true *)
   (* let leq x y = equal y (join x y) *)
-  let leq x y = PSet.subset (records x) (records y)
+  let leq x y = Set.subset (records x) (records y)
   let hash = Hashtbl.hash
   let join x y = (* M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); *)
-    let r = May (PSet.union (records x) (records y)) in
+    let r = May (Set.union (records x) (records y)) in
     (* M.report ("result: "^(toString r)); *)
     r
   let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); x
@@ -104,7 +104,7 @@ struct
   let findOption k m = if mem k m then Some(find k m) else None
 
   (* domain specific *)
-  let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then PSet.exists p xs else PSet.for_all p xs
+  let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then Set.exists p xs else Set.for_all p xs
   let filterMap ?may:(may=false) p m = M.filter (fun k v -> predicate ~may:may v p) m (* this is OCaml's Map.filter which corresponds to BatMap.filteri *)
   let filterValues ?may:(may=false) p m = List.concat (
     List.map (fun (k,v) -> List.filter p (V.recordsList v)) (* can't use BatMap.values *)
@@ -123,11 +123,11 @@ struct
     let mf = (fun () -> ()), `Must false in
     if mem var m then
       let v = find var m in
-      let p = if neg then not -| p else p in
+      let p = if neg then not % p else p in
       match v with
         | Must x -> if p x then f msg else mf
-        | May xs -> if PSet.for_all p xs then f msg
-                    else if PSet.exists p xs then f ~may:true msg
+        | May xs -> if Set.for_all p xs then f msg
+                    else if Set.exists p xs then f ~may:true msg
                     else mf
     else if neg then f msg else mf
 
