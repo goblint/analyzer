@@ -78,14 +78,14 @@ struct
     in
     match S.system x with
       | []           -> None
-      | [f] when n=0 -> Some (fun get set -> f (get -| conv) (set -| conv))
+      | [f] when n=0 -> Some (fun get set -> f (get % conv) (set % conv))
       | xs when n=(-1) -> 
           let compute get set =
             fold_left1 Dom.join (List.mapi (fun n _ -> get (x,n)) xs)
           in
           Some compute
       | xs -> 
-        try Some (fun get set -> List.at xs n (get -| conv) (set -| conv))
+        try Some (fun get set -> List.at xs n (get % conv) (set % conv))
         with Invalid_argument _ -> None 
 end 
 

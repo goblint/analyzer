@@ -23,13 +23,6 @@ open Config
 open Printf
 open Json
 
-(** Pointless operators that Kalmer use from Batteries 1.5. *)
-let ( |> ) x f = f x
-let ( <| ) f x = f x
-let ( |- ) f g x = g (f x)
-let ( -| ) f g x = f (g x)
-let ( **> )      = ( <| )
-
 (** The type for [gobConfig] module. *)
 module type S =
 sig    
@@ -226,9 +219,9 @@ struct
   (** Convienience functions for reading values. *)
   let get_string = get_path_string string "string"
   (** Convienience functions for reading values. *)
-  let get_length = List.length -| (!) -| get_path_string array "array"
+  let get_length = List.length % (!) % get_path_string array "array"
   (** Convienience functions for reading lists. *)
-  let get_list = List.map (!) -| (!) -| get_path_string array "array"
+  let get_list = List.map (!) % (!) % get_path_string array "array"
 
   (** Helper functions for writing values. *)
   let set_path_string st v = 
@@ -273,7 +266,7 @@ struct
 
   (** Merge configurations form a file with current. *)
   let merge_file fn = 
-    let v = JsonParser.value JsonLexer.token -| Lexing.from_channel |> File.with_file_in fn in
+    let v = JsonParser.value JsonLexer.token % Lexing.from_channel |> File.with_file_in fn in
     json_conf := merge !json_conf v;
     if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyJson !json_conf
     
