@@ -28,12 +28,12 @@ struct
   let exitstate () = D.lift (S.exitstate ())
   let otherstate () = D.lift (S.otherstate ())
 
-  let context = C.lift -| S.context -| D.unlift
-  let call_descr f = S.call_descr f -| D.unlift
+  let context = C.lift % S.context % D.unlift
+  let call_descr f = S.call_descr f % D.unlift
 
   let conv ctx = 
     { ctx with local2 = D.unlift ctx.local2 
-             ; spawn2 = (fun v -> ctx.spawn2 v -| D.lift )
+             ; spawn2 = (fun v -> ctx.spawn2 v % D.lift )
              ; split2 = (fun d e tv -> ctx.split2 (D.lift d) e tv )
     }
   
@@ -45,28 +45,28 @@ struct
     S.query (conv ctx) q
     
   let assign ctx lv e = 
-    D.lift **> S.assign (conv ctx) lv e
+    D.lift @@ S.assign (conv ctx) lv e
     
   let branch ctx e tv = 
-    D.lift **> S.branch (conv ctx) e tv
+    D.lift @@ S.branch (conv ctx) e tv
     
   let body ctx f = 
-    D.lift **> S.body (conv ctx) f
+    D.lift @@ S.body (conv ctx) f
     
   let return ctx r f = 
-    D.lift **> S.return (conv ctx) r f
+    D.lift @@ S.return (conv ctx) r f
     
   let intrpt ctx = 
-    D.lift **> S.intrpt (conv ctx)
+    D.lift @@ S.intrpt (conv ctx)
     
   let enter ctx r f args = 
-    List.map (fun (x,y) -> D.lift x, D.lift y) **> S.enter (conv ctx) r f args
+    List.map (fun (x,y) -> D.lift x, D.lift y) @@ S.enter (conv ctx) r f args
     
   let special ctx r f args = 
-    D.lift **> S.special (conv ctx) r f args
+    D.lift @@ S.special (conv ctx) r f args
       
   let combine ctx r fe f args es = 
-    D.lift **> S.combine (conv ctx) r fe f args (D.unlift es) 
+    D.lift @@ S.combine (conv ctx) r fe f args (D.unlift es) 
 end 
 
 (** Lifts a [Spec2] with a special bottom element that represent unreachable code. *)
@@ -94,17 +94,17 @@ struct
   let exitstate () = `Lifted (S.exitstate ())
   let otherstate () = `Lifted (S.otherstate ())
 
-  let context = S.context -| D.unlift
+  let context = S.context % D.unlift
   let call_descr f = S.call_descr f 
 
   let conv ctx = 
     { ctx with local2 = D.unlift ctx.local2 
-             ; spawn2 = (fun v -> ctx.spawn2 v -| D.lift )
+             ; spawn2 = (fun v -> ctx.spawn2 v % D.lift )
              ; split2 = (fun d e tv -> ctx.split2 (D.lift d) e tv )
     }
     
   let lift_fun ctx f g h b =
-    try f **> h (g (conv ctx)) 
+    try f @@ h (g (conv ctx)) 
     with Deadcode -> b
   
   let sync ctx = 
@@ -113,15 +113,15 @@ struct
 
   let enter ctx r f args = 
     let liftmap = List.map (fun (x,y) -> D.lift x, D.lift y) in
-    lift_fun ctx liftmap S.enter ((|>) args -| (|>) f -| (|>) r) []
+    lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) []
     
   let query ctx q     = lift_fun ctx identity S.query  ((|>) q)            `Bot    
-  let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e -| (|>) lv) `Bot
-  let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv -| (|>) e) `Bot
+  let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
+  let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
   let body ctx f      = lift_fun ctx D.lift   S.body   ((|>) f)            `Bot
-  let return ctx r f  = lift_fun ctx D.lift   S.return ((|>) f -| (|>) r)  `Bot
+  let return ctx r f  = lift_fun ctx D.lift   S.return ((|>) f % (|>) r)  `Bot
   let intrpt ctx      = lift_fun ctx D.lift   S.intrpt identity            `Bot
-  let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args -| (|>) f -| (|>) r)        `Bot
+  let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine ctx r fe f args es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args (D.unlift es)) `Bot
   
 end 
@@ -165,17 +165,17 @@ struct
     ; report_access = (fun _ -> ())
     }
   
-  let sync   = S.sync   -| conv_ctx
-  let query  = S.query  -| conv_ctx
-  let assign = S.assign -| conv_ctx
-  let branch = S.branch -| conv_ctx
-  let body   = S.body   -| conv_ctx
-  let return = S.return -| conv_ctx
-  let intrpt = S.intrpt -| conv_ctx
+  let sync   = S.sync   % conv_ctx
+  let query  = S.query  % conv_ctx
+  let assign = S.assign % conv_ctx
+  let branch = S.branch % conv_ctx
+  let body   = S.body   % conv_ctx
+  let return = S.return % conv_ctx
+  let intrpt = S.intrpt % conv_ctx
   
 
-  let enter   = S.enter_func -| conv_ctx
-  let combine = S.leave_func -| conv_ctx
+  let enter   = S.enter_func % conv_ctx
+  let combine = S.leave_func % conv_ctx
 
   let special ctx2 r f args = 
     match S.special_fn (conv_ctx ctx2) r f args with
@@ -373,8 +373,8 @@ struct
   let le, ri = (fun x -> `Left x), (fun x -> `Right x)  
   
   let conv f get set = 
-    f (getL -| get -| l) (fun x v -> set (l x) (le v)) 
-      (getR -| get -| g) (fun x v -> set (g x) (ri v)) 
+    f (getL % get % l) (fun x v -> set (l x) (le v)) 
+      (getR % get % g) (fun x v -> set (g x) (ri v)) 
     |> le
   
   let system = function
@@ -596,7 +596,7 @@ struct
     if D.cardinal l <> 1 then
       failwith "PathSensitive2.context must be called with a singleton set."
     else
-      S.context **> D.choose l
+      S.context @@ D.choose l
       
 
   let combine x = undefined x
@@ -604,8 +604,8 @@ struct
   let conv ctx x = 
     let rec ctx' = { ctx with ask2   = query
                             ; local2 = x
-                            ; spawn2 = (fun v -> ctx.spawn2 v -| D.singleton )
-                            ; split2 = (ctx.split2 -| D.singleton) }
+                            ; spawn2 = (fun v -> ctx.spawn2 v % D.singleton )
+                            ; split2 = (ctx.split2 % D.singleton) }
     and query x = S.query ctx' x in
     ctx'
           
@@ -626,7 +626,7 @@ struct
   
   let fold ctx f g h a =
     let k x a = 
-      try h a **> g **> f **> conv ctx x 
+      try h a @@ g @@ f @@ conv ctx x 
       with Deadcode -> a
     in
     let d = D.fold k ctx.local2 a in
@@ -634,7 +634,7 @@ struct
 
   let fold' ctx f g h a =
     let k x a = 
-      try h a **> g **> f **> conv ctx x 
+      try h a @@ g @@ f @@ conv ctx x 
       with Deadcode -> a
     in
     D.fold k ctx.local2 a 

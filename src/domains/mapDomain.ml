@@ -15,6 +15,7 @@ sig
   val mem: key -> t -> bool
   val iter: (key -> value -> unit) -> t -> unit
   val map: (value -> value) -> t -> t
+  val filter: (key -> value -> bool) -> t -> t
 (*  val mapi: (key -> value -> value) -> t -> t*)
   val fold: (key -> value -> 'a -> 'a) -> t -> 'a -> 'a
 
@@ -64,6 +65,7 @@ struct
   let map = M.map
   let mapi = M.mapi
   let fold = M.fold
+  let filter = M.filter
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal = for_all2 Range.equal
@@ -359,6 +361,11 @@ struct
     match x with 
       | `Top -> raise (Fn_over_All "fold")
       | `Lifted x -> M.fold f x a
+
+  let filter f x = 
+    match x with 
+      | `Top -> raise (Fn_over_All "filter")
+      | `Lifted x -> `Lifted (M.filter f x)
 end
 
 module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with
@@ -429,4 +436,9 @@ struct
     match x with 
       | `Bot -> raise (Fn_over_All "fold")
       | `Lifted x -> M.fold f x a
+
+  let filter f x = 
+    match x with 
+      | `Bot -> raise (Fn_over_All "filter")
+      | `Lifted x -> `Lifted (M.filter f x)
 end
