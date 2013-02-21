@@ -15,10 +15,6 @@ else
 end
 vrsn = `#{goblint} --version`
 
-backup = File.join(Dir.getwd,"goblint.script_backup.json")
-json   = File.join(Dir.getwd, "goblint.json")
-FileUtils.mv(json, backup) if File.exists?(json) 
-
 testresults = File.expand_path("tests/suite_result") 
 testfiles   = File.expand_path("tests/regression")
 
@@ -168,7 +164,6 @@ projects.each do |p|
     f.puts vrsn
   end
 end
-FileUtils.mv(backup,json) if File.exists?(backup) 
 
 #Outputting
 header = <<END

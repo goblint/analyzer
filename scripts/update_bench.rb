@@ -208,7 +208,6 @@ $projects.each do |p|
     end
     print_res p.id
   end
-  `rm goblint.json`
 end
 print_res nil
 puts ("Results: " + $theresultfile)
