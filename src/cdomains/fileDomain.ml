@@ -63,13 +63,12 @@ struct
     (* M.report ("result: "^(toString r)); *)
     r
   let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); x
+  (* top/bot are handled by MapDomain, only bot () gets called *)
   let top () = raise Unknown
-  let is_top x = (* x.loc = Top *)false 
-  let bot () = raise Error
-  let is_bot x = (* x.loc = Bot *)false
+  let is_top x = false 
+  let bot () = May(Set.empty) (* called in MapDomain.MapBot(K)(V).find *)
+  let is_bot x = x=bot ()
   
-  (* let dummy () = { var=(Cil.makeVarinfo false "dummy" Cil.voidType); loc=Bot; state=Close } *)
-
   (* properties used by FileUses.report *)
   let opened x = x.state <> Close
   let closed x = x.state = Close
