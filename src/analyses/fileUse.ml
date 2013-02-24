@@ -39,7 +39,7 @@ struct
     let var = lval2var lval in
     if Dom.mem var m then (
       M.report ("changed file pointer "^var.vname^" (no longer safe)");
-      Dom.may m var
+      Dom.may var m
     )else
       m
    
@@ -148,10 +148,16 @@ struct
                 match lhost with
                   | Var varinfo ->
                       (* opened again, not closed before *)
-                      Dom.report m varinfo Dom.V.opened ("overwriting still opened file handle "^varinfo.vname);
+                      Dom.report varinfo Dom.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
+                      let mustOpen, mayOpen = Dom.checkMay varinfo Dom.V.opened m in
+                      if mustOpen || mayOpen then (
+                        let msg = if mayOpen && not mustOpen then "file may be never closed" else "file is never closed" in
+                        let xs = Dom.filterRecords varinfo Dom.V.opened m in
+                        List.iter (fun x -> M.report ~loc:(BatList.last x.loc) msg) xs
+                      );
                       begin match List.map (Cil.stripCasts) arglist with
                         | Const(CStr(filename))::Const(CStr(mode))::[] -> 
-                            ret (Dom.fopen m varinfo dloc filename mode)
+                            ret (Dom.fopen varinfo dloc filename mode m)
                         | _ -> 
                             List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) arglist;
                             M.bailwith "fopen needs two strings as arguments"
@@ -165,8 +171,8 @@ struct
                     match lhost with
                       | Var varinfo ->
                           if not (Dom.mem varinfo m) then M.report ("closeing unopened file handle "^varinfo.vname);
-                          Dom.report m varinfo Dom.V.closed ("closeing already closed file handle "^varinfo.vname);
-                          ret (Dom.fclose m varinfo dloc)
+                          Dom.report varinfo Dom.V.closed ("closeing already closed file handle "^varinfo.vname) m;
+                          ret (Dom.fclose varinfo dloc m)
                       | Mem exp -> dummy
                     end
                 | _ -> dummy (* TODO: only considers variables as arguments *)
@@ -179,10 +185,10 @@ struct
                 | Lval (lhost,offset) -> begin
                     match lhost with
                       | Var varinfo ->
-                          Dom.reports [
-                            false, m, varinfo, Dom.V.closed,   "writing to closed file handle "^varinfo.vname;
-                            true,  m, varinfo, Dom.V.opened,   "writing to unopened file handle "^varinfo.vname;
-                            true,  m, varinfo, Dom.V.writable, "writing to read-only file handle "^varinfo.vname;
+                          Dom.reports m varinfo [
+                            false, Dom.V.closed,   "writing to closed file handle "^varinfo.vname;
+                            true,  Dom.V.opened,   "writing to unopened file handle "^varinfo.vname;
+                            true,  Dom.V.writable, "writing to read-only file handle "^varinfo.vname;
                           ];
                           dummy
                       | Mem exp -> dummy

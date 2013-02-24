@@ -2,7 +2,7 @@
 # for line in fileinput.input():
 #     pass
 
-import sys
+import sys, os
 import re
 
 if len(sys.argv) != 2:
@@ -31,12 +31,12 @@ for k,v in sorted(set.union(set(goblint.items()), set(source.items()))):
     elif (k,v) not in goblint.items() and (k,v) in source.items():
         diff[k] = ('S', [source[k]])
 
+if not len(diff):
+    sys.exit(0)
+
 print "#"*50
 print path
-
-if not len(diff):
-    print
-    sys.exit(0)
+print "file://"+os.getcwd()+"/result/"+os.path.basename(path)+".html"
 
 if len(goblint):
     print "## Goblint warnings:"

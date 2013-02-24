@@ -98,14 +98,17 @@ struct
   let filterValues ?may:(may=false) p m = List.concat (
     List.map (fun (k,v) -> List.filter p (V.recordsList v)) (* can't use BatMap.values *)
     (M.bindings (filterMap ~may:may p m)))
+  let filterRecords var p m = if mem var m then let v = find var m in List.filter p (V.recordsList v) else []
 
-  let check m var p = if mem var m then predicate (find var m) p else false
-  let opened m var = check m var (fun x -> x.state <> Close)
-  let closed m var = check m var (fun x -> x.state = Close)
-  let writable m var = check m var (fun x -> match x.state with Open((_,Write)) -> true | _ -> false)
+  let checkMay var p m = if mem var m then let v = find var m in (predicate v p, predicate ~may:true v p) else (false, false)
+  (* not used anymore -> remove? *)
+  let check var p m = if mem var m then predicate (find var m) p else false
+  let opened var m = check var (fun x -> x.state <> Close) m
+  let closed var m = check var (fun x -> x.state = Close) m
+  let writable var m = check var (fun x -> match x.state with Open((_,Write)) -> true | _ -> false) m
 
   (* returns a tuple (thunk, result) *)
-  let report_ ?neg:(neg=false) m var p msg =
+  let report_ ?neg:(neg=false) var p msg m =
     let f ?may:(may=false) s =
       let f () = Messages.report (if may then ("might be "^s) else s) in
       if may then f, `May true else f, `Must true in
@@ -120,10 +123,10 @@ struct
                     else mf
     else if neg then f msg else mf
 
-  let report ?neg:(neg=false) m var p msg = (fst (report_ ~neg:neg m var p msg)) () (* evaluate thunk *)
+  let report ?neg:(neg=false) var p msg m = (fst (report_ ~neg:neg var p msg m)) () (* evaluate thunk *)
 
-  let reports xs =
-    let uncurry (neg, m, var, p, msg) = report_ ~neg:neg m var p msg in
+  let reports m var xs =
+    let uncurry (neg, p, msg) = report_ ~neg:neg var p msg m in
     let f result x = if snd (uncurry x) = result then Some (fst (uncurry x)) else None in
     let must_true = BatList.filter_map (f (`Must true)) xs in
     let may_true  = BatList.filter_map (f (`May true)) xs in
@@ -131,11 +134,11 @@ struct
     if List.length must_true > 0 then (List.hd must_true) ();
     if List.length may_true  > 0 then (List.hd may_true) ()
 
-  let fopen m var loc filename mode =
+  let fopen var loc filename mode m =
     let mode = match String.lowercase mode with "r" -> Read | _ -> Write in
     add var (Must(V.create var loc (Open(filename, mode)))) m
-  let fclose m var loc = add var (Must(V.create var loc Close)) m
+  let fclose var loc m = add var (Must(V.create var loc Close)) m
 
-  let may m var = add var (V.may (find var m)) m
+  let may var m = add var (V.may (find var m)) m
 
 end
