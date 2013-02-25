@@ -11,9 +11,9 @@ let multlinecomment = "/*"([^'*']|('*'+[^'*''/'])|nl)*'*'+'/'
 let comments = endlinecomment|multlinecomment
 
 rule token = parse
-  | [' ' '\t']     { token lexbuf }     (* skip blanks *)
+  | [' ' '\t']|nl  { token lexbuf }     (* skip blanks *)
   | comments       { token lexbuf }     (* skip comments *)
-  | ['\n' ]        { EOL }
+  | "\tif"         { IF }
   | ['0'-'9']+ as lxm { INT(int_of_string lxm) }
   | '+'            { PLUS }
   | '-'            { MINUS }
@@ -40,6 +40,6 @@ rule token = parse
       }
 (*  | ['0'-'9']*'.'?['0'-'9']*(('e'|'E')('+'|'-')?['0'-'9']+)?
       { NUMBER (big_int_of_string (Lexing.lexeme lexbuf)) } *)
-  | "$"             { VAR }
-  | ['a'-'z' 'A'-'Z' '_']+ as lxm { IDENT(lxm) }
-  | eof            { EOF }
+  | "$"            { VAR }
+  | ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']* as lxm { IDENT(lxm) }
+  | eof            { raise Eof }
