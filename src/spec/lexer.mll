@@ -32,6 +32,7 @@ rule token = parse
   | "}"            { RCURL  }
   | "["            { LBRACK }
   | "]"            { RBRACK }
+  | "_"            { UNDERS }
   | ('\"'[^'\"']*'\"') | ('\''[^'\'']*'\'')
       { let str = Lexing.lexeme lexbuf in
         let sl  = String.length str in
@@ -39,4 +40,6 @@ rule token = parse
       }
 (*  | ['0'-'9']*'.'?['0'-'9']*(('e'|'E')('+'|'-')?['0'-'9']+)?
       { NUMBER (big_int_of_string (Lexing.lexeme lexbuf)) } *)
-  | eof            { raise Eof }
+  | "$"             { VAR }
+  | ['a'-'z' 'A'-'Z' '_']+ as lxm { IDENT(lxm) }
+  | eof            { EOF }
