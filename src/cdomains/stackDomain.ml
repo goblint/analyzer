@@ -30,7 +30,7 @@ struct
   
   module VarLat = Lattice.Fake (Basetype.Variables)
   
-  module Var = Lattice.Lift (VarLat) (struct let top_name="top" let bot_name="_L" end)
+  module Var = Lattice.Lift (VarLat) (struct let top_name="top" let bot_name="⊥" end)
   include Lattice.Liszt (Var) 
   
   let top () : t = []
@@ -53,4 +53,16 @@ struct
   include SetDomain.ToppedSet (Var) (struct let topname = "All functions" end)
 
   let push = add
+end
+
+module Loc = struct
+  include Printable.Liszt (Basetype.ProgLines)
+  let dummy = []
+end
+module Dom3 = struct
+  include Lattice.FakeSingleton (Loc)
+  let push x (xs:t): t = x :: xs
+  let pop = function
+    | (x::xs) -> xs
+    | [] -> failwith "Popping empty stack."
 end

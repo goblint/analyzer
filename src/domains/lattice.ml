@@ -30,7 +30,6 @@ struct
   include Printable.Unit
   include StdCousot
   let leq _ _ = true
-  let join _ _ = `Equal
   let join _ _ = ()
   let meet _ _ = ()
   let top () = ()
@@ -46,8 +45,6 @@ struct
   include Base
   include StdCousot
   let leq = equal
-  let join x y = 
-    if equal x y then `Equal else raise (Unsupported "fake join")
   let join x y =
     if equal x y then x else raise (Unsupported "fake join")
   let meet x y = 
@@ -64,16 +61,17 @@ sig
   val dummy: t
 end
 
-module UnsafeFake (Base: PD) =
+module FakeSingleton (Base: PD) =
 struct
-  include Fake (Base)
+  include Base
+  include StdCousot
+  let leq x y = true
   let join x y = x
-  let join x y = `Left
   let meet x y = x
   let top () = Base.dummy
   let bot () = Base.dummy
-  let is_top _ = false 
-  let is_bot _ = false
+  let is_top _ = true 
+  let is_bot _ = true
 end
 
 module Reverse (Base: S) =

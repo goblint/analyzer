@@ -13,7 +13,7 @@ struct
   let compare x y = compare (x.file, x.line) (y.file, y.line)
   let hash x = Hashtbl.hash (x.line, x.file)
   let toXML_f _ x = Xml.Element ("Loc", [("file", x.file); ("line", string_of_int x.line)], [])
-  let short _ x = Filename.basename x.file ^ ":" ^ string_of_int x.line
+  let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S"
   let pretty_f sf () x = text (sf max_int x)
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
