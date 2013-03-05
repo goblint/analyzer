@@ -691,6 +691,7 @@ struct
       let ignore2 _ _ = () in 
       let error _ = failwith "Bug: Using enter_func for toplevel functions with 'otherstate'." in 
       let ctx = A.context top_query st theta [] ignore2 error error in
+      let _ = Tracing.current_loc := locUnknown in
       let ents = Spec.enter_func ctx None fd.svar args in
         List.map (fun (_,s) -> fd.svar, SD.lift (Spec.Dom.join s st)) ents  
     in

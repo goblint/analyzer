@@ -37,6 +37,7 @@ type local_state = [
     | `Shape       of ShapeDomain.Dom.t*RegionDomain.RegionDom.t
     | `Stack       of StackDomain.Dom.t
     | `Stack2       of StackDomain.Dom2.t
+    | `Stack3       of StackDomain.Dom3.t
     | `Flag        of ConcDomain.Trivial.t
     | `Need        of unit
     | `MayLocks    of LockDomain.MayLockset.t
