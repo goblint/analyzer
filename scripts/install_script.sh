@@ -1,9 +1,14 @@
 #/bin/bash
 
-sudo apt-get install git m4 autoconf
+#Ubuntu: sudo apt-get install git m4 autoconf ruby code2html
+#CYGWIN: setup.exe -P git,wget,unzip,make,m4,gcc,gcc4-core,libmpfr4,autoconf,flexdll,libncurses-devel,ruby,code2html
+
+BINDIR=`pwd`/usr_tmp
+export PATH=$BINDIR/bin:$PATH
 
 echo "Fetching..."
-git clone git://github.com/goblint/analyzer.git
+git clone git://github.com/goblint/analyzer.git || exit 1
+git clone git://github.com/goblint/bench.git
 git clone git://cil.git.sourceforge.net/gitroot/cil/cil
 mkdir archives && cd archives
 wget http://caml.inria.fr/pub/distrib/ocaml-4.00/ocaml-4.00.1.tar.gz
@@ -12,70 +17,62 @@ wget http://prdownloads.sourceforge.net/camomile/camomile-0.8.3.tar.bz2
 wget http://forge.ocamlcore.org/frs/download.php/1096/batteries-2.0.tar.gz
 wget http://tech.motion-twin.com/zip/xml-light-2.2.zip
 cd ..
-echo "================================================================================\n"
+echo "================================================================================"
 
 echo "Extracting..."
 mkdir dependencies && cd dependencies
-tar xzf ../archives/ocaml-4.00.1.tar.gz
-tar xzf ../archives/findlib-1.3.3.tar.gz
-tar xjf ../archives/camomile-0.8.3.tar.bz2
-tar xzf ../archives/batteries-2.0.tar.gz
-unzip -q ../archives/xml-light-2.2.zip
-echo "================================================================================\n"
+tar xzf ../archives/ocaml-4.00.1.tar.gz || exit 1
+tar xzf ../archives/findlib-1.3.3.tar.gz || exit 1
+tar xjf ../archives/camomile-0.8.3.tar.bz2 || exit 1
+tar xzf ../archives/batteries-2.0.tar.gz || exit 1
+unzip -q ../archives/xml-light-2.2.zip || exit 1
+echo "================================================================================"
 
 echo "Installing Ocaml 4.00.1"
+mkdir $BINDIR
 cd ocaml-4.00.1
-./configure
-make world.opt
-sudo make install
+./configure -prefix $BINDIR && make world.opt && make install || exit 1
 cd ..
-echo "================================================================================\n"
+echo "================================================================================"
 
 echo "Installing findlib 1.3.3"
 cd findlib-1.3.3
-./configure
-make all
-make opt
-sudo make install
+./configure && make all && make opt && make install || exit 1
 cd ..
-echo "================================================================================\n"
+echo "================================================================================"
 
 echo "Installing camomile 0.8.3"
 cd camomile-0.8.3
-./configure
-make
-sudo make install
+./configure -prefix $BINDIR && make && make install || exit 1
 cd ..
-echo "================================================================================\n"
+echo "================================================================================"
 
 echo "Installing batteries 2.0"
 cd batteries-2.0
-make 
-sudo make install
+make && make install || exit 1
 cd ..
-echo "================================================================================\n"
+echo "================================================================================"
 
 echo "Installing xml-light 2.2"
 cd xml-light
 make 
-make opt
+make && make opt || exit 1
 echo 'version="2.2"' > META
 echo 'archive(byte)="xml-light.cma"' >> META
 echo 'archive(native)="xml-light.cmxa"' >> META
-sudo ocamlfind install xml-light META *.cmx *.cmi *.mli *.a *.o *.cmxa
+ocamlfind install xml-light META *.cmx *.cmi *.mli *.a *.o *.cmxa *.cma || exit 1
 cd ..
 cd ..
-echo "================================================================================\n"
+echo "================================================================================"
 
 echo "Installing Cil"
 cd cil
-./configure
-make
-sudo make install
+./configure -prefix $BINDIR && make && make install || exit 1
 cd ..
-echo "================================================================================\n"
+echo "================================================================================"
 
 echo "Building Goblint!!!"
 cd analyzer
-make
-echo "================================================================================\n"
+make || exit 1
+./scripts/update_suite.rb
+echo "================================================================================"
