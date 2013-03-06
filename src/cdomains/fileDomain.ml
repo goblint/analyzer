@@ -93,7 +93,7 @@ struct
   let findOption k m = if mem k m then Some(find k m) else None
 
   (* domain specific *)
-  let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then Set.exists p xs else Set.for_all p xs
+  let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then Set.exists p xs else Set.for_all p xs && Set.cardinal xs > 1
   let filterMap ?may:(may=false) p m = filter (fun k v -> predicate ~may:may v p) m (* this is OCaml's Map.filter which corresponds to BatMap.filteri *)
   let filterValues ?may:(may=false) p m = List.concat (
     List.map (fun (k,v) -> List.filter p (V.recordsList v)) (* can't use BatMap.values *)
@@ -118,7 +118,7 @@ struct
       let p = if neg then not % p else p in
       match v with
         | Must x -> if p x then f msg else mf
-        | May xs -> if Set.for_all p xs then f msg
+        | May xs -> if Set.for_all p xs && Set.cardinal xs > 1 then f msg
                     else if Set.exists p xs then f ~may:true msg
                     else mf
     else if neg then f msg else mf
@@ -134,10 +134,17 @@ struct
     if List.length must_true > 0 then (List.hd must_true) ();
     if List.length may_true  > 0 then (List.hd may_true) ()
 
+  let addMay var r m = let v = match findOption var m with
+      (* if the May-Set only contains one record, the pointer is considered unsafe and the record is joined with the new record *)
+      | Some(May(xs)) when Set.cardinal xs = 1 -> May(Set.add r xs)
+      (* otherwise the record for var just gets replaced *)
+      | _ -> Must(r)
+    in add var v m
+
   let fopen var loc filename mode m =
     let mode = match String.lowercase mode with "r" -> Read | _ -> Write in
-    add var (Must(V.create var loc (Open(filename, mode)))) m
-  let fclose var loc m = add var (Must(V.create var loc Close)) m
+    addMay var (V.create var loc (Open(filename, mode))) m
+  let fclose var loc m = addMay var (V.create var loc Close) m
 
   let may var m = add var (V.may (find var m)) m
 

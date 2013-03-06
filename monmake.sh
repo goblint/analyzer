@@ -7,6 +7,6 @@ while inotifywait -r -q -e modify src; do
 		./fileTest.sh
 		#firefox result/file.c.html
 	else
-		notify-send -i /usr/share/icons/gnome/32x32/actions/stop.png Build failed!
+		notify-send -i stop Build failed!
 	fi
 done

@@ -16,4 +16,4 @@ int main(){
 	fclose(fp1);
 	fprintf(fp2, "Testing...\n");  
 	// fclose(fp2);
-}
+} // WARN: unclosed files: fp2

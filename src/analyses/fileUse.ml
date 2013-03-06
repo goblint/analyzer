@@ -156,11 +156,13 @@ struct
                         List.iter (fun x -> M.report ~loc:(BatList.last x.loc) msg) xs
                       );
                       begin match List.map (Cil.stripCasts) arglist with
-                        | Const(CStr(filename))::Const(CStr(mode))::[] -> 
+                        | Const(CStr(filename))::Const(CStr(mode))::[] -> (* TODO: support variables *)
                             ret (Dom.fopen varinfo dloc filename mode m)
-                        | _ -> 
-                            List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) arglist;
-                            M.bailwith "fopen needs two strings as arguments"
+                        | xs -> 
+                            (* M.report (String.concat ", " (List.map (Printf.sprintf "%a" d_exp) xs)); *)
+                            (* M.report (BatIO.to_string (BatList.print ~first:"[" ~last:"]" ~sep:", " d_exp) xs); *)
+                            List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) xs;
+                            M.report "fopen needs two strings as arguments"; dummy
                       end
                   | Mem exp -> M.report "TODO: save to object in memory"; dummy
           end
@@ -177,7 +179,7 @@ struct
                     end
                 | _ -> dummy (* TODO: only considers variables as arguments *)
               end
-            | _ -> M.bailwith "fclose needs exactly one argument"
+            | _ -> M.report "fclose needs exactly one argument"; dummy
           end
       | "fprintf" -> begin
           match arglist with
@@ -197,7 +199,7 @@ struct
                        List.iter (fun exp -> M.report ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp);
                        M.report "printf not Lval"; dummy
               end
-            | _ -> M.bailwith "fprintf needs at least two arguments"
+            | _ -> M.report "fprintf needs at least two arguments"; dummy
           end
       | _ -> dummy
 

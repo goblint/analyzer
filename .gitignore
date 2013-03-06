@@ -18,6 +18,6 @@ _build
 doc
 doclist.odocl
 autom4te.cache
-mytests
 result/*
 ma.sublime-workspace
+notes
