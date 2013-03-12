@@ -1,3 +1,4 @@
+export OCAMLRUNPARAM=b
 file=${1-"tests/file.c"}
 result=${2-"html"}
 mode=${3-"3"}
@@ -9,7 +10,7 @@ case "$mode" in
   3) args="--sets ana.activated[0][+] file"
   ;;
 esac
-cmd="./goblint --sets result $result $args $file"
+cmd="./goblint --sets result $result $args --set dbg.showtemps true $file"
 echo -e "$(tput setaf 6)$cmd$(tput sgr 0)"
 $cmd
 

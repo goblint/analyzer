@@ -2,7 +2,7 @@
 
 
 FILE* myfopen(char* f){
-	return fopen(f, "a");  
+	return fopen(f, "a");
 }
 
 int main(){
