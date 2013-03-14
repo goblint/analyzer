@@ -20,6 +20,7 @@ let get_out name alternative = match get_string "dbg.dump" with
 let xml_warn = Hashtbl.create 10  
 
 let print_msg msg loc = 
+  htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
   if get_string "result" = "newhtml" then
     let old = try Hashtbl.find xml_warn loc with Not_found -> [] in
     Hashtbl.replace xml_warn loc (("m",msg)::old)
@@ -31,6 +32,7 @@ let print_msg msg loc =
     Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
 
 let print_err msg loc = 
+  htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
   if get_string "result" = "newhtml" then
     let old = try Hashtbl.find xml_warn loc with Not_found -> [] in
     Hashtbl.replace xml_warn loc (("e",msg)::old)

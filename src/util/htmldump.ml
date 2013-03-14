@@ -3,23 +3,16 @@ open Printf;;
 open Xml;;
 open Cil;;
 open Unix;;
+open Lazy;;
+open Html_template;;
 
 let htmlGlobalWarningList : (string*int*string) list ref = ref []
-
-let htmlTemp_BasePartOne = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\n<head>\n  <title>%filename%</title>\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\n\n  
-<link rel=\"stylesheet\" href=\"style.css\" type=\"text/css\"></link>\n
-<script type=\"text/javascript\" src=\"script.js\"></script>\n
-</head>\n\n<body onload=\"onLoad();\">\n\n  <div style=\"border-bottom: 1px solid #808080;\">\n    <div style=\"border-bottom: 1px solid #000000; color: #5060C0; background-color: #F0F0F0; font-size: 16px; padding: 2px; font-weight: bold;\">\n      Filename: %filename%\n    </div>\n   </div>\n\n   <noscript><span style=\"padding: 10px; font-size: 18px; border: 2px solid Red;\">Javascript is <b>not</b> enabled!</noscript>\n\n  <div id=\"leftWindow\" class=\"mywindow\">\n    <div class=\"mywindow_header\"><a href=\"javascript:showLeftTab(0);\"><div class=\"tabheader\">Analysis</div></a> <a href=\"javascript:showLeftTab(1);\"><div class=\"tabheader\">Globals</div></a> <a href=\"javascript:showLeftTab(2);\"><div class=\"tabheader\">Warnings</div></a> <div style=\"clear: both;\"></div></div>\n    <div id=\"leftWindowContent\" class=\"mywindow_content\">\n<div id=\"analysisbox\">      \n      <div id=\"analysis_line0\">\n        No line selected\n      </div>\n\n      <div id=\"dynamicanalysis\">\n\n      </div>\n</div>\n<div id=\"globalsbox\" style=\"display: none;\">\n";;
-let htmlTemp_BasePartOneSecond = "</div>\n<div id=\"warningsbox\" style=\"display: none; padding: 5px;\">\n";;
-let htmlTemp_BasePartOneThird = "</div>\n    </div>\n  </div>\n\n  <div id=\"codeWindow\" class=\"mywindow\">\n    <div class=\"mywindow_header\">Source code</div>\n    <div id=\"codeWindowContent\" class=\"mywindow_content\">\n\n";;
-let htmlTemp_BasePartTwo = "      <div id=\"lastline\" class=\"linetype0\" style=\"border-top: 1px solid #C0C0C0;\">\n</div>\n    <pre></pre></div>\n    </div>\n  </div>\n\n  <div id=\"rightWindow\" class=\"mywindow\">\n    <div class=\"mywindow_header\">Empty <a style=\"text-decoration: none; color: #000080;\" href=\"javascript:hideWindow('rightWindow');\">[X]</a></div>\n    <div id=\"rightWindowContent\" class=\"mywindow_content\">\n      Currently no content\n    </div>\n  </div>\n\n  <div id=\"bottomWindow\" class=\"mywindow\">\n    <div class=\"mywindow_header\"><span id=\"title_function_info\" style=\"display: none;\">Function Info</span><span id=\"title_warning_info\" style=\"display: none;\">Warning Info</span><a style=\"text-decoration: none; color: #000080;\" href=\"javascript:hideWindow('bottomWindow');\">[X]</a></div>\n    <div id=\"bottomWindowContent\" class=\"mywindow_content\">\n\n";;
-let htmlTemp_BasePartThree = "    </div>\n  </div>\n\n</body>\n</html>\n\n";;
 
 (* Some lists for syntax highlighting *)
 let cppPreprocessorList = ["#endif";"#ifdef";"#undef";"#else";"include";"#define"];;
 let cppKeywordList = ["int";"return";"void";"char";"short";"long";"unsigned";"if";"else";"switch";"default";"while";"do";"for";"typedef";"class";"struct";"sizeof";"case"];;
 
-type entryType = {filename : string ; analysis_out : out_channel list ref ; lines : string list ref ; lineInfo : int array ref} ;;
+type entryType = {filename : string ; analysis_out : out_channel list ref ; lines : string list ref ; lineInfo : int array ref ; deadcodeInfo : int array ref} ;;
 type functionInfo = {funname : string ; funid : int};;
 
 let functionInfoList : functionInfo list ref = ref [];;
@@ -53,10 +46,35 @@ let createHtmlWarningsInfo outchan fileEntry =
 	Array.iteri (fun i x -> if (x >= 2) then htmlPrintWarningBox i) !(fileEntry.lineInfo);
 	();;
 
-let createCodeLines outchan shortFilename lines lineInfo = 
+let createHtmlWarningsListBox outchan fileEntry = 
+	let ltid = ref 0 in
+	let printWarningLine (filename,line,msg) =
+		if ((String.compare filename fileEntry.filename) = 0) then fprintf outchan "<div class=\"lt%i\"><pre><a href=\"javascript:switchToLine('%s',%i);\">Line %i</a>: %s</pre></div>" (!ltid mod 2) (Filename.basename fileEntry.filename) line line msg else ();
+		ltid := (!ltid)+1;
+	in
+	List.iter printWarningLine !htmlGlobalWarningList;
+	if (!ltid) = 0 then fprintf outchan "No warnings found!";;
+
+let createDeadcodeListBox outchan fileEntry = 
+	let firstDeadLine = ref 0 in
+	let ltid = ref 0 in
+
+	let processArrayEntry i entry =  
+		if ((entry == 2) && (!firstDeadLine == 0)) then firstDeadLine := i
+		else if ((entry < 0) && (!firstDeadLine > 0)) then begin
+			fprintf outchan "<div class=\"lt%i\"><pre><a href=\"javascript:switchToLine('%s',%i);\">Line %i</a> : %i line(s)</pre></div>" (!ltid mod 2) (Filename.basename fileEntry.filename) (!firstDeadLine) (!firstDeadLine) (i-(!firstDeadLine));
+			firstDeadLine := 0;
+			ltid := (!ltid)+1;
+		end
+	in
+	Array.iteri processArrayEntry !(fileEntry.deadcodeInfo);
+	if (!ltid) = 0 then fprintf outchan "No dead code found!";;
+
+let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo = 
 	let currentLine = ref 1 in
 
-	let isLineAnalyzed lineNo = (Array.get !lineInfo !currentLine) > 0 in
+	let isLineAnalyzed lineNo = (Array.get !lineInfo lineNo) > 0 in
+	let isLineDeadcode lineNo = (Array.get !deadcodeInfo lineNo) > 1 in
 
 	(* Replaces < and > with special html codes *)
 	let replaceHtmlTags lineStr =
@@ -126,8 +144,16 @@ let createCodeLines outchan shortFilename lines lineInfo =
 		if (!currentLine = 1) then fprintf outchan "<div id=\"linecontainer%i\">\n" (!currentLine/50000) else ();
 		
 		let isAnalyzed = isLineAnalyzed !currentLine in
-		let colorString = (if ((Array.get !lineInfo !currentLine) >= 2) then "style=\"color: red;\" " else "") in
-		let linkStart = if (isAnalyzed = true) then "<a "^colorString^"href=\"javascript:showLine('"^shortFilename^"',"^(string_of_int !currentLine)^");\">" else "" in
+		let colorString = (
+			if ((Array.get !lineInfo !currentLine) >= 2) then "color: red;"
+			else "") 
+		in
+		let fontString = (
+			if isLineDeadcode !currentLine then "color: #909090;"
+			else "") 
+		in
+		let styleString = "style=\""^colorString^fontString^"\" " in
+		let linkStart = if (isAnalyzed = true) then "<a "^styleString^"href=\"javascript:showLine('"^shortFilename^"',"^(string_of_int !currentLine)^");\">" else "" in
 		let linkEnd = if (isAnalyzed = true) then "</a>" else "" in
 		fprintf outchan "      <div id=\"line%i\" class=\"lt%i\"><pre> %s%i:%s %s</pre></div>\n" !currentLine (!currentLine mod 2) linkStart !currentLine linkEnd (prepareLine line);
 		currentLine := !currentLine + 1;
@@ -184,12 +210,38 @@ let createGlobalMenu outchan shortFilename filename cilFile =
 
 	();;
 
-let createWarningListBox outchan shortFilename filename cilFile =
-	let addWarningLine line msg = fprintf outchan "<a style=\"color: #F00000; text-decoration: none;\" href=\"javascript:ScrollToLine(%i); showLine('%s',%i);\">Line %i</a><br>" line shortFilename line line in
-	List.iter (fun (fname,line,msg) -> if ((String.compare fname filename) = 0) then addWarningLine line msg else ()) (List.rev !htmlGlobalWarningList);
+let createGlobalsTable outchan gtable =
+	let trid = ref 0 in
+
+	let rec getTableEntryCode xmlNode =
+		if (List.length (Xml.children xmlNode) = 0) then "<div>"^(Xml.attrib xmlNode "text")^"</div>"
+		else begin
+			let foldedStr = Xml.fold (fun s n -> s^(getTableEntryCode n) ) "" xmlNode in
+			"<div><span class=\"toggle entrydir\" >"^( if (String.compare (Xml.attrib xmlNode "text") "mapping") = 0 then "Mapping" else "Node")^"</span><div style=\"display: none;\" class=\"entrydircontent\">\n"^foldedStr^"</div></div>\n";
+
+		end
+	in
+	let parseTdNode tdnode =
+		try
+		Xml.iter (fun child -> fprintf outchan "<td>%s</td>\n" (getTableEntryCode child) ) tdnode;
+		with Xml.Not_element _ -> fprintf outchan "%s\n" (Xml.to_string tdnode);
+		()
+	in
+	let parseTrNode trnode = 
+		fprintf outchan "<tr style=\"background-color: %s;\">" (if (!trid == 0) then "#D0D0D0" else "#F0F0F0");
+		trid := ((!trid)+1) mod 2;
+		Xml.iter (fun tdnode -> parseTdNode tdnode ) trnode;
+		fprintf outchan "</tr>";
+	in
+	let parseGlobalsXmlFile xmlfile =
+		Xml.iter (fun trnode -> parseTrNode trnode ) xmlfile;
+	in
+	fprintf outchan "<table>";
+	List.iter (fun xmlfile -> parseGlobalsXmlFile xmlfile ) (Lazy.force gtable);
+	fprintf outchan "</table>";
 	();;
 
-let generateCodeFile fileEntry (file: Cil.file) =
+let generateCodeFile fileEntry (file: Cil.file) gtable =
 	let shortFilename = Filename.basename fileEntry.filename in
 
 	(* Create output file *)
@@ -206,14 +258,22 @@ let generateCodeFile fileEntry (file: Cil.file) =
 	(* Write second first part *)
 	fprintf outputChannel "%s" htmlTemp_BasePartOneSecond;
 
-	(* Create warning list *)
-	createWarningListBox outputChannel shortFilename fileEntry.filename file;
+	(* Create global table *)
+	createGlobalsTable outputChannel gtable;
 
 	(* Write third first part *)
-	fprintf outputChannel "%s" htmlTemp_BasePartOneThird;
+	fprintf outputChannel "%s" htmlTemp_BasePartOneThird;	
 
 	(* Write code lines *)
-	createCodeLines outputChannel shortFilename fileEntry.lines fileEntry.lineInfo; 
+	createCodeLines outputChannel shortFilename fileEntry.lines fileEntry.lineInfo fileEntry.deadcodeInfo;
+
+	(* Write forth first part *)
+	fprintf outputChannel "%s" htmlTemp_BasePartOneForth;
+	createHtmlWarningsListBox outputChannel fileEntry;
+
+	(* Write forth first part *)
+	fprintf outputChannel "%s" htmlTemp_BasePartOneFifth;
+	createDeadcodeListBox outputChannel fileEntry;
 
 	(* Write second part *)
 	fprintf outputChannel "%s" htmlTemp_BasePartTwo;
@@ -240,9 +300,11 @@ let readCodeLines filename lines =
 	();;
 
 (* === print_fmt : html output === *)
-let print_html chan xmlNode (file: Cil.file) = 
+let print_html chan xmlNode (file: Cil.file) gtable = 
 	printf "[HTML-Output] Create html files ...\n";	
-	printf "Start: %f \n" (Unix.time ());
+	(*printf "Start: %f \n" (Unix.time ());*)
+	(*List.iter (fun xmlfile -> printf "GTABLE:\n%s\n" (Xml.to_string_fmt xmlfile)) (Lazy.force gtable);*)
+
 	flush_all ();
 
 	(* fileList contains all analyzed filenames, the output file handle, .. *)
@@ -263,10 +325,14 @@ let print_html chan xmlNode (file: Cil.file) =
 		(* Create analysis files *)
 		let lineCount = (List.length !linesContent) in
 		let outlist = ref [] in
-		for i = 0 to (lineCount / 1000) do outlist := !outlist @ [open_out (dirn^"/analysis"^(string_of_int i)^".html")] done;
+		for i = 0 to (lineCount / 1000) do begin
+			let outchan = open_out (dirn^"/analysis"^(string_of_int i)^".html") in
+			outlist := !outlist @ [outchan];
+			fprintf outchan "%s" htmlTemp_AnalysisFilePartOne;
+		end done;
 
 		(* Return new fileList entry *)		
-		{filename = lineFile ; analysis_out = outlist; lines = linesContent ; lineInfo = ref (Array.make (lineCount+1) 0)}
+		{filename = lineFile ; analysis_out = outlist; lines = linesContent ; lineInfo = ref (Array.make (lineCount+1) 0) ; deadcodeInfo = ref (Array.make (lineCount+1) 0)}
 	in
 
 	(* Finds an entry in fileList *)
@@ -314,6 +380,14 @@ let print_html chan xmlNode (file: Cil.file) =
 
 		(* Print end line div container *)
 		fprintf outchan "     </div>\n";
+
+		(* Find deadcode : Empty Value Leaf *)
+		let checkForEmptyValueLeaf xmlNode = 
+			if ((String.compare (Xml.attrib xmlNode "text") "Value") == 0) then
+				if ((String.compare (Xml.tag xmlNode) "Leaf") == 0) then Array.set !(fileListEntry.deadcodeInfo) lineNo ((Array.get !(fileListEntry.deadcodeInfo) lineNo)+2)
+				else Array.set !(fileListEntry.deadcodeInfo) lineNo ((Array.get !(fileListEntry.deadcodeInfo) lineNo)-1)
+		in
+		List.iter (fun x -> List.iter checkForEmptyValueLeaf (Xml.children x)) (Xml.children xmlNodeLine);
 	in
 
 	(* Create function infos *)
@@ -322,13 +396,22 @@ let print_html chan xmlNode (file: Cil.file) =
 	(* Walk through the analysis lines in the xml file *)
 	Xml.iter (fun x -> processAnalysisLineEntry x) xmlNode;
 
+	(* Last line is no deadcode : hack *)
+	List.iter (fun fileEntry -> (Array.set !(fileEntry.deadcodeInfo) ((Array.length !(fileEntry.deadcodeInfo))-1) (-1))) !fileList;
+
 	(* Add warning values to the lineInfo array *)
 	List.iter (fun (filename,line,msg) -> Array.set !((getFileListEntry filename).lineInfo) line 2) !htmlGlobalWarningList;
 
 	(* Generate main html files with the code lines *)
-	List.iter (fun fileEntry -> generateCodeFile fileEntry file) !fileList;
+	List.iter (fun fileEntry -> generateCodeFile fileEntry file gtable) !fileList;
 
-	printf "End: %f \n" (Unix.time ());
+	(* Close analysis data files *)
+	let closeAnalysisFile chan =
+		fprintf chan "%s" htmlTemp_AnalysisFilePartTwo;
+		close_out chan
+	in
+	List.iter (fun fileEntry -> List.iter (fun chan -> closeAnalysisFile chan) !(fileEntry.analysis_out) ) !fileList;
+
+	(*printf "End: %f \n" (Unix.time ());*)
 	;;
-
 
