@@ -13,7 +13,7 @@ struct
   module Dom  = FileDomain.FileUses
   open Dom.V.T
   module Glob = Glob.Make (Lattice.Unit)
-  
+
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
   (* let return_var = dummyFunDec.svar (* see base.ml: 219 *) *)
@@ -26,11 +26,11 @@ struct
       | Mem exp -> M.bailwith "lval not var"
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t = 
+  let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
       (* | Queries.MayEscape v -> `Bool (Dom.mem v ctx.local) *)
       | _ -> Queries.Result.top ()
- 
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     (* let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
@@ -42,13 +42,13 @@ struct
       Dom.may var m
     )else
       m
-   
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+
+  let branch ctx (exp:exp) (tv:bool) : Dom.t =
 (*     let loc = !Tracing.current_loc in
     ignore(printf "if %a = %s (line %i)\n" (printExp plainCilPrinter) exp (string_of_bool tv) loc.line); *)
     ctx.local
-  
-  let body ctx (f:fundec) : Dom.t = 
+
+  let body ctx (f:fundec) : Dom.t =
     ctx.local
 
   let callStack m = match Dom.findOption stack_var m with
@@ -57,7 +57,7 @@ struct
 
   let callStackStr m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callStack m)))^"]"
 
-  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
+  let return ctx (exp:exp option) (f:fundec) : Dom.t =
     let m = ctx.local in
     (* M.write ("return: ctx.local="^(Dom.short 50 ctx.local)^(callStackStr m)); *)
     (* if f.svar.vname <> "main" && BatList.is_empty (callStack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
@@ -89,23 +89,23 @@ struct
       | Some(Must(v)) -> {v with loc=(f v.loc)}
       | _ -> Dom.V.create stack_var (f []) Dom.V.Close in
     Dom.add stack_var (Must v) m
-    
+
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     (* M.write ("entering function "^f.vname^(callStackStr m)); *)
     let m = if f.vname <> "main" then
       editStack (BatList.cons !Tracing.current_loc) ctx.local
     else ctx.local in [m,m]
-  
+
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     (* M.write ("leaving function "^f.vname^(callStackStr au)); *)
     let au = editStack List.tl au in
     let return_val = Dom.findOption return_var au in
     match lval, return_val with
-      | Some lval, Some rval -> 
+      | Some lval, Some rval ->
           let var = lval2var lval in
           (* M.write ("setting "^var.vname^" to content of "^(Dom.V.vnames rval)); *)
           let rval = Dom.V.rebind rval var in (* change rval.var to lval *)
-          Dom.add var rval (Dom.remove return_var au)
+          Dom.add var rval (Dom.remove return_var au) (* TODO: delete tmp in return! *)
       | _ -> au
 
   let rec cut_offset x =
@@ -113,8 +113,8 @@ struct
       | `NoOffset    -> `NoOffset
       | `Index (_,o) -> `NoOffset
       | `Field (f,o) -> `Field (f, cut_offset o)
-  
-  let reachable ask e: Dom.t = 
+
+  let reachable ask e: Dom.t =
     match ask (Queries.ReachableFrom e) with
       | `LvalSet a when not (Queries.LS.is_top a) -> Dom.bot ()
            (* let to_extra (v,o) set = Dom.add (Addr.from_var_offset (v, cut_offset o)) set in *)
@@ -122,14 +122,14 @@ struct
             Queries.LS.fold to_extra a (Dom.empty ()) *)
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
       | _ -> Dom.bot ()
- 
-  let query_lv ask exp = 
+
+  let query_lv ask exp =
     match ask (Queries.MayPointTo exp) with
-      | `LvalSet l when not (Queries.LS.is_top l) -> 
+      | `LvalSet l when not (Queries.LS.is_top l) ->
           Queries.LS.elements l
       | _ -> []
 
-  let rec eval_fv ask (exp:Cil.exp): varinfo option = 
+  let rec eval_fv ask (exp:Cil.exp): varinfo option =
     match query_lv ask exp with
       | [(v,_)] -> Some v
       | _ -> None
@@ -158,12 +158,25 @@ struct
                       begin match List.map (Cil.stripCasts) arglist with
                         | Const(CStr(filename))::Const(CStr(mode))::[] -> (* TODO: support variables *)
                             ret (Dom.fopen varinfo dloc filename mode m)
-                        | xs -> 
+                        | e::Const(CStr(mode))::[] ->
+                            (* let v = eval_rv ctx.ask ctx.global ctx.local e in *)
+(*                             (match Cil.constFold true e with
+                              | Cil.Const (Cil.CStr s) -> M.report ("constFold CStr: "^s); dummy
+                              | e -> ignore(printf "constFold: %a\n" (printExp plainCilPrinter) e); dummy
+                            ) *)
+                            (* ignore(printf "CIL: %a\n" (printExp plainCilPrinter) e); *)
+                            (match ctx.ask (Queries.EvalStr e) with
+                              | `Str filename -> M.report ("found filename: "^filename); ret (Dom.fopen varinfo dloc filename mode m)
+                              | _ -> M.report "no result from query"; dummy
+                            )
+                        | xs ->
                             (* M.report (String.concat ", " (List.map (Printf.sprintf "%a" d_exp) xs)); *)
                             (* M.report (BatIO.to_string (BatList.print ~first:"[" ~last:"]" ~sep:", " d_exp) xs); *)
+                            M.report (String.concat ", " (List.map (fun x -> Pretty.sprint 80 (d_exp () x)) xs));
                             List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) xs;
                             M.report "fopen needs two strings as arguments"; dummy
                       end
+                  (* MayPointTo -> LValSet *)
                   | Mem exp -> M.report "TODO: save to object in memory"; dummy
           end
       | "fclose" -> begin
@@ -210,15 +223,15 @@ end
 
 module TransparentSignatureHack: Analyses.Spec = Spec
 
-module ThreadMCP = 
+module ThreadMCP =
   MCP.ConvertToMCPPart
         (Spec)
-        (struct let name = "file" 
+        (struct let name = "file"
                 let depends = []
                 type lf = Spec.Dom.t
                 let inject_l (x: lf): MCP.local_state = `File x
                 let extract_l x = match x with `File x -> x | _ -> raise MCP.SpecificationConversionError
                 type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
+                let inject_g x = `None
                 let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
          end)

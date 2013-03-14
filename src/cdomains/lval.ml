@@ -227,7 +227,7 @@ module Normal (Idx: Printable.S) =
 struct
   type field = fieldinfo
   type idx = Idx.t
-  type t = Addr of (varinfo * (field, idx) offs) | NullPtr | SafePtr | UnknownPtr | Top | Bot
+  type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | SafePtr | UnknownPtr | Top | Bot
   include Printable.Std
   let name () = "Normal Lvals"
   
@@ -285,6 +285,13 @@ struct
       | Addr x -> [x]
       | _      -> []
 
+  (* strings *)
+  let from_string x = StrPtr x
+  let to_string x =
+    match x with
+      | StrPtr x -> [x]
+      | _        -> []
+
   let get_type_addr (x, ofs) = 
     let unarray t = match t with
       | TArray (t,_,_) -> t
@@ -298,10 +305,11 @@ struct
   
   let get_type x =
     match x with
-      | Addr x  -> get_type_addr x
-      | SafePtr -> charPtrType
-      | NullPtr -> voidType
-      | Bot     -> voidType
+      | Addr x   -> get_type_addr x
+      | StrPtr _
+      | SafePtr  -> charPtrType
+      | NullPtr  -> voidType
+      | Bot      -> voidType
       | Top | UnknownPtr -> voidPtrType
 
   let copy x = x
@@ -319,6 +327,7 @@ struct
   let short _ x = 
     match x with 
       | Addr x     -> short_addr x
+      | StrPtr x   -> x
       | UnknownPtr -> "?"
       | SafePtr    -> "SAFE"
       | NullPtr    -> "NULL"
@@ -333,6 +342,7 @@ struct
     in
     match x with 
       | Addr (v,o) -> v.vid * hash o
+      | StrPtr x   -> Hashtbl.hash x
       | UnknownPtr -> 12341234
       | SafePtr    -> 46263754
       | NullPtr    -> 1265262
@@ -381,6 +391,7 @@ struct
     in
     match x with
       | Addr (v,o) -> Lval (Var v, to_cil o)
+      | StrPtr x -> mkString x
       | SafePtr -> mkString "a safe pointer/string"
       | NullPtr -> integer 0
       | UnknownPtr 

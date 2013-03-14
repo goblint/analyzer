@@ -9,7 +9,7 @@ module M = Messages
 exception Unknown
 exception Error
 
-module Val = 
+module Val =
 struct
   module T =
   struct
@@ -24,7 +24,7 @@ struct
   include Lattice.StdCousot
   include T
   type t = t'
-  
+
   let toStringRecord x =
     let loc xs = String.concat ", " (List.map (fun x -> string_of_int x.line) xs) in
     let mode x = match x with Read -> "Read" | Write -> "Write" in
@@ -43,7 +43,7 @@ struct
     type t' = t
     let name () = "File pointers"
     let short = short
-  end) 
+  end)
 
   let create v l s = { var=v; loc=l; state=s }
   let map f = function Must x -> Must (f x) | May xs -> May (Set.map f xs)
@@ -65,18 +65,18 @@ struct
   let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); x
   (* top/bot are handled by MapDomain, only bot () gets called *)
   let top () = raise Unknown
-  let is_top x = false 
+  let is_top x = false
   let bot () = May(Set.empty) (* called in MapDomain.MapBot(K)(V).find *)
   let is_bot x = x=bot ()
-  
+
   (* properties used by FileUses.report *)
   let opened x = x.state <> Close
   let closed x = x.state = Close
   let writable x = match x.state with Open((_,Write)) -> true | _ -> false
 end
 
-module FileUses  = 
-struct 
+module FileUses  =
+struct
   module K = Basetype.Variables
   module V = Val
   module MD = MapDomain.MapBot (Basetype.Variables) (Val)

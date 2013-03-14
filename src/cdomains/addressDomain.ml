@@ -98,6 +98,10 @@ struct
   let to_var_may x = List.concat (List.map Addr.to_var_may (elements x))
   let to_var_must x = List.concat (List.map Addr.to_var_must (elements x))
   let to_var_offset x = List.concat (List.map Addr.to_var_offset (elements x))
+
+  (* strings *)
+  let from_string x = singleton (Addr.from_string x)
+  let to_string x = List.concat (List.map Addr.to_string (elements x))
   
   (* add an & in front of real addresses *)
   let short_addr w a =

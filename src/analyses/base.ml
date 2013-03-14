@@ -389,12 +389,14 @@ struct
       | Some x -> x 
       | None -> 
     (* query functions were no help ... now try with values*)
+    (* print_endline ("constFold "^(sprint 80 (d_exp () (Cil.constFold true exp)))); *)
     match Cil.constFold true exp with
       (* Integer literals *)
       | Cil.Const (Cil.CInt64 (num,typ,str)) -> `Int (ID.of_int num)
+      (* TODO char? *)
       (* String literals *)
-      | Cil.Const (Cil.CStr _)
-      | Cil.Const (Cil.CWStr _) -> `Address (AD.str_ptr ())
+      | Cil.Const (Cil.CStr x) -> M.report ("CStr "^x); `Address (AD.from_string x)
+      | Cil.Const (Cil.CWStr _) -> M.report "DANGER: CWStr!"; `Address (AD.str_ptr ()) (* TODO wide character strings *)
       (* Variables and address expressions *)
       | Cil.Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
       | Cil.Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs
@@ -419,17 +421,19 @@ struct
               | _ -> ad
           in
           `Address (AD.map array_start (eval_lv a gs st lval))
-       | Cil.CastE  (t, Const (CStr _)) -> VD.top ()
+        (*  *)
+      | Cil.CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
       (* Most casts are currently just ignored, that's probably not a good idea! *)
-       | Cil.CastE  (t, exp) -> begin
-           match t,eval_rv a gs st exp with
-             | Cil.TPtr (_,_), `Top -> `Address (AD.unknown_ptr ())
-              | Cil.TPtr _, `Int a when Some Int64.zero = ID.to_int a -> 
-                  `Address (AD.null_ptr ())
-              | Cil.TInt _, `Address a when AD.equal a (AD.null_ptr()) -> 
-                  `Int (ID.of_int Int64.zero)
-             | _, s -> s
-       end
+      | Cil.CastE (t, exp) -> begin
+          (* print_endline ("CastE "^(sprint 80 (d_exp () exp))); *)
+          match t,eval_rv a gs st exp with
+            | Cil.TPtr (_,_), `Top -> `Address (AD.unknown_ptr ())
+            | Cil.TPtr _, `Int a when Some Int64.zero = ID.to_int a -> 
+                `Address (AD.null_ptr ())
+            | Cil.TInt _, `Address a when AD.equal a (AD.null_ptr()) -> 
+                `Int (ID.of_int Int64.zero)
+            | _, s -> s
+      end
       | _ -> VD.top ()
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
@@ -1056,6 +1060,13 @@ struct
       | Q.SingleThreaded -> `Int (Q.ID.of_bool (not (Flag.is_multi (get_fl ctx.local))))
       | Q.CurrentThreadId when (Flag.is_bad (get_fl ctx.local)) -> `Top
       | Q.CurrentThreadId -> `Int 1L
+      | Q.EvalStr e -> begin
+          match eval_rv ctx.ask ctx.global ctx.local e with
+            | `Address a when List.length (AD.to_string a) = 1 ->
+                (* only return result if there is exactly one string in the set *)
+                `Str (List.hd (AD.to_string a))
+            | x -> print_endline ("EvalStr "^(sprint 80 (d_exp () e))^" -> "^(ValueDomain.Compound.short 80 x)); `Top
+          end
       | _ -> Q.Result.top ()
 
   (**************************************************************************
