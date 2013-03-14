@@ -391,11 +391,13 @@ struct
     (* query functions were no help ... now try with values*)
     match Cil.constFold true exp with
       (* Integer literals *)
+      | Cil.Const (Cil.CChr x) -> eval_rv a gs st (Cil.Const (Cil.charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Cil.Const (Cil.CInt64 (num,typ,str)) -> `Int (ID.of_int num)
-      (* TODO char? *)
       (* String literals *)
-      | Cil.Const (Cil.CStr x) -> print_endline ("CStr "^x); `Address (AD.from_string x)
-      | Cil.Const (Cil.CWStr _) -> M.report "DANGER: CWStr!"; `Address (AD.str_ptr ()) (* TODO wide character strings *)
+      | Cil.Const (Cil.CStr x) -> `Address (AD.from_string x) (* type: char* *)
+      | Cil.Const (Cil.CWStr xs as c) -> M.report "CWStr not handled yet!"; (* type: wchar_t* *)
+          ignore(printf "CWStr: %a\n" d_const c);
+          List.iter (fun x -> print_string (Int64.to_string x)) xs; `Address (AD.str_ptr ()) (* TODO wide character strings *)
       (* Variables and address expressions *)
       | Cil.Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
       | Cil.Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs
@@ -420,7 +422,6 @@ struct
               | _ -> ad
           in
           `Address (AD.map array_start (eval_lv a gs st lval))
-        (*  *)
       | Cil.CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
       (* Most casts are currently just ignored, that's probably not a good idea! *)
       | Cil.CastE (t, exp) -> begin
@@ -1063,7 +1064,7 @@ struct
             | `Address a when List.length (AD.to_string a) = 1 ->
                 (* only return result if there is exactly one string in the set *)
                 `Str (List.hd (AD.to_string a))
-            | x -> print_endline ("EvalStr "^(sprint 80 (d_exp () e))^" -> "^(ValueDomain.Compound.short 80 x)); `Top
+            | x -> print_endline ("EvalStr "^(sprint 80 (d_exp () e))^" -> "^(VD.short 80 x)); `Top
           end
       | _ -> Q.Result.top ()
 

@@ -306,7 +306,7 @@ struct
   let get_type x =
     match x with
       | Addr x   -> get_type_addr x
-      | StrPtr _
+      | StrPtr _  (* TODO Cil.charConstPtrType? *)
       | SafePtr  -> charPtrType
       | NullPtr  -> voidType
       | Bot      -> voidType
