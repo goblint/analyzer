@@ -74,15 +74,14 @@ struct
         M.report ("maybe unclosed files: "^(vnames (BatList.unique ~eq:(fun a b -> a.var.vname=b.var.vname) mayOpen)));
         List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file may be never closed") mayOpen
     );
-(*     let loc = !Tracing.current_loc in
-    (match exp with
-      | Some exp -> ignore(printf "return %a (%i)\n" (printExp plainCilPrinter) exp loc.line)
-      | _ -> ignore(1)); *)
-    match exp with
+    let au = match exp with
       | Some(Lval(Var(varinfo),offset)) ->
           (* M.write ("return variable "^varinfo.vname^" (dummy: "^return_var.vname^")"); *)
           Dom.add return_var (Dom.find varinfo m) m
       | _ -> m
+    in
+    (* remove formals and locals *)
+    List.fold_left (fun m var -> Dom.remove var m) au (f.sformals @ f.slocals)
 
   let editStack f m =
     let v = match Dom.findOption stack_var m with
@@ -156,22 +155,15 @@ struct
                         List.iter (fun x -> M.report ~loc:(BatList.last x.loc) msg) xs
                       );
                       begin match List.map (Cil.stripCasts) arglist with
-                        | Const(CStr(filename))::Const(CStr(mode))::[] -> (* TODO: support variables *)
+                        | Const(CStr(filename))::Const(CStr(mode))::[] ->
                             ret (Dom.fopen varinfo dloc filename mode m)
                         | e::Const(CStr(mode))::[] ->
-                            (* let v = eval_rv ctx.ask ctx.global ctx.local e in *)
-(*                             (match Cil.constFold true e with
-                              | Cil.Const (Cil.CStr s) -> M.report ("constFold CStr: "^s); dummy
-                              | e -> ignore(printf "constFold: %a\n" (printExp plainCilPrinter) e); dummy
-                            ) *)
                             (* ignore(printf "CIL: %a\n" (printExp plainCilPrinter) e); *)
                             (match ctx.ask (Queries.EvalStr e) with
-                              | `Str filename -> M.report ("found filename: "^filename); ret (Dom.fopen varinfo dloc filename mode m)
+                              | `Str filename -> ret (Dom.fopen varinfo dloc filename mode m)
                               | _ -> M.report "no result from query"; dummy
                             )
                         | xs ->
-                            (* M.report (String.concat ", " (List.map (Printf.sprintf "%a" d_exp) xs)); *)
-                            (* M.report (BatIO.to_string (BatList.print ~first:"[" ~last:"]" ~sep:", " d_exp) xs); *)
                             M.report (String.concat ", " (List.map (fun x -> Pretty.sprint 80 (d_exp () x)) xs));
                             List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) xs;
                             M.report "fopen needs two strings as arguments"; dummy

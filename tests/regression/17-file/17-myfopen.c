@@ -10,7 +10,7 @@ int main(){
 	FILE *fp1;
 	FILE *fp2;
 	fp1 = myfopen();
-	fp2 = myfopen();	// WARN: file is never closed
+	fp2 = myfopen(); // WARN: file is never closed
 
 	fprintf(fp1, "Testing...\n");  
 	fclose(fp1);

@@ -359,6 +359,7 @@ struct
     in
     match x, y with
       | Addr (v,o), Addr (u,p) -> v.vid = u.vid && eq_offs o p  
+      | StrPtr a  , StrPtr b -> a=b (* TODO problematic if the same literal appears more than once *)
       | UnknownPtr, UnknownPtr 
       | SafePtr   , SafePtr
       | NullPtr   , NullPtr    
@@ -442,6 +443,7 @@ struct
       | UnknownPtr, UnknownPtr    -> true 
       | NullPtr   , NullPtr       -> true
       | SafePtr   , SafePtr       -> true
+      | StrPtr a  , StrPtr b      -> a <= b (* TODO *)
       | Addr (x,o), Addr (y,u) when x.vid = y.vid -> leq_offs o u
       | _                      -> false
       

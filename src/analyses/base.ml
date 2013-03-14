@@ -389,13 +389,12 @@ struct
       | Some x -> x 
       | None -> 
     (* query functions were no help ... now try with values*)
-    (* print_endline ("constFold "^(sprint 80 (d_exp () (Cil.constFold true exp)))); *)
     match Cil.constFold true exp with
       (* Integer literals *)
       | Cil.Const (Cil.CInt64 (num,typ,str)) -> `Int (ID.of_int num)
       (* TODO char? *)
       (* String literals *)
-      | Cil.Const (Cil.CStr x) -> M.report ("CStr "^x); `Address (AD.from_string x)
+      | Cil.Const (Cil.CStr x) -> print_endline ("CStr "^x); `Address (AD.from_string x)
       | Cil.Const (Cil.CWStr _) -> M.report "DANGER: CWStr!"; `Address (AD.str_ptr ()) (* TODO wide character strings *)
       (* Variables and address expressions *)
       | Cil.Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
@@ -425,7 +424,6 @@ struct
       | Cil.CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
       (* Most casts are currently just ignored, that's probably not a good idea! *)
       | Cil.CastE (t, exp) -> begin
-          (* print_endline ("CastE "^(sprint 80 (d_exp () exp))); *)
           match t,eval_rv a gs st exp with
             | Cil.TPtr (_,_), `Top -> `Address (AD.unknown_ptr ())
             | Cil.TPtr _, `Int a when Some Int64.zero = ID.to_int a -> 
