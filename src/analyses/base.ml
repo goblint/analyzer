@@ -394,10 +394,11 @@ struct
       | Cil.Const (Cil.CChr x) -> eval_rv a gs st (Cil.Const (Cil.charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Cil.Const (Cil.CInt64 (num,typ,str)) -> `Int (ID.of_int num)
       (* String literals *)
-      | Cil.Const (Cil.CStr x) -> `Address (AD.from_string x) (* type: char* *)
-      | Cil.Const (Cil.CWStr xs as c) -> M.report "CWStr not handled yet!"; (* type: wchar_t* *)
-          ignore(printf "CWStr: %a\n" d_const c);
-          List.iter (fun x -> print_string (Int64.to_string x)) xs; `Address (AD.str_ptr ()) (* TODO wide character strings *)
+      | Cil.Const (Cil.CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
+      | Cil.Const (Cil.CWStr xs as c) -> (* wide character strings, type: wchar_t* *)
+          let x = Pretty.sprint 80 (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
+          let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
+          `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
       (* Variables and address expressions *)
       | Cil.Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
       | Cil.Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs
