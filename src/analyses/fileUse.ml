@@ -19,11 +19,6 @@ struct
   let return_var = Cil.makeVarinfo false "@return" Cil.voidType
   let stack_var = Cil.makeVarinfo false "@stack" Cil.voidType
 
-  let lval2var (lhost,offset) = (* TODO *)
-    match lhost with
-      | Var varinfo -> varinfo
-      | Mem exp -> M.bailwith "lval not var"
-
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
@@ -34,23 +29,23 @@ struct
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
     let m = ctx.local in
-    let var = lval2var lval in
-    if Dom.mem var m then ( (* var in domain is modified *)
-(*       match rval, ctx.ask (Queries.MayPointTo rval) with (* assignment from other var in domain? *)
-        | Lval(Var varinfo, _), _ when Dom.mem varinfo m ->
-            M.write ("Lval: Assigned other file handle "^var.vname^" = "^varinfo.vname);
-            Dom.addMay var (Dom.find varinfo m) (Dom.may var m)
-        | _, `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a = 1
-          && Dom.mem (fst (Queries.LS.choose a)) m -> 
-            let varinfo = fst (Queries.LS.choose a) in
-            M.write ("Query: Assigned other file handle "^var.vname^" = "^varinfo.vname);
-            Dom.addMay var (Dom.find varinfo m) (Dom.may var m)
-        | _ -> M.report ("changed file pointer "^var.vname^" (no longer safe)");
-               Dom.may var m *)
-        M.report ("changed file pointer "^var.vname^" (no longer safe)");
-        Dom.may var m
-    )else
-      m
+    match lval with
+      | Var var, offset when Dom.mem var m -> (* var in domain is modified *)
+(*           (match rval, ctx.ask (Queries.MayPointTo rval) with (* assignment from other var in domain? *)
+            | Lval(Var varinfo, _), _ when Dom.mem varinfo m ->
+                M.write ("Lval: Assigned other file handle "^var.vname^" = "^varinfo.vname);
+                Dom.addMay var (Dom.find varinfo m) (Dom.may var m)
+            | _, `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a = 1
+              && Dom.mem (fst (Queries.LS.choose a)) m ->
+                let varinfo = fst (Queries.LS.choose a) in
+                M.write ("Query: Assigned other file handle "^var.vname^" = "^varinfo.vname);
+                Dom.addMay var (Dom.find varinfo m) (Dom.may var m)
+            | _ -> M.report ("changed file pointer "^var.vname^" (no longer safe)");
+                   Dom.may var m
+          ) *)
+          M.report ("changed file pointer "^var.vname^" (no longer safe)");
+          Dom.may var m
+      | _ -> m
 
   let branch ctx (exp:exp) (tv:bool) : Dom.t =
     (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
@@ -108,8 +103,7 @@ struct
     let au = editStack List.tl au in
     let return_val = Dom.findOption return_var au in
     match lval, return_val with
-      | Some lval, Some rval ->
-          let var = lval2var lval in
+      | Some (Var var, offset), Some rval ->
           (* M.write ("setting "^var.vname^" to content of "^(Dom.V.vnames rval)); *)
           let rval = Dom.V.rebind rval var in (* change rval.var to lval *)
           Dom.add var rval (Dom.remove return_var au) (* TODO: delete tmp in return! *)

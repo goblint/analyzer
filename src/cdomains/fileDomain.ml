@@ -134,9 +134,9 @@ struct
     if List.length must_true > 0 then (List.hd must_true) ();
     if List.length may_true  > 0 then (List.hd may_true) ()
 
-  let addMay var v m = let x = match findOption var m, v with
+  let addMay var v m = let x = match findOption var m with
       (* if the May-Set only contains one record, the pointer is considered unsafe and the record is joined with the new record *)
-      | Some(May(xs) as a), b when Set.cardinal xs = 1 -> V.join a b
+      | Some(May(xs) as a) when Set.cardinal xs = 1 -> V.join a v
       (* otherwise the record for var just gets replaced *)
       | _ -> v
     in add var x m
