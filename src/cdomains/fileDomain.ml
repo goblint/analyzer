@@ -134,17 +134,17 @@ struct
     if List.length must_true > 0 then (List.hd must_true) ();
     if List.length may_true  > 0 then (List.hd may_true) ()
 
-  let addMay var r m = let v = match findOption var m with
+  let addMay var v m = let x = match findOption var m, v with
       (* if the May-Set only contains one record, the pointer is considered unsafe and the record is joined with the new record *)
-      | Some(May(xs)) when Set.cardinal xs = 1 -> May(Set.add r xs)
+      | Some(May(xs) as a), b when Set.cardinal xs = 1 -> V.join a b
       (* otherwise the record for var just gets replaced *)
-      | _ -> Must(r)
-    in add var v m
+      | _ -> v
+    in add var x m
 
   let fopen var loc filename mode m =
     let mode = match String.lowercase mode with "r" -> Read | _ -> Write in
-    addMay var (V.create var loc (Open(filename, mode))) m
-  let fclose var loc m = addMay var (V.create var loc Close) m
+    addMay var (Must(V.create var loc (Open(filename, mode)))) m
+  let fclose var loc m = addMay var (Must(V.create var loc Close)) m
 
   let may var m = add var (V.may (find var m)) m
 

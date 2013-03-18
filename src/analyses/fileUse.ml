@@ -16,11 +16,10 @@ struct
 
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
-  (* let return_var = dummyFunDec.svar (* see base.ml: 219 *) *)
   let return_var = Cil.makeVarinfo false "@return" Cil.voidType
   let stack_var = Cil.makeVarinfo false "@stack" Cil.voidType
 
-  let lval2var (lhost,offset) =
+  let lval2var (lhost,offset) = (* TODO *)
     match lhost with
       | Var varinfo -> varinfo
       | Mem exp -> M.bailwith "lval not var"
@@ -33,19 +32,28 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    (* let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
-    (* TODO: test 15 *)
+    (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
     let m = ctx.local in
     let var = lval2var lval in
-    if Dom.mem var m then (
-      M.report ("changed file pointer "^var.vname^" (no longer safe)");
-      Dom.may var m
+    if Dom.mem var m then ( (* var in domain is modified *)
+(*       match rval, ctx.ask (Queries.MayPointTo rval) with (* assignment from other var in domain? *)
+        | Lval(Var varinfo, _), _ when Dom.mem varinfo m ->
+            M.write ("Lval: Assigned other file handle "^var.vname^" = "^varinfo.vname);
+            Dom.addMay var (Dom.find varinfo m) (Dom.may var m)
+        | _, `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a = 1
+          && Dom.mem (fst (Queries.LS.choose a)) m -> 
+            let varinfo = fst (Queries.LS.choose a) in
+            M.write ("Query: Assigned other file handle "^var.vname^" = "^varinfo.vname);
+            Dom.addMay var (Dom.find varinfo m) (Dom.may var m)
+        | _ -> M.report ("changed file pointer "^var.vname^" (no longer safe)");
+               Dom.may var m *)
+        M.report ("changed file pointer "^var.vname^" (no longer safe)");
+        Dom.may var m
     )else
       m
 
   let branch ctx (exp:exp) (tv:bool) : Dom.t =
-(*     let loc = !Tracing.current_loc in
-    ignore(printf "if %a = %s (line %i)\n" (printExp plainCilPrinter) exp (string_of_bool tv) loc.line); *)
+    (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
     ctx.local
 
   let body ctx (f:fundec) : Dom.t =
@@ -107,21 +115,6 @@ struct
           Dom.add var rval (Dom.remove return_var au) (* TODO: delete tmp in return! *)
       | _ -> au
 
-  let rec cut_offset x =
-    match x with
-      | `NoOffset    -> `NoOffset
-      | `Index (_,o) -> `NoOffset
-      | `Field (f,o) -> `Field (f, cut_offset o)
-
-  let reachable ask e: Dom.t =
-    match ask (Queries.ReachableFrom e) with
-      | `LvalSet a when not (Queries.LS.is_top a) -> Dom.bot ()
-           (* let to_extra (v,o) set = Dom.add (Addr.from_var_offset (v, cut_offset o)) set in *)
-(*           let to_extra (v,o) set = Dom.add v set in
-            Queries.LS.fold to_extra a (Dom.empty ()) *)
-      (* Ignore soundness warnings, as invalidation proper will raise them. *)
-      | _ -> Dom.bot ()
-
   let query_lv ask exp =
     match ask (Queries.MayPointTo exp) with
       | `LvalSet l when not (Queries.LS.is_top l) ->
@@ -158,14 +151,14 @@ struct
                         | Const(CStr(filename))::Const(CStr(mode))::[] ->
                             ret (Dom.fopen varinfo dloc filename mode m)
                         | e::Const(CStr(mode))::[] ->
-                            (* ignore(printf "CIL: %a\n" (printExp plainCilPrinter) e); *)
+                            (* ignore(printf "CIL: %a\n" d_plainexp e); *)
                             (match ctx.ask (Queries.EvalStr e) with
                               | `Str filename -> ret (Dom.fopen varinfo dloc filename mode m)
                               | _ -> M.report "no result from query"; dummy
                             )
                         | xs ->
                             M.report (String.concat ", " (List.map (fun x -> Pretty.sprint 80 (d_exp () x)) xs));
-                            List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) xs;
+                            List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs;
                             M.report "fopen needs two strings as arguments"; dummy
                       end
                   (* MayPointTo -> LValSet *)
@@ -200,7 +193,7 @@ struct
                           dummy
                       | Mem exp -> dummy
                     end
-                | _ -> (* List.iter (fun exp -> ignore(printf "%a\n" (printExp plainCilPrinter) exp)) arglist; *)
+                | _ -> (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) arglist; *)
                        List.iter (fun exp -> M.report ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp);
                        M.report "printf not Lval"; dummy
               end
