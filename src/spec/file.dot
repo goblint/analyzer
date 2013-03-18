@@ -1,0 +1,4 @@
+ digraph file {
+     a -> b -> c [label="fopen()"];
+     b -> d [label="fclose()"];
+ }

@@ -21,3 +21,4 @@ autom4te.cache
 result/*
 ma.sublime-workspace
 notes
+src/spec/graph
