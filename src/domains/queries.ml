@@ -107,7 +107,7 @@ struct
   let pretty_f s () state = 
     match state with
       | `Int n ->  ID.pretty () n
-      | `Str s ->  ID.pretty () Int64.zero (* TODO *)
+      | `Str s ->  text s
       | `Bool n ->  BD.pretty () n
       | `LvalSet n ->  LS.pretty () n
       | `ExprSet n ->  ES.pretty () n
@@ -138,7 +138,7 @@ struct
   let toXML_f sf state =
     match state with
       | `Int n -> ID.toXML n
-      | `Str s -> ID.toXML Int64.zero (* TODO *)
+      | `Str s -> Xml.Element ("Leaf", [("text", s)],[])
       | `Bool n -> BD.toXML n
       | `LvalSet n -> LS.toXML n
       | `ExprSet n -> ES.toXML n

@@ -106,7 +106,7 @@ struct
       | Some (Var var, offset), Some rval ->
           (* M.write ("setting "^var.vname^" to content of "^(Dom.V.vnames rval)); *)
           let rval = Dom.V.rebind rval var in (* change rval.var to lval *)
-          Dom.add var rval (Dom.remove return_var au) (* TODO: delete tmp in return! *)
+          Dom.add var rval (Dom.remove return_var au)
       | _ -> au
 
   let query_lv ask exp =
@@ -127,55 +127,65 @@ struct
     let loc = !Tracing.current_loc in
     let dloc = loc::(callStack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
+    let varinfos lval = (* get possible varinfos for a given lval *)
+      match lval with (* TODO ignore offset? *)
+        | Var varinfo, _ -> [varinfo]
+        | Mem exp, _ ->
+            let xs = query_lv ctx.ask exp in (* MayPointTo -> LValSet *)
+            M.report ("MayPointTo "^(Pretty.sprint 80 (d_exp () exp))^" = ["
+              ^(String.concat ", " (List.map (Lval.CilLval.short 80) xs))^"]");
+            List.map fst xs
+    in
+    (* fold possible varinfos on domain *)
+    let ret_all f lval = ret (List.fold_left f m (varinfos lval)) in
     match lval, f.vname, arglist with
       | None, "fopen", _ ->
           M.report "file handle is not saved!"; dummy
-      | Some (Var varinfo, _), "fopen", _ ->
-          (* opened again, not closed before *)
-          Dom.report varinfo Dom.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
-          let mustOpen, mayOpen = Dom.checkMay varinfo Dom.V.opened m in
-          if mustOpen || mayOpen then (
-            let msg = if mayOpen && not mustOpen then "file may be never closed" else "file is never closed" in
-            let xs = Dom.filterRecords varinfo Dom.V.opened m in
-            List.iter (fun x -> M.report ~loc:(BatList.last x.loc) msg) xs
-          );
-          begin match arglist with
-            | Const(CStr(filename))::Const(CStr(mode))::[] ->
-                ret (Dom.fopen varinfo dloc filename mode m)
-            | e::Const(CStr(mode))::[] ->
-                (* ignore(printf "CIL: %a\n" d_plainexp e); *)
-                (match ctx.ask (Queries.EvalStr e) with
-                  | `Str filename -> ret (Dom.fopen varinfo dloc filename mode m)
-                  | _ -> M.report "no result from query"; dummy
-                )
-            | xs ->
-                M.report (String.concat ", " (List.map (fun x -> Pretty.sprint 80 (d_exp () x)) xs));
-                List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs;
-                M.report "fopen needs two strings as arguments"; dummy
-          end
-      (* MayPointTo -> LValSet *)
-      | Some(Mem exp, _), "fopen", _ ->
-          M.report "TODO: fopen (Mem exp)"; dummy
+      | Some lval, "fopen", _ ->
+          let f m varinfo =
+            (* opened again, not closed before *)
+            Dom.report varinfo Dom.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
+            let mustOpen, mayOpen = Dom.checkMay varinfo Dom.V.opened m in
+            if mustOpen || mayOpen then (
+              let msg = if mayOpen && not mustOpen then "file may be never closed" else "file is never closed" in
+              let xs = Dom.filterRecords varinfo Dom.V.opened m in (* length 1 if mustOpen *)
+              List.iter (fun x -> M.report ~loc:(BatList.last x.loc) msg) xs
+            );
+            (match arglist with
+              | Const(CStr(filename))::Const(CStr(mode))::[] ->
+                  Dom.fopen varinfo dloc filename mode m
+              | e::Const(CStr(mode))::[] ->
+                  (* ignore(printf "CIL: %a\n" d_plainexp e); *)
+                  (match ctx.ask (Queries.EvalStr e) with
+                    | `Str filename -> Dom.fopen varinfo dloc filename mode m
+                    | _ -> M.report "no result from query"; m
+                  )
+              | xs ->
+                  M.report (String.concat ", " (List.map (fun x -> Pretty.sprint 80 (d_exp () x)) xs));
+                  List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs;
+                  M.report "fopen needs two strings as arguments"; m
+            )
+          in ret_all f lval
 
-      | _, "fclose", [Lval (Var varinfo, _)] ->
-          if not (Dom.mem varinfo m) then M.report ("closeing unopened file handle "^varinfo.vname);
-          Dom.report varinfo Dom.V.closed ("closeing already closed file handle "^varinfo.vname) m;
-          ret (Dom.fclose varinfo dloc m)
-      | _, "fclose", [Lval (Mem exp, _)] ->
-          M.report "TODO: fclose (Mem exp)"; dummy
+      | _, "fclose", [Lval fp] ->
+          let f m varinfo =
+            if not (Dom.mem varinfo m) then M.report ("closeing unopened file handle "^varinfo.vname);
+            Dom.report varinfo Dom.V.closed ("closeing already closed file handle "^varinfo.vname) m;
+            Dom.fclose varinfo dloc m
+          in ret_all f fp
       | _, "fclose", _ ->
           M.report "fclose needs exactly one argument"; dummy
 
-      | _, "fprintf", (Lval (Var varinfo, _))::_ ->
-          Dom.reports m varinfo [
-            false, Dom.V.closed,   "writing to closed file handle "^varinfo.vname;
-            true,  Dom.V.opened,   "writing to unopened file handle "^varinfo.vname;
-            true,  Dom.V.writable, "writing to read-only file handle "^varinfo.vname;
-          ];
-          dummy
-      | _, "fprintf", (Lval (Mem exp, _))::_ ->
-          M.report "TODO: fprintf (Mem exp)"; dummy
-      | _, "fprintf", fp::_ ->
+      | _, "fprintf", (Lval fp)::_::_ ->
+          let f m varinfo =
+            Dom.reports m varinfo [
+              false, Dom.V.closed,   "writing to closed file handle "^varinfo.vname;
+              true,  Dom.V.opened,   "writing to unopened file handle "^varinfo.vname;
+              true,  Dom.V.writable, "writing to read-only file handle "^varinfo.vname;
+            ];
+            m
+          in ret_all f fp
+      | _, "fprintf", fp::_::_ ->
           (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) arglist; *)
           List.iter (fun exp -> M.report ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp);
           M.report "printf not Lval"; dummy
