@@ -1,4 +1,37 @@
- digraph file {
-     a -> b -> c [label="fopen()"];
-     b -> d [label="fclose()"];
- }
+digraph file {
+  //    changed file pointer {fp} (no longer safe)
+
+  // file handle is not saved!
+  //    overwriting still opened file handle
+  //    file is never closed
+  //    file may be never closed
+  // closeing unopened file handle
+  // closeing already closed file handle
+  // writing to closed file handle
+  // writing to unopened file handle
+  // writing to read-only file handle
+
+  //    unclosed files: ...
+  //    maybe unclosed files: ...
+
+  w1 [label="file handle is not saved!"];
+  w2 [label="closeing unopened file handle"];
+  w3 [label="writing to unopened file handle"];
+  w4 [label="writing to read-only file handle"];
+  w5 [label="closeing already closed file handle"];
+  w6 [label="writing to closed file handle"];
+
+  1 -> w1 [label="fopen(_)"];
+  1 -> w2 [label="fclose($fp)"];
+  1 -> w3 [label="fprintf($fp, _)"];
+  1 -> open_read  [label="$fp = fopen($path, \"r\")"];
+  1 -> open_write [label="$fp = fopen($path, \"w\")"];
+  1 -> open_write [label="$fp = fopen($path, \"a\")"];
+  open_read -> w4 [label="fprintf($fp, _)"];
+  open_write -> open_write [label="fprintf($fp, _)"];
+  open_read  -> closed [label="fclose($fp)"];
+  open_write -> closed [label="fclose($fp)"];
+  closed -> w5 [label="fclose($fp)"];
+  closed -> w6 [label="fprintf($fp, _)"];
+  closed -> 1  [label="->"];
+}
