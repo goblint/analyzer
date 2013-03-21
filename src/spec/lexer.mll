@@ -39,9 +39,9 @@ rule token = parse
   | "["            { LBRACK }
   | "]"            { RBRACK }
   | "_"            { UNDERS }
-  | (word+ as n) ws* '\"'([^'\"']* as m)'\"'    { NODE(n, m)}
-  | (word+ as a) ws* "->" ws* (word+ as b) ws+  { ARROW(a, b) }
-  | ('\"'[^'\"']*'\"') | ('\''[^'\'']*'\'')
+  | (word+ as n) ws* '\"'(([^'\"']|"\\\"")* as m)'\"'  { NODE(n, m)}
+  | (word+ as a) ws* "->" ws* (word+ as b) ws+         { ARROW(a, b) }
+  | ('\"'([^'\"']|"\\\"")*'\"') | ('\''([^'\'']|"\\'")*'\'')
       { let str = Lexing.lexeme lexbuf in
         let sl  = String.length str in
         STRING (String.sub str 1 (sl-2))
