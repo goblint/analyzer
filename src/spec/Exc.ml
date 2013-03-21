@@ -1,2 +1,0 @@
-exception Endl
-exception Eof

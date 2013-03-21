@@ -6,12 +6,12 @@ let _ =
   while true do
     try
       let result = Parser.file Lexer.token lexbuf in
-        print_string result; print_newline(); flush stdout
+        print_endline (Def.to_string result); flush stdout
     with
       (* just a new line -> won't be printed *)
-      | Exc.Endl  -> ()
+      | Def.Endl  -> ()
       (* done *)
-      | Exc.Eof   -> exit 0
+      | Def.Eof   -> exit 0
       (* catch and print in repl-mode *)
       | e when repl -> print_endline (Printexc.to_string e)
   done

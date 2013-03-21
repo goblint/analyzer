@@ -3,28 +3,30 @@
 because exceptions directly defined here aren't visible outside
 (e.g. Parser.Eof is raised, but Error: Unbound constructor 
       if used to catch in a different module) *)
-open Exc
+open Def
 %}
 
-%token PLUS MINUS TIMES DIV
+%token LT GT EQ NE LE GE
+%token PLUS MINUS MUL DIV
 %token LPAREN RPAREN LCURL RCURL LBRACK RBRACK
-%token ASSIGN NULL COMMA SEMICOLON COLON UNDERS
+%token NULL COMMA SEMICOLON COLON UNDERS
 %token EOL EOF VAR_
 %token <string * string> NODE
-%token <string * string> ARROW
+%token <string * string> EDGE
 %token <string> VAR
 %token <string> IDENT
 %token <string> STRING 
 %token <bool> BOOL
 %token <int> INT
 /* %token <Big_int.big_int> NUMBER */
+%left LT GT EQ NE LE GE
 %left PLUS MINUS        /* lowest precedence */
-%left TIMES DIV         /* medium precedence */
+%left MUL DIV           /* medium precedence */
 %nonassoc UMINUS        /* highest precedence */
 
 /* %{ type expr = String of string | Int of int %} */
 %start file             /* the entry point */
-%type <string> file
+%type <Def.def> file
 %%
 file:
   | def EOL                  { $1 }
@@ -34,13 +36,13 @@ file:
 ;
 
 def:
-  | NODE                     { fst $1^"\t\""^snd $1^"\""}
-  | ARROW stmt               { fst $1^" -> "^snd $1^"\t"^$2}
+  | NODE                     { Node($1) }
+  | EDGE stmt                { Edge(fst $1, snd $1, $2) }
 ;
 
 stmt:
   | expr                     { $1 }
-  | var ASSIGN expr          { $1^" = "^$3 }
+  | var EQ expr              { $1^" = "^$3 }
 ;
 
 var:
@@ -52,10 +54,17 @@ var:
 expr:
   | LPAREN expr RPAREN       { $2 }
   | STRING                   { "\""^$1^"\"" }
+  | BOOL                     { string_of_bool $1 }
   | nexpr                    { string_of_int $1 }
   | var                      { $1 }
   | IDENT args               { $1^"("^$2^")" } /* function */
   | UNDERS                   { "_" }
+  | nexpr LT    nexpr        { string_of_bool($1<$3) }
+  | nexpr GT    nexpr        { string_of_bool($1>$3) }
+  | nexpr EQ EQ nexpr        { string_of_bool($1=$4) }
+  | nexpr NE    nexpr        { string_of_bool($1<>$3) }
+  | nexpr LE    nexpr        { string_of_bool($1<=$3) }
+  | nexpr GE    nexpr        { string_of_bool($1>=$3) }
 ; 
 
 nexpr:
@@ -64,7 +73,7 @@ nexpr:
   | INT                      { $1 }
   | nexpr PLUS nexpr         { $1 + $3 }
   | nexpr MINUS nexpr        { $1 - $3 }
-  | nexpr TIMES nexpr        { $1 * $3 }
+  | nexpr MUL nexpr          { $1 * $3 }
   | nexpr DIV nexpr          { $1 / $3 }
   | MINUS nexpr %prec UMINUS { - $2 }
 ;

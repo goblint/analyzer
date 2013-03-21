@@ -14,37 +14,41 @@ let word  = '_' | alnum
 let endlinecomment = "//" [^'\n']* nl
 let multlinecomment = "/*"([^'*']|('*'+[^'*''/'])|nl)*'*'+'/'
 let comments = endlinecomment|multlinecomment
+let str = ('\"'(([^'\"']|"\\\"")* as s)'\"') | ('\''(([^'\'']|"\\'")* as s)'\'')
 
 rule token = parse
   | ws             { token lexbuf }     (* skip blanks *)
   | comments       { token lexbuf }     (* skip comments *)
   | nl             { incr line; EOL }
   | ['0'-'9']+ as lxm { INT(int_of_string lxm) }
-  | '+'            { PLUS }
+  | '+'            { PLUS  }
   | '-'            { MINUS }
-  | '*'            { TIMES }
+  | '*'            { MUL }
   | '/'            { DIV }
   | '('            { LPAREN }
   | ')'            { RPAREN }
-  | "="            { ASSIGN  }
+  | '<'            { LT }
+  | '>'            { GT }
+  | '='            { EQ }
+  | "!="           { NE }
+  | "<="           { LE }
+  | ">="           { GE }
+  | ','            { COMMA  }
+  | ';'            { SEMICOLON  }
+  | ':'            { COLON  }
+  | '{'            { LCURL  }
+  | '}'            { RCURL  }
+  | '['            { LBRACK }
+  | ']'            { RBRACK }
+  | '_'            { UNDERS }
   | "true"         { BOOL(true)   }
   | "false"        { BOOL(false)  }
   | "null"         { NULL   }
-  | ","            { COMMA  }
-  | ";"            { SEMICOLON  }
-  | ":"            { COLON  }
-  | "{"            { LCURL  }
-  | "}"            { RCURL  }
-  | "["            { LBRACK }
-  | "]"            { RBRACK }
-  | "_"            { UNDERS }
-  | (word+ as n) ws* '\"'(([^'\"']|"\\\"")* as m)'\"'  { NODE(n, m) }
-  | (word+ as a) ws* "->" ws* (word+ as b) ws+         { ARROW(a, b) }
-  | ('\"'([^'\"']|"\\\"")*'\"') | ('\''([^'\'']|"\\'")*'\'')
-      { let str = Lexing.lexeme lexbuf in
-        let sl  = String.length str in
-        STRING (String.sub str 1 (sl-2))
-      }
+  | (word+ as n) ws+ str
+                   { NODE(n, s) }
+  | (word+ as a) ws* "->" ws* (word+ as b) ws+
+                   { EDGE(a, b) }
+  | str            { STRING(s) }
 (*  | ['0'-'9']*'.'?['0'-'9']*(('e'|'E')('+'|'-')?['0'-'9']+)?
       { NUMBER (big_int_of_string (Lexing.lexeme lexbuf)) } *)
   | "$_"           { VAR_ }
