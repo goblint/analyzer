@@ -2,7 +2,6 @@ let css_string =
 "
 html , body {
   font-family:Georgia,Serif;
-  background-color: #FFFFFF;
   margin: 0;
   padding: 0;
 }
@@ -35,6 +34,21 @@ html , body {
     padding: 0px;
     width: 0px;
     height: 0px;
+}
+
+.iframebox {
+    overflow: scroll;
+    border: 0px;
+    width: 100%;
+    height: 100%;
+}
+
+#analysisfilebody {
+  width: 100%;
+  height: 100%;
+  background-color: #F0F0F0;
+  font-size: 14px;
+  font-family: Arial,Monospace;     
 }
   
 #leftWindowContent

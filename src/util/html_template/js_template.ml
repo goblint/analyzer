@@ -41,50 +41,21 @@ function init_all() {
   }
 }
 
-// Try to create and initialize a HttpObject
-var xmlHttpObject = false;
+        //var els =document.getElementById('dynamicanalysis').getElementsByClassName('toggle');
+        //for (var i=0; i < els.length; i++) {
+        //  init_toggle_old(els[i]);
+        //}
 
-if (typeof XMLHttpRequest != 'undefined') 
-{
-    xmlHttpObject = new XMLHttpRequest();
-}
-if (!xmlHttpObject) 
-{
-    try 
-    {
-        xmlHttpObject = new ActiveXObject(\"Msxml2.XMLHTTP\");
-    }
-    catch(e) 
-    {
-        try 
-        {
-            xmlHttpObject = new ActiveXObject(\"Microsoft.XMLHTTP\");
-        }
-        catch(e) 
-        {
-            xmlHttpObject = null;
-        }
-    }
-}
-
-function htmlHandleContent()
-{
-    if (xmlHttpObject.readyState == 4)
-    {
-        document.getElementById('dynamicanalysis').innerHTML = xmlHttpObject.responseText;
-        var els =document.getElementById('dynamicanalysis').getElementsByClassName('toggle');
-        for (var i=0; i < els.length; i++) {
-          init_toggle_old(els[i]);
-        }
-        MakeLineVisible(requestedLine);
-     }     
-}
 
 function htmlLoadContent(sfile,i)
 {
-    xmlHttpObject.open('get',sfile+'_data/analysis'+i+'.html');
-    xmlHttpObject.onreadystatechange = htmlHandleContent;
-    xmlHttpObject.send(null);
+    var iframe = document.getElementById('analysisiframe');
+    iframe.src = sfile+'_data/analysis'+i+'.html';
+    iframe.onload = function() {
+      iframe.style.display = '';
+      document.getElementById('analysis_noselection').style.display = 'none';
+      MakeLineVisible(requestedLine);
+    }
     return false;
 }
 
@@ -139,12 +110,19 @@ function onLoad() {
 }
 
 function MakeLineVisible(i) {
-  var el;
-  el = document.getElementById('analysis_line' + lineSelected);
-  if (el != null) el.style.display = 'none';
-      
-  var analysis_line = document.getElementById('analysis_line' + i);
-  if(analysis_line) analysis_line.style.display = '';
+  // Hide previous selected line
+  //var el;
+  //el = document.getElementById('analysis_line' + lineSelected);
+  //if (el != null) el.style.display = 'none';
+  
+  // Show selected line
+  //document.getElementById('analysis_line' + i).style.display = '';
+
+  // Hide previous selected line and show new selected line
+  var iframe = document.getElementById('analysisiframe');
+  iframe.contentWindow.postMessage(lineSelected+':'+i,'*');
+
+  // Coloring the selected line
   if (lineSelected != 0) {
     if ((lineSelected % 2) == 0) document.getElementById('line'+lineSelected).style.background = '#F0F0F0';
     if ((lineSelected % 2) == 1) document.getElementById('line'+lineSelected).style.background = '#F8F8F8';
@@ -155,6 +133,7 @@ function MakeLineVisible(i) {
     document.getElementById('line'+lineSelected).style.background = '#FFFFD8';        
   }
 
+  // Show warnings for the line
   showWarning(i);
 }
 
@@ -248,24 +227,62 @@ function hideWindow(windowName) {
 function showLeftTab(no) {
   if (no == 0) {
     document.getElementById('analysisbox').style.display = '';
+    document.getElementById('declsbox').style.display = 'none';
     document.getElementById('globalsbox').style.display = 'none';
-    document.getElementById('warningsbox').style.display = 'none';
   }
   if (no == 1) {
     document.getElementById('analysisbox').style.display = 'none';
-    document.getElementById('globalsbox').style.display = '';
-    document.getElementById('warningsbox').style.display = 'none';
+    document.getElementById('declsbox').style.display = '';
+    document.getElementById('globalsbox').style.display = 'none';
   }
   if (no == 2) {
     document.getElementById('analysisbox').style.display = 'none';
-    document.getElementById('globalsbox').style.display = 'none';
-    document.getElementById('warningsbox').style.display = '';
+    document.getElementById('declsbox').style.display = 'none';
+    document.getElementById('globalsbox').style.display = '';
+  }
+}
+
+function showMainTab(no) {
+  if (no == 0) {
+    document.getElementById('codelineBox').style.display = '';
+    document.getElementById('warningListBox').style.display = 'none';
+    document.getElementById('deadcodeListBox').style.display = 'none';
+  }
+  if (no == 1) {
+    document.getElementById('codelineBox').style.display = 'none';
+    document.getElementById('warningListBox').style.display = '';
+    document.getElementById('deadcodeListBox').style.display = 'none';
+  }
+  if (no == 2) {
+    document.getElementById('codelineBox').style.display = 'none';
+    document.getElementById('warningListBox').style.display = 'none';
+    document.getElementById('deadcodeListBox').style.display = '';
   }
 }
 
 function ScrollToLine(line) {
   document.getElementById('codeWindowContent').scrollTop = (line-1)*document.getElementById('line1').clientHeight;
+}
 
+function switchToLine(sfile,line) {
+  showMainTab(0);
+  ScrollToLine(line);
+  showLine(sfile,line);
+}
+
+function OnAnalysisFileLoaded() {
+	init_all();
+
+	handleResponse = function(e) {
+	  var lines;
+	  lines = e.data.split(':');
+	  var el;
+	  el = document.getElementById('analysis_line' + lines[0]);
+	  if (el != null) el.style.display = 'none';
+	  el = document.getElementById('analysis_line' + lines[1]);
+	  if (el != null) el.style.display = '';
+	}
+	window.addEventListener('message', handleResponse, false);
 }
 
 "

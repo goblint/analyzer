@@ -604,7 +604,7 @@ struct
           output_char out '\n'
         end
       | "html" -> 
-          Htmldump.print_html out (resultXML (Lazy.force table)) file
+          Htmldump.print_html out (resultXML (Lazy.force table)) file gtable
       | _ -> ()
 end
 
