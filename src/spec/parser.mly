@@ -1,7 +1,15 @@
+%{
+(* necessary to open a different compilation unit
+because exceptions directly defined here aren't visible outside
+(e.g. Parser.Eof is raised, but Error: Unbound constructor 
+      if used to catch in a different module) *)
+open Exc
+%}
+
 %token PLUS MINUS TIMES DIV
 %token LPAREN RPAREN LCURL RCURL LBRACK RBRACK
 %token ASSIGN NULL COMMA SEMICOLON COLON UNDERS
-%token EOL VAR_
+%token EOL EOF VAR_
 %token <string * string> NODE
 %token <string * string> ARROW
 %token <string> VAR
@@ -19,8 +27,10 @@
 %type <string> file
 %%
 file:
-  | EOL                      { "" }
   | def EOL                  { $1 }
+  | def EOF                  { $1 } /* no need for an empty line at the end */
+  | EOL                      { raise Endl }
+  | EOF                      { raise Eof }
 ;
 
 def:
@@ -50,6 +60,7 @@ expr:
 
 nexpr:
 /*  | NUMBER                   { Big_int.int_of_big_int $1 } */
+  | LPAREN nexpr RPAREN      { $2 }
   | INT                      { $1 }
   | nexpr PLUS nexpr         { $1 + $3 }
   | nexpr MINUS nexpr        { $1 - $3 }

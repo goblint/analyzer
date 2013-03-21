@@ -1,0 +1,2 @@
+exception Endl
+exception Eof

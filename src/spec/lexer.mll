@@ -1,7 +1,6 @@
 {
 open Parser        (* The type token is defined in parser.mli *)
 open Big_int
-exception Eof
 exception Token of string
 let line = ref 1
 }
@@ -17,7 +16,7 @@ let multlinecomment = "/*"([^'*']|('*'+[^'*''/'])|nl)*'*'+'/'
 let comments = endlinecomment|multlinecomment
 
 rule token = parse
-  | ws+            { token lexbuf }     (* skip blanks *)
+  | ws             { token lexbuf }     (* skip blanks *)
   | comments       { token lexbuf }     (* skip comments *)
   | nl             { incr line; EOL }
   | ['0'-'9']+ as lxm { INT(int_of_string lxm) }
@@ -39,7 +38,7 @@ rule token = parse
   | "["            { LBRACK }
   | "]"            { RBRACK }
   | "_"            { UNDERS }
-  | (word+ as n) ws* '\"'(([^'\"']|"\\\"")* as m)'\"'  { NODE(n, m)}
+  | (word+ as n) ws* '\"'(([^'\"']|"\\\"")* as m)'\"'  { NODE(n, m) }
   | (word+ as a) ws* "->" ws* (word+ as b) ws+         { ARROW(a, b) }
   | ('\"'([^'\"']|"\\\"")*'\"') | ('\''([^'\'']|"\\'")*'\'')
       { let str = Lexing.lexeme lexbuf in
@@ -51,5 +50,5 @@ rule token = parse
   | "$_"           { VAR_ }
   | "$"(word+ as x) { VAR(x) }
   | ('_'|alpha) word* as lxm { IDENT(lxm) }
-  | eof            { raise Eof }
+  | eof            { EOF }
   | _ as x         { raise(Token (Char.escaped x^": unknown token in line "^string_of_int !line)) }
