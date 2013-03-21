@@ -1,1 +1,2 @@
-ocamlbuild -no-links src/spec/spec.native && ./_build/src/spec/spec.native < src/spec/file.spec
+bin=src/spec/spec.native
+ocamlbuild -no-links ${bin} && (./_build/${bin} src/spec/file.spec || echo "file.spec failed, running interactive now..."; rlwrap ./_build/${bin})

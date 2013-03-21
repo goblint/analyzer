@@ -1,15 +1,15 @@
-/* File parser.mly */
 %token PLUS MINUS TIMES DIV
-%token LPAREN RPAREN
-%token ASSIGN NULL COMMA SEMICOLON COLON
-%token LCURL RCURL LBRACK RBRACK
-%token UNDERS VAR IDENT
+%token LPAREN RPAREN LCURL RCURL LBRACK RBRACK
+%token ASSIGN NULL COMMA SEMICOLON COLON UNDERS
+%token EOL VAR_
+%token <string * string> NODE
+%token <string * string> ARROW
+%token <string> VAR
 %token <string> IDENT
 %token <string> STRING 
 %token <bool> BOOL
 %token <int> INT
 /* %token <Big_int.big_int> NUMBER */
-%token IF
 %left PLUS MINUS        /* lowest precedence */
 %left TIMES DIV         /* medium precedence */
 %nonassoc UMINUS        /* highest precedence */
@@ -19,7 +19,13 @@
 %type <string> file
 %%
 file:
-  | stmt SEMICOLON           { $1 }
+  | EOL                      { "" }
+  | def EOL                  { $1 }
+;
+
+def:
+  | NODE                     { fst $1^"\t\""^snd $1^"\""}
+  | ARROW stmt               { fst $1^" -> "^snd $1^"\t"^$2}
 ;
 
 stmt:
@@ -28,8 +34,8 @@ stmt:
 ;
 
 var:
-  | VAR INT                  { "$"^(string_of_int $2) }
-  | VAR UNDERS               { "$_" }
+  | VAR                      { "$"^$1 }
+  | VAR_                     { "$_" }
   | IDENT                    { $1 }
 ;
 
@@ -39,6 +45,7 @@ expr:
   | nexpr                    { string_of_int $1 }
   | var                      { $1 }
   | IDENT args               { $1^"("^$2^")" } /* function */
+  | UNDERS                   { "_" }
 ; 
 
 nexpr:

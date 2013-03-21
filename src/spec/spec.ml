@@ -1,15 +1,15 @@
-(* File spec.ml *)
 let _ =
-  try
-    let cin =
-      if Array.length Sys.argv > 1
-      then open_in Sys.argv.(1)
-      else stdin
-    in
-    let lexbuf = Lexing.from_channel cin in
-    while true do
+  (* running interactively (= reading from stdin)  *)
+  let repl = Array.length Sys.argv = 1 in
+  let cin = if repl then stdin else open_in Sys.argv.(1) in
+  let lexbuf = Lexing.from_channel cin in
+  while true do
+    try
       let result = Parser.file Lexer.token lexbuf in
         print_string result; print_newline(); flush stdout
-    done
-  with Lexer.Eof ->
-    exit 0
+    with
+      (* done *)
+      | Lexer.Eof   -> exit 0
+      (* catch and print in repl-mode *)
+      | e when repl -> print_endline (Printexc.to_string e)
+  done
