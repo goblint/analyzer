@@ -271,8 +271,6 @@ function switchToLine(sfile,line) {
 }
 
 function OnAnalysisFileLoaded() {
-	init_all();
-
 	handleResponse = function(e) {
 	  var lines;
 	  lines = e.data.split(':');
@@ -281,6 +279,11 @@ function OnAnalysisFileLoaded() {
 	  if (el != null) el.style.display = 'none';
 	  el = document.getElementById('analysis_line' + lines[1]);
 	  if (el != null) el.style.display = '';
+
+	  var els = document.getElementsByClassName('toggle');
+	  for (var i=0; i < els.length; i++) {
+	    if (els[i].onmousedown == null) init_toggle_old(els[i]);
+	  }
 	}
 	window.addEventListener('message', handleResponse, false);
 }

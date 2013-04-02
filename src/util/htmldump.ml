@@ -385,7 +385,7 @@ let print_html chan xmlNode (file: Cil.file) gtable =
 		let checkForEmptyValueLeaf xmlNode = 
 			if ((String.compare (Xml.attrib xmlNode "text") "Value") == 0) then
 				if ((String.compare (Xml.tag xmlNode) "Leaf") == 0) then Array.set !(fileListEntry.deadcodeInfo) lineNo ((Array.get !(fileListEntry.deadcodeInfo) lineNo)+2)
-				else Array.set !(fileListEntry.deadcodeInfo) lineNo ((Array.get !(fileListEntry.deadcodeInfo) lineNo)-1)
+				else Array.set !(fileListEntry.deadcodeInfo) lineNo (-100)
 		in
 		List.iter (fun x -> List.iter checkForEmptyValueLeaf (Xml.children x)) (Xml.children xmlNodeLine);
 	in
