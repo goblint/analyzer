@@ -1,7 +1,7 @@
 %{
 (* necessary to open a different compilation unit
 because exceptions directly defined here aren't visible outside
-(e.g. Parser.Eof is raised, but Error: Unbound constructor 
+(e.g. Parser.Eof is raised, but Error: Unbound constructor
       if used to catch in a different module) *)
 open Def
 %}
@@ -15,7 +15,7 @@ open Def
 %token <string * string> EDGE
 %token <string> VAR
 %token <string> IDENT
-%token <string> STRING 
+%token <string> STRING
 %token <bool> BOOL
 %token <int> INT
 /* %token <Big_int.big_int> NUMBER */
@@ -31,18 +31,18 @@ open Def
 file:
   | def EOL                  { $1 }
   | def EOF                  { $1 } /* no need for an empty line at the end */
-  | EOL                      { raise Endl }
-  | EOF                      { raise Eof }
+  | EOL                      { raise Endl } /* empty line */
+  | EOF                      { raise Eof }  /* end of file */
 ;
 
 def:
   | NODE                     { Node($1) }
-  | EDGE stmt                { Edge(fst $1, snd $1, $2) }
+  | EDGE stmts               { Edge(fst $1, snd $1, $2) }
 ;
 
-stmt:
+stmts:
   | expr                     { $1 }
-  | var EQ expr              { $1^" = "^$3 }
+  | stmts SEMICOLON expr     { $1^"; "^$3 }
 ;
 
 var:
@@ -57,6 +57,7 @@ expr:
   | BOOL                     { string_of_bool $1 }
   | nexpr                    { string_of_int $1 }
   | var                      { $1 }
+  | var EQ expr              { $1^" = "^$3 }   /* no need for extra stmt (avoids shift/reduce conflict) */
   | IDENT args               { $1^"("^$2^")" } /* function */
   | UNDERS                   { "_" }
   | nexpr LT    nexpr        { string_of_bool($1<$3) }
@@ -65,7 +66,7 @@ expr:
   | nexpr NE    nexpr        { string_of_bool($1<>$3) }
   | nexpr LE    nexpr        { string_of_bool($1<=$3) }
   | nexpr GE    nexpr        { string_of_bool($1>=$3) }
-; 
+;
 
 nexpr:
 /*  | NUMBER                   { Big_int.int_of_big_int $1 } */
