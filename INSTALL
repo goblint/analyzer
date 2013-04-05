@@ -33,7 +33,9 @@ sudo make install
 http://tech.motion-twin.com/zip/xml-light-2.2.zip
 make 
 make opt
-echo 'version="2.2"' > META
-echo 'archive(byte)="xml-light.cma"' >> META
-echo 'archive(native)="xml-light.cmxa"' >> META
+cat > META <<EOF
+version="2.2"
+archive(byte)="xml-light.cma"
+archive(native)="xml-light.cmxa"
+EOF
 sudo ocamlfind install xml-light META *.cmx *.cmi *.mli *.a *.o *.cmxa *.cma

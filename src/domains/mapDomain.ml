@@ -27,6 +27,7 @@ sig
   val for_all: (key -> value -> bool) -> t -> bool
   val map2: (value -> value -> value) -> t -> t -> t
   val long_map2: (value -> value -> value) -> t -> t -> t
+  val merge : (key -> value option -> value option -> value option) -> t -> t -> t
 (*  val fold2: (key -> value -> value -> 'a -> 'a) -> t -> t -> 'a -> 'a*)
 end
 
@@ -69,6 +70,7 @@ struct
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal = for_all2 Range.equal
+  let merge = M.merge
   let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
 
   exception Done
@@ -366,6 +368,11 @@ struct
     match x with 
       | `Top -> raise (Fn_over_All "filter")
       | `Lifted x -> `Lifted (M.filter f x)
+
+  let merge f x y  = 
+    match x, y with
+      | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
+      | _ -> raise (Fn_over_All "merge")
 end
 
 module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with
@@ -441,4 +448,9 @@ struct
     match x with 
       | `Bot -> raise (Fn_over_All "filter")
       | `Lifted x -> `Lifted (M.filter f x)
+
+  let merge f x y  = 
+    match x, y with
+      | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
+      | _ -> raise (Fn_over_All "merge")
 end
