@@ -1,0 +1,16 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+			"folder_exclude_patterns": ["node_modules", "dist", ".tmp", ".sass-cache", "app/components"]
+		}
+	],
+    "build_systems":
+    [
+        {
+            "name": "grunt server",
+            "cmd": ["grunt", "server"]
+        }
+    ]
+}

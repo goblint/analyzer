@@ -19,6 +19,6 @@ doc
 doclist.odocl
 autom4te.cache
 result/*
-ma.sublime-workspace
+*.sublime-workspace
 notes
 src/spec/graph
