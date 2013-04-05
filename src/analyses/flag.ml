@@ -22,8 +22,30 @@ struct
 
   let listrem x l = List.filter (fun y -> not( x=y)) l
 
+  let rec no_addr_of_flag expr =
+      match expr with
+        | Cil.Const _
+        | Cil.SizeOf _
+        | Cil.SizeOfE _
+        | Cil.SizeOfStr _
+        | Cil.AlignOf _
+        | Cil.AlignOfE _  -> ()
+        | Cil.UnOp (_,e,_) -> no_addr_of_flag e
+        | Cil.BinOp (_,e1,e2,_) -> no_addr_of_flag e1; no_addr_of_flag e2
+        | Cil.Lval (Cil.Var _,o) -> ()
+        | Cil.AddrOf (Cil.Var vinfo,o)          
+        | Cil.StartOf (Cil.Var vinfo,o) -> flags := listrem vinfo.vname !flags; noflags := vinfo.vname :: !noflags
+        | Cil.Lval (Cil.Mem e,o)    -> no_addr_of_flag e
+        | Cil.AddrOf (Cil.Mem e,o)  -> no_addr_of_flag e
+        | Cil.StartOf (Cil.Mem e,o) -> no_addr_of_flag e
+        | Cil.CastE (t,e) -> no_addr_of_flag e
+	| Cil.Question (e1, e2, e3, _) -> no_addr_of_flag e1; no_addr_of_flag e2; no_addr_of_flag e3
+	| Cil.AddrOfLabel _ -> ()
+
+
   let assign ctx (lval:lval) (rval:exp) : Dom.t = 
 (* let _ = print_endline ( "assign") in       *)
+  let _ = no_addr_of_flag rval in
   let _ = match lval with 
    | (Var var, NoOffset) -> if var.vglob then begin
 	let x = var.vname in if List.mem x !noflags then () else
@@ -48,7 +70,8 @@ let _ = print_endline ( "remove") in
 	    flags := x ::!flags;
 	    Hashtbl.add vars x (VSet.add (Val.of_int i) (VSet.empty ()) )
 	  end
-	| _ -> noflags := x::!noflags; if List.mem x !flags then begin
+	| _ -> 
+	    noflags := x::!noflags; if List.mem x !flags then begin
 	    flags := listrem x !flags;
 	    Hashtbl.remove vars x
 	  end
@@ -74,21 +97,28 @@ let _ = print_endline ( "remove") in
     | CastE  (_, exp) -> check exp
     | _ -> ()
 
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+  let branch ctx (exp:exp) (tv:bool) : Dom.t =
+    let _ = no_addr_of_flag exp in
     let _ = check exp in
     Dom.top ()
      
   let body ctx (f:fundec) : Dom.t = Dom.top ()
 
-  let return ctx (exp:exp option) (f:fundec) : Dom.t = Dom.top ()
+  let return ctx (exp:exp option) (f:fundec) : Dom.t = let _ = BatOption.may no_addr_of_flag exp in Dom.top ()
   
 (*   let eval_funvar ctx (fv:exp) =  [(ctx.local,ctx.local)] *)
    
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list = [(Dom.top (),Dom.top ())]
+  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list = 
+    let _ = List.iter no_addr_of_flag args in
+    [(Dom.top (),Dom.top ())]
   
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = Dom.top ()
+  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = 
+    let _ = List.iter no_addr_of_flag args in
+    let _ = no_addr_of_flag fexp in
+    Dom.top ()
   
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list = 
+    let _ = List.iter no_addr_of_flag arglist in
     match f.vname with _ -> [Dom.top (),Cil.integer 1, true]
 
   let startstate () = Dom.top ()
@@ -101,10 +131,10 @@ let _ = print_endline ( "remove") in
  
   (** postprocess and print races and other output *)
   let finalize () = 
-    let out var = 
-      let values = VSet.fold (fun e str -> (Val.short 50 e) ^", "^str) (Hashtbl.find vars var) " " in
-      print_endline ( var ^ " is a flag with values: " ^ values ^"." ) in      
-    let _ = List.map out (List.filter (fun x -> (List.mem x !branchvars)) !flags) in ()
+    let sprint f x = BatPrintf.fprintf f "\"%s\"" x in
+    let print_flags_file f = BatPrintf.fprintf f "{\n\"expflags\":%a\n}\n" (BatList.print ~sep:", " sprint) 
+		  (List.filter (fun x -> (List.mem x !branchvars)) !flags) in 
+    BatFile.with_file_out "flags.json" print_flags_file
 
   let init () =  ()
 
