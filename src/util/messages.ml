@@ -84,7 +84,6 @@ let report ?loc:(loc= !Tracing.current_loc) msg =
     if (Hashtbl.mem report_lin_hashtbl (msg,loc) == false) then
       begin
         print_msg msg loc;
-        htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
         Hashtbl.add report_lin_hashtbl (msg,loc) true
       end
   end
