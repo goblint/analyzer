@@ -43,7 +43,7 @@ struct
     in
     let rec solve (x:variable) =
       if not (VSet.mem x !stable || VSet.mem x !called) then begin
-        if VMap.mem sigma x then (VMap.add sigma x (VDom.bot ()); VMap.add infl x []);
+        if not (VMap.mem sigma x) then (VMap.add sigma x (VDom.bot ()); VMap.add infl x []);
         called := VSet.add x !called;
         let rec loop () =
           stable := VSet.add x !stable;
