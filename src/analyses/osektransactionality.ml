@@ -7,6 +7,8 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
+  let violations = ref false (*print negative warnings? *)
+
   let name = "OSEK trasactionality"
   module Dom  = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
   module Glob = Glob.Make (Lattice.Unit)
@@ -47,7 +49,7 @@ struct
     let b2 = access_one_top ctx.ask false rval in
     let stack = get_stack ctx in
     let addvars var fn = let (vars,t) = Hashtbl.find funs fn.vname in
-      let _ = Hashtbl.replace funs fn.vname (StringSet.add var vars , t) in
+      let _ = Hashtbl.replace funs fn.vname (StringSet.add var vars , Osektupel.join t ctxr) in
 (* let _ = print_endline("Adding " ^ var ^ " to accessset of" ^ fn.vname) in *)
 	fn
     in
@@ -149,9 +151,11 @@ struct
 		  if ( (fname = "__goblint_dummy_init") || (fname = "goblin_initfun") ) then () else
 		    if (pryd == (-1)) then print_endline ("Function " ^ fname ^ " contains (at most) one variable access.") else
 		      print_endline ("Function " ^ fname ^ " is transactional with a defensive overall priority of " ^ (string_of_int pryd) ^ " .")
-        | _  -> print_endline ("Transactionality violation in function " ^ fname ^ ":");
-                (printlist warn);
-                print_endline ("versus a defensive overall priority of " ^ (string_of_int pryd) ^ " .");         
+        | _  -> if !violations then begin 
+		  print_endline ("Transactionality violation in function " ^ fname ^ ":");
+		  (printlist warn);
+		  print_endline ("versus a defensive overall priority of " ^ (string_of_int pryd) ^ " .")
+		end else ()     
       in
       let warnings = StringSet.fold (helper pryd) vars [] in 
       printwarnings warnings
