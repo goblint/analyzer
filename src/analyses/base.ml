@@ -144,6 +144,7 @@ struct
      * not include the flag. *)
     let update_one_addr (x, offs) nst: cpa = 
       if Cil.isFunctionType x.vtype then nst else 
+      if get_bool "exp.globs_are_top" then CPA.add x `Top nst else
       (* Check if we need to side-effect this one. We no longer generate
        * side-effects here, but the code still distinguishes these cases. *)
       if ((get_bool "exp.earlyglobs") || Flag.is_multi fl) && is_global a x then 
