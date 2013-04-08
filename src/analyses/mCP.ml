@@ -882,7 +882,8 @@ struct
       set_st_gl ctx d g (fun _ -> add_fork) (fun x -> x) 
     in
     let ret = f mk_ctx in
-    List.iter register_one (List.fold_left combine_forks [] !forks);
+    if not (get_bool "exp.single-threaded") then
+      List.iter register_one (List.fold_left combine_forks [] !forks);
     ret
 
   (* queries *)
@@ -1375,7 +1376,8 @@ struct
       in
       ctx.spawn2 v @@ map join_vals @@ spec_list @@ group_assoc (d @ otherstate ())
     in
-    iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
+    if not (get_bool "exp.single-threaded") then
+      iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
   let do_sideg ctx (xs:(varinfo * (int * Obj.t)) list) =
     let side_one v d = 

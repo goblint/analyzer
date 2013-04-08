@@ -1294,7 +1294,7 @@ struct
                     let _ = Cilfacade.getdec var in true 
                   with _ -> acc
                 in 
-                if List.fold_right f flist false then begin
+                if List.fold_right f flist false && not (get_bool "exp.single-threaded") then begin
                   (* Copy-pasted from the thread-spawning code above: *)
                   GU.multi_threaded := true;
                   let new_fl = Flag.join fl (Flag.get_main ()) in

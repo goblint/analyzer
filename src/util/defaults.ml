@@ -121,7 +121,8 @@ let _ =
   reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails.";
   reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top";
   reg Experimental "exp.need"              "false" "Bidirectional analysis";
-  reg Experimental "exp.back_loop_sep"     "false" "Only widen on nodes with back edges."
+  reg Experimental "exp.back_loop_sep"     "false" "Only widen on nodes with back edges.";
+  reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created."
   
 (* {4 category [Debugging]} *)
 
