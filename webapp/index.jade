@@ -1,0 +1,80 @@
+doctype 5
+html
+  head
+    title= pageTitle
+    //- link(href="css/bootstrap.min.css", rel="stylesheet", media="screen")
+    link(href="components/bootstrap/docs/assets/css/bootstrap.css", rel="stylesheet", media="screen")
+    link(href="components/angular-ui/build/angular-ui.min.css", rel="stylesheet")
+    link(href="components/codemirror/lib/codemirror.css", rel="stylesheet")
+    link(href="components/codemirror/theme/monokai.css", rel="stylesheet")
+    != css('index')
+    //- script(src="js/jquery-1.8.3.min.js")
+    //- script(src="js/bootstrap.min.js")
+    //- script(src="js/knockout-2.2.0.js")
+    //- script(src="js/knockout.mapping-latest.js")
+    script(src="components/jquery/jquery.min.js")
+    script(src="components/bootstrap/docs/assets/js/bootstrap.min.js")
+    script(src="components/angular/angular.min.js")
+    //- script(src="components/angular-resource/angular-resource.js")
+    //- script(src="components/angular-cookies/angular-cookies.js")
+    script(src="components/angular-ui/build/angular-ui.min.js")
+    script(src="components/codemirror/lib/codemirror.js")
+    script(src="components/codemirror/mode/clike/clike.js")
+    script(src="components/codemirror/addon/edit/matchbrackets.js")
+    script
+      'use strict';
+
+      angular.module('webApp', ['ui'])
+        .config(function ($routeProvider) {
+          $routeProvider
+            .when('/', {
+              //- templateUrl: '../result/01-ok.c..html',
+              controller: 'MainCtrl'
+            })
+            .otherwise({
+              redirectTo: '/'
+            });
+        })
+        .controller('MainCtrl', function ($scope) {
+          //- $scope.codeMirrorModel = 'bla';
+        });
+
+      console.log("angular-ui ok");
+
+      function loadFile(f){
+        $('#foo').text('file: '+f);
+        //- $scope.codeMirrorModel = 'bla';
+        $.get('source/'+f, {}, function(data){
+          $('#source2').text(data);
+        });
+        $.get('result/'+f, {}, function(data){
+          $('#result').text(data);
+        });
+      }
+
+  body(ng-app="webApp")
+    include ie.fail
+    .container-fluid
+      .row-fluid
+        .span2
+          ul.unstyled
+            each f in files
+              li: a(href="javascript: loadFile('"+f+"')")= f
+        .span10
+          .toolbar
+            a.btn: i.icon-hdd
+          textarea#source(ui-codemirror="{mode: 'text/x-csrc', lineNumbers: true, matchBrackets: true, theme:'monokai'}", ng-model="codeMirrorModel")
+          textarea#foo {{codeMirrorModel}}
+          br
+          textarea#source2
+          textarea#result
+          div(ng-view)
+            | content
+    //- express: development?
+    if true
+      // livereload snippet
+      //- worked, but not anymore :(
+      script
+        document.write('<script src="http://'
+         + (location.host || 'localhost').split(':')[0]
+         + ':35729/livereload.js?snipver=1"><\/script>')

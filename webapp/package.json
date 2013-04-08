@@ -1,0 +1,17 @@
+{
+  "name": "Goblint",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "node server"
+  },
+  "dependencies": {
+    "express": ">= 3.0.4",
+    "jade": "*",
+    "stylus": "*",
+    "eyes": ">= 0.1.8",
+    "xml2js": ">= 0.2.2",
+    "connect-assets": ">= 2.3.3",
+    "coffee-script": ">= 1.4.0"
+  }
+}

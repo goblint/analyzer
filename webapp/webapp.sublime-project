@@ -1,0 +1,16 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+			"folder_exclude_patterns": ["node_modules", "public/components"]
+		}
+	],
+    "build_systems":
+    [
+        {
+            "name": "nodemon",
+            "cmd": ["nodemon", "server.coffee"]
+        }
+    ]
+}
