@@ -21,8 +21,9 @@ let _ =
           print_newline ();
           Printf.printf "#Definitions: %i, #Nodes: %i, #Edges: %i\n"
             (List.length !defs) (List.length nodes) (List.length edges);
-          print_newline ();
-          Def.dot !defs;
+          let dot = Def.dot !defs in
+          output_file "file.dot" dot;
+          print_endline "saved graph as file.dot";
           exit 0
       (* catch and print in repl-mode *)
       | e when repl -> print_endline (Printexc.to_string e)

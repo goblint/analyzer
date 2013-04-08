@@ -13,4 +13,5 @@ let dot defs =
     | Edge(a, b, s) -> "  "^a^" -> "^b^"\t[label=\""^s^"\"];"
   in
   let lines = "digraph file {"::(List.map to_string defs)@["}"] in
-  List.iter print_endline lines
+  (* List.iter print_endline lines *)
+  String.concat "\n" lines
