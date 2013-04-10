@@ -20,11 +20,9 @@ If something goes wrong, switch to the versions listed in [INSTALL](INSTALL):
 Alternatively you can use your system's package manager to install the dependencies globally or use [install_script.sh](scripts/install_script.sh) to build everything from source without affecting any existing OCaml installation.
 
 
-In order to setup the web frontend (needs [node](http://nodejs.org/) and [bower](http://twitter.github.com/bower/)) do
+In order to setup the web frontend do
 
     git submodule update --init --recursive
     cd webapp
-    npm install -g bower coffee-script nodemon     # install those globally if not already installed
-    npm install && bower install
 
-Then run it using `coffee server` or `nodemon server.coffee` for development.
+Then follow the instructions in its [README](https://github.com/vogler/goblint-webapp).
