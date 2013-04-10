@@ -36,7 +36,7 @@ struct
     if (get_bool "ana.osek.check") then check_osek ();
     ()
 
-  let parse_tramp tramp = 
+(*  let parse_tramp tramp = 
     if tracing then trace "osek" "Parsing trampolineish header...\n";
     let input = open_in tramp in
     let comment = Str.regexp "//.* \\|/\\*.*" in
@@ -80,7 +80,7 @@ struct
     in read_info (); 
     if (get_bool "ana.osek.check") then check_tramp ();
     if tracing then trace "osek" "Done parsing trampolineish header\n";
-    close_in input
+    close_in input*)
 
   let parse_names names = 
     if tracing then trace "osek" "Parsing API (re)names...\n";
@@ -165,6 +165,31 @@ struct
         let _ = if false then Messages.write (Pretty.sprint ~width:80 (dprintf "Variable %s is %B because %d <= %d" v.vname res off pry)) else () in `Bool res 
     | _ -> Queries.Result.top ()
 
+  let query_lv ask exp = 
+    match ask (Queries.MayPointTo exp) with
+      | `LvalSet l when not (Queries.LS.is_top l) -> 
+          Queries.LS.elements l
+      | _ -> []
+
+  let eval_fv ask exp = 
+    match query_lv ask exp with
+      | [(v,_)] -> Some v (* This currently assumes that there is a single possible l-value. *)
+      | _ -> None
+
+  let eval_arg ctx (arg:exp) =
+    match arg with
+    | Lval (Var vinfo,_) -> if is_task (make_task vinfo.vname) then 
+			      vinfo
+			    else 
+			      failwith (vinfo.vname ^ " is not a task")
+    | _ -> (match eval_fv ctx.ask arg with
+      | Some v -> v
+      | None   -> failwith "cannot extract arg")
+
+
+  let startstate () = Dom.top ()
+  let otherstate () = Dom.top ()
+  let exitstate  () = Dom.top ()
 
   (* transfer functions *)
   let intrpt ctx : Dom.t =
@@ -187,7 +212,7 @@ struct
         | [(x,_,_)] -> x 
         | _ -> failwith "This never happens!"     
     end else 
-      m_st
+      m_st(**)
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t =
     let m_st = M.return ctx (exp:exp option) (f:fundec) in
@@ -221,8 +246,8 @@ struct
     match fvname with
       | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
 	M.special_fn ctx lval f (match arglist with 
-	  | [Lval l] -> [AddrOf l] 
-	  | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> [get_lock (find_name (Int64.to_string c))]      
+	  | [Lval (Var info,_)] -> [get_lock info.vname] 
+	  | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> failwith ("parameter for " ^ fvname ^ " is constant. Remove trampoline header?")
 (* | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
 	  | x -> x)  
       | "DisableAllInterrupts" -> let res = get_lock "DisableAllInterrupts" in
@@ -234,9 +259,14 @@ struct
       | "SuspendOSInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
       | "ResumeOSInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
       | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
-	M.special_fn ctx lval f (match arglist with (*call function *)
-	  | [x] -> let _ = printf "ActivateTask: %a" (printExp plainCilPrinter) x in [x]
-	  | x -> x)
+      let _ = (match arglist with (*call function *)
+	  | [x] -> let vinfo = eval_arg ctx x in
+		   let task_name = make_task(vinfo.vname) in
+		   let task = Cilfacade.getFun task_name in
+		   let _ = ctx.spawn task.svar (otherstate ()) in
+                   [ctx.local, Cil.integer 1, true]
+	  | _  -> failwith "ActivateTask arguments are strange") in
+	M.special_fn ctx lval f arglist
       | "ChainTask" ->  if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
 	M.special_fn ctx lval f arglist (*call function *)
       | "WaitEvent" -> (if (get_bool "ana.osek.check") then begin
@@ -271,11 +301,7 @@ struct
       | "StartOS" -> let _ =if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local))) in 
 	M.special_fn ctx lval f arglist
       | _ -> M.special_fn ctx lval f arglist
-
-  let startstate () = Dom.top ()
-  let otherstate () = Dom.top ()
-  let exitstate  () = Dom.top ()
-  
+ 
   let name = "OSEK analysis"
   let es_to_string f _ = f.svar.vname
 
@@ -430,14 +456,14 @@ struct
     end;
     Base.Main.finalize ()
 
-  let init () = 
+  let init () = (*
     let tramp = get_string "ana.osek.tramp" in
     if Sys.file_exists(tramp) then begin
       parse_tramp tramp;
     end else begin
       prerr_endline "Trampoline headers not found." ;
       exit 2;
-    end;
+    end;*)
     LibraryFunctions.add_lib_funs osek_API_funs;
     let names = !osek_renames in
     if Sys.file_exists(names) then begin

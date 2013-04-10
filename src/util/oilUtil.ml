@@ -26,6 +26,9 @@ let osek_renames = ref ""
 let osek_names : (string,string) Hashtbl.t = Hashtbl.create 16
 
 let osek_ISR_PRIORITY = ref ["PRIORITY"; "INTERRUPTPRIORITY"]
+let osek_API_funs = ["ActivateTask"; "TerminateTask"; "ChainTask"; "Schedule"; "GetTaskID"; "GetTaskState"; "DisableAllInterrupts"; "EnableAllInterrupts"; "SuspendAllInterrupts"; "ResumeAllInterrupts"; "SuspendOSInterrupts"; "ResumeOSInterrupts"; "GetResource"; "ReleaseResource"; "SetEvent"; "GetEvent"; "ClearEvent"; "WaitEvent"; "GetAlarmBase"; "GetAlarm"; "SetRelAlarm"; "SetAbsAlarm"; "CancelAlarm"; "GetActiveApplicationMode"; "StartOS"; "ShutdownOS"]
+let header = ref "goblint.h"
+let default_defs = ref true
 
 (* boolean flags *)
 let startuphook = ref false
@@ -44,20 +47,23 @@ let resources : (string,res_t) Hashtbl.t = Hashtbl.create 16
 let events : (string,event_t) Hashtbl.t = Hashtbl.create 16
 let tasks  : (string,task_t) Hashtbl.t = Hashtbl.create 16 
 let isrs   : (string,isr_t) Hashtbl.t = Hashtbl.create 16
-
-(*unsused*)
+(* start analysis here *)
 let starting_tasks = ref ([] : string list)
 let concurrent_tasks = ref ([] : string list)
-(*/unsused*)
+
+
 let warned = ref ([] :string list)
 
-(*DeclareTask "external" *)
+(* adding the task pre and/or suffix *)
+let make_task name = (get_string "ana.osek.taskprefix") ^ name ^ (get_string "ana.osek.tasksuffix")
+let make_isr name = (get_string "ana.osek.isrprefix") ^ name ^ (get_string "ana.osek.isrsuffix")
+(* triming the task pre and/or suffix *)
+let trim_task name = (Str.string_after (Str.string_before name ((String.length name) - (String.length (get_string "ana.osek.tasksuffix")))) (String.length (get_string "ana.osek.taskprefix")))
+let trim_isr name = (Str.string_after (Str.string_before name ((String.length name) - (String.length (get_string "ana.osek.isrsuffix")))) (String.length (get_string "ana.osek.isrprefix")))
 
-let osek_API_funs = ["ActivateTask"; "TerminateTask"; "ChainTask"; "Schedule"; "GetTaskID"; "GetTaskState"; "DisableAllInterrupts"; "EnableAllInterrupts"; "SuspendAllInterrupts"; "ResumeAllInterrupts"; "SuspendOSInterrupts"; "ResumeOSInterrupts"; "GetResource"; "ReleaseResource"; "SetEvent"; "GetEvent"; "ClearEvent"; "WaitEvent"; "GetAlarmBase"; "GetAlarm"; "SetRelAlarm"; "SetAbsAlarm"; "CancelAlarm"; "GetActiveApplicationMode"; "StartOS"; "ShutdownOS"]
 
 (*priority function*)
 let pry res = try let (_,pry,_) =Hashtbl.find resources res in pry with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
-
 
 let get_api_names name =
   try
@@ -73,6 +79,33 @@ name
 let is_task f = (Hashtbl.mem tasks f) || (Hashtbl.mem isrs f)
 
 let is_starting f = (List.mem f !concurrent_tasks) || (List.mem f !starting_tasks)
+
+(*print id header *)
+let generate_header () = 
+  let f = open_out !header in
+    let print_resources id value = if not(is_task id) then output_string f ("int " ^ id ^ ";\n") else () in
+    let print_events id value 	 = output_string f ("int " ^ id           ^ ";\n") in
+    let print_tasks id value     = output_string f ("int " ^ trim_task id ^ ";\n") in
+    let print_isrs id value      = output_string f ("int " ^ trim_isr id  ^ ";\n") in
+    output_string f "#ifndef goblint\n";
+    output_string f "#define goblint\n";
+    Hashtbl.iter print_resources resources;
+    Hashtbl.iter print_events events;
+    Hashtbl.iter print_tasks tasks;
+    Hashtbl.iter print_isrs isrs;
+    output_string f "#endif\n";
+    if !default_defs then begin
+      output_string f "#ifndef E_OK\n";
+      output_string f "#define E_OK 0\n";
+      output_string f "#endif\n";
+      output_string f "#ifndef TASK\n";
+      output_string f "#define TASK( TaskName )    void  function_of_##TaskName( void )\n";
+      output_string f "#endif\n";
+      output_string f "#ifndef ISR\n";
+      output_string f "#define ISR( IsrName )     function_of_##IsrName( )\n";
+      output_string f "#endif\n";
+    end;
+    close_out f
 
 let compare_objs obj1 obj2 =
   match obj1,obj2 with
@@ -100,6 +133,9 @@ let check_api_use cat fname task =
 let get_lock name = 
   if tracing then trace "osek" "Looking for lock %s\n" name;
   let _,_,lock = Hashtbl.find resources name in
+(*let _ = match lock with
+	  | AddrOf (Var varinfo,NoOffset) -> print_endline varinfo.vname
+in*)
   lock
 
 let make_lock name = 
@@ -147,7 +183,7 @@ let check_osek () =
   Hashtbl.iter check_task  tasks;
   ()
 
-let check_tramp () =
+(*let check_tramp () =
   if tracing then trace "osek" "Checking trampoline IDs\n";
   let check_res_id res_name res_value = match res_value with
     | ("-1",_,_) ->let _ = printf "Warning: No ID found for resource %s!" res_name in ()
@@ -159,7 +195,7 @@ let check_tramp () =
     | _ -> ()
   in
   Hashtbl.iter check_ev_id events;
-  ()
+  ()*)
 
 let compute_ceiling_priority res r_value = 
   let id,pry,lock = r_value in
@@ -308,11 +344,11 @@ let handle_attribute_isr object_name t_value (attr : (string*attribute_v)) =
 let handle_action_alarm object_name attr =
 	let subaction, target = attr in (match (String.uppercase subaction) with
 	| "TASK" -> let helper (a,b,c,d,_,f,g) = (a,b,c,d,true,f,g) in (match target with
-	  | Name (name,None) -> let task = (get_string "ana.osek.taskprefix") ^ name ^ (get_string "ana.osek.tasksuffix") in
+	  | Name (name,None) -> let task = make_task name in
 	    if tracing then trace "osek" "ActivateTask %s as Name\n" task;
 	    Hashtbl.replace tasks task (helper (Hashtbl.find tasks task));
 	    concurrent_tasks :=  task :: !concurrent_tasks
-	  | String name  -> let task = (get_string "ana.osek.taskprefix") ^ name ^ (get_string "ana.osek.tasksuffix") in
+	  | String name  -> let task = make_task name in
 	    if tracing then trace "osek" "ActivateTask %s as String\n" task;
 	    Hashtbl.replace tasks task (helper (Hashtbl.find tasks task))
 	  | other  ->
@@ -441,7 +477,7 @@ let add_to_table oil_info =
 		    | [] -> ()
 		    | _ -> let _ = List.map handle_attribute_os attribute_list in ()
 		 )
-    | "TASK" -> let name = (get_string "ana.osek.taskprefix") ^ object_name ^ (get_string "ana.osek.tasksuffix") in
+    | "TASK" -> let name = make_task object_name in
 		let def_task = (false,-1,[name;"RES_SCHEDULER"],[],false,false,16) in	
 		let _ = Hashtbl.add resources name (name,-1,make_lock name) in
 		(match attribute_list with
@@ -450,7 +486,7 @@ let add_to_table oil_info =
 		    Hashtbl.add tasks name def_task
 		  | _ -> Hashtbl.add tasks name (List.fold_left (handle_attribute_task name) def_task attribute_list)
 		)
-    | "ISR"  -> let name = (get_string "ana.osek.taskprefix") ^ object_name ^ (get_string "ana.osek.tasksuffix") in
+    | "ISR"  -> let name = make_isr object_name in
 		let def_isr = (-1,[name; "SuspendOSInterrupts"],-1) in
 		let _ = Hashtbl.add resources name (name,-1, make_lock name) in
 		concurrent_tasks := name :: !concurrent_tasks;
@@ -472,7 +508,9 @@ let add_to_table oil_info =
     | "IPDU"
     | _ -> 
 	    if tracing then trace "osek" "Skipped unhandled object %s \n" object_type;
-	    ();
+	    ()
+    ;
+    generate_header ();
     ()
 
 

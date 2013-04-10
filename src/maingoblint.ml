@@ -97,7 +97,7 @@ let parse_arguments () =
 (** Initialize some globals in other modules. *)
 let handle_flags () =
   if get_bool "allfuns" || get_bool "nonstatic" 
-      || get_string "ana.osek.oil" <> "''" then Goblintutil.multi_threaded := true;
+      || get_string "ana.osek.oil" <> "''" then begin Goblintutil.multi_threaded := true; Osek.Spec.parse_oil () end;
   
   if get_bool "dbg.debug" then Messages.warnings := true;
 
@@ -159,7 +159,8 @@ let preprocess_files () =
   
   (* fill include flags *)
   let one_include_f f x = includes := "-I " ^ f (string x) ^ " " ^ !includes in
-  if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes;
+  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ !OilUtil.header ^" "^ !includes;
+(*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
   get_list "includes" |> List.iter (one_include_f identity);
   get_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
   
@@ -237,7 +238,6 @@ let do_analyze merged_AST =
     Cilfacade.print merged_AST
   else begin
     (* we first find the functions to analyze: *)
-    if get_string "ana.osek.oil" <> "" then Osek.Spec.parse_oil ();
     if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
       if stf@exf@otf = [] then failwith "No suitable function to start from.";
