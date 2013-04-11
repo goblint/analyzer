@@ -132,8 +132,11 @@ let _ = print_endline ( "remove") in
   (** postprocess and print races and other output *)
   let finalize () = 
     let sprint f x = BatPrintf.fprintf f "\"%s\"" x in
-    let print_flags_file f = BatPrintf.fprintf f "{\n\"expflags\":%a\n}\n" (BatList.print ~sep:", " sprint) 
-		  (List.filter (fun x -> (List.mem x !branchvars)) !flags) in 
+    let print_flags_file f = 
+        BatPrintf.fprintf f "{\n\"ana\": {\n\t\"osek\": {\n\t\t\"flags\": %a\n\t\t}\n\t}\n}\n" 
+          (BatList.print ~sep:", " sprint) 
+          (List.filter (fun x -> (List.mem x !branchvars)) !flags) 
+    in 
     BatFile.with_file_out "flags.json" print_flags_file
 
   let init () =  ()
