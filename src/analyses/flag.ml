@@ -49,18 +49,18 @@ struct
   let _ = match lval with 
    | (Var var, NoOffset) -> if var.vglob then begin
 	let x = var.vname in if List.mem x !noflags then () else
-let _ = print_endline ( List.fold_left (fun acc a -> a ^ ", " ^ acc) "" !flags   ) in 
+(* let _ = print_endline ( List.fold_left (fun acc a -> a ^ ", " ^ acc) "" !flags   ) in  *)
 	(match rval with 
 	| Const (CInt64 (i,_,_)) -> if List.mem x !flags then 
 	  let v = Hashtbl.find vars x in
-let _ = print_endline ( "assign" ^ (Int64.to_string i)) in  
-let _ = print_endline ( x ^ " has values " ^ VSet.fold (fun e str -> (Val.short 50 e) ^", " ^str  ) v " ") in      
+(* let _ = print_endline ( "assign" ^ (Int64.to_string i)) in   *)
+(* let _ = print_endline ( x ^ " has values " ^ VSet.fold (fun e str -> (Val.short 50 e) ^", " ^str  ) v " ") in       *)
 	    if (VSet.mem (Val.of_int i) v) then () else
 	      if (VSet.cardinal v < 3) then
-let _ = print_endline ( "add") in  
+(* let _ = print_endline ( "add") in   *)
 		Hashtbl.replace vars x (VSet.add (Val.of_int i) v)
 	      else begin
-let _ = print_endline ( "remove") in  
+(* let _ = print_endline ( "remove") in   *)
 		flags := listrem x !flags;
 		branchvars := listrem x !branchvars;
 		noflags := x::!noflags;
