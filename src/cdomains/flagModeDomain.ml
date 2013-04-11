@@ -12,6 +12,8 @@ module Dom =
 struct
   include MapDomain.MapTop_LiftBot (Basetype.Variables) (P)
   
+  let find k x = if mem k x then find k x else raise Not_found
+  
   let join x y = 
     let f _ x y =
       match x, y with
