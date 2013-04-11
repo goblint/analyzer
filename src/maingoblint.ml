@@ -72,7 +72,8 @@ let option_spec_list =
     ; "--halp"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "-help"                , Arg.Unit (fun _ -> print_help stdout),""
     ; "--oil"                , Arg.String oil, ""
-    ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""
+(*     ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""  *)
+    ; "--osekdefaults"       , Arg.Unit (fun () -> set_bool "ana.osek.defaults" false), ""
     ; "--osektaskprefix"     , Arg.String (set_string "ana.osek.taskprefix"), ""
     ; "--osekisrprefix"      , Arg.String (set_string "ana.osek.isrprefix"), ""
     ; "--osektasksuffix"     , Arg.String (set_string "ana.osek.tasksuffix"), ""

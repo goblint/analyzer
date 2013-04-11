@@ -86,7 +86,8 @@ let _ =
   reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class.";
   reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required).";
   reg Analyses "ana.osek.oil"        "''"    "Oil file for the analyzed program";
-  reg Analyses "ana.osek.tramp"      "''"    "Resource-ID-headers for the analyzed program";
+  reg Analyses "ana.osek.defaults"   "true"  "Generate default definitions for TASK and ISR";
+(*   reg Analyses "ana.osek.tramp"      "''"    "Resource-ID-headers for the analyzed program"; *)
   reg Analyses "ana.osek.isrprefix"  "''"    "Prefix added by the ISR macro";
   reg Analyses "ana.osek.taskprefix" "''"    "Prefix added by the TASK macro";
   reg Analyses "ana.osek.isrsuffix"  "''"    "Suffix added by the ISR macro";
