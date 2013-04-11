@@ -13,6 +13,7 @@ viewcmd=gpicview
 mkdir -p ${dst}
 cp ${file}.dot ${dst}
 cd ${dst}
+trap 'cd ..' EXIT # leave dst again on exit
 case "$mode" in
   png) dot -Tpng -o${file}.png ${file}.dot;
        check ${viewcmd} "Please edit viewcmd accordingly."
@@ -24,6 +25,7 @@ case "$mode" in
        dot -Txdot ${file}.dot | dot2tex > ${file}.tex;
        check pdflatex
        pdflatex ${file}.tex
+       echo  "generated $dst/$file.pdf"
   ;;
 esac
-cd ..
+
