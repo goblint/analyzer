@@ -1,4 +1,4 @@
-//PARAM: --oil 01-flag.oil -I os/ -I 01-defaultAppWorkstation/ -I 01-defaultAppWorkstation/os/os_machine/posix-libpcl/ --tramp 01-defaultAppWorkstation/tpl_os_generated_configuration.h --osektaskprefix function_of_ --osekisrprefix function_of_
+//PARAM: --oil 01-flag.oil -I os/ -I 01-defaultAppWorkstation/ -I 01-defaultAppWorkstation/os/os_machine/posix-libpcl/ --osektaskprefix function_of_ --osekisrprefix function_of_
 
 #include <stdio.h>
 #include <string.h>

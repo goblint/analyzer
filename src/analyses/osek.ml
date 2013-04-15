@@ -477,7 +477,7 @@ module ThreadMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "OSEK" 
-                let depends = ["Flag Modes"]
+                let depends = ["fmode"]
                 type lf = Spec.Dom.t
                 let inject_l x = `OSEK x
                 let extract_l x = match x with `OSEK x -> x | _ -> raise MCP.SpecificationConversionError

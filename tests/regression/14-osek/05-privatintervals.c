@@ -1,6 +1,4 @@
-// SKIP PARAM: --set ana.activated "[['base','escape','OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 05-pi.oil --sets ana.osek.tramp 05-pi-tramp.h --set ana.int.interval true --propdel int_domain trier --set solver "'new'" --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
-
-// #include "05-pi-tramp.h"
+// SKIP PARAM: --set ana.activated "[['base','escape','fmode', 'OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 05-pi.oil --set ana.int.interval true --set ana.int.trier false --sets solver new --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
 
 int x = 0;
 // int y;
