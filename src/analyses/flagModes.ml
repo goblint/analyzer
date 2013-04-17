@@ -13,11 +13,10 @@ struct
   module Glob = Glob.Make (Lattice.Unit)
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
-  
+
   let flag_list = ref []
   
-  let init () = 
-    flag_list := List.map Json.string @@ get_list "ana.osek.flags"
+  let init () = flag_list := List.map Json.string @@ get_list "ana.osek.flags"
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =

@@ -66,6 +66,7 @@ let trim_isr name = (Str.string_after (Str.string_before name ((String.length na
 let pry res = try let (_,pry,_) =Hashtbl.find resources res in pry with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
 
 let get_api_names name =
+  if List.mem name osek_API_funs then name else begin
   try
     let res = Hashtbl.find osek_names name in
     if tracing then trace "osek" "Renameing %s to %s\n" name res;
@@ -73,10 +74,11 @@ let get_api_names name =
   with 
     | Not_found -> 
 	if tracing then trace "osek" "API name for %s not found\n" name;
-name
+        name
     | e -> raise e
+  end
 
-let is_task f = (Hashtbl.mem tasks f) || (Hashtbl.mem isrs f)
+let is_task f = ((Hashtbl.mem tasks f) || (Hashtbl.mem isrs f))
 
 let is_starting f = (List.mem f !concurrent_tasks) || (List.mem f !starting_tasks)
 
@@ -87,6 +89,30 @@ let generate_header () =
     let print_events id value 	 = output_string f ("int " ^ id           ^ ";\n") in
     let print_tasks id value     = output_string f ("int " ^ trim_task id ^ ";\n") in
     let print_isrs id value      = output_string f ("int " ^ trim_isr id  ^ ";\n") in
+    let task_macro () = 
+      if (get_string "ana.osek.taskprefix") = "" then
+        if (get_string "ana.osek.tasksuffix") = "" then    
+          "TaskName"
+        else 
+          "TaskName##" ^ (get_string "ana.osek.tasksuffix")
+      else  
+        if (get_string "ana.osek.tasksuffix") = "" then    
+          (get_string "ana.osek.taskprefix")^"##TaskName"
+        else 
+          (get_string "ana.osek.taskprefix")^"##TaskName##" ^ (get_string "ana.osek.tasksuffix")
+    in
+    let isr_macro () = 
+      if (get_string "ana.osek.isrprefix") = "" then
+        if (get_string "ana.osek.isrsuffix") = "" then    
+          "ISRName"
+        else 
+          "ISRName##" ^ (get_string "ana.osek.isrsuffix")
+      else  
+        if (get_string "ana.osek.isrsuffix") = "" then    
+          (get_string "ana.osek.isrprefix")^"##ISRName"
+        else 
+          (get_string "ana.osek.isrprefix")^"##ISRName##" ^ (get_string "ana.osek.isrsuffix")
+    in
     output_string f "#ifndef goblint\n";
     output_string f "#define goblint\n";
     Hashtbl.iter print_resources resources;
@@ -99,10 +125,10 @@ let generate_header () =
       output_string f "#define E_OK 0\n";
       output_string f "#endif\n";
       output_string f "#ifndef TASK\n";
-      output_string f "#define TASK( TaskName )    void  function_of_##TaskName( void )\n";
+      output_string f ("#define TASK( TaskName ) void " ^ task_macro () ^ "( void )\n");
       output_string f "#endif\n";
       output_string f "#ifndef ISR\n";
-      output_string f "#define ISR( IsrName )     function_of_##IsrName( )\n";
+      output_string f ("#define ISR( ISRName ) void " ^ isr_macro() ^ "( void )\n");
       output_string f "#endif\n";
     end;
     close_out f
@@ -369,11 +395,11 @@ let handle_event_alarm object_name attr =
 	  if tracing then trace "osek" "Handling parameter EVENT for SETEVENT of ALARM %s\n" object_name;
 	  let helper (a,_) = (a,true) in (match target with
 	  | Name (ev,None) -> 
-if tracing then trace "osek" "EVENT %s ALARM %s\n" ev object_name;
-Hashtbl.replace events ev (helper (Hashtbl.find events ev))
+            if tracing then trace "osek" "EVENT %s ALARM %s\n" ev object_name;
+            Hashtbl.replace events ev (helper (Hashtbl.find events ev))
 	  | String ev  -> 
-if tracing then trace "osek" "EVENT2 %s ALARM %s\n" ev object_name;
-Hashtbl.replace events ev (helper (Hashtbl.find events ev))
+            if tracing then trace "osek" "EVENT2 %s ALARM %s\n" ev object_name;
+            Hashtbl.replace events ev (helper (Hashtbl.find events ev))
 	  | other  ->
 (* TODO	    if tracing then trace "osek" "Unknown parameter (%s) for SETEVENT of ALARM %s\n" other object_name;*)
 	    if tracing then trace "osek" "Unknown parameter (_) for SETEVENT of ALARM %s\n" object_name;
