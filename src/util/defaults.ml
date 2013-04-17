@@ -88,8 +88,8 @@ let _ =
   reg Analyses "ana.osek.oil"        "''"    "Oil file for the analyzed program";
   reg Analyses "ana.osek.defaults"   "true"  "Generate default definitions for TASK and ISR";
 (*   reg Analyses "ana.osek.tramp"      "''"    "Resource-ID-headers for the analyzed program"; *)
-  reg Analyses "ana.osek.isrprefix"  "''"    "Prefix added by the ISR macro";
-  reg Analyses "ana.osek.taskprefix" "''"    "Prefix added by the TASK macro";
+  reg Analyses "ana.osek.isrprefix"  "'function_of_'"    "Prefix added by the ISR macro";
+  reg Analyses "ana.osek.taskprefix" "'function_of_'"    "Prefix added by the TASK macro";
   reg Analyses "ana.osek.isrsuffix"  "''"    "Suffix added by the ISR macro";
   reg Analyses "ana.osek.tasksuffix" "''"    "Suffix added by the TASK macro";
   reg Analyses "ana.osek.intrpts"    "false" "Enable constraints for interrupts.";

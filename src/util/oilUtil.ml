@@ -536,7 +536,6 @@ let add_to_table oil_info =
 	    if tracing then trace "osek" "Skipped unhandled object %s \n" object_type;
 	    ()
     ;
-    generate_header ();
     ()
 
 

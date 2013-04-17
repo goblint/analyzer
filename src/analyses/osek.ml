@@ -34,6 +34,7 @@ struct
     match file token (Lexing.from_channel (open_in oil_file)) with
       | [] -> failwith ( "No OIL-Objects found!")
       | objs -> let _ = List.map add_to_table (List.sort compare_objs objs) in
+        generate_header ();
 	if tracing then trace "osek" "Done parsing OIL-file\n";
 	();
     if tracing then trace "osek" "Computing ceiling priorities...\n";
