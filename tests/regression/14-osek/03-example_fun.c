@@ -1,7 +1,4 @@
-// PARAM: --set ana.activated "[['base','escape','OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 03-example_fun.oil --sets ana.osek.tramp 03-example_fun-tramp.h --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
-
-// #include "03-example_fun-tramp.h"
-
+// PARAM: --set ana.activated "[['base','escape','fmode','OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 03-example_fun.oil --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
 
 int x;
 int y;

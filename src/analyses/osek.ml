@@ -25,11 +25,13 @@ struct
 
   let parse_oil () = 
     if tracing then trace "osek" "Parsing OIL-file\n";
+    let oil_file = get_string "ana.osek.oil" in
+    if not (Sys.file_exists oil_file) then failwith "Cannot find oil file!";
     Hashtbl.add resources "RES_SCHEDULER" ("RES_SCHEDULER",-1, make_lock "RES_SCHEDULER");
     Hashtbl.add resources "DisableAllInterrupts" ("DisableAllInterrupts",-1, make_lock "DisableAllInterrupts");
     Hashtbl.add resources "SuspendAllInterrupts" ("SuspendAllInterrupts",-1, make_lock "SuspendAllInterrupts");
     Hashtbl.add resources "SuspendOSInterrupts" ("SuspendOSInterrupts",-1, make_lock "SuspendOSInterrupts");
-    match file token (Lexing.from_channel (open_in (get_string "ana.osek.oil"))) with
+    match file token (Lexing.from_channel (open_in oil_file)) with
       | [] -> failwith ( "No OIL-Objects found!")
       | objs -> let _ = List.map add_to_table (List.sort compare_objs objs) in
 	if tracing then trace "osek" "Done parsing OIL-file\n";

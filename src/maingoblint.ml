@@ -50,7 +50,7 @@ let option_spec_list =
   in
   let oil file =
     set_string "ana.osek.oil" file;
-    set_auto "ana.activated" "[['base','escape','OSEK','OSEK2','OSEK3','stack_trace_set','fmode','flag']]";
+    set_auto "ana.activated" "[['base','escape','OSEK','OSEK2','OSEK3','stack_trace_set','fmode','flag', 'fmode']]";
     set_auto "mainfun" "[]"
   in
   let tmp_arg = ref "" in
@@ -97,8 +97,11 @@ let parse_arguments () =
   
 (** Initialize some globals in other modules. *)
 let handle_flags () =
-  if get_bool "allfuns" || get_bool "nonstatic" 
-      || get_string "ana.osek.oil" <> "''" then begin Goblintutil.multi_threaded := true; Osek.Spec.parse_oil () end;
+  let has_oil = get_string "ana.osek.oil" <> "" in
+  if has_oil then Osek.Spec.parse_oil ();
+
+  if get_bool "allfuns" || get_bool "nonstatic" || has_oil then 
+    Goblintutil.multi_threaded := true;
   
   if get_bool "dbg.debug" then Messages.warnings := true;
 
