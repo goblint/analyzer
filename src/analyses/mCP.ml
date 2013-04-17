@@ -1068,7 +1068,9 @@ struct
     in
     let doms_with_constr = List.fold_left gather ([[],[],[]]) parts in
     let resolve_constraint xs (s,exps,tvs) =
-      let branch_one s exp tv = branch (set_st ctx s (fun x -> x)) exp tv in
+      let branch_one s exp tv = 
+        if tv && Exp.Exp.equal exp (Cil.one) then s else branch (set_st ctx s (fun x -> x)) exp tv 
+      in
       try List.fold_left2 branch_one s exps tvs :: xs
       with Analyses.Deadcode -> xs
     in
