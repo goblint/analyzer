@@ -12,6 +12,7 @@ viewcmd=gpicview
 
 mkdir -p ${dst}
 cp ${file}.dot ${dst}
+file=${file##*/} # use basename in case the file was somewhere else
 cd ${dst}
 trap 'cd ..' EXIT # leave dst again on exit
 case "$mode" in

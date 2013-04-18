@@ -28,6 +28,7 @@ type local_state = [
     | `Thread      of ConcDomain.ThreadDomain.t
     | `Escape      of EscapeDomain.EscapedVars.t
     | `File        of FileDomain.FileUses.t
+    | `Spec        of SpecDomain.Dom.t
     | `Region      of RegionDomain.RegionDom.t
     | `OSEK        of LockDomain.Lockset.t
     | `OSEK2       of Osektupel.t*Osektupel.t
