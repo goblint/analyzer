@@ -90,4 +90,4 @@ module MayLocksMCP =
          
 module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "malloc_null" (module Spec2 : Spec2)
+  MCP.register_analysis "maylocks" (module Spec2 : Spec2)

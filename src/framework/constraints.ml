@@ -152,12 +152,14 @@ struct
   let context = S.context_top dummyFunDec.svar
   let call_descr = S.es_to_string
   
+  let translate_sub = List.map (fun (n,x) -> List.assoc n !MCP.objInjectLocal x)
+  
   let conv_ctx ctx2 =
     { ask = ctx2.ask2
     ; local = ctx2.local2
     ; global = ctx2.global2
-    ; sub = ctx2.postsub2
-    ; presub = ctx2.presub2
+    ; sub = translate_sub ctx2.postsub2
+    ; presub = translate_sub ctx2.presub2
     ; spawn = ctx2.spawn2
     ; geffect = ctx2.sideg2
     ; precomp = []
@@ -180,7 +182,7 @@ struct
   let special ctx2 r f args = 
     match S.special_fn (conv_ctx ctx2) r f args with
      | (d,exp,tv)::[] when tv && isInteger exp = Some 1L -> d
-     | xs -> List.iter (fun (d,e,tv) -> ctx2.split2 d e tv) xs; D.bot ()
+     | xs -> List.iter (fun (d,e,tv) -> ctx2.split2 d e tv) xs; raise Deadcode
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec2]. *)
@@ -598,9 +600,6 @@ struct
     else
       S.context @@ D.choose l
       
-
-  let combine x = undefined x
-
   let conv ctx x = 
     let rec ctx' = { ctx with ask2   = query
                             ; local2 = x
@@ -692,12 +691,12 @@ struct
         (* First check that each (global) delta is included in the (global)
          * invariant. *)
         let check_local l lv =
-          let lv' = LH.find sigma l in 
+          let lv' = sigma' l in 
             if not (D.leq lv lv') then 
               complain_l l lv' lv  
         in
         let check_glob g gv = 
-          let gv' = GH.find theta g in 
+          let gv' = theta' g in 
             if not (G.leq gv gv') then 
               complain_g v g gv' gv  
         in    

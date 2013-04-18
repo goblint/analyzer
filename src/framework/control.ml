@@ -200,6 +200,7 @@ struct
       
       if not (get_bool "noverify") then begin
         if (get_bool "dbg.verbose") then print_endline "Verifying the result.";
+        Goblintutil.may_narrow := false;
         Vrfyr.verify lh gh;
       end;
       

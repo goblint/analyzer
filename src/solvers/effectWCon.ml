@@ -265,9 +265,11 @@ struct
       LH.replace vInfl var (c :: lh_find_default vInfl var []);
       lh_find_default sigma var (D.bot ())
     
-    and gEval c glob = 
+    and gEval c glob =
+      if not (GH.mem theta glob) then
+        GH.replace theta glob (G.bot ());
       GH.replace gInfl glob (c :: gh_find_default gInfl glob []);
-      gh_find_default theta glob (G.bot ()) 
+      GH.find theta glob 
 
     in
       GU.may_narrow := false;

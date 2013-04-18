@@ -79,7 +79,9 @@ struct
   include Base
   include StdCousot (* this isn't good *)  
   let bot = Base.top
+  let is_bot = Base.is_top
   let top = Base.bot
+  let is_top = Base.is_bot
   let leq x y = Base.leq y x
   let join x y = Base.meet x y
   let meet x y = Base.join x y

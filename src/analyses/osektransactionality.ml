@@ -193,4 +193,4 @@ module ThreadMCP =
 
 module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "OSEK2" (module Spec2 : Spec2)         
+  MCP.register_analysis "OSEK2" ~dep:["OSEK"; "stack_trace_set"] (module Spec2 : Spec2)         
