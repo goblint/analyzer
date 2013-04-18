@@ -2,19 +2,13 @@
 
 #include <stdio.h>
 #include <string.h>
-#include "tpl_os.h"
+/*#include "tpl_os.h"*/
 // #include "tpl_os_generated_configuration.h"
 
 #define _XOPEN_SOURCE 500
 #include <unistd.h>
 
 char* cubbyHole = "pong";
-
-int main(void)
-{
-    StartOS(OSDEFAULTAPPMODE);
-    return 0;
-}
 
 /*Autostarted once at system start. Blocks in WaitEvent(...)*/
 TASK(ping)
