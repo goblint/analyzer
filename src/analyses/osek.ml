@@ -34,12 +34,19 @@ struct
     match file token (Lexing.from_channel (open_in oil_file)) with
       | [] -> failwith ( "No OIL-Objects found!")
       | objs -> let _ = List.map add_to_table (List.sort compare_objs objs) in
-        generate_header ();
 	if tracing then trace "osek" "Done parsing OIL-file\n";
 	();
     if tracing then trace "osek" "Computing ceiling priorities...\n";
     Hashtbl.iter compute_ceiling_priority resources;
-    if (get_bool "ana.osek.check") then check_osek ();
+    if tracing then trace "osek" "Generating goblint.h...\n";
+    generate_header ();
+    if tracing then trace "osek" "Activating autostart alarms...\n";
+    finish_alarm_handling ();
+    if (get_bool "ana.osek.check") then begin
+      if tracing then trace "osek" "Checking conventions...\n";
+      check_osek ()
+      end;
+    if tracing then trace "osek" "Done processing OIL-file\n";
     ()
 
 (*  let parse_tramp tramp = 
@@ -174,13 +181,10 @@ struct
 
   let eval_arg ctx (arg:exp) =
     match arg with
-    | Lval (Var vinfo,_) -> if is_task (make_task vinfo.vname) then 
-			      vinfo
-			    else 
-			      failwith (vinfo.vname ^ " is not a task")
+    | Lval (Var vinfo,_) -> vinfo
     | _ -> (match eval_fv ctx.ask arg with
       | Some v -> v
-      | None   -> failwith "cannot extract arg")
+      | None   -> failwith "cannot extract arg")      
     
 (* from mutex *)    
 
@@ -281,6 +285,10 @@ struct
   let otherstate () = Dom.top ()
   let exitstate  () = Dom.top ()
 
+  let activate_task ctx (task_name : string) : unit =
+    let task = Cilfacade.getFun task_name in
+    ctx.spawn task.svar (otherstate ())
+  
   (* transfer functions *)
   let intrpt ctx : Dom.t =
     ctx.local (*currently ignored*)
@@ -364,15 +372,18 @@ struct
       | "SuspendOSInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
       | "ResumeOSInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
       | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
-      let _ = (match arglist with (*call function *)
+        let _ = (match arglist with (*call function *)
 	  | [x] -> let vinfo = eval_arg ctx x in
 		   let task_name = make_task(vinfo.vname) in
-		   let task = Cilfacade.getFun task_name in
-		   let _ = ctx.spawn task.svar (otherstate ()) in
-                   [ctx.local, Cil.integer 1, true]
+                   if (is_task task_name) then begin
+                     let _ = activate_task ctx task_name in
+                     [ctx.local, Cil.integer 1, true]
+                   end else failwith (vinfo.vname ^ "is not a task!")
 	  | _  -> failwith "ActivateTask arguments are strange") in
 	M.special_fn ctx lval f arglist
-      | "ChainTask" ->  if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
+      | "ChainTask" ->  
+        print_endline "Found ChainTask!";
+        if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local)));
 	M.special_fn ctx lval f arglist (*call function *)
       | "WaitEvent" -> (if (get_bool "ana.osek.check") then begin
 	let _ = check_api_use 2 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local))) in
@@ -387,14 +398,27 @@ struct
 	  end;
 	end;);
 	M.special_fn ctx lval f arglist
+      | "SetRelAlarm"
+      | "SetAbsAlarm" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local))) in
+        let _ = (match arglist with (*call function *)
+          | [x;_;_] -> (
+            let vinfo = eval_arg ctx x in
+            let alarm = vinfo.vname in
+            if (Hashtbl.mem alarms alarm) then begin
+              let (x,task_list) = Hashtbl.find alarms alarm in
+              List.map (activate_task ctx) task_list
+            end else
+              failwith (alarm ^ "is not an alarm!")
+            )    
+          | _  -> failwith "SetAlarm arguments are strange")
+        in
+        M.special_fn ctx lval f arglist
       | "SetEvent"
       | "GetTaskID"
       | "GetTaskState"
       | "GetEvent"
       | "GetAlarmBase" 
       | "GetAlarm" 
-      | "SetRelAlarm" 
-      | "SetAbsAlarm" 
       | "CancelAlarm" 
       | "GetActiveApplicationMode" 
       | "ShutdownOS" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task ((fun (a,b) -> a) (partition ctx.local))) in 

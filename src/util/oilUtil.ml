@@ -47,6 +47,7 @@ let resources : (string,res_t) Hashtbl.t = Hashtbl.create 16
 let events : (string,event_t) Hashtbl.t = Hashtbl.create 16
 let tasks  : (string,task_t) Hashtbl.t = Hashtbl.create 16 
 let isrs   : (string,isr_t) Hashtbl.t = Hashtbl.create 16
+let alarms   : (string,bool*(string list)) Hashtbl.t = Hashtbl.create 16
 (* start analysis here *)
 let starting_tasks = ref ([] : string list)
 let concurrent_tasks = ref ([] : string list)
@@ -89,6 +90,7 @@ let generate_header () =
     let print_events id value 	 = output_string f ("int " ^ id           ^ ";\n") in
     let print_tasks id value     = output_string f ("int " ^ trim_task id ^ ";\n") in
     let print_isrs id value      = output_string f ("int " ^ trim_isr id  ^ ";\n") in
+    let print_alarms id value      = output_string f ("int " ^ id  ^ ";\n") in
     let task_macro () = 
       if (get_string "ana.osek.taskprefix") = "" then
         if (get_string "ana.osek.tasksuffix") = "" then    
@@ -119,6 +121,7 @@ let generate_header () =
     Hashtbl.iter print_events events;
     Hashtbl.iter print_tasks tasks;
     Hashtbl.iter print_isrs isrs;
+    Hashtbl.iter print_alarms alarms;
     output_string f "#endif\n";
     if !default_defs then begin
       output_string f "#ifndef E_OK\n";
@@ -132,6 +135,21 @@ let generate_header () =
       output_string f "#endif\n";
     end;
     close_out f
+    
+let finish_alarm_handling () =
+  let doit id (active,task_list) =
+    let doit_helper task =
+      let helper (a,b,c,d,_,f,g) = (a,b,c,d,true,f,g) in
+print_endline ("Alarm: "^ id ^" and task: "^task);      
+      Hashtbl.replace tasks task (helper (Hashtbl.find tasks task));
+      concurrent_tasks :=  task :: !concurrent_tasks
+    in
+    if active then
+      let _ = List.map doit_helper task_list in ()
+    else
+      ()
+  in
+  Hashtbl.iter doit alarms
 
 let compare_objs obj1 obj2 =
   match obj1,obj2 with
@@ -369,23 +387,25 @@ let handle_attribute_isr object_name t_value (attr : (string*attribute_v)) =
 
 let handle_action_alarm object_name attr =
 	let subaction, target = attr in (match (String.uppercase subaction) with
-	| "TASK" -> let helper (a,b,c,d,_,f,g) = (a,b,c,d,true,f,g) in (match target with
+	| "TASK" -> (match target with
 	  | Name (name,None) -> let task = make_task name in
 	    if tracing then trace "osek" "ActivateTask %s as Name\n" task;
-	    Hashtbl.replace tasks task (helper (Hashtbl.find tasks task));
-	    concurrent_tasks :=  task :: !concurrent_tasks
+	    Hashtbl.replace alarms object_name ((fun (x,l) -> (x,(make_task name)::l)) (Hashtbl.find alarms object_name))
+(*	    Hashtbl.replace tasks task (helper (Hashtbl.find tasks task)); (*TODO comment that out, instead ad to alarms*)
+	    concurrent_tasks :=  task :: !concurrent_tasks*)
 	  | String name  -> let task = make_task name in
 	    if tracing then trace "osek" "ActivateTask %s as String\n" task;
-	    Hashtbl.replace tasks task (helper (Hashtbl.find tasks task))
+            Hashtbl.replace alarms object_name ((fun (x,l) -> (x,(make_task name)::l)) (Hashtbl.find alarms object_name))
+(*             Hashtbl.replace tasks task (helper (Hashtbl.find tasks task)); *)
+(*             concurrent_tasks :=  task :: !concurrent_tasks *)
 	  | other  ->
 (* TODO	    if tracing then trace "osek" "Unknown parameter (%s) for ACTIVATETASK of ALARM %s\n" other object_name;*)
-	    if tracing then trace "osek" "Unknown parameter (_) for ACTIVATETASK of ALARM %s\n" object_name;
+	    if tracing then trace "osek" "Unable to determine task (_) for ACTIVATETASK of ALARM %s\n" object_name;
 	    ()
 	  )
 	| other ->
 (* TODO	  if tracing then trace "osek" "Wrong parameter (%s) for ACTIVATETASK of ALARM %s\n" other object_name;*)
 	  if tracing then trace "osek" "Wrong parameter (_) for ACTIVATETASK of ALARM %s\n" object_name;
-
 	  ()
 	)
 
@@ -449,7 +469,9 @@ let handle_attribute_alarm object_name attr =
 	if tracing then trace "osek" "Wrong value (_) for ACTION of ALARM %s\n" object_name;
       ()
     )
-  | "AUTOSTART"
+  | "AUTOSTART" -> 
+    if tracing then trace "osek" "Activating ALARM %s\n" object_name;
+    Hashtbl.replace alarms object_name ((fun (_,l) -> (true,l)) (Hashtbl.find alarms object_name))
   | "COUNTER"
   | _ -> 
     if tracing then trace "osek" "Skipped unhandled ALARM attribute %s\n" name;
@@ -510,7 +532,9 @@ let add_to_table oil_info =
 		  | [] -> 
 		    if tracing then trace "osek" "Empty attribute list for task %s. Using defaults.\n" object_name;
 		    Hashtbl.add tasks name def_task
-		  | _ -> Hashtbl.add tasks name (List.fold_left (handle_attribute_task name) def_task attribute_list)
+		  | _ -> 
+                    if tracing then trace "osek" "Registering task %s.\n" name;
+                    Hashtbl.add tasks name (List.fold_left (handle_attribute_task name) def_task attribute_list)
 		)
     | "ISR"  -> let name = make_isr object_name in
 		let def_isr = (-1,[name; "SuspendOSInterrupts"],-1) in
@@ -520,9 +544,13 @@ let add_to_table oil_info =
 		  | [] -> 
 		    if tracing then trace "osek" "Empty attribute list for task %s. Using defaults.\n" object_name;
 		    Hashtbl.add isrs name def_isr
-		  | _ -> Hashtbl.add isrs name (List.fold_left (handle_attribute_isr name) def_isr attribute_list)
+		  | _ -> 
+                    if tracing then trace "osek" "Registering interrupt %s.\n" name;
+                    Hashtbl.add isrs name (List.fold_left (handle_attribute_isr name) def_isr attribute_list)
 		)
-    | "ALARM" -> let _ = List.map (handle_attribute_alarm object_name) attribute_list in ()
+    | "ALARM" -> let _ = Hashtbl.add alarms object_name (false,[]) in
+                 let _ = List.map (handle_attribute_alarm object_name) attribute_list in 
+                 ()
     | "RESOURCE" -> let _ = Hashtbl.add resources object_name ("-1",-1, make_lock object_name) in
 		    let _ = List.map (handle_attribute_resource object_name) attribute_list in ()
     | "EVENT" -> let _ = List.map (handle_attribute_event object_name) attribute_list in ()
