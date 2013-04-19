@@ -227,7 +227,7 @@ let _ = print_endline (string_of_bool res) in res*)
   let accprys acc_list = List.map resourceset_to_priority (prys acc_list)
   let maxpry acc_list = List.fold_left (fun y x -> if x > y then x else y) (min_int) (accprys acc_list)
   let minpry acc_list = List.fold_left (fun y x -> if x < y then x else y) (max_int) (accprys acc_list)
-  let offpry acc_list = List.fold_left (fun y x -> if x < y then x else y) (max_int) (offprys acc_list)
+  let offpry acc_list = List.fold_left (fun y x -> if x > y then x else y) (min_int) (offprys acc_list)
   (*/prioritystuff*)
 
   (*TODO fill table at accesses*) 
@@ -704,7 +704,7 @@ let _ = print_endline (string_of_bool res) in res*)
   (* let _ = print_endline "check flag protection" in *)
             let flags = check_flags acc_list' in 
             if not(flags = []) then
-  (* let _ = print_endline "flag!!" in *)
+  let _ = print_endline "flag!!" in
               Flag (flag_list_to_string flags)
             else
               res
