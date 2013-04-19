@@ -124,7 +124,8 @@ let _ =
   reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top";
   reg Experimental "exp.need"              "false" "Bidirectional analysis";
   reg Experimental "exp.back_loop_sep"     "false" "Only widen on nodes with back edges.";
-  reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created."
+  reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created.";
+  reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."
   
 (* {4 category [Debugging]} *)
 
