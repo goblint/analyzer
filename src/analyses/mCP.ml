@@ -896,19 +896,29 @@ struct
       List.iter register_one (List.fold_left combine_forks [] !forks);
     ret
 
-  (* queries *)
-  let rec query_imp ctx q =    
-    let nctx = set_q ctx (query_imp ctx) in
-    let ls = lift_spawn nctx (fun set_st -> List.concat (List.map2 (fun y -> List.map (fun x-> query' (set_st x y) q)) (ctx.global::ctx.preglob) (ctx.local::ctx.precomp))) in
-    List.fold_left Queries.Result.meet (Queries.Result.top ()) ls
-  
-  let query = query_imp 
-
-  let set_sub full_ctx (ctx:(local_state,'b,'c) ctx) (dp:local_state list) : (local_state,'b,'c) ctx = 
+  let rec set_sub full_ctx (ctx:(local_state,'b,'c) ctx) (dp:local_state list) : (local_state,'b,'c) ctx = 
       set_preglob (set_precomp (context (query full_ctx) ctx.local ctx.global dp ctx.spawn ctx.geffect ctx.report_access) ctx.precomp) ctx.preglob
 
-  let set_subs full_ctx ctx dp (dp2:local_state list) = 
+  and set_subs full_ctx ctx dp (dp2:local_state list) = 
     let ctx = set_sub full_ctx ctx dp in { ctx with presub = dp2 }
+
+  (* queries *)
+  and query ctx q =    
+    let nctx = set_q ctx (query ctx) in
+    let run_query set_st y x =
+      let s = get_matches x in
+      let subds = 
+        let f n =
+          try List.find (fun x -> n = (get_matches x).featurename) ctx.local
+          with Not_found -> failwith ("D2ependency '"^n^"' not met, needed by "^s.featurename^".")
+        in
+        List.map f s.depends_on 
+      in
+      query' (set_subs ctx (set_st x y) [] subds) q  
+    in
+    let ls = lift_spawn nctx (fun set_st -> List.concat (List.map2 (fun y -> List.map (run_query set_st y)) (ctx.global::ctx.preglob) (ctx.local::ctx.precomp))) in
+    List.fold_left Queries.Result.meet (Queries.Result.top ()) ls
+
   
   let may_race (ctx1,ac1) (ctx2,ac2) =
     let rec fold_left3 f a xs ys zs = 
