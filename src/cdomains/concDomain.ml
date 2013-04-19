@@ -9,13 +9,13 @@ sig
   val switch: t -> t -> bool
 end
 
-module TrivialNames = struct
-  let truename = "Multithreaded" 
-  let falsename = "Singlethreaded"
-end
-
 module Trivial = struct 
+  module TrivialNames = struct
+    let truename = "Multithreaded" 
+    let falsename = "Singlethreaded"
+  end
   include IntDomain.MakeBooleans (TrivialNames)
+
   let is_multi x = x
   let is_bad   x = x
   let get_single () = false
@@ -24,16 +24,15 @@ module Trivial = struct
   let switch x y = x <> y
 end
 
-module SimpleNames = struct
-  let n = 3
-  let names = function
-    | 0 -> "Singlethreaded"
-    | 1 -> "Main Thread"
-    | 2 -> "Some Threads"
-    | _ -> "WHAT??"
-end
-
 module Simple = struct
+  module SimpleNames = struct
+    let n = 3
+    let names = function
+      | 0 -> "Singlethreaded"
+      | 1 -> "Main Thread"
+      | 2 -> "Some Threads"
+      | _ -> "WHAT??"
+  end
   include Lattice.Chain (SimpleNames)
   let is_multi x = x > 0
   let is_bad   x = x > 1
@@ -47,26 +46,39 @@ module Simple = struct
     | _   -> false
 end
 
-(** Value names for thread state lattices below. *)
-module ThreadCJNames = struct
-  let truename = "created" 
-  let falsename = "joined"
+(** Type to represent an abstract thread ID. *)
+module Thread = struct
+  module NoCreationSite = struct let name = "Starting Thread" end
+  module CreationSite = Printable.Option (Basetype.ProgLines) (NoCreationSite)
+  include Printable.Prod (Basetype.ProgLines) (Basetype.Variables)
 end
 
-(** Base values for thread state. Bottom (zero)
-    and top (many) are added later. *)
-module ThreadCJState = struct
-  include IntDomain.MakeBooleans (ThreadCJNames)
+(** The basic thread domain that distinguishes singlthreaded mode, a single
+  * thread ID, and otherwise goes to top. *)
+module SimpleThreadDomain = struct
+  module ThreadLiftNames = struct
+    let bot_name = "Bot Threads" 
+    let top_name = "Top Threads"
+  end
+  module Lifted = Lattice.Flat (Thread) (ThreadLiftNames)
+  include Lattice.Prod (Simple) (Lifted)
 end
 
-(** Value names for bottom (zero) and top (many). *)
-module ThreadLiftNames = struct
-  let bot_name = "zero" 
-  let top_name = "many"
-end
+
 
 (** Rhomb lattice for thread states. *)
 module ThreadState = struct
+  module ThreadCJState = struct
+    module ThreadCJNames = struct
+      let truename = "created" 
+      let falsename = "joined"
+    end
+    include IntDomain.MakeBooleans (ThreadCJNames)
+  end
+  module ThreadLiftNames = struct
+    let bot_name = "zero" 
+    let top_name = "many"
+  end
   include Lattice.Flat (ThreadCJState) (ThreadLiftNames)
 end
 

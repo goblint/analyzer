@@ -214,6 +214,8 @@ struct
       | _ -> Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
+module Option (Base: S) (N: Name) = Either (UnitConf (N)) (Base)
+
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
 struct
   type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top]

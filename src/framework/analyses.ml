@@ -21,7 +21,7 @@ sig
 end
 
 type local_state = [ 
-    | `Base        of BaseDomain.Dom(ConcDomain.Simple).t
+    | `Base        of BaseDomain.Dom.t
     | `Mutex       of LockDomain.Lockset.t
     | `SymbLocks   of LockDomain.Symbolic.t
     | `VarEq       of PartitionDomain.ExpPartitions.t

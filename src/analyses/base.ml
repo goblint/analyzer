@@ -16,7 +16,6 @@ module IntSet = SetDomain.Make (IntDomain.Integers)
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
-module VD = ValueDomain.Compound
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 
@@ -36,18 +35,18 @@ let is_static (v:varinfo): bool = v.vstorage == Static
 let is_private (a: Q.ask) (v: varinfo): bool = 
   match a (Q.IsPrivate v) with `Bool tv -> tv | _ -> false
    
-module MakeSpec (Flag: ConcDomain.S) =
+module Main =
 struct
   include Analyses.DefaultSpec
 
   exception Top
-  module Flag = Flag
 
   module VD     = BaseDomain.VD
   module CPA    = BaseDomain.CPA 
+  module Flag   = BaseDomain.Flag
 
-  module Glob = BaseDomain.Glob 
-  module Dom  = BaseDomain.Dom (Flag)
+  module Glob   = BaseDomain.Glob 
+  module Dom    = BaseDomain.Dom
 
   let name = "Constant Propagation Analysis"
   let startstate () = CPA.bot (), Flag.bot ()
@@ -56,9 +55,6 @@ struct
 
   type cpa = CPA.t
   type flag = Flag.t
-  type trans_in = Dom.t 
-  type trans_out = Dom.t
-  type transfer = trans_in -> trans_out
   type extra = (Cil.varinfo * Offs.t * bool) list
   type store = Dom.t
   type value = VD.t
@@ -1333,9 +1329,6 @@ struct
      in
      combine_one ctx.local after
 end
-
-module Spec = MakeSpec (ConcDomain.Trivial)
-module Main = MakeSpec (ConcDomain.Simple)
 
 module BaseMCP = 
   MCP.ConvertToMCPPart

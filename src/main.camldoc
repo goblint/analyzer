@@ -1,9 +1,8 @@
 
-This is the API of the Goblint static analyzer framework ---
-developed at the Technical University of Munich ({b TUM})
-and University of Tartu ({b UT}). 
+This is the API of the Goblint static analyzer framework, developed at the Technische Universität München ({b TUM})
+and the University of Tartu ({b UT}). 
 
-The API is divided in four logical sections: 
+The API is divided into four logical sections: 
 the framework, constraint solvers, domains, and analysis instances.
 
 {2 Framework}
@@ -44,6 +43,12 @@ Progress
 Report
 Tracing
 Xmldump
+}
+
+{4 CIL components}
+{!modules: 
+Cil
+Pretty
 }
 
 {2 Solvers}

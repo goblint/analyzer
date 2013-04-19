@@ -2,6 +2,7 @@
 
 module VD     = ValueDomain.Compound
 module CPA    = MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
+module Flag   = ConcDomain.Simple
 
 
 let heap_hash = Hashtbl.create 113 
@@ -20,4 +21,4 @@ struct
   module Val = VD
 end
 
-module Dom (Flag: ConcDomain.S) = Lattice.Prod(CPA)(Flag)
+module Dom = Lattice.Prod(CPA)(Flag)
