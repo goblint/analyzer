@@ -140,7 +140,7 @@ let finish_alarm_handling () =
   let doit id (active,task_list) =
     let doit_helper task =
       let helper (a,b,c,d,_,f,g) = (a,b,c,d,true,f,g) in
-print_endline ("Alarm: "^ id ^" and task: "^task);      
+(* print_endline ("Alarm: "^ id ^" and task: "^task);       *)
       Hashtbl.replace tasks task (helper (Hashtbl.find tasks task));
       concurrent_tasks :=  task :: !concurrent_tasks
     in
