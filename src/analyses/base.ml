@@ -1347,6 +1347,6 @@ module BaseMCP =
                 let extract_g x = match x with `Base x -> x | _ -> raise MCP.SpecificationConversionError
          end)
 
-module Spec2 = Constraints.Spec2OfSpec (Spec)
+module Spec2 = Constraints.Spec2OfSpec (Main)
 let _ = 
   MCP.register_analysis "base" (module Spec2 : Spec2)

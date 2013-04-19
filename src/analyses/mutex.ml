@@ -421,6 +421,7 @@ struct
         Acc.replace acc v neww;
         accKeys := AccKeySet.add v !accKeys
       end ;
+    if not (Lockset.is_bot ust) then
       let ls = if rv then Lockset.filter snd ust else ust in
       let el = P.effect_fun ls in
 (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
@@ -609,6 +610,7 @@ struct
   
   let query ctx (q:Queries.t) : Queries.Result.t = 
     match q with
+      | _ when Lockset.is_bot ctx.local -> `Bool true
       | Queries.IsPrivate v -> 
           let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
           let lambda_v = ctx.global v in
@@ -1012,7 +1014,8 @@ end
 module MyParam = 
 struct
   module Glob = LockDomain.Glob
-  let effect_fun ls = Lockset.export_locks ls
+  let effect_fun ls = 
+    Lockset.export_locks ls
 end
 
 module Spec = MakeSpec (MyParam)
