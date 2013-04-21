@@ -6,7 +6,7 @@ struct
   type t = Cil.exp
   include Printable.Std
 
-  let equal = Util.equals
+  let equal = Expcompare.compareExp
   let hash = Hashtbl.hash
   let compare = Pervasives.compare
   let classify _ = 0

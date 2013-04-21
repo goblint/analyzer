@@ -1,3 +1,4 @@
+open Batteries 
 (** Types & utilities for solvers. *)
 
 module GU = Goblintutil
@@ -81,7 +82,13 @@ struct
         let (d,s) = rhs (sigma',theta') check_glob in
         (* Then we check that the local state satisfies this constraint. *)
           if not (VDom.leq d d') then
-            complain_l v d' d
+            complain_l v d' d;
+          if (not @@ List.for_all (VMap.mem sigma) s) then begin
+            correct := false;
+            let ex = List.hd @@ List.filter (not % VMap.mem sigma) s in 
+            ignore (Pretty.printf "Constraint spawns a thread that is not in the solution!\n  @[Variable:\n%a\n@]" 
+                      Var.pretty_trace ex)
+          end
       in
       let rhs = system v in
         List.iter verify_constraint rhs

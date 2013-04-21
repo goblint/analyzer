@@ -79,21 +79,23 @@ let _ =
 let _ =
   reg Analyses "ana.activated" "[['base','escape','mutex']]"  "Lists of activated analyses, split into phases.";
 
-  reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit','shape']"  "List of path-sensitive analyses";
+  reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses";
   reg Analyses "ana.ctx_insens" "['OSEK2','OSEK3','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses";
   
   reg Analyses "ana.warnings"        "false" "Print soundness warnings.";
   reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class.";
   reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required).";
   reg Analyses "ana.osek.oil"        "''"    "Oil file for the analyzed program";
-  reg Analyses "ana.osek.tramp"      "''"    "Resource-ID-headers for the analyzed program";
-  reg Analyses "ana.osek.isrprefix"  "''"    "Prefix added by the ISR macro";
-  reg Analyses "ana.osek.taskprefix" "''"    "Prefix added by the TASK macro";
+  reg Analyses "ana.osek.defaults"   "true"  "Generate default definitions for TASK and ISR";
+(*   reg Analyses "ana.osek.tramp"      "''"    "Resource-ID-headers for the analyzed program"; *)
+  reg Analyses "ana.osek.isrprefix"  "'function_of_'"    "Prefix added by the ISR macro";
+  reg Analyses "ana.osek.taskprefix" "'function_of_'"    "Prefix added by the TASK macro";
   reg Analyses "ana.osek.isrsuffix"  "''"    "Suffix added by the ISR macro";
   reg Analyses "ana.osek.tasksuffix" "''"    "Suffix added by the TASK macro";
   reg Analyses "ana.osek.intrpts"    "false" "Enable constraints for interrupts.";
   reg Analyses "ana.osek.check"      "false" "Check if (assumed) OSEK conventions are fullfilled.";
   reg Analyses "ana.osek.names"      "[]"    "OSEK API function (re)names for the analysed program";
+  reg Analyses "ana.osek.flags"      "[]"    "List of global variables that are flags.";
   reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain.";
   reg Analyses "ana.int.interval"    "false" "Interval based integer domain."
   
@@ -121,7 +123,9 @@ let _ =
   reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails.";
   reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top";
   reg Experimental "exp.need"              "false" "Bidirectional analysis";
-  reg Experimental "exp.back_loop_sep"     "false" "Only widen on nodes with back edges."
+  reg Experimental "exp.back_loop_sep"     "false" "Only widen on nodes with back edges.";
+  reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created.";
+  reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."
   
 (* {4 category [Debugging]} *)
 

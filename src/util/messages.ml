@@ -21,10 +21,7 @@ let xml_warn = Hashtbl.create 10
 
 let print_msg msg loc = 
   htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
-  if get_string "result" = "newhtml" then
-    let old = try Hashtbl.find xml_warn loc with Not_found -> [] in
-    Hashtbl.replace xml_warn loc (("m",msg)::old)
-  else if get_bool "gccwarn" then    
+  if get_bool "gccwarn" then    
     Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
   else if get_bool "exp.eclipse" then 
     Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
@@ -33,10 +30,7 @@ let print_msg msg loc =
 
 let print_err msg loc = 
   htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
-  if get_string "result" = "newhtml" then
-    let old = try Hashtbl.find xml_warn loc with Not_found -> [] in
-    Hashtbl.replace xml_warn loc (("e",msg)::old)
-  else if get_bool "gccwarn" then    
+  if get_bool "gccwarn" then    
     Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
   else if get_bool "exp.eclipse" then 
     Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
@@ -48,7 +42,7 @@ let print_group group_name errors =
   (* Add warnings to global warning list *)
   List.iter (fun (msg,loc) -> htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,(group_name^" : "^msg))];() ) errors;
 
-  if get_bool "exp.eclipse" || get_string "result"="newhtml" then
+  if get_bool "exp.eclipse" then
     List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
   else
     let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in

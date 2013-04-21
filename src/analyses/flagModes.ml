@@ -2,6 +2,7 @@ open Batteries
 open Cil
 open Pretty
 open Analyses
+open GobConfig
 
 module Spec =
 struct
@@ -13,10 +14,14 @@ struct
   
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
+  let flag_list = ref []
+  
+  let init () = flag_list := List.map Json.string @@ get_list "ana.osek.flags"
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     match lval, constFold false rval with
-    | (Var f,NoOffset), Const ex ->
+    | (Var f,NoOffset), Const ex when List.mem f.vname !flag_list ->
         Dom.add f (false,true, Const ex) ctx.local
     | (Var f,NoOffset), _ ->
         Dom.remove f ctx.local
@@ -24,12 +29,13 @@ struct
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
     match constFold false exp with
-      | Lval (Var f, NoOffset) -> Dom.add f (true,not tv,zero) ctx.local
+      | Lval (Var f, NoOffset) when List.mem f.vname !flag_list  -> 
+          Dom.add f (true,not tv,zero) ctx.local
       | BinOp(Ne,Const ex,Lval (Var f, NoOffset),_) 
-      | BinOp(Ne,Lval (Var f, NoOffset), Const ex,_) -> 
+      | BinOp(Ne,Lval (Var f, NoOffset), Const ex,_) when List.mem f.vname !flag_list -> 
           Dom.add f (true,not tv, Const ex) ctx.local
       | BinOp(Eq,Const ex,Lval (Var f, NoOffset),_) 
-      | BinOp(Eq,Lval (Var f, NoOffset), Const ex,_) -> 
+      | BinOp(Eq,Lval (Var f, NoOffset), Const ex,_) when List.mem f.vname !flag_list -> 
           Dom.add f (true,tv,Const ex) ctx.local
       | _ -> ctx.local
   

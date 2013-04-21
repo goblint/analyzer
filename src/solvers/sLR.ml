@@ -22,7 +22,7 @@ struct
     let vals = HM.create 1024 
     let last_key = ref 0
     
-    let get_value = S.Dom.bot () |> flip (h_find_default vals) 
+    let get_value x = h_find_default vals x (S.Dom.bot ())
     let set_value = HM.replace vals
     
     let get_key x = 
@@ -58,7 +58,7 @@ struct
     
     let xy = HPM.create 1024 
 
-    let get_value = S.Dom.bot () |> flip (hpm_find_default xy) 
+    let get_value x = hpm_find_default xy x (S.Dom.bot ())
     let set_value = HPM.replace xy
   end
                 (* contains variable assignment for pairs *)
@@ -246,4 +246,5 @@ module MakeIsGenericEqBoxSolver : GenericEqBoxSolver = Make
 
 let _ =
   let module M = GlobSolverFromEqSolver(Make) in
-  Selector.add_solver ("slr+", (module M : GenericGlobSolver))
+  Selector.add_solver ("slr+", (module M : GenericGlobSolver));
+  Selector.add_solver ("new",  (module M : GenericGlobSolver))

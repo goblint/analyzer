@@ -144,6 +144,7 @@ struct
      * not include the flag. *)
     let update_one_addr (x, offs) nst: cpa = 
       if Cil.isFunctionType x.vtype then nst else 
+      if get_bool "exp.globs_are_top" then CPA.add x `Top nst else
       (* Check if we need to side-effect this one. We no longer generate
        * side-effects here, but the code still distinguishes these cases. *)
       if ((get_bool "exp.earlyglobs") || Flag.is_multi fl) && is_global a x then 
@@ -1305,7 +1306,7 @@ struct
                     let _ = Cilfacade.getdec var in true 
                   with _ -> acc
                 in 
-                if List.fold_right f flist false then begin
+                if List.fold_right f flist false && not (get_bool "exp.single-threaded") then begin
                   (* Copy-pasted from the thread-spawning code above: *)
                   GU.multi_threaded := true;
                   let new_fl = Flag.join fl (Flag.get_main ()) in
@@ -1358,6 +1359,6 @@ module BaseMCP =
                 let extract_g x = match x with `Base x -> x | _ -> raise MCP.SpecificationConversionError
          end)
 
-module Spec2 = Constraints.Spec2OfSpec (Spec)
+module Spec2 = Constraints.Spec2OfSpec (Main)
 let _ = 
   MCP.register_analysis "base" (module Spec2 : Spec2)

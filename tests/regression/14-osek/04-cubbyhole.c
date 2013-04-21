@@ -1,20 +1,14 @@
-// PARAM: --set ana.activated "[['base','escape','OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 04-cubbyhole.oil --sets ana.osek.tramp 04-defaultAppWorkstation/tpl_os_generated_configuration.h -I 04-defaultAppWorkstation/ -I 04-defaultAppWorkstation/os-minimalheaders/os_machine/posix-libpcl/ -I 04-defaultAppWorkstation/os-minimalheaders/ --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
+// SKIP PARAM: --set ana.activated "[['base','escape','fmode', 'OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 04-cubbyhole.oil --sets ana.osek.tramp 04-defaultAppWorkstation/tpl_os_generated_configuration.h -I 04-defaultAppWorkstation/ -I 04-defaultAppWorkstation/os-minimalheaders/os_machine/posix-libpcl/ -I 04-defaultAppWorkstation/os-minimalheaders/ --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
 
 #include <stdio.h>
 #include <string.h>
-#include "tpl_os.h"
+/*#include "tpl_os.h"*/
 // #include "tpl_os_generated_configuration.h"
 
 #define _XOPEN_SOURCE 500
 #include <unistd.h>
 
 char* cubbyHole = "pong";
-
-int main(void)
-{
-    StartOS(OSDEFAULTAPPMODE);
-    return 0;
-}
 
 /*Autostarted once at system start. Blocks in WaitEvent(...)*/
 TASK(ping)

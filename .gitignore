@@ -19,6 +19,12 @@ doc
 doclist.odocl
 autom4te.cache
 result/*
-*.sublime-workspace
-notes
+
+tests/regression/14-osek/goblint.h
+
+tests/regression/16-relinv/goblint.h
+
+tests/regression/16-relinv/flags.json
+
 src/spec/graph
+notes

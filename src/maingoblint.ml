@@ -50,7 +50,7 @@ let option_spec_list =
   in
   let oil file =
     set_string "ana.osek.oil" file;
-    set_auto "ana.activated" "[['base','escape','OSEK','OSEK2','OSEK3','stack_trace_set']]";
+    set_auto "ana.activated" "[['base','escape','OSEK','OSEK2','OSEK3','stack_trace_set','fmode','flag', 'fmode']]";
     set_auto "mainfun" "[]"
   in
   let tmp_arg = ref "" in
@@ -72,7 +72,8 @@ let option_spec_list =
     ; "--halp"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "-help"                , Arg.Unit (fun _ -> print_help stdout),""
     ; "--oil"                , Arg.String oil, ""
-    ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""
+(*     ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""  *)
+    ; "--osekdefaults"       , Arg.Unit (fun () -> set_bool "ana.osek.defaults" false), ""
     ; "--osektaskprefix"     , Arg.String (set_string "ana.osek.taskprefix"), ""
     ; "--osekisrprefix"      , Arg.String (set_string "ana.osek.isrprefix"), ""
     ; "--osektasksuffix"     , Arg.String (set_string "ana.osek.tasksuffix"), ""
@@ -96,8 +97,11 @@ let parse_arguments () =
   
 (** Initialize some globals in other modules. *)
 let handle_flags () =
-  if get_bool "allfuns" || get_bool "nonstatic" 
-      || get_string "ana.osek.oil" <> "''" then Goblintutil.multi_threaded := true;
+  let has_oil = get_string "ana.osek.oil" <> "" in
+  if has_oil then Osek.Spec.parse_oil ();
+
+  if get_bool "allfuns" || get_bool "nonstatic" || has_oil then 
+    Goblintutil.multi_threaded := true;
   
   if get_bool "dbg.debug" then Messages.warnings := true;
 
@@ -159,7 +163,8 @@ let preprocess_files () =
   
   (* fill include flags *)
   let one_include_f f x = includes := "-I " ^ f (string x) ^ " " ^ !includes in
-  if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes;
+  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ !OilUtil.header ^" "^ !includes;
+(*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
   get_list "includes" |> List.iter (one_include_f identity);
   get_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
   
@@ -237,7 +242,6 @@ let do_analyze merged_AST =
     Cilfacade.print merged_AST
   else begin
     (* we first find the functions to analyze: *)
-    if get_string "ana.osek.oil" <> "" then Osek.Spec.parse_oil ();
     if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
       if stf@exf@otf = [] then failwith "No suitable function to start from.";

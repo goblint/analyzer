@@ -632,8 +632,8 @@ type ('d,'g) ctx2 =
     { ask2      : Queries.t -> Queries.Result.t
     ; local2    : 'd
     ; global2   : varinfo -> 'g 
-    ; presub2   : local_state list
-    ; postsub2  : local_state list
+    ; presub2   : (string * Obj.t) list
+    ; postsub2  : (string * Obj.t) list
     ; spawn2    : varinfo -> 'd -> unit
     ; split2    : 'd -> exp -> bool -> unit
     ; sideg2    : varinfo -> 'g -> unit 
