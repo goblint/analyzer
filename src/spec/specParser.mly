@@ -1,7 +1,7 @@
 %{
 (* necessary to open a different compilation unit
 because exceptions directly defined here aren't visible outside
-(e.g. Parser.Eof is raised, but Error: Unbound constructor
+(e.g. SpecParser.Eof is raised, but Error: Unbound constructor
       if used to catch in a different module) *)
 open Def
 %}

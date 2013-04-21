@@ -1,5 +1,5 @@
 {
-open Parser        (* The type token is defined in parser.mli *)
+open SpecParser        (* The type token is defined in specParser.mli *)
 open Big_int
 exception Token of string
 let line = ref 1

@@ -4,7 +4,8 @@ while inotifywait -r -q -e modify src; do
 	make
 	if [ $? -eq 0 ]; then
 		clear
-		./fileTest.sh
+		#./test.sh file
+		./test.sh spec
 		#firefox result/file.c.html
 	else
 		notify-send -i stop Build failed!

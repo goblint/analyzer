@@ -22,30 +22,13 @@ struct
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
-      (* | Queries.MayEscape v -> `Bool (Dom.mem v ctx.local) *)
       | _ -> Queries.Result.top ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
     (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
     let m = ctx.local in
-    match lval with
-      | Var var, offset when Dom.mem var m -> (* var in domain is modified *)
-(*           (match rval, ctx.ask (Queries.MayPointTo rval) with (* assignment from other var in domain? *)
-            | Lval(Var varinfo, _), _ when Dom.mem varinfo m ->
-                M.write ("Lval: Assigned other file handle "^var.vname^" = "^varinfo.vname);
-                Dom.addMay var (Dom.find varinfo m) (Dom.may var m)
-            | _, `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a = 1
-              && Dom.mem (fst (Queries.LS.choose a)) m ->
-                let varinfo = fst (Queries.LS.choose a) in
-                M.write ("Query: Assigned other file handle "^var.vname^" = "^varinfo.vname);
-                Dom.addMay var (Dom.find varinfo m) (Dom.may var m)
-            | _ -> M.report ("changed file pointer "^var.vname^" (no longer safe)");
-                   Dom.may var m
-          ) *)
-          M.report ("changed file pointer "^var.vname^" (no longer safe)");
-          Dom.may var m
-      | _ -> m
+    m
 
   let branch ctx (exp:exp) (tv:bool) : Dom.t =
     (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
@@ -65,17 +48,6 @@ struct
     (* M.write ("return: ctx.local="^(Dom.short 50 ctx.local)^(callStackStr m)); *)
     (* if f.svar.vname <> "main" && BatList.is_empty (callStack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
-      let vnames xs = String.concat ", " (List.map (fun v -> v.var.vname) xs) in
-      let mustOpen = Dom.filterValues Dom.V.opened m in
-      if List.length mustOpen > 0 then
-        M.report ("unclosed files: "^(vnames mustOpen));
-        List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file is never closed") mustOpen;
-      let mustOpenVars = List.map (fun x -> x.var) mustOpen in
-      let mayOpenAll = Dom.filterValues ~may:true Dom.V.opened m in
-      let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpenAll in (* ignore values that are already in mustOpen *)
-      if List.length mayOpen > 0 then
-        M.report ("maybe unclosed files: "^(vnames (BatList.unique ~eq:(fun a b -> a.var.vname=b.var.vname) mayOpen)));
-        List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file may be never closed") mayOpen
     );
     let au = match exp with
       | Some(Lval(Var(varinfo),offset)) ->
@@ -93,10 +65,17 @@ struct
     Dom.add stack_var (Must v) m
 
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    (* M.write ("entering function "^f.vname^(callStackStr m)); *)
+    let m = ctx.local in
+    M.write ("entering function "^f.vname^(callStackStr m));
+    if f.vname = "main" then (
+      (* M.write ("CWD: "^Sys.getcwd ()); *)
+      (* let cin = Batteries.open_in "file.spec" in Ispec.parse cin (* fails! open_in works, but Ispec expects BatIO *) *)
+      let nodes, edges = Ispec.parseFile "file.spec" in
+      M.write (Def.dot nodes)
+    );
     let m = if f.vname <> "main" then
       editStack (BatList.cons !Tracing.current_loc) ctx.local
-    else ctx.local in [m,m]
+    else m in [m,m]
 
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     (* M.write ("leaving function "^f.vname^(callStackStr au)); *)
@@ -120,6 +99,14 @@ struct
       | [(v,_)] -> Some v
       | _ -> None
 
+(*
+.spec-format:
+- The file is contains two types of definitions: nodes and edges. The labels of nodes are output. The labels of edges are the constraints.
+- The start node of the first transition is the start node of the automaton.
+- Nodes starting with 'w' are warnings, which have an implicit back edge to the previous node.
+- Nodes starting with 'f'/'e' (fail/error/exit/end?) are end nodes.
+- An edge with '$_' matches everything and forwards it to the target node.
+*)
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let m = ctx.local in
     let ret dom = [dom, Cil.integer 1, true] in
@@ -143,14 +130,6 @@ struct
           M.report "file handle is not saved!"; dummy
       | Some lval, "fopen", _ ->
           let f m varinfo =
-            (* opened again, not closed before *)
-            Dom.report varinfo Dom.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
-            let mustOpen, mayOpen = Dom.checkMay varinfo Dom.V.opened m in
-            if mustOpen || mayOpen then (
-              let msg = if mayOpen && not mustOpen then "file may be never closed" else "file is never closed" in
-              let xs = Dom.filterRecords varinfo Dom.V.opened m in (* length 1 if mustOpen *)
-              List.iter (fun x -> M.report ~loc:(BatList.last x.loc) msg) xs
-            );
             (match arglist with
               | Const(CStr(filename))::Const(CStr(mode))::[] ->
                   Dom.fopen varinfo dloc filename mode m
