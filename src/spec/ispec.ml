@@ -22,8 +22,10 @@ let parse ?repl:(repl=false) ?print:(print=false) cin =
   with
     (* done *)
     | Def.Eof   ->
-        let nodes = List.filter (function Def.Node _ -> true | _ -> false) !defs in
-        let edges = List.filter (function Def.Edge _ -> true | _ -> false) !defs in
+(*         let nodes = List.filter (function Def.Node _ -> true | _ -> false) !defs in
+        let edges = List.filter (function Def.Edge _ -> true | _ -> false) !defs in *)
+        let nodes = List.filter_map (function Def.Node x -> Some x | _ -> None) !defs in
+        let edges = List.filter_map (function Def.Edge x -> Some x | _ -> None) !defs in
         if print then Printf.printf "\n#Definitions: %i, #Nodes: %i, #Edges: %i\n"
           (List.length !defs) (List.length nodes) (List.length edges);
         if save_dot then (

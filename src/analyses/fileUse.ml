@@ -137,7 +137,11 @@ struct
             List.map fst xs
     in
     (* fold possible varinfos on domain *)
-    let ret_all f lval = ret (List.fold_left f m (varinfos lval)) in
+    let ret_all f lval =
+      let xs = varinfos lval in
+      if List.length xs = 1 then ret (f m (List.hd xs))
+      (* if there are more than one, each one will be May, TODO: all together are Must *)
+      else ret (List.fold_left (fun m v -> Dom.may v (f m v)) m xs) in
     match lval, f.vname, arglist with
       | None, "fopen", _ ->
           M.report "file handle is not saved!"; dummy

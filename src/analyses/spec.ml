@@ -1,6 +1,7 @@
 open Cil
 open Pretty
 open Analyses
+open Batteries
 
 module M = Messages
 
@@ -18,6 +19,17 @@ struct
 
   let return_var = Cil.makeVarinfo false "@return" Cil.voidType
   let stack_var = Cil.makeVarinfo false "@stack" Cil.voidType
+
+  let nodes = ref []
+  let edges = ref []
+
+  let load_specfile () =
+    let specfile = GobConfig.get_string "spec.file" in
+    if String.length specfile < 1 then failwith "You need to specify a specification file using --sets spec.file path/to/file.spec when using the spec analysis!";
+    if not (Sys.file_exists specfile) then failwith ("The given spec.file ("^specfile^") doesn't exist (CWD is "^Sys.getcwd ()^").");
+    let _nodes, _edges = Ispec.parseFile specfile in
+    nodes := _nodes; edges := _edges (* don't change -> no need to save them in domain? *)
+
 
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
@@ -61,18 +73,13 @@ struct
   let editStack f m =
     let v = match Dom.findOption stack_var m with
       | Some(Must(v)) -> {v with loc=(f v.loc)}
-      | _ -> Dom.V.create stack_var (f []) Dom.V.Close in
+      | _ -> Dom.V.create stack_var (f []) "" in
     Dom.add stack_var (Must v) m
 
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     let m = ctx.local in
     M.write ("entering function "^f.vname^(callStackStr m));
-    if f.vname = "main" then (
-      (* M.write ("CWD: "^Sys.getcwd ()); *)
-      (* let cin = Batteries.open_in "file.spec" in Ispec.parse cin (* fails! open_in works, but Ispec expects BatIO *) *)
-      let nodes, edges = Ispec.parseFile "file.spec" in
-      M.write (Def.dot nodes)
-    );
+    if f.vname = "main" then load_specfile ();
     let m = if f.vname <> "main" then
       editStack (BatList.cons !Tracing.current_loc) ctx.local
     else m in [m,m]
@@ -101,7 +108,7 @@ struct
 
 (*
 .spec-format:
-- The file is contains two types of definitions: nodes and edges. The labels of nodes are output. The labels of edges are the constraints.
+- The file contains two types of definitions: nodes and edges. The labels of nodes are output. The labels of edges are the constraints.
 - The start node of the first transition is the start node of the automaton.
 - Nodes starting with 'w' are warnings, which have an implicit back edge to the previous node.
 - Nodes starting with 'f'/'e' (fail/error/exit/end?) are end nodes.
@@ -125,7 +132,20 @@ struct
     in
     (* fold possible varinfos on domain *)
     let ret_all f lval = ret (List.fold_left f m (varinfos lval)) in
-    match lval, f.vname, arglist with
+    (* go through constraints and return result on the first match *)
+    (* TODO what should be done if multiple constraints would match? *)
+    let findSome f xs not_found =
+      try let x = List.find (fun x -> match f x with Some _ -> true | _ -> false) xs in
+        match f x with Some x -> x | _ -> not_found
+      with Not_found -> not_found
+    in
+    let matching (a,b,c) =
+      (* TODO do more in parser *)
+      None
+      (* Dom.goto var dloc b *)
+    in
+    findSome matching !edges dummy
+(*     match lval, f.vname, arglist with
       | None, "fopen", _ ->
           M.report "file handle is not saved!"; dummy
       | Some lval, "fopen", _ ->
@@ -145,33 +165,7 @@ struct
                   M.report "fopen needs two strings as arguments"; m
             )
           in ret_all f lval
-
-      | _, "fclose", [Lval fp] ->
-          let f m varinfo =
-            if not (Dom.mem varinfo m) then M.report ("closeing unopened file handle "^varinfo.vname);
-            Dom.report varinfo Dom.V.closed ("closeing already closed file handle "^varinfo.vname) m;
-            Dom.fclose varinfo dloc m
-          in ret_all f fp
-      | _, "fclose", _ ->
-          M.report "fclose needs exactly one argument"; dummy
-
-      | _, "fprintf", (Lval fp)::_::_ ->
-          let f m varinfo =
-            Dom.reports m varinfo [
-              false, Dom.V.closed,   "writing to closed file handle "^varinfo.vname;
-              true,  Dom.V.opened,   "writing to unopened file handle "^varinfo.vname;
-              true,  Dom.V.writable, "writing to read-only file handle "^varinfo.vname;
-            ];
-            m
-          in ret_all f fp
-      | _, "fprintf", fp::_::_ ->
-          (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) arglist; *)
-          List.iter (fun exp -> M.report ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp);
-          M.report "printf not Lval"; dummy
-      | _, "fprintf", _ ->
-          M.report "fprintf needs at least two arguments"; dummy
-
-      | _ -> dummy
+      | _ -> dummy *)
 
   let startstate () = Dom.bot ()
   let otherstate () = Dom.bot ()

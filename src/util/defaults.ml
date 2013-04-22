@@ -11,13 +11,15 @@ type category = Std           (** Parsing input, includes, standard stuff, etc. 
               | Analyses      (** Analyses                                      *)
               | Experimental  (** Experimental features of analyses             *)
               | Debugging     (** Debugging, tracing, etc.                      *)
-  
+              | Spec          (** Specification                                 *)
+
 (** Description strings for categories. *)
 let catDescription = function
   | Std          -> "Standard options for configuring input/output"
   | Analyses     -> "Options for analyses"
   | Experimental -> "Experimental features"
   | Debugging    -> "Debugging options"
+  | Spec         -> "Specification options"
   
 (** A place to store registered varibles *)
 let registrar = ref []
@@ -145,3 +147,7 @@ let _ =
   reg Debugging "dbg.debug-sockets"   "null"  "Eclipse debugger plugin support.";
   reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
   
+(* {5 category [Spec]} *)
+
+let _ =
+  reg Spec      "spec.file"           ""      "Path to the specification file (needed when spec-analysis is activated).";

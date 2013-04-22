@@ -13,9 +13,7 @@ module Val =
 struct
   module T =
   struct
-    type mode = Read | Write
-    type state = Open of string*mode | Close
-    (* type state = string *)
+    type state = string
     type record = { var: varinfo; loc: location list; state: state }
     type t' = Must of record | May of record Set.t
   end
@@ -27,10 +25,7 @@ struct
 
   let toStringRecord x =
     let loc xs = String.concat ", " (List.map (fun x -> string_of_int x.line) xs) in
-    let mode x = match x with Read -> "Read" | Write -> "Write" in
-    match x.state with
-    | Open(filename, m) -> "open("^filename^", "^(mode m)^") ("^(loc x.loc)^")"
-    | Close -> "closed ("^(loc x.loc)^")"
+    x.state^" ("^(loc x.loc)^")"
 
   let toString = function
     | Must x -> "Must "^(toStringRecord x)
@@ -41,39 +36,33 @@ struct
 
   include Printable.PrintSimple (struct
     type t' = t
-    let name () = "File pointers"
+    let name () = "Spec record"
     let short = short
   end)
 
   let create v l s = { var=v; loc=l; state=s }
   let map f = function Must x -> Must (f x) | May xs -> May (Set.map f xs)
   let rebind x var = map (fun x -> {x with var=var}) x
-  let may = function Must x -> May (Set.singleton x) | xs -> xs
+  let may = function Must x -> May (Set.singleton x) | xs -> xs (* TODO diff. semantic of May with one elem. and more elem.! *)
   let records = function Must x -> (Set.singleton x) | May xs -> xs
   let recordsList = function Must x -> [x] | May xs -> List.of_enum (Set.enum xs)
   let vnames x = String.concat ", " (List.map (fun x -> x.var.vname) (recordsList x))
 
   let equal = Util.equals
-  (* let leq x y = true *)
   (* let leq x y = equal y (join x y) *)
   let leq x y = Set.subset (records x) (records y)
   let hash = Hashtbl.hash
   let join x y = (* M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); *)
-    let r = May (Set.union (records x) (records y)) in
-    (* M.report ("result: "^(toString r)); *)
-    r
+    May (Set.union (records x) (records y))
   let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); x
+    (* May (Set.intersection (records x) (records y)) *)
   (* top/bot are handled by MapDomain, only bot () gets called *)
   let top () = raise Unknown
   let is_top x = false
   let bot () = May(Set.empty) (* called in MapDomain.MapBot(K)(V).find *)
   let is_bot x = x=bot ()
-
-  (* properties used by FileUses.report *)
-  let opened x = x.state <> Close
-  let closed x = x.state = Close
-  let writable x = match x.state with Open((_,Write)) -> true | _ -> false
 end
+
 
 module Dom  =
 struct
@@ -93,6 +82,12 @@ struct
   let findOption k m = if mem k m then Some(find k m) else None
 
   (* domain specific *)
+  let findRecords k m = if mem k m then V.records (find k m) else Set.empty
+  let goto var loc state m = add var (Must(V.create var loc state)) m
+  let may_goto var loc state m = add var (May(Set.add (V.create var loc state) (findRecords var m))) m
+
+
+(*   (* domain specific *)
   let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then Set.exists p xs else Set.for_all p xs && Set.cardinal xs > 1
   let filterMap ?may:(may=false) p m = filter (fun k v -> predicate ~may:may v p) m (* this is OCaml's Map.filter which corresponds to BatMap.filteri *)
   let filterValues ?may:(may=false) p m = List.concat (
@@ -146,6 +141,6 @@ struct
     addMay var (Must(V.create var loc (Open(filename, mode)))) m
   let fclose var loc m = addMay var (Must(V.create var loc Close)) m
 
-  let may var m = add var (V.may (find var m)) m
+  let may var m = add var (V.may (find var m)) m *)
 
 end
