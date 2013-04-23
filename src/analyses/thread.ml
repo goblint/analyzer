@@ -1,3 +1,5 @@
+(** Thread-id analyses. *)
+
 open Cil
 open Pretty
 open Analyses

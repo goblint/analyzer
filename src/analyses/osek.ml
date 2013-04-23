@@ -1,3 +1,5 @@
+(** Data race analysis for OSEK programs. *)
+
 open Cil
 open Pretty
 open Analyses

@@ -1,3 +1,5 @@
+(** Partitionign domains. *)
+
 open Pretty
 
 module GU = Goblintutil

@@ -1,3 +1,5 @@
+(** Local variable initialization analysis. *)
+
 module M = Messages
 module BS = Base.Main
 module AD = ValueDomain.AD

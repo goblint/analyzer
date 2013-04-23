@@ -1,3 +1,5 @@
+(** Specification and functors for maps. *)
+
 open GobConfig
 open Pretty
 module ME = Messages

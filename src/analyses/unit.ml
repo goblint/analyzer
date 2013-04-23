@@ -1,3 +1,5 @@
+(** An analysis specification for didactic purposes. *)
+
 open Cil
 open Pretty
 open Analyses

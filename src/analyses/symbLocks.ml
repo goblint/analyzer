@@ -1,3 +1,5 @@
+(** Symbolic lock-sets for use in per-element patterns. *)
+
 module LF = LibraryFunctions
 module LP = Exp.LockingPattern
 module Exp = Exp.Exp

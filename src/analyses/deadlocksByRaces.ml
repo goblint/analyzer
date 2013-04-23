@@ -1,3 +1,5 @@
+(** Deadlock analysis using data race detection. *)
+
 open Cil
 open Pretty
 open Analyses

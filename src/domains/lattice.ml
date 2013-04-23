@@ -1,3 +1,5 @@
+(** The lattice signature and simple functors for building lattices. *)
+
 module GU = Goblintutil
 
 module type S =

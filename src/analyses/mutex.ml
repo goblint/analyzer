@@ -1,3 +1,5 @@
+(** Data race analysis. *)
+
 module M = Messages
 module GU = Goblintutil
 module Addr = ValueDomain.Addr

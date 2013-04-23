@@ -1,3 +1,5 @@
+(** Stack-trace "analyses". *)
+
 open Cil
 open Pretty
 open Analyses

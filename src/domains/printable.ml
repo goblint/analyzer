@@ -1,3 +1,5 @@
+(** Some things are not quite lattices ... *)
+
 open Pretty
 
 module type S = 

@@ -1,3 +1,5 @@
+(** Assigning static regions to dynamic memory. *)
+
 open Cil
 open Pretty
 open Analyses

@@ -1,3 +1,5 @@
+(** Shape analysis for cyclic doubly linked lists. *)
+
 open Cil
 open Pretty
 open Analyses

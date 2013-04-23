@@ -1,3 +1,4 @@
+(** Path-sensitivity mechanism; OLD. *)
 open Analyses
 open Pretty
 open Cil

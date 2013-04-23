@@ -1,3 +1,5 @@
+(** Minimal signature for hashtables. *)
+
 module Make (Domain: Hashtbl.HashedType) =
 struct
   module H = Hashtbl.Make(Domain)

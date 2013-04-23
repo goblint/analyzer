@@ -1,3 +1,4 @@
+(** Path-sensitive analysis that verifies checking the result of the malloc function. *)
 
 module M = Messages
 module BS = Base.Main

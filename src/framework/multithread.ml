@@ -1,3 +1,5 @@
+(** Similar to control.ml, but OLD *)
+
 module A = Analyses
 module M = Messages
 module P = Progress

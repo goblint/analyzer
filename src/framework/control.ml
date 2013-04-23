@@ -1,3 +1,5 @@
+(** An analyzer that takes the CFG from [MyCFG], a solver from [Selector], constraints from [Constraints] (using the specification from [MCP]) *) 
+
 open Cil
 open MyCFG
 open Pretty

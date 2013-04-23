@@ -1,3 +1,5 @@
+(** Analysis for the OSEK flag pattern. *)
+
 open Cil
 open Pretty
 open Analyses

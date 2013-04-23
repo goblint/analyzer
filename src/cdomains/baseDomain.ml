@@ -1,3 +1,5 @@
+(** domain of the base analysis *)
+
 module VD     = ValueDomain.Compound
 module CPA    = MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
 

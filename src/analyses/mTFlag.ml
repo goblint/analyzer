@@ -1,3 +1,5 @@
+(** A stand-alone multi-threadedness aanlysis. *)
+
 module GU = Goblintutil
 module LF = LibraryFunctions
 

@@ -18,7 +18,7 @@ let print_version ch =
   printf "Configuration:   tracing %a, tracking %a (n=%d)\n" f tracing f tracking track_n ;
   raise BailFromMain
 
-(* Print helpful messages. *)
+(** Print helpful messages. *)
 let print_help ch = 
   fprintf ch "Usage: goblint [options] source-files\nOptions\n";
   fprintf ch "    -v                        Prints more status information.                 \n";
@@ -256,9 +256,9 @@ let do_analyze merged_AST =
       else Stats.time "analysis" (MCP.Analysis.analyze merged_AST) funs
   end
   
-let main_running = ref false
-(* the main function *)
-let main () = 
+(** the main function *)
+let main =
+  let main_running = ref false in fun () ->
   if !main_running then () else
   let _ = main_running := true in
   try

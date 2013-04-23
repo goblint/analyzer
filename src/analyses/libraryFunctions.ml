@@ -1,3 +1,5 @@
+(** Tools for dealing with library functions. *)
+
 open Cil
 open GobConfig
 open Goblintutil

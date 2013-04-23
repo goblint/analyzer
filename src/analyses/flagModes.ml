@@ -1,3 +1,5 @@
+(** Flag state values. *)
+
 open Batteries
 open Cil
 open Pretty

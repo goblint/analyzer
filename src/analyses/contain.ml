@@ -1,3 +1,5 @@
+(** Protection using 'private' field modifier in C++.  *)
+
 open Cil 
 open Pretty
 open Analyses

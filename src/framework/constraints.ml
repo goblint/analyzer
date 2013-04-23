@@ -1,3 +1,5 @@
+(** How to generate constraints for a solver using specifications described in [Analyses]. *)
+
 open Cil
 open MyCFG
 open Pretty

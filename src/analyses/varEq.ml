@@ -1,3 +1,5 @@
+(** Variable equalities neccessary for per-element patterns. *)
+
 module M = Messages
 module GU = Goblintutil
 module Addr = ValueDomain.Addr

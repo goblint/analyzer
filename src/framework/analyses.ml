@@ -1,3 +1,5 @@
+(** Signatures for aanlyzers, analysis specifications, and result output.  *)
+
 open Cil
 open Pretty
 open GobConfig
