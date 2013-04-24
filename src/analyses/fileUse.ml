@@ -145,7 +145,7 @@ struct
     match lval, f.vname, arglist with
       | None, "fopen", _ ->
           M.report "file handle is not saved!"; dummy
-      | Some lval, "fopen", _ ->
+      | Some lval, "fopen", _ -> (* TODO: also return a domain where fp = NULL (error case) *)
           let f m varinfo =
             (* opened again, not closed before *)
             Dom.report varinfo Dom.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
@@ -162,7 +162,7 @@ struct
                   (* ignore(printf "CIL: %a\n" d_plainexp e); *)
                   (match ctx.ask (Queries.EvalStr e) with
                     | `Str filename -> Dom.fopen varinfo dloc filename mode m
-                    | _ -> M.report "no result from query"; m
+                    | _ -> M.report "no result from query"; m (* TODO open with unknown filename *)
                   )
               | xs ->
                   M.report (String.concat ", " (List.map (fun x -> Pretty.sprint 80 (d_exp () x)) xs));

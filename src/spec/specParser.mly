@@ -41,31 +41,31 @@ def:
 ;
 
 stmts:
-  | expr                     { $1 }
-  | stmts SEMICOLON expr     { $1^"; "^$3 }
+  | var EQ expr              { {lval = Some $1; exp = $3} } /* TODO expression would be better */
+  | expr                     { {lval = None; exp = $1} }
+/*  | stmts SEMICOLON expr     { (* $1^"; "^ *) $3 } */
 ;
 
 var:
-  | VAR                      { "$"^$1 }
-  | VAR_                     { "$_" }
-  | IDENT                    { $1 }
+  | VAR                      { Vari $1 }
+  | VAR_                     { Var_ }
+  | IDENT                    { Ident $1 }
 ;
 
 expr:
   | LPAREN expr RPAREN       { $2 }
-  | STRING                   { "\""^$1^"\"" }
-  | BOOL                     { string_of_bool $1 }
-  | nexpr                    { string_of_int $1 }
-  | var                      { $1 }
-  | var EQ expr              { $1^" = "^$3 }   /* no need for extra stmt (avoids shift/reduce conflict) */
-  | IDENT args               { $1^"("^$2^")" } /* function */
-  | UNDERS                   { "_" }
-  | nexpr LT    nexpr        { string_of_bool($1<$3) }
-  | nexpr GT    nexpr        { string_of_bool($1>$3) }
-  | nexpr EQ EQ nexpr        { string_of_bool($1=$4) }
-  | nexpr NE    nexpr        { string_of_bool($1<>$3) }
-  | nexpr LE    nexpr        { string_of_bool($1<=$3) }
-  | nexpr GE    nexpr        { string_of_bool($1>=$3) }
+  | STRING                   { String $1 }
+  | BOOL                     { Bool $1 }
+  | nexpr                    { Int $1 }
+  | var                      { Var $1 }
+  | IDENT args               { Fun {fname=$1; args=$2} } /* function */
+  | UNDERS                   { Exp_ }
+  | nexpr LT    nexpr        { Bool ($1<$3) }
+  | nexpr GT    nexpr        { Bool ($1>$3) }
+  | nexpr EQ EQ nexpr        { Bool ($1=$4) }
+  | nexpr NE    nexpr        { Bool ($1<>$3) }
+  | nexpr LE    nexpr        { Bool ($1<=$3) }
+  | nexpr GE    nexpr        { Bool ($1>=$3) }
 ;
 
 nexpr:
@@ -80,11 +80,11 @@ nexpr:
 ;
 
 args:
-  | LPAREN RPAREN            { "" }
+  | LPAREN RPAREN            { [] }
   | LPAREN elems RPAREN      { $2 }
 ;
 
 elems:
-  | expr                     { $1 }
-  | elems COMMA expr         { $1^", "^$3 }
+  | expr                     { [$1] }
+  | elems COMMA expr         { $1 @ [$3] }
 ;
