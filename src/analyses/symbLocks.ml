@@ -22,9 +22,9 @@ struct
 
   let name = "Symbolic locks"
 
-  let startstate = Dom.top 
-  let otherstate = Dom.top 
-  let exitstate  = Dom.top 
+  let startstate v = Dom.top ()
+  let otherstate v = Dom.top ()
+  let exitstate  v = Dom.top ()
 
   let branch ctx exp tv = ctx.local
   let body   ctx f = ctx.local

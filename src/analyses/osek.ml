@@ -392,9 +392,9 @@ let _ = print_endline (string_of_bool res) in res*)
 
     
 
-  let startstate () = Dom.top ()
-  let otherstate () = Dom.top ()
-  let exitstate  () = Dom.top ()
+  let startstate v = Dom.top ()
+  let otherstate v = Dom.top ()
+  let exitstate  v = Dom.top ()
 
   let activate_task ctx (task_name : string) : unit =
     let task = Cilfacade.getFun task_name in

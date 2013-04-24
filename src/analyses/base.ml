@@ -49,9 +49,11 @@ struct
   module Dom    = BaseDomain.Dom
 
   let name = "Constant Propagation Analysis"
-  let startstate () = CPA.bot (), Flag.bot ()
-  let otherstate () = CPA.bot (), Flag.top ()
-  let exitstate  () = CPA.bot (), Flag.get_main ()
+  let startstate v = CPA.bot (), Flag.bot ()
+  let otherstate v = CPA.bot (), Flag.top ()
+  let exitstate  v = CPA.bot (), Flag.get_main ()
+
+  let morphstate v (cpa,fl) = cpa, Flag.start_single v
 
   type cpa = CPA.t
   type flag = Flag.t

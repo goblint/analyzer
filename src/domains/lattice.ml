@@ -480,7 +480,7 @@ struct
       | `Right  x, `Left y -> `Right x
 end                             
 
-module Option (Base: S) (N: Printable.Name) = Either (UnitConf (N)) (Base)
+module Option (Base: S) (N: Printable.Name) = Either (Base) (UnitConf (N))
 
 module Liszt (Base: S) = 
 struct

@@ -272,9 +272,9 @@ struct
     let st, re = ctx.local in
     Re.query (re_context ctx re) q
  
-  let startstate () = LD.singleton (SHMap.top ()), Re.startstate ()
-  let otherstate () = LD.singleton (SHMap.top ()), Re.otherstate ()
-  let exitstate  () = LD.singleton (SHMap.top ()), Re.otherstate ()
+  let startstate v = LD.singleton (SHMap.top ()), Re.startstate v
+  let otherstate v = LD.singleton (SHMap.top ()), Re.otherstate v
+  let exitstate  v = LD.singleton (SHMap.top ()), Re.otherstate v
 
   let init () = Printexc.record_backtrace true
                                                    

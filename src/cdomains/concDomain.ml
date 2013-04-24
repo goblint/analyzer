@@ -50,7 +50,8 @@ end
 module Thread = struct
   module NoCreationSite = struct let name = "Starting Thread" end
   module CreationSite = Printable.Option (Basetype.ProgLines) (NoCreationSite)
-  include Printable.Prod (Basetype.ProgLines) (Basetype.Variables)
+  include Printable.Prod (CreationSite) (Basetype.Variables)
+  let start_thread v: t = `Right (), v
 end
 
 (** The basic thread domain that distinguishes singlthreaded mode, a single
@@ -62,6 +63,13 @@ module SimpleThreadDomain = struct
   end
   module Lifted = Lattice.Flat (Thread) (ThreadLiftNames)
   include Lattice.Prod (Simple) (Lifted)
+  let is_multi (x,_) = x > 0
+  let is_bad   (x,_) = x > 1
+  let get_multi () = (2, Lifted.top ())
+  let get_main  () = (1, Lifted.top ())
+  let get_single () = (0, Lifted.top ())
+  let start_single v : t = (0, `Lifted (Thread.start_thread v))
+  let switch (x,z) (y,_) = (Simple.switch x y, z)
 end
 
 

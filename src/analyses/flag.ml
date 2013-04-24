@@ -123,9 +123,9 @@ struct
     let _ = List.iter no_addr_of_flag arglist in
     match f.vname with _ -> [Dom.top (),Cil.integer 1, true]
 
-  let startstate () = Dom.top ()
-  let otherstate () = Dom.top ()
-  let exitstate  () = Dom.top ()
+  let startstate v = Dom.top ()
+  let otherstate v = Dom.top ()
+  let exitstate  v = Dom.top ()
   
   let name = "flag"
 

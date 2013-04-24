@@ -120,9 +120,9 @@ struct
 (* let _ = print_endline ( "Specialfn " ^f.vname) in  *)
 	      [(ctxs, ctxr),Cil.integer 1, true]
 
-  let startstate () = Dom.bot ()
-  let otherstate () = Dom.top ()
-  let exitstate  () = Dom.top ()
+  let startstate v = Dom.bot ()
+  let otherstate v = Dom.top ()
+  let exitstate  v = Dom.top ()
 
 (** Finalization and other result printing functions: *)
 

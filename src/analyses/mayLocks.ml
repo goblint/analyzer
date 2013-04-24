@@ -72,9 +72,9 @@ struct
         
       | _ -> [ctx.local, Cil.integer 1, true]
 
-  let startstate () = Dom.empty ()
-  let otherstate () = Dom.empty ()
-  let exitstate  () = Dom.top ()
+  let startstate v = Dom.empty ()
+  let otherstate v = Dom.empty ()
+  let exitstate  v = Dom.top ()
 end
 
 module MayLocksMCP = 

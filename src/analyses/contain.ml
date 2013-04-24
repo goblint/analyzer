@@ -815,9 +815,9 @@ struct
         | None -> a, b, c
     end
   
-  let startstate () = Dom.bot ()
-  let otherstate () = Dom.bot ()  
-  let exitstate  () = Dom.bot ()  
+  let startstate v = Dom.bot ()
+  let otherstate v = Dom.bot ()  
+  let exitstate  v = Dom.bot ()  
 end
 
 module ContainmentMCP = 
