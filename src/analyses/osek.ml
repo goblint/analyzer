@@ -678,13 +678,13 @@ let _ = print_endline (string_of_bool res) in res*)
       in (*/get_flags*)
       let valid_flag (flag :Cil.varinfo) : bool= 
         let add_flag flag res = 
-          if res = BadFlag then
+          if res = BadFlag then begin
             bad_flags := flag::!bad_flags;
             if tracing then trace "osek" "Flag %s is invalid\n" flag.vname
-          else if res = GoodFlag then
+          end else if res = GoodFlag then
             ()
           else
-            failwith "This never happens! osekml606"
+            failwith "This never happens! osekml687"
         in (*/add_flag*)
 (*        if List.mem flag !bad_flags then false else*)
         let status_list = ref [] in
