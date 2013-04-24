@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated "[['base','escape','fmode', 'OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 05-pi.oil --set ana.int.interval true --set ana.int.trier false --sets solver new --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
+//PARAM: --set ana.activated "[['base','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set']]" --sets ana.osek.oil 05-pi.oil --set ana.int.interval true --set ana.int.trier false --sets solver new --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
 
 int x = 0;
 // int y;
@@ -40,7 +40,7 @@ TASK(t) {
    z = 0;
    ReleaseResource(r2);
    z=1;
-   assert(x <= 16); //
+//    assert(x <= 16); //
    assert(x >= 0); //
    assert(z <= 1); //
    assert(z >= 0); //

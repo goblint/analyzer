@@ -6,7 +6,6 @@ open Pretty
 type attribute_v = Name of (string * ( ((string * attribute_v) list) option)) | Bool of (bool * (((string * attribute_v) list) option)) | Int of int | Float of float | String of string | Auto
 type param_t = string * attribute_v
 type object_t = string*string*(param_t list)
-
 (*		id	pry 	"lock"*)
 type res_t = 	string*	int*	Cil.exp
 (*		id	timed*)
@@ -16,21 +15,15 @@ type task_t = 	bool*		int*	(string list)*	(string list)*	bool*		bool*		int
 (*		pry	res		category *)
 type isr_t = 	int*	(string list)*	int
 
-(*Oil/tramp/names files*)
-(*let oilFile = ref ""*)
-(*let resourceheaders = ref ""*)
-(* "/defaultAppWorkstation/tpl_os_generated_configuration.h" *)
 let osek_renames = ref ""
-
-(*API function names *)
+let header = ref "osek_goblint.h"
+let header_path = ref "./"
 let osek_names : (string,string) Hashtbl.t = Hashtbl.create 16
-
 let osek_ISR_PRIORITY = ref ["PRIORITY"; "INTERRUPTPRIORITY"]
 let osek_API_funs = ["ActivateTask"; "TerminateTask"; "ChainTask"; "Schedule"; "GetTaskID"; "GetTaskState"; "DisableAllInterrupts"; "EnableAllInterrupts"; "SuspendAllInterrupts"; "ResumeAllInterrupts"; "SuspendOSInterrupts"; "ResumeOSInterrupts"; "GetResource"; "ReleaseResource"; "SetEvent"; "GetEvent"; "ClearEvent"; "WaitEvent"; "GetAlarmBase"; "GetAlarm"; "SetRelAlarm"; "SetAbsAlarm"; "CancelAlarm"; "GetActiveApplicationMode"; "StartOS"; "ShutdownOS"]
-let header = ref "goblint.h"
-let default_defs = ref true
 
 (* boolean flags *)
+let default_defs = ref true
 let startuphook = ref false
 let shutdownhook = ref false
 let errorhook = ref false
@@ -51,7 +44,6 @@ let alarms   : (string,bool*(string list)) Hashtbl.t = Hashtbl.create 16
 (* start analysis here *)
 let starting_tasks = ref ([] : string list)
 let concurrent_tasks = ref ([] : string list)
-
 
 let warned = ref ([] :string list)
 
@@ -85,7 +77,7 @@ let is_starting f = (List.mem f !concurrent_tasks) || (List.mem f !starting_task
 
 (*print id header *)
 let generate_header () = 
-  let f = open_out !header in
+  let f = open_out (!header_path ^ !header) in
     let print_resources id value = if not(is_task id) then output_string f ("int " ^ id ^ ";\n") else () in
     let print_events id value 	 = output_string f ("int " ^ id           ^ ";\n") in
     let print_tasks id value     = output_string f ("int " ^ trim_task id ^ ";\n") in

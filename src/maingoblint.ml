@@ -163,7 +163,7 @@ let preprocess_files () =
   
   (* fill include flags *)
   let one_include_f f x = includes := "-I " ^ f (string x) ^ " " ^ !includes in
-  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ !OilUtil.header ^" "^ !includes;
+  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (!OilUtil.header_path ^ !OilUtil.header) ^" "^ !includes;
 (*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
   get_list "includes" |> List.iter (one_include_f identity);
   get_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);

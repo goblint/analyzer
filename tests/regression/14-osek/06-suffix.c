@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated "[['base','escape','fmode', 'OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 02-example.oil --sets ana.osek.tramp 06-suffix-tramp.h --sets ana.osek.tasksuffix _func --sets ana.osek.isrsuffix _func
+// SKIP PARAM: --set ana.activated "[['base','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set']]" --sets ana.osek.oil 02-example.oil --sets ana.osek.tramp 06-suffix-tramp.h --sets ana.osek.tasksuffix _func --sets ana.osek.isrsuffix _func
 
 int x;
 int y;
