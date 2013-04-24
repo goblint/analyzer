@@ -1,3 +1,5 @@
+(** Flag state values. *)
+
 open Batteries
 open Cil
 open Pretty
@@ -54,9 +56,9 @@ struct
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     [ctx.local,Cil.integer 1, true]
 
-  let startstate () = Dom.top ()
-  let otherstate () = Dom.top ()
-  let exitstate  () = Dom.top ()
+  let startstate v = Dom.top ()
+  let otherstate v = Dom.top ()
+  let exitstate  v = Dom.top ()
 end
 
 

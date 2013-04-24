@@ -1,3 +1,5 @@
+(** Variables that escape threads using the last argument from pthread_create. *)
+
 open Cil
 open Pretty
 open Analyses
@@ -89,9 +91,9 @@ struct
         end
       | _ -> [ctx.local,Cil.integer 1, true]
 
-  let startstate () = Dom.bot ()
-  let otherstate () = Dom.bot ()
-  let exitstate  () = Dom.bot ()
+  let startstate v = Dom.bot ()
+  let otherstate v = Dom.bot ()
+  let exitstate  v = Dom.bot ()
 end
 
 module TransparentSignatureHack: Analyses.Spec = Spec

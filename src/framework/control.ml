@@ -1,3 +1,5 @@
+(** An analyzer that takes the CFG from [MyCFG], a solver from [Selector], constraints from [Constraints] (using the specification from [MCP]) *) 
+
 open Cil
 open MyCFG
 open Pretty
@@ -89,7 +91,7 @@ struct
       | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) -> set_bad v s
       | _ -> s
     in    
-    Cil.foldGlobals file add_externs (Spec.startstate ())
+    Cil.foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
 
   (** analyze cil's global-inits function to get a starting state *)
   let do_global_inits (file: Cil.file) : Spec.D.t * Cil.fundec list = 
@@ -142,7 +144,7 @@ struct
     let _ = set_bool "exp.earlyglobs" false in
     Spec.init ();
     
-  	let startstate, more_funs = 
+    let startstate, more_funs = 
       if (get_bool "dbg.verbose") then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file 
     in
@@ -150,6 +152,7 @@ struct
     let otherfuns = if get_bool "kernel" then otherfuns @ more_funs else otherfuns in
   
     let enter_with st fd =
+      let st = st fd.svar in
       let ctx = 
         { ask2     = (fun _ -> Queries.Result.top ())
         ; local2   = st
@@ -171,11 +174,13 @@ struct
     let startvars = 
       if startfuns = [] 
       then [[MyCFG.dummy_func.Cil.svar, startstate]]
-      else List.map (enter_with startstate) startfuns 
+      else 
+        let morph f = Spec.morphstate f startstate in
+        List.map (enter_with morph) startfuns 
     in
    
-    let exitvars = List.map (enter_with (Spec.exitstate ())) exitfuns in
-    let othervars = List.map (enter_with (Spec.otherstate ())) otherfuns in
+    let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
+    let othervars = List.map (enter_with Spec.otherstate) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
   
     let _ = 

@@ -198,9 +198,9 @@ struct
 
       | _ -> dummy
 
-  let startstate () = Dom.bot ()
-  let otherstate () = Dom.bot ()
-  let exitstate  () = Dom.bot ()
+  let startstate v = Dom.bot ()
+  let otherstate v = Dom.bot ()
+  let exitstate  v = Dom.bot ()
 end
 
 module TransparentSignatureHack: Analyses.Spec = Spec
@@ -217,3 +217,7 @@ module ThreadMCP =
                 let inject_g x = `None
                 let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
          end)
+
+module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec)
+let _ = 
+  MCP.register_analysis "escape" (module Spec2 : Spec2)

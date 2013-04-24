@@ -1,3 +1,5 @@
+(** Our Control-flow graph implementation. *)
+
 module GU = Goblintutil
 module CF = Cilfacade
 open Cil

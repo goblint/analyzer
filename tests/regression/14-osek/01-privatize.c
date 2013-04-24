@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "[['base','escape','fmode', 'OSEK', 'OSEK2', 'OSEK3', 'stack_trace_set']]" --sets ana.osek.oil 01-privatize.oil --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
+// PARAM: --set ana.activated "[['base','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set']]" --sets ana.osek.oil 01-privatize.oil --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
 
 int x = 1;
 int y;

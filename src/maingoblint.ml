@@ -18,7 +18,7 @@ let print_version ch =
   printf "Configuration:   tracing %a, tracking %a (n=%d)\n" f tracing f tracking track_n ;
   raise BailFromMain
 
-(* Print helpful messages. *)
+(** Print helpful messages. *)
 let print_help ch = 
   fprintf ch "Usage: goblint [options] source-files\nOptions\n";
   fprintf ch "    -v                        Prints more status information.                 \n";
@@ -163,7 +163,7 @@ let preprocess_files () =
   
   (* fill include flags *)
   let one_include_f f x = includes := "-I " ^ f (string x) ^ " " ^ !includes in
-  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ !OilUtil.header ^" "^ !includes;
+  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (!OilUtil.header_path ^ !OilUtil.header) ^" "^ !includes;
 (*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
   get_list "includes" |> List.iter (one_include_f identity);
   get_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
@@ -256,9 +256,9 @@ let do_analyze merged_AST =
       else Stats.time "analysis" (MCP.Analysis.analyze merged_AST) funs
   end
   
-let main_running = ref false
-(* the main function *)
-let main () = 
+(** the main function *)
+let main =
+  let main_running = ref false in fun () ->
   if !main_running then () else
   let _ = main_running := true in
   try

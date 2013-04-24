@@ -1,3 +1,5 @@
+(** Similar to control.ml, but OLD *)
+
 module A = Analyses
 module M = Messages
 module P = Progress
@@ -234,7 +236,7 @@ struct
         let mon_spawns = List.filter (fun (x,y) -> phase>y && not (List.exists (Basetype.Variables.equal x) spawnfuns)) old_spawns in
         let new_spawns = List.filter (fun x -> List.for_all (fun (z,_) -> not (Basetype.Variables.equal x z)) old_spawns) spawnfuns in
         SH.replace old_s (fn,ed,tn) (List.map (fun x -> (x,phase)) new_spawns@(try SH.find old_s (fn,ed,tn) with Not_found -> [])); 
-        spawns @ List.map do_one_function (List.map (fun (x,_) -> (x, Spec.otherstate ())) mon_spawns)
+        spawns @ List.map do_one_function (List.map (fun (x,_) -> (x, Spec.otherstate x)) mon_spawns)
       end
     in
     (*
@@ -628,7 +630,7 @@ struct
       | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) -> set_bad v s
       | _ -> s
     in    
-    Cil.foldGlobals file add_externs (Spec.startstate ())
+    Cil.foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
   
   (** analyze cil's global-inits function to get a starting state *)
   let do_global_inits (file: Cil.file) : SD.t * Cil.fundec list = 
@@ -677,7 +679,7 @@ struct
         old_g 
         (old_s : (varinfo * int) list SH.t) 
         (startfuns, exitfuns, otherfuns: A.fundecs) =
-	let startstate, more_funs = 
+    let startstate, more_funs = 
       if (get_bool "dbg.verbose") then print_endline "Initializing globals.";
       Stats.time "initializers" do_global_inits file in
     let _ = if M.tracing then M.trace "postinit" "The initial state is: %a\n" SD.pretty startstate else () in
@@ -686,6 +688,7 @@ struct
       then otherfuns @ more_funs
       else otherfuns in
     let enter_with st fd =
+      let st = st fd.svar in
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
       let theta x = Spec.Glob.Val.bot () in
       let ignore2 _ _ = () in 
@@ -700,9 +703,11 @@ struct
       if startfuns = [] then
         [[MyCFG.dummy_func.svar, startstate]]
       else 
-        List.map (enter_with (SD.unlift startstate)) startfuns in 
-    let exitvars = List.map (enter_with (Spec.exitstate ())) exitfuns in
-    let othervars = List.map (enter_with (Spec.otherstate ())) otherfuns in
+        let morph f = Spec.morphstate f (SD.unlift startstate) in
+        List.map (enter_with morph) startfuns 
+    in 
+    let exitvars = List.map (enter_with Spec.exitstate) exitfuns in
+    let othervars = List.map (enter_with Spec.otherstate) otherfuns in
     let startvars = List.concat (startvars @ exitvars @ othervars) in
     let _ = if startvars = [] then failwith "BUG: Empty set of start variables; may happen if enter_func of any analysis returns an empty list." in
     let context_fn f = if get_bool "exp.full-context" then fun x->x else Spec.context_top f in

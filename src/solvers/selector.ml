@@ -8,7 +8,7 @@ let solvers = ref ["effectWCon", (module EffectWCon.Make2 : GenericGlobSolver)]
 (** Register your solvers here!!! *)
 let add_solver x = solvers := x::!solvers
 
-(** The solver that actually uses the implementation based of [get_string "solver"]. *)
+(** The solver that actually uses the implementation based of [GobConfig.get_string "solver"]. *)
 module Make : GenericGlobSolver =
   functor (S:GlobConstrSys) ->
   functor (LH:Hash.H with type key=S.LVar.t) ->

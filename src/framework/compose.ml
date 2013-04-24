@@ -1,3 +1,4 @@
+(** Path-sensitivity mechanism; OLD. *)
 open Analyses
 open Pretty
 open Cil
@@ -100,9 +101,9 @@ struct
   type transfer = Dom.t -> Dom.t
     
   let name       = "Path sensitive " ^ Base.name
-  let startstate () = Dom.singleton (Base.startstate ())
-  let otherstate () = Dom.singleton (Base.otherstate ())
-  let exitstate  () = Dom.singleton (Base.exitstate ())
+  let startstate v = Dom.singleton (Base.startstate v)
+  let otherstate v = Dom.singleton (Base.otherstate v)
+  let exitstate  v = Dom.singleton (Base.exitstate  v)
   let init     = Base.init
   let finalize = Base.finalize
   let es_to_string f es  = Base.es_to_string f (Dom.choose es)
@@ -132,6 +133,7 @@ struct
     then raise Analyses.Deadcode
     else rslt
   
+  let morphstate v = lift (Base.morphstate v)
   
   let sync ctx = 
     let f l (ls,gs) = 

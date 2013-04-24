@@ -1,0 +1,44 @@
+CPU CPU1 {
+OS OSEK1 { };
+APPMODE appmode1{}; 
+
+RESOURCE r{
+RESOURCEPROPERTY = STANDARD;
+};
+
+RESOURCE ri{
+RESOURCEPROPERTY = STANDARD;
+};
+
+ISR high{
+PRIORITY = 42;
+RESOURCE = r;
+CATEGORY = 2;
+};
+
+ISR four{
+PRIORITY = 4;
+CATEGORY = 2;
+};
+
+ISR three{
+PRIORITY = 3;
+RESOURCE = ri;
+CATEGORY = 2;
+};
+
+ISR two{
+   PRIORITY = 2;
+   RESOURCE = ri;
+   CATEGORY = 2;
+};
+
+TASK init {
+   AUTOSTART = TRUE;
+   PRIORITY = 1;
+   RESOURCE = r;
+   RESOURCE = ri;
+   ACTIVATION = 1;
+   SCHEDULE = FULL;
+};
+};

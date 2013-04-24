@@ -38,8 +38,8 @@ rule() {
              cp _build/$TARGET.byte goblint.byte
              ;;
     doc*)    rm -rf doc;
-             ls src/*/*.ml src/*.ml | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
-             ocb doclist.docdir/index.html;
+             ls src/*/*/*.ml src/*/*.ml src/*.ml | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
+             ocb -ocamldoc ocamldoc.opt -docflags -colorize-code,-keep-code doclist.docdir/index.html;
              rm doclist.odocl;
              ln -sf _build/doclist.docdir doc
              ;;

@@ -1,3 +1,4 @@
+(** Master Controp Program *)
 (*
   How to add an analysis to MCP?
     1) Add a tag to type local_state (in framework/analyses.ml) and if needed
@@ -83,9 +84,10 @@ type analysisRecord = {
     init: unit -> unit;
     finalize: unit -> unit;
     should_join: local_state -> local_state -> bool;
-    startstate: unit -> local_state;
-    otherstate: unit -> local_state;
-    exitstate : unit -> local_state;
+    startstate: varinfo -> local_state;
+    morphstate: varinfo -> local_state -> local_state;
+    otherstate: varinfo -> local_state;
+    exitstate : varinfo -> local_state;
     es_to_string: fundec -> local_state -> string;  
     context_top: varinfo -> local_state -> local_state;
     sync : (local_state,Basetype.Variables.t,global_state) ctx -> local_state * (Basetype.Variables.t * global_state) list;
@@ -215,9 +217,10 @@ struct
   let finalize = S.finalize
   
   let should_join x y = S.should_join (C.extract_l x) (C.extract_l y)
-  let startstate () = C.inject_l (S.startstate ())
-  let otherstate () = C.inject_l (S.otherstate ())
-  let exitstate () = C.inject_l (S.exitstate ())
+  let startstate v = C.inject_l (S.startstate v)
+  let morphstate v d = C.inject_l (S.morphstate v (C.extract_l d))
+  let otherstate v = C.inject_l (S.otherstate v)
+  let exitstate  v = C.inject_l (S.exitstate  v)
   let es_to_string f x = S.es_to_string f (C.extract_l x)
   let context_top f x = C.inject_l (S.context_top f (C.extract_l x))
   
@@ -430,6 +433,7 @@ struct
         finalize      = finalize;
         should_join   = should_join;
         startstate    = startstate;
+        morphstate    = morphstate;
         otherstate    = otherstate;
         exitstate     = exitstate;
         es_to_string  = es_to_string;
@@ -471,6 +475,10 @@ struct
      ones that are disabled. *)
   let constr_scheme xs =
     let f take x xs = if take then x()::xs else xs in
+    List.fold_right2 f !take_list xs []
+
+  let constr_scheme_arg a xs =
+    let f take x xs = if take then (x a) ::xs else xs in
     List.fold_right2 f !take_list xs []
 
   let top () = constr_scheme
@@ -833,13 +841,16 @@ struct
     in
     List.map2 disable_cfg !context_list x 
 
-  let startstate () = Dom.constr_scheme
+  let startstate v = Dom.constr_scheme_arg v
     (List.map (fun p -> p.startstate) !analysesList)
 
-  let otherstate () = Dom.constr_scheme
+  let morphstate v d = 
+    List.map (fun e -> (get_matches e).morphstate v e) d
+
+  let otherstate v = Dom.constr_scheme_arg v
     (List.map (fun p -> p.otherstate) !analysesList)
 
-  let exitstate () = Dom.constr_scheme
+  let exitstate v = Dom.constr_scheme_arg v
     (List.map (fun p -> p.exitstate) !analysesList)
     
   (* Join when path-sensitive properties are equal. *)
@@ -873,12 +884,11 @@ struct
 
   (* fork over all analyses and combine values of equal varinfos *)
   let lift_spawn ctx f  =
-    let start_val = otherstate () in 
     let combine_forks rs xs = 
       let g rs (v,s) : (Cil.varinfo * Dom.t) list=
         if var_mem_assoc v rs 
         then (v, replace s (var_assoc v rs)) :: var_remove_assoc v rs 
-        else (v, replace s start_val) :: rs
+        else (v, replace s (otherstate v)) :: rs
       in
       List.fold_left g rs xs
     in
@@ -1414,9 +1424,10 @@ struct
     let ys = filter (fun (x,_) -> mem x !path_sens) y in
     D.equal xs ys
     
-  let otherstate () = map (fun (n,{spec=(module S:Spec2)}) -> n, repr @@ S.otherstate ()) !analyses_list
-  let exitstate  () = map (fun (n,{spec=(module S:Spec2)}) -> n, repr @@ S.exitstate  ()) !analyses_list
-  let startstate () = map (fun (n,{spec=(module S:Spec2)}) -> n, repr @@ S.startstate ()) !analyses_list
+  let otherstate v = map (fun (n,{spec=(module S:Spec2)}) -> n, repr @@ S.otherstate v) !analyses_list
+  let exitstate  v = map (fun (n,{spec=(module S:Spec2)}) -> n, repr @@ S.exitstate  v) !analyses_list
+  let startstate v = map (fun (n,{spec=(module S:Spec2)}) -> n, repr @@ S.startstate v) !analyses_list
+  let morphstate v x = map (fun (n,(module S:Spec2),d) -> n, repr @@ S.morphstate (obj d)) (spec_list x)
     
   let call_descr f xs = 
     let xs = filter (fun (x,_) -> x = !base_id) xs in
@@ -1456,7 +1467,7 @@ struct
       let join_vals (n,(module S:Spec2),d) =
         n, repr @@ fold_left (fun x y -> S.D.join x (obj y)) (S.D.bot ()) d
       in
-      ctx.spawn2 v @@ map join_vals @@ spec_list @@ group_assoc (d @ otherstate ())
+      ctx.spawn2 v @@ map join_vals @@ spec_list @@ group_assoc (d @ otherstate v)
     in
     if not (get_bool "exp.single-threaded") then
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs

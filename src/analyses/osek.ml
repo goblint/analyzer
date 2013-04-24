@@ -1,3 +1,5 @@
+(** Data race analysis for OSEK programs. *)
+
 open Cil
 open Pretty
 open Analyses
@@ -176,27 +178,38 @@ struct
   (* flag stuff*)
   let get_val flag acc : Cil.exp (*const*) = 
 (* let _ = print_endline (flag.vname ^"A" ^gl.vname) in     *)
-  proj3_3 (Flags.find flag (proj2_2 acc))
+    proj3_3 (Flags.find flag (proj2_2 acc))
   let get_eq flag acc : bool = 
 (* let _ = print_endline (flag.vname ^"B"^gl.vname) in     *)
-  proj3_2 (Flags.find flag (proj2_2 acc))
+    proj3_2 (Flags.find flag (proj2_2 acc))
   let get_method flag acc : bool = 
 (* let _ = print_endline (flag.vname ^ "C"^gl.vname) in     *)
-  proj3_1 (Flags.find flag (proj2_2 acc))
+    proj3_1 (Flags.find flag (proj2_2 acc))
+  let flag_unknown flag accs = not (Flags.mem flag (proj2_2 accs))
+(*   let flag_exists flag accs = List.filter (fun x -> (Flags.mem flag (proj2_2 x))) accs *)
   let rec flag_list_to_string l = match l with
     | []  -> ""
     | [x] -> x.vname
     | x::xs -> x.vname ^ " and " ^ (flag_list_to_string xs)
-  let split_accs_method flag accs = List.partition (get_method flag) accs
-  let split_accs flag accs = List.partition (get_eq flag) accs
-  let split_equals flag accs = 
+  let split_accs_method flag accs = 
+    let unknowns,accs' = List.partition (flag_unknown flag) accs in
+    let ts,fs = List.partition (get_method flag) accs' in
+    (ts@unknowns, fs@unknowns)
+  let split_accs flag accs = 
+    let unknowns,accs' = List.partition (flag_unknown flag) accs in
+    let ts,fs = List.partition (get_eq flag) accs' in
+    (ts@unknowns, fs@unknowns)
+  let split_equals flag accs =
+    let unknowns,accs' = List.partition (flag_unknown flag) accs in
     let rec doit flag lists elem = match lists with
       | [] -> [[elem]]
       | x::xs -> if (get_val flag elem) = (get_val flag (List.hd x)) then ([elem]@x)::xs else x::(doit flag xs elem)
     in
-    List.fold_left (doit flag) [] accs
+    let vals = List.fold_left (doit flag) [] accs'
+    in List.map (fun x -> x@unknowns) vals
 
   let split_may_eq flag value accs = 
+    let unknowns,accs' = List.partition (flag_unknown flag) accs in
     let doit value acc = 
       let acc_value = get_val flag acc in
       let acc_eq = get_eq flag acc in
@@ -209,7 +222,7 @@ let res =*)
 (*in
 let _ = print_endline (string_of_bool res) in res*)
     in 
-    List.filter (doit value) accs
+    (List.filter (doit value) accs')@unknowns
 
   let strip_flags acc_list' = List.map proj2_1 acc_list'
   
@@ -233,15 +246,21 @@ let _ = print_endline (string_of_bool res) in res*)
   (*TODO fill table at accesses*) 
   let offpry_flags (flagstate : Flags.t) (varinfo : Cil.varinfo) : int =
     let var = varinfo.vname in
+    if tracing then trace "osek" "Computing flag priority for %s\n" var;
     let helper flag flag_value current = 
+      if tracing then trace "osek" "Using flag %s\n" flag.vname;
       let equal,value = match flag_value with
         | (_,equal,Const (CInt64 (value,_,_))) -> equal,value
         | _ -> failwith "This never hapens! osekml157"
       in
       let doit (acc_flagstate,pry) = 
-        let acc_equal,acc_value = match Flags.find flag acc_flagstate with
-          | (_,equal,Const (CInt64 (value,_,_))) -> equal,value
-          | _ -> failwith "This never hapens! osekml248"
+        let acc_equal,acc_value = 
+          if Flags.mem flag acc_flagstate then
+            match Flags.find flag acc_flagstate with
+            | (_,equal,Const (CInt64 (value,_,_))) -> equal,value
+            | _ -> failwith "This never hapens! osekml248"
+          else
+            (false,0L)
         in
         if (((acc_value = value) && (not acc_equal = equal) ) || ( (acc_equal = equal) && not (acc_value = value) ) ) then 
           pry
@@ -356,7 +375,7 @@ let _ = print_endline (string_of_bool res) in res*)
     | Queries.Priority "" ->  
         let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
           `Int (Int64.of_int pry)
-    | Queries.Priority vname -> `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) )
+    | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
     | Queries.IsPrivate v ->
         let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
         let off = if !FlagModes.Spec.flag_list = [] then begin
@@ -373,9 +392,9 @@ let _ = print_endline (string_of_bool res) in res*)
 
     
 
-  let startstate () = Dom.top ()
-  let otherstate () = Dom.top ()
-  let exitstate  () = Dom.top ()
+  let startstate v = Dom.top ()
+  let otherstate v = Dom.top ()
+  let exitstate  v = Dom.top ()
 
   let activate_task ctx (task_name : string) : unit =
     let task = Cilfacade.getFun task_name in
@@ -532,7 +551,6 @@ let _ = print_endline (string_of_bool res) in res*)
 
   (** are we still race free *)
   let race_free = ref true
-  let good_flags = ref []
   let bad_flags = ref []
  
   type access_status = 
@@ -633,7 +651,6 @@ let _ = print_endline (string_of_bool res) in res*)
         let guards,assigns = split_accs_method flag acc_list' in
 (* let _ = print_endline ((string_of_int (List.length guards))^" guards and "^string_of_int (List.length assigns)^" assigns"  ) in        *)
         let eq_asgn,weird_asgn = split_accs flag assigns in
-        let _ = if (List.length weird_asgn > 0 ) then failwith "Assign constant results in 'unequal' information! osekml573" in
         if (is_race_no_flags (strip_flags eq_asgn) = Race) then begin
           [] (* setting does not protect. setters race *)
         end else begin
@@ -661,15 +678,15 @@ let _ = print_endline (string_of_bool res) in res*)
       in (*/get_flags*)
       let valid_flag (flag :Cil.varinfo) : bool= 
         let add_flag flag res = 
-          if res = BadFlag then
-            bad_flags := flag::!bad_flags
-          else if res = GoodFlag then
-            good_flags := flag::!good_flags
+          if res = BadFlag then begin
+            bad_flags := flag::!bad_flags;
+            if tracing then trace "osek" "Flag %s is invalid\n" flag.vname
+          end else if res = GoodFlag then
+            ()
           else
-            failwith "This never happens! osekml606"
+            failwith "This never happens! osekml687"
         in (*/add_flag*)
-        if List.mem flag !good_flags then true else
-        if List.mem flag !bad_flags then false else
+(*        if List.mem flag !bad_flags then false else*)
         let status_list = ref [] in
         let check_one_list x acc_list' =
           let acc_list = List.map proj2_1 acc_list' in
@@ -704,17 +721,16 @@ let _ = print_endline (string_of_bool res) in res*)
   (* let _ = print_endline "check flag protection" in *)
             let flags = check_flags acc_list' in 
             if not(flags = []) then
-  let _ = print_endline "flag!!" in
+(*   let _ = print_endline "flag!!" in *)
               Flag (flag_list_to_string flags)
             else
               res
           end else begin
           (*handle Flag vars*)
-            if List.mem gl !good_flags then
-              GoodFlag
-            else if List.mem gl !bad_flags then
+(*            if List.mem gl !bad_flags then
               BadFlag
-            else if (valid_flag gl) then
+            else *)
+            if (valid_flag gl) then
               GoodFlag 
             else
               BadFlag

@@ -1,3 +1,5 @@
+(** A stand-alone multi-threadedness aanlysis. *)
+
 module GU = Goblintutil
 module LF = LibraryFunctions
 
@@ -16,9 +18,9 @@ struct
 
   let name = "multi-threaded"
 
-  let startstate = Flag.bot
-  let otherstate = Flag.top
-  let exitstate  = Flag.get_main
+  let startstate v = Flag.bot ()
+  let otherstate v = Flag.top ()
+  let exitstate  v = Flag.get_main ()
           
   let body ctx f = ctx.local
 

@@ -1,3 +1,5 @@
+(** Assigning static regions to dynamic memory. *)
+
 open Cil
 open Pretty
 open Analyses
@@ -165,10 +167,10 @@ struct
     end
       | _ -> [ctx.local,Cil.integer 1, true]
   
-  let startstate () = 
+  let startstate v = 
     `Lifted (Equ.top (), RegMap.bot ()), Vars.empty ()       
     
-  let otherstate () = 
+  let otherstate v = 
     `Lifted (Equ.top (), RegMap.bot ()), Vars.empty ()
 
   let exitstate = otherstate

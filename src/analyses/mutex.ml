@@ -1,3 +1,5 @@
+(** Data race analysis. *)
+
 module M = Messages
 module GU = Goblintutil
 module Addr = ValueDomain.Addr
@@ -604,9 +606,9 @@ struct
   
   (** We just lift start state, global and dependecy functions: *)
   
-  let startstate () = Lockset.empty ()
-  let otherstate () = Lockset.empty ()
-  let exitstate  () = Lockset.empty ()
+  let startstate v = Lockset.empty ()
+  let otherstate v = Lockset.empty ()
+  let exitstate  v = Lockset.empty ()
   
   let query ctx (q:Queries.t) : Queries.Result.t = 
     match q with

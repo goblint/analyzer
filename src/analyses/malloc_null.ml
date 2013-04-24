@@ -1,3 +1,4 @@
+(** Path-sensitive analysis that verifies checking the result of the malloc function. *)
 
 module M = Messages
 module BS = Base.Main
@@ -224,9 +225,9 @@ struct
 
   let name = "Malloc null"
 
-  let startstate () = Dom.empty () 
-  let otherstate () = Dom.empty ()
-  let exitstate  () = Dom.empty ()
+  let startstate v = Dom.empty ()
+  let otherstate v = Dom.empty ()
+  let exitstate  v = Dom.empty ()
   
   let init () = 
     set_bool "exp.malloc-fail" true;

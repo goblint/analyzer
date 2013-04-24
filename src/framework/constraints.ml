@@ -1,3 +1,5 @@
+(** How to generate constraints for a solver using specifications described in [Analyses]. *)
+
 open Cil
 open MyCFG
 open Pretty
@@ -24,9 +26,10 @@ struct
   
   let should_join x y = S.should_join (D.unlift x) (D.unlift y)
   
-  let startstate () = D.lift (S.startstate ())
-  let exitstate () = D.lift (S.exitstate ())
-  let otherstate () = D.lift (S.otherstate ())
+  let startstate v = D.lift (S.startstate v)
+  let exitstate  v = D.lift (S.exitstate  v)
+  let otherstate v = D.lift (S.otherstate v)
+  let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
   let context = C.lift % S.context % D.unlift
   let call_descr f = S.call_descr f % D.unlift
@@ -90,9 +93,10 @@ struct
       | `Lifted a, `Lifted b -> S.should_join a b
       | _ -> true
   
-  let startstate () = `Lifted (S.startstate ())
-  let exitstate () = `Lifted (S.exitstate ())
-  let otherstate () = `Lifted (S.otherstate ())
+  let startstate v = `Lifted (S.startstate v)
+  let exitstate  v = `Lifted (S.exitstate  v)
+  let otherstate v = `Lifted (S.otherstate v)
+  let morphstate v d = `Lifted (S.morphstate v (D.unlift d))
 
   let context = S.context % D.unlift
   let call_descr f = S.call_descr f 
@@ -148,6 +152,7 @@ struct
   let startstate = S.startstate
   let exitstate = S.exitstate
   let otherstate = S.otherstate
+  let morphstate = S.morphstate
 
   let context = S.context_top dummyFunDec.svar
   let call_descr = S.es_to_string
@@ -588,9 +593,10 @@ struct
   
   let should_join x y = true
   
-  let otherstate () = D.singleton (S.otherstate ())
-  let exitstate  () = D.singleton (S.exitstate  ())
-  let startstate () = D.singleton (S.startstate ())
+  let otherstate v = D.singleton (S.otherstate v)
+  let exitstate  v = D.singleton (S.exitstate  v)
+  let startstate v = D.singleton (S.startstate v)
+  let morphstate v d = D.map (S.morphstate v) d
   
   let call_descr = S.call_descr 
   

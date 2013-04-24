@@ -1,3 +1,5 @@
+(** Stack-trace "analyses". *)
+
 open Cil
 open Pretty
 open Analyses
@@ -35,9 +37,9 @@ struct
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     [ctx.local,Cil.integer 1, true]
 
-  let startstate () = Dom.bot ()
-  let otherstate () = Dom.bot ()
-  let exitstate  () = Dom.top ()
+  let startstate v = Dom.bot ()
+  let otherstate v = Dom.bot ()
+  let exitstate  v = Dom.top ()
 end
 
 module SpecLoc =
@@ -89,9 +91,9 @@ struct
       [ctx.local,Cil.integer 1, true]
 
 
-  let startstate () = Dom.bot ()
-  let otherstate () = Dom.bot ()
-  let exitstate  () = Dom.top ()
+  let startstate v = Dom.bot ()
+  let otherstate v = Dom.bot ()
+  let exitstate  v = Dom.top ()
 end
 
 module UninitMCP = 

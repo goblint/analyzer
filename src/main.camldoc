@@ -1,30 +1,139 @@
 
-This is the API of the Goblint static analyzer framework; developed in Technical University of Munich ({b TUM})
-and University of Tartu ({b UT}). 
+This is the API of the Goblint static analyzer framework, developed at the Technische Universität München ({b TUM})
+and the University of Tartu ({b UT}). 
 
-The API is divided in four logical sections: 
+The API is divided into four logical sections: 
 the framework, constraint solvers, domains, and analysis instances.
 
 {2 Framework}
-{!modules:  Maingoblint Multithread Analyses Compose MyCFG Cache Control Constraints}
+{!modules: 
+Version
+Config 
+
+Maingoblint
+Analyses
+Compose
+Constraints
+Control
+Multithread
+MyCFG
+}
 
 {4 Util}
-{!modules: Goblintutil Cilfacade MyLiveness Json JsonLexer JsonParser Printer Messages Progress Report Xmldump Htmldump Htmlutil Hash GobConfig}
+{!modules: 
+Cache
+Cilfacade
+Defaults
+GobConfig
+Goblintutil
+Hash
+Html_template
+Htmldump
+Htmlutil
+Json
+JsonLexer
+JsonParser
+Messages
+MyLiveness
+OilLexer
+OilParser
+OilUtil
+Printer
+Progress
+Report
+Tracing
+Xmldump
+}
 
+{4 CIL components}
+{!modules: 
+Cil
+Pretty
+}
 
 {2 Solvers}
-{!modules: Solver EffectWCon EffectWNCon Interactive OracleSolver SharirPnueli SolverConSideRR SolverConSideWNRR Generic SLR TopDown Selector}
+{!modules: 
+WNCon
+EffectWCon
+EffectWNCon
+Generic
+Interactive
+OracleSolver
+SLR
+Selector
+SharirPnueli
+Solver
+SolverConSideRR
+SolverConSideWNRR
+TopDown
+}
 
 
 {2 Domains}
-{!modules: AccessDomain AddressDomain ArrayDomain Basetype ConcDomain ContainDomain EscapeDomain Exp IntDomain ListDomain LockDomain Lval MemoryDomain MusteqDomain RegionDomain ShapeDomain StackDomain StructDomain UnionDomain ValueDomain Config BaseDomain Global}
+{!modules: 
+AccessDomain
+AddressDomain
+ArrayDomain
+Basetype
+BaseDomain
+ConcDomain
+ContainDomain
+EscapeDomain
+Exp
+FlagModeDomain
+IntDomain
+ListDomain
+LockDomain
+Lval
+MemoryDomain
+MusteqDomain
+RegionDomain
+Osektupel
+ShapeDomain
+StackDomain
+StructDomain
+UnionDomain
+ValueDomain
+}
 
 {4 General Lattice Functors} 
 
-{!modules: Lattice MapDomain Osektupel PartitionDomain Printable Queries SetDomain}
+{!modules: 
+Glob
+Lattice
+MapDomain
+PartitionDomain
+Printable
+Queries
+SetDomain
+}
 
 {2 Analyses}
-{!modules: Access Base Contain LibraryFunctions MCP MTFlag Malloc_null MemLeaks Mutex Osek Osekpriority Osektransactionality Owner Region Shapes StackTrace SymbLocks Thread ThreadEscape Uninit Unit VarEq}
+{!modules: 
+Base
+Contain
+DeadlocksByRaces
+Flag
+FlagModes
+LibraryFunctions
+MCP
+MTFlag
+Malloc_null
+MayLocks
+Mutex
+Osek
+Osekpriority
+Osektransactionality
+Region
+Shapes
+StackTrace
+SymbLocks
+Thread
+ThreadEscape
+Uninit
+Unit
+VarEq
+}
 
 {9 Indexes}
 

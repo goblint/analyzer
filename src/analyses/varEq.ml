@@ -1,3 +1,5 @@
+(** Variable equalities neccessary for per-element patterns. *)
+
 module M = Messages
 module GU = Goblintutil
 module Addr = ValueDomain.Addr
@@ -32,9 +34,9 @@ struct
 
   let name = "Partition"
 
-  let startstate = Dom.top 
-  let otherstate = Dom.top 
-  let exitstate  = Dom.top 
+  let startstate v = Dom.top ()
+  let otherstate v = Dom.top ()
+  let exitstate  v = Dom.top ()
     
   let rec const_equal c1 c2 =
     match c1, c2 with

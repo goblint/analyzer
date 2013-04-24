@@ -1,3 +1,5 @@
+(** Symbolic lock-sets for use in per-element patterns. *)
+
 module LF = LibraryFunctions
 module LP = Exp.LockingPattern
 module Exp = Exp.Exp
@@ -20,9 +22,9 @@ struct
 
   let name = "Symbolic locks"
 
-  let startstate = Dom.top 
-  let otherstate = Dom.top 
-  let exitstate  = Dom.top 
+  let startstate v = Dom.top ()
+  let otherstate v = Dom.top ()
+  let exitstate  v = Dom.top ()
 
   let branch ctx exp tv = ctx.local
   let body   ctx f = ctx.local

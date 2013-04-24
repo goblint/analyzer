@@ -1,3 +1,5 @@
+(** Thread-id analyses. *)
+
 open Cil
 open Pretty
 open Analyses
@@ -97,12 +99,12 @@ struct
        | _                -> [ctx.local,Cil.integer 1, true]
   
   (* We denote the main thread by the global thread id variable named "main" *)
-  let startstate () = (
+  let startstate v = (
     ConcDomain.ThreadIdSet.singleton (Cil.makeGlobalVar "main" Cil.voidType),
     ConcDomain.ThreadsVector.bot())
     
-  let otherstate () = Dom.bot ()
-  let exitstate  () = Dom.bot ()
+  let otherstate v = Dom.bot ()
+  let exitstate  v = Dom.bot ()
 
   let name = "Thread analysis"
 end
@@ -168,9 +170,9 @@ struct
     [ctx.local,Cil.integer 1, true]
 
   let main = Dom.singleton "main"
-  let startstate () = main
-  let otherstate () = Dom.top ()
-  let exitstate  () = Dom.top ()
+  let startstate v = main
+  let otherstate v = Dom.top ()
+  let exitstate  v = Dom.top ()
 end
 
 module ThreadLocIDMCP =

@@ -1,3 +1,5 @@
+(** Specification for global solver variables. *)
+
 module type S =
 sig
   module Val: Lattice.S 

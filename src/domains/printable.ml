@@ -1,3 +1,5 @@
+(** Some things are not quite lattices ... *)
+
 open Pretty
 
 module type S = 
@@ -211,6 +213,8 @@ struct
       | `Right x, `Right y ->  Base2.pretty_diff () (x,y)
       | _ -> Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
+
+module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N))
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
 struct

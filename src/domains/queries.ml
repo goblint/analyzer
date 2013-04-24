@@ -1,3 +1,5 @@
+(** Structures for the querying subsystem. *)
+
 include Cil
 include Pretty 
 

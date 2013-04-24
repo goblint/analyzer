@@ -1,3 +1,5 @@
+(** Deadlock analysis using data race detection. *)
+
 open Cil
 open Pretty
 open Analyses
@@ -57,9 +59,9 @@ struct
       | _ -> MSpec.special_fn ctx lval f arglist 
     
 
-  let startstate () = MSpec.startstate ()
-  let otherstate () = MSpec.otherstate ()
-  let exitstate  () = MSpec.exitstate ()
+  let startstate v = MSpec.startstate v
+  let otherstate v = MSpec.otherstate v
+  let exitstate  v = MSpec.exitstate  v
 end
 
 module ThreadMCP = 

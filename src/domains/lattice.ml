@@ -1,3 +1,5 @@
+(** The lattice signature and simple functors for building lattices. *)
+
 module GU = Goblintutil
 
 module type S =
@@ -25,9 +27,9 @@ exception BotValue
 exception Unsupported of string
 let unsupported x = raise (Unsupported x)
 
-module Unit = 
+module UnitConf (N: Printable.Name) = 
 struct
-  include Printable.Unit
+  include Printable.UnitConf (N)
   include StdCousot
   let leq _ _ = true
   let join _ _ = ()
@@ -37,7 +39,7 @@ struct
   let bot () = ()
   let is_bot _ = true
 end
-
+module Unit = UnitConf (struct let name = "()" end)
 
 
 module Fake (Base: Printable.S) = 
@@ -477,7 +479,9 @@ struct
       | `Left  x, `Right y -> `Right y
       | `Right  x, `Left y -> `Right x
 end                             
-  
+
+module Option (Base: S) (N: Printable.Name) = Either (Base) (UnitConf (N))
+
 module Liszt (Base: S) = 
 struct
   include Printable.Liszt (Base)

@@ -1,3 +1,5 @@
+(** Signatures for aanlyzers, analysis specifications, and result output.  *)
+
 open Cil
 open Pretty
 open GobConfig
@@ -19,7 +21,7 @@ sig
 end
 
 type local_state = [ 
-    | `Base        of BaseDomain.Dom(ConcDomain.Simple).t
+    | `Base        of BaseDomain.Dom.t
     | `Mutex       of LockDomain.Lockset.t
     | `SymbLocks   of LockDomain.Symbolic.t
     | `VarEq       of PartitionDomain.ExpPartitions.t
@@ -145,11 +147,13 @@ sig
   (** Keeps only context sensitive part, set rest to top. *)
   val should_join: Dom.t -> Dom.t -> bool
   (** sensitivity predicate *)
-  val startstate: unit -> Dom.t
+  val startstate: varinfo -> Dom.t
   (** state to start analyzing the start functions *)
-  val exitstate: unit -> Dom.t
+  val morphstate: varinfo -> Dom.t -> Dom.t
+  (** Change the starting state after initialization code for the start functions *)
+  val exitstate: varinfo -> Dom.t
   (** state to start analyzing the exit functions *)
-  val otherstate: unit -> Dom.t
+  val otherstate: varinfo -> Dom.t
   (** state to start analyzing other functions (usual when calling './goblint --allfuns ...') *)
   val es_to_string: fundec -> Dom.t -> string
   (** no-one knows .. somehow used when generating final output *)
@@ -234,6 +238,7 @@ struct
   let context_top  = D.context_top
   let should_join  = D.should_join
   let startstate   = D.startstate
+  let morphstate   = D.morphstate
   let otherstate   = D.otherstate
   let exitstate    = D.exitstate
   let es_to_string = D.es_to_string
@@ -279,9 +284,10 @@ struct
   let finalize     = D.finalize
   let context_top f = lift_f1 (D.context_top f)
   let should_join  = lift_f2s D.should_join
-  let startstate   () = Dom.lift (D.startstate ())
-  let otherstate   () = Dom.lift (D.otherstate ())
-  let exitstate    () = Dom.lift (D.exitstate  ())
+  let startstate   v = Dom.lift (D.startstate v)
+  let morphstate   v = lift_f1  (D.morphstate v)
+  let otherstate   v = Dom.lift (D.otherstate v)
+  let exitstate    v = Dom.lift (D.exitstate  v)
   let es_to_string f = lift_f1s (D.es_to_string f)
   let sync x        = let x, y = lift_fc D.sync x in Dom.lift x, y
   let query        = lift_fc D.query 
@@ -328,6 +334,9 @@ struct
 
   let intrpt x = x.local
   (* Just ignore. *)
+
+  let morphstate v d = d
+  (* Only for those who track thread IDs. *)
 end
 
 module Var =  
@@ -650,9 +659,10 @@ sig
   val init : unit -> unit
   val finalize : unit -> unit
   
-  val startstate : unit -> D.t
-  val exitstate : unit -> D.t
-  val otherstate : unit -> D.t
+  val startstate : varinfo -> D.t
+  val morphstate : varinfo -> D.t -> D.t
+  val exitstate  : varinfo -> D.t
+  val otherstate : varinfo -> D.t
 
   val should_join : D.t -> D.t -> bool
   val context : D.t -> C.t
