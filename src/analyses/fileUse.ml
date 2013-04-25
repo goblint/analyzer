@@ -1,3 +1,5 @@
+(** An analysis for checking correct use of file handles. *)
+
 open Cil
 open Pretty
 open Analyses

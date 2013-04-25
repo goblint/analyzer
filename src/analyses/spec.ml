@@ -1,3 +1,5 @@
+(** Analysis by specification file. *)
+
 open Cil
 open Pretty
 open Analyses
@@ -78,7 +80,7 @@ struct
 
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     let m = ctx.local in
-    M.write ("entering function "^f.vname^(callStackStr m));
+    M.debug ("entering function "^f.vname^(callStackStr m));
     if f.vname = "main" then load_specfile ();
     let m = if f.vname <> "main" then
       editStack (BatList.cons !Tracing.current_loc) ctx.local
@@ -115,36 +117,70 @@ struct
 - An edge with '$_' matches everything and forwards it to the target node.
 *)
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+    (* let _ = GobConfig.set_bool "dbg.debug" false in *)
     let m = ctx.local in
     let ret dom = [dom, Cil.integer 1, true] in
     let dummy = ret ctx.local in
     let loc = !Tracing.current_loc in
     let dloc = loc::(callStack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
-    let varinfos lval = (* get possible varinfos for a given lval *)
+    (* get possible varinfos for a given lval *)
+    let varinfos lval =
       match lval with (* TODO ignore offset? *)
         | Var varinfo, _ -> [varinfo]
         | Mem exp, _ ->
             let xs = query_lv ctx.ask exp in (* MayPointTo -> LValSet *)
-            M.report ("MayPointTo "^(Pretty.sprint 80 (d_exp () exp))^" = ["
+            M.debug ("MayPointTo "^(Pretty.sprint 80 (d_exp () exp))^" = ["
               ^(String.concat ", " (List.map (Lval.CilLval.short 80) xs))^"]");
             List.map fst xs
     in
     (* fold possible varinfos on domain *)
     let ret_all f lval = ret (List.fold_left f m (varinfos lval)) in
-    (* go through constraints and return result on the first match *)
-    (* TODO what should be done if multiple constraints would match? *)
-    let findSome f xs not_found =
-      try let x = List.find (fun x -> match f x with Some _ -> true | _ -> false) xs in
-        match f x with Some x -> x | _ -> not_found
-      with Not_found -> not_found
+    (* custom goto (Dom.goto is just for modifying) that checks if the target state is a warning and acts accordingly *)
+    let goto ?may:(may=false) var loc state m = 
+      match Def.warning state !nodes with
+        | Some s -> M.report s; m (* no goto == implicit back edge *)
+        | None -> M.debug ("GOTO "^var.vname^": "^Dom.get_state var m^" -> "^state); if may then Dom.may_goto var loc state m else Dom.goto var loc state m
     in
     let matching (a,b,c) =
-      (* TODO do more in parser *)
-      None
-      (* Dom.goto var dloc b *)
+      (* TODO how to detect the key?? use "$foo" as key, "foo" as var in constraint and "_" for anything we're not interested in *)
+      (* look inside the constraint if there is a key and if yes, return what it corresponds to *)
+      let key =
+        match Def.get_key_variant c with
+          | `Lval s    -> M.debug ("Key variant `Lval "^s); lval
+          | `Arg(s, i) -> M.debug ("Key variant `Arg("^s^", "^string_of_int i^")"); 
+            (try
+              let arg = List.at arglist i in
+              match arg with
+                | Lval x -> Some x (* TODO enough to just assume the arg is already there as a Lval? *)
+                | _ -> None
+            with Invalid_argument s ->
+              M.debug ("Key out of bounds! Msg: "^s); (* TODO what to do if spec says that there should be more args... *)
+              None
+            )
+          | _          -> None
+      in
+      (* Now we have the key for the map-domain or we don't.
+         In case we don't have a key, we have to check the global state.
+         TODO should the global state always be the start state or should it also be stored in the map as a changeable record? *)
+      match key with
+        | None -> None (* TODO check global state *)
+        | Some lval ->
+          (* possible varinfos the lval may point to -> TODO use Lval as key for map? *)
+          let vars = varinfos lval in
+          let check_var m var =
+            (* skip transitions we can't take b/c we're not in the right state *)
+            if Dom.mem var m && not (Dom.may_in_state var a m) then m (* not in map -> initial state. TODO save initial state? *)
+            else goto ~may:(List.length vars > 1) var dloc b m
+          in
+          (* do check for each varinfo and return the resulting domain *)
+          Some (List.fold_left check_var m vars)
     in
-    findSome matching !edges dummy
+    (* edges that match the called function name *)
+    let fun_edges = List.filter (fun (a,b,c) -> Def.fname_is f.vname c) !edges in
+    (* go through constraints and return result on the first match *)
+    (* TODO what should be done if multiple constraints would match? *)
+    try ret (List.find_map matching fun_edges) with Not_found -> dummy
 (*     match lval, f.vname, arglist with
       | None, "fopen", _ ->
           M.report "file handle is not saved!"; dummy

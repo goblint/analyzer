@@ -1,3 +1,5 @@
+open Batteries
+
 exception Endl
 exception Eof
 
@@ -12,6 +14,42 @@ and exp =
 type stmt = {lval: var option; exp: exp}
 type def = Node of (string * string) | Edge of (string * string * stmt)
 
+(* let stmts edges = List.map (fun (a,b,c) -> c) edges
+let get_fun stmt = match stmt.exp with Fun x -> Some x | _ -> None
+let fun_records edges = List.filter_map get_fun (stmts edges)
+let fun_names edges = fun_records edges |> List.map (fun x -> x.fname)
+let fun_by_fname fname edges = List.filter (fun x -> x.fname=fname) (fun_records edges) *)
+let fname_is fname stmt =
+  match stmt.exp with
+  | Fun x -> x.fname=fname
+  | _ -> false
+
+let warning state nodes =
+  try
+    Some (snd (List.find (fun x -> fst x = state) nodes))
+  with
+  | Not_found -> None
+
+let get_key_variant stmt =
+  let rec get_from_exp = function
+    | Fun f -> get_from_args f.args (* TODO for special_fn we only consider constraints where the root of the exp is Fun *)
+    | Var (Vari s) -> `Rval s
+    | _ -> `None
+  (* walks over arguments until it finds something or returns `None *)
+  and get_from_argsi i = function
+    | [] -> `None
+    | x::xs ->
+      match get_from_exp x with
+      | `Rval s -> `Arg(s, i) 
+      | _       -> get_from_argsi (i+1) xs (* matches `None and `Arg -> `Arg of `Arg not supported *)
+  and get_from_args args = get_from_argsi 0 args (* maybe better use List.findi *)
+  in
+  match stmt.lval with
+  | Some (Vari s) -> `Lval s
+  | _ -> get_from_exp stmt.exp
+
+
+(* functions for output *)
 let var_to_string = function
   | Var_ -> "$_"
   | Vari x -> "$"^x
