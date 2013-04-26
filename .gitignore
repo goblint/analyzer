@@ -28,3 +28,4 @@ tests/regression/16-relinv/flags.json
 
 src/spec/graph
 notes
+.vagrant

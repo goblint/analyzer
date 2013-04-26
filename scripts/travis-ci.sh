@@ -1,18 +1,40 @@
-# This script runs the unit tests inside a Travis CI worker. See also .travis.yml
-# Inspired by http://blog.mlin.net/2013/02/testing-ocaml-projects-on-travis-ci.html
+# This script is for either running in a Travis CI worker or the VM setup by vagrant. See .travis.yml and Vagrantfile
+# Inspired by https://github.com/lunaryorn/flycheck
 
 export OPAM_VERSION=1.0.0
-export OCAML_VERSION=4.00.1
+# export OCAML_VERSION=4.00.1
 export OPAM_PACKAGES='ocamlfind.1.3.3 camomile.0.8.3 batteries.2.0.0 cil.1.5.1 xml-light.2.2'
 
-# install dependencies (but use experimental because the default repo's ocaml version is too old)
-# echo "deb http://ftp.de.debian.org/debian experimental main" >> /etc/apt/sources.list
-sudo apt-get update -qq
-sudo apt-get install -qq make m4 #ruby code2html
+ppa () {
+    for ppa in "$@"; do
+        sudo apt-add-repository -y "$ppa"
+    done
+}
+apt_update () {
+    sudo apt-get update -qq
+}
+apt () {
+    sudo apt-get install -yy --fix-missing "$@"
+}
+
+# Silence debconf
+export DEBIAN_FRONTEND='noninteractive'
+
+# Update repositories to prevent errors caused by missing packages
+apt_update
+
+# Needed for ppa
+apt python-software-properties
+
+# Bring in the necessary PPAs and 3rd party repositories
+# ocaml in standard Ubuntu repo is too old and compiling with opam takes too long
+ppa ppa:mike-mcclurg/ocaml # version 4.00.1
+apt_update
+apt ocaml
 
 # binary installer for opam (append -a to version for --auto-setup)
 wget http://www.ocamlpro.com/pub/opam_installer.sh
-sudo sh ./opam_installer.sh /usr/local/bin "${OCAML_VERSION} -a" # Install the latest OPAM using the system compiler (if any)
+sudo sh ./opam_installer.sh /usr/local/bin "system -a" # Install the latest OPAM using the system compiler
 
 # install opam from source and then switch to OCAML_VERSION
 # curl -L https://github.com/OCamlPro/opam/archive/${OPAM_VERSION}.tar.gz | tar xz
@@ -26,6 +48,7 @@ sudo sh ./opam_installer.sh /usr/local/bin "${OCAML_VERSION} -a" # Install the l
 eval `opam config -env`
 
 # install packages from opam
+sudo chown -hR `eval whoami` ~/.opam # fix permissions (owned by root because of sudo ./opam_installer.sh)
 opam install -q -y ${OPAM_PACKAGES}
 
 # compile
