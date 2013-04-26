@@ -1,0 +1,4 @@
+language: c
+git:
+  submodules: false
+script: bash -ex scripts/travis-ci.sh

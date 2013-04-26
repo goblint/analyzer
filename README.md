@@ -1,4 +1,4 @@
-# goblint
+# goblint [![Build status](https://travis-ci.org/vogler/analyzer.png)](https://travis-ci.org/vogler/analyzer)
 
 ## Setup
 Install [opam](https://github.com/OCamlPro/opam) [[Quick Install](http://opam.ocamlpro.com/doc/Quick_Install.html)], then do
