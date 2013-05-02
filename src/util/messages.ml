@@ -112,5 +112,8 @@ let warn_each msg =
   
 let debug msg =
   if (get_bool "dbg.debug") then warn msg
+  
+let debug_each msg =
+  if (get_bool "dbg.debug") then warn_each msg
 
 include Tracing

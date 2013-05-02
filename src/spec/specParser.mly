@@ -47,9 +47,9 @@ stmts:
 ;
 
 var:
-  | VAR                      { Vari $1 }
-  | VAR_                     { Var_ }
-  | IDENT                    { Ident $1 }
+  | VAR_                     { Var_ }     /* $_ */
+  | VAR                      { Vari $1 }  /* e.g. $foo, $123, $__ */
+  | IDENT                    { Ident $1 } /* e.g. foo, _foo, _1, but not 1b */
 ;
 
 expr:

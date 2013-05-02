@@ -61,6 +61,9 @@ val warn_urgent: string -> unit
 val debug: string -> unit
 (** Prints a debugging warning with location. *)
 
+val debug_each: string -> unit
+(** Prints a debugging warning with location. Uses warn_each. *)
+
 val tracing: bool
 (** Static flag to turn off tracing (significantly improves performance) *)
 

@@ -26,13 +26,13 @@ let fname_is fname stmt =
 
 let warning state nodes =
   try
-    Some (snd (List.find (fun x -> fst x = state) nodes))
+    Some (snd (List.find (fun x -> fst x = state) nodes)) (* find node for state and return its warning *)
   with
-  | Not_found -> None
+  | Not_found -> None (* no node for state *)
 
 let get_key_variant stmt =
   let rec get_from_exp = function
-    | Fun f -> get_from_args f.args (* TODO for special_fn we only consider constraints where the root of the exp is Fun *)
+    | Fun f -> get_from_args f.args (* TODO for special_fn we only consider constraints where the root of the exp is Fun (see fname_is) *)
     | Var (Vari s) -> `Rval s
     | _ -> `None
   (* walks over arguments until it finds something or returns `None *)
@@ -48,6 +48,28 @@ let get_key_variant stmt =
   | Some (Vari s) -> `Lval s
   | _ -> get_from_exp stmt.exp
 
+let equal_form lval stmt =
+  match lval, stmt.lval with
+  | Some _, Some _
+  | None, None -> true
+  | _ -> false
+
+(* get function arguments with tags corresponding to the type -> should only be called for functions, returns [] for everything else *)
+let get_fun_args stmt =
+  let get_arg = function
+    | String x  -> `String x
+    | Bool x    -> `Bool x
+    | Int x     -> `Int x
+    | Float x   -> `Float x
+    | Var (Var_)    -> `Error "$_ should only appear alone and not as an argument"
+    | Var (Vari x)  -> `Vari x
+    | Var (Ident x) -> `Ident x
+    | Fun x     -> `Error "Functions aren't allowed to have functions as an argument (put the function as a previous state instead)"
+    | Exp_ -> `Free
+  in
+  match stmt.exp with
+  | Fun f -> List.map get_arg f.args
+  | _ -> []
 
 (* functions for output *)
 let var_to_string = function
