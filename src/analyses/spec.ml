@@ -6,7 +6,7 @@ open Analyses
 open Batteries
 
 module M = Messages
-
+module SC = SpecCore
 
 module Spec =
 struct
@@ -30,7 +30,7 @@ struct
     let specfile = GobConfig.get_string "spec.file" in
     if String.length specfile < 1 then failwith "You need to specify a specification file using --sets spec.file path/to/file.spec when using the spec analysis!";
     if not (Sys.file_exists specfile) then failwith ("The given spec.file ("^specfile^") doesn't exist (CWD is "^Sys.getcwd ()^").");
-    let _nodes, _edges = Ispec.parseFile specfile in
+    let _nodes, _edges = SpecUtil.parseFile specfile in
     nodes := _nodes; edges := _edges (* don't change -> no need to save them in domain? *)
 
 
@@ -139,7 +139,7 @@ struct
     (* let ret_all f lval = ret (List.fold_left f m (varinfos lval)) in *)
     (* custom goto (Dom.goto is just for modifying) that checks if the target state is a warning and acts accordingly *)
     let goto ?may:(may=false) var loc state m = 
-      match Def.warning state !nodes with
+      match SC.warning state !nodes with
         | Some s -> M.report ("WARN "^s); m (* no goto == implicit back edge *)
         | None -> M.debug_each ("GOTO "^var.vname^": "^Dom.get_state var m^" -> "^state); if may then Dom.may_goto var loc state m else Dom.goto var loc state m
     in
@@ -148,12 +148,12 @@ struct
           What to do for multiple keys (e.g. $foo, $bar)? -> Only allow one key & one map per spec-file (e.g. only $ as a key) or implement multiple maps? *)
       (* look inside the constraint if there is a key and if yes, return what it corresponds to *)
       let key =
-        match Def.get_key_variant c with
+        match SC.get_key_variant c with
           | `Lval s    ->
-            M.debug_each ("Key variant for "^f.vname^": `Lval "^s^". \027[30m "^Def.stmt_to_string c);
+            M.debug_each ("Key variant for "^f.vname^": `Lval "^s^". \027[30m "^SC.stmt_to_string c);
             lval
           | `Arg(s, i) ->
-            M.debug_each ("Key variant for "^f.vname^": `Arg("^s^", "^string_of_int i^")"^". "^Def.stmt_to_string c); 
+            M.debug_each ("Key variant for "^f.vname^": `Arg("^s^", "^string_of_int i^")"^". "^SC.stmt_to_string c); 
             (try
               let arg = List.at arglist i in
               match arg with
@@ -177,12 +177,12 @@ struct
       let check_var (m,n) var =
         (* skip transitions we can't take b/c we're not in the right state *)
         (* i.e. if not in map, we must be at the start node or otherwise we must be in one of the possible saved states *)
-        if not (Dom.mem var m) && a<>Def.startnode !edges || Dom.mem var m && not (Dom.may_in_state var a m) then (
+        if not (Dom.mem var m) && a<>SC.startnode !edges || Dom.mem var m && not (Dom.may_in_state var a m) then (
           (* ignore(printf "SKIP %s: state: %s, a: %s at %i\n" f.vname (Dom.get_state var m) a (!Tracing.current_loc.line)); *)
           (m,n) (* not in map -> initial state. TODO save initial state? *)
         )
         (* skip transitions where the constraint doesn't have the right form (assignment or not) *)
-        else if not (Def.equal_form lval c) then (m,n)
+        else if not (SC.equal_form lval c) then (m,n)
         (* check if parameters match those of the constraint (arglist corresponds to args) *)
         else
         let equal_args args =
@@ -221,7 +221,7 @@ struct
             | a,b -> M.warn_each ("EQUAL? Unmatched case - assume true..."); true
           in List.for_all equal_arg (List.combine args arglist) (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
         in
-        if not (equal_args (Def.get_fun_args c)) then (m,n)
+        if not (equal_args (SC.get_fun_args c)) then (m,n)
         (* everything matches the constraint -> go to new state and increase change-counter *)
         else let new_m = goto ~may:(List.length vars > 1) var dloc b m in (new_m,n+1)
       in
@@ -231,7 +231,7 @@ struct
       else Some new_m (* return changed domain *)
     in
     (* edges that match the called function name *)
-    let fun_edges = List.filter (fun (a,b,c) -> Def.fname_is f.vname c) !edges in
+    let fun_edges = List.filter (fun (a,b,c) -> SC.fname_is f.vname c) !edges in
     (* go through constraints and return resulting domain for the first match *)
     (* if no constraint matches, the unchanged domain is returned *)
     (* TODO what should be done if multiple constraints would match? *)

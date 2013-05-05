@@ -3,7 +3,7 @@
 because exceptions directly defined here aren't visible outside
 (e.g. SpecParser.Eof is raised, but Error: Unbound constructor
       if used to catch in a different module) *)
-open Def
+open SpecCore
 %}
 
 %token LT GT EQ NE LE GE
@@ -26,7 +26,7 @@ open Def
 
 /* %{ type expr = String of string | Int of int %} */
 %start file             /* the entry point */
-%type <Def.def> file
+%type <SpecCore.def> file
 %%
 file:
   | def EOL                  { $1 }

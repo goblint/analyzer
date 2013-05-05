@@ -91,15 +91,15 @@ let rec exp_to_string = function
 let stmt_to_string stmt = match stmt.lval, stmt.exp with
   | Some var, exp -> var_to_string var^" = "^exp_to_string exp
   | None, exp -> exp_to_string exp
-let to_string = function
+let def_to_string = function
   | Node(n, m)    -> n^"\t\""^m^"\""
   | Edge(a, b, s) -> a^" -> "^b^"\t"^stmt_to_string s
 
-let dot defs =
-  let to_string = function
+let to_dot_graph defs =
+  let def_to_string = function
     | Node(n, m)    -> "  "^n^"\t[label=\""^m^"\"];"
     | Edge(a, b, s) -> "  "^a^" -> "^b^"\t[label=\""^stmt_to_string s^"\"];"
   in
-  let lines = "digraph file {"::(List.map to_string defs)@["}"] in
+  let lines = "digraph file {"::(List.map def_to_string defs)@["}"] in
   (* List.iter print_endline lines *)
   String.concat "\n" lines

@@ -1,5 +1,5 @@
-open Batteries (* otherwise open_in would return wrong type for Ispec *)
-open Ispec
+open Batteries (* otherwise open_in would return wrong type for SpecUtil *)
+open SpecUtil
 
 let _ =
   (* no arguments -> run interactively (= reading from stdin)  *)
