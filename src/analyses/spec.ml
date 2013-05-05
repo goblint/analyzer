@@ -63,6 +63,27 @@ struct
     (* M.write ("return: ctx.local="^(Dom.short 50 ctx.local)^(callStackStr m)); *)
     (* if f.svar.vname <> "main" && BatList.is_empty (callStack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
+      (* check if there is a warning for entries that are not in an end state *)
+      match SC.warning "_end" !nodes with
+      | None     -> () (* nothing to do here *)
+      | Some msg ->
+        (* find transitions to end state *)
+        (* edges that have 'end' as a target *)
+        let end_edges = List.filter (fun (a,b,c) -> b="end") !edges in
+        (* we ignore the constraint, TODO maybe find a better syntax for declaring end states *)
+        let end_states = List.map (fun (a,b,c) -> a) end_edges in
+        (* now we check for all entries of our domain if they (maybe) aren't in an end state and warn about it *)
+        let check_state k v =
+          let must_end = List.exists (fun state -> Dom.in_state k state m) end_states in
+          let may_end  = List.exists (fun state -> Dom.may_in_state k state m) end_states in
+          let warn maybe loc = M.report ~loc:(List.last loc) ("WARN "^(if maybe then "MAYBE " else "")^msg^" ["^Dom.V.toString v^"]") in
+          let locs = Dom.V.locs v in
+          if not may_end then (* Must: never in an end state *)
+            warn false (List.hd locs)
+          else if not must_end then (* May: maybe in an end state *)
+            List.iter (fun loc -> warn true loc) locs
+        in
+        Dom.iter check_state m
     );
     let au = match exp with
       | Some(Lval(Var(varinfo),offset)) ->
@@ -118,7 +139,7 @@ struct
 - An edge with '$_' matches everything and forwards it to the target node.
 *)
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    (* let _ = GobConfig.set_bool "dbg.debug" false in *)
+    let _ = GobConfig.set_bool "dbg.debug" false in
     let m = ctx.local in
     let ret dom = [dom, Cil.integer 1, true] in
     let dummy = ret ctx.local in
@@ -140,8 +161,12 @@ struct
     (* custom goto (Dom.goto is just for modifying) that checks if the target state is a warning and acts accordingly *)
     let goto ?may:(may=false) var loc state m = 
       match SC.warning state !nodes with
-        | Some s -> M.report ("WARN "^s); m (* no goto == implicit back edge *)
-        | None -> M.debug_each ("GOTO "^var.vname^": "^Dom.get_state var m^" -> "^state); if may then Dom.may_goto var loc state m else Dom.goto var loc state m
+        | Some s ->
+            M.report ("WARN "^(if Dom.is_may var m then "MAYBE " else "")^s);
+            m (* no goto == implicit back edge *)
+        | None ->
+            M.debug_each ("GOTO "^var.vname^": "^Dom.get_state var m^" -> "^state);
+            if may then Dom.may_goto var loc state m else Dom.goto var loc state m
     in
     let matching (a,b,c) =
       (* TODO how to detect the key?? use "$foo" as key, "foo" as var in constraint and "_" for anything we're not interested in.
@@ -213,7 +238,7 @@ struct
             | `Float a, _ -> M.warn_each "EQUAL Float: unsupported!"; false
             (* arg is a key. currently there can only be one key per constraint, so we already used it for lookup. TODO multiple keys? *)
             | `Vari a, b  -> true
-            (* arg is a identifier we use for matching constraints. TODO safe in domain *)
+            (* arg is a identifier we use for matching constraints. TODO save in domain *)
             | `Ident a, b -> true
             | `Error s, b -> failwith ("Spec error: "^s)
             (* wildcard matches anything *)
@@ -222,13 +247,14 @@ struct
           in List.for_all equal_arg (List.combine args arglist) (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
         in
         if not (equal_args (SC.get_fun_args c)) then (m,n)
-        (* everything matches the constraint -> go to new state and increase change-counter *)
+        (* everything matches the constraint -> go to new state and increase counter *)
+        (* TODO if #Queries.MayPointTo > 1: each result is May, but all combined are Must *)
         else let new_m = goto ~may:(List.length vars > 1) var dloc b m in (new_m,n+1)
       in
       (* do check for each varinfo and return the resulting domain if there has been at least one matching constraint *)
-      let new_m,n = List.fold_left check_var (m,0) vars in (* start with original domain and #changes=0 *)
-      if n==0 then None (* no change -> no constraint matched the current state *)
-      else Some new_m (* return changed domain *)
+      let new_m,n = List.fold_left check_var (m,0) vars in (* start with original domain and #transitions=0 *)
+      if n==0 then None (* no constraint matched the current state *)
+      else Some new_m (* return new domain *)
     in
     (* edges that match the called function name *)
     let fun_edges = List.filter (fun (a,b,c) -> SC.fname_is f.vname c) !edges in

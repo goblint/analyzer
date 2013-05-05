@@ -58,6 +58,11 @@ let equal_form lval stmt =
   | None, None -> true
   | _ -> false
 
+let is_forwarding stmt =
+  match stmt.lval, stmt.exp with
+  | None, Var Var_ -> true
+  | _    -> false
+
 (* get function arguments with tags corresponding to the type -> should only be called for functions, returns [] for everything else *)
 let get_fun_args stmt =
   let get_arg = function

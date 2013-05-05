@@ -27,8 +27,8 @@ int main(){
 	fprintf(fp4, "Testing...\n");	// WARN
 
 	// missing fclose
-	FILE *fp5;			// WARN
-	fp5 = fopen("test.txt", "a");
+	FILE *fp5;
+	fp5 = fopen("test.txt", "a");	// WARN
 	fprintf(fp5, "Testing...\n");
 
 	// missing assignment to file handle

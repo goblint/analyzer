@@ -47,6 +47,7 @@ struct
   let records = function Must x -> (Set.singleton x) | May xs -> xs
   let recordsList = function Must x -> [x] | May xs -> List.of_enum (Set.enum xs)
   let vnames x = String.concat ", " (List.map (fun x -> x.var.vname) (recordsList x))
+  let locs x = List.map (fun x -> x.loc) (recordsList x)
 
   let equal = Util.equals
   (* let leq x y = equal y (join x y) *)
@@ -85,8 +86,9 @@ struct
   let findRecords k m = if mem k m then V.records (find k m) else Set.empty
   let goto var loc state m = add var (Must(V.create var loc state)) m
   let may_goto var loc state m = add var (May(Set.add (V.create var loc state) (findRecords var m))) m
+  let is_may k m = mem k m && match find k m with May _ -> true | Must _ -> false
   let may k p m = mem k m && Set.exists p (V.records (find k m))
-  let must k p m = mem k m && let xs = V.records (find k m) in Set.for_all p xs && Set.cardinal xs > 1 (* TODO semantics of May with length 1? *)
+  let must k p m = mem k m && let xs = V.records (find k m) in Set.for_all p xs && not (is_may k m && Set.cardinal xs = 1) (* TODO semantics of May with length 1? *)
   let in_state k state m = must k (fun x -> x.state = state) m
   let may_in_state k state m = may k (fun x -> x.state = state) m
   let get_state k m = if not (mem k m) then "?" else match find k m with
