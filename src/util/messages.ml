@@ -19,6 +19,15 @@ let get_out name alternative = match get_string "dbg.dump" with
 
 let xml_warn = Hashtbl.create 10  
 
+let colorize msg =
+  let colors = [("gray", "30"); ("red", "31"); ("green", "32"); ("yellow", "33"); ("blue", "34"); ("reset", "0;00")] in
+  let replace msg (color,code) =
+    let msg = Str.global_replace (Str.regexp ("{"^color^"}")) ("\027[0;"^code^"m") msg in (* normal *)
+    Str.global_replace (Str.regexp ("{"^String.uppercase color^"}")) ("\027[1;"^code^"m") msg (* bold *)
+  in
+  let msg = List.fold_left replace msg colors in
+  msg^"\027[0;0;00m"
+
 let print_msg msg loc = 
   htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
   if get_bool "gccwarn" then    
@@ -26,7 +35,7 @@ let print_msg msg loc =
   else if get_bool "exp.eclipse" then 
     Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
   else
-    Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
+    Printf.fprintf !warn_out "%s \027[30m(%s:%d)\027[0;0;00m\n%!" msg loc.file loc.line
 
 let print_err msg loc = 
   htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
@@ -111,9 +120,9 @@ let warn_each msg =
   end
   
 let debug msg =
-  if (get_bool "dbg.debug") then warn msg
+  if (get_bool "dbg.debug") then warn (colorize ("{gray}"^msg))
   
 let debug_each msg =
-  if (get_bool "dbg.debug") then warn_each msg
+  if (get_bool "dbg.debug") then warn_each (colorize ("{gray}"^msg))
 
 include Tracing
