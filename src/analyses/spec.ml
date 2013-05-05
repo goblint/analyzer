@@ -76,14 +76,15 @@ struct
         let check_state k v =
           let must_end = List.exists (fun state -> Dom.in_state k state m) end_states in
           let may_end  = List.exists (fun state -> Dom.may_in_state k state m) end_states in
-          let warn maybe loc = M.report ~loc:(List.last loc) ("WARN "^(if maybe then "MAYBE " else "")^msg^" ["^Dom.V.toString v^"]") in
+          let warn maybe loc = M.report ~loc:(List.last loc) ((if maybe then "MAYBE " else "")^msg) in
           let locs = Dom.V.locs v in
           if not may_end then (* Must: never in an end state *)
-            warn false (List.hd locs)
+            List.iter (fun loc -> warn false loc) locs
           else if not must_end then (* May: maybe in an end state *)
             List.iter (fun loc -> warn true loc) locs
         in
-        Dom.iter check_state m
+        let no_special_vars = Dom.filter (fun k v -> String.get k.vname 0 <> '@') m in
+        Dom.iter check_state no_special_vars
     );
     let au = match exp with
       | Some(Lval(Var(varinfo),offset)) ->
@@ -139,7 +140,7 @@ struct
 - An edge with '$_' matches everything and forwards it to the target node.
 *)
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    let _ = GobConfig.set_bool "dbg.debug" false in
+    (* let _ = GobConfig.set_bool "dbg.debug" false in *)
     let m = ctx.local in
     let ret dom = [dom, Cil.integer 1, true] in
     let dummy = ret ctx.local in
@@ -162,7 +163,8 @@ struct
     let goto ?may:(may=false) var loc state m = 
       match SC.warning state !nodes with
         | Some s ->
-            M.report ("WARN "^(if Dom.is_may var m then "MAYBE " else "")^s);
+            let s = Str.global_replace (Str.regexp_string "$") var.vname s in
+            M.report ((if Dom.is_may var m then "MAYBE " else "")^s);
             m (* no goto == implicit back edge *)
         | None ->
             M.debug_each ("GOTO "^var.vname^": "^Dom.get_state var m^" -> "^state);

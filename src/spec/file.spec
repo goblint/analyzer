@@ -1,10 +1,10 @@
 w1 "file handle is not saved!"
-w2 "closeing unopened file handle"
-w3 "writing to unopened file handle"
-w4 "writing to read-only file handle"
-w5 "closeing already closed file handle"
-w6 "writing to closed file handle"
-w7 "overwriting still opened file handle"
+w2 "closeing unopened file handle $"
+w3 "writing to unopened file handle $"
+w4 "writing to read-only file handle $"
+w5 "closeing already closed file handle $"
+w6 "writing to closed file handle $"
+w7 "overwriting still opened file handle $"
 
 1          -> w1            fopen(_)
 1          -> w2            fclose($fp)
