@@ -21,6 +21,7 @@ struct
 
   let return_var = Cil.makeVarinfo false "@return" Cil.voidType
   let stack_var = Cil.makeVarinfo false "@stack" Cil.voidType
+  let global_var = Cil.makeVarinfo false "@global" Cil.voidType
 
   let nodes = ref []
   let edges = ref []
@@ -117,7 +118,7 @@ struct
 - An edge with '$_' matches everything and forwards it to the target node.
 *)
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    let _ = GobConfig.set_bool "dbg.debug" false in
+    (* let _ = GobConfig.set_bool "dbg.debug" false in *)
     let m = ctx.local in
     let ret dom = [dom, Cil.integer 1, true] in
     let dummy = ret ctx.local in
@@ -148,13 +149,16 @@ struct
       (* look inside the constraint if there is a key and if yes, return what it corresponds to *)
       let key =
         match Def.get_key_variant c with
-          | `Lval s    -> M.debug_each ("Key variant for "^f.vname^": `Lval "^s); lval
-          | `Arg(s, i) -> M.debug_each ("Key variant for "^f.vname^": `Arg("^s^", "^string_of_int i^")"); 
+          | `Lval s    ->
+            M.debug_each ("Key variant for "^f.vname^": `Lval "^s^". \027[30m "^Def.stmt_to_string c);
+            lval
+          | `Arg(s, i) ->
+            M.debug_each ("Key variant for "^f.vname^": `Arg("^s^", "^string_of_int i^")"^". "^Def.stmt_to_string c); 
             (try
               let arg = List.at arglist i in
               match arg with
                 | Lval x -> Some x (* TODO enough to just assume the arg is already there as a Lval? *)
-                | _ -> None
+                | _      -> None
             with Invalid_argument s ->
               M.debug_each ("Key out of bounds! Msg: "^s); (* TODO what to do if spec says that there should be more args... *)
               None
@@ -162,65 +166,69 @@ struct
           | _          -> None (* `Rval or `None *)
       in
       (* Now we have the key for the map-domain or we don't.
-         In case we don't have a key, we have to check the global state.
-         TODO should the global state always be the start state or should it also be stored in the map as a changeable record? *)
-      match key with
-        | None -> None (* TODO check global state *)
-        | Some key ->
-          (* possible varinfos the lval may point to -> TODO use Lval as key for map? *)
-          let vars = varinfos key in
-          let check_var (m,n) var =
-            (* skip transitions we can't take b/c we're not in the right state *)
-            if Dom.mem var m && not (Dom.may_in_state var a m) then (
-              (* ignore(printf "SKIP %s: state: %s, a: %s at %i\n" f.vname (Dom.get_state var m) a (!Tracing.current_loc.line)); *)
-              (m,n) (* not in map -> initial state. TODO save initial state? *)
-            )
-            (* skip transitions where the constraint doesn't have the right form (assignment or not) *)
-            else if not (Def.equal_form lval c) then (m,n)
-            (* check if parameters match those of the constraint (arglist corresponds to args) *)
-            else
-            let equal_args args =
-              if List.length arglist <> List.length args then (
-                M.debug_each "SKIP the number of arguments doesn't match the specification!";
-                false
-              )else
-              let equal_arg = function
-                (* TODO match constants right away to avoid queries? *)
-                | `String a, Const(CStr b) -> M.debug_each ("EQUAL String Const: "^a^" = "^b); a=b
-                (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
-                (* CWStr is done in base.ml, query only returns `Str if it's safe *)
-                | `String a, e -> (match ctx.ask (Queries.EvalStr e) with
-                    | `Str b -> M.debug_each ("EQUAL String Query: "^a^" = "^b); a=b
-                    | _      -> M.debug_each "EQUAL String Query: no result!"; false
-                  )
-                | `Bool a, e -> (match ctx.ask (Queries.EvalInt e) with
-                    | `Int b -> (match Queries.ID.to_bool b with Some b -> a=b | None -> false)
-                    | _      -> M.debug_each "EQUAL Bool Query: no result!"; false
-                  )
-                | `Int a, e  -> (match ctx.ask (Queries.EvalInt e) with
-                    | `Int b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
-                    | _      -> M.debug_each "EQUAL Int Query: no result!"; false
-                  )
-                | `Float a, Const(CReal (b, fkind, str_opt)) -> a=b
-                | `Float a, _ -> M.warn_each "EQUAL Float: unsupported!"; false
-                (* arg is a key. currently there can only be one key per constraint, so we already used it for lookup. TODO multiple keys? *)
-                | `Vari a, b  -> true
-                (* arg is a identifier we use for matching constraints. TODO safe in domain *)
-                | `Ident a, b -> true
-                | `Error s, b -> failwith ("Spec error: "^s)
-                (* wildcard matches anything *)
-                | `Free, b    -> true
-                | a,b -> M.warn_each ("EQUAL? Unmatched case - assume true..."); true
-              in List.for_all equal_arg (List.combine args arglist)
-            in
-            if not (equal_args (Def.get_fun_args c)) then (m,n)
-            (* everything matches the constraint -> go to new state and increase change-counter *)
-            else let new_m = goto ~may:(List.length vars > 1) var dloc b m in (new_m,n+1)
-          in
-          (* do check for each varinfo and return the resulting domain if there has been a matching constraint *)
-          let new_m,n = List.fold_left check_var (m,0) vars in (* start with original domain and #changes=0 *)
-          if n==0 then None (* no change -> no constraint matched the current state *)
-          else Some new_m (* return changed domain *)
+         In case we don't have a key, we have to check the global state. *)
+      let key = match key with
+        | Some key -> key
+        | None -> Cil.var global_var (* creates Var with NoOffset *)
+      in
+      (* ignore(printf "KEY: %a\n" d_plainlval key); *)
+      (* possible varinfos the lval may point to -> TODO use Lval as key for map? But: multiple representations for the same Lval?! *)
+      let vars = varinfos key in
+      let check_var (m,n) var =
+        (* skip transitions we can't take b/c we're not in the right state *)
+        (* i.e. if not in map, we must be at the start node or otherwise we must be in one of the possible saved states *)
+        if not (Dom.mem var m) && a<>Def.startnode !edges || Dom.mem var m && not (Dom.may_in_state var a m) then (
+          (* ignore(printf "SKIP %s: state: %s, a: %s at %i\n" f.vname (Dom.get_state var m) a (!Tracing.current_loc.line)); *)
+          (m,n) (* not in map -> initial state. TODO save initial state? *)
+        )
+        (* skip transitions where the constraint doesn't have the right form (assignment or not) *)
+        else if not (Def.equal_form lval c) then (m,n)
+        (* check if parameters match those of the constraint (arglist corresponds to args) *)
+        else
+        let equal_args args =
+          if List.length args = 1 && List.hd args = `Free then
+            true (* wildcard as an argument matches everything *)
+          else if List.length arglist <> List.length args then (
+            M.debug_each "SKIP the number of arguments doesn't match the specification!";
+            false
+          )else
+          let equal_arg = function
+            (* TODO match constants right away to avoid queries? *)
+            | `String a, Const(CStr b) -> M.debug_each ("EQUAL String Const: "^a^" = "^b); a=b
+            (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
+            (* CWStr is done in base.ml, query only returns `Str if it's safe *)
+            | `String a, e -> (match ctx.ask (Queries.EvalStr e) with
+                | `Str b -> M.debug_each ("EQUAL String Query: "^a^" = "^b); a=b
+                | _      -> M.debug_each "EQUAL String Query: no result!"; false
+              )
+            | `Bool a, e -> (match ctx.ask (Queries.EvalInt e) with
+                | `Int b -> (match Queries.ID.to_bool b with Some b -> a=b | None -> false)
+                | _      -> M.debug_each "EQUAL Bool Query: no result!"; false
+              )
+            | `Int a, e  -> (match ctx.ask (Queries.EvalInt e) with
+                | `Int b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
+                | _      -> M.debug_each "EQUAL Int Query: no result!"; false
+              )
+            | `Float a, Const(CReal (b, fkind, str_opt)) -> a=b
+            | `Float a, _ -> M.warn_each "EQUAL Float: unsupported!"; false
+            (* arg is a key. currently there can only be one key per constraint, so we already used it for lookup. TODO multiple keys? *)
+            | `Vari a, b  -> true
+            (* arg is a identifier we use for matching constraints. TODO safe in domain *)
+            | `Ident a, b -> true
+            | `Error s, b -> failwith ("Spec error: "^s)
+            (* wildcard matches anything *)
+            | `Free, b    -> true
+            | a,b -> M.warn_each ("EQUAL? Unmatched case - assume true..."); true
+          in List.for_all equal_arg (List.combine args arglist) (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
+        in
+        if not (equal_args (Def.get_fun_args c)) then (m,n)
+        (* everything matches the constraint -> go to new state and increase change-counter *)
+        else let new_m = goto ~may:(List.length vars > 1) var dloc b m in (new_m,n+1)
+      in
+      (* do check for each varinfo and return the resulting domain if there has been at least one matching constraint *)
+      let new_m,n = List.fold_left check_var (m,0) vars in (* start with original domain and #changes=0 *)
+      if n==0 then None (* no change -> no constraint matched the current state *)
+      else Some new_m (* return changed domain *)
     in
     (* edges that match the called function name *)
     let fun_edges = List.filter (fun (a,b,c) -> Def.fname_is f.vname c) !edges in

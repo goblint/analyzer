@@ -24,6 +24,10 @@ let fname_is fname stmt =
   | Fun x -> x.fname=fname
   | _ -> false
 
+let startnode edges =
+  (* The start node of the first transition is the start node of the automaton. *)
+  let a,b,c = List.hd edges in a
+
 let warning state nodes =
   try
     Some (snd (List.find (fun x -> fst x = state) nodes)) (* find node for state and return its warning *)
