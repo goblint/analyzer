@@ -12,6 +12,7 @@ path = sys.argv[1]
 
 goblint = {}
 for line in sys.stdin.readlines():
+    line = re.sub(r"\033.*?m", "", line)
     m = re.match(r"(.+) \("+re.escape(path)+":(.+)\)", line)
     if m: goblint[int(m.group(2))] = m.group(1)
 
