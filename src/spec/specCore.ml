@@ -102,8 +102,8 @@ let def_to_string = function
 
 let to_dot_graph defs =
   let def_to_string = function
-    | Node(n, m)    -> "  "^n^"\t[label=\""^m^"\"];"
-    | Edge(a, b, s) -> "  "^a^" -> "^b^"\t[label=\""^stmt_to_string s^"\"];"
+    | Node(n, m)    -> "  "^n^"\t[shape=box, style=filled, fillcolor=orange, label=\""^m^"\"];"
+    | Edge(a, b, s) -> "  "^a^" -> "^b^"\t[label=\""^String.escaped (stmt_to_string s)^"\"];"
   in
   let lines = "digraph file {"::(List.map def_to_string defs)@["}"] in
   (* List.iter print_endline lines *)

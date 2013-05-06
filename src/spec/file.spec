@@ -16,7 +16,7 @@ open_read  -> w4            fprintf($fp, _)
 // open_write -> open_write    fprintf($fp, _) // not needed, but changes loc
 
 // open_read  -> w7, $1     $fp = fopen($path, _)
-// open_wite  -> w7, $1     $fp = fopen($path, _)
+// open_write -> w7, $1     $fp = fopen($path, _)
 
 open_read  -> closed        fclose($fp)
 open_write -> closed        fclose($fp)
