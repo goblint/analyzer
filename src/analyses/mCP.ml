@@ -1427,7 +1427,7 @@ struct
   let otherstate v = map (fun (n,{spec=(module S:Spec2)}) -> n, repr @@ S.otherstate v) !analyses_list
   let exitstate  v = map (fun (n,{spec=(module S:Spec2)}) -> n, repr @@ S.exitstate  v) !analyses_list
   let startstate v = map (fun (n,{spec=(module S:Spec2)}) -> n, repr @@ S.startstate v) !analyses_list
-  let morphstate v x = map (fun (n,(module S:Spec2),d) -> n, repr @@ S.morphstate (obj d)) (spec_list x)
+  let morphstate v x = map (fun (n,(module S:Spec2),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
     
   let call_descr f xs = 
     let xs = filter (fun (x,_) -> x = !base_id) xs in

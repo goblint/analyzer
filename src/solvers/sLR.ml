@@ -2,8 +2,13 @@ open Analyses
 open Constraints 
 open Batteries
 
+module type BoolProp  = sig val value : bool end
+module      PropTrue  = struct let value = true  end
+module      PropFalse = struct let value = false end
+
 (** the box solver *)
 module Make =
+  functor (RES:BoolProp) -> 
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
@@ -145,6 +150,17 @@ struct
                           let _ = work := H.merge (H.from_list list) !work 
                           
                           in let _ = List.iter (fun x -> L.add infl x x) list 
+                          
+                          in let restart x = try let s = HM.create 0 in
+                                             let (sk,_) = X.get_index x in
+                                             let rec handle_one x =
+                                               if HM.mem s x then () else
+                                               let _ = HM.add s x () in
+                                               let (k,_) = X.get_index x in
+                                               let _ = if k < sk then X.set_value x (D.bot ()); work := H.insert !work x in
+                                               List.iter handle_one @@ try HM.find infl x with Not_found -> []
+                                             in 
+                                             handle_one x with Not_found -> ()
 
                           in let rec eval x y =
                                           let (i,nonfresh) = X.get_index y in
@@ -182,24 +198,28 @@ struct
                                                           D.cup a (XY.get_value (z,x))
                                                                   ) a list
 
-                          and solve x   = if P.has_item stable x then ()
+                          and solve x = if P.has_item stable x then ()
                                   else    let _ = P.insert stable x in
                                           let old = X.get_value x in
                                           let tmp = do_side x (eq x (eval x) (side x)) in 
+                                          let rstrt = RES.value && D.leq old tmp && (not @@ D.equal old tmp) in
                                           let tmp = box x old tmp in
                                           if D.eq tmp old then loop (X.get_key x)
                                           else begin 
                                                   let _ = X.set_value x tmp in
 					
                                                   (*let _ = Pretty.printf "%a : %a\n" S.Var.pretty_trace x D.pretty tmp in*)
-					
-                                                  let w = L.sub infl x in
-                                                  let _ = L.rem_item infl x in
-                                                  let _ = L.add infl x x in
-                                                  let h = List.fold_left H.insert (!work) w in
-                                                  let _ = work := h in
-                                                          List.iter (P.rem_item stable) w;
-                                                          loop (X.get_key x) end
+					                                        if rstrt then 
+                                                    restart x 
+                                                  else
+                                                    let w = L.sub infl x in
+                                                    let _ = L.rem_item infl x in
+                                                    let _ = L.add infl x x in
+                                                    let h = List.fold_left H.insert (!work) w in
+                                                    let _ = work := h in
+                                                            List.iter (P.rem_item stable) w;
+                                                  loop (X.get_key x) 
+                                          end
         
                           and loop a =  if H.is_empty (!work) then ()
                                                   else if H.get_root_key (!work) <= a
@@ -242,9 +262,14 @@ struct
     else (if D.leq y x then y else D.join x y)
 end
 
-module MakeIsGenericEqBoxSolver : GenericEqBoxSolver = Make
+let _ =
+  let module MakeIsGenericEqBoxSolver : GenericEqBoxSolver = Make (PropFalse) in
+  ()
 
 let _ =
-  let module M = GlobSolverFromEqSolver(Make) in
+  let module M = GlobSolverFromEqSolver(Make (PropFalse)) in
   Selector.add_solver ("slr+", (module M : GenericGlobSolver));
-  Selector.add_solver ("new",  (module M : GenericGlobSolver))
+  Selector.add_solver ("new",  (module M : GenericGlobSolver));
+  let module M1 = GlobSolverFromEqSolver(Make (PropTrue)) in
+  Selector.add_solver ("restart", (module M : GenericGlobSolver))
+  

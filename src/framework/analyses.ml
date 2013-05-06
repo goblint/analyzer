@@ -46,6 +46,7 @@ type local_state = [
     | `ThreadLocSet of ConcDomain.ThreadStringSet.t
     | `Oslo         of LockDomain.Lockset.t
     | `FlagModeDom  of FlagModeDomain.Dom.t
+    | `Deadlock    of DeadlockDomain.Lockset.t
     | `Unit
     ]
 
