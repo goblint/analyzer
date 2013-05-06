@@ -2,7 +2,7 @@
 # Inspired by https://github.com/lunaryorn/flycheck
 
 # switch to root
-sudo su -
+#sudo su -
 
 export OPAM_VERSION=1.0.0
 # export OCAML_VERSION=4.00.1
