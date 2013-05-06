@@ -4,10 +4,10 @@ FILE *fp;
 
 int main(){
 	int b;
-	fp = fopen("test.txt", "a");  // WARN: file may be never closed
+	fp = fopen("test.txt", "a");  // WARN: MAYBE file is never closed
 
 	fprintf(fp, "Testing...\n");
 
 	if (b)
 		fclose(fp);
-} // WARN: maybe unclosed files: fp
+} // WARN: MAYBE unclosed files: fp

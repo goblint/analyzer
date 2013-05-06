@@ -76,8 +76,8 @@ struct
       let mayOpenAll = Dom.filterValues ~may:true Dom.V.opened m in
       let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpenAll in (* ignore values that are already in mustOpen *)
       if List.length mayOpen > 0 then
-        M.report ("maybe unclosed files: "^(vnames (BatList.unique ~eq:(fun a b -> a.var.vname=b.var.vname) mayOpen)));
-        List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file may be never closed") mayOpen
+        M.report ("MAYBE unclosed files: "^(vnames (BatList.unique ~eq:(fun a b -> a.var.vname=b.var.vname) mayOpen)));
+        List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "MAYBE file is never closed") mayOpen
     );
     let au = match exp with
       | Some(Lval(Var(varinfo),offset)) ->
@@ -134,7 +134,7 @@ struct
         | Var varinfo, _ -> [varinfo]
         | Mem exp, _ ->
             let xs = query_lv ctx.ask exp in (* MayPointTo -> LValSet *)
-            M.report ("MayPointTo "^(Pretty.sprint 80 (d_exp () exp))^" = ["
+            M.debug_each ("MayPointTo "^(Pretty.sprint 80 (d_exp () exp))^" = ["
               ^(String.concat ", " (List.map (Lval.CilLval.short 80) xs))^"]");
             List.map fst xs
     in
@@ -153,7 +153,7 @@ struct
             Dom.report varinfo Dom.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
             let mustOpen, mayOpen = Dom.checkMay varinfo Dom.V.opened m in
             if mustOpen || mayOpen then (
-              let msg = if mayOpen && not mustOpen then "file may be never closed" else "file is never closed" in
+              let msg = if mayOpen && not mustOpen then "MAYBE file is never closed" else "file is never closed" in
               let xs = Dom.filterRecords varinfo Dom.V.opened m in (* length 1 if mustOpen *)
               List.iter (fun x -> M.report ~loc:(BatList.last x.loc) msg) xs
             );

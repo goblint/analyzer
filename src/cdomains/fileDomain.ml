@@ -110,7 +110,7 @@ struct
   (* returns a tuple (thunk, result) *)
   let report_ ?neg:(neg=false) var p msg m =
     let f ?may:(may=false) s =
-      let f () = Messages.report (if may then ("might be "^s) else s) in
+      let f () = Messages.report (if may then ("MAYBE "^s) else s) in
       if may then f, `May true else f, `Must true in
     let mf = (fun () -> ()), `Must false in
     if mem var m then
