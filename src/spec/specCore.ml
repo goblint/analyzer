@@ -114,9 +114,10 @@ let to_dot_graph defs =
   in
   let ends,defs = List.partition (function Edge (a,ws,fwd,b,s) -> b="end" && s.exp=Exp_ | _ -> false) defs in
   let endstates = List.filter_map (function Edge (a,ws,fwd,b,s) -> Some a | _ -> None) ends in
-  (* first style the endstates, then reset default for the rest *)
-  let endstyle = "node [shape=box, style=\"rounded,bold\"]; "^(String.concat " " endstates) in
+  (* set the default style for nodes *)
   let defaultstyle = "node [shape=box, style=rounded];" in
-  let lines = "digraph file {"::endstyle::defaultstyle::(List.map def_to_string defs) in
+  (* style end nodes and then reset *)
+  let endstyle = "node [peripheries=2]; "^(String.concat " " endstates)^"; node [peripheries=1];" in
+  let lines = "digraph file {"::defaultstyle::endstyle::(List.map def_to_string defs) in
   (* List.iter print_endline lines *)
   String.concat "\n  " lines ^ "\n}"
