@@ -47,7 +47,7 @@ struct
   let records = function Must x -> (Set.singleton x) | May xs -> xs
   let recordsList = function Must x -> [x] | May xs -> List.of_enum (Set.enum xs)
   let vnames x = String.concat ", " (List.map (fun x -> x.var.vname) (recordsList x))
-  let locs x = List.map (fun x -> x.loc) (recordsList x)
+  let locs ?p:(p=const true) x = List.map (fun x -> x.loc) (List.filter p (recordsList x))
 
   let equal = Util.equals
   (* let leq x y = equal y (join x y) *)

@@ -81,6 +81,9 @@ struct
           if not may_end then (* Must: never in an end state *)
             List.iter (fun loc -> warn false loc) locs
           else if not must_end then (* May: maybe in an end state *)
+            (* only output MAYBE-warnings for possibilities that are not an end state *)
+            (* TODO this is a matter of taste -> make it configurable? *)
+            let locs = Dom.V.locs ~p:(fun x -> not (List.mem x.state end_states)) v in
             List.iter (fun loc -> warn true loc) locs
         in
         let no_special_vars = Dom.filter (fun k v -> String.get k.vname 0 <> '@') m in
