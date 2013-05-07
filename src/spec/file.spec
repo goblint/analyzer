@@ -29,3 +29,4 @@ closed     ->> 1            _ // let state 1 handle the rest
 closed     -> end           _
 // warning for all entries that are not in an end states
 _end "file is never closed"
+_END "unclosed files: $"

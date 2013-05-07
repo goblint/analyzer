@@ -63,31 +63,46 @@ struct
     (* M.write ("return: ctx.local="^(Dom.short 50 ctx.local)^(callStackStr m)); *)
     (* if f.svar.vname <> "main" && BatList.is_empty (callStack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
-      (* check if there is a warning for entries that are not in an end state *)
-      match SC.warning "_end" !nodes with
-      | None     -> () (* nothing to do here *)
-      | Some msg ->
+      let warn_main msg_loc msg_end =
         (* find transitions to end state *)
         (* edges that have 'end' as a target *)
         let end_edges = List.filter (fun (a,ws,fwd,b,c) -> b="end") !edges in
         (* we ignore the constraint, TODO maybe find a better syntax for declaring end states *)
         let end_states = List.map (fun (a,ws,fwd,b,c) -> a) end_edges in
+        (* used to warn locally or as a summary at the end of main *)
+        let warn ?loc:(loc=[!Tracing.current_loc]) maybe msg = M.report ~loc:(List.last loc) ((if maybe then "MAYBE " else "")^msg) in
+        (* TODO imperative -> refactor *)
+        let must_k = ref [] in
+        let may_k = ref [] in
         (* now we check for all entries of our domain if they (maybe) aren't in an end state and warn about it *)
         let check_state k v =
           let must_end = List.exists (fun state -> Dom.in_state k state m) end_states in
           let may_end  = List.exists (fun state -> Dom.may_in_state k state m) end_states in
-          let warn maybe loc = M.report ~loc:(List.last loc) ((if maybe then "MAYBE " else "")^msg) in
           let locs = Dom.V.locs v in
-          if not may_end then (* Must: never in an end state *)
-            List.iter (fun loc -> warn false loc) locs
-          else if not must_end then (* May: maybe in an end state *)
+          if not may_end then ((* Must: never in an end state *)
+            must_k := !must_k@[k.vname];
+            match msg_loc with Some msg -> List.iter (fun loc -> warn ~loc:loc false msg) locs | _ -> ()
+          )else if not must_end then ((* May: maybe in an end state *)
+            may_k := !may_k@[k.vname];
             (* only output MAYBE-warnings for possibilities that are not an end state *)
             (* TODO this is a matter of taste -> make it configurable? *)
             let locs = Dom.V.locs ~p:(fun x -> not (List.mem x.state end_states)) v in
-            List.iter (fun loc -> warn true loc) locs
+            match msg_loc with Some msg -> List.iter (fun loc -> warn ~loc:loc true msg) locs | _ -> ()
+          )
         in
         let no_special_vars = Dom.filter (fun k v -> String.get k.vname 0 <> '@') m in
-        Dom.iter check_state no_special_vars
+        Dom.iter check_state no_special_vars;
+        match msg_end with
+        | Some msg ->
+          let f msg ks = Str.global_replace (Str.regexp_string "$") (String.concat ", " ks) msg in
+          if not (List.is_empty !must_k) then warn false (f msg !must_k);
+          if not (List.is_empty !may_k) then warn true (f msg !may_k)
+        | _ -> ()
+      in
+      (* check if there is a warning for entries that are not in an end state *)
+      match SC.warning "_end" !nodes, SC.warning "_END" !nodes with
+      | None, None -> () (* nothing to do here *)
+      | msg_loc,msg_end -> warn_main msg_loc msg_end
     );
     let au = match exp with
       | Some(Lval(Var(varinfo),offset)) ->
