@@ -69,9 +69,9 @@ struct
       | Some msg ->
         (* find transitions to end state *)
         (* edges that have 'end' as a target *)
-        let end_edges = List.filter (fun (a,b,c) -> b="end") !edges in
+        let end_edges = List.filter (fun (a,ws,fwd,b,c) -> b="end") !edges in
         (* we ignore the constraint, TODO maybe find a better syntax for declaring end states *)
-        let end_states = List.map (fun (a,b,c) -> a) end_edges in
+        let end_states = List.map (fun (a,ws,fwd,b,c) -> a) end_edges in
         (* now we check for all entries of our domain if they (maybe) aren't in an end state and warn about it *)
         let check_state k v =
           let must_end = List.exists (fun state -> Dom.in_state k state m) end_states in
@@ -160,17 +160,22 @@ struct
     (* fold possible varinfos on domain *)
     (* let ret_all f lval = ret (List.fold_left f m (varinfos lval)) in *)
     (* custom goto (Dom.goto is just for modifying) that checks if the target state is a warning and acts accordingly *)
-    let goto ?may:(may=false) var loc state m = 
+    let goto ?may:(may=false) var loc state m ws =
+      let warn var m msg =
+        let msg = Str.global_replace (Str.regexp_string "$") var.vname msg in
+        M.report ((if Dom.is_may var m then "MAYBE " else "")^msg)
+      in
+      (* do transition warnings *)
+      List.iter (fun state -> match SC.warning state !nodes with Some msg -> warn var m msg | _ -> ()) ws;
       match SC.warning state !nodes with
-        | Some s ->
-            let s = Str.global_replace (Str.regexp_string "$") var.vname s in
-            M.report ((if Dom.is_may var m then "MAYBE " else "")^s);
+        | Some msg ->
+            warn var m msg;
             m (* no goto == implicit back edge *)
         | None ->
             M.debug_each ("GOTO "^var.vname^": "^Dom.get_state var m^" -> "^state);
             if may then Dom.may_goto var loc state m else Dom.goto var loc state m
     in
-    let matching (a,b,c) =
+    let matching m (a,ws,fwd,b,c) =
       (* TODO how to detect the key?? use "$foo" as key, "foo" as var in constraint and "_" for anything we're not interested in.
           What to do for multiple keys (e.g. $foo, $bar)? -> Only allow one key & one map per spec-file (e.g. only $ as a key) or implement multiple maps? *)
       (* look inside the constraint if there is a key and if yes, return what it corresponds to *)
@@ -200,7 +205,7 @@ struct
       in
       (* ignore(printf "KEY: %a\n" d_plainlval key); *)
       (* possible varinfos the lval may point to -> TODO use Lval as key for map? But: multiple representations for the same Lval?! *)
-      let vars = varinfos key in
+      let vars = varinfos key in (* does MayPointTo query for Mem, otherwise [varinfo] *)
       let check_var (m,n) var =
         (* skip transitions we can't take b/c we're not in the right state *)
         (* i.e. if not in map, we must be at the start node or otherwise we must be in one of the possible saved states *)
@@ -248,22 +253,29 @@ struct
             | a,b -> M.warn_each ("EQUAL? Unmatched case - assume true..."); true
           in List.for_all equal_arg (List.combine args arglist) (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
         in
+        (* check if arguments match the constraint *)
         if not (equal_args (SC.get_fun_args c)) then (m,n)
         (* everything matches the constraint -> go to new state and increase counter *)
         (* TODO if #Queries.MayPointTo > 1: each result is May, but all combined are Must *)
-        else let new_m = goto ~may:(List.length vars > 1) var dloc b m in (new_m,n+1)
+        else let new_m = goto ~may:(List.length vars > 1) var dloc b m ws in (new_m,n+1)
       in
       (* do check for each varinfo and return the resulting domain if there has been at least one matching constraint *)
       let new_m,n = List.fold_left check_var (m,0) vars in (* start with original domain and #transitions=0 *)
       if n==0 then None (* no constraint matched the current state *)
-      else Some new_m (* return new domain *)
+      else Some (new_m,fwd) (* return new domain and forwarding info *)
     in
     (* edges that match the called function name *)
-    let fun_edges = List.filter (fun (a,b,c) -> SC.fname_is f.vname c) !edges in
+    let fun_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.fname_is f.vname c) !edges in
     (* go through constraints and return resulting domain for the first match *)
     (* if no constraint matches, the unchanged domain is returned *)
+    (* repeat for target node if it is a forwarding edge *)
     (* TODO what should be done if multiple constraints would match? *)
-    try ret (List.find_map matching fun_edges) with Not_found -> dummy
+    try
+      let rec check_fwd_loop m = (* TODO cycle detection? *)
+        let new_m,fwd = List.find_map (matching m) fun_edges in
+        if fwd then check_fwd_loop new_m else new_m
+      in ret (check_fwd_loop m)
+    with Not_found -> dummy
 (*     match lval, f.vname, arglist with
       | None, "fopen", _ ->
           M.report "file handle is not saved!"; dummy

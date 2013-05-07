@@ -46,8 +46,8 @@ rule token = parse
   | "null"         { NULL   }
   | (word+ as n) ws+ str
                    { NODE(n, s) }
-  | (word+ as a) ws* "->" ws* (word+ as b) ws+
-                   { EDGE(a, b) }
+  | (word+ as a) ws* "-" ((word+ ("," word+)*)? as ws) (">"? as fwd) ">" ws* (word+ as b) ws+
+                   { EDGE(a, BatString.nsplit ws ",", fwd=">", b) }
   | str            { STRING(s) }
 (*  | ['0'-'9']*'.'?['0'-'9']*(('e'|'E')('+'|'-')?['0'-'9']+)?
       { NUMBER (big_int_of_string (Lexing.lexeme lexbuf)) } *)

@@ -12,7 +12,7 @@ and exp =
   Var of var |
   String of string | Bool of bool | Int of int | Float of float
 type stmt = {lval: var option; exp: exp}
-type def = Node of (string * string) | Edge of (string * string * stmt)
+type def = Node of (string * string) | Edge of (string * string list * bool * string * stmt)
 
 (* let stmts edges = List.map (fun (a,b,c) -> c) edges
 let get_fun stmt = match stmt.exp with Fun x -> Some x | _ -> None
@@ -26,7 +26,7 @@ let fname_is fname stmt =
 
 let startnode edges =
   (* The start node of the first transition is the start node of the automaton. *)
-  let a,b,c = List.hd edges in a
+  let a,ws,fwd,b,c = List.hd edges in a
 
 let warning state nodes =
   try
@@ -96,14 +96,15 @@ let rec exp_to_string = function
 let stmt_to_string stmt = match stmt.lval, stmt.exp with
   | Some var, exp -> var_to_string var^" = "^exp_to_string exp
   | None, exp -> exp_to_string exp
+let arrow_to_string ws fwd = (String.concat "," ws)^if fwd then ">" else ""
 let def_to_string = function
   | Node(n, m)    -> n^"\t\""^m^"\""
-  | Edge(a, b, s) -> a^" -> "^b^"\t"^stmt_to_string s
+  | Edge(a, ws, fwd, b, s) -> a^" -"^arrow_to_string ws fwd^"> "^b^"\t"^stmt_to_string s
 
 let to_dot_graph defs =
   let def_to_string = function
     | Node(n, m)    -> "  "^n^"\t[shape=box, style=filled, fillcolor=orange, label=\""^m^"\"];"
-    | Edge(a, b, s) -> "  "^a^" -> "^b^"\t[label=\""^String.escaped (stmt_to_string s)^"\"];"
+    | Edge(a, ws, fwd, b, s) -> "  "^a^" -> "^b^"\t[label=\""^String.escaped (stmt_to_string s)^"\"];" (* TODO ws fwd *)
   in
   let lines = "digraph file {"::(List.map def_to_string defs)@["}"] in
   (* List.iter print_endline lines *)

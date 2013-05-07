@@ -12,7 +12,7 @@ open SpecCore
 %token NULL COMMA SEMICOLON COLON UNDERS
 %token EOL EOF VAR_
 %token <string * string> NODE
-%token <string * string> EDGE
+%token <string * string list * bool * string> EDGE
 %token <string> VAR
 %token <string> IDENT
 %token <string> STRING
@@ -37,7 +37,8 @@ file:
 
 def:
   | NODE                     { Node($1) }
-  | EDGE stmts               { Edge(fst $1, snd $1, $2) }
+  | EDGE stmts               { let a,ws,fwd,b = $1 in
+                               Edge(a, ws, fwd, b, $2) }
 ;
 
 stmts:
