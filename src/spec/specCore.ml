@@ -24,6 +24,8 @@ let fname_is fname stmt =
   | Fun x -> x.fname=fname
   | _ -> false
 
+let is_wildcard stmt = stmt.exp = Exp_
+
 let startnode edges =
   (* The start node of the first transition is the start node of the automaton. *)
   let a,ws,fwd,b,c = List.hd edges in a

@@ -22,13 +22,7 @@ open_read  -> closed        fclose($fp)
 open_write -> closed        fclose($fp)
 closed     -> w5            fclose($fp)
 closed     -> w6            fprintf($fp, _)
-// TODO forwarding, for now do explicit transitions instead
-// closed     -> 1             $_
-closed     -> w1            fopen(_)
-//closed     ->> 1            $fp = fopen($path, _)
-closed     -> open_read     $fp = fopen($path, "r")
-closed     -> open_write    $fp = fopen($path, "w")
-closed     -> open_write    $fp = fopen($path, "a")
+closed     ->> 1            _ // let state 1 handle the rest
 
 // setup which states are end states
 1          -> end           _

@@ -175,7 +175,18 @@ struct
             M.debug_each ("GOTO "^var.vname^": "^Dom.get_state var m^" -> "^state);
             if may then Dom.may_goto var loc state m else Dom.goto var loc state m
     in
-    let matching m (a,ws,fwd,b,c) =
+    let matching m new_a (a,ws,fwd,b,c) =
+      (* If we have come to a wildcard, we match it instantly, but since there is no way of determining a key
+         this only makes sense if fwd is true (TODO wildcard for global). We pass a state replacement as 'new_a',
+         which will be applied in the following checks.
+         Multiple forwarding wildcards are not allowed, i.e. new_a must be None, otherwise we end up in a loop. *)
+      if SC.is_wildcard c && fwd && new_a=None then Some (m,fwd,Some (b,a)) (* replace b with a in the following checks *)
+      else
+      (* Assume new_a  *)
+      let a = match new_a with
+        | Some (x,y) -> if a=x then y else a
+        | None -> a
+      in
       (* TODO how to detect the key?? use "$foo" as key, "foo" as var in constraint and "_" for anything we're not interested in.
           What to do for multiple keys (e.g. $foo, $bar)? -> Only allow one key & one map per spec-file (e.g. only $ as a key) or implement multiple maps? *)
       (* look inside the constraint if there is a key and if yes, return what it corresponds to *)
@@ -262,19 +273,19 @@ struct
       (* do check for each varinfo and return the resulting domain if there has been at least one matching constraint *)
       let new_m,n = List.fold_left check_var (m,0) vars in (* start with original domain and #transitions=0 *)
       if n==0 then None (* no constraint matched the current state *)
-      else Some (new_m,fwd) (* return new domain and forwarding info *)
+      else Some (new_m,fwd,None) (* return new domain and forwarding info *)
     in
-    (* edges that match the called function name *)
-    let fun_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.fname_is f.vname c) !edges in
+    (* edges that match the called function name + wildcard transitions, except those for end *)
+    let fun_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.fname_is f.vname c || SC.is_wildcard c && fwd && b<>"end") !edges in
     (* go through constraints and return resulting domain for the first match *)
     (* if no constraint matches, the unchanged domain is returned *)
     (* repeat for target node if it is a forwarding edge *)
     (* TODO what should be done if multiple constraints would match? *)
     try
-      let rec check_fwd_loop m = (* TODO cycle detection? *)
-        let new_m,fwd = List.find_map (matching m) fun_edges in
-        if fwd then check_fwd_loop new_m else new_m
-      in ret (check_fwd_loop m)
+      let rec check_fwd_loop m new_a = (* TODO cycle detection? *)
+        let new_m,fwd,new_a = List.find_map (matching m new_a) fun_edges in
+        if fwd then check_fwd_loop new_m new_a else new_m
+      in ret (check_fwd_loop m None)
     with Not_found -> dummy
 (*     match lval, f.vname, arglist with
       | None, "fopen", _ ->
