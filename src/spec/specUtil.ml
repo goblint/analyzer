@@ -1,7 +1,7 @@
 open Batteries
 
 (* config *)
-let save_dot = false
+let save_dot = true
 
 let parse ?repl:(repl=false) ?print:(print=false) cin =
   let lexbuf = Lexing.from_channel cin in
@@ -30,8 +30,8 @@ let parse ?repl:(repl=false) ?print:(print=false) cin =
           (List.length !defs) (List.length nodes) (List.length edges);
         if save_dot then (
           let dot = SpecCore.to_dot_graph !defs in
-          output_file "graph.dot" dot;
-          print_endline ("saved graph as "^Sys.getcwd ()^"/graph.dot");
+          output_file "result/graph.dot" dot;
+          print_endline ("saved graph as "^Sys.getcwd ()^"/result/graph.dot");
         );
         (nodes, edges)
 

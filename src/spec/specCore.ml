@@ -105,9 +105,18 @@ let def_to_string = function
 
 let to_dot_graph defs =
   let def_to_string = function
-    | Node(n, m)    -> "  "^n^"\t[shape=box, style=filled, fillcolor=orange, label=\""^m^"\"];"
-    | Edge(a, ws, fwd, b, s) -> "  "^a^" -> "^b^"\t[label=\""^String.escaped (stmt_to_string s)^"\"];" (* TODO ws fwd *)
+    | Node(n, m)    ->
+      n^"\t[style=filled, fillcolor=orange, label=\""^n^": "^m^"\"];"
+    | Edge(a, ws, fwd, b, s) ->
+      let style = if fwd then "style=dotted, " else "" in
+      let ws = if List.is_empty ws then "" else (String.concat "," ws)^";\n" in
+      a^" -> "^b^"\t["^style^"label=\""^ws^String.escaped (stmt_to_string s)^"\"];" (* TODO ws fwd *)
   in
-  let lines = "digraph file {"::(List.map def_to_string defs)@["}"] in
+  let ends,defs = List.partition (function Edge (a,ws,fwd,b,s) -> b="end" && s.exp=Exp_ | _ -> false) defs in
+  let endstates = List.filter_map (function Edge (a,ws,fwd,b,s) -> Some a | _ -> None) ends in
+  (* first style the endstates, then reset default for the rest *)
+  let endstyle = "node [shape=box, style=\"rounded,bold\"]; "^(String.concat " " endstates) in
+  let defaultstyle = "node [shape=box, style=rounded];" in
+  let lines = "digraph file {"::endstyle::defaultstyle::(List.map def_to_string defs) in
   (* List.iter print_endline lines *)
-  String.concat "\n" lines
+  String.concat "\n  " lines ^ "\n}"
