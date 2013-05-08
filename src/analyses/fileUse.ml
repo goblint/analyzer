@@ -50,8 +50,30 @@ struct
       | _ -> m
 
   let branch ctx (exp:exp) (tv:bool) : Dom.t =
+    let m = ctx.local in
     (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
-    ctx.local
+    let check a b tv =
+      (* ignore(printf "check: %a = %a\n" d_plainexp a d_plainexp b); *)
+      match a, b with
+      | Const (CInt64(i, kind, str)), Lval (Var v, NoOffset)
+      | Lval (Var v, NoOffset), Const (CInt64(i, kind, str)) ->
+        (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
+        if i = Int64.zero && tv then (
+          (* ignore(printf "error-branch\n"); *)
+          Dom.remove v m
+        )else
+          m
+      | _ -> ignore(printf "nothing matched the given BinOp: %a = %a\n" d_plainexp a d_plainexp b); m
+    in
+    match stripCasts (constFold true exp) with
+      (* somehow there are a lot of casts inside the BinOp which stripCasts only removes when called on the subparts
+      -> matching as in flagMode didn't work *)
+(*     | BinOp (Eq, Const (CInt64(i, kind, str)), Lval (Var v, NoOffset), _)
+    | BinOp (Eq, Lval (Var v, NoOffset), Const (CInt64(i, kind, str)), _) ->
+        ignore(printf "%s %i\n" v.vname (Int64.to_int i)); m *)
+    | BinOp (Eq, a, b, _) -> check (stripCasts a) (stripCasts b) tv
+    | BinOp (Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
+    | e -> ignore(printf "nothing matched the given exp (check special_fn):\n%a\n" d_plainexp e); m
 
   let body ctx (f:fundec) : Dom.t =
     ctx.local
@@ -125,6 +147,13 @@ struct
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let m = ctx.local in
     let ret dom = [dom, Cil.integer 1, true] in
+    let ret_branch_err lval dom =
+      (* TODO type? NULL = 0 = 0-ptr? Cil.intType, Cil.intPtrType, Cil.voidPtrType *)
+      (* no difference *)
+      (* let f tv = dom, Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.mkCast (Cil.integer 0) Cil.intPtrType, Cil.intType), tv *)
+      let f tv = dom, Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType), tv
+      in [f true; f false]
+    in
     let dummy = ret ctx.local in
     let loc = !Tracing.current_loc in
     let dloc = loc::(callStack m) in
@@ -139,11 +168,11 @@ struct
             List.map fst xs
     in
     (* fold possible varinfos on domain *)
-    let ret_all f lval =
+    let ret_all ?ret:(retf=ret) f lval =
       let xs = varinfos lval in
       if List.length xs = 1 then ret (f m (List.hd xs))
       (* if there are more than one, each one will be May, TODO: all together are Must *)
-      else ret (List.fold_left (fun m v -> Dom.may v (f m v)) m xs) in
+      else retf (List.fold_left (fun m v -> Dom.may v (f m v)) m xs) in
     match lval, f.vname, arglist with
       | None, "fopen", _ ->
           M.report "file handle is not saved!"; dummy
@@ -171,7 +200,7 @@ struct
                   List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs;
                   M.report "fopen needs two strings as arguments"; m
             )
-          in ret_all f lval
+          in ret_all ~ret:(ret_branch_err lval) f lval
 
       | _, "fclose", [Lval fp] ->
           let f m varinfo =

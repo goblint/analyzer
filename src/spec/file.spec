@@ -6,6 +6,7 @@ w5 "closeing already closed file handle $"
 w6 "writing to closed file handle $"
 w7 "overwriting still opened file handle $"
 
+// TODO later add fputs and stuff
 1          -> w1            fopen(_)
 1          -> w2            fclose($fp)
 1          -> w3            fprintf($fp, _)
