@@ -985,7 +985,14 @@ struct
     let map_one set_st ls t1 t2 =
       let s = get_matches t1 in
       let ds = List.map (fun n -> List.find (fun x -> n = (get_matches x).featurename) ls) s.depends_on in
-      tf (set_sub ctx (set_st t1) ds) t2::ls
+      let subds = 
+        let f n =
+          try List.find (fun x -> n = (get_matches x).featurename) ctx.local
+          with Not_found -> failwith ("Dependency '"^n^"' not met, needed by "^s.featurename^".")
+        in
+        List.map f s.depends_on 
+      in
+      tf (set_subs ctx (set_st t1) ds subds) t2::ls
     in
     List.rev (lift_spawn ctx (fun set_st -> List.fold_left2 (map_one (fun s -> set_st s ctx.global)) [] ctx.local st2))
 
@@ -1028,7 +1035,14 @@ struct
          fold_left1 (Dom.join') (List.filter is_n (List.map (fun (_,t) -> t) (List.concat ls)))
       in
       let ds = List.map dep_val s.depends_on in
-      tf (set_sub ctx (set_st t) ds)::ls
+      let subds = 
+        let f n =
+          try List.find (fun x -> n = (get_matches x).featurename) ctx.local
+          with Not_found -> failwith ("Dependency '"^n^"' not met, needed by "^s.featurename^".")
+        in
+        List.map f s.depends_on 
+      in
+      tf (set_subs ctx (set_st t) ds subds)::ls
     in
     List.rev (lift_spawn ctx (fun set_st -> List.fold_left (map_one (fun s -> set_st s ctx.global)) [] ctx.local))
 
