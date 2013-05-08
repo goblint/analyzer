@@ -61,7 +61,10 @@ struct
   let exitstate  v = Dom.top ()
 end
 
-
+let _ = 
+  let module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec) in
+  MCP.register_analysis "fmode" (module Spec2 : Spec2)
+  
 module BaseMCP = 
   MCP.ConvertToMCPPart
         (Spec)

@@ -1404,14 +1404,21 @@ struct
 
   let init     () = 
     let assoc' c v = assoc c v in
+    let map' f = 
+      let f x = 
+        try Some (f x) 
+        with Not_found -> Legacy.Printf.fprintf !Messages.warn_out "Analysis '%s' not found. Ignoring.\n" x;None
+      in
+      List.filter_map f
+    in
     let xs = map Json.string @@ get_list "ana.activated[0]" in
     let re = map (fun (x,y) -> y, x) !analyses_table in
-    let xs = map (flip assoc' re) xs in
+    let xs = map' (flip assoc' re) xs in
       base_id := assoc' "base" re;
       analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
-      path_sens := map (flip assoc' re) @@ map Json.string @@ get_list "ana.path_sens";
-      cont_inse := map (flip assoc' re) @@ map Json.string @@ get_list "ana.ctx_insens";
-      dep_list  := map (fun (n,d) -> (n,map (flip assoc_inv !analyses_table) d)) !dep_list';
+      path_sens := map' (flip assoc' re) @@ map Json.string @@ get_list "ana.path_sens";
+      cont_inse := map' (flip assoc' re) @@ map Json.string @@ get_list "ana.ctx_insens";
+      dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
       dep_list_trans := closure !dep_list;
       List.iter test_refl !dep_list_trans; 
       analyses_list := sort an_compare2 !analyses_list;
