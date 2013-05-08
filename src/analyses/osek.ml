@@ -746,7 +746,7 @@ let _ = print_endline (string_of_bool res) in res*)
 	  let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in  
 	  let flag_str = if !Errormsg.verboseFlag then Pretty.sprint 80 (Flags.pretty () flagstate) else Flags.short 80 flagstate in
           let action = if write then "write" else "read" in
-          let thread = if Base.Main.Flag.is_bad fl then "some thread" else "main thread" in
+          let thread = "\"" ^ Base.Main.Flag.short 80 fl ^ "\"" in
           let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ " and flag state: " ^flag_str in
             (warn,loc) 
         in (*/f*)       

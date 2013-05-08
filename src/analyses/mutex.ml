@@ -913,8 +913,8 @@ struct
         let f with_str ((loc, fl, write), lockset,o) = 
           let lockstr = Lockset.short 80 lockset in
           let action = if write then "write" else "read" in
-          let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
-          let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ with_str ^ lockstr in
+          let thread = "\"" ^ BS.Flag.short 80 fl ^ "\"" in
+          let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " by " ^ thread ^ with_str ^ lockstr in
             (warn,loc) in 
         let warnings () =  List.map (f " with lockset: ") acc_list in
             let var_str = gl.vname ^ Offs.short 80 offset in

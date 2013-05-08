@@ -50,10 +50,14 @@ struct
 
   let name = "Constant Propagation Analysis"
   let startstate v = CPA.bot (), Flag.bot ()
-  let otherstate v = CPA.bot (), Flag.top ()
-  let exitstate  v = CPA.bot (), Flag.get_main ()
+  let otherstate v = CPA.bot (), Flag.start_multi v
+  let exitstate  v = CPA.bot (), Flag.start_main v
 
   let morphstate v (cpa,fl) = cpa, Flag.start_single v
+  let create_tid v = 
+    let loc = !Tracing.current_loc in
+      Flag.spawn_thread loc v
+  let threadstate v = CPA.bot (), create_tid v
 
   type cpa = CPA.t
   type flag = Flag.t
@@ -727,7 +731,7 @@ struct
           let find_fps e xs = Addr.to_var_must e @ xs in
           let vars = AD.fold find_fps adrs [] in
           let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-          List.iter (fun x -> ctx.spawn x (otherstate ())) funs  
+          List.iter (fun x -> ctx.spawn x (threadstate x)) funs  
       | _ -> ()
     end;
     set_savetop ctx.ask ctx.global ctx.local lval_val rval_val
@@ -1067,7 +1071,7 @@ struct
       let var = List.hd (AD.to_var_may addr) in
       let g = Cilfacade.getdec var in 
       let args = List.map (fun x -> MyCFG.unknown_exp) g.sformals in
-      let ents = enter_func_wo_spawns (Analyses.swap_st ctx (otherstate ())) None var args in
+      let ents = enter_func_wo_spawns (Analyses.swap_st ctx (threadstate var)) None var args in
       List.map (fun (_,s) -> var, s) ents
     in 
     let g a acc = try 
@@ -1089,10 +1093,11 @@ struct
           try
             (* try to get function declaration *)
             let _ = Cilfacade.getdec start_vari in 
-            let sts = enter_func_wo_spawns (swap_st ctx (cpa, Flag.get_multi ())) None start_vari [ptc_arg]  in
+            let tid = create_tid start_vari in
+            let sts = enter_func_wo_spawns (swap_st ctx (cpa, tid)) None start_vari [ptc_arg]  in
             List.map (fun (_,st) -> start_vari, st) sts
           with Not_found -> 
-            M.warn ("creating an thread from unknown function " ^ start_vari.vname);
+            M.warn ("creating a thread from unknown function " ^ start_vari.vname);
             [start_vari,(cpa, Flag.get_multi ())]
         end
       | `Unknown _ -> begin
@@ -1226,7 +1231,8 @@ struct
       (* handling thread creations *)
       | `ThreadCreate (f,x) -> 
           GU.multi_threaded := true;
-          let new_fl = Flag.join fl (Flag.get_main ()) in
+          let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
+          let new_fl = (x,y) in
             [map_true (cpa, new_fl)]
       (* handling thread joins... sort of *)
       | `ThreadJoin (id,ret_var) -> 

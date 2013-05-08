@@ -50,8 +50,18 @@ end
 module Thread = struct
   module NoCreationSite = struct let name = "Starting Thread" end
   module CreationSite = Printable.Option (Basetype.ProgLines) (NoCreationSite)
-  include Printable.Prod (CreationSite) (Basetype.Variables)
+  include Printable.ProdSimple (CreationSite) (Basetype.Variables)
   let start_thread v: t = `Right (), v
+  let spawn_thread l v: t = `Left l, v
+
+  let short w (cs,v) = 
+    let vn = Basetype.Variables.short w v in
+    match cs with
+      | `Left l ->  vn ^ "@" ^ Basetype.ProgLines.short w l
+      | `Right () -> vn
+
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
 end
 
 (** The basic thread domain that distinguishes singlthreaded mode, a single
@@ -62,14 +72,23 @@ module SimpleThreadDomain = struct
     let top_name = "Top Threads"
   end
   module Lifted = Lattice.Flat (Thread) (ThreadLiftNames)
-  include Lattice.Prod (Simple) (Lifted)
+  include Lattice.ProdSimple (Simple) (Lifted)
   let is_multi (x,_) = x > 0
   let is_bad   (x,_) = x > 1
   let get_multi () = (2, Lifted.top ())
   let get_main  () = (1, Lifted.top ())
   let get_single () = (0, Lifted.top ())
+  let spawn_thread l v = (2, `Lifted (Thread.spawn_thread l v))
   let start_single v : t = (0, `Lifted (Thread.start_thread v))
+  let start_main   v : t = (2, `Lifted (Thread.start_thread v))
+  let start_multi  v : t = (2, `Lifted (Thread.start_thread v))
   let switch (x,z) (y,_) = (Simple.switch x y, z)
+
+  let short w (x,y) = 
+    let tid = Lifted.short w y in
+      if x > 1 then tid else tid ^ "!"
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
 end
 
 
