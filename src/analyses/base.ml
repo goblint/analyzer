@@ -1055,8 +1055,6 @@ struct
             | _ -> `LvalSet (Q.LS.empty ())      
           end
       | Q.SingleThreaded -> `Int (Q.ID.of_bool (not (Flag.is_multi (get_fl ctx.local))))
-      | Q.CurrentThreadId when (Flag.is_bad (get_fl ctx.local)) -> `Top
-      | Q.CurrentThreadId -> `Int 1L
       | _ -> Q.Result.top ()
 
   (**************************************************************************

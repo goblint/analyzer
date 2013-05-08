@@ -339,12 +339,7 @@ let _ = print_endline (string_of_bool res) in res*)
         | _ -> M.unknown_access ()    
 
   let add_accesses ctx (accessed: M.accesses) (flagstate: Flags.t) (ust:Dom.t) = 
-      let fl = 
-        match ctx.ask Queries.SingleThreaded, ctx.ask Queries.CurrentThreadId with
-          | `Int is_sing, _ when Queries.ID.to_bool is_sing = Some true -> Base.Main.Flag.get_single ()
-          | _,`Int x when  Queries.ID.to_int x = Some 1L -> Base.Main.Flag.get_main ()
-          | _ -> Base.Main.Flag.get_multi ()
-      in
+      let fl = Mutex.get_flag ctx.presub in
       if Base.Main.Flag.is_multi fl then
         let loc = !Tracing.current_loc in
         let dispatch ax =
@@ -839,7 +834,7 @@ module ThreadMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "OSEK" 
-                let depends = ["fmode"]
+                let depends = ["base";"fmode"]
                 type lf = Spec.Dom.t
                 let inject_l x = `OSEK x
                 let extract_l x = match x with `OSEK x -> x | _ -> raise MCP.SpecificationConversionError
