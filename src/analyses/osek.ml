@@ -845,4 +845,4 @@ module ThreadMCP =
 
 module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "OSEK" ~dep:["fmode"] (module Spec2 : Spec2)         
+  MCP.register_analysis "OSEK" ~dep:["base";"fmode"] (module Spec2 : Spec2)         

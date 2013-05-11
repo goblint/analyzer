@@ -1306,15 +1306,15 @@ struct
     in
     fold_left (fun a (n,d) -> f a n d) a x
 
-  let narrow x y = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.narrow (obj x) (obj y)) x y
-  let widen  x y = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.widen  (obj x) (obj y)) x y
-  let meet   x y = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.meet   (obj x) (obj y)) x y
-  let join   x y = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.join   (obj x) (obj y)) x y
+  let narrow = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.narrow (obj x) (obj y))
+  let widen  = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.widen  (obj x) (obj y))
+  let meet   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.meet   (obj x) (obj y))
+  let join   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.join   (obj x) (obj y))
 
-  let leq    x y = binop_fold (fun a n (module S : Lattice.S) x y -> a && S.leq (obj x) (obj y)) true x y
+  let leq    = binop_fold (fun a n (module S : Lattice.S) x y -> a && S.leq (obj x) (obj y)) true 
 
-  let is_top  x = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_top (obj x)) true x
-  let is_bot  x = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_bot (obj x)) true x
+  let is_top = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_top (obj x)) true
+  let is_bot = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_bot (obj x)) true
 
   let top () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.top ())) @@ domain_list ()
   let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.bot ())) @@ domain_list ()
@@ -1403,8 +1403,27 @@ struct
     if mem x (assoc y !dep_list_trans) then -1 else
     if mem y (assoc x !dep_list_trans) then 1 else 0
     
+  let rec topo_sort comp x =
+    let rec violation x xs =
+      match xs with
+        | []    -> None
+        | y::ys when comp x y <= 0 -> 
+            begin 
+              match violation x ys with
+                | Some (x,xs) -> Some (x, y::xs)
+                | None        -> None
+            end
+        | y::ys -> Some (y,x::ys) 
+    in
+    match x with
+      | []    -> []
+      | x::xs -> 
+    match violation x xs with
+      | None        -> x :: topo_sort comp xs
+      | Some (y,ys) -> topo_sort comp (y::ys)
+  
+    
   let init     () = 
-    let assoc' c v = assoc c v in
     let map' f = 
       let f x = 
         try Some (f x) 
@@ -1413,28 +1432,30 @@ struct
       List.filter_map f
     in
     let xs = map Json.string @@ get_list "ana.activated[0]" in
-    let re = map (fun (x,y) -> y, x) !analyses_table in
-    let xs = map' (flip assoc' re) xs in
-      base_id := assoc' "base" re;
+    let xs = map' (flip assoc_inv !analyses_table) xs in
+      base_id := assoc_inv "base" !analyses_table;
       analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
-      path_sens := map' (flip assoc' re) @@ map Json.string @@ get_list "ana.path_sens";
-      cont_inse := map' (flip assoc' re) @@ map Json.string @@ get_list "ana.ctx_insens";
+      path_sens := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.path_sens";
+      cont_inse := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.ctx_insens";
       dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
       dep_list_trans := closure !dep_list;
       List.iter test_refl !dep_list_trans; 
-      analyses_list := sort an_compare2 !analyses_list;
-      (*iter (fun (x,y) -> Printf.printf "%s -> %a\n"  (flip assoc_inv re x) (List.print (fun f -> String.print f % flip assoc_inv re)) y) !dep_list_trans;
+      analyses_list := topo_sort an_compare2 !analyses_list;
+      (*iter (fun (x,y) -> Printf.printf "%s -> %a\n"  (flip assoc !analyses_table x) (List.print (fun f -> String.print f % flip assoc !analyses_table)) y) !dep_list_trans;
+      Printf.printf "\n";
+      iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) !analyses_list;
       Printf.printf "\n";*)
       iter (fun (_,{spec=(module S:Spec2)}) -> S.init ()) !analyses_list
           
   let finalize () = iter (fun (_,{spec=(module S:Spec2)}) -> S.finalize ()) !analyses_list
 
   let spec x = (assoc x !analyses_list).spec
-  let spec_list xs = map (fun (n,x) -> (n,spec n,x)) xs
+  let spec_list xs = 
+    map (fun (n,x) -> (n,spec n,x)) xs
   
   let map_deadcode f xs =
     let dead = ref false in
-    let one_el xs (n,s,d) = try f xs (n,s,d) :: xs with Deadcode -> dead:=true; xs in
+    let one_el xs (n,(module S:Spec2),d) = try f xs (n,(module S:Spec2),d) :: xs with Deadcode -> dead:=true; (n,repr @@ S.D.bot ()) :: xs in
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
@@ -1456,6 +1477,11 @@ struct
   let call_descr f xs = 
     let xs = filter (fun (x,_) -> x = !base_id) xs in
     fold_left (fun a (n,(module S:Spec2),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
+  
+  
+  let rec assoc_replace (n,c) = function
+    | [] -> failwith "assoc_replace"
+    | (n',c')::xs -> if n=n' then (n,c)::xs else (n',c') :: assoc_replace (n,c) xs
   
   (** [assoc_split_eq (=) 1 [(1,a);(1,b);(2,x)] = ([a,b],[(2,x)])] *)
   let assoc_split_eq (=) (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
@@ -1484,7 +1510,9 @@ struct
   let filter_presubs n xs = 
     let f n = 
       let x = try assoc n !analyses_table with Not_found -> Printf.eprintf "filter_presubs: Analysis '%d' not registered.\n" n; failwith "filter_presubs" in
-      let y = try assoc n xs with Not_found -> Printf.eprintf "filter_presubs: Analysis '%s' (%d) not found.\n" x n; failwith "filter_presubs" in 
+      let y = try assoc n xs with Not_found -> 
+        (*iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) xs;*)
+        Printf.eprintf "filter_presubs: Analysis '%s' (%d) not found.\n" x n; failwith "filter_presubs" in 
       x, y
     in
     map f (assoc n !dep_list)
@@ -1494,7 +1522,7 @@ struct
       let join_vals (n,(module S:Spec2),d) =
         n, repr @@ fold_left (fun x y -> S.D.join x (obj y)) (S.D.bot ()) d
       in
-      ctx.spawn2 v @@ map join_vals @@ spec_list @@ group_assoc (d @ otherstate v)
+      ctx.spawn2 v @@ topo_sort an_compare2 @@ map join_vals @@ spec_list @@ group_assoc (d @ otherstate v)
     in
     if not (get_bool "exp.single-threaded") then
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
@@ -1504,14 +1532,14 @@ struct
       let join_vals (n,(module S:Spec2),d) =
         n, repr @@ fold_left (fun x y -> S.G.join x (obj y)) (S.G.bot ()) d
       in
-      ctx.sideg2 v @@ map join_vals @@ spec_list @@ group_assoc (d @ G.bot ())
+      ctx.sideg2 v @@ topo_sort an_compare2 @@ map join_vals @@ spec_list @@ group_assoc (d @ G.bot ())
     in
     iter (uncurry side_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
   
   let rec do_splits ctx pv (xs:(int * (Obj.t * exp * bool)) list) =
     let split_one n (d,e,tv) = 
-      let nv = (n,d)::(remove_assoc n pv) in
+      let nv = assoc_replace (n,d) pv in
       ctx.split2 (branch {ctx with local2 = nv} e tv) Cil.one true
     in
     iter (uncurry split_one) xs
@@ -1723,7 +1751,7 @@ struct
     let css = map f @@ spec_list ctx.local2 in
       do_spawns ctx !spawns;
       do_sideg ctx !sides;
-      map (fun xs -> (map fst xs, map snd xs)) @@ n_cartesian_product css
+      map (fun xs -> (topo_sort an_compare2 @@ map fst xs, topo_sort an_compare2 @@ map snd xs)) @@ n_cartesian_product css
   
   let combine (ctx:(D.t, G.t) ctx2) r fe f a fd =
     let spawns = ref [] in

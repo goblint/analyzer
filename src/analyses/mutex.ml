@@ -1033,4 +1033,4 @@ module ThreadMCP =
 
 module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "mutex" (module Spec2 : Spec2)
+  MCP.register_analysis "mutex" ~dep:["base"] (module Spec2 : Spec2)
