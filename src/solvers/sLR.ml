@@ -7,7 +7,7 @@ module      PropTrue  = struct let value = true  end
 module      PropFalse = struct let value = false end
 
 (** the box solver *)
-module Make =
+module MakeBoxSolver =
   functor (RES:BoolProp) -> 
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
@@ -170,8 +170,6 @@ struct
                                           X.get_value y
                         
                           and side x y d = 
-                                            (*ignore (Pretty.printf "side effect %a to (%a,%a)\n\n" D.pretty d S.Var.pretty_trace x S.Var.pretty_trace y);*)
-
                                            let _ = match T.sub set y
                                                   with None -> T.update set y (P.single x)
                                                   | Some p -> P.insert p x
@@ -180,7 +178,15 @@ struct
                                            let old = XY.get_value (x,y)
                                            in let tmp = box y old d
                                            in if  D.eq tmp old then ()
-                                              else let _ = XY.set_value (x,y) tmp in
+                                              else 
+                                                (*let _ = 
+                                                Legacy.flush !Messages.warn_out;
+                                                ignore (Pretty.printf "side effect %a /\\ %a -> %a to (%a,%a)\n\n" D.pretty old D.pretty d D.pretty tmp S.Var.pretty_trace x S.Var.pretty_trace y);
+                                                Legacy.flush !Messages.warn_out;
+                                                ()
+                                                
+                                                in*)
+                                                   let _ = XY.set_value (x,y) tmp in
                                                    let (i,nonfresh) = X.get_index y in
 
                                                    if nonfresh then
@@ -263,13 +269,11 @@ struct
 end
 
 let _ =
-  let module MakeIsGenericEqBoxSolver : GenericEqBoxSolver = Make (PropFalse) in
+  let module MakeIsGenericEqBoxSolver : GenericEqBoxSolver = MakeBoxSolver (PropFalse) in
   ()
 
 let _ =
-  let module M = GlobSolverFromEqSolver(Make (PropFalse)) in
+  let module M = GlobSolverFromEqSolver(MakeBoxSolver (PropFalse)) in
   Selector.add_solver ("slr+", (module M : GenericGlobSolver));
-  Selector.add_solver ("new",  (module M : GenericGlobSolver));
-  let module M1 = GlobSolverFromEqSolver(Make (PropTrue)) in
+  let module M1 = GlobSolverFromEqSolver(MakeBoxSolver (PropTrue)) in
   Selector.add_solver ("restart", (module M : GenericGlobSolver))
-  

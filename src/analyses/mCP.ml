@@ -1223,13 +1223,14 @@ struct
     fold_left (fun a (n,d) -> f a n d) a x
     
   let pretty_f _ () x = 
-    let xs = unop_fold (fun a n (module S :Printable.S) x -> S.pretty () (obj x) :: a) [] x in
+    let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
+    let xs = unop_fold f [] x in
     match xs with
       | [] -> text "[]"
       | x :: [] -> x
       | x :: y ->
-        let rest  = List.fold_left (fun p n->p ++ text "," ++ n) nil y in
-        text "[" ++ x ++ rest ++ text "]"
+        let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
+        text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 
   let short w x = 
     let w2 = let n = List.length x in if n=0 then w else w / n in
@@ -1367,9 +1368,9 @@ let rec closure r =
     in
     List.length x = List.length y && le_rel x y
   in
-  let step r (x,ds) =
+  let step r' (x,ds) =
     let new_ds = List.fold_left (fun s x -> set_union (get_rel x r) s) ds ds in
-    (x,new_ds)::r
+    (x,new_ds)::r'
   in 
   let step = List.fold_left step [] r in
   if eq_rel step r
@@ -1401,7 +1402,7 @@ struct
   let an_compare2 (x,_) (y,_) = 
     if mem x (assoc y !dep_list_trans) then -1 else
     if mem y (assoc x !dep_list_trans) then 1 else 0
-
+    
   let init     () = 
     let assoc' c v = assoc c v in
     let map' f = 
@@ -1422,6 +1423,8 @@ struct
       dep_list_trans := closure !dep_list;
       List.iter test_refl !dep_list_trans; 
       analyses_list := sort an_compare2 !analyses_list;
+      (*iter (fun (x,y) -> Printf.printf "%s -> %a\n"  (flip assoc_inv re x) (List.print (fun f -> String.print f % flip assoc_inv re)) y) !dep_list_trans;
+      Printf.printf "\n";*)
       iter (fun (_,{spec=(module S:Spec2)}) -> S.init ()) !analyses_list
           
   let finalize () = iter (fun (_,{spec=(module S:Spec2)}) -> S.finalize ()) !analyses_list
@@ -1479,9 +1482,12 @@ struct
   let group_assoc xs = group_assoc_eq (=) xs
 
   let filter_presubs n xs = 
-    map (fun n -> 
-      let x = assoc n !analyses_table in
-      let y = assoc n xs in x, y) (assoc n !dep_list)
+    let f n = 
+      let x = try assoc n !analyses_table with Not_found -> Printf.eprintf "filter_presubs: Analysis '%d' not registered.\n" n; failwith "filter_presubs" in
+      let y = try assoc n xs with Not_found -> Printf.eprintf "filter_presubs: Analysis '%s' (%d) not found.\n" x n; failwith "filter_presubs" in 
+      x, y
+    in
+    map f (assoc n !dep_list)
   
   let do_spawns ctx (xs:(varinfo * (int * Obj.t)) list) =
     let spawn_one v d = 

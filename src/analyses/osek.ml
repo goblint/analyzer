@@ -228,7 +228,7 @@ let _ = print_endline (string_of_bool res) in res*)
   
   let rec get_flags (state :local_state list) : Flags.t =
     match state with 
-    | [] -> Flags.top()
+    | [] -> failwith "get_flags"
     | (`FlagModeDom x)::rest -> x
     | x::rest -> get_flags rest
   (*/flagstuff*)
@@ -845,4 +845,4 @@ module ThreadMCP =
 
 module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "OSEK" (module Spec2 : Spec2)         
+  MCP.register_analysis "OSEK" ~dep:["fmode"] (module Spec2 : Spec2)         
