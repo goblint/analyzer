@@ -1159,7 +1159,6 @@ let analyses_list  : (int * spec_modules) list ref = ref []
 let analyses_list' : (int * spec_modules) list ref = ref []
 let dep_list       : (int * (int list)) list ref   = ref []
 let dep_list'      : (int * (string list)) list ref= ref []
-let dep_list_trans : (int * (int list)) list ref   = ref []
 
 let analyses_table = ref []
 
@@ -1340,47 +1339,6 @@ struct
   let assoc_dom n = (List.assoc n !analyses_list).cont
   let domain_list () = List.map (fun (n,p) -> n, p.cont) !analyses_list
 end
-
-let rec closure r =
-  let set_add x xs = 
-    if List.exists ((=) x) xs
-    then xs
-    else x::xs
-  in
-  let set_eq x y =
-    let rec set_leq x y =
-      match x with
-        | [] -> true
-        | w::ws -> List.mem w y && set_leq ws y
-    in
-    List.length x = List.length y && set_leq x y
-  in
-  let set_union = List.fold_right set_add in
-  let get_rel x r =
-    try List.assoc x r 
-    with Not_found -> []
-  in
-  let eq_rel x y =
-    let rec le_rel x y =
-      match x with
-        | [] -> true
-        | (v,dz)::xs -> set_eq dz (get_rel v y) && le_rel xs y
-    in
-    List.length x = List.length y && le_rel x y
-  in
-  let step r' (x,ds) =
-    let new_ds = List.fold_left (fun s x -> set_union (get_rel x r) s) ds ds in
-    (x,new_ds)::r'
-  in 
-  let step = List.fold_left step [] r in
-  if eq_rel step r
-  then r
-  else closure step
-  
-let test_refl (x,ys) =
-  let show = List.fold_left (fun x y -> x^" "^List.assoc y !analyses_table) "" in
-  if List.mem x ys
-  then failwith ("Analyses have circular dependencies: "^List.assoc x !analyses_table^" needs"^show ys)
   
 module MCP2 : Analyses.Spec2
     with module D = DomListLattice (LocalDomainListSpec) 
@@ -1399,29 +1357,19 @@ struct
   let cont_inse = ref []
   let base_id   = ref (-1)
     
-  let an_compare2 (x,_) (y,_) = 
-    if mem x (assoc y !dep_list_trans) then -1 else
-    if mem y (assoc x !dep_list_trans) then 1 else 0
     
-  let rec topo_sort comp x =
-    let rec violation x xs =
-      match xs with
-        | []    -> None
-        | y::ys when comp x y <= 0 -> 
-            begin 
-              match violation x ys with
-                | Some (x,xs) -> Some (x, y::xs)
-                | None        -> None
-            end
-        | y::ys -> Some (y,x::ys) 
-    in
-    match x with
-      | []    -> []
-      | x::xs -> 
-    match violation x xs with
-      | None        -> x :: topo_sort comp xs
-      | Some (y,ys) -> topo_sort comp (y::ys)
-  
+  let topo_sort deps circ_msg = 
+    let rec f res stack = function
+      | []                     -> res
+      | x::xs when mem x stack -> circ_msg x
+      | x::xs when mem x res   -> f res stack xs
+      | x::xs                  -> f (x :: f res (x::stack) (deps x)) stack xs
+    in rev % f [] []
+    
+  let topo_sort_an xs = 
+    let msg (x,_) = failwith ("Analyses have circular dependencies, conflict for "^assoc x !analyses_table^".") in
+    let deps (y,_) = map (fun x -> x, assoc x xs) @@ assoc y !dep_list in
+    topo_sort deps msg xs
     
   let init     () = 
     let map' f = 
@@ -1438,9 +1386,7 @@ struct
       path_sens := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.path_sens";
       cont_inse := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.ctx_insens";
       dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
-      dep_list_trans := closure !dep_list;
-      List.iter test_refl !dep_list_trans; 
-      analyses_list := topo_sort an_compare2 !analyses_list;
+      analyses_list := topo_sort_an !analyses_list;
       (*iter (fun (x,y) -> Printf.printf "%s -> %a\n"  (flip assoc !analyses_table x) (List.print (fun f -> String.print f % flip assoc !analyses_table)) y) !dep_list_trans;
       Printf.printf "\n";
       iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) !analyses_list;
@@ -1522,7 +1468,7 @@ struct
       let join_vals (n,(module S:Spec2),d) =
         n, repr @@ fold_left (fun x y -> S.D.join x (obj y)) (S.D.bot ()) d
       in
-      ctx.spawn2 v @@ topo_sort an_compare2 @@ map join_vals @@ spec_list @@ group_assoc (d @ otherstate v)
+      ctx.spawn2 v @@ topo_sort_an @@ map join_vals @@ spec_list @@ group_assoc (d @ otherstate v)
     in
     if not (get_bool "exp.single-threaded") then
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
@@ -1532,7 +1478,7 @@ struct
       let join_vals (n,(module S:Spec2),d) =
         n, repr @@ fold_left (fun x y -> S.G.join x (obj y)) (S.G.bot ()) d
       in
-      ctx.sideg2 v @@ topo_sort an_compare2 @@ map join_vals @@ spec_list @@ group_assoc (d @ G.bot ())
+      ctx.sideg2 v @@ topo_sort_an @@ map join_vals @@ spec_list @@ group_assoc (d @ G.bot ())
     in
     iter (uncurry side_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
@@ -1751,7 +1697,7 @@ struct
     let css = map f @@ spec_list ctx.local2 in
       do_spawns ctx !spawns;
       do_sideg ctx !sides;
-      map (fun xs -> (topo_sort an_compare2 @@ map fst xs, topo_sort an_compare2 @@ map snd xs)) @@ n_cartesian_product css
+      map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
   
   let combine (ctx:(D.t, G.t) ctx2) r fe f a fd =
     let spawns = ref [] in
