@@ -15,6 +15,7 @@ open SpecCore
 %token <string * string list * bool * string> EDGE
 %token <string> VAR
 %token <string> IDENT
+%token <string> REGEX
 %token <string> STRING
 %token <bool> BOOL
 %token <int> INT
@@ -55,6 +56,7 @@ var:
 
 expr:
   | LPAREN expr RPAREN       { $2 }
+  | REGEX                    { Regex $1 }
   | STRING                   { String $1 }
   | BOOL                     { Bool $1 }
   | nexpr                    { Int $1 }

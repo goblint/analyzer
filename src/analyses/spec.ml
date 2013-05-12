@@ -262,6 +262,10 @@ struct
                 | `Str b -> M.debug_each ("EQUAL String Query: "^a^" = "^b); a=b
                 | _      -> M.debug_each "EQUAL String Query: no result!"; false
               )
+            | `Regex a, e -> (match ctx.ask (Queries.EvalStr e) with
+                | `Str b -> M.debug_each ("EQUAL Regex String Query: "^a^" = "^b); Str.string_match (Str.regexp a) b 0
+                | _      -> M.debug_each "EQUAL Regex String Query: no result!"; false
+              )
             | `Bool a, e -> (match ctx.ask (Queries.EvalInt e) with
                 | `Int b -> (match Queries.ID.to_bool b with Some b -> a=b | None -> false)
                 | _      -> M.debug_each "EQUAL Bool Query: no result!"; false

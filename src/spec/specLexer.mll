@@ -11,7 +11,7 @@ let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z']
 let alnum = alpha | digit
 let word  = '_' | alnum
-let endlinecomment = "//" [^'\n']* nl
+let endlinecomment = "//" [^'\n']*
 let multlinecomment = "/*"([^'*']|('*'+[^'*''/'])|nl)*'*'+'/'
 let comments = endlinecomment|multlinecomment
 let str = ('\"'(([^'\"']|"\\\"")* as s)'\"') | ('\''(([^'\'']|"\\'")* as s)'\'')
@@ -48,6 +48,7 @@ rule token = parse
                    { NODE(n, s) }
   | (word+ as a) ws* "-" ((word+ ("," word+)*)? as ws) (">"? as fwd) ">" ws* (word+ as b) ws+
                    { EDGE(a, BatString.nsplit ws ",", fwd=">", b) }
+  | "r" str        { REGEX(s) }
   | str            { STRING(s) }
 (*  | ['0'-'9']*'.'?['0'-'9']*(('e'|'E')('+'|'-')?['0'-'9']+)?
       { NUMBER (big_int_of_string (Lexing.lexeme lexbuf)) } *)

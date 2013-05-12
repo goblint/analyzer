@@ -10,6 +10,7 @@ and exp =
   Fun of fcall |
   Exp_ |
   Var of var |
+  Regex of string |
   String of string | Bool of bool | Int of int | Float of float
 type stmt = {lval: var option; exp: exp}
 type def = Node of (string * string) | Edge of (string * string list * bool * string * stmt)
@@ -68,6 +69,7 @@ let is_forwarding stmt =
 (* get function arguments with tags corresponding to the type -> should only be called for functions, returns [] for everything else *)
 let get_fun_args stmt =
   let get_arg = function
+    | Regex x   -> `Regex x
     | String x  -> `String x
     | Bool x    -> `Bool x
     | Int x     -> `Int x
@@ -91,6 +93,7 @@ let rec exp_to_string = function
   | Fun x -> x.fname^"("^String.concat ", " (List.map exp_to_string x.args)^")"
   | Exp_ -> "_"
   | Var x -> var_to_string x
+  | Regex x -> "r\""^x^"\""
   | String x -> "\""^x^"\""
   | Bool x -> string_of_bool x
   | Int x -> string_of_int x
