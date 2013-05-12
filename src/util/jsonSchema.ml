@@ -141,15 +141,15 @@ let rec fromJson (jv:jvalue) : jschema =
     in    
     let req   = 
       try List.map (string % (!)) @@ (!) @@ array @@ (!) @@ field (objekt jv) "required" 
-      with JsonE _ -> raise (JsonSchemaMalformed "jobjFromJson.addit") 
+      with JsonE _ -> [] 
     in    
     let props = 
       try Object.bindings @@ Object.map (fromJson % (!)) @@ (!) @@ objekt @@ (!) @@ field (objekt jv) "properties" 
-      with JsonE _ -> raise (JsonSchemaMalformed "jobjFromJson.addit") 
+      with JsonE _ -> []
     in
     let pprops = 
       try Object.bindings @@ Object.map (fromJson % (!)) @@ (!) @@ objekt @@ (!) @@ field (objekt jv) "patternProperties" 
-      with JsonE _ -> raise (JsonSchemaMalformed "jobjFromJson.addit") 
+      with JsonE _ -> []
     in
     { sprops           = props
     ; spatternprops    = pprops

@@ -145,3 +145,61 @@ let _ =
   reg Debugging "dbg.debug-sockets"   "null"  "Eclipse debugger plugin support.";
   reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
   
+
+  
+let default_schema =
+"
+{ 'id'              : 'root'
+, 'type'            : 'object'
+, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'solver', 'allfuns', 'nonstatic']
+, 'additionalProps' : false
+, 'properties' : 
+  { 'ana' : 
+    { 'type'            : 'object'
+    , 'additionalProps' : true
+    , 'required'        : []
+    }
+  , 'exp' : 
+    { 'type'            : 'object'
+    , 'additionalProps' : true
+    , 'required'        : []
+    }
+  , 'dbg' : 
+    { 'type'            : 'object'
+    , 'additionalProps' : true
+    , 'required'        : []
+    }
+  , 'outfile'         : {}
+  , 'includes'        : {}
+  , 'kernel_includes' : {}
+  , 'custom_includes' : {}
+  , 'custom_incl'     : {}
+  , 'custom_libc'     : {}
+  , 'justcil'         : {}
+  , 'justcfg'         : {}
+  , 'dopartial'       : {}
+  , 'printstats'      : {}
+  , 'gccwarn'         : {}
+  , 'noverify'        : {}
+  , 'mainfun'         : {}
+  , 'exitfun'         : {}
+  , 'otherfun'        : {}
+  , 'allglobs'        : {}
+  , 'keepcpp'         : {}
+  , 'merge-conflicts' : {}
+  , 'cppflags'        : {}
+  , 'kernel'          : {}
+  , 'dump_globs'      : {}
+  , 'result'          : 
+    { 'type'            : 'string'
+    }
+  , 'solver'          : {}
+  , 'allfuns'         : {}
+  , 'nonstatic'       : {}
+  }
+}"
+
+
+let _ = 
+  let v = JsonParser.value JsonLexer.token @@ Lexing.from_string default_schema in
+  GobConfig.addenum_sch v
