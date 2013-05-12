@@ -21,6 +21,7 @@ open Batteries
 open Tracing
 open Config
 open Printf
+open JsonSchema
 open Json
 
 (** The type for [gobConfig] module. *)
@@ -138,6 +139,16 @@ struct
   
   (** Here we store the actual confinguration. *)
   let json_conf : jvalue ref = ref Null
+  
+  (** The schema for the conf [json_conf] *)
+  let cSchema : jschema = 
+    { sid      = Some "root"
+    ; sdescr   = Some "Configuration root for the Goblint."
+    ; stype    = None
+    ; sdefault = None
+    ; saddenum = []
+    }
+
   
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit = 

@@ -28,6 +28,6 @@ rule token = parse
         STRING (String.sub str 1 (sl-2))
       }
   | ['0'-'9']*'.'?['0'-'9']*(('e'|'E')('+'|'-')?['0'-'9']+)?
-      { NUMBER (big_int_of_string (Lexing.lexeme lexbuf)) }
+      { NUMBER (Num.num_of_string (Lexing.lexeme lexbuf)) }
 
   
