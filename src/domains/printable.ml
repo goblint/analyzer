@@ -13,7 +13,7 @@ sig
   val pretty: unit -> t -> doc
   val pretty_diff: unit -> (t * t) -> Pretty.doc
   val toXML : t -> Xml.xml
-  (* These two let's us reuse the short function, and allows some overriding
+  (* These two lets us reuse the short function, and allows some overriding
    * possibilities. *)
   val pretty_f: (int -> t -> string) -> unit -> t -> doc
   val toXML_f : (int -> t -> string) -> t -> Xml.xml

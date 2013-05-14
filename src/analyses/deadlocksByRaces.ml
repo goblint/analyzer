@@ -80,4 +80,4 @@ module ThreadMCP =
 
 module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "oslo" (module Spec2 : Spec2)
+  MCP.register_analysis "oslo" ~dep:["thread-id-location";"maylocks"] (module Spec2 : Spec2)

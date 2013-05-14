@@ -21,6 +21,7 @@ open Batteries
 open Tracing
 open Config
 open Printf
+open JsonSchema
 open Json
 
 (** The type for [gobConfig] module. *)
@@ -51,6 +52,8 @@ sig
   val drop_index : string -> int    -> unit
   (** Merge configurations form a file with current. *)
   val merge_file : string -> unit
+  (** Add a schema to the conf*)
+  val addenum_sch: jvalue -> unit 
   
 
   (** printer for the current configuration *)
@@ -139,6 +142,18 @@ struct
   (** Here we store the actual confinguration. *)
   let json_conf : jvalue ref = ref Null
   
+  (** The schema for the conf [json_conf] *)
+  let conf_schema : jschema = 
+    { sid      = Some "root"
+    ; sdescr   = Some "Configuration root for the Goblint."
+    ; stype    = None
+    ; sdefault = None
+    ; saddenum = []
+    }
+
+  (** Add the schema to [conf_schema]. *)
+  let addenum_sch jv = addenum conf_schema @@ fromJson jv
+  
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit = 
     printJson ch !json_conf
@@ -195,7 +210,8 @@ struct
                         print_path orig_pth printJson !o printJson new_v; 
             o := new_v
     in
-    set_value v o orig_pth
+    set_value v o orig_pth;
+    validate conf_schema !json_conf
       
   (** Helper function for reading values. Handles error messages. *)
   let get_path_string f typ st = 
@@ -260,9 +276,9 @@ struct
       let s' = Str.global_replace one_quote "\"" s in
       let v = JsonParser.value JsonLexer.token (Lexing.from_string s') in
       set_path_string_trace st v
-    with _ ->          
+    with e ->          
       eprintf "Cannot set %s to '%s'.\n" st s;
-      failwith "set_auto"
+      raise e
 
   (** Merge configurations form a file with current. *)
   let merge_file fn = 

@@ -1,3 +1,5 @@
+(** The 'slr+' and 'restart' solvers. *)
+
 open Analyses
 open Constraints 
 open Batteries
@@ -7,7 +9,7 @@ module      PropTrue  = struct let value = true  end
 module      PropFalse = struct let value = false end
 
 (** the box solver *)
-module Make =
+module MakeBoxSolver =
   functor (RES:BoolProp) -> 
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
@@ -21,6 +23,7 @@ struct
     try HM.find h x 
     with Not_found -> d
 
+  (** Helper module for values and priorities. *)
   module X = 
   struct 
     let keys = HM.create 1024 
@@ -48,6 +51,7 @@ struct
       let to_list () = vals 
   end  
     
+  (** Helper module for values of global contributions. *)
   module XY = 
   struct
     module P = 
@@ -66,37 +70,16 @@ struct
     let get_value x = hpm_find_default xy x (S.Dom.bot ())
     let set_value = HPM.replace xy
   end
-                (* contains variable assignment for pairs *)
 
-  module HeapCompare = 
-  struct
-    type t = S.Var.t
-    let compare x y = Pervasives.compare (X.get_key x) (X.get_key y)
-  end
-  
-  (*module H = 
-  struct
-    module H' = Heap.Make (HeapCompare)
-    module S  = Set.IntSet
-    
-    type t = H'.t * S.t
-    
-    let from_list xs = (List.enum xs |> H'.of_enum, List.enum xs |> Enum.map X.get_key |> S.of_enum)
-    let is_empty (_,x) = S.is_empty x
-    let get_root_key (x,_) = H'.find_min x |> X.get_key 
-    let extract_min (h,s) = 
-      let mn = H'.find_min h in 
-      (mn, (H'.del_min h, S.remove (X.get_key mn) s))
-    let empty = (H'.empty, S.empty)
-    let insert (h1,s1) x = 
-      if S.mem (X.get_key x) s1
-      then (h1,s1) 
-      else (H'.insert h1 x, S.add (X.get_key x) s1) 
-    let add k v = insert v k
-    let merge (h1,s1) (h2,s2) = (H'.merge h1 h2, S.union s1 s2)
-  end*)
+  (** Helper module for priority queues. *)
   module H = 
   struct
+    module HeapCompare = 
+    struct
+      type t = S.Var.t
+      let compare x y = Pervasives.compare (X.get_key x) (X.get_key y)
+    end
+  
     include Heap.Make (HeapCompare)
     let from_list xs = List.enum xs |> of_enum
     let is_empty x = size x = 0
@@ -110,12 +93,16 @@ struct
       (*Printf.printf "removing %d\n" (X.get_key k);*)
       (k,h)
   end
+    
+  (** Helper module for influence lists. *)
   module L = 
   struct
     let add h k v = HM.replace h k (v::h_find_default h k [])
     let sub h k = h_find_default h k []
     let rem_item = HM.remove 
   end
+  
+  (** Helper module for the stable set and global variable setting deps. *)
   module P = 
   struct 
     let single x = tap (fun s -> HM.add s x ()) (HM.create 10) 
@@ -126,12 +113,14 @@ struct
     let insert m = flip (HM.replace m) ()
   end
   
+  (** Helper module for variable setting deps. *)
   module T = 
   struct
     let sub = h_find_option 
     let update = HM.replace
   end
         
+  (** Helper module for the domain. *)
   module D =
   struct
      include S.Dom
@@ -139,108 +128,18 @@ struct
      let cup = join
      let cap = meet
   end
+                
+  let solve box st list = 
+    let stable = HM.create 1024 in
+    let infl   = HM.create 1024 in
+    let set    = HM.create 1024 in
+    let work   = ref H.empty    in
         
-        let stable = HM.create 1024
-        let infl = HM.create 1024
-        let set = HM.create 1024
-        let work = ref H.empty
-        
-        let solve box eq list = 
-                        
-                          let _ = work := H.merge (H.from_list list) !work 
-                          
-                          in let _ = List.iter (fun x -> L.add infl x x) list 
-                          
-                          in let restart x = try let s = HM.create 0 in
-                                             let (sk,_) = X.get_index x in
-                                             let rec handle_one x =
-                                               if HM.mem s x then () else
-                                               let _ = HM.add s x () in
-                                               let (k,_) = X.get_index x in
-                                               let _ = if k < sk then X.set_value x (D.bot ()); work := H.insert !work x in
-                                               List.iter handle_one @@ try HM.find infl x with Not_found -> []
-                                             in 
-                                             handle_one x with Not_found -> ()
-
-                          in let rec eval x y =
-                                          let (i,nonfresh) = X.get_index y in
-                                          let _ = if nonfresh then ()
-                                                  else solve y in
-                                          let _ = L.add infl y x in
-                                          X.get_value y
-                        
-                          and side x y d = 
-                                            (*ignore (Pretty.printf "side effect %a to (%a,%a)\n\n" D.pretty d S.Var.pretty_trace x S.Var.pretty_trace y);*)
-
-                                           let _ = match T.sub set y
-                                                  with None -> T.update set y (P.single x)
-                                                  | Some p -> P.insert p x
-                                           in 
-
-                                           let old = XY.get_value (x,y)
-                                           in let tmp = box y old d
-                                           in if  D.eq tmp old then ()
-                                              else let _ = XY.set_value (x,y) tmp in
-                                                   let (i,nonfresh) = X.get_index y in
-
-                                                   if nonfresh then
-                                                           let _ = P.rem_item stable y in 
-                                                          work := H.insert (!work) y
-                                                  else solve y
-                                                               
-
-                          and do_side x a = match T.sub set x 
-                                          with None -> a
-                                          | Some p -> let list = P.to_list p
-                                                  in (*ignore (Pretty.printf "%d var %a\n\n" (List.length list) S.Var.pretty_trace x); *)
-                                                    List.fold_left (
-                                                          fun a z ->
-                                                          D.cup a (XY.get_value (z,x))
-                                                                  ) a list
-
-                          and solve x = if P.has_item stable x then ()
-                                  else    let _ = P.insert stable x in
-                                          let old = X.get_value x in
-                                          let tmp = do_side x (eq x (eval x) (side x)) in 
-                                          let rstrt = RES.value && D.leq old tmp && (not @@ D.equal old tmp) in
-                                          let tmp = box x old tmp in
-                                          if D.eq tmp old then loop (X.get_key x)
-                                          else begin 
-                                                  let _ = X.set_value x tmp in
-					
-                                                  (*let _ = Pretty.printf "%a : %a\n" S.Var.pretty_trace x D.pretty tmp in*)
-					                                        if rstrt then 
-                                                    restart x 
-                                                  else
-                                                    let w = L.sub infl x in
-                                                    let _ = L.rem_item infl x in
-                                                    let _ = L.add infl x x in
-                                                    let h = List.fold_left H.insert (!work) w in
-                                                    let _ = work := h in
-                                                            List.iter (P.rem_item stable) w;
-                                                  loop (X.get_key x) 
-                                          end
-        
-                          and loop a =  if H.is_empty (!work) then ()
-                                                  else if H.get_root_key (!work) <= a
-                                                  then let (x,h) = H.extract_min (!work) in
-                                                       let _ = work := h in
-                                                       let _ = solve x in
-                                                               loop a
-
-
-                          in let rec loop () =  if H.is_empty (!work) then ()
-                                        else      let (x,h) = H.extract_min (!work) in
-                                                  let _ = work := h in
-                                                  let _ = solve x in
-                                                          loop ()
-
-                          in let _ = loop ()
-                          in X.to_list ()
+    let _ =     List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update set x (P.single x)) st in
+    let _ = work := H.merge (H.from_list list) !work in 
+    let _ = List.iter (fun x -> L.add infl x x) list in 
     
-
-  let solve box st x = 
-    let sys x get set = 
+    let eq x get set = 
 	    match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> 
@@ -253,23 +152,111 @@ struct
             HM.clear sides;
             d
     in 
-    List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update set x (P.single x)) st;
-    solve box sys x
     
-  let box v x y = 
-    if S.Var.loopSep v
-    then (if D.leq y x then D.narrow x y else D.widen x (D.join x y))
-    else (if D.leq y x then y else D.join x y)
+    let restart x = 
+      let s = HM.create 0 in
+        let (sk,_) = X.get_index x in
+        let rec handle_one x =
+          if HM.mem s x then () else
+          let _ = HM.add s x () in
+          let (k,_) = X.get_index x in
+          let _ = if k < sk then X.set_value x (D.bot ()); work := H.insert !work x in
+          List.iter handle_one @@ try HM.find infl x with Not_found -> []
+        in 
+        handle_one x 
+    in 
+    
+    let rec eval x y =
+      let (i,nonfresh) = X.get_index y in
+      let _ = if nonfresh then () else solve y in
+      let _ = L.add infl y x in
+      X.get_value y
+                    
+    and side x y d = 
+      let _ = 
+        match T.sub set y with 
+          | None -> T.update set y (P.single x)
+          | Some p -> P.insert p x
+      in 
+
+      let old = XY.get_value (x,y) in 
+      let tmp = box y old d in 
+     
+      if not (D.eq tmp old) then begin
+        let _ = XY.set_value (x,y) tmp in
+        let (i,nonfresh) = X.get_index y in
+
+        if nonfresh then
+          let _ = P.rem_item stable y in 
+          work := H.insert (!work) y
+        else 
+          solve y
+      end                                               
+
+    and do_side x a = 
+      match T.sub set x with 
+        | None -> a
+        | Some p -> 
+            let xs = P.to_list p in 
+            (*ignore (Pretty.printf "%d var %a\n\n" (List.length list) S.Var.pretty_trace x); *)
+            List.fold_left (fun a z -> D.cup a (XY.get_value (z,x))) a xs
+
+    and solve x = 
+      if not (P.has_item stable x) then begin
+        let _ = P.insert stable x in
+        let old = X.get_value x in
+        let tmp = do_side x (eq x (eval x) (side x)) in 
+        let rstrt = RES.value && D.leq old tmp && (not @@ D.equal old tmp) in
+        let tmp = box x old tmp in
+        if D.eq tmp old then 
+          loop (X.get_key x)
+        else begin 
+          let _ = X.set_value x tmp in
+
+          if rstrt then 
+            restart x 
+          else
+            let w = L.sub infl x in
+            let _ = L.rem_item infl x in
+            let _ = L.add infl x x in
+            let h = List.fold_left H.insert (!work) w in
+            let _ = work := h in
+                    List.iter (P.rem_item stable) w;
+                    
+          loop (X.get_key x) 
+        end 
+      end
+        
+    and loop a =  
+      if not (H.is_empty (!work)) then begin
+        if H.get_root_key (!work) <= a
+        then let (x,h) = H.extract_min (!work) in
+             let _ = work := h in
+             let _ = solve x in
+                     loop a
+      end
+    in 
+    
+    let rec loop () = 
+      if not (H.is_empty (!work)) then begin
+        let (x,h) = H.extract_min (!work) in
+        let _ = work := h in
+        let _ = solve x in
+        loop ()
+      end
+    in 
+    
+    let _ = loop () in 
+    X.to_list ()
+
 end
 
 let _ =
-  let module MakeIsGenericEqBoxSolver : GenericEqBoxSolver = Make (PropFalse) in
+  let module MakeIsGenericEqBoxSolver : GenericEqBoxSolver = MakeBoxSolver (PropFalse) in
   ()
 
 let _ =
-  let module M = GlobSolverFromEqSolver(Make (PropFalse)) in
+  let module M = GlobSolverFromEqSolver(MakeBoxSolver (PropFalse)) in
   Selector.add_solver ("slr+", (module M : GenericGlobSolver));
-  Selector.add_solver ("new",  (module M : GenericGlobSolver));
-  let module M1 = GlobSolverFromEqSolver(Make (PropTrue)) in
+  let module M1 = GlobSolverFromEqSolver(MakeBoxSolver (PropTrue)) in
   Selector.add_solver ("restart", (module M : GenericGlobSolver))
-  

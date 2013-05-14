@@ -1,6 +1,6 @@
 (** A small Json library. *)
-open Big_int
 open Pretty
+open Num
 
 (** General json exceprion *)
 exception JsonE of string 
@@ -11,7 +11,7 @@ module Object = BatMap.Make (String)
 (** Json data structure *)
 type jvalue =
   | String of string
-  | Number of big_int
+  | Number of num
   | Object of jvalue ref Object.t ref
   | Array  of jvalue ref list ref
   | True | False
@@ -23,7 +23,7 @@ let identCount = ref 0
 
 let rec printJson' ch = function
   | String x -> BatPrintf.fprintf ch "%S" x
-  | Number i -> BatPrintf.fprintf ch "%a" BatBig_int.print i
+  | Number i -> BatPrintf.fprintf ch "%s" (string_of_num i)
   | Object o -> print_object ch !o
   | Array a  -> BatList.print ~first:"[" ~last:"]" ~sep:", " (BatRef.print printJson') ch !a
   | True     -> BatPrintf.fprintf ch "true"
@@ -57,7 +57,7 @@ let printJson ch m =
 
 let rec prettyJson () = function
   | String x -> text "\"" ++ text x ++ text "\""
-  | Number i -> text (string_of_big_int i)
+  | Number i -> text (string_of_num i)
   | Object o -> pretty_of_object !o
   | Array a  -> pretty_of_array !a
   | True  -> text "true"
@@ -97,7 +97,7 @@ let string = function
 
 (** Access an json value as a int. *)
 let number = function
-  | Number s -> int_of_big_int s
+  | Number s -> int_of_num s
   | o -> raise (JsonE ("Json Error: '"^jsonString o^"' not a number."))
 
 (** Access an json value as a bool. *)
@@ -152,7 +152,7 @@ struct
   (** Generate a string value. *)
   let string x = String x 
   (** Generate a int value. *)
-  let number n = Number (big_int_of_int n) 
+  let number n = Number (num_of_int n) 
   (** Generate a array value. *)
   let array x = Array (ref (List.map ref x))
   (** Generate a null. *)  

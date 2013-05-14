@@ -47,6 +47,12 @@ let is_ignorable lval =
 (*  ignore (printf "Var %a\n" d_lval lval);*)
   try Base.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
   with Not_found -> false
+
+let rec get_flag (state :local_state list) : BS.Flag.t =
+  match state with
+  | `Base (_,x)::rest -> x
+  | x::rest -> get_flag rest
+  | [] -> failwith "BUG: Cannot obtain thread ID."
   
 let big_kernel_lock = LockDomain.Addr.from_var (Cil.makeGlobalVar "[big kernel lock]" Cil.intType)
 let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphore]" Cil.intType)
@@ -377,12 +383,7 @@ struct
   let add_accesses2 ctx =
     if !Goblintutil.old_accesses  then () else
     let loc = !Tracing.current_loc in
-    let fl = 
-      match ctx.ask Queries.SingleThreaded, ctx.ask Queries.CurrentThreadId with
-        | `Int is_sing, _ when Queries.ID.to_bool is_sing = Some true -> BS.Flag.get_single ()
-        | _,`Int x when  Queries.ID.to_int x = Some 1L -> BS.Flag.get_main ()
-        | _ -> BS.Flag.get_multi ()
-    in
+    let fl = get_flag ctx.presub in
     if not (BS.Flag.is_multi fl) then () else
     let accs_dom   = get_accesses ctx in
     let accs_read  = AccessDomain.Access.get_acc false accs_dom in
@@ -572,12 +573,7 @@ struct
     
   (** Function [add_accesses accs st] fills the hash-map [acc] *)
   and add_accesses ctx (accessed: accesses) (ust:Dom.t) = 
-      let fl = 
-        match ctx.ask Queries.SingleThreaded, ctx.ask Queries.CurrentThreadId with
-          | `Int is_sing, _ when Queries.ID.to_bool is_sing = Some true -> BS.Flag.get_single ()
-          | _,`Int x when  Queries.ID.to_int x = Some 1L -> BS.Flag.get_main ()
-          | _ -> BS.Flag.get_multi ()
-      in
+    let fl = get_flag ctx.presub in
       if BS.Flag.is_multi fl then
         let loc = !Tracing.current_loc in
         let dispatch ax =
@@ -917,8 +913,8 @@ struct
         let f with_str ((loc, fl, write), lockset,o) = 
           let lockstr = Lockset.short 80 lockset in
           let action = if write then "write" else "read" in
-          let thread = if BS.Flag.is_bad fl then "some thread" else "main thread" in
-          let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " in " ^ thread ^ with_str ^ lockstr in
+          let thread = "\"" ^ BS.Flag.short 80 fl ^ "\"" in
+          let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " by " ^ thread ^ with_str ^ lockstr in
             (warn,loc) in 
         let warnings () =  List.map (f " with lockset: ") acc_list in
             let var_str = gl.vname ^ Offs.short 80 offset in
@@ -1026,7 +1022,7 @@ module ThreadMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "mutex" 
-                let depends = []
+                let depends = ["base"]
                 type lf = Spec.Dom.t
                 let inject_l x = `Mutex x
                 let extract_l x = match x with `Mutex x -> x | _ -> raise MCP.SpecificationConversionError
@@ -1037,4 +1033,4 @@ module ThreadMCP =
 
 module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "mutex" (module Spec2 : Spec2)
+  MCP.register_analysis "mutex" ~dep:["base"] (module Spec2 : Spec2)

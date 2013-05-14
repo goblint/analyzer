@@ -237,11 +237,27 @@ struct
   let tf_assign lv e (v,c) u getl sidel getg sideg = 
     let ctx = common_ctx (v,c) u getl sidel getg sideg 
     in S.assign ctx lv e
-    
+      
+  let normal_return r fd ctx sideg = 
+    let spawning_return = S.return ctx r fd in
+    let nval, ndiff = S.sync { ctx with local2 = spawning_return } in
+    List.iter (fun (x,y) -> sideg x y) ndiff;
+    nval
+      
+  let toplevel_kernel_return r fd ctx sideg =
+    let spawning_return = S.return ctx None MyCFG.dummy_func in
+    let nval, ndiff = S.sync { ctx with local2 = spawning_return } in
+    List.iter (fun (x,y) -> sideg x y) ndiff;
+    nval
+        
   let tf_ret ret fd (v,c) u getl sidel getg sideg = 
-    let ctx = common_ctx (v,c) u getl sidel getg sideg 
-    in S.return ctx ret fd
-    
+    let ctx = common_ctx (v,c) u getl sidel getg sideg in
+    if (fd.svar.vid = MyCFG.dummy_func.svar.vid 
+         || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) 
+       && get_bool "kernel"
+    then toplevel_kernel_return ret fd ctx sideg
+    else normal_return ret fd ctx sideg
+                                          
   let tf_entry fd (v,c) u getl sidel getg sideg = 
     let ctx = common_ctx (v,c) u getl sidel getg sideg 
     in S.body ctx fd
@@ -692,8 +708,8 @@ struct
      * that d' satisfied all constraints. *)
     let verify_var v d' = 
       let verify_constraint rhs =
-        let sigma' x = LH.find sigma x in
-        let theta' x = GH.find theta x in
+        let sigma' x = try LH.find sigma x with Not_found -> D.bot () in
+        let theta' x = try GH.find theta x with Not_found -> G.bot () in
         (* First check that each (global) delta is included in the (global)
          * invariant. *)
         let check_local l lv =
