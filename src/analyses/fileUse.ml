@@ -251,4 +251,4 @@ module ThreadMCP =
 
 module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "escape" (module Spec2 : Spec2)
+  MCP.register_analysis "file" (module Spec2 : Spec2)
