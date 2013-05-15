@@ -1,7 +1,7 @@
 export OCAMLRUNPARAM=b
 ana=${1-"file"}
-result=${2-"html"}
-file=${3-"tests/file.c"}
+file=${2-"tests/file.c"}
+result=${3-"html"}
 if [ $ana == "spec" ]; then
     ana="$ana --sets spec.file src/spec/file.spec"
 fi
