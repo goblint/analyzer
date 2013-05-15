@@ -150,7 +150,7 @@ let _ =
 (* {5 category [Spec]} *)
 
 let _ =
-  reg Spec      "spec.file"           ""      "Path to the specification file (needed when spec-analysis is activated).";
+  reg Spec      "spec.file"           ""      "Path to the specification file (needed when spec-analysis is activated)."
 
 
 
@@ -172,6 +172,11 @@ let default_schema =
     , 'required'        : []
     }
   , 'dbg' : 
+    { 'type'            : 'object'
+    , 'additionalProps' : true
+    , 'required'        : []
+    }
+  , 'spec' : 
     { 'type'            : 'object'
     , 'additionalProps' : true
     , 'required'        : []
