@@ -4,7 +4,7 @@ open Analyses
 
 (** Convert a an [IneqConstrSys] into an equation system by joining all right-hand sides. *)
 module SimpleSysConverter (S:IneqConstrSys) 
-  : EqConstrSys 
+  : sig include EqConstrSys val conv : S.v -> S.v end 
   with type v = S.v
    and type d = S.d
    and module Var = S.Var
@@ -17,7 +17,9 @@ struct
   module Var = S.Var
   module Dom = S.Dom
   
-  let box _ = S.Dom.join (* ignore the original operator *)
+  let box = S.box 
+  
+  let conv x = x
   
   let system x = 
     match S.system x with
@@ -62,13 +64,10 @@ struct
   module Var = ExtendInt (S.Var)
   module Dom = S.Dom
   
-  let box (x,n) = S.box x
-    (*if n>0 || (n=0 && 1=List.length (S.system x)) then S.box x else Dom.join*)
+  let box (x,n) =
+    if n=(-1) && 1<List.length (S.system x) then S.box x else Dom.join
 
-  let conv x = 
-    match S.system x with
-      | [] | [_] -> (x,0)
-      | _ -> (x,-1)
+  let conv x = (x,-1)
     
   let system (x,n) : ((v -> d) -> (v -> d -> unit) -> d) option = 
     let fold_left1 f xs =
