@@ -14,7 +14,7 @@ struct
   module T =
   struct
     type state = string
-    type record = { var: varinfo; loc: location list; state: state }
+    type record = { var: Lval.CilLval.t; loc: location list; state: state }
     type t' = Must of record | May of record Set.t
   end
 
@@ -22,6 +22,8 @@ struct
   include Lattice.StdCousot
   include T
   type t = t'
+
+  let toStringKey x = Lval.CilLval.short 80 x.var
 
   let toStringRecord x =
     let loc xs = String.concat ", " (List.map (fun x -> string_of_int x.line) xs) in
@@ -46,7 +48,7 @@ struct
   let may = function Must x -> May (Set.singleton x) | xs -> xs (* TODO diff. semantic of May with one elem. and more elem.! *)
   let records = function Must x -> (Set.singleton x) | May xs -> xs
   let recordsList = function Must x -> [x] | May xs -> List.of_enum (Set.enum xs)
-  let vnames x = String.concat ", " (List.map (fun x -> x.var.vname) (recordsList x))
+  let vnames x = String.concat ", " (List.map toStringKey (recordsList x))
   let locs ?p:(p=const true) x = List.map (fun x -> x.loc) (List.filter p (recordsList x))
 
   let equal = Util.equals
@@ -67,12 +69,12 @@ end
 
 module Dom  =
 struct
-  module K = Basetype.Variables
+  module K = Lval.CilLval
   module V = Val
-  module MD = MapDomain.MapBot (Basetype.Variables) (Val)
+  module MD = MapDomain.MapBot (Lval.CilLval) (Val)
   include MD
   (* don't use BatMap to avoid dependencies for other files using the following functions *)
-  module M = OMap.Make (Basetype.Variables) (* why does OMap.Make (K) not work? *)
+  module M = OMap.Make (Lval.CilLval) (* why does OMap.Make (K) not work? *)
   open V.T
 
   (* other map functions *)
@@ -91,9 +93,10 @@ struct
   let must k p m = mem k m && let xs = V.records (find k m) in Set.for_all p xs && not (is_may k m && Set.cardinal xs = 1) (* TODO semantics of May with length 1? *)
   let in_state k state m = must k (fun x -> x.state = state) m
   let may_in_state k state m = may k (fun x -> x.state = state) m
-  let get_state k m = if not (mem k m) then "?" else match find k m with
+  let string_of_state k m = if not (mem k m) then "?" else match find k m with
     | Must x -> x.state
     | xs -> "["^String.concat ", " (List.map (fun x -> x.state) (V.recordsList xs))^"]"
+  let string_of_key k = K.short 80 k
 
 (*   (* domain specific *)
   let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then Set.exists p xs else Set.for_all p xs && Set.cardinal xs > 1

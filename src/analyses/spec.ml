@@ -19,9 +19,9 @@ struct
 
   type glob_fun = Glob.Var.t -> Glob.Val.t
 
-  let return_var = Cil.makeVarinfo false "@return" Cil.voidType
-  let stack_var = Cil.makeVarinfo false "@stack" Cil.voidType
-  let global_var = Cil.makeVarinfo false "@global" Cil.voidType
+  let return_var = Cil.makeVarinfo false "@return" Cil.voidType, `NoOffset
+  let stack_var = Cil.makeVarinfo false "@stack" Cil.voidType, `NoOffset
+  let global_var = Cil.makeVarinfo false "@global" Cil.voidType, `NoOffset
 
   let nodes = ref []
   let edges = ref []
@@ -33,6 +33,11 @@ struct
     let _nodes, _edges = SpecUtil.parseFile specfile in
     nodes := _nodes; edges := _edges (* don't change -> no need to save them in domain? *)
 
+
+  let key_from_lval lval =
+    match lval with
+    | Var varinfo, offset -> varinfo, Lval.CilLval.of_ciloffs offset
+    | Mem exp, offsett -> failwith "not implemented yet" (* TODO use query_lv *)
 
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
@@ -80,21 +85,21 @@ struct
           let may_end  = List.exists (fun state -> Dom.may_in_state k state m) end_states in
           let locs = Dom.V.locs v in
           if not may_end then ((* Must: never in an end state *)
-            must_k := !must_k@[k.vname];
+            must_k := !must_k@[k];
             match msg_loc with Some msg -> List.iter (fun loc -> warn ~loc:loc false msg) locs | _ -> ()
           )else if not must_end then ((* May: maybe in an end state *)
-            may_k := !may_k@[k.vname];
+            may_k := !may_k@[k];
             (* only output MAYBE-warnings for possibilities that are not an end state *)
             (* TODO this is a matter of taste -> make it configurable? *)
             let locs = Dom.V.locs ~p:(fun x -> not (List.mem x.state end_states)) v in
             match msg_loc with Some msg -> List.iter (fun loc -> warn ~loc:loc true msg) locs | _ -> ()
           )
         in
-        let no_special_vars = Dom.filter (fun k v -> String.get k.vname 0 <> '@') m in
+        let no_special_vars = Dom.filter (fun k v -> String.get (Dom.string_of_key k) 0 <> '@') m in
         Dom.iter check_state no_special_vars;
         match msg_end with
         | Some msg ->
-          let f msg ks = Str.global_replace (Str.regexp_string "$") (String.concat ", " ks) msg in
+          let f msg ks = Str.global_replace (Str.regexp_string "$") (String.concat ", " (List.map Dom.string_of_key ks)) msg in
           if not (List.is_empty !must_k) then warn false (f msg !must_k);
           if not (List.is_empty !may_k) then warn true (f msg !may_k)
         | _ -> ()
@@ -105,13 +110,14 @@ struct
       | msg_loc,msg_end -> warn_main msg_loc msg_end
     );
     let au = match exp with
-      | Some(Lval(Var(varinfo),offset)) ->
-          (* M.write ("return variable "^varinfo.vname^" (dummy: "^return_var.vname^")"); *)
-          Dom.add return_var (Dom.find varinfo m) m
+      | Some(Lval lval) ->
+          let k = key_from_lval lval in
+          (* M.write ("return variable "^Dom.string_of_key k); *)
+          Dom.add return_var (Dom.find k m) m
       | _ -> m
     in
     (* remove formals and locals *)
-    List.fold_left (fun m var -> Dom.remove var m) au (f.sformals @ f.slocals)
+    List.fold_left (fun m var -> Dom.remove (var, `NoOffset) m) au (f.sformals @ f.slocals)
 
   let editStack f m =
     let v = match Dom.findOption stack_var m with
@@ -132,10 +138,11 @@ struct
     let au = editStack List.tl au in
     let return_val = Dom.findOption return_var au in
     match lval, return_val with
-      | Some (Var var, offset), Some rval ->
-          (* M.write ("setting "^var.vname^" to content of "^(Dom.V.vnames rval)); *)
-          let rval = Dom.V.rebind rval var in (* change rval.var to lval *)
-          Dom.add var rval (Dom.remove return_var au)
+      | Some lval, Some rval ->
+          let k = key_from_lval lval in
+          (* M.write ("setting "^Dom.string_of_key k^" to content of "^(Dom.V.vnames rval)); *)
+          let rval = Dom.V.rebind rval k in (* change rval.var to lval *)
+          Dom.add k rval (Dom.remove return_var au)
       | _ -> au
 
   let query_lv ask exp =
@@ -168,19 +175,20 @@ struct
     (* get possible varinfos for a given lval *)
     let varinfos lval =
       match lval with (* TODO ignore offset? *)
-        | Var varinfo, _ -> [varinfo]
-        | Mem exp, _ ->
+        | Var varinfo, offset -> [varinfo, Lval.CilLval.of_ciloffs offset]
+        | _ -> (* Mem *)
+            let exp = Lval lval in
             let xs = query_lv ctx.ask exp in (* MayPointTo -> LValSet *)
             M.debug_each ("MayPointTo "^(Pretty.sprint 80 (d_exp () exp))^" = ["
               ^(String.concat ", " (List.map (Lval.CilLval.short 80) xs))^"]");
-            List.map fst xs
+            xs
     in
     (* fold possible varinfos on domain *)
     (* let ret_all f lval = ret (List.fold_left f m (varinfos lval)) in *)
     (* custom goto (Dom.goto is just for modifying) that checks if the target state is a warning and acts accordingly *)
     let goto ?may:(may=false) var loc state m ws =
       let warn var m msg =
-        let msg = Str.global_replace (Str.regexp_string "$") var.vname msg in
+        let msg = Str.global_replace (Str.regexp_string "$") (Dom.string_of_key var) msg in
         M.report ((if Dom.is_may var m then "MAYBE " else "")^msg)
       in
       (* do transition warnings *)
@@ -190,7 +198,7 @@ struct
             warn var m msg;
             m (* no goto == implicit back edge *)
         | None ->
-            M.debug_each ("GOTO "^var.vname^": "^Dom.get_state var m^" -> "^state);
+            M.debug_each ("GOTO "^Dom.string_of_key var^": "^Dom.string_of_state var m^" -> "^state);
             if may then Dom.may_goto var loc state m else Dom.goto var loc state m
     in
     let matching m new_a (a,ws,fwd,b,c) =
@@ -230,7 +238,7 @@ struct
          In case we don't have a key, we have to check the global state. *)
       let key = match key with
         | Some key -> key
-        | None -> Cil.var global_var (* creates Var with NoOffset *)
+        | None -> Cil.var (fst global_var) (* creates Var with NoOffset *)
       in
       (* ignore(printf "KEY: %a\n" d_plainlval key); *)
       (* possible varinfos the lval may point to -> TODO use Lval as key for map? But: multiple representations for the same Lval?! *)
@@ -239,7 +247,7 @@ struct
         (* skip transitions we can't take b/c we're not in the right state *)
         (* i.e. if not in map, we must be at the start node or otherwise we must be in one of the possible saved states *)
         if not (Dom.mem var m) && a<>SC.startnode !edges || Dom.mem var m && not (Dom.may_in_state var a m) then (
-          (* ignore(printf "SKIP %s: state: %s, a: %s at %i\n" f.vname (Dom.get_state var m) a (!Tracing.current_loc.line)); *)
+          (* ignore(printf "SKIP %s: state: %s, a: %s at %i\n" f.vname (Dom.string_of_state var m) a (!Tracing.current_loc.line)); *)
           (m,n) (* not in map -> initial state. TODO save initial state? *)
         )
         (* skip transitions where the constraint doesn't have the right form (assignment or not) *)
