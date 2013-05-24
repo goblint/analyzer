@@ -15,7 +15,7 @@ while file=$(inotifywait -r -q -e modify src); do
   else
     # TODO find a way to save stdout to var and still print it to avoid calling make again just for the error message
     msg=$(make)
-    # send error message to sublime plugin
+    # send error message to sublime plugin using netcat
     echo -e "`pwd`\n$msg" | nc localhost 9999
     notify-send -i stop Build failed!
   fi

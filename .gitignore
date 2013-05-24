@@ -24,5 +24,4 @@ tests/regression/16-relinv/osek_goblint.h
 tests/regression/16-relinv/flags.json
 
 src/spec/graph
-notes
 .vagrant
