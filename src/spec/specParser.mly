@@ -54,6 +54,19 @@ var:
   | IDENT                    { Ident $1 } /* e.g. foo, _foo, _1, but not 1b */
 ;
 
+binop: /* TODO better solution? 32 shift/reduce conflicts :( */
+  | LT                       { "<" }
+  | GT                       { ">" }
+  | EQ EQ                    { "==" }
+  | NE                       { "!=" }
+  | LE                       { "<=" }
+  | GE                       { ">=" }
+  | PLUS                     { "+" }
+  | MINUS                    { "-" }
+  | MUL                      { "*" }
+  | DIV                      { "/" }
+;
+
 expr:
   | LPAREN expr RPAREN       { $2 }
   | REGEX                    { Regex $1 }
@@ -69,6 +82,7 @@ expr:
   | nexpr NE    nexpr        { Bool ($1<>$3) }
   | nexpr LE    nexpr        { Bool ($1<=$3) }
   | nexpr GE    nexpr        { Bool ($1>=$3) }
+  | expr  binop expr         { Binop ($2, $1, $3) }
 ;
 
 nexpr:

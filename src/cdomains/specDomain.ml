@@ -96,5 +96,6 @@ struct
     | Must x -> x.state
     | xs -> "["^String.concat ", " (List.map (fun x -> x.state) (V.recordsList xs))^"]"
   let string_of_key k = K.short 80 k
-
+  let string_of_entry k m = string_of_key k ^ ": " ^ string_of_state k m
+  let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (bindings m)
 end

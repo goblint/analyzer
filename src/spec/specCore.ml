@@ -11,7 +11,8 @@ and exp =
   Exp_ |
   Var of var |
   Regex of string |
-  String of string | Bool of bool | Int of int | Float of float
+  String of string | Bool of bool | Int of int | Float of float |
+  Binop of string * exp * exp
 type stmt = {lval: var option; exp: exp}
 type def = Node of (string * string) | Edge of (string * string list * bool * string * stmt)
 
@@ -26,6 +27,13 @@ let fname_is fname stmt =
   | _ -> false
 
 let is_wildcard stmt = stmt.exp = Exp_
+
+let branch_exp stmt =
+  match stmt.exp with
+  | Fun { fname="branch"; args=[exp; Bool tv] } -> Some exp
+  | _ -> None
+
+let is_branch stmt = branch_exp stmt <> None
 
 let startnode edges =
   (* The start node of the first transition is the start node of the automaton. *)
@@ -68,7 +76,7 @@ let is_forwarding stmt =
 
 (* get function arguments with tags corresponding to the type -> should only be called for functions, returns [] for everything else *)
 let get_fun_args stmt =
-  let get_arg = function
+  let rec get_arg = function
     | Regex x   -> `Regex x
     | String x  -> `String x
     | Bool x    -> `Bool x
@@ -79,6 +87,7 @@ let get_fun_args stmt =
     | Var (Ident x) -> `Ident x
     | Fun x     -> `Error "Functions aren't allowed to have functions as an argument (put the function as a previous state instead)"
     | Exp_ -> `Free
+    | Binop (op, a, b) -> `Error "Binops inside function arguments aren't supported, use an simple expression instead."
   in
   match stmt.exp with
   | Fun f -> List.map get_arg f.args
@@ -98,6 +107,7 @@ let rec exp_to_string = function
   | Bool x -> string_of_bool x
   | Int x -> string_of_int x
   | Float x -> string_of_float x
+  | Binop (op, a, b) -> exp_to_string a ^ " " ^ op ^ " " ^ exp_to_string b
 let stmt_to_string stmt = match stmt.lval, stmt.exp with
   | Some var, exp -> var_to_string var^" = "^exp_to_string exp
   | None, exp -> exp_to_string exp

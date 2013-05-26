@@ -16,15 +16,17 @@ w8 "unrecognized file open mode for file handle $"
 //1          -> w8            $fp = fopen($path, _)
 
 // go to unchecked states first
-1          ->> u_open_read  $fp = fopen($path, "r")
-1          ->> u_open_write $fp = fopen($path, r"[wa]")
+1          -> u_open_read  $fp = fopen($path, "r")
+1          -> u_open_write $fp = fopen($path, r"[wa]")
 1          -> w8            $fp = fopen($path, _)
-// once branch(exp, tv) is matched, return dom with 1. arg and true/false
-// then in branch look for keys that are in a 'branch-state' and do the transition to a checked state
-u_open_read  -> 1           branch($fp==0, true)
-u_open_read  -> open_read   branch($fp==0, false)
-u_open_write -> 1           branch($fp==0, true)
-u_open_write -> open_write  branch($fp==0, false)
+// once branch(exp, tv) is matched, return dom with 1. arg (lval = exp) and true/false
+// forwarding from branch is not possible (would need an extra map for storing states) -> ignore it
+// warnings are also ignored
+// then in branch take out lval, check exp and do the transition to a checked state
+u_open_read  -> 1           branch($key==0, true)
+u_open_read  -> open_read   branch($key==0, false)
+u_open_write -> 1           branch($key==0, true)
+u_open_write -> open_write  branch($key==0, false)
 
 // alternative: forward everything. Problem: saving arguments of call (special_fn -> branch -> special_fn)
 // 1          ->> open_check   $fp = fopen($path, _)

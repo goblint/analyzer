@@ -34,7 +34,7 @@ struct
     nodes := _nodes; edges := _edges (* don't change -> no need to save them in domain? *)
 
 
-  let key_from_lval lval =
+  let key_from_lval lval = (* TODO -> keys_from_lval: return list *)
     match lval with
     | Var varinfo, offset -> varinfo, Lval.CilLval.of_ciloffs offset
     | Mem exp, offsett -> failwith "not implemented yet" (* TODO use query_lv *)
@@ -51,8 +51,15 @@ struct
     m
 
   let branch ctx (exp:exp) (tv:bool) : Dom.t =
-    (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
-    ctx.local
+    let m = ctx.local in
+    ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line);
+    match ctx.ask (Queries.EvalInt exp) with
+      | `Int i (* when (Queries.ID.is_bool i) *) -> 
+          (match Queries.ID.to_bool i with
+          | Some b when b<>tv -> M.write "`Int -> REMOVE"; m(* Dom.remove k m *) (* TODO where to get the key?? *)
+          | _ -> M.write "`Int but NO BOOL!!!"; m)
+      | `Bool b -> M.write "BOOL!!!"; m
+      | _ -> M.write "OTHER RESULT!!!"; m
 
   let body ctx (f:fundec) : Dom.t =
     ctx.local
@@ -171,13 +178,12 @@ struct
     (* let _ = GobConfig.set_bool "dbg.debug" false in *)
     let m = ctx.local in
     let ret dom = [dom, Cil.integer 1, true] in
-    let dummy = ret ctx.local in
     let loc = !Tracing.current_loc in
     let dloc = loc::(callStack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     (* get possible varinfos for a given lval *)
-    let varinfos lval =
-      match lval with (* TODO ignore offset? *)
+    let varinfos lval = (* TODO merge with key_from_lval *)
+      match lval with
         | Var varinfo, offset -> [varinfo, Lval.CilLval.of_ciloffs offset]
         | _ -> (* Mem *)
             let exp = Lval lval in
@@ -204,18 +210,20 @@ struct
             M.debug_each ("GOTO "^Dom.string_of_key var^": "^Dom.string_of_state var m^" -> "^state);
             if may then Dom.may_goto var loc state m else Dom.goto var loc state m
     in
-    let matching m new_a (a,ws,fwd,b,c) =
+    let matching m new_a old_key (a,ws,fwd,b,c) =
       (* If we have come to a wildcard, we match it instantly, but since there is no way of determining a key
-         this only makes sense if fwd is true (TODO wildcard for global). We pass a state replacement as 'new_a',
+         this only makes sense if fwd is true (TODO wildcard for global. TODO use old_key). We pass a state replacement as 'new_a',
          which will be applied in the following checks.
          Multiple forwarding wildcards are not allowed, i.e. new_a must be None, otherwise we end up in a loop. *)
-      if SC.is_wildcard c && fwd && new_a=None then Some (m,fwd,Some (b,a)) (* replace b with a in the following checks *)
+      if SC.is_wildcard c && fwd && new_a=None then Some (m,fwd,Some (b,a),old_key) (* replace b with a in the following checks *)
       else
       (* Assume new_a  *)
       let a = match new_a with
         | Some (x,y) -> if a=x then y else a
         | None -> a
       in
+      (* if we forward, we have to replace the starting state for the following constraints *)
+      let new_a = if fwd then Some (b,a) else None in
       (* TODO how to detect the key?? use "$foo" as key, "foo" as var in constraint and "_" for anything we're not interested in.
           What to do for multiple keys (e.g. $foo, $bar)? -> Only allow one key & one map per spec-file (e.g. only $ as a key) or implement multiple maps? *)
       (* look inside the constraint if there is a key and if yes, return what it corresponds to *)
@@ -306,7 +314,7 @@ struct
       (* do check for each varinfo and return the resulting domain if there has been at least one matching constraint *)
       let new_m,n = List.fold_left check_var (m,0) vars in (* start with original domain and #transitions=0 *)
       if n==0 then None (* no constraint matched the current state *)
-      else Some (new_m,fwd,None) (* return new domain and forwarding info *)
+      else Some (new_m,fwd,new_a,Some key) (* return new domain and forwarding info *)
     in
     (* edges that match the called function name + wildcard transitions, except those for end *)
     let fun_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.fname_is f.vname c || SC.is_wildcard c && fwd && b<>"end") !edges in
@@ -315,11 +323,45 @@ struct
     (* repeat for target node if it is a forwarding edge *)
     (* TODO what should be done if multiple constraints would match? *)
     try
-      let rec check_fwd_loop m new_a = (* TODO cycle detection? *)
-        let new_m,fwd,new_a = List.find_map (matching m new_a) fun_edges in
-        if fwd then check_fwd_loop new_m new_a else new_m
-      in ret (check_fwd_loop m None)
-    with Not_found -> dummy
+      let rec check_fwd_loop m new_a old_key = (* TODO cycle detection? *)
+        let new_m,fwd,new_a,key = List.find_map (matching m new_a old_key) fun_edges in
+        (* List.iter (fun x -> M.write (x^"\n")) (Dom.string_of_map new_m); *)
+        (* M.write ("fwd: "^dump fwd^", new_a: "^dump new_a^", old_key: "^dump old_key); *)
+        if fwd then check_fwd_loop new_m new_a key else new_m,key
+      in
+      (* now we get the new domain and the latest key that was used *)
+      let new_m,key = check_fwd_loop m None None in
+      (* List.iter (fun x -> M.write (x^"\n")) (Dom.string_of_map new_m); *)
+      (* next we have to check if there is a branch() transition we could take *)
+      let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c) !edges in
+      (* just for the compiler: key is initialized with None, but changes once some constaint matches. If none match, we wouldn't be here but at catch Not_found. *)
+      match key with
+      | Some key ->
+        (* we need to pass the key to the branch function. There is no scheme for getting the key from the constraint, but we should have been forwarded and can use the old key. *)
+        let check_branch branches var =
+          (* only keep those branch_edges for which our key might be in the right state *)
+          let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> Dom.may_in_state var a new_m) branch_edges in
+          (* M.write ((Dom.string_of_entry var new_m)^" -> branch_edges: "^(String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges)); *)
+          (* count should be a multiple of 2 (true/false), otherwise the spec is malformed *)
+          if List.length branch_edges mod 2 <> 0 then failwith "Spec is malformed: branch-transitions always need a true and a false case!" else
+          (* if nothing matches, just return new_m without branching *)
+          if List.is_empty branch_edges then Set.of_list (ret new_m) else
+          (* unique set of (dom,exp,tv) used in branch *)
+          let do_branch branches (a,ws,fwd,b,c) =
+            let c_str = match SC.branch_exp c with Some exp -> SC.exp_to_string exp | _ -> "" in
+            let c_str = Str.global_replace (Str.regexp_string "$key") "%e:key" c_str in (* TODO what should be used to specify the key? *)
+            let c_exp = Formatcil.cExp c_str [("key", Fe (Dom.K.to_exp var))] in (* use Fl for Lval instead? *)
+            (* TODO encode key in exp somehow *)
+            (* ignore(printf "BRANCH %a\n" d_plainexp c_exp); *)
+            Set.add (new_m,c_exp,true) (Set.add (new_m,c_exp,false) branches)
+          in
+          List.fold_left do_branch branches branch_edges
+        in
+        let vars = varinfos key in
+        let new_set = List.fold_left check_branch Set.empty vars in
+        List.of_enum (Set.enum new_set)
+      | None -> ret new_m
+    with Not_found -> ret m (* nothing matched -> no change *)
 
 
   let startstate v = Dom.bot ()
