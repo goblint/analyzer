@@ -133,9 +133,10 @@ struct
     let stable = HM.create 1024 in
     let infl   = HM.create 1024 in
     let set    = HM.create 1024 in
+    let wpoint = HM.create 1024 in
     let work   = ref H.empty    in
         
-    let _ =     List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update set x (P.single x)) st in
+    let _ = List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update set x (P.single x)) st in
     let _ = work := H.merge (H.from_list list) !work in 
     let _ = List.iter (fun x -> L.add infl x x) list in 
     
@@ -153,24 +154,41 @@ struct
             d
     in 
     
+    let just_join x xk = 
+      List.for_all (fun x -> X.get_key x >= xk) @@ L.sub infl x
+    in
+                        
+    let box' x xk y z = if just_join x xk then D.join y z else box x y z in
+    
     let restart x = 
-      let s = HM.create 0 in
-        let (sk,_) = X.get_index x in
-        let rec handle_one x =
-          if HM.mem s x then () else
-          let _ = HM.add s x () in
-          let (k,_) = X.get_index x in
-          let _ = if k < sk then X.set_value x (D.bot ()); work := H.insert !work x in
-          List.iter handle_one @@ try HM.find infl x with Not_found -> []
-        in 
-        handle_one x 
+      let (sk,_) = X.get_index x in
+      let rec handle_one x =
+        let (k,_) = X.get_index x in
+        let _ = work := H.insert !work x in
+        let _ = P.rem_item stable x in
+        if k >= sk then () else
+        let _ = X.set_value x (D.bot ()) in
+        (*ignore @@ Pretty.printf "  also restarting %d: %a\n" k S.Var.pretty_trace x;*)
+        let w = L.sub infl x in
+        let _ = L.rem_item infl x in
+        (*let _ = L.add infl x x in *)
+        List.iter handle_one w 
+      in 
+      ignore @@ Pretty.printf "restarting %d: %a\n" sk S.Var.pretty_trace x;
+      let w = L.sub infl x in
+      let _ = L.rem_item infl x in
+      let _ = L.add infl x x in 
+      List.iter handle_one w 
     in 
     
-    let rec eval x y =
-      let (i,nonfresh) = X.get_index y in
-      let _ = if nonfresh then () else solve y in
-      let _ = L.add infl y x in
-      X.get_value y
+    let rec eval x =
+      let (xi,_) = X.get_index x in
+      fun y ->
+        let (i,nonfresh) = X.get_index y in
+        let _ = if i<=xi then HM.replace wpoint x () in
+        let _ = if nonfresh then () else solve y in
+        let _ = L.add infl y x in
+        X.get_value y
                     
     and side x y d = 
       let _ = 
@@ -206,8 +224,8 @@ struct
         let _ = P.insert stable x in
         let old = X.get_value x in
         let tmp = do_side x (eq x (eval x) (side x)) in 
-        let rstrt = RES.value && D.leq old tmp && (not @@ D.equal old tmp) in
-        let tmp = box x old tmp in
+        let rstrt = RES.value && D.leq tmp old in
+        let tmp = if true || HM.mem wpoint x then box' x (X.get_key x) old tmp else tmp in
         if D.eq tmp old then 
           loop (X.get_key x)
         else begin 
@@ -259,4 +277,4 @@ let _ =
   let module M = GlobSolverFromEqSolver(MakeBoxSolver (PropFalse)) in
   Selector.add_solver ("slr+", (module M : GenericGlobSolver));
   let module M1 = GlobSolverFromEqSolver(MakeBoxSolver (PropTrue)) in
-  Selector.add_solver ("restart", (module M : GenericGlobSolver))
+  Selector.add_solver ("restart", (module M1 : GenericGlobSolver))

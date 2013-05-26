@@ -483,13 +483,14 @@ struct
   let gh_find_default h k d = try GH.find h k with Not_found -> d
 
   module IneqSys = IneqConstrSysFromGlobConstrSys (S)
-  module EqSys = Generic.NormalSysConverter (IneqSys)
+  module EqSys = Generic.SimpleSysConverter (IneqSys)
   
   module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
   module Sol' = Sol (EqSys) (VH)
 
   let getL = function
     | `Left x -> x
+    | `Right _ -> S.D.bot ()
     | _ -> undefined ()
 
   let getR = function
@@ -504,8 +505,8 @@ struct
     let l' = LH.create 113 in
     let g' = GH.create 113 in
     let split_vars = function
-      | (`L x,_) -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
-      | (`G x,_) -> fun y -> GH.replace g' x (getR y)
+      | (`L x(*,_*)) -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
+      | (`G x(*,_*)) -> fun y -> GH.replace g' x (getR y)
     in
     VH.iter split_vars hm;
     (l', g')
