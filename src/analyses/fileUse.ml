@@ -148,7 +148,7 @@ struct
     let m = ctx.local in
     let ret dom = [dom, Cil.integer 1, true] in
     let ret_branch_err lval dom =
-      (* TODO type? NULL = 0 = 0-ptr? Cil.intType, Cil.intPtrType, Cil.voidPtrType *)
+      (* type? NULL = 0 = 0-ptr? Cil.intType, Cil.intPtrType, Cil.voidPtrType *)
       (* no difference *)
       (* let f tv = dom, Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.mkCast (Cil.integer 0) Cil.intPtrType, Cil.intType), tv *)
       let f tv = dom, Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType), tv

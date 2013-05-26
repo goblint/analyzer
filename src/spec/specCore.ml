@@ -113,7 +113,7 @@ let to_dot_graph defs =
     | Edge(a, ws, fwd, b, s) ->
       let style = if fwd then "style=dotted, " else "" in
       let ws = if List.is_empty ws then "" else (String.concat "," ws)^";\n" in
-      a^" -> "^b^"\t["^style^"label=\""^ws^String.escaped (stmt_to_string s)^"\"];" (* TODO ws fwd *)
+      a^" -> "^b^"\t["^style^"label=\""^ws^String.escaped (stmt_to_string s)^"\"];"
   in
   let ends,defs = List.partition (function Edge (a,ws,fwd,b,s) -> b="end" && s.exp=Exp_ | _ -> false) defs in
   let endstates = List.filter_map (function Edge (a,ws,fwd,b,s) -> Some a | _ -> None) ends in

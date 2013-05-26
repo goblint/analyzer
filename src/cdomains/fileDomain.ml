@@ -54,7 +54,6 @@ struct
   let vnames x = String.concat ", " (List.map (fun x -> x.var.vname) (recordsList x))
 
   let equal = Util.equals
-  (* let leq x y = true *)
   (* let leq x y = equal y (join x y) *)
   let leq x y = Set.subset (records x) (records y)
   let hash = Hashtbl.hash

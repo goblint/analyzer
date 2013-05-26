@@ -32,7 +32,6 @@ struct
   let toString = function
     | Must x -> "Must "^(toStringRecord x)
     | May xs -> "May "^(String.concat ", " (List.map toStringRecord (List.of_enum (Set.enum xs))))
-    (* IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs *)
 
   let short i x = toString x
 
@@ -97,61 +96,5 @@ struct
     | Must x -> x.state
     | xs -> "["^String.concat ", " (List.map (fun x -> x.state) (V.recordsList xs))^"]"
   let string_of_key k = K.short 80 k
-
-(*   (* domain specific *)
-  let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then Set.exists p xs else Set.for_all p xs && Set.cardinal xs > 1
-  let filterMap ?may:(may=false) p m = filter (fun k v -> predicate ~may:may v p) m (* this is OCaml's Map.filter which corresponds to BatMap.filteri *)
-  let filterValues ?may:(may=false) p m = List.concat (
-    List.map (fun (k,v) -> List.filter p (V.recordsList v)) (* can't use BatMap.values *)
-    (M.bindings (filterMap ~may:may p m)))
-  let filterRecords var p m = if mem var m then let v = find var m in List.filter p (V.recordsList v) else []
-
-  let checkMay var p m = if mem var m then let v = find var m in (predicate v p, predicate ~may:true v p) else (false, false)
-  (* not used anymore -> remove? *)
-  let check var p m = if mem var m then predicate (find var m) p else false
-  let opened var m = check var (fun x -> x.state <> Close) m
-  let closed var m = check var (fun x -> x.state = Close) m
-  let writable var m = check var (fun x -> match x.state with Open((_,Write)) -> true | _ -> false) m
-
-  (* returns a tuple (thunk, result) *)
-  let report_ ?neg:(neg=false) var p msg m =
-    let f ?may:(may=false) s =
-      let f () = Messages.report (if may then ("might be "^s) else s) in
-      if may then f, `May true else f, `Must true in
-    let mf = (fun () -> ()), `Must false in
-    if mem var m then
-      let v = find var m in
-      let p = if neg then not % p else p in
-      match v with
-        | Must x -> if p x then f msg else mf
-        | May xs -> if Set.for_all p xs && Set.cardinal xs > 1 then f msg
-                    else if Set.exists p xs then f ~may:true msg
-                    else mf
-    else if neg then f msg else mf
-
-  let report ?neg:(neg=false) var p msg m = (fst (report_ ~neg:neg var p msg m)) () (* evaluate thunk *)
-
-  let reports m var xs =
-    let uncurry (neg, p, msg) = report_ ~neg:neg var p msg m in
-    let f result x = if snd (uncurry x) = result then Some (fst (uncurry x)) else None in
-    let must_true = BatList.filter_map (f (`Must true)) xs in
-    let may_true  = BatList.filter_map (f (`May true)) xs in
-    (* output first must and first may *)
-    if List.length must_true > 0 then (List.hd must_true) ();
-    if List.length may_true  > 0 then (List.hd may_true) ()
-
-  let addMay var v m = let x = match findOption var m with
-      (* if the May-Set only contains one record, the pointer is considered unsafe and the record is joined with the new record *)
-      | Some(May(xs) as a) when Set.cardinal xs = 1 -> V.join a v
-      (* otherwise the record for var just gets replaced *)
-      | _ -> v
-    in add var x m
-
-  let fopen var loc filename mode m =
-    let mode = match String.lowercase mode with "r" -> Read | _ -> Write in
-    addMay var (Must(V.create var loc (Open(filename, mode)))) m
-  let fclose var loc m = addMay var (Must(V.create var loc Close)) m
-
-  let may var m = add var (V.may (find var m)) m *)
 
 end

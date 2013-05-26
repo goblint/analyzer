@@ -159,10 +159,13 @@ struct
 (*
 .spec-format:
 - The file contains two types of definitions: nodes and edges. The labels of nodes are output. The labels of edges are the constraints.
+- The given nodes are warnings, which have an implicit back edge to the previous node if used as a target.
+- Alternatively warnings can be specified like this: "node1 -w1,w2,w3> node2 ...1" (w1, w2 and w3 will be output when the transition is taken).
 - The start node of the first transition is the start node of the automaton.
-- Nodes starting with 'w' are warnings, which have an implicit back edge to the previous node.
-- Nodes starting with 'f'/'e' (fail/error/exit/end?) are end nodes.
-- An edge with '$_' matches everything and forwards it to the target node.
+- End nodes are specified by "node -> end _".
+- "_end" is the local warning for nodes that are not in an end state, _END is the warning at return ($ is the list of keys).
+- An edge with '_' matches everything.
+- Edges with "->>" (or "-w1,w2>>" etc.) are forwarding edges, which will continue matching the same statement for the target node.
 *)
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     (* let _ = GobConfig.set_bool "dbg.debug" false in *)
@@ -317,27 +320,7 @@ struct
         if fwd then check_fwd_loop new_m new_a else new_m
       in ret (check_fwd_loop m None)
     with Not_found -> dummy
-(*     match lval, f.vname, arglist with
-      | None, "fopen", _ ->
-          M.report "file handle is not saved!"; dummy
-      | Some lval, "fopen", _ ->
-          let f m varinfo =
-            (match arglist with
-              | Const(CStr(filename))::Const(CStr(mode))::[] ->
-                  Dom.fopen varinfo dloc filename mode m
-              | e::Const(CStr(mode))::[] ->
-                  (* ignore(printf "CIL: %a\n" d_plainexp e); *)
-                  (match ctx.ask (Queries.EvalStr e) with
-                    | `Str filename -> Dom.fopen varinfo dloc filename mode m
-                    | _ -> M.report "no result from query"; m
-                  )
-              | xs ->
-                  M.report (String.concat ", " (List.map (fun x -> Pretty.sprint 80 (d_exp () x)) xs));
-                  List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs;
-                  M.report "fopen needs two strings as arguments"; m
-            )
-          in ret_all f lval
-      | _ -> dummy *)
+
 
   let startstate v = Dom.bot ()
   let otherstate v = Dom.bot ()
