@@ -30,7 +30,7 @@ let is_wildcard stmt = stmt.exp = Exp_
 
 let branch_exp stmt =
   match stmt.exp with
-  | Fun { fname="branch"; args=[exp; Bool tv] } -> Some exp
+  | Fun { fname="branch"; args=[exp; Bool tv] } -> Some (exp,tv)
   | _ -> None
 
 let is_branch stmt = branch_exp stmt <> None

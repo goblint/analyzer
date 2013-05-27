@@ -44,6 +44,10 @@ struct
   let create v l s = { var=v; loc=l; state=s }
   let map f = function Must x -> Must (f x) | May xs -> May (Set.map f xs)
   let rebind x var = map (fun x -> {x with var=var}) x
+  let change_state x state = map (fun x -> {x with state=state}) x
+  (* transforms May-Sets of length 1 to Must. NOTE: this should only be done if the original set had more than one element! *)
+  let maybe_must = function May xs when Set.cardinal xs = 1 -> Must (Set.choose xs) | x -> x
+  let remove_state x state = match x with May xs -> maybe_must @@ May (Set.filter (fun x -> x.state<>state) xs) | x -> x
   let may = function Must x -> May (Set.singleton x) | xs -> xs (* TODO diff. semantic of May with one elem. and more elem.! *)
   let records = function Must x -> (Set.singleton x) | May xs -> xs
   let recordsList = function Must x -> [x] | May xs -> List.of_enum (Set.enum xs)
@@ -92,6 +96,7 @@ struct
   let must k p m = mem k m && let xs = V.records (find k m) in Set.for_all p xs && not (is_may k m && Set.cardinal xs = 1) (* TODO semantics of May with length 1? *)
   let in_state k state m = must k (fun x -> x.state = state) m
   let may_in_state k state m = may k (fun x -> x.state = state) m
+  let get_states k m = if not (mem k m) then [] else List.map (fun x -> x.state) (V.recordsList (find k m))
   let string_of_state k m = if not (mem k m) then "?" else match find k m with
     | Must x -> x.state
     | xs -> "["^String.concat ", " (List.map (fun x -> x.state) (V.recordsList xs))^"]"

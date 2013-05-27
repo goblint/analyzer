@@ -5,8 +5,10 @@ int main(){
 	// no errors
 	FILE *fp;
 	fp = fopen("test.txt", "a");
-	fprintf(fp, "Testing...\n");
-	fclose(fp);
+	if(fp!=0) {
+		fprintf(fp, "Testing...\n");
+		fclose(fp);
+	}
 
 	// missing fopen -> compiles, but leads to Segmentation fault
 	FILE *fp2;
