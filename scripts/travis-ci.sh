@@ -70,7 +70,7 @@ if hash cilly 2>/dev/null; then
 else
    git clone git://cil.git.sourceforge.net/gitroot/cil/cil
    pushd cil
-   ./configure && make && sudo -E make install
+   ./configure && make && sudo -E bash -c 'make install'
    popd
    rm -rf cil
 fi
