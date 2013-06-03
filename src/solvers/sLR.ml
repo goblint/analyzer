@@ -78,7 +78,7 @@ struct
     module HeapCompare = 
     struct
       type t = S.Var.t
-      let compare x y = Pervasives.compare (X.get_key x) (X.get_key y)
+      let compare x y = Int.compare (X.get_key x) (X.get_key y)
     end
   
     include Heap.Make (HeapCompare)
