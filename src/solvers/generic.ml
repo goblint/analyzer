@@ -64,8 +64,7 @@ struct
   module Var = ExtendInt (S.Var)
   module Dom = S.Dom
   
-  let box (x,n) =
-    if n=(-1) && 1<List.length (S.system x) then S.box x else Dom.join
+  let box (x,n) = S.box x
 
   let conv x = (x,-1)
     

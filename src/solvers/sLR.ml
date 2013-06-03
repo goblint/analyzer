@@ -155,11 +155,8 @@ struct
             d
     in 
     
-    let just_join x xk = 
-      List.for_all (fun x -> X.get_key x >= xk) @@ L.sub infl x
-    in
-                        
-    let box' x xk y z = if just_join x xk then D.join y z else box x y z in
+    (*let box' x xk y z = D.widen y (D.join y z) in*)
+    let box' x xk y z = box x y z  in
     
     let restart x = 
       let (sk,_) = X.get_index x in
@@ -268,6 +265,7 @@ struct
     in 
     
     let _ = loop () in 
+    (*ignore (Printf.printf "# vars = %d\n\n" (HM.length X.vals));*)
     X.to_list ()
 
 end
