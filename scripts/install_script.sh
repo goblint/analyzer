@@ -6,26 +6,47 @@
 BINDIR=`pwd`/usr_tmp
 export PATH=$BINDIR/bin:$PATH
 
+if [ -d scripts ]; then 
+  echo "Existing Goblint installation detected!"
+  echo "This is a stand-alone install script. Please run in an empty directory."
+  exit 1
+fi
+
 echo "Fetching..."
-git clone git://github.com/goblint/analyzer.git || exit 1
-git clone git://github.com/goblint/bench.git
-git clone git://cil.git.sourceforge.net/gitroot/cil/cil
-mkdir archives && cd archives
-wget http://caml.inria.fr/pub/distrib/ocaml-4.00/ocaml-4.00.1.tar.gz
-wget http://download.camlcity.org/download/findlib-1.3.3.tar.gz
-wget http://prdownloads.sourceforge.net/camomile/camomile-0.8.3.tar.bz2
-wget http://forge.ocamlcore.org/frs/download.php/1096/batteries-2.0.tar.gz
-wget http://tech.motion-twin.com/zip/xml-light-2.2.zip
+if [ -d analyzer ]; then
+  cd analyzer && git pull && cd .. || exit 1
+else
+  git clone git://github.com/goblint/analyzer.git || exit 1
+fi 
+if [ -d bench ]; then
+  cd bench && git pull && cd .. || exit 1
+else
+  git clone git://github.com/goblint/bench.git || exit 1
+fi
+if [ -d cil ]; then
+  cd cil && git pull && cd .. || exit 1
+else
+  git clone git://cil.git.sourceforge.net/gitroot/cil/cil || exit 1
+fi
+
+mkdir -p archives
+cd archives
+wget -c http://caml.inria.fr/pub/distrib/ocaml-4.00/ocaml-4.00.1.tar.gz || exit 1
+wget -c http://download.camlcity.org/download/findlib-1.3.3.tar.gz || exit 1
+wget -c http://prdownloads.sourceforge.net/camomile/camomile-0.8.3.tar.bz2 || exit 1
+wget -c http://forge.ocamlcore.org/frs/download.php/1096/batteries-2.0.tar.gz || exit 1
+wget -c http://tech.motion-twin.com/zip/xml-light-2.2.zip || exit 1
 cd ..
 echo "================================================================================"
 
 echo "Extracting..."
-mkdir dependencies && cd dependencies
-tar xzf ../archives/ocaml-4.00.1.tar.gz || exit 1
-tar xzf ../archives/findlib-1.3.3.tar.gz || exit 1
-tar xjf ../archives/camomile-0.8.3.tar.bz2 || exit 1
-tar xzf ../archives/batteries-2.0.tar.gz || exit 1
-unzip -q ../archives/xml-light-2.2.zip || exit 1
+mkdir -p dependencies
+cd dependencies
+tar xzfk ../archives/ocaml-4.00.1.tar.gz || exit 1
+tar xzfk ../archives/findlib-1.3.3.tar.gz || exit 1
+tar xjfk ../archives/camomile-0.8.3.tar.bz2 || exit 1
+tar xzfk ../archives/batteries-2.0.tar.gz || exit 1
+unzip -qn ../archives/xml-light-2.2.zip || exit 1
 echo "================================================================================"
 
 echo "Installing Ocaml 4.00.1"
@@ -75,4 +96,7 @@ echo "Building Goblint!!!"
 cd analyzer
 make || exit 1
 ./scripts/update_suite.rb
+echo "================================================================================"
+echo "If you need to recompile, add usr_tmp to PATH:"
+echo "   echo 'export PATH=$BINDIR/bin:\$PATH' >> ~/.bashrc"
 echo "================================================================================"
