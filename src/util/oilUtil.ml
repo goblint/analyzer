@@ -23,7 +23,6 @@ let osek_ISR_PRIORITY = ref ["PRIORITY"; "INTERRUPTPRIORITY"]
 let osek_API_funs = ["ActivateTask"; "TerminateTask"; "ChainTask"; "Schedule"; "GetTaskID"; "GetTaskState"; "DisableAllInterrupts"; "EnableAllInterrupts"; "SuspendAllInterrupts"; "ResumeAllInterrupts"; "SuspendOSInterrupts"; "ResumeOSInterrupts"; "GetResource"; "ReleaseResource"; "SetEvent"; "GetEvent"; "ClearEvent"; "WaitEvent"; "GetAlarmBase"; "GetAlarm"; "SetRelAlarm"; "SetAbsAlarm"; "CancelAlarm"; "GetActiveApplicationMode"; "StartOS"; "ShutdownOS"]
 
 (* boolean flags *)
-let default_defs = ref true
 let startuphook = ref false
 let shutdownhook = ref false
 let errorhook = ref false
@@ -115,7 +114,7 @@ let generate_header () =
     Hashtbl.iter print_isrs isrs;
     Hashtbl.iter print_alarms alarms;
     output_string f "#endif\n";
-    if !default_defs then begin
+    if (get_bool "ana.osek.def_header") then begin
       output_string f "#ifndef E_OK\n";
       output_string f "#define E_OK 0\n";
       output_string f "#endif\n";
