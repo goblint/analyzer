@@ -80,7 +80,7 @@ let _ =
   reg Analyses "ana.activated" "[['base','escape','mutex']]"  "Lists of activated analyses, split into phases.";
 
   reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses";
-  reg Analyses "ana.ctx_insens" "['OSEK2','OSEK3','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses";
+  reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses";
   
   reg Analyses "ana.warnings"        "false" "Print soundness warnings.";
   reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class.";
@@ -120,7 +120,7 @@ let _ =
   reg Experimental "exp.full-context"      "false" "Do not side-effect function entries.";
   reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts.";
   reg Experimental "exp.no-int-context"    "false" "Ignore integer values in function contexts.";
-  reg Experimental "exp.new_fwk"           "false" "Use the new framework.";
+  reg Experimental "exp.new_fwk"           "true"  "Use the new framework.";
   reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails.";
   reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top";
   reg Experimental "exp.need"              "false" "Bidirectional analysis";
@@ -146,3 +146,61 @@ let _ =
   reg Debugging "dbg.debug-sockets"   "null"  "Eclipse debugger plugin support.";
   reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
   
+
+  
+let default_schema =
+"
+{ 'id'              : 'root'
+, 'type'            : 'object'
+, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'solver', 'allfuns', 'nonstatic']
+, 'additionalProps' : false
+, 'properties' : 
+  { 'ana' : 
+    { 'type'            : 'object'
+    , 'additionalProps' : true
+    , 'required'        : []
+    }
+  , 'exp' : 
+    { 'type'            : 'object'
+    , 'additionalProps' : true
+    , 'required'        : []
+    }
+  , 'dbg' : 
+    { 'type'            : 'object'
+    , 'additionalProps' : true
+    , 'required'        : []
+    }
+  , 'outfile'         : {}
+  , 'includes'        : {}
+  , 'kernel_includes' : {}
+  , 'custom_includes' : {}
+  , 'custom_incl'     : {}
+  , 'custom_libc'     : {}
+  , 'justcil'         : {}
+  , 'justcfg'         : {}
+  , 'dopartial'       : {}
+  , 'printstats'      : {}
+  , 'gccwarn'         : {}
+  , 'noverify'        : {}
+  , 'mainfun'         : {}
+  , 'exitfun'         : {}
+  , 'otherfun'        : {}
+  , 'allglobs'        : {}
+  , 'keepcpp'         : {}
+  , 'merge-conflicts' : {}
+  , 'cppflags'        : {}
+  , 'kernel'          : {}
+  , 'dump_globs'      : {}
+  , 'result'          : 
+    { 'type'            : 'string'
+    }
+  , 'solver'          : {}
+  , 'allfuns'         : {}
+  , 'nonstatic'       : {}
+  }
+}"
+
+
+let _ = 
+  let v = JsonParser.value JsonLexer.token @@ Lexing.from_string default_schema in
+  GobConfig.addenum_sch v

@@ -20,9 +20,6 @@ doclist.odocl
 autom4te.cache
 mytests
 result/*
-
-tests/regression/14-osek/goblint.h
-
-tests/regression/16-relinv/goblint.h
-
+tests/regression/14-osek/osek_goblint.h
+tests/regression/16-relinv/osek_goblint.h
 tests/regression/16-relinv/flags.json

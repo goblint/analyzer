@@ -9,9 +9,9 @@ sig
   val switch: t -> t -> bool
 end
 
-module Trivial = struct 
+module Trivial = struct
   module TrivialNames = struct
-    let truename = "Multithreaded" 
+    let truename = "Multithreaded"
     let falsename = "Singlethreaded"
   end
   include IntDomain.MakeBooleans (TrivialNames)
@@ -50,26 +50,45 @@ end
 module Thread = struct
   module NoCreationSite = struct let name = "Starting Thread" end
   module CreationSite = Printable.Option (Basetype.ProgLines) (NoCreationSite)
-  include Printable.Prod (CreationSite) (Basetype.Variables)
+  include Printable.ProdSimple (CreationSite) (Basetype.Variables)
   let start_thread v: t = `Right (), v
+  let spawn_thread l v: t = `Left l, v
+
+  let short w (cs,v) = 
+    let vn = Basetype.Variables.short w v in
+    match cs with
+      | `Left l ->  vn ^ "@" ^ Basetype.ProgLines.short w l
+      | `Right () -> vn
+
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
 end
 
 (** The basic thread domain that distinguishes singlthreaded mode, a single
   * thread ID, and otherwise goes to top. *)
 module SimpleThreadDomain = struct
   module ThreadLiftNames = struct
-    let bot_name = "Bot Threads" 
+    let bot_name = "Bot Threads"
     let top_name = "Top Threads"
   end
   module Lifted = Lattice.Flat (Thread) (ThreadLiftNames)
-  include Lattice.Prod (Simple) (Lifted)
+  include Lattice.ProdSimple (Simple) (Lifted)
   let is_multi (x,_) = x > 0
   let is_bad   (x,_) = x > 1
   let get_multi () = (2, Lifted.top ())
   let get_main  () = (1, Lifted.top ())
   let get_single () = (0, Lifted.top ())
+  let spawn_thread l v = (2, `Lifted (Thread.spawn_thread l v))
   let start_single v : t = (0, `Lifted (Thread.start_thread v))
+  let start_main   v : t = (2, `Lifted (Thread.start_thread v))
+  let start_multi  v : t = (2, `Lifted (Thread.start_thread v))
   let switch (x,z) (y,_) = (Simple.switch x y, z)
+
+  let short w (x,y) = 
+    let tid = Lifted.short w y in
+      if x > 1 then tid else tid ^ "!"
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
 end
 
 
@@ -78,13 +97,13 @@ end
 module ThreadState = struct
   module ThreadCJState = struct
     module ThreadCJNames = struct
-      let truename = "created" 
+      let truename = "created"
       let falsename = "joined"
     end
     include IntDomain.MakeBooleans (ThreadCJNames)
   end
   module ThreadLiftNames = struct
-    let bot_name = "zero" 
+    let bot_name = "zero"
     let top_name = "many"
   end
   include Lattice.Flat (ThreadCJState) (ThreadLiftNames)
@@ -98,32 +117,32 @@ module Variables = MapDomain.StripClasses (Basetype.Variables)
 (** Single vector-like domain (tid -> state) for thread states. *)
 module ThreadVector = struct
   include MapDomain.MapBot (Variables) (ThreadState)
-  
+
   let zero = ThreadState.bot()
   let many_many = ThreadState.top()
-  
+
   let created = `Lifted true
   let joined = `Lifted false
-  
+
   (** Helper method for thread creation. Used by
       the transfer function for creation edges. *)
   let create_thread v t =
     let o = (find t v) in
     let n = if o == zero then created else many_many in
     add t n (remove t v)
-    
+
   (** Helper method for thread join. Used by
-      the transfer function for join edges. *)    
+      the transfer function for join edges. *)
   let join_thread v t =
     let o = (find t v) in
     let n = if o == created then joined else many_many in
     add t n (remove t v)
-  
+
   (** Returns whether the given thread has been
-      created in this lattice value. *)  
+      created in this lattice value. *)
   let is_created v t =
     fold (fun _ value l -> l or value == created) v false
-    
+
 end
 
 (**
@@ -131,21 +150,21 @@ end
   that the thread creates and joins. *)
 module ThreadsVector = struct
   include MapDomain.MapBot (Variables) (ThreadVector)
-  
+
   (** Helper method for thread creation. Used by
       the transfer function for creation edges. *)
   let create_thread v t1 t2 =
     let o = (find t1 v) in
     let n = ThreadVector.create_thread o t2 in
     add t1 n (remove t1 v)
-  
+
   (** Helper method for thread join. Used by
-      the transfer function for join edges. *)  
+      the transfer function for join edges. *)
   let join_thread v t1 t2 =
     let o = (find t1 v) in
     let n = ThreadVector.join_thread o t2 in
     add t1 n (remove t1 v)
-  
+
   (** Returns all threads that create the give thread. *)
   let creators v t =
     fold (fun creator tv creators ->
@@ -184,7 +203,7 @@ module ThreadsVector = struct
     match creating_path_vs v t [] with
       | Some path -> Some (List.rev path)
       | None      -> None
-    
+
   (** Implementation of unique predicate. Tries to find
       the unique creation path from main to this thread and
       returns whether is exists. *)
@@ -197,7 +216,7 @@ module ThreadsVector = struct
       created in the threads vector. *)
   let is_not_created v t =
     None == creating_parent v t
-  
+
   (** Helper method to calculate last common prefix element for the given two list
       and aux element t which is returned in the case that the lists do
       not have common prefix. *)
@@ -206,12 +225,12 @@ module ThreadsVector = struct
     else if l2 == [] then t
     else if List.hd l1 == List.hd l2 then lcpe (List.tl l1) (List.tl l2) (List.hd l1)
     else t
-  
+
   (** Helper method to calculate LCA for two paths represented
-      as lists. Assumes that first element of both is main thread. *)  
+      as lists. Assumes that first element of both is main thread. *)
   let lcap l1 l2 =
     lcpe (List.tl l1) (List.tl l2) (List.hd l1)
-    
+
   (** Calculates least common anchestor (LCA) per given two threads and the vector. *)
   let lca v t1 t2 =
     let path1 = creating_path v t1 in
@@ -222,7 +241,7 @@ module ThreadsVector = struct
                        | Some p2 -> lcap p1 p2
                        | None    -> None
                      end
-      | None -> None  
+      | None -> None
 
   (** FIXME stub. Returns true when there is full join path from
       t1 to t2 (t2 is joined with respect to t1). *)
@@ -237,7 +256,7 @@ module ThreadsVector = struct
                   && (
                     (is_join_path v t t1 && is_unique v t2)
                     or (is_join_path v t t2 && is_unique v t1)
-                  ) 
+                  )
       | None   -> false
 
 end
@@ -250,55 +269,55 @@ module ThreadIdSet = SetDomain.Make (Basetype.Variables)
     into the domain value. *)
 module ThreadDomain = struct
   include Lattice.Prod (ThreadIdSet) (ThreadsVector)
-  
+
   (** Entry state for the created thread. *)
   let make_entry d t = (ThreadIdSet.singleton t, snd d)
-  
+
   (** Transfer function. State after creating a thread. *)
   let create_thread d t1 t2 =
     (fst d, ThreadsVector.create_thread (snd d) t1 t2)
- 
-  (** Transfer function. State after joining a thread. *) 
+
+  (** Transfer function. State after joining a thread. *)
   let join_thread d t1 t2 =
     (fst d, ThreadsVector.join_thread (snd d) t1 t2)
-    
-  (** Retrieves the current thread component. *)  
+
+  (** Retrieves the current thread component. *)
   let current_thread d = fst d
-  
+
   (** Returns true if thread t has been created only once. *)
   let is_unique d t = ThreadsVector.is_unique (snd d)
-  
+
   (** Given two domain values representing two program
       points including current thread value, returns whether
       the Case A holds between them. *)
   let is_case_a d1 d2 =
     ThreadsVector.is_not_created (snd d2) (fst d1)
     or ThreadsVector.is_not_created (snd d1) (fst d2)
-  
+
   (** Given two domain values in two program points,
-      returns whether the Case B holds between them. *)  
+      returns whether the Case B holds between them. *)
   let is_case_b d1 d2 =
     ThreadsVector.is_case_b_in_value (snd d1) (fst d1) (fst d2)
     or ThreadsVector.is_case_b_in_value (snd d2) (fst d1) (fst d2)
-  
+
   (** For two program points, check whether the points
-      are non-parallel by checking whether Case A or Case B applies. *)  
+      are non-parallel by checking whether Case A or Case B applies. *)
   let is_non_parallel d1 d2 =
     is_case_a d1 d2
     or is_case_b d1 d2
-  
+
 end
 
-module ThreadStringSet = 
-struct 
+module ThreadStringSet =
+struct
   include SetDomain.ToppedSet (Printable.Strings) (struct let topname = "All Threads" end)
 
-  let toXML_f sf x = 
+  let toXML_f sf x =
     match toXML x with
-      | Xml.Element (node, [text, _], elems) -> 
+      | Xml.Element (node, [text, _], elems) ->
           let summary = "Thread: " ^ sf Goblintutil.summary_length x in
             Xml.Element (node, [text, summary], elems)
       | x -> x
-      
+
   let toXML s  = toXML_f short s
 end

@@ -228,7 +228,7 @@ let _ = print_endline (string_of_bool res) in res*)
   
   let rec get_flags (state :local_state list) : Flags.t =
     match state with 
-    | [] -> Flags.top()
+    | [] -> failwith "get_flags"
     | (`FlagModeDom x)::rest -> x
     | x::rest -> get_flags rest
   (*/flagstuff*)
@@ -247,12 +247,14 @@ let _ = print_endline (string_of_bool res) in res*)
   let offpry_flags (flagstate : Flags.t) (varinfo : Cil.varinfo) : int =
     let var = varinfo.vname in
     if tracing then trace "osek" "Computing flag priority for %s\n" var;
+    
     let helper flag flag_value current = 
       if tracing then trace "osek" "Using flag %s\n" flag.vname;
       let equal,value = match flag_value with
         | (_,equal,Const (CInt64 (value,_,_))) -> equal,value
         | _ -> failwith "This never hapens! osekml157"
       in
+      
       let doit (acc_flagstate,pry) = 
         let acc_equal,acc_value = 
           if Flags.mem flag acc_flagstate then
@@ -267,6 +269,7 @@ let _ = print_endline (string_of_bool res) in res*)
         else
           min_int
       in
+      
       let acc_info : (Flags.t*int) list = if Hashtbl.mem off_pry_with_flag var then 
         Hashtbl.find off_pry_with_flag var
       else begin
@@ -274,6 +277,7 @@ let _ = print_endline (string_of_bool res) in res*)
         []
       end
       in
+      
       let flag_prys = List.map doit acc_info in
       List.fold_left (fun y x -> if x > y then x else y) (current) flag_prys
     in
@@ -303,22 +307,27 @@ let _ = print_endline (string_of_bool res) in res*)
   (* Just adds accesses. It says concrete, but we use it to add verified 
      non-concrete accesses too.*)
   let add_concrete_access ctx fl loc ust (flagstate : Flags.t) (v, o, rv: Cil.varinfo * Offs.t * bool) =
-    if (Base.is_global ctx.ask v) then
-      if not !GU.may_narrow then begin
-        let new_acc = ((loc,fl,rv),ust,o) in
-        let curr : AccValSet.t = try M.Acc.find acc v with _ -> AccValSet.empty in
-        let neww : AccValSet.t = AccValSet.add (new_acc,flagstate) curr in
-        M.Acc.replace acc v neww;
-        accKeys := M.AccKeySet.add v !accKeys;
-        let curr = try Hashtbl.find off_pry_with_flag v.vname with _ -> [] in
-        let pry = offpry [new_acc] in
-        Hashtbl.replace off_pry_with_flag v.vname ((flagstate,pry)::curr)
-      end ;
-      let ls = if rv then Lockset.filter proj2_2 ust else ust in
-      let el = MyParam.effect_fun ls in
-(*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
-(*      let _ = printf "Access to %s with offense priority %a\n" v.vname P.Glob.Val.pretty el in*)
-      ctx.geffect v el
+    if (Base.is_global ctx.ask v) then begin
+      if not (is_task v.vname) then begin
+        if not !GU.may_narrow then begin
+          let new_acc = ((loc,fl,rv),ust,o) in
+          let curr : AccValSet.t = try M.Acc.find acc v with _ -> AccValSet.empty in
+          let neww : AccValSet.t = AccValSet.add (new_acc,flagstate) curr in
+          M.Acc.replace acc v neww;
+          accKeys := M.AccKeySet.add v !accKeys;
+          let curr = try Hashtbl.find off_pry_with_flag v.vname with _ -> [] in
+          let pry = offpry [new_acc] in
+          Hashtbl.replace off_pry_with_flag v.vname ((flagstate,pry)::curr)
+        end ;
+        let ls = if rv then Lockset.filter proj2_2 ust else ust in
+        let el = MyParam.effect_fun ls in
+  (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
+  (*      let _ = printf "Access to %s with offense priority %a\n" v.vname P.Glob.Val.pretty el in*)
+        ctx.geffect v el
+        end else begin
+          if tracing then trace "osek" "Ignoring access to task/isr variable %s\n" v.vname;
+        end
+    end
       
   let add_per_element_access a b c d = 
 (* print_endline "Per element access not supported.";  *)
@@ -339,12 +348,7 @@ let _ = print_endline (string_of_bool res) in res*)
         | _ -> M.unknown_access ()    
 
   let add_accesses ctx (accessed: M.accesses) (flagstate: Flags.t) (ust:Dom.t) = 
-      let fl = 
-        match ctx.ask Queries.SingleThreaded, ctx.ask Queries.CurrentThreadId with
-          | `Int is_sing, _ when Queries.ID.to_bool is_sing = Some true -> Base.Main.Flag.get_single ()
-          | _,`Int x when  Queries.ID.to_int x = Some 1L -> Base.Main.Flag.get_main ()
-          | _ -> Base.Main.Flag.get_multi ()
-      in
+      let fl = Mutex.get_flag ctx.presub in
       if Base.Main.Flag.is_multi fl then
         let loc = !Tracing.current_loc in
         let dispatch ax =
@@ -378,16 +382,19 @@ let _ = print_endline (string_of_bool res) in res*)
     | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
     | Queries.IsPrivate v ->
         let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
-        let off = if !FlagModes.Spec.flag_list = [] then begin
-            match (ctx.global v: Glob.Val.t) with
-              | `Bot -> min_int 
-              | `Lifted i -> Int64.to_int i
-              | `Top -> max_int
-          end else begin
-            let flagstate = get_flags ctx.presub in
-              offpry_flags flagstate v
-          end
-        in `Bool (off <= pry)
+        if pry = min_int then begin `Bool false end else begin
+          let off = 
+  (*         if !FlagModes.Spec.flag_list = [] then begin *)
+              match (ctx.global v: Glob.Val.t) with
+                | `Bot -> min_int 
+                | `Lifted i -> Int64.to_int i
+                | `Top -> max_int
+  (*           end else begin *)
+  (*             let flagstate = get_flags ctx.presub in *)
+  (*               offpry_flags flagstate v *)
+  (*           end *)
+          in `Bool (off <= pry)
+        end
     | _ -> Queries.Result.top ()
 
     
@@ -751,7 +758,7 @@ let _ = print_endline (string_of_bool res) in res*)
 	  let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in  
 	  let flag_str = if !Errormsg.verboseFlag then Pretty.sprint 80 (Flags.pretty () flagstate) else Flags.short 80 flagstate in
           let action = if write then "write" else "read" in
-          let thread = if Base.Main.Flag.is_bad fl then "some thread" else "main thread" in
+          let thread = "\"" ^ Base.Main.Flag.short 80 fl ^ "\"" in
           let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ " and flag state: " ^flag_str in
             (warn,loc) 
         in (*/f*)       
@@ -839,7 +846,7 @@ module ThreadMCP =
   MCP.ConvertToMCPPart
         (Spec)
         (struct let name = "OSEK" 
-                let depends = ["fmode"]
+                let depends = ["base";"fmode"]
                 type lf = Spec.Dom.t
                 let inject_l x = `OSEK x
                 let extract_l x = match x with `OSEK x -> x | _ -> raise MCP.SpecificationConversionError
@@ -850,4 +857,4 @@ module ThreadMCP =
 
 module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "OSEK" (module Spec2 : Spec2)         
+  MCP.register_analysis "OSEK" ~dep:["base";"fmode"] (module Spec2 : Spec2)         

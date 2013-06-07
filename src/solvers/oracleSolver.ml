@@ -723,6 +723,48 @@ struct
     
 end
 
+module SolverTransformer2 =
+  functor (S:Analyses.GlobConstrSys) ->
+  functor (LH:Hash.H with type key=S.LVar.t) ->
+  functor (GH:Hash.H with type key=S.GVar.t) ->
+struct
+  open S
+  module GlobM = Hashtbl.Make (GVar)
+  module Globs = HashMapOracle (GVar) (G)
+  
+  let solve : (LVar.t*D.t) list -> (GVar.t*G.t) list -> LVar.t list -> D.t LH.t * G.t GH.t 
+            = fun sl sg iv -> 
+              
+    let module C = 
+    struct
+      module V = LVar
+      module D = D
+      module O = Globs
+      let initvals = sl
+      let constr (x:V.t) = 
+        let one_rhs rhs (sigma:V.t -> D.t) (side:V.t -> D.t -> unit) (oracle:O.Quest.t -> O.answ) = 
+          let vf x = sigma x in
+          let gf x = match oracle (`Get x) with `Val v -> v | _ -> failwith "1" in
+          let eff_g x v = ignore (oracle (`Set (x,v))) in
+            rhs vf side gf eff_g
+        in
+        List.map one_rhs (system x)
+    end in
+    let module Sol = GenConfSolver (C) (SimplWConf (C))  in
+    Goblintutil.may_narrow := true;
+    let (oh,_), map, _, _, _, _, _ = Sol.solve iv in
+    let gm = GH.create (GlobM.length oh) in
+    let lm = LH.create (GlobM.length oh) in
+    GlobM.iter    (GH.add gm) oh;
+    Sol.VMap.iter (LH.add lm) map;
+    Goblintutil.may_narrow := false;
+    lm, gm
+    
+end
+
+let _ = 
+  Selector.add_solver ("new", (module SolverTransformer2 : Analyses.GenericGlobSolver))
+
 module ClassicalSolver
   (Var: Analyses.VarType) 
   (VDom: Lattice.S) 

@@ -136,3 +136,6 @@ module DeadlockMCP =
                 let extract_g x = match x with `None -> [] | _ -> raise MCP.SpecificationConversionError
          end)
 
+let _ = 
+  let module Spec2 = Constraints.Spec2OfSpec (Spec) in
+  MCP.register_analysis "deadlock" (module Spec2 : Spec2)         

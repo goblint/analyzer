@@ -4,7 +4,7 @@
 
 %token RBRACK LBRACK RCURL LCURL COLON COMMA TRUE FALSE NULL
 %token <string> STRING 
-%token <Big_int.big_int> NUMBER
+%token <Num.num> NUMBER
 
 %start value
 %type <Json.jvalue> value

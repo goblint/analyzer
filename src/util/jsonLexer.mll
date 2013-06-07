@@ -11,8 +11,8 @@ let multlinecomment = "/*"([^'*']|('*'+[^'*''/'])|nl)*'*'+'/'
 let comments = endlinecomment|multlinecomment
 
 rule token = parse
-  | ['\t' '\n' '\r' ' ']    { token lexbuf }	
-  | comments		    { token lexbuf }
+  | ['\t' '\n' '\r' ' '   ] { token lexbuf }	
+  | comments		            { token lexbuf }
   | "true"                  { TRUE   }
   | "false"                 { FALSE  }
   | "null"                  { NULL   }
@@ -27,7 +27,8 @@ rule token = parse
         let sl  = String.length str in
         STRING (String.sub str 1 (sl-2))
       }
-  | ['0'-'9']*'.'?['0'-'9']*(('e'|'E')('+'|'-')?['0'-'9']+)?
-      { NUMBER (big_int_of_string (Lexing.lexeme lexbuf)) }
+  | ['0'-'9']+'.'?['0'-'9']*(('e'|'E')('+'|'-')?['0'-'9']+)?
+      { NUMBER (Num.num_of_string (Lexing.lexeme lexbuf)) }
+  | _ as c { Printf.printf "Unrecognized character: %C\n" c; raise (Failure "") }
 
   
