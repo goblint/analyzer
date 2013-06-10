@@ -80,7 +80,7 @@ let generate_header () =
     let print_resources id value = if not(is_task id) then output_string f ("int " ^ id ^ ";\n") else () in
     let print_events id value 	 = output_string f ("int " ^ id           ^ ";\n") in
     let print_tasks id value     = output_string f ("int " ^ trim_task id ^ ";\n") in
-    let print_isrs id value      = output_string f ("int " ^ trim_isr id  ^ ";\n") in
+(*     let print_isrs id value      = output_string f ("int " ^ trim_isr id  ^ ";\n") in *)
     let print_alarms id value      = output_string f ("int " ^ id  ^ ";\n") in
     let task_macro () = 
       if (get_string "ana.osek.taskprefix") = "" then
@@ -110,8 +110,18 @@ let generate_header () =
     output_string f "#define goblint\n";
     Hashtbl.iter print_resources resources;
     Hashtbl.iter print_events events;
-    Hashtbl.iter print_tasks tasks;
-    Hashtbl.iter print_isrs isrs;
+    if (get_string "ana.osek.taskprefix") <> "" || (get_string "ana.osek.tasksuffix") <> "" then begin
+      Hashtbl.iter print_tasks tasks;
+    end else begin
+      if tracing then output_string f "//No TASK prefix/suffix. Taskids not generated. ActivateTask might fail.\n";
+      if tracing then trace "osek" "//No TASK prefix/suffix. Taskids not generated. ActivateTask might fail.\n";
+    end;   
+(*    if (get_string "ana.osek.isrprefix") <> "" || (get_string "ana.osek.isrsuffix") <> "" then begin
+      Hashtbl.iter print_isrs isrs;
+    end else begin
+      if tracing then output_string f "//No ISR prefix/suffix. Tasksids not generated. ActivateTask will fail.\n";
+      if tracing then trace "osek" "//No ISR prefix/suffix. Tasksids not generated. ActivateTask will fail.\n";
+    end;   *)
     Hashtbl.iter print_alarms alarms;
     output_string f "#endif\n";
     if (get_bool "ana.osek.def_header") then begin
@@ -497,7 +507,7 @@ let handle_attribute_resource object_name attr =
     ()
 
 let handle_attribute_event object_name attr =
-  let _ = Hashtbl.add events object_name ("-1",false) in
+  let _ = Hashtbl.replace events object_name ("-1",false) in
   let tmp, value = attr in
   let name = String.uppercase tmp in
   match name with
