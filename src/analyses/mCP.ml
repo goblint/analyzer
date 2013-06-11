@@ -1370,6 +1370,18 @@ struct
     let msg (x,_) = failwith ("Analyses have circular dependencies, conflict for "^assoc x !analyses_table^".") in
     let deps (y,_) = map (fun x -> x, assoc x xs) @@ assoc y !dep_list in
     topo_sort deps msg xs
+
+  let check_deps xs = 
+    let check_dep x y =
+      if not (exists (fun (y',_) -> y=y') xs) then begin
+        let xn = assoc x !analyses_table in
+        let yn = assoc y !analyses_table in
+        Legacy.Printf.fprintf !Messages.warn_out "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
+        raise Goblintutil.BailFromMain
+      end
+    in
+    let deps (x,_) = iter (check_dep x) @@ assoc x !dep_list in
+    iter deps xs
     
   let init     () = 
     let map' f = 
@@ -1386,6 +1398,7 @@ struct
       path_sens := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.path_sens";
       cont_inse := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.ctx_insens";
       dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
+      check_deps !analyses_list;
       analyses_list := topo_sort_an !analyses_list;
       (*iter (fun (x,y) -> Printf.printf "%s -> %a\n"  (flip assoc !analyses_table x) (List.print (fun f -> String.print f % flip assoc !analyses_table)) y) !dep_list_trans;
       Printf.printf "\n";
