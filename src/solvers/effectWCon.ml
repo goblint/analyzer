@@ -5,9 +5,6 @@ open Pretty
 
 module GU = Goblintutil
 
-let vars = ref 0
-let evals = ref 0
-
 module Make 
   (Var: Analyses.VarType)  (* the equation variables *)
   (VDom: Lattice.S) (* the domain *)
@@ -79,7 +76,7 @@ struct
           if notnew x then
             let temp = VMap.find todo x in VMap.remove todo x; temp
           else begin
-            vars := !vars + 1;
+            Goblintutil.vars := !Goblintutil.vars + 1;
             if tracing && Var.category x = 3 then trace "sol" "New %a\n" Var.pretty_trace x;
             VMap.add sigma x (VDom.bot ());  (* danger! Adding default value!!! If the datastruct refuses this,  membership test will fail -> inf. loop *)
             fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system x) ([],0))
@@ -90,7 +87,7 @@ struct
       else begin
         let local_state = ref (VDom.bot ()) in 
         let constrainOneRHS (f, i) =
-          evals := !evals + 1;
+          Goblintutil.evals := !Goblintutil.evals + 1;
           (if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)); 
           let doOneGlobalDelta = function
             | `L (v, state) ->

@@ -38,6 +38,7 @@ struct
       try
         HM.find keys x 
       with Not_found -> 
+        incr Goblintutil.vars;
         last_key := !last_key - 1;
         HM.add keys x !last_key;
         !last_key
@@ -45,6 +46,7 @@ struct
     let get_index c = 
       try (HM.find keys c, true) 
       with Not_found -> 
+        incr Goblintutil.vars;
         last_key := !last_key - 1; 
         HM.add keys c !last_key;
         (!last_key, false)
@@ -221,6 +223,7 @@ struct
 
     and solve x = 
       if not (P.has_item stable x) then begin
+        incr Goblintutil.evals;
         let _ = P.insert stable x in
         let old = X.get_value x in
         let tmp = do_side x (eq x (eval x) (side x)) in 
@@ -265,7 +268,6 @@ struct
     in 
     
     let _ = loop () in 
-    (*ignore (Printf.printf "# vars = %d\n\n" (HM.length X.vals));*)
     X.to_list ()
 
 end

@@ -5,9 +5,7 @@ open GobConfig
 open Defaults
 open Printf
 open Json
-
-(** Use this instead of [exit n]. *)
-exception BailFromMain
+open Goblintutil
 
 (** Print version and bail. *)
 let print_version ch = 

@@ -8,6 +8,9 @@ open Json
 open JsonParser
 open JsonLexer
 
+(** Use this instead of [exit n]. *)
+exception BailFromMain
+
 (* MCP adds analysis here ... *)
 let anas : string list ref = ref []
 (* Phase of the analysis *)
@@ -401,3 +404,6 @@ let timeout f arg tsecs timeout_fn =
   Sys.set_signal Sys.sigalrm oldsig;
   res
 
+
+let vars = ref 0
+let evals = ref 0

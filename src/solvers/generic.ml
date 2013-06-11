@@ -95,8 +95,6 @@ struct
   
   module GU = Goblintutil
 
-  let vars = ref 0
-  let evals = ref 0
   let stack_d = ref 0
   let full_trace = false
   let start_c = 0  
@@ -132,7 +130,7 @@ struct
   let stop_event () = ()
   
   let new_var_event x = 
-    vars := !vars + 1;
+    Goblintutil.vars := !Goblintutil.vars + 1;
     if tracing
     then trace "sol" "New %a\n" Var.pretty_trace x
 
@@ -144,7 +142,7 @@ struct
   let eval_rhs_event x = 
     if full_trace
     then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
-    evals := !evals + 1;
+    Goblintutil.evals := !Goblintutil.evals + 1;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
     
   let update_var_event x o n = 

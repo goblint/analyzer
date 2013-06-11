@@ -12,133 +12,138 @@ open Batteries
 module AnalyzeCFG (Cfg:CfgBackward) =
 struct
   
-  (** The specification. *)
-  module Spec : Spec2 = DeadCodeLifter (HashconsLifter (PathSensitive2 (MCP.MCP2)))
-  
-  (** The Equation system *)
-  module EQSys = FromSpec (Spec) (Cfg)
-  
-  (** Hashtbl for locals *)
-  module LHT   = BatHashtbl.Make (EQSys.LVar)
-  (** Hashtbl for globals *)
-  module GHT   = BatHashtbl.Make (EQSys.GVar)
-  
-  (** The solver *)
-  module Slvr  = Selector.Make (EQSys) (LHT) (GHT)
-  (** The verifyer *)
-  module Vrfyr = Verify2 (EQSys) (LHT) (GHT)
-
-  (** Triple of the function, context, and the local value. *)
-  module RT = Analyses.ResultType2 (Spec)
-  (** Set of triples [RT] *)
-  module LT = SetDomain.HeadlessSet (RT)
-  (** Analysis result structure---a hashtable from porgram points to [LT] *)
-  module Result = Analyses.Result (LT) (struct let result_name = Spec.name end)
-  
-  (** convert result that can be out-put *)
-  let solver2source_result h : Result.t =
-    (* processed result *)
-    let res = Result.create 113 in
-      
-    (* Adding the state at each system variable to the final result *)
-    let add_local_var (n,es) state =
-      let loc = MyCFG.getLoc n in
-      if loc <> Cil.locUnknown then try 
-        let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
-        if Result.mem res p then 
-          (* If this source location has been added before, we look it up
-           * and add another node to it information to it. *)
-          let prev = Result.find res p in
-          Result.replace res p (LT.add (es,state,fundec) prev)
-        else 
-          Result.add res p (LT.singleton (es,state,fundec))
-        (* If the function is not defined, and yet has been included to the
-         * analysis result, we generate a warning. *)
-      with Not_found -> Messages.warn ("Undefined function has escaped.")
-    in
-      LHT.iter add_local_var h;
-      res
-  
-
-  (** exctract global xml from result *)
-  let make_global_xml g =
-    let one_glob k v = 
-      let k = Xml.PCData k.Cil.vname in
-      let varname = Xml.Element ("td",[],[k]) in
-      let varvalue = Xml.Element ("td",[],[Spec.G.toXML v]) in
-      Xml.Element ("tr",[],[varname; varvalue])
-    in
-    let head = 
-      Xml.Element ("tr",[],[Xml.Element ("th",[],[Xml.PCData "var"])
-                           ;Xml.Element ("th",[],[Xml.PCData "value"])])
-    in 
-    let collect_globals k v b = one_glob k v :: b in
-      Xml.Element ("table", [], head :: GHT.fold collect_globals g [])
-  
-
-  (** add extern variables to local state *)
-  let do_extern_inits ctx (file : Cil.file) : Spec.D.t =
-    let module VS = Set.Make (Basetype.Variables) in    
-    let add_glob s = function
-        GVar (v,_,_) -> VS.add v s
-      | _            -> s
-    in
-    let vars = Cil.foldGlobals file add_glob VS.empty in
-    let set_bad v st =
-      Spec.assign {ctx with local2 = st} (var v) MyCFG.unknown_exp 
-    in
-    let add_externs s = function
-      | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) -> set_bad v s
-      | _ -> s
-    in    
-    Cil.foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
-
-  (** analyze cil's global-inits function to get a starting state *)
-  let do_global_inits (file: Cil.file) : Spec.D.t * Cil.fundec list = 
-    let ctx = 
-      { ask2     = (fun _ -> Queries.Result.top ())
-      ; local2   = Spec.D.top ()
-      ; global2  = (fun _ -> Spec.G.bot ())
-      ; presub2  = []
-      ; postsub2 = []
-      ; spawn2   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?") 
-      ; split2   = (fun _ -> failwith "Global initializers trying to split paths.")
-      ; sideg2   = (fun _ -> failwith "Global initializers trying to side-effect globals.")
-      } 
-    in  
-    let edges = MyCFG.getGlobalInits file in
-    let funs = ref [] in
-    let transfer_func (st : Spec.D.t) (edge, loc) : Spec.D.t = 
-      try
-        if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
-        Tracing.current_loc := loc;
-        match edge with
-          | MyCFG.Entry func        -> Spec.body {ctx with local2 = st} func
-          | MyCFG.Assign (lval,exp) -> 
-              begin match lval, exp with
-                | (Var v,o), (Cil.AddrOf (Cil.Var f,Cil.NoOffset)) 
-                  when v.Cil.vstorage <> Static && isFunctionType f.vtype -> 
-                  begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end 
-                | _ -> ()
-              end;
-              Spec.assign {ctx with local2 = st} lval exp
-          | _                       -> raise (Failure "This iz impossible!") 
-      with Failure x -> M.warn x; st
-    in
-    let with_externs = do_extern_inits ctx file in
-    let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      result, !funs
-  
-  let print_globals glob = 
-    let out = M.get_out Spec.name !GU.out in
-    let print_one v st =
-      ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v Spec.G.pretty st)
-    in
-      GHT.iter print_one glob
-  
-
   (** The main function to preform the selected analyses. *)
-  let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) = 
+  let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec2) =   
+    (** The Equation system *)
+    let module EQSys = FromSpec (Spec) (Cfg) in
+  
+    (** Hashtbl for locals *)
+    let module LHT   = BatHashtbl.Make (EQSys.LVar) in
+    (** Hashtbl for globals *)
+    let module GHT   = BatHashtbl.Make (EQSys.GVar) in
+  
+    (** The solver *)
+    let module Slvr  = Selector.Make (EQSys) (LHT) (GHT) in
+    (** The verifyer *)
+    let module Vrfyr = Verify2 (EQSys) (LHT) (GHT) in
+
+    (** Triple of the function, context, and the local value. *)
+    let module RT = Analyses.ResultType2 (Spec) in
+    (** Set of triples [RT] *)
+    let module LT = SetDomain.HeadlessSet (RT) in
+    (** Analysis result structure---a hashtable from porgram points to [LT] *)
+    let module Result = Analyses.Result (LT) (struct let result_name = Spec.name end) in
+  
+    (** convert result that can be out-put *)
+    let solver2source_result h : Result.t =
+      (* processed result *)
+      let res = Result.create 113 in
+      
+      (* Adding the state at each system variable to the final result *)
+      let add_local_var (n,es) state =
+        let loc = MyCFG.getLoc n in
+        if loc <> Cil.locUnknown then try 
+          let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
+          if Result.mem res p then 
+            (* If this source location has been added before, we look it up
+             * and add another node to it information to it. *)
+            let prev = Result.find res p in
+            Result.replace res p (LT.add (es,state,fundec) prev)
+          else 
+            Result.add res p (LT.singleton (es,state,fundec))
+          (* If the function is not defined, and yet has been included to the
+           * analysis result, we generate a warning. *)
+        with Not_found -> Messages.warn ("Undefined function has escaped.")
+      in
+        LHT.iter add_local_var h;
+        res
+    in
+
+    (** exctract global xml from result *)
+    let make_global_xml g =
+      let one_glob k v = 
+        let k = Xml.PCData k.Cil.vname in
+        let varname = Xml.Element ("td",[],[k]) in
+        let varvalue = Xml.Element ("td",[],[Spec.G.toXML v]) in
+        Xml.Element ("tr",[],[varname; varvalue])
+      in
+      let head = 
+        Xml.Element ("tr",[],[Xml.Element ("th",[],[Xml.PCData "var"])
+                             ;Xml.Element ("th",[],[Xml.PCData "value"])])
+      in 
+      let collect_globals k v b = one_glob k v :: b in
+        Xml.Element ("table", [], head :: GHT.fold collect_globals g [])
+    in  
+
+    (** add extern variables to local state *)
+    let do_extern_inits ctx (file : Cil.file) : Spec.D.t =
+      let module VS = Set.Make (Basetype.Variables) in    
+      let add_glob s = function
+          GVar (v,_,_) -> VS.add v s
+        | _            -> s
+      in
+      let vars = Cil.foldGlobals file add_glob VS.empty in
+      let set_bad v st =
+        Spec.assign {ctx with local2 = st} (var v) MyCFG.unknown_exp 
+      in
+      let add_externs s = function
+        | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) -> set_bad v s
+        | _ -> s
+      in    
+      Cil.foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
+    in
+    
+    (** analyze cil's global-inits function to get a starting state *)
+    let do_global_inits (file: Cil.file) : Spec.D.t * Cil.fundec list = 
+      let ctx = 
+        { ask2     = (fun _ -> Queries.Result.top ())
+        ; local2   = Spec.D.top ()
+        ; global2  = (fun _ -> Spec.G.bot ())
+        ; presub2  = []
+        ; postsub2 = []
+        ; spawn2   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?") 
+        ; split2   = (fun _ -> failwith "Global initializers trying to split paths.")
+        ; sideg2   = (fun _ -> failwith "Global initializers trying to side-effect globals.")
+        } 
+      in  
+      let edges = MyCFG.getGlobalInits file in
+      let funs = ref [] in
+      (*let count = ref 0 in*)
+      let transfer_func (st : Spec.D.t) (edge, loc) : Spec.D.t = 
+        try
+          if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
+          (*incr count;
+          if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
+          Tracing.current_loc := loc;
+          match edge with
+            | MyCFG.Entry func        -> Spec.body {ctx with local2 = st} func
+            | MyCFG.Assign (lval,exp) -> 
+                begin match lval, exp with
+                  | (Var v,o), (Cil.AddrOf (Cil.Var f,Cil.NoOffset)) 
+                    when v.Cil.vstorage <> Static && isFunctionType f.vtype -> 
+                    begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end 
+                  | _ -> ()
+                end;
+                Spec.assign {ctx with local2 = st} lval exp
+            | _                       -> raise (Failure "This iz impossible!") 
+        with Failure x -> M.warn x; st
+      in
+      let with_externs = do_extern_inits ctx file in
+      (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
+      let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
+      if (get_bool "dbg.verbose") then Printf.printf "\nInitialization done.\n";    
+        result, !funs
+    in
+    
+    let print_globals glob = 
+      let out = M.get_out Spec.name !GU.out in
+      let print_one v st =
+        ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v Spec.G.pretty st)
+      in
+        GHT.iter print_one glob
+    in
+
+    (* real beginning of the [analyze] function *)
     let early = (get_bool "exp.earlyglobs") in
     let _ = GU.global_initialization := true in
     let _ = set_bool "exp.earlyglobs" false in
@@ -146,7 +151,7 @@ struct
     
     let startstate, more_funs = 
       if (get_bool "dbg.verbose") then print_endline "Initializing globals.";
-      Stats.time "initializers" do_global_inits file 
+      do_global_inits file 
     in
     
     let otherfuns = if get_bool "kernel" then otherfuns @ more_funs else otherfuns in
@@ -228,7 +233,13 @@ struct
     Spec.finalize ();
     
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
-    Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file;
+    Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file
+  
+  let analyze f sf = 
+    if get_bool "ana.hashcons" then
+      analyze f sf (module (DeadCodeLifter (HashconsLifter (PathSensitive2 (MCP.MCP2)))) : Spec2)
+    else 
+      analyze f sf (module (DeadCodeLifter (PathSensitive2 (MCP.MCP2))) : Spec2)
 end
 
 (** The main function to preform the selected analyses. *)

@@ -150,7 +150,7 @@ let do_stats fileNames =
         end 
       end
     | true, _ ->
-      ignore (Pretty.printf "vars = %d    evals = %d  \n" !EffectWCon.vars !EffectWCon.evals);
+      ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
       flush_all ();
       prerr_endline "Solver stats:";
       prerr_endline ("  globals changed "^string_of_int !Goblintutil.globals_changed^" times");
