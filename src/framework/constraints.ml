@@ -31,6 +31,7 @@ struct
   let otherstate v = D.lift (S.otherstate v)
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
+  let val_of = D.lift % S.val_of % C.unlift
   let context = C.lift % S.context % D.unlift
   let call_descr f = S.call_descr f % D.unlift
 
@@ -98,6 +99,7 @@ struct
   let otherstate v = `Lifted (S.otherstate v)
   let morphstate v d = `Lifted (S.morphstate v (D.unlift d))
 
+  let val_of = D.lift % S.val_of
   let context = S.context % D.unlift
   let call_descr f = S.call_descr f 
 
@@ -154,6 +156,7 @@ struct
   let otherstate = S.otherstate
   let morphstate = S.morphstate
 
+  let val_of = identity
   let context = S.context_top dummyFunDec.svar
   let call_descr = S.es_to_string
   
@@ -269,7 +272,7 @@ struct
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
     let combine (cd, fd) = S.combine {ctx with local2 = cd} lv e f args fd in
     let paths = S.enter ctx lv f args in
-    let _     = List.iter (fun (c,v) -> sidel (FunctionEntry f, S.context v) v) paths in
+    let _     = if not (get_bool "exp.full-context") then List.iter (fun (c,v) -> sidel (FunctionEntry f, S.context v) v) paths in
     let paths = List.map (fun (c,v) -> (c, getl (Function f, S.context v))) paths in
     let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
     let paths = List.map combine paths in
@@ -316,7 +319,11 @@ struct
     let _       = Tracing.current_loc := old_loc in 
       d
   
-  let system (v,c) = List.map (tf (v,c)) (Cfg.prev v)
+  let system (v,c) =
+    match v with
+      | FunctionEntry _ when get_bool "exp.full-context" ->
+          [fun _ _ _ _ -> S.val_of c]
+      | _ -> List.map (tf (v,c)) (Cfg.prev v)
 end
 
 
@@ -617,6 +624,7 @@ struct
   
   let call_descr = S.call_descr 
   
+  let val_of = D.singleton % S.val_of
   let context l =
     if D.cardinal l <> 1 then
       failwith "PathSensitive2.context must be called with a singleton set."

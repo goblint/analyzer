@@ -1418,6 +1418,7 @@ struct
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
+  let val_of = identity
   let context x = 
     let x = filter (fun (x,_) -> not (mem x !cont_inse)) x in
     let x = spec_list x in

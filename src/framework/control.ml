@@ -226,7 +226,8 @@ struct
         print_globals gh  
     in
   
-    if (get_bool "dbg.verbose") then print_endline "Solving the constraint system.";
+    if (get_bool "dbg.verbose") then
+      print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
     Goblintutil.timeout do_analyze () (float_of_int (get_int "dbg.timeout"))
       (fun () -> Messages.waitWhat "Timeout reached!");
   
