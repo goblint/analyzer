@@ -176,7 +176,7 @@ struct
   (*/task resource handling *)
 
   (* flag stuff*)
-  let get_val flag acc : Cil.exp (*const*) = 
+  let get_val flag acc = 
 (* let _ = print_endline (flag.vname ^"A" ^gl.vname) in     *)
     proj3_3 (Flags.find flag (proj2_2 acc))
   let get_eq flag acc : bool = 
@@ -251,16 +251,14 @@ let _ = print_endline (string_of_bool res) in res*)
     let helper flag flag_value current = 
       if tracing then trace "osek" "Using flag %s\n" flag.vname;
       let equal,value = match flag_value with
-        | (_,equal,Const (CInt64 (value,_,_))) -> equal,value
-        | _ -> failwith "This never hapens! osekml157"
+        | (_,equal,value) -> equal,value
       in
       
       let doit (acc_flagstate,pry) = 
         let acc_equal,acc_value = 
           if Flags.mem flag acc_flagstate then
             match Flags.find flag acc_flagstate with
-            | (_,equal,Const (CInt64 (value,_,_))) -> equal,value
-            | _ -> failwith "This never hapens! osekml248"
+            | (_,equal,value) -> equal,value
           else
             (false,0L)
         in

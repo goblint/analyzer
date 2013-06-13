@@ -20,25 +20,35 @@ struct
   
   let init () = flag_list := List.map Json.string @@ get_list "ana.osek.flags"
 
+  let eval_int ask exp = 
+    match ask (Queries.EvalInt exp) with
+      | `Int l -> Some l
+      | _      -> None
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    match lval, constFold false rval with
-    | (Var f,NoOffset), Const ex when List.mem f.vname !flag_list ->
-        Dom.add f (false,true, Const ex) ctx.local
+    match lval, eval_int ctx.ask rval with
+    | (Var f,NoOffset), Some ex when List.mem f.vname !flag_list ->
+        Dom.add f (false,true,ex) ctx.local
     | (Var f,NoOffset), _ ->
         Dom.remove f ctx.local
     | _ -> ctx.local
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+    let var_eq_const b f ex =
+      match eval_int ctx.ask ex with 
+        | Some n -> Dom.add f (true, b, n) ctx.local
+        | _ -> ctx.local
+    in
     match constFold false exp with
       | Lval (Var f, NoOffset) when List.mem f.vname !flag_list  -> 
-          Dom.add f (true,not tv,zero) ctx.local
-      | BinOp(Ne,Const ex,Lval (Var f, NoOffset),_) 
-      | BinOp(Ne,Lval (Var f, NoOffset), Const ex,_) when List.mem f.vname !flag_list -> 
-          Dom.add f (true,not tv, Const ex) ctx.local
-      | BinOp(Eq,Const ex,Lval (Var f, NoOffset),_) 
-      | BinOp(Eq,Lval (Var f, NoOffset), Const ex,_) when List.mem f.vname !flag_list -> 
-          Dom.add f (true,tv,Const ex) ctx.local
+          Dom.add f (true,not tv,0L) ctx.local
+      | BinOp(Ne,ex,Lval (Var f, NoOffset),_) 
+      | BinOp(Ne,Lval (Var f, NoOffset), ex,_) when List.mem f.vname !flag_list -> 
+          var_eq_const (not tv) f ex
+      | BinOp(Eq,ex,Lval (Var f, NoOffset),_) 
+      | BinOp(Eq,Lval (Var f, NoOffset), ex,_) when List.mem f.vname !flag_list -> 
+          var_eq_const tv f ex
       | _ -> ctx.local
   
   let body ctx (f:fundec) : Dom.t = 

@@ -3,8 +3,8 @@ module Method = IntDomain.MakeBooleans (struct let truename="guard" let falsenam
 
 module P = 
 struct 
-  include Lattice.Fake (Printable.Prod3 (Method) (Eq) (Basetype.CilExp))
-  let short w (m,b,e) = Method.short 1 m ^"ed "^ Eq.short 1 b ^ " " ^ Basetype.CilExp.short w e
+  include Lattice.Fake (Printable.Prod3 (Method) (Eq) (IntDomain.FlatPureIntegers))
+  let short w (m,b,e) = Method.short 1 m ^"ed "^ Eq.short 1 b ^ " " ^ IntDomain.FlatPureIntegers.short w e
   let toXML = toXML_f short
 end
 

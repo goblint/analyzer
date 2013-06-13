@@ -1034,7 +1034,8 @@ struct
       | Q.EvalInt e -> begin
             match eval_rv ctx.ask ctx.global ctx.local e with
               | `Int e -> (match ID.to_int e with Some i -> `Int i | _ -> `Top) 
-              | _ -> print_endline (sprint 80 (d_exp () e)); `Top
+              | `Bot   -> `Bot
+              | _      -> `Top
           end
       | Q.MayPointTo e -> begin
           match eval_rv ctx.ask ctx.global ctx.local e with 
