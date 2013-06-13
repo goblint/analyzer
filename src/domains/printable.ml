@@ -17,6 +17,7 @@ sig
    * possibilities. *)
   val pretty_f: (int -> t -> string) -> unit -> t -> doc
   val toXML_f : (int -> t -> string) -> t -> Xml.xml
+  val printXml : 'a BatInnerIO.output -> t -> unit
   (* This is for debugging *)
   val name: unit -> string
 end
@@ -43,6 +44,7 @@ struct
   let toXML_f _ = toXML
   let name () = "blank"
   let pretty_diff () (x,y) = dprintf "Unsupported"
+  let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n" 
 end
 
 module PrintSimple (P: sig 
@@ -62,6 +64,7 @@ struct
   let toXML m = toXML_f P.short m
   let pretty_diff () (x,y) = 
     dprintf "%s: %a not leq %a" (P.name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.short 800 x) 
 end
 
 
@@ -81,6 +84,7 @@ struct
   let name () = "Unit"
   let pretty_diff () (x,y) = 
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.name 
 end
 module Unit = UnitConf (struct let name = "()" end)
 
@@ -117,6 +121,7 @@ struct
   let toXML = toXML_f short 
   let isSimple = lift_f Base.isSimple  
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
+  let printXml f x = Base.printXml f x.BatHashcons.obj
 end
 
 module Lift (Base: S) (N: LiftingNames) =
@@ -165,6 +170,10 @@ struct
   let pretty () x = pretty_f short () x
   let name () = "lifted " ^ Base.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f = function 
+    | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
+    | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
+    | `Lifted x -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted\n</key>\n%a</map>\n</value>\n" Base.printXml x
 end
 
 module Either (Base1: S) (Base2: S) =
@@ -212,6 +221,9 @@ struct
       | `Left x, `Left y ->  Base1.pretty_diff () (x,y)
       | `Right x, `Right y ->  Base2.pretty_diff () (x,y)
       | _ -> Pretty.dprintf "%a not leq %a" pretty x pretty y
+  let printXml f = function 
+    | `Left x  -> BatPrintf.fprintf f "<value><map>\n<key>\nLeft\n</key>\n%a</map>\n</value>\n" Base1.printXml x
+    | `Right x -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base2.printXml x
 end
 
 module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N))
@@ -269,6 +281,11 @@ struct
   let pretty () x = pretty_f short () x
   let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f = function 
+    | `Bot       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
+    | `Top       -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
+    | `Lifted1 x -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted1\n</key>\n%a</map>\n</value>\n" Base1.printXml x
+    | `Lifted2 x -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted2\n</key>\n%a</map>\n</value>\n" Base2.printXml x
 end
 
 module type ProdConfiguration =
@@ -332,6 +349,10 @@ struct
       Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length st))], nodes)
 
   let toXML m = toXML_f short m
+  
+  let printXml f (x,y) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Base1.name ()) Base1.printXml x (Base2.name ()) Base2.printXml y
+  
   let pretty_diff () ((x1,x2:t),(y1,y2:t)): Pretty.doc = 
     if Base1.equal x1 y1 then
       Base2.pretty_diff () (x2,y2)
@@ -375,6 +396,9 @@ struct
 
   let toXML m = toXML_f short m
 
+  let printXml f (x,y,z) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Base1.name ()) Base1.printXml x (Base2.name ()) Base2.printXml y (Base3.name ()) Base3.printXml z
+
   let pretty () x = pretty_f short () x
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -407,6 +431,16 @@ struct
   let name () = Base.name () ^ " list"
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     Pretty.dprintf "%a not leq %a" pretty x pretty y
+  let printXml f xs =
+    let rec loop n = function
+      | [] -> ()
+      | x::xs -> 
+        BatPrintf.fprintf f "<key>%d</key>\n%a\n" n Base.printXml x;
+        loop (n+1) xs
+    in
+    BatPrintf.fprintf f "<value>\n<map>\n";
+    loop 0 xs;
+    BatPrintf.fprintf f "</map>\n</value>\n" 
 end
 
 module type ChainParams = sig
@@ -430,6 +464,7 @@ struct
   let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     Pretty.dprintf "%a not leq %a" pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%d\n</data>\n</value>\n" x 
 end
 
 module LiftBot (Base : S) =
@@ -474,6 +509,9 @@ struct
   let pretty () x = pretty_f short () x
   let name () = "bottom or " ^ Base.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f = function 
+    | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n" 
+    | `Lifted n -> Base.printXml f n
 end
 
 module LiftTop (Base : S) =
@@ -521,6 +559,10 @@ struct
     match (x,y) with
       | `Lifted x, `Lifted y -> Base.pretty_diff () (x,y)
       | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+  let printXml f = function 
+    | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n" 
+    | `Lifted n -> Base.printXml f n
 end
 
 
@@ -539,6 +581,7 @@ struct
   let name () = "String"
   let pretty_diff () (x,y) = 
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" x
 end
 
 

@@ -206,6 +206,8 @@ struct
       | Offs (`Field x), Offs (`Index y) -> Offs `NoOffset 
       | Offs (`Index x), Offs (`Field y) -> Offs `NoOffset
       | Offs x, Offs y -> Offs (offs_join x y) 
+
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module type S =
@@ -409,6 +411,8 @@ struct
     match x with
       | Addr (v, u) -> Addr (v, append u o)
       | x -> x
+
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module NormalLat (Idx: Lattice.S) = 
@@ -484,6 +488,7 @@ struct
       | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (y, meet_offs o u)
       | _ -> Bot
 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module Stateless (Idx: Printable.S) =
@@ -517,6 +522,8 @@ struct
   let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) = 
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module Fields = 
@@ -668,6 +675,8 @@ struct
   let pretty  = pretty_f short
   let toXML = toXML_f short
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 

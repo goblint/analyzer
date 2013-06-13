@@ -407,6 +407,18 @@ struct
               | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
       in mu result
+
+  let printXml f state = 
+    match state with
+      | `Int n ->  ID.printXml f n
+      | `Address n ->  AD.printXml f n
+      | `Struct n ->  Structs.printXml f n
+      | `Union n ->  Unions.printXml f n
+      | `Array n ->  CArrays.printXml f n
+      | `Blob n ->  Blobs.printXml f n
+      | `List n ->  Lists.printXml f n
+      | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n" 
+      | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n" 
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t = 

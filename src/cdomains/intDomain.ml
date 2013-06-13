@@ -122,6 +122,7 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 module FlatPureIntegers =
@@ -199,6 +200,7 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 module Lift (Base: S) =
@@ -262,6 +264,7 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 module Flattened = Flat (Integers) 
@@ -478,6 +481,7 @@ struct
   let logand = lift2 Integers.logand
   let logor  = lift2 Integers.logor
   let lognot = eq (of_int 0L) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 module OverflowInt64 =
@@ -614,7 +618,7 @@ struct
       | PInf , NInf  -> d
       | PInf , Fin x -> pf x
       | PInf , PInf  -> d
-
+      
 end
 
 module Interval : S with type t = InfInt.t * InfInt.t =
@@ -848,6 +852,8 @@ struct
       if I.leq y2 x1 then of_bool false else 
       top ()
     end
+
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 
   let of_excl_list l = top ()
   let is_excl_list l = false
@@ -1229,6 +1235,7 @@ struct
   let logand = (&&)
   let logor  = (||)
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 module Booleans = MakeBooleans (
@@ -1298,6 +1305,7 @@ struct
   let logand n1 n2 = ()
   let logor  n1 n2 = ()
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 
@@ -1477,6 +1485,7 @@ struct
   let is_excl_list (x1,x2) = (I1.is_excl_list x1) || (I2.is_excl_list x2)
   let is_bool (x1,x2) = (I1.is_bool x1) || (I2.is_bool x2)
   let is_int (x1,x2) = (I1.is_int x1) || (I2.is_int x2)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 
 end
 
@@ -1932,5 +1941,7 @@ struct
     with Inconsistent -> None
 
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
+
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 
 end

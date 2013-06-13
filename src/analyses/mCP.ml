@@ -61,7 +61,8 @@ type 'a domRecord = {
     top: unit -> 'a;
     is_top: 'a -> bool;
     widen: 'a -> 'a -> 'a;
-    narrow: 'a -> 'a -> 'a
+    narrow: 'a -> 'a -> 'a;
+    printXml : 'b. 'b BatInnerIO.output -> 'a -> unit
   }
   
 type local_state = Analyses.local_state
@@ -159,6 +160,7 @@ struct
   let pretty_f sf () x = D.pretty_f (fun w x -> sf w (C.inject x)) () (C.extract x)
   let toXML_f sf  x    = D.toXML_f (fun w x -> sf w (C.inject x)) (C.extract x)
   let name             = D.name 
+  let printXml f x     = D.printXml f (C.extract x)
   
   let pretty_diff () (x,y) = D.pretty_diff () (C.extract x, C.extract y) 
 end
@@ -397,7 +399,8 @@ struct
         compare     = Dom.compare; 
         equal       = Dom.equal; 
         name        = Dom.name; 
-        hash        = Dom.hash }
+        hash        = Dom.hash;
+        printXml    = Dom.printXml}
       :: !analysesListLocal);
     analysesListGlobal := non_trans_sort ord_dom
       ({dom_owner   = C.name;
@@ -421,7 +424,8 @@ struct
         compare     = Glob.Val.compare; 
         equal       = Glob.Val.equal; 
         name        = Glob.Val.name; 
-        hash        = Glob.Val.hash }
+        hash        = Glob.Val.hash;
+        printXml    = Glob.Val.printXml }
       :: !analysesListGlobal );
     analysesList := non_trans_sort ord_analyses
       ({featurename   = C.name;
@@ -516,6 +520,7 @@ struct
 
   let toXML' x          = (get_matches x).toXML x
   let pretty' () x      = (get_matches x).pretty () x
+  let printXml' f x      = (get_matches x).printXml f x
       
   (* combining element functions to list functions *)
   
@@ -529,6 +534,13 @@ struct
   let is_bot = List.for_all is_bot'
   let leq    = List.for_all2 leq' 
   let pretty_diff () (x,y): Pretty.doc = List.fold_right2 pretty_diff' x y Pretty.nil
+  let printXml f xs =
+    let print_one i a = 
+      BatPrintf.fprintf f "<key>%d</key>\n%a" i printXml' a      
+    in
+    BatPrintf.fprintf f "<value>\n<map>";
+    List.iteri print_one xs;
+    BatPrintf.fprintf f "</map></value>\n"
     
   let short _ _ = "Analyses"(*List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""*)
   
@@ -617,6 +629,7 @@ struct
 
   let toXML' x          = toXML_f' short' x
   let pretty' x         = pretty_f' short' x
+  let printXml' f x     = (get_matches x).printXml f x
 
   (* combining element functions to list functions *)
   
@@ -630,6 +643,13 @@ struct
   let is_bot = List.for_all is_bot'
   let leq    = List.for_all2 leq' 
   let pretty_diff () (x,y): Pretty.doc = List.fold_right2 pretty_diff' x y Pretty.nil
+  let printXml f xs =
+    let print_one i a = 
+      BatPrintf.fprintf f "<key>%d</key>\n%a" i printXml' a      
+    in
+    BatPrintf.fprintf f "<value>\n<map>";
+    List.iteri print_one xs;
+    BatPrintf.fprintf f "</map></value>\n"
     
   let short _ = List.fold_left (fun p n -> p ^ short' 30 n ^ "; " ) ""
   
@@ -1271,6 +1291,15 @@ struct
   let pretty_diff () (x,y) = 
     let f a n (module S : Printable.S) x y = a ++ S.pretty_diff () (obj x, obj y) in
     binop_fold f nil x y 
+    
+  let printXml f xs =
+    let print_one a n (module S : Printable.S) x : unit = 
+      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (S.name ());
+      S.printXml f (obj x);
+      BatPrintf.fprintf f "</analysis>\n"
+    in
+    unop_fold print_one () xs;
+  
 end
 
 let _ =

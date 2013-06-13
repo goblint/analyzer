@@ -53,4 +53,5 @@ struct
   let narrow = M.narrow
   let pretty_diff () (x,y) = 
     Pretty.dprintf "{@[%a@] ...}" M.pretty_diff (x,y)
+  let printXml f xs = M.printXml f xs
 end

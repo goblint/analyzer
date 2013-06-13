@@ -49,4 +49,11 @@ struct
   let compare = Pervasives.compare
 
   let empty () = []
+  let printXml f xs =
+    let print_one x = 
+      BatPrintf.fprintf f "%s" (ValueDomain.Addr.short () x.addr)
+    in
+    BatPrintf.fprintf f "<value>\n<set>";
+    List.iter print_one xs;
+    BatPrintf.fprintf f "</set></value>\n"
 end

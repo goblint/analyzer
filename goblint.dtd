@@ -1,0 +1,30 @@
+<!ELEMENT run      (call,result)                       >
+<!ELEMENT result   (loc*, glob*)                       >
+<!ELEMENT loc      (context,analysis*)*                >
+<!ELEMENT context  (analysis*)                         >
+<!ELEMENT analysis (value)
+<!ELEMENT value    (data|map|set)                      >
+<!ELEMENT map      (key,value)*                        >
+<!ELEMENT set      (value*)                            >
+
+<!ELEMENT glob     (key,analysis*)                     >
+
+<!ELEMENT call     (#PCDATA)                           >
+<!ELEMENT data     (#PCDATA)                           >
+<!ELEMENT key      (#PCDATA)                           >
+
+<!ATTLIST loc      file    CDATA  #REQUIRED
+                   line    CDATA  #REQUIRED
+                   order   CDATA  #IMPLIED
+                   comment CDATA  #IMPLIED             >
+
+<!ATTLIST analysis name    CDATA  #REQUIRED
+                   comment CDATA  #IMPLIED             >
+
+<!ATTLIST run      comment CDATA  #IMPLIED             >
+<!ATTLIST call     comment CDATA  #IMPLIED             >
+<!ATTLIST result   comment CDATA  #IMPLIED             >
+<!ATTLIST context  comment CDATA  #IMPLIED             >
+<!ATTLIST value    comment CDATA  #IMPLIED             >
+<!ATTLIST map      comment CDATA  #IMPLIED             >
+<!ATTLIST set      comment CDATA  #IMPLIED             >

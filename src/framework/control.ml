@@ -32,7 +32,7 @@ struct
     (** Set of triples [RT] *)
     let module LT = SetDomain.HeadlessSet (RT) in
     (** Analysis result structure---a hashtable from porgram points to [LT] *)
-    let module Result = Analyses.Result (LT) (struct let result_name = Spec.name end) in
+    let module Result = Analyses.Result (LT) (struct let result_name = "analysis" end) in
   
     (** convert result that can be out-put *)
     let solver2source_result h : Result.t =
@@ -131,7 +131,6 @@ struct
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-      if (get_bool "dbg.verbose") then Printf.printf "\nInitialization done.\n";    
         result, !funs
     in
     

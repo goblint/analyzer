@@ -507,7 +507,7 @@ module Dom (LD: Lattice.S) =
 struct 
   include Lattice.Lift (LD) (struct
                                let bot_name = "Dead code"
-                               let top_name = "Totally unknown & messed up"
+                               let top_name = "Totally unknown and messed up"
                              end)
 
   let lift (x:LD.t) : t = `Lifted x
@@ -598,6 +598,13 @@ struct
       | _ -> failwith "Empty analysis?"
  
   let resultXML x = toXML x
+  
+  let printXml f xs = 
+    let print_one (loc,n,fd) v =
+      BatPrintf.fprintf f "<loc file=\"%s\" line=\"%d\" order=\"%d\">\n" loc.file loc.line loc.byte;
+      BatPrintf.fprintf f "%a</loc>\n" Range.printXml v
+    in
+    iter print_one xs
 
   let output table gtable (file: Cil.file) =
     if (get_bool "dbg.verbose") then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
@@ -610,11 +617,19 @@ struct
           output_char out '\n'
         end
       | "compact" -> begin
-          Xmldump.print out (resultXML (Lazy.force table));
+          if (get_bool "dbg.verbose") then Printf.printf "Converting to xml.%!";
+          let xml = resultXML (Lazy.force table) in
+          if (get_bool "dbg.verbose") then Printf.printf "Printing the result.%!";
+          Xmldump.print out xml;
           output_char out '\n'
         end
       | "html" -> 
           Htmldump.print_html out (resultXML (Lazy.force table)) file gtable
+      | "fast_xml" -> 
+          let f = BatIO.output_channel out in
+          BatPrintf.fprintf f "<run><call>%a</call><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+          BatPrintf.fprintf f "%a" printXml (Lazy.force table);
+          BatPrintf.fprintf f "</result></run>"
       | _ -> ()
 end
 
@@ -758,4 +773,7 @@ struct
     let res = try_replace_text "Value" (flatten_single (D.toXML x)) in
       Element ("Node",["text",esc (short 80 st)],[ctx;res])            
   let pretty () (_,x,_) = D.pretty () x
+  let printXml f (c,d,fd) = 
+    BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
+  
 end

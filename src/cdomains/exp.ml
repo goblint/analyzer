@@ -252,6 +252,8 @@ struct
       | StartOf (Mem e, NoOffset) -> one_unknown_array_index e
       | CastE (t,e) -> one_unknown_array_index e
       | _ -> None
+
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module LockingPattern =
@@ -395,5 +397,5 @@ struct
           Some (elem, fromEl a dummy, fromEl l dummy)
       | _ -> None
     with Invalid_argument _ -> None
-
+    let printXml f (x,y,z) = BatPrintf.fprintf f "<value>\n<map>\n<key>1</key>\n%a<key>2</key>\n%a<key>3</key>\n%a</map>\n</value>\n" Exp.printXml x Exp.printXml y Exp.printXml z
 end
