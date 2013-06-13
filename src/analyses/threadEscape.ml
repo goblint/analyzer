@@ -62,7 +62,7 @@ struct
           Queries.LS.elements l
       | _ -> []
 
-  let rec eval_fv ask (exp:Cil.exp): varinfo option = 
+  let rec eval_fv ask (exp:exp): varinfo option = 
     match query_lv ask exp with
       | [(v,_)] -> Some v
       | _ -> None
@@ -78,18 +78,18 @@ struct
         end
       | _ -> [] 
 
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
     let forks = fork ctx lval f arglist in
     let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
     match f.vname with
       | "pthread_create" -> begin        
           match arglist with
             | [_; _; _; ptc_arg] -> begin
-                [reachable ctx.ask ptc_arg,Cil.integer 1, true]
+                [reachable ctx.ask ptc_arg,integer 1, true]
               end
             | _ -> M.bailwith "pthread_create arguments are strange!"
         end
-      | _ -> [ctx.local,Cil.integer 1, true]
+      | _ -> [ctx.local,integer 1, true]
 
   let startstate v = Dom.bot ()
   let otherstate v = Dom.bot ()

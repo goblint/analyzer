@@ -102,8 +102,8 @@ struct
     
   (* helper to decide equality *)
   let query_exp_equal ask e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
-    let e1 = Cil.constFold false (Cil.stripCasts e1) in
-    let e2 = Cil.constFold false (Cil.stripCasts e2) in
+    let e1 = constFold false (stripCasts e1) in
+    let e2 = constFold false (stripCasts e2) in
     if exp_equal e1 e2 then true else
     match Dom.find_class e1 s with
       | Some ss when Dom.B.mem e2 ss -> true
@@ -121,22 +121,22 @@ struct
       let at = typeOf a in
       (isIntegralType at && isIntegralType bt) || (typ_equal at bt) ||
       match a with
-        | Cil.Const _ 
-        | Cil.SizeOf _
-        | Cil.SizeOfE _
-        | Cil.SizeOfStr _
-        | Cil.AlignOf _  
-        | Cil.AlignOfE _ -> false
-        | Cil.UnOp (_,e,_) -> type_may_change_t e bt      
-        | Cil.BinOp (_,e1,e2,_) -> type_may_change_t e1 bt || type_may_change_t e2 bt
-        | Cil.Lval (Cil.Var _,o) 
-        | Cil.AddrOf (Cil.Var _,o)              
-        | Cil.StartOf (Cil.Var _,o) -> may_change_t_offset o
-        | Cil.Lval (Cil.Mem e,o)    
-        | Cil.AddrOf (Cil.Mem e,o)  
-        | Cil.StartOf (Cil.Mem e,o) -> may_change_t_offset o || type_may_change_t e bt
-        | Cil.CastE (t,e) -> type_may_change_t e bt
-        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+        | Const _ 
+        | SizeOf _
+        | SizeOfE _
+        | SizeOfStr _
+        | AlignOf _  
+        | AlignOfE _ -> false
+        | UnOp (_,e,_) -> type_may_change_t e bt      
+        | BinOp (_,e1,e2,_) -> type_may_change_t e1 bt || type_may_change_t e2 bt
+        | Lval (Var _,o) 
+        | AddrOf (Var _,o)              
+        | StartOf (Var _,o) -> may_change_t_offset o
+        | Lval (Mem e,o)    
+        | AddrOf (Mem e,o)  
+        | StartOf (Mem e,o) -> may_change_t_offset o || type_may_change_t e bt
+        | CastE (t,e) -> type_may_change_t e bt
+        | Question _ -> failwith "Logical operations should be compiled away by CIL."
 	| _ -> failwith "Unmatched pattern."
     in
     let bt =  unrollTypeDeep (typeOf b) in
@@ -158,22 +158,22 @@ struct
       let als = pt a in
       Queries.LS.is_top als || Queries.LS.mem (dummyFunDec.svar, `NoOffset) als || Queries.LS.mem bl als ||
       match a with
-        | Cil.Const _ 
-        | Cil.SizeOf _
-        | Cil.SizeOfE _
-        | Cil.SizeOfStr _
-        | Cil.AlignOf _  
-        | Cil.AlignOfE _ -> false
-        | Cil.UnOp (_,e,_) -> lval_may_change_pt e bl      
-        | Cil.BinOp (_,e1,e2,_) -> lval_may_change_pt e1 bl || lval_may_change_pt e2 bl
-        | Cil.Lval (Cil.Var _,o) 
-        | Cil.AddrOf (Cil.Var _,o)              
-        | Cil.StartOf (Cil.Var _,o) -> may_change_pt_offset o
-        | Cil.Lval (Cil.Mem e,o)    
-        | Cil.AddrOf (Cil.Mem e,o)  
-        | Cil.StartOf (Cil.Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl 
-        | Cil.CastE (t,e) -> lval_may_change_pt e bl
-        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+        | Const _ 
+        | SizeOf _
+        | SizeOfE _
+        | SizeOfStr _
+        | AlignOf _  
+        | AlignOfE _ -> false
+        | UnOp (_,e,_) -> lval_may_change_pt e bl      
+        | BinOp (_,e1,e2,_) -> lval_may_change_pt e1 bl || lval_may_change_pt e2 bl
+        | Lval (Var _,o) 
+        | AddrOf (Var _,o)              
+        | StartOf (Var _,o) -> may_change_pt_offset o
+        | Lval (Mem e,o)    
+        | AddrOf (Mem e,o)  
+        | StartOf (Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl 
+        | CastE (t,e) -> lval_may_change_pt e bl
+        | Question _ -> failwith "Logical operations should be compiled away by CIL."
 	| _ -> failwith "Unmatched pattern."
     in 
     let bls = pt b in
@@ -200,10 +200,10 @@ struct
 (*       Messages.report ("a: "^sprint 80 (d_plainexp () a)); *)
 (*       Messages.report ("b: "^sprint 80 (d_plainexp () b)); *)
       match a, b with
-         | Cil.Lval (Cil.Var _,NoOffset), Cil.AddrOf (Cil.Mem(Cil.Lval _),Field(_, _)) -> 
+         | Lval (Var _,NoOffset), AddrOf (Mem(Lval _),Field(_, _)) -> 
             (* lval *.field changes -> local var stays the same *)
             false
-(*         | dr, Cil.Lval (Cil.Var lv,NoOffset) when (Cil.isIntegralType (Cil.typeOf dr)) && (Cil.isPointerType (lv.vtype)) && not (Cil.isIntegralType (Cil.typeOf (Cil.Lval (Cil.Mem (Cil.Lval (Cil.Var lv,NoOffset)),NoOffset)))) -> 
+(*         | dr, Lval (Var lv,NoOffset) when (isIntegralType (typeOf dr)) && (isPointerType (lv.vtype)) && not (isIntegralType (typeOf (Lval (Mem (Lval (Var lv,NoOffset)),NoOffset)))) -> 
             (* lval *x changes -> local var stays the same *)
             false*)
          | _ -> 
@@ -227,22 +227,22 @@ struct
         ^ (if bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt then ": yes" else ": no"));
 *)      bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt ||
       match a with
-        | Cil.Const _ 
-        | Cil.SizeOf _
-        | Cil.SizeOfE _
-        | Cil.SizeOfStr _
-        | Cil.AlignOf _  
-        | Cil.AlignOfE _ -> false
-        | Cil.UnOp (_,e,_) -> type_may_change_t deref e      
-        | Cil.BinOp (_,e1,e2,_) -> type_may_change_t deref e1 || type_may_change_t deref e2
-        | Cil.Lval (Cil.Var _,o) 
-        | Cil.AddrOf (Cil.Var _,o)              
-        | Cil.StartOf (Cil.Var _,o) -> may_change_t_offset o
-        | Cil.Lval (Cil.Mem e,o)    -> (*Messages.report "Lval" ;*) may_change_t_offset o || type_may_change_t true e    
-        | Cil.AddrOf (Cil.Mem e,o)  -> (*Messages.report "Addr" ;*) may_change_t_offset o || type_may_change_t false e  
-        | Cil.StartOf (Cil.Mem e,o) -> (*Messages.report "Start";*) may_change_t_offset o || type_may_change_t false e
-        | Cil.CastE (t,e) -> type_may_change_t deref e 
-        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+        | Const _ 
+        | SizeOf _
+        | SizeOfE _
+        | SizeOfStr _
+        | AlignOf _  
+        | AlignOfE _ -> false
+        | UnOp (_,e,_) -> type_may_change_t deref e      
+        | BinOp (_,e1,e2,_) -> type_may_change_t deref e1 || type_may_change_t deref e2
+        | Lval (Var _,o) 
+        | AddrOf (Var _,o)              
+        | StartOf (Var _,o) -> may_change_t_offset o
+        | Lval (Mem e,o)    -> (*Messages.report "Lval" ;*) may_change_t_offset o || type_may_change_t true e    
+        | AddrOf (Mem e,o)  -> (*Messages.report "Addr" ;*) may_change_t_offset o || type_may_change_t false e  
+        | StartOf (Mem e,o) -> (*Messages.report "Start";*) may_change_t_offset o || type_may_change_t false e
+        | CastE (t,e) -> type_may_change_t deref e 
+        | Question _ -> failwith "Logical operations should be compiled away by CIL."
 	| _ -> failwith "Unmatched pattern."
     
     and lval_may_change_pt a bl : bool =
@@ -254,13 +254,13 @@ struct
       in
       let rec addrOfExp e = 
         match e with
-          | Cil.Lval    (Cil.Var v,o) -> Some (AddrOf (Var v,o)) 
-          | Cil.AddrOf  (Cil.Var _,_) -> None              
-          | Cil.StartOf (Cil.Var _,_) -> None
-          | Cil.Lval    (Cil.Mem e,o) -> Some (AddrOf (Mem e, o)) 
-          | Cil.AddrOf  (Cil.Mem e,o) -> (match addrOfExp e with Some e -> Some (AddrOf (Mem e, o)) | x -> x)
-          | Cil.StartOf (Cil.Mem e,o) -> (match addrOfExp e with Some e -> Some (AddrOf (Mem e, o)) | x -> x)
-          | Cil.CastE   (t,e) -> addrOfExp e
+          | Lval    (Var v,o) -> Some (AddrOf (Var v,o)) 
+          | AddrOf  (Var _,_) -> None              
+          | StartOf (Var _,_) -> None
+          | Lval    (Mem e,o) -> Some (AddrOf (Mem e, o)) 
+          | AddrOf  (Mem e,o) -> (match addrOfExp e with Some e -> Some (AddrOf (Mem e, o)) | x -> x)
+          | StartOf (Mem e,o) -> (match addrOfExp e with Some e -> Some (AddrOf (Mem e, o)) | x -> x)
+          | CastE   (t,e) -> addrOfExp e
           | _ -> None
       in      
       let lval_is_not_disjoint (v,o) als = 
@@ -293,22 +293,22 @@ struct
       then type_may_change_apt a 
       else test ||
       match a with
-        | Cil.Const _ 
-        | Cil.SizeOf _
-        | Cil.SizeOfE _
-        | Cil.SizeOfStr _
-        | Cil.AlignOf _  
-        | Cil.AlignOfE _ -> false
-        | Cil.UnOp (_,e,_) -> lval_may_change_pt e bl      
-        | Cil.BinOp (_,e1,e2,_) -> lval_may_change_pt e1 bl || lval_may_change_pt e2 bl
-        | Cil.Lval (Cil.Var _,o) 
-        | Cil.AddrOf (Cil.Var _,o)              
-        | Cil.StartOf (Cil.Var _,o) -> may_change_pt_offset o
-        | Cil.Lval (Cil.Mem e,o)    
-        | Cil.AddrOf (Cil.Mem e,o)  
-        | Cil.StartOf (Cil.Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl 
-        | Cil.CastE (t,e) -> lval_may_change_pt e bl
-        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+        | Const _ 
+        | SizeOf _
+        | SizeOfE _
+        | SizeOfStr _
+        | AlignOf _  
+        | AlignOfE _ -> false
+        | UnOp (_,e,_) -> lval_may_change_pt e bl      
+        | BinOp (_,e1,e2,_) -> lval_may_change_pt e1 bl || lval_may_change_pt e2 bl
+        | Lval (Var _,o) 
+        | AddrOf (Var _,o)              
+        | StartOf (Var _,o) -> may_change_pt_offset o
+        | Lval (Mem e,o)    
+        | AddrOf (Mem e,o)  
+        | StartOf (Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl 
+        | CastE (t,e) -> lval_may_change_pt e bl
+        | Question _ -> failwith "Logical operations should be compiled away by CIL."
 	| _ -> failwith "Unmatched pattern."
     in 
     let r =
@@ -327,13 +327,13 @@ struct
     Dom.filter (fun x -> not (may_change ask e x)) st
 
   let remove ask (e:lval) (st:Dom.t) : Dom.t =
-    remove_exp ask (Cil.mkAddrOf e) st 
+    remove_exp ask (mkAddrOf e) st 
     (*
     let not_in v xs = not (Exp.contains_var v xs) in
     let remove_simple (v,offs) st =      
       Dom.filter (not_in v) st
     in
-    match ask (Queries.MayPointTo (Cil.mkAddrOf e)) with 
+    match ask (Queries.MayPointTo (mkAddrOf e)) with 
       | `LvalSet rv when not (Queries.LS.is_top rv) -> 
           Queries.LS.fold remove_simple rv st 
       | _ -> Dom.top ()
@@ -345,18 +345,18 @@ struct
       match x with (Var v,_) -> not v.vglob | _ -> false
     in
     let st = 
-*)  let lvt = Cil.typeOf (Lval lv) in
+*)  let lvt = typeOf (Lval lv) in
 (*     Messages.report (sprint 80 (d_type () lvt)); *)
       if Exp.is_global_var (Lval lv) = Some false 
       && Exp.interesting rv 
       && Exp.is_global_var rv = Some false
-      && (Cil.isArithmeticType lvt || Cil.isPointerType lvt)
+      && (isArithmeticType lvt || isPointerType lvt)
       then Dom.add_eq (rv,Lval lv) (remove ask lv st)
       else remove ask lv st 
 (*    in
     match rv with
       | Lval rlval -> begin
-          match ask (Queries.MayPointTo (Cil.mkAddrOf rlval)) with 
+          match ask (Queries.MayPointTo (mkAddrOf rlval)) with 
             | `LvalSet rv when not (Queries.LS.is_top rv) && Queries.LS.cardinal rv = 1 -> 
                 let rv = Exp.of_clval (Queries.LS.choose rv) in
                 if is_local lv && Exp.is_global_var rv = Some false 
@@ -383,34 +383,34 @@ struct
     let rec is_prefix x1 x2 =
       match x1, x2 with
         | _, `NoOffset -> true
-        | Cil.Field (f1,o1), `Field (f2,o2) when f1.Cil.fname = f2.Cil.fname -> is_prefix o1 o2
-        | Cil.Index (_,o1), `Index (_,o2) -> is_prefix o1 o2
+        | Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> is_prefix o1 o2
+        | Index (_,o1), `Index (_,o2) -> is_prefix o1 o2
         | _ -> false
     in
     let has_reachable_prefix v1 ofs =
       let suitable_prefix (v2,ofs2) = 
-             v1.Cil.vid = v2.Cil.vid 
+             v1.vid = v2.vid 
           && is_prefix ofs ofs2
       in
       Queries.LS.exists suitable_prefix r
     in
     match e with
-      | Cil.SizeOf _
-      | Cil.SizeOfE _
-      | Cil.SizeOfStr _
-      | Cil.AlignOf _  
-      | Cil.Const _ 
-      | Cil.AlignOfE _ 
-      | Cil.UnOp  _ 
-      | Cil.BinOp _ -> true
-      | Cil.AddrOf  (Cil.Var v2,ofs) 
-      | Cil.StartOf (Cil.Var v2,ofs) 
-      | Cil.Lval    (Cil.Var v2,ofs) -> has_reachable_prefix v2 ofs
-      | Cil.AddrOf  (Cil.Mem e,_) 
-      | Cil.StartOf (Cil.Mem e,_) 
-      | Cil.Lval    (Cil.Mem e,_)
-      | Cil.CastE (_,e)           -> reachable_from r e 
-      | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _  
+      | Const _ 
+      | AlignOfE _ 
+      | UnOp  _ 
+      | BinOp _ -> true
+      | AddrOf  (Var v2,ofs) 
+      | StartOf (Var v2,ofs) 
+      | Lval    (Var v2,ofs) -> has_reachable_prefix v2 ofs
+      | AddrOf  (Mem e,_) 
+      | StartOf (Mem e,_) 
+      | Lval    (Mem e,_)
+      | CastE (_,e)           -> reachable_from r e 
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
       | _ -> failwith "Unmatched pattern."
       
   (* Probably ok as is. *)
@@ -426,7 +426,7 @@ struct
 
   (* removes all equalities with lval and then tries to make a new one: lval=rval *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t  = 
-    let rval = Cil.constFold true (Cil.stripCasts rval) in
+    let rval = constFold true (stripCasts rval) in
     add_eq ctx.ask lval rval ctx.local
 
   (* First assign arguments to parameters. Then join it with reachables, to get
@@ -472,7 +472,7 @@ struct
     match Dom.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
       | false -> 
-    let true_exp = Cil.integer 1 in
+    let true_exp = integer 1 in
     match reachables ctx.ask es with
       | None -> [Dom.top (), true_exp, true]
       | Some rs -> 
@@ -493,14 +493,14 @@ struct
     match f.vname with
       | "spinlock_check" -> 
         begin match lval with
-          | Some x -> [assign ctx x (List.hd args), Cil.integer 1, true]
+          | Some x -> [assign ctx x (List.hd args), integer 1, true]
           | None -> unknown_fn ctx lval f args
         end
-      | x when safe_fn x -> [ctx.local, Cil.integer 1, true]
+      | x when safe_fn x -> [ctx.local, integer 1, true]
       | _ -> unknown_fn ctx lval f args
   (* query stuff *)
     
-  let eq_set (e:Cil.exp) s =
+  let eq_set (e:exp) s =
     match Dom.find_class e s with
       | None -> Queries.ES.empty ()
       | Some es when Dom.B.is_bot es -> Queries.ES.bot ()
@@ -513,26 +513,26 @@ struct
   
   let rec eq_set_clos e s =
     match e with
-      | Cil.SizeOf _
-      | Cil.SizeOfE _
-      | Cil.SizeOfStr _
-      | Cil.AlignOf _  
-      | Cil.Const _ 
-      | Cil.AlignOfE _ 
-      | Cil.UnOp _
-      | Cil.BinOp _ 
-      | Cil.AddrOf  (Cil.Var _,_) 
-      | Cil.StartOf (Cil.Var _,_) 
-      | Cil.Lval    (Cil.Var _,_) -> eq_set e s
-      | Cil.AddrOf  (Cil.Mem e,ofs) -> 
-          Queries.ES.map (fun e -> mkAddrOf (Cil.mkMem e ofs)) (eq_set_clos e s)
-      | Cil.StartOf (Cil.Mem e,ofs) -> 
-          Queries.ES.map (fun e -> mkAddrOrStartOf (Cil.mkMem e ofs)) (eq_set_clos e s)
-      | Cil.Lval    (Cil.Mem e,ofs) -> 
-          Queries.ES.map (fun e -> Cil.Lval (Cil.mkMem e ofs)) (eq_set_clos e s)
-      | Cil.CastE (t,e) -> 
-          Queries.ES.map (fun e -> Cil.CastE (t,e)) (eq_set_clos e s)
-      | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _  
+      | Const _ 
+      | AlignOfE _ 
+      | UnOp _
+      | BinOp _ 
+      | AddrOf  (Var _,_) 
+      | StartOf (Var _,_) 
+      | Lval    (Var _,_) -> eq_set e s
+      | AddrOf  (Mem e,ofs) -> 
+          Queries.ES.map (fun e -> mkAddrOf (mkMem e ofs)) (eq_set_clos e s)
+      | StartOf (Mem e,ofs) -> 
+          Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem e ofs)) (eq_set_clos e s)
+      | Lval    (Mem e,ofs) -> 
+          Queries.ES.map (fun e -> Lval (mkMem e ofs)) (eq_set_clos e s)
+      | CastE (t,e) -> 
+          Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
       | _ -> failwith "Unmatched pattern."
       
       
@@ -542,7 +542,7 @@ struct
           `Int (Queries.ID.of_bool true)
       | Queries.EqualSet e -> 
         let r = eq_set_clos e ctx.local in 
-(*          Messages.report ("equset of "^(sprint 80 (Cil.d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
+(*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
         `ExprSet r
       | _ -> `Top
 

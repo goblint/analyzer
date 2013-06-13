@@ -12,7 +12,7 @@ val bailwith: string -> 'a
 (** Behaves like [failwith], but with bailures that will not terminate the
   * analysis. *)
 
-val xml_warn : (Cil.location, (string*string) list) Hashtbl.t
+val xml_warn : (location, (string*string) list) Hashtbl.t
 val warn_out : out_channel ref
 val get_out: string -> out_channel -> out_channel
 

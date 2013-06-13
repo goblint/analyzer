@@ -62,7 +62,7 @@ struct
 
   let same_unknown_index ask exp slocks =
     let uk_index_equal i1 i2 =
-      match Cil.constFold true i1, Cil.constFold true i2 with
+      match constFold true i1, constFold true i2 with
         | (Const _), _ 
         | _,(Const _) -> false
         | _ ->
@@ -116,17 +116,17 @@ struct
   
   let rec conv_const_offset x =
     match x with
-      | Cil.NoOffset    -> `NoOffset
-      | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
-      | Cil.Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
-      | Cil.Field (f,o) -> `Field (f, conv_const_offset o)
+      | NoOffset    -> `NoOffset
+      | Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+      | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
+      | Field (f,o) -> `Field (f, conv_const_offset o)
   
   let one_perelem ask (e,a,l) es =
     (* Type invariant variables. *)
     let b_comp = Exp.base_compinfo e a in
     let f es (v,o) = 
       match Exp.fold_offs (Exp.replace_base (v,o) e l) with
-        | Some (v,o) -> ExpSet.add (Cil.Lval (Cil.Var v,o)) es      
+        | Some (v,o) -> ExpSet.add (Lval (Var v,o)) es      
         | None -> es
     in
     match b_comp with
@@ -136,10 +136,10 @@ struct
   let one_lockstep (_,a,m) ust =
     let rec conv_const_offset x =
       match x with
-        | Cil.NoOffset    -> `NoOffset
-        | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
-        | Cil.Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
-        | Cil.Field (f,o) -> `Field (f, conv_const_offset o)
+        | NoOffset    -> `NoOffset
+        | Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+        | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
+        | Field (f,o) -> `Field (f, conv_const_offset o)
     in
     match m with
       | AddrOf (Var v,o) -> 

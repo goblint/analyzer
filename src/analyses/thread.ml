@@ -66,7 +66,7 @@ struct
     let current_thread_id = current_thread ctx.local in
     let new_state = Dom.create_thread ctx.local current_thread_id thread_id in
       ctx.spawn start_routine (Dom.make_entry new_state thread_id);
-      [new_state, Cil.integer 1, true]
+      [new_state, integer 1, true]
   
   (** Handles creation of the new thread. Resolves pthread_create arguments. *)    
   let pthread_create ctx (args:exp list) =
@@ -80,7 +80,7 @@ struct
   (** Handles join with another thread. thread_id has been already resolved. *)
   let pthread_join_id (state : Dom.t) (thread_id : Basetype.Variables.t) =
     let current_thread_id = current_thread state in
-      [Dom.join_thread state current_thread_id thread_id, Cil.integer 1, true]
+      [Dom.join_thread state current_thread_id thread_id, integer 1, true]
 
   (** Handles join with another thread. Resolves pthread_join arguments. *)
   let pthread_join ctx (args:exp list) =
@@ -90,17 +90,17 @@ struct
 
   (** Handles unknown functions (functions without known definition). We
       catch both pthread_create and pthread_join here. *)
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
     print_string "special_fn";
     print_string f.vname;
     match f.vname with
        | "pthread_create" -> pthread_create ctx arglist
        | "pthread_join"   -> pthread_join ctx arglist
-       | _                -> [ctx.local,Cil.integer 1, true]
+       | _                -> [ctx.local,integer 1, true]
   
   (* We denote the main thread by the global thread id variable named "main" *)
   let startstate v = (
-    ConcDomain.ThreadIdSet.singleton (Cil.makeGlobalVar "main" Cil.voidType),
+    ConcDomain.ThreadIdSet.singleton (makeGlobalVar "main" voidType),
     ConcDomain.ThreadsVector.bot())
     
   let otherstate v = Dom.bot ()
@@ -158,7 +158,7 @@ struct
           Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []    
       | _ -> []
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
     begin match LibraryFunctions.classify f.vname arglist with
       | `ThreadCreate (fn, x) -> 
           let fns = eval_exp_addr ctx.ask fn in
@@ -167,7 +167,7 @@ struct
           List.iter new_thread (List.concat (List.map ValueDomain.Addr.to_var_may fns))
       | _ -> ()
     end;
-    [ctx.local,Cil.integer 1, true]
+    [ctx.local,integer 1, true]
 
   let main = Dom.singleton "main"
   let startstate v = main

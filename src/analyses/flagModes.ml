@@ -63,8 +63,8 @@ struct
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     au
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    [ctx.local,Cil.integer 1, true]
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
+    [ctx.local,integer 1, true]
 
   let startstate v = Dom.top ()
   let otherstate v = Dom.top ()

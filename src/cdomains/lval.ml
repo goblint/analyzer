@@ -260,7 +260,7 @@ struct
   let get_location x =
     match x with 
       | Addr (x,_) -> x.vdecl 
-      | _ -> Cil.builtinLoc 
+      | _ -> builtinLoc 
   
   let classify x = 
     match x with
@@ -329,7 +329,7 @@ struct
         | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
         | `Index (v, ofs) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ off_str ofs
     in
-      GU.demangle x.Cil.vname ^ off_str offs
+      GU.demangle x.vname ^ off_str offs
 
   let short _ x = 
     match x with 
@@ -373,8 +373,8 @@ struct
       
   let toXML_f_addr sf (x,y) = 
     let esc = Goblintutil.escape in
-    let typeinf = esc (Pretty.sprint Goblintutil.summary_length (Cil.d_type () x.Cil.vtype)) in
-    let info = "id=" ^ esc (string_of_int x.Cil.vid) ^ "; type=" ^ typeinf in
+    let typeinf = esc (Pretty.sprint Goblintutil.summary_length (d_type () x.vtype)) in
+    let info = "id=" ^ esc (string_of_int x.vid) ^ "; type=" ^ typeinf in
       Xml.Element ("Leaf", [("text", esc (sf max_int (Addr (x,y)))); ("info", info)],[])
 
   let toXML_f sf x =
@@ -390,7 +390,7 @@ struct
   let to_exp (f:idx -> exp) x =
     let rec to_cil c =
       match c with
-        | `NoOffset -> Cil.NoOffset
+        | `NoOffset -> NoOffset
         | `Field (fld, ofs) -> Field (fld  , to_cil ofs)
         | `Index (idx, ofs) -> Index (f idx, to_cil ofs)
     in
@@ -508,12 +508,12 @@ struct
         | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
         | `Index (v, ofs) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ off_str ofs
     in
-      (if dest then "&" else "") ^ GU.demangle x.Cil.vname ^ off_str offs
+      (if dest then "&" else "") ^ GU.demangle x.vname ^ off_str offs
 
   let toXML_f sf (d,x,y) = 
     let esc = Goblintutil.escape in
-    let typeinf = esc (Pretty.sprint Goblintutil.summary_length (Cil.d_type () x.Cil.vtype)) in
-    let info = "id=" ^ esc (string_of_int x.Cil.vid) ^ "; type=" ^ typeinf in
+    let typeinf = esc (Pretty.sprint Goblintutil.summary_length (d_type () x.vtype)) in
+    let info = "id=" ^ esc (string_of_int x.vid) ^ "; type=" ^ typeinf in
       Xml.Element ("Leaf", [("text", esc (sf max_int (d,x,y))); ("info", info)],[])
 
   let pretty_f sf () x = Pretty.text (sf max_int x)
@@ -631,7 +631,7 @@ end
 module CilLval =
 struct
   include Printable.Std
-  type t = Cil.varinfo * (fieldinfo, exp) offs
+  type t = varinfo * (fieldinfo, exp) offs
 
   let equal  (x1,o1) (x2,o2) = 
     let rec eq a b = 
@@ -645,7 +645,7 @@ struct
   
   let hash    = Hashtbl.hash
   let compare = Pervasives.compare
-  let name () = "simplified Cil.lval" 
+  let name () = "simplified lval" 
   let isSimple _ = true
 
   let rec short_offs (o: (fieldinfo, exp) offs) a =
@@ -656,17 +656,17 @@ struct
 
   let rec of_ciloffs x =
     match x with
-      | Cil.NoOffset    -> `NoOffset
-      | Cil.Index (i,o) -> `Index (i, of_ciloffs o)
-      | Cil.Field (f,o) -> `Field (f, of_ciloffs o) 
+      | NoOffset    -> `NoOffset
+      | Index (i,o) -> `Index (i, of_ciloffs o)
+      | Field (f,o) -> `Field (f, of_ciloffs o) 
 
   let rec to_ciloffs x =
     match x with
-      | `NoOffset    -> Cil.NoOffset
-      | `Index (i,o) -> Cil.Index (i, to_ciloffs o)
-      | `Field (f,o) -> Cil.Field (f, to_ciloffs o) 
+      | `NoOffset    -> NoOffset
+      | `Index (i,o) -> Index (i, to_ciloffs o)
+      | `Field (f,o) -> Field (f, to_ciloffs o) 
 
-  let to_exp (v,o) = Cil.Lval (Cil.Var v, to_ciloffs o)
+  let to_exp (v,o) = Lval (Var v, to_ciloffs o)
           
   let short _ (v,o) = short_offs o (GU.demangle v.vname)
   

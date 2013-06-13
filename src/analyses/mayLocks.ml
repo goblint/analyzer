@@ -40,10 +40,10 @@ struct
       | b -> Messages.warn ("Could not evaluate '"^sprint 30 (d_exp () exp)^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
   
   (* locking logic -- add all locks we can add *)
-  let lock rw may_fail a lv arglist ls : (Dom.ReverseAddrSet.t * Cil.exp * bool) list =
+  let lock rw may_fail a lv arglist ls : (Dom.ReverseAddrSet.t * exp * bool) list =
     let set_ret tv sts = 
       match lv with 
-        | None -> (sts,Cil.integer 1,true)
+        | None -> (sts,integer 1,true)
         | Some lv -> (sts,Lval lv,tv)
     in 
     let lock_one xs (e:LockDomain.Addr.t) =
@@ -53,16 +53,16 @@ struct
     List.fold_left lock_one [] (List.concat (List.map (eval_exp_addr a) arglist)) 
   
   (* transfer function to handle library functions --- for us locking & unlocking *)
-  let special_fn ctx (lv: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lv: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
     let remove_rw x st = Dom.remove (x,true) (Dom.remove (x,false) st) in
     (* unlocking logic *)
     let unlock remove_fn =
       match arglist with
         | x::xs -> begin match  (eval_exp_addr ctx.ask x) with 
-                        | [x] -> [remove_fn x ctx.local ,Cil.integer 1, true]
-                        | _ -> [ctx.local ,Cil.integer 1, true]
+                        | [x] -> [remove_fn x ctx.local ,integer 1, true]
+                        | _ -> [ctx.local ,integer 1, true]
                 end
-        | _ -> [ctx.local, Cil.integer 1, true]
+        | _ -> [ctx.local, integer 1, true]
     in
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
       | `Lock (failing, rw), _
@@ -70,7 +70,7 @@ struct
       | `Unlock, _ 
           -> unlock remove_rw
         
-      | _ -> [ctx.local, Cil.integer 1, true]
+      | _ -> [ctx.local, integer 1, true]
 
   let startstate v = Dom.empty ()
   let otherstate v = Dom.empty ()

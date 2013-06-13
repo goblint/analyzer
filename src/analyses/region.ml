@@ -142,7 +142,7 @@ struct
           end
       | _ -> au
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
     match f.vname with 
       | "malloc" | "calloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
           match ctx.local, lval with
@@ -154,18 +154,18 @@ struct
                   then gd
                   else Vars.add (partition_varinfo (), regpart) gd
                 in
-                [(`Lifted (equ, reg), gd), Cil.integer 1, true]
-            | _ -> [ctx.local,Cil.integer 1, true]
+                [(`Lifted (equ, reg), gd), integer 1, true]
+            | _ -> [ctx.local,integer 1, true]
         end
       | _ -> 
-    let t, _, _, _ = Cil.splitFunctionTypeVI  f in
+    let t, _, _, _ = splitFunctionTypeVI  f in
     match unrollType t with
       | TPtr (t,_) ->
     begin match Goblintutil.is_blessed t, lval with
-      | Some rv, Some lv -> [assign ctx lv (AddrOf (Var rv, NoOffset)), Cil.integer 1, true]
-      | _ -> [ctx.local,Cil.integer 1, true]
+      | Some rv, Some lv -> [assign ctx lv (AddrOf (Var rv, NoOffset)), integer 1, true]
+      | _ -> [ctx.local,integer 1, true]
     end
-      | _ -> [ctx.local,Cil.integer 1, true]
+      | _ -> [ctx.local,integer 1, true]
   
   let startstate v = 
     `Lifted (Equ.top (), RegMap.bot ()), Vars.empty ()       

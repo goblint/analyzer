@@ -34,7 +34,7 @@ struct
   let add_access may must tid = true
   let add_gatelock may must tid = true
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
     let thread, maylocks = 
       match ctx.presub with
         | [`ThreadLocSet t; `MayLocks l] -> t, l
@@ -55,7 +55,7 @@ struct
              end
              else
                let nd = MSpec.assign ctx (Var extra_var, NoOffset) one in
-               [nd,Cil.one,true]
+               [nd,one,true]
       | _ -> MSpec.special_fn ctx lval f arglist 
     
 

@@ -105,20 +105,20 @@ struct
     (ctxs, Osektupel.fcon ctxr aus)
   
 
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
     let (ctxs,ctxr) = ctx.local in
     let fvname = get_api_names f.vname in
     match fvname with 
       | "ReleaseResource" -> (match arglist with 
 	  | [Lval (Var info,_)] -> let r = get_lock info.vname in
-(*           | [Const (CInt64 (c,_,_) ) ] -> let r = makeGlobalVar (find_name (Int64.to_string c)) Cil.voidType in *)
+(*           | [Const (CInt64 (c,_,_) ) ] -> let r = makeGlobalVar (find_name (Int64.to_string c)) voidType in *)
 (* (Hashtbl.find Osek.Spec.constantlocks (Int64.to_string c)) in  *)
                                             let p = (pry_d' (get_lockset ctx) r) in  
-                                               [(ctxs, Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p)) ,Cil.integer 1, true]
-          | _ -> let p = (pry_d (get_lockset ctx)) in  [(ctxs ,(Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p))) ,Cil.integer 1, true])
+                                               [(ctxs, Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p)) ,integer 1, true]
+          | _ -> let p = (pry_d (get_lockset ctx)) in  [(ctxs ,(Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p))) ,integer 1, true])
       | _ -> 
 (* let _ = print_endline ( "Specialfn " ^f.vname) in  *)
-	      [(ctxs, ctxr),Cil.integer 1, true]
+	      [(ctxs, ctxr),integer 1, true]
 
   let startstate v = Dom.bot ()
   let otherstate v = Dom.top ()

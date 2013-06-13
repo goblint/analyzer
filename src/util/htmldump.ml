@@ -241,7 +241,7 @@ let createGlobalsTable outchan gtable =
 	fprintf outchan "</table>";
 	();;
 
-let generateCodeFile fileEntry (file: Cil.file) gtable =
+let generateCodeFile fileEntry (file: file) gtable =
 	let shortFilename = Filename.basename fileEntry.filename in
 
 	(* Create output file *)
@@ -300,7 +300,7 @@ let readCodeLines filename lines =
 	();;
 
 (* === print_fmt : html output === *)
-let print_html chan xmlNode (file: Cil.file) gtable = 
+let print_html chan xmlNode (file: file) gtable = 
 	printf "[HTML-Output] Create html files ...\n";	
 	(*printf "Start: %f \n" (Unix.time ());*)
 	(*List.iter (fun xmlfile -> printf "GTABLE:\n%s\n" (Xml.to_string_fmt xmlfile)) (Lazy.force gtable);*)

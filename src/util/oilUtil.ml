@@ -7,7 +7,7 @@ type attribute_v = Name of (string * ( ((string * attribute_v) list) option)) | 
 type param_t = string * attribute_v
 type object_t = string*string*(param_t list)
 (*		id	pry 	"lock"*)
-type res_t = 	string*	int*	Cil.exp
+type res_t = 	string*	int*	exp
 (*		id	timed*)
 type event_t = 	string*	bool
 (*		interruptible	pry	res		events 		timetriggered	autostart	activation*)
@@ -185,7 +185,7 @@ in*)
 
 let make_lock name = 
   if tracing then trace "osek" "Generating lock for resource %s\n" name;
-  let varinfo = makeGlobalVar name Cil.voidType in
+  let varinfo = makeGlobalVar name voidType in
   AddrOf (Var varinfo,NoOffset)
 
 let find_name id =

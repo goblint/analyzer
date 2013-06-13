@@ -135,7 +135,7 @@ struct
       | _ -> None 
 
   let get_concrete_exp (exp:exp) (gl:glob_fun) (st:Dom.t) =
-    match Cil.constFold true exp with
+    match constFold true exp with
        | CastE (_,Lval (Var v, offs))
        | Lval (Var v, offs) -> Some (Var v,offs)
        | _ -> None
@@ -209,7 +209,7 @@ struct
     in
     new_u
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
     may (fun x -> warn_deref_exp ctx.ask ctx.local (Lval x)) lval;
     List.iter (warn_deref_exp ctx.ask ctx.local) arglist;
     match f.vname, lval with
@@ -219,9 +219,9 @@ struct
             | Some (Var v, offs) ->
                 [ctx.local, Lval lv, true
                 ;Dom.add (Addr.from_var_offset (v,offs)) ctx.local, Lval lv, false]
-           | _ -> [ctx.local, Cil.integer 1, true]
+           | _ -> [ctx.local, integer 1, true]
         end
-      | _ -> [ctx.local, Cil.integer 1, true]
+      | _ -> [ctx.local, integer 1, true]
 
   let name = "Malloc null"
 

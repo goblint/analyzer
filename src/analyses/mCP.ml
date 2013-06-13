@@ -102,7 +102,7 @@ type analysisRecord = {
     return: (local_state,Basetype.Variables.t,global_state) ctx -> exp option  -> fundec -> local_state;
 (*    eval_funvar: (local_state,Basetype.Variables.t,global_state) ctx -> exp -> varinfo list;*)
 (*     fork       : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (varinfo * local_state) list  ; *)
-    special_fn : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (local_state * Cil.exp * bool) list;
+    special_fn : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (local_state * exp * bool) list;
     enter_func : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> varinfo -> exp list -> (local_state * local_state) list ;
     leave_func : (local_state,Basetype.Variables.t,global_state) ctx -> lval option -> exp -> varinfo -> exp list -> local_state -> local_state
   }
@@ -905,7 +905,7 @@ struct
   (* fork over all analyses and combine values of equal varinfos *)
   let lift_spawn ctx f  =
     let combine_forks rs xs = 
-      let g rs (v,s) : (Cil.varinfo * Dom.t) list=
+      let g rs (v,s) : (varinfo * Dom.t) list=
         if var_mem_assoc v rs 
         then (v, replace s (var_assoc v rs)) :: var_remove_assoc v rs 
         else (v, replace s (otherstate v)) :: rs
@@ -1092,7 +1092,7 @@ struct
   let intrpt ctx        = map_tf' ctx (fun ctx -> intrpt' ctx ) 
 
   (* return all unique variables that analyses report *)
-  let eval_funvar ctx exp : Cil.varinfo list = 
+  let eval_funvar ctx exp : varinfo list = 
     match query ctx (Queries.EvalFunvar exp) with
       | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
       | _ -> Messages.bailwith ("EvalFunvar: Failed to evaluate function expression "^(sprint 80 (d_exp () exp)))
@@ -1101,7 +1101,7 @@ struct
   let fork ctx r v args =
     let start_val = otherstate () in 
     let f rs xs = 
-      let g rs (v,s) : (Cil.varinfo * Dom.t) list=
+      let g rs (v,s) : (varinfo * Dom.t) list=
         if List.mem_assoc v rs then 
           (v, replace s (List.assoc v rs)) :: List.remove_assoc v rs 
         else 
@@ -1133,13 +1133,13 @@ struct
     let doms_with_constr = List.fold_left gather ([[],[],[]]) parts in
     let resolve_constraint xs (s,exps,tvs) =
       let branch_one s exp tv = 
-        if tv && Exp.Exp.equal exp (Cil.one) then s else branch (set_st ctx s (fun x -> x)) exp tv 
+        if tv && Exp.Exp.equal exp (one) then s else branch (set_st ctx s (fun x -> x)) exp tv 
       in
       try List.fold_left2 branch_one s exps tvs :: xs
       with Analyses.Deadcode -> xs
     in
     let doms_no_constr = List.fold_left resolve_constraint [] doms_with_constr in
-    let triv_constr x = x, Cil.integer 1, true in
+    let triv_constr x = x, integer 1, true in
     if List.length doms_no_constr == 0 then 
       raise  Analyses.Deadcode 
     else
@@ -1529,7 +1529,7 @@ struct
   let rec do_splits ctx pv (xs:(int * (Obj.t * exp * bool)) list) =
     let split_one n (d,e,tv) = 
       let nv = assoc_replace (n,d) pv in
-      ctx.split2 (branch {ctx with local2 = nv} e tv) Cil.one true
+      ctx.split2 (branch {ctx with local2 = nv} e tv) one true
     in
     iter (uncurry split_one) xs
 
