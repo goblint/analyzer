@@ -680,6 +680,7 @@ sig
   val otherstate : varinfo -> D.t
 
   val should_join : D.t -> D.t -> bool
+  val val_of  : C.t -> D.t
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
   
