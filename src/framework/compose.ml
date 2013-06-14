@@ -153,7 +153,7 @@ struct
     let one_special st xs =
       List.map just_d_set (Base.special_fn (set_st ctx st spawner) lval f args)  @ xs
     in
-    let true_exp = (Cil.integer 1) in
+    let true_exp = (integer 1) in
     List.map (fun x -> x, true_exp, true) (Dom.fold one_special ctx.local []) 
     
 (*  let fork ctx lval fn args = 

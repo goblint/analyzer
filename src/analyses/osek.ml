@@ -158,8 +158,8 @@ struct
   let off_pry_with_flag : (string,(Flags.t*int) list) Hashtbl.t = Hashtbl.create 16
 
   (* task resource handling *)
-  let dummy_release f = makeLocalVar f ?insert:(Some false) "ReleaseResource" Cil.voidType
-  let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType
+  let dummy_release f = makeLocalVar f ?insert:(Some false) "ReleaseResource" voidType
+  let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" voidType
   let is_task_res lock = is_task (names lock)
   let partition = Dom.ReverseAddrSet.partition is_task_res
   let lockset_to_task lockset =
@@ -480,19 +480,19 @@ let _ = print_endline (string_of_bool res) in res*)
 	  | x -> x)  
       | "DisableAllInterrupts" -> let res = get_lock "DisableAllInterrupts" in
 	if (get_bool "ana.osek.check") then if (mem res ctx.local) then print_endline ( "Nested calls of DisableAllInterrupts are not allowed!");
-	M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [res]
-      | "EnableAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "DisableAllInterrupts"]
-      | "SuspendAllInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
-      | "ResumeAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "SuspendAllInterrupts"] 
-      | "SuspendOSInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
-      | "ResumeOSInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
+	M.special_fn ctx lval (dummy_get (emptyFunction fvname)) [res]
+      | "EnableAllInterrupts" -> M.special_fn ctx lval (dummy_release (emptyFunction fvname)) [get_lock "DisableAllInterrupts"]
+      | "SuspendAllInterrupts" -> M.special_fn ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
+      | "ResumeAllInterrupts" -> M.special_fn ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendAllInterrupts"] 
+      | "SuspendOSInterrupts" -> M.special_fn ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
+      | "ResumeOSInterrupts" -> M.special_fn ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
       | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
         let _ = (match arglist with (*call function *)
 	  | [x] -> let vinfo = eval_arg ctx x in
 		   let task_name = make_task(vinfo.vname) in
                    if (is_task task_name) then begin
                      let _ = activate_task ctx task_name in
-                     [ctx.local, Cil.integer 1, true]
+                     [ctx.local, integer 1, true]
                    end else failwith (vinfo.vname ^ "is not a task!")
 	  | _  -> failwith "ActivateTask arguments are strange") in
 	M.special_fn ctx lval f arglist
@@ -667,7 +667,7 @@ let _ = print_endline (string_of_bool res) in res*)
         end
       in (*/check_one_flag*)
       let get_keys_from_flag_map flag_map = Flags.fold (fun key value acc -> (key::acc)) flag_map [] in
-      let get_flags acc_list' : (Cil.varinfo list) = 
+      let get_flags acc_list' : (varinfo list) = 
         let flag_list = List.map proj2_2 acc_list' in
         let doit acc flag_map = 
           let rec join l1 l2 = match l2 with 
@@ -680,7 +680,7 @@ let _ = print_endline (string_of_bool res) in res*)
         in  
         List.fold_left doit [] flag_list
       in (*/get_flags*)
-      let valid_flag (flag :Cil.varinfo) : bool= 
+      let valid_flag (flag :varinfo) : bool= 
         let add_flag flag res = 
           if res = BadFlag then begin
             bad_flags := flag::!bad_flags;

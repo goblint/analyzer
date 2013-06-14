@@ -47,41 +47,41 @@ struct
       | _ -> 
           M.warn "Access to unknown address could be global"; []
 
-  let rec access_one_byval a rw (exp:Cil.exp): BS.extra = 
+  let rec access_one_byval a rw (exp:exp): BS.extra = 
     match exp with 
       (* Integer literals *)
-      | Cil.Const _ -> []
+      | Const _ -> []
       (* Variables and address expressions *)
-      | Cil.Lval lval -> access_address a rw lval @ (access_lv_byval a lval)
+      | Lval lval -> access_address a rw lval @ (access_lv_byval a lval)
       (* Binary operators *)
-      | Cil.BinOp (op,arg1,arg2,typ) -> 
+      | BinOp (op,arg1,arg2,typ) -> 
           let a1 = access_one_byval a rw arg1 in
           let a2 = access_one_byval a rw arg2 in
             a1 @ a2
       (* Unary operators *)
-      | Cil.UnOp (op,arg1,typ) -> access_one_byval a rw arg1
+      | UnOp (op,arg1,typ) -> access_one_byval a rw arg1
       (* The address operators, we just check the accesses under them *)
-      | Cil.AddrOf lval -> access_lv_byval a lval
-      | Cil.StartOf lval -> access_lv_byval a lval
+      | AddrOf lval -> access_lv_byval a lval
+      | StartOf lval -> access_lv_byval a lval
       (* Most casts are currently just ignored, that's probably not a good idea! *)
-      | Cil.CastE  (t, exp) -> access_one_byval a rw exp
+      | CastE  (t, exp) -> access_one_byval a rw exp
       | _ -> []    
   (* Accesses during the evaluation of an lval, not the lval itself! *)
-  and access_lv_byval a (lval:Cil.lval): BS.extra = 
-    let rec access_offset (ofs: Cil.offset): BS.extra = 
+  and access_lv_byval a (lval:lval): BS.extra = 
+    let rec access_offset (ofs: offset): BS.extra = 
       match ofs with 
-        | Cil.NoOffset -> []
-        | Cil.Field (fld, ofs) -> access_offset ofs
-        | Cil.Index (exp, ofs) -> access_one_byval a false exp @ access_offset ofs
+        | NoOffset -> []
+        | Field (fld, ofs) -> access_offset ofs
+        | Index (exp, ofs) -> access_one_byval a false exp @ access_offset ofs
     in 
       match lval with 
-        | Cil.Var x, ofs -> access_offset ofs
-        | Cil.Mem n, ofs -> access_one_byval a false n @ access_offset ofs
+        | Var x, ofs -> access_offset ofs
+        | Mem n, ofs -> access_one_byval a false n @ access_offset ofs
 
-   let access_byval a (rw: bool) (exps: Cil.exp list): BS.extra =
+   let access_byval a (rw: bool) (exps: exp list): BS.extra =
      List.concat (List.map (access_one_byval a rw) exps)
 
-   let access_byref ask (exps: Cil.exp list) = 
+   let access_byref ask (exps: exp list) = 
      (* Find the addresses reachable from some expression, and assume that these
       * can all be written to. *)
      let do_exp e = 
@@ -281,10 +281,10 @@ struct
       | Some lv -> init_lval ctx.ask lv ret_st
 
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
     match lval with
-      | Some lv -> [init_lval ctx.ask lv ctx.local, Cil.integer 1, true]
-      | _ -> [ctx.local, Cil.integer 1, true]
+      | Some lv -> [init_lval ctx.ask lv ctx.local, integer 1, true]
+      | _ -> [ctx.local, integer 1, true]
       
 (*  let fork ctx (lval: lval option) (f : varinfo) (args : exp list) : (varinfo * Dom.t) list =
     [] (* thats wrong: should be [None, top ()] *)*)

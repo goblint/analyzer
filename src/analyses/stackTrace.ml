@@ -34,8 +34,8 @@ struct
   let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
     ctx.local
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    [ctx.local,Cil.integer 1, true]
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
+    [ctx.local,integer 1, true]
 
   let startstate v = Dom.bot ()
   let otherstate v = Dom.bot ()
@@ -84,11 +84,11 @@ struct
             List.map (fun (v,_) -> (v,nst)) (query_lv ctx.ask start)
       | _ ->  []
 
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
     let forks = fork ctx lval f arglist in
     let spawn (x,y) = ctx.spawn x y in 
     let _ = List.iter spawn forks in 
-      [ctx.local,Cil.integer 1, true]
+      [ctx.local,integer 1, true]
 
 
   let startstate v = Dom.bot ()

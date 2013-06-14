@@ -123,7 +123,7 @@ struct
   let init () =
     init_inh_rel ();
 		Printexc.record_backtrace true;
-		Cil.iterGlobals (!Cilfacade.ugglyImperativeHack) (function GFun (f,_) -> incr funcount| _ -> ());
+		iterGlobals (!Cilfacade.ugglyImperativeHack) (function GFun (f,_) -> incr funcount| _ -> ());
 		ignore (if (get_bool "allfuns") then ignore (printf "CUR VER_ALL FUNS\n"));
 		let ctrl = Gc.get () in
 		ctrl.Gc.verbose <- 0; 
@@ -430,7 +430,7 @@ struct
 
 
   let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    if danger_bot ctx then Dom.remove_formals (f.Cil.sformals) ctx.local else  
+    if danger_bot ctx then Dom.remove_formals (f.sformals) ctx.local else  
     if ignore_this ctx.local ctx.global
     then ctx.local 
     else begin 
@@ -500,7 +500,7 @@ struct
 				  (*Dom.add_required_fun (f.svar.vname) Dom.danger_funs;*)
 				end;
 				
-      (*Dom.remove_formals (f.Cil.sformals) (fn,st,gd)*)
+      (*Dom.remove_formals (f.sformals) (fn,st,gd)*)
 			(fn,st,gd)
     end 
   
@@ -578,11 +578,11 @@ struct
         | Queries.EvalFunvar e -> `LvalSet (List.fold_left (fun xs x -> Queries.LS.add (x,`NoOffset) xs) (Queries.LS.empty ()) (eval_funvar ctx e))
         | _ -> Queries.Result.top ()
 
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
 		
     let time_wrapper dummy =
     (*Dom.report (" SPECIAL_FN '"^f.vname^"'.");*)
-    if danger_bot ctx || ignore_this ctx.local ctx.global || (Dom.is_safe_name f.vname) then [ctx.local,Cil.integer 1, true] else begin
+    if danger_bot ctx || ignore_this ctx.local ctx.global || (Dom.is_safe_name f.vname) then [ctx.local,integer 1, true] else begin
       let from = (Some (AddrOf (Var f,NoOffset))) in        
             if not (Dom.is_safe_name f.vname)&& !Goblintutil.in_verifying_stage then add_reentrant_fun f.vname ctx.global;
             if is_private f ctx.global then
@@ -683,16 +683,16 @@ struct
               end else nctx
             in
             if not (Dom.is_safe_name f.vname) then Dom.warn_tainted fs (fn,st,gd) (Lval v) ("return val of "^(GU.demangle f.vname));
-            [Dom.assign_to_local ctx.ask v from (fn,st,gd) fs ctx.global,Cil.integer 1, true] 
+            [Dom.assign_to_local ctx.ask v from (fn,st,gd) fs ctx.global,integer 1, true] 
         | None -> 
-            [nctx,Cil.integer 1, true]
+            [nctx,integer 1, true]
       end
             
     end 
         in 
     time_transfer "special_fn" time_wrapper
 	
-	(*let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list*)
+	(*let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list*)
   let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
     (*Dom.report("ENTER ZERO : "^f.vname);*)
     (*Dom.report("ENTER_FN : "^f.vname);*)

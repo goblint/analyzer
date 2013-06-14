@@ -54,8 +54,8 @@ let rec get_flag (state :local_state list) : BS.Flag.t =
   | x::rest -> get_flag rest
   | [] -> failwith "BUG: Cannot obtain thread ID."
   
-let big_kernel_lock = LockDomain.Addr.from_var (Cil.makeGlobalVar "[big kernel lock]" Cil.intType)
-let console_sem = LockDomain.Addr.from_var (Cil.makeGlobalVar "[console semaphore]" Cil.intType)
+let big_kernel_lock = LockDomain.Addr.from_var (makeGlobalVar "[big kernel lock]" intType)
+let console_sem = LockDomain.Addr.from_var (makeGlobalVar "[console semaphore]" intType)
 
 module type SpecParam =
 sig
@@ -138,22 +138,22 @@ struct
 
   let rec conv_const_offset x =
     match x with
-      | Cil.NoOffset    -> `NoOffset
-      | Cil.Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
-      | Cil.Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
-      | Cil.Field (f,o) -> `Field (f, conv_const_offset o)
+      | NoOffset    -> `NoOffset
+      | Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+      | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
+      | Field (f,o) -> `Field (f, conv_const_offset o)
 
   let rec replace_elem (v,o) q ex =
     match ex with
-      | Cil.AddrOf  (Cil.Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
-      | Cil.StartOf (Cil.Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
-      | Cil.Lval    (Cil.Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
-      | Cil.CastE (_,e)           -> replace_elem (v,o) q e
+      | AddrOf  (Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
+      | StartOf (Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
+      | Lval    (Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
+      | CastE (_,e)           -> replace_elem (v,o) q e
       | _ -> v, Offs.from_offset (conv_offset o)
   
 
-  type access = Concrete of (exp option * Cil.varinfo * Offs.t * bool)
-              | Region   of (exp option * Cil.varinfo * Offs.t * bool) 
+  type access = Concrete of (exp option * varinfo * Offs.t * bool)
+              | Region   of (exp option * varinfo * Offs.t * bool) 
               | Unknown  of (exp * bool)
   type accesses = access list
   
@@ -188,28 +188,28 @@ struct
           then [Unknown (Lval lv,write)]
           else List.map add_reg regs
 
-  let rec access_one_byval a rw (exp:Cil.exp): accesses  = 
+  let rec access_one_byval a rw (exp:exp): accesses  = 
     let accs regs = 
       match exp with 
         (* Integer literals *)
-        | Cil.Const _ -> []
+        | Const _ -> []
         (* Variables and address expressions *)
-        | Cil.Lval lval -> 
+        | Lval lval -> 
           let a1 = access_address a regs rw lval in
           let a2 = access_lv_byval a lval in
             a1 @  a2
         (* Binary operators *)
-        | Cil.BinOp (op,arg1,arg2,typ) -> 
+        | BinOp (op,arg1,arg2,typ) -> 
             let a1 = access_one_byval a rw arg1 in
             let a2 = access_one_byval a rw arg2 in
               a1 @ a2
         (* Unary operators *)
-        | Cil.UnOp (op,arg1,typ) -> access_one_byval a rw arg1
+        | UnOp (op,arg1,typ) -> access_one_byval a rw arg1
         (* The address operators, we just check the accesses under them *)
-        | Cil.AddrOf lval -> access_lv_byval a lval
-        | Cil.StartOf lval -> access_lv_byval a lval
+        | AddrOf lval -> access_lv_byval a lval
+        | StartOf lval -> access_lv_byval a lval
         (* Most casts are currently just ignored, that's probably not a good idea! *)
-        | Cil.CastE  (t, exp) -> access_one_byval a rw exp
+        | CastE  (t, exp) -> access_one_byval a rw exp
         | _ -> []
     in
 (*    let is_unknown x = match x with Unknown _ -> true | _ -> false in*)
@@ -222,29 +222,29 @@ struct
           accs (Queries.LS.elements regs)
       | _ -> accs []
   (* Accesses during the evaluation of an lval, not the lval itself! *)
-  and access_lv_byval a (lval:Cil.lval): accesses = 
-    let rec access_offset (ofs: Cil.offset): accesses = 
+  and access_lv_byval a (lval:lval): accesses = 
+    let rec access_offset (ofs: offset): accesses = 
       match ofs with 
-        | Cil.NoOffset -> []
-        | Cil.Field (fld, ofs) -> access_offset ofs
-        | Cil.Index (exp, ofs) -> 
+        | NoOffset -> []
+        | Field (fld, ofs) -> access_offset ofs
+        | Index (exp, ofs) -> 
           let a1 = access_one_byval a false exp in
           let a2 = access_offset ofs in
             a1 @ a2
     in 
       match lval with 
-        | Cil.Var x, ofs -> access_offset ofs
-        | Cil.Mem n, ofs -> 
+        | Var x, ofs -> access_offset ofs
+        | Mem n, ofs -> 
           let a1 = access_one_byval a false n in
           let a2 = access_offset ofs in
             a1 @ a2
 
    let access_one_top = access_one_byval 
 
-   let access_byval a (rw: bool) (exps: Cil.exp list): accesses =
+   let access_byval a (rw: bool) (exps: exp list): accesses =
      List.concat (List.map (access_one_top a rw) exps)
 
-   let access_reachable ask (exps: Cil.exp list) = 
+   let access_reachable ask (exps: exp list) = 
      (* Find the addresses reachable from some expression, and assume that these
       * can all be written to. *)
      let do_exp e = 
@@ -275,11 +275,11 @@ struct
         | [a] -> a.vname.[0] = '(' 
         | _ -> false
     in  
-    let nothing ls = [ls,Cil.integer 1,true] in
+    let nothing ls = [ls,integer 1,true] in
     let lock_one (e:LockDomain.Addr.t) =
       let set_ret tv sts = 
         match lv with 
-          | None -> [sts,Cil.integer 1,true]
+          | None -> [sts,integer 1,true]
           | Some lv -> [sts,Lval lv,tv]
       in 
       if is_a_blob e then
@@ -347,17 +347,17 @@ struct
         [i, `NoOffset]
 
   (* Try to find a suitable type invarinat --- and by that we mean a struct. *)
-  let best_type_inv exs : (Cil.varinfo * Offs.t) option =
+  let best_type_inv exs : (varinfo * Offs.t) option =
     let add_el es e : LockingPattern.ee list list = 
       try LockingPattern.toEl e :: es
       with LockingPattern.NotSimpleEnough -> es
     in
     let full_els = List.fold_left add_el [] exs in
     let el_os = List.map LockingPattern.strip_fields full_els in
-(*     let dummy = Cil.integer 42 in *)
+(*     let dummy = integer 42 in *)
     let add_struct xs (e,fs) = 
       match fs with
-        | LockingPattern.Field f :: _ -> (e,f.fcomp,fs) :: xs 
+        | LockingPattern.EField f :: _ -> (e,f.fcomp,fs) :: xs 
         | _ -> xs
 (*      match unrollType (typeOf (LockingPattern.fromEl e dummy)) with
         | TComp (c,_) -> (e,c,fs) :: xs 
@@ -416,7 +416,7 @@ struct
   
   (* Just adds accesses. It says concrete, but we use it to add verified 
      non-concrete accesses too.*)
-  let add_concrete_access ctx fl loc ust (v, o, rv: Cil.varinfo * Offs.t * bool) =
+  let add_concrete_access ctx fl loc ust (v, o, rv: varinfo * Offs.t * bool) =
     if (Base.is_global ctx.ask v) then
       if not !GU.may_narrow then begin 
         let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
@@ -432,7 +432,7 @@ struct
       ctx.geffect v el
       
    
-  let struct_type_inv (v:varinfo) (o:Offs.t) : (Cil.varinfo * Offs.t) option =
+  let struct_type_inv (v:varinfo) (o:Offs.t) : (varinfo * Offs.t) option =
     let rec append os = function
       | `NoOffset    -> os
       | `Field (f,o) -> `Field (f,append o os)
@@ -481,7 +481,7 @@ struct
     let rec offs_perel o =
       match o with
         | `Index (CastE (intType, Const (CStr "unknown")),o)
-            -> `Index (Cil.kinteger64 IInt GU.inthack,offs_perel o)
+            -> `Index (kinteger64 IInt GU.inthack,offs_perel o)
         | `Index (i,o) -> `Index (i,offs_perel o)
         | `Field (f,o) -> `Field (f,offs_perel o) 
         | _ -> `NoOffset
@@ -687,16 +687,16 @@ struct
       in
       match arglist with
         | x::xs -> begin match  (eval_exp_addr ctx.ask x) with 
-                        | [] -> [remove_nonspecial ctx.local  ,Cil.integer 1, true]
-                        | es -> [(List.fold_right remove_fn es ctx.local), Cil.integer 1, true]
+                        | [] -> [remove_nonspecial ctx.local  ,integer 1, true]
+                        | es -> [(List.fold_right remove_fn es ctx.local), integer 1, true]
                 end
-        | _ -> [ctx.local, Cil.integer 1, true]
+        | _ -> [ctx.local, integer 1, true]
     in
     match (LF.classify f.vname arglist, f.vname) with
       | _, "_lock_kernel"
-          -> [(Lockset.add (big_kernel_lock,true) ctx.local),Cil.integer 1, true]
+          -> [(Lockset.add (big_kernel_lock,true) ctx.local),integer 1, true]
       | _, "_unlock_kernel"
-          -> [(Lockset.remove (big_kernel_lock,true) ctx.local),Cil.integer 1, true]
+          -> [(Lockset.remove (big_kernel_lock,true) ctx.local),integer 1, true]
       | `Lock (failing, rw), _
           -> lock rw failing ctx.ask lv arglist ctx.local
       | `Unlock, "__raw_read_unlock" 
@@ -716,13 +716,13 @@ struct
           unlock (fun l -> remove_rw (drop_raw_lock l))
       | `Unlock, _ 
           -> unlock remove_rw
-      | _, "spinlock_check" -> [ctx.local, Cil.integer 1, true]
+      | _, "spinlock_check" -> [ctx.local, integer 1, true]
       | _, "acquire_console_sem" when get_bool "kernel" -> 
-          [(Lockset.add (console_sem,true) ctx.local),Cil.integer 1, true]
+          [(Lockset.add (console_sem,true) ctx.local),integer 1, true]
       | _, "release_console_sem" when get_bool "kernel" -> 
-          [(Lockset.remove (console_sem,true) ctx.local),Cil.integer 1, true]
+          [(Lockset.remove (console_sem,true) ctx.local),integer 1, true]
       | _, "__builtin_prefetch" | _, "misc_deregister" ->
-          [ctx.local,Cil.integer 1, true]
+          [ctx.local,integer 1, true]
       | _, x -> 
           let arg_acc act = 
             match LF.get_threadsafe_inv_ac x with
@@ -738,7 +738,7 @@ struct
             List.iter (access_exp ctx true) (arg_acc `Write);
             List.iter (access_exp ctx false) (arg_acc `Read)            
           end end;
-          [ctx.local, Cil.integer 1, true]
+          [ctx.local, integer 1, true]
           
   let enter_func ctx lv f args : (Dom.t * Dom.t) list =
     [(ctx.local,ctx.local)]
@@ -777,7 +777,7 @@ struct
     | ThreadLocal
 
   (** [postprocess_acc gl] groups and report races in [gl] *)
-  let postprocess_acc (gl : Cil.varinfo) =
+  let postprocess_acc (gl : varinfo) =
     if not (!vips = []  || List.mem gl.vname !vips) then () else
     (* create mapping from offset to access list; set of offsets  *)
     let create_map (accesses_map: AccValSet.t) =

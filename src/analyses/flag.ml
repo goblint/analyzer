@@ -26,23 +26,23 @@ struct
 
   let rec no_addr_of_flag expr =
       match expr with
-        | Cil.Const _
-        | Cil.SizeOf _
-        | Cil.SizeOfE _
-        | Cil.SizeOfStr _
-        | Cil.AlignOf _
-        | Cil.AlignOfE _  -> ()
-        | Cil.UnOp (_,e,_) -> no_addr_of_flag e
-        | Cil.BinOp (_,e1,e2,_) -> no_addr_of_flag e1; no_addr_of_flag e2
-        | Cil.Lval (Cil.Var _,o) -> ()
-        | Cil.AddrOf (Cil.Var vinfo,o)          
-        | Cil.StartOf (Cil.Var vinfo,o) -> flags := listrem vinfo.vname !flags; noflags := vinfo.vname :: !noflags
-        | Cil.Lval (Cil.Mem e,o)    -> no_addr_of_flag e
-        | Cil.AddrOf (Cil.Mem e,o)  -> no_addr_of_flag e
-        | Cil.StartOf (Cil.Mem e,o) -> no_addr_of_flag e
-        | Cil.CastE (t,e) -> no_addr_of_flag e
-	| Cil.Question (e1, e2, e3, _) -> no_addr_of_flag e1; no_addr_of_flag e2; no_addr_of_flag e3
-	| Cil.AddrOfLabel _ -> ()
+        | Const _
+        | SizeOf _
+        | SizeOfE _
+        | SizeOfStr _
+        | AlignOf _
+        | AlignOfE _  -> ()
+        | UnOp (_,e,_) -> no_addr_of_flag e
+        | BinOp (_,e1,e2,_) -> no_addr_of_flag e1; no_addr_of_flag e2
+        | Lval (Var _,o) -> ()
+        | AddrOf (Var vinfo,o)          
+        | StartOf (Var vinfo,o) -> flags := listrem vinfo.vname !flags; noflags := vinfo.vname :: !noflags
+        | Lval (Mem e,o)    -> no_addr_of_flag e
+        | AddrOf (Mem e,o)  -> no_addr_of_flag e
+        | StartOf (Mem e,o) -> no_addr_of_flag e
+        | CastE (t,e) -> no_addr_of_flag e
+	| Question (e1, e2, e3, _) -> no_addr_of_flag e1; no_addr_of_flag e2; no_addr_of_flag e3
+	| AddrOfLabel _ -> ()
 
 
   let assign ctx (lval:lval) (rval:exp) : Dom.t = 
@@ -119,9 +119,9 @@ struct
     let _ = no_addr_of_flag fexp in
     Dom.top ()
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list = 
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list = 
     let _ = List.iter no_addr_of_flag arglist in
-    match f.vname with _ -> [Dom.top (),Cil.integer 1, true]
+    match f.vname with _ -> [Dom.top (),integer 1, true]
 
   let startstate v = Dom.top ()
   let otherstate v = Dom.top ()

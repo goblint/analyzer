@@ -93,7 +93,7 @@ let is_blessed (t:typ): varinfo option =
   let me_gusta x = List.mem x (List.map string (get_list "exp.unique")) in 
   match unrollType t with
     | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
-    | _ -> (None : Cil.varinfo option)
+    | _ -> (None : varinfo option)
 
 
 (** Length of summary description in XML output *)

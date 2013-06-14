@@ -263,19 +263,19 @@ struct
       | _, TInt _     -> `Int (ID.top ())
       | _ -> top ()
 
-  let rec top_value (t: Cil.typ) = 
+  let rec top_value (t: typ) = 
     let rec top_comp compinfo: Structs.t = 
       let nstruct = Structs.top () in
-      let top_field nstruct fd = Structs.replace nstruct fd (top_value fd.Cil.ftype) in
-        List.fold_left top_field nstruct compinfo.Cil.cfields 
+      let top_field nstruct fd = Structs.replace nstruct fd (top_value fd.ftype) in
+        List.fold_left top_field nstruct compinfo.cfields 
     in
       match t with
-        | Cil.TInt _ -> `Int (ID.top ())
-        | Cil.TPtr _ -> `Address (AD.unknown_ptr ())
-        | Cil.TComp ({Cil.cstruct=true} as ci,_) -> `Struct (top_comp ci)
-        | Cil.TComp ({Cil.cstruct=false},_) -> `Union (Unions.top ())
-        | Cil.TArray _ -> `Array (CArrays.top ())
-        | Cil.TNamed ({Cil.ttype=t}, _) -> top_value t
+        | TInt _ -> `Int (ID.top ())
+        | TPtr _ -> `Address (AD.unknown_ptr ())
+        | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
+        | TComp ({cstruct=false},_) -> `Union (Unions.top ())
+        | TArray _ -> `Array (CArrays.top ())
+        | TNamed ({ttype=t}, _) -> top_value t
         | _ -> `Top 
 
   let rec invalidate_value typ (state:t) : t =
@@ -285,14 +285,14 @@ struct
       let top_field nstruct fd = 
         Structs.replace nstruct fd (invalidate_value fd.ftype (Structs.get old fd)) 
       in
-        List.fold_left top_field nstruct compinfo.Cil.cfields 
+        List.fold_left top_field nstruct compinfo.cfields 
     in
     match typ, state with
       |                 _ , `Address n    -> `Address (AD.add (Addr.unknown_ptr ()) n)
-      | Cil.TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
+      | TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
       |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value voidType x) n)
-      | Cil.TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n)
-      | Cil.TArray (t,_,_), `Array n      -> 
+      | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n)
+      | TArray (t,_,_), `Array n      -> 
           let v = invalidate_value t (CArrays.get n (IndexDomain.top ())) in
             `Array (CArrays.set n (IndexDomain.top ()) v)
       |                 _ , `Array n      -> 
@@ -365,7 +365,7 @@ struct
                   let rec init_comp compinfo = 
                     let nstruct = Structs.top () in
                     let init_field nstruct fd = Structs.replace nstruct fd `Bot in
-                    List.fold_left init_field nstruct compinfo.Cil.cfields 
+                    List.fold_left init_field nstruct compinfo.cfields 
                   in
                   let strc = init_comp fld.fcomp in
                   `Struct (Structs.replace strc fld (update_offset `Bot offs value))        

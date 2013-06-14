@@ -2,6 +2,7 @@ open GobConfig
 open Messages
 open Progress
 open Pretty
+open Cil
 
 let run = ref false
 let break = ref []
@@ -54,15 +55,15 @@ struct
     let rec constrainOneVar (x: variable) =
       let rec debugger os ls = 
         let print_globs () =
-          let print_one x d = ignore (Pretty.fprintf !Goblintutil.command_out "%s " x.Cil.vname) in
+          let print_one x d = ignore (Pretty.fprintf !Goblintutil.command_out "%s " x.vname) in
           ignore (Pretty.fprintf !Goblintutil.command_out "globals: ");          
           GMap.iter print_one theta;
           ignore (Pretty.fprintf !Goblintutil.command_out "\n");          
         in
         let print_glob x =
           let print_one y d = 
-            if Some y.Cil.vname = x 
-            then ignore (Pretty.fprintf !Goblintutil.command_out "%s = %a\n" y.Cil.vname GDom.pretty d)
+            if Some y.vname = x 
+            then ignore (Pretty.fprintf !Goblintutil.command_out "%s = %a\n" y.vname GDom.pretty d)
           in
           GMap.iter print_one theta
         in

@@ -39,27 +39,27 @@ struct
     let module S = Set.Make (Var) in
     let rec offs_contains o =
       match o with
-        | Cil.NoOffset -> S.empty
-        | Cil.Field (_,o) -> offs_contains o
-        | Cil.Index (e,o) -> S.union (cv e) (offs_contains o)
+        | NoOffset -> S.empty
+        | Field (_,o) -> offs_contains o
+        | Index (e,o) -> S.union (cv e) (offs_contains o)
     and cv e = 
       match e with
-        | Cil.SizeOf _
-        | Cil.SizeOfE _
-        | Cil.SizeOfStr _
-        | Cil.AlignOf _  
-        | Cil.Const _ 
-        | Cil.AlignOfE _ -> S.empty
-        | Cil.UnOp  (_,e,_)     -> cv e      
-        | Cil.BinOp (_,e1,e2,_) -> S.union (cv e1) (cv e2)  
-        | Cil.AddrOf  (Cil.Mem e,o) 
-        | Cil.StartOf (Cil.Mem e,o) 
-        | Cil.Lval    (Cil.Mem e,o) -> S.union (cv e) (offs_contains o)
-        | Cil.CastE (_,e)           -> cv e 
-        | Cil.Lval    (Cil.Var v2,o) -> S.add v2 (offs_contains o)
-        | Cil.AddrOf  (Cil.Var v2,o) 
-        | Cil.StartOf (Cil.Var v2,o) -> S.add v2 (offs_contains o)
-        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+        | SizeOf _
+        | SizeOfE _
+        | SizeOfStr _
+        | AlignOf _  
+        | Const _ 
+        | AlignOfE _ -> S.empty
+        | UnOp  (_,e,_)     -> cv e      
+        | BinOp (_,e1,e2,_) -> S.union (cv e1) (cv e2)  
+        | AddrOf  (Mem e,o) 
+        | StartOf (Mem e,o) 
+        | Lval    (Mem e,o) -> S.union (cv e) (offs_contains o)
+        | CastE (_,e)           -> cv e 
+        | Lval    (Var v2,o) -> S.add v2 (offs_contains o)
+        | AddrOf  (Var v2,o) 
+        | StartOf (Var v2,o) -> S.add v2 (offs_contains o)
+        | Question _ -> failwith "Logical operations should be compiled away by CIL."
 	| _ -> failwith "Unmatched pattern."
     in
     S.elements (cv e)
@@ -226,7 +226,7 @@ struct
     au
   
   let special_fn_ld ask gl dup (lval: lval option) (f:varinfo) (arglist:exp list) st  =
-    let lift_st x = [x,Cil.integer 1, true] in
+    let lift_st x = [x,integer 1, true] in
     match f.vname, arglist, lval with
       | "kill", [ee], _ -> begin
           match eval_lp ask ee with
@@ -257,8 +257,8 @@ struct
     let ls = vars (Lval x) in
     lift_st (LD.map (kill_vars ask gl dup ls) st) 
     
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    let lift_st x = [x,Cil.integer 1, true] in
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
+    let lift_st x = [x,integer 1, true] in
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in

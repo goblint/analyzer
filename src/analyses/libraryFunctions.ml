@@ -413,7 +413,7 @@ let get_invalidate_action name =
 let threadSafe =
   let rec threadSafe n ns xs =    
     match ns, xs with
-      | n'::ns, x::xs when n=n' -> Cil.mone::threadSafe (n+1) ns xs
+      | n'::ns, x::xs when n=n' -> mone::threadSafe (n+1) ns xs
       | n'::ns, x::xs -> x::threadSafe (n+1) (n'::ns) xs
       | _ -> xs
   in 

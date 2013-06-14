@@ -13,7 +13,7 @@ module AnalyzeCFG (Cfg:CfgBackward) =
 struct
   
   (** The main function to preform the selected analyses. *)
-  let analyze (file: Cil.file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec2) =   
+  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec2) =   
     (** The Equation system *)
     let module EQSys = FromSpec (Spec) (Cfg) in
   
@@ -42,7 +42,7 @@ struct
       (* Adding the state at each system variable to the final result *)
       let add_local_var (n,es) state =
         let loc = MyCFG.getLoc n in
-        if loc <> Cil.locUnknown then try 
+        if loc <> locUnknown then try 
           let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
           if Result.mem res p then 
             (* If this source location has been added before, we look it up
@@ -62,7 +62,7 @@ struct
     (** exctract global xml from result *)
     let make_global_xml g =
       let one_glob k v = 
-        let k = Xml.PCData k.Cil.vname in
+        let k = Xml.PCData k.vname in
         let varname = Xml.Element ("td",[],[k]) in
         let varvalue = Xml.Element ("td",[],[Spec.G.toXML v]) in
         Xml.Element ("tr",[],[varname; varvalue])
@@ -76,13 +76,13 @@ struct
     in  
 
     (** add extern variables to local state *)
-    let do_extern_inits ctx (file : Cil.file) : Spec.D.t =
+    let do_extern_inits ctx (file : file) : Spec.D.t =
       let module VS = Set.Make (Basetype.Variables) in    
       let add_glob s = function
           GVar (v,_,_) -> VS.add v s
         | _            -> s
       in
-      let vars = Cil.foldGlobals file add_glob VS.empty in
+      let vars = foldGlobals file add_glob VS.empty in
       let set_bad v st =
         Spec.assign {ctx with local2 = st} (var v) MyCFG.unknown_exp 
       in
@@ -90,11 +90,11 @@ struct
         | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) -> set_bad v s
         | _ -> s
       in    
-      Cil.foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
+      foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
     in
     
     (** analyze cil's global-inits function to get a starting state *)
-    let do_global_inits (file: Cil.file) : Spec.D.t * Cil.fundec list = 
+    let do_global_inits (file: file) : Spec.D.t * fundec list = 
       let ctx = 
         { ask2     = (fun _ -> Queries.Result.top ())
         ; local2   = Spec.D.top ()
@@ -119,8 +119,8 @@ struct
             | MyCFG.Entry func        -> Spec.body {ctx with local2 = st} func
             | MyCFG.Assign (lval,exp) -> 
                 begin match lval, exp with
-                  | (Var v,o), (Cil.AddrOf (Cil.Var f,Cil.NoOffset)) 
-                    when v.Cil.vstorage <> Static && isFunctionType f.vtype -> 
+                  | (Var v,o), (AddrOf (Var f,NoOffset)) 
+                    when v.vstorage <> Static && isFunctionType f.vtype -> 
                     begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end 
                   | _ -> ()
                 end;
@@ -168,16 +168,16 @@ struct
         ; sideg2   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
         } 
       in
-      let args = List.map (fun x -> MyCFG.unknown_exp) fd.Cil.sformals in
-      let ents = Spec.enter ctx None fd.Cil.svar args in
-        List.map (fun (_,s) -> fd.Cil.svar, s) ents  
+      let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
+      let ents = Spec.enter ctx None fd.svar args in
+        List.map (fun (_,s) -> fd.svar, s) ents  
     in
   
-    let _ = try MyCFG.dummy_func.Cil.svar.Cil.vdecl <- (List.hd otherfuns).Cil.svar.Cil.vdecl with Failure _ -> () in
+    let _ = try MyCFG.dummy_func.svar.vdecl <- (List.hd otherfuns).svar.vdecl with Failure _ -> () in
   
     let startvars = 
       if startfuns = [] 
-      then [[MyCFG.dummy_func.Cil.svar, startstate]]
+      then [[MyCFG.dummy_func.svar, startstate]]
       else 
         let morph f = Spec.morphstate f startstate in
         List.map (enter_with morph) startfuns 
@@ -243,7 +243,7 @@ struct
 end
 
 (** The main function to preform the selected analyses. *)
-let analyze (file: Cil.file) fs = 
+let analyze (file: file) fs = 
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph."; 
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function

@@ -47,15 +47,15 @@ struct
   match LF.classify f.vname args with 
     | `ThreadCreate (f,x) -> 
       let new_fl = Flag.join ctx.local (Flag.get_main ()) in
-        [new_fl, Cil.integer 1, true]
+        [new_fl, integer 1, true]
     | `Unknown _ -> 
   begin match LF.get_invalidate_action f.vname with
     | None -> 
       let new_fl = Flag.join ctx.local (Flag.get_main ()) in
-      [new_fl, Cil.integer 1, true]
-    | _ -> [ctx.local, Cil.integer 1, true]
+      [new_fl, integer 1, true]
+    | _ -> [ctx.local, integer 1, true]
   end 
-    | _ ->  [ctx.local, Cil.integer 1, true]
+    | _ ->  [ctx.local, integer 1, true]
     
 
   let query ctx x =  `Top

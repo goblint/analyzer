@@ -98,7 +98,7 @@ struct
       | b -> Messages.warn ("Could not evaluate '"^sprint 30 (d_exp () exp)^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
     
   (* Called when calling a special/unknown function *)
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
       | `Lock (_, _), _
           ->  
@@ -108,7 +108,7 @@ struct
 
              (* Add lock *)
              addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
-             [ctx.local@[{addr = lockAddr; loc = !Tracing.current_loc }], Cil.integer 1, true]
+             [ctx.local@[{addr = lockAddr; loc = !Tracing.current_loc }], integer 1, true]
   
       | `Unlock, _ 
           -> 
@@ -117,9 +117,9 @@ struct
              (*if isDebugging then (printf "LOCK: %s\n" (ValueDomain.Addr.short () lockAddr);()) else ();*)
 
              (* Remove lock *)
-             [List.filter (fun e -> ((ValueDomain.Addr.equal lockAddr (e.addr)) == false)) ctx.local, Cil.integer 1, true]
+             [List.filter (fun e -> ((ValueDomain.Addr.equal lockAddr (e.addr)) == false)) ctx.local, integer 1, true]
         
-      | _ -> [ctx.local, Cil.integer 1, true]
+      | _ -> [ctx.local, integer 1, true]
 
 end
 

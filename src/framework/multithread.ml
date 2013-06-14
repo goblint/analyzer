@@ -78,11 +78,11 @@ struct
       
     let line_nr = function
       | `L a -> LV.line_nr a
-      | `G a -> a.Cil.vdecl.Cil.line
+      | `G a -> a.vdecl.line
     
     let file_name = function
       | `L a -> LV.file_name a
-      | `G a -> a.Cil.vdecl.Cil.file
+      | `G a -> a.vdecl.file
     
     let description n = sprint 80 (pretty_trace () n)
     let context () _ = Pretty.nil
@@ -613,13 +613,13 @@ struct
     vm, gm
 
   (** add extern variables to local state *)
-  let do_extern_inits (file : Cil.file) : Spec.Dom.t =
+  let do_extern_inits (file : file) : Spec.Dom.t =
     let module VS = Set.Make (Basetype.Variables) in    
     let add_glob s = function
         GVar (v,_,_) -> VS.add v s
       | _            -> s
     in
-    let vars = Cil.foldGlobals file add_glob VS.empty in
+    let vars = foldGlobals file add_glob VS.empty in
     let set_bad v st =
       let theta x = Spec.Glob.Val.bot () in
       let error _ = failwith "Bug: Using enter_func for toplevel functions." in 
@@ -630,10 +630,10 @@ struct
       | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) -> set_bad v s
       | _ -> s
     in    
-    Cil.foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
+    foldGlobals file add_externs (Spec.startstate MyCFG.dummy_func.svar)
   
   (** analyze cil's global-inits function to get a starting state *)
-  let do_global_inits (file: Cil.file) : SD.t * Cil.fundec list = 
+  let do_global_inits (file: file) : SD.t * fundec list = 
 	  let undefined _ = failwith "undefined" in
     let early = (get_bool "exp.earlyglobs") in
     let edges = MyCFG.getGlobalInits file in
@@ -650,8 +650,8 @@ struct
           | MyCFG.Entry func        -> Spec.body (A.context top_query st theta [] add_var add_diff undefined) func
           | MyCFG.Assign (lval,exp) -> 
               begin match lval, exp with
-                | (Var v,o), (Cil.AddrOf (Cil.Var f,Cil.NoOffset)) 
-                  when v.Cil.vstorage <> Static && isFunctionType f.vtype -> 
+                | (Var v,o), (AddrOf (Var f,NoOffset)) 
+                  when v.vstorage <> Static && isFunctionType f.vtype -> 
                   begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end 
                 | _ -> ()
               end;
@@ -904,7 +904,7 @@ struct
 	Solver.GMap.iter f g;
 	res
   
-  let analyze (file: Cil.file) (fds: A.fundecs) = 
+  let analyze (file: file) (fds: A.fundecs) = 
     (*ignore (Printf.printf "Effective conf:%s" (Json.jsonString (Json.Object !GU.conf)));*)
     (* number of phases *)
     let phs = get_length "ana.activated" in

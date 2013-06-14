@@ -192,7 +192,7 @@ sig
   
 (*   val fork       : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (varinfo * Dom.t) list   *)
 (*   (** [fork] returns list of function,input-state pairs, that the callee has spawned *) *)
-  val special_fn : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (Dom.t * Cil.exp * bool) list
+  val special_fn : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (Dom.t * exp * bool) list
   (** [special_fn] is called, when given varinfo is not connected to a fundec -- no function definition is given*)
   val enter_func : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (Dom.t * Dom.t) list 
   (** [enter_func] returns input-states that must be analyzed for the given function *)
@@ -606,7 +606,7 @@ struct
     in
     iter print_one xs
 
-  let output table gtable (file: Cil.file) =
+  let output table gtable (file: file) =
     if (get_bool "dbg.verbose") then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
     GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = Messages.get_out result_name !GU.out in

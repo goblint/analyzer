@@ -2,7 +2,7 @@ open Cil
 open Pretty
 open Printf
 
-type myowntypeEntry = {addr : ValueDomain.Addr.t ; loc : Cil.location}
+type myowntypeEntry = {addr : ValueDomain.Addr.t ; loc : location}
 type myowntype = myowntypeEntry list
 
 module Lockset = 

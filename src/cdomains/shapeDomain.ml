@@ -87,7 +87,7 @@ let is_private ask (lp:ListPtr.t) =
   match lp with
     | `Right ((v,_),_) when v.vname.[0] = '{' -> true 
     | `Right ((v,_),_) 
-    | `Left v when v.Cil.vglob -> check v
+    | `Left v when v.vglob -> check v
     | _ -> true
 
 let is_broken gl (lp:ListPtr.t) =

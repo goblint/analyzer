@@ -61,7 +61,7 @@ struct
 
   type cpa = CPA.t
   type flag = Flag.t
-  type extra = (Cil.varinfo * Offs.t * bool) list
+  type extra = (varinfo * Offs.t * bool) list
   type store = Dom.t
   type value = VD.t
   type address = AD.t
@@ -147,7 +147,7 @@ struct
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) nst: cpa = 
-      if Cil.isFunctionType x.vtype then nst else 
+      if isFunctionType x.vtype then nst else 
       if get_bool "exp.globs_are_top" then CPA.add x `Top nst else
       (* Check if we need to side-effect this one. We no longer generate
        * side-effects here, but the code still distinguishes these cases. *)
@@ -241,7 +241,7 @@ struct
          None -> IdxDom.top () 
        | Some n -> IdxDom.of_int n 
   
-  (* Evaluate Cil.binop for two abstract values: *)
+  (* Evaluate binop for two abstract values: *)
   let evalbinop (op: binop) (a1:value) (a2:value): value = 
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -322,9 +322,9 @@ struct
   let evalunop op a1 =
     let the_op =
       match op with
-        | Cil.Neg  -> ID.neg
-        | Cil.BNot -> ID.bitnot
-        | Cil.LNot -> ID.lognot
+        | Neg  -> ID.neg
+        | BNot -> ID.bitnot
+        | LNot -> ID.lognot
     in
       match a1 with
         | `Int v1 -> `Int (the_op v1)
@@ -357,22 +357,22 @@ struct
           | _ -> None
       in
       match op with
-        | Cil.MinusA
-        | Cil.MinusPI 
-        | Cil.MinusPP when equality () = Some true -> Some (`Int (ID.of_int 0L))
-        | Cil.MinusA
-        | Cil.MinusPI
-        | Cil.MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list [0L]))
-        | Cil.Le
-        | Cil.Ge when equality () = Some true -> Some (`Int (ID.of_bool true))
-        | Cil.Lt
-        | Cil.Gt when equality () = Some true -> Some (`Int (ID.of_bool false))
-        | Cil.Eq -> (match equality () with Some tv -> Some (`Int (ID.of_bool tv)) | None -> None)
-        | Cil.Ne -> (match equality () with Some tv -> Some (`Int (ID.of_bool (not tv))) | None -> None)
+        | MinusA
+        | MinusPI 
+        | MinusPP when equality () = Some true -> Some (`Int (ID.of_int 0L))
+        | MinusA
+        | MinusPI
+        | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list [0L]))
+        | Le
+        | Ge when equality () = Some true -> Some (`Int (ID.of_bool true))
+        | Lt
+        | Gt when equality () = Some true -> Some (`Int (ID.of_bool false))
+        | Eq -> (match equality () with Some tv -> Some (`Int (ID.of_bool tv)) | None -> None)
+        | Ne -> (match equality () with Some tv -> Some (`Int (ID.of_bool (not tv))) | None -> None)
         | _ -> None
     in
     match exp with
-      | Cil.BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
+      | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
       | _ -> None
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
@@ -394,29 +394,29 @@ struct
       | Some x -> x 
       | None -> 
     (* query functions were no help ... now try with values*)
-    match Cil.constFold true exp with
+    match constFold true exp with
       (* Integer literals *)
-      | Cil.Const (Cil.CInt64 (num,typ,str)) -> `Int (ID.of_int num)
+      | Const (CInt64 (num,typ,str)) -> `Int (ID.of_int num)
       (* String literals *)
-      | Cil.Const (Cil.CStr _)
-      | Cil.Const (Cil.CWStr _) -> `Address (AD.str_ptr ())
+      | Const (CStr _)
+      | Const (CWStr _) -> `Address (AD.str_ptr ())
       (* Variables and address expressions *)
-      | Cil.Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
-      | Cil.Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs
+      | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
+      | Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs
       (* Binary operators *)
-      | Cil.BinOp (op,arg1,arg2,typ) -> 
+      | BinOp (op,arg1,arg2,typ) -> 
           let a1 = eval_rv a gs st arg1 in
           let a2 = eval_rv a gs st arg2 in
             evalbinop op a1 a2
       (* Unary operators *)
-      | Cil.UnOp (op,arg1,typ) -> 
+      | UnOp (op,arg1,typ) -> 
           let a1 = eval_rv a gs st arg1 in
             evalunop op a1
       (* The &-operator: we create the address abstract element *)
-      | Cil.AddrOf lval -> `Address (eval_lv a gs st lval)
+      | AddrOf lval -> `Address (eval_lv a gs st lval)
       (* CIL's very nice implicit conversion of an array name [a] to a pointer
        * to its first element [&a[0]]. *)
-      | Cil.StartOf lval -> 
+      | StartOf lval -> 
           let array_ofs = `Index (IdxDom.of_int 0L, `NoOffset) in
           let array_start ad = 
             match Addr.to_var_offset ad with
@@ -424,14 +424,14 @@ struct
               | _ -> ad
           in
           `Address (AD.map array_start (eval_lv a gs st lval))
-       | Cil.CastE  (t, Const (CStr _)) -> VD.top ()
+       | CastE  (t, Const (CStr _)) -> VD.top ()
       (* Most casts are currently just ignored, that's probably not a good idea! *)
-       | Cil.CastE  (t, exp) -> begin
+       | CastE  (t, exp) -> begin
            match t,eval_rv a gs st exp with
-             | Cil.TPtr (_,_), `Top -> `Address (AD.unknown_ptr ())
-              | Cil.TPtr _, `Int a when Some Int64.zero = ID.to_int a -> 
+             | TPtr (_,_), `Top -> `Address (AD.unknown_ptr ())
+              | TPtr _, `Int a when Some Int64.zero = ID.to_int a -> 
                   `Address (AD.null_ptr ())
-              | Cil.TInt _, `Address a when AD.equal a (AD.null_ptr()) -> 
+              | TInt _, `Address a when AD.equal a (AD.null_ptr()) -> 
                   `Int (ID.of_int Int64.zero)
              | _, s -> s
        end
@@ -440,18 +440,18 @@ struct
    * address, e.g. when calling functions. *)
   and eval_fv a (gs:glob_fun) st (exp:exp): AD.t = 
     match exp with
-      | Cil.Lval lval -> eval_lv a gs st lval
+      | Lval lval -> eval_lv a gs st lval
       | _ -> 
          match (eval_rv a gs st exp) with
            | `Address x -> x
            | _          -> M.bailwith "Problems evaluating expression to function calls!"
   (* A function to convert the offset to our abstract representation of
    * offsets, i.e.  evaluate the index expression to the integer domain. *)
-  and convert_offset a (gs:glob_fun) (st: store) (ofs: Cil.offset) = 
+  and convert_offset a (gs:glob_fun) (st: store) (ofs: offset) = 
     match ofs with 
-      | Cil.NoOffset -> `NoOffset
-      | Cil.Field (fld, ofs) -> `Field (fld, convert_offset a gs st ofs)
-      | Cil.Index (exp, ofs) -> 
+      | NoOffset -> `NoOffset
+      | Field (fld, ofs) -> `Field (fld, convert_offset a gs st ofs)
+      | Index (exp, ofs) -> 
           let exp_rv = eval_rv a gs st exp in
           match exp_rv with
             | `Int i -> `Index (iDtoIdx i, convert_offset a gs st ofs)
@@ -469,21 +469,21 @@ struct
       | NoOffset -> def
     in
     match lval with 
-      | Cil.Var x, NoOffset when (not x.vglob) && Goblintutil.is_blessed x.vtype<> None ->  
+      | Var x, NoOffset when (not x.vglob) && Goblintutil.is_blessed x.vtype<> None ->  
          begin match Goblintutil.is_blessed x.vtype with
            | Some v -> AD.singleton (Addr.from_var v)
            | _ ->  AD.singleton (Addr.from_var_offset (x, convert_offset a gs st NoOffset))
          end
       (* The simpler case with an explicit variable, e.g. for [x.field] we just
        * create the address { (x,field) } *)
-      | Cil.Var x, ofs -> 
+      | Var x, ofs -> 
          if x.vglob 
          then AD.singleton (Addr.from_var_offset (x, convert_offset a gs st ofs))
          else do_offs (AD.singleton (Addr.from_var_offset (x, convert_offset a gs st ofs))) ofs
       (* The more complicated case when [exp = & x.field] and we are asked to
        * evaluate [(\*exp).subfield]. We first evaluate [exp] to { (x,field) }
        * and then add the subfield to it: { (x,field.subfield) }. *)
-      | Cil.Mem n, ofs -> begin
+      | Mem n, ofs -> begin
           match (eval_rv a gs st n) with 
             | `Address adr -> do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
             | `Bot -> AD.bot ()
@@ -497,19 +497,19 @@ struct
    * Auxilliary functions
    **************************************************************************)
 
-  let rec bot_value a (gs:glob_fun) (st: store) (t: Cil.typ): value = 
+  let rec bot_value a (gs:glob_fun) (st: store) (t: typ): value = 
     let rec bot_comp compinfo: ValueDomain.Structs.t = 
       let nstruct = ValueDomain.Structs.top () in
-      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value a gs st fd.Cil.ftype) in
-        List.fold_left bot_field nstruct compinfo.Cil.cfields 
+      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value a gs st fd.ftype) in
+        List.fold_left bot_field nstruct compinfo.cfields 
     in
       match t with
-        | Cil.TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
-        | Cil.TPtr _ -> `Address (AD.bot ())
-        | Cil.TComp ({Cil.cstruct=true} as ci,_) -> `Struct (bot_comp ci)
-        | Cil.TComp ({Cil.cstruct=false},_) -> `Union (ValueDomain.Unions.bot ())
-           | Cil.TArray (_, None, _) -> `Array (ValueDomain.CArrays.bot ())
-        | Cil.TArray (ai, Some exp, _) -> begin
+        | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
+        | TPtr _ -> `Address (AD.bot ())
+        | TComp ({cstruct=true} as ci,_) -> `Struct (bot_comp ci)
+        | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.bot ())
+           | TArray (_, None, _) -> `Array (ValueDomain.CArrays.bot ())
+        | TArray (ai, Some exp, _) -> begin
             let default = `Array (ValueDomain.CArrays.bot ()) in
             match eval_rv a gs st exp with
               | `Int n -> begin
@@ -519,63 +519,63 @@ struct
                 end
               | _ -> default
           end
-        | Cil.TNamed ({Cil.ttype=t}, _) -> bot_value a gs st t
+        | TNamed ({ttype=t}, _) -> bot_value a gs st t
         | _ -> `Bot 
 
-  let rec init_value a (gs:glob_fun) (st: store) (t: Cil.typ): value = 
+  let rec init_value a (gs:glob_fun) (st: store) (t: typ): value = 
     let rec init_comp compinfo: ValueDomain.Structs.t = 
       let nstruct = ValueDomain.Structs.top () in
-      let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.Cil.ftype) in
-        List.fold_left init_field nstruct compinfo.Cil.cfields 
+      let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.ftype) in
+        List.fold_left init_field nstruct compinfo.cfields 
     in
       match t with
         | t when is_mutex_type t -> `Top
-        | Cil.TInt _ -> `Int (ID.top ())
-        | Cil.TPtr _ -> `Address (AD.join (AD.safe_ptr ()) (AD.null_ptr ()))
-        | Cil.TComp ({Cil.cstruct=true} as ci,_) -> `Struct (init_comp ci)
-        | Cil.TComp ({Cil.cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
-        | Cil.TArray _ -> bot_value a gs st t
-        | Cil.TNamed ({Cil.ttype=t}, _) -> init_value a gs st t
+        | TInt _ -> `Int (ID.top ())
+        | TPtr _ -> `Address (AD.join (AD.safe_ptr ()) (AD.null_ptr ()))
+        | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
+        | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
+        | TArray _ -> bot_value a gs st t
+        | TNamed ({ttype=t}, _) -> init_value a gs st t
         | _ -> `Top 
 
-  let rec top_value (st: store) (t: Cil.typ): value = 
+  let rec top_value (st: store) (t: typ): value = 
     let rec top_comp compinfo: ValueDomain.Structs.t = 
       let nstruct = ValueDomain.Structs.top () in
-      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value st fd.Cil.ftype) in
-        List.fold_left top_field nstruct compinfo.Cil.cfields 
+      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value st fd.ftype) in
+        List.fold_left top_field nstruct compinfo.cfields 
     in
       match t with
-        | Cil.TInt _ -> `Int (ID.top ())
-        | Cil.TPtr _ -> `Address (AD.unknown_ptr ())
-        | Cil.TComp ({Cil.cstruct=true} as ci,_) -> `Struct (top_comp ci)
-        | Cil.TComp ({Cil.cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
-        | Cil.TArray _ -> `Array (ValueDomain.CArrays.top ())
-        | Cil.TNamed ({Cil.ttype=t}, _) -> top_value st t
+        | TInt _ -> `Int (ID.top ())
+        | TPtr _ -> `Address (AD.unknown_ptr ())
+        | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
+        | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
+        | TArray _ -> `Array (ValueDomain.CArrays.top ())
+        | TNamed ({ttype=t}, _) -> top_value st t
         | _ -> `Top 
 
   let invariant a (gs:glob_fun) st exp tv = 
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
-    let rec helper (op: Cil.binop) (lval: Cil.lval) (value: value) (tv: bool) = 
+    let rec helper (op: binop) (lval: lval) (value: value) (tv: bool) = 
       match (op, lval, value, tv) with
         (* The true-branch where x == value: *)
-        | Cil.Eq, x, value, true -> 
-            if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" Cil.d_lval x VD.pretty value;
+        | Eq, x, value, true -> 
+            if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
             Some (x, value)
         (* The false-branch for x == value: *)
-        | Cil.Eq, x, value, false -> begin
+        | Eq, x, value, false -> begin
             match value with
               | `Int n -> begin
                   match ID.to_int n with
                     | Some n ->
                         (* When x != n, we can return a singleton exclusion set *)
-                        if M.tracing then M.tracec "invariant" "Yes, %a is not %Ld\n" Cil.d_lval x n;
+                        if M.tracing then M.tracec "invariant" "Yes, %a is not %Ld\n" d_lval x n;
                         Some (x, `Int (ID.of_excl_list [n]))
                     | None -> None
                 end
               | `Address n -> begin
-                  if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" Cil.d_lval x AD.pretty n;
-                  match eval_rv a gs st (Cil.Lval x) with
+                  if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
+                  match eval_rv a gs st (Lval x) with
                    | `Address a when not (AD.is_top n) 
                                   && not (AD.mem (Addr.unknown_ptr ()) n) 
                                   && not (AD.mem (Addr.safe_ptr ()) n)-> 
@@ -590,60 +590,60 @@ struct
                 if M.tracing then M.tracec "invariant" "Failed! (not a definite value)\n";
                 None
           end
-        | Cil.Ne, x, value, _ -> helper Cil.Eq x value (not tv)
-        | Cil.Lt, x, value, _ -> begin
+        | Ne, x, value, _ -> helper Eq x value (not tv)
+        | Lt, x, value, _ -> begin
            let range_from x = if tv then ID.ending (Int64.sub x 1L) else ID.starting x in
            let limit_from = if tv then ID.maximal else ID.minimal in
            match value with
              | `Int n -> begin 
                  match limit_from n with
                    | Some n ->
-                        if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n;
+                        if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" d_lval x n;
                         Some (x, `Int (range_from n))
                    | None -> None
              end
              | _ -> None
            end
-        | Cil.Le, x, value, _ -> begin
+        | Le, x, value, _ -> begin
            let range_from x = if tv then ID.ending x else ID.starting (Int64.add x 1L) in
            let limit_from = if tv then ID.maximal else ID.minimal in
            match value with
              | `Int n -> begin 
                  match limit_from n with
                    | Some n ->
-                        if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" Cil.d_lval x n;
+                        if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" d_lval x n;
                         Some (x, `Int (range_from n))
                    | None -> None
              end
              | _ -> None
            end
-        | Cil.Gt, x, value, _ -> helper Cil.Le x value (not tv)
-        | Cil.Ge, x, value, _ -> helper Cil.Lt x value (not tv)
+        | Gt, x, value, _ -> helper Le x value (not tv)
+        | Ge, x, value, _ -> helper Lt x value (not tv)
         | _ -> 
             if M.tracing then M.trace "invariant" "Failed! (operation not supported)\n\n";
             None
     in
-      if M.tracing then M.traceli "invariant" "assume expression %a is %B\n" Cil.d_exp exp tv;
+      if M.tracing then M.traceli "invariant" "assume expression %a is %B\n" d_exp exp tv;
         let null_val typ =
           match typ with
-            | Cil.TPtr _ -> `Address (AD.null_ptr())
+            | TPtr _ -> `Address (AD.null_ptr())
             | _      -> `Int (ID.of_int 0L) 
         in
         let rec derived_invariant exp tv = 
         match exp with 
           (* Since we only handle equalities the order is not important *)
-          | Cil.BinOp(op, Cil.Lval x, rval, typ) -> helper op x (eval_rv a gs st rval) tv
-          | Cil.BinOp(op, rval, Cil.Lval x, typ) -> helper op x (eval_rv a gs st rval) tv
-          | Cil.BinOp(op, Cil.CastE (xt,x), Cil.CastE (yt,y), typ) when Basetype.CilType.equal xt yt 
-            -> derived_invariant (Cil.BinOp (op, x, y, typ)) tv
+          | BinOp(op, Lval x, rval, typ) -> helper op x (eval_rv a gs st rval) tv
+          | BinOp(op, rval, Lval x, typ) -> helper op x (eval_rv a gs st rval) tv
+          | BinOp(op, CastE (xt,x), CastE (yt,y), typ) when Basetype.CilType.equal xt yt 
+            -> derived_invariant (BinOp (op, x, y, typ)) tv
           (* Cases like if (x) are treated like if (x != 0) *)
-          | Cil.Lval x -> 
+          | Lval x -> 
             (* There are two correct ways of doing it: "if ((int)x != 0)" or "if (x != (typeof(x))0))"
              * Because we try to avoid casts (and use a more precise address domain) we use the latter *)
-              helper Cil.Ne x (null_val (Cil.typeOf exp)) tv
-          | Cil.UnOp (Cil.LNot,uexp,typ) -> derived_invariant uexp (not tv)
+              helper Ne x (null_val (typeOf exp)) tv
+          | UnOp (LNot,uexp,typ) -> derived_invariant uexp (not tv)
           | _ -> 
-              if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)\n\n" Cil.d_exp exp;
+              if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)\n\n" d_exp exp;
               None
       in
       let is_some_bot x =
@@ -860,7 +860,7 @@ struct
       if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
       List.map AD.singleton (AD.elements !visited)
 
-  let invalidate ask (gs:glob_fun) (st:store) (exps: Cil.exp list): store =   
+  let invalidate ask (gs:glob_fun) (st:store) (exps: exp list): store =   
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a = 
@@ -878,7 +878,7 @@ struct
         | `Address a when not (AD.is_top a) -> 
             List.map (invalidate_address st) (reachable_vars ask [a] gs st)
         | `Int _ -> []
-        | _ -> let expr = sprint ~width:80 (Cil.d_exp () e) in
+        | _ -> let expr = sprint ~width:80 (d_exp () e) in
             M.warn ("Failed to invalidate unknown address: " ^ expr); []
     in
     (* We concatMap the previous function on the list of expressions. *)
@@ -950,7 +950,7 @@ struct
       let toInt i = 
         match IdxDom.to_int i with
           | Some x -> Const (CInt64 (x,IInt, None))
-          | _ -> mkCast (Const (CStr "unknown")) Cil.intType
+          | _ -> mkCast (Const (CStr "unknown")) intType
                                        
       in
       match o with
@@ -1148,7 +1148,7 @@ struct
         | `Bot -> `Bot
         | _ -> `Top
     in
-    let map_true x = x, (Cil.integer 1), true in
+    let map_true x = x, (integer 1), true in
     let expr () = sprint ~width:80 (d_exp () e) in
     match check_assert e ctx.local with 
       | `False -> 
@@ -1176,7 +1176,7 @@ struct
     let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
     let cpa,fl as st = ctx.local in
     let gs = ctx.global in
-    let map_true x = x, (Cil.integer 1), true in
+    let map_true x = x, (integer 1), true in
     match LF.classify f.vname args with 
       | `Unknown "list_add" when (get_bool "exp.list-type") -> 
           begin match args with
@@ -1278,7 +1278,7 @@ struct
       | _ -> begin
           let lv_list = 
             match lv with
-              | Some x -> [Cil.mkAddrOrStartOf x]
+              | Some x -> [mkAddrOrStartOf x]
               | None -> []
           in
           match LF.get_invalidate_action f.vname with
@@ -1287,7 +1287,7 @@ struct
                 (if f.vid <> dummyFunDec.svar.vid then M.warn ("Function definition missing for " ^ f.vname));
                 let st_expr (v:varinfo) (value) a = 
                   if is_global ctx.ask v && not (is_static v) then 
-                    Cil.mkAddrOf (Var v, NoOffset) :: a 
+                    mkAddrOf (Var v, NoOffset) :: a 
                   else a
                 in
                 let addrs = CPA.fold st_expr cpa (lv_list @ args) in
