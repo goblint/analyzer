@@ -243,7 +243,6 @@ let _ = print_endline (string_of_bool res) in res*)
   let offpry acc_list = List.fold_left (fun y x -> if x > y then x else y) (min_int) (offprys acc_list)
   (*/prioritystuff*)
 
-  (*TODO fill table at accesses*) 
   let offpry_flags (flagstate : Flags.t) (varinfo : Cil.varinfo) : int =
     let var = varinfo.vname in
     if tracing then trace "osek" "Computing flag priority for %s\n" var;
@@ -306,7 +305,7 @@ let _ = print_endline (string_of_bool res) in res*)
      non-concrete accesses too.*)
   let add_concrete_access ctx fl loc ust (flagstate : Flags.t) (v, o, rv: Cil.varinfo * Offs.t * bool) =
     if (Base.is_global ctx.ask v) then begin
-      if not (is_task v.vname) then begin
+      if not (is_task v.vname) || flagstate = Flags.top() then begin
         if not !GU.may_narrow then begin
           let new_acc = ((loc,fl,rv),ust,o) in
           let curr : AccValSet.t = try M.Acc.find acc v with _ -> AccValSet.empty in

@@ -27,30 +27,68 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    match lval, eval_int ctx.ask rval with
-    | (Var f,NoOffset), Some ex when List.mem f.vname !flag_list ->
-        Dom.add f (false,true,ex) ctx.local
-    | (Var f,NoOffset), _ ->
-        Dom.remove f ctx.local
-    | _ -> ctx.local
+    if ctx.local = Dom.bot() then ctx.local else
+      match lval, eval_int ctx.ask rval with
+	| (Var f,NoOffset), Some ex when List.mem f.vname !flag_list -> Dom.add f (false,true,ex) ctx.local
+	| (Var f,NoOffset), _ -> Dom.remove f ctx.local
+	| _ -> ctx.local
    
   let branch ctx (exp:exp) (tv:bool) : Dom.t = 
-    let var_eq_const b f ex =
-      match eval_int ctx.ask ex with 
-        | Some n -> Dom.add f (true, b, n) ctx.local
-        | _ -> ctx.local
-    in
-    match constFold false exp with
-      | Lval (Var f, NoOffset) when List.mem f.vname !flag_list  -> 
-          Dom.add f (true,not tv,0L) ctx.local
-      | BinOp(Ne,ex,Lval (Var f, NoOffset),_) 
-      | BinOp(Ne,Lval (Var f, NoOffset), ex,_) when List.mem f.vname !flag_list -> 
-          var_eq_const (not tv) f ex
-      | BinOp(Eq,ex,Lval (Var f, NoOffset),_) 
-      | BinOp(Eq,Lval (Var f, NoOffset), ex,_) when List.mem f.vname !flag_list -> 
-          var_eq_const tv f ex
-      | _ -> ctx.local
-  
+    if ctx.local = Dom.bot() then ctx.local else begin
+      match (tv, (constFold false exp)) with
+	| false, BinOp(Ne,ex,Lval (Var f, NoOffset),_) (*not neq*)
+	| false, BinOp(Ne,Lval (Var f, NoOffset), ex,_) (*not neq*)
+	| true, BinOp(Eq,ex,Lval (Var f, NoOffset),_) 
+	| true, BinOp(Eq,Lval (Var f, NoOffset), ex,_) when List.mem f.vname !flag_list -> begin
+	  let temp = eval_int ctx.ask ex in
+	  match temp with
+	    | Some value -> begin 
+	      try
+		match (Dom.find f ctx.local) with
+		  | (false,_,old_val) -> if value <> old_val then Dom.bot() else ctx.local
+		  | (true,true,old_val) -> if value <> old_val then Dom.bot() else ctx.local
+		  | (true,false,old_val) -> if value = old_val then Dom.bot() else Dom.add f (true, true, value) ctx.local
+	      with Not_found (*top*) -> Dom.add f (true, true, value) ctx.local
+	    end
+	    | None -> ctx.local  
+	end
+	| false, Lval (Var f, NoOffset) when List.mem f.vname !flag_list  -> begin (* f == 0*)
+	  let value = 0L in
+	  try
+	    match (Dom.find f ctx.local) with
+	      | (false,_,old_val) -> if value <> old_val then Dom.bot() else ctx.local
+	      | (true,true,old_val) -> if value <> old_val then Dom.bot() else ctx.local
+	      | (true,false,old_val) -> if value = old_val then Dom.bot() else Dom.add f (true, true, value) ctx.local
+	  with Not_found (*top*) -> Dom.add f (true, true, value) ctx.local
+	end
+	| true, Lval (Var f, NoOffset) when List.mem f.vname !flag_list  -> begin (* f != 0*)
+	  let value = 0L in
+	  try
+	    match (Dom.find f ctx.local) with
+	      | (false,_,old_val) -> if value <> old_val then Dom.bot() else ctx.local
+	      | (true,true,old_val) -> if value = old_val then Dom.bot() else ctx.local
+	      | (true,false,old_val) -> if value <> old_val then Dom.bot() else Dom.add f (true, false, value) ctx.local
+	  with Not_found (*top*) -> Dom.add f (true, false, value) ctx.local
+	end
+	| false, BinOp(Eq,ex,Lval (Var f, NoOffset),_) (*not eq*)
+	| false, BinOp(Eq,Lval (Var f, NoOffset), ex,_) (*not eq*)
+	| true, BinOp(Ne,ex,Lval (Var f, NoOffset),_) 
+	| true, BinOp(Ne,Lval (Var f, NoOffset), ex,_) when List.mem f.vname !flag_list -> begin 
+	  let temp = eval_int ctx.ask ex in
+	  match temp with
+	    | Some value -> begin 
+	      try
+		match (Dom.find f ctx.local) with
+		  | (false,_,old_val) -> if value <> old_val then Dom.bot() else ctx.local
+		  | (true,true,old_val) -> if value = old_val then Dom.bot() else ctx.local
+		  | (true,false,old_val) -> if value = old_val then Dom.bot() else Dom.add f (true, false, value) ctx.local
+	      with Not_found (*top*) -> Dom.add f (true, false, value) ctx.local
+	    end
+	    | None -> ctx.local  
+	  end
+	| _ -> ctx.local
+    end
+
   let body ctx (f:fundec) : Dom.t = 
     ctx.local
 
