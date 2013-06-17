@@ -107,7 +107,7 @@ struct
     if tracing then trace "osek" "Parsing API (re)names...\n";
     let input = open_in names in
     let comment = Str.regexp "//.* \\|/\\*.*" in
-    let newname = Str.regexp " *\\(#define \\| *\\)\\([a-zA-Z][a-zA-Z0-9_]*\\) +\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
+    let newname = Str.regexp " *\\(#define \\| *\\)\\([a-zA-Z_][a-zA-Z0-9_]*\\) +\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
     let rec read_info () = try
       let line = input_line input in
 	if tracing then trace "osek" "Line: %s\n" line;
