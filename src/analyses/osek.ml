@@ -295,6 +295,7 @@ let _ = print_endline (string_of_bool res) in res*)
   let eval_arg ctx (arg:exp) =
     match arg with
     | Lval (Var vinfo,_) -> vinfo
+    | Const c -> if tracing then trace "osek" "Constant arg in eval_arg\n"; failwith "constant arg"
     | _ -> (match eval_fv ctx.ask arg with
       | Some v -> v
       | None   -> failwith "cannot extract arg")      
@@ -409,7 +410,7 @@ let _ = print_endline (string_of_bool res) in res*)
     ctx.local (*currently ignored*)
 
   let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    if tracing then trace "osek" "ASSIGN\n";
+(*     if tracing then trace "osek" "ASSIGN\n"; *)
     if !GU.global_initialization then 
       ctx.local 
     else
@@ -471,7 +472,7 @@ let _ = print_endline (string_of_bool res) in res*)
   let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
     let fvname = get_api_names f.vname in
     if tracing then trace "osek" "SPECIAL_FN '%s'\n" fvname;
-    match fvname with
+try match fvname with (* suppress all fails  *)
       | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
 	M.special_fn ctx lval f (match arglist with 
 	  | [Lval (Var info,_)] -> [get_lock info.vname] 
@@ -545,6 +546,7 @@ let _ = print_endline (string_of_bool res) in res*)
       | "StartOS" -> let _ =if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in 
 	M.special_fn ctx lval f arglist
       | _ -> M.special_fn ctx lval f arglist
+with | _ -> M.special_fn ctx lval f arglist (* suppress all fails  *)
  
   let name = "OSEK analysis"
   let es_to_string f _ = f.svar.vname
