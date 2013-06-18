@@ -33,6 +33,40 @@ struct
     let module LT = SetDomain.HeadlessSet (RT) in
     (** Analysis result structure---a hashtable from porgram points to [LT] *)
     let module Result = Analyses.Result (LT) (struct let result_name = "analysis" end) in
+
+    (** print out information about dead code *)
+    let print_dead_code (xs:Result.t) =
+      let open BatMap in let open BatPrintf in
+      let module StringMap = Make (String) in
+      let m = ref StringMap.empty in
+      let add_one (l,_,f) v =
+        if LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v &&f.svar.vdecl<>l then
+          let add_fun  = BatISet.add l.line in
+          let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
+          m := StringMap.modify_def StringMap.empty l.file add_file !m
+      in
+      Result.iter add_one xs;
+      let print_func f xs =
+        let one_range b e first =
+          if not first then printf ", ";
+          begin if b=e then
+            printf "%d" b
+          else
+            printf "%d..%d" b e
+          end; false
+        in
+        printf "  function '%s' has dead code on lines: " f;
+        ignore (BatISet.fold_range one_range xs true);
+        printf "\n"
+      in
+      let print_file f =
+        printf "File '%s':\n" f;
+        StringMap.iter print_func
+      in
+      if StringMap.is_empty !m
+      then printf "No dead code found!\n"
+      else StringMap.iter print_file !m
+    in
   
     (** convert result that can be out-put *)
     let solver2source_result h : Result.t =
@@ -232,6 +266,7 @@ struct
   
     Spec.finalize ();
     
+    if (get_bool "dbg.print_dead_code") then print_dead_code !local_xml;
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
     Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file
   
