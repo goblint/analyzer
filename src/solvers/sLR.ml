@@ -272,12 +272,32 @@ struct
 
 end
 
+module PhasesSolver =
+  functor (S:EqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  module S1 = 
+  struct 
+    include MakeBoxSolver (PropFalse) (PropFalse) (S) (HM)
+  end
+  module S2 = 
+  struct
+    include MakeBoxSolver (PropFalse) (PropFalse) (S) (HM)
+  end
+  
+  let solve box st list = 
+    let r1 = S1.solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) st list in
+    let st' = HM.fold (fun k v xs -> (k,v)::xs) r1 [] in
+    let r2 = S2.solve (fun _ x y -> S.Dom.narrow x y) st' list in
+    r2
+end
+
 module MakeBoxSolverCMP =
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
-  module S1 = MakeBoxSolver (PropFalse) (PropFalse) (S) (HM)
-  module S2 = MakeBoxSolver (PropTrue)  (PropFalse) (S) (HM)
+  module S1 = PhasesSolver (S) (HM)
+  module S2 = MakeBoxSolver (PropFalse) (PropFalse) (S) (HM)
   
   let solve box st list = 
     let r1 = S1.solve box st list in
@@ -310,9 +330,12 @@ let _ =
   ()
 
 let _ =
-  let module M = GlobSolverFromEqSolver(MakeBoxSolver (PropFalse) (PropFalse)) in
+  let module M = GlobSolverFromEqSolver(MakeBoxSolver (PropTrue) (PropFalse)) in
   Selector.add_solver ("slr+", (module M : GenericGlobSolver));
   let module M2 = GlobSolverFromEqSolver(MakeBoxSolverCMP) in
   Selector.add_solver ("cmptest", (module M2 : GenericGlobSolver));
   let module M1 = GlobSolverFromEqSolver(MakeBoxSolver (PropFalse) (PropTrue)) in
-  Selector.add_solver ("restart", (module M1 : GenericGlobSolver))
+  Selector.add_solver ("restart", (module M1 : GenericGlobSolver));
+  let module M3 = GlobSolverFromEqSolver(PhasesSolver) in
+  Selector.add_solver ("fwtn", (module M3 : GenericGlobSolver))
+  
