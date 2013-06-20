@@ -99,7 +99,7 @@ let _ =
   reg Analyses "ana.osek.def_header" "true"  "Generate TASK/ISR macros with default structure";
   reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain.";
   reg Analyses "ana.int.interval"    "false" "Interval based integer domain.";
-  reg Analyses "ana.hashcons"        "false" "Should we try to save memory by hashconsing?"
+  reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
   
 (* {4 category [Experimental]} *)
 

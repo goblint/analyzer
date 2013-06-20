@@ -251,8 +251,7 @@ struct
       global_xml := make_global_xml gh;
       
       (* check for dead code at the last state: *)
-      let main_sol = LHT.find lh (List.hd startvars') in
-      (if (get_bool "dbg.debug") && Spec.D.is_bot main_sol then
+      (if (get_bool "dbg.debug") && not (LHT.mem lh (List.hd startvars')) then
         Printf.printf "NB! Execution does not reach the end of Main.\n");
         
       if get_bool "dump_globs" then 
