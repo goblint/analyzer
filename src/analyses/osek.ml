@@ -671,14 +671,17 @@ with | _ -> M.special_fn ctx lval f arglist (* suppress all fails  *)
       let get_keys_from_flag_map flag_map = Flags.fold (fun key value acc -> (key::acc)) flag_map [] in
       let get_flags acc_list' : (varinfo list) = 
         let flag_list = List.map proj2_2 acc_list' in
-        let doit acc flag_map = 
-          let rec join l1 l2 = match l2 with 
-            | [] -> l1
-            | l::ls -> let res = (join l1 ls) in 
-            if List.mem l l1 then res else (l :: res)
-          in
-          let flags = get_keys_from_flag_map flag_map in
-          join acc flags
+        let doit acc flag_map =
+	  if Flags.is_bot(flag_map) then
+	    acc
+	  else 
+	    let rec join l1 l2 = match l2 with 
+	      | [] -> l1
+	      | l::ls -> let res = (join l1 ls) in 
+	      if List.mem l l1 then res else (l :: res)
+	    in
+	    let flags = get_keys_from_flag_map flag_map in
+	      join acc flags
         in  
         List.fold_left doit [] flag_list
       in (*/get_flags*)
