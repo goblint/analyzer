@@ -41,7 +41,11 @@ let node_compare n1 n2 =
     | Statement s, Statement l -> compare s.sid l.sid
     | Function  f, Function g  -> compare f.vid g.vid
 
-module Node : Hashtbl.HashedType with type t = node =
+module Node : 
+  sig
+    include Hashtbl.HashedType with type t = node 
+    include Set.OrderedType with type t := node 
+  end =
 struct
   type t = node
   let equal x y = 
@@ -55,7 +59,8 @@ struct
       | Statement s     -> s.sid * 17
       | Function f      -> f.vid 
       | FunctionEntry f -> -f.vid  
-
+  
+  let compare = node_compare
 end
 
 type asm_out = (string option * string * lval) list

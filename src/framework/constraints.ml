@@ -328,6 +328,7 @@ end
 
 
 
+
 (** Combined variables so that we can also use the more common [IneqConstrSys], and [EqConstrSys]
     that use only one kind of a variable. *)
 module Var2 (LV:VarType) (GV:VarType)
@@ -741,4 +742,290 @@ struct
     in
       LH.iter verify_var sigma;
       Goblintutil.in_verifying_stage := false
+end
+
+(** Use Astree-like abstract interpretation *)
+module IterateLikeAstree (S:Spec2) (Cfg:CfgBidir)
+  =
+struct
+  open MyCFG
+  open S
+  
+  module Nodes = Set.Make (Node)
+  module NodeTable = Hashtbl.Make (Node)
+  
+  type stack = (varinfo list) * bool * D.t
+  
+  let reachability : Nodes.t NodeTable.t = NodeTable.create 111 
+  let rec init_reachability v d = 
+    let propagate d =
+      let d = Nodes.add v d in
+      match Cfg.prev v with
+        | [(_,n)] -> init_reachability n d
+        | xs      -> List.iter (fun (_,n) -> init_reachability n d) xs
+    in
+    if NodeTable.mem reachability v then begin
+      let old = NodeTable.find reachability v in
+      if not (Nodes.equal d old) then begin
+        let new_d = Nodes.union old d in
+        let _ = NodeTable.replace reachability v new_d in
+          propagate new_d
+      end
+    end else begin
+      let _ = NodeTable.add reachability v d in
+        propagate d
+    end    
+  
+  let reachable_node      : Node.t -> Nodes.t = fun n ->
+    NodeTable.find reachability n
+      
+  let reachability_no_rec : Nodes.t NodeTable.t = NodeTable.create 111 
+  let rec init_reachability_no_rec v d = 
+    let propagate d =
+      let d = Nodes.add v d in
+      match Cfg.prev v with
+        | [(_,n)] -> init_reachability_no_rec n d
+        | xs      -> List.iter (fun (_,n) -> init_reachability_no_rec n d) xs
+    in
+    if not (Nodes.mem v d) then begin
+      if NodeTable.mem reachability_no_rec v then begin
+        let old = NodeTable.find reachability_no_rec v in
+        if not (Nodes.equal d old) then begin
+          let new_d = Nodes.union old d in
+          let _ = NodeTable.replace reachability_no_rec v new_d in
+            propagate new_d
+        end
+      end else begin
+        let _ = NodeTable.add reachability_no_rec v d in
+          propagate d
+      end
+    end
+
+  let reachable_none_loop : Node.t -> Nodes.t = fun n ->
+    NodeTable.find reachability_no_rec n
+    
+  let bsf_order : int NodeTable.t = NodeTable.create 111 
+  let init_bsf v d = 
+    let q = Queue.create () in
+    let rec loop d =
+      try 
+        let v = Queue.take q in
+        if not (NodeTable.mem bsf_order v) then begin
+          NodeTable.add bsf_order v d;
+          List.iter (fun (_,x) -> Queue.add x q) (Cfg.next v)
+        end;
+        loop (d+1)
+      with Queue.Empty -> ()
+    in
+    Queue.add v q;
+    loop d
+    
+  let init_fun f =
+    init_reachability        (Function f.svar)      Nodes.empty;
+    init_reachability_no_rec (Function f.svar)      Nodes.empty;
+    init_bsf                 (FunctionEntry f.svar) 0
+    
+  let compare_bfs_order (x:Node.t) (y:Node.t) = Pervasives.compare (NodeTable.find bsf_order x) (NodeTable.find bsf_order y)
+
+  let rec map_pw_un f = function
+    | []    -> []
+    | x::zs -> List.map (f x) zs @ map_pw_un f zs
+    
+  let min1 cmp xs =
+    let rec min x = function
+      | [] -> x
+      | y::ys -> if cmp x y >= 0 then min y ys else min x ys
+    in match xs with [] -> raise Not_found | x::xs -> min x xs
+  
+  let min_Nodes (x:Nodes.t) : Node.t =
+    min1 compare_bfs_order (Nodes.elements x)
+    
+  let choose_next : (Node.t * D.t) list -> Node.t -> ((Node.t * D.t) * (Node.t * D.t) * Node.t * ((Node.t * D.t) list))  = fun xs t ->
+    let xs = List.filter (fun (x,_) -> Nodes.mem t (reachable_node x)) xs in
+    let pw : ((Node.t * D.t) * (Node.t * D.t) * Nodes.t) list = map_pw_un (fun x y -> x,y,Nodes.inter (reachable_none_loop (fst x)) (reachable_none_loop (fst y)))  xs in
+    let pw = List.map (fun (x,y,z) -> x, y, min_Nodes z) pw in
+    let cmp (_,_,x) (_,_,y) = compare_bfs_order x y in
+    let x,y,z = min1 cmp pw in
+    x, y, z, List.filter (fun (z,_) -> not (Node.equal z (fst x) || Node.equal z (fst y))) xs
+    
+    
+  let rec solve_loop : stack -> Node.t -> (Node.t * D.t) -> D.t = fun st m (n,d) ->
+    let d' = solve_path st n m d in
+    if D.equal d d' then d' else solve_loop st m (n,d')
+  
+  
+  and solve_split : stack -> (Node.t * D.t) list -> Node.t -> D.t = fun st xs m ->
+    match xs with
+      | [] -> raise Not_found
+      | [n,d] -> solve_path st m n d 
+      | xs -> 
+        let x,y,m',xs' = choose_next xs m in
+        let d1 = solve_path st (fst x) m' (snd x) in 
+        let d2 = solve_path st (fst y) m' (snd y) in 
+        solve_split st ((m',D.join d1 d2)::xs') m
+    
+  and solve_path st n m d =
+    if Node.equal n m then d else
+    match Cfg.next n with
+      | [] -> raise Not_found
+      | [(e,x)] -> tf st e d
+      | xs -> 
+        let loops, cont = List.partition (fun (_,x) -> Nodes.mem n (reachable_node x)) xs in
+        let rec do_loop d =
+          let d' = List.fold_left (fun d (e,n) -> D.join d (solve_loop st m (n, tf st e d))) d loops in
+          if D.equal d d' then d else do_loop d'
+        in
+        let d' = do_loop d in
+        if List.length cont = 0 then 
+          d' 
+        else
+          solve_split st (List.map (fun (e,n) -> n, tf st e d') cont) m
+          
+  
+  and tf st e d = 
+    match e with
+      | Proc (r,f,ars) -> 
+          let fs = get_functions d (r,f,ars) in
+          let rs = List.map (fun (f,d) -> solve_fun st f d) fs in
+            List.fold_left D.join (D.bot ()) rs
+      | _ -> tf' e d
+  
+  and solve_fun : stack -> varinfo -> D.t -> D.t = fun (st,re,ua) f d ->
+    if re && (f.vid = (List.last st).vid) then
+      ua
+    else if List.mem f st then begin
+      let rec loop d r =
+        let r' = solve_path ([f],true,r) (FunctionEntry f) (Function f) d in
+        if D.equal r r' then r' else loop d r'
+      in loop d (D.bot ())
+    end else
+      solve_path (f::st,re,ua) (FunctionEntry f) (Function f) d
+    
+  and tf' e d = d 
+
+  and get_functions d cf = []
+
+  type lv = MyCFG.node * S.C.t
+  type gv = varinfo
+  type ld = S.D.t
+  type gd = S.G.t
+  module LVar = VarF (S.C)
+  module GVar = Basetype.Variables
+  module D = S.D
+  module G = S.G
+  
+  let common_ctx (v,c) u (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx2 = 
+    let pval = getl (u,c) in     
+    if !Messages.worldStopped then raise M.StopTheWorld;
+    (* now watch this ... *)
+    let rec ctx = 
+      { ask2     = query
+      ; local2   = pval
+      ; global2  = getg
+      ; presub2  = []
+      ; postsub2 = []
+      ; spawn2   = (fun f d -> let c = S.context d in 
+                                sidel (FunctionEntry f, c) d; 
+                                ignore (getl (Function f, c)))
+      ; split2   = (fun (d:D.t) _ _ -> sidel (v,c) d)
+      ; sideg2   = sideg
+      } 
+    and query x = S.query ctx x in
+    (* ... nice, right! *)
+    let pval, diff = S.sync ctx in
+    let _ = List.iter (uncurry sideg) diff in
+    { ctx with local2 = pval }
+    
+
+  let tf_loop (v,c) u getl sidel getg sideg = 
+    let ctx = common_ctx (v,c) u getl sidel getg sideg 
+    in S.intrpt ctx
+  
+  let tf_assign lv e (v,c) u getl sidel getg sideg = 
+    let ctx = common_ctx (v,c) u getl sidel getg sideg 
+    in S.assign ctx lv e
+      
+  let normal_return r fd ctx sideg = 
+    let spawning_return = S.return ctx r fd in
+    let nval, ndiff = S.sync { ctx with local2 = spawning_return } in
+    List.iter (fun (x,y) -> sideg x y) ndiff;
+    nval
+      
+  let toplevel_kernel_return r fd ctx sideg =
+    let spawning_return = S.return ctx None MyCFG.dummy_func in
+    let nval, ndiff = S.sync { ctx with local2 = spawning_return } in
+    List.iter (fun (x,y) -> sideg x y) ndiff;
+    nval
+        
+  let tf_ret ret fd (v,c) u getl sidel getg sideg = 
+    let ctx = common_ctx (v,c) u getl sidel getg sideg in
+    if (fd.svar.vid = MyCFG.dummy_func.svar.vid 
+         || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) 
+       && get_bool "kernel"
+    then toplevel_kernel_return ret fd ctx sideg
+    else normal_return ret fd ctx sideg
+                                          
+  let tf_entry fd (v,c) u getl sidel getg sideg = 
+    let ctx = common_ctx (v,c) u getl sidel getg sideg 
+    in S.body ctx fd
+
+  let tf_test e tv (v,c) u getl sidel getg sideg =
+    let ctx = common_ctx (v,c) u getl sidel getg sideg 
+    in S.branch ctx e tv
+
+  let tf_normal_call ctx lv e f args  getl sidel getg sideg =
+    let combine (cd, fd) = S.combine {ctx with local2 = cd} lv e f args fd in
+    let paths = S.enter ctx lv f args in
+    let _     = if not (get_bool "exp.full-context") then List.iter (fun (c,v) -> sidel (FunctionEntry f, S.context v) v) paths in
+    let paths = List.map (fun (c,v) -> (c, getl (Function f, S.context v))) paths in
+    let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
+    let paths = List.map combine paths in
+      List.fold_left D.join (D.bot ()) paths
+      
+  let tf_special_call ctx lv f args = S.special ctx lv f args 
+
+  let tf_proc lv e args (v,c) u getl sidel getg sideg = 
+    let ctx = common_ctx (v,c) u getl sidel getg sideg in 
+    let functions = 
+      match ctx.ask2 (Queries.EvalFunvar e) with 
+        | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
+        | `Bot -> []
+        | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
+    in
+    let one_function f = 
+      let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
+      if has_dec && not (LibraryFunctions.use_special f.vname) 
+      then tf_normal_call ctx lv e f args getl sidel getg sideg
+      else tf_special_call ctx lv f args
+    in
+    let funs = List.map one_function functions in
+    List.fold_left D.join (D.bot ()) funs
+
+  
+  let tf (v,c) (edge, u) = 
+    begin match edge with
+      | Assign (lv,rv) -> tf_assign lv rv
+      | Proc (r,f,ars) -> tf_proc r f ars
+      | Entry f        -> tf_entry f
+      | Ret (r,fd)     -> tf_ret r fd
+      | Test (p,b)     -> tf_test p b
+      | ASM _          -> fun _ _ getl _ _ _ -> ignore (warn "ASM statement ignored."); getl (u,c)
+      | Skip           -> fun _ _ getl _ _ _ -> getl (u,c)
+      | SelfLoop       -> tf_loop 
+    end (v,c) u
+    
+  let tf (v,c) (e,u) getl sidel getg sideg =
+    let old_loc = !Tracing.current_loc in
+    let _       = Tracing.current_loc := getLoc u in
+    let d       = try tf (v,c) (e,u) getl sidel getg sideg 
+                  with M.StopTheWorld -> D.bot ()
+                     | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
+    let _       = Tracing.current_loc := old_loc in 
+      d
+  
+  let system (v,c) =
+    match v with
+      | FunctionEntry _ when get_bool "exp.full-context" ->
+          [fun _ _ _ _ -> S.val_of c]
+      | _ -> List.map (tf (v,c)) (Cfg.prev v)
 end
