@@ -9,7 +9,7 @@ open Constraints
 open Batteries
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
-module AnalyzeCFG (Cfg:CfgBackward) =
+module AnalyzeCFG (Cfg:CfgBidir) =
 struct
   
   (** The main function to preform the selected analyses. *)
@@ -26,6 +26,8 @@ struct
     let module Slvr  = Selector.Make (EQSys) (LHT) (GHT) in
     (** The verifyer *)
     let module Vrfyr = Verify2 (EQSys) (LHT) (GHT) in
+    (** Another iterator. Set "exp.use_gen_solver" to false. *)
+    let module I = IterateLikeAstree (Spec) (Cfg) in
 
     (** Triple of the function, context, and the local value. *)
     let module RT = Analyses.ResultType2 (Spec) in
@@ -238,7 +240,7 @@ struct
     
     let local_xml = ref (Result.create 0) in
     let global_xml = ref (Xml.PCData "not-ready" ) in
-    let do_analyze () = 
+    let do_analyze_using_solver () = 
       let lh, gh = Slvr.solve entrystates [] startvars' in
       
       if not (get_bool "noverify") then begin
@@ -258,11 +260,25 @@ struct
       if get_bool "dump_globs" then 
         print_globals gh  
     in
+
+    let do_analyze_using_iterator () = 
+      let _ = I.iterate file startvars' in
+      print_endline "done. "
+    in
   
-    if (get_bool "dbg.verbose") then
-      print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
-    Goblintutil.timeout do_analyze () (float_of_int (get_int "dbg.timeout"))
-      (fun () -> Messages.waitWhat "Timeout reached!");
+    if get_bool "exp.use_gen_solver" then begin
+      (* Use "normal" constraint solving *)
+      if (get_bool "dbg.verbose") then 
+        print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
+      Goblintutil.timeout do_analyze_using_solver () (float_of_int (get_int "dbg.timeout"))
+        (fun () -> Messages.waitWhat "Timeout reached!");
+    end else begin
+      (* ... or give in to peer-pressure? *)
+      if (get_bool "dbg.verbose") then
+        print_endline ("Pretending to be French ...");
+      Goblintutil.timeout do_analyze_using_iterator () (float_of_int (get_int "dbg.timeout"))
+        (fun () -> Messages.waitWhat "Timeout reached!");
+    end;
   
     Spec.finalize ();
     

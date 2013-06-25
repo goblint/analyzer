@@ -127,7 +127,8 @@ let _ =
   reg Experimental "exp.need"              "false" "Bidirectional analysis";
   reg Experimental "exp.back_loop_sep"     "false" "Only widen on nodes with back edges.";
   reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created.";
-  reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."
+  reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top.";
+  reg Experimental "exp.use_gen_solver"    "true"  "Use a generic solver instead iterating like the other tool?"
   
 (* {4 category [Debugging]} *)
 
