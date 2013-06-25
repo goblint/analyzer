@@ -90,6 +90,10 @@ sig
   (** Logical and: [x && y] *)
   val logor : t -> t -> t
   (** Logical or: [x || y] *)
+
+  (** {b Cast} *)
+  val cast_to_width: t -> int -> t
+  (** Cast interval/integer to type of the given width. *)
 end
 (** The signature of integral value domains. They need to support all integer
   * operations that are allowed in C *)
