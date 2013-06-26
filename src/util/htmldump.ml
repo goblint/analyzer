@@ -140,8 +140,8 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
 	in
 
 	let createLine line = 
-		if ((!currentLine mod 50000) = 0) then fprintf outchan "</div>\n<div id=\"linecontainer%i\" style=\"\">\n" (!currentLine/50000) else ();
-		if (!currentLine = 1) then fprintf outchan "<div id=\"linecontainer%i\">\n" (!currentLine/50000) else ();
+		if ((!currentLine mod 5000) = 0) then fprintf outchan "</div>\n<div id=\"linecontainer%i\" style=\"\">\n" (!currentLine/5000) else ();
+		if (!currentLine = 1) then fprintf outchan "<div id=\"linecontainer%i\">\n" (!currentLine/5000) else ();
 		
 		let isAnalyzed = isLineAnalyzed !currentLine in
 		let colorString = (
@@ -149,7 +149,7 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
 			else "") 
 		in
 		let fontString = (
-			if isLineDeadcode !currentLine then "color: #909090;"
+			if isLineDeadcode !currentLine then "color: #FFAA00;"
 			else "") 
 		in
 		let styleString = "style=\""^colorString^fontString^"\" " in

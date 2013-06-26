@@ -9,7 +9,7 @@ open Constraints
 open Batteries
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
-module AnalyzeCFG (Cfg:CfgBackward) =
+module AnalyzeCFG (Cfg:CfgBidir) =
 struct
   
   (** The main function to preform the selected analyses. *)
@@ -26,6 +26,8 @@ struct
     let module Slvr  = Selector.Make (EQSys) (LHT) (GHT) in
     (** The verifyer *)
     let module Vrfyr = Verify2 (EQSys) (LHT) (GHT) in
+    (** Another iterator. Set "exp.use_gen_solver" to false. *)
+    let module I = IterateLikeAstree (Spec) (Cfg) in
 
     (** Triple of the function, context, and the local value. *)
     let module RT = Analyses.ResultType2 (Spec) in
@@ -238,7 +240,7 @@ struct
     
     let local_xml = ref (Result.create 0) in
     let global_xml = ref (Xml.PCData "not-ready" ) in
-    let do_analyze () = 
+    let do_analyze_using_solver () = 
       let lh, gh = Slvr.solve entrystates [] startvars' in
       
       if not (get_bool "noverify") then begin
@@ -250,21 +252,66 @@ struct
       local_xml := solver2source_result lh;
       global_xml := make_global_xml gh;
       
+      if Progress.tracking then 
+        begin 
+          Progress.track_with_profile () ;
+          Progress.track_call_profile ()
+        end ;
+      let firstvar = List.hd startvars' in
+      let mainfile = match firstvar with (MyCFG.Function fn, _) -> fn.vdecl.file | _ -> "Impossible!" in
+      let module S = Set.Make (Int) in
+      if (get_bool "dbg.uncalled") then
+        begin
+          let out = M.get_out "uncalled" Legacy.stdout in
+          let f =
+            let insrt k _ s = match k with
+              | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then S.add fn.vid s else s
+              | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then S.add fn.vid s else s
+              | _ -> s
+            in
+            (* set of ids of called functions *)
+            let calledFuns = LHT.fold insrt lh S.empty in
+            function
+              | GFun (fn, loc) when loc.file = mainfile && not (S.mem fn.svar.vid calledFuns) ->
+                  begin
+                    let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+                    ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+                  end
+              | _ -> ()
+          in
+            List.iter f file.globals;
+        end;
+        
       (* check for dead code at the last state: *)
-      (if (get_bool "dbg.debug") && not (LHT.mem lh (List.hd startvars')) then
+      let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
+      (if (get_bool "dbg.debug") && Spec.D.is_bot main_sol then
         Printf.printf "NB! Execution does not reach the end of Main.\n");
         
       if get_bool "dump_globs" then 
         print_globals gh  
     in
+
+    let do_analyze_using_iterator () = 
+      let _ = I.iterate file startvars' in
+      print_endline "done. "
+    in
   
-    if (get_bool "dbg.verbose") then
-      print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
-    Goblintutil.timeout do_analyze () (float_of_int (get_int "dbg.timeout"))
-      (fun () -> Messages.waitWhat "Timeout reached!");
+    if get_bool "exp.use_gen_solver" then begin
+      (* Use "normal" constraint solving *)
+      if (get_bool "dbg.verbose") then 
+        print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
+      Goblintutil.timeout do_analyze_using_solver () (float_of_int (get_int "dbg.timeout"))
+        (fun () -> Messages.waitWhat "Timeout reached!");
+    end else begin
+      (* ... or give in to peer-pressure? *)
+      if (get_bool "dbg.verbose") then
+        print_endline ("Pretending to be French ...");
+      Goblintutil.timeout do_analyze_using_iterator () (float_of_int (get_int "dbg.timeout"))
+        (fun () -> Messages.waitWhat "Timeout reached!");
+    end;
   
     Spec.finalize ();
-    
+        
     if (get_bool "dbg.print_dead_code") then print_dead_code !local_xml;
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
     Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file

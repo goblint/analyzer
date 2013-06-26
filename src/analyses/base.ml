@@ -346,6 +346,22 @@ struct
     match Addr.to_var_offset ad with 
       | [x,ofs] -> Addr.from_var_offset (x, add_offset ofs add)
       | _ -> ad
+
+  (* Get width in bits of a CIL type *)
+  let get_type_width t =
+    match t with
+    | IChar -> 8
+    | ISChar -> 8
+    | IUChar -> 8
+    | IBool -> 1
+    | IInt -> 32
+    | IUInt -> 32
+    | IShort -> 8
+    | IUShort -> 8
+    | ILong -> 64
+    | IULong -> 64
+    | ILongLong -> 64
+    | IULongLong -> 64
       
   (* evaluate value using our "query functions" *)
   let eval_rv_pre (ask: Q.ask) exp pr =
@@ -433,6 +449,9 @@ struct
                   `Address (AD.null_ptr ())
               | TInt _, `Address a when AD.equal a (AD.null_ptr()) -> 
                   `Int (ID.of_int Int64.zero)
+              | Cil.TInt (k,_), `Int a ->
+                  let w = get_type_width k in
+                  `Int (ID.cast_to_width a w)
              | _, s -> s
        end
       | _ -> VD.top ()

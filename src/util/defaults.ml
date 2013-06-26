@@ -99,6 +99,7 @@ let _ =
   reg Analyses "ana.osek.def_header" "true"  "Generate TASK/ISR macros with default structure";
   reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain.";
   reg Analyses "ana.int.interval"    "false" "Interval based integer domain.";
+  reg Analyses "ana.int.cinterval"   "false" "Wrapped, Signedness agnostic intervals.";
   reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
   
 (* {4 category [Experimental]} *)
@@ -127,7 +128,8 @@ let _ =
   reg Experimental "exp.need"              "false" "Bidirectional analysis";
   reg Experimental "exp.back_loop_sep"     "false" "Only widen on nodes with back edges.";
   reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created.";
-  reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."
+  reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top.";
+  reg Experimental "exp.use_gen_solver"    "true"  "Use a generic solver instead iterating like the other tool?"
   
 (* {4 category [Debugging]} *)
 
