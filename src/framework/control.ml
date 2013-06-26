@@ -252,6 +252,36 @@ struct
       local_xml := solver2source_result lh;
       global_xml := make_global_xml gh;
       
+      if Progress.tracking then 
+        begin 
+          Progress.track_with_profile () ;
+          Progress.track_call_profile ()
+        end ;
+      let firstvar = List.hd startvars' in
+      let mainfile = match firstvar with (MyCFG.Function fn, _) -> fn.vdecl.file | _ -> "Impossible!" in
+      let module S = Set.Make (Int) in
+      if (get_bool "dbg.uncalled") then
+        begin
+          let out = M.get_out "uncalled" Legacy.stdout in
+          let f =
+            let insrt k _ s = match k with
+              | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then S.add fn.vid s else s
+              | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then S.add fn.vid s else s
+              | _ -> s
+            in
+            (* set of ids of called functions *)
+            let calledFuns = LHT.fold insrt lh S.empty in
+            function
+              | GFun (fn, loc) when loc.file = mainfile && not (S.mem fn.svar.vid calledFuns) ->
+                  begin
+                    let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+                    ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+                  end
+              | _ -> ()
+          in
+            List.iter f file.globals;
+        end;
+        
       (* check for dead code at the last state: *)
       let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
       (if (get_bool "dbg.debug") && Spec.D.is_bot main_sol then
@@ -281,7 +311,7 @@ struct
     end;
   
     Spec.finalize ();
-    
+        
     if (get_bool "dbg.print_dead_code") then print_dead_code !local_xml;
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
     Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file
