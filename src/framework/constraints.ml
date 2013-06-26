@@ -877,27 +877,45 @@ struct
   
   type stack = (varinfo list) * bool * D.t
   
-  let reachability : Nodes.t NodeTable.t = NodeTable.create 111 
-  let rec init_reachability v d = 
-    let propagate d =
-      let d = Nodes.add v d in
-      match Cfg.prev v with
-        | [(_,n)] -> init_reachability n d
-        | xs      -> List.iter (fun (_,n) -> init_reachability n d) xs
+  let bsf_order : int NodeTable.t = NodeTable.create 111 
+  let init_bsf v d = 
+    let q = Queue.create () in
+    let rec loop d =
+      try 
+        let v = Queue.take q in
+        if not (NodeTable.mem bsf_order v) then begin
+          NodeTable.add bsf_order v d;
+          List.iter (fun (_,x) -> Queue.add x q) (Cfg.next v)
+        end;
+        loop (d+1)
+      with Queue.Empty -> ()
     in
-    if NodeTable.mem reachability v then begin
-      let old = NodeTable.find reachability v in
-      if not (Nodes.equal d old) then begin
-        let new_d = Nodes.union old d in
-        let _ = NodeTable.replace reachability v new_d in
-          propagate new_d
-      end
-    end else begin
-      let _ = NodeTable.add reachability v d in
-        propagate d
-    end    
+    Queue.add v q;
+    loop d
   
-  let reachable_node      : Node.t -> Nodes.t = fun n ->
+  let reachable_node : int -> Node.t -> Nodes.t = fun p n ->
+    let reachability : Nodes.t NodeTable.t = NodeTable.create 111 in
+    let rec init_reachability v d = 
+      let propagate d =
+        let d = Nodes.add v d in
+        match Cfg.prev v with
+          | [(_,n)] -> init_reachability n d
+          | xs      -> List.iter (fun (_,n) -> init_reachability n d) xs
+      in
+        if NodeTable.mem reachability v then begin
+          let old = NodeTable.find reachability v in
+          if not (Nodes.equal d old) then begin
+            let new_d = Nodes.union old d in
+            let _ = NodeTable.replace reachability v new_d in
+              propagate new_d
+          end
+        end else begin
+          let _ = NodeTable.add reachability v d in
+            propagate d
+        end    
+    in
+    let f = MyCFG.getFun n in
+    init_reachability (Function f.svar) Nodes.empty;
     NodeTable.find reachability n
       
   let reachability_no_rec : Nodes.t NodeTable.t = NodeTable.create 111 
@@ -925,24 +943,9 @@ struct
   let reachable_none_loop : Node.t -> Nodes.t = fun n ->
     NodeTable.find reachability_no_rec n
     
-  let bsf_order : int NodeTable.t = NodeTable.create 111 
-  let init_bsf v d = 
-    let q = Queue.create () in
-    let rec loop d =
-      try 
-        let v = Queue.take q in
-        if not (NodeTable.mem bsf_order v) then begin
-          NodeTable.add bsf_order v d;
-          List.iter (fun (_,x) -> Queue.add x q) (Cfg.next v)
-        end;
-        loop (d+1)
-      with Queue.Empty -> ()
-    in
-    Queue.add v q;
-    loop d
-    
+
   let init_fun f =
-    init_reachability        (Function f)      Nodes.empty;
+    (*init_reachability        (Function f)      Nodes.empty;*)
     init_reachability_no_rec (Function f)      Nodes.empty;
     init_bsf                 (FunctionEntry f) 0
     
@@ -962,7 +965,7 @@ struct
     min1 compare_bfs_order (Nodes.elements x)
     
   let choose_next : (Node.t * D.t) list -> Node.t -> ((Node.t * D.t) * (Node.t * D.t) * Node.t * ((Node.t * D.t) list))  = fun xs t ->
-    let xs = List.filter (fun (x,_) -> Nodes.mem t (reachable_node x)) xs in
+    let xs = List.filter (fun (x,_) -> Nodes.mem t (reachable_node 0 x)) xs in
     let pw : ((Node.t * D.t) * (Node.t * D.t) * Nodes.t) list = map_pw_un (fun x y -> x,y,Nodes.inter (reachable_none_loop (fst x)) (reachable_none_loop (fst y)))  xs in
     let pw = List.map (fun (x,y,z) -> x, y, min_Nodes z) pw in
     let cmp (_,_,x) (_,_,y) = compare_bfs_order x y in
@@ -975,6 +978,10 @@ struct
     let d' = solve_path st n m d in
     if D.equal d d' then d' else solve_loop st m (n,d')*)
   
+  let pretty_short_node () = function
+    | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
+    | Function f -> Pretty.dprintf "ret%d" f.vid
+    | Statement s -> Pretty.dprintf "%d" s.sid
   
   let rec solve_split : stack -> (Node.t * D.t) list -> Node.t -> D.t = fun st xs m ->
     ignore (Pretty.printf "solve_split:\n");
@@ -998,17 +1005,26 @@ struct
       | [] -> raise Not_found
       | [(e,x)] -> solve_path st x m (tf st x e d)
       | xs -> 
-        let loops, cont = List.partition (fun (_,x) -> Nodes.mem n (reachable_node x)) xs in
+        let p = NodeTable.find bsf_order n in
+        let loop_head_prop (_,x) = 
+          let xr = reachable_node p x in
+          Node.equal n (min_Nodes xr)
+        in
+        let loops = List.filter loop_head_prop xs in
         let rec do_loop d =
           ignore (Pretty.printf "starting loop with state:%a\n" D.pretty d);
           let d' = List.fold_left (fun d (e,n') -> D.join d (solve_path st n' n (tf st n' e d))) d loops in
           ignore (Pretty.printf "new value:%a\n" D.pretty d');
-          if D.equal d d' then d else do_loop (D.widen d (D.join d d'))
+          if D.equal d d' then d else do_loop (D.widen d d')
         in
         let d' = do_loop d in
+        let reaches_wo_loops x = Nodes.mem m (NodeTable.find reachability_no_rec x) in
+        let cont = List.filter (reaches_wo_loops % snd) xs in
+        ignore (Pretty.printf "solve_path done with the loop, continuing:\n");
+        List.iter (fun (_,n) -> ignore (Pretty.printf "\t%a\n" pretty_short_node n)) cont;
         if List.length cont = 0 then 
           d' 
-        else
+        else 
           solve_split st (List.map (fun (e,n) -> n, tf st n e d') cont) m
           
   
@@ -1026,7 +1042,7 @@ struct
   
   and solve_fun : stack -> varinfo -> D.t -> D.t = fun (st,re,ua) f d ->
     ignore (Pretty.printf "solve_fun '%s'.\n" f.vname);
-    if not (NodeTable.mem reachability (FunctionEntry f)) then begin 
+    if not (NodeTable.mem reachability_no_rec (FunctionEntry f)) then begin 
       ignore (Pretty.printf "init of '%s'.\n" f.vname);      
       init_fun f
     end;
