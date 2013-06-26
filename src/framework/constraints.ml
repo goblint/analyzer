@@ -248,7 +248,8 @@ struct
     nval
       
   let toplevel_kernel_return r fd ctx sideg =
-    let spawning_return = S.return ctx None MyCFG.dummy_func in
+    let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.local2 else S.return ctx r fd in
+    let spawning_return = S.return {ctx with local2 = st} None MyCFG.dummy_func in
     let nval, ndiff = S.sync { ctx with local2 = spawning_return } in
     List.iter (fun (x,y) -> sideg x y) ndiff;
     nval
@@ -257,7 +258,7 @@ struct
     let ctx = common_ctx (v,c) u getl sidel getg sideg in
     if (fd.svar.vid = MyCFG.dummy_func.svar.vid 
          || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) 
-       && get_bool "kernel"
+       && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
     then toplevel_kernel_return ret fd ctx sideg
     else normal_return ret fd ctx sideg
                                           
@@ -808,7 +809,7 @@ struct
     let ctx = common_ctx d in
     if (fd.svar.vid = MyCFG.dummy_func.svar.vid 
          || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) 
-       && get_bool "kernel"
+       && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
     then toplevel_kernel_return ret fd ctx sideg
     else normal_return ret fd ctx sideg
                                           

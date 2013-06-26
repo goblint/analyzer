@@ -41,6 +41,8 @@ let print_help ch =
   
 (** [Arg] option specification *)
 let option_spec_list = 
+  let add_string l = let f str = l := str :: !l in Arg.String f in
+  let add_int    l = let f str = l := str :: !l in Arg.Int f in
   let set_trace sys = 
     let msg = "Goblin has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
     if Config.tracing then Tracing.addsystem sys
@@ -66,6 +68,8 @@ let option_spec_list =
     ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; raise BailFromMain), ""
     ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; raise BailFromMain), ""
     ; "--trace"              , Arg.String set_trace, ""
+    ; "--tracevars"          , add_string Tracing.tracevars, ""
+    ; "--tracelocs"          , add_int Tracing.tracelocs, ""
     ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "--halp"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "-help"                , Arg.Unit (fun _ -> print_help stdout),""

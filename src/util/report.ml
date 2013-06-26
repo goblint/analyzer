@@ -67,7 +67,7 @@ let do_stats fileNames =
             List.fold_left f (fun _ -> ()) fileNames 
           end
         in
-        let o = Legacy.open_out (Filename.concat "result" "report.html") in
+        let o = Legacy.open_out (Filename.concat "result" "index.html") in
         (*let o = stdout in*)
         let t = Unix.localtime (Unix.time ()) in
         let months = [| "Jan"; "Feb"; "Mar"; "Apr"; "May"; "Jun";
