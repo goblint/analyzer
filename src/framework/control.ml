@@ -27,7 +27,7 @@ struct
     (** The verifyer *)
     let module Vrfyr = Verify2 (EQSys) (LHT) (GHT) in
     (** Another iterator. Set "exp.use_gen_solver" to false. *)
-    let module I = IterateLikeAstree (Spec) (Cfg) in
+    let module I = IterateLikeAstree (Spec) (Cfg) (GHT) in
 
     (** Triple of the function, context, and the local value. *)
     let module RT = Analyses.ResultType2 (Spec) in
