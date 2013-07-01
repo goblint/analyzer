@@ -698,7 +698,10 @@ struct
                 (* make that address meet the invariant, i.e exclusion sets
                  * will be joined *)
                            if is_some_bot new_val 
-                           then raise Analyses.Deadcode
+                           then begin 
+                			if M.tracing then M.traceu "branchosek" "The branch %B is dead!\n" tv;
+					raise Analyses.Deadcode
+				end
                 else if VD.is_bot new_val 
                 then set a gs st addr value ~effect:false
                 else set a gs st addr new_val ~effect:false
@@ -767,9 +770,13 @@ struct
           let fromJust x = match x with Some x -> x | None -> assert false in
           let v = fromJust (ID.to_bool value) in
             (* Eliminate the dead branch and just propagate to the true branch *)
-            if v == tv then ctx.local else raise Deadcode
+            if v == tv then ctx.local else begin
+                if M.tracing then M.traceu "branchosek" "The branch %B is dead!\n" tv;
+		raise Deadcode
+            end
       | `Bot ->
           if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
+          if M.tracing then M.traceu "branchosek" "The branch %B is dead!\n" tv;
           raise Deadcode
       (* Otherwise we try to impose an invariant: *)
       | _ ->
