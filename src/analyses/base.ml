@@ -705,7 +705,7 @@ struct
                  * will be joined *)
                            if is_some_bot new_val 
                            then begin 
-                			if M.tracing then M.traceu "branchosek" "The branch %B is dead!\n" tv;
+                			if M.tracing then M.trace "branchosek" "The branch %B is dead!\n" tv;
 					raise Analyses.Deadcode
 				end
                 else if VD.is_bot new_val 
@@ -777,12 +777,12 @@ struct
           let v = fromJust (ID.to_bool value) in
             (* Eliminate the dead branch and just propagate to the true branch *)
             if v == tv then ctx.local else begin
-                if M.tracing then M.traceu "branchosek" "The branch %B is dead!\n" tv;
+                if M.tracing then M.trace "branchosek" "The branch %B is dead!\n" tv;
 		raise Deadcode
             end
       | `Bot ->
           if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
-          if M.tracing then M.traceu "branchosek" "The branch %B is dead!\n" tv;
+          if M.tracing then M.trace "branchosek" "The branch %B is dead!\n" tv;
           raise Deadcode
       (* Otherwise we try to impose an invariant: *)
       | _ ->
