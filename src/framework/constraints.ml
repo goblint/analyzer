@@ -896,15 +896,23 @@ struct
 
       
   module Nodes = Set.Make (Node)
-  module NodeDoms = Set.Make (
-    struct 
-      type t = Node.t * D.t
-      let equal (x,y) (a,b) = Node.equal x a && D.equal y b
-      let compare (x,y) (a,b) =
-        match Node.compare x a with
-          | 0 -> D.compare y b 
-          | x -> x 
-    end)
+  module NodeDoms = 
+  struct 
+    module M = Map.Make (Node)
+    type t = D.t M.t
+    let empty = M.empty
+    let elements = List.of_enum % M.enum
+    let filter = M.filter
+    let equal = M.equal D.equal 
+    let compare = M.compare D.compare
+    let iter f = M.iter (curry f)
+    let add k v d =
+      try 
+        M.add k (D.join v @@ M.find k d) d
+      with Not_found ->
+        M.add k v d
+    let of_enum = Enum.fold (fun d (k,v) -> add k v d) empty
+  end
   module NodeTable = Hashtbl.Make (Node)
   
   type stack = (varinfo list) * bool * D.t * (D.t list ref)
@@ -1023,7 +1031,7 @@ struct
     min1 compare_bfs_order (Nodes.elements x)
     
   let choose_next : NodeDoms.t -> Node.t -> ((Node.t * D.t) * (Node.t * D.t) * Node.t * NodeDoms.t)  = fun xs t ->
-    let xs = NodeDoms.filter (fun (x,_) -> Nodes.mem t (reachable_node 0 x)) xs in
+    let xs = NodeDoms.filter (fun x _ -> Nodes.mem t (reachable_node 0 x)) xs in
     let f x y =
       let xx = Nodes.add (fst x) @@ reachable_none_loop (fst x) in
       let yy = Nodes.add (fst y) @@ reachable_none_loop (fst y) in
@@ -1033,13 +1041,22 @@ struct
     let pw = List.map (fun (x,y,z) -> x, y, min_Nodes z) pw in
     let cmp (_,_,x) (_,_,y) = compare_bfs_order x y in
     let x,y,z = min1 cmp pw in
-    x, y, z, NodeDoms.filter (fun (z,_) -> not (Node.equal z (fst x) || Node.equal z (fst y))) xs
+    x, y, z, NodeDoms.filter (fun z _ -> not (Node.equal z (fst x) || Node.equal z (fst y))) xs
     
     
   (*let rec solve_loop : stack -> Node.t -> (Node.t * D.t) -> D.t = fun st m (n,d) ->
     ignore (Pretty.printf "solve_loop from '%a' back to '%a'.\n" pretty_short_node n pretty_short_node m);
     let d' = solve_path st n m d in
     if D.equal d d' then d' else solve_loop st m (n,d')*)
+    
+  let find_next_split : Node.t -> (Node.t * Nodes.t) option = fun n ->
+    let r = ref None in
+    let rec look_next n s =
+      match Cfg.next n with
+        | [_,m] -> r := Some (m,s); look_next m (Nodes.add n s)
+        | _ -> ()
+    in
+    look_next n Nodes.empty; !r
     
   let rec solve_split : stack -> NodeDoms.t -> Node.t -> D.t = fun st xs m ->
     if Messages.tracing then ignore (Pretty.printf "solve_split:\n");
@@ -1052,7 +1069,7 @@ struct
         let x,y,m',xs' = choose_next xs m in
         let d1 = solve_path st (fst x) m' (snd x) in 
         let d2 = solve_path st (fst y) m' (snd y) in 
-        solve_split st (NodeDoms.add (m',D.join d1 d2) xs') m
+        solve_split st (NodeDoms.add m' (D.join d1 d2) xs') m
     
   and solve_path st n m d =
     if Messages.tracing then ignore (Pretty.printf "solve_path from '%a' to '%a'.\n" pretty_short_node n pretty_short_node m);

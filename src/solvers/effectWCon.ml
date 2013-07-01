@@ -230,10 +230,12 @@ struct
           in
           let global_side g gstate = 
             if not ( G.leq gstate (G.bot ()) ) then
+              if tracing then tracel "theta" "Value of \"%a\" is non-bottom: %a\n" GVar.pretty_trace g G.pretty_diff (gstate, G.bot ());
               let oldgstate = gh_find_default theta g (G.bot ()) in
               let compgs = G.join oldgstate gstate in
                 if not (G.leq compgs oldgstate) then begin
                   let lst = gh_find_default gInfl g [] in
+                  if tracing then tracel "theta" "Replacing value of variable \"%a\" in globals.\n" GVar.pretty_trace g;
                   GH.replace theta g compgs;
                   unsafe := lst @ !unsafe;
                   GH.remove gInfl g
@@ -263,8 +265,10 @@ struct
       lh_find_default sigma var (D.bot ())
     
     and gEval c glob =
-      if not (GH.mem theta glob) then
-        GH.replace theta glob (G.bot ());
+      if not (GH.mem theta glob) then begin
+        if tracing then tracel "theta" "Adding variable \"%a\" to globals!\n" GVar.pretty_trace glob;
+        GH.replace theta glob (G.bot ())
+      end;
       GH.replace gInfl glob (c :: gh_find_default gInfl glob []);
       GH.find theta glob 
 

@@ -417,7 +417,7 @@ struct
   (* Just adds accesses. It says concrete, but we use it to add verified 
      non-concrete accesses too.*)
   let add_concrete_access ctx fl loc ust (v, o, rv: varinfo * Offs.t * bool) =
-    if (Base.is_global ctx.ask v) then
+    if (Base.is_global ctx.ask v) then begin
       if not !GU.may_narrow then begin 
         let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
         let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
@@ -430,6 +430,7 @@ struct
 (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
 (*      let _ = printf "Access to %s with offense priority %a\n" v.vname P.Glob.Val.pretty el in*)
       ctx.geffect v el
+    end
       
    
   let struct_type_inv (v:varinfo) (o:Offs.t) : (varinfo * Offs.t) option =
