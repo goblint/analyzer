@@ -1288,9 +1288,7 @@ struct
 
   let toXML = toXML_f short
   
-  let pretty_diff () (x,y) = 
-    let f a n (module S : Printable.S) x y = a ++ S.pretty_diff () (obj x, obj y) in
-    binop_fold f nil x y 
+  let pretty_diff () (x,y) = text "Please override me!"
     
   let printXml f xs =
     let print_one a n (module S : Printable.S) x : unit = 
@@ -1298,7 +1296,7 @@ struct
       S.printXml f (obj x);
       BatPrintf.fprintf f "</analysis>\n"
     in
-    unop_fold print_one () xs;
+    unop_fold print_one () xs
   
 end
 
@@ -1346,6 +1344,13 @@ struct
 
   let top () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.top ())) @@ domain_list ()
   let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.bot ())) @@ domain_list ()
+
+  let pretty_diff () (x,y) = 
+    let f a n (module S : Lattice.S) x y = 
+      if S.leq (obj x) (obj y) then a 
+      else a ++ S.pretty_diff () (obj x, obj y) ++ text ". "
+    in
+    binop_fold f nil x y 
 end
 
 module LocalDomainListSpec : DomainListLatticeSpec =

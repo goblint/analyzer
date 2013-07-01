@@ -136,14 +136,16 @@ struct
   let update_variable variable value state =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then 
       CPA.add variable (VD.top ()) state
-    else
+    else begin
+      if M.tracing then M.tracec "set" "Adding %s -> %a\n" variable.vname VD.pretty value;
       CPA.add variable value state
+    end
     
 
   (** [set st addr val] returns a state where [addr] is set to [val] *)
   let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value): store =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may lval)).vname with _ -> "" else "" in
-    if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st;
+    if M.tracing then M.traceli "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st;
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) nst: cpa = 
@@ -180,10 +182,14 @@ struct
       (* If the address was definite, then we just return it. If the address
        * was ambiguous, we have to join it with the initial state. *)
       let nst = if AD.cardinal lval > 1 then CPA.join st nst else nst in
+        if M.tracing then M.traceu "set" "Done!\n";
         (nst,fl)
     with 
       (* If any of the addresses are unknown, we ignore it!?! *)
-      | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; (st,fl)
+      | SetDomain.Unsupported _ -> 
+          M.warn "Assignment to unknown address"; 
+          if M.tracing then M.traceu "set" "Done!\n";
+          (st,fl)
 
   let set_many a (gs:glob_fun) (st,fl as store: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
@@ -698,7 +704,10 @@ struct
                 (* make that address meet the invariant, i.e exclusion sets
                  * will be joined *)
                            if is_some_bot new_val 
-                           then raise Analyses.Deadcode
+                           then begin 
+                			if M.tracing then M.traceu "branchosek" "The branch %B is dead!\n" tv;
+					raise Analyses.Deadcode
+				end
                 else if VD.is_bot new_val 
                 then set a gs st addr value ~effect:false
                 else set a gs st addr new_val ~effect:false
@@ -767,9 +776,13 @@ struct
           let fromJust x = match x with Some x -> x | None -> assert false in
           let v = fromJust (ID.to_bool value) in
             (* Eliminate the dead branch and just propagate to the true branch *)
-            if v == tv then ctx.local else raise Deadcode
+            if v == tv then ctx.local else begin
+                if M.tracing then M.traceu "branchosek" "The branch %B is dead!\n" tv;
+		raise Deadcode
+            end
       | `Bot ->
           if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
+          if M.tracing then M.traceu "branchosek" "The branch %B is dead!\n" tv;
           raise Deadcode
       (* Otherwise we try to impose an invariant: *)
       | _ ->

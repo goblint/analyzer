@@ -746,7 +746,10 @@ struct
 end
 
 (** Use Astree-like abstract interpretation *)
-module IterateLikeAstree (S:Spec2) (Cfg:CfgBidir)
+module IterateLikeAstree 
+    (S:Spec2) 
+    (Cfg:CfgBidir) 
+    (VH:Hash.H with type key=varinfo) 
   =
 struct
   open MyCFG
@@ -760,6 +763,50 @@ struct
   module GVar = Basetype.Variables
   module D = S.D
   module G = S.G
+    
+  let add_update uh v d = 
+    let xs = try VH.find uh v with Not_found -> [] in
+    VH.replace uh v (d::xs)
+  
+  let ginv          : G.t      VH.t = VH.create 100
+  let ginv_updates  : G.t list VH.t = VH.create 100
+  let spawn         : D.t      VH.t = VH.create 100
+  let spawn_updates : D.t list VH.t = VH.create 100
+
+  let print_globs () = 
+    let print_var v x = 
+      ignore (Pretty.printf "\t%s = %a\n" v.vname G.pretty x)
+    in
+    ignore (Pretty.printf "Partial Global invariant:\n");
+    VH.iter print_var ginv 
+
+  let process_spawn_updates () =
+    let dirty = ref false in
+    let one_var k vs =
+      let od = try VH.find spawn k with Not_found -> D.bot () in
+      let nw = List.fold_left D.join od vs in
+      if not (D.equal od nw) then begin
+        dirty := true;
+        VH.replace spawn k nw
+      end
+    in
+    VH.iter one_var spawn_updates;
+    VH.clear spawn_updates;
+    !dirty
+
+  let process_ginv_updates () =
+    let dirty = ref false in
+    let one_var k vs =
+      let od = try VH.find ginv k with Not_found -> G.bot () in
+      let nw = List.fold_left G.join od vs in
+      if not (G.equal od nw) then begin
+        dirty := true;
+        VH.replace ginv k nw
+      end
+    in
+    VH.iter one_var ginv_updates;
+    VH.clear ginv_updates;
+    !dirty
   
   let common_ctx pval : (D.t, G.t) ctx2 =   
     if !Messages.worldStopped then raise M.StopTheWorld;
@@ -767,20 +814,19 @@ struct
     let rec ctx = 
       { ask2     = query
       ; local2   = pval
-      ; global2  = (fun _ -> failwith "global2")
+      ; global2  = (fun x -> try VH.find ginv x with Not_found -> G.bot ())
       ; presub2  = []
       ; postsub2 = []
-      ; spawn2   = (fun f d -> failwith "spawn2")
-                                (*let c = S.context d in 
-                                sidel (FunctionEntry f, c) d; 
-                                ignore (getl (Function f, c)))*)
-      ; split2   = (fun (d:D.t) _ _ -> failwith "spawn2")
-      ; sideg2   = (fun _ -> failwith "sideg2")
+      ; spawn2   = (fun x y ->  if Messages.tracing then ignore (Pretty.printf "spawn '%s' with %a\n" x.vname D.pretty y);
+                                add_update spawn_updates x y)
+      ; split2   = (fun (d:D.t) _ _ -> failwith "split2")
+      ; sideg2   = (fun x y -> if Messages.tracing then ignore (Pretty.printf "side-effect '%s' with %a\n" x.vname G.pretty y);
+                               add_update ginv_updates x y)
       } 
     and query x = S.query ctx x in
     (* ... nice, right! *)
     let pval, diff = S.sync ctx in
-    (*let _ = List.iter (uncurry (undefined "sideg2-2")) diff in*)
+    let _ = List.iter (uncurry (add_update ginv_updates)) diff in
     { ctx with local2 = pval }
     
 
@@ -813,7 +859,7 @@ struct
     then toplevel_kernel_return ret fd ctx sideg
     else normal_return ret fd ctx sideg
                                           
-  let tf_entry fd d = 
+  let tf_body fd d = 
     let ctx = common_ctx d 
     in S.body ctx fd
 
@@ -821,40 +867,11 @@ struct
     let ctx = common_ctx d 
     in S.branch ctx e tv
 
-(*  let tf_normal_call ctx lv e f args  getl sidel getg sideg =
-    let combine (cd, fd) = S.combine {ctx with local2 = cd} lv e f args fd in
-    let paths = S.enter ctx lv f args in
-    let _     = if not (get_bool "exp.full-context") then List.iter (fun (c,v) -> sidel (FunctionEntry f, S.context v) v) paths in
-    let paths = List.map (fun (c,v) -> (c, getl (Function f, S.context v))) paths in
-    let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
-    let paths = List.map combine paths in
-      List.fold_left D.join (D.bot ()) paths
-      
-  let tf_special_call ctx lv f args = S.special ctx lv f args 
-
-  let tf_proc lv e args d = 
-    let ctx = common_ctx d in 
-    let functions = 
-      match ctx.ask2 (Queries.EvalFunvar e) with 
-        | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
-        | `Bot -> []
-        | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
-    in
-    let one_function f = 
-      let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
-      if has_dec && not (LibraryFunctions.use_special f.vname) 
-      then tf_normal_call ctx lv e f args getl sidel getg sideg
-      else tf_special_call ctx lv f args
-    in
-    let funs = List.map one_function functions in
-    List.fold_left D.join (D.bot ()) funs
-
-  *)
   let tf' edge d = 
     begin match edge with
       | Assign (lv,rv) -> tf_assign lv rv d
       | Proc (r,f,ars) -> failwith "tf'"
-      | Entry f        -> tf_entry f d
+      | Entry f        -> tf_body f d
       | Ret (r,fd)     -> tf_ret r fd d
       | Test (p,b)     -> tf_test p b d
       | ASM _          -> ignore (warn "ASM statement ignored."); d
@@ -871,12 +888,34 @@ struct
     let _       = Tracing.current_loc := old_loc in 
       d
 
-  let get_functions d cf = undefined ()
+  let get_functions d (lv,exp,args) = 
+    match S.query (common_ctx d) (Queries.EvalFunvar exp) with
+      | `Bot -> []
+      | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
+      | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () exp)))
 
+      
   module Nodes = Set.Make (Node)
+  module NodeDoms = 
+  struct 
+    module M = Map.Make (Node)
+    type t = D.t M.t
+    let empty = M.empty
+    let elements = List.of_enum % M.enum
+    let filter = M.filter
+    let equal = M.equal D.equal 
+    let compare = M.compare D.compare
+    let iter f = M.iter (curry f)
+    let add k v d =
+      try 
+        M.add k (D.join v @@ M.find k d) d
+      with Not_found ->
+        M.add k v d
+    let of_enum = Enum.fold (fun d (k,v) -> add k v d) empty
+  end
   module NodeTable = Hashtbl.Make (Node)
   
-  type stack = (varinfo list) * bool * D.t
+  type stack = (varinfo list) * bool * D.t * (D.t list ref)
   
   let bsf_order : int NodeTable.t = NodeTable.create 111 
   let init_bsf v d = 
@@ -893,6 +932,20 @@ struct
     in
     Queue.add v q;
     loop d
+
+  let pretty_short_node () = function
+    | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
+    | Function f -> Pretty.dprintf "ret%d" f.vid
+    | Statement s -> Pretty.dprintf "%d (%d)" s.sid (NodeTable.find bsf_order (Statement s))
+  
+  module CM = Hashtbl.Make 
+    (struct
+      type t = Node.t * int
+      let equal (n1,p1) (n2,p2) = Node.equal n1 n2 && p1=p2
+      let hash (n,p) = Node.hash n * p
+    end)
+    
+  let reachable_node_cache = CM.create 10
   
   let reachable_node : int -> Node.t -> Nodes.t = fun p n ->
     let reachability : Nodes.t NodeTable.t = NodeTable.create 111 in
@@ -903,7 +956,12 @@ struct
           | [(_,n)] -> init_reachability n d
           | xs      -> List.iter (fun (_,n) -> init_reachability n d) xs
       in
-        if NodeTable.mem reachability v then begin
+        if NodeTable.find bsf_order v <= p then begin
+          if not (NodeTable.mem reachability v) then begin
+            NodeTable.replace reachability v Nodes.empty;
+            propagate Nodes.empty
+          end
+        end else if NodeTable.mem reachability v then begin
           let old = NodeTable.find reachability v in
           if not (Nodes.equal d old) then begin
             let new_d = Nodes.union old d in
@@ -915,9 +973,16 @@ struct
             propagate d
         end    
     in
-    let f = MyCFG.getFun n in
-    init_reachability (Function f.svar) Nodes.empty;
-    NodeTable.find reachability n
+    try 
+      CM.find reachable_node_cache (n,p)
+    with Not_found ->
+      let f = MyCFG.getFun n in
+      init_reachability (Function f.svar) Nodes.empty;
+      if Messages.tracing then ignore (Pretty.printf "reachable_node %d '%a' =\n" p pretty_short_node n);
+      if Messages.tracing then Nodes.iter (fun x -> ignore (Pretty.printf "\t%a\n" pretty_short_node x)) (NodeTable.find reachability n);
+      let r = NodeTable.find reachability n in
+      CM.add reachable_node_cache (n,p) r;
+      r
       
   let reachability_no_rec : Nodes.t NodeTable.t = NodeTable.create 111 
   let rec init_reachability_no_rec v d = 
@@ -965,41 +1030,53 @@ struct
   let min_Nodes (x:Nodes.t) : Node.t =
     min1 compare_bfs_order (Nodes.elements x)
     
-  let choose_next : (Node.t * D.t) list -> Node.t -> ((Node.t * D.t) * (Node.t * D.t) * Node.t * ((Node.t * D.t) list))  = fun xs t ->
-    let xs = List.filter (fun (x,_) -> Nodes.mem t (reachable_node 0 x)) xs in
-    let pw : ((Node.t * D.t) * (Node.t * D.t) * Nodes.t) list = map_pw_un (fun x y -> x,y,Nodes.inter (reachable_none_loop (fst x)) (reachable_none_loop (fst y)))  xs in
+  let choose_next : NodeDoms.t -> Node.t -> ((Node.t * D.t) * (Node.t * D.t) * Node.t * NodeDoms.t)  = fun xs t ->
+    let xs = NodeDoms.filter (fun x _ -> Nodes.mem t (reachable_node 0 x)) xs in
+    let f x y =
+      let xx = Nodes.add (fst x) @@ reachable_none_loop (fst x) in
+      let yy = Nodes.add (fst y) @@ reachable_none_loop (fst y) in
+      x, y, Nodes.inter xx yy
+    in
+    let pw = map_pw_un f (NodeDoms.elements xs) in
     let pw = List.map (fun (x,y,z) -> x, y, min_Nodes z) pw in
     let cmp (_,_,x) (_,_,y) = compare_bfs_order x y in
     let x,y,z = min1 cmp pw in
-    x, y, z, List.filter (fun (z,_) -> not (Node.equal z (fst x) || Node.equal z (fst y))) xs
+    x, y, z, NodeDoms.filter (fun z _ -> not (Node.equal z (fst x) || Node.equal z (fst y))) xs
     
     
   (*let rec solve_loop : stack -> Node.t -> (Node.t * D.t) -> D.t = fun st m (n,d) ->
     ignore (Pretty.printf "solve_loop from '%a' back to '%a'.\n" pretty_short_node n pretty_short_node m);
     let d' = solve_path st n m d in
     if D.equal d d' then d' else solve_loop st m (n,d')*)
-  
-  let pretty_short_node () = function
-    | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
-    | Function f -> Pretty.dprintf "ret%d" f.vid
-    | Statement s -> Pretty.dprintf "%d" s.sid
-  
-  let rec solve_split : stack -> (Node.t * D.t) list -> Node.t -> D.t = fun st xs m ->
-    ignore (Pretty.printf "solve_split:\n");
-    List.iter (fun (n,_) -> ignore (Pretty.printf "\t%a\n" pretty_short_node n)) xs;
-    match xs with
+    
+  let find_next_split : Node.t -> (Node.t * Nodes.t) option = fun n ->
+    let r = ref None in
+    let rec look_next n s =
+      match Cfg.next n with
+        | [_,m] -> r := Some (m,s); look_next m (Nodes.add n s)
+        | _ -> ()
+    in
+    look_next n Nodes.empty; !r
+    
+  let rec solve_split : stack -> NodeDoms.t -> Node.t -> D.t = fun st xs m ->
+    if Messages.tracing then ignore (Pretty.printf "solve_split:\n");
+    NodeDoms.iter (fun (n,_) -> ignore (Pretty.printf "\t%a\n" pretty_short_node n)) xs;
+    
+    match NodeDoms.elements xs with
       | [] -> raise Not_found
       | [n,d] -> solve_path st n m d 
-      | xs -> 
+      | _ -> 
         let x,y,m',xs' = choose_next xs m in
         let d1 = solve_path st (fst x) m' (snd x) in 
         let d2 = solve_path st (fst y) m' (snd y) in 
-        solve_split st ((m',D.join d1 d2)::xs') m
+        solve_split st (NodeDoms.add m' (D.join d1 d2) xs') m
     
   and solve_path st n m d =
-    ignore (Pretty.printf "solve_path from '%a' to '%a'.\n" pretty_short_node n pretty_short_node m);
+    if Messages.tracing then ignore (Pretty.printf "solve_path from '%a' to '%a'.\n" pretty_short_node n pretty_short_node m);
+    (*Printf.printf "%!";
+    ignore (input_line stdin);*)
     if Node.equal n m then begin
-      ignore (Pretty.printf "solve_path done.\n");
+      if Messages.tracing then ignore (Pretty.printf "solve_path done.\n");
       d 
     end else
     match Cfg.next n with
@@ -1009,64 +1086,100 @@ struct
         let p = NodeTable.find bsf_order n in
         let loop_head_prop (_,x) = 
           let xr = reachable_node p x in
-          Node.equal n (min_Nodes xr)
+          try Node.equal n (min_Nodes xr)
+          with Not_found -> false
         in
         let loops = List.filter loop_head_prop xs in
+        if Messages.tracing then begin
+          if List.length loops <> 0 then begin 
+            ignore (Pretty.printf "solve_path found cycles:\n");
+            List.iter (fun (_,n) -> ignore (Pretty.printf "\t%a\n" pretty_short_node n)) loops
+            end else
+            ignore (Pretty.printf "no cycles\n")
+        end;
         let rec do_loop d =
-          ignore (Pretty.printf "starting loop with state:%a\n" D.pretty d);
+          if List.length loops = 0 then d else
+          let _ = if Messages.tracing then ignore (Pretty.printf "starting loop with state:%a\n" D.pretty d) in
           let d' = List.fold_left (fun d (e,n') -> D.join d (solve_path st n' n (tf st n' e d))) d loops in
-          ignore (Pretty.printf "new value:%a\n" D.pretty d');
+          let _ = if Messages.tracing then ignore (Pretty.printf "new value:%a\n" D.pretty d') in
           if D.equal d d' then d else do_loop (D.widen d d')
         in
         let d' = do_loop d in
-        let reaches_wo_loops x = Nodes.mem m (NodeTable.find reachability_no_rec x) in
+        let reaches_wo_loops x = Node.equal x m || Nodes.mem m (reachable_node p x) in
         let cont = List.filter (reaches_wo_loops % snd) xs in
-        ignore (Pretty.printf "solve_path done with the loop, continuing:\n");
+        if Messages.tracing then ignore (Pretty.printf "solve_path done with the loop, continuing:\n");
         List.iter (fun (_,n) -> ignore (Pretty.printf "\t%a\n" pretty_short_node n)) cont;
         if List.length cont = 0 then 
           d' 
         else 
-          solve_split st (List.map (fun (e,n) -> n, tf st n e d') cont) m
+          solve_split st (NodeDoms.of_enum @@ List.enum @@ List.map (fun (e,n) -> n, tf st n e d') cont) m
           
   
   and tf st n e d = 
-    ignore (Pretty.printf "tf of '%a'.\n" pretty_edge e);
+    if Messages.tracing then ignore (Pretty.printf "tf '%a'\n" pretty_edge e);        
+    let one_normal_call st d f r fexp ars = 
+      let ds = S.enter (common_ctx d) r f ars in
+      List.fold_left (fun d (call,entry) -> D.join d @@ S.combine (common_ctx call) r fexp f ars @@ solve_fun st f entry) (D.bot ()) ds
+    in
+    let one_special_call d lv f args = 
+      S.special (common_ctx d) lv f args 
+    in
     match e with
       | Proc (r,Lval (Var f,NoOffset),ars) when f.vname = "print_state" -> 
-          ignore (Pretty.printf "state at '%a':\n%a\n\n" pretty_short_node n D.pretty d);        
+          if Messages.tracing then ignore (Pretty.printf "state at '%a':\n%a\n\n" pretty_short_node n D.pretty d);        
           d
-      | Proc (r,f,ars) -> 
-          let fs = get_functions d (r,f,ars) in
-          let rs = List.map (fun (f,d) -> solve_fun st f d) fs in
-            List.fold_left D.join (D.bot ()) rs
+      | Proc (r,fexp,ars) -> 
+          let fs = get_functions d (r,fexp,ars) in
+          let one_fun d' f = 
+            D.join d' @@
+            let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
+            if has_dec && not (LibraryFunctions.use_special f.vname) 
+            then one_normal_call st d f r fexp ars
+            else one_special_call d r f ars
+          in
+            List.fold_left one_fun (D.bot ()) fs
       | _ -> tf' n e d
   
-  and solve_fun : stack -> varinfo -> D.t -> D.t = fun (st,re,ua) f d ->
-    ignore (Pretty.printf "solve_fun '%s'.\n" f.vname);
+  and solve_fun : stack -> varinfo -> D.t -> D.t = fun (st,re,ua,cs) f d ->
+    if Messages.tracing then ignore (Pretty.printf "solve_fun '%s'.\n" f.vname);
     if not (NodeTable.mem reachability_no_rec (FunctionEntry f)) then begin 
-      ignore (Pretty.printf "init of '%s'.\n" f.vname);      
+      if Messages.tracing then ignore (Pretty.printf "init of '%s'.\n" f.vname);      
       init_fun f
     end;
-    if re && (f.vid = (List.last st).vid) then
+    if re && (f.vid = (List.last st).vid) then begin
+      if Messages.tracing then ignore (Pretty.printf "recursive call to '%s' detected:\n%a\n\n" f.vname D.pretty d);
+      cs := d :: !cs;
       ua
-    else if List.mem f st then begin
+    end else if List.mem f st then begin
       let rec loop d r =
-        let r' = solve_path ([f],true,r) (FunctionEntry f) (Function f) d in
-        if D.equal r r' then r' else loop d r'
-      in loop d (D.bot ())
+        let cs = ref [] in
+        let r' = solve_path ([f],true,r, cs) (FunctionEntry f) (Function f) d in
+        let d' = List.fold_left D.join d !cs in
+        if D.equal d d' then begin 
+          if Messages.tracing then ignore (Pretty.printf "recursive function '%s' stabile:\n%a\n\n" f.vname D.pretty d');
+          r'  
+        end else loop (D.widen d d') r'
+      in 
+        if Messages.tracing then ignore (Pretty.printf "recursive function '%s' detected!\n" f.vname);
+        loop d (D.bot ())
     end else
-      solve_path (f::st,re,ua) (FunctionEntry f) (Function f) d
+      solve_path (f::st,re,ua,cs) (FunctionEntry f) (Function f) d
     
   let iterate file sv = 
+    let iter_one_var (f, d) = 
+      ignore (solve_fun ([],false,D.bot (),ref []) f d)
+    in
     let iter_one_func = function
-      | Function f, c -> 
-        let d = val_of c in
-        ignore (solve_fun ([],false,D.bot ()) f d)
+      | Function f, c -> iter_one_var (f, val_of c)
       | _ -> () 
     in
-    List.iter iter_one_func sv
-    
-    (* TODO: * only loop on cycle heads
-             * split more soundly
-    *)
+    let rec loop () =
+      List.iter iter_one_func sv;
+      ignore (process_spawn_updates ());
+      let spanws = VH.fold (fun k v d -> (k,v)::d) spawn [] in
+      List.iter iter_one_var spanws ;
+      if process_ginv_updates () || process_spawn_updates () then
+        loop ()
+    in loop (); print_globs ()
+
 end

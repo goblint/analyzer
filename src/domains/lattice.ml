@@ -87,6 +87,9 @@ struct
   let leq x y = Base.leq y x
   let join x y = Base.meet x y
   let meet x y = Base.join x y
+  let name () = "Reversed (" ^ name () ^ ")"
+  let pretty_diff () (x,y) =
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
