@@ -699,7 +699,8 @@ struct
       | _, "_unlock_kernel"
           -> [(Lockset.remove (big_kernel_lock,true) ctx.local),integer 1, true]
       | `Lock (failing, rw), _
-          -> lock rw failing ctx.ask lv arglist ctx.local
+          -> let arglist = if f.vname = "LAP_Se_WaitSemaphore" then [List.hd arglist] else arglist in
+             lock rw failing ctx.ask lv arglist ctx.local
       | `Unlock, "__raw_read_unlock" 
       | `Unlock, "__raw_write_unlock"  -> 
           let drop_raw_lock x =

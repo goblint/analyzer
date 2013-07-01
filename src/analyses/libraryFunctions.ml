@@ -40,6 +40,7 @@ let classify' fn exps =
     | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock" 
     | "pthread_rwlock_trywrlock" | "mutex_trylock"
         -> `Lock (true, true)
+    | "LAP_Se_WaitSemaphore"
     | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
     | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
     | "pthread_mutex_lock" | "__pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource" 
@@ -48,6 +49,7 @@ let classify' fn exps =
     | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
     | "down_read"
         -> `Lock (get_bool "exp.failing-locks", false) 
+    | "LAP_Se_SignalSemaphore"
     | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
     | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
     | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
@@ -442,3 +444,5 @@ let lib_funs = ref (List.fold_right StringSet.add ["list_empty"; "kzalloc"; "kma
 let use_special fn_name = StringSet.mem fn_name !lib_funs
 
 let add_lib_funs funs = lib_funs := List.fold_right StringSet.add funs !lib_funs
+
+let arinc_lib_funs = add_lib_funs ["LAP_Se_CreateSemaphore";"LAP_Se_GetSemaphoreId";"LAP_Se_WaitSemaphore";"LAP_Se_SignalSemaphore";"LAP_Se_CreateProcess"] 
