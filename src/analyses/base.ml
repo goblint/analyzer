@@ -1317,10 +1317,10 @@ struct
           | _ -> [map_true st]
         end
       | `Unknown "LAP_Se_GetSemaphoreId" ->
-          begin match Cil.stripCasts (List.nth args 0), List.nth args 1 with
+          begin match Cil.stripCasts (List.nth args 0), Cil.stripCasts (List.nth args 1) with
             | Const (CStr s), AddrOf lv -> [map_true (assign ctx lv (AddrOf (Var (arinc_semaphore s),NoOffset)))]
-            | _ -> 
-              ignore (Pretty.printf "blasrasdgas\n\n");
+            | se,ide -> 
+              (*ignore (Pretty.printf "LAP_Se_GetSemaphoreId(%a,%a)\n\n" d_plainexp se d_plainexp ide );*)
               [map_true st]
           end
       | `Unknown "__goblint_unknown" ->

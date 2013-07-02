@@ -32,6 +32,8 @@ typedef int PROCESS_ID_TYPE;
 
 extern void LAP_Se_CreateProcess(PROCESS_ATTRIBUTE_TYPE, PROCESS_ID_TYPE*, RETURN_CODE_TYPE*);
 
+extern void LAP_Se_Start(PROCESS_ID_TYPE, RETURN_CODE_TYPE*);
+
 // -----------------------
 
 int g,g2;
@@ -70,6 +72,8 @@ int main(){
   p2.ENTRY_POINT = (void *) &P2;
   LAP_Se_CreateProcess(p1,&pi1,&r);
   LAP_Se_CreateProcess(p2,&pi2,&r);
+  LAP_Se_Start(pi1,&r);
+  LAP_Se_Start(pi2,&r);
   while(1) {
     g2 = g2 - 1;  // RACE!
   }
