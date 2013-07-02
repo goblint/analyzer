@@ -136,16 +136,14 @@ struct
   let update_variable variable value state =
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then 
       CPA.add variable (VD.top ()) state
-    else begin
-      if M.tracing then M.tracec "set" "Adding %s -> %a\n" variable.vname VD.pretty value;
+    else
       CPA.add variable value state
-    end
     
 
   (** [set st addr val] returns a state where [addr] is set to [val] *)
   let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value): store =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may lval)).vname with _ -> "" else "" in
-    if M.tracing then M.traceli "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st;
+    if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st;
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) nst: cpa = 
@@ -182,14 +180,10 @@ struct
       (* If the address was definite, then we just return it. If the address
        * was ambiguous, we have to join it with the initial state. *)
       let nst = if AD.cardinal lval > 1 then CPA.join st nst else nst in
-        if M.tracing then M.traceu "set" "Done!\n";
         (nst,fl)
     with 
       (* If any of the addresses are unknown, we ignore it!?! *)
-      | SetDomain.Unsupported _ -> 
-          M.warn "Assignment to unknown address"; 
-          if M.tracing then M.traceu "set" "Done!\n";
-          (st,fl)
+      | SetDomain.Unsupported _ -> M.warn "Assignment to unknown address"; (st,fl)
 
   let set_many a (gs:glob_fun) (st,fl as store: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
@@ -1121,6 +1115,16 @@ struct
     let cpa,fl = ctx.local in
     match LF.classify f.vname args with 
       (* handling thread creations *)
+      | `Unknown "LAP_Se_CreateProcess" -> begin
+          match List.map (fun x -> stripCasts (constFold false x)) args with
+            | [proc_att;AddrOf id;AddrOf r] ->
+              let pa = eval_fv ctx.ask ctx.global ctx.local proc_att in
+              let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
+              let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
+              List.map (fun v -> v, (cpa, Flag.get_multi ())) reach_fs
+            (*  let st = invalidate ctx.ask ctx.global ctx.local [Lval id, Lval r] in*)
+            | _ -> []
+          end
       | `ThreadCreate (start,ptc_arg) -> begin        
           let start_addr = eval_fv ctx.ask ctx.global ctx.local start in
           let start_vari = List.hd (AD.to_var_may start_addr) in
@@ -1203,6 +1207,14 @@ struct
             [map_true newst]
           end
 
+  let arinc_semaphore_tbl = Hashtbl.create 13 
+  let arinc_semaphore (s:string) : varinfo =
+    try Hashtbl.find arinc_semaphore_tbl s
+    with Not_found ->
+        let i = makeGlobalVar s voidPtrType in
+        Hashtbl.add arinc_semaphore_tbl s i;
+        i
+
   let special_fn ctx (lv:lval option) (f: varinfo) (args: exp list) = 
 (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
@@ -1263,6 +1275,16 @@ struct
             | None -> map_true ctx.local :: []
           end
       (* handling thread creations *)
+      | `Unknown "LAP_Se_CreateProcess" -> begin
+          match List.map (fun x -> stripCasts (constFold false x)) args with
+            | [_;AddrOf id;AddrOf r] ->
+                let cpa,_ = invalidate ctx.ask ctx.global ctx.local [Lval id; Lval r] in
+                GU.multi_threaded := true;
+                let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
+                let new_fl = (x,y) in
+                  [map_true (cpa, new_fl)]
+            | _ -> []
+          end
       | `ThreadCreate (f,x) -> 
           GU.multi_threaded := true;
           let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
@@ -1294,6 +1316,13 @@ struct
                                            (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))])]
           | _ -> [map_true st]
         end
+      | `Unknown "LAP_Se_GetSemaphoreId" ->
+          begin match Cil.stripCasts (List.nth args 0), List.nth args 1 with
+            | Const (CStr s), AddrOf lv -> [map_true (assign ctx lv (AddrOf (Var (arinc_semaphore s),NoOffset)))]
+            | _ -> 
+              ignore (Pretty.printf "blasrasdgas\n\n");
+              [map_true st]
+          end
       | `Unknown "__goblint_unknown" ->
           begin match args with 
             | [Lval lv] | [CastE (_,AddrOf lv)] -> 
