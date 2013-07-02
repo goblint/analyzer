@@ -705,7 +705,7 @@ struct
                  * will be joined *)
                            if is_some_bot new_val 
                            then begin 
-                			if M.tracing then M.trace "branchosek" "The branch %B is dead!\n" tv;
+                			if M.tracing then M.tracel "branchosek" "C The branch %B is dead!\n" tv;
 					raise Analyses.Deadcode
 				end
                 else if VD.is_bot new_val 
@@ -767,6 +767,7 @@ struct
   let branch ctx (exp:exp) (tv:bool) : store =
     let valu = eval_rv ctx.ask ctx.global ctx.local exp in
     if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
+    if M.tracing then M.tracel "branchosek" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
     (* First we want to see, if we can determine a dead branch: *)
     match valu with
       (* For a boolean value: *)
@@ -777,12 +778,12 @@ struct
           let v = fromJust (ID.to_bool value) in
             (* Eliminate the dead branch and just propagate to the true branch *)
             if v == tv then ctx.local else begin
-                if M.tracing then M.trace "branchosek" "The branch %B is dead!\n" tv;
+                if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
 		raise Deadcode
             end
       | `Bot ->
           if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
-          if M.tracing then M.trace "branchosek" "The branch %B is dead!\n" tv;
+          if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;
           raise Deadcode
       (* Otherwise we try to impose an invariant: *)
       | _ ->
