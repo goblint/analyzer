@@ -103,30 +103,30 @@ struct
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
     (* Finding a single varinfo*offset pair *)
     let res = 
-    let f_addr (x, offs) = 
-      (* get hold of the variable value, either from local or global state *)
-      let var = if ((get_bool "exp.earlyglobs") || Flag.is_multi fl) && is_global a x then
-        match CPA.find x st with
-          | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
-          | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
-      else begin
-        if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
-        CPA.find x st 
-      end
+      let f_addr (x, offs) = 
+        (* get hold of the variable value, either from local or global state *)
+        let var = if ((get_bool "exp.earlyglobs") || Flag.is_multi fl) && is_global a x then
+          match CPA.find x st with
+            | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
+            | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
+        else begin
+          if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
+          CPA.find x st 
+        end
+        in
+        VD.eval_offset (get a gs (st,fl)) var offs    
+      in 
+      let f x =
+        match Addr.to_var_offset x with
+        | [x] -> f_addr x                    (* norml reference *)
+        | _ when Addr.is_null x -> VD.bot () (* null pointer *)
+        | _ -> `Int (ID.top ())              (* string pointer *)
       in
-      VD.eval_offset (get a gs (st,fl)) var offs    
-    in 
-    let f x =
-      match Addr.to_var_offset x with
-      | [x] -> f_addr x                    (* norml reference *)
-      | _ when Addr.is_null x -> VD.bot () (* null pointer *)
-      | _ -> `Int (ID.top ())              (* string pointer *)
-    in
-    (* We form the collecting function by joining *)
-    let f x a = VD.join (f x) a in
-      (* Finally we join over all the addresses in the set. If any of the
-       * addresses is a topped value, joining will fail. *)
-      try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
+      (* We form the collecting function by joining *)
+      let f x a = VD.join (f x) a in
+        (* Finally we join over all the addresses in the set. If any of the
+         * addresses is a topped value, joining will fail. *)
+        try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
     in
       if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
       res
@@ -1128,6 +1128,9 @@ struct
       | `ThreadCreate (start,ptc_arg) -> begin        
           let start_addr = eval_fv ctx.ask ctx.global ctx.local start in
           let start_vari = List.hd (AD.to_var_may start_addr) in
+          (* extra sync so that we do not analyze new threads with bottom global invariant *)
+          let ctx_mul = swap_st ctx (cpa, Flag.get_multi ()) in
+          let _ = List.iter (fun ((x,d)) -> ctx.geffect x d) (snd (sync ctx_mul)) in
           try
             (* try to get function declaration *)
             let _ = Cilfacade.getdec start_vari in 
