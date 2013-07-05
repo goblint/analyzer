@@ -388,6 +388,67 @@ let invalidate_actions = [
   ("__builtin_prefetch", readsAll);
   ("idr_pre_get", readsAll);
   ("zil_replay", writes [1;2;3;5]);
+  
+  (*("LAP_Se_TimedWait", readsAll);*)
+  (*("LAP_Se_RaiseApplicationError", readsAll);*)
+  (*("LAP_Se_GetErrorStatus", readsAll);*)
+  ("LAP_Se_CreateErrorHandler", writes [3]);
+  (*("LAP_Se_GetEventStatus", readsAll);*)
+  (*("LAP_Se_GetEventId", readsAll);*)
+  (*("LAP_Se_WaitEvent", readsAll);*)
+  (*("LAP_Se_ResetEvent", readsAll);*)
+  (*("LAP_Se_GetSemaphoreStatus", readsAll);*)
+  (*("LAP_Se_GetSemaphoreId", readsAll);*)
+  (*("LAP_Se_SignalSemaphore", readsAll);*)
+  (*("LAP_Se_WaitSemaphore", readsAll);*)
+  (*("LAP_Se_CreateSemaphore", readsAll);*)
+  (*("LAP_Se_GetBlackboardStatus", readsAll);*)
+  (*("LAP_Se_GetBlackboardId", readsAll);*)
+  (*("LAP_Se_ClearBlackboard", readsAll);*)
+  (*("LAP_Se_ReadBlackboard", readsAll);*)
+  (*("LAP_Se_DisplayBlackboard", readsAll);*)
+  (*("LAP_Se_CreateBlackboard", readsAll);*)
+  (*("LAP_Se_GetBufferStatus", readsAll);*)
+  (*("LAP_Se_GetBufferId", readsAll);*)
+  (*("LAP_Se_ReceiveBuffer", readsAll);*)
+  (*("LAP_Se_SendBuffer", readsAll);*)
+  (*("LAP_Se_CreateBuffer", readsAll);*)
+  (*("LAP_Se_GetQueuingPortStatus", readsAll);*)
+  (*("LAP_Se_GetQueuingPortId", readsAll);*)
+  (*("LAP_Se_ReceiveQueuingMessage", readsAll);*)
+  (*("LAP_Se_SendQueuingMessage", readsAll);*)
+  (*("LAP_Se_CreateQueuingPort", readsAll);*)
+  (*("LAP_Se_GetSamplingPortStatus", readsAll);*)
+  (*("LAP_Se_GetSamplingPortId", readsAll);*)
+  (*("LAP_Se_ReadSamplingMessage", readsAll);*)
+  (*("LAP_Se_WriteSamplingMessage", readsAll);*)
+  (*("LAP_Se_CreateSamplingPort", readsAll);*)
+  (*("LAP_Se_GetLogBookStatus", readsAll);*)
+  (*("LAP_Se_GetLogbookId", readsAll);*)
+  (*("LAP_Se_ClearLogBook", readsAll);*)
+  (*("LAP_Se_WriteLogBook", readsAll);*)
+  (*("LAP_Se_ReadLogBook", readsAll);*)
+  ("LAP_Se_CreateLogBook", writes [4;5]);
+  (*("LAP_Se_GetPartitionStartCondition", readsAll);*)
+  (*("LAP_Se_SetPartitionMode", readsAll);*)
+  (*("LAP_Se_GetPartitionStatus", readsAll);*)
+  (*("LAP_Se_GetProcessStatus", readsAll);*)
+  (*("LAP_Se_GetProcessId", readsAll);*)
+  (*("LAP_Se_GetMyId", readsAll);*)
+  (*("LAP_Se_UnlockPreemption", readsAll);*)
+  (*("LAP_Se_LockPreemption", readsAll);*)
+  (*("LAP_Se_DelayedStart", readsAll);*)
+  (*("LAP_Se_Start", readsAll);*)
+  (*("LAP_Se_Stop", readsAll);*)
+  (*("LAP_Se_StopSelf", readsAll);*)
+  (*("LAP_Se_Resume", readsAll);*)
+  (*("LAP_Se_Suspend", readsAll);*)
+  (*("LAP_Se_SetPriority", readsAll);*)
+  (*("LAP_Se_CreateProcess", readsAll);*)
+  (*("LAP_Se_ReplenishAperiodic", readsAll);*)
+  ("LAP_Se_GetTime", writesAll)
+  (*("LAP_Se_PeriodicWait", readsAll);*)
+  (*("LAP_Se_TimedWait", readsAll)*)
 ]
 
 (* used by get_invalidate_action to make sure
@@ -426,7 +487,7 @@ let thread_safe_fn =
    "fprintf",  threadSafe [1];
    "fgets",    threadSafe [3];
    "strerror_r", threadSafe [1];
-   "fclose", threadSafe [1];
+   "fclose", threadSafe [1]
   ]
 
 let get_threadsafe_inv_ac name =
@@ -445,4 +506,4 @@ let use_special fn_name = StringSet.mem fn_name !lib_funs
 
 let add_lib_funs funs = lib_funs := List.fold_right StringSet.add funs !lib_funs
 
-let arinc_lib_funs = add_lib_funs ["LAP_Se_CreateSemaphore";"LAP_Se_GetSemaphoreId";"LAP_Se_WaitSemaphore";"LAP_Se_SignalSemaphore";"LAP_Se_CreateProcess"] 
+let _ = add_lib_funs ["LAP_Se_TimedWait";"LAP_Se_RaiseApplicationError";"LAP_Se_GetErrorStatus";"LAP_Se_CreateErrorHandler";"LAP_Se_GetEventStatus";"LAP_Se_GetEventId";"LAP_Se_WaitEvent";"LAP_Se_ResetEvent";"LAP_Se_GetSemaphoreStatus";"LAP_Se_GetSemaphoreId";"LAP_Se_SignalSemaphore";"LAP_Se_WaitSemaphore";"LAP_Se_CreateSemaphore";"LAP_Se_GetBlackboardStatus";"LAP_Se_GetBlackboardId";"LAP_Se_ClearBlackboard";"LAP_Se_ReadBlackboard";"LAP_Se_DisplayBlackboard";"LAP_Se_CreateBlackboard";"LAP_Se_GetBufferStatus";"LAP_Se_GetBufferId";"LAP_Se_ReceiveBuffer";"LAP_Se_SendBuffer";"LAP_Se_CreateBuffer";"LAP_Se_GetQueuingPortStatus";"LAP_Se_GetQueuingPortId";"LAP_Se_ReceiveQueuingMessage";"LAP_Se_SendQueuingMessage";"LAP_Se_CreateQueuingPort";"LAP_Se_GetSamplingPortStatus";"LAP_Se_GetSamplingPortId";"LAP_Se_ReadSamplingMessage";"LAP_Se_WriteSamplingMessage";"LAP_Se_CreateSamplingPort";"LAP_Se_GetLogBookStatus";"LAP_Se_GetLogbookId";"LAP_Se_ClearLogBook";"LAP_Se_WriteLogBook";"LAP_Se_ReadLogBook";"LAP_Se_CreateLogBook";"LAP_Se_GetPartitionStartCondition";"LAP_Se_SetPartitionMode";"LAP_Se_GetPartitionStatus";"LAP_Se_GetProcessStatus";"LAP_Se_GetProcessId";"LAP_Se_GetMyId";"LAP_Se_UnlockPreemption";"LAP_Se_LockPreemption";"LAP_Se_DelayedStart";"LAP_Se_Start";"LAP_Se_Stop";"LAP_Se_StopSelf";"LAP_Se_Resume";"LAP_Se_Suspend";"LAP_Se_SetPriority";"LAP_Se_CreateProcess";"LAP_Se_ReplenishAperiodic";"LAP_Se_GetTime";"LAP_Se_PeriodicWait";"LAP_Se_TimedWait"]

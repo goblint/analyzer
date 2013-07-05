@@ -1558,8 +1558,8 @@ struct
       n, repr @@ S.branch ctx' e tv
     in
     let d, q = map_deadcode f @@ spec_list ctx.local2 in
-      do_spawns ctx !spawns;
       do_sideg ctx !sides;
+      do_spawns ctx !spawns;
       do_splits ctx d !splits;
       if q then raise Deadcode else d
       
@@ -1599,8 +1599,8 @@ struct
       n, repr @@ S.assign ctx' l e 
     in
     let d, q = map_deadcode f @@ spec_list ctx.local2 in
-      do_spawns ctx !spawns;
       do_sideg ctx !sides;
+      do_spawns ctx !spawns;
       do_splits ctx d !splits;
       if q then raise Deadcode else d
   
@@ -1623,8 +1623,8 @@ struct
       n, repr @@ S.body ctx' f 
     in
     let d, q = map_deadcode f @@ spec_list ctx.local2 in
-      do_spawns ctx !spawns;
       do_sideg ctx !sides;
+      do_spawns ctx !spawns;
       do_splits ctx d !splits;
       if q then raise Deadcode else d
   
@@ -1647,8 +1647,8 @@ struct
       n, repr @@ S.return ctx' e f
     in
     let d, q = map_deadcode f @@ spec_list ctx.local2 in
-      do_spawns ctx !spawns;
       do_sideg ctx !sides;
+      do_spawns ctx !spawns;
       do_splits ctx d !splits;
       if q then raise Deadcode else d
       
@@ -1671,8 +1671,8 @@ struct
       n, repr @@ S.intrpt ctx'
     in
     let d, q = map_deadcode f @@ spec_list ctx.local2 in
-      do_spawns ctx !spawns;
       do_sideg ctx !sides;
+      do_spawns ctx !spawns;
       do_splits ctx d !splits;
       if q then raise Deadcode else d
       
@@ -1695,8 +1695,8 @@ struct
       n, repr @@ S.special ctx' r f a
     in
     let d, q = map_deadcode f @@ spec_list ctx.local2 in
-      do_spawns ctx !spawns;
       do_sideg ctx !sides;
+      do_spawns ctx !spawns;
       do_splits ctx d !splits;
       if q then raise Deadcode else d
 
@@ -1720,8 +1720,8 @@ struct
       (n, repr d)::dl, (map (fun (v,d) -> v, (n,repr d)::(remove_assoc n @@ G.bot ())) ds) @ cs
     in
     let d,cs = fold_right f (spec_list ctx.local2) ([],[]) in
-      do_spawns ctx !spawns;
       do_sideg ctx !sides;
+      do_spawns ctx !spawns;
       do_splits ctx d !splits;
       d, cs
 
@@ -1743,8 +1743,8 @@ struct
       map (fun (c,d) -> ((n, repr c), (n, repr d))) @@ S.enter ctx' r f a
     in
     let css = map f @@ spec_list ctx.local2 in
-      do_spawns ctx !spawns;
       do_sideg ctx !sides;
+      do_spawns ctx !spawns;
       map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
   
   let combine (ctx:(D.t, G.t) ctx2) r fe f a fd =
@@ -1765,8 +1765,8 @@ struct
       n, repr @@ S.combine ctx' r fe f a @@ obj @@ assoc n fd
     in
     let d, q = map_deadcode f @@ spec_list ctx.local2 in
-      do_spawns ctx !spawns;
       do_sideg ctx !sides;
+      do_spawns ctx !spawns;
       if q then raise Deadcode else d
       
 end
