@@ -16,6 +16,7 @@ type task_t = 	bool*		int*	(string list)*	(string list)*	bool*		bool*		int
 type isr_t = 	int*	(string list)*	int
 
 let osek_renames = ref ""
+let osek_ids = ref ""
 let header = ref "osek_goblint.h"
 let header_path = ref "./"
 let osek_names : (string,string) Hashtbl.t = Hashtbl.create 16
@@ -40,6 +41,14 @@ let events : (string,event_t) Hashtbl.t = Hashtbl.create 16
 let tasks  : (string,task_t) Hashtbl.t = Hashtbl.create 16 
 let isrs   : (string,isr_t) Hashtbl.t = Hashtbl.create 16
 let alarms   : (string,bool*(string list)) Hashtbl.t = Hashtbl.create 16
+
+let resourceids : (Cil.exp,string) Hashtbl.t = Hashtbl.create 16 (*Const CInt64 ,_,_ *)
+let eventids : (Cil.exp,string) Hashtbl.t = Hashtbl.create 16
+let taskids  : (Cil.exp,string) Hashtbl.t = Hashtbl.create 16 
+let isrids   : (Cil.exp,string) Hashtbl.t = Hashtbl.create 16
+let alarmids : (Cil.exp,string) Hashtbl.t = Hashtbl.create 16
+
+
 (* start analysis here *)
 let starting_tasks = ref ([] : string list)
 let concurrent_tasks = ref ([] : string list)

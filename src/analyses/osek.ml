@@ -131,6 +131,56 @@ struct
     if tracing then trace "osek" "Done parsing API (re)names\n";
     close_in input
 
+  let parse_ids ids = 
+    if tracing then trace "osek" "Parsing IDs...\n";
+    let input = open_in ids in
+    let comment = Str.regexp "//.* \\|/\\*.*" in
+    let idregex = Str.regexp " *#define +\\([a-zA-Z_][a-zA-Z0-9_]*\\) +\\([1-9][0-9]*\\)" in
+    let rec read_info () = try
+      let line = input_line input in
+	if tracing then trace "osek" "Line: %s\n" line;
+	if (Str.string_match comment line 0) then begin
+	  if tracing then trace "osek" "IDs: Skipping (JUST 1!) line: %s\n" line;
+	end else begin
+	  if Str.string_match idregex line 0 then begin
+	    let objectname = (Str.matched_group 1 line) in
+	    let id = (Str.matched_group 2 line) in
+	    let intid = int_of_string id in
+	    match objectname with
+	      | x when Hashtbl.mem tasks (make_task objectname) -> begin
+		    if tracing then trace "osek" "Adding ID (%s) for task %s\n" id objectname;
+		    Hashtbl.add taskids (Cil.integer(intid)) (make_task objectname)
+		  end
+	      | x when Hashtbl.mem isrs (make_isr objectname) -> begin
+		    if tracing then trace "osek" "Adding ID (%s) for isr %s\n" id objectname;
+		    Hashtbl.add isrids (Cil.integer(intid)) (make_isr objectname)
+		  end
+	      | x when Hashtbl.mem resources objectname -> begin
+		    if tracing then trace "osek" "Adding ID (%s) for resource %s\n" id objectname;
+		    Hashtbl.add resourceids (Cil.integer(intid)) objectname
+		  end
+	      | x when Hashtbl.mem events objectname -> begin
+		    if tracing then trace "osek" "Adding ID (%s) for event %s\n" id objectname;
+		    Hashtbl.add eventids (Cil.integer(intid)) objectname
+		  end
+	      | x when Hashtbl.mem alarms objectname -> begin
+		    if tracing then trace "osek" "Adding ID (%s) for alarm %s\n" id objectname;
+		    Hashtbl.add alarmids (Cil.integer(intid)) objectname
+		  end
+	      | _ -> if tracing then trace "osek" "No matching object found for %s\n" objectname;()
+	  end;
+	end;
+	read_info ();
+      with 
+	| End_of_file -> ()
+	| e -> raise e
+    in read_info (); 
+    if tracing then trace "osek" "Done parsing IDs\n";
+    close_in input
+
+
+
+
   module MyParam = 
   struct
     module Glob = LockDomain.OsekGlob
@@ -295,7 +345,6 @@ let _ = print_endline (string_of_bool res) in res*)
   let eval_arg ctx (arg:exp) =
     match arg with
     | Lval (Var vinfo,_) -> vinfo
-    | Const c -> if tracing then trace "osek" "Constant arg in eval_arg\n"; failwith "constant arg"
     | _ -> (match eval_fv ctx.ask arg with
       | Some v -> v
       | None   -> failwith "cannot extract arg")      
@@ -489,12 +538,22 @@ try match fvname with (* suppress all fails  *)
       | "ResumeOSInterrupts" -> M.special_fn ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
       | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
         let _ = (match arglist with (*call function *)
-	  | [x] -> let vinfo = eval_arg ctx x in
-		   let task_name = make_task(vinfo.vname) in
-                   if (is_task task_name) then begin
-                     let _ = activate_task ctx task_name in
-                     [ctx.local, integer 1, true]
-                   end else failwith (vinfo.vname ^ "is not a task!")
+	  | [arg] -> begin
+		let task_name = match arg with
+		  | Const c -> begin
+			if (Hashtbl.mem taskids arg) then begin
+			  if tracing then trace "osek" "Looking up ID\n"; 
+			  Hashtbl.find taskids arg
+			end else failwith ("Task-ID not found!")
+		      end
+		  | _ -> let vinfo = eval_arg ctx arg in vinfo.vname
+		in
+                if (is_task task_name) then begin
+		  if tracing then tracel "osek" "Activating task %s\n" task_name;
+                  let _ = activate_task ctx task_name in
+                  [ctx.local, integer 1, true]
+                end else failwith (task_name ^ "is not a task!")
+	      end
 	  | _  -> failwith "ActivateTask arguments are strange") in
 	M.special_fn ctx lval f arglist
       | "ChainTask" ->  
@@ -842,7 +901,12 @@ with | _ -> M.special_fn ctx lval f arglist (* suppress all fails  *)
     if Sys.file_exists(names) then begin
       parse_names names;
     end;
+    let names = !osek_ids in
+    if Sys.file_exists(names) then begin
+      parse_ids names;
+    end;
   end
+
 
 module ThreadMCP = 
   MCP.ConvertToMCPPart
