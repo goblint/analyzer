@@ -6,8 +6,6 @@ open DeadlockDomain
 open Printf
 
 
-let forbiddenList : ( (myowntypeEntry*myowntypeEntry) list ref) = ref []
-
 let equalLock x y = 
   ValueDomain.Addr.equal (x.addr) (y.addr)
 
@@ -16,6 +14,9 @@ let addLock (newLock,lock) lockList =
   else forbiddenList := !forbiddenList @ [ (newLock,lock) ]
 
 let addLockingInfo newLock lockList =
+  (* Add newLock to availableLocks *)
+  if (List.exists (fun x -> ValueDomain.Addr.equal (x.addr) (newLock.addr)) !availableLocks) = false then availableLocks := !availableLocks @ [newLock] else ();
+
   (* Check forbidden list *)
   List.iter (fun e -> List.iter (fun (a,b) -> 
       if ((equalLock a e) && (equalLock b newLock)) then (
