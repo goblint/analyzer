@@ -145,26 +145,30 @@ struct
 	  if Str.string_match idregex line 0 then begin
 	    let objectname = (Str.matched_group 1 line) in
 	    let id = (Str.matched_group 2 line) in
-	    let intid = int_of_string id in
 	    match objectname with
 	      | x when Hashtbl.mem tasks (make_task objectname) -> begin
 		    if tracing then trace "osek" "Adding ID (%s) for task %s\n" id objectname;
+		    let intid = int_of_string id in
 		    Hashtbl.add taskids (Cil.integer(intid)) (make_task objectname)
 		  end
 	      | x when Hashtbl.mem isrs (make_isr objectname) -> begin
 		    if tracing then trace "osek" "Adding ID (%s) for isr %s\n" id objectname;
+		    let intid = int_of_string id in
 		    Hashtbl.add isrids (Cil.integer(intid)) (make_isr objectname)
 		  end
 	      | x when Hashtbl.mem resources objectname -> begin
 		    if tracing then trace "osek" "Adding ID (%s) for resource %s\n" id objectname;
+		    let intid = int_of_string id in
 		    Hashtbl.add resourceids (Cil.integer(intid)) objectname
 		  end
 	      | x when Hashtbl.mem events objectname -> begin
 		    if tracing then trace "osek" "Adding ID (%s) for event %s\n" id objectname;
+		    let intid = int_of_string id in
 		    Hashtbl.add eventids (Cil.integer(intid)) objectname
 		  end
 	      | x when Hashtbl.mem alarms objectname -> begin
 		    if tracing then trace "osek" "Adding ID (%s) for alarm %s\n" id objectname;
+		    let intid = int_of_string id in
 		    Hashtbl.add alarmids (Cil.integer(intid)) objectname
 		  end
 	      | _ -> if tracing then trace "osek" "No matching object found for %s\n" objectname;()
