@@ -298,7 +298,7 @@ struct
   let compare x y = compare (x.fname,x.fcomp.ckey) (y.fname,y.fcomp.ckey)
   let equal x y = x.fcomp.ckey = y.fcomp.ckey && x.fname = y.fname
   let hash x = Hashtbl.hash (x.fname, x.fcomp.ckey)
-  let short _ x = x.fname
+  let short _ x = "(" ^ x.fname ^ "," ^ string_of_int x.fcomp.ckey ^ ")"
   let toXML_f sf x = 
     let esc = Goblintutil.escape in
       Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])

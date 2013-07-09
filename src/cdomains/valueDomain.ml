@@ -19,7 +19,7 @@ sig
   include Lattice.S
   type offs
   val eval_offset: (AD.t -> t) -> t -> offs -> t
-  val update_offset: t -> offs -> t -> t
+  val update_offset: string -> t -> offs -> t -> t
   val invalidate_value: typ -> t -> t
 end
 
@@ -345,68 +345,115 @@ struct
             | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
 
-  let rec update_offset (x:t) (offs:offs) (value:t): t =
+  let rec pretty_offset () = function
+    | `NoOffset    -> dprintf "NoOffset"
+    | `Field (f,o) -> dprintf "Field(%s,%a)" ("(" ^ f.fname ^ "," ^ string_of_int f.fcomp.ckey ^ ")") pretty_offset o
+    | `Index (i,o) -> dprintf "Index(%a,%a)" IndexDomain.pretty i pretty_offset o
+
+  let rec update_offset vname (x:t) (offs:offs) (value:t): t =    
     let mu = function `Blob (`Blob y) -> `Blob y | x -> x in
     match x, offs with
-      | `Blob x, `Index (_,o) -> mu (`Blob (join x (update_offset x o value)))
-      | `Blob x,_ -> mu (`Blob (join x (update_offset x offs value)))
+      | `Blob x, `Index (_,o) -> 
+        let _ = if M.tracing then M.tracel "update_offset" ~var:vname "blob1\n" in
+        mu (`Blob (join x (update_offset vname x o value)))
+      | `Blob x,_ -> 
+        let _ = if M.tracing then M.tracel "update_offset" ~var:vname "blob2\n" in
+        mu (`Blob (join x (update_offset vname x offs value)))
       | _ -> 
+    let _ = if M.tracing then M.traceli "update_offset" ~var:vname "x = '%a'\noffs = '%a'\nvalue = '%a'\n" pretty x pretty_offset offs pretty value in
     let result =   
       match offs with
         | `NoOffset -> begin
             match value with
-              | `Blob y -> mu (`Blob (join x y))
-              | _ -> value
+              | `Blob y -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "NoOffset-blob\n" in
+                mu (`Blob (join x y))
+              | _ -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "NoOffset\n" in
+                value
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
             match x with 
-              | `Struct str -> `Struct (Structs.replace str fld (update_offset (Structs.get str fld) offs value))
+              | `Struct str -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field::Struct\n" in
+                `Struct (Structs.replace str fld (update_offset vname (Structs.get str fld) offs value))
               | `Bot -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field::Bot\n" in
                   let rec init_comp compinfo = 
                     let nstruct = Structs.top () in
                     let init_field nstruct fd = Structs.replace nstruct fd `Bot in
                     List.fold_left init_field nstruct compinfo.cfields 
                   in
                   let strc = init_comp fld.fcomp in
-                  `Struct (Structs.replace strc fld (update_offset `Bot offs value))        
-              | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
-              | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
+                  `Struct (Structs.replace strc fld (update_offset vname `Bot offs value))        
+              | `Top -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field::Top\n" in
+                M.warn "Trying to update a field, but the struct is unknown"; top ()
+              | _ -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field::_\n" in
+                M.warn "Trying to update a field, but was not given a struct"; top ()
           end
         | `Field (fld, offs) -> begin
             match x with 
               | `Union (last_fld, prev_val) -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field2::Union\n" in
                   let tempval, tempoffs = 
                     if UnionDomain.Field.equal last_fld (`Lifted fld) then 
                       prev_val, offs
                     else begin
                       match offs with
                         | `Field (fld, _) when fld.fcomp.cstruct -> 
+                          let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field::Union::Field1\n" in
                             `Struct (Structs.top ()), offs
-                        | `Field (fld, _) -> `Union (Unions.top ()), offs
-                        | `NoOffset -> top (), offs
+                        | `Field (fld, _) -> 
+                          let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field::Union::Field2\n" in
+                          `Union (Unions.top ()), offs
+                        | `NoOffset -> 
+                          let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field::Union::NoOffset\n" in
+                          top (), offs
                         | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int 0L) -> 
+                          let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field::Union::0\n" in
                             (* Why does cil index unions? We'll just pick the first field. *)
                             top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset) 
-                        | _ -> M.warn_each "Why are you indexing on a union? Normal people give a field name."; 
+                        | _ -> 
+                          let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field::Union::_\n" in
+                          M.warn_each "Why are you indexing on a union? Normal people give a field name."; 
                                top (), offs
                     end
                   in
-                    `Union (`Lifted fld, update_offset tempval tempoffs value)
-              | `Bot -> `Union (`Lifted fld, update_offset `Bot offs value)
-              | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
-              | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
+                    `Union (`Lifted fld, update_offset vname tempval tempoffs value)
+              | `Bot -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field2::Bot\n" in
+                `Union (`Lifted fld, update_offset vname `Bot offs value)
+              | `Top -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field2::Top\n" in
+                M.warn "Trying to update a field, but the union is unknown"; top ()
+              | _ -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Field2::_\n" in
+                M.warn_each "Trying to update a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
             match x with 
               | `Array x' ->
-                  let nval = update_offset (CArrays.get x' idx) offs value in
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Index::Array\n" in
+                  let nval = update_offset vname (CArrays.get x' idx) offs value in
                     `Array (CArrays.set x' idx nval)
-              | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value
-              | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value))
-              | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
-              | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
+              | x when IndexDomain.to_int idx = Some 0L -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Index::0\n" in
+                update_offset vname x offs value
+              | `Bot -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Index::Bot\n" in
+                `Array (CArrays.make 42 (update_offset vname `Bot offs value))
+              | `Top -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Index::Top\n" in
+                M.warn "Trying to update an index, but the array is unknown"; top ()
+              | _ -> 
+                let _ = if M.tracing then M.tracel "update_offset" ~var:vname "Index::_\n" in
+                M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
-      in mu result
+      in 
+      (if M.tracing then M.traceu "update_offset" ~var:vname  "returning '%a'\n(mu '%a')\n" pretty (mu result) pretty result);
+      mu result
 
   let printXml f state = 
     match state with
