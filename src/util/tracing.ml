@@ -116,11 +116,10 @@ let tracei (sys:string) ?var ?(subsys=[]) fmt =
 
 let tracec sys fmt = gtrace false printtrace sys None (fun x -> x) fmt
 
-let traceu sys ?(var="") fmt =  
-  let var = if var="" then None else Some var in
+let traceu sys fmt =  
   let f sys d = printtrace sys d; traceOutdent () in
   let g () = deactivate sys in
-    gtrace true f sys var g fmt
+    gtrace false f sys None g fmt
 
 
 let traceli sys ?var ?(subsys=[]) fmt = 

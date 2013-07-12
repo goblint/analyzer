@@ -138,11 +138,6 @@ struct
       CPA.add variable (VD.top ()) state
     else
       CPA.add variable value state
-      
-  let rec pretty_offset () = function
-    | `NoOffset    -> dprintf "NoOffset"
-    | `Field (f,o) -> dprintf "Field(%s,%a)" ("(" ^ f.fname ^ "," ^ string_of_int f.fcomp.ckey ^ ")") pretty_offset o
-    | `Index (i,o) -> dprintf "Index(%a,%a)" ValueDomain.IndexDomain.pretty i pretty_offset o
     
 
   (** [set st addr val] returns a state where [addr] is set to [val] *)
@@ -158,7 +153,7 @@ struct
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) nst: cpa = 
-      if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%s' offset '%a' (type '%a') \nstate:%a\n\n" x.vname pretty_offset offs d_type x.vtype CPA.pretty st;
+      if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
       if isFunctionType x.vtype then begin 
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
         nst 
@@ -184,12 +179,12 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset firstvar (get x nst) offs value) nst
+          update_variable x (VD.update_offset (get x nst) offs value) nst
         end 
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
        (* Normal update of the local state *)
-       update_variable x (VD.update_offset firstvar (CPA.find x nst) offs value) nst
+       update_variable x (VD.update_offset (CPA.find x nst) offs value) nst
        end
     in 
     let update_one x (y: cpa) =

@@ -82,7 +82,7 @@ val tracei: string -> ?var:string -> ?subsys: string list -> ('a, unit, Pretty.d
 val tracec: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
 (** Similar to {!Trace.trace}, but to be used within indent/outdent. *)
 
-val traceu: string -> ?var:string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
+val traceu: string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
 (** Similar to {!Trace.traceu}. *)
 
 val tracel: string -> ?var:string -> ('a, unit, Pretty.doc, unit) format4 -> 'a
