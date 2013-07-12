@@ -1,3 +1,4 @@
+(*
 open Solver
 open Cil
 module GU = Goblintutil
@@ -119,3 +120,4 @@ struct
     phi
      
 end
+*)

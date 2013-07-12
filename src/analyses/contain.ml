@@ -847,8 +847,6 @@ struct
  let translate _ = []
 end
 
-module Analysis : Analyses.S    = Multithread.Forward (Spec) (ContainNoStages) (ContainGNoStages)
-
 module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
   MCP.register_analysis "containment" (module Spec2 : Spec2)

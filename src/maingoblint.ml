@@ -257,10 +257,8 @@ let do_analyze merged_AST =
       (* and here we run the analysis! *)
       if get_string "result" = "html" then Report.prepare_html_report ();
       
-      (* Analyze with the new experimental framework or with the usual framework *)
-      if get_bool "exp.new_fwk" 
-      then Stats.time "analysis" (Control.analyze merged_AST) funs
-      else Stats.time "analysis" (MCP.Analysis.analyze merged_AST) funs
+      (* Analyze with the new experimental framework. *)
+      Stats.time "analysis" (Control.analyze merged_AST) funs
   end
   
 (** the main function *)

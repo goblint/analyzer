@@ -561,8 +561,6 @@ module VarEqMCP =
                 let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
          end)
 
-module Analysis = Multithread.Forward(Spec)
-
 module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
   MCP.register_analysis "var_eq" (module Spec2 : Spec2)

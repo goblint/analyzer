@@ -366,6 +366,7 @@ let _ =
 let _ =
   let module M = GlobSolverFromEqSolver(MakeBoxSolver (PropTrue) (PropFalse)) in
   Selector.add_solver ("slr+", (module M : GenericGlobSolver));
+  Selector.add_solver ("new", (module M : GenericGlobSolver));
   let module M2 = GlobSolverFromEqSolver(MakeBoxSolverCMP) in
   Selector.add_solver ("cmptest", (module M2 : GenericGlobSolver));
   let module M1 = GlobSolverFromEqSolver(MakeBoxSolver (PropFalse) (PropTrue)) in
