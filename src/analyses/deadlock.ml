@@ -36,13 +36,14 @@ let addLockingInfo newLock lockList =
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.DefaultSpec2
 
   let name = "Deadlock analysis"
 
   (* The domain for the analysis *)
-  module Dom = DeadlockDomain.Lockset
-  module Glob = Glob.Make (DeadlockDomain.Lockset)
+  module D = DeadlockDomain.Lockset
+  module C = DeadlockDomain.Lockset
+  module G = DeadlockDomain.Lockset
 
   (* Initialization and finalization *)
   let init () = ()
@@ -50,35 +51,35 @@ struct
   let finalize () = ()
 
   (* Some required states *)
-  let startstate _ : Dom.t = Dom.empty ()
-  let otherstate _ : Dom.t = Dom.empty ()
-  let exitstate  _ : Dom.t = Dom.empty ()
+  let startstate _ : D.t = D.empty ()
+  let otherstate _ : D.t = D.empty ()
+  let exitstate  _ : D.t = D.empty ()
   
   (* ======== Transfer functions ======== *)
   (* Called for assignments, branches, ... *)
 
   (* Assignment lval <- exp *)
-  let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    ctx.local
+  let assign ctx (lval:lval) (rval:exp) : D.t =
+    ctx.local2
    
   (* Branch *)
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
-    ctx.local
+  let branch ctx (exp:exp) (tv:bool) : D.t = 
+    ctx.local2
   
   (* Body of a function starts *)
-  let body ctx (f:fundec) : Dom.t = 
-     ctx.local
+  let body ctx (f:fundec) : D.t = 
+     ctx.local2
 
   (* Returns from a function *)
-  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    ctx.local
+  let return ctx (exp:exp option) (f:fundec) : D.t = 
+    ctx.local2
   
   (* Calls/Enters a function *)
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    [[],ctx.local]
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+    [[],ctx.local2]
   
   (* Leaves a function *)
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     au
 
   (* Helper function to convert query-offsets to valuedomain-offsets *)
@@ -99,44 +100,30 @@ struct
       | b -> Messages.warn ("Could not evaluate '"^sprint 30 (d_exp () exp)^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
     
   (* Called when calling a special/unknown function *)
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
       | `Lock (_, _), _
           ->  
              (* Convert first argument to ValueDomain.Addr.t *)
-             let lockAddr = List.hd (eval_exp_addr ctx.ask (List.hd arglist)) in
+             let lockAddr = List.hd (eval_exp_addr ctx.ask2 (List.hd arglist)) in
              (*if isDebugging then (printf "LOCK: %s\n" (ValueDomain.Addr.short () lockAddr);()) else ();*)
 
              (* Add lock *)
-             addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
-             [ctx.local@[{addr = lockAddr; loc = !Tracing.current_loc }], integer 1, true]
+             addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local2;
+             ctx.local2@[{addr = lockAddr; loc = !Tracing.current_loc }]
   
       | `Unlock, _ 
           -> 
              (* Convert first argument to ValueDomain.Addr.t *)
-             let lockAddr = List.hd (eval_exp_addr ctx.ask (List.hd arglist)) in
+             let lockAddr = List.hd (eval_exp_addr ctx.ask2 (List.hd arglist)) in
              (*if isDebugging then (printf "LOCK: %s\n" (ValueDomain.Addr.short () lockAddr);()) else ();*)
 
              (* Remove lock *)
-             [List.filter (fun e -> ((ValueDomain.Addr.equal lockAddr (e.addr)) == false)) ctx.local, integer 1, true]
+             List.filter (fun e -> ((ValueDomain.Addr.equal lockAddr (e.addr)) == false)) ctx.local2
         
-      | _ -> [ctx.local, integer 1, true]
+      | _ -> ctx.local2
 
 end
 
-module DeadlockMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "deadlock" 
-                let depends = []
-                type lf = Spec.Dom.t
-                let inject_l x = `Deadlock x
-                let extract_l x = match x with `Deadlock x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> [] | _ -> raise MCP.SpecificationConversionError
-         end)
-
 let _ = 
-  let module Spec2 = Constraints.Spec2OfSpec (Spec) in
-  MCP.register_analysis "deadlock" (module Spec2 : Spec2)         
+  MCP.register_analysis "deadlock" (module Spec : Spec2)         

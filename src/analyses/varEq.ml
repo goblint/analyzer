@@ -17,9 +17,9 @@ module Spec =
 struct
   exception Top
   
-  include Analyses.DefaultSpec
+  include Analyses.DefaultSpec2
   
-  module Dom =
+  module D =
   struct
     include PartitionDomain.ExpPartitions
     let toXML_f sf x = 
@@ -29,14 +29,15 @@ struct
         
     let toXML s  = toXML_f short s
   end
-  
-  module Glob = Glob.Make (Lattice.Unit)
+
+  module C = D
+  module G = Lattice.Unit
 
   let name = "Partition"
 
-  let startstate v = Dom.top ()
-  let otherstate v = Dom.top ()
-  let exitstate  v = Dom.top ()
+  let startstate v = D.top ()
+  let otherstate v = D.top ()
+  let exitstate  v = D.top ()
     
   let rec const_equal c1 c2 =
     match c1, c2 with
@@ -101,12 +102,12 @@ struct
       | _ -> false
     
   (* helper to decide equality *)
-  let query_exp_equal ask e1 e2 (g:Glob.Var.t -> Glob.Val.t) s =
+  let query_exp_equal ask e1 e2 g s =
     let e1 = constFold false (stripCasts e1) in
     let e2 = constFold false (stripCasts e2) in
     if exp_equal e1 e2 then true else
-    match Dom.find_class e1 s with
-      | Some ss when Dom.B.mem e2 ss -> true
+    match D.find_class e1 s with
+      | Some ss when D.B.mem e2 ss -> true
       | _ -> false
   
   (* kill predicate for must-equality kind of analyses*)
@@ -323,20 +324,20 @@ struct
 *)    r
 
   (* Remove elements, that would change if the given lval would change.*)
-  let remove_exp ask (e:exp) (st:Dom.t) : Dom.t =
-    Dom.filter (fun x -> not (may_change ask e x)) st
+  let remove_exp ask (e:exp) (st:D.t) : D.t =
+    D.filter (fun x -> not (may_change ask e x)) st
 
-  let remove ask (e:lval) (st:Dom.t) : Dom.t =
+  let remove ask (e:lval) (st:D.t) : D.t =
     remove_exp ask (mkAddrOf e) st 
     (*
     let not_in v xs = not (Exp.contains_var v xs) in
     let remove_simple (v,offs) st =      
-      Dom.filter (not_in v) st
+      D.filter (not_in v) st
     in
     match ask (Queries.MayPointTo (mkAddrOf e)) with 
       | `LvalSet rv when not (Queries.LS.is_top rv) -> 
           Queries.LS.fold remove_simple rv st 
-      | _ -> Dom.top ()
+      | _ -> D.top ()
     *)
     
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
@@ -351,7 +352,7 @@ struct
       && Exp.interesting rv 
       && Exp.is_global_var rv = Some false
       && (isArithmeticType lvt || isPointerType lvt)
-      then Dom.add_eq (rv,Lval lv) (remove ask lv st)
+      then D.add_eq (rv,Lval lv) (remove ask lv st)
       else remove ask lv st 
 (*    in
     match rv with
@@ -360,7 +361,7 @@ struct
             | `LvalSet rv when not (Queries.LS.is_top rv) && Queries.LS.cardinal rv = 1 -> 
                 let rv = Exp.of_clval (Queries.LS.choose rv) in
                 if is_local lv && Exp.is_global_var rv = Some false 
-                then Dom.add_eq (rv,Lval lv) st
+                then D.add_eq (rv,Lval lv) st
                 else st
             | _ -> st
           end
@@ -414,48 +415,48 @@ struct
       | _ -> failwith "Unmatched pattern."
       
   (* Probably ok as is. *)
-  let body ctx f = ctx.local
+  let body ctx f = ctx.local2
 
   (* Branch could be improved to set invariants like base tries to do. *)
-  let branch ctx exp tv = ctx.local
+  let branch ctx exp tv = ctx.local2
   
   (* Just remove things that go out of scope. *)
   let return ctx exp fundec  = 
-    let rm v = remove ctx.ask (Var v,NoOffset) in
-    List.fold_right rm (fundec.sformals@fundec.slocals) ctx.local   
+    let rm v = remove ctx.ask2 (Var v,NoOffset) in
+    List.fold_right rm (fundec.sformals@fundec.slocals) ctx.local2   
 
   (* removes all equalities with lval and then tries to make a new one: lval=rval *)
-  let assign ctx (lval:lval) (rval:exp) : Dom.t  = 
+  let assign ctx (lval:lval) (rval:exp) : D.t  = 
     let rval = constFold true (stripCasts rval) in
-    add_eq ctx.ask lval rval ctx.local
+    add_eq ctx.ask2 lval rval ctx.local2
 
   (* First assign arguments to parameters. Then join it with reachables, to get
      rid of equalities that are not reachable. *)
-  let enter_func ctx lval f args = 
+  let enter ctx lval f args = 
     let rec fold_left2 f r xs ys =
       match xs, ys with
         | x::xs, y::ys -> fold_left2 f (f r x y) xs ys
         | _ -> r
     in
     let assign_one_param st lv exp = 
-      let rm = remove ctx.ask (Var lv, NoOffset) st in 
-      add_eq ctx.ask (Var lv, NoOffset) exp rm 
+      let rm = remove ctx.ask2 (Var lv, NoOffset) st in 
+      add_eq ctx.ask2 (Var lv, NoOffset) exp rm 
     in
     let f = Cilfacade.getdec f in    
     let nst = 
-      try fold_left2 assign_one_param ctx.local f.sformals args 
-      with SetDomain.Unsupported _ -> (* ignore varargs fr now *) Dom.top ()
+      try fold_left2 assign_one_param ctx.local2 f.sformals args 
+      with SetDomain.Unsupported _ -> (* ignore varargs fr now *) D.top ()
     in
-    match Dom.is_bot ctx.local with
+    match D.is_bot ctx.local2 with
       | true -> raise Analyses.Deadcode
-      | false -> [ctx.local,nst]
+      | false -> [ctx.local2,nst]
   
-  let leave_func ctx lval fexp f args st2 = 
-    match Dom.is_bot ctx.local with
+  let combine ctx lval fexp f args st2 = 
+    match D.is_bot ctx.local2 with
       | true -> raise Analyses.Deadcode
       | false -> 
       match lval with
-        | Some lval -> remove ctx.ask lval st2
+        | Some lval -> remove ctx.ask2 lval st2
         | None -> st2    
 
   let unknown_fn ctx lval f args =
@@ -469,47 +470,46 @@ struct
         | Some l -> mkAddrOf l :: args
         | None -> args
     in
-    match Dom.is_bot ctx.local with
+    match D.is_bot ctx.local2 with
       | true -> raise Analyses.Deadcode
       | false -> 
-    let true_exp = integer 1 in
-    match reachables ctx.ask es with
-      | None -> [Dom.top (), true_exp, true]
+    match reachables ctx.ask2 es with
+      | None -> D.top ()
       | Some rs -> 
         let remove_reachable1 es st =
           let remove_reachable2 e st =
-            if reachable_from rs e && not (isConstant e) then remove_exp ctx.ask e st else st
+            if reachable_from rs e && not (isConstant e) then remove_exp ctx.ask2 e st else st
           in
-          Dom.B.fold remove_reachable2 es st
+          D.B.fold remove_reachable2 es st
         in
-        [Dom.fold remove_reachable1 ctx.local ctx.local, true_exp, true]
+        D.fold remove_reachable1 ctx.local2 ctx.local2
 
   let safe_fn = function
     | "memcpy" -> true
     | _ -> false
 
   (* remove all variables that are reachable from arguments *)
-  let special_fn ctx lval f args = 
+  let special ctx lval f args = 
     match f.vname with
       | "spinlock_check" -> 
         begin match lval with
-          | Some x -> [assign ctx x (List.hd args), integer 1, true]
+          | Some x -> assign ctx x (List.hd args)
           | None -> unknown_fn ctx lval f args
         end
-      | x when safe_fn x -> [ctx.local, integer 1, true]
+      | x when safe_fn x -> ctx.local2
       | _ -> unknown_fn ctx lval f args
   (* query stuff *)
     
   let eq_set (e:exp) s =
-    match Dom.find_class e s with
+    match D.find_class e s with
       | None -> Queries.ES.empty ()
-      | Some es when Dom.B.is_bot es -> Queries.ES.bot ()
+      | Some es when D.B.is_bot es -> Queries.ES.bot ()
       | Some es -> 
         let et = typeOf e in
         let add x xs =
           Queries.ES.add (CastE (et,x)) xs
         in
-        Dom.B.fold add es (Queries.ES.empty ())
+        D.B.fold add es (Queries.ES.empty ())
   
   let rec eq_set_clos e s =
     match e with
@@ -538,29 +538,15 @@ struct
       
   let query ctx x = 
     match x with 
-      | Queries.ExpEq (e1,e2) when query_exp_equal ctx.ask e1 e2 ctx.global ctx.local -> 
+      | Queries.ExpEq (e1,e2) when query_exp_equal ctx.ask2 e1 e2 ctx.global2 ctx.local2 -> 
           `Int (Queries.ID.of_bool true)
       | Queries.EqualSet e -> 
-        let r = eq_set_clos e ctx.local in 
+        let r = eq_set_clos e ctx.local2 in 
 (*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
         `ExprSet r
       | _ -> `Top
 
 end
 
-module VarEqMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "var_eq" 
-                let depends = []
-                type lf = Spec.Dom.t
-                let inject_l x = `VarEq x
-                let extract_l x = match x with `VarEq x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
-         end)
-
-module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "var_eq" (module Spec2 : Spec2)
+  MCP.register_analysis "var_eq" (module Spec : Spec2)

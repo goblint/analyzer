@@ -663,6 +663,14 @@ type ('d,'g) ctx2 =
     ; sideg2    : varinfo -> 'g -> unit 
     }
 
+let swap_st2 ctx st =
+  {ctx with local2=st}
+
+let set_st_gl2 ctx st gl spawn_tr eff_tr split_tr =
+  {ctx with local2=st; global2=gl; spawn2=spawn_tr ctx.spawn2; sideg2=eff_tr ctx.sideg2; 
+  split2=split_tr ctx.split2}
+
+
 module type Spec2 =
 sig
   module D : Lattice.S
@@ -778,3 +786,35 @@ struct
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
   
 end
+
+module DefaultSpec2 =
+struct
+  let init     () = ()
+  let finalize () = ()
+  (* no inits nor finalize -- only analyses like Mutex, Base, ... need 
+     these to do postprocessing or other imperative hacks. *)
+  
+  let should_join _ _ = true
+  (* hint for path sensitivity --- MCP overrides this so don't we don't bother. *)
+  
+  let call_descr f _ = f.svar.vname
+  (* prettier name for equation variables --- currently base can do this and
+     MCP just forwards it to Base.*)
+  
+  let intrpt x = x.local2
+  (* Just ignore. *)
+
+  let query _ (q:Queries.t) = Queries.Result.top ()
+  (* Don't know anything --- most will want to redefine this. *)
+
+  let morphstate v d = d
+  (* Only for those who track thread IDs. *)
+
+  let sync ctx     = (ctx.local2,[])
+  (* Most domains do not have a global part. *)
+
+  let val_of x = x
+
+  let context x = x
+end
+

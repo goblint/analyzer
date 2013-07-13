@@ -4,40 +4,41 @@ open Cil
 open Pretty
 open Analyses
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.Spec2 =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.DefaultSpec2
 
   let name = "Unit analysis"
-  module Dom  = Lattice.Unit
-  module Glob = Glob.Make (Lattice.Unit)
+  module D = Lattice.Unit
+  module G = Lattice.Unit
+  module C = Lattice.Unit
   
-  type glob_fun = Glob.Var.t -> Glob.Val.t
-
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    ctx.local
+  let assign ctx (lval:lval) (rval:exp) : D.t =
+    ctx.local2
    
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
-    ctx.local
+  let branch ctx (exp:exp) (tv:bool) : D.t = 
+    ctx.local2
   
-  let body ctx (f:fundec) : Dom.t = 
-    ctx.local
+  let body ctx (f:fundec) : D.t = 
+    ctx.local2
 
-  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    ctx.local
+  let return ctx (exp:exp option) (f:fundec) : D.t = 
+    ctx.local2
   
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    [ctx.local,ctx.local]
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+    [ctx.local2, ctx.local2]
   
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     au
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * exp * bool) list =
-    [ctx.local,integer 1, true]
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    ctx.local2
 
-  let startstate v = Dom.bot ()
-  let otherstate v = Dom.top ()
-  let exitstate  v = Dom.top ()
+  let startstate v = D.bot ()
+  let otherstate v = D.top ()
+  let exitstate  v = D.top ()
 end
 
+let _ = 
+  MCP.register_analysis "unit" (module Spec : Spec2)
