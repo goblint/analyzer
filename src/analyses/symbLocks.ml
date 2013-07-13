@@ -151,15 +151,15 @@ struct
   let may_race (ctx1,ac1) (ctx2,ac2) =
     match ac1, ac2 with 
       | `Lval (l1,r1), `Lval (l2,r2) -> 
-          let ls1 = get_all_locks ctx1.ask (Lval l1) ctx1.local in
-          let ls1 = Queries.PS.fold (one_perelem ctx1.ask) ls1 (ExpSet.empty) in
-          let ls2 = get_all_locks ctx2.ask (Lval l2) ctx2.local in
-          let ls2 = Queries.PS.fold (one_perelem ctx2.ask) ls2 (ExpSet.empty) in
+          let ls1 = get_all_locks ctx1.ask2 (Lval l1) ctx1.local2 in
+          let ls1 = Queries.PS.fold (one_perelem ctx1.ask2) ls1 (ExpSet.empty) in
+          let ls2 = get_all_locks ctx2.ask2 (Lval l2) ctx2.local2 in
+          let ls2 = Queries.PS.fold (one_perelem ctx2.ask2) ls2 (ExpSet.empty) in
           (*ignore (Pretty.printf "{%a} inter {%a} = {%a}\n" (Pretty.d_list ", " Exp.pretty) (ExpSet.elements ls1) (Pretty.d_list ", " Exp.pretty) (ExpSet.elements ls2) (Pretty.d_list ", " Exp.pretty) (ExpSet.elements (ExpSet.inter ls1 ls2)));*)
           ExpSet.is_empty (ExpSet.inter ls1 ls2) &&
-          let ls1 = same_unknown_index ctx1.ask (Lval l1) ctx1.local in
+          let ls1 = same_unknown_index ctx1.ask2 (Lval l1) ctx1.local2 in
           let ls1 = Queries.PS.fold one_lockstep ls1 (LockDomain.Lockset.empty ()) in
-          let ls2 = same_unknown_index ctx2.ask (Lval l2) ctx2.local in
+          let ls2 = same_unknown_index ctx2.ask2 (Lval l2) ctx2.local2 in
           let ls2 = Queries.PS.fold one_lockstep ls2 (LockDomain.Lockset.empty ()) in
           LockDomain.Lockset.is_empty (LockDomain.Lockset.ReverseAddrSet.inter ls1 ls2) 
           

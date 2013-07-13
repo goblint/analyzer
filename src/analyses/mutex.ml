@@ -573,8 +573,8 @@ struct
   let may_race (ctx1,ac1) (ctx2,ac2) =
     let write = function `Lval (_,b) | `Reach (_,b) -> b in
     let prot_locks b ls = if b then D.filter snd ls else D.map (fun (x,_) -> (x,true)) ls in
-    let ls1 = prot_locks (write ac1) ctx1.local in
-    let ls2 = prot_locks (write ac2) ctx2.local in
+    let ls1 = prot_locks (write ac1) ctx1.local2 in
+    let ls2 = prot_locks (write ac2) ctx2.local2 in
     Lockset.is_empty (Lockset.ReverseAddrSet.inter ls1 ls2)
     
     

@@ -821,19 +821,5 @@ struct
 end
 
 
-module ContainNoStages =
-struct
- type from_type = Spec.D.t
- type to_type = local_state list list
- let translate _ = []
-end
-
-module ContainGNoStages =
-struct
- type from_type = Spec.G.t
- type to_type = Analyses.global_state list
- let translate _ = []
-end
-
 let _ = 
   MCP.register_analysis "containment" (module Spec : Spec2)

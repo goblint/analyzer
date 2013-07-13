@@ -1032,11 +1032,11 @@ struct
       [dummyFunDec.svar]
 
   let may_race (ctx1,ac1) (ctx2,ac2) =
-    let gs = ctx1.global in
-    let ask1 = ctx1.ask in
-    let ask2 = ctx2.ask in
-    let cpa1, f1 = ctx1.local in
-    let cpa2, f2 = ctx2.local in
+    let gs = ctx1.global2 in
+    let ask1 = ctx1.ask2 in
+    let ask2 = ctx2.ask2 in
+    let cpa1, f1 = ctx1.local2 in
+    let cpa2, f2 = ctx2.local2 in
     let rt_closure f d = 
       let rec loop don todo = 
         if AD.is_empty todo then don else
@@ -1066,8 +1066,8 @@ struct
         | _ -> AD.bot ()
     in
     let filter p x = if AD.is_top x then x else AD.filter p x in
-    let val1 = changed_addrs ctx1.ask (cpa1,f1) ac1 in
-    let val2 = changed_addrs ctx2.ask (cpa2,f2) ac2 in
+    let val1 = changed_addrs ctx1.ask2 (cpa1,f1) ac1 in
+    let val2 = changed_addrs ctx2.ask2 (cpa2,f2) ac2 in
     let gval1 = filter (is_glob ask1) val1 in
     let gval2 = filter (is_glob ask2) val2 in
     (( AD.mem (Addr.unknown_ptr ()) val1 && not (AD.is_empty gval2))

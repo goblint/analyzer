@@ -133,66 +133,6 @@ struct
 end 
 
 
-(** Translate the old [Spec] into the new [Spec2] system. *)
-(*module Spec2OfSpec (S:Spec with module Glob.Var = Basetype.Variables) *)
-(*  : Spec2 with module D = S.Dom*)
-(*           and module G = S.Glob.Val *)
-(*           and module C = S.Dom *)
-(*  =*)
-(*struct*)
-(*  module D = S.Dom*)
-(*  module G = S.Glob.Val*)
-(*  module C = S.Dom*)
-(*  *)
-(*  let name = S.name*)
-(*  *)
-(*  let init = S.init*)
-(*  let finalize = S.finalize*)
-(*  *)
-(*  let should_join = S.should_join*)
-(*  *)
-(*  let startstate = S.startstate*)
-(*  let exitstate = S.exitstate*)
-(*  let otherstate = S.otherstate*)
-(*  let morphstate = S.morphstate*)
-
-(*  let val_of = identity*)
-(*  let context = S.context_top dummyFunDec.svar*)
-(*  let call_descr = S.es_to_string*)
-(*  *)
-(*  let translate_sub = List.map (fun (n,x) -> List.assoc n !MCP.objInjectLocal x)*)
-(*  *)
-(*  let conv_ctx ctx2 =*)
-(*    { ask = ctx2.ask2*)
-(*    ; local = ctx2.local2*)
-(*    ; global = ctx2.global2*)
-(*    ; sub = translate_sub ctx2.postsub2*)
-(*    ; presub = translate_sub ctx2.presub2*)
-(*    ; spawn = ctx2.spawn2*)
-(*    ; geffect = ctx2.sideg2*)
-(*    ; precomp = []*)
-(*    ; preglob = []*)
-(*    ; report_access = (fun _ -> ())*)
-(*    }*)
-(*  *)
-(*  let sync   = S.sync   % conv_ctx*)
-(*  let query  = S.query  % conv_ctx*)
-(*  let assign = S.assign % conv_ctx*)
-(*  let branch = S.branch % conv_ctx*)
-(*  let body   = S.body   % conv_ctx*)
-(*  let return = S.return % conv_ctx*)
-(*  let intrpt = S.intrpt % conv_ctx*)
-(*  *)
-
-(*  let enter   = S.enter_func % conv_ctx*)
-(*  let combine = S.leave_func % conv_ctx*)
-
-(*  let special ctx2 r f args = *)
-(*    match S.special_fn (conv_ctx ctx2) r f args with*)
-(*     | (d,exp,tv)::[] when tv && isInteger exp = Some 1L -> d*)
-(*     | xs -> List.iter (fun (d,e,tv) -> ctx2.split2 d e tv) xs; raise Deadcode*)
-(*end*)
-
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec2]. *)
 module FromSpec (S:Spec2) (Cfg:CfgBackward)
   : GlobConstrSys with module LVar = VarF (S.C)
@@ -326,8 +266,6 @@ struct
           [fun _ _ _ _ -> S.val_of c]
       | _ -> List.map (tf (v,c)) (Cfg.prev v)
 end
-
-
 
 
 (** Combined variables so that we can also use the more common [IneqConstrSys], and [EqConstrSys]
