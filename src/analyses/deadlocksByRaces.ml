@@ -36,8 +36,8 @@ struct
   let add_gatelock may must tid = true
   
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let thread = Obj.obj (List.assoc "thread-id-location") in
-    let maylocks = Obj.obj (List.assoc "maylocks") in
+    let thread = Obj.obj (List.assoc "thread-id-location" ctx.presub2) in
+    let maylocks = Obj.obj (List.assoc "maylocks" ctx.presub2) in
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
       | `Lock (failing, rw), _ when add_access ctx.local2 maylocks thread ->  
           if add_gatelock ctx.local2 maylocks thread then begin 
