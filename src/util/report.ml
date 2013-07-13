@@ -45,14 +45,12 @@ let do_stats fileNames =
   in      
   let phaseTbl = 
     let f xs x = 
-      let x = snd x in
-      let module S = (val x.MCP.spec : Analyses.Spec) in
-      let name = S.name in
+      let name = snd x in
         match phase name with 
             None -> xs 
             | Some n -> (name, cont name, path name)::xs 
     in
-    List.fold_left f [] !MCP.analyses_list 
+    List.fold_left f [] !MCP.analyses_table 
   in
   match get_bool "printstats", get_string "result" with
     | _ , "html" ->

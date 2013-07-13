@@ -20,13 +20,14 @@ let analyses_table = ref []
 
 let register_analysis =
   let count = ref 0 in
-  fun n ?(dep=[]) (module S:Spec) ->
+  fun ?(dep=[]) (module S:Spec) ->
     let s = { spec = (module S : Spec)
             ; dom  = (module S.D : Lattice.S)
             ; glob = (module S.G : Lattice.S)
             ; cont = (module S.C : Printable.S)
             }
     in
+    let n = S.name in
     analyses_table := (!count,n) :: !analyses_table;
     analyses_list' := (!count,s) :: !analyses_list';
     dep_list'      := (!count,dep) :: !dep_list';

@@ -223,7 +223,7 @@ struct
         end
       | _ -> ctx.local
 
-  let name = "Malloc null"
+  let name = "malloc_null"
 
   let startstate v = D.empty ()
   let otherstate v = D.empty ()
@@ -235,4 +235,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "malloc_null" (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)

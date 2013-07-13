@@ -33,7 +33,7 @@ struct
   module C = D
   module G = Lattice.Unit
 
-  let name = "Partition"
+  let name = "var_eq"
 
   let startstate v = D.top ()
   let otherstate v = D.top ()
@@ -549,4 +549,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "var_eq" (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)

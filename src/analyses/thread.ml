@@ -11,7 +11,9 @@ struct
   module D = ConcDomain.ThreadDomain
   module C = D
   module G = Lattice.Unit (* no global state *)
-  
+
+  let name = "thread_analysis"
+
   (* query_lv and eval_lv are used for resolving function pointers
      into function bodies. *)
   
@@ -106,8 +108,6 @@ struct
     
   let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
-
-  let name = "Thread analysis"
 end
 
 
@@ -116,7 +116,7 @@ module StartLocIDs =
 struct
   include Analyses.DefaultSpec
 
-  let name = "Unit analysis"
+  let name = "thread-id-location"
   module D = ConcDomain.ThreadStringSet
   module C = D
   module G = Lattice.Unit
@@ -164,4 +164,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "thread-id-location" (module StartLocIDs : Spec)         
+  MCP.register_analysis (module StartLocIDs : Spec)         

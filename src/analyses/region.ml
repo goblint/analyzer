@@ -174,7 +174,7 @@ struct
 
   let exitstate = otherstate
   
-  let name = "Region analysis"
+  let name = "region"
 
   let init () = 
     partition_varstore := makeVarinfo false "REGION_PARTITIONS" voidType
@@ -182,4 +182,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "region" (module Spec : Spec)         
+  MCP.register_analysis (module Spec : Spec)         

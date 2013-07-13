@@ -50,7 +50,7 @@ struct
   module C      = BaseDomain.Dom
   module V      = Basetype.Variables
 
-  let name = "Constant Propagation Analysis"
+  let name = "base"
   let startstate v = CPA.bot (), Flag.bot ()
   let otherstate v = CPA.bot (), Flag.start_multi v
   let exitstate  v = CPA.bot (), Flag.start_main v
@@ -1424,19 +1424,5 @@ struct
      combine_one ctx.local after
 end
 
-(*module BaseMCP = *)
-(*  MCP.ConvertToMCPPart*)
-(*        (Main)*)
-(*        (struct let name = "base" *)
-(*                let depends = []*)
-(*                type lf = Main.Dom.t*)
-(*                let inject_l x = `Base x*)
-(*                let extract_l x = match x with `Base x -> x | _ -> raise MCP.SpecificationConversionError*)
-(*                type gf = Main.Glob.Val.t*)
-(*                let inject_g x = `Base x*)
-(*                let extract_g x = match x with `Base x -> x | _ -> raise MCP.SpecificationConversionError*)
-(*         end)*)
-
-(*module Spec = Constraints.SpecOfSpec (Main)*)
 let _ = 
-  MCP.register_analysis "base" (module Main : Spec)
+  MCP.register_analysis (module Main : Spec)

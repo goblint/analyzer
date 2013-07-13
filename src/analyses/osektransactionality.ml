@@ -11,7 +11,7 @@ struct
 
   let violations = ref false (*print negative warnings? *)
 
-  let name = "OSEK trasactionality"
+  let name = "OSEK2"
   module D = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
   module C = D
   module G = Lattice.Unit
@@ -172,4 +172,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "OSEK2" ~dep:["OSEK"; "stack_trace_set"] (module Spec : Spec)
+  MCP.register_analysis ~dep:["OSEK"; "stack_trace_set"] (module Spec : Spec)

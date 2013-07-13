@@ -10,7 +10,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "Escaped Variables"
+  let name = "escape"
   module D = EscapeDomain.EscapedVars
   module C = EscapeDomain.EscapedVars
   module G = Lattice.Unit
@@ -96,4 +96,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "escape" (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)

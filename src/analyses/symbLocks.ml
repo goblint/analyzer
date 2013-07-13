@@ -21,7 +21,7 @@ struct
   module C = LockDomain.Symbolic
   module G = Lattice.Unit
 
-  let name = "Symbolic locks"
+  let name = "symb_locks"
 
   let startstate v = D.top ()
   let otherstate v = D.top ()
@@ -191,4 +191,4 @@ struct
 end
          
 let _ = 
- MCP.register_analysis "symb_locks" (module Spec : Spec)
+ MCP.register_analysis (module Spec : Spec)

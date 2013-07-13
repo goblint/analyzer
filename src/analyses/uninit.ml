@@ -24,7 +24,7 @@ struct
   type trans_out = D.t 
   type transfer  = trans_in -> trans_out
   
-  let name = "Initialization analysis"  
+  let name = "uninit"
   
   let startstate v : D.t = D.empty () 
   let otherstate v : D.t = D.empty ()
@@ -292,4 +292,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "uninit" (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)

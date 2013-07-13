@@ -10,7 +10,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "May-Lockset analysis"
+  let name = "maylocks"
   module D = LockDomain.MayLockset
   module C = LockDomain.MayLockset
   module G = Lattice.Unit
@@ -77,4 +77,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "maylocks" (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)

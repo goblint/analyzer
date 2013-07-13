@@ -14,7 +14,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "Shape Analysis for Cyclic Doubly Linked Lists"
+  let name = "shape"
   module LD = ShapeDomain.Dom
   module D  = Lattice.Prod (LD) (Re.D)
   module C  = Lattice.Prod (LD) (Re.D)
@@ -280,4 +280,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "shape" (module Spec : Spec)         
+  MCP.register_analysis (module Spec : Spec)         

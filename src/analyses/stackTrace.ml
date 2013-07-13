@@ -5,11 +5,11 @@ open Pretty
 open Analyses
 module LF = LibraryFunctions
 
-module Spec (D: StackDomain.S)=
+module Spec (D: StackDomain.S) (P: sig val name : string end)=
 struct
   include Analyses.DefaultSpec
 
-  let name = "stack trace"
+  let name = P.name
   module D = D
   module C = D
   module G = Lattice.Unit
@@ -45,7 +45,7 @@ module SpecLoc =
 struct
   include Analyses.DefaultSpec
 
-  let name = "stack trace"
+  let name = "stack_loc"
   module D = StackDomain.Dom3
   module C = StackDomain.Dom3
   module G = Lattice.Unit
@@ -95,9 +95,9 @@ struct
 end
 
 
-module Spec1 = Spec (StackDomain.Dom)
-module Spec2 = Spec (StackDomain.Dom2)
+module Spec1 = Spec (StackDomain.Dom1) (struct let name = "stack_trace" end)
+module Spec2 = Spec (StackDomain.Dom2) (struct let name = "stack_trace_set" end)
 let _ = 
-  MCP.register_analysis "stack_loc" (module SpecLoc : Spec);        
-  MCP.register_analysis "stack_trace" (module Spec1 : Spec);        
-  MCP.register_analysis "stack_trace_set" (module Spec2 : Spec)         
+  MCP.register_analysis (module SpecLoc : Spec);        
+  MCP.register_analysis (module Spec1 : Spec);        
+  MCP.register_analysis (module Spec2 : Spec)         

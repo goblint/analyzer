@@ -8,7 +8,7 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "Unit analysis"
+  let name = "unit"
   module D = Lattice.Unit
   module G = Lattice.Unit
   module C = Lattice.Unit
@@ -41,4 +41,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "unit" (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)

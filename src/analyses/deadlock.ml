@@ -38,7 +38,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "Deadlock analysis"
+  let name = "deadlock"
 
   (* The domain for the analysis *)
   module D = DeadlockDomain.Lockset
@@ -126,4 +126,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "deadlock" (module Spec : Spec)         
+  MCP.register_analysis (module Spec : Spec)         

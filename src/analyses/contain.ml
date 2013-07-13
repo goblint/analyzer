@@ -19,7 +19,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec  
 
-  let name = "Containment analysis"
+  let name = "containment"
 	  
   module D = 
   struct
@@ -822,4 +822,4 @@ end
 
 
 let _ = 
-  MCP.register_analysis "containment" (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)

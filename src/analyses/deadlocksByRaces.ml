@@ -8,7 +8,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "Deadlock Checking by Data Race Detection"
+  let name = "oslo"
   module MSpec = Mutex.Spec
   module D = MSpec.D
   module G = MSpec.G
@@ -55,4 +55,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "oslo" ~dep:["thread-id-location";"maylocks"] (module Spec : Spec)
+  MCP.register_analysis ~dep:["thread-id-location";"maylocks"] (module Spec : Spec)

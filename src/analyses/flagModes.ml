@@ -10,7 +10,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "Flag Modes"
+  let name = "fmode"
   module D = FlagModeDomain.Dom
   module C = FlagModeDomain.Dom
   module G = Lattice.Unit
@@ -109,4 +109,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "fmode" (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)

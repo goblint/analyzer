@@ -66,7 +66,7 @@ struct
   include Analyses.DefaultSpec
 
   (** name for the analysis (btw, it's "Only Mutex Must") *)
-  let name = "Only Mutex Must"
+  let name = "mutex"
 
   (** Add current lockset alongside to the base analysis domain. Global data is collected using dirty side-effecting. *)
   module D = Lockset
@@ -938,4 +938,4 @@ end
 module Spec = MakeSpec (MyParam)
 
 let _ = 
-  MCP.register_analysis "mutex" ~dep:["base"] (module Spec : Spec)
+  MCP.register_analysis ~dep:["base"] (module Spec : Spec)

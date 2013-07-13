@@ -146,8 +146,5 @@ struct
 
 end
          
-(*module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
-module Analysis : Analyses.S    = Multithread.Forward(Path)*)
-
 let _ = 
-  MCP.register_analysis "flag" (module Spec : Spec)         
+  MCP.register_analysis (module Spec : Spec)         

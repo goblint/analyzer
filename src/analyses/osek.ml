@@ -607,7 +607,7 @@ try match fvname with (* suppress all fails  *)
       | _ -> M.special ctx lval f arglist
 with | _ -> M.special ctx lval f arglist (* suppress all fails  *)
  
-  let name = "OSEK analysis"
+  let name = "OSEK"
   let es_to_string f _ = f.svar.vname
 
   let should_join _ _ = true
@@ -908,4 +908,4 @@ with | _ -> M.special ctx lval f arglist (* suppress all fails  *)
   end
 
 let _ = 
-  MCP.register_analysis "OSEK" ~dep:["base";"fmode"] (module Spec : Spec)         
+  MCP.register_analysis ~dep:["base";"fmode"] (module Spec : Spec)         

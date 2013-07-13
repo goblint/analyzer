@@ -17,7 +17,7 @@ struct
   module C = Flag
   module G = Lattice.Unit
 
-  let name = "multi-threaded"
+  let name = "mtflag"
 
   let startstate v = Flag.bot ()
   let otherstate v = Flag.top ()
@@ -60,4 +60,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "mtflag" (module Spec : Spec)
+  MCP.register_analysis (module Spec : Spec)
