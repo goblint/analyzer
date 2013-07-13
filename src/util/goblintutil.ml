@@ -125,7 +125,7 @@ let create_dir name =
   let _ = 
     try
       Unix.mkdir dirName dirPerm
-    with Unix.Unix_error(err, ctx1, ctx2) as ex -> 
+    with Unix.Unix_error(err, ctx1, ctx) as ex -> 
       (* We can discared the EEXIST, we are happy to use the existing directory *)
       if err != Unix.EEXIST then begin
         (* Hopefully will be friendly enough :) *)

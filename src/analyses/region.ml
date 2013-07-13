@@ -12,7 +12,7 @@ module BS  = Base.Main
 
 module Spec =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   module LD     = RegionDomain.LD
   module Lif    = RegionDomain.Lif
@@ -37,7 +37,7 @@ struct
   let get_regpart gf = gf (partition_varinfo ())
   
   let sync ctx = 
-    let (e,x) = ctx.local2 in
+    let (e,x) = ctx.local in
       (e, Vars.empty ()), Vars.elements x
 
   let regions exp part (st,_) : Lval.CilLval.t list =
@@ -61,19 +61,19 @@ struct
       
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t = 
-    let regpart = get_regpart ctx.global2 in
+    let regpart = get_regpart ctx.global in
     match q with
       | Queries.Regions e ->
-          if is_bullet e regpart ctx.local2 then `Bot else
-          let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local2) (Queries.LS.empty ()) in
+          if is_bullet e regpart ctx.local then `Bot else
+          let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
           `LvalSet ls
       | _ -> Queries.Result.top ()
  
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    match ctx.local2 with
+    match ctx.local with
       | `Lifted (equ,reg), gd -> 
-          let old_regpart = get_regpart ctx.global2 in
+          let old_regpart = get_regpart ctx.global in
           let equ = Equ.assign lval rval equ in
           let regpart, reg = Reg.assign lval rval (old_regpart, reg) in
           if RegPart.leq regpart old_regpart
@@ -82,17 +82,17 @@ struct
       | x -> x
    
   let branch ctx (exp:exp) (tv:bool) : D.t = 
-    ctx.local2
+    ctx.local
   
   let body ctx (f:fundec) : D.t = 
-    ctx.local2
+    ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t = 
     let locals = f.sformals @ f.slocals in
-    match ctx.local2 with
+    match ctx.local with
       | `Lifted (equ,reg), gd -> 
           let equ = Equ.kill_vars locals equ in
-          let old_regpart = get_regpart ctx.global2 in
+          let old_regpart = get_regpart ctx.global in
           let part, reg = match exp with
              | Some exp -> Reg.assign (BS.return_lval ()) exp (old_regpart, reg)
              | None -> old_regpart, reg in
@@ -109,23 +109,23 @@ struct
         | x::xs, y::ys -> f x y (fold_right2 f xs ys r)
         | _ -> r
     in
-    match ctx.local2 with
+    match ctx.local with
       | `Lifted (equ,reg), gd ->
            let fundec = Cilfacade.getdec f in
            let f x r eq = Equ.assign (var x) r eq in
            let equ  = fold_right2 f fundec.sformals args equ in
            let f x r reg = Reg.assign (var x) r reg in
-           let old_regpart = get_regpart ctx.global2 in
+           let old_regpart = get_regpart ctx.global in
            let regpart, reg = fold_right2 f fundec.sformals args (old_regpart,reg) in 
            if RegPart.leq regpart old_regpart
-           then [ctx.local2,(`Lifted (equ,reg),gd)]
-           else [ctx.local2,(`Lifted (equ,reg),Vars.add (partition_varinfo (), regpart) gd)]
+           then [ctx.local,(`Lifted (equ,reg),gd)]
+           else [ctx.local,(`Lifted (equ,reg),Vars.add (partition_varinfo (), regpart) gd)]
       | x -> [x,x]
   
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     match au with
       | `Lifted (equ, reg), gd -> begin
-          let old_regpart = get_regpart ctx.global2 in
+          let old_regpart = get_regpart ctx.global in
           match lval with
             | None ->
                 let regpart, reg = Reg.remove_vars [BS.return_varinfo ()] (old_regpart, reg) in
@@ -144,9 +144,9 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match f.vname with 
       | "malloc" | "calloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
-          match ctx.local2, lval with
+          match ctx.local, lval with
             | (`Lifted (equ,reg), gd), Some lv -> 
-                let old_regpart = get_regpart ctx.global2 in
+                let old_regpart = get_regpart ctx.global in
                 let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
                 let gd = 
                   if RegPart.leq regpart old_regpart
@@ -154,7 +154,7 @@ struct
                   else Vars.add (partition_varinfo (), regpart) gd
                 in
                 `Lifted (equ, reg), gd
-            | _ -> ctx.local2
+            | _ -> ctx.local
         end
       | _ -> 
     let t, _, _, _ = splitFunctionTypeVI  f in
@@ -162,9 +162,9 @@ struct
       | TPtr (t,_) ->
     begin match Goblintutil.is_blessed t, lval with
       | Some rv, Some lv -> assign ctx lv (AddrOf (Var rv, NoOffset))
-      | _ -> ctx.local2
+      | _ -> ctx.local
     end
-      | _ -> ctx.local2
+      | _ -> ctx.local
   
   let startstate v = 
     `Lifted (Equ.top (), RegMap.bot ()), Vars.empty ()       
@@ -182,4 +182,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "region" (module Spec : Spec2)         
+  MCP.register_analysis "region" (module Spec : Spec)         

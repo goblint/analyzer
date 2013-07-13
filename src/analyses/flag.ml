@@ -6,7 +6,7 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   module D = Lattice.Unit
   module C = Lattice.Unit
@@ -109,7 +109,7 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : D.t = let _ = BatOption.may no_addr_of_flag exp in D.top ()
   
-(*   let eval_funvar ctx (fv:exp) =  [(ctx.local2,ctx.local2)] *)
+(*   let eval_funvar ctx (fv:exp) =  [(ctx.local,ctx.local)] *)
    
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = 
     let _ = List.iter no_addr_of_flag args in
@@ -150,4 +150,4 @@ end
 module Analysis : Analyses.S    = Multithread.Forward(Path)*)
 
 let _ = 
-  MCP.register_analysis "flag" (module Spec : Spec2)         
+  MCP.register_analysis "flag" (module Spec : Spec)         

@@ -12,7 +12,7 @@ module Re = Region.Spec
 
 module Spec =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   let name = "Shape Analysis for Cyclic Doubly Linked Lists"
   module LD = ShapeDomain.Dom
@@ -62,12 +62,12 @@ struct
     in
     S.elements (cv e)
     
-  let re_context (ctx: (D.t,G.t) ctx2) (re:Re.D.t): (Re.D.t, Re.G.t) ctx2 =
-    let ge v = let a,b = ctx.global2 v in b in
+  let re_context (ctx: (D.t,G.t) ctx) (re:Re.D.t): (Re.D.t, Re.G.t) ctx =
+    let ge v = let a,b = ctx.global v in b in
     let spawn f v x = f v (LD.singleton (SHMap.top ()), x) in
     let geffect f v d = f v (false, d) in
     let split f d e t = f (LD.singleton (SHMap.top ()), d) e t in
-      set_st_gl2 ctx re ge spawn geffect split
+      set_st_gl ctx re ge spawn geffect split
 
   let sync_ld ask gl upd st =
     let f sm (st, ds, rm, part)=
@@ -93,26 +93,26 @@ struct
   let reclaimLostRegions alive ctx (e,_) v =
     if (not e.vglob) &&  (not (Usedef.VS.mem e alive)) then () else
     let is_public = function
-      | `Left (v,_) -> (not (is_private ctx.ask2 (`Left v)))  
+      | `Left (v,_) -> (not (is_private ctx.ask (`Left v)))  
       | `Right _    -> false
     in
     let rs = RS.filter is_public v in
 (*    if RS.cardinal rs >= 2 then  Messages.waitWhat (e.vname^": "^RS.short 80 rs);*)
-    if not (RS.is_empty rs) then ctx.sideg2 (Re.partition_varinfo ()) (false, RegPart.singleton rs)
+    if not (RS.is_empty rs) then ctx.sideg (Re.partition_varinfo ()) (false, RegPart.singleton rs)
 
   
 
   let sync ctx : D.t * (varinfo*G.t) list =
-    let st, re = ctx.local2 in
-    let gl v = let a,b = ctx.global2 v in a in
-    let upd v d = ctx.sideg2 v (d,Re.G.bot ()) in
-    let nst, dst, rm, part = tryReallyHard ctx.ask2 gl upd (sync_ld ctx.ask2 gl upd) st in
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
+    let upd v d = ctx.sideg v (d,Re.G.bot ()) in
+    let nst, dst, rm, part = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
     let (nre,nvar), dre = Re.sync (re_context ctx re) in
     let update k v m = 
       let old = try RegMap.find k m with Not_found -> RS.empty () in
       if (not (RS.is_top old)) && RS.for_all (function  (`Left (v,_)) -> not (gl v) |  `Right _ -> true)  old
       then RegMap.add k v m
-      else ((*ctx.sideg2 (Re.partition_varinfo ()) (false, RegPart.singleton v);*) m)
+      else ((*ctx.sideg (Re.partition_varinfo ()) (false, RegPart.singleton v);*) m)
     in 
     let nre = 
       match nre with
@@ -130,7 +130,7 @@ struct
           RegMap.iter (reclaimLostRegions alive ctx) m
         | x -> ()
     in
-    ctx.sideg2 (Re.partition_varinfo ()) (false, part);
+    ctx.sideg (Re.partition_varinfo ()) (false, part);
     let is_public (v,_) = gl v in
     (nst,(nre,nvar)), 
     (List.map (fun (v,d) -> (v,(false,d))) (List.filter is_public dre) 
@@ -153,10 +153,10 @@ struct
 
  
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    let st, re = ctx.local2 in
-    let gl v = let a,b = ctx.global2 v in a in
-    let upd v d = ctx.sideg2 v (d,Re.G.bot ()) in
-    tryReallyHard ctx.ask2 gl upd (assign_ld ctx.ask2 gl upd lval rval) st,
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
+    let upd v d = ctx.sideg v (d,Re.G.bot ()) in
+    tryReallyHard ctx.ask gl upd (assign_ld ctx.ask gl upd lval rval) st,
     Re.assign (re_context ctx re) lval rval
 
   let invariant ask gl lp1 lp2 st b = 
@@ -182,14 +182,14 @@ struct
       | _ -> st
   
   let branch ctx exp tv : D.t =
-    let st, re = ctx.local2 in
-    let gl v = let a,b = ctx.global2 v in a in
-    let upd v d = ctx.sideg2 v (d,Re.G.bot ()) in
-    tryReallyHard ctx.ask2 gl upd (fun st -> branch_ld ctx.ask2 gl st exp tv) st,
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
+    let upd v d = ctx.sideg v (d,Re.G.bot ()) in
+    tryReallyHard ctx.ask gl upd (fun st -> branch_ld ctx.ask gl st exp tv) st,
     Re.branch (re_context ctx re) exp tv
 
   let body ctx (f:fundec) : D.t = 
-    let st, re = ctx.local2 in
+    let st, re = ctx.local in
     MyLiveness.computeLiveness f; 
     st, Re.body (re_context ctx re) f 
     
@@ -197,10 +197,10 @@ struct
     LD.map (kill_vars ask gl dup (f.sformals @ f.slocals)) st
 
   let return ctx exp f : D.t =
-    let st, re = ctx.local2 in
-    let gl v = let a,b = ctx.global2 v in a in
-    let upd v d = ctx.sideg2 v (d,Re.G.bot ()) in
-    tryReallyHard ctx.ask2 gl upd (fun st -> return_ld ctx.ask2 gl upd st exp f) st,
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
+    let upd v d = ctx.sideg v (d,Re.G.bot ()) in
+    tryReallyHard ctx.ask gl upd (fun st -> return_ld ctx.ask gl upd st exp f) st,
     Re.return (re_context ctx re) exp f
 
   let enter_func_ld ask gl dup (lval: lval option) (f:varinfo) (args:exp list) st : LD.t =
@@ -214,10 +214,10 @@ struct
     List.fold_right asg (zip fd.sformals args) st
   
   let enter ctx lval f args =
-    let st, re = ctx.local2 in
-    let gl v = let a,b = ctx.global2 v in a in
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
     let upd v d = () in
-    let es = tryReallyHard ctx.ask2 gl upd (enter_func_ld ctx.ask2 gl upd lval f args) st  in
+    let es = tryReallyHard ctx.ask gl upd (enter_func_ld ctx.ask gl upd lval f args) st  in
     let es' = Re.enter (re_context ctx re) lval f args in 
     List.map (fun (x,y) -> (st,x),(es,y)) es'
   
@@ -257,16 +257,16 @@ struct
     lift_st (LD.map (kill_vars ask gl dup ls) st) 
     
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let st, re = ctx.local2 in
-    let gl v = let a,b = ctx.global2 v in a in
-    let upd v d = ctx.sideg2 v (d,Re.G.bot ()) in
-    let s1 = tryReallyHard ctx.ask2 gl upd (special_fn_ld ctx.ask2 gl upd lval f arglist) st in
+    let st, re = ctx.local in
+    let gl v = let a,b = ctx.global v in a in
+    let upd v d = ctx.sideg v (d,Re.G.bot ()) in
+    let s1 = tryReallyHard ctx.ask gl upd (special_fn_ld ctx.ask gl upd lval f arglist) st in
     let s2 = Re.special (re_context ctx re) lval f arglist in
-      List.iter (fun (x,y,z) -> ctx.split2 (x,s2) y z) s1;
+      List.iter (fun (x,y,z) -> ctx.split (x,s2) y z) s1;
       raise Analyses.Deadcode
     
   let query ctx (q:Queries.t) : Queries.Result.t = 
-    let st, re = ctx.local2 in
+    let st, re = ctx.local in
     Re.query (re_context ctx re) q
  
   let startstate v = LD.singleton (SHMap.top ()), Re.startstate v
@@ -280,4 +280,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "shape" (module Spec : Spec2)         
+  MCP.register_analysis "shape" (module Spec : Spec)         

@@ -13,7 +13,7 @@ module AnalyzeCFG (Cfg:CfgBidir) =
 struct
   
   (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec2) =   
+  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) =   
     (** The Equation system *)
     let module EQSys = FromSpec (Spec) (Cfg) in
   
@@ -120,7 +120,7 @@ struct
       in
       let vars = foldGlobals file add_glob VS.empty in
       let set_bad v st =
-        Spec.assign {ctx with local2 = st} (var v) MyCFG.unknown_exp 
+        Spec.assign {ctx with local = st} (var v) MyCFG.unknown_exp 
       in
       let add_externs s = function
         | GVarDecl (v,_) when not (VS.mem v vars || isFunctionType v.vtype) -> set_bad v s
@@ -132,14 +132,14 @@ struct
     (** analyze cil's global-inits function to get a starting state *)
     let do_global_inits (file: file) : Spec.D.t * fundec list = 
       let ctx = 
-        { ask2     = (fun _ -> Queries.Result.top ())
-        ; local2   = Spec.D.top ()
-        ; global2  = (fun _ -> Spec.G.bot ())
-        ; presub2  = []
-        ; postsub2 = []
-        ; spawn2   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?") 
-        ; split2   = (fun _ -> failwith "Global initializers trying to split paths.")
-        ; sideg2   = (fun _ -> failwith "Global initializers trying to side-effect globals.")
+        { ask     = (fun _ -> Queries.Result.top ())
+        ; local   = Spec.D.top ()
+        ; global  = (fun _ -> Spec.G.bot ())
+        ; presub  = []
+        ; postsub = []
+        ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?") 
+        ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
+        ; sideg   = (fun _ -> failwith "Global initializers trying to side-effect globals.")
         } 
       in  
       let edges = MyCFG.getGlobalInits file in
@@ -152,7 +152,7 @@ struct
           if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
           Tracing.current_loc := loc;
           match edge with
-            | MyCFG.Entry func        -> Spec.body {ctx with local2 = st} func
+            | MyCFG.Entry func        -> Spec.body {ctx with local = st} func
             | MyCFG.Assign (lval,exp) -> 
                 begin match lval, exp with
                   | (Var v,o), (AddrOf (Var f,NoOffset)) 
@@ -160,7 +160,7 @@ struct
                     begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end 
                   | _ -> ()
                 end;
-                Spec.assign {ctx with local2 = st} lval exp
+                Spec.assign {ctx with local = st} lval exp
             | _                       -> raise (Failure "This iz impossible!") 
         with Failure x -> M.warn x; st
       in
@@ -194,14 +194,14 @@ struct
     let enter_with st fd =
       let st = st fd.svar in
       let ctx = 
-        { ask2     = (fun _ -> Queries.Result.top ())
-        ; local2   = st
-        ; global2  = (fun _ -> Spec.G.bot ())
-        ; presub2  = []
-        ; postsub2 = []
-        ; spawn2   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.") 
-        ; split2   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
-        ; sideg2   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
+        { ask     = (fun _ -> Queries.Result.top ())
+        ; local   = st
+        ; global  = (fun _ -> Spec.G.bot ())
+        ; presub  = []
+        ; postsub = []
+        ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.") 
+        ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
+        ; sideg   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
         } 
       in
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
@@ -318,9 +318,9 @@ struct
   
   let analyze f sf = 
     if get_bool "ana.hashcons" then
-      analyze f sf (module (DeadCodeLifter (HashconsLifter (PathSensitive2 (MCP.MCP2)))) : Spec2)
+      analyze f sf (module (DeadCodeLifter (HashconsLifter (PathSensitive2 (MCP.MCP2)))) : Spec)
     else 
-      analyze f sf (module (DeadCodeLifter (PathSensitive2 (MCP.MCP2))) : Spec2)
+      analyze f sf (module (DeadCodeLifter (PathSensitive2 (MCP.MCP2))) : Spec)
 end
 
 (** The main function to preform the selected analyses. *)

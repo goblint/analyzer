@@ -36,7 +36,7 @@ let addLockingInfo newLock lockList =
 
 module Spec =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   let name = "Deadlock analysis"
 
@@ -60,23 +60,23 @@ struct
 
   (* Assignment lval <- exp *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local2
+    ctx.local
    
   (* Branch *)
   let branch ctx (exp:exp) (tv:bool) : D.t = 
-    ctx.local2
+    ctx.local
   
   (* Body of a function starts *)
   let body ctx (f:fundec) : D.t = 
-     ctx.local2
+     ctx.local
 
   (* Returns from a function *)
   let return ctx (exp:exp option) (f:fundec) : D.t = 
-    ctx.local2
+    ctx.local
   
   (* Calls/Enters a function *)
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [[],ctx.local2]
+    [[],ctx.local]
   
   (* Leaves a function *)
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
@@ -105,25 +105,25 @@ struct
       | `Lock (_, _), _
           ->  
              (* Convert first argument to ValueDomain.Addr.t *)
-             let lockAddr = List.hd (eval_exp_addr ctx.ask2 (List.hd arglist)) in
+             let lockAddr = List.hd (eval_exp_addr ctx.ask (List.hd arglist)) in
              (*if isDebugging then (printf "LOCK: %s\n" (ValueDomain.Addr.short () lockAddr);()) else ();*)
 
              (* Add lock *)
-             addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local2;
-             ctx.local2@[{addr = lockAddr; loc = !Tracing.current_loc }]
+             addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
+             ctx.local@[{addr = lockAddr; loc = !Tracing.current_loc }]
   
       | `Unlock, _ 
           -> 
              (* Convert first argument to ValueDomain.Addr.t *)
-             let lockAddr = List.hd (eval_exp_addr ctx.ask2 (List.hd arglist)) in
+             let lockAddr = List.hd (eval_exp_addr ctx.ask (List.hd arglist)) in
              (*if isDebugging then (printf "LOCK: %s\n" (ValueDomain.Addr.short () lockAddr);()) else ();*)
 
              (* Remove lock *)
-             List.filter (fun e -> ((ValueDomain.Addr.equal lockAddr (e.addr)) == false)) ctx.local2
+             List.filter (fun e -> ((ValueDomain.Addr.equal lockAddr (e.addr)) == false)) ctx.local
         
-      | _ -> ctx.local2
+      | _ -> ctx.local
 
 end
 
 let _ = 
-  MCP.register_analysis "deadlock" (module Spec : Spec2)         
+  MCP.register_analysis "deadlock" (module Spec : Spec)         

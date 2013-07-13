@@ -17,7 +17,7 @@ module Spec =
 struct
   exception Top
   
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
   
   module D =
   struct
@@ -415,20 +415,20 @@ struct
       | _ -> failwith "Unmatched pattern."
       
   (* Probably ok as is. *)
-  let body ctx f = ctx.local2
+  let body ctx f = ctx.local
 
   (* Branch could be improved to set invariants like base tries to do. *)
-  let branch ctx exp tv = ctx.local2
+  let branch ctx exp tv = ctx.local
   
   (* Just remove things that go out of scope. *)
   let return ctx exp fundec  = 
-    let rm v = remove ctx.ask2 (Var v,NoOffset) in
-    List.fold_right rm (fundec.sformals@fundec.slocals) ctx.local2   
+    let rm v = remove ctx.ask (Var v,NoOffset) in
+    List.fold_right rm (fundec.sformals@fundec.slocals) ctx.local   
 
   (* removes all equalities with lval and then tries to make a new one: lval=rval *)
   let assign ctx (lval:lval) (rval:exp) : D.t  = 
     let rval = constFold true (stripCasts rval) in
-    add_eq ctx.ask2 lval rval ctx.local2
+    add_eq ctx.ask lval rval ctx.local
 
   (* First assign arguments to parameters. Then join it with reachables, to get
      rid of equalities that are not reachable. *)
@@ -439,24 +439,24 @@ struct
         | _ -> r
     in
     let assign_one_param st lv exp = 
-      let rm = remove ctx.ask2 (Var lv, NoOffset) st in 
-      add_eq ctx.ask2 (Var lv, NoOffset) exp rm 
+      let rm = remove ctx.ask (Var lv, NoOffset) st in 
+      add_eq ctx.ask (Var lv, NoOffset) exp rm 
     in
     let f = Cilfacade.getdec f in    
     let nst = 
-      try fold_left2 assign_one_param ctx.local2 f.sformals args 
+      try fold_left2 assign_one_param ctx.local f.sformals args 
       with SetDomain.Unsupported _ -> (* ignore varargs fr now *) D.top ()
     in
-    match D.is_bot ctx.local2 with
+    match D.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
-      | false -> [ctx.local2,nst]
+      | false -> [ctx.local,nst]
   
   let combine ctx lval fexp f args st2 = 
-    match D.is_bot ctx.local2 with
+    match D.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
       | false -> 
       match lval with
-        | Some lval -> remove ctx.ask2 lval st2
+        | Some lval -> remove ctx.ask lval st2
         | None -> st2    
 
   let unknown_fn ctx lval f args =
@@ -470,19 +470,19 @@ struct
         | Some l -> mkAddrOf l :: args
         | None -> args
     in
-    match D.is_bot ctx.local2 with
+    match D.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
       | false -> 
-    match reachables ctx.ask2 es with
+    match reachables ctx.ask es with
       | None -> D.top ()
       | Some rs -> 
         let remove_reachable1 es st =
           let remove_reachable2 e st =
-            if reachable_from rs e && not (isConstant e) then remove_exp ctx.ask2 e st else st
+            if reachable_from rs e && not (isConstant e) then remove_exp ctx.ask e st else st
           in
           D.B.fold remove_reachable2 es st
         in
-        D.fold remove_reachable1 ctx.local2 ctx.local2
+        D.fold remove_reachable1 ctx.local ctx.local
 
   let safe_fn = function
     | "memcpy" -> true
@@ -496,7 +496,7 @@ struct
           | Some x -> assign ctx x (List.hd args)
           | None -> unknown_fn ctx lval f args
         end
-      | x when safe_fn x -> ctx.local2
+      | x when safe_fn x -> ctx.local
       | _ -> unknown_fn ctx lval f args
   (* query stuff *)
     
@@ -538,10 +538,10 @@ struct
       
   let query ctx x = 
     match x with 
-      | Queries.ExpEq (e1,e2) when query_exp_equal ctx.ask2 e1 e2 ctx.global2 ctx.local2 -> 
+      | Queries.ExpEq (e1,e2) when query_exp_equal ctx.ask e1 e2 ctx.global ctx.local -> 
           `Int (Queries.ID.of_bool true)
       | Queries.EqualSet e -> 
-        let r = eq_set_clos e ctx.local2 in 
+        let r = eq_set_clos e ctx.local in 
 (*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
         `ExprSet r
       | _ -> `Top
@@ -549,4 +549,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "var_eq" (module Spec : Spec2)
+  MCP.register_analysis "var_eq" (module Spec : Spec)

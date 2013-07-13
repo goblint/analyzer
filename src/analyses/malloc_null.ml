@@ -13,7 +13,7 @@ open GobConfig
 
 module Spec =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   module Addr = ValueDomain.Addr
   module D = ValueDomain.AddrSetDomain
@@ -154,31 +154,31 @@ struct
   
   (* One step tf-s *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    warn_deref_exp ctx.ask2 ctx.local2 (Lval lval) ;
-    warn_deref_exp ctx.ask2 ctx.local2 rval;
-    match get_concrete_exp rval ctx.global2 ctx.local2, get_concrete_lval ctx.ask2 lval with
-      | Some rv , Some (Var vt,ot) when might_be_null ctx.ask2 rv ctx.global2 ctx.local2 -> 
-          D.add (Addr.from_var_offset (vt,ot)) ctx.local2
-      | _ -> ctx.local2
+    warn_deref_exp ctx.ask ctx.local (Lval lval) ;
+    warn_deref_exp ctx.ask ctx.local rval;
+    match get_concrete_exp rval ctx.global ctx.local, get_concrete_lval ctx.ask lval with
+      | Some rv , Some (Var vt,ot) when might_be_null ctx.ask rv ctx.global ctx.local -> 
+          D.add (Addr.from_var_offset (vt,ot)) ctx.local
+      | _ -> ctx.local
       
   let branch ctx (exp:exp) (tv:bool) : D.t = 
-    warn_deref_exp ctx.ask2 ctx.local2 exp;
-    ctx.local2
+    warn_deref_exp ctx.ask ctx.local exp;
+    ctx.local
   
   let body ctx (f:fundec) : D.t = 
-    ctx.local2
+    ctx.local
   
   let return_addr_ = ref (Addr.null_ptr ())
   let return_addr () = !return_addr_
   
   let return ctx (exp:exp option) (f:fundec) : D.t = 
     let remove_var x v = List.fold_right D.remove (to_addrs v) x in
-    let nst = List.fold_left remove_var ctx.local2 (f.slocals @ f.sformals) in
+    let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with
       | Some ret ->
-          warn_deref_exp ctx.ask2 ctx.local2 ret;
-          begin match get_concrete_exp ret ctx.global2 ctx.local2 with
-            | Some ev when might_be_null ctx.ask2 ev ctx.global2 ctx.local2 ->
+          warn_deref_exp ctx.ask ctx.local ret;
+          begin match get_concrete_exp ret ctx.global ctx.local with
+            | Some ev when might_be_null ctx.ask ev ctx.global ctx.local ->
                 D.add (return_addr ()) nst
             | _ -> nst  end
       | None -> nst
@@ -186,22 +186,22 @@ struct
   (* Function calls *)
   
   let eval_funvar ctx (fv:exp) : varinfo list = 
-    warn_deref_exp ctx.ask2 ctx.local2 fv;
+    warn_deref_exp ctx.ask ctx.local fv;
     []
     
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let nst = remove_unreachable ctx.ask2 args ctx.local2 in
-    may (fun x -> warn_deref_exp ctx.ask2 ctx.local2 (Lval x)) lval;
-    List.iter (warn_deref_exp ctx.ask2 ctx.local2) args;
-    [ctx.local2,nst]
+    let nst = remove_unreachable ctx.ask args ctx.local in
+    may (fun x -> warn_deref_exp ctx.ask ctx.local (Lval x)) lval;
+    List.iter (warn_deref_exp ctx.ask ctx.local) args;
+    [ctx.local,nst]
   
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    let cal_st = remove_unreachable ctx.ask2 args ctx.local2 in
-    let ret_st = D.union au (D.diff ctx.local2 cal_st) in
+    let cal_st = remove_unreachable ctx.ask args ctx.local in
+    let ret_st = D.union au (D.diff ctx.local cal_st) in
     let new_u = 
       match lval, D.mem (return_addr ()) ret_st with
         | Some lv, true -> 
-            begin match get_concrete_lval ctx.ask2 lv with
+            begin match get_concrete_lval ctx.ask lv with
                     | Some (Var v,ofs) -> D.remove (return_addr ()) (D.add (Addr.from_var_offset (v,ofs)) ret_st)
                     | _ -> ret_st end
         | _ -> ret_st
@@ -209,19 +209,19 @@ struct
     new_u
   
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    may (fun x -> warn_deref_exp ctx.ask2 ctx.local2 (Lval x)) lval;
-    List.iter (warn_deref_exp ctx.ask2 ctx.local2) arglist;
+    may (fun x -> warn_deref_exp ctx.ask ctx.local (Lval x)) lval;
+    List.iter (warn_deref_exp ctx.ask ctx.local) arglist;
     match f.vname, lval with
       | "malloc", Some lv ->
         begin
-          match get_concrete_lval ctx.ask2 lv with
+          match get_concrete_lval ctx.ask lv with
             | Some (Var v, offs) ->
-                ctx.split2 ctx.local2 (Lval lv) true;
-                ctx.split2 (D.add (Addr.from_var_offset (v,offs)) ctx.local2) (Lval lv) false;
+                ctx.split ctx.local (Lval lv) true;
+                ctx.split (D.add (Addr.from_var_offset (v,offs)) ctx.local) (Lval lv) false;
                 raise Analyses.Deadcode
-           | _ -> ctx.local2
+           | _ -> ctx.local
         end
-      | _ -> ctx.local2
+      | _ -> ctx.local
 
   let name = "Malloc null"
 
@@ -235,4 +235,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "malloc_null" (module Spec : Spec2)
+  MCP.register_analysis "malloc_null" (module Spec : Spec)

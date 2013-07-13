@@ -8,7 +8,7 @@ open Batteries
 
 module Spec =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   let name = "May-Lockset analysis"
   module D = LockDomain.MayLockset
@@ -16,11 +16,11 @@ struct
   module G = Lattice.Unit
   
   (* transfer functions : usual operation just propagates the value *)
-  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local2
-  let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local2
-  let body ctx (f:fundec) : D.t = ctx.local2
-  let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local2
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local2,ctx.local2]
+  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
+  let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local
+  let body ctx (f:fundec) : D.t = ctx.local
+  let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = au
     
   (* Helper function to convert query-offsets to valuedomain-offsets *)
@@ -47,8 +47,8 @@ struct
     match lv with 
       | None -> nls
       | Some lv -> 
-          ctx.split2 nls (Lval lv) false;
-          if may_fail then ctx.split2 ls (Lval lv) true;
+          ctx.split nls (Lval lv) false;
+          if may_fail then ctx.split ls (Lval lv) true;
           raise Analyses.Deadcode
   
   (* transfer function to handle library functions --- for us locking & unlocking *)
@@ -57,19 +57,19 @@ struct
     (* unlocking logic *)
     let unlock remove_fn =
       match arglist with
-        | x::xs -> begin match  (eval_exp_addr ctx.ask2 x) with 
-                        | [x] -> remove_fn x ctx.local2
-                        | _ -> ctx.local2
+        | x::xs -> begin match  (eval_exp_addr ctx.ask x) with 
+                        | [x] -> remove_fn x ctx.local
+                        | _ -> ctx.local
                 end
-        | _ -> ctx.local2
+        | _ -> ctx.local
     in
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
       | `Lock (failing, rw), _
-          -> lock ctx rw failing ctx.ask2 lv arglist ctx.local2
+          -> lock ctx rw failing ctx.ask lv arglist ctx.local
       | `Unlock, _ 
           -> unlock remove_rw
         
-      | _ -> ctx.local2
+      | _ -> ctx.local
 
   let startstate v = D.empty ()
   let otherstate v = D.empty ()
@@ -77,4 +77,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "maylocks" (module Spec : Spec2)
+  MCP.register_analysis "maylocks" (module Spec : Spec)

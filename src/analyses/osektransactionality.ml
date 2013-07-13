@@ -7,7 +7,7 @@ open OilUtil
 
 module Spec =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   let violations = ref false (*print negative warnings? *)
 
@@ -20,8 +20,8 @@ struct
   let funs = Hashtbl.create 16 (* ({vars},tuple) *)
   let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((StringSet.empty  )  , Osektupel.bot()) 
 
-  let get_lockset ctx = Obj.obj (List.assoc "OSEK" ctx.postsub2)
-  let get_stack   ctx = Obj.obj (List.assoc "stack_trace_set" ctx.postsub2)
+  let get_lockset ctx = Obj.obj (List.assoc "OSEK" ctx.postsub)
+  let get_stack   ctx = Obj.obj (List.assoc "stack_trace_set" ctx.postsub)
 
   let pry_d dom_elem = 
     if Mutex.Lockset.is_top dom_elem then -1 else 
@@ -37,11 +37,11 @@ struct
     
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t = 
-    let ((ctxs,ctxr): D.t) = ctx.local2 in
+    let ((ctxs,ctxr): D.t) = ctx.local in
     let p = (pry_d (get_lockset ctx)) in
     let access_one_top = Mutex.Spec.access_one_top in
-    let b1 = access_one_top ctx.ask2 true (Lval lval) in 
-    let b2 = access_one_top ctx.ask2 false rval in
+    let b1 = access_one_top ctx.ask true (Lval lval) in 
+    let b2 = access_one_top ctx.ask false rval in
     let stack = get_stack ctx in
     let addvars var fn = let (vars,t) = Hashtbl.find funs fn.vname in
       let _ = Hashtbl.replace funs fn.vname (StringSet.add var vars , Osektupel.join t ctxr) in
@@ -66,7 +66,7 @@ struct
     (ctxs, Osektupel.fcon ctxr (Osektupel.Bot,Osektupel.Val p, Osektupel.Val p, Osektupel.Val p))
 
   let branch ctx (exp:exp) (tv:bool) : D.t = 
-    let (ctxs,ctxr) = ctx.local2 in
+    let (ctxs,ctxr) = ctx.local in
     let p = (pry_d (get_lockset ctx)) in
     (ctxs, Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p))
 
@@ -77,7 +77,7 @@ struct
 	Hashtbl.add funs f.svar.vname ((StringSet.empty  )  ,Osektupel.bot()) in D.bot()
 
   let return ctx (exp:exp option) (f:fundec) : D.t = 
-    let ((_,ctxr): D.t) = ctx.local2 in
+    let ((_,ctxr): D.t) = ctx.local in
     let (vars,_) = Hashtbl.find funs f.svar.vname in
     let _ = Hashtbl.replace funs f.svar.vname (vars,ctxr) in
       (ctxr, ctxr)
@@ -86,16 +86,16 @@ struct
     []
     
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local2,ctx.local2]
+    [ctx.local,ctx.local]
   
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    let (ctxs,ctxr) = ctx.local2 in
+    let (ctxs,ctxr) = ctx.local in
     let (aus,aur) = au in
     (ctxs, Osektupel.fcon ctxr aus)
   
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let (ctxs,ctxr) = ctx.local2 in
+    let (ctxs,ctxr) = ctx.local in
     let fvname = get_api_names f.vname in
     match fvname with 
       | "ReleaseResource" -> begin
@@ -172,4 +172,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "OSEK2" ~dep:["OSEK"; "stack_trace_set"] (module Spec : Spec2)
+  MCP.register_analysis "OSEK2" ~dep:["OSEK"; "stack_trace_set"] (module Spec : Spec)

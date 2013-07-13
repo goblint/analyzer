@@ -6,7 +6,7 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   let name = "Deadlock Checking by Data Race Detection"
   module MSpec = Mutex.Spec
@@ -36,15 +36,15 @@ struct
   let add_gatelock may must tid = true
   
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let thread = Obj.obj (List.assoc "thread-id-location" ctx.presub2) in
-    let maylocks = Obj.obj (List.assoc "maylocks" ctx.presub2) in
+    let thread = Obj.obj (List.assoc "thread-id-location" ctx.presub) in
+    let maylocks = Obj.obj (List.assoc "maylocks" ctx.presub) in
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
-      | `Lock (failing, rw), _ when add_access ctx.local2 maylocks thread ->  
-          if add_gatelock ctx.local2 maylocks thread then begin 
+      | `Lock (failing, rw), _ when add_access ctx.local maylocks thread ->  
+          if add_gatelock ctx.local maylocks thread then begin 
             let nd = MSpec.special ctx None f [AddrOf (Var gate_var, NoOffset)] in
-            let nd = MSpec.assign (swap_st2 ctx nd) (Var extra_var, NoOffset) one in
-            let nd = MSpec.special (swap_st2 ctx nd) None fake_unlock [AddrOf (Var gate_var, NoOffset)] in
-              MSpec.special (swap_st2 ctx nd) lval f arglist 
+            let nd = MSpec.assign (swap_st ctx nd) (Var extra_var, NoOffset) one in
+            let nd = MSpec.special (swap_st ctx nd) None fake_unlock [AddrOf (Var gate_var, NoOffset)] in
+              MSpec.special (swap_st ctx nd) lval f arglist 
           end else
             MSpec.assign ctx (Var extra_var, NoOffset) one
       | _ -> MSpec.special ctx lval f arglist 
@@ -55,4 +55,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "oslo" ~dep:["thread-id-location";"maylocks"] (module Spec : Spec2)
+  MCP.register_analysis "oslo" ~dep:["thread-id-location";"maylocks"] (module Spec : Spec)

@@ -37,7 +37,7 @@ let is_private (a: Q.ask) (v: varinfo): bool =
    
 module Main =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   exception Top
 
@@ -93,8 +93,8 @@ struct
       CPA.fold add_var cpa (cpa, [])
 
   let sync ctx: D.t * glob_diff = 
-    let cpa,fl = ctx.local2 in
-    let cpa, diff = if (get_bool "exp.earlyglobs") || Flag.is_multi fl then globalize ctx.ask2 cpa else (cpa,[]) in
+    let cpa,fl = ctx.local in
+    let cpa, diff = if (get_bool "exp.earlyglobs") || Flag.is_multi fl then globalize ctx.ask cpa else (cpa,[]) in
       (cpa,fl), diff
 
   (** [get st addr] returns the value corresponding to [addr] in [st] 
@@ -756,17 +756,17 @@ struct
     match is_list_init () with
       | Some a when (get_bool "exp.list-type") -> 
           begin 
-            set ctx.ask2 ctx.global2 ctx.local2 
+            set ctx.ask ctx.global ctx.local 
                 (AD.singleton (Addr.from_var a)) 
                 (`List (ValueDomain.Lists.bot ()))
           end
       | _ -> 
-    let rval_val = eval_rv ctx.ask2 ctx.global2 ctx.local2 rval in
-    let lval_val = eval_lv ctx.ask2 ctx.global2 ctx.local2 lval in
+    let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
+    let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
     let not_local xs = 
       let not_local x = 
         match Addr.to_var_may x with
-          | [x] -> is_global ctx.ask2 x 
+          | [x] -> is_global ctx.ask x 
           | _ -> Addr.is_top x || Addr.is_unknown x 
       in
       AD.is_top xs || AD.exists not_local xs
@@ -777,13 +777,13 @@ struct
           let find_fps e xs = Addr.to_var_must e @ xs in
           let vars = AD.fold find_fps adrs [] in
           let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-          List.iter (fun x -> ctx.spawn2 x (threadstate x)) funs  
+          List.iter (fun x -> ctx.spawn x (threadstate x)) funs  
       | _ -> ()
     end;
-    set_savetop ctx.ask2 ctx.global2 ctx.local2 lval_val rval_val
+    set_savetop ctx.ask ctx.global ctx.local lval_val rval_val
 
   let branch ctx (exp:exp) (tv:bool) : store =
-    let valu = eval_rv ctx.ask2 ctx.global2 ctx.local2 exp in
+    let valu = eval_rv ctx.ask ctx.global ctx.local exp in
     if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
     if M.tracing then M.tracel "branchosek" "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
     (* First we want to see, if we can determine a dead branch: *)
@@ -795,7 +795,7 @@ struct
           let fromJust x = match x with Some x -> x | None -> assert false in
           let v = fromJust (ID.to_bool value) in
             (* Eliminate the dead branch and just propagate to the true branch *)
-            if v == tv then ctx.local2 else begin
+            if v == tv then ctx.local else begin
                 if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
 		raise Deadcode
             end
@@ -805,26 +805,26 @@ struct
           raise Deadcode
       (* Otherwise we try to impose an invariant: *)
       | _ ->
-          let res = invariant ctx.ask2 ctx.global2 ctx.local2 exp tv in
+          let res = invariant ctx.ask ctx.global ctx.local exp tv in
             if M.tracing then M.traceu "branch" "Invariant enforced!\n";
             res
 
   let body ctx f = 
     (* First we create a variable-initvalue pair for each varaiable *)
-    let init_var v = (AD.from_var v, init_value ctx.ask2 ctx.global2 ctx.local2 v.vtype) in
+    let init_var v = (AD.from_var v, init_value ctx.ask ctx.global ctx.local v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
-      set_many ctx.ask2 ctx.global2 ctx.local2 inits
+      set_many ctx.ask ctx.global ctx.local inits
 
   let return ctx exp fundec =
     if fundec.svar.vname = "__goblint_dummy_init" then begin
-      let (cp,fl) = ctx.local2 in
-      if Flag.is_multi fl then ctx.local2 else (cp, Flag.get_main ())
+      let (cp,fl) = ctx.local in
+      if Flag.is_multi fl then ctx.local else (cp, Flag.get_main ())
     end else
-      let nst = rem_many ctx.local2 (fundec.sformals @ fundec.slocals) in
+      let nst = rem_many ctx.local (fundec.sformals @ fundec.slocals) in
         match exp with
           | None -> nst
-          | Some exp -> set ctx.ask2 ctx.global2 nst (return_var ()) (eval_rv ctx.ask2 ctx.global2 ctx.local2 exp)
+          | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp)
 
 
   (**************************************************************************
@@ -1021,7 +1021,7 @@ struct
         
   let eval_funvar ctx fval: varinfo list =
     try 
-    let fp = eval_fv ctx.ask2 ctx.global2 ctx.local2 fval in
+    let fp = eval_fv ctx.ask ctx.global ctx.local fval in
       if AD.mem (Addr.unknown_ptr ()) fp then begin
         M.warn ("Function pointer " ^ Pretty.sprint 100 (d_exp () fval) ^ " may contain unknown functions.");
         dummyFunDec.svar :: AD.to_var_may fp
@@ -1031,12 +1031,12 @@ struct
       M.warn ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
       [dummyFunDec.svar]
 
-  let may_race (ctx1,ac1) (ctx2,ac2) =
-    let gs = ctx1.global2 in
-    let ask1 = ctx1.ask2 in
-    let ask2 = ctx2.ask2 in
-    let cpa1, f1 = ctx1.local2 in
-    let cpa2, f2 = ctx2.local2 in
+  let may_race (ctx1,ac1) (ctx,ac2) =
+    let gs = ctx1.global in
+    let ask1 = ctx1.ask in
+    let ask = ctx.ask in
+    let cpa1, f1 = ctx1.local in
+    let cpa2, f2 = ctx.local in
     let rt_closure f d = 
       let rec loop don todo = 
         if AD.is_empty todo then don else
@@ -1066,10 +1066,10 @@ struct
         | _ -> AD.bot ()
     in
     let filter p x = if AD.is_top x then x else AD.filter p x in
-    let val1 = changed_addrs ctx1.ask2 (cpa1,f1) ac1 in
-    let val2 = changed_addrs ctx2.ask2 (cpa2,f2) ac2 in
+    let val1 = changed_addrs ctx1.ask (cpa1,f1) ac1 in
+    let val2 = changed_addrs ctx.ask (cpa2,f2) ac2 in
     let gval1 = filter (is_glob ask1) val1 in
-    let gval2 = filter (is_glob ask2) val2 in
+    let gval2 = filter (is_glob ask) val2 in
     (( AD.mem (Addr.unknown_ptr ()) val1 && not (AD.is_empty gval2))
     ||(AD.mem (Addr.unknown_ptr ()) val2 && not (AD.is_empty gval1))
     || not (AD.is_bot (AD.meet gval1 gval2)) )
@@ -1083,13 +1083,13 @@ struct
           `LvalSet (List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs)
         end
       | Q.EvalInt e -> begin
-            match eval_rv ctx.ask2 ctx.global2 ctx.local2 e with
+            match eval_rv ctx.ask ctx.global ctx.local e with
               | `Int e -> (match ID.to_int e with Some i -> `Int i | _ -> `Top) 
               | `Bot   -> `Bot
               | _      -> `Top
           end
       | Q.MayPointTo e -> begin
-          match eval_rv ctx.ask2 ctx.global2 ctx.local2 e with 
+          match eval_rv ctx.ask ctx.global ctx.local e with 
             | `Address a when AD.mem (Addr.unknown_ptr ()) a -> `LvalSet (Q.LS.top ())
             | `Address a -> 
                 let s = addrToLvalSet a in
@@ -1099,18 +1099,18 @@ struct
             | _ -> `Top
           end
       | Q.ReachableFrom e -> begin
-          match eval_rv ctx.ask2 ctx.global2 ctx.local2 e with
+          match eval_rv ctx.ask ctx.global ctx.local e with
             | `Top -> `Top
             | `Bot -> `Bot
             | `Address a when AD.is_top a || AD.mem (Addr.unknown_ptr ()) a -> 
                 `LvalSet (Q.LS.top ())   
             | `Address a ->
-                let xs = List.map addrToLvalSet (reachable_vars ctx.ask2 [a] ctx.global2 ctx.local2) in 
+                let xs = List.map addrToLvalSet (reachable_vars ctx.ask [a] ctx.global ctx.local) in 
                 let addrs = List.fold_left (Q.LS.join) (Q.LS.empty ()) xs in
                 `LvalSet addrs
             | _ -> `LvalSet (Q.LS.empty ())      
           end
-      | Q.SingleThreaded -> `Int (Q.ID.of_bool (not (Flag.is_multi (get_fl ctx.local2))))
+      | Q.SingleThreaded -> `Int (Q.ID.of_bool (not (Flag.is_multi (get_fl ctx.local))))
       | _ -> Q.Result.top ()
 
   (**************************************************************************
@@ -1118,12 +1118,12 @@ struct
    **************************************************************************)
 
   let rec collect_spawned ctx args: (varinfo * D.t) list = 
-    let flist = collect_funargs ctx.ask2 ctx.global2 ctx.local2 args in
+    let flist = collect_funargs ctx.ask ctx.global ctx.local args in
     let f addr = 
       let var = List.hd (AD.to_var_may addr) in
       let g = Cilfacade.getdec var in 
       let args = List.map (fun x -> MyCFG.unknown_exp) g.sformals in
-      let ents = enter_func_wo_spawns (Analyses.swap_st2 ctx (threadstate var)) None var args in
+      let ents = enter_func_wo_spawns (Analyses.swap_st ctx (threadstate var)) None var args in
       List.map (fun (_,s) -> var, s) ents
     in 
     let g a acc = try 
@@ -1136,30 +1136,30 @@ struct
       List.fold_right g flist [] 
 
   and forkfun ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list = 
-    let cpa,fl = ctx.local2 in
+    let cpa,fl = ctx.local in
     match LF.classify f.vname args with 
       (* handling thread creations *)
       | `Unknown "LAP_Se_CreateProcess" -> begin
           match List.map (fun x -> stripCasts (constFold false x)) args with
             | [proc_att;AddrOf id;AddrOf r] ->
-              let pa = eval_fv ctx.ask2 ctx.global2 ctx.local2 proc_att in
-              let reach_fs = reachable_vars ctx.ask2 [pa] ctx.global2 ctx.local2 in
+              let pa = eval_fv ctx.ask ctx.global ctx.local proc_att in
+              let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
               let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
               List.map (fun v -> v, (cpa, Flag.get_multi ())) reach_fs
-            (*  let st = invalidate ctx.ask2 ctx.global2 ctx.local2 [Lval id, Lval r] in*)
+            (*  let st = invalidate ctx.ask ctx.global ctx.local [Lval id, Lval r] in*)
             | _ -> []
           end
       | `ThreadCreate (start,ptc_arg) -> begin        
-          let start_addr = eval_fv ctx.ask2 ctx.global2 ctx.local2 start in
+          let start_addr = eval_fv ctx.ask ctx.global ctx.local start in
           let start_vari = List.hd (AD.to_var_may start_addr) in
           (* extra sync so that we do not analyze new threads with bottom global invariant *)
-          let ctx_mul = swap_st2 ctx (cpa, Flag.get_multi ()) in
-          let _ = List.iter (fun ((x,d)) -> ctx.sideg2 x d) (snd (sync ctx_mul)) in
+          let ctx_mul = swap_st ctx (cpa, Flag.get_multi ()) in
+          let _ = List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync ctx_mul)) in
           try
             (* try to get function declaration *)
             let _ = Cilfacade.getdec start_vari in 
             let tid = create_tid start_vari in
-            let sts = enter_func_wo_spawns (swap_st2 ctx (cpa, tid)) None start_vari [ptc_arg]  in
+            let sts = enter_func_wo_spawns (swap_st ctx (cpa, tid)) None start_vari [ptc_arg]  in
             List.map (fun (_,st) -> start_vari, st) sts
           with Not_found -> 
             M.warn ("creating a thread from unknown function " ^ start_vari.vname);
@@ -1179,11 +1179,11 @@ struct
 
   and enter ctx lval fn args : (D.t * D.t) list = 
     let forks = forkfun ctx lval fn args in
-    let spawn (x,y) = ctx.spawn2 x y in List.iter spawn forks ;
+    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
     enter_func_wo_spawns ctx lval fn args
 
   and enter_func_wo_spawns ctx lval fn args : (D.t * D.t) list = 
-    let cpa,fl as st = ctx.local2 in
+    let cpa,fl as st = ctx.local in
     let make_entry pa context =
       (* If we need the globals, add them *)
       let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
@@ -1193,16 +1193,16 @@ struct
         st, (new_cpa, fl) 
     in
     (* Evaluate the arguments. *)
-    let vals = List.map (eval_rv ctx.ask2 ctx.global2 st) args in
+    let vals = List.map (eval_rv ctx.ask ctx.global st) args in
     (* List of reachable variables *)
-    let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask2 (get_ptrs vals) ctx.global2 st)) in
+    let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
       [make_entry (zip fundec.sformals vals) reachable]
 
   let assert_fn ctx e warn change = 
     let check_assert e st = 
-      match eval_rv ctx.ask2 ctx.global2 st e with 
+      match eval_rv ctx.ask ctx.global st e with 
         | `Int v when ID.is_bool v -> 
              begin match ID.to_bool v with
                | Some false ->  `False
@@ -1213,21 +1213,21 @@ struct
         | _ -> `Top
     in
     let expr () = sprint ~width:80 (d_exp () e) in
-    match check_assert e ctx.local2 with 
+    match check_assert e ctx.local with 
       | `False -> 
           if warn then M.warn_each ("Assertion \"" ^ expr () ^ "\" will fail.");
-          if change then raise Analyses.Deadcode else ctx.local2
+          if change then raise Analyses.Deadcode else ctx.local
       | `True -> 
           if warn then M.warn_each ("Assertion \"" ^ expr () ^ "\" will succeed");
-          ctx.local2
+          ctx.local
       | `Bot -> 
           M.warn_each ("Assertion \"" ^ expr () ^ "\" produces a bottom. What does that mean?");
-          ctx.local2
+          ctx.local
       | `Top -> 
           if warn then M.warn_each ("Assertion \"" ^ expr () ^ "\" is unknown.");
           (* make the state meet the assertion in the rest of the code *)
-          if not change then ctx.local2 else begin
-            let newst = invariant ctx.ask2 ctx.global2 ctx.local2 e true in
+          if not change then ctx.local else begin
+            let newst = invariant ctx.ask ctx.global ctx.local e true in
             if check_assert e newst <> `True then 
               M.warn_each ("Invariant \"" ^ expr () ^ "\" does not stick.");
             newst
@@ -1244,24 +1244,24 @@ struct
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) = 
 (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
-    let spawn (x,y) = ctx.spawn2 x y in List.iter spawn forks ;
-    let cpa,fl as st = ctx.local2 in
-    let gs = ctx.global2 in
+    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
+    let cpa,fl as st = ctx.local in
+    let gs = ctx.global in
     match LF.classify f.vname args with 
       | `Unknown "list_add" when (get_bool "exp.list-type") -> 
           begin match args with
             | [ AddrOf (Var elm,next);(AddrOf (Var lst,NoOffset))] -> 
                 begin
                   let ladr = AD.singleton (Addr.from_var lst) in
-                  match get ctx.ask2 ctx.global2 ctx.local2 ladr with
+                  match get ctx.ask ctx.global ctx.local ladr with
                     | `List ld ->
                       let eadr = AD.singleton (Addr.from_var elm) in
-                      let eitemadr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask2 ctx.global2 ctx.local2 next)) in
+                      let eitemadr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
                       let new_list = `List (ValueDomain.Lists.add eadr ld) in
-                      let s1 = set ctx.ask2 ctx.global2 ctx.local2 ladr new_list in
-                      let s2 = set ctx.ask2 ctx.global2 s1 eitemadr (`Address (AD.singleton (Addr.from_var lst))) in
+                      let s1 = set ctx.ask ctx.global ctx.local ladr new_list in
+                      let s2 = set ctx.ask ctx.global s1 eitemadr (`Address (AD.singleton (Addr.from_var lst))) in
                         s2
-                    | _ -> set ctx.ask2 ctx.global2 ctx.local2 ladr `Top
+                    | _ -> set ctx.ask ctx.global ctx.local ladr `Top
                 end
             | _ -> M.bailwith "List function arguments are strange/complicated."
           end
@@ -1270,16 +1270,16 @@ struct
             | [ AddrOf (Var elm,next) ] -> 
                 begin
                   let eadr = AD.singleton (Addr.from_var elm) in
-                  let lptr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask2 ctx.global2 ctx.local2 next)) in
-                  let lprt_val = get ctx.ask2 ctx.global2 ctx.local2 lptr in
+                  let lptr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
+                  let lprt_val = get ctx.ask ctx.global ctx.local lptr in
                   let lst_poison = `Address (AD.singleton (Addr.from_var ListDomain.list_poison)) in
-                  let s1 = set ctx.ask2 ctx.global2 ctx.local2 lptr (VD.join lprt_val lst_poison) in
-                  match get ctx.ask2 ctx.global2 ctx.local2 lptr with
+                  let s1 = set ctx.ask ctx.global ctx.local lptr (VD.join lprt_val lst_poison) in
+                  match get ctx.ask ctx.global ctx.local lptr with
                     | `Address ladr -> begin 
-                        match get ctx.ask2 ctx.global2 ctx.local2 ladr with
+                        match get ctx.ask ctx.global ctx.local ladr with
                         | `List ld ->
                           let del_ls = ValueDomain.Lists.del eadr ld in
-                          let s2 = set ctx.ask2 ctx.global2 s1 ladr (`List del_ls) in
+                          let s2 = set ctx.ask ctx.global s1 ladr (`List del_ls) in
                             s2
                         | _ -> s1
                       end
@@ -1297,13 +1297,13 @@ struct
       | `Unknown "spinlock_check" -> 
           begin match lv with
             | Some x -> assign ctx x (List.hd args)
-            | None -> ctx.local2
+            | None -> ctx.local
           end
       (* handling thread creations *)
       | `Unknown "LAP_Se_CreateProcess" -> begin
           match List.map (fun x -> stripCasts (constFold false x)) args with
             | [_;AddrOf id;AddrOf r] ->
-                let cpa,_ = invalidate ctx.ask2 ctx.global2 ctx.local2 [Lval id; Lval r] in
+                let cpa,_ = invalidate ctx.ask ctx.global ctx.local [Lval id; Lval r] in
                 GU.multi_threaded := true;
                 let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
                 let new_fl = (x,y) in
@@ -1317,9 +1317,9 @@ struct
             cpa, new_fl
       (* handling thread joins... sort of *)
       | `ThreadJoin (id,ret_var) -> 
-          begin match (eval_rv ctx.ask2 gs st ret_var) with
+          begin match (eval_rv ctx.ask gs st ret_var) with
             | `Int n when n = ID.of_int 0L -> cpa,fl
-            | _      -> invalidate ctx.ask2 gs st [ret_var]
+            | _      -> invalidate ctx.ask gs st [ret_var]
           end
       | `Malloc  -> begin
         match lv with
@@ -1329,16 +1329,16 @@ struct
               then AD.join (heap_var !Tracing.current_loc) (AD.null_ptr ()) 
               else heap_var !Tracing.current_loc
             in 
-            set_many ctx.ask2 gs st [(heap_var, `Blob (VD.bot ()));  
-                                     (eval_lv ctx.ask2 gs st lv, `Address heap_var)]
+            set_many ctx.ask gs st [(heap_var, `Blob (VD.bot ()));  
+                                     (eval_lv ctx.ask gs st lv, `Address heap_var)]
           | _ -> st
         end
       | `Calloc -> 
         begin match lv with
           | Some lv -> 
               let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in
-                set_many ctx.ask2 gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
-                                         (eval_lv ctx.ask2 gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
+                set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ())))); 
+                                         (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
           | _ -> st
         end
       | `Unknown "LAP_Se_GetSemaphoreId" ->
@@ -1351,7 +1351,7 @@ struct
       | `Unknown "__goblint_unknown" ->
           begin match args with 
             | [Lval lv] | [CastE (_,AddrOf lv)] -> 
-                let st = set ctx.ask2 ctx.global2 ctx.local2 (eval_lv ctx.ask2 ctx.global2 st lv) `Top  in
+                let st = set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global st lv) `Top  in
                 st
             | _ -> 
                 M.bailwith "Function __goblint_unknown expected one address-of argument."
@@ -1369,18 +1369,18 @@ struct
               | None -> []
           in
           match LF.get_invalidate_action f.vname with
-            | Some fnc -> invalidate ctx.ask2 gs st (lv_list @ (fnc `Write  args));
+            | Some fnc -> invalidate ctx.ask gs st (lv_list @ (fnc `Write  args));
             | None -> (
                 (if f.vid <> dummyFunDec.svar.vid then M.warn ("Function definition missing for " ^ f.vname));
                 let st_expr (v:varinfo) (value) a = 
-                  if is_global ctx.ask2 v && not (is_static v) then 
+                  if is_global ctx.ask v && not (is_static v) then 
                     mkAddrOf (Var v, NoOffset) :: a 
                   else a
                 in
                 let addrs = CPA.fold st_expr cpa (lv_list @ args) in
                 (* This rest here is just to see of something got spawned. *)
-                let flist = collect_funargs ctx.ask2 gs st args in
-                let (cpa,fl as st) = invalidate ctx.ask2 gs st addrs in
+                let flist = collect_funargs ctx.ask gs st args in
+                let (cpa,fl as st) = invalidate ctx.ask gs st addrs in
                 let f addr acc = 
                   try 
                     let var = List.hd (AD.to_var_may addr) in
@@ -1413,15 +1413,15 @@ struct
       let return_var = return_var () in
       let return_val = 
         if CPA.mem (return_varinfo ()) fun_st
-        then get ctx.ask2 ctx.global2 fun_d return_var 
+        then get ctx.ask ctx.global fun_d return_var 
         else VD.top ()  
       in
       let st = add_globals (fun_st,fun_fl) st in
         match lval with
           | None      -> st
-          | Some lval -> set_savetop ctx.ask2 ctx.global2 st (eval_lv ctx.ask2 ctx.global2 st lval) return_val
+          | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val
      in
-     combine_one ctx.local2 after
+     combine_one ctx.local after
 end
 
 (*module BaseMCP = *)
@@ -1437,6 +1437,6 @@ end
 (*                let extract_g x = match x with `Base x -> x | _ -> raise MCP.SpecificationConversionError*)
 (*         end)*)
 
-(*module Spec2 = Constraints.Spec2OfSpec (Main)*)
+(*module Spec = Constraints.SpecOfSpec (Main)*)
 let _ = 
-  MCP.register_analysis "base" (module Main : Spec2)
+  MCP.register_analysis "base" (module Main : Spec)

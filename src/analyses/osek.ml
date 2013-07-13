@@ -16,7 +16,7 @@ module GU = Goblintutil
 module Spec =
 struct
   
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
   
   (*lockset -> priority helper*)
   let names = function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully1) never happens!"
@@ -348,7 +348,7 @@ let _ = print_endline (string_of_bool res) in res*)
   let eval_arg ctx (arg:exp) =
     match arg with
     | Lval (Var vinfo,_) -> vinfo
-    | _ -> (match eval_fv ctx.ask2 arg with
+    | _ -> (match eval_fv ctx.ask arg with
       | Some v -> v
       | None   -> failwith "cannot extract arg")      
     
@@ -357,7 +357,7 @@ let _ = print_endline (string_of_bool res) in res*)
   (* Just adds accesses. It says concrete, but we use it to add verified 
      non-concrete accesses too.*)
   let add_concrete_access ctx fl loc ust (flagstate : Flags.t) (v, o, rv: Cil.varinfo * Offs.t * bool) =
-    if (Base.is_global ctx.ask2 v) then begin
+    if (Base.is_global ctx.ask v) then begin
       if not (is_task v.vname) || flagstate = Flags.top() then begin
         if not !GU.may_narrow then begin
           let new_acc = ((loc,fl,rv),ust,o) in
@@ -373,7 +373,7 @@ let _ = print_endline (string_of_bool res) in res*)
         let el = MyParam.effect_fun ls in
   (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
   (*      let _ = printf "Access to %s with offense priority %a\n" v.vname P.Glob.Val.pretty el in*)
-        ctx.sideg2 v el
+        ctx.sideg v el
         end else begin
           if tracing then trace "osek" "Ignoring access to task/isr variable %s\n" v.vname;
         end
@@ -387,7 +387,7 @@ let _ = print_endline (string_of_bool res) in res*)
       invariant if that fails then give up and become unsound. *)
   let add_type_access ctx fl loc ust flagstate (e,rw:exp * bool) =
     let eqset =
-      match ctx.ask2 (Queries.EqualSet e) with
+      match ctx.ask (Queries.EqualSet e) with
         | `ExprSet es 
             when not (Queries.ES.is_bot es) 
             -> Queries.ES.elements es
@@ -398,7 +398,7 @@ let _ = print_endline (string_of_bool res) in res*)
         | _ -> M.unknown_access ()    
 
   let add_accesses ctx (accessed: M.accesses) (flagstate: Flags.t) (ust:D.t) = 
-      let fl = Mutex.get_flag ctx.presub2 in
+      let fl = Mutex.get_flag ctx.presub in
       if Base.Main.Flag.is_multi fl then
         let loc = !Tracing.current_loc in
         let dispatch ax =
@@ -427,20 +427,20 @@ let _ = print_endline (string_of_bool res) in res*)
   let query ctx (q:Queries.t) : Queries.Result.t = 
     match q with
     | Queries.Priority "" ->  
-        let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local2)) in
+        let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
           `Int (Int64.of_int pry)
     | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
     | Queries.IsPrivate v ->
-        let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local2)) in
+        let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
         if pry = min_int then begin `Bool false end else begin
           let off = 
   (*         if !FlagModes.Spec.flag_list = [] then begin *)
-              match (ctx.global2 v: G.t) with
+              match (ctx.global v: G.t) with
                 | `Bot -> min_int 
                 | `Lifted i -> Int64.to_int i
                 | `Top -> max_int
   (*           end else begin *)
-  (*             let flagstate = get_flags ctx.presub2 in *)
+  (*             let flagstate = get_flags ctx.presub in *)
   (*               offpry_flags flagstate v *)
   (*           end *)
           in `Bool (off <= pry)
@@ -455,50 +455,50 @@ let _ = print_endline (string_of_bool res) in res*)
 
   let activate_task ctx (task_name : string) : unit =
     let task = Cilfacade.getFun task_name in
-    ctx.spawn2 task.svar (otherstate ())
+    ctx.spawn task.svar (otherstate ())
   
   (* transfer functions *)
   let intrpt ctx : D.t =
-    ctx.local2 (*currently ignored*)
+    ctx.local (*currently ignored*)
 
   let assign ctx (lval:lval) (rval:exp) : D.t =
 (*     if tracing then trace "osek" "ASSIGN\n"; *)
     if !GU.global_initialization then 
-      ctx.local2 
+      ctx.local 
     else
-      let b1 = M.access_one_byval ctx.ask2 true (Lval lval) in 
-      let b2 = M.access_one_byval ctx.ask2 false rval in
-      add_accesses ctx (b1@b2) (get_flags ctx.presub2) ctx.local2;
-      ctx.local2   
+      let b1 = M.access_one_byval ctx.ask true (Lval lval) in 
+      let b2 = M.access_one_byval ctx.ask false rval in
+      add_accesses ctx (b1@b2) (get_flags ctx.presub) ctx.local;
+      ctx.local   
    
   let branch ctx (exp:exp) (tv:bool) : D.t = 
-    let accessed = M.access_one_top ctx.ask2 false exp in
-    add_accesses ctx accessed (get_flags ctx.presub2) ctx.local2;
-    ctx.local2
+    let accessed = M.access_one_top ctx.ask false exp in
+    add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
+    ctx.local
 
   let body ctx (f:fundec) : D.t = 
   if tracing then trace "osek" "Analyszing function %s\n" f.svar.vname;
-    let m_st = ctx.local2 in
+    let m_st = ctx.local in
     if (is_task f.svar.vname) then begin
 (* print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file); *)
 (* print_endline ( "Looking for " ^ f.svar.vname); *)
-      M.special (swap_st2 ctx m_st) None (dummy_get f) [get_lock f.svar.vname] 
+      M.special (swap_st ctx m_st) None (dummy_get f) [get_lock f.svar.vname] 
     end else 
       m_st
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
       let m_st = match exp with 
         | Some exp -> begin
-            let accessed = M.access_one_top ctx.ask2 false exp in
-            add_accesses ctx accessed (get_flags ctx.presub2) ctx.local2;
-            ctx.local2
+            let accessed = M.access_one_top ctx.ask false exp in
+            add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
+            ctx.local
           end
-        | None -> ctx.local2
+        | None -> ctx.local
       in
       let fname = f.svar.vname in
       if (is_task fname) then begin
 (* let _ = print_endline ( "Leaving task " ^ f.svar.vname) in *)
-        let x = M.special (swap_st2 ctx m_st) None (dummy_release f) [get_lock fname] in
+        let x = M.special (swap_st ctx m_st) None (dummy_release f) [get_lock fname] in
           if (get_bool "ana.osek.check") && not(List.mem fname !warned) && not(D.is_empty x) then begin
             warned := fname :: !warned;
             let typ = if (Hashtbl.mem isrs fname) then "Interrupt " else "Task " in
@@ -522,21 +522,21 @@ let _ = print_endline (string_of_bool res) in res*)
     let fvname = get_api_names f.vname in
     if tracing then trace "osek" "special '%s'\n" fvname;
 try match fvname with (* suppress all fails  *)
-      | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local2)));
+      | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
 	M.special ctx lval f (match arglist with 
 	  | [Lval (Var info,_)] -> [get_lock info.vname] 
 	  | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> failwith ("parameter for " ^ fvname ^ " is constant. Remove trampoline header?")
 (* | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
 	  | x -> x)  
       | "DisableAllInterrupts" -> let res = get_lock "DisableAllInterrupts" in
-	if (get_bool "ana.osek.check") then if (mem res ctx.local2) then print_endline ( "Nested calls of DisableAllInterrupts are not allowed!");
+	if (get_bool "ana.osek.check") then if (mem res ctx.local) then print_endline ( "Nested calls of DisableAllInterrupts are not allowed!");
 	M.special ctx lval (dummy_get (emptyFunction fvname)) [res]
       | "EnableAllInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "DisableAllInterrupts"]
       | "SuspendAllInterrupts" -> M.special ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
       | "ResumeAllInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendAllInterrupts"] 
       | "SuspendOSInterrupts" -> M.special ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
       | "ResumeOSInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
-      | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local2)));
+      | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
         let _ = (match arglist with (*call function *)
 	  | [arg] -> begin
 		let task_name = match arg with
@@ -551,18 +551,18 @@ try match fvname with (* suppress all fails  *)
                 if (is_task task_name) then begin
 		  if tracing then tracel "osek" "Activating task %s\n" task_name;
                   let _ = activate_task ctx task_name in
-                  [ctx.local2, integer 1, true]
+                  [ctx.local, integer 1, true]
                 end else failwith (task_name ^ "is not a task!")
 	      end
 	  | _  -> failwith "ActivateTask arguments are strange") in
 	M.special ctx lval f arglist
       | "ChainTask" ->  
         print_endline "Found ChainTask!";
-        if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local2)));
+        if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
 	M.special ctx lval f arglist (*call function *)
       | "WaitEvent" -> (if (get_bool "ana.osek.check") then begin
-	let _ = check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local2))) in
-	let static,regular = partition ctx.local2 in
+	let _ = check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
+	let static,regular = partition ctx.local in
 	let task = lockset_to_task static in
 	  if not(D.is_empty regular) then begin
 	    let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements regular) in
@@ -574,7 +574,7 @@ try match fvname with (* suppress all fails  *)
 	end;);
 	M.special ctx lval f arglist
       | "SetRelAlarm"
-      | "SetAbsAlarm" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local2))) in
+      | "SetAbsAlarm" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
         let _ = (match arglist with (*call function *)
           | [x;_;_] -> (
             let vinfo = eval_arg ctx x in
@@ -596,13 +596,13 @@ try match fvname with (* suppress all fails  *)
       | "GetAlarm" 
       | "CancelAlarm" 
       | "GetActiveApplicationMode" 
-      | "ShutdownOS" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local2))) in 
+      | "ShutdownOS" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in 
 	M.special ctx lval f arglist
       | "ClearEvent"
       | "TerminateTask"
-      | "Schedule" -> let _ = if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local2))) in
+      | "Schedule" -> let _ = if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
 	M.special ctx lval f arglist
-      | "StartOS" -> let _ =if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task (proj2_1 (partition ctx.local2))) in 
+      | "StartOS" -> let _ =if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in 
 	M.special ctx lval f arglist
       | _ -> M.special ctx lval f arglist
 with | _ -> M.special ctx lval f arglist (* suppress all fails  *)
@@ -908,4 +908,4 @@ with | _ -> M.special ctx lval f arglist (* suppress all fails  *)
   end
 
 let _ = 
-  MCP.register_analysis "OSEK" ~dep:["base";"fmode"] (module Spec : Spec2)         
+  MCP.register_analysis "OSEK" ~dep:["base";"fmode"] (module Spec : Spec)         

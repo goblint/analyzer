@@ -8,7 +8,7 @@ module M = Messages
 
 module Spec =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   let name = "Escaped Variables"
   module D = EscapeDomain.EscapedVars
@@ -18,24 +18,24 @@ struct
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t = 
     match q with
-      | Queries.MayEscape v -> `Bool (D.mem v ctx.local2)
+      | Queries.MayEscape v -> `Bool (D.mem v ctx.local)
       | _ -> Queries.Result.top ()
  
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local2
+    ctx.local
    
   let branch ctx (exp:exp) (tv:bool) : D.t = 
-    ctx.local2
+    ctx.local
   
   let body ctx (f:fundec) : D.t = 
-    ctx.local2
+    ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t = 
-    ctx.local2
+    ctx.local
     
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local2,ctx.local2]
+    [ctx.local,ctx.local]
   
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     au
@@ -71,24 +71,24 @@ struct
       | "pthread_create" -> begin        
           match args with
             | [_; _; start; ptc_arg] ->
-				let r = reachable ctx.ask2 ptc_arg in
-				  List.map (fun (v,_) -> (v,r)) (query_lv ctx.ask2 start)
+				let r = reachable ctx.ask ptc_arg in
+				  List.map (fun (v,_) -> (v,r)) (query_lv ctx.ask start)
             | _ -> Messages.bailwith "pthread_create arguments are strange!"
         end
       | _ -> [] 
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let forks = fork ctx lval f arglist in
-    let spawn (x,y) = ctx.spawn2 x y in List.iter spawn forks ;
+    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
     match f.vname with
       | "pthread_create" -> begin        
           match arglist with
             | [_; _; _; ptc_arg] -> begin
-                reachable ctx.ask2 ptc_arg
+                reachable ctx.ask ptc_arg
               end
             | _ -> M.bailwith "pthread_create arguments are strange!"
         end
-      | _ -> ctx.local2
+      | _ -> ctx.local
 
   let startstate v = D.bot ()
   let otherstate v = D.bot ()
@@ -96,4 +96,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "escape" (module Spec : Spec2)
+  MCP.register_analysis "escape" (module Spec : Spec)

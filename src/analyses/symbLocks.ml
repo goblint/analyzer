@@ -13,7 +13,7 @@ open Analyses
    it should suffice for tests. *)
 module Spec =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   exception Top
 
@@ -27,8 +27,8 @@ struct
   let otherstate v = D.top ()
   let exitstate  v = D.top ()
 
-  let branch ctx exp tv = ctx.local2
-  let body   ctx f = ctx.local2
+  let branch ctx exp tv = ctx.local
+  let body   ctx f = ctx.local
 
   let invalidate_exp ask exp st =
     D.filter (fun e -> not (VarEq.may_change ask exp e)) st 
@@ -36,13 +36,13 @@ struct
   let invalidate_lval ask lv st =
     invalidate_exp ask (mkAddrOf lv) st
 
-  let assign ctx lval rval = invalidate_lval ctx.ask2 lval ctx.local2
+  let assign ctx lval rval = invalidate_lval ctx.ask lval ctx.local
     
   let return ctx exp fundec = 
-    List.fold_right D.remove_var (fundec.sformals@fundec.slocals) ctx.local2  
+    List.fold_right D.remove_var (fundec.sformals@fundec.slocals) ctx.local  
     
-  let enter ctx lval f args = [(ctx.local2,ctx.local2)]
-  let combine ctx lval fexp f args st2 = ctx.local2 
+  let enter ctx lval f args = [(ctx.local,ctx.local)]
+  let combine ctx lval fexp f args st2 = ctx.local 
 
   let get_locks e st =
     let add_perel x xs =
@@ -84,27 +84,27 @@ struct
   let special ctx lval f arglist = 
       match LF.classify f.vname arglist with
       | `Lock _ ->
-          D.add ctx.ask2 (List.hd arglist) ctx.local2
+          D.add ctx.ask (List.hd arglist) ctx.local
       | `Unlock ->
-          D.remove ctx.ask2 (List.hd arglist) ctx.local2
+          D.remove ctx.ask (List.hd arglist) ctx.local
       | `Unknown fn when VarEq.safe_fn fn ->
           Messages.warn ("Assume that "^fn^" does not change lockset.");
-          ctx.local2
+          ctx.local
       | `Unknown x -> begin
           let st = 
             match lval with
-              | Some lv -> invalidate_lval ctx.ask2 lv ctx.local2
-              | None -> ctx.local2
+              | Some lv -> invalidate_lval ctx.ask lv ctx.local
+              | None -> ctx.local
           in
           let write_args = 
             match LF.get_invalidate_action f.vname with
               | Some fnc -> fnc `Write arglist
               | _ -> arglist
           in
-          List.fold_left (fun st e -> invalidate_exp ctx.ask2 e st) st write_args
+          List.fold_left (fun st e -> invalidate_exp ctx.ask e st) st write_args
         end
       | _ ->
-          ctx.local2
+          ctx.local
   
   module ExpSet = BatSet.Make (Exp)
   let type_inv_tbl = Hashtbl.create 13 
@@ -148,18 +148,18 @@ struct
       | _ ->  
           ust
   
-  let may_race (ctx1,ac1) (ctx2,ac2) =
+  let may_race (ctx1,ac1) (ctx,ac2) =
     match ac1, ac2 with 
       | `Lval (l1,r1), `Lval (l2,r2) -> 
-          let ls1 = get_all_locks ctx1.ask2 (Lval l1) ctx1.local2 in
-          let ls1 = Queries.PS.fold (one_perelem ctx1.ask2) ls1 (ExpSet.empty) in
-          let ls2 = get_all_locks ctx2.ask2 (Lval l2) ctx2.local2 in
-          let ls2 = Queries.PS.fold (one_perelem ctx2.ask2) ls2 (ExpSet.empty) in
+          let ls1 = get_all_locks ctx1.ask (Lval l1) ctx1.local in
+          let ls1 = Queries.PS.fold (one_perelem ctx1.ask) ls1 (ExpSet.empty) in
+          let ls2 = get_all_locks ctx.ask (Lval l2) ctx.local in
+          let ls2 = Queries.PS.fold (one_perelem ctx.ask) ls2 (ExpSet.empty) in
           (*ignore (Pretty.printf "{%a} inter {%a} = {%a}\n" (Pretty.d_list ", " Exp.pretty) (ExpSet.elements ls1) (Pretty.d_list ", " Exp.pretty) (ExpSet.elements ls2) (Pretty.d_list ", " Exp.pretty) (ExpSet.elements (ExpSet.inter ls1 ls2)));*)
           ExpSet.is_empty (ExpSet.inter ls1 ls2) &&
-          let ls1 = same_unknown_index ctx1.ask2 (Lval l1) ctx1.local2 in
+          let ls1 = same_unknown_index ctx1.ask (Lval l1) ctx1.local in
           let ls1 = Queries.PS.fold one_lockstep ls1 (LockDomain.Lockset.empty ()) in
-          let ls2 = same_unknown_index ctx2.ask2 (Lval l2) ctx2.local2 in
+          let ls2 = same_unknown_index ctx.ask (Lval l2) ctx.local in
           let ls2 = Queries.PS.fold one_lockstep ls2 (LockDomain.Lockset.empty ()) in
           LockDomain.Lockset.is_empty (LockDomain.Lockset.ReverseAddrSet.inter ls1 ls2) 
           
@@ -184,11 +184,11 @@ struct
   let query ctx (q:Queries.t) =
     match q with
       | Queries.PerElementLock e -> 
-          `ExpTriples (get_all_locks ctx.ask2 e ctx.local2)
+          `ExpTriples (get_all_locks ctx.ask e ctx.local)
       | Queries.ArrayLockstep e ->
-          `ExpTriples (same_unknown_index ctx.ask2 e ctx.local2)
+          `ExpTriples (same_unknown_index ctx.ask e ctx.local)
       | _ -> Queries.Result.top ()
 end
          
 let _ = 
- MCP.register_analysis "symb_locks" (module Spec : Spec2)
+ MCP.register_analysis "symb_locks" (module Spec : Spec)

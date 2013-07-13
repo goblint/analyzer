@@ -8,9 +8,9 @@ open GobConfig
 open Batteries
 
 
-(** Lifts a [Spec2] so that the domain and the context are [Hashcons]d. *)
-module HashconsLifter (S:Spec2)
-  : Spec2 with module D = Lattice.HConsed (S.D)
+(** Lifts a [Spec] so that the domain and the context are [Hashcons]d. *)
+module HashconsLifter (S:Spec)
+  : Spec with module D = Lattice.HConsed (S.D)
            and module G = S.G
            and module C = Printable.HConsed (S.C)
   = 
@@ -36,9 +36,9 @@ struct
   let call_descr f = S.call_descr f % D.unlift
 
   let conv ctx = 
-    { ctx with local2 = D.unlift ctx.local2 
-             ; spawn2 = (fun v -> ctx.spawn2 v % D.lift )
-             ; split2 = (fun d e tv -> ctx.split2 (D.lift d) e tv )
+    { ctx with local = D.unlift ctx.local 
+             ; spawn = (fun v -> ctx.spawn v % D.lift )
+             ; split = (fun d e tv -> ctx.split (D.lift d) e tv )
     }
   
   let sync ctx = 
@@ -73,9 +73,9 @@ struct
     D.lift @@ S.combine (conv ctx) r fe f args (D.unlift es) 
 end 
 
-(** Lifts a [Spec2] with a special bottom element that represent unreachable code. *)
-module DeadCodeLifter (S:Spec2)
-  : Spec2 with module D = Dom (S.D)
+(** Lifts a [Spec] with a special bottom element that represent unreachable code. *)
+module DeadCodeLifter (S:Spec)
+  : Spec with module D = Dom (S.D)
            and module G = S.G
            and module C = S.C
   = 
@@ -104,9 +104,9 @@ struct
   let call_descr f = S.call_descr f 
 
   let conv ctx = 
-    { ctx with local2 = D.unlift ctx.local2 
-             ; spawn2 = (fun v -> ctx.spawn2 v % D.lift )
-             ; split2 = (fun d e tv -> ctx.split2 (D.lift d) e tv )
+    { ctx with local = D.unlift ctx.local 
+             ; spawn = (fun v -> ctx.spawn v % D.lift )
+             ; split = (fun d e tv -> ctx.split (D.lift d) e tv )
     }
     
   let lift_fun ctx f g h b =
@@ -133,8 +133,8 @@ struct
 end 
 
 
-(** The main point of this file---generating a [GlobConstrSys] from a [Spec2]. *)
-module FromSpec (S:Spec2) (Cfg:CfgBackward)
+(** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
+module FromSpec (S:Spec) (Cfg:CfgBackward)
   : GlobConstrSys with module LVar = VarF (S.C)
                    and module GVar = Basetype.Variables
                    and module D = S.D
@@ -150,27 +150,27 @@ struct
   module D = S.D
   module G = S.G
 
-  let common_ctx (v,c) u (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx2 = 
+  let common_ctx (v,c) u (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx = 
     let pval = getl (u,c) in     
     if !Messages.worldStopped then raise M.StopTheWorld;
     (* now watch this ... *)
     let rec ctx = 
-      { ask2     = query
-      ; local2   = pval
-      ; global2  = getg
-      ; presub2  = []
-      ; postsub2 = []
-      ; spawn2   = (fun f d -> let c = S.context d in 
+      { ask     = query
+      ; local   = pval
+      ; global  = getg
+      ; presub  = []
+      ; postsub = []
+      ; spawn   = (fun f d -> let c = S.context d in 
                                 sidel (FunctionEntry f, c) d; 
                                 ignore (getl (Function f, c)))
-      ; split2   = (fun (d:D.t) _ _ -> sidel (v,c) d)
-      ; sideg2   = sideg
+      ; split   = (fun (d:D.t) _ _ -> sidel (v,c) d)
+      ; sideg   = sideg
       } 
     and query x = S.query ctx x in
     (* ... nice, right! *)
     let pval, diff = S.sync ctx in
     let _ = List.iter (uncurry sideg) diff in
-    { ctx with local2 = pval }
+    { ctx with local = pval }
     
 
   let tf_loop (v,c) u getl sidel getg sideg = 
@@ -183,14 +183,14 @@ struct
       
   let normal_return r fd ctx sideg = 
     let spawning_return = S.return ctx r fd in
-    let nval, ndiff = S.sync { ctx with local2 = spawning_return } in
+    let nval, ndiff = S.sync { ctx with local = spawning_return } in
     List.iter (fun (x,y) -> sideg x y) ndiff;
     nval
       
   let toplevel_kernel_return r fd ctx sideg =
-    let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.local2 else S.return ctx r fd in
-    let spawning_return = S.return {ctx with local2 = st} None MyCFG.dummy_func in
-    let nval, ndiff = S.sync { ctx with local2 = spawning_return } in
+    let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.local else S.return ctx r fd in
+    let spawning_return = S.return {ctx with local = st} None MyCFG.dummy_func in
+    let nval, ndiff = S.sync { ctx with local = spawning_return } in
     List.iter (fun (x,y) -> sideg x y) ndiff;
     nval
         
@@ -211,7 +211,7 @@ struct
     in S.branch ctx e tv
 
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
-    let combine (cd, fd) = S.combine {ctx with local2 = cd} lv e f args fd in
+    let combine (cd, fd) = S.combine {ctx with local = cd} lv e f args fd in
     let paths = S.enter ctx lv f args in
     let _     = if not (get_bool "exp.full-context") then List.iter (fun (c,v) -> sidel (FunctionEntry f, S.context v) v) paths in
     let paths = List.map (fun (c,v) -> (c, getl (Function f, S.context v))) paths in
@@ -224,7 +224,7 @@ struct
   let tf_proc lv e args (v,c) u getl sidel getg sideg = 
     let ctx = common_ctx (v,c) u getl sidel getg sideg in 
     let functions = 
-      match ctx.ask2 (Queries.EvalFunvar e) with 
+      match ctx.ask (Queries.EvalFunvar e) with 
         | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
         | `Bot -> []
         | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
@@ -460,8 +460,8 @@ struct
 end
 
 (** Add path sensitivity to a analysis *)
-module PathSensitive2 (S:Spec2) 
-  : Spec2 
+module PathSensitive2 (S:Spec) 
+  : Spec 
   with type D.t = SetDomain.Make(S.D).t
    and module G = S.G
    and module C = S.C
@@ -572,10 +572,10 @@ struct
       S.context @@ D.choose l
       
   let conv ctx x = 
-    let rec ctx' = { ctx with ask2   = query
-                            ; local2 = x
-                            ; spawn2 = (fun v -> ctx.spawn2 v % D.singleton )
-                            ; split2 = (ctx.split2 % D.singleton) }
+    let rec ctx' = { ctx with ask   = query
+                            ; local = x
+                            ; spawn = (fun v -> ctx.spawn v % D.singleton )
+                            ; split = (ctx.split % D.singleton) }
     and query x = S.query ctx' x in
     ctx'
           
@@ -584,7 +584,7 @@ struct
       try D.add (g (f (conv ctx x))) xs
       with Deadcode -> xs
     in
-    let d = D.fold h ctx.local2 (D.empty ()) in
+    let d = D.fold h ctx.local (D.empty ()) in
     if D.is_bot d then raise Deadcode else d
     
   let assign ctx l e    = map ctx S.assign  (fun h -> h l e )
@@ -599,7 +599,7 @@ struct
       try h a @@ g @@ f @@ conv ctx x 
       with Deadcode -> a
     in
-    let d = D.fold k ctx.local2 a in
+    let d = D.fold k ctx.local a in
     if D.is_bot d then raise Deadcode else d
 
   let fold' ctx f g h a =
@@ -607,7 +607,7 @@ struct
       try h a @@ g @@ f @@ conv ctx x 
       with Deadcode -> a
     in
-    D.fold k ctx.local2 a 
+    D.fold k ctx.local a 
   
   let sync ctx = 
     fold' ctx S.sync identity (fun (a,b) (a',b') -> D.add a' a, b'@b) (D.empty (), [])
@@ -620,8 +620,8 @@ struct
     fold' ctx S.enter (fun h -> h l f a) g []
 
   let combine ctx l fe f a d =
-    assert (D.cardinal ctx.local2 = 1);
-    let cd = D.choose ctx.local2 in
+    assert (D.cardinal ctx.local = 1);
+    let cd = D.choose ctx.local in
     let k x y = 
       try D.add (S.combine (conv ctx cd) l fe f a x) y
       with Deadcode -> y 
@@ -685,7 +685,7 @@ end
 
 (** Use Astree-like abstract interpretation *)
 module IterateLikeAstree 
-    (S:Spec2) 
+    (S:Spec) 
     (Cfg:CfgBidir) 
     (VH:Hash.H with type key=varinfo) 
   =
@@ -746,26 +746,26 @@ struct
     VH.clear ginv_updates;
     !dirty
   
-  let common_ctx pval : (D.t, G.t) ctx2 =   
+  let common_ctx pval : (D.t, G.t) ctx =   
     if !Messages.worldStopped then raise M.StopTheWorld;
     (* now watch this ... *)
     let rec ctx = 
-      { ask2     = query
-      ; local2   = pval
-      ; global2  = (fun x -> try VH.find ginv x with Not_found -> G.bot ())
-      ; presub2  = []
-      ; postsub2 = []
-      ; spawn2   = (fun x y ->  if Messages.tracing then ignore (Pretty.printf "spawn '%s' with %a\n" x.vname D.pretty y);
+      { ask     = query
+      ; local   = pval
+      ; global  = (fun x -> try VH.find ginv x with Not_found -> G.bot ())
+      ; presub  = []
+      ; postsub = []
+      ; spawn   = (fun x y ->  if Messages.tracing then ignore (Pretty.printf "spawn '%s' with %a\n" x.vname D.pretty y);
                                 add_update spawn_updates x y)
-      ; split2   = (fun (d:D.t) _ _ -> failwith "split2")
-      ; sideg2   = (fun x y -> if Messages.tracing then ignore (Pretty.printf "side-effect '%s' with %a\n" x.vname G.pretty y);
+      ; split   = (fun (d:D.t) _ _ -> failwith "split")
+      ; sideg   = (fun x y -> if Messages.tracing then ignore (Pretty.printf "side-effect '%s' with %a\n" x.vname G.pretty y);
                                add_update ginv_updates x y)
       } 
     and query x = S.query ctx x in
     (* ... nice, right! *)
     let pval, diff = S.sync ctx in
     let _ = List.iter (uncurry (add_update ginv_updates)) diff in
-    { ctx with local2 = pval }
+    { ctx with local = pval }
     
 
   let tf_loop d = 
@@ -778,13 +778,13 @@ struct
       
   let normal_return r fd ctx sideg = 
     let spawning_return = S.return ctx r fd in
-    let nval, ndiff = S.sync { ctx with local2 = spawning_return } in
+    let nval, ndiff = S.sync { ctx with local = spawning_return } in
     List.iter (fun (x,y) -> sideg x y) ndiff;
     nval
       
   let toplevel_kernel_return r fd ctx sideg =
     let spawning_return = S.return ctx None MyCFG.dummy_func in
-    let nval, ndiff = S.sync { ctx with local2 = spawning_return } in
+    let nval, ndiff = S.sync { ctx with local = spawning_return } in
     List.iter (fun (x,y) -> sideg x y) ndiff;
     nval
         

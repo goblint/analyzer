@@ -46,7 +46,7 @@ let do_stats fileNames =
   let phaseTbl = 
     let f xs x = 
       let x = snd x in
-      let module S = (val x.MCP.spec : Analyses.Spec2) in
+      let module S = (val x.MCP.spec : Analyses.Spec) in
       let name = S.name in
         match phase name with 
             None -> xs 

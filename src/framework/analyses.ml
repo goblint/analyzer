@@ -328,26 +328,26 @@ end
  
   It is not clear if we need pre-states, post-states or both on foreign analyses.
  *)
-type ('d,'g) ctx2 = 
-    { ask2      : Queries.t -> Queries.Result.t
-    ; local2    : 'd
-    ; global2   : varinfo -> 'g 
-    ; presub2   : (string * Obj.t) list
-    ; postsub2  : (string * Obj.t) list
-    ; spawn2    : varinfo -> 'd -> unit
-    ; split2    : 'd -> exp -> bool -> unit
-    ; sideg2    : varinfo -> 'g -> unit 
+type ('d,'g) ctx = 
+    { ask      : Queries.t -> Queries.Result.t
+    ; local    : 'd
+    ; global   : varinfo -> 'g 
+    ; presub   : (string * Obj.t) list
+    ; postsub  : (string * Obj.t) list
+    ; spawn    : varinfo -> 'd -> unit
+    ; split    : 'd -> exp -> bool -> unit
+    ; sideg    : varinfo -> 'g -> unit 
     }
 
-let swap_st2 ctx st =
-  {ctx with local2=st}
+let swap_st ctx st =
+  {ctx with local=st}
 
-let set_st_gl2 ctx st gl spawn_tr eff_tr split_tr =
-  {ctx with local2=st; global2=gl; spawn2=spawn_tr ctx.spawn2; sideg2=eff_tr ctx.sideg2; 
-  split2=split_tr ctx.split2}
+let set_st_gl ctx st gl spawn_tr eff_tr split_tr =
+  {ctx with local=st; global=gl; spawn=spawn_tr ctx.spawn; sideg=eff_tr ctx.sideg; 
+  split=split_tr ctx.split}
 
 
-module type Spec2 =
+module type Spec =
 sig
   module D : Lattice.S
   module G : Lattice.S
@@ -368,18 +368,18 @@ sig
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
   
-  val sync  : (D.t, G.t) ctx2 -> D.t * (varinfo * G.t) list
-  val query : (D.t, G.t) ctx2 -> Queries.t -> Queries.Result.t 
-  val assign: (D.t, G.t) ctx2 -> lval -> exp -> D.t 
-  val branch: (D.t, G.t) ctx2 -> exp -> bool -> D.t
-  val body  : (D.t, G.t) ctx2 -> fundec -> D.t
-  val return: (D.t, G.t) ctx2 -> exp option  -> fundec -> D.t
-  val intrpt: (D.t, G.t) ctx2 -> D.t
+  val sync  : (D.t, G.t) ctx -> D.t * (varinfo * G.t) list
+  val query : (D.t, G.t) ctx -> Queries.t -> Queries.Result.t 
+  val assign: (D.t, G.t) ctx -> lval -> exp -> D.t 
+  val branch: (D.t, G.t) ctx -> exp -> bool -> D.t
+  val body  : (D.t, G.t) ctx -> fundec -> D.t
+  val return: (D.t, G.t) ctx -> exp option  -> fundec -> D.t
+  val intrpt: (D.t, G.t) ctx -> D.t
   
 
-  val special : (D.t, G.t) ctx2 -> lval option -> varinfo -> exp list -> D.t
-  val enter   : (D.t, G.t) ctx2 -> lval option -> varinfo -> exp list -> (D.t * D.t) list 
-  val combine : (D.t, G.t) ctx2 -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
+  val special : (D.t, G.t) ctx -> lval option -> varinfo -> exp list -> D.t
+  val enter   : (D.t, G.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list 
+  val combine : (D.t, G.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
 end
 
 (** A side-effecting system. *)
@@ -439,7 +439,7 @@ sig
   val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> S.D.t LH.t * S.G.t GH.t
 end
 
-module ResultType2 (S:Spec2) = 
+module ResultType2 (S:Spec) = 
 struct
   open S
   include Printable.Prod3 (C) (D) (Basetype.CilFundec)
@@ -464,7 +464,7 @@ end
 
 
 (** Relatively safe default implementations of some boring Spec functions. *)
-module DefaultSpec2 =
+module DefaultSpec =
 struct
   let init     () = ()
   let finalize () = ()
@@ -478,7 +478,7 @@ struct
   (* prettier name for equation variables --- currently base can do this and
      MCP just forwards it to Base.*)
   
-  let intrpt x = x.local2
+  let intrpt x = x.local
   (* Just ignore. *)
 
   let query _ (q:Queries.t) = Queries.Result.top ()
@@ -487,7 +487,7 @@ struct
   let morphstate v d = d
   (* Only for those who track thread IDs. *)
 
-  let sync ctx     = (ctx.local2,[])
+  let sync ctx     = (ctx.local,[])
   (* Most domains do not have a global part. *)
 
   let context x = x

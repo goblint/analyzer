@@ -6,7 +6,7 @@ open Analyses
 
 module Spec =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   module D = ConcDomain.ThreadDomain
   module C = D
@@ -30,19 +30,19 @@ struct
       have no influence for this analysis. *)
 
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local2
+    ctx.local
    
   let branch ctx (exp:exp) (tv:bool) : D.t = 
-    ctx.local2
+    ctx.local
   
   let body ctx (f:fundec) : D.t = 
-    ctx.local2
+    ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t = 
-    ctx.local2
+    ctx.local
   
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local2,ctx.local2]
+    [ctx.local,ctx.local]
   
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     au
@@ -51,7 +51,7 @@ struct
     Messages.bailwith (Printf.sprintf "%s has unusable arguments!" fname)
     
   let eval_arg ctx (arg:exp) =
-    match eval_fv ctx.ask2 arg with
+    match eval_fv ctx.ask arg with
       | Some v -> v
       | None   -> Messages.bailwith "cannot extract arg"
 
@@ -64,9 +64,9 @@ struct
 
   (** Handles creation of the new thread. thread_id has been already resolved. *)
   let pthread_create_id ctx start_routine (thread_id : Basetype.Variables.t) =
-    let current_thread_id = current_thread ctx.local2 in
-    let new_state = D.create_thread ctx.local2 current_thread_id thread_id in
-      ctx.spawn2 start_routine (D.make_entry new_state thread_id);
+    let current_thread_id = current_thread ctx.local in
+    let new_state = D.create_thread ctx.local current_thread_id thread_id in
+      ctx.spawn start_routine (D.make_entry new_state thread_id);
       [new_state, integer 1, true]
   
   (** Handles creation of the new thread. Resolves pthread_create arguments. *)    
@@ -86,7 +86,7 @@ struct
   (** Handles join with another thread. Resolves pthread_join arguments. *)
   let pthread_join ctx (args:exp list) =
     match args with
-      | [Lval id; _] -> pthread_join_id ctx.local2 (eval_arg ctx (mkAddrOf id))
+      | [Lval id; _] -> pthread_join_id ctx.local (eval_arg ctx (mkAddrOf id))
       | _            -> call_unusable "pthread_join"
 
   (** Handles unknown functions (functions without known definition). We
@@ -97,7 +97,7 @@ struct
     match f.vname with
        | "pthread_create" -> pthread_create ctx arglist
        | "pthread_join"   -> pthread_join ctx arglist
-       | _                -> [ctx.local2,integer 1, true]
+       | _                -> [ctx.local,integer 1, true]
   
   (* We denote the main thread by the global thread id variable named "main" *)
   let startstate v = (
@@ -114,7 +114,7 @@ end
 (* really stupid thread-ids *)
 module StartLocIDs =
 struct
-  include Analyses.DefaultSpec2
+  include Analyses.DefaultSpec
 
   let name = "Unit analysis"
   module D = ConcDomain.ThreadStringSet
@@ -122,12 +122,12 @@ struct
   module G = Lattice.Unit
   
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local2
-  let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local2
-  let body ctx (f:fundec) : D.t =  ctx.local2
-  let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local2
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local2,ctx.local2]
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = ctx.local2
+  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
+  let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
+  let body ctx (f:fundec) : D.t =  ctx.local
+  let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = ctx.local
     
   (* Helper function to convert query-offsets to valuedomain-offsets *)
   let rec conv_offset x =
@@ -149,13 +149,13 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     begin match LibraryFunctions.classify f.vname arglist with
       | `ThreadCreate (fn, x) -> 
-          let fns = eval_exp_addr ctx.ask2 fn in
+          let fns = eval_exp_addr ctx.ask fn in
           let location x = let l = !Tracing.current_loc in l.file ^ ":" ^ string_of_int l.line ^ ":" ^ x.vname in
-          let new_thread x = ctx.spawn2 x (D.singleton (location x)) in
+          let new_thread x = ctx.spawn x (D.singleton (location x)) in
           List.iter new_thread (List.concat (List.map ValueDomain.Addr.to_var_may fns))
       | _ -> ()
     end;
-    ctx.local2
+    ctx.local
 
   let main = D.singleton "main"
   let startstate v = main
@@ -164,4 +164,4 @@ struct
 end
 
 let _ = 
-  MCP.register_analysis "thread-id-location" (module StartLocIDs : Spec2)         
+  MCP.register_analysis "thread-id-location" (module StartLocIDs : Spec)         
