@@ -360,9 +360,11 @@ struct
     Remark:
     As you can see, [accKeys] is just premature optimization, so we dont have to iterate over [acc] to get all keys.
    *)
+  let arinc_analysis_activated = ref false
+    
   module Acc = Hashtbl.Make (Basetype.Variables)
   module AccKeySet = Set.Make (Basetype.Variables)
-  module AccValSet = Set.Make (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs))
+  module AccValSet = Set.Make (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Printable.Prod (Lockset) (IntDomain.Lifted)) (Offs))
   let acc     : AccValSet.t Acc.t = Acc.create 100
   let accKeys : AccKeySet.t ref   = ref AccKeySet.empty 
   
@@ -371,8 +373,17 @@ struct
   let add_concrete_access ctx fl loc ust (v, o, rv: varinfo * Offs.t * bool) =
     if (Base.is_global ctx.ask v) then begin
       if not !GU.may_narrow then begin 
+        let pri = 
+          if !arinc_analysis_activated then 
+            match ctx.ask (Queries.Priority "") with
+              | `Int i -> IntDomain.Lifted.of_int i
+              | `Bot -> IntDomain.Lifted.top ()
+              | _ -> IntDomain.Lifted.bot ()
+          else 
+            IntDomain.Lifted.of_int 0L
+        in
         let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
-        let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
+        let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),(ust,pri),o) curr in
         Acc.replace acc v neww;
         accKeys := AccKeySet.add v !accKeys
       end ;
@@ -726,15 +737,16 @@ struct
       v
     in
     (* join map elements, that we cannot be sure are logically separate *)
-    let regroup_map (map,set) =
+    let regroup_map (map,set)
+         list OffsMap.t * OffsSet.t) =
       let f offs (group_offs, access_list, new_map) = 
         let process (oa:Offs.t) (op:Offs.t) = 
-          let prc_acc (bs, ls, os) = 
+          let prc_acc (bs, (ls, pri), os) = 
             match per_elementize oa op ls with
               | Some (lv,lo) -> 
 (*                   print_endline (" c: "^Offs.short 80 (oa)^" grp: "^Offs.short 80 op^" ls: "^Dom.short 80 ls^" rslt: "^ Dom.short 80 (Dom.singleton (Addr.from_var_offset (lv,offs_perel lo oa), true)));  *)
-                  (bs, D.singleton (Addr.from_var_offset (lv,offs_perel lo oa), true), os)
-              | None -> (*print_endline "pe failed";*)(bs,D.empty (),os)
+                  (bs, (D.singleton (Addr.from_var_offset (lv,offs_perel lo oa), true), pri), os)
+              | None -> (*print_endline "pe failed";*)(bs,(D.empty (),pri),os)
           in
           List.map prc_acc 
         in
@@ -800,7 +812,7 @@ struct
       else S.fold f x (S.empty ())  
     in
 *)    let get_common_locks acc_list = 
-      let f locks ((_,_,writing), lock, _) = 
+      let f locks ((_,_,writing), (lock,_), _) = 
         let lock = 
 (*           print_endline (D.short 80 lock); *)
           if writing then
@@ -831,13 +843,19 @@ struct
           Race
     in
     let report_race offset acc_list =
-        let f with_str ((loc, fl, write), lockset,o) = 
+        let f ((loc, fl, write), (lockset, pri),o) = 
           let lockstr = Lockset.short 80 lockset in
           let action = if write then "write" else "read" in
           let thread = "\"" ^ BS.Flag.short 80 fl ^ "\"" in
-          let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " by " ^ thread ^ with_str ^ lockstr in
+          let warn = 
+            if !arinc_analysis_activated then 
+              let prior  = IntDomain.Lifted.short 10 pri in
+              action ^ " by " ^ thread ^ " with priority " ^ prior ^ " and lockset: " ^ lockstr 
+            else
+              action ^ " by " ^ thread ^ " with lockset: " ^ lockstr 
+          in
             (warn,loc) in 
-        let warnings () =  List.map (f " with lockset: ") acc_list in
+        let warnings () =  List.map f acc_list in
             let var_str = gl.vname ^ Offs.short 80 offset in
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
           match is_race acc_list with
@@ -925,6 +943,10 @@ struct
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;
     BS.finalize ()
+    
+  let init () = 
+    init ();
+    arinc_analysis_activated := List.exists (fun x -> Json.string x="arinc") (get_list "ana.activated[0]")  
 
 end
 

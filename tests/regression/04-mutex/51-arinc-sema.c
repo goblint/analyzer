@@ -34,6 +34,17 @@ extern void LAP_Se_CreateProcess(PROCESS_ATTRIBUTE_TYPE, PROCESS_ID_TYPE*, RETUR
 
 extern void LAP_Se_Start(PROCESS_ID_TYPE, RETURN_CODE_TYPE*);
 
+typedef
+   enum {
+        IDLE       = 0,
+        COLD_START = 1,
+        WARM_START = 2,
+        NORMAL     = 3
+   } OPERATING_MODE_TYPE;
+   
+extern void SET_PARTITION_MODE (
+       /*in */ OPERATING_MODE_TYPE OPERATING_MODE,
+       /*out*/ RETURN_CODE_TYPE    *RETURN_CODE );
 // -----------------------
 
 int g,g2;
@@ -59,21 +70,33 @@ void P2(void){
   }
   return;
 }
+void P3(void){
+  //g = g - 1;    // NOWARN!
+  //g2 = g2 + 1;  // RACE!
+  return;
+}
 
 
 int main(){
   RETURN_CODE_TYPE r;
-  PROCESS_ID_TYPE pi1, pi2;
+  PROCESS_ID_TYPE pi1, pi2, pi3;
   SEMAPHORE_ID_TYPE sem_id_local;
-  PROCESS_ATTRIBUTE_TYPE p1, p2;
+  PROCESS_ATTRIBUTE_TYPE p1, p2, p3;
   LAP_Se_CreateSemaphore("my_mutex",1,1,0,&sem_id_local,&r);
   LAP_Se_GetSemaphoreId("my_mutex",&sem_id,&r);
   p1.ENTRY_POINT = (void *) &P1;
+  p1.BASE_PRIORITY = 10;
   p2.ENTRY_POINT = (void *) &P2;
+  p2.BASE_PRIORITY = 10;
+  p3.ENTRY_POINT = (void *) &P3;
+  p3.BASE_PRIORITY = 20;
   LAP_Se_CreateProcess(p1,&pi1,&r);
   LAP_Se_CreateProcess(p2,&pi2,&r);
+  LAP_Se_CreateProcess(p3,&pi3,&r);
   LAP_Se_Start(pi1,&r);
   LAP_Se_Start(pi2,&r);
+  LAP_Se_Start(pi3,&r);
+  LAP_Se_SetPartitionMode(NORMAL,&r);
   while(1) {
     g2 = g2 - 1;  // RACE!
   }

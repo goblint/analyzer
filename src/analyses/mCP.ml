@@ -353,7 +353,8 @@ struct
       let join_vals (n,(module S:Spec),d) =
         n, repr @@ fold_left (fun x y -> S.D.join x (obj y)) (S.D.bot ()) d
       in
-      ctx.spawn v @@ topo_sort_an @@ map join_vals @@ spec_list @@ group_assoc (d @ otherstate v)
+      let otherstates = List.filter (fun (n,_) -> not (mem_assoc n d)) (otherstate v) in
+      ctx.spawn v @@ topo_sort_an @@ map join_vals @@ spec_list @@ group_assoc (d @ otherstates)
     in
     if not (get_bool "exp.single-threaded") then
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
