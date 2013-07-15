@@ -737,8 +737,7 @@ struct
       v
     in
     (* join map elements, that we cannot be sure are logically separate *)
-    let regroup_map (map,set)
-         list OffsMap.t * OffsSet.t) =
+    let regroup_map (map,set) =
       let f offs (group_offs, access_list, new_map) = 
         let process (oa:Offs.t) (op:Offs.t) = 
           let prc_acc (bs, (ls, pri), os) = 
