@@ -400,7 +400,7 @@ let _ =
   let module M = GlobSolverFromEqSolver(MakeBoxSolver (PropTrue) (PropFalse)) in
   Selector.add_solver ("slr+", (module M : GenericGlobSolver));
   Selector.add_solver ("new", (module M : GenericGlobSolver));
-  let module M1 = GlobSolverFromEqSolver(MakeBoxSolver (PropFalse) (PropTrue)) in
+  let module M1 = GlobSolverFromEqSolver(MakeBoxSolver (PropTrue) (PropTrue)) in
   Selector.add_solver ("restart", (module M1 : GenericGlobSolver));
   let module M3 = GlobSolverFromEqSolver(PhasesSolver) in
   Selector.add_solver ("fwtn", (module M3 : GenericGlobSolver));
