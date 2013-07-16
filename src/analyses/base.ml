@@ -979,7 +979,7 @@ struct
     in
     CPA.map replace_val st
   
-  let context_top f (cpa,fl) = 
+  let context (cpa,fl) = 
     if (get_bool "exp.addr-context") then (drop_non_ptrs cpa, fl) 
     else if (get_bool "exp.no-int-context") then (drop_ints cpa, fl)  
     else (cpa,fl)
