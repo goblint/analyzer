@@ -48,19 +48,16 @@ let is_ignorable lval =
   try Base.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
   with Not_found -> false
 
-let rec get_flag (state :local_state list) : BS.Flag.t =
-  match state with
-  | `Base (_,x)::rest -> x
-  | x::rest -> get_flag rest
-  | [] -> failwith "BUG: Cannot obtain thread ID."
+let rec get_flag (state: (string * Obj.t) list) : BS.Flag.t =
+  snd (Obj.obj (List.assoc "base" state))
   
 let big_kernel_lock = LockDomain.Addr.from_var (makeGlobalVar "[big kernel lock]" intType)
 let console_sem = LockDomain.Addr.from_var (makeGlobalVar "[console semaphore]" intType)
 
 module type SpecParam =
 sig
-  module Glob: Glob.S with module Var = Basetype.Variables
-  val effect_fun: Lockset.t -> Glob.Val.t
+  module G: Lattice.S
+  val effect_fun: Lockset.t -> G.t
 end
 
 (** Data race analyzer without base --- this is the new standard *)  
@@ -69,61 +66,17 @@ struct
   include Analyses.DefaultSpec
 
   (** name for the analysis (btw, it's "Only Mutex Must") *)
-  let name = "Only Mutex Must"
+  let name = "mutex"
 
   (** Add current lockset alongside to the base analysis domain. Global data is collected using dirty side-effecting. *)
-  module Dom = Lockset
+  module D = Lockset
+  module C = Lockset
   
   (** We do not add global state, so just lift from [BS]*)
-  module Glob = P.Glob
+  module G = P.G
   
-  let rec access_ofs ctx = function
-    | NoOffset -> ()
-    | Index (i,o) ->
-        access_exp ctx false 0 i;
-        access_ofs ctx o
-    | Field (_,o) -> 
-        access_ofs ctx o
-  and access_lval ctx rw n = function 
-    | (Mem m, ofs as lv) ->
-        if n >= 0 then begin
-          ctx.report_access (`Lval (lv, rw)) ;
-          access_exp ctx false (n+1) m
-        end;
-        access_ofs ctx ofs
-    | (Var _, ofs as lv) ->
-        if n >= 0 then begin
-          ctx.report_access (`Lval (lv, rw)) 
-        end;
-        access_ofs ctx ofs
-  and access_exp  ctx rw n = function
-    | Const _ -> ()
-    | Lval lv -> 
-        access_lval ctx rw n lv
-    | BinOp (_,arg1,arg2,_) -> 
-        access_exp ctx rw n arg1;
-        access_exp ctx rw n arg2
-    | UnOp (_,arg1,_) ->
-        access_exp ctx rw n arg1
-    | AddrOf lval  -> access_lval ctx false (n-1) lval
-    | StartOf lval -> access_lval ctx false (n-1) lval
-    | CastE  (_, exp) -> access_exp ctx rw n exp
-    | _ -> ()
-  let rec access_reach ctx rw = function 
-    | Const _         -> ()   
-    | Lval _ as e     -> ctx.report_access (`Reach (e,rw))
-    | BinOp _ as e    -> ctx.report_access (`Reach (e,rw))
-    | UnOp _ as e     -> ctx.report_access (`Reach (e,rw))
-    | AddrOf _ as e   -> ctx.report_access (`Reach (e,rw))
-    | StartOf _ as e  -> ctx.report_access (`Reach (e,rw))
-    | CastE  (_, exp) -> access_reach  ctx rw exp
-    | _ -> ()
-    
-  
-  let access_lval ctx rw = access_lval ctx rw 0
-  let access_exp ctx rw  = access_exp ctx rw 0
 (*  let get_accesses ctx : AccessDomain.Access.t = 
-    match ctx.sub with
+    match ctx.postsub with
       | [ `Access x ] -> x 
       | _ -> AccessDomain.Access.top () (*failwith "Dependencies broken for mutex analysis"*)
 *)
@@ -269,37 +222,36 @@ struct
           Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []    
       | _ -> []
   
-  let lock rw may_fail a lv arglist ls =
+  let lock ctx rw may_fail a lv arglist ls =
     let is_a_blob addr = 
       match LockDomain.Addr.to_var addr with
         | [a] -> a.vname.[0] = '(' 
         | _ -> false
     in  
-    let nothing ls = [ls,integer 1,true] in
     let lock_one (e:LockDomain.Addr.t) =
-      let set_ret tv sts = 
-        match lv with 
-          | None -> [sts,integer 1,true]
-          | Some lv -> [sts,Lval lv,tv]
-      in 
       if is_a_blob e then
-        nothing ls
+        ls
       else begin
-        set_ret false  (Lockset.add (e,rw) ls) @
-        if may_fail then set_ret true ls else []
+        let nls = Lockset.add (e,rw) ls in
+        match lv with 
+          | None -> if may_fail then ls else nls
+          | Some lv -> 
+              ctx.split nls (Lval lv) false;
+              if may_fail then ctx.split ls (Lval lv) true;
+              raise Analyses.Deadcode
       end
     in
       match arglist with
         | [x] -> begin match  (eval_exp_addr a x) with 
                           | [e]  -> lock_one e
-                          | _ -> nothing ls 
+                          | _ -> ls 
                   end
-        | _ -> nothing (Lockset.top ())
+        | _ -> Lockset.top ()
 
   (* [per_elementize oa op locks] takes offset of current access [oa],
      quantified access offset [op] and lockset and returns a quantified 
      lock lval *)
-  let per_elementize oa op (locks:Dom.t) =
+  let per_elementize oa op (locks: D.t) =
     let wildcard_ok ip il ia = IdxDom.is_top ip && IdxDom.equal ia il in
     let rec no_wildcards x =
       match x with
@@ -408,9 +360,11 @@ struct
     Remark:
     As you can see, [accKeys] is just premature optimization, so we dont have to iterate over [acc] to get all keys.
    *)
+  let arinc_analysis_activated = ref false
+    
   module Acc = Hashtbl.Make (Basetype.Variables)
   module AccKeySet = Set.Make (Basetype.Variables)
-  module AccValSet = Set.Make (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Lockset) (Offs))
+  module AccValSet = Set.Make (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Printable.Prod (Lockset) (IntDomain.Lifted)) (Offs))
   let acc     : AccValSet.t Acc.t = Acc.create 100
   let accKeys : AccKeySet.t ref   = ref AccKeySet.empty 
   
@@ -419,8 +373,17 @@ struct
   let add_concrete_access ctx fl loc ust (v, o, rv: varinfo * Offs.t * bool) =
     if (Base.is_global ctx.ask v) then begin
       if not !GU.may_narrow then begin 
+        let pri = 
+          if !arinc_analysis_activated then 
+            match ctx.ask (Queries.Priority "") with
+              | `Int i -> IntDomain.Lifted.of_int i
+              | `Bot -> IntDomain.Lifted.top ()
+              | _ -> IntDomain.Lifted.bot ()
+          else 
+            IntDomain.Lifted.of_int 0L
+        in
         let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
-        let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),ust,o) curr in
+        let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),(ust,pri),o) curr in
         Acc.replace acc v neww;
         accKeys := AccKeySet.add v !accKeys
       end ;
@@ -429,7 +392,7 @@ struct
       let el = P.effect_fun ls in
 (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
 (*      let _ = printf "Access to %s with offense priority %a\n" v.vname P.Glob.Val.pretty el in*)
-      ctx.geffect v el
+      ctx.sideg v el
     end
       
    
@@ -492,7 +455,7 @@ struct
         let accs = access_one_byval ctx.ask rw (Exp.replace_base (v,offs_perel o) e a) in
         let lock = 
           match Exp.fold_offs (Exp.replace_base (v,offs_perel o) e l) with
-            | Some (v, o) -> Dom.ReverseAddrSet.add (LockDomain.Addr.from_var_offset (v,conv_const_offset o) ,true) ust
+            | Some (v, o) -> D.ReverseAddrSet.add (LockDomain.Addr.from_var_offset (v,conv_const_offset o) ,true) ust
             | None -> ust
         in
         let no_recurse x =
@@ -510,7 +473,7 @@ struct
       let accs = access_one_byval ctx.ask rw a in
       match m with
         | AddrOf (Var v,o) -> 
-            let lock = Dom.add (ValueDomain.Addr.from_var_offset (v, conv_const_offset o),true) ust in
+            let lock = D.add (ValueDomain.Addr.from_var_offset (v, conv_const_offset o),true) ust in
             add_accesses ctx accs lock
         | _ ->  
             Messages.warn "Internal error: found a strange lockstep pattern.";            
@@ -573,7 +536,7 @@ struct
         | _ -> unknown_access ()
     
   (** Function [add_accesses accs st] fills the hash-map [acc] *)
-  and add_accesses ctx (accessed: accesses) (ust:Dom.t) = 
+  and add_accesses ctx (accessed: accesses) (ust: D.t) = 
     let fl = get_flag ctx.presub in
       if BS.Flag.is_multi fl then
         let loc = !Tracing.current_loc in
@@ -618,65 +581,45 @@ struct
             `Bool (tv)
       | _ -> Queries.Result.top ()
   
-  let may_race (ctx1,ac1) (ctx2,ac2) =
+  let may_race (ctx1,ac1) (ctx,ac2) =
     let write = function `Lval (_,b) | `Reach (_,b) -> b in
-    let prot_locks b ls = if b then Dom.filter snd ls else Dom.map (fun (x,_) -> (x,true)) ls in
+    let prot_locks b ls = if b then D.filter snd ls else D.map (fun (x,_) -> (x,true)) ls in
     let ls1 = prot_locks (write ac1) ctx1.local in
-    let ls2 = prot_locks (write ac2) ctx2.local in
+    let ls2 = prot_locks (write ac2) ctx.local in
     Lockset.is_empty (Lockset.ReverseAddrSet.inter ls1 ls2)
     
     
   (** Transfer functions: *)
   
-  let assign ctx lval rval : Dom.t = 
+  let assign ctx lval rval : D.t = 
     (* ignore global inits *)
     if !GU.global_initialization then ctx.local else
-    if !GU.old_accesses then begin
-      let b1 = access_one_top ctx.ask true (Lval lval) in 
-      let b2 = access_one_top ctx.ask false rval in
-      add_accesses ctx (b1@b2) ctx.local;
-      ctx.local
-    end else begin 
-      access_lval ctx true lval;
-      access_exp ctx false rval;
-      ctx.local
-    end 
+    let b1 = access_one_top ctx.ask true (Lval lval) in 
+    let b2 = access_one_top ctx.ask false rval in
+    add_accesses ctx (b1@b2) ctx.local;
+    ctx.local
     
-  let branch ctx exp tv : Dom.t =
-    if !GU.old_accesses then begin
-      let accessed = access_one_top ctx.ask false exp in
-      add_accesses ctx accessed ctx.local;
-      ctx.local
-    end else begin 
-      access_exp ctx false exp;
-      ctx.local
-    end 
+  let branch ctx exp tv : D.t =
+    let accessed = access_one_top ctx.ask false exp in
+    add_accesses ctx accessed ctx.local;
+    ctx.local
     
-  let return ctx exp fundec : Dom.t =
+  let return ctx exp fundec : D.t =
     begin match exp with 
       | Some exp -> 
-        if !GU.old_accesses then begin
           let accessed = access_one_top ctx.ask false exp in
           add_accesses ctx accessed ctx.local;
           ctx.local
-        end else begin
-          access_exp ctx true exp;
-          ctx.local
-        end
       | None -> ctx.local
     end
         
-  let body ctx f : Dom.t = ctx.local
+  let body ctx f : D.t = ctx.local
 
   let eval_funvar ctx exp = 
-    if !GU.old_accesses then begin
-      let read = access_one_top ctx.ask false exp in
-      add_accesses ctx read ctx.local  
-    end else begin
-      access_exp ctx false exp
-    end
+    let read = access_one_top ctx.ask false exp in
+    add_accesses ctx read ctx.local  
   
-  let special_fn ctx lv f arglist : (Dom.t * exp * bool) list =
+  let special ctx lv f arglist : D.t =
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
     let unlock remove_fn =
       let remove_nonspecial x =
@@ -688,19 +631,19 @@ struct
       in
       match arglist with
         | x::xs -> begin match  (eval_exp_addr ctx.ask x) with 
-                        | [] -> [remove_nonspecial ctx.local  ,integer 1, true]
-                        | es -> [(List.fold_right remove_fn es ctx.local), integer 1, true]
+                        | [] -> remove_nonspecial ctx.local
+                        | es -> List.fold_right remove_fn es ctx.local
                 end
-        | _ -> [ctx.local, integer 1, true]
+        | _ -> ctx.local
     in
     match (LF.classify f.vname arglist, f.vname) with
       | _, "_lock_kernel"
-          -> [(Lockset.add (big_kernel_lock,true) ctx.local),integer 1, true]
+          -> Lockset.add (big_kernel_lock,true) ctx.local
       | _, "_unlock_kernel"
-          -> [(Lockset.remove (big_kernel_lock,true) ctx.local),integer 1, true]
+          -> Lockset.remove (big_kernel_lock,true) ctx.local
       | `Lock (failing, rw), _
           -> let arglist = if f.vname = "LAP_Se_WaitSemaphore" then [List.hd arglist] else arglist in
-             lock rw failing ctx.ask lv arglist ctx.local
+             lock ctx rw failing ctx.ask lv arglist ctx.local
       | `Unlock, "__raw_read_unlock" 
       | `Unlock, "__raw_write_unlock"  -> 
           let drop_raw_lock x =
@@ -718,47 +661,34 @@ struct
           unlock (fun l -> remove_rw (drop_raw_lock l))
       | `Unlock, _ 
           -> unlock remove_rw
-      | _, "spinlock_check" -> [ctx.local, integer 1, true]
+      | _, "spinlock_check" -> ctx.local
       | _, "acquire_console_sem" when get_bool "kernel" -> 
-          [(Lockset.add (console_sem,true) ctx.local),integer 1, true]
+          Lockset.add (console_sem,true) ctx.local
       | _, "release_console_sem" when get_bool "kernel" -> 
-          [(Lockset.remove (console_sem,true) ctx.local),integer 1, true]
+          Lockset.remove (console_sem,true) ctx.local
       | _, "__builtin_prefetch" | _, "misc_deregister" ->
-          [ctx.local,integer 1, true]
+          ctx.local
       | _, x -> 
           let arg_acc act = 
             match LF.get_threadsafe_inv_ac x with
               | Some fnc -> (fnc act arglist) 
               | _ -> arglist
           in
-          begin if !GU.old_accesses then begin
-            let r1 = access_byval ctx.ask false (arg_acc `Read) in
-            let a1 = access_reachable ctx.ask   (arg_acc `Write) in
-            add_accesses ctx (r1@a1) ctx.local
-          end else begin
-            List.iter (access_reach ctx true) (arg_acc `Write);
-            List.iter (access_exp ctx true) (arg_acc `Write);
-            List.iter (access_exp ctx false) (arg_acc `Read)            
-          end end;
-          [ctx.local, integer 1, true]
+          let r1 = access_byval ctx.ask false (arg_acc `Read) in
+          let a1 = access_reachable ctx.ask   (arg_acc `Write) in
+          add_accesses ctx (r1@a1) ctx.local;
+          ctx.local
           
-  let enter_func ctx lv f args : (Dom.t * Dom.t) list =
+  let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
-  let leave_func ctx lv fexp f args al = 
+  let combine ctx lv fexp f args al = 
     eval_funvar ctx fexp;
-    begin if !GU.old_accesses then begin
-      let wr = match lv with
-        | None      -> []
-        | Some lval -> access_one_top ctx.ask true (Lval lval) in 
-      let read = access_byval ctx.ask false args in
-      add_accesses ctx (wr@read) ctx.local;   
-    end else begin
-      List.iter (access_exp ctx true) args;
-      match lv with
-        | None -> ()
-        | Some lv -> access_lval ctx true lv
-    end end;
+    let wr = match lv with
+      | None      -> []
+      | Some lval -> access_one_top ctx.ask true (Lval lval) in 
+    let read = access_byval ctx.ask false args in
+    add_accesses ctx (wr@read) ctx.local;   
     al
     
   
@@ -810,12 +740,12 @@ struct
     let regroup_map (map,set) =
       let f offs (group_offs, access_list, new_map) = 
         let process (oa:Offs.t) (op:Offs.t) = 
-          let prc_acc (bs, ls, os) = 
+          let prc_acc (bs, (ls, pri), os) = 
             match per_elementize oa op ls with
               | Some (lv,lo) -> 
 (*                   print_endline (" c: "^Offs.short 80 (oa)^" grp: "^Offs.short 80 op^" ls: "^Dom.short 80 ls^" rslt: "^ Dom.short 80 (Dom.singleton (Addr.from_var_offset (lv,offs_perel lo oa), true)));  *)
-                  (bs,Dom.singleton (Addr.from_var_offset (lv,offs_perel lo oa), true), os)
-              | None -> (*print_endline "pe failed";*)(bs,Dom.empty (),os)
+                  (bs, (D.singleton (Addr.from_var_offset (lv,offs_perel lo oa), true), pri), os)
+              | None -> (*print_endline "pe failed";*)(bs,(D.empty (),pri),os)
           in
           List.map prc_acc 
         in
@@ -881,9 +811,9 @@ struct
       else S.fold f x (S.empty ())  
     in
 *)    let get_common_locks acc_list = 
-      let f locks ((_,_,writing), lock, _) = 
+      let f locks ((_,_,writing), (lock,_), _) = 
         let lock = 
-(*           print_endline (Dom.short 80 lock); *)
+(*           print_endline (D.short 80 lock); *)
           if writing then
             (* when writing: ignore reader locks *)
             Lockset.filter snd lock 
@@ -891,11 +821,11 @@ struct
             (* when reading: bump reader locks to exclusive as they protect reads *)
             Lockset.map (fun (x,_) -> (x,true)) lock 
         in
-          Dom.join locks lock 
+          D.join locks lock 
       in
 (*      print_endline "--------------"; *)
 			let v = List.fold_left f (Lockset.bot ()) acc_list in
-(*       print_endline ("=========== " ^ Dom.short 80 v);       *)
+(*       print_endline ("=========== " ^ D.short 80 v);       *)
       v
     in
     let is_race acc_list =
@@ -912,13 +842,19 @@ struct
           Race
     in
     let report_race offset acc_list =
-        let f with_str ((loc, fl, write), lockset,o) = 
+        let f ((loc, fl, write), (lockset, pri),o) = 
           let lockstr = Lockset.short 80 lockset in
           let action = if write then "write" else "read" in
           let thread = "\"" ^ BS.Flag.short 80 fl ^ "\"" in
-          let warn = (*gl.vname ^ Offs.short 80 o ^ " " ^*) action ^ " by " ^ thread ^ with_str ^ lockstr in
+          let warn = 
+            if !arinc_analysis_activated then 
+              let prior  = IntDomain.Lifted.short 10 pri in
+              action ^ " by " ^ thread ^ " with priority " ^ prior ^ " and lockset: " ^ lockstr 
+            else
+              action ^ " by " ^ thread ^ " with lockset: " ^ lockstr 
+          in
             (warn,loc) in 
-        let warnings () =  List.map (f " with lockset: ") acc_list in
+        let warnings () =  List.map f acc_list in
             let var_str = gl.vname ^ Offs.short 80 offset in
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
           match is_race acc_list with
@@ -997,9 +933,7 @@ struct
     *)
   (** postprocess and print races and other output *)
   let finalize () = 
-    if !GU.old_accesses
-    then AccKeySet.iter postprocess_acc !accKeys
-    else (*postprocess_acc2*) ();
+    AccKeySet.iter postprocess_acc !accKeys;
     if !GU.multi_threaded then begin
       if !race_free then 
         print_endline "Goblint did not find any Data Races in this program!";
@@ -1008,31 +942,21 @@ struct
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;
     BS.finalize ()
+    
+  let init () = 
+    init ();
+    arinc_analysis_activated := List.exists (fun x -> Json.string x="arinc") (get_list "ana.activated[0]")  
 
 end
 
 module MyParam = 
 struct
-  module Glob = LockDomain.Glob
+  module G = LockDomain.Simple
   let effect_fun ls = 
     Lockset.export_locks ls
 end
 
 module Spec = MakeSpec (MyParam)
 
-module ThreadMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "mutex" 
-                let depends = ["base"]
-                type lf = Spec.Dom.t
-                let inject_l x = `Mutex x
-                let extract_l x = match x with `Mutex x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `Mutex x 
-                let extract_g x = match x with `Mutex x-> x | _ -> raise MCP.SpecificationConversionError
-         end)
-
-module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "mutex" ~dep:["base"] (module Spec2 : Spec2)
+  MCP.register_analysis ~dep:["base"] (module Spec : Spec)

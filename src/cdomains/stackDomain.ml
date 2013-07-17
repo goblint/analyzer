@@ -8,7 +8,7 @@ end
 
 
 
-module Dom = 
+module Dom1 = 
 struct
   let n = 3
   let rec times x = function 0 -> [] | n -> x::times x (n-1)
