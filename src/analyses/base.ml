@@ -32,7 +32,10 @@ let is_global (a: Q.ask) (v: varinfo): bool =
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
-let is_private (a: Q.ask) (v: varinfo): bool = 
+let is_private (a: Q.ask) (_,fl) (v: varinfo): bool = 
+  ((not (BaseDomain.Flag.is_multi fl)) &&
+   (List.exists (fun x -> v.vname = Json.string x) (get_list "exp.precious_globs")))  
+  ||
   match a (Q.IsPrivate v) with `Bool tv -> tv | _ -> false
    
 module Main =
@@ -73,12 +76,12 @@ struct
    * State functions
    **************************************************************************)
 
-  let globalize a (cpa:cpa): cpa * glob_diff  =
+  let globalize a (cpa,fl): cpa * glob_diff  =
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) (cpa,acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-      if is_global a v && not (is_private a v) then begin
+      if is_global a v && not (is_private a (cpa,fl) v) then begin
         if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
         (CPA.remove v cpa, (v,value) :: acc) 
       end else 
@@ -92,7 +95,7 @@ struct
 
   let sync ctx: Dom.t * glob_diff = 
     let cpa,fl = ctx.local in
-    let cpa, diff = if (get_bool "exp.earlyglobs") || Flag.is_multi fl then globalize ctx.ask cpa else (cpa,[]) in
+    let cpa, diff = if (get_bool "exp.earlyglobs") || Flag.is_multi fl then globalize ctx.ask ctx.local else (cpa,[]) in
       (cpa,fl), diff
 
   (** [get st addr] returns the value corresponding to [addr] in [st] 
@@ -154,7 +157,7 @@ struct
       if ((get_bool "exp.earlyglobs") || Flag.is_multi fl) && is_global a x then 
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
-        if not effect && not (is_private a x) then nst
+        if not effect && not (is_private a (st,fl) x) then nst
         else begin
           let get x st = 
             match CPA.find x st with
@@ -910,7 +913,12 @@ struct
     in
     (* We concatMap the previous function on the list of expressions. *)
     let invalids = List.concat (List.map invalidate_exp exps) in
-      set_many ask gs st invalids
+    let my_favorite_things = List.map Json.string (get_list "exp.precious_globs") in
+    let is_fav_addr x = 
+      List.exists (fun x -> List.mem x.vname my_favorite_things) (AD.to_var_may x) 
+    in
+    let invalids' = List.filter (fun (x,_) -> not (is_fav_addr x)) invalids in
+      set_many ask gs st invalids'
 
   (* Variation of the above for yet another purpose, uhm, code reuse? *)
   let collect_funargs ask (gs:glob_fun) (st:store) (exps: exp list) = 
@@ -1366,9 +1374,13 @@ struct
                   with _ -> acc
                 in 
                 if List.fold_right f flist false && not (get_bool "exp.single-threaded") then begin
-                  (* Copy-pasted from the thread-spawning code above: *)
-                  GU.multi_threaded := true;
-                  let new_fl = Flag.join fl (Flag.get_main ()) in
+                  let new_fl = 
+                    if (not !GU.multi_threaded) && get_bool "exp.unknown_funs_spawn" then begin
+                      GU.multi_threaded := true;
+                      Flag.join fl (Flag.get_main ())
+                    end else
+                      fl
+                  in
                   [map_true (cpa,new_fl)]
                 end else 
                   [map_true st]
