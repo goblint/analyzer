@@ -1,3 +1,5 @@
+// SKIP PARAMS: --sets ana.activated[0][+] arinc 
+
 typedef char * SEMAPHORE_NAME_TYPE;
 typedef void * SEMAPHORE_ID_TYPE;
 typedef int    RETURN_CODE_TYPE;
@@ -70,32 +72,22 @@ void P2(void){
   }
   return;
 }
-void P3(void){
-  //g = g - 1;    // NOWARN!
-  //g2 = g2 + 1;  // RACE!
-  return;
-}
-
 
 int main(){
   RETURN_CODE_TYPE r;
-  PROCESS_ID_TYPE pi1, pi2, pi3;
+  PROCESS_ID_TYPE pi1, pi2;
   SEMAPHORE_ID_TYPE sem_id_local;
-  PROCESS_ATTRIBUTE_TYPE p1, p2, p3;
+  PROCESS_ATTRIBUTE_TYPE p1, p2;
   LAP_Se_CreateSemaphore("my_mutex",1,1,0,&sem_id_local,&r);
   LAP_Se_GetSemaphoreId("my_mutex",&sem_id,&r);
   p1.ENTRY_POINT = (void *) &P1;
   p1.BASE_PRIORITY = 10;
   p2.ENTRY_POINT = (void *) &P2;
   p2.BASE_PRIORITY = 10;
-  p3.ENTRY_POINT = (void *) &P3;
-  p3.BASE_PRIORITY = 20;
   LAP_Se_CreateProcess(p1,&pi1,&r);
   LAP_Se_CreateProcess(p2,&pi2,&r);
-  LAP_Se_CreateProcess(p3,&pi3,&r);
   LAP_Se_Start(pi1,&r);
   LAP_Se_Start(pi2,&r);
-  LAP_Se_Start(pi3,&r);
   LAP_Se_SetPartitionMode(NORMAL,&r);
   while(1) {
     g2 = g2 - 1;  // RACE!

@@ -120,7 +120,7 @@ struct
             `Int (Option.get @@ Pri.to_int p) 
           else if Pri.is_top p then `Top else `Bot
       | Queries.IsPrivate _ ->
-          `Bool (PrE.to_int e = Some 0L || Pmod.to_int m = Some 1L || Pmod.to_int m = Some 2L)
+          `Bool ((PrE.to_int e <> Some 0L && PrE.to_int e <> None) || Pmod.to_int m = Some 1L || Pmod.to_int m = Some 2L)
       | _ -> Queries.Result.top ()
 
   let startstate v = (Pri.top (), Pmod.of_int 1L, PrE.of_int 0L)
