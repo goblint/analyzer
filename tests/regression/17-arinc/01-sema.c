@@ -1,4 +1,4 @@
-// SKIP PARAMS: --sets ana.activated[0][+] arinc 
+// PARAMS: --sets ana.activated[0][+] arinc 
 
 typedef char * SEMAPHORE_NAME_TYPE;
 typedef void * SEMAPHORE_ID_TYPE;
