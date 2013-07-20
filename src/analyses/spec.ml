@@ -71,6 +71,15 @@ struct
     -> get the key from exp and backtrack to the corresponding branch-transitions
     -> reevaluate with current exp and meet domain with result
   *)
+  (*
+  - get key from exp
+  - ask EvalInt
+  - if result is `Top and we are in a state that is the starting node of a branch edge, we have to:
+    - go to target node and modify the state in specDomain
+    - find out which value of key makes exp equal to tv
+    - save this value and answer queries for EvalInt with it
+  - if not, compare it with tv and take the corresponding branch
+  *)
   let branch ctx (exp:exp) (tv:bool) : Dom.t =
     let m = ctx.local in
     (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
