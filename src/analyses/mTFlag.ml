@@ -13,10 +13,11 @@ struct
   include Analyses.DefaultSpec
   
   module Flag = ConcDomain.Trivial
-  module Dom  = Flag
-  module Glob = Glob.Make (Lattice.Unit)
+  module D = Flag
+  module C = Flag
+  module G = Lattice.Unit
 
-  let name = "multi-threaded"
+  let name = "mtflag"
 
   let startstate v = Flag.bot ()
   let otherstate v = Flag.top ()
@@ -32,49 +33,31 @@ struct
     end else 
       ctx.local
 
-  let assign ctx (lval:lval) (rval:exp) : Dom.t  = ctx.local
+  let assign ctx (lval:lval) (rval:exp) : D.t  = ctx.local
 
-  let enter_func ctx lval f args = 
+  let enter ctx lval f args = 
     match LF.classify f.vname args with 
       | `ThreadCreate (f,x) -> 
         let new_fl = Flag.join ctx.local (Flag.get_main ()) in
           [ctx.local,new_fl]
       | _ -> [ctx.local,ctx.local]
   
-  let leave_func ctx lval fexp f args st2 = st2    
+  let combine ctx lval fexp f args st2 = st2    
 
-  let special_fn ctx lval f args = 
+  let special ctx lval f args = 
   match LF.classify f.vname args with 
-    | `ThreadCreate (f,x) -> 
-      let new_fl = Flag.join ctx.local (Flag.get_main ()) in
-        [new_fl, Cil.integer 1, true]
-    | `Unknown _ -> 
-  begin match LF.get_invalidate_action f.vname with
-    | None -> 
-      let new_fl = Flag.join ctx.local (Flag.get_main ()) in
-      [new_fl, Cil.integer 1, true]
-    | _ -> [ctx.local, Cil.integer 1, true]
-  end 
-    | _ ->  [ctx.local, Cil.integer 1, true]
+    | `ThreadCreate (f,x) -> Flag.join ctx.local (Flag.get_main ())
+    | `Unknown _ -> begin 
+        match LF.get_invalidate_action f.vname with
+          | None -> Flag.join ctx.local (Flag.get_main ())
+          | _ -> ctx.local
+    end 
+    | _ ->  ctx.local
     
 
   let query ctx x =  `Top
 
 end
 
-module MTFlagMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "mtflag" 
-                let depends = []
-                type lf = Spec.Dom.t
-                let inject_l x = `Flag x
-                let extract_l x = match x with `Flag x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
-         end)
-
-module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "mtflag" (module Spec2 : Spec2)
+  MCP.register_analysis (module Spec : Spec)

@@ -16,19 +16,19 @@ struct
 
   module Addr = ValueDomain.Addr
   
-  module Dom = ValueDomain.AddrSetDomain
-  module Glob = Glob.Make (Lattice.Unit)
+  module D = ValueDomain.AddrSetDomain
+  module C = ValueDomain.AddrSetDomain
+  module G = Lattice.Unit
   
-  type trans_in  = Dom.t 
-  type trans_out = Dom.t 
+  type trans_in  = D.t 
+  type trans_out = D.t 
   type transfer  = trans_in -> trans_out
-  type glob_fun  = Glob.Var.t -> Glob.Val.t
   
-  let name = "Initialization analysis"  
+  let name = "uninit"
   
-  let startstate v : Dom.t = Dom.empty () 
-  let otherstate v : Dom.t = Dom.empty ()
-  let exitstate  v : Dom.t = Dom.empty ()
+  let startstate v : D.t = D.empty () 
+  let otherstate v : D.t = D.empty ()
+  let exitstate  v : D.t = D.empty ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
@@ -47,41 +47,41 @@ struct
       | _ -> 
           M.warn "Access to unknown address could be global"; []
 
-  let rec access_one_byval a rw (exp:Cil.exp): BS.extra = 
+  let rec access_one_byval a rw (exp:exp): BS.extra = 
     match exp with 
       (* Integer literals *)
-      | Cil.Const _ -> []
+      | Const _ -> []
       (* Variables and address expressions *)
-      | Cil.Lval lval -> access_address a rw lval @ (access_lv_byval a lval)
+      | Lval lval -> access_address a rw lval @ (access_lv_byval a lval)
       (* Binary operators *)
-      | Cil.BinOp (op,arg1,arg2,typ) -> 
+      | BinOp (op,arg1,arg2,typ) -> 
           let a1 = access_one_byval a rw arg1 in
           let a2 = access_one_byval a rw arg2 in
             a1 @ a2
       (* Unary operators *)
-      | Cil.UnOp (op,arg1,typ) -> access_one_byval a rw arg1
+      | UnOp (op,arg1,typ) -> access_one_byval a rw arg1
       (* The address operators, we just check the accesses under them *)
-      | Cil.AddrOf lval -> access_lv_byval a lval
-      | Cil.StartOf lval -> access_lv_byval a lval
+      | AddrOf lval -> access_lv_byval a lval
+      | StartOf lval -> access_lv_byval a lval
       (* Most casts are currently just ignored, that's probably not a good idea! *)
-      | Cil.CastE  (t, exp) -> access_one_byval a rw exp
+      | CastE  (t, exp) -> access_one_byval a rw exp
       | _ -> []    
   (* Accesses during the evaluation of an lval, not the lval itself! *)
-  and access_lv_byval a (lval:Cil.lval): BS.extra = 
-    let rec access_offset (ofs: Cil.offset): BS.extra = 
+  and access_lv_byval a (lval:lval): BS.extra = 
+    let rec access_offset (ofs: offset): BS.extra = 
       match ofs with 
-        | Cil.NoOffset -> []
-        | Cil.Field (fld, ofs) -> access_offset ofs
-        | Cil.Index (exp, ofs) -> access_one_byval a false exp @ access_offset ofs
+        | NoOffset -> []
+        | Field (fld, ofs) -> access_offset ofs
+        | Index (exp, ofs) -> access_one_byval a false exp @ access_offset ofs
     in 
       match lval with 
-        | Cil.Var x, ofs -> access_offset ofs
-        | Cil.Mem n, ofs -> access_one_byval a false n @ access_offset ofs
+        | Var x, ofs -> access_offset ofs
+        | Mem n, ofs -> access_one_byval a false n @ access_offset ofs
 
-   let access_byval a (rw: bool) (exps: Cil.exp list): BS.extra =
+   let access_byval a (rw: bool) (exps: exp list): BS.extra =
      List.concat (List.map (access_one_byval a rw) exps)
 
-   let access_byref ask (exps: Cil.exp list) = 
+   let access_byref ask (exps: exp list) = 
      (* Find the addresses reachable from some expression, and assume that these
       * can all be written to. *)
      let do_exp e = 
@@ -116,26 +116,26 @@ struct
     
 
   (* Does it contain non-initialized variables? *)
-  let is_expr_initd a (expr:exp) (st:Dom.t) : bool = 
+  let is_expr_initd a (expr:exp) (st:D.t) : bool = 
     let variables = vars a expr in
     let raw_vars = List.concat (List.map Addr.to_var_offset variables) in
     let will_addr_init (t:bool) a = 
       let f addr =
         List.exists (is_prefix_of a) (Addr.to_var_offset addr)
       in
-      if Dom.exists f st then begin 
+      if D.exists f st then begin 
         Messages.report ("Uninitialized variable " ^ (Addr.short 80 (Addr.from_var_offset a)) ^ " accessed.");
         false
       end else
         t in  
     List.fold_left will_addr_init true raw_vars
 
-  let remove_if_prefix (pr: varinfo * (Addr.field,Addr.idx) Lval.offs) (uis: Dom.t) : Dom.t =
+  let remove_if_prefix (pr: varinfo * (Addr.field,Addr.idx) Lval.offs) (uis: D.t) : D.t =
     let f ad =
       let vals = Addr.to_var_offset ad in
       List.for_all (fun a -> not (is_prefix_of pr a)) vals
     in
-    Dom.filter f uis
+    D.filter f uis
 
   type lval_offs = (Addr.field,Addr.idx) Lval.offs
   type var_offs  = varinfo * lval_offs    
@@ -196,8 +196,8 @@ struct
         
     
   (* Call to [init_lval lv st] results in state [st] where the variable evaluated form [lv] is initialized. *)
-  let init_lval a (lv: lval) (st: Dom.t) : Dom.t =
-    let init_vo (v: varinfo) (ofs: lval_offs) : Dom.t = 
+  let init_lval a (lv: lval) (st: D.t) : D.t =
+    let init_vo (v: varinfo) (ofs: lval_offs) : D.t = 
       List.fold_right remove_if_prefix (get_pfx v `NoOffset ofs v.vtype v.vtype) st
     in
     match a (Queries.MayPointTo (AddrOf lv)) with
@@ -223,7 +223,7 @@ struct
       | _ -> [Addr.from_var v]
       
   
-  let remove_unreachable ask (args: exp list) (st: Dom.t) : Dom.t =
+  let remove_unreachable ask (args: exp list) (st: D.t) : D.t =
     let reachable = 
       let do_exp e = 
         match ask (Queries.ReachableFrom e) with
@@ -240,9 +240,9 @@ struct
       List.fold_right AD.add (List.concat (List.map to_addrs vars)) many
     in
     let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
-    if Dom.is_top st 
-    then Dom.top ()
-    else Dom.filter (fun x -> AD.mem x vars) st     
+    if D.is_top st 
+    then D.top ()
+    else D.filter (fun x -> AD.mem x vars) st     
 
   (*
     Transfer functions
@@ -256,54 +256,40 @@ struct
     ctx.local
   
   let body ctx (f:fundec) : trans_out = 
-    let add_var st v = List.fold_right Dom.add (to_addrs v) st in
+    let add_var st v = List.fold_right D.add (to_addrs v) st in
     List.fold_left add_var ctx.local f.slocals
   
   let return ctx (exp:exp option) (f:fundec) : trans_out = 
     let remove_var x v = 
-      List.fold_right Dom.remove (to_addrs v) x in
+      List.fold_right D.remove (to_addrs v) x in
     let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with 
       | Some exp -> ignore (is_expr_initd ctx.ask exp ctx.local); nst
       | _ -> nst
   
   
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     let nst = remove_unreachable ctx.ask args ctx.local in
     [ctx.local, nst]
   
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : trans_out =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : trans_out =
     ignore (List.map (fun x -> is_expr_initd ctx.ask x ctx.local) args);
     let cal_st = remove_unreachable ctx.ask args ctx.local in
-    let ret_st = Dom.union au (Dom.diff ctx.local cal_st) in
+    let ret_st = D.union au (D.diff ctx.local cal_st) in
     match lval with
       | None -> ret_st
       | Some lv -> init_lval ctx.ask lv ret_st
 
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match lval with
-      | Some lv -> [init_lval ctx.ask lv ctx.local, Cil.integer 1, true]
-      | _ -> [ctx.local, Cil.integer 1, true]
+      | Some lv -> init_lval ctx.ask lv ctx.local
+      | _ -> ctx.local
       
-(*  let fork ctx (lval: lval option) (f : varinfo) (args : exp list) : (varinfo * Dom.t) list =
+(*  let fork ctx (lval: lval option) (f : varinfo) (args : exp list) : (varinfo * D.t) list =
     [] (* thats wrong: should be [None, top ()] *)*)
 
 end
 
-module UninitMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "uninit" 
-                let depends = []
-                type lf = Spec.Dom.t
-                let inject_l x = `Uninit x
-                let extract_l x = match x with `Uninit x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
-         end)
-
-module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "uninit" (module Spec2 : Spec2)
+  MCP.register_analysis (module Spec : Spec)

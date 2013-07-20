@@ -136,6 +136,10 @@ struct
       Pretty.dprintf "%s: %a not leq %a\n  @[because %a@]" (name ()) pretty x pretty y
         Base.pretty_diff (evil,other)
     end
+  let printXml f xs = 
+    BatPrintf.fprintf f "<value>\n<set>\n";
+    iter (Base.printXml f) xs;
+    BatPrintf.fprintf f "</set>\n</value>\n"
 end
 
 (** A functor for creating a path sensitive set domain, that joins the base
@@ -324,6 +328,9 @@ struct
     match x,y with
       | Set x, Set y -> S.pretty_diff () (x,y)
       | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f = function
+    | All   -> BatPrintf.fprintf f "<value>\n<data>\nAll\n</data>\n</value>\n" 
+    | Set s -> printXml f s
 end
 
 module MacroSet (B: Lattice.S) (N: ToppedSetNames)=
@@ -376,5 +383,7 @@ struct
   let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f xs = 
+    iter (Base.printXml f) xs
 end
 

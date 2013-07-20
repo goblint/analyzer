@@ -5,7 +5,7 @@ set -e
 scripts/set_version.sh
 
 TARGET=src/goblint
-FLAGS="-cflag -annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt ocamlopt.opt"
+FLAGS="-cflag -annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt ocamlopt.opt -cflag -g"
 OCAMLBUILD=ocamlbuild
 
 ocb() {
@@ -49,6 +49,7 @@ rule() {
   esac; }
 
 ls -1 src/*/*.ml | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
+ls -1 src/*/*/*.ml | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' >> $TARGET.ml
 echo "open Maingoblint" >> $TARGET.ml
 
 if [ $# -eq 0 ]; then

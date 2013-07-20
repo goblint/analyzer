@@ -248,7 +248,7 @@ let rec typeOf (e: exp) : typ =
         TArray (t,_, a) -> TPtr(t, a)
      | _ -> raise Not_found
     end
-  | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+  | Question _ -> failwith "Logical operations should be compiled away by CIL."
   | _ -> failwith "Unmatched pattern."
 
 and typeOfInit (i: init) : typ = 

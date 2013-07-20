@@ -1,4 +1,6 @@
+(*
 open Solver
+open Cil
 module GU = Goblintutil
 
 module Algorithm
@@ -63,7 +65,7 @@ struct
           | `ProcCall when not (is_special n y) ->
             let ps = enter n y in (* -- for dynamic calls & entry *)
             let one_call (p, y') =
-              dbg (fun () -> Pretty.printf "CALL TO (%s,?)\n" p.Cil.vname (*L.pretty y'x*));
+              dbg (fun () -> Pretty.printf "CALL TO (%s,?)\n" p.vname (*L.pretty y'x*));
               CAL.add calls p (n,x);
               (* If z = PHI(e_p,y) is defined, *)
               if SOL.mem phi (e p,y') then
@@ -88,12 +90,12 @@ struct
                m is a block following some call c to p, and PHI(c,u) = x, and for each such pair propagate
                (u,y) to m *)
           | `ExitOfProc p ->
-              dbg (fun () -> Pretty.printf "EXIT OF %s\n" p.Cil.vname);
+              dbg (fun () -> Pretty.printf "EXIT OF %s\n" p.vname);
               let one_callsite (c,u) =
-                dbg (fun () -> Pretty.printf "callsite of %s:\n %a\n%a\n\n" p.Cil.vname N.pretty_trace c L.pretty u);                
+                dbg (fun () -> Pretty.printf "callsite of %s:\n %a\n%a\n\n" p.vname N.pretty_trace c L.pretty u);                
                 let pval = find_bot (c,u) in
                 let ps = enter c pval in
-                if List.exists (fun (v,y) -> v.Cil.vid=p.Cil.vid && L.equal y x) ps then
+                if List.exists (fun (v,y) -> v.vid=p.vid && L.equal y x) ps then
                   let callsite_succ m =
                     let oldval = find_bot (m,u) in
                     let y' = comb c p pval y  in
@@ -118,3 +120,4 @@ struct
     phi
      
 end
+*)

@@ -2,8 +2,11 @@ open Cil
 open Pretty
 open Printf
 
-type myowntypeEntry = {addr : ValueDomain.Addr.t ; loc : Cil.location}
+type myowntypeEntry = {addr : ValueDomain.Addr.t ; loc : location}
 type myowntype = myowntypeEntry list
+
+let forbiddenList : ( (myowntypeEntry*myowntypeEntry) list ref) = ref []
+let availableLocks : (myowntypeEntry list ref) = ref []
 
 module Lockset = 
 struct
@@ -24,16 +27,19 @@ struct
     let isElemInB e = List.exists (fun x -> ValueDomain.Addr.equal (x.addr) (e.addr)) b in
     List.filter (fun e -> isElemInB e) a
 
-  let top () = []
-  let is_top _ = true
+  let equal a b = (* a and b equal? *)
+    (leq a b) && (leq b a)
+
+  let top () = !availableLocks
+  let is_top x = equal (!availableLocks) x
   let bot () = []
-  let is_bot _ = true
+  let is_bot x = (List.length x) == 0
+  let empty () = []
 
   let widen x y = y
   let narrow x y = x
 
   let hash i = 986713477
-  let equal _ _ = true
   let pretty () _ = text ""
   let short _ _ = ""
   let toXML x =
@@ -47,6 +53,12 @@ struct
   let pretty_diff () (x,y) = text ""
 
   let compare = Pervasives.compare
-
-  let empty () = []
+  
+  let printXml f xs =
+    let print_one x = 
+      BatPrintf.fprintf f "%s" (ValueDomain.Addr.short () x.addr)
+    in
+    BatPrintf.fprintf f "<value>\n<set>";
+    List.iter print_one xs;
+    BatPrintf.fprintf f "</set></value>\n"
 end

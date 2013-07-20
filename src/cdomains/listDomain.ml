@@ -24,7 +24,7 @@ sig
   val entry_rand : t -> elem
 end
 
-let list_poison = Cil.makeGlobalVar "LIST_POISON" Cil.voidType 
+let list_poison = makeGlobalVar "LIST_POISON" voidType 
 
 module SimpleList (Base: SetDomain.S)
   : S with type elem = Base.t =

@@ -92,8 +92,8 @@ struct
     | Select (s,p) -> fprintf ch "%s%a" s print_path' p
     | pth -> print_path' ch pth
   
-  (** Helper function [split2 c1 c2 xs] that splits [xs] on [c1] or [c2] *)
-  let split2 c1 c2 xs = 
+  (** Helper function [split c1 c2 xs] that splits [xs] on [c1] or [c2] *)
+  let split c1 c2 xs = 
     let l = String.length xs in
     let rec split' i = 
       if i<l then begin
@@ -118,7 +118,7 @@ struct
     if String.length s = 0 then Here else
     match s.[0] with
       | '.' -> 
-          let fld, pth = split2 '.' '[' (String.lchop s) in
+          let fld, pth = split '.' '[' (String.lchop s) in
           Select (fld, parse_path' pth)
       | '[' -> 
           let idx, pth = String.split (String.lchop s) "]" in
@@ -130,7 +130,7 @@ struct
     let s = String.trim s in
     try
       if String.length s = 0 then Here else begin
-        let fld, pth = split2 '.' '[' s in
+        let fld, pth = split '.' '[' s in
           if fld = "" 
           then parse_path' pth
           else Select (fld, parse_path' pth)

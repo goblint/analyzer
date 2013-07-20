@@ -11,28 +11,17 @@ struct
 
   let violations = ref false (*print negative warnings? *)
 
-  let name = "OSEK trasactionality"
-  module Dom  = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
-  module Glob = Glob.Make (Lattice.Unit)
+  let name = "OSEK2"
+  module D = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
+  module C = D
+  module G = Lattice.Unit
   module StringSet = Set.Make (String)
   let offpry = Osek.Spec.offensivepriorities
   let funs = Hashtbl.create 16 (* ({vars},tuple) *)
   let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((StringSet.empty  )  , Osektupel.bot()) 
 
-  type glob_fun = Glob.Var.t -> Glob.Val.t
-
-  let get_lockset ctx =
-    match ctx.sub with
-      | [ `OSEK x ; _] -> x
-      | [ _ ; `OSEK x] -> x  
-      | _ -> failwith "OSEK dependencies not found!"
-
-  let get_stack ctx =
-    match ctx.sub with
-      | [ `Stack2 x ; _] -> x
-      | [ _ ; `Stack2 x] -> x  
-      | _ -> failwith "StackTrace dependencies not found!"
-
+  let get_lockset ctx = Obj.obj (List.assoc "OSEK" ctx.postsub)
+  let get_stack   ctx = Obj.obj (List.assoc "stack_trace_set" ctx.postsub)
 
   let pry_d dom_elem = 
     if Mutex.Lockset.is_top dom_elem then -1 else 
@@ -47,8 +36,8 @@ struct
       List.fold_left max 0 (List.map (fun x -> ((fun y -> if y == lock_name then -1 else pry y) (Osek.Spec.names x)))  (Mutex.Lockset.ReverseAddrSet.elements dom_elem))
     
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : Dom.t = 
-    let ((ctxs,ctxr): Dom.t) = ctx.local in
+  let assign ctx (lval:lval) (rval:exp) : D.t = 
+    let ((ctxs,ctxr): D.t) = ctx.local in
     let p = (pry_d (get_lockset ctx)) in
     let access_one_top = Mutex.Spec.access_one_top in
     let b1 = access_one_top ctx.ask true (Lval lval) in 
@@ -76,19 +65,19 @@ struct
     let _ = List.map checkvars (b1@b2) in
     (ctxs, Osektupel.fcon ctxr (Osektupel.Bot,Osektupel.Val p, Osektupel.Val p, Osektupel.Val p))
 
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+  let branch ctx (exp:exp) (tv:bool) : D.t = 
     let (ctxs,ctxr) = ctx.local in
     let p = (pry_d (get_lockset ctx)) in
     (ctxs, Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p))
 
-  let body ctx (f:fundec) : Dom.t = 
+  let body ctx (f:fundec) : D.t = 
 (* let _ = print_endline ( "Body " ^f.svar.vname) in  *)
     let _ = if Hashtbl.mem funs f.svar.vname then () else 
 (*let _ = print_endline ( "Adding to funs " ^f.svar.vname) in *)
-	Hashtbl.add funs f.svar.vname ((StringSet.empty  )  ,Osektupel.bot()) in Dom.bot()
+	Hashtbl.add funs f.svar.vname ((StringSet.empty  )  ,Osektupel.bot()) in D.bot()
 
-  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
-    let ((_,ctxr): Dom.t) = ctx.local in
+  let return ctx (exp:exp option) (f:fundec) : D.t = 
+    let ((_,ctxr): D.t) = ctx.local in
     let (vars,_) = Hashtbl.find funs f.svar.vname in
     let _ = Hashtbl.replace funs f.svar.vname (vars,ctxr) in
       (ctxr, ctxr)
@@ -96,33 +85,35 @@ struct
   let eval_funvar ctx (fv:exp) : varinfo list = 
     []
     
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     [ctx.local,ctx.local]
   
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     let (ctxs,ctxr) = ctx.local in
     let (aus,aur) = au in
     (ctxs, Osektupel.fcon ctxr aus)
   
 
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let (ctxs,ctxr) = ctx.local in
     let fvname = get_api_names f.vname in
     match fvname with 
-      | "ReleaseResource" -> (match arglist with 
+      | "ReleaseResource" -> begin
+          match arglist with 
 	  | [Lval (Var info,_)] -> let r = get_lock info.vname in
-(*           | [Const (CInt64 (c,_,_) ) ] -> let r = makeGlobalVar (find_name (Int64.to_string c)) Cil.voidType in *)
+(*           | [Const (CInt64 (c,_,_) ) ] -> let r = makeGlobalVar (find_name (Int64.to_string c)) voidType in *)
 (* (Hashtbl.find Osek.Spec.constantlocks (Int64.to_string c)) in  *)
                                             let p = (pry_d' (get_lockset ctx) r) in  
-                                               [(ctxs, Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p)) ,Cil.integer 1, true]
-          | _ -> let p = (pry_d (get_lockset ctx)) in  [(ctxs ,(Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p))) ,Cil.integer 1, true])
+                                               (ctxs, Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p))
+          | _ -> let p = (pry_d (get_lockset ctx)) in (ctxs ,(Osektupel.fcon  ctxr (Osektupel.Bot,Osektupel.Bot,Osektupel.Bot,Osektupel.Val p)))
+        end
       | _ -> 
 (* let _ = print_endline ( "Specialfn " ^f.vname) in  *)
-	      [(ctxs, ctxr),Cil.integer 1, true]
+	      (ctxs, ctxr)
 
-  let startstate v = Dom.bot ()
-  let otherstate v = Dom.top ()
-  let exitstate  v = Dom.top ()
+  let startstate v = D.bot ()
+  let otherstate v = D.top ()
+  let exitstate  v = D.top ()
 
 (** Finalization and other result printing functions: *)
 
@@ -180,19 +171,5 @@ struct
 
 end
 
-module ThreadMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "OSEK2" 
-                let depends = ["OSEK"; "stack_trace_set"]
-                type lf = Spec.Dom.t
-                let inject_l x = `OSEK2 x
-                let extract_l x = match x with `OSEK2 x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
-         end)
-
-module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "OSEK2" ~dep:["OSEK"; "stack_trace_set"] (module Spec2 : Spec2)         
+  MCP.register_analysis ~dep:["OSEK"; "stack_trace_set"] (module Spec : Spec)

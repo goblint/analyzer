@@ -10,35 +10,34 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "Escaped Variables"
-  module Dom  = EscapeDomain.EscapedVars
-  module Glob = Glob.Make (Lattice.Unit)
+  let name = "escape"
+  module D = EscapeDomain.EscapedVars
+  module C = EscapeDomain.EscapedVars
+  module G = Lattice.Unit
   
-  type glob_fun = Glob.Var.t -> Glob.Val.t
-
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t = 
     match q with
-      | Queries.MayEscape v -> `Bool (Dom.mem v ctx.local)
+      | Queries.MayEscape v -> `Bool (D.mem v ctx.local)
       | _ -> Queries.Result.top ()
  
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : Dom.t =
+  let assign ctx (lval:lval) (rval:exp) : D.t =
     ctx.local
    
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+  let branch ctx (exp:exp) (tv:bool) : D.t = 
     ctx.local
   
-  let body ctx (f:fundec) : Dom.t = 
+  let body ctx (f:fundec) : D.t = 
     ctx.local
 
-  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
+  let return ctx (exp:exp option) (f:fundec) : D.t = 
     ctx.local
     
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     [ctx.local,ctx.local]
   
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     au
 
   let rec cut_offset x =
@@ -47,14 +46,14 @@ struct
       | `Index (_,o) -> `NoOffset
       | `Field (f,o) -> `Field (f, cut_offset o)
   
-  let reachable ask e: Dom.t = 
+  let reachable ask e: D.t = 
     match ask (Queries.ReachableFrom e) with
       | `LvalSet a when not (Queries.LS.is_top a) -> 
-           (* let to_extra (v,o) set = Dom.add (Addr.from_var_offset (v, cut_offset o)) set in *)
-          let to_extra (v,o) set = Dom.add v set in
-            Queries.LS.fold to_extra a (Dom.empty ())
+           (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
+          let to_extra (v,o) set = D.add v set in
+            Queries.LS.fold to_extra a (D.empty ())
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
-      | _ -> Dom.empty ()
+      | _ -> D.empty ()
  
   let query_lv ask exp = 
     match ask (Queries.MayPointTo exp) with
@@ -62,7 +61,7 @@ struct
           Queries.LS.elements l
       | _ -> []
 
-  let rec eval_fv ask (exp:Cil.exp): varinfo option = 
+  let rec eval_fv ask (exp:exp): varinfo option = 
     match query_lv ask exp with
       | [(v,_)] -> Some v
       | _ -> None
@@ -78,39 +77,23 @@ struct
         end
       | _ -> [] 
 
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let forks = fork ctx lval f arglist in
     let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
     match f.vname with
       | "pthread_create" -> begin        
           match arglist with
             | [_; _; _; ptc_arg] -> begin
-                [reachable ctx.ask ptc_arg,Cil.integer 1, true]
+                reachable ctx.ask ptc_arg
               end
             | _ -> M.bailwith "pthread_create arguments are strange!"
         end
-      | _ -> [ctx.local,Cil.integer 1, true]
+      | _ -> ctx.local
 
-  let startstate v = Dom.bot ()
-  let otherstate v = Dom.bot ()
-  let exitstate  v = Dom.bot ()
+  let startstate v = D.bot ()
+  let otherstate v = D.bot ()
+  let exitstate  v = D.bot ()
 end
 
-module TransparentSignatureHack: Analyses.Spec = Spec
-
-module ThreadMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "escape" 
-                let depends = []
-                type lf = Spec.Dom.t
-                let inject_l (x: lf): MCP.local_state = `Escape x
-                let extract_l x = match x with `Escape x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
-         end)
-
-module Spec2 : Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "escape" (module Spec2 : Spec2)
+  MCP.register_analysis (module Spec : Spec)

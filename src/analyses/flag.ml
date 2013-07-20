@@ -8,8 +8,9 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module Dom  = Lattice.Unit
-  module Glob = Glob.Make (Lattice.Unit)
+  module D = Lattice.Unit
+  module C = Lattice.Unit
+  module G = Lattice.Unit
 
   module Val = IntDomain.Flattened
   module VSet = SetDomain.ToppedSet(Val)(struct let topname = "Various" end)
@@ -26,26 +27,26 @@ struct
 
   let rec no_addr_of_flag expr =
       match expr with
-        | Cil.Const _
-        | Cil.SizeOf _
-        | Cil.SizeOfE _
-        | Cil.SizeOfStr _
-        | Cil.AlignOf _
-        | Cil.AlignOfE _  -> ()
-        | Cil.UnOp (_,e,_) -> no_addr_of_flag e
-        | Cil.BinOp (_,e1,e2,_) -> no_addr_of_flag e1; no_addr_of_flag e2
-        | Cil.Lval (Cil.Var _,o) -> ()
-        | Cil.AddrOf (Cil.Var vinfo,o)          
-        | Cil.StartOf (Cil.Var vinfo,o) -> flags := listrem vinfo.vname !flags; noflags := vinfo.vname :: !noflags
-        | Cil.Lval (Cil.Mem e,o)    -> no_addr_of_flag e
-        | Cil.AddrOf (Cil.Mem e,o)  -> no_addr_of_flag e
-        | Cil.StartOf (Cil.Mem e,o) -> no_addr_of_flag e
-        | Cil.CastE (t,e) -> no_addr_of_flag e
-	| Cil.Question (e1, e2, e3, _) -> no_addr_of_flag e1; no_addr_of_flag e2; no_addr_of_flag e3
-	| Cil.AddrOfLabel _ -> ()
+        | Const _
+        | SizeOf _
+        | SizeOfE _
+        | SizeOfStr _
+        | AlignOf _
+        | AlignOfE _  -> ()
+        | UnOp (_,e,_) -> no_addr_of_flag e
+        | BinOp (_,e1,e2,_) -> no_addr_of_flag e1; no_addr_of_flag e2
+        | Lval (Var _,o) -> ()
+        | AddrOf (Var vinfo,o)          
+        | StartOf (Var vinfo,o) -> flags := listrem vinfo.vname !flags; noflags := vinfo.vname :: !noflags
+        | Lval (Mem e,o)    -> no_addr_of_flag e
+        | AddrOf (Mem e,o)  -> no_addr_of_flag e
+        | StartOf (Mem e,o) -> no_addr_of_flag e
+        | CastE (t,e) -> no_addr_of_flag e
+	| Question (e1, e2, e3, _) -> no_addr_of_flag e1; no_addr_of_flag e2; no_addr_of_flag e3
+	| AddrOfLabel _ -> ()
 
 
-  let assign ctx (lval:lval) (rval:exp) : Dom.t = 
+  let assign ctx (lval:lval) (rval:exp) : D.t = 
 (* let _ = print_endline ( "assign") in       *)
   let _ = no_addr_of_flag rval in
   let _ = match lval with 
@@ -80,7 +81,7 @@ struct
 	)
       end
     | _ -> ()
-  in Dom.top ()
+  in D.top ()
    
   let rec check var =
     let doit var = if (var.vglob && (not(List.mem var.vname !noflags)) && (not (List.mem var.vname 	!branchvars))) then
@@ -99,33 +100,33 @@ struct
     | CastE  (_, exp) -> check exp
     | _ -> ()
 
-  let branch ctx (exp:exp) (tv:bool) : Dom.t =
+  let branch ctx (exp:exp) (tv:bool) : D.t =
     let _ = no_addr_of_flag exp in
     let _ = check exp in
-    Dom.top ()
+    D.top ()
      
-  let body ctx (f:fundec) : Dom.t = Dom.top ()
+  let body ctx (f:fundec) : D.t = D.top ()
 
-  let return ctx (exp:exp option) (f:fundec) : Dom.t = let _ = BatOption.may no_addr_of_flag exp in Dom.top ()
+  let return ctx (exp:exp option) (f:fundec) : D.t = let _ = BatOption.may no_addr_of_flag exp in D.top ()
   
 (*   let eval_funvar ctx (fv:exp) =  [(ctx.local,ctx.local)] *)
    
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list = 
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = 
     let _ = List.iter no_addr_of_flag args in
-    [(Dom.top (),Dom.top ())]
+    [(D.top (),D.top ())]
   
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = 
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = 
     let _ = List.iter no_addr_of_flag args in
     let _ = no_addr_of_flag fexp in
-    Dom.top ()
+    D.top ()
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list = 
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let _ = List.iter no_addr_of_flag arglist in
-    match f.vname with _ -> [Dom.top (),Cil.integer 1, true]
+    match f.vname with _ -> D.top ()
 
-  let startstate v = Dom.top ()
-  let otherstate v = Dom.top ()
-  let exitstate  v = Dom.top ()
+  let startstate v = D.top ()
+  let otherstate v = D.top ()
+  let exitstate  v = D.top ()
   
   let name = "flag"
 
@@ -144,23 +145,6 @@ struct
   let init () =  ()
 
 end
-
-module ThreadMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "flag" 
-                let depends = []
-                type lf = Spec.Dom.t
-                let inject_l x = `Unit
-                let extract_l x = match x with `Unit -> () | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `None
-                let extract_g x = match x with `None -> ()  | _ -> raise MCP.SpecificationConversionError
-         end)
          
-(*module Path     : Analyses.Spec = Compose.PathSensitive (Spec)
-module Analysis : Analyses.S    = Multithread.Forward(Path)*)
-
-module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "flag" (module Spec2 : Spec2)         
+  MCP.register_analysis (module Spec : Spec)         

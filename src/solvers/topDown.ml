@@ -1,3 +1,6 @@
+(*
+NOTE: Karbyshev has the new version!
+
 (** A top down solver with no-global variables nor side-effecting. *)
 (* Use [--full-context --no mutex] on single threaded programs.  *)
 
@@ -64,3 +67,4 @@ struct
       (sigma,GMap.create 0 (GDom.bot ()))
     
 end
+*)

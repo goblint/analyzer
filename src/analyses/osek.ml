@@ -107,7 +107,7 @@ struct
     if tracing then trace "osek" "Parsing API (re)names...\n";
     let input = open_in names in
     let comment = Str.regexp "//.* \\|/\\*.*" in
-    let newname = Str.regexp " *\\(#define \\| *\\)\\([a-zA-Z][a-zA-Z0-9_]*\\) +\\([a-zA-Z][a-zA-Z0-9_]*\\)" in
+    let newname = Str.regexp " *\\(#define \\| *\\)\\([a-zA-Z_][a-zA-Z0-9_]*\\) +\\([a-zA-Z_][a-zA-Z0-9_]*\\)" in
     let rec read_info () = try
       let line = input_line input in
 	if tracing then trace "osek" "Line: %s\n" line;
@@ -131,9 +131,63 @@ struct
     if tracing then trace "osek" "Done parsing API (re)names\n";
     close_in input
 
+  let parse_ids ids = 
+    if tracing then trace "osek" "Parsing IDs...\n";
+    let input = open_in ids in
+    let comment = Str.regexp "//.* \\|/\\*.*" in
+    let idregex = Str.regexp " *#define +\\([a-zA-Z_][a-zA-Z0-9_]*\\) +\\([1-9][0-9]*\\)" in
+    let rec read_info () = try
+      let line = input_line input in
+	if tracing then trace "osek" "Line: %s\n" line;
+	if (Str.string_match comment line 0) then begin
+	  if tracing then trace "osek" "IDs: Skipping (JUST 1!) line: %s\n" line;
+	end else begin
+	  if Str.string_match idregex line 0 then begin
+	    let objectname = (Str.matched_group 1 line) in
+	    let id = (Str.matched_group 2 line) in
+	    match objectname with
+	      | x when Hashtbl.mem tasks (make_task objectname) -> begin
+		    if tracing then trace "osek" "Adding ID (%s) for task %s\n" id objectname;
+		    let intid = int_of_string id in
+		    Hashtbl.add taskids (Cil.integer(intid)) (make_task objectname)
+		  end
+	      | x when Hashtbl.mem isrs (make_isr objectname) -> begin
+		    if tracing then trace "osek" "Adding ID (%s) for isr %s\n" id objectname;
+		    let intid = int_of_string id in
+		    Hashtbl.add isrids (Cil.integer(intid)) (make_isr objectname)
+		  end
+	      | x when Hashtbl.mem resources objectname -> begin
+		    if tracing then trace "osek" "Adding ID (%s) for resource %s\n" id objectname;
+		    let intid = int_of_string id in
+		    Hashtbl.add resourceids (Cil.integer(intid)) objectname
+		  end
+	      | x when Hashtbl.mem events objectname -> begin
+		    if tracing then trace "osek" "Adding ID (%s) for event %s\n" id objectname;
+		    let intid = int_of_string id in
+		    Hashtbl.add eventids (Cil.integer(intid)) objectname
+		  end
+	      | x when Hashtbl.mem alarms objectname -> begin
+		    if tracing then trace "osek" "Adding ID (%s) for alarm %s\n" id objectname;
+		    let intid = int_of_string id in
+		    Hashtbl.add alarmids (Cil.integer(intid)) objectname
+		  end
+	      | _ -> if tracing then trace "osek" "No matching object found for %s\n" objectname;()
+	  end;
+	end;
+	read_info ();
+      with 
+	| End_of_file -> ()
+	| e -> raise e
+    in read_info (); 
+    if tracing then trace "osek" "Done parsing IDs\n";
+    close_in input
+
+
+
+
   module MyParam = 
   struct
-    module Glob = LockDomain.OsekGlob
+    module G = LockDomain.Priorities
     let effect_fun (ls: LockDomain.Lockset.t) = 
       let locks = LockDomain.Lockset.ReverseAddrSet.elements ls in
       let prys = List.map names locks in
@@ -146,24 +200,25 @@ struct
   module Offs = ValueDomain.Offs
   module Lockset = LockDomain.Lockset
   
-  module Flags = FlagModeDomain.Dom
+  module Flags = FlagModes.Spec.D
   module AccValSet = Set.Make (Printable.Prod (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (Base.Main.Flag) (IntDomain.Booleans)) (Lockset) (Offs)) (Flags))
   let acc     : AccValSet.t M.Acc.t = M.Acc.create 100
   let accKeys : M.AccKeySet.t ref   = ref M.AccKeySet.empty
 
-  module Dom  = M.Dom
-  module Glob = M.Glob
+  module D = M.D
+  module C = M.C
+  module G = M.G
 
   let offensivepriorities : (string,int) Hashtbl.t= Hashtbl.create 16
   let off_pry_with_flag : (string,(Flags.t*int) list) Hashtbl.t = Hashtbl.create 16
 
   (* task resource handling *)
-  let dummy_release f = makeLocalVar f ?insert:(Some false) "ReleaseResource" Cil.voidType
-  let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" Cil.voidType
+  let dummy_release f = makeLocalVar f ?insert:(Some false) "ReleaseResource" voidType
+  let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" voidType
   let is_task_res lock = is_task (names lock)
-  let partition = Dom.ReverseAddrSet.partition is_task_res
+  let partition = D.ReverseAddrSet.partition is_task_res
   let lockset_to_task lockset =
-    match Dom.ReverseAddrSet.elements lockset with
+    match D.ReverseAddrSet.elements lockset with
     | [x] -> names x
     | _ -> "???"
   let mem name lockset =
@@ -172,11 +227,11 @@ struct
       | _ ->  failwith "Impossible resource!" 
     in
     let res_addr = LockDomain.Addr.from_var vinfo in
-    Dom.ReverseAddrSet.mem (res_addr,true) lockset
+    D.ReverseAddrSet.mem (res_addr,true) lockset
   (*/task resource handling *)
 
   (* flag stuff*)
-  let get_val flag acc : Cil.exp (*const*) = 
+  let get_val flag acc = 
 (* let _ = print_endline (flag.vname ^"A" ^gl.vname) in     *)
     proj3_3 (Flags.find flag (proj2_2 acc))
   let get_eq flag acc : bool = 
@@ -226,11 +281,9 @@ let _ = print_endline (string_of_bool res) in res*)
 
   let strip_flags acc_list' = List.map proj2_1 acc_list'
   
-  let rec get_flags (state :local_state list) : Flags.t =
-    match state with 
-    | [] -> failwith "get_flags"
-    | (`FlagModeDom x)::rest -> x
-    | x::rest -> get_flags rest
+  let rec get_flags state: Flags.t =
+    Obj.obj (List.assoc "fmode" state)
+
   (*/flagstuff*)
   (*prioritystuff*)
   let just_locks acc_list = List.map (fun (_, dom_elem,_) -> (Lockset.ReverseAddrSet.elements dom_elem) ) acc_list
@@ -243,7 +296,6 @@ let _ = print_endline (string_of_bool res) in res*)
   let offpry acc_list = List.fold_left (fun y x -> if x > y then x else y) (min_int) (offprys acc_list)
   (*/prioritystuff*)
 
-  (*TODO fill table at accesses*) 
   let offpry_flags (flagstate : Flags.t) (varinfo : Cil.varinfo) : int =
     let var = varinfo.vname in
     if tracing then trace "osek" "Computing flag priority for %s\n" var;
@@ -251,16 +303,14 @@ let _ = print_endline (string_of_bool res) in res*)
     let helper flag flag_value current = 
       if tracing then trace "osek" "Using flag %s\n" flag.vname;
       let equal,value = match flag_value with
-        | (_,equal,Const (CInt64 (value,_,_))) -> equal,value
-        | _ -> failwith "This never hapens! osekml157"
+        | (_,equal,value) -> equal,value
       in
       
       let doit (acc_flagstate,pry) = 
         let acc_equal,acc_value = 
           if Flags.mem flag acc_flagstate then
             match Flags.find flag acc_flagstate with
-            | (_,equal,Const (CInt64 (value,_,_))) -> equal,value
-            | _ -> failwith "This never hapens! osekml248"
+            | (_,equal,value) -> equal,value
           else
             (false,0L)
         in
@@ -308,7 +358,7 @@ let _ = print_endline (string_of_bool res) in res*)
      non-concrete accesses too.*)
   let add_concrete_access ctx fl loc ust (flagstate : Flags.t) (v, o, rv: Cil.varinfo * Offs.t * bool) =
     if (Base.is_global ctx.ask v) then begin
-      if not (is_task v.vname) then begin
+      if not (is_task v.vname) || flagstate = Flags.top() then begin
         if not !GU.may_narrow then begin
           let new_acc = ((loc,fl,rv),ust,o) in
           let curr : AccValSet.t = try M.Acc.find acc v with _ -> AccValSet.empty in
@@ -323,7 +373,7 @@ let _ = print_endline (string_of_bool res) in res*)
         let el = MyParam.effect_fun ls in
   (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
   (*      let _ = printf "Access to %s with offense priority %a\n" v.vname P.Glob.Val.pretty el in*)
-        ctx.geffect v el
+        ctx.sideg v el
         end else begin
           if tracing then trace "osek" "Ignoring access to task/isr variable %s\n" v.vname;
         end
@@ -347,7 +397,7 @@ let _ = print_endline (string_of_bool res) in res*)
       	| Some (v,o) -> add_concrete_access ctx fl loc ust flagstate (v,o,rw)
         | _ -> M.unknown_access ()    
 
-  let add_accesses ctx (accessed: M.accesses) (flagstate: Flags.t) (ust:Dom.t) = 
+  let add_accesses ctx (accessed: M.accesses) (flagstate: Flags.t) (ust:D.t) = 
       let fl = Mutex.get_flag ctx.presub in
       if Base.Main.Flag.is_multi fl then
         let loc = !Tracing.current_loc in
@@ -385,7 +435,7 @@ let _ = print_endline (string_of_bool res) in res*)
         if pry = min_int then begin `Bool false end else begin
           let off = 
   (*         if !FlagModes.Spec.flag_list = [] then begin *)
-              match (ctx.global v: Glob.Val.t) with
+              match (ctx.global v: G.t) with
                 | `Bot -> min_int 
                 | `Lifted i -> Int64.to_int i
                 | `Top -> max_int
@@ -399,20 +449,20 @@ let _ = print_endline (string_of_bool res) in res*)
 
     
 
-  let startstate v = Dom.top ()
-  let otherstate v = Dom.top ()
-  let exitstate  v = Dom.top ()
+  let startstate v = D.top ()
+  let otherstate v = D.top ()
+  let exitstate  v = D.top ()
 
   let activate_task ctx (task_name : string) : unit =
     let task = Cilfacade.getFun task_name in
     ctx.spawn task.svar (otherstate ())
   
   (* transfer functions *)
-  let intrpt ctx : Dom.t =
+  let intrpt ctx : D.t =
     ctx.local (*currently ignored*)
 
-  let assign ctx (lval:lval) (rval:exp) : Dom.t =
-    if tracing then trace "osek" "ASSIGN\n";
+  let assign ctx (lval:lval) (rval:exp) : D.t =
+(*     if tracing then trace "osek" "ASSIGN\n"; *)
     if !GU.global_initialization then 
       ctx.local 
     else
@@ -421,24 +471,22 @@ let _ = print_endline (string_of_bool res) in res*)
       add_accesses ctx (b1@b2) (get_flags ctx.presub) ctx.local;
       ctx.local   
    
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+  let branch ctx (exp:exp) (tv:bool) : D.t = 
     let accessed = M.access_one_top ctx.ask false exp in
     add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
     ctx.local
 
-  let body ctx (f:fundec) : Dom.t = 
+  let body ctx (f:fundec) : D.t = 
   if tracing then trace "osek" "Analyszing function %s\n" f.svar.vname;
     let m_st = ctx.local in
     if (is_task f.svar.vname) then begin
 (* print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file); *)
 (* print_endline ( "Looking for " ^ f.svar.vname); *)
-      match M.special_fn (swap_st ctx m_st) None (dummy_get f) [get_lock f.svar.vname] with (*TODO*)
-        | [(x,_,_)] -> x 
-        | _ -> failwith "This never happens!"     
+      M.special (swap_st ctx m_st) None (dummy_get f) [get_lock f.svar.vname] 
     end else 
       m_st
 
-  let return ctx (exp:exp option) (f:fundec) : Dom.t =
+  let return ctx (exp:exp option) (f:fundec) : D.t =
       let m_st = match exp with 
         | Some exp -> begin
             let accessed = M.access_one_top ctx.ask false exp in
@@ -448,74 +496,83 @@ let _ = print_endline (string_of_bool res) in res*)
         | None -> ctx.local
       in
       let fname = f.svar.vname in
-      if (is_task fname) then 
+      if (is_task fname) then begin
 (* let _ = print_endline ( "Leaving task " ^ f.svar.vname) in *)
-      match M.special_fn (swap_st ctx m_st) None (dummy_release f) [get_lock fname] with (*TODO*)
-        | [(x,_,_)] -> if (get_bool "ana.osek.check") && not(List.mem fname !warned) && not(Dom.is_empty x) then begin
-	  warned := fname :: !warned;
-	  let typ = if (Hashtbl.mem isrs fname) then "Interrupt " else "Task " in
-	  let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (Dom.ReverseAddrSet.elements x) in
-	  print_endline( typ ^ fname ^ " terminated while holding resource(s) " ^ res)
+        let x = M.special (swap_st ctx m_st) None (dummy_release f) [get_lock fname] in
+          if (get_bool "ana.osek.check") && not(List.mem fname !warned) && not(D.is_empty x) then begin
+            warned := fname :: !warned;
+            let typ = if (Hashtbl.mem isrs fname) then "Interrupt " else "Task " in
+            let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements x) in
+            print_endline( typ ^ fname ^ " terminated while holding resource(s) " ^ res)
 	  end; 
 	  x 
-        | _ -> failwith "This never happens!"     
-    else 
+     end else 
       m_st
   
   let eval_funvar ctx (fv:exp) = 
     M.eval_funvar ctx (fv:exp)
     
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
-    (M.enter_func ctx (lval: lval option) (f:varinfo) (args:exp list))
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+    (M.enter ctx (lval: lval option) (f:varinfo) (args:exp list))
   
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
-   M.leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) au
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+   M.combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) au
 
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let fvname = get_api_names f.vname in
-    if tracing then trace "osek" "SPECIAL_FN '%s'\n" fvname;
-    match fvname with
+    if tracing then trace "osek" "special '%s'\n" fvname;
+try match fvname with (* suppress all fails  *)
       | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
-	M.special_fn ctx lval f (match arglist with 
+	M.special ctx lval f (match arglist with 
 	  | [Lval (Var info,_)] -> [get_lock info.vname] 
 	  | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> failwith ("parameter for " ^ fvname ^ " is constant. Remove trampoline header?")
 (* | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
 	  | x -> x)  
       | "DisableAllInterrupts" -> let res = get_lock "DisableAllInterrupts" in
 	if (get_bool "ana.osek.check") then if (mem res ctx.local) then print_endline ( "Nested calls of DisableAllInterrupts are not allowed!");
-	M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [res]
-      | "EnableAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "DisableAllInterrupts"]
-      | "SuspendAllInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
-      | "ResumeAllInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "SuspendAllInterrupts"] 
-      | "SuspendOSInterrupts" -> M.special_fn ctx lval (dummy_get (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
-      | "ResumeOSInterrupts" -> M.special_fn ctx lval (dummy_release (Cil.emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
+	M.special ctx lval (dummy_get (emptyFunction fvname)) [res]
+      | "EnableAllInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "DisableAllInterrupts"]
+      | "SuspendAllInterrupts" -> M.special ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
+      | "ResumeAllInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendAllInterrupts"] 
+      | "SuspendOSInterrupts" -> M.special ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
+      | "ResumeOSInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
       | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
         let _ = (match arglist with (*call function *)
-	  | [x] -> let vinfo = eval_arg ctx x in
-		   let task_name = make_task(vinfo.vname) in
-                   if (is_task task_name) then begin
-                     let _ = activate_task ctx task_name in
-                     [ctx.local, Cil.integer 1, true]
-                   end else failwith (vinfo.vname ^ "is not a task!")
+	  | [arg] -> begin
+		let task_name = match arg with
+		  | Const c -> begin
+			if (Hashtbl.mem taskids arg) then begin
+			  if tracing then trace "osek" "Looking up ID\n"; 
+			  Hashtbl.find taskids arg
+			end else failwith ("Task-ID not found!")
+		      end
+		  | _ -> let vinfo = eval_arg ctx arg in vinfo.vname
+		in
+                if (is_task task_name) then begin
+		  if tracing then tracel "osek" "Activating task %s\n" task_name;
+                  let _ = activate_task ctx task_name in
+                  [ctx.local, integer 1, true]
+                end else failwith (task_name ^ "is not a task!")
+	      end
 	  | _  -> failwith "ActivateTask arguments are strange") in
-	M.special_fn ctx lval f arglist
+	M.special ctx lval f arglist
       | "ChainTask" ->  
         print_endline "Found ChainTask!";
         if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
-	M.special_fn ctx lval f arglist (*call function *)
+	M.special ctx lval f arglist (*call function *)
       | "WaitEvent" -> (if (get_bool "ana.osek.check") then begin
 	let _ = check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
 	let static,regular = partition ctx.local in
 	let task = lockset_to_task static in
-	  if not(Dom.is_empty regular) then begin
-	    let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (Dom.ReverseAddrSet.elements regular) in
+	  if not(D.is_empty regular) then begin
+	    let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements regular) in
 	    let ev = (match arglist with 
 	      | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> let e,_=Hashtbl.find events (Int64.to_string c) in e
 	      | _ -> print_endline( "No event found for argument fo WaitEvent");"_not_found_" ) in
 	    print_endline( task ^ " waited for event "^ ev^ " while holding resource(s) " ^ res)
 	  end;
 	end;);
-	M.special_fn ctx lval f arglist
+	M.special ctx lval f arglist
       | "SetRelAlarm"
       | "SetAbsAlarm" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
         let _ = (match arglist with (*call function *)
@@ -530,7 +587,7 @@ let _ = print_endline (string_of_bool res) in res*)
             )    
           | _  -> failwith "SetAlarm arguments are strange")
         in
-        M.special_fn ctx lval f arglist
+        M.special ctx lval f arglist
       | "SetEvent"
       | "GetTaskID"
       | "GetTaskState"
@@ -540,16 +597,17 @@ let _ = print_endline (string_of_bool res) in res*)
       | "CancelAlarm" 
       | "GetActiveApplicationMode" 
       | "ShutdownOS" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in 
-	M.special_fn ctx lval f arglist
+	M.special ctx lval f arglist
       | "ClearEvent"
       | "TerminateTask"
       | "Schedule" -> let _ = if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
-	M.special_fn ctx lval f arglist
+	M.special ctx lval f arglist
       | "StartOS" -> let _ =if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in 
-	M.special_fn ctx lval f arglist
-      | _ -> M.special_fn ctx lval f arglist
+	M.special ctx lval f arglist
+      | _ -> M.special ctx lval f arglist
+with | _ -> M.special ctx lval f arglist (* suppress all fails  *)
  
-  let name = "OSEK analysis"
+  let name = "OSEK"
   let es_to_string f _ = f.svar.vname
 
   let should_join _ _ = true
@@ -670,20 +728,23 @@ let _ = print_endline (string_of_bool res) in res*)
         end
       in (*/check_one_flag*)
       let get_keys_from_flag_map flag_map = Flags.fold (fun key value acc -> (key::acc)) flag_map [] in
-      let get_flags acc_list' : (Cil.varinfo list) = 
+      let get_flags acc_list' : (varinfo list) = 
         let flag_list = List.map proj2_2 acc_list' in
-        let doit acc flag_map = 
-          let rec join l1 l2 = match l2 with 
-            | [] -> l1
-            | l::ls -> let res = (join l1 ls) in 
-            if List.mem l l1 then res else (l :: res)
-          in
-          let flags = get_keys_from_flag_map flag_map in
-          join acc flags
+        let doit acc flag_map =
+	  if Flags.is_bot(flag_map) then
+	    acc
+	  else 
+	    let rec join l1 l2 = match l2 with 
+	      | [] -> l1
+	      | l::ls -> let res = (join l1 ls) in 
+	      if List.mem l l1 then res else (l :: res)
+	    in
+	    let flags = get_keys_from_flag_map flag_map in
+	      join acc flags
         in  
         List.fold_left doit [] flag_list
       in (*/get_flags*)
-      let valid_flag (flag :Cil.varinfo) : bool= 
+      let valid_flag (flag :varinfo) : bool= 
         let add_flag flag res = 
           if res = BadFlag then begin
             bad_flags := flag::!bad_flags;
@@ -840,21 +901,11 @@ let _ = print_endline (string_of_bool res) in res*)
     if Sys.file_exists(names) then begin
       parse_names names;
     end;
+    let names = !osek_ids in
+    if Sys.file_exists(names) then begin
+      parse_ids names;
+    end;
   end
 
-module ThreadMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "OSEK" 
-                let depends = ["base";"fmode"]
-                type lf = Spec.Dom.t
-                let inject_l x = `OSEK x
-                let extract_l x = match x with `OSEK x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `Osek x 
-                let extract_g x = match x with `Osek x -> x | _ -> raise MCP.SpecificationConversionError
-         end)
-
-module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "OSEK" ~dep:["base";"fmode"] (module Spec2 : Spec2)         
+  MCP.register_analysis ~dep:["base";"fmode"] (module Spec : Spec)         

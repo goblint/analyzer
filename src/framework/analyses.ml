@@ -11,110 +11,6 @@ module M  = Messages
   * other functions. *)
 type fundecs = fundec list * fundec list * fundec list
 
-(** General type of an analyzer. *)
-module type S =
-sig
-  val name: string
-  (** name of the analyzer*)
-  val analyze: file -> fundecs -> unit
-  (** analyze a file -- output using Messages.* *)
-end
-
-type local_state = [ 
-    | `Base        of BaseDomain.Dom.t
-    | `Mutex       of LockDomain.Lockset.t
-    | `SymbLocks   of LockDomain.Symbolic.t
-    | `VarEq       of PartitionDomain.ExpPartitions.t
-    | `Uninit      of ValueDomain.AddrSetDomain.t
-    | `Malloc_null of ValueDomain.AddrSetDomain.t
-    | `Thread      of ConcDomain.ThreadDomain.t
-    | `Escape      of EscapeDomain.EscapedVars.t
-    | `File        of FileDomain.FileUses.t
-    | `Spec        of SpecDomain.Dom.t
-    | `Region      of RegionDomain.RegionDom.t
-    | `OSEK        of LockDomain.Lockset.t
-    | `OSEK2       of Osektupel.t*Osektupel.t
-    | `OSEK3       of IntDomain.Flattened.t
-(*    | `Access      of AccessDomain.Access.t*)
-    | `Contain     of ContainDomain.Dom.t
-    | `Shape       of ShapeDomain.Dom.t*RegionDomain.RegionDom.t
-    | `Stack       of StackDomain.Dom.t
-    | `Stack2       of StackDomain.Dom2.t
-    | `Stack3       of StackDomain.Dom3.t
-    | `Flag        of ConcDomain.Trivial.t
-    | `MayLocks    of LockDomain.MayLockset.t
-    | `ThreadLocSet of ConcDomain.ThreadStringSet.t
-    | `Oslo         of LockDomain.Lockset.t
-    | `FlagModeDom  of FlagModeDomain.Dom.t
-    | `Deadlock    of DeadlockDomain.Lockset.t
-    | `Unit
-    ]
-
-type global_state = [
-    | `Base   of BaseDomain.Glob.Val.t
-    | `Mutex  of LockDomain.Glob.Val.t
-    | `Oslo  of LockDomain.Glob.Val.t
-    | `Osek  of LockDomain.OsekGlob.Val.t
-    | `Region of RegionDomain.RegPart.t
-(*    | `Access of AccessDomain.Access.GlobDom.t *)
-    | `Contain of ContainDomain.Globals.t
-    | `Shapes of ShapeDomain.Bool.t * RegionDomain.RegPart.t
-    | `None ]
-
-(* Experiment to reduce the number of arguments on transfer functions and allow
-  sub-analyses. The list sub contains the current local states of analyses in
-  the same order as writen in the dependencies list (in MCP).
-  
-  The foreign states when calling special_fn or enter are joined if the foreign 
-  analysis tries to be path-sensitive in these functions. First try to only
-  depend on simple analyses.
- 
-  It is not clear if we need pre-states, post-states or both on foreign analyses.
- *)
-type ('a,'b,'c) ctx = 
-    { ask   : Queries.t -> Queries.Result.t
-    ; local : 'a
-    ; global: 'b -> 'c 
-    ; presub: local_state list
-    ; sub   : local_state list
-    ; spawn : varinfo -> 'a -> unit
-    ; geffect : 'b -> 'c -> unit 
-    ; precomp : local_state list list 
-    ; preglob : (varinfo -> global_state list) list 
-    ; report_access : [ `Lval of lval * bool | `Reach of exp * bool ] -> unit
-    }
-
-let set_q ctx ask = 
-  {ctx with ask = ask} 
-
-let set_st ctx st spawn_tr =
-  {ctx with local=st; spawn=spawn_tr ctx.spawn}
-
-let swap_st ctx st =
-  {ctx with local=st}
-
-let set_gl ctx gl eff_tr =
-  {ctx with global=gl; geffect=eff_tr ctx.geffect}
-
-let set_st_gl ctx st gl spawn_tr eff_tr =
-  {ctx with local=st; global=gl; spawn=spawn_tr ctx.spawn; geffect=eff_tr ctx.geffect}
-
-let set_precomp ctx pc = 
-  {ctx with precomp = pc}
-
-let set_preglob ctx pg = 
-  {ctx with preglob = pg}
-
-let context ask st gl dp sp ge rep = {ask=ask; local=st; global=gl;sub=dp;presub=[];spawn=sp;geffect=ge;precomp=[];preglob=[]; report_access=rep}
-
-module type DomainTranslator =
-sig
-  type from_type
-  type to_type
-  
-  val translate : from_type -> to_type 
-end
-
 module type VarType = 
 sig
   include Hashtbl.HashedType
@@ -127,217 +23,6 @@ sig
   val description : t -> string
   val context : unit -> t -> doc
   val loopSep : t -> bool
-end
-
-module type Spec = 
-sig
-  module Dom : Lattice.S   
-  (** THE data structure *)
-  module Glob : Glob.S
-  (** global variable and value type*)    
-  
-    
-  val name: string
-  (** name of the analysis *)
-  val init: unit -> unit
-  (** first function to be called when analyzing using this Spec *)
-  val finalize: unit -> unit
-  (** last function to be called when analyzing using this Spec *)
-  
-  val context_top: varinfo -> Dom.t -> Dom.t
-  (** Keeps only context sensitive part, set rest to top. *)
-  val should_join: Dom.t -> Dom.t -> bool
-  (** sensitivity predicate *)
-  val startstate: varinfo -> Dom.t
-  (** state to start analyzing the start functions *)
-  val morphstate: varinfo -> Dom.t -> Dom.t
-  (** Change the starting state after initialization code for the start functions *)
-  val exitstate: varinfo -> Dom.t
-  (** state to start analyzing the exit functions *)
-  val otherstate: varinfo -> Dom.t
-  (** state to start analyzing other functions (usual when calling './goblint --allfuns ...') *)
-  val es_to_string: fundec -> Dom.t -> string
-  (** no-one knows .. somehow used when generating final output *)
-  val may_race: ((Dom.t, Glob.Var.t, Glob.Val.t) ctx * [ `Lval of lval * bool | `Reach of exp * bool ]) 
-                -> ((Dom.t, Glob.Var.t, Glob.Val.t) ctx * [ `Lval of lval * bool | `Reach of exp * bool ]) -> bool 
-  (** query if two accesses may conflict *)
-  
-  val sync: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> Dom.t * (Glob.Var.t * Glob.Val.t) list
-  (** Synchronize with the global invariant. This is applied after joining with
-    * the previous state, see test 02/04 for an example why this is needed. *)
-  
-  (** Query function: *)
-  val query: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> Queries.t -> Queries.Result.t 
-  (** Answers our ... ahem ... queries. *)
-
-  (** Transfer functions:  *)
-  
-  val assign: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval -> exp -> Dom.t 
-  (** handle assignments *)
-  val branch: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> exp -> bool -> Dom.t
-  (** handle branches *)
-  val body  : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> fundec -> Dom.t
-  (** steping inside of a function body *)
-  val return: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> exp option  -> fundec -> Dom.t
-  (** steping out from a function *)
-  
-
-  (** Transfer function for function calls: *)
-  
-  (* Basic scheme:
-    |----------------------------------------------v
-    |-> enter_func -> <analyze the functions> -> leave_func -> join -> ...
-    |-> special_fn ----------------------------------------------^
-    |-> fork  ------------------------------------------------------->
-  *)
-  
-  
-(*   val fork       : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (varinfo * Dom.t) list   *)
-(*   (** [fork] returns list of function,input-state pairs, that the callee has spawned *) *)
-  val special_fn : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (Dom.t * Cil.exp * bool) list
-  (** [special_fn] is called, when given varinfo is not connected to a fundec -- no function definition is given*)
-  val enter_func : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> varinfo -> exp list -> (Dom.t * Dom.t) list 
-  (** [enter_func] returns input-states that must be analyzed for the given function *)
-  val leave_func : (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> lval option -> exp -> varinfo -> exp list -> Dom.t -> Dom.t
-  (** [leave_func q lv f a x y] does postprocessing on the analyzed [enter_func q lv f a x] output [y] -- usually readding some
-     context from [x] *)
-
-  val intrpt: (Dom.t, Glob.Var.t, Glob.Val.t) ctx -> Dom.t
-  (** Transfer function for interrupts. *)
-end
-
-module StatsTrace (D : Spec) = 
-struct
-  let time_f n f =
-    let padr n s : string = 
-      let len = String.length s in
-      if len > n then s else 
-        let res = String.create n in
-        String.blit s 0 res 0 len;
-        String.fill res len (n-len) ' '; 
-        res
-    in      
-    if (get_bool "dbg.debug") then Stats.time (padr 40 (D.name^" ⇢ "^n)) f
-        else f
-  
-  module Dom = 
-  struct
-    include D.Dom
-    
-    let hash x = time_f "Dom ↣ hash" hash x
-    let equal x y = time_f "Dom ↣ equal" (equal x) y
-    let join x y = time_f "Dom ↣ join" (join x) y
-    let meet x y = time_f "Dom ↣ meet" (meet x) y
-    let leq x y = time_f "Dom ↣ leq" (leq x) y
-  end       
-
-  module Glob = D.Glob
-    
-  let name         = D.name
-  let init         = D.init
-  let finalize     = D.finalize
-  let context_top  = D.context_top
-  let should_join  = D.should_join
-  let startstate   = D.startstate
-  let morphstate   = D.morphstate
-  let otherstate   = D.otherstate
-  let exitstate    = D.exitstate
-  let es_to_string = D.es_to_string
-  let sync         = D.sync
-  let query        = D.query 
-  let assign       = D.assign
-  let branch       = D.branch
-  let body         = D.body  
-  let return       = D.return
-  let special_fn   = D.special_fn 
-  let enter_func   = D.enter_func 
-  let leave_func   = D.leave_func 
-  let intrpt       = D.intrpt
-  
-  
-  (* transfer functions *)
-  let may_race x = time_f "may_race" (D.may_race x)
-  let sync ctx  = time_f "sync" sync ctx  
-  let should_join x y  = time_f "should_join" (should_join x) y
-  let query ctx q  = time_f "query" (query ctx) q
-  let assign ctx lval rval = time_f "assign" (assign ctx lval) rval  
-  let branch ctx exp tv = time_f "branch" (branch ctx exp) tv 
-  let body ctx fundec = time_f "body" (body ctx) fundec
-  let return ctx exp f = time_f "return" (return ctx exp) f  
-  let enter_func ctx lval f args = time_f "enter_func" (enter_func ctx lval f) args  
-  let leave_func ctx lval fexp f args au = time_f "leave_func" (leave_func ctx lval fexp f args) au  
-  let special_fn ctx lval f arglist = time_f "special_fn" (special_fn ctx lval f) arglist
-
-end
-
-module HCLift (D : Spec) = 
-struct
-  module Dom = Lattice.HConsed (D.Dom)
-  module Glob = D.Glob
-  
-  let lift_f1 f x = Dom.lift (f (Dom.unlift x))
-  let lift_f2 f x y = Dom.lift (f (Dom.unlift x) (Dom.unlift y))
-  let lift_f2s f x y = f (Dom.unlift x) (Dom.unlift y)
-  let lift_f1s f x = f (Dom.unlift x)
-  let lift_fc f x = f (set_st x (Dom.unlift x.local) (fun sp f x -> sp f (Dom.lift x)))
-  let name         = D.name
-  let init         = D.init
-  let finalize     = D.finalize
-  let context_top f = lift_f1 (D.context_top f)
-  let should_join  = lift_f2s D.should_join
-  let startstate   v = Dom.lift (D.startstate v)
-  let morphstate   v = lift_f1  (D.morphstate v)
-  let otherstate   v = Dom.lift (D.otherstate v)
-  let exitstate    v = Dom.lift (D.exitstate  v)
-  let es_to_string f = lift_f1s (D.es_to_string f)
-  let sync x        = let x, y = lift_fc D.sync x in Dom.lift x, y
-  let query        = lift_fc D.query 
-  let assign c l r = Dom.lift (lift_fc D.assign c l r)
-  let branch c e t = Dom.lift (lift_fc D.branch c e t)
-  let body c f     = Dom.lift (lift_fc D.body c f)  
-  let return c e f = Dom.lift (lift_fc D.return c e f)
-  let special_fn c r f xs = List.map (fun (x,y,z) -> Dom.lift x, y, z) (lift_fc D.special_fn c r f xs) 
-  let enter_func c r f xs = List.map (fun (x,y) -> Dom.lift x, Dom.lift y) (lift_fc D.enter_func c r f xs)
-  let leave_func c r fe f xs d  = Dom.lift (lift_fc D.leave_func c r fe f xs (Dom.unlift d))
-  let intrpt c     = Dom.lift (lift_fc D.intrpt c)
-end
-
-
-(** Relatively safe default implementations of some boring Spec functions. *)
-module DefaultSpec =
-struct
-  let init     () = ()
-  let finalize () = ()
-  (* no inits nor finalize -- only analyses like Mutex, Base, ... need 
-     these to do postprocessing or other imperative hacks. *)
-  
-  let should_join _ _ = true
-  (* hint for path sensitivity --- MCP overrides this so don't we don't bother. *)
-  
-  let es_to_string f _ = f.svar.vname
-  (* prettier name for equation variables --- currently base can do this and
-     MCP just forwards it to Base.*)
-  
-  let context_top f x = x
-  (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
-  
-  let sync ctx     = (ctx.local,[])
-  (* Most domains do not have a global part. *)
-  
-  let query _ (q:Queries.t) = Queries.Result.top ()
-  (* Don't know anything --- most will want to redefine this. *)
-  
-  let may_race _ _ = true
-  (* Don't know anything --- may lead to a race *)
-  
-  let eval_funvar _ _ = []
-  (* Only base analysis should know this. *)
-
-  let intrpt x = x.local
-  (* Just ignore. *)
-
-  let morphstate v d = d
-  (* Only for those who track thread IDs. *)
 end
 
 module Var =  
@@ -509,7 +194,7 @@ module Dom (LD: Lattice.S) =
 struct 
   include Lattice.Lift (LD) (struct
                                let bot_name = "Dead code"
-                               let top_name = "Totally unknown & messed up"
+                               let top_name = "Totally unknown and messed up"
                              end)
 
   let lift (x:LD.t) : t = `Lifted x
@@ -525,26 +210,6 @@ struct
       | tb -> tb
 end
 
-
-module ResultType (Spec: Spec) (LD: Printable.S with type t = Spec.Dom.t) (SD: Printable.S) = 
-struct
-  include Printable.Prod3 (LD) (SD) (Basetype.CilFundec)
-  let isSimple _ = false
-  let short w (es,x,f) = Spec.es_to_string f es
-  let toXML (es,x,_ as st) = 
-    let open Xml in
-    let flatten_single = function
-      | Element (_,_,[x]) | x ->  x in
-    let try_replace_text s = function
-    	| Element (tag, attr, children) -> Element (tag, ["text", s], children) 
-    	| x -> x
-    in
-    let esc = Goblintutil.escape in
-    let ctx = try_replace_text "Context" (flatten_single (Spec.Dom.toXML es)) in
-    let res = try_replace_text "Value" (flatten_single (SD.toXML x)) in
-      Element ("Node",["text",esc (short 80 st)],[ctx;res])            
-  let pretty () (_,x,_) = SD.pretty () x
-end
 
 open Xml
 
@@ -600,8 +265,15 @@ struct
       | _ -> failwith "Empty analysis?"
  
   let resultXML x = toXML x
+  
+  let printXml f xs = 
+    let print_one (loc,n,fd) v =
+      BatPrintf.fprintf f "<loc file=\"%s\" line=\"%d\" order=\"%d\">\n" loc.file loc.line loc.byte;
+      BatPrintf.fprintf f "%a</loc>\n" Range.printXml v
+    in
+    iter print_one xs
 
-  let output table gtable (file: Cil.file) =
+  let output table gtable (file: file) =
     if (get_bool "dbg.verbose") then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
     GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = Messages.get_out result_name !GU.out in
@@ -612,11 +284,19 @@ struct
           output_char out '\n'
         end
       | "compact" -> begin
-          Xmldump.print out (resultXML (Lazy.force table));
+          if (get_bool "dbg.verbose") then Printf.printf "Converting to xml.%!";
+          let xml = resultXML (Lazy.force table) in
+          if (get_bool "dbg.verbose") then Printf.printf "Printing the result.%!";
+          Xmldump.print out xml;
           output_char out '\n'
         end
       | "html" -> 
           Htmldump.print_html out (resultXML (Lazy.force table)) file gtable
+      | "fast_xml" -> 
+          let f = BatIO.output_channel out in
+          BatPrintf.fprintf f "<run><call>%a</call><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+          BatPrintf.fprintf f "%a" printXml (Lazy.force table);
+          BatPrintf.fprintf f "</result></run>"
       | _ -> ()
 end
 
@@ -637,20 +317,37 @@ struct
       hash
 end
 
-(*********************)
 
-type ('d,'g) ctx2 = 
-    { ask2      : Queries.t -> Queries.Result.t
-    ; local2    : 'd
-    ; global2   : varinfo -> 'g 
-    ; presub2   : (string * Obj.t) list
-    ; postsub2  : (string * Obj.t) list
-    ; spawn2    : varinfo -> 'd -> unit
-    ; split2    : 'd -> exp -> bool -> unit
-    ; sideg2    : varinfo -> 'g -> unit 
+(* Experiment to reduce the number of arguments on transfer functions and allow
+  sub-analyses. The list sub contains the current local states of analyses in
+  the same order as writen in the dependencies list (in MCP).
+  
+  The foreign states when calling special_fn or enter are joined if the foreign 
+  analysis tries to be path-sensitive in these functions. First try to only
+  depend on simple analyses.
+ 
+  It is not clear if we need pre-states, post-states or both on foreign analyses.
+ *)
+type ('d,'g) ctx = 
+    { ask      : Queries.t -> Queries.Result.t
+    ; local    : 'd
+    ; global   : varinfo -> 'g 
+    ; presub   : (string * Obj.t) list
+    ; postsub  : (string * Obj.t) list
+    ; spawn    : varinfo -> 'd -> unit
+    ; split    : 'd -> exp -> bool -> unit
+    ; sideg    : varinfo -> 'g -> unit 
     }
 
-module type Spec2 =
+let swap_st ctx st =
+  {ctx with local=st}
+
+let set_st_gl ctx st gl spawn_tr eff_tr split_tr =
+  {ctx with local=st; global=gl; spawn=spawn_tr ctx.spawn; sideg=eff_tr ctx.sideg; 
+  split=split_tr ctx.split}
+
+
+module type Spec =
 sig
   module D : Lattice.S
   module G : Lattice.S
@@ -667,21 +364,22 @@ sig
   val otherstate : varinfo -> D.t
 
   val should_join : D.t -> D.t -> bool
+  val val_of  : C.t -> D.t
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
   
-  val sync  : (D.t, G.t) ctx2 -> D.t * (varinfo * G.t) list
-  val query : (D.t, G.t) ctx2 -> Queries.t -> Queries.Result.t 
-  val assign: (D.t, G.t) ctx2 -> lval -> exp -> D.t 
-  val branch: (D.t, G.t) ctx2 -> exp -> bool -> D.t
-  val body  : (D.t, G.t) ctx2 -> fundec -> D.t
-  val return: (D.t, G.t) ctx2 -> exp option  -> fundec -> D.t
-  val intrpt: (D.t, G.t) ctx2 -> D.t
+  val sync  : (D.t, G.t) ctx -> D.t * (varinfo * G.t) list
+  val query : (D.t, G.t) ctx -> Queries.t -> Queries.Result.t 
+  val assign: (D.t, G.t) ctx -> lval -> exp -> D.t 
+  val branch: (D.t, G.t) ctx -> exp -> bool -> D.t
+  val body  : (D.t, G.t) ctx -> fundec -> D.t
+  val return: (D.t, G.t) ctx -> exp option  -> fundec -> D.t
+  val intrpt: (D.t, G.t) ctx -> D.t
   
 
-  val special : (D.t, G.t) ctx2 -> lval option -> varinfo -> exp list -> D.t
-  val enter   : (D.t, G.t) ctx2 -> lval option -> varinfo -> exp list -> (D.t * D.t) list 
-  val combine : (D.t, G.t) ctx2 -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
+  val special : (D.t, G.t) ctx -> lval option -> varinfo -> exp list -> D.t
+  val enter   : (D.t, G.t) ctx -> lval option -> varinfo -> exp list -> (D.t * D.t) list 
+  val combine : (D.t, G.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
 end
 
 (** A side-effecting system. *)
@@ -741,7 +439,7 @@ sig
   val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> S.D.t LH.t * S.G.t GH.t
 end
 
-module ResultType2 (S:Spec2) = 
+module ResultType2 (S:Spec) = 
 struct
   open S
   include Printable.Prod3 (C) (D) (Basetype.CilFundec)
@@ -760,4 +458,41 @@ struct
     let res = try_replace_text "Value" (flatten_single (D.toXML x)) in
       Element ("Node",["text",esc (short 80 st)],[ctx;res])            
   let pretty () (_,x,_) = D.pretty () x
+  let printXml f (c,d,fd) = 
+    BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end
+
+
+(** Relatively safe default implementations of some boring Spec functions. *)
+module DefaultSpec =
+struct
+  let init     () = ()
+  let finalize () = ()
+  (* no inits nor finalize -- only analyses like Mutex, Base, ... need 
+     these to do postprocessing or other imperative hacks. *)
+  
+  let should_join _ _ = true
+  (* hint for path sensitivity --- MCP overrides this so don't we don't bother. *)
+  
+  let call_descr f _ = f.svar.vname
+  (* prettier name for equation variables --- currently base can do this and
+     MCP just forwards it to Base.*)
+  
+  let intrpt x = x.local
+  (* Just ignore. *)
+
+  let query _ (q:Queries.t) = Queries.Result.top ()
+  (* Don't know anything --- most will want to redefine this. *)
+
+  let morphstate v d = d
+  (* Only for those who track thread IDs. *)
+
+  let sync ctx     = (ctx.local,[])
+  (* Most domains do not have a global part. *)
+
+  let context x = x
+  (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
+
+  let val_of x = x
+end
+

@@ -152,27 +152,27 @@ struct
             Queries.ES.fold S.add es (S.empty ())
         | _ -> S.empty ())      
       (match e with
-        | Cil.SizeOf _
-        | Cil.SizeOfE _
-        | Cil.SizeOfStr _
-        | Cil.AlignOf _  
-        | Cil.Const _ 
-        | Cil.AlignOfE _
-        | Cil.UnOp _     
-        | Cil.BinOp _ -> S.empty () 
-        | Cil.AddrOf  (Cil.Var _,_) 
-        | Cil.StartOf (Cil.Var _,_) 
-        | Cil.Lval    (Cil.Var _,_) -> S.singleton e
-        | Cil.AddrOf  (Cil.Mem e,ofs) -> S.map (fun e -> Cil.AddrOf  (Cil.Mem e,ofs)) (eq_set ask e) 
-        | Cil.StartOf (Cil.Mem e,ofs) -> S.map (fun e -> Cil.StartOf (Cil.Mem e,ofs)) (eq_set ask e) 
-        | Cil.Lval    (Cil.Mem e,ofs) -> S.map (fun e -> Cil.Lval    (Cil.Mem e,ofs)) (eq_set ask e) 
-        | Cil.CastE (_,e)           -> eq_set ask e
-        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+        | SizeOf _
+        | SizeOfE _
+        | SizeOfStr _
+        | AlignOf _  
+        | Const _ 
+        | AlignOfE _
+        | UnOp _     
+        | BinOp _ -> S.empty () 
+        | AddrOf  (Var _,_) 
+        | StartOf (Var _,_) 
+        | Lval    (Var _,_) -> S.singleton e
+        | AddrOf  (Mem e,ofs) -> S.map (fun e -> AddrOf  (Mem e,ofs)) (eq_set ask e) 
+        | StartOf (Mem e,ofs) -> S.map (fun e -> StartOf (Mem e,ofs)) (eq_set ask e) 
+        | Lval    (Mem e,ofs) -> S.map (fun e -> Lval    (Mem e,ofs)) (eq_set ask e) 
+        | CastE (_,e)           -> eq_set ask e
+        | Question _ -> failwith "Logical operations should be compiled away by CIL."
 	| _ -> failwith "Unmatched pattern.")
   
   let add ask e st = 
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
-    let addrs = S.filter (function Cil.AddrOf _ -> true | _ -> false) no_casts in
+    let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
     S.union addrs st
   let remove ask e st = S.diff st (eq_set ask e)
   let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
@@ -180,9 +180,9 @@ struct
   let kill_lval (host,offset) st =
     let rec last_field os ls =
       match os with
-        | Cil.NoOffset -> ls
-        | Cil.Index (i,o) -> last_field o None
-        | Cil.Field (f,o) -> last_field o (Some f)
+        | NoOffset -> ls
+        | Index (i,o) -> last_field o None
+        | Field (f,o) -> last_field o (Some f)
     in
     match last_field offset None with
       | Some f -> S.filter (fun x -> not (Exp.contains_field f x)) st

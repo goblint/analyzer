@@ -40,6 +40,7 @@ let classify' fn exps =
     | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock" 
     | "pthread_rwlock_trywrlock" | "mutex_trylock"
         -> `Lock (true, true)
+    | "LAP_Se_WaitSemaphore"
     | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
     | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
     | "pthread_mutex_lock" | "__pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource" 
@@ -48,6 +49,7 @@ let classify' fn exps =
     | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
     | "down_read"
         -> `Lock (get_bool "exp.failing-locks", false) 
+    | "LAP_Se_SignalSemaphore"
     | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
     | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
     | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
@@ -385,7 +387,7 @@ let invalidate_actions = [
   ("pthread_create", writes [1]);
   ("__builtin_prefetch", readsAll);
   ("idr_pre_get", readsAll);
-  ("zil_replay", writes [1;2;3;5]);
+  ("zil_replay", writes [1;2;3;5])
 ]
 
 (* used by get_invalidate_action to make sure
@@ -413,7 +415,7 @@ let get_invalidate_action name =
 let threadSafe =
   let rec threadSafe n ns xs =    
     match ns, xs with
-      | n'::ns, x::xs when n=n' -> Cil.mone::threadSafe (n+1) ns xs
+      | n'::ns, x::xs when n=n' -> mone::threadSafe (n+1) ns xs
       | n'::ns, x::xs -> x::threadSafe (n+1) (n'::ns) xs
       | _ -> xs
   in 
@@ -424,7 +426,7 @@ let thread_safe_fn =
    "fprintf",  threadSafe [1];
    "fgets",    threadSafe [3];
    "strerror_r", threadSafe [1];
-   "fclose", threadSafe [1];
+   "fclose", threadSafe [1]
   ]
 
 let get_threadsafe_inv_ac name =
@@ -442,3 +444,5 @@ let lib_funs = ref (List.fold_right StringSet.add ["list_empty"; "kzalloc"; "kma
 let use_special fn_name = StringSet.mem fn_name !lib_funs
 
 let add_lib_funs funs = lib_funs := List.fold_right StringSet.add funs !lib_funs
+
+let _ = add_lib_funs ["LAP_Se_TimedWait";"LAP_Se_RaiseApplicationError";"LAP_Se_GetErrorStatus";"LAP_Se_CreateErrorHandler";"LAP_Se_GetEventStatus";"LAP_Se_GetEventId";"LAP_Se_WaitEvent";"LAP_Se_ResetEvent";"LAP_Se_GetSemaphoreStatus";"LAP_Se_GetSemaphoreId";"LAP_Se_SignalSemaphore";"LAP_Se_WaitSemaphore";"LAP_Se_CreateSemaphore";"LAP_Se_GetBlackboardStatus";"LAP_Se_GetBlackboardId";"LAP_Se_ClearBlackboard";"LAP_Se_ReadBlackboard";"LAP_Se_DisplayBlackboard";"LAP_Se_CreateBlackboard";"LAP_Se_GetBufferStatus";"LAP_Se_GetBufferId";"LAP_Se_ReceiveBuffer";"LAP_Se_SendBuffer";"LAP_Se_CreateBuffer";"LAP_Se_GetQueuingPortStatus";"LAP_Se_GetQueuingPortId";"LAP_Se_ReceiveQueuingMessage";"LAP_Se_SendQueuingMessage";"LAP_Se_CreateQueuingPort";"LAP_Se_GetSamplingPortStatus";"LAP_Se_GetSamplingPortId";"LAP_Se_ReadSamplingMessage";"LAP_Se_WriteSamplingMessage";"LAP_Se_CreateSamplingPort";"LAP_Se_GetLogBookStatus";"LAP_Se_GetLogbookId";"LAP_Se_ClearLogBook";"LAP_Se_WriteLogBook";"LAP_Se_ReadLogBook";"LAP_Se_CreateLogBook";"LAP_Se_GetPartitionStartCondition";"LAP_Se_SetPartitionMode";"LAP_Se_GetPartitionStatus";"LAP_Se_GetProcessStatus";"LAP_Se_GetProcessId";"LAP_Se_GetMyId";"LAP_Se_UnlockPreemption";"LAP_Se_LockPreemption";"LAP_Se_DelayedStart";"LAP_Se_Start";"LAP_Se_Stop";"LAP_Se_StopSelf";"LAP_Se_Resume";"LAP_Se_Suspend";"LAP_Se_SetPriority";"LAP_Se_CreateProcess";"LAP_Se_ReplenishAperiodic";"LAP_Se_GetTime";"LAP_Se_PeriodicWait";"LAP_Se_TimedWait"]

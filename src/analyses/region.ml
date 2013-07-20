@@ -18,7 +18,7 @@ struct
   module Lif    = RegionDomain.Lif
   module Var    = RegionDomain.Var
   module Vars   = RegionDomain.Vars
-  module Dom = 
+  module D = 
   struct 
     include RegionDomain.RegionDom
     let toXML_f sf x = 
@@ -28,9 +28,8 @@ struct
         
     let toXML s  = toXML_f short s
   end
-  module Glob = Glob.Make (RegPart) 
-
-  type glob_fun = Glob.Var.t -> Glob.Val.t
+  module G = RegPart
+  module C = D
 
   let partition_varstore = ref dummyFunDec.svar
   let partition_varinfo () = !partition_varstore 
@@ -71,7 +70,7 @@ struct
       | _ -> Queries.Result.top ()
  
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : Dom.t =
+  let assign ctx (lval:lval) (rval:exp) : D.t =
     match ctx.local with
       | `Lifted (equ,reg), gd -> 
           let old_regpart = get_regpart ctx.global in
@@ -82,13 +81,13 @@ struct
           else `Lifted (equ,reg), Vars.add (partition_varinfo (), regpart) gd
       | x -> x
    
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = 
+  let branch ctx (exp:exp) (tv:bool) : D.t = 
     ctx.local
   
-  let body ctx (f:fundec) : Dom.t = 
+  let body ctx (f:fundec) : D.t = 
     ctx.local
 
-  let return ctx (exp:exp option) (f:fundec) : Dom.t = 
+  let return ctx (exp:exp option) (f:fundec) : D.t = 
     let locals = f.sformals @ f.slocals in
     match ctx.local with
       | `Lifted (equ,reg), gd -> 
@@ -104,7 +103,7 @@ struct
       | x -> x
     
     
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list =
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     let rec fold_right2 f xs ys r =
       match xs, ys with
         | x::xs, y::ys -> f x y (fold_right2 f xs ys r)
@@ -123,7 +122,7 @@ struct
            else [ctx.local,(`Lifted (equ,reg),Vars.add (partition_varinfo (), regpart) gd)]
       | x -> [x,x]
   
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     match au with
       | `Lifted (equ, reg), gd -> begin
           let old_regpart = get_regpart ctx.global in
@@ -142,7 +141,7 @@ struct
           end
       | _ -> au
   
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match f.vname with 
       | "malloc" | "calloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
           match ctx.local, lval with
@@ -154,18 +153,18 @@ struct
                   then gd
                   else Vars.add (partition_varinfo (), regpart) gd
                 in
-                [(`Lifted (equ, reg), gd), Cil.integer 1, true]
-            | _ -> [ctx.local,Cil.integer 1, true]
+                `Lifted (equ, reg), gd
+            | _ -> ctx.local
         end
       | _ -> 
-    let t, _, _, _ = Cil.splitFunctionTypeVI  f in
+    let t, _, _, _ = splitFunctionTypeVI  f in
     match unrollType t with
       | TPtr (t,_) ->
     begin match Goblintutil.is_blessed t, lval with
-      | Some rv, Some lv -> [assign ctx lv (AddrOf (Var rv, NoOffset)), Cil.integer 1, true]
-      | _ -> [ctx.local,Cil.integer 1, true]
+      | Some rv, Some lv -> assign ctx lv (AddrOf (Var rv, NoOffset))
+      | _ -> ctx.local
     end
-      | _ -> [ctx.local,Cil.integer 1, true]
+      | _ -> ctx.local
   
   let startstate v = 
     `Lifted (Equ.top (), RegMap.bot ()), Vars.empty ()       
@@ -175,26 +174,12 @@ struct
 
   let exitstate = otherstate
   
-  let name = "Region analysis"
+  let name = "region"
 
   let init () = 
     partition_varstore := makeVarinfo false "REGION_PARTITIONS" voidType
     
 end
 
-module RegionMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "region" 
-                let depends = []
-                type lf = Spec.Dom.t
-                let inject_l x = `Region x
-                let extract_l x = match x with `Region x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `Region x
-                let extract_g x = match x with `Region x -> x | _ -> raise MCP.SpecificationConversionError
-         end)
-
-module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "region" (module Spec2 : Spec2)         
+  MCP.register_analysis (module Spec : Spec)         

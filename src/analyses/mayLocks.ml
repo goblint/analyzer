@@ -10,17 +10,18 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "May-Lockset analysis"
-  module Dom  = LockDomain.MayLockset
-  module Glob = Glob.Make (Lattice.Unit)
+  let name = "maylocks"
+  module D = LockDomain.MayLockset
+  module C = LockDomain.MayLockset
+  module G = Lattice.Unit
   
   (* transfer functions : usual operation just propagates the value *)
-  let assign ctx (lval:lval) (rval:exp) : Dom.t = ctx.local
-  let branch ctx (exp:exp) (tv:bool) : Dom.t = ctx.local
-  let body ctx (f:fundec) : Dom.t = ctx.local
-  let return ctx (exp:exp option) (f:fundec) : Dom.t = ctx.local
-  let enter_func ctx (lval: lval option) (f:varinfo) (args:exp list) : (Dom.t * Dom.t) list = [ctx.local,ctx.local]
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t = au
+  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
+  let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local
+  let body ctx (f:fundec) : D.t = ctx.local
+  let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = au
     
   (* Helper function to convert query-offsets to valuedomain-offsets *)
   let rec conv_offset x =
@@ -40,56 +41,40 @@ struct
       | b -> Messages.warn ("Could not evaluate '"^sprint 30 (d_exp () exp)^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
   
   (* locking logic -- add all locks we can add *)
-  let lock rw may_fail a lv arglist ls : (Dom.ReverseAddrSet.t * Cil.exp * bool) list =
-    let set_ret tv sts = 
-      match lv with 
-        | None -> (sts,Cil.integer 1,true)
-        | Some lv -> (sts,Lval lv,tv)
-    in 
-    let lock_one xs (e:LockDomain.Addr.t) =
-        (set_ret false  (Dom.add (e,rw) ls)) ::
-        if may_fail then set_ret true ls :: xs else xs
-    in
-    List.fold_left lock_one [] (List.concat (List.map (eval_exp_addr a) arglist)) 
+  let lock ctx rw may_fail a lv arglist ls : D.ReverseAddrSet.t =
+    let add_one ls e = D.add (e,rw) ls in
+    let nls = List.fold_left add_one ls (List.concat (List.map (eval_exp_addr a) arglist)) in
+    match lv with 
+      | None -> nls
+      | Some lv -> 
+          ctx.split nls (Lval lv) false;
+          if may_fail then ctx.split ls (Lval lv) true;
+          raise Analyses.Deadcode
   
   (* transfer function to handle library functions --- for us locking & unlocking *)
-  let special_fn ctx (lv: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    let remove_rw x st = Dom.remove (x,true) (Dom.remove (x,false) st) in
+  let special ctx (lv: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let remove_rw x st = D.remove (x,true) (D.remove (x,false) st) in
     (* unlocking logic *)
     let unlock remove_fn =
       match arglist with
         | x::xs -> begin match  (eval_exp_addr ctx.ask x) with 
-                        | [x] -> [remove_fn x ctx.local ,Cil.integer 1, true]
-                        | _ -> [ctx.local ,Cil.integer 1, true]
+                        | [x] -> remove_fn x ctx.local
+                        | _ -> ctx.local
                 end
-        | _ -> [ctx.local, Cil.integer 1, true]
+        | _ -> ctx.local
     in
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
       | `Lock (failing, rw), _
-          -> lock rw failing ctx.ask lv arglist ctx.local
+          -> lock ctx rw failing ctx.ask lv arglist ctx.local
       | `Unlock, _ 
           -> unlock remove_rw
         
-      | _ -> [ctx.local, Cil.integer 1, true]
+      | _ -> ctx.local
 
-  let startstate v = Dom.empty ()
-  let otherstate v = Dom.empty ()
-  let exitstate  v = Dom.top ()
+  let startstate v = D.empty ()
+  let otherstate v = D.empty ()
+  let exitstate  v = D.top ()
 end
 
-module MayLocksMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "maylocks" 
-                let depends = []
-                type lf = Spec.Dom.t
-                let inject_l x = `MayLocks x
-                let extract_l x = match x with `MayLocks x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `None 
-                let extract_g x = match x with `None -> () | _ -> raise MCP.SpecificationConversionError
-         end)
-         
-module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "maylocks" (module Spec2 : Spec2)
+  MCP.register_analysis (module Spec : Spec)

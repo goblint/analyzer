@@ -1,5 +1,8 @@
 open GobConfig
 open Pretty
+open IntervalOps
+open CircularInterval
+open CircularIntOps
 
 module GU = Goblintutil
 module JB = Json
@@ -48,6 +51,8 @@ sig
   val lognot: t -> t
   val logand: t -> t -> t
   val logor : t -> t -> t
+
+  val cast_to_width : t -> int -> t
 end
 
 exception Unknown
@@ -122,6 +127,9 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let cast_to_width x _ = x
+
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 module FlatPureIntegers =
@@ -144,6 +152,7 @@ struct
                                end)
 
   let name () = "flat integers"
+  let cast_to_width x _ = x
 
   let of_int  x = `Lifted (Base.of_int x)
   let to_int  x = match x with
@@ -199,6 +208,7 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 module Lift (Base: S) =
@@ -209,6 +219,7 @@ struct
                                end)
 
   let name () = "lifted integers"
+  let cast_to_width x _ = x
 
   let of_int  x = `Lifted (Base.of_int x)
   let to_int  x = match x with
@@ -262,6 +273,7 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 module Flattened = Flat (Integers) 
@@ -278,6 +290,7 @@ struct
     | `Bot
     ]
 
+  let cast_to_width x _ = x
   let hash (x:t) =
     match x with
       | `Excluded s -> S.hash s
@@ -478,6 +491,7 @@ struct
   let logand = lift2 Integers.logand
   let logor  = lift2 Integers.logor
   let lognot = eq (of_int 0L) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 module OverflowInt64 =
@@ -614,8 +628,184 @@ struct
       | PInf , NInf  -> d
       | PInf , Fin x -> pf x
       | PInf , PInf  -> d
-
+      
 end
+
+module CircInterval : S with type t = CBigInt.t interval =
+  struct
+    include Printable.Std
+    module I = CBigInt
+    module C = CircularBigInt
+    type t = I.t interval
+
+    let max_width = 64
+
+    let name () = "circular int intervals"
+    let cast_to_width x w =
+      match (I.bounds x) with
+      | None -> Bot w
+      | Some(a,b) -> I.of_t w a b;;
+
+    (* Int Conversion *)
+    let to_int x = 
+      match x with
+      | Int(w,a,b) when C.eq a b -> Some (C.to_int64 w a)
+      | _ -> None
+    let of_int x = I.of_int64 max_width x x
+    let is_int x = 
+      match x with
+      | Int(_,a,b) -> C.eq a b
+      | _ -> false
+
+    (* Bool Conversion *)
+    let to_bool x =
+      match to_int x with
+      | None -> None
+      | Some 0L -> Some false
+      | _ -> Some true
+    let of_bool x =
+      if x 
+      then Int(1, C.one, C.one)
+      else Int(1, C.zero, C.zero)
+    let is_bool x =
+      match x with
+      | Int(_,a,b) -> C.eq a b
+      | _ -> false
+
+    (* List Conversion *)
+    let to_excl_list x = None
+    let of_excl_list x = Top max_width
+    let is_excl_list x = false
+
+    (* Starting/Ending *)
+    let starting x = I.of_t max_width (C.of_int64 max_width x) (C.top_value max_width);;
+    let ending x = I.of_t max_width C.zero (C.of_int64 max_width x);;
+    let maximal x = None
+    let minimal x = None
+
+    (* Arithmetic *)
+    let neg = I.neg
+    let add = I.add
+    let sub = I.sub
+    let mul = I.mul
+    let div = I.div_s
+    let rem = I.rem
+
+    (* Comparison *)
+    let lt a b = 
+      let w = I.width a in
+      match (I.bounds b) with
+      | Some(_,u) -> I.join a (I.of_t w (C.shift_left C.one (w - 1)) (C.dec w u))
+      | _ -> a
+
+    let gt a b =
+      let w = I.width a in
+      match (I.bounds b) with
+      | Some(l,_) -> I.join a (I.of_t w (C.inc w l) (C.shift_right (C.max_value w) 1))
+      | _ -> a
+
+    let le a b = 
+      let w = I.width a in
+      match (I.bounds b) with
+      | Some(_,u) -> I.join a (I.of_t w (C.shift_left C.one (w - 1)) u)
+      | _ -> a
+
+    let ge a b =
+      let w = I.width a in
+      match (I.bounds b) with
+      | Some(l,_) -> I.join a (I.of_t w l (C.shift_right (C.max_value w) 1))
+      | _ -> a
+
+    let eq a b = I.meet a b
+    let ne a b = I.meet a (I.complement b)
+    let leq = I.contains
+
+    (* Bitwise *)
+    let bitnot x =
+      match x with
+      | Bot _ -> x
+      | Int(w,a,b) when C.eq a b -> 
+          let v = C.lognot w a in
+          Int(w,v,v)
+      | _ -> Top (I.width x)
+    let bitand = I.logand
+    let bitor = I.logor
+    let bitxor = I.logxor
+    let shift_left = I.shift_left
+    let shift_right = I.shift_right
+    
+    (* Lattice *)
+    let top () = Top max_width
+    let bot () = Bot max_width
+    let is_top x = 
+      match x with
+      | Top _ -> true
+      | _ -> false
+    let is_bot x =
+      match x with
+      | Bot _ -> true
+      | _ -> false
+
+    (* Logical *)
+    let log1 f i1 = 
+      if is_bot i1 then bot ()
+      else
+        match to_bool i1 with
+          | Some x -> of_bool (f x)
+          | _      -> top ()
+    let log f i1 i2 = 
+      match is_bot i1, is_bot i2 with
+        | true, _ 
+        | _   , true -> bot ()
+        | _ ->
+      match to_bool i1, to_bool i2 with
+        | Some x, Some y -> of_bool (f x y)
+        | _              -> top ()
+
+    let lognot = log1 not
+    let logor  = log (||)
+    let logand = log (&&)
+      
+    (* Others *)
+    let meet = I.meet
+    let join = I.join
+
+    let hash x =
+      match x with
+      | Top w -> w
+      | Bot _ -> 0
+      | Int(w,a,b) -> w lxor (Hashtbl.hash b) lxor (Hashtbl.hash a)
+
+    let equal a b =
+      match a,b with
+      | Top w0, Top w1 -> (w0 = w1)
+      | Bot _, Bot _ -> true
+      | Int(_,a,b), Int(_,c,d) -> C.eq a c && C.eq b d
+      | _ -> false
+
+    let isSimple x = true
+    let short _ x = I.to_string x
+    let pretty_f sh () x = text (sh 10 x)
+    let pretty = pretty_f short
+    let toXML_f sf x = Xml.Element ("Leaf", [("text", sf
+    Goblintutil.summary_length x)],[])
+    let toXML = toXML_f short
+    let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+
+    (* Narrow/Widen *)
+    let widen a b = 
+      if (I.eql a b) then b
+      else Top (I.width b)
+
+    let narrow a b =
+      if (I.eql a b) then b
+      else
+        match a with
+        | Top _ -> b
+        | _ -> a
+
+  end
 
 module Interval : S with type t = InfInt.t * InfInt.t =
 struct 
@@ -849,6 +1039,8 @@ struct
       top ()
     end
 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+
   let of_excl_list l = top ()
   let is_excl_list l = false
   let to_excl_list x = None
@@ -857,6 +1049,7 @@ struct
   let sub x y = try sub x y with OverflowInt64.Overflow _ -> top ()
   let mul x y = try mul x y with OverflowInt64.Overflow _ -> top ()
   *)
+  let cast_to_width x _ = x
 end
 
 (*module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] = 
@@ -1175,6 +1368,7 @@ struct
   let hash = function true -> 51534333 | _ -> 561123444
   let equal (x:t) (y:t) = x=y 
   let name () = "booleans"
+  let cast_to_width x _ = x
   let copy x = x
   let isSimple _ = true
   let short _ x = if x then N.truename else N.falsename
@@ -1229,6 +1423,7 @@ struct
   let logand = (&&)
   let logor  = (||)
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 module Booleans = MakeBooleans (
@@ -1239,42 +1434,43 @@ module Booleans = MakeBooleans (
 
 module None : S with type t = unit  =
 struct
-  include Printable.Std
-  include Lattice.StdCousot
-  let name () = "none"
-  type t = unit
-  let hash () = 101010
-  let equal _ _ = true
-  let copy x = () 
-  let top () = ()
-  let is_top _ = true
-  let bot () = ()
-  let is_bot _ = true
-  let isSimple _  = true
-  let short _ x = "?"
-  let pretty_f _ _ x = text "?"
-  let toXML_f _ x = Xml.Element ("Leaf", [("text", "?")],[])
-  let toXML m = toXML_f short m
-  let pretty () x = pretty_f short () x
-  let leq x y = true
-  let join () () = ()
-  let meet x y = ()
+include Printable.Std
+include Lattice.StdCousot
+let cast_to_width x _ = x
+let name () = "none"
+type t = unit
+let hash () = 101010
+let equal _ _ = true
+let copy x = () 
+let top () = ()
+let is_top _ = true
+let bot () = ()
+let is_bot _ = true
+let isSimple _  = true
+let short _ x = "?"
+let pretty_f _ _ x = text "?"
+let toXML_f _ x = Xml.Element ("Leaf", [("text", "?")],[])
+let toXML m = toXML_f short m
+let pretty () x = pretty_f short () x
+let leq x y = true
+let join () () = ()
+let meet x y = ()
 
-  let of_bool _ = ()
-  let to_bool _ = None
-  let is_bool _ = false
-  let of_int  _ = ()
-  let to_int  _ = None
-  let is_int  _ = false
+let of_bool _ = ()
+let to_bool _ = None
+let is_bool _ = false
+let of_int  _ = ()
+let to_int  _ = None
+let is_int  _ = false
 
-  let is_excl_list _ = false
-  let of_excl_list _ = top ()
-  let to_excl_list _ = None
-  let of_interval  x y = top ()
-  let starting     x = top ()
-  let ending       x = top ()
-  let maximal      x = None
-  let minimal      x = None
+let is_excl_list _ = false
+let of_excl_list _ = top ()
+let to_excl_list _ = None
+let of_interval  x y = top ()
+let starting     x = top ()
+let ending       x = top ()
+let maximal      x = None
+let minimal      x = None
 
   let neg x = ()
   let add _ _ = ()
@@ -1298,18 +1494,20 @@ struct
   let logand n1 n2 = ()
   let logor  n1 n2 = ()
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 end
 
 
 module ManyInts : S =
 struct
-  module I1 = Trier
-  module I2 = Interval
-  
-  include Lattice.Prod (I1) (I2)
-  
+module I1 = Trier
+module I2 = Interval
+
+include Lattice.Prod (I1) (I2)
+
+  let cast_to_width x _ = x
   let name () = I1.name () ^ " * " ^ I2.name ()
-    
+  
   let equal (x1,x2) (y1,y2) =
     (I1.equal x1 y1 && I2.equal x2 y2)
     
@@ -1477,6 +1675,7 @@ struct
   let is_excl_list (x1,x2) = (I1.is_excl_list x1) || (I2.is_excl_list x2)
   let is_bool (x1,x2) = (I1.is_bool x1) || (I2.is_bool x2)
   let is_int (x1,x2) = (I1.is_int x1) || (I2.is_int x2)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 
 end
 
@@ -1487,16 +1686,21 @@ struct
   
   module I1 = Trier
   module I2 = Interval
+  module I3 = CircInterval
   
-  type e = Trier of Trier.t
-         | Interval of Interval.t
-         | B
+  type e = Trier of I1.t
+         | Interval of I2.t
+         | CInterval of I3.t
   
   type t = e list
   
   (* constructors *)
   
-  let name () = Trier.name ()
+  let name () = I1.name ()
+  let cast_to_width' x w =
+    match x with
+    | CInterval a -> CInterval (I3.cast_to_width a w)
+    | _ -> x
         
   let constr_scheme xs =
     let f (s,g) y : t = 
@@ -1507,94 +1711,111 @@ struct
     List.fold_right f xs []
 
   let top () = constr_scheme
-    [("trier"   ,fun () -> Trier    (Trier.top ()))
-    ;("interval",fun () -> Interval (Interval.top ()))]
+    [("trier"    ,fun () -> Trier    (I1.top ()))
+    ;("interval" ,fun () -> Interval (I2.top ()))
+    ;("cinterval",fun () -> CInterval (I3.top ()))]
       
   let bot () = constr_scheme
-    [("trier"   ,fun () -> Trier    (Trier.bot ()))
-    ;("interval",fun () -> Interval (Interval.bot ()))]
+    [("trier"    ,fun () -> Trier    (I1.bot ()))
+    ;("interval" ,fun () -> Interval (I2.bot ()))
+    ;("cinterval",fun () -> CInterval (I3.bot ()))]
   
   let starting x = constr_scheme
-    [("trier"   ,fun () -> Trier    (Trier.starting x))
-    ;("interval",fun () -> Interval (Interval.starting x))]
+    [("trier"    ,fun () -> Trier    (I1.starting x))
+    ;("interval" ,fun () -> Interval (I2.starting x))
+    ;("cinterval",fun () -> CInterval (I3.starting x))]
 
   let ending x = constr_scheme
-    [("trier"   ,fun () -> Trier    (Trier.ending x))
-    ;("interval",fun () -> Interval (Interval.ending x))]
+    [("trier"   ,fun () -> Trier    (I1.ending x))
+    ;("interval",fun () -> Interval (I2.ending x))
+    ;("cinterval",fun () -> CInterval (I3.ending x))]
     
   let of_bool x = constr_scheme
-    [("trier"   ,fun () -> Trier    (Trier.of_bool x))
-    ;("interval",fun () -> Interval (Interval.of_bool x))]
+    [("trier"   ,fun () -> Trier    (I1.of_bool x))
+    ;("interval",fun () -> Interval (I2.of_bool x))
+    ;("cinterval",fun () -> CInterval (I3.of_bool x))]
   
   let of_excl_list x = constr_scheme
-    [("trier"   ,fun () -> Trier    (Trier.of_excl_list x))
-    ;("interval",fun () -> Interval (Interval.of_excl_list x))]
+    [("trier"   ,fun () -> Trier    (I1.of_excl_list x))
+    ;("interval",fun () -> Interval (I2.of_excl_list x))
+    ;("cinterval",fun () -> CInterval (I3.of_excl_list x))]
 
   let of_int x = constr_scheme
-    [("trier"   ,fun () -> Trier    (Trier.of_int x))
-    ;("interval",fun () -> Interval (Interval.of_int x))]
+    [("trier"   ,fun () -> Trier    (I1.of_int x))
+    ;("interval",fun () -> Interval (I2.of_int x))
+    ;("cinterval",fun () -> CInterval (I3.of_int x))]
   
   (* element functions *)
   
   let narrow' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.narrow x y)
-      | Interval x, Interval y -> Interval (Interval.narrow x y)
+      | Trier x, Trier y -> Trier (I1.narrow x y)
+      | Interval x, Interval y -> Interval (I2.narrow x y)
+      | CInterval x, CInterval y -> CInterval (I3.narrow x y)
       | _ -> raise IntDomListBroken
 
   let widen' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.widen x y)
-      | Interval x, Interval y -> Interval (Interval.widen x y)
+      | Trier x, Trier y -> Trier (I1.widen x y)
+      | Interval x, Interval y -> Interval (I2.widen x y)
+      | CInterval x, CInterval y -> CInterval (I3.widen x y)
       | _ -> raise IntDomListBroken
 
   let is_top' x =
     match x with
-      | Trier x -> Trier.is_top x
-      | Interval x -> Interval.is_top x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.is_top x
+      | Interval x -> I2.is_top x
+      | CInterval x -> I3.is_top x
+(*      | _ -> raise IntDomListBroken*)
   
   let is_bot' x =
     match x with
-      | Trier x -> Trier.is_bot x
-      | Interval x -> Interval.is_bot x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.is_bot x
+      | Interval x -> I2.is_bot x
+      | CInterval x -> I3.is_bot x
+(*      | _ -> raise IntDomListBroken*)
 
   let meet' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.meet x y)
-      | Interval x, Interval y -> Interval (Interval.meet x y)
+      | Trier x, Trier y -> Trier (I1.meet x y)
+      | Interval x, Interval y -> Interval (I2.meet x y)
+      | CInterval x, CInterval y -> CInterval (I3.meet x y)
       | _ -> raise IntDomListBroken
 
   let join' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.join x y)
-      | Interval x, Interval y -> Interval (Interval.join x y)
+      | Trier x, Trier y -> Trier (I1.join x y)
+      | Interval x, Interval y -> Interval (I2.join x y)
+      | CInterval x, CInterval y -> CInterval (I3.join x y)
       | _ -> raise IntDomListBroken
 
   let leq' x y =
     match x, y with
-      | Trier x, Trier y -> Trier.leq x y
-      | Interval x, Interval y -> Interval.leq x y
+      | Trier x, Trier y -> I1.leq x y
+      | Interval x, Interval y -> I2.leq x y
+      | CInterval x, CInterval y -> I3.leq x y
       | _ -> raise IntDomListBroken
       
   let short' w x =
     match x with
-      | Trier x -> Trier.short w x
-      | Interval x -> Interval.short w x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.short w x
+      | Interval x -> I2.short w x
+      | CInterval x -> I3.short w x
+(*      | _ -> raise IntDomListBroken*)
       
   let toXML_f' sf x =
     match x with
-      | Trier x -> Trier.toXML_f (fun w x -> sf w (Trier x)) x
-      | Interval x -> Trier.toXML_f (fun w x -> sf w (Interval x)) x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.toXML_f (fun w x -> sf w (Trier x)) x
+      | Interval x -> I2.toXML_f (fun w x -> sf w (Interval x)) x
+      | CInterval x -> I3.toXML_f (fun w x -> sf w (CInterval x)) x
+(*      | _ -> raise IntDomListBroken*)
       
   let pretty_f' sf () x =
     match x with
-      | Trier x -> Trier.pretty_f (fun w x -> sf w (Trier x)) () x
-      | Interval x -> Interval.pretty_f (fun w x -> sf w (Interval x)) () x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.pretty_f (fun w x -> sf w (Trier x)) () x
+      | Interval x -> I2.pretty_f (fun w x -> sf w (Interval x)) () x
+      | CInterval x -> I3.pretty_f (fun w x -> sf w (CInterval x)) () x
+(*      | _ -> raise IntDomListBroken*)
       
   let toXML' x = toXML_f' short' x
       
@@ -1602,195 +1823,227 @@ struct
       
   let compare' x y =
     match x, y with
-      | Trier x, Trier y -> Trier.compare x y
-      | Interval x, Interval y -> Interval.compare x y
+      | Trier x, Trier y -> I1.compare x y
+      | Interval x, Interval y -> I2.compare x y
+      | CInterval x, CInterval y -> I3.compare x y
       | _ -> raise IntDomListBroken
 
   let equal' x y =
     match x, y with
-      | Trier x, Trier y -> Trier.equal x y
-      | Interval x, Interval y -> Interval.equal x y
+      | Trier x, Trier y -> I1.equal x y
+      | Interval x, Interval y -> I2.equal x y
+      | CInterval x, CInterval y -> I3.equal x y
       | _ -> raise IntDomListBroken
 
   let logor' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.logor x y)
-      | Interval x, Interval y -> Interval (Interval.logor x y)
+      | Trier x, Trier y -> Trier (I1.logor x y)
+      | Interval x, Interval y -> Interval (I2.logor x y)
+      | CInterval x, CInterval y -> CInterval (I3.logor x y)
       | _ -> raise IntDomListBroken
 
   let logand' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.logand x y)
-      | Interval x, Interval y -> Interval (Interval.logand x y)
+      | Trier x, Trier y -> Trier (I1.logand x y)
+      | Interval x, Interval y -> Interval (I2.logand x y)
+      | CInterval x, CInterval y -> CInterval (I3.logand x y)
       | _ -> raise IntDomListBroken
 
   let lognot' x =
     match x with
-      | Trier x -> Trier (Trier.lognot x )
-      | Interval x -> Interval (Interval.lognot x )
-      | _ -> raise IntDomListBroken
+      | Trier x -> Trier (I1.lognot x )
+      | Interval x -> Interval (I2.lognot x)
+      | CInterval x -> CInterval (I3.lognot x)
+(*      | _ -> raise IntDomListBroken*)
 
   let shift_right' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.shift_right x y)
-      | Interval x, Interval y -> Interval (Interval.shift_right x y)
+      | Trier x, Trier y -> Trier (I1.shift_right x y)
+      | Interval x, Interval y -> Interval (I2.shift_right x y)
+      | CInterval x, CInterval y -> CInterval (I3.shift_right x y)
       | _ -> raise IntDomListBroken
 
   let shift_left' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.shift_left x y)
-      | Interval x, Interval y -> Interval (Interval.shift_left x y)
+      | Trier x, Trier y -> Trier (I1.shift_left x y)
+      | Interval x, Interval y -> Interval (I2.shift_left x y)
+      | CInterval x, CInterval y -> CInterval (I3.shift_left x y)
       | _ -> raise IntDomListBroken
 
   let bitxor' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.bitxor x y)
-      | Interval x, Interval y -> Interval (Interval.bitxor x y)
+      | Trier x, Trier y -> Trier (I1.bitxor x y)
+      | Interval x, Interval y -> Interval (I2.bitxor x y)
+      | CInterval x, CInterval y -> CInterval (I3.bitxor x y)
       | _ -> raise IntDomListBroken
 
   let bitor' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.bitor x y)
-      | Interval x, Interval y -> Interval (Interval.bitor x y)
+      | Trier x, Trier y -> Trier (I1.bitor x y)
+      | Interval x, Interval y -> Interval (I2.bitor x y)
+      | CInterval x, CInterval y -> CInterval (I3.bitor x y)
       | _ -> raise IntDomListBroken
 
   let bitand' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.bitand x y)
-      | Interval x, Interval y -> Interval (Interval.bitand x y)
+      | Trier x, Trier y -> Trier (I1.bitand x y)
+      | Interval x, Interval y -> Interval (I2.bitand x y)
+      | CInterval x, CInterval y -> CInterval (I3.bitand x y)
       | _ -> raise IntDomListBroken
 
   let bitnot' x =
     match x with
-      | Trier x -> Trier (Trier.bitnot x)
-      | Interval x -> Interval (Interval.bitnot x)
-      | _ -> raise IntDomListBroken
+      | Trier x -> Trier (I1.bitnot x)
+      | Interval x -> Interval (I2.bitnot x)
+      | CInterval x -> CInterval (I3.bitnot x)
+(*      | _ -> raise IntDomListBroken*)
 
   let ne' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.ne x y)
-      | Interval x, Interval y -> Interval (Interval.ne x y)
+      | Trier x, Trier y -> Trier (I1.ne x y)
+      | Interval x, Interval y -> Interval (I2.ne x y)
+      | CInterval x, CInterval y -> CInterval (I3.ne x y)
       | _ -> raise IntDomListBroken
 
   let eq' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.eq x y)
-      | Interval x, Interval y -> Interval (Interval.eq x y)
+      | Trier x, Trier y -> Trier (I1.eq x y)
+      | Interval x, Interval y -> Interval (I2.eq x y)
+      | CInterval x, CInterval y -> CInterval (I3.eq x y)
       | _ -> raise IntDomListBroken
 
   let ge' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.ge x y)
-      | Interval x, Interval y -> Interval (Interval.ge x y)
+      | Trier x, Trier y -> Trier (I1.ge x y)
+      | Interval x, Interval y -> Interval (I2.ge x y)
+      | CInterval x, CInterval y -> CInterval (I3.ge x y)
       | _ -> raise IntDomListBroken
 
   let le' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.le x y)
-      | Interval x, Interval y -> Interval (Interval.le x y)
+      | Trier x, Trier y -> Trier (I1.le x y)
+      | Interval x, Interval y -> Interval (I2.le x y)
+      | CInterval x, CInterval y -> CInterval (I3.le x y)
       | _ -> raise IntDomListBroken
 
   let gt' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.gt x y)
-      | Interval x, Interval y -> Interval (Interval.gt x y)
+      | Trier x, Trier y -> Trier (I1.gt x y)
+      | Interval x, Interval y -> Interval (I2.gt x y)
+      | CInterval x, CInterval y -> CInterval (I3.gt x y)
       | _ -> raise IntDomListBroken
 
   let lt' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.lt x y)
-      | Interval x, Interval y -> Interval (Interval.lt x y)
+      | Trier x, Trier y -> Trier (I1.lt x y)
+      | Interval x, Interval y -> Interval (I2.lt x y)
+      | CInterval x, CInterval y -> CInterval (I3.lt x y)
       | _ -> raise IntDomListBroken
 
   let rem' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.rem x y)
-      | Interval x, Interval y -> Interval (Interval.rem x y)
+      | Trier x, Trier y -> Trier (I1.rem x y)
+      | Interval x, Interval y -> Interval (I2.rem x y)
+      | CInterval x, CInterval y -> CInterval (I3.rem x y)
       | _ -> raise IntDomListBroken
 
   let div' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.div x y)
-      | Interval x, Interval y -> Interval (Interval.div x y)
+      | Trier x, Trier y -> Trier (I1.div x y)
+      | Interval x, Interval y -> Interval (I2.div x y)
+      | CInterval x, CInterval y -> CInterval (I3.div x y)
       | _ -> raise IntDomListBroken
 
   let mul' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.mul x y)
-      | Interval x, Interval y -> Interval (Interval.mul x y)
+      | Trier x, Trier y -> Trier (I1.mul x y)
+      | Interval x, Interval y -> Interval (I2.mul x y)
+      | CInterval x, CInterval y -> CInterval (I3.mul x y)
       | _ -> raise IntDomListBroken
 
   let sub' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.sub x y)
-      | Interval x, Interval y -> Interval (Interval.sub x y)
+      | Trier x, Trier y -> Trier (I1.sub x y)
+      | Interval x, Interval y -> Interval (I2.sub x y)
+      | CInterval x, CInterval y -> CInterval (I3.sub x y)
       | _ -> raise IntDomListBroken
 
   let add' x y =
     match x, y with
-      | Trier x, Trier y -> Trier (Trier.add x y)
-      | Interval x, Interval y -> Interval (Interval.add x y)
+      | Trier x, Trier y -> Trier (I1.add x y)
+      | Interval x, Interval y -> Interval (I2.add x y)
+      | CInterval x, CInterval y -> CInterval (I3.add x y)
       | _ -> raise IntDomListBroken
 
   let neg' x =
     match x with
-      | Trier x -> Trier (Trier.neg x)
-      | Interval x -> Interval (Interval.neg x)
-      | _ -> raise IntDomListBroken
+      | Trier x -> Trier (I1.neg x)
+      | Interval x -> Interval (I2.neg x)
+      | CInterval x -> CInterval (I3.neg x)
+(*      | _ -> raise IntDomListBroken*)
 
   let hash' x =
     match x with
-      | Trier x-> Trier.hash x
-      | Interval x-> 17*Interval.hash x
-      | _ -> raise IntDomListBroken
+      | Trier x-> I1.hash x
+      | Interval x-> 17*I2.hash x
+      | CInterval x-> 34*I3.hash x
+(*      | _ -> raise IntDomListBroken*)
 
   let minimal' x =
     match x with
-      | Trier x -> Trier.minimal x
-      | Interval x -> Interval.minimal x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.minimal x
+      | Interval x -> I2.minimal x
+      | CInterval x -> I3.minimal x
+(*      | _ -> raise IntDomListBroken*)
 
   let maximal' x =
     match x with
-      | Trier x -> Trier.maximal x
-      | Interval x -> Interval.maximal x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.maximal x
+      | Interval x -> I2.maximal x
+      | CInterval x -> I3.maximal x
+(*      | _ -> raise IntDomListBroken*)
 
   let to_int' x =
     match x with
-      | Trier x -> Trier.to_int x
-      | Interval x -> Interval.to_int x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.to_int x
+      | Interval x -> I2.to_int x
+      | CInterval x -> I3.to_int x
+(*      | _ -> raise IntDomListBroken*)
 
   let to_bool' x =
     match x with
-      | Trier x -> Trier.to_bool x
-      | Interval x -> Interval.to_bool x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.to_bool x
+      | Interval x -> I2.to_bool x
+      | CInterval x -> I3.to_bool x
+(*      | _ -> raise IntDomListBroken*)
 
   let to_excl_list' x =
     match x with
-      | Trier x -> Trier.to_excl_list x
-      | Interval x -> Interval.to_excl_list x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.to_excl_list x
+      | Interval x -> I2.to_excl_list x
+      | CInterval x -> I3.to_excl_list x
+(*      | _ -> raise IntDomListBroken*)
 
   let is_excl_list' x =
     match x with
-      | Trier x -> Trier.is_excl_list x
-      | Interval x -> Interval.is_excl_list x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.is_excl_list x
+      | Interval x -> I2.is_excl_list x
+      | CInterval x -> I3.is_excl_list x
+(*      | _ -> raise IntDomListBroken*)
 
   let is_bool' x =
     match x with
-      | Trier x -> Trier.is_bool x
-      | Interval x -> Interval.is_bool x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.is_bool x
+      | Interval x -> I2.is_bool x
+      | CInterval x -> I3.is_bool x
+(*      | _ -> raise IntDomListBroken*)
 
   let is_int' x =
     match x with
-      | Trier x -> Trier.is_int x
-      | Interval x -> Interval.is_int x
-      | _ -> raise IntDomListBroken
+      | Trier x -> I1.is_int x
+      | Interval x -> I2.is_int x
+      | CInterval x -> I3.is_int x
+(*      | _ -> raise IntDomListBroken *)
   
   (* list functions *)
   
@@ -1815,6 +2068,8 @@ struct
   let sub = List.map2 sub' 
   let add = List.map2 add' 
   let neg = List.map neg' 
+  let cast_to_width xs w = 
+    List.map (fun x -> cast_to_width' x w) xs
   
   let minimal x =
     let max x y =
@@ -1932,5 +2187,7 @@ struct
     with Inconsistent -> None
 
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
+
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 
 end

@@ -104,7 +104,7 @@ struct
   include Lattice.Flat (Basetype.CilFundec) (struct let bot_name = "Error" 
                                                     let top_name = "Any function" end)
                                                     
-  let to_fun_name (x:Cil.fundec) = `Lifted x
+  let to_fun_name (x:fundec) = `Lifted x
   
   let from_fun_name = function
     | `Lifted x -> Some x
@@ -367,7 +367,7 @@ struct
       else Danger.add v (ArgSet.singleton (FieldVars.gen v)) st
     in
     let st = Danger.add unresFunDec.svar (ArgSet.singleton (FieldVars.gen unresFunDec.svar)) st in 
-    fd, List.fold_left add_arg st f.Cil.sformals, df  
+    fd, List.fold_left add_arg st f.sformals, df  
 		
  let empty_formals f sformals (fd, st,df) = 
     add_formals f (remove_formals sformals (fd, st,df))

@@ -214,4 +214,6 @@ struct
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.narrow x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.narrow x y)
       | (x,_) -> x
+      
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (short 800 x)
 end

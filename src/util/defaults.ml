@@ -98,8 +98,11 @@ let _ =
   reg Analyses "ana.osek.check"      "false" "Check if (assumed) OSEK conventions are fullfilled.";
   reg Analyses "ana.osek.names"      "[]"    "OSEK API function (re)names for the analysed program";
   reg Analyses "ana.osek.flags"      "[]"    "List of global variables that are flags.";
+  reg Analyses "ana.osek.def_header" "true"  "Generate TASK/ISR macros with default structure";
   reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain.";
-  reg Analyses "ana.int.interval"    "false" "Interval based integer domain."
+  reg Analyses "ana.int.interval"    "false" "Interval based integer domain.";
+  reg Analyses "ana.int.cinterval"   "false" "Wrapped, Signedness agnostic intervals.";
+  reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
   
 (* {4 category [Experimental]} *)
 
@@ -121,13 +124,15 @@ let _ =
   reg Experimental "exp.full-context"      "false" "Do not side-effect function entries.";
   reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts.";
   reg Experimental "exp.no-int-context"    "false" "Ignore integer values in function contexts.";
-  reg Experimental "exp.new_fwk"           "true"  "Use the new framework.";
   reg Experimental "exp.malloc-fail"       "false" "Consider the case where malloc fails.";
   reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top";
   reg Experimental "exp.need"              "false" "Bidirectional analysis";
   reg Experimental "exp.back_loop_sep"     "false" "Only widen on nodes with back edges.";
   reg Experimental "exp.single-threaded"   "false" "Ensures analyses that no threads are created.";
-  reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top."
+  reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top.";
+  reg Experimental "exp.use_gen_solver"    "true"  "Use a generic solver instead iterating like the other tool?";
+  reg Experimental "exp.unknown_funs_spawn" "true" "Should unknown function calls switch to MT-mode?";
+  reg Experimental "exp.precious_globs"    "[]"    "Global variables that should be handled flow-sensitively when using earlyglobs."
   
 (* {4 category [Debugging]} *)
 

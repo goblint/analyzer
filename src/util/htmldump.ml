@@ -140,8 +140,8 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
 	in
 
 	let createLine line = 
-		if ((!currentLine mod 50000) = 0) then fprintf outchan "</div>\n<div id=\"linecontainer%i\" style=\"\">\n" (!currentLine/50000) else ();
-		if (!currentLine = 1) then fprintf outchan "<div id=\"linecontainer%i\">\n" (!currentLine/50000) else ();
+		if ((!currentLine mod 5000) = 0) then fprintf outchan "</div>\n<div id=\"linecontainer%i\" style=\"\">\n" (!currentLine/5000) else ();
+		if (!currentLine = 1) then fprintf outchan "<div id=\"linecontainer%i\">\n" (!currentLine/5000) else ();
 		
 		let isAnalyzed = isLineAnalyzed !currentLine in
 		let colorString = (
@@ -149,7 +149,7 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
 			else "") 
 		in
 		let fontString = (
-			if isLineDeadcode !currentLine then "color: #909090;"
+			if isLineDeadcode !currentLine then "color: #FFAA00;"
 			else "") 
 		in
 		let styleString = "style=\""^colorString^fontString^"\" " in
@@ -241,7 +241,7 @@ let createGlobalsTable outchan gtable =
 	fprintf outchan "</table>";
 	();;
 
-let generateCodeFile fileEntry (file: Cil.file) gtable =
+let generateCodeFile fileEntry (file: file) gtable =
 	let shortFilename = Filename.basename fileEntry.filename in
 
 	(* Create output file *)
@@ -300,7 +300,7 @@ let readCodeLines filename lines =
 	();;
 
 (* === print_fmt : html output === *)
-let print_html chan xmlNode (file: Cil.file) gtable = 
+let print_html chan xmlNode (file: file) gtable = 
 	printf "[HTML-Output] Create html files ...\n";	
 	(*printf "Start: %f \n" (Unix.time ());*)
 	(*List.iter (fun xmlfile -> printf "GTABLE:\n%s\n" (Xml.to_string_fmt xmlfile)) (Lazy.force gtable);*)

@@ -25,7 +25,7 @@ struct
   type value = Val.t
 
   let short w x = "Array: " ^ Val.short (w - 7) x
-  let pretty () x = pretty_f short () x
+  let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
   let get a i = a
@@ -35,6 +35,7 @@ struct
 
   let set_inplace = set
   let copy a = a
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%s\n</map>\n</value>\n" (Val.short 700 x) 
 end
 
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
@@ -173,6 +174,13 @@ struct
   let length a =
     Some (A.length a)
 
+  let printXml f xs = 
+    let print_one k v =
+      BatPrintf.fprintf f "<key>\n%d</key>\n%a" k Base.printXml v
+    in
+    BatPrintf.fprintf f "<value>\n<map>\n";
+    Array.iteri print_one xs ;
+    BatPrintf.fprintf f "</map>\n</value>\n"
 end
 
 (*

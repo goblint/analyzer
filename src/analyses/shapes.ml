@@ -14,13 +14,11 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "Shape Analysis for Cyclic Doubly Linked Lists"
-  module LD   = ShapeDomain.Dom
-  module Dom  = Lattice.Prod (ShapeDomain.Dom) (Re.Dom)
-  module GD   = Lattice.Prod (IntDomain.Booleans) (Re.Glob.Val)
-  module Glob = Glob.Make (GD)
-  
-  type glob_fun = Glob.Var.t -> Glob.Val.t
+  let name = "shape"
+  module LD = ShapeDomain.Dom
+  module D  = Lattice.Prod (LD) (Re.D)
+  module C  = Lattice.Prod (LD) (Re.D)
+  module G  = Lattice.Prod (IntDomain.Booleans) (Re.G)
   
   let rec tryReallyHard ask gl upd f st =
     if LD.is_empty st then raise Deadcode else
@@ -39,36 +37,37 @@ struct
     let module S = Set.Make (Var) in
     let rec offs_contains o =
       match o with
-        | Cil.NoOffset -> S.empty
-        | Cil.Field (_,o) -> offs_contains o
-        | Cil.Index (e,o) -> S.union (cv e) (offs_contains o)
+        | NoOffset -> S.empty
+        | Field (_,o) -> offs_contains o
+        | Index (e,o) -> S.union (cv e) (offs_contains o)
     and cv e = 
       match e with
-        | Cil.SizeOf _
-        | Cil.SizeOfE _
-        | Cil.SizeOfStr _
-        | Cil.AlignOf _  
-        | Cil.Const _ 
-        | Cil.AlignOfE _ -> S.empty
-        | Cil.UnOp  (_,e,_)     -> cv e      
-        | Cil.BinOp (_,e1,e2,_) -> S.union (cv e1) (cv e2)  
-        | Cil.AddrOf  (Cil.Mem e,o) 
-        | Cil.StartOf (Cil.Mem e,o) 
-        | Cil.Lval    (Cil.Mem e,o) -> S.union (cv e) (offs_contains o)
-        | Cil.CastE (_,e)           -> cv e 
-        | Cil.Lval    (Cil.Var v2,o) -> S.add v2 (offs_contains o)
-        | Cil.AddrOf  (Cil.Var v2,o) 
-        | Cil.StartOf (Cil.Var v2,o) -> S.add v2 (offs_contains o)
-        | Cil.Question _ -> failwith "Logical operations should be compiled away by CIL."
+        | SizeOf _
+        | SizeOfE _
+        | SizeOfStr _
+        | AlignOf _  
+        | Const _ 
+        | AlignOfE _ -> S.empty
+        | UnOp  (_,e,_)     -> cv e      
+        | BinOp (_,e1,e2,_) -> S.union (cv e1) (cv e2)  
+        | AddrOf  (Mem e,o) 
+        | StartOf (Mem e,o) 
+        | Lval    (Mem e,o) -> S.union (cv e) (offs_contains o)
+        | CastE (_,e)           -> cv e 
+        | Lval    (Var v2,o) -> S.add v2 (offs_contains o)
+        | AddrOf  (Var v2,o) 
+        | StartOf (Var v2,o) -> S.add v2 (offs_contains o)
+        | Question _ -> failwith "Logical operations should be compiled away by CIL."
 	| _ -> failwith "Unmatched pattern."
     in
     S.elements (cv e)
     
-  let re_context ctx (re:Re.Dom.t) =
+  let re_context (ctx: (D.t,G.t) ctx) (re:Re.D.t): (Re.D.t, Re.G.t) ctx =
     let ge v = let a,b = ctx.global v in b in
     let spawn f v x = f v (LD.singleton (SHMap.top ()), x) in
     let geffect f v d = f v (false, d) in
-    set_st_gl ctx re ge spawn geffect
+    let split f d e t = f (LD.singleton (SHMap.top ()), d) e t in
+      set_st_gl ctx re ge spawn geffect split
 
   let sync_ld ask gl upd st =
     let f sm (st, ds, rm, part)=
@@ -99,21 +98,21 @@ struct
     in
     let rs = RS.filter is_public v in
 (*    if RS.cardinal rs >= 2 then  Messages.waitWhat (e.vname^": "^RS.short 80 rs);*)
-    if not (RS.is_empty rs) then ctx.geffect (Re.partition_varinfo ()) (false, RegPart.singleton rs)
+    if not (RS.is_empty rs) then ctx.sideg (Re.partition_varinfo ()) (false, RegPart.singleton rs)
 
   
 
-  let sync ctx : Dom.t * (varinfo*GD.t) list =
+  let sync ctx : D.t * (varinfo*G.t) list =
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
-    let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
+    let upd v d = ctx.sideg v (d,Re.G.bot ()) in
     let nst, dst, rm, part = tryReallyHard ctx.ask gl upd (sync_ld ctx.ask gl upd) st in
     let (nre,nvar), dre = Re.sync (re_context ctx re) in
     let update k v m = 
       let old = try RegMap.find k m with Not_found -> RS.empty () in
       if (not (RS.is_top old)) && RS.for_all (function  (`Left (v,_)) -> not (gl v) |  `Right _ -> true)  old
       then RegMap.add k v m
-      else ((*ctx.geffect (Re.partition_varinfo ()) (false, RegPart.singleton v);*) m)
+      else ((*ctx.sideg (Re.partition_varinfo ()) (false, RegPart.singleton v);*) m)
     in 
     let nre = 
       match nre with
@@ -131,11 +130,11 @@ struct
           RegMap.iter (reclaimLostRegions alive ctx) m
         | x -> ()
     in
-    ctx.geffect (Re.partition_varinfo ()) (false, part);
+    ctx.sideg (Re.partition_varinfo ()) (false, part);
     let is_public (v,_) = gl v in
     (nst,(nre,nvar)), 
     (List.map (fun (v,d) -> (v,(false,d))) (List.filter is_public dre) 
-    @ List.map (fun (v,d) -> (v,(d, Re.Glob.Val.bot ()))) dst)
+    @ List.map (fun (v,d) -> (v,(d, Re.G.bot ()))) dst)
 
   (* transfer functions *)
   let assign_ld ask gl dup (lval:lval) (rval:exp) st : LD.t =
@@ -153,10 +152,10 @@ struct
           LD.map (kill_vars ask gl dup ls) st
 
  
-  let assign ctx (lval:lval) (rval:exp) : Dom.t =
+  let assign ctx (lval:lval) (rval:exp) : D.t =
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
-    let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
+    let upd v d = ctx.sideg v (d,Re.G.bot ()) in
     tryReallyHard ctx.ask gl upd (assign_ld ctx.ask gl upd lval rval) st,
     Re.assign (re_context ctx re) lval rval
 
@@ -182,14 +181,14 @@ struct
       | BinOp (Eq,e1,e2,_) -> eval_lps (stripCasts e1) (stripCasts e2) true
       | _ -> st
   
-  let branch ctx exp tv : Dom.t =
+  let branch ctx exp tv : D.t =
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
-    let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
+    let upd v d = ctx.sideg v (d,Re.G.bot ()) in
     tryReallyHard ctx.ask gl upd (fun st -> branch_ld ctx.ask gl st exp tv) st,
     Re.branch (re_context ctx re) exp tv
 
-  let body ctx (f:fundec) : Dom.t = 
+  let body ctx (f:fundec) : D.t = 
     let st, re = ctx.local in
     MyLiveness.computeLiveness f; 
     st, Re.body (re_context ctx re) f 
@@ -197,10 +196,10 @@ struct
   let return_ld ask gl dup st (exp:exp option) (f:fundec) : LD.t = 
     LD.map (kill_vars ask gl dup (f.sformals @ f.slocals)) st
 
-  let return ctx exp f : Dom.t =
+  let return ctx exp f : D.t =
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
-    let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
+    let upd v d = ctx.sideg v (d,Re.G.bot ()) in
     tryReallyHard ctx.ask gl upd (fun st -> return_ld ctx.ask gl upd st exp f) st,
     Re.return (re_context ctx re) exp f
 
@@ -214,19 +213,19 @@ struct
     let asg (v,e) d = assign_ld ask gl dup (Var v,NoOffset) e d in
     List.fold_right asg (zip fd.sformals args) st
   
-  let enter_func ctx lval f args =
+  let enter ctx lval f args =
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
     let upd v d = () in
     let es = tryReallyHard ctx.ask gl upd (enter_func_ld ctx.ask gl upd lval f args) st  in
-    let es' = Re.enter_func (re_context ctx re) lval f args in 
+    let es' = Re.enter (re_context ctx re) lval f args in 
     List.map (fun (x,y) -> (st,x),(es,y)) es'
   
-  let leave_func ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:Dom.t) : Dom.t =
+  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     au
   
   let special_fn_ld ask gl dup (lval: lval option) (f:varinfo) (arglist:exp list) st  =
-    let lift_st x = [x,Cil.integer 1, true] in
+    let lift_st x = [x,integer 1, true] in
     match f.vname, arglist, lval with
       | "kill", [ee], _ -> begin
           match eval_lp ask ee with
@@ -257,16 +256,14 @@ struct
     let ls = vars (Lval x) in
     lift_st (LD.map (kill_vars ask gl dup ls) st) 
     
-  let special_fn ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (Dom.t * Cil.exp * bool) list =
-    let lift_st x = [x,Cil.integer 1, true] in
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let st, re = ctx.local in
     let gl v = let a,b = ctx.global v in a in
-    let upd v d = ctx.geffect v (d,Re.Glob.Val.bot ()) in
+    let upd v d = ctx.sideg v (d,Re.G.bot ()) in
     let s1 = tryReallyHard ctx.ask gl upd (special_fn_ld ctx.ask gl upd lval f arglist) st in
-    match Re.special_fn (re_context ctx re) lval f arglist with
-      | [(s2,_,_)] -> 
-        List.map (fun (x,y,z) -> ((x,s2),y,z)) s1
-      | _ -> lift_st (Dom.top ())
+    let s2 = Re.special (re_context ctx re) lval f arglist in
+      List.iter (fun (x,y,z) -> ctx.split (x,s2) y z) s1;
+      raise Analyses.Deadcode
     
   let query ctx (q:Queries.t) : Queries.Result.t = 
     let st, re = ctx.local in
@@ -282,19 +279,5 @@ struct
 (*    Goblintutil.region_offsets := false*)
 end
 
-module ShapeMCP = 
-  MCP.ConvertToMCPPart
-        (Spec)
-        (struct let name = "shape" 
-                let depends = []
-                type lf = Spec.Dom.t
-                let inject_l x = `Shape x
-                let extract_l x = match x with `Shape x -> x | _ -> raise MCP.SpecificationConversionError
-                type gf = Spec.Glob.Val.t
-                let inject_g x = `Shapes x
-                let extract_g x = match x with `Shapes x -> x | _ -> raise MCP.SpecificationConversionError
-         end)
-
-module Spec2 = Constraints.Spec2OfSpec (Spec)
 let _ = 
-  MCP.register_analysis "shape" (module Spec2 : Spec2)         
+  MCP.register_analysis (module Spec : Spec)         

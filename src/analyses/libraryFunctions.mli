@@ -23,13 +23,13 @@ type action = [ `Write  (** argument may be read or written to *)
               ]
 (** Specifies what is known about an argument. *)
 
-val get_invalidate_action : string -> (action -> Cil.exp list -> Cil.exp list) option
+val get_invalidate_action : string -> (action -> exp list -> exp list) option
 (** Returns None if nothing is known about given function.
   * Otherwise will return function that filters out arguments
   * that may be read or also written to.
   *)
 
-val get_threadsafe_inv_ac : string -> (action -> Cil.exp list -> Cil.exp list) option
+val get_threadsafe_inv_ac : string -> (action -> exp list -> exp list) option
 (** Same as [get_invalidate_action], but replaces arguments for thread-safe functions.
   *)
 

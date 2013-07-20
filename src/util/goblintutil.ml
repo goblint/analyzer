@@ -8,6 +8,9 @@ open Json
 open JsonParser
 open JsonLexer
 
+(** Use this instead of [exit n]. *)
+exception BailFromMain
+
 (* MCP adds analysis here ... *)
 let anas : string list ref = ref []
 (* Phase of the analysis *)
@@ -90,7 +93,7 @@ let is_blessed (t:typ): varinfo option =
   let me_gusta x = List.mem x (List.map string (get_list "exp.unique")) in 
   match unrollType t with
     | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
-    | _ -> (None : Cil.varinfo option)
+    | _ -> (None : varinfo option)
 
 
 (** Length of summary description in XML output *)
@@ -122,7 +125,7 @@ let create_dir name =
   let _ = 
     try
       Unix.mkdir dirName dirPerm
-    with Unix.Unix_error(err, ctx1, ctx2) as ex -> 
+    with Unix.Unix_error(err, ctx1, ctx) as ex -> 
       (* We can discared the EEXIST, we are happy to use the existing directory *)
       if err != Unix.EEXIST then begin
         (* Hopefully will be friendly enough :) *)
@@ -401,3 +404,6 @@ let timeout f arg tsecs timeout_fn =
   Sys.set_signal Sys.sigalrm oldsig;
   res
 
+
+let vars = ref 0
+let evals = ref 0

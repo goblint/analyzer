@@ -5,9 +5,10 @@ open GobConfig
 open Defaults
 open Printf
 open Json
+open Goblintutil
 
-(** Use this instead of [exit n]. *)
-exception BailFromMain
+let writeconf = ref false
+let writeconffile = ref ""
 
 (** Print version and bail. *)
 let print_version ch = 
@@ -43,6 +44,8 @@ let print_help ch =
   
 (** [Arg] option specification *)
 let option_spec_list = 
+  let add_string l = let f str = l := str :: !l in Arg.String f in
+  let add_int    l = let f str = l := str :: !l in Arg.Int f in
   let set_trace sys = 
     let msg = "Goblin has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
     if Config.tracing then Tracing.addsystem sys
@@ -63,11 +66,13 @@ let option_spec_list =
     ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
     ; "--disable"            , Arg.String (fun x -> set_bool x false), ""
     ; "--conf"               , Arg.String merge_file, ""
-    ; "--writeconf"          , Arg.String (fun fn -> File.with_file_out fn print; raise BailFromMain), ""
+    ; "--writeconf"          , Arg.String (fun fn -> writeconf:=true;writeconffile:=fn), ""
     ; "--version"            , Arg.Unit print_version, ""
     ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; raise BailFromMain), ""
     ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; raise BailFromMain), ""
     ; "--trace"              , Arg.String set_trace, ""
+    ; "--tracevars"          , add_string Tracing.tracevars, ""
+    ; "--tracelocs"          , add_int Tracing.tracelocs, ""
     ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "--halp"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "-help"                , Arg.Unit (fun _ -> print_help stdout),""
@@ -80,6 +85,7 @@ let option_spec_list =
     ; "--osekisrsuffix"      , Arg.String (set_string "ana.osek.isrsuffix"), ""
     ; "--osekcheck"          , Arg.Unit (fun () -> set_bool "ana.osek.check" true), ""
     ; "--oseknames"          , Arg.Set_string OilUtil.osek_renames, ""
+    ; "--osekids"            , Arg.Set_string OilUtil.osek_ids, ""
     ]
 
 (** List of C files to consider. *)
@@ -93,7 +99,8 @@ let parse_arguments () =
     then Goblintutil.jsonFiles := fname :: !Goblintutil.jsonFiles 
     else cFileNames := fname :: !cFileNames
   in
-  Arg.parse option_spec_list recordFile "Look up options using 'goblint --help'."
+  Arg.parse option_spec_list recordFile "Look up options using 'goblint --help'.";
+  if !writeconf then begin File.with_file_out !writeconffile print; raise BailFromMain end
   
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -250,10 +257,8 @@ let do_analyze merged_AST =
       (* and here we run the analysis! *)
       if get_string "result" = "html" then Report.prepare_html_report ();
       
-      (* Analyze with the new experimental framework or with the usual framework *)
-      if get_bool "exp.new_fwk" 
-      then Stats.time "analysis" (Control.analyze merged_AST) funs
-      else Stats.time "analysis" (MCP.Analysis.analyze merged_AST) funs
+      (* Analyze with the new experimental framework. *)
+      Stats.time "analysis" (Control.analyze merged_AST) funs
   end
   
 (** the main function *)
