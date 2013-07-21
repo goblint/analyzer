@@ -100,6 +100,9 @@ let _ =
   reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain.";
   reg Analyses "ana.int.interval"    "false" "Interval based integer domain.";
   reg Analyses "ana.int.cinterval"   "false" "Wrapped, Signedness agnostic intervals.";
+  reg Analyses "ana.int.cdebug"      "false" "Debugging output for wrapped interval analysis.";
+  reg Analyses "ana.int.cwiden"      "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'double')";
+  reg Analyses "ana.int.cnarrow"     "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'half')";
   reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
   
 (* {4 category [Experimental]} *)
