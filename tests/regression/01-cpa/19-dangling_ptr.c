@@ -19,17 +19,21 @@ int main () {
   // dangling pointer stuff
   p = dang();
   *p = 7;
-  q = dang();
-  i = *q;
-  assert(i == 7); // UNKNOWN
-  printf("%d\n", i);
+  i = *p;
+  printf("%d\n", i); // GCC: i = 7
+  assert(i == 7);
+
+  dang();
+  i = *p;
+  printf("%d\n", i); // GCC: i = 3
+  assert(i == 3); // UNKNOWN
 
   nestra(&p);
   *p = 8;
   nestra(&q);
-  i = *q;
-  assert(i == 8); // UNKNOWN
-  printf("%d\n", i);
+  i = *p;
+  printf("%d\n", i); // GCC: i = 5
+  assert(i == 5); // UNKNOWN
 
   return 0;
 }

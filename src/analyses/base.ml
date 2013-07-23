@@ -1131,7 +1131,7 @@ struct
       let var = List.hd (AD.to_var_may addr) in
       let g = Cilfacade.getdec var in 
       let args = List.map (fun x -> MyCFG.unknown_exp) g.sformals in
-      let ents = enter_func_wo_spawns (Analyses.swap_st ctx (threadstate var)) None var args in
+      let ents = enter (swap_st ctx (threadstate var)) None var args in
       List.map (fun (_,s) -> var, s) ents
     in 
     let g a acc = try 
@@ -1167,7 +1167,7 @@ struct
             (* try to get function declaration *)
             let _ = Cilfacade.getdec start_vari in 
             let tid = create_tid start_vari in
-            let sts = enter_func_wo_spawns (swap_st ctx (cpa, tid)) None start_vari [ptc_arg]  in
+            let sts = enter (swap_st ctx (cpa, tid)) None start_vari [ptc_arg]  in
             List.map (fun (_,st) -> start_vari, st) sts
           with Not_found -> 
             M.warn ("creating a thread from unknown function " ^ start_vari.vname);
@@ -1186,11 +1186,6 @@ struct
       | _ ->  []
 
   and enter ctx lval fn args : (D.t * D.t) list = 
-    let forks = forkfun ctx lval fn args in
-    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
-    enter_func_wo_spawns ctx lval fn args
-
-  and enter_func_wo_spawns ctx lval fn args : (D.t * D.t) list = 
     let cpa,fl as st = ctx.local in
     let make_entry pa context =
       (* If we need the globals, add them *)
