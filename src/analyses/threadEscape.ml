@@ -61,11 +61,6 @@ struct
           Queries.LS.elements l
       | _ -> []
 
-  let rec eval_fv ask (exp:exp): varinfo option = 
-    match query_lv ask exp with
-      | [(v,_)] -> Some v
-      | _ -> None
-
   let fork ctx lv f args = 
     match f.vname with
       | "pthread_create" -> begin        
