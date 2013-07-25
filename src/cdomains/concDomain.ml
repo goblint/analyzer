@@ -90,11 +90,17 @@ module SimpleThreadDomain = struct
   let start_multi  v : t = (2, `Lifted (Thread.start_thread v))
   let switch (x,z) (y,_) = (Simple.switch x y, z)
 
+  let make_main (_,x) = (1,x)
+
   let short w (x,y) = 
     let tid = Lifted.short w y in
       if x > 1 then tid else tid ^ "!"
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
+  let same_tid x y = 
+    match x,y with
+      | (_, `Lifted x), (_, `Lifted y) -> Thread.equal x y
+      | _ -> false
 end
 
 module ThreadSet = SetDomain.ToppedSet (Thread) (struct let topname = "All Threads" end)

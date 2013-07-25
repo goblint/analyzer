@@ -64,6 +64,26 @@ struct
           List.fold_left add_thread ctx.local threads
       | _ -> ctx.local
 
+  let query ctx (q: Queries.t) = 
+    match q with
+      | Queries.IsNotUnique -> begin
+          let rec check_one tid = 
+            let (rep, parents) = ctx.global tid in
+            let n = TS.cardinal parents in
+              (* A thread is not unique if it is 
+               * a) repeatedly created, 
+               * b) created in multiple threads, or 
+               * c) created by a thread that is itself multiply created.
+               * Note that starting threads have empty ancestor sets! *)
+              rep || n > 1 || n > 0 && check_one (TS.choose parents)
+          in
+          let tid = get_current_tid ctx in
+          match tid with
+            | `Lifted tid -> `Bool (check_one tid)
+            | _ -> `Bool (true)
+        end
+      | _ -> Queries.Result.top ()
+
   let startstate v = D.bot ()
   let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
