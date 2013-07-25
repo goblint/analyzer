@@ -317,30 +317,31 @@ end
 (** Translate a [GlobConstrSys] into a [IneqConstrSys] *)
 module IneqConstrSysFromGlobConstrSys (S:GlobConstrSys)
   : IneqConstrSys with type v = Var2(S.LVar)(S.GVar).t 
-                   and type d = Lattice.Either(S.D)(S.G).t
+                   and type d = Lattice.Either(S.G)(S.D).t
                    and module Var = Var2(S.LVar)(S.GVar)
-                   and module Dom = Lattice.Either(S.D)(S.G)
+                   and module Dom = Lattice.Either(S.G)(S.D)
   =
 struct
   module Var = Var2(S.LVar)(S.GVar)
-  module Dom = Lattice.Either(S.D)(S.G)
+  module Dom = Lattice.Either(S.G)(S.D)
   
   type v = Var.t 
   type d = Dom.t
   
   let box f x y = if Dom.leq y x then Dom.narrow x y else Dom.widen x (Dom.join x y)
   
-  let getL = function
-    | `Left x -> x
-    | `Right _ -> S.D.bot ()
-    | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Left!"
-
   let getR = function
-    | `Right x -> x
+    | `Left x -> x
+    | `Right _ -> S.G.bot ()
     | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Right!"
+
+  let getL = function
+    | `Right x -> x
+    | `Left _ -> S.D.top ()
+    | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Left!"
     
   let l, g = (fun x -> `L x), (fun x -> `G x)  
-  let le, ri = (fun x -> `Left x), (fun x -> `Right x)  
+  let le, ri = (fun x -> `Right x), (fun x -> `Left x)  
   
   let conv f get set = 
     f (getL % get % l) (fun x v -> set (l x) (le v)) 
@@ -435,18 +436,19 @@ struct
   module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
   module Sol' = Sol (EqSys) (VH)
 
-  let getL = function
+  let getR = function
     | `Left x -> x
-    | `Right _ -> S.D.bot ()
+    | `Right _ -> S.G.bot ()
     | _ -> undefined ()
 
-  let getR = function
+  let getL = function
     | `Right x -> x
+    | `Left _ -> S.D.top ()
     | _ -> undefined ()
 
   let solve ls gs l = 
-    let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Left v) ls 
-           @ List.map (fun (x,v) -> EqSys.conv (`G x), `Right v) gs in 
+    let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Right v) ls 
+           @ List.map (fun (x,v) -> EqSys.conv (`G x), `Left  v) gs in 
     let sv = List.map (fun x -> EqSys.conv (`L x)) l in
     let hm = Sol'.solve EqSys.box vs sv in
     let l' = LH.create 113 in
