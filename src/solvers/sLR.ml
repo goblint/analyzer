@@ -121,6 +121,7 @@ struct
   struct
     let sub = h_find_option 
     let update = HM.replace
+    let set    = HM.create 1024 
   end
         
   (** Helper module for the domain. *)
@@ -135,11 +136,10 @@ struct
   let solve box st list = 
     let stable = HM.create 1024 in
     let infl   = HM.create 1024 in
-    let set    = HM.create 1024 in
     let wpoint = HM.create 1024 in
     let work   = ref H.empty    in
         
-    let _ = List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update set x (P.single x)) st in
+    let _ = List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update T.set x (P.single x)) st in
     let _ = work := H.merge (H.from_list list) !work in 
     let _ = List.iter (fun x -> if (not LIM_WP.value) then L.add infl x x) list in 
     
@@ -194,8 +194,8 @@ struct
       HM.replace wpoint y ();
       
       let _ = 
-        match T.sub set y with 
-          | None -> T.update set y (P.single x)
+        match T.sub T.set y with 
+          | None -> T.update T.set y (P.single x)
           | Some p -> P.insert p x
       in 
 
@@ -214,7 +214,7 @@ struct
       end                                               
 
     and do_side x a = 
-      match T.sub set x with 
+      match T.sub T.set x with 
         | None -> a
         | Some p -> 
             let xs = P.to_list p in 
@@ -278,17 +278,19 @@ module PhasesSolver =
 struct
   module S1 = 
   struct 
-    include MakeBoxSolver (PropFalse) (PropFalse) (S) (HM)
+    include MakeBoxSolver (PropTrue) (PropFalse) (S) (HM)
   end
   module S2 = 
   struct
-    include MakeBoxSolver (PropFalse) (PropFalse) (S) (HM)
+    include MakeBoxSolver (PropTrue) (PropFalse) (S) (HM)
   end
   
   let solve box st list = 
-    let r1 = S1.solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) st list in
-    let st' = HM.fold (fun k v xs -> (k,v)::xs) r1 [] in
-    let r2 = S2.solve (fun _ x y -> S.Dom.narrow x y) st' list in
+    let _ = S1.solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) st list in
+    S1.XY.HPM.iter (fun k v -> S2.XY.HPM.add S2.XY.xy k v) S1.XY.xy;
+    HM.iter (fun k v -> HM.add S2.X.vals k v) S1.X.vals;
+    HM.iter (fun k v -> HM.add S2.T.set k v) S1.T.set;
+    let r2 = S2.solve (fun _ x y -> S.Dom.narrow x y) [] list in
     r2
 end
 
@@ -297,7 +299,7 @@ module MakeBoxSolverCMP =
   functor (HM:Hash.H with type key = S.v) ->
 struct
   module S1 = PhasesSolver (S) (HM)
-  module S2 = MakeBoxSolver (PropFalse) (PropFalse) (S) (HM)
+  module S2 = MakeBoxSolver (PropTrue) (PropFalse) (S) (HM)
   
   let solve box st list = 
     let r1 = S1.solve box st list in
@@ -407,5 +409,7 @@ let _ =
   let module M2 = GlobSolverFromEqSolver(MakeWdiffCMP) in
   Selector.add_solver ("cmpwdiff", (module M2 : GenericGlobSolver));
   let module M4 = GlobSolverFromEqSolver(MakeRestartSolverCMP) in
-  Selector.add_solver ("cmprest", (module M4 : GenericGlobSolver))
+  Selector.add_solver ("cmprest", (module M4 : GenericGlobSolver));
+  let module M5 = GlobSolverFromEqSolver(MakeBoxSolverCMP) in
+  Selector.add_solver ("cmpfwtn", (module M5 : GenericGlobSolver));
   
