@@ -132,11 +132,12 @@ struct
      let cup = join
      let cap = meet
   end
+
+  let infl   = HM.create 1024  
+  let wpoint = HM.create 1024 
                 
   let solve box st list = 
     let stable = HM.create 1024 in
-    let infl   = HM.create 1024 in
-    let wpoint = HM.create 1024 in
     let work   = ref H.empty    in
         
     let _ = List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update T.set x (P.single x)) st in
@@ -172,7 +173,7 @@ struct
         let w = L.sub infl x in
         let _ = L.rem_item infl x in
         (*let _ = L.add infl x x in *)
-        List.iter handle_one w 
+        List.iter handle_one (List.rev w) 
       in 
       (*ignore @@ Pretty.printf "restarting %d: %a\n" sk S.Var.pretty_trace x;*)
       let w = L.sub infl x in
@@ -185,7 +186,7 @@ struct
       let (xi,_) = X.get_index x in
       fun y ->
         let (i,nonfresh) = X.get_index y in
-        let _ = if i<=xi then HM.replace wpoint x () in
+        let _ = if i>=xi then HM.replace wpoint y () in
         let _ = if nonfresh then () else solve y in
         let _ = L.add infl y x in
         X.get_value y
@@ -394,6 +395,27 @@ struct
     r1
 end
 
+module PrintInfluence =
+  functor (S:EqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  module S1 = MakeBoxSolver (PropTrue)  (PropFalse) (S) (HM)
+  let solve box x y =
+    let ch = Legacy.open_out "test.dot" in
+    let r = S1.solve box x y in
+    let f k _ =
+      let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in
+      let s = Pretty.sprint 80 (S.Var.pretty_trace () k) ^ " " ^ string_of_int (S1.X.get_key k) in
+      ignore (Pretty.fprintf ch "%d [label=\"%s\"%s];\n" (S.Var.hash k) (Goblintutil.escape s) q);
+      List.iter (fun y -> ignore (Pretty.fprintf ch "%d -> %d;\n" (S.Var.hash k) (S.Var.hash y))) (try HM.find S1.infl k with Not_found -> [])
+    in
+    ignore (Pretty.fprintf ch "digraph G {\n");
+    HM.iter f r;
+    ignore (Pretty.fprintf ch "}\n");
+    Legacy.close_out_noerr ch;
+    r
+end
+
 let _ =
   let module MakeIsGenericEqBoxSolver : GenericEqBoxSolver = MakeBoxSolver (PropFalse) (PropFalse) in
   ()
@@ -412,4 +434,6 @@ let _ =
   Selector.add_solver ("cmprest", (module M4 : GenericGlobSolver));
   let module M5 = GlobSolverFromEqSolver(MakeBoxSolverCMP) in
   Selector.add_solver ("cmpfwtn", (module M5 : GenericGlobSolver));
+  let module M6 = GlobSolverFromEqSolver(PrintInfluence) in
+  Selector.add_solver ("slr+infl", (module M6 : GenericGlobSolver));
   
