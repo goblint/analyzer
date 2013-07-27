@@ -167,7 +167,8 @@ struct
         in 
         let collect_get x = 
           let r = get x in
-          let ngets = VS.add x (VS.union !gets (h_find_default pred x VS.empty)) in
+          let ngets = VS.union !gets (h_find_default pred x VS.empty) in
+          let ngets = if List.length (S.system x) > 1 then VS.add x ngets else ngets in
           let _ = gets := ngets in
           let _ = gets' := VS.add x !gets' in
           r
@@ -444,7 +445,7 @@ module PrintInfluence =
   functor (S:IneqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
-  module S1 = MakeBoxSolver (struct let apply_box = `localized let restart = true end) (S) (HM)
+  module S1 = MakeBoxSolver (struct let apply_box = `localized let restart = false end) (S) (HM)
   let solve box x y =
     let ch = Legacy.open_out "test.dot" in
     let r = S1.solve box x y in
@@ -454,14 +455,14 @@ struct
       ignore (Pretty.fprintf ch "%d [label=\"%s\"%s];\n" (S.Var.hash k) (Goblintutil.escape s) q);
       let f y =
         if S1.XY.HPM.mem S1.back (k,y) then
-          ignore (Pretty.fprintf ch "%d -> %d [penwidth=7];\n" (S.Var.hash k) (S.Var.hash y))
+          ignore (Pretty.fprintf ch "%d -> %d [arrowhead=box style=dashed];\n" (S.Var.hash k) (S.Var.hash y))
         else
           ignore (Pretty.fprintf ch "%d -> %d ;\n" (S.Var.hash k) (S.Var.hash y))
       in 
       S1.VS.iter f (try HM.find S1.infl k with Not_found -> S1.VS.empty)
-(*      ; S1.VS.iter (fun y -> ignore (Pretty.fprintf ch "%d -> %d [constraint=false style=dotted];\n" (S.Var.hash k) (S.Var.hash y))) (S1.h_find_default S1.pred k S1.VS.empty)*)
+      ; S1.VS.iter (fun y -> ignore (Pretty.fprintf ch "%d -> %d [constraint=false style=dotted];\n" (S.Var.hash k) (S.Var.hash y))) (S1.h_find_default S1.pred k S1.VS.empty)
     in
-    ignore (Pretty.fprintf ch "digraph G {\n");
+    ignore (Pretty.fprintf ch "digraph G {\nedge [arrowhead=vee];\n");
     HM.iter f r;
     ignore (Pretty.fprintf ch "}\n");
     Legacy.close_out_noerr ch;
