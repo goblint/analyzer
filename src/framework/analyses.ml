@@ -429,6 +429,16 @@ sig
 end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
+module type GenericIneqBoxSolver =
+  functor (S: IneqConstrSys) ->
+  functor (H:Hash.H with type key=S.v) ->
+sig
+  (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
+      reached from starting values [xs].  *)
+  val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
+end
+
+(** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericGlobSolver =
   functor (S:GlobConstrSys) ->
   functor (LH:Hash.H with type key=S.LVar.t) ->
