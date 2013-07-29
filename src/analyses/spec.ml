@@ -27,9 +27,9 @@ struct
   let edges = ref []
 
   let load_specfile () =
-    let specfile = GobConfig.get_string "spec.file" in
-    if String.length specfile < 1 then failwith "You need to specify a specification file using --sets spec.file path/to/file.spec when using the spec analysis!";
-    if not (Sys.file_exists specfile) then failwith ("The given spec.file ("^specfile^") doesn't exist (CWD is "^Sys.getcwd ()^").");
+    let specfile = GobConfig.get_string "ana.spec.file" in
+    if String.length specfile < 1 then failwith "You need to specify a specification file using --sets ana.spec.file path/to/file.spec when using the spec analysis!";
+    if not (Sys.file_exists specfile) then failwith ("The given spec-file ("^specfile^") doesn't exist (CWD is "^Sys.getcwd ()^").");
     let _nodes, _edges = SpecUtil.parseFile specfile in
     nodes := _nodes; edges := _edges (* don't change -> no need to save them in domain *)
 

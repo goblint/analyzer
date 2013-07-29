@@ -11,7 +11,6 @@ type category = Std           (** Parsing input, includes, standard stuff, etc. 
               | Analyses      (** Analyses                                      *)
               | Experimental  (** Experimental features of analyses             *)
               | Debugging     (** Debugging, tracing, etc.                      *)
-              | Spec          (** Specification                                 *)
 
 (** Description strings for categories. *)
 let catDescription = function
@@ -19,7 +18,6 @@ let catDescription = function
   | Analyses     -> "Options for analyses"
   | Experimental -> "Experimental features"
   | Debugging    -> "Debugging options"
-  | Spec         -> "Specification options"
   
 (** A place to store registered varibles *)
 let registrar = ref []
@@ -102,6 +100,8 @@ let _ =
   reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain.";
   reg Analyses "ana.int.interval"    "false" "Interval based integer domain.";
   reg Analyses "ana.int.cinterval"   "false" "Wrapped, Signedness agnostic intervals.";
+  reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails.";
+  reg Analyses "ana.spec.file"       ""      "Path to the specification file.";
   reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
   
 (* {4 category [Experimental]} *)
@@ -152,11 +152,6 @@ let _ =
   reg Debugging "dbg.debug-sockets"   "null"  "Eclipse debugger plugin support.";
   reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
   
-(* {5 category [Spec]} *)
-
-let _ =
-  reg Spec      "spec.file"           ""      "Path to the specification file (needed when spec-analysis is activated)."
-
 
 
 let default_schema =

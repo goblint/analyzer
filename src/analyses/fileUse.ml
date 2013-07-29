@@ -11,7 +11,7 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "file_use"
+  let name = "file"
   module D = FileDomain.FileUses
   module C = FileDomain.FileUses
   module G = Lattice.Unit
@@ -154,6 +154,7 @@ struct
       (* let f tv = dom, Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.mkCast (Cil.integer 0) Cil.intPtrType, Cil.intType), tv *)
       let f tv = dom, Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType), tv
       (* in [f true; f false] *)
+      (* TODO if GobConfig.get_bool "ana.file.optimistic" then dom else ... *)
       in dom (* XX *)
     in
     let dummy = ret ctx.local in
