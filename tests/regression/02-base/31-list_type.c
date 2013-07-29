@@ -1,4 +1,4 @@
-// SKIP PARAM: --set kernel true --set mainfun[+] "'test_init'" --set dbg.debug true --list-type true
+// SKIP PARAM: --set kernel true --set mainfun[+] "'test_init'" --set dbg.debug true --set exp.list-type true
 
 #include <linux/mutex.h>
 #include <linux/list.h>

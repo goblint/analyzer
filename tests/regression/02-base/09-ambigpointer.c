@@ -1,3 +1,4 @@
+// PARAM: --set ana.activated "[['base']]"
 #include<pthread.h>
 #include<assert.h>
 

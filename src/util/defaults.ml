@@ -11,7 +11,7 @@ type category = Std           (** Parsing input, includes, standard stuff, etc. 
               | Analyses      (** Analyses                                      *)
               | Experimental  (** Experimental features of analyses             *)
               | Debugging     (** Debugging, tracing, etc.                      *)
-
+  
 (** Description strings for categories. *)
 let catDescription = function
   | Std          -> "Standard options for configuring input/output"
@@ -100,6 +100,9 @@ let _ =
   reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain.";
   reg Analyses "ana.int.interval"    "false" "Interval based integer domain.";
   reg Analyses "ana.int.cinterval"   "false" "Wrapped, Signedness agnostic intervals.";
+  reg Analyses "ana.int.cdebug"      "false" "Debugging output for wrapped interval analysis.";
+  reg Analyses "ana.int.cwiden"      "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'double')";
+  reg Analyses "ana.int.cnarrow"     "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'half')";
   reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails.";
   reg Analyses "ana.spec.file"       ""      "Path to the specification file.";
   reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
@@ -153,7 +156,7 @@ let _ =
   reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
   
 
-
+  
 let default_schema =
 "
 { 'id'              : 'root'
@@ -172,11 +175,6 @@ let default_schema =
     , 'required'        : []
     }
   , 'dbg' : 
-    { 'type'            : 'object'
-    , 'additionalProps' : true
-    , 'required'        : []
-    }
-  , 'spec' : 
     { 'type'            : 'object'
     , 'additionalProps' : true
     , 'required'        : []

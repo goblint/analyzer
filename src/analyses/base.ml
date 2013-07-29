@@ -491,10 +491,12 @@ struct
   and eval_fv a (gs:glob_fun) st (exp:exp): AD.t = 
     match exp with
       | Lval lval -> eval_lv a gs st lval
-      | _ -> 
-         match (eval_rv a gs st exp) with
-           | `Address x -> x
-           | _          -> M.bailwith "Problems evaluating expression to function calls!"
+      | _ -> eval_tv a gs st exp
+  (* Used also for thread creation: *)
+  and eval_tv a (gs:glob_fun) st (exp:exp): AD.t = 
+   match (eval_rv a gs st exp) with
+     | `Address x -> x
+     | _          -> M.bailwith "Problems evaluating expression to function calls!"
   (* A function to convert the offset to our abstract representation of
    * offsets, i.e.  evaluate the index expression to the integer domain. *)
   and convert_offset a (gs:glob_fun) (st: store) (ofs: offset) = 
@@ -1136,26 +1138,43 @@ struct
    * Function calls
    **************************************************************************)
 
-  let rec collect_spawned ctx args: (varinfo * D.t) list = 
-    let flist = collect_funargs ctx.ask ctx.global ctx.local args in
-    let f addr = 
-      let var = List.hd (AD.to_var_may addr) in
-      let g = Cilfacade.getdec var in 
-      let args = List.map (fun x -> MyCFG.unknown_exp) g.sformals in
-      let ents = enter_func_wo_spawns (Analyses.swap_st ctx (threadstate var)) None var args in
-      List.map (fun (_,s) -> var, s) ents
-    in 
-    let g a acc = try 
-      let r = f a in r @ acc 
-    with 
-      | Not_found 
-      | Failure "hd" -> acc
-      | x -> M.debug ("Ignoring exception: " ^ Printexc.to_string x); acc 
-    in
-      List.fold_right g flist [] 
+  let make_entry ctx fn args: D.t = 
+    let cpa,fl as st = ctx.local in
+    (* Evaluate the arguments. *)
+    let vals = List.map (eval_rv ctx.ask ctx.global st) args in
+    (* generate the entry states *)
+    let fundec = Cilfacade.getdec fn in
+    (* If we need the globals, add them *)
+    let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
+    (* Assign parameters to arguments *)
+    let pa = zip fundec.sformals vals in
+    let new_cpa = CPA.add_list pa new_cpa in
+    (* List of reachable variables *)
+    let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
+    let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
+      new_cpa, fl
 
-  and forkfun ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list = 
+  let enter ctx lval fn args : (D.t * D.t) list = 
+    [ctx.local, make_entry ctx fn args]
+
+  let forkfun ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list = 
     let cpa,fl = ctx.local in
+    let create_thread arg v = 
+      try
+        (* try to get function declaration *)
+        let fd = Cilfacade.getdec v in 
+        let args =
+          match arg with 
+            | Some x -> [x]
+            | None -> List.map (fun x -> MyCFG.unknown_exp) fd.sformals
+        in
+        let ctx = swap_st ctx (cpa, create_tid v) in
+        let nst = make_entry ctx v args in
+          v, nst
+      with Not_found -> 
+        M.warn ("creating a thread from unknown function " ^ v.vname);
+        v, (cpa, create_tid v)
+    in
     match LF.classify f.vname args with 
       (* handling thread creations *)
       | `Unknown "LAP_Se_CreateProcess" -> begin
@@ -1169,55 +1188,24 @@ struct
             | _ -> []
           end
       | `ThreadCreate (start,ptc_arg) -> begin        
-          let start_addr = eval_fv ctx.ask ctx.global ctx.local start in
-          let start_vari = List.hd (AD.to_var_may start_addr) in
           (* extra sync so that we do not analyze new threads with bottom global invariant *)
           let ctx_mul = swap_st ctx (cpa, Flag.get_multi ()) in
           let _ = List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync ctx_mul)) in
-          try
-            (* try to get function declaration *)
-            let _ = Cilfacade.getdec start_vari in 
-            let tid = create_tid start_vari in
-            let sts = enter_func_wo_spawns (swap_st ctx (cpa, tid)) None start_vari [ptc_arg]  in
-            List.map (fun (_,st) -> start_vari, st) sts
-          with Not_found -> 
-            M.warn ("creating a thread from unknown function " ^ start_vari.vname);
-            [start_vari,(cpa, Flag.get_multi ())]
+          (* Collect the threads. *)
+          let start_addr = eval_tv ctx.ask ctx.global ctx.local start in
+          List.map (create_thread (Some ptc_arg)) (AD.to_var_may start_addr)
         end
       | `Unknown _ -> begin
-          if M.tracing then M.traceli "forkfun" ~var:f.vname ~subsys:["reachability"] "Tracing reachable functions for %s\n" f.vname;
           let args = 
             match LF.get_invalidate_action f.vname with
               | Some fnc -> fnc `Write  args
               | None -> args
           in
-          let res = collect_spawned ctx args in
-            if M.tracing then M.traceu "forkfun" "Done!\n"; res
+          let flist = collect_funargs ctx.ask ctx.global ctx.local args in
+          let addrs = List.concat (List.map AD.to_var_may flist) in
+          List.map (create_thread None) addrs
         end
       | _ ->  []
-
-  and enter ctx lval fn args : (D.t * D.t) list = 
-    let forks = forkfun ctx lval fn args in
-    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
-    enter_func_wo_spawns ctx lval fn args
-
-  and enter_func_wo_spawns ctx lval fn args : (D.t * D.t) list = 
-    let cpa,fl as st = ctx.local in
-    let make_entry pa context =
-      (* If we need the globals, add them *)
-      let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in 
-      (* Assign parameters to arguments *)
-      let new_cpa = CPA.add_list pa new_cpa in
-      let new_cpa = CPA.add_list_fun context (fun v -> CPA.find v cpa) new_cpa in
-        st, (new_cpa, fl) 
-    in
-    (* Evaluate the arguments. *)
-    let vals = List.map (eval_rv ctx.ask ctx.global st) args in
-    (* List of reachable variables *)
-    let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
-    (* generate the entry states *)
-    let fundec = Cilfacade.getdec fn in
-      [make_entry (zip fundec.sformals vals) reachable]
 
   let assert_fn ctx e warn change = 
     let check_assert e st = 

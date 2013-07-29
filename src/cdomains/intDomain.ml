@@ -678,47 +678,107 @@ module CircInterval : S with type t = CBigInt.t interval =
     let is_excl_list x = false
 
     (* Starting/Ending *)
-    let starting x = I.of_t max_width (C.of_int64 max_width x) (C.top_value max_width);;
-    let ending x = I.of_t max_width C.zero (C.of_int64 max_width x);;
-    let maximal x = None
-    let minimal x = None
+    let starting x = 
+      let r = I.of_t max_width (C.of_int64 max_width x) (C.max_value max_width)
+      in
+      print_endline ("starting: "^(I.to_string r)^" .. "^(Int64.to_string x));
+      r
+    let ending x = 
+      let r = I.of_t max_width C.zero (C.of_int64 max_width x)
+      in
+      print_endline ("ending: "^(I.to_string r)^" .. "^(Int64.to_string x));
+      r
+    let maximal x =
+      print_endline ("maximal: "^(I.to_string x));
+      match I.bounds x with
+      | Some(_,m) -> Some (C.to_int64 (I.width x) m)
+      | _ -> None
+    let minimal x = 
+      print_endline ("minimal: "^(I.to_string x));
+      match I.bounds x with
+      | Some(m,_) -> Some (C.to_int64 (I.width x) m)
+      | _ -> None
+
+    (* Debug Helpers *)
+    let wrap_debug1 n f =
+      fun a ->
+        let r = f a in
+        if get_bool "ana.int.cdebug" then print_endline (n^": "^(I.to_string a)^" = "^(I.to_string r));
+        r
+
+    let wrap_debug2 n f =
+      fun a b ->
+        let r = f a b in
+        if get_bool "ana.int.cdebug" 
+        then print_endline (n^": "^(I.to_string a)^" .. "^(I.to_string b)^" = "^(I.to_string r));
+        r
 
     (* Arithmetic *)
-    let neg = I.neg
-    let add = I.add
-    let sub = I.sub
-    let mul = I.mul
-    let div = I.div_s
-    let rem = I.rem
+    let neg = wrap_debug1 "neg" I.neg
+    let add = wrap_debug2 "add" I.add
+    let sub = wrap_debug2 "sub" I.sub
+    let mul = wrap_debug2 "mul" I.mul
+    let div = wrap_debug2 "div" I.div_s
+    let rem = wrap_debug2 "rem" I.rem
 
     (* Comparison *)
-    let lt a b = 
+    let comp_lt f a b =
       let w = I.width a in
-      match (I.bounds b) with
-      | Some(_,u) -> I.join a (I.of_t w (C.shift_left C.one (w - 1)) (C.dec w u))
-      | _ -> a
+      let np = I.north_pole_end w in
+      if I.contains a (I.north_pole w) || I.contains b (I.north_pole w)
+      then I.of_int 1 0 1
+      else
+        match I.bounds a, I.bounds b with
+        | Some(l0,u0), Some(l1,u1) -> 
+            if (f w np u0 l1) then of_bool true
+            else if (f w np l0 l1) then I.of_int 1 0 1
+            else of_bool false
+        | _ -> I.of_int 1 0 1 
 
-    let gt a b =
+    let comp_gt f a b =
       let w = I.width a in
-      match (I.bounds b) with
-      | Some(l,_) -> I.join a (I.of_t w (C.inc w l) (C.shift_right (C.max_value w) 1))
-      | _ -> a
+      let np = I.north_pole_end w in
+      if I.contains a (I.north_pole w) || I.contains b (I.north_pole w)
+      then I.of_int 1 0 1
+      else
+        match I.bounds a, I.bounds b with
+        | Some(l0,u0), Some(l1,u1) -> 
+            if (f w np l0 u1) then of_bool true
+            else if (f w np u0 u1) then I.of_int 1 0 1
+            else of_bool false
+        | _ -> I.of_int 1 0 1
 
-    let le a b = 
-      let w = I.width a in
-      match (I.bounds b) with
-      | Some(_,u) -> I.join a (I.of_t w (C.shift_left C.one (w - 1)) u)
-      | _ -> a
+    let lt = wrap_debug2 "lt" (comp_lt I.relative_lt)
+    let le = wrap_debug2 "le" (comp_lt I.relative_leq)
+    let gt = wrap_debug2 "gt" (comp_gt I.relative_gt)
+    let ge = wrap_debug2 "ge" (comp_gt I.relative_geq)
 
-    let ge a b =
-      let w = I.width a in
-      match (I.bounds b) with
-      | Some(l,_) -> I.join a (I.of_t w l (C.shift_right (C.max_value w) 1))
-      | _ -> a
+    let eq' a b = 
+      match (I.meet a b) with
+      | Bot _ -> of_bool false
+      | _ -> 
+          match I.bounds a, I.bounds b with
+          | Some(x,y), Some(u,v) -> 
+              if (C.eq x y) && (C.eq u v) && (C.eq x u)
+              then of_bool true
+              else I.of_int 1 0 1
+          | _ -> I.of_int 1 0 1
 
-    let eq a b = I.meet a b
-    let ne a b = I.meet a (I.complement b)
-    let leq = I.contains
+    let ne' a b = 
+      match (I.meet a b) with
+      | Bot _ -> of_bool true
+      | _ -> 
+          match I.bounds a, I.bounds b with
+          | Some(x,y), Some(u,v) -> 
+              if (C.eq x y) && (C.eq u v) && (C.eq x u)
+              then of_bool false
+              else I.of_int 1 0 1
+          | _ -> I.of_int 1 0 1
+
+    let eq = wrap_debug2 "eq" eq'
+    let ne = wrap_debug2 "ne" ne'
+
+    let leq a b = I.contains b a
 
     (* Bitwise *)
     let bitnot x =
@@ -728,11 +788,11 @@ module CircInterval : S with type t = CBigInt.t interval =
           let v = C.lognot w a in
           Int(w,v,v)
       | _ -> Top (I.width x)
-    let bitand = I.logand
-    let bitor = I.logor
-    let bitxor = I.logxor
-    let shift_left = I.shift_left
-    let shift_right = I.shift_right
+    let bitand = wrap_debug2 "bitand" I.logand
+    let bitor = wrap_debug2 "bitor" I.logor
+    let bitxor = wrap_debug2 "bitxor" I.logxor
+    let shift_left = wrap_debug2 "shift_left" I.shift_left
+    let shift_right = wrap_debug2 "shift_right" I.shift_right
     
     (* Lattice *)
     let top () = Top max_width
@@ -767,21 +827,15 @@ module CircInterval : S with type t = CBigInt.t interval =
     let logand = log (&&)
       
     (* Others *)
-    let meet = I.meet
-    let join = I.join
+    let meet = wrap_debug2 "meet" I.meet
+    let join = wrap_debug2 "join" I.join
+    let equal = I.eql
 
     let hash x =
       match x with
       | Top w -> w
       | Bot _ -> 0
       | Int(w,a,b) -> w lxor (Hashtbl.hash b) lxor (Hashtbl.hash a)
-
-    let equal a b =
-      match a,b with
-      | Top w0, Top w1 -> (w0 = w1)
-      | Bot _, Bot _ -> true
-      | Int(_,a,b), Int(_,c,d) -> C.eq a c && C.eq b d
-      | _ -> false
 
     let isSimple x = true
     let short _ x = I.to_string x
@@ -793,17 +847,75 @@ module CircInterval : S with type t = CBigInt.t interval =
     let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
     let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
 
-    (* Narrow/Widen *)
-    let widen a b = 
+    (* Widen
+     * Roughly double the interval size. *)
+    let widen_double a b = 
+      let w = I.width b in
+      let two = C.of_int w 2 and add = C.add w 
+      and sub = C.sub w and mul = C.mul w
+      in
+      if (I.contains a b) then b
+      else if C.geq (I.count b) (I.north_pole_end w) then Top w
+      else
+        match I.bounds a,I.bounds b with
+        | Some(u,v), Some(x,y) ->
+            let j = I.join a b and uy = I.of_t w u y and xv = I.of_t w x y in
+            if I.eql j uy then 
+              I.join uy (I.of_t w u (add (sub (mul v two) u) C.one))
+            else if I.eql j xv then 
+              I.join xv (I.of_t w (sub (sub (mul u two) v) C.one) v)
+            else if (I.contains_element b u) && (I.contains_element b v) then
+              I.join b (I.of_t w x (add (sub (add x (mul v two)) (mul u two)) C.one))
+            else Top w
+        | _ -> Top w
+
+    let widen_basic a b =
       if (I.eql a b) then b
       else Top (I.width b)
 
-    let narrow a b =
+    let widen' a b =
+      match get_string "ana.int.cwiden" with
+      | "basic" -> widen_basic a b
+      | "double" -> widen_double a b
+      | _ -> b
+
+    let widen = wrap_debug2 "widen" widen'
+
+    (* Narrow
+     * Take half of interval size. *)
+    let narrow_half a b =
+      let w = I.width b in
+      let delta = C.of_int w 2 and add = C.add w 
+      and sub = C.sub w and div = C.div w
+      in
+      if I.eql a b then b
+      else if C.leq (I.count b) (C.of_int w 2) then b
+      else 
+        match I.bounds a, I.bounds b with
+        | Some(u,v), Some(x,y) ->
+            let m = I.meet a b and uy = I.of_t w u y and xv = I.of_t w x v in
+            if I.eql m uy then
+              I.meet uy (I.of_t w u (sub (add (div u delta) (div v delta)) C.one))
+            else if I.eql m xv then
+              I.meet xv (I.of_t w (add C.one (add (div u delta) (div v delta))) v)
+            else
+              I.meet b (I.of_t w (add (div u delta) (div v delta)) (add (div u delta) (div v delta)))
+        | _ -> b
+
+    let narrow_basic a b = 
       if (I.eql a b) then b
       else
         match a with
         | Top _ -> b
         | _ -> a
+
+    let narrow' a b =
+      match get_string "ana.int.cnarrow" with
+      | "basic" -> narrow_basic a b
+      | "half"  -> narrow_half a b
+      | _ -> b
+
+    let narrow = wrap_debug2 "narrow" narrow'
 
   end
 

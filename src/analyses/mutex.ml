@@ -48,7 +48,7 @@ let is_ignorable lval =
   try Base.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
   with Not_found -> false
 
-let rec get_flag (state: (string * Obj.t) list) : BS.Flag.t =
+let get_flag (state: (string * Obj.t) list) : BS.Flag.t =
   snd (Obj.obj (List.assoc "base" state))
   
 let big_kernel_lock = LockDomain.Addr.from_var (makeGlobalVar "[big kernel lock]" intType)
@@ -382,6 +382,10 @@ struct
           else 
             IntDomain.Lifted.of_int 0L
         in
+        let fl = match ctx.ask (Queries.IsNotUnique) with
+          | `Bool false -> BS.Flag.make_main fl
+          | _ -> fl
+        in
         let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
         let neww : AccValSet.t = AccValSet.add ((loc,fl,rv),(ust,pri),o) curr in
         Acc.replace acc v neww;
@@ -531,8 +535,7 @@ struct
         | _ -> [e]
     in
       match best_type_inv eqset with
-      	| Some (v,o) -> 
-			      add_concrete_access ctx fl loc ust (v,o,rw)
+      	| Some (v,o) -> add_concrete_access ctx fl loc ust (v,o,rw)
         | _ -> unknown_access ()
     
   (** Function [add_accesses accs st] fills the hash-map [acc] *)
@@ -831,12 +834,20 @@ struct
     let is_race acc_list =
       let locks = get_common_locks acc_list in
       let rw ((_,_,x),_,_) = x in
-      let non_main ((_,x,_),_,_) = BS.Flag.is_bad x in      
+      let filter_flag ((_,x,_),_,_) = x in      
+      let rec check_unique (fs: BS.Flag.t list) a = 
+        let is_unique f = not (BS.Flag.is_bad f) in
+        match fs,a with
+          | [], _ -> true
+          | (f::fs), Some t when BS.Flag.same_tid t f -> check_unique fs (Some t)
+          | (f::fs), None   when is_unique f -> check_unique fs (Some f)
+          | _ -> false
+      in
         if not (List.exists rw acc_list) then
           ReadOnly
         else if not (Lockset.is_empty locks || Lockset.is_top locks) then
           Guarded locks
-        else if not (List.exists non_main acc_list) then
+        else if check_unique (List.map filter_flag acc_list) None then
           ThreadLocal
         else
           Race

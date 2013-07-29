@@ -35,6 +35,7 @@ type t = ExpEq of exp * exp
        | Priority of string
        | IsPrivate of varinfo
        | SingleThreaded       (* result is "boolean" in `Int form *)
+       | IsNotUnique
        | EvalFunvar of exp
        | EvalInt of exp
        | EvalStr of exp

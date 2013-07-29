@@ -317,30 +317,31 @@ end
 (** Translate a [GlobConstrSys] into a [IneqConstrSys] *)
 module IneqConstrSysFromGlobConstrSys (S:GlobConstrSys)
   : IneqConstrSys with type v = Var2(S.LVar)(S.GVar).t 
-                   and type d = Lattice.Either(S.D)(S.G).t
+                   and type d = Lattice.Either(S.G)(S.D).t
                    and module Var = Var2(S.LVar)(S.GVar)
-                   and module Dom = Lattice.Either(S.D)(S.G)
+                   and module Dom = Lattice.Either(S.G)(S.D)
   =
 struct
   module Var = Var2(S.LVar)(S.GVar)
-  module Dom = Lattice.Either(S.D)(S.G)
+  module Dom = Lattice.Either(S.G)(S.D)
   
   type v = Var.t 
   type d = Dom.t
   
   let box f x y = if Dom.leq y x then Dom.narrow x y else Dom.widen x (Dom.join x y)
   
-  let getL = function
-    | `Left x -> x
-    | `Right _ -> S.D.bot ()
-    | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Left!"
-
   let getR = function
-    | `Right x -> x
+    | `Left x -> x
+    | `Right _ -> S.G.bot ()
     | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Right!"
+
+  let getL = function
+    | `Right x -> x
+    | `Left _ -> S.D.top ()
+    | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Left!"
     
   let l, g = (fun x -> `L x), (fun x -> `G x)  
-  let le, ri = (fun x -> `Left x), (fun x -> `Right x)  
+  let le, ri = (fun x -> `Right x), (fun x -> `Left x)  
   
   let conv f get set = 
     f (getL % get % l) (fun x v -> set (l x) (le v)) 
@@ -435,18 +436,19 @@ struct
   module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
   module Sol' = Sol (EqSys) (VH)
 
-  let getL = function
+  let getR = function
     | `Left x -> x
-    | `Right _ -> S.D.bot ()
+    | `Right _ -> S.G.bot ()
     | _ -> undefined ()
 
-  let getR = function
+  let getL = function
     | `Right x -> x
+    | `Left _ -> S.D.top ()
     | _ -> undefined ()
 
   let solve ls gs l = 
-    let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Left v) ls 
-           @ List.map (fun (x,v) -> EqSys.conv (`G x), `Right v) gs in 
+    let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Right v) ls 
+           @ List.map (fun (x,v) -> EqSys.conv (`G x), `Left  v) gs in 
     let sv = List.map (fun x -> EqSys.conv (`L x)) l in
     let hm = Sol'.solve EqSys.box vs sv in
     let l' = LH.create 113 in
@@ -454,6 +456,46 @@ struct
     let split_vars = function
       | (`L x,_) -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
       | (`G x,_) -> fun y -> GH.replace g' x (getR y)
+    in
+    VH.iter split_vars hm;
+    (l', g')
+end
+
+(** Transforms a [GenericIneqBoxSolver] into a [GenericGlobSolver]. *)
+module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
+  : GenericGlobSolver 
+  = functor (S:GlobConstrSys) ->
+    functor (LH:Hash.H with type key=S.LVar.t) ->
+    functor (GH:Hash.H with type key=S.GVar.t) ->
+struct
+  let lh_find_default h k d = try LH.find h k with Not_found -> d
+  let gh_find_default h k d = try GH.find h k with Not_found -> d
+
+  module IneqSys = IneqConstrSysFromGlobConstrSys (S)
+  
+  module VH : Hash.H with type key=IneqSys.v = Hashtbl.Make(IneqSys.Var)
+  module Sol' = Sol (IneqSys) (VH)
+
+  let getR = function
+    | `Left x -> x
+    | `Right _ -> S.G.bot ()
+    | _ -> undefined ()
+
+  let getL = function
+    | `Right x -> x
+    | `Left _ -> S.D.top ()
+    | _ -> undefined ()
+
+  let solve ls gs l = 
+    let vs = List.map (fun (x,v) -> `L x, `Right v) ls 
+           @ List.map (fun (x,v) -> `G x, `Left  v) gs in 
+    let sv = List.map (fun x -> `L x) l in
+    let hm = Sol'.solve IneqSys.box vs sv in
+    let l' = LH.create 113 in
+    let g' = GH.create 113 in
+    let split_vars = function
+      | `L x -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
+      | `G x -> fun y -> GH.replace g' x (getR y)
     in
     VH.iter split_vars hm;
     (l', g')

@@ -7,11 +7,9 @@ goblint = File.join(Dir.getwd,"goblint")
 goblintbyte = File.join(Dir.getwd,"goblint.byte")
 if File.exists?(goblintbyte) then
   puts "Running the byte-code version!"
-#   `make byte`
-#   goblint = goblintbyte if File.exists?(goblintbyte)
-else
-  fail "Goblint not present in working directory. Please run script from goblint dir!" unless File.exist?(goblint)
-#   `make`
+  goblint = goblintbyte
+elsif not File.exist?(goblint) then
+  fail "Goblint not present in working directory. Please run script from goblint dir!"
 end
 vrsn = `#{goblint} --version`
 
@@ -58,11 +56,9 @@ elsif only == "group" then
 else
   future = false
 end
-# analyses = ["mutex", "base", "cpa", "intcpa"]
-# analyses = ["mutex"]
 
-tracing = `grep 'tracing = true' src/util/messages.ml`.size > 0
-if tracing then puts "Tracing in on!" else puts "Tracing is off" end
+# tracing = `grep 'tracing = true' src/config.ml`.size > 0
+# if tracing then puts "Tracing in on!" else puts "Tracing is off" end
 
 #processing the file information
 projects = []
@@ -132,17 +128,19 @@ end
 
 #analysing the files
 startdir = Dir.pwd
+strs = ["Analysing","Testing","Goblinting"]
+astr = strs[rand(strs.size)]
 projects.each do |p|
   Dir.chdir(startdir)
   filepath = p.path
   dirname = File.dirname(filepath)
   filename = File.basename(filepath)
   Dir.chdir(dirname)
-  puts "Analysing #{p.name}"
+  puts "#{astr} #{p.name}"
   warnfile = File.join(testresults, p.name + ".warn.txt")
   statsfile = File.join(testresults, p.name + ".stats.txt")
-  confile = File.join(testresults, p.name + ".con.txt")
-  solfile = File.join(testresults, p.name + ".sol.txt")
+#   confile = File.join(testresults, p.name + ".con.txt")
+#   solfile = File.join(testresults, p.name + ".sol.txt")
   cilfile = File.join(testresults, p.name + ".cil.txt")
   orgfile = File.join(testresults, p.name + ".c.html")
   `code2html -l c -n #{filename} > #{orgfile}`
@@ -153,8 +151,8 @@ projects.each do |p|
   system(cmd)
   endtime   = Time.now
   #status = $?.exitstatus
-  `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
-  `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
+#   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
+#   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
   File.open(statsfile, "a") do |f|
     f.puts "\n=== APPENDED BY BENCHMARKING SCRIPT ==="
     f.puts "Analysis began: #{starttime}"
@@ -189,7 +187,7 @@ File.open(theresultfile, "w") do |f|
     if p.group != gname then
       gname = p.group
       headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Problems"]
-      headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Constraints", "Solver", "Problems"] if tracing
+#       headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Constraints", "Solver", "Problems"] if tracing
       f.puts "<tr><th colspan=#{headings.size}>#{gname}</th></tr>"
       f.puts "<tr>"
       headings.each {|h| f.puts "<th>#{h}</th>"}
@@ -261,16 +259,16 @@ File.open(theresultfile, "w") do |f|
       f.puts "<td><a href=\"#{statsfile}\">#{"%.2f" % res} s</a></td>"
     end
 
-    if tracing then
-      confile = p.name + ".con.txt"
-      lines = IO.readlines(File.join(testresults, confile))
-      cons = lines.grep(/con/).size
-      f.puts "<td><a href=\"#{confile}\">#{cons} nodes</a></td>"
-      solfile = p.name + ".sol.txt"
-      lines = IO.readlines(File.join(testresults, solfile))
-      sols = lines.grep(/sol: Entered/).size
-      f.puts "<td><a href=\"#{solfile}\">#{sols} nodes</a></td>"
-    end
+#     if tracing then
+#       confile = p.name + ".con.txt"
+#       lines = IO.readlines(File.join(testresults, confile))
+#       cons = lines.grep(/con/).size
+#       f.puts "<td><a href=\"#{confile}\">#{cons} nodes</a></td>"
+#       solfile = p.name + ".sol.txt"
+#       lines = IO.readlines(File.join(testresults, solfile))
+#       sols = lines.grep(/sol: Entered/).size
+#       f.puts "<td><a href=\"#{solfile}\">#{sols} nodes</a></td>"
+#     end
     
     if correct == p.warnings.size && is_ok then
       f.puts "<td style =\"color: green\">NONE</td>"
@@ -295,6 +293,10 @@ File.open(theresultfile, "w") do |f|
   f.puts "</html>"
 end
 
+puts "Usage examples for high-tech script parameters: "
+puts "  Single: ./scripts/update_suite.rb simple_rc"
+puts "  Groups: ./scripts/update_suite.rb group mutex"
+puts "  Future: ./scripts/update_suite.rb future"
 puts ("Results: " + theresultfile)
 if alliswell then puts "\e[32mAll is well!\e[0m" else puts "\e[31mAll is not well!\e[0m" end
 exit alliswell

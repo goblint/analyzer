@@ -1,4 +1,3 @@
-// SKIP
 int glob = 0;
 
 void f() {

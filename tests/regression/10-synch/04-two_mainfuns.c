@@ -1,4 +1,6 @@
 // SKIP PARAM: --set exitfun "['f1','f2']"
+#include <stdio.h>
+
 int myglobal1;
 int myglobal2;
 

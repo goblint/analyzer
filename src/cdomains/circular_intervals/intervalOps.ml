@@ -29,7 +29,20 @@ module type IntervalOps =
   sig
     include IntervalBaseOps
 
+    (* Ordering *)
+    val relative_leq : int -> t -> t -> t -> bool
+    val relative_lt : int -> t -> t -> t -> bool
+    val relative_gt : int -> t -> t -> t -> bool
+    val relative_geq : int -> t -> t -> t -> bool
+    val north_pole_start : int -> t
+    val north_pole_end : int -> t
+    val north_pole : int -> t interval
+    val south_pole_start : int -> t
+    val south_pole_end : int -> t
+    val south_pole : int -> t interval
+
     (* Inclusion *)
+    val count : t interval -> t
     val contains : t interval -> t interval -> bool
     val contains_element : t interval -> t -> bool
 
@@ -125,8 +138,11 @@ module IntervalBase (I : CircularIntOps) : IntervalBaseOps with type t = I.t =
 
     (* Equality *)
     let eql s t =
-      match s,t with
-      | Int(w0,a,b), Int(w1,c,d) -> (w0 = w1) && (I.eq a c) && (I.eq b d)
-      | _ -> (width s) = (width t)
+      if not ((width s) = (width t))
+      then false
+      else
+        match bounds s,bounds t with
+        | Some(a,b),Some(c,d) -> (I.eq a c) && (I.eq b d)
+        | _ -> true
 
   end
