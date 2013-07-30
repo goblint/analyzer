@@ -119,7 +119,7 @@ struct
     let to_list s = HM.fold (fun x y z -> x :: z ) s []
     let has_item = HM.mem 
     let rem_item = HM.remove
-    let insert m = flip (HM.replace m) ()
+    let insert m x = HM.replace m x ()
   end
   
   (** Helper module for variable setting deps. *)
@@ -158,8 +158,8 @@ struct
     in
     
     let eq old x get set = 
+      let sides = HM.create 10 in
       let do_one (d_in,d_back) f =
-        let sides = HM.create 10 in
         let gets  = ref VS.empty in
         let gets' = ref VS.empty in
         let collect_set x v = 
@@ -174,8 +174,6 @@ struct
           r
         in 
         let d = f (if C.apply_box=`localized then collect_get else get) collect_set in
-        HM.iter set sides;
-        HM.clear sides;
         if C.apply_box=`localized then begin 
           if not (VS.mem x !gets) then begin
             HM.replace pred x (VS.union !gets (h_find_default pred x VS.empty));
@@ -188,6 +186,8 @@ struct
           (d_in, S.Dom.join d_back d)
       in
       let d_in, d_back = List.fold_left do_one (S.Dom.bot (), S.Dom.bot ()) (S.system x) in
+      HM.iter set sides;
+      HM.clear sides;
       match C.apply_box with
         | `localized when S.Dom.is_bot d_back -> d_in
         | `localized  -> 
@@ -195,7 +195,6 @@ struct
             let _ = HM.replace wpoint x () in
             (S.Dom.join d_in (box x old d_back))
         | `everywhere -> 
-            let _ = L.add infl x x in
             box x old (S.Dom.join d_in d_back)
         | `loop_head  -> 
             if HM.mem wpoint x then 
@@ -216,12 +215,12 @@ struct
         (*ignore @@ Pretty.printf "  also restarting %d: %a\n" k S.Var.pretty_trace x;*)
         let w = L.sub infl x in
         let _ = L.rem_item infl x in
-        (*let _ = L.add infl x x in *)
         VS.iter handle_one w 
       in 
       (*ignore @@ Pretty.printf "restarting %d: %a\n" sk S.Var.pretty_trace x;*)
       let w = L.sub infl x in
       let _ = L.rem_item infl x in
+      let _ = if C.apply_box=`everywhere || HM.mem wpoint x then L.add infl x x in
       VS.iter handle_one w 
     in 
     
@@ -271,6 +270,7 @@ struct
         let _ = P.insert stable x in
         let old = X.get_value x in
         let tmp = do_side x (eq old x (eval x) (side x)) in 
+        (*let tmp = if C.apply_box=`everywhere then box x old tmp else tmp in*)
         if D.eq tmp old then 
           loop (X.get_key x)
         else begin 
@@ -287,7 +287,8 @@ struct
           else
             let w = L.sub infl x in
             let _ = L.rem_item infl x in
-            let h = VS.fold (fun x y -> H.insert y x) w !work in
+            let _ = if C.apply_box=`everywhere || HM.mem wpoint x then L.add infl x x in
+            let h = VS.fold (flip H.insert) w !work in
             let _ = work := h in
                     VS.iter (P.rem_item stable) w;
                     
@@ -319,17 +320,42 @@ struct
 
 end
 
+module PhasesSolver0 =
+  functor (S:IneqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  module Seq = Generic.SimpleSysConverter (S)
+  
+  module S1 = 
+  struct 
+    include Generic.SoundBoxSolverImpl (Seq) (HM)
+  end
+
+  module S2 = 
+  struct
+    include Generic.SoundBoxSolverImpl (Seq) (HM)
+  end
+  
+  let solve box st list = 
+    let widen _ x y = S.Dom.widen x (S.Dom.join x y) in
+    let narrow _ x y = S.Dom.narrow x y in
+    let r1 = S1.solveWithStart widen (HM.create 1024, HM.create 1024) st list in
+    let r2 = S2.solveWithStart narrow r1 st list in
+    fst r2
+end
+
+
 module PhasesSolver =
   functor (S:IneqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
   module S1 = 
   struct 
-    include MakeBoxSolver (struct let apply_box = `loop_head let restart = false end) (S) (HM)
+    include MakeBoxSolver (struct let apply_box = `everywhere let restart = false end) (S) (HM)
   end
   module S2 = 
   struct
-    include MakeBoxSolver (struct let apply_box = `loop_head let restart = false end) (S) (HM)
+    include MakeBoxSolver (struct let apply_box = `everywhere let restart = false end) (S) (HM)
   end
   
   let solve box st list = 
@@ -347,6 +373,39 @@ module MakeBoxSolverCMP =
 struct
   module S1 = PhasesSolver (S) (HM)
   module S2 = MakeBoxSolver (struct let apply_box = `loop_head let restart = false end) (S) (HM)
+  
+  let solve box st list = 
+    let r1 = S1.solve box st list in
+    let r2 = S2.solve box st list in
+    let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
+    let f_eq () = incr eq(*; Printf.printf "="*) in
+    let f_le () = incr le(*; Printf.printf "<"*) in
+    let f_gr () = incr gr(*; Printf.printf ">"*) in
+    let f_uk () = incr uk(*; Printf.printf "?"*) in
+    let f k v1 = 
+      let v2 = try HM.find r2 k with Not_found -> S.Dom.bot () in
+      let b1 = S.Dom.leq v1 v2 in
+      let b2 = S.Dom.leq v2 v1 in
+      if b1 && b2 then 
+        f_eq ()
+      else if b1 then
+        f_le ()
+      else if b2 then
+        f_gr ()
+      else 
+        f_uk ()
+    in
+    HM.iter f r1;
+    Printf.printf "eq=%d\tle=%d\tgr=%d\tuk=%d\n" !eq !le !gr !uk;
+    r1
+end
+
+module MakeBoxSolverCMP2 =
+  functor (S:IneqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  module S1 = PhasesSolver (S) (HM)
+  module S2 = MakeBoxSolver (struct let apply_box = `loop_head let restart = true end) (S) (HM)
   
   let solve box st list = 
     let r1 = S1.solve box st list in
@@ -480,7 +539,7 @@ let _ =
   Selector.add_solver ("new", (module M7 : GenericGlobSolver));
   let module M1 = GlobSolverFromIneqSolver(MakeBoxSolver (struct let apply_box = `loop_head let restart = true end)) in
   Selector.add_solver ("restart", (module M1 : GenericGlobSolver));
-  let module M3 = GlobSolverFromIneqSolver(PhasesSolver) in
+  let module M3 = GlobSolverFromIneqSolver(PhasesSolver0) in
   Selector.add_solver ("fwtn", (module M3 : GenericGlobSolver));
   let module M2 = GlobSolverFromIneqSolver(MakeWdiffCMP) in
   Selector.add_solver ("cmpwdiff", (module M2 : GenericGlobSolver));
@@ -494,4 +553,6 @@ let _ =
   Selector.add_solver ("loc", (module M8 : GenericGlobSolver));
   let module M9 = GlobSolverFromIneqSolver(MakeBoxSolver (struct let apply_box = `localized let restart = true end)) in
   Selector.add_solver ("loc+rest", (module M9 : GenericGlobSolver));
+  let module M10 = GlobSolverFromIneqSolver(MakeBoxSolverCMP2) in
+  Selector.add_solver ("cmp", (module M10 : GenericGlobSolver));
   
