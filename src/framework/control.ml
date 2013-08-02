@@ -225,7 +225,7 @@ struct
   
     let _ = 
     if startvars = [] 
-      then failwith "BUG: Empty set of start variables; may happen if\
+      then failwith "BUG: Empty set of start variables; may happen if \
          enter_func of any analysis returns an empty list." 
     in
     let _ = set_bool "exp.earlyglobs" early in

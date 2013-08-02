@@ -97,7 +97,7 @@ struct
   let startstate v = `Lifted (S.startstate v)
   let exitstate  v = `Lifted (S.exitstate  v)
   let otherstate v = `Lifted (S.otherstate v)
-  let morphstate v d = `Lifted (S.morphstate v (D.unlift d))
+  let morphstate v d = try `Lifted (S.morphstate v (D.unlift d)) with Deadcode -> d
 
   let val_of = D.lift % S.val_of
   let context = S.context % D.unlift

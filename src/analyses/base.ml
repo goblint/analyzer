@@ -1172,7 +1172,7 @@ struct
               let pa = eval_fv ctx.ask ctx.global ctx.local proc_att in
               let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
               let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
-              List.map (fun v -> v, (cpa, Flag.get_multi ())) reach_fs
+              List.map (create_thread None) reach_fs
             (*  let st = invalidate ctx.ask ctx.global ctx.local [Lval id, Lval r] in*)
             | _ -> []
           end
