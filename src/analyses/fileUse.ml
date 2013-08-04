@@ -3,6 +3,7 @@
 open Cil
 open Pretty
 open Analyses
+open Batteries
 
 module M = Messages
 
@@ -46,7 +47,11 @@ struct
                    D.may var m
           ) *)
           M.report ("changed file pointer "^var.vname^" (no longer safe)");
-          D.may var m
+          if D.may D.V.opened var m && not (D.is_unknown var m) then ( (* if unknown we don't have any location for the warning and should have already warned about it anyway *)
+            let mustOpen, mayOpen = D.filterRecords D.V.opened var m in
+            Set.iter (fun v -> M.report ~loc:(BatList.last v.loc) "MAYBE file is never closed") mayOpen
+          );
+          D.unknown var m
       | _ -> m
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -78,8 +83,8 @@ struct
   let body ctx (f:fundec) : D.t =
     ctx.local
 
-  let callStack m = match D.findOption stack_var m with
-      | Some(Must(v)) -> v.loc
+  let callStack m = match D.getVar stack_var m with
+      | Some x -> x.loc
       | _ -> []
 
   let callStackStr m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callStack m)))^"]"
@@ -89,17 +94,17 @@ struct
     (* M.write ("return: ctx.local="^(D.short 50 ctx.local)^(callStackStr m)); *)
     (* if f.svar.vname <> "main" && BatList.is_empty (callStack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
-      let vnames xs = String.concat ", " (List.map (fun v -> v.var.vname) xs) in
-      let mustOpen = D.filterValues D.V.opened m in
-      if List.length mustOpen > 0 then
+      let vnames xs = String.concat ", " (List.unique (List.map (fun v -> v.var.vname) (Set.elements xs))) in (* creating a new Set of unique strings with Set.map doesn't work :/ *)
+      let mustOpen, mayOpen = D.filterValues D.V.opened m in
+      if Set.cardinal mustOpen > 0 then
         M.report ("unclosed files: "^(vnames mustOpen));
-        List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file is never closed") mustOpen;
-      let mustOpenVars = List.map (fun x -> x.var) mustOpen in
-      let mayOpenAll = D.filterValues ~may:true D.V.opened m in
-      let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpenAll in (* ignore values that are already in mustOpen *)
-      if List.length mayOpen > 0 then
-        M.report ("MAYBE unclosed files: "^(vnames (BatList.unique ~eq:(fun a b -> a.var.vname=b.var.vname) mayOpen)));
-        List.iter (fun v -> M.report ~loc:(BatList.last v.loc) "MAYBE file is never closed") mayOpen
+        Set.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file is never closed") mustOpen;
+      (* let mustOpenVars = List.map (fun x -> x.var) mustOpen in *)
+      (* let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpen in (* ignore values that are already in mustOpen *) *)
+      let mayOpen = Set.diff mayOpen mustOpen in
+      if Set.cardinal mayOpen > 0 then
+        M.report ("MAYBE unclosed files: "^(vnames mayOpen));
+        Set.iter (fun v -> M.report ~loc:(BatList.last v.loc) "MAYBE file is never closed") mayOpen
     );
     let au = match exp with
       | Some(Lval(Var(varinfo),offset)) ->
@@ -111,10 +116,10 @@ struct
     List.fold_left (fun m var -> D.remove var m) au (f.sformals @ f.slocals)
 
   let editStack f m =
-    let v = match D.findOption stack_var m with
-      | Some(Must(v)) -> {v with loc=(f v.loc)}
+    let v = match D.getVar stack_var m with
+      | Some x -> {x with loc=(f x.loc)}
       | _ -> D.V.create stack_var (f []) D.V.Close in
-    D.add stack_var (Must v) m
+    D.addVar stack_var v m
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (* M.write ("entering function "^f.vname^(callStackStr m)); *)
@@ -154,7 +159,7 @@ struct
       (* let f tv = dom, Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.mkCast (Cil.integer 0) Cil.intPtrType, Cil.intType), tv *)
       let f tv = dom, Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType), tv
       (* in [f true; f false] *)
-      (* TODO if GobConfig.get_bool "ana.file.optimistic" then dom else ... *)
+      (* TODO if GobConfig.get_bool "ana.file.optimistic" then dom else ctx.split... *)
       in dom (* XX *)
     in
     let dummy = ret ctx.local in
@@ -175,7 +180,7 @@ struct
       let xs = varinfos lval in
       if List.length xs = 1 then ret (f m (List.hd xs))
       (* if there are more than one, each one will be May, TODO: all together are Must *)
-      else retf (List.fold_left (fun m v -> D.may v (f m v)) m xs) in
+      else retf (List.fold_left (fun m v -> D.unknown v (f m v)) m xs) in (* TODO replaced may with top -> fix *)
     match lval, f.vname, arglist with
       | None, "fopen", _ ->
           M.report "file handle is not saved!"; dummy
@@ -183,14 +188,14 @@ struct
           let f m varinfo =
             (* opened again, not closed before *)
             D.report varinfo D.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
-            let mustOpen, mayOpen = D.checkMay varinfo D.V.opened m in
-            if mustOpen || mayOpen then (
-              let msg = if mayOpen && not mustOpen then "MAYBE file is never closed" else "file is never closed" in
-              let xs = D.filterRecords varinfo D.V.opened m in (* length 1 if mustOpen *)
-              List.iter (fun x -> M.report ~loc:(BatList.last x.loc) msg) xs
-            );
+            let mustOpen, mayOpen = D.filterRecords D.V.opened varinfo m in
+            let mayOpen = Set.diff mayOpen mustOpen in
+            let warn msg xs = Set.iter (fun x -> M.report ~loc:(BatList.last x.loc) msg) xs in
+            warn "file is never closed" mustOpen;
+            warn "MAYBE file is never closed" mayOpen;
             (match arglist with
               | Const(CStr(filename))::Const(CStr(mode))::[] ->
+                  (* M.report ("fopen(\""^filename^"\", \""^mode^"\")"); *)
                   D.fopen varinfo dloc filename mode m
               | e::Const(CStr(mode))::[] ->
                   (* ignore(printf "CIL: %a\n" d_plainexp e); *)

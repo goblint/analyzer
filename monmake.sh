@@ -10,7 +10,7 @@ while file=$(inotifywait -r -q -e modify src); do
   if [ $? -eq 0 ]; then
     clear
     #./test.sh file
-    ./test.sh spec
+    ./test.sh
     #firefox result/file.c.html
   else
     # TODO find a way to save stdout to var and still print it to avoid calling make again just for the error message
