@@ -7,5 +7,5 @@ int main(){
 
 	fp++; // WARN: changed file pointer fp (no longer safe)
 
-	fclose(fp); // might be closeing anything
+	fclose(fp); // WARN: MAYBE closeing already closed file handle fp
 } // WARN: MAYBE unclosed files: fp

@@ -12,5 +12,5 @@ int main(){
 	fp2 = fp1; // WARN: changed file pointer fp2 (no longer safe)
 
 	fclose(fp1);
-	fclose(fp2); // OPT: MAYBE closeing already closed file handle fp2 
+	fclose(fp2); // WARN: MAYBE closeing already closed file handle fp2
 } // WARN: MAYBE unclosed files: fp2

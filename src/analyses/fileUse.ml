@@ -19,8 +19,9 @@ struct
   open D.V.T
 
 
-  let return_var = Cil.makeVarinfo false "@return" Cil.voidType
-  let stack_var = Cil.makeVarinfo false "@stack" Cil.voidType
+  let return_var   = Cil.makeVarinfo false "@return"   Cil.voidType
+  let stack_var    = Cil.makeVarinfo false "@stack"    Cil.voidType
+  let unclosed_var = Cil.makeVarinfo false "@unclosed" Cil.voidType
 
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
@@ -47,10 +48,11 @@ struct
                    D.may var m
           ) *)
           M.report ("changed file pointer "^var.vname^" (no longer safe)");
-          if D.may D.V.opened var m && not (D.is_unknown var m) then ( (* if unknown we don't have any location for the warning and should have already warned about it anyway *)
+          (* save maybe opened files in the domain to warn about maybe unclosed files at the end *)
+          let m = if D.may D.V.opened var m && not (D.is_unknown var m) then ( (* if unknown we don't have any location for the warning and have handled it already anyway *)
             let mustOpen, mayOpen = D.filterRecords D.V.opened var m in
-            Set.iter (fun v -> M.report ~loc:(BatList.last v.loc) "MAYBE file is never closed") mayOpen
-          );
+            D.extendValue unclosed_var (Set.empty, mayOpen) m
+          ) else m in
           D.unknown var m
       | _ -> m
 
@@ -83,7 +85,7 @@ struct
   let body ctx (f:fundec) : D.t =
     ctx.local
 
-  let callStack m = match D.getVar stack_var m with
+  let callStack m = match D.getRecord stack_var m with
       | Some x -> x.loc
       | _ -> []
 
@@ -94,8 +96,9 @@ struct
     (* M.write ("return: ctx.local="^(D.short 50 ctx.local)^(callStackStr m)); *)
     (* if f.svar.vname <> "main" && BatList.is_empty (callStack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
+      (* list of unique variable names as string *)
       let vnames xs = String.concat ", " (List.unique (List.map (fun v -> v.var.vname) (Set.elements xs))) in (* creating a new Set of unique strings with Set.map doesn't work :/ *)
-      let mustOpen, mayOpen = D.filterValues D.V.opened m in
+      let mustOpen, mayOpen = D.V.union (D.filterValues D.V.opened m) (D.getValue unclosed_var m) in
       if Set.cardinal mustOpen > 0 then
         M.report ("unclosed files: "^(vnames mustOpen));
         Set.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file is never closed") mustOpen;
@@ -116,10 +119,10 @@ struct
     List.fold_left (fun m var -> D.remove var m) au (f.sformals @ f.slocals)
 
   let editStack f m =
-    let v = match D.getVar stack_var m with
+    let v = match D.getRecord stack_var m with
       | Some x -> {x with loc=(f x.loc)}
       | _ -> D.V.create stack_var (f []) D.V.Close in
-    D.addVar stack_var v m
+    D.addRecord stack_var v m
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (* M.write ("entering function "^f.vname^(callStackStr m)); *)
@@ -190,9 +193,8 @@ struct
             D.report varinfo D.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
             let mustOpen, mayOpen = D.filterRecords D.V.opened varinfo m in
             let mayOpen = Set.diff mayOpen mustOpen in
-            let warn msg xs = Set.iter (fun x -> M.report ~loc:(BatList.last x.loc) msg) xs in
-            warn "file is never closed" mustOpen;
-            warn "MAYBE file is never closed" mayOpen;
+            (* save opened files in the domain to warn about unclosed files at the end *)
+            let m = D.extendValue unclosed_var (mustOpen, mayOpen) m in
             (match arglist with
               | Const(CStr(filename))::Const(CStr(mode))::[] ->
                   (* M.report ("fopen(\""^filename^"\", \""^mode^"\")"); *)

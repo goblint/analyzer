@@ -74,9 +74,13 @@ struct
   let closed x = x.state = Close
   let writable x = match x.state with Open((_,Write)) -> true | _ -> false
 
+  (* predicates *)
   let filter p (x,y) = Set.filter p x, Set.filter p y (* retains top *)
   let must   p (x,y) = Set.exists p x || not (Set.is_empty y) && Set.for_all p y
   let may    p (x,y) = Set.exists p y || is_top (x,y)
+
+  (* set operations *)
+  let union (a,b) (c,d) = Set.union a c, Set.union b d
 end
 
 module FileUses  =
@@ -108,15 +112,24 @@ struct
     flattenSet xs, flattenSet ys
   let filterRecords p k m = if mem k m then let v = find k m in V.filter p v else Set.empty, Set.empty
 
-  let getVar k m =
+  let getRecord k m =
     if mem k m then
       let x,y = find k m in
       if Set.is_empty x then None
       else Some (Set.choose x)
     else None
-  let addVar k v m =
-    let x = Set.singleton v in
+  let addRecord k r m =
+    let x = Set.singleton r in
     add k (x,x) m
+  let getValue k m =
+    if mem k m then find k m
+    else Set.empty, Set.empty
+  let extendValue k v m =
+    if mem k m then
+      add k (V.union (find k m) v) m
+    else
+      add k v m
+
 
   (* let checkMay var p m = if mem var m then let x,y = find var m in Set.exists p x, Set.exists p y else (false, false) *)
   (* not used anymore -> remove? *)

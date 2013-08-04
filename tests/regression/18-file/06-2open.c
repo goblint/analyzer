@@ -7,4 +7,4 @@ int main(){
 	fp = fopen("test2.txt", "a"); // WARN: overwriting still opened file handle fp
 	fprintf(fp, "Testing...\n"); 
 	fclose(fp);
-}
+} // WARN: unclosed files: fp
