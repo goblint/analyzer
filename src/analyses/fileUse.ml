@@ -23,6 +23,8 @@ struct
   let stack_var    = Cil.makeVarinfo false "@stack"    Cil.voidType
   let unclosed_var = Cil.makeVarinfo false "@unclosed" Cil.voidType
 
+  let warned_unclosed = ref Set.empty
+
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
@@ -80,9 +82,10 @@ struct
         ignore(printf "%s %i\n" v.vname (Int64.to_int i)); m *)
     | BinOp (Eq, a, b, _) -> check (stripCasts a) (stripCasts b) tv
     | BinOp (Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
-    | e -> ignore(printf "nothing matched the given exp (check special_fn):\n%a\n" d_plainexp e); m
+    | e -> (* ignore(printf "nothing matched the given exp (check special_fn):\n%a\n" d_plainexp e); *) m
 
   let body ctx (f:fundec) : D.t =
+    (* M.report ("body of function "^f.svar.vname); *)
     ctx.local
 
   let callStack m = match D.getRecord stack_var m with
@@ -92,16 +95,22 @@ struct
   let callStackStr m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callStack m)))^"]"
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
+    (* TODO check One Return transformation: oneret.ml *)
     let m = ctx.local in
-    (* M.write ("return: ctx.local="^(D.short 50 ctx.local)^(callStackStr m)); *)
+    (* M.report ("return: ctx.local="^(D.short 50 ctx.local)^(callStackStr m)); *)
     (* if f.svar.vname <> "main" && BatList.is_empty (callStack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
       (* list of unique variable names as string *)
       let vnames xs = String.concat ", " (List.unique (List.map (fun v -> v.var.vname) (Set.elements xs))) in (* creating a new Set of unique strings with Set.map doesn't work :/ *)
       let mustOpen, mayOpen = D.V.union (D.filterValues D.V.opened m) (D.getValue unclosed_var m) in
-      if Set.cardinal mustOpen > 0 then
+      if Set.cardinal mustOpen > 0 then (
         M.report ("unclosed files: "^(vnames mustOpen));
         Set.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file is never closed") mustOpen;
+        (* add warnings about currently open files (don't include overwritten or changed file handles!) *)
+        warned_unclosed := Set.union !warned_unclosed (fst (D.filterValues D.V.opened m)) (* can't save in domain b/c it wouldn't reach the other return *)
+      );
+      (* go through files "never closed" and recheck for current return *)
+      Set.iter (fun v -> if D.must D.V.closed v.var m then M.report ~loc:(BatList.last v.loc) "MAYBE file is never closed") !warned_unclosed;
       (* let mustOpenVars = List.map (fun x -> x.var) mustOpen in *)
       (* let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpen in (* ignore values that are already in mustOpen *) *)
       let mayOpen = Set.diff mayOpen mustOpen in
@@ -125,13 +134,13 @@ struct
     D.addRecord stack_var v m
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    (* M.write ("entering function "^f.vname^(callStackStr m)); *)
+    (* M.report ("entering function "^f.vname^(callStackStr ctx.local)); *)
     let m = if f.vname <> "main" then
       editStack (BatList.cons !Tracing.current_loc) ctx.local
     else ctx.local in [m,m]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    (* M.write ("leaving function "^f.vname^(callStackStr au)); *)
+    (* M.report ("leaving function "^f.vname^(callStackStr au)); *)
     let au = editStack List.tl au in
     let return_val = D.findOption return_var au in
     match lval, return_val with

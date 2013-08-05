@@ -6,7 +6,7 @@ int main(){
 	fprintf(fp, "Testing...\n");
 	int b;
 	if(b)
-		return 1; // WARN: MAYBE unclosed files: fp
+		return 1; // WARN: unclosed files: fp
 	fclose(fp);
 	return 0;
 }
