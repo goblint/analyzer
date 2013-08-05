@@ -51,9 +51,9 @@ struct
           ) *)
           M.report ("changed file pointer "^var.vname^" (no longer safe)");
           (* save maybe opened files in the domain to warn about maybe unclosed files at the end *)
-          let m = if D.may D.V.opened var m && not (D.is_unknown var m) then ( (* if unknown we don't have any location for the warning and have handled it already anyway *)
-            let mustOpen, mayOpen = D.filterRecords D.V.opened var m in
-            D.extendValue unclosed_var (Set.empty, mayOpen) m
+          let m = if D.may var D.V.opened m && not (D.is_unknown var m) then ( (* if unknown we don't have any location for the warning and have handled it already anyway *)
+            let mustOpen, mayOpen = D.filter_records var D.V.opened m in
+            D.extend_value unclosed_var (Set.empty, mayOpen) m
           ) else m in
           D.unknown var m
       | _ -> m
@@ -88,7 +88,7 @@ struct
     (* M.report ("body of function "^f.svar.vname); *)
     ctx.local
 
-  let callStack m = match D.getRecord stack_var m with
+  let callStack m = match D.get_record stack_var m with
       | Some x -> x.loc
       | _ -> []
 
@@ -102,15 +102,15 @@ struct
     if f.svar.vname = "main" then (
       (* list of unique variable names as string *)
       let vnames xs = String.concat ", " (List.unique (List.map (fun v -> v.var.vname) (Set.elements xs))) in (* creating a new Set of unique strings with Set.map doesn't work :/ *)
-      let mustOpen, mayOpen = D.V.union (D.filterValues D.V.opened m) (D.getValue unclosed_var m) in
+      let mustOpen, mayOpen = D.V.union (D.filter_values D.V.opened m) (D.get_value unclosed_var m) in
       if Set.cardinal mustOpen > 0 then (
         M.report ("unclosed files: "^(vnames mustOpen));
         Set.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file is never closed") mustOpen;
         (* add warnings about currently open files (don't include overwritten or changed file handles!) *)
-        warned_unclosed := Set.union !warned_unclosed (fst (D.filterValues D.V.opened m)) (* can't save in domain b/c it wouldn't reach the other return *)
+        warned_unclosed := Set.union !warned_unclosed (fst (D.filter_values D.V.opened m)) (* can't save in domain b/c it wouldn't reach the other return *)
       );
       (* go through files "never closed" and recheck for current return *)
-      Set.iter (fun v -> if D.must D.V.closed v.var m then M.report ~loc:(BatList.last v.loc) "MAYBE file is never closed") !warned_unclosed;
+      Set.iter (fun v -> if D.must v.var D.V.closed m then M.report ~loc:(BatList.last v.loc) "MAYBE file is never closed") !warned_unclosed;
       (* let mustOpenVars = List.map (fun x -> x.var) mustOpen in *)
       (* let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpen in (* ignore values that are already in mustOpen *) *)
       let mayOpen = Set.diff mayOpen mustOpen in
@@ -128,10 +128,10 @@ struct
     List.fold_left (fun m var -> D.remove var m) au (f.sformals @ f.slocals)
 
   let editStack f m =
-    let v = match D.getRecord stack_var m with
+    let v = match D.get_record stack_var m with
       | Some x -> {x with loc=(f x.loc)}
-      | _ -> D.V.create stack_var (f []) D.V.Close in
-    D.addRecord stack_var v m
+      | _ -> D.V.create stack_var (f []) D.V.Closed in
+    D.add_record stack_var v m
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (* M.report ("entering function "^f.vname^(callStackStr ctx.local)); *)
@@ -142,7 +142,7 @@ struct
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     (* M.report ("leaving function "^f.vname^(callStackStr au)); *)
     let au = editStack List.tl au in
-    let return_val = D.findOption return_var au in
+    let return_val = D.find_option return_var au in
     match lval, return_val with
       | Some (Var var, offset), Some rval ->
           (* M.write ("setting "^var.vname^" to content of "^(D.V.vnames rval)); *)
@@ -200,10 +200,10 @@ struct
           let f m varinfo =
             (* opened again, not closed before *)
             D.report varinfo D.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
-            let mustOpen, mayOpen = D.filterRecords D.V.opened varinfo m in
+            let mustOpen, mayOpen = D.filter_records varinfo D.V.opened m in
             let mayOpen = Set.diff mayOpen mustOpen in
             (* save opened files in the domain to warn about unclosed files at the end *)
-            let m = D.extendValue unclosed_var (mustOpen, mayOpen) m in
+            let m = D.extend_value unclosed_var (mustOpen, mayOpen) m in
             (match arglist with
               | Const(CStr(filename))::Const(CStr(mode))::[] ->
                   (* M.report ("fopen(\""^filename^"\", \""^mode^"\")"); *)
@@ -232,11 +232,11 @@ struct
 
       | _, "fprintf", (Lval fp)::_::_ ->
           let f m varinfo =
-            D.reports m varinfo [
+            D.reports varinfo [
               false, D.V.closed,   "writing to closed file handle "^varinfo.vname;
               true,  D.V.opened,   "writing to unopened file handle "^varinfo.vname;
               true,  D.V.writable, "writing to read-only file handle "^varinfo.vname;
-            ];
+            ] m;
             m
           in ret_all f fp
       | _, "fprintf", fp::_::_ ->

@@ -9,15 +9,15 @@ module M = Messages
 exception Unknown
 exception Error
 
-module Val =
+module Value =
 struct
   module T =
   struct
     type loc = location list
     type mode = Read | Write
-    type state = Open of string*mode | Close
+    type state = Open of string*mode | Closed
     type record = { var: varinfo; loc: loc; state: state }
-    type t' = record Set.t * record Set.t (* mustOpen, mayOpen *)
+    type t' = record Set.t * record Set.t (* must, may *)
   end
 
   include Printable.Std
@@ -25,54 +25,49 @@ struct
   include T
   type t = t'
 
-  let toStringRecord x =
-    let loc xs = String.concat ", " (List.map (fun x -> string_of_int x.line) xs) in
-    let mode x = match x with Read -> "Read" | Write -> "Write" in
-    match x.state with
-    | Open(filename, m) -> "open("^filename^", "^(mode m)^") ("^(loc x.loc)^")"
-    | Close -> "closed ("^(loc x.loc)^")"
+  let string_of_record r =
+    let loc xs = String.concat ", " (List.map (fun r -> string_of_int r.line) xs) in
+    let mode r = match r with Read -> "Read" | Write -> "Write" in
+    match r.state with
+    | Open(filename, m) -> "open("^filename^", "^(mode m)^") ("^(loc r.loc)^")"
+    | Closed -> "closed ("^(loc r.loc)^")"
 
-  let toString (x,y) =
+  let string_of (x,y) =
     let z = Set.diff y x in
-    "{ "^(String.concat ", " (List.map toStringRecord (Set.elements x)))^" }, "^
-    "{ "^(String.concat ", " (List.map toStringRecord (Set.elements z)))^" }"
-    (* IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs *)
+    "{ "^(String.concat ", " (List.map string_of_record (Set.elements x)))^" }, "^
+    "{ "^(String.concat ", " (List.map string_of_record (Set.elements z)))^" }"
 
-  let short i x = toString x
+  let short i v = string_of v
 
   include Printable.PrintSimple (struct
     type t' = t
-    let name () = "File pointers"
+    let name () = "File handles"
     let short = short
   end)
 
   let create v l s = { var=v; loc=l; state=s }
-  let map f (x,y) = Set.map f x, Set.map f y
+  let map f (x,y)  = Set.map f x, Set.map f y
   let rebind x var = map (fun x -> {x with var=var}) x
-  (* let may = function Must x -> May (Set.singleton x) | xs -> xs *)
-  (* let records = function Must x -> (Set.singleton x) | May xs -> xs *)
-  (* let recordsList (x,y) = List.of_enum (Set.enum x), List.of_enum (Set.enum y) *)
-  (* let vnames x = String.concat ", " (List.map (fun x -> x.var.vname) (recordsList x)) *)
 
   let equal = Util.equals
   (* let leq x y = equal y (join x y) *)
-  let leq (a,b) (c,d) = Set.subset c a && Set.subset b d
   let hash = Hashtbl.hash
-  let join (a,b) (c,d) = (* M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); *)
+  let leq  (a,b) (c,d) = Set.subset c a && Set.subset b d
+  let join (a,b) (c,d) = (* M.report ("JOIN\tx: " ^ (string_of x) ^ "\n\ty: " ^ (string_of y)); *)
     let r = Set.intersect a c, Set.union b d in
-    (* M.report ("result: "^(toString r)); *)
+    (* M.report ("result: "^(string_of r)); *)
     r
-  let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); x
+  let meet x y = M.report ("MEET\tx: " ^ (string_of x) ^ "\n\ty: " ^ (string_of y)); x
   (* top/bot are handled by MapDomain, only bot () gets called *)
   let top ()   = Set.empty, Set.empty
   let is_top x = x=top ()
   let bot ()   = raise Unknown (* called in MapDomain.MapBot(K)(V).find *)
   let is_bot x = false
 
-  (* properties used by FileUses.report *)
-  let opened x = x.state <> Close
-  let closed x = x.state = Close
-  let writable x = match x.state with Open((_,Write)) -> true | _ -> false
+  (* properties for records (e.g. used by FileUses.report) *)
+  let opened   r = r.state <> Closed
+  let closed   r = r.state = Closed
+  let writable r = match r.state with Open((_,Write)) -> true | _ -> false
 
   (* predicates *)
   let filter p (x,y) = Set.filter p x, Set.filter p y (* retains top *)
@@ -86,78 +81,71 @@ end
 module FileUses  =
 struct
   module K = Basetype.Variables
-  module V = Val
-  module MD = MapDomain.MapBot (Basetype.Variables) (Val)
+  module V = Value
+  module MD = MapDomain.MapBot (Basetype.Variables) (Value)
   include MD
-  (* don't use BatMap to avoid dependencies for other files using the following functions *)
-  module M = OMap.Make (Basetype.Variables) (* why does OMap.Make (K) not work? *)
+  (* Used to access additional functions of Map.
+  Can't use BatMap because type is not compatible with MD.
+  Also avoids dependencies for other files using the following functions. *)
+  module MDMap = OMap.Make (Basetype.Variables) (* why does OMap.Make (K) not work? *)
   open V.T
 
-  (* other map functions *)
+  (* other Map functions *)
   (* val bindings : 'a t -> (key * 'a) list
   Return the list of all bindings of the given map. The returned list is sorted in increasing order with respect to the ordering Ord.compare, where Ord is the argument given to Map.Make. *)
   (* own map functions *)
-  let findOption k m = if mem k m then Some(find k m) else None
+  let find_option k m = if mem k m then Some(find k m) else None
 
   (* domain specific *)
-  (* let predicate ?may:(may=false) v p = match v with Must x -> p x | May xs -> if may then Set.exists p xs else Set.for_all p xs && Set.cardinal xs > 1 *)
-  (* let filterMap ?may:(may=false) p m = filter (fun k v -> predicate ~may:may v p) m (* this is OCaml's Map.filter which corresponds to BatMap.filteri *) *)
-  (* let filterMap p m = filter (fun k v -> V.must p v) m *)
-  let filterValues p m =
-    let filteredMap = filter (fun k v -> V.may p v) m in
-    let bindings = M.bindings filteredMap in
+  let filter_values p m =
+    let filtered_map = filter (fun k v -> V.may p v) m in
+    let bindings = MDMap.bindings filtered_map in
     let values = List.map (fun (k,v) -> V.filter p v) bindings in
     let xs, ys = List.split values in
-    let flattenSet xs = List.fold_left (fun x y -> Set.union x y) Set.empty xs in
-    flattenSet xs, flattenSet ys
-  let filterRecords p k m = if mem k m then let v = find k m in V.filter p v else Set.empty, Set.empty
+    let flatten_set xs = List.fold_left (fun x y -> Set.union x y) Set.empty xs in
+    flatten_set xs, flatten_set ys
+  let filter_records k p m = if mem k m then let v = find k m in V.filter p v else Set.empty, Set.empty
 
-  let getRecord k m =
+  (* used for special variables *)
+  let get_record k m =
     if mem k m then
       let x,y = find k m in
       if Set.is_empty x then None
       else Some (Set.choose x)
     else None
-  let addRecord k r m =
+  let add_record k r m =
     let x = Set.singleton r in
     add k (x,x) m
-  let getValue k m =
+  let get_value k m =
     if mem k m then find k m
     else Set.empty, Set.empty
-  let extendValue k v m =
+  let extend_value k v m =
     if mem k m then
       add k (V.union (find k m) v) m
     else
       add k v m
 
-
-  (* let checkMay var p m = if mem var m then let x,y = find var m in Set.exists p x, Set.exists p y else (false, false) *)
-  (* not used anymore -> remove? *)
-  (* let check var p m = if mem var m then V.must p (find var m) else false *)
-  (* let opened var m = check var V.opened m *)
-  (* let closed var m = check var V.closed m *)
-  (* let writable var m = check var V.writable m *)
-  let must p k m = if mem k m then V.must p (find k m) else false
-  let may  p k m = if mem k m then V.may  p (find k m) else false
+  let must k p m = if mem k m then V.must p (find k m) else false
+  let may  k p m = if mem k m then V.may  p (find k m) else false
 
   (* returns a tuple (thunk, result) *)
-  let report_ ?neg:(neg=false) var p msg m =
+  let report_ ?neg:(neg=false) k p msg m =
     let f ?may:(may=false) s =
       let f () = Messages.report (if may then ("MAYBE "^s) else s) in
       if may then f, `May true else f, `Must true in
     let mf = (fun () -> ()), `Must false in
-    if mem var m then
+    if mem k m then
       let p = if neg then not % p else p in
-      let v = find var m in
+      let v = find k m in
       if V.must p v then f msg (* must *)
       else if V.may p v then f ~may:true msg (* may *)
       else mf (* none *)
     else if neg then f msg else mf
 
-  let report ?neg:(neg=false) var p msg m = (fst (report_ ~neg:neg var p msg m)) () (* evaluate thunk *)
+  let report ?neg:(neg=false) k p msg m = (fst (report_ ~neg:neg k p msg m)) () (* evaluate thunk *)
 
-  let reports m var xs =
-    let uncurry (neg, p, msg) = report_ ~neg:neg var p msg m in
+  let reports k xs m =
+    let uncurry (neg, p, msg) = report_ ~neg:neg k p msg m in
     let f result x = if snd (uncurry x) = result then Some (fst (uncurry x)) else None in
     let must_true = BatList.filter_map (f (`Must true)) xs in
     let may_true  = BatList.filter_map (f (`May true)) xs in
@@ -168,14 +156,14 @@ struct
   let unknown k m = add k (Set.empty, Set.empty) m
   let is_unknown k m = if mem k m then V.is_top (find k m) else false
 
-  let fopen var loc filename mode m =
-    if is_unknown var m then m else
+  let fopen k loc filename mode m =
+    if is_unknown k m then m else
     let mode = match String.lowercase mode with "r" -> Read | _ -> Write in
-    let x = Set.singleton (V.create var loc (Open(filename, mode))) in
-    add var (x,x) m
-  let fclose var loc m =
-    if is_unknown var m then m else
-    let x = Set.singleton (V.create var loc Close) in
-    add var (x,x) m
+    let x = Set.singleton (V.create k loc (Open(filename, mode))) in
+    add k (x,x) m
+  let fclose k loc m =
+    if is_unknown k m then m else
+    let x = Set.singleton (V.create k loc Closed) in
+    add k (x,x) m
 
 end

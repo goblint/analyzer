@@ -2,14 +2,20 @@
 	"folders":
 	[
 		{
-			"path": ".",
-			"folder_exclude_patterns": ["_build", "obj", "src", "webapp"]
+			"folder_exclude_patterns":
+			[
+				"_build",
+				"obj",
+				"src",
+				"webapp"
+			],
+			"path": "."
 		},
 		{
 			"path": "src"
 		},
 		{
-			"path": "tests/regression/17-file"
+			"path": "tests/regression/18-file"
 		}
 	]
 }
