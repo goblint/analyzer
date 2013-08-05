@@ -15,7 +15,7 @@ struct
   struct
     type loc = location list
     type mode = Read | Write
-    type state = Open of string*mode | Closed
+    type state = Open of string*mode | Closed | Error
     type record = { var: varinfo; loc: loc; state: state }
     type t' = record Set.t * record Set.t (* must, may *)
   end
@@ -31,6 +31,7 @@ struct
     match r.state with
     | Open(filename, m) -> "open("^filename^", "^(mode m)^") ("^(loc r.loc)^")"
     | Closed -> "closed ("^(loc r.loc)^")"
+    | Error  -> "error ("^(loc r.loc)^")"
 
   let string_of (x,y) =
     let z = Set.diff y x in
@@ -53,7 +54,7 @@ struct
   (* let leq x y = equal y (join x y) *)
   let hash = Hashtbl.hash
   let leq  (a,b) (c,d) = Set.subset c a && Set.subset b d
-  let join (a,b) (c,d) = (* M.report ("JOIN\tx: " ^ (string_of x) ^ "\n\ty: " ^ (string_of y)); *)
+  let join (a,b) (c,d) = (* M.report ("JOIN\tx: " ^ (string_of (a,b)) ^ "\n\ty: " ^ (string_of (c,d))); *)
     let r = Set.intersect a c, Set.union b d in
     (* M.report ("result: "^(string_of r)); *)
     r
@@ -65,7 +66,7 @@ struct
   let is_bot x = false
 
   (* properties for records (e.g. used by FileUses.report) *)
-  let opened   r = r.state <> Closed
+  let opened   r = r.state <> Closed && r.state <> Error
   let closed   r = r.state = Closed
   let writable r = match r.state with Open((_,Write)) -> true | _ -> false
 
@@ -164,6 +165,11 @@ struct
   let fclose k loc m =
     if is_unknown k m then m else
     let x = Set.singleton (V.create k loc Closed) in
+    add k (x,x) m
+  let error k m =
+    if is_unknown k m then m else
+    let loc = if mem k m then let v = Set.choose (snd (find k m)) in v.loc else [] in
+    let x = Set.singleton (V.create k loc Error) in
     add k (x,x) m
 
 end

@@ -62,14 +62,14 @@ struct
     let m = ctx.local in
     (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
     let check a b tv =
-      (* ignore(printf "check: %a = %a\n" d_plainexp a d_plainexp b); *)
+      (* ignore(printf "check: %a = %a, %B\n" d_plainexp a d_plainexp b tv); *)
       match a, b with
       | Const (CInt64(i, kind, str)), Lval (Var v, NoOffset)
       | Lval (Var v, NoOffset), Const (CInt64(i, kind, str)) ->
         (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
         if i = Int64.zero && tv then (
           (* ignore(printf "error-branch\n"); *)
-          D.remove v m
+          D.error v m
         )else
           m
       | _ -> ignore(printf "nothing matched the given BinOp: %a = %a\n" d_plainexp a d_plainexp b); m
@@ -82,7 +82,7 @@ struct
         ignore(printf "%s %i\n" v.vname (Int64.to_int i)); m *)
     | BinOp (Eq, a, b, _) -> check (stripCasts a) (stripCasts b) tv
     | BinOp (Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
-    | e -> (* ignore(printf "nothing matched the given exp (check special_fn):\n%a\n" d_plainexp e); *) m
+    | e -> ignore(printf "nothing matched the given exp (check special_fn):\n%a\n" d_plainexp e); m
 
   let body ctx (f:fundec) : D.t =
     (* M.report ("body of function "^f.svar.vname); *)
@@ -163,16 +163,13 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let m = ctx.local in
-    (* let ret dom = [dom, Cil.integer 1, true] in *)
-    let ret dom = dom in (* XX *)
+    let ret dom = dom in
     let ret_branch_err lval dom =
-      (* type? NULL = 0 = 0-ptr? Cil.intType, Cil.intPtrType, Cil.voidPtrType *)
-      (* no difference *)
+      (* type? NULL = 0 = 0-ptr? Cil.intType, Cil.intPtrType, Cil.voidPtrType -> no difference *)
       (* let f tv = dom, Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.mkCast (Cil.integer 0) Cil.intPtrType, Cil.intType), tv *)
-      let f tv = dom, Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType), tv
-      (* in [f true; f false] *)
-      (* TODO if GobConfig.get_bool "ana.file.optimistic" then dom else ctx.split... *)
-      in dom (* XX *)
+      if not (GobConfig.get_bool "ana.file.optimistic") then
+        ctx.split dom (Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType)) true;
+      dom
     in
     let dummy = ret ctx.local in
     let loc = !Tracing.current_loc in
@@ -190,7 +187,7 @@ struct
     (* fold possible varinfos on domain *)
     let ret_all ?ret:(retf=ret) f lval =
       let xs = varinfos lval in
-      if List.length xs = 1 then ret (f m (List.hd xs))
+      if List.length xs = 1 then retf (f m (List.hd xs))
       (* if there are more than one, each one will be May, TODO: all together are Must *)
       else retf (List.fold_left (fun m v -> D.unknown v (f m v)) m xs) in (* TODO replaced may with top -> fix *)
     match lval, f.vname, arglist with
@@ -223,8 +220,10 @@ struct
 
       | _, "fclose", [Lval fp] ->
           let f m varinfo =
-            if not (D.mem varinfo m) then M.report ("closeing unopened file handle "^varinfo.vname);
-            D.report varinfo D.V.closed ("closeing already closed file handle "^varinfo.vname) m;
+            D.reports varinfo [
+              false, D.V.closed,  "closeing already closed file handle "^varinfo.vname;
+              true,  D.V.opened,  "closeing unopened file handle "^varinfo.vname
+            ] m;
             D.fclose varinfo dloc m
           in ret_all f fp
       | _, "fclose", _ ->
