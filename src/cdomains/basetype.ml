@@ -295,9 +295,9 @@ struct
   let isSimple _  = true
   let copy x = x
   type t = fieldinfo
-  let compare x y = compare (x.fname,x.fcomp.cname) (y.fname,y.fcomp.cname)
-  let equal x y = x.fcomp.cname = y.fcomp.cname && x.fname = y.fname
-  let hash x = Hashtbl.hash (x.fname, x.fcomp.cname)
+  let compare x y = compare x.fname y.fname
+  let equal x y = x.fname = y.fname
+  let hash x = Hashtbl.hash x.fname
   let short _ x = x.fname
   let toXML_f sf x = 
     let esc = Goblintutil.escape in
