@@ -138,10 +138,32 @@ struct
      let cup = join
      let cap = meet
   end
+  
+  module O =
+  struct
+    let m = HM.create 1024
+    let add_dep x y =
+      HM.replace m x (VS.add y (h_find_default m x VS.empty))
+    let mem_deps xs y =
+      let found   = ref false in
+      let todo    = ref xs in
+      let visited = ref VS.empty in
+      while VS.cardinal !todo <> 0 do
+        if VS.exists (S.Var.equal y) !todo then begin
+          found := true;
+          todo := VS.empty
+        end else begin
+          visited := VS.union !todo !visited;
+          todo := VS.fold (fun x -> VS.union (VS.diff (h_find_default m x VS.empty) !visited)) !todo VS.empty
+        end
+      done;
+      !found
+  end
       
   let infl   = HM.create 1024  
   let wpoint = HM.create 1024 
-  let pred   = HM.create 1024  
+  let ts     = HM.create 1024 (* (debugging) time-stamps *)
+  let time   = ref 0 
   let back   = XY.HPM.create 1024 (* for debugging only *)
                 
   let solve box st list = 
@@ -158,6 +180,7 @@ struct
     in
     
     let eq old x get set = 
+      let _ = incr time; HM.replace ts x !time in
       let sides = HM.create 10 in
       let do_one (d_in,d_back) f =
         let gets  = ref VS.empty in
@@ -167,20 +190,24 @@ struct
         in 
         let collect_get x = 
           let r = get x in
-          let ngets = VS.union !gets (h_find_default pred x VS.empty) in
-          let ngets = if List.length (S.system x) > 1 then VS.add x ngets else ngets in
-          let _ = gets := ngets in
+          let _ = gets := 
+            let n = List.length (S.system x) in
+            if n<2 then 
+              VS.union !gets (h_find_default O.m x VS.empty) 
+            else 
+              VS.add x !gets 
+          in          
           let _ = gets' := VS.add x !gets' in
           r
         in 
         let d = f (if C.apply_box=`localized then collect_get else get) collect_set in
         if C.apply_box=`localized then begin 
-          if not (VS.mem x !gets) then begin
-            HM.replace pred x (VS.union !gets (h_find_default pred x VS.empty));
-            (S.Dom.join d_in d, d_back)
-          end else begin 
+          if O.mem_deps !gets' x then begin
             VS.iter (fun y -> XY.HPM.add back (y,x) ()) !gets';
             (d_in, S.Dom.join d_back d)
+          end else begin 
+            VS.iter (O.add_dep x) !gets;
+            (S.Dom.join d_in d, d_back)
           end
         end else 
           (d_in, S.Dom.join d_back d)
@@ -191,10 +218,10 @@ struct
       match C.apply_box with
         | `localized when S.Dom.is_bot d_back -> d_in
         | `localized  -> 
-            let _ = L.add infl x x in
-            let _ = HM.replace wpoint x () in
+            HM.replace wpoint x ();
             (S.Dom.join d_in (box x old d_back))
         | `everywhere -> 
+            let _ = L.add infl x x in
             box x old (S.Dom.join d_in d_back)
         | `loop_head  -> 
             if HM.mem wpoint x then 
@@ -228,13 +255,13 @@ struct
       let (xi,_) = X.get_index x in
       fun y ->
         let (i,nonfresh) = X.get_index y in
-        let _ = if i>=xi then HM.replace wpoint y () in
+        let _ = if i>=xi && C.apply_box=`loop_head then HM.replace wpoint y () in
         let _ = if nonfresh then () else solve y in
         let _ = L.add infl y x in
         X.get_value y
                     
     and side x y d = 
-      HM.replace wpoint y ();
+      if (C.apply_box=`loop_head) then HM.replace wpoint y ();
       
       let _ = 
         match T.sub T.set y with 
@@ -270,6 +297,7 @@ struct
         let _ = P.insert stable x in
         let old = X.get_value x in
         let tmp = do_side x (eq old x (eval x) (side x)) in 
+        (*let tmp = S.Dom.join (box x old (do_side x (S.Dom.bot ()))) (eq old x (eval x) (side x)) in *)
         (*let tmp = if C.apply_box=`everywhere then box x old tmp else tmp in*)
         if D.eq tmp old then 
           loop (X.get_key x)
@@ -287,7 +315,7 @@ struct
           else
             let w = L.sub infl x in
             let _ = L.rem_item infl x in
-            let _ = if C.apply_box=`everywhere || HM.mem wpoint x then L.add infl x x in
+            (*let _ = if C.apply_box=`everywhere || HM.mem wpoint x then L.add infl x x in*)
             let h = VS.fold (flip H.insert) w !work in
             let _ = work := h in
                     VS.iter (P.rem_item stable) w;
@@ -510,7 +538,7 @@ struct
     let r = S1.solve box x y in
     let f k _ =
       let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in
-      let s = Pretty.sprint 80 (S.Var.pretty_trace () k) ^ " " ^ string_of_int (S1.X.get_key k) in
+      let s = Pretty.sprint 80 (S.Var.pretty_trace () k) ^ " " ^ string_of_int (try HM.find S1.ts k with Not_found -> 0) in
       ignore (Pretty.fprintf ch "%d [label=\"%s\"%s];\n" (S.Var.hash k) (Goblintutil.escape s) q);
       let f y =
         if S1.XY.HPM.mem S1.back (k,y) then
@@ -519,7 +547,7 @@ struct
           ignore (Pretty.fprintf ch "%d -> %d ;\n" (S.Var.hash k) (S.Var.hash y))
       in 
       S1.VS.iter f (try HM.find S1.infl k with Not_found -> S1.VS.empty)
-      ; S1.VS.iter (fun y -> ignore (Pretty.fprintf ch "%d -> %d [constraint=false style=dotted];\n" (S.Var.hash k) (S.Var.hash y))) (S1.h_find_default S1.pred k S1.VS.empty)
+      ; S1.VS.iter (fun y -> ignore (Pretty.fprintf ch "%d -> %d [constraint=false style=dotted];\n" (S.Var.hash k) (S.Var.hash y))) (S1.h_find_default S1.O.m k S1.VS.empty)
     in
     ignore (Pretty.fprintf ch "digraph G {\nedge [arrowhead=vee];\n");
     HM.iter f r;
@@ -681,10 +709,30 @@ struct
      let cup = join
      let cap = meet
   end
-    
+  
+  module O =
+  struct
+    let m = HM.create 1024
+    let add_dep x y =
+      HM.replace m x (VS.add y (h_find_default m x VS.empty))
+    let mem_deps xs y =
+      let found   = ref false in
+      let todo    = ref xs in
+      let visited = ref VS.empty in
+      while VS.cardinal !todo <> 0 do
+        if VS.exists (S.Var.equal y) !todo then begin
+          found := true;
+          todo := VS.empty
+        end else begin
+          visited := VS.union !todo !visited;
+          todo := VS.fold (fun x -> VS.union (VS.diff (h_find_default m x VS.empty) !visited)) !todo VS.empty
+        end
+      done;
+      !found
+  end
+  
   let infl   = HM.create 1024  
   let wpoint = HM.create 1024 
-  let dep    = HM.create 1024  
   let back   = XY.HPM.create 1024 (* for debugging only *)
   let called = HM.create 1024
               
@@ -705,26 +753,24 @@ struct
     let eq old x get set = 
       let sides = HM.create 10 in
       let do_one (d_in,d_back) f =
-        let gets  = ref VS.empty in
         let gets' = ref VS.empty in
         let collect_set x v = 
           h_find_default sides x (S.Dom.bot ()) |> S.Dom.join v |> HM.replace sides x
         in 
         let collect_get x = 
           let r = get x in
-          let ngets = VS.union !gets (h_find_default dep x VS.empty) in
-          let _ = gets := ngets in
           let _ = gets' := VS.add x !gets' in
           r
         in 
         let d = f (if C.apply_box=`localized then collect_get else get) collect_set in
         if C.apply_box=`localized then begin 
-          if not (VS.mem x !gets) then begin
-            (S.Dom.join d_in d, d_back)
-          end else begin 
-            HM.replace dep x (VS.remove x !gets);
+          if O.mem_deps !gets' x then begin
             VS.iter (fun y -> XY.HPM.add back (y,x) ()) !gets';
+            HM.replace O.m x (VS.remove x (h_find_default O.m x VS.empty));
+            HM.replace wpoint x ();
             (d_in, S.Dom.join d_back d)
+          end else begin
+            (S.Dom.join d_in d, d_back)
           end
         end else 
           (d_in, S.Dom.join d_back d)
@@ -736,9 +782,9 @@ struct
         | `localized when S.Dom.is_bot d_back -> d_in
         | `localized  -> 
             let _ = L.add infl x x in
-            let _ = HM.replace wpoint x () in
             (S.Dom.join d_in (box x old d_back))
         | `everywhere -> 
+            let _ = L.add infl x x in
             box x old (S.Dom.join d_in d_back)
         | `loop_head  -> 
             if HM.mem wpoint x then 
@@ -764,7 +810,7 @@ struct
       (*ignore @@ Pretty.printf "restarting %d: %a\n" sk S.Var.pretty_trace x;*)
       let w = L.sub infl x in
       let _ = L.rem_item infl x in
-      let _ = if C.apply_box=`everywhere || HM.mem wpoint x then L.add infl x x in
+      let _ = if C.apply_box=`everywhere || (C.apply_box=`loop_head && HM.mem wpoint x) then L.add infl x x in
       VS.iter handle_one w 
     in 
   
@@ -774,17 +820,17 @@ struct
         let (i,nonfresh) = X.get_index y in
         let _ = 
           if HM.mem called y then 
-            HM.replace dep x (VS.union (h_find_default dep x VS.empty) (VS.singleton y))
+            O.add_dep x y 
           else
-            HM.replace dep x (VS.union (h_find_default dep x VS.empty) (h_find_default dep y VS.empty))
+            VS.iter (O.add_dep x) (h_find_default O.m y VS.empty) 
         in
-        let _ = if i>=xi then HM.replace wpoint y () in
+        let _ = if i>=xi && C.apply_box=`loop_head then HM.replace wpoint y () in
         let _ = if nonfresh then () else solve y in
         let _ = L.add infl y x in
         X.get_value y
                   
     and side x y d = 
-      HM.replace wpoint y ();
+      if C.apply_box=`loop_head then HM.replace wpoint y ();
     
       let _ = 
         match T.sub T.set y with 
@@ -893,7 +939,7 @@ struct
           ignore (Pretty.fprintf ch "%d -> %d ;\n" (S.Var.hash k) (S.Var.hash y))
       in 
       S1.VS.iter f (try HM.find S1.infl k with Not_found -> S1.VS.empty)
-      ; S1.VS.iter (fun y -> ignore (Pretty.fprintf ch "%d -> %d [constraint=false style=dotted];\n" (S.Var.hash k) (S.Var.hash y))) (S1.h_find_default S1.dep k S1.VS.empty)
+      ; S1.VS.iter (fun y -> ignore (Pretty.fprintf ch "%d -> %d [constraint=false style=dotted];\n" (S.Var.hash k) (S.Var.hash y))) (S1.h_find_default S1.O.m k S1.VS.empty)
     in
     ignore (Pretty.fprintf ch "digraph G {\nedge [arrowhead=vee];\n");
     HM.iter f r;
