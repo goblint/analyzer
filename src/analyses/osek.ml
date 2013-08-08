@@ -135,16 +135,16 @@ struct
     if tracing then trace "osek" "Parsing IDs...\n";
     let input = open_in ids in
     let comment = Str.regexp "//.* \\|/\\*.*" in
-    let idregex = Str.regexp " *#define +\\([a-zA-Z_][a-zA-Z0-9_]*\\) +\\(([a-zA-Z_]+)| *\\)* +\\([1-9][0-9]*\\)" in
+    let idregex = Str.regexp " *#define +\\([a-zA-Z_][a-zA-Z0-9_]*\\) +.*\\([1-9][0-9]*\\|0\\)\\()\\| \\)*" in
     let rec read_info () = try
       let line = input_line input in
 	if tracing then trace "osek" "Line: %s\n" line;
 	if (Str.string_match comment line 0) then begin
-	  if tracing then trace "osek" "IDs: Skipping (JUST 1!) line: %s\n" line;
+	  if tracing then trace "osek" ": Skipping (JUST 1!) line: %s\n" line;
 	end else begin
 	  if Str.string_match idregex line 0 then begin
 	    let objectname = (Str.matched_group 1 line) in
-	    let id = (Str.matched_group 3 line) in
+	    let id = (Str.matched_group 2 line) in
 	    match objectname with
 	      | x when Hashtbl.mem tasks (make_task objectname) -> begin
 		    if tracing then trace "osek" "Adding ID (%s) for task %s\n" id objectname;
