@@ -542,9 +542,9 @@ let _ = print_endline (string_of_bool res) in res*)
 	  | [arg] -> begin
 		let task_name = match arg with
 		  | CastE (_, Const c ) | Const c -> begin
-			if (Hashtbl.mem taskids arg) then begin
+			if (Hashtbl.mem taskids (Const c)) then begin
 			  if tracing then trace "osek" "Looking up ID\n"; 
-			  Hashtbl.find taskids arg
+			  Hashtbl.find taskids (Const c)
 			end else failwith ("Task-ID not found!")
 		      end
 		  | _ -> let vinfo = eval_arg ctx arg in vinfo.vname
@@ -569,7 +569,7 @@ let _ = print_endline (string_of_bool res) in res*)
 	    let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements regular) in
 	    let ev = (match arglist with 
 	      | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> let e,_=Hashtbl.find events (Int64.to_string c) in e
-	      | _ -> print_endline( "No event found for argument fo WaitEvent");"_not_found_" ) in
+	      | _ -> print_endline( "No event found for argument of WaitEvent");"_not_found_" ) in
 	    print_endline( task ^ " waited for event "^ ev^ " while holding resource(s) " ^ res)
 	  end;
 	end;);
