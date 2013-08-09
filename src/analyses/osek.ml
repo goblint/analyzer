@@ -521,7 +521,8 @@ let _ = print_endline (string_of_bool res) in res*)
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let fvname = get_api_names f.vname in
     if tracing then trace "osek" "special '%s'\n" fvname;
-try match fvname with (* suppress all fails  *)
+(* try  *)
+    match fvname with (* suppress all fails  *)
       | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
 	M.special ctx lval f (match arglist with 
 	  | [Lval (Var info,_)] -> [get_lock info.vname] 
@@ -540,7 +541,7 @@ try match fvname with (* suppress all fails  *)
         let _ = (match arglist with (*call function *)
 	  | [arg] -> begin
 		let task_name = match arg with
-		  | Const c -> begin
+		  | CastE (_, Const c ) | Const c -> begin
 			if (Hashtbl.mem taskids arg) then begin
 			  if tracing then trace "osek" "Looking up ID\n"; 
 			  Hashtbl.find taskids arg
@@ -605,7 +606,7 @@ try match fvname with (* suppress all fails  *)
       | "StartOS" -> let _ =if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in 
 	M.special ctx lval f arglist
       | _ -> M.special ctx lval f arglist
-with | _ -> M.special ctx lval f arglist (* suppress all fails  *)
+(* with | _ -> M.special ctx lval f arglist (* suppress all fails  *) *)
  
   let name = "OSEK"
   let es_to_string f _ = f.svar.vname
