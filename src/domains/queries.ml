@@ -38,6 +38,7 @@ type t = ExpEq of exp * exp
        | IsNotUnique
        | EvalFunvar of exp
        | EvalInt of exp
+       | PrintFullState
        | TheAnswerToLifeUniverseAndEverything
 
 type result = [

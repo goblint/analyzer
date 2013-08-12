@@ -19,7 +19,6 @@ module Offs = ValueDomain.Offs
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 
-
 let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
   | TInt (IInt, attr) -> hasAttribute "mutex" attr
@@ -1295,15 +1294,21 @@ struct
             | Some x -> assign ctx x (List.hd args)
             | None -> ctx.local
           end
+      | `Unknown "LAP_Se_SetPartitionMode" -> begin
+          match ctx.ask (Queries.EvalInt (List.hd args)) with
+            | `Int i when i=1L || i=2L -> ctx.local
+            | `Bot -> ctx.local
+            | _ ->
+              let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
+              let new_fl = (x,y) in
+              cpa, new_fl
+        end
       (* handling thread creations *)
       | `Unknown "LAP_Se_CreateProcess" -> begin
           match List.map (fun x -> stripCasts (constFold false x)) args with
             | [_;AddrOf id;AddrOf r] ->
                 let cpa,_ = invalidate ctx.ask ctx.global ctx.local [Lval id; Lval r] in
-                GU.multi_threaded := true;
-                let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
-                let new_fl = (x,y) in
-                  cpa, new_fl
+                  cpa, fl
             | _ -> raise Deadcode
           end
       | `ThreadCreate (f,x) -> 

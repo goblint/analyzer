@@ -65,15 +65,17 @@ struct
     match LibraryFunctions.classify f.vname arglist with
       | `ThreadCreate (fn, x) -> create_thread fn x
       | `Unknown "LAP_Se_CreateProcess" -> begin
-          match stripCasts (List.hd arglist) with
-            | Lval lv -> begin
+          let farg = stripCasts (List.hd arglist) in 
+          match farg with
+            | AddrOf lv -> begin
                 let cm  = 
                   match unrollType (typeOfLval lv) with
                     | TComp (c,_) -> c
                     | _ -> failwith "type-error: first arg. of LAP_Se_CreateProcess not a struct."
                 in
-                let ofs = Field (getCompField cm "ENTRY_POINT", NoOffset) in
-                create_thread (Lval (addOffsetLval ofs lv)) zero
+                let ofs = Field (getCompField cm Goblintutil.arinc_entry_point, NoOffset) in
+                let lv' = Lval (addOffsetLval ofs lv) in
+                create_thread lv' zero
               end
             | _ -> failwith "first arg to LAP_Se_CreateProcess not an Lval."
           end

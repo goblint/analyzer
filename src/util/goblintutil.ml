@@ -407,3 +407,8 @@ let timeout f arg tsecs timeout_fn =
 
 let vars = ref 0
 let evals = ref 0
+
+(*let arinc_base_priority = "M164"
+let arinc_entry_point   = "M162"*)
+let arinc_base_priority = "BASE_PRIORITY"
+let arinc_entry_point   = "ENTRY_POINT"

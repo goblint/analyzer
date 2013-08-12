@@ -32,7 +32,7 @@ typedef struct {
 
 typedef int PROCESS_ID_TYPE;
 
-extern void LAP_Se_CreateProcess(PROCESS_ATTRIBUTE_TYPE, PROCESS_ID_TYPE*, RETURN_CODE_TYPE*);
+extern void LAP_Se_CreateProcess(PROCESS_ATTRIBUTE_TYPE*, PROCESS_ID_TYPE*, RETURN_CODE_TYPE*);
 
 extern void LAP_Se_Start(PROCESS_ID_TYPE, RETURN_CODE_TYPE*);
 
@@ -81,7 +81,7 @@ int main(){
  PROCESS_ATTRIBUTE_TYPE p1,p2;
  p1.ENTRY_POINT = (void *) &P1;
  p1.BASE_PRIORITY = 10;
- LAP_Se_CreateProcess(p1,&pi1,&r);
+ LAP_Se_CreateProcess(&p1,&pi1,&r);
  LAP_Se_Start(pi1,&r);
  LAP_Se_SetPartitionMode(NORMAL,&r);
  return 0;

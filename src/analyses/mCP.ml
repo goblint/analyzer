@@ -417,6 +417,14 @@ struct
       Queries.Result.meet a @@ S.query ctx' q
     in
       fold_left f `Top @@ spec_list ctx.local 
+      
+  let query ctx q = 
+    match q with
+      | Queries.PrintFullState ->
+        ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
+        `Bot
+      | _ -> query ctx q
+        
 
   let assign (ctx:(D.t, G.t) ctx) l e =
     let spawns = ref [] in

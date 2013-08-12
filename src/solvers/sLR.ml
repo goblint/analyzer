@@ -179,7 +179,7 @@ struct
       r
     in
     
-    let eq old x get set = 
+    let eq old se x get set = 
       let _ = incr time; HM.replace ts x !time in
       let sides = HM.create 10 in
       let do_one (d_in,d_back) f =
@@ -212,7 +212,7 @@ struct
         end else 
           (d_in, S.Dom.join d_back d)
       in
-      let d_in, d_back = List.fold_left do_one (S.Dom.bot (), S.Dom.bot ()) (S.system x) in
+      let d_in, d_back = List.fold_left do_one (S.Dom.bot (), se) (S.system x) in
       HM.iter set sides;
       HM.clear sides;
       match C.apply_box with
@@ -296,7 +296,7 @@ struct
         incr Goblintutil.evals;
         let _ = P.insert stable x in
         let old = X.get_value x in
-        let tmp = do_side x (eq old x (eval x) (side x)) in 
+        let tmp = eq old (do_side x (S.Dom.bot ())) x (eval x) (side x) in 
         (*let tmp = S.Dom.join (box x old (do_side x (S.Dom.bot ()))) (eq old x (eval x) (side x)) in *)
         (*let tmp = if C.apply_box=`everywhere then box x old tmp else tmp in*)
         if D.eq tmp old then 
@@ -750,7 +750,7 @@ struct
     in
         
   
-    let eq old x get set = 
+    let eq old se x get set = 
       let sides = HM.create 10 in
       let do_one (d_in,d_back) f =
         let gets' = ref VS.empty in
@@ -775,7 +775,7 @@ struct
         end else 
           (d_in, S.Dom.join d_back d)
       in
-      let d_in, d_back = List.fold_left do_one (S.Dom.bot (), S.Dom.bot ()) (S.system x) in
+      let d_in, d_back = List.fold_left do_one (S.Dom.bot (), se) (S.system x) in
       HM.iter set sides;
       HM.clear sides;
       match C.apply_box with
@@ -867,7 +867,7 @@ struct
         let _ = P.insert stable x in
         let _ = P.insert called x in
         let old = X.get_value x in
-        let tmp = do_side x (eq old x (eval x) (side x)) in 
+        let tmp = eq old (do_side x (S.Dom.bot ())) x (eval x) (side x) in 
         let _ = P.rem_item called x in
         
         (*let tmp = if C.apply_box=`everywhere then box x old tmp else tmp in*)
