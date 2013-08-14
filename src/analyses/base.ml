@@ -983,7 +983,12 @@ struct
   let drop_ints (st:CPA.t) : CPA.t = 
     if CPA.is_top st then st else 
     let rec replace_val = function
-      | `Int _ -> `Top
+      | `Int _       -> `Top
+      | `Array n     -> `Array (ValueDomain.CArrays.set n (ValueDomain.IndexDomain.top ()) 
+                                  (replace_val (ValueDomain.CArrays.get n (ValueDomain.IndexDomain.top ()))))
+      | `Struct n    -> `Struct (ValueDomain.Structs.map replace_val n)
+      | `Union (f,v) -> `Union (f,replace_val v)
+      | `Blob n      -> `Blob (replace_val n)
       | x -> x
     in
     CPA.map replace_val st

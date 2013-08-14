@@ -104,8 +104,8 @@ struct
       | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.vname
                 
   let pretty_trace () x =
-      match x with
-      | ((*MyCFG.FunctionEntry f*)_,d) -> dprintf "%a" pretty x 
+    match x with
+      | ((*MyCFG.FunctionEntry f*)_,d) -> dprintf "%a" pretty x
 (*       | _ -> dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x) *)
 
 
