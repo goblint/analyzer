@@ -97,7 +97,7 @@ struct
   let startstate v = `Lifted (S.startstate v)
   let exitstate  v = `Lifted (S.exitstate  v)
   let otherstate v = `Lifted (S.otherstate v)
-  let morphstate v d = `Lifted (S.morphstate v (D.unlift d))
+  let morphstate v d = try `Lifted (S.morphstate v (D.unlift d)) with Deadcode -> d
 
   let val_of = D.lift % S.val_of
   let context = S.context % D.unlift
@@ -253,11 +253,14 @@ struct
     
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_loc = !Tracing.current_loc in
+    let old_node = !current_node in
     let _       = Tracing.current_loc := getLoc u in
+    let _       = current_node := Some u in
     let d       = try tf (v,c) (e,u) getl sidel getg sideg 
                   with M.StopTheWorld -> D.bot ()
                      | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
     let _       = Tracing.current_loc := old_loc in 
+    let _       = current_node := old_node in
       d
   
   let system (v,c) =

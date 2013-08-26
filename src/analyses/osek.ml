@@ -135,12 +135,12 @@ struct
     if tracing then trace "osek" "Parsing IDs...\n";
     let input = open_in ids in
     let comment = Str.regexp "//.* \\|/\\*.*" in
-    let idregex = Str.regexp " *#define +\\([a-zA-Z_][a-zA-Z0-9_]*\\) +\\([1-9][0-9]*\\)" in
+    let idregex = Str.regexp " *#define +\\([a-zA-Z_][a-zA-Z0-9_]*\\) +.*\\([1-9][0-9]*\\|0\\)\\()\\| \\)*" in
     let rec read_info () = try
       let line = input_line input in
 	if tracing then trace "osek" "Line: %s\n" line;
 	if (Str.string_match comment line 0) then begin
-	  if tracing then trace "osek" "IDs: Skipping (JUST 1!) line: %s\n" line;
+	  if tracing then trace "osek" ": Skipping (JUST 1!) line: %s\n" line;
 	end else begin
 	  if Str.string_match idregex line 0 then begin
 	    let objectname = (Str.matched_group 1 line) in
@@ -521,7 +521,8 @@ let _ = print_endline (string_of_bool res) in res*)
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let fvname = get_api_names f.vname in
     if tracing then trace "osek" "special '%s'\n" fvname;
-try match fvname with (* suppress all fails  *)
+(* try  *)
+    match fvname with (* suppress all fails  *)
       | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
 	M.special ctx lval f (match arglist with 
 	  | [Lval (Var info,_)] -> [get_lock info.vname] 
@@ -540,10 +541,10 @@ try match fvname with (* suppress all fails  *)
         let _ = (match arglist with (*call function *)
 	  | [arg] -> begin
 		let task_name = match arg with
-		  | Const c -> begin
-			if (Hashtbl.mem taskids arg) then begin
+		  | CastE (_, Const c ) | Const c -> begin
+			if (Hashtbl.mem taskids (Const c)) then begin
 			  if tracing then trace "osek" "Looking up ID\n"; 
-			  Hashtbl.find taskids arg
+			  Hashtbl.find taskids (Const c)
 			end else failwith ("Task-ID not found!")
 		      end
 		  | _ -> let vinfo = eval_arg ctx arg in vinfo.vname
@@ -568,7 +569,7 @@ try match fvname with (* suppress all fails  *)
 	    let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements regular) in
 	    let ev = (match arglist with 
 	      | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> let e,_=Hashtbl.find events (Int64.to_string c) in e
-	      | _ -> print_endline( "No event found for argument fo WaitEvent");"_not_found_" ) in
+	      | _ -> print_endline( "No event found for argument of WaitEvent");"_not_found_" ) in
 	    print_endline( task ^ " waited for event "^ ev^ " while holding resource(s) " ^ res)
 	  end;
 	end;);
@@ -605,7 +606,7 @@ try match fvname with (* suppress all fails  *)
       | "StartOS" -> let _ =if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in 
 	M.special ctx lval f arglist
       | _ -> M.special ctx lval f arglist
-with | _ -> M.special ctx lval f arglist (* suppress all fails  *)
+(* with | _ -> M.special ctx lval f arglist (* suppress all fails  *) *)
  
   let name = "OSEK"
   let es_to_string f _ = f.svar.vname

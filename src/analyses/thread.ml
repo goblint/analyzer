@@ -43,25 +43,42 @@ struct
     snd (snd (Obj.obj (List.assoc "base" ctx.presub)))
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let create_thread fn x =
+      let l = !Tracing.current_loc in
+      let creator = get_current_tid ctx in
+      let new_thread x = 
+        let tid = T.spawn_thread l x in
+        let repeated = D.mem tid ctx.local in
+        let eff = 
+          match creator with
+            | `Lifted ctid -> (repeated, TS.singleton ctid)
+            | `Top         -> (true,     TS.bot ())
+            | `Bot         -> (false,    TS.bot ())
+        in
+        ctx.sideg tid eff; tid
+      in
+      let fns = eval_exp_addr ctx.ask fn in
+      let threads = List.concat (List.map ValueDomain.Addr.to_var_may fns) in
+      let add_thread s x = D.add (new_thread x) s in
+      List.fold_left add_thread ctx.local threads
+    in
     match LibraryFunctions.classify f.vname arglist with
-      | `ThreadCreate (fn, x) -> 
-          let fns = eval_exp_addr ctx.ask fn in
-          let threads = List.concat (List.map ValueDomain.Addr.to_var_may fns) in
-          let l = !Tracing.current_loc in
-          let creator = get_current_tid ctx in
-          let new_thread x = 
-            let tid = T.spawn_thread l x in
-            let repeated = D.mem tid ctx.local in
-            let eff = 
-              match creator with
-                | `Lifted ctid -> (repeated, TS.singleton ctid)
-                | `Top         -> (true,     TS.bot ())
-                | `Bot         -> (false,    TS.bot ())
-            in
-            ctx.sideg tid eff; tid
-          in
-          let add_thread s x = D.add (new_thread x) s in
-          List.fold_left add_thread ctx.local threads
+      | `ThreadCreate (fn, x) -> create_thread fn x
+      | `Unknown "LAP_Se_CreateProcess" -> begin
+          let farg = stripCasts (List.hd arglist) in 
+          match farg with
+            | AddrOf lv -> begin
+                let cm  = 
+                  match unrollType (typeOfLval lv) with
+                    | TComp (c,_) -> c
+                    | _ -> failwith "type-error: first arg. of LAP_Se_CreateProcess not a struct."
+                in
+                let ofs = Field (getCompField cm Goblintutil.arinc_entry_point, NoOffset) in
+                let lv' = Lval (addOffsetLval ofs lv) in
+                create_thread lv' zero
+              end
+            | _ -> failwith "first arg to LAP_Se_CreateProcess not an Lval."
+          end
       | _ -> ctx.local
 
   let query ctx (q: Queries.t) = 

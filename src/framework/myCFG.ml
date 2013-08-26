@@ -135,6 +135,7 @@ module H = Hashtbl.Make(Node)
 let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 
 let stmt_index_hack = Hashtbl.create 113
+let current_node : node option ref = ref None
 
 let do_the_params (fd: fundec) =
   (* This function used to create extra variables, but now it just sets the

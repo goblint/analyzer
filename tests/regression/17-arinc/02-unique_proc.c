@@ -1,4 +1,4 @@
-// SKIP PARAMS: --sets ana.activated[0][+] arinc 
+// PARAM: --sets ana.activated[0][+] arinc --sets ana.activated[0][+] thread
 
 typedef char * SEMAPHORE_NAME_TYPE;
 typedef void * SEMAPHORE_ID_TYPE;
@@ -32,7 +32,7 @@ typedef struct {
 
 typedef int PROCESS_ID_TYPE;
 
-extern void LAP_Se_CreateProcess(PROCESS_ATTRIBUTE_TYPE, PROCESS_ID_TYPE*, RETURN_CODE_TYPE*);
+extern void LAP_Se_CreateProcess(PROCESS_ATTRIBUTE_TYPE*, PROCESS_ID_TYPE*, RETURN_CODE_TYPE*);
 
 extern void LAP_Se_Start(PROCESS_ID_TYPE, RETURN_CODE_TYPE*);
 
@@ -80,8 +80,8 @@ int main(){
  p1.BASE_PRIORITY = 10;
  p2.ENTRY_POINT = (void *) &P2;
  p2.BASE_PRIORITY = 20;
- LAP_Se_CreateProcess(p1,&pi1,&r);
- LAP_Se_CreateProcess(p2,&pi2,&r);
+ LAP_Se_CreateProcess(&p1,&pi1,&r);
+ LAP_Se_CreateProcess(&p2,&pi2,&r);
  LAP_Se_Start(pi1,&r);
  LAP_Se_Start(pi2,&r);
  LAP_Se_SetPartitionMode(NORMAL,&r);

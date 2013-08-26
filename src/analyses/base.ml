@@ -19,7 +19,6 @@ module Offs = ValueDomain.Offs
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 
-
 let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
   | TInt (IInt, attr) -> hasAttribute "mutex" attr
@@ -988,7 +987,12 @@ struct
   let drop_ints (st:CPA.t) : CPA.t = 
     if CPA.is_top st then st else 
     let rec replace_val = function
-      | `Int _ -> `Top
+      | `Int _       -> `Top
+      | `Array n     -> `Array (ValueDomain.CArrays.set n (ValueDomain.IndexDomain.top ()) 
+                                  (replace_val (ValueDomain.CArrays.get n (ValueDomain.IndexDomain.top ()))))
+      | `Struct n    -> `Struct (ValueDomain.Structs.map replace_val n)
+      | `Union (f,v) -> `Union (f,replace_val v)
+      | `Blob n      -> `Blob (replace_val n)
       | x -> x
     in
     CPA.map replace_val st
@@ -1183,7 +1187,7 @@ struct
               let pa = eval_fv ctx.ask ctx.global ctx.local proc_att in
               let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
               let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
-              List.map (fun v -> v, (cpa, Flag.get_multi ())) reach_fs
+              List.map (create_thread None) reach_fs
             (*  let st = invalidate ctx.ask ctx.global ctx.local [Lval id, Lval r] in*)
             | _ -> []
           end
@@ -1306,15 +1310,21 @@ struct
             | Some x -> assign ctx x (List.hd args)
             | None -> ctx.local
           end
+      | `Unknown "LAP_Se_SetPartitionMode" -> begin
+          match ctx.ask (Queries.EvalInt (List.hd args)) with
+            | `Int i when i=1L || i=2L -> ctx.local
+            | `Bot -> ctx.local
+            | _ ->
+              let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
+              let new_fl = (x,y) in
+              cpa, new_fl
+        end
       (* handling thread creations *)
       | `Unknown "LAP_Se_CreateProcess" -> begin
           match List.map (fun x -> stripCasts (constFold false x)) args with
             | [_;AddrOf id;AddrOf r] ->
                 let cpa,_ = invalidate ctx.ask ctx.global ctx.local [Lval id; Lval r] in
-                GU.multi_threaded := true;
-                let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
-                let new_fl = (x,y) in
-                  cpa, new_fl
+                  cpa, fl
             | _ -> raise Deadcode
           end
       | `ThreadCreate (f,x) -> 
