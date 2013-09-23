@@ -36,7 +36,8 @@ struct
     let get_value x = hpm_find_default xy x (S.Dom.bot ())
     let set_value = HPM.replace xy
   end
-
+  
+  
   let back   = HPM.create 113  (* debug *)
   let infl   = HM.create 113 
 
@@ -48,21 +49,28 @@ struct
     let stable = ref VS.empty in
     let f x old side get set =
       let join_apply (d_in, d_back) rhs =
-        let gets  = ref VS.empty in
+        let gets = ref VS.empty in
+        let vars = ref VS.empty in
         let get' y = 
-          (if VS.mem y !called then 
+          vars := VS.add y !vars;
+          let r = get y in
+          if VS.mem y !called then 
             gets := VS.add y !gets
           else
-            gets := VS.union !gets (hm_find_default dep y VS.empty));
-          let _ = HM.replace dep x (VS.union !gets (hm_find_default dep x VS.empty)) in
-          (if VS.mem x !gets then HPM.replace back (x,y) ());
-          get y
+            gets := VS.union !gets (hm_find_default dep y VS.empty);
+          r
         in
         let d = rhs get' set in
-        if VS.mem x !gets then
+        (*VS.iter (fun d -> if tracing then tracel "sol" "Gets %a: %a\n" Var.pretty_trace x Var.pretty_trace d) !gets  ;*)
+        if VS.mem x !gets then begin
+          VS.iter (fun y -> 
+              if tracing && not (HPM.mem back (x,y)) then tracel "sol" "Back edge found: %a --- %a\n" Var.pretty_trace x Var.pretty_trace y;
+              HPM.replace back (x,y) ()) !vars;
           (d_in, Dom.join d_back d)
-        else
+        end else begin
+          HM.replace dep x (VS.union !gets (hm_find_default dep x VS.empty));
           (Dom.join d_in d, d_back)
+        end
       in
       let _ = HM.replace dep x VS.empty in
       let d_in, d_back = List.fold_left join_apply (Dom.bot (), side) (system x) in
@@ -77,6 +85,8 @@ struct
         List.iter (fun y -> stable := VS.remove y !stable; destabilize y) t
     in
     let rec solve (x : Var.t) =
+      if tracing then tracel "sol" "Variable: %a\n" Var.pretty_trace x;
+      
       if not (VS.mem x !stable || VS.mem x !called) then begin
         if not (HM.mem sigma x) then (HM.add sigma x (Dom.bot ()); HM.add infl x []);
         called := VS.add x !called;
@@ -85,7 +95,12 @@ struct
           let old    = hm_find_default sigma x (Dom.bot ()) in 
           let newval = f x old (do_side x) (eval x) (side x) in
           if not (Dom.equal old newval) then begin
-            HM.replace sigma x newval; destabilize x
+            (*if tracing then tracel "sol" "New value: %a === %a\n" Var.pretty_trace x Dom.pretty newval;*)
+            HM.replace sigma x newval; 
+            if Dom.leq newval old then
+              restart x 
+            else
+              destabilize x
           end ; 
           if not (VS.mem x !stable) then loop ()
         in loop ();
@@ -115,14 +130,28 @@ struct
           solve y
         else
           destabilize y
-      end                                               
-    in  
-      let add_start (v,d) = 
+      end
+    and restart x =
+      let restart_one y = 
+        if not (VS.mem y !called) then begin
+          HM.replace sigma y (Dom.bot ());
+          stable := VS.remove y !stable;
+          restart y
+        end          
+      in
+      let t = hm_find_default infl x [] in
+        HM.replace infl x [];
+        stable := VS.remove x !stable;
+        List.iter restart_one t
+    in
+    let add_start (v,d) = 
         HM.replace set v (VS.add v (hm_find_default set v VS.empty));
         XY.set_value (v,v) d
       in
       List.iter add_start sv;
+      if tracing then trace "sol" "Start!\n";
       List.iter solve iv;
+      if tracing then trace "sol" "Done.\n";
       sigma
 end
 
