@@ -22,6 +22,7 @@ let header_path = ref "./"
 let osek_names : (string,string) Hashtbl.t = Hashtbl.create 16
 let osek_ISR_PRIORITY = ref ["PRIORITY"; "INTERRUPTPRIORITY"]
 let osek_API_funs = ["ActivateTask"; "TerminateTask"; "ChainTask"; "Schedule"; "GetTaskID"; "GetTaskState"; "DisableAllInterrupts"; "EnableAllInterrupts"; "SuspendAllInterrupts"; "ResumeAllInterrupts"; "SuspendOSInterrupts"; "ResumeOSInterrupts"; "GetResource"; "ReleaseResource"; "SetEvent"; "GetEvent"; "ClearEvent"; "WaitEvent"; "GetAlarmBase"; "GetAlarm"; "SetRelAlarm"; "SetAbsAlarm"; "CancelAlarm"; "GetActiveApplicationMode"; "StartOS"; "ShutdownOS"]
+(* let safe_vars = ref false *)
 
 (* boolean flags *)
 let startuphook = ref false

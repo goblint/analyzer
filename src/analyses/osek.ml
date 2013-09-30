@@ -279,7 +279,7 @@ let _ = print_endline (string_of_bool res) in res*)
     in 
     (List.filter (doit value) accs')@unknowns
 
-  let strip_flags acc_list' = List.map proj2_1 acc_list'
+  let strip_flags acc_list = List.map proj2_1 acc_list
   
   let rec get_flags state: Flags.t =
     Obj.obj (List.assoc "fmode" state)
@@ -617,7 +617,7 @@ let _ = print_endline (string_of_bool res) in res*)
 
   (** are we still race free *)
   let race_free = ref true
-  let bad_flags = ref []
+(*   let bad_flags = ref [] *)
  
   type access_status = 
     | Race
@@ -629,6 +629,7 @@ let _ = print_endline (string_of_bool res) in res*)
     | ThreadLocal
     | BadFlag
     | GoodFlag
+    | SomeFlag of int
  
   let get_acc_map gl =
     let create_map (accesses_map) =
@@ -660,6 +661,10 @@ let _ = print_endline (string_of_bool res) in res*)
     let acc_info = create_map acc in
     let acc_map = if !Mutex.unmerged_fields then proj2_1 acc_info else regroup_map acc_info in
     acc_map
+ 
+ open Batteries
+ let suppressed = ref 0
+ let filtered = ref 0
  
   (** [postprocess_acc gl] groups and report races in [gl] *)
   let postprocess_acc gl =
@@ -706,15 +711,15 @@ let _ = print_endline (string_of_bool res) in res*)
         else
           Race
     in (*/is_race_no_flags*)
-    let is_race acc_list' =
-      let check_valset flag guards acc valset = (*do accesses with flag vaule valset race with guards?*)
+    let is_race acc_list_some_glob =
+      let check_valset flag guards acc valset = (*do accesses with flag value valset race with guards?*)
         let value = get_val flag (List.hd valset) in
         let may_eq_guards = split_may_eq flag value guards in
         let accs = valset@may_eq_guards in
         acc && (not((is_race_no_flags (strip_flags accs)) = Race))
       in (*/check_valset*)
-      let check_one_flag acc_list' flag = (*does flag prevent the race?*)
-        let guards,assigns = split_accs_method flag acc_list' in
+      let check_one_flag acc_list_some_glob flag = (*does flag prevent the race?*)
+        let guards,assigns = split_accs_method flag acc_list_some_glob in
 (* let _ = print_endline ((string_of_int (List.length guards))^" guards and "^string_of_int (List.length assigns)^" assigns"  ) in        *)
         let eq_asgn,weird_asgn = split_accs flag assigns in
         if (is_race_no_flags (strip_flags eq_asgn) = Race) then begin
@@ -729,8 +734,8 @@ let _ = print_endline (string_of_bool res) in res*)
         end
       in (*/check_one_flag*)
       let get_keys_from_flag_map flag_map = Flags.fold (fun key value acc -> (key::acc)) flag_map [] in
-      let get_flags acc_list' : (varinfo list) = 
-        let flag_list = List.map proj2_2 acc_list' in
+      let get_flags acc_list_some_glob : (varinfo list) = 
+        let flag_list = List.map proj2_2 acc_list_some_glob in
         let doit acc flag_map =
 	  if Flags.is_bot(flag_map) then
 	    acc
@@ -745,20 +750,20 @@ let _ = print_endline (string_of_bool res) in res*)
         in  
         List.fold_left doit [] flag_list
       in (*/get_flags*)
-      let valid_flag (flag :varinfo) : bool= 
-        let add_flag flag res = 
-          if res = BadFlag then begin
-            bad_flags := flag::!bad_flags;
-            if tracing then trace "osek" "Flag %s is invalid\n" flag.vname
-          end else if res = GoodFlag then
-            ()
-          else
-            failwith "This never happens! osekml687"
-        in (*/add_flag*)
+      let valid_flag (flag :varinfo) : int= 
+(*        let add_flag flag res = 
+	  match res with 
+	    | BadFlag -> begin
+	      bad_flags := flag::!bad_flags;
+	      if tracing then trace "osek" "Flag %s is invalid\n" flag.vname
+	      end
+	    | SomeFlag _ | GoodFlag -> ()
+	    | _ -> failwith "This never happens! osekml687"
+        in (*/add_flag*)*)
 (*        if List.mem flag !bad_flags then false else*)
         let status_list = ref [] in
-        let check_one_list x acc_list' =
-          let acc_list = List.map proj2_1 acc_list' in
+        let check_one_list offset acc_list_some_glob = (* here we know of_pry of f *)
+          let acc_list = List.map proj2_1 acc_list_some_glob in
           let writes,reads = List.partition rw acc_list in
           let res : access_status = 
             if writes = [] || [] = reads then
@@ -771,24 +776,28 @@ let _ = print_endline (string_of_bool res) in res*)
               if write_off_pry > read_off_pry then
               BadFlag
             else
-              GoodFlag
+(* let _ = print_endline ("flagpry: " ^ (string_of_int write_off_pry)) in             *)
+              SomeFlag write_off_pry
           in
-          let _ = add_flag flag res in
+(*           let _ = add_flag flag res in *)
           status_list := res::!status_list
         in (*/check_one_list*)
         let _ = M.OffsMap.iter check_one_list  (get_acc_map flag) in
-        [] = List.filter (fun x -> x = BadFlag) !status_list
+	let fold_fun acc status = match status with SomeFlag p -> max acc p | BadFlag -> max_int | _ -> acc in
+        List.fold_left (fold_fun) min_int !status_list
       in (*/valid_flag*)
-      let check_flags acc_list' = 
-        let flag_list = List.filter valid_flag (get_flags acc_list') in
+      let check_flags acc_list' =
+	let acc_pry = minpry (strip_flags acc_list') in
+(* let _ = print_endline ("accpry: " ^ (string_of_int acc_pry)) in *)
+        let flag_list = List.filter (fun f -> (valid_flag f) <= acc_pry) (get_flags acc_list') in
 (* let _ = print_endline ("flaglist: " ^ (List.fold_left (fun x y -> (y.vname ^", " ^x) ) "" flag_list)) in *)
         List.flatten (List.map (check_one_flag acc_list') flag_list) 
       in (*/check_flags*)
-      let res = is_race_no_flags (strip_flags acc_list') in
+      let res = is_race_no_flags (strip_flags acc_list_some_glob) in
         if res = Race then begin
           if not(List.mem gl.vname !FlagModes.Spec.flag_list) then begin
   (* let _ = print_endline "check flag protection" in *)
-            let flags = check_flags acc_list' in 
+            let flags = check_flags acc_list_some_glob in 
             if not(flags = []) then
 (*   let _ = print_endline "flag!!" in *)
               Flag (flag_list_to_string flags)
@@ -799,16 +808,15 @@ let _ = print_endline (string_of_bool res) in res*)
 (*            if List.mem gl !bad_flags then
               BadFlag
             else *)
-            if (valid_flag gl) then
+            if (valid_flag gl < max_int) then
               GoodFlag 
             else
               BadFlag
           end
         end else begin
-          if res = GoodFlag || res = BadFlag then
-            failwith "This never happens! osekml650"
-          else
-            res
+          match res with GoodFlag | BadFlag | SomeFlag(_)  ->
+            failwith "This never happens! osekml812"
+          | _ -> res
         end    
       in
       
@@ -829,9 +837,79 @@ let _ = print_endline (string_of_bool res) in res*)
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
           let res = match is_race acc_list with
             | Race -> begin
-                race_free := false;
-                let warn = "Datarace at " ^ var_str in
-                  print_group warn warnings
+(* let _ = print_endline "race" in *)
+                if (List.mem gl.vname  (List.map Json.string @@ get_list "ana.osek.safe_vars")) then begin 
+                  suppressed := !suppressed+1;
+                  if (get_bool "allglobs") then
+                    print_group (safe_str "safe variable") warnings
+                  else 
+                    ignore (printf "Suppressed warning: %s is not guarded\n" var_str)
+                end else begin
+                  (*filter out safe task access. redo is_race report accordingly List.not List.mem gl.vname  *)
+                  let safe_tasks = List.map make_task (List.map Json.string @@ get_list "ana.osek.safe_task") in
+                  let safe_irpts = List.map make_isr (List.map Json.string @@ get_list "ana.osek.safe_isr") in
+                  let safe_funs = safe_irpts @ safe_tasks in
+(* let _ = List.map (fun x -> print_endline x) in *)
+                  if safe_funs = [] then begin
+                    race_free := false;
+                    let warn = "Datarace at " ^ var_str in
+                      print_group warn warnings
+                  end else begin
+                    filtered := !filtered +1;
+(*((_, dom_elem,_),_) -> let lock_names_list = names (Lockset.ReverseAddrSet.elements dom_elem) in                    
+any in there also in safe_tasks ... %TODO *)
+                    let filter_fun ((_, dom_elem,_),_) = 
+                      List.fold_left (fun old name -> not (old || List.mem name safe_funs)) false (List.map names (Lockset.ReverseAddrSet.elements dom_elem)) 
+                    in
+                    let acc_list' = List.filter filter_fun acc_list in
+                    match (is_race acc_list') with
+                    | Race -> begin
+                      race_free := false;
+                      let warn = "Datarace at " ^ var_str in
+                        print_group warn warnings
+                      end  
+                    | Guarded locks ->
+                        let lock_str = Mutex.Lockset.short 80 locks in
+                          if (get_bool "allglobs") then
+                            print_group (safe_str "common mutex after filtering") warnings
+                          else 
+                            ignore (printf "Found correlation: %s is guarded by lockset %s after filtering\n" var_str lock_str)
+                    | Priority pry ->
+                          if (get_bool "allglobs") then
+                            print_group (safe_str "same priority after filtering") warnings
+                          else 
+                            ignore (printf "Found correlation: %s is guarded by priority %s after filtering\n" var_str (string_of_int pry))
+                    | Defence (defpry,offpry) ->
+                          if (get_bool "allglobs") then
+                            print_group (safe_str "defensive priority exceeds offensive priority after filtering") warnings
+                          else 
+                            ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s after filtering\n" var_str (string_of_int defpry) (string_of_int offpry))
+                    | Flag (flagvar) ->
+                        if (get_bool "allglobs") then
+                          print_group (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses after filtering") ) warnings
+                        else 
+                              ignore (printf "Found correlation: %s is guarded by flag %s after filtering\n" var_str flagvar)
+                    | ReadOnly ->
+                        if (get_bool "allglobs") then
+                          print_group (safe_str "only read after filtering") warnings
+                    | ThreadLocal ->
+                        if (get_bool "allglobs") then
+                          print_group (safe_str "thread local after filtering") warnings
+                    | BadFlag -> begin
+                        race_free := false;
+                        let warn = "Writerace at 'flag' " ^ var_str in
+                          print_group warn warnings
+                      end
+                    | GoodFlag -> begin 
+                        if (get_bool "allglobs") then begin
+                          print_group (safe_str "is a flag after filtering") warnings
+                        end else  begin
+                          ignore (printf "Found flag behaviour after filtering: %s\n" var_str)
+                        end
+                      end
+                    | SomeFlag x -> failwith "This never happens! osekml877"
+                  end
+                end
               end
             | Guarded locks ->
                 let lock_str = Mutex.Lockset.short 80 locks in
@@ -872,6 +950,7 @@ let _ = print_endline (string_of_bool res) in res*)
                   ignore (printf "Found flag behaviour: %s\n" var_str)
                 end
               end
+	    | SomeFlag x -> failwith "This never happens! osekml877"
           in
           res
     in (*/report_race*)
@@ -883,7 +962,13 @@ let _ = print_endline (string_of_bool res) in res*)
     if !Goblintutil.multi_threaded then begin
       if !race_free then 
         print_endline "Goblint did not find any Data Races in this program!";
-    end else if not (get_bool "dbg.debug") then begin
+      if !suppressed = 1 then  
+        print_endline ("However 1 warning has been suppressed.");
+      if !suppressed > 1 then  
+        print_endline ("However " ^ (string_of_int !suppressed) ^ " warnings have been suppressed.");
+      if !filtered > 0 then  
+        print_endline ("Filtering of safe tasks/irpts was used " ^  (string_of_int !filtered) ^ " time(s).");
+      end else if not (get_bool "dbg.debug") then begin
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;
