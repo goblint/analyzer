@@ -8,17 +8,20 @@ Install [opam](https://github.com/OCamlPro/opam) [[Quick Install](http://opam.oc
 to install the latest versions of the dependencies for the current user.
 After that you can build goblint:
 
-    git clone https://github.com/goblint/analyzer.git
+    git clone https://github.com/vogler/analyzer.git
     cd analyzer
     make
   
-If something goes wrong, switch to the versions listed in [INSTALL](INSTALL):
-
-    opam switch 4.00.1
-    opam install ocamlfind.1.3.3 camomile.0.8.3 batteries.2.0.0 cil.1.5.1 xml-light.2.2
+If something goes wrong, take a look at [travis-ci.sh](scripts/travis-ci.sh) for an example setup or try the versions listed in [INSTALL](INSTALL).
 
 Alternatively you can use your system's package manager to install the dependencies globally or use [install_script.sh](scripts/install_script.sh) to build everything from source without affecting any existing OCaml installation.
 
+A ready-to-use virtual machine can be started using [Vagrant](http://www.vagrantup.com/):
+
+	vagrant up
+	vagrant ssh
+	sudo su -
+	cd analyzer
 
 In order to setup the web frontend do
 
