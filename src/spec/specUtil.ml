@@ -3,9 +3,10 @@ open Batteries
 (* config *)
 let save_dot = true
 
-let parse ?repl:(repl=false) ?print:(print=false) cin =
+let parse ?repl:(repl=false) ?print:(print=false) ?dot:(dot=false) cin =
   let lexbuf = Lexing.from_channel cin in
   let defs = ref [] in
+  (* Printf.printf "\nrepl: %B, print: %B, dot: %B, save_dot: %B\n" repl print dot save_dot; *)
   try
     while true do (* loop over all lines *)
       try
@@ -15,6 +16,8 @@ let parse ?repl:(repl=false) ?print:(print=false) cin =
       with
         (* just an empty line -> don't print *)
         | SpecCore.Endl  -> ()
+        (* somehow gets raised in some cases instead of SpecCore.Eof *)
+        | BatInnerIO.Input_closed -> raise SpecCore.Eof
         (* catch and print in repl-mode *)
         | e when repl -> print_endline (Printexc.to_string e)
     done;
@@ -28,10 +31,13 @@ let parse ?repl:(repl=false) ?print:(print=false) cin =
         let edges = List.filter_map (function SpecCore.Edge x -> Some x | _ -> None) !defs in
         if print then Printf.printf "\n#Definitions: %i, #Nodes: %i, #Edges: %i\n"
           (List.length !defs) (List.length nodes) (List.length edges);
-        if save_dot then (
-          let dot = SpecCore.to_dot_graph !defs in
-          output_file "result/graph.dot" dot;
+        if save_dot && not dot then (
+          let dotgraph = SpecCore.to_dot_graph !defs in
+          output_file "result/graph.dot" dotgraph;
           print_endline ("saved graph as "^Sys.getcwd ()^"/result/graph.dot");
+        );
+        if dot then (
+          print_endline (SpecCore.to_dot_graph !defs)
         );
         (nodes, edges)
 

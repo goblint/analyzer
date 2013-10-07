@@ -3,7 +3,10 @@ open SpecUtil
 
 let _ =
   (* no arguments -> run interactively (= reading from stdin)  *)
-  let repl = Array.length Sys.argv = 1 in
-  let cin = if repl then stdin else open_in Sys.argv.(1) in
-  ignore(parse ~repl:repl cin ~print:true)
+  let args = Array.length Sys.argv > 1 in
+  if args && Sys.argv.(1) = "-" then
+	  ignore(parse ~dot:true stdin)
+  else
+	  let cin = if args then open_in Sys.argv.(1) else stdin in
+	  ignore(parse ~repl:(not args) ~print:true cin)
   (* exit 0 *)
