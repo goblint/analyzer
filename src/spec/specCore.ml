@@ -122,7 +122,7 @@ let to_dot_graph defs =
       n^"\t[style=filled, fillcolor=orange, label=\""^n^": "^m^"\"];"
     | Edge(a, ws, fwd, b, s) ->
       let style = if fwd then "style=dotted, " else "" in
-      let ws = if List.is_empty ws then "" else (String.concat "," ws)^";\n" in
+      let ws = if List.is_empty ws then "" else (String.concat "," ws)^" | " in
       a^" -> "^b^"\t["^style^"label=\""^ws^String.escaped (stmt_to_string s)^"\"];"
   in
   let ends,defs = List.partition (function Edge (a,ws,fwd,b,s) -> b="end" && s.exp=Exp_ | _ -> false) defs in

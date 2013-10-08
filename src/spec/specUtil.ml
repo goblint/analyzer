@@ -3,6 +3,9 @@ open Batteries
 (* config *)
 let save_dot = true
 
+let line = ref 1
+exception Parse_error of string
+
 let parse ?repl:(repl=false) ?print:(print=false) ?dot:(dot=false) cin =
   let lexbuf = Lexing.from_channel cin in
   let defs = ref [] in
@@ -12,10 +15,11 @@ let parse ?repl:(repl=false) ?print:(print=false) ?dot:(dot=false) cin =
       try
         let result = SpecParser.file SpecLexer.token lexbuf in
         defs := !defs@[result];
+        incr line;
         if print then (print_endline (SpecCore.def_to_string result); flush stdout)
       with
         (* just an empty line -> don't print *)
-        | SpecCore.Endl  -> ()
+        | SpecCore.Endl  -> incr line
         (* somehow gets raised in some cases instead of SpecCore.Eof *)
         | BatInnerIO.Input_closed -> raise SpecCore.Eof
         (* catch and print in repl-mode *)
@@ -40,6 +44,8 @@ let parse ?repl:(repl=false) ?print:(print=false) ?dot:(dot=false) cin =
           print_endline (SpecCore.to_dot_graph !defs)
         );
         (nodes, edges)
+    (* stop on parsing error if not in REPL and include line number *)
+    | e -> raise (Parse_error ("Line "^string_of_int !line^": "^Printexc.to_string e))
 
 let parseFile filename = parse (open_in filename)
 
