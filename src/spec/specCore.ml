@@ -130,7 +130,7 @@ let to_dot_graph defs =
   (* set the default style for nodes *)
   let defaultstyle = "node [shape=box, style=rounded];" in
   (* style end nodes and then reset *)
-  let endstyle = "node [peripheries=2]; "^(String.concat " " endstates)^"; node [peripheries=1];" in
+  let endstyle = if List.is_empty endstates then "" else "node [peripheries=2]; "^(String.concat " " endstates)^"; node [peripheries=1];" in
   let lines = "digraph file {"::defaultstyle::endstyle::(List.map def_to_string defs) in
   (* List.iter print_endline lines *)
   String.concat "\n  " lines ^ "\n}"
