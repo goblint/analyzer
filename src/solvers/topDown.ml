@@ -7,21 +7,33 @@ module GU = Goblintutil
 
 exception SolverCannotDoGlobals
 
+(*
 module Make3 =
   functor (S:IneqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
   open S
   
-  module VS = Set.Make (Var)
+  module VS  = Set.Make (Var)
+  
+  
+  module VI =
+  struct
+    type t = Var.t * int 
+    let compare (x,n) (y,m) =
+      match compare n m with 
+        | 0 -> Var.compare x y
+        | n -> n
+  end
+  module VIS = Set.Make (VI)
 
   let hm_find_default t x a = try HM.find t x with Not_found -> a
 
   module P = 
   struct
-    type t = S.Var.t * S.Var.t
-    let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
-    let hash (x1,x2) = (S.Var.hash x1 - 800) * S.Var.hash x2 
+    type t = S.Var.t * int * S.Var.t
+    let equal (x1,(x2:int),x3) (y1,y2,y3) = S.Var.equal x1 y1 && x2=y2 && S.Var.equal x3 y3
+    let hash (x1,x2,x3) = (S.Var.hash x1 - 800) * (x2+1) * S.Var.hash x3
   end
 
   module HPM = Hashtbl.Make (P)
@@ -37,75 +49,93 @@ struct
     let set_value = HPM.replace xy
   end
   
-  
   let back   = HPM.create 113  (* debug *)
   let infl   = HM.create 113 
-
+  let count = ref 0
+  let seen  = ref 0
+  
   let solve : (v -> d -> d -> d) -> (v*d) list -> v list -> d HM.t = fun box sv iv ->
+    let dep    = HM.create 113 in
     let set    = HM.create 113 in
     let sigma  = HM.create 113 in
-    let dep    = HM.create 113 in
-    let called = ref VS.empty in
-    let stable = ref VS.empty in
+    let called = HM.create 113 in
+    let stable = HM.create 113 in
+    let reachability xs =
+      let reachable = HM.create (HM.length sigma) in
+      let rec one_var x =
+        if not (HM.mem reachable x) then begin
+          HM.replace reachable x ();
+          List.iter one_constaint (system x)
+        end
+      and one_constaint f =
+        ignore (f (fun x -> one_var x; hm_find_default sigma x (Dom.bot ())) (fun x _ -> one_var x))
+      in
+      List.iter one_var xs;
+      HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove sigma x) sigma
+    in
     let f x old side get set =
-      let join_apply (d_in, d_back) rhs =
+      let join_apply (d_in, d_back, rhsn) rhs =
         let gets = ref VS.empty in
         let vars = ref VS.empty in
         let get' y = 
           vars := VS.add y !vars;
           let r = get y in
-          if VS.mem y !called then 
-            gets := VS.add y !gets
-          else
+          if HM.mem called y then begin
+            gets := VS.add y (VS.union !gets (hm_find_default dep y VS.empty))
+          end else
             gets := VS.union !gets (hm_find_default dep y VS.empty);
           r
         in
-        let d = rhs get' set in
-        (*VS.iter (fun d -> if tracing then tracel "sol" "Gets %a: %a\n" Var.pretty_trace x Var.pretty_trace d) !gets  ;*)
+        let d = rhs get' (set rhsn) in
+        (* VS.iter (fun d -> if tracing then tracel "sol" "Gets %a: %a\n" Var.pretty_trace x Var.pretty_trace d) !gets  ; *)
+        HM.replace dep x (VS.remove x (VS.union !gets (hm_find_default dep x VS.empty)));
         if VS.mem x !gets then begin
           VS.iter (fun y -> 
-              if tracing && not (HPM.mem back (x,y)) then tracel "sol" "Back edge found: %a --- %a\n" Var.pretty_trace x Var.pretty_trace y;
-              HPM.replace back (x,y) ()) !vars;
-          (d_in, Dom.join d_back d)
-        end else begin
-          HM.replace dep x (VS.union !gets (hm_find_default dep x VS.empty));
-          (Dom.join d_in d, d_back)
+              if tracing && not (HPM.mem back (x,rhsn,y)) then tracel "sol" "Back edge found: %a --- %a\n" Var.pretty_trace x Var.pretty_trace y;
+              HPM.replace back (x,rhsn,y) ()) !vars;
+          (d_in, Dom.join d_back d,rhsn+1)
+        end else  begin
+          (Dom.join d_in d, d_back,rhsn+1)
         end
       in
-      let _ = HM.replace dep x VS.empty in
-      let d_in, d_back = List.fold_left join_apply (Dom.bot (), side) (system x) in
-      if Dom.is_bot d_back then d_in else begin
-        HM.add infl x (x :: hm_find_default infl x []);
+      let d_in, d_back,_ = List.fold_left join_apply (Dom.bot (), side, 0) (system x) in
+      if Dom.is_bot d_back then d_in else  begin
+        HM.replace infl x (x :: hm_find_default infl x []);
         Dom.join d_in (box x old d_back)
       end
     in
     let rec destabilize x =
       let t = hm_find_default infl x [] in
         HM.replace infl x [];
-        List.iter (fun y -> stable := VS.remove y !stable; destabilize y) t
+        List.iter (fun y -> HM.remove stable y; destabilize y) t
     in
     let rec solve (x : Var.t) =
-      if tracing then tracel "sol" "Variable: %a\n" Var.pretty_trace x;
-      
-      if not (VS.mem x !stable || VS.mem x !called) then begin
-        if not (HM.mem sigma x) then (HM.add sigma x (Dom.bot ()); HM.add infl x []);
-        called := VS.add x !called;
+      incr count;
+      if !count mod 10 = 0 && !seen < !count then begin
+        Printf.printf "(%d)%!" !count;
+        seen := !count
+      end else if !count mod 10 = 0 && !seen > !count then begin
+        Printf.printf "(%d)%!" !count;
+        seen := !count
+      end;
+      if not (HM.mem stable x || HM.mem called x) then begin
+        if not (HM.mem sigma x) then begin
+          (HM.add sigma x (Dom.bot ()); HM.add infl x []);
+        end;
+        HM.replace called x ();
         let rec loop () =
-          stable := VS.add x !stable;
+          HM.replace stable x ();
           let old    = hm_find_default sigma x (Dom.bot ()) in 
           let newval = f x old (do_side x) (eval x) (side x) in
           if not (Dom.equal old newval) then begin
-            (*if tracing then tracel "sol" "New value: %a === %a\n" Var.pretty_trace x Dom.pretty newval;*)
             HM.replace sigma x newval; 
-            if Dom.leq newval old then
-              restart x 
-            else
-              destabilize x
+            destabilize x
           end ; 
-          if not (VS.mem x !stable) then loop ()
+          if not (HM.mem stable x) then loop ()
         in loop ();
-        called := VS.remove x !called
-      end
+        HM.remove called x
+      end;
+      decr count
       
     and eval x y =
       solve y; 
@@ -113,49 +143,264 @@ struct
       HM.find sigma y
       
     and do_side y = 
-      let p = hm_find_default set y VS.empty in
-      VS.fold (fun x a -> Dom.join a (XY.get_value (x,y))) p (Dom.bot ())
+      let p = hm_find_default set y VIS.empty in
+      VIS.fold (fun (x,n) a -> Dom.join a (XY.get_value (x,n,y))) p (Dom.bot ())
       
-    and side x y d =     
+    and side x n y d =     
       let _ = 
-        HM.replace set y (VS.add x (hm_find_default set y VS.empty))
+        HM.replace set y (VIS.add (x,n) (hm_find_default set y VIS.empty))
       in 
 
-      let old = XY.get_value (x,y) in 
-      let tmp = box x old d in 
+      let old = XY.get_value (x,n,y) in 
+      let tmp = box x old d in     
+      HM.replace infl x (x :: hm_find_default infl x []);
  
       if not (Dom.equal tmp old) then begin
-        let _ = XY.set_value (x,y) tmp in
-        if not (VS.mem y !stable) then
-          solve y
-        else
-          destabilize y
+        if tracing then 
+          tracel "sol" "Side-effect: %a to %a old:\n%a\ntmp:\n%a\n" Var.pretty_trace x Var.pretty_trace y Dom.pretty old Dom.pretty tmp;
+
+        let _ = XY.set_value (x,n,y) tmp in
+        destabilize y;
+        HM.remove stable y;
+        solve y
       end
-    and restart x =
-      let restart_one y = 
-        if not (VS.mem y !called) then begin
-          HM.replace sigma y (Dom.bot ());
-          stable := VS.remove y !stable;
-          restart y
-        end          
-      in
-      let t = hm_find_default infl x [] in
-        HM.replace infl x [];
-        stable := VS.remove x !stable;
-        List.iter restart_one t
-    in
+    in 
     let add_start (v,d) = 
-        HM.replace set v (VS.add v (hm_find_default set v VS.empty));
-        XY.set_value (v,v) d
+        HM.replace set v (VIS.add (v,0) (hm_find_default set v VIS.empty));
+        XY.set_value (v,0,v) d
       in
       List.iter add_start sv;
       if tracing then trace "sol" "Start!\n";
-      List.iter solve iv;
+      let rec loop () = 
+        List.iter solve iv;
+        if not (List.for_all (HM.mem stable) iv) then loop ()
+      in loop ();
+      if tracing then trace "sol" "Reachability...\n";
+      reachability iv;
+      if tracing then trace "sol" "Done.\n";
+      sigma
+end
+  
+*)
+
+module Make3 =
+  functor (S:IneqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  open S
+  
+  module VS  = Set.Make (Var)
+  
+  
+  module VI =
+  struct
+    type t = Var.t * int 
+    let compare (x,n) (y,m) =
+      match compare n m with 
+        | 0 -> Var.compare x y
+        | n -> n
+  end
+  module VIS = Set.Make (VI)
+
+  let hm_find_default t x a = try HM.find t x with Not_found -> a
+
+  module P = 
+  struct
+    type t = S.Var.t * int * S.Var.t
+    let equal (x1,(x2:int),x3) (y1,y2,y3) = S.Var.equal x1 y1 && x2=y2 && S.Var.equal x3 y3
+    let hash (x1,x2,x3) = (S.Var.hash x1 - 800) * (x2+1) * S.Var.hash x3
+  end
+
+  module HPM = Hashtbl.Make (P)
+
+  let hpm_find_default h x d = try HPM.find h x with Not_found -> d
+
+  (** Helper module for values of global contributions. *)
+  module XY = 
+  struct
+    let xy = HPM.create 1024 
+
+    let get_value x = hpm_find_default xy x (S.Dom.bot ())
+    let set_value = HPM.replace xy
+  end
+  
+  let back   = HPM.create 113  (* debug *)
+  let infl   = HM.create 113 
+  let count = ref 0
+  let seen  = ref 0
+  
+  exception Backtrack of VS.t
+  
+  let solve : (v -> d -> d -> d) -> (v*d) list -> v list -> d HM.t = fun box sv iv ->
+    let dep    = HM.create 113 in
+    let set    = HM.create 113 in
+    let sigma  = HM.create 113 in
+    let called = HM.create 113 in
+    let stable = HM.create 113 in
+    let reachability xs =
+      let reachable = HM.create (HM.length sigma) in
+      let rec one_var x =
+        if not (HM.mem reachable x) then begin
+          HM.replace reachable x ();
+          List.iter one_constaint (system x)
+        end
+      and one_constaint f =
+        ignore (f (fun x -> one_var x; hm_find_default sigma x (Dom.bot ())) (fun x _ -> one_var x))
+      in
+      List.iter one_var xs;
+      HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove sigma x) sigma
+    in
+    let f x old side get set =
+      let join_apply (d_in, d_back, rhsn) rhs =
+        let gets = ref VS.empty in
+        let vars = ref VS.empty in
+        let get' y = 
+          vars := VS.add y !vars;
+          let r = get y in
+          if HM.mem called y then begin
+            gets := VS.add y (VS.union !gets (hm_find_default dep y VS.empty))
+          end else
+            gets := VS.union !gets (hm_find_default dep y VS.empty);
+          r
+        in
+        let d = rhs get' (set rhsn) in
+        (* VS.iter (fun d -> if tracing then tracel "sol" "Gets %a: %a\n" Var.pretty_trace x Var.pretty_trace d) !gets  ; *)
+        HM.replace dep x (VS.remove x (VS.union !gets (hm_find_default dep x VS.empty)));
+        if VS.mem x !gets then begin
+          VS.iter (fun y -> 
+              if tracing && not (HPM.mem back (x,rhsn,y)) then tracel "sol" "Back edge found: %a --- %a\n" Var.pretty_trace x Var.pretty_trace y;
+              HPM.replace back (x,rhsn,y) ()) !vars;
+          (d_in, Dom.join d_back d,rhsn+1)
+        end else  begin
+          (Dom.join d_in d, d_back,rhsn+1)
+        end
+      in
+      let d_in, d_back,_ = List.fold_left join_apply (Dom.bot (), side, 0) (system x) in
+      if Dom.is_bot d_back then d_in else  begin
+        HM.replace infl x (VS.add x (hm_find_default infl x VS.empty));
+        Dom.join d_in (box x old d_back)
+      end
+    in
+    let rec destabilize x =
+      let t = hm_find_default infl x VS.empty in
+        HM.replace infl x VS.empty;
+        VS.iter (fun y -> HM.remove stable y; if not (HM.mem called y) then destabilize y) t
+    in
+    let rec destabilize' x xs =
+      let t = hm_find_default infl x VS.empty in
+        HM.replace infl x VS.empty;
+        let f y xs = 
+          HM.remove stable y; 
+          if HM.mem called y then begin
+            (* ignore (Pretty.printf "bla3: %a\n" Var.pretty_trace y); *)
+            VS.add y xs
+          end else
+            destabilize' y xs
+        in
+        VS.fold f t xs
+    in
+    let rec solve (x : Var.t) =
+      if tracing then 
+        tracel "sol" "Entering %a\n" Var.pretty_trace x;
+      if not (HM.mem stable x || HM.mem called x) then begin
+        if not (HM.mem sigma x) then begin
+          (HM.add sigma x (Dom.bot ()); HM.add infl x VS.empty);
+        end;
+        HM.replace called x ();
+        let rec loop () =
+            HM.replace stable x ();
+            let old    = hm_find_default sigma x (Dom.bot ()) in 
+            let newval = f x old (do_side x) (eval x) (side x) in
+            if not (Dom.equal old newval) then begin
+              if tracing then 
+                tracel "sol" "New value for %a:\n%a\n" Var.pretty_trace x Dom.pretty newval;
+              HM.replace sigma x newval; 
+              destabilize x
+            end ; 
+            if not (HM.mem stable x) then loop ()              
+        in 
+        let rec loop2 () = 
+          (* ignore (Pretty.printf "loop2: %a\n" Var.pretty_trace x); *)
+          begin try begin
+            loop ()
+          end with Backtrack xs ->begin
+            (* ignore (Pretty.printf "backtrack: %a\n" Var.pretty_trace x); *)
+            if VS.mem x xs then begin
+              (* Pretty.printf "seen: %a\n" Var.pretty_trace x; *)
+              let xs' = VS.remove x xs in
+              if VS.is_empty xs' then 
+                loop2 ()
+              else
+                raise (Backtrack xs')
+            end else raise (Backtrack xs)
+          end
+          end
+          (* ignore (Pretty.printf "end loop2: %a\n" Var.pretty_trace x) *)
+        in 
+          (try loop2 ()
+          with Backtrack y -> begin         
+            (* ignore (Pretty.printf "loop2 done ex: %a\n" Var.pretty_trace x); *)
+            HM.remove called x;
+            HM.remove stable x;
+            raise (Backtrack y)
+            end
+          );
+        (* ignore (Pretty.printf "loop2 done: %a\n" Var.pretty_trace x); *)
+        HM.remove called x
+      end;
+      if tracing then 
+        tracel "sol" "Leaving %a\n" Var.pretty_trace x
+        
+      
+      
+    and eval x y =
+      solve y; 
+      HM.replace infl y (VS.add x (hm_find_default infl y VS.empty));
+      HM.find sigma y
+      
+    and do_side y = 
+      let p = hm_find_default set y VIS.empty in
+      VIS.fold (fun (x,n) a -> Dom.join a (XY.get_value (x,n,y))) p (Dom.bot ())
+      
+    and side x n y d =     
+      let _ = 
+        HM.replace set y (VIS.add (x,n) (hm_find_default set y VIS.empty))
+      in 
+
+      let old = XY.get_value (x,n,y) in 
+      let tmp = box x old d in     
+      HM.replace infl x (VS.add x (hm_find_default infl x VS.empty));
+      
+      if not (Dom.equal tmp old) then begin
+        if tracing then 
+          tracel "sol" "Side-effect: %a to %a old:\n%a\ntmp:\n%a\n" Var.pretty_trace x Var.pretty_trace y Dom.pretty old Dom.pretty tmp;
+
+        let _ = XY.set_value (x,n,y) tmp in
+        HM.remove stable y;
+        (* ignore (Pretty.printf "bla: %a\n" Var.pretty_trace x); *)
+        let qs = destabilize' y VS.empty in
+        (* VS.iter (fun y -> ignore (Pretty.printf "destab: %a\n" Var.pretty_trace y)) qs; *)
+        if not (VS.is_empty qs) then 
+          raise (Backtrack qs)
+      end
+    in 
+    let add_start (v,d) = 
+        HM.replace set v (VIS.add (v,0) (hm_find_default set v VIS.empty));
+        XY.set_value (v,0,v) d
+      in
+      List.iter add_start sv;
+      if tracing then trace "sol" "Start!\n";
+      let rec loop () = 
+        List.iter solve iv;
+        if not (List.for_all (HM.mem stable) iv) then loop ()
+      in loop ();
+      if tracing then trace "sol" "Reachability...\n";
+      reachability iv;
       if tracing then trace "sol" "Done.\n";
       sigma
 end
 
-module PrintInfluence2 =
+(*module PrintInfluence2 =
   functor (S:IneqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
@@ -180,9 +425,9 @@ struct
     Legacy.close_out_noerr ch;
     r
 end
-
+*)
   
 
-module Make2GGS : Analyses.GenericGlobSolver = GlobSolverFromIneqSolver (PrintInfluence2)
+module Make2GGS : Analyses.GenericGlobSolver = GlobSolverFromIneqSolver (Make3)
 let _ =
   Selector.add_solver ("TD", (module Make2GGS : Analyses.GenericGlobSolver))
