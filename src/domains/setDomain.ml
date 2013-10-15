@@ -330,7 +330,10 @@ struct
       | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f = function
     | All   -> BatPrintf.fprintf f "<value>\n<data>\nAll\n</data>\n</value>\n" 
-    | Set s -> printXml f s
+    | Set s -> 
+      BatPrintf.fprintf f "<set>\n" ;
+      S.iter (Base.printXml f) s;
+      BatPrintf.fprintf f "</set>\n" 
 end
 
 module MacroSet (B: Lattice.S) (N: ToppedSetNames)=
