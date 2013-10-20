@@ -312,7 +312,9 @@ let print cfg  =
       | FunctionEntry f -> ignore (Pretty.fprintf out "\t%a [label =\"%s()\",shape=box];\n" p_node (FunctionEntry f) f.vname)
   in
   let printEdge (toNode: node) ((edge:edge), (fromNode: node)) = 
-    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edge edge);
+    (* escape string in label, otherwise dot might fail *)
+    let p_edge' () x = Pretty.text (String.escaped (Pretty.sprint ~width:0 (Pretty.dprintf "%a" p_edge x))) in
+    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edge' edge);
     NH.add node_table toNode ();
     NH.add node_table fromNode ()
   in
