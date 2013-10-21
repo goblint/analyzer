@@ -264,11 +264,9 @@ struct
           r
         in
         let d = rhs get' (set rhsn) in
-        (* VS.iter (fun d -> if tracing then tracel "sol" "Gets %a: %a\n" Var.pretty_trace x Var.pretty_trace d) !gets  ; *)
         HM.replace dep x (VS.remove x (VS.union !gets (hm_find_default dep x VS.empty)));
         if VS.mem x !gets then begin
           VS.iter (fun y -> 
-              if tracing && not (HPM.mem back (x,rhsn,y)) then tracel "sol" "Back edge found: %a --- %a\n" Var.pretty_trace x Var.pretty_trace y;
               HPM.replace back (x,rhsn,y) ()) !vars;
           (d_in, Dom.join d_back d,rhsn+1)
         end else  begin
@@ -292,7 +290,6 @@ struct
         let f y xs = 
           HM.remove stable y; 
           if HM.mem called y then begin
-            (* ignore (Pretty.printf "bla3: %a\n" Var.pretty_trace y); *)
             VS.add y xs
           end else
             destabilize' y xs
@@ -300,8 +297,6 @@ struct
         VS.fold f t xs
     in
     let rec solve (x : Var.t) =
-      if tracing then 
-        tracel "sol" "Entering %a\n" Var.pretty_trace x;
       if not (HM.mem stable x || HM.mem called x) then begin
         if not (HM.mem sigma x) then begin
           (HM.add sigma x (Dom.bot ()); HM.add infl x VS.empty);
@@ -312,45 +307,36 @@ struct
             let old    = hm_find_default sigma x (Dom.bot ()) in 
             let newval = f x old (do_side x) (eval x) (side x) in
             if not (Dom.equal old newval) then begin
-              if tracing then 
-                tracel "sol" "New value for %a:\n%a\n" Var.pretty_trace x Dom.pretty newval;
               HM.replace sigma x newval; 
               destabilize x
             end ; 
             if not (HM.mem stable x) then loop ()              
         in 
         let rec loop2 () = 
-          (* ignore (Pretty.printf "loop2: %a\n" Var.pretty_trace x); *)
           begin try begin
             loop ()
           end with Backtrack xs ->begin
-            (* ignore (Pretty.printf "backtrack: %a\n" Var.pretty_trace x); *)
             if VS.mem x xs then begin
-              (* Pretty.printf "seen: %a\n" Var.pretty_trace x; *)
               let xs' = VS.remove x xs in
-              if VS.is_empty xs' then 
+              if VS.is_empty xs' then begin
                 loop2 ()
-              else
+              end else begin
+                destabilize x;
+                HM.remove stable x;
+                HM.remove called x;
                 raise (Backtrack xs')
-            end else raise (Backtrack xs)
-          end
-          end
-          (* ignore (Pretty.printf "end loop2: %a\n" Var.pretty_trace x) *)
-        in 
-          (try loop2 ()
-          with Backtrack y -> begin         
-            (* ignore (Pretty.printf "loop2 done ex: %a\n" Var.pretty_trace x); *)
-            HM.remove called x;
-            HM.remove stable x;
-            raise (Backtrack y)
+              end
+            end else begin
+              destabilize x;
+              HM.remove stable x;
+              HM.remove called x;
+              raise (Backtrack xs)
             end
-          );
-        (* ignore (Pretty.printf "loop2 done: %a\n" Var.pretty_trace x); *)
+          end
+          end
+        in loop2 ();
         HM.remove called x
-      end;
-      if tracing then 
-        tracel "sol" "Leaving %a\n" Var.pretty_trace x
-        
+      end
       
       
     and eval x y =
@@ -372,16 +358,13 @@ struct
       HM.replace infl x (VS.add x (hm_find_default infl x VS.empty));
       
       if not (Dom.equal tmp old) then begin
-        if tracing then 
-          tracel "sol" "Side-effect: %a to %a old:\n%a\ntmp:\n%a\n" Var.pretty_trace x Var.pretty_trace y Dom.pretty old Dom.pretty tmp;
-
         let _ = XY.set_value (x,n,y) tmp in
-        HM.remove stable y;
-        (* ignore (Pretty.printf "bla: %a\n" Var.pretty_trace x); *)
         let qs = destabilize' y VS.empty in
-        (* VS.iter (fun y -> ignore (Pretty.printf "destab: %a\n" Var.pretty_trace y)) qs; *)
-        if not (VS.is_empty qs) then 
+        HM.remove stable y;
+        solve y;
+        if not (VS.is_empty qs) then begin
           raise (Backtrack qs)
+        end
       end
     in 
     let add_start (v,d) = 
