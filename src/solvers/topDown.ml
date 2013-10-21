@@ -181,9 +181,35 @@ struct
       sigma
 end
   
+(*module PrintInfluence2 =
+  functor (S:IneqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  module S1 = Make3 (S) (HM)
+  let solve box x y =
+    let ch = Legacy.open_out "test.dot" in
+    let r = S1.solve box x y in
+    let f k _ =
+      let s = Pretty.sprint 80 (S.Var.pretty_trace () k) in
+      ignore (Pretty.fprintf ch "%d [label=\"%s\"];\n" (S.Var.hash k) (Goblintutil.escape s));
+      let f y =
+        if S1.HPM.mem S1.back (y,k) then
+          ignore (Pretty.fprintf ch "%d -> %d [arrowhead=box style=dashed];\n" (S.Var.hash k) (S.Var.hash y))
+        else
+          ignore (Pretty.fprintf ch "%d -> %d ;\n" (S.Var.hash k) (S.Var.hash y))
+      in 
+      List.iter f (try HM.find S1.infl k with Not_found -> [])
+    in
+    ignore (Pretty.fprintf ch "digraph G {\nedge [arrowhead=vee];\n");
+    HM.iter f r;
+    ignore (Pretty.fprintf ch "}\n");
+    Legacy.close_out_noerr ch;
+    r
+end
+*)
 *)
 
-module Make3 =
+module TD2 =
   functor (S:IneqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
@@ -284,7 +310,7 @@ struct
         HM.replace infl x VS.empty;
         VS.iter (fun y -> HM.remove stable y; if not (HM.mem called y) then destabilize y) t
     in
-    let rec destabilize' x xs =
+    (* let rec destabilize' x xs =
       let t = hm_find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         let f y xs = 
@@ -295,7 +321,7 @@ struct
             destabilize' y xs
         in
         VS.fold f t xs
-    in
+    in *)
     let rec solve (x : Var.t) =
       if not (HM.mem stable x || HM.mem called x) then begin
         if not (HM.mem sigma x) then begin
@@ -359,12 +385,14 @@ struct
       
       if not (Dom.equal tmp old) then begin
         let _ = XY.set_value (x,n,y) tmp in
-        let qs = destabilize' y VS.empty in
+        destabilize y;
+        solve y
+        (* let qs = destabilize' y VS.empty in
         HM.remove stable y;
         solve y;
         if not (VS.is_empty qs) then begin
-          raise (Backtrack qs)
-        end
+          raise (Backtrack qs) 
+        end*)
       end
     in 
     let add_start (v,d) = 
@@ -383,34 +411,8 @@ struct
       sigma
 end
 
-(*module PrintInfluence2 =
-  functor (S:IneqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
-struct
-  module S1 = Make3 (S) (HM)
-  let solve box x y =
-    let ch = Legacy.open_out "test.dot" in
-    let r = S1.solve box x y in
-    let f k _ =
-      let s = Pretty.sprint 80 (S.Var.pretty_trace () k) in
-      ignore (Pretty.fprintf ch "%d [label=\"%s\"];\n" (S.Var.hash k) (Goblintutil.escape s));
-      let f y =
-        if S1.HPM.mem S1.back (y,k) then
-          ignore (Pretty.fprintf ch "%d -> %d [arrowhead=box style=dashed];\n" (S.Var.hash k) (S.Var.hash y))
-        else
-          ignore (Pretty.fprintf ch "%d -> %d ;\n" (S.Var.hash k) (S.Var.hash y))
-      in 
-      List.iter f (try HM.find S1.infl k with Not_found -> [])
-    in
-    ignore (Pretty.fprintf ch "digraph G {\nedge [arrowhead=vee];\n");
-    HM.iter f r;
-    ignore (Pretty.fprintf ch "}\n");
-    Legacy.close_out_noerr ch;
-    r
-end
-*)
   
 
-module Make2GGS : Analyses.GenericGlobSolver = GlobSolverFromIneqSolver (Make3)
+module Make2GGS : Analyses.GenericGlobSolver = GlobSolverFromIneqSolver (TD2)
 let _ =
   Selector.add_solver ("TD", (module Make2GGS : Analyses.GenericGlobSolver))
