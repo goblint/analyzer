@@ -30,6 +30,7 @@ rule token = parse
   | '<'            { LT }
   | '>'            { GT }
   | '='            { EQ }
+  | "=="           { EQEQ }
   | "!="           { NE }
   | "<="           { LE }
   | ">="           { GE }

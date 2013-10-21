@@ -18,7 +18,7 @@ w8 "unrecognized file open mode for file handle $"
 // go to unchecked states first
 1          -> u_open_read  $fp = fopen($path, "r")
 1          -> u_open_write $fp = fopen($path, r"[wa]")
-1          -> w8            $fp = fopen($path, _)
+1          -> w8           $fp = fopen($path, _)
 // once branch(exp, tv) is matched, return dom with 1. arg (lval = exp) and true/false
 // forwarding from branch is not possible (would need an extra map for storing states) -> ignore it
 // warnings are also ignored

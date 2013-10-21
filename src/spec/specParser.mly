@@ -6,7 +6,7 @@ because exceptions directly defined here aren't visible outside
 open SpecCore
 %}
 
-%token LT GT EQ NE LE GE
+%token LT GT EQ NE LE GE EQEQ
 %token PLUS MINUS MUL DIV
 %token LPAREN RPAREN LCURL RCURL LBRACK RBRACK
 %token NULL COMMA SEMICOLON COLON UNDERS
@@ -19,8 +19,7 @@ open SpecCore
 %token <string> STRING
 %token <bool> BOOL
 %token <int> INT
-/* %token <Big_int.big_int> NUMBER */
-%left LT GT EQ NE LE GE
+%left LT GT EQ NE LE GE EQEQ
 %left PLUS MINUS        /* lowest precedence */
 %left MUL DIV           /* medium precedence */
 %nonassoc UMINUS        /* highest precedence */
@@ -38,33 +37,19 @@ file:
 
 def:
   | NODE                     { Node($1) }
-  | EDGE stmts               { let a,ws,fwd,b = $1 in
+  | EDGE stmt                { let a, ws, fwd, b = $1 in
                                Edge(a, ws, fwd, b, $2) }
 ;
 
-stmts:
-  | var EQ expr              { {lval = Some $1; exp = $3} } /* TODO expression would be better */
+stmt:
+  | lval EQ expr             { {lval = Some $1; exp = $3} } /* TODO expression would be better */
   | expr                     { {lval = None; exp = $1} }
-/*  | stmts SEMICOLON expr     { (* $1^"; "^ *) $3 } */
 ;
 
-var:
+lval:
   | VAR_                     { Var_ }     /* $_ */
   | VAR                      { Vari $1 }  /* e.g. $foo, $123, $__ */
   | IDENT                    { Ident $1 } /* e.g. foo, _foo, _1, but not 1b */
-;
-
-binop: /* TODO better solution? 32 shift/reduce conflicts :( */
-  | LT                       { "<" }
-  | GT                       { ">" }
-  | EQ EQ                    { "==" }
-  | NE                       { "!=" }
-  | LE                       { "<=" }
-  | GE                       { ">=" }
-  | PLUS                     { "+" }
-  | MINUS                    { "-" }
-  | MUL                      { "*" }
-  | DIV                      { "/" }
 ;
 
 expr:
@@ -72,36 +57,44 @@ expr:
   | REGEX                    { Regex $1 }
   | STRING                   { String $1 }
   | BOOL                     { Bool $1 }
-  | nexpr                    { Int $1 }
-  | var                      { Var $1 }
+  | lval                     { Var $1 }
   | IDENT args               { Fun {fname=$1; args=$2} } /* function */
   | UNDERS                   { Exp_ }
-  | nexpr LT    nexpr        { Bool ($1<$3) }
+  | nexpr                    { Int $1 }
+/*  | nexpr LT    nexpr        { Bool ($1<$3) }
   | nexpr GT    nexpr        { Bool ($1>$3) }
-  | nexpr EQ EQ nexpr        { Bool ($1=$4) }
+  | nexpr EQEQ  nexpr        { Bool ($1=$3) }
   | nexpr NE    nexpr        { Bool ($1<>$3) }
   | nexpr LE    nexpr        { Bool ($1<=$3) }
-  | nexpr GE    nexpr        { Bool ($1>=$3) }
-  | expr  binop expr         { Binop ($2, $1, $3) }
+  | nexpr GE    nexpr        { Bool ($1>=$3) } */
+  | expr  LT    expr         { Binop ("<",  $1, $3) }
+  | expr  GT    expr         { Binop (">",  $1, $3) }
+  | expr  EQEQ  expr         { Binop ("==", $1, $3) }
+  | expr  NE    expr         { Binop ("!=", $1, $3) }
+  | expr  LE    expr         { Binop ("<=", $1, $3) }
+  | expr  GE    expr         { Binop (">=", $1, $3) }
+  | expr  PLUS  expr         { Binop ("+",  $1, $3) }
+  | expr  MINUS expr         { Binop ("-",  $1, $3) }
+  | expr  MUL   expr         { Binop ("*",  $1, $3) }
+  | expr  DIV   expr         { Binop ("/",  $1, $3) }
 ;
 
 nexpr:
-/*  | NUMBER                   { Big_int.int_of_big_int $1 } */
-  | LPAREN nexpr RPAREN      { $2 }
   | INT                      { $1 }
+  | MINUS nexpr %prec UMINUS { - $2 }
+/*  | LPAREN nexpr RPAREN      { $2 }
   | nexpr PLUS nexpr         { $1 + $3 }
   | nexpr MINUS nexpr        { $1 - $3 }
   | nexpr MUL nexpr          { $1 * $3 }
-  | nexpr DIV nexpr          { $1 / $3 }
-  | MINUS nexpr %prec UMINUS { - $2 }
+  | nexpr DIV nexpr          { $1 / $3 } */
 ;
 
 args:
   | LPAREN RPAREN            { [] }
-  | LPAREN elems RPAREN      { $2 }
+  | LPAREN expr_list RPAREN  { $2 }
 ;
 
-elems:
+expr_list:
   | expr                     { [$1] }
-  | elems COMMA expr         { $1 @ [$3] }
+  | expr COMMA expr_list     { $1 :: $3 }
 ;
