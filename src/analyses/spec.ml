@@ -239,7 +239,7 @@ struct
   let editStack f m =
     let v = match D.findOption stack_var m with
       | Some(Must(v)) -> {v with loc=(f v.loc)}
-      | _ -> D.V.create stack_var (f []) "" in
+      | _ -> D.V.create stack_var (try f [] with _ -> []) "" in (* catch tl []. why does combine get called with an empty stack? *)
     D.add stack_var (Must v) m
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
@@ -468,14 +468,15 @@ struct
             let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_exp var))] in (* use Fl for Lval instead? *)
             (* TODO encode key in exp somehow *)
             (* ignore(printf "BRANCH %a\n" d_plainexp c_exp); *)
+            ctx.split new_m c_exp true;
             Set.add (new_m,c_exp,true) (Set.add (new_m,c_exp,false) branches)
           in
           List.fold_left do_branch branches branch_edges
         in
         let vars = varinfos key in
-        let new_set = List.fold_left check_branch Set.empty vars in
+        let new_set = List.fold_left check_branch Set.empty vars in ignore(new_set); (* TODO refactor *)
         (* List.of_enum (Set.enum new_set) *)
-        ret m (* XX *)
+        ret new_m (* XX *)
       | None -> ret new_m
     with Not_found -> ret m (* nothing matched -> no change *)
 

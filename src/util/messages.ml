@@ -120,9 +120,9 @@ let warn_each msg =
   end
   
 let debug msg =
-  if (get_bool "dbg.debug") then warn (colorize ("{gray}"^msg))
+  if (get_bool "dbg.debug") then warn (colorize ("{yellow}"^msg))
   
 let debug_each msg =
-  if (get_bool "dbg.debug") then warn_each (colorize ("{gray}"^msg))
+  if (get_bool "dbg.debug") then warn_each (colorize ("{yellow}"^msg))
 
 include Tracing
