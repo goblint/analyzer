@@ -321,7 +321,7 @@ struct
             destabilize' y xs
         in
         VS.fold f t xs
-    in *)
+    in *) 
     let rec solve (x : Var.t) =
       if not (HM.mem stable x || HM.mem called x) then begin
         if not (HM.mem sigma x) then begin
@@ -386,8 +386,9 @@ struct
       if not (Dom.equal tmp old) then begin
         let _ = XY.set_value (x,n,y) tmp in
         destabilize y;
-        solve y
-        (* let qs = destabilize' y VS.empty in
+        HM.remove stable y;
+        solve y 
+        (*let qs = destabilize' y VS.empty in
         HM.remove stable y;
         solve y;
         if not (VS.is_empty qs) then begin

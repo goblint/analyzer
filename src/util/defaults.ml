@@ -71,6 +71,8 @@ let _ =
   reg Std "dump_globs"      "false"        "Print out the global invariant.";
   reg Std "result"          "'none'"       "Result style: none, indented, compact, or pretty.";
   reg Std "solver"          "'effectWCon'" "Picks the solver.";
+  reg Std "comparesolver"   "''"           "Picks another solver for comparison.";
+  reg Std "solverdiffs"     "false"        "Print out solver differences.";
   reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main).";
   reg Std "nonstatic"       "false"        "Analyzes all non-static functions."
                                                
@@ -205,6 +207,8 @@ let default_schema =
     { 'type'            : 'string'
     }
   , 'solver'          : {}
+  , 'comparesolver'   : {}
+  , 'solverdiffs'     : {}
   , 'allfuns'         : {}
   , 'nonstatic'       : {}
   }

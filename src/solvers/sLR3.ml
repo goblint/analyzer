@@ -279,12 +279,12 @@ end
 
 
 module MakeWdiffCMP =
-  functor (S:EqConstrSys) ->
+  functor (S:IneqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
-  (* module Seq = Generic.NormalSysConverter (S) *)
-  module S1 = MakeBoxSolver (PropTrue) (PropFalse)  (PropTrue) (S) (HM)
-  module S2 = MakeBoxSolver (PropTrue) (PropFalse)  (PropFalse) (S) (HM)
+  module Seq = Generic.SimpleSysConverter (S)
+  module S1 = MakeBoxSolver (PropTrue) (PropFalse)  (PropTrue) (Seq) (HM)
+  module S2 = MakeBoxSolver (PropTrue) (PropFalse)  (PropFalse) (Seq) (HM) 
   (* module S2 = TopDown.TD2 (S) (HM) *)
   
   let solve box st list = 
@@ -296,6 +296,41 @@ struct
     let f_gr () = incr gr(*; Printf.printf ">"*) in
     let f_uk () = incr uk(*; Printf.printf "?"*) in
     let f k v1 = 
+      let v2 = try HM.find r2 k with Not_found -> S.Dom.bot () in
+      let b1 = S.Dom.leq v1 v2 in
+      let b2 = S.Dom.leq v2 v1 in
+      if b1 && b2 then 
+        f_eq ()
+      else if b1 then begin
+        ignore (Pretty.printf "less:\nS1:%a\n\nS2:%a\n\ndiff:%a" S.Dom.pretty v1 S.Dom.pretty v2 S.Dom.pretty_diff (v2,v1));
+        f_le ()
+      end else if b2 then begin
+        ignore (Pretty.printf "greater:\nS1:%a\n\nS2:%a\n\ndiff:%a" S.Dom.pretty v1 S.Dom.pretty v2 S.Dom.pretty_diff (v1,v2));
+        f_gr ()
+      end else 
+        f_uk ()
+    in
+    HM.iter f r1;
+    Printf.printf "eq=%d\tle=%d\tgr=%d\tuk=%d\n" !eq !le !gr !uk;
+    r1
+end
+
+module MakeWdiffCMPOld =
+  functor (S:EqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  module S1 = MakeBoxSolver (PropTrue) (PropFalse) (PropTrue) (S) (HM)
+  module S2 = MakeBoxSolver (PropTrue) (PropFalse) (PropFalse) (S) (HM)
+  
+  let solve box st list =
+    let r1 = S1.solve box st list in
+    let r2 = S2.solve box st list in
+    let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
+    let f_eq () = incr eq(*; Printf.printf "="*) in
+    let f_le () = incr le(*; Printf.printf "<"*) in
+    let f_gr () = incr gr(*; Printf.printf ">"*) in
+    let f_uk () = incr uk(*; Printf.printf "?"*) in
+    let f k v1 =
       let v2 = try HM.find r2 k with Not_found -> S.Dom.bot () in
       let b1 = S.Dom.leq v1 v2 in
       let b2 = S.Dom.leq v2 v1 in
@@ -314,20 +349,106 @@ struct
 end
 
 
+module MakeIneqSolver (Sol: GenericEqBoxSolver) =
+  functor (S:IneqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  (* module HM2: Hash.H with type key = S.v * int = Hash.H.create *)
+  include Sol (Generic.SimpleSysConverter (S)) (HM)
+end
+
+(*
+module MakeIneqSolver2 (Sol: GenericEqBoxSolver) =
+  functor (S:IneqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  module EqSys = Generic.NormalSysConverter (S)
+  module VH: Hash.H with type key = EqSys.v = Hashtbl.Make(EqSys.Var)
+  module Sol' = Sol (EqSys) (VH)
+ 
+  let solve ls gs l = 
+    Sol'.solve EqSys.box vs sv in
+
+end
+*)
+
+
+
+module MakeWdiffCMPTD =
+  functor (S:IneqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  module Seq = Generic.SimpleSysConverter (S)
+  module S1 = MakeBoxSolver (PropTrue) (PropFalse)  (PropTrue) (Seq) (HM)
+  (* module S2 = MakeBoxSolver (PropTrue) (PropFalse)  (PropFalse) (S) (HM) *)
+  module S2 = TopDown.TD2 (S) (HM)
+  
+  let solve box st list = 
+    let r1 = S1.solve box st list in
+    let r2 = S2.solve box st list in
+    let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
+    let f_eq () = incr eq(*; Printf.printf "="*) in
+    let f_le () = incr le(*; Printf.printf "<"*) in
+    let f_gr () = incr gr(*; Printf.printf ">"*) in
+    let f_uk () = incr uk(*; Printf.printf "?"*) in
+    let f k v1 = 
+      let v2 = try HM.find r2 k with Not_found -> S.Dom.bot () in
+      let b1 = S.Dom.leq v1 v2 in
+      let b2 = S.Dom.leq v2 v1 in
+      if b1 && b2 then 
+        f_eq ()
+      else if b1 then begin
+        (* Pretty.printf "less:\nS1:%a\n\nS2:%a\n\ndiff:%a" S.Dom.pretty v1 S.Dom.pretty v2 S.Dom.pretty_diff (v2,v1); *)
+        f_le ()
+      end else if b2 then begin
+        (* Pretty.printf "greater:\nS1:%a\n\nS2:%a\n\ndiff:%a" S.Dom.pretty v1 S.Dom.pretty v2 S.Dom.pretty_diff (v1,v2); *)
+        f_gr ()
+      end else 
+        f_uk ()
+    in
+    HM.iter f r1;
+    Printf.printf "eq=%d\tle=%d\tgr=%d\tuk=%d\n" !eq !le !gr !uk;
+    r1
+end
+
 let _ =
   let module MakeIsGenericEqBoxSolver : GenericEqBoxSolver = MakeBoxSolver (PropFalse) (PropFalse) (PropFalse) in
   ()
 
+
 let _ =
-  let module M = GlobSolverFromEqSolver(MakeWdiffCMP) in
-  Selector.add_solver ("slr3diff", (module M : GenericGlobSolver))
-  (*Selector.add_solver ("new", (module M : GenericGlobSolver));
-  let module M1 = GlobSolverFromEqSolver(MakeBoxSolver (PropTrue) (PropTrue)) in
+  let module M = GlobSolverFromIneqSolver(MakeWdiffCMPTD) in
+  Selector.add_solver ("slr3diff", (module M : GenericGlobSolver));
+  let module M7 = GlobSolverFromIneqSolver(MakeWdiffCMP) in
+  Selector.add_solver ("cmplocw", (module M7 : GenericGlobSolver));
+  let module M7bis = GlobSolverFromEqSolver(MakeWdiffCMPOld) in
+  Selector.add_solver ("cmplocwold", (module M7bis : GenericGlobSolver));
+  let module M6 = GlobSolverFromIneqSolver(MakeIneqSolver(MakeBoxSolver (PropTrue) (PropFalse) (PropTrue))) in
+  Selector.add_solver ("slr+locw", (module M6 : GenericGlobSolver));
+  let module M6bis = GlobSolverFromEqSolver(MakeBoxSolver (PropTrue) (PropFalse) (PropTrue)) in
+  Selector.add_solver ("slr+locwold", (module M6bis : GenericGlobSolver));
+ 
+(*
+let _ =
+  let module M = GlobSolverFromEqSolver(MakeBoxSolver (PropTrue) (PropFalse) (PropFalse)) in
+  Selector.add_solver ("slr+", (module M : GenericGlobSolver));
+  Selector.add_solver ("new", (module M : GenericGlobSolver));
+  let module M1 = GlobSolverFromEqSolver(MakeBoxSolver (PropTrue) (PropTrue) (PropFalse)) in
   Selector.add_solver ("restart", (module M1 : GenericGlobSolver));
   let module M3 = GlobSolverFromEqSolver(PhasesSolver) in
   Selector.add_solver ("fwtn", (module M3 : GenericGlobSolver));
-  let module M2 = GlobSolverFromEqSolver(MakeWdiffCMP) in
+  let module M2 = GlobSolverFromIneqSolver(MakeWdiffCMP) in
   Selector.add_solver ("cmpwdiff", (module M2 : GenericGlobSolver));
   let module M4 = GlobSolverFromEqSolver(MakeRestartSolverCMP) in
-  Selector.add_solver ("cmprest", (module M4 : GenericGlobSolver))*)
-  
+  Selector.add_solver ("cmprest", (module M4 : GenericGlobSolver));
+  let module M5 = GlobSolverFromIneqSolver(MakeBoxSolverCMP) in
+  Selector.add_solver ("cmpfwtn", (module M5 : GenericGlobSolver));
+  let module M6 = GlobSolverFromIneqSolver(MakeBoxSolver (PropTrue) (PropFalse) (PropTrue)) in
+  Selector.add_solver ("slr+locw", (module M6 : GenericGlobSolver));
+  let module M7 = GlobSolverFromIneqSolver(MakeWLocCMP) in
+  Selector.add_solver ("cmplocw", (module M7 : GenericGlobSolver));
+  let module M8 = GlobSolverFromIneqSolver(MakeBoxSolver (PropTrue) (PropTrue) (PropTrue)) in
+  Selector.add_solver ("slr+locw+restart", (module M8 : GenericGlobSolver));
+  let module M9 = GlobSolverFromIneqSolver(MakeWLocResCMP) in
+  Selector.add_solver ("cmplocwres", (module M9 : GenericGlobSolver));
+*)

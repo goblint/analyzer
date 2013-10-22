@@ -676,6 +676,86 @@ struct
 
 end  
 
+module Compare 
+  (S:Spec)
+  (Sys:GlobConstrSys with module LVar = VarF (S.C)
+                             and module GVar = Basetype.Variables
+                             and module D = S.D
+                             and module G = S.G) 
+  (LH:Hash.H with type key=Sys.LVar.t) 
+  (GH:Hash.H with type key=Sys.GVar.t)  
+  =
+struct
+  open S
+  
+  module PP = Hashtbl.Make (MyCFG.Node) 
+  
+  let compare_locals h1 h2 =
+    let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
+    let f_eq () = incr eq in
+    let f_le () = incr le in
+    let f_gr () = incr gr in
+    let f_uk () = incr uk in
+    let f k v1 = 
+      let v2 = try PP.find h2 k with Not_found -> D.bot () in
+      let b1 = D.leq v1 v2 in
+      let b2 = D.leq v2 v1 in
+      if b1 && b2 then 
+        f_eq ()
+      else if b1 then begin
+        if get_bool "solverdiffs" then
+          ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "solver") D.pretty_diff (v1,v2));
+        f_le ()
+      end else if b2 then begin
+        if get_bool "solverdiffs" then
+          ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "comparesolver") D.pretty_diff (v1,v2));
+        f_gr ()
+      end else 
+        f_uk ()
+    in
+    PP.iter f h1;
+    Printf.printf "locals:  eq=%d\t%s=%d\t%s=%d\tuk=%d\n" !eq (get_string "solver") !le (get_string "comparesolver") !gr !uk
+    
+  let compare_globals g1 g2 =
+    let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
+    let f_eq () = incr eq in
+    let f_le () = incr le in
+    let f_gr () = incr gr in
+    let f_uk () = incr uk in
+    let f k v1 = 
+      let v2 = try GH.find g2 k with Not_found -> G.bot () in
+      let b1 = G.leq v1 v2 in
+      let b2 = G.leq v2 v1 in
+      if b1 && b2 then 
+        f_eq ()
+      else if b1 then begin
+        if get_bool "solverdiffs" then
+          ignore (Pretty.printf "Global %a is more precise using %s:\n%a\n" Sys.GVar.pretty_trace k (get_string "solver") G.pretty_diff (v1,v2));
+        f_le ()
+      end else if b2 then begin
+        if get_bool "solverdiffs" then
+          ignore (Pretty.printf "Global %a is more precise using %s:\n%a\n" Sys.GVar.pretty_trace k (get_string "comparesolver") G.pretty_diff (v1,v2));
+        f_gr ()
+      end else 
+        f_uk ()
+    in
+    GH.iter f g1;
+    Printf.printf "globals: eq=%d\t%s=%d\t%s=%d\tuk=%d\n" !eq (get_string "solver") !le (get_string "comparesolver") !gr !uk
+  
+  let compare (l1,g1) (l2,g2) = 
+    let one_ctx (n,_) v h = 
+      PP.replace h n (try D.join v (PP.find h n) with Not_found -> v);
+      h
+    in
+    let h1 = PP.create 113 in
+    let h2 = PP.create 113 in
+    let _  = LH.fold one_ctx l1 h1 in
+    let _  = LH.fold one_ctx l2 h2 in
+    compare_locals h1 h2;
+    compare_globals g1 g2
+    
+end
+
 (** Verify if the hashmap pair is really a (partial) solution. *)
 module Verify2 
   (S:GlobConstrSys) 

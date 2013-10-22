@@ -26,6 +26,8 @@ struct
     let module Slvr  = Selector.Make (EQSys) (LHT) (GHT) in
     (** The verifyer *)
     let module Vrfyr = Verify2 (EQSys) (LHT) (GHT) in
+    (** The comparator *)
+    let module Comp = Compare (Spec) (EQSys) (LHT) (GHT) in
     (** Another iterator. Set "exp.use_gen_solver" to false. *)
     let module I = IterateLikeAstree (Spec) (Cfg) (GHT) in
 
@@ -242,6 +244,15 @@ struct
     let global_xml = ref (Xml.PCData "not-ready" ) in
     let do_analyze_using_solver () = 
       let lh, gh = Slvr.solve entrystates [] startvars' in
+      
+      if not (get_string "comparesolver"="") then begin
+        let compare_with (module S2 :  GenericGlobSolver) =
+          let module S2' = S2 (EQSys) (LHT) (GHT) in
+          let r2 = S2'.solve entrystates [] startvars' in
+          Comp.compare (lh,gh) (r2)
+        in
+        compare_with (Slvr.choose_solver (get_string "comparesolver"))
+      end;
       
       if not (get_bool "noverify") then begin
         if (get_bool "dbg.verbose") then print_endline "Verifying the result.";
