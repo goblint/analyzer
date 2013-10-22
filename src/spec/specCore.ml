@@ -12,7 +12,8 @@ and exp =
   Var of var |
   Regex of string |
   String of string | Bool of bool | Int of int | Float of float |
-  Binop of string * exp * exp
+  Binop of string * exp * exp |
+  Unop of string * exp
 type stmt = {lval: var option; exp: exp}
 type def = Node of (string * string) | Edge of (string * string list * bool * string * stmt)
 
@@ -87,7 +88,8 @@ let get_fun_args stmt =
     | Var (Ident x) -> `Ident x
     | Fun x     -> `Error "Functions aren't allowed to have functions as an argument (put the function as a previous state instead)"
     | Exp_ -> `Free
-    | Binop (op, a, b) -> `Error "Binops inside function arguments aren't supported, use an simple expression instead."
+    | Unop ("!", Bool x) -> `Bool (not x)
+    | _         -> `Error "Unsupported operation inside function argument, use a simpler expression instead."
   in
   match stmt.exp with
   | Fun f -> List.map get_arg f.args
@@ -108,6 +110,7 @@ let rec exp_to_string = function
   | Int x -> string_of_int x
   | Float x -> string_of_float x
   | Binop (op, a, b) -> exp_to_string a ^ " " ^ op ^ " " ^ exp_to_string b
+  | Unop  (op, a)    -> op ^ " " ^ exp_to_string a
 let stmt_to_string stmt = match stmt.lval, stmt.exp with
   | Some var, exp -> var_to_string var^" = "^exp_to_string exp
   | None, exp -> exp_to_string exp
