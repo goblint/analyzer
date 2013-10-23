@@ -97,6 +97,7 @@ struct
   let in_state k state m = must k (fun x -> x.state = state) m
   let may_in_state k state m = may k (fun x -> x.state = state) m
   let get_states k m = if not (mem k m) then [] else List.map (fun x -> x.state) (V.recordsList (find k m))
+
   let string_of_state k m = if not (mem k m) then "?" else match find k m with
     | Must x -> x.state
     | xs -> "["^String.concat ", " (List.map (fun x -> x.state) (V.recordsList xs))^"]"

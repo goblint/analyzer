@@ -87,7 +87,7 @@ struct
       -> if the result is the same as tv, do the corresponding transition, otherwise remove the entry from the domain
       for pointers this won't help since it always returns `Top *)
     (match ctx.ask (Queries.EvalInt exp) with
-      | `Int i (* when (Queries.ID.is_bool i) *) -> 
+      | `Int i (* when (Queries.ID.is_bool i) *) ->
           (match Queries.ID.to_bool i with
           | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
           | _ -> M.debug_each "EvalInt: `Int no bool")
@@ -119,7 +119,7 @@ struct
         (* compare SC.exp with Cil.exp and tv *)
         let branch_exp_eq c exp tv =
           (* let c_str = match SC.branch_exp c with Some (exp,tv) -> SC.exp_to_string exp | _ -> "" in
-          let c_str = Str.global_replace (Str.regexp_string "$key") "%e:key" c_str in 
+          let c_str = Str.global_replace (Str.regexp_string "$key") "%e:key" c_str in
           let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_exp key))] in *)
           (* c_exp=exp *) (* leads to Out_of_memory *)
           match SC.branch_exp c with
@@ -127,7 +127,7 @@ struct
             (* let exp_str = Pretty.sprint 80 (d_exp () exp) in *) (* contains too many casts, so that matching fails *)
             let exp_str = Pretty.sprint 80 (d_exp () binop) in
             let c_str = SC.exp_to_string c_exp in
-            let c_str = Str.global_replace (Str.regexp_string "$key") (D.string_of_key key) c_str in 
+            let c_str = Str.global_replace (Str.regexp_string "$key") (D.string_of_key key) c_str in
             (* ignore(printf "branch_exp_eq: '%s' '%s' -> %B\n" c_str exp_str (c_str=exp_str)); *)
             c_str=exp_str && c_tv=tv
           | _ -> false
@@ -344,7 +344,7 @@ struct
             M.debug_each ("Key variant for "^f.vname^": `Lval "^s^". \027[30m "^SC.stmt_to_string c);
             lval
           | `Arg(s, i) ->
-            M.debug_each ("Key variant for "^f.vname^": `Arg("^s^", "^string_of_int i^")"^". "^SC.stmt_to_string c); 
+            M.debug_each ("Key variant for "^f.vname^": `Arg("^s^", "^string_of_int i^")"^". "^SC.stmt_to_string c);
             (try
               let arg = List.at arglist i in
               match arg with
@@ -486,5 +486,5 @@ struct
   let exitstate  v = D.bot ()
 end
 
-let _ = 
+let _ =
   MCP.register_analysis (module Spec : Spec)

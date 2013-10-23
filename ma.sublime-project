@@ -6,7 +6,9 @@
 			[
 				"_build",
 				"obj",
+				"result",
 				"src",
+				".vagrant",
 				"webapp"
 			],
 			"path": "."
