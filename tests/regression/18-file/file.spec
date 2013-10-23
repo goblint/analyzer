@@ -44,6 +44,7 @@ open_write -w7>> 1          $fp = fopen($path, _)
 
 open_read  -> closed        fclose($fp)
 open_write -> closed        fclose($fp)
+
 closed     -> w5            fclose($fp)
 closed     -> w6            fprintf($fp, _)
 closed     ->> 1            _ // let state 1 handle the rest
