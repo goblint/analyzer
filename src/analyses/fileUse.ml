@@ -13,12 +13,12 @@ struct
   include Analyses.DefaultSpec
 
   let name = "file"
-  module D = FileDomain.FileUses
-  module C = FileDomain.FileUses
+  module D = FileDomain.Dom
+  module C = FileDomain.Dom
   module G = Lattice.Unit
   open D.V.T
 
-
+  (* special variables *)
   let return_var   = Cil.makeVarinfo false "@return"   Cil.voidType
   let stack_var    = Cil.makeVarinfo false "@stack"    Cil.voidType
   let unclosed_var = Cil.makeVarinfo false "@unclosed" Cil.voidType
@@ -28,35 +28,46 @@ struct
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
-      (* | Queries.MayEscape v -> `Bool (D.mem v ctx.local) *)
       | _ -> Queries.Result.top ()
+
+  let query_lv ask exp =
+    match ask (Queries.MayPointTo exp) with
+      | `LvalSet l when not (Queries.LS.is_top l) ->
+          Queries.LS.elements l
+      | _ -> []
+
+  let rec eval_fv ask (exp:Cil.exp): varinfo option =
+    match query_lv ask exp with
+      | [(v,_)] -> Some v
+      | _ -> None
+
+  let print_query_lv ?msg:(msg="") ask exp =
+    let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
+    M.debug_each (msg^" MayPointTo "^(Pretty.sprint 80 (d_exp () exp))^" = ["
+      ^(String.concat ", " (List.map (Lval.CilLval.short 80) xs))^"]")
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
     let m = ctx.local in
-    match lval with
-      | Var var, offset when D.mem var m -> (* var in domain is modified *)
-(*           (match rval, ctx.ask (Queries.MayPointTo rval) with (* assignment from other var in domain? *)
-            | Lval(Var varinfo, _), _ when D.mem varinfo m ->
-                M.write ("Lval: Assigned other file handle "^var.vname^" = "^varinfo.vname);
-                D.addMay var (D.find varinfo m) (D.may var m)
-            | _, `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a = 1
-              && D.mem (fst (Queries.LS.choose a)) m ->
-                let varinfo = fst (Queries.LS.choose a) in
-                M.write ("Query: Assigned other file handle "^var.vname^" = "^varinfo.vname);
-                D.addMay var (D.find varinfo m) (D.may var m)
-            | _ -> M.report ("changed file pointer "^var.vname^" (no longer safe)");
-                   D.may var m
-          ) *)
-          M.report ("changed file pointer "^var.vname^" (no longer safe)");
-          (* save maybe opened files in the domain to warn about maybe unclosed files at the end *)
-          let m = if D.may var D.V.opened m && not (D.is_unknown var m) then ( (* if unknown we don't have any location for the warning and have handled it already anyway *)
-            let mustOpen, mayOpen = D.filter_records var D.V.opened m in
-            D.extend_value unclosed_var (Set.empty, mayOpen) m
-          ) else m in
-          D.unknown var m
-      | _ -> m
+    (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
+    let saveOpened k m = (* save maybe opened files in the domain to warn about maybe unclosed files at the end *)
+      if D.may k D.V.opened m && not (D.is_unknown k m) then (* if unknown we don't have any location for the warning and have handled it already anyway *)
+        let mustOpen, mayOpen = D.filter_records k D.V.opened m in
+        D.extend_value unclosed_var (Set.empty, mayOpen) m
+      else m
+    in
+    match lval, rval with (* we just care about Lval assignments *)
+      | (Var v1, o1), Lval(Var v2, o2) when v1=v2 -> m (* do nothing on self-assignment *)
+      | (Var v1, o1), Lval(Var v2, o2) when D.mem v1 m && D.mem v2 m -> (* both in D *)
+          saveOpened v1 m |> D.remove v1 |> D.alias v1 v2
+      | (Var v1, o1), Lval(Var v2, o2) when D.mem v1 m -> (* only v1 in D *)
+          saveOpened v1 m |> D.remove v1
+      | (Var v1, o1), Lval(Var v2, o2) when D.mem v2 m -> (* only v2 in D *)
+          D.alias v1 v2 m
+      | (Var v1, o1), _ when D.mem v1 m -> (* v1 in D and assign something unknown *)
+          M.report ("changed file pointer "^v1.vname^" (no longer safe)");
+          saveOpened v1 m |> D.unknown v1
+      | _ -> m (* no change in D for other things *)
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     let m = ctx.local in
@@ -150,17 +161,6 @@ struct
           D.add var rval (D.remove return_var au)
       | _ -> au
 
-  let query_lv ask exp =
-    match ask (Queries.MayPointTo exp) with
-      | `LvalSet l when not (Queries.LS.is_top l) ->
-          Queries.LS.elements l
-      | _ -> []
-
-  let rec eval_fv ask (exp:Cil.exp): varinfo option =
-    match query_lv ask exp with
-      | [(v,_)] -> Some v
-      | _ -> None
-
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let m = ctx.local in
     let ret dom = dom in
@@ -252,5 +252,5 @@ struct
   let exitstate  v = D.bot ()
 end
 
-let _ = 
+let _ =
   MCP.register_analysis (module Spec : Spec)

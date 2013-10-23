@@ -18,9 +18,9 @@ struct
   module G = Lattice.Unit
   open D.V.T
 
-
+  (* special variables *)
   let return_var = Cil.makeVarinfo false "@return" Cil.voidType, `NoOffset
-  let stack_var = Cil.makeVarinfo false "@stack" Cil.voidType, `NoOffset
+  let stack_var  = Cil.makeVarinfo false "@stack"  Cil.voidType, `NoOffset
   let global_var = Cil.makeVarinfo false "@global" Cil.voidType, `NoOffset
 
   let nodes = ref []

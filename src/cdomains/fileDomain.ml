@@ -9,7 +9,7 @@ module M = Messages
 exception Unknown
 exception Error
 
-module Value =
+module Val =
 struct
   module T =
   struct
@@ -65,7 +65,7 @@ struct
   let bot ()   = raise Unknown (* called in MapDomain.MapBot(K)(V).find *)
   let is_bot x = false
 
-  (* properties for records (e.g. used by FileUses.report) *)
+  (* properties for records (e.g. used by Dom.report) *)
   let opened   r = r.state <> Closed && r.state <> Error
   let closed   r = r.state = Closed
   let writable r = match r.state with Open((_,Write)) -> true | _ -> false
@@ -79,11 +79,11 @@ struct
   let union (a,b) (c,d) = Set.union a c, Set.union b d
 end
 
-module FileUses  =
+module Dom =
 struct
   module K = Basetype.Variables
-  module V = Value
-  module MD = MapDomain.MapBot (Basetype.Variables) (Value)
+  module V = Val
+  module MD = MapDomain.MapBot (Basetype.Variables) (Val)
   include MD
   (* Used to access additional functions of Map.
   Can't use BatMap because type is not compatible with MD.
@@ -153,6 +153,9 @@ struct
     (* output first must and first may *)
     if List.length must_true > 0 then (List.hd must_true) ();
     if List.length may_true  > 0 then (List.hd may_true) ()
+
+  (* TODO save alias somehow *)
+  let alias a b m = add a (find b m) m
 
   let unknown k m = add k (Set.empty, Set.empty) m
   let is_unknown k m = if mem k m then V.is_top (find k m) else false

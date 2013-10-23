@@ -70,7 +70,7 @@ struct
 end
 
 
-module Dom  =
+module Dom =
 struct
   module K = Lval.CilLval
   module V = Val
