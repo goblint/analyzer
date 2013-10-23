@@ -50,10 +50,11 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let m = ctx.local in
     (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
-    let saveOpened k m = (* save maybe opened files in the domain to warn about maybe unclosed files at the end *)
+    let saveOpened ?unknown:(unknown=false) k m = (* save maybe opened files in the domain to warn about maybe unclosed files at the end *)
       if D.may k D.V.opened m && not (D.is_unknown k m) then (* if unknown we don't have any location for the warning and have handled it already anyway *)
         let mustOpen, mayOpen = D.filter_records k D.V.opened m in
-        D.extend_value unclosed_var (Set.empty, mayOpen) m
+        let mustOpen, mayOpen = if unknown then Set.empty, mayOpen else mustOpen, Set.diff mayOpen mustOpen in
+        D.extend_value unclosed_var (mustOpen, mayOpen) m
       else m
     in
     match lval, rval with (* we just care about Lval assignments *)
@@ -66,7 +67,7 @@ struct
           D.alias v1 v2 m
       | (Var v1, o1), _ when D.mem v1 m -> (* v1 in D and assign something unknown *)
           M.report ("changed file pointer "^v1.vname^" (no longer safe)");
-          saveOpened v1 m |> D.unknown v1
+          saveOpened ~unknown:true v1 m |> D.unknown v1
       | _ -> m (* no change in D for other things *)
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -132,7 +133,7 @@ struct
     let au = match exp with
       | Some(Lval(Var(varinfo),offset)) ->
           (* M.write ("return variable "^varinfo.vname^" (dummy: "^return_var.vname^")"); *)
-          D.add return_var (D.find varinfo m) m
+          D.add return_var (D.find' varinfo m) m
       | _ -> m
     in
     (* remove formals and locals *)

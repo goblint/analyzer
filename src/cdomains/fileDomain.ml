@@ -25,6 +25,14 @@ struct
   include T
   type t = t'
 
+  (* special variable used for indirection *)
+  let alias_var = Cil.makeVarinfo false "@alias" Cil.voidType
+  let var_set var = Set.singleton {var=var; loc=[]; state=Closed}
+  (* alias structure: x[0].var=alias_var, y[0].var=linked_var *)
+  let is_alias (x,y) = x<>Set.empty && (Set.choose x).var=alias_var
+  let get_alias (x,y) = (Set.choose y).var
+  let make_alias var = var_set alias_var, var_set var
+
   let string_of_record r =
     let loc xs = String.concat ", " (List.map (fun r -> string_of_int r.line) xs) in
     let mode r = match r with Read -> "Read" | Write -> "Write" in
@@ -95,7 +103,22 @@ struct
   (* val bindings : 'a t -> (key * 'a) list
   Return the list of all bindings of the given map. The returned list is sorted in increasing order with respect to the ordering Ord.compare, where Ord is the argument given to Map.Make. *)
   (* own map functions *)
-  let find_option k m = if mem k m then Some(find k m) else None
+  (* find that resolves aliases *)
+  let find' k m = let v = find k m in if V.is_alias v then find (V.get_alias v) m else v
+  let find_option k m = if mem k m then Some(find' k m) else None
+  let add' k v m =
+    if mem k m then
+      let v' = find k m in
+      if V.is_alias v' then (* previous value was an alias *)
+        add (V.get_alias v') v m (* replace its pointee *)
+      else add k v m
+    else add k v m
+  let alias a b m =
+    let v = find b m in
+    (* if b is already an alias, follow it... *)
+    let b' = if V.is_alias v then V.get_alias v else b in
+    (* now the entry for a should be an alias pointing to b' *)
+    add a (V.make_alias b') m
 
   (* domain specific *)
   let filter_values p m =
@@ -105,7 +128,7 @@ struct
     let xs, ys = List.split values in
     let flatten_set xs = List.fold_left (fun x y -> Set.union x y) Set.empty xs in
     flatten_set xs, flatten_set ys
-  let filter_records k p m = if mem k m then let v = find k m in V.filter p v else Set.empty, Set.empty
+  let filter_records k p m = if mem k m then let v = find' k m in V.filter p v else Set.empty, Set.empty
 
   (* used for special variables *)
   let get_record k m =
@@ -126,8 +149,8 @@ struct
     else
       add k v m
 
-  let must k p m = if mem k m then V.must p (find k m) else false
-  let may  k p m = if mem k m then V.may  p (find k m) else false
+  let must k p m = if mem k m then V.must p (find' k m) else false
+  let may  k p m = if mem k m then V.may  p (find' k m) else false
 
   (* returns a tuple (thunk, result) *)
   let report_ ?neg:(neg=false) k p msg m =
@@ -137,7 +160,7 @@ struct
     let mf = (fun () -> ()), `Must false in
     if mem k m then
       let p = if neg then not % p else p in
-      let v = find k m in
+      let v = find' k m in
       if V.must p v then f msg (* must *)
       else if V.may p v then f ~may:true msg (* may *)
       else mf (* none *)
@@ -154,25 +177,22 @@ struct
     if List.length must_true > 0 then (List.hd must_true) ();
     if List.length may_true  > 0 then (List.hd may_true) ()
 
-  (* TODO save alias somehow *)
-  let alias a b m = add a (find b m) m
-
-  let unknown k m = add k (Set.empty, Set.empty) m
-  let is_unknown k m = if mem k m then V.is_top (find k m) else false
+  let unknown k m = add' k (Set.empty, Set.empty) m
+  let is_unknown k m = if mem k m then V.is_top (find' k m) else false
 
   let fopen k loc filename mode m =
     if is_unknown k m then m else
     let mode = match String.lowercase mode with "r" -> Read | _ -> Write in
     let x = Set.singleton (V.create k loc (Open(filename, mode))) in
-    add k (x,x) m
+    add' k (x,x) m
   let fclose k loc m =
     if is_unknown k m then m else
     let x = Set.singleton (V.create k loc Closed) in
-    add k (x,x) m
+    add' k (x,x) m
   let error k m =
     if is_unknown k m then m else
-    let loc = if mem k m then let v = Set.choose (snd (find k m)) in v.loc else [] in
+    let loc = if mem k m then let v = Set.choose (snd (find' k m)) in v.loc else [] in
     let x = Set.singleton (V.create k loc Error) in
-    add k (x,x) m
+    add' k (x,x) m
 
 end
