@@ -152,11 +152,14 @@ struct
   let must k p m = if mem k m then V.must p (find' k m) else false
   let may  k p m = if mem k m then V.may  p (find' k m) else false
 
+  let warn ?may:(may=false) ?loc:(loc= !Tracing.current_loc) msg =
+    M.report ~loc:loc (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
+
   (* returns a tuple (thunk, result) *)
   let report_ ?neg:(neg=false) k p msg m =
-    let f ?may:(may=false) s =
-      let f () = Messages.report (if may then ("MAYBE "^s) else s) in
-      if may then f, `May true else f, `Must true in
+    let f ?may:(may=false) msg =
+      let f () = warn ~may:may msg in
+      f, if may then `May true else `Must true in
     let mf = (fun () -> ()), `Must false in
     if mem k m then
       let p = if neg then not % p else p in

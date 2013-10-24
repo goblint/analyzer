@@ -66,7 +66,7 @@ struct
       | (Var v1, o1), Lval(Var v2, o2) when D.mem v2 m -> (* only v2 in D *)
           D.alias v1 v2 m
       | (Var v1, o1), _ when D.mem v1 m -> (* v1 in D and assign something unknown *)
-          M.report ("changed file pointer "^v1.vname^" (no longer safe)");
+          D.warn ("changed file pointer "^v1.vname^" (no longer safe)");
           saveOpened ~unknown:true v1 m |> D.unknown v1
       | _ -> m (* no change in D for other things *)
 
@@ -97,7 +97,7 @@ struct
     | e -> ignore(printf "nothing matched the given exp (check special_fn):\n%a\n" d_plainexp e); m
 
   let body ctx (f:fundec) : D.t =
-    (* M.report ("body of function "^f.svar.vname); *)
+    (* M.debug_each ("body of function "^f.svar.vname); *)
     ctx.local
 
   let callStack m = match D.get_record stack_var m with
@@ -109,26 +109,26 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* TODO check One Return transformation: oneret.ml *)
     let m = ctx.local in
-    (* M.report ("return: ctx.local="^(D.short 50 ctx.local)^(callStackStr m)); *)
+    (* M.debug_each ("return: ctx.local="^(D.short 50 ctx.local)^(callStackStr m)); *)
     (* if f.svar.vname <> "main" && BatList.is_empty (callStack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
       (* list of unique variable names as string *)
       let vnames xs = String.concat ", " (List.unique (List.map (fun v -> v.var.vname) (Set.elements xs))) in (* creating a new Set of unique strings with Set.map doesn't work :/ *)
       let mustOpen, mayOpen = D.V.union (D.filter_values D.V.opened m) (D.get_value unclosed_var m) in
       if Set.cardinal mustOpen > 0 then (
-        M.report ("unclosed files: "^(vnames mustOpen));
-        Set.iter (fun v -> M.report ~loc:(BatList.last v.loc) "file is never closed") mustOpen;
+        D.warn ("unclosed files: "^(vnames mustOpen));
+        Set.iter (fun v -> D.warn ~loc:(BatList.last v.loc) "file is never closed") mustOpen;
         (* add warnings about currently open files (don't include overwritten or changed file handles!) *)
         warned_unclosed := Set.union !warned_unclosed (fst (D.filter_values D.V.opened m)) (* can't save in domain b/c it wouldn't reach the other return *)
       );
       (* go through files "never closed" and recheck for current return *)
-      Set.iter (fun v -> if D.must v.var D.V.closed m then M.report ~loc:(BatList.last v.loc) "MAYBE file is never closed") !warned_unclosed;
+      Set.iter (fun v -> if D.must v.var D.V.closed m then D.warn ~may:true ~loc:(BatList.last v.loc) "file is never closed") !warned_unclosed;
       (* let mustOpenVars = List.map (fun x -> x.var) mustOpen in *)
       (* let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpen in (* ignore values that are already in mustOpen *) *)
       let mayOpen = Set.diff mayOpen mustOpen in
       if Set.cardinal mayOpen > 0 then
-        M.report ("MAYBE unclosed files: "^(vnames mayOpen));
-        Set.iter (fun v -> M.report ~loc:(BatList.last v.loc) "MAYBE file is never closed") mayOpen
+        D.warn ~may:true ("unclosed files: "^(vnames mayOpen));
+        Set.iter (fun v -> D.warn ~may:true ~loc:(BatList.last v.loc) "file is never closed") mayOpen
     );
     let au = match exp with
       | Some(Lval(Var(varinfo),offset)) ->
@@ -146,13 +146,13 @@ struct
     D.add_record stack_var v m
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    (* M.report ("entering function "^f.vname^(callStackStr ctx.local)); *)
+    (* M.debug_each ("entering function "^f.vname^(callStackStr ctx.local)); *)
     let m = if f.vname <> "main" then
       editStack (BatList.cons !Tracing.current_loc) ctx.local
     else ctx.local in [m,m]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    (* M.report ("leaving function "^f.vname^(callStackStr au)); *)
+    (* M.debug_each ("leaving function "^f.vname^(callStackStr au)); *)
     let au = editStack List.tl au in
     let return_val = D.find_option return_var au in
     match lval, return_val with
@@ -193,7 +193,7 @@ struct
       else retf (List.fold_left (fun m v -> D.unknown v (f m v)) m xs) in (* TODO replaced may with top -> fix *)
     match lval, f.vname, arglist with
       | None, "fopen", _ ->
-          M.report "file handle is not saved!"; dummy
+          D.warn "file handle is not saved!"; dummy
       | Some lval, "fopen", _ -> (* TODO: also return a domain where fp = NULL (error case) *)
           let f m varinfo =
             (* opened again, not closed before *)
@@ -204,18 +204,19 @@ struct
             let m = D.extend_value unclosed_var (mustOpen, mayOpen) m in
             (match arglist with
               | Const(CStr(filename))::Const(CStr(mode))::[] ->
-                  (* M.report ("fopen(\""^filename^"\", \""^mode^"\")"); *)
+                  (* M.debug_each ("fopen(\""^filename^"\", \""^mode^"\")"); *)
                   D.fopen varinfo dloc filename mode m
               | e::Const(CStr(mode))::[] ->
                   (* ignore(printf "CIL: %a\n" d_plainexp e); *)
                   (match ctx.ask (Queries.EvalStr e) with
                     | `Str filename -> D.fopen varinfo dloc filename mode m
-                    | _ -> M.report "no result from query"; m (* TODO open with unknown filename *)
+                    | _ -> D.warn "unknown filename"; D.fopen varinfo dloc "???" mode m
                   )
               | xs ->
-                  M.report (String.concat ", " (List.map (fun x -> Pretty.sprint 80 (d_exp () x)) xs));
-                  List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs;
-                  M.report "fopen needs two strings as arguments"; m
+                  let args = (String.concat ", " (List.map (fun x -> Pretty.sprint 80 (d_exp () x)) xs)) in
+                  M.debug ("fopen args: "^args);
+                  (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
+                  D.warn ("fopen needs two strings as arguments, given: "^args); m
             )
           in ret_all ~ret:(ret_branch_err lval) f lval
 
@@ -228,7 +229,7 @@ struct
             D.fclose varinfo dloc m
           in ret_all f fp
       | _, "fclose", _ ->
-          M.report "fclose needs exactly one argument"; dummy
+          D.warn "fclose needs exactly one argument"; dummy
 
       | _, "fprintf", (Lval fp)::_::_ ->
           let f m varinfo =
@@ -241,10 +242,10 @@ struct
           in ret_all f fp
       | _, "fprintf", fp::_::_ ->
           (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) arglist; *)
-          List.iter (fun exp -> M.report ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp);
-          M.report "printf not Lval"; dummy
+          List.iter (fun exp -> M.debug ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp);
+          D.warn "first argument to printf must be a Lval"; dummy
       | _, "fprintf", _ ->
-          M.report "fprintf needs at least two arguments"; dummy
+          D.warn "fprintf needs at least two arguments"; dummy
 
       | _ -> dummy
 
