@@ -106,29 +106,37 @@ struct
   (* find that resolves aliases *)
   let find' k m = let v = find k m in if V.is_alias v then find (V.get_alias v) m else v
   let find_option k m = if mem k m then Some(find' k m) else None
+  let get_alias k m = (* returns Some k' if k links to k' *)
+    if mem k m && V.is_alias (find k m) then Some (V.get_alias (find k m)) else None
+  let get_aliased_by k m = (* get list of keys that link to k *)
+    filter (fun k' v -> V.is_alias v && V.get_alias v=k) m |> MDMap.bindings |> List.map fst
   let add' k v m =
-    if mem k m then
-      let v' = find k m in
-      if V.is_alias v' then (* previous value was an alias *)
-        add (V.get_alias v') v m (* replace its pointee *)
-      else add k v m
-    else add k v m
+    match get_alias k m with (* check if previous value was an alias *)
+    | Some k' -> add k' v m (* replace its pointee k' *)
+    | None -> add k v m
   let alias a b m =
     let v = find b m in
     (* if b is already an alias, follow it... *)
     let b' = if V.is_alias v then V.get_alias v else b in
     (* now the entry for a should be an alias pointing to b' *)
     add a (V.make_alias b') m
+  let remove' k m = (* fixes keys that link to k before removing it *)
+    if mem k m && not (V.is_alias (find k m)) then (* k might be aliased *)
+      let v = find k m in
+      match get_aliased_by k m with
+      | [] -> remove k m (* nothing links to k *)
+      | k'::xs -> let m = add k' v m in (* set k' to v, link xs to k', finally remove k *)
+          List.fold_left (fun m x -> alias x k' m) m xs |> remove k
+    else remove k m (* k not in m or an alias *)
 
   (* domain specific *)
-  let filter_values p m =
-    let filtered_map = filter (fun k v -> V.may p v) m in
-    let bindings = MDMap.bindings filtered_map in
-    let values = List.map (fun (k,v) -> V.filter p v) bindings in
-    let xs, ys = List.split values in
-    let flatten_set xs = List.fold_left (fun x y -> Set.union x y) Set.empty xs in
-    flatten_set xs, flatten_set ys
-  let filter_records k p m = if mem k m then let v = find' k m in V.filter p v else Set.empty, Set.empty
+  let filter_values p m = (* filters all values in the map and flattens result *)
+    let flatten_sets = List.fold_left Set.union Set.empty in
+    filter (fun k v -> V.may p v && not (V.is_alias v)) m
+    |> MDMap.bindings |> List.map (fun (k,v) -> V.filter p v)
+    |> List.split |> (fun (x,y) -> flatten_sets x, flatten_sets y)
+  let filter_records k p m = (* filters both sets of k *)
+    if mem k m then let v = find' k m in V.filter p v else Set.empty, Set.empty
 
   (* used for special variables *)
   let get_record k m =

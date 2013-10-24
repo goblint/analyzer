@@ -60,9 +60,9 @@ struct
     match lval, rval with (* we just care about Lval assignments *)
       | (Var v1, o1), Lval(Var v2, o2) when v1=v2 -> m (* do nothing on self-assignment *)
       | (Var v1, o1), Lval(Var v2, o2) when D.mem v1 m && D.mem v2 m -> (* both in D *)
-          saveOpened v1 m |> D.remove v1 |> D.alias v1 v2
+          saveOpened v1 m |> D.remove' v1 |> D.alias v1 v2
       | (Var v1, o1), Lval(Var v2, o2) when D.mem v1 m -> (* only v1 in D *)
-          saveOpened v1 m |> D.remove v1
+          saveOpened v1 m |> D.remove' v1
       | (Var v1, o1), Lval(Var v2, o2) when D.mem v2 m -> (* only v2 in D *)
           D.alias v1 v2 m
       | (Var v1, o1), _ when D.mem v1 m -> (* v1 in D and assign something unknown *)
@@ -137,7 +137,7 @@ struct
       | _ -> m
     in
     (* remove formals and locals *)
-    List.fold_left (fun m var -> D.remove var m) au (f.sformals @ f.slocals)
+    List.fold_left (fun m var -> D.remove' var m) au (f.sformals @ f.slocals)
 
   let editStack f m =
     let v = match D.get_record stack_var m with
@@ -159,7 +159,7 @@ struct
       | Some (Var var, offset), Some rval ->
           (* M.write ("setting "^var.vname^" to content of "^(D.V.vnames rval)); *)
           let rval = D.V.rebind rval var in (* change rval.var to lval *)
-          D.add var rval (D.remove return_var au)
+          D.add var rval (D.remove' return_var au)
       | _ -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
