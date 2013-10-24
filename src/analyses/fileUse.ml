@@ -83,7 +83,7 @@ struct
           (* ignore(printf "error-branch\n"); *)
           D.error v m
         )else
-          m
+          D.success v m
       | _ -> ignore(printf "nothing matched the given BinOp: %a = %a\n" d_plainexp a d_plainexp b); m
     in
     match stripCasts (constFold true exp) with

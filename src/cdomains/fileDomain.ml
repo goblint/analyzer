@@ -194,5 +194,11 @@ struct
     let loc = if mem k m then let v = Set.choose (snd (find' k m)) in v.loc else [] in
     let x = Set.singleton (V.create k loc Error) in
     add' k (x,x) m
+  let success k m =
+    if is_unknown k m then m else
+    let v = find' k m in
+    let x,y = V.filter V.opened v in
+    let v = if x = Set.empty && Set.cardinal y = 1 then y,y else x,y in
+    add' k v m
 
 end
