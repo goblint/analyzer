@@ -152,6 +152,17 @@ struct
       edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
     else ctx.local in [m,m]
 
+  let check_overwrite_open k m =
+    if List.is_empty (D.get_aliases k m) then (
+      (* there are no other variables pointing to the file handle
+         and it is opened again without being closed before *)
+      D.report k D.V.opened ("overwriting still opened file handle "^k.vname) m;
+      let mustOpen, mayOpen = D.filter_records k D.V.opened m in
+      let mayOpen = Set.diff mayOpen mustOpen in
+      (* save opened files in the domain to warn about unclosed files at the end *)
+      D.extend_value unclosed_var (mustOpen, mayOpen) m
+    ) else m
+
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     (* M.debug_each ("leaving function "^f.vname^(string_of_callstack au)); *)
     let au = edit_callstack List.tl au in
@@ -159,7 +170,8 @@ struct
     match lval, return_val with
       | Some (Var var, offset), Some v ->
           (* M.write ("setting "^var.vname^" to content of "^(D.V.vnames v)); *)
-          let au = D.remove' return_var au in
+          (* remove special return var and handle potential overwrites *)
+          let au = D.remove' return_var au |> check_overwrite_open var in
           (* if v.var is still in D, then it must be a global and we need to alias instead of rebind *)
           (* TODO what if there is a local with the same name as the global? *)
           if D.V.is_top v then (* returned a local that was top -> just add var as top *)
@@ -209,15 +221,7 @@ struct
           D.warn "file handle is not saved!"; dummy
       | Some lval, "fopen", _ ->
           let f m varinfo =
-            let m = if List.is_empty (D.get_aliases varinfo m) then (
-              (* there are no other variables pointing to the file handle
-                 and it is opened again without being closed before *)
-              D.report varinfo D.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
-              let mustOpen, mayOpen = D.filter_records varinfo D.V.opened m in
-              let mayOpen = Set.diff mayOpen mustOpen in
-              (* save opened files in the domain to warn about unclosed files at the end *)
-              D.extend_value unclosed_var (mustOpen, mayOpen) m
-            ) else m in
+            let m = check_overwrite_open varinfo m in
             (match arglist with
               | Const(CStr(filename))::Const(CStr(mode))::[] ->
                   (* M.debug_each ("fopen(\""^filename^"\", \""^mode^"\")"); *)

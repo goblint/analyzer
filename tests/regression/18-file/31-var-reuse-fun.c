@@ -1,17 +1,14 @@
 #include <stdio.h>
 
 FILE* myfopen(char* f){
-  	FILE* fp;
-  	fp = fopen(f, "a");
-  	return fp;
+	FILE* fp;
+	fp = fopen(f, "a");
+	return fp;
 }
 
 int main(){
 	FILE *fp;
-  	fp = fopen("test1.txt", "a"); // fp is now in D
-    // also should warn about not closed and overwriting...
-	fp = myfopen("test2.txt"); // is myfopen::fp now treated as a global and aliased?
+	fp = fopen("test1.txt", "a"); // WARN: file is never closed
+	fp = myfopen("test2.txt"); // WARN: overwriting still opened file handle fp
 	fclose(fp);
-}
-
-// All ok!
+} // WARN: unclosed files: fp

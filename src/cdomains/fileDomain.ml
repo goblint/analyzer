@@ -101,10 +101,7 @@ struct
   module MDMap = OMap.Make (Basetype.Variables) (* why does OMap.Make (K) not work? *)
   open V.T
 
-  (* other Map functions *)
-  (* val bindings : 'a t -> (key * 'a) list
-  Return the list of all bindings of the given map. The returned list is sorted in increasing order with respect to the ordering Ord.compare, where Ord is the argument given to Map.Make. *)
-  (* own map functions *)
+  (* Map functions *)
   (* find that resolves aliases *)
   let find' k m = let v = find k m in if V.is_alias v then find (V.get_alias v) m else v
   let find_option k m = if mem k m then Some(find' k m) else None
@@ -133,9 +130,6 @@ struct
           List.fold_left (fun m x -> alias x k' m) m xs |> remove k
     else remove k m (* k not in m or an alias *)
   let add' k v m =
-(*     match get_alias k m with (* check if previous value was an alias *)
-    | Some k' -> add k' v m (* replace its pointee k' *)
-    | None -> (* add k v m *) *)
     remove' k m (* fixes keys that might have linked to k *)
     |> add k v (* set new value *)
   let change k v m = (* if k is an alias, replace its pointee *)
