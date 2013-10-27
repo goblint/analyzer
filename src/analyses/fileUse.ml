@@ -23,6 +23,16 @@ struct
   let callstack_var = Cil.makeVarinfo false "@callstack" Cil.voidType
   let unclosed_var  = Cil.makeVarinfo false "@unclosed"  Cil.voidType
 
+  (* callstack for locations *)
+  let callstack m = match D.get_record callstack_var m with
+      | Some x -> x.loc
+      | _ -> []
+  let string_of_callstack m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m)))^"]"
+  let edit_callstack f m =
+    let v = D.get_record callstack_var m |? Set.choose @@ D.V.make_var_set callstack_var in
+    D.add_record callstack_var {v with loc=(f v.loc)} m
+
+  (* keys that were already warned about; needed for multiple returns (i.e. can't be kept in D) *)
   let warned_unclosed = ref Set.empty
 
   (* queries *)
@@ -36,7 +46,7 @@ struct
           Queries.LS.elements l
       | _ -> []
 
-  let rec eval_fv ask (exp:Cil.exp): varinfo option =
+  let rec eval_fv ask exp: varinfo option =
     match query_lv ask exp with
       | [(v,_)] -> Some v
       | _ -> None
@@ -45,6 +55,7 @@ struct
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
     M.debug_each (msg^" MayPointTo "^(Pretty.sprint 80 (d_exp () exp))^" = ["
       ^(String.concat ", " (List.map (Lval.CilLval.short 80) xs))^"]")
+
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -100,12 +111,6 @@ struct
     (* M.debug_each ("body of function "^f.svar.vname); *)
     ctx.local
 
-  let callstack m = match D.get_record callstack_var m with
-      | Some x -> x.loc
-      | _ -> []
-
-  let string_of_callstack m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m)))^"]"
-
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* TODO check One Return transformation: oneret.ml *)
     let m = ctx.local in
@@ -142,17 +147,13 @@ struct
     (* remove formals and locals *)
     List.fold_left (fun m var -> D.remove' var m) au (f.sformals @ f.slocals)
 
-  let edit_callstack f m =
-    let v = D.get_record callstack_var m |? Set.choose @@ D.V.make_var_set callstack_var in
-    D.add_record callstack_var {v with loc=(f v.loc)} m
-
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (* M.debug_each ("entering function "^f.vname^(string_of_callstack ctx.local)); *)
     let m = if f.vname <> "main" then
       edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
     else ctx.local in [m,m]
 
-  let check_overwrite_open k m =
+  let check_overwrite_open k m = (* used in combine and special *)
     if List.is_empty (D.get_aliases k m) then (
       (* there are no other variables pointing to the file handle
          and it is opened again without being closed before *)

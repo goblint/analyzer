@@ -86,7 +86,6 @@ struct
   let opened   r = r.state <> Closed && r.state <> Error
   let closed   r = r.state = Closed
   let writable r = match r.state with Open((_,Write)) -> true | _ -> false
-
 end
 
 module Dom =
@@ -217,5 +216,4 @@ struct
     let x,y = V.filter V.opened v in
     let v = if x = Set.empty && Set.cardinal y = 1 then y,y else x,y in
     change k v m
-
 end

@@ -19,10 +19,22 @@ struct
   open D.V.T
 
   (* special variables *)
-  let return_var = Cil.makeVarinfo false "@return" Cil.voidType, `NoOffset
-  let stack_var  = Cil.makeVarinfo false "@stack"  Cil.voidType, `NoOffset
-  let global_var = Cil.makeVarinfo false "@global" Cil.voidType, `NoOffset
+  let return_var    = Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
+  let callstack_var = Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
+  let global_var    = Cil.makeVarinfo false "@global"    Cil.voidType, `NoOffset
 
+  (* callstack for locations *)
+  let callstack m = match D.findOption callstack_var m with
+      | Some(Must(v)) -> v.loc
+      | _ -> []
+  let edit_callstack f m =
+    let v = match D.findOption callstack_var m with
+      | Some(Must(v)) -> {v with loc=(f v.loc)}
+      | _ -> D.V.make callstack_var (try f [] with _ -> []) "" in (* catch tl []. why does combine get called with an empty stack? *)
+    D.add callstack_var (Must v) m
+  let string_of_callstack m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m)))^"]"
+
+  (* spec data *)
   let nodes = ref []
   let edges = ref []
 
@@ -33,16 +45,27 @@ struct
     let _nodes, _edges = SpecUtil.parseFile specfile in
     nodes := _nodes; edges := _edges (* don't change -> no need to save them in domain *)
 
-
+  (* one Lval may yield multiple keys *)
   let key_from_lval lval = (* TODO -> keys_from_lval: return list *)
     match lval with
     | Var varinfo, offset -> varinfo, Lval.CilLval.of_ciloffs offset
-    | Mem exp, offsett -> failwith "not implemented yet" (* TODO use query_lv *)
+    | Mem exp, offset -> failwith "not implemented yet" (* TODO use query_lv *)
 
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
       | _ -> Queries.Result.top ()
+
+  let query_lv ask exp =
+    match ask (Queries.MayPointTo exp) with
+      | `LvalSet l when not (Queries.LS.is_top l) ->
+          Queries.LS.elements l
+      | _ -> []
+
+  let rec eval_fv ask exp: varinfo option =
+    match query_lv ask exp with
+      | [(v,_)] -> Some v
+      | _ -> None
 
   let dump_query_result result =
     match result with
@@ -55,10 +78,11 @@ struct
     | `ExpTriples x -> "`ExpTriples"
     | `Bot -> "`Bot"
 
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
     let m = ctx.local in
+    (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
     m
 
   (*
@@ -154,13 +178,13 @@ struct
           if List.length (D.V.recordsList value) = 1 then m else
           (* there are multiple possible states -> remove b *)
           let v2 = D.V.remove_state value b in
-          (* M.write ("branch: changed state from " ^ D.V.toString value ^ " to " ^ D.V.toString v2); *)
+          (* M.write ("branch: changed state from " ^ D.V.string_of value ^ " to " ^ D.V.string_of v2); *)
           D.add key v2 m
         ) else (* call of branch directly after splitting *)
           let (a,ws,fwd,b,c) = List.hd branch_edges in
           (* TODO may etc. *)
           let v2 = D.V.change_state value b in
-          (* M.write ("branch: changed state from " ^ D.V.toString value ^ " to " ^ D.V.toString v2); *)
+          (* M.write ("branch: changed state from " ^ D.V.string_of value ^ " to " ^ D.V.string_of v2); *)
           D.add key v2 m
       | _ -> ignore(printf "nothing matched the given BinOp: %a = %a\n" d_plainexp a d_plainexp b); m
     in
@@ -174,16 +198,10 @@ struct
   let body ctx (f:fundec) : D.t =
     ctx.local
 
-  let callStack m = match D.findOption stack_var m with
-      | Some(Must(v)) -> v.loc
-      | _ -> []
-
-  let callStackStr m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callStack m)))^"]"
-
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let m = ctx.local in
-    (* M.write ("return: ctx.local="^(D.short 50 ctx.local)^(callStackStr m)); *)
-    (* if f.svar.vname <> "main" && BatList.is_empty (callStack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
+    (* M.write ("return: ctx.local="^(D.short 50 ctx.local)^(string_of_callstack m)); *)
+    (* if f.svar.vname <> "main" && BatList.is_empty (callstack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
       let warn_main msg_loc msg_end =
         (* find transitions to end state *)
@@ -236,23 +254,17 @@ struct
     (* remove formals and locals *)
     List.fold_left (fun m var -> D.remove (var, `NoOffset) m) au (f.sformals @ f.slocals)
 
-  let editStack f m =
-    let v = match D.findOption stack_var m with
-      | Some(Must(v)) -> {v with loc=(f v.loc)}
-      | _ -> D.V.create stack_var (try f [] with _ -> []) "" in (* catch tl []. why does combine get called with an empty stack? *)
-    D.add stack_var (Must v) m
-
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     let m = ctx.local in
-    M.debug_each ("entering function "^f.vname^(callStackStr m));
+    M.debug_each ("entering function "^f.vname^(string_of_callstack m));
     if f.vname = "main" then load_specfile ();
     let m = if f.vname <> "main" then
-      editStack (BatList.cons !Tracing.current_loc) ctx.local
+      edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
     else m in [m,m]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    (* M.write ("leaving function "^f.vname^(callStackStr au)); *)
-    let au = editStack List.tl au in
+    (* M.write ("leaving function "^f.vname^(string_of_callstack au)); *)
+    let au = edit_callstack List.tl au in
     let return_val = D.findOption return_var au in
     match lval, return_val with
       | Some lval, Some rval ->
@@ -261,17 +273,6 @@ struct
           let rval = D.V.rebind rval k in (* change rval.var to lval *)
           D.add k rval (D.remove return_var au)
       | _ -> au
-
-  let query_lv ask exp =
-    match ask (Queries.MayPointTo exp) with
-      | `LvalSet l when not (Queries.LS.is_top l) ->
-          Queries.LS.elements l
-      | _ -> []
-
-  let rec eval_fv ask (exp:Cil.exp): varinfo option =
-    match query_lv ask exp with
-      | [(v,_)] -> Some v
-      | _ -> None
 
 (*
 .spec-format:
@@ -290,7 +291,7 @@ struct
     (* let ret dom = [dom, Cil.integer 1, true] in *)
     let ret dom = dom in (* XX *)
     let loc = !Tracing.current_loc in
-    let dloc = loc::(callStack m) in
+    let dloc = loc::(callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     (* get possible varinfos for a given lval *)
     let varinfos lval = (* TODO merge with key_from_lval *)

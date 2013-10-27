@@ -23,25 +23,22 @@ struct
   include T
   type t = t'
 
-  let toStringKey x = Lval.CilLval.short 80 x.var
-
-  let toStringRecord x =
+  (* Printing *)
+  let string_of_key k = Lval.CilLval.short 80 k
+  let string_of_record r =
     let loc xs = String.concat ", " (List.map (fun x -> string_of_int x.line) xs) in
-    x.state^" ("^(loc x.loc)^")"
-
-  let toString = function
-    | Must x -> "Must "^(toStringRecord x)
-    | May xs -> "May "^(String.concat ", " (List.map toStringRecord (List.of_enum (Set.enum xs))))
-
-  let short i x = toString x
-
+    r.state^" ("^(loc r.loc)^")"
+  let string_of = function
+    | Must x -> "Must "^(string_of_record x)
+    | May xs -> "May "^(String.concat ", " (List.map string_of_record (List.of_enum (Set.enum xs))))
+  let short i x = string_of x
   include Printable.PrintSimple (struct
     type t' = t
-    let name () = "Spec record"
+    let name () = "Spec value"
     let short = short
   end)
 
-  let create v l s = { var=v; loc=l; state=s }
+  let make v l s = { var=v; loc=l; state=s }
   let map f = function Must x -> Must (f x) | May xs -> May (Set.map f xs)
   let rebind x var = map (fun x -> {x with var=var}) x
   let change_state x state = map (fun x -> {x with state=state}) x
@@ -51,16 +48,18 @@ struct
   let may = function Must x -> May (Set.singleton x) | xs -> xs (* TODO diff. semantic of May with one elem. and more elem.! *)
   let records = function Must x -> (Set.singleton x) | May xs -> xs
   let recordsList = function Must x -> [x] | May xs -> List.of_enum (Set.enum xs)
-  let vnames x = String.concat ", " (List.map toStringKey (recordsList x))
+  let vnames x = String.concat ", " (List.map (fun r -> string_of_key r.var) (recordsList x))
   let locs ?p:(p=const true) x = List.map (fun x -> x.loc) (List.filter p (recordsList x))
 
+  (* Printable.S *)
   let equal = Util.equals
+  let hash = Hashtbl.hash
+  (* Lattice.S must be implemented to be used as Range for MapDomain *)
   (* let leq x y = equal y (join x y) *)
   let leq x y = Set.subset (records x) (records y)
-  let hash = Hashtbl.hash
-  let join x y = (* M.report ("JOIN\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); *)
+  let join x y = (* M.report ("JOIN\tx: " ^ (string_of x) ^ "\n\ty: " ^ (string_of y)); *)
     May (Set.union (records x) (records y))
-  let meet x y = M.report ("MEET\tx: " ^ (toString x) ^ "\n\ty: " ^ (toString y)); x
+  let meet x y = M.report ("MEET\tx: " ^ (string_of x) ^ "\n\ty: " ^ (string_of y)); x
     (* May (Set.intersection (records x) (records y)) *)
   (* top/bot are handled by MapDomain, only bot () gets called *)
   let top () = raise Unknown
@@ -76,21 +75,19 @@ struct
   module V = Val
   module MD = MapDomain.MapBot (Lval.CilLval) (Val)
   include MD
-  (* don't use BatMap to avoid dependencies for other files using the following functions *)
-  module M = OMap.Make (Lval.CilLval) (* why does OMap.Make (K) not work? *)
+  (* Used to access additional functions of Map.
+  Can't use BatMap because type is not compatible with MD.
+  Also avoids dependencies for other files using the following functions. *)
+  module MDMap = OMap.Make (Lval.CilLval) (* why does OMap.Make (K) not work? *)
   open V.T
 
-  (* other map functions *)
-  (* val bindings : 'a t -> (key * 'a) list
-  Return the list of all bindings of the given map. The returned list is sorted in increasing order with respect to the ordering Ord.compare, where Ord is the argument given to Map.Make. *)
-  let bindings m = M.bindings m
-  (* own map functions *)
+  (* Map functions *)
   let findOption k m = if mem k m then Some(find k m) else None
 
   (* domain specific *)
   let findRecords k m = if mem k m then V.records (find k m) else Set.empty
-  let goto var loc state m = add var (Must(V.create var loc state)) m
-  let may_goto var loc state m = add var (May(Set.add (V.create var loc state) (findRecords var m))) m
+  let goto var loc state m = add var (Must(V.make var loc state)) m
+  let may_goto var loc state m = add var (May(Set.add (V.make var loc state) (findRecords var m))) m
   let is_may k m = mem k m && match find k m with May _ -> true | Must _ -> false
   let may k p m = mem k m && Set.exists p (V.records (find k m))
   let must k p m = mem k m && let xs = V.records (find k m) in Set.for_all p xs && not (is_may k m && Set.cardinal xs = 1) (* TODO semantics of May with length 1? *)
@@ -103,5 +100,5 @@ struct
     | xs -> "["^String.concat ", " (List.map (fun x -> x.state) (V.recordsList xs))^"]"
   let string_of_key k = K.short 80 k
   let string_of_entry k m = string_of_key k ^ ": " ^ string_of_state k m
-  let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (bindings m)
+  let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (MDMap.bindings m)
 end
