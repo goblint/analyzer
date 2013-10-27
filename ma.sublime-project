@@ -11,6 +11,7 @@
 				".vagrant",
 				"webapp"
 			],
+			"file_exclude_patterns": ["goblint"],
 			"path": "."
 		},
 		{

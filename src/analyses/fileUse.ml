@@ -16,12 +16,12 @@ struct
   module D = FileDomain.Dom
   module C = FileDomain.Dom
   module G = Lattice.Unit
-  open D.V.T
+  open D.V.T (* TODO really needed? mainly for v.loc *)
 
   (* special variables *)
-  let return_var   = Cil.makeVarinfo false "@return"   Cil.voidType
-  let stack_var    = Cil.makeVarinfo false "@stack"    Cil.voidType
-  let unclosed_var = Cil.makeVarinfo false "@unclosed" Cil.voidType
+  let return_var    = Cil.makeVarinfo false "@return"    Cil.voidType
+  let callstack_var = Cil.makeVarinfo false "@callstack" Cil.voidType
+  let unclosed_var  = Cil.makeVarinfo false "@unclosed"  Cil.voidType
 
   let warned_unclosed = ref Set.empty
 
@@ -100,17 +100,17 @@ struct
     (* M.debug_each ("body of function "^f.svar.vname); *)
     ctx.local
 
-  let callStack m = match D.get_record stack_var m with
+  let callstack m = match D.get_record callstack_var m with
       | Some x -> x.loc
       | _ -> []
 
-  let callStackStr m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callStack m)))^"]"
+  let string_of_callstack m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m)))^"]"
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* TODO check One Return transformation: oneret.ml *)
     let m = ctx.local in
-    (* M.debug_each ("return: ctx.local="^(D.short 50 ctx.local)^(callStackStr m)); *)
-    (* if f.svar.vname <> "main" && BatList.is_empty (callStack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
+    (* M.debug_each ("return: ctx.local="^(D.short 50 ctx.local)^(string_of_callstack m)); *)
+    (* if f.svar.vname <> "main" && BatList.is_empty (callstack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
       (* list of unique variable names as string *)
       let vnames xs = String.concat ", " (List.unique (List.map (fun v -> v.var.vname) (Set.elements xs))) in (* creating a new Set of unique strings with Set.map doesn't work :/ *)
@@ -131,35 +131,48 @@ struct
         Set.iter (fun v -> D.warn ~may:true ~loc:(BatList.last v.loc) "file is never closed") mayOpen
     );
     let au = match exp with
-      | Some(Lval(Var(varinfo),offset)) ->
+      | Some(Lval(Var(varinfo),offset)) when D.mem varinfo m -> (* we return a var in D *)
           (* M.write ("return variable "^varinfo.vname^" (dummy: "^return_var.vname^")"); *)
-          D.add return_var (D.find' varinfo m) m
+          if List.mem varinfo (f.sformals @ f.slocals) then (* if var is local, we make a copy *)
+            D.add return_var (D.find' varinfo m) m
+          else
+            D.alias return_var varinfo m (* if var is global, we alias it *)
       | _ -> m
     in
     (* remove formals and locals *)
     List.fold_left (fun m var -> D.remove' var m) au (f.sformals @ f.slocals)
 
-  let editStack f m =
-    let v = match D.get_record stack_var m with
-      | Some x -> {x with loc=(f x.loc)}
-      | _ -> D.V.create stack_var (f []) D.V.Closed in
-    D.add_record stack_var v m
+  let edit_callstack f m =
+    let v = D.get_record callstack_var m |? Set.choose @@ D.V.make_var_set callstack_var in
+    D.add_record callstack_var {v with loc=(f v.loc)} m
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    (* M.debug_each ("entering function "^f.vname^(callStackStr ctx.local)); *)
+    (* M.debug_each ("entering function "^f.vname^(string_of_callstack ctx.local)); *)
     let m = if f.vname <> "main" then
-      editStack (BatList.cons !Tracing.current_loc) ctx.local
+      edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
     else ctx.local in [m,m]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    (* M.debug_each ("leaving function "^f.vname^(callStackStr au)); *)
-    let au = editStack List.tl au in
+    (* M.debug_each ("leaving function "^f.vname^(string_of_callstack au)); *)
+    let au = edit_callstack List.tl au in
     let return_val = D.find_option return_var au in
     match lval, return_val with
-      | Some (Var var, offset), Some rval ->
-          (* M.write ("setting "^var.vname^" to content of "^(D.V.vnames rval)); *)
-          let rval = D.V.rebind rval var in (* change rval.var to lval *)
-          D.add var rval (D.remove' return_var au)
+      | Some (Var var, offset), Some v ->
+          (* M.write ("setting "^var.vname^" to content of "^(D.V.vnames v)); *)
+          let au = D.remove' return_var au in
+          (* if v.var is still in D, then it must be a global and we need to alias instead of rebind *)
+          (* TODO what if there is a local with the same name as the global? *)
+          if D.V.is_top v then (* returned a local that was top -> just add var as top *)
+            D.add' var v au
+          else (* v is now a local which is not top or a global which is aliased *)
+            let vvar = D.V.get_alias v in (* this is also ok if v is not an alias since it chooses an element from the May-Set which is never empty (global top gets aliased) *)
+            if D.mem vvar au then (* returned variable was a global TODO what if local had the same name? -> seems to work *)
+              (* let _ = M.report @@ vvar.vname^" was a global -> alias" in *)
+              D.alias var vvar au
+            else (* returned variable was a local *)
+              let v = D.V.rebind v var in (* ajust var-field to lval *)
+              (* M.report @@ vvar.vname^" was a local -> rebind"; *)
+              D.add' var v au
       | _ -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -174,7 +187,7 @@ struct
     in
     let dummy = ret ctx.local in
     let loc = !Tracing.current_loc in
-    let dloc = loc::(callStack m) in
+    let dloc = loc::(callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     let varinfos lval = (* get possible varinfos for a given lval *)
       match lval with (* TODO ignore offset? *)
@@ -194,14 +207,17 @@ struct
     match lval, f.vname, arglist with
       | None, "fopen", _ ->
           D.warn "file handle is not saved!"; dummy
-      | Some lval, "fopen", _ -> (* TODO: also return a domain where fp = NULL (error case) *)
+      | Some lval, "fopen", _ ->
           let f m varinfo =
-            (* opened again, not closed before *)
-            D.report varinfo D.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
-            let mustOpen, mayOpen = D.filter_records varinfo D.V.opened m in
-            let mayOpen = Set.diff mayOpen mustOpen in
-            (* save opened files in the domain to warn about unclosed files at the end *)
-            let m = D.extend_value unclosed_var (mustOpen, mayOpen) m in
+            let m = if List.is_empty (D.get_aliases varinfo m) then (
+              (* there are no other variables pointing to the file handle
+                 and it is opened again without being closed before *)
+              D.report varinfo D.V.opened ("overwriting still opened file handle "^varinfo.vname) m;
+              let mustOpen, mayOpen = D.filter_records varinfo D.V.opened m in
+              let mayOpen = Set.diff mayOpen mustOpen in
+              (* save opened files in the domain to warn about unclosed files at the end *)
+              D.extend_value unclosed_var (mustOpen, mayOpen) m
+            ) else m in
             (match arglist with
               | Const(CStr(filename))::Const(CStr(mode))::[] ->
                   (* M.debug_each ("fopen(\""^filename^"\", \""^mode^"\")"); *)

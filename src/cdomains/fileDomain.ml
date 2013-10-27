@@ -27,12 +27,11 @@ struct
 
   (* special variable used for indirection *)
   let alias_var = Cil.makeVarinfo false "@alias" Cil.voidType
-  let var_set var = Set.singleton {var=var; loc=[]; state=Closed}
   (* alias structure: x[0].var=alias_var, y[0].var=linked_var *)
   let is_alias (x,y) = x<>Set.empty && (Set.choose x).var=alias_var
   let get_alias (x,y) = (Set.choose y).var
-  let make_alias var = var_set alias_var, var_set var
 
+  (* Printing *)
   let string_of_record r =
     let loc xs = String.concat ", " (List.map (fun r -> string_of_int r.line) xs) in
     let mode r = match r with Read -> "Read" | Write -> "Write" in
@@ -40,27 +39,24 @@ struct
     | Open(filename, m) -> "open("^filename^", "^(mode m)^") ("^(loc r.loc)^")"
     | Closed -> "closed ("^(loc r.loc)^")"
     | Error  -> "error ("^(loc r.loc)^")"
-
   let string_of (x,y) =
-    let z = Set.diff y x in
-    "{ "^(String.concat ", " (List.map string_of_record (Set.elements x)))^" }, "^
-    "{ "^(String.concat ", " (List.map string_of_record (Set.elements z)))^" }"
-
+    if is_alias (x,y) then
+      "alias for "^(get_alias (x,y)).vname
+    else let z = Set.diff y x in
+      "{ "^(String.concat ", " (List.map string_of_record (Set.elements x)))^" }, "^
+      "{ "^(String.concat ", " (List.map string_of_record (Set.elements z)))^" }"
   let short i v = string_of v
-
   include Printable.PrintSimple (struct
     type t' = t
     let name () = "File handles"
     let short = short
   end)
 
-  let create v l s = { var=v; loc=l; state=s }
-  let map f (x,y)  = Set.map f x, Set.map f y
-  let rebind x var = map (fun x -> {x with var=var}) x
-
+  (* Printable.S *)
   let equal = Util.equals
-  (* let leq x y = equal y (join x y) *)
   let hash = Hashtbl.hash
+  (* Lattice.S must be implemented to be used as Range for MapDomain *)
+  (* let leq x y = equal y (join x y) *)
   let leq  (a,b) (c,d) = Set.subset c a && Set.subset b d
   let join (a,b) (c,d) = (* M.report ("JOIN\tx: " ^ (string_of (a,b)) ^ "\n\ty: " ^ (string_of (c,d))); *)
     let r = Set.intersect a c, Set.union b d in
@@ -73,18 +69,24 @@ struct
   let bot ()   = raise Unknown (* called in MapDomain.MapBot(K)(V).find *)
   let is_bot x = false
 
-  (* properties for records (e.g. used by Dom.report) *)
-  let opened   r = r.state <> Closed && r.state <> Error
-  let closed   r = r.state = Closed
-  let writable r = match r.state with Open((_,Write)) -> true | _ -> false
+  (* creation & manipulation *)
+  let make_set v l s = Set.singleton { var=v; loc=l; state=s }
+  let make_var_set var = make_set var [] Closed
+  let make_alias var = make_var_set alias_var, make_var_set var
+  let map f (x,y)  = Set.map f x, Set.map f y
+  let union (a,b) (c,d) = Set.union a c, Set.union b d
+  let rebind x var = map (fun x -> {x with var=var}) x (* changes var for all elements *)
 
   (* predicates *)
   let filter p (x,y) = Set.filter p x, Set.filter p y (* retains top *)
   let must   p (x,y) = Set.exists p x || not (Set.is_empty y) && Set.for_all p y
   let may    p (x,y) = Set.exists p y || is_top (x,y)
 
-  (* set operations *)
-  let union (a,b) (c,d) = Set.union a c, Set.union b d
+  (* properties of records (e.g. used by Dom.report) *)
+  let opened   r = r.state <> Closed && r.state <> Error
+  let closed   r = r.state = Closed
+  let writable r = match r.state with Open((_,Write)) -> true | _ -> false
+
 end
 
 module Dom =
@@ -106,28 +108,38 @@ struct
   (* find that resolves aliases *)
   let find' k m = let v = find k m in if V.is_alias v then find (V.get_alias v) m else v
   let find_option k m = if mem k m then Some(find' k m) else None
-  let get_alias k m = (* returns Some k' if k links to k' *)
+  let get_alias k m = (* target: returns Some k' if k links to k' *)
     if mem k m && V.is_alias (find k m) then Some (V.get_alias (find k m)) else None
-  let get_aliased_by k m = (* get list of keys that link to k *)
-    filter (fun k' v -> V.is_alias v && V.get_alias v=k) m |> MDMap.bindings |> List.map fst
-  let add' k v m =
-    match get_alias k m with (* check if previous value was an alias *)
-    | Some k' -> add k' v m (* replace its pointee k' *)
-    | None -> add k v m
-  let alias a b m =
-    let v = find b m in
+  let get_aliased k m = (* sources: get list of keys that link to k *)
+    (* iter (fun k' (x,y) -> if V.is_alias (x,y) then print_endline ("alias "^k'.vname^" -> "^(Set.choose y).var.vname)) m; *)
+    (* TODO V.get_alias v=k somehow leads to Out_of_memory... *)
+    filter (fun k' v -> V.is_alias v && (V.get_alias v).vname=k.vname) m |> MDMap.bindings |> List.map fst
+  let get_aliases k m = (* get list of all other keys that have the same pointee *)
+    match get_alias k m with
+    | Some k' -> [k] (* k links to k' *)
+    | None -> get_aliased k m (* k' that link to k *)
+  let alias a b m = (* link a to b *)
     (* if b is already an alias, follow it... *)
-    let b' = if V.is_alias v then V.get_alias v else b in
-    (* now the entry for a should be an alias pointing to b' *)
+    let b' = get_alias b m |? b in
+    (* add an entry for key a, that points to b' *)
     add a (V.make_alias b') m
   let remove' k m = (* fixes keys that link to k before removing it *)
     if mem k m && not (V.is_alias (find k m)) then (* k might be aliased *)
       let v = find k m in
-      match get_aliased_by k m with
+      match get_aliased k m with
       | [] -> remove k m (* nothing links to k *)
       | k'::xs -> let m = add k' v m in (* set k' to v, link xs to k', finally remove k *)
+          (* List.map (fun x -> x.vname) (k'::xs) |> String.concat ", " |> print_endline; *)
           List.fold_left (fun m x -> alias x k' m) m xs |> remove k
     else remove k m (* k not in m or an alias *)
+  let add' k v m =
+(*     match get_alias k m with (* check if previous value was an alias *)
+    | Some k' -> add k' v m (* replace its pointee k' *)
+    | None -> (* add k v m *) *)
+    remove' k m (* fixes keys that might have linked to k *)
+    |> add k v (* set new value *)
+  let change k v m = (* if k is an alias, replace its pointee *)
+    add (get_alias k m |? k) v m
 
   (* domain specific *)
   let filter_values p m = (* filters all values in the map and flattens result *)
@@ -136,7 +148,7 @@ struct
     |> MDMap.bindings |> List.map (fun (k,v) -> V.filter p v)
     |> List.split |> (fun (x,y) -> flatten_sets x, flatten_sets y)
   let filter_records k p m = (* filters both sets of k *)
-    if mem k m then let v = find' k m in V.filter p v else Set.empty, Set.empty
+    if mem k m then V.filter p (find' k m) else Set.empty, Set.empty
 
   (* used for special variables *)
   let get_record k m =
@@ -194,22 +206,22 @@ struct
   let fopen k loc filename mode m =
     if is_unknown k m then m else
     let mode = match String.lowercase mode with "r" -> Read | _ -> Write in
-    let x = Set.singleton (V.create k loc (Open(filename, mode))) in
+    let x = V.make_set k loc (Open(filename, mode)) in
     add' k (x,x) m
   let fclose k loc m =
     if is_unknown k m then m else
-    let x = Set.singleton (V.create k loc Closed) in
-    add' k (x,x) m
+    let x = V.make_set k loc Closed in
+    change k (x,x) m
   let error k m =
     if is_unknown k m then m else
     let loc = if mem k m then let v = Set.choose (snd (find' k m)) in v.loc else [] in
-    let x = Set.singleton (V.create k loc Error) in
-    add' k (x,x) m
+    let x = V.make_set k loc Error in
+    change k (x,x) m
   let success k m =
     if is_unknown k m then m else
     let v = find' k m in
     let x,y = V.filter V.opened v in
     let v = if x = Set.empty && Set.cardinal y = 1 then y,y else x,y in
-    add' k v m
+    change k v m
 
 end
