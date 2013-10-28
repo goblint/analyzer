@@ -40,9 +40,13 @@ struct
     | Var varinfo, offset -> varinfo, Lval.CilLval.of_ciloffs offset
     | Mem exp, offset -> failwith "not implemented yet" (* TODO use query_lv *)
 
+  (* get string from Cil values, e.g. sprint d_exp exp, sprint d_plainlval lval etc. *)
+  let sprint f x = Pretty.sprint 80 (f () x)
+
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
+      | Queries.MayPointTo exp -> M.debug_each @@ "query MayPointTo: "^sprint d_plainexp exp; Queries.Result.top ()
       | _ -> Queries.Result.top ()
 
   let query_lv ask exp =
@@ -58,8 +62,8 @@ struct
 
   let print_query_lv ?msg:(msg="") ask exp =
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
-    M.debug_each (msg^" MayPointTo "^(Pretty.sprint 80 (d_exp () exp))^" = ["
-      ^(String.concat ", " (List.map (Lval.CilLval.short 80) xs))^"]")
+    M.debug_each @@ msg^" MayPointTo "^sprint d_exp exp^" = ["
+      ^String.concat ", " (List.map D.V.string_of_key xs)^"]"
 
 
   (* transfer functions *)
@@ -213,14 +217,16 @@ struct
     let loc = !Tracing.current_loc::(callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     let keys_from_lval lval = (* get possible varinfos for a given lval *)
-      match lval with (* TODO ignore offset? *)
+      match lval with
         | Var varinfo, offset -> [varinfo, Lval.CilLval.of_ciloffs offset]
-        | Mem _, _ ->
-            let exp = Lval lval in
+        | Mem (Lval lval2), offset -> (* e.g. fp2=&fp1; fclose(\*fp2) *)
+            let exp = Lval lval2 in
             let xs = query_lv ctx.ask exp in (* MayPointTo -> LValSet *)
-            M.debug_each ("MayPointTo "^(Pretty.sprint 80 (d_exp () exp))^" = ["
-              ^(String.concat ", " (List.map (Lval.CilLval.short 80) xs))^"]");
-            xs
+            M.debug_each @@ "MayPointTo "^(sprint d_exp exp)^" = ["
+              ^String.concat ", " (List.map D.V.string_of_key xs)^"]";
+            List.map (fun (v,o) -> let new_ciloffs = addOffset (Lval.CilLval.to_ciloffs o) offset in
+              v, Lval.CilLval.of_ciloffs new_ciloffs) xs
+        | _ -> failwith @@ "not supported Lval: "^sprint d_plainlval lval
     in
     (* fold possible varinfos on domain *)
     let ret_all ?ret:(retf=identity) f lval =
@@ -245,7 +251,7 @@ struct
                     | _ -> D.warn "unknown filename"; D.fopen k loc "???" mode m
                   )
               | xs ->
-                  let args = (String.concat ", " (List.map (fun x -> Pretty.sprint 80 (d_exp () x)) xs)) in
+                  let args = (String.concat ", " (List.map (sprint d_exp) xs)) in
                   M.debug ("fopen args: "^args);
                   (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
                   D.warn ("fopen needs two strings as arguments, given: "^args); m
