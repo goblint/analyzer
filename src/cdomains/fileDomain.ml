@@ -16,7 +16,7 @@ struct
     type loc = location list
     type mode = Read | Write
     type state = Open of string*mode | Closed | Error
-    type record = { var: varinfo; loc: loc; state: state }
+    type record = { var: Lval.CilLval.t; loc: loc; state: state }
     type t' = record Set.t * record Set.t (* must, may *)
   end
 
@@ -26,12 +26,13 @@ struct
   type t = t'
 
   (* special variable used for indirection *)
-  let alias_var = Cil.makeVarinfo false "@alias" Cil.voidType
+  let alias_var = Cil.makeVarinfo false "@alias" Cil.voidType, `NoOffset
   (* alias structure: x[0].var=alias_var, y[0].var=linked_var *)
   let is_alias (x,y) = x<>Set.empty && (Set.choose x).var=alias_var
   let get_alias (x,y) = (Set.choose y).var
 
   (* Printing *)
+  let string_of_key k = Lval.CilLval.short 80 k
   let string_of_record r =
     let loc xs = String.concat ", " (List.map (fun r -> string_of_int r.line) xs) in
     let mode r = match r with Read -> "Read" | Write -> "Write" in
@@ -41,7 +42,7 @@ struct
     | Error  -> "error ("^(loc r.loc)^")"
   let string_of (x,y) =
     if is_alias (x,y) then
-      "alias for "^(get_alias (x,y)).vname
+      "alias for "^(string_of_key @@ get_alias (x,y))
     else let z = Set.diff y x in
       "{ "^(String.concat ", " (List.map string_of_record (Set.elements x)))^" }, "^
       "{ "^(String.concat ", " (List.map string_of_record (Set.elements z)))^" }"
@@ -90,14 +91,14 @@ end
 
 module Dom =
 struct
-  module K = Basetype.Variables
+  module K = Lval.CilLval
   module V = Val
-  module MD = MapDomain.MapBot (Basetype.Variables) (Val)
+  module MD = MapDomain.MapBot (Lval.CilLval) (Val)
   include MD
   (* Used to access additional functions of Map.
   Can't use BatMap because type is not compatible with MD.
   Also avoids dependencies for other files using the following functions. *)
-  module MDMap = OMap.Make (Basetype.Variables) (* why does OMap.Make (K) not work? *)
+  module MDMap = OMap.Make (Lval.CilLval) (* why does OMap.Make (K) not work? *)
   open V.T
 
   (* Map functions *)
@@ -107,9 +108,9 @@ struct
   let get_alias k m = (* target: returns Some k' if k links to k' *)
     if mem k m && V.is_alias (find k m) then Some (V.get_alias (find k m)) else None
   let get_aliased k m = (* sources: get list of keys that link to k *)
-    (* iter (fun k' (x,y) -> if V.is_alias (x,y) then print_endline ("alias "^k'.vname^" -> "^(Set.choose y).var.vname)) m; *)
+    (* iter (fun k' (x,y) -> if V.is_alias (x,y) then print_endline ("alias "^V.string_of_key k'^" -> "^V.string_of_key (Set.choose y).var)) m; *)
     (* TODO V.get_alias v=k somehow leads to Out_of_memory... *)
-    filter (fun k' v -> V.is_alias v && (V.get_alias v).vname=k.vname) m |> MDMap.bindings |> List.map fst
+    filter (fun k' v -> V.is_alias v && V.string_of_key (V.get_alias v)=V.string_of_key k) m |> MDMap.bindings |> List.map fst
   let get_aliases k m = (* get list of all other keys that have the same pointee *)
     match get_alias k m with
     | Some k' -> [k] (* k links to k' *)
