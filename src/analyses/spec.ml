@@ -24,11 +24,11 @@ struct
   let global_var    = Cil.makeVarinfo false "@global"    Cil.voidType, `NoOffset
 
   (* callstack for locations *)
-  let callstack m = match D.findOption callstack_var m with
+  let callstack m = match D.find_option callstack_var m with
       | Some(Must(v)) -> v.loc
       | _ -> []
   let edit_callstack f m =
-    let v = match D.findOption callstack_var m with
+    let v = match D.find_option callstack_var m with
       | Some(Must(v)) -> {v with loc=(f v.loc)}
       | _ -> D.V.make callstack_var (try f [] with _ -> []) "" in (* catch tl []. why does combine get called with an empty stack? *)
     D.add callstack_var (Must v) m
@@ -50,6 +50,9 @@ struct
     match lval with
     | Var varinfo, offset -> varinfo, Lval.CilLval.of_ciloffs offset
     | Mem exp, offset -> failwith "not implemented yet" (* TODO use query_lv *)
+
+  (* get string from Cil values, e.g. sprint d_exp exp, sprint d_plainlval lval etc. *)
+  let sprint f x = Pretty.sprint 80 (f () x)
 
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
@@ -148,8 +151,8 @@ struct
           (* c_exp=exp *) (* leads to Out_of_memory *)
           match SC.branch_exp c with
           | Some (c_exp,c_tv) ->
-            (* let exp_str = Pretty.sprint 80 (d_exp () exp) in *) (* contains too many casts, so that matching fails *)
-            let exp_str = Pretty.sprint 80 (d_exp () binop) in
+            (* let exp_str = sprint d_exp exp in *) (* contains too many casts, so that matching fails *)
+            let exp_str = sprint d_exp binop in
             let c_str = SC.exp_to_string c_exp in
             let c_str = Str.global_replace (Str.regexp_string "$key") (D.string_of_key key) c_str in
             (* ignore(printf "branch_exp_eq: '%s' '%s' -> %B\n" c_str exp_str (c_str=exp_str)); *)
@@ -175,7 +178,7 @@ struct
           (* now b is the state the alternative branch goes to -> remove it *)
           (* TODO may etc. *)
           (* being explicit: check how many records there are. if the value is Must b, then we're sure that it is so and we don't remove anything. *)
-          if List.length (D.V.recordsList value) = 1 then m else
+          if List.length (D.V.list_of_records value) = 1 then m else
           (* there are multiple possible states -> remove b *)
           let v2 = D.V.remove_state value b in
           (* M.write ("branch: changed state from " ^ D.V.string_of value ^ " to " ^ D.V.string_of v2); *)
@@ -265,7 +268,7 @@ struct
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     (* M.write ("leaving function "^f.vname^(string_of_callstack au)); *)
     let au = edit_callstack List.tl au in
-    let return_val = D.findOption return_var au in
+    let return_val = D.find_option return_var au in
     match lval, return_val with
       | Some lval, Some rval ->
           let k = key_from_lval lval in
@@ -300,8 +303,8 @@ struct
         | _ -> (* Mem *)
             let exp = Lval lval in
             let xs = query_lv ctx.ask exp in (* MayPointTo -> LValSet *)
-            M.debug_each ("MayPointTo "^(Pretty.sprint 80 (d_exp () exp))^" = ["
-              ^(String.concat ", " (List.map (Lval.CilLval.short 80) xs))^"]");
+            M.debug_each @@ "MayPointTo "^sprint d_exp exp^" = ["
+              ^(String.concat ", " (List.map D.string_of_key xs))^"]";
             xs
     in
     (* fold possible varinfos on domain *)

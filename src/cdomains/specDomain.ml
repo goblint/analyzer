@@ -47,9 +47,9 @@ struct
   let remove_state x state = match x with May xs -> maybe_must @@ May (Set.filter (fun x -> x.state<>state) xs) | x -> x
   let may = function Must x -> May (Set.singleton x) | xs -> xs (* TODO diff. semantic of May with one elem. and more elem.! *)
   let records = function Must x -> (Set.singleton x) | May xs -> xs
-  let recordsList = function Must x -> [x] | May xs -> List.of_enum (Set.enum xs)
-  let vnames x = String.concat ", " (List.map (fun r -> string_of_key r.var) (recordsList x))
-  let locs ?p:(p=const true) x = List.map (fun x -> x.loc) (List.filter p (recordsList x))
+  let list_of_records = function Must x -> [x] | May xs -> List.of_enum (Set.enum xs)
+  let vnames x = String.concat ", " (List.map (fun r -> string_of_key r.var) (list_of_records x))
+  let locs ?p:(p=const true) x = List.map (fun x -> x.loc) (List.filter p (list_of_records x))
 
   (* Printable.S *)
   let equal = Util.equals
@@ -82,22 +82,22 @@ struct
   open V.T
 
   (* Map functions *)
-  let findOption k m = if mem k m then Some(find k m) else None
+  let find_option k m = if mem k m then Some(find k m) else None
 
   (* domain specific *)
-  let findRecords k m = if mem k m then V.records (find k m) else Set.empty
+  let find_records k m = if mem k m then V.records (find k m) else Set.empty
   let goto var loc state m = add var (Must(V.make var loc state)) m
-  let may_goto var loc state m = add var (May(Set.add (V.make var loc state) (findRecords var m))) m
+  let may_goto var loc state m = add var (May(Set.add (V.make var loc state) (find_records var m))) m
   let is_may k m = mem k m && match find k m with May _ -> true | Must _ -> false
   let may k p m = mem k m && Set.exists p (V.records (find k m))
   let must k p m = mem k m && let xs = V.records (find k m) in Set.for_all p xs && not (is_may k m && Set.cardinal xs = 1) (* TODO semantics of May with length 1? *)
   let in_state k state m = must k (fun x -> x.state = state) m
   let may_in_state k state m = may k (fun x -> x.state = state) m
-  let get_states k m = if not (mem k m) then [] else List.map (fun x -> x.state) (V.recordsList (find k m))
+  let get_states k m = if not (mem k m) then [] else List.map (fun x -> x.state) (V.list_of_records (find k m))
 
   let string_of_state k m = if not (mem k m) then "?" else match find k m with
     | Must x -> x.state
-    | xs -> "["^String.concat ", " (List.map (fun x -> x.state) (V.recordsList xs))^"]"
+    | xs -> "["^String.concat ", " (List.map (fun x -> x.state) (V.list_of_records xs))^"]"
   let string_of_key k = K.short 80 k
   let string_of_entry k m = string_of_key k ^ ": " ^ string_of_state k m
   let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (MDMap.bindings m)
