@@ -22,7 +22,7 @@ for i,line in zip(range(1, len(lines)+1), lines):
     m = re.match(r".+ // WARN: (.+)", line)
     if m: source[i] = m.group(1)
 
-diff = {}; 
+diff = {};
 for k,v in sorted(set.union(set(goblint.items()), set(source.items()))):
     if k in diff: continue
     if k in goblint and k in source and goblint[k]!=source[k]:
