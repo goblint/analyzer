@@ -37,15 +37,15 @@ struct
     let loc xs = String.concat ", " (List.map (fun r -> string_of_int r.line) xs) in
     let mode r = match r with Read -> "Read" | Write -> "Write" in
     match r.state with
-    | Open(filename, m) -> "open("^filename^", "^(mode m)^") ("^(loc r.loc)^")"
-    | Closed -> "closed ("^(loc r.loc)^")"
-    | Error  -> "error ("^(loc r.loc)^")"
+    | Open(filename, m) -> "open("^filename^", "^mode m^") ("^loc r.loc^")"
+    | Closed -> "closed ("^loc r.loc^")"
+    | Error  -> "error ("^loc r.loc^")"
   let string_of (x,y) =
     if is_alias (x,y) then
-      "alias for "^(string_of_key @@ get_alias (x,y))
+      "alias for "^string_of_key @@ get_alias (x,y)
     else let z = Set.diff y x in
-      "{ "^(String.concat ", " (List.map string_of_record (Set.elements x)))^" }, "^
-      "{ "^(String.concat ", " (List.map string_of_record (Set.elements z)))^" }"
+      "{ "^String.concat ", " (List.map string_of_record (Set.elements x))^" }, "^
+      "{ "^String.concat ", " (List.map string_of_record (Set.elements z))^" }"
   let short i v = string_of v
   include Printable.PrintSimple (struct
     type t' = t
@@ -61,7 +61,7 @@ struct
   let leq  (a,b) (c,d) = Set.subset c a && Set.subset b d
   let join (a,b) (c,d) = (* M.report ("JOIN\tx: " ^ (string_of (a,b)) ^ "\n\ty: " ^ (string_of (c,d))); *)
     let r = Set.intersect a c, Set.union b d in
-    (* M.report ("result: "^(string_of r)); *)
+    (* M.report @@ "result: "^string_of r; *)
     r
   let meet x y = M.report ("MEET\tx: " ^ (string_of x) ^ "\n\ty: " ^ (string_of y)); x
   (* top/bot are handled by MapDomain, only bot () gets called *)

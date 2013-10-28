@@ -27,7 +27,7 @@ struct
   let callstack m = match D.get_record callstack_var m with
       | Some x -> x.loc
       | _ -> []
-  let string_of_callstack m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m)))^"]"
+  let string_of_callstack m = " [call stack: "^String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m))^"]"
   let edit_callstack f m =
     let v = D.get_record callstack_var m |? Set.choose @@ D.V.make_var_set callstack_var in
     D.add_record callstack_var {v with loc=(f v.loc)} m
@@ -90,7 +90,7 @@ struct
       | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
           D.alias k1 k2 m
       | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
-          D.warn ("changed file pointer "^D.V.string_of_key k1^" (no longer safe)");
+          D.warn @@ "changed file pointer "^D.V.string_of_key k1^" (no longer safe)";
           saveOpened ~unknown:true k1 m |> D.unknown k1
       | _ -> m (* no change in D for other things *)
 
@@ -122,20 +122,20 @@ struct
     | e -> ignore(printf "nothing matched the given exp (check special_fn):\n%a\n" d_plainexp e); m
 
   let body ctx (f:fundec) : D.t =
-    (* M.debug_each ("body of function "^f.svar.vname); *)
+    (* M.debug_each @@ "body of function "^f.svar.vname; *)
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* TODO check One Return transformation: oneret.ml *)
     let m = ctx.local in
-    (* M.debug_each ("return: ctx.local="^(D.short 50 ctx.local)^(string_of_callstack m)); *)
+    (* M.debug_each @@ "return: ctx.local="^D.short 50 ctx.local^string_of_callstack m; *)
     (* if f.svar.vname <> "main" && BatList.is_empty (callstack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
       (* list of unique variable names as string *)
       let vnames xs = String.concat ", " (List.unique (List.map (fun v -> D.V.string_of_key v.var) (Set.elements xs))) in (* creating a new Set of unique strings with Set.map doesn't work :/ *)
       let mustOpen, mayOpen = D.V.union (D.filter_values D.V.opened m) (D.get_value unclosed_var m) in
       if Set.cardinal mustOpen > 0 then (
-        D.warn ("unclosed files: "^(vnames mustOpen));
+        D.warn @@ "unclosed files: "^vnames mustOpen;
         Set.iter (fun v -> D.warn ~loc:(BatList.last v.loc) "file is never closed") mustOpen;
         (* add warnings about currently open files (don't include overwritten or changed file handles!) *)
         warned_unclosed := Set.union !warned_unclosed (fst (D.filter_values D.V.opened m)) (* can't save in domain b/c it wouldn't reach the other return *)
@@ -146,7 +146,7 @@ struct
       (* let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpen in (* ignore values that are already in mustOpen *) *)
       let mayOpen = Set.diff mayOpen mustOpen in
       if Set.cardinal mayOpen > 0 then
-        D.warn ~may:true ("unclosed files: "^(vnames mayOpen));
+        D.warn ~may:true @@ "unclosed files: "^vnames mayOpen;
         Set.iter (fun v -> D.warn ~may:true ~loc:(BatList.last v.loc) "file is never closed") mayOpen
     );
     let au = match exp with
@@ -164,7 +164,7 @@ struct
     List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    (* M.debug_each ("entering function "^f.vname^(string_of_callstack ctx.local)); *)
+    (* M.debug_each @@ "entering function "^f.vname^string_of_callstack ctx.local); *)
     let m = if f.vname <> "main" then
       edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
     else ctx.local in [m,m]
@@ -181,12 +181,12 @@ struct
     ) else m
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    (* M.debug_each ("leaving function "^f.vname^(string_of_callstack au)); *)
+    (* M.debug_each @@ "leaving function "^f.vname^string_of_callstack au; *)
     let au = edit_callstack List.tl au in
     let return_val = D.find_option return_var au in
     match lval, return_val with
       | Some lval, Some v ->
-          (* M.write ("setting "^var.vname^" to content of "^(D.V.vnames v)); *)
+          (* M.write @@ "setting "^var.vname^" to content of "^D.V.vnames v; *)
           let k = key_from_lval lval in
           (* remove special return var and handle potential overwrites *)
           let au = D.remove' return_var au |> check_overwrite_open k in
@@ -197,11 +197,11 @@ struct
           else (* v is now a local which is not top or a global which is aliased *)
             let vvar = D.V.get_alias v in (* this is also ok if v is not an alias since it chooses an element from the May-Set which is never empty (global top gets aliased) *)
             if D.mem vvar au then (* returned variable was a global TODO what if local had the same name? -> seems to work *)
-              (* let _ = M.report @@ vvar.vname^" was a global -> alias" in *)
+              (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
               D.alias k vvar au
             else (* returned variable was a local *)
               let v = D.V.rebind v k in (* ajust var-field to lval *)
-              (* M.report @@ vvar.vname^" was a local -> rebind"; *)
+              (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
               D.add' k v au
       | _ -> au
 
@@ -222,7 +222,7 @@ struct
         | Mem (Lval lval2), offset -> (* e.g. fp2=&fp1; fclose(\*fp2) *)
             let exp = Lval lval2 in
             let xs = query_lv ctx.ask exp in (* MayPointTo -> LValSet *)
-            M.debug_each @@ "MayPointTo "^(sprint d_exp exp)^" = ["
+            M.debug_each @@ "MayPointTo "^sprint d_exp exp^" = ["
               ^String.concat ", " (List.map D.V.string_of_key xs)^"]";
             List.map (fun (v,o) -> let new_ciloffs = addOffset (Lval.CilLval.to_ciloffs o) offset in
               v, Lval.CilLval.of_ciloffs new_ciloffs) xs
@@ -242,7 +242,7 @@ struct
             let m = check_overwrite_open k m in
             (match arglist with
               | Const(CStr(filename))::Const(CStr(mode))::[] ->
-                  (* M.debug_each ("fopen(\""^filename^"\", \""^mode^"\")"); *)
+                  (* M.debug_each @@ "fopen(\""^filename^"\", \""^mode^"\")"; *)
                   D.fopen k loc filename mode m
               | e::Const(CStr(mode))::[] ->
                   (* ignore(printf "CIL: %a\n" d_plainexp e); *)
@@ -252,9 +252,9 @@ struct
                   )
               | xs ->
                   let args = (String.concat ", " (List.map (sprint d_exp) xs)) in
-                  M.debug ("fopen args: "^args);
+                  M.debug @@ "fopen args: "^args;
                   (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
-                  D.warn ("fopen needs two strings as arguments, given: "^args); m
+                  D.warn @@ "fopen needs two strings as arguments, given: "^args; m
             )
           in ret_all ~ret:(ret_branch_err lval) f lval
 
@@ -280,7 +280,7 @@ struct
           in ret_all f fp
       | _, "fprintf", fp::_::_ ->
           (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) arglist; *)
-          List.iter (fun exp -> M.debug ("vname: "^(fst exp).vname)) (query_lv ctx.ask fp);
+          print_query_lv ~msg:"fprintf(?, ...): " ctx.ask fp;
           D.warn "first argument to printf must be a Lval"; m
       | _, "fprintf", _ ->
           D.warn "fprintf needs at least two arguments"; m
