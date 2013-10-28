@@ -9,6 +9,6 @@ if [ $ana == "file" ]; then
 elif [ $ana == "spec" ]; then
     ana="$ana --sets ana.spec.file tests/regression/18-file/${spec}.spec"
 fi
-cmd="./goblint --sets ana.activated[0][+] $ana --sets result $result --set dbg.showtemps true --set dbg.debug $debug $file"
+cmd="./goblint --sets ana.activated[0][+] $ana --sets result $result --enable colors --set dbg.showtemps true --set dbg.debug $debug $file"
 echo -e "$(tput setaf 6)$cmd$(tput sgr 0)"
 $cmd
