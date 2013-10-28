@@ -16,7 +16,7 @@ struct
     type loc = location list
     type mode = Read | Write
     type state = Open of string*mode | Closed | Error
-    type record = { var: Lval.CilLval.t; loc: loc; state: state }
+    type record = { key: Lval.CilLval.t; loc: loc; state: state }
     type t' = record Set.t * record Set.t (* must, may *)
   end
 
@@ -27,9 +27,9 @@ struct
 
   (* special variable used for indirection *)
   let alias_var = Cil.makeVarinfo false "@alias" Cil.voidType, `NoOffset
-  (* alias structure: x[0].var=alias_var, y[0].var=linked_var *)
-  let is_alias (x,y) = x<>Set.empty && (Set.choose x).var=alias_var
-  let get_alias (x,y) = (Set.choose y).var
+  (* alias structure: x[0].key=alias_var, y[0].key=linked_var *)
+  let is_alias (x,y) = x<>Set.empty && (Set.choose x).key=alias_var
+  let get_alias (x,y) = (Set.choose y).key
 
   (* Printing *)
   let string_of_key k = Lval.CilLval.short 80 k
@@ -71,15 +71,15 @@ struct
   let is_bot x = false
 
   (* creation & manipulation *)
-  let make_set v l s = Set.singleton { var=v; loc=l; state=s }
-  let make_var_set var = make_set var [] Closed
-  let make_alias var = make_var_set alias_var, make_var_set var
+  let make_set k l s = Set.singleton { key=k; loc=l; state=s }
+  let make_var_set k = make_set k [] Closed
+  let make_alias k = make_var_set alias_var, make_var_set k
   let map f (x,y)  = Set.map f x, Set.map f y
+  let filter p (x,y) = Set.filter p x, Set.filter p y (* retains top *)
   let union (a,b) (c,d) = Set.union a c, Set.union b d
-  let rebind x var = map (fun x -> {x with var=var}) x (* changes var for all elements *)
+  let change_key v k = map (fun x -> {x with key=k}) v (* changes key for all elements *)
 
   (* predicates *)
-  let filter p (x,y) = Set.filter p x, Set.filter p y (* retains top *)
   let must   p (x,y) = Set.exists p x || not (Set.is_empty y) && Set.for_all p y
   let may    p (x,y) = Set.exists p y || is_top (x,y)
 
@@ -108,7 +108,7 @@ struct
   let get_alias k m = (* target: returns Some k' if k links to k' *)
     if mem k m && V.is_alias (find k m) then Some (V.get_alias (find k m)) else None
   let get_aliased k m = (* sources: get list of keys that link to k *)
-    (* iter (fun k' (x,y) -> if V.is_alias (x,y) then print_endline ("alias "^V.string_of_key k'^" -> "^V.string_of_key (Set.choose y).var)) m; *)
+    (* iter (fun k' (x,y) -> if V.is_alias (x,y) then print_endline ("alias "^V.string_of_key k'^" -> "^V.string_of_key (Set.choose y).key)) m; *)
     (* TODO V.get_alias v=k somehow leads to Out_of_memory... *)
     filter (fun k' v -> V.is_alias v && V.string_of_key (V.get_alias v)=V.string_of_key k) m |> MDMap.bindings |> List.map fst
   let get_aliases k m = (* get list of all other keys that have the same pointee *)
@@ -135,15 +135,6 @@ struct
   let change k v m = (* if k is an alias, replace its pointee *)
     add (get_alias k m |? k) v m
 
-  (* domain specific *)
-  let filter_values p m = (* filters all values in the map and flattens result *)
-    let flatten_sets = List.fold_left Set.union Set.empty in
-    filter (fun k v -> V.may p v && not (V.is_alias v)) m
-    |> MDMap.bindings |> List.map (fun (k,v) -> V.filter p v)
-    |> List.split |> (fun (x,y) -> flatten_sets x, flatten_sets y)
-  let filter_records k p m = (* filters both sets of k *)
-    if mem k m then V.filter p (find' k m) else Set.empty, Set.empty
-
   (* used for special variables *)
   let get_record k m =
     if mem k m then
@@ -162,6 +153,15 @@ struct
       add k (V.union (find k m) v) m
     else
       add k v m
+
+  (* domain specific *)
+  let filter_values p m = (* filters all values in the map and flattens result *)
+    let flatten_sets = List.fold_left Set.union Set.empty in
+    filter (fun k v -> V.may p v && not (V.is_alias v)) m
+    |> MDMap.bindings |> List.map (fun (k,v) -> V.filter p v)
+    |> List.split |> (fun (x,y) -> flatten_sets x, flatten_sets y)
+  let filter_records k p m = (* filters both sets of k *)
+    if mem k m then V.filter p (find' k m) else Set.empty, Set.empty
 
   let must k p m = if mem k m then V.must p (find' k m) else false
   let may  k p m = if mem k m then V.may  p (find' k m) else false
@@ -194,7 +194,7 @@ struct
     if List.length must_true > 0 then (List.hd must_true) ();
     if List.length may_true  > 0 then (List.hd may_true) ()
 
-  let unknown k m = add' k (Set.empty, Set.empty) m
+  let unknown k m = add' k (V.top ()) m
   let is_unknown k m = if mem k m then V.is_top (find' k m) else false
 
   let fopen k loc filename mode m =

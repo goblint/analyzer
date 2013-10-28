@@ -132,7 +132,7 @@ struct
     (* if f.svar.vname <> "main" && BatList.is_empty (callstack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
       (* list of unique variable names as string *)
-      let vnames xs = String.concat ", " (List.unique (List.map (fun v -> D.V.string_of_key v.var) (Set.elements xs))) in (* creating a new Set of unique strings with Set.map doesn't work :/ *)
+      let vnames xs = String.concat ", " (List.unique (List.map (fun v -> D.V.string_of_key v.key) (Set.elements xs))) in (* creating a new Set of unique strings with Set.map doesn't work :/ *)
       let mustOpen, mayOpen = D.V.union (D.filter_values D.V.opened m) (D.get_value unclosed_var m) in
       if Set.cardinal mustOpen > 0 then (
         D.warn @@ "unclosed files: "^vnames mustOpen;
@@ -141,9 +141,9 @@ struct
         warned_unclosed := Set.union !warned_unclosed (fst (D.filter_values D.V.opened m)) (* can't save in domain b/c it wouldn't reach the other return *)
       );
       (* go through files "never closed" and recheck for current return *)
-      Set.iter (fun v -> if D.must v.var D.V.closed m then D.warn ~may:true ~loc:(BatList.last v.loc) "file is never closed") !warned_unclosed;
-      (* let mustOpenVars = List.map (fun x -> x.var) mustOpen in *)
-      (* let mayOpen = List.filter (fun x -> not (List.mem x.var mustOpenVars)) mayOpen in (* ignore values that are already in mustOpen *) *)
+      Set.iter (fun v -> if D.must v.key D.V.closed m then D.warn ~may:true ~loc:(BatList.last v.loc) "file is never closed") !warned_unclosed;
+      (* let mustOpenVars = List.map (fun x -> x.key) mustOpen in *)
+      (* let mayOpen = List.filter (fun x -> not (List.mem x.key mustOpenVars)) mayOpen in (* ignore values that are already in mustOpen *) *)
       let mayOpen = Set.diff mayOpen mustOpen in
       if Set.cardinal mayOpen > 0 then
         D.warn ~may:true @@ "unclosed files: "^vnames mayOpen;
@@ -190,7 +190,7 @@ struct
           let k = key_from_lval lval in
           (* remove special return var and handle potential overwrites *)
           let au = D.remove' return_var au |> check_overwrite_open k in
-          (* if v.var is still in D, then it must be a global and we need to alias instead of rebind *)
+          (* if v.key is still in D, then it must be a global and we need to alias instead of rebind *)
           (* TODO what if there is a local with the same name as the global? *)
           if D.V.is_top v then (* returned a local that was top -> just add k as top *)
             D.add' k v au
@@ -200,7 +200,7 @@ struct
               (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
               D.alias k vvar au
             else (* returned variable was a local *)
-              let v = D.V.rebind v k in (* ajust var-field to lval *)
+              let v = D.V.change_key v k in (* ajust var-field to lval *)
               (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
               D.add' k v au
       | _ -> au
