@@ -24,15 +24,13 @@ struct
   let global_var    = Cil.makeVarinfo false "@global"    Cil.voidType, `NoOffset
 
   (* callstack for locations *)
-  let callstack m = match D.find_option callstack_var m with
-      | Some(Must(v)) -> v.loc
+  let callstack m = match D.get_record callstack_var m with
+      | Some x -> x.loc
       | _ -> []
+  let string_of_callstack m = " [call stack: "^String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m))^"]"
   let edit_callstack f m =
-    let v = match D.find_option callstack_var m with
-      | Some(Must(v)) -> {v with loc=(f v.loc)}
-      | _ -> D.V.make callstack_var (try f [] with _ -> []) "" in (* catch tl []. why does combine get called with an empty stack? *)
-    D.add callstack_var (Must v) m
-  let string_of_callstack m = " [call stack: "^(String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m)))^"]"
+    let v = D.get_record callstack_var m |? Set.choose @@ D.V.make_var_set callstack_var in
+    D.add_record callstack_var {v with loc=(f v.loc)} m
 
   (* spec data *)
   let nodes = ref []
@@ -178,7 +176,7 @@ struct
           (* now b is the state the alternative branch goes to -> remove it *)
           (* TODO may etc. *)
           (* being explicit: check how many records there are. if the value is Must b, then we're sure that it is so and we don't remove anything. *)
-          if List.length (D.V.list_of_records value) = 1 then m else
+          if D.V.length value = (1,1) then m else (* XX *)
           (* there are multiple possible states -> remove b *)
           let v2 = D.V.remove_state value b in
           (* M.write ("branch: changed state from " ^ D.V.string_of value ^ " to " ^ D.V.string_of v2); *)
@@ -273,7 +271,7 @@ struct
       | Some lval, Some rval ->
           let k = key_from_lval lval in
           (* M.write ("setting "^D.string_of_key k^" to content of "^(D.V.vnames rval)); *)
-          let rval = D.V.rebind rval k in (* change rval.var to lval *)
+          let rval = D.V.change_key rval k in (* change rval.key to lval *)
           D.add k rval (D.remove return_var au)
       | _ -> au
 
