@@ -187,14 +187,14 @@ struct
           let v2 = D.V.change_state value b in
           (* M.write ("branch: changed state from " ^ D.V.string_of value ^ " to " ^ D.V.string_of v2); *)
           D.add key v2 m
-      | _ -> ignore(printf "nothing matched the given BinOp: %a = %a\n" d_plainexp a d_plainexp b); m
+      | _ -> M.debug @@ "nothing matched the given BinOp: "^sprint d_plainexp a^" = "^sprint d_plainexp b; m
     in
     match stripCasts (constFold true exp) with
       (* somehow there are a lot of casts inside the BinOp which stripCasts only removes when called on the subparts
       -> matching as in flagMode didn't work *)
     | BinOp (Eq, a, b, _) -> check (stripCasts a) (stripCasts b) tv
     | BinOp (Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
-    | e -> ignore(printf "nothing matched the given exp (check special_fn):\n%a\n" d_plainexp e); m
+    | e -> M.debug @@ "branch: nothing matched the given exp: "^sprint d_plainexp e; m
 
   let body ctx (f:fundec) : D.t =
     ctx.local

@@ -109,7 +109,7 @@ struct
           D.error k m
         )else
           D.success k m
-      | _ -> ignore(printf "nothing matched the given BinOp: %a = %a\n" d_plainexp a d_plainexp b); m
+      | _ -> M.debug @@ "nothing matched the given BinOp: "^sprint d_plainexp a^" = "^sprint d_plainexp b; m
     in
     match stripCasts (constFold true exp) with
       (* somehow there are a lot of casts inside the BinOp which stripCasts only removes when called on the subparts
@@ -119,7 +119,7 @@ struct
         ignore(printf "%s %i\n" v.vname (Int64.to_int i)); m *)
     | BinOp (Eq, a, b, _) -> check (stripCasts a) (stripCasts b) tv
     | BinOp (Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
-    | e -> ignore(printf "nothing matched the given exp (check special_fn):\n%a\n" d_plainexp e); m
+    | e -> M.debug @@ "branch: nothing matched the given exp: "^sprint d_plainexp e; m
 
   let body ctx (f:fundec) : D.t =
     (* M.debug_each @@ "body of function "^f.svar.vname; *)
