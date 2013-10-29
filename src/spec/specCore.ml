@@ -56,7 +56,7 @@ let get_key_variant stmt =
     | [] -> `None
     | x::xs ->
       match get_from_exp x with
-      | `Rval s -> `Arg(s, i) 
+      | `Rval s -> `Arg(s, i)
       | _       -> get_from_argsi (i+1) xs (* matches `None and `Arg -> `Arg of `Arg not supported *)
   and get_from_args args = get_from_argsi 0 args (* maybe better use List.findi *)
   in

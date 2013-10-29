@@ -39,7 +39,7 @@ struct
   let load_specfile () =
     let specfile = GobConfig.get_string "ana.spec.file" in
     if String.length specfile < 1 then failwith "You need to specify a specification file using --sets ana.spec.file path/to/file.spec when using the spec analysis!";
-    if not (Sys.file_exists specfile) then failwith ("The given spec-file ("^specfile^") doesn't exist (CWD is "^Sys.getcwd ()^").");
+    if not (Sys.file_exists specfile) then failwith @@ "The given spec-file ("^specfile^") doesn't exist (CWD is "^Sys.getcwd ()^").";
     let _nodes, _edges = SpecUtil.parseFile specfile in
     nodes := _nodes; edges := _edges (* don't change -> no need to save them in domain *)
 
@@ -84,7 +84,22 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let m = ctx.local in
     (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
-    m
+    let key_from_exp = function
+      | Lval x -> Some (key_from_lval x)
+      | _ -> None
+    in
+    match key_from_exp (Lval lval), key_from_exp rval with (* we just care about Lval assignments *)
+      | Some k1, Some k2 when k1=k2 -> m (* do nothing on self-assignment *)
+      | Some k1, Some k2 when D.mem k1 m && D.mem k2 m -> (* both in D *)
+          (* saveOpened k1 *) m |> D.remove' k1 |> D.alias k1 k2
+      | Some k1, Some k2 when D.mem k1 m -> (* only k1 in D *)
+          (* saveOpened k1 *) m |> D.remove' k1
+      | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
+          D.alias k1 k2 m
+      | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
+          D.warn @@ "changed file pointer "^D.V.string_of_key k1^" (no longer safe)";
+          (* saveOpened ~unknown:true k1 *) m |> D.unknown k1
+      | _ -> m (* no change in D for other things *)
 
   (*
   - branch-transitions in the spec-file come in pairs: e.g. true-branch goes to node a, false-branch to node b
@@ -117,7 +132,7 @@ struct
           | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
           | _ -> M.debug_each "EvalInt: `Int no bool")
       | `Bool b -> M.debug_each "EvalInt: `Bool"
-      | x -> M.debug_each ("OTHER RESULT: "^dump_query_result x)
+      | x -> M.debug_each @@ "OTHER RESULT: "^dump_query_result x
     );
     let check a b tv =
       (* ignore(printf "check: %a = %a\n" d_plainexp a d_plainexp b); *)
@@ -179,13 +194,13 @@ struct
           if D.V.length value = (1,1) then m else (* XX *)
           (* there are multiple possible states -> remove b *)
           let v2 = D.V.remove_state value b in
-          (* M.write ("branch: changed state from " ^ D.V.string_of value ^ " to " ^ D.V.string_of v2); *)
+          (* M.debug_each @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
           D.add key v2 m
         ) else (* call of branch directly after splitting *)
           let (a,ws,fwd,b,c) = List.hd branch_edges in
           (* TODO may etc. *)
           let v2 = D.V.change_state value b in
-          (* M.write ("branch: changed state from " ^ D.V.string_of value ^ " to " ^ D.V.string_of v2); *)
+          (* M.debug_each @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
           D.add key v2 m
       | _ -> M.debug @@ "nothing matched the given BinOp: "^sprint d_plainexp a^" = "^sprint d_plainexp b; m
     in
@@ -201,44 +216,26 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let m = ctx.local in
-    (* M.write ("return: ctx.local="^(D.short 50 ctx.local)^(string_of_callstack m)); *)
-    (* if f.svar.vname <> "main" && BatList.is_empty (callstack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
+    (* M.debug_each @@ "return: ctx.local="^D.short 50 m^string_of_callstack m; *)
+    (* if f.svar.vname <> "main" && BatList.is_empty (callstack m) then M.debug_each @@ "\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"; *)
     if f.svar.vname = "main" then (
-      let warn_main msg_loc msg_end =
-        (* find transitions to end state *)
-        (* edges that have 'end' as a target *)
-        let end_edges = List.filter (fun (a,ws,fwd,b,c) -> b="end") !edges in
+      let warn_main msg_loc msg_end = (* there is an end warning for local, return or both *)
+        (* find edges that have 'end' as a target *)
         (* we ignore the constraint, TODO maybe find a better syntax for declaring end states *)
-        let end_states = List.map (fun (a,ws,fwd,b,c) -> a) end_edges in
-        (* used to warn locally or as a summary at the end of main *)
-        let warn ?loc:(loc=[!Tracing.current_loc]) maybe msg = M.report ~loc:(List.last loc) ((if maybe then "MAYBE " else "")^msg) in
-        (* TODO imperative -> refactor *)
-        let must_k = ref [] in
-        let may_k = ref [] in
-        (* now we check for all entries of our domain if they (maybe) aren't in an end state and warn about it *)
-        let check_state k v =
-          let must_end = List.exists (fun state -> D.in_state k state m) end_states in
-          let may_end  = List.exists (fun state -> D.may_in_state k state m) end_states in
-          let locs = D.V.locs v in
-          if not may_end then ((* Must: never in an end state *)
-            must_k := !must_k@[k];
-            match msg_loc with Some msg -> List.iter (fun loc -> warn ~loc:loc false msg) locs | _ -> ()
-          )else if not must_end then ((* May: maybe in an end state *)
-            may_k := !may_k@[k];
-            (* only output MAYBE-warnings for possibilities that are not an end state *)
-            (* TODO this is a matter of taste -> make it configurable? *)
-            let locs = D.V.locs ~p:(fun x -> not (List.mem x.state end_states)) v in
-            match msg_loc with Some msg -> List.iter (fun loc -> warn ~loc:loc true msg) locs | _ -> ()
-          )
-        in
-        let no_special_vars = D.filter (fun k v -> String.get (D.string_of_key k) 0 <> '@') m in
-        D.iter check_state no_special_vars;
-        match msg_end with
+        let end_states = BatList.filter_map (fun (a,ws,fwd,b,c) -> if b="end" then Some a else None) !edges in
+        let must_not, may_not = D.filter_values (fun r -> not @@ List.exists (fun end_state -> D.V.in_state end_state r) end_states) m in
+        let may_not = Set.diff may_not must_not in
+        (match msg_loc with (* local warnings for entries that must/may not be in an end state *)
         | Some msg ->
-          let f msg ks = Str.global_replace (Str.regexp_string "$") (String.concat ", " (List.map D.string_of_key ks)) msg in
-          if not (List.is_empty !must_k) then warn false (f msg !must_k);
-          if not (List.is_empty !may_k) then warn true (f msg !may_k)
-        | _ -> ()
+            Set.iter (fun v -> D.warn           ~loc:v.loc msg) must_not;
+            Set.iter (fun v -> D.warn ~may:true ~loc:v.loc msg) may_not
+        | None -> ());
+        (match msg_end with
+        | Some msg -> (* warnings at return for entries that must/may not be in an end state *)
+          let f msg rs = Str.global_replace (Str.regexp_string "$") (D.string_of_keys rs) msg in
+          if Set.cardinal must_not > 0 then D.warn           (f msg must_not);
+          if Set.cardinal may_not  > 0 then D.warn ~may:true (f msg may_not)
+        | _ -> ())
       in
       (* check if there is a warning for entries that are not in an end state *)
       match SC.warning "_end" !nodes, SC.warning "_END" !nodes with
@@ -246,34 +243,48 @@ struct
       | msg_loc,msg_end -> warn_main msg_loc msg_end
     );
     let au = match exp with
-      | Some(Lval lval) ->
+      | Some(Lval lval) when D.mem (key_from_lval lval) m -> (* we return a var in D *)
           let k = key_from_lval lval in
-          (* M.write ("return variable "^D.string_of_key k); *)
-          D.add return_var (D.find k m) m
+          let varinfo,offset = k in
+          if List.mem varinfo (f.sformals @ f.slocals) then (* if var is local, we make a copy *)
+            D.add return_var (D.find' k m) m
+          else
+            D.alias return_var k m (* if var is global, we alias it *)
       | _ -> m
     in
     (* remove formals and locals *)
-    List.fold_left (fun m var -> D.remove (var, `NoOffset) m) au (f.sformals @ f.slocals)
+    List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let m = ctx.local in
-    M.debug_each ("entering function "^f.vname^(string_of_callstack m));
+    (* M.debug_each @@ "entering function "^f.vname^string_of_callstack ctx.local; *)
     if f.vname = "main" then load_specfile ();
     let m = if f.vname <> "main" then
       edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
-    else m in [m,m]
+    else ctx.local in [m,m]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    (* M.write ("leaving function "^f.vname^(string_of_callstack au)); *)
+    (* M.debug_each @@ "leaving function "^f.vname^string_of_callstack au; *)
     let au = edit_callstack List.tl au in
     let return_val = D.find_option return_var au in
     match lval, return_val with
-      | Some lval, Some rval ->
-          let k = key_from_lval lval in
-          (* M.write ("setting "^D.string_of_key k^" to content of "^(D.V.vnames rval)); *)
-          let rval = D.V.change_key rval k in (* change rval.key to lval *)
-          D.add k rval (D.remove return_var au)
-      | _ -> au
+    | Some lval, Some v ->
+        let k = key_from_lval lval in
+        (* remove special return var and handle potential overwrites *)
+        let au = D.remove' return_var au (* |> check_overwrite_open k *) in
+        (* if v.key is still in D, then it must be a global and we need to alias instead of rebind *)
+        (* TODO what if there is a local with the same name as the global? *)
+        if D.V.is_top v then (* returned a local that was top -> just add k as top *)
+          D.add' k v au
+        else (* v is now a local which is not top or a global which is aliased *)
+          let vvar = D.V.get_alias v in (* this is also ok if v is not an alias since it chooses an element from the May-Set which is never empty (global top gets aliased) *)
+          if D.mem vvar au then (* returned variable was a global TODO what if local had the same name? -> seems to work *)
+            (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
+            D.alias k vvar au
+          else (* returned variable was a local *)
+            let v = D.V.change_key v k in (* ajust var-field to lval *)
+            (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
+            D.add' k v au
+    | _ -> au
 
 (*
 .spec-format:
@@ -310,8 +321,8 @@ struct
     (* custom goto (D.goto is just for modifying) that checks if the target state is a warning and acts accordingly *)
     let goto ?may:(may=false) var loc state m ws =
       let warn var m msg =
-        let msg = Str.global_replace (Str.regexp_string "$") (D.string_of_key var) msg in
-        M.report ((if D.is_may var m then "MAYBE " else "")^msg)
+        Str.global_replace (Str.regexp_string "$") (D.string_of_key var) msg
+        |> D.warn ~may:(D.is_may var m)
       in
       (* do transition warnings *)
       List.iter (fun state -> match SC.warning state !nodes with Some msg -> warn var m msg | _ -> ()) ws;
@@ -320,7 +331,7 @@ struct
             warn var m msg;
             m (* no goto == implicit back edge *)
         | None ->
-            M.debug_each ("GOTO "^D.string_of_key var^": "^D.string_of_state var m^" -> "^state);
+            M.debug_each @@ "GOTO "^D.string_of_key var^": "^D.string_of_state var m^" -> "^state;
             if may then D.may_goto var loc state m else D.goto var loc state m
     in
     let matching m new_a old_key (a,ws,fwd,b,c) =
@@ -343,17 +354,17 @@ struct
       let key =
         match SC.get_key_variant c with
           | `Lval s    ->
-            M.debug_each ("Key variant for "^f.vname^": `Lval "^s^". \027[30m "^SC.stmt_to_string c);
+            M.debug_each @@ "Key variant for "^f.vname^": `Lval "^s^". \027[30m "^SC.stmt_to_string c;
             lval
           | `Arg(s, i) ->
-            M.debug_each ("Key variant for "^f.vname^": `Arg("^s^", "^string_of_int i^")"^". "^SC.stmt_to_string c);
+            M.debug_each @@ "Key variant for "^f.vname^": `Arg("^s^", "^string_of_int i^")"^". "^SC.stmt_to_string c;
             (try
               let arg = List.at arglist i in
               match arg with
                 | Lval x -> Some x (* TODO enough to just assume the arg is already there as a Lval? *)
                 | _      -> None
             with Invalid_argument s ->
-              M.debug_each ("Key out of bounds! Msg: "^s); (* TODO what to do if spec says that there should be more args... *)
+              M.debug_each @@ "Key out of bounds! Msg: "^s; (* TODO what to do if spec says that there should be more args... *)
               None
             )
           | _          -> None (* `Rval or `None *)
@@ -368,7 +379,7 @@ struct
       (* possible varinfos the lval may point to -> TODO use Lval as key for map? But: multiple representations for the same Lval?! *)
       let vars = varinfos key in (* does MayPointTo query for Mem, otherwise [varinfo] *)
       let check_var (m,n) var =
-        (* M.write ("check_var: " ^ f.vname ^ "(...): " ^ D.string_of_entry var m); *)
+        (* M.debug_each @@ "check_var: "^f.vname^"(...): "^D.string_of_entry var m; *)
         (* skip transitions we can't take b/c we're not in the right state *)
         (* i.e. if not in map, we must be at the start node or otherwise we must be in one of the possible saved states *)
         if not (D.mem var m) && a<>SC.startnode !edges || D.mem var m && not (D.may_in_state var a m) then (
@@ -377,26 +388,27 @@ struct
         )
         (* skip transitions where the constraint doesn't have the right form (assignment or not) *)
         else if not (SC.equal_form lval c) then (m,n)
-        (* check if parameters match those of the constraint (arglist corresponds to args) *)
+        (* check if function arguments match those of the constraint (arglist corresponds to spec_args) *)
         else
-        let equal_args args =
-          if List.length args = 1 && List.hd args = `Free then
+        let equal_args spec_args cil_args =
+          if List.length spec_args = 1 && List.hd spec_args = `Free then
             true (* wildcard as an argument matches everything *)
-          else if List.length arglist <> List.length args then (
+          else if List.length arglist <> List.length spec_args then (
             M.debug_each "SKIP the number of arguments doesn't match the specification!";
             false
           )else
+          (* match spec_arg, cil_arg *)
           let equal_arg = function
             (* TODO match constants right away to avoid queries? *)
-            | `String a, Const(CStr b) -> M.debug_each ("EQUAL String Const: "^a^" = "^b); a=b
+            | `String a, Const(CStr b) -> M.debug_each @@ "EQUAL String Const: "^a^" = "^b; a=b
             (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
             (* CWStr is done in base.ml, query only returns `Str if it's safe *)
             | `String a, e -> (match ctx.ask (Queries.EvalStr e) with
-                | `Str b -> M.debug_each ("EQUAL String Query: "^a^" = "^b); a=b
+                | `Str b -> M.debug_each @@ "EQUAL String Query: "^a^" = "^b; a=b
                 | _      -> M.debug_each "EQUAL String Query: no result!"; false
               )
             | `Regex a, e -> (match ctx.ask (Queries.EvalStr e) with
-                | `Str b -> M.debug_each ("EQUAL Regex String Query: "^a^" = "^b); Str.string_match (Str.regexp a) b 0
+                | `Str b -> M.debug_each @@ "EQUAL Regex String Query: "^a^" = "^b; Str.string_match (Str.regexp a) b 0
                 | _      -> M.debug_each "EQUAL Regex String Query: no result!"; false
               )
             | `Bool a, e -> (match ctx.ask (Queries.EvalInt e) with
@@ -413,14 +425,14 @@ struct
             | `Vari a, b  -> true
             (* arg is a identifier we use for matching constraints. TODO save in domain *)
             | `Ident a, b -> true
-            | `Error s, b -> failwith ("Spec error: "^s)
+            | `Error s, b -> failwith @@ "Spec error: "^s
             (* wildcard matches anything *)
             | `Free, b    -> true
-            | a,b -> M.warn_each ("EQUAL? Unmatched case - assume true..."); true
-          in List.for_all equal_arg (List.combine args arglist) (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
+            | a,b -> M.warn_each @@ "EQUAL? Unmatched case - assume true..."; true
+          in List.for_all equal_arg (List.combine spec_args cil_args) (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
         in
         (* check if arguments match the constraint *)
-        if not (equal_args (SC.get_fun_args c)) then (m,n)
+        if not (equal_args (SC.get_fun_args c) arglist) then (m,n)
         (* everything matches the constraint -> go to new state and increase counter *)
         (* TODO if #Queries.MayPointTo > 1: each result is May, but all combined are Must *)
         else let new_m = goto ~may:(List.length vars > 1) var dloc b m ws in (new_m,n+1)
@@ -440,13 +452,13 @@ struct
     try
       let rec check_fwd_loop m new_a old_key = (* TODO cycle detection? *)
         let new_m,fwd,new_a,key = List.find_map (matching m new_a old_key) fun_edges in
-        (* List.iter (fun x -> M.write (x^"\n")) (D.string_of_map new_m); *)
-        (* M.write ("fwd: "^dump fwd^", new_a: "^dump new_a^", old_key: "^dump old_key); *)
+        (* List.iter (fun x -> M.debug_each (x^"\n")) (D.string_of_map new_m); *)
+        (* M.debug_each @@ "fwd: "^dump fwd^", new_a: "^dump new_a^", old_key: "^dump old_key; *)
         if fwd then check_fwd_loop new_m new_a key else new_m,key
       in
       (* now we get the new domain and the latest key that was used *)
       let new_m,key = check_fwd_loop m None None in
-      (* List.iter (fun x -> M.write (x^"\n")) (D.string_of_map new_m); *)
+      (* List.iter (fun x -> M.debug_each (x^"\n")) (D.string_of_map new_m); *)
       (* next we have to check if there is a branch() transition we could take *)
       let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c) !edges in
       (* just for the compiler: key is initialized with None, but changes once some constaint matches. If none match, we wouldn't be here but at catch Not_found. *)
@@ -456,7 +468,7 @@ struct
         let check_branch branches var =
           (* only keep those branch_edges for which our key might be in the right state *)
           let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> D.may_in_state var a new_m) branch_edges in
-          (* M.write ((D.string_of_entry var new_m)^" -> branch_edges: "^(String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges)); *)
+          (* M.debug_each @@ D.string_of_entry var new_m^" -> branch_edges: "^String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges; *)
           (* count should be a multiple of 2 (true/false), otherwise the spec is malformed *)
           if List.length branch_edges mod 2 <> 0 then failwith "Spec is malformed: branch-transitions always need a true and a false case!" else
           (* if nothing matches, just return new_m without branching *)

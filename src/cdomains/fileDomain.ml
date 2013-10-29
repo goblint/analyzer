@@ -153,11 +153,13 @@ struct
       add k (V.union (find k m) v) m
     else
       add k v m
+  let without_special_vars m = filter (fun k v -> String.get (V.string_of_key k) 0 <> '@') m
 
-  (* domain specific *)
+  (* helper functions *)
   let filter_values p m = (* filters all values in the map and flattens result *)
     let flatten_sets = List.fold_left Set.union Set.empty in
-    filter (fun k v -> V.may p v && not (V.is_alias v)) m
+    without_special_vars m
+    |> filter (fun k v -> V.may p v && not (V.is_alias v))
     |> MDMap.bindings |> List.map (fun (k,v) -> V.filter p v)
     |> List.split |> (fun (x,y) -> flatten_sets x, flatten_sets y)
   let filter_records k p m = (* filters both sets of k *)
@@ -166,9 +168,14 @@ struct
   let must k p m = if mem k m then V.must p (find' k m) else false
   let may  k p m = if mem k m then V.may  p (find' k m) else false
 
-  let warn ?may:(may=false) ?loc:(loc= !Tracing.current_loc) msg =
-    M.report ~loc:loc (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
+  let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
+    M.report ~loc:(List.last loc) (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
 
+  let unknown k m = add' k (V.top ()) m
+  let is_unknown k m = if mem k m then V.is_top (find' k m) else false
+
+
+  (* domain specific *)
   (* returns a tuple (thunk, result) *)
   let report_ ?neg:(neg=false) k p msg m =
     let f ?may:(may=false) msg =
@@ -193,9 +200,6 @@ struct
     (* output first must and first may *)
     if List.length must_true > 0 then (List.hd must_true) ();
     if List.length may_true  > 0 then (List.hd may_true) ()
-
-  let unknown k m = add' k (V.top ()) m
-  let is_unknown k m = if mem k m then V.is_top (find' k m) else false
 
   let fopen k loc filename mode m =
     if is_unknown k m then m else

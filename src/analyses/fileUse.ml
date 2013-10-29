@@ -136,22 +136,21 @@ struct
       let mustOpen, mayOpen = D.V.union (D.filter_values D.V.opened m) (D.get_value unclosed_var m) in
       if Set.cardinal mustOpen > 0 then (
         D.warn @@ "unclosed files: "^vnames mustOpen;
-        Set.iter (fun v -> D.warn ~loc:(BatList.last v.loc) "file is never closed") mustOpen;
+        Set.iter (fun v -> D.warn ~loc:v.loc "file is never closed") mustOpen;
         (* add warnings about currently open files (don't include overwritten or changed file handles!) *)
         warned_unclosed := Set.union !warned_unclosed (fst (D.filter_values D.V.opened m)) (* can't save in domain b/c it wouldn't reach the other return *)
       );
       (* go through files "never closed" and recheck for current return *)
-      Set.iter (fun v -> if D.must v.key D.V.closed m then D.warn ~may:true ~loc:(BatList.last v.loc) "file is never closed") !warned_unclosed;
+      Set.iter (fun v -> if D.must v.key D.V.closed m then D.warn ~may:true ~loc:v.loc "file is never closed") !warned_unclosed;
       (* let mustOpenVars = List.map (fun x -> x.key) mustOpen in *)
       (* let mayOpen = List.filter (fun x -> not (List.mem x.key mustOpenVars)) mayOpen in (* ignore values that are already in mustOpen *) *)
       let mayOpen = Set.diff mayOpen mustOpen in
       if Set.cardinal mayOpen > 0 then
         D.warn ~may:true @@ "unclosed files: "^vnames mayOpen;
-        Set.iter (fun v -> D.warn ~may:true ~loc:(BatList.last v.loc) "file is never closed") mayOpen
+        Set.iter (fun v -> D.warn ~may:true ~loc:v.loc "file is never closed") mayOpen
     );
     let au = match exp with
       | Some(Lval lval) when D.mem (key_from_lval lval) m -> (* we return a var in D *)
-          (* M.write ("return variable "^varinfo.vname^" (dummy: "^return_var.vname^")"); *)
           let k = key_from_lval lval in
           let varinfo,offset = k in
           if List.mem varinfo (f.sformals @ f.slocals) then (* if var is local, we make a copy *)
@@ -164,7 +163,7 @@ struct
     List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    (* M.debug_each @@ "entering function "^f.vname^string_of_callstack ctx.local); *)
+    (* M.debug_each @@ "entering function "^f.vname^string_of_callstack ctx.local; *)
     let m = if f.vname <> "main" then
       edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
     else ctx.local in [m,m]
@@ -185,25 +184,24 @@ struct
     let au = edit_callstack List.tl au in
     let return_val = D.find_option return_var au in
     match lval, return_val with
-      | Some lval, Some v ->
-          (* M.write @@ "setting "^var.vname^" to content of "^D.V.vnames v; *)
-          let k = key_from_lval lval in
-          (* remove special return var and handle potential overwrites *)
-          let au = D.remove' return_var au |> check_overwrite_open k in
-          (* if v.key is still in D, then it must be a global and we need to alias instead of rebind *)
-          (* TODO what if there is a local with the same name as the global? *)
-          if D.V.is_top v then (* returned a local that was top -> just add k as top *)
+    | Some lval, Some v ->
+        let k = key_from_lval lval in
+        (* remove special return var and handle potential overwrites *)
+        let au = D.remove' return_var au |> check_overwrite_open k in
+        (* if v.key is still in D, then it must be a global and we need to alias instead of rebind *)
+        (* TODO what if there is a local with the same name as the global? *)
+        if D.V.is_top v then (* returned a local that was top -> just add k as top *)
+          D.add' k v au
+        else (* v is now a local which is not top or a global which is aliased *)
+          let vvar = D.V.get_alias v in (* this is also ok if v is not an alias since it chooses an element from the May-Set which is never empty (global top gets aliased) *)
+          if D.mem vvar au then (* returned variable was a global TODO what if local had the same name? -> seems to work *)
+            (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
+            D.alias k vvar au
+          else (* returned variable was a local *)
+            let v = D.V.change_key v k in (* ajust var-field to lval *)
+            (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
             D.add' k v au
-          else (* v is now a local which is not top or a global which is aliased *)
-            let vvar = D.V.get_alias v in (* this is also ok if v is not an alias since it chooses an element from the May-Set which is never empty (global top gets aliased) *)
-            if D.mem vvar au then (* returned variable was a global TODO what if local had the same name? -> seems to work *)
-              (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
-              D.alias k vvar au
-            else (* returned variable was a local *)
-              let v = D.V.change_key v k in (* ajust var-field to lval *)
-              (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
-              D.add' k v au
-      | _ -> au
+    | _ -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let m = ctx.local in
