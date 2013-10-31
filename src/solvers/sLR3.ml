@@ -91,11 +91,11 @@ struct
     let get_root_key x = find_min x |> X.get_key 
     let extract_min h = (find_min h, del_min h)
     let insert h k = 
-      (*Printf.printf "add %d\n" (X.get_key k);*)
+      (* ignore @@ Printf.printf "add %d\n" (X.get_key k); *)
       insert h k 
     let extract_min h =
       let (k,h) = extract_min h in
-      (*Printf.printf "removing %d\n" (X.get_key k);*)
+      (* ignore @@ Printf.printf "removing %d\n" (X.get_key k); *)
       (k,h)
   end
     
@@ -170,13 +170,13 @@ struct
         let _ = P.rem_item stable x in
         if k >= sk then () else
           let _ = X.set_value x (D.bot ()) in
-          (*ignore @@ Pretty.printf " also restarting %d: %a\n" k S.Var.pretty_trace x;*)
+          (* ignore @@ Pretty.printf " also restarting %d: %a\n" k S.Var.pretty_trace x; *)
           let w = L.sub infl x in
           let _ = L.rem_item infl x in
-          (*let _ = L.add infl x x in *)
+          (* let _ = L.add infl x x in *)
           List.iter handle_one w
       in
-      (*ignore @@ Pretty.printf "restarting %d: %a\n" sk S.Var.pretty_trace x;*)
+      (* ignore @@ Pretty.printf "restarting %d: %a\n" sk S.Var.pretty_trace x; *)
       let w = L.sub infl x in
       let _ = L.rem_item infl x in
       let _ = if (not LIM_WP.value) || HM.mem wpoint x then L.add infl x x in
@@ -331,7 +331,7 @@ struct
         (* ignore @@ Pretty.printf "greater:\nS1:%a\n\nS2:%a\n\ndiff:%a\n%a\n\n" S.Dom.pretty v1 S.Dom.pretty v2 S.Dom.pretty_diff (v1,v2) S.Var.pretty_trace k; *)
         f_gr ()
       end else begin 
-        ignore @@ Pretty.printf "uncomparable:\nS1:%a\n\nS2:%a\n\ndiff:%a\n%a\n\n" S.Dom.pretty v1 S.Dom.pretty v2 S.Dom.pretty_diff (v1,v2) S.Var.pretty_trace k;
+        (* ignore @@ Pretty.printf "uncomparable:\nS1:%a\n\nS2:%a\n\ndiff:%a\n%a\n\n" S.Dom.pretty v1 S.Dom.pretty v2 S.Dom.pretty_diff (v1,v2) S.Var.pretty_trace k; *)
         f_uk ()
       end
     in
@@ -372,7 +372,7 @@ struct
         (* ignore @@ Pretty.printf "greater:\nS1:%a\n\nS2:%a\n\ndiff:%a\n%a\n\n" S.Dom.pretty v1 S.Dom.pretty v2 S.Dom.pretty_diff (v1,v2) S.Var.pretty_trace k; *)
         f_gr ()
       end else begin
-        ignore @@ Pretty.printf "uncomparable:\nS1:%a\n\nS2:%a\n\ndiff:%a\n%a\n\n" S.Dom.pretty v1 S.Dom.pretty v2 S.Dom.pretty_diff (v1,v2) S.Var.pretty_trace k;
+        (*ignore @@ Pretty.printf "uncomparable:\nS1:%a\n\nS2:%a\n\ndiff:%a\n%a\n\n" S.Dom.pretty v1 S.Dom.pretty v2 S.Dom.pretty_diff (v1,v2) S.Var.pretty_trace k; *)
         f_uk ()
       end
     in
