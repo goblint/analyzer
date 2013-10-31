@@ -16,7 +16,6 @@ struct
   module D = SpecDomain.Dom
   module C = SpecDomain.Dom
   module G = Lattice.Unit
-  open D.V.T
 
   (* special variables *)
   let return_var    = Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
@@ -24,13 +23,11 @@ struct
   let global_var    = Cil.makeVarinfo false "@global"    Cil.voidType, `NoOffset
 
   (* callstack for locations *)
-  let callstack m = match D.get_record callstack_var m with
-      | Some x -> x.loc
-      | _ -> []
+  let callstack m = D.get_record callstack_var m |> Option.map_default D.V.loc []
   let string_of_callstack m = " [call stack: "^String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m))^"]"
   let edit_callstack f m =
-    let v = D.get_record callstack_var m |? Set.choose @@ D.V.make_var_set callstack_var in
-    D.add_record callstack_var {v with loc=(f v.loc)} m
+    (* let v = D.get_record callstack_var m |? D.V.make_var callstack_var in *)
+    D.edit_record callstack_var (D.V.edit_loc f) m
 
   (* spec data *)
   let nodes = ref []
@@ -193,13 +190,13 @@ struct
           (* being explicit: check how many records there are. if the value is Must b, then we're sure that it is so and we don't remove anything. *)
           if D.V.length value = (1,1) then m else (* XX *)
           (* there are multiple possible states -> remove b *)
-          let v2 = D.V.remove_state value b in
+          let v2 = D.V.remove_state b value in
           (* M.debug_each @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
           D.add key v2 m
         ) else (* call of branch directly after splitting *)
           let (a,ws,fwd,b,c) = List.hd branch_edges in
           (* TODO may etc. *)
-          let v2 = D.V.change_state value b in
+          let v2 = D.V.set_state b value in
           (* M.debug_each @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
           D.add key v2 m
       | _ -> M.debug @@ "nothing matched the given BinOp: "^sprint d_plainexp a^" = "^sprint d_plainexp b; m
@@ -227,8 +224,8 @@ struct
         let may_not = Set.diff may_not must_not in
         (match msg_loc with (* local warnings for entries that must/may not be in an end state *)
         | Some msg ->
-            Set.iter (fun v -> D.warn           ~loc:v.loc msg) must_not;
-            Set.iter (fun v -> D.warn ~may:true ~loc:v.loc msg) may_not
+            Set.iter (fun r -> D.warn           ~loc:(D.V.loc r) msg) must_not;
+            Set.iter (fun r -> D.warn ~may:true ~loc:(D.V.loc r) msg) may_not
         | None -> ());
         (match msg_end with
         | Some msg -> (* warnings at return for entries that must/may not be in an end state *)
@@ -281,7 +278,7 @@ struct
             (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
             D.alias k vvar au
           else (* returned variable was a local *)
-            let v = D.V.change_key v k in (* ajust var-field to lval *)
+            let v = D.V.set_key k v in (* ajust var-field to lval *)
             (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
             D.add' k v au
     | _ -> au
