@@ -52,7 +52,7 @@ struct
   let print_query_lv ?msg:(msg="") ask exp =
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
     M.debug_each @@ msg^" MayPointTo "^sprint d_exp exp^" = ["
-      ^String.concat ", " (List.map D.V.string_of_key xs)^"]"
+      ^String.concat ", " (List.map D.string_of_key xs)^"]"
 
 
   (* transfer functions *)
@@ -79,7 +79,7 @@ struct
       | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
           D.alias k1 k2 m
       | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
-          D.warn @@ "changed file pointer "^D.V.string_of_key k1^" (no longer safe)";
+          D.warn @@ "changed file pointer "^D.string_of_key k1^" (no longer safe)";
           saveOpened ~unknown:true k1 m |> D.unknown k1
       | _ -> m (* no change in D for other things *)
 
@@ -159,7 +159,7 @@ struct
     if List.is_empty (D.get_aliases k m) then (
       (* there are no other variables pointing to the file handle
          and it is opened again without being closed before *)
-      D.report k D.opened ("overwriting still opened file handle "^D.V.string_of_key k) m;
+      D.report k D.opened ("overwriting still opened file handle "^D.string_of_key k) m;
       let mustOpen, mayOpen = D.filter_records k D.opened m in
       let mayOpen = Set.diff mayOpen mustOpen in
       (* save opened files in the domain to warn about unclosed files at the end *)
@@ -201,19 +201,18 @@ struct
     in
     let loc = !Tracing.current_loc::(D.callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
-    let keys_from_lval lval = (* get possible varinfos for a given lval *)
+    let keys_from_lval lval = (* get possible keys for a given lval *)
       match lval with
         | Var varinfo, offset -> [varinfo, Lval.CilLval.of_ciloffs offset]
-        | Mem (Lval lval2), offset -> (* e.g. fp2=&fp1; fclose(\*fp2) *)
-            let exp = Lval lval2 in
+        | Mem lval2, offset -> (* e.g. \*fp -> Mem(Lval(Var(fp, offset))), \*(fp+1) -> Mem(PlusPI(...)) *)
+            let exp = lval2 in
             let xs = query_lv ctx.ask exp in (* MayPointTo -> LValSet *)
             M.debug_each @@ "MayPointTo "^sprint d_exp exp^" = ["
-              ^String.concat ", " (List.map D.V.string_of_key xs)^"]";
+              ^String.concat ", " (List.map D.string_of_key xs)^"]";
             List.map (fun (v,o) -> let new_ciloffs = addOffset (Lval.CilLval.to_ciloffs o) offset in
               v, Lval.CilLval.of_ciloffs new_ciloffs) xs
-        | _ -> failwith @@ "not supported Lval: "^sprint d_plainlval lval
     in
-    (* fold possible varinfos on domain *)
+    (* fold possible keys on domain *)
     let ret_all ?ret:(retf=identity) f lval =
       let xs = keys_from_lval lval in
       if List.length xs = 1 then retf (f (List.hd xs) m)
@@ -246,8 +245,8 @@ struct
       | _, "fclose", [Lval fp] ->
           let f k m =
             D.reports k [
-              false, D.closed,  "closeing already closed file handle "^D.V.string_of_key k;
-              true,  D.opened,  "closeing unopened file handle "^D.V.string_of_key k
+              false, D.closed,  "closeing already closed file handle "^D.string_of_key k;
+              true,  D.opened,  "closeing unopened file handle "^D.string_of_key k
             ] m;
             D.fclose k loc m
           in ret_all f fp
@@ -257,9 +256,9 @@ struct
       | _, "fprintf", (Lval fp)::_::_ ->
           let f k m =
             D.reports k [
-              false, D.closed,   "writing to closed file handle "^D.V.string_of_key k;
-              true,  D.opened,   "writing to unopened file handle "^D.V.string_of_key k;
-              true,  D.writable, "writing to read-only file handle "^D.V.string_of_key k;
+              false, D.closed,   "writing to closed file handle "^D.string_of_key k;
+              true,  D.opened,   "writing to unopened file handle "^D.string_of_key k;
+              true,  D.writable, "writing to read-only file handle "^D.string_of_key k;
             ] m;
             m
           in ret_all f fp

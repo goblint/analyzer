@@ -86,7 +86,7 @@ struct
       | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
           D.alias k1 k2 m
       | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
-          D.warn @@ "changed file pointer "^D.V.string_of_key k1^" (no longer safe)";
+          D.warn @@ "changed file pointer "^D.string_of_key k1^" (no longer safe)";
           (* saveOpened ~unknown:true k1 *) m |> D.unknown k1
       | _ -> m (* no change in D for other things *)
 
@@ -294,34 +294,34 @@ struct
     let loc = !Tracing.current_loc in
     let dloc = loc::(D.callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
-    (* get possible varinfos for a given lval *)
-    let varinfos lval = (* TODO merge with key_from_lval *)
+    let keys_from_lval lval = (* get possible keys for a given lval *)
       match lval with
         | Var varinfo, offset -> [varinfo, Lval.CilLval.of_ciloffs offset]
-        | _ -> (* Mem *)
-            let exp = Lval lval in
+        | Mem lval2, offset -> (* e.g. \*fp -> Mem(Lval(Var(fp, offset))), \*(fp+1) -> Mem(PlusPI(...)) *)
+            let exp = lval2 in
             let xs = query_lv ctx.ask exp in (* MayPointTo -> LValSet *)
             M.debug_each @@ "MayPointTo "^sprint d_exp exp^" = ["
-              ^(String.concat ", " (List.map D.string_of_key xs))^"]";
-            xs
+              ^String.concat ", " (List.map D.string_of_key xs)^"]";
+            List.map (fun (v,o) -> let new_ciloffs = addOffset (Lval.CilLval.to_ciloffs o) offset in
+              v, Lval.CilLval.of_ciloffs new_ciloffs) xs
     in
-    (* fold possible varinfos on domain *)
-    (* let ret_all f lval = ret (List.fold_left f m (varinfos lval)) in *)
+    (* fold possible keys on domain *)
+    (* let ret_all f lval = ret (List.fold_left f m (keys_from_lval lval)) in *)
     (* custom goto (D.goto is just for modifying) that checks if the target state is a warning and acts accordingly *)
-    let goto ?may:(may=false) var loc state m ws =
-      let warn var m msg =
-        Str.global_replace (Str.regexp_string "$") (D.string_of_key var) msg
-        |> D.warn ~may:(D.is_may var m)
+    let goto ?may:(may=false) key loc state m ws =
+      let warn key m msg =
+        Str.global_replace (Str.regexp_string "$") (D.string_of_key key) msg
+        |> D.warn ~may:(D.is_may key m)
       in
       (* do transition warnings *)
-      List.iter (fun state -> match SC.warning state !nodes with Some msg -> warn var m msg | _ -> ()) ws;
+      List.iter (fun state -> match SC.warning state !nodes with Some msg -> warn key m msg | _ -> ()) ws;
       match SC.warning state !nodes with
         | Some msg ->
-            warn var m msg;
+            warn key m msg;
             m (* no goto == implicit back edge *)
         | None ->
-            M.debug_each @@ "GOTO "^D.string_of_key var^": "^D.string_of_state var m^" -> "^state;
-            if may then D.may_goto var loc state m else D.goto var loc state m
+            M.debug_each @@ "GOTO "^D.string_of_key key^": "^D.string_of_state key m^" -> "^state;
+            if may then D.may_goto key loc state m else D.goto key loc state m
     in
     let matching m new_a old_key (a,ws,fwd,b,c) =
       (* If we have come to a wildcard, we match it instantly, but since there is no way of determining a key
@@ -365,10 +365,10 @@ struct
         | None -> Cil.var (fst global_var) (* creates Var with NoOffset *)
       in
       (* ignore(printf "KEY: %a\n" d_plainlval key); *)
-      (* possible varinfos the lval may point to -> TODO use Lval as key for map? But: multiple representations for the same Lval?! *)
-      let vars = varinfos key in (* does MayPointTo query for Mem, otherwise [varinfo] *)
-      let check_var (m,n) var =
-        (* M.debug_each @@ "check_var: "^f.vname^"(...): "^D.string_of_entry var m; *)
+      (* possible keys_from_lval the lval may point to *)
+      let keys = keys_from_lval key in (* does MayPointTo query for Mem, otherwise [Lval.CilLval] *)
+      let check_key (m,n) var =
+        (* M.debug_each @@ "check_key: "^f.vname^"(...): "^D.string_of_entry var m; *)
         (* skip transitions we can't take b/c we're not in the right state *)
         (* i.e. if not in map, we must be at the start node or otherwise we must be in one of the possible saved states *)
         if not (D.mem var m) && a<>SC.startnode !edges || D.mem var m && not (D.may_in_state var a m) then (
@@ -424,10 +424,10 @@ struct
         if not (equal_args (SC.get_fun_args c) arglist) then (m,n)
         (* everything matches the constraint -> go to new state and increase counter *)
         (* TODO if #Queries.MayPointTo > 1: each result is May, but all combined are Must *)
-        else let new_m = goto ~may:(List.length vars > 1) var dloc b m ws in (new_m,n+1)
+        else let new_m = goto ~may:(List.length keys > 1) var dloc b m ws in (new_m,n+1)
       in
       (* do check for each varinfo and return the resulting domain if there has been at least one matching constraint *)
-      let new_m,n = List.fold_left check_var (m,0) vars in (* start with original domain and #transitions=0 *)
+      let new_m,n = List.fold_left check_key (m,0) keys in (* start with original domain and #transitions=0 *)
       if n==0 then None (* no constraint matched the current state *)
       else Some (new_m,fwd,new_a,Some key) (* return new domain and forwarding info *)
     in
@@ -476,8 +476,8 @@ struct
           in
           List.fold_left do_branch branches branch_edges
         in
-        let vars = varinfos key in
-        let new_set = List.fold_left check_branch Set.empty vars in ignore(new_set); (* TODO refactor *)
+        let keys = keys_from_lval key in
+        let new_set = List.fold_left check_branch Set.empty keys in ignore(new_set); (* TODO refactor *)
         (* List.of_enum (Set.enum new_set) *)
         ret new_m (* XX *)
       | None -> ret new_m
