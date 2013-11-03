@@ -9,6 +9,7 @@ module M = Messages
 exception Unknown
 exception Error
 
+(* signature for map entries *)
 module type S =
 sig
   include Lattice.S
@@ -196,7 +197,7 @@ struct
   let change k v m = (* if k is an alias, replace its pointee *)
     add (get_alias k m |? k) v m
 
-  (* used for special variables *)
+  (* special variables *)
   let get_record k m = Option.bind (find_option k m) V.get_record
   let edit_record k f m =
     let v = find_option k m |? V.make_var k in
@@ -210,6 +211,12 @@ struct
     else
       add k v m
   let without_special_vars m = filter (fun k v -> String.get (V.string_of_key k) 0 <> '@') m
+
+  (* callstack for locations *)
+  let callstack_var = Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
+  let callstack m = get_record callstack_var m |> Option.map_default V.loc []
+  let string_of_callstack m = " [call stack: "^String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m))^"]"
+  let edit_callstack f m = edit_record callstack_var (V.edit_loc f) m
 
   (* helper functions *)
   let filter_values p m = (* filters all values in the map and flattens result *)

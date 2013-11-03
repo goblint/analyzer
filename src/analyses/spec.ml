@@ -19,15 +19,7 @@ struct
 
   (* special variables *)
   let return_var    = Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
-  let callstack_var = Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
   let global_var    = Cil.makeVarinfo false "@global"    Cil.voidType, `NoOffset
-
-  (* callstack for locations *)
-  let callstack m = D.get_record callstack_var m |> Option.map_default D.V.loc []
-  let string_of_callstack m = " [call stack: "^String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m))^"]"
-  let edit_callstack f m =
-    (* let v = D.get_record callstack_var m |? D.V.make_var callstack_var in *)
-    D.edit_record callstack_var (D.V.edit_loc f) m
 
   (* spec data *)
   let nodes = ref []
@@ -213,8 +205,8 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let m = ctx.local in
-    (* M.debug_each @@ "return: ctx.local="^D.short 50 m^string_of_callstack m; *)
-    (* if f.svar.vname <> "main" && BatList.is_empty (callstack m) then M.debug_each @@ "\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"; *)
+    (* M.debug_each @@ "return: ctx.local="^D.short 50 m^D.string_of_callstack m; *)
+    (* if f.svar.vname <> "main" && BatList.is_empty (D.callstack m) then M.debug_each @@ "\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"; *)
     if f.svar.vname = "main" then (
       let warn_main msg_loc msg_end = (* there is an end warning for local, return or both *)
         (* find edges that have 'end' as a target *)
@@ -253,15 +245,15 @@ struct
     List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    (* M.debug_each @@ "entering function "^f.vname^string_of_callstack ctx.local; *)
+    (* M.debug_each @@ "entering function "^f.vname^D.string_of_callstack ctx.local; *)
     if f.vname = "main" then load_specfile ();
     let m = if f.vname <> "main" then
-      edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
+      D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
     else ctx.local in [m,m]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    (* M.debug_each @@ "leaving function "^f.vname^string_of_callstack au; *)
-    let au = edit_callstack List.tl au in
+    (* M.debug_each @@ "leaving function "^f.vname^D.string_of_callstack au; *)
+    let au = D.edit_callstack List.tl au in
     let return_val = D.find_option return_var au in
     match lval, return_val with
     | Some lval, Some v ->
@@ -300,7 +292,7 @@ struct
     (* let ret dom = [dom, Cil.integer 1, true] in *)
     let ret dom = dom in (* XX *)
     let loc = !Tracing.current_loc in
-    let dloc = loc::(callstack m) in
+    let dloc = loc::(D.callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     (* get possible varinfos for a given lval *)
     let varinfos lval = (* TODO merge with key_from_lval *)
