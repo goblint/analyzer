@@ -16,21 +16,10 @@ struct
   module D = FileDomain.Dom
   module C = FileDomain.Dom
   module G = Lattice.Unit
-  open D.V.T (* TODO really needed? mainly for v.loc *)
 
   (* special variables *)
   let return_var    = Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
-  let callstack_var = Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
   let unclosed_var  = Cil.makeVarinfo false "@unclosed"  Cil.voidType, `NoOffset
-
-  (* callstack for locations *)
-  let callstack m = match D.get_record callstack_var m with
-      | Some x -> x.loc
-      | _ -> []
-  let string_of_callstack m = " [call stack: "^String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m))^"]"
-  let edit_callstack f m =
-    let v = D.get_record callstack_var m |? Set.choose @@ D.V.make_var_set callstack_var in
-    D.add_record callstack_var {v with loc=(f v.loc)} m
 
   (* keys that were already warned about; needed for multiple returns (i.e. can't be kept in D) *)
   let warned_unclosed = ref Set.empty
@@ -71,8 +60,8 @@ struct
     let m = ctx.local in
     (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
     let saveOpened ?unknown:(unknown=false) k m = (* save maybe opened files in the domain to warn about maybe unclosed files at the end *)
-      if D.may k D.V.opened m && not (D.is_unknown k m) then (* if unknown we don't have any location for the warning and have handled it already anyway *)
-        let mustOpen, mayOpen = D.filter_records k D.V.opened m in
+      if D.may k D.opened m && not (D.is_unknown k m) then (* if unknown we don't have any location for the warning and have handled it already anyway *)
+        let mustOpen, mayOpen = D.filter_records k D.opened m in
         let mustOpen, mayOpen = if unknown then Set.empty, mayOpen else mustOpen, Set.diff mayOpen mustOpen in
         D.extend_value unclosed_var (mustOpen, mayOpen) m
       else m
@@ -131,23 +120,21 @@ struct
     (* M.debug_each @@ "return: ctx.local="^D.short 50 ctx.local^string_of_callstack m; *)
     (* if f.svar.vname <> "main" && BatList.is_empty (callstack m) then M.write ("\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"); *)
     if f.svar.vname = "main" then (
-      (* list of unique variable names as string *)
-      let vnames xs = String.concat ", " (List.unique (List.map (fun v -> D.V.string_of_key v.key) (Set.elements xs))) in (* creating a new Set of unique strings with Set.map doesn't work :/ *)
-      let mustOpen, mayOpen = D.V.union (D.filter_values D.V.opened m) (D.get_value unclosed_var m) in
+      let mustOpen, mayOpen = D.union (D.filter_values D.opened m) (D.get_value unclosed_var m) in
       if Set.cardinal mustOpen > 0 then (
-        D.warn @@ "unclosed files: "^vnames mustOpen;
-        Set.iter (fun v -> D.warn ~loc:v.loc "file is never closed") mustOpen;
+        D.warn @@ "unclosed files: "^D.string_of_keys mustOpen;
+        Set.iter (fun v -> D.warn ~loc:(D.V.loc v) "file is never closed") mustOpen;
         (* add warnings about currently open files (don't include overwritten or changed file handles!) *)
-        warned_unclosed := Set.union !warned_unclosed (fst (D.filter_values D.V.opened m)) (* can't save in domain b/c it wouldn't reach the other return *)
+        warned_unclosed := Set.union !warned_unclosed (fst (D.filter_values D.opened m)) (* can't save in domain b/c it wouldn't reach the other return *)
       );
       (* go through files "never closed" and recheck for current return *)
-      Set.iter (fun v -> if D.must v.key D.V.closed m then D.warn ~may:true ~loc:v.loc "file is never closed") !warned_unclosed;
+      Set.iter (fun v -> if D.must (D.V.key v) D.closed m then D.warn ~may:true ~loc:(D.V.loc v) "file is never closed") !warned_unclosed;
       (* let mustOpenVars = List.map (fun x -> x.key) mustOpen in *)
       (* let mayOpen = List.filter (fun x -> not (List.mem x.key mustOpenVars)) mayOpen in (* ignore values that are already in mustOpen *) *)
       let mayOpen = Set.diff mayOpen mustOpen in
       if Set.cardinal mayOpen > 0 then
-        D.warn ~may:true @@ "unclosed files: "^vnames mayOpen;
-        Set.iter (fun v -> D.warn ~may:true ~loc:v.loc "file is never closed") mayOpen
+        D.warn ~may:true @@ "unclosed files: "^D.string_of_keys mayOpen;
+        Set.iter (fun v -> D.warn ~may:true ~loc:(D.V.loc v) "file is never closed") mayOpen
     );
     let au = match exp with
       | Some(Lval lval) when D.mem (key_from_lval lval) m -> (* we return a var in D *)
@@ -165,15 +152,15 @@ struct
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (* M.debug_each @@ "entering function "^f.vname^string_of_callstack ctx.local; *)
     let m = if f.vname <> "main" then
-      edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
+      D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
     else ctx.local in [m,m]
 
   let check_overwrite_open k m = (* used in combine and special *)
     if List.is_empty (D.get_aliases k m) then (
       (* there are no other variables pointing to the file handle
          and it is opened again without being closed before *)
-      D.report k D.V.opened ("overwriting still opened file handle "^D.V.string_of_key k) m;
-      let mustOpen, mayOpen = D.filter_records k D.V.opened m in
+      D.report k D.opened ("overwriting still opened file handle "^D.V.string_of_key k) m;
+      let mustOpen, mayOpen = D.filter_records k D.opened m in
       let mayOpen = Set.diff mayOpen mustOpen in
       (* save opened files in the domain to warn about unclosed files at the end *)
       D.extend_value unclosed_var (mustOpen, mayOpen) m
@@ -181,7 +168,7 @@ struct
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     (* M.debug_each @@ "leaving function "^f.vname^string_of_callstack au; *)
-    let au = edit_callstack List.tl au in
+    let au = D.edit_callstack List.tl au in
     let return_val = D.find_option return_var au in
     match lval, return_val with
     | Some lval, Some v ->
@@ -198,7 +185,7 @@ struct
             (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
             D.alias k vvar au
           else (* returned variable was a local *)
-            let v = D.V.change_key v k in (* ajust var-field to lval *)
+            let v = D.V.set_key k v in (* ajust var-field to lval *)
             (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
             D.add' k v au
     | _ -> au
@@ -212,7 +199,7 @@ struct
         ctx.split dom (Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType)) true;
       dom
     in
-    let loc = !Tracing.current_loc::(callstack m) in
+    let loc = !Tracing.current_loc::(D.callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     let keys_from_lval lval = (* get possible varinfos for a given lval *)
       match lval with
@@ -259,8 +246,8 @@ struct
       | _, "fclose", [Lval fp] ->
           let f k m =
             D.reports k [
-              false, D.V.closed,  "closeing already closed file handle "^D.V.string_of_key k;
-              true,  D.V.opened,  "closeing unopened file handle "^D.V.string_of_key k
+              false, D.closed,  "closeing already closed file handle "^D.V.string_of_key k;
+              true,  D.opened,  "closeing unopened file handle "^D.V.string_of_key k
             ] m;
             D.fclose k loc m
           in ret_all f fp
@@ -270,9 +257,9 @@ struct
       | _, "fprintf", (Lval fp)::_::_ ->
           let f k m =
             D.reports k [
-              false, D.V.closed,   "writing to closed file handle "^D.V.string_of_key k;
-              true,  D.V.opened,   "writing to unopened file handle "^D.V.string_of_key k;
-              true,  D.V.writable, "writing to read-only file handle "^D.V.string_of_key k;
+              false, D.closed,   "writing to closed file handle "^D.V.string_of_key k;
+              true,  D.opened,   "writing to unopened file handle "^D.V.string_of_key k;
+              true,  D.writable, "writing to read-only file handle "^D.V.string_of_key k;
             ] m;
             m
           in ret_all f fp

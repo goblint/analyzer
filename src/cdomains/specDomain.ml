@@ -1,7 +1,7 @@
-open Cil
 open Batteries
 
-include LvalMapDomain
+module D = LvalMapDomain
+
 
 module Val =
 struct
@@ -19,11 +19,14 @@ struct
 end
 
 
-(* module Dom = Domain (Value (Val)) *)
-
 module Dom =
 struct
-  include Domain (Value (Val))
+  include D.Domain (D.Value (Val))
 
-  (* extend here *)
+  (* handling state *)
+  let goto     k loc state m = add' k (V.make k loc state) m
+  let may_goto k loc state m = let v = V.join (find' k m) (V.make k loc state) in add' k v m
+  let in_state     k s m = must k (V.in_state s) m
+  let may_in_state k s m = may  k (V.in_state s) m
+  let get_states k m = if not (mem k m) then [] else find' k m |> V.map' V.state |> snd |> Set.elements
 end

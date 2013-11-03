@@ -53,6 +53,7 @@ sig
   val get_record: t -> r option
   (* val make_record: k -> location list -> s -> r *)
   val make_var: k -> t
+  val from_tuple: r Set.t * r Set.t -> t
 
   (* aliasing *)
   val is_alias: t -> bool
@@ -149,6 +150,7 @@ struct
   let make_var_set k = Set.singleton (make_var_record k)
   let make_var k = make_var_set k, make_var_set k
   let make_alias k = make_var_set alias_var, make_var_set k
+  let from_tuple = identity
 end
 
 
@@ -202,14 +204,14 @@ struct
   let edit_record k f m =
     let v = find_option k m |? V.make_var k in
     add k (V.map f v) m
-(*   let get_value k m =
-    if mem k m then find k m
-    else Set.empty, Set.empty *)
-  let extend_value k v m =
+  let get_value k m = find_option k m |> Option.map_default V.split (Set.empty,Set.empty)
+  let extend_value k v' m =
+    let v = V.from_tuple v' in
     if mem k m then
       add k (V.union (find k m) v) m
     else
       add k v m
+  let union (a,b) (c,d) = Set.union a c, Set.union b d
   let without_special_vars m = filter (fun k v -> String.get (V.string_of_key k) 0 <> '@') m
 
   (* callstack for locations *)
@@ -218,7 +220,12 @@ struct
   let string_of_callstack m = " [call stack: "^String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m))^"]"
   let edit_callstack f m = edit_record callstack_var (V.edit_loc f) m
 
-  (* helper functions *)
+
+  (* predicates *)
+  let must k p m = mem k m && V.must p (find' k m)
+  let may  k p m = mem k m && V.may  p (find' k m)
+  let is_may k m = mem k m && let x,y = V.length (find' k m) in x=0 && y>0
+
   let filter_values p m = (* filters all values in the map and flattens result *)
     let flatten_sets = List.fold_left Set.union Set.empty in
     without_special_vars m
@@ -228,27 +235,16 @@ struct
   let filter_records k p m = (* filters both sets of k *)
     if mem k m then V.filter' p (find' k m) else Set.empty, Set.empty
 
-  let may  k p m = mem k m && V.may  p (find' k m)
-  let must k p m = mem k m && V.must p (find' k m)
-
-  let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
-    M.report ~loc:(List.last loc) (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
-
   let unknown k m = add' k (V.top ()) m
   let is_unknown k m = if mem k m then V.is_top (find' k m) else false
 
-
-  (* domain specific *)
-  let goto k loc state m = add' k (V.make k loc state) m
-  let may_goto k loc state m = let v = V.join (find' k m) (V.make k loc state) in add' k v m
-  let is_may k m = mem k m && let x,y = V.length (find' k m) in x=0 && y>0
-  let in_state     k s m = must k (V.in_state s) m
-  let may_in_state k s m = may  k (V.in_state s) m
-  let get_states k m = if not (mem k m) then [] else find' k m |> V.map' V.state |> snd |> Set.elements
-
+  (* printing *)
   let string_of_state k m = if not (mem k m) then "?" else V.string_of (find' k m)
   let string_of_key k = V.string_of_key k
   let string_of_keys rs = Set.map (V.string_of_key % V.key) rs |> Set.elements |> String.concat ", "
   let string_of_entry k m = string_of_key k ^ ": " ^ string_of_state k m
   let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (MDMap.bindings m)
+
+  let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
+    M.report ~loc:(List.last loc) (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
 end
