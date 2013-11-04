@@ -24,11 +24,6 @@ struct
   (* keys that were already warned about; needed for multiple returns (i.e. can't be kept in D) *)
   let warned_unclosed = ref Set.empty
 
-  (* one Lval may yield multiple keys *)
-  let key_from_lval = function
-    | Var varinfo, offset -> varinfo, Lval.CilLval.of_ciloffs offset
-    | Mem exp, offset -> failwith "not implemented yet" (* TODO use query_lv *)
-
   (* get string from Cil values, e.g. sprint d_exp exp, sprint d_plainlval lval etc. *)
   let sprint f x = Pretty.sprint 80 (f () x)
 
@@ -75,7 +70,7 @@ struct
       else m
     in
     let key_from_exp = function
-      | Lval x -> Some (key_from_lval x)
+      | Lval x -> Some (D.key_from_lval x)
       | _ -> None
     in
     match key_from_exp (Lval lval), key_from_exp rval with (* we just care about Lval assignments *)
@@ -100,7 +95,7 @@ struct
       | Const (CInt64(i, kind, str)), Lval lval
       | Lval lval, Const (CInt64(i, kind, str)) ->
         (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
-        let k = key_from_lval lval in
+        let k = D.key_from_lval lval in
         if i = Int64.zero && tv then (
           (* ignore(printf "error-branch\n"); *)
           D.error k m
@@ -145,8 +140,8 @@ struct
         Set.iter (fun v -> D.warn ~may:true ~loc:(D.V.loc v) "file is never closed") mayOpen
     );
     let au = match exp with
-      | Some(Lval lval) when D.mem (key_from_lval lval) m -> (* we return a var in D *)
-          let k = key_from_lval lval in
+      | Some(Lval lval) when D.mem (D.key_from_lval lval) m -> (* we return a var in D *)
+          let k = D.key_from_lval lval in
           let varinfo,offset = k in
           if List.mem varinfo (f.sformals @ f.slocals) then (* if var is local, we make a copy *)
             D.add return_var (D.find' k m) m
@@ -180,7 +175,7 @@ struct
     let return_val = D.find_option return_var au in
     match lval, return_val with
     | Some lval, Some v ->
-        let k = key_from_lval lval in
+        let k = D.key_from_lval lval in
         (* remove special return var and handle potential overwrites *)
         let au = D.remove' return_var au |> check_overwrite_open k in
         (* if v.key is still in D, then it must be a global and we need to alias instead of rebind *)
@@ -208,21 +203,9 @@ struct
         ctx.split dom (Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType)) true;
       dom
     in
-    let keys_from_lval lval = (* get possible keys for a given lval *)
-      print_query_lv ctx.ask (AddrOf lval);
-      match lval with
-        | Var varinfo, offset -> [varinfo, Lval.CilLval.of_ciloffs offset]
-        | Mem lval2, offset -> (* e.g. \*fp -> Mem(Lval(Var(fp, offset))), \*(fp+1) -> Mem(PlusPI(...)) *)
-            let exp = lval2 in
-            let xs = query_lv ctx.ask exp in (* MayPointTo -> LValSet *)
-            M.debug_each @@ "MayPointTo "^sprint d_exp exp^" = ["
-              ^String.concat ", " (List.map D.string_of_key xs)^"]";
-            List.map (fun (v,o) -> let new_ciloffs = addOffset (Lval.CilLval.to_ciloffs o) offset in
-              v, Lval.CilLval.of_ciloffs new_ciloffs) xs
-    in
     (* fold possible keys on domain *)
     let ret_all f lval =
-      let xs = keys_from_lval lval in
+      let xs = D.keys_from_lval lval ctx.ask in (* get all possible keys for a given lval *)
       if List.length xs = 0 then (D.warn @@ "could not resolve "^sprint d_exp (Lval lval); m)
       else if List.length xs = 1 then f (List.hd xs) m true
       (* else List.fold_left (fun m k -> D.join m (f k m)) m xs *)
@@ -238,7 +221,7 @@ struct
         (* then check each key *)
         (* List.iter (fun k -> ignore(f k m')) xs; *)
         (* get CilLval from lval *)
-        let k' = match lval with Var _, _ -> key_from_lval lval | Mem Lval(Var v1, o1), o2 -> v1, Lval.CilLval.of_ciloffs (addOffset o1 o2) | _ -> Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset in
+        let k' = D.key_from_lval lval in
         (* add joined value for that key *)
         let m' = Option.map_default (fun v -> D.add' k' v m) m v in
         (* check for warnigns *)

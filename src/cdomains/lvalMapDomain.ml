@@ -247,4 +247,25 @@ struct
 
   let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
     M.report ~loc:(List.last loc) (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
+
+  (* getting keys from Cil Lvals *)
+  let sprint f x = Pretty.sprint 80 (f () x)
+
+  let key_from_lval lval = match lval with (* try to get a Lval.CilLval from Cil.Lval *)
+    | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1
+    | Mem Lval(Var v1, o1), o2 -> v1, Lval.CilLval.of_ciloffs (addOffset o1 o2)
+    (* | Mem exp, o1 -> failwith "not implemented yet" (* TODO use query_lv *) *)
+    | _ -> Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset (* TODO *)
+
+  let keys_from_lval lval ask = (* use MayPointTo query to get all possible pointees of &lval *)
+    (* print_query_lv ctx.ask (AddrOf lval); *)
+    let query_lv ask exp = match ask (Queries.MayPointTo exp) with
+      | `LvalSet l when not (Queries.LS.is_top l) -> Queries.LS.elements l
+      | _ -> []
+    in
+    let exp = AddrOf lval in
+    let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
+    M.debug @@ "MayPointTo "^sprint d_exp exp^" = ["
+      ^String.concat ", " (List.map string_of_key xs)^"]";
+    xs
 end

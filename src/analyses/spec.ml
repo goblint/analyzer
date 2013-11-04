@@ -32,12 +32,6 @@ struct
     let _nodes, _edges = SpecUtil.parseFile specfile in
     nodes := _nodes; edges := _edges (* don't change -> no need to save them in domain *)
 
-  (* one Lval may yield multiple keys *)
-  let key_from_lval lval = (* TODO -> keys_from_lval: return list *)
-    match lval with
-    | Var varinfo, offset -> varinfo, Lval.CilLval.of_ciloffs offset
-    | Mem exp, offset -> failwith "not implemented yet" (* TODO use query_lv *)
-
   (* get string from Cil values, e.g. sprint d_exp exp, sprint d_plainlval lval etc. *)
   let sprint f x = Pretty.sprint 80 (f () x)
 
@@ -74,7 +68,7 @@ struct
     let m = ctx.local in
     (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
     let key_from_exp = function
-      | Lval x -> Some (key_from_lval x)
+      | Lval x -> Some (D.key_from_lval x)
       | _ -> None
     in
     match key_from_exp (Lval lval), key_from_exp rval with (* we just care about Lval assignments *)
@@ -131,7 +125,7 @@ struct
         (* let binop = BinOp (Eq, a, b, Cil.intType) in *)
         (* standardize the format of the expression to 'lval==i'. -> spec needs to follow that format, the code is mapped to it. *)
         let binop = BinOp (Eq, Lval lval, Const (CInt64(i, kind, str)), Cil.intType) in
-        let key = key_from_lval lval in
+        let key = D.key_from_lval lval in
         let value = D.find key m in
         if i = Int64.zero && tv then (
           M.debug_each "error-branch";
@@ -232,8 +226,8 @@ struct
       | msg_loc,msg_end -> warn_main msg_loc msg_end
     );
     let au = match exp with
-      | Some(Lval lval) when D.mem (key_from_lval lval) m -> (* we return a var in D *)
-          let k = key_from_lval lval in
+      | Some(Lval lval) when D.mem (D.key_from_lval lval) m -> (* we return a var in D *)
+          let k = D.key_from_lval lval in
           let varinfo,offset = k in
           if List.mem varinfo (f.sformals @ f.slocals) then (* if var is local, we make a copy *)
             D.add return_var (D.find' k m) m
@@ -257,7 +251,7 @@ struct
     let return_val = D.find_option return_var au in
     match lval, return_val with
     | Some lval, Some v ->
-        let k = key_from_lval lval in
+        let k = D.key_from_lval lval in
         (* remove special return var and handle potential overwrites *)
         let au = D.remove' return_var au (* |> check_overwrite_open k *) in
         (* if v.key is still in D, then it must be a global and we need to alias instead of rebind *)
@@ -289,24 +283,10 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* let _ = GobConfig.set_bool "dbg.debug" false in *)
     let m = ctx.local in
-    (* let ret dom = [dom, Cil.integer 1, true] in *)
-    let ret dom = dom in (* XX *)
-    let loc = !Tracing.current_loc in
-    let dloc = loc::(D.callstack m) in
+    let loc = !Tracing.current_loc::(D.callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
-    let keys_from_lval lval = (* get possible keys for a given lval *)
-      match lval with
-        | Var varinfo, offset -> [varinfo, Lval.CilLval.of_ciloffs offset]
-        | Mem lval2, offset -> (* e.g. \*fp -> Mem(Lval(Var(fp, offset))), \*(fp+1) -> Mem(PlusPI(...)) *)
-            let exp = lval2 in
-            let xs = query_lv ctx.ask exp in (* MayPointTo -> LValSet *)
-            M.debug_each @@ "MayPointTo "^sprint d_exp exp^" = ["
-              ^String.concat ", " (List.map D.string_of_key xs)^"]";
-            List.map (fun (v,o) -> let new_ciloffs = addOffset (Lval.CilLval.to_ciloffs o) offset in
-              v, Lval.CilLval.of_ciloffs new_ciloffs) xs
-    in
     (* fold possible keys on domain *)
-    (* let ret_all f lval = ret (List.fold_left f m (keys_from_lval lval)) in *)
+    (* let ret_all f lval = List.fold_left f m (D.keys_from_lval lval ctx.ask) in *)
     (* custom goto (D.goto is just for modifying) that checks if the target state is a warning and acts accordingly *)
     let goto ?may:(may=false) key loc state m ws =
       let warn key m msg =
@@ -365,8 +345,8 @@ struct
         | None -> Cil.var (fst global_var) (* creates Var with NoOffset *)
       in
       (* ignore(printf "KEY: %a\n" d_plainlval key); *)
-      (* possible keys_from_lval the lval may point to *)
-      let keys = keys_from_lval key in (* does MayPointTo query for Mem, otherwise [Lval.CilLval] *)
+      (* possible keys the lval may point to *)
+      let keys = D.keys_from_lval key ctx.ask in (* does MayPointTo query *)
       let check_key (m,n) var =
         (* M.debug_each @@ "check_key: "^f.vname^"(...): "^D.string_of_entry var m; *)
         (* skip transitions we can't take b/c we're not in the right state *)
@@ -424,7 +404,7 @@ struct
         if not (equal_args (SC.get_fun_args c) arglist) then (m,n)
         (* everything matches the constraint -> go to new state and increase counter *)
         (* TODO if #Queries.MayPointTo > 1: each result is May, but all combined are Must *)
-        else let new_m = goto ~may:(List.length keys > 1) var dloc b m ws in (new_m,n+1)
+        else let new_m = goto ~may:(List.length keys > 1) var loc b m ws in (new_m,n+1)
       in
       (* do check for each varinfo and return the resulting domain if there has been at least one matching constraint *)
       let new_m,n = List.fold_left check_key (m,0) keys in (* start with original domain and #transitions=0 *)
@@ -461,7 +441,7 @@ struct
           (* count should be a multiple of 2 (true/false), otherwise the spec is malformed *)
           if List.length branch_edges mod 2 <> 0 then failwith "Spec is malformed: branch-transitions always need a true and a false case!" else
           (* if nothing matches, just return new_m without branching *)
-          (* if List.is_empty branch_edges then Set.of_list (ret new_m) else *)
+          (* if List.is_empty branch_edges then Set.of_list new_m else *)
           if List.is_empty branch_edges then Set.of_list ([new_m, Cil.integer 1, true]) else (* XX *)
           (* unique set of (dom,exp,tv) used in branch *)
           let do_branch branches (a,ws,fwd,b,c) =
@@ -476,12 +456,12 @@ struct
           in
           List.fold_left do_branch branches branch_edges
         in
-        let keys = keys_from_lval key in
+        let keys = D.keys_from_lval key ctx.ask in
         let new_set = List.fold_left check_branch Set.empty keys in ignore(new_set); (* TODO refactor *)
         (* List.of_enum (Set.enum new_set) *)
-        ret new_m (* XX *)
-      | None -> ret new_m
-    with Not_found -> ret m (* nothing matched -> no change *)
+        new_m (* XX *)
+      | None -> new_m
+    with Not_found -> m (* nothing matched -> no change *)
 
 
   let startstate v = D.bot ()
