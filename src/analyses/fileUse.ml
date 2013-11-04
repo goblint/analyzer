@@ -43,17 +43,25 @@ struct
       | `LvalSet l when not (Queries.LS.is_top l) ->
           Queries.LS.elements l
       | _ -> []
+  let print_query_lv ?msg:(msg="") ask exp =
+    let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
+    M.debug @@ msg^" MayPointTo "^sprint d_exp exp^" = ["
+      ^String.concat ", " (List.map D.string_of_key xs)^"]"
 
   let rec eval_fv ask exp: varinfo option =
     match query_lv ask exp with
       | [(v,_)] -> Some v
       | _ -> None
 
-  let print_query_lv ?msg:(msg="") ask exp =
-    let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
-    M.debug_each @@ msg^" MayPointTo "^sprint d_exp exp^" = ["
-      ^String.concat ", " (List.map D.string_of_key xs)^"]"
-
+  let query_eq ask exp =
+    match ask (Queries.EqualSet exp) with
+      | `ExprSet l when not (Queries.ES.is_top l) ->
+          Queries.ES.elements l
+      | _ -> []
+  let print_query_eq ?msg:(msg="") ask exp =
+    let xs = query_eq ask exp in (* EqualSet -> ExpSet *)
+    M.debug @@ msg^" EqualSet "^sprint d_exp exp^" = ["
+      ^String.concat ", " (List.map (sprint d_exp) xs)^"]"
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -192,16 +200,16 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let m = ctx.local in
-    let ret_branch_err lval dom =
+    let loc = !Tracing.current_loc::(D.callstack m) in
+    let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
+    let split_err_branch lval dom =
       (* type? NULL = 0 = 0-ptr? Cil.intType, Cil.intPtrType, Cil.voidPtrType -> no difference *)
-      (* let f tv = dom, Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.mkCast (Cil.integer 0) Cil.intPtrType, Cil.intType), tv *)
       if not (GobConfig.get_bool "ana.file.optimistic") then
         ctx.split dom (Cil.BinOp (Cil.Eq, Cil.Lval lval, Cil.integer 0, Cil.intType)) true;
       dom
     in
-    let loc = !Tracing.current_loc::(D.callstack m) in
-    let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     let keys_from_lval lval = (* get possible keys for a given lval *)
+      print_query_lv ctx.ask (AddrOf lval);
       match lval with
         | Var varinfo, offset -> [varinfo, Lval.CilLval.of_ciloffs offset]
         | Mem lval2, offset -> (* e.g. \*fp -> Mem(Lval(Var(fp, offset))), \*(fp+1) -> Mem(PlusPI(...)) *)
@@ -213,21 +221,41 @@ struct
               v, Lval.CilLval.of_ciloffs new_ciloffs) xs
     in
     (* fold possible keys on domain *)
-    let ret_all ?ret:(retf=identity) f lval =
+    let ret_all f lval =
       let xs = keys_from_lval lval in
-      if List.length xs = 1 then retf (f (List.hd xs) m)
-      (* if there are more than one, each one will be May, TODO: all together are Must *)
-      else retf (List.fold_left (fun m k -> f k m |> D.unknown k) m xs) in (* TODO replaced may with top -> fix *)
+      if List.length xs = 0 then (D.warn @@ "could not resolve "^sprint d_exp (Lval lval); m)
+      else if List.length xs = 1 then f (List.hd xs) m true
+      (* else List.fold_left (fun m k -> D.join m (f k m)) m xs *)
+      else
+        (* if there is more than one key, join all values and do warnings on the result *)
+        let v = List.fold_left (fun v k -> match v, D.find_option k m with
+          | None, None -> None
+          | Some a, None
+          | None, Some a -> Some a
+          | Some a, Some b -> Some (D.V.join a b)) None xs in
+        (* set all of the keys to the computed joined value *)
+        (* let m' = Option.map_default (fun v -> List.fold_left (fun m k -> D.add' k v m) m xs) m v in *)
+        (* then check each key *)
+        (* List.iter (fun k -> ignore(f k m')) xs; *)
+        (* get CilLval from lval *)
+        let k' = match lval with Var _, _ -> key_from_lval lval | Mem Lval(Var v1, o1), o2 -> v1, Lval.CilLval.of_ciloffs (addOffset o1 o2) | _ -> Cil.makeVarinfo false ("?"^sprint d_exp (Lval lval)) Cil.voidType, `NoOffset in
+        (* add joined value for that key *)
+        let m' = Option.map_default (fun v -> D.add' k' v m) m v in
+        (* check for warnigns *)
+        ignore(f k' m' true);
+        (* and join the old domain without issuing warnings *)
+        List.fold_left (fun m k -> D.join m (f k m false)) m xs
+    in
     match lval, f.vname, arglist with
       | None, "fopen", _ ->
           D.warn "file handle is not saved!"; m
       | Some lval, "fopen", _ ->
-          let f k m =
+          let f k m w =
             let m = check_overwrite_open k m in
             (match arglist with
               | Const(CStr(filename))::Const(CStr(mode))::[] ->
                   (* M.debug_each @@ "fopen(\""^filename^"\", \""^mode^"\")"; *)
-                  D.fopen k loc filename mode m
+                  D.fopen k loc filename mode m |> split_err_branch lval (* TODO k instead of lval? *)
               | e::Const(CStr(mode))::[] ->
                   (* ignore(printf "CIL: %a\n" d_plainexp e); *)
                   (match ctx.ask (Queries.EvalStr e) with
@@ -240,11 +268,11 @@ struct
                   (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
                   D.warn @@ "fopen needs two strings as arguments, given: "^args; m
             )
-          in ret_all ~ret:(ret_branch_err lval) f lval
+          in ret_all f lval
 
       | _, "fclose", [Lval fp] ->
-          let f k m =
-            D.reports k [
+          let f k m w =
+            if w then D.reports k [
               false, D.closed,  "closeing already closed file handle "^D.string_of_key k;
               true,  D.opened,  "closeing unopened file handle "^D.string_of_key k
             ] m;
@@ -254,8 +282,8 @@ struct
           D.warn "fclose needs exactly one argument"; m
 
       | _, "fprintf", (Lval fp)::_::_ ->
-          let f k m =
-            D.reports k [
+          let f k m w =
+            if w then D.reports k [
               false, D.closed,   "writing to closed file handle "^D.string_of_key k;
               true,  D.opened,   "writing to unopened file handle "^D.string_of_key k;
               true,  D.writable, "writing to read-only file handle "^D.string_of_key k;
