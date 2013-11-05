@@ -1075,7 +1075,7 @@ struct
     | _   , true -> bot ()
     | _ ->
   match to_int i1, to_int i2 with
-    | Some x, Some y -> of_int (f x y)
+    | Some x, Some y -> (try of_int (f x y) with Division_by_zero -> top ())
     | _              -> top ()
     
   let bitxor = bit Int64.logxor
