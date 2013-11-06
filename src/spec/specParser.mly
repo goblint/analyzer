@@ -33,7 +33,7 @@ open SpecCore
 %left LT GT LE GE
 %left PLUS MINUS
 %left MUL DIV MOD
-%right NOT UPLUS UMINUS
+%right NOT UPLUS UMINUS DEREF
 
 %start file
 %type <SpecCore.def> file
@@ -57,9 +57,9 @@ stmt:
 ;
 
 lval:
-  | IDENT                    { Ident $1 } /* e.g. foo, _foo, _1, but not 1b */
-  | VAR_                     { Var_ }     /* $_ */
-  | VAR                      { Vari $1 }  /* e.g. $foo, $123, $__ */
+  | MUL lval %prec DEREF     { Ptr $2 }
+  | IDENT                    { Ident $1 } /* C identifier, e.g. foo, _foo, _1, but not 1b */
+  | VAR                      { Var $1 }  /* spec variable, e.g. $foo, $123, $__ */
 ;
 
 expr:
@@ -67,7 +67,7 @@ expr:
   | REGEX                    { Regex $1 }
   | STRING                   { String $1 }
   | BOOL                     { Bool $1 }
-  | lval                     { Var $1 }
+  | lval                     { Lval $1 }
   | IDENT args               { Fun {fname=$1; args=$2} } /* function */
   | UNDERS                   { Exp_ }
   | nexpr                    { Int $1 }

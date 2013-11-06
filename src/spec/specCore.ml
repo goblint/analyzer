@@ -4,18 +4,19 @@ exception Endl
 exception Eof
 
 (* type value = String of string | Bool of bool | Int of int | Float of float *)
-type var = Var_ | Vari of string | Ident of string
+type lval = Ptr of lval | Var of string | Ident of string
 type fcall = {fname: string; args: exp list}
 and exp =
   Fun of fcall |
   Exp_ |
-  Var of var |
+  Lval of lval |
   Regex of string |
   String of string | Bool of bool | Int of int | Float of float |
   Binop of string * exp * exp |
   Unop of string * exp
-type stmt = {lval: var option; exp: exp}
-type def = Node of (string * string) | Edge of (string * string list * bool * string * stmt)
+type stmt = {lval: lval option; exp: exp}
+type def = Node of (string * string) (* node warning *)
+         | Edge of (string * string list * bool * string * stmt) (* start-node, warning-nodes, forwarding, target-node, constraint *)
 
 (* let stmts edges = List.map (fun (a,b,c) -> c) edges
 let get_fun stmt = match stmt.exp with Fun x -> Some x | _ -> None
@@ -48,8 +49,8 @@ let warning state nodes =
 
 let get_key_variant stmt =
   let rec get_from_exp = function
-    | Fun f -> get_from_args f.args (* TODO for special_fn we only consider constraints where the root of the exp is Fun (see fname_is) *)
-    | Var (Vari s) -> `Rval s
+    | Fun f -> get_from_args f.args (* TODO for special we only consider constraints where the root of the exp is Fun (see fname_is) *)
+    | Lval (Var s) -> `Rval s
     | _ -> `None
   (* walks over arguments until it finds something or returns `None *)
   and get_from_argsi i = function
@@ -61,7 +62,7 @@ let get_key_variant stmt =
   and get_from_args args = get_from_argsi 0 args (* maybe better use List.findi *)
   in
   match stmt.lval with
-  | Some (Vari s) -> `Lval s
+  | Some (Var s) -> `Lval s
   | _ -> get_from_exp stmt.exp
 
 let equal_form lval stmt =
@@ -69,11 +70,6 @@ let equal_form lval stmt =
   | Some _, Some _
   | None, None -> true
   | _ -> false
-
-let is_forwarding stmt =
-  match stmt.lval, stmt.exp with
-  | None, Var Var_ -> true
-  | _    -> false
 
 (* get function arguments with tags corresponding to the type -> should only be called for functions, returns [] for everything else *)
 let get_fun_args stmt =
@@ -83,9 +79,8 @@ let get_fun_args stmt =
     | Bool x    -> `Bool x
     | Int x     -> `Int x
     | Float x   -> `Float x
-    | Var (Var_)    -> `Error "$_ should only appear alone and not as an argument"
-    | Var (Vari x)  -> `Vari x
-    | Var (Ident x) -> `Ident x
+    | Lval (Var x)  -> `Var x
+    | Lval (Ident x) -> `Ident x
     | Fun x     -> `Error "Functions aren't allowed to have functions as an argument (put the function as a previous state instead)"
     | Exp_ -> `Free
     | Unop ("!", Bool x) -> `Bool (not x)
@@ -96,14 +91,14 @@ let get_fun_args stmt =
   | _ -> []
 
 (* functions for output *)
-let var_to_string = function
-  | Var_ -> "$_"
-  | Vari x -> "$"^x
+let rec lval_to_string = function
+  | Ptr x -> "*"^(lval_to_string x)
+  | Var x -> "$"^x
   | Ident x -> x
 let rec exp_to_string = function
   | Fun x -> x.fname^"("^String.concat ", " (List.map exp_to_string x.args)^")"
   | Exp_ -> "_"
-  | Var x -> var_to_string x
+  | Lval x -> lval_to_string x
   | Regex x -> "r\""^x^"\""
   | String x -> "\""^x^"\""
   | Bool x -> string_of_bool x
@@ -112,7 +107,7 @@ let rec exp_to_string = function
   | Binop (op, a, b) -> exp_to_string a ^ " " ^ op ^ " " ^ exp_to_string b
   | Unop  (op, a)    -> op ^ " " ^ exp_to_string a
 let stmt_to_string stmt = match stmt.lval, stmt.exp with
-  | Some var, exp -> var_to_string var^" = "^exp_to_string exp
+  | Some lval, exp -> lval_to_string lval^" = "^exp_to_string exp
   | None, exp -> exp_to_string exp
 let arrow_to_string ws fwd = (String.concat "," ws)^if fwd then ">" else ""
 let def_to_string = function
