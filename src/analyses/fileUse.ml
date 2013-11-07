@@ -142,7 +142,7 @@ struct
     let au = match exp with
       | Some(Lval lval) when D.mem (D.key_from_lval lval) m -> (* we return a var in D *)
           let k = D.key_from_lval lval in
-          let varinfo,offset = k in
+          let varinfo,offset = k in (* TODO also bad idea b/c of missing offset *)
           if List.mem varinfo (f.sformals @ f.slocals) then (* if var is local, we make a copy *)
             D.add return_var (D.find' k m) m
           else
@@ -150,13 +150,19 @@ struct
       | _ -> m
     in
     (* remove formals and locals *)
+    (* TODO this is not a good approach, what if we added a key foo.fp? why not just keep the globals? *)
     List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (* M.debug_each @@ "entering function "^f.vname^string_of_callstack ctx.local; *)
     let m = if f.vname <> "main" then
+      (* push current location onto stack *)
       D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
-    else ctx.local in [m,m]
+    else ctx.local in
+    (* we need to remove all variables that are neither globals nor special variables from the domain for f *)
+    (* problem: we need to be able to check aliases of globals in check_overwrite_open -> keep those in too :/ *)
+    (* TODO see Base.make_entry, reachable vars > globals? *)
+    [m, D.only_globals m] (* this is [caller, callee] *)
 
   let check_overwrite_open k m = (* used in combine and special *)
     if List.is_empty (D.get_aliases k m) then (
@@ -171,27 +177,31 @@ struct
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     (* M.debug_each @@ "leaving function "^f.vname^string_of_callstack au; *)
-    let au = D.edit_callstack List.tl au in
+    let m = ctx.local in
+    (* pop the last location off the stack *)
+    let m = D.edit_callstack List.tl m in (* TODO could it be problematic to keep this in the caller instead of callee domain? if we only add the stack for the callee in enter, then there would be no need to pop a location anymore... *)
+    (* TODO add all globals from au to m (since we remove formals and locals on return, we can just add everything except special vars?) *)
+    let m = D.without_special_vars au |> D.add_all m in
     let return_val = D.find_option return_var au in
     match lval, return_val with
     | Some lval, Some v ->
         let k = D.key_from_lval lval in
-        (* remove special return var and handle potential overwrites *)
-        let au = D.remove' return_var au |> check_overwrite_open k in
+        (* handle potential overwrites *)
+        let m = check_overwrite_open k m in
         (* if v.key is still in D, then it must be a global and we need to alias instead of rebind *)
         (* TODO what if there is a local with the same name as the global? *)
         if D.V.is_top v then (* returned a local that was top -> just add k as top *)
-          D.add' k v au
+          D.add' k v m
         else (* v is now a local which is not top or a global which is aliased *)
           let vvar = D.V.get_alias v in (* this is also ok if v is not an alias since it chooses an element from the May-Set which is never empty (global top gets aliased) *)
           if D.mem vvar au then (* returned variable was a global TODO what if local had the same name? -> seems to work *)
             (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
-            D.alias k vvar au
+            D.alias k vvar m
           else (* returned variable was a local *)
             let v = D.V.set_key k v in (* ajust var-field to lval *)
             (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
-            D.add' k v au
-    | _ -> au
+            D.add' k v m
+    | _ -> m
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let m = ctx.local in

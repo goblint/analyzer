@@ -212,7 +212,14 @@ struct
     else
       add k v m
   let union (a,b) (c,d) = Set.union a c, Set.union b d
-  let without_special_vars m = filter (fun k v -> String.get (V.string_of_key k) 0 <> '@') m
+  let is_special_var k = String.get (V.string_of_key k) 0 = '@'
+  let without_special_vars m = filter (fun k v -> not @@ is_special_var k) m
+
+  (* functions needed for enter & combine *)
+  (* only keep globals, aliases to them and special veriables *)
+  let only_globals m = filter (fun k v ->  (fst k).vglob || V.is_alias v && (fst (V.get_alias v)).vglob || is_special_var k) m
+  (* adds all the bindings from m2 to m1 (overwrites!) *)
+  let add_all m1 m2 = add_list (MDMap.bindings m2) m1
 
   (* callstack for locations *)
   let callstack_var = Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
