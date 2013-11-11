@@ -141,7 +141,6 @@ struct
         
     let _ = List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update T.set x (P.single x)) st in
     let _ = work := H.merge (H.from_list list) !work in 
-    (* let _ = List.iter (fun x -> if (not (V.ver>1)) then L.add infl x x) list in  *)
     
     let eq x get set = 
 	    match S.system x with
@@ -181,7 +180,7 @@ struct
       fun y ->
         let (i,nonfresh) = X.get_index y in
         let _ = if xi <= i then HM.replace wpoint y () in
-        let _ = if (V.ver>2) && xi <= i then work := H.insert (!work) y in
+        (* let _ = if (V.ver>2) && xi <= i then work := H.insert (!work) y in *)
         let _ = if nonfresh then () else solve y in
         let _ = L.add infl y x in
         X.get_value y
@@ -191,8 +190,8 @@ struct
       if X.get_key x > yk then begin
         (* ignore @@ Pretty.printf "wrong order: %d > %d\n\n"  (X.get_key x) yk; *)
         ()
-
       end;
+      
       if (V.ver>1) then HM.replace wpoint y ();
       
       let _ = 
@@ -232,7 +231,8 @@ struct
 
         let tmp = do_side x (eq x (eval x) (side x)) in 
         let rstrt = (V.ver>3) && D.leq tmp old in
-        let tmp = if (not (V.ver>1)) || HM.mem wpoint x then box x old tmp else tmp in
+        let use_box = (not (V.ver>1)) || HM.mem wpoint x in
+        let tmp = if use_box then box x old tmp else tmp in
         if not (D.eq tmp old) then begin 
           let _ = X.set_value x tmp in
 
@@ -240,7 +240,7 @@ struct
             restart x 
           else
             let w = L.sub infl x in
-            let w = if (not (V.ver>1)) || HM.mem wpoint x then x::w else w in
+            let w = if use_box then x::w else w in
             let _ = L.rem_item infl x in
             let _ = if (V.ver>2) then HM.remove wpoint x in
             let _ = work := List.fold_left H.insert (!work) w in
