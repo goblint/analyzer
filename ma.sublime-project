@@ -20,5 +20,28 @@
 		{
 			"path": "tests/regression/18-file"
 		}
-	]
+	],
+	"settings":
+	{
+		"todo":
+		{
+			"folder_exclude_patterns":
+			[
+				"_build",
+				"obj",
+				"result",
+				".vagrant",
+				"webapp"
+			],
+			"file_exclude_patterns": ["*.sublime-*"],
+			"patterns":
+			{
+				"TODO": "TODO[\\s]*?:*(?P<todo>.*?)\\s*(\\*\\))?\\s*$",
+				"NOTE": "NOTE[\\s]*?:*(?P<note>.*?)\\s*(\\*\\))?\\s*$",
+				"FIXME": "FIX ?ME[\\s]*?:*(?P<fixme>.*?)\\s*(\\*\\))?\\s*$",
+				"CHANGED": "CHANGED[\\s]*?:*(?P<changed>.*?)\\s*(\\*\\))?\\s*$"
+			},
+			"case_sensitive": true
+		}
+	}
 }
