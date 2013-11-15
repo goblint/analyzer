@@ -104,21 +104,17 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match LibraryFunctions.classify f.vname arglist with
       | `Lock (_, _) ->  
-             (* Convert first argument to ValueDomain.Addr.t *)
-             let lockAddr = List.hd (eval_exp_addr ctx.ask (List.hd arglist)) in
-             (*if isDebugging then (printf "LOCK: %s\n" (ValueDomain.Addr.short () lockAddr);()) else ();*)
-
-             (* Add lock *)
-             addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
-             {addr = lockAddr; loc = !Tracing.current_loc }::ctx.local
+          begin match eval_exp_addr ctx.ask (List.hd arglist) with
+            | [lockAddr] ->             
+              addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
+              {addr = lockAddr; loc = !Tracing.current_loc }::ctx.local
+            | _ -> ctx.local
+          end
   
       | `Unlock -> 
-             (* Convert first argument to ValueDomain.Addr.t *)
-             let lockAddr = List.hd (eval_exp_addr ctx.ask (List.hd arglist)) in
-             (*if isDebugging then (printf "LOCK: %s\n" (ValueDomain.Addr.short () lockAddr);()) else ();*)
-
-             (* Remove lock *)
-             List.filter (fun e -> ((ValueDomain.Addr.equal lockAddr (e.addr)) = false)) ctx.local
+           let lockAddrs = eval_exp_addr ctx.ask (List.hd arglist) in
+           let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
+           List.filter inLockAddrs ctx.local
         
       | _ -> ctx.local
 
