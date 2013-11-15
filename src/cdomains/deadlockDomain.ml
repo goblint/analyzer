@@ -5,7 +5,6 @@ open Printf
 type myowntypeEntry = {addr : ValueDomain.Addr.t ; loc : location}
 type myowntype = myowntypeEntry list
 
-let forbiddenList : ( (myowntypeEntry*myowntypeEntry) list ref) = ref []
 let availableLocks : (myowntypeEntry list ref) = ref []
 
 module Lockset = 
@@ -18,10 +17,8 @@ struct
 
   let rec join a b = (* union of a and b without duplicates *)
     let isElemInA e = List.exists (fun x -> ValueDomain.Addr.equal (x.addr) (e.addr)) a in
-    if (List.length b) == 0 then a
-    else join (a@(if (isElemInA (List.hd b)) == true then [] else [List.hd b])) (List.tl b)
-
-  let oldjoin a b = a@b (* ? *)
+    if (List.length b) = 0 then a
+    else join (a@(if (isElemInA (List.hd b)) = true then [] else [List.hd b])) (List.tl b)
 
   let meet a b = (* intersection of a and b *)
     let isElemInB e = List.exists (fun x -> ValueDomain.Addr.equal (x.addr) (e.addr)) b in
@@ -33,7 +30,7 @@ struct
   let top () = !availableLocks
   let is_top x = equal (!availableLocks) x
   let bot () = []
-  let is_bot x = (List.length x) == 0
+  let is_bot x = (List.length x) = 0
   let empty () = []
 
   let widen x y = y
