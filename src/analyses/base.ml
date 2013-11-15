@@ -786,7 +786,30 @@ struct
     end;
     set_savetop ctx.ask ctx.global ctx.local lval_val rval_val
 
+  module Locmap = BatHashtbl.Make (Basetype.ProgLines)
+  
+  let dead_branches_then = Locmap.create 10
+  let dead_branches_else = Locmap.create 10
+  let dead_branches_cond = Locmap.create 10
+  let dead_branches = function true -> dead_branches_then | false -> dead_branches_else  
+
+  let finalize () =
+    let str = function true -> "then" | false -> "else" in 
+    let report tv loc dead = 
+      match dead, Locmap.find_option dead_branches_cond loc with 
+       | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp d_loc loc)
+       | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) d_loc loc)
+       | _ -> ()
+    in
+    if get_bool "dbg.print_dead_code" then begin
+      Locmap.iter (report true)  dead_branches_then;
+      Locmap.iter (report false) dead_branches_else;
+      Locmap.clear dead_branches_then;
+      Locmap.clear dead_branches_else
+    end
+
   let branch ctx (exp:exp) (tv:bool) : store =
+    Locmap.replace dead_branches_cond !Tracing.current_loc exp;
     let valu = eval_rv ctx.ask ctx.global ctx.local exp in
     if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
     if M.tracing then M.tracel "branchosek" "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
@@ -798,17 +821,28 @@ struct
           (* to suppress pattern matching warnings: *)
           let fromJust x = match x with Some x -> x | None -> assert false in
           let v = fromJust (ID.to_bool value) in
+            if !GU.in_verifying_stage && get_bool "dbg.print_dead_code" then begin 
+              if v=tv then 
+                Locmap.replace (dead_branches tv) !Tracing.current_loc false
+              else 
+                Locmap.modify_def true !Tracing.current_loc (fun x -> x) (dead_branches tv)
+            end;
             (* Eliminate the dead branch and just propagate to the true branch *)
             if v == tv then ctx.local else begin
                 if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
-		raise Deadcode
+                raise Deadcode
             end
       | `Bot ->
           if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
           if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;
+          if !GU.in_verifying_stage && get_bool "dbg.print_dead_code" then begin
+            Locmap.modify_def true !Tracing.current_loc (fun x -> x) (dead_branches tv)
+          end;
           raise Deadcode
       (* Otherwise we try to impose an invariant: *)
       | _ ->
+          if !GU.in_verifying_stage then 
+            Locmap.replace (dead_branches tv) !Tracing.current_loc false;
           let res = invariant ctx.ask ctx.global ctx.local exp tv in
             if M.tracing then M.traceu "branch" "Invariant enforced!\n";
             res

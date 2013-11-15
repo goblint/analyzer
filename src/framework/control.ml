@@ -40,6 +40,7 @@ struct
 
     (** print out information about dead code *)
     let print_dead_code (xs:Result.t) =
+      let count = ref 0 in
       let open BatMap in let open BatPrintf in
       let module StringMap = Make (String) in
       let m = ref StringMap.empty in
@@ -52,6 +53,7 @@ struct
       Result.iter add_one xs;
       let print_func f xs =
         let one_range b e first =
+          count := !count + (e - b + 1);
           if not first then printf ", ";
           begin if b=e then
             printf "%d" b
@@ -69,7 +71,10 @@ struct
       in
       if StringMap.is_empty !m
       then printf "No dead code found!\n"
-      else StringMap.iter print_file !m
+      else begin
+        StringMap.iter print_file !m;
+        printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
+      end
     in
   
     (** convert result that can be out-put *)
@@ -320,10 +325,10 @@ struct
       Goblintutil.timeout do_analyze_using_iterator () (float_of_int (get_int "dbg.timeout"))
         (fun () -> Messages.waitWhat "Timeout reached!");
     end;
+    if (get_bool "dbg.print_dead_code") then print_dead_code !local_xml;
   
     Spec.finalize ();
         
-    if (get_bool "dbg.print_dead_code") then print_dead_code !local_xml;
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
     Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file
   
