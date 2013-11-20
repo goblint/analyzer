@@ -11,8 +11,8 @@ struct
   include Analyses.DefaultSpec
 
   let name = "fmode"
-  module D = FlagModeDomainlattice.Dom
-  module C = FlagModeDomainlattice.Dom
+  module D = FlagModeDomain.Dom
+  module C = FlagModeDomain.Dom
   module G = Lattice.Unit
   
   let flag_list = ref []
