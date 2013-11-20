@@ -808,6 +808,13 @@ struct
       Locmap.clear dead_branches_else
     end
 
+  let locmap_modify_def d k f h =
+    if Locmap.mem h k then
+      Locmap.modify k f h
+    else
+      Locmap.add h k d
+    
+
   let branch ctx (exp:exp) (tv:bool) : store =
     Locmap.replace dead_branches_cond !Tracing.current_loc exp;
     let valu = eval_rv ctx.ask ctx.global ctx.local exp in
@@ -825,7 +832,7 @@ struct
               if v=tv then 
                 Locmap.replace (dead_branches tv) !Tracing.current_loc false
               else 
-                Locmap.modify_def true !Tracing.current_loc (fun x -> x) (dead_branches tv)
+                locmap_modify_def true !Tracing.current_loc (fun x -> x) (dead_branches tv)
             end;
             (* Eliminate the dead branch and just propagate to the true branch *)
             if v == tv then ctx.local else begin
@@ -836,7 +843,7 @@ struct
           if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
           if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;
           if !GU.in_verifying_stage && get_bool "dbg.print_dead_code" then begin
-            Locmap.modify_def true !Tracing.current_loc (fun x -> x) (dead_branches tv)
+            locmap_modify_def true !Tracing.current_loc (fun x -> x) (dead_branches tv)
           end;
           raise Deadcode
       (* Otherwise we try to impose an invariant: *)
