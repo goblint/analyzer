@@ -201,7 +201,8 @@ struct
   module Lockset = LockDomain.Lockset
   
   module Flags = FlagModes.Spec.D
-  module AccValSet = Set.Make (Printable.Prod (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (Base.Main.Flag) (IntDomain.Booleans)) (Lockset) (Offs)) (Flags))
+  module AccLoc = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (Base.Main.Flag) (IntDomain.Booleans)) (Lockset) (Offs)
+  module AccValSet = Set.Make (Printable.Prod (AccLoc) (Flags))
   let acc     : AccValSet.t M.Acc.t = M.Acc.create 100
   let accKeys : M.AccKeySet.t ref   = ref M.AccKeySet.empty
 
@@ -231,21 +232,38 @@ struct
   (*/task resource handling *)
 
   (* flag stuff*)
+  let strip_tags y = match y with `Lifted x -> x | _ -> failwith "top/bot flags not properly filtered osek234"
+  
   let get_val flag acc = 
 (* let _ = print_endline (flag.vname ^"A" ^gl.vname) in     *)
-    proj3_3 (Flags.find flag (proj2_2 acc))
+    proj3_3 (strip_tags (Flags.find flag (proj2_2 acc)))
   let get_eq flag acc : bool = 
 (* let _ = print_endline (flag.vname ^"B"^gl.vname) in     *)
-    proj3_2 (Flags.find flag (proj2_2 acc))
+    proj3_2 (strip_tags (Flags.find flag (proj2_2 acc)))
   let get_method flag acc : bool = 
 (* let _ = print_endline (flag.vname ^ "C"^gl.vname) in     *)
-    proj3_1 (Flags.find flag (proj2_2 acc))
-  let flag_unknown flag accs = not (Flags.mem flag (proj2_2 accs))
+    proj3_1 (strip_tags (Flags.find flag (proj2_2 acc)))
+  let flag_unknown flag accs = (not (Flags.mem flag (proj2_2 accs))) 
+  let flag_top flag accs =  (Flags.find flag (proj2_2 accs) = `Top)
 (*   let flag_exists flag accs = List.filter (fun x -> (Flags.mem flag (proj2_2 x))) accs *)
   let rec flag_list_to_string l = match l with
     | []  -> ""
     | [x] -> x.vname
     | x::xs -> x.vname ^ " and " ^ (flag_list_to_string xs)
+  let filter_bot flag accs =
+    let doit flag acc =  not (( Flags.find flag (proj2_2 acc)) = `Bot) in
+    List.filter (doit flag) accs
+(*  let check_top flag accs = (*true if top exist in list*)
+    let doit f init acc =
+        let res = match Flags.find f (proj2_2 acc) with
+          | `Top -> true
+          | _ -> false
+        in
+      init || res 
+    in
+    List.fold_left (doit flag) false accs*)
+  let split_accs_top flag accs = 
+    List.partition (flag_top flag) accs
   let split_accs_method flag accs = 
     let unknowns,accs' = List.partition (flag_unknown flag) accs in
     let ts,fs = List.partition (get_method flag) accs' in
@@ -303,14 +321,16 @@ let _ = print_endline (string_of_bool res) in res*)
     let helper flag flag_value current = 
       if tracing then trace "osek" "Using flag %s\n" flag.vname;
       let equal,value = match flag_value with
-        | (_,equal,value) -> equal,value
+        | `Lifted (_,equal,value) -> equal,value
+        | _  -> failwith "this (hopefully) never happens osek318"
       in
       
       let doit (acc_flagstate,pry) = 
         let acc_equal,acc_value = 
           if Flags.mem flag acc_flagstate then
             match Flags.find flag acc_flagstate with
-            | (_,equal,value) -> equal,value
+            | `Lifted (_,equal,value) -> equal,value
+            | _  -> failwith "this (hopefully) never happens osek325"
           else
             (false,0L)
         in
@@ -357,12 +377,14 @@ let _ = print_endline (string_of_bool res) in res*)
   (* Just adds accesses. It says concrete, but we use it to add verified 
      non-concrete accesses too.*)
   let add_concrete_access ctx fl loc ust (flagstate : Flags.t) (v, o, rv: Cil.varinfo * Offs.t * bool) =
+    let ign_flag_filter acc tuple = not (AccLoc.equal acc (proj2_1 tuple)) in
+    let remove_acc acc set = AccValSet.filter (ign_flag_filter acc) set in     
     if (Base.is_global ctx.ask v) then begin
       if not (is_task v.vname) || flagstate = Flags.top() then begin
         if not !GU.may_narrow then begin
           let new_acc = ((loc,fl,rv),ust,o) in
           let curr : AccValSet.t = try M.Acc.find acc v with _ -> AccValSet.empty in
-          let neww : AccValSet.t = AccValSet.add (new_acc,flagstate) curr in
+          let neww : AccValSet.t = AccValSet.add (new_acc,flagstate) (remove_acc new_acc curr) in
           M.Acc.replace acc v neww;
           accKeys := M.AccKeySet.add v !accKeys;
           let curr = try Hashtbl.find off_pry_with_flag v.vname with _ -> [] in
@@ -718,19 +740,26 @@ let _ = print_endline (string_of_bool res) in res*)
         let accs = valset@may_eq_guards in
         acc && (not((is_race_no_flags (strip_flags accs)) = Race))
       in (*/check_valset*)
-      let check_one_flag acc_list_some_glob flag = (*does flag prevent the race?*)
+      let check_one_flag acc_list_some_glob' flag = (*does flag prevent the race?*)
+        (* are flag values concrete enough?*)
+      let acc_list_some_glob'' = filter_bot flag acc_list_some_glob' in
+(*     if check_top flag acc_list_some_glob then [] else begin (*too strong. check if top accesses are safe by priority*) *)
+        let tops,acc_list_some_glob = split_accs_top flag acc_list_some_glob'' in
         let guards,assigns = split_accs_method flag acc_list_some_glob in
 (* let _ = print_endline ((string_of_int (List.length guards))^" guards and "^string_of_int (List.length assigns)^" assigns"  ) in        *)
         let eq_asgn,weird_asgn = split_accs flag assigns in
-        if (is_race_no_flags (strip_flags eq_asgn) = Race) then begin
+if (weird_asgn != [] ) then failwith "this never happens! osek 750";
+        if (is_race_no_flags (strip_flags (eq_asgn@tops)) = Race) then begin
           [] (* setting does not protect. setters race *)
         end else begin
           (* check each set value against all guard access, which are not ineq value *)
-          let valsets = split_equals flag eq_asgn in
-          if List.fold_left (check_valset flag guards) true valsets then
+          let valsets' = split_equals flag eq_asgn in
+          let valsets = List.map (fun x -> (x@tops)) valsets' in
+          if List.fold_left (check_valset flag (guards@tops)) true valsets then
             [flag]
           else
             []
+(*     end     *)
         end
       in (*/check_one_flag*)
       let get_keys_from_flag_map flag_map = Flags.fold (fun key value acc -> (key::acc)) flag_map [] in
@@ -826,10 +855,10 @@ let _ = print_endline (string_of_bool res) in res*)
           let lock_str = Lockset.short 80 dom_elem in
 	  let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully2) never happens!" ) (Lockset.ReverseAddrSet.elements dom_elem) in
 	  let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in  
-	  let flag_str = if !Errormsg.verboseFlag then Pretty.sprint 80 (Flags.pretty () flagstate) else Flags.short 80 flagstate in
+	  let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Pretty.sprint 80 (Flags.pretty () flagstate)) else "" in
           let action = if write then "write" else "read" in
           let thread = "\"" ^ Base.Main.Flag.short 80 fl ^ "\"" in
-          let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ " and flag state: " ^flag_str in
+          let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ flag_str in
             (warn,loc) 
         in (*/f*)       
         let warnings =  List.map f acc_list in
