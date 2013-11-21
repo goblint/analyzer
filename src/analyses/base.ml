@@ -810,7 +810,7 @@ struct
 
   let locmap_modify_def d k f h =
     if Locmap.mem h k then
-      Locmap.modify k f h
+      Locmap.replace h k (f (Locmap.find h k))
     else
       Locmap.add h k d
     
