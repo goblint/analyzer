@@ -224,7 +224,7 @@ let check_task task t_value =
 
 let check_isr min_cat2_pry min_cat1_pry isr i_value =
   let (pry,res_list,category) = i_value in
-    if (pry = -1) then (failwith ("No priority found for isr "^ isr ^ "!") );
+    if (pry = -1001) then (failwith ("No priority found for isr "^ isr ^ "!") );
     if (category = 2 && pry <= min_cat2_pry) then (failwith ("Priority of interrupt "^ isr ^ "below task priorities!") );
     if (category = 1 && pry <= min_cat1_pry) then (failwith ("Priority of category 1 interrupt "^ isr ^ "below category 2 priorities!") );
     let _ = List.map check_res_decl res_list in
@@ -382,7 +382,7 @@ let handle_attribute_isr object_name t_value (attr : (string*attribute_v)) =
   | "MESSAGE" ->
     if tracing then trace "osek" "MESSAGE attribute ignored for TASK %s\n" a_name;
 	t_value
-  | x when List.mem x !osek_ISR_PRIORITY -> (match value with
+  | "PRIORITY" -> (match value with
       | Int p  -> if (p < 0) then begin
 		    if tracing then trace "osek" "Negative PRIORITY for TASK %s\n" object_name;
 		    t_value
@@ -391,6 +391,16 @@ let handle_attribute_isr object_name t_value (attr : (string*attribute_v)) =
       | _  ->
 	if tracing then trace "osek" "Wrong value (_) for attribute PRIORITY of TASK %s\n" object_name;
 	  t_value
+      )
+  | "INTERRUPTPRIORITY" -> (match value with
+      | Int p  -> if (p < 0) then begin
+                    if tracing then trace "osek" "Negative PRIORITY for TASK %s\n" object_name;
+                    t_value
+                  end
+                  else (p+1000,res_list,category)
+      | _  ->
+        if tracing then trace "osek" "Wrong value (_) for attribute PRIORITY of TASK %s\n" object_name;
+          t_value
       )
   | _ -> 
     if tracing then trace "osek" "Unhandled ISR attribute %s\n" a_name;
@@ -548,7 +558,7 @@ let add_to_table oil_info =
                     Hashtbl.add tasks name (List.fold_left (handle_attribute_task name) def_task attribute_list)
 		)
     | "ISR"  -> let name = make_isr object_name in
-		let def_isr = (-1,[name; "SuspendOSInterrupts"],-1) in
+		let def_isr = (-1001,[name; "SuspendOSInterrupts"],-1) in
 		let _ = Hashtbl.add resources name (name,-1, make_lock name) in
 		concurrent_tasks := name :: !concurrent_tasks;
 		(match attribute_list with
