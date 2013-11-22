@@ -13,6 +13,16 @@ let soundness = ref true
 let warn_out = ref stdout
 let tracing = Config.tracing
 
+(*Warning files*)
+let warn_race = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_race.txt") else warn_out
+let warn_safe = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_safe.txt") else warn_out
+let warn_higr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highreadrace.txt") else warn_out
+let warn_higw = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highwriterace.txt") else warn_out
+let warn_lowr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowreadrace.txt") else warn_out
+let warn_loww = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowwriterace.txt") else warn_out
+
+
+
 let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative
   | path -> open_out (Filename.concat path (name ^ ".out"))
@@ -20,7 +30,7 @@ let get_out name alternative = match get_string "dbg.dump" with
 let xml_warn = Hashtbl.create 10  
 
 let print_msg msg loc = 
-  htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
+  if ((get_string "result") = "html") then htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
   if get_bool "gccwarn" then    
     Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
   else if get_bool "exp.eclipse" then 
@@ -29,7 +39,7 @@ let print_msg msg loc =
     Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
 
 let print_err msg loc = 
-  htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
+  if ((get_string "result") = "html") then htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
   if get_bool "gccwarn" then    
     Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
   else if get_bool "exp.eclipse" then 
@@ -40,12 +50,21 @@ let print_err msg loc =
 
 let print_group group_name errors =
   (* Add warnings to global warning list *)
-  List.iter (fun (msg,loc) -> htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,(group_name^" : "^msg))];() ) errors;
-
+  if ((get_string "result") = "html") then List.iter (fun (msg,loc) -> htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,(group_name^" : "^msg))];() ) errors;
   if get_bool "exp.eclipse" then
     List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
   else
     let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
+      if (get_bool "ana.osek.warnfiles") then begin
+        match (String.sub group_name 0 6) with
+          | "Safely" -> ignore (Pretty.fprintf !warn_safe "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | "Datara" -> ignore (Pretty.fprintf !warn_race "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | "High r" -> ignore (Pretty.fprintf !warn_higr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | "High w" -> ignore (Pretty.fprintf !warn_higw "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | "Low re" -> ignore (Pretty.fprintf !warn_lowr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | "Low wr" -> ignore (Pretty.fprintf !warn_loww "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | _ -> ()
+      end;
       ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
 let warn_urgent msg = 

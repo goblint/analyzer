@@ -97,6 +97,7 @@ let _ =
   reg Analyses "ana.osek.intrpts"    "false" "Enable constraints for interrupts.";
   reg Analyses "ana.osek.check"      "false" "Check if (assumed) OSEK conventions are fullfilled.";
   reg Analyses "ana.osek.names"      "[]"    "OSEK API function (re)names for the analysed program";
+  reg Analyses "ana.osek.warnfiles"  "false" "Print all warning types to seperate file";
   reg Analyses "ana.osek.safe_vars"  "[]"    "Suppress warnings on these vars";
   reg Analyses "ana.osek.safe_task"  "[]"    "Ignore accesses in these tasks";
   reg Analyses "ana.osek.safe_isr"   "[]"    "Ignore accesses in these isr";
