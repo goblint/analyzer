@@ -14,14 +14,29 @@ let warn_out = ref stdout
 let tracing = Config.tracing
 
 (*Warning files*)
-let warn_race = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_race.txt") else warn_out
+let warn_race = ref stdout
+let warn_safe = ref stdout
+let warn_higr = ref stdout
+let warn_higw = ref stdout
+let warn_lowr = ref stdout
+let warn_loww = ref stdout
+
+(*let warn_race = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_race.txt") else warn_out
 let warn_safe = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_safe.txt") else warn_out
 let warn_higr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highreadrace.txt") else warn_out
 let warn_higw = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highwriterace.txt") else warn_out
 let warn_lowr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowreadrace.txt") else warn_out
-let warn_loww = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowwriterace.txt") else warn_out
+let warn_loww = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowwriterace.txt") else warn_out*)
 
 
+let init_warn_files () =
+  warn_race := (open_out "goblint_warnings_race.txt");
+  warn_safe := (open_out "goblint_warnings_safe.txt");
+  warn_higr := (open_out "goblint_warnings_highreadrace.txt");
+  warn_higw := (open_out "goblint_warnings_highwriterace.txt");
+  warn_lowr := (open_out "goblint_warnings_lowreadrace.txt");
+  warn_loww := (open_out "goblint_warnings_lowwriterace.txt");
+  ()
 
 let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative

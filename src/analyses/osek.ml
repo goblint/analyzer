@@ -1040,6 +1040,7 @@ any in there also in safe_tasks ... %TODO *)
       prerr_endline "Trampoline headers not found." ;
       exit 2;
     end;*)
+    if get_bool "ana.osek.warnfiles" then init_warn_files();    
     LibraryFunctions.add_lib_funs osek_API_funs;
     let names = !osek_renames in
     if Sys.file_exists(names) then begin

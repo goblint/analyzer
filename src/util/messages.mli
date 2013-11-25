@@ -16,6 +16,9 @@ val xml_warn : (location, (string*string) list) Hashtbl.t
 val warn_out : out_channel ref
 val get_out: string -> out_channel -> out_channel
 
+val init_warn_files: unit -> unit
+(** Initialize the separate warning files for osek reporting *)
+
 val print_msg: string -> location -> unit
 (** Prints a message and adds the given location information. *)
 
