@@ -6,9 +6,9 @@ w4 "overwriting unfreed pointer $ [leak]"
 1        -w1> 1        malloc(_)
 1        -w2> 1        free($p)
 1        -w3> 1        *$p = _
-1        ->   alloc    $p = malloc($size) // TODO does compiler check size?
+1        ->   alloc    $p = malloc(_) // TODO does compiler check size?
 
-alloc    -w4> alloc    $p = malloc($size)
+alloc    -w4> alloc    $p = malloc(_)
 alloc    ->   freed    free($p)
 
 freed    ->> 1         _ // let state 1 handle the rest
