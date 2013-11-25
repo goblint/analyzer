@@ -3,59 +3,24 @@ open Pretty
 open Printf
 
 type myowntypeEntry = {addr : ValueDomain.Addr.t ; loc : location}
-type myowntype = myowntypeEntry list
 
-let availableLocks : (myowntypeEntry list ref) = ref []
 
-module Lockset = 
+module MyLock : Printable.S with type t = myowntypeEntry =  
 struct
-  type t = myowntype
-
-  let leq a b = (* a subset of b? *)
-    let isElemInB e = List.exists (fun x -> ValueDomain.Addr.equal (x.addr) (e.addr)) b in
-    List.for_all (fun x -> isElemInB x) a
-
-  let rec join a b = (* union of a and b without duplicates *)
-    let isElemInA e = List.exists (fun x -> ValueDomain.Addr.equal (x.addr) (e.addr)) a in
-    if (List.length b) = 0 then a
-    else join (a@(if (isElemInA (List.hd b)) = true then [] else [List.hd b])) (List.tl b)
-
-  let meet a b = (* intersection of a and b *)
-    let isElemInB e = List.exists (fun x -> ValueDomain.Addr.equal (x.addr) (e.addr)) b in
-    List.filter (fun e -> isElemInB e) a
-
-  let equal a b = (* a and b equal? *)
-    (leq a b) && (leq b a)
-
-  let top () = !availableLocks
-  let is_top x = equal (!availableLocks) x
-  let bot () = []
-  let is_bot x = (List.length x) = 0
-  let empty () = []
-
-  let widen x y = y
-  let narrow x y = x
-
-  let hash i = 986713477
-  let pretty () _ = text ""
-  let short _ _ = ""
-  let toXML x =
-    let lockAddrName e = (ValueDomain.Addr.short () e.addr) in
-    let lockListStr = List.fold_left (fun s v -> if ((String.length s) == 0) then (lockAddrName v) else s^", "^(lockAddrName v)) "" x in    
-    Xml.Element ("Leaf", [("text", "Locks: ["^lockListStr^"]")], [])
-  let isSimple _ = true
-  let pretty_f _ = pretty
-  let toXML_f _ = toXML
-  let name () = "Deadlock Domain"
-  let pretty_diff () (x,y) = text ""
-
-  let compare = Pervasives.compare
-  
-  let printXml f xs =
-    let print_one x = 
-      BatPrintf.fprintf f "%s" (ValueDomain.Addr.short () x.addr)
-    in
-    BatPrintf.fprintf f "<value>\n<set>";
-    List.iter print_one xs;
-    BatPrintf.fprintf f "</set></value>\n"
+  type t = myowntypeEntry
+  module Ad = ValueDomain.Addr
+  let name () = "address with location" 
+  let equal x y = Ad.equal x.addr y.addr
+  let hash x = Ad.hash x.addr
+  let compare x y = Ad.compare x.addr y.addr
+  let short w x = (Ad.short (w/2) x.addr) ^ "@" ^ (Basetype.ProgLines.short (w/2) x.loc)
+  let isSimple x = true
+  let pretty_f sh () x = Ad.pretty () x.addr ++ text "@" ++ Basetype.ProgLines.pretty () x.loc
+  let pretty = pretty_f short
+  let printXml c x = Ad.printXml c x.addr
+  let pretty_diff () (x,y) = Ad.pretty_diff () (x.addr,y.addr)
+  let toXML_f sh x = Ad.toXML x.addr
+  let toXML = toXML_f short
 end
+
+module Lockset = SetDomain.ToppedSet (MyLock) (struct let topname = "all locks" end)
