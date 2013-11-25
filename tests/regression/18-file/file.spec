@@ -8,7 +8,7 @@ w7 "overwriting still opened file handle $"
 w8 "unrecognized file open mode for file handle $"
 
 // TODO later add fputs and stuff
-1          -> w1            fopen(_)
+1          -> w1            fopen(_, _)
 1          -> w2            fclose($fp)
 1          -> w3            fprintf($fp, _)
 //1          -> open_read     $fp = fopen($path, "r")

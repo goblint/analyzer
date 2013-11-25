@@ -139,19 +139,21 @@ struct
         D.warn ~may:true @@ "unclosed files: "^D.string_of_keys mayOpen;
         Set.iter (fun v -> D.warn ~may:true ~loc:(D.V.loc v) "file is never closed") mayOpen
     );
+    (* take care of return value *)
     let au = match exp with
       | Some(Lval lval) when D.mem (D.key_from_lval lval) m -> (* we return a var in D *)
           let k = D.key_from_lval lval in
-          let varinfo,offset = k in (* TODO also bad idea b/c of missing offset *)
-          if List.mem varinfo (f.sformals @ f.slocals) then (* if var is local, we make a copy *)
-            D.add return_var (D.find' k m) m
-          else
+          let varinfo,offset = k in
+          if varinfo.vglob then
             D.alias return_var k m (* if var is global, we alias it *)
+          else
+            D.add return_var (D.find' k m) m (* if var is local, we make a copy *)
       | _ -> m
     in
     (* remove formals and locals *)
-    (* TODO this is not a good approach, what if we added a key foo.fp? why not just keep the globals? *)
-    List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
+    (* this is not a good approach, what if we added a key foo.fp? -> just keep the globals *)
+    (* List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals) *)
+    D.only_globals au
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (* M.debug_each @@ "entering function "^f.vname^string_of_callstack ctx.local; *)

@@ -104,7 +104,7 @@ struct
   let hash = Hashtbl.hash
   (* Lattice.S must be implemented to be used as Range for MapDomain *)
   (* let leq x y = equal y (join x y) *)
-  let leq  (a,b) (c,d) = Set.subset c a && Set.subset b d
+  let leq  (a,b) (c,d) = Set.subset c a && Set.subset b d (* this is subseteq! *)
   let join (a,b) (c,d) = (* M.report ("JOIN\tx: " ^ (string_of (a,b)) ^ "\n\ty: " ^ (string_of (c,d))); *)
     let r = Set.intersect a c, Set.union b d in
     (* M.report @@ "result: "^string_of r; *)

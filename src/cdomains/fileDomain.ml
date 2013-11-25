@@ -72,9 +72,8 @@ struct
     change k v m
   let success k m =
     if is_unknown k m then m else
-    let v = find' k m in
-    if V.may (Val.opened%V.state) v && V.may (V.in_state Val.Error) v then
-      change k (V.filter (Val.opened%V.state) v) m
-    else
-      m
+    match find_option k m with
+    | Some v when V.may (Val.opened%V.state) v && V.may (V.in_state Val.Error) v ->
+        change k (V.filter (Val.opened%V.state) v) m (* TODO what about must-set? *)
+    | _ -> m
 end
