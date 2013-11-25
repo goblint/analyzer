@@ -115,9 +115,11 @@ let def_to_string = function
   | Edge(a, ws, fwd, b, s) -> a^" -"^arrow_to_string ws fwd^"> "^b^"\t"^stmt_to_string s
 
 let to_dot_graph defs =
+  let no_warnings = true in
   let def_to_string = function
     | Node(n, m)    ->
-      n^"\t[style=filled, fillcolor=orange, label=\""^n^": "^m^"\"];"
+      if no_warnings then ""
+      else n^"\t[style=filled, fillcolor=orange, label=\""^n^": "^m^"\"];"
     | Edge(a, ws, fwd, b, s) ->
       let style = if fwd then "style=dotted, " else "" in
       let ws = if List.is_empty ws then "" else (String.concat "," ws)^" | " in
