@@ -53,12 +53,11 @@ rule token = parse
   | "null"         { NULL   }
   | digit+ as x    { INT(int_of_string x) }
   | str            { STRING(s) }
+  | '_'            { UNDERS } (* used for spec, but has to be before Ident! *)
   | ('_'|alpha) w* as x    { IDENT(x) }
 
   (* spec *)
-  | '_'            { UNDERS }
   | ':'            { COLON  }
-  | "$_"           { VAR_ }
   | "$"(w+ as x)   { VAR(x) }
   | "r" str        { REGEX(s) }
   | (w+ as n) s+ str

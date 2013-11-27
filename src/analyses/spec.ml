@@ -323,7 +323,7 @@ struct
       let key =
         match SC.get_key_variant c with
         | `Lval s ->
-            M.debug_each @@ "Key variant for "^f.vname^": `Lval "^s^". \027[30m "^SC.stmt_to_string c;
+            M.debug_each @@ "Key variant for "^f.vname^": `Lval "^s^"; "^SC.stmt_to_string c;
             lval
         | `Arg(s, i) ->
             M.debug_each @@ "Key variant for "^f.vname^": `Arg("^s^", "^string_of_int i^")"^". "^SC.stmt_to_string c;
@@ -391,7 +391,7 @@ struct
             | `Float a, Const(CReal (b, fkind, str_opt)) -> a=b
             | `Float a, _ -> M.warn_each "EQUAL Float: unsupported!"; false
             (* arg is a key. currently there can only be one key per constraint, so we already used it for lookup. TODO multiple keys? *)
-            | `Vari a, b  -> true
+            | `Var a, b  -> true
             (* arg is a identifier we use for matching constraints. TODO save in domain *)
             | `Ident a, b -> true
             | `Error s, b -> failwith @@ "Spec error: "^s
@@ -422,7 +422,7 @@ struct
       let rec check_fwd_loop m new_a old_key = (* TODO cycle detection? *)
         let new_m,fwd,new_a,key = List.find_map (matching m new_a old_key) fun_edges in
         (* List.iter (fun x -> M.debug_each (x^"\n")) (D.string_of_map new_m); *)
-        (* M.debug_each @@ "fwd: "^dump fwd^", new_a: "^dump new_a^", old_key: "^dump old_key; *)
+        if fwd then M.debug_each @@ "FWD: "^string_of_bool fwd^", new_a: "^dump new_a^", old_key: "^dump old_key;
         if fwd then check_fwd_loop new_m new_a key else new_m,key
       in
       (* now we get the new domain and the latest key that was used *)

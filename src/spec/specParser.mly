@@ -19,7 +19,7 @@ open SpecCore
 %token <string> STRING
 %token <string> IDENT
 /* spec */
-%token UNDERS COLON VAR_
+%token UNDERS COLON
 %token <string> VAR
 %token <string> REGEX
 %token <string * string> NODE
