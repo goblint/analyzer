@@ -274,7 +274,6 @@ struct
           Progress.track_call_profile ()
         end ;
       let firstvar = List.hd startvars' in
-      let mainfile = match firstvar with (MyCFG.Function fn, _) -> fn.vdecl.file | _ -> "Impossible!" in
       let module S = Set.Make (Int) in
       if (get_bool "dbg.uncalled") then
         begin
@@ -288,7 +287,7 @@ struct
             (* set of ids of called functions *)
             let calledFuns = LHT.fold insrt lh S.empty in
             function
-              | GFun (fn, loc) when loc.file = mainfile && not (S.mem fn.svar.vid calledFuns) ->
+              | GFun (fn, loc) when not (S.mem fn.svar.vid calledFuns) ->
                   begin
                     let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
                     ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
