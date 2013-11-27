@@ -30,14 +30,14 @@ struct
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
-      | Queries.MayPointTo exp -> M.debug_each @@ "query MayPointTo: "^sprint d_plainexp exp; Queries.Result.top ()
-      | _ -> Queries.Result.top ()
+    | Queries.MayPointTo exp -> M.debug_each @@ "query MayPointTo: "^sprint d_plainexp exp; Queries.Result.top ()
+    | _ -> Queries.Result.top ()
 
   let query_lv ask exp =
     match ask (Queries.MayPointTo exp) with
-      | `LvalSet l when not (Queries.LS.is_top l) ->
-          Queries.LS.elements l
-      | _ -> []
+    | `LvalSet l when not (Queries.LS.is_top l) ->
+        Queries.LS.elements l
+    | _ -> []
   let print_query_lv ?msg:(msg="") ask exp =
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
     M.debug @@ msg^" MayPointTo "^sprint d_exp exp^" = ["
@@ -45,14 +45,14 @@ struct
 
   let rec eval_fv ask exp: varinfo option =
     match query_lv ask exp with
-      | [(v,_)] -> Some v
-      | _ -> None
+    | [(v,_)] -> Some v
+    | _ -> None
 
   let query_eq ask exp =
     match ask (Queries.EqualSet exp) with
-      | `ExprSet l when not (Queries.ES.is_top l) ->
-          Queries.ES.elements l
-      | _ -> []
+    | `ExprSet l when not (Queries.ES.is_top l) ->
+        Queries.ES.elements l
+    | _ -> []
   let print_query_eq ?msg:(msg="") ask exp =
     let xs = query_eq ask exp in (* EqualSet -> ExpSet *)
     M.debug @@ msg^" EqualSet "^sprint d_exp exp^" = ["
@@ -74,17 +74,17 @@ struct
       | _ -> None
     in
     match key_from_exp (Lval lval), key_from_exp rval with (* we just care about Lval assignments *)
-      | Some k1, Some k2 when k1=k2 -> m (* do nothing on self-assignment *)
-      | Some k1, Some k2 when D.mem k1 m && D.mem k2 m -> (* both in D *)
-          saveOpened k1 m |> D.remove' k1 |> D.alias k1 k2
-      | Some k1, Some k2 when D.mem k1 m -> (* only k1 in D *)
-          saveOpened k1 m |> D.remove' k1
-      | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
-          D.alias k1 k2 m
-      | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
-          D.warn @@ "changed file pointer "^D.string_of_key k1^" (no longer safe)";
-          saveOpened ~unknown:true k1 m |> D.unknown k1
-      | _ -> m (* no change in D for other things *)
+    | Some k1, Some k2 when k1=k2 -> m (* do nothing on self-assignment *)
+    | Some k1, Some k2 when D.mem k1 m && D.mem k2 m -> (* both in D *)
+        saveOpened k1 m |> D.remove' k1 |> D.alias k1 k2
+    | Some k1, Some k2 when D.mem k1 m -> (* only k1 in D *)
+        saveOpened k1 m |> D.remove' k1
+    | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
+        D.alias k1 k2 m
+    | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
+        D.warn @@ "changed file pointer "^D.string_of_key k1^" (no longer safe)";
+        saveOpened ~unknown:true k1 m |> D.unknown k1
+    | _ -> m (* no change in D for other things *)
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     let m = ctx.local in
@@ -94,13 +94,13 @@ struct
       match a, b with
       | Const (CInt64(i, kind, str)), Lval lval
       | Lval lval, Const (CInt64(i, kind, str)) ->
-        (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
-        let k = D.key_from_lval lval in
-        if i = Int64.zero && tv then (
-          (* ignore(printf "error-branch\n"); *)
-          D.error k m
-        )else
-          D.success k m
+          (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
+          let k = D.key_from_lval lval in
+          if i = Int64.zero && tv then (
+            (* ignore(printf "error-branch\n"); *)
+            D.error k m
+          )else
+            D.success k m
       | _ -> M.debug @@ "nothing matched the given BinOp: "^sprint d_plainexp a^" = "^sprint d_plainexp b; m
     in
     match stripCasts (constFold true exp) with
@@ -244,57 +244,57 @@ struct
         List.fold_left (fun m k -> D.join m (f k m false)) m xs
     in
     match lval, f.vname, arglist with
-      | None, "fopen", _ ->
-          D.warn "file handle is not saved!"; m
-      | Some lval, "fopen", _ ->
-          let f k m w =
-            let m = check_overwrite_open k m in
-            (match arglist with
-              | Const(CStr(filename))::Const(CStr(mode))::[] ->
-                  (* M.debug_each @@ "fopen(\""^filename^"\", \""^mode^"\")"; *)
-                  D.fopen k loc filename mode m |> split_err_branch lval (* TODO k instead of lval? *)
-              | e::Const(CStr(mode))::[] ->
-                  (* ignore(printf "CIL: %a\n" d_plainexp e); *)
-                  (match ctx.ask (Queries.EvalStr e) with
-                    | `Str filename -> D.fopen k loc filename mode m
-                    | _ -> D.warn "unknown filename"; D.fopen k loc "???" mode m
-                  )
-              | xs ->
-                  let args = (String.concat ", " (List.map (sprint d_exp) xs)) in
-                  M.debug @@ "fopen args: "^args;
-                  (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
-                  D.warn @@ "fopen needs two strings as arguments, given: "^args; m
-            )
-          in ret_all f lval
+    | None, "fopen", _ ->
+        D.warn "file handle is not saved!"; m
+    | Some lval, "fopen", _ ->
+        let f k m w =
+          let m = check_overwrite_open k m in
+          (match arglist with
+           | Const(CStr(filename))::Const(CStr(mode))::[] ->
+               (* M.debug_each @@ "fopen(\""^filename^"\", \""^mode^"\")"; *)
+               D.fopen k loc filename mode m |> split_err_branch lval (* TODO k instead of lval? *)
+           | e::Const(CStr(mode))::[] ->
+               (* ignore(printf "CIL: %a\n" d_plainexp e); *)
+               (match ctx.ask (Queries.EvalStr e) with
+                | `Str filename -> D.fopen k loc filename mode m
+                | _ -> D.warn "unknown filename"; D.fopen k loc "???" mode m
+               )
+           | xs ->
+               let args = (String.concat ", " (List.map (sprint d_exp) xs)) in
+               M.debug @@ "fopen args: "^args;
+               (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
+               D.warn @@ "fopen needs two strings as arguments, given: "^args; m
+          )
+        in ret_all f lval
 
-      | _, "fclose", [Lval fp] ->
-          let f k m w =
-            if w then D.reports k [
-              false, D.closed,  "closeing already closed file handle "^D.string_of_key k;
-              true,  D.opened,  "closeing unopened file handle "^D.string_of_key k
-            ] m;
-            D.fclose k loc m
-          in ret_all f fp
-      | _, "fclose", _ ->
-          D.warn "fclose needs exactly one argument"; m
+    | _, "fclose", [Lval fp] ->
+        let f k m w =
+          if w then D.reports k [
+            false, D.closed,  "closeing already closed file handle "^D.string_of_key k;
+            true,  D.opened,  "closeing unopened file handle "^D.string_of_key k
+          ] m;
+          D.fclose k loc m
+        in ret_all f fp
+    | _, "fclose", _ ->
+        D.warn "fclose needs exactly one argument"; m
 
-      | _, "fprintf", (Lval fp)::_::_ ->
-          let f k m w =
-            if w then D.reports k [
-              false, D.closed,   "writing to closed file handle "^D.string_of_key k;
-              true,  D.opened,   "writing to unopened file handle "^D.string_of_key k;
-              true,  D.writable, "writing to read-only file handle "^D.string_of_key k;
-            ] m;
-            m
-          in ret_all f fp
-      | _, "fprintf", fp::_::_ ->
-          (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) arglist; *)
-          print_query_lv ~msg:"fprintf(?, ...): " ctx.ask fp;
-          D.warn "first argument to printf must be a Lval"; m
-      | _, "fprintf", _ ->
-          D.warn "fprintf needs at least two arguments"; m
+    | _, "fprintf", (Lval fp)::_::_ ->
+        let f k m w =
+          if w then D.reports k [
+            false, D.closed,   "writing to closed file handle "^D.string_of_key k;
+            true,  D.opened,   "writing to unopened file handle "^D.string_of_key k;
+            true,  D.writable, "writing to read-only file handle "^D.string_of_key k;
+          ] m;
+          m
+        in ret_all f fp
+    | _, "fprintf", fp::_::_ ->
+        (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) arglist; *)
+        print_query_lv ~msg:"fprintf(?, ...): " ctx.ask fp;
+        D.warn "first argument to printf must be a Lval"; m
+    | _, "fprintf", _ ->
+        D.warn "fprintf needs at least two arguments"; m
 
-      | _ -> m
+    | _ -> m
 
   let startstate v = D.bot ()
   let otherstate v = D.bot ()

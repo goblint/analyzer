@@ -38,18 +38,18 @@ struct
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
-      | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top ()
 
   let query_lv ask exp =
     match ask (Queries.MayPointTo exp) with
-      | `LvalSet l when not (Queries.LS.is_top l) ->
-          Queries.LS.elements l
-      | _ -> []
+    | `LvalSet l when not (Queries.LS.is_top l) ->
+        Queries.LS.elements l
+    | _ -> []
 
   let rec eval_fv ask exp: varinfo option =
     match query_lv ask exp with
-      | [(v,_)] -> Some v
-      | _ -> None
+    | [(v,_)] -> Some v
+    | _ -> None
 
   let dump_query_result result =
     match result with
@@ -72,17 +72,17 @@ struct
       | _ -> None
     in
     match key_from_exp (Lval lval), key_from_exp rval with (* we just care about Lval assignments *)
-      | Some k1, Some k2 when k1=k2 -> m (* do nothing on self-assignment *)
-      | Some k1, Some k2 when D.mem k1 m && D.mem k2 m -> (* both in D *)
-          (* saveOpened k1 *) m |> D.remove' k1 |> D.alias k1 k2
-      | Some k1, Some k2 when D.mem k1 m -> (* only k1 in D *)
-          (* saveOpened k1 *) m |> D.remove' k1
-      | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
-          D.alias k1 k2 m
-      | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
-          D.warn @@ "changed file pointer "^D.string_of_key k1^" (no longer safe)";
-          (* saveOpened ~unknown:true k1 *) m |> D.unknown k1
-      | _ -> m (* no change in D for other things *)
+    | Some k1, Some k2 when k1=k2 -> m (* do nothing on self-assignment *)
+    | Some k1, Some k2 when D.mem k1 m && D.mem k2 m -> (* both in D *)
+        (* saveOpened k1 *) m |> D.remove' k1 |> D.alias k1 k2
+    | Some k1, Some k2 when D.mem k1 m -> (* only k1 in D *)
+        (* saveOpened k1 *) m |> D.remove' k1
+    | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
+        D.alias k1 k2 m
+    | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
+        D.warn @@ "changed file pointer "^D.string_of_key k1^" (no longer safe)";
+        (* saveOpened ~unknown:true k1 *) m |> D.unknown k1
+    | _ -> m (* no change in D for other things *)
 
   (*
   - branch-transitions in the spec-file come in pairs: e.g. true-branch goes to node a, false-branch to node b
@@ -110,81 +110,81 @@ struct
       -> if the result is the same as tv, do the corresponding transition, otherwise remove the entry from the domain
       for pointers this won't help since it always returns `Top *)
     (match ctx.ask (Queries.EvalInt exp) with
-      | `Int i (* when (Queries.ID.is_bool i) *) ->
-          (match Queries.ID.to_bool i with
+     | `Int i (* when (Queries.ID.is_bool i) *) ->
+         (match Queries.ID.to_bool i with
           | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
           | _ -> M.debug_each "EvalInt: `Int no bool")
-      | `Bool b -> M.debug_each "EvalInt: `Bool"
-      | x -> M.debug_each @@ "OTHER RESULT: "^dump_query_result x
+     | `Bool b -> M.debug_each "EvalInt: `Bool"
+     | x -> M.debug_each @@ "OTHER RESULT: "^dump_query_result x
     );
     let check a b tv =
       (* ignore(printf "check: %a = %a\n" d_plainexp a d_plainexp b); *)
       match a, b with
       | Const (CInt64(i, kind, str)), Lval lval
       | Lval lval, Const (CInt64(i, kind, str)) ->
-        (* let binop = BinOp (Eq, a, b, Cil.intType) in *)
-        (* standardize the format of the expression to 'lval==i'. -> spec needs to follow that format, the code is mapped to it. *)
-        let binop = BinOp (Eq, Lval lval, Const (CInt64(i, kind, str)), Cil.intType) in
-        let key = D.key_from_lval lval in
-        let value = D.find key m in
-        if i = Int64.zero && tv then (
-          M.debug_each "error-branch";
-          (* D.remove key m *)
-        )else(
-          M.debug_each "success-branch";
-          (* m *)
-        );
-        (* there should always be an entry in our domain for key *)
-        if not (D.mem key m) then m else
-        (* TODO for now we just assume that a Binop is used and Lval is the key *)
-        (* get the state(s) that key is/might be in *)
-        let states = D.get_states key m in
-        (* compare SC.exp with Cil.exp and tv *)
-        let branch_exp_eq c exp tv =
-          (* let c_str = match SC.branch_exp c with Some (exp,tv) -> SC.exp_to_string exp | _ -> "" in
-          let c_str = Str.global_replace (Str.regexp_string "$key") "%e:key" c_str in
-          let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_exp key))] in *)
-          (* c_exp=exp *) (* leads to Out_of_memory *)
-          match SC.branch_exp c with
-          | Some (c_exp,c_tv) ->
-            (* let exp_str = sprint d_exp exp in *) (* contains too many casts, so that matching fails *)
-            let exp_str = sprint d_exp binop in
-            let c_str = SC.exp_to_string c_exp in
-            let c_str = Str.global_replace (Str.regexp_string "$key") (D.string_of_key key) c_str in
-            (* ignore(printf "branch_exp_eq: '%s' '%s' -> %B\n" c_str exp_str (c_str=exp_str)); *)
-            c_str=exp_str && c_tv=tv
-          | _ -> false
-        in
-        (* filter those edges that are branches, start with a state from states and have the same branch expression and the same tv *)
-        let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem a states && branch_exp_eq c exp tv) !edges in
-        (* there should be only one such edge or none *)
-        if List.length branch_edges <> 1 then ( (* call of branch for an actual branch *)
-          M.debug_each "branch:branch_edges length is not 1! -> actual branch";
-          M.debug_each ((D.string_of_entry key m)^" -> branch_edges1: "^(String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges));
-          (* filter those edges that are branches, end with a state from states have the same branch expression and the same tv *)
-          (* TODO they should end with any predecessor of the current state, not only the direct predecessor *)
-          let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem b states && branch_exp_eq c exp tv) !edges in
-          M.debug_each ((D.string_of_entry key m)^" -> branch_edges2: "^(String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges));
-          if List.length branch_edges <> 1 then m else
-          (* meet current value with the target state. this is tricky: we can not simply take the target state, since there might have been more than one element already before the branching.
-          -> find out what the alternative branch target was and remove it *)
-          let (a,ws,fwd,b,c) = List.hd branch_edges in
-          (* the alternative branch has the same start node, the same branch expression and the negated tv *)
-          let (a,ws,fwd,b,c) = List.find (fun (a2,ws,fwd,b,c) -> SC.is_branch c && a2=a && branch_exp_eq c exp (not tv)) !edges in
-          (* now b is the state the alternative branch goes to -> remove it *)
-          (* TODO may etc. *)
-          (* being explicit: check how many records there are. if the value is Must b, then we're sure that it is so and we don't remove anything. *)
-          if D.V.length value = (1,1) then m else (* XX *)
-          (* there are multiple possible states -> remove b *)
-          let v2 = D.V.remove_state b value in
-          (* M.debug_each @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
-          D.add key v2 m
-        ) else (* call of branch directly after splitting *)
-          let (a,ws,fwd,b,c) = List.hd branch_edges in
-          (* TODO may etc. *)
-          let v2 = D.V.set_state b value in
-          (* M.debug_each @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
-          D.add key v2 m
+          (* let binop = BinOp (Eq, a, b, Cil.intType) in *)
+          (* standardize the format of the expression to 'lval==i'. -> spec needs to follow that format, the code is mapped to it. *)
+          let binop = BinOp (Eq, Lval lval, Const (CInt64(i, kind, str)), Cil.intType) in
+          let key = D.key_from_lval lval in
+          let value = D.find key m in
+          if i = Int64.zero && tv then (
+            M.debug_each "error-branch";
+            (* D.remove key m *)
+          )else(
+            M.debug_each "success-branch";
+            (* m *)
+          );
+          (* there should always be an entry in our domain for key *)
+          if not (D.mem key m) then m else
+          (* TODO for now we just assume that a Binop is used and Lval is the key *)
+          (* get the state(s) that key is/might be in *)
+          let states = D.get_states key m in
+          (* compare SC.exp with Cil.exp and tv *)
+          let branch_exp_eq c exp tv =
+            (* let c_str = match SC.branch_exp c with Some (exp,tv) -> SC.exp_to_string exp | _ -> "" in
+            let c_str = Str.global_replace (Str.regexp_string "$key") "%e:key" c_str in
+            let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_exp key))] in *)
+            (* c_exp=exp *) (* leads to Out_of_memory *)
+            match SC.branch_exp c with
+            | Some (c_exp,c_tv) ->
+                (* let exp_str = sprint d_exp exp in *) (* contains too many casts, so that matching fails *)
+                let exp_str = sprint d_exp binop in
+                let c_str = SC.exp_to_string c_exp in
+                let c_str = Str.global_replace (Str.regexp_string "$key") (D.string_of_key key) c_str in
+                (* ignore(printf "branch_exp_eq: '%s' '%s' -> %B\n" c_str exp_str (c_str=exp_str)); *)
+                c_str=exp_str && c_tv=tv
+            | _ -> false
+          in
+          (* filter those edges that are branches, start with a state from states and have the same branch expression and the same tv *)
+          let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem a states && branch_exp_eq c exp tv) !edges in
+          (* there should be only one such edge or none *)
+          if List.length branch_edges <> 1 then ( (* call of branch for an actual branch *)
+            M.debug_each "branch:branch_edges length is not 1! -> actual branch";
+            M.debug_each ((D.string_of_entry key m)^" -> branch_edges1: "^(String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges));
+            (* filter those edges that are branches, end with a state from states have the same branch expression and the same tv *)
+            (* TODO they should end with any predecessor of the current state, not only the direct predecessor *)
+            let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem b states && branch_exp_eq c exp tv) !edges in
+            M.debug_each ((D.string_of_entry key m)^" -> branch_edges2: "^(String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges));
+            if List.length branch_edges <> 1 then m else
+            (* meet current value with the target state. this is tricky: we can not simply take the target state, since there might have been more than one element already before the branching.
+            -> find out what the alternative branch target was and remove it *)
+            let (a,ws,fwd,b,c) = List.hd branch_edges in
+            (* the alternative branch has the same start node, the same branch expression and the negated tv *)
+            let (a,ws,fwd,b,c) = List.find (fun (a2,ws,fwd,b,c) -> SC.is_branch c && a2=a && branch_exp_eq c exp (not tv)) !edges in
+            (* now b is the state the alternative branch goes to -> remove it *)
+            (* TODO may etc. *)
+            (* being explicit: check how many records there are. if the value is Must b, then we're sure that it is so and we don't remove anything. *)
+            if D.V.length value = (1,1) then m else (* XX *)
+            (* there are multiple possible states -> remove b *)
+            let v2 = D.V.remove_state b value in
+            (* M.debug_each @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
+            D.add key v2 m
+          ) else (* call of branch directly after splitting *)
+            let (a,ws,fwd,b,c) = List.hd branch_edges in
+            (* TODO may etc. *)
+            let v2 = D.V.set_state b value in
+            (* M.debug_each @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
+            D.add key v2 m
       | _ -> M.debug @@ "nothing matched the given BinOp: "^sprint d_plainexp a^" = "^sprint d_plainexp b; m
     in
     match stripCasts (constFold true exp) with
@@ -214,11 +214,11 @@ struct
             Set.iter (fun r -> D.warn ~may:true ~loc:(D.V.loc r) msg) may_not
         | None -> ());
         (match msg_end with
-        | Some msg -> (* warnings at return for entries that must/may not be in an end state *)
-          let f msg rs = Str.global_replace (Str.regexp_string "$") (D.string_of_keys rs) msg in
-          if Set.cardinal must_not > 0 then D.warn           (f msg must_not);
-          if Set.cardinal may_not  > 0 then D.warn ~may:true (f msg may_not)
-        | _ -> ())
+         | Some msg -> (* warnings at return for entries that must/may not be in an end state *)
+             let f msg rs = Str.global_replace (Str.regexp_string "$") (D.string_of_keys rs) msg in
+             if Set.cardinal must_not > 0 then D.warn           (f msg must_not);
+             if Set.cardinal may_not  > 0 then D.warn ~may:true (f msg may_not)
+         | _ -> ())
       in
       (* check if there is a warning for entries that are not in an end state *)
       match SC.warning "_end" !nodes, SC.warning "_END" !nodes with
@@ -296,12 +296,12 @@ struct
       (* do transition warnings *)
       List.iter (fun state -> match SC.warning state !nodes with Some msg -> warn key m msg | _ -> ()) ws;
       match SC.warning state !nodes with
-        | Some msg ->
-            warn key m msg;
-            m (* no goto == implicit back edge *)
-        | None ->
-            M.debug_each @@ "GOTO "^D.string_of_key key^": "^D.string_of_state key m^" -> "^state;
-            if may then D.may_goto key loc state m else D.goto key loc state m
+      | Some msg ->
+          warn key m msg;
+          m (* no goto == implicit back edge *)
+      | None ->
+          M.debug_each @@ "GOTO "^D.string_of_key key^": "^D.string_of_state key m^" -> "^state;
+          if may then D.may_goto key loc state m else D.goto key loc state m
     in
     let matching m new_a old_key (a,ws,fwd,b,c) =
       (* If we have come to a wildcard, we match it instantly, but since there is no way of determining a key
@@ -312,8 +312,8 @@ struct
       else
       (* Assume new_a  *)
       let a = match new_a with
-        | Some (x,y) -> if a=x then y else a
-        | None -> a
+        | Some (x,y) when a=x -> y
+        | _ -> a
       in
       (* if we forward, we have to replace the starting state for the following constraints *)
       let new_a = if fwd then Some (b,a) else None in
@@ -322,21 +322,21 @@ struct
       (* look inside the constraint if there is a key and if yes, return what it corresponds to *)
       let key =
         match SC.get_key_variant c with
-          | `Lval s    ->
+        | `Lval s ->
             M.debug_each @@ "Key variant for "^f.vname^": `Lval "^s^". \027[30m "^SC.stmt_to_string c;
             lval
-          | `Arg(s, i) ->
+        | `Arg(s, i) ->
             M.debug_each @@ "Key variant for "^f.vname^": `Arg("^s^", "^string_of_int i^")"^". "^SC.stmt_to_string c;
             (try
               let arg = List.at arglist i in
               match arg with
-                | Lval x -> Some x (* TODO enough to just assume the arg is already there as a Lval? *)
-                | _      -> None
+              | Lval x -> Some x (* TODO enough to just assume the arg is already there as a Lval? *)
+              | _      -> None
             with Invalid_argument s ->
               M.debug_each @@ "Key out of bounds! Msg: "^s; (* TODO what to do if spec says that there should be more args... *)
               None
             )
-          | _          -> None (* `Rval or `None *)
+        | _ -> None (* `Rval or `None *)
       in
       (* Now we have the key for the map-domain or we don't.
          In case we don't have a key, we have to check the global state. *)
@@ -433,33 +433,33 @@ struct
       (* just for the compiler: key is initialized with None, but changes once some constaint matches. If none match, we wouldn't be here but at catch Not_found. *)
       match key with
       | Some key ->
-        (* we need to pass the key to the branch function. There is no scheme for getting the key from the constraint, but we should have been forwarded and can use the old key. *)
-        let check_branch branches var =
-          (* only keep those branch_edges for which our key might be in the right state *)
-          let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> D.may_in_state var a new_m) branch_edges in
-          (* M.debug_each @@ D.string_of_entry var new_m^" -> branch_edges: "^String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges; *)
-          (* count should be a multiple of 2 (true/false), otherwise the spec is malformed *)
-          if List.length branch_edges mod 2 <> 0 then failwith "Spec is malformed: branch-transitions always need a true and a false case!" else
-          (* if nothing matches, just return new_m without branching *)
-          (* if List.is_empty branch_edges then Set.of_list new_m else *)
-          if List.is_empty branch_edges then Set.of_list ([new_m, Cil.integer 1, true]) else (* XX *)
-          (* unique set of (dom,exp,tv) used in branch *)
-          let do_branch branches (a,ws,fwd,b,c) =
-            let c_str = match SC.branch_exp c with Some (exp,tv) -> SC.exp_to_string exp | _ -> "" in
-            let c_str = Str.global_replace (Str.regexp_string "$key") "%e:key" c_str in (* TODO what should be used to specify the key? *)
-            (* TODO this somehow also prints the expression!? why?? *)
-            let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_exp var))] in (* use Fl for Lval instead? *)
-            (* TODO encode key in exp somehow *)
-            (* ignore(printf "BRANCH %a\n" d_plainexp c_exp); *)
-            ctx.split new_m c_exp true;
-            Set.add (new_m,c_exp,true) (Set.add (new_m,c_exp,false) branches)
+          (* we need to pass the key to the branch function. There is no scheme for getting the key from the constraint, but we should have been forwarded and can use the old key. *)
+          let check_branch branches var =
+            (* only keep those branch_edges for which our key might be in the right state *)
+            let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> D.may_in_state var a new_m) branch_edges in
+            (* M.debug_each @@ D.string_of_entry var new_m^" -> branch_edges: "^String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges; *)
+            (* count should be a multiple of 2 (true/false), otherwise the spec is malformed *)
+            if List.length branch_edges mod 2 <> 0 then failwith "Spec is malformed: branch-transitions always need a true and a false case!" else
+            (* if nothing matches, just return new_m without branching *)
+            (* if List.is_empty branch_edges then Set.of_list new_m else *)
+            if List.is_empty branch_edges then Set.of_list ([new_m, Cil.integer 1, true]) else (* XX *)
+            (* unique set of (dom,exp,tv) used in branch *)
+            let do_branch branches (a,ws,fwd,b,c) =
+              let c_str = match SC.branch_exp c with Some (exp,tv) -> SC.exp_to_string exp | _ -> "" in
+              let c_str = Str.global_replace (Str.regexp_string "$key") "%e:key" c_str in (* TODO what should be used to specify the key? *)
+              (* TODO this somehow also prints the expression!? why?? *)
+              let c_exp = Formatcil.cExp c_str [("key", Fe (D.K.to_exp var))] in (* use Fl for Lval instead? *)
+              (* TODO encode key in exp somehow *)
+              (* ignore(printf "BRANCH %a\n" d_plainexp c_exp); *)
+              ctx.split new_m c_exp true;
+              Set.add (new_m,c_exp,true) (Set.add (new_m,c_exp,false) branches)
+            in
+            List.fold_left do_branch branches branch_edges
           in
-          List.fold_left do_branch branches branch_edges
-        in
-        let keys = D.keys_from_lval key ctx.ask in
-        let new_set = List.fold_left check_branch Set.empty keys in ignore(new_set); (* TODO refactor *)
-        (* List.of_enum (Set.enum new_set) *)
-        new_m (* XX *)
+          let keys = D.keys_from_lval key ctx.ask in
+          let new_set = List.fold_left check_branch Set.empty keys in ignore(new_set); (* TODO refactor *)
+          (* List.of_enum (Set.enum new_set) *)
+          new_m (* XX *)
       | None -> new_m
     with Not_found -> m (* nothing matched -> no change *)
 
