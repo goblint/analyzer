@@ -290,7 +290,6 @@ struct
           Progress.track_with_profile () ;
           Progress.track_call_profile ()
         end ;
-      let firstvar = List.hd startvars' in
       let module S = Set.Make (Int) in
       if (get_bool "dbg.uncalled") then
         begin
