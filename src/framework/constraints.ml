@@ -252,14 +252,17 @@ struct
     end (v,c) u
     
   let tf (v,c) (e,u) getl sidel getg sideg =
-    let old_loc = !Tracing.current_loc in
+    let old_loc  = !Tracing.current_loc in
+    let old_loc2 = !Tracing.next_loc in
     let old_node = !current_node in
     let _       = Tracing.current_loc := getLoc u in
+    let _       = Tracing.next_loc := getLoc v in
     let _       = current_node := Some u in
     let d       = try tf (v,c) (e,u) getl sidel getg sideg 
                   with M.StopTheWorld -> D.bot ()
                      | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
     let _       = Tracing.current_loc := old_loc in 
+    let _       = Tracing.next_loc := old_loc2 in 
     let _       = current_node := old_node in
       d
   

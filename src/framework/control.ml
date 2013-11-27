@@ -40,6 +40,7 @@ struct
 
     (** print out information about dead code *)
     let print_dead_code (xs:Result.t) =
+      let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
       let count = ref 0 in
       let open BatMap in let open BatPrintf in
       let module StringMap = Make (String) in
@@ -48,7 +49,8 @@ struct
         if LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v &&f.svar.vdecl<>l then
           let add_fun  = BatISet.add l.line in
           let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
-          m := StringMap.modify_def StringMap.empty l.file add_file !m
+          m := StringMap.modify_def StringMap.empty l.file add_file !m;
+          Deadcode.Locmap.add dead_locations l ();
       in
       Result.iter add_one xs;
       let print_func f xs =
@@ -74,7 +76,22 @@ struct
       else begin
         StringMap.iter print_file !m;
         printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
+      end;
+      let str = function true -> "then" | false -> "else" in 
+      let report tv loc dead = 
+        if Deadcode.Locmap.mem dead_locations loc then
+        match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with 
+         | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp d_loc loc)
+         | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) d_loc loc)
+         | _ -> ()
+      in
+      if get_bool "dbg.print_dead_code" then begin
+        Deadcode.Locmap.iter (report true)  Deadcode.dead_branches_then;
+        Deadcode.Locmap.iter (report false) Deadcode.dead_branches_else;
+        Deadcode.Locmap.clear Deadcode.dead_branches_then;
+        Deadcode.Locmap.clear Deadcode.dead_branches_else
       end
+      
     in
   
     (** convert result that can be out-put *)

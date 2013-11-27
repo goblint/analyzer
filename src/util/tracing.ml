@@ -8,6 +8,7 @@ open Cil
 module Strs = Set.Make (String)
 
 let current_loc = ref locUnknown
+let next_loc    = ref locUnknown
 let trace_sys = ref Strs.empty
 let activated = ref Strs.empty
 let active_dep = Hashtbl.create 9 
