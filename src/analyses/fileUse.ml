@@ -206,6 +206,8 @@ struct
     | _ -> m
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    (* is f a pointer to a function we look out for? *)
+    let f = eval_fv ctx.ask (Lval (Var f, NoOffset)) |? f in
     let m = ctx.local in
     let loc = !Tracing.current_loc::(D.callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
