@@ -139,7 +139,8 @@ let _ =
   reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top.";
   reg Experimental "exp.use_gen_solver"    "true"  "Use a generic solver instead iterating like the other tool?";
   reg Experimental "exp.unknown_funs_spawn" "true" "Should unknown function calls switch to MT-mode?";
-  reg Experimental "exp.precious_globs"    "[]"    "Global variables that should be handled flow-sensitively when using earlyglobs."
+  reg Experimental "exp.precious_globs"    "[]"    "Global variables that should be handled flow-sensitively when using earlyglobs.";
+  reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists."
   
 (* {4 category [Debugging]} *)
 
