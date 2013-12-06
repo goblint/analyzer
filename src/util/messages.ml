@@ -8,6 +8,7 @@ module GU = Goblintutil
 exception Bailure of string
 let bailwith s = raise (Bailure s)
 
+let warning_table : [`text of string * location | `group of string * ((string * location) list)] list ref = ref []
 let warnings = ref false
 let soundness = ref true
 let warn_out = ref stdout
@@ -42,10 +43,11 @@ let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative
   | path -> open_out (Filename.concat path (name ^ ".out"))
 
-let xml_warn = Hashtbl.create 10  
+let xml_warn : (location, (string*string) list) Hashtbl.t = Hashtbl.create 10  
 
 let print_msg msg loc = 
-  if ((get_string "result") = "html") then htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
+  if (get_string "result") = "html" then htmlGlobalWarningList := (loc.file,loc.line,msg)::!htmlGlobalWarningList;
+  if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
   if get_bool "gccwarn" then    
     Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
   else if get_bool "exp.eclipse" then 
@@ -54,7 +56,8 @@ let print_msg msg loc =
     Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
 
 let print_err msg loc = 
-  if ((get_string "result") = "html") then htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
+  if (get_string "result") = "html" then htmlGlobalWarningList := (loc.file,loc.line,msg)::!htmlGlobalWarningList;
+  if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
   if get_bool "gccwarn" then    
     Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
   else if get_bool "exp.eclipse" then 
@@ -65,7 +68,8 @@ let print_err msg loc =
 
 let print_group group_name errors =
   (* Add warnings to global warning list *)
-  if ((get_string "result") = "html") then List.iter (fun (msg,loc) -> htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,(group_name^" : "^msg))];() ) errors;
+  if (get_string "result") = "html" then List.iter (fun (msg,loc) -> htmlGlobalWarningList := (loc.file,loc.line,(group_name^" : "^msg))::!htmlGlobalWarningList ) errors;
+  if (get_string "result") = "fast_xml" then warning_table := (`group (group_name,errors))::!warning_table;
   if get_bool "exp.eclipse" then
     List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
   else

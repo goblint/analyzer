@@ -331,9 +331,9 @@ struct
   let printXml f = function
     | All   -> BatPrintf.fprintf f "<value>\n<data>\nAll\n</data>\n</value>\n" 
     | Set s -> 
-      BatPrintf.fprintf f "<set>\n" ;
+      BatPrintf.fprintf f "<value><set>\n" ;
       S.iter (Base.printXml f) s;
-      BatPrintf.fprintf f "</set>\n" 
+      BatPrintf.fprintf f "</set></value>\n" 
 end
 
 module MacroSet (B: Lattice.S) (N: ToppedSetNames)=

@@ -292,10 +292,6 @@ struct
   let meet = op_scheme Base1.meet Base2.meet
   let narrow = op_scheme Base1.narrow Base2.narrow
   let widen = op_scheme Base1.widen Base2.widen
-  let printXml f (x,y) =
-    BatPrintf.fprintf f "<map>\n<key>1</key>\n%a<key>2</key>\n%a</map>\n" 
-        Base1.printXml x
-        Base2.printXml y
     
 end
 

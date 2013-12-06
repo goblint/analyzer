@@ -593,6 +593,12 @@ struct
       fold (S.D.join) m (S.D.bot ())
       in
         map f s1
+        
+    let printXml f x =
+      let print_one x = 
+        BatPrintf.fprintf f "\n<path>%a</path>" S.D.printXml x
+      in
+      iter print_one x 
   end
   
   module G = S.G

@@ -134,6 +134,14 @@ struct
       let collect_globals k v b = one_glob k v :: b in
         Xml.Element ("table", [], head :: GHT.fold collect_globals g [])
     in  
+    (** exctract global xml from result *)
+    let make_global_fast_xml f g =
+      let open Printf in
+      let print_globals k v = 
+        fprintf f "\n<glob><key>%s</key>%a</glob>" (Basetype.Variables.short 800 k) Spec.G.printXml v; 
+      in
+        GHT.iter print_globals g 
+    in  
 
     (** add extern variables to local state *)
     let do_extern_inits ctx (file : file) : Spec.D.t =
@@ -263,7 +271,7 @@ struct
   
     
     let local_xml = ref (Result.create 0) in
-    let global_xml = ref (Xml.PCData "not-ready" ) in
+    let global_xml = ref (GHT.create 0) in
     let do_analyze_using_solver () = 
       let lh, gh = Slvr.solve entrystates [] startvars' in
       
@@ -283,7 +291,7 @@ struct
       end;
       
       local_xml := solver2source_result lh;
-      global_xml := make_global_xml gh;
+      global_xml := gh;
       
       if Progress.tracking then 
         begin 
@@ -345,7 +353,7 @@ struct
     Spec.finalize ();
         
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
-    Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file
+    Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
   
   let analyze f sf = 
     if get_bool "ana.hashcons" then
