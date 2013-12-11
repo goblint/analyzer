@@ -134,6 +134,7 @@ struct
 
   let infl   = HM.create 1024 
   let wpoint = HM.create 1024 
+  let restart_mode = HM.create 1024 
 
   let solve box st list =
     let stable = HM.create 1024 in
@@ -180,7 +181,7 @@ struct
       fun y ->
         let (i,nonfresh) = X.get_index y in
         let _ = if xi <= i then HM.replace wpoint y () in
-        (* let _ = if (V.ver>2) && xi <= i then work := H.insert (!work) y in *)
+        let _ = if (V.ver>2) && xi <= i then work := H.insert (!work) y in
         let _ = if nonfresh then () else solve y in
         let _ = L.add infl y x in
         X.get_value y
@@ -230,15 +231,18 @@ struct
         let old = X.get_value x in
 
         let tmp = do_side x (eq x (eval x) (side x)) in 
-        let rstrt = (V.ver>3) && D.leq tmp old in
         let use_box = (not (V.ver>1)) || HM.mem wpoint x in
+        let rstrt = use_box && (V.ver>3) && D.leq tmp old && h_find_default restart_mode x 0 <> 2 in
         let tmp = if use_box then box x old tmp else tmp in
         if not (D.eq tmp old) then begin 
           let _ = X.set_value x tmp in
-
-          if rstrt then 
+          if rstrt && V.ver>4 && h_find_default restart_mode x 0 = 1 && not (D.leq tmp old) then
+            HM.replace restart_mode x 2;
+          
+          if rstrt then begin 
+            HM.replace restart_mode x 1;
             restart x 
-          else
+          end else
             let w = L.sub infl x in
             let w = if use_box then x::w else w in
             let _ = L.rem_item infl x in
