@@ -232,15 +232,17 @@ struct
 
         let tmp = do_side x (eq x (eval x) (side x)) in 
         let use_box = (not (V.ver>1)) || HM.mem wpoint x in
-        let rstrt = use_box && (V.ver>3) && D.leq tmp old && h_find_default restart_mode x 0 <> 2 in
+        let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "ana.restart_count") in
+        let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in
         let tmp = if use_box then box x old tmp else tmp in
         if not (D.eq tmp old) then begin 
           let _ = X.set_value x tmp in
-          if rstrt && V.ver>4 && h_find_default restart_mode x 0 = 1 && not (D.leq tmp old) then
-            HM.replace restart_mode x 2;
+          if rstrt && V.ver>4 && restart_mode_x mod 2 = 1 && not (D.leq tmp old) then
+            HM.replace restart_mode x (restart_mode_x - 1);
           
           if rstrt then begin 
-            HM.replace restart_mode x 1;
+            if restart_mode_x mod 2 = 0 then 
+              HM.replace restart_mode x (restart_mode_x - 1);
             restart x 
           end else
             let w = L.sub infl x in
