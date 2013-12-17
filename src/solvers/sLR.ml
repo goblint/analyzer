@@ -237,7 +237,7 @@ struct
         let tmp = if use_box then box x old tmp else tmp in
         if not (D.eq tmp old) then begin 
           let _ = X.set_value x tmp in
-          if rstrt && V.ver>4 && restart_mode_x mod 2 = 1 && not (D.leq tmp old) then
+          if V.ver>3 && restart_mode_x mod 2 = 1 && not (D.leq tmp old) then 
             HM.replace restart_mode x (restart_mode_x - 1);
           
           if rstrt then begin 

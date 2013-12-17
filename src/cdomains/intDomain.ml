@@ -116,7 +116,7 @@ struct
       | Some (x1,x2), Some (y1,y2) -> norm @@ Some (max x1 y1, min x2 y2)
       
   let is_int = function Some (x,y) when Int64.compare x y = 0 -> true | _ -> false
-  let of_int x = Some (x,x)
+  let of_int x = norm @@ Some (x,x)
   let to_int = function Some (x,y) when Int64.compare x y = 0 -> Some x | _ -> None
   
   let of_bool = function true -> Some (Int64.one,Int64.one) | false -> Some (Int64.zero,Int64.zero)
@@ -127,8 +127,8 @@ struct
     if Int64.compare x Int64.zero = 0 && Int64.compare y Int64.zero = 0 then Some false 
     else if leq (of_int Int64.zero) (Some (x,y)) then None else Some true
     
-  let starting n = Some (n,max_int)
-  let ending   n = Some (min_int,n)
+  let starting n = norm @@ Some (n,max_int)
+  let ending   n = norm @@ Some (min_int,n)
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
   
@@ -139,10 +139,9 @@ struct
   let cast_to_width x b = 
     match x with 
       | None -> None 
-      | Some (x,y) -> Some (max x (min_int_f b),min y (max_int_f b))
+      | Some (x,y) -> norm @@ Some (max x (min_int_f b),min y (max_int_f b))
 
   let widen x y =
-    let y = join x y in
     match x, y with
       | None, z | z, None -> z
       | Some (l0,u0), Some (l1,u1) ->
@@ -156,7 +155,7 @@ struct
       | Some (x1,x2), Some (y1,y2) ->
         let lr = if Int64.compare min_int x1 = 0 then y1 else x1 in
         let ur = if Int64.compare max_int x2 = 0 then y2 else x2 in
-        Some (lr,ur)
+        norm @@ Some (lr,ur)
         
   let log f i1 i2 = 
     match is_bot i1, is_bot i2 with
