@@ -365,8 +365,41 @@ struct
     r'
 end
 
+module TwoPhased =
+  functor (V:Version) -> 
+  functor (S:EqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  include Make (V) (S) (HM)
+  let solve box is iv = 
+    let sd = solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv in
+    let iv' = HM.fold (fun k _ b -> k::b) sd [] in
+    let f v x y = 
+      (* ignore (Pretty.printf "changed %a\nold:%a\nnew:%a\n\n" S.Var.pretty_trace v S.Dom.pretty x S.Dom.pretty y); *)
+      S.Dom.narrow x y
+    in
+    solve f [] iv'
+end
+
+module JustWiden =
+  functor (V:Version) -> 
+  functor (S:EqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+struct
+  include Make (V) (S) (HM)
+  let solve box is iv = 
+    solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv 
+end
 
 let _ =
+  let module W1 = GlobSolverFromIneqSolver (JoinContr (JustWiden (struct let ver = 1 end))) in
+  let module W2 = GlobSolverFromIneqSolver (JoinContr (JustWiden (struct let ver = 2 end))) in
+  let module W3 = GlobSolverFromIneqSolver (JoinContr (JustWiden (struct let ver = 3 end))) in
+  Selector.add_solver ("widen1",  (module W1 : GenericGlobSolver));
+  Selector.add_solver ("widen2",  (module W2 : GenericGlobSolver));
+  Selector.add_solver ("widen3",  (module W3 : GenericGlobSolver));
+  let module S2 = GlobSolverFromIneqSolver (JoinContr (TwoPhased (struct let ver = 1 end))) in
+  Selector.add_solver ("two",  (module S2 : GenericGlobSolver));
   let module S1 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 1 end))) in
   Selector.add_solver ("new",  (module S1 : GenericGlobSolver));
   Selector.add_solver ("slr+", (module S1 : GenericGlobSolver))
