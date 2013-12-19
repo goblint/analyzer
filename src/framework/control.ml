@@ -273,7 +273,7 @@ struct
     let local_xml = ref (Result.create 0) in
     let global_xml = ref (GHT.create 0) in
     let do_analyze_using_solver () = 
-      let lh, gh = Slvr.solve entrystates [] startvars' in
+      let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
       
       if not (get_string "comparesolver"="") then begin
         let compare_with (module S2 :  GenericGlobSolver) =
