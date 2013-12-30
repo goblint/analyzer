@@ -15,7 +15,7 @@ struct
   (** The main function to preform the selected analyses. *)
   let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) =   
     (** The Equation system *)
-    let module EQSys = FromSpec (Spec) (Cfg) in
+    let module EQSys = MaybeForwardFromSpec (Spec) (Cfg) in
   
     (** Hashtbl for locals *)
     let module LHT   = BatHashtbl.Make (EQSys.LVar) in
@@ -264,7 +264,11 @@ struct
     let _ = GU.global_initialization := false in
     
     let startvars' = 
-      List.map (fun (n,e) -> (MyCFG.Function n, Spec.context e)) startvars in
+      if get_bool "exp.forward" then
+        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e)) startvars 
+      else
+        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context e)) startvars 
+    in
   
     let entrystates = 
       List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in

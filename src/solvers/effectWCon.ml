@@ -37,6 +37,7 @@ struct
           let _ = LH.remove todo x in
             temp
         else begin
+          incr Goblintutil.vars;
           LH.add sigma x (D.bot ());  
           fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system x) ([],0))
         end
@@ -69,6 +70,7 @@ struct
                   GH.remove gInfl g
                 end
           in
+          incr Goblintutil.evals;
           let nls = f (vEval ((x,f),i)) local_side (gEval ((x,f),i)) global_side in
             local_state := D.join !local_state nls
         in
@@ -103,6 +105,7 @@ struct
     in
       GU.may_narrow := false;
       let add_start (v,d) = 
+        incr Goblintutil.vars;
         LH.add sigma v d;
         let edges = fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system v) ([],0)) in
         LH.add todo v edges;

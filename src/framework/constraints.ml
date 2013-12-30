@@ -135,10 +135,13 @@ end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
 module FromSpec (S:Spec) (Cfg:CfgBackward)
-  : GlobConstrSys with module LVar = VarF (S.C)
-                   and module GVar = Basetype.Variables
-                   and module D = S.D
-                   and module G = S.G
+  : sig
+      include GlobConstrSys with module LVar = VarF (S.C)
+                             and module GVar = Basetype.Variables
+                             and module D = S.D
+                             and module G = S.G
+      val tf : MyCFG.node * S.C.t -> MyCFG.edge * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
+    end
   =
 struct
   type lv = MyCFG.node * S.C.t
@@ -271,6 +274,22 @@ struct
       | FunctionEntry _ when get_bool "exp.full-context" ->
           [fun _ _ _ _ -> S.val_of c]
       | _ -> List.map (tf (v,c)) (Cfg.prev v)
+end
+
+(** Depending on "exp.forward", [MaybeForwardFromSpec] generates a forward-propagating 
+   constraint system or a normal constriant system (using [FromSpec]) *)
+module MaybeForwardFromSpec (S:Spec) (Cfg:CfgBidir) =
+struct
+   include FromSpec (S) (Cfg)
+  
+   let system_forward (u,c) =
+     let tf' (u,c) (e,v) getl sidel getg sideg = 
+       let d = tf (v,c) (e,u) getl sidel getg sideg in  
+       sidel (v,c) d; S.D.bot ()
+     in
+     List.map (tf' (u,c)) (Cfg.next u)
+
+   let system x = if get_bool "exp.forward" then system_forward x else system x
 end
 
 
