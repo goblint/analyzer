@@ -2,7 +2,7 @@ open Cil
 open Pretty
 
 
-let fast_addr_sets = false (* unknown addresses for fast sets == top, for slow == {?}*)
+let fast_addr_sets = true (* unknown addresses for fast sets == top, for slow == {?}*)
 
 module GU = Goblintutil
 
