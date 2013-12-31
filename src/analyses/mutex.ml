@@ -710,6 +710,12 @@ struct
     | Guarded of Lockset.t
     | ReadOnly
     | ThreadLocal
+    
+  module LineSet = Set.Make (Basetype.ProgLines)
+  let err_lines = ref LineSet.empty
+  let add_lines xs = 
+    List.iter (fun (_,l) -> err_lines := LineSet.add l !err_lines) xs; 
+    xs
 
   (** [postprocess_acc gl] groups and report races in [gl] *)
   let postprocess_acc (gl : varinfo) =
@@ -872,7 +878,7 @@ struct
             | Race -> begin
                 race_free := false;
                 let warn = "Datarace at " ^ var_str in
-                  M.print_group warn (warnings ())
+                  M.print_group warn (add_lines (warnings ()))
               end
             | Guarded locks ->
                 let lock_str = Lockset.short 80 locks in
@@ -947,7 +953,9 @@ struct
     AccKeySet.iter postprocess_acc !accKeys;
     if !GU.multi_threaded then begin
       if !race_free then 
-        print_endline "Goblint did not find any Data Races in this program!";
+        print_endline "Goblint did not find any Data Races in this program!"
+      else if get_bool "dbg.verbose" then
+        BatPrintf.printf "%!raceLines = %d%!\n" (LineSet.cardinal !err_lines);
     end else if not (get_bool "dbg.debug") then begin
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
