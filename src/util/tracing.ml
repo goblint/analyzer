@@ -106,7 +106,7 @@ let trace sys ?var fmt = gtrace true printtrace sys var (fun x -> x) fmt
 let tracel sys ?var fmt = 
   let loc = !current_loc in
   let docloc sys doc = 
-    printtrace sys (dprintf "(%s:%d)" loc.file loc.line ++ indent 2 doc);
+    printtrace sys (dprintf "(%s:%d)@?" loc.file loc.line ++ indent 2 doc);
   in
     gtrace true docloc sys var ~loc:loc.line (fun x -> x) fmt
 
