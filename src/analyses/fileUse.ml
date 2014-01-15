@@ -152,8 +152,8 @@ struct
     in
     (* remove formals and locals *)
     (* this is not a good approach, what if we added a key foo.fp? -> just keep the globals *)
-    (* List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals) *)
-    D.only_globals au
+    List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
+    (* D.only_globals au *)
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (* M.debug_each @@ "entering function "^f.vname^string_of_callstack ctx.local; *)
@@ -164,7 +164,8 @@ struct
     (* we need to remove all variables that are neither globals nor special variables from the domain for f *)
     (* problem: we need to be able to check aliases of globals in check_overwrite_open -> keep those in too :/ *)
     (* TODO see Base.make_entry, reachable vars > globals? *)
-    [m, D.only_globals m] (* this is [caller, callee] *)
+    (* [m, D.only_globals m] *)
+    [m, m] (* this is [caller, callee] *)
 
   let check_overwrite_open k m = (* used in combine and special *)
     if List.is_empty (D.get_aliases k m) then (

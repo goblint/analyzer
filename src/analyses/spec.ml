@@ -80,7 +80,7 @@ struct
     | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
         D.alias k1 k2 m
     | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
-        D.warn @@ "changed file pointer "^D.string_of_key k1^" (no longer safe)";
+        D.warn @@ "changed key "^D.string_of_key k1^" (no longer safe)";
         (* saveOpened ~unknown:true k1 *) m |> D.unknown k1
     | _ -> m (* no change in D for other things *)
 
@@ -225,17 +225,19 @@ struct
       | None, None -> () (* nothing to do here *)
       | msg_loc,msg_end -> warn_main msg_loc msg_end
     );
+    (* take care of return value *)
     let au = match exp with
       | Some(Lval lval) when D.mem (D.key_from_lval lval) m -> (* we return a var in D *)
           let k = D.key_from_lval lval in
           let varinfo,offset = k in
-          if List.mem varinfo (f.sformals @ f.slocals) then (* if var is local, we make a copy *)
-            D.add return_var (D.find' k m) m
-          else
+          if varinfo.vglob then
             D.alias return_var k m (* if var is global, we alias it *)
+          else
+            D.add return_var (D.find' k m) m (* if var is local, we make a copy *)
       | _ -> m
     in
     (* remove formals and locals *)
+    (* TODO only keep globals like in fileUse *)
     List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
@@ -243,7 +245,7 @@ struct
     if f.vname = "main" then load_specfile ();
     let m = if f.vname <> "main" then
       D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
-    else ctx.local in [m,m]
+    else ctx.local in [m, m]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     (* M.debug_each @@ "leaving function "^f.vname^D.string_of_callstack au; *)
