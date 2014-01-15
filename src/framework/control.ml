@@ -15,7 +15,7 @@ struct
   (** The main function to preform the selected analyses. *)
   let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) =   
     (** The Equation system *)
-    let module EQSys = FromSpec (Spec) (Cfg) in
+    let module EQSys = MaybeForwardFromSpec (Spec) (Cfg) in
   
     (** Hashtbl for locals *)
     let module LHT   = BatHashtbl.Make (EQSys.LVar) in
@@ -26,6 +26,8 @@ struct
     let module Slvr  = Selector.Make (EQSys) (LHT) (GHT) in
     (** The verifyer *)
     let module Vrfyr = Verify2 (EQSys) (LHT) (GHT) in
+    (** The comparator *)
+    let module Comp = Compare (Spec) (EQSys) (LHT) (GHT) in
     (** Another iterator. Set "exp.use_gen_solver" to false. *)
     let module I = IterateLikeAstree (Spec) (Cfg) (GHT) in
 
@@ -38,6 +40,8 @@ struct
 
     (** print out information about dead code *)
     let print_dead_code (xs:Result.t) =
+      let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
+      let count = ref 0 in
       let open BatMap in let open BatPrintf in
       let module StringMap = Make (String) in
       let m = ref StringMap.empty in
@@ -45,11 +49,13 @@ struct
         if LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v &&f.svar.vdecl<>l then
           let add_fun  = BatISet.add l.line in
           let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
-          m := StringMap.modify_def StringMap.empty l.file add_file !m
+          m := StringMap.modify_def StringMap.empty l.file add_file !m;
+          Deadcode.Locmap.add dead_locations l ();
       in
       Result.iter add_one xs;
       let print_func f xs =
         let one_range b e first =
+          count := !count + (e - b + 1);
           if not first then printf ", ";
           begin if b=e then
             printf "%d" b
@@ -67,7 +73,25 @@ struct
       in
       if StringMap.is_empty !m
       then printf "No dead code found!\n"
-      else StringMap.iter print_file !m
+      else begin
+        StringMap.iter print_file !m;
+        printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
+      end;
+      let str = function true -> "then" | false -> "else" in 
+      let report tv loc dead = 
+        if Deadcode.Locmap.mem dead_locations loc then
+        match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with 
+         | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp d_loc loc)
+         | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) d_loc loc)
+         | _ -> ()
+      in
+      if get_bool "dbg.print_dead_code" then begin
+        Deadcode.Locmap.iter (report true)  Deadcode.dead_branches_then;
+        Deadcode.Locmap.iter (report false) Deadcode.dead_branches_else;
+        Deadcode.Locmap.clear Deadcode.dead_branches_then;
+        Deadcode.Locmap.clear Deadcode.dead_branches_else
+      end
+      
     in
   
     (** convert result that can be out-put *)
@@ -109,6 +133,14 @@ struct
       in 
       let collect_globals k v b = one_glob k v :: b in
         Xml.Element ("table", [], head :: GHT.fold collect_globals g [])
+    in  
+    (** exctract global xml from result *)
+    let make_global_fast_xml f g =
+      let open Printf in
+      let print_globals k v = 
+        fprintf f "\n<glob><key>%s</key>%a</glob>" (Basetype.Variables.short 800 k) Spec.G.printXml v; 
+      in
+        GHT.iter print_globals g 
     in  
 
     (** add extern variables to local state *)
@@ -232,16 +264,29 @@ struct
     let _ = GU.global_initialization := false in
     
     let startvars' = 
-      List.map (fun (n,e) -> (MyCFG.Function n, Spec.context e)) startvars in
+      if get_bool "exp.forward" then
+        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e)) startvars 
+      else
+        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context e)) startvars 
+    in
   
     let entrystates = 
       List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
   
     
     let local_xml = ref (Result.create 0) in
-    let global_xml = ref (Xml.PCData "not-ready" ) in
+    let global_xml = ref (GHT.create 0) in
     let do_analyze_using_solver () = 
-      let lh, gh = Slvr.solve entrystates [] startvars' in
+      let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
+      
+      if not (get_string "comparesolver"="") then begin
+        let compare_with (module S2 :  GenericGlobSolver) =
+          let module S2' = S2 (EQSys) (LHT) (GHT) in
+          let r2 = S2'.solve entrystates [] startvars' in
+          Comp.compare (lh,gh) (r2)
+        in
+        compare_with (Slvr.choose_solver (get_string "comparesolver"))
+      end;
       
       if not (get_bool "noverify") then begin
         if (get_bool "dbg.verbose") then print_endline "Verifying the result.";
@@ -250,15 +295,13 @@ struct
       end;
       
       local_xml := solver2source_result lh;
-      global_xml := make_global_xml gh;
+      global_xml := gh;
       
       if Progress.tracking then 
         begin 
           Progress.track_with_profile () ;
           Progress.track_call_profile ()
         end ;
-      let firstvar = List.hd startvars' in
-      let mainfile = match firstvar with (MyCFG.Function fn, _) -> fn.vdecl.file | _ -> "Impossible!" in
       let module S = Set.Make (Int) in
       if (get_bool "dbg.uncalled") then
         begin
@@ -272,7 +315,7 @@ struct
             (* set of ids of called functions *)
             let calledFuns = LHT.fold insrt lh S.empty in
             function
-              | GFun (fn, loc) when loc.file = mainfile && not (S.mem fn.svar.vid calledFuns) ->
+              | GFun (fn, loc) when not (S.mem fn.svar.vid calledFuns) ->
                   begin
                     let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
                     ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
@@ -309,12 +352,12 @@ struct
       Goblintutil.timeout do_analyze_using_iterator () (float_of_int (get_int "dbg.timeout"))
         (fun () -> Messages.waitWhat "Timeout reached!");
     end;
+    if (get_bool "dbg.print_dead_code") then print_dead_code !local_xml;
   
     Spec.finalize ();
         
-    if (get_bool "dbg.print_dead_code") then print_dead_code !local_xml;
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
-    Result.output (lazy !local_xml) (lazy (!global_xml :: [])) file
+    Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
   
   let analyze f sf = 
     if get_bool "ana.hashcons" then

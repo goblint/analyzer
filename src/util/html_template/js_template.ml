@@ -161,8 +161,8 @@ function showWarning(i) {
 }
 
 function showLine(sfile,i) {
-  var remainder = i % 1000;
-  var reqPage = ( i - remainder ) / 1000;
+  var remainder = i % 50;
+  var reqPage = ( i - remainder ) / 50;
 
   if (reqPage != loadedPage) {
     requestedLine = i;

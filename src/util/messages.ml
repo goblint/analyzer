@@ -8,16 +8,42 @@ module GU = Goblintutil
 exception Bailure of string
 let bailwith s = raise (Bailure s)
 
+let warning_table : [`text of string * location | `group of string * ((string * location) list)] list ref = ref []
 let warnings = ref false
 let soundness = ref true
 let warn_out = ref stdout
 let tracing = Config.tracing
 
+(*Warning files*)
+let warn_race = ref stdout
+let warn_safe = ref stdout
+let warn_higr = ref stdout
+let warn_higw = ref stdout
+let warn_lowr = ref stdout
+let warn_loww = ref stdout
+
+(*let warn_race = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_race.txt") else warn_out
+let warn_safe = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_safe.txt") else warn_out
+let warn_higr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highreadrace.txt") else warn_out
+let warn_higw = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highwriterace.txt") else warn_out
+let warn_lowr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowreadrace.txt") else warn_out
+let warn_loww = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowwriterace.txt") else warn_out*)
+
+
+let init_warn_files () =
+  warn_race := (open_out "goblint_warnings_race.txt");
+  warn_safe := (open_out "goblint_warnings_safe.txt");
+  warn_higr := (open_out "goblint_warnings_highreadrace.txt");
+  warn_higw := (open_out "goblint_warnings_highwriterace.txt");
+  warn_lowr := (open_out "goblint_warnings_lowreadrace.txt");
+  warn_loww := (open_out "goblint_warnings_lowwriterace.txt");
+  ()
+
 let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative
   | path -> open_out (Filename.concat path (name ^ ".out"))
 
-let xml_warn = Hashtbl.create 10  
+let xml_warn : (location, (string*string) list) Hashtbl.t = Hashtbl.create 10  
 
 let colorize ?on:(on=get_bool "colors") msg =
   let colors = [("gray", "30"); ("red", "31"); ("green", "32"); ("yellow", "33"); ("blue", "34");
@@ -32,7 +58,8 @@ let colorize ?on:(on=get_bool "colors") msg =
 let print_msg msg loc = 
   let msgc = colorize msg in
   let msg  = colorize ~on:false msg in
-  htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
+  if (get_string "result") = "html" then htmlGlobalWarningList := (loc.file,loc.line,msg)::!htmlGlobalWarningList;
+  if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
   if get_bool "gccwarn" then    
     Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
   else if get_bool "exp.eclipse" then 
@@ -41,7 +68,8 @@ let print_msg msg loc =
     Printf.fprintf !warn_out (if get_bool "colors" then "%s \027[30m(%s:%d)\027[0;0;00m\n%!" else "%s (%s:%d)\n%!") msgc loc.file loc.line
 
 let print_err msg loc = 
-  htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,msg)];
+  if (get_string "result") = "html" then htmlGlobalWarningList := (loc.file,loc.line,msg)::!htmlGlobalWarningList;
+  if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
   if get_bool "gccwarn" then    
     Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
   else if get_bool "exp.eclipse" then 
@@ -52,12 +80,22 @@ let print_err msg loc =
 
 let print_group group_name errors =
   (* Add warnings to global warning list *)
-  List.iter (fun (msg,loc) -> htmlGlobalWarningList := (!htmlGlobalWarningList)@[(loc.file,loc.line,(group_name^" : "^msg))];() ) errors;
-
+  if (get_string "result") = "html" then List.iter (fun (msg,loc) -> htmlGlobalWarningList := (loc.file,loc.line,(group_name^" : "^msg))::!htmlGlobalWarningList ) errors;
+  if (get_string "result") = "fast_xml" then warning_table := (`group (group_name,errors))::!warning_table;
   if get_bool "exp.eclipse" then
     List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
   else
     let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
+      if (get_bool "ana.osek.warnfiles") then begin
+        match (String.sub group_name 0 6) with
+          | "Safely" -> ignore (Pretty.fprintf !warn_safe "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | "Datara" -> ignore (Pretty.fprintf !warn_race "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | "High r" -> ignore (Pretty.fprintf !warn_higr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | "High w" -> ignore (Pretty.fprintf !warn_higw "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | "Low re" -> ignore (Pretty.fprintf !warn_lowr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | "Low wr" -> ignore (Pretty.fprintf !warn_loww "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+          | _ -> ()
+      end;
       ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
 let warn_urgent msg = 

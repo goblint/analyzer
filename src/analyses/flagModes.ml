@@ -26,11 +26,31 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    if ctx.local = D.bot() then ctx.local else
+    if ctx.local = D.bot() then ctx.local else 
+      match lval with (*TODO keep `Bot*)
+        | (Var f,NoOffset) when List.mem f.vname !flag_list -> begin
+            if D.mem f ctx.local then begin
+              if ((D.find f ctx.local) = `Bot) then begin
+                ctx.local 
+              end else begin
+                match eval_int ctx.ask rval with
+                  | Some ex -> D.add f (`Lifted (false,true,ex)) ctx.local
+                  | _ -> D.remove f ctx.local
+              end
+            end else begin
+              match eval_int ctx.ask rval with
+                | Some ex -> D.add f (`Lifted (false,true,ex)) ctx.local
+                | _ -> D.remove f ctx.local
+            end
+          end
+        | _ -> ctx.local
+(*        Some ex when List.mem f.vname !flag_list -> D.add f (`Lifted (false,true,ex)) ctx.local
+        | (Var f,NoOffset), _ -> D.remove f ctx.local
+        | _ -> ctx.local        
       match lval, eval_int ctx.ask rval with
-	| (Var f,NoOffset), Some ex when List.mem f.vname !flag_list -> D.add f (false,true,ex) ctx.local
+	| (Var f,NoOffset), Some ex when List.mem f.vname !flag_list -> D.add f (`Lifted (false,true,ex)) ctx.local
 	| (Var f,NoOffset), _ -> D.remove f ctx.local
-	| _ -> ctx.local
+	| _ -> ctx.local*)
    
   let branch ctx (exp:exp) (tv:bool) : D.t = 
     if ctx.local = D.bot() then ctx.local else begin
@@ -41,33 +61,39 @@ struct
 	| true, BinOp(Eq,Lval (Var f, NoOffset), ex,_) when List.mem f.vname !flag_list -> begin
 	  let temp = eval_int ctx.ask ex in
 	  match temp with
-	    | Some value -> begin 
+	    | Some value -> begin (*guard == value = (true true value*)
 	      try
 		match (D.find f ctx.local) with
-		  | (false,_,old_val) -> if value <> old_val then D.bot() else ctx.local
-		  | (true,true,old_val) -> if value <> old_val then D.bot() else ctx.local
-		  | (true,false,old_val) -> if value = old_val then D.bot() else D.add f (true, true, value) ctx.local
-	      with Not_found (*top*) -> D.add f (true, true, value) ctx.local
+		  | `Lifted (false,_,old_val) -> if value <> old_val then D.add f `Bot ctx.local else ctx.local
+		  | `Lifted (true,true,old_val) -> if value <> old_val then D.add f `Bot ctx.local else ctx.local
+		  | `Lifted (true,false,old_val) -> if value <> old_val then D.add f (`Lifted (true, true, value)) ctx.local else D.add f `Bot ctx.local
+		  | `Top -> D.add f (`Lifted (true, true, value)) ctx.local
+		  | `Bot -> ctx.local
+	      with Not_found (*top*) -> D.add f (`Lifted (true, true, value)) ctx.local
 	    end
 	    | None -> ctx.local  
-	end
+	end 
 	| false, Lval (Var f, NoOffset) when List.mem f.vname !flag_list  -> begin (* f == 0*)
-	  let value = 0L in
+	  let value = 0L in (*guard == 0 = (true true 0*)
 	  try
 	    match (D.find f ctx.local) with
-	      | (false,_,old_val) -> if value <> old_val then D.bot() else ctx.local
-	      | (true,true,old_val) -> if value <> old_val then D.bot() else ctx.local
-	      | (true,false,old_val) -> if value = old_val then D.bot() else D.add f (true, true, value) ctx.local
-	  with Not_found (*top*) -> D.add f (true, true, value) ctx.local
+                  | `Lifted (false,_,old_val) -> if value <> old_val then D.add f `Bot ctx.local else ctx.local
+                  | `Lifted (true,true,old_val) -> if value <> old_val then D.add f `Bot ctx.local else ctx.local
+                  | `Lifted (true,false,old_val) -> if value <> old_val then D.add f (`Lifted (true, true, value)) ctx.local else D.add f `Bot ctx.local
+                  | `Top -> D.add f (`Lifted (true, true, value)) ctx.local
+                  | `Bot -> ctx.local
+	  with Not_found (*top*) -> D.add f (`Lifted (true, true, value)) ctx.local
 	end
-	| true, Lval (Var f, NoOffset) when List.mem f.vname !flag_list  -> begin (* f != 0*)
-	  let value = 0L in
+	| true, Lval (Var f, NoOffset) when List.mem f.vname !flag_list  -> begin (* f != 0*) 
+	  let value = 0L in (*guard != 0 = (true false 0*)
 	  try
 	    match (D.find f ctx.local) with
-	      | (false,_,old_val) -> if value <> old_val then D.bot() else ctx.local
-	      | (true,true,old_val) -> if value = old_val then D.bot() else ctx.local
-	      | (true,false,old_val) -> if value <> old_val then D.bot() else D.add f (true, false, value) ctx.local
-	  with Not_found (*top*) -> D.add f (true, false, value) ctx.local
+	      | `Lifted (false,_,old_val) -> if value <> old_val then ctx.local else D.add f `Bot ctx.local
+	      | `Lifted (true,true,old_val) -> if value <> old_val then ctx.local else D.add f `Bot ctx.local
+	      | `Lifted (true,false,old_val) -> ctx.local
+	      | `Top -> D.add f (`Lifted (true, false, value)) ctx.local
+	      | `Bot -> ctx.local
+	  with Not_found (*top*) -> D.add f (`Lifted (true, false, value)) ctx.local
 	end
 	| false, BinOp(Eq,ex,Lval (Var f, NoOffset),_) (*not eq*)
 	| false, BinOp(Eq,Lval (Var f, NoOffset), ex,_) (*not eq*)
@@ -78,10 +104,12 @@ struct
 	    | Some value -> begin 
 	      try
 		match (D.find f ctx.local) with
-		  | (false,_,old_val) -> if value <> old_val then D.bot() else ctx.local
-		  | (true,true,old_val) -> if value = old_val then D.bot() else ctx.local
-		  | (true,false,old_val) -> if value = old_val then D.bot() else D.add f (true, false, value) ctx.local
-	      with Not_found (*top*) -> D.add f (true, false, value) ctx.local
+              | `Lifted (false,_,old_val) -> if value <> old_val then ctx.local else D.add f `Bot ctx.local
+              | `Lifted (true,true,old_val) -> if value <> old_val then ctx.local else D.add f `Bot ctx.local
+              | `Lifted (true,false,old_val) -> ctx.local
+              | `Top -> D.add f (`Lifted (true, false, value)) ctx.local
+              | `Bot -> ctx.local
+	      with Not_found (*top*) -> D.add f (`Lifted (true, false, value)) ctx.local
 	    end
 	    | None -> ctx.local  
 	  end

@@ -11,6 +11,7 @@ module Make2
   (GH:Hash.H with type key=S.GVar.t) =
 struct
   open S
+  include Generic.SolverStatsWGlob (S)
   
   let lh_find_default t x a = try LH.find t x with Not_found -> a 
   let gh_find_default t x a = try GH.find t x with Not_found -> a 
@@ -37,6 +38,7 @@ struct
           let _ = LH.remove todo x in
             temp
         else begin
+          new_var_event x;
           LH.add sigma x (D.bot ());  
           fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system x) ([],0))
         end
@@ -69,6 +71,7 @@ struct
                   GH.remove gInfl g
                 end
           in
+          eval_rhs_event x i;
           let nls = f (vEval ((x,f),i)) local_side (gEval ((x,f),i)) global_side in
             local_state := D.join !local_state nls
         in
@@ -76,6 +79,7 @@ struct
         let old_state = lh_find_default sigma x (D.bot ()) in
         let new_val = D.join !local_state old_state in
         if not (D.leq new_val old_state) then begin
+          update_var_event x old_state new_val;
           LH.replace sigma x new_val;
           let influenced_vars = ref [] in
           let collectInfluence ((y,f),i) = 
@@ -88,6 +92,7 @@ struct
         end 
       end
     and vEval c var =
+      get_var_event var;
       constrainOneVar var;
       LH.replace vInfl var (c :: lh_find_default vInfl var []);
       lh_find_default sigma var (D.bot ())
@@ -101,8 +106,10 @@ struct
       GH.find theta glob 
 
     in
+      start_event ();
       GU.may_narrow := false;
       let add_start (v,d) = 
+        incr Goblintutil.vars;
         LH.add sigma v d;
         let edges = fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system v) ([],0)) in
         LH.add todo v edges;
@@ -120,6 +127,7 @@ struct
           List.iter recallConstraint !unsafe;
           unsafe := []
       done;    
+      stop_event ();
       (sigma, theta)
 end
 

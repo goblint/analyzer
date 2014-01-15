@@ -208,6 +208,11 @@ struct
     match x with
       | `Lifted x -> `Lifted (f x)
       | tb -> tb
+      
+  let printXml f = function
+    | `Top -> BatPrintf.fprintf f "<value>%s</value>" top_name
+    | `Bot -> ()
+    | `Lifted x -> LD.printXml f x
 end
 
 
@@ -272,8 +277,31 @@ struct
       BatPrintf.fprintf f "%a</loc>\n" Range.printXml v
     in
     iter print_one xs
+  
+  let printXmlWarning f () =
+    let one_text f (m,l) =
+      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line m
+    in
+    let one_w f = function
+      | `text (m,l)  -> one_text f (m,l)
+      | `group (n,e) -> 
+        BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
+    in
+    let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
+    List.iter (one_w f) !Messages.warning_table
 
-  let output table gtable (file: file) =
+  let printXmlGlobals f () =
+    let one_text f (m,l) =
+      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line m
+    in
+    let one_w f = function
+      | `text (m,l)  -> one_text f (m,l)
+      | `group (n,e) -> 
+        BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
+    in
+    List.iter (one_w f) !Messages.warning_table
+
+  let output table gtable gtxml gtfxml (file: file) =
     if (get_bool "dbg.verbose") then print_endline ("Filtering output for files that match : '"^ (!GU.result_filter)^"'");
     GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = Messages.get_out result_name !GU.out in
@@ -291,12 +319,14 @@ struct
           output_char out '\n'
         end
       | "html" -> 
-          Htmldump.print_html out (resultXML (Lazy.force table)) file gtable
+          Htmldump.print_html out (resultXML (Lazy.force table)) file (lazy ((gtxml gtable) :: []))
       | "fast_xml" -> 
           let f = BatIO.output_channel out in
           BatPrintf.fprintf f "<run><call>%a</call><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
           BatPrintf.fprintf f "%a" printXml (Lazy.force table);
-          BatPrintf.fprintf f "</result></run>"
+          gtfxml f gtable;
+          printXmlWarning f ();
+          BatPrintf.fprintf f "</result></run>\n"
       | _ -> ()
 end
 

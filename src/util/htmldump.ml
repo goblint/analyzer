@@ -6,6 +6,8 @@ open Unix;;
 open Lazy;;
 open Html_template;;
 
+let size = 50 (* also change the value in js_template.ml *)
+
 let htmlGlobalWarningList : (string*int*string) list ref = ref []
 
 (* Some lists for syntax highlighting *)
@@ -140,8 +142,8 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
 	in
 
 	let createLine line = 
-		if ((!currentLine mod 5000) = 0) then fprintf outchan "</div>\n<div id=\"linecontainer%i\" style=\"\">\n" (!currentLine/5000) else ();
-		if (!currentLine = 1) then fprintf outchan "<div id=\"linecontainer%i\">\n" (!currentLine/5000) else ();
+		if ((!currentLine mod size) = 0) then fprintf outchan "</div>\n<div id=\"linecontainer%i\" style=\"\">\n" (!currentLine/size) else ();
+		if (!currentLine = 1) then fprintf outchan "<div id=\"linecontainer%i\">\n" (!currentLine/size) else ();
 		
 		let isAnalyzed = isLineAnalyzed !currentLine in
 		let colorString = (
@@ -325,7 +327,7 @@ let print_html chan xmlNode (file: file) gtable =
 		(* Create analysis files *)
 		let lineCount = (List.length !linesContent) in
 		let outlist = ref [] in
-		for i = 0 to (lineCount / 1000) do begin
+		for i = 0 to (lineCount / size) do begin
 			let outchan = open_out (dirn^"/analysis"^(string_of_int i)^".html") in
 			outlist := !outlist @ [outchan];
 			fprintf outchan "%s" htmlTemp_AnalysisFilePartOne;
@@ -370,7 +372,7 @@ let print_html chan xmlNode (file: file) gtable =
 		Array.set !(fileListEntry.lineInfo) lineNo 1;
 
 		(* Get analysis output channel *)
-		let outchan = List.nth !(fileListEntry.analysis_out) (lineNo/1000) in
+		let outchan = List.nth !(fileListEntry.analysis_out) (lineNo/size) in
 
 		(* Print start line div container *)
 		fprintf outchan "     <div id=\"analysis_line%i\" style=\"display: none;\">\n" lineNo;

@@ -71,6 +71,8 @@ let _ =
   reg Std "dump_globs"      "false"        "Print out the global invariant.";
   reg Std "result"          "'none'"       "Result style: none, indented, compact, or pretty.";
   reg Std "solver"          "'effectWCon'" "Picks the solver.";
+  reg Std "comparesolver"   "''"           "Picks another solver for comparison.";
+  reg Std "solverdiffs"     "false"        "Print out solver differences.";
   reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main).";
   reg Std "nonstatic"       "false"        "Analyzes all non-static functions.";
   reg Std "colors"          "false"        "Colored output."
@@ -96,6 +98,10 @@ let _ =
   reg Analyses "ana.osek.intrpts"    "false" "Enable constraints for interrupts.";
   reg Analyses "ana.osek.check"      "false" "Check if (assumed) OSEK conventions are fullfilled.";
   reg Analyses "ana.osek.names"      "[]"    "OSEK API function (re)names for the analysed program";
+  reg Analyses "ana.osek.warnfiles"  "false" "Print all warning types to seperate file";
+  reg Analyses "ana.osek.safe_vars"  "[]"    "Suppress warnings on these vars";
+  reg Analyses "ana.osek.safe_task"  "[]"    "Ignore accesses in these tasks";
+  reg Analyses "ana.osek.safe_isr"   "[]"    "Ignore accesses in these isr";
   reg Analyses "ana.osek.flags"      "[]"    "List of global variables that are flags.";
   reg Analyses "ana.osek.def_header" "true"  "Generate TASK/ISR macros with default structure";
   reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain.";
@@ -106,7 +112,8 @@ let _ =
   reg Analyses "ana.int.cnarrow"     "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'half')";
   reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails.";
   reg Analyses "ana.spec.file"       ""      "Path to the specification file.";
-  reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
+  reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?";
+  reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
   
 (* {4 category [Experimental]} *)
 
@@ -136,7 +143,8 @@ let _ =
   reg Experimental "exp.globs_are_top"     "false" "Set globals permanently to top.";
   reg Experimental "exp.use_gen_solver"    "true"  "Use a generic solver instead iterating like the other tool?";
   reg Experimental "exp.unknown_funs_spawn" "true" "Should unknown function calls switch to MT-mode?";
-  reg Experimental "exp.precious_globs"    "[]"    "Global variables that should be handled flow-sensitively when using earlyglobs."
+  reg Experimental "exp.precious_globs"    "[]"    "Global variables that should be handled flow-sensitively when using earlyglobs.";
+  reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists."
   
 (* {4 category [Debugging]} *)
 
@@ -205,6 +213,8 @@ let default_schema =
     { 'type'            : 'string'
     }
   , 'solver'          : {}
+  , 'comparesolver'   : {}
+  , 'solverdiffs'     : {}
   , 'allfuns'         : {}
   , 'nonstatic'       : {}
   , 'colors'          : {}

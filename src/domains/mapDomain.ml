@@ -207,11 +207,11 @@ struct
     Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
   let printXml f xs = 
     let print_one k v =
-      BatPrintf.fprintf f "<key>\n%a</key>\n%a" Domain.printXml k Range.printXml v
+      BatPrintf.fprintf f "<key>\n%s</key>\n%a" (Domain.short 800 k) Range.printXml v
     in
-    BatPrintf.fprintf f "<value>\n<set>\n";
+    BatPrintf.fprintf f "<value>\n<map>\n";
     iter print_one xs;
-    BatPrintf.fprintf f "</set>\n</value>\n"
+    BatPrintf.fprintf f "</map>\n</value>\n"
 end
 
 

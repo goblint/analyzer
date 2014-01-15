@@ -129,7 +129,7 @@ struct
     
   let printXml f xs =
     let print_one a n (module S : Printable.S) x : unit = 
-      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (S.name ());
+      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (List.assoc n !analyses_table);
       S.printXml f (obj x);
       BatPrintf.fprintf f "</analysis>\n"
     in

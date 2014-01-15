@@ -5,34 +5,7 @@ open Analyses
 open DeadlockDomain
 open Printf
 
-
-let equalLock x y = 
-  ValueDomain.Addr.equal (x.addr) (y.addr)
-
-let addLock (newLock,lock) lockList =
-  if (List.exists (fun (a,b) -> ((equalLock a newLock) && (equalLock b lock)) ) lockList) then ()
-  else forbiddenList := !forbiddenList @ [ (newLock,lock) ]
-
-let addLockingInfo newLock lockList =
-  (* Add newLock to availableLocks *)
-  if (List.exists (fun x -> ValueDomain.Addr.equal (x.addr) (newLock.addr)) !availableLocks) = false then availableLocks := !availableLocks @ [newLock] else ();
-
-  (* Check forbidden list *)
-  List.iter (fun e -> List.iter (fun (a,b) -> 
-      if ((equalLock a e) && (equalLock b newLock)) then (
-        let msg = (sprintf "Deadlock warning: Locking order %s, %s in line %i, %i (after %i, %i)\n" (ValueDomain.Addr.short () e.addr) (ValueDomain.Addr.short () newLock.addr) e.loc.line newLock.loc.line b.loc.line a.loc.line) in
-        Messages.report msg;
-      )
-      else () ) !forbiddenList ) lockList;
-
-  (* Add forbidden order *)
-  List.iter (
-    fun lock -> 
-      forbiddenList := !forbiddenList @ [ (newLock,lock) ];
-      let transAddList = List.find_all (fun (a,b) -> equalLock a lock) !forbiddenList in
-      List.iter (fun (a,b) -> forbiddenList := !forbiddenList @ [ (newLock,b) ] ) transAddList
-  ) lockList;
-  ()
+let forbiddenList : ( (myowntypeEntry*myowntypeEntry) list ref) = ref []
 
 module Spec =
 struct
@@ -43,7 +16,33 @@ struct
   (* The domain for the analysis *)
   module D = DeadlockDomain.Lockset
   module C = DeadlockDomain.Lockset
-  module G = DeadlockDomain.Lockset
+  module G = Lattice.Unit
+
+  let addLockingInfo newLock lockList =
+    let add_comb a b =
+      if List.exists (fun (x,y) -> MyLock.equal x a && MyLock.equal y b) !forbiddenList then ()
+      else forbiddenList := (a,b)::!forbiddenList
+    in
+       
+    (* Check forbidden list *)
+    if !Goblintutil.in_verifying_stage then begin
+      D.iter (fun e -> List.iter (fun (a,b) -> 
+          if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
+            let msg = (sprintf "Deadlock warning: Locking order %s, %s in line %i, %i (after %i, %i)\n" (ValueDomain.Addr.short () e.addr) (ValueDomain.Addr.short () newLock.addr) e.loc.line newLock.loc.line b.loc.line a.loc.line) in
+            Messages.report msg;
+          )
+          else () ) !forbiddenList ) lockList;
+
+      (* Add forbidden order *)
+      D.iter (
+        fun lock ->
+          add_comb newLock lock; 
+          let transAddList = List.find_all (fun (a,b) -> MyLock.equal a lock) !forbiddenList in
+          List.iter (fun (a,b) -> add_comb newLock b) transAddList
+      ) lockList;
+      ()
+    end
+  
 
   (* Initialization and finalization *)
   let init () = ()
@@ -52,7 +51,7 @@ struct
 
   (* Some required states *)
   let startstate _ : D.t = D.empty ()
-  let otherstate _ : D.t = D.empty ()
+  let otherstate _ : D.t = D.empty () 
   let exitstate  _ : D.t = D.empty ()
   
   (* ======== Transfer functions ======== *)
@@ -76,7 +75,7 @@ struct
   
   (* Calls/Enters a function *)
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [[],ctx.local]
+    [D.bot (),ctx.local]
   
   (* Leaves a function *)
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
@@ -101,25 +100,20 @@ struct
     
   (* Called when calling a special/unknown function *)
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match (LibraryFunctions.classify f.vname arglist, f.vname) with
-      | `Lock (_, _), _
-          ->  
-             (* Convert first argument to ValueDomain.Addr.t *)
-             let lockAddr = List.hd (eval_exp_addr ctx.ask (List.hd arglist)) in
-             (*if isDebugging then (printf "LOCK: %s\n" (ValueDomain.Addr.short () lockAddr);()) else ();*)
-
-             (* Add lock *)
-             addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
-             ctx.local@[{addr = lockAddr; loc = !Tracing.current_loc }]
+    if D.is_top ctx.local then ctx.local else
+    match LibraryFunctions.classify f.vname arglist with
+      | `Lock (_, _) ->  
+          begin match eval_exp_addr ctx.ask (List.hd arglist) with
+            | [lockAddr] ->             
+              addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
+              D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
+            | _ -> ctx.local
+          end
   
-      | `Unlock, _ 
-          -> 
-             (* Convert first argument to ValueDomain.Addr.t *)
-             let lockAddr = List.hd (eval_exp_addr ctx.ask (List.hd arglist)) in
-             (*if isDebugging then (printf "LOCK: %s\n" (ValueDomain.Addr.short () lockAddr);()) else ();*)
-
-             (* Remove lock *)
-             List.filter (fun e -> ((ValueDomain.Addr.equal lockAddr (e.addr)) == false)) ctx.local
+      | `Unlock -> 
+           let lockAddrs = eval_exp_addr ctx.ask (List.hd arglist) in
+           let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
+           D.filter inLockAddrs ctx.local
         
       | _ -> ctx.local
 

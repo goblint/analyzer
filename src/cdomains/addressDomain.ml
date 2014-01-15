@@ -1,6 +1,9 @@
 open Cil
 open Pretty
 
+
+let fast_addr_sets = false (* unknown addresses for fast sets == top, for slow == {?}*)
+
 module GU = Goblintutil
 
 module type S = 
@@ -26,11 +29,11 @@ struct
   type idx = Idx.t
   type offs = [`NoOffset | `Field of (field * offs) | `Index of (idx * offs)]
 
-  let null_ptr () = singleton (Addr.null_ptr ())
-  let str_ptr () = singleton (Addr.str_ptr ())
-  let safe_ptr () = singleton (Addr.safe_ptr ())
+  let null_ptr ()    = singleton (Addr.null_ptr ())
+  let str_ptr ()     = singleton (Addr.str_ptr ())
+  let safe_ptr ()    = singleton (Addr.safe_ptr ())
   let unknown_ptr () = singleton (Addr.unknown_ptr ())
-  let is_unknown x = cardinal x = 1 && Addr.is_unknown (choose x)
+  let is_unknown x = cardinal x = 1 && Addr.is_unknown (choose x) 
 
   let get_type xs = 
     try Addr.get_type (choose xs) 
@@ -141,4 +144,17 @@ struct
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
   
+  let leq = if not fast_addr_sets then leq else fun x y ->
+    match mem Addr.UnknownPtr x, mem Addr.UnknownPtr y with
+      | true, false -> false
+      | false, true -> true
+      | true, true -> true
+      | false, false -> leq x y
+      
+  let join = if not fast_addr_sets then join else fun x y ->
+    match mem Addr.UnknownPtr x, mem Addr.UnknownPtr y with
+      | true, false 
+      | false, true 
+      | true, true -> unknown_ptr ()
+      | false, false -> join x y
 end

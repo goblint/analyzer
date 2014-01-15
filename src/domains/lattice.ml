@@ -90,6 +90,7 @@ struct
   let name () = "Reversed (" ^ name () ^ ")"
   let pretty_diff () (x,y) =
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml = Base.printXml
 end
 
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
@@ -291,6 +292,7 @@ struct
   let meet = op_scheme Base1.meet Base2.meet
   let narrow = op_scheme Base1.narrow Base2.narrow
   let widen = op_scheme Base1.widen Base2.widen
+    
 end
 
 

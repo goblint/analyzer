@@ -7,7 +7,7 @@ pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mtx);
-  glob++;
+  glob = 999;
   pthread_mutex_unlock(&mtx);
   return NULL;
 }

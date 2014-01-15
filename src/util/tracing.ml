@@ -8,6 +8,7 @@ open Cil
 module Strs = Set.Make (String)
 
 let current_loc = ref locUnknown
+let next_loc    = ref locUnknown
 let trace_sys = ref Strs.empty
 let activated = ref Strs.empty
 let active_dep = Hashtbl.create 9 
@@ -105,7 +106,7 @@ let trace sys ?var fmt = gtrace true printtrace sys var (fun x -> x) fmt
 let tracel sys ?var fmt = 
   let loc = !current_loc in
   let docloc sys doc = 
-    printtrace sys (dprintf "(%s:%d)" loc.file loc.line ++ indent 2 doc);
+    printtrace sys (dprintf "(%s:%d)@?" loc.file loc.line ++ indent 2 doc);
   in
     gtrace true docloc sys var ~loc:loc.line (fun x -> x) fmt
 

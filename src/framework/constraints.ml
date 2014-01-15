@@ -135,10 +135,13 @@ end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
 module FromSpec (S:Spec) (Cfg:CfgBackward)
-  : GlobConstrSys with module LVar = VarF (S.C)
-                   and module GVar = Basetype.Variables
-                   and module D = S.D
-                   and module G = S.G
+  : sig
+      include GlobConstrSys with module LVar = VarF (S.C)
+                             and module GVar = Basetype.Variables
+                             and module D = S.D
+                             and module G = S.G
+      val tf : MyCFG.node * S.C.t -> MyCFG.edge * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
+    end
   =
 struct
   type lv = MyCFG.node * S.C.t
@@ -252,14 +255,17 @@ struct
     end (v,c) u
     
   let tf (v,c) (e,u) getl sidel getg sideg =
-    let old_loc = !Tracing.current_loc in
+    let old_loc  = !Tracing.current_loc in
+    let old_loc2 = !Tracing.next_loc in
     let old_node = !current_node in
     let _       = Tracing.current_loc := getLoc u in
+    let _       = Tracing.next_loc := getLoc v in
     let _       = current_node := Some u in
     let d       = try tf (v,c) (e,u) getl sidel getg sideg 
                   with M.StopTheWorld -> D.bot ()
                      | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
     let _       = Tracing.current_loc := old_loc in 
+    let _       = Tracing.next_loc := old_loc2 in 
     let _       = current_node := old_node in
       d
   
@@ -268,6 +274,22 @@ struct
       | FunctionEntry _ when get_bool "exp.full-context" ->
           [fun _ _ _ _ -> S.val_of c]
       | _ -> List.map (tf (v,c)) (Cfg.prev v)
+end
+
+(** Depending on "exp.forward", [MaybeForwardFromSpec] generates a forward-propagating 
+   constraint system or a normal constriant system (using [FromSpec]) *)
+module MaybeForwardFromSpec (S:Spec) (Cfg:CfgBidir) =
+struct
+   include FromSpec (S) (Cfg)
+  
+   let system_forward (u,c) =
+     let tf' (u,c) (e,v) getl sidel getg sideg = 
+       let d = tf (v,c) (e,u) getl sidel getg sideg in  
+       sidel (v,c) d; S.D.bot ()
+     in
+     List.map (tf' (u,c)) (Cfg.next u)
+
+   let system x = if get_bool "exp.forward" then system_forward x else system x
 end
 
 
@@ -590,6 +612,12 @@ struct
       fold (S.D.join) m (S.D.bot ())
       in
         map f s1
+        
+    let printXml f x =
+      let print_one x = 
+        BatPrintf.fprintf f "\n<path>%a</path>" S.D.printXml x
+      in
+      iter print_one x 
   end
   
   module G = S.G
@@ -675,6 +703,86 @@ struct
     if D.is_bot d then raise Deadcode else d
 
 end  
+
+module Compare 
+  (S:Spec)
+  (Sys:GlobConstrSys with module LVar = VarF (S.C)
+                             and module GVar = Basetype.Variables
+                             and module D = S.D
+                             and module G = S.G) 
+  (LH:Hash.H with type key=Sys.LVar.t) 
+  (GH:Hash.H with type key=Sys.GVar.t)  
+  =
+struct
+  open S
+  
+  module PP = Hashtbl.Make (MyCFG.Node) 
+  
+  let compare_locals h1 h2 =
+    let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
+    let f_eq () = incr eq in
+    let f_le () = incr le in
+    let f_gr () = incr gr in
+    let f_uk () = incr uk in
+    let f k v1 = 
+      let v2 = try PP.find h2 k with Not_found -> D.bot () in
+      let b1 = D.leq v1 v2 in
+      let b2 = D.leq v2 v1 in
+      if b1 && b2 then 
+        f_eq ()
+      else if b1 then begin
+        if get_bool "solverdiffs" then
+          ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "solver") D.pretty_diff (v1,v2));
+        f_le ()
+      end else if b2 then begin
+        if get_bool "solverdiffs" then
+          ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "comparesolver") D.pretty_diff (v1,v2));
+        f_gr ()
+      end else 
+        f_uk ()
+    in
+    PP.iter f h1;
+    Printf.printf "locals:  eq=%d\t%s=%d\t%s=%d\tuk=%d\n" !eq (get_string "solver") !le (get_string "comparesolver") !gr !uk
+    
+  let compare_globals g1 g2 =
+    let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
+    let f_eq () = incr eq in
+    let f_le () = incr le in
+    let f_gr () = incr gr in
+    let f_uk () = incr uk in
+    let f k v1 = 
+      let v2 = try GH.find g2 k with Not_found -> G.bot () in
+      let b1 = G.leq v1 v2 in
+      let b2 = G.leq v2 v1 in
+      if b1 && b2 then 
+        f_eq ()
+      else if b1 then begin
+        if get_bool "solverdiffs" then
+          ignore (Pretty.printf "Global %a is more precise using %s:\n%a\n" Sys.GVar.pretty_trace k (get_string "solver") G.pretty_diff (v1,v2));
+        f_le ()
+      end else if b2 then begin
+        if get_bool "solverdiffs" then
+          ignore (Pretty.printf "Global %a is more precise using %s:\n%a\n" Sys.GVar.pretty_trace k (get_string "comparesolver") G.pretty_diff (v1,v2));
+        f_gr ()
+      end else 
+        f_uk ()
+    in
+    GH.iter f g1;
+    Printf.printf "globals: eq=%d\t%s=%d\t%s=%d\tuk=%d\n" !eq (get_string "solver") !le (get_string "comparesolver") !gr !uk
+  
+  let compare (l1,g1) (l2,g2) = 
+    let one_ctx (n,_) v h = 
+      PP.replace h n (try D.join v (PP.find h n) with Not_found -> v);
+      h
+    in
+    let h1 = PP.create 113 in
+    let h2 = PP.create 113 in
+    let _  = LH.fold one_ctx l1 h1 in
+    let _  = LH.fold one_ctx l2 h2 in
+    compare_locals h1 h2;
+    compare_globals g1 g2
+    
+end
 
 (** Verify if the hashmap pair is really a (partial) solution. *)
 module Verify2 
