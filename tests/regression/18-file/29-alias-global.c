@@ -2,8 +2,8 @@
 
 FILE* fp;
 FILE* myfopen(char* f){
-  	fp = fopen(f, "a");
-  	return fp;
+	fp = fopen(f, "a");
+	return fp;
 }
 
 int main(){
@@ -11,9 +11,9 @@ int main(){
 	FILE *fp2;
 	fp1 = myfopen("test1.txt");
 	fp2 = myfopen("test2.txt");
-	fprintf(fp1, "Testing...\n");  
+	fprintf(fp1, "Testing...\n");
 	fclose(fp1);
-	fprintf(fp2, "Testing...\n");  
+	fprintf(fp2, "Testing...\n");
 	fclose(fp2);
 }
 

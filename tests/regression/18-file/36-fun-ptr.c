@@ -2,8 +2,8 @@
 
 int main(){
 	FILE *fp;
-  	FILE* (*f)(const char *, const char*);
-  	f = fopen;
+	FILE* (*f)(const char *, const char*);
+	f = fopen;
 	fp = f("test.txt", "a");
 	fprintf(fp, "Testing...\n");
 	fclose(fp);

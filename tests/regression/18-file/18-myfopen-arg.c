@@ -11,8 +11,8 @@ int main(){
 	fp1 = myfopen("test1.txt");
 	fp2 = myfopen("test2.txt"); // WARN: file is never closed
 
-	fprintf(fp1, "Testing...\n");  
+	fprintf(fp1, "Testing...\n");
 	fclose(fp1);
-	fprintf(fp2, "Testing...\n");  
+	fprintf(fp2, "Testing...\n");
 	// fclose(fp2);
 } // WARN: unclosed files: fp2

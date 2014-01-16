@@ -3,13 +3,13 @@
 FILE *fp;
 
 void f(){
-	fp = fopen("test.txt", "a");  
+	fp = fopen("test.txt", "a");
 }
 
 int main(){
 	f();
-	fprintf(fp, "Testing...\n");  
-	fclose(fp);    
+	fprintf(fp, "Testing...\n");
+	fclose(fp);
 }
 
 // All ok!
