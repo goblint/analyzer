@@ -96,7 +96,7 @@ struct
   module GU = Goblintutil
 
   let trace s x fms =
-    current_loc := { Cil.line = S.LVar.line_nr x; file = S.LVar.file_name x; byte = -1};
+    (*current_loc := { Cil.line = S.LVar.line_nr x; file = S.LVar.file_name x; byte = -1};*)
     tracel s fms
     
 
