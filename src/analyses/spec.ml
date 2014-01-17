@@ -71,18 +71,27 @@ struct
       | Lval x -> Some (D.key_from_lval x)
       | _ -> None
     in
-    match key_from_exp (Lval lval), key_from_exp rval with (* we just care about Lval assignments *)
+    match key_from_exp (Lval lval), key_from_exp (stripCasts rval) with (* we just care about Lval assignments *)
     | Some k1, Some k2 when k1=k2 -> m (* do nothing on self-assignment *)
     | Some k1, Some k2 when D.mem k1 m && D.mem k2 m -> (* both in D *)
+        M.debug @@ "assign (both in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
         (* saveOpened k1 *) m |> D.remove' k1 |> D.alias k1 k2
     | Some k1, Some k2 when D.mem k1 m -> (* only k1 in D *)
+        M.debug @@ "assign (only k1 in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
         (* saveOpened k1 *) m |> D.remove' k1
     | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
-        D.alias k1 k2 m
+        M.debug @@ "assign (only k2 in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
+        let m = D.alias k1 k2 m in (* point k1 to k2 *)
+        if Lval.CilLval.class_tag k2 = `Temp (* check if k2 is a temporary Lval introduced by CIL *)
+        then D.remove' k2 m (* if yes we need to remove it from our map *)
+        else m (* otherwise no change *)
     | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
+        M.debug @@ "assign (only k1 in D): " ^ D.string_of_key k1 ^ " = " ^ sprint d_exp rval;
         D.warn @@ "changed pointer "^D.string_of_key k1^" (no longer safe)";
         (* saveOpened ~unknown:true k1 *) m |> D.unknown k1
-    | _ -> m (* no change in D for other things *)
+    | _ -> (* no change in D for other things *)
+        M.debug @@ "assign (none in D): " ^ sprint d_lval lval ^ " = " ^ sprint d_exp rval ^ " [" ^ sprint d_plainexp rval ^ "]";
+        m
 
   (*
   - branch-transitions in the spec-file come in pairs: e.g. true-branch goes to node a, false-branch to node b

@@ -661,6 +661,14 @@ struct
   let name () = "simplified lval" 
   let isSimple _ = true
 
+  let class_tag (v,o) =
+    match v with
+    | _ when v.vglob -> `Global
+    | _ when v.vdecl.line = -1 -> `Temp
+    | _ when v.vdecl.line = -3 -> `Parameter
+    | _ when v.vdecl.line = -4 -> `Context
+    | _ -> `Local
+
   let rec short_offs (o: (fieldinfo, exp) offs) a =
     match o with
       | `NoOffset -> a
