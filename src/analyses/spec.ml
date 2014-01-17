@@ -80,7 +80,7 @@ struct
     | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
         D.alias k1 k2 m
     | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
-        D.warn @@ "changed key "^D.string_of_key k1^" (no longer safe)";
+        D.warn @@ "changed pointer "^D.string_of_key k1^" (no longer safe)";
         (* saveOpened ~unknown:true k1 *) m |> D.unknown k1
     | _ -> m (* no change in D for other things *)
 
