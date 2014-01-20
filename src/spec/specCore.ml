@@ -1,3 +1,5 @@
+(* types used by specParser and functions for handling the constructed types *)
+
 open Batteries
 
 exception Endl
