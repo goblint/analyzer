@@ -1,0 +1,19 @@
+{
+  "ana" : {
+    "activated" : [["base"]],
+    "ctx_insens" : ["base"],
+    "int" : {
+      "interval" : true,
+      "trier" : false
+    }
+  },
+  "exp" : {
+    "earlyglobs" : false,
+    "no-int-context": true
+//    , "unknown_funs_spawn" : false
+  },
+  "mainfun" : ["main"],
+  "noverify" : false,
+//  "comparesolver" : "slr3",
+  "solver" : "slr4"
+}
