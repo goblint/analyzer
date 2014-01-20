@@ -3,7 +3,7 @@ debug=false # temporarily disable debug output
 n=0
 c=0
 for f in tests/regression/18-file/*.c; do
-	./test.sh $f $1 2>/dev/null | python2 tests/regression.py $f && ((c++))
+	./check.sh $f $1 2>/dev/null | python2 tests/regression.py $f && ((c++))
 	((n++))
 done
 debug=$debug_tmp
