@@ -68,10 +68,10 @@ struct
     let m = ctx.local in
     (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
     let key_from_exp = function
-      | Lval x -> Some (D.key_from_lval x)
+      | Lval (Var v,o) -> Some (v, Lval.CilLval.of_ciloffs o)
       | _ -> None
     in
-    match key_from_exp (Lval lval), key_from_exp (stripCasts rval) with (* we just care about Lval assignments *)
+    match key_from_exp (Lval lval), key_from_exp (stripCasts rval) with (* TODO for now we just care about Lval assignments -> should use Queries.MayPointTo *)
     | Some k1, Some k2 when k1=k2 -> m (* do nothing on self-assignment *)
     | Some k1, Some k2 when D.mem k1 m && D.mem k2 m -> (* both in D *)
         M.debug @@ "assign (both in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
@@ -168,7 +168,7 @@ struct
           let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem a states && branch_exp_eq c exp tv) !edges in
           (* there should be only one such edge or none *)
           if List.length branch_edges <> 1 then ( (* call of branch for an actual branch *)
-            M.debug_each "branch:branch_edges length is not 1! -> actual branch";
+            M.debug_each "branch: branch_edges length is not 1! -> actual branch";
             M.debug_each ((D.string_of_entry key m)^" -> branch_edges1: "^(String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges));
             (* filter those edges that are branches, end with a state from states have the same branch expression and the same tv *)
             (* TODO they should end with any predecessor of the current state, not only the direct predecessor *)
@@ -296,8 +296,6 @@ struct
     let m = ctx.local in
     let loc = !Tracing.current_loc::(D.callstack m) in
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
-    (* fold possible keys on domain *)
-    (* let ret_all f lval = List.fold_left f m (D.keys_from_lval lval ctx.ask) in *)
     (* custom goto (D.goto is just for modifying) that checks if the target state is a warning and acts accordingly *)
     let goto ?may:(may=false) key loc state m ws =
       let warn key m msg =
@@ -342,6 +340,7 @@ struct
               let arg = List.at arglist i in
               match arg with
               | Lval x -> Some x (* TODO enough to just assume the arg is already there as a Lval? *)
+              | AddrOf x -> Some x
               | _      -> None
             with Invalid_argument s ->
               M.debug_each @@ "Key out of bounds! Msg: "^s; (* TODO what to do if spec says that there should be more args... *)
@@ -356,7 +355,7 @@ struct
         | None -> Cil.var (fst global_var) (* creates Var with NoOffset *)
       in
       (* ignore(printf "KEY: %a\n" d_plainlval key); *)
-      (* possible keys the lval may point to *)
+      (* get possible keys that &lval may point to *)
       let keys = D.keys_from_lval key ctx.ask in (* does MayPointTo query *)
       let check_key (m,n) var =
         (* M.debug_each @@ "check_key: "^f.vname^"(...): "^D.string_of_entry var m; *)

@@ -258,7 +258,7 @@ struct
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint 80 (f () x)
 
-  let key_from_lval lval = match lval with (* try to get a Lval.CilLval from Cil.Lval *)
+  let key_from_lval lval = match lval with (* TODO try to get a Lval.CilLval from Cil.Lval *)
     | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1
     | Mem Lval(Var v1, o1), o2 -> v1, Lval.CilLval.of_ciloffs (addOffset o1 o2)
     (* | Mem exp, o1 -> failwith "not implemented yet" (* TODO use query_lv *) *)
