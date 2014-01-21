@@ -49,6 +49,29 @@ let warning state nodes =
   with
   | Not_found -> None (* no node for state *)
 
+let get_lval stmt =
+  let f = function
+    | Ptr x -> `Ptr (* TODO recursive *)
+    | Var s -> `Var
+    | Ident s -> `Ident
+  in
+  Option.map f stmt.lval
+
+let rec get_exp = function
+  | Regex x   -> `Regex x
+  | String x  -> `String x
+  | Bool x    -> `Bool x
+  | Int x     -> `Int x
+  | Float x   -> `Float x
+  | Lval (Var x)  -> `Var x
+  | Lval (Ident x) -> `Ident x
+  | Fun x     -> `Error "Functions aren't allowed to have functions as an argument (put the function as a previous state instead)"
+  | Exp_ -> `Free
+  | Unop ("!", Bool x) -> `Bool (not x)
+  | _         -> `Error "Unsupported operation inside function argument, use a simpler expression instead."
+
+let get_rval stmt = get_exp stmt.exp
+
 let get_key_variant stmt =
   let rec get_from_exp = function
     | Fun f -> get_from_args f.args (* TODO for special we only consider constraints where the root of the exp is Fun (see fname_is) *)
@@ -63,8 +86,13 @@ let get_key_variant stmt =
       | _       -> get_from_argsi (i+1) xs (* matches `None and `Arg -> `Arg of `Arg not supported *)
   and get_from_args args = get_from_argsi 0 args (* maybe better use List.findi *)
   in
+  let rec get_from_lval = function
+    | Ptr x -> get_from_lval x
+    | Var s -> Some s
+    | Ident s -> None
+  in
   match stmt.lval with
-  | Some (Var s) -> `Lval s
+  | Some lval when Option.is_some (get_from_lval lval) -> `Lval (Option.get (get_from_lval lval))
   | _ -> get_from_exp stmt.exp
 
 let equal_form lval stmt =
@@ -74,22 +102,8 @@ let equal_form lval stmt =
   | _ -> false
 
 (* get function arguments with tags corresponding to the type -> should only be called for functions, returns [] for everything else *)
-let get_fun_args stmt =
-  let rec get_arg = function
-    | Regex x   -> `Regex x
-    | String x  -> `String x
-    | Bool x    -> `Bool x
-    | Int x     -> `Int x
-    | Float x   -> `Float x
-    | Lval (Var x)  -> `Var x
-    | Lval (Ident x) -> `Ident x
-    | Fun x     -> `Error "Functions aren't allowed to have functions as an argument (put the function as a previous state instead)"
-    | Exp_ -> `Free
-    | Unop ("!", Bool x) -> `Bool (not x)
-    | _         -> `Error "Unsupported operation inside function argument, use a simpler expression instead."
-  in
-  match stmt.exp with
-  | Fun f -> List.map get_arg f.args
+let get_fun_args stmt = match stmt.exp with
+  | Fun f -> List.map get_exp f.args
   | _ -> []
 
 (* functions for output *)

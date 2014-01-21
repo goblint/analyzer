@@ -50,11 +50,11 @@ struct
   module SpecCheck =
   struct
     (* custom goto (D.goto is just for modifying) that checks if the target state is a warning and acts accordingly *)
-    let goto ?may:(may=false) key state m ws =
+    let goto ?may:(may=false) ?change_state:(change_state=true) key state m ws =
       let loc = !Tracing.current_loc::(D.callstack m) in
       let warn key m msg =
         Str.global_replace (Str.regexp_string "$") (D.string_of_key key) msg
-        |> D.warn ~may:(D.is_may key m)
+        |> D.warn ~may:(D.is_may key m || D.is_unknown key m)
       in
       (* do transition warnings *)
       List.iter (fun state -> match SC.warning state !nodes with Some msg -> warn key m msg | _ -> ()) ws;
@@ -64,7 +64,8 @@ struct
           m (* no goto == implicit back edge *)
       | None ->
           M.debug_each @@ "GOTO "^D.string_of_key key^": "^D.string_of_state key m^" -> "^state;
-          if may then D.may_goto key loc state m else D.goto key loc state m
+          if not change_state then m
+          else if may then D.may_goto key loc state m else D.goto key loc state m
 
     (* match spec_exp, cil_exp *)
     let equal_exp ctx = function
@@ -106,6 +107,8 @@ struct
          Multiple forwarding wildcards are not allowed, i.e. new_a must be None, otherwise we end up in a loop. *)
       if SC.is_wildcard c && fwd && new_a=None then Some (m,fwd,Some (b,a),old_key) (* replace b with a in the following checks *)
       else
+      (* save origninal start state of the constraint (needed to detect reflexive edges) *)
+      let old_a = a in
       (* Assume new_a  *)
       let a = match new_a with
         | Some (x,y) when a=x -> y
@@ -133,8 +136,14 @@ struct
         (* edge must match the current state or be a wildcard transition (except those for end) *)
         else if not (matches edge) && not wildcard then (m,n)
         (* everything matches the constraint -> go to new state and increase counter *)
+        else
         (* TODO if #Queries.MayPointTo > 1: each result is May, but all combined are Must *)
-        else let new_m = goto ~may:(List.length keys > 1) var b m ws in (new_m,n+1)
+        let may = (List.length keys > 1) in
+        (* do not change state for reflexive edges where the key is not assigned to (e.g. *$p = _) *)
+        let change_state = not (old_a=b && SC.get_lval c <> Some `Var) in
+        M.debug @@ "GOTO ~may:"^string_of_bool may^" ~change_state:"^string_of_bool change_state^". "^a^" -> "^b^": "^SC.stmt_to_string c;
+        let new_m = goto ~may:may ~change_state:change_state var b m ws in
+        (new_m,n+1)
       in
       (* do check for each varinfo and return the resulting domain if there has been at least one matching constraint *)
       let new_m,n = List.fold_left check_key (m,0) keys in (* start with original domain and #transitions=0 *)
@@ -224,15 +233,27 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    let m = ctx.local in
     (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
-    (* check for constraints *p = _ where p is the key *)
-    (match lval with
-     | Mem Lval x, o -> let keys = D.keys_from_lval x ctx.ask in
-         if List.length keys <> 1 then failwith "not implemented"
-         else failwith "TODO check_constraint"
-     | _ -> () (* nothing to do *)
-    );
+    let get_key c = match SC.get_key_variant c with
+      | `Lval s ->
+          M.debug_each @@ "Key variant assign `Lval "^s^"; "^SC.stmt_to_string c;
+          (match SC.get_lval c, lval with
+          | Some `Var, _ -> Some lval
+          | Some `Ptr, (Mem Lval x, o) -> Some x (* TODO offset? *)
+          | _ -> None)
+      | _ -> None
+    in
+    let matches (a,ws,fwd,b,c) =
+      SC.equal_form (Some lval) c &&
+      (* check for constraints *p = _ where p is the key *)
+      match lval, SC.get_lval c with
+      | (Mem Lval x, o), Some `Ptr  when SpecCheck.equal_exp ctx (SC.get_rval c, rval) ->
+          let keys = D.keys_from_lval x ctx.ask in
+          if List.length keys <> 1 then failwith "not implemented"
+          else true
+      | _ -> false (* nothing to do *)
+    in
+    let m = SpecCheck.check ctx get_key matches in
     let key_from_exp = function
       | Lval (Var v,o) -> Some (v, Lval.CilLval.of_ciloffs o)
       | _ -> None
@@ -451,10 +472,10 @@ struct
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     let get_key c = match SC.get_key_variant c with
       | `Lval s ->
-          M.debug_each @@ "Key variant `Lval "^s^"; "^SC.stmt_to_string c;
+          M.debug_each @@ "Key variant special `Lval "^s^"; "^SC.stmt_to_string c;
           lval
       | `Arg(s, i) ->
-          M.debug_each @@ "Key variant `Arg("^s^", "^string_of_int i^")"^". "^SC.stmt_to_string c;
+          M.debug_each @@ "Key variant special `Arg("^s^", "^string_of_int i^")"^". "^SC.stmt_to_string c;
           (try
             let arg = List.at arglist i in
             match arg with
