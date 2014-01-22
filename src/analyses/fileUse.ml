@@ -1,12 +1,9 @@
 (** An analysis for checking correct use of file handles. *)
 
+open Batteries
 open Cil
 open Pretty
 open Analyses
-open Batteries
-
-module M = Messages
-
 
 module Spec =
 struct

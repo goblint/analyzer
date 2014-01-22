@@ -1,11 +1,10 @@
 (** Analysis by specification file. *)
 
+open Batteries
 open Cil
 open Pretty
 open Analyses
-open Batteries
 
-module M = Messages
 module SC = SpecCore
 
 module Spec =
@@ -388,6 +387,9 @@ struct
       -> matching as in flagMode didn't work *)
     | BinOp (Eq, a, b, _) -> check (stripCasts a) (stripCasts b) tv
     | BinOp (Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
+    | UnOp (LNot, a, _)   -> check (stripCasts a) (integer 0)    tv
+    (* TODO makes 2 tests fail. probably check changes something it shouldn't *)
+    (* | Lval _ as a         -> check (stripCasts a) (integer 0)    (not tv) *)
     | e -> M.debug @@ "branch: nothing matched the given exp: "^sprint d_plainexp e; m
 
   let body ctx (f:fundec) : D.t =
