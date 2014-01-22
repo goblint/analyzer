@@ -45,7 +45,6 @@ struct
   let file_name (n,_) = B.file_name n 
   let description (n,_) = B.description n 
   let context () (c,_) = B.context () c 
-  let loopSep (n,_) = B.loopSep n
 end
   
 

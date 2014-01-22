@@ -115,6 +115,7 @@ let _ =
 (* {4 category [Experimental]} *)
 
 let _ =
+  reg Experimental "exp.nested"            "false" "Use a nested constraint system.";
   reg Experimental "exp.field_insensitive" "false" "Control the field sensitivity of the Base analysis.";
   reg Experimental "exp.eclipse"           "false" "Flag for Goblin's Eclipse Plugin.";
   reg Experimental "exp.check"             "[]"    "Check whether there is a race involving this variable/type.";

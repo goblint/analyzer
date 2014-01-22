@@ -22,7 +22,6 @@ sig
   val file_name : t -> string
   val description : t -> string
   val context : unit -> t -> doc
-  val loopSep : t -> bool
 end
 
 module Var =  
