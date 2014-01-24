@@ -300,13 +300,11 @@ struct
 
   module InnerSystemFromSpec
     =
-  struct
-    let fun_start_val = ref (S.D.bot ())
-  
-    let get_l : (LVar.t -> S.D.t         ) ref = ref (fun _   -> S.D.top ())
-    let set_l : (LVar.t -> S.D.t -> unit ) ref = ref (fun _ _ -> ())
-    let get_g : (varinfo -> S.G.t        ) ref = ref (fun _   -> S.G.top ())
-    let set_g : (varinfo -> S.G.t -> unit) ref = ref (fun _ _ -> ())
+  struct  
+    let get_l : (LVar.t -> S.D.t         ) ref = ref (fun _   -> failwith "get_l")
+    let set_l : (LVar.t -> S.D.t -> unit ) ref = ref (fun _ _ -> failwith "set_l")
+    let get_g : (varinfo -> S.G.t        ) ref = ref (fun _   -> failwith "get_g")
+    let set_g : (varinfo -> S.G.t -> unit) ref = ref (fun _ _ -> failwith "set_g")
   
     module Var = Var
     module Dom = S.D
@@ -314,8 +312,9 @@ struct
     type v = Var.t
     type d = Dom.t
 
-    let common_ctx_ex (v:v) (u:v) (get:v -> d) (side:v -> d -> unit) pval : (Dom.t, S.G.t) ctx =  
+    let common_ctx (v:v) (u:v) (get:v -> d) (side:v -> d -> unit) : (Dom.t, S.G.t) ctx =  
       if !Messages.worldStopped then raise M.StopTheWorld;
+      let pval = get u in
       let rec ctx = 
         { ask     = query
         ; local   = pval
@@ -330,10 +329,8 @@ struct
         } 
       and query x = S.query ctx x in
       let pval, diff = S.sync ctx in
-      let _ = List.iter (uncurry !set_g) diff in
+      let _ = List.iter (fun (x,y) -> !set_g x y) diff in
       { ctx with local = pval }
-    
-    let common_ctx v u get side = common_ctx_ex v u get side (get u)
 
     let tf_loop  (v:v)  u (get:v -> d) (side:v -> d -> unit) = 
       let ctx = common_ctx v u get side
@@ -365,7 +362,7 @@ struct
       else normal_return ret fd ctx 
                                           
     let tf_entry fd (v:v) u (get:v -> d) (side:v -> d -> unit) = 
-      let ctx = common_ctx_ex v u get side !fun_start_val
+      let ctx = common_ctx v u get side
       in S.body ctx fd
 
     let tf_test e tv (v:v) u (get:v -> d) (side:v -> d -> unit) =
@@ -438,19 +435,35 @@ struct
   
     
   let tf (v, c) getl sidel getg sideg = 
-    InnerSystemFromSpec.fun_start_val := (getl (FunctionEntry v,c));
-    InnerSystemFromSpec.get_l := getl;
-    InnerSystemFromSpec.set_l := sidel;
-    InnerSystemFromSpec.get_g := getg;
-    InnerSystemFromSpec.set_g := sideg;
+    let d = getl (FunctionEntry v,c) in
+    let t2 = !InnerSystemFromSpec.get_l in
+    let t3 = !InnerSystemFromSpec.set_l in
+    let t4 = !InnerSystemFromSpec.get_g in
+    let t5 = !InnerSystemFromSpec.set_g in
+    InnerSystemFromSpec.get_l         := getl;
+    InnerSystemFromSpec.set_l         := sidel;
+    InnerSystemFromSpec.get_g         := getg;
+    InnerSystemFromSpec.set_g         := sideg;
     let ret_p = MyCFG.Function v in
-    let _ = Pretty.printf "solving function '%s' with starting state:\n%a\n" v.vname S.D.pretty !InnerSystemFromSpec.fun_start_val in
-    let ht = Solver'.solve InnerSystemFromSpec.box [] [ret_p] in
-    let _ = Pretty.printf "solving function '%s' done\n\n" v.vname in
-    VarHash.find ht ret_p
+    let sta_p = MyCFG.FunctionEntry v in
+     (* let _ = Pretty.printf "solving function '%s' with starting state:\n%a\n" v.vname S.D.pretty d in  *)
+    let ht = Solver'.solve InnerSystemFromSpec.box [sta_p,d] [ret_p] in
+    InnerSystemFromSpec.get_l         := t2;
+    InnerSystemFromSpec.set_l         := t3;
+    InnerSystemFromSpec.get_g         := t4;
+    InnerSystemFromSpec.set_g         := t5;
+     (* let _ = Pretty.printf "solving function '%s' done\n\n" v.vname in  *)
+    try VarHash.find ht ret_p 
+    with Not_found ->
+      (* ignore (Pretty.printf "Searching for '%a':\n\n" Var.pretty ret_p);
+      let f k v = ignore (Pretty.printf "%a = ...\n" Var.pretty k) in
+      VarHash.iter f ht; *)
+      S.D.bot ()
         
   
   let system = function
+    | (FunctionEntry v,c) when get_bool "exp.full-context" ->
+          [fun _ _ _ _ -> S.val_of c]
     | (Function v,c) -> [tf (v, c)]
     | _ -> []
       
