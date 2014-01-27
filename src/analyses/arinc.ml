@@ -5,10 +5,10 @@ open Cil
 open Pretty
 open Analyses
 
-module Pri = 
+module Pri =
 struct
   module Base = IntDomain.Lifted
-  include Base 
+  include Base
   let bot = Base.top
   let is_bot = Base.is_top
   let top = Base.bot
@@ -28,10 +28,10 @@ struct
   include Analyses.DefaultSpec
 
   let name = "arinc"
-  module D = 
-  struct 
+  module D =
+  struct
     include Lattice.Prod3 (Pri) (Pmod) (PrE)
-    let toXML_f sf (p,m,e) = 
+    let toXML_f sf (p,m,e) =
       let replace_top name = function
           | Xml.Element (node, [text, n], elems) -> Xml.Element (node, [text, name ^ n], elems)
           | x -> x
@@ -40,44 +40,44 @@ struct
                   ; replace_top "Part-mode: "  @@ Pmod.toXML m
                   ; replace_top "Preemption lock: " @@ PrE.toXML  e ] in
       Xml.Element ("Node", ["text", "ARINC state"], elems)
-      
+
     let toXML s  = toXML_f short s
   end
   module G = IntDomain.Booleans
   module C = D
-  
+
   let is_single ctx =
     let fl : BaseDomain.Flag.t = snd (Obj.obj (List.assoc "base" ctx.presub)) in
     not (BaseDomain.Flag.is_multi fl)
 
-  let part_mode_var = makeGlobalVar "__GOBLINT_ARINC_MUTLI_THREADED" voidPtrType 
-  
+  let part_mode_var = makeGlobalVar "__GOBLINT_ARINC_MUTLI_THREADED" voidPtrType
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     ctx.local
-   
-  let branch ctx (exp:exp) (tv:bool) : D.t = 
+
+  let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
-  
-  let body ctx (f:fundec) : D.t = 
+
+  let body ctx (f:fundec) : D.t =
     if not (is_single ctx || !Goblintutil.global_initialization || ctx.global part_mode_var) then raise Analyses.Deadcode;
     ctx.local
 
-  let return ctx (exp:exp option) (f:fundec) : D.t = 
+  let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
-  
+
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     [ctx.local, ctx.local]
-  
+
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     au
-  
+
   let delayed_create_process = ref []
   let create_process ctx lval arglist =
     if M.tracing then M.tracel "arinc" "found LAP_Se_CreateProcess\n";
     match List.hd arglist with
       | Lval lv -> begin
-        let cm  = 
+        let cm  =
           match unrollType (typeOfLval lv) with
             | TComp (c,_) -> c
             | _ -> failwith "type-error: first arg. of LAP_Se_CreateProcess not a struct."
@@ -85,8 +85,8 @@ struct
         let ofs = Field (getCompField cm Goblintutil.arinc_base_priority, NoOffset) in
         match ctx.ask (Queries.EvalInt (Lval (addOffsetLval ofs lv)))
             , ctx.ask (Queries.ReachableFrom (AddrOf lv)) with
-          | `Int i, `LvalSet ls when not (Queries.LS.is_top ls) 
-                                  && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) -> 
+          | `Int i, `LvalSet ls when not (Queries.LS.is_top ls)
+                                  && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
               if M.tracing then M.tracel "arinc" "starting a threads %a with priority '%Ld' \n" Queries.LS.pretty funs i;
               Queries.LS.iter (fun f -> ctx.spawn (fst f) (Pri.of_int i, Pmod.of_int 3L, PrE.of_int 0L)) funs;
@@ -95,9 +95,10 @@ struct
           | _ -> ctx.local
         end
       | _ -> ctx.local
-    
-  
+
+
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    (* if startsWith "LAP_Se_" f.vname then M.debug_each @@ "Found function "^f.vname; *)
     match f.vname with
       | "LAP_Se_LockPreemption" -> begin
           if M.tracing then M.tracel "arinc" "found LAP_Se_LockPreemption\n";
@@ -113,7 +114,7 @@ struct
           if M.tracing then M.tracel "arinc" "found LAP_Se_SetPartitionMode\n";
           let p,m,e = ctx.local in
           match ctx.ask (Queries.EvalInt (List.hd arglist)) with
-            | `Int i -> 
+            | `Int i ->
               if M.tracing then M.tracel "arinc" "setting partition mode to %Ld\n" i;
               if i<>1L && i<>2L then ctx.sideg part_mode_var true;
               (p,Pmod.of_int i,e)
@@ -125,39 +126,39 @@ struct
         let farg = stripCasts (List.hd arglist) in
         match farg with
           | AddrOf lv -> begin
-            let cm  = 
+            let cm  =
               match unrollType (typeOfLval lv) with
                 | TComp (c,_) -> c
                 | _ -> failwith "type-error: first arg. of LAP_Se_CreateProcess not a struct."
             in
             let ofs = Field (getCompField cm Goblintutil.arinc_base_priority, NoOffset) in
-            let pri = 
+            let pri =
               match ctx.ask (Queries.EvalInt (Lval (addOffsetLval ofs lv))) with
-                | `Int i -> Pri.of_int i 
+                | `Int i -> Pri.of_int i
                 | _ -> Pri.top ()
             in
             let ofs' = Field (getCompField cm Goblintutil.arinc_entry_point, NoOffset) in
             match ctx.ask (Queries.MayPointTo (Lval (addOffsetLval ofs' lv))) with
-              | `LvalSet ls when not (Queries.LS.is_top ls) 
-                                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) -> 
+              | `LvalSet ls when not (Queries.LS.is_top ls)
+                                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
                   let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
-                  if M.tracing then M.tracel "arinc" "starting a threads %a with priority '%a' \n" Queries.LS.pretty funs Pri.pretty pri;
+                  if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%a' \n" Queries.LS.pretty funs Pri.pretty pri;
                   Queries.LS.iter (fun f -> ctx.spawn (fst f) (pri, Pmod.of_int 3L, PrE.of_int 0L)) funs;
                   ctx.local
               | `Bot -> D.bot ()
               | _ -> ctx.local
-              
+
             end
           | _ -> ctx.local
         end
       | _ -> ctx.local
 
-  let query ctx (q:Queries.t) : Queries.Result.t = 
+  let query ctx (q:Queries.t) : Queries.Result.t =
     let p,m,e = ctx.local in
     match q with
-      | Queries.Priority _ -> 
-          if Pri.is_int p then 
-            `Int (Option.get @@ Pri.to_int p) 
+      | Queries.Priority _ ->
+          if Pri.is_int p then
+            `Int (Option.get @@ Pri.to_int p)
           else if Pri.is_top p then `Top else `Bot
       | Queries.IsPrivate _ ->
           `Bool ((PrE.to_int e <> Some 0L && PrE.to_int e <> None) || Pmod.to_int m = Some 1L || Pmod.to_int m = Some 2L)
@@ -168,5 +169,5 @@ struct
   let exitstate  v = D.top ()
 end
 
-let _ = 
+let _ =
   MCP.register_analysis ~dep:["base"] (module Spec : Spec)
