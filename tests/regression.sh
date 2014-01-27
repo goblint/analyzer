@@ -1,5 +1,5 @@
 debug_tmp=$debug
-debug=false # temporarily disable debug output
+export debug=false # temporarily disable debug output
 n=0
 c=0
 for f in tests/regression/18-file/*.c; do
