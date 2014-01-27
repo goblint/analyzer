@@ -113,8 +113,7 @@ let _ =
   reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails.";
   reg Analyses "ana.spec.file"       ""      "Path to the specification file.";
   reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?";
-  reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration.";
-  reg Analyses "ana.arinc.scrambled" "false" "Enable if analyzing scrambled ARINC code"
+  reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
   
 (* {4 category [Experimental]} *)
 

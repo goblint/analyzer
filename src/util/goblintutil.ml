@@ -408,6 +408,7 @@ let timeout f arg tsecs timeout_fn =
 let vars = ref 0
 let evals = ref 0
 
-let scrambled = get_bool "ana.arinc.scrambled"
-let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
-let arinc_entry_point   = if scrambled then "M162" else "ENTRY_POINT"
+(*let arinc_base_priority = "M164"
+let arinc_entry_point   = "M162"*)
+let arinc_base_priority = "BASE_PRIORITY"
+let arinc_entry_point   = "ENTRY_POINT"
