@@ -5,7 +5,7 @@ typedef void * SEMAPHORE_ID_TYPE;
 typedef int    RETURN_CODE_TYPE;
 typedef int    SEMAPHORE_VALUE_TYPE;
 typedef void * QUEUING_DISCIPLINE_TYPE;
-typedef int    SYSTEM_TIME_TYPE;
+typedef int    SYSTEM_TIME_TYPE; // in monit.c it is defined as unsigned long, PDF says signed 64bit
 
 extern void LAP_Se_GetSemaphoreId(SEMAPHORE_NAME_TYPE, SEMAPHORE_ID_TYPE*, RETURN_CODE_TYPE*);
 extern void LAP_Se_CreateSemaphore(SEMAPHORE_NAME_TYPE,SEMAPHORE_VALUE_TYPE,SEMAPHORE_VALUE_TYPE,QUEUING_DISCIPLINE_TYPE,SEMAPHORE_ID_TYPE*,RETURN_CODE_TYPE*);

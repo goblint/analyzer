@@ -1198,7 +1198,8 @@ struct
         let nst = make_entry ctx v args in
           v, nst
       with Not_found -> 
-        M.warn ("creating a thread from unknown function " ^ v.vname);
+        if not (LF.use_special f.vname) then
+          M.warn ("creating a thread from unknown function " ^ v.vname);
         v, (cpa, create_tid v)
     in
     match LF.classify f.vname args with 

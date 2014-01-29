@@ -73,10 +73,10 @@ struct
     au
 
   let delayed_create_process = ref []
-  let create_process ctx lval arglist =
-    if M.tracing then M.tracel "arinc" "found LAP_Se_CreateProcess\n";
-    match List.hd arglist with
-      | Lval lv -> begin
+  let create_process ctx arglist =
+    (* if M.tracing then M.tracel "arinc" "found LAP_Se_CreateProcess\n"; *)
+    match stripCasts (List.hd arglist) with
+      | AddrOf lv -> begin
         let cm  =
           match unrollType (typeOfLval lv) with
             | TComp (c,_) -> c
@@ -88,7 +88,7 @@ struct
           | `Int i, `LvalSet ls when not (Queries.LS.is_top ls)
                                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
-              if M.tracing then M.tracel "arinc" "starting a threads %a with priority '%Ld' \n" Queries.LS.pretty funs i;
+              if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs i;
               Queries.LS.iter (fun f -> ctx.spawn (fst f) (Pri.of_int i, Pmod.of_int 3L, PrE.of_int 0L)) funs;
               ctx.local
           | `Bot, _ | _, `Bot -> D.bot ()
@@ -96,61 +96,44 @@ struct
         end
       | _ -> ctx.local
 
+  let string_of_partition_mode = function
+    | 0L -> "IDLE"
+    | 1L -> "COLD_START"
+    | 2L -> "WARM_START"
+    | 3L -> "NORMAL"
+    | _ -> "UNKNOWN!"
+
+  let sprint f x = Pretty.sprint 80 (f () x)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    (* if startsWith "LAP_Se_" f.vname then M.debug_each @@ "Found function "^f.vname; *)
+    if M.tracing && startsWith "LAP_Se_" f.vname then (
+      let args_str = String.concat ", " (List.map (sprint d_exp) arglist) in
+      (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
+      M.debug_each @@ "found "^f.vname^"("^args_str^")"
+    );
     match f.vname with
       | "LAP_Se_LockPreemption" -> begin
-          if M.tracing then M.tracel "arinc" "found LAP_Se_LockPreemption\n";
+          (* if M.tracing then M.tracel "arinc" "found LAP_Se_LockPreemption\n"; *)
           let p,m,e = ctx.local in
           (p,m,PrE.add e (PrE.of_int 1L))
         end
       | "LAP_Se_UnlockPreemption" -> begin
-          if M.tracing then M.tracel "arinc" "found LAP_Se_UnlockPreemption\n";
+          (* if M.tracing then M.tracel "arinc" "found LAP_Se_UnlockPreemption\n"; *)
           let p,m,e = ctx.local in
           (p,m,PrE.sub e (PrE.of_int 1L))
         end
       | "LAP_Se_SetPartitionMode" -> begin
-          if M.tracing then M.tracel "arinc" "found LAP_Se_SetPartitionMode\n";
+          (* if M.tracing then M.tracel "arinc" "found LAP_Se_SetPartitionMode\n"; *)
           let p,m,e = ctx.local in
           match ctx.ask (Queries.EvalInt (List.hd arglist)) with
             | `Int i ->
-              if M.tracing then M.tracel "arinc" "setting partition mode to %Ld\n" i;
+              if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (string_of_partition_mode i);
               if i<>1L && i<>2L then ctx.sideg part_mode_var true;
               (p,Pmod.of_int i,e)
             | `Bot -> D.bot ()
             | _ -> ctx.sideg part_mode_var true; D.top ()
         end
-      | "LAP_Se_CreateProcess" -> begin
-        if M.tracing then M.tracel "arinc" "found LAP_Se_CreateProcess\n";
-        let farg = stripCasts (List.hd arglist) in
-        match farg with
-          | AddrOf lv -> begin
-            let cm  =
-              match unrollType (typeOfLval lv) with
-                | TComp (c,_) -> c
-                | _ -> failwith "type-error: first arg. of LAP_Se_CreateProcess not a struct."
-            in
-            let ofs = Field (getCompField cm Goblintutil.arinc_base_priority, NoOffset) in
-            let pri =
-              match ctx.ask (Queries.EvalInt (Lval (addOffsetLval ofs lv))) with
-                | `Int i -> Pri.of_int i
-                | _ -> Pri.top ()
-            in
-            let ofs' = Field (getCompField cm Goblintutil.arinc_entry_point, NoOffset) in
-            match ctx.ask (Queries.MayPointTo (Lval (addOffsetLval ofs' lv))) with
-              | `LvalSet ls when not (Queries.LS.is_top ls)
-                                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-                  let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
-                  if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%a' \n" Queries.LS.pretty funs Pri.pretty pri;
-                  Queries.LS.iter (fun f -> ctx.spawn (fst f) (pri, Pmod.of_int 3L, PrE.of_int 0L)) funs;
-                  ctx.local
-              | `Bot -> D.bot ()
-              | _ -> ctx.local
-
-            end
-          | _ -> ctx.local
-        end
+      | "LAP_Se_CreateProcess" -> create_process ctx arglist
       | _ -> ctx.local
 
   let query ctx (q:Queries.t) : Queries.Result.t =
