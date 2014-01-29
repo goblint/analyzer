@@ -143,7 +143,19 @@ projects.each do |p|
 #   solfile = File.join(testresults, p.name + ".sol.txt")
   cilfile = File.join(testresults, p.name + ".cil.txt")
   orgfile = File.join(testresults, p.name + ".c.html")
-  `code2html -l c -n #{filename} > #{orgfile}`
+  cmds = {"code2html" => "-l c -n #{filename} > #{orgfile}",
+          "source-highlight" => "-n -i #{filename} -o #{orgfile}",
+          "pygmentize" => "-O full,linenos=1 -o #{orgfile} #{filename}"}
+  cmds.each do |cmd, args|
+      # if `which #{cmd} 2> /dev/null`.empty? then
+      if not ENV['PATH'].split(':').map {|f| File.executable? "#{f}/#{cmd}"}.one? then
+          # puts "#{cmd} not found!"
+      else
+          `#{cmd} #{args}`
+          break
+      end
+  end
+  # `code2html -l c -n #{filename} > #{orgfile}`
   `#{goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
   p.size = `wc -l #{cilfile}`.split[0]
   starttime = Time.now
