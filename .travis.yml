@@ -1,7 +1,8 @@
 language: c
 git:
   submodules: false
-script: bash -ex scripts/travis-ci.sh
+install: bash -ex scripts/travis-ci.sh
+script: ./scripts/update_suite.rb group -file
 env:
   # - OCAML_VERSION=4.01.0 OPAM_VERSION=1.0.0
   - OCAML_VERSION=4.01.0 OPAM_VERSION=1.1.0
@@ -10,4 +11,4 @@ env:
   # - OCAML_VERSION=3.12.1 OPAM_VERSION=1.0.0
   # - OCAML_VERSION=3.12.1 OPAM_VERSION=1.1.0
 notifications:
-  email: false
+  email: true
