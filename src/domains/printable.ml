@@ -173,7 +173,7 @@ struct
   let printXml f = function 
     | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
     | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
-    | `Lifted x -> BatPrintf.fprintf f "<value>\n<map>\n<key>\nLifted\n</key>\n%a</map>\n</value>\n" Base.printXml x
+    | `Lifted x -> BatPrintf.fprintf f "%a\n" Base.printXml x
 end
 
 module Either (Base1: S) (Base2: S) =

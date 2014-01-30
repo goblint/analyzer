@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[0][+] "'shape'"  --set nonstatic true --sets exp.unique[+] usb_drv
+// SKIP PARAM: --set ana.activated[0][+] "'shape'"  --set nonstatic true --sets exp.unique[+] usb_drv
 #include<linuxlight.h>
 
 struct usb_drv { 

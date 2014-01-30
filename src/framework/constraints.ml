@@ -134,7 +134,7 @@ end
 
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:Spec) (Cfg:CfgBackward)
+module FlatFromSpec (S:Spec) (Cfg:CfgBackward)
   : sig
       include GlobConstrSys with module LVar = VarF (S.C)
                              and module GVar = Basetype.Variables
@@ -276,20 +276,241 @@ struct
       | _ -> List.map (tf (v,c)) (Cfg.prev v)
 end
 
-(** Depending on "exp.forward", [MaybeForwardFromSpec] generates a forward-propagating 
-   constraint system or a normal constriant system (using [FromSpec]) *)
-module MaybeForwardFromSpec (S:Spec) (Cfg:CfgBidir) =
+
+
+(** Generating a [GlobConstrSys] from a [Spec]. *)
+module NestedFromSpec (Solver:GenericIneqBoxSolver) (S:Spec) (Cfg:CfgBackward)
+  : sig
+      include GlobConstrSys with module LVar = VarF (S.C)
+                             and module GVar = Basetype.Variables
+                             and module D = S.D
+                             and module G = S.G
+    end
+  =
 struct
-   include FromSpec (S) (Cfg)
+  module LVar = VarF (S.C)
+  module GVar = Basetype.Variables
+  module D = S.D
+  module G = S.G
+ 
+  type lv = LVar.t
+  type gv = GVar.t
+  type ld = S.D.t
+  type gd = S.G.t
+
+  module InnerSystemFromSpec
+    =
+  struct  
+    let get_l : (LVar.t -> S.D.t         ) ref = ref (fun _   -> failwith "get_l")
+    let set_l : (LVar.t -> S.D.t -> unit ) ref = ref (fun _ _ -> failwith "set_l")
+    let get_g : (varinfo -> S.G.t        ) ref = ref (fun _   -> failwith "get_g")
+    let set_g : (varinfo -> S.G.t -> unit) ref = ref (fun _ _ -> failwith "set_g")
   
-   let system_forward (u,c) =
+    module Var = Var
+    module Dom = S.D
+
+    type v = Var.t
+    type d = Dom.t
+
+    let common_ctx (v:v) (u:v) (get:v -> d) (side:v -> d -> unit) : (Dom.t, S.G.t) ctx =  
+      if !Messages.worldStopped then raise M.StopTheWorld;
+      let pval = get u in
+      let rec ctx = 
+        { ask     = query
+        ; local   = pval
+        ; global  = !get_g
+        ; presub  = []
+        ; postsub = []
+        ; spawn   = (fun f d -> let c = S.context d in 
+                                !set_l (FunctionEntry f, c) d; 
+                                ignore (!get_l (Function f, c)))
+        ; split   = (fun (d:Dom.t) _ _ -> side v d)
+        ; sideg   = !set_g
+        } 
+      and query x = S.query ctx x in
+      let pval, diff = S.sync ctx in
+      let _ = List.iter (fun (x,y) -> !set_g x y) diff in
+      { ctx with local = pval }
+
+    let tf_loop  (v:v)  u (get:v -> d) (side:v -> d -> unit) = 
+      let ctx = common_ctx v u get side
+      in S.intrpt ctx
+  
+    let tf_assign lv e (v:v) u (get:v -> d) (side:v -> d -> unit) = 
+      let ctx = common_ctx v u get side
+      in S.assign ctx lv e
+      
+    let normal_return r fd ctx = 
+      let spawning_return = S.return ctx r fd in
+      let nval, ndiff = S.sync { ctx with local = spawning_return } in
+      List.iter (fun (x,y) -> !set_g x y) ndiff;
+      nval
+      
+    let toplevel_kernel_return r fd ctx =
+      let st = if fd.svar.vname = MyCFG.dummy_func.svar.vname then ctx.local else S.return ctx r fd in
+      let spawning_return = S.return {ctx with local = st} None MyCFG.dummy_func in
+      let nval, ndiff = S.sync { ctx with local = spawning_return } in
+      List.iter (fun (x,y) -> !set_g x y) ndiff;
+      nval
+        
+    let tf_ret ret fd (v:v) u (get:v -> d) (side:v -> d -> unit) = 
+      let ctx = common_ctx v u get side in
+      if (fd.svar.vid = MyCFG.dummy_func.svar.vid 
+           || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) 
+         && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
+      then toplevel_kernel_return ret fd ctx 
+      else normal_return ret fd ctx 
+                                          
+    let tf_entry fd (v:v) u (get:v -> d) (side:v -> d -> unit) = 
+      let ctx = common_ctx v u get side
+      in S.body ctx fd
+
+    let tf_test e tv (v:v) u (get:v -> d) (side:v -> d -> unit) =
+      let ctx = common_ctx v u get side
+      in S.branch ctx e tv
+
+    let tf_normal_call ctx lv e f args (get:v -> d) (side:v -> d -> unit) =
+      let combine (cd, fd) = S.combine {ctx with local = cd} lv e f args fd in
+      let paths = S.enter ctx lv f args in
+      let _     = if not (get_bool "exp.full-context") then List.iter (fun (c,v) -> !set_l (FunctionEntry f, S.context v) v) paths in
+      let paths = List.map (fun (c,v) -> (c, !get_l (Function f, S.context v))) paths in
+      let paths = List.filter (fun (c,v) -> Dom.is_bot v = false) paths in
+      let paths = List.map combine paths in
+        List.fold_left Dom.join (Dom.bot ()) paths
+      
+    let tf_special_call ctx lv f args = S.special ctx lv f args 
+
+    let tf_proc lv e args (v:v) u (get:v -> d) (side:v -> d -> unit) = 
+      let ctx = common_ctx v u get side in 
+      let functions = 
+        match ctx.ask (Queries.EvalFunvar e) with 
+          | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
+          | `Bot -> []
+          | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
+      in
+      let one_function f = 
+        let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in        
+        if has_dec && not (LibraryFunctions.use_special f.vname) 
+        then tf_normal_call ctx lv e f args get side
+        else tf_special_call ctx lv f args
+      in
+      let funs = List.map one_function functions in
+      List.fold_left Dom.join (Dom.bot ()) funs
+
+  
+    let tf (v:v) (edge, u) = 
+      begin match edge with
+        | Assign (lv,rv) -> tf_assign lv rv
+        | Proc (r,f,ars) -> tf_proc r f ars
+        | Entry f        -> tf_entry f
+        | Ret (r,fd)     -> tf_ret r fd
+        | Test (p,b)     -> tf_test p b
+        | ASM _          -> fun _ _ getl _ -> ignore (warn "ASM statement ignored."); getl u
+        | Skip           -> fun _ _ getl _ -> getl u
+        | SelfLoop       -> tf_loop 
+      end v u
+    
+    let tf (v:v) (e,u) get side =
+      let old_loc  = !Tracing.current_loc in
+      let old_loc2 = !Tracing.next_loc in
+      let old_node = !current_node in
+      let _       = Tracing.current_loc := getLoc u in
+      let _       = Tracing.next_loc := getLoc v in
+      let _       = current_node := Some u in
+      let d       = try tf v (e,u) get side
+                    with M.StopTheWorld -> Dom.bot ()
+                       | M.Bailure s -> Messages.warn_each s; (get u)  in
+      let _       = Tracing.current_loc := old_loc in 
+      let _       = Tracing.next_loc := old_loc2 in 
+      let _       = current_node := old_node in
+        d
+  
+    let system (v:v) = List.map (tf v) (Cfg.prev v)
+    
+    let box _ = Dom.join
+  end
+  
+  module VarHash = BatHashtbl.Make (Var)
+  module Solver' = Solver (InnerSystemFromSpec) (VarHash)
+  
+    
+  let tf (v, c) getl sidel getg sideg = 
+    let d = getl (FunctionEntry v,c) in
+    let t2 = !InnerSystemFromSpec.get_l in
+    let t3 = !InnerSystemFromSpec.set_l in
+    let t4 = !InnerSystemFromSpec.get_g in
+    let t5 = !InnerSystemFromSpec.set_g in
+    InnerSystemFromSpec.get_l         := getl;
+    InnerSystemFromSpec.set_l         := sidel;
+    InnerSystemFromSpec.get_g         := getg;
+    InnerSystemFromSpec.set_g         := sideg;
+    let ret_p = MyCFG.Function v in
+    let sta_p = MyCFG.FunctionEntry v in
+     (* let _ = Pretty.printf "solving function '%s' with starting state:\n%a\n" v.vname S.D.pretty d in  *)
+    let ht = Solver'.solve InnerSystemFromSpec.box [sta_p,d] [ret_p] in
+    InnerSystemFromSpec.get_l         := t2;
+    InnerSystemFromSpec.set_l         := t3;
+    InnerSystemFromSpec.get_g         := t4;
+    InnerSystemFromSpec.set_g         := t5;
+     (* let _ = Pretty.printf "solving function '%s' done\n\n" v.vname in  *)
+    try VarHash.find ht ret_p 
+    with Not_found ->
+      (* ignore (Pretty.printf "Searching for '%a':\n\n" Var.pretty ret_p);
+      let f k v = ignore (Pretty.printf "%a = ...\n" Var.pretty k) in
+      VarHash.iter f ht; *)
+      S.D.bot ()
+        
+  
+  let system = function
+    | (FunctionEntry v,c) when get_bool "exp.full-context" ->
+          [fun _ _ _ _ -> S.val_of c]
+    | (Function v,c) -> [tf (v, c)]
+    | _ -> []
+      
+end
+
+
+(** [ForwardFromSpec] generates a forward-propagating 
+   constraint system or a normal constriant system (using [FromSpec]) *)
+module ForwardFromSpec (S:Spec) (Cfg:CfgBidir) =
+struct
+   include FlatFromSpec (S) (Cfg)
+  
+   let system (u,c) =
      let tf' (u,c) (e,v) getl sidel getg sideg = 
        let d = tf (v,c) (e,u) getl sidel getg sideg in  
        sidel (v,c) d; S.D.bot ()
      in
      List.map (tf' (u,c)) (Cfg.next u)
+end
 
-   let system x = if get_bool "exp.forward" then system_forward x else system x
+(** Depending on "exp.forward", [FromSpec] generates a forward-propagating 
+   constraint system or a normal constriant system *)
+module FromSpec (Solver:GenericIneqBoxSolver) (S:Spec) (Cfg:CfgBidir) 
+  : sig
+      include GlobConstrSys with module LVar = VarF (S.C)
+                             and module GVar = Basetype.Variables
+                             and module D = S.D
+                             and module G = S.G
+    end
+  =
+struct
+  module LVar = VarF (S.C)
+  module GVar = Basetype.Variables
+  module D = S.D
+  module G = S.G
+  
+  module Flat = FlatFromSpec             (S) (Cfg)
+  module Forw = ForwardFromSpec          (S) (Cfg)
+  module Nest = NestedFromSpec  (Solver) (S) (Cfg)
+
+  let system x = 
+    if get_bool "exp.nested" then
+      Nest.system x
+    else if get_bool "exp.forward" then 
+      Forw.system x 
+    else 
+      Flat.system x
 end
 
 

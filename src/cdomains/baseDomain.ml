@@ -1,9 +1,20 @@
 (** domain of the base analysis *)
 
 open Cil
-module VD     = ValueDomain.Compound
-module CPA    = MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
-module Flag   = ConcDomain.SimpleThreadDomain
+
+module VD = ValueDomain.Compound
+
+module CPA = 
+struct
+  include MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
+  let name () = "value domain"
+end
+
+module Flag = 
+struct
+  include ConcDomain.SimpleThreadDomain
+  let name () = "flag domain"
+end
 
 
 let heap_hash = Hashtbl.create 113 

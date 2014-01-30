@@ -6,6 +6,7 @@ open Defaults
 open Printf
 open Json
 open Goblintutil
+open Questions
 
 let writeconf = ref false
 let writeconffile = ref ""
@@ -271,7 +272,9 @@ let main =
     Cilfacade.init ();
     parse_arguments ();
     handle_flags ();
+    if ((String.length (get_string "questions.file")) > 0) then question_load_db (get_string "questions.file") else ();
     preprocess_files () |> merge_preprocessed |> do_analyze;
+    if ((String.length (get_string "questions.file")) > 0) then question_save_db (get_string "questions.file") else ();
     Report.do_stats !cFileNames
   with BailFromMain -> () 
   

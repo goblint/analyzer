@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[0][+] "'shape'" 
+// SKIP PARAM: --set ana.activated[0][+] "'shape'" 
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>

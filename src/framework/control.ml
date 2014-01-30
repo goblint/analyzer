@@ -15,7 +15,7 @@ struct
   (** The main function to preform the selected analyses. *)
   let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) =   
     (** The Equation system *)
-    let module EQSys = MaybeForwardFromSpec (Spec) (Cfg) in
+    let module EQSys = FromSpec (SLR.JoinContr (SLR.SLR3)) (Spec) (Cfg) in
   
     (** Hashtbl for locals *)
     let module LHT   = BatHashtbl.Make (EQSys.LVar) in

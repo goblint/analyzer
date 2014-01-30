@@ -118,6 +118,7 @@ let _ =
 (* {4 category [Experimental]} *)
 
 let _ =
+  reg Experimental "exp.nested"            "false" "Use a nested constraint system.";
   reg Experimental "exp.field_insensitive" "false" "Control the field sensitivity of the Base analysis.";
   reg Experimental "exp.eclipse"           "false" "Flag for Goblin's Eclipse Plugin.";
   reg Experimental "exp.check"             "[]"    "Check whether there is a race involving this variable/type.";
@@ -144,7 +145,8 @@ let _ =
   reg Experimental "exp.use_gen_solver"    "true"  "Use a generic solver instead iterating like the other tool?";
   reg Experimental "exp.unknown_funs_spawn" "true" "Should unknown function calls switch to MT-mode?";
   reg Experimental "exp.precious_globs"    "[]"    "Global variables that should be handled flow-sensitively when using earlyglobs.";
-  reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists."
+  reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists.";
+  reg Experimental "questions.file"        ""      "Questions database file"
   
 (* {4 category [Debugging]} *)
 
@@ -187,6 +189,9 @@ let default_schema =
     { 'type'            : 'object'
     , 'additionalProps' : true
     , 'required'        : []
+    }
+  , 'questions' : 
+    { 'file'            : ''
     }
   , 'outfile'         : {}
   , 'includes'        : {}
