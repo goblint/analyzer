@@ -50,8 +50,9 @@ if only == "future" then
   future = true
   only = nil
 elsif only == "group" then
-  future = true
   thegroup = ARGV[1]
+  future = thegroup.start_with?"-"
+  future = !future # why does negation above fail?
   only = nil
 else
   future = false
@@ -67,7 +68,8 @@ regs.sort.each do |d|
   next if File.basename(d)[0] == ?.
   gid = d[0..1]
   groupname = d[3..-1]
-  next unless thegroup.nil? or groupname == thegroup
+  next unless thegroup.nil? or groupname == thegroup or # group x = only group x
+    thegroup.start_with?"-" and groupname != thegroup[1..-1] # group -x = all groups but x
   grouppath = File.expand_path(d, testfiles)
   group = Dir.open(grouppath)
   group.sort.each do |f|
