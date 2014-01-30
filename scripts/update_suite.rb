@@ -17,6 +17,7 @@ testresults = File.expand_path("tests/suite_result")
 testfiles   = File.expand_path("tests/regression")
 
 alliswell = true
+failed    = [] # failed tests
 
 class Project
   attr_reader :name, :group, :path, :params, :warnings
@@ -69,7 +70,7 @@ regs.sort.each do |d|
   gid = d[0..1]
   groupname = d[3..-1]
   next unless thegroup.nil? or groupname == thegroup or # group x = only group x
-    thegroup.start_with?"-" and groupname != thegroup[1..-1] # group -x = all groups but x
+    (thegroup.start_with?"-" and groupname != thegroup[1..-1]) # group -x = all groups but x
   grouppath = File.expand_path(d, testfiles)
   group = Dir.open(grouppath)
   group.sort.each do |f|
@@ -138,7 +139,7 @@ projects.each do |p|
   dirname = File.dirname(filepath)
   filename = File.basename(filepath)
   Dir.chdir(dirname)
-  puts "#{astr} #{p.name}"
+  puts "#{astr} #{p.group}/#{p.name}"
   warnfile = File.join(testresults, p.name + ".warn.txt")
   statsfile = File.join(testresults, p.name + ".stats.txt")
 #   confile = File.join(testresults, p.name + ".con.txt")
@@ -288,6 +289,8 @@ File.open(theresultfile, "w") do |f|
       f.puts "<td style =\"color: green\">NONE</td>"
     else
       alliswell = false
+      failed.push p.name
+      puts "#{p.group}/#{p.name} \e[31mfailed! \u2620\e[0m"
       if not is_ok or ferr.nil? then
         f.puts "<td style =\"color: red\">FAILED</td>"
       else
@@ -312,5 +315,10 @@ puts "  Single: ./scripts/update_suite.rb simple_rc"
 puts "  Groups: ./scripts/update_suite.rb group mutex"
 puts "  Future: ./scripts/update_suite.rb future"
 puts ("Results: " + theresultfile)
-if alliswell then puts "\e[32mAll is well!\e[0m" else puts "\e[31mAll is not well!\e[0m" end
+if alliswell then
+  puts "\e[32mAll is well!\e[0m"
+else
+  puts "\e[31mAll is not well!\e[0m"
+  # puts "failed tests: #{failed}"
+end
 exit alliswell
