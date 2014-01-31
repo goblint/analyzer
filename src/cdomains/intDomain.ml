@@ -504,6 +504,21 @@ end
 module Flattened = Flat (Integers) 
 module Lifted    = Lift (Integers) 
 
+module Reverse (Base: S) =
+struct
+  include Base
+  let bot = Base.top
+  let is_bot = Base.is_top
+  let top = Base.bot
+  let is_top = Base.is_bot
+  let leq x y = Base.leq y x
+  let join x y = Base.meet x y
+  let meet x y = Base.join x y
+  let name () = "Reversed (" ^ name () ^ ")"
+  let pretty_diff () (x,y) =
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+end
+
 module Trier = 
 struct
   module S = SetDomain.Make (Integers)

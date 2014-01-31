@@ -409,5 +409,16 @@ let vars = ref 0
 let evals = ref 0
 
 let scrambled = false
-let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
+(* typedef struct {
+  PROCESS_NAME_TYPE      NAME;
+  SYSTEM_ADDRESS_TYPE    ENTRY_POINT;
+  STACK_SIZE_TYPE        STACK_SIZE;
+  PRIORITY_TYPE          BASE_PRIORITY;
+  SYSTEM_TIME_TYPE       PERIOD;
+  SYSTEM_TIME_TYPE       TIME_CAPACITY;
+  DEADLINE_TYPE          DEADLINE;
+}                        PROCESS_ATTRIBUTE_TYPE; *)
 let arinc_entry_point   = if scrambled then "M162" else "ENTRY_POINT"
+let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
+let arinc_period        = if scrambled then "M165" else "PERIOD"
+let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"

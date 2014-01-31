@@ -146,6 +146,9 @@ module Flat (Base: S): S
 module Lift (Base: S): S
 (** Just like {!Value.Flat} except the order is preserved. *)
 
+module Reverse (Base: S): S
+(** Reverses bot, top, leq, join, meet *)
+
 module Interval : S
 (** Interval domain with int64-s --- use with caution! *)
 

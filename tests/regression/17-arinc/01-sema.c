@@ -82,8 +82,12 @@ int main(){
   LAP_Se_GetSemaphoreId("my_mutex",&sem_id,&r);
   p1.ENTRY_POINT = (void *) &P1;
   p1.BASE_PRIORITY = 10;
+  p1.PERIOD = 600;
+  p1.TIME_CAPACITY = 600;
   p2.ENTRY_POINT = (void *) &P2;
   p2.BASE_PRIORITY = 10;
+  p2.PERIOD = 600;
+  p2.TIME_CAPACITY = 600;
   LAP_Se_CreateProcess(&p1,&pi1,&r);
   LAP_Se_CreateProcess(&p2,&pi2,&r);
   LAP_Se_Start(pi1,&r);
