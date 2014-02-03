@@ -418,6 +418,7 @@ let scrambled = false
   SYSTEM_TIME_TYPE       TIME_CAPACITY;
   DEADLINE_TYPE          DEADLINE;
 }                        PROCESS_ATTRIBUTE_TYPE; *)
+let arinc_name          = if scrambled then "M161" else "NAME"
 let arinc_entry_point   = if scrambled then "M162" else "ENTRY_POINT"
 let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
 let arinc_period        = if scrambled then "M165" else "PERIOD"

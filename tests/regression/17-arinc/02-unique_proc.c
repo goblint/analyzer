@@ -75,10 +75,12 @@ int main(){
   PROCESS_ATTRIBUTE_TYPE p1, p2;
   LAP_Se_CreateSemaphore("my_mutex",1,1,0,&sem_id_local,&r);
   LAP_Se_GetSemaphoreId("my_mutex",&sem_id,&r);
+  p1.NAME = "proc1";
   p1.ENTRY_POINT = (void *) &P1;
   p1.BASE_PRIORITY = 10;
   p1.PERIOD = 600;
   p1.TIME_CAPACITY = 600;
+  p2.NAME = "proc2";
   p2.ENTRY_POINT = (void *) &P2;
   p2.BASE_PRIORITY = 20;
   p2.PERIOD = 600;
