@@ -408,7 +408,7 @@ let timeout f arg tsecs timeout_fn =
 let vars = ref 0
 let evals = ref 0
 
-let scrambled = false
+let scrambled = try Sys.getenv "scrambled" = "true" with Not_found -> false
 (* typedef struct {
   PROCESS_NAME_TYPE      NAME;
   SYSTEM_ADDRESS_TYPE    ENTRY_POINT;

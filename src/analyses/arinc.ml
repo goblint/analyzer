@@ -219,9 +219,13 @@ struct
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] when mode_is_init pmo ->
           let cm = match unrollType (typeOfLval attr) with
             | TComp (c,_) -> c
-            | _ -> failwith "type-error: first arg. of LAP_Se_CreateProcess not a struct."
+            | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
           in
-          let field ofs = Lval (addOffsetLval (Field (getCompField cm ofs, NoOffset)) attr) in
+          let struct_fail () = failwith @@ "LAP_Se_CreateProcess: problem with first argument (struct PROCESS_ATTRIBUTE_TYPE): needs fields NAME, ENTRY_POINT, BASE_PRIORITY, PERIOD, TIME_CAPACITY\nRunning scrambled: "^string_of_bool Goblintutil.scrambled in
+          let field ofs =
+            try Lval (addOffsetLval (Field (getCompField cm ofs, NoOffset)) attr)
+            with Not_found -> struct_fail ()
+          in
           let name = ctx.ask (Queries.EvalStr (field Goblintutil.arinc_name)) in
           let entry_point = ctx.ask (Queries.ReachableFrom (AddrOf attr)) in
           let pri  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_base_priority)) in
@@ -241,7 +245,7 @@ struct
               assign_id pid pid'
           (* TODO when is `Bot returned? *)
           (* | `Bot, _ | _, `Bot -> D.bot () *)
-          | _ -> failwith "LAP_Se_CreateProcess: problem with first argument (struct PROCESS_ATTRIBUTE_TYPE): needs fields NAME, ENTRY_POINT, BASE_PRIORITY, PERIOD, TIME_CAPACITY"
+          | _ -> struct_fail ()
           end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
           assign_id_by_name Process name pid
