@@ -366,6 +366,7 @@ type ('d,'g) ctx =
     ; spawn    : varinfo -> 'd -> unit
     ; split    : 'd -> exp -> bool -> unit
     ; sideg    : varinfo -> 'g -> unit 
+    ; assign   : lval -> exp -> unit
     }
 
 let swap_st ctx st =

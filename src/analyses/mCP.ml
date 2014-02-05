@@ -368,7 +368,21 @@ struct
     in
     iter (uncurry side_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
-  
+  let do_assigns ctx assigns (xs:(int * Obj.t) list) =
+    let spec_assign n d : int * Obj.t =
+      (* spec of current analysis *)
+      let (module S:Spec) = spec n in
+      let assign_one (lval, exp, ctx) =
+        let ctx = {(obj ctx) with local = obj d} in
+        S.assign ctx lval exp
+      in
+      if List.is_empty assigns then
+        n, d
+      else
+        n, repr @@ List.reduce S.D.join @@ List.map assign_one assigns
+    in
+    List.map (uncurry spec_assign) xs
+
   let rec do_splits ctx pv (xs:(int * (Obj.t * exp * bool)) list) =
     let split_one n (d,e,tv) = 
       let nv = assoc_replace (n,d) pv in
@@ -381,8 +395,9 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
+    let assigns = ref [] in
     let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t) ctx = 
+      let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -391,6 +406,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.branch ctx' e tv
@@ -399,6 +415,7 @@ struct
       do_sideg ctx !sides;
       do_spawns ctx !spawns;
       do_splits ctx d !splits;
+      let d = do_assigns ctx !assigns d in
       if q then raise Deadcode else d
       
   and query (ctx:(D.t, G.t) ctx) q =
@@ -412,6 +429,7 @@ struct
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
+        ; assign = (fun _      -> failwith "Cannot \"assign\" in query context.")
         } 
       in
       Queries.Result.meet a @@ S.query ctx' q
@@ -440,6 +458,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun _      -> failwith "Cannot \"assign\" in assign context (cycles?).")
         } 
       in
       n, repr @@ S.assign ctx' l e 
@@ -454,8 +473,9 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
+    let assigns = ref [] in
     let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t) ctx = 
+      let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -464,6 +484,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.body ctx' f 
@@ -472,14 +493,16 @@ struct
       do_sideg ctx !sides;
       do_spawns ctx !spawns;
       do_splits ctx d !splits;
+      let d = do_assigns ctx !assigns d in
       if q then raise Deadcode else d
   
   let return (ctx:(D.t, G.t) ctx) e f =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
+    let assigns = ref [] in
     let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t) ctx = 
+      let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -488,6 +511,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.return ctx' e f
@@ -496,14 +520,16 @@ struct
       do_sideg ctx !sides;
       do_spawns ctx !spawns;
       do_splits ctx d !splits;
+      let d = do_assigns ctx !assigns d in
       if q then raise Deadcode else d
       
   let intrpt (ctx:(D.t, G.t) ctx) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
+    let assigns = ref [] in
     let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t) ctx = 
+      let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -512,6 +538,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.intrpt ctx'
@@ -520,14 +547,16 @@ struct
       do_sideg ctx !sides;
       do_spawns ctx !spawns;
       do_splits ctx d !splits;
+      let d = do_assigns ctx !assigns d in
       if q then raise Deadcode else d
       
   let special (ctx:(D.t, G.t) ctx) r f a =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
+    let assigns = ref [] in
     let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t) ctx = 
+      let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -536,6 +565,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.special ctx' r f a
@@ -544,6 +574,7 @@ struct
       do_sideg ctx !sides;
       do_spawns ctx !spawns;
       do_splits ctx d !splits;
+      let d = do_assigns ctx !assigns d in
       if q then raise Deadcode else d
 
   let sync (ctx:(D.t, G.t) ctx) =
@@ -560,6 +591,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun _      -> failwith "Cannot \"assign\" in sync context.")
         } 
       in
       let d, ds = S.sync ctx' in
@@ -584,6 +616,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun _ _    -> failwith "Cannot \"split\" in enter context." )
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun _      -> failwith "Cannot \"assign\" in enter context.")
         } 
       in
       map (fun (c,d) -> ((n, repr c), (n, repr d))) @@ S.enter ctx' r f a
@@ -596,8 +629,9 @@ struct
   let combine (ctx:(D.t, G.t) ctx) r fe f a fd =
     let spawns = ref [] in
     let sides  = ref [] in
+    let assigns = ref [] in
     let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t) ctx = 
+      let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
@@ -606,6 +640,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> failwith "Cannot \"split\" in combine context.")
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.combine ctx' r fe f a @@ obj @@ assoc n fd
@@ -613,6 +648,7 @@ struct
     let d, q = map_deadcode f @@ spec_list ctx.local in
       do_sideg ctx !sides;
       do_spawns ctx !spawns;
+      let d = do_assigns ctx !assigns d in
       if q then raise Deadcode else d
       
 end
