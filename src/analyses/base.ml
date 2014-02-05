@@ -1267,14 +1267,6 @@ struct
             newst
           end
 
-  let arinc_semaphore_tbl = Hashtbl.create 13 
-  let arinc_semaphore (s:string) : varinfo =
-    try Hashtbl.find arinc_semaphore_tbl s
-    with Not_found ->
-        let i = makeGlobalVar s voidPtrType in
-        Hashtbl.add arinc_semaphore_tbl s i;
-        i
-
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) = 
 (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
@@ -1381,13 +1373,6 @@ struct
                                          (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
           | _ -> st
         end
-      | `Unknown "LAP_Se_GetSemaphoreId" ->
-          begin match Cil.stripCasts (List.nth args 0), Cil.stripCasts (List.nth args 1) with
-            | Const (CStr s), AddrOf lv -> assign ctx lv (AddrOf (Var (arinc_semaphore s),NoOffset))
-            | se,ide -> 
-              (*ignore (Pretty.printf "LAP_Se_GetSemaphoreId(%a,%a)\n\n" d_plainexp se d_plainexp ide );*)
-              st
-          end
       | `Unknown "__goblint_unknown" ->
           begin match args with 
             | [Lval lv] | [CastE (_,AddrOf lv)] -> 

@@ -125,7 +125,6 @@ struct
   let pid_from_fun (f:varinfo) : pid option =
     try let name = Hashtbl.find funs f in Some (get_id (Process, name))
     with Not_found -> None
-  let lval_to_id = Hashtbl.create 123
 
 
   let print_actions () =
@@ -179,9 +178,8 @@ struct
     let arglist = List.map stripCasts arglist in
     let assign_id exp id =
       match exp with
-      (* the following would work in Base, but we want to keep all the logic here... *)
-      (* | AddrOf lval -> assign ctx lval (kinteger64 ILong id) *)
-      | AddrOf lval -> Hashtbl.add lval_to_id (Lval lval) id; ctx.local (* TODO evil hack! move to Base somehow *)
+      (* call assign for all analyses (we only need base)! *)
+      | AddrOf lval -> ctx.assign ~name:"base" lval (kinteger64 ILong id); ctx.local
       | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
     in
     let assign_id_by_name resource_type name id =
@@ -324,7 +322,6 @@ struct
   let query ctx (q:Queries.t) : Queries.Result.t =
     let ((pri,per,cap), (pmo,pre)) = ctx.local in
     match q with
-      | Queries.EvalInt exp when Hashtbl.mem lval_to_id exp -> `Int (Hashtbl.find lval_to_id exp)
       | Queries.Priority _ ->
           if Pri.is_int pri then
             `Int (Option.get @@ Pri.to_int pri)
