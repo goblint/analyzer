@@ -168,7 +168,7 @@ struct
                                 ignore (getl (Function f, c)))
       ; split   = (fun (d:D.t) _ _ -> sidel (v,c) d)
       ; sideg   = sideg
-      ; assign = (fun _    -> failwith "Cannot \"assign\" in common context.")
+      ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       } 
     and query x = S.query ctx x in
     (* ... nice, right! *)
@@ -327,7 +327,7 @@ struct
                                 ignore (!get_l (Function f, c)))
         ; split   = (fun (d:Dom.t) _ _ -> side v d)
         ; sideg   = !set_g
-        ; assign = (fun _    -> failwith "Cannot \"assign\" in common context.")
+        ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
         } 
       and query x = S.query ctx x in
       let pval, diff = S.sync ctx in
@@ -1136,7 +1136,7 @@ struct
       ; split   = (fun (d:D.t) _ _ -> failwith "split")
       ; sideg   = (fun x y -> if Messages.tracing then ignore (Pretty.printf "side-effect '%s' with %a\n" x.vname G.pretty y);
                                add_update ginv_updates x y)
-      ; assign = (fun _    -> failwith "Cannot \"assign\" in common context.")
+      ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       } 
     and query x = S.query ctx x in
     (* ... nice, right! *)

@@ -282,6 +282,7 @@ struct
   let spec x = (assoc x !analyses_list).spec
   let spec_list xs = 
     map (fun (n,x) -> (n,spec n,x)) xs
+  let spec_name (n:int) : string = assoc n !analyses_table
   
   let map_deadcode f xs =
     let dead = ref false in
@@ -372,9 +373,12 @@ struct
     let spec_assign n d : int * Obj.t =
       (* spec of current analysis *)
       let (module S:Spec) = spec n in
-      let assign_one (lval, exp, ctx) =
-        let ctx = {(obj ctx) with local = obj d} in
-        S.assign ctx lval exp
+      let assign_one (lval, exp, name, ctx) =
+        if Option.is_some name && Option.get name <> spec_name n then
+          obj d
+        else
+          let ctx = {(obj ctx) with local = obj d} in
+          S.assign ctx lval exp
       in
       if List.is_empty assigns then
         n, d
@@ -406,7 +410,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
+        ; assign = (fun ?name v e    -> assigns := (v,e,name, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.branch ctx' e tv
@@ -429,7 +433,7 @@ struct
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
-        ; assign = (fun _      -> failwith "Cannot \"assign\" in query context.")
+        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         } 
       in
       Queries.Result.meet a @@ S.query ctx' q
@@ -458,7 +462,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun _      -> failwith "Cannot \"assign\" in assign context (cycles?).")
+        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in assign context (cycles?).")
         } 
       in
       n, repr @@ S.assign ctx' l e 
@@ -484,7 +488,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
+        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.body ctx' f 
@@ -511,7 +515,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
+        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.return ctx' e f
@@ -538,7 +542,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
+        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.intrpt ctx'
@@ -565,7 +569,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
+        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.special ctx' r f a
@@ -591,7 +595,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun _      -> failwith "Cannot \"assign\" in sync context.")
+        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in sync context.")
         } 
       in
       let d, ds = S.sync ctx' in
@@ -616,7 +620,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun _ _    -> failwith "Cannot \"split\" in enter context." )
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun _      -> failwith "Cannot \"assign\" in enter context.")
+        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in enter context.")
         } 
       in
       map (fun (c,d) -> ((n, repr c), (n, repr d))) @@ S.enter ctx' r f a
@@ -640,7 +644,7 @@ struct
         ; spawn  = (fun v d    -> spawns := (v,(n,repr d)) :: !spawns)
         ; split  = (fun d e tv -> failwith "Cannot \"split\" in combine context.")
         ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun v e    -> assigns := (v,e, repr ctx')::!assigns)
+        ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         } 
       in
       n, repr @@ S.combine ctx' r fe f a @@ obj @@ assoc n fd
