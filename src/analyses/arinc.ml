@@ -100,7 +100,8 @@ struct
   let actions = Hashtbl.create 123 (* use BatMultiPMap later? *)
   let get_actions pid : action list =
     (* Hashtbl.find_default actions pid [] |> List.unique *)
-    Hashtbl.find_all actions pid |> List.unique (* current binding first, then previous bindings *)
+    Hashtbl.find_all actions pid (* current binding first, then previous bindings *)
+    |> List.unique |> List.rev
   let add_action pid action =
     (* Hashtbl.modify_def [] pid (List.cons action) actions *)
     Hashtbl.add actions pid action (* old binding is just hidden *)
@@ -273,13 +274,43 @@ struct
           let pid = eval_int pid in
           add_action curpid (Resume pid);
           ctx.local
+    (* Logbook *)
+      | "LAP_Se_CreateLogBook", [name; max_size; max_logged; max_in_progress; lbid; r] -> todo ()
+      | "LAP_Se_ReadLogBook", _ -> todo ()
+      | "LAP_Se_WriteLogBook", _ -> todo ()
+      | "LAP_Se_ClearLogBook", _ -> todo ()
+      | "LAP_Se_GetLogBookId", _ -> todo ()
+      | "LAP_Se_GetLogBookStatus", _ -> todo ()
+    (* SamplingPort *)
+      | "LAP_Se_CreateSamplingPort", [name; max_size; dir; period; spid; r] -> todo ()
+      | "LAP_Se_WriteSamplingMessage", _ -> todo ()
+      | "LAP_Se_ReadSamplingMessage", _ -> todo ()
+      | "LAP_Se_GetSamplingPortId", _ -> todo ()
+      | "LAP_Se_GetSamplingPortStatus", _ -> todo ()
+    (* QueuingPort *)
+      | "LAP_Se_CreateQueuingPort", [name; max_size; max_range; dir; queuing; qpid; r] -> todo ()
+      | "LAP_Se_SendQueuingMessage", _ -> todo ()
+      | "LAP_Se_ReceiveQueuingMessage", _ -> todo ()
+      | "LAP_Se_GetQueuingPortId", _ -> todo ()
+      | "LAP_Se_GetQueuingPortStatus", _ -> todo ()
+    (* Buffer *)
+      | "LAP_Se_CreateBuffer", [name; max_size; max_range; queuing; buid; r] -> todo ()
+      | "LAP_Se_SendBuffer", _ -> todo ()
+      | "LAP_Se_ReceiveBuffer", _ -> todo ()
+      | "LAP_Se_GetBufferId", _ -> todo ()
+      | "LAP_Se_GetBufferStatus", _ -> todo ()
+    (* Blackboard *)
+      | "LAP_Se_CreateBlackboard", [name; max_size; bbid; r] -> todo ()
+      | "LAP_Se_DisplayBlackboard", _ -> todo ()
+      | "LAP_Se_ReadBlackboard", _ -> todo ()
+      | "LAP_Se_ClearBlackboard", _ -> todo ()
+      | "LAP_Se_GetBlackboardId", _ -> todo ()
+      | "LAP_Se_GetBlackboardStatus", _ -> todo ()
     (* Semaphores *)
       | "LAP_Se_CreateSemaphore", [name; cur; max; queuing; sid; r] when mode_is_init pmo ->
           (* create resource for name *)
           let sid' = get_id (Semaphore, eval_str name) in
           assign_id sid sid'
-      | "LAP_Se_GetSemaphoreId", [name; sid; r] ->
-          assign_id_by_name Semaphore name sid
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
           let sid = eval_int sid in
           add_action curpid (WaitSemaphore sid);
@@ -288,16 +319,13 @@ struct
           let sid = eval_int sid in
           add_action curpid (SignalSemaphore sid);
           ctx.local
+      | "LAP_Se_GetSemaphoreId", [name; sid; r] ->
+          assign_id_by_name Semaphore name sid
+      | "LAP_Se_GetSemaphoreStatus", [sid; status; r] -> todo ()
     (* Events (down after create/reset, up after set) *)
       | "LAP_Se_CreateEvent", [name; eid; r] when mode_is_init pmo ->
           let eid' = get_id (Event, eval_str name) in
           assign_id eid  eid'
-      | "LAP_Se_GetEventId", [name; eid; r] ->
-          assign_id_by_name Event name eid
-      | "LAP_Se_WaitEvent", [eid; timeout; r] -> (* TODO timeout *)
-          let eid = eval_int eid in
-          add_action curpid (WaitEvent eid);
-          ctx.local
       | "LAP_Se_SetEvent", [eid; r] ->
           let eid = eval_int eid in
           add_action curpid (SetEvent eid);
@@ -306,10 +334,21 @@ struct
           let eid = eval_int eid in
           add_action curpid (ResetEvent eid);
           ctx.local
+      | "LAP_Se_WaitEvent", [eid; timeout; r] -> (* TODO timeout *)
+          let eid = eval_int eid in
+          add_action curpid (WaitEvent eid);
+          ctx.local
+      | "LAP_Se_GetEventId", [name; eid; r] ->
+          assign_id_by_name Event name eid
+      | "LAP_Se_GetEventStatus", [eid; status; r] -> todo ()
     (* Time *)
       | "LAP_Se_GetTime", [time; r] -> todo ()
       | "LAP_Se_TimedWait", [delay; r] -> todo ()
       | "LAP_Se_PeriodicWait", [] -> todo ()
+    (* Errors *)
+      | "LAP_Se_CreateErrorHandler", [entry_point; stack_size; r] -> todo ()
+      | "LAP_Se_GetErrorStatus", [status; r] -> todo ()
+      | "LAP_Se_RaiseApplicationError", [error_code; message_addr; length; r] -> todo ()
     (* Not allowed: change configured schedule *)
       | "LAP_Se_SetPriority", [pid; prio; r] -> todo ()
       | "LAP_Se_Replenish", [budget; r] -> todo () (* name used in docs *)
