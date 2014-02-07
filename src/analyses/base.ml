@@ -438,6 +438,7 @@ struct
     (* query functions were no help ... now try with values*)
     match constFold true exp with
       (* Integer literals *)
+      (* seems like constFold already converts CChr to CInt64 *)
       | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Const (CInt64 (num,typ,str)) -> `Int (ID.of_int num)
       (* String literals *)
@@ -750,8 +751,40 @@ struct
  (**************************************************************************
   * Simple defs for the transfer functions 
   **************************************************************************)
-  
+
+  (* hack for char a[] = {"foo"} or {'f','o','o'} *)
+  let char_array : (lval, string) Hashtbl.t = Hashtbl.create 20
+
   let assign ctx (lval:lval) (rval:exp)  = 
+    let char_array_hack () =
+      let rec split_offset = function
+        | Index(Const(CInt64(i, _, _)), NoOffset) -> (* ...[i] *)
+            NoOffset, Some i
+        | NoOffset -> NoOffset, None
+        | Index(exp, offs) ->
+            let offs', r = split_offset offs in
+            Index(exp, offs'), r
+        | Field(fi, offs) ->
+            let offs', r = split_offset offs in
+            Field(fi, offs'), r
+      in
+      let last_index (lhost, offs) =
+        match split_offset offs with
+        | offs', Some i -> Some ((lhost, offs'), i)
+        | _ -> None
+      in
+      match last_index lval, stripCasts rval with
+      | Some (lv, i), Const(CChr c) ->
+          let i = i64_to_int i in
+          ignore @@ printf "%a[%i] = %c\n" d_lval lv i c;
+          let s = BatHashtbl.find_default char_array lv "" in (* current string for lv *)
+          let len = max (i+1) (String.length s) in (* make sure i is not out of bounds *)
+          let dst = String.make len ' ' in
+          String.blit s 0 dst 0 (String.length s); (* dst[0:len(s)] = s *)
+          String.set dst i c; (* set character i to c inplace *)
+          Hashtbl.add char_array lv dst
+      | _ -> ()
+    in char_array_hack ();
     let is_list_init () =
       match lval, rval with
       | (Var a, Field (fi,NoOffset)), AddrOf((Var b, NoOffset)) 
@@ -771,6 +804,8 @@ struct
       | _ -> 
     let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
     let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
+    (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
+    (* M.debug @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
     let not_local xs = 
       let not_local x = 
         match Addr.to_var_may x with
@@ -1153,10 +1188,29 @@ struct
       | Q.SingleThreaded -> `Int (Q.ID.of_bool (not (Flag.is_multi (get_fl ctx.local))))
       | Q.EvalStr e -> begin
           match eval_rv ctx.ask ctx.global ctx.local e with
+            (* exactly one string in the set (works for assignments of string constants) *)
             | `Address a when List.length (AD.to_string a) = 1 ->
-                (* only return result if there is exactly one string in the set *)
                 `Str (List.hd (AD.to_string a))
-            | x -> print_endline ("EvalStr "^(sprint 80 (d_exp () e))^" -> "^(VD.short 80 x)); `Top
+            (* check if we have an array of chars that form a string *)
+            (* TODO return may-points-to-set of strings *)
+            | `Address a when List.length (AD.to_var_may a) = 1 ->
+                ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a);
+                begin match unrollType (typeOf e) with
+                | TPtr(TInt(IChar, _), _) ->
+                    (* let v = List.hd @@ AD.to_var_may a in (* what about the offset? *) *)
+                    begin match e with
+                    | Lval lval (* should only happen for CStr which is already covered above? *)
+                    | StartOf lval ->
+                        (try `Str (Hashtbl.find char_array lval) with Not_found -> `Top)
+                    | _ -> `Top
+                    end
+                | _ -> (* what about ISChar and IUChar? *)
+                    (* ignore @@ printf "Type %a\n" d_plaintype t; *)
+                    `Top
+                end
+            | x ->
+                (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
+                `Top
           end
       | _ -> Q.Result.top ()
 
@@ -1274,6 +1328,14 @@ struct
     let cpa,fl as st = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with 
+      | `Unknown "foo" ->
+          let s = match ctx.ask (Queries.EvalStr (List.hd args)) with
+            | `Bot -> "Bot"
+            | `Top -> "Top"
+            | `Str s -> s
+            | _ -> "Something else!?"
+          in
+          M.debug @@ "EvalStr: "^s; failwith "Done with foo!"
       | `Unknown "list_add" when (get_bool "exp.list-type") -> 
           begin match args with
             | [ AddrOf (Var elm,next);(AddrOf (Var lst,NoOffset))] -> 

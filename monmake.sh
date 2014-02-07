@@ -9,6 +9,7 @@ while file=$(inotifywait -r -q -e modify src); do
   make
   if [ $? -eq 0 ]; then
     clear
+    notify-send "Build ok!"
     #./test.sh file
     ./regression.sh ${1-"file"}
     if [ $? -eq 0 ]; then

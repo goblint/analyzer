@@ -388,6 +388,7 @@ let invalidate_actions = [
   ("__builtin_prefetch", readsAll);
   ("idr_pre_get", readsAll);
   ("zil_replay", writes [1;2;3;5]);
+  ("foo", readsAll);
   ("LAP_Se_Start", writesAll);
   ("LAP_Se_CreateSemaphore", writesAll)
 ]
