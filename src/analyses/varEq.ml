@@ -67,7 +67,7 @@ struct
       | TFun (rt1, arg1, _,  b1), TFun (rt2, arg2, _, b2) -> b1 = b2 && typ_equal rt1 rt2 && option_eq (List.for_all2 args_eq) arg1 arg2
       | TNamed (ti1, _), TNamed (ti2, _) -> ti1.tname = ti2.tname && typ_equal ti1.ttype ti2.ttype
       | TComp (c1,_), TComp (c2,_) -> c1.ckey = c2.ckey
-      | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename & List.for_all2 eitem_eq e1.eitems e2.eitems 
+      | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename && List.for_all2 eitem_eq e1.eitems e2.eitems 
       | TBuiltin_va_list _, TBuiltin_va_list _ -> true
       | _ -> false
 
