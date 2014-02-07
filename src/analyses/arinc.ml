@@ -177,6 +177,16 @@ struct
     let curpid = pid_from_fun curfun.svar |? -1L in (* -1 is init/mainfun *)
     let ((pri,per,cap), (pmo,pre)) = ctx.local in
     let arglist = List.map stripCasts arglist in
+    let eval_int exp =
+      match ctx.ask (Queries.EvalInt exp) with
+      | `Int i -> i
+      | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp^" in "^f.vname
+    in
+    let eval_str exp =
+      match ctx.ask (Queries.EvalStr exp) with
+      | `Str s -> s
+      | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp^" in "^f.vname
+    in
     let assign_id exp id =
       match exp with
       (* call assign for all analyses (we only need base)! *)
@@ -184,19 +194,7 @@ struct
       | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
     in
     let assign_id_by_name resource_type name id =
-      match ctx.ask (Queries.EvalStr name) with
-      | `Str name -> assign_id id (get_id (resource_type, name))
-      | _ -> failwith @@ "Problem with arguments for "^f.vname
-    in
-    let eval_int exp =
-      match ctx.ask (Queries.EvalInt exp) with
-      | `Int i -> i
-      | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_exp exp^" in "^f.vname
-    in
-    let eval_str exp =
-      match ctx.ask (Queries.EvalStr exp) with
-      | `Str s -> s
-      | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_exp exp^" in "^f.vname
+      assign_id id (get_id (resource_type, eval_str name))
     in
     match f.vname, arglist with
     (* Preemption *)
@@ -215,6 +213,12 @@ struct
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
       | "LAP_Se_GetPartitionStartCondition", _ -> todo ()
     (* Processes *)
+      | "F59", [dst; src] ->
+          (* M.debug @@ "strcpy("^sprint d_plainexp dst^", "^sprint d_plainexp src^")"; *)
+          begin match dst with
+          | StartOf lval -> ctx.assign ~name:"base" lval src; ctx.local
+          | _ -> failwith "F59/strcpy expects first argument to be of type StartOf!"
+          end
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] when mode_is_init pmo ->
           let cm = match unrollType (typeOfLval attr) with
             | TComp (c,_) -> c
