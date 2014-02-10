@@ -131,7 +131,7 @@ struct
 
 
   let print_actions () =
-    let string_of_id id = string_of_int (i64_to_int id) in
+    let string_of_i64 id = string_of_int (i64_to_int id) in
     let string_of_resource_type = function
       | Process -> "Process"
       | Semaphore -> "Semaphore"
@@ -154,7 +154,7 @@ struct
             string_of_resource_type resource_type^" "^name
         | None when id = -1L -> "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
         | None -> "Unknown resource"
-      in name^" (id "^string_of_id id^")"
+      in name^" (id "^string_of_i64 id^")"
     in
     let string_of_action = function
       | CreateProcess id -> "CreateProcess "^string_of_resource id
@@ -169,7 +169,7 @@ struct
       | WaitEvent id -> "WaitEvent "^string_of_resource id
       | SetEvent id -> "SetEvent "^string_of_resource id
       | ResetEvent id -> "ResetEvent "^string_of_resource id
-      | TimedWait id -> "TimedWait "^string_of_resource id
+      | TimedWait t -> "TimedWait "^string_of_i64 t^"ns"
       | PeriodicWait -> "PeriodicWait"
     in
     let print_process pid =

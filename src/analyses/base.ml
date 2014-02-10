@@ -774,7 +774,7 @@ struct
         | _ -> None
       in
       match last_index lval, stripCasts rval with
-      | Some (lv, i), Const(CChr c) ->
+      | Some (lv, i), Const(CChr c) when c<>'\000' -> (* "abc" <> "abc\000" in OCaml! *)
           let i = i64_to_int i in
           ignore @@ printf "%a[%i] = %c\n" d_lval lv i c;
           let s = try BatHashtbl.find char_array lv with Not_found -> "" in (* current string for lv or empty string *)
