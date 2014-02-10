@@ -752,14 +752,14 @@ struct
   * Simple defs for the transfer functions 
   **************************************************************************)
 
-  (* hack for char a[] = {"foo"} or {'f','o','o'} *)
-  let char_array : (lval, string) Hashtbl.t = Hashtbl.create 20
+  (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
+  let char_array : (lval, string) Hashtbl.t = Hashtbl.create 500
 
   let assign ctx (lval:lval) (rval:exp)  = 
     let char_array_hack () =
       let rec split_offset = function
         | Index(Const(CInt64(i, _, _)), NoOffset) -> (* ...[i] *)
-            NoOffset, Some i
+            Index(zero, NoOffset), Some i (* all i point to StartOf(string) *)
         | NoOffset -> NoOffset, None
         | Index(exp, offs) ->
             let offs', r = split_offset offs in
@@ -777,12 +777,16 @@ struct
       | Some (lv, i), Const(CChr c) ->
           let i = i64_to_int i in
           ignore @@ printf "%a[%i] = %c\n" d_lval lv i c;
-          let s = BatHashtbl.find_default char_array lv "" in (* current string for lv *)
-          let len = max (i+1) (String.length s) in (* make sure i is not out of bounds *)
-          let dst = String.make len ' ' in
-          String.blit s 0 dst 0 (String.length s); (* dst[0:len(s)] = s *)
-          String.set dst i c; (* set character i to c inplace *)
-          Hashtbl.add char_array lv dst
+          let s = try BatHashtbl.find char_array lv with Not_found -> "" in (* current string for lv or empty string *)
+          if i >= String.length s then ((* optimized b/c Out_of_memory *)
+            let dst = String.make (i+1) '\000' in
+            String.blit s 0 dst 0 (String.length s); (* dst[0:len(s)] = s *)
+            String.set dst i c; (* set character i to c inplace *)
+            Hashtbl.replace char_array lv dst
+          )else(
+            String.set s i c; (* set character i to c inplace *)
+            Hashtbl.replace char_array lv s
+          )
       | _ -> ()
     in char_array_hack ();
     let is_list_init () =
@@ -1194,16 +1198,15 @@ struct
             (* check if we have an array of chars that form a string *)
             (* TODO return may-points-to-set of strings *)
             | `Address a when List.length (AD.to_var_may a) = 1 ->
+                (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
                 ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a);
                 begin match unrollType (typeOf e) with
                 | TPtr(TInt(IChar, _), _) ->
-                    (* let v = List.hd @@ AD.to_var_may a in (* what about the offset? *) *)
-                    begin match e with
-                    | Lval lval (* should only happen for CStr which is already covered above? *)
-                    | StartOf lval ->
-                        (try `Str (Hashtbl.find char_array lval) with Not_found -> `Top)
-                    | _ -> `Top
-                    end
+                    let v, offs = Q.LS.choose @@ addrToLvalSet a in
+                    let ciloffs = Lval.CilLval.to_ciloffs offs in
+                    let lval = Var v, ciloffs in
+                    (try `Str (Hashtbl.find char_array lval)
+                    with Not_found -> `Top)
                 | _ -> (* what about ISChar and IUChar? *)
                     (* ignore @@ printf "Type %a\n" d_plaintype t; *)
                     `Top

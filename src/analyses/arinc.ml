@@ -93,9 +93,9 @@ struct
   type sid = int64 (* semaphore id. SEMAPHORE_ID_TYPE and/or SEMAPHORE_NAME_TYPE? *)
   type eid = int64 (* semaphore id. EVENT_ID_TYPE and/or EVENT_NAME_TYPE? *)
   type time = int64 (* Maybe use Nativeint which is the same as C long. OCaml int is just 31 or 63 bits wide! *)
-  type action = Start of pid | Stop of pid | Suspend of pid | Resume of pid
-    | WaitSemaphore of sid | SignalSemaphore of sid
-    | WaitEvent of eid | SetEvent of eid | ResetEvent of eid
+  type action = CreateProcess of pid | Start of pid | Stop of pid | Suspend of pid | Resume of pid
+    | CreateSemaphore of sid | WaitSemaphore of sid | SignalSemaphore of sid
+    | CreateEvent of eid | WaitEvent of eid | SetEvent of eid | ResetEvent of eid
     | TimedWait of time | PeriodicWait
   let actions = Hashtbl.create 123 (* use BatMultiPMap later? *)
   let get_actions pid : action list =
@@ -107,7 +107,7 @@ struct
     Hashtbl.add actions pid action (* old binding is just hidden *)
 
   (* lookup/generate id from resource type and name (needed for LAP_Se_GetXId functions, specified by LAP_Se_CreateX functions during init) *)
-  type resource = Process | Semaphore | Event (* TODO Logbook, SamplingPort, QueuingPort, Buffer, Blackboard *)
+  type resource = Process | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard
   let resources = Hashtbl.create 123
   let get_id (resource:resource*string) : int64 =
     try Hashtbl.find resources resource
@@ -117,7 +117,7 @@ struct
       Hashtbl.add resources resource id;
       id
   let get_by_id (id:int64) : (resource*string) option =
-    Hashtbl.filter (fun x -> x=id) resources |> Hashtbl.keys |> Enum.get
+    Hashtbl.filter ((=) id) resources |> Hashtbl.keys |> Enum.get
   (* map function to process name in order to get pid (1:1 relation?) *)
   (* TODO maybe there can be multiple processes for the same function -> save pid in D! *)
   let funs = Hashtbl.create 123
@@ -126,6 +126,8 @@ struct
   let pid_from_fun (f:varinfo) : pid option =
     try let name = Hashtbl.find funs f in Some (get_id (Process, name))
     with Not_found -> None
+  let fun_from_name (processname:string) : varinfo option =
+    Hashtbl.filter ((=) processname) funs |> Hashtbl.keys |> Enum.get
 
 
   let print_actions () =
@@ -134,21 +136,36 @@ struct
       | Process -> "Process"
       | Semaphore -> "Semaphore"
       | Event -> "Event"
+      | Logbook -> "Logbook"
+      | SamplingPort -> "SamplingPort"
+      | QueuingPort -> "QueuingPort"
+      | Buffer -> "Buffer"
+      | Blackboard -> "Blackboard"
     in
     let string_of_resource id =
       let name = match get_by_id id with
-        | Some (resource_type, name) -> string_of_resource_type resource_type^" "^name
-        | None when id = -1L -> "init/mainfun"
+        | Some (Process, name) ->
+            let fname = match fun_from_name name with
+              | Some v -> v.vname
+              | None -> "??"
+            in
+            string_of_resource_type Process^" "^name^"/"^fname
+        | Some (resource_type, name) ->
+            string_of_resource_type resource_type^" "^name
+        | None when id = -1L -> "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
         | None -> "Unknown resource"
       in name^" (id "^string_of_id id^")"
     in
     let string_of_action = function
+      | CreateProcess id -> "CreateProcess "^string_of_resource id
       | Start id -> "Start "^string_of_resource id
       | Stop id -> "Stop "^string_of_resource id
       | Suspend id -> "Suspend "^string_of_resource id
       | Resume id -> "Resume "^string_of_resource id
+      | CreateSemaphore id -> "CreateSemaphore "^string_of_resource id
       | WaitSemaphore id -> "WaitSemaphore "^string_of_resource id
       | SignalSemaphore id -> "SignalSemaphore "^string_of_resource id
+      | CreateEvent id -> "CreateEvent "^string_of_resource id
       | WaitEvent id -> "WaitEvent "^string_of_resource id
       | SetEvent id -> "SetEvent "^string_of_resource id
       | ResetEvent id -> "ResetEvent "^string_of_resource id
@@ -156,8 +173,9 @@ struct
       | PeriodicWait -> "PeriodicWait"
     in
     let print_process pid =
-      let actions = get_actions pid in
-      M.debug @@ string_of_resource pid^" -> "^String.concat ", " (List.map string_of_action actions)
+      let xs = List.map string_of_action (get_actions pid) in
+      let sep = if List.length xs > 2 then ",\n\t" else ", " in
+      M.debug @@ string_of_resource pid^" -> "^String.concat sep xs
     in
     Hashtbl.keys actions |> Enum.iter print_process
   let finalize () = print_actions ()
@@ -197,6 +215,8 @@ struct
       assign_id id (get_id (resource_type, eval_str name))
     in
     match f.vname, arglist with
+      | _ when is_arinc_fun && is_creating_fun && not(mode_is_init pmo) ->
+          failwith @@ f.vname^" is only allowed in partition mode COLD_START or WARM_START"
     (* Preemption *)
       | "LAP_Se_LockPreemption", _ -> D.pre (PrE.add (PrE.of_int 1L)) ctx.local
       | "LAP_Se_UnlockPreemption", _ -> D.pre (PrE.sub (PrE.of_int 1L)) ctx.local
@@ -215,11 +235,25 @@ struct
     (* Processes *)
       | "F59", [dst; src] ->
           (* M.debug @@ "strcpy("^sprint d_plainexp dst^", "^sprint d_plainexp src^")"; *)
-          begin match dst with
-          | StartOf lval -> ctx.assign ~name:"base" lval src; ctx.local
-          | _ -> failwith "F59/strcpy expects first argument to be of type StartOf!"
+          (* let exp = mkAddrOrStartOf (mkMem ~addr:dst ~off:NoOffset) in *)
+          let lval = match dst with
+            | Lval lval
+            | StartOf lval -> lval
+            | AddrOf lval -> lval
+            | _ -> failwith @@ "F59/strcpy expects first argument to be some Lval, but got "^sprint d_plainexp dst
+          in
+          let exp = mkAddrOf lval in
+          begin match ctx.ask (Queries.MayPointTo exp) with
+          | `LvalSet ls when not (Queries.LS.is_top ls) && Queries.LS.cardinal ls = 1 ->
+              let v, offs = Queries.LS.choose ls in
+              let ciloffs = Lval.CilLval.to_ciloffs offs in
+              let lval = Var v, ciloffs in
+              (* ignore @@ printf "dst: %a, MayPointTo: %a" d_plainexp dst d_plainlval lval; *)
+              ctx.assign ~name:"base" lval src;
+              ctx.local
+          | _ -> failwith @@ "F59/strcpy could not query MayPointTo "^sprint d_plainexp exp
           end
-      | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] when mode_is_init pmo ->
+      | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
           let cm = match unrollType (typeOfLval attr) with
             | TComp (c,_) -> c
             | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
@@ -240,6 +274,7 @@ struct
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
               if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs pri;
               let pid' = get_id (Process, name) in (* better to keep that in D (would also supersede mapping from f to name) *)
+              add_action curpid (CreateProcess pid');
               let spawn f =
                 add_fun f name;
                 ctx.spawn f ((Pri.of_int pri, Per.of_int per, Cap.of_int cap), (Pmo.of_int 3L, PrE.of_int 0L))  (* spawn should happen only when scheduled (after Start() and set mode NORMAL) *)
@@ -252,6 +287,7 @@ struct
           end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
           assign_id_by_name Process name pid
+      | "LAP_Se_GetProcessStatus", [pid; status; r] -> todo ()
       | "LAP_Se_GetMyId", [pid; r] ->
           assign_id pid curpid
       | "LAP_Se_Start", [pid; r] ->
@@ -311,9 +347,10 @@ struct
       | "LAP_Se_GetBlackboardId", _ -> todo ()
       | "LAP_Se_GetBlackboardStatus", _ -> todo ()
     (* Semaphores *)
-      | "LAP_Se_CreateSemaphore", [name; cur; max; queuing; sid; r] when mode_is_init pmo ->
+      | "LAP_Se_CreateSemaphore", [name; cur; max; queuing; sid; r] ->
           (* create resource for name *)
           let sid' = get_id (Semaphore, eval_str name) in
+          add_action curpid (CreateSemaphore sid');
           assign_id sid sid'
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
           let sid = eval_int sid in
@@ -327,8 +364,9 @@ struct
           assign_id_by_name Semaphore name sid
       | "LAP_Se_GetSemaphoreStatus", [sid; status; r] -> todo ()
     (* Events (down after create/reset, up after set) *)
-      | "LAP_Se_CreateEvent", [name; eid; r] when mode_is_init pmo ->
+      | "LAP_Se_CreateEvent", [name; eid; r] ->
           let eid' = get_id (Event, eval_str name) in
+          add_action curpid (CreateEvent eid');
           assign_id eid  eid'
       | "LAP_Se_SetEvent", [eid; r] ->
           let eid = eval_int eid in
@@ -347,8 +385,12 @@ struct
       | "LAP_Se_GetEventStatus", [eid; status; r] -> todo ()
     (* Time *)
       | "LAP_Se_GetTime", [time; r] -> todo ()
-      | "LAP_Se_TimedWait", [delay; r] -> todo ()
-      | "LAP_Se_PeriodicWait", [] -> todo ()
+      | "LAP_Se_TimedWait", [delay; r] ->
+          add_action curpid (TimedWait (eval_int delay));
+          ctx.local
+      | "LAP_Se_PeriodicWait", [r] ->
+          add_action curpid PeriodicWait;
+          ctx.local
     (* Errors *)
       | "LAP_Se_CreateErrorHandler", [entry_point; stack_size; r] -> todo ()
       | "LAP_Se_GetErrorStatus", [status; r] -> todo ()
@@ -357,8 +399,6 @@ struct
       | "LAP_Se_SetPriority", [pid; prio; r] -> todo ()
       | "LAP_Se_Replenish", [budget; r] -> todo () (* name used in docs *)
       | "LAP_Se_ReplenishAperiodic", [budget; r] -> todo () (* name used in stdapi.c *)
-      | _ when is_arinc_fun && is_creating_fun && not(mode_is_init pmo) ->
-          failwith @@ f.vname^" is only allowed in partition mode COLD_START or WARM_START"
       | _ when is_arinc_fun -> failwith @@ "Function "^f.vname^" not handled!"
       | _ -> ctx.local
 
