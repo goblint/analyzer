@@ -65,7 +65,7 @@ let print_msg msg loc =
   else if get_bool "exp.eclipse" then 
     Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
   else
-    Printf.fprintf !warn_out (if get_bool "colors" then "%s \027[30m(%s:%d)\027[0;0;00m\n%!" else "%s (%s:%d)\n%!") msgc loc.file loc.line
+    Printf.fprintf !warn_out (if get_bool "colors" then "%s \027[35m(%s:%d)\027[0;0;00m\n%!" else "%s (%s:%d)\n%!") msgc loc.file loc.line
 
 let print_err msg loc = 
   if (get_string "result") = "html" then htmlGlobalWarningList := (loc.file,loc.line,msg)::!htmlGlobalWarningList;

@@ -1271,6 +1271,15 @@ struct
             (*  let st = invalidate ctx.ask ctx.global ctx.local [Lval id, Lval r] in*)
             | _ -> []
           end
+      | `Unknown "LAP_Se_CreateErrorHandler" -> begin
+          match List.map (fun x -> stripCasts (constFold false x)) args with
+            | [entry_point;stack_size;AddrOf r] ->
+              let pa = eval_fv ctx.ask ctx.global ctx.local entry_point in
+              let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
+              let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
+              List.map (create_thread None) reach_fs
+            | _ -> []
+          end
       | `ThreadCreate (start,ptc_arg) -> begin        
           (* extra sync so that we do not analyze new threads with bottom global invariant *)
           let ctx_mul = swap_st ctx (cpa, Flag.get_multi ()) in
