@@ -1340,14 +1340,6 @@ struct
     let cpa,fl as st = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with 
-      | `Unknown "foo" ->
-          let s = match ctx.ask (Queries.EvalStr (List.hd args)) with
-            | `Bot -> "Bot"
-            | `Top -> "Top"
-            | `Str s -> s
-            | _ -> "Something else!?"
-          in
-          M.debug @@ "EvalStr: "^s; failwith "Done with foo!"
       | `Unknown "list_add" when (get_bool "exp.list-type") -> 
           begin match args with
             | [ AddrOf (Var elm,next);(AddrOf (Var lst,NoOffset))] -> 
