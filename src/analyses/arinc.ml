@@ -96,14 +96,15 @@ struct
   let mode_is_multi i = Pmo.to_int i = Some 3L
   let infinity = 4294967295L (* time value used for infinity *)
 
-  type id = int64
+  type id = varinfo
+  type ids = id list
   type time = int64 (* Maybe use Nativeint which is the same as C long. OCaml int is just 31 or 63 bits wide! *)
   type action =
     | LockPreemption | UnlockPreemption | SetPartitionMode of int64
-    | CreateProcess of id * varinfo * int64 * time * time | CreateErrorHandler of id | Start of id | Stop of id | Suspend of id | Resume of id
-    | CreateBlackboard of id | DisplayBlackboard of id | ReadBlackboard of id * time | ClearBlackboard of id
-    | CreateSemaphore of id * int64 * int64 * int64 | WaitSemaphore of id | SignalSemaphore of id
-    | CreateEvent of id | WaitEvent of id * time | SetEvent of id | ResetEvent of id
+    | CreateProcess of id * varinfo list * int64 * time * time | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
+    | CreateBlackboard of id | DisplayBlackboard of ids | ReadBlackboard of ids * time | ClearBlackboard of ids
+    | CreateSemaphore of id * int64 * int64 * int64 | WaitSemaphore of ids | SignalSemaphore of ids
+    | CreateEvent of id | WaitEvent of ids * time | SetEvent of ids | ResetEvent of ids
     | TimedWait of time | PeriodicWait
   let actions = Hashtbl.create 123 (* use BatMultiPMap later? *)
   let get_actions pid : action list =
@@ -116,77 +117,90 @@ struct
 
   (* lookup/generate id from resource type and name (needed for LAP_Se_GetXId functions, specified by LAP_Se_CreateX functions during init) *)
   type resource = Process | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard
-  let resources = Hashtbl.create 123
-  let get_id (resource:resource*string) : int64 =
-    try Hashtbl.find resources resource
-    with Not_found ->
-      let ids = Hashtbl.values resources in
-      let id = if Enum.is_empty ids then 1L else Int64.succ (Enum.arg_max identity ids) in
-      Hashtbl.add resources resource id;
-      id
-  let get_by_id (id:int64) : (resource*string) option =
-    Hashtbl.filter ((=) id) resources |> Hashtbl.keys |> Enum.get
-  (* map function to process name in order to get pid (1:1 relation?) *)
-  (* TODO maybe there can be multiple processes for the same function -> save pid in D! *)
-  let funs = Hashtbl.create 123
-  let add_fun (processname:string) (f:varinfo) =
-    Hashtbl.add funs processname f
-  let fun_from_name (processname:string) : varinfo option =
-    Hashtbl.find_option funs processname
+  let str_resource_type = function
+    | Process -> "Process"
+    | Semaphore -> "Semaphore"
+    | Event -> "Event"
+    | Logbook -> "Logbook"
+    | SamplingPort -> "SamplingPort"
+    | QueuingPort -> "QueuingPort"
+    | Buffer -> "Buffer"
+    | Blackboard -> "Blackboard"
 
+  (* map from tuple (resource, name) to varinfo (need to be saved b/c/ makeGlobalVar x t <> makeGlobalVar x t) *)
+  let resources = Hashtbl.create 123
+  let get_id (resource,name as k:resource*string) : id =
+    try Hashtbl.find resources k
+    with Not_found ->
+      let vname = str_resource_type resource^":"^name in
+      let v = makeGlobalVar vname voidPtrType in
+      Hashtbl.replace resources k v;
+      v
+  let get_by_id (id:id) : (resource*string) option =
+    Hashtbl.filter ((=) id) resources |> Hashtbl.keys |> Enum.get
+
+  let funs_for_process name : varinfo list =
+    let id = get_id (Process, name) in
+    let get_funs = function
+      | CreateProcess (id', funs, _, _, _) when id'=id -> funs
+      | CreateErrorHandler (id', funs) when id'=id -> funs
+      | _ -> []
+    in
+    Hashtbl.values actions |> Enum.map get_funs |> List.of_enum |> List.unique |> List.concat
+
+  (* map process name to integer used in Pid domain *)
+  let pnames = Hashtbl.create 123
+  let _ = Hashtbl.add pnames "mainfun" 0L
+  let get_by_pid pid =
+    Hashtbl.filter ((=) pid) pnames |> Hashtbl.keys |> Enum.get
+  let get_pid pname =
+    try Hashtbl.find pnames pname
+    with Not_found ->
+      let ids = Hashtbl.values pnames in
+      let id = if Enum.is_empty ids then 1L else Int64.succ (Enum.arg_max identity ids) in
+      Hashtbl.replace pnames pname id;
+      id
 
   let print_actions () =
-(*     let str_resource_type = function
-      | Process -> "Process"
-      | Semaphore -> "Semaphore"
-      | Event -> "Event"
-      | Logbook -> "Logbook"
-      | SamplingPort -> "SamplingPort"
-      | QueuingPort -> "QueuingPort"
-      | Buffer -> "Buffer"
-      | Blackboard -> "Blackboard"
-    in *)
     let str_i64 id = string_of_int (i64_to_int id) in
+    let str_funs funs = "["^(List.map (fun v -> v.vname) funs |> String.concat ", ")^"]" in
     let str_resource id =
-      let name = match get_by_id id with
-        | Some (Process, name) ->
-            let fname = match fun_from_name name with
-              | Some v -> v.vname
-              | None -> "??"
-            in
-            name^"/"^fname
-        | Some (resource_type, name) ->
-            name
-        | None when id = 0L -> "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
-        | None -> "Unknown resource"
-      in name^"#"^str_i64 id
+      match get_by_id id with
+      | Some (Process, "mainfun") ->
+          "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
+      | Some (Process, name) ->
+          name^"/"^str_funs @@ funs_for_process name
+      | Some (resource_type, name) ->
+          name
+      | None -> "Unknown resource"
     in
+    let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]" in
     let str_time t = if t = infinity then "∞" else str_i64 t^"ns" in
     let str_action pid = function
       | LockPreemption -> "LockPreemption"
       | UnlockPreemption -> "UnlockPreemption"
       | SetPartitionMode i -> "SetPartitionMode "^string_of_partition_mode i
-      | CreateProcess (id, f, prio, period, capacity) ->
-          "CreateProcess "^str_resource id^" (fun "^f.vname^", prio "^str_i64 prio^", period "^str_time period^", capacity "^str_time capacity^")"
-      | CreateErrorHandler id -> "CreateErrorHandler "^str_resource id
-      | Start id -> "Start "^str_resource id
-      | Stop id when id=pid -> "StopSelf"
-      | Stop id -> "Stop "^str_resource id
-      | Suspend id when id=pid -> "SuspendSelf"
-      | Suspend id -> "Suspend "^str_resource id
-      | Resume id -> "Resume "^str_resource id
+      | CreateProcess (id, funs, prio, period, capacity) ->
+          "CreateProcess "^str_resource id^" (funs "^str_funs funs^", prio "^str_i64 prio^", period "^str_time period^", capacity "^str_time capacity^")"
+      | CreateErrorHandler (id, funs) -> "CreateErrorHandler "^str_resource id
+      | Start ids -> "Start "^str_resources ids
+      | Stop ids when ids=[pid] -> "StopSelf"
+      | Stop ids -> "Stop "^str_resources ids
+      | Suspend ids when ids=[pid] -> "SuspendSelf"
+      | Suspend ids -> "Suspend "^str_resources ids
+      | Resume ids -> "Resume "^str_resources ids
       | CreateBlackboard id -> "CreateBlackboard "^str_resource id
-      | DisplayBlackboard id -> "DisplayBlackboard "^str_resource id
-      | ReadBlackboard (id, timeout) -> "ReadBlackboard "^str_resource id^" (timeout "^str_time timeout^")"
-      | ClearBlackboard id -> "ClearBlackboard "^str_resource id
+      | DisplayBlackboard ids -> "DisplayBlackboard "^str_resources ids
+      | ReadBlackboard (ids, timeout) -> "ReadBlackboard "^str_resources ids^" (timeout "^str_time timeout^")"
+      | ClearBlackboard ids -> "ClearBlackboard "^str_resources ids
       | CreateSemaphore (id, cur, max, queuing) ->
           "CreateSemaphore "^str_resource id^" ("^str_i64 cur^"/"^str_i64 max^", "^string_of_queuing_discipline queuing^")"
-      | WaitSemaphore id -> "WaitSemaphore "^str_resource id
-      | SignalSemaphore id -> "SignalSemaphore "^str_resource id
+      | WaitSemaphore ids -> "WaitSemaphore "^str_resources ids
+      | SignalSemaphore ids -> "SignalSemaphore "^str_resources ids
       | CreateEvent id -> "CreateEvent "^str_resource id
-      | WaitEvent (id, timeout) -> "WaitEvent "^str_resource id^" (timeout "^str_time timeout^")"
-      | SetEvent id -> "SetEvent "^str_resource id
-      | ResetEvent id -> "ResetEvent "^str_resource id
+      | WaitEvent (ids, timeout) -> "WaitEvent "^str_resources ids^" (timeout "^str_time timeout^")"
+      | SetEvent ids -> "SetEvent "^str_resources ids
+      | ResetEvent ids -> "ResetEvent "^str_resources ids
       | TimedWait t -> "TimedWait "^str_time t
       | PeriodicWait -> "PeriodicWait"
     in
@@ -212,6 +226,8 @@ struct
     (* M.debug_each @@ "Inside function "^curfun.svar.vname; *)
     let ((pri,per,cap), (pmo,pre,pid)) = ctx.local in
     let curpid = match Pid.to_int pid with Some i -> i | None -> failwith @@ "special: Pid.to_int = None inside function "^curfun.svar.vname in
+    let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "special: no processname for pid in Hashtbl!" in
+    let curpid = get_id (Process, pname) in
     let eval_int exp =
       match ctx.ask (Queries.EvalInt exp) with
       | `Int i -> i
@@ -222,10 +238,19 @@ struct
       | `Str s -> s
       | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp^" in "^f.vname
     in
+    let eval_id exp =
+      match ctx.ask (Queries.MayPointTo exp) with
+      | `LvalSet a when not (Queries.LS.is_top a) ->
+                     (* && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) -> *)
+          Queries.LS.remove (dummyFunDec.svar, `NoOffset) a |> Queries.LS.elements |> List.map fst
+      | `LvalSet a -> failwith "LvalSet was top"
+      | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp^" in "^f.vname
+    in
     let assign_id exp id =
       match exp with
       (* call assign for all analyses (we only need base)! *)
-      | AddrOf lval -> ctx.assign ~name:"base" lval (kinteger64 ILong id); ctx.local
+      | AddrOf lval ->
+          ctx.assign ~name:"base" lval (mkAddrOf @@ var id); ctx.local
       | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
     in
     let assign_id_by_name resource_type name id =
@@ -296,13 +321,13 @@ struct
             && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
               if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs pri;
-              let pid' = get_id (Process, name) in (* better to keep that in D (would also supersede mapping from f to name) *)
+              let fun_list = funs |> Queries.LS.elements |> List.map fst in
+              let pid' = get_id (Process, name) in
+              add_action curpid (CreateProcess (pid', fun_list, pri, per, cap));
               let spawn f =
-                add_fun name f;
-                add_action curpid (CreateProcess (pid', f, pri, per, cap));
-                ctx.spawn f ((Pri.of_int pri, Per.of_int per, Cap.of_int cap), (Pmo.of_int 3L, PrE.of_int 0L, Pid.of_int pid'))  (* spawn should happen only when scheduled (after Start() and set mode NORMAL) *)
+                ctx.spawn f ((Pri.of_int pri, Per.of_int per, Cap.of_int cap), (Pmo.of_int 3L, PrE.of_int 0L, Pid.of_int (get_pid name)))  (* spawn should happen only when scheduled (after Start() and set mode NORMAL) *)
               in
-              Queries.LS.iter (spawn%fst) funs;
+              List.iter spawn fun_list;
               assign_id pid pid'
           (* TODO when is `Bot returned? *)
           (* | `Bot, _ | _, `Bot -> D.bot () *)
@@ -315,26 +340,26 @@ struct
           assign_id pid curpid
       | "LAP_Se_Start", [pid; r] ->
           (* at least one process should be started in main *)
-          let pid = eval_int pid in
+          let pid = eval_id pid in
           add_action curpid (Start pid);
           ctx.local
       | "LAP_Se_DelayedStart", [pid; delay; r] -> todo ()
       | "LAP_Se_Stop", [pid; r] ->
-          let pid = eval_int pid in
+          let pid = eval_id pid in
           add_action curpid (Stop pid);
           ctx.local
       | "LAP_Se_StopSelf", [] ->
-          add_action curpid (Stop curpid);
+          add_action curpid (Stop [curpid]);
           ctx.local
       | "LAP_Se_Suspend", [pid; r] ->
-          let pid = eval_int pid in
+          let pid = eval_id pid in
           add_action curpid (Suspend pid);
           ctx.local
       | "LAP_Se_SuspendSelf", [timeout; r] -> (* TODO timeout *)
-          add_action curpid (Suspend curpid);
+          add_action curpid (Suspend [curpid]);
           ctx.local
       | "LAP_Se_Resume", [pid; r] ->
-          let pid = eval_int pid in
+          let pid = eval_id pid in
           add_action curpid (Resume pid);
           ctx.local
     (* Logbook *)
@@ -368,13 +393,13 @@ struct
           add_action curpid (CreateBlackboard bbid');
           assign_id bbid bbid'
       | "LAP_Se_DisplayBlackboard", [bbid; msg_addr; len; r] ->
-          add_action curpid (DisplayBlackboard (eval_int bbid));
+          add_action curpid (DisplayBlackboard (eval_id bbid));
           ctx.local
       | "LAP_Se_ReadBlackboard", [bbid; timeout; msg_addr; len; r] ->
-          add_action curpid (ReadBlackboard (eval_int bbid, eval_int timeout));
+          add_action curpid (ReadBlackboard (eval_id bbid, eval_int timeout));
           ctx.local
       | "LAP_Se_ClearBlackboard", [bbid; r] ->
-          add_action curpid (ClearBlackboard (eval_int bbid));
+          add_action curpid (ClearBlackboard (eval_id bbid));
           ctx.local
       | "LAP_Se_GetBlackboardId", [name; bbid; r] ->
           assign_id_by_name Blackboard name bbid
@@ -386,11 +411,11 @@ struct
           add_action curpid (CreateSemaphore (sid', eval_int cur, eval_int max, eval_int queuing));
           assign_id sid sid'
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
-          let sid = eval_int sid in
+          let sid = eval_id sid in
           add_action curpid (WaitSemaphore sid);
           ctx.local
       | "LAP_Se_SignalSemaphore", [sid; r] ->
-          let sid = eval_int sid in
+          let sid = eval_id sid in
           add_action curpid (SignalSemaphore sid);
           ctx.local
       | "LAP_Se_GetSemaphoreId", [name; sid; r] ->
@@ -402,15 +427,15 @@ struct
           add_action curpid (CreateEvent eid');
           assign_id eid  eid'
       | "LAP_Se_SetEvent", [eid; r] ->
-          let eid = eval_int eid in
+          let eid = eval_id eid in
           add_action curpid (SetEvent eid);
           ctx.local
       | "LAP_Se_ResetEvent", [eid; r] ->
-          let eid = eval_int eid in
+          let eid = eval_id eid in
           add_action curpid (ResetEvent eid);
           ctx.local
       | "LAP_Se_WaitEvent", [eid; timeout; r] -> (* TODO timeout *)
-          let eid = eval_int eid in
+          let eid = eval_id eid in
           add_action curpid (WaitEvent (eid, eval_int timeout));
           ctx.local
       | "LAP_Se_GetEventId", [name; eid; r] ->
@@ -428,15 +453,14 @@ struct
       | "LAP_Se_CreateErrorHandler", [entry_point; stack_size; r] ->
           let name = "ErrorHandler" in
           let pid = get_id (Process, name) in
-          add_action curpid (CreateErrorHandler pid);
           begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
           | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-              let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
+              let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst in
+              add_action curpid (CreateErrorHandler (pid, funs));
               let spawn f =
-                add_fun name f;
-                ctx.spawn f ((Pri.of_int infinity, Per.of_int infinity, Cap.of_int infinity), (Pmo.of_int 3L, PrE.of_int 0L, Pid.of_int pid))
+                ctx.spawn f ((Pri.of_int infinity, Per.of_int infinity, Cap.of_int infinity), (Pmo.of_int 3L, PrE.of_int 0L, Pid.of_int (get_pid name)))
               in
-              Queries.LS.iter (spawn%fst) funs
+              List.iter spawn funs
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
           end;
           ctx.local
