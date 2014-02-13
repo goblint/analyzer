@@ -68,12 +68,25 @@ struct
   open Lincons0
   open Lincons1
 
+  let typesort =  
+    let f (is,fs) v = 
+      if isIntegralType v.vtype then
+        (v.vname::is,fs)
+      else if isArithmeticType v.vtype then
+        (is,v.vname::fs)
+      else
+        (is,fs)
+    in
+    List.fold_left f ([],[]) 
+
   let rec exptoexpr = 
     function 
-    | Lval (Var v,NoOffset) ->
+    | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
         Var (Var.of_string v.vname)
     | Const (CInt64 (i,_,_)) -> 
         Cst (Coeff.s_of_int (Int64.to_int i))
+    | Const (CReal (f,_,_)) -> 
+        Cst (Coeff.s_of_float f)
     | UnOp  (Neg ,e,_) -> 
         Unop (Neg,exptoexpr e,Int,Near)
     | BinOp (PlusA,e1,e2,_) ->
@@ -86,34 +99,50 @@ struct
         Binop (Div,exptoexpr e1,exptoexpr e2,Int,Near)
     | BinOp (Mod,e1,e2,_) ->
         Binop (Mod,exptoexpr e1,exptoexpr e2,Int,Near)
+    | CastE (TFloat (FFloat,_),e) -> Unop(Cast,exptoexpr e,Texpr0.Single,Zero)
+    | CastE (TFloat (FDouble,_),e) -> Unop(Cast,exptoexpr e,Texpr0.Double,Zero)
+    | CastE (TFloat (FLongDouble,_),e) -> Unop(Cast,exptoexpr e,Texpr0.Extended,Zero)
+    | CastE (TInt _,e) -> Unop(Cast,exptoexpr e,Int,Zero)
     | _ -> raise (Invalid_argument "exptotexpr1")
 
 
-  let negate (xs,x,r) =
-    let xs' = List.map (fun (x,y) -> (x,-y)) xs in
-    match x with
-      | Some x -> xs', Some (-x), r
-      | None   -> xs', None, r
+  let add_t x y = 
+    match x, y with
+      | `int x, `int y -> `int (x+y)
+      | `float x, `float y -> `float (x+.y)
+      | `int x, `float y | `float y, `int x -> `float (float_of_int x+.y)
+      
+  let add_t' x y = 
+    match x, y with
+      | `none, x | x, `none -> x
+      | `int x, `int y -> `int (x+y)
+      | `float x, `float y -> `float (x+.y)
+      | `int x, `float y | `float y, `int x -> `float (float_of_int x+.y)
+      
+  let neg_t = function `int x -> `int (-x) | `float x -> `float (0.0-.x)
+  let neg_t' = function `int x -> `int (-x) | `float x -> `float (0.0-.x) | `none -> `none
 
+  let negate (xs,x,r) =
+    let xs' = List.map (fun (x,y) -> (x,neg_t y)) xs in
+    xs', neg_t' x, r
+
+  type lexpr = (string * [`int of int | `float of float]) list
+  
   let rec exptolinexp = 
-    let add (xs,x,r) (ys,y,r') =
-      let add_one xs (x, y) = List.modify_def y x (fun x -> x+y) xs in 
-      let xs' = List.map (fun (x,y) -> (x,-y)) xs in
+    let add ((xs:lexpr),x,r) ((ys:lexpr),y,r') =
+      let add_one xs (x, y) = List.modify_def y x (fun x -> add_t x y) xs in 
+      let xs':lexpr = List.map (fun (x,y) -> (x,neg_t y)) xs in
       match r, r' with
-        | EQ, EQ ->
-          begin match x, y with
-            | Some x, Some y -> List.fold_left add_one xs' ys, Some (x+y), EQ
-            | Some x, _ | _, Some x -> 
-              List.fold_left add_one xs' ys, Some x, EQ
-            | _ -> raise (Invalid_argument "exptolinexp")
-          end
+        | EQ, EQ -> List.fold_left add_one xs' ys, add_t' x y, EQ
         | _ -> raise (Invalid_argument "exptolinexp")
     in
     function 
-    | Lval (Var v,NoOffset) ->
-        [v.vname,1], None, EQ
+    | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
+        [v.vname,`int 1], `none, EQ
     | Const (CInt64 (i,_,_)) -> 
-        [], Some (Int64.to_int i), EQ
+        [], `int (Int64.to_int i), EQ
+    | Const (CReal (f,_,_)) -> 
+        [], `float f, EQ
     | UnOp  (Neg ,e,_) -> 
         negate (exptolinexp e) 
     | BinOp (PlusA,e1,e2,_) ->
@@ -122,9 +151,12 @@ struct
         add (exptolinexp e1) (negate (exptolinexp e2))
     | BinOp (Mult,e1,e2,_) ->
         begin match exptolinexp e1, exptolinexp e2 with
-          | ([], Some x, EQ), ([], Some y, EQ) -> ([], Some (x*y), EQ)
-          | (xs, None, EQ), ([], Some y, EQ) | ([], Some y, EQ), (xs, None, EQ) -> 
-              (List.map (fun (n,x) -> n, x*y) xs, None, EQ)
+          | ([], `int x, EQ), ([], `int y, EQ) -> ([], `int (x*y), EQ)
+          | ([], `float x, EQ), ([], `float y, EQ) -> ([], `float (x*.y), EQ)
+          | (xs, `none, EQ), ([], `int y, EQ) | ([], `int y, EQ), (xs, `none, EQ) -> 
+              (List.map (function (n,`int x) -> n, `int (x*y) | (n,`float x) -> n, `float (x*.float_of_int y)) xs, `none, EQ)
+          | (xs, `none, EQ), ([], `float y, EQ) | ([], `float y, EQ), (xs, `none, EQ) -> 
+              (List.map (function (n,`float x) -> n, `float (x*.y) | (n,`int x) -> (n,`float (float_of_int x*.y))) xs, `none, EQ)
           | _ -> raise (Invalid_argument "exptolinexp")
         end
     | BinOp (r,e1,e2,_) ->
@@ -141,9 +173,12 @@ struct
         | Ne -> comb DISEQ (add (exptolinexp e1) (negate (exptolinexp e2)))
         | _ -> raise (Invalid_argument "exptolinexp")
       end
-    | _ -> raise (Invalid_argument "exptolinexp")
+    | CastE (_,e) -> exptolinexp e
+    | _ -> 
+      raise (Invalid_argument "exptolinexp")
     
   let exptolinecons env x b =
+    ignore (Pretty.printf "exptolinecons '%a'\n" d_plainexp x);
     let inverse = function
       | EQ -> DISEQ
       | DISEQ -> EQ
@@ -153,8 +188,8 @@ struct
     in
     let cs, c, r = exptolinexp (Cil.constFold false x) in
     let cs, c, r = if b then cs, c, r else negate (cs,c,inverse r) in
-    let cs = List.map (fun (x,y) -> Coeff.s_of_int y, Var.of_string x) cs in
-    let c = Option.map (fun x -> Coeff.s_of_int (-x)) c in
+    let cs = List.map (function (x,`int y) -> Coeff.s_of_int y, Var.of_string x | (x,`float f) ->Coeff.s_of_float f, Var.of_string x) cs in
+    let c = match c with `int x -> Some (Coeff.s_of_int (-x)) | `float f -> Some (Coeff.s_of_float (0.0-.f)) | `none -> None in
     let le = Linexpr1.make env in
     Linexpr1.set_list le cs c;    
     Lincons1.make le r
@@ -168,6 +203,7 @@ struct
 
 
   let exptotexpr1 env x =
+    (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
     Texpr1.of_expr env (exptoexpr x) 
 
   let assign_var_eq_with d v v' =
@@ -208,14 +244,16 @@ struct
       A.forget_array_with Man.mgr d [|Var.of_string v|] false
     end
   
-  let get_vars d = List.of_enum (Array.enum (fst (Environment.vars (A.env d))))
+  let get_vars d = 
+    let xs, ys = Environment.vars (A.env d) in
+    List.of_enum (Array.enum xs), List.of_enum (Array.enum ys)
   
-  let add_vars_with newd vars =
-    let olds = get_vars newd in
-    let vars = List.map Var.of_string vars in
-    let vars = List.filter (fun x -> not (List.mem x olds)) vars in
-    let vars = Array.of_enum (List.enum vars) in
-    let newenv = Environment.add (A.env newd) vars [||] in
+  let add_vars_with newd (newis, newfs) =
+    let oldis, oldfs = get_vars newd in
+    let cis = List.filter (fun x -> not (List.mem x oldis)) (List.map Var.of_string newis) in
+    let cfs = List.filter (fun x -> not (List.mem x oldfs)) (List.map Var.of_string newfs) in
+    let cis, cfs = Array.of_enum (List.enum cis), Array.of_enum (List.enum cfs) in
+    let newenv = Environment.add (A.env newd) cis cfs in
     A.change_environment_with Man.mgr newd newenv false
 
   let add_vars d vars =
@@ -224,12 +262,14 @@ struct
     newd
     
   let remove_all_but_with d xs = 
-    let all_vars = Array.enum (fst (Environment.vars (A.env d))) in
-    let vars = Array.of_enum (Enum.filter (fun x -> not (List.mem (Var.to_string x) xs)) all_vars) in
-    let env = Environment.remove (A.env d) vars in
+    let is', fs' = get_vars d in
+    let vs = List.append (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is') 
+                         (List.filter (fun x -> not (List.mem (Var.to_string x) xs)) fs') in
+    let env = Environment.remove (A.env d) (Array.of_enum (List.enum vs)) in
     A.change_environment_with Man.mgr d env false
 
   let remove_all_with d xs = 
+    (* let vars = List.filter (fun v -> isArithmeticType v.vtype) xs in *)
     let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
     let env = Environment.remove (A.env d) vars in
     A.change_environment_with Man.mgr d env false
@@ -241,4 +281,5 @@ struct
         
   let copy = A.copy Man.mgr 
   
+
 end
