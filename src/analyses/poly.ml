@@ -29,9 +29,10 @@ struct
     let newnames = List.map (fun x -> x.vname) f.sformals @
                    List.map (fun x -> x.vname^"'") f.sformals in
     let newd = D.add_vars ctx.local newnames in
-    List.iter2 (fun v e -> D.assign_var_with newd    v.vname e) f.sformals args;
+    List.iter2 (fun v e -> D.assign_var_with newd    (v.vname^"'") e) f.sformals args;
+    D.forget_all_with newd (List.map (fun x -> x.vname) f.sformals);
     List.iter  (fun v   -> D.assign_var_eq_with newd v.vname (v.vname^"'")) f.sformals;
-    D.forget_all_but_with newd newnames;
+    D.remove_all_but_with newd newnames;
     [ctx.local, newd]  
   
   
@@ -41,14 +42,17 @@ struct
       | Some (Var v, NoOffset) ->
         let nd = D.forget_all ctx.local [v.vname] in
         let nd' = D.add_vars d (List.map (fun x -> Var.to_string x) (D.get_vars ctx.local)) in
-        D.substitute_var_eq_with nd' "#ret" v.vname;
         List.iter2 (fun v e -> D.substitute_var_with nd' (v.vname^"'") e) f.sformals args;
-        D.forget_all_with nd' ("#ret" :: List.map (fun x -> x.vname^"'") f.sformals);
+        D.remove_all_with nd' (List.map (fun x -> x.vname^"'") f.sformals);
+        D.forget_all_with nd' [v.vname];
+        D.substitute_var_eq_with nd' "#ret" v.vname;
+        D.remove_all_with nd' ["#ret"];
         A.unify Man.mgr nd nd'
       | _ -> D.top ()
       
-  let special    ctx r f args = D.top () 
-  let branch     ctx e  b = ctx.local
+  let special ctx r f args = D.top () 
+  
+  let branch ctx e b = D.assert_inv ctx.local e b 
     
   let return ctx e f = 
     match e with 
@@ -56,7 +60,7 @@ struct
           let nd = D.add_vars ctx.local ["#ret"] in
           D.assign_var_with nd "#ret" e;
           let vars = List.map (fun x -> x.vname) (f.slocals @ f.sformals) in
-          D.forget_all_with nd vars;
+          D.remove_all_with nd vars;
           nd
       | None -> D.top ()
   
