@@ -189,6 +189,7 @@ struct
       | (`Bot, _) -> true
       | (_, `Bot) -> false
       | (`Int x, `Int y) -> ID.leq x y
+      | (`Int x, `Address y) when ID.to_int x = Some 0L -> true
       | (`Address x, `Address y) -> AD.leq x y
       | (`Struct x, `Struct y) -> Structs.leq x y
       | (`Union x, `Union y) -> Unions.leq x y
@@ -204,6 +205,10 @@ struct
       | (`Bot, x) -> x
       | (x, `Bot) -> x
       | (`Int x, `Int y) -> `Int (ID.join x y)
+      | (`Int x, `Address y)
+      | (`Address y, `Int x) when ID.to_int x = Some 0L ->
+          ignore @@ printf "JOIN Int %a and Address %a\n" ID.pretty x AD.pretty y;
+          `Address (AD.join (AD.null_ptr ()) y)
       | (`Address x, `Address y) -> `Address (AD.join x y)
       | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
       | (`Union x, `Union y) -> `Union (Unions.join x y) 
