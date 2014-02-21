@@ -161,6 +161,10 @@ struct
       Hashtbl.replace pnames pname id;
       id
 
+  (* set of processes to spawn once partition mode is set to NORMAL *)
+  let processes = ref []
+  let add_process p = processes := List.append !processes [p]
+
   let print_actions () =
     let str_i64 id = string_of_int (i64_to_int id) in
     let str_funs funs = "["^(List.map (fun v -> v.vname) funs |> String.concat ", ")^"]" in
@@ -243,8 +247,8 @@ struct
       | `LvalSet a when not (Queries.LS.is_top a) ->
                      (* && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) -> *)
           Queries.LS.remove (dummyFunDec.svar, `NoOffset) a |> Queries.LS.elements |> List.map fst
-      | `LvalSet a -> failwith "LvalSet was top"
-      | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp^" in "^f.vname
+      | `LvalSet a -> (* failwith "LvalSet was top" *) []
+      | x -> M.debug_each @@ "Could not evaluate id-argument "^sprint d_plainexp exp^" in "^f.vname^". Query returned "^sprint Queries.Result.pretty x; []
     in
     let assign_id exp id =
       match exp with
@@ -272,7 +276,14 @@ struct
           match ctx.ask (Queries.EvalInt mode) with
           | `Int i ->
               if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (string_of_partition_mode i);
-              if mode_is_multi (Pmo.of_int i) then ctx.sideg part_mode_var true;
+              if mode_is_multi (Pmo.of_int i) then (
+                ctx.sideg part_mode_var true;
+                (* spawn processes *)
+                ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length !processes);
+                List.iter (fun (f,d) -> ctx.spawn f (d pre)) !processes; (* what about duplicates? List.unique fails because d is fun! *)
+                (* clear list *)
+                processes := []
+              );
               add_action curpid (SetPartitionMode i);
               D.pmo (const @@ Pmo.of_int i) ctx.local
           | `Bot -> D.bot ()
@@ -325,7 +336,8 @@ struct
               let pid' = get_id (Process, name) in
               add_action curpid (CreateProcess (pid', fun_list, pri, per, cap));
               let spawn f =
-                ctx.spawn f ((Pri.of_int pri, Per.of_int per, Cap.of_int cap), (Pmo.of_int 3L, PrE.of_int 0L, Pid.of_int (get_pid name)))  (* spawn should happen only when scheduled (after Start() and set mode NORMAL) *)
+                let d pre = ((Pri.of_int pri, Per.of_int per, Cap.of_int cap), (Pmo.of_int 3L, pre, Pid.of_int (get_pid name))) in (* int64 -> D.t *)
+                add_process (f,d)
               in
               List.iter spawn fun_list;
               assign_id pid pid'
@@ -458,7 +470,8 @@ struct
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst in
               add_action curpid (CreateErrorHandler (pid, funs));
               let spawn f =
-                ctx.spawn f ((Pri.of_int infinity, Per.of_int infinity, Cap.of_int infinity), (Pmo.of_int 3L, PrE.of_int 0L, Pid.of_int (get_pid name)))
+                let d pre = ((Pri.of_int infinity, Per.of_int infinity, Cap.of_int infinity), (Pmo.of_int 3L, pre, Pid.of_int (get_pid name))) in (* int64 -> D.t *)
+                add_process (f,d)
               in
               List.iter spawn funs
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
@@ -481,7 +494,7 @@ struct
             `Int (Option.get @@ Pri.to_int pri)
           else if Pri.is_top pri then `Top else `Bot
       | Queries.IsPrivate _ ->
-          `Bool ((PrE.to_int pre <> Some 0L && PrE.to_int pre <> None) || Pmo.to_int pmo = Some 1L || Pmo.to_int pmo = Some 2L)
+          `Bool ((PrE.to_int pre <> Some 0L && PrE.to_int pre <> None) || mode_is_init pmo)
       | _ -> Queries.Result.top ()
 
   let startstate v = ((Pri.top (), Per.top (), Cap.top ()), (Pmo.of_int 1L, PrE.of_int 0L, Pid.of_int 0L))

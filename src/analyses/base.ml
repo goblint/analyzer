@@ -776,7 +776,7 @@ struct
       match last_index lval, stripCasts rval with
       | Some (lv, i), Const(CChr c) when c<>'\000' -> (* "abc" <> "abc\000" in OCaml! *)
           let i = i64_to_int i in
-          ignore @@ printf "%a[%i] = %c\n" d_lval lv i c;
+          (* ignore @@ printf "%a[%i] = %c\n" d_lval lv i c; *)
           let s = try BatHashtbl.find char_array lv with Not_found -> "" in (* current string for lv or empty string *)
           if i >= String.length s then ((* optimized b/c Out_of_memory *)
             let dst = String.make (i+1) '\000' in
@@ -1175,6 +1175,7 @@ struct
                 if AD.mem (Addr.unknown_ptr ()) a 
                 then `LvalSet (Q.LS.add (dummyFunDec.svar, `NoOffset) s)
                 else `LvalSet s
+            | `Bot -> `Bot
             | _ -> `Top
           end
       | Q.ReachableFrom e -> begin
@@ -1199,7 +1200,7 @@ struct
             (* TODO return may-points-to-set of strings *)
             | `Address a when List.length (AD.to_var_may a) = 1 ->
                 (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
-                ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a);
+                (* ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
                 begin match unrollType (typeOf e) with
                 | TPtr(TInt(IChar, _), _) ->
                     let v, offs = Q.LS.choose @@ addrToLvalSet a in
@@ -1240,6 +1241,9 @@ struct
   let enter ctx lval fn args : (D.t * D.t) list = 
     [ctx.local, make_entry ctx fn args]
 
+
+  let processes = ref []
+
   let forkfun ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list = 
     let cpa,fl = ctx.local in
     let create_thread arg v = 
@@ -1261,13 +1265,25 @@ struct
     in
     match LF.classify f.vname args with 
       (* handling thread creations *)
+      | `Unknown "LAP_Se_SetPartitionMode" when List.length args = 2 -> begin
+          let mode = List.hd @@ List.map (fun x -> stripCasts (constFold false x)) args in
+          match ctx.ask (Queries.EvalInt mode) with
+          | `Int i when i=3L ->
+              let r = List.map (create_thread None) !processes in
+              processes := [];
+              ignore @@ printf "base: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length r);
+              r
+          | _ -> []
+          end
       | `Unknown "LAP_Se_CreateProcess" -> begin
           match List.map (fun x -> stripCasts (constFold false x)) args with
             | [proc_att;AddrOf id;AddrOf r] ->
               let pa = eval_fv ctx.ask ctx.global ctx.local proc_att in
               let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
               let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
-              List.map (create_thread None) reach_fs
+              processes := BatList.append !processes reach_fs;
+              (* List.map (create_thread None) reach_fs *)
+              []
             (*  let st = invalidate ctx.ask ctx.global ctx.local [Lval id, Lval r] in*)
             | _ -> []
           end
@@ -1277,7 +1293,9 @@ struct
               let pa = eval_fv ctx.ask ctx.global ctx.local entry_point in
               let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
               let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
-              List.map (create_thread None) reach_fs
+              processes := BatList.append !processes reach_fs;
+              (* List.map (create_thread None) reach_fs *)
+              []
             | _ -> []
           end
       | `ThreadCreate (start,ptc_arg) -> begin        
@@ -1401,13 +1419,13 @@ struct
               cpa, new_fl
         end
       (* handling thread creations *)
-      | `Unknown "LAP_Se_CreateProcess" -> begin
+(*       | `Unknown "LAP_Se_CreateProcess" -> begin
           match List.map (fun x -> stripCasts (constFold false x)) args with
             | [_;AddrOf id;AddrOf r] ->
                 let cpa,_ = invalidate ctx.ask ctx.global ctx.local [Lval id; Lval r] in
                   cpa, fl
             | _ -> raise Deadcode
-          end
+          end *)
       | `ThreadCreate (f,x) -> 
           GU.multi_threaded := true;
           let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
@@ -1471,7 +1489,8 @@ struct
                 let addrs = CPA.fold st_expr cpa (lv_list @ args) in
                 (* This rest here is just to see of something got spawned. *)
                 let flist = collect_funargs ctx.ask gs st args in
-                let (cpa,fl as st) = invalidate ctx.ask gs st addrs in
+                (* invalidate arguments for unknown functions, except for arinc functions *)
+                let (cpa,fl as st) = if startsWith "LAP_Se_" f.vname then cpa,fl else invalidate ctx.ask gs st addrs in
                 let f addr acc = 
                   try 
                     let var = List.hd (AD.to_var_may addr) in
