@@ -28,8 +28,8 @@ struct
     let module Vrfyr = Verify2 (EQSys) (LHT) (GHT) in
     (** The comparator *)
     let module Comp = Compare (Spec) (EQSys) (LHT) (GHT) in
-    (** Another iterator. Set "exp.use_gen_solver" to false. *)
-    let module I = IterateLikeAstree (Spec) (Cfg) (GHT) in
+    (* (** Another iterator. Set "exp.use_gen_solver" to false. *)
+    let module I = IterateLikeAstree (Spec) (Cfg) (GHT) in *)
 
     (** Triple of the function, context, and the local value. *)
     let module RT = Analyses.ResultType2 (Spec) in
@@ -335,7 +335,7 @@ struct
     in
 
     let do_analyze_using_iterator () = 
-      let _ = I.iterate file startvars' in
+      (* let _ = I.iterate file startvars' in *)
       print_endline "done. "
     in
   
@@ -371,7 +371,7 @@ let analyze (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph."; 
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function
-      | MyCFG.Statement s as n -> (MyCFG.SelfLoop, n) :: cfgB n
+      | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
       | n -> cfgB n
   in
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in

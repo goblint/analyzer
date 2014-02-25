@@ -111,16 +111,16 @@ let pretty_edge_kind () = function
   | Skip -> text "Skip"
   | SelfLoop -> text "SelfLoop"
 
-type cfg = node -> (edge * node) list
+type cfg = node -> ((location * edge) list * node) list
 
 module type CfgBackward =
 sig
-  val prev : node -> (edge * node) list
+  val prev : node -> ((location * edge) list * node) list
 end
 
 module type CfgForward =
 sig
-  val next : node -> (edge * node) list
+  val next : node -> ((location * edge) list * node) list
 end
 
 module type CfgBidir =
@@ -150,6 +150,12 @@ let do_the_params (fd: fundec) =
 let unknown_exp : exp = mkString "__unknown_value__" 
 let dummy_func = emptyFunction "__goblint_dummy_init" 
 
+let getLoc (node: node) = 
+  match node with
+    | Statement stmt -> get_stmtLoc stmt.skind
+    | Function fv -> fv.vdecl
+    | FunctionEntry fv -> fv.vdecl
+
 let createCFG (file: file) =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
@@ -162,8 +168,8 @@ let createCFG (file: file) =
           pretty_edge_kind e 
           pretty_short_node f 
           pretty_short_node t;
-    H.add cfgB t (e,f);
-    H.add cfgF f (e,t);
+    H.add cfgB t ([getLoc f,e],f);
+    H.add cfgF f ([getLoc f,e],t);
     Messages.trace "cfg" "done\n\n" 
   in
   let mkEdge fromNode edge toNode = addCfg (Statement toNode) (edge, Statement fromNode) in
@@ -270,18 +276,7 @@ let createCFG (file: file) =
   );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
   cfgF, cfgB
-
-let hasBackEdges = ref BISet.empty 
-let collectBackEdges cfg = 
-  let note_back_edge t (_,f) = 
-    match t, f with
-    | (Statement t, Statement f) -> 
-        if t.sid < f.sid then hasBackEdges := BISet.add t.sid !hasBackEdges 
-    | _ -> ()
-  in
-  H.iter note_back_edge cfg 
-
-
+    
 let print cfg  =
   let out = open_out "cfg.dot" in
   let module NH = Hashtbl.Make (Node) in
@@ -297,28 +292,31 @@ let print cfg  =
       | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
       | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (d_list ", " dn_exp) args
       | Proc (None,f,args) -> Pretty.dprintf "%a(%a)" dn_exp f (d_list ", " dn_exp) args
-      | Entry (f) -> Pretty.nil
+      | Entry (f) -> Pretty.text "(body)"
       | Ret (Some e,f) -> Pretty.dprintf "return %a" dn_exp e
       | Ret (None,f) -> Pretty.dprintf "return"
       | ASM (_,_,_) -> Pretty.text "ASM ..."
       | Skip -> Pretty.text "skip"
       | SelfLoop -> Pretty.text "SelfLoop"
   in
+  let rec p_edges () = function
+      | [] -> Pretty.dprintf ""
+      | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
+  in
   let printNodeStyle (n:node) () = 
     match n with 
       | Statement {skind=If (_,_,_,_)} as s  -> ignore (Pretty.fprintf out "\t%a [shape=diamond]\n" p_node s)
       | Statement stmt  -> ()
-      | Function f      -> ignore (Pretty.fprintf out "\t%a [shape=box];\n" p_node (Function f))
+      | Function f      -> ignore (Pretty.fprintf out "\t%a [label =\"return of %s()\",shape=box];\n" p_node (Function f) f.vname)
       | FunctionEntry f -> ignore (Pretty.fprintf out "\t%a [label =\"%s()\",shape=box];\n" p_node (FunctionEntry f) f.vname)
   in
-  let printEdge (toNode: node) ((edge:edge), (fromNode: node)) = 
-    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edge edge);
+  let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) = 
+    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges);
     NH.add node_table toNode ();
     NH.add node_table fromNode ()
   in
     H.iter printEdge cfg;    
     NH.iter printNodeStyle node_table;
-    BISet.iter (Printf.fprintf out "\t%d [style=filled, fillcolor=yellow];\n") !hasBackEdges;
     Printf.fprintf out "}\n";
     flush out;
     close_out_noerr out
@@ -362,27 +360,47 @@ let generate_irpt_edges cfg =
       | _ -> H.add cfg toNode (SelfLoop, toNode)
   in
     H.iter make_irpt_edge cfg
-    
-let __use_back_loop_cache = ref None
-let rec loopSep x = 
-  match Some (get_bool "exp.back_loop_sep") with
-    | None -> __use_back_loop_cache := Some (get_bool "exp.back_loop_sep"); loopSep x
-    | Some true -> BISet.mem x.sid !hasBackEdges
-    | Some false -> true
-    
+  
+let minimizeCFG (fw,bw) = 
+  let keep = H.create 113 in
+  let comp_keep t (_,f) =
+    if (List.length (H.find_all bw t)<>1) || (List.length (H.find_all fw t)<>1) then 
+      H.replace keep t ();
+    if (List.length (H.find_all bw f)<>1) || (List.length (H.find_all fw f)<>1) then 
+      H.replace keep f ()
+  in
+  H.iter comp_keep bw;
+  (* H.iter comp_keep fw; *)
+  let cfgB = H.create 113 in
+  let cfgF = H.create 113 in
+  let ready = H.create 113 in
+  let rec add a b t (e,f)=
+      if H.mem keep f then begin
+        H.add cfgB b (e@a,f);
+        H.add cfgF f (e@a,b);
+        if H.mem ready b then begin
+          H.replace ready f ();
+          List.iter (add [] f f) (H.find_all bw f)
+        end
+      end else begin
+        List.iter (add (e@a) b f) (H.find_all bw f)
+      end
+  in
+  H.iter (fun k _ -> List.iter (add [] k k) (H.find_all bw k)) keep;
+  H.clear ready;
+  H.clear keep;
+  cfgF, cfgB
   
 let getCFG (file: file) : cfg * cfg = 
   let cfgF, cfgB = createCFG file in
-    collectBackEdges cfgB;
-(*    if !GU.oil then generate_irpt_edges cfg;*)
+  let cfgF, cfgB = 
+    if get_bool "exp.mincfg" then 
+      Stats.time "minimizing the cfg" minimizeCFG (cfgF, cfgB)
+    else 
+      (cfgF, cfgB)
+  in
     if get_bool "justcfg" then print cfgB;      
     H.find_all cfgF, H.find_all cfgB
-
-let getLoc (node: node) = 
-  match node with
-    | Statement stmt -> get_stmtLoc stmt.skind
-    | Function fv -> fv.vdecl
-    | FunctionEntry fv -> fv.vdecl
 
 let get_containing_function (stmt: stmt): fundec = Hashtbl.find stmt_index_hack stmt.sid
 

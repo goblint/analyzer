@@ -70,9 +70,6 @@ struct
   let file_name n = (MyCFG.getLoc n).file
   let description n = sprint 80 (pretty () n)
   let context () _ = Pretty.nil
-  let loopSep =  function 
-    | MyCFG.Statement s -> MyCFG.loopSep s
-    | _ -> false
 end
 
 
@@ -125,10 +122,6 @@ struct
   let file_name (n,_) = (MyCFG.getLoc n).file
   let description (n,_) = sprint 80 (Var.pretty () n)
   let context () (_,c) = LD.pretty () c
-  let loopSep =  function 
-    | MyCFG.Statement s, _ -> MyCFG.loopSep s
-    | MyCFG.FunctionEntry _, _ -> true
-    | MyCFG.Function _, _ -> false
 end
 
 module VarCS =

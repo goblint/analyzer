@@ -140,7 +140,7 @@ module FlatFromSpec (S:Spec) (Cfg:CfgBackward)
                              and module GVar = Basetype.Variables
                              and module D = S.D
                              and module G = S.G
-      val tf : MyCFG.node * S.C.t -> MyCFG.edge * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
+      val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
     end
   =
 struct
@@ -153,8 +153,8 @@ struct
   module D = S.D
   module G = S.G
 
-  let common_ctx (v,c) u (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx = 
-    let pval = getl (u,c) in     
+  let common_ctx pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx * D.t list ref = 
+    let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
     (* now watch this ... *)
     let rec ctx = 
@@ -166,23 +166,27 @@ struct
       ; spawn   = (fun f d -> let c = S.context d in 
                                 sidel (FunctionEntry f, c) d; 
                                 ignore (getl (Function f, c)))
-      ; split   = (fun (d:D.t) _ _ -> sidel (v,c) d)
+      ; split   = (fun (d:D.t) _ _ -> r := d::!r)
       ; sideg   = sideg
       } 
     and query x = S.query ctx x in
     (* ... nice, right! *)
     let pval, diff = S.sync ctx in
     let _ = List.iter (uncurry sideg) diff in
-    { ctx with local = pval }
+    { ctx with local = pval }, r
     
+  let rec bigsqcup = function
+    | []    -> D.bot ()
+    | [x]   -> x
+    | x::xs -> D.join x (bigsqcup xs)
 
-  let tf_loop (v,c) u getl sidel getg sideg = 
-    let ctx = common_ctx (v,c) u getl sidel getg sideg 
-    in S.intrpt ctx
+  let tf_loop getl sidel getg sideg d = 
+    let ctx, r = common_ctx d getl sidel getg sideg in 
+    bigsqcup ((S.intrpt ctx)::!r)
   
-  let tf_assign lv e (v,c) u getl sidel getg sideg = 
-    let ctx = common_ctx (v,c) u getl sidel getg sideg 
-    in S.assign ctx lv e
+  let tf_assign lv e getl sidel getg sideg d = 
+    let ctx, r = common_ctx d getl sidel getg sideg in 
+    bigsqcup ((S.assign ctx lv e)::!r)
       
   let normal_return r fd ctx sideg = 
     let spawning_return = S.return ctx r fd in
@@ -197,21 +201,24 @@ struct
     List.iter (fun (x,y) -> sideg x y) ndiff;
     nval
         
-  let tf_ret ret fd (v,c) u getl sidel getg sideg = 
-    let ctx = common_ctx (v,c) u getl sidel getg sideg in
-    if (fd.svar.vid = MyCFG.dummy_func.svar.vid 
-         || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) 
-       && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
-    then toplevel_kernel_return ret fd ctx sideg
-    else normal_return ret fd ctx sideg
+  let tf_ret ret fd getl sidel getg sideg d = 
+    let ctx, r = common_ctx d getl sidel getg sideg in
+    let d = 
+      if (fd.svar.vid = MyCFG.dummy_func.svar.vid 
+           || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) 
+         && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
+      then toplevel_kernel_return ret fd ctx sideg
+      else normal_return ret fd ctx sideg
+    in 
+    bigsqcup (d::!r)
                                           
-  let tf_entry fd (v,c) u getl sidel getg sideg = 
-    let ctx = common_ctx (v,c) u getl sidel getg sideg 
-    in S.body ctx fd
+  let tf_entry fd getl sidel getg sideg d = 
+    let ctx, r = common_ctx d getl sidel getg sideg in 
+    bigsqcup ((S.body ctx fd)::!r)
 
-  let tf_test e tv (v,c) u getl sidel getg sideg =
-    let ctx = common_ctx (v,c) u getl sidel getg sideg 
-    in S.branch ctx e tv
+  let tf_test e tv getl sidel getg sideg d =
+    let ctx, r = common_ctx d getl sidel getg sideg in 
+    bigsqcup ((S.branch ctx e tv)::!r)
 
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
     let combine (cd, fd) = S.combine {ctx with local = cd} lv e f args fd in
@@ -224,8 +231,8 @@ struct
       
   let tf_special_call ctx lv f args = S.special ctx lv f args 
 
-  let tf_proc lv e args (v,c) u getl sidel getg sideg = 
-    let ctx = common_ctx (v,c) u getl sidel getg sideg in 
+  let tf_proc lv e args getl sidel getg sideg d = 
+    let ctx, r = common_ctx d getl sidel getg sideg in 
     let functions = 
       match ctx.ask (Queries.EvalFunvar e) with 
         | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
@@ -239,33 +246,41 @@ struct
       else tf_special_call ctx lv f args
     in
     let funs = List.map one_function functions in
-    List.fold_left D.join (D.bot ()) funs
+    bigsqcup (funs @ !r)
 
-  
-  let tf (v,c) (edge, u) = 
+  let tf getl sidel getg sideg edge d = 
     begin match edge with
       | Assign (lv,rv) -> tf_assign lv rv
       | Proc (r,f,ars) -> tf_proc r f ars
       | Entry f        -> tf_entry f
       | Ret (r,fd)     -> tf_ret r fd
       | Test (p,b)     -> tf_test p b
-      | ASM _          -> fun _ _ getl _ _ _ -> ignore (warn "ASM statement ignored."); getl (u,c)
-      | Skip           -> fun _ _ getl _ _ _ -> getl (u,c)
+      | ASM _          -> fun _ _ _ _ d -> ignore (warn "ASM statement ignored."); d
+      | Skip           -> fun _ _ _ _ d -> d
       | SelfLoop       -> tf_loop 
-    end (v,c) u
-    
-  let tf (v,c) (e,u) getl sidel getg sideg =
+    end getl sidel getg sideg d
+
+  let tf getl sidel getg sideg (_,edge) d (f,t) =
     let old_loc  = !Tracing.current_loc in
     let old_loc2 = !Tracing.next_loc in
+    let _       = Tracing.current_loc := f in
+    let _       = Tracing.next_loc := t in
+    let d       = tf getl sidel getg sideg edge d in
+    let _       = Tracing.current_loc := old_loc in 
+    let _       = Tracing.next_loc := old_loc2 in 
+      d
+
+  let tf (v,c) (edges, u) getl sidel getg sideg = 
+    let pval = getl (u,c) in
+    let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (getLoc v,[]) in
+    List.fold_left2 (|>) pval (List.map (tf getl sidel getg sideg) edges) locs
+    
+  let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
-    let _       = Tracing.current_loc := getLoc u in
-    let _       = Tracing.next_loc := getLoc v in
     let _       = current_node := Some u in
     let d       = try tf (v,c) (e,u) getl sidel getg sideg 
                   with M.StopTheWorld -> D.bot ()
                      | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
-    let _       = Tracing.current_loc := old_loc in 
-    let _       = Tracing.next_loc := old_loc2 in 
     let _       = current_node := old_node in
       d
   
@@ -312,9 +327,9 @@ struct
     type v = Var.t
     type d = Dom.t
 
-    let common_ctx (v:v) (u:v) (get:v -> d) (side:v -> d -> unit) : (Dom.t, S.G.t) ctx =  
+    let common_ctx pval (get:v -> d) (side:v -> d -> unit) : (Dom.t, S.G.t) ctx * Dom.t list ref =  
       if !Messages.worldStopped then raise M.StopTheWorld;
-      let pval = get u in
+      let r = ref [] in
       let rec ctx = 
         { ask     = query
         ; local   = pval
@@ -324,21 +339,26 @@ struct
         ; spawn   = (fun f d -> let c = S.context d in 
                                 !set_l (FunctionEntry f, c) d; 
                                 ignore (!get_l (Function f, c)))
-        ; split   = (fun (d:Dom.t) _ _ -> side v d)
+        ; split   = (fun (d:Dom.t) _ _ -> r := d::!r)
         ; sideg   = !set_g
         } 
       and query x = S.query ctx x in
       let pval, diff = S.sync ctx in
       let _ = List.iter (fun (x,y) -> !set_g x y) diff in
-      { ctx with local = pval }
+      { ctx with local = pval }, r
 
-    let tf_loop  (v:v)  u (get:v -> d) (side:v -> d -> unit) = 
-      let ctx = common_ctx v u get side
-      in S.intrpt ctx
+    let rec bigsqcup = function
+      | []    -> D.bot ()
+      | [x]   -> x
+      | x::xs -> D.join x (bigsqcup xs)
+
+    let tf_loop d (get:v -> d) (side:v -> d -> unit) = 
+      let ctx, r = common_ctx d get side in 
+      bigsqcup ((S.intrpt ctx)::!r)
   
-    let tf_assign lv e (v:v) u (get:v -> d) (side:v -> d -> unit) = 
-      let ctx = common_ctx v u get side
-      in S.assign ctx lv e
+    let tf_assign lv e d (get:v -> d) (side:v -> d -> unit) = 
+      let ctx, r = common_ctx d get side in 
+      bigsqcup ((S.assign ctx lv e)::!r)
       
     let normal_return r fd ctx = 
       let spawning_return = S.return ctx r fd in
@@ -353,21 +373,24 @@ struct
       List.iter (fun (x,y) -> !set_g x y) ndiff;
       nval
         
-    let tf_ret ret fd (v:v) u (get:v -> d) (side:v -> d -> unit) = 
-      let ctx = common_ctx v u get side in
-      if (fd.svar.vid = MyCFG.dummy_func.svar.vid 
-           || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) 
-         && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
-      then toplevel_kernel_return ret fd ctx 
-      else normal_return ret fd ctx 
+    let tf_ret ret fd d (get:v -> d) (side:v -> d -> unit) = 
+      let ctx, r = common_ctx d get side in
+      let d =
+        if (fd.svar.vid = MyCFG.dummy_func.svar.vid 
+             || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) 
+           && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
+        then toplevel_kernel_return ret fd ctx 
+        else normal_return ret fd ctx 
+    in
+    bigsqcup (d::!r)
                                           
-    let tf_entry fd (v:v) u (get:v -> d) (side:v -> d -> unit) = 
-      let ctx = common_ctx v u get side
-      in S.body ctx fd
+    let tf_entry fd d (get:v -> d) (side:v -> d -> unit) = 
+      let ctx, r = common_ctx d get side in 
+      bigsqcup ((S.body ctx fd)::!r)
 
-    let tf_test e tv (v:v) u (get:v -> d) (side:v -> d -> unit) =
-      let ctx = common_ctx v u get side
-      in S.branch ctx e tv
+    let tf_test e tv d (get:v -> d) (side:v -> d -> unit) =
+      let ctx, r = common_ctx d get side in 
+      bigsqcup ((S.branch ctx e tv)::!r)
 
     let tf_normal_call ctx lv e f args (get:v -> d) (side:v -> d -> unit) =
       let combine (cd, fd) = S.combine {ctx with local = cd} lv e f args fd in
@@ -380,8 +403,8 @@ struct
       
     let tf_special_call ctx lv f args = S.special ctx lv f args 
 
-    let tf_proc lv e args (v:v) u (get:v -> d) (side:v -> d -> unit) = 
-      let ctx = common_ctx v u get side in 
+    let tf_proc lv e args d (get:v -> d) (side:v -> d -> unit) = 
+      let ctx, r = common_ctx d get side in 
       let functions = 
         match ctx.ask (Queries.EvalFunvar e) with 
           | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls [] 
@@ -395,33 +418,41 @@ struct
         else tf_special_call ctx lv f args
       in
       let funs = List.map one_function functions in
-      List.fold_left Dom.join (Dom.bot ()) funs
+      bigsqcup (funs @ !r)
 
-  
-    let tf (v:v) (edge, u) = 
+    let tf get side edge d = 
       begin match edge with
         | Assign (lv,rv) -> tf_assign lv rv
         | Proc (r,f,ars) -> tf_proc r f ars
         | Entry f        -> tf_entry f
         | Ret (r,fd)     -> tf_ret r fd
         | Test (p,b)     -> tf_test p b
-        | ASM _          -> fun _ _ getl _ -> ignore (warn "ASM statement ignored."); getl u
-        | Skip           -> fun _ _ getl _ -> getl u
+        | ASM _          -> fun d _ _ -> ignore (warn "ASM statement ignored."); d
+        | Skip           -> fun d _ _ -> d
         | SelfLoop       -> tf_loop 
-      end v u
-    
-    let tf (v:v) (e,u) get side =
+      end d get side
+
+    let tf get side (_,edge) d (f,t) =
       let old_loc  = !Tracing.current_loc in
       let old_loc2 = !Tracing.next_loc in
+      let _       = Tracing.current_loc := f in
+      let _       = Tracing.next_loc := t in
+      let d       = tf get side edge d in
+      let _       = Tracing.current_loc := old_loc in 
+      let _       = Tracing.next_loc := old_loc2 in 
+        d
+
+    let tf v (edges, u) get side = 
+      let pval = get u in
+      let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (getLoc v,[]) in
+      List.fold_left2 (|>) pval (List.map (tf get side) edges) locs
+  
+    let tf (v:v) (e,u) get side =
       let old_node = !current_node in
-      let _       = Tracing.current_loc := getLoc u in
-      let _       = Tracing.next_loc := getLoc v in
       let _       = current_node := Some u in
       let d       = try tf v (e,u) get side
                     with M.StopTheWorld -> Dom.bot ()
                        | M.Bailure s -> Messages.warn_each s; (get u)  in
-      let _       = Tracing.current_loc := old_loc in 
-      let _       = Tracing.next_loc := old_loc2 in 
       let _       = current_node := old_node in
         d
   
@@ -1056,7 +1087,7 @@ struct
       LH.iter verify_var sigma;
       Goblintutil.in_verifying_stage := false
 end
-
+(*
 (** Use Astree-like abstract interpretation *)
 module IterateLikeAstree 
     (S:Spec) 
@@ -1495,3 +1526,5 @@ struct
     in loop (); print_globs ()
 
 end
+*)
+
