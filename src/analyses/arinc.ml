@@ -107,13 +107,13 @@ struct
     | CreateEvent of id | WaitEvent of ids * time | SetEvent of ids | ResetEvent of ids
     | TimedWait of time | PeriodicWait
   let actions = Hashtbl.create 123 (* use BatMultiPMap later? *)
-  let get_actions pid : action list =
+  let get_actions pid : (action * location) list =
     (* Hashtbl.find_default actions pid [] |> List.unique *)
     Hashtbl.find_all actions pid (* current binding first, then previous bindings *)
     |> List.unique |> List.rev
   let add_action pid action =
     (* Hashtbl.modify_def [] pid (List.cons action) actions *)
-    Hashtbl.add actions pid action (* old binding is just hidden *)
+    Hashtbl.add actions pid (action, !Tracing.current_loc) (* old binding is just hidden *)
 
   (* lookup/generate id from resource type and name (needed for LAP_Se_GetXId functions, specified by LAP_Se_CreateX functions during init) *)
   type resource = Process | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard
@@ -146,7 +146,7 @@ struct
       | CreateErrorHandler (id', funs) when id'=id -> funs
       | _ -> []
     in
-    Hashtbl.values actions |> Enum.map get_funs |> List.of_enum |> List.unique |> List.concat
+    Hashtbl.values actions |> Enum.map (get_funs%fst) |> List.of_enum |> List.unique |> List.concat
 
   (* map process name to integer used in Pid domain *)
   let pnames = Hashtbl.create 123
@@ -208,8 +208,9 @@ struct
       | TimedWait t -> "TimedWait "^str_time t
       | PeriodicWait -> "PeriodicWait"
     in
+    let str_loc loc = " @" ^ string_of_int loc.line in
     let print_process pid =
-      let xs = List.map (str_action pid) (get_actions pid) in
+      let xs = List.map (fun (action, loc) -> str_action pid action ^ str_loc loc) (get_actions pid) in
       M.debug @@ str_resource pid^" ->\n\t"^String.concat ",\n\t" xs
     in
     Hashtbl.keys actions |> Enum.iter print_process
