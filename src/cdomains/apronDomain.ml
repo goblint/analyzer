@@ -23,10 +23,13 @@ struct
 
   let name () = "APRON numerical abstract domain"
 
-  let top () = A.top       (Man.mgr) (Man.eenv)
-  let bot () = A.bottom    (Man.mgr) (Man.eenv)
-  let is_top = A.is_top    (Man.mgr)
-  let is_bot = A.is_bottom (Man.mgr)
+  let topE = A.top    Man.mgr
+  let botE = A.bottom Man.mgr
+
+  let top () = topE Man.eenv
+  let bot () = botE Man.eenv
+  let is_top = A.is_top    Man.mgr
+  let is_bot = A.is_bottom Man.mgr
   
   let join x y = 
     if is_bot x then 
@@ -36,7 +39,11 @@ struct
     else
       A.join (Man.mgr) x y
   
-  let meet = A.meet (Man.mgr)
+  let meet x y = 
+    if is_top x then y else
+    if is_top y then x else
+    if is_bot x || is_bot y then bot () else
+      A.meet Man.mgr x y
   
   let widen x y = 
     if is_bot x then 
@@ -46,10 +53,13 @@ struct
     else
       A.widening (Man.mgr) x y
       
-  let narrow = A.meet (Man.mgr)
+  let narrow = meet
   
   let equal = A.is_eq  (Man.mgr)
-  let leq   = A.is_leq (Man.mgr)
+  let leq x y = 
+    if is_bot x || is_top y then true else 
+    if is_bot y || is_top x then false else
+      A.is_leq (Man.mgr) x y
   
   let hash (x:t) = Hashtbl.hash x
   let compare (x:t) y = Pervasives.compare x y
@@ -81,7 +91,7 @@ struct
 
   let rec exptoexpr = 
     function 
-    | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
+    | Lval (Var v,NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
         Var (Var.of_string v.vname)
     | Const (CInt64 (i,_,_)) -> 
         Cst (Coeff.s_of_int (Int64.to_int i))
@@ -137,7 +147,7 @@ struct
         | _ -> raise (Invalid_argument "exptolinexp")
     in
     function 
-    | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
+    | Lval (Var v,NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
         [v.vname,`int 1], `none, EQ
     | Const (CInt64 (i,_,_)) -> 
         [], `int (Int64.to_int i), EQ
@@ -178,7 +188,7 @@ struct
       raise (Invalid_argument "exptolinexp")
     
   let exptolinecons env x b =
-    ignore (Pretty.printf "exptolinecons '%a'\n" d_plainexp x);
+    (* ignore (Pretty.printf "exptolinecons '%a'\n" d_plainexp x); *)
     let inverse = function
       | EQ -> DISEQ
       | DISEQ -> EQ
@@ -195,12 +205,13 @@ struct
     Lincons1.make le r
     
   let assert_inv d x b =
-    let ea = { lincons0_array = [|Lincons1.get_lincons0 (exptolinecons (A.env d) x b) |]
-             ; array_env = A.env d 
-             } 
-    in
-    A.meet_lincons_array Man.mgr d ea
-
+    try 
+      let ea = { lincons0_array = [|Lincons1.get_lincons0 (exptolinecons (A.env d) x b) |]
+               ; array_env = A.env d 
+               } 
+      in
+      A.meet_lincons_array Man.mgr d ea
+    with Invalid_argument "exptolinexp" -> d
 
   let exptotexpr1 env x =
     (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
@@ -216,11 +227,16 @@ struct
           
           
   let assign_var_with d v e =
+    (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
     begin try
       A.assign_texpr_with Man.mgr d (Var.of_string v) 
             (exptotexpr1 (A.env d) (Cil.constFold false e)) None
     with Invalid_argument "exptotexpr1" -> 
       A.forget_array_with Man.mgr d [|Var.of_string v|] false
+      (* | Manager.Error q -> *)
+      (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
+      (* ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e); *)
+       (* raise (Manager.Error q) *)
     end
 
   let assign_var d v e =
@@ -237,11 +253,16 @@ struct
     newd
   
   let substitute_var_with d v e =
+    (* ignore (Pretty.printf "substitute_var_with %a %s %a\n" pretty d v d_plainexp e); *)
     begin try
       A.substitute_texpr_with Man.mgr d (Var.of_string v) 
             (exptotexpr1 (A.env d) (Cil.constFold false e)) None
     with Invalid_argument "exptotexpr1" -> 
       A.forget_array_with Man.mgr d [|Var.of_string v|] false
+      (* | Manager.Error q ->
+        ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
+        ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e);
+         raise (Manager.Error q) *)
     end
   
   let get_vars d = 
