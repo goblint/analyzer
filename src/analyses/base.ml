@@ -438,10 +438,15 @@ struct
     (* query functions were no help ... now try with values*)
     match constFold true exp with
       (* Integer literals *)
+      (* seems like constFold already converts CChr to CInt64 *)
+      | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
       | Const (CInt64 (num,typ,str)) -> `Int (ID.of_int num)
       (* String literals *)
-      | Const (CStr _)
-      | Const (CWStr _) -> `Address (AD.str_ptr ())
+      | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
+      | Const (CWStr xs as c) -> (* wide character strings, type: wchar_t* *)
+          let x = Pretty.sprint 80 (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
+          let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
+          `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
       (* Variables and address expressions *)
       | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
       | Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs
@@ -466,7 +471,7 @@ struct
               | _ -> ad
           in
           `Address (AD.map array_start (eval_lv a gs st lval))
-       | CastE  (t, Const (CStr _)) -> VD.top ()
+      | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
       (* Most casts are currently just ignored, that's probably not a good idea! *)
        | CastE  (t, exp) -> begin
            match t,eval_rv a gs st exp with
@@ -746,8 +751,44 @@ struct
  (**************************************************************************
   * Simple defs for the transfer functions 
   **************************************************************************)
-  
+
+  (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
+  let char_array : (lval, string) Hashtbl.t = Hashtbl.create 500
+
   let assign ctx (lval:lval) (rval:exp)  = 
+    let char_array_hack () =
+      let rec split_offset = function
+        | Index(Const(CInt64(i, _, _)), NoOffset) -> (* ...[i] *)
+            Index(zero, NoOffset), Some i (* all i point to StartOf(string) *)
+        | NoOffset -> NoOffset, None
+        | Index(exp, offs) ->
+            let offs', r = split_offset offs in
+            Index(exp, offs'), r
+        | Field(fi, offs) ->
+            let offs', r = split_offset offs in
+            Field(fi, offs'), r
+      in
+      let last_index (lhost, offs) =
+        match split_offset offs with
+        | offs', Some i -> Some ((lhost, offs'), i)
+        | _ -> None
+      in
+      match last_index lval, stripCasts rval with
+      | Some (lv, i), Const(CChr c) when c<>'\000' -> (* "abc" <> "abc\000" in OCaml! *)
+          let i = i64_to_int i in
+          (* ignore @@ printf "%a[%i] = %c\n" d_lval lv i c; *)
+          let s = try BatHashtbl.find char_array lv with Not_found -> "" in (* current string for lv or empty string *)
+          if i >= String.length s then ((* optimized b/c Out_of_memory *)
+            let dst = String.make (i+1) '\000' in
+            String.blit s 0 dst 0 (String.length s); (* dst[0:len(s)] = s *)
+            String.set dst i c; (* set character i to c inplace *)
+            Hashtbl.replace char_array lv dst
+          )else(
+            String.set s i c; (* set character i to c inplace *)
+            Hashtbl.replace char_array lv s
+          )
+      | _ -> ()
+    in char_array_hack ();
     let is_list_init () =
       match lval, rval with
       | (Var a, Field (fi,NoOffset)), AddrOf((Var b, NoOffset)) 
@@ -767,6 +808,8 @@ struct
       | _ -> 
     let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
     let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
+    (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
+    (* M.debug @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
     let not_local xs = 
       let not_local x = 
         match Addr.to_var_may x with
@@ -1132,6 +1175,7 @@ struct
                 if AD.mem (Addr.unknown_ptr ()) a 
                 then `LvalSet (Q.LS.add (dummyFunDec.svar, `NoOffset) s)
                 else `LvalSet s
+            | `Bot -> `Bot
             | _ -> `Top
           end
       | Q.ReachableFrom e -> begin
@@ -1147,6 +1191,31 @@ struct
             | _ -> `LvalSet (Q.LS.empty ())      
           end
       | Q.SingleThreaded -> `Int (Q.ID.of_bool (not (Flag.is_multi (get_fl ctx.local))))
+      | Q.EvalStr e -> begin
+          match eval_rv ctx.ask ctx.global ctx.local e with
+            (* exactly one string in the set (works for assignments of string constants) *)
+            | `Address a when List.length (AD.to_string a) = 1 ->
+                `Str (List.hd (AD.to_string a))
+            (* check if we have an array of chars that form a string *)
+            (* TODO return may-points-to-set of strings *)
+            | `Address a when List.length (AD.to_var_may a) = 1 ->
+                (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
+                (* ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
+                begin match unrollType (typeOf e) with
+                | TPtr(TInt(IChar, _), _) ->
+                    let v, offs = Q.LS.choose @@ addrToLvalSet a in
+                    let ciloffs = Lval.CilLval.to_ciloffs offs in
+                    let lval = Var v, ciloffs in
+                    (try `Str (Hashtbl.find char_array lval)
+                    with Not_found -> `Top)
+                | _ -> (* what about ISChar and IUChar? *)
+                    (* ignore @@ printf "Type %a\n" d_plaintype t; *)
+                    `Top
+                end
+            | x ->
+                (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
+                `Top
+          end
       | _ -> Q.Result.top ()
 
   (**************************************************************************
@@ -1172,6 +1241,9 @@ struct
   let enter ctx lval fn args : (D.t * D.t) list = 
     [ctx.local, make_entry ctx fn args]
 
+
+  let processes = ref []
+
   let forkfun ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list = 
     let cpa,fl = ctx.local in
     let create_thread arg v = 
@@ -1187,19 +1259,43 @@ struct
         let nst = make_entry ctx v args in
           v, nst
       with Not_found -> 
-        M.warn ("creating a thread from unknown function " ^ v.vname);
+        if not (LF.use_special f.vname) then
+          M.warn ("creating a thread from unknown function " ^ v.vname);
         v, (cpa, create_tid v)
     in
     match LF.classify f.vname args with 
       (* handling thread creations *)
+      | `Unknown "LAP_Se_SetPartitionMode" when List.length args = 2 -> begin
+          let mode = List.hd @@ List.map (fun x -> stripCasts (constFold false x)) args in
+          match ctx.ask (Queries.EvalInt mode) with
+          | `Int i when i=3L ->
+              let r = List.map (create_thread None) !processes in
+              processes := [];
+              ignore @@ printf "base: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length r);
+              r
+          | _ -> []
+          end
       | `Unknown "LAP_Se_CreateProcess" -> begin
           match List.map (fun x -> stripCasts (constFold false x)) args with
             | [proc_att;AddrOf id;AddrOf r] ->
               let pa = eval_fv ctx.ask ctx.global ctx.local proc_att in
               let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
               let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
-              List.map (create_thread None) reach_fs
+              processes := BatList.append !processes reach_fs;
+              (* List.map (create_thread None) reach_fs *)
+              []
             (*  let st = invalidate ctx.ask ctx.global ctx.local [Lval id, Lval r] in*)
+            | _ -> []
+          end
+      | `Unknown "LAP_Se_CreateErrorHandler" -> begin
+          match List.map (fun x -> stripCasts (constFold false x)) args with
+            | [entry_point;stack_size;AddrOf r] ->
+              let pa = eval_fv ctx.ask ctx.global ctx.local entry_point in
+              let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
+              let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
+              processes := BatList.append !processes reach_fs;
+              (* List.map (create_thread None) reach_fs *)
+              []
             | _ -> []
           end
       | `ThreadCreate (start,ptc_arg) -> begin        
@@ -1254,14 +1350,6 @@ struct
               M.warn_each ("Invariant \"" ^ expr () ^ "\" does not stick.");
             newst
           end
-
-  let arinc_semaphore_tbl = Hashtbl.create 13 
-  let arinc_semaphore (s:string) : varinfo =
-    try Hashtbl.find arinc_semaphore_tbl s
-    with Not_found ->
-        let i = makeGlobalVar s voidPtrType in
-        Hashtbl.add arinc_semaphore_tbl s i;
-        i
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) = 
 (*    let heap_var = heap_var !Tracing.current_loc in*)
@@ -1331,13 +1419,13 @@ struct
               cpa, new_fl
         end
       (* handling thread creations *)
-      | `Unknown "LAP_Se_CreateProcess" -> begin
+(*       | `Unknown "LAP_Se_CreateProcess" -> begin
           match List.map (fun x -> stripCasts (constFold false x)) args with
             | [_;AddrOf id;AddrOf r] ->
                 let cpa,_ = invalidate ctx.ask ctx.global ctx.local [Lval id; Lval r] in
                   cpa, fl
             | _ -> raise Deadcode
-          end
+          end *)
       | `ThreadCreate (f,x) -> 
           GU.multi_threaded := true;
           let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
@@ -1369,13 +1457,6 @@ struct
                                          (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
           | _ -> st
         end
-      | `Unknown "LAP_Se_GetSemaphoreId" ->
-          begin match Cil.stripCasts (List.nth args 0), Cil.stripCasts (List.nth args 1) with
-            | Const (CStr s), AddrOf lv -> assign ctx lv (AddrOf (Var (arinc_semaphore s),NoOffset))
-            | se,ide -> 
-              (*ignore (Pretty.printf "LAP_Se_GetSemaphoreId(%a,%a)\n\n" d_plainexp se d_plainexp ide );*)
-              st
-          end
       | `Unknown "__goblint_unknown" ->
           begin match args with 
             | [Lval lv] | [CastE (_,AddrOf lv)] -> 
@@ -1408,7 +1489,8 @@ struct
                 let addrs = CPA.fold st_expr cpa (lv_list @ args) in
                 (* This rest here is just to see of something got spawned. *)
                 let flist = collect_funargs ctx.ask gs st args in
-                let (cpa,fl as st) = invalidate ctx.ask gs st addrs in
+                (* invalidate arguments for unknown functions, except for arinc functions *)
+                let (cpa,fl as st) = if startsWith "LAP_Se_" f.vname then cpa,fl else invalidate ctx.ask gs st addrs in
                 let f addr acc = 
                   try 
                     let var = List.hd (AD.to_var_may addr) in

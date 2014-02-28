@@ -176,6 +176,7 @@ struct
         ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?") 
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = (fun _ -> failwith "Global initializers trying to side-effect globals.")
+        ; assign  = (fun ?name _ -> failwith "Global initializers trying to assign.")
         } 
       in  
       let edges = MyCFG.getGlobalInits file in
@@ -238,6 +239,7 @@ struct
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.") 
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun _ -> failwith "Bug3: Using enter_func for toplevel functions with 'otherstate'.")
+        ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         } 
       in
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in

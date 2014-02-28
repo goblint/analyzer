@@ -355,7 +355,7 @@ let print_html chan xmlNode (file: file) gtable =
 			(* Tree node directory start *)
 			fprintf outchan "<div><span class=\"toggle entrydir\" >%s</span><div class=\"entrydircontent\">\n" (Xml.attrib xmlParentNode "text");
 
-			(* Process childs *)
+			(* Process children *)
 			Xml.iter (fun x -> processAnalysisXmlNode outchan x) xmlParentNode;
 
 			(* Tree node directory end *)

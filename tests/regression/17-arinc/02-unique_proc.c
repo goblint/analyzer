@@ -21,13 +21,13 @@ typedef long   SYSTEM_TIME_TYPE;
 typedef int    DEADLINE_TYPE;
 
 typedef struct {
- PROCESS_NAME_TYPE      NAME;         
- SYSTEM_ADDRESS_TYPE    ENTRY_POINT;         
- STACK_SIZE_TYPE        STACK_SIZE;     
- PRIORITY_TYPE          BASE_PRIORITY;   
- SYSTEM_TIME_TYPE       PERIOD;     
- SYSTEM_TIME_TYPE       TIME_CAPACITY;     
- DEADLINE_TYPE          DEADLINE;   
+ PROCESS_NAME_TYPE      NAME;
+ SYSTEM_ADDRESS_TYPE    ENTRY_POINT;
+ STACK_SIZE_TYPE        STACK_SIZE;
+ PRIORITY_TYPE          BASE_PRIORITY;
+ SYSTEM_TIME_TYPE       PERIOD;
+ SYSTEM_TIME_TYPE       TIME_CAPACITY;
+ DEADLINE_TYPE          DEADLINE;
 }                        PROCESS_ATTRIBUTE_TYPE;
 
 typedef int PROCESS_ID_TYPE;
@@ -53,37 +53,42 @@ int g,h;
 SEMAPHORE_ID_TYPE sem_id;
 
 void P1(void){
- RETURN_CODE_TYPE r;
- while (1){
-   g = g + 1; // NOWARN!
- }
- return;
+  RETURN_CODE_TYPE r;
+  while (1){
+    g = g + 1; // NOWARN!
+  }
+  return;
 }
 
 void P2(void){
- RETURN_CODE_TYPE r;
- while (1){
-   h = h + 1; // NOWARN!
- }
- return;
+  RETURN_CODE_TYPE r;
+  while (1){
+    h = h + 1; // NOWARN!
+  }
+  return;
 }
 
-
 int main(){
- RETURN_CODE_TYPE r;
- PROCESS_ID_TYPE pi1, pi2;
- SEMAPHORE_ID_TYPE sem_id_local;
- PROCESS_ATTRIBUTE_TYPE p1, p2;
- LAP_Se_CreateSemaphore("my_mutex",1,1,0,&sem_id_local,&r);
- LAP_Se_GetSemaphoreId("my_mutex",&sem_id,&r);
- p1.ENTRY_POINT = (void *) &P1;
- p1.BASE_PRIORITY = 10;
- p2.ENTRY_POINT = (void *) &P2;
- p2.BASE_PRIORITY = 20;
- LAP_Se_CreateProcess(&p1,&pi1,&r);
- LAP_Se_CreateProcess(&p2,&pi2,&r);
- LAP_Se_Start(pi1,&r);
- LAP_Se_Start(pi2,&r);
- LAP_Se_SetPartitionMode(NORMAL,&r);
- return 0;
+  RETURN_CODE_TYPE r;
+  PROCESS_ID_TYPE pi1, pi2;
+  SEMAPHORE_ID_TYPE sem_id_local;
+  PROCESS_ATTRIBUTE_TYPE p1, p2;
+  LAP_Se_CreateSemaphore("my_mutex",1,1,0,&sem_id_local,&r);
+  LAP_Se_GetSemaphoreId("my_mutex",&sem_id,&r);
+  p1.NAME = "proc1";
+  p1.ENTRY_POINT = (void *) &P1;
+  p1.BASE_PRIORITY = 10;
+  p1.PERIOD = 600;
+  p1.TIME_CAPACITY = 600;
+  p2.NAME = "proc2";
+  p2.ENTRY_POINT = (void *) &P2;
+  p2.BASE_PRIORITY = 20;
+  p2.PERIOD = 600;
+  p2.TIME_CAPACITY = 600;
+  LAP_Se_CreateProcess(&p1,&pi1,&r);
+  LAP_Se_CreateProcess(&p2,&pi2,&r);
+  LAP_Se_Start(pi1,&r);
+  LAP_Se_Start(pi2,&r);
+  LAP_Se_SetPartitionMode(NORMAL,&r);
+  return 0;
 }

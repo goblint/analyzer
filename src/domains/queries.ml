@@ -38,12 +38,14 @@ type t = ExpEq of exp * exp
        | IsNotUnique
        | EvalFunvar of exp
        | EvalInt of exp
+       | EvalStr of exp
        | PrintFullState
        | TheAnswerToLifeUniverseAndEverything
 
 type result = [
     | `Top
     | `Int of ID.t
+    | `Str of string
     | `Bool of BD.t
     | `LvalSet of LS.t
     | `ExprSet of ES.t
@@ -91,6 +93,7 @@ struct
     let constr_to_int x = match x with
         | `Bot -> 0
         | `Int _ -> 1
+        | `Str _ -> 6
         | `Bool _ -> 2
         | `LvalSet _ -> 3
         | `ExprSet _ -> 4
@@ -107,6 +110,7 @@ struct
   let pretty_f s () state = 
     match state with
       | `Int n ->  ID.pretty () n
+      | `Str s ->  text s
       | `Bool n ->  BD.pretty () n
       | `LvalSet n ->  LS.pretty () n
       | `ExprSet n ->  ES.pretty () n
@@ -117,6 +121,7 @@ struct
   let rec short w state = 
     match state with
       | `Int n ->  ID.short w n
+      | `Str s ->  s
       | `Bool n ->  BD.short w n
       | `LvalSet n ->  LS.short w n
       | `ExprSet n ->  ES.short w n
@@ -136,6 +141,7 @@ struct
   let toXML_f sf state =
     match state with
       | `Int n -> ID.toXML n
+      | `Str s -> Xml.Element ("Leaf", [("text", s)],[])
       | `Bool n -> BD.toXML n
       | `LvalSet n -> LS.toXML n
       | `ExprSet n -> ES.toXML n

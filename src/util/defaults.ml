@@ -74,7 +74,8 @@ let _ =
   reg Std "comparesolver"   "''"           "Picks another solver for comparison.";
   reg Std "solverdiffs"     "false"        "Print out solver differences.";
   reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main).";
-  reg Std "nonstatic"       "false"        "Analyzes all non-static functions."
+  reg Std "nonstatic"       "false"        "Analyzes all non-static functions.";
+  reg Std "colors"          "false"        "Colored output."
                                                
 (* {4 category [Analyses]} *)
 
@@ -109,6 +110,8 @@ let _ =
   reg Analyses "ana.int.cdebug"      "false" "Debugging output for wrapped interval analysis.";
   reg Analyses "ana.int.cwiden"      "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'double')";
   reg Analyses "ana.int.cnarrow"     "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'half')";
+  reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails.";
+  reg Analyses "ana.spec.file"       ""      "Path to the specification file.";
   reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?";
   reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
   
@@ -171,7 +174,7 @@ let default_schema =
 "
 { 'id'              : 'root'
 , 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'solver', 'allfuns', 'nonstatic']
+, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'solver', 'allfuns', 'nonstatic', 'colors']
 , 'additionalProps' : false
 , 'properties' : 
   { 'ana' : 
@@ -221,6 +224,7 @@ let default_schema =
   , 'solverdiffs'     : {}
   , 'allfuns'         : {}
   , 'nonstatic'       : {}
+  , 'colors'          : {}
   }
 }"
 

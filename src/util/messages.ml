@@ -45,7 +45,19 @@ let get_out name alternative = match get_string "dbg.dump" with
 
 let xml_warn : (location, (string*string) list) Hashtbl.t = Hashtbl.create 10  
 
+let colorize ?on:(on=get_bool "colors") msg =
+  let colors = [("gray", "30"); ("red", "31"); ("green", "32"); ("yellow", "33"); ("blue", "34");
+    ("violet", "35"); ("turquoise", "36"); ("white", "37"); ("reset", "0;00")] in
+  let replace msg (color,code) =
+    let msg = Str.global_replace (Str.regexp ("{"^color^"}")) (if on then "\027[0;"^code^"m" else "") msg in (* normal *)
+    Str.global_replace (Str.regexp ("{"^String.uppercase color^"}")) (if on then "\027[1;"^code^"m" else "") msg (* bold *)
+  in
+  let msg = List.fold_left replace msg colors in
+  msg^(if on then "\027[0;0;00m" else "") (* reset at end *)
+
 let print_msg msg loc = 
+  let msgc = colorize msg in
+  let msg  = colorize ~on:false msg in
   if (get_string "result") = "html" then htmlGlobalWarningList := (loc.file,loc.line,msg)::!htmlGlobalWarningList;
   if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
   if get_bool "gccwarn" then    
@@ -53,7 +65,7 @@ let print_msg msg loc =
   else if get_bool "exp.eclipse" then 
     Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
   else
-    Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
+    Printf.fprintf !warn_out (if get_bool "colors" then "%s \027[35m(%s:%d)\027[0;0;00m\n%!" else "%s (%s:%d)\n%!") msgc loc.file loc.line
 
 let print_err msg loc = 
   if (get_string "result") = "html" then htmlGlobalWarningList := (loc.file,loc.line,msg)::!htmlGlobalWarningList;
@@ -111,9 +123,8 @@ let waitWhat s =
   
 let report_lin_hashtbl  = Hashtbl.create 10
 
-let report msg = 
+let report ?loc:(loc= !Tracing.current_loc) msg = 
   if not !GU.may_narrow then begin
-    let loc = !Tracing.current_loc in
     if (Hashtbl.mem report_lin_hashtbl (msg,loc) == false) then
       begin
         print_msg msg loc;
@@ -150,6 +161,9 @@ let warn_each msg =
   end
   
 let debug msg =
-  if (get_bool "dbg.debug") then warn msg
+  if (get_bool "dbg.debug") then warn (colorize ("{BLUE}"^msg))
+  
+let debug_each msg =
+  if (get_bool "dbg.debug") then warn_each (colorize ("{blue}"^msg))
 
 include Tracing

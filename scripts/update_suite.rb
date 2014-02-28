@@ -17,6 +17,7 @@ testresults = File.expand_path("tests/suite_result")
 testfiles   = File.expand_path("tests/regression")
 
 alliswell = true
+failed    = [] # failed tests
 
 class Project
   attr_reader :name, :group, :path, :params, :warnings
@@ -50,8 +51,9 @@ if only == "future" then
   future = true
   only = nil
 elsif only == "group" then
-  future = true
   thegroup = ARGV[1]
+  future = thegroup.start_with?"-"
+  future = !future # why does negation above fail?
   only = nil
 else
   future = false
@@ -67,7 +69,8 @@ regs.sort.each do |d|
   next if File.basename(d)[0] == ?.
   gid = d[0..1]
   groupname = d[3..-1]
-  next unless thegroup.nil? or groupname == thegroup
+  next unless thegroup.nil? or groupname == thegroup or # group x = only group x
+    (thegroup.start_with?"-" and groupname != thegroup[1..-1]) # group -x = all groups but x
   grouppath = File.expand_path(d, testfiles)
   group = Dir.open(grouppath)
   group.sort.each do |f|
@@ -136,14 +139,26 @@ projects.each do |p|
   dirname = File.dirname(filepath)
   filename = File.basename(filepath)
   Dir.chdir(dirname)
-  puts "#{astr} #{p.name}"
+  puts "#{astr} #{p.group}/#{p.name}"
   warnfile = File.join(testresults, p.name + ".warn.txt")
   statsfile = File.join(testresults, p.name + ".stats.txt")
 #   confile = File.join(testresults, p.name + ".con.txt")
 #   solfile = File.join(testresults, p.name + ".sol.txt")
   cilfile = File.join(testresults, p.name + ".cil.txt")
   orgfile = File.join(testresults, p.name + ".c.html")
-  `code2html -l c -n #{filename} > #{orgfile}`
+  cmds = {"code2html" => "-l c -n #{filename} > #{orgfile}",
+          "source-highlight" => "-n -i #{filename} -o #{orgfile}",
+          "pygmentize" => "-O full,linenos=1 -o #{orgfile} #{filename}"}
+  cmds.each do |cmd, args|
+      # if `which #{cmd} 2> /dev/null`.empty? then
+      if not ENV['PATH'].split(':').map {|f| File.executable? "#{f}/#{cmd}"}.one? then
+          # puts "#{cmd} not found!"
+      else
+          `#{cmd} #{args}`
+          break
+      end
+  end
+  # `code2html -l c -n #{filename} > #{orgfile}`
   `#{goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
   p.size = `wc -l #{cilfile}`.split[0]
   starttime = Time.now
@@ -274,6 +289,8 @@ File.open(theresultfile, "w") do |f|
       f.puts "<td style =\"color: green\">NONE</td>"
     else
       alliswell = false
+      failed.push p.name
+      puts "#{p.group}/#{p.name} \e[31mfailed! \u2620\e[0m"
       if not is_ok or ferr.nil? then
         f.puts "<td style =\"color: red\">FAILED</td>"
       else
@@ -298,5 +315,10 @@ puts "  Single: ./scripts/update_suite.rb simple_rc"
 puts "  Groups: ./scripts/update_suite.rb group mutex"
 puts "  Future: ./scripts/update_suite.rb future"
 puts ("Results: " + theresultfile)
-if alliswell then puts "\e[32mAll is well!\e[0m" else puts "\e[31mAll is not well!\e[0m" end
+if alliswell then
+  puts "\e[32mAll is well!\e[0m"
+else
+  puts "\e[31mAll is not well!\e[0m"
+  # puts "failed tests: #{failed}"
+end
 exit alliswell

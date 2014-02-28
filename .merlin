@@ -1,0 +1,17 @@
+PKG batteries cil xml-light
+S src
+S src/analyses
+S src/cdomains
+S src/domains
+S src/framework
+S src/solvers
+S src/spec
+S src/util
+B _build/src
+B _build/src/analyses
+B _build/src/cdomains
+B _build/src/domains
+B _build/src/framework
+B _build/src/solvers
+B _build/src/spec
+B _build/src/util
