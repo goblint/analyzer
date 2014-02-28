@@ -287,6 +287,12 @@ let print cfg  =
       | Function f      -> Pretty.dprintf "ret%d" f.vid
       | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
   in
+  let dn_exp () e = 
+    text (Goblintutil.escape (sprint 800 (dn_exp () e)))
+  in
+  let dn_lval () l = 
+    text (Goblintutil.escape (sprint 800 (dn_lval () l)))
+  in
   let p_edge () = function
       | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
       | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
@@ -409,3 +415,84 @@ let getFun (node: node) =
     | Statement stmt -> get_containing_function stmt
     | Function fv -> CF.getdec fv
     | FunctionEntry fv -> CF.getdec fv
+    
+let printFun (module Cfg : CfgBidir) live fd out =
+  (* let out = open_out "cfg.dot" in *)
+  let module NH = Hashtbl.Make (Node) in
+  let ready      = NH.create 113 in
+  let node_table = NH.create 113 in
+  let _ = Printf.fprintf out "digraph cfg {\n" in
+  let p_node () = function
+      | Statement stmt  -> Pretty.dprintf "%d" stmt.sid
+      | Function f      -> Pretty.dprintf "ret%d" f.vid
+      | FunctionEntry f -> Pretty.dprintf "fun%d" f.vid
+  in
+  let dn_exp () e = 
+    text (Goblintutil.escape (sprint 800 (dn_exp () e)))
+  in
+  let dn_lval () l = 
+    text (Goblintutil.escape (sprint 800 (dn_lval () l)))
+  in
+  let p_edge () = function
+      | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
+      | Assign (lv,rv) -> Pretty.dprintf "%a = %a" dn_lval lv dn_exp rv
+      | Proc (Some ret,f,args) -> Pretty.dprintf "%a = %a(%a)" dn_lval ret dn_exp f (d_list ", " dn_exp) args
+      | Proc (None,f,args) -> Pretty.dprintf "%a(%a)" dn_exp f (d_list ", " dn_exp) args
+      | Entry (f) -> Pretty.text "(body)"
+      | Ret (Some e,f) -> Pretty.dprintf "return %a" dn_exp e
+      | Ret (None,f) -> Pretty.dprintf "return"
+      | ASM (_,_,_) -> Pretty.text "ASM ..."
+      | Skip -> Pretty.text "skip"
+      | SelfLoop -> Pretty.text "SelfLoop"
+  in
+  let rec p_edges () = function
+      | [] -> Pretty.dprintf ""
+      | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
+  in
+  let printNodeStyle (n:node) () = 
+    let liveness = if live n then "fillcolor=green,style=filled" else "fillcolor=red,style=filled" in
+    match n with 
+      | Statement {skind=If (_,_,_,_)} as s  -> 
+          ignore (Pretty.fprintf out ("\t%a [%s,shape=diamond]\n") p_node s liveness)
+      | Statement stmt  -> 
+          ignore (Pretty.fprintf out ("\t%a [%s];\n") p_node (Statement stmt) liveness)
+      | Function f      -> 
+          ignore (Pretty.fprintf out ("\t%a [%s,label =\"return of %s()\",shape=box];\n") p_node (Function f) liveness f.vname)
+      | FunctionEntry f -> 
+          ignore (Pretty.fprintf out ("\t%a [%s,label =\"%s()\",shape=box];\n") p_node (FunctionEntry f) liveness f.vname)
+  in
+  let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) = 
+    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges);
+    NH.add node_table toNode ();
+    NH.add node_table fromNode ()
+  in
+  let rec printNode (toNode : node) =
+    if not (NH.mem ready toNode) then begin
+      NH.add ready toNode ();
+      let prevs = Cfg.prev toNode in
+      List.iter (printEdge toNode) prevs;
+      List.iter (fun (_,x) -> printNode x) prevs
+    end
+  in
+    printNode (Function fd.svar);
+    NH.iter printNodeStyle node_table;
+    Printf.fprintf out "}\n";
+    flush out;
+    close_out_noerr out;
+    ()
+
+
+let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =   
+  iterGlobals file (fun glob -> 
+    match glob with
+      | GFun (fd,loc) -> 
+        (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
+        let base_dir = Goblintutil.create_dir "cfgs" in
+        let c_file_name = Filename.basename fd.svar.vdecl.file in
+        let dot_file_name = fd.svar.vname^".dot" in
+        let file_dir = Goblintutil.create_dir (Filename.concat base_dir c_file_name) in
+        let fname = Filename.concat file_dir dot_file_name in
+        printFun (module Cfg : CfgBidir) live fd (open_out fname)
+      | _ -> ()
+    ) 
+  

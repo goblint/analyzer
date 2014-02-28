@@ -271,8 +271,9 @@ struct
   
   let add_vars_with newd (newis, newfs) =
     let oldis, oldfs = get_vars newd in
-    let cis = List.filter (fun x -> not (List.mem x oldis)) (List.map Var.of_string newis) in
-    let cfs = List.filter (fun x -> not (List.mem x oldfs)) (List.map Var.of_string newfs) in
+    let oldvs = oldis@oldfs in
+    let cis = List.filter (fun x -> not (List.mem x oldvs)) (List.map Var.of_string newis) in
+    let cfs = List.filter (fun x -> not (List.mem x oldvs)) (List.map Var.of_string newfs) in
     let cis, cfs = Array.of_enum (List.enum cis), Array.of_enum (List.enum cfs) in
     let newenv = Environment.add (A.env newd) cis cfs in
     A.change_environment_with Man.mgr newd newenv false
