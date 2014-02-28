@@ -15,7 +15,7 @@ struct
   (** The main function to preform the selected analyses. *)
   let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) =   
     (** The Equation system *)
-    let module EQSys = FromSpec (SLR.JoinContr (SLR.SLR3)) (Spec) (Cfg) in
+    let module EQSys = FromSpec (SLR.JoinContr (EffectWConEq.Make)) (Spec) (Cfg) in
   
     (** Hashtbl for locals *)
     let module LHT   = BatHashtbl.Make (EQSys.LVar) in
@@ -28,8 +28,8 @@ struct
     let module Vrfyr = Verify2 (EQSys) (LHT) (GHT) in
     (** The comparator *)
     let module Comp = Compare (Spec) (EQSys) (LHT) (GHT) in
-    (** Another iterator. Set "exp.use_gen_solver" to false. *)
-    let module I = IterateLikeAstree (Spec) (Cfg) (GHT) in
+    (* (** Another iterator. Set "exp.use_gen_solver" to false. *)
+    let module I = IterateLikeAstree (Spec) (Cfg) (GHT) in *)
 
     (** Triple of the function, context, and the local value. *)
     let module RT = Analyses.ResultType2 (Spec) in
@@ -41,16 +41,20 @@ struct
     (** print out information about dead code *)
     let print_dead_code (xs:Result.t) =
       let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
+      let module NH = Hashtbl.Make (MyCFG.Node) in
+      let live_nodes : unit NH.t = NH.create 10 in
       let count = ref 0 in
       let open BatMap in let open BatPrintf in
       let module StringMap = Make (String) in
       let m = ref StringMap.empty in
-      let add_one (l,_,f) v =
-        if LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v &&f.svar.vdecl<>l then
+      let add_one (l,n,f) v =
+        if LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v &&f.svar.vdecl<>l then begin
           let add_fun  = BatISet.add l.line in
           let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
           m := StringMap.modify_def StringMap.empty l.file add_file !m;
-          Deadcode.Locmap.add dead_locations l ();
+          Deadcode.Locmap.add dead_locations l ()
+        end else
+          NH.add live_nodes n ();
       in
       Result.iter add_one xs;
       let print_func f xs =
@@ -90,8 +94,8 @@ struct
         Deadcode.Locmap.iter (report false) Deadcode.dead_branches_else;
         Deadcode.Locmap.clear Deadcode.dead_branches_then;
         Deadcode.Locmap.clear Deadcode.dead_branches_else
-      end
-      
+      end;
+      NH.mem live_nodes       
     in
   
     (** convert result that can be out-put *)
@@ -337,7 +341,7 @@ struct
     in
 
     let do_analyze_using_iterator () = 
-      let _ = I.iterate file startvars' in
+      (* let _ = I.iterate file startvars' in *)
       print_endline "done. "
     in
   
@@ -354,7 +358,12 @@ struct
       Goblintutil.timeout do_analyze_using_iterator () (float_of_int (get_int "dbg.timeout"))
         (fun () -> Messages.waitWhat "Timeout reached!");
     end;
-    if (get_bool "dbg.print_dead_code") then print_dead_code !local_xml;
+    let liveness = ref (fun _ -> true) in
+    if (get_bool "dbg.print_dead_code") then 
+      liveness := print_dead_code !local_xml;
+  
+    if (get_bool "exp.cfgdot") then 
+      MyCFG.dead_code_cfg file (module Cfg:CfgBidir) !liveness;
   
     Spec.finalize ();
         
@@ -373,7 +382,7 @@ let analyze (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph."; 
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function
-      | MyCFG.Statement s as n -> (MyCFG.SelfLoop, n) :: cfgB n
+      | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
       | n -> cfgB n
   in
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in

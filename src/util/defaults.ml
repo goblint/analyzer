@@ -118,6 +118,8 @@ let _ =
 (* {4 category [Experimental]} *)
 
 let _ =
+  reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files";
+  reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes.";
   reg Experimental "exp.nested"            "false" "Use a nested constraint system.";
   reg Experimental "exp.field_insensitive" "false" "Control the field sensitivity of the Base analysis.";
   reg Experimental "exp.eclipse"           "false" "Flag for Goblin's Eclipse Plugin.";

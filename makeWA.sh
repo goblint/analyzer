@@ -5,7 +5,7 @@ set -e
 scripts/set_version.sh
 
 TARGET=src/goblint
-FLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt ocamlopt.opt -cflag -g"
+FLAGS="-no-links -use-ocamlfind -j 8 -no-log -package apron -package apron.polkaMPQ -ocamlopt ocamlopt.opt -cflag -g"
 OCAMLBUILD=ocamlbuild
 
 ocb() {
@@ -48,7 +48,7 @@ rule() {
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
 
-ls -1 src/*/*.ml | egrep -v "apronDomain|poly" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
+ls -1 src/*/*.ml | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
 ls -1 src/*/*/*.ml | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' >> $TARGET.ml
 echo "open Maingoblint" >> $TARGET.ml
 

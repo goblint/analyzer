@@ -3,7 +3,8 @@ open GobConfig
 open Batteries
 
 (* Registered solvers. *)
-let solvers = ref ["effectWCon", (module EffectWCon.Make2 : GenericGlobSolver)]
+let solvers = 
+  ref ["effectWCon", (module EffectWCon.Make2 : GenericGlobSolver)]
 
 (** Register your solvers here!!! *)
 let add_solver x = solvers := x::!solvers

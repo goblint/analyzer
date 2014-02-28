@@ -155,6 +155,14 @@ struct
     in
     reachability vs;
     stop_event ();
+    
+    HM.clear key   ;
+    HM.clear wpoint;
+    HM.clear stable;
+    HM.clear infl  ;
+    HM.clear set   ;
+    HPM.clear rho'  ;
+    
     rho
 
 end
