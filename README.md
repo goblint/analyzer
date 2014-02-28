@@ -8,7 +8,7 @@ Install [opam](https://github.com/OCamlPro/opam) [[Quick Install](http://opam.oc
 to install the latest versions of the dependencies for the current user.
 After that you can build goblint:
 
-    git clone https://github.com/vogler/analyzer.git
+    git clone https://github.com/goblint/analyzer.git
     cd analyzer
     make
 

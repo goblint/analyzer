@@ -11,7 +11,7 @@ while file=$(inotifywait -r -q -e modify src); do
     clear
     notify-send "Build ok!"
     #./test.sh file
-    ./regression.sh ${1-"file"}
+    ./scripts/regression.sh ${1-"file"}
     if [ $? -eq 0 ]; then
       paplay /usr/share/sounds/freedesktop/stereo/complete.oga
     else
