@@ -27,7 +27,6 @@
   <xsl:template match="/">
     <html>
       <head>
-        <link href='http://fonts.googleapis.com/css?family=Alegreya+Sans:400,500' rel='stylesheet' type='text/css' /> 
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
         <!-- <link rel="stylesheet" href="style.css" type="text/css"></link> -->
         <title>Analysis Report</title>

@@ -1,3 +1,16 @@
+@font-face {
+  font-family: 'Alegreya Sans';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Alegreya Sans'), local('AlegreyaSans-Regular'), url(AlegreyaSans400.woff) format('woff');
+}
+
+@font-face {
+  font-family: 'Alegreya Sans';
+  font-style: normal;
+  font-weight: 500;
+  src: local('Alegreya Sans Medium'), local('AlegreyaSans-Medium'), url(AlegreyaSans500.woff) format('woff');
+}
 
 text {
   font-family:'Alegreya Sans', sans-serif;
