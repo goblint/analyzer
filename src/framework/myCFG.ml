@@ -452,16 +452,15 @@ let printFun (module Cfg : CfgBidir) live fd out =
       | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
   in
   let printNodeStyle (n:node) () = 
-    let liveness = if live n then "fillcolor=green,style=filled" else "fillcolor=red,style=filled" in
-    match n with 
-      | Statement {skind=If (_,_,_,_)} as s  -> 
-          ignore (Pretty.fprintf out ("\t%a [%s,shape=diamond]\n") p_node s liveness)
-      | Statement stmt  -> 
-          ignore (Pretty.fprintf out ("\t%a [%s];\n") p_node (Statement stmt) liveness)
-      | Function f      -> 
-          ignore (Pretty.fprintf out ("\t%a [%s,label =\"return of %s()\",shape=box];\n") p_node (Function f) liveness f.vname)
-      | FunctionEntry f -> 
-          ignore (Pretty.fprintf out ("\t%a [%s,label =\"%s()\",shape=box];\n") p_node (FunctionEntry f) liveness f.vname)
+    let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=red,style=filled" in
+    let kind_style = 
+      match n with 
+        | Statement {skind=If (_,_,_,_)}  -> "shape=diamond"
+        | Statement stmt  -> ""
+        | Function f      -> "label =\"return of "^f.vname^"()\",shape=box"
+        | FunctionEntry f -> "label =\""^f.vname^"()\",shape=box"
+    in
+    ignore (Pretty.fprintf out ("\t%a [id=\"%a\",URL=\"javascript:show_info('\\N');\",%s,%s];\n") p_node n p_node n liveness kind_style)
   in
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) = 
     ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges);

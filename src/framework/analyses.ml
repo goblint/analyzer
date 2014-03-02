@@ -264,8 +264,13 @@ struct
   let resultXML x = toXML x
   
   let printXml f xs = 
+    let print_id f = function
+        | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
+        | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
+        | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
+    in
     let print_one (loc,n,fd) v =
-      BatPrintf.fprintf f "<loc file=\"%s\" line=\"%d\" order=\"%d\">\n" loc.file loc.line loc.byte;
+      BatPrintf.fprintf f "<loc id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\">\n" print_id n loc.file loc.line loc.byte;
       BatPrintf.fprintf f "%a</loc>\n" Range.printXml v
     in
     iter print_one xs
@@ -313,8 +318,32 @@ struct
       | "html" -> 
           Htmldump.print_html out (resultXML (Lazy.force table)) file (lazy ((gtxml gtable) :: []))
       | "fast_xml" -> 
+          let module SH = BatHashtbl.Make (Basetype.RawStrings) in
+          let file2funs = SH.create 100 in
+          let funs2node = SH.create 100 in
+          iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+          iterGlobals file (function
+              | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
+              | _ -> ()
+          );
+          let p_node f = function
+              | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
+              | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
+              | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
+          in
+          let p_nodes f xs =
+            List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
+          in
+          let p_funs f xs = 
+            let one_fun n = 
+              BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node n)
+            in
+            List.iter one_fun xs
+          in
+          
           let f = BatIO.output_channel out in
           BatPrintf.fprintf f "<run><call>%a</call><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+          BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (SH.keys file2funs);
           BatPrintf.fprintf f "%a" printXml (Lazy.force table);
           gtfxml f gtable;
           printXmlWarning f ();

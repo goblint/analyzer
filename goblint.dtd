@@ -1,5 +1,7 @@
 <!ELEMENT run      (call,result)                       >
-<!ELEMENT result   (loc*, glob*, warning*)             >
+<!ELEMENT result   (file*, loc*, glob*, warning*)      >
+<!ELEMENT file     (function*)                         >
+<!ELEMENT function (node*)                             >
 <!ELEMENT loc      (context,path*)*                    >
 <!ELEMENT path     (analysis*)                         >
 <!ELEMENT context  (analysis*)                         >
@@ -28,7 +30,11 @@
 <!ATTLIST loc      file    CDATA  #REQUIRED
                    line    CDATA  #REQUIRED
                    order   CDATA  #IMPLIED
+                   id      CDATA  #IMPLIED
                    comment CDATA  #IMPLIED             >
+
+<!ATTLIST file     name    CDATA  #REQUIRED            >
+<!ATTLIST function name    CDATA  #REQUIRED            >
 
 <!ATTLIST analysis name    CDATA  #REQUIRED
                    comment CDATA  #IMPLIED             >
