@@ -1,0 +1,247 @@
+
+text {
+  font-family:'Alegreya Sans', sans-serif;
+}
+
+ul {
+  margin: 0;
+  padding: 0;  
+}
+
+html , body {
+  font-family:'Alegreya Sans', sans-serif;
+  font-weight:400;
+  font-size:10pt;
+  margin: 0;
+  padding: 0;
+}
+  
+.toggle, .nontoggle {
+  padding-left: 0.7em;
+  padding-right: 0.7em;
+  margin-top: 0.2em;
+  margin-bottom: 0.2em;
+}
+
+.toggle {
+  border-style: solid none solid none;
+  border-width:2px;
+  color:black;
+  -webkit-border-radius: 9px;
+  -moz-border-radius: 9px;
+  border-radius: 9px;
+  background-color:rgba(200, 200, 230, 0.1);
+}
+
+.emph {
+  font-weight:500;
+}
+
+.fill {
+  height:100%;
+  width:100%;
+  -webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
+  -moz-box-sizing: border-box;    /* Firefox, other Gecko */
+  box-sizing: border-box;         /* Opera/IE 8+ */
+}
+
+.borderless {
+    border-style:none;
+    border-width:0px;
+}
+
+.node-wrap {
+  margin:4px;
+  padding:4px;
+  border-style: none solid none solid;
+  border-width:3px;
+  color:black;
+  -webkit-border-radius: 9px;
+  -moz-border-radius: 9px;
+  border-radius: 9px;
+  display:block;
+  text-decoration:none;
+}
+
+#top-frame-div {
+  border-style: none none solid none;
+  border-width:5px;
+  color:gray;
+  -webkit-border-radius: 9px;
+  -moz-border-radius: 9px;
+  border-radius: 9px;
+  width:100%;
+  height: 35px; 
+  font-size:19pt; 
+}
+
+#data-frame-div {
+  margin-left:10px;
+  margin-top:0px;
+  margin-bottom:0px;
+  width:200px;
+  float: left;
+  position: absolute;
+  top:40px;
+  bottom: 10px;
+  overflow-x:auto;
+  overflow-y:auto;
+}
+
+#file-view-frame-div {  
+  float: right;
+  position: absolute;
+  top:40px;
+  bottom: 10px;
+  right: 0;
+  left:235px;
+  overflow-x:auto;
+  overflow-y:auto;
+   
+}
+
+#footer{
+    border-style: solid none none none;
+    border-width:5px;
+    color:gray;
+    -webkit-border-radius: 7px;
+    -moz-border-radius: 7px;
+    border-radius: 7px;
+    width:100%;
+    height: 10px;
+    bottom:0;
+    position:absolute;
+}
+
+#dragbar{
+  margin: 0px 5px 0px 5px;
+   background-color:gray;
+   position: absolute;
+   top:40px;
+   left:215px;
+   bottom:10px;
+   width: 5px;
+   cursor: col-resize;
+}
+
+.red-bg {
+  background: #f66;
+}
+
+.blue-bg {
+  background: #39f;
+}
+
+.green-bg {
+  background: #693;
+}
+
+.yellow-bg {
+  background: #982;
+}
+
+.button {
+   margin: 8px 8px 8px 7px; 
+   padding: 3px 15px;
+   -webkit-border-radius: 7px;
+   -moz-border-radius: 7px;
+   border-radius: 7px;
+   color: white;
+   font-size: 13px;
+   font-weight:500;
+   text-decoration: none;
+   vertical-align: middle;
+   }
+.button:hover {
+  opacity:0.6;
+  cursor:pointer;
+}
+.button:active {
+   border-top-color: #1b435e;
+   background: #1b435e;
+}
+
+.bg1 {
+  background-color: #efe;
+}
+.bg2 {
+}
+.bg3 {
+}
+.nothing {
+  text-align: center;
+  vertical-align: middle;
+  line-height: 100px; 
+  color:#ddd;
+}
+.node-location {
+  font-size:8px;
+}
+
+.node-id {
+  font-size:14px;
+}
+
+.source-block {
+  padding-top:1em;
+  padding-bottom:1em;
+  padding-right:10px;
+  font-size:12pt;
+}
+.source-line-nr {
+  display:inline-block;
+  width:3em;
+  padding-right:0.4em;
+  text-align:right;
+}
+
+.source-line-data {
+  white-space:pre;
+}
+
+.source-line {
+  cursor:pointer;
+  border-style: solid none solid none;
+  border-width:1px;
+  border-color:transparent;
+  -webkit-border-radius: 5px;
+  -moz-border-radius: 5px;
+  border-radius: 5px;
+}
+
+.source-line:hover {
+  border-color:gray;
+}
+
+.source-line-warn {
+  display:inline-block;
+  cursor:pointer;
+  width:0.5em;
+  height:0.5em;
+  margin:1px 0px 4px 0px;
+  vertical-align:middle;
+  background-color:transparent;
+  border-color:transparent;
+  border-style:solid;
+  border-width:1px;
+}
+
+.inline-warning {
+  display:block;
+  -webkit-border-radius: 5px;
+  -moz-border-radius: 5px;
+  border-radius: 5px;
+  border-style:solid;
+  border-width:1px;
+  width:100%;
+  padding:0.5em;
+  background-color:fcc;
+  -webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
+  -moz-box-sizing: border-box;    /* Firefox, other Gecko */
+  box-sizing: border-box;         /* Opera/IE 8+ */
+  height:inherit;
+}
+
+#global-button {
+    float:right
+}
