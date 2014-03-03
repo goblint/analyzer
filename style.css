@@ -58,6 +58,12 @@ html , body {
   box-sizing: border-box;         /* Opera/IE 8+ */
 }
 
+.fillW {
+  width:100%;
+  -webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
+  -moz-box-sizing: border-box;    /* Firefox, other Gecko */
+  box-sizing: border-box;         /* Opera/IE 8+ */
+}
 .borderless {
     border-style:none;
     border-width:0px;
@@ -248,7 +254,7 @@ html , body {
   border-width:1px;
   width:100%;
   padding:0.5em;
-  background-color:fcc;
+  background-color: #fcc;
   -webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
   -moz-box-sizing: border-box;    /* Firefox, other Gecko */
   box-sizing: border-box;         /* Opera/IE 8+ */
@@ -257,4 +263,9 @@ html , body {
 
 #global-button {
     float:right
+}
+
+
+.hidden {
+  display:none;
 }
