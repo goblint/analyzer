@@ -1,5 +1,6 @@
 [![Stories in Ready](https://badge.waffle.io/goblint/analyzer.png?label=ready&title=Ready)](https://waffle.io/goblint/analyzer)
 [![Build status](https://travis-ci.org/goblint/analyzer.png)](https://travis-ci.org/goblint/analyzer)
+[gitter](https://gitter.im/goblint)
 # goblint
 
 ## Setup
@@ -31,7 +32,3 @@ In order to setup the web frontend do
     cd webapp
 
 Then follow the instructions in its [README](https://github.com/vogler/goblint-webapp).
-
----
-
-[gitter](https://gitter.im/goblint)
