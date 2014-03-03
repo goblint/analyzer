@@ -1,3 +1,4 @@
+[![Stories in Ready](https://badge.waffle.io/goblint/analyzer.png?label=ready&title=Ready)](https://waffle.io/goblint/analyzer)
 # goblint [![Build status](https://travis-ci.org/goblint/analyzer.png)](https://travis-ci.org/goblint/analyzer)
 
 ## Setup
