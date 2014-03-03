@@ -1,4 +1,4 @@
-# goblint [![Build status](https://travis-ci.org/vogler/analyzer.png)](https://travis-ci.org/vogler/analyzer)
+# goblint [![Build status](https://travis-ci.org/goblint/analyzer.png)](https://travis-ci.org/goblint/analyzer)
 
 ## Setup
 Install [opam](https://github.com/OCamlPro/opam) [[Quick Install](http://opam.ocamlpro.com/doc/Quick_Install.html)], then do
@@ -29,3 +29,7 @@ In order to setup the web frontend do
     cd webapp
 
 Then follow the instructions in its [README](https://github.com/vogler/goblint-webapp).
+
+---
+
+[gitter](https://gitter.im/goblint)

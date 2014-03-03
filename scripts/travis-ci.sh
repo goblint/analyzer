@@ -20,7 +20,7 @@ else # vagrant
     # USER=vagrant # provisioning is done as root, but ssh login is 'vagrant'
     cd /root # just do everything as root and later use 'sudo su -' for ssh
     if test ! -e "analyzer"; then # ignore if source already exists
-        git clone https://github.com/vogler/analyzer.git
+        git clone https://github.com/goblint/analyzer.git
         # chown -hR $USER:$USER analyzer # make ssh user the owner
     fi
     pushd analyzer
