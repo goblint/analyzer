@@ -1,5 +1,4 @@
 var selectColor = "#fcf"
-var fileData = ""
 
 function getURLParameter(name) {
   return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search)||[,""])[1].replace(/\+/g, '%20'))||null
@@ -42,14 +41,10 @@ function init_toggle(e) {
 function init_all() {
   var file = getURLParameter("file");
   if (file!=""){
-    var jsonName = "../files/"+file+".json" ;
-    $.getJSON(jsonName,
-      function f(data) {
-        fileData = data;
-        var node = $(".node-wrap");
-        var node_id = node.attr("href");
-        node.attr("href","../frame.html?file="+getURLParameter("file")+"&fun="+fileData.functions[node_id]+"&node="+node_id);
-      });
+    var node = $(".node-wrap");
+    var node_id = node.attr("href");
+    node.attr("href","../frame.html?file="+getURLParameter("file")+"&fun="+fileData[getURLParameter("file")].functions[node_id]+"&node="+node_id);
+
   }
   var els = document.getElementsByClassName('toggle');
   for (var i=0; i < els.length; i++) {
@@ -95,7 +90,7 @@ function select_line(n,xs) {
     $("#data-frame").append("<iframe class=\"borderless fill\" onload='javascript:resizeIframe(this)' id=\"data-frame"+i+"\" src=\"nodes/"+xs[i]+".xml?file="+getURLParameter("file")+"\"></iframe>");
   };
   $(".inline-warning").remove();
-  var ws = fileData.warnings[n];
+  var ws = fileData[getURLParameter("file")].warnings[n];
   if (ws != null){
     for (var i = 0; i < ws.length; i++ ) {
       $("#line"+n).append("<iframe class=\"inline-warning\" onload='javascript:resizeIframe(this)' id=\"line"+n+"_warn"+i+"\" src=\"warn/"+ws[i]+".xml\"></iframe>");
@@ -111,20 +106,25 @@ function resizeIframe(obj){
 }
 
 function init_source(){
-  var ws = fileData.warnings;
-  for (var n in fileData.warnings) {
+  var curFD = fileData[getURLParameter("file")];
+  var ws = curFD.warnings;
+  for (var n in curFD.warnings) {
     warn_toggle($("#line"+n+" .source-line-warn"),true);
   } 
-  var ds = fileData.data;
+  var ds = curFD.data;
   for (var n in ds) {
     $("#line"+n+" .source-line-nr").css("font-weight","bold");
     $("#line"+n).click((function (q,n){
       return function() {select_line(n,q);}
     }) (ds[n],n));
   } 
-  var dc = fileData.dead;
+  var dc = curFD.dead;
   for (var i=0; i<dc.length; i++) {
     $("#line"+dc[i]+" .source-line-nr").css("color","#900");    
+  }
+  var line = getURLParameter("line");
+  if (line) {
+    select_line(line,ds[line]);
   }
 }
 
@@ -132,13 +132,8 @@ function init_frames(){
   $('#file-button').text(getURLParameter("file"));
   $('#file-button').attr("href","frame.html?file="+getURLParameter("file"));
   if (getURLParameter("fun")==null){
-    $('#file-view-frame-div').load("files/"+getURLParameter("file")+'.html');
+    $('#file-view-frame-div').load("files/"+getURLParameter("file")+'.html', function (){init_source();});
     $('#function-button').css("display","none");
-    $.getJSON("files/"+getURLParameter("file")+'.json',
-      function f(data) {
-        fileData = data;
-        init_source();        
-      });
   } else {
     $('#file-view-frame-div').load("cfgs/"+getURLParameter("file")+"/"+getURLParameter("fun")+'.svg', function f(){svgPanZoom.init();});
     $('#function-button').text(getURLParameter("fun"));

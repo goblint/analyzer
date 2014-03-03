@@ -127,9 +127,10 @@
     <html>
       <head>
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-        <link rel="stylesheet" href="../style.css" type="text/css"></link>
-        <script type="text/javascript" src="../script.js"></script>
-        <script type="text/javascript" src="../jquery-2.1.0.min.js"></script>
+        <link rel="stylesheet" href="../style.css" type="text/css"/>
+        <script type="text/javascript" src="../jquery-2.1.0.min.js"/>
+        <script type="text/javascript" src="../fileData.js"/>
+        <script type="text/javascript" src="../script.js"/>
       </head>
       <body onload="init_all()">
         <xsl:apply-templates select="loc" />
