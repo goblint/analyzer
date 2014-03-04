@@ -19,12 +19,15 @@ function toggleVisibility(e) {
   if (e.children[1].style.display == 'none') {
     e.children[1].style.display = '';
     ech.nodeValue = '+' + ech.nodeValue.substr(1, ech.nodeValue.length) ;
-  }
-  else {
+    var cHeight = e.children[1].offsetHeight;
+    document.body.style.height = document.body.offsetHeight + cHeight;
+  } else {
+    var cHeight = e.children[1].offsetHeight;
+    document.body.style.height = document.body.offsetHeight - cHeight;
     e.children[1].style.display = 'none';
     ech.nodeValue = '-' + ech.nodeValue.substr(1, ech.nodeValue.length);
   }
-}
+  }
 
 function init_toggle(e) {
   var ech = get_firstchild(e);
@@ -87,23 +90,22 @@ function select_line(n,xs) {
   old_line = n;
   $("#data-frame").empty();
   for (var i=0; i<xs.length; i++){
-    $("#data-frame").append("<iframe class=\"borderless fill\" onload='javascript:resizeIframe(this)' id=\"data-frame"+i+"\" src=\"nodes/"+xs[i]+".xml?file="+getURLParameter("file")+"\"></iframe>");
+    var newid = "data-frame"+i;
+    $("#data-frame").append("<iframe class=\"borderless fillW\" scrolling=\"no\" id=\""+newid+"\" src=\"nodes/"+xs[i]+".xml?file="+getURLParameter("file")+"\"></iframe>");
+    $("#"+newid).iFrameResize({log:false});
   };
   $(".inline-warning").remove();
   var ws = fileData[getURLParameter("file")].warnings[n];
   if (ws != null){
     for (var i = 0; i < ws.length; i++ ) {
-      $("#line"+n).append("<iframe class=\"inline-warning\" onload='javascript:resizeIframe(this)' id=\"line"+n+"_warn"+i+"\" src=\"warn/"+ws[i]+".xml\"></iframe>");
-    } 
+      var newid = "line"+n+"_warn"+i;
+      $("#line"+n).append("<iframe class=\"inline-warning\" scrolling=\"no\" id=\""+newid+"\" src=\"warn/"+ws[i]+".xml\"></iframe>");
+      $("#"+newid).iFrameResize({log:true});
+    }
   }
 }
 
-function resizeIframe(obj){
-  setTimeout(function () {
-    obj.style.height = 0;
-    obj.style.height = (obj.contentWindow.document.body.scrollHeight+20) + 'px';
-  },100);
-}
+
 
 function init_source(){
   var curFD = fileData[getURLParameter("file")];
@@ -135,7 +137,12 @@ function init_frames(){
     $('#file-view-frame-div').load("files/"+getURLParameter("file")+'.html', function (){init_source();});
     $('#function-button').css("display","none");
   } else {
-    $('#file-view-frame-div').load("cfgs/"+getURLParameter("file")+"/"+getURLParameter("fun")+'.svg', function f(){svgPanZoom.init();});
+    $('#file-view-frame-div').load("cfgs/"+getURLParameter("file")+"/"+getURLParameter("fun")+'.svg',
+            function f(){
+                $("#file-view-frame-div svg").attr("width","100%");
+                $("#file-view-frame-div svg").attr("height","100%");
+                svgPanZoom.init();
+        });
     $('#function-button').text(getURLParameter("fun"));
     $('#function-button').attr("href","frame.html?fun="+getURLParameter("fun")+"&file="+getURLParameter("file"));
   }

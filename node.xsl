@@ -6,8 +6,6 @@
   <xsl:template match="map">
     <xsl:choose>
       <xsl:when test="normalize-space(.) != '' or ./@* != ''">
-        map:
-
         <xsl:for-each select="key" > 
           <xsl:choose>
             <xsl:when test="following-sibling::*[1]//value">
@@ -15,9 +13,9 @@
                 <span>
                   <xsl:value-of select="." /> &#8594;
                 </span>
-                <span>
+                <div>
                   <xsl:apply-templates select="following-sibling::*[1]" />
-                </span>
+                </div>
               </div>
             </xsl:when>
             <xsl:otherwise>
@@ -44,7 +42,6 @@
   <xsl:template match="set">
     <xsl:choose>
       <xsl:when test="normalize-space(.) != '' or ./@* != ''">
-        set:
           <xsl:for-each select="value" > 
             <div class="nontoggle">
               <xsl:apply-templates select="." /> 
@@ -64,9 +61,9 @@
           <span>
             <xsl:value-of select="@name" /> 
           </span> &#8594;
-          <span>
+          <div>
             <xsl:apply-templates select="value" />        
-          </span>
+          </div>
         </div>
       </xsl:when>
       <xsl:otherwise>
@@ -95,9 +92,9 @@
       <xsl:otherwise>
         <div class="nontoggle">
           <span>path:</span>
-          <div>
+          <span>
             <xsl:apply-templates select="analysis" />        
-          </div>
+          </span>
         </div>
       </xsl:otherwise>
     </xsl:choose>
@@ -129,6 +126,7 @@
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
         <link rel="stylesheet" href="../style.css" type="text/css"/>
         <script type="text/javascript" src="../jquery-2.1.0.min.js"/>
+        <script type="text/javascript" src="../iframeResizer.contentWindow.min.js"/>
         <script type="text/javascript" src="../fileData.js"/>
         <script type="text/javascript" src="../script.js"/>
       </head>

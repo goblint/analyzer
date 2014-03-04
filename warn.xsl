@@ -38,6 +38,8 @@
     <html>
       <head>
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <script type="text/javascript" src="../jquery-2.1.0.min.js"/>
+        <script type="text/javascript" src="../iframeResizer.contentWindow.min.js"/>
         <link rel="stylesheet" href="../style.css" type="text/css"></link>
       </head>
       <body>
