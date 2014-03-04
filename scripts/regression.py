@@ -6,7 +6,7 @@ import sys, os
 import re
 
 if len(sys.argv) != 2:
-    print "Stdin: output from goblint, 1. argument: C source-file"
+    print("Stdin: output from goblint, 1. argument: C source-file")
     sys.exit(1)
 path = sys.argv[1]
 
@@ -35,27 +35,27 @@ for k,v in sorted(set.union(set(goblint.items()), set(source.items()))):
 if not len(diff):
     sys.exit(0)
 
-print "#"*50
-print path
-print "file://"+os.getcwd()+"/result/"+os.path.basename(path)+".html"
+print("#"*50)
+print(path)
+print("file://"+os.getcwd()+"/result/"+os.path.basename(path)+".html")
 
 if len(goblint):
-    print "## Goblint warnings:"
+    print("## Goblint warnings:")
     for k,v in sorted(goblint.items()):
-        print k, "\t", v
+        print("{} \t {}".format(k, v))
     print
 
 if len(source):
-    print "## Source warnings:"
+    print("## Source warnings:")
     for k,v in source.items():
-        print k, "\t", v
+        print("{} \t {}".format(k, v))
     print
 
 if len(diff):
-    print "## Diff (G..only goblint, S..only source, D..different):"
+    print("## Diff (G..only goblint, S..only source, D..different):")
     for k,(s,v) in sorted(diff.items()):
-        print s, k, "\t", v[0]
-        for v in v[1:]: print "\t", v
+        print("{} {} \t {}".format(s, k, v[0]))
+        for v in v[1:]: print("\t {}".format(v))
 
 print
 sys.exit(1)
