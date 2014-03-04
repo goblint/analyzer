@@ -5,52 +5,85 @@ open Cil
 open Pretty
 open Analyses
 
-(* Information for one task *)
-(* Process ID *)
-module Pid = IntDomain.Flattened
-(* Priority *)
-module Pri = IntDomain.Reverse (IntDomain.Lifted) (* TODO reverse? *)
-(* Period *)
-module Per = IntDomain.Flattened
-(* Capacity *)
-module Cap = IntDomain.Flattened
-
-(* Information for all tasks *)
-(* Partition mode *)
-module Pmo = IntDomain.Flattened
-(* Preemption lock *)
-module PrE = IntDomain.Flattened
-
 module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
   let name = "arinc"
+
+  (* Information for one task *)
+  (* Process ID *)
+  module Pid = IntDomain.Flattened
+  (* Priority *)
+  module Pri = IntDomain.Reverse (IntDomain.Lifted) (* TODO reverse? *)
+  (* Period *)
+  module Per = IntDomain.Flattened
+  (* Capacity *)
+  module Cap = IntDomain.Flattened
+  (* callstack for locations *)
+  type callstack = (varinfo option * location) list
+
+  (* Information for all tasks *)
+  (* Partition mode *)
+  module Pmo = IntDomain.Flattened
+  (* Preemption lock *)
+  module PrE = IntDomain.Flattened
+
+  (* define record type here so that fields are accessable outside of D *)
+  type process = { pid: Pid.t; pri: Pri.t; per: Per.t; cap: Cap.t; callstack: callstack; pmo: Pmo.t; pre: PrE.t }
   module D =
   struct
-    module Intra = Lattice.Prod3 (Pri) (Per) (Cap)
-    module Inter = Lattice.Prod3 (Pmo) (PrE) (Pid) (* Pid should be in Intra, but there is no Prod 4 :/ *)
-    include Lattice.Prod (Intra) (Inter)
-    let toXML_f sf ((pri,per,cap), (pmo,pre,pid)) =
+    type t = process
+    include Printable.Std
+    include Lattice.StdCousot
+
+    (* printing *)
+    let string_of_callstack xs = "["^String.concat ", " (List.map (fun (f,loc) -> (match f with Some v -> v.vname^":" | None -> "") ^ string_of_int loc.line) xs)^"]"
+    let short w x = Printf.sprintf "{ pid=%s; pri=%s)" (Pid.short 3 x.pid) (Pri.short 3 x.pri)
+    include Printable.PrintSimple (struct
+      type t' = t
+      let name () = "ARINC state"
+      let short = short
+    end)
+    let toXML_f sf d =
       let replace_top name = function
           | Xml.Element (node, [text, n], elems) -> Xml.Element (node, [text, name ^ n], elems)
           | x -> x
       in
-      let elems = [ replace_top "Priority: "   @@ Pri.toXML  pri
-                  ; replace_top "Period: "  @@ Per.toXML per
-                  ; replace_top "Capacity: "  @@ Cap.toXML cap
-                  ; replace_top "Partition mode: "  @@ Pmo.toXML pmo
-                  ; replace_top "Preemption lock: " @@ PrE.toXML  pre ] in
+      let elems = [ replace_top "PID: "   @@ Pid.toXML  d.pid
+                  ; replace_top "Priority: "  @@ Pri.toXML d.pri
+                  ; replace_top "Period: "  @@ Per.toXML d.per
+                  ; replace_top "Capacity: "  @@ Cap.toXML d.cap
+                  ; replace_top "Partition mode: "  @@ Pmo.toXML d.pmo
+                  ; replace_top "Preemption lock: " @@ PrE.toXML  d.pre ] in
       Xml.Element ("Node", ["text", "ARINC state"], elems)
-
     let toXML s  = toXML_f short s
+    (* Printable.S *)
+    let equal = Util.equals
+    (* let equal x y = Util.equals { x with callstack = [] } { y with callstack = [] } *)
+    let hash = Hashtbl.hash
 
-    let pid f ((pri,per,cap), (pmo,pre,pid)) = ((pri,per,cap), (pmo,pre,f pid))
-    let pri f ((pri,per,cap), (pmo,pre,pid)) = ((f pri,per,cap), (pmo,pre,pid))
-    let per f ((pri,per,cap), (pmo,pre,pid)) = ((pri,f per,cap), (pmo,pre,pid))
-    let cap f ((pri,per,cap), (pmo,pre,pid)) = ((pri,per,f cap), (pmo,pre,pid))
-    let pmo f ((pri,per,cap), (pmo,pre,pid)) = ((pri,per,cap), (f pmo,pre,pid))
-    let pre f ((pri,per,cap), (pmo,pre,pid)) = ((pri,per,cap), (pmo,f pre,pid))
+    (* modify fields *)
+    let pid f d = { d with pid = f d.pid }
+    let pri f d = { d with pri = f d.pri }
+    let per f d = { d with per = f d.per }
+    let cap f d = { d with cap = f d.cap }
+    let callstack f d = { d with callstack = f d.callstack }
+    let pmo f d = { d with pmo = f d.pmo }
+    let pre f d = { d with pre = f d.pre }
+    (* if x is already in the callstack we move it to the front, this way we can do tail on combine *)
+    let callstack_push x d = callstack (fun xs -> x :: List.remove xs x) d
+
+
+    let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); callstack = []; pmo = Pmo.bot (); pre = PrE.bot () }
+    let is_bot x = { x with callstack = [] } = bot ()
+    let top () = { pid = Pid.top (); pri = Pri.top (); per = Per.top (); cap = Cap.top (); callstack = []; pmo = Pmo.top (); pre = PrE.top () }
+    let is_top x = { x with callstack = [] } = top ()
+
+    let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && List.subset compare x.callstack y.callstack && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre
+    let op_scheme op1 op2 op3 op4 op5 op6 x y: t = { pid = op1 x.pid y.pid; pri = op2 x.pri y.pri; per = op3 x.per y.per; cap = op4 x.cap y.cap; callstack = x.callstack; pmo = op5 x.pmo y.pmo; pre = op6 x.pre y.pre }
+    let join = op_scheme Pid.join Pri.join Per.join Cap.join Pmo.join PrE.join
+    let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet
   end
   module G = IntDomain.Booleans
   module C = D
@@ -69,17 +102,24 @@ struct
     ctx.local
 
   let body ctx (f:fundec) : D.t =
+    (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     if not (is_single ctx || !Goblintutil.global_initialization || ctx.global part_mode_var) then raise Analyses.Deadcode;
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
+    (* D.callstack List.tl ctx.local *)
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, ctx.local]
+    (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug_each doesn't print anything here *) *)
+    let d = D.callstack_push (Some f, !Tracing.current_loc) ctx.local in
+    [d, d]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    au
+    (* au *)
+    (* why does this lead to Out_of_memory?? *)
+    (* if fst @@ List.hd au.callstack <> Some f then failwith "top of callstack is not the same function we entered!"; *)
+    D.callstack List.tl au
 
   let sprint f x = Pretty.sprint 80 (f () x)
   let string_of_partition_mode = function
@@ -107,13 +147,15 @@ struct
     | CreateEvent of id | WaitEvent of ids * time | SetEvent of ids | ResetEvent of ids
     | TimedWait of time | PeriodicWait
   let actions = Hashtbl.create 123 (* use BatMultiPMap later? *)
-  let get_actions pid : (action * location) list =
+  let get_actions pid : (action * callstack) list =
     (* Hashtbl.find_default actions pid [] |> List.unique *)
     Hashtbl.find_all actions pid (* current binding first, then previous bindings *)
-    |> List.unique |> List.rev
-  let add_action pid action =
+    |> List.rev
+  let add_action pid action loc =
     (* Hashtbl.modify_def [] pid (List.cons action) actions *)
-    Hashtbl.add actions pid (action, !Tracing.current_loc) (* old binding is just hidden *)
+    let entry = action, loc in
+    if not @@ List.mem entry @@ Hashtbl.find_all actions pid then
+      Hashtbl.add actions pid entry (* old binding is just hidden *)
 
   (* lookup/generate id from resource type and name (needed for LAP_Se_GetXId functions, specified by LAP_Se_CreateX functions during init) *)
   type resource = Process | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard
@@ -208,7 +250,7 @@ struct
       | TimedWait t -> "TimedWait "^str_time t
       | PeriodicWait -> "PeriodicWait"
     in
-    let str_loc loc = " @" ^ string_of_int loc.line in
+    let str_loc loc = " @" ^ D.string_of_callstack loc in
     let print_process pid =
       let xs = List.map (fun (action, loc) -> str_action pid action ^ str_loc loc) (get_actions pid) in
       M.debug @@ str_resource pid^" ->\n\t"^String.concat ",\n\t" xs
@@ -218,6 +260,7 @@ struct
 
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let d : D.t = ctx.local in
     let is_arinc_fun = startsWith "LAP_Se_" f.vname in
     let is_creating_fun = startsWith "LAP_Se_Create" f.vname in
     let is_error_handler = false in (* TODO *)
@@ -226,11 +269,10 @@ struct
       (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
       M.debug_each @@ "found "^f.vname^"("^args_str^")"
     );
-    let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else ctx.local in
+    let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else d in
     let curfun = MyCFG.getFun (Option.get !MyCFG.current_node) in (* current_node should always be set here *)
     (* M.debug_each @@ "Inside function "^curfun.svar.vname; *)
-    let ((pri,per,cap), (pmo,pre,pid)) = ctx.local in
-    let curpid = match Pid.to_int pid with Some i -> i | None -> failwith @@ "special: Pid.to_int = None inside function "^curfun.svar.vname in
+    let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "special: Pid.to_int = None inside function "^curfun.svar.vname in
     let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "special: no processname for pid in Hashtbl!" in
     let curpid = get_id (Process, pname) in
     let eval_int exp =
@@ -255,23 +297,25 @@ struct
       match exp with
       (* call assign for all analyses (we only need base)! *)
       | AddrOf lval ->
-          ctx.assign ~name:"base" lval (mkAddrOf @@ var id); ctx.local
+          ctx.assign ~name:"base" lval (mkAddrOf @@ var id); d
       | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
     in
     let assign_id_by_name resource_type name id =
       assign_id id (get_id (resource_type, eval_str name))
     in
+    let current_callstack d = (D.callstack_push (None, !Tracing.current_loc) d).callstack in
+    let add_action pid action = add_action pid action (current_callstack d) in
     let arglist = List.map (stripCasts%(constFold false)) arglist in
     match f.vname, arglist with
-      | _ when is_arinc_fun && is_creating_fun && not(mode_is_init pmo) ->
+      | _ when is_arinc_fun && is_creating_fun && not(mode_is_init d.pmo) ->
           failwith @@ f.vname^" is only allowed in partition mode COLD_START or WARM_START"
     (* Preemption *)
       | "LAP_Se_LockPreemption", _ when not is_error_handler ->
           add_action curpid LockPreemption;
-          D.pre (PrE.add (PrE.of_int 1L)) ctx.local
+          D.pre (PrE.add (PrE.of_int 1L)) d
       | "LAP_Se_UnlockPreemption", _ when not is_error_handler ->
           add_action curpid UnlockPreemption;
-          D.pre (PrE.sub (PrE.of_int 1L)) ctx.local
+          D.pre (PrE.sub (PrE.of_int 1L)) d
     (* Partition *)
       | "LAP_Se_SetPartitionMode", [mode; r] -> begin
           match ctx.ask (Queries.EvalInt mode) with
@@ -281,12 +325,12 @@ struct
                 ctx.sideg part_mode_var true;
                 (* spawn processes *)
                 ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length !processes);
-                List.iter (fun (f,d) -> ctx.spawn f (d pre)) !processes; (* what about duplicates? List.unique fails because d is fun! *)
+                List.iter (fun (f,f_d) -> ctx.spawn f (f_d d.pre)) !processes; (* what about duplicates? List.unique fails because d is fun! *)
                 (* clear list *)
                 processes := []
               );
               add_action curpid (SetPartitionMode i);
-              D.pmo (const @@ Pmo.of_int i) ctx.local
+              D.pmo (const @@ Pmo.of_int i) d
           | `Bot -> D.bot ()
           | _ -> ctx.sideg part_mode_var true; D.top ()
           end
@@ -310,7 +354,7 @@ struct
               let lval = Var v, ciloffs in
               (* ignore @@ printf "dst: %a, MayPointTo: %a" d_plainexp dst d_plainlval lval; *)
               ctx.assign ~name:"base" lval src;
-              ctx.local
+              d
           | _ -> failwith @@ "F59/strcpy could not query MayPointTo "^sprint d_plainexp exp
           end
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
@@ -337,8 +381,8 @@ struct
               let pid' = get_id (Process, name) in
               add_action curpid (CreateProcess (pid', fun_list, pri, per, cap));
               let spawn f =
-                let d pre = ((Pri.of_int pri, Per.of_int per, Cap.of_int cap), (Pmo.of_int 3L, pre, Pid.of_int (get_pid name))) in (* int64 -> D.t *)
-                add_process (f,d)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; callstack = current_callstack d; pmo = Pmo.of_int 3L; pre = pre } in (* int64 -> D.t *)
+                add_process (f,f_d)
               in
               List.iter spawn fun_list;
               assign_id pid pid'
@@ -355,26 +399,26 @@ struct
           (* at least one process should be started in main *)
           let pid = eval_id pid in
           add_action curpid (Start pid);
-          ctx.local
+          d
       | "LAP_Se_DelayedStart", [pid; delay; r] -> todo ()
       | "LAP_Se_Stop", [pid; r] ->
           let pid = eval_id pid in
           add_action curpid (Stop pid);
-          ctx.local
+          d
       | "LAP_Se_StopSelf", [] ->
           add_action curpid (Stop [curpid]);
-          ctx.local
+          d
       | "LAP_Se_Suspend", [pid; r] ->
           let pid = eval_id pid in
           add_action curpid (Suspend pid);
-          ctx.local
+          d
       | "LAP_Se_SuspendSelf", [timeout; r] -> (* TODO timeout *)
           add_action curpid (Suspend [curpid]);
-          ctx.local
+          d
       | "LAP_Se_Resume", [pid; r] ->
           let pid = eval_id pid in
           add_action curpid (Resume pid);
-          ctx.local
+          d
     (* Logbook *)
       | "LAP_Se_CreateLogBook", [name; max_size; max_logged; max_in_progress; lbid; r] -> todo ()
       | "LAP_Se_ReadLogBook", _ -> todo ()
@@ -407,13 +451,13 @@ struct
           assign_id bbid bbid'
       | "LAP_Se_DisplayBlackboard", [bbid; msg_addr; len; r] ->
           add_action curpid (DisplayBlackboard (eval_id bbid));
-          ctx.local
+          d
       | "LAP_Se_ReadBlackboard", [bbid; timeout; msg_addr; len; r] ->
           add_action curpid (ReadBlackboard (eval_id bbid, eval_int timeout));
-          ctx.local
+          d
       | "LAP_Se_ClearBlackboard", [bbid; r] ->
           add_action curpid (ClearBlackboard (eval_id bbid));
-          ctx.local
+          d
       | "LAP_Se_GetBlackboardId", [name; bbid; r] ->
           assign_id_by_name Blackboard name bbid
       | "LAP_Se_GetBlackboardStatus", _ -> todo ()
@@ -426,11 +470,11 @@ struct
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
           let sid = eval_id sid in
           add_action curpid (WaitSemaphore sid);
-          ctx.local
+          d
       | "LAP_Se_SignalSemaphore", [sid; r] ->
           let sid = eval_id sid in
           add_action curpid (SignalSemaphore sid);
-          ctx.local
+          d
       | "LAP_Se_GetSemaphoreId", [name; sid; r] ->
           assign_id_by_name Semaphore name sid
       | "LAP_Se_GetSemaphoreStatus", [sid; status; r] -> todo ()
@@ -442,15 +486,15 @@ struct
       | "LAP_Se_SetEvent", [eid; r] ->
           let eid = eval_id eid in
           add_action curpid (SetEvent eid);
-          ctx.local
+          d
       | "LAP_Se_ResetEvent", [eid; r] ->
           let eid = eval_id eid in
           add_action curpid (ResetEvent eid);
-          ctx.local
+          d
       | "LAP_Se_WaitEvent", [eid; timeout; r] -> (* TODO timeout *)
           let eid = eval_id eid in
           add_action curpid (WaitEvent (eid, eval_int timeout));
-          ctx.local
+          d
       | "LAP_Se_GetEventId", [name; eid; r] ->
           assign_id_by_name Event name eid
       | "LAP_Se_GetEventStatus", [eid; status; r] -> todo ()
@@ -458,10 +502,10 @@ struct
       | "LAP_Se_GetTime", [time; r] -> todo ()
       | "LAP_Se_TimedWait", [delay; r] ->
           add_action curpid (TimedWait (eval_int delay));
-          ctx.local
+          d
       | "LAP_Se_PeriodicWait", [r] ->
           add_action curpid PeriodicWait;
-          ctx.local
+          d
     (* Errors *)
       | "LAP_Se_CreateErrorHandler", [entry_point; stack_size; r] ->
           let name = "ErrorHandler" in
@@ -471,13 +515,13 @@ struct
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst in
               add_action curpid (CreateErrorHandler (pid, funs));
               let spawn f =
-                let d pre = ((Pri.of_int infinity, Per.of_int infinity, Cap.of_int infinity), (Pmo.of_int 3L, pre, Pid.of_int (get_pid name))) in (* int64 -> D.t *)
-                add_process (f,d)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; callstack = current_callstack d; pmo = Pmo.of_int 3L; pre = pre } in (* int64 -> D.t *)
+                add_process (f,f_d)
               in
               List.iter spawn funs
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
           end;
-          ctx.local
+          d
       | "LAP_Se_GetErrorStatus", [status; r] -> todo ()
       | "LAP_Se_RaiseApplicationError", [error_code; message_addr; length; r] -> todo ()
     (* Not allowed: change configured schedule *)
@@ -485,20 +529,20 @@ struct
       | "LAP_Se_Replenish", [budget; r] -> todo () (* name used in docs *)
       | "LAP_Se_ReplenishAperiodic", [budget; r] -> todo () (* name used in stdapi.c *)
       | _ when is_arinc_fun -> failwith @@ "Function "^f.vname^" not handled!"
-      | _ -> ctx.local
+      | _ -> d
 
   let query ctx (q:Queries.t) : Queries.Result.t =
-    let ((pri,per,cap), (pmo,pre,pid)) = ctx.local in
+    let d = ctx.local in
     match q with
       | Queries.Priority _ ->
-          if Pri.is_int pri then
-            `Int (Option.get @@ Pri.to_int pri)
-          else if Pri.is_top pri then `Top else `Bot
+          if Pri.is_int d.pri then
+            `Int (Option.get @@ Pri.to_int d.pri)
+          else if Pri.is_top d.pri then `Top else `Bot
       | Queries.IsPrivate _ ->
-          `Bool ((PrE.to_int pre <> Some 0L && PrE.to_int pre <> None) || mode_is_init pmo)
+          `Bool ((PrE.to_int d.pre <> Some 0L && PrE.to_int d.pre <> None) || mode_is_init d.pmo)
       | _ -> Queries.Result.top ()
 
-  let startstate v = ((Pri.top (), Per.top (), Cap.top ()), (Pmo.of_int 1L, PrE.of_int 0L, Pid.of_int 0L))
+  let startstate v = { (D.top ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L }
   let otherstate v = D.top ()
   let exitstate  v = D.top ()
 end
