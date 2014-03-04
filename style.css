@@ -58,6 +58,7 @@ html , body {
 .fillW {
   width:100%;
 }
+
 .borderless {
     border-style:none;
     border-width:0px;
@@ -101,16 +102,19 @@ html , body {
   overflow-y:auto;
 }
 
-#file-view-frame-div {  
+#file-view-frame-div {
   float: right;
   position: absolute;
   top:40px;
   bottom: 10px;
-  right: 0;
+  right: 0px;
   left:235px;
   overflow-x:auto;
   overflow-y:auto;
-   
+  display:block;
+  -webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
+  -moz-box-sizing: border-box;    /* Firefox, other Gecko */
+  box-sizing: border-box;         /* Opera/IE 8+ */
 }
 
 #footer{

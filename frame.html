@@ -16,19 +16,20 @@
     </a> /
     <a id="file-button" class="button green-bg">
       file.c
-    </a> /
+    </a> <span id="function-slash">/</span>
     <a id="function-button" class="button blue-bg">
       main
     </a>
-    <a id="global-button" class="button yellow-bg" href="javascript:show_info('globals')">
+    <a id="global-button" class="button yellow-bg" href="javascript:show_info_self('globals')">
       globals
     </a>
   </div>
   <div id="data-frame-div" class="bg2">
-    <div class="borderless fill" id="data-frame"><iframe class="borderless fill" src="nothing.html"></iframe></div>
+    <iframe class="borderless fill" id="data-frame" src="nothing.html"></iframe>
   </div>
   <div id="dragbar"></div>
-  <div id="file-view-frame-div" class="bg3">
+  <div id="file-view-frame-div" class="borderless">
+      <!--<iframe id="file-view-frame" class="borderless fill"></iframe>-->
   </div>
   <div id="footer" class="bg1">
   </div>
