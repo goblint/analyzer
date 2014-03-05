@@ -40,7 +40,7 @@ let is_private (a: Q.ask) (_,fl) (v: varinfo): bool =
 let priv_cache = ref None
 let is_private q d v = 
   match !priv_cache with
-    | None when get "exp.privatization" -> priv_cache := Some true; is_private q d v else false
+    | None when get_bool "exp.privatization" -> priv_cache := Some true; is_private q d v 
     | None -> priv_cache := Some false; false
     | Some true -> is_private q d v
     | Some false -> false
