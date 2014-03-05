@@ -37,6 +37,14 @@ let is_private (a: Q.ask) (_,fl) (v: varinfo): bool =
   ||
   match a (Q.IsPrivate v) with `Bool tv -> tv | _ -> false
    
+let priv_cache = ref None
+let is_private q d v = 
+  match !priv_cache with
+    | None when get "exp.privatization" -> priv_cache := Some true; is_private q d v else false
+    | None -> priv_cache := Some false; false
+    | Some true -> is_private q d v
+    | Some false -> false
+   
 module Main =
 struct
   include Analyses.DefaultSpec
