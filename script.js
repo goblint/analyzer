@@ -1,4 +1,5 @@
 var selectColor = "#fcf"
+var fileData = ""
 
 function getURLParameter(name) {
   return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search)||[,""])[1].replace(/\+/g, '%20'))||null
@@ -44,10 +45,14 @@ function init_toggle(e) {
 function init_all() {
   var file = getURLParameter("file");
   if (file!=""){
-    var node = $(".node-wrap");
-    var node_id = node.attr("href");
-    node.attr("href","../frame.html?file="+getURLParameter("file")+"&fun="+fileData[getURLParameter("file")].functions[node_id]+"&node="+node_id);
-
+    var jsonName = "../files/"+file+".json" ;
+    $.getJSON(jsonName,
+      function f(data) {
+        fileData = data;
+        var node = $(".node-wrap");
+        var node_id = node.attr("href");
+        node.attr("href","../frame.html?file="+getURLParameter("file")+"&fun="+fileData.functions[node_id]+"&node="+node_id);
+      });
   }
   var els = document.getElementsByClassName('toggle');
   for (var i=0; i < els.length; i++) {
@@ -95,7 +100,7 @@ function select_line(n,xs) {
     $("#"+newid).iFrameResize({log:false});
   };
   $(".inline-warning").remove();
-  var ws = fileData[getURLParameter("file")].warnings[n];
+  var ws = fileData.warnings[n];
   if (ws != null){
     for (var i = 0; i < ws.length; i++ ) {
       var newid = "line"+n+"_warn"+i;
@@ -108,7 +113,7 @@ function select_line(n,xs) {
 
 
 function init_source(){
-  var curFD = fileData[getURLParameter("file")];
+  var curFD = fileData;
   var ws = curFD.warnings;
   for (var n in curFD.warnings) {
     warn_toggle($("#line"+n+" .source-line-warn"),true);
@@ -124,18 +129,20 @@ function init_source(){
   for (var i=0; i<dc.length; i++) {
     $("#line"+dc[i]+" .source-line-nr").css("color","#900");    
   }
-  var line = getURLParameter("line");
-  if (line) {
-    select_line(line,ds[line]);
-  }
 }
 
 function init_frames(){
   $('#file-button').text(getURLParameter("file"));
   $('#file-button').attr("href","frame.html?file="+getURLParameter("file"));
   if (getURLParameter("fun")==null){
-    $('#file-view-frame-div').load("files/"+getURLParameter("file")+'.html', function (){init_source();});
+    $('#file-view-frame-div').load("files/"+getURLParameter("file")+'.html');
     $('#function-button').css("display","none");
+    $('#function-slash').css("display","none");
+    $.getJSON("files/"+getURLParameter("file")+'.json',
+          function f(data) {
+            fileData = data;
+            init_source();
+          });
   } else {
     $('#file-view-frame-div').load("cfgs/"+getURLParameter("file")+"/"+getURLParameter("fun")+'.svg',
             function f(){
@@ -163,6 +170,9 @@ function init_frames(){
      })
   });
   $(document).mouseup(function(e){
+     $(document).unbind('mousemove');
+     });
+  $(document).mouseleave(function(e){
      $(document).unbind('mousemove');
      });
 }
