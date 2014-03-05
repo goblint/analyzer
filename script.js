@@ -4,103 +4,6 @@ function getURLParameter(name) {
   return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search)||[,""])[1].replace(/\+/g, '%20'))||null
 }
 
- function findFirstSvg(callback) {
-    var i, candidateSvg, foundSvg;
-    var candidateSvg = document.querySelector('svg');
-    if (!!candidateSvg) {
-      foundSvg = candidateSvg;
-      callback(foundSvg);
-    }
-
-    var candidateObjectElements = document.querySelectorAll('object');
-    i = 0;
-    do {
-      i += 1;
-      getSvg('object:nth-of-type(' + i + ')', function(err, candidateSvg) {
-        if (!!candidateSvg) {
-          foundSvg = candidateSvg;
-          callback(foundSvg);
-        }
-      });
-    } while (i < candidateObjectElements.length);
-
-    var candidateEmbedElements = document.querySelectorAll('embed');
-    i = 0;
-    do {
-      i += 1;
-      getSvg('embed:nth-of-type(' + i + ')', function(err, candidateSvg) {
-        if (!!candidateSvg) {
-          foundSvg = candidateSvg;
-          callback(foundSvg);
-        }
-      });
-    } while (i < candidateEmbedElements.length);
-
-    // TODO add a timeout
-  }
-
-function getSvg(selector, callback) {
-    var target, err, svg;
-    if (!selector) {
-      if(typeof console !== "undefined") {
-        console.warn('No selector specified for getSvg(). Using first svg element found.');
-      }
-      target = findFirstSvg(function(svg) {
-        if (!svg) {
-          err = new Error('No SVG found in this document.');
-        }
-        if (!!callback) {
-          callback(err, svg);
-        }
-        else {
-          if (!svg) {
-            throw err;
-          }
-          return svg;
-        }
-      });
-    }
-    else {
-      target = document.querySelector(selector);
-      if (!!target) {
-        if (target.tagName.toLowerCase() === 'svg') {
-          svg = target;
-        }
-        else {
-          if (target.tagName.toLowerCase() === 'object') {
-            svg = target.contentDocument.documentElement;
-          }
-          else {
-            if (target.tagName.toLowerCase() === 'embed') {
-              svg = target.getSVGDocument().documentElement;
-            }
-            else {
-              if (target.tagName.toLowerCase() === 'img') {
-                throw new Error('Cannot script an SVG in an "img" element. Please use an "object" element or an in-line SVG.');
-              }
-              else {
-                throw new Error('Cannot get SVG.');
-              }
-            }
-          }
-        }
-      }
-      if (!svg) {
-        err = new Error('No SVG found in this document.');
-      }
-
-      if (!!callback) {
-        callback(err, svg);
-      }
-      else {
-        if (!svg) {
-          throw err;
-        }
-        return svg;
-      }
-    }
-  }
-
 function get_firstchild(n)
 {
   x=n.firstChild;
@@ -160,25 +63,15 @@ function init_all() {
 var old_color = ""
 var old_node = ""
 function show_info(x){
-  window.parent.postMessage("load:clear","*");
-  window.parent.postMessage("load:1:"+x,"*");
-
+  $("#data-frame").empty();
+  $("#data-frame").append("<iframe class=\"borderless fill\" id=\"data-frame0\" src=\"nodes/"+x+".xml?file="+getURLParameter("file")+"\"></iframe>");
   if (old_node != "")
-    old_node.setAttribute("fill",old_color);
-
-  var a = document.getElementById("file-view-frame");
-  var svgDoc = a.contentDocument;
-  var svgItem = svgDoc.getElementById("a_"+x);
-  old_node = get_firstchild(get_firstchild(svgItem));
-
-  old_color = old_node.getAttribute("fill");
-  old_node.setAttribute("fill",selectColor);
+    old_node.attr("fill",old_color);
+  old_node = $("#a_"+x+" a :first-child");
+  old_color = old_node.attr("fill");
+  $("#a_"+x+" a :first-child").attr("fill",selectColor);
 }
 
-function show_info_self(x){
-  window.postMessage("load:clear","*");
-  window.postMessage("load:1:"+x,"*");
-}
 
 function warn_toggle(e,b){
   if (b) {
@@ -195,20 +88,19 @@ function select_line(n,xs) {
   $("#line"+old_line).css("background-color","transparent");
   $("#line"+n).css("background-color",selectColor);
   old_line = n;
-
-  window.parent.postMessage("load:clear","*");
   $("#data-frame").empty();
   for (var i=0; i<xs.length; i++){
-    window.parent.postMessage("load:"+i+":"+xs[i],"*");
+    var newid = "data-frame"+i;
+    $("#data-frame").append("<iframe class=\"borderless fillW\" scrolling=\"no\" id=\""+newid+"\" src=\"nodes/"+xs[i]+".xml?file="+getURLParameter("file")+"\"></iframe>");
+    $("#"+newid).iFrameResize({log:false});
   };
-
   $(".inline-warning").remove();
   var ws = fileData[getURLParameter("file")].warnings[n];
   if (ws != null){
     for (var i = 0; i < ws.length; i++ ) {
       var newid = "line"+n+"_warn"+i;
-      $("#line"+n).append("<iframe class=\"inline-warning\" scrolling=\"no\" id=\""+newid+"\" src=\"../warn/"+ws[i]+".xml\"></iframe>");
-      $("#"+newid).iFrameResize({log:false});
+      $("#line"+n).append("<iframe class=\"inline-warning\" scrolling=\"no\" id=\""+newid+"\" src=\"warn/"+ws[i]+".xml\"></iframe>");
+      $("#"+newid).iFrameResize({log:true});
     }
   }
 }
@@ -238,47 +130,19 @@ function init_source(){
   }
 }
 
-function loadMessage(event){
-  if (event.data == "load:clear") {
-    $("#data-frame-div").empty();
-  } else {
-    var xs = event.data.split(":")
-    if (xs.length==3 && xs[0]=="load")  {
-      var newid = "data-frame"+xs[1];
-      $("#data-frame-div").append("<iframe class=\"borderless fillW\" scrolling=\"no\" id=\""+newid+"\" src=\"nodes/"+xs[2]+".xml?file="+getURLParameter("file")+"\"></iframe>");
-      $("#"+newid).iFrameResize({log:false});
-    }
-  }
-}
-
-
-function svgLoaded(){
-  findFirstSvg(function (svg){
-    $(svg).attr("width","100%");
-    $(svg).attr("height","100%");
-    $(svg).attr("id","svgObject");
-    svg.ownerDocument.defaultView.show_info = show_info;
-  })
-  svgPanZoom.init();
-}
-
 function init_frames(){
-  window.addEventListener("message", loadMessage, false);
-
   $('#file-button').text(getURLParameter("file"));
   $('#file-button').attr("href","frame.html?file="+getURLParameter("file"));
   if (getURLParameter("fun")==null){
-    $('#file-view-frame-div').append("<iframe id=\"file-view-frame\" class=\"borderless fill\"></iframe>");
-    $('#file-view-frame').attr("src","files/"+getURLParameter("file")+'.html?file='+getURLParameter("file"));
-
+    $('#file-view-frame-div').load("files/"+getURLParameter("file")+'.html', function (){init_source();});
     $('#function-button').css("display","none");
-    $('#function-slash').css("display","none");
   } else {
-    $('#file-view-frame-div').append("<object type=\"image/svg+xml\" id=\"file-view-frame\" class=\"borderless fill\">does not work</object>");
-    var href = "cfgs/"+getURLParameter("file")+"/"+getURLParameter("fun")+'.svg';
-    $('#file-view-frame').attr("onload", "javascript:svgLoaded()");
-    $('#file-view-frame').attr("data", href);
-
+    $('#file-view-frame-div').load("cfgs/"+getURLParameter("file")+"/"+getURLParameter("fun")+'.svg',
+            function f(){
+                $("#file-view-frame-div svg").attr("width","100%");
+                $("#file-view-frame-div svg").attr("height","100%");
+                svgPanZoom.init();
+        });
     $('#function-button').text(getURLParameter("fun"));
     $('#function-button').attr("href","frame.html?fun="+getURLParameter("fun")+"&file="+getURLParameter("file"));
   }
@@ -299,9 +163,6 @@ function init_frames(){
      })
   });
   $(document).mouseup(function(e){
-     $(document).unbind('mousemove');
-     });
-  $(document).mouseleave(function(e){
      $(document).unbind('mousemove');
      });
 }

@@ -19,7 +19,7 @@
   
   <xsl:template match="text">
     <li>
-      <a target="_top">
+      <a target="_parent">
         <xsl:attribute name="href">../frame.html?file=<xsl:call-template name="filename"><xsl:with-param name="path" select="@file"/></xsl:call-template>&amp;line=<xsl:value-of select="@line"/></xsl:attribute>
         <xsl:call-template name="filename"><xsl:with-param name="path" select="@file"/></xsl:call-template> @ <xsl:value-of select="@line"/>
       </a>:
@@ -41,7 +41,6 @@
         <script type="text/javascript" src="../jquery-2.1.0.min.js"/>
         <script type="text/javascript" src="../iframeResizer.contentWindow.min.js"/>
         <link rel="stylesheet" href="../style.css" type="text/css"></link>
-        <base target="_top" />
       </head>
       <body>
         <xsl:apply-templates select="warning" /> 

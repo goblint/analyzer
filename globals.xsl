@@ -104,8 +104,6 @@
         <link rel="stylesheet" href="../style.css" type="text/css"></link>
         <script type="text/javascript" src="../script.js"></script>
         <script type="text/javascript" src="../jquery-2.1.0.min.js"></script>
-        <script type="text/javascript" src="../iframeResizer.contentWindow.min.js"/>
-        <script type="text/javascript" src="../fileData.js"/>
       </head>
       <body onload="init_all()">
         <xsl:apply-templates select="globs" />
