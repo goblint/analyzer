@@ -1,6 +1,6 @@
 #!/bin/bash
-if [ "$(expr substr $(uname -s) 1 6)" != "CYGWIN" ];then
-    echo This script must be run using cygwin!
+if [ "$(expr substr $(uname -s) 1 6)" != "CYGWIN" -o "$(uname -m)" != "i686" ]; then
+    echo This script must be run using 32bit cygwin!
     exit 1
 fi
 git pull
