@@ -92,7 +92,7 @@ html , body {
   margin-left:10px;
   margin-top:0px;
   margin-bottom:0px;
-  width:200px;
+  width:240px;
   float: left;
   position: absolute;
   top:40px;
@@ -101,17 +101,17 @@ html , body {
   overflow-y:auto;
 }
 
-#file-view-frame-div {  
+#file-view-frame-div {
   float: right;
   position: absolute;
   top:40px;
   bottom: 10px;
-  right: 0;
-  left:235px;
+  right: 5;
+  left:275px;
   overflow-x:auto;
-  overflow-y:auto;
-   
+  overflow-y:auto;   
 }
+
 
 #footer{
     border-style: solid none none none;
@@ -127,11 +127,12 @@ html , body {
 }
 
 #dragbar{
-  margin: 0px 5px 0px 5px;
+   margin: 0px 5px 0px 5px;
    background-color:gray;
    position: absolute;
+   float:left;
    top:40px;
-   left:215px;
+   left:255px;
    bottom:10px;
    width: 5px;
    cursor: col-resize;
@@ -196,37 +197,55 @@ html , body {
 }
 
 .source-block {
+  width:100%;
   padding-top:1em;
   padding-bottom:1em;
-  padding-right:10px;
+/*  padding-right:10px;*/
   font-size:12pt;
+  display:table;
 }
-.source-line-nr {
+.sl-nr {
   display:inline-block;
   width:3em;
   padding-right:0.4em;
   text-align:right;
+/*  display:table-cell;*/
 }
 
-.source-line-data {
-  white-space:pre;
+.sl-data {
+ /* display:table-cell;*/
+  white-space:pre-wrap;
+  width:100%;
 }
 
-.source-line {
+.sl {
   cursor:pointer;
-  border-style: solid none solid none;
-  border-width:1px;
-  border-color:transparent;
+  display:table-row;
+ /* table-layout: fixed;
+  height:19px;*/
+}
+
+/*.sl:hover {
   -webkit-border-radius: 5px;
   -moz-border-radius: 5px;
   border-radius: 5px;
-}
-
-.source-line:hover {
   border-color:gray;
 }
+*/
+.sl-warn {
+  display:inline-block;
+  cursor:pointer;
+  width:0.5em;
+  height:0.5em;
+  margin:1px 0px 4px 0px;
+  vertical-align:middle;
+  background-color:red;
+  border-color:black;
+  border-style:solid;
+  border-width:1px;
+}
 
-.source-line-warn {
+.sl-nowarn {
   display:inline-block;
   cursor:pointer;
   width:0.5em;
@@ -241,11 +260,8 @@ html , body {
 
 .inline-warning {
   display:block;
-  -webkit-border-radius: 5px;
-  -moz-border-radius: 5px;
-  border-radius: 5px;
-  border-style:solid;
-  border-width:1px;
+  border-style:dashed none none none;
+  border-width:2px;
   width:100%;
   padding:0px;
   background-color: #fcc;
@@ -255,9 +271,16 @@ html , body {
 }
 
 #global-button {
-    float:right
+  float:right
 }
 
+.live{
+  font-weight:700;
+}
+.dead {
+  font-weight:700;
+  color:red;
+}
 
 .hidden {
   display:none;

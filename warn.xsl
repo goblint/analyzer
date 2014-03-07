@@ -19,7 +19,7 @@
   
   <xsl:template match="text">
     <li>
-      <a target="_parent">
+      <a target="_top">
         <xsl:attribute name="href">../frame.html?file=<xsl:call-template name="filename"><xsl:with-param name="path" select="@file"/></xsl:call-template>&amp;line=<xsl:value-of select="@line"/></xsl:attribute>
         <xsl:call-template name="filename"><xsl:with-param name="path" select="@file"/></xsl:call-template> @ <xsl:value-of select="@line"/>
       </a>:

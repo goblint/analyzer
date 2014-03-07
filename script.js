@@ -5,8 +5,7 @@ function getURLParameter(name) {
   return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search)||[,""])[1].replace(/\+/g, '%20'))||null
 }
 
-function get_firstchild(n)
-{
+function get_firstchild(n){
   x=n.firstChild;
   while (x.nodeType!=1) {
     x=x.nextSibling;
@@ -15,6 +14,7 @@ function get_firstchild(n)
 }
 
 
+// toggle foldables
 function toggleVisibility(e) {
   var ech = e.firstChild;
   if (e.children[1].style.display == 'none') {
@@ -28,36 +28,29 @@ function toggleVisibility(e) {
     e.children[1].style.display = 'none';
     ech.nodeValue = '-' + ech.nodeValue.substr(1, ech.nodeValue.length);
   }
-  }
+}
 
+// intialize foldables
 function init_toggle(e) {
   var ech = get_firstchild(e);
   e.firstChild.nodeValue = "+ "+e.firstChild.nodeValue;
-  ech.onmousedown = function ch(t) { 
-      var ech = get_firstchild(e);
-      ech.nodeValue = '*' + ech.nodeValue.substr(1, ech.nodeValue.length) ;
-  };
+//  ech.onmousedown = function ch(t) {
+//      var ech = get_firstchild(e);
+//      ech.nodeValue = '*' + ech.nodeValue.substr(1, ech.nodeValue.length) ;
+//  };
   ech.onmouseup = function ch(t) {toggleVisibility(e);};
   ech.style.cursor = "pointer";
 }
 
-
-function init_all() {
-  var file = getURLParameter("file");
-  if (file!=""){
-    var jsonName = "../files/"+file+".json" ;
-    $.getJSON(jsonName,
-      function f(data) {
-        fileData = data;
-        var node = $(".node-wrap");
-        var node_id = node.attr("href");
-        node.attr("href","../frame.html?file="+getURLParameter("file")+"&fun="+fileData.functions[node_id]+"&node="+node_id);
-      });
-  }
+// prepare the data node by initializing the tree structure
+function init_node() {
+	// make all nodes of class 'toggle' foldable
   var els = document.getElementsByClassName('toggle');
   for (var i=0; i < els.length; i++) {
     init_toggle(els[i]);
   }
+
+  // close all 'toggle off' nodes
   var els = document.getElementsByClassName('toggle off');
   for (var i=0; i < els.length; i++) {
     toggleVisibility(els[i]);
@@ -65,11 +58,16 @@ function init_all() {
 }
 
 
+// select the node from the svg graph
 var old_color = ""
 var old_node = ""
 function show_info(x){
-  $("#data-frame").empty();
-  $("#data-frame").append("<iframe class=\"borderless fill\" id=\"data-frame0\" src=\"nodes/"+x+".xml?file="+getURLParameter("file")+"\"></iframe>");
+	// clear data nodes
+  window.postMessage("load:clear","*");
+  // show data for the selected color
+  window.postMessage("load:1:"+x,"*");
+
+  // color the nodes
   if (old_node != "")
     old_node.attr("fill",old_color);
   old_node = $("#a_"+x+" a :first-child");
@@ -77,104 +75,107 @@ function show_info(x){
   $("#a_"+x+" a :first-child").attr("fill",selectColor);
 }
 
+// show local nodes --- called by the "globals" button
+function show_info_self(x){
+  window.postMessage("load:clear","*");
+  window.postMessage("load:1:"+x,"*");
+}
 
-function warn_toggle(e,b){
-  if (b) {
-    e.css("background-color","#d22");
-    e.css("border-color","#700");
-  } else {
-    e.css("background-color","transparent");
-    e.css("border-color","transparent");
+
+
+// select lines from the code-listing
+var old_line = 0;
+function select_line(n,xs,ys) {
+	// update background color to show selected line
+  $("#ln"+old_line).css("background-color","transparent");
+  $("#ln"+n).css("background-color",selectColor);
+  old_line = n;
+
+	// load data nodes by posting messages
+  window.parent.postMessage("load:clear","*");
+  for (var i = 0; i < xs.length; i++ ) {
+    window.parent.postMessage("load:"+i+":"+xs[i],"*");
+  }
+
+	// show warnings if present
+  $(".inline-warning").remove();
+  for (var i = 0; i < ys.length; i++ ) {
+    var newid = "ln"+n+"_warn"+i;
+    $("#ln"+n).append("<iframe class=\"inline-warning\" scrolling=\"no\" id=\""+newid+"\" src=\"../warn/"+ys[i]+".xml\"></iframe>");
+    $("#"+newid).iFrameResize({log:false});
   }
 }
 
-var old_line = 0;
-function select_line(n,xs) {
-  $("#line"+old_line).css("background-color","transparent");
-  $("#line"+n).css("background-color",selectColor);
-  old_line = n;
-  $("#data-frame").empty();
-  for (var i=0; i<xs.length; i++){
-    var newid = "data-frame"+i;
-    $("#data-frame").append("<iframe class=\"borderless fillW\" scrolling=\"no\" id=\""+newid+"\" src=\"nodes/"+xs[i]+".xml?file="+getURLParameter("file")+"\"></iframe>");
-    $("#"+newid).iFrameResize({log:false});
-  };
-  $(".inline-warning").remove();
-  var ws = fileData.warnings[n];
-  if (ws != null){
-    for (var i = 0; i < ws.length; i++ ) {
-      var newid = "line"+n+"_warn"+i;
-      $("#line"+n).append("<iframe class=\"inline-warning\" scrolling=\"no\" id=\""+newid+"\" src=\"warn/"+ws[i]+".xml\"></iframe>");
-      $("#"+newid).iFrameResize({log:true});
+
+// messages to handle data nodes
+function loadMessage(event){
+	// clear event to remove all displayed nodes
+  if (event.data == "load:clear") {
+    $("#data-frame-div").empty();
+  } else {
+    // in case it is "load:<x>:<y>", show node y, as the x-th data node
+    var xs = event.data.split(":")
+    if (xs.length==3 && xs[0]=="load")  {
+      var newid = "data-frame"+xs[1];
+      $("#data-frame-div").append("<iframe class=\"borderless fillW\" scrolling=\"no\" id=\""+newid+"\" src=\"nodes/"+xs[2]+".xml?file="+getURLParameter("file")+"\"></iframe>");
+      $("#"+newid).iFrameResize({log:false});
     }
   }
 }
 
 
-
-function init_source(){
-  var curFD = fileData;
-  var ws = curFD.warnings;
-  for (var n in curFD.warnings) {
-    warn_toggle($("#line"+n+" .source-line-warn"),true);
-  } 
-  var ds = curFD.data;
-  for (var n in ds) {
-    $("#line"+n+" .source-line-nr").css("font-weight","bold");
-    $("#line"+n).click((function (q,n){
-      return function() {select_line(n,q);}
-    }) (ds[n],n));
-  } 
-  var dc = curFD.dead;
-  for (var i=0; i<dc.length; i++) {
-    $("#line"+dc[i]+" .source-line-nr").css("color","#900");    
-  }
-}
-
+// used on load of frames.html
 function init_frames(){
+  // wait for events from file listings or such
+  window.addEventListener("message", loadMessage, false);
+
+  // fix breadcrumbs: file
   $('#file-button').text(getURLParameter("file"));
   $('#file-button').attr("href","frame.html?file="+getURLParameter("file"));
-  if (getURLParameter("fun")==null){
-    $('#file-view-frame-div').load("files/"+getURLParameter("file")+'.html');
-    $('#function-button').css("display","none");
-    $('#function-slash').css("display","none");
-    $.getJSON("files/"+getURLParameter("file")+'.json',
-          function f(data) {
-            fileData = data;
-            init_source();
+
+	// if we know the function then show the graph, else try to show the whole file
+  if (getURLParameter("file")!=null) {
+    if (getURLParameter("fun")!=null) {
+		  // we know the function so we can show the graph
+      $('#file-view-frame-div').load("cfgs/"+getURLParameter("file")+"/"+getURLParameter("fun")+'.svg',
+          function f(){
+              $("#file-view-frame-div svg").attr("width","100%");
+              $("#file-view-frame-div svg").attr("height","100%");
+              svgPanZoom.init();
           });
-  } else {
-    $('#file-view-frame-div').load("cfgs/"+getURLParameter("file")+"/"+getURLParameter("fun")+'.svg',
-            function f(){
-                $("#file-view-frame-div svg").attr("width","100%");
-                $("#file-view-frame-div svg").attr("height","100%");
-                svgPanZoom.init();
-        });
-    $('#function-button').text(getURLParameter("fun"));
-    $('#function-button').attr("href","frame.html?fun="+getURLParameter("fun")+"&file="+getURLParameter("file"));
+      $('#function-button').text(getURLParameter("fun"));
+      $('#function-button').attr("href","frame.html?fun="+getURLParameter("fun")+"&file="+getURLParameter("file"));
+    } else {
+		  // we know the file only, so we show the file listing
+      $('#file-view-frame-div').empty();
+      $('#file-view-frame-div').append("<iframe class=\"borderless fill\"src=\"files/"+getURLParameter("file")+".xml\"></iframe>");
+
+      // fix breadcrumbs: function -- not avaliable
+      $('#function-button').css("display","none");
+      $('#function-slash').css("display","none");
+    }
   }
-  
+
+  // if a node is given as an argument, show it
   if (getURLParameter("node")!= null)
     setTimeout(function () {
       show_info(getURLParameter("node"));
     },100);
     
   
-  
+  // initialize the drag-bar
   $('#dragbar').mousedown(function(e){
       e.preventDefault();
-      $(document).mousemove(function(e){
+      $('body').mousemove(function(e){
+	      $('#dragbar').css("left",e.pageX-8);
         $('#data-frame-div').css("width",e.pageX-22);
         $('#file-view-frame-div').css("left",e.pageX+10);
-        $('#dragbar').css("left",e.pageX-8);
      })
   });
-  $(document).mouseup(function(e){
-     $(document).unbind('mousemove');
-     });
-  $(document).mouseleave(function(e){
-     $(document).unbind('mousemove');
-     });
+  $('body').mouseup(function(e){
+    $('body').unbind('mousemove');
+  });
 }
+
 
 

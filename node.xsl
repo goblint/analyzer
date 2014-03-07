@@ -3,6 +3,21 @@
 <xsl:stylesheet version="1.0"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 
+  <xsl:template name="filename">
+    <xsl:param name="path"/>
+    <xsl:choose>
+      <xsl:when test="contains($path, '/')">
+        <xsl:call-template name="filename">
+          <xsl:with-param name="path" select="substring-after($path, '/')"/>
+        </xsl:call-template>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select="$path"/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+
   <xsl:template match="map">
     <xsl:choose>
       <xsl:when test="normalize-space(.) != '' or ./@* != ''">
@@ -101,8 +116,8 @@
   </xsl:template>
 
   <xsl:template match="loc">
-    <a target="_parent" class="node-wrap">
-        <xsl:attribute name="href"><xsl:value-of select="@id" /></xsl:attribute>
+    <a target="_top" class="node-wrap">
+        <xsl:attribute name="href">../frame.html?file=<xsl:call-template name="filename"><xsl:with-param name="path" select="@file"/></xsl:call-template>&amp;fun=<xsl:value-of select="@fun"/>&amp;node=<xsl:value-of select="@id" /></xsl:attribute>
         <div class="node-id">
         Node:<xsl:value-of select="@id" />
       </div>
@@ -129,7 +144,7 @@
         <script type="text/javascript" src="../iframeResizer.contentWindow.min.js"/>
         <script type="text/javascript" src="../script.js"/>
       </head>
-      <body onload="init_all()">
+      <body onload="init_node()">
         <xsl:apply-templates select="loc" />
       </body>
     </html>
