@@ -21,7 +21,7 @@ struct
   (* Capacity *)
   module Cap = IntDomain.Flattened
   (* callstack for locations *)
-  type callstack = (varinfo option * location) list
+  type callstack = location list
 
   (* Information for all tasks *)
   (* Partition mode *)
@@ -38,7 +38,7 @@ struct
     include Lattice.StdCousot
 
     (* printing *)
-    let string_of_callstack xs = "["^String.concat ", " (List.map (fun (f,loc) -> (match f with Some v -> v.vname^":" | None -> "") ^ string_of_int loc.line) xs)^"]"
+    let string_of_callstack xs = "["^String.concat ", " (List.map (fun loc -> string_of_int loc.line) xs)^"]"
     let short w x = Printf.sprintf "{ pid=%s; pri=%s)" (Pid.short 3 x.pid) (Pri.short 3 x.pri)
     include Printable.PrintSimple (struct
       type t' = t
@@ -60,7 +60,7 @@ struct
     let toXML s  = toXML_f short s
     (* Printable.S *)
     let equal = Util.equals
-    (* let equal x y = Util.equals { x with callstack = [] } { y with callstack = [] } *)
+    (* let equal x y = let f z = { z with callstack = List.sort_unique compare z.callstack } in Util.equals (f x) (f y) *)
     let hash = Hashtbl.hash
 
     (* modify fields *)
@@ -72,7 +72,8 @@ struct
     let pmo f d = { d with pmo = f d.pmo }
     let pre f d = { d with pre = f d.pre }
     (* if x is already in the callstack we move it to the front, this way we can do tail on combine *)
-    let callstack_push x d = callstack (fun xs -> x :: List.remove xs x) d
+    let callstack_length = 0
+    let callstack_push x d = if List.length d.callstack < callstack_length then callstack (fun xs -> x :: List.remove xs x) d else d
 
 
     let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); callstack = []; pmo = Pmo.bot (); pre = PrE.bot () }
@@ -80,8 +81,11 @@ struct
     let top () = { pid = Pid.top (); pri = Pri.top (); per = Per.top (); cap = Cap.top (); callstack = []; pmo = Pmo.top (); pre = PrE.top () }
     let is_top x = { x with callstack = [] } = top ()
 
-    let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && List.subset compare x.callstack y.callstack && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre
-    let op_scheme op1 op2 op3 op4 op5 op6 x y: t = { pid = op1 x.pid y.pid; pri = op2 x.pri y.pri; per = op3 x.per y.per; cap = op4 x.cap y.cap; callstack = x.callstack; pmo = op5 x.pmo y.pmo; pre = op6 x.pre y.pre }
+    let rec is_prefix = function [],_ -> true | x::xs,y::ys when x=y -> is_prefix (xs,ys) | _ -> false
+    (* let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && List.subset compare x.callstack y.callstack && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre *)
+    let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && is_prefix (x.callstack, y.callstack) && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre
+    let join_callstack xs ys = if xs<>ys then M.debug_each @@ "JOIN callstacks " ^ string_of_callstack xs ^ " and " ^ string_of_callstack ys; xs
+    let op_scheme op1 op2 op3 op4 op5 op6 x y: t = { pid = op1 x.pid y.pid; pri = op2 x.pri y.pri; per = op3 x.per y.per; cap = op4 x.cap y.cap; callstack = join_callstack x.callstack y.callstack; pmo = op5 x.pmo y.pmo; pre = op6 x.pre y.pre }
     let join = op_scheme Pid.join Pri.join Per.join Cap.join Pmo.join PrE.join
     let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet
   end
@@ -112,14 +116,19 @@ struct
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug_each doesn't print anything here *) *)
-    let d = D.callstack_push (Some f, !Tracing.current_loc) ctx.local in
-    [d, d]
+    let d_caller = ctx.local in
+    let d_callee =
+      if List.mem f.vname (List.map Json.string (GobConfig.get_list "mainfun"))
+      then ctx.local
+      else D.callstack_push !Tracing.current_loc ctx.local
+    in
+    [d_caller, d_callee]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     (* au *)
-    (* why does this lead to Out_of_memory?? *)
-    (* if fst @@ List.hd au.callstack <> Some f then failwith "top of callstack is not the same function we entered!"; *)
-    D.callstack List.tl au
+    (* M.debug_each @@ "ctx.local: " ^ D.string_of_callstack ctx.local.callstack ^ ", au: " ^ D.string_of_callstack au.callstack; *)
+    (* D.callstack List.tl au *)
+    { au with callstack = ctx.local.callstack }
 
   let sprint f x = Pretty.sprint 80 (f () x)
   let string_of_partition_mode = function
@@ -264,6 +273,7 @@ struct
     let is_arinc_fun = startsWith "LAP_Se_" f.vname in
     let is_creating_fun = startsWith "LAP_Se_Create" f.vname in
     let is_error_handler = false in (* TODO *)
+    if is_arinc_fun then M.debug_each @@ "d.callstack: " ^ D.string_of_callstack d.callstack;
     if M.tracing && is_arinc_fun then (
       let args_str = String.concat ", " (List.map (sprint d_exp) arglist) in
       (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
@@ -303,8 +313,8 @@ struct
     let assign_id_by_name resource_type name id =
       assign_id id (get_id (resource_type, eval_str name))
     in
-    let current_callstack d = (D.callstack_push (None, !Tracing.current_loc) d).callstack in
-    let add_action pid action = add_action pid action (current_callstack d) in
+    let current_callstack = !Tracing.current_loc :: d.callstack in
+    let add_action pid action = add_action pid action current_callstack in
     let arglist = List.map (stripCasts%(constFold false)) arglist in
     match f.vname, arglist with
       | _ when is_arinc_fun && is_creating_fun && not(mode_is_init d.pmo) ->
@@ -381,7 +391,7 @@ struct
               let pid' = get_id (Process, name) in
               add_action curpid (CreateProcess (pid', fun_list, pri, per, cap));
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; callstack = current_callstack d; pmo = Pmo.of_int 3L; pre = pre } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; callstack = current_callstack; pmo = Pmo.of_int 3L; pre = pre } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn fun_list;
@@ -515,7 +525,7 @@ struct
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst in
               add_action curpid (CreateErrorHandler (pid, funs));
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; callstack = current_callstack d; pmo = Pmo.of_int 3L; pre = pre } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; callstack = current_callstack; pmo = Pmo.of_int 3L; pre = pre } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs

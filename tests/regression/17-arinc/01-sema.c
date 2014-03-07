@@ -44,7 +44,7 @@ typedef
         NORMAL     = 3
    } OPERATING_MODE_TYPE;
 
-extern void SET_PARTITION_MODE (
+extern void LAP_Se_SetPartitionMode (
        /*in */ OPERATING_MODE_TYPE OPERATING_MODE,
        /*out*/ RETURN_CODE_TYPE    *RETURN_CODE );
 // -----------------------
