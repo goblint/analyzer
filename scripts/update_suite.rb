@@ -230,6 +230,10 @@ File.open(theresultfile, "w") do |f|
                     when /dereferencing of null/     then "warn"
                     when /CW:/                       then "warn"
                     when /Fixpoint not reached/      then "warn"
+                    when /.*file handle.*/           then "warn"
+                    when /.*file is never closed/    then "warn"
+                    when /.*unclosed files: .*/      then "warn"
+                    when /changed pointer .*/        then "warn"
                     else "other"
                   end
       oldwarn = warnings[i]
@@ -247,7 +251,7 @@ File.open(theresultfile, "w") do |f|
         if warnings[idx] == type then 
           correct += 1 
         else 
-          #puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}"
+          # puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}"
           ferr = idx if ferr.nil? or idx < ferr
         end
       when "nowarn" 

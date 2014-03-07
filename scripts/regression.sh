@@ -2,7 +2,8 @@ debug_tmp=$debug
 export debug=false # temporarily disable debug output
 n=0
 c=0
-for f in tests/regression/18-file/*.c; do
+dir=${2-"tests/regression/18-file"}
+for f in $dir/*.c; do
 	./scripts/check.sh $f ${1-"file"} 2>/dev/null | python scripts/regression.py $f && ((c++))
 	((n++))
 done
