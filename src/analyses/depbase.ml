@@ -36,7 +36,7 @@ let is_private (a: Q.ask) (_,fl) (v: varinfo): bool =
    (List.exists (fun x -> v.vname = Json.string x) (get_list "exp.precious_globs")))  
   ||
   match a (Q.IsPrivate v) with `Bool tv -> tv | _ -> false
-   
+
 let priv_cache = ref None
 let is_private q d v = 
   match !priv_cache with
@@ -45,6 +45,12 @@ let is_private q d v =
     | Some true -> is_private q d v
     | Some false -> false
    
+let is_important (a: Q.ask) (v,os) : bool = 
+  match a (Q.IsImportant (Var v, Lval.CilLval.to_ciloffs os)) with 
+    | `Bool tv -> (* Printf.printf "is %s important: %b\n" v.vname tv; *) tv 
+    | `Bot -> false 
+    | _ -> true
+
 module Main =
 struct
   include Analyses.DefaultSpec
@@ -755,6 +761,24 @@ struct
       | `Top -> set ask gs st adr (top_value st (AD.get_type adr))
       | v -> set ask gs st adr v
 
+  let set_savetop ask gs st adr v = 
+    let rec remove_idx = function
+      | `NoOffset -> `NoOffset
+      | `Index(_,_) -> `NoOffset
+      | `Field (f,os) -> `Field(f,remove_idx os)
+    in
+    let is_important (x:Addr.t) =
+      let ls = Addr.to_var_offset x in
+      List.exists (fun (v,os) -> is_important ask (v, remove_idx os)) ls
+    in
+    let split_imp x (im,un) = 
+      if is_important x then (AD.add x im, un) else (im, AD.add x un)
+    in
+    let imp_adr, unimp_adr = AD.fold split_imp adr (AD.bot (), AD.bot ()) in
+    let st' = set_savetop ask gs st imp_adr v in
+    set_savetop ask gs st' unimp_adr `Top
+    
+        
 
  (**************************************************************************
   * Simple defs for the transfer functions 

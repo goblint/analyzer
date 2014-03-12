@@ -91,14 +91,15 @@ struct
     | Queries.VariableDeps (Var v, os) -> `LvalSet (get_value ctx (v, LV.of_ciloffs os))
     | _ -> Queries.Result.top ()
   
-  (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
+  let assign_dep ctx d lval rval =
     let ls = ctx_mpt ctx (AddrOf lval) in
     let v  = eval_rval ctx ctx.local rval in
     if LS.is_top ls then LM.top () else
-      let d = ctx.local in
-      let nd = LS.fold (fun l -> LM.add l (LS.join v (LM.find l d))) ls d in
-      nd
+      LS.fold (fun l -> LM.add l (LS.join v (LM.find l d))) ls d 
+  
+  (* transfer functions *)
+  let assign ctx (lval:lval) (rval:exp) : D.t =
+    assign_dep ctx ctx.local lval rval
    
   let branch ctx (exp:exp) (tv:bool) : D.t = 
     ctx.local
@@ -107,13 +108,29 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t = 
-    ctx.local
+    match exp with
+      | Some e -> assign_dep ctx ctx.local (Depbase.Main.return_lval ()) e
+      | None -> ctx.local
+  
+  let rec foldl2 f a xs ys =
+    match xs, ys with 
+      | [], _ | _, [] -> a
+      | x::xs, y::ys -> foldl2 f (f a x y) xs ys
   
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, ctx.local]
+    let fd = Cilfacade.getdec f in
+    let nd = foldl2 (fun d x v -> assign_dep ctx d (Var x, NoOffset) v) ctx.local fd.sformals args in
+    [ctx.local, nd]
   
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    au
+    let no_ret  = LM.remove (Depbase.Main.return_varinfo (), `NoOffset) au in
+    match lval with
+      | Some lv ->
+          let ret_val = LM.find (Depbase.Main.return_varinfo (), `NoOffset) au in
+          let ls = ctx_mpt ctx (AddrOf lv) in
+          if LS.is_top ls then LM.top () else
+            LS.fold (fun l -> LM.add l (LS.join ret_val (LM.find l no_ret))) ls no_ret 
+      | _ -> no_ret
   
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     ctx.local
