@@ -6,7 +6,7 @@ module LV = Lval.CilLval
 module LS = Queries.LS
 module LM = MapDomain.MapBot_LiftTop (LV) (LS)
 
-module Spec : Analyses.Spec =
+module Spec =
 struct
   include Analyses.DefaultSpec
 
@@ -95,8 +95,33 @@ struct
     let ls = ctx_mpt ctx (AddrOf lval) in
     let v  = eval_rval ctx ctx.local rval in
     if LS.is_top ls then LM.top () else
-      LS.fold (fun l -> LM.add l (LS.join v (LM.find l d))) ls d 
-  
+      LS.fold (fun l -> LM.add l (LS.join v (LM.find l d))) ls d   
+
+  let rec eval_offset_shallow = function
+    | NoOffset      -> LS.empty ()
+    | Field (_, os) -> eval_offset_shallow os
+    | Index (e, os) -> LS.join (eval_rval_shallow e) (eval_offset_shallow os)
+
+  and eval_lval_shallow = function
+    | (Mem e,os) -> LS.join (eval_offset_shallow os) (eval_rval_shallow e)
+    | (Var v,os) -> LS.join (eval_offset_shallow os) (LS.singleton (v, offset os))
+
+  and eval_rval_shallow = function
+    | Lval ls              -> eval_lval_shallow ls  
+    | UnOp (op,e,_)        -> eval_rval_shallow e
+    | BinOp (op,e1,e2,_)   -> LS.join (eval_rval_shallow e1) (eval_rval_shallow e2)
+    | CastE (_,e)          -> eval_rval_shallow e
+    | Question (e,e1,e2,_) -> LS.join (eval_rval_shallow e) (LS.join (eval_rval_shallow e1) (eval_rval_shallow e2))
+    | Const _              
+    | SizeOf _             
+    | SizeOfE _            
+    | SizeOfStr _          
+    | AlignOf _            
+    | AlignOfE _           
+    | AddrOf _            
+    | StartOf _          
+    | AddrOfLabel _        -> LS.empty ()
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     assign_dep ctx ctx.local lval rval
@@ -127,6 +152,8 @@ struct
     match lval with
       | Some lv ->
           let ret_val = LM.find (Depbase.Main.return_varinfo (), `NoOffset) au in
+          let fdeps = eval_rval ctx ctx.local fexp in
+          let ret_val = LS.join fdeps ret_val in
           let ls = ctx_mpt ctx (AddrOf lv) in
           if LS.is_top ls then LM.top () else
             LS.fold (fun l -> LM.add l (LS.join ret_val (LM.find l no_ret))) ls no_ret 

@@ -6,7 +6,7 @@ module LV = Lval.CilLval
 module LS = Queries.LS
 module LM = MapDomain.MapBot_LiftTop (LV) (LS)
 
-module Spec : Analyses.Spec =
+module Spec =
 struct
   include Analyses.DefaultSpec
 
@@ -38,7 +38,7 @@ struct
   
   let is_important ctx (v,os) =
     LS.exists (os_leq (v,os)) (ctx.global v)
-
+    
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t = ()
   let branch ctx (exp:exp) (tv:bool) : D.t = ()
@@ -57,6 +57,10 @@ struct
   
   let query ctx = function 
     | Queries.IsImportant (Var v, os) -> `Bool (is_important ctx (v, LV.of_ciloffs os))
+    | Queries.SetImportant e -> 
+        let ls = VarDep.Spec.eval_rval_shallow e in
+        LS.iter (fun (v,os) -> add_var ctx (v, LV.to_ciloffs os)) ls; 
+        `Bot
     | _ -> Queries.Result.top ()
   
 end

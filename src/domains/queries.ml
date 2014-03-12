@@ -41,6 +41,7 @@ type t = ExpEq of exp * exp
        | EvalStr of exp
        | VariableDeps of lval
        | IsImportant of lval
+       | SetImportant of exp
        | PrintFullState
        | TheAnswerToLifeUniverseAndEverything
 

@@ -423,6 +423,7 @@ struct
       if q then raise Deadcode else d
       
   and query (ctx:(D.t, G.t) ctx) q =
+    let sides  = ref [] in
     let f a (n,(module S:Spec),d) =
       let ctx' : (S.D.t, S.G.t) ctx = 
         { local  = obj d
@@ -432,13 +433,15 @@ struct
         ; global = (fun v      -> ctx.global v |> assoc n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
-        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
+        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         } 
       in
       Queries.Result.meet a @@ S.query ctx' q
     in
-      fold_left f `Top @@ spec_list ctx.local 
+      let x = fold_left f `Top @@ spec_list ctx.local in
+      do_sideg ctx !sides;
+      x
       
   let query ctx q = 
     match q with
