@@ -347,7 +347,8 @@ struct
           BatPrintf.fprintf f "%a" printXml (Lazy.force table);
           gtfxml f gtable;
           printXmlWarning f ();
-          BatPrintf.fprintf f "</result></run>\n"
+          BatPrintf.fprintf f "</result></run>\n";
+          BatPrintf.fprintf f "%!"
       | _ -> ()
 end
 

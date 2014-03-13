@@ -27,3 +27,5 @@ tests/regression/*/goblint_temp
 
 src/spec/graph
 .vagrant
+
+g2html.jar

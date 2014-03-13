@@ -8,6 +8,7 @@ open Json
 open Goblintutil
 open Questions
 
+let html = ref false
 let writeconf = ref false
 let writeconffile = ref ""
 
@@ -57,6 +58,13 @@ let option_spec_list =
     set_auto "ana.activated" "[['base','escape','OSEK','OSEK2','stack_trace_set','fmode','flag']]";
     set_auto "mainfun" "[]"
   in
+  let configure_html () =
+    if (get_string "outfile" = "") then
+      set_string "outfile" "result.xml";
+    html:=true;
+    set_string "result" "fast_xml"; 
+    set_bool "exp.cfgdot" true
+  in
   let tmp_arg = ref "" in
     [ "-o"                   , Arg.String (set_string "outfile"), ""
     ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true), ""
@@ -77,6 +85,7 @@ let option_spec_list =
     ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "--halp"               , Arg.Unit (fun _ -> print_help stdout),""
     ; "-help"                , Arg.Unit (fun _ -> print_help stdout),""
+    ; "--html"               , Arg.Unit (fun _ -> configure_html ()),""
     ; "--oil"                , Arg.String oil, ""
 (*     ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""  *)
     ; "--osekdefaults"       , Arg.Unit (fun () -> set_bool "ana.osek.defaults" false), ""
@@ -262,6 +271,21 @@ let do_analyze merged_AST =
       Stats.time "analysis" (Control.analyze merged_AST) funs
   end
   
+let do_html_output () =
+  let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
+  if !html then begin
+    if Sys.file_exists jar then begin
+      let command = "java -jar "^jar^" "^get_string "outfile" in
+      try match Unix.system command with
+            | Unix.WEXITED 0 -> ()
+            | _ -> eprintf "HTML generation failed!\n"
+      with Unix.Unix_error (e, f, a) -> 
+        eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
+    end else 
+      eprintf "Warning: jar file %s not found.\n" jar
+  end
+    
+
 (** the main function *)
 let main =
   let main_running = ref false in fun () ->
@@ -275,7 +299,8 @@ let main =
     if ((String.length (get_string "questions.file")) > 0) then question_load_db (get_string "questions.file") else ();
     preprocess_files () |> merge_preprocessed |> do_analyze;
     if ((String.length (get_string "questions.file")) > 0) then question_save_db (get_string "questions.file") else ();
-    Report.do_stats !cFileNames
+    Report.do_stats !cFileNames;
+    do_html_output ()
   with BailFromMain -> () 
   
 let _ = 

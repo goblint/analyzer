@@ -82,7 +82,7 @@ let _ =
 let _ =
   reg Analyses "ana.activated" "[['base','escape','mutex']]"  "Lists of activated analyses, split into phases.";
 
-  reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses";
+  reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','depmutex','malloc_null','uninit']"  "List of path-sensitive analyses";
   reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses";
   
   reg Analyses "ana.warnings"        "false" "Print soundness warnings.";
@@ -149,6 +149,7 @@ let _ =
   reg Experimental "exp.unknown_funs_spawn" "true" "Should unknown function calls switch to MT-mode?";
   reg Experimental "exp.precious_globs"    "[]"    "Global variables that should be handled flow-sensitively when using earlyglobs.";
   reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists.";
+  reg Experimental "exp.g2html_path"       "'.'"   "Location of the g2html.jar file.";
   reg Experimental "questions.file"        ""      "Questions database file"
   
 (* {4 category [Debugging]} *)

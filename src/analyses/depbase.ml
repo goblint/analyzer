@@ -1353,6 +1353,7 @@ struct
       | _ ->  []
 
   let assert_fn ctx e warn change = 
+    ignore (ctx.ask (Queries.SetImportant e));
     let check_assert e st = 
       match eval_rv ctx.ask ctx.global st e with 
         | `Int v when ID.is_bool v -> 

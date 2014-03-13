@@ -39,8 +39,27 @@ struct
   let is_important ctx (v,os) =
     LS.exists (os_leq (v,os)) (ctx.global v)
     
+  let rec lval_write = function
+    | (Mem e,_) -> rval_deref e
+    | (Var v,_) -> LS.bot ()
+
+  and lval_deref = function
+    | (Mem e,os) -> rval_deref e
+    | (Var v,os) -> LS.singleton (v, VarDep.Spec.offset os)
+
+  and rval_deref = function
+    | Lval ls              -> lval_deref ls  
+    | UnOp (op,e,_)        -> rval_deref e
+    | BinOp (op,e1,e2,_)   -> LS.join (rval_deref e1) (rval_deref e2)
+    | CastE (_,e)          -> rval_deref e
+    | Question (e,e1,e2,_) -> LS.join (rval_deref e1) (rval_deref e2)
+    | Const _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ | AddrOf _ | StartOf _ | AddrOfLabel _        
+        -> LS.empty ()
+
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t = ()
+  let assign ctx (lval:lval) (rval:exp) : D.t = 
+    let ls = lval_write lval in
+    LS.iter (fun (v,os) -> add_var ctx (v, LV.to_ciloffs os)) ls
   let branch ctx (exp:exp) (tv:bool) : D.t = ()
   let body ctx (f:fundec) : D.t = ()
   let return ctx (exp:exp option) (f:fundec) : D.t = ()

@@ -24,7 +24,9 @@ struct
       if is_private ctx v then (xs,ys)
       else (LM.remove (v,os) xs, (v, LM.add (v,os) vs (LM.bot ()))::ys)
     in
-    LM.fold sync_one ctx.local (ctx.local, [])  
+    if LM.is_top ctx.local 
+    then (ctx.local, []) 
+    else LM.fold sync_one ctx.local (ctx.local, [])  
     
   let rec gen_offs = function
     | `NoOffset 
