@@ -285,3 +285,24 @@ html , body {
 .hidden {
   display:none;
 }
+
+.sh_pp {
+  color: purple;
+}
+
+.sh_cmt {
+  color: green;
+}
+
+.sh_chr {
+  color: red;
+}
+
+.sh_str {
+  color: red;
+}
+
+.sh_key {
+  color: blue;
+}
+

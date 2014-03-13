@@ -3,10 +3,31 @@
 <xsl:stylesheet version="1.0"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 
+  <xsl:template match="sht">
+    <xsl:choose> 
+     <xsl:when test="@type='pp'">
+        <span class="sh_pp"><xsl:value-of select="." /></span>
+      </xsl:when>
+     <xsl:when test="@type='cmt'">
+        <span class="sh_cmt"><xsl:value-of select="." /></span>
+      </xsl:when>
+     <xsl:when test="@type='chr'">
+        <span class="sh_chr"><xsl:value-of select="." /></span>
+      </xsl:when>
+     <xsl:when test="@type='str'">
+        <span class="sh_str"><xsl:value-of select="." /></span>
+      </xsl:when>
+     <xsl:when test="@type='key'">
+        <span class="sh_key"><xsl:value-of select="." /></span>
+      </xsl:when>
+    </xsl:choose>
+  </xsl:template>
+
+
   <xsl:template match="file">
     <xsl:for-each select="ln" > 
       <div class="sl">
-        
+
         <xsl:choose>
           <xsl:when test="@wrn='[]' and @ns='[]'">
           </xsl:when>
@@ -41,7 +62,7 @@
           </xsl:choose>
         </span>
         <span class="sl-data">
-          <xsl:value-of select="." /> 
+          <xsl:apply-templates />
         </span>
       </div>
     </xsl:for-each>
