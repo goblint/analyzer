@@ -45,56 +45,58 @@
     <xsl:choose>
       <xsl:when test="normalize-space(.) != '' or ./@* != ''">
         set:
-          <xsl:for-each select="value" >
-            <div class="nontoggle">
-              <xsl:apply-templates select="." />
-            </div>
-          </xsl:for-each>
+        <xsl:for-each select="value" >
+          <div class="nontoggle">
+            <xsl:apply-templates select="." />
+          </div>
+        </xsl:for-each>
       </xsl:when>
       <xsl:otherwise>
         &#8709;
       </xsl:otherwise>
     </xsl:choose>
-  </xsl:template>
-
-    <xsl:template match="analysis">
-        <xsl:choose>
-            <xsl:when test="value//value">
-                <div class="toggle">
-                    <span>
-                        <xsl:value-of select="@name" />
-                    </span> &#8594;
-                    <span>
-                        <xsl:apply-templates select="value" />
-                    </span>
-                </div>
-            </xsl:when>
-            <xsl:otherwise>
-                <div class="nontoggle">
-                    <span class="emph">
-                        <xsl:value-of select="@name" />
-                    </span> &#8594;
-                    <span class="emph">
-                        <xsl:apply-templates select="value" />
-                    </span>
-                </div>
-            </xsl:otherwise>
-        </xsl:choose>
-
-    </xsl:template>
-  <xsl:template match="glob">
-    <div class="toggle">
-        <span>
-            <xsl:value-of select="key" />
-        </span> &#8594;
-        <span>
-            <xsl:apply-templates select="analysis" />
-        </span>
-    </div>
-  </xsl:template>
+  </xsl:template>   
   
   <xsl:template match="globs">
-    <xsl:apply-templates select="glob" />
+    <xsl:for-each select="glob[1]/analysis" >
+      <xsl:variable name="analysis" select="position()"/>
+      <div class="toggle">
+        <span>
+          <xsl:value-of select="@name" />
+        </span> &#8594;
+        <span>
+          <xsl:for-each select="/globs/glob" >
+            <xsl:variable name="glob" select="key"/>
+              
+              
+            <xsl:choose>
+              <xsl:when test="analysis[$analysis]/value//value">
+                <div class="toggle">
+                  <span>
+                    <xsl:value-of select="$glob"/>
+                  </span> &#8594;
+                  <span>
+                    <xsl:apply-templates select="analysis[$analysis]/value"/>
+                  </span>
+                </div>
+              </xsl:when>
+              <xsl:otherwise>
+                <div class="nontoggle">
+                  <span class="emph">
+                    <xsl:value-of select="$glob"/>
+                  </span> &#8594;
+                  <span class="emph">
+                    <xsl:apply-templates select="analysis[$analysis]/value"/>
+                  </span>
+                </div>
+              </xsl:otherwise>
+            </xsl:choose>
+              
+              
+          </xsl:for-each>
+        </span>
+      </div>
+    </xsl:for-each>
   </xsl:template>
 
   <xsl:template match="/">
@@ -106,7 +108,7 @@
         <script type="text/javascript" src="../iframeResizer.contentWindow.min.js"/>
         <script type="text/javascript" src="../script.js"></script>
       </head>
-      <body onload="init_all()">
+      <body onload="init_node()">
         <xsl:apply-templates select="globs" />
       </body>
     </html>

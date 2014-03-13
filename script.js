@@ -34,10 +34,6 @@ function toggleVisibility(e) {
 function init_toggle(e) {
   var ech = get_firstchild(e);
   e.firstChild.nodeValue = "+ "+e.firstChild.nodeValue;
-//  ech.onmousedown = function ch(t) {
-//      var ech = get_firstchild(e);
-//      ech.nodeValue = '*' + ech.nodeValue.substr(1, ech.nodeValue.length) ;
-//  };
   ech.onmouseup = function ch(t) {toggleVisibility(e);};
   ech.style.cursor = "pointer";
 }

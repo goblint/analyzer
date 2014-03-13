@@ -30,20 +30,19 @@ html , body {
 }
   
 .toggle, .nontoggle {
-  padding-left: 0.7em;
-  padding-right: 0.7em;
+  padding-left: 0.6em;
+  padding-right: 0.6em;
   margin-top: 0.2em;
   margin-bottom: 0.2em;
 }
 
 .toggle {
   border-style: solid none solid none;
-  border-width:2px;
-  color:black;
-  -webkit-border-radius: 9px;
-  -moz-border-radius: 9px;
-  border-radius: 9px;
-  background-color:rgba(200, 200, 230, 0.1);
+  border-width:1px;
+  border-color:#ccc;
+  -webkit-border-radius: 7px;
+  -moz-border-radius: 7px;
+  border-radius: 7px;
 }
 
 .emph {
@@ -58,6 +57,7 @@ html , body {
 .fillW {
   width:100%;
 }
+
 .borderless {
     border-style:none;
     border-width:0px;
@@ -68,7 +68,7 @@ html , body {
   padding:4px;
   border-style: none solid none solid;
   border-width:3px;
-  color:black;
+  border-color:#555;
   -webkit-border-radius: 9px;
   -moz-border-radius: 9px;
   border-radius: 9px;
@@ -176,13 +176,17 @@ html , body {
 }
 
 .bg1 {
-  background-color: #efe;
+  background-color: #daede2;
+/*  background-color: #efe;*/
 }
+
 .bg2 {
 }
+
 .bg3 {
 }
-.nothing {
+
+sa.nothing {
   text-align: center;
   vertical-align: middle;
   line-height: 100px; 
@@ -200,7 +204,6 @@ html , body {
   width:100%;
   padding-top:1em;
   padding-bottom:1em;
-/*  padding-right:10px;*/
   font-size:12pt;
   display:table;
 }
@@ -209,29 +212,19 @@ html , body {
   width:3em;
   padding-right:0.4em;
   text-align:right;
-/*  display:table-cell;*/
 }
 
 .sl-data {
- /* display:table-cell;*/
   white-space:pre-wrap;
+  padding-left:0.4em;
   width:100%;
 }
 
 .sl {
   cursor:pointer;
   display:table-row;
- /* table-layout: fixed;
-  height:19px;*/
 }
 
-/*.sl:hover {
-  -webkit-border-radius: 5px;
-  -moz-border-radius: 5px;
-  border-radius: 5px;
-  border-color:gray;
-}
-*/
 .sl-warn {
   display:inline-block;
   cursor:pointer;
@@ -239,10 +232,10 @@ html , body {
   height:0.5em;
   margin:1px 0px 4px 0px;
   vertical-align:middle;
-  background-color:red;
-  border-color:black;
+  background-color:#E00;
+  border-color:#500;
   border-style:solid;
-  border-width:1px;
+  border-width:1.5px;
 }
 
 .sl-nowarn {
@@ -303,6 +296,7 @@ html , body {
 }
 
 .sh_key {
-  color: blue;
+  font-weight:500;
+  color: #00D;
 }
 
