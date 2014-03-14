@@ -152,11 +152,11 @@ html , body {
 }
 
 .red-bg {
-  background: #f66;
+  background: #f77;
 }
 
 .blue-bg {
-  background: #39f;
+  background: #39d;
 }
 
 .green-bg {
@@ -174,15 +174,17 @@ html , body {
    -moz-border-radius: 7px;
    border-radius: 7px;
    color: white;
-   font-size: 13px;
+   font-size: 14px;
    font-weight:500;
    text-decoration: none;
    vertical-align: middle;
-   }
+}
+
 .button:hover {
   opacity:0.6;
   cursor:pointer;
 }
+
 .button:active {
    border-top-color: #1b435e;
    background: #1b435e;

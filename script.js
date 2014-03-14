@@ -149,7 +149,7 @@ function init_frames(){
           function f(){
               $("#file-view-frame-div svg").attr("width","100%");
               $("#file-view-frame-div svg").attr("height","100%");
-              svgPanZoom.init();
+              svgPanZoom.init({selector:"#file-view-frame-div svg"});
           });
       $('#function-button').text(getURLParameter("fun"));
       $('#function-button').attr("href","frame.html?fun="+getURLParameter("fun")+"&file="+getURLParameter("file"));
