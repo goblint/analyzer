@@ -1,4 +1,17 @@
 @font-face {
+  font-family: 'Ubuntu Mono';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Ubuntu Mono'), local('UbuntuMono-Regular'), url(UbuntuMonoRegular.woff) format('woff');
+}
+@font-face {
+  font-family: 'Ubuntu Mono';
+  font-style: normal;
+  font-weight: 700;
+  src: local('Ubuntu Mono Bold'), local('UbuntuMono-Bold'), url(UbuntuMonoBold.woff) format('woff');
+}
+
+@font-face {
   font-family: 'Alegreya Sans';
   font-style: normal;
   font-weight: 400;
@@ -201,6 +214,7 @@ html , body {
 }
 
 .source-block {
+  font-family:'Ubuntu Mono', sans-serif;
   width:100%;
   padding-top:1em;
   padding-bottom:1em;
