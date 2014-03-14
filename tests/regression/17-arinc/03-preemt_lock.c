@@ -79,8 +79,11 @@ int main(){
   RETURN_CODE_TYPE r;
   PROCESS_ID_TYPE pi1,pi2;
   PROCESS_ATTRIBUTE_TYPE p1,p2;
+  p1.NAME = "proc1";
   p1.ENTRY_POINT = (void *) &P1;
   p1.BASE_PRIORITY = 10;
+  p1.PERIOD = 600;
+  p1.TIME_CAPACITY = 600;
   LAP_Se_CreateProcess(&p1,&pi1,&r);
   LAP_Se_Start(pi1,&r);
   LAP_Se_SetPartitionMode(NORMAL,&r);

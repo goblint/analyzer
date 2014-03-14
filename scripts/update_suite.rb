@@ -13,7 +13,7 @@ elsif not File.exist?(goblint) then
 end
 vrsn = `#{goblint} --version`
 
-testresults = File.expand_path("tests/suite_result") 
+testresults = File.expand_path("tests/suite_result")
 testfiles   = File.expand_path("tests/regression")
 
 alliswell = true
@@ -46,6 +46,8 @@ end
 #Command line parameters
 #Either only run a single test, or
 #"future" will also run tests we normally skip
+# -v at the end stands for verbose output
+if ARGV.last == "-v" then ARGV.pop; verbose = true else verbose = false end
 only = ARGV[0] unless ARGV[0].nil?
 if only == "future" then
   future = true
@@ -65,7 +67,7 @@ end
 #processing the file information
 projects = []
 regs = Dir.open(testfiles)
-regs.sort.each do |d| 
+regs.sort.each do |d|
   next if File.basename(d)[0] == ?.
   gid = d[0..1]
   groupname = d[3..-1]
@@ -75,11 +77,11 @@ regs.sort.each do |d|
   group = Dir.open(grouppath)
   group.sort.each do |f|
     next if File.basename(f)[0] == ?.
-    next if f =~ /goblin_temp/ 
-    next unless f =~ /.*\.c$/ 
+    next if f =~ /goblin_temp/
+    next unless f =~ /.*\.c$/
     id = gid + "/" + f[0..1]
     testname = f[3..-3]
-    next unless only.nil? or testname == only 
+    next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
     lines = IO.readlines(path)
     size = 0
@@ -89,7 +91,7 @@ regs.sort.each do |d|
     debug = false unless lines[0] =~ /DEBUG/
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
-      
+
     hash = Hash.new
     i = 0
     lines.each do |obj|
@@ -125,7 +127,7 @@ regs.sort.each do |d|
     end
     params << " --set dbg.debug true" if debug
     p = Project.new(id,testname,size,groupname,path,params,hash)
-    projects << p 
+    projects << p
   end
 end
 
@@ -215,11 +217,11 @@ File.open(theresultfile, "w") do |f|
     warnings = Hash.new
     warnings[-1] = "term"
     lines = IO.readlines(File.join(testresults, warnfile))
-    lines.each do |l| 
+    lines.each do |l|
       if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
       next unless l =~ /(.*)\(.*\:(.*)\)/
       obj,i = $1,$2.to_i
-      
+
       ranking = ["other", "warn", "race", "norace", "success", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
                     when /lockset:/                  then "race"
@@ -237,7 +239,7 @@ File.open(theresultfile, "w") do |f|
                     else "other"
                   end
       oldwarn = warnings[i]
-      if oldwarn.nil? then 
+      if oldwarn.nil? then
         warnings[i] = thiswarn
       else
         warnings[i] = ranking[[ranking.index(thiswarn), ranking.index(oldwarn)].max]
@@ -246,23 +248,22 @@ File.open(theresultfile, "w") do |f|
     correct = 0
     ferr = nil
     p.warnings.each_pair do |idx, type|
-      case type
-      when "race", "fail", "unknown", "noterm", "term", "warn"
-        if warnings[idx] == type then 
-          correct += 1 
-        else 
-          # puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}"
+      check = lambda {|cond|
+        if cond then correct += 1
+        else
+          puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}" if verbose
           ferr = idx if ferr.nil? or idx < ferr
         end
-      when "nowarn" 
-        if warnings[idx].nil? then correct += 1 
-        else ferr = idx if ferr.nil? or idx < ferr end
-      when "assert" 
-        if warnings[idx] == "success" then correct += 1 
-        else ferr = idx if ferr.nil? or idx < ferr end
+      }
+      case type
+      when "race", "fail", "unknown", "noterm", "term", "warn"
+        check.call warnings[idx] == type
+      when "nowarn"
+        check.call warnings[idx].nil?
+      when "assert"
+        check.call warnings[idx] == "success"
       when "norace"
-        if warnings[idx] != "race" then correct += 1 
-        else ferr = idx if ferr.nil? or idx < ferr end
+        check.call warnings[idx] != "race"
       end
     end
     f.puts "<td><a href=\"#{warnfile}\">#{correct} of #{p.warnings.size}</a></td>"
@@ -288,7 +289,7 @@ File.open(theresultfile, "w") do |f|
 #       sols = lines.grep(/sol: Entered/).size
 #       f.puts "<td><a href=\"#{solfile}\">#{sols} nodes</a></td>"
 #     end
-    
+
     if correct == p.warnings.size && is_ok then
       f.puts "<td style =\"color: green\">NONE</td>"
     else
@@ -317,7 +318,9 @@ end
 puts "Usage examples for high-tech script parameters: "
 puts "  Single: ./scripts/update_suite.rb simple_rc"
 puts "  Groups: ./scripts/update_suite.rb group mutex"
+puts "  Exclude group: ./scripts/update_suite.rb group -mutex"
 puts "  Future: ./scripts/update_suite.rb future"
+puts "  Verbose output: append -v"
 puts ("Results: " + theresultfile)
 if alliswell then
   puts "\e[32mAll is well!\e[0m"

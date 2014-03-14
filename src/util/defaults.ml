@@ -112,6 +112,7 @@ let _ =
   reg Analyses "ana.int.cnarrow"     "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'half')";
   reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails.";
   reg Analyses "ana.spec.file"       ""      "Path to the specification file.";
+  reg Analyses "ana.arinc.dot"       "false" "Save dot graph for ARINC calls?";
   reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?";
   reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
   

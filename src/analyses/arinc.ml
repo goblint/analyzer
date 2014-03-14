@@ -283,9 +283,9 @@ struct
     | ResetEvent ids -> "ResetEvent "^str_resources ids
     | TimedWait t -> "TimedWait "^str_time t
     | PeriodicWait -> "PeriodicWait"
+  let str_node (node, callstack) = Node.string_of node ^ "," ^ D.string_of_callstack callstack
   let print_actions () =
     let print_process pid =
-      let str_node (node, callstack) = Node.string_of node ^ "," ^ D.string_of_callstack callstack in
       let str_edge (a, action, b) = str_node a ^ " -> " ^ str_action pid action ^ " -> " ^ str_node b in
       let xs = Set.map str_edge (get_edges pid) in
       M.debug @@ str_resource pid^" ->\n\t"^String.concat "\n\t" (Set.elements xs)
@@ -294,18 +294,19 @@ struct
   let save_dot_graph () =
     let dot_process pid =
       (* 1 -> w1 [label="fopen(_)"]; *)
-      let str_node (node, callstack) = Node.string_of node in (*  ^ "," ^ D.string_of_callstack callstack *)
+      let str_node x = "\"" ^ str_node x ^ "\"" in (* quote node names for dot b/c of callstack *)
       let str_edge (a, action, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ "\"]" in
       let xs = Set.map str_edge (get_edges pid) |> Set.elements in
       ("// "^str_resource pid) :: xs
     in
     let lines = Hashtbl.keys edges |> List.of_enum |> List.map dot_process |> List.concat in
     let dot_graph = String.concat "\n  " ("digraph file {"::lines) ^ "\n}" in
-    output_file "result/arinc.dot" dot_graph;
-    print_endline ("saved graph as "^Sys.getcwd ()^"/result/arinc.dot")
+    let path = "result/arinc.dot" in
+    output_file path dot_graph;
+    print_endline ("saved graph as "^Sys.getcwd ()^"/"^path)
   let finalize () =
     print_actions ();
-    save_dot_graph ()
+    if GobConfig.get_bool "ana.arinc.dot" then save_dot_graph ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let d : D.t = ctx.local in
