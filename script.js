@@ -119,6 +119,12 @@ function loadMessage(event){
   }
 }
 
+// highlight the selected line if possible
+function init_file(){
+  if (getURLParameter("line") != null)
+    $("#ln"+getURLParameter("line")).click();
+
+}
 
 // used on load of frames.html
 function init_frames(){
@@ -144,7 +150,7 @@ function init_frames(){
     } else {
 		  // we know the file only, so we show the file listing
       $('#file-view-frame-div').empty();
-      $('#file-view-frame-div').append("<iframe class=\"borderless fill\"src=\"files/"+getURLParameter("file")+".xml\"></iframe>");
+      $('#file-view-frame-div').append("<iframe class=\"borderless fill\"src=\"files/"+getURLParameter("file")+".xml?line="+getURLParameter("line")+"\"></iframe>");
 
       // fix breadcrumbs: function -- not avaliable
       $('#function-button').css("display","none");

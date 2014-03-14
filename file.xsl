@@ -65,7 +65,7 @@
         <!--<script type="text/javascript" src="../iframeResizer.contentWindow.min.js"/>-->
         <script type="text/javascript" src="../script.js"/>
       </head>
-      <body>
+      <body onload="init_file()">
         <div class="source-block">
           <xsl:apply-templates select="file" />
         </div>
