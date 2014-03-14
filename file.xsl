@@ -4,23 +4,10 @@
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 
   <xsl:template match="sht">
-    <xsl:choose> 
-     <xsl:when test="@type='pp'">
-        <span class="sh_pp"><xsl:value-of select="." /></span>
-      </xsl:when>
-     <xsl:when test="@type='cmt'">
-        <span class="sh_cmt"><xsl:value-of select="." /></span>
-      </xsl:when>
-     <xsl:when test="@type='chr'">
-        <span class="sh_chr"><xsl:value-of select="." /></span>
-      </xsl:when>
-     <xsl:when test="@type='str'">
-        <span class="sh_str"><xsl:value-of select="." /></span>
-      </xsl:when>
-     <xsl:when test="@type='key'">
-        <span class="sh_key"><xsl:value-of select="." /></span>
-      </xsl:when>
-    </xsl:choose>
+	  <span>
+		  <xsl:attribute name="class">sh <xsl:value-of select="@type" /></xsl:attribute>
+		  <xsl:value-of select="." />
+	  </span>
   </xsl:template>
 
 

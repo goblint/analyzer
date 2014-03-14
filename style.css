@@ -186,7 +186,7 @@ html , body {
 .bg3 {
 }
 
-sa.nothing {
+.nothing {
   text-align: center;
   vertical-align: middle;
   line-height: 100px; 
@@ -279,24 +279,12 @@ sa.nothing {
   display:none;
 }
 
-.sh_pp {
-  color: purple;
-}
-
-.sh_cmt {
-  color: green;
-}
-
-.sh_chr {
-  color: red;
-}
-
-.sh_str {
-  color: red;
-}
-
-.sh_key {
-  font-weight:500;
-  color: #00D;
-}
+.nr { color : #A00   ; font-weight:400; }
+.pp { color : #808   ; font-weight:500; }
+.tk { color : #088   ; font-weight:500; }
+.sk { color : #080   ; font-weight:500; }
+.op { color : #00A   ; font-weight:500; }
+.sp { color : #D50   ; font-weight:500; }
+.cm { color : #555   ; font-weight:400; }
+.st { color : #900   ; font-weight:500; }
 
