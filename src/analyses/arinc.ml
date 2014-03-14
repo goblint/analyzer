@@ -25,9 +25,9 @@ struct
     | TimedWait of time | PeriodicWait
   (* callstack for locations *)
   type callstack = location list
-  type node = MyCFG.node * callstack
-  type edge = node * action * node
-  let action_of_edge (_, action, _) = action
+  type node = MyCFG.node
+  type edge = node * action * callstack * node
+  let action_of_edge (_, action, _, _) = action
   let edges = Hashtbl.create 123
   let get_edges (pid:id) : edge Set.t =
     Hashtbl.find_default edges pid Set.empty
@@ -182,10 +182,10 @@ struct
     let join x y = let r = op_scheme Pid.join Pri.join Per.join Cap.join Pmo.join PrE.join Node.join x y
       in let s x = if is_top x then "TOP" else if is_bot x then "BOT" else short 0 x in M.debug_each @@ "JOIN\t" ^ if equal x y then "EQUAL" else s x ^ "\n\t" ^ s y ^ "\n->\t" ^ s r;
       if x.pid = y.pid && Pid.is_int x.pid && Node.is_node x.node && Node.is_node y.node then begin
-        let a = Node.to_node x.node, x.callstack in let b = Node.to_node y.node, y.callstack in
+        let a = Node.to_node x.node in let b = Node.to_node y.node in
         let pname = get_by_pid @@ Option.get @@ Pid.to_int x.pid in
         let pid = get_id (Process, Option.get pname) in
-        add_edge pid (a, Epsilon, b)
+        add_edge pid (a, Epsilon, x.callstack, b)
       end;
       { r with node = if Node.is_top r.node then (if Node.leq x.node y.node then x.node else y.node) else r.node }
     let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Node.meet
@@ -209,7 +209,7 @@ struct
     ctx.local
 
   let body ctx (f:fundec) : D.t = (* on entering function body -> called for spawned processes *)
-    M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line;
+    (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     if not (is_single ctx || !Goblintutil.global_initialization || ctx.global part_mode_var) then raise Analyses.Deadcode;
     let d = ctx.local in
     if Node.is_bot d.node && Option.is_some !MyCFG.current_node
@@ -301,10 +301,8 @@ struct
     let current_node = Option.get !MyCFG.current_node in
     (* let current_callstack = !Tracing.current_loc :: d.callstack in *)
     let add_action action d =
-      let a = Node.to_node d.node, d.callstack in
-      let b = current_node, d.callstack in
-      add_edge curpid (a, action, b);
-      { d with node = Node.of_node @@ fst b }
+      add_edge curpid (Node.to_node d.node, action, d.callstack, current_node);
+      { d with node = Node.of_node current_node }
     in
     let arglist = List.map (stripCasts%(constFold false)) arglist in
     match f.vname, arglist with
@@ -568,10 +566,11 @@ struct
     | ResetEvent ids -> "ResetEvent "^str_resources ids
     | TimedWait t -> "TimedWait "^str_time t
     | PeriodicWait -> "PeriodicWait"
-  let str_node (node, callstack) = Node.string_of node ^ "," ^ D.string_of_callstack callstack
+  let str_node node = Node.string_of node
+  let str_callstack cs = if List.is_empty cs then "" else " cs=" ^ D.string_of_callstack cs
   let print_actions () =
     let print_process pid =
-      let str_edge (a, action, b) = str_node a ^ " -> " ^ str_action pid action ^ " -> " ^ str_node b in
+      let str_edge (a, action, cs, b) = str_node a ^ " -> " ^ str_action pid action ^ str_callstack cs ^ " -> " ^ str_node b in
       let xs = Set.map str_edge (get_edges pid) in
       M.debug @@ str_resource pid^" ->\n\t"^String.concat "\n\t" (Set.elements xs)
     in
@@ -580,7 +579,7 @@ struct
     let dot_process pid =
       (* 1 -> w1 [label="fopen(_)"]; *)
       let str_node x = "\"" ^ str_node x ^ "\"" in (* quote node names for dot b/c of callstack *)
-      let str_edge (a, action, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ "\"]" in
+      let str_edge (a, action, cs, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ str_callstack cs ^ "\"]" in
       let xs = Set.map str_edge (get_edges pid) |> Set.elements in
       ("// "^str_resource pid) :: xs
     in
