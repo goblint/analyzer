@@ -11,6 +11,79 @@ struct
 
   let name = "arinc"
 
+  (* ARINC types and Hashtables for collecting CFG *)
+  type id = varinfo
+  type ids = id list
+  type time = int64 (* Maybe use Nativeint which is the same as C long. OCaml int is just 31 or 63 bits wide! *)
+  type action =
+    | Epsilon (* e.g. used for loops *)
+    | LockPreemption | UnlockPreemption | SetPartitionMode of int64
+    | CreateProcess of id * varinfo list * int64 * time * time | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
+    | CreateBlackboard of id | DisplayBlackboard of ids | ReadBlackboard of ids * time | ClearBlackboard of ids
+    | CreateSemaphore of id * int64 * int64 * int64 | WaitSemaphore of ids | SignalSemaphore of ids
+    | CreateEvent of id | WaitEvent of ids * time | SetEvent of ids | ResetEvent of ids
+    | TimedWait of time | PeriodicWait
+  (* callstack for locations *)
+  type callstack = location list
+  type node = MyCFG.node * callstack
+  type edge = node * action * node
+  let action_of_edge (_, action, _) = action
+  let edges = Hashtbl.create 123
+  let get_edges (pid:id) : edge Set.t =
+    Hashtbl.find_default edges pid Set.empty
+  let add_edge (pid:id) edge =
+    Hashtbl.modify_def Set.empty pid (Set.add edge) edges
+
+  (* lookup/generate id from resource type and name (needed for LAP_Se_GetXId functions, specified by LAP_Se_CreateX functions during init) *)
+  type resource = Process | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard
+  let str_resource_type = function
+    | Process -> "Process"
+    | Semaphore -> "Semaphore"
+    | Event -> "Event"
+    | Logbook -> "Logbook"
+    | SamplingPort -> "SamplingPort"
+    | QueuingPort -> "QueuingPort"
+    | Buffer -> "Buffer"
+    | Blackboard -> "Blackboard"
+
+  (* map from tuple (resource, name) to varinfo (need to be saved b/c/ makeGlobalVar x t <> makeGlobalVar x t) *)
+  let resources = Hashtbl.create 123
+  let get_id (resource,name as k:resource*string) : id =
+    try Hashtbl.find resources k
+    with Not_found ->
+      let vname = str_resource_type resource^":"^name in
+      let v = makeGlobalVar vname voidPtrType in
+      Hashtbl.replace resources k v;
+      v
+  let get_by_id (id:id) : (resource*string) option =
+    Hashtbl.filter ((=) id) resources |> Hashtbl.keys |> Enum.get
+
+  let funs_for_process name : varinfo list =
+    let id = get_id (Process, name) in
+    let get_funs = function
+      | CreateProcess (id', funs, _, _, _) when id'=id -> funs
+      | CreateErrorHandler (id', funs) when id'=id -> funs
+      | _ -> []
+    in
+    let all_edges = Hashtbl.values edges |> List.of_enum |> List.map Set.elements |> List.concat in
+    List.map (get_funs%action_of_edge) all_edges |> List.concat
+
+  (* map process name to integer used in Pid domain *)
+  let pnames = Hashtbl.create 123
+  let _ = Hashtbl.add pnames "mainfun" 0L
+  let get_by_pid pid =
+    Hashtbl.filter ((=) pid) pnames |> Hashtbl.keys |> Enum.get
+  let get_pid pname =
+    try Hashtbl.find pnames pname
+    with Not_found ->
+      let ids = Hashtbl.values pnames in
+      let id = if Enum.is_empty ids then 1L else Int64.succ (Enum.arg_max identity ids) in
+      Hashtbl.replace pnames pname id;
+      id
+
+
+  (* Domains *)
+
   (* Information for one task *)
   (* Process ID *)
   module Pid = IntDomain.Flattened
@@ -20,8 +93,6 @@ struct
   module Per = IntDomain.Flattened
   (* Capacity *)
   module Cap = IntDomain.Flattened
-  (* callstack for locations *)
-  type callstack = location list
 
   (* Information for all tasks *)
   (* Partition mode *)
@@ -46,6 +117,7 @@ struct
     end
     include Lattice.Flat (Base) (struct let top_name = "Unknown node" let bot_name = "Error node" end)
     let of_node node = `Lifted node
+    let is_node = function `Lifted _ -> true | _ -> false
     let to_node = function `Lifted node -> node | _ -> failwith "Unknown/Error node"
     let string_of node = Base.short 0 node
   end
@@ -97,7 +169,6 @@ struct
     let callstack_length = 1
     let callstack_push x d = if List.length d.callstack < callstack_length then callstack (fun xs -> x :: List.remove xs x) d else d
 
-
     let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); pmo = Pmo.bot (); pre = PrE.bot (); node = Node.bot (); callstack = [] }
     let is_bot x = { x with callstack = [] } = bot ()
     let top () = { pid = Pid.top (); pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.top (); pre = PrE.top (); node = Node.top (); callstack = [] }
@@ -109,7 +180,14 @@ struct
     let join_callstack xs ys = if xs<>ys then M.debug_each @@ "JOIN callstacks " ^ string_of_callstack xs ^ " and " ^ string_of_callstack ys; xs
     let op_scheme op1 op2 op3 op4 op5 op6 op7 x y: t = { pid = op1 x.pid y.pid; pri = op2 x.pri y.pri; per = op3 x.per y.per; cap = op4 x.cap y.cap; pmo = op5 x.pmo y.pmo; pre = op6 x.pre y.pre; node = op7 x.node y.node; callstack = join_callstack x.callstack y.callstack }
     let join x y = let r = op_scheme Pid.join Pri.join Per.join Cap.join Pmo.join PrE.join Node.join x y
-      in let s x = if is_top x then "TOP" else if is_bot x then "BOT" else short 0 x in M.debug_each @@ "JOIN\t" ^ if equal x y then "EQUAL" else s x ^ "\n\t" ^ s y ^ "\n->\t" ^ s r;  r
+      in let s x = if is_top x then "TOP" else if is_bot x then "BOT" else short 0 x in M.debug_each @@ "JOIN\t" ^ if equal x y then "EQUAL" else s x ^ "\n\t" ^ s y ^ "\n->\t" ^ s r;
+      if x.pid = y.pid && Pid.is_int x.pid && Node.is_node x.node && Node.is_node y.node then begin
+        let a = Node.to_node x.node, x.callstack in let b = Node.to_node y.node, y.callstack in
+        let pname = get_by_pid @@ Option.get @@ Pid.to_int x.pid in
+        let pid = get_id (Process, Option.get pname) in
+        add_edge pid (a, Epsilon, b)
+      end;
+      { r with node = if Node.is_top r.node then (if Node.leq x.node y.node then x.node else y.node) else r.node }
     let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Node.meet
   end
   module G = IntDomain.Booleans
@@ -131,11 +209,12 @@ struct
     ctx.local
 
   let body ctx (f:fundec) : D.t = (* on entering function body -> called for spawned processes *)
-    (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
+    M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line;
     if not (is_single ctx || !Goblintutil.global_initialization || ctx.global part_mode_var) then raise Analyses.Deadcode;
-    if is_main_fun f.svar.vname
-    then { ctx.local with node = Node.of_node @@ Option.get !MyCFG.current_node }
-    else ctx.local
+    let d = ctx.local in
+    if Node.is_bot d.node && Option.is_some !MyCFG.current_node
+    then { d with node = Node.of_node @@ Option.get !MyCFG.current_node }
+    else d
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* D.callstack List.tl ctx.local *)
@@ -155,8 +234,7 @@ struct
     (* M.debug_each @@ "ctx.local: " ^ D.string_of_callstack ctx.local.callstack ^ ", au: " ^ D.string_of_callstack au.callstack; *)
     { au with callstack = ctx.local.callstack } (* just keep the caller's callstack *)
 
-
-  (* ARINC utility functions, types and Hashtables for collecting and printing CFG *)
+  (* ARINC utility functions *)
   let sprint f x = Pretty.sprint 80 (f () x)
   let string_of_partition_mode = function
     | 0L -> "IDLE"
@@ -172,141 +250,9 @@ struct
   let mode_is_multi i = Pmo.to_int i = Some 3L
   let infinity = 4294967295L (* time value used for infinity *)
 
-  type id = varinfo
-  type ids = id list
-  type time = int64 (* Maybe use Nativeint which is the same as C long. OCaml int is just 31 or 63 bits wide! *)
-  type action =
-    | LockPreemption | UnlockPreemption | SetPartitionMode of int64
-    | CreateProcess of id * varinfo list * int64 * time * time | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
-    | CreateBlackboard of id | DisplayBlackboard of ids | ReadBlackboard of ids * time | ClearBlackboard of ids
-    | CreateSemaphore of id * int64 * int64 * int64 | WaitSemaphore of ids | SignalSemaphore of ids
-    | CreateEvent of id | WaitEvent of ids * time | SetEvent of ids | ResetEvent of ids
-    | TimedWait of time | PeriodicWait
-  type node = MyCFG.node * callstack
-  type edge = node * action * node
-  let action_of_edge (_, action, _) = action
-  let edges = Hashtbl.create 123
-  let get_edges pid : edge Set.t =
-    Hashtbl.find_default edges pid Set.empty
-  let add_edge pid edge =
-    Hashtbl.modify_def Set.empty pid (Set.add edge) edges
-
-  (* lookup/generate id from resource type and name (needed for LAP_Se_GetXId functions, specified by LAP_Se_CreateX functions during init) *)
-  type resource = Process | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard
-  let str_resource_type = function
-    | Process -> "Process"
-    | Semaphore -> "Semaphore"
-    | Event -> "Event"
-    | Logbook -> "Logbook"
-    | SamplingPort -> "SamplingPort"
-    | QueuingPort -> "QueuingPort"
-    | Buffer -> "Buffer"
-    | Blackboard -> "Blackboard"
-
-  (* map from tuple (resource, name) to varinfo (need to be saved b/c/ makeGlobalVar x t <> makeGlobalVar x t) *)
-  let resources = Hashtbl.create 123
-  let get_id (resource,name as k:resource*string) : id =
-    try Hashtbl.find resources k
-    with Not_found ->
-      let vname = str_resource_type resource^":"^name in
-      let v = makeGlobalVar vname voidPtrType in
-      Hashtbl.replace resources k v;
-      v
-  let get_by_id (id:id) : (resource*string) option =
-    Hashtbl.filter ((=) id) resources |> Hashtbl.keys |> Enum.get
-
-  let funs_for_process name : varinfo list =
-    let id = get_id (Process, name) in
-    let get_funs = function
-      | CreateProcess (id', funs, _, _, _) when id'=id -> funs
-      | CreateErrorHandler (id', funs) when id'=id -> funs
-      | _ -> []
-    in
-    let all_edges = Hashtbl.values edges |> List.of_enum |> List.map Set.elements |> List.concat in
-    List.map (get_funs%action_of_edge) all_edges |> List.concat
-
-  (* map process name to integer used in Pid domain *)
-  let pnames = Hashtbl.create 123
-  let _ = Hashtbl.add pnames "mainfun" 0L
-  let get_by_pid pid =
-    Hashtbl.filter ((=) pid) pnames |> Hashtbl.keys |> Enum.get
-  let get_pid pname =
-    try Hashtbl.find pnames pname
-    with Not_found ->
-      let ids = Hashtbl.values pnames in
-      let id = if Enum.is_empty ids then 1L else Int64.succ (Enum.arg_max identity ids) in
-      Hashtbl.replace pnames pname id;
-      id
-
   (* set of processes to spawn once partition mode is set to NORMAL *)
   let processes = ref []
   let add_process p = processes := List.append !processes [p]
-
-  (* printing *)
-  let str_i64 id = string_of_int (i64_to_int id)
-  let str_funs funs = "["^(List.map (fun v -> v.vname) funs |> String.concat ", ")^"]"
-  let str_resource id =
-    match get_by_id id with
-    | Some (Process, "mainfun") ->
-        "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
-    | Some (Process, name) ->
-        name^"/"^str_funs @@ funs_for_process name
-    | Some (resource_type, name) ->
-        name
-    | None -> "Unknown resource"
-  let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]"
-  let str_time t = if t = infinity then "∞" else str_i64 t^"ns"
-  let str_action pid = function
-    | LockPreemption -> "LockPreemption"
-    | UnlockPreemption -> "UnlockPreemption"
-    | SetPartitionMode i -> "SetPartitionMode "^string_of_partition_mode i
-    | CreateProcess (id, funs, prio, period, capacity) ->
-        "CreateProcess "^str_resource id^" (funs "^str_funs funs^", prio "^str_i64 prio^", period "^str_time period^", capacity "^str_time capacity^")"
-    | CreateErrorHandler (id, funs) -> "CreateErrorHandler "^str_resource id
-    | Start ids -> "Start "^str_resources ids
-    | Stop ids when ids=[pid] -> "StopSelf"
-    | Stop ids -> "Stop "^str_resources ids
-    | Suspend ids when ids=[pid] -> "SuspendSelf"
-    | Suspend ids -> "Suspend "^str_resources ids
-    | Resume ids -> "Resume "^str_resources ids
-    | CreateBlackboard id -> "CreateBlackboard "^str_resource id
-    | DisplayBlackboard ids -> "DisplayBlackboard "^str_resources ids
-    | ReadBlackboard (ids, timeout) -> "ReadBlackboard "^str_resources ids^" (timeout "^str_time timeout^")"
-    | ClearBlackboard ids -> "ClearBlackboard "^str_resources ids
-    | CreateSemaphore (id, cur, max, queuing) ->
-        "CreateSemaphore "^str_resource id^" ("^str_i64 cur^"/"^str_i64 max^", "^string_of_queuing_discipline queuing^")"
-    | WaitSemaphore ids -> "WaitSemaphore "^str_resources ids
-    | SignalSemaphore ids -> "SignalSemaphore "^str_resources ids
-    | CreateEvent id -> "CreateEvent "^str_resource id
-    | WaitEvent (ids, timeout) -> "WaitEvent "^str_resources ids^" (timeout "^str_time timeout^")"
-    | SetEvent ids -> "SetEvent "^str_resources ids
-    | ResetEvent ids -> "ResetEvent "^str_resources ids
-    | TimedWait t -> "TimedWait "^str_time t
-    | PeriodicWait -> "PeriodicWait"
-  let str_node (node, callstack) = Node.string_of node ^ "," ^ D.string_of_callstack callstack
-  let print_actions () =
-    let print_process pid =
-      let str_edge (a, action, b) = str_node a ^ " -> " ^ str_action pid action ^ " -> " ^ str_node b in
-      let xs = Set.map str_edge (get_edges pid) in
-      M.debug @@ str_resource pid^" ->\n\t"^String.concat "\n\t" (Set.elements xs)
-    in
-    Hashtbl.keys edges |> Enum.iter print_process
-  let save_dot_graph () =
-    let dot_process pid =
-      (* 1 -> w1 [label="fopen(_)"]; *)
-      let str_node x = "\"" ^ str_node x ^ "\"" in (* quote node names for dot b/c of callstack *)
-      let str_edge (a, action, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ "\"]" in
-      let xs = Set.map str_edge (get_edges pid) |> Set.elements in
-      ("// "^str_resource pid) :: xs
-    in
-    let lines = Hashtbl.keys edges |> List.of_enum |> List.map dot_process |> List.concat in
-    let dot_graph = String.concat "\n  " ("digraph file {"::lines) ^ "\n}" in
-    let path = "result/arinc.dot" in
-    output_file path dot_graph;
-    print_endline ("saved graph as "^Sys.getcwd ()^"/"^path)
-  let finalize () =
-    print_actions ();
-    if GobConfig.get_bool "ana.arinc.dot" then save_dot_graph ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let d : D.t = ctx.local in
@@ -434,7 +380,7 @@ struct
               if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs pri;
               let fun_list = funs |> Queries.LS.elements |> List.map fst in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; callstack = d.callstack; pmo = Pmo.of_int 3L; pre = pre; node = Node.of_node current_node } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; callstack = []; pmo = Pmo.of_int 3L; pre = pre; node = Node.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn fun_list;
@@ -553,7 +499,7 @@ struct
           | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; callstack = d.callstack; pmo = Pmo.of_int 3L; pre = pre; node = Node.of_node current_node } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; callstack = []; pmo = Pmo.of_int 3L; pre = pre; node = Node.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
@@ -579,6 +525,73 @@ struct
       | Queries.IsPrivate _ ->
           `Bool ((PrE.to_int d.pre <> Some 0L && PrE.to_int d.pre <> None) || mode_is_init d.pmo)
       | _ -> Queries.Result.top ()
+
+  (* ARINC output *)
+  let str_i64 id = string_of_int (i64_to_int id)
+  let str_funs funs = "["^(List.map (fun v -> v.vname) funs |> String.concat ", ")^"]"
+  let str_resource id =
+    match get_by_id id with
+    | Some (Process, "mainfun") ->
+        "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
+    | Some (Process, name) ->
+        name^"/"^str_funs @@ funs_for_process name
+    | Some (resource_type, name) ->
+        name
+    | None -> "Unknown resource"
+  let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]"
+  let str_time t = if t = infinity then "∞" else str_i64 t^"ns"
+  let str_action pid = function
+    | Epsilon -> "ε"
+    | LockPreemption -> "LockPreemption"
+    | UnlockPreemption -> "UnlockPreemption"
+    | SetPartitionMode i -> "SetPartitionMode "^string_of_partition_mode i
+    | CreateProcess (id, funs, prio, period, capacity) ->
+        "CreateProcess "^str_resource id^" (funs "^str_funs funs^", prio "^str_i64 prio^", period "^str_time period^", capacity "^str_time capacity^")"
+    | CreateErrorHandler (id, funs) -> "CreateErrorHandler "^str_resource id
+    | Start ids -> "Start "^str_resources ids
+    | Stop ids when ids=[pid] -> "StopSelf"
+    | Stop ids -> "Stop "^str_resources ids
+    | Suspend ids when ids=[pid] -> "SuspendSelf"
+    | Suspend ids -> "Suspend "^str_resources ids
+    | Resume ids -> "Resume "^str_resources ids
+    | CreateBlackboard id -> "CreateBlackboard "^str_resource id
+    | DisplayBlackboard ids -> "DisplayBlackboard "^str_resources ids
+    | ReadBlackboard (ids, timeout) -> "ReadBlackboard "^str_resources ids^" (timeout "^str_time timeout^")"
+    | ClearBlackboard ids -> "ClearBlackboard "^str_resources ids
+    | CreateSemaphore (id, cur, max, queuing) ->
+        "CreateSemaphore "^str_resource id^" ("^str_i64 cur^"/"^str_i64 max^", "^string_of_queuing_discipline queuing^")"
+    | WaitSemaphore ids -> "WaitSemaphore "^str_resources ids
+    | SignalSemaphore ids -> "SignalSemaphore "^str_resources ids
+    | CreateEvent id -> "CreateEvent "^str_resource id
+    | WaitEvent (ids, timeout) -> "WaitEvent "^str_resources ids^" (timeout "^str_time timeout^")"
+    | SetEvent ids -> "SetEvent "^str_resources ids
+    | ResetEvent ids -> "ResetEvent "^str_resources ids
+    | TimedWait t -> "TimedWait "^str_time t
+    | PeriodicWait -> "PeriodicWait"
+  let str_node (node, callstack) = Node.string_of node ^ "," ^ D.string_of_callstack callstack
+  let print_actions () =
+    let print_process pid =
+      let str_edge (a, action, b) = str_node a ^ " -> " ^ str_action pid action ^ " -> " ^ str_node b in
+      let xs = Set.map str_edge (get_edges pid) in
+      M.debug @@ str_resource pid^" ->\n\t"^String.concat "\n\t" (Set.elements xs)
+    in
+    Hashtbl.keys edges |> Enum.iter print_process
+  let save_dot_graph () =
+    let dot_process pid =
+      (* 1 -> w1 [label="fopen(_)"]; *)
+      let str_node x = "\"" ^ str_node x ^ "\"" in (* quote node names for dot b/c of callstack *)
+      let str_edge (a, action, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ "\"]" in
+      let xs = Set.map str_edge (get_edges pid) |> Set.elements in
+      ("// "^str_resource pid) :: xs
+    in
+    let lines = Hashtbl.keys edges |> List.of_enum |> List.map dot_process |> List.concat in
+    let dot_graph = String.concat "\n  " ("digraph file {"::lines) ^ "\n}" in
+    let path = "result/arinc.dot" in
+    output_file path dot_graph;
+    print_endline ("saved graph as "^Sys.getcwd ()^"/"^path)
+  let finalize () =
+    print_actions ();
+    if GobConfig.get_bool "ana.arinc.dot" then save_dot_graph ()
 
   let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; node = Node.bot () }
   let otherstate v = D.bot ()
