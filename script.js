@@ -1,5 +1,4 @@
 var selectColor = "#fcf"
-var fileData = ""
 
 function getURLParameter(name) {
   return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search)||[,""])[1].replace(/\+/g, '%20'))||null
@@ -13,10 +12,17 @@ function get_firstchild(n){
   return x;
 }
 
+function getNodeWithValue(e){
+	if (e.nodeValue==null)
+		return e.firstChild;
+	else
+		return e;
+}
+
 
 // toggle foldables
 function toggleVisibility(e) {
-  var ech = e.firstChild;
+  var ech = getNodeWithValue(e.firstChild);
   if (e.children[1].style.display == 'none') {
     e.children[1].style.display = '';
     ech.nodeValue = '+' + ech.nodeValue.substr(1, ech.nodeValue.length) ;
@@ -33,7 +39,7 @@ function toggleVisibility(e) {
 // intialize foldables
 function init_toggle(e) {
   var ech = get_firstchild(e);
-  e.firstChild.nodeValue = "+ "+e.firstChild.nodeValue;
+  getNodeWithValue(e.firstChild).nodeValue = "+ "+getNodeWithValue(e.firstChild).nodeValue;
   ech.onmouseup = function ch(t) {toggleVisibility(e);};
   ech.style.cursor = "pointer";
 }
