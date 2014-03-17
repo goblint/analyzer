@@ -16,7 +16,6 @@ struct
   type ids = id list
   type time = int64 (* Maybe use Nativeint which is the same as C long. OCaml int is just 31 or 63 bits wide! *)
   type action =
-    | Epsilon (* e.g. used for loops *)
     | LockPreemption | UnlockPreemption | SetPartitionMode of int64
     | CreateProcess of id * varinfo list * int64 * time * time | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
     | CreateBlackboard of id | DisplayBlackboard of ids | ReadBlackboard of ids * time | ClearBlackboard of ids
@@ -109,17 +108,17 @@ struct
       let short w x = string_of_int (MyCFG.getLoc x).line
       include Printable.PrintSimple (struct
         type t' = t
-        let name () = "flat nodes"
+        let name () = "predecessor node"
         let short = short
       end)
       let equal = Util.equals
       let hash = Hashtbl.hash
     end
-    include Lattice.Flat (Base) (struct let top_name = "Unknown node" let bot_name = "Error node" end)
-    let of_node node = `Lifted node
-    let is_node = function `Lifted _ -> true | _ -> false
-    let to_node = function `Lifted node -> node | _ -> failwith "Unknown/Error node"
-    let string_of node = Base.short 0 node
+    include SetDomain.Make (Base)
+    let of_node node = singleton node
+    (* let is_node = not%is_empty *)
+    (* let to_node = elements *)
+    let string_of node = Base.short 10 node
   end
 
   (* define record type here so that fields are accessable outside of D *)
@@ -132,7 +131,7 @@ struct
 
     (* printing *)
     let string_of_callstack xs = "["^String.concat ", " (List.map (fun loc -> string_of_int loc.line) xs)^"]"
-    let short w x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; node=%s; callstack=%s)" (Pid.short 3 x.pid) (Pri.short 3 x.pri) (Per.short 3 x.per) (Cap.short 3 x.cap) (Pmo.short 3 x.pmo) (PrE.short 3 x.pre) (Node.short 6 x.node) (string_of_callstack x.callstack)
+    let short w x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; node=%s; callstack=%s)" (Pid.short 3 x.pid) (Pri.short 3 x.pri) (Per.short 3 x.per) (Cap.short 3 x.cap) (Pmo.short 3 x.pmo) (PrE.short 3 x.pre) (Node.short 80 x.node) (string_of_callstack x.callstack)
     include Printable.PrintSimple (struct
       type t' = t
       let name () = "ARINC state"
@@ -166,28 +165,23 @@ struct
     let node f d = { d with node = f d.node }
     let callstack f d = { d with callstack = f d.callstack }
     (* if x is already in the callstack we move it to the front, this way we can do tail on combine *)
-    let callstack_length = 1
+    let callstack_length = 0
     let callstack_push x d = if List.length d.callstack < callstack_length then callstack (fun xs -> x :: List.remove xs x) d else d
 
     let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); pmo = Pmo.bot (); pre = PrE.bot (); node = Node.bot (); callstack = [] }
     let is_bot x = { x with callstack = [] } = bot ()
     let top () = { pid = Pid.top (); pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.top (); pre = PrE.top (); node = Node.top (); callstack = [] }
-    let is_top x = { x with callstack = [] } = top ()
+    (* let is_top x = { x with callstack = [] } = top () *)
+    let is_top x = Pid.is_top x.pid && Pri.is_top x.pri && Per.is_top x.per && Cap.is_top x.cap && Pmo.is_top x.pmo && PrE.is_top x.pre && Node.is_top x.node && x.callstack = []
 
     let rec is_prefix = function [],_ -> true | x::xs,y::ys when x=y -> is_prefix (xs,ys) | _ -> false
     (* let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && List.subset compare x.callstack y.callstack && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre *)
-    let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre (* && Node.leq x.node y.node *) && is_prefix (x.callstack, y.callstack)
+    let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre && Node.leq x.node y.node && is_prefix (x.callstack, y.callstack)
     let join_callstack xs ys = if xs<>ys then M.debug_each @@ "JOIN callstacks " ^ string_of_callstack xs ^ " and " ^ string_of_callstack ys; xs
     let op_scheme op1 op2 op3 op4 op5 op6 op7 x y: t = { pid = op1 x.pid y.pid; pri = op2 x.pri y.pri; per = op3 x.per y.per; cap = op4 x.cap y.cap; pmo = op5 x.pmo y.pmo; pre = op6 x.pre y.pre; node = op7 x.node y.node; callstack = join_callstack x.callstack y.callstack }
-    let join x y = let r = op_scheme Pid.join Pri.join Per.join Cap.join Pmo.join PrE.join Node.join x y
-      in let s x = if is_top x then "TOP" else if is_bot x then "BOT" else short 0 x in M.debug_each @@ "JOIN\t" ^ if equal x y then "EQUAL" else s x ^ "\n\t" ^ s y ^ "\n->\t" ^ s r;
-      if x.pid = y.pid && Pid.is_int x.pid && Node.is_node x.node && Node.is_node y.node then begin
-        let a = Node.to_node x.node in let b = Node.to_node y.node in
-        let pname = get_by_pid @@ Option.get @@ Pid.to_int x.pid in
-        let pid = get_id (Process, Option.get pname) in
-        add_edge pid (a, Epsilon, x.callstack, b)
-      end;
-      { r with node = if Node.is_top r.node then (if Node.leq x.node y.node then x.node else y.node) else r.node }
+    let join x y = let r = op_scheme Pid.join Pri.join Per.join Cap.join Pmo.join PrE.join Node.join x y in
+      (* let s x = if is_top x then "TOP" else if is_bot x then "BOT" else short 0 x in M.debug_each @@ "JOIN\t" ^ if equal x y then "EQUAL" else s x ^ "\n\t" ^ s y ^ "\n->\t" ^ s r; *)
+      r
     let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Node.meet
   end
   module G = IntDomain.Booleans
@@ -301,7 +295,7 @@ struct
     let current_node = Option.get !MyCFG.current_node in
     (* let current_callstack = !Tracing.current_loc :: d.callstack in *)
     let add_action action d =
-      add_edge curpid (Node.to_node d.node, action, d.callstack, current_node);
+      Node.iter (fun node -> add_edge curpid (node, action, d.callstack, current_node)) d.node;
       { d with node = Node.of_node current_node }
     in
     let arglist = List.map (stripCasts%(constFold false)) arglist in
@@ -539,7 +533,6 @@ struct
   let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]"
   let str_time t = if t = infinity then "∞" else str_i64 t^"ns"
   let str_action pid = function
-    | Epsilon -> "ε"
     | LockPreemption -> "LockPreemption"
     | UnlockPreemption -> "UnlockPreemption"
     | SetPartitionMode i -> "SetPartitionMode "^string_of_partition_mode i
