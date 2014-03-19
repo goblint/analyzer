@@ -387,8 +387,6 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc = 
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f xs = 
-    BatPrintf.fprintf f "<value><set>\n" ;
-    iter (Base.printXml f) xs;
-    BatPrintf.fprintf f "</set></value>\n" 
+    iter (Base.printXml f) xs
 end
 
