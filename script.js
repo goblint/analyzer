@@ -145,7 +145,7 @@ function init_frames(){
   if (getURLParameter("file")!=null) {
     if (getURLParameter("fun")!=null) {
 		  // we know the function so we can show the graph
-      $('#file-view-frame-div').load("cfgs/"+getURLParameter("file")+"/"+getURLParameter("fun")+'.svg',
+      $('#file-view-frame-div').load("cfgs/"+encodeURIComponent(encodeURIComponent(getURLParameter("file")))+"/"+getURLParameter("fun")+'.svg',
           function f(){
               $("#file-view-frame-div svg").attr("width","100%");
               $("#file-view-frame-div svg").attr("height","100%");
@@ -156,7 +156,7 @@ function init_frames(){
     } else {
 		  // we know the file only, so we show the file listing
       $('#file-view-frame-div').empty();
-      $('#file-view-frame-div').append("<iframe class=\"borderless fill\"src=\"files/"+getURLParameter("file")+".xml?line="+getURLParameter("line")+"\"></iframe>");
+      $('#file-view-frame-div').append("<iframe class=\"borderless fill\"src=\"files/"+encodeURIComponent(encodeURIComponent(getURLParameter("file")))+".xml?line="+getURLParameter("line")+"\"></iframe>");
 
       // fix breadcrumbs: function -- not avaliable
       $('#function-button').css("display","none");

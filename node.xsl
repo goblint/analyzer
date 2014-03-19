@@ -3,20 +3,6 @@
 <xsl:stylesheet version="1.0"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
 
-  <xsl:template name="filename">
-    <xsl:param name="path"/>
-    <xsl:choose>
-      <xsl:when test="contains($path, '/')">
-        <xsl:call-template name="filename">
-          <xsl:with-param name="path" select="substring-after($path, '/')"/>
-        </xsl:call-template>
-      </xsl:when>
-      <xsl:otherwise>
-        <xsl:value-of select="$path"/>
-      </xsl:otherwise>
-    </xsl:choose>
-  </xsl:template>
-
 
   <xsl:template match="map">
     <xsl:choose>
@@ -117,7 +103,7 @@
 
   <xsl:template match="loc">
     <a target="_top" class="node-wrap">
-        <xsl:attribute name="href">../frame.html?file=<xsl:call-template name="filename"><xsl:with-param name="path" select="@file"/></xsl:call-template>&amp;fun=<xsl:value-of select="@fun"/>&amp;node=<xsl:value-of select="@id" /></xsl:attribute>
+        <xsl:attribute name="href">../frame.html?file=<xsl:value-of select="@file"/>&amp;fun=<xsl:value-of select="@fun"/>&amp;node=<xsl:value-of select="@id" /></xsl:attribute>
         <div class="node-id">
         Node:<xsl:value-of select="@id" />
       </div>
