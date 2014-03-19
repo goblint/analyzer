@@ -68,7 +68,7 @@ let make_isr name = (get_string "ana.osek.isrprefix") ^ name ^ (get_string "ana.
 (* triming the task pre and/or suffix *)
 let trim_task name = (Str.string_after (Str.string_before name ((String.length name) - (String.length (get_string "ana.osek.tasksuffix")))) (String.length (get_string "ana.osek.taskprefix")))
 let trim_isr name = (Str.string_after (Str.string_before name ((String.length name) - (String.length (get_string "ana.osek.isrsuffix")))) (String.length (get_string "ana.osek.isrprefix")))
-
+let trim name = if (Hashtbl.mem tasks name) then trim_task name else trim_isr name
 
 (*priority function*)
 let pry res = try let (_,pry,_) =Hashtbl.find resources res in pry with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
@@ -87,16 +87,16 @@ let get_api_names name =
   end
 
 let is_task f = ((Hashtbl.mem tasks f) || (Hashtbl.mem isrs f))
-
+let is_task_res r = is_task (make_task r)
 let is_starting f = (List.mem f !concurrent_tasks) || (List.mem f !starting_tasks)
 
 (*print id header *)
 let generate_header () = 
   let f = open_out (!header_path ^ !header) in
-    let print_resources id value = if not(is_task id) then output_string f ("int " ^ id ^ ";\n") else () in
+    let print_resources id value = if not(is_task_res id) then output_string f ("int " ^ id ^ ";\n") else () in
     let print_events id value 	 = output_string f ("int " ^ id           ^ ";\n") in
     let print_tasks id value     = output_string f ("int " ^ trim_task id ^ ";\n") in
-(*     let print_isrs id value      = output_string f ("int " ^ trim_isr id  ^ ";\n") in *)
+    let print_isrs id value      = output_string f ("int " ^ trim_isr id  ^ ";\n") in
     let print_alarms id value      = output_string f ("int " ^ id  ^ ";\n") in
     let task_macro () = 
       if (get_string "ana.osek.taskprefix") = "" then
@@ -129,15 +129,15 @@ let generate_header () =
     if (get_string "ana.osek.taskprefix") <> "" || (get_string "ana.osek.tasksuffix") <> "" then begin
       Hashtbl.iter print_tasks tasks;
     end else begin
-      if tracing then output_string f "//No TASK prefix/suffix. Taskids not generated. ActivateTask might fail.\n";
+(*       if tracing then output_string f "//No TASK prefix/suffix. Taskids not generated. ActivateTask might fail.\n"; *)
       if tracing then trace "osek" "//No TASK prefix/suffix. Taskids not generated. ActivateTask might fail.\n";
     end;   
-(*    if (get_string "ana.osek.isrprefix") <> "" || (get_string "ana.osek.isrsuffix") <> "" then begin
+    if (get_string "ana.osek.isrprefix") <> "" || (get_string "ana.osek.isrsuffix") <> "" then begin
       Hashtbl.iter print_isrs isrs;
     end else begin
-      if tracing then output_string f "//No ISR prefix/suffix. Tasksids not generated. ActivateTask will fail.\n";
+(*       if tracing then output_string f "//No ISR prefix/suffix. Tasksids not generated. ActivateTask will fail.\n"; *)
       if tracing then trace "osek" "//No ISR prefix/suffix. Tasksids not generated. ActivateTask will fail.\n";
-    end;   *)
+    end;   
     Hashtbl.iter print_alarms alarms;
     output_string f "#endif\n";
     if (get_bool "ana.osek.def_header") then begin
@@ -371,8 +371,8 @@ let handle_attribute_isr object_name i_value (attr : (string*attribute_v)) =
   match a_name with
   | "CATEGORY" -> (match value with
       | Int c  -> (match c with 
-		  | 1 -> (pry,"DisableAllInterrupts"::"SuspendAllInterrupts"::res_list,c)
-		  | 2 -> (pry,"DisableAllInterrupts"::"SuspendAllInterrupts"::"SuspendOSInterrupts"::res_list,c)
+		  | 1 -> (pry,res_list,c)
+		  | 2 -> (pry,"SuspendOSInterrupts"::res_list,c)
 		  | _ -> if tracing then trace "oil" "Wrong CATEGORY for ISR %s\n" object_name; i_value)
       | _  ->
 	if tracing then trace "oil" "Wrong value (_) for attribute CATEGORY of ISR %s\n" object_name;
@@ -555,8 +555,8 @@ let add_to_table oil_info =
 		    | _ -> let _ = List.map handle_attribute_os attribute_list in ()
 		 )
     | "TASK" -> let name = make_task object_name in
-		let def_task = (false,-1,[name;"RES_SCHEDULER"],[],false,false,16) in	
-		let _ = Hashtbl.add resources name (name,-1,make_lock name) in
+		let def_task = (false,-1,[object_name;"RES_SCHEDULER"],[],false,false,16) in	
+		let _ = Hashtbl.add resources object_name (object_name,-1,make_lock object_name) in
 		(match attribute_list with
 		  | [] -> 
 		    if tracing then trace "oil" "Empty attribute list for task %s. Using defaults.\n" object_name;
@@ -564,14 +564,15 @@ let add_to_table oil_info =
 		  | _ -> 
                     if tracing then trace "oil" "Registering task %s.\n" name;
                     let (sched,pry,res_list, ev_list, timed, auto,act) = (List.fold_left (handle_attribute_task name) def_task attribute_list) in
-                    if pry = -1 then 
-                    let new_pry = 1 in
-                    if tracing then trace "oil" "No priority for task %s. Assuming 1.\n" name;                   
+                    let new_pry = if pry = -1 then begin
+                      if tracing then trace "oil" "No priority for task %s. Assuming 1.\n" name;
+                      1 end else pry
+                    in
                     Hashtbl.add tasks name (sched,new_pry,res_list, ev_list, timed, auto,act)
 		)
     | "ISR"  -> let name = make_isr object_name in
-		let def_isr = (-1001,[name; "SuspendOSInterrupts"],-1) in
-		let _ = Hashtbl.add resources name (name,-1, make_lock name) in
+		let def_isr = (-1001,["DisableAllInterrupts";"SuspendAllInterrupts";object_name],-1) in
+		let _ = Hashtbl.add resources object_name (object_name,-1, make_lock object_name) in
 		concurrent_tasks := name :: !concurrent_tasks;
 		(match attribute_list with
 		  | [] -> 
@@ -580,14 +581,15 @@ let add_to_table oil_info =
 		  | _ -> 
                     if tracing then trace "oil" "Registering interrupt %s.\n" name;
                     let (pry, res_list,category) = (List.fold_left (handle_attribute_isr name) def_isr attribute_list) in
-                    if category = -1 then 
-                    let new_res = "DisableAllInterrupts"::"SuspendAllInterrupts"::"SuspendOSInterrupts"::res_list in
-                    let new_cat = 1 in
-                    if tracing then trace "oil" "No category for interrupt %s. Assuming category 2.\n" name;
-                    if pry = -1001 then
-                    let new_pry = 9999 in
-                    if tracing then trace "oil" "No priority for interrupt %s. Assuming 9999.\n" name;
-                    Hashtbl.add isrs name (new_pry,new_res,new_cat)
+                      let new_cat = if category = -1 then begin
+                        if tracing then trace "oil" "No category for interrupt %s. Assuming category 1.\n" name;
+                        1 end else category
+                      in  
+                      let new_pry = if pry = -1001 then begin
+                        if tracing then trace "oil" "No priority for interrupt %s. Assuming 9999.\n" name;
+                        9999 end else pry
+                      in  
+                    Hashtbl.add isrs name (new_pry,res_list,new_cat)
 		)
     | "ALARM" -> let _ = Hashtbl.add alarms object_name (false,[]) in
                  let _ = List.map (handle_attribute_alarm object_name) attribute_list in 

@@ -191,7 +191,7 @@ struct
     let effect_fun (ls: LockDomain.Lockset.t) = 
       let locks = LockDomain.Lockset.ReverseAddrSet.elements ls in
       let prys = List.map names locks in
-      let staticprys = List.filter is_task prys in
+      let staticprys = List.filter is_task_res prys in
       let pry = resourceset_to_priority staticprys in
         if pry = min_int then `Bot else `Lifted (Int64.of_int pry)
   end
@@ -216,8 +216,8 @@ struct
   (* task resource handling *)
   let dummy_release f = makeLocalVar f ?insert:(Some false) "ReleaseResource" voidType
   let dummy_get f = makeLocalVar f ?insert:(Some false) "GetResource" voidType
-  let is_task_res lock = is_task (names lock)
-  let partition = D.ReverseAddrSet.partition is_task_res
+  let is_task_res' lock = is_task_res (names lock)
+  let partition = D.ReverseAddrSet.partition is_task_res'
   let lockset_to_task lockset =
     match D.ReverseAddrSet.elements lockset with
     | [x] -> names x
@@ -308,7 +308,7 @@ let _ = print_endline (string_of_bool res) in res*)
   
   let just_locks acc_list = List.map (fun (_, dom_elem,_) -> (Lockset.ReverseAddrSet.elements dom_elem) ) acc_list
   let prys acc_list = List.map (List.map names) (just_locks acc_list)
-  let staticprys acc_list = List.map (List.filter is_task) acc_list
+  let staticprys acc_list = List.map (List.filter is_task_res) acc_list
   let offprys acc_list = List.map resourceset_to_priority (staticprys (prys acc_list))
   let accprys acc_list = List.map resourceset_to_priority (prys acc_list)
   let maxpry acc_list = List.fold_left (fun y x -> if x > y then x else y) (min_int) (accprys acc_list)
@@ -507,7 +507,7 @@ let _ = print_endline (string_of_bool res) in res*)
     if (is_task f.svar.vname) then begin
 (* print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file); *)
 (* print_endline ( "Looking for " ^ f.svar.vname); *)
-      M.special (swap_st ctx m_st) None (dummy_get f) [get_lock f.svar.vname] 
+      M.special (swap_st ctx m_st) None (dummy_get f) [get_lock (trim f.svar.vname)] 
     end else 
       m_st
 
@@ -523,7 +523,7 @@ let _ = print_endline (string_of_bool res) in res*)
       let fname = f.svar.vname in
       if (is_task fname) then begin
 (* let _ = print_endline ( "Leaving task " ^ f.svar.vname) in *)
-        let x = M.special (swap_st ctx m_st) None (dummy_release f) [get_lock fname] in
+        let x = M.special (swap_st ctx m_st) None (dummy_release f) [get_lock (trim fname)] in
           if (get_bool "ana.osek.check") && not(List.mem fname !warned) && not(D.is_empty x) then begin
             warned := fname :: !warned;
             let typ = if (Hashtbl.mem isrs fname) then "Interrupt " else "Task " in
@@ -565,7 +565,7 @@ let _ = print_endline (string_of_bool res) in res*)
       | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
         let _ = (match arglist with (*call function *)
 	  | [arg] -> begin
-		let task_name = match arg with
+		let task_name' = match arg with
 		  | CastE (_, Const c ) | Const c -> begin
 			if (Hashtbl.mem taskids (Const c)) then begin
 			  if tracing then trace "osek" "Looking up ID\n"; 
@@ -574,11 +574,12 @@ let _ = print_endline (string_of_bool res) in res*)
 		      end
 		  | _ -> let vinfo = eval_arg ctx arg in vinfo.vname
 		in
+		let task_name = make_task task_name' in
                 if (is_task task_name) then begin
-		  if tracing then tracel "osek" "Activating task %s\n" task_name;
+		  if tracing then tracel "osek" "Activating task %s\n" task_name';
                   let _ = activate_task ctx task_name in
                   [ctx.local, integer 1, true]
-                end else failwith (task_name ^ "is not a task!")
+                end else failwith (task_name' ^ "is not a task!")
 	      end
 	  | _  -> failwith "ActivateTask arguments are strange") in
 	M.special ctx lval f arglist
