@@ -79,6 +79,7 @@ struct
       let id = if Enum.is_empty ids then 1L else Int64.succ (Enum.arg_max identity ids) in
       Hashtbl.replace pnames pname id;
       id
+  let get_pid_by_id id = get_by_id id |> Option.get |> snd |> get_pid
 
 
   (* Domains *)
@@ -102,7 +103,7 @@ struct
   struct
     module Base =
     struct
-      type t = MyCFG.node
+      include MyCFG.Node
       include Printable.Std
       include Lattice.StdCousot
       let short w x = string_of_int (MyCFG.getLoc x).line
@@ -111,8 +112,6 @@ struct
         let name () = "predecessor node"
         let short = short
       end)
-      let equal = Util.equals
-      let hash = Hashtbl.hash
     end
     include SetDomain.Make (Base)
     let of_node node = singleton node
@@ -151,9 +150,11 @@ struct
       Xml.Element ("Node", ["text", "ARINC state"], elems)
     let toXML s  = toXML_f short s
     (* Printable.S *)
-    let equal = Util.equals
+    (* let equal = Util.equals *)
+    let equal x y = Pid.equal x.pid y.pid && Pri.equal x.pri y.pri && Per.equal x.per y.per && Cap.equal x.cap y.cap && Pmo.equal x.pmo y.pmo && PrE.equal x.pre y.pre && Node.equal x.node y.node && x.callstack = y.callstack
     (* let equal x y = let f z = { z with callstack = List.sort_unique compare z.callstack } in Util.equals (f x) (f y) *)
-    let hash = Hashtbl.hash
+    (* let hash = Hashtbl.hash *)
+    let hash x = Hashtbl.hash (Pid.hash x.pid, Pri.hash x.pri, Per.hash x.per, Cap.hash x.cap, Pmo.hash x.pmo, PrE.hash x.pre, Node.hash x.node, x.callstack)
 
     (* modify fields *)
     let pid f d = { d with pid = f d.pid }
@@ -370,7 +371,7 @@ struct
             && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
               if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs pri;
-              let fun_list = funs |> Queries.LS.elements |> List.map fst in
+              let fun_list = funs |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
                 let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; callstack = []; pmo = Pmo.of_int 3L; pre = pre; node = Node.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
@@ -391,21 +392,21 @@ struct
       | "LAP_Se_Start", [pid; r] ->
           (* at least one process should be started in main *)
           let pid = eval_id pid in
-          add_action (Start pid) d
+          if List.is_empty pid then d else add_action (Start pid) d
       | "LAP_Se_DelayedStart", [pid; delay; r] -> todo ()
       | "LAP_Se_Stop", [pid; r] ->
           let pid = eval_id pid in
-          add_action (Stop pid) d
+          if List.is_empty pid then d else add_action (Stop pid) d
       | "LAP_Se_StopSelf", [] ->
           add_action (Stop [curpid]) d
       | "LAP_Se_Suspend", [pid; r] ->
           let pid = eval_id pid in
-          add_action (Suspend pid) d
+          if List.is_empty pid then d else add_action (Suspend pid) d
       | "LAP_Se_SuspendSelf", [timeout; r] -> (* TODO timeout *)
           add_action (Suspend [curpid]) d
       | "LAP_Se_Resume", [pid; r] ->
           let pid = eval_id pid in
-          add_action (Resume pid) d
+          if List.is_empty pid then d else add_action (Resume pid) d
     (* Logbook *)
       | "LAP_Se_CreateLogBook", [name; max_size; max_logged; max_in_progress; lbid; r] -> todo ()
       | "LAP_Se_ReadLogBook", _ -> todo ()
@@ -437,11 +438,14 @@ struct
           assign_id bbid bbid';
           add_action (CreateBlackboard bbid') d
       | "LAP_Se_DisplayBlackboard", [bbid; msg_addr; len; r] ->
-          add_action (DisplayBlackboard (eval_id bbid)) d
+          let id = eval_id bbid in
+          if List.is_empty id then d else add_action (DisplayBlackboard id) d
       | "LAP_Se_ReadBlackboard", [bbid; timeout; msg_addr; len; r] ->
-          add_action (ReadBlackboard (eval_id bbid, eval_int timeout)) d
+          let id = eval_id bbid in
+          if List.is_empty id then d else add_action (ReadBlackboard (id, eval_int timeout)) d
       | "LAP_Se_ClearBlackboard", [bbid; r] ->
-          add_action (ClearBlackboard (eval_id bbid)) d
+          let id = eval_id bbid in
+          if List.is_empty id then d else add_action (ClearBlackboard (id)) d
       | "LAP_Se_GetBlackboardId", [name; bbid; r] ->
           assign_id_by_name Blackboard name bbid; d
       | "LAP_Se_GetBlackboardStatus", _ -> todo ()
@@ -453,10 +457,10 @@ struct
           add_action (CreateSemaphore (sid', eval_int cur, eval_int max, eval_int queuing)) d
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
           let sid = eval_id sid in
-          add_action (WaitSemaphore sid) d
+          if List.is_empty sid then d else add_action (WaitSemaphore sid) d
       | "LAP_Se_SignalSemaphore", [sid; r] ->
           let sid = eval_id sid in
-          add_action (SignalSemaphore sid) d
+          if List.is_empty sid then d else add_action (SignalSemaphore sid) d
       | "LAP_Se_GetSemaphoreId", [name; sid; r] ->
           assign_id_by_name Semaphore name sid; d
       | "LAP_Se_GetSemaphoreStatus", [sid; status; r] -> todo ()
@@ -467,13 +471,13 @@ struct
           add_action (CreateEvent eid') d
       | "LAP_Se_SetEvent", [eid; r] ->
           let eid = eval_id eid in
-          add_action (SetEvent eid) d
+          if List.is_empty eid then d else add_action (SetEvent eid) d
       | "LAP_Se_ResetEvent", [eid; r] ->
           let eid = eval_id eid in
-          add_action (ResetEvent eid) d
+          if List.is_empty eid then d else add_action (ResetEvent eid) d
       | "LAP_Se_WaitEvent", [eid; timeout; r] -> (* TODO timeout *)
           let eid = eval_id eid in
-          add_action (WaitEvent (eid, eval_int timeout)) d
+          if List.is_empty eid then d else add_action (WaitEvent (eid, eval_int timeout)) d
       | "LAP_Se_GetEventId", [name; eid; r] ->
           assign_id_by_name Event name eid; d
       | "LAP_Se_GetEventStatus", [eid; status; r] -> todo ()
@@ -489,7 +493,7 @@ struct
           let pid = get_id (Process, name) in
           begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
           | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-              let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst in
+              let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
                 let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; callstack = []; pmo = Pmo.of_int 3L; pre = pre; node = Node.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
@@ -520,6 +524,7 @@ struct
 
   (* ARINC output *)
   let str_i64 id = string_of_int (i64_to_int id)
+  let str_id id = id.vname
   let str_funs funs = "["^(List.map (fun v -> v.vname) funs |> String.concat ", ")^"]"
   let str_resource id =
     match get_by_id id with
@@ -571,10 +576,10 @@ struct
   let save_dot_graph () =
     let dot_process pid =
       (* 1 -> w1 [label="fopen(_)"]; *)
-      let str_node x = "\"" ^ str_node x ^ "\"" in (* quote node names for dot b/c of callstack *)
+      let str_node x = "\"" ^ str_i64 (get_pid_by_id pid) ^ "_" ^ str_node x ^ "\"" in (* quote node names for dot b/c of callstack *)
       let str_edge (a, action, cs, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ str_callstack cs ^ "\"]" in
       let xs = Set.map str_edge (get_edges pid) |> Set.elements in
-      ("// "^str_resource pid) :: xs
+      ("subgraph \"cluster_"^str_resource pid^"\" {") :: xs @ ("label = \""^str_resource pid^"\";") :: ["}\n"]
     in
     let lines = Hashtbl.keys edges |> List.of_enum |> List.map dot_process |> List.concat in
     let dot_graph = String.concat "\n  " ("digraph file {"::lines) ^ "\n}" in
