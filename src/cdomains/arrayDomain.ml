@@ -35,7 +35,7 @@ struct
 
   let set_inplace = set
   let copy a = a
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%s\n</map>\n</value>\n" (Val.short 700 x) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x 
 end
 
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)

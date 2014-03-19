@@ -64,7 +64,7 @@ struct
   let toXML m = toXML_f P.short m
   let pretty_diff () (x,y) = 
     dprintf "%s: %a not leq %a" (P.name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.short 800 x) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (P.short 800 x)) 
 end
 
 
@@ -84,7 +84,7 @@ struct
   let name () = "Unit"
   let pretty_diff () (x,y) = 
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.name 
+  let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.name)
 end
 module Unit = UnitConf (struct let name = "()" end)
 
@@ -171,9 +171,9 @@ struct
   let name () = "lifted " ^ Base.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f = function 
-    | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
-    | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" N.top_name
-    | `Lifted x -> BatPrintf.fprintf f "%a\n" Base.printXml x
+    | `Bot      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.top_name)
+    | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.top_name)
+    | `Lifted x -> Base.printXml f x
 end
 
 module Either (Base1: S) (Base2: S) =
@@ -351,7 +351,7 @@ struct
   let toXML m = toXML_f short m
   
   let printXml f (x,y) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Base1.name ()) Base1.printXml x (Base2.name ()) Base2.printXml y
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base1.name ())) Base1.printXml x (Goblintutil.escape (Base2.name ())) Base2.printXml y
   
   let pretty_diff () ((x1,x2:t),(y1,y2:t)): Pretty.doc = 
     if Base1.equal x1 y1 then
@@ -397,7 +397,7 @@ struct
   let toXML m = toXML_f short m
 
   let printXml f (x,y,z) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Base1.name ()) Base1.printXml x (Base2.name ()) Base2.printXml y (Base3.name ()) Base3.printXml z
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base1.name ())) Base1.printXml x (Goblintutil.escape (Base2.name ())) Base2.printXml y (Goblintutil.escape (Base3.name ())) Base3.printXml z
 
   let pretty () x = pretty_f short () x
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()

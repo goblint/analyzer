@@ -253,7 +253,7 @@ struct
       | CastE (t,e) -> one_unknown_array_index e
       | _ -> None
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end
 
 module LockingPattern =

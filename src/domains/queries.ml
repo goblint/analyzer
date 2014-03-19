@@ -220,5 +220,5 @@ struct
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.narrow x y)
       | (x,_) -> x
       
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (short 800 x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end
