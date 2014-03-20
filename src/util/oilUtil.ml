@@ -393,7 +393,7 @@ let handle_attribute_isr object_name i_value (attr : (string*attribute_v)) =
 		    if tracing then trace "oil" "Negative PRIORITY for ISR %s\n" object_name;
 		    i_value
 		  end
-		  else (p,res_list,category)
+		  else let p' = if x = "INTERRUPTPRIORITY" then p+1000 else p in (p',res_list,category)
       | _  ->
 	if tracing then trace "oil" "Wrong value (_) for attribute PRIORITY of ISR %s\n" object_name;
 	  i_value
