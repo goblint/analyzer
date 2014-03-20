@@ -46,17 +46,27 @@ struct
       let count = ref 0 in
       let open BatMap in let open BatPrintf in
       let module StringMap = Make (String) in
-      let m = ref StringMap.empty in
+      let live_lines = ref StringMap.empty in
+      let dead_lines = ref StringMap.empty in
       let add_one (l,n,f) v =
-        if LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v &&f.svar.vdecl<>l then begin
-          let add_fun  = BatISet.add l.line in
-          let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
-          m := StringMap.modify_def StringMap.empty l.file add_file !m;
+        let add_fun  = BatISet.add l.line in
+        let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
+        if LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v then begin
+          dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines;
           Deadcode.Locmap.add dead_locations l ()
-        end else
-          NH.add live_nodes n ();
+        end else begin
+          live_lines := StringMap.modify_def StringMap.empty l.file add_file !live_lines;
+          NH.add live_nodes n ()
+        end;
       in
       Result.iter add_one xs;
+      let live file fn = 
+        try StringMap.find fn (StringMap.find file !live_lines)
+        with Not_found -> BatISet.empty
+      in
+      dead_lines := StringMap.mapi (fun fi -> StringMap.mapi (fun fu ded -> BatISet.diff ded (live fi fu))) !dead_lines;
+      dead_lines := StringMap.map (StringMap.filter (fun _ x -> not (BatISet.is_empty x))) !dead_lines;
+      dead_lines := StringMap.filter (fun _ x -> not (StringMap.is_empty x)) !dead_lines;
       let print_func f xs =
         let one_range b e first =
           count := !count + (e - b + 1);
@@ -75,10 +85,10 @@ struct
         printf "File '%s':\n" f;
         StringMap.iter print_func
       in
-      if StringMap.is_empty !m
+      if StringMap.is_empty !dead_lines
       then printf "No dead code found!\n"
       else begin
-        StringMap.iter print_file !m;
+        StringMap.iter print_file !dead_lines;
         printf "Found dead code on %d line%s!\n" !count (if !count>1 then "s" else "")
       end;
       let str = function true -> "then" | false -> "else" in 

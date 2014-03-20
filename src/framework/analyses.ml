@@ -340,15 +340,22 @@ struct
             in
             List.iter one_fun xs
           in
-          
-          let f = BatIO.output_channel out in
-          BatPrintf.fprintf f "<run><call>%a</call><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
-          BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (SH.keys file2funs);
-          BatPrintf.fprintf f "%a" printXml (Lazy.force table);
-          gtfxml f gtable;
-          printXmlWarning f ();
-          BatPrintf.fprintf f "</result></run>\n";
-          BatPrintf.fprintf f "%!"
+          let write_file f fn =
+            Messages.xml_file_name := fn;
+            BatPrintf.printf "Writing xml to temp. file: %s\n" fn;
+            BatPrintf.fprintf f "<run><call>%a</call><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+            BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (SH.keys file2funs);
+            BatPrintf.fprintf f "%a" printXml (Lazy.force table);
+            gtfxml f gtable;
+            printXmlWarning f ();
+            BatPrintf.fprintf f "</result></run>\n";
+            BatPrintf.fprintf f "%!"
+          in
+          if get_bool "g2html" then
+            BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
+          else
+            let f = BatIO.output_channel out in
+            write_file f (get_string "outfile")
       | _ -> ()
 end
 

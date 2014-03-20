@@ -13,6 +13,7 @@ let warnings = ref false
 let soundness = ref true
 let warn_out = ref stdout
 let tracing = Config.tracing
+let xml_file_name = ref ""
 
 (*Warning files*)
 let warn_race = ref stdout

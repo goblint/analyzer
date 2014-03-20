@@ -8,7 +8,6 @@ open Json
 open Goblintutil
 open Questions
 
-let html = ref false
 let writeconf = ref false
 let writeconffile = ref ""
 
@@ -60,10 +59,13 @@ let option_spec_list =
   in
   let configure_html () =
     if (get_string "outfile" = "") then
-      set_string "outfile" "result.xml";
-    html:=true;
-    set_string "result" "fast_xml"; 
-    set_bool "exp.cfgdot" true
+      set_string "outfile" "result";
+    if get_string "exp.g2html_path" = "" then
+      set_string "exp.g2html_path" get_goblint_path;
+    set_bool "dbg.print_dead_code" true;
+    set_bool "exp.cfgdot" true;
+    set_bool "g2html" true;
+    set_string "result" "fast_xml"
   in
   let tmp_arg = ref "" in
     [ "-o"                   , Arg.String (set_string "outfile"), ""
@@ -226,7 +228,7 @@ let merge_preprocessed (cpp_file_names, dirName) =
   in
   
   (* direct the output to file if requested  *)
-  if not (get_string "outfile" = "") then Goblintutil.out := Legacy.open_out (get_string "outfile");
+  if not (get_bool "g2html" || get_string "outfile" = "") then Goblintutil.out := Legacy.open_out (get_string "outfile");
   Errormsg.logChannel := Messages.get_out "cil" cilout;
   
   (* we use CIL to merge all inputs to ONE file *)
@@ -273,9 +275,9 @@ let do_analyze merged_AST =
   
 let do_html_output () =
   let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
-  if !html then begin
+  if get_bool "g2html" then begin
     if Sys.file_exists jar then begin
-      let command = "java -jar "^jar^" "^get_string "outfile" in
+      let command = "java -jar "^jar^" --result-dir "^get_string "outfile" ^ " " ^ !Messages.xml_file_name in
       try match Unix.system command with
             | Unix.WEXITED 0 -> ()
             | _ -> eprintf "HTML generation failed!\n"

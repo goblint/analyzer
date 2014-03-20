@@ -452,7 +452,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
       | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
   in
   let printNodeStyle (n:node) () = 
-    let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=red,style=filled" in
+    let liveness = if live n then "fillcolor=white,style=filled" else "fillcolor=orange,style=filled" in
     let kind_style = 
       match n with 
         | Statement {skind=If (_,_,_,_)}  -> "shape=diamond"
@@ -464,8 +464,8 @@ let printFun (module Cfg : CfgBidir) live fd out =
   in
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) = 
     ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges);
-    NH.add node_table toNode ();
-    NH.add node_table fromNode ()
+    NH.replace node_table toNode ();
+    NH.replace node_table fromNode ()
   in
   let rec printNode (toNode : node) =
     if not (NH.mem ready toNode) then begin

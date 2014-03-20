@@ -423,3 +423,6 @@ let arinc_entry_point   = if scrambled then "M162" else "ENTRY_POINT"
 let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
 let arinc_period        = if scrambled then "M165" else "PERIOD"
 let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
+
+
+let get_goblint_path = Filename.dirname BatSys.executable_name
