@@ -26,7 +26,7 @@ fi
 if [ -d cil ]; then
   cd cil && git pull && cd .. || exit 1
 else
-  git clone git://cil.git.sourceforge.net/gitroot/cil/cil || exit 1
+  git clone https://github.com/kerneis/cil.git || exit 1
 fi
 
 mkdir -p archives
