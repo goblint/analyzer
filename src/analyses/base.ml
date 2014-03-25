@@ -894,14 +894,14 @@ struct
       set_many ctx.ask ctx.global ctx.local inits
 
   let return ctx exp fundec =
-    if fundec.svar.vname = "__goblint_dummy_init" then begin
-      let (cp,fl) = ctx.local in
-      if Flag.is_multi fl then ctx.local else (cp, Flag.get_main ())
-    end else
-      let nst = rem_many ctx.local (fundec.sformals @ fundec.slocals) in
-        match exp with
-          | None -> nst
-          | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp)
+    let (cp,fl) = ctx.local in
+    match fundec.svar.vname with
+    | "__goblint_dummy_init" -> if Flag.is_multi fl then ctx.local else (cp, Flag.get_main ())
+    | "StartupHook" -> cp, Flag.get_multi ()
+    | _ -> let nst = rem_many ctx.local (fundec.sformals @ fundec.slocals) in
+      match exp with
+      | None -> nst
+      | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp)
 
 
   (**************************************************************************

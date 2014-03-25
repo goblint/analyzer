@@ -177,6 +177,7 @@ let getFuns fileAST : startfuns =
   let f acc glob =
     match glob with 
       | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "mainfun")) -> add_main def acc
+      | GFun({svar={vname=mn}} as def,_) when mn="StartupHook" && !OilUtil.startuphook -> add_main def acc
       | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "exitfun")) -> add_exit def acc
       | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "otherfun")) -> add_other def acc
       | GFun({svar={vname=mn; vattr=attr}} as def, _) when get_bool "kernel" && is_init attr -> 
