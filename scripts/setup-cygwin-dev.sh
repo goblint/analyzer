@@ -6,7 +6,8 @@
 
 function header() {
 	echo
-	echo "### $1"
+	echo
+	echo "##### $1 #####"
 }
 
 function check(){
@@ -32,18 +33,20 @@ fi
 
 header "Setup opam"
 git clone https://github.com/ocaml/opam.git && cd opam
-./configure && make && make install && cd ..
-opam init
+./configure && make && make install || exit 1
+cd ..
+opam init -a
 eval `opam config env`
 
 header "Install goblint's dependencies using opam"
-opam install ocamlfind camomile batteries cil xml-light
+opam install ocamlfind camomile batteries cil xml-light || exit 1
 
 header "Get source and compile"
 git clone https://github.com/goblint/analyzer.git && cd analyzer
-make
+make || exit 1
 
-read -p "Upload the compiled binary? " -n 1 -r
+header "Upload binary"
+read -p "Upload the compiled binary to goblint.in.tum.de? " -n 1 -r
 echo    # (optional) move to a new line
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     ./scripts/winupload.sh
