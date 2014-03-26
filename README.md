@@ -4,6 +4,7 @@
 # goblint
 
 ## Setup
+### Linux, OS X
 Install [opam](https://github.com/OCamlPro/opam) [[Quick Install](http://opam.ocamlpro.com/doc/Quick_Install.html)], then do
 
     opam install ocamlfind camomile batteries cil xml-light
@@ -19,6 +20,13 @@ If something goes wrong, take a look at [travis-ci.sh](scripts/travis-ci.sh) for
 
 Alternatively you can use your system's package manager to install the dependencies globally or use [install_script.sh](scripts/install_script.sh) to build everything from source without affecting any existing OCaml installation.
 
+### Windows/Cygwin
+For a goblint binary package, follow [these instructions](http://goblint.in.tum.de/download.html).
+For building from source, install Cygwin using [setup-cygwin-dev.bat](scripts/setup-cygwin-dev.bat) and then do
+
+    curl -s "https://github.com/goblint/analyzer/blob/master/scripts/setup-cygwin-dev.sh" | bash
+
+### Virtual machine
 A ready-to-use virtual machine can be started using [Vagrant](http://www.vagrantup.com/):
 
     vagrant up
@@ -26,6 +34,7 @@ A ready-to-use virtual machine can be started using [Vagrant](http://www.vagrant
     sudo su -
     cd analyzer
 
+### Web frontend
 In order to setup the web frontend do
 
     git submodule update --init --recursive
