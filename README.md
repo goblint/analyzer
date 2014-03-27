@@ -35,9 +35,10 @@ A ready-to-use virtual machine can be started using [Vagrant](http://www.vagrant
     cd analyzer
 
 ### Web frontend
-In order to setup the web frontend do
+Use `make npm` to setup the web frontend and start serving on [http://localhost:3000](http://localhost:3000).
+See its [README](https://github.com/vogler/goblint-webapp) for details.
 
-    git submodule update --init --recursive
-    cd webapp
+### g2html
+Use `make jar` to build `g2html.jar`, which can be used like so
 
-Then follow the instructions in its [README](https://github.com/vogler/goblint-webapp).
+    ./goblint --html -o result path/to/file.c && firefox result/index.xml

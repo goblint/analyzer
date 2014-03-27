@@ -1,3 +1,6 @@
 [submodule "webapp"]
 	path = webapp
 	url = https://github.com/vogler/goblint-webapp.git
+[submodule "g2html"]
+	path = g2html
+	url = https://github.com/goblint/g2html.git

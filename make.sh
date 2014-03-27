@@ -26,7 +26,7 @@ rule() {
              ;;
     bdebug)  ocb -tag debug $TARGET.d.byte &&
              cp _build/$TARGET.d.byte goblint.byte
-            ;;
+             ;;
     profile) ocb -tag profile $TARGET.p.native &&
              cp _build/$TARGET.p.native goblint
              ;;
@@ -44,6 +44,17 @@ rule() {
              ln -sf _build/doclist.docdir doc
              ;;
     tag*)    otags -vi `find src/ -iregex [^.]*\.mli?`;;
+    npm)     if test ! -e "webapp"; then
+                git submodule update --init --recursive webapp
+             fi
+             cd webapp && npm install && npm start
+             ;;
+    jar)     if test ! -e "g2html"; then
+                git submodule update --init --recursive g2html
+             fi
+             cd g2html && ant jar && cd .. &&
+             cp g2html/g2html.jar .
+             ;;
     depend)  echo "No!";;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
@@ -57,7 +68,7 @@ if [ $# -eq 0 ]; then
 else
   while [ $# -gt 0 ]; do
     rule $1;
-    shift 
+    shift
   done
 fi
 
