@@ -10,4 +10,4 @@ git pull
 user=${1-`whoami`}
 host=$user@www2.informatik.tu-muenchen.de
 scp goblint goblint.byte $host:/srv/www/htdocs.goblint/upload_here/
-ssh $host 'cd /srv/www/htdocs.goblint && sudo -u vesal ./doitall.sh'
+ssh -t $host 'cd /srv/www/htdocs.goblint && sudo -u vesal ./doitall.sh'
