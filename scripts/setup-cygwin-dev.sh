@@ -4,6 +4,12 @@
 # 3. cmd.exe: set PATH=%PATH%;C:\Program Files (x86)\Graphviz2.36\bin
 # 4. run this script in Cygwin
 
+if [[ $- != *i* ]]; then
+    echo "Usage: source $0"
+    echo "This script must be sourced, since it changes the environment."
+    exit 1
+fi
+
 function header() {
 	echo
 	echo
@@ -11,7 +17,7 @@ function header() {
 }
 
 function check(){
-    hash $1 2>&- || (echo >&2 "$1 is needed but not installed! $2"; exit 1)
+	hash $1 2>&- || (echo >&2 "$1 is needed but not installed! $2"; return 1)
 }
 
 header "Checking Windows dependencies"
@@ -25,30 +31,30 @@ if [ $installed_java -ne 0 -o $installed_dot -ne 0 ]; then
 	read -p "Continue anyway? " -n 1 -r
 	echo    # (optional) move to a new line
 	if [[ $REPLY =~ ^[Yy]$ ]]; then
-	    echo "OK..."
+		echo "OK..."
 	else
-		exit
+		return 1
 	fi
 fi
 
 header "Setup opam"
 git clone https://github.com/ocaml/opam.git && cd opam
-./configure && make && make install || exit 1
+./configure && make && make install || return 1
 cd ..
 opam init -a
 eval `opam config env`
 
 header "Install goblint's dependencies using opam"
-opam install ocamlfind camomile batteries cil xml-light || exit 1
+opam install ocamlfind camomile batteries cil xml-light || return 1
 
 header "Get source and compile"
 git clone https://github.com/goblint/analyzer.git && cd analyzer
 wget "http://goblint.in.tum.de/files/g2html.jar"
-make || exit 1
+make || return 1
 
 header "Upload binary"
 read -p "Upload the compiled binary to goblint.in.tum.de? " -n 1 -r
 echo    # (optional) move to a new line
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    ./scripts/winupload.sh
+	./scripts/winupload.sh
 fi
