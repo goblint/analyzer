@@ -17,7 +17,7 @@ function check(){
 header "Checking Windows dependencies"
 check java
 installed_java=$?
-check dot "\n\t1. Install GraphViz from here: http://www.graphviz.org/pub/graphviz/stable/windows/graphviz-2.36.msi\n\t2. Make sure dot.exe is in your path, i.e., start cmd.exe and do:\n\t\tset PATH=%PATH%;C:\Program Files (x86)\Graphviz2.36\bin"
+check dot "\n\t1. Install GraphViz from here: http://www.graphviz.org/pub/graphviz/stable/windows/graphviz-2.36.msi\n\t2. Make sure dot.exe is in your path, e.g., start cmd.exe and do:\n\t\tset PATH=%PATH%;C:\Program Files (x86)\Graphviz2.36\bin"
 installed_dot=$?
 
 if [ $installed_java -ne 0 -o $installed_dot -ne 0 ]; then
@@ -43,6 +43,7 @@ opam install ocamlfind camomile batteries cil xml-light || exit 1
 
 header "Get source and compile"
 git clone https://github.com/goblint/analyzer.git && cd analyzer
+wget "http://goblint.in.tum.de/files/g2html.jar"
 make || exit 1
 
 header "Upload binary"

@@ -24,7 +24,7 @@ Alternatively you can use your system's package manager to install the dependenc
 For a goblint binary package, follow [these instructions](http://goblint.in.tum.de/download.html).
 For building from source, install Cygwin using [setup-cygwin-dev.bat](scripts/setup-cygwin-dev.bat) and then do
 
-    wget "https://raw.githubusercontent.com/goblint/analyzer/master/scripts/setup-cygwin-dev.sh" && ./setup-cygwin-dev.sh
+    wget "https://raw.githubusercontent.com/goblint/analyzer/master/scripts/setup-cygwin-dev.sh" && source ./setup-cygwin-dev.sh
 
 ### Virtual machine
 A ready-to-use virtual machine can be started using [Vagrant](http://www.vagrantup.com/):
