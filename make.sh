@@ -44,12 +44,12 @@ rule() {
              ln -sf _build/doclist.docdir doc
              ;;
     tag*)    otags -vi `find src/ -iregex [^.]*\.mli?`;;
-    npm)     if test ! -e "webapp"; then
+    npm)     if test ! -e "webapp/package.json"; then
                 git submodule update --init --recursive webapp
              fi
              cd webapp && npm install && npm start
              ;;
-    jar)     if test ! -e "g2html"; then
+    jar)     if test ! -e "g2html/build.xml"; then
                 git submodule update --init --recursive g2html
              fi
              cd g2html && ant jar && cd .. &&
