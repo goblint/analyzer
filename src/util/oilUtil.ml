@@ -87,7 +87,7 @@ let get_api_names name =
   end
 
 let is_task f = ((Hashtbl.mem tasks f) || (Hashtbl.mem isrs f))
-let is_task_res r = is_task (make_task r)
+let is_task_res r = is_task (make_task r) || is_task (make_isr r)
 let is_starting f = (List.mem f !concurrent_tasks) || (List.mem f !starting_tasks)
 
 (*print id header *)
