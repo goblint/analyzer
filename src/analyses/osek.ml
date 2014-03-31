@@ -502,7 +502,7 @@ let _ = print_endline (string_of_bool res) in res*)
     ctx.local
 
   let body ctx (f:fundec) : D.t = 
-  if tracing then trace "osek" "Analyszing function %s\n" f.svar.vname;
+  if tracing then trace "osek" "Analyzing function %s\n" f.svar.vname;
     let m_st = ctx.local in
     if (is_task f.svar.vname) then begin
 (* print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file); *)
@@ -579,7 +579,7 @@ let _ = print_endline (string_of_bool res) in res*)
 		  if tracing then tracel "osek" "Activating task %s\n" task_name';
                   let _ = activate_task ctx task_name in
                   [ctx.local, integer 1, true]
-                end else failwith (task_name' ^ "is not a task!")
+                end else failwith (task_name' ^ " is not a task!")
 	      end
 	  | _  -> failwith "ActivateTask arguments are strange") in
 	M.special ctx lval f arglist

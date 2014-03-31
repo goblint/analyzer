@@ -63,8 +63,9 @@ let concurrent_tasks = ref ([] : string list)
 let warned = ref ([] :string list)
 
 (* adding the task pre and/or suffix *)
-let make_task name = (get_string "ana.osek.taskprefix") ^ name ^ (get_string "ana.osek.tasksuffix")
-let make_isr name = (get_string "ana.osek.isrprefix") ^ name ^ (get_string "ana.osek.isrsuffix")
+let enclose_string pre suf name = if startsWith pre name && endsWith suf name then name else pre ^ name ^ suf
+let make_task name = enclose_string (get_string "ana.osek.taskprefix") (get_string "ana.osek.tasksuffix") name
+let make_isr name = enclose_string (get_string "ana.osek.isrprefix") (get_string "ana.osek.isrsuffix") name
 (* triming the task pre and/or suffix *)
 let trim_task name = (Str.string_after (Str.string_before name ((String.length name) - (String.length (get_string "ana.osek.tasksuffix")))) (String.length (get_string "ana.osek.taskprefix")))
 let trim_isr name = (Str.string_after (Str.string_before name ((String.length name) - (String.length (get_string "ana.osek.isrsuffix")))) (String.length (get_string "ana.osek.isrprefix")))
