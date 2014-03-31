@@ -35,7 +35,7 @@ A ready-to-use virtual machine can be started using [Vagrant](http://www.vagrant
     cd analyzer
 
 ### Web frontend
-Use `make npm` to setup the web frontend and start serving on [http://localhost:3000](http://localhost:3000).
+Use `make npm` to setup the web frontend and start serving on <http://localhost:3000>.
 See its [README](https://github.com/vogler/goblint-webapp) for details.
 
 ### g2html
