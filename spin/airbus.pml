@@ -10,9 +10,7 @@
 
 // init
 init {
-    /* status[0] = RUNNING; */
-    semas[0] = 1; // initial count
-    semas_max[0] = 1; // max count
+    init_sema(0, 1, 1); // id, current count, max count
     run monitor();
     run a(0);
     run b(1);

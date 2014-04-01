@@ -6,18 +6,23 @@
 // processes
 mtype = { STOPPED, SUSPENDED, WAITING, READY, RUNNING } // possible states
 mtype status[nproc] = READY; // initialize all processes as ready
+byte ncrit; // number of processes in critical section
 // resources
 mtype = { NONE, SEMA, EVENT }
 typedef Wait { mtype resource; byte id; }
 Wait waiting[nproc];
-// semaphores
+
+#ifdef nsema // semaphores
 byte semas[nsema];
 byte semas_max[nsema];
+#define init_sema(i, c, m)  semas[i] = c; semas_max[i] = m
 chan semas_chan[nsema] = [nproc] of { byte }
-byte ncrit;
-// events
+#endif
+
+#ifdef nevent // events
 bool events[nevent] = DOWN;
 /* chan events_chan[nevent] = [nroc] of { byte } */
+#endif
 
 
 // debug macros
@@ -58,6 +63,8 @@ inline WaitSema(sema_id) { atomic {
             semas_chan[sema_id]!id; // put current process in queue
         fi;
         setWaiting(SEMA, sema_id); // blocks this process instantly
+        // jspin's guided mode runs into assertion violations because atomicity is lost here. verify yields no errors though...
+        // doc says: if stmt in atomic blocks, the rest will still remain atomic once it becomes executable. atomicity is lost if one jumps out of the sequence (which might be the case with provided (...)).
     :: semas[sema_id] > 0 ->
         printf("WaitSema will go through: semas[%d] = %d\n", sema_id, semas[sema_id]);
         semas[sema_id] = semas[sema_id] - 1;
@@ -69,10 +76,13 @@ inline WaitSema(sema_id) { atomic {
 inline SignalSema(sema_id) { atomic {
     // filter processes waiting for sema_id
     if
-    // no processes waiting on this semaphore -> increase count
+    // no processes waiting on this semaphore -> increase count until max
     :: empty(semas_chan[sema_id]) ->
         printf("SignalSema: empty queue\n");
-        semas[sema_id] = semas[sema_id] + 1;
+        if
+        :: semas[sema_id] < semas_max[sema_id] -> semas[sema_id] = semas[sema_id] + 1;
+        :: else -> skip
+        fi
     // otherwise it stays the same, since we will wake up a waiting process
     :: nempty(semas_chan[sema_id]) -> // else doesn't work here because !empty is disallowed...
         printf("SignalSema: %d processes in queue\n", len(semas_chan[sema_id]));
@@ -110,10 +120,9 @@ inline ResetEvent(event_id) { atomic {
     events[event_id] = DOWN;
 } }
 inline WaitEvent(event_id) { atomic {
-    mtype event = events[event_id];
     if
-    :: event == DOWN -> setWaiting(EVENT, event_id);
-    :: event == UP -> skip; // nothing to do
+    :: events[event_id] == DOWN -> setWaiting(EVENT, event_id);
+    :: events[event_id] == UP -> skip; // nothing to do
     fi
 } }
 inline Suspend(id) { atomic {
@@ -160,6 +169,9 @@ proctype monitor() {
         :: else -> skip
         fi
     }
-    assert(nready > 0);
+    if
+    :: nready == 0 -> printf("Deadlock detected (no process is READY)!\n"); assert(false);
+    :: else -> skip
+    fi
 }
 
