@@ -163,7 +163,7 @@ let finish_alarm_handling () =
       concurrent_tasks :=  task :: !concurrent_tasks
     in
     if active then
-      let _ = List.map doit_helper task_list in ()
+      List.iter doit_helper task_list
     else
       ()
   in
@@ -225,17 +225,15 @@ let check_event_decl ev =
 let check_task task t_value =
   let (sched,pry,res_list,event_list,timetriggered,autostart,activation) = t_value in
     if (pry = -1) then (failwith ("No priority found for task "^ task ^ "!") );
-    let _ = List.map check_res_decl res_list in
-    let _ = List.map check_event_decl event_list in
-      ()
+    List.iter check_res_decl res_list;
+    List.iter check_event_decl event_list
 
 let check_isr min_cat2_pry min_cat1_pry isr i_value =
   let (pry,res_list,category) = i_value in
     if (pry = -1001) then (failwith ("No priority found for isr "^ isr ^ "!") );
     if (category = 2 && pry <= min_cat2_pry) then (failwith ("Priority of interrupt "^ isr ^ "below task priorities!") );
     if (category = 1 && pry <= min_cat1_pry) then (failwith ("Priority of category 1 interrupt "^ isr ^ "below category 2 priorities!") );
-    let _ = List.map check_res_decl res_list in
-      ()
+    List.iter check_res_decl res_list
 
 let check_osek () =
   if tracing then trace "osek" "Checking conventions\n";
@@ -473,13 +471,13 @@ let handle_attribute_alarm object_name attr =
 	| None ->
 	  if tracing then trace "oil" "No argument for ACTIVATETASK of ALARM %s\n" object_name;
 	  ()
-	| Some a_params -> let _ = List.map (handle_action_alarm object_name) a_params in ()
+	| Some a_params -> List.iter (handle_action_alarm object_name) a_params
 	)
       | "SETEVENT" ->  ( match params with
 	| None ->
 	  if tracing then trace "oil" "No argument for SETEVENT of ALARM %s\n" object_name;
 	  ()
-	| Some a_params -> let _ = List.map (handle_event_alarm object_name) a_params in ()
+	| Some a_params -> List.iter (handle_event_alarm object_name) a_params
 	)
       | "ALARMCALLBACK" -> print_endline("Found ALARMCALLBACK in alarm " ^ object_name);
 (* TODO add as interrupts above tasks below isr?
@@ -553,7 +551,7 @@ let add_to_table oil_info =
   match object_type with 
     | "OS" ->    (match attribute_list with
 		    | [] -> ()
-		    | _ -> let _ = List.map handle_attribute_os attribute_list in ()
+		    | _ -> List.iter handle_attribute_os attribute_list
 		 )
     | "TASK" -> let name = make_task object_name in
 		let def_task = (false,-1,[object_name;"RES_SCHEDULER"],[],false,false,16) in	
@@ -592,12 +590,11 @@ let add_to_table oil_info =
                       in  
                     Hashtbl.add isrs name (new_pry,res_list,new_cat)
 		)
-    | "ALARM" -> let _ = Hashtbl.add alarms object_name (false,[]) in
-                 let _ = List.map (handle_attribute_alarm object_name) attribute_list in 
-                 ()
-    | "RESOURCE" -> let _ = Hashtbl.add resources object_name ("-1",-1, make_lock object_name) in
-		    let _ = List.map (handle_attribute_resource object_name) attribute_list in ()
-    | "EVENT" -> let _ = List.map (handle_attribute_event object_name) attribute_list in ()
+    | "ALARM" -> Hashtbl.add alarms object_name (false,[]);
+                 List.iter (handle_attribute_alarm object_name) attribute_list
+    | "RESOURCE" -> Hashtbl.add resources object_name ("-1",-1, make_lock object_name);
+		             List.iter (handle_attribute_resource object_name) attribute_list
+    | "EVENT" -> List.iter (handle_attribute_event object_name) attribute_list
 (*    | "GROUPPRIORITY" -> (*add to group pry check for open isr with that group at the very end check for left over open isr*)
                           ()*)
     | "COUNTER"

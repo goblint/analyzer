@@ -62,7 +62,7 @@ struct
 (* let _ = print_endline ( "no checking") in *)
 	      () end
     in
-    let _ = List.map checkvars (b1@b2) in
+    List.iter checkvars (b1@b2);
     (ctxs, Osektupel.fcon ctxr (Osektupel.Bot,Osektupel.Val p, Osektupel.Val p, Osektupel.Val p))
 
   let branch ctx (exp:exp) (tv:bool) : D.t = 

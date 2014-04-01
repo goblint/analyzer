@@ -41,7 +41,7 @@ struct
     Hashtbl.add resources "SuspendOSInterrupts" ("SuspendOSInterrupts",-1, make_lock "SuspendOSInterrupts");
     match file token (Lexing.from_channel (open_in oil_file)) with
       | [] -> failwith ( "No OIL-Objects found!")
-      | objs -> let _ = List.map add_to_table (List.sort compare_objs objs) in
+      | objs -> List.iter add_to_table (List.sort compare_objs objs);
 	if tracing then trace "osek" "Done parsing OIL-file\n";
 	();
     if tracing then trace "osek" "Computing ceiling priorities...\n";
@@ -902,7 +902,6 @@ if (weird_asgn != [] ) then failwith "this never happens! osek 750";
               let safe_tasks = List.map make_task (List.map Json.string @@ get_list "ana.osek.safe_task") in
               let safe_irpts = List.map make_isr (List.map Json.string @@ get_list "ana.osek.safe_isr") in
               let safe_funs = safe_irpts @ safe_tasks in
-(* let _ = List.map (fun x -> print_endline x) in *)
               if safe_funs = [] then begin
                 race_free := false;
                 let warn = def_warn ^ " at " ^ var_str in
