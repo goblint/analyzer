@@ -9,22 +9,22 @@ exception Eof
 type lval = Ptr of lval | Var of string | Ident of string
 type fcall = {fname: string; args: exp list}
 and exp =
-  Fun of fcall |
-  Exp_ |
-  Lval of lval |
-  Regex of string |
-  String of string | Bool of bool | Int of int | Float of float |
-  Binop of string * exp * exp |
-  Unop of string * exp
+    Fun of fcall |
+    Exp_ |
+    Lval of lval |
+    Regex of string |
+    String of string | Bool of bool | Int of int | Float of float |
+    Binop of string * exp * exp |
+    Unop of string * exp
 type stmt = {lval: lval option; exp: exp}
 type def = Node of (string * string) (* node warning *)
          | Edge of (string * string list * bool * string * stmt) (* start-node, warning-nodes, forwarding, target-node, constraint *)
 
 (* let stmts edges = List.map (fun (a,b,c) -> c) edges
-let get_fun stmt = match stmt.exp with Fun x -> Some x | _ -> None
-let fun_records edges = List.filter_map get_fun (stmts edges)
-let fun_names edges = fun_records edges |> List.map (fun x -> x.fname)
-let fun_by_fname fname edges = List.filter (fun x -> x.fname=fname) (fun_records edges) *)
+   let get_fun stmt = match stmt.exp with Fun x -> Some x | _ -> None
+   let fun_records edges = List.filter_map get_fun (stmts edges)
+   let fun_names edges = fun_records edges |> List.map (fun x -> x.fname)
+   let fun_by_fname fname edges = List.filter (fun x -> x.fname=fname) (fun_records edges) *)
 let fname_is fname stmt =
   match stmt.exp with
   | Fun x -> x.fname=fname

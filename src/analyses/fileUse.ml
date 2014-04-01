@@ -33,12 +33,12 @@ struct
   let query_lv ask exp =
     match ask (Queries.MayPointTo exp) with
     | `LvalSet l when not (Queries.LS.is_top l) ->
-        Queries.LS.elements l
+      Queries.LS.elements l
     | _ -> []
   let print_query_lv ?msg:(msg="") ask exp =
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
     M.debug @@ msg^" MayPointTo "^sprint d_exp exp^" = ["
-      ^String.concat ", " (List.map D.string_of_key xs)^"]"
+               ^String.concat ", " (List.map D.string_of_key xs)^"]"
 
   let rec eval_fv ask exp: varinfo option =
     match query_lv ask exp with
@@ -48,12 +48,12 @@ struct
   let query_eq ask exp =
     match ask (Queries.EqualSet exp) with
     | `ExprSet l when not (Queries.ES.is_top l) ->
-        Queries.ES.elements l
+      Queries.ES.elements l
     | _ -> []
   let print_query_eq ?msg:(msg="") ask exp =
     let xs = query_eq ask exp in (* EqualSet -> ExpSet *)
     M.debug @@ msg^" EqualSet "^sprint d_exp exp^" = ["
-      ^String.concat ", " (List.map (sprint d_exp) xs)^"]"
+               ^String.concat ", " (List.map (sprint d_exp) xs)^"]"
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -73,21 +73,21 @@ struct
     match key_from_exp (Lval lval), key_from_exp (stripCasts rval) with (* we just care about Lval assignments *)
     | Some k1, Some k2 when k1=k2 -> m (* do nothing on self-assignment *)
     | Some k1, Some k2 when D.mem k1 m && D.mem k2 m -> (* both in D *)
-        M.debug @@ "assign (both in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
-        saveOpened k1 m |> D.remove' k1 |> D.alias k1 k2
+      M.debug @@ "assign (both in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
+      saveOpened k1 m |> D.remove' k1 |> D.alias k1 k2
     | Some k1, Some k2 when D.mem k1 m -> (* only k1 in D *)
-        M.debug @@ "assign (only k1 in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
-        saveOpened k1 m |> D.remove' k1
+      M.debug @@ "assign (only k1 in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
+      saveOpened k1 m |> D.remove' k1
     | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
-        M.debug @@ "assign (only k2 in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
-        D.alias k1 k2 m
+      M.debug @@ "assign (only k2 in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
+      D.alias k1 k2 m
     | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
-        M.debug @@ "assign (only k1 in D): " ^ D.string_of_key k1 ^ " = " ^ sprint d_exp rval;
-        D.warn @@ "changed pointer "^D.string_of_key k1^" (no longer safe)";
-        saveOpened ~unknown:true k1 m |> D.unknown k1
+      M.debug @@ "assign (only k1 in D): " ^ D.string_of_key k1 ^ " = " ^ sprint d_exp rval;
+      D.warn @@ "changed pointer "^D.string_of_key k1^" (no longer safe)";
+      saveOpened ~unknown:true k1 m |> D.unknown k1
     | _ -> (* no change in D for other things *)
-        M.debug @@ "assign (none in D): " ^ sprint d_lval lval ^ " = " ^ sprint d_exp rval ^ " [" ^ sprint d_plainexp rval ^ "]";
-        m
+      M.debug @@ "assign (none in D): " ^ sprint d_lval lval ^ " = " ^ sprint d_exp rval ^ " [" ^ sprint d_plainexp rval ^ "]";
+      m
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     let m = ctx.local in
@@ -97,21 +97,21 @@ struct
       match a, b with
       | Const (CInt64(i, kind, str)), Lval lval
       | Lval lval, Const (CInt64(i, kind, str)) ->
-          (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
-          let k = D.key_from_lval lval in
-          if i = Int64.zero && tv then (
-            (* ignore(printf "error-branch\n"); *)
-            D.error k m
-          )else
-            D.success k m
+        (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
+        let k = D.key_from_lval lval in
+        if i = Int64.zero && tv then (
+          (* ignore(printf "error-branch\n"); *)
+          D.error k m
+        )else
+          D.success k m
       | _ -> M.debug @@ "nothing matched the given BinOp: "^sprint d_plainexp a^" = "^sprint d_plainexp b; m
     in
     match stripCasts (constFold true exp) with
-      (* somehow there are a lot of casts inside the BinOp which stripCasts only removes when called on the subparts
-      -> matching as in flagMode didn't work *)
-(*     | BinOp (Eq, Const (CInt64(i, kind, str)), Lval (Var v, NoOffset), _)
-    | BinOp (Eq, Lval (Var v, NoOffset), Const (CInt64(i, kind, str)), _) ->
-        ignore(printf "%s %i\n" v.vname (Int64.to_int i)); m *)
+    (* somehow there are a lot of casts inside the BinOp which stripCasts only removes when called on the subparts
+       -> matching as in flagMode didn't work *)
+    (*     | BinOp (Eq, Const (CInt64(i, kind, str)), Lval (Var v, NoOffset), _)
+           | BinOp (Eq, Lval (Var v, NoOffset), Const (CInt64(i, kind, str)), _) ->
+            ignore(printf "%s %i\n" v.vname (Int64.to_int i)); m *)
     | BinOp (Eq, a, b, _) -> check (stripCasts a) (stripCasts b) tv
     | BinOp (Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
     | e -> M.debug @@ "branch: nothing matched the given exp: "^sprint d_plainexp e; m
@@ -140,30 +140,30 @@ struct
       let mayOpen = Set.diff mayOpen mustOpen in
       if Set.cardinal mayOpen > 0 then
         D.warn ~may:true @@ "unclosed files: "^D.string_of_keys mayOpen;
-        Set.iter (fun v -> D.warn ~may:true ~loc:(D.V.loc v) "file is never closed") mayOpen
+      Set.iter (fun v -> D.warn ~may:true ~loc:(D.V.loc v) "file is never closed") mayOpen
     );
     (* take care of return value *)
     let au = match exp with
       | Some(Lval lval) when D.mem (D.key_from_lval lval) m -> (* we return a var in D *)
-          let k = D.key_from_lval lval in
-          let varinfo,offset = k in
-          if varinfo.vglob then
-            D.alias return_var k m (* if var is global, we alias it *)
-          else
-            D.add return_var (D.find' k m) m (* if var is local, we make a copy *)
+        let k = D.key_from_lval lval in
+        let varinfo,offset = k in
+        if varinfo.vglob then
+          D.alias return_var k m (* if var is global, we alias it *)
+        else
+          D.add return_var (D.find' k m) m (* if var is local, we make a copy *)
       | _ -> m
     in
     (* remove formals and locals *)
     (* this is not a good approach, what if we added a key foo.fp? -> just keep the globals *)
     List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
-    (* D.only_globals au *)
+  (* D.only_globals au *)
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (* M.debug_each @@ "entering function "^f.vname^string_of_callstack ctx.local; *)
     let m = if f.vname <> "main" then
-      (* push current location onto stack *)
-      D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
-    else ctx.local in
+        (* push current location onto stack *)
+        D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
+      else ctx.local in
     (* we need to remove all variables that are neither globals nor special variables from the domain for f *)
     (* problem: we need to be able to check aliases of globals in check_overwrite_open -> keep those in too :/ *)
     (* TODO see Base.make_entry, reachable vars > globals? *)
@@ -191,22 +191,22 @@ struct
     let return_val = D.find_option return_var au in
     match lval, return_val with
     | Some lval, Some v ->
-        let k = D.key_from_lval lval in
-        (* handle potential overwrites *)
-        let m = check_overwrite_open k m in
-        (* if v.key is still in D, then it must be a global and we need to alias instead of rebind *)
-        (* TODO what if there is a local with the same name as the global? *)
-        if D.V.is_top v then (* returned a local that was top -> just add k as top *)
+      let k = D.key_from_lval lval in
+      (* handle potential overwrites *)
+      let m = check_overwrite_open k m in
+      (* if v.key is still in D, then it must be a global and we need to alias instead of rebind *)
+      (* TODO what if there is a local with the same name as the global? *)
+      if D.V.is_top v then (* returned a local that was top -> just add k as top *)
+        D.add' k v m
+      else (* v is now a local which is not top or a global which is aliased *)
+        let vvar = D.V.get_alias v in (* this is also ok if v is not an alias since it chooses an element from the May-Set which is never empty (global top gets aliased) *)
+        if D.mem vvar au then (* returned variable was a global TODO what if local had the same name? -> seems to work *)
+          (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
+          D.alias k vvar m
+        else (* returned variable was a local *)
+          let v = D.V.set_key k v in (* ajust var-field to lval *)
+          (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
           D.add' k v m
-        else (* v is now a local which is not top or a global which is aliased *)
-          let vvar = D.V.get_alias v in (* this is also ok if v is not an alias since it chooses an element from the May-Set which is never empty (global top gets aliased) *)
-          if D.mem vvar au then (* returned variable was a global TODO what if local had the same name? -> seems to work *)
-            (* let _ = M.debug @@ vvar.vname^" was a global -> alias" in *)
-            D.alias k vvar m
-          else (* returned variable was a local *)
-            let v = D.V.set_key k v in (* ajust var-field to lval *)
-            (* M.debug @@ vvar.vname^" was a local -> rebind"; *)
-            D.add' k v m
     | _ -> m
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -230,10 +230,10 @@ struct
       else
         (* if there is more than one key, join all values and do warnings on the result *)
         let v = List.fold_left (fun v k -> match v, D.find_option k m with
-          | None, None -> None
-          | Some a, None
-          | None, Some a -> Some a
-          | Some a, Some b -> Some (D.V.join a b)) None xs in
+            | None, None -> None
+            | Some a, None
+            | None, Some a -> Some a
+            | Some a, Some b -> Some (D.V.join a b)) None xs in
         (* set all of the keys to the computed joined value *)
         (* let m' = Option.map_default (fun v -> List.fold_left (fun m k -> D.add' k v m) m xs) m v in *)
         (* then check each key *)
@@ -249,54 +249,54 @@ struct
     in
     match lval, f.vname, arglist with
     | None, "fopen", _ ->
-        D.warn "file handle is not saved!"; m
+      D.warn "file handle is not saved!"; m
     | Some lval, "fopen", _ ->
-        let f k m w =
-          let m = check_overwrite_open k m in
-          (match arglist with
-           | Const(CStr(filename))::Const(CStr(mode))::[] ->
-               (* M.debug_each @@ "fopen(\""^filename^"\", \""^mode^"\")"; *)
-               D.fopen k loc filename mode m |> split_err_branch lval (* TODO k instead of lval? *)
-           | e::Const(CStr(mode))::[] ->
-               (* ignore(printf "CIL: %a\n" d_plainexp e); *)
-               (match ctx.ask (Queries.EvalStr e) with
-                | `Str filename -> D.fopen k loc filename mode m
-                | _ -> D.warn "unknown filename"; D.fopen k loc "???" mode m
-               )
-           | xs ->
-               let args = (String.concat ", " (List.map (sprint d_exp) xs)) in
-               M.debug @@ "fopen args: "^args;
-               (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
-               D.warn @@ "fopen needs two strings as arguments, given: "^args; m
-          )
-        in ret_all f lval
+      let f k m w =
+        let m = check_overwrite_open k m in
+        (match arglist with
+         | Const(CStr(filename))::Const(CStr(mode))::[] ->
+           (* M.debug_each @@ "fopen(\""^filename^"\", \""^mode^"\")"; *)
+           D.fopen k loc filename mode m |> split_err_branch lval (* TODO k instead of lval? *)
+         | e::Const(CStr(mode))::[] ->
+           (* ignore(printf "CIL: %a\n" d_plainexp e); *)
+           (match ctx.ask (Queries.EvalStr e) with
+            | `Str filename -> D.fopen k loc filename mode m
+            | _ -> D.warn "unknown filename"; D.fopen k loc "???" mode m
+           )
+         | xs ->
+           let args = (String.concat ", " (List.map (sprint d_exp) xs)) in
+           M.debug @@ "fopen args: "^args;
+           (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
+           D.warn @@ "fopen needs two strings as arguments, given: "^args; m
+        )
+      in ret_all f lval
 
     | _, "fclose", [Lval fp] ->
-        let f k m w =
-          if w then D.reports k [
+      let f k m w =
+        if w then D.reports k [
             false, D.closed,  "closeing already closed file handle "^D.string_of_key k;
             true,  D.opened,  "closeing unopened file handle "^D.string_of_key k
           ] m;
-          D.fclose k loc m
-        in ret_all f fp
+        D.fclose k loc m
+      in ret_all f fp
     | _, "fclose", _ ->
-        D.warn "fclose needs exactly one argument"; m
+      D.warn "fclose needs exactly one argument"; m
 
     | _, "fprintf", (Lval fp)::_::_ ->
-        let f k m w =
-          if w then D.reports k [
+      let f k m w =
+        if w then D.reports k [
             false, D.closed,   "writing to closed file handle "^D.string_of_key k;
             true,  D.opened,   "writing to unopened file handle "^D.string_of_key k;
             true,  D.writable, "writing to read-only file handle "^D.string_of_key k;
           ] m;
-          m
-        in ret_all f fp
+        m
+      in ret_all f fp
     | _, "fprintf", fp::_::_ ->
-        (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) arglist; *)
-        print_query_lv ~msg:"fprintf(?, ...): " ctx.ask fp;
-        D.warn "first argument to printf must be a Lval"; m
+      (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) arglist; *)
+      print_query_lv ~msg:"fprintf(?, ...): " ctx.ask fp;
+      D.warn "first argument to printf must be a Lval"; m
     | _, "fprintf", _ ->
-        D.warn "fprintf needs at least two arguments"; m
+      D.warn "fprintf needs at least two arguments"; m
 
     | _ -> m
 

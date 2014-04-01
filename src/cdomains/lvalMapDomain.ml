@@ -62,11 +62,11 @@ sig
 end
 
 module Value (Impl: sig
-    type s (* state *)
-    val name: string
-    val var_state: s
-    val string_of_state: s -> string
-  end) : S with type s = Impl.s =
+                type s (* state *)
+                val name: string
+                val var_state: s
+                val string_of_state: s -> string
+              end) : S with type s = Impl.s =
 struct
   type k = Lval.CilLval.t
   type s = Impl.s
@@ -94,10 +94,10 @@ struct
       "{ "^String.concat ", " (List.map string_of_record (Set.elements z))^" }"
   let short i x = string_of x
   include Printable.PrintSimple (struct
-    type t' = t
-    let name () = Impl.name
-    let short = short
-  end)
+      type t' = t
+      let name () = Impl.name
+      let short = short
+    end)
 
   (* Printable.S *)
   let equal = Util.equals
@@ -161,8 +161,8 @@ struct
   module MD = MapDomain.MapBot (Lval.CilLval) (V)
   include MD
   (* Used to access additional functions of Map.
-  Can't use BatMap because type is not compatible with MD.
-  Also avoids dependencies for other files using the following functions. *)
+     Can't use BatMap because type is not compatible with MD.
+     Also avoids dependencies for other files using the following functions. *)
   module MDMap = OMap.Make (Lval.CilLval) (* why does OMap.Make (K) not work? *)
 
   (* Map functions *)
@@ -190,8 +190,8 @@ struct
       match get_aliased k m with
       | [] -> remove k m (* nothing links to k *)
       | k'::xs -> let m = add k' v m in (* set k' to v, link xs to k', finally remove k *)
-          (* List.map (fun x -> x.vname) (k'::xs) |> String.concat ", " |> print_endline; *)
-          List.fold_left (fun m x -> alias x k' m) m xs |> remove k
+        (* List.map (fun x -> x.vname) (k'::xs) |> String.concat ", " |> print_endline; *)
+        List.fold_left (fun m x -> alias x k' m) m xs |> remove k
     else remove k m (* k not in m or an alias *)
   let add' k v m =
     remove' k m (* fixes keys that might have linked to k *)
@@ -273,6 +273,6 @@ struct
     let exp = AddrOf lval in
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
     M.debug @@ "MayPointTo "^sprint d_exp exp^" = ["
-      ^String.concat ", " (List.map string_of_key xs)^"]";
+               ^String.concat ", " (List.map string_of_key xs)^"]";
     xs
 end

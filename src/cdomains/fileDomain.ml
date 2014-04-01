@@ -58,22 +58,22 @@ struct
 
   let fopen k loc filename mode m =
     if is_unknown k m then m else
-    let mode = match String.lowercase mode with "r" -> Val.Read | _ -> Val.Write in
-    let v = V.make k loc (Val.Open(filename, mode)) in
-    add' k v m
+      let mode = match String.lowercase mode with "r" -> Val.Read | _ -> Val.Write in
+      let v = V.make k loc (Val.Open(filename, mode)) in
+      add' k v m
   let fclose k loc m =
     if is_unknown k m then m else
-    let v = V.make k loc Val.Closed in
-    change k v m
+      let v = V.make k loc Val.Closed in
+      change k v m
   let error k m =
     if is_unknown k m then m else
-    let loc = if mem k m then find' k m |> V.split |> snd |> Set.choose |> V.loc else [] in
-    let v = V.make k loc Val.Error in
-    change k v m
+      let loc = if mem k m then find' k m |> V.split |> snd |> Set.choose |> V.loc else [] in
+      let v = V.make k loc Val.Error in
+      change k v m
   let success k m =
     if is_unknown k m then m else
-    match find_option k m with
-    | Some v when V.may (Val.opened%V.state) v && V.may (V.in_state Val.Error) v ->
+      match find_option k m with
+      | Some v when V.may (Val.opened%V.state) v && V.may (V.in_state Val.Error) v ->
         change k (V.filter (Val.opened%V.state) v) m (* TODO what about must-set? *)
-    | _ -> m
+      | _ -> m
 end
