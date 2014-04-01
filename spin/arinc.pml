@@ -20,25 +20,26 @@ bool events[nevent] = DOWN;
 /* chan events_chan[nevent] = [nroc] of { byte } */
 
 
+// debug macros
+// http://stackoverflow.com/questions/1644868/c-define-macro-for-debug-printing
+/* #define pprintf(fmt, ...)   do { printf("Proc %d: " fmt, __VA_ARGS); } while(0) */
+#define pprintf(fmt, args...)   printf("Proc %d: ", id); printf(fmt, args)
+
 // helpers for scheduling etc.
 inline setReady(proc_id) {
-    status[proc_id] = READY;
+    printf("setReady: process %d will be ready (was waiting for %e %d)\n", proc_id, waiting[proc_id].resource, waiting[proc_id].id);
     waiting[proc_id].resource = NONE;
     waiting[proc_id].id = -1;
+    status[proc_id] = READY;
 }
 inline setWaiting(resource_type, resource_id) {
-    status[id] = WAITING; // update process status
+    printf("setWaiting: process %d will wait for %e %d\n", id, resource_type, resource_id);
     waiting[id].resource = resource_type; // waiting for...
     waiting[id].id = resource_id;
+    status[id] = WAITING; // update process status (provided clause will block immediately)
 }
-/* #define isWaiting(resource, resource_id) status[id] == WAITING && waiting[id].resource == resource && waiting[id].id == resource_id */
-inline isWaiting(resource, resource_id) {
-    // eval doesn't work :(
-    if
-    :: (status[id] == WAITING && waiting[id].resource == resource && waiting[id].id == resource_id) -> true
-    :: else -> false
-    fi
-}
+// fallback to macro since inline doesn't support return values...
+#define isWaiting(proc_id, resource_type, resource_id)    status[proc_id] == WAITING && waiting[proc_id].resource == resource_type && waiting[proc_id].id == resource_id
 
 
 // code uses 0/FIFO as queuing discipline
@@ -48,45 +49,56 @@ inline WaitSema(sema_id) { atomic {
     if
     :: semas[sema_id] == 0 ->
         printf("WaitSema will block: semas[%d] = %d\n", sema_id, semas[sema_id]);
-        setWaiting(SEMA, sema_id); // will block process after this atomic
-        semas_chan[sema_id]!id; // put current process in queue TODO can this be full and block?
+        if
+        :: full(semas_chan[sema_id]) -> // TODO can this happen?
+            printf("FAIL: WaitSema: queue is full");
+            assert(false);
+        :: nfull(semas_chan[sema_id]) ->
+            printf("Process %d put into queue for sema %d\n", id, sema_id);
+            semas_chan[sema_id]!id; // put current process in queue
+        fi;
+        setWaiting(SEMA, sema_id); // blocks this process instantly
     :: semas[sema_id] > 0 ->
-        /* semas_chan?[sema_id]; // query: is there an element id at the front? */
-        /* byte tmp; */
-        /* semas_chan[sema_id]?tmp; */
-        /* assert(tmp == id); */
-        /* semas_chan[sema_id]?eval(id); // turn id into a constant and receive msg once at the front. blocks if another id is at the front (also breaks atomic chain). */
-        printf("WaitSema: semas[%d] = %d\n", sema_id, semas[sema_id]);
+        printf("WaitSema will go through: semas[%d] = %d\n", sema_id, semas[sema_id]);
         semas[sema_id] = semas[sema_id] - 1;
+    :: else ->
+        printf("FAIL: WaitSema: count<0: semas[%d] = %d\n", sema_id, semas[sema_id]);
+        assert(false);
     fi
 } }
 inline SignalSema(sema_id) { atomic {
     // filter processes waiting for sema_id
     if
     // no processes waiting on this semaphore -> increase count
-    :: empty(semas_chan[sema_id]) -> semas[sema_id] = semas[sema_id] + 1;
+    :: empty(semas_chan[sema_id]) ->
+        printf("SignalSema: empty queue\n");
+        semas[sema_id] = semas[sema_id] + 1;
     // otherwise it stays the same, since we will wake up a waiting process
     :: nempty(semas_chan[sema_id]) -> // else doesn't work here because !empty is disallowed...
-        int i;
+        printf("SignalSema: %d processes in queue\n", len(semas_chan[sema_id]));
+        byte i;
+        byte c;
         for (i in status) {
+            printf("SignalSema: check if process %d is waiting...\n", i);
             if
-            /* :: isWaiting(SEMA, sema_id) && semas_chan[sema_id]?[i] -> */
-            :: status[id] == WAITING && waiting[id].resource == SEMA && waiting[id].id == sema_id && semas_chan[sema_id]?[i] -> // process is waiting for this semaphore and is at the front of its queue TODO prio queues
+            :: i!=id && isWaiting(i, SEMA, sema_id) && semas_chan[sema_id]?[i] -> // process is waiting for this semaphore and is at the front of its queue TODO prio queues
+                printf("SignalSema: process %d is waking up process %d\n", id, i);
+                c++;
                 semas_chan[sema_id]?eval(i); // consume msg from queue
                 setReady(i);
                 break
             :: else -> skip
             fi
-        }
+        };
+        assert(c==0 || c==1);
     fi
 } }
 inline SetEvent(event_id) { atomic {
     // filter processes waiting for event_id
-    int i;
+    byte i;
     for (i in status) {
         if
-        /* :: isWaiting(EVENT, event_id) -> */
-        :: status[id] == WAITING && waiting[id].resource == EVENT && waiting[id].id == event_id ->
+        :: isWaiting(i, EVENT, event_id) ->
             setReady(i);
             // no break, since we want to wake all processes waiting for this event
         :: else -> skip
@@ -123,16 +135,31 @@ inline ReadBlackboard() { atomic {
 
 
 // verification helpers
-inline WaitSignalSema(sema_id) { // TODO support FIFO and prio queuing
+inline WaitSignalSema(sema_id) {
     WaitSema(sema_id);
     ncrit++;
+    printf("Process %d is now in critical section!\n", id);
     //assert(ncrit == 1);	// critical section
     ncrit--;
     SignalSema(sema_id);
 }
-// monitor for sanity checks
-active proctype monitor() {
+// monitor for invariants
+proctype monitor() {
+    byte i;
     // at most 1 process may be in a critical region
     assert(ncrit == 0 || ncrit == 1);
+    // each semaphore value must be between 0 and max
+    for(i in semas) {
+        assert(semas[i] >= 0 && semas[i] <= semas_max[i]);
+    }
+    // at least one process should be READY
+    byte nready = 0;
+    for(i in status) {
+        if
+        :: status[i] == READY -> nready++;
+        :: else -> skip
+        fi
+    }
+    assert(nready > 0);
 }
 
