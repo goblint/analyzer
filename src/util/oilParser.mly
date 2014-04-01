@@ -9,13 +9,13 @@ open OilUtil
 %token CPU IMPLEMENTATION OIL_VERSION
 %token AUTO NO_DEFAULT WITH_AUTO
 %token BOOLEAN STRING ENUM FLOAT INT64 UINT64 INT32 UINT32
-%token <string> OIL_STRING 
+%token <string> OIL_STRING
 %token <int> NUMBER
 %token <float> OIL_FLOAT
 %token <string> OBJECT
 %token <string> OBJECT_TYPE
 %token <bool> BOOL
-%token <string> NAME 
+%token <string> NAME
 
 %start file
 %type <(string*string*(OilUtil.param_t list)) list> file

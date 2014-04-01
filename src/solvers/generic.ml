@@ -3,8 +3,8 @@ open GobConfig
 open Analyses
 
 (** Convert a an [IneqConstrSys] into an equation system by joining all right-hand sides. *)
-module SimpleSysConverter (S:IneqConstrSys) 
-  : sig include EqConstrSys val conv : S.v -> S.v end 
+module SimpleSysConverter (S:IneqConstrSys)
+  : sig include EqConstrSys val conv : S.v -> S.v end
   with type v = S.v
    and type d = S.d
    and module Var = S.Var
@@ -16,16 +16,16 @@ struct
 
   module Var = S.Var
   module Dom = S.Dom
-  
-  let box = S.box 
-  
+
+  let box = S.box
+
   let conv x = x
-  
-  let system x = 
+
+  let system x =
     match S.system x with
       | [] -> None
       | r::rs -> Some (fun get set -> List.fold_left (fun d r' -> Dom.join d (r' get set)) (r get set) rs)
-end 
+end
 
 (* move this to some other place! *)
 module ExtendInt (B:Analyses.VarType) : Analyses.VarType with type t = B.t * int =
@@ -40,16 +40,16 @@ struct
   let hash (u,v) = B.hash u + 131233 * v
   let pretty_trace () (u,v:t) =
     Pretty.dprintf "(%a,%d)" B.pretty_trace u v
-    
-  let line_nr (n,_) = B.line_nr n 
-  let file_name (n,_) = B.file_name n 
-  let description (n,_) = B.description n 
-  let context () (c,_) = B.context () c 
+
+  let line_nr (n,_) = B.line_nr n
+  let file_name (n,_) = B.file_name n
+  let description (n,_) = B.description n
+  let context () (c,_) = B.context () c
 end
-  
+
 
 (** Convert a an [IneqConstrSys] into an equation system. *)
-module NormalSysConverter (S:IneqConstrSys) 
+module NormalSysConverter (S:IneqConstrSys)
   : sig include EqConstrSys val conv : S.v -> (S.v * int) end
   with type v = S.v * int
    and type d = S.d
@@ -62,12 +62,12 @@ struct
 
   module Var = ExtendInt (S.Var)
   module Dom = S.Dom
-  
+
   let box (x,n) = S.box x
 
   let conv x = (x,-1)
-    
-  let system (x,n) : ((v -> d) -> (v -> d -> unit) -> d) option = 
+
+  let system (x,n) : ((v -> d) -> (v -> d -> unit) -> d) option =
     let fold_left1 f xs =
       match xs with
         | [] -> failwith "You promised!!!"
@@ -76,46 +76,46 @@ struct
     match S.system x with
       | []           -> None
       | [f] when n=0 -> Some (fun get set -> f (get % conv) (set % conv))
-      | xs when n=(-1) -> 
+      | xs when n=(-1) ->
           let compute get set =
             fold_left1 Dom.join (List.mapi (fun n _ -> get (x,n)) xs)
           in
           Some compute
-      | xs -> 
+      | xs ->
         try Some (fun get set -> List.at xs n (get % conv) (set % conv))
-        with Invalid_argument _ -> None 
-end 
+        with Invalid_argument _ -> None
+end
 
 
 module SolverStatsWGlob (S:GlobConstrSys) =
 struct
   open S
   open Messages
-  
+
   module GU = Goblintutil
 
   let trace s x fms =
     (*current_loc := { Cil.line = S.LVar.line_nr x; file = S.LVar.file_name x; byte = -1};*)
     tracel s fms
-    
+
 
   let stack_d = ref 0
   let full_trace = true
-  let start_c = 0  
-  let max_c   : int ref = ref (-1) 
-  let max_var : LVar.t option ref = ref None 
-  
-  let is_some = function 
+  let start_c = 0
+  let max_c   : int ref = ref (-1)
+  let max_var : LVar.t option ref = ref None
+
+  let is_some = function
     | Some _ -> true
     | _ -> false
-  
+
   let from_some = function
     | Some x -> x
     | None -> raise Not_found
-  
+
   let histo = Hashtbl.create 1024
-  let increase (v:LVar.t) = 
-    let set v c = 
+  let increase (v:LVar.t) =
+    let set v c =
       if not full_trace && (c > start_c && c > !max_c && (not (is_some !max_var) || not (LVar.equal (from_some !max_var) v))) then begin
         if tracing then trace "sol" v "Switched tracing to %a\n" LVar.pretty_trace v;
         max_c := c;
@@ -132,56 +132,56 @@ struct
 
   let start_event () = ()
   let stop_event () = ()
-  
-  let new_var_event x = 
+
+  let new_var_event x =
     Goblintutil.vars := !Goblintutil.vars + 1;
     if tracing
     then trace "sol" x "New %a\n" LVar.pretty_trace x
 
-  let get_var_event x = 
+  let get_var_event x =
     if full_trace
     then trace "sol" x "Querying %a\n" LVar.pretty_trace x
-    
-    
-  let eval_rhs_event x i = 
+
+
+  let eval_rhs_event x i =
     if full_trace
     then trace "sol" x "(Re-)evaluating %a (%d)\n" LVar.pretty_trace x i;
     Goblintutil.evals := !Goblintutil.evals + 1;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
-    
-  let update_var_event x o n = 
+
+  let update_var_event x o n =
     (* if tracing then increase x; *)
     if full_trace || ((not (D.is_bot o)) && is_some !max_var && LVar.equal (from_some !max_var) x) then begin
       if tracing then trace "sol" x "(%d) Update to %a.\n" !max_c LVar.pretty_trace x;
       if tracing then trace "sol" x "%a\n\n" D.pretty_diff (n, o)
     end
-    
+
 end
 
 module SolverStats (S:EqConstrSys) =
 struct
   open S
   open Messages
-  
+
   module GU = Goblintutil
 
   let stack_d = ref 0
   let full_trace = false
-  let start_c = 0  
-  let max_c   : int ref = ref (-1) 
-  let max_var : Var.t option ref = ref None 
-  
-  let is_some = function 
+  let start_c = 0
+  let max_c   : int ref = ref (-1)
+  let max_var : Var.t option ref = ref None
+
+  let is_some = function
     | Some _ -> true
     | _ -> false
-  
+
   let from_some = function
     | Some x -> x
     | None -> raise Not_found
-  
+
   let histo = Hashtbl.create 1024
-  let increase (v:Var.t) = 
-    let set v c = 
+  let increase (v:Var.t) =
+    let set v c =
       if not full_trace && (c > start_c && c > !max_c && (not (is_some !max_var) || not (Var.equal (from_some !max_var) v))) then begin
         if tracing then trace "sol" "Switched tracing to %a\n" Var.pretty_trace v;
         max_c := c;
@@ -198,30 +198,30 @@ struct
 
   let start_event () = ()
   let stop_event () = ()
-  
-  let new_var_event x = 
+
+  let new_var_event x =
     Goblintutil.vars := !Goblintutil.vars + 1;
     if tracing
     then trace "sol" "New %a\n" Var.pretty_trace x
 
-  let get_var_event x = 
+  let get_var_event x =
     if full_trace
     then trace "sol" "Querying %a\n" Var.pretty_trace x
-    
-    
-  let eval_rhs_event x = 
+
+
+  let eval_rhs_event x =
     if full_trace
     then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
     Goblintutil.evals := !Goblintutil.evals + 1;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
-    
-  let update_var_event x o n = 
+
+  let update_var_event x o n =
     if tracing then increase x;
     if full_trace || ((not (Dom.is_bot o)) && is_some !max_var && Var.equal (from_some !max_var) x) then begin
       if tracing then tracei "sol" "(%d) Update to %a.\n" !max_c Var.pretty_trace x;
       if tracing then traceu "sol" "%a\n\n" Dom.pretty_diff (n, o)
     end
-    
+
 end
 
 (** use this if your [box] is [join] --- the simple solver *)
@@ -232,19 +232,19 @@ struct
   include SolverStats (S)
 
   let h_find_default h x d =
-    try H.find h x 
+    try H.find h x
     with Not_found -> d
 
-  let solve box xs vs = 
+  let solve box xs vs =
     (* the stabile "set" *)
     let stbl = H.create 1024 in
     (* the influence map *)
     let infl = H.create 1024 in
     (* the solution map *)
     let sol  = H.create 1024 in
-    
+
     (* solve the variable [x] *)
-    let rec solve_one x = 
+    let rec solve_one x =
       (* solve [x] only if it is not stable *)
       if not (H.mem stbl x) then begin
         (* initialize [sol] for [x], if [x] is [sol] then we have "seen" it *)
@@ -255,7 +255,7 @@ struct
         eval_rhs_event x;
         Option.may (fun f -> set x (f (eval x) set)) (S.system x)
       end
-      
+
     (** return the value for [y] and mark its influence on [x] *)
     and eval x y =
       (* solve variable [y] *)
@@ -264,8 +264,8 @@ struct
       (* add that [x] will be influenced by [y] *)
       H.replace infl y (x :: h_find_default infl y []);
       (* return the value for [y] *)
-      H.find sol y 
-      
+      H.find sol y
+
     and set x d =
       (* solve variable [y] if it has not been seen before *)
       if not (H.mem sol x) then solve_one x;
@@ -282,19 +282,19 @@ struct
         (* remove old influences of [x] -- they will be re-generated if still needed *)
         H.remove infl x;
         (* solve all dependencies *)
-        solve_all deps        
+        solve_all deps
       end
-      
+
     (* solve all elements of the list *)
-    and solve_all xs = 
+    and solve_all xs =
       List.iter solve_one xs
     in
-    
+
     (* solve interesting variables and then return the produced table *)
-    start_event ();     
+    start_event ();
     List.iter (fun (k,v) -> set k v) xs;
-    solve_all vs; 
-    stop_event (); 
+    solve_all vs;
+    stop_event ();
     sol
 end
 
@@ -304,12 +304,12 @@ module SoundBoxSolverImpl =
   functor (H:Hash.H with type key = S.v) ->
 struct
   include SolverStats (S)
-  
+
   let h_find_default h x d =
-    try H.find h x 
+    try H.find h x
     with Not_found -> d
-    
-  let solveWithStart box (ht,hts) xs vs = 
+
+  let solveWithStart box (ht,hts) xs vs =
     (* the stabile "set" *)
     let stbl = H.create 1024 in
     (* the influence map *)
@@ -320,9 +320,9 @@ struct
     let sols = hts(*H.create 1024*) in
     (* the called set *)
     let called = H.create 1024 in
-    
+
     (* solve the variable [x] *)
-    let rec solve_one x = 
+    let rec solve_one x =
       (* solve [x] only if it is not stable *)
       if not (H.mem stbl x) then begin
         (* initialize [sol] for [x], if [x] is [sol] then we have "seen" it *)
@@ -336,9 +336,9 @@ struct
         let set_x d = if H.mem called x then set x d else () in
         Option.may (fun f -> set_x (f (eval x) side)) (S.system x);
         (* remove [x] from called *)
-        H.remove called x        
+        H.remove called x
       end
-      
+
     (** return the value for [y] and mark its influence on [x] *)
     and eval x y =
       (* solve variable [y] *)
@@ -348,7 +348,7 @@ struct
       H.replace infl y (x :: h_find_default infl y []);
       (* return the value for [y] *)
       H.find sol y
-    
+
     (* this is the function we give to [S.system] *)
     and side x d =
       (* accumulate all side-effects in [sols] *)
@@ -356,7 +356,7 @@ struct
       H.replace sols x nd;
       (* do the normal writing operation with the accumulated value *)
       set x nd
-      
+
     and set x d =
       (* solve variable [y] if it has not been seen before *)
       if not (H.mem sol x) then solve_one x;
@@ -377,20 +377,20 @@ struct
         if full_trace
         then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps);
         (* solve all dependencies *)
-        solve_all deps        
+        solve_all deps
       end
-      
+
     (* solve all elements of the list *)
-    and solve_all xs = 
+    and solve_all xs =
       List.iter solve_one xs
     in
-    
+
     (* solve interesting variables and then return the produced table *)
-    start_event (); 
+    start_event ();
     List.iter (fun (k,v) -> side k v) xs;
-    solve_all vs; stop_event (); 
+    solve_all vs; stop_event ();
     sol, sols
-    
+
   (** the solve function *)
   let solve box xs ys = solveWithStart box (H.create 1024, H.create 1024) xs ys |> fst
 end
@@ -405,15 +405,15 @@ module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
   functor (H:Hash.H with type key = S.v) ->
 struct
   include SolverStats (S)
-  
+
   let h_find_default h x d =
-    try H.find h x 
+    try H.find h x
     with Not_found -> d
-  
+
   module VM = Map.Make (S.Var)
   module VS = Set.Make (S.Var)
 
-  let solve box xs vs = 
+  let solve box xs vs =
     (* the stabile "set" *)
     let stbl  = H.create 1024 in
     (* the influence map *)
@@ -426,9 +426,9 @@ struct
     let sdeps = H.create 1024 in
     (* the side-effected solution map  *)
     let called = H.create 1024 in
-    
+
     (* solve the variable [x] *)
-    let rec solve_one x = 
+    let rec solve_one x =
       (* solve [x] only if it is not stable *)
       if not (H.mem stbl x) then begin
         (* initialize [sol] for [x], if [x] is [sol] then we have "seen" it *)
@@ -443,9 +443,9 @@ struct
         eval_rhs_event x;
         Option.may (fun f -> set x (f (eval x) (side x))) (S.system x);
         (* remove [x] from called *)
-        H.remove called x        
+        H.remove called x
       end
-      
+
     (** return the value for [y] and mark its influence on [x] *)
     and eval x y =
       (* solve variable [y] *)
@@ -455,7 +455,7 @@ struct
       H.replace infl y (x :: h_find_default infl y []);
       (* return the value for [y] *)
       H.find sol y
-    
+
     (* this is the function we give to [S.system] *)
     and side y x d =
       (* mark that [y] has a side-effect to [x] *)
@@ -466,14 +466,14 @@ struct
       H.replace sols y nm;
       (* do the normal writing operation with the accumulated value *)
       set x d
-      
+
     and set x d =
       (* solve variable [y] if it has not been seen before *)
       if not (H.mem sol x) then solve_one x;
       (* do nothing if we have stabilized [x] *)
       let oldd = H.find sol x in
       (* accumulate all side-effects in [sols] *)
-      let find_join_sides z d = 
+      let find_join_sides z d =
         try S.Dom.join d (VM.find x (H.find sols z))
         with Not_found -> d
       in
@@ -488,18 +488,18 @@ struct
         (* remove old influences of [x] -- they will be re-generated if still needed *)
         H.remove infl x;
         (* solve all dependencies *)
-        solve_all deps        
+        solve_all deps
       end
-      
+
     (* solve all elements of the list *)
-    and solve_all xs = 
+    and solve_all xs =
       List.iter solve_one xs
     in
-    
+
     (* solve interesting variables and then return the produced table *)
-    start_event (); 
+    start_event ();
     List.iter (fun (k,v) -> side k k v) xs;
-    solve_all vs; 
+    solve_all vs;
     stop_event ();
     sol
 end

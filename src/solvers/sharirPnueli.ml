@@ -4,20 +4,20 @@ open Cil
 module GU = Goblintutil
 
 module Algorithm
-  (N: NodeType) 
+  (N: NodeType)
   (L: Lattice.S) =
 struct
   module CAL = Hashtbl.Make (Basetype.Variables)
   module VAR = Prod (N) (L)
   module SOL = Hashtbl.Make (Prod (N) (L))
   module WS  = Set.Make (VAR)
-  
+
   type solution = L.t SOL.t (* (N,L) -> L *)
-  
+
   let dbg f = () (*ignore (f ())*)
 
-  (* r -- root node of a proc 
-     e -- exit node of a proc 
+  (* r -- root node of a proc
+     e -- exit node of a proc
      succ --- successor node of a node
      start --- start proc, context, and value list
      p1 --- main proc root node
@@ -27,7 +27,7 @@ struct
      enter -- node and start state pairs of node and prev state
      comb -- state of proc, pre call state, and fun return state
   *)
-  let solve r e succ start f enter comb is_special =    
+  let solve r e succ start f enter comb is_special =
     (* 1. Initialize WORK := {(r_1,0)}, --- extended with a list of interesting values *)
     let work = ref (List.fold_left (fun x (p,c,_) -> WS.add (r p,c) x) WS.empty start) in
     (* PHI(r_1,0) := 0 --- extended with a list of interesting values *)
@@ -38,16 +38,16 @@ struct
 
     (*  -- if it is not in the map, then it is bot *)
     let find_bot v =  if SOL.mem phi v then SOL.find phi v else L.bot () in
-    
+
     (* helper function propagate*)
-    let propagate x z m = 
+    let propagate x z m =
       dbg (fun () -> Pretty.printf "PROPAGATE (\n%a\n,\n\n%a) %a\n" L.pretty x L.pretty z N.pretty_trace m);
-      (* propagate (x,z) to m [ By this we mean: assign PHI(m,x) := PHI(m,x) /\ z where undefined PHI(m,x) is 
+      (* propagate (x,z) to m [ By this we mean: assign PHI(m,x) := PHI(m,x) /\ z where undefined PHI(m,x) is
         interpreted as \Omega; if the value has changed, then add (m,x) to WORK]*)
       let phi_m_x = find_bot (m,x) in
       let new_val = (L.join phi_m_x z) in
       SOL.replace phi (m,x) new_val;
-      (if not (L.equal new_val phi_m_x) then work := WS.add (m,x) !work) 
+      (if not (L.equal new_val phi_m_x) then work := WS.add (m,x) !work)
     in
 
 
@@ -57,9 +57,9 @@ struct
       let (n,x) = WS.choose !work in
       work := WS.remove (n,x) !work;
       dbg (fun () -> Pretty.printf "PICK (%a,?)\n\n" N.pretty_trace n (*L.pretty x*));
-      
+
       (* and let y = PHI(n,x) *)
-      let y = SOL.find phi (n,x) in  
+      let y = SOL.find phi (n,x) in
       (* (a) If n is a call block in a procedure q, calling procedure p then *)
         match N.kind n with
           | `ProcCall when not (is_special n y) ->
@@ -70,8 +70,8 @@ struct
               (* If z = PHI(e_p,y) is defined, *)
               if SOL.mem phi (e p,y') then
                 let z = SOL.find phi (e p, y') in
-                (* let m be the unique block such that (n,m)\in E^1_q (m=succ n), and propagate (x,z) to m 
-                  [ By this we mean: assign PHI(m,x) := PHI(m,x) /\ z where undefined PHI(m,x) is 
+                (* let m be the unique block such that (n,m)\in E^1_q (m=succ n), and propagate (x,z) to m
+                  [ By this we mean: assign PHI(m,x) := PHI(m,x) /\ z where undefined PHI(m,x) is
                   interpreted as \Omega; if the value has changed, then add (m,x) to WORK]
                   Kalmer: Why must m be unique? *)
                 (*let m = match succ n with [x] -> x | _ -> failwith "Call edge not unique‽" in*)
@@ -92,7 +92,7 @@ struct
           | `ExitOfProc p ->
               dbg (fun () -> Pretty.printf "EXIT OF %s\n" p.vname);
               let one_callsite (c,u) =
-                dbg (fun () -> Pretty.printf "callsite of %s:\n %a\n%a\n\n" p.vname N.pretty_trace c L.pretty u);                
+                dbg (fun () -> Pretty.printf "callsite of %s:\n %a\n%a\n\n" p.vname N.pretty_trace c L.pretty u);
                 let pval = find_bot (c,u) in
                 let ps = enter c pval in
                 if List.exists (fun (v,y) -> v.vid=p.vid && L.equal y x) ps then
@@ -105,19 +105,19 @@ struct
                   List.iter callsite_succ (succ c)
               in
               List.iter one_callsite (CAL.find_all calls p)
-        (* (c) If n is any other block in some procedure p, then, for each m \in E^0_p - {n}, 
+        (* (c) If n is any other block in some procedure p, then, for each m \in E^0_p - {n},
                propagate (x,f_(n,m)(y)) to m *)
           | _ (*`Other*) ->
               let ms = succ n in
               dbg (fun () -> Pretty.printf "OTHER EDGE (%d successors)\n" (List.length ms));
-              List.iter 
-                (fun m -> let nextval = f (n,m) y in propagate x nextval m) 
+              List.iter
+                (fun m -> let nextval = f (n,m) y in propagate x nextval m)
                 ms
     done;
     (* 3. Repeat step (2) till WORK = {}. When this happens, PHI represents
           the desired \phi functions, computed only for "relevant" data values,
           from which the x solution can computed ... *)
     phi
-     
+
 end
 *)

@@ -12,7 +12,7 @@ sig
 end
 
 module Simple (Val: Lattice.S) =
-struct 
+struct
   include Printable.Std
   module M = MapDomain.MapTop (Basetype.CilField) (Val)
   let name () = "simple structs"
@@ -21,7 +21,7 @@ struct
   type value = M.value
 
   (** Short summary for structs *)
-  let short w mapping = 
+  let short w mapping =
     let usable_length = w - 5 in
     let assoclist = M.fold (fun x y rest -> (x,y)::rest) mapping [] in
     let f (key, st) = Val.short usable_length st in
@@ -36,7 +36,7 @@ struct
   let get s field = M.find field s
   let fold = M.fold
   let map = M.map
-  
+
   (* Add these or the byte code will segfault ... *)
   let equal x y = M.equal x y
   let compare x y = M.compare x y
@@ -51,7 +51,7 @@ struct
   let hash x = M.hash x
   let widen = M.widen
   let narrow = M.narrow
-  let pretty_diff () (x,y) = 
+  let pretty_diff () (x,y) =
     Pretty.dprintf "{@[%a@] ...}" M.pretty_diff (x,y)
   let printXml f xs = M.printXml f xs
 end

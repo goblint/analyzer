@@ -12,7 +12,7 @@ function changeContentVisibility(e) {
 }
 
 function reinit_toggle_mouse(e) {
-  e.onmousedown = function ch(t) { 
+  e.onmousedown = function ch(t) {
       e.firstChild.nodeValue = '◿' + e.firstChild.nodeValue.substr(1, e.firstChild.nodeValue.length) ;
   };
   e.onmouseup = function ch(t) {changeContentVisibility(e);};
@@ -37,7 +37,7 @@ function marker_click(id){
   }
 
   document.getElementById('info').innerHTML = document.getElementById(id).innerHTML;
-  
+
   /* actually one should only reinit things inside 'info' */
   var els = document.getElementsByClassName('toggle');
   for (var i=0; i < els.length; i++) {
@@ -56,7 +56,7 @@ function file_link_click(id){
   for(var i=0; i<els.length; i++){
     els[i].className=els[i].className+\" selected\";
   }
-  
+
   document.getElementById('code').innerHTML = document.getElementById(id).innerHTML;
 }
 

@@ -70,7 +70,7 @@ printf "Load: %s\n" filename;
     let mode = ref 0 in
     let entryid = ref 0 in
 
-    while true; do 
+    while true; do
       let line = String.trim (input_line chan) in
       if ((String.length line) >= 1) then begin
         (* No active entry (mode == 0) : begin entry and check for { *)
@@ -93,7 +93,7 @@ printf "Load: %s\n" filename;
             (* Seperate line and value *)
             let (valuename,valuestring) = (split line '=') in
             (* Parse line start and line end *)
-            let (linestart,lineend) = 
+            let (linestart,lineend) =
               if ((String.compare valuename "default") == 0) then (0,0)
               else begin
                 let (linestartstr,lineendstr) = split valuename '-' in
@@ -104,7 +104,7 @@ printf "Load: %s\n" filename;
             (* Parse value *)
             let str_to_bool s = if ((String.compare s "true") == 0) then true else false in
             let qentry = (List.nth !questionentrylist !entryid) in
-            let value = 
+            let value =
               if (qentry.qf_type == 1) then QVInt (int_of_string valuestring)
               else if (qentry.qf_type == 2) then QVBool (str_to_bool valuestring)
               else if (qentry.qf_type == 3) then QVString valuestring
@@ -140,22 +140,22 @@ printf "Load: %s\n" filename;
             (* Add value to the entry's list *)
             if (linestart == 0) then qentry.qf_default := {qv_line_start = 0; qv_line_end = 0; qv_value = value}
             else qentry.qf_values := !(qentry.qf_values) @ [{qv_line_start = linestart; qv_line_end = lineend; qv_value = value}];
-            ()            
+            ()
           end
         end
-        else ()        
+        else ()
       end
       else ()
     done;
-  with End_of_file ->    
+  with End_of_file ->
     Pervasives.close_in chan;
   ();;
 
 (* Save the question database to a file *)
-let question_save_db filename = 
+let question_save_db filename =
 printf "Save: %s\n" filename;
   let chan = Pervasives.open_out filename in
-  let writeentry e = 
+  let writeentry e =
     fprintf chan "%s:\"%s\":%s\n{\n" e.qf_analysis e.qf_question (num_to_type e.qf_type);
     fprintf chan "  default=%s\n" (value_to_str !(e.qf_default).qv_value);
     let writevalue v =
@@ -183,7 +183,7 @@ let question_register analysisname question defaultvalue =
   let index = findindex (!questionentrylist) 0 in
   if (index >= 0) then index
   else begin
-    let typenum = 
+    let typenum =
       match defaultvalue with
         QVInt _ -> 1
         | QVBool _ -> 2
@@ -200,7 +200,7 @@ let question_register analysisname question defaultvalue =
 (* Print question database for debugging *)
 let question_db_print qlist =
   printf "DB entries : %i\n" (List.length qlist);
-  let printentry e = 
+  let printentry e =
     printf "Question: %s in analysis \"%s\"\n" e.qf_question e.qf_analysis;
     let printvalue v =
       printf "  > %i to %i\n" v.qv_line_start v.qv_line_end
@@ -211,7 +211,7 @@ let question_db_print qlist =
   ();;
 
 let question_getvalue questionid line =
-  let entry = (List.nth !questionentrylist questionid) in 
+  let entry = (List.nth !questionentrylist questionid) in
   let value = ref !(entry.qf_default).qv_value in
   List.iter (fun e -> if ((line >= e.qv_line_start) && (line <= e.qv_line_end)) then value := e.qv_value else ()) !(entry.qf_values);
   !value

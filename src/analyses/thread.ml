@@ -14,7 +14,7 @@ struct
   module D = ConcDomain.ThreadSet
   module C = D
   module G = ConcDomain.ThreadCreation
-  
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
   let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
@@ -22,7 +22,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = ctx.local
-    
+
   (* Helper function to convert query-offsets to valuedomain-offsets *)
   let rec conv_offset x =
     match x with
@@ -30,15 +30,15 @@ struct
       | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
       | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
       | `Field (f,o) -> `Field (f, conv_offset o)
-    
+
   let eval_exp_addr a exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a (Queries.MayPointTo exp) with
       | `LvalSet a when not (Queries.LS.is_top a)
-                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) -> 
-          Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []    
+                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+          Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
       | _ -> []
-  
+
   let get_current_tid ctx =
     snd (snd (Obj.obj (List.assoc "base" ctx.presub)))
 
@@ -46,10 +46,10 @@ struct
     let create_thread fn x =
       let l = !Tracing.current_loc in
       let creator = get_current_tid ctx in
-      let new_thread x = 
+      let new_thread x =
         let tid = T.spawn_thread l x in
         let repeated = D.mem tid ctx.local in
-        let eff = 
+        let eff =
           match creator with
             | `Lifted ctid -> (repeated, TS.singleton ctid)
             | `Top         -> (true,     TS.bot ())
@@ -65,10 +65,10 @@ struct
     match LibraryFunctions.classify f.vname arglist with
       | `ThreadCreate (fn, x) -> create_thread fn x
       | `Unknown "LAP_Se_CreateProcess" -> begin
-          let farg = stripCasts (List.hd arglist) in 
+          let farg = stripCasts (List.hd arglist) in
           match farg with
             | AddrOf lv -> begin
-                let cm  = 
+                let cm  =
                   match unrollType (typeOfLval lv) with
                     | TComp (c,_) -> c
                     | _ -> failwith "type-error: first arg. of LAP_Se_CreateProcess not a struct."
@@ -81,15 +81,15 @@ struct
           end
       | _ -> ctx.local
 
-  let query ctx (q: Queries.t) = 
+  let query ctx (q: Queries.t) =
     match q with
       | Queries.IsNotUnique -> begin
-          let rec check_one tid = 
+          let rec check_one tid =
             let (rep, parents) = ctx.global tid in
             let n = TS.cardinal parents in
-              (* A thread is not unique if it is 
-               * a) repeatedly created, 
-               * b) created in multiple threads, or 
+              (* A thread is not unique if it is
+               * a) repeatedly created,
+               * b) created in multiple threads, or
                * c) created by a thread that is itself multiply created.
                * Note that starting threads have empty ancestor sets! *)
               rep || n > 1 || n > 0 && check_one (TS.choose parents)
@@ -115,7 +115,7 @@ struct
   module D = ConcDomain.ThreadStringSet
   module C = D
   module G = Lattice.Unit
-  
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
   let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
@@ -123,7 +123,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = ctx.local
-    
+
   (* Helper function to convert query-offsets to valuedomain-offsets *)
   let rec conv_offset x =
     match x with
@@ -131,18 +131,18 @@ struct
       | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
       | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
       | `Field (f,o) -> `Field (f, conv_offset o)
-    
+
   let eval_exp_addr a exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a (Queries.MayPointTo exp) with
       | `LvalSet a when not (Queries.LS.is_top a)
-                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) -> 
-          Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []    
+                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+          Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
       | _ -> []
-  
+
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     begin match LibraryFunctions.classify f.vname arglist with
-      | `ThreadCreate (fn, x) -> 
+      | `ThreadCreate (fn, x) ->
           let fns = eval_exp_addr ctx.ask fn in
           let location x = let l = !Tracing.current_loc in l.file ^ ":" ^ string_of_int l.line ^ ":" ^ x.vname in
           let new_thread x = ctx.spawn x (D.singleton (location x)) in

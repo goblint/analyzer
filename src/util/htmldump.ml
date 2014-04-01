@@ -32,15 +32,15 @@ let createFunctionInfoList cilFile =
 let createHtmlFunctionInfo outchan cilFile =
 	let iterGlobals global =
 		match global with
-		  GFun (fundec,loc) -> 
+		  GFun (fundec,loc) ->
 		  	fprintf outchan "<div id=\"function_info%i\" style=\"display: none;\">Name: %s ()<br/>Line %i<br/>File: %s</div>" fundec.svar.vid fundec.svar.vname loc.line loc.file
 		| _ -> ()
 	in
 	List.iter (iterGlobals) cilFile.globals;
 	();;
 
-let createHtmlWarningsInfo outchan fileEntry = 
-	let htmlPrintWarningBox line = 
+let createHtmlWarningsInfo outchan fileEntry =
+	let htmlPrintWarningBox line =
 		fprintf outchan "<div id=\"warning_info%i\" style=\"display: none;\">" line;
 		List.iter (fun (filename,lineTwo,msg) -> if (((String.compare filename fileEntry.filename) = 0) && (line = lineTwo)) then fprintf outchan "%s <br/>\n" msg else ()) !htmlGlobalWarningList;
 		fprintf outchan "</div>"
@@ -48,7 +48,7 @@ let createHtmlWarningsInfo outchan fileEntry =
 	Array.iteri (fun i x -> if (x >= 2) then htmlPrintWarningBox i) !(fileEntry.lineInfo);
 	();;
 
-let createHtmlWarningsListBox outchan fileEntry = 
+let createHtmlWarningsListBox outchan fileEntry =
 	let ltid = ref 0 in
 	let printWarningLine (filename,line,msg) =
 		if ((String.compare filename fileEntry.filename) = 0) then fprintf outchan "<div class=\"lt%i\"><pre><a href=\"javascript:switchToLine('%s',%i);\">Line %i</a>: %s</pre></div>" (!ltid mod 2) (Filename.basename fileEntry.filename) line line msg else ();
@@ -57,11 +57,11 @@ let createHtmlWarningsListBox outchan fileEntry =
 	List.iter printWarningLine !htmlGlobalWarningList;
 	if (!ltid) = 0 then fprintf outchan "No warnings found!";;
 
-let createDeadcodeListBox outchan fileEntry = 
+let createDeadcodeListBox outchan fileEntry =
 	let firstDeadLine = ref 0 in
 	let ltid = ref 0 in
 
-	let processArrayEntry i entry =  
+	let processArrayEntry i entry =
 		if ((entry == 2) && (!firstDeadLine == 0)) then firstDeadLine := i
 		else if ((entry < 0) && (!firstDeadLine > 0)) then begin
 			fprintf outchan "<div class=\"lt%i\"><pre><a href=\"javascript:switchToLine('%s',%i);\">Line %i</a> : %i line(s)</pre></div>" (!ltid mod 2) (Filename.basename fileEntry.filename) (!firstDeadLine) (!firstDeadLine) (i-(!firstDeadLine));
@@ -72,7 +72,7 @@ let createDeadcodeListBox outchan fileEntry =
 	Array.iteri processArrayEntry !(fileEntry.deadcodeInfo);
 	if (!ltid) = 0 then fprintf outchan "No dead code found!";;
 
-let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo = 
+let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
 	let currentLine = ref 1 in
 
 	let isLineAnalyzed lineNo = (Array.get !lineInfo lineNo) > 0 in
@@ -96,7 +96,7 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
 			"<span class=\"cpp_function\"><a href=\"javascript:showFunctionInfo("^(string_of_int funInfo.funid)^");\">"^keyword^"</a></span>"
 		end
 		else
-		keyword	
+		keyword
 	in
 
 	let rec syntaxHighlighter line =
@@ -112,7 +112,7 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
 		let secondStringChar = try Str.search_forward (Str.regexp_string "\"") lineStr (firstStringChar+1) with Not_found -> -1 in
 		if (firstCommentChar >= 0) && ((firstCommentChar <= firstStringChar) || (firstStringChar = -1)) then (syntaxHighlighter (String.sub lineStr 0 firstCommentChar))^"<span class=\"cpp_comment\">"^(String.sub lineStr firstCommentChar ((String.length lineStr)-firstCommentChar))^"</span>"
 		else if (firstStringChar >= 0) && (secondStringChar >= 0) then (syntaxHighlighter (String.sub lineStr 0 firstStringChar))^"<span class=\"cpp_stringDQ\">"^(String.sub lineStr firstStringChar ((secondStringChar-firstStringChar)+1))^"</span>"^(syntaxHighlighter (try (String.sub lineStr (secondStringChar+1) ((String.length lineStr)-secondStringChar-1)) with Invalid_argument s -> ""))
-		else 
+		else
 
 		(* Preprocessor matchings *)
 		let searchForString s = try Str.search_forward (Str.regexp_string s) lineStr 0 with Not_found -> -1 in
@@ -131,28 +131,28 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
 			if (i < (String.length line)) then
 				if !currentType = 0 then currentResult := !currentResult ^ replaceHtmlTags (String.make 1 (String.get line i))
 			   	else currentStr := !currentStr ^ replaceHtmlTags (String.make 1 (String.get line i))
-			
+
 		done;
 		!currentResult
 		end
 	in
 
-	let prepareLine line = 		
+	let prepareLine line =
 		syntaxHighlighter line
 	in
 
-	let createLine line = 
+	let createLine line =
 		if ((!currentLine mod size) = 0) then fprintf outchan "</div>\n<div id=\"linecontainer%i\" style=\"\">\n" (!currentLine/size) else ();
 		if (!currentLine = 1) then fprintf outchan "<div id=\"linecontainer%i\">\n" (!currentLine/size) else ();
-		
+
 		let isAnalyzed = isLineAnalyzed !currentLine in
 		let colorString = (
 			if ((Array.get !lineInfo !currentLine) >= 2) then "color: red;"
-			else "") 
+			else "")
 		in
 		let fontString = (
 			if isLineDeadcode !currentLine then "color: #FFAA00;"
-			else "") 
+			else "")
 		in
 		let styleString = "style=\""^colorString^fontString^"\" " in
 		let linkStart = if (isAnalyzed = true) then "<a "^styleString^"href=\"javascript:showLine('"^shortFilename^"',"^(string_of_int !currentLine)^");\">" else "" in
@@ -161,7 +161,7 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
 		currentLine := !currentLine + 1;
 		()
 	in
-	
+
 	List.iter (fun lc -> createLine lc) (List.rev !lines);
 	();;
 
@@ -170,7 +170,7 @@ let createGlobalMenu outchan shortFilename filename cilFile =
 	fprintf outchan "<div><span class=\"toggle entrydir\" >Functions</span><div class=\"entrydircontent\">\n";
 	let iterFunctions global =
 		match global with
-		  GFun (fundec,loc) -> 
+		  GFun (fundec,loc) ->
 		  	if ((String.compare filename loc.file) = 0) then fprintf outchan "%s <a href=\"javascript: ScrollToLine(%i); showLine('%s',%i);\" style=\"color: #606060;\">(Line %i)</a><br/>\n" fundec.svar.vname loc.line shortFilename loc.line loc.line else ()
 		| _ -> ()
 	in
@@ -181,7 +181,7 @@ let createGlobalMenu outchan shortFilename filename cilFile =
 	fprintf outchan "<div><span class=\"toggle entrydir\" >Variables</span><div class=\"entrydircontent\">\n";
 	let iterVars global =
 		match global with
-		  GVar (varinfo,initinfo,loc) -> 
+		  GVar (varinfo,initinfo,loc) ->
 		  	if ((String.compare filename loc.file) = 0) then fprintf outchan "%s <a href=\"javascript:ScrollToLine(%i); showLine('%s',%i);\" style=\"color: #606060;\">(Line %i)</a><br/>\n" varinfo.vname loc.line shortFilename loc.line loc.line else ()
 		| _ -> ()
 	in
@@ -192,7 +192,7 @@ let createGlobalMenu outchan shortFilename filename cilFile =
 	fprintf outchan "<div><span class=\"toggle entrydir\" >Types</span><div class=\"entrydircontent\">\n";
 	let iterTypes global =
 		match global with
-		  GType (typeinfo,loc) -> 
+		  GType (typeinfo,loc) ->
 		  	if ((String.compare filename loc.file) = 0) then fprintf outchan "%s <a href=\"javascript:ScrollToLine(%i); showLine('%s',%i);\" style=\"color: #606060;\">(Line %i)</a><br/>\n" typeinfo.tname loc.line shortFilename loc.line loc.line else ()
 		| _ -> ()
 	in
@@ -203,7 +203,7 @@ let createGlobalMenu outchan shortFilename filename cilFile =
 	fprintf outchan "<div><span class=\"toggle entrydir\" >Enums</span><div class=\"entrydircontent\">\n";
 	let iterEnums global =
 		match global with
-		  GEnumTag (enuminfo,loc) -> 
+		  GEnumTag (enuminfo,loc) ->
 		  	if ((String.compare filename loc.file) = 0) then fprintf outchan "%s <a href=\"javascript:ScrollToLine(%i); showLine('%s',%i);\" style=\"color: #606060;\">(Line %i)</a><br/>\n" enuminfo.ename loc.line shortFilename loc.line loc.line else ()
 		| _ -> ()
 	in
@@ -229,7 +229,7 @@ let createGlobalsTable outchan gtable =
 		with Xml.Not_element _ -> fprintf outchan "%s\n" (Xml.to_string tdnode);
 		()
 	in
-	let parseTrNode trnode = 
+	let parseTrNode trnode =
 		fprintf outchan "<tr style=\"background-color: %s;\">" (if (!trid == 0) then "#D0D0D0" else "#F0F0F0");
 		trid := ((!trid)+1) mod 2;
 		Xml.iter (fun tdnode -> parseTdNode tdnode ) trnode;
@@ -264,7 +264,7 @@ let generateCodeFile fileEntry (file: file) gtable =
 	createGlobalsTable outputChannel gtable;
 
 	(* Write third first part *)
-	fprintf outputChannel "%s" htmlTemp_BasePartOneThird;	
+	fprintf outputChannel "%s" htmlTemp_BasePartOneThird;
 
 	(* Write code lines *)
 	createCodeLines outputChannel shortFilename fileEntry.lines fileEntry.lineInfo fileEntry.deadcodeInfo;
@@ -292,7 +292,7 @@ let generateCodeFile fileEntry (file: file) gtable =
 	();;
 
 (* Read code lines from file into a list *)
-let readCodeLines filename lines = 
+let readCodeLines filename lines =
 	let chan_code = open_in filename in
 	try
 		while true; do
@@ -302,8 +302,8 @@ let readCodeLines filename lines =
 	();;
 
 (* === print_fmt : html output === *)
-let print_html chan xmlNode (file: file) gtable = 
-	printf "[HTML-Output] Create html files ...\n";	
+let print_html chan xmlNode (file: file) gtable =
+	printf "[HTML-Output] Create html files ...\n";
 	(*printf "Start: %f \n" (Unix.time ());*)
 	(*List.iter (fun xmlfile -> printf "GTABLE:\n%s\n" (Xml.to_string_fmt xmlfile)) (Lazy.force gtable);*)
 
@@ -313,13 +313,13 @@ let print_html chan xmlNode (file: file) gtable =
 	let fileList = ref [] in
 
 	(* Creates an entry in fileList *)
-	let createFileListEntry lineFile = 
+	let createFileListEntry lineFile =
 		let shortFilename = Filename.basename lineFile in
 
 		(* Read code lines from file *)
 		let linesContent = ref [] in
-		readCodeLines lineFile linesContent;	
-    
+		readCodeLines lineFile linesContent;
+
 		(* Create analysis data directory *)
 		let dirn = (Filename.concat "result" (shortFilename^"_data")) in
 		try (Unix.mkdir dirn 0o777) with _ -> (); ;
@@ -333,12 +333,12 @@ let print_html chan xmlNode (file: file) gtable =
 			fprintf outchan "%s" htmlTemp_AnalysisFilePartOne;
 		end done;
 
-		(* Return new fileList entry *)		
+		(* Return new fileList entry *)
 		{filename = lineFile ; analysis_out = outlist; lines = linesContent ; lineInfo = ref (Array.make (lineCount+1) 0) ; deadcodeInfo = ref (Array.make (lineCount+1) 0)}
 	in
 
 	(* Finds an entry in fileList *)
-	let getFileListEntry lineFile = 
+	let getFileListEntry lineFile =
 		try
 		List.find (fun entry -> (String.compare entry.filename lineFile) == 0) !fileList
 		with Not_found -> begin
@@ -364,7 +364,7 @@ let print_html chan xmlNode (file: file) gtable =
 	in
 
 	(* Processes each line in the xml file *)
-	let processAnalysisLineEntry xmlNodeLine = 
+	let processAnalysisLineEntry xmlNodeLine =
 		let lineFile = Xml.attrib xmlNodeLine "file" in
 		let lineNo = int_of_string (Xml.attrib xmlNodeLine "line") in
 		let fileListEntry = (getFileListEntry lineFile) in
@@ -378,13 +378,13 @@ let print_html chan xmlNode (file: file) gtable =
 		fprintf outchan "     <div id=\"analysis_line%i\" style=\"display: none;\">\n" lineNo;
 
 		(* Print analysis data *)
-		List.iter (processAnalysisXmlNode outchan) (Xml.children xmlNodeLine);	
+		List.iter (processAnalysisXmlNode outchan) (Xml.children xmlNodeLine);
 
 		(* Print end line div container *)
 		fprintf outchan "     </div>\n";
 
 		(* Find deadcode : Empty Value Leaf *)
-		let checkForEmptyValueLeaf xmlNode = 
+		let checkForEmptyValueLeaf xmlNode =
 			if ((String.compare (Xml.attrib xmlNode "text") "Value") == 0) then
 				if ((String.compare (Xml.tag xmlNode) "Leaf") == 0) then Array.set !(fileListEntry.deadcodeInfo) lineNo ((Array.get !(fileListEntry.deadcodeInfo) lineNo)+2)
 				else Array.set !(fileListEntry.deadcodeInfo) lineNo (-100)

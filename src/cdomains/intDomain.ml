@@ -26,14 +26,14 @@ sig
   val ending     : int64 -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
-    
+
   val neg: t -> t
   val add: t -> t -> t
   val sub: t -> t -> t
   val mul: t -> t -> t
   val div: t -> t -> t
   val rem: t -> t -> t
-                       
+
   val lt: t -> t -> t
   val gt: t -> t -> t
   val le: t -> t -> t
@@ -58,20 +58,20 @@ end
 module Interval32 : S with type t = (int64 * int64) option =
 struct
   open Int64
-  
+
   type t = (int64 * int64) option
 
   let max_int_f b = Int64.sub (Int64.shift_left Int64.one (b-1)) Int64.one
   let min_int_f b = Int64.neg (Int64.shift_left Int64.one (b-1))
-  
+
   let max_int = max_int_f 32
   let min_int = min_int_f 32
-  
+
   let top () = Some (min_int, max_int)
   let bot () = None
   let is_top x = x=top ()
   let is_bot = function None -> true | _ -> false
-  
+
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) y = x=y
   let compare (x:t) y = Pervasives.compare x y
@@ -82,63 +82,63 @@ struct
   let pretty = pretty_f short
   let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
   let toXML = toXML_f short
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)   
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
   let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
-  
-  
+
+
   let norm = function None -> None | Some (x,y) ->
-    if Int64.compare x y > 0 then None 
-    else if Int64.compare min_int x > 0 || Int64.compare max_int y < 0 then top () 
+    if Int64.compare x y > 0 then None
+    else if Int64.compare min_int x > 0 || Int64.compare max_int y < 0 then top ()
     else Some (x,y)
-    
+
   let (@@) f x = f x
-  
-  let equal x y = 
+
+  let equal x y =
     match x, y with
       | None, None -> true
       | Some (x1,x2), Some (y1,y2) -> Int64.compare x1 y1 = 0 && Int64.compare x2 y2 = 0
       | _ -> false
-    
+
   let leq (x:t) (y:t) =
     match x, y with
       | None, _ -> true
       | Some _, None -> false
       | Some (x1,x2), Some (y1,y2) -> Int64.compare x1 y1 >= 0 && Int64.compare x2 y2 <= 0
-      
-  let join (x:t) y = 
+
+  let join (x:t) y =
     match x, y with
       | None, z | z, None -> z
       | Some (x1,x2), Some (y1,y2) -> norm @@ Some (min x1 y1, max x2 y2)
-      
-  let meet (x:t) y = 
+
+  let meet (x:t) y =
     match x, y with
       | None, z | z, None -> None
       | Some (x1,x2), Some (y1,y2) -> norm @@ Some (max x1 y1, min x2 y2)
-      
+
   let is_int = function Some (x,y) when Int64.compare x y = 0 -> true | _ -> false
   let of_int x = norm @@ Some (x,x)
   let to_int = function Some (x,y) when Int64.compare x y = 0 -> Some x | _ -> None
-  
+
   let of_bool = function true -> Some (Int64.one,Int64.one) | false -> Some (Int64.zero,Int64.zero)
   let is_bool = function None -> false | Some (x,y) ->
-    if Int64.compare x Int64.zero = 0 && Int64.compare y Int64.zero = 0 then true 
+    if Int64.compare x Int64.zero = 0 && Int64.compare y Int64.zero = 0 then true
     else not (leq (of_int Int64.zero) (Some (x,y)))
   let to_bool = function None -> None | Some (x,y) ->
-    if Int64.compare x Int64.zero = 0 && Int64.compare y Int64.zero = 0 then Some false 
+    if Int64.compare x Int64.zero = 0 && Int64.compare y Int64.zero = 0 then Some false
     else if leq (of_int Int64.zero) (Some (x,y)) then None else Some true
-    
+
   let starting n = norm @@ Some (n,max_int)
   let ending   n = norm @@ Some (min_int,n)
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
-  
+
   let to_excl_list _ = None
   let of_excl_list _ = top ()
   let is_excl_list _ = false
-  
-  let cast_to_width x b = 
-    match x with 
-      | None -> None 
+
+  let cast_to_width x b =
+    match x with
+      | None -> None
       | Some (x,y) -> norm @@ Some (max x (min_int_f b),min y (max_int_f b))
 
   let widen x y =
@@ -148,7 +148,7 @@ struct
         let l2 = if Int64.compare l0 l1 = 0 then l0 else min l1 min_int in
         let u2 = if Int64.compare u0 u1 = 0 then u0 else max u1 max_int in
         norm @@ Some (l2,u2)
-        
+
   let narrow x y =
     match x, y with
       | _,None | None, _ -> None
@@ -156,10 +156,10 @@ struct
         let lr = if Int64.compare min_int x1 = 0 then y1 else x1 in
         let ur = if Int64.compare max_int x2 = 0 then y2 else x2 in
         norm @@ Some (lr,ur)
-        
-  let log f i1 i2 = 
+
+  let log f i1 i2 =
     match is_bot i1, is_bot i2 with
-      | true, _ 
+      | true, _
       | _   , true -> bot ()
       | _ ->
     match to_bool i1, to_bool i2 with
@@ -169,7 +169,7 @@ struct
    let logor  = log (||)
    let logand = log (&&)
 
-  let log1 f i1 = 
+  let log1 f i1 =
     if is_bot i1 then
       bot ()
     else
@@ -179,9 +179,9 @@ struct
 
   let lognot = log1 not
 
-  let bit f i1 i2 = 
+  let bit f i1 i2 =
   match is_bot i1, is_bot i2 with
-    | true, _ 
+    | true, _
     | _   , true -> bot ()
     | _ ->
   match to_int i1, to_int i2 with
@@ -192,7 +192,7 @@ struct
   let bitand = bit Int64.logand
   let bitor  = bit Int64.logor
 
-  let bit1 f i1 = 
+  let bit1 f i1 =
     if is_bot i1 then
       bot ()
     else
@@ -201,19 +201,19 @@ struct
       | _      -> top ()
 
   let bitnot = bit1 Int64.lognot
-  let shift_right = bit (fun x y -> Int64.shift_right x (Int64.to_int y)) 
-  let shift_left  = bit (fun x y -> Int64.shift_left  x (Int64.to_int y)) 
+  let shift_right = bit (fun x y -> Int64.shift_right x (Int64.to_int y))
+  let shift_left  = bit (fun x y -> Int64.shift_left  x (Int64.to_int y))
   let rem  = bit Int64.rem
-  
+
   let neg = function None -> None | Some (x,y) -> norm @@ Some (Int64.neg y, Int64.neg x)
-  let add x y = 
+  let add x y =
     match x, y with
       | None, _ | _, None -> None
       | Some (x1,x2), Some (y1,y2) -> norm @@ Some (Int64.add x1 y1, Int64.add x2 y2)
-      
+
   let sub i1 i2 = add i1 (neg i2)
-  
-  let mul x y = 
+
+  let mul x y =
     match x, y with
       | None, _ | _, None -> bot ()
       | Some (x1,x2), Some (y1,y2) ->
@@ -221,7 +221,7 @@ struct
         let x2y1 = (Int64.mul x2 y1) in let x2y2 = (Int64.mul x2 y2) in
         norm @@ Some ((min (min x1y1 x1y2) (min x2y1 x2y2)),
                       (max (max x1y1 x1y2) (max x2y1 x2y2)))
-    
+
   let rec div x y =
     match x, y with
       | None, _ | _, None -> bot ()
@@ -231,7 +231,7 @@ struct
           | 0L, _        -> div (Some (x1,x2)) (Some (1L,y2))
           | _      , 0L  -> div (Some (x1,x2)) (Some (y1,(-1L)))
           | _ when leq (of_int 0L) (Some (y1,y2)) -> top ()
-          | _ -> 
+          | _ ->
             let x1y1n = (Int64.div x1 y1) in let x1y2n = (Int64.div x1 y2) in
             let x2y1n = (Int64.div x2 y1) in let x2y2n = (Int64.div x2 y2) in
             let x1y1p = (Int64.div x1 y1) in let x1y2p = (Int64.div x1 y2) in
@@ -241,41 +241,41 @@ struct
       end
   let ne i1 i2 = sub i1 i2
 
-  let eq i1 i2 = 
+  let eq i1 i2 =
     match to_bool (sub i1 i2) with
       | Some x -> of_bool (not x)
       | None -> None
 
-  let ge x y = 
-    match x, y with 
+  let ge x y =
+    match x, y with
       | None, _ | _, None -> None
       | Some (x1,x2), Some (y1,y2) ->
-        if Int64.compare y2 x1 <= 0 then of_bool true  
-        else if Int64.compare x2 y1 < 0 then of_bool false 
+        if Int64.compare y2 x1 <= 0 then of_bool true
+        else if Int64.compare x2 y1 < 0 then of_bool false
         else top ()
 
-  let le x y = 
-    match x, y with 
+  let le x y =
+    match x, y with
       | None, _ | _, None -> None
       | Some (x1,x2), Some (y1,y2) ->
-        if Int64.compare x2 y1 <= 0 then of_bool true  
-        else if Int64.compare  y2 x1 < 0 then of_bool false 
+        if Int64.compare x2 y1 <= 0 then of_bool true
+        else if Int64.compare  y2 x1 < 0 then of_bool false
         else top ()
 
-  let gt x y = 
-    match x, y with 
+  let gt x y =
+    match x, y with
       | None, _ | _, None -> None
       | Some (x1,x2), Some (y1,y2) ->
-        if Int64.compare  y2 x1 < 0 then of_bool true  
-        else if Int64.compare x2 y1 <= 0 then of_bool false 
+        if Int64.compare  y2 x1 < 0 then of_bool true
+        else if Int64.compare x2 y1 <= 0 then of_bool false
         else top ()
 
-  let lt x y = 
-    match x, y with 
+  let lt x y =
+    match x, y with
       | None, _ | _, None -> None
       | Some (x1,x2), Some (y1,y2) ->
-        if Int64.compare x2 y1 < 0 then of_bool true  
-        else if Int64.compare y2 x1 <= 0 then of_bool false 
+        if Int64.compare x2 y1 < 0 then of_bool true
+        else if Int64.compare y2 x1 <= 0 then of_bool false
         else top ()
 end
 
@@ -290,7 +290,7 @@ struct
   let name () = "integers"
   type t = int64
   let hash (x:t) = ((Int64.to_int x) - 787) * 17
-  let equal (x:t) (y:t) = x=y 
+  let equal (x:t) (y:t) = x=y
   let copy x = x
   let top () = raise Unknown
   let is_top _ = false
@@ -314,7 +314,7 @@ struct
   let of_int  x = x
   let to_int  x = Some x
   let is_int  _ = true
-  
+
   let to_excl_list x = None
   let of_excl_list x = top ()
   let is_excl_list x = false
@@ -323,19 +323,19 @@ struct
   let ending       x = top ()
   let maximal      x = None
   let minimal      x = None
-  
+
   let neg  = Int64.neg
   let add  = Int64.add
   let sub  = Int64.sub
   let mul  = Int64.mul
-  let div x y =  
-    match y with 
-      | 0L -> raise Division_by_zero  (* -- this is for a bug (#253) where div throws *) 
+  let div x y =
+    match y with
+      | 0L -> raise Division_by_zero  (* -- this is for a bug (#253) where div throws *)
       | _  -> Int64.div x y           (*    sigfpe and ocaml has somehow forgotten how to deal with it*)
-  let rem x y = 
-    match y with 
-      | 0L -> raise Division_by_zero  (* ditto *) 
-      | _  -> Int64.rem x y           
+  let rem x y =
+    match y with
+      | 0L -> raise Division_by_zero  (* ditto *)
+      | _  -> Int64.rem x y
   let lt n1 n2 = of_bool (n1 <  n2)
   let gt n1 n2 = of_bool (n1 >  n2)
   let le n1 n2 = of_bool (n1 <= n2)
@@ -354,13 +354,13 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let cast_to_width x _ = x
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module FlatPureIntegers =
 struct
   include Integers
-  
+
   let top () = raise Unknown
   let bot () = raise Error
   let leq = equal
@@ -392,7 +392,7 @@ struct
     | `Lifted x -> Base.to_bool x
     | _ -> None
   let is_bool = is_int
-  
+
   let to_excl_list x = None
   let of_excl_list x = top ()
   let is_excl_list x = false
@@ -403,11 +403,11 @@ struct
   let minimal      x = None
 
   let lift1 f x = match x with
-    | `Lifted x -> 
+    | `Lifted x ->
         (try `Lifted (f x) with Unknown -> `Top | Error -> `Bot)
     | x -> x
   let lift2 f x y = match x,y with
-    | `Lifted x, `Lifted y -> 
+    | `Lifted x, `Lifted y ->
         (try `Lifted (f x y) with Unknown -> `Top | Error -> `Bot)
     | `Bot, `Bot -> `Bot
     | _ -> `Top
@@ -433,7 +433,7 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module Lift (Base: S) =
@@ -498,11 +498,11 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
-module Flattened = Flat (Integers) 
-module Lifted    = Lift (Integers) 
+module Flattened = Flat (Integers)
+module Lifted    = Lift (Integers)
 
 module Reverse (Base: S) =
 struct
@@ -519,7 +519,7 @@ struct
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-module Trier = 
+module Trier =
 struct
   module S = SetDomain.Make (Integers)
   include Printable.Std
@@ -536,17 +536,17 @@ struct
       | `Excluded s -> S.hash s
       | `Definite i -> 83*Integers.hash i
       | `Bot -> 61426164
-      
+
   let equal x y =
     match x, y with
       | `Bot, `Bot -> true
-      | `Definite x, `Definite y -> Integers.equal x y 
+      | `Definite x, `Definite y -> Integers.equal x y
       | `Excluded xs, `Excluded ys -> S.equal xs ys
       | _ -> false
 
   let name () = "trier"
   let top () = `Excluded (S.empty ())
-  let is_top x = 
+  let is_top x =
     match x with
       | `Excluded s -> S.is_empty s
       | _ -> false
@@ -558,7 +558,7 @@ struct
 
   let isSimple _ = true
 
-  let short w x = 
+  let short w x =
     match x with
       | `Bot -> bot_name
       | `Definite x -> Integers.short w x
@@ -587,14 +587,14 @@ struct
     | `Excluded x, `Excluded y -> S.subset y x
 
   let pretty_diff () (x,y) = Pretty.dprintf "Integer %a instead of %a" pretty x pretty y
-  
-  let join x y = 
+
+  let join x y =
    match (x,y) with
      (* The least upper bound with the bottom element: *)
      | `Bot, x -> x
      | x, `Bot -> x
      (* The case for two known values: *)
-     | `Definite x, `Definite y -> 
+     | `Definite x, `Definite y ->
          (* If they're equal, it's just THAT value *)
          if x = y then `Definite x
          (* Unless one of them is zero, we can exclude it: *)
@@ -607,7 +607,7 @@ struct
      (* For two exclusion sets, only their intersection can be excluded: *)
      | `Excluded x, `Excluded y -> `Excluded (S.inter x y)
 
-  let meet x y = 
+  let meet x y =
     match (x,y) with
       (* Gretest LOWER bound with the least element is trivial: *)
       | `Bot, _ -> `Bot
@@ -623,12 +623,12 @@ struct
       | `Excluded x, `Excluded y -> `Excluded (S.union x y)
 
   let of_bool x = `Definite (Integers.of_bool x)
-  let to_bool x = 
+  let to_bool x =
     match x with
       | `Definite x -> Integers.to_bool x
       | `Excluded s when S.mem Int64.zero s -> Some true
       | _ -> None
-  let is_bool x = 
+  let is_bool x =
     match x with
       | `Definite x -> true
       | `Excluded s -> S.mem Int64.zero s
@@ -641,7 +641,7 @@ struct
   let is_int  x = match x with
     | `Definite x -> true
     | _ -> false
-  
+
   let of_interval x y = if Int64.compare x y == 0 then of_int x else top ()
   let ending   x = top ()
   let starting x = top ()
@@ -685,7 +685,7 @@ struct
     (* If any one of them is bottom, we return bottom *)
     | _ -> `Bot
 
-  (* The equality check: *) 
+  (* The equality check: *)
   let eq x y = match x,y with
     (* Not much to do with two exclusion sets: *)
     | `Excluded _, `Excluded _ -> top ()
@@ -698,7 +698,7 @@ struct
     (* If either one of them is bottom, we return bottom *)
     | _ -> `Bot
 
-  (* The inequality check: *) 
+  (* The inequality check: *)
   let ne x y = match x,y with
     (* Not much to do with two exclusion sets: *)
     | `Excluded _, `Excluded _ -> top ()
@@ -730,8 +730,8 @@ struct
   (* TODO: lift does not treat Not {0} as true. *)
   let logand = lift2 Integers.logand
   let logor  = lift2 Integers.logor
-  let lognot = eq (of_int 0L) 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+  let lognot = eq (of_int 0L)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module OverflowInt64 =
@@ -739,7 +739,7 @@ struct
   exception Overflow of string
 
   include Int64
-  
+
   let add (a:int64) (b:int64) =
     if logor (logxor a b) (logxor a (lognot (add a b))) < 0L  (* no kidding! *)
     then add a b
@@ -768,9 +768,9 @@ end
 module InfInt =
 struct
   (*module Int64 = OverflowInt64*)
-  
+
   type t = NInf | Fin of int64 | PInf
- 
+
   let equal x y =
     match x, y with
       | NInf, NInf -> true
@@ -803,20 +803,20 @@ struct
       | PInf, _      -> y
       | _   ,PInf    -> x
       | Fin x, Fin y -> if x < y then Fin x else Fin y
-  
+
   let leq x y = compare x y <= 0
   let lt  x y = compare x y <  0
-  
-  let neg x = 
+
+  let neg x =
     match x with
       | NInf -> PInf
       | PInf -> NInf
       | Fin x-> Fin (Int64.neg x)
 
-  let addp d x y = 
+  let addp d x y =
     match x, y with
       | NInf , NInf  -> NInf
-      | NInf , Fin _ -> NInf 
+      | NInf , Fin _ -> NInf
       | NInf , PInf  -> d
       | Fin _, NInf  -> NInf
       | Fin x, Fin y -> Fin (Int64.add x y)
@@ -825,50 +825,50 @@ struct
       | PInf , Fin x -> PInf
       | PInf , PInf  -> PInf
 
-  let mul x y = 
-    let nf x = match Int64.compare x 0L with 
-      | 0          -> Fin 0L 
-      | x when x<0 -> PInf 
+  let mul x y =
+    let nf x = match Int64.compare x 0L with
+      | 0          -> Fin 0L
+      | x when x<0 -> PInf
       | _          -> NInf
     in
-    let pf x = match Int64.compare x 0L with 
-      | 0          -> Fin 0L 
-      | x when x<0 -> NInf 
+    let pf x = match Int64.compare x 0L with
+      | 0          -> Fin 0L
+      | x when x<0 -> NInf
       | _          -> PInf
     in
     match x, y with
       | NInf , NInf  -> PInf
-      | NInf , Fin x -> nf x 
+      | NInf , Fin x -> nf x
       | NInf , PInf  -> NInf
-      | Fin x, NInf  -> nf x 
+      | Fin x, NInf  -> nf x
       | Fin x, Fin y -> Fin (Int64.mul x y)
       | Fin x, PInf  -> pf x
       | PInf , NInf  -> NInf
       | PInf , Fin x -> pf x
       | PInf , PInf  -> PInf
 
-  let divp d x y = 
-    let nf x = match Int64.compare x 0L with 
-      | 0          -> d 
-      | x when x<0 -> PInf 
+  let divp d x y =
+    let nf x = match Int64.compare x 0L with
+      | 0          -> d
+      | x when x<0 -> PInf
       | _          -> NInf
     in
-    let pf x = match Int64.compare x 0L with 
-      | 0          -> d 
-      | x when x<0 -> NInf 
+    let pf x = match Int64.compare x 0L with
+      | 0          -> d
+      | x when x<0 -> NInf
       | _          -> PInf
     in
     match x, y with
       | NInf , NInf  -> d
       | NInf , Fin x -> nf x
       | NInf , PInf  -> d
-      | Fin x, NInf  -> nf x 
+      | Fin x, NInf  -> nf x
       | Fin x, Fin y -> Fin (Int64.div x y)
       | Fin x, PInf  -> pf x
       | PInf , NInf  -> d
       | PInf , Fin x -> pf x
       | PInf , PInf  -> d
-      
+
 end
 
 module CircInterval : S with type t = CBigInt.t interval =
@@ -887,12 +887,12 @@ module CircInterval : S with type t = CBigInt.t interval =
       | Some(a,b) -> I.of_t w a b;;
 
     (* Int Conversion *)
-    let to_int x = 
+    let to_int x =
       match x with
       | Int(w,a,b) when C.eq a b -> Some (C.to_int64 w a)
       | _ -> None
     let of_int x = I.of_int64 max_width x x
-    let is_int x = 
+    let is_int x =
       match x with
       | Int(_,a,b) -> C.eq a b
       | _ -> false
@@ -904,7 +904,7 @@ module CircInterval : S with type t = CBigInt.t interval =
       | Some 0L -> Some false
       | _ -> Some true
     let of_bool x =
-      if x 
+      if x
       then Int(1, C.one, C.one)
       else Int(1, C.zero, C.zero)
     let is_bool x =
@@ -918,12 +918,12 @@ module CircInterval : S with type t = CBigInt.t interval =
     let is_excl_list x = false
 
     (* Starting/Ending *)
-    let starting x = 
+    let starting x =
       let r = I.of_t max_width (C.of_int64 max_width x) (C.max_value max_width)
       in
       print_endline ("starting: "^(I.to_string r)^" .. "^(Int64.to_string x));
       r
-    let ending x = 
+    let ending x =
       let r = I.of_t max_width C.zero (C.of_int64 max_width x)
       in
       print_endline ("ending: "^(I.to_string r)^" .. "^(Int64.to_string x));
@@ -933,7 +933,7 @@ module CircInterval : S with type t = CBigInt.t interval =
       match I.bounds x with
       | Some(_,m) -> Some (C.to_int64 (I.width x) m)
       | _ -> None
-    let minimal x = 
+    let minimal x =
       print_endline ("minimal: "^(I.to_string x));
       match I.bounds x with
       | Some(m,_) -> Some (C.to_int64 (I.width x) m)
@@ -949,7 +949,7 @@ module CircInterval : S with type t = CBigInt.t interval =
     let wrap_debug2 n f =
       fun a b ->
         let r = f a b in
-        if get_bool "ana.int.cdebug" 
+        if get_bool "ana.int.cdebug"
         then print_endline (n^": "^(I.to_string a)^" .. "^(I.to_string b)^" = "^(I.to_string r));
         r
 
@@ -969,11 +969,11 @@ module CircInterval : S with type t = CBigInt.t interval =
       then I.of_int 1 0 1
       else
         match I.bounds a, I.bounds b with
-        | Some(l0,u0), Some(l1,u1) -> 
+        | Some(l0,u0), Some(l1,u1) ->
             if (f w np u0 l1) then of_bool true
             else if (f w np l0 l1) then I.of_int 1 0 1
             else of_bool false
-        | _ -> I.of_int 1 0 1 
+        | _ -> I.of_int 1 0 1
 
     let comp_gt f a b =
       let w = I.width a in
@@ -982,7 +982,7 @@ module CircInterval : S with type t = CBigInt.t interval =
       then I.of_int 1 0 1
       else
         match I.bounds a, I.bounds b with
-        | Some(l0,u0), Some(l1,u1) -> 
+        | Some(l0,u0), Some(l1,u1) ->
             if (f w np l0 u1) then of_bool true
             else if (f w np u0 u1) then I.of_int 1 0 1
             else of_bool false
@@ -993,23 +993,23 @@ module CircInterval : S with type t = CBigInt.t interval =
     let gt = wrap_debug2 "gt" (comp_gt I.relative_gt)
     let ge = wrap_debug2 "ge" (comp_gt I.relative_geq)
 
-    let eq' a b = 
+    let eq' a b =
       match (I.meet a b) with
       | Bot _ -> of_bool false
-      | _ -> 
+      | _ ->
           match I.bounds a, I.bounds b with
-          | Some(x,y), Some(u,v) -> 
+          | Some(x,y), Some(u,v) ->
               if (C.eq x y) && (C.eq u v) && (C.eq x u)
               then of_bool true
               else I.of_int 1 0 1
           | _ -> I.of_int 1 0 1
 
-    let ne' a b = 
+    let ne' a b =
       match (I.meet a b) with
       | Bot _ -> of_bool true
-      | _ -> 
+      | _ ->
           match I.bounds a, I.bounds b with
-          | Some(x,y), Some(u,v) -> 
+          | Some(x,y), Some(u,v) ->
               if (C.eq x y) && (C.eq u v) && (C.eq x u)
               then of_bool false
               else I.of_int 1 0 1
@@ -1024,7 +1024,7 @@ module CircInterval : S with type t = CBigInt.t interval =
     let bitnot x =
       match x with
       | Bot _ -> x
-      | Int(w,a,b) when C.eq a b -> 
+      | Int(w,a,b) when C.eq a b ->
           let v = C.lognot w a in
           Int(w,v,v)
       | _ -> Top (I.width x)
@@ -1033,11 +1033,11 @@ module CircInterval : S with type t = CBigInt.t interval =
     let bitxor = wrap_debug2 "bitxor" I.logxor
     let shift_left = wrap_debug2 "shift_left" I.shift_left
     let shift_right = wrap_debug2 "shift_right" I.shift_right
-    
+
     (* Lattice *)
     let top () = Top max_width
     let bot () = Bot max_width
-    let is_top x = 
+    let is_top x =
       match x with
       | Top _ -> true
       | _ -> false
@@ -1047,15 +1047,15 @@ module CircInterval : S with type t = CBigInt.t interval =
       | _ -> false
 
     (* Logical *)
-    let log1 f i1 = 
+    let log1 f i1 =
       if is_bot i1 then bot ()
       else
         match to_bool i1 with
           | Some x -> of_bool (f x)
           | _      -> top ()
-    let log f i1 i2 = 
+    let log f i1 i2 =
       match is_bot i1, is_bot i2 with
-        | true, _ 
+        | true, _
         | _   , true -> bot ()
         | _ ->
       match to_bool i1, to_bool i2 with
@@ -1065,7 +1065,7 @@ module CircInterval : S with type t = CBigInt.t interval =
     let lognot = log1 not
     let logor  = log (||)
     let logand = log (&&)
-      
+
     (* Others *)
     let meet = wrap_debug2 "meet" I.meet
     let join = wrap_debug2 "join" I.join
@@ -1085,13 +1085,13 @@ module CircInterval : S with type t = CBigInt.t interval =
     Goblintutil.summary_length x)],[])
     let toXML = toXML_f short
     let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
     (* Widen
      * Roughly double the interval size. *)
-    let widen_double a b = 
+    let widen_double a b =
       let w = I.width b in
-      let two = C.of_int w 2 and add = C.add w 
+      let two = C.of_int w 2 and add = C.add w
       and sub = C.sub w and mul = C.mul w
       in
       if (I.contains a b) then b
@@ -1100,9 +1100,9 @@ module CircInterval : S with type t = CBigInt.t interval =
         match I.bounds a,I.bounds b with
         | Some(u,v), Some(x,y) ->
             let j = I.join a b and uy = I.of_t w u y and xv = I.of_t w x y in
-            if I.eql j uy then 
+            if I.eql j uy then
               I.join uy (I.of_t w u (add (sub (mul v two) u) C.one))
-            else if I.eql j xv then 
+            else if I.eql j xv then
               I.join xv (I.of_t w (sub (sub (mul u two) v) C.one) v)
             else if (I.contains_element b u) && (I.contains_element b v) then
               I.join b (I.of_t w x (add (sub (add x (mul v two)) (mul u two)) C.one))
@@ -1125,12 +1125,12 @@ module CircInterval : S with type t = CBigInt.t interval =
      * Take half of interval size. *)
     let narrow_half a b =
       let w = I.width b in
-      let delta = C.of_int w 2 and add = C.add w 
+      let delta = C.of_int w 2 and add = C.add w
       and sub = C.sub w and div = C.div w
       in
       if I.eql a b then b
       else if C.leq (I.count b) (C.of_int w 2) then b
-      else 
+      else
         match I.bounds a, I.bounds b with
         | Some(u,v), Some(x,y) ->
             let m = I.meet a b and uy = I.of_t w u y and xv = I.of_t w x v in
@@ -1142,7 +1142,7 @@ module CircInterval : S with type t = CBigInt.t interval =
               I.meet b (I.of_t w (add (div u delta) (div v delta)) (add (div u delta) (div v delta)))
         | _ -> b
 
-    let narrow_basic a b = 
+    let narrow_basic a b =
       if (I.eql a b) then b
       else
         match a with
@@ -1160,7 +1160,7 @@ module CircInterval : S with type t = CBigInt.t interval =
   end
 
 module Interval : S with type t = InfInt.t * InfInt.t =
-struct 
+struct
   include Printable.Std
   module I = InfInt
   type t = I.t * I.t
@@ -1169,11 +1169,11 @@ struct
   let of_interval x y = (I.Fin x, I.Fin y)
   let ending   x = (I.NInf , I.Fin x)
   let starting x = (I.Fin x, I.PInf)
-  let maximal (_,y:t) = 
+  let maximal (_,y:t) =
     match y with
       | I.Fin x -> Some x
       | _ -> None
-  let minimal (x,_:t) = 
+  let minimal (x,_:t) =
     match x with
       | I.Fin x -> Some x
       | _ -> None
@@ -1191,36 +1191,36 @@ struct
     match x, y with
       | I.NInf, I.PInf -> true
       | _              -> false
-      
+
   let bot () = (I.PInf,I.NInf)
-  let is_bot (x,y) = 
+  let is_bot (x,y) =
     I.compare x y > 0
 
   let isSimple _ = true
   let short _ (x,y) =
-    let f p = 
+    let f p =
     match p with
       | I.NInf -> "-∞"
       | I.PInf -> "∞"
-      | I.Fin x-> Int64.to_string x 
+      | I.Fin x-> Int64.to_string x
     in
-    if is_bot (x,y) then 
-      "⊥" 
+    if is_bot (x,y) then
+      "⊥"
     else if (I.compare x y == 0) then
       "["^f x^"]"
     else
       "["^f x^".."^f y^"]"
-  
+
   let pretty_f sh () x = text (sh 10 x)
   let pretty = pretty_f short
   let toXML_f sf x = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
   let toXML = toXML_f short
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  
+
   let leq  (x1,x2) (y1,y2) = I.leq y1 x1 && I.leq x2 y2
   let join (x1,x2) (y1,y2) = (I.min x1 y1, I.max x2 y2)
   let meet (x1,x2) (y1,y2) = (I.max x1 y1, I.min x2 y2)
-  
+
   let widen (l0,u0 as i1) (l1,u1 as i2) =
     let res = (if I.lt l1 l0 then I.NInf else l0), (if I.lt u0 u1 then I.PInf else u0) in
       if M.tracing then M.tracel "widen" "Widening %a and %a yields %a\n" pretty i1 pretty i2 pretty res;
@@ -1228,25 +1228,25 @@ struct
 
   let narrow (l0,u0) (l1,u1) =
     let lr = match l0 with
-      | I.NInf -> l1 
+      | I.NInf -> l1
       | _      -> l0 in
     let ur = match u0 with
-      | I.PInf -> u1 
+      | I.PInf -> u1
       | _      -> u0 in
     (lr,ur)
 
   let of_int i = (I.Fin i, I.Fin i)
-  let to_int (x,y:t) = 
+  let to_int (x,y:t) =
     match x, y with
       | I.Fin x, I.Fin y when Int64.compare x y == 0 -> Some x
       | _ -> None
-  let is_int (x,y:t) = 
+  let is_int (x,y:t) =
     match x, y with
       | I.Fin x, I.Fin y when Int64.compare x y == 0 -> true
       | _ -> false
 
   let of_bool b = if b then (I.Fin 1L, I.PInf) else (I.Fin 0L, I.Fin 0L)
-  let to_bool i = 
+  let to_bool i =
     match i with
       | I.Fin 0L, I.Fin 0L -> Some false
       | _ when not (leq (of_int 0L) i) -> Some true
@@ -1268,7 +1268,7 @@ struct
       (I.min (I.min x1y1 x1y2) (I.min x2y1 x2y2)),
       (I.max (I.max x1y1 x1y2) (I.max x2y1 x2y2))
     end
-    
+
   let rec div (x1,x2:t) (y1,y2:t) =
     if is_bot (x1, x2) || is_bot (y1, y2) then
       bot ()
@@ -1278,7 +1278,7 @@ struct
         | I.Fin 0L, _        -> div (x1,x2) (I.Fin 1L,y2)
         | _      , I.Fin 0L  -> div (x1,x2) (y1, I.Fin (-1L))
         | _ when leq (of_int 0L) (y1,y2) -> top ()
-        | _ -> 
+        | _ ->
           let x1y1n = (I.divp I.NInf x1 y1) in let x1y2n = (I.divp I.NInf x1 y2) in
           let x2y1n = (I.divp I.NInf x2 y1) in let x2y2n = (I.divp I.NInf x2 y2) in
           let x1y1p = (I.divp I.PInf x1 y1) in let x1y2p = (I.divp I.PInf x1 y2) in
@@ -1286,10 +1286,10 @@ struct
           (I.min (I.min x1y1n x1y2n) (I.min x2y1n x2y2n)),
           (I.max (I.max x1y1p x1y2p) (I.max x2y1p x2y2p))
     end
-    
-  let log f i1 i2 = 
+
+  let log f i1 i2 =
     match is_bot i1, is_bot i2 with
-      | true, _ 
+      | true, _
       | _   , true -> bot ()
       | _ ->
     match to_bool i1, to_bool i2 with
@@ -1299,30 +1299,30 @@ struct
    let logor  = log (||)
    let logand = log (&&)
 
-  let log1 f i1 = 
+  let log1 f i1 =
     if is_bot i1 then
       bot ()
     else
     match to_bool i1 with
       | Some x -> of_bool (f x)
       | _      -> top ()
-      
+
   let lognot = log1 not
-  
-  let bit f i1 i2 = 
+
+  let bit f i1 i2 =
   match is_bot i1, is_bot i2 with
-    | true, _ 
+    | true, _
     | _   , true -> bot ()
     | _ ->
   match to_int i1, to_int i2 with
     | Some x, Some y -> (try of_int (f x y) with Division_by_zero -> top ())
     | _              -> top ()
-    
+
   let bitxor = bit Int64.logxor
   let bitand = bit Int64.logand
   let bitor  = bit Int64.logor
 
-  let bit1 f i1 = 
+  let bit1 f i1 =
     if is_bot i1 then
       bot ()
     else
@@ -1331,72 +1331,72 @@ struct
       | _      -> top ()
 
   let bitnot = bit1 Int64.lognot
-  let shift_right = bit (fun x y -> Int64.shift_right x (Int64.to_int y)) 
-  let shift_left  = bit (fun x y -> Int64.shift_left  x (Int64.to_int y)) 
+  let shift_right = bit (fun x y -> Int64.shift_right x (Int64.to_int y))
+  let shift_left  = bit (fun x y -> Int64.shift_left  x (Int64.to_int y))
   let rem  = bit Int64.rem
-  
+
   let ne i1 i2 =
       match is_bot i1, is_bot i2 with
-      | true, _ 
+      | true, _
       | _   , true -> bot ()
       | _ ->
     match sub i1 i2 with
       | (I.Fin 0L, I.Fin 0L) -> of_bool false
       | x when not (leq (I.Fin 0L, I.Fin 0L) x) -> of_bool true
-      | _ -> top () 
-  
+      | _ -> top ()
+
   let eq i1 i2 =
     match is_bot i1, is_bot i2 with
-      | true, _ 
+      | true, _
       | _   , true -> bot ()
       | _ ->
     match sub i1 i2 with
       | (I.Fin 0L, I.Fin 0L) -> of_bool true
       | x when not (leq (I.Fin 0L, I.Fin 0L) x) -> of_bool false
-      | _ -> top () 
+      | _ -> top ()
 
   let ge (x1,x2) (y1,y2) =
     if is_bot (x1, x2) || is_bot (y1, y2) then
       bot ()
     else begin
-      if I.leq y2 x1 then of_bool true  else 
+      if I.leq y2 x1 then of_bool true  else
       if I.lt  x2 y1 then of_bool false else
       top ()
     end
-    
+
   let le (x1,x2) (y1,y2) =
     if is_bot (x1, x2) || is_bot (y1, y2) then
       bot ()
     else begin
       if I.leq x2 y1 then of_bool true  else
-      if I.lt  y2 x1 then of_bool false else 
+      if I.lt  y2 x1 then of_bool false else
       top ()
     end
-    
+
   let gt (x1,x2) (y1,y2) =
     if is_bot (x1, x2) || is_bot (y1, y2) then
       bot ()
     else begin
-      if I.lt  y2 x1 then of_bool true  else 
+      if I.lt  y2 x1 then of_bool true  else
       if I.leq x2 y1 then of_bool false else
       top ()
     end
-    
+
   let lt (x1,x2) (y1,y2) =
     if is_bot (x1, x2) || is_bot (y1, y2) then
       bot ()
     else begin
       if I.lt  x2 y1 then of_bool true  else
-      if I.leq y2 x1 then of_bool false else 
+      if I.leq y2 x1 then of_bool false else
       top ()
     end
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let of_excl_list l = top ()
   let is_excl_list l = false
   let to_excl_list x = None
-(*  
+(*
   let add x y = try add x y with OverflowInt64.Overflow _ -> top ()
   let sub x y = try sub x y with OverflowInt64.Overflow _ -> top ()
   let mul x y = try mul x y with OverflowInt64.Overflow _ -> top ()
@@ -1404,7 +1404,7 @@ struct
   let cast_to_width x _ = x
 end
 
-(*module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] = 
+(*module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] =
 struct
   include Printable.Std
   module I = Interval
@@ -1414,12 +1414,12 @@ struct
     | `Included of I.t
 (*    | `Bot*)
     ]
-  
+
   let name () = "Exclusive & Inclusive Integer Intervals"
-  
+
   let equal (x:t) (y:t) =
     match x, y with
-      | `Excluded x, `Excluded y 
+      | `Excluded x, `Excluded y
       | `Included x, `Included y -> I.equal x y
 (*      | `Bot, `Bot -> true*)
       | _ -> false
@@ -1435,7 +1435,7 @@ struct
 (*      | `Bot, `Bot -> 0
       |    _, `Bot -> 1
       | `Bot,    _ -> -1*)
-      | `Excluded x, `Excluded y 
+      | `Excluded x, `Excluded y
       | `Included x, `Included y -> I.compare x y
       | `Included _, `Excluded _ -> -1
       | `Excluded _, `Included _ -> 1
@@ -1445,15 +1445,15 @@ struct
 (*       | `Bot -> "⊥" *)
       | `Included x -> I.short w x
       | `Excluded x -> "Not " ^ I.short w x
-  
+
   let isSimple _ = true
-  
+
   let pretty_f sf () (x:t) = text (sf max_int x)
   let toXML_f sf (x:t) = Xml.Element ("Leaf", [("text", sf Goblintutil.summary_length x)],[])
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  
+
   let top () : t = `Included (I.top ())
   let bot () : t = `Included (I.bot ())
 
@@ -1473,40 +1473,40 @@ struct
     |    _, `Bot -> false*)
     | `Excluded x, `Excluded y -> I.leq y x
     | `Included x, `Included y -> I.leq x y
-    | `Included (x1,x2), `Excluded (y1,y2) -> InfInt.lt x2 y1 || InfInt.lt y2 x1   
+    | `Included (x1,x2), `Excluded (y1,y2) -> InfInt.lt x2 y1 || InfInt.lt y2 x1
     | `Excluded _, `Included _ -> false
-    
-  let norm (x:t) : t = 
+
+  let norm (x:t) : t =
     match x with
       | `Excluded x when I.is_bot x -> `Included (I.top ())
       | `Excluded x when I.is_top x -> `Included (I.bot ())
       | `Excluded (InfInt.Fin x,InfInt.PInf ) -> `Included (InfInt.NInf, InfInt.Fin (Int64.sub x 1L))
       | `Excluded (InfInt.NInf ,InfInt.Fin x) -> `Included (InfInt.Fin (Int64.add x 1L), InfInt.PInf)
       | x -> x
-    
-  let join (x:t) (y:t) = 
+
+  let join (x:t) (y:t) =
     match x, y with
-      | `Excluded x, `Excluded y -> norm (`Excluded (I.meet x y)) 
+      | `Excluded x, `Excluded y -> norm (`Excluded (I.meet x y))
       | `Included x, `Included y -> `Included (I.join x y)
-      | `Included (y1, y2), `Excluded (x1, x2) 
-      | `Excluded (x1, x2), `Included (y1, y2) -> 
+      | `Included (y1, y2), `Excluded (x1, x2)
+      | `Excluded (x1, x2), `Included (y1, y2) ->
         if InfInt.lt y2 x1 || InfInt.lt x2 y1 then
           `Excluded (x1, x2)
         else if InfInt.leq y1 x1 then
           norm (`Excluded (InfInt.addp InfInt.PInf y2 (InfInt.Fin 1L) , x2))
         else if InfInt.leq x2 y2 then
           norm (`Excluded (x1, InfInt.addp InfInt.NInf y2 (InfInt.Fin (-1L))))
-        else 
+        else
           top ()
 
-  let meet (x:t) (y:t) = 
+  let meet (x:t) (y:t) =
     match x, y with
-(*      |    _, `Bot 
+(*      |    _, `Bot
       | `Bot,    _ -> `Bot*)
-      | `Excluded x, `Excluded y -> norm (`Excluded (I.join x y)) 
+      | `Excluded x, `Excluded y -> norm (`Excluded (I.join x y))
       | `Included x, `Included y -> `Included (I.meet x y)
-      | `Included (y1, y2), `Excluded (x1, x2) 
-      | `Excluded (x1, x2), `Included (y1, y2) -> 
+      | `Included (y1, y2), `Excluded (x1, x2)
+      | `Excluded (x1, x2), `Included (y1, y2) ->
         if InfInt.lt y2 x1 || InfInt.lt x2 y1 then
           `Included (y1, y2)
         else if I.leq (y1,y2) (x1,x2) then
@@ -1517,7 +1517,7 @@ struct
           `Included (y1, InfInt.addp InfInt.NInf x1 (InfInt.Fin (-1L)))
         else
           `Excluded (x1, x2) (* this is the bad case --- we just pick one of the arguments *)
-     
+
   let widen (x:t) (y:t) =
     match x, y with
       | `Included x, `Included y -> `Included (I.widen x y)
@@ -1529,47 +1529,47 @@ struct
     match x, y with
       | `Included x, `Included y -> `Included (I.narrow x y)
       | x, y  -> x
-  
-  let minimal (x:t) = 
+
+  let minimal (x:t) =
     match x with
       | `Included x -> I.minimal x
       | _ -> None
 
-  let maximal (x:t) = 
+  let maximal (x:t) =
     match x with
       | `Included x -> I.maximal x
       | _ -> None
-      
+
   let starting x : t = `Included (I.starting x)
   let ending x : t = `Included (I.ending x)
 (*   let of_interval x y : t = `Included (I.of_interval x y) *)
-  
-  let to_excl_list (x:t)  = 
+
+  let to_excl_list (x:t)  =
     let rec els x y = if x == y then [x] else  x :: els (Int64.add x 1L) y in
-    match x with 
-      | `Excluded (InfInt.Fin x, InfInt.Fin y) -> Some (els x y)  
+    match x with
+      | `Excluded (InfInt.Fin x, InfInt.Fin y) -> Some (els x y)
       | _ -> None
-  
+
   let is_excl_list (x:t) =
-    match x with 
+    match x with
       | `Excluded (InfInt.Fin x, InfInt.Fin y) -> true
       | _ -> false
 
-  let of_excl_list x = 
-    match x with  
+  let of_excl_list x =
+    match x with
       | [] -> top ()
       | x::xs ->
-        let f (min, max) x = 
+        let f (min, max) x =
           if Int64.compare x min <= 0
-          then (x,max) 
-          else if Int64.compare max x <= 0 
-          then (min,x) 
-          else (min,max) 
+          then (x,max)
+          else if Int64.compare max x <= 0
+          then (min,x)
+          else (min,max)
         in
         let (x,y) = List.fold_left f (x,x) xs in
         `Excluded (InfInt.Fin x, InfInt.Fin y)
-        
-  
+
+
   let to_int (x:t) =
     match x with
       | `Included x -> I.to_int x
@@ -1593,11 +1593,11 @@ struct
       | `Included x -> I.is_bool x
       | `Excluded x -> I.leq (I.of_int 0L) x
 
-  let of_bool x : t = 
+  let of_bool x : t =
     match x with
       | true  -> `Excluded (I.of_int 0L)
       | false -> `Included (I.of_int 0L)
-  
+
   let lognot x : t =
     match is_bot x with
       | true -> bot ()
@@ -1608,7 +1608,7 @@ struct
 
   let log_f f x y : t =
     match is_bot x, is_bot y with
-      | true, _ 
+      | true, _
       | _   , true -> bot ()
       | _ ->
     match to_bool x, to_bool y with
@@ -1625,51 +1625,51 @@ struct
     match to_int x with
       | Some x -> of_int (Int64.lognot x)
       | _ -> top ()
-  
+
   let bit_f f x y : t =
     match is_bot x, is_bot y with
-      | true, _ 
+      | true, _
       | _   , true -> bot ()
       | _ ->
     match to_int x, to_int y with
       | Some x, Some y -> of_int (f x y)
       | _ -> top ()
-  
+
   let bitxor = bit_f Int64.logxor
   let bitand = bit_f Int64.logand
   let bitor  = bit_f Int64.logor
-  
-  let shift_right = bit_f (fun x y -> Int64.shift_right x (Int64.to_int y)) 
-  let shift_left  = bit_f (fun x y -> Int64.shift_left  x (Int64.to_int y)) 
+
+  let shift_right = bit_f (fun x y -> Int64.shift_right x (Int64.to_int y))
+  let shift_left  = bit_f (fun x y -> Int64.shift_left  x (Int64.to_int y))
   let rem  = bit_f Int64.rem
-  
+
   let scheme2 f g h (x:t) (y:t) : t =
     match x, y with
       | `Included x, `Included y -> `Included (f x y)
       | `Excluded x, `Excluded y -> top ()
       | `Excluded x, `Included y -> (h x y)
       | `Included x, `Excluded y -> (g x y)
-      
-  let adde (e1,e2) (i1,i2) = 
+
+  let adde (e1,e2) (i1,i2) =
     norm (`Excluded (InfInt.addp InfInt.NInf e1 i2, InfInt.addp InfInt.PInf e2 i1))
 
   let add = scheme2 I.add adde adde
-  
-  let sub = 
+
+  let sub =
     let sube  i1 i2 = adde i1 (I.neg i2) in
     scheme2 I.sub sube sube
-  
-  let mul x y = 
+
+  let mul x y =
     match x, y with
-      | `Excluded x, `Included (y1,y2) when InfInt.equal y1 y2 
+      | `Excluded x, `Included (y1,y2) when InfInt.equal y1 y2
         -> `Excluded (I.mul x (y1,y1))
-      | `Included (x1,x2), `Excluded y when InfInt.equal x1 x2 
+      | `Included (x1,x2), `Excluded y when InfInt.equal x1 x2
         -> `Excluded (I.mul (x1,x1) y)
       | _ -> scheme2 I.mul (fun _ _ -> top ()) (fun _ _ -> top ()) x y
 
   let div = scheme2 I.div (fun _ _ -> top ()) (fun _ _ -> top ())
 
-  let neg (x:t) : t = 
+  let neg (x:t) : t =
     match x with
     | `Included x -> `Included (I.neg x)
     | `Excluded x -> `Excluded (I.neg x)
@@ -1678,25 +1678,25 @@ struct
   let lt = scheme2 I.lt (fun _ _ -> top ()) (fun _ _ -> top ())
   let ge = scheme2 I.ge (fun _ _ -> top ()) (fun _ _ -> top ())
   let gt = scheme2 I.gt (fun _ _ -> top ()) (fun _ _ -> top ())
-  
-  let eq (x:t) (y:t) : t =     
+
+  let eq (x:t) (y:t) : t =
     let eq i e = if I.leq i e then of_bool false else top () in
     match x, y with
-      | `Included x, `Included y 
-        -> begin match I.to_bool (I.eq x y) with 
+      | `Included x, `Included y
+        -> begin match I.to_bool (I.eq x y) with
             | Some x -> of_bool x
             | None -> top () end
       | `Excluded x, `Excluded y -> top ()
       | `Excluded x, `Included y -> eq x y
       | `Included x, `Excluded y -> eq y x
 
-  let ne (x:t) (y:t) : t =     
+  let ne (x:t) (y:t) : t =
     let ne i e = if I.leq i e then of_bool true else top () in
     match x, y with
-      | `Included x, `Included y 
-        -> begin match I.to_bool (I.ne x y) with 
+      | `Included x, `Included y
+        -> begin match I.to_bool (I.ne x y) with
             | Some x -> of_bool x
-            | None -> top () end 
+            | None -> top () end
       | `Excluded x, `Excluded y -> top ()
       | `Excluded x, `Included y -> ne x y
       | `Included x, `Excluded y -> ne y x
@@ -1706,19 +1706,19 @@ end
 
 (* BOOLEAN DOMAINS *)
 
-module type BooleansNames = 
+module type BooleansNames =
 sig
   val truename: string
   val falsename: string
 end
 
-module MakeBooleans (N: BooleansNames) = 
-struct 
+module MakeBooleans (N: BooleansNames) =
+struct
   include Printable.Std
   include Lattice.StdCousot
   type t = bool
   let hash = function true -> 51534333 | _ -> 561123444
-  let equal (x:t) (y:t) = x=y 
+  let equal (x:t) (y:t) = x=y
   let name () = "booleans"
   let cast_to_width x _ = x
   let copy x = x
@@ -1738,7 +1738,7 @@ struct
   let meet = (&&)
 
   let of_bool x = x
-  let to_bool x = if x then None else Some false 
+  let to_bool x = if x then None else Some false
   let is_bool x = not x
   let of_int x  = x = Int64.zero
   let to_int x  = if x then None else Some Int64.zero
@@ -1775,12 +1775,12 @@ struct
   let logand = (&&)
   let logor  = (||)
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 module Booleans = MakeBooleans (
-  struct 
-    let truename = "True" 
+  struct
+    let truename = "True"
     let falsename = "False"
   end)
 
@@ -1793,7 +1793,7 @@ let name () = "none"
 type t = unit
 let hash () = 101010
 let equal _ _ = true
-let copy x = () 
+let copy x = ()
 let top () = ()
 let is_top _ = true
 let bot () = ()
@@ -1846,7 +1846,7 @@ let minimal      x = None
   let logand n1 n2 = ()
   let logor  n1 n2 = ()
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
 
@@ -1859,10 +1859,10 @@ include Lattice.Prod (I1) (I2)
 
   let cast_to_width x _ = x
   let name () = I1.name () ^ " * " ^ I2.name ()
-  
+
   let equal (x1,x2) (y1,y2) =
     (I1.equal x1 y1 && I2.equal x2 y2)
-    
+
   let logor (x1,x2) (y1,y2) =
     (I1.logor x1 y1
     ,I2.logor x2 y2)
@@ -1954,15 +1954,15 @@ include Lattice.Prod (I1) (I2)
   let starting x =
     (I1.starting x
     ,I2.starting x)
-    
+
   let ending x =
     (I1.ending x
     ,I2.ending x)
-    
+
   let of_bool x =
     (I1.of_bool x
     ,I2.of_bool x)
-  
+
   let of_excl_list x =
     (I1.of_excl_list x
     ,I2.of_excl_list x)
@@ -1975,10 +1975,10 @@ include Lattice.Prod (I1) (I2)
     match I1.compare x1 y1 with
       | 0 -> I2.compare x2 y2
       | x -> x
-      
+
   let hash (x1,x2) = (I1.hash x1) lxor (I2.hash x2*33)
 
-  let minimal (x1, x2) = 
+  let minimal (x1, x2) =
     match I1.minimal x1 with
       | None -> I2.minimal x2
       | Some x1 ->
@@ -1986,7 +1986,7 @@ include Lattice.Prod (I1) (I2)
       | None -> Some x1
       | Some x2 -> Some (max x1 x2)
 
-  let maximal (x1, x2) = 
+  let maximal (x1, x2) =
     match I1.maximal x1 with
       | None -> I2.minimal x2
       | Some x1 ->
@@ -1994,40 +1994,40 @@ include Lattice.Prod (I1) (I2)
       | None -> Some x1
       | Some x2 -> Some (min x1 x2)
 
-  let to_int (x1, x2) = 
+  let to_int (x1, x2) =
     match I1.to_int x1 with
       | None -> I2.to_int x2
       | Some x1 ->
     match I2.to_int x2 with
       | None -> Some x1
       | Some x2 when Int64.compare x1 x2 == 0 -> Some x1
-      | Some x2 -> 
+      | Some x2 ->
         let msg = "Inconsistent state! "^(Int64.to_string x1)^" != "^(Int64.to_string x2) in
         Messages.warn_all msg; None
 
-  let to_bool (x1, x2) = 
+  let to_bool (x1, x2) =
     match I1.to_bool x1 with
       | None -> I2.to_bool x2
       | Some x1 ->
     match I2.to_bool x2 with
       | None -> Some x1
       | Some x2 when x1 == x2 -> Some x1
-      | Some x2 -> 
+      | Some x2 ->
         let msg = "Inconsistent state! "^(string_of_bool x1)^" != "^(string_of_bool x2) in
         Messages.warn_all msg; None
 
-  let to_excl_list (x1, x2) = 
+  let to_excl_list (x1, x2) =
     match I1.to_excl_list x1 with
       | None -> I2.to_excl_list x2
       | Some x1 ->
     match I2.to_excl_list x2 with
       | None -> Some x1
       | Some x2 -> Some (x1 @ x2)
-      
+
   let is_excl_list (x1,x2) = (I1.is_excl_list x1) || (I2.is_excl_list x2)
   let is_bool (x1,x2) = (I1.is_bool x1) || (I2.is_bool x2)
   let is_int (x1,x2) = (I1.is_int x1) || (I2.is_int x2)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
 end
 
@@ -2035,27 +2035,27 @@ module IntDomList : S =
 struct
   include Printable.Std
   exception IntDomListBroken
-  
+
   module I1 = Trier
   module I2 = Interval32
   module I3 = CircInterval
-  
+
   type e = Trier of I1.t
          | Interval of I2.t
          | CInterval of I3.t
-  
+
   type t = e list
-  
+
   (* constructors *)
-  
+
   let name () = I1.name ()
   let cast_to_width' x w =
     match x with
     | CInterval a -> CInterval (I3.cast_to_width a w)
     | _ -> x
-        
+
   let constr_scheme xs =
-    let f (s,g) y : t = 
+    let f (s,g) y : t =
       if get_bool ("ana.int."^s)
       then (g ()) :: y
       else y
@@ -2066,12 +2066,12 @@ struct
     [("trier"    ,fun () -> Trier    (I1.top ()))
     ;("interval" ,fun () -> Interval (I2.top ()))
     ;("cinterval",fun () -> CInterval (I3.top ()))]
-      
+
   let bot () = constr_scheme
     [("trier"    ,fun () -> Trier    (I1.bot ()))
     ;("interval" ,fun () -> Interval (I2.bot ()))
     ;("cinterval",fun () -> CInterval (I3.bot ()))]
-  
+
   let starting x = constr_scheme
     [("trier"    ,fun () -> Trier    (I1.starting x))
     ;("interval" ,fun () -> Interval (I2.starting x))
@@ -2081,12 +2081,12 @@ struct
     [("trier"   ,fun () -> Trier    (I1.ending x))
     ;("interval",fun () -> Interval (I2.ending x))
     ;("cinterval",fun () -> CInterval (I3.ending x))]
-    
+
   let of_bool x = constr_scheme
     [("trier"   ,fun () -> Trier    (I1.of_bool x))
     ;("interval",fun () -> Interval (I2.of_bool x))
     ;("cinterval",fun () -> CInterval (I3.of_bool x))]
-  
+
   let of_excl_list x = constr_scheme
     [("trier"   ,fun () -> Trier    (I1.of_excl_list x))
     ;("interval",fun () -> Interval (I2.of_excl_list x))
@@ -2096,9 +2096,9 @@ struct
     [("trier"   ,fun () -> Trier    (I1.of_int x))
     ;("interval",fun () -> Interval (I2.of_int x))
     ;("cinterval",fun () -> CInterval (I3.of_int x))]
-  
+
   (* element functions *)
-  
+
   let narrow' x y =
     match x, y with
       | Trier x, Trier y -> Trier (I1.narrow x y)
@@ -2119,7 +2119,7 @@ struct
       | Interval x -> I2.is_top x
       | CInterval x -> I3.is_top x
 (*      | _ -> raise IntDomListBroken*)
-  
+
   let is_bot' x =
     match x with
       | Trier x -> I1.is_bot x
@@ -2147,32 +2147,32 @@ struct
       | Interval x, Interval y -> I2.leq x y
       | CInterval x, CInterval y -> I3.leq x y
       | _ -> raise IntDomListBroken
-      
+
   let short' w x =
     match x with
       | Trier x -> I1.short w x
       | Interval x -> I2.short w x
       | CInterval x -> I3.short w x
 (*      | _ -> raise IntDomListBroken*)
-      
+
   let toXML_f' sf x =
     match x with
       | Trier x -> I1.toXML_f (fun w x -> sf w (Trier x)) x
       | Interval x -> I2.toXML_f (fun w x -> sf w (Interval x)) x
       | CInterval x -> I3.toXML_f (fun w x -> sf w (CInterval x)) x
 (*      | _ -> raise IntDomListBroken*)
-      
+
   let pretty_f' sf () x =
     match x with
       | Trier x -> I1.pretty_f (fun w x -> sf w (Trier x)) () x
       | Interval x -> I2.pretty_f (fun w x -> sf w (Interval x)) () x
       | CInterval x -> I3.pretty_f (fun w x -> sf w (CInterval x)) () x
 (*      | _ -> raise IntDomListBroken*)
-      
+
   let toXML' x = toXML_f' short' x
-      
+
   let pretty' x = pretty_f' short' x
-      
+
   let compare' x y =
     match x, y with
       | Trier x, Trier y -> I1.compare x y
@@ -2396,33 +2396,33 @@ struct
       | Interval x -> I2.is_int x
       | CInterval x -> I3.is_int x
 (*      | _ -> raise IntDomListBroken *)
-  
+
   (* list functions *)
-  
-  let logor       = List.map2 logor' 
-  let logand      = List.map2 logand' 
-  let lognot      = List.map lognot' 
-  let shift_right = List.map2 shift_right'                  
-  let shift_left  = List.map2 shift_left'                   
-  let bitxor      = List.map2 bitxor' 
-  let bitor       = List.map2 bitor'  
-  let bitand      = List.map2 bitand' 
-  let bitnot      = List.map bitnot' 
-  let ne  = List.map2 ne'     
-  let eq  = List.map2 eq'     
-  let ge  = List.map2 ge'     
-  let le  = List.map2 le'     
-  let gt  = List.map2 gt'     
-  let lt  = List.map2 lt'     
-  let rem = List.map2 rem'    
-  let div = List.map2 div'                          
-  let mul = List.map2 mul' 
-  let sub = List.map2 sub' 
-  let add = List.map2 add' 
-  let neg = List.map neg' 
-  let cast_to_width xs w = 
+
+  let logor       = List.map2 logor'
+  let logand      = List.map2 logand'
+  let lognot      = List.map lognot'
+  let shift_right = List.map2 shift_right'
+  let shift_left  = List.map2 shift_left'
+  let bitxor      = List.map2 bitxor'
+  let bitor       = List.map2 bitor'
+  let bitand      = List.map2 bitand'
+  let bitnot      = List.map bitnot'
+  let ne  = List.map2 ne'
+  let eq  = List.map2 eq'
+  let ge  = List.map2 ge'
+  let le  = List.map2 le'
+  let gt  = List.map2 gt'
+  let lt  = List.map2 lt'
+  let rem = List.map2 rem'
+  let div = List.map2 div'
+  let mul = List.map2 mul'
+  let sub = List.map2 sub'
+  let add = List.map2 add'
+  let neg = List.map neg'
+  let cast_to_width xs w =
     List.map (fun x -> cast_to_width' x w) xs
-  
+
   let minimal x =
     let max x y =
       match x, y with
@@ -2430,10 +2430,10 @@ struct
         | x   , None -> x
         | None,    y -> y
     in
-    match x with 
+    match x with
       | (x::y) -> List.fold_left (fun x y -> max x (minimal' y)) (minimal' x) y
       | _ -> None
-      
+
   let maximal x =
     let min x y =
       match x, y with
@@ -2443,24 +2443,24 @@ struct
     in
     match x with
       | (x::y) -> List.fold_left (fun x y -> min x (maximal' y)) (maximal' x) y
-      | _ -> None 
-      
+      | _ -> None
+
   let narrow = List.map2 narrow'
   let widen  = List.map2 widen'
   let meet   = List.map2 meet'
   let join= List.map2 join'
-  
-  let is_top = List.for_all is_top' 
-  let is_bot = List.for_all is_bot' 
-  let leq    = List.for_all2 leq' 
-    
-  let short _ x = 
+
+  let is_top = List.for_all is_top'
+  let is_bot = List.for_all is_bot'
+  let leq    = List.for_all2 leq'
+
+  let short _ x =
     match x with
       | [] -> ""
       | [x] -> short' 30 x
       | x::xs ->  List.fold_left (fun p n -> p ^ ";" ^ short' 30 n) (short' 30 x) xs
-  
-  let pretty_f _ () x = 
+
+  let pretty_f _ () x =
     match x with
       | [] -> text "()"
       | x :: [] -> pretty' () x
@@ -2476,36 +2476,36 @@ struct
       Xml.Element ("Leaf", [("text", esc (sf Goblintutil.summary_length x))], [])
 
   let toXML = toXML_f short
-  
+
   let compare =
     let f a x y =
-      if a == 0 
+      if a == 0
       then compare' x y
       else 0
     in
     List.fold_left2 f 0
-    
+
   let isSimple _ = true
-  let hash     = List.fold_left (fun x y -> x lxor (hash' y)) 0 
-  let equal    = List.for_all2 equal' 
+  let hash     = List.fold_left (fun x y -> x lxor (hash' y)) 0
+  let equal    = List.for_all2 equal'
 
   let is_excl_list = List.exists  is_excl_list'
   let is_bool = List.exists  is_bool'
   let is_int = List.exists  is_int'
 
-  let to_excl_list = 
+  let to_excl_list =
     let f x y =
-      match x with 
+      match x with
         | None -> to_excl_list' y
-        | Some x -> 
+        | Some x ->
       match to_excl_list' y with
         | None -> Some x
         | Some y -> Some (x @ y)
     in
-    List.fold_left f None 
-  
+    List.fold_left f None
+
   exception Inconsistent
-  
+
   let to_bool x =
     let f x y =
       match x with
@@ -2516,12 +2516,12 @@ struct
         | Some y when x == y -> Some x
         | Some y ->
           let msg = "Inconsistent state! "^(string_of_bool x)^" != "^(string_of_bool y) in
-          Messages.warn_all msg; 
+          Messages.warn_all msg;
           raise Inconsistent
     in
     try List.fold_left f None x
     with Inconsistent -> None
-    
+
   let to_int x =
     let f x y =
       match x with
@@ -2532,7 +2532,7 @@ struct
         | Some y when Int64.compare x y == 0 -> Some x
         | Some y ->
           let msg = "Inconsistent state! "^(Int64.to_string x)^" != "^(Int64.to_string y) in
-          Messages.warn_all msg; 
+          Messages.warn_all msg;
           raise Inconsistent
     in
     try List.fold_left f None x
@@ -2540,6 +2540,6 @@ struct
 
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x) 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
 end

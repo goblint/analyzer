@@ -19,7 +19,7 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
       | _, Bot w -> Bot w
       | Top w, _ -> Top w
       | _, Top w -> Top w
-      | Int(w0,a,b), Int(w1,c,d) -> 
+      | Int(w0,a,b), Int(w1,c,d) ->
           let w = max w0 w1 in
           Int (w, C.add w a c, C.add w b d);;
 
@@ -29,10 +29,10 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
       | _, Bot w -> Bot w
       | Top w, _ -> Top w
       | _, Top w -> Top w
-      | Int(w0,a,b), Int(w1,c,d) -> 
+      | Int(w0,a,b), Int(w1,c,d) ->
           let w = max w0 w1 in
           Int (w, C.sub w a d, C.sub w b c);;
-    
+
     (* Negation *)
     let neg x = sub (of_t (width x) C.zero C.zero) x;;
 
@@ -46,7 +46,7 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
       else 0;;
 
     let mul_u s t =
-      match s,t with 
+      match s,t with
       | Bot w, _ -> Bot w
       | _, Bot w -> Bot w
       | Top w, _ -> Top w
@@ -59,7 +59,7 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
     let mul_s s t =
       match s,t with
       | Bot w, _ -> Bot w
-      | _, Bot w -> Bot w 
+      | _, Bot w -> Bot w
       | Top w, _ -> Top w
       | _, Top w -> Top w
       | Int(w0,a,b), Int(w1,c,d) ->
@@ -79,16 +79,16 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
     let mul_us s t =
       intersect (mul_u s t) (mul_s s t);;
 
-    let mul s t = 
+    let mul s t =
       let spheres_s = cut_spheres s
       and spheres_t = cut_spheres t in
-      least_upper_bound 
+      least_upper_bound
         (max (width s) (width t))
-        (List.flatten 
+        (List.flatten
           (U.cartesian_map mul_us spheres_s spheres_t));;
 
     (* Division/Modulo
-     * Logic taken from C++ Code at 
+     * Logic taken from C++ Code at
      * http://code.google.com/p/wrapped-intervals/source/browse/trunk/lib/RangeAnalysis/WrappedRange.cpp *)
 
     (* NOTE 1: Evaluate if it really is enough to only look at the interval bounds
@@ -113,14 +113,14 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
       fun split_fn s t ->
         let w = max (width s) (width t) in
         if s = (zero_range w) then s
-        else if t = (zero_range w) then Top w 
+        else if t = (zero_range w) then Top w
         else
           let sp_s = split_fn s and sp_t = split_fn t in
           least_upper_bound w (U.cartesian_map (calc w) sp_s sp_t);;
 
     let div_s = calc_fn north_pole_split;;
     let div_u = calc_fn south_pole_split;;
-    
+
     (* Modulo *)
     let rem s t =
       let w = max (width s) (width t) in
@@ -129,21 +129,21 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
       | _, Bot _ -> Bot w
       | Int(_,a,b), Int(_,c,d) ->
           if (C.eq a b) && (C.eq c d)
-          then 
+          then
             let x = C.rem w a c in
             of_t w x x
           else Top w
       | _ -> Top w
-    
+
     (* Logical Operations (Section 3.2) *)
     let log_fn f =
       fun s t ->
-        let spheres_s = south_pole_split s 
+        let spheres_s = south_pole_split s
         and spheres_t = south_pole_split t in
         least_upper_bound
           (max (width s) (width t))
           (U.cartesian_map f spheres_s spheres_t);;
-    
+
     let logor = log_fn W.interval_or;;
     let logand = log_fn W.interval_and;;
     let logxor = log_fn W.interval_xor;;
@@ -158,7 +158,7 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
     let trunc s k =
       if k >= (width s)
       then s
-      else 
+      else
         match s with
         | Bot _ -> Bot k
         | Top _ -> Top k
@@ -167,12 +167,12 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
             and rb = C.arith_shift_right w b k
             and ta = trunc_t a k
             and tb = trunc_t b k in
-            if (C.eq ra rb) && (C.leq ta tb) then 
+            if (C.eq ra rb) && (C.leq ta tb) then
               (* higher bits match; a's lower bits are less than b's
                * -> possibly not Top *)
               of_t k ta tb
-            else 
-              if (C.eq (C.rem' (C.add' ra C.one) (C.top_value k)) rb) && (C.gt ta tb) then 
+            else
+              if (C.eq (C.rem' (C.add' ra C.one) (C.top_value k)) rb) && (C.gt ta tb) then
                 (* a's higher bits are one less than b's; a's lower ones are
                  * greater than b's -> possibly not Top *)
                 of_t k ta tb
@@ -187,7 +187,7 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
     let zero_bits_right w zeros =
       if zeros <= 0 then (C.max_value w)
       else if zeros >= w then C.zero
-      else C.wrap w (C.shift_left (C.max_value w) zeros);; 
+      else C.wrap w (C.shift_left (C.max_value w) zeros);;
 
     let shift_left_k s k =
       let w = (width s) in
@@ -196,9 +196,9 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
       else
         match s with
         | Bot w -> Bot w
-        | _ -> 
+        | _ ->
             let st = trunc s (w - k) in
-            match st with 
+            match st with
             | Int(_,a,b) -> of_t w (C.shift_left a k) (C.shift_left b k)
             | _ -> of_t w C.zero (zero_bits_right w k);;
 
@@ -206,39 +206,39 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
       let w = (width s) in
       if k >= w then of_t w C.zero C.zero
       else if k = 0 then s
-      else 
+      else
         let default_result = of_t w C.zero (one_bits_right w (w - k)) in
         match s with
         | Bot _ -> Bot w
         | Top _ -> default_result
-        | Int(_,a,b) -> 
+        | Int(_,a,b) ->
             if contains s (south_pole w) then
               default_result
             else
               of_t w (C.shift_right a k) (C.shift_right b k);;
-   
-    let arith_shift_right_k s k = 
-      (* NOTE: Why should (0111,1001) >>a 1 be Top? 
+
+    let arith_shift_right_k s k =
+      (* NOTE: Why should (0111,1001) >>a 1 be Top?
        * Arith. shift should probably create (1^(k+1)0^(w-k-1);
        * 0^(k+1)1^(w-k-1)) *)
       let w = (width s) in
       if k = 0 then s
       else
-        let default_result = 
-              of_t w 
-                (zero_bits_right w (w - k - 1)) 
+        let default_result =
+              of_t w
+                (zero_bits_right w (w - k - 1))
                 (one_bits_right w (w - k - 1)) in
         match s with
         | Bot _ -> Bot w
         | Top _ -> default_result
-        | Int(_,a,b) -> 
+        | Int(_,a,b) ->
             if contains s (north_pole w) then
               default_result
             else
               of_t w (C.arith_shift_right w a k) (C.arith_shift_right w b k);;
-    
+
     (* Variable Shifting (Section 3.2) *)
-    let variable_shift f s t = 
+    let variable_shift f s t =
       let w = max (width s) (width t) in
       let possible_ks = U.range w in
       match s,t with
@@ -246,8 +246,8 @@ module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
       | _, Bot _ -> Bot w
       | _ ->
           let ks =
-            match t with 
-            | Int(_,a,b) -> 
+            match t with
+            | Int(_,a,b) ->
                 List.filter
                   (fun k -> contains_element t (C.of_int w k))
                   possible_ks

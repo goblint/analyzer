@@ -18,20 +18,20 @@ val track_with_profile: unit -> unit
 val track_call : Cil.varinfo -> int -> unit
 (** *)
 
-val track_call_profile : unit -> unit 
+val track_call_profile : unit -> unit
 (** *)
 
 val show_subtask: string -> int -> unit
 (** change subtask *)
- 
+
 val show_worked: int -> unit
 (** show done work *)
 
-val show_add_work: int -> unit 
+val show_add_work: int -> unit
 (** add work to subtask *)
 
 val show_worked_buf: int -> unit
 (** show done work (buffered)*)
 
-val show_add_work_buf: int -> unit 
+val show_add_work_buf: int -> unit
 (** add work to subtask (buffered) *)

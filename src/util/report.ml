@@ -26,7 +26,7 @@ let do_stats fileNames =
   let path x = List.mem x sn in
   let sens x = if x then str "Sensitive" else str "Insensitive" in
   (*let yesno x = if x then str "Yes" else str "No" in
-  let intd = 
+  let intd =
     let tr = get_bool "ana.int.trier" in
     let inv = get_bool "ana.int.interval" in
     match tr, inv with
@@ -42,30 +42,30 @@ let do_stats fileNames =
       | xs::xss -> phase' (n+1) xss
     in
     phase' 1 an
-  in      
-  let phaseTbl = 
-    let f xs x = 
+  in
+  let phaseTbl =
+    let f xs x =
       let name = snd x in
-        match phase name with 
-            None -> xs 
-            | Some n -> (name, cont name, path name)::xs 
+        match phase name with
+            None -> xs
+            | Some n -> (name, cont name, path name)::xs
     in
-    List.fold_left f [] !MCP.analyses_table 
+    List.fold_left f [] !MCP.analyses_table
   in
   match get_bool "printstats", get_string "result" with
     | _ , "html" ->
       begin
-        let filesTable = 
+        let filesTable =
           tag "ol"
           begin
             let f pr fn =
-              let fn = Filename.basename fn in 
+              let fn = Filename.basename fn in
               if Sys.file_exists ("./" ^ report_dir ^ "/" ^ fn ^ ".html") then
                 pr <:> tag "li" (tag "a" ~tp:["href",fn^".html"] (str fn))
               else
                 pr <:> tag "li" (tag "span" ((str fn) <:> str " (no analysis information)"))
-            in 
-            List.fold_left f (fun _ -> ()) fileNames 
+            in
+            List.fold_left f (fun _ -> ()) fileNames
           end
         in
         let o = Legacy.open_out (Filename.concat "result" "index.html") in
@@ -73,9 +73,9 @@ let do_stats fileNames =
         let t = Unix.localtime (Unix.time ()) in
         let months = [| "Jan"; "Feb"; "Mar"; "Apr"; "May"; "Jun";
                         "Jul"; "Aug"; "Sep"; "Oct"; "Nov"; "Dec" |] in
-        newfile o 
+        newfile o
         begin
-          tag "head" 
+          tag "head"
           begin
             tag "title" (str "Goblint Report") <:>
             tag "meta" ~tp:["http-equiv","Content-Type";"content","text/html; charset=utf-8"] (str "") <:>
@@ -95,41 +95,41 @@ let do_stats fileNames =
                     begin
                       table' ~tp:["class","amenu";"width","100%"] ~rp:[["width","1%"]]
                         [ [ tag "h5" ~tp:["class","toggle_ttl";"title","ana"] (str "Enabled&nbsp;Analyses")
-                          ; table ~tp:["id","ana"] 
+                          ; table ~tp:["id","ana"]
                             ( [str "Analysis"; str "Context"; str "Path"]
-                            ::List.map (fun (x,c,p) -> [str x; sens c; sens p] ) phaseTbl) 
+                            ::List.map (fun (x,c,p) -> [str x; sens c; sens p] ) phaseTbl)
                           ]
                         ; [ tag "h5" ~tp:["class","toggle_ttl off";"title","detail"] (str "Details")
                           ; tag "pre" ~tp:["class","prettyprint";"id","detail"] (fun c -> GobConfig.print (IO.output_channel c))
                           ]
                         ]
                     end]
-                ; [ tag "h3" ~tp:["class","toggle_ttl off";"title","stats"] (str "Stats") 
+                ; [ tag "h3" ~tp:["class","toggle_ttl off";"title","stats"] (str "Stats")
                   ; tag "pre" ~tp:["id","stats"] (fun c -> Stats.print c "Timings:\n\n") ]
-                ; [ tag "h3" ~tp:["class","toggle_ttl off";"title","vers"] (str "Version") 
+                ; [ tag "h3" ~tp:["class","toggle_ttl off";"title","vers"] (str "Version")
                   ; tag "div" ~tp:["id","vers"]
                     begin
                       let f b = if b then "enabled" else "disabled" in
-                      table 
+                      table
                       [[str "Component"   ; str "Version"]
                       ;[str "Goblint"     ; str Version.goblint]
                       ;[str "Cil"         ; str Version.cil]
                       ]<:>
-                      table 
+                      table
                       [[str "Goblint Build Option"; str "Status"]
                       ;[str "Tracing"     ; str (f Config.tracing)]
                       ;[str "Tracking"    ; (fun c -> Legacy.Printf.fprintf c "%s (n=%d)" (f Config.tracking) Config.track_n)]
                       (*;[str "Experimental"; str (f Config.experimental)]*)
                       ]
-                    end] 
+                    end]
                 ]
             end
           end
           <:> tag "script" ~tp:["src","https://google-code-prettify.googlecode.com/svn/loader/run_prettify.js"] (fun c -> ())
           <:> tag "div"~tp:["id","date"]
-                (fun c -> Legacy.Printf.fprintf c "generated on %02d %s %04d.\n" 
-                                (t.Unix.tm_mday) months.(t.Unix.tm_mon) (1900+t.Unix.tm_year))         
-        end 
+                (fun c -> Legacy.Printf.fprintf c "generated on %02d %s %04d.\n"
+                                (t.Unix.tm_mday) months.(t.Unix.tm_mon) (1900+t.Unix.tm_year))
+        end
       end
     | true, _ ->
       ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);

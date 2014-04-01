@@ -2,7 +2,7 @@
 
 module type S =
 sig
-  module Val: Lattice.S 
+  module Val: Lattice.S
   module Var :
   sig
     include Hashtbl.HashedType
@@ -13,8 +13,8 @@ sig
 end
 
 
-module Make (G: Lattice.S) = 
-struct 
+module Make (G: Lattice.S) =
+struct
   module Val = G
   module Var = Basetype.Variables
 end
@@ -26,7 +26,7 @@ struct
 
   (* Function that merges the side_effects by pairing them with the bottom value
    * of the other domain. *)
-  let merge_effects gd1 gd2 = 
+  let merge_effects gd1 gd2 =
     let gd1 = List.map (fun (g,x) -> (g,(x,G2.Val.bot ()))) gd1 in
     let gd2 = List.map (fun (g,x) -> (g,(G1.Val.bot (), x))) gd2 in
       gd1 @ gd2

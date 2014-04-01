@@ -11,13 +11,13 @@ let current_loc = ref locUnknown
 let next_loc    = ref locUnknown
 let trace_sys = ref Strs.empty
 let activated = ref Strs.empty
-let active_dep = Hashtbl.create 9 
+let active_dep = Hashtbl.create 9
 let tracevars = ref ([]: string list)
 let tracelocs = ref ([]: int list)
 
 let addsystem sys = trace_sys := Strs.add sys !trace_sys
-let activate (sys:string) (subsys: string list): unit = 
-  let subs = List.fold_right Strs.add subsys (Strs.add sys Strs.empty) in 
+let activate (sys:string) (subsys: string list): unit =
+  let subs = List.fold_right Strs.add subsys (Strs.add sys Strs.empty) in
     activated := Strs.union !activated subs;
     Hashtbl.add active_dep sys subs
 let deactivate (sys:string): unit =
@@ -32,26 +32,26 @@ let mygprintf (format : ('a, unit, doc, 'b) format4) : 'a =
   let format = (Obj.magic format : string) in
   let flen    = String.length format in
   let fget    = String.unsafe_get format in
-  let rec literal acc i = 
-    let rec skipChars j = 
+  let rec literal acc i =
+    let rec skipChars j =
       if j >= flen || (match fget j with '%' | '@' | '\n' -> true | _ -> false) then
         collect nil j
       else
         skipChars (succ j)
     in
     skipChars (succ i)
-  and collect (acc: doc) (i: int) = 
+  and collect (acc: doc) (i: int) =
     if i >= flen then begin
-      Obj.magic (()) 
+      Obj.magic (())
     end else begin
       let c = fget i in
       if c = '%' then begin
         let j = skip_args (succ i) in
         match fget j with
-          '%' -> literal acc j 
+          '%' -> literal acc j
 	| ',' -> collect acc (succ j)
         | 's' | 'c' | 'd' | 'i' | 'o' | 'x' | 'X' | 'u'
-        | 'f' | 'e' | 'E' | 'g' | 'G' | 'b' | 'B' -> 
+        | 'f' | 'e' | 'E' | 'g' | 'G' | 'b' | 'B' ->
             Obj.magic(fun b -> collect nil (succ j))
 	| 'L' | 'l' | 'n' -> Obj.magic(fun n -> collect nil (succ (succ j)))
         | 'a' -> Obj.magic(fun pprinter arg -> collect nil (succ j))
@@ -81,14 +81,14 @@ let traceTag (sys : string) : Pretty.doc =
   let rec ind (i : int) : string = if (i <= 0) then "" else " " ^ (ind (i-1)) in
     (text ((ind !indent_level) ^ "%%% " ^ sys ^ ": "))
 
-let printtrace sys d: unit = 
-  fprint stderr 80 ((traceTag sys) ++ d); 
-  flush stderr 
+let printtrace sys d: unit =
+  fprint stderr 80 ((traceTag sys) ++ d);
+  flush stderr
 
-let gtrace always f sys var ?loc do_subsys fmt = 
-  let cond = 
+let gtrace always f sys var ?loc do_subsys fmt =
+  let cond =
     (Strs.mem sys !activated || always && Strs.mem sys !trace_sys) &&
-    match var,loc with 
+    match var,loc with
       | Some s, Some l -> (!tracevars = [] || List.mem s !tracevars) &&
                           (!tracelocs = [] || List.mem l !tracelocs)
       | Some s, None   -> (!tracevars = [] || List.mem s !tracevars)
@@ -103,30 +103,30 @@ let gtrace always f sys var ?loc do_subsys fmt =
 
 let trace sys ?var fmt = gtrace true printtrace sys var (fun x -> x) fmt
 
-let tracel sys ?var fmt = 
+let tracel sys ?var fmt =
   let loc = !current_loc in
-  let docloc sys doc = 
+  let docloc sys doc =
     printtrace sys (dprintf "(%s:%d)@?" loc.file loc.line ++ indent 2 doc);
   in
     gtrace true docloc sys var ~loc:loc.line (fun x -> x) fmt
 
-let tracei (sys:string) ?var ?(subsys=[]) fmt =  
+let tracei (sys:string) ?var ?(subsys=[]) fmt =
   let f sys d = printtrace sys d; traceIndent () in
   let g () = activate sys subsys in
     gtrace true f sys var g fmt
 
 let tracec sys fmt = gtrace false printtrace sys None (fun x -> x) fmt
 
-let traceu sys fmt =  
+let traceu sys fmt =
   let f sys d = printtrace sys d; traceOutdent () in
   let g () = deactivate sys in
     gtrace false f sys None g fmt
 
 
-let traceli sys ?var ?(subsys=[]) fmt = 
+let traceli sys ?var ?(subsys=[]) fmt =
   let loc = !current_loc in
   let g () = activate sys subsys in
-  let docloc sys doc: unit = 
+  let docloc sys doc: unit =
     printtrace sys (dprintf "(%s:%d)" loc.file loc.line ++ indent 2 doc);
     traceIndent ()
   in

@@ -3,7 +3,7 @@ open Pretty
 open Num
 
 (** General json exceprion *)
-exception JsonE of string 
+exception JsonE of string
 
 (** An json object -- this is just a map from strings *)
 module Object = BatMap.Make (String)
@@ -29,10 +29,10 @@ let rec printJson' ch = function
   | True     -> BatPrintf.fprintf ch "true"
   | False    -> BatPrintf.fprintf ch "false"
   | Null     -> BatPrintf.fprintf ch "null"
-  
+
 and print_object ch = function
   | m when Object.is_empty m -> BatPrintf.fprintf ch "{}"
-  | m -> 
+  | m ->
       let prnt_str ch (x:string) = BatPrintf.fprintf ch "%S" x in
       let ident ch = for i = 1 to !identCount do BatPrintf.fprintf ch " " done in
       let n, i = Object.cardinal m, ref 1 in
@@ -46,12 +46,12 @@ and print_object ch = function
       Object.iter print_one m;
       identCount := !identCount - 2;
       BatPrintf.fprintf ch "%t}" ident
-  
-let printJson ch m = 
+
+let printJson ch m =
   identCount := 0;
   printJson' ch m;
   identCount := 0
-  
+
 (** {3 Pretty style printing. } *)
 
 
@@ -64,19 +64,19 @@ let rec prettyJson () = function
   | False -> text "false"
   | Null  -> text "null"
 
-and pretty_of_array = function 
+and pretty_of_array = function
   | [] -> text "[]"
-  | x::xs -> List.fold_left (fun xs x -> xs ++ text ", " ++ prettyJson () !x) 
+  | x::xs -> List.fold_left (fun xs x -> xs ++ text ", " ++ prettyJson () !x)
                 (text "[ " ++ prettyJson () !x) xs ++ text " ]"
 
 and pretty_of_object = function
   | m when Object.is_empty m -> text "{}"
-  | m -> 
+  | m ->
     let xs = Object.fold (fun k v o -> (text"\""++text k++text"\":"++prettyJson () !v)::o) m [] in
     break++align++text"{ " ++ seq (line++text", ") (fun x -> x) xs ++text"\n}"++unalign
 
 
-let jsonString x = sprint 40 (prettyJson () x) 
+let jsonString x = sprint 40 (prettyJson () x)
 
 (** {3 Helper functions } *)
 
@@ -107,13 +107,13 @@ let bool = function
   | o -> raise (JsonE ("Json Error: '"^jsonString o^"' not an boolean."))
 
 (** Select a field from an object. *)
-let field v f = 
+let field v f =
   try Object.find f !v
   with Not_found -> raise (JsonE ("Json Error: field '" ^f^ "' is not contained in object: '"^jsonString (Object v)^"'."))
-  
+
 (** Call to [merge x y] returns a [jvalue]  where [x] is updated with values in [y] *)
 let rec merge (x:jvalue) (y:jvalue) : jvalue =
-  match x, y with 
+  match x, y with
     | Object m1, Object m2 ->
         let merger k v1 v2 =
           match v1, v2 with
@@ -126,40 +126,39 @@ let rec merge (x:jvalue) (y:jvalue) : jvalue =
         Object (ref nm)
     | Array l1, Array l2 ->
         let rec zipWith' x y : jvalue ref list =
-          match x, y with 
+          match x, y with
             | x::xs, y::ys    -> (ref (merge !x !y)) :: zipWith' xs ys
             | [], xs | xs, [] -> y
         in
         Array (ref (zipWith' !l1 !l2))
     | _ -> y
-  
+
 (** Json value generation. Added for compatibility with the old library. *)
 module Build = (* backward compatibility *)
 struct
   (** Generate an object form a assoc. list *)
-  let objekt o = 
+  let objekt o =
     let rec objekt' = function
       | [] -> Object.empty
       | (k,v)::xs -> Object.add k (ref v) (objekt' xs)
-    in 
+    in
     Object (ref (objekt' o))
-  
+
   (** Generate a boolean value. *)
   let bool = function
     | true  -> True
     | false -> False
 
   (** Generate a string value. *)
-  let string x = String x 
+  let string x = String x
   (** Generate a int value. *)
-  let number n = Number (num_of_int n) 
+  let number n = Number (num_of_int n)
   (** Generate a array value. *)
   let array x = Array (ref (List.map ref x))
-  (** Generate a null. *)  
+  (** Generate a null. *)
   let null = Null
 end
 
 (** Write a json value to a file. *)
-let save_json fn j = 
+let save_json fn j =
   BatFile.with_file_out fn (fun c -> printJson c j)
-  

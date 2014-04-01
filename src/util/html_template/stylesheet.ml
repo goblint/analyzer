@@ -1,4 +1,4 @@
-let css_string = 
+let css_string =
 "
 html , body {
   font-family:Georgia,Serif;
@@ -13,8 +13,8 @@ table {
 }
 
 /* header style */
-th { 
-  vertical-align: top; 
+th {
+  vertical-align: top;
   padding:4pt;
   background-color:rgb(155,206,233) ;
   border-bottom:1px solid #000;
@@ -82,7 +82,7 @@ th.line {
   border-radius:10pt;
   top:20%;
   right:0px;
-  position:absolute;  
+  position:absolute;
   z-index:2  ;
   width:40%;
   height:60%;

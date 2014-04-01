@@ -2,7 +2,7 @@
   open Big_int
   open Json
   open JsonParser
-  
+
 }
 
 let nl = '\r'?'\n'
@@ -11,7 +11,7 @@ let multlinecomment = "/*"([^'*']|('*'+[^'*''/'])|nl)*'*'+'/'
 let comments = endlinecomment|multlinecomment
 
 rule token = parse
-  | ['\t' '\n' '\r' ' '   ] { token lexbuf }	
+  | ['\t' '\n' '\r' ' '   ] { token lexbuf }
   | comments		            { token lexbuf }
   | "true"                  { TRUE   }
   | "false"                 { FALSE  }
@@ -31,4 +31,3 @@ rule token = parse
       { NUMBER (Num.num_of_string (Lexing.lexeme lexbuf)) }
   | _ as c { Printf.printf "Unrecognized character: %C\n" c; raise (Failure "") }
 
-  

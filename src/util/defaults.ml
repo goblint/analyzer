@@ -11,14 +11,14 @@ type category = Std           (** Parsing input, includes, standard stuff, etc. 
               | Analyses      (** Analyses                                      *)
               | Experimental  (** Experimental features of analyses             *)
               | Debugging     (** Debugging, tracing, etc.                      *)
-  
+
 (** Description strings for categories. *)
 let catDescription = function
   | Std          -> "Standard options for configuring input/output"
   | Analyses     -> "Options for analyses"
   | Experimental -> "Experimental features"
   | Debugging    -> "Debugging options"
-  
+
 (** A place to store registered varibles *)
 let registrar = ref []
 
@@ -32,7 +32,7 @@ let rec assoc_all k = function
   | [] -> []
   | (x1,x2)::xs when k=x1 -> x2 :: assoc_all k xs
   | _::xs -> assoc_all k xs
-  
+
 (** Prints out all registered options with descriptions and defaults for one category. *)
 let printCategory ch k =
   let print_one (n,(desc,def)) =
@@ -77,7 +77,7 @@ let _ =
   reg Std "nonstatic"       "false"        "Analyzes all non-static functions.";
   reg Std "colors"          "false"        "Colored output.";
   reg Std "g2html"          "false"        "Run g2html.jar on the generated xml."
-                                               
+
 (* {4 category [Analyses]} *)
 
 let _ =
@@ -85,7 +85,7 @@ let _ =
 
   reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','depmutex','malloc_null','uninit']"  "List of path-sensitive analyses";
   reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses";
-  
+
   reg Analyses "ana.warnings"        "false" "Print soundness warnings.";
   reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class.";
   reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required).";
@@ -116,7 +116,7 @@ let _ =
   reg Analyses "ana.arinc.dot"       "false" "Save dot graph for ARINC calls?";
   reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?";
   reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
-  
+
 (* {4 category [Experimental]} *)
 
 let _ =
@@ -153,7 +153,7 @@ let _ =
   reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists.";
   reg Experimental "exp.g2html_path"       "'.'"   "Location of the g2html.jar file.";
   reg Experimental "questions.file"        ""      "Questions database file"
-  
+
 (* {4 category [Debugging]} *)
 
 let _ =
@@ -171,32 +171,32 @@ let _ =
   reg Debugging "dbg.solver-progress" "false" "Used for debugging. Prints out a symbol on solving a rhs.";
   reg Debugging "dbg.debug-sockets"   "null"  "Eclipse debugger plugin support.";
   reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
-  
 
-  
+
+
 let default_schema =
 "
 { 'id'              : 'root'
 , 'type'            : 'object'
 , 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
 , 'additionalProps' : false
-, 'properties' : 
-  { 'ana' : 
+, 'properties' :
+  { 'ana' :
     { 'type'            : 'object'
     , 'additionalProps' : true
     , 'required'        : []
     }
-  , 'exp' : 
+  , 'exp' :
     { 'type'            : 'object'
     , 'additionalProps' : true
     , 'required'        : []
     }
-  , 'dbg' : 
+  , 'dbg' :
     { 'type'            : 'object'
     , 'additionalProps' : true
     , 'required'        : []
     }
-  , 'questions' : 
+  , 'questions' :
     { 'file'            : ''
     }
   , 'outfile'         : {}
@@ -220,7 +220,7 @@ let default_schema =
   , 'cppflags'        : {}
   , 'kernel'          : {}
   , 'dump_globs'      : {}
-  , 'result'          : 
+  , 'result'          :
     { 'type'            : 'string'
     }
   , 'solver'          : {}
@@ -234,6 +234,6 @@ let default_schema =
 }"
 
 
-let _ = 
+let _ =
   let v = JsonParser.value JsonLexer.token @@ Lexing.from_string default_schema in
   GobConfig.addenum_sch v

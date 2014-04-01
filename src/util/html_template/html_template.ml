@@ -1,5 +1,5 @@
 
-let htmlTemp_BasePartOne = 
+let htmlTemp_BasePartOne =
 "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">
 <head>
   <title>%filename%</title>
@@ -22,7 +22,7 @@ let htmlTemp_BasePartOne =
       <div style=\"clear: both;\"></div>
     </div>
     <div id=\"leftWindowContent\" >
-      <div id=\"analysisbox\" style=\"width: 100%; height: 100%;\">      
+      <div id=\"analysisbox\" style=\"width: 100%; height: 100%;\">
         <div id=\"analysis_noselection\">
           No line selected
         </div>
@@ -32,7 +32,7 @@ let htmlTemp_BasePartOne =
       <div id=\"declsbox\" style=\"display: none;\">
 ";;
 
-let htmlTemp_BasePartOneSecond = 
+let htmlTemp_BasePartOneSecond =
 "    </div>
     <div id=\"globalsbox\" style=\"display: none; width: 100%; height: 100%; overflow: scroll;\">
 ";;
@@ -51,14 +51,14 @@ let htmlTemp_BasePartOneThird = "</div>
       <div id=\"codelineBox\">
 ";;
 
-let htmlTemp_BasePartOneForth = 
+let htmlTemp_BasePartOneForth =
 "        <div id=\"lastline\" class=\"linetype0\" style=\"border-top: 1px solid #C0C0C0;\"><pre></pre></div>
       </div>
     </div>
     <div id=\"warningListBox\" style=\"display: none;\">
 ";;
 
-let htmlTemp_BasePartOneFifth = 
+let htmlTemp_BasePartOneFifth =
 "    </div>
     <div id=\"deadcodeListBox\" style=\"display: none;\">
 ";;
@@ -77,7 +77,7 @@ let htmlTemp_BasePartTwo =
     <div id=\"bottomWindowContent\" class=\"mywindow_content\">
 ";;
 
-let htmlTemp_BasePartThree = 
+let htmlTemp_BasePartThree =
 "    </div>
   </div>
 </body>

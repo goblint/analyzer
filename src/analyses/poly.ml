@@ -16,15 +16,15 @@ struct
   module D = D
   module G = Lattice.Unit
   module C = D
-  
+
   let val_of x = x
   let context x = x
-  
-  let otherstate _ = D.top ()       
-  let exitstate  _ = D.top ()      
-  let startstate _ = D.top ()       
-  
-  let enter ctx r f args = 
+
+  let otherstate _ = D.top ()
+  let exitstate  _ = D.top ()
+  let startstate _ = D.top ()
+
+  let enter ctx r f args =
     if D.is_bot ctx.local then [ctx.local, D.bot ()] else
     let f = Cilfacade.getdec f in
     let is, fs = D.typesort f.sformals in
@@ -37,10 +37,10 @@ struct
     D.forget_all_with newd (List.map (fun (x,_) -> x.vname) arith_formals);
     List.iter  (fun (v,_)   -> D.assign_var_eq_with newd v.vname (v.vname^"'")) arith_formals;
     D.remove_all_but_with newd (is@fs);
-    [ctx.local, newd]  
-  
-  
-  let combine ctx r fe f args d = 
+    [ctx.local, newd]
+
+
+  let combine ctx r fe f args d =
     if D.is_bot ctx.local || D.is_bot d then D.bot () else
     let f = Cilfacade.getdec f in
     match r with
@@ -60,24 +60,24 @@ struct
         D.remove_all_with nd' ["#ret"];
         A.unify Man.mgr nd nd'
       | _ -> D.topE (A.env ctx.local)
-      
-  let special ctx r f args = 
+
+  let special ctx r f args =
     if D.is_bot ctx.local then D.bot () else
     D.topE (A.env ctx.local)
-  
-  let branch ctx e b = 
+
+  let branch ctx e b =
     if D.is_bot ctx.local then D.bot () else
-    D.assert_inv ctx.local e b 
-    
-  let return ctx e f = 
+    D.assert_inv ctx.local e b
+
+  let return ctx e f =
     if D.is_bot ctx.local then D.bot () else
-    match e with 
-      | Some e when isArithmeticType (typeOf e) -> 
+    match e with
+      | Some e when isArithmeticType (typeOf e) ->
           let nd =
             if isIntegralType (typeOf e) then
-              D.add_vars ctx.local (["#ret"],[]) 
-            else 
-              D.add_vars ctx.local (["#ret"],[]) 
+              D.add_vars ctx.local (["#ret"],[])
+            else
+              D.add_vars ctx.local (["#ret"],[])
           in
           D.assign_var_with nd "#ret" e;
           let vars = List.filter (fun x -> isArithmeticType x.vtype) (f.slocals @ f.sformals) in
@@ -86,18 +86,18 @@ struct
           nd
       | Some e -> ctx.local
       | None -> D.topE (A.env ctx.local)
-  
-  let body ctx f = 
+
+  let body ctx f =
     if D.is_bot ctx.local then D.bot () else
     let vars = D.typesort f.slocals in
     D.add_vars ctx.local vars
-    
-  let assign ctx (lv:lval) e = 
+
+  let assign ctx (lv:lval) e =
     if D.is_bot ctx.local then D.bot () else
     match lv with
       | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) -> D.assign_var ctx.local v.vname e
       | _ -> D.topE (A.env ctx.local)
 end
 
-let _ = 
+let _ =
   MCP.register_analysis (module Spec : Spec)

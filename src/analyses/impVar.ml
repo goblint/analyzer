@@ -14,31 +14,31 @@ struct
   module D = Lattice.Unit
   module G = LS
   module C = Lattice.Unit
-  
-  let get_deps ctx (v,os) = 
+
+  let get_deps ctx (v,os) =
     match ctx.ask (Queries.VariableDeps (Var v, os)) with
       | `Bot -> LS.bot ()
       | `LvalSet ls -> ls
       | _ -> LS.top ()
 
-  let add_var ctx (v,os) = 
+  let add_var ctx (v,os) =
     (* Printf.printf "%s is important too!\n" v.vname; *)
     let ls = LS.add (v,LV.of_ciloffs os) (get_deps ctx (v,os)) in
     LS.iter (fun (v,os) -> ctx.sideg v (LS.singleton (v,os))) ls
-    
-  let os_leq (_,o1) (_,o2) = 
-    let rec leq o1 o2 = 
+
+  let os_leq (_,o1) (_,o2) =
+    let rec leq o1 o2 =
       match o1, o2 with
         | _, `NoOffset -> true
         | `Index (i,os), `Index (i',os') -> Expcompare.compareExp   i i' && leq os os'
         | `Field (f,os), `Field (f',os') -> Basetype.CilField.equal f f' && leq os os'
-        | _ -> false 
+        | _ -> false
     in
     leq o1 o2
-  
+
   let is_important ctx (v,os) =
     LS.exists (os_leq (v,os)) (ctx.global v)
-    
+
   let rec lval_write = function
     | (Mem e,_) -> rval_deref e
     | (Var v,_) -> LS.bot ()
@@ -48,16 +48,16 @@ struct
     | (Var v,os) -> LS.singleton (v, VarDep.Spec.offset os)
 
   and rval_deref = function
-    | Lval ls              -> lval_deref ls  
+    | Lval ls              -> lval_deref ls
     | UnOp (op,e,_)        -> rval_deref e
     | BinOp (op,e1,e2,_)   -> LS.join (rval_deref e1) (rval_deref e2)
     | CastE (_,e)          -> rval_deref e
     | Question (e,e1,e2,_) -> LS.join (rval_deref e1) (rval_deref e2)
-    | Const _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ | AddrOf _ | StartOf _ | AddrOfLabel _        
+    | Const _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ | AddrOf _ | StartOf _ | AddrOfLabel _
         -> LS.empty ()
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t = 
+  let assign ctx (lval:lval) (rval:exp) : D.t =
     let ls = lval_write lval in
     LS.iter (fun (v,os) -> add_var ctx (v, LV.to_ciloffs os)) ls
   let branch ctx (exp:exp) (tv:bool) : D.t = ()
@@ -73,16 +73,16 @@ struct
   let startstate v = D.bot ()
   let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
-  
-  let query ctx = function 
+
+  let query ctx = function
     | Queries.IsImportant (Var v, os) -> `Bool (is_important ctx (v, LV.of_ciloffs os))
-    | Queries.SetImportant e -> 
+    | Queries.SetImportant e ->
         let ls = VarDep.Spec.eval_rval_shallow e in
-        LS.iter (fun (v,os) -> add_var ctx (v, LV.to_ciloffs os)) ls; 
+        LS.iter (fun (v,os) -> add_var ctx (v, LV.to_ciloffs os)) ls;
         `Bot
     | _ -> Queries.Result.top ()
-  
+
 end
 
-let _ = 
+let _ =
   MCP.register_analysis (module Spec : Spec)

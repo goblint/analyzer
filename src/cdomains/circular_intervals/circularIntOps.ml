@@ -50,7 +50,7 @@ module type CircularIntOps =
     val to_int64 : int -> t -> int64
     val of_string : int -> string -> t
     val to_string : int -> t -> string
-    
+
     (* Circle Constants *)
     val max_value : int -> t
     val top_value : int -> t
@@ -108,22 +108,22 @@ module CircularInt (I : IntOps) : CircularIntOps with type t = I.t =
     let leq a b = (compare a b) <= 0;;
     let geq a b = (compare a b) >= 0;;
     let top_range w a b = eq (inc w b) a;;
-    
+
     (* Bitwise *)
     let shift_left a b = I.shift_left a b;;
-    let shift_right a b = I.shift_right a b;; 
+    let shift_right a b = I.shift_right a b;;
     let logand a b = I.logand a b;;
     let logor a b = I.logor a b;;
     let lognot w x = wrap w (I.lognot x);;
-    
+
     (* Min/Max *)
     let min xs =
-      List.fold_left 
+      List.fold_left
         (fun m x -> if lt x m then x else m)
         (List.hd xs) xs;;
 
     let max xs =
-      List.fold_left 
+      List.fold_left
         (fun m x -> if gt x m then x else m)
         (List.hd xs) xs;;
 
@@ -136,7 +136,7 @@ module CircularInt (I : IntOps) : CircularIntOps with type t = I.t =
       | Some min, Some max -> (leq x max) && (geq x min);;
 
     (* Arithmetic Shifting *)
-    let arith_shift_right w x k = 
+    let arith_shift_right w x k =
       let n = shift_right (max_value w) 1 in
       if leq x n
       then shift_right x k

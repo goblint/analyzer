@@ -67,7 +67,7 @@ module NIntOps : IntOps with type t = int =
     let logor = (lor);;
     let lognot = (lnot);;
 
-    let compare = (compare);;    
+    let compare = (compare);;
     let top_range a b = (a = min_int) && (b = max_int);;
 
     let of_int x = x;;
@@ -148,7 +148,7 @@ module BigIntOps : IntOps with type t = Big_int.big_int =
   struct
     type t = Big_int.big_int;;
     let zero = Big_int.zero_big_int;;
-    let one = Big_int.unit_big_int;; 
+    let one = Big_int.unit_big_int;;
     let upper_bound = None;;
     let lower_bound = None;;
 

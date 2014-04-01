@@ -4,13 +4,13 @@ open GobConfig
 
 module GU = Goblintutil
 module V = Basetype.Variables
-module B = Printable.UnitConf (struct let name = "•" end) 
+module B = Printable.UnitConf (struct let name = "•" end)
 module F = Lval.Fields
 
-module VF = 
+module VF =
 struct
   include Printable.ProdSimple (V) (F)
-  let short w (v,fd) = 
+  let short w (v,fd) =
     let v_str = V.short w v in let w = w - String.length v_str in
     let fd_str = F.short w fd in
       v_str ^ fd_str
@@ -27,23 +27,23 @@ struct
   let replace x exp (v,fd) = v, F.replace x exp fd
 end
 
-module VFB = 
+module VFB =
 struct
   include Printable.Either (VF) (B)
 
-  let collapse (x:t) (y:t): bool = 
+  let collapse (x:t) (y:t): bool =
     match x,y with
       | `Right (), `Right () -> true
       | `Right (), _ | _, `Right () -> false
       | `Left x, `Left y -> VF.collapse x y
 
-  let leq x y = 
+  let leq x y =
     match x,y with
       | `Right (), `Right () -> true
       | `Right (), _ | _, `Right () -> false
       | `Left x, `Left y -> VF.leq x y
 
-  let join (x:t) (y:t) :t = 
+  let join (x:t) (y:t) :t =
     match x,y with
       | `Right (), _ -> `Right ()
       | _, `Right () -> `Right ()
@@ -75,11 +75,11 @@ module RS = struct
     cardinal rs = 1 &&
     has_bullet rs
 
-  let to_vf_list s = 
+  let to_vf_list s =
     let lst = elements s in
-    let f x acc = match x with 
+    let f x acc = match x with
       | `Left vf -> vf :: acc
-      | `Right () -> acc 
+      | `Right () -> acc
     in
       List.fold_right f lst []
 
@@ -87,28 +87,28 @@ module RS = struct
   let replace x exp s = map (VFB.replace x exp) s
 end
 
-module RegPart = struct 
+module RegPart = struct
   include PartitionDomain.Make  (RS)
-  let real_region r = 
-    RS.cardinal r > 1 || try VFB.real_region (RS.choose r) 
+  let real_region r =
+    RS.cardinal r > 1 || try VFB.real_region (RS.choose r)
       with Not_found -> false
 
   let add r p = if real_region r then add r p else p
 end
 module RegMap = MapDomain.MapBot (VF) (RS)
 
-module Reg = 
-struct 
-  include Lattice.Prod (RegPart) (RegMap) 
+module Reg =
+struct
+  include Lattice.Prod (RegPart) (RegMap)
   type set = RS.t
   type elt = VF.t
-  
+
   let closure p m = RegMap.map (RegPart.closure p) m
 
   let is_global (v,fd) = v.vglob
 
   let remove v (p,m) = p, RegMap.remove (v,[]) m
-  let remove_vars (vs: varinfo list) (cp:t): t = 
+  let remove_vars (vs: varinfo list) (cp:t): t =
     List.fold_right remove vs cp
 
   let kill x (p,m:t): t =
@@ -120,38 +120,38 @@ struct
     RegPart.map (RS.replace x exp) p, RegMap.map (RS.replace x exp) m
 
   let update x rval st =
-    match rval with 
+    match rval with
       | Lval (Var y, NoOffset) when V.equal x y -> st
-      | BinOp (PlusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y -> 
+      | BinOp (PlusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y ->
           replace x (BinOp (MinusA, Lval (Var y, NoOffset), c, typ)) st
-      | BinOp (MinusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y -> 
+      | BinOp (MinusA, Lval (Var y, NoOffset), (Const _ as c), typ) when V.equal x y ->
           replace x (BinOp (PlusA, Lval (Var y, NoOffset), c, typ)) st
       | _ -> kill x st
 
   type eval_t = (bool * elt * F.t) option
-  let eval_exp exp: eval_t = 
+  let eval_exp exp: eval_t =
     let offsornot offs = if (get_bool "exp.region-offsets") then F.listify offs else [] in
-    let rec do_offs deref def = function 
+    let rec do_offs deref def = function
       | Field (fd, offs) -> begin
           match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
             | Some v -> do_offs deref (Some (deref, (v, offsornot (Field (fd, offs))), [])) offs
-	    | None -> do_offs deref def offs  
+	    | None -> do_offs deref def offs
           end
       | Index (_, offs) -> do_offs deref def offs
       | NoOffset -> def
     in
     let rec eval_rval deref rval =
       match rval with
-        | Lval lval -> eval_lval deref lval 
+        | Lval lval -> eval_lval deref lval
         | AddrOf lval -> eval_lval deref lval
         | CastE (typ, exp) -> eval_rval deref exp
-        | BinOp (MinusPI, p, i, typ) 
-        | BinOp (PlusPI, p, i, typ) 
+        | BinOp (MinusPI, p, i, typ)
+        | BinOp (PlusPI, p, i, typ)
         | BinOp (IndexPI, p, i, typ) -> eval_rval deref p
         | _ -> None
     and eval_lval deref lval =
-      match lval with 
-        | (Var x, NoOffset) when Goblintutil.is_blessed x.vtype <> None -> 
+      match lval with
+        | (Var x, NoOffset) when Goblintutil.is_blessed x.vtype <> None ->
           begin match Goblintutil.is_blessed x.vtype with
             | Some v -> Some (deref, (v,[]), [])
             | _ when x.vglob -> Some (deref, (x, []), [])
@@ -163,13 +163,13 @@ struct
               | Some (deref, v, _) -> do_offs deref (Some (deref, v, offsornot offs)) offs
               | x -> do_offs deref x offs
     in
-      eval_rval false exp 
+      eval_rval false exp
 
   (* This is the main logic for dealing with the bullet and finding it an
    * owner... *)
   let add_set (s:set) llist (p,m:t): t =
-    if RS.has_bullet s then 
-      let f key value (ys, x) = 
+    if RS.has_bullet s then
+      let f key value (ys, x) =
         if RS.has_bullet value then key::ys, RS.join value x else ys,x in
       let ys,x = RegMap.fold f m (llist, RS.remove_bullet s) in
       let x = RS.remove_bullet x in
@@ -186,33 +186,33 @@ struct
     if isPointerType (typeOf rval) then begin
       match eval_exp (Lval lval), eval_exp rval with
         | Some (deref_x, x,_), Some (deref_y,y,_) ->
-            if VF.equal x y then st else 
+            if VF.equal x y then st else
               let (p,m) = st in begin
                 match is_global x, deref_x, is_global y with
-                  | false, false, true  -> 
+                  | false, false, true  ->
                       p, RegMap.add x (RegPart.closure p (RS.single_vf y)) m
-                  | false, false, false -> 
+                  | false, false, false ->
                       p, RegMap.add x (RegMap.find y m) m
                   | false, true , true ->
                       add_set (RS.join (RegMap.find x m) (RS.single_vf y)) [x] st
                   | false, true , false ->
                       add_set (RS.join (RegMap.find x m) (RegMap.find y m)) [x;y] st
-                  | true , _    , true  -> 
+                  | true , _    , true  ->
                       add_set (RS.join (RS.single_vf x) (RS.single_vf y)) [] st
-                  | true , _    , false  -> 
+                  | true , _    , false  ->
                       add_set (RS.join (RS.single_vf x) (RegMap.find y m)) [y] st
               end
         | _ -> st
     end else if isIntegralType (typeOf rval) then begin
-      match lval with 
+      match lval with
         | Var x, NoOffset -> update x rval st
         | _ -> st
-    end else 
-      match eval_exp (Lval lval) with 
+    end else
+      match eval_exp (Lval lval) with
         | Some (false, (x,_),_) -> remove x st
         | _ -> st
 
-  let assign_bullet lval (p,m:t):t = 
+  let assign_bullet lval (p,m:t):t =
     match eval_exp (Lval lval) with
       | Some (_,x,_) -> p, RegMap.add x RS.single_bullet m
       | _ -> p,m
@@ -220,28 +220,28 @@ struct
   let related_globals (deref_vfd: eval_t) (p,m: t): elt list =
     let add_o o2 (v,o) = (v,o@o2) in
     match deref_vfd with
-      | Some (true, vfd, os) -> 
-          let vfd_class = 
-            if is_global vfd then 
+      | Some (true, vfd, os) ->
+          let vfd_class =
+            if is_global vfd then
               RegPart.find_class (VFB.of_vf vfd) p
-            else 
+            else
               RegMap.find vfd m
           in
 (*           Messages.report ("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd)));  *)
           List.map (add_o os) (RS.to_vf_list vfd_class)
-      | Some (false, vfd, os) -> 
+      | Some (false, vfd, os) ->
           if is_global vfd then [vfd] else []
-      | None -> Messages.warn "Access to unknown address could be global"; [] 
+      | None -> Messages.warn "Access to unknown address could be global"; []
 end
 
 module Equ = MusteqDomain.Equ
-module LD  = Lattice.Prod (Equ) (RegMap) 
-module Lif = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end) 
-module Var = Basetype.Variables    
+module LD  = Lattice.Prod (Equ) (RegMap)
+module Lif = Lattice.Lift (LD) (struct let top_name = "Unknown" let bot_name = "Error" end)
+module Var = Basetype.Variables
 module Vars= SetDomain.Make (Printable.Prod (Var) (RegPart))
 
-module RegionDom = 
-struct 
+module RegionDom =
+struct
   include Lattice.Prod (Lif) (Vars)
   let short n (x,_:t) = Lif.short n x
   let toXML_f sf (x,_:t) = Lif.toXML_f (fun x -> sf max_int (x,Vars.empty ())) x

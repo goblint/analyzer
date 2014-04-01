@@ -1,5 +1,5 @@
 open Analyses
-open Constraints 
+open Constraints
 open Batteries
 open Messages
 
@@ -10,17 +10,17 @@ struct
 
   include Generic.SolverStats (S)
   module VS = Set.Make (S.Var)
-  
+
   open S.Dom
 
-  let eq x get set = 
+  let eq x get set =
     match S.system x with
       | None -> bot ()
-      | Some f -> 
+      | Some f ->
         eval_rhs_event x;
         f get set
-  
-  let solve _ st vs = 
+
+  let solve _ st vs =
     let infl = HM.create 10 in
     let rho  = HM.create 10 in
     let vs   = ref (VS.of_enum (List.enum vs)) in
@@ -32,11 +32,11 @@ struct
     let eval x y =
       get_var_event y;
       HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
-      try HM.find rho y 
-      with Not_found -> 
+      try HM.find rho y
+      with Not_found ->
         new_var_event y;
-        HM.replace rho y (bot ()); 
-        vs := VS.add y !vs; 
+        HM.replace rho y (bot ());
+        vs := VS.add y !vs;
         bot ()
     in
     let set x d =

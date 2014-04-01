@@ -1,12 +1,12 @@
-let css_string = 
+let css_string =
 "
 html , body {
   font-family:Georgia,Serif;
   margin: 0;
   padding: 0;
 }
-  
-.mywindow 
+
+.mywindow
 {
     border: 1px solid #C0C0C0;
     position: fixed;
@@ -16,8 +16,8 @@ html , body {
     background-color: #F0F0F0;
     overflow: hidden;
 }
-  
-.mywindow_header 
+
+.mywindow_header
 {
     background-color: #E0E0E0;
     border-bottom: 1px solid #C0C0C0;
@@ -27,8 +27,8 @@ html , body {
     font-size: 16px;
     padding: 2px;
 }
-  
-.mywindow_content 
+
+.mywindow_content
 {
     overflow: scroll;
     padding: 0px;
@@ -48,77 +48,77 @@ html , body {
   height: 100%;
   background-color: #F0F0F0;
   font-size: 14px;
-  font-family: Arial,Monospace;     
+  font-family: Arial,Monospace;
 }
-  
+
 #leftWindowContent
 {
   background-color: #F0F0F0;
   padding: 0px;
   margin-right: 0px;
   font-size: 14px;
-  font-family: Arial,Monospace;     
-}  
- 
+  font-family: Arial,Monospace;
+}
+
 #codeWindowContent
 {
   background-color: #F8F8F8;
 }
-        
-#codeWindowContent a 
+
+#codeWindowContent a
 {
   text-decoration: none;
   color: #000000;
   font-weight: bold;
 }
-        
-#codeWindowContent a:hover 
+
+#codeWindowContent a:hover
 {
   text-decoration: underline;
   color: #0000C0;
 }
-        
-#codeWindowContent pre 
+
+#codeWindowContent pre
 {
   padding: 0px;
   margin: 0px;
 }
-  
+
 .lt0
 {
   background-color: #F0F0F0;
 }
-        
+
 .lt1
 {
   background-color: #F8F8F8;
 }
-  
+
 .cpp_datatype
 {
   color: blue;
 }
-        
+
 .cpp_keyword
 {
-  color: blue;            
+  color: blue;
 }
 
 .cpp_preprocessor
 {
-  color: purple;            
+  color: purple;
 }
-        
+
 .cpp_stringDQ
 {
-  color: red;            
+  color: red;
 }
-        
+
 .cpp_stringSQ
 {
-  color: red;            
+  color: red;
 }
-        
+
 .cpp_comment
 {
   color: Green;
@@ -135,8 +135,8 @@ html , body {
   font-weight: normal;
 }
 
-td, th { 
-  vertical-align: top; 
+td, th {
+  vertical-align: top;
   padding:4pt;
 }
 
@@ -179,7 +179,7 @@ table {
 
 .entrydir {
 	margin-left: 0px;
-  font-weight: bold; 
+  font-weight: bold;
   cursor: pointer;
 }
 .entrydircontent {

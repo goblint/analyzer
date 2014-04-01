@@ -36,7 +36,7 @@ sig
   val ending     : int64 -> t
   val maximal    : t -> int64 option
   val minimal    : t -> int64 option
-  
+
   (** {b Arithmetic operators} *)
 
   val neg: t -> t
@@ -50,8 +50,8 @@ sig
   val div: t -> t -> t
   (** Division: [x / y] *)
   val rem: t -> t -> t
-  (** Integer remainder: [x % y] *) 
-                       
+  (** Integer remainder: [x % y] *)
+
   (** {b Comparison operators} *)
 
   val lt: t -> t -> t
@@ -125,7 +125,7 @@ module Flattened : S with type t = [`Top | `Lifted of int64 | `Bot]
 module Lifted : S with type t = [`Top | `Lifted of int64 | `Bot]
 (** Artificially bounded integers in their natural ordering. *)
 
-module Trier 
+module Trier
 : S with type t = [
     | `Excluded of SetDomain.Make(Integers).t
     | `Definite of Integers.t
@@ -155,12 +155,12 @@ module Interval : S
 (*module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
 
-module ManyInts : S 
-module IntDomList : S 
+module ManyInts : S
+module IntDomList : S
 
 (** {b Boolean domains} *)
 
-module type BooleansNames = 
+module type BooleansNames =
 sig
   val truename: string (** The name of the [true] abstract value *)
   val falsename: string (** The name of the [false] abstract value *)

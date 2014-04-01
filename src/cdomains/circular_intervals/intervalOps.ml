@@ -4,9 +4,9 @@ open CircularIntOps
  * - either the full interval
  * - or the empty interval
  * - or an interval with lower and upper boundaries (included) *)
-type 'a interval = 
-  Top of int 
-| Int of int * 'a * 'a 
+type 'a interval =
+  Top of int
+| Int of int * 'a * 'a
 | Bot of int;;
 
 (* IntervalOps
@@ -83,15 +83,15 @@ exception IntervalOutOfBounds
 module IntervalBase (I : CircularIntOps) : IntervalBaseOps with type t = I.t =
   struct
     type t = I.t;;
-    
+
     (* Bounds *)
-    let bounds x = 
+    let bounds x =
       match x with
       | Bot _ -> None
       | Top w -> Some (I.zero, I.max_value w)
       | Int(w,a,b) -> Some (a,b);;
-    
-    
+
+
     (* Width *)
     let width x =
       match x with
@@ -110,7 +110,7 @@ module IntervalBase (I : CircularIntOps) : IntervalBaseOps with type t = I.t =
       else Top w;;
 
     let of_int64 w a b = of_t w (I.of_int64 w a) (I.of_int64 w b);;
-    let of_string w a b = of_t w (I.of_string w a) (I.of_string w b);; 
+    let of_string w a b = of_t w (I.of_string w a) (I.of_string w b);;
     let of_int w a b = of_int64 w (Int64.of_int a) (Int64.of_int b);;
 
     (* Conversion *)
@@ -124,7 +124,7 @@ module IntervalBase (I : CircularIntOps) : IntervalBaseOps with type t = I.t =
         | Some x -> I.to_string w x
         | None -> "-inf"
       and as_string x y = "[" ^ x ^ ";" ^ y ^ "]" in
-      let max_interval_string w = 
+      let max_interval_string w =
         as_string (min_value_string w) (max_value_string w)
       and min_interval_string = "[]" in
       fun i ->

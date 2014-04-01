@@ -1,5 +1,5 @@
 open Analyses
-open Constraints 
+open Constraints
 open Batteries
 open Messages
 
@@ -13,15 +13,15 @@ module Make3 =
   functor (HM:Hash.H with type key = S.v) ->
 struct
   open S
-  
+
   module VS  = Set.Make (Var)
-  
-  
+
+
   module VI =
   struct
-    type t = Var.t * int 
+    type t = Var.t * int
     let compare (x,n) (y,m) =
-      match compare n m with 
+      match compare n m with
         | 0 -> Var.compare x y
         | n -> n
   end
@@ -29,7 +29,7 @@ struct
 
   let hm_find_default t x a = try HM.find t x with Not_found -> a
 
-  module P = 
+  module P =
   struct
     type t = S.Var.t * int * S.Var.t
     let equal (x1,(x2:int),x3) (y1,y2,y3) = S.Var.equal x1 y1 && x2=y2 && S.Var.equal x3 y3
@@ -41,19 +41,19 @@ struct
   let hpm_find_default h x d = try HPM.find h x with Not_found -> d
 
   (** Helper module for values of global contributions. *)
-  module XY = 
+  module XY =
   struct
-    let xy = HPM.create 1024 
+    let xy = HPM.create 1024
 
     let get_value x = hpm_find_default xy x (S.Dom.bot ())
     let set_value = HPM.replace xy
   end
-  
+
   let back   = HPM.create 113  (* debug *)
-  let infl   = HM.create 113 
+  let infl   = HM.create 113
   let count = ref 0
   let seen  = ref 0
-  
+
   let solve : (v -> d -> d -> d) -> (v*d) list -> v list -> d HM.t = fun box sv iv ->
     let dep    = HM.create 113 in
     let set    = HM.create 113 in
@@ -77,7 +77,7 @@ struct
       let join_apply (d_in, d_back, rhsn) rhs =
         let gets = ref VS.empty in
         let vars = ref VS.empty in
-        let get' y = 
+        let get' y =
           vars := VS.add y !vars;
           let r = get y in
           if HM.mem called y then begin
@@ -90,7 +90,7 @@ struct
         (* VS.iter (fun d -> if tracing then tracel "sol" "Gets %a: %a\n" Var.pretty_trace x Var.pretty_trace d) !gets  ; *)
         HM.replace dep x (VS.remove x (VS.union !gets (hm_find_default dep x VS.empty)));
         if VS.mem x !gets then begin
-          VS.iter (fun y -> 
+          VS.iter (fun y ->
               if tracing && not (HPM.mem back (x,rhsn,y)) then tracel "sol" "Back edge found: %a --- %a\n" Var.pretty_trace x Var.pretty_trace y;
               HPM.replace back (x,rhsn,y) ()) !vars;
           (d_in, Dom.join d_back d,rhsn+1)
@@ -125,38 +125,38 @@ struct
         HM.replace called x ();
         let rec loop () =
           HM.replace stable x ();
-          let old    = hm_find_default sigma x (Dom.bot ()) in 
+          let old    = hm_find_default sigma x (Dom.bot ()) in
           let newval = f x old (do_side x) (eval x) (side x) in
           if not (Dom.equal old newval) then begin
-            HM.replace sigma x newval; 
+            HM.replace sigma x newval;
             destabilize x
-          end ; 
+          end ;
           if not (HM.mem stable x) then loop ()
         in loop ();
         HM.remove called x
       end;
       decr count
-      
+
     and eval x y =
-      solve y; 
+      solve y;
       HM.replace infl y (x :: hm_find_default infl y []);
       HM.find sigma y
-      
-    and do_side y = 
+
+    and do_side y =
       let p = hm_find_default set y VIS.empty in
       VIS.fold (fun (x,n) a -> Dom.join a (XY.get_value (x,n,y))) p (Dom.bot ())
-      
-    and side x n y d =     
-      let _ = 
-        HM.replace set y (VIS.add (x,n) (hm_find_default set y VIS.empty))
-      in 
 
-      let old = XY.get_value (x,n,y) in 
-      let tmp = box x old d in     
+    and side x n y d =
+      let _ =
+        HM.replace set y (VIS.add (x,n) (hm_find_default set y VIS.empty))
+      in
+
+      let old = XY.get_value (x,n,y) in
+      let tmp = box x old d in
       HM.replace infl x (x :: hm_find_default infl x []);
- 
+
       if not (Dom.equal tmp old) then begin
-        if tracing then 
+        if tracing then
           tracel "sol" "Side-effect: %a to %a old:\n%a\ntmp:\n%a\n" Var.pretty_trace x Var.pretty_trace y Dom.pretty old Dom.pretty tmp;
 
         let _ = XY.set_value (x,n,y) tmp in
@@ -164,14 +164,14 @@ struct
         HM.remove stable y;
         solve y
       end
-    in 
-    let add_start (v,d) = 
+    in
+    let add_start (v,d) =
         HM.replace set v (VIS.add (v,0) (hm_find_default set v VIS.empty));
         XY.set_value (v,0,v) d
       in
       List.iter add_start sv;
       if tracing then trace "sol" "Start!\n";
-      let rec loop () = 
+      let rec loop () =
         List.iter solve iv;
         if not (List.for_all (HM.mem stable) iv) then loop ()
       in loop ();
@@ -180,7 +180,7 @@ struct
       if tracing then trace "sol" "Done.\n";
       sigma
 end
-  
+
 (*module PrintInfluence2 =
   functor (S:IneqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
@@ -197,7 +197,7 @@ struct
           ignore (Pretty.fprintf ch "%d -> %d [arrowhead=box style=dashed];\n" (S.Var.hash k) (S.Var.hash y))
         else
           ignore (Pretty.fprintf ch "%d -> %d ;\n" (S.Var.hash k) (S.Var.hash y))
-      in 
+      in
       List.iter f (try HM.find S1.infl k with Not_found -> [])
     in
     ignore (Pretty.fprintf ch "digraph G {\nedge [arrowhead=vee];\n");
@@ -214,15 +214,15 @@ module TD2 =
   functor (HM:Hash.H with type key = S.v) ->
 struct
   open S
-  
+
   module VS  = Set.Make (Var)
-  
-  
+
+
   module VI =
   struct
-    type t = Var.t * int 
+    type t = Var.t * int
     let compare (x,n) (y,m) =
-      match compare n m with 
+      match compare n m with
         | 0 -> Var.compare x y
         | n -> n
   end
@@ -230,7 +230,7 @@ struct
 
   let hm_find_default t x a = try HM.find t x with Not_found -> a
 
-  module P = 
+  module P =
   struct
     type t = S.Var.t * int * S.Var.t
     let equal (x1,(x2:int),x3) (y1,y2,y3) = S.Var.equal x1 y1 && x2=y2 && S.Var.equal x3 y3
@@ -242,21 +242,21 @@ struct
   let hpm_find_default h x d = try HPM.find h x with Not_found -> d
 
   (** Helper module for values of global contributions. *)
-  module XY = 
+  module XY =
   struct
-    let xy = HPM.create 1024 
+    let xy = HPM.create 1024
 
     let get_value x = hpm_find_default xy x (S.Dom.bot ())
     let set_value = HPM.replace xy
   end
-  
+
   let back   = HPM.create 113  (* debug *)
-  let infl   = HM.create 113 
+  let infl   = HM.create 113
   let count = ref 0
   let seen  = ref 0
-  
+
   exception Backtrack of VS.t
-  
+
   let solve : (v -> d -> d -> d) -> (v*d) list -> v list -> d HM.t = fun box sv iv ->
     let dep    = HM.create 113 in
     let set    = HM.create 113 in
@@ -280,7 +280,7 @@ struct
       let join_apply (d_in, d_back, rhsn) rhs =
         let gets = ref VS.empty in
         let vars = ref VS.empty in
-        let get' y = 
+        let get' y =
           vars := VS.add y !vars;
           let r = get y in
           if HM.mem called y then begin
@@ -292,7 +292,7 @@ struct
         let d = rhs get' (set rhsn) in
         HM.replace dep x (VS.remove x (VS.union !gets (hm_find_default dep x VS.empty)));
         if VS.mem x !gets then begin
-          VS.iter (fun y -> 
+          VS.iter (fun y ->
               HPM.replace back (x,rhsn,y) ()) !vars;
           (d_in, Dom.join d_back d,rhsn+1)
         end else  begin
@@ -313,15 +313,15 @@ struct
     (* let rec destabilize' x xs =
       let t = hm_find_default infl x VS.empty in
         HM.replace infl x VS.empty;
-        let f y xs = 
-          HM.remove stable y; 
+        let f y xs =
+          HM.remove stable y;
           if HM.mem called y then begin
             VS.add y xs
           end else
             destabilize' y xs
         in
         VS.fold f t xs
-    in *) 
+    in *)
     let rec solve (x : Var.t) =
       if not (HM.mem stable x || HM.mem called x) then begin
         if not (HM.mem sigma x) then begin
@@ -330,15 +330,15 @@ struct
         HM.replace called x ();
         let rec loop () =
             HM.replace stable x ();
-            let old    = hm_find_default sigma x (Dom.bot ()) in 
+            let old    = hm_find_default sigma x (Dom.bot ()) in
             let newval = f x old (do_side x) (eval x) (side x) in
             if not (Dom.equal old newval) then begin
-              HM.replace sigma x newval; 
+              HM.replace sigma x newval;
               destabilize x
-            end ; 
-            if not (HM.mem stable x) then loop ()              
-        in 
-        let rec loop2 () = 
+            end ;
+            if not (HM.mem stable x) then loop ()
+        in
+        let rec loop2 () =
           begin try begin
             loop ()
           end with Backtrack xs ->begin
@@ -363,46 +363,46 @@ struct
         in loop2 ();
         HM.remove called x
       end
-      
-      
+
+
     and eval x y =
-      solve y; 
+      solve y;
       HM.replace infl y (VS.add x (hm_find_default infl y VS.empty));
       HM.find sigma y
-      
-    and do_side y = 
+
+    and do_side y =
       let p = hm_find_default set y VIS.empty in
       VIS.fold (fun (x,n) a -> Dom.join a (XY.get_value (x,n,y))) p (Dom.bot ())
-      
-    and side x n y d =     
-      let _ = 
-        HM.replace set y (VIS.add (x,n) (hm_find_default set y VIS.empty))
-      in 
 
-      let old = XY.get_value (x,n,y) in 
-      let tmp = box x old d in     
+    and side x n y d =
+      let _ =
+        HM.replace set y (VIS.add (x,n) (hm_find_default set y VIS.empty))
+      in
+
+      let old = XY.get_value (x,n,y) in
+      let tmp = box x old d in
       HM.replace infl x (VS.add x (hm_find_default infl x VS.empty));
-      
+
       if not (Dom.equal tmp old) then begin
         let _ = XY.set_value (x,n,y) tmp in
         destabilize y;
         HM.remove stable y;
-        solve y 
+        solve y
         (*let qs = destabilize' y VS.empty in
         HM.remove stable y;
         solve y;
         if not (VS.is_empty qs) then begin
-          raise (Backtrack qs) 
+          raise (Backtrack qs)
         end*)
       end
-    in 
-    let add_start (v,d) = 
+    in
+    let add_start (v,d) =
         HM.replace set v (VIS.add (v,0) (hm_find_default set v VIS.empty));
         XY.set_value (v,0,v) d
       in
       List.iter add_start sv;
       if tracing then trace "sol" "Start!\n";
-      let rec loop () = 
+      let rec loop () =
         List.iter solve iv;
         if not (List.for_all (HM.mem stable) iv) then loop ()
       in loop ();
@@ -412,7 +412,7 @@ struct
       sigma
 end
 
-  
+
 
 module Make2GGS : Analyses.GenericGlobSolver = GlobSolverFromIneqSolver (TD2)
 let _ =

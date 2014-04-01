@@ -1,4 +1,4 @@
-let js_string = 
+let js_string =
 "
 var loadedPage = -1;
 var requestedLine = 0;
@@ -10,7 +10,7 @@ var dynamicLoading = false;
 
 function init_toggle(e) {
   e.firstChild.nodeValue = \"▿ \"+e.firstChild.nodeValue;
-  e.onmousedown = function ch(t) { 
+  e.onmousedown = function ch(t) {
       e.firstChild.nodeValue = '◿' + e.firstChild.nodeValue.substr(1, e.firstChild.nodeValue.length) ;
   };
   e.onmouseup = function ch(t) {toggleVisibility(e, e.title);};
@@ -18,7 +18,7 @@ function init_toggle(e) {
 
 function init_toggle_old(e) {
   e.firstChild.nodeValue = \"▿ \"+e.firstChild.nodeValue;
-  e.onmousedown = function ch(t) { 
+  e.onmousedown = function ch(t) {
       e.firstChild.nodeValue = '◿' + e.firstChild.nodeValue.substr(1, e.firstChild.nodeValue.length) ;
   };
   e.onmouseup = function ch(t) {changeContentVisibility(e);};
@@ -34,7 +34,7 @@ function init_all() {
   for (var i=0; i < els.length; i++) {
     init_toggle(els[i]);
   }
-  
+
   els = document.getElementsByClassName('toggle_ttl off');
   for (var i=0; i < els.length; i++) {
     toggleVisibility(els[i],els[i].title);
@@ -114,7 +114,7 @@ function MakeLineVisible(i) {
   //var el;
   //el = document.getElementById('analysis_line' + lineSelected);
   //if (el != null) el.style.display = 'none';
-  
+
   // Show selected line
   //document.getElementById('analysis_line' + i).style.display = '';
 
@@ -130,7 +130,7 @@ function MakeLineVisible(i) {
   }
   if (i != 0) {
     lineSelected = i;
-    document.getElementById('line'+lineSelected).style.background = '#FFFFD8';        
+    document.getElementById('line'+lineSelected).style.background = '#FFFFD8';
   }
 
   // Show warnings for the line

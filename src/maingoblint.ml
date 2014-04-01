@@ -12,7 +12,7 @@ let writeconf = ref false
 let writeconffile = ref ""
 
 (** Print version and bail. *)
-let print_version ch = 
+let print_version ch =
   let open Version in let open Config in
   let f ch b = if b then fprintf ch "enabled" else fprintf ch "disabled" in
   printf "Goblint version: %s\n" goblint;
@@ -21,33 +21,33 @@ let print_version ch =
   raise BailFromMain
 
 (** Print helpful messages. *)
-let print_help ch = 
+let print_help ch =
   fprintf ch "Usage: goblint [options] source-files\nOptions\n";
   fprintf ch "    -v                        Prints more status information.                 \n";
   fprintf ch "    -o <file>                 Prints the output to file.                      \n";
-  fprintf ch "    -I <dir>                  Add include directory.                          \n";                 
-  fprintf ch "    -IK <dir>                 Add kernel include directory.                   \n\n";                
+  fprintf ch "    -I <dir>                  Add include directory.                          \n";
+  fprintf ch "    -IK <dir>                 Add kernel include directory.                   \n\n";
   fprintf ch "    --help                    Prints this text                                \n";
-  fprintf ch "    --version                 Print out current version information.          \n\n";          
-  fprintf ch "    --conf <file>             Merge the configuration from the <file>.        \n";             
-  fprintf ch "    --writeconf <file>        Write the effective configuration to <file>     \n";        
-  fprintf ch "    --set <jpath> <jvalue>    Set a configuration variable <jpath> to the specified <jvalue>.\n"; 
-  fprintf ch "    --sets <jpath> <string>   Set a configuration variable <jpath> to the string.\n"; 
-  fprintf ch "    --enable  <jpath>         Set a configuration variable <jpath> to true.   \n"; 
-  fprintf ch "    --disable <jpath>         Set a configuration variable <jpath> to false.  \n\n"; 
-  fprintf ch "    --print_options           Print out commonly used configuration variables.\n";    
+  fprintf ch "    --version                 Print out current version information.          \n\n";
+  fprintf ch "    --conf <file>             Merge the configuration from the <file>.        \n";
+  fprintf ch "    --writeconf <file>        Write the effective configuration to <file>     \n";
+  fprintf ch "    --set <jpath> <jvalue>    Set a configuration variable <jpath> to the specified <jvalue>.\n";
+  fprintf ch "    --sets <jpath> <string>   Set a configuration variable <jpath> to the string.\n";
+  fprintf ch "    --enable  <jpath>         Set a configuration variable <jpath> to true.   \n";
+  fprintf ch "    --disable <jpath>         Set a configuration variable <jpath> to false.  \n\n";
+  fprintf ch "    --print_options           Print out commonly used configuration variables.\n";
   fprintf ch "    --print_all_options       Print out all configuration variables.          \n";
   fprintf ch "\n";
   fprintf ch "A <jvalue> is a string from the JSON language where single-quotes (')";
   fprintf ch " are used instead of double-quotes (\").\n\n";
   fprintf ch "A <jpath> is a path in a json structure. E.g. 'field.another_field[42]';\n";
-  fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n"  
-  
+  fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n"
+
 (** [Arg] option specification *)
-let option_spec_list = 
+let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
   let add_int    l = let f str = l := str :: !l in Arg.Int f in
-  let set_trace sys = 
+  let set_trace sys =
     let msg = "Goblin has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
     if Config.tracing then Tracing.addsystem sys
     else (prerr_endline msg; raise BailFromMain)
@@ -106,22 +106,22 @@ let cFileNames = ref []
 (** Parse arguments and fill [cFileNames]. Print help if needed. *)
 let parse_arguments () =
   let jsonRegex = Str.regexp ".+\\.json$" in
-  let recordFile fname = 
+  let recordFile fname =
     if Str.string_match jsonRegex fname 0
-    then Goblintutil.jsonFiles := fname :: !Goblintutil.jsonFiles 
+    then Goblintutil.jsonFiles := fname :: !Goblintutil.jsonFiles
     else cFileNames := fname :: !cFileNames
   in
   Arg.parse option_spec_list recordFile "Look up options using 'goblint --help'.";
   if !writeconf then begin File.with_file_out !writeconffile print; raise BailFromMain end
-  
+
 (** Initialize some globals in other modules. *)
 let handle_flags () =
   let has_oil = get_string "ana.osek.oil" <> "" in
   if has_oil then Osek.Spec.parse_oil ();
 
-  if get_bool "allfuns" || get_bool "nonstatic" || has_oil then 
+  if get_bool "allfuns" || get_bool "nonstatic" || has_oil then
     Goblintutil.multi_threaded := true;
-  
+
   if get_bool "dbg.debug" then Messages.warnings := true;
 
   if get_bool "dbg.verbose" then begin
@@ -136,24 +136,24 @@ let handle_flags () =
         Messages.warn_out := Legacy.open_out (Legacy.Filename.concat path "warnings.out");
         set_string "outfile" ""
       end
-  
+
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let preprocess_one_file cppflags includes dirName fname =
   (* The actual filename of the preprocessed sourcefile *)
-  let nname =  Filename.concat dirName (Filename.basename fname) in 
-  
+  let nname =  Filename.concat dirName (Filename.basename fname) in
+
   (* Preprocess using gcc -E *)
   let command = "gcc --undef __BLOCKS__ -E " ^ cppflags ^ " " ^ includes ^ " " ^ fname ^ " -o " ^ nname in
   if get_bool "dbg.verbose" then print_endline command;
-  
+
   (* if something goes wrong, we need to clean up and exit *)
   let rm_and_exit () =
     if not (get_bool "keepcpp") then ignore (Goblintutil.rm_rf dirName); raise BailFromMain
-  in    
+  in
     try match Unix.system command with
           | Unix.WEXITED 0 -> nname
           | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
-    with Unix.Unix_error (e, f, a) -> 
+    with Unix.Unix_error (e, f, a) ->
       eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; rm_and_exit ()
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
@@ -166,52 +166,52 @@ let preprocess_files () =
 
   (* Preprocessor flags *)
   let cppflags = ref (get_string "cppflags") in
-  
+
   (* the base include directory *)
-  let include_dir = 
-    let incl1 = Filename.concat myname "includes" in 
+  let include_dir =
+    let incl1 = Filename.concat myname "includes" in
     let incl2 = "/usr/share/goblint/includes" in
-      if get_string "custom_incl" <> "" then (get_string "custom_incl") 
-      else if Sys.file_exists incl1 then incl1 
-      else if Sys.file_exists incl2 then incl2 
-      else "/usr/local/share/goblint/includes" 
+      if get_string "custom_incl" <> "" then (get_string "custom_incl")
+      else if Sys.file_exists incl1 then incl1
+      else if Sys.file_exists incl2 then incl2
+      else "/usr/local/share/goblint/includes"
   in
-  
+
   (* include flags*)
   let includes = ref "" in
-  
+
   (* fill include flags *)
   let one_include_f f x = includes := "-I " ^ f (string x) ^ " " ^ !includes in
   if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (!OilUtil.header_path ^ !OilUtil.header) ^" "^ !includes;
 (*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
   get_list "includes" |> List.iter (one_include_f identity);
   get_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
-  
-  if Sys.file_exists include_dir 
+
+  if Sys.file_exists include_dir
   then includes := "-I" ^ include_dir ^ " " ^ !includes
   else print_endline "Warning, cannot find goblint's custom include files.";
 
   (* reverse the files again *)
   cFileNames := List.rev !cFileNames;
-  
+
   (* possibly add our lib.c to the files *)
-  if get_bool "custom_libc" then 
+  if get_bool "custom_libc" then
       cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;
-  
+
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then begin
-    let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in 
-    let autoconf = Filename.concat kernel_dir "generated/autoconf.h" in 
+    let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
+    let autoconf = Filename.concat kernel_dir "generated/autoconf.h" in
     cppflags := "-D__KERNEL__ -U__i386__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
     includes := !includes ^ " -I" ^ kernel_dir ^ " -I" ^ asm_dir ^ " -I" ^ asm_dir ^ "/asm/mach-default"
   end;
-  
+
   (* The temp directory for preprocessing the input files *)
   let dirName = Goblintutil.create_dir "goblint_temp" in
-  
+
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-    List.rev_map (preprocess_one_file !cppflags !includes dirName) !cFileNames, dirName 
+    List.rev_map (preprocess_one_file !cppflags !includes dirName) !cFileNames, dirName
 
 
 (** Possibly merge all postprocessed files *)
@@ -222,29 +222,29 @@ let merge_preprocessed (cpp_file_names, dirName) =
 
   (* remove the files *)
   if not (get_bool "keepcpp") then ignore (Goblintutil.rm_rf dirName);
-  
-  let cilout = 
+
+  let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
-  
+
   (* direct the output to file if requested  *)
   if not (get_bool "g2html" || get_string "outfile" = "") then Goblintutil.out := Legacy.open_out (get_string "outfile");
   Errormsg.logChannel := Messages.get_out "cil" cilout;
-  
+
   (* we use CIL to merge all inputs to ONE file *)
-  let merged_AST = 
+  let merged_AST =
     match files_AST with
       | [one] -> Cilfacade.callConstructors one
-      | [] -> prerr_endline "No arguments for Goblint?"; 
-              prerr_endline "Try `goblint --help' for more information."; 
+      | [] -> prerr_endline "No arguments for Goblint?";
+              prerr_endline "Try `goblint --help' for more information.";
               raise BailFromMain
-      | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors  
+      | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
   in
-  
+
   (* using CIL's partial evaluation and constant folding! *)
   if get_bool "dopartial" then Cilfacade.partial merged_AST;
   Cilfacade.rmTemps merged_AST;
-  
+
   (* creat the Control Flow Graph from CIL's AST *)
   Cilfacade.createCFG merged_AST;
   Cilfacade.ugglyImperativeHack := merged_AST;
@@ -252,11 +252,11 @@ let merge_preprocessed (cpp_file_names, dirName) =
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze merged_AST =
-  let module L = Printable.Liszt (Basetype.CilFundec) in  
+  let module L = Printable.Liszt (Basetype.CilFundec) in
   (* we let the "--eclipse" flag override result style: *)
   if get_bool "exp.eclipse" then set_string "result_style" "compact";
 
-  if get_bool "justcil" then 
+  if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
     Cilfacade.print merged_AST
   else begin
@@ -268,11 +268,11 @@ let do_analyze merged_AST =
                                                  L.pretty stf L.pretty exf L.pretty otf);
       (* and here we run the analysis! *)
       if get_string "result" = "html" then Report.prepare_html_report ();
-      
+
       (* Analyze with the new experimental framework. *)
       Stats.time "analysis" (Control.analyze merged_AST) funs
   end
-  
+
 let do_html_output () =
   (* if we are in Cygwin, we use the host's Java and GraphViz -> paths need to be converted from Cygwin to Windows style *)
   let get_path path = if Sys.os_type = "Cygwin" then "$(cygpath -wa "^path^")" else path in
@@ -283,12 +283,12 @@ let do_html_output () =
       try match Unix.system command with
             | Unix.WEXITED 0 -> ()
             | _ -> eprintf "HTML generation failed!\n"
-      with Unix.Unix_error (e, f, a) -> 
+      with Unix.Unix_error (e, f, a) ->
         eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
-    end else 
+    end else
       eprintf "Warning: jar file %s not found.\n" jar
   end
-    
+
 
 (** the main function *)
 let main =
@@ -296,7 +296,7 @@ let main =
   if !main_running then () else
   let _ = main_running := true in
   try
-    Stats.reset Stats.SoftwareTimer;  
+    Stats.reset Stats.SoftwareTimer;
     Cilfacade.init ();
     parse_arguments ();
     handle_flags ();
@@ -305,7 +305,7 @@ let main =
     if String.length (get_string "questions.file") > 0 then question_save_db (get_string "questions.file");
     Report.do_stats !cFileNames;
     do_html_output ()
-  with BailFromMain -> () 
-  
-let _ = 
-  at_exit main 
+  with BailFromMain -> ()
+
+let _ =
+  at_exit main

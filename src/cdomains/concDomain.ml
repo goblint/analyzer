@@ -53,14 +53,14 @@ end
 module Thread = struct
   include Basetype.Variables
 
-  let thread_hash = Hashtbl.create 113 
+  let thread_hash = Hashtbl.create 113
 
-  let get_thread_var (f: varinfo) loc = 
+  let get_thread_var (f: varinfo) loc =
     try Hashtbl.find thread_hash (f,loc)
     with Not_found ->
-      let name = 
-        match loc with 
-          | None -> f.vname 
+      let name =
+        match loc with
+          | None -> f.vname
           | Some l -> f.vname ^ "@" ^ Basetype.ProgLines.short 80 l
       in
       let newvar = makeGlobalVar name voidType in
@@ -78,8 +78,8 @@ module SimpleThreadDomain = struct
     let bot_name = "Bot Threads"
     let top_name = "Top Threads"
   end
-  module Lifted = 
-  struct 
+  module Lifted =
+  struct
     include Lattice.Flat (Thread) (ThreadLiftNames)
     let name () = "Thread"
   end
@@ -97,12 +97,12 @@ module SimpleThreadDomain = struct
 
   let make_main (_,x) = (1,x)
 
-  let short w (x,y) = 
+  let short w (x,y) =
     let tid = Lifted.short w y in
       if x > 1 then tid else tid ^ "!"
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
-  let same_tid x y = 
+  let same_tid x y =
     match x,y with
       | (_, `Lifted x), (_, `Lifted y) -> Thread.equal x y
       | _ -> false
@@ -124,7 +124,7 @@ struct
   let toXML s  = toXML_f short s
 end
 
-module ThreadCreation = 
+module ThreadCreation =
 struct
   module UNames = struct
     let truename  = "repeated"

@@ -2,7 +2,7 @@ open CircularIntOps
 open IntervalOps
 
 (* CircularIntervalBase:
- * 
+ *
  * Defines all non-arithmetic/bitwise operations used in circular intervals,
  * e.g.:
  * - relative ordering
@@ -28,7 +28,7 @@ module CircularIntervalBase (C : CircularIntOps) =
      *   #(a,b) = b-a+1
      * +/- may wrap around. *)
     let count x =
-      match x with 
+      match x with
       | Bot _ -> C.zero
       | Top w -> C.top_value w
       | Int(w,a,b) ->
@@ -36,7 +36,7 @@ module CircularIntervalBase (C : CircularIntOps) =
           if C.eq C.zero c
           then C.top_value w
           else c;;
-    
+
     (* Element Inclusion (Section 3.1)
      * Straightforward: Does e lie between the (clockwisely defined)
      * interval boundaries? *)
@@ -52,7 +52,7 @@ module CircularIntervalBase (C : CircularIntOps) =
     (* Interval Inclusion (Section 3.1)
      *   s = (a,b) \in t = (c,d) -> a \in t and b \in t and
      *                              not (c \in s and d \in s)
-     * NOTE: The paper does not include identity in the formal 
+     * NOTE: The paper does not include identity in the formal
      * definition of the inclusion. But it is done here. *)
     let contains t s =
       match s,t with
@@ -60,7 +60,7 @@ module CircularIntervalBase (C : CircularIntOps) =
       | _, Top _ -> true
       | Top _, _ -> false
       | _, Bot _ -> false
-      | Int(_,a,b), Int(_,c,d) -> 
+      | Int(_,a,b), Int(_,c,d) ->
           if (eql s t)
           then true (* Identity! *)
           else (contains_two_elements t a b) && not (contains_two_elements s c d);;
@@ -72,7 +72,7 @@ module CircularIntervalBase (C : CircularIntOps) =
      * here is relative_lt.
      * This is needed for 'extend'. *)
     let crosses_south_pole x =
-      match x with 
+      match x with
       | Top _ -> true
       | Bot _ -> false
       | Int(w,a,b) -> relative_lt w C.zero b a;;
@@ -109,15 +109,15 @@ module CircularIntervalBase (C : CircularIntOps) =
 
     let cut_spheres s =
       let nspheres = north_pole_split s in
-      List.fold_left 
+      List.fold_left
         (fun spheres u -> (south_pole_split u) @ spheres)
         [] nspheres;;
 
     (* Complement Interval (Section 3)
-     *   complement((a,b)) = (b+1,a-1) 
+     *   complement((a,b)) = (b+1,a-1)
      * +/- may wrap around. *)
-    let complement x = 
-      match x with 
+    let complement x =
+      match x with
       | Top w -> Bot w
       | Bot w -> Top w
       | Int (w,a,b) -> of_t w (C.inc w b) (C.dec w a);;
@@ -155,8 +155,8 @@ module CircularIntervalBase (C : CircularIntOps) =
       | _ -> false;;
 
     let join s t =
-      if contains t s then t 
-      else if contains s t then s 
+      if contains t s then t
+      else if contains s t then s
       else if span_whole_circle s t then Top (max (width s) (width t))
       else
         match s,t with
@@ -173,7 +173,7 @@ module CircularIntervalBase (C : CircularIntOps) =
     let meet s t = complement (join (complement s) (complement t));;
 
     (* Least Upper Bound (Fig. 3) *)
-    let bigger s t = 
+    let bigger s t =
       if (C.gt (count t) (count s))
       then t
       else s;;
@@ -200,7 +200,7 @@ module CircularIntervalBase (C : CircularIntOps) =
         | _ -> Bot (max (width s) (width t));;
 
     let sort_intervals =
-      let compare_intervals s t = 
+      let compare_intervals s t =
         match s,t with
         | Bot _, _ -> (-1)
         | _, Bot _ -> 1
@@ -210,18 +210,18 @@ module CircularIntervalBase (C : CircularIntOps) =
       in
       List.sort compare_intervals;;
 
-    let least_upper_bound w intervals = 
+    let least_upper_bound w intervals =
       let f_helper f s = if crosses_south_pole s then extend f s else f
       and fg_helper (g,f) s = (bigger g (gap f s), extend f s)
       and sorted_intervals = sort_intervals intervals in
       let f0 = List.fold_left f_helper (Bot w) sorted_intervals in
       let (g,f) = List.fold_left fg_helper (Bot w,f0) sorted_intervals in
       complement (bigger g (complement f));;
-    
-    (* Intersection (Section 3.1) 
+
+    (* Intersection (Section 3.1)
      * NOTE: The paper specifies (b,c) as result of overlapping
      * of s = (a,b) with t = (c,d) but seeing as this means
-     * 
+     *
      *        a |-------------| b
      *                 c |----------------| d
      *

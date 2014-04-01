@@ -1,7 +1,7 @@
 (** The 'slr*' solvers. *)
 
 open Analyses
-open Constraints 
+open Constraints
 open Batteries
 open Messages
 
@@ -15,27 +15,27 @@ struct
   include Generic.SolverStats (S)
   module VS = Set.Make (S.Var)
 
-  module P = 
+  module P =
   struct
     type t = S.Var.t * S.Var.t
     let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
-    let hash  (x1,x2)         = (S.Var.hash x1 - 800) * S.Var.hash x2 
+    let hash  (x1,x2)         = (S.Var.hash x1 - 800) * S.Var.hash x2
   end
 
   module HPM = Hashtbl.Make (P)
 
   let solve box st vs =
     let key    = HM.create 10 in
-    let module H = Heap.Make (struct 
-        type t = S.Var.t                          
+    let module H = Heap.Make (struct
+        type t = S.Var.t
         let compare x y = compare (HM.find key x) (HM.find key y)
       end)
     in
-    let extract_min q = 
+    let extract_min q =
       let x = H.find_min !q in
       q := H.del_min !q; x
     in
-    let min_key q = 
+    let min_key q =
       let x = H.find_min !q in
       HM.find key x
     in
@@ -47,7 +47,7 @@ struct
     let rho'   = HPM.create 10 in
     let q      = ref H.empty in
     let count  = ref 0 in
-    
+
     let rec solve x =
       let wpx = HM.mem wpoint x in
       HM.remove wpoint x;
@@ -74,9 +74,9 @@ struct
       eval_rhs_event x;
       match S.system x with
         | None -> S.Dom.bot ()
-        | Some f -> 
+        | Some f ->
           let sides = HM.create 10 in
-          let collect_set x v = 
+          let collect_set x v =
             init x;
             (try HM.find sides x with Not_found -> S.Dom.bot ()) |> S.Dom.join v |> HM.replace sides x
           in
@@ -95,7 +95,7 @@ struct
       end;
       HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
       HM.find rho y
-    and sides x = 
+    and sides x =
       let w = try HM.find set x with Not_found -> VS.empty in
       Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
     and side x y d =
@@ -123,21 +123,21 @@ struct
         HM.replace key  x (- !count); incr count
       end
     in
-    
-    let set_start (x,d) = 
+
+    let set_start (x,d) =
       init x;
       HM.replace rho x d;
       HM.replace set x (VS.add x VS.empty);
       HPM.add rho' (x,x) d
     in
-    
+
     start_event ();
     List.iter init vs;
     List.iter set_start st;
     q := List.fold_left (fun q v -> H.add v q) H.empty vs;
-    
+
     List.iter solve vs;
-    
+
      let reachability xs =
       let reachable = HM.create (HM.length rho) in
       let rec one_var x =
@@ -155,14 +155,14 @@ struct
     in
     reachability vs;
     stop_event ();
-    
+
     HM.clear key   ;
     HM.clear wpoint;
     HM.clear stable;
     HM.clear infl  ;
     HM.clear set   ;
     HPM.clear rho'  ;
-    
+
     rho
 
 end
@@ -172,7 +172,7 @@ module type Version = sig val ver : int end
 
 (** the box solver *)
 module Make =
-  functor (V:Version) -> 
+  functor (V:Version) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
@@ -182,109 +182,109 @@ struct
     with Not_found -> None
 
   let h_find_default h x d =
-    try HM.find h x 
+    try HM.find h x
     with Not_found -> d
 
   (** Helper module for values and priorities. *)
-  module X = 
-  struct 
-    let keys = HM.create 1024 
-    let vals = HM.create 1024 
+  module X =
+  struct
+    let keys = HM.create 1024
+    let vals = HM.create 1024
     let last_key = ref 0
-    
+
     let get_value x = h_find_default vals x (S.Dom.bot ())
     let set_value = HM.replace vals
-    
-    let get_key x = 
+
+    let get_key x =
       try
-        HM.find keys x 
-      with Not_found -> 
+        HM.find keys x
+      with Not_found ->
         incr Goblintutil.vars;
         last_key := !last_key - 1;
         HM.add keys x !last_key;
         !last_key
-                        
-    let get_index c = 
-      try (HM.find keys c, true) 
-      with Not_found -> 
+
+    let get_index c =
+      try (HM.find keys c, true)
+      with Not_found ->
         incr Goblintutil.vars;
-        last_key := !last_key - 1; 
+        last_key := !last_key - 1;
         HM.add keys c !last_key;
         (!last_key, false)
-      
-      let to_list () = vals 
-  end  
-    
+
+      let to_list () = vals
+  end
+
   (** Helper module for values of global contributions. *)
-  module XY = 
+  module XY =
   struct
-    module P = 
+    module P =
     struct
       type t = S.Var.t * S.Var.t
       let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
-      let hash (x1,x2) = (S.Var.hash x1 - 800) * S.Var.hash x2 
+      let hash (x1,x2) = (S.Var.hash x1 - 800) * S.Var.hash x2
     end
     module HPM = Hashtbl.Make (P)
     let hpm_find_default h x d =
-      try HPM.find h x 
+      try HPM.find h x
       with Not_found -> d
-    
-    let xy = HPM.create 1024 
+
+    let xy = HPM.create 1024
 
     let get_value x = hpm_find_default xy x (S.Dom.bot ())
     let set_value = HPM.replace xy
   end
 
   (** Helper module for priority queues. *)
-  module H = 
+  module H =
   struct
-    module HeapCompare = 
+    module HeapCompare =
     struct
       type t = S.Var.t
       let compare x y = Int.compare (X.get_key x) (X.get_key y)
     end
-  
+
     include Heap.Make (HeapCompare)
     let from_list xs = List.enum xs |> of_enum
     let is_empty x = size x = 0
-    let get_root_key x = find_min x |> X.get_key 
+    let get_root_key x = find_min x |> X.get_key
     let extract_min h = (find_min h, del_min h)
-    let insert h k = 
+    let insert h k =
       (* ignore @@ Printf.printf "add %d\n" (X.get_key k); *)
-      insert h k 
+      insert h k
     let extract_min h =
       let (k,h) = extract_min h in
       (* ignore @@ Printf.printf "removing %d\n" (X.get_key k); *)
       (k,h)
   end
-    
+
   (** Helper module for influence lists. *)
-  module L = 
+  module L =
   struct
     let add h k v = HM.replace h k (v::h_find_default h k [])
     let sub h k = h_find_default h k []
-    let rem_item = HM.remove 
+    let rem_item = HM.remove
   end
-  
+
   (** Helper module for the stable set and global variable setting deps. *)
-  module P = 
-  struct 
-    let single x = tap (fun s -> HM.add s x ()) (HM.create 10) 
-    let rem_item = HM.remove 
+  module P =
+  struct
+    let single x = tap (fun s -> HM.add s x ()) (HM.create 10)
+    let rem_item = HM.remove
     let to_list s = HM.fold (fun x y z -> x :: z ) s []
-    let has_item = HM.mem 
+    let has_item = HM.mem
     let rem_item = HM.remove
     let insert m = flip (HM.replace m) ()
   end
-  
+
   (** Helper module for variable setting deps. *)
-  module T = 
+  module T =
   struct
-    let sub = h_find_option 
+    let sub = h_find_option
     let update = HM.replace
-    let set    = HM.create 1024 
+    let set    = HM.create 1024
   end
-        
+
   (** Helper module for the domain. *)
   module D =
   struct
@@ -294,31 +294,31 @@ struct
      let cap = meet
   end
 
-  let infl   = HM.create 1024 
-  let wpoint = HM.create 1024 
-  let restart_mode = HM.create 1024 
+  let infl   = HM.create 1024
+  let wpoint = HM.create 1024
+  let restart_mode = HM.create 1024
 
-  let solve box st list =    
+  let solve box st list =
     let stable = HM.create 1024 in
     let work   = ref H.empty    in
-        
+
     let _ = List.iter (fun (x,v) -> XY.set_value (x,x) v; T.update T.set x (P.single x)) st in
-    let _ = work := H.merge (H.from_list list) !work in 
-    
-    let eq x get set = 
+    let _ = work := H.merge (H.from_list list) !work in
+
+    let eq x get set =
 	    match S.system x with
         | None -> S.Dom.bot ()
-        | Some f -> 
+        | Some f ->
             let sides = HM.create 10 in
-            let collect_set x v = 
+            let collect_set x v =
               let _ = X.get_key x in (* set priority immediately! *)
               h_find_default sides x (S.Dom.bot ()) |> S.Dom.join v |> HM.replace sides x
             in
             let d = f get collect_set in
             HM.iter set sides;
             d
-    in 
-    
+    in
+
     let restart x =
       let sk = X.get_key x in
       let rec handle_one x =
@@ -336,8 +336,8 @@ struct
       let w = L.sub infl x in
       let _ = L.rem_item infl x in
       List.iter handle_one w
-    in 
-    
+    in
+
     let rec eval x =
       let (xi,_) = X.get_index x in
       fun y ->
@@ -347,65 +347,65 @@ struct
         let _ = if nonfresh then () else solve y in
         let _ = L.add infl y x in
         X.get_value y
-                    
-    and side x y d = 
+
+    and side x y d =
       let yk, ynonfresh = X.get_index y in
       if X.get_key x > yk then begin
         (* ignore @@ Pretty.printf "wrong order: %d > %d\n\n"  (X.get_key x) yk; *)
         ()
       end;
-      
+
       if (V.ver>1) then HM.replace wpoint y ();
-      
-      let _ = 
-        match T.sub T.set y with 
+
+      let _ =
+        match T.sub T.set y with
           | None -> T.update T.set y (P.single x)
           | Some p -> P.insert p x
-      in 
+      in
 
-      let old = XY.get_value (x,y) in 
+      let old = XY.get_value (x,y) in
       (* ignore @@ Pretty.printf "key: %a -> %a\nold: %a\n\nd: %a\n\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old S.Dom.pretty d; *)
       let tmp = d in
       (* ignore @@ Pretty.printf "tmp: %a\n\n"  S.Dom.pretty tmp; *)
-     
+
       if not (D.eq tmp old) then begin
         let _ = XY.set_value (x,y) tmp in
 
         if ynonfresh then
-          let _ = P.rem_item stable y in 
+          let _ = P.rem_item stable y in
           work := H.insert (!work) y
-        else 
+        else
           solve y
-      end                                               
+      end
 
-    and do_side x a = 
-      match T.sub T.set x with 
+    and do_side x a =
+      match T.sub T.set x with
         | None -> a
-        | Some p -> 
-            let xs = P.to_list p in 
+        | Some p ->
+            let xs = P.to_list p in
             (* ignore (Pretty.printf "%d var %a\n\n" (List.length list) S.Var.pretty_trace x); *)
             List.fold_left (fun a z -> D.cup a (XY.get_value (z,x))) a xs
 
-    and solve x = 
+    and solve x =
       if not (P.has_item stable x) then begin
         incr Goblintutil.evals;
         let _ = P.insert stable x in
         let old = X.get_value x in
 
-        let tmp = do_side x (eq x (eval x) (side x)) in 
+        let tmp = do_side x (eq x (eval x) (side x)) in
         let use_box = (not (V.ver>1)) || HM.mem wpoint x in
         let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "ana.restart_count") in
         let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in
         let tmp = if use_box then box x old tmp else tmp in
-        if not (D.eq tmp old) then begin 
+        if not (D.eq tmp old) then begin
           let _ = X.set_value x tmp in
-          if V.ver>3 && restart_mode_x mod 2 = 1 && not (D.leq tmp old) then 
+          if V.ver>3 && restart_mode_x mod 2 = 1 && not (D.leq tmp old) then
             HM.replace restart_mode x (restart_mode_x - 1);
-          
-          if rstrt then begin 
-            if restart_mode_x mod 2 = 0 then 
+
+          if rstrt then begin
+            if restart_mode_x mod 2 = 0 then
               HM.replace restart_mode x (restart_mode_x - 1);
-            restart x 
+            restart x
           end else
             let w = L.sub infl x in
             let w = if use_box then x::w else w in
@@ -413,12 +413,12 @@ struct
             let _ = if (V.ver>2) then HM.remove wpoint x in
             let _ = work := List.fold_left H.insert (!work) w in
                     List.iter (P.rem_item stable) w;
-          loop (X.get_key x) 
-        end 
+          loop (X.get_key x)
+        end
       end;
       if (V.ver>2) then HM.remove wpoint x
-        
-    and loop a =  
+
+    and loop a =
       if not (H.is_empty (!work)) then begin
         if H.get_root_key (!work) <= a
         then let (x,h) = H.extract_min (!work) in
@@ -426,17 +426,17 @@ struct
              let _ = solve x in
                      loop a
       end
-    in 
-    
-    let rec loop () = 
+    in
+
+    let rec loop () =
       if not (H.is_empty (!work)) then begin
         let (x,h) = H.extract_min (!work) in
         let _ = work := h in
         let _ = solve x in
         loop ()
       end
-    in 
-    
+    in
+
     let _ = loop () in
 
     let reachability xs =
@@ -455,7 +455,7 @@ struct
       HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove X.vals x) X.vals
     in
     reachability list;
-    
+
     X.to_list ()
 
 end
@@ -493,7 +493,7 @@ struct
           ignore (Pretty.fprintf ch "%d -> %d [arrowhead=box style=dashed];\n" (S.Var.hash k) (S.Var.hash y))
         else
           ignore (Pretty.fprintf ch "%d -> %d ;\n" (S.Var.hash k) (S.Var.hash y))
-      in 
+      in
       List.iter f (try HM.find S1.infl k with Not_found -> [])
     in
     ignore (Pretty.fprintf ch "digraph G {\nedge [arrowhead=vee];\n");
@@ -515,7 +515,7 @@ module MoreVars (Sol: GenericEqBoxSolver) =
   functor (HM:Hash.H with type key = S.v) ->
 struct
   module HM1   = Hashtbl.Make (Generic.ExtendInt (S.Var))
-  module EqSys = Generic.NormalSysConverter (S) 
+  module EqSys = Generic.NormalSysConverter (S)
   include Sol (EqSys) (HM1)
   let solve box is iv =
     let box' (k,_) x y = box k x y in
@@ -528,15 +528,15 @@ struct
 end
 
 module TwoPhased =
-  functor (V:Version) -> 
+  functor (V:Version) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
   include Make (V) (S) (HM)
-  let solve box is iv = 
+  let solve box is iv =
     let sd = solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv in
     let iv' = HM.fold (fun k _ b -> k::b) sd [] in
-    let f v x y = 
+    let f v x y =
       (* ignore (Pretty.printf "changed %a\nold:%a\nnew:%a\n\n" S.Var.pretty_trace v S.Dom.pretty x S.Dom.pretty y); *)
       S.Dom.narrow x y
     in
@@ -544,13 +544,13 @@ struct
 end
 
 module JustWiden =
-  functor (V:Version) -> 
+  functor (V:Version) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
 struct
   include Make (V) (S) (HM)
-  let solve box is iv = 
-    solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv 
+  let solve box is iv =
+    solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv
 end
 
 let _ =
@@ -565,7 +565,7 @@ let _ =
   let module S1 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 1 end))) in
   Selector.add_solver ("new",  (module S1 : GenericGlobSolver));
   Selector.add_solver ("slr+", (module S1 : GenericGlobSolver))
-  
+
 let _ =
   let module S1 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 1 end))) in
   let module S2 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 2 end))) in
@@ -599,4 +599,3 @@ let _ =
   Selector.add_solver ("slr2xp", (module S2p : GenericGlobSolver));
   Selector.add_solver ("slr3xp", (module S3p : GenericGlobSolver));
   Selector.add_solver ("slr4xp", (module S4p : GenericGlobSolver));
-  

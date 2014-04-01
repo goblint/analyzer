@@ -4,7 +4,7 @@ open Messages
 module A = Array
 module GU = Goblintutil
 
-module type S = 
+module type S =
 sig
   include Lattice.S
   type idx
@@ -35,7 +35,7 @@ struct
 
   let set_inplace = set
   let copy a = a
-  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x 
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
 end
 
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S)
@@ -61,14 +61,14 @@ struct
   let id = ref 0 in
     while (!tt && !id < len_i) do
       tt := f i.(!id) o.(!id);
-      id := succ !id 
+      id := succ !id
     done;
     !tt
 
   let equal i o =
     for_all2 Base.equal i o
 
-  let leq a b = 
+  let leq a b =
     ((A.length a) == (A.length b))&&
     let barr = A.mapi (fun i v -> Base.leq v (A.get b i)) a in
     A.fold_left (&&) true barr
@@ -113,7 +113,7 @@ struct
       Xml.Element ("Node", [("text", text)], indexed_children )
 
 
-  let pretty_f _ () x = 
+  let pretty_f _ () x =
     let pretty_index i e = num i ++ text " -> " ++ (Base.pretty () e) in
     let content = A.to_list (A.mapi pretty_index x) in
     let rec separate x =
@@ -121,7 +121,7 @@ struct
         | [] -> []
         | [x] -> [x]
         | (x::xs) -> x ++ line :: separate xs
-    in 
+    in
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
       (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
@@ -131,11 +131,11 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let get a i =
-    let folded () = 
+    let folded () =
       Array.fold_left Base.join (Base.bot ()) a in
     let get_index i =
       if (i >= 0 && i < Array.length a) then
-        A.get a i 
+        A.get a i
       else begin
         warn "Array index out of bounds";
         folded ()
@@ -144,14 +144,14 @@ struct
     if Idx.is_int i then
       match  Idx.to_int i with
         | Some ix -> get_index (Int64.to_int ix)
-        | _       -> failwith "Can't get an index value" 
+        | _       -> failwith "Can't get an index value"
       else
-        (* If an index is unknown, return the upper bound of 
+        (* If an index is unknown, return the upper bound of
            all possible elements *)
         folded ()
 
-  let set a i v =   
-    let set_inplace a i v = 
+  let set a i v =
+    let set_inplace a i v =
       let top_value () =
         Array.map (fun x -> Base.top ()) a in
       let joined_value () =
@@ -159,7 +159,7 @@ struct
       let set_index i =
         A.set a i v;
         a in
-      if Idx.is_int i then 
+      if Idx.is_int i then
         match Idx.to_int i with
           | Some ix -> set_index (Int64.to_int ix)
           | _  -> warn "Array set with unknown index";
@@ -167,14 +167,14 @@ struct
       else
         joined_value () in
     set_inplace (A.copy a) i v
-      
+
   let make i v =
       A.make i v
 
   let length a =
     Some (A.length a)
 
-  let printXml f xs = 
+  let printXml f xs =
     let print_one k v =
       BatPrintf.fprintf f "<key>\n%d</key>\n%a" k Base.printXml v
     in
@@ -188,28 +188,28 @@ module NativeArrayEx (Base: Lattice.S) (Idx: IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
   module A = NativeArray (Base) (Idx)
-  
+
   type idx = Idx.t
   type value = Base.t
 
-  include Lattice.Lift (A) (struct let bot_name = "array bot" 
+  include Lattice.Lift (A) (struct let bot_name = "array bot"
                                    let top_name = "array top" end)
 
-  let get x i = 
-    match x with 
+  let get x i =
+    match x with
       | `Top -> Base.top ()
       | `Bot -> Base.top ()
-      | `Lifted a -> A.get a i    
-    
-  let set x i v = 
+      | `Lifted a -> A.get a i
+
+  let set x i v =
     match x with
       | `Top -> `Top
       | `Bot -> `Bot
       | `Lifted a -> `Lifted (A.set a i v)
-  
+
   let make (i:int) v = `Lifted (A.make i v)
 
-  let length x = 
+  let length x =
     match x with
       | `Lifted a -> A.length a
       | _ -> None
@@ -228,19 +228,19 @@ struct
   type idx = Idx.t
   type value = Base.t
 
-  type t = Value  of value 
+  type t = Value  of value
      | Array of Array.t
 
   let hash  = Hashtbl.hash
 
-  let equal x y = 
-    match (x,y) with 
+  let equal x y =
+    match (x,y) with
       | (Value v1,Value v2) -> Base.equal v1 v2
       | (Array v1,Array v2) -> Array.equal v1 v2
       | _ -> false
 
 
-  let compare a b =  
+  let compare a b =
     match (a,b) with
       | Value v1, Value v2 ->  Base.compare v1 v2
       | Array v1, Array v2 -> Array.compare v1 v2
@@ -248,11 +248,11 @@ struct
       | Value v1, Array v2 ->  1
 
   let isSimple (a:t) =
-    match a with 
+    match a with
   Value v -> true
       | Array v -> Array.isSimple v
 
-  let leq a b = 
+  let leq a b =
     match (a,b) with
       | Value v1, Value v2 -> Base.leq v1 v2
       | Array v1, Array v2 -> Array.leq v1 v2
@@ -286,7 +286,7 @@ struct
 
 
   let short w x =
-    match x with 
+    match x with
   Value v -> "Array: {" ^ (Base.short (w - 9) v) ^ "}"
       | Array v -> Array.short w v
 
@@ -304,9 +304,9 @@ struct
   Value v -> valueToXML v
       | Array v -> Array.toXML v
 
-      
+
   let bot () = Value (Base.bot ())
-  let is_bot a = 
+  let is_bot a =
     match a with
       | Array _ -> false
       | Value v -> Base.is_bot v
@@ -318,20 +318,20 @@ struct
       | Value v -> Base.is_top v
 
 
-  let pretty_f _ () x = 
+  let pretty_f _ () x =
     match x with
   Value v -> text "Array: " ++ Base.pretty () v
       | Array v -> Array.pretty () v
 
 
-  let get a i = 
+  let get a i =
     match a with
   Value v -> v
       | Array v -> Array.get v i
 
 
-  let set a i n =  
-    match a with 
+  let set a i n =
+    match a with
   Value v -> Value (Base.join v n)
       | Array v -> Array (Array.set v i n)
 
@@ -339,8 +339,8 @@ struct
   let toXML m = toXML_f short m
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let make i v = 
-    if i > 25 then 
+  let make i v =
+    if i > 25 then
       Value v
     else
       Array (Array.make i v)
@@ -348,7 +348,7 @@ struct
   let length x =
     match x with
       | Array a -> Array.length a
-      | _ -> None 
+      | _ -> None
 
 end
 
@@ -360,11 +360,11 @@ struct
   include Lattice.StdCousot
 
   module M = Map.Make (Idx)
-  
-  type t = 
-    | Mapping of Base.t M.t 
-    | Bot 
-  
+
+  type t =
+    | Mapping of Base.t M.t
+    | Bot
+
   type value = Base.t
   type idx = Idx.t
 
@@ -380,18 +380,18 @@ struct
       | _  , Bot -> 1
       | Mapping a, Mapping b -> M.compare Base.compare a b
 
-  let leq x y = 
-    match x,y with 
+  let leq x y =
+    match x,y with
       | Bot, _   -> true
       | _  , Bot -> false
-      | Mapping a, Mapping b -> M.equal Base.equal a b 
+      | Mapping a, Mapping b -> M.equal Base.equal a b
 
   let hash  = Hashtbl.hash
   let name () = "map array"
 
   let top () = Mapping M.empty
-  let is_top x = 
-    match x with 
+  let is_top x =
+    match x with
       | Bot -> false
       | Mapping m -> M.is_empty m
 
@@ -399,17 +399,17 @@ struct
   let is_bot = (=) Bot
 
   let isSimple x =
-    match x with 
+    match x with
       | Bot -> true
-      | Mapping a -> M.is_empty a 
+      | Mapping a -> M.is_empty a
 
   let short w a =
     match a with
       | Bot -> "Erronous array"
       | Mapping x when is_top a -> "Unknown array"
       | Mapping a ->
-        let strlist = 
-          M.fold (fun x y l -> 
+        let strlist =
+          M.fold (fun x y l ->
             ((Idx.short max_int x) ^  " -> " ^
             (Base.short max_int y))::l) a ([]:string list) in
         Printable.get_short_list "Array: {" "}" (w-9) strlist
@@ -418,8 +418,8 @@ struct
     match a with
       | Bot -> text "Erronous array"
       | Mapping x ->
-    let content = 
-      M.fold (fun x y l -> 
+    let content =
+      M.fold (fun x y l ->
         (text (Idx.short max_int x) ++ text " -> " ++
         text (Base.short max_int y)) :: l) x [] in
     let rec separate x =
@@ -427,12 +427,12 @@ struct
         | [] -> []
         | [x] -> [x]
         | (x::xs) -> x ++ line :: separate xs
-    in 
+    in
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
       (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
 
-  let pretty () = pretty_f short () 
+  let pretty () = pretty_f short ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let toXML_f s x =
@@ -487,11 +487,11 @@ struct
       | Mapping a, Mapping b -> Mapping (join_mappings a b)
 
   let get x i =
-    match x with 
+    match x with
       | Bot -> Base.top ()
       | Mapping map when M.mem i map -> M.find i map
       | Mapping map -> Base.top ()
-  
+
   let set x i v =
     let add_map  map i v = M.add i v map in
     let join_map map v = M.map (Base.join v) map in
@@ -503,14 +503,14 @@ struct
 
   let make i v =
     let rec add_items cur mx map =
-      if cur = mx then 
-        map 
-      else 
+      if cur = mx then
+        map
+      else
         add_items (cur+1) mx (set map (Idx.of_int (Int64.of_int cur)) v) in
     match I.n with
       | Some n -> add_items 0 (min i n) (top ())
       | None -> top ()
-      
+
   let length _ = None
 end
 
@@ -531,7 +531,7 @@ end
 module CountingMap (Base: Lattice.S) (Idx: IntDomain.S) =
 struct
   module M = Map.Make (Idx)
-  
+
   type scmap = (int ref) M.t
   type t = Base.t M.t (*map*) * scmap (*index map*) * int ref (*pos*) * int (*len*)
 
@@ -539,12 +539,12 @@ struct
 
   let get_use ( _, _, pos, _) = !pos
 
-  let get_item_use ( _, index, _, _) key = 
+  let get_item_use ( _, index, _, _) key =
     try !(M.find key index) with Not_found -> 0
 
-  let make element : t = 
+  let make element : t =
     (M.add (Idx.top ()) element M.empty, M.empty,ref 0, 0)
-  
+
   let add (map,index,pos,len) key value =
     let top_index = Idx.top () in
     let top_value = M.find top_index map in
@@ -560,11 +560,11 @@ struct
         let erase_map = M.remove key map in
         let erase_index = M.remove key index in
         (erase_map, erase_index, pos, len-1)
-      else 
+      else
         (map, index, pos, len) in
 
     let handle_nontop_key () =
-      if (Base.equal top_value value) then 
+      if (Base.equal top_value value) then
         try_erase ()
       else
         try_insert () in
@@ -591,13 +591,13 @@ struct
 
   let drop ((map,index,pos,len) as emap) (n:int) =
     if n <= 0 then
-      emap 
+      emap
     else
       let f_insert key value set = RISet.add (Rev_int.make !value key) set in
       let set = M.fold f_insert index RISet.empty in
       let drop_fn (_,v) (m,i,n) =
-        if n <= 0 then 
-          (m,i,n) 
+        if n <= 0 then
+          (m,i,n)
         else
           let idx = Idx.top () in
           let rest  = M.find idx m in
@@ -607,7 +607,7 @@ struct
       let (newmap, newindex, _) = RISet.fold drop_fn set (map,index,n) in
       (newmap, newindex, pos, len - n)
 
- 
+
   let map (map,index,pos,len) fn =
     (M.map fn map, index, pos, len)
 
@@ -629,14 +629,14 @@ struct
     let new_rest, new_map = M.fold drop_on_pred map (rest,emap) in
     let result = add new_map rest_index new_rest in
     result
- 
+
   let remove ((map,index,pos,len) as emap) key =
     let key_in = M.mem key map in
     if key_in then
       (M.remove key map, M.remove key index, pos, len-1)
-    else emap 
+    else emap
 
-  let find ((map,index,pos,len):t) key = 
+  let find ((map,index,pos,len):t) key =
     if M.mem key map then
       M.find key map
     else
@@ -648,16 +648,16 @@ struct
 
   let mem (map,_,_,_) key = M.mem key map
 
-  let equal (map1,_,_,len1) (map2,_,_,len2) = 
+  let equal (map1,_,_,len1) (map2,_,_,len2) =
     (len1 == len2) && (M.equal Base.equal map1 map2)
 
   let compare (map1,_,_,len1) (map2,_,_,len2) =
     if len1 == len2 then
       M.compare Base.compare map1 map2
-    else 
+    else
       Pervasives.compare len1 len2
 
-  let leq (a:t) (b:t) : bool =  
+  let leq (a:t) (b:t) : bool =
     (fold (mapi a (fun (i:Idx.t) (v:Base.t)  -> Base.leq v (find b i))) (fun _ -> (&&)) true) &&
     (fold (mapi b (fun (i:Idx.t) (v:Base.t)  -> Base.leq (find a i) v)) (fun _ -> (&&)) true)
 
@@ -677,16 +677,16 @@ end
   Functions that differ are name, meet?, join, set (and maybe make?) *)
 module SharedMapArrayParts (Base:Lattice.S) (Idx:IntDomain.S) =
 struct
-  
+
   include Lattice.StdCousot
 
-  module M = CountingMap(Base)(Idx) 
+  module M = CountingMap(Base)(Idx)
 
   type t = M.t * int
   type value = Base.t
   type idx = Idx.t
 
-  let get ((map:M.t),len) index : Base.t= 
+  let get ((map:M.t),len) index : Base.t=
     let join_values key value other = Base.join value other in
     let joined_items () = M.fold map join_values (Base.bot ()) in
     if Idx.is_int index then begin
@@ -695,7 +695,7 @@ struct
     end else
       joined_items ()
 
-  let equal (map1,len1) (map2,len2) = 
+  let equal (map1,len1) (map2,len2) =
     (len1 == len2) && (M.equal map1 map2)
 
   let hash (map,len) =
@@ -711,10 +711,10 @@ struct
     (length1 == length2) && M.leq map1 map2
 
   let length (map,len) = Some len
- 
-  let make length value = 
+
+  let make length value =
     (M.make value, length)
-    
+
   let copy p = p
 
   let top () = failwith "*MapArray's should be uses in conjunction with Lattice.Lift"
@@ -722,20 +722,20 @@ struct
 
   let is_top _ = false
   let is_bot _ = false
-  
-  let isSimple x = false 
+
+  let isSimple x = false
 
   let short w (map,_) =
-    let strlist = 
-      M.fold map (fun x y l -> 
+    let strlist =
+      M.fold map (fun x y l ->
         ((Idx.short max_int x) ^  " -> " ^
          (Base.short max_int y)(* ^ " (" ^
          (string_of_int (M.get_item_use map x)) ^ ")"*))::l) ([]:string list)  in
     Printable.get_short_list "Array: {" "}" (w-9) strlist
 
   let pretty_f _ () (map,_) =
-    let content = 
-      M.fold map (fun x y l -> 
+    let content =
+      M.fold map (fun x y l ->
         (text (Idx.short max_int x) ++ text " -> " ++
         (Base.pretty () y)) :: l) [] in
     let rec separate x =
@@ -743,12 +743,12 @@ struct
         | [] -> []
         | [x] -> [x]
         | (x::xs) -> x ++ line :: separate xs
-    in 
+    in
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
       (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
 
-  let pretty () = pretty_f short () 
+  let pretty () = pretty_f short ()
 
   let toXML_f s (((map:M.t), length) as a) =
     let text = s Goblintutil.summary_length a in
@@ -767,7 +767,7 @@ struct
 
 end
 
-module PreciseMapArray 
+module PreciseMapArray
   (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
@@ -805,39 +805,39 @@ struct
     let use = (M.get_use a) + (M.get_use b) in
     conform (M.set_use handle_rest use,i)
 
-  let join a b = 
-    if equal a b 
-      then a 
+  let join a b =
+    if equal a b
+      then a
       else map2 Base.join a b
 
-  let meet a b = 
-    if equal a b 
+  let meet a b =
+    if equal a b
       then a
       else map2 Base.meet a b
 
-  let set ((map,len) as emap) index value = 
+  let set ((map,len) as emap) index value =
     if Idx.is_int index then begin
       let rest = M.find map (Idx.top ()) in
       if Base.equal value rest then begin
-        if M.mem map index 
+        if M.mem map index
           then (M.remove map index, len )
-          else emap end 
+          else emap end
         else
         let map_with_item = M.add map index value in
         conform (map_with_item, len)
     end else
       let joined_map = M.map map (Base.join value) in
-      let rest = M.find joined_map (Idx.top ()) in 
+      let rest = M.find joined_map (Idx.top ()) in
       let normalized = M.drop_while joined_map (fun _ -> Base.equal rest) in
-      (normalized, len)   
+      (normalized, len)
 
 
   let name () = "strict map based arrays"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  
+
 end
 
-module LooseMapArray 
+module LooseMapArray
   (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
@@ -853,7 +853,7 @@ struct
 (*    let rest_index = Idx.top () in
     let a_rest = M.find a rest_index in
     let b_rest = M.find b rest_index in
-    
+
     let fn_if_not_in map key value o_value =
       if M.mem map key then
         o_value else
@@ -872,7 +872,7 @@ struct
             let use = (M.get_item_use b key)+(M.get_item_use a key) in
             M.add_w_use new_map key new_value use
       end else
-        new_map in   
+        new_map in
 
     let result_map = M.fold a map_union_b (M.make (new_rest)) in
     let use = (M.get_use a)+(M.get_use b) in
@@ -897,11 +897,11 @@ struct
     let joined_maps = M.fold new_a fold_a (M.make rest) in
     (joined_maps, i)
 
-(*      
-    let rest = 
+(*
+    let rest =
       let rest_index = Idx.top () in
       let rest = fn (M.find a rest_index) (M.find b rest_index) in
-      let is_not_in x key value rest = 
+      let is_not_in x key value rest =
         if M.mem x key then
           rest
         else
@@ -913,9 +913,9 @@ struct
       if M.mem omap key then begin
         let other_value = M.find omap key in
         let new_value = fn value other_value in
-        if Base.equal new_value rest then 
+        if Base.equal new_value rest then
           map else
-          M.add map key new_value 
+          M.add map key new_value
       end else
         map in
     let new_map = M.fold a (map_match_idxs b) (M.make rest) in
@@ -923,31 +923,31 @@ struct
     (new_map,i)
 *)
 
-  let join a b = 
-    if equal a b 
-      then a 
+  let join a b =
+    if equal a b
+      then a
       else map2 Base.join a b
 
-  let meet a b = 
-    if equal a b 
+  let meet a b =
+    if equal a b
       then a
       else map2 Base.meet a b
 
-  let set ((map,len) as emap) index value = 
+  let set ((map,len) as emap) index value =
     if Idx.is_int index then begin
       let rest = M.find map (Idx.top ()) in
       if Base.equal value rest then begin
-        if M.mem map index 
+        if M.mem map index
           then (M.remove map index, len )
-          else emap end 
+          else emap end
         else
         let map_with_item = M.add map index value in
         conform (map_with_item, len)
     end else
       let joined_map = M.map map (Base.join value) in
-      let rest = M.find joined_map (Idx.top ()) in 
+      let rest = M.find joined_map (Idx.top ()) in
       let normalized = M.drop_while joined_map (fun _ -> Base.equal rest) in
-      (normalized, len)   
+      (normalized, len)
 
 
   (*let set (map,len) index value =
@@ -962,35 +962,35 @@ struct
 
   let name () = "loose map based arrays"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  
+
 end
 
 
-module PreciseMapArrayDomain 
-  (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S) 
+module PreciseMapArrayDomain
+  (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
 
   module A = PreciseMapArray(I)(Base)(Idx)
-  
+
   type idx = Idx.t
   type value = Base.t
 
-  include Lattice.Lift (A) (struct let bot_name = "array bot" 
+  include Lattice.Lift (A) (struct let bot_name = "array bot"
                                    let top_name = "array top" end)
 
   let set a i v :t =
-    match a with 
+    match a with
       | `Lifted l -> `Lifted (A.set l i v)
       | z -> z
 
   let get a i =
-    match a with 
+    match a with
       | `Lifted l -> A.get l i
       | _ -> Base.top ()
 
   let length a =
-    match a with 
+    match a with
       | `Lifted l -> A.length l
       | _ -> None
 
@@ -999,31 +999,31 @@ struct
 end
 
 
-module LooseMapArrayDomain 
-  (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S) 
+module LooseMapArrayDomain
+  (I:sig val n : int option end) (Base:Lattice.S) (Idx:IntDomain.S)
   : S with type value = Base.t and type idx = Idx.t =
 struct
 
   module A = LooseMapArray(I)(Base)(Idx)
-  
+
   type idx = Idx.t
   type value = Base.t
 
-  include Lattice.Lift (A) (struct let bot_name = "array bot" 
+  include Lattice.Lift (A) (struct let bot_name = "array bot"
                                    let top_name = "array top" end)
 
   let set a i v :t =
-    match a with 
+    match a with
       | `Lifted l -> `Lifted (A.set l i v)
       | z -> z
 
   let get a i =
-    match a with 
+    match a with
       | `Lifted l -> A.get l i
       | _ -> Base.top ()
 
   let length a =
-    match a with 
+    match a with
       | `Lifted l -> A.length l
       | _ -> None
 

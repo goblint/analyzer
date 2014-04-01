@@ -1,5 +1,5 @@
 open Analyses
-open GobConfig 
+open GobConfig
 open Messages
 open Progress
 open Pretty
@@ -7,15 +7,15 @@ open Pretty
 module GU = Goblintutil
 
 module Make2
-  (S:Analyses.GlobConstrSys) 
-  (LH:Hash.H with type key=S.LVar.t) 
+  (S:Analyses.GlobConstrSys)
+  (LH:Hash.H with type key=S.LVar.t)
   (GH:Hash.H with type key=S.GVar.t) =
 struct
   open S
   include Generic.SolverStatsWGlob (S)
-  
-  let lh_find_default t x a = try LH.find t x with Not_found -> a 
-  let gh_find_default t x a = try GH.find t x with Not_found -> a 
+
+  let lh_find_default t x a = try LH.find t x with Not_found -> a
+  let gh_find_default t x a = try GH.find t x with Not_found -> a
 
   let cons_unique key x xs =
     let xk = key x in
@@ -32,22 +32,22 @@ struct
     let unsafe = ref [] in
     let workset = ref iv in
     let rec constrainOneVar (x:LVar.t) =
-      let rhsides = 
-        let notnew = LH.mem sigma in 
+      let rhsides =
+        let notnew = LH.mem sigma in
         if notnew x then
-          let temp = lh_find_default todo x [] in 
+          let temp = lh_find_default todo x [] in
           let _ = LH.remove todo x in
             temp
         else begin
           new_var_event x;
-          LH.add sigma x (D.bot ());  
+          LH.add sigma x (D.bot ());
           fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system x) ([],0))
         end
       in
       if rhsides=[] then () else begin
-        let local_state = ref (D.bot ()) in 
+        let local_state = ref (D.bot ()) in
         let constrainOneRHS (f, i) =
-          let local_side v state = 
+          let local_side v state =
             if not ( D.leq state (D.bot ()) ) then
               let oldstate = lh_find_default sigma v (D.bot ()) in
               begin if not (LH.mem sigma v) then constrainOneVar v end;
@@ -59,7 +59,7 @@ struct
                   LH.remove vInfl v
                 end
           in
-          let global_side g gstate = 
+          let global_side g gstate =
             if not ( G.leq gstate (G.bot ()) ) then
               if tracing then tracel "theta" "Value of \"%a\" is non-bottom: %a\n" GVar.pretty_trace g G.pretty_diff (gstate, G.bot ());
               let oldgstate = gh_find_default theta g (G.bot ()) in
@@ -83,33 +83,33 @@ struct
           update_var_event x old_state new_val;
           LH.replace sigma x new_val;
           let influenced_vars = ref [] in
-          let collectInfluence ((y,f),i) = 
-            LH.replace todo y (cons_unique snd (f,i) (lh_find_default todo y []));             
+          let collectInfluence ((y,f),i) =
+            LH.replace todo y (cons_unique snd (f,i) (lh_find_default todo y []));
             influenced_vars := y :: !influenced_vars
           in
             List.iter collectInfluence (lh_find_default vInfl x []);
             LH.remove vInfl x;
             List.iter constrainOneVar !influenced_vars
-        end 
+        end
       end
     and vEval c var =
       get_var_event var;
       constrainOneVar var;
       LH.replace vInfl var (c :: lh_find_default vInfl var []);
       lh_find_default sigma var (D.bot ())
-    
+
     and gEval c glob =
       if not (GH.mem theta glob) then begin
         if tracing then tracel "theta" "Adding variable \"%a\" to globals!\n" GVar.pretty_trace glob;
         GH.replace theta glob (G.bot ())
       end;
       GH.replace gInfl glob (c :: gh_find_default gInfl glob []);
-      GH.find theta glob 
+      GH.find theta glob
 
     in
       start_event ();
       GU.may_narrow := false;
-      let add_start (v,d) = 
+      let add_start (v,d) =
         incr Goblintutil.vars;
         LH.add sigma v d;
         let edges = fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system v) ([],0)) in
@@ -121,13 +121,13 @@ struct
       while not ([] = !workset) do
         List.iter constrainOneVar !workset;
         workset := [];
-        let recallConstraint ((y,f),i) = 
+        let recallConstraint ((y,f),i) =
           LH.replace todo y (cons_unique snd (f,i) (lh_find_default todo y []));
           workset := y :: !workset;
         in
           List.iter recallConstraint !unsafe;
           unsafe := []
-      done;    
+      done;
       stop_event ();
       (sigma, theta)
 end

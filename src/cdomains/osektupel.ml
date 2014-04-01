@@ -16,7 +16,7 @@ let name () = "Transactionality tupels"
 
 let is_bot_c x = (x = Bot)
 
-let hash (a,b,c,d) = 
+let hash (a,b,c,d) =
   let a' = match a with Bot -> -1 | Val a'' -> a'' in
   let b' = match b with Bot -> -1 | Val b'' -> b'' in
   let c' = match c with Bot -> -1 | Val c'' -> c'' in
@@ -32,7 +32,7 @@ let bot () = (Bot, Bot, Bot, Bot)
 let is_bot x = (x = bot())
 let isSimple _  = true
 
-let short _ (a,b,c,d) = 
+let short _ (a,b,c,d) =
   let a' = match a with Bot -> "bot" | Val a'' -> string_of_int a'' in
   let b' = match b with Bot -> "bot" | Val b'' -> string_of_int b'' in
   let c' = match c with Bot -> "bot" | Val c'' -> string_of_int c'' in

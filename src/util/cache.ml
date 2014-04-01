@@ -9,11 +9,11 @@ struct
     let f x =
       match !cache with
         | Some (y,z) when V.equal x y -> z
-        | _ -> 
+        | _ ->
       let res = fn x in
       cache := Some (x, res);
       res
     in
     f
-  
+
 end

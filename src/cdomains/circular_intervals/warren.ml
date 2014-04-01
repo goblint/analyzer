@@ -5,7 +5,7 @@ open IntervalOps
  *
  * Defines bitwise operations on Intervals as proposed by Warren,
  * e.g. logical OR with complexity O(width of bitvectors).
- * 
+ *
  * Source: Henry S. Warren - Hacker's Delight *)
 module Warren (C : CircularIntOps) =
   struct
@@ -33,7 +33,7 @@ module Warren (C : CircularIntOps) =
       let rec loop m a c =
         if C.eq m C.zero then C.logor a c
         else if C.gt (logand3 (C.lognot w a) c m) C.zero
-        then 
+        then
           let tmp = C.logand (C.logor a m) (C.lognot w m) in
           if C.leq tmp b
           then loop C.zero tmp c
@@ -51,8 +51,8 @@ module Warren (C : CircularIntOps) =
     let max_or w a b c d =
       let rec loop m b d =
         if C.eq m C.zero then C.logor b d
-        else if C.gt (logand3 b d m) C.zero 
-        then 
+        else if C.gt (logand3 b d m) C.zero
+        then
           let tmp = C.logor (C.sub' b m) (C.sub' m C.one) in
           if C.geq tmp a
           then loop C.zero tmp d
@@ -64,7 +64,7 @@ module Warren (C : CircularIntOps) =
         else loop (C.shift_right m 1) b d
       in
       loop (C.shift_right (C.top_value w) 1) b d;;
-    
+
     let interval_or = interval_fn min_or max_or;;
 
     (* Warren's AND: p. 76f, figs. 4-5/4-6
@@ -84,12 +84,12 @@ module Warren (C : CircularIntOps) =
           (C.lognot w a)
           (C.lognot w d)
           (C.lognot w c));;
-    
+
     let interval_and = interval_fn min_and max_and;;
 
     (* Warren's XOR: p78
      * NOTE: Might be directly implemented or using AND/OR. *)
-    let min_xor w a b c d = 
+    let min_xor w a b c d =
       C.logor
         (min_and w a b (C.lognot w d) (C.lognot w c))
         (min_and w (C.lognot w b) (C.lognot w a) c d);;

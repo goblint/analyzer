@@ -3,21 +3,21 @@
 open Cil
 
 type categories = [
-  | `Malloc       
-  | `Calloc       
+  | `Malloc
+  | `Calloc
   | `Assert       of exp
   | `Lock         of bool * bool (* try? * write? *)
-  | `Unlock       
+  | `Unlock
   | `ThreadCreate of exp * exp
   | `ThreadJoin   of exp * exp
   | `Unknown      of string ]
 
 (** Categories of special functions *)
- 
+
 val classify : string -> exp list -> categories
 
 (** *)
-  
+
 type action = [ `Write  (** argument may be read or written to *)
               | `Read   (** argument may be read *)
               ]
@@ -36,7 +36,7 @@ val get_threadsafe_inv_ac : string -> (action -> exp list -> exp list) option
 val add_lib_funs : string list -> unit
 
 val use_special : string -> bool
-(** This is for when we need to use special transfer function on functions calls that have definitions. 
+(** This is for when we need to use special transfer function on functions calls that have definitions.
   *)
 
 val osek_renames : bool ref

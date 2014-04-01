@@ -4,7 +4,7 @@ module Make (Domain: Hashtbl.HashedType) =
 struct
   module H = Hashtbl.Make(Domain)
   type key = Domain.t
-  type 'a t = 'a H.t * 'a 
+  type 'a t = 'a H.t * 'a
 
   let create size def = (H.create size, def)
   let find (map,def) key = try H.find map key with Not_found -> def
@@ -13,7 +13,7 @@ struct
   let copy (map,def) = (H.copy map, def)  (* NB! maybe default should be copied? *)
 
    (* and this is inheritance???   *)
-  let lift f (map,_) = f map 
+  let lift f (map,_) = f map
   let clear x = lift H.clear x
   let add x k = lift H.add x k
   let remove x = lift H.remove x
@@ -80,7 +80,7 @@ sig
   val length: t -> int
 end
 
-module Printable (Domain: Printable.S) (Range: Printable.S) = 
+module Printable (Domain: Printable.S) (Range: Printable.S) =
 struct
   include Printable.Std
   module M = Hashtbl.Make (Domain)
@@ -94,7 +94,7 @@ struct
   let find = M.find
   let find_all = M.find_all
   let copy = M.copy
-  let add = M.add 
+  let add = M.add
   let remove = M.remove
   let replace = M.replace
   let mem = M.mem
@@ -102,9 +102,9 @@ struct
   let fold = M.fold
   let length = M.length
 
-  let equal x y = 
+  let equal x y =
     let forall2 f x y =
-      let ch k v t = t && try f (find x k) v with Not_found -> false in 
+      let ch k v t = t && try f (find x k) v with Not_found -> false in
       fold ch y true
     in length x = length y && forall2 Range.equal x y
   let hash xs = fold (fun k v xs -> xs lxor (Domain.hash k) lxor (Range.hash v)) xs 0
@@ -112,20 +112,20 @@ struct
   let isSimple _ = false
 
   let toXML_f sf mapping =
-    let f (key,st) = 
+    let f (key,st) =
       match Domain.toXML key with
         | Xml.Element ("Loc",attr,[]) ->
             Xml.Element ("Loc", attr, [Range.toXML st])
         | Xml.Element ("Leaf",attr,[]) ->
-      	    let summary = 
+      	    let summary =
       	      let w = Goblintutil.summary_length - 4 in
       	      let key_str = Domain.short w key in
       	      let st_str  = Range.short (w - String.length key_str) st in
-      		      key_str ^ " -> " ^ st_str 
+      		      key_str ^ " -> " ^ st_str
             in
             let attr = [("text", summary)] in begin
               match Range.toXML st with
-                | Xml.Element (_, chattr, children) -> 
+                | Xml.Element (_, chattr, children) ->
                     if Range.isSimple st then Xml.Element ("Leaf", attr, [])
                     else Xml.Element ("Node", attr, children)
                 | x -> x
@@ -138,10 +138,10 @@ struct
       Xml.Element ("Node", [("text", sf Goblintutil.summary_length mapping)], children)
 
   open Pretty
-  let pretty_f _ () mapping = 
-    let f key st dok = 
-      dok ++ (if Range.isSimple st then dprintf "%a -> @[%a@]\n" else 
-        dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st 
+  let pretty_f _ () mapping =
+    let f key st dok =
+      dok ++ (if Range.isSimple st then dprintf "%a -> @[%a@]\n" else
+        dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
     in
     let content () = fold f mapping nil in
     let defline () = dprintf "OTHERS -> Not available\n" in
@@ -149,9 +149,9 @@ struct
 
   let pretty () x = pretty_f short () x
   let toXML m = toXML_f short m
-  let pretty_diff () (x,y) = 
+  let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f xs = 
+  let printXml f xs =
     let print_one k v =
       BatPrintf.fprintf f "<key>\n%a</key>\n%a" Domain.printXml k Range.printXml v
     in

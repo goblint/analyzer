@@ -25,16 +25,16 @@ let true = ('t'|'T')('r'|'R')('u'|'U')('e'|'E')
 let false = ('f'|'F')('a'|'A')('l'|'L')('s'|'S')('e'|'E')
 let name = ['a'-'z''A'-'Z']['a'-'z''A'-'Z''0'-'9''_']*
 let oil_string = '\"'[^'\"']*'\"'
-let object = "OS" | "TASK" | "COUNTER" | "ALARM" | "RESOURCE" | "EVENT" | "ISR" | "MESSAGE" | "COM" | "NM" | 
+let object = "OS" | "TASK" | "COUNTER" | "ALARM" | "RESOURCE" | "EVENT" | "ISR" | "MESSAGE" | "COM" | "NM" |
 "APPMODE" | "IPDU"
 let object_ref_type = "OS_TYPE" | "TASK_TYPE" | "COUNTER_TYPE" | "ALARM_TYPE" | "RESOURCE_TYPE" | "EVENT_TYPE" | "ISR_TYPE" | "MESSAGE_TYPE" | "COM_TYPE" | "NM_TYPE" | "APPMODE_TYPE" | "IPDU_TYPE"
 
 
 
 rule token = parse
-  | ['\t'' '] | nl  	{ token lexbuf }	
+  | ['\t'' '] | nl  	{ token lexbuf }
   | comments   		{ token lexbuf }
-  | include		{ token lexbuf }	
+  | include		{ token lexbuf }
   | "="               	{ ASSIGN  }
   | ","               	{ COMMA  }
   | ":"               	{ COLON  }

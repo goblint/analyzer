@@ -32,7 +32,7 @@ let open_sockets i =
   Unix.setsockopt command_socket Unix.SO_REUSEADDR true;
   Unix.bind command_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, !command_port));
   Unix.listen command_socket 1;
-  let (client,_) = Unix.accept command_socket in 
+  let (client,_) = Unix.accept command_socket in
   command_in  := Unix.in_channel_of_descr client;
   command_out := Unix.out_channel_of_descr client;
   set_binary_mode_in !command_in false;
@@ -40,7 +40,7 @@ let open_sockets i =
   Unix.setsockopt event_socket Unix.SO_REUSEADDR true;
   Unix.bind event_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, i));
   Unix.listen event_socket 1;
-  let (client,_) = Unix.accept event_socket in 
+  let (client,_) = Unix.accept event_socket in
   event_out  := Unix.out_channel_of_descr client;
   set_binary_mode_out !event_out false;
   ignore (Printf.printf "done.\n")
@@ -50,7 +50,7 @@ let open_sockets i =
 (* let verbose = ref false *)
 
 (** prints the CFG on [getCFG] *)
-let cfg_print = ref false 
+let cfg_print = ref false
 
 (** filter result xml *)
 let result_filter = ref ".*"
@@ -58,12 +58,12 @@ let result_filter = ref ".*"
 let result_regexp = ref (Str.regexp "")
 
 (** Json files that are given as arguments *)
-let jsonFiles : string list ref = ref [] 
+let jsonFiles : string list ref = ref []
 
 (** has any threads have been spawned *)
 let multi_threaded = ref false
 
-(** Tells the spec that result may still get smaller (on narrowing). 
+(** Tells the spec that result may still get smaller (on narrowing).
    If this is false we can output messages and collect accesses. *)
 let may_narrow = ref true
 
@@ -81,7 +81,7 @@ let out = ref stdout
 
 
 (* Type invariant variables. *)
-let type_inv_tbl = Hashtbl.create 13 
+let type_inv_tbl = Hashtbl.create 13
 let type_inv (c:compinfo) : varinfo =
   try Hashtbl.find type_inv_tbl c.ckey
   with Not_found ->
@@ -90,7 +90,7 @@ let type_inv (c:compinfo) : varinfo =
       i
 
 let is_blessed (t:typ): varinfo option =
-  let me_gusta x = List.mem x (List.map string (get_list "exp.unique")) in 
+  let me_gusta x = List.mem x (List.map string (get_list "exp.unique")) in
   match unrollType t with
     | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
     | _ -> (None : varinfo option)
@@ -100,7 +100,7 @@ let is_blessed (t:typ): varinfo option =
 let summary_length = 80
 
 (** A hack to see if we are currently doing global inits *)
-let global_initialization = ref false 
+let global_initialization = ref false
 
 (** true if in verifying stage *)
 let in_verifying_stage = ref false
@@ -112,20 +112,20 @@ let escape (x:string):string =
   let esc_4 = Str.global_replace (Str.regexp "\"") "&quot;" esc_3 in
     esc_4
 
-let trim (x:string): string = 
+let trim (x:string): string =
   let len = String.length x in
     if x.[len-1] = ' ' then String.sub x 0 (len-1) else x
 
 
 (** Creates a directory and returns the absolute path **)
-let create_dir name = 
+let create_dir name =
   let dirName = if Filename.is_relative name then Filename.concat (Unix.getcwd ()) name else name in
   (* The directory should be writable to group and user *)
   let dirPerm = 0o770 in
-  let _ = 
+  let _ =
     try
       Unix.mkdir dirName dirPerm
-    with Unix.Unix_error(err, ctx1, ctx) as ex -> 
+    with Unix.Unix_error(err, ctx1, ctx) as ex ->
       (* We can discared the EEXIST, we are happy to use the existing directory *)
       if err != Unix.EEXIST then begin
         (* Hopefully will be friendly enough :) *)
@@ -136,27 +136,27 @@ let create_dir name =
     dirName
 
 (** Remove directory and its content, as "rm -rf" would do. *)
-let rm_rf path = 
-  let rec f path = 
+let rm_rf path =
+  let rec f path =
     if Sys.is_directory path then begin
       let files = Array.map (Filename.concat path) (Sys.readdir path) in
-        Array.iter f files; 
+        Array.iter f files;
         Unix.rmdir path
-    end else 
+    end else
       Sys.remove path
   in
     f path
-    
-type name = 
-   | Cons     
-   | Dest     
+
+type name =
+   | Cons
+   | Dest
    | Name     of string
    | Unknown  of string
-   | Template of name 
+   | Template of name
    | Nested   of name * name
    | PtrTo    of name
    | TypeFun  of string * name
-   
+
 let rec name_to_string_hlp = function
   | Cons -> "constructor"
   | Dest -> "destructor"
@@ -186,7 +186,7 @@ let rec show = function
   | PtrTo x -> "PtrTo ("^show x^")"
   | TypeFun (f,x) -> "TypeFun ("^f^","^ name_to_string x ^ ")"
 
- 
+
 let special    = Str.regexp "nw\\|na\\|dl\\|da\\|ps\\|ng\\|ad\\|de\\|co\\|pl\\|mi\\|ml\\|dv\\|rm\\|an\\|or\\|eo\\|aS\\|pL\\|mI\\|mL\\|dV\\|rM\\|aN \\|oR\\|eO\\|ls\\|rs\\|lS\\|rS\\|eq\\|ne\\|lt\\|gt\\|le\\|ge\\|nt\\|aa\\|oo\\|pp\\|mm\\|cm\\|pm\\|pt\\|cl\\|ix\\|qu\\|st\\|sz"
 let dem_prefix = Str.regexp "^_Z\\(.+\\)"
 let num_prefix = Str.regexp "^\\([0-9]+\\)\\(.+\\)"
@@ -206,11 +206,11 @@ let ptr_to     = Str.regexp "^P\\(.+\\)"
 let constructor= Str.regexp "^C[1-3]"
 let destructor = Str.regexp "^D[0-2]"
 let varlift    = Str.regexp "^llvm_cbe_\\(.+\\)$"
-let take n x = String.sub x 0 n 
-let drop n x = String.sub x n (String.length x - n) 
+let take n x = String.sub x 0 n
+let drop n x = String.sub x n (String.length x - n)
 let appp f (x,y) = f x, y
 
-let op_name x = 
+let op_name x =
   let op_name = function
     | "nw"  -> "new" (* new   *)
     | "na"  -> "new[]" (* new[] *)
@@ -263,11 +263,11 @@ let op_name x =
     | "sz"  -> "sizeof" (* sizeof (an expression) *)
     | "at"  -> "alignof" (* alignof (a type) *)
     | "az"  -> "alignof" (* alignof (an expression) *)
-    | x -> x 
+    | x -> x
   (*   | "cv" <type> -> "(cast)" (* (cast)         *)
     | "v" <digit> <source-name> -> "vendor" (* vendor extended operator *)
   *)
-  in 
+  in
   let on = op_name x in
   if on = x then x else "operator" ^ on
 
@@ -284,15 +284,15 @@ let rec num_p x : name list * string =
        let xs, r = num_p nn in
        (Template t::xs), r
   else if Str.string_match const x 0
-  then num_p (Str.string_after x (Str.match_end ())) 
+  then num_p (Str.string_after x (Str.match_end ()))
   else if Str.string_match constructor x 0
-  then [Cons],Str.string_after x (Str.match_end ()) 
+  then [Cons],Str.string_after x (Str.match_end ())
   else if Str.string_match destructor x 0
-  then [Dest],Str.string_after x (Str.match_end ()) 
+  then [Dest],Str.string_after x (Str.match_end ())
   else if Str.string_match special x 0
-  then [Name (op_name x)],Str.string_after x (Str.match_end ()) 
+  then [Name (op_name x)],Str.string_after x (Str.match_end ())
   else ([],x)
-  
+
 and conv x : name * string =
   if Str.string_match num_prefix x 0
   then let n = int_of_string (Str.matched_group 1 x) in
@@ -306,33 +306,33 @@ and conv x : name * string =
   else if Str.string_match tt_prefix x 0
   then appp (fun x -> TypeFun ("VTT", x)) (conv (Str.matched_group 1 x))
   else if Str.string_match templ x 0
-  then let x,y = conv (Str.matched_group 1 x) in 
+  then let x,y = conv (Str.matched_group 1 x) in
         appp (fun z -> Nested (Template x, z)) (conv (drop 1 y))
-				
+
   else if Str.string_match nested_std_a x 0 then
 		let ps, r = num_p ("9allocator"^(Str.matched_group 1 x)) in
         match List.rev ps with
           | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
-                       Nested (Name "std",fst r),snd r        
+                       Nested (Name "std",fst r),snd r
           | _ -> Unknown x, r
   else if Str.string_match nested_std_s x 0
   then let ps, r = num_p ("6string"^(Str.matched_group 1 x)) in
         match List.rev ps with
           | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
-                       Nested (Name "std",fst r),snd r        
+                       Nested (Name "std",fst r),snd r
           | _ -> Unknown x, r
   else if Str.string_match nested_std_t x 0
   then let ps, r = num_p (Str.matched_group 1 x) in
         match List.rev ps with
           | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
-					   Nested (Name "std",fst r),snd r        
+					   Nested (Name "std",fst r),snd r
           | _ -> Unknown x, r
- 
+
   else if Str.string_match nested x 0
   then let ps, r = num_p (Str.matched_group 1 x) in
         match List.rev ps with
           | p::ps -> List.fold_left (fun xs x -> Nested (x,xs)) p ps, r
-          | _ -> Unknown x, r 
+          | _ -> Unknown x, r
   else if Str.string_match ptr_to x 0
   then appp (fun x -> PtrTo x) (conv (Str.matched_group 1 x))
   else if Str.string_match constructor x 0
@@ -341,10 +341,10 @@ and conv x : name * string =
   then Dest,""
   else if Str.string_match special x 0
   then Name x,""
-  else Unknown x, ""    
-  
+  else Unknown x, ""
 
-let to_name x = 
+
+let to_name x =
   if Str.string_match dem_prefix x 0
   then fst (conv (Str.matched_group 1 x))
   else if Str.string_match strlift x 0
@@ -353,36 +353,36 @@ let to_name x =
   then Name (Str.matched_group 1 x)
   else Name x
 
-let get_class x : string option = 
-  let rec git tf : name -> string option = function 
+let get_class x : string option =
+  let rec git tf : name -> string option = function
     | Cons | Dest | Unknown _ | PtrTo _ | Template _ -> None
-		| Name x when tf -> Some x 
+		| Name x when tf -> Some x
 		| Name _ -> None
     | TypeFun (x,y) -> git true y (*vtables don't have a function name*)
-    | Nested (x,y) -> 
-      begin match git tf y with 
+    | Nested (x,y) ->
+      begin match git tf y with
         | None ->
 					if not tf then begin match x with Name x -> Some x | _ -> None  end
 					else begin match y with | Name s -> Some s | _ -> None end
-        | x -> x 
+        | x -> x
       end
   in
   git false (to_name x)
 
-let get_class_and_name x : (string * string) option = 
-  let rec git = function 
+let get_class_and_name x : (string * string) option =
+  let rec git = function
     | Cons | Dest | Name _ | Unknown _ | PtrTo _ | TypeFun _ | Template _ -> None
-    | Nested (Name x,Cons) -> Some (x,x) 
+    | Nested (Name x,Cons) -> Some (x,x)
     | Nested (Name x,Dest) -> Some (x,"~"^x)
-    | Nested (x,y) -> 
-      begin match git y with 
+    | Nested (x,y) ->
+      begin match git y with
         | None -> begin match x, y with Name x, Name y -> Some (x,y) | _ -> None  end
-        | x -> x 
+        | x -> x
       end
   in
   git (to_name x)
-  
-let demangle x = 
+
+let demangle x =
   let y = to_name x in
 (*   Printf.printf "%s -> %s -> %s\n" x (show y) (name_to_string y);   *)
   let res=name_to_string y in

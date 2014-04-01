@@ -1,7 +1,7 @@
 (** Structures for the querying subsystem. *)
 
 include Cil
-include Pretty 
+include Pretty
 
 module GU = Goblintutil
 module ID = IntDomain.FlatPureIntegers
@@ -12,25 +12,25 @@ module LPS = SetDomain.ToppedSet (Printable.Prod (Lval.CilLval) (Lval.CilLval)) 
 
 (* who uses this? hopefully it's not in the domain *)
 module ES_r = SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end)
-module ES = 
-struct 
+module ES =
+struct
   include ES_r
   include Printable.Std
-  include Lattice.StdCousot 
+  include Lattice.StdCousot
   let bot = ES_r.top
   let top = ES_r.bot
   let leq x y = ES_r.leq y x
-  let join = ES_r.meet 
+  let join = ES_r.meet
   let meet x y = ES_r.join x y
 end
 
-type t = ExpEq of exp * exp 
+type t = ExpEq of exp * exp
        | EqualSet of exp
        | MayPointTo of exp
        | ReachableFrom of exp
        | PerElementLock of exp
        | ArrayLockstep of exp
-       | Regions of exp  
+       | Regions of exp
        | MayEscape of varinfo
        | Priority of string
        | IsPrivate of varinfo
@@ -54,12 +54,12 @@ type result = [
     | `ExprSet of ES.t
     | `ExpTriples of PS.t
     | `Bot
-    ] 
+    ]
 
 type ask = t -> result
-      
-module Result: Lattice.S with type t = result = 
-struct 
+
+module Result: Lattice.S with type t = result =
+struct
   include Printable.Std
   type t = result
 
@@ -72,7 +72,7 @@ struct
   let is_top x = x = `Top
   let top_name = "Unknown"
 
-  let equal x y = 
+  let equal x y =
     match (x, y) with
       | (`Top, `Top) -> true
       | (`Bot, `Bot) -> true
@@ -92,7 +92,7 @@ struct
       | `ExpTriples n -> PS.hash n
       | _ -> Hashtbl.hash x
 
-  let compare x y = 
+  let compare x y =
     let constr_to_int x = match x with
         | `Bot -> 0
         | `Int _ -> 1
@@ -110,7 +110,7 @@ struct
       | `ExpTriples x, `ExpTriples y -> PS.compare x y
       | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
 
-  let pretty_f s () state = 
+  let pretty_f s () state =
     match state with
       | `Int n ->  ID.pretty () n
       | `Str s ->  text s
@@ -121,7 +121,7 @@ struct
       | `Bot -> text bot_name
       | `Top -> text top_name
 
-  let rec short w state = 
+  let rec short w state =
     match state with
       | `Int n ->  ID.short w n
       | `Str s ->  s
@@ -132,7 +132,7 @@ struct
       | `Bot -> bot_name
       | `Top -> top_name
 
-  let isSimple x = 
+  let isSimple x =
     match x with
       | `Int n ->  ID.isSimple n
       | `Bool n ->  BD.isSimple n
@@ -168,12 +168,12 @@ struct
       | (`ExprSet x, `ExprSet y) -> ES.leq x y
       | (`ExpTriples x, `ExpTriples y) -> PS.leq x y
       | _ -> false
-      
-  let join x y = 
-    try match (x,y) with 
-      | (`Top, _) 
+
+  let join x y =
+    try match (x,y) with
+      | (`Top, _)
       | (_, `Top) -> `Top
-      | (`Bot, x) 
+      | (`Bot, x)
       | (x, `Bot) -> x
       | (`Int x, `Int y) -> `Int (ID.join x y)
       | (`Bool x, `Bool y) -> `Bool (BD.join x y)
@@ -182,12 +182,12 @@ struct
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.join x y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
-  
-  let meet x y = 
-    try match (x,y) with 
-      | (`Bot, _) 
+
+  let meet x y =
+    try match (x,y) with
+      | (`Bot, _)
       | (_, `Bot) -> `Bot
-      | (`Top, x) 
+      | (`Top, x)
       | (x, `Top) -> x
       | (`Int x, `Int y) -> `Int (ID.meet x y)
       | (`Bool x, `Bool y) -> `Bool (BD.meet x y)
@@ -198,27 +198,27 @@ struct
     with IntDomain.Error -> `Bot
 
   let widen x y =
-    try match (x,y) with 
-      | (`Top, _) 
+    try match (x,y) with
+      | (`Top, _)
       | (_, `Top) -> `Top
-      | (`Bot, x) 
+      | (`Bot, x)
       | (x, `Bot) -> x
       | (`Int x, `Int y) -> `Int (ID.widen x y)
       | (`Bool x, `Bool y) -> `Bool (BD.widen x y)
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.widen x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.widen x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.widen x y)
-      | _ -> `Top    
+      | _ -> `Top
     with IntDomain.Unknown -> `Top
-  
+
   let narrow x y =
-    match (x,y) with 
+    match (x,y) with
       | (`Int x, `Int y) -> `Int (ID.narrow x y)
       | (`Bool x, `Bool y) -> `Bool (BD.narrow x y)
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.narrow x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.narrow x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.narrow x y)
       | (x,_) -> x
-      
+
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end

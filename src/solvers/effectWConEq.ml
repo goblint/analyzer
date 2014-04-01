@@ -1,5 +1,5 @@
 open Analyses
-open GobConfig 
+open GobConfig
 open Messages
 open Progress
 open Pretty
@@ -15,7 +15,7 @@ struct
     let infl    = HM.create  10 in
     let stable  = HM.create  10 in
     let rho     = HM.create  10 in
-    
+
 (*     let cnt = ref 0 in
     let var_stats () =
      let reachable = HM.create (HM.length rho) in
@@ -34,7 +34,7 @@ struct
      HM.iter (fun x _ -> if not (HM.mem rho x) then incr dead) reachable;
      Printf.printf "\n\n\tDEAD VARIABLES: %d/%d\n\n\n" !dead (HM.length rho)
    in *)
-    
+
     let rec solve x =
       (* incr cnt; *)
       (* if !cnt mod 1000 = 0 then var_stats (); *)
@@ -44,19 +44,19 @@ struct
       end;
       HM.replace stable x ();
       set x (eq x (eval x) set)
-      
+
     and eq x get set =
       eval_rhs_event x;
       match S.system x with
         | None  -> S.Dom.bot ()
         | Some f -> f get set
-        
+
     and eval x y =
       get_var_event y;
       if not (HM.mem stable y) then solve y;
       HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
       HM.find rho y
-      
+
     and set x d =
       if not (HM.mem rho x) then solve x;
       let old = HM.find rho x in
@@ -71,14 +71,14 @@ struct
       end
     in
 
-    let set_start (x,d) = 
+    let set_start (x,d) =
       HM.replace rho x d;
     in
-    
+
     start_event ();
-    List.iter set_start st;    
+    List.iter set_start st;
     List.iter solve vs;
-        
+
      let reachability xs =
       let reachable = HM.create (HM.length rho) in
       let rec one_var x =
@@ -96,14 +96,14 @@ struct
     in
     reachability vs;
     stop_event ();
-    
+
     HM.clear stable;
     HM.clear infl  ;
-    
+
     rho
 
 end
 
-let _ = 
+let _ =
   let module S3 = Constraints.GlobSolverFromIneqSolver (SLR.JoinContr (Make)) in
   Selector.add_solver ("effectWConEq", (module S3 : GenericGlobSolver));

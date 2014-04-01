@@ -44,7 +44,7 @@ let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative
   | path -> open_out (Filename.concat path (name ^ ".out"))
 
-let xml_warn : (location, (string*string) list) Hashtbl.t = Hashtbl.create 10  
+let xml_warn : (location, (string*string) list) Hashtbl.t = Hashtbl.create 10
 
 let colorize ?on:(on=get_bool "colors") msg =
   let colors = [("gray", "30"); ("red", "31"); ("green", "32"); ("yellow", "33"); ("blue", "34");
@@ -56,24 +56,24 @@ let colorize ?on:(on=get_bool "colors") msg =
   let msg = List.fold_left replace msg colors in
   msg^(if on then "\027[0;0;00m" else "") (* reset at end *)
 
-let print_msg msg loc = 
+let print_msg msg loc =
   let msgc = colorize msg in
   let msg  = colorize ~on:false msg in
   if (get_string "result") = "html" then htmlGlobalWarningList := (loc.file,loc.line,msg)::!htmlGlobalWarningList;
   if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
-  if get_bool "gccwarn" then    
+  if get_bool "gccwarn" then
     Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
-  else if get_bool "exp.eclipse" then 
+  else if get_bool "exp.eclipse" then
     Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
   else
     Printf.fprintf !warn_out (if get_bool "colors" then "%s \027[35m(%s:%d)\027[0;0;00m\n%!" else "%s (%s:%d)\n%!") msgc loc.file loc.line
 
-let print_err msg loc = 
+let print_err msg loc =
   if (get_string "result") = "html" then htmlGlobalWarningList := (loc.file,loc.line,msg)::!htmlGlobalWarningList;
   if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
-  if get_bool "gccwarn" then    
+  if get_bool "gccwarn" then
     Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
-  else if get_bool "exp.eclipse" then 
+  else if get_bool "exp.eclipse" then
     Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
   else
     Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
@@ -99,32 +99,32 @@ let print_group group_name errors =
       end;
       ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
-let warn_urgent msg = 
+let warn_urgent msg =
   if not !GU.may_narrow then begin
     soundness := false;
     print_msg msg (!Tracing.current_loc)
   end
-  
+
 let write msg =
   print_msg msg !Tracing.current_loc
 
-let warn_all msg = 
+let warn_all msg =
   if not !GU.may_narrow then begin
-    if !warnings then 
+    if !warnings then
       print_msg msg (!Tracing.current_loc);
     soundness := false
   end
-  
+
 let worldStopped = ref false
 exception StopTheWorld
-let waitWhat s = 
+let waitWhat s =
   worldStopped := true;
   warn_urgent s;
   raise StopTheWorld
-  
+
 let report_lin_hashtbl  = Hashtbl.create 10
 
-let report ?loc:(loc= !Tracing.current_loc) msg = 
+let report ?loc:(loc= !Tracing.current_loc) msg =
   if not !GU.may_narrow then begin
     if (Hashtbl.mem report_lin_hashtbl (msg,loc) == false) then
       begin
@@ -133,16 +133,16 @@ let report ?loc:(loc= !Tracing.current_loc) msg =
       end
   end
 
-let report_error msg = 
+let report_error msg =
   if not !GU.may_narrow then begin
     let loc = !Tracing.current_loc in
 		  print_err msg loc
-  end	
-		  
+  end
+
 let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
 
-let warn msg = 
+let warn msg =
   if not !GU.may_narrow then begin
     if (Hashtbl.mem warn_str_hashtbl msg == false) then
       begin
@@ -150,8 +150,8 @@ let warn msg =
         Hashtbl.add warn_str_hashtbl msg true
       end
   end
-  
-let warn_each msg = 
+
+let warn_each msg =
   if not !GU.may_narrow then begin
     let loc = !Tracing.current_loc in
       if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
@@ -160,10 +160,10 @@ let warn_each msg =
         Hashtbl.add warn_lin_hashtbl (msg,loc) true
         end
   end
-  
+
 let debug msg =
   if (get_bool "dbg.debug") then warn (colorize ("{BLUE}"^msg))
-  
+
 let debug_each msg =
   if (get_bool "dbg.debug") then warn_each (colorize ("{blue}"^msg))
 
