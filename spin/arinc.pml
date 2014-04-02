@@ -3,9 +3,15 @@
 #define UP 1
 #define DOWN 0
 
+// partition
+mtype = { IDLE, COLD_START, WARM_START, NORMAL } // partition modes
+mtype partitionMode = COLD_START;
 // processes
-mtype = { STOPPED, SUSPENDED, WAITING, READY, RUNNING } // possible states
+mtype = { STOPPED, SUSPENDED, WAITING, READY, RUNNING } // possible process states
+// RUNNING is not used here (all READY are possibly RUNNING)
 mtype status[nproc] = READY; // initialize all processes as ready
+byte lockLevel; // scheduling only takes place if this is 0
+byte exclusive; // id of process that has exclusive privilige to execute if lockLevel > 0
 byte ncrit; // number of processes in critical section
 // resources
 mtype = { NONE, SEMA, EVENT }
@@ -13,9 +19,9 @@ typedef Wait { mtype resource; byte id; }
 Wait waiting[nproc];
 
 #ifdef nsema // semaphores
+mtype = { FIFO, PRIO } // queuing discipline
 byte semas[nsema];
 byte semas_max[nsema];
-#define init_sema(i, c, m)  semas[i] = c; semas_max[i] = m
 chan semas_chan[nsema] = [nproc] of { byte }
 #endif
 
@@ -31,6 +37,7 @@ bool events[nevent] = DOWN;
 #define pprintf(fmt, args...)   printf("Proc %d: ", id); printf(fmt, args)
 
 // helpers for scheduling etc.
+#define canRun(proc_id) (status[proc_id] == READY && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
 inline setReady(proc_id) {
     printf("setReady: process %d will be ready (was waiting for %e %d)\n", proc_id, waiting[proc_id].resource, waiting[proc_id].id);
     waiting[proc_id].resource = NONE;
@@ -47,8 +54,70 @@ inline setWaiting(resource_type, resource_id) {
 #define isWaiting(proc_id, resource_type, resource_id)    status[proc_id] == WAITING && waiting[proc_id].resource == resource_type && waiting[proc_id].id == resource_id
 
 
+// ARINC functions collected by analysis
+inline LockPreemption() { atomic {
+    lockLevel++;
+    exclusive = id;
+} }
+inline UnlockPreemption() { atomic {
+    if
+    :: lockLevel > 0 -> lockLevel--;
+    :: else -> skip
+    fi
+} }
+inline SetPartitionMode(mode) { atomic {
+    partitionMode = mode;
+} }
+inline CreateProcess(proc_id, pri, per, cap) { atomic {
+    printf("CreateProcess: id %d, priority %d, period %d, capacity %d\n", proc_id, pri, per, cap);
+    status[proc_id] = READY;
+    waiting[proc_id] = NONE;
+} }
+inline CreateErrorHandler(proc_id, pri, per, cap) { atomic {
+    printf("CreateErrorHandler: id %d, priority %d, period %d, capacity %d\n", proc_id, pri, per, cap);
+    status[proc_id] = READY;
+    waiting[proc_id] = NONE;
+} }
+inline Start(proc_id) { atomic {
+    status[proc_id] = READY;
+    // TODO reset process if it is already running!
+    // maybe insert after every statement: if restart[id] -> goto start_p1
+} }
+inline Stop(proc_id) { atomic {
+    status[proc_id] = STOPPED;
+    // TODO remove process from waiting queues!
+} }
+inline Suspend(proc_id) { atomic {
+    status[proc_id] = SUSPENDED;
+} }
+inline Resume(proc_id) { atomic {
+    if
+    // if the process was waiting for something when it was suspended, change it back to waiting!
+    :: status[proc_id] == SUSPENDED && waiting[proc_id].resource != NONE ->
+        status[proc_id] = WAITING;
+    :: else ->
+        status[proc_id] = READY;
+    fi
+} }
+inline CreateBlackboad(bb_id) { atomic {
+    skip
+} }
+inline DisplayBlackboard(bb_id) { atomic {
+    skip // TODO
+} }
+inline ReadBlackboard(bb_id) { atomic {
+    skip // TODO
+} }
+inline ClearBlackboard(bb_id) { atomic {
+    skip // TODO
+} }
+inline CreateSemaphore(sema_id, cur, max, queuing) { atomic {
+    assert(queuing == FIFO); // TODO
+    semas[sema_id] = cur;
+    semas_max[sema_id] = max;
+} }
 // code uses 0/FIFO as queuing discipline
-inline WaitSema(sema_id) { atomic {
+inline WaitSemaphore(sema_id) { atomic {
     // TODO priority queuing
     // FIFO queuing (channel needed for preserving order)
     if
@@ -63,7 +132,6 @@ inline WaitSema(sema_id) { atomic {
             semas_chan[sema_id]!id; // put current process in queue
         fi;
         setWaiting(SEMA, sema_id); // blocks this process instantly
-        // jspin's guided mode runs into assertion violations because atomicity is lost here. verify yields no errors though...
         // doc says: if stmt in atomic blocks, the rest will still remain atomic once it becomes executable. atomicity is lost if one jumps out of the sequence (which might be the case with provided (...)).
     :: semas[sema_id] > 0 ->
         printf("WaitSema will go through: semas[%d] = %d\n", sema_id, semas[sema_id]);
@@ -73,7 +141,7 @@ inline WaitSema(sema_id) { atomic {
         assert(false);
     fi
 } }
-inline SignalSema(sema_id) { atomic {
+inline SignalSemaphore(sema_id) { atomic {
     // filter processes waiting for sema_id
     if
     // no processes waiting on this semaphore -> increase count until max
@@ -87,20 +155,26 @@ inline SignalSema(sema_id) { atomic {
     :: nempty(semas_chan[sema_id]) -> // else doesn't work here because !empty is disallowed...
         printf("SignalSema: %d processes in queue\n", len(semas_chan[sema_id]));
         byte i;
-        byte c;
         for (i in status) {
             printf("SignalSema: check if process %d is waiting...\n", i);
             if
             :: i!=id && isWaiting(i, SEMA, sema_id) && semas_chan[sema_id]?[i] -> // process is waiting for this semaphore and is at the front of its queue TODO prio queues
                 printf("SignalSema: process %d is waking up process %d\n", id, i);
-                c++;
                 semas_chan[sema_id]?eval(i); // consume msg from queue
                 setReady(i);
                 break
             :: else -> skip
             fi
         };
-        assert(c==0 || c==1);
+    fi
+} }
+inline CreateEvent(event_id) { atomic {
+    skip
+} }
+inline WaitEvent(event_id) { atomic {
+    if
+    :: events[event_id] == DOWN -> setWaiting(EVENT, event_id);
+    :: events[event_id] == UP -> skip; // nothing to do
     fi
 } }
 inline SetEvent(event_id) { atomic {
@@ -119,38 +193,22 @@ inline SetEvent(event_id) { atomic {
 inline ResetEvent(event_id) { atomic {
     events[event_id] = DOWN;
 } }
-inline WaitEvent(event_id) { atomic {
-    if
-    :: events[event_id] == DOWN -> setWaiting(EVENT, event_id);
-    :: events[event_id] == UP -> skip; // nothing to do
-    fi
-} }
-inline Suspend(id) { atomic {
-    status[id] = SUSPENDED;
-} }
-inline Resume(id) { atomic {
-    // TODO e.g. p1 was waiting and gets suspended -> should change to waiting again!
-    status[id] == SUSPENDED -> status[id] = READY;
+inline TimedWait(time) { atomic {
+    skip
 } }
 inline PeriodicWait() { atomic {
-    skip
-} }
-inline DisplayBlackboard() { atomic {
-    skip
-} }
-inline ReadBlackboard() { atomic {
     skip
 } }
 
 
 // verification helpers
 inline WaitSignalSema(sema_id) {
-    WaitSema(sema_id);
+    WaitSemaphore(sema_id);
     ncrit++;
     printf("Process %d is now in critical section!\n", id);
     //assert(ncrit == 1);	// critical section
     ncrit--;
-    SignalSema(sema_id);
+    SignalSemaphore(sema_id);
 }
 // monitor for invariants
 proctype monitor() {

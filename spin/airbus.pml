@@ -1,26 +1,30 @@
 // configuration
-#define nproc 2 // number of processes
+#define nproc 3 // number of processes
 #define nsema 1 // number of semaphores
 #define nevent 1 // number of events
-// handles for processes (for Suspend/Resume...)
-#define dd63_id 2
 
 // setup arinc functions and resources
 #include "arinc.pml"
 
 // init
 init {
-    init_sema(0, 1, 1); // id, current count, max count
-    run monitor();
-    run a(0);
-    run b(1);
+    run arinc_init(0); // process with id 0 is the arinc init process!
+    (partitionMode == NORMAL); // blocks until mode is NORMAL
+    run monitor(); // checks system invariants
+    // activate processes
+    run a(1);
+    run b(2);
     /* run acem(0); */
     /* run ctl_dd63(1); */
     /* run dd63(2); */
 }
 
-proctype a(byte id) priority 5 provided (status[0] == READY) { WaitSignalSema(0); }
-proctype b(byte id) priority 5 provided (status[1] == READY) { WaitSignalSema(0); }
+proctype arinc_init(byte id) provided canRun(0) {
+    CreateSemaphore(0, 1, 1, FIFO); // id, current count, max count
+    SetPartitionMode(NORMAL);
+}
+proctype a(byte id) priority 5 provided canRun(1) { WaitSignalSema(0); }
+proctype b(byte id) priority 5 provided canRun(2) { WaitSignalSema(0); }
 
 /* // define processes */
 /* proctype acem(byte id) { // prio 60, per 600 */

@@ -7,26 +7,27 @@
 
 // init
 init {
-    init_sema(0, 1, 1);
-    init_sema(1, 1, 1);
+    CreateSemaphore(0, 1, 1, FIFO);
+    CreateSemaphore(1, 1, 1, FIFO);
+    SetPartitionMode(NORMAL);
     run monitor();
     run a(0);
     run b(1);
 }
 
-proctype a(byte id) provided (status[0] == READY) {
-    WaitSema(0);
-    WaitSema(1);
+proctype a(byte id) provided canRun(0) {
+    WaitSemaphore(0);
+    WaitSemaphore(1);
     printf("Process a has both locks!\n");
-    SignalSema(1);
-    SignalSema(0);
+    SignalSemaphore(1);
+    SignalSemaphore(0);
 }
 
-proctype b(byte id) provided (status[1] == READY) {
-    WaitSema(1);
-    WaitSema(0);
+proctype b(byte id) provided canRun(1) {
+    WaitSemaphore(1);
+    WaitSemaphore(0);
     printf("Process b has both locks!\n");
-    SignalSema(0);
-    SignalSema(1);
+    SignalSemaphore(0);
+    SignalSemaphore(1);
 }
 
