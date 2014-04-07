@@ -3,13 +3,13 @@
 #define nsema 2 // number of semaphores
 
 // setup arinc functions and resources
-#include "arinc.pml"
+#include "arinc_base.pml"
 
 // init
 init {
     CreateSemaphore(0, 1, 1, FIFO);
     CreateSemaphore(1, 1, 1, FIFO);
-    SetPartitionMode(NORMAL);
+    SetPartitionMode(NORMAL); // arinc init process not needed
     run monitor();
     run a(0);
     run b(1);

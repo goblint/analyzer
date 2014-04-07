@@ -232,4 +232,3 @@ proctype monitor() {
     :: else -> skip
     fi
 }
-

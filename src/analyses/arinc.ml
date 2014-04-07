@@ -15,11 +15,16 @@ struct
   type id = varinfo
   type ids = id list
   type time = int64 (* Maybe use Nativeint which is the same as C long. OCaml int is just 31 or 63 bits wide! *)
+  module Action = (* encapsulate types because some process field names are also used for D.t -> use local opening of modules (since 4.00) for output *)
+  struct
+    type process = { pid: id; funs: varinfo list; pri: int64; per: time; cap: time }
+    type semaphore = { sid: id; cur: int64; max: int64; queuing: int64 }
+  end
   type action =
     | LockPreemption | UnlockPreemption | SetPartitionMode of int64
-    | CreateProcess of id * varinfo list * int64 * time * time | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
+    | CreateProcess of Action.process | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
     | CreateBlackboard of id | DisplayBlackboard of ids | ReadBlackboard of ids * time | ClearBlackboard of ids
-    | CreateSemaphore of id * int64 * int64 * int64 | WaitSemaphore of ids | SignalSemaphore of ids
+    | CreateSemaphore of Action.semaphore | WaitSemaphore of ids | SignalSemaphore of ids
     | CreateEvent of id | WaitEvent of ids * time | SetEvent of ids | ResetEvent of ids
     | TimedWait of time | PeriodicWait
   (* callstack for locations *)
@@ -27,7 +32,7 @@ struct
   type node = MyCFG.node
   type edge = node * action * callstack * node
   let action_of_edge (_, action, _, _) = action
-  let edges = Hashtbl.create 123
+  let edges = Hashtbl.create 199
   let get_edges (pid:id) : edge Set.t =
     Hashtbl.find_default edges pid Set.empty
   let add_edge (pid:id) edge =
@@ -46,7 +51,7 @@ struct
     | Blackboard -> "Blackboard"
 
   (* map from tuple (resource, name) to varinfo (need to be saved b/c/ makeGlobalVar x t <> makeGlobalVar x t) *)
-  let resources = Hashtbl.create 123
+  let resources = Hashtbl.create 13
   let get_id (resource,name as k:resource*string) : id =
     try Hashtbl.find resources k
     with Not_found ->
@@ -56,19 +61,27 @@ struct
       v
   let get_by_id (id:id) : (resource*string) option =
     Hashtbl.filter ((=) id) resources |> Hashtbl.keys |> Enum.get
+  let get_name_by_id id = get_by_id id |> Option.get |> snd
+
+  let filter_map_actions p =
+    let all_edges = Hashtbl.values edges |> List.of_enum |> List.map Set.elements |> List.concat in
+    List.filter_map (p%action_of_edge) all_edges
+
+  let filter_actions p =
+    (* filter_map_actions (Option.filter p % Option.some) *)
+    filter_map_actions (fun x -> if p x then Some x else None)
 
   let funs_for_process name : varinfo list =
     let id = get_id (Process, name) in
     let get_funs = function
-      | CreateProcess (id', funs, _, _, _) when id'=id -> funs
-      | CreateErrorHandler (id', funs) when id'=id -> funs
-      | _ -> []
+      | CreateProcess x when id=x.Action.pid -> Some x.Action.funs
+      | CreateErrorHandler (id', funs) when id'=id -> Some funs
+      | _ -> None
     in
-    let all_edges = Hashtbl.values edges |> List.of_enum |> List.map Set.elements |> List.concat in
-    List.map (get_funs%action_of_edge) all_edges |> List.concat
+    filter_map_actions get_funs |> List.concat
 
   (* map process name to integer used in Pid domain *)
-  let pnames = Hashtbl.create 123
+  let pnames = Hashtbl.create 13
   let _ = Hashtbl.add pnames "mainfun" 0L
   let get_by_pid pid =
     Hashtbl.filter ((=) pid) pnames |> Hashtbl.keys |> Enum.get
@@ -369,17 +382,17 @@ struct
           begin match name, entry_point, pri, per, cap with
           | `Str name, `LvalSet ls, `Int pri, `Int per, `Int cap when not (Queries.LS.is_top ls)
             && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-              let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
-              if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs pri;
-              let fun_list = funs |> Queries.LS.elements |> List.map fst |> List.unique in
+              let funs_ls = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
+              if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
+              let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
                 let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; callstack = []; pmo = Pmo.of_int 3L; pre = pre; node = Node.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
-              List.iter spawn fun_list;
+              List.iter spawn funs;
               let pid' = get_id (Process, name) in
               assign_id pid pid';
-              add_action (CreateProcess (pid', fun_list, pri, per, cap)) d
+              add_action (CreateProcess Action.({ pid = pid'; funs; pri; per; cap })) d
           (* TODO when is `Bot returned? *)
           (* | `Bot, _ | _, `Bot -> D.bot () *)
           | _ -> struct_fail ()
@@ -454,7 +467,7 @@ struct
           (* create resource for name *)
           let sid' = get_id (Semaphore, eval_str name) in
           assign_id sid sid';
-          add_action (CreateSemaphore (sid', eval_int cur, eval_int max, eval_int queuing)) d
+          add_action (CreateSemaphore Action.({ sid = sid'; cur = eval_int cur; max = eval_int max; queuing = eval_int queuing })) d
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
           let sid = eval_id sid in
           if List.is_empty sid then d else add_action (WaitSemaphore sid) d
@@ -541,8 +554,8 @@ struct
     | LockPreemption -> "LockPreemption"
     | UnlockPreemption -> "UnlockPreemption"
     | SetPartitionMode i -> "SetPartitionMode "^string_of_partition_mode i
-    | CreateProcess (id, funs, prio, period, capacity) ->
-        "CreateProcess "^str_resource id^" (funs "^str_funs funs^", prio "^str_i64 prio^", period "^str_time period^", capacity "^str_time capacity^")"
+    | CreateProcess x ->
+        let open Action in "CreateProcess "^str_resource x.pid^" (funs "^str_funs x.funs^", prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")"
     | CreateErrorHandler (id, funs) -> "CreateErrorHandler "^str_resource id
     | Start ids -> "Start "^str_resources ids
     | Stop ids when ids=[pid] -> "StopSelf"
@@ -554,8 +567,8 @@ struct
     | DisplayBlackboard ids -> "DisplayBlackboard "^str_resources ids
     | ReadBlackboard (ids, timeout) -> "ReadBlackboard "^str_resources ids^" (timeout "^str_time timeout^")"
     | ClearBlackboard ids -> "ClearBlackboard "^str_resources ids
-    | CreateSemaphore (id, cur, max, queuing) ->
-        "CreateSemaphore "^str_resource id^" ("^str_i64 cur^"/"^str_i64 max^", "^string_of_queuing_discipline queuing^")"
+    | CreateSemaphore x ->
+        let open Action in "CreateSemaphore "^str_resource x.sid^" ("^str_i64 x.cur^"/"^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^")"
     | WaitSemaphore ids -> "WaitSemaphore "^str_resources ids
     | SignalSemaphore ids -> "SignalSemaphore "^str_resources ids
     | CreateEvent id -> "CreateEvent "^str_resource id
@@ -586,9 +599,96 @@ struct
     let path = "result/arinc.dot" in
     output_file path dot_graph;
     print_endline ("saved graph as "^Sys.getcwd ()^"/"^path)
+  let save_promela_model () =
+    let open Action in (* needed to distinguish the record field names from the ones of D.t *)
+    let comp2 f g a b = f (g a) (g b) in (* why is this not in batteries? *)
+    let compareBy f = comp2 compare f in
+    let find_option p xs = try Some (List.find p xs) with Not_found -> None in (* why is this in batteries for Hashtbl but not for List? *)
+    let flat_map f = List.flatten % List.map f in (* and this? *)
+    let indent s = "\t"^s in
+    let procs = filter_map_actions (function CreateProcess x -> Some x | _ -> None) in
+    let semas = filter_map_actions (function CreateSemaphore x -> Some x | _ -> None) in
+    let events = filter_map_actions (function CreateEvent id -> Some id | _ -> None) in
+    let nproc = List.length procs + 1 in (* +1 is init process *)
+    let nsema = List.length semas in
+    let nevent = List.length events in
+    let process_names = List.map (fun x -> get_name_by_id x.pid) procs in
+    let run_processes = List.map (fun name -> get_pid name, "run "^name^"("^str_i64 (get_pid name)^");") process_names |> List.sort (compareBy fst) |> List.map snd in
+    let init_body =
+      ("run mainfun(0);") :: (* keep mainfun as name for init process? *)
+      "(partitionMode == NORMAL);" ::
+      "run monitor();" ::
+      run_processes
+    in
+    let process_def id =
+      let pid = get_pid_by_id id in
+      let pname = get_name_by_id id in
+      let proc = find_option (fun x -> x.pid=id) procs in (* None for mainfun *)
+      (* build adjacency matrix for all nodes of this process *)
+      (* let module HashtblN = Hashtbl.Make (MyCFG.Node) in (* why does this lead to a segfault?? *) *)
+      let module HashtblN = Hashtbl.Make (struct
+        type t = node
+        let equal = (==)
+        let hash = Hashtbl.hash
+      end) in
+      let a2bs = HashtblN.create 97 in
+      Set.iter (fun (a, _, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
+      let nodes = HashtblN.keys a2bs |> List.of_enum in
+      let get_a (a,_,_,_) = a in
+      let get_b (_,_,_,b) = b in
+      (* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (* Set.empty leads to Out_of_memory!? *) *)
+      let out_edges node = try HashtblN.find a2bs node |> Set.elements with Not_found -> [] in
+      let out_nodes node = out_edges node |> List.map get_b in
+      let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
+      let in_nodes node = in_edges node |> List.map get_a in
+      let start_node = List.find (List.is_empty % in_nodes) nodes in (* node with no incoming edges is the start node *)
+      let str_edge (a, action, cs, b) = str_action id action in (* TODO *)
+      let rec walk_graph a visited =
+        if Set.mem a visited then [] else
+        (* set current node visited *)
+        let walk_graph b = walk_graph b (Set.add a visited) in
+        if M.tracing then (
+          let str_nodes xs = "{"^(List.map Node.string_of xs |> String.concat ",")^"}" in
+          Tracing.tracel "arinc" "visiting node %s. visited: %s. out_nodes: %s\n" (Node.string_of a) (str_nodes (Set.elements visited)) (str_nodes (out_nodes a))
+        );
+        let choice stmts = match stmts with x::xs -> ("::" ^ indent x) :: (List.map indent xs) | [] -> [] in
+        (* handle sequences and branching *)
+        let stmts = match out_edges a with
+          | [] -> [] (* at end node -> done *)
+          | edge::[] -> str_edge edge :: walk_graph (get_b edge) (* normal statement *)
+          (* | edges -> "if" :: (flat_map (choice%walk_graph%get_b) edges) @ ["fi"] *)
+          | edges -> "if" :: (flat_map (fun edge -> choice @@ str_edge edge :: walk_graph (get_b edge)) edges) @ ["fi"]
+        in
+        (* handle loops *)
+        (* node is loop head if there is an incoming node that is not visited. node is loop end if there is a back edge to a visited node. *)
+        if List.is_empty stmts then []
+        else if List.exists (neg @@ flip Set.mem visited) (in_nodes a) then
+          let open List in "do ::" :: map indent (rev@@tl@@rev stmts) @ [last stmts]
+        else if List.exists (flip Set.mem visited) (out_nodes a) then
+          stmts @ ["od"]
+        else stmts (* not at loop head/end *)
+      in
+      let body = walk_graph start_node Set.empty in
+      let priority = match proc with Some proc -> " priority "^str_i64 proc.pri | _ -> "" in
+      "" :: ("proctype "^pname^"(byte id)"^priority^" provided canRun("^str_i64 pid^") {") ::
+      List.map indent body @ ["}"]
+    in
+    let process_defs = Hashtbl.keys edges |> List.of_enum |> List.sort (compareBy get_pid_by_id) |> List.map process_def |> List.concat in
+    let promela =
+      ("#define nproc "^string_of_int nproc) ::
+      ("#define nsema "^string_of_int nsema) ::
+      ("#define nevent "^string_of_int nevent) :: "" ::
+      "#include \"arinc_api.pml\"" :: "" ::
+      "init {" :: List.map indent init_body @ "}" ::
+      process_defs
+    in
+    let path = "result/arinc.pml" in
+    output_file path (String.concat "\n" promela);
+    print_endline ("saved promela model as "^Sys.getcwd ()^"/"^path)
   let finalize () =
     print_actions ();
-    if GobConfig.get_bool "ana.arinc.dot" then save_dot_graph ()
+    if GobConfig.get_bool "ana.arinc.dot" then save_dot_graph ();
+    save_promela_model ()
 
   let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; node = Node.bot () }
   let otherstate v = D.bot ()
