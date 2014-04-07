@@ -684,11 +684,13 @@ struct
     in
     let path = "result/arinc.pml" in
     output_file path (String.concat "\n" promela);
-    print_endline ("saved promela model as "^Sys.getcwd ()^"/"^path)
+    print_endline ("saved promela model as "^Sys.getcwd ()^"/"^path^".\nCopy to same folder as spin/arinc_base.pml and then do: spin -a arinc.pml && cc -o pan pan.c && ./pan")
   let finalize () =
     print_actions ();
-    if GobConfig.get_bool "ana.arinc.dot" then save_dot_graph ();
-    save_promela_model ()
+    if GobConfig.get_bool "ana.arinc.export" then (
+      save_dot_graph ();
+      save_promela_model ()
+    )
 
   let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; node = Node.bot () }
   let otherstate v = D.bot ()
