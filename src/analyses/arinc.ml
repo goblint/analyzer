@@ -179,7 +179,7 @@ struct
     let node f d = { d with node = f d.node }
     let callstack f d = { d with callstack = f d.callstack }
     (* if x is already in the callstack we move it to the front, this way we can do tail on combine *)
-    let callstack_length = 0
+    let callstack_length = 1
     let callstack_push x d = if List.length d.callstack < callstack_length then callstack (fun xs -> x :: List.remove xs x) d else d
 
     let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); pmo = Pmo.bot (); pre = PrE.bot (); node = Node.bot (); callstack = [] }
@@ -625,12 +625,16 @@ struct
       let pname = get_name_by_id id in
       let proc = find_option (fun x -> x.pid=id) procs in (* None for mainfun *)
       (* build adjacency matrix for all nodes of this process *)
+      let module NodeEq =
+        struct
+          type t = node
+          let equal = (==)
+          let hash = Hashtbl.hash
+        end
+      in
       (* let module HashtblN = Hashtbl.Make (MyCFG.Node) in (* why does this lead to a segfault?? *) *)
-      let module HashtblN = Hashtbl.Make (struct
-        type t = node
-        let equal = (==)
-        let hash = Hashtbl.hash
-      end) in
+      let module HashtblN = Hashtbl.Make (NodeEq) in
+      let module SetN = Set.Make (MyCFG.Node) in
       let a2bs = HashtblN.create 97 in
       Set.iter (fun (a, _, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
       let nodes = HashtblN.keys a2bs |> List.of_enum in
@@ -642,33 +646,80 @@ struct
       let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
       let in_nodes node = in_edges node |> List.map get_a in
       let start_node = List.find (List.is_empty % in_nodes) nodes in (* node with no incoming edges is the start node *)
-      let str_edge (a, action, cs, b) = str_action id action in (* TODO *)
+      let str_nodes xs = "{"^(List.map Node.string_of xs |> String.concat ",")^"}" in
+      (* set of post-dominators for node a *)
+      let pdom a =
+        let rec f visited a =
+          let visited = SetN.add a visited in
+          match List.filter (neg @@ flip SetN.mem visited) (out_nodes a) with
+          | [] -> SetN.singleton a
+          | b::[] -> SetN.add a (f visited b)
+          | b::bs -> SetN.fold (fun b r -> SetN.inter (f visited b) r) (SetN.of_enum (List.enum bs)) (f visited b)
+        in f SetN.empty a
+      in
+      (* is b reachable from a? *)
+      let reachable b a =
+          let rec f visited b a =
+              if SetN.mem a visited then false else
+              let visited = SetN.add a visited in
+              let xs = out_nodes a in
+              List.exists (MyCFG.Node.equal b) xs || List.exists identity (List.map (f visited b) xs)
+          in f SetN.empty b a
+      in
+      (* minimal node from non-empty set of nodes *)
+      let min_node nodes =
+          let cmp a b =
+              if reachable a b then 1
+              else if reachable b a then -1
+              else 0
+          in
+          fst @@ List.min_max ~cmp:cmp (SetN.elements nodes)
+      in
+      (* immediate post-dominator for node a *)
+      let ipdom a =
+          let post = pdom a in
+          if M.tracing then (
+            Tracing.tracel "arinc" "post-dominator set of node %s = %s\n" (Node.string_of a) (str_nodes (SetN.elements post));
+            if not @@ SetN.is_empty post then Tracing.tracel "arinc" "immediate post-dominator of node %s = %s\n" (Node.string_of a) (Node.string_of (min_node post))
+          );
+          if SetN.is_empty post then None else Some (min_node post)
+      in
+      let str_edge (a, action, cs, b) = str_node a ^ ": " ^ str_action id action in (* TODO *)
+      let label node = "L" ^ Node.string_of node in
+      let goto node = "goto " ^ label node in
+      let visited_all = ref SetN.empty in
       let rec walk_graph a visited =
-        if Set.mem a visited then [] else
+        if SetN.mem a !visited_all && not @@ SetN.mem a visited then [goto a] else
+        if SetN.mem a visited then [] else
         (* set current node visited *)
-        let walk_graph b = walk_graph b (Set.add a visited) in
+        let visited = SetN.add a visited in
+        let _ = visited_all := SetN.add a !visited_all in
         if M.tracing then (
-          let str_nodes xs = "{"^(List.map Node.string_of xs |> String.concat ",")^"}" in
-          Tracing.tracel "arinc" "visiting node %s. visited: %s. out_nodes: %s\n" (Node.string_of a) (str_nodes (Set.elements visited)) (str_nodes (out_nodes a))
+          Tracing.tracel "arinc" "visiting node %s. visited: %s. out_nodes: %s\n" (Node.string_of a) (str_nodes (SetN.elements visited)) (str_nodes (out_nodes a))
         );
         let choice stmts = match stmts with x::xs -> ("::" ^ indent x) :: (List.map indent xs) | [] -> [] in
         (* handle sequences and branching *)
         let stmts = match out_edges a with
           | [] -> [] (* at end node -> done *)
-          | edge::[] -> str_edge edge :: walk_graph (get_b edge) (* normal statement *)
+          | edge::[] -> str_edge edge :: walk_graph (get_b edge) visited (* normal statement *)
           (* | edges -> "if" :: (flat_map (choice%walk_graph%get_b) edges) @ ["fi"] *)
-          | edges -> "if" :: (flat_map (fun edge -> choice @@ str_edge edge :: walk_graph (get_b edge)) edges) @ ["fi"]
+          | edges ->
+            let trail = match ipdom a with
+              | Some node -> (label node ^ ":") :: walk_graph node visited
+              | None -> []
+            in
+            "if" :: (flat_map (fun edge -> choice @@ str_edge edge :: walk_graph (get_b edge) visited) edges) @ ["fi"] @ trail
         in
         (* handle loops *)
-        (* node is loop head if there is an incoming node that is not visited. node is loop end if there is a back edge to a visited node. *)
+        (* node is loop head if there is an incoming node that is reachable but not visited. node is loop end if there is a back edge to a visited node. *)
         if List.is_empty stmts then []
-        else if List.exists (neg @@ flip Set.mem visited) (in_nodes a) then
+        else if List.exists (fun b -> reachable b a && not @@ SetN.mem b visited) (in_nodes a) then
           let open List in "do ::" :: map indent (rev@@tl@@rev stmts) @ [last stmts]
-        else if List.exists (flip Set.mem visited) (out_nodes a) then
+        else if List.exists (flip SetN.mem visited) (out_nodes a) then
           stmts @ ["od"]
         else stmts (* not at loop head/end *)
       in
-      let body = walk_graph start_node Set.empty in
+      let body = walk_graph start_node SetN.empty in
       let priority = match proc with Some proc -> " priority "^str_i64 proc.pri | _ -> "" in
       "" :: ("proctype "^pname^"(byte id)"^priority^" provided canRun("^str_i64 pid^") {") ::
       List.map indent body @ ["}"]
