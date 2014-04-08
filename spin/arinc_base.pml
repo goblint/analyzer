@@ -18,14 +18,14 @@ mtype = { NONE, SEMA, EVENT }
 typedef Wait { mtype resource; byte id; }
 Wait waiting[nproc];
 
-#ifdef nsema // semaphores
+#if (nsema + 0) // semaphores
 mtype = { FIFO, PRIO } // queuing discipline
 byte semas[nsema];
 byte semas_max[nsema];
 chan semas_chan[nsema] = [nproc] of { byte }
 #endif
 
-#ifdef nevent // events
+#if (nevent + 0) // events
 bool events[nevent] = DOWN;
 /* chan events_chan[nevent] = [nroc] of { byte } */
 #endif
@@ -71,12 +71,12 @@ inline SetPartitionMode(mode) { atomic {
 inline CreateProcess(proc_id, pri, per, cap) { atomic {
     printf("CreateProcess: id %d, priority %d, period %d, capacity %d\n", proc_id, pri, per, cap);
     status[proc_id] = READY;
-    waiting[proc_id] = NONE;
+    waiting[proc_id].resource = NONE;
 } }
-inline CreateErrorHandler(proc_id, pri, per, cap) { atomic {
-    printf("CreateErrorHandler: id %d, priority %d, period %d, capacity %d\n", proc_id, pri, per, cap);
+inline CreateErrorHandler(proc_id) { atomic {
+    printf("CreateErrorHandler: id %d\n", proc_id);
     status[proc_id] = READY;
-    waiting[proc_id] = NONE;
+    waiting[proc_id].resource = NONE;
 } }
 inline Start(proc_id) { atomic {
     status[proc_id] = READY;

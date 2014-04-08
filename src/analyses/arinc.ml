@@ -577,6 +577,44 @@ struct
     | ResetEvent ids -> "ResetEvent "^str_resources ids
     | TimedWait t -> "TimedWait "^str_time t
     | PeriodicWait -> "PeriodicWait"
+  let pml_resources = Hashtbl.create 13
+  let str_id_pml id = (* give ids starting from 0 (get_pid_by_id for all resources) *)
+    let resource, name as k = Option.get @@ get_by_id id in
+    if resource=Process then str_i64 @@ get_pid name else
+    try str_i64 @@ Hashtbl.find pml_resources k
+    with Not_found ->
+      let ids = Hashtbl.values pml_resources in
+      let id = if Enum.is_empty ids then 0L else Int64.succ (Enum.arg_max identity ids) in
+      Hashtbl.replace pml_resources k id;
+      str_i64 id
+  let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
+  let str_action_pml pid = function
+    | LockPreemption -> "LockPreemption();"
+    | UnlockPreemption -> "UnlockPreemption();"
+    | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
+    | CreateProcess x ->
+        let open Action in
+        "CreateProcess("^str_id_pml x.pid^", "^str_i64 x.pri^", "^str_i64 x.per^", "^str_i64 x.cap^"); // "^str_resource x.pid^" (prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")"
+    | CreateErrorHandler (id, funs) -> "CreateErrorHandler("^str_id_pml id^");"
+    | Start ids -> str_ids_pml ids (fun id -> "Start("^id^");")
+    | Stop ids -> str_ids_pml ids (fun id -> "Stop("^id^");")
+    | Suspend ids -> str_ids_pml ids (fun id -> "Suspend("^id^");")
+    | Resume ids -> str_ids_pml ids (fun id -> "Resume("^id^");")
+    | CreateBlackboard id -> "CreateBlackboard("^str_id_pml id^");"
+    | DisplayBlackboard ids -> str_ids_pml ids (fun id -> "DisplayBlackboard("^id^");")
+    | ReadBlackboard (ids, timeout) -> str_ids_pml ids (fun id -> "ReadBlackboard("^id^");")
+    | ClearBlackboard ids -> str_ids_pml ids (fun id -> "ClearBlackboard("^id^");")
+    | CreateSemaphore x ->
+        let open Action in
+        "CreateSemaphore("^str_id_pml x.sid^", "^str_i64 x.cur^", "^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^");"
+    | WaitSemaphore ids -> str_ids_pml ids (fun id -> "WaitSemaphore("^id^");")
+    | SignalSemaphore ids -> str_ids_pml ids (fun id -> "SignalSemaphore("^id^");")
+    | CreateEvent id -> "CreateEvent("^str_id_pml id^");"
+    | WaitEvent (ids, timeout) -> str_ids_pml ids (fun id -> "WaitEvent("^id^");")
+    | SetEvent ids -> str_ids_pml ids (fun id -> "SetEvent("^id^");")
+    | ResetEvent ids -> str_ids_pml ids (fun id -> "ResetEvent("^id^");")
+    | TimedWait t -> "TimedWait("^str_i64 t^");"
+    | PeriodicWait -> "PeriodicWait();"
   let str_node node = Node.string_of node
   let str_callstack cs = if List.is_empty cs then "" else " cs=" ^ D.string_of_callstack cs
   let print_actions () =
@@ -684,9 +722,9 @@ struct
           );
           if SetN.is_empty post then None else Some (min_node post)
       in
-      let str_edge (a, action, cs, b) = str_node a ^ ": " ^ str_action id action in (* TODO *)
-      let label node = "L" ^ Node.string_of node in
-      let goto node = "goto " ^ label node in
+      let label ?prefix:(prefix="L") node = prefix ^ Node.string_of node in
+      let goto node = "goto " ^ label ~prefix:"G" node in
+      let str_edge (a, action, cs, b) = (* label b ^ ":\t" ^ *) str_action_pml id action in
       let visited_all = ref SetN.empty in
       let rec walk_graph a visited =
         if SetN.mem a !visited_all && not @@ SetN.mem a visited then [goto a] else
@@ -705,10 +743,10 @@ struct
           (* | edges -> "if" :: (flat_map (choice%walk_graph%get_b) edges) @ ["fi"] *)
           | edges ->
             let trail = match ipdom a with
-              | Some node -> (label node ^ ":") :: walk_graph node visited
+              | Some node -> (label ~prefix:"G" node ^ ":") :: walk_graph node visited
               | None -> []
             in
-            "if" :: (flat_map (fun edge -> choice @@ str_edge edge :: walk_graph (get_b edge) visited) edges) @ ["fi"] @ trail
+            "if" :: (flat_map (fun edge -> choice @@ str_edge edge :: walk_graph (get_b edge) visited) edges) @ ["fi;"] @ trail
         in
         (* handle loops *)
         (* node is loop head if there is an incoming node that is reachable but not visited. node is loop end if there is a back edge to a visited node. *)
@@ -716,7 +754,7 @@ struct
         else if List.exists (fun b -> reachable b a && not @@ SetN.mem b visited) (in_nodes a) then
           let open List in "do ::" :: map indent (rev@@tl@@rev stmts) @ [last stmts]
         else if List.exists (flip SetN.mem visited) (out_nodes a) then
-          stmts @ ["od"]
+          stmts @ ["od;"]
         else stmts (* not at loop head/end *)
       in
       let body = walk_graph start_node SetN.empty in
@@ -729,7 +767,7 @@ struct
       ("#define nproc "^string_of_int nproc) ::
       ("#define nsema "^string_of_int nsema) ::
       ("#define nevent "^string_of_int nevent) :: "" ::
-      "#include \"arinc_api.pml\"" :: "" ::
+      "#include \"arinc_base.pml\"" :: "" ::
       "init {" :: List.map indent init_body @ "}" ::
       process_defs
     in
