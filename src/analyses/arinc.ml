@@ -179,7 +179,7 @@ struct
     let node f d = { d with node = f d.node }
     let callstack f d = { d with callstack = f d.callstack }
     (* if x is already in the callstack we move it to the front, this way we can do tail on combine *)
-    let callstack_length = 1
+    let callstack_length = 0
     let callstack_push x d = if List.length d.callstack < callstack_length then callstack (fun xs -> x :: List.remove xs x) d else d
 
     let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); pmo = Pmo.bot (); pre = PrE.bot (); node = Node.bot (); callstack = [] }
@@ -644,16 +644,18 @@ struct
     let find_option p xs = try Some (List.find p xs) with Not_found -> None in (* why is this in batteries for Hashtbl but not for List? *)
     let flat_map f = List.flatten % List.map f in (* and this? *)
     let indent s = "\t"^s in
-    let procs = filter_map_actions (function CreateProcess x -> Some x | _ -> None) in
-    let semas = filter_map_actions (function CreateSemaphore x -> Some x | _ -> None) in
-    let events = filter_map_actions (function CreateEvent id -> Some id | _ -> None) in
-    let nproc = List.length procs + 1 in (* +1 is init process *)
-    let nsema = List.length semas in
+    let procs  = List.unique @@ filter_map_actions (function CreateProcess x -> Some x | _ -> None) in
+    let has_error_handler = not @@ List.is_empty @@ filter_actions (function CreateErrorHandler _ -> true | _ -> false) in
+    let semas  = List.unique @@ filter_map_actions (function CreateSemaphore x -> Some x | _ -> None) in
+    let events = List.unique @@ filter_map_actions (function CreateEvent id -> Some id | _ -> None) in
+    let nproc  = List.length procs + 1 + (if has_error_handler then 1 else 0) in (* +1 is init process *)
+    let nsema  = List.length semas in
     let nevent = List.length events in
     let process_names = List.map (fun x -> get_name_by_id x.pid) procs in
     let run_processes = List.map (fun name -> get_pid name, "run "^name^"("^str_i64 (get_pid name)^");") process_names |> List.sort (compareBy fst) |> List.map snd in
     let init_body =
-      ("run mainfun(0);") :: (* keep mainfun as name for init process? *)
+      "Start(0);" ::
+      "run mainfun(0);" :: (* keep mainfun as name for init process? *)
       "(partitionMode == NORMAL);" ::
       "run monitor();" ::
       run_processes
@@ -722,13 +724,12 @@ struct
           );
           if SetN.is_empty post then None else Some (min_node post)
       in
-      let label ?prefix:(prefix="L") node = prefix ^ Node.string_of node in
-      let goto node = "goto " ^ label ~prefix:"G" node in
+      let label ?prefix:(prefix="P") node = prefix ^ str_i64 pid ^ "_" ^ Node.string_of node in
+      let goto node = "goto " ^ label node in
       let str_edge (a, action, cs, b) = (* label b ^ ":\t" ^ *) str_action_pml id action in
       let visited_all = ref SetN.empty in
       let rec walk_graph a visited =
-        if SetN.mem a !visited_all && not @@ SetN.mem a visited then [goto a] else
-        if SetN.mem a visited then [] else
+        if SetN.mem a !visited_all || SetN.mem a visited then [goto a] else
         (* set current node visited *)
         let visited = SetN.add a visited in
         let _ = visited_all := SetN.add a !visited_all in
@@ -743,19 +744,22 @@ struct
           (* | edges -> "if" :: (flat_map (choice%walk_graph%get_b) edges) @ ["fi"] *)
           | edges ->
             let trail = match ipdom a with
-              | Some node -> (label ~prefix:"G" node ^ ":") :: walk_graph node visited
+              | Some node -> walk_graph node visited
               | None -> []
             in
             "if" :: (flat_map (fun edge -> choice @@ str_edge edge :: walk_graph (get_b edge) visited) edges) @ ["fi;"] @ trail
         in
-        (* handle loops *)
+        (* handle loops with label for head and jump from end *)
         (* node is loop head if there is an incoming node that is reachable but not visited. node is loop end if there is a back edge to a visited node. *)
-        if List.is_empty stmts then []
+(*         if List.is_empty stmts then []
         else if List.exists (fun b -> reachable b a && not @@ SetN.mem b visited) (in_nodes a) then
           let open List in "do ::" :: map indent (rev@@tl@@rev stmts) @ [last stmts]
         else if List.exists (flip SetN.mem visited) (out_nodes a) then
           stmts @ ["od;"]
-        else stmts (* not at loop head/end *)
+        else stmts (* not at loop head/end *) *)
+        (* if List.length (in_nodes a) > 0 then *) (* just always use a label if there are incoming edges and indent if it is a loop head TODO label only needed if loop head or trail... *)
+        let is_head = List.exists (fun b -> reachable b a && not @@ SetN.mem b visited) (in_nodes a) in
+        (label a ^ ":") :: if is_head then List.map indent stmts else stmts
       in
       let body = walk_graph start_node SetN.empty in
       let priority = match proc with Some proc -> " priority "^str_i64 proc.pri | _ -> "" in

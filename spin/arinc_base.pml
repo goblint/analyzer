@@ -9,7 +9,7 @@ mtype partitionMode = COLD_START;
 // processes
 mtype = { STOPPED, SUSPENDED, WAITING, READY, RUNNING } // possible process states
 // RUNNING is not used here (all READY are possibly RUNNING)
-mtype status[nproc] = READY; // initialize all processes as ready
+mtype status[nproc] = STOPPED; // initialize all processes as stopped
 byte lockLevel; // scheduling only takes place if this is 0
 byte exclusive; // id of process that has exclusive privilige to execute if lockLevel > 0
 byte ncrit; // number of processes in critical section
@@ -35,6 +35,8 @@ bool events[nevent] = DOWN;
 // http://stackoverflow.com/questions/1644868/c-define-macro-for-debug-printing
 /* #define pprintf(fmt, ...)   do { printf("Proc %d: " fmt, __VA_ARGS); } while(0) */
 #define pprintf(fmt, args...)   printf("Proc %d: ", id); printf(fmt, args)
+byte tmp; // can't use skip as a placeholder. must do something. otherwise error "has unconditional self-loop"
+#define todo   tmp=0
 
 // helpers for scheduling etc.
 #define canRun(proc_id) (status[proc_id] == READY && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
@@ -99,19 +101,20 @@ inline Resume(proc_id) { atomic {
         status[proc_id] = READY;
     fi
 } }
-inline CreateBlackboad(bb_id) { atomic {
-    skip
+inline CreateBlackboard(bb_id) { atomic {
+    todo
 } }
 inline DisplayBlackboard(bb_id) { atomic {
-    skip // TODO
+    todo
 } }
 inline ReadBlackboard(bb_id) { atomic {
-    skip // TODO
+    todo
 } }
 inline ClearBlackboard(bb_id) { atomic {
-    skip // TODO
+    todo
 } }
 inline CreateSemaphore(sema_id, cur, max, queuing) { atomic {
+    printf("CreateSemaphore: id %d, current %d, max %d, queuing %e\n", sema_id, cur, max, queuing);
     assert(queuing == FIFO); // TODO
     semas[sema_id] = cur;
     semas_max[sema_id] = max;
@@ -169,7 +172,7 @@ inline SignalSemaphore(sema_id) { atomic {
     fi
 } }
 inline CreateEvent(event_id) { atomic {
-    skip
+    todo
 } }
 inline WaitEvent(event_id) { atomic {
     if
@@ -194,10 +197,10 @@ inline ResetEvent(event_id) { atomic {
     events[event_id] = DOWN;
 } }
 inline TimedWait(time) { atomic {
-    skip
+    todo
 } }
 inline PeriodicWait() { atomic {
-    skip
+    todo
 } }
 
 

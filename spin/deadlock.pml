@@ -9,6 +9,8 @@
 init {
     CreateSemaphore(0, 1, 1, FIFO);
     CreateSemaphore(1, 1, 1, FIFO);
+    Start(0);
+    Start(1);
     SetPartitionMode(NORMAL); // arinc init process not needed
     run monitor();
     run a(0);

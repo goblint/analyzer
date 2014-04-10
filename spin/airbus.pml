@@ -8,6 +8,7 @@
 
 // init
 init {
+    Start(0);
     run arinc_init(0); // process with id 0 is the arinc init process!
     (partitionMode == NORMAL); // blocks until mode is NORMAL
     run monitor(); // checks system invariants
@@ -21,6 +22,8 @@ init {
 
 proctype arinc_init(byte id) provided canRun(0) {
     CreateSemaphore(0, 1, 1, FIFO); // id, current count, max count
+    Start(1);
+    Start(2);
     SetPartitionMode(NORMAL);
 }
 proctype a(byte id) priority 5 provided canRun(1) { WaitSignalSema(0); }
