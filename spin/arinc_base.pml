@@ -64,7 +64,7 @@ inline LockPreemption() { atomic {
 inline UnlockPreemption() { atomic {
     if
     :: lockLevel > 0 -> lockLevel--;
-    :: else -> skip
+    :: lockLevel <= 0 -> skip
     fi
 } }
 inline SetPartitionMode(mode) { atomic {
@@ -97,7 +97,7 @@ inline Resume(proc_id) { atomic {
     // if the process was waiting for something when it was suspended, change it back to waiting!
     :: status[proc_id] == SUSPENDED && waiting[proc_id].resource != NONE ->
         status[proc_id] = WAITING;
-    :: else ->
+    :: ! (status[proc_id] == SUSPENDED && waiting[proc_id].resource != NONE) ->
         status[proc_id] = READY;
     fi
 } }
@@ -139,7 +139,7 @@ inline WaitSemaphore(sema_id) { atomic {
     :: semas[sema_id] > 0 ->
         printf("WaitSema will go through: semas[%d] = %d\n", sema_id, semas[sema_id]);
         semas[sema_id] = semas[sema_id] - 1;
-    :: else ->
+    :: semas[sema_id] < 0 ->
         printf("FAIL: WaitSema: count<0: semas[%d] = %d\n", sema_id, semas[sema_id]);
         assert(false);
     fi
@@ -152,7 +152,7 @@ inline SignalSemaphore(sema_id) { atomic {
         printf("SignalSema: empty queue\n");
         if
         :: semas[sema_id] < semas_max[sema_id] -> semas[sema_id] = semas[sema_id] + 1;
-        :: else -> skip
+        :: !(semas[sema_id] < semas_max[sema_id]) -> skip
         fi
     // otherwise it stays the same, since we will wake up a waiting process
     :: nempty(semas_chan[sema_id]) -> // else doesn't work here because !empty is disallowed...
@@ -166,7 +166,7 @@ inline SignalSemaphore(sema_id) { atomic {
                 semas_chan[sema_id]?eval(i); // consume msg from queue
                 setReady(i);
                 break
-            :: else -> skip
+            :: !(i!=id && isWaiting(i, SEMA, sema_id) && semas_chan[sema_id]?[i]) -> skip
             fi
         };
     fi
@@ -188,7 +188,7 @@ inline SetEvent(event_id) { atomic {
         :: isWaiting(i, EVENT, event_id) ->
             setReady(i);
             // no break, since we want to wake all processes waiting for this event
-        :: else -> skip
+        :: !(isWaiting(i, EVENT, event_id)) -> skip
         fi
     }
     events[event_id] = UP;
@@ -227,11 +227,11 @@ proctype monitor() {
     for(i in status) {
         if
         :: status[i] == READY -> nready++;
-        :: else -> skip
+        :: !(status[i] == READY) -> skip
         fi
     }
     if
     :: nready == 0 -> printf("Deadlock detected (no process is READY)!\n"); assert(false);
-    :: else -> skip
+    :: nready != 0 -> skip
     fi
 }

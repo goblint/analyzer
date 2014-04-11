@@ -583,7 +583,7 @@ struct
     if resource=Process then str_i64 @@ get_pid name else
     try str_i64 @@ Hashtbl.find pml_resources k
     with Not_found ->
-      let ids = Hashtbl.values pml_resources in
+      let ids = Hashtbl.filteri (fun (r,n) v -> r=resource) pml_resources |> Hashtbl.values in
       let id = if Enum.is_empty ids then 0L else Int64.succ (Enum.arg_max identity ids) in
       Hashtbl.replace pml_resources k id;
       str_i64 id
