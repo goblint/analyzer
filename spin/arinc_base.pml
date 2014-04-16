@@ -7,12 +7,13 @@
 mtype = { IDLE, COLD_START, WARM_START, NORMAL } // partition modes
 mtype partitionMode = COLD_START;
 // processes
-mtype = { STOPPED, SUSPENDED, WAITING, READY, RUNNING } // possible process states
+mtype = { NOTCREATED, STOPPED, SUSPENDED, WAITING, READY, RUNNING } // possible process states
 // RUNNING is not used here (all READY are possibly RUNNING)
-mtype status[nproc] = STOPPED; // initialize all processes as stopped
+mtype status[nproc] = NOTCREATED; // initialize all processes as stopped
 byte lockLevel; // scheduling only takes place if this is 0
 byte exclusive; // id of process that has exclusive privilige to execute if lockLevel > 0
 byte ncrit; // number of processes in critical section
+byte processes_created;
 // resources
 mtype = { NONE, SEMA, EVENT }
 typedef Wait { mtype resource; byte id; }
@@ -23,11 +24,13 @@ mtype = { FIFO, PRIO } // queuing discipline
 byte semas[nsema];
 byte semas_max[nsema];
 chan semas_chan[nsema] = [nproc] of { byte }
+byte semas_created;
 #endif
 
 #if (nevent + 0) // events
 bool events[nevent] = DOWN;
 /* chan events_chan[nevent] = [nroc] of { byte } */
+byte events_created;
 #endif
 
 
@@ -39,11 +42,26 @@ byte tmp; // can't use skip as a placeholder. must do something. otherwise error
 #define todo   tmp=0
 
 // helpers for scheduling etc.
+inline preInit() {
+    status[0] = READY;
+}
+inline postInit() {
+    (partitionMode == NORMAL); // block spin init until arinc init sets mode
+    // at this point every resource should have been created!
+    // TODO the extracted model is not precise enough b/c of callstack_length = 0
+    assert(processes_created == nproc-1); // mainfun is not created
+    #if (nsema + 0)
+    assert(semas_created == nsema);
+    #endif
+    #if (nevent + 0)
+    assert(events_created == nevent);
+    #endif
+}
+#define preInit status[0] = READY
 #define canRun(proc_id) (status[proc_id] == READY && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
 inline setReady(proc_id) {
     printf("setReady: process %d will be ready (was waiting for %e %d)\n", proc_id, waiting[proc_id].resource, waiting[proc_id].id);
     waiting[proc_id].resource = NONE;
-    waiting[proc_id].id = -1;
     status[proc_id] = READY;
 }
 inline setWaiting(resource_type, resource_id) {
@@ -72,33 +90,59 @@ inline SetPartitionMode(mode) { atomic {
 } }
 inline CreateProcess(proc_id, pri, per, cap) { atomic {
     printf("CreateProcess: id %d, priority %d, period %d, capacity %d\n", proc_id, pri, per, cap);
-    status[proc_id] = READY;
+    /* assert(status[proc_id] == NOTCREATED); */
+    status[proc_id] = STOPPED;
     waiting[proc_id].resource = NONE;
+    processes_created++;
 } }
 inline CreateErrorHandler(proc_id) { atomic {
     printf("CreateErrorHandler: id %d\n", proc_id);
-    status[proc_id] = READY;
+    /* assert(status[proc_id] == NOTCREATED); */
+    status[proc_id] = STOPPED;
     waiting[proc_id].resource = NONE;
+    processes_created++;
 } }
 inline Start(proc_id) { atomic {
+    /* assert(status[proc_id] != NOTCREATED); */
     status[proc_id] = READY;
     // TODO reset process if it is already running!
     // maybe insert after every statement: if restart[id] -> goto start_p1
-} }
-inline Stop(proc_id) { atomic {
-    status[proc_id] = STOPPED;
     // TODO remove process from waiting queues!
 } }
+inline Stop(proc_id) { atomic {
+    /* assert(status[proc_id] != NOTCREATED); */
+    status[proc_id] = STOPPED;
+    // remove process from waiting queues!
+    // for all semas
+    byte sema_id;
+    for (sema_id in semas) {
+        byte i;
+        for (i : 1 .. len(semas_chan[sema_id])) {
+            byte p;
+            semas_chan[sema_id]?p;
+            if
+            :: p != proc_id -> semas_chan[sema_id]!p
+            :: p == proc_id -> skip
+            fi
+        }
+    }
+} }
 inline Suspend(proc_id) { atomic {
+    /* assert(status[proc_id] != NOTCREATED); */
     status[proc_id] = SUSPENDED;
 } }
 inline Resume(proc_id) { atomic {
+    /* assert(status[proc_id] != NOTCREATED); */
     if
-    // if the process was waiting for something when it was suspended, change it back to waiting!
-    :: status[proc_id] == SUSPENDED && waiting[proc_id].resource != NONE ->
-        status[proc_id] = WAITING;
-    :: ! (status[proc_id] == SUSPENDED && waiting[proc_id].resource != NONE) ->
-        status[proc_id] = READY;
+    :: status[proc_id] == SUSPENDED -> // only do something if process was really suspended
+        if
+        // if the process was waiting for something when it was suspended, change it back to waiting!
+        :: waiting[proc_id].resource != NONE ->
+            status[proc_id] = WAITING;
+        :: ! (waiting[proc_id].resource != NONE) -> // otherwise resume
+            status[proc_id] = READY;
+        fi
+    :: status[proc_id] == SUSPENDED -> skip
     fi
 } }
 inline CreateBlackboard(bb_id) { atomic {
@@ -118,6 +162,7 @@ inline CreateSemaphore(sema_id, cur, max, queuing) { atomic {
     assert(queuing == FIFO); // TODO
     semas[sema_id] = cur;
     semas_max[sema_id] = max;
+    semas_created++;
 } }
 // code uses 0/FIFO as queuing discipline
 inline WaitSemaphore(sema_id) { atomic {
@@ -128,7 +173,7 @@ inline WaitSemaphore(sema_id) { atomic {
         printf("WaitSema will block: semas[%d] = %d\n", sema_id, semas[sema_id]);
         if
         :: full(semas_chan[sema_id]) -> // TODO can this happen?
-            printf("FAIL: WaitSema: queue is full");
+            printf("FAIL: WaitSema: queue is full\n");
             assert(false);
         :: nfull(semas_chan[sema_id]) ->
             printf("Process %d put into queue for sema %d\n", id, sema_id);
@@ -156,28 +201,29 @@ inline SignalSemaphore(sema_id) { atomic {
         fi
     // otherwise it stays the same, since we will wake up a waiting process
     :: nempty(semas_chan[sema_id]) -> // else doesn't work here because !empty is disallowed...
-        printf("SignalSema: %d processes in queue\n", len(semas_chan[sema_id]));
+        printf("SignalSema: %d processes in queue for sema %d with count %d\n", len(semas_chan[sema_id]), sema_id, semas[sema_id]);
         byte i;
         for (i in status) {
-            printf("SignalSema: check if process %d is waiting...\n", i);
+            printf("SignalSema: check if process %d is waiting. status[%d] = %e. waiting for %e %d\n", i, i, status[i], waiting[i].resource, waiting[i].id);
             if
-            :: i!=id && isWaiting(i, SEMA, sema_id) && semas_chan[sema_id]?[i] -> // process is waiting for this semaphore and is at the front of its queue TODO prio queues
+            :: isWaiting(i, SEMA, sema_id) && semas_chan[sema_id]?[i] -> // process is waiting for this semaphore and is at the front of its queue TODO prio queues
                 printf("SignalSema: process %d is waking up process %d\n", id, i);
                 semas_chan[sema_id]?eval(i); // consume msg from queue
                 setReady(i);
                 break
-            :: !(i!=id && isWaiting(i, SEMA, sema_id) && semas_chan[sema_id]?[i]) -> skip
+            :: !(isWaiting(i, SEMA, sema_id) && semas_chan[sema_id]?[i]) -> skip
             fi
         };
     fi
 } }
 inline CreateEvent(event_id) { atomic {
-    todo
+    todo;
+    events_created++;
 } }
 inline WaitEvent(event_id) { atomic {
     if
     :: events[event_id] == DOWN -> setWaiting(EVENT, event_id);
-    :: events[event_id] == UP -> skip; // nothing to do
+    :: events[event_id] == UP -> skip // nothing to do
     fi
 } }
 inline SetEvent(event_id) { atomic {

@@ -654,9 +654,9 @@ struct
     let process_names = List.map (fun x -> get_name_by_id x.pid) procs in
     let run_processes = List.map (fun name -> get_pid name, "run "^name^"("^str_i64 (get_pid name)^");") process_names |> List.sort (compareBy fst) |> List.map snd in
     let init_body =
-      "Start(0);" ::
+      "preInit;" ::
       "run mainfun(0);" :: (* keep mainfun as name for init process? *)
-      "(partitionMode == NORMAL);" ::
+      "postInit();" ::
       "run monitor();" ::
       run_processes
     in
