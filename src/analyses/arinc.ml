@@ -178,8 +178,8 @@ struct
     let pre f d = { d with pre = f d.pre }
     let node f d = { d with node = f d.node }
     let callstack f d = { d with callstack = f d.callstack }
-    (* if x is already in the callstack we move it to the front, this way we can do tail on combine *)
-    let callstack_length = 0
+    let callstack_length = 1
+    (* if x is already in the callstack, we move it to the front. if callstack_length is reached, nothing will be changed. *)
     let callstack_push x d = if List.length d.callstack < callstack_length then callstack (fun xs -> x :: List.remove xs x) d else d
 
     let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); pmo = Pmo.bot (); pre = PrE.bot (); node = Node.bot (); callstack = [] }
@@ -200,6 +200,9 @@ struct
   end
   module G = IntDomain.Booleans
   module C = D
+
+  let context d = { d with callstack = [] }
+  (* let val_of d = d *)
 
   let is_single ctx =
     let fl : BaseDomain.Flag.t = snd (Obj.obj (List.assoc "base" ctx.presub)) in

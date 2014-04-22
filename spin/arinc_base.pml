@@ -9,7 +9,7 @@ mtype partitionMode = COLD_START;
 // processes
 mtype = { NOTCREATED, STOPPED, SUSPENDED, WAITING, READY, RUNNING } // possible process states
 // RUNNING is not used here (all READY are possibly RUNNING)
-mtype status[nproc] = NOTCREATED; // initialize all processes as stopped
+mtype status[nproc] = NOTCREATED; // initialize all processes as not created
 byte lockLevel; // scheduling only takes place if this is 0
 byte exclusive; // id of process that has exclusive privilige to execute if lockLevel > 0
 byte ncrit; // number of processes in critical section
