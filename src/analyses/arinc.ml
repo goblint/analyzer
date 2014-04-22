@@ -29,9 +29,10 @@ struct
     | TimedWait of time | PeriodicWait
   (* callstack for locations *)
   type callstack = location list
-  type node = MyCFG.node
-  type edge = node * action * callstack * node
-  let action_of_edge (_, action, _, _) = action
+  let string_of_callstack xs = "["^String.concat ", " (List.map (fun loc -> string_of_int loc.line) xs)^"]"
+  type node = MyCFG.node * callstack
+  type edge = node * action * node
+  let action_of_edge (_, action, _) = action
   let edges = Hashtbl.create 199
   let get_edges (pid:id) : edge Set.t =
     Hashtbl.find_default edges pid Set.empty
@@ -116,10 +117,19 @@ struct
   struct
     module Base =
     struct
-      include MyCFG.Node
+      (* include MyCFG.Node *)
+      module N = MyCFG.Node
+      type t = N.t * callstack
+      let equal (n1,cs1) (n2,cs2) = N.equal n1 n2 && cs1=cs2
+      let compare2 fa fb (a1,b1) (a2,b2) =
+        let a = fa a1 a2 in
+        if a = 0 then fb b1 b2 else a
+      let compare = compare2 N.compare Pervasives.compare
+      let hash (n,cs) = N.hash n + (List.sum @@ 0 :: List.map (fun loc -> loc.line) cs)
       include Printable.Std
       include Lattice.StdCousot
-      let short w x = string_of_int (MyCFG.getLoc x).line
+      let string_of_node n = string_of_int (MyCFG.getLoc n).line
+      let short w (n,cs) = string_of_node n ^ string_of_callstack cs
       include Printable.PrintSimple (struct
         type t' = t
         let name () = "predecessor node"
@@ -127,10 +137,8 @@ struct
       end)
     end
     include SetDomain.Make (Base)
-    let of_node node = singleton node
-    (* let is_node = not%is_empty *)
-    (* let to_node = elements *)
-    let string_of node = Base.short 10 node
+    let of_node = singleton
+    let string_of = Base.short 10
   end
 
   (* define record type here so that fields are accessable outside of D *)
@@ -142,7 +150,6 @@ struct
     include Lattice.StdCousot
 
     (* printing *)
-    let string_of_callstack xs = "["^String.concat ", " (List.map (fun loc -> string_of_int loc.line) xs)^"]"
     let short w x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; node=%s; callstack=%s)" (Pid.short 3 x.pid) (Pri.short 3 x.pri) (Per.short 3 x.per) (Cap.short 3 x.cap) (Pmo.short 3 x.pmo) (PrE.short 3 x.pre) (Node.short 80 x.node) (string_of_callstack x.callstack)
     include Printable.PrintSimple (struct
       type t' = t
@@ -223,8 +230,9 @@ struct
     (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     if not (is_single ctx || !Goblintutil.global_initialization || ctx.global part_mode_var) then raise Analyses.Deadcode;
     let d = ctx.local in
+    (* set initial node for a fresh function *)
     if Node.is_bot d.node && Option.is_some !MyCFG.current_node
-    then { d with node = Node.of_node @@ Option.get !MyCFG.current_node }
+    then { d with node = Node.of_node (Option.get !MyCFG.current_node, d.callstack) }
     else d
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
@@ -309,10 +317,9 @@ struct
     let assign_id_by_name resource_type name id =
       assign_id id (get_id (resource_type, eval_str name))
     in
-    let current_node = Option.get !MyCFG.current_node in
-    (* let current_callstack = !Tracing.current_loc :: d.callstack in *)
+    let current_node = Option.get !MyCFG.current_node, d.callstack in
     let add_action action d =
-      Node.iter (fun node -> add_edge curpid (node, action, d.callstack, current_node)) d.node;
+      Node.iter (fun node -> add_edge curpid (node, action, current_node)) d.node;
       { d with node = Node.of_node current_node }
     in
     let arglist = List.map (stripCasts%(constFold false)) arglist in
@@ -618,11 +625,11 @@ struct
     | ResetEvent ids -> str_ids_pml ids (fun id -> "ResetEvent("^id^");")
     | TimedWait t -> "TimedWait("^str_i64 t^");"
     | PeriodicWait -> "PeriodicWait();"
-  let str_node node = Node.string_of node
-  let str_callstack cs = if List.is_empty cs then "" else " cs=" ^ D.string_of_callstack cs
+  (* let str_callstack cs = if List.is_empty cs then "" else " cs=" ^ string_of_callstack cs *)
+  let str_node = Node.string_of
   let print_actions () =
     let print_process pid =
-      let str_edge (a, action, cs, b) = str_node a ^ " -> " ^ str_action pid action ^ str_callstack cs ^ " -> " ^ str_node b in
+      let str_edge (a, action, b) = str_node a ^ " -> " ^ str_action pid action ^ " -> " ^ str_node b in
       let xs = Set.map str_edge (get_edges pid) in
       M.debug @@ str_resource pid^" ->\n\t"^String.concat "\n\t" (Set.elements xs)
     in
@@ -631,7 +638,7 @@ struct
     let dot_process pid =
       (* 1 -> w1 [label="fopen(_)"]; *)
       let str_node x = "\"" ^ str_i64 (get_pid_by_id pid) ^ "_" ^ str_node x ^ "\"" in (* quote node names for dot b/c of callstack *)
-      let str_edge (a, action, cs, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ str_callstack cs ^ "\"]" in
+      let str_edge (a, action, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ "\"]" in
       let xs = Set.map str_edge (get_edges pid) |> Set.elements in
       ("subgraph \"cluster_"^str_resource pid^"\" {") :: xs @ ("label = \""^str_resource pid^"\";") :: ["}\n"]
     in
@@ -670,19 +677,19 @@ struct
       (* build adjacency matrix for all nodes of this process *)
       let module NodeEq =
         struct
-          type t = node
+          type t = Node.Base.t
           let equal = (==)
           let hash = Hashtbl.hash
         end
       in
       (* let module HashtblN = Hashtbl.Make (MyCFG.Node) in (* why does this lead to a segfault?? *) *)
       let module HashtblN = Hashtbl.Make (NodeEq) in
-      let module SetN = Set.Make (MyCFG.Node) in
+      let module SetN = Set.Make (Node.Base) in
       let a2bs = HashtblN.create 97 in
-      Set.iter (fun (a, _, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
+      Set.iter (fun (a, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
       let nodes = HashtblN.keys a2bs |> List.of_enum in
-      let get_a (a,_,_,_) = a in
-      let get_b (_,_,_,b) = b in
+      let get_a (a,_,_) = a in
+      let get_b (_,_,b) = b in
       (* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (* Set.empty leads to Out_of_memory!? *) *)
       let out_edges node = try HashtblN.find a2bs node |> Set.elements with Not_found -> [] in
       let out_nodes node = out_edges node |> List.map get_b in
@@ -706,7 +713,7 @@ struct
               if SetN.mem a visited then false else
               let visited = SetN.add a visited in
               let xs = out_nodes a in
-              List.exists (MyCFG.Node.equal b) xs || List.exists identity (List.map (f visited b) xs)
+              List.exists (Node.Base.equal b) xs || List.exists identity (List.map (f visited b) xs)
           in f SetN.empty b a
       in
       (* minimal node from non-empty set of nodes *)
@@ -727,9 +734,10 @@ struct
           );
           if SetN.is_empty post then None else Some (min_node post)
       in
-      let label ?prefix:(prefix="P") node = prefix ^ str_i64 pid ^ "_" ^ Node.string_of node in
+      let str_callstack xs = if List.is_empty xs then "" else "__"^String.concat "_" (List.map (fun loc -> string_of_int loc.line) xs) in
+      let label ?prefix:(prefix="P") (n,cs) = prefix ^ str_i64 pid ^ "_" ^ Node.Base.string_of_node n ^ str_callstack cs in
       let goto node = "goto " ^ label node in
-      let str_edge (a, action, cs, b) = (* label b ^ ":\t" ^ *) str_action_pml id action in
+      let str_edge (a, action, b) = (* label b ^ ":\t" ^ *) str_action_pml id action in
       let visited_all = ref SetN.empty in
       let rec walk_graph a visited =
         if SetN.mem a !visited_all || SetN.mem a visited then [goto a] else
