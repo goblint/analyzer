@@ -117,7 +117,6 @@ struct
   struct
     module Base =
     struct
-      (* include MyCFG.Node *)
       module N = MyCFG.Node
       type t = N.t * callstack
       let equal (n1,cs1) (n2,cs2) = N.equal n1 n2 && cs1=cs2
@@ -137,12 +136,38 @@ struct
       end)
     end
     include SetDomain.Make (Base)
-    let of_node = singleton
+    let of_node : Base.t -> t = singleton
+    let of_list : Base.t list -> t = List.fold_left (fun a b -> add b a) (empty ())
     let string_of = Base.short 10
+  end
+  module Callstack =
+  struct
+    let length = 1
+    module Base =
+    struct
+      type t = callstack
+      (* if x is already in the callstack, we move it to the front. if callstack_length is reached, nothing will be changed. *)
+      let push x xs = if List.length xs < length then x :: List.remove xs x else xs
+      let rec is_prefix = function [],_ -> true | x::xs,y::ys when x=y -> is_prefix (xs,ys) | _ -> false
+      let equal = Util.equals
+      let compare = Pervasives.compare
+      let hash = Hashtbl.hash
+      include Printable.Std
+      include Lattice.StdCousot
+      let short w = string_of_callstack
+      include Printable.PrintSimple (struct
+        type t' = t
+        let name () = "possible callstacks"
+        let short = short
+      end)
+    end
+    include SetDomain.Make (Base)
+    let string_of = short 10
+    let push x = map (Base.push x)
   end
 
   (* define record type here so that fields are accessable outside of D *)
-  type process = { pid: Pid.t; pri: Pri.t; per: Per.t; cap: Cap.t; pmo: Pmo.t; pre: PrE.t; node: Node.t; callstack: callstack }
+  type process = { pid: Pid.t; pri: Pri.t; per: Per.t; cap: Cap.t; pmo: Pmo.t; pre: PrE.t; node: Node.t; callstack: Callstack.t }
   module D =
   struct
     type t = process
@@ -150,7 +175,7 @@ struct
     include Lattice.StdCousot
 
     (* printing *)
-    let short w x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; node=%s; callstack=%s)" (Pid.short 3 x.pid) (Pri.short 3 x.pri) (Per.short 3 x.per) (Cap.short 3 x.cap) (Pmo.short 3 x.pmo) (PrE.short 3 x.pre) (Node.short 80 x.node) (string_of_callstack x.callstack)
+    let short w x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; node=%s; callstack=%s)" (Pid.short 3 x.pid) (Pri.short 3 x.pri) (Per.short 3 x.per) (Cap.short 3 x.cap) (Pmo.short 3 x.pmo) (PrE.short 3 x.pre) (Node.short 80 x.node) (Callstack.string_of x.callstack)
     include Printable.PrintSimple (struct
       type t' = t
       let name () = "ARINC state"
@@ -185,30 +210,24 @@ struct
     let pre f d = { d with pre = f d.pre }
     let node f d = { d with node = f d.node }
     let callstack f d = { d with callstack = f d.callstack }
-    let callstack_length = 1
-    (* if x is already in the callstack, we move it to the front. if callstack_length is reached, nothing will be changed. *)
-    let callstack_push x d = if List.length d.callstack < callstack_length then callstack (fun xs -> x :: List.remove xs x) d else d
+    let callstack_push x d = callstack (Callstack.push x) d
 
-    let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); pmo = Pmo.bot (); pre = PrE.bot (); node = Node.bot (); callstack = [] }
-    let is_bot x = { x with callstack = [] } = bot ()
-    let top () = { pid = Pid.top (); pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.top (); pre = PrE.top (); node = Node.top (); callstack = [] }
-    (* let is_top x = { x with callstack = [] } = top () *)
-    let is_top x = Pid.is_top x.pid && Pri.is_top x.pri && Per.is_top x.per && Cap.is_top x.cap && Pmo.is_top x.pmo && PrE.is_top x.pre && Node.is_top x.node && x.callstack = []
+    let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); pmo = Pmo.bot (); pre = PrE.bot (); node = Node.bot (); callstack = Callstack.bot () }
+    let is_bot x = x = bot ()
+    let top () = { pid = Pid.top (); pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.top (); pre = PrE.top (); node = Node.top (); callstack = Callstack.top () }
+    let is_top x = Pid.is_top x.pid && Pri.is_top x.pri && Per.is_top x.per && Cap.is_top x.cap && Pmo.is_top x.pmo && PrE.is_top x.pre && Node.is_top x.node && Callstack.is_top x.callstack
 
-    let rec is_prefix = function [],_ -> true | x::xs,y::ys when x=y -> is_prefix (xs,ys) | _ -> false
-    (* let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && List.subset compare x.callstack y.callstack && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre *)
-    let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre && Node.leq x.node y.node && is_prefix (x.callstack, y.callstack)
-    let join_callstack xs ys = if xs<>ys then M.debug_each @@ "JOIN callstacks " ^ string_of_callstack xs ^ " and " ^ string_of_callstack ys; xs
-    let op_scheme op1 op2 op3 op4 op5 op6 op7 x y: t = { pid = op1 x.pid y.pid; pri = op2 x.pri y.pri; per = op3 x.per y.per; cap = op4 x.cap y.cap; pmo = op5 x.pmo y.pmo; pre = op6 x.pre y.pre; node = op7 x.node y.node; callstack = join_callstack x.callstack y.callstack }
-    let join x y = let r = op_scheme Pid.join Pri.join Per.join Cap.join Pmo.join PrE.join Node.join x y in
+    let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre && Node.leq x.node y.node && Callstack.leq x.callstack y.callstack
+    let op_scheme op1 op2 op3 op4 op5 op6 op7 op8 x y: t = { pid = op1 x.pid y.pid; pri = op2 x.pri y.pri; per = op3 x.per y.per; cap = op4 x.cap y.cap; pmo = op5 x.pmo y.pmo; pre = op6 x.pre y.pre; node = op7 x.node y.node; callstack = op8 x.callstack y.callstack }
+    let join x y = let r = op_scheme Pid.join Pri.join Per.join Cap.join Pmo.join PrE.join Node.join Callstack.join x y in
       (* let s x = if is_top x then "TOP" else if is_bot x then "BOT" else short 0 x in M.debug_each @@ "JOIN\t" ^ if equal x y then "EQUAL" else s x ^ "\n\t" ^ s y ^ "\n->\t" ^ s r; *)
       r
-    let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Node.meet
+    let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Node.meet Callstack.meet
   end
   module G = IntDomain.Booleans
   module C = D
 
-  let context d = { d with callstack = [] }
+  let context d = { d with callstack = Callstack.bot () }
   (* let val_of d = d *)
 
   let is_single ctx =
@@ -226,13 +245,13 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
 
-  let body ctx (f:fundec) : D.t = (* on entering function body -> called for spawned processes *)
+  let body ctx (f:fundec) : D.t = (* enter is not called for spawned processes *)
     (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     if not (is_single ctx || !Goblintutil.global_initialization || ctx.global part_mode_var) then raise Analyses.Deadcode;
     let d = ctx.local in
-    (* set initial node for a fresh function *)
-    if Node.is_bot d.node && Option.is_some !MyCFG.current_node
-    then { d with node = Node.of_node (Option.get !MyCFG.current_node, d.callstack) }
+    if Node.is_bot d.node && Option.is_some !MyCFG.current_node && Callstack.is_bot d.callstack
+    (* freshly spawned process: set initial node to beginning of function body and callstack to empty  *)
+    then { d with node = Node.of_node (Option.get !MyCFG.current_node, []); callstack = Callstack.singleton [] }
     else d
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
@@ -317,10 +336,10 @@ struct
     let assign_id_by_name resource_type name id =
       assign_id id (get_id (resource_type, eval_str name))
     in
-    let current_node = Option.get !MyCFG.current_node, d.callstack in
+    let current_node cs = Option.get !MyCFG.current_node, cs in
     let add_action action d =
-      Node.iter (fun node -> add_edge curpid (node, action, current_node)) d.node;
-      { d with node = Node.of_node current_node }
+      Node.iter (fun node -> Callstack.iter (fun cs -> add_edge curpid (node, action, current_node cs)) d.callstack) d.node;
+      { d with node = Node.of_list (List.map current_node (Callstack.elements d.callstack)) }
     in
     let arglist = List.map (stripCasts%(constFold false)) arglist in
     match f.vname, arglist with
@@ -396,7 +415,7 @@ struct
               if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
               let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; callstack = []; pmo = Pmo.of_int 3L; pre = pre; node = Node.bot () } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; callstack = Callstack.bot (); pmo = Pmo.of_int 3L; pre = pre; node = Node.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
@@ -518,7 +537,7 @@ struct
           | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; callstack = []; pmo = Pmo.of_int 3L; pre = pre; node = Node.bot () } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; callstack = Callstack.bot (); pmo = Pmo.of_int 3L; pre = pre; node = Node.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
