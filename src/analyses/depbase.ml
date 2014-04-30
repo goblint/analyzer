@@ -1312,6 +1312,8 @@ struct
       | `Unknown "LAP_Se_CreateProcess" -> begin
           match List.map (fun x -> stripCasts (constFold false x)) args with
             | [proc_att;AddrOf id;AddrOf r] ->
+              ignore (ctx.ask (Queries.SetImportant proc_att));
+              ignore (ctx.ask (Queries.SetImportant (AddrOf id)));
               let pa = eval_fv ctx.ask ctx.global ctx.local proc_att in
               let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
               let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
@@ -1324,6 +1326,7 @@ struct
       | `Unknown "LAP_Se_CreateErrorHandler" -> begin
           match List.map (fun x -> stripCasts (constFold false x)) args with
             | [entry_point;stack_size;AddrOf r] ->
+              ignore (ctx.ask (Queries.SetImportant entry_point));
               let pa = eval_fv ctx.ask ctx.global ctx.local entry_point in
               let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
               let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
@@ -1333,6 +1336,7 @@ struct
             | _ -> []
           end
       | `ThreadCreate (start,ptc_arg) -> begin
+          ignore (ctx.ask (Queries.SetImportant start));
           (* extra sync so that we do not analyze new threads with bottom global invariant *)
           let ctx_mul = swap_st ctx (cpa, Flag.get_multi ()) in
           let _ = List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync ctx_mul)) in
@@ -1346,6 +1350,7 @@ struct
               | Some fnc -> fnc `Write  args
               | None -> args
           in
+          List.iter (fun x -> ignore (ctx.ask (Queries.SetImportant x))) args;
           let flist = collect_funargs ctx.ask ctx.global ctx.local args in
           let addrs = List.concat (List.map AD.to_var_may flist) in
           List.map (create_thread None) addrs

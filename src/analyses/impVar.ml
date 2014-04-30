@@ -78,7 +78,8 @@ struct
     | Queries.IsImportant (Var v, os) -> `Bool (is_important ctx (v, LV.of_ciloffs os))
     | Queries.SetImportant e ->
         let ls = VarDep.Spec.eval_rval_shallow e in
-        LS.iter (fun (v,os) -> add_var ctx (v, LV.to_ciloffs os)) ls;
+        if not (LS.is_top ls) then
+          LS.iter (fun (v,os) -> add_var ctx (v, LV.to_ciloffs os)) ls;
         `Bot
     | _ -> Queries.Result.top ()
 

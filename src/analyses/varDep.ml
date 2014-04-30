@@ -11,7 +11,13 @@ struct
   include Analyses.DefaultSpec
 
   let name = "vardep"
-  module D = LM
+  module D = 
+  struct
+    include LM
+    let equal x y = 
+      (* ignore (Pretty.printf "equal: %a and %a\n" pretty x pretty y); *)
+      equal x y
+  end
   module G = LM
   module C = LM
 
@@ -55,6 +61,14 @@ struct
     | Field (fn,os) -> `Field (fn, offset os)
     | Index _       -> `NoOffset
 
+  let rec remove_idx = function
+    | `NoOffset -> `NoOffset
+    | `Index (_, os) -> begin match remove_idx os with
+        | `NoOffset -> `NoOffset
+        | _ -> `Index (kinteger64 IInt GU.inthack, remove_idx os)
+      end
+    | `Field (f, os) -> `Field (f, remove_idx os)
+  
   let rec eval_lval ctx d = function
     | (Mem e,os) -> LS.join (LS.join (eval_offset ctx d os) (ctx_mpt ctx e)) (eval_rval ctx d e)
     | (Var v,os) ->
@@ -86,7 +100,7 @@ struct
   and ctx_mpt ctx e =
     match ctx.ask (Queries.MayPointTo e) with
       | `Bot       -> LS.empty ()
-      | `LvalSet e -> e
+      | `LvalSet e -> LS.map (function (v,o) -> (v,remove_idx o)) e
       | _          -> LS.top ()
 
   let query ctx = function
@@ -94,6 +108,7 @@ struct
     | _ -> Queries.Result.top ()
 
   let assign_dep ctx d lval rval =
+    (* ignore (Pretty.printf "assign: %a := %a\n" d_lval lval d_exp rval); *)
     let ls = ctx_mpt ctx (AddrOf lval) in
     let v  = eval_rval ctx ctx.local rval in
     if LS.is_top ls then LM.top () else
