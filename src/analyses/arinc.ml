@@ -373,16 +373,22 @@ struct
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
       | "LAP_Se_GetPartitionStartCondition", _ -> todo ()
     (* Processes *)
-      | "F59", [dst; src] ->
+      | "F59", [dst; src] (* strcpy *)
+      | "F60", [dst; src; _] (* strncpy TODO len *)
+      | "F61", [dst; src] (* TODO strcpy that ends at \000? *)
+      | "F62", [dst; src; _] (* TODO strncpy that ends at \000? *)
+      | "F63", [dst; src; _] (* memcpy TODO len *)
+      | "F1" , [dst; src; _] (* memset TODO write char src to dst len times  *)
+      ->
           (* M.debug @@ "strcpy("^sprint d_plainexp dst^", "^sprint d_plainexp src^")"; *)
           (* let exp = mkAddrOrStartOf (mkMem ~addr:dst ~off:NoOffset) in *)
-          let lval = match dst with
-            | Lval lval
-            | StartOf lval -> lval
-            | AddrOf lval -> lval
-            | _ -> failwith @@ "F59/strcpy expects first argument to be some Lval, but got "^sprint d_plainexp dst
+          let exp = match unrollType (typeOf dst), dst with
+            | _, Lval lval
+            | _, AddrOf lval
+            | _, StartOf lval -> mkAddrOf lval
+            | TPtr _, _ -> dst
+            | _ -> failwith @@ f.vname ^ " expects first argument to be some Pointer, but got "^sprint d_exp dst^" which is "^sprint d_plainexp dst
           in
-          let exp = mkAddrOf lval in
           begin match ctx.ask (Queries.MayPointTo exp) with
           | `LvalSet ls when not (Queries.LS.is_top ls) && Queries.LS.cardinal ls = 1 ->
               let v, offs = Queries.LS.choose ls in
@@ -391,17 +397,30 @@ struct
               (* ignore @@ printf "dst: %a, MayPointTo: %a" d_plainexp dst d_plainlval lval; *)
               ctx.assign ~name:"base" lval src;
               d
-          | _ -> failwith @@ "F59/strcpy could not query MayPointTo "^sprint d_plainexp exp
+          | r ->
+              M.debug_each @@ f.vname ^ ": result of MayPointTo for " ^ sprint d_plainexp exp ^ " = " ^ Queries.Result.short 100 r;
+              begin match r with
+              | `LvalSet ls when Queries.LS.is_top ls -> d
+              | `Top -> d
+              | _ -> failwith @@ f.vname ^ " could not query MayPointTo "^sprint d_plainexp exp
+              end
           end
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
           let cm = match unrollType (typeOfLval attr) with
             | TComp (c,_) -> c
             | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
           in
-          let struct_fail () = failwith @@ "LAP_Se_CreateProcess: problem with first argument (struct PROCESS_ATTRIBUTE_TYPE): needs fields NAME, ENTRY_POINT, BASE_PRIORITY, PERIOD, TIME_CAPACITY\nRunning scrambled: "^string_of_bool Goblintutil.scrambled in
+          let struct_fail x =
+            failwith @@ "LAP_Se_CreateProcess: problem with first argument: " ^
+            begin match x with
+            | `Field ofs -> "cannot access field " ^ ofs
+            | `Result (name, entry_point, pri, per, cap) ->
+              "struct PROCESS_ATTRIBUTE_TYPE needs all of the following fields (with result): NAME ("^name^"), ENTRY_POINT ("^entry_point^"), BASE_PRIORITY ("^pri^"), PERIOD ("^per^"), TIME_CAPACITY ("^cap^")"
+            end ^ "\nRunning scrambled: "^string_of_bool Goblintutil.scrambled
+          in
           let field ofs =
             try Lval (addOffsetLval (Field (getCompField cm ofs, NoOffset)) attr)
-            with Not_found -> struct_fail ()
+            with Not_found -> struct_fail (`Field ofs)
           in
           let name = ctx.ask (Queries.EvalStr (field Goblintutil.arinc_name)) in
           let entry_point = ctx.ask (Queries.ReachableFrom (AddrOf attr)) in
@@ -424,7 +443,7 @@ struct
               add_action (CreateProcess Action.({ pid = pid'; funs; pri; per; cap })) d
           (* TODO when is `Bot returned? *)
           (* | `Bot, _ | _, `Bot -> D.bot () *)
-          | _ -> struct_fail ()
+          | _ -> let f = Queries.Result.short 30 in struct_fail (`Result (f name, f entry_point, f pri, f per, f cap))
           end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
           assign_id_by_name Process name pid; d
