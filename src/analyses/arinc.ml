@@ -1,4 +1,4 @@
-(** Tracking of priorities an partition modes. *)
+(** Tracking of arinc processes and their actions. Output to console, graphviz and promela. *)
 
 open Batteries
 open Cil
@@ -15,7 +15,7 @@ struct
   type id = varinfo
   type ids = id list
   type time = int64 (* Maybe use Nativeint which is the same as C long. OCaml int is just 31 or 63 bits wide! *)
-  module Action = (* encapsulate types because some process field names are also used for D.t -> use local opening of modules (since 4.00) for output *)
+  module Action = (* encapsulate types because some process field names are also used for D.t -> use local opening of modules (since OCaml 4.00) for output *)
   struct
     type process = { pid: id; funs: varinfo list; pri: int64; per: time; cap: time }
     type semaphore = { sid: id; cur: int64; max: int64; queuing: int64 }
@@ -39,7 +39,7 @@ struct
   let add_edge (pid:id) edge =
     Hashtbl.modify_def Set.empty pid (Set.add edge) edges
 
-  (* lookup/generate id from resource type and name (needed for LAP_Se_GetXId functions, specified by LAP_Se_CreateX functions during init) *)
+  (* lookup/generate id from resource type and name (needed for LAP_Se_GetXId functions; specified by LAP_Se_CreateX functions during init) *)
   type resource = Process | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard
   let str_resource_type = function
     | Process -> "Process"
@@ -75,11 +75,11 @@ struct
   let funs_for_process name : varinfo list =
     let id = get_id (Process, name) in
     let get_funs = function
-      | CreateProcess x when id=x.Action.pid -> Some x.Action.funs
+      | CreateProcess x when x.Action.pid=id -> Some x.Action.funs
       | CreateErrorHandler (id', funs) when id'=id -> Some funs
       | _ -> None
     in
-    filter_map_actions get_funs |> List.concat
+    filter_map_actions get_funs |> List.concat |> List.unique
 
   (* map process name to integer used in Pid domain *)
   let pnames = Hashtbl.create 13
@@ -191,7 +191,9 @@ struct
                   ; replace_top "Period: "  @@ Per.toXML d.per
                   ; replace_top "Capacity: "  @@ Cap.toXML d.cap
                   ; replace_top "Partition mode: "  @@ Pmo.toXML d.pmo
-                  ; replace_top "Preemption lock: " @@ PrE.toXML  d.pre ] in
+                  ; replace_top "Preemption lock: " @@ PrE.toXML  d.pre
+                  ; replace_top "Previous nodes: " @@ Node.toXML d.node
+                  ; replace_top "Callstacks: " @@ Callstack.toXML d.callstack ] in
       Xml.Element ("Node", ["text", "ARINC state"], elems)
     let toXML s  = toXML_f short s
     (* Printable.S *)
@@ -227,7 +229,7 @@ struct
   module G = IntDomain.Booleans
   module C = D
 
-  let context d = { d with callstack = Callstack.bot () }
+  let context d = { d with callstack = Callstack.bot (); node = Node.bot () }
   (* let val_of d = d *)
 
   let is_single ctx =
@@ -338,6 +340,7 @@ struct
     in
     let current_node cs = Option.get !MyCFG.current_node, cs in
     let add_action action d =
+      (* add edges for the cross product of d.node and d.callstack, i.e., from elements of d.node to current_node combined with elements of d.callstack *)
       Node.iter (fun node -> Callstack.iter (fun cs -> add_edge curpid (node, action, current_node cs)) d.callstack) d.node;
       { d with node = Node.of_list (List.map current_node (Callstack.elements d.callstack)) }
     in
@@ -372,7 +375,7 @@ struct
           end
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
       | "LAP_Se_GetPartitionStartCondition", _ -> todo ()
-    (* Processes *)
+    (* treat functions from string.h as extern if they are added at the end of libraryFunctions.ml *)
       | "F59", [dst; src] (* strcpy *)
       | "F60", [dst; src; _] (* strncpy TODO len *)
       | "F61", [dst; src] (* TODO strcpy that ends at \000? *)
@@ -405,6 +408,7 @@ struct
               | _ -> failwith @@ f.vname ^ " could not query MayPointTo "^sprint d_plainexp exp
               end
           end
+    (* Processes *)
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
           let cm = match unrollType (typeOfLval attr) with
             | TComp (c,_) -> c
