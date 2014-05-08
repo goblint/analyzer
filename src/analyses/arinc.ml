@@ -1,5 +1,6 @@
 (** Tracking of arinc processes and their actions. Output to console, graphviz and promela. *)
 
+module OMap = Map (* save Ocaml's Map before overwriting it with BatMap *)
 open Batteries
 open Cil
 open Pretty
@@ -113,61 +114,67 @@ struct
   module Pmo = IntDomain.Flattened
   (* Preemption lock *)
   module PrE = IntDomain.Flattened
-  module Node =
+  (* map from callstack (used as context) to set of predecessor nodes *)
+  module Pred =
   struct
-    module Base =
+    (* stack of unique locations *)
+    module Callstack =
     struct
-      module N = MyCFG.Node
-      type t = N.t * callstack
-      let equal (n1,cs1) (n2,cs2) = N.equal n1 n2 && cs1=cs2
-      let compare2 fa fb (a1,b1) (a2,b2) =
-        let a = fa a1 a2 in
-        if a = 0 then fb b1 b2 else a
-      let compare = compare2 N.compare Pervasives.compare
-      let hash (n,cs) = N.hash n + (List.sum @@ 0 :: List.map (fun loc -> loc.line) cs)
+      let length = 1
+      type t = callstack
       include Printable.Std
       include Lattice.StdCousot
-      let string_of_node n = string_of_int (MyCFG.getLoc n).line
-      let short w (n,cs) = string_of_node n ^ string_of_callstack cs
-      include Printable.PrintSimple (struct
-        type t' = t
-        let name () = "predecessor node"
-        let short = short
-      end)
-    end
-    include SetDomain.Make (Base)
-    let of_node : Base.t -> t = singleton
-    let of_list : Base.t list -> t = List.fold_left (fun a b -> add b a) (empty ())
-    let string_of = Base.short 10
-  end
-  module Callstack =
-  struct
-    let length = 1
-    module Base =
-    struct
-      type t = callstack
       (* if x is already in the callstack, we move it to the front. if callstack_length is reached, nothing will be changed. *)
       let push x xs = if List.length xs < length then x :: List.remove xs x else xs
       let rec is_prefix = function [],_ -> true | x::xs,y::ys when x=y -> is_prefix (xs,ys) | _ -> false
       let equal = Util.equals
-      let compare = Pervasives.compare
       let hash = Hashtbl.hash
-      include Printable.Std
-      include Lattice.StdCousot
       let short w = string_of_callstack
       include Printable.PrintSimple (struct
         type t' = t
-        let name () = "possible callstacks"
+        let name () = "callstack"
         let short = short
       end)
+      let string_of = short 10
+      let empty = []
     end
-    include SetDomain.Make (Base)
-    let string_of = short 10
-    let push x = map (Base.push x)
+    module NodeSet =
+    struct
+      module Base =
+      struct
+        module N = MyCFG.Node
+        type t = N.t * callstack
+        include Printable.Std
+        include Lattice.StdCousot
+        let equal (n1,cs1) (n2,cs2) = N.equal n1 n2 && cs1=cs2
+        let compare2 fa fb (a1,b1) (a2,b2) =
+          let a = fa a1 a2 in
+          if a = 0 then fb b1 b2 else a
+        let compare = compare2 N.compare Pervasives.compare
+        let hash (n,cs) = N.hash n + (List.sum @@ 0 :: List.map (fun loc -> loc.line) cs)
+        let string_of_node n = string_of_int (MyCFG.getLoc n).line
+        let short w (n,cs) = string_of_node n ^ string_of_callstack cs
+        include Printable.PrintSimple (struct
+          type t' = t
+          let name () = "predecessors"
+          let short = short
+        end)
+      end
+      include SetDomain.Make (Base)
+      let of_node : Base.t -> t = singleton
+      let of_list : Base.t list -> t = List.fold_left (fun a b -> add b a) (empty ())
+      let string_of_elt = Base.short 10
+    end
+    include MapDomain.MapBot (Callstack) (NodeSet)
+    module M = OMap.Make (Callstack)
+    let map_keys f m = fold (fun k v m -> add (f k) v m) m (bot ())
+    let flat_map_keys f m = fold (fun k v m -> List.fold_left (fun m k' -> add k' v m) m (f k)) m (bot ())
+    let keys m = M.bindings m |> List.map fst
+    let mapi : (key -> value -> value) -> t -> t = M.mapi
   end
 
   (* define record type here so that fields are accessable outside of D *)
-  type process = { pid: Pid.t; pri: Pri.t; per: Per.t; cap: Cap.t; pmo: Pmo.t; pre: PrE.t; node: Node.t; callstack: Callstack.t }
+  type process = { pid: Pid.t; pri: Pri.t; per: Per.t; cap: Cap.t; pmo: Pmo.t; pre: PrE.t; pred: Pred.t }
   module D =
   struct
     type t = process
@@ -175,7 +182,7 @@ struct
     include Lattice.StdCousot
 
     (* printing *)
-    let short w x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; node=%s; callstack=%s)" (Pid.short 3 x.pid) (Pri.short 3 x.pri) (Per.short 3 x.per) (Cap.short 3 x.cap) (Pmo.short 3 x.pmo) (PrE.short 3 x.pre) (Node.short 80 x.node) (Callstack.string_of x.callstack)
+    let short w x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; pred=%s }" (Pid.short 3 x.pid) (Pri.short 3 x.pri) (Per.short 3 x.per) (Cap.short 3 x.cap) (Pmo.short 3 x.pmo) (PrE.short 3 x.pre) (Pretty.sprint 200 (Pred.pretty () x.pred))
     include Printable.PrintSimple (struct
       type t' = t
       let name () = "ARINC state"
@@ -192,16 +199,14 @@ struct
                   ; replace_top "Capacity: "  @@ Cap.toXML d.cap
                   ; replace_top "Partition mode: "  @@ Pmo.toXML d.pmo
                   ; replace_top "Preemption lock: " @@ PrE.toXML  d.pre
-                  ; replace_top "Previous nodes: " @@ Node.toXML d.node
-                  ; replace_top "Callstacks: " @@ Callstack.toXML d.callstack ] in
+                  ; replace_top "Predecessor nodes: " @@ Pred.toXML d.pred ] in
       Xml.Element ("Node", ["text", "ARINC state"], elems)
     let toXML s  = toXML_f short s
     (* Printable.S *)
     (* let equal = Util.equals *)
-    let equal x y = Pid.equal x.pid y.pid && Pri.equal x.pri y.pri && Per.equal x.per y.per && Cap.equal x.cap y.cap && Pmo.equal x.pmo y.pmo && PrE.equal x.pre y.pre && Node.equal x.node y.node && x.callstack = y.callstack
-    (* let equal x y = let f z = { z with callstack = List.sort_unique compare z.callstack } in Util.equals (f x) (f y) *)
+    let equal x y = Pid.equal x.pid y.pid && Pri.equal x.pri y.pri && Per.equal x.per y.per && Cap.equal x.cap y.cap && Pmo.equal x.pmo y.pmo && PrE.equal x.pre y.pre && Pred.equal x.pred y.pred
     (* let hash = Hashtbl.hash *)
-    let hash x = Hashtbl.hash (Pid.hash x.pid, Pri.hash x.pri, Per.hash x.per, Cap.hash x.cap, Pmo.hash x.pmo, PrE.hash x.pre, Node.hash x.node, x.callstack)
+    let hash x = Hashtbl.hash (Pid.hash x.pid, Pri.hash x.pri, Per.hash x.per, Cap.hash x.cap, Pmo.hash x.pmo, PrE.hash x.pre, Pred.hash x.pred)
 
     (* modify fields *)
     let pid f d = { d with pid = f d.pid }
@@ -210,26 +215,25 @@ struct
     let cap f d = { d with cap = f d.cap }
     let pmo f d = { d with pmo = f d.pmo }
     let pre f d = { d with pre = f d.pre }
-    let node f d = { d with node = f d.node }
-    let callstack f d = { d with callstack = f d.callstack }
-    let callstack_push x d = callstack (Callstack.push x) d
+    let pred f d = { d with pred = f d.pred }
+    let callstack_push x d = pred (Pred.map_keys (Pred.Callstack.push x)) d
 
-    let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); pmo = Pmo.bot (); pre = PrE.bot (); node = Node.bot (); callstack = Callstack.bot () }
+    let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); pmo = Pmo.bot (); pre = PrE.bot (); pred = Pred.bot () }
     let is_bot x = x = bot ()
-    let top () = { pid = Pid.top (); pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.top (); pre = PrE.top (); node = Node.top (); callstack = Callstack.top () }
-    let is_top x = Pid.is_top x.pid && Pri.is_top x.pri && Per.is_top x.per && Cap.is_top x.cap && Pmo.is_top x.pmo && PrE.is_top x.pre && Node.is_top x.node && Callstack.is_top x.callstack
+    let top () = { pid = Pid.top (); pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.top (); pre = PrE.top (); pred = Pred.top () }
+    let is_top x = Pid.is_top x.pid && Pri.is_top x.pri && Per.is_top x.per && Cap.is_top x.cap && Pmo.is_top x.pmo && PrE.is_top x.pre && Pred.is_top x.pred
 
-    let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre && Node.leq x.node y.node && Callstack.leq x.callstack y.callstack
-    let op_scheme op1 op2 op3 op4 op5 op6 op7 op8 x y: t = { pid = op1 x.pid y.pid; pri = op2 x.pri y.pri; per = op3 x.per y.per; cap = op4 x.cap y.cap; pmo = op5 x.pmo y.pmo; pre = op6 x.pre y.pre; node = op7 x.node y.node; callstack = op8 x.callstack y.callstack }
-    let join x y = let r = op_scheme Pid.join Pri.join Per.join Cap.join Pmo.join PrE.join Node.join Callstack.join x y in
+    let leq x y = Pid.leq x.pid y.pid && Pri.leq x.pri y.pri && Per.leq x.per y.per && Cap.leq x.cap y.cap && Pmo.leq x.pmo y.pmo && PrE.leq x.pre y.pre && Pred.leq x.pred y.pred
+    let op_scheme op1 op2 op3 op4 op5 op6 op7 x y: t = { pid = op1 x.pid y.pid; pri = op2 x.pri y.pri; per = op3 x.per y.per; cap = op4 x.cap y.cap; pmo = op5 x.pmo y.pmo; pre = op6 x.pre y.pre; pred = op7 x.pred y.pred }
+    let join x y = let r = op_scheme Pid.join Pri.join Per.join Cap.join Pmo.join PrE.join Pred.join x y in
       (* let s x = if is_top x then "TOP" else if is_bot x then "BOT" else short 0 x in M.debug_each @@ "JOIN\t" ^ if equal x y then "EQUAL" else s x ^ "\n\t" ^ s y ^ "\n->\t" ^ s r; *)
       r
-    let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Node.meet Callstack.meet
+    let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Pred.meet
   end
   module G = IntDomain.Booleans
   module C = D
 
-  let context d = { d with callstack = Callstack.bot (); node = Node.bot () }
+  let context d = { d with pred = Pred.bot () }
   (* let val_of d = d *)
 
   let is_single ctx =
@@ -247,20 +251,20 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
 
-  let body ctx (f:fundec) : D.t = (* enter is not called for spawned processes *)
+  let body ctx (f:fundec) : D.t = (* enter is not called for spawned processes -> initialize them here *)
     (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     if not (is_single ctx || !Goblintutil.global_initialization || ctx.global part_mode_var) then raise Analyses.Deadcode;
     let d = ctx.local in
-    if Node.is_bot d.node && Option.is_some !MyCFG.current_node && Callstack.is_bot d.callstack
-    (* freshly spawned process: set initial node to beginning of function body and callstack to empty  *)
-    then { d with node = Node.of_node (Option.get !MyCFG.current_node, []); callstack = Callstack.singleton [] }
+    if Pred.is_bot d.pred && Option.is_some !MyCFG.current_node
+    (* freshly spawned process: set initial predecessor map to beginning of function body and callstack to empty  *)
+    then D.pred (Pred.add_list [Pred.Callstack.empty, Pred.NodeSet.singleton (Option.get !MyCFG.current_node, [])]) d
     else d
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* D.callstack List.tl ctx.local *)
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = (* on function calls -> not called for spawned processes *)
+  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = (* on function calls (also for main); not called for spawned processes *)
     (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug_each doesn't print anything here *) *)
     let d_caller = ctx.local in
     let d_callee =
@@ -272,7 +276,14 @@ struct
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     (* M.debug_each @@ "ctx.local: " ^ D.string_of_callstack ctx.local.callstack ^ ", au: " ^ D.string_of_callstack au.callstack; *)
-    { au with callstack = ctx.local.callstack } (* just keep the caller's callstack *)
+    (* only keep the predecessor nodes for the current call, i.e., where the last element of the callstack corresponds to the current location (or where the callstack is empty, which only happens if we run with Pred.Callstack.length = 0) *)
+    let m = Pred.filter (fun k v -> List.is_empty k || List.last k = !Tracing.current_loc) au.pred in
+    (* now we need to reconstruct the caller's callstack, i.e., change the keys to the value they had before the call *)
+    let old_keys = Pred.keys ctx.local.pred in
+    (* gets all old keys that could have become k *)
+    let get_old_keys k = List.filter (fun old_key -> Pred.Callstack.push !Tracing.current_loc old_key = k) old_keys in
+    let m = Pred.flat_map_keys get_old_keys m in
+    { au with pred = m }
 
   (* ARINC utility functions *)
   let sprint f x = Pretty.sprint 80 (f () x)
@@ -340,9 +351,10 @@ struct
     in
     let current_node cs = Option.get !MyCFG.current_node, cs in
     let add_action action d =
-      (* add edges for the cross product of d.node and d.callstack, i.e., from elements of d.node to current_node combined with elements of d.callstack *)
-      Node.iter (fun node -> Callstack.iter (fun cs -> add_edge curpid (node, action, current_node cs)) d.callstack) d.node;
-      { d with node = Node.of_list (List.map current_node (Callstack.elements d.callstack)) }
+      (* add edges for every context/callstack and its set of predecessor nodes (from pred. node to current_node combined with the callstack) *)
+      Pred.iter (fun current_callstack nodes -> Pred.NodeSet.iter (fun node -> add_edge curpid (node, action, current_node current_callstack)) nodes) d.pred;
+      (* update domain by replacing the set of pred. nodes for all contexts *)
+      D.pred (Pred.mapi (fun k v -> Pred.NodeSet.of_node (current_node k))) d
     in
     let arglist = List.map (stripCasts%(constFold false)) arglist in
     match f.vname, arglist with
@@ -438,7 +450,7 @@ struct
               if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
               let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; callstack = Callstack.bot (); pmo = Pmo.of_int 3L; pre = pre; node = Node.bot () } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
@@ -560,7 +572,7 @@ struct
           | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; callstack = Callstack.bot (); pmo = Pmo.of_int 3L; pre = pre; node = Node.bot () } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
@@ -668,7 +680,7 @@ struct
     | TimedWait t -> "TimedWait("^str_i64 t^");"
     | PeriodicWait -> "PeriodicWait();"
   (* let str_callstack cs = if List.is_empty cs then "" else " cs=" ^ string_of_callstack cs *)
-  let str_node = Node.string_of
+  let str_node = Pred.NodeSet.string_of_elt
   let print_actions () =
     let print_process pid =
       let str_edge (a, action, b) = str_node a ^ " -> " ^ str_action pid action ^ " -> " ^ str_node b in
@@ -719,14 +731,14 @@ struct
       (* build adjacency matrix for all nodes of this process *)
       let module NodeEq =
         struct
-          type t = Node.Base.t
+          type t = Pred.NodeSet.Base.t
           let equal = (==)
           let hash = Hashtbl.hash
         end
       in
       (* let module HashtblN = Hashtbl.Make (MyCFG.Node) in (* why does this lead to a segfault?? *) *)
       let module HashtblN = Hashtbl.Make (NodeEq) in
-      let module SetN = Set.Make (Node.Base) in
+      let module SetN = Set.Make (Pred.NodeSet.Base) in
       let a2bs = HashtblN.create 97 in
       Set.iter (fun (a, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
       let nodes = HashtblN.keys a2bs |> List.of_enum in
@@ -738,7 +750,7 @@ struct
       let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
       let in_nodes node = in_edges node |> List.map get_a in
       let start_node = List.find (List.is_empty % in_nodes) nodes in (* node with no incoming edges is the start node *)
-      let str_nodes xs = "{"^(List.map Node.string_of xs |> String.concat ",")^"}" in
+      let str_nodes xs = "{"^(List.map Pred.NodeSet.string_of_elt xs |> String.concat ",")^"}" in
       (* set of post-dominators for node a *)
       let pdom a =
         let rec f visited a =
@@ -755,7 +767,7 @@ struct
               if SetN.mem a visited then false else
               let visited = SetN.add a visited in
               let xs = out_nodes a in
-              List.exists (Node.Base.equal b) xs || List.exists identity (List.map (f visited b) xs)
+              List.exists (Pred.NodeSet.Base.equal b) xs || List.exists identity (List.map (f visited b) xs)
           in f SetN.empty b a
       in
       (* minimal node from non-empty set of nodes *)
@@ -771,13 +783,13 @@ struct
       let ipdom a =
           let post = pdom a in
           if M.tracing then (
-            Tracing.tracel "arinc" "post-dominator set of node %s = %s\n" (Node.string_of a) (str_nodes (SetN.elements post));
-            if not @@ SetN.is_empty post then Tracing.tracel "arinc" "immediate post-dominator of node %s = %s\n" (Node.string_of a) (Node.string_of (min_node post))
+            Tracing.tracel "arinc" "post-dominator set of node %s = %s\n" (Pred.NodeSet.string_of_elt a) (str_nodes (SetN.elements post));
+            if not @@ SetN.is_empty post then Tracing.tracel "arinc" "immediate post-dominator of node %s = %s\n" (Pred.NodeSet.string_of_elt a) (Pred.NodeSet.string_of_elt (min_node post))
           );
           if SetN.is_empty post then None else Some (min_node post)
       in
       let str_callstack xs = if List.is_empty xs then "" else "__"^String.concat "_" (List.map (fun loc -> string_of_int loc.line) xs) in
-      let label ?prefix:(prefix="P") (n,cs) = prefix ^ str_i64 pid ^ "_" ^ Node.Base.string_of_node n ^ str_callstack cs in
+      let label ?prefix:(prefix="P") (n,cs) = prefix ^ str_i64 pid ^ "_" ^ Pred.NodeSet.Base.string_of_node n ^ str_callstack cs in
       let goto node = "goto " ^ label node in
       let str_edge (a, action, b) = (* label b ^ ":\t" ^ *) str_action_pml id action in
       let visited_all = ref SetN.empty in
@@ -787,7 +799,7 @@ struct
         let visited = SetN.add a visited in
         let _ = visited_all := SetN.add a !visited_all in
         if M.tracing then (
-          Tracing.tracel "arinc" "visiting node %s. visited: %s. out_nodes: %s\n" (Node.string_of a) (str_nodes (SetN.elements visited)) (str_nodes (out_nodes a))
+          Tracing.tracel "arinc" "visiting node %s. visited: %s. out_nodes: %s\n" (Pred.NodeSet.string_of_elt a) (str_nodes (SetN.elements visited)) (str_nodes (out_nodes a))
         );
         let choice stmts = match stmts with x::xs -> ("::" ^ indent x) :: (List.map indent xs) | [] -> [] in
         (* handle sequences and branching *)
@@ -838,7 +850,7 @@ struct
       save_promela_model ()
     )
 
-  let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; node = Node.bot () }
+  let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.bot () }
   let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
 end
