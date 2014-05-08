@@ -276,8 +276,8 @@ struct
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     (* M.debug_each @@ "ctx.local: " ^ D.string_of_callstack ctx.local.callstack ^ ", au: " ^ D.string_of_callstack au.callstack; *)
-    (* only keep the predecessor nodes for the current call, i.e., where the last element of the callstack corresponds to the current location (or where the callstack is empty, which only happens if we run with Pred.Callstack.length = 0) *)
-    let m = Pred.filter (fun k v -> List.is_empty k || List.last k = !Tracing.current_loc) au.pred in
+    (* only keep the predecessor nodes for the current call, i.e., where the top of the callstack corresponds to the current location (or where the callstack is empty, which only happens if we run with Pred.Callstack.length = 0) *)
+    let m = if Pred.Callstack.length > 0 then Pred.filter (fun k v -> not (List.is_empty k) && List.hd k = !Tracing.current_loc) au.pred else au.pred in
     (* now we need to reconstruct the caller's callstack, i.e., change the keys to the value they had before the call *)
     let old_keys = Pred.keys ctx.local.pred in
     (* gets all old keys that could have become k *)
