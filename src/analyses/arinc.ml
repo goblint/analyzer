@@ -171,6 +171,7 @@ struct
     let flat_map_keys f m = fold (fun k v m -> List.fold_left (fun m k' -> add k' v m) m (f k)) m (bot ())
     let keys m = M.bindings m |> List.map fst
     let mapi : (key -> value -> value) -> t -> t = M.mapi
+    let init node = add_list [Callstack.empty, NodeSet.singleton (node, [])] (bot ())
   end
 
   (* define record type here so that fields are accessable outside of D *)
@@ -251,14 +252,15 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
 
+  let checkPredBot d tf f xs =
+    if d.pred = Pred.bot () then M.debug_each @@ tf^": mapping is BOT!!! function: "^f.vname^". "^(String.concat "\n" @@ List.map (fun (n,d) -> n ^ " = " ^ Pretty.sprint 200 (Pred.pretty () d.pred)) xs);
+    d
+
   let body ctx (f:fundec) : D.t = (* enter is not called for spawned processes -> initialize them here *)
     (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     if not (is_single ctx || !Goblintutil.global_initialization || ctx.global part_mode_var) then raise Analyses.Deadcode;
-    let d = ctx.local in
-    if Pred.is_bot d.pred && Option.is_some !MyCFG.current_node
-    (* freshly spawned process: set initial predecessor map to beginning of function body and callstack to empty  *)
-    then D.pred (Pred.add_list [Pred.Callstack.empty, Pred.NodeSet.singleton (Option.get !MyCFG.current_node, [])]) d
-    else d
+    (* checkPredBot ctx.local "body" f.svar [] *)
+    ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* D.callstack List.tl ctx.local *)
@@ -275,15 +277,15 @@ struct
     [d_caller, d_callee]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    (* M.debug_each @@ "ctx.local: " ^ D.string_of_callstack ctx.local.callstack ^ ", au: " ^ D.string_of_callstack au.callstack; *)
-    (* only keep the predecessor nodes for the current call, i.e., where the top of the callstack corresponds to the current location (or where the callstack is empty, which only happens if we run with Pred.Callstack.length = 0) *)
-    let m = if Pred.Callstack.length > 0 then Pred.filter (fun k v -> not (List.is_empty k) && List.hd k = !Tracing.current_loc) au.pred else au.pred in
-    (* now we need to reconstruct the caller's callstack, i.e., change the keys to the value they had before the call *)
-    let old_keys = Pred.keys ctx.local.pred in
-    (* gets all old keys that could have become k *)
-    let get_old_keys k = List.filter (fun old_key -> Pred.Callstack.push !Tracing.current_loc old_key = k) old_keys in
-    let m = Pred.flat_map_keys get_old_keys m in
-    { au with pred = m }
+    let m_caller = ctx.local.pred in
+    let m_callee = au.pred in
+    let update cs = Pred.Callstack.push !Tracing.current_loc cs in (* push the location of call to f onto cs *)
+    let f m k = (* build up new map m with old keys k and corresponding values from m_callee *)
+      let k' = update k in (* updated callstring for callee *)
+      Pred.add k (Pred.find k' m_callee) m
+    in
+    let m_combine = Pred.keys m_caller |> List.fold_left f (Pred.bot ()) in
+    { au with pred = m_combine } (* result is callee's domain with predecessors for this call *)
 
   (* ARINC utility functions *)
   let sprint f x = Pretty.sprint 80 (f () x)
@@ -450,7 +452,7 @@ struct
               if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
               let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.bot () } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.init (Option.get !MyCFG.current_node) } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
@@ -572,7 +574,7 @@ struct
           | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.bot () } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.init (Option.get !MyCFG.current_node) } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
@@ -850,7 +852,7 @@ struct
       save_promela_model ()
     )
 
-  let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.bot () }
+  let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.init (MyCFG.Function (emptyFunction "main").svar) }
   let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
 end
