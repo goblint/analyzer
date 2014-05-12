@@ -5,7 +5,8 @@ typedef void * SEMAPHORE_ID_TYPE;
 typedef int    RETURN_CODE_TYPE;
 typedef int    SEMAPHORE_VALUE_TYPE;
 typedef void * QUEUING_DISCIPLINE_TYPE;
-typedef int    SYSTEM_TIME_TYPE; // in monit.c it is defined as unsigned long, PDF says signed 64bit
+/* typedef int    SYSTEM_TIME_TYPE; // in monit.c it is defined as unsigned long, PDF says signed 64bit */
+typedef long   SYSTEM_TIME_TYPE;
 
 extern void LAP_Se_GetSemaphoreId(SEMAPHORE_NAME_TYPE, SEMAPHORE_ID_TYPE*, RETURN_CODE_TYPE*);
 extern void LAP_Se_CreateSemaphore(SEMAPHORE_NAME_TYPE,SEMAPHORE_VALUE_TYPE,SEMAPHORE_VALUE_TYPE,QUEUING_DISCIPLINE_TYPE,SEMAPHORE_ID_TYPE*,RETURN_CODE_TYPE*);
@@ -16,8 +17,6 @@ typedef void * PROCESS_NAME_TYPE;
 typedef void * SYSTEM_ADDRESS_TYPE;
 typedef long   STACK_SIZE_TYPE;
 typedef long   PRIORITY_TYPE;
-typedef long   SYSTEM_TIME_TYPE;
-typedef long   SYSTEM_TIME_TYPE;
 typedef int    DEADLINE_TYPE;
 
 typedef struct {
@@ -47,6 +46,7 @@ typedef
 extern void LAP_Se_SetPartitionMode (
        /*in */ OPERATING_MODE_TYPE OPERATING_MODE,
        /*out*/ RETURN_CODE_TYPE    *RETURN_CODE );
+extern void LAP_Se_PeriodicWait (RETURN_CODE_TYPE *RETURN_CODE);
 // -----------------------
 
 int g,g2;
@@ -54,21 +54,29 @@ SEMAPHORE_ID_TYPE sem_id;
 
 void P1(void){
   RETURN_CODE_TYPE r;
-  while (1){
+  while (r){
     LAP_Se_WaitSemaphore(sem_id,600,&r);
     g = g + 1; // NOWARN!
     LAP_Se_SignalSemaphore(sem_id,&r);
   }
+  LAP_Se_PeriodicWait(&r);
+  LAP_Se_PeriodicWait(&r);
   return;
 }
 
+void foo() {
+  RETURN_CODE_TYPE r;
+  LAP_Se_PeriodicWait(&r);
+}
 void P2(void){
   RETURN_CODE_TYPE r;
   while (1){
     LAP_Se_WaitSemaphore(sem_id,600,&r);
+    foo();
     g = g - 1;    // NOWARN!
     g2 = g2 + 1;  // RACE!
     LAP_Se_SignalSemaphore(sem_id,&r);
+    foo();
   }
   return;
 }

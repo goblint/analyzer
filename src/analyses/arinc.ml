@@ -739,7 +739,7 @@ struct
         end
       in
       (* let module HashtblN = Hashtbl.Make (MyCFG.Node) in (* why does this lead to a segfault?? *) *)
-      let module HashtblN = Hashtbl.Make (NodeEq) in
+      let module HashtblN = Hashtbl.Make (Pred.NodeSet.Base) in
       let module SetN = Set.Make (Pred.NodeSet.Base) in
       let a2bs = HashtblN.create 97 in
       Set.iter (fun (a, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
