@@ -1,5 +1,7 @@
 #!/bin/sh
-while file=$(inotifywait -r -q -e modify src); do
+# https://github.com/guard/guard/wiki/Analysis-of-inotify-events-for-different-editors
+# http://stackoverflow.com/questions/11930442/make-inotifywait-group-multiple-file-updates-into-one
+while file=$(inotifywait -r -q -e moved_to src); do
   ext=${file##*.}
   # only recompile if some ocaml source file changes
   if [ $ext != "ml" ] && [ $ext != "mli" ] && [ $ext != "mll" ] && [ $ext != "mly" ]; then
