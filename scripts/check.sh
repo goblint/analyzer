@@ -1,15 +1,21 @@
 export OCAMLRUNPARAM=b
 # file to analyze
 file=${1-"tests/file.c"}
-# spec file to use or "file" for file analysis
-spec=${2-"tests/regression/18-file/file.optimistic.spec"}
+# analysis to run or spec file
+ana=${2-"tests/regression/18-file/file.optimistic.spec"}
 debug=${debug-"true"}
-if [ $spec == "file" ]; then
-    ana="file --set ana.file.optimistic true"
+if [ $ana == "file" ]; then
+    ana="file"
+    opt="--set ana.file.optimistic true"
+elif [ $ana == "arinc" ]; then
+    ana="arinc"
+    opt="--enable ana.arinc.export"
 else
-    ana="spec --sets ana.spec.file ${spec}"
+    spec=$ana
+    ana="spec"
+    opt="--sets ana.spec.file $spec"
 fi
-cmd="./goblint --sets ana.activated[0][+] $ana --sets result html --enable colors --set dbg.showtemps true --set dbg.debug $debug $file"
+cmd="./goblint --sets ana.activated[0][+] $ana $opt --sets result html --enable colors --enable dbg.showtemps --set dbg.debug $debug $file"
 echo -e "$(tput setaf 6)$cmd$(tput sgr 0)"
 $cmd
 

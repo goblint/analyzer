@@ -1,19 +1,21 @@
 #!/bin/sh
 # https://github.com/guard/guard/wiki/Analysis-of-inotify-events-for-different-editors
 # http://stackoverflow.com/questions/11930442/make-inotifywait-group-multiple-file-updates-into-one
-while file=$(inotifywait -r -q -e moved_to src); do
-  ext=${file##*.}
+# sublime-text-3: use -e moved_to instead of -e modify
+while change=$(inotifywait -r -q -e modify src); do
+  ext=${change##*.}
   # only recompile if some ocaml source file changes
   if [ $ext != "ml" ] && [ $ext != "mli" ] && [ $ext != "mll" ] && [ $ext != "mly" ]; then
     continue
   fi
   clear
+  echo $change
   make
   if [ $? -eq 0 ]; then
-    clear
     notify-send "Build ok!"
-    #./test.sh file
-    ./scripts/regression.sh ${1-"file"}
+    if [ $1 ]; then # type of regression tests to run, e.g. "file"
+        ./scripts/regression.sh $1
+    fi
     if [ $? -eq 0 ]; then
       paplay /usr/share/sounds/freedesktop/stereo/complete.oga
     else

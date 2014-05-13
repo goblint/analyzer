@@ -114,6 +114,7 @@ let _ =
   reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails.";
   reg Analyses "ana.spec.file"       ""      "Path to the specification file.";
   reg Analyses "ana.arinc.export"    "false" "Save Spin model and dot graph for ARINC calls?";
+  reg Analyses "ana.arinc.cs_len"    "99"    "Maximum length of callstack with unique locations for ARINC.";
   reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?";
   reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
 

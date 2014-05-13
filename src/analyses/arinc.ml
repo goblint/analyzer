@@ -120,12 +120,15 @@ struct
     (* stack of unique locations *)
     module Callstack =
     struct
-      let length = 1
+      (* default is 99 *)
+      let length () = GobConfig.get_int "ana.arinc.cs_len"
       type t = callstack
       include Printable.Std
       include Lattice.StdCousot
       (* if x is already in the callstack, we move it to the front. if callstack_length is reached, nothing will be changed. *)
-      let push x xs = if List.length xs < length then x :: List.remove xs x else xs
+      let push x xs =
+        if List.length xs < length () then x :: List.remove xs x
+        else ( M.debug_each @@ "Callstack size reached ana.arinc.cs_len ("^string_of_int (length ())^"): "^string_of_callstack xs; xs )
       let rec is_prefix = function [],_ -> true | x::xs,y::ys when x=y -> is_prefix (xs,ys) | _ -> false
       let equal = Util.equals
       let hash = Hashtbl.hash
@@ -601,9 +604,12 @@ struct
           `Bool ((PrE.to_int d.pre <> Some 0L && PrE.to_int d.pre <> None) || mode_is_init d.pmo)
       | _ -> Queries.Result.top ()
 
+
   (* ARINC output *)
+  (* common *)
   let str_i64 id = string_of_int (i64_to_int id)
-  let str_id id = id.vname
+  let str_time t = if t = infinity then "∞" else str_i64 t^"ns"
+  (* console and dot *)
   let str_funs funs = "["^(List.map (fun v -> v.vname) funs |> String.concat ", ")^"]"
   let str_resource id =
     match get_by_id id with
@@ -615,7 +621,6 @@ struct
         name
     | None -> "Unknown resource"
   let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]"
-  let str_time t = if t = infinity then "∞" else str_i64 t^"ns"
   let str_action pid = function
     | LockPreemption -> "LockPreemption"
     | UnlockPreemption -> "UnlockPreemption"
@@ -643,6 +648,7 @@ struct
     | ResetEvent ids -> "ResetEvent "^str_resources ids
     | TimedWait t -> "TimedWait "^str_time t
     | PeriodicWait -> "PeriodicWait"
+  (* spin/promela *)
   let pml_resources = Hashtbl.create 13
   let str_id_pml id = (* give ids starting from 0 (get_pid_by_id for all resources) *)
     let resource, name as k = Option.get @@ get_by_id id in
@@ -681,28 +687,30 @@ struct
     | ResetEvent ids -> str_ids_pml ids (fun id -> "ResetEvent("^id^");")
     | TimedWait t -> "TimedWait("^str_i64 t^");"
     | PeriodicWait -> "PeriodicWait();"
-  (* let str_callstack cs = if List.is_empty cs then "" else " cs=" ^ string_of_callstack cs *)
-  let str_node = Pred.NodeSet.string_of_elt
   let print_actions () =
     let print_process pid =
+      let str_node = Pred.NodeSet.string_of_elt in
       let str_edge (a, action, b) = str_node a ^ " -> " ^ str_action pid action ^ " -> " ^ str_node b in
       let xs = Set.map str_edge (get_edges pid) in
       M.debug @@ str_resource pid^" ->\n\t"^String.concat "\n\t" (Set.elements xs)
     in
     Hashtbl.keys edges |> Enum.iter print_process
+  let save_result desc ext content = (* output helper *)
+    let dir = Goblintutil.create_dir "result" in (* returns abs. path *)
+    let path = dir ^ "/arinc.cs" ^ string_of_int (Pred.Callstack.length ()) ^ "." ^ ext in
+    output_file path content;
+    print_endline @@ "saved " ^ desc ^ " as " ^ path
   let save_dot_graph () =
     let dot_process pid =
       (* 1 -> w1 [label="fopen(_)"]; *)
-      let str_node x = "\"" ^ str_i64 (get_pid_by_id pid) ^ "_" ^ str_node x ^ "\"" in (* quote node names for dot b/c of callstack *)
+      let str_node x = "\"" ^ str_i64 (get_pid_by_id pid) ^ "_" ^ Pred.NodeSet.string_of_elt x ^ "\"" in (* quote node names for dot b/c of callstack *)
       let str_edge (a, action, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ "\"]" in
       let xs = Set.map str_edge (get_edges pid) |> Set.elements in
       ("subgraph \"cluster_"^str_resource pid^"\" {") :: xs @ ("label = \""^str_resource pid^"\";") :: ["}\n"]
     in
     let lines = Hashtbl.keys edges |> List.of_enum |> List.map dot_process |> List.concat in
     let dot_graph = String.concat "\n  " ("digraph file {"::lines) ^ "\n}" in
-    let path = "result/arinc.dot" in
-    output_file path dot_graph;
-    print_endline ("saved graph as "^Sys.getcwd ()^"/"^path)
+    save_result "graph" "dot" dot_graph
   let save_promela_model () =
     let open Action in (* needed to distinguish the record field names from the ones of D.t *)
     let comp2 f g a b = f (g a) (g b) in (* why is this not in batteries? *)
@@ -834,7 +842,7 @@ struct
       List.map indent body @ ["}"]
     in
     let process_defs = Hashtbl.keys edges |> List.of_enum |> List.sort (compareBy get_pid_by_id) |> List.map process_def |> List.concat in
-    let promela =
+    let promela = String.concat "\n" @@
       ("#define nproc "^string_of_int nproc) ::
       ("#define nsema "^string_of_int nsema) ::
       ("#define nevent "^string_of_int nevent) :: "" ::
@@ -842,9 +850,8 @@ struct
       "init {" :: List.map indent init_body @ "}" ::
       process_defs
     in
-    let path = "result/arinc.pml" in
-    output_file path (String.concat "\n" promela);
-    print_endline ("saved promela model as "^Sys.getcwd ()^"/"^path^".\nCopy to same folder as spin/arinc_base.pml and then do: spin -a arinc.pml && cc -o pan pan.c && ./pan")
+    save_result "promela model" "pml" promela;
+    print_endline ("Copy spin/arinc_base.pml to same folder and then do: spin -a arinc.pml && cc -o pan pan.c && ./pan")
   let finalize () =
     print_actions ();
     if GobConfig.get_bool "ana.arinc.export" then (
