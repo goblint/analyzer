@@ -27,7 +27,12 @@ rule() {
     bdebug)  ocb -tag debug $TARGET.d.byte &&
              cp _build/$TARGET.d.byte goblint.byte
              ;;
+    # gprof (run only generates gmon.out). use: gprof goblint
     profile) ocb -tag profile $TARGET.p.native &&
+             cp _build/$TARGET.p.native goblint
+             ;;
+    # gprof & ocamlprof (run also generates ocamlprof.dump). use: ocamlprof src/goblint.ml
+    ocamlprof) ocb -ocamlopt ocamloptp $TARGET.p.native &&
              cp _build/$TARGET.p.native goblint
              ;;
     byte)    ocb $TARGET.byte &&
@@ -72,4 +77,3 @@ else
   done
 fi
 
-rm -f $TARGET.ml

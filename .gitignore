@@ -29,3 +29,6 @@ src/spec/graph
 .vagrant
 
 g2html.jar
+
+gmon.out
+ocamlprof.dump
