@@ -997,7 +997,7 @@ struct
       let nv =  VD.invalidate_value t v in
         (a, nv)
     in
-    (* We define the function that evaluates all the values that an address
+    (* We define the function that invalidates all the values that an address
      * expression e may point to *)
     let invalidate_exp e =
       match eval_rv ask gs st e with
@@ -1498,7 +1498,16 @@ struct
                 (* This rest here is just to see of something got spawned. *)
                 let flist = collect_funargs ctx.ask gs st args in
                 (* invalidate arguments for unknown functions, except for arinc functions *)
-                let (cpa,fl as st) = if startsWith "LAP_Se_" f.vname then cpa,fl else invalidate ctx.ask gs st addrs in
+                let (cpa,fl as st) =
+                  if startsWith "LAP_Se_" f.vname then
+                    (* handle return code: if not assume_success then invalidate it (else the assign is done by the arinc-analysis)  *)
+                    if List.length args > 0 && not @@ get_bool "ana.arinc.assume_success" then
+                      let r = BatList.last args in
+                      invalidate ctx.ask gs st [r]
+                    (* all other arguments don't get changed. TODO invalidate all OUT params if they are not set by the arinc-analysis?! *)
+                    else cpa,fl
+                  else invalidate ctx.ask gs st addrs
+                in
                 let f addr acc =
                   try
                     let var = List.hd (AD.to_var_may addr) in

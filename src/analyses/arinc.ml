@@ -128,7 +128,7 @@ struct
       (* if x is already in the callstack, we move it to the front. if callstack_length is reached, nothing will be changed. *)
       let push x xs =
         if List.length xs < length () then x :: List.remove xs x
-        else ( M.debug_each @@ "Callstack size reached ana.arinc.cs_len ("^string_of_int (length ())^"): "^string_of_callstack xs; xs )
+        else ( (* M.debug_each @@ "Callstack size reached ana.arinc.cs_len ("^string_of_int (length ())^"): "^string_of_callstack xs; *) xs )
       let rec is_prefix = function [],_ -> true | x::xs,y::ys when x=y -> is_prefix (xs,ys) | _ -> false
       let equal = Util.equals
       let hash = Hashtbl.hash
@@ -314,7 +314,7 @@ struct
   | INVALID_CONFIG (* parameter specified in request incompatible with current configuration (e.g., as specified by system integrator) *)
   | INVALID_MODE   (* request incompatible with current mode of operation *)
   | TIMED_OUT      (* time-out associated with request has expired *)
-  let exp_from_return_code = function
+  let int_from_return_code = function
   | NO_ERROR       -> 0
   | NO_ACTION      -> 1
   | NOT_AVAILABLE  -> 2
@@ -378,8 +378,9 @@ struct
       (* update domain by replacing the set of pred. nodes for all contexts *)
       D.pred (Pred.mapi (fun k v -> Pred.NodeSet.of_node (current_node k))) d
     in
+    let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else d in
     let assume_success exp =
-      let f lval = ctx.assign ~name:"base" lval (integer @@ exp_from_return_code NO_ERROR) in
+      let f lval = ctx.assign ~name:"base" lval (integer @@ int_from_return_code NO_ERROR) in
       match exp with
       | AddrOf lval -> f lval
       | _ ->
@@ -390,23 +391,29 @@ struct
             f lval
         | _ -> failwith @@ "assume_success: could not find out what "^sprint d_exp exp^" may point to..."
     in
-    let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else d in
+    let invalidate_arg exp =
+      () (* TODO this is currently done in base b/c there is no interface for invalidating things (maybe use special value for assign or add new function to ctx?) *)
+    in
     let arglist = List.map (stripCasts%(constFold false)) arglist in
+    if is_arinc_fun && not @@ List.is_empty arglist then (
+      let r = List.last arglist in
+      if GobConfig.get_bool "ana.arinc.assume_success" then
+        assume_success r
+      else
+        invalidate_arg r
+    );
     match f.vname, arglist with
       | _ when is_arinc_fun && is_creating_fun && not(mode_is_init d.pmo) ->
           failwith @@ f.vname^" is only allowed in partition mode COLD_START or WARM_START"
     (* Preemption *)
       | "LAP_Se_LockPreemption", [lock_level; r] when not is_error_handler ->
-          assume_success r;
           add_action LockPreemption d
           |> D.pre (PrE.add (PrE.of_int 1L))
       | "LAP_Se_UnlockPreemption", [lock_level; r] when not is_error_handler ->
-          assume_success r;
           add_action UnlockPreemption d
           |> D.pre (PrE.sub (PrE.of_int 1L))
     (* Partition *)
       | "LAP_Se_SetPartitionMode", [mode; r] -> begin
-          assume_success r;
           match ctx.ask (Queries.EvalInt mode) with
           | `Int i ->
               if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (string_of_partition_mode i);
@@ -423,8 +430,8 @@ struct
           | `Bot -> D.bot ()
           | _ -> ctx.sideg part_mode_var true; D.top ()
           end
-      | "LAP_Se_GetPartitionStatus", [status; r] -> assume_success r; todo () (* != mode *)
-      | "LAP_Se_GetPartitionStartCondition", [start_condition; r] -> assume_success r; todo ()
+      | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
+      | "LAP_Se_GetPartitionStartCondition", [start_condition; r] -> todo ()
     (* treat functions from string.h as extern if they are added at the end of libraryFunctions.ml *)
       | "F59", [dst; src] (* strcpy *)
       | "F60", [dst; src; _] (* strncpy TODO len *)
@@ -460,7 +467,6 @@ struct
           end
     (* Processes *)
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
-          assume_success r;
           let cm = match unrollType (typeOfLval attr) with
             | TComp (c,_) -> c
             | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
@@ -501,134 +507,110 @@ struct
           | _ -> let f = Queries.Result.short 30 in struct_fail (`Result (f name, f entry_point, f pri, f per, f cap))
           end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
-          assume_success r;
           assign_id_by_name Process name pid; d
-      | "LAP_Se_GetProcessStatus", [pid; status; r] -> assume_success r; todo ()
+      | "LAP_Se_GetProcessStatus", [pid; status; r] -> todo ()
       | "LAP_Se_GetMyId", [pid; r] ->
-          assume_success r;
           assign_id pid curpid; d
       | "LAP_Se_Start", [pid; r] ->
-          assume_success r;
           (* at least one process should be started in main *)
           let pid = eval_id pid in
           if List.is_empty pid then d else add_action (Start pid) d
-      | "LAP_Se_DelayedStart", [pid; delay; r] -> assume_success r; todo ()
+      | "LAP_Se_DelayedStart", [pid; delay; r] -> todo ()
       | "LAP_Se_Stop", [pid; r] ->
-          assume_success r;
           let pid = eval_id pid in
           if List.is_empty pid then d else add_action (Stop pid) d
       | "LAP_Se_StopSelf", [] ->
           add_action (Stop [curpid]) d
       | "LAP_Se_Suspend", [pid; r] ->
-          assume_success r;
           let pid = eval_id pid in
           if List.is_empty pid then d else add_action (Suspend pid) d
       | "LAP_Se_SuspendSelf", [timeout; r] -> (* TODO timeout *)
-          assume_success r;
           add_action (Suspend [curpid]) d
       | "LAP_Se_Resume", [pid; r] ->
-          assume_success r;
           let pid = eval_id pid in
           if List.is_empty pid then d else add_action (Resume pid) d
     (* Logbook *)
-      | "LAP_Se_CreateLogBook", [name; max_size; max_logged; max_in_progress; lbid; r] -> assume_success r; todo ()
+      | "LAP_Se_CreateLogBook", [name; max_size; max_logged; max_in_progress; lbid; r] -> todo ()
       | "LAP_Se_ReadLogBook", _ -> todo ()
       | "LAP_Se_WriteLogBook", _ -> todo ()
       | "LAP_Se_ClearLogBook", _ -> todo ()
       | "LAP_Se_GetLogBookId", _ -> todo ()
       | "LAP_Se_GetLogBookStatus", _ -> todo ()
     (* SamplingPort *)
-      | "LAP_Se_CreateSamplingPort", [name; max_size; dir; period; spid; r] -> assume_success r; todo ()
+      | "LAP_Se_CreateSamplingPort", [name; max_size; dir; period; spid; r] -> todo ()
       | "LAP_Se_WriteSamplingMessage", _ -> todo ()
       | "LAP_Se_ReadSamplingMessage", _ -> todo ()
       | "LAP_Se_GetSamplingPortId", _ -> todo ()
       | "LAP_Se_GetSamplingPortStatus", _ -> todo ()
     (* QueuingPort *)
-      | "LAP_Se_CreateQueuingPort", [name; max_size; max_range; dir; queuing; qpid; r] -> assume_success r; todo ()
+      | "LAP_Se_CreateQueuingPort", [name; max_size; max_range; dir; queuing; qpid; r] -> todo ()
       | "LAP_Se_SendQueuingMessage", _ -> todo ()
       | "LAP_Se_ReceiveQueuingMessage", _ -> todo ()
       | "LAP_Se_GetQueuingPortId", _ -> todo ()
       | "LAP_Se_GetQueuingPortStatus", _ -> todo ()
     (* Buffer *)
-      | "LAP_Se_CreateBuffer", [name; max_size; max_range; queuing; buid; r] -> assume_success r; todo ()
+      | "LAP_Se_CreateBuffer", [name; max_size; max_range; queuing; buid; r] -> todo ()
       | "LAP_Se_SendBuffer", _ -> todo ()
       | "LAP_Se_ReceiveBuffer", _ -> todo ()
       | "LAP_Se_GetBufferId", _ -> todo ()
       | "LAP_Se_GetBufferStatus", _ -> todo ()
     (* Blackboard *)
       | "LAP_Se_CreateBlackboard", [name; max_size; bbid; r] ->
-          assume_success r;
           let bbid' = get_id (Blackboard, eval_str name) in
           assign_id bbid bbid';
           add_action (CreateBlackboard bbid') d
       | "LAP_Se_DisplayBlackboard", [bbid; msg_addr; len; r] ->
-          assume_success r;
           let id = eval_id bbid in
           if List.is_empty id then d else add_action (DisplayBlackboard id) d
       | "LAP_Se_ReadBlackboard", [bbid; timeout; msg_addr; len; r] ->
-          assume_success r;
           let id = eval_id bbid in
           if List.is_empty id then d else add_action (ReadBlackboard (id, eval_int timeout)) d
       | "LAP_Se_ClearBlackboard", [bbid; r] ->
-          assume_success r;
           let id = eval_id bbid in
           if List.is_empty id then d else add_action (ClearBlackboard (id)) d
       | "LAP_Se_GetBlackboardId", [name; bbid; r] ->
-          assume_success r;
           assign_id_by_name Blackboard name bbid; d
       | "LAP_Se_GetBlackboardStatus", _ -> todo ()
     (* Semaphores *)
       | "LAP_Se_CreateSemaphore", [name; cur; max; queuing; sid; r] ->
-          assume_success r;
           (* create resource for name *)
           let sid' = get_id (Semaphore, eval_str name) in
           assign_id sid sid';
           add_action (CreateSemaphore Action.({ sid = sid'; cur = eval_int cur; max = eval_int max; queuing = eval_int queuing })) d
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
-          assume_success r;
           let sid = eval_id sid in
           if List.is_empty sid then d else add_action (WaitSemaphore sid) d
       | "LAP_Se_SignalSemaphore", [sid; r] ->
-          assume_success r;
           let sid = eval_id sid in
           if List.is_empty sid then d else add_action (SignalSemaphore sid) d
       | "LAP_Se_GetSemaphoreId", [name; sid; r] ->
-          assume_success r;
           assign_id_by_name Semaphore name sid; d
-      | "LAP_Se_GetSemaphoreStatus", [sid; status; r] -> assume_success r; todo ()
+      | "LAP_Se_GetSemaphoreStatus", [sid; status; r] -> todo ()
     (* Events (down after create/reset, up after set) *)
       | "LAP_Se_CreateEvent", [name; eid; r] ->
-          assume_success r;
           let eid' = get_id (Event, eval_str name) in
           assign_id eid  eid';
           add_action (CreateEvent eid') d
       | "LAP_Se_SetEvent", [eid; r] ->
-          assume_success r;
           let eid = eval_id eid in
           if List.is_empty eid then d else add_action (SetEvent eid) d
       | "LAP_Se_ResetEvent", [eid; r] ->
-          assume_success r;
           let eid = eval_id eid in
           if List.is_empty eid then d else add_action (ResetEvent eid) d
       | "LAP_Se_WaitEvent", [eid; timeout; r] -> (* TODO timeout *)
-          assume_success r;
           let eid = eval_id eid in
           if List.is_empty eid then d else add_action (WaitEvent (eid, eval_int timeout)) d
       | "LAP_Se_GetEventId", [name; eid; r] ->
-          assume_success r;
           assign_id_by_name Event name eid; d
       | "LAP_Se_GetEventStatus", [eid; status; r] -> todo ()
     (* Time *)
-      | "LAP_Se_GetTime", [time; r] -> assume_success r; todo ()
+      | "LAP_Se_GetTime", [time; r] -> todo ()
       | "LAP_Se_TimedWait", [delay; r] ->
-          assume_success r;
           add_action (TimedWait (eval_int delay)) d
       | "LAP_Se_PeriodicWait", [r] ->
-          assume_success r;
           add_action PeriodicWait d
     (* Errors *)
       | "LAP_Se_CreateErrorHandler", [entry_point; stack_size; r] ->
-          assume_success r;
           let name = "ErrorHandler" in
           let pid = get_id (Process, name) in
           begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
@@ -642,12 +624,12 @@ struct
               add_action (CreateErrorHandler (pid, funs)) d
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
           end
-      | "LAP_Se_GetErrorStatus", [status; r] -> assume_success r; todo ()
-      | "LAP_Se_RaiseApplicationError", [error_code; message_addr; length; r] -> assume_success r; todo ()
+      | "LAP_Se_GetErrorStatus", [status; r] -> todo ()
+      | "LAP_Se_RaiseApplicationError", [error_code; message_addr; length; r] -> todo ()
     (* Not allowed: change configured schedule *)
-      | "LAP_Se_SetPriority", [pid; prio; r] -> assume_success r; todo ()
-      | "LAP_Se_Replenish", [budget; r] -> assume_success r; todo () (* name used in docs *)
-      | "LAP_Se_ReplenishAperiodic", [budget; r] -> assume_success r; todo () (* name used in stdapi.c *)
+      | "LAP_Se_SetPriority", [pid; prio; r] -> todo ()
+      | "LAP_Se_Replenish", [budget; r] -> todo () (* name used in docs *)
+      | "LAP_Se_ReplenishAperiodic", [budget; r] -> todo () (* name used in stdapi.c *)
       | _ when is_arinc_fun -> failwith @@ "Function "^f.vname^" not handled!"
       | _ -> d
 
