@@ -446,6 +446,7 @@ struct
 
   let finalize () =
     ArincUtil.print_actions ();
+    Marshal.to_channel (open_out_bin @@ "result/arinc.cs" ^ string_of_int (GobConfig.get_int "ana.arinc.cs_len") ^ ".out") ArincUtil.edges [];
     if GobConfig.get_bool "ana.arinc.export" then (
       ArincUtil.save_dot_graph ();
       ArincUtil.save_promela_model ()
