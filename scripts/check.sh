@@ -9,7 +9,7 @@ if [ $ana == "file" ]; then
     opt="--set ana.file.optimistic true"
 elif [ $ana == "arinc" ]; then
     ana="arinc"
-    opt="--enable ana.arinc.export"
+    opt="--enable ana.arinc.export --trace arinc"
 else
     spec=$ana
     ana="spec"
