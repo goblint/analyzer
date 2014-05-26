@@ -1,16 +1,20 @@
 open Batteries
 open Arinc.Spec
+open GobConfig
 
 let cs = ref "??"
 
 let save_all ch =
-  (* let edges : (int, string) Hashtbl.t = Marshal.from_channel ch in *)
-  let edges : ArincUtil.edges = Marshal.from_channel ch in
-  (* let edges = ArincUtil.unmarshal ch in *)
-  ArincOutput.save_dot_graph edges;
-  ArincOutput.save_promela_model edges
+  ArincUtil.unmarshal ch;
+  ArincUtil.print_actions ();
+  ArincUtil.save_dot_graph ();
+  ArincUtil.save_promela_model ()
 
 let _ =
+  set_auto "mainfun" "['main']"; (* TODO get original (maybe also marshal config) *)
+  set_int "ana.arinc.cs_len" 99; (* TODO same *)
+  set_bool "dbg.debug" true;
+  set_bool "colors" true;
   if Array.length Sys.argv <= 1 then (
     print_endline "No input file given!";
     let file = "result/arinc.cs99.out" in (* what about cs_len? read from file name? *)

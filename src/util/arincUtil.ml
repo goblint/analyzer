@@ -35,14 +35,19 @@ type node = MyCFG.node * callstack
 let string_of_node = ArincDomain.Pred.NodeSet.string_of_elt
 type edge = node * action * node
 let action_of_edge (_, action, _) = action
-let edges = Hashtbl.create 199
+type edges = (id, edge Set.t) Hashtbl.t
+let edges = ref @@ Hashtbl.create 199
+
+let marshal ch = Marshal.to_channel ch !edges []
+let unmarshal ch = edges := Marshal.from_channel ch
+
 let get_edges (pid:id) : edge Set.t =
-  Hashtbl.find_default edges pid Set.empty
+  Hashtbl.find_default !edges pid Set.empty
 let add_edge (pid:id) edge =
-  Hashtbl.modify_def Set.empty pid (Set.add edge) edges
+  Hashtbl.modify_def Set.empty pid (Set.add edge) !edges
 
 let filter_map_actions p =
-  let all_edges = Hashtbl.values edges |> List.of_enum |> List.map Set.elements |> List.concat in
+  let all_edges = Hashtbl.values !edges |> List.of_enum |> List.map Set.elements |> List.concat in
   List.filter_map (p%action_of_edge) all_edges
 
 let filter_actions p =
@@ -114,6 +119,7 @@ let str_action pid = function
   | PeriodicWait -> "PeriodicWait"
 (* spin/promela *)
 let pml_resources = Hashtbl.create 13
+let _ = Hashtbl.add pml_resources (Process, "mainfun") 0L
 let id_pml id = (* give ids starting from 0 (get_pid_by_id for all resources) *)
   let resource, name as k = id in
   try Hashtbl.find pml_resources k
@@ -158,7 +164,7 @@ let print_actions () =
     let xs = Set.map str_edge (get_edges pid) in
     M.debug @@ str_resource pid^" ->\n\t"^String.concat "\n\t" (Set.elements xs)
   in
-  Hashtbl.keys edges |> Enum.iter print_process
+  Hashtbl.keys !edges |> Enum.iter print_process
 let save_result desc ext content = (* output helper *)
   let dir = Goblintutil.create_dir "result" in (* returns abs. path *)
   let path = dir ^ "/arinc.cs" ^ string_of_int (GobConfig.get_int "ana.arinc.cs_len") ^ "." ^ ext in
@@ -172,7 +178,7 @@ let save_dot_graph () =
     let xs = Set.map str_edge (get_edges pid) |> Set.elements in
     ("subgraph \"cluster_"^str_resource pid^"\" {") :: xs @ ("label = \""^str_resource pid^"\";") :: ["}\n"]
   in
-  let lines = Hashtbl.keys edges |> List.of_enum |> List.map dot_process |> List.concat in
+  let lines = Hashtbl.keys !edges |> List.of_enum |> List.map dot_process |> List.concat in
   let dot_graph = String.concat "\n  " ("digraph file {"::lines) ^ "\n}" in
   save_result "graph" "dot" dot_graph
 let save_promela_model () =
@@ -254,9 +260,10 @@ let save_promela_model () =
         if SetN.is_empty post then None else Some (min_node post)
     in
     let str_callstack xs = if List.is_empty xs then "" else "__"^String.concat "_" (List.map (fun loc -> string_of_int loc.line) xs) in
-    let label ?prefix:(prefix="P") (n,cs) = prefix ^ str_i64 pid ^ "_" ^ ArincDomain.Pred.NodeSet.Base.string_of_node n ^ str_callstack cs in
+    let label ?prefix:(prefix="P") (n,cs) = let node_str = if (MyCFG.getLoc n).line = -1 then "0" else ArincDomain.Pred.NodeSet.Base.string_of_node n in prefix ^ str_i64 pid ^ "_" ^ node_str ^ str_callstack cs in
+    let end_label = "P" ^ str_i64 pid ^ "_end" in
     let goto node = "goto " ^ label node in
-    let str_edge (a, action, b) = (* label b ^ ":\t" ^ *) str_action_pml id action in
+    let str_edge (a, action, b) = let target = if List.is_empty (out_edges b) then "goto "^end_label else goto b in str_action_pml id action ^ " " ^ target in
     let visited_all = ref SetN.empty in
     let rec walk_graph a visited =
       if SetN.mem a !visited_all || SetN.mem a visited then [goto a] else
@@ -291,12 +298,22 @@ let save_promela_model () =
       let is_head = List.exists (fun b -> reachable b a && not @@ SetN.mem b visited) (in_nodes a) in
       (label a ^ ":") :: if is_head then List.map indent stmts else stmts
     in
-    let body = walk_graph start_node SetN.empty in
+    (* let body = walk_graph start_node SetN.empty in *)
+    let choice xs = List.map (fun x -> "::\t"^x ) xs in
+    let walk_edges (a, out_edges) =
+      let edges = Set.elements out_edges |> List.map str_edge in
+      (label a ^ ":") ::
+      if List.length edges > 1 then
+        "if" :: (choice edges) @ ["fi"]
+      else
+        edges
+    in
+    let body = goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":"] in
     let priority = match proc with Some proc -> " priority "^str_i64 proc.pri | _ -> "" in
     "" :: ("proctype "^pname^"(byte id)"^priority^" provided canRun("^str_i64 pid^") {") ::
     List.map indent body @ ["}"]
   in
-  let process_defs = Hashtbl.keys edges |> List.of_enum |> List.sort (compareBy id_pml) |> List.map process_def |> List.concat in
+  let process_defs = Hashtbl.keys !edges |> List.of_enum |> List.sort (compareBy id_pml) |> List.map process_def |> List.concat in
   let promela = String.concat "\n" @@
     ("#define nproc "^string_of_int nproc) ::
     ("#define nsema "^string_of_int nsema) ::

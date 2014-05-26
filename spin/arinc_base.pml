@@ -42,9 +42,10 @@ byte tmp; // can't use skip as a placeholder. must do something. otherwise error
 #define todo   tmp=0
 
 // helpers for scheduling etc.
-inline preInit() {
-    status[0] = READY;
-}
+// inline preInit() {
+//     status[0] = READY;
+// }
+#define preInit status[0] = READY
 inline postInit() {
     (partitionMode == NORMAL); // block spin init until arinc init sets mode
     // at this point every resource should have been created!
@@ -57,7 +58,6 @@ inline postInit() {
     assert(events_created == nevent);
     #endif
 }
-#define preInit status[0] = READY
 #define canRun(proc_id) (status[proc_id] == READY && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
 inline setReady(proc_id) {
     printf("setReady: process %d will be ready (was waiting for %e %d)\n", proc_id, waiting[proc_id].resource, waiting[proc_id].id);

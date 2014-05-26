@@ -415,13 +415,14 @@ struct
       | "LAP_Se_CreateErrorHandler", [entry_point; stack_size; r] ->
           begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
           | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+              let name = "ErrorHandler" in
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
                 let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.init (Option.get !MyCFG.current_node) } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
-              add_action (CreateErrorHandler ((Process, "ErrorHandler"), funs)) d
+              add_action (CreateErrorHandler ((Process, name), funs)) d
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
           end
       | "LAP_Se_GetErrorStatus", [status; r] -> todo ()
@@ -446,7 +447,7 @@ struct
 
   let finalize () =
     ArincUtil.print_actions ();
-    Marshal.to_channel (open_out_bin @@ "result/arinc.cs" ^ string_of_int (GobConfig.get_int "ana.arinc.cs_len") ^ ".out") ArincUtil.edges [];
+    ArincUtil.marshal @@ open_out_bin @@ "result/arinc.cs" ^ string_of_int (GobConfig.get_int "ana.arinc.cs_len") ^ ".out";
     if GobConfig.get_bool "ana.arinc.export" then (
       ArincUtil.save_dot_graph ();
       ArincUtil.save_promela_model ()
