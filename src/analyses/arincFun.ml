@@ -58,7 +58,7 @@ struct
 
   let part_mode_var = makeGlobalVar "__GOBLINT_ARINC_MUTLI_THREADED" voidPtrType
 
-  let is_main_fun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
+  let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -84,23 +84,23 @@ struct
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = (* on function calls (also for main); not called for spawned processes *)
     (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug_each doesn't print anything here *) *)
     let d_caller = ctx.local in
-    let d_callee =
-      if is_main_fun f.vname
-      then ctx.local (* mainfun is the init process -> ignore enter here *)
-      else D.callstack_push !Tracing.current_loc ctx.local (* push location onto callee's callstack *)
-    in
+    let d_callee = { ctx.local with pred = Pred.of_node (MyCFG.Function f) } in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    let m_caller = ctx.local.pred in
-    let m_callee = au.pred in
-    let update cs = Pred.Callstack.push !Tracing.current_loc cs in (* push the location of call to f onto cs *)
-    let f m k = (* build up new map m with old keys k and corresponding values from m_callee *)
-      let k' = update k in (* updated callstring for callee *)
-      Pred.add k (Pred.find k' m_callee) m
-    in
-    let m_combine = Pred.keys m_caller |> List.fold_left f (Pred.bot ()) in
-    { au with pred = m_combine } (* result is callee's domain with predecessors for this call *)
+    let d_caller = ctx.local in
+    let d_callee = au in
+    let current_node = Option.get !MyCFG.current_node in
+    let curfun = MyCFG.getFun current_node in
+    let curpid = match Pid.to_int ctx.local.pid with Some i -> i | None -> failwith @@ "combine: Pid.to_int = None inside function "^curfun.svar.vname in
+    let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "combine: no processname for pid in Hashtbl!" in
+    let open ArincFunUtil in
+    let pfuns = funs_for_process (Process,pname) in
+    let pid = if List.exists ((=) curfun.svar) pfuns || pname="mainfun" then Process, pname else Function, curfun.svar.vname in
+    (* write out edges with call to f coming from all predecessor nodes of the caller *)
+    Pred.iter (fun node -> add_edge pid (node, Call f.vname, current_node)) d_caller.pred;
+    (* set current node as new predecessor *)
+    { d_callee with pred = Pred.of_node current_node }
 
   (* ARINC utility functions *)
   let sprint f x = Pretty.sprint 80 (f () x)
@@ -173,12 +173,15 @@ struct
     let assign_id_by_name resource_type name id =
       assign_id id (get_id (resource_type, eval_str name))
     in
-    let current_node cs = Option.get !MyCFG.current_node, cs in
+    let current_node = Option.get !MyCFG.current_node in
     let add_action action d =
-      (* add edges for every context/callstack and its set of predecessor nodes (from pred. node to current_node combined with the callstack) *)
-      Pred.iter (fun current_callstack nodes -> Pred.NodeSet.iter (fun node -> ArincFunUtil.add_edge curpid (node, action, current_node current_callstack)) nodes) d.pred;
-      (* update domain by replacing the set of pred. nodes for all contexts *)
-      D.pred (Pred.mapi (fun k v -> Pred.NodeSet.of_node (current_node k))) d
+      (* determine parent: Process or Function? *)
+      let pfuns = funs_for_process (Process,pname) in
+      let pid = if List.exists ((=) curfun.svar) pfuns || pname="mainfun" then Process, pname else Function, curfun.svar.vname in
+      (* add edges for all predecessor nodes (from pred. node to current_node) *)
+      Pred.iter (fun node -> ArincFunUtil.add_edge pid (node, action, current_node)) d.pred;
+      (* update domain by replacing the set of pred. nodes with the current node *)
+      D.pred (const @@ Pred.of_node current_node) d
     in
     let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else d in
     let assume_success exp =
@@ -297,7 +300,7 @@ struct
               if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
               let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.init (Option.get !MyCFG.current_node) } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f) } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
@@ -418,7 +421,7 @@ struct
               let name = "ErrorHandler" in
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.init (Option.get !MyCFG.current_node) } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f) } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
@@ -453,7 +456,7 @@ struct
       ArincFunUtil.save_promela_model ()
     )
 
-  let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.init (MyCFG.Function (emptyFunction "main").svar) }
+  let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main").svar) }
   let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
 end

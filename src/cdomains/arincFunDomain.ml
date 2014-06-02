@@ -2,9 +2,6 @@ module OMap = Map (* save Ocaml's Map before overwriting it with BatMap *)
 open Batteries
 open Cil
 
-type callstack = location list
-let string_of_callstack xs = "["^String.concat ", " (List.map (fun loc -> string_of_int loc.line) xs)^"]"
-
 (* Information for one task *)
 (* Process ID *)
 module Pid = IntDomain.Flattened
@@ -20,67 +17,31 @@ module Cap = IntDomain.Flattened
 module Pmo = IntDomain.Flattened
 (* Preemption lock *)
 module PrE = IntDomain.Flattened
-(* map from callstack (used as context) to set of predecessor nodes *)
+(* predecessor nodes *)
 module Pred =
 struct
-  (* stack of unique locations *)
-  module Callstack =
+  module Base =
   struct
-    (* default is 99 *)
-    let length () = GobConfig.get_int "ana.arinc.cs_len"
-    type t = callstack
+    module N = MyCFG.Node
+    type t = N.t
     include Printable.Std
     include Lattice.StdCousot
-    (* if x is already in the callstack, we move it to the front. if callstack_length is reached, nothing will be changed. *)
-    let push x xs =
-      if List.length xs < length () then x :: List.remove xs x
-      else ( (* M.debug_each @@ "Callstack size reached ana.arinc.cs_len ("^string_of_int (length ())^"): "^string_of_callstack xs; *) xs )
-    let rec is_prefix = function [],_ -> true | x::xs,y::ys when x=y -> is_prefix (xs,ys) | _ -> false
-    let equal = Util.equals
-    let hash = Hashtbl.hash
-    let short w = string_of_callstack
+    let equal = N.equal
+    let compare = N.compare
+    let hash = N.hash
+    let string_of_node n = string_of_int (MyCFG.getLoc n).line
+    let short w n = string_of_node n
     include Printable.PrintSimple (struct
       type t' = t
-      let name () = "callstack"
+      let name () = "predecessors"
       let short = short
     end)
-    let string_of = short 10
-    let empty = []
   end
-  module NodeSet =
-  struct
-    module Base =
-    struct
-      module N = MyCFG.Node
-      type t = N.t * callstack
-      include Printable.Std
-      include Lattice.StdCousot
-      let equal (n1,cs1) (n2,cs2) = N.equal n1 n2 && cs1=cs2
-      let compare2 fa fb (a1,b1) (a2,b2) =
-        let a = fa a1 a2 in
-        if a = 0 then fb b1 b2 else a
-      let compare = compare2 N.compare Pervasives.compare
-      let hash (n,cs) = N.hash n + Hashtbl.hash cs
-      let string_of_node n = string_of_int (MyCFG.getLoc n).line
-      let short w (n,cs) = string_of_node n ^ string_of_callstack cs
-      include Printable.PrintSimple (struct
-        type t' = t
-        let name () = "predecessors"
-        let short = short
-      end)
-    end
-    include SetDomain.Make (Base)
-    let of_node : Base.t -> t = singleton
-    let of_list : Base.t list -> t = List.fold_left (fun a b -> add b a) (empty ())
-    let string_of_elt = Base.short 10
-  end
-  include MapDomain.MapBot (Callstack) (NodeSet)
-  module M = OMap.Make (Callstack)
-  let map_keys f m = fold (fun k v m -> add (f k) v m) m (bot ())
-  let flat_map_keys f m = fold (fun k v m -> List.fold_left (fun m k' -> add k' v m) m (f k)) m (bot ())
-  let keys m = M.bindings m |> List.map fst
-  let mapi : (key -> value -> value) -> t -> t = M.mapi
-  let init node = add_list [Callstack.empty, NodeSet.singleton (node, [])] (bot ())
+  include SetDomain.Make (Base)
+  let of_node : Base.t -> t = singleton
+  let of_current_node () = of_node @@ Option.get !MyCFG.current_node
+  let of_list : Base.t list -> t = List.fold_left (fun a b -> add b a) (empty ())
+  let string_of_elt = Base.string_of_node
 end
 
 (* define record type here so that fields are accessable outside of D *)
@@ -126,7 +87,6 @@ struct
   let pmo f d = { d with pmo = f d.pmo }
   let pre f d = { d with pre = f d.pre }
   let pred f d = { d with pred = f d.pred }
-  let callstack_push x d = pred (Pred.map_keys (Pred.Callstack.push x)) d
 
   let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); pmo = Pmo.bot (); pre = PrE.bot (); pred = Pred.bot () }
   let is_bot x = x = bot ()

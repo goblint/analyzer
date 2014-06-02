@@ -3,9 +3,10 @@ open Cil
 module M  = Messages
 
 (* ARINC types and Hashtables for collecting CFG *)
-type resource = Process | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard
+type resource = Process | Function | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard
 let str_resource_type = function
   | Process -> "Process"
+  | Function -> "Function"
   | Semaphore -> "Semaphore"
   | Event -> "Event"
   | Logbook -> "Logbook"
@@ -23,16 +24,15 @@ struct
   type semaphore = { sid: id; cur: int64; max: int64; queuing: int64 }
 end
 type action =
+  | Call of string
   | LockPreemption | UnlockPreemption | SetPartitionMode of int64
   | CreateProcess of Action.process | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
   | CreateBlackboard of id | DisplayBlackboard of ids | ReadBlackboard of ids * time | ClearBlackboard of ids
   | CreateSemaphore of Action.semaphore | WaitSemaphore of ids | SignalSemaphore of ids
   | CreateEvent of id | WaitEvent of ids * time | SetEvent of ids | ResetEvent of ids
   | TimedWait of time | PeriodicWait
-(* callstack for locations *)
-type callstack = location list
-type node = MyCFG.node * callstack
-let string_of_node = ArincDomain.Pred.NodeSet.string_of_elt
+type node = MyCFG.node
+let string_of_node = ArincFunDomain.Pred.string_of_elt
 type edge = node * action * node
 let action_of_edge (_, action, _) = action
 type edges = (id, edge Set.t) Hashtbl.t
@@ -91,6 +91,7 @@ let str_resource id =
       name
 let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]"
 let str_action pid = function
+  | Call fname -> "Call "^fname
   | LockPreemption -> "LockPreemption"
   | UnlockPreemption -> "UnlockPreemption"
   | SetPartitionMode i -> "SetPartitionMode "^string_of_partition_mode i
@@ -131,6 +132,7 @@ let id_pml id = (* give ids starting from 0 (get_pid_by_id for all resources) *)
 let str_id_pml id = str_i64 @@ id_pml id
 let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 let str_action_pml pid = function
+  | Call fname -> "Fun_"^fname^"();"
   | LockPreemption -> "LockPreemption();"
   | UnlockPreemption -> "UnlockPreemption();"
   | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
@@ -167,13 +169,13 @@ let print_actions () =
   Hashtbl.keys !edges |> Enum.iter print_process
 let save_result desc ext content = (* output helper *)
   let dir = Goblintutil.create_dir "result" in (* returns abs. path *)
-  let path = dir ^ "/arinc.cs" ^ string_of_int (GobConfig.get_int "ana.arinc.cs_len") ^ "." ^ ext in
+  let path = dir ^ "/arinc.fun." ^ ext in
   output_file path content;
   print_endline @@ "saved " ^ desc ^ " as " ^ path
 let save_dot_graph () =
   let dot_process pid =
     (* 1 -> w1 [label="fopen(_)"]; *)
-    let str_node x = "\"" ^ str_id_pml pid ^ "_" ^ string_of_node x ^ "\"" in (* quote node names for dot b/c of callstack *)
+    let str_node x = "\"" ^ (if fst pid = Process then "P" else "F") ^ str_id_pml pid ^ "_" ^ string_of_node x ^ "\"" in (* quote node names for dot *)
     let str_edge (a, action, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ "\"]" in
     let xs = Set.map str_edge (get_edges pid) |> Set.elements in
     ("subgraph \"cluster_"^str_resource pid^"\" {") :: xs @ ("label = \""^str_resource pid^"\";") :: ["}\n"]
@@ -205,11 +207,9 @@ let save_promela_model () =
   in
   let process_def id =
     let pid = id_pml id in
-    let pname = snd id in
-    let proc = find_option (fun x -> x.pid=id) procs in (* None for mainfun *)
     (* build adjacency matrix for all nodes of this process *)
-    let module HashtblN = Hashtbl.Make (ArincDomain.Pred.NodeSet.Base) in
-    let module SetN = Set.Make (ArincDomain.Pred.NodeSet.Base) in
+    let module HashtblN = Hashtbl.Make (ArincFunDomain.Pred.Base) in
+    let module SetN = Set.Make (ArincFunDomain.Pred.Base) in
     let a2bs = HashtblN.create 97 in
     Set.iter (fun (a, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
     let nodes = HashtblN.keys a2bs |> List.of_enum in
@@ -220,8 +220,7 @@ let save_promela_model () =
     let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
     let start_node = List.find (List.is_empty % in_edges) nodes in (* node with no incoming edges is the start node *)
     (* let str_nodes xs = "{"^(List.map string_of_node xs |> String.concat ",")^"}" in *)
-    let str_callstack xs = if List.is_empty xs then "" else "__"^String.concat "_" (List.map (fun loc -> string_of_int loc.line) xs) in
-    let label ?prefix:(prefix="P") (n,cs) = let node_str = if (MyCFG.getLoc n).line = -1 then "0" else ArincDomain.Pred.NodeSet.Base.string_of_node n in prefix ^ str_i64 pid ^ "_" ^ node_str ^ str_callstack cs in
+    let label ?prefix:(prefix="P") n = let node_str = if (MyCFG.getLoc n).line = -1 then "0" else string_of_node n in prefix ^ str_i64 pid ^ "_" ^ node_str in
     let end_label = "P" ^ str_i64 pid ^ "_end" in
     let goto node = "goto " ^ label node in
     let str_edge (a, action, b) = let target = if List.is_empty (out_edges b) then "goto "^end_label else goto b in str_action_pml id action ^ " " ^ target in
@@ -235,9 +234,16 @@ let save_promela_model () =
         edges
     in
     let body = goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":"] in
-    let priority = match proc with Some proc -> " priority "^str_i64 proc.pri | _ -> "" in
-    "" :: ("proctype "^pname^"(byte id)"^priority^" provided canRun("^str_i64 pid^") {") ::
-    List.map indent body @ ["}"]
+    let head = match id with
+      | Process, name ->
+          let proc = find_option (fun x -> x.pid=id) procs in (* None for mainfun *)
+          let priority = match proc with Some proc -> " priority "^str_i64 proc.pri | _ -> "" in
+          "proctype "^name^"(byte id)"^priority^" provided canRun("^str_i64 pid^") {"
+      | Function, name ->
+          "inline Fun_"^name^"() {"
+      | _ -> failwith "Only Process and Function are allowed as keys for collecting ARINC actions"
+    in
+    "" :: head :: List.map indent body @ ["}"]
   in
   let process_defs = Hashtbl.keys !edges |> List.of_enum |> List.sort (compareBy id_pml) |> List.map process_def |> List.concat in
   let promela = String.concat "\n" @@
