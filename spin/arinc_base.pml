@@ -50,13 +50,16 @@ inline postInit() {
     (partitionMode == NORMAL); // block spin init until arinc init sets mode
     // at this point every resource should have been created!
     // TODO the extracted model is not precise enough b/c of callstack_length = 0
-    assert(processes_created == nproc-1); // mainfun is not created
-    #if (nsema + 0)
-    assert(semas_created == nsema);
-    #endif
-    #if (nevent + 0)
-    assert(events_created == nevent);
-    #endif
+    // revised: this need not be the case on all paths!
+    // TODO problem is, that then some paths in other processes later on are invalid
+    // e.g. P2 is not created but P1 calls Start(P2)
+    /* assert(processes_created == nproc-1); // mainfun is not created */
+    /* #if (nsema + 0) */
+    /* assert(semas_created == nsema); */
+    /* #endif */
+    /* #if (nevent + 0) */
+    /* assert(events_created == nevent); */
+    /* #endif */
 }
 #define canRun(proc_id) (status[proc_id] == READY && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
 inline setReady(proc_id) {

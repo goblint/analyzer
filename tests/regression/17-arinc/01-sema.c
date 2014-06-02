@@ -63,9 +63,18 @@ void P1(void){
   LAP_Se_PeriodicWait(&r);
   return;
 }
-
+void foo3() {
+  RETURN_CODE_TYPE r;
+  LAP_Se_PeriodicWait(&r);
+}
+void foo2() {
+  RETURN_CODE_TYPE r;
+  foo3();
+  LAP_Se_PeriodicWait(&r);
+}
 void foo() {
   RETURN_CODE_TYPE r;
+  foo2();
   LAP_Se_PeriodicWait(&r);
 }
 void P2(void){
