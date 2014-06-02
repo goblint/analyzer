@@ -213,93 +213,19 @@ let save_promela_model () =
     let a2bs = HashtblN.create 97 in
     Set.iter (fun (a, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
     let nodes = HashtblN.keys a2bs |> List.of_enum in
-    let get_a (a,_,_) = a in
+    (* let get_a (a,_,_) = a in *)
     let get_b (_,_,b) = b in
     (* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (* Set.empty leads to Out_of_memory!? *) *)
     let out_edges node = try HashtblN.find a2bs node |> Set.elements with Not_found -> [] in
-    let out_nodes node = out_edges node |> List.map get_b in
     let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
-    let in_nodes node = in_edges node |> List.map get_a in
-    let start_node = List.find (List.is_empty % in_nodes) nodes in (* node with no incoming edges is the start node *)
-    let str_nodes xs = "{"^(List.map string_of_node xs |> String.concat ",")^"}" in
-    (* set of post-dominators for node a *)
-    let pdom a =
-      let rec f visited a =
-        let visited = SetN.add a visited in
-        match List.filter (neg @@ flip SetN.mem visited) (out_nodes a) with
-        | [] -> SetN.singleton a
-        | b::[] -> SetN.add a (f visited b)
-        | b::bs -> SetN.fold (fun b r -> SetN.inter (f visited b) r) (SetN.of_enum (List.enum bs)) (f visited b)
-      in f SetN.empty a
-    in
-    (* is b reachable from a? *)
-    let reachable b a =
-        let rec f visited b a =
-            if SetN.mem a visited then false else
-            let visited = SetN.add a visited in
-            let xs = out_nodes a in
-            List.exists (ArincDomain.Pred.NodeSet.Base.equal b) xs || List.exists identity (List.map (f visited b) xs)
-        in f SetN.empty b a
-    in
-    (* minimal node from non-empty set of nodes *)
-    let min_node nodes =
-        let cmp a b =
-            if reachable a b then 1
-            else if reachable b a then -1
-            else 0
-        in
-        fst @@ List.min_max ~cmp:cmp (SetN.elements nodes)
-    in
-    (* immediate post-dominator for node a *)
-    let ipdom a =
-        let post = pdom a in
-        if M.tracing then (
-          Tracing.tracel "arinc" "post-dominator set of node %s = %s\n" (string_of_node a) (str_nodes (SetN.elements post));
-          if not @@ SetN.is_empty post then Tracing.tracel "arinc" "immediate post-dominator of node %s = %s\n" (string_of_node a) (string_of_node (min_node post))
-        );
-        if SetN.is_empty post then None else Some (min_node post)
-    in
+    let start_node = List.find (List.is_empty % in_edges) nodes in (* node with no incoming edges is the start node *)
+    (* let str_nodes xs = "{"^(List.map string_of_node xs |> String.concat ",")^"}" in *)
     let str_callstack xs = if List.is_empty xs then "" else "__"^String.concat "_" (List.map (fun loc -> string_of_int loc.line) xs) in
     let label ?prefix:(prefix="P") (n,cs) = let node_str = if (MyCFG.getLoc n).line = -1 then "0" else ArincDomain.Pred.NodeSet.Base.string_of_node n in prefix ^ str_i64 pid ^ "_" ^ node_str ^ str_callstack cs in
     let end_label = "P" ^ str_i64 pid ^ "_end" in
     let goto node = "goto " ^ label node in
     let str_edge (a, action, b) = let target = if List.is_empty (out_edges b) then "goto "^end_label else goto b in str_action_pml id action ^ " " ^ target in
-    let visited_all = ref SetN.empty in
-    let rec walk_graph a visited =
-      if SetN.mem a !visited_all || SetN.mem a visited then [goto a] else
-      (* set current node visited *)
-      let visited = SetN.add a visited in
-      let _ = visited_all := SetN.add a !visited_all in
-      if M.tracing then (
-        Tracing.tracel "arinc" "visiting node %s. visited: %s. out_nodes: %s\n" (string_of_node a) (str_nodes (SetN.elements visited)) (str_nodes (out_nodes a))
-      );
-      let choice stmts = match stmts with x::xs -> ("::" ^ indent x) :: (List.map indent xs) | [] -> [] in
-      (* handle sequences and branching *)
-      let stmts = match out_edges a with
-        | [] -> [] (* at end node -> done *)
-        | edge::[] -> str_edge edge :: walk_graph (get_b edge) visited (* normal statement *)
-        (* | edges -> "if" :: (flat_map (choice%walk_graph%get_b) edges) @ ["fi"] *)
-        | edges ->
-          let trail = match ipdom a with
-            | Some node -> walk_graph node visited
-            | None -> []
-          in
-          "if" :: (flat_map (fun edge -> choice @@ str_edge edge :: walk_graph (get_b edge) visited) edges) @ ["fi;"] @ trail
-      in
-      (* handle loops with label for head and jump from end *)
-      (* node is loop head if there is an incoming node that is reachable but not visited. node is loop end if there is a back edge to a visited node. *)
-(*         if List.is_empty stmts then []
-      else if List.exists (fun b -> reachable b a && not @@ SetN.mem b visited) (in_nodes a) then
-        let open List in "do ::" :: map indent (rev@@tl@@rev stmts) @ [last stmts]
-      else if List.exists (flip SetN.mem visited) (out_nodes a) then
-        stmts @ ["od;"]
-      else stmts (* not at loop head/end *) *)
-      (* if List.length (in_nodes a) > 0 then *) (* just always use a label if there are incoming edges and indent if it is a loop head TODO label only needed if loop head or trail... *)
-      let is_head = List.exists (fun b -> reachable b a && not @@ SetN.mem b visited) (in_nodes a) in
-      (label a ^ ":") :: if is_head then List.map indent stmts else stmts
-    in
-    (* let body = walk_graph start_node SetN.empty in *)
-    let choice xs = List.map (fun x -> "::\t"^x ) xs in
+    let choice xs = List.map (fun x -> "::\t"^x ) xs in (* choices in if-statements are prefixed with :: *)
     let walk_edges (a, out_edges) =
       let edges = Set.elements out_edges |> List.map str_edge in
       (label a ^ ":") ::
