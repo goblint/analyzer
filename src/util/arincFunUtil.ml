@@ -130,6 +130,7 @@ let id_pml id = (* give ids starting from 0 (get_pid_by_id for all resources) *)
     Hashtbl.replace pml_resources k id;
     id
 let str_id_pml id = str_i64 @@ id_pml id
+let str_pid_pml id = (if fst id = Process then "P" else "F") ^ str_id_pml id (* process or function *)
 let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 let str_action_pml pid = function
   | Call fname -> "Fun_"^fname^"();"
@@ -175,7 +176,7 @@ let save_result desc ext content = (* output helper *)
 let save_dot_graph () =
   let dot_process pid =
     (* 1 -> w1 [label="fopen(_)"]; *)
-    let str_node x = "\"" ^ (if fst pid = Process then "P" else "F") ^ str_id_pml pid ^ "_" ^ string_of_node x ^ "\"" in (* quote node names for dot *)
+    let str_node x = "\"" ^ str_pid_pml pid ^ "_" ^ string_of_node x ^ "\"" in (* quote node names for dot *)
     let str_edge (a, action, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ "\"]" in
     let xs = Set.map str_edge (get_edges pid) |> Set.elements in
     ("subgraph \"cluster_"^str_resource pid^"\" {") :: xs @ ("label = \""^str_resource pid^"\";") :: ["}\n"]
@@ -245,7 +246,7 @@ let save_promela_model () =
     in
     "" :: head :: List.map indent body @ ["}"]
   in
-  let process_defs = Hashtbl.keys !edges |> List.of_enum |> List.sort (compareBy id_pml) |> List.map process_def |> List.concat in
+  let process_defs = Hashtbl.keys !edges |> List.of_enum |> List.sort (compareBy str_pid_pml) |> List.map process_def |> List.concat in
   let promela = String.concat "\n" @@
     ("#define nproc "^string_of_int nproc) ::
     ("#define nsema "^string_of_int nsema) ::

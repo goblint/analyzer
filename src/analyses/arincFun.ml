@@ -91,16 +91,22 @@ struct
     let d_caller = ctx.local in
     let d_callee = au in
     let current_node = Option.get !MyCFG.current_node in
+    (* determine if we are in some function or at the root of a process to get the key *)
     let curfun = MyCFG.getFun current_node in
     let curpid = match Pid.to_int ctx.local.pid with Some i -> i | None -> failwith @@ "combine: Pid.to_int = None inside function "^curfun.svar.vname in
     let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "combine: no processname for pid in Hashtbl!" in
     let open ArincFunUtil in
     let pfuns = funs_for_process (Process,pname) in
-    let pid = if List.exists ((=) curfun.svar) pfuns || pname="mainfun" then Process, pname else Function, curfun.svar.vname in
-    (* write out edges with call to f coming from all predecessor nodes of the caller *)
-    Pred.iter (fun node -> add_edge pid (node, Call f.vname, current_node)) d_caller.pred;
-    (* set current node as new predecessor *)
-    { d_callee with pred = Pred.of_node current_node }
+    let pid = if List.exists ((=) curfun.svar) pfuns || is_mainfun curfun.svar.vname then Process, pname else Function, curfun.svar.vname in
+    (* check if the callee has some relevant edges, i.e. advanced from the entry point. if not, we generate no edge for the call and keep the predecessors from the caller *)
+    if Pred.equal d_callee.pred (Pred.of_node (MyCFG.Function f)) then
+      { d_callee with pred = d_caller.pred }
+    else (
+      (* write out edges with call to f coming from all predecessor nodes of the caller *)
+      Pred.iter (fun node -> add_edge pid (node, Call f.vname, current_node)) d_caller.pred;
+      (* set current node as new predecessor, since something interesting happend during the call *)
+      { d_callee with pred = Pred.of_node current_node }
+    )
 
   (* ARINC utility functions *)
   let sprint f x = Pretty.sprint 80 (f () x)
@@ -177,7 +183,7 @@ struct
     let add_action action d =
       (* determine parent: Process or Function? *)
       let pfuns = funs_for_process (Process,pname) in
-      let pid = if List.exists ((=) curfun.svar) pfuns || pname="mainfun" then Process, pname else Function, curfun.svar.vname in
+      let pid = if List.exists ((=) curfun.svar) pfuns || is_mainfun curfun.svar.vname then Process, pname else Function, curfun.svar.vname in
       (* add edges for all predecessor nodes (from pred. node to current_node) *)
       Pred.iter (fun node -> ArincFunUtil.add_edge pid (node, action, current_node)) d.pred;
       (* update domain by replacing the set of pred. nodes with the current node *)
