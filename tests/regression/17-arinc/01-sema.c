@@ -52,8 +52,26 @@ extern void LAP_Se_PeriodicWait (RETURN_CODE_TYPE *RETURN_CODE);
 int g,g2;
 SEMAPHORE_ID_TYPE sem_id;
 
-void P1(void){
+int bg;
+void foo2() {
   RETURN_CODE_TYPE r;
+  LAP_Se_PeriodicWait(&r);
+}
+void foo(int b) {
+  RETURN_CODE_TYPE r;
+  if(b) foo2();
+  // if(b) LAP_Se_PeriodicWait(&r);
+  SEMAPHORE_ID_TYPE pid;
+  LAP_Se_GetMyId(&pid, &r);
+  LAP_Se_Start(pid, &r);
+  // if(bg) LAP_Se_PeriodicWait(&r);
+}
+
+void P1(void){
+  foo(0);
+  foo(1);
+  RETURN_CODE_TYPE r;
+  // foo(1);
   while (r){
     LAP_Se_WaitSemaphore(sem_id,600,&r);
     g = g + 1; // NOWARN!
@@ -63,34 +81,27 @@ void P1(void){
   LAP_Se_PeriodicWait(&r);
   return;
 }
-void foo3() {
-  RETURN_CODE_TYPE r;
-  LAP_Se_PeriodicWait(&r);
-}
-void foo2() {
-  RETURN_CODE_TYPE r;
-  foo3();
-  LAP_Se_PeriodicWait(&r);
-}
-void foo() {
-  RETURN_CODE_TYPE r;
-  foo2();
-  LAP_Se_PeriodicWait(&r);
-}
+
 void P2(void){
+  foo(0);
+  foo(1);
+  // here we only get 1 context for foo without bg b/c P2 may run arbitrarily
+  // foo(0); bg = 1; foo(0);
+  // different contexts for different arguments work fine:
+  // foo(0); foo(1);
   RETURN_CODE_TYPE r;
   while (1){
     LAP_Se_WaitSemaphore(sem_id,600,&r);
-    foo();
     g = g - 1;    // NOWARN!
     g2 = g2 + 1;  // RACE!
     LAP_Se_SignalSemaphore(sem_id,&r);
-    foo();
   }
   return;
 }
 
 int main(){
+  // here we get 2 contexts for foo with bg=0 and bg=1:
+  // foo(0); bg = 1; foo(0);
   RETURN_CODE_TYPE r;
   PROCESS_ID_TYPE pi1, pi2;
   SEMAPHORE_ID_TYPE sem_id_local;

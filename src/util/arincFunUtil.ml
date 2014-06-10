@@ -133,7 +133,9 @@ let str_id_pml id = str_i64 @@ id_pml id
 let str_pid_pml id = (if fst id = Process then "P" else "F") ^ str_id_pml id (* process or function *)
 let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 let str_action_pml pid = function
-  | Call fname -> "Fun_"^fname^"();"
+  | Call fname ->
+      (* TODO we shouldn't have calls to functions without edges in the first place! *)
+      if Hashtbl.mem !edges (Function, fname) then "Fun_"^fname^"();" else ""
   | LockPreemption -> "LockPreemption();"
   | UnlockPreemption -> "UnlockPreemption();"
   | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
@@ -207,7 +209,7 @@ let save_promela_model () =
     run_processes
   in
   let process_def id =
-    let pid = id_pml id in
+    let pid = id_pml id in (* id is type*name, pid is int64 *)
     (* build adjacency matrix for all nodes of this process *)
     let module HashtblN = Hashtbl.Make (ArincFunDomain.Pred.Base) in
     let module SetN = Set.Make (ArincFunDomain.Pred.Base) in
@@ -227,6 +229,7 @@ let save_promela_model () =
     let str_edge (a, action, b) = let target = if List.is_empty (out_edges b) then "goto "^end_label else goto b in str_action_pml id action ^ " " ^ target in
     let choice xs = List.map (fun x -> "::\t"^x ) xs in (* choices in if-statements are prefixed with :: *)
     let walk_edges (a, out_edges) =
+      (* str_action_pml filters out calls to functions that have no definitions *)
       let edges = Set.elements out_edges |> List.map str_edge in
       (label a ^ ":") ::
       if List.length edges > 1 then
@@ -246,6 +249,8 @@ let save_promela_model () =
     in
     "" :: head :: List.map indent body @ ["}"]
   in
+  (* TODO simplify graph here, i.e. merge functions which consist of the same edges *)
+  (* sort definitions so that inline functions come before the processes *)
   let process_defs = Hashtbl.keys !edges |> List.of_enum |> List.sort (compareBy str_pid_pml) |> List.map process_def |> List.concat in
   let promela = String.concat "\n" @@
     ("#define nproc "^string_of_int nproc) ::

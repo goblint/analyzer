@@ -49,8 +49,32 @@ struct
   module G = IntDomain.Booleans
   module C = D
 
-  let context d = { d with pred = Pred.bot () }
+  let sprint f x = Pretty.sprint 80 (f () x)
+  let sprint_map f xs = String.concat ", " @@ List.map (sprint f) xs
+
+  let context d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
   (* let val_of d = d *)
+
+  module SymTbl =
+  struct
+    type t
+    let h = Hashtbl.create 123
+    let get k =
+      try Hashtbl.find h k
+      with Not_found ->
+        let ids = Hashtbl.values h in
+        let id = if Enum.is_empty ids then 0 else (Enum.arg_max identity ids)+1 in
+        Hashtbl.replace h k id;
+        id
+  end
+
+  let current_ctx_hash () = let hash = !MyCFG.current_ctx_hash |? 0 in string_of_int @@ SymTbl.get hash
+  let current_ctx_short () = !MyCFG.current_ctx_short |? "None"
+  let print_current_ctx ?info name f args =
+    if name = "foo" then
+    let info = match info with Some info -> " ("^info^")" | None -> "" in
+    M.debug @@ name^info^": "^f.vname^"("^sprint_map d_exp args ^"), current_ctx_hash = " ^ current_ctx_hash () ^ ", current_ctx_short = " ^ current_ctx_short ()
+  let fname_ctx ?ctx f = f.vname ^ "_" ^ (ctx |? current_ctx_hash ())
 
   let is_single ctx =
     let fl : BaseDomain.Flag.t = snd (Obj.obj (List.assoc "base" ctx.presub)) in
@@ -72,22 +96,31 @@ struct
     d
 
   let body ctx (f:fundec) : D.t = (* enter is not called for spawned processes -> initialize them here *)
+    print_current_ctx "body" f.svar [];
     (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     if not (is_single ctx || !Goblintutil.global_initialization || ctx.global part_mode_var) then raise Analyses.Deadcode;
     (* checkPredBot ctx.local "body" f.svar [] *)
     ctx.local
 
+  let last_ctx_hash : int option ref = ref None
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    (* D.callstack List.tl ctx.local *)
-    ctx.local
+    print_current_ctx "return" f.svar [];
+    last_ctx_hash := !MyCFG.current_ctx_hash;
+    match !MyCFG.current_ctx_hash with
+    | Some hash -> { ctx.local with ctx = Ctx.of_int (Int64.of_int hash) }
+    | None -> ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = (* on function calls (also for main); not called for spawned processes *)
+    print_current_ctx "enter" f args;
     (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug_each doesn't print anything here *) *)
     let d_caller = ctx.local in
     let d_callee = { ctx.local with pred = Pred.of_node (MyCFG.Function f) } in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
+    let f_ctx_hash = "f_ctx_hash = " ^ string_of_int (!last_ctx_hash |? -1) in
+    (* somehow context is only right if f_ctx_hash == current_ctx_hash *)
+    print_current_ctx ~info:f_ctx_hash "combine" f args;
     let d_caller = ctx.local in
     let d_callee = au in
     let current_node = Option.get !MyCFG.current_node in
@@ -97,19 +130,23 @@ struct
     let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "combine: no processname for pid in Hashtbl!" in
     let open ArincFunUtil in
     let pfuns = funs_for_process (Process,pname) in
-    let pid = if List.exists ((=) curfun.svar) pfuns || is_mainfun curfun.svar.vname then Process, pname else Function, curfun.svar.vname in
+    let pid = if List.exists ((=) curfun.svar) pfuns || is_mainfun curfun.svar.vname then Process, pname else Function, fname_ctx curfun.svar in
     (* check if the callee has some relevant edges, i.e. advanced from the entry point. if not, we generate no edge for the call and keep the predecessors from the caller *)
+    if Pred.is_bot d_callee.pred then failwith "d_callee.pred is bot!"; (* set should never be empty *)
     if Pred.equal d_callee.pred (Pred.of_node (MyCFG.Function f)) then
       { d_callee with pred = d_caller.pred }
     else (
       (* write out edges with call to f coming from all predecessor nodes of the caller *)
-      Pred.iter (fun node -> add_edge pid (node, Call f.vname, current_node)) d_caller.pred;
+      (* if Option.is_some !last_ctx_hash && current_ctx_hash () = string_of_int (Option.get !last_ctx_hash) then *)
+      if Ctx.is_int d_callee.ctx then (
+        let ctx = Ctx.to_int d_callee.ctx |> Option.get |> i64_to_int |> SymTbl.get |> string_of_int in
+        Pred.iter (fun node -> add_edge pid (node, Call (fname_ctx ~ctx:ctx f), current_node)) d_caller.pred
+      );
       (* set current node as new predecessor, since something interesting happend during the call *)
       { d_callee with pred = Pred.of_node current_node }
     )
 
   (* ARINC utility functions *)
-  let sprint f x = Pretty.sprint 80 (f () x)
   let mode_is_init  i = match Pmo.to_int i with Some 1L | Some 2L -> true | _ -> false
   let mode_is_multi i = Pmo.to_int i = Some 3L
   (* return code data type *)
@@ -147,6 +184,7 @@ struct
       M.debug_each @@ "found "^f.vname^"("^args_str^")"
     );
     let curfun = MyCFG.getFun (Option.get !MyCFG.current_node) in (* current_node should always be set here *)
+    print_current_ctx ~info:("inside "^curfun.svar.vname) "special" f arglist;
     (* M.debug_each @@ "Inside function "^curfun.svar.vname; *)
     let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "special: Pid.to_int = None inside function "^curfun.svar.vname in
     let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "special: no processname for pid in Hashtbl!" in
@@ -183,7 +221,7 @@ struct
     let add_action action d =
       (* determine parent: Process or Function? *)
       let pfuns = funs_for_process (Process,pname) in
-      let pid = if List.exists ((=) curfun.svar) pfuns || is_mainfun curfun.svar.vname then Process, pname else Function, curfun.svar.vname in
+      let pid = if List.exists ((=) curfun.svar) pfuns || is_mainfun curfun.svar.vname then Process, pname else Function, fname_ctx curfun.svar in
       (* add edges for all predecessor nodes (from pred. node to current_node) *)
       Pred.iter (fun node -> ArincFunUtil.add_edge pid (node, action, current_node)) d.pred;
       (* update domain by replacing the set of pred. nodes with the current node *)
@@ -306,7 +344,7 @@ struct
               if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
               let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f) } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
@@ -427,7 +465,7 @@ struct
               let name = "ErrorHandler" in
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f) } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;

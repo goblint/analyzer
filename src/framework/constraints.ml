@@ -279,6 +279,9 @@ struct
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
     let _       = current_node := Some u in
+    let _       = current_ctx_hash := Some (S.C.hash c) in
+    (* let _       = current_ctx_short := Some (S.C.short 500 c) in *)
+    let _       = current_ctx_short := Some (Pretty.sprint 500 (S.C.pretty () c)) in (* just for debugging *)
     let d       = try tf (v,c) (e,u) getl sidel getg sideg
                   with M.StopTheWorld -> D.bot ()
                      | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in

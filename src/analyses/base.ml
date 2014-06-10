@@ -1277,7 +1277,7 @@ struct
           let mode = List.hd @@ List.map (fun x -> stripCasts (constFold false x)) args in
           match ctx.ask (Queries.EvalInt mode) with
           | `Int i when i=3L ->
-              let r = List.map (create_thread None) !processes in
+              let r = List.map (create_thread None) (BatList.unique !processes) in
               processes := [];
               ignore @@ printf "base: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length r);
               r
