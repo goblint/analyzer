@@ -55,7 +55,7 @@ struct
   let context d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
   (* let val_of d = d *)
 
-  module SymTbl =
+  module SymTbl (Unit : sig end) =
   struct
     type t
     let h = Hashtbl.create 123
@@ -67,8 +67,9 @@ struct
         Hashtbl.replace h k id;
         id
   end
+  module CtxTbl = SymTbl (struct end) (* generative functor *)
 
-  let current_ctx_hash () = let hash = !MyCFG.current_ctx_hash |? 0 in string_of_int @@ SymTbl.get hash
+  let current_ctx_hash () = let hash = !MyCFG.current_ctx_hash |? 0 in string_of_int @@ CtxTbl.get hash
   let current_ctx_short () = !MyCFG.current_ctx_short |? "None"
   let print_current_ctx ?info name f args =
     if name = "foo" then
@@ -139,7 +140,7 @@ struct
       (* write out edges with call to f coming from all predecessor nodes of the caller *)
       (* if Option.is_some !last_ctx_hash && current_ctx_hash () = string_of_int (Option.get !last_ctx_hash) then *)
       if Ctx.is_int d_callee.ctx then (
-        let ctx = Ctx.to_int d_callee.ctx |> Option.get |> i64_to_int |> SymTbl.get |> string_of_int in
+        let ctx = Ctx.to_int d_callee.ctx |> Option.get |> i64_to_int |> CtxTbl.get |> string_of_int in
         Pred.iter (fun node -> add_edge pid (node, Call (fname_ctx ~ctx:ctx f), current_node)) d_caller.pred
       );
       (* set current node as new predecessor, since something interesting happend during the call *)
