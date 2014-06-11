@@ -206,6 +206,7 @@ let save_promela_model () =
     "run mainfun(0);" :: (* keep mainfun as name for init process? *)
     "postInit();" ::
     "run monitor();" ::
+    (if has_error_handler then "run ErrorHandler("^str_id_pml (Process, "ErrorHandler")^")" else "") ::
     run_processes
   in
   let process_def id =
