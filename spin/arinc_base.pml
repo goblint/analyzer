@@ -49,9 +49,9 @@ byte tmp; // can't use skip as a placeholder. must do something. otherwise error
 inline postInit() {
     (partitionMode == NORMAL); // block spin init until arinc init sets mode
     // at this point every resource should have been created!
-    // TODO the extracted model is not precise enough b/c of callstack_length = 0
     // revised: this need not be the case on all paths!
-    // TODO problem is, that then some paths in other processes later on are invalid
+    // NB: the extracted model is not precise enough with callstack_length = 0
+    // TODO problem is, that then some paths in other processes later on are invalid if not all resources are created
     // e.g. P2 is not created but P1 calls Start(P2)
     /* assert(processes_created == nproc-1); // mainfun is not created */
     /* #if (nsema + 0) */
@@ -184,6 +184,8 @@ inline WaitSemaphore(sema_id) { atomic {
         fi;
         setWaiting(SEMA, sema_id); // blocks this process instantly
         // doc says: if stmt in atomic blocks, the rest will still remain atomic once it becomes executable. atomicity is lost if one jumps out of the sequence (which might be the case with provided (...)).
+        // revised: atomicity is broken if a statement inside the atomic blocks, but can continue as non-atomic
+        // so, atomic is broken after setWaiting, but that's ok since we're done with WaitSemaphore anyway
     :: semas[sema_id] > 0 ->
         printf("WaitSema will go through: semas[%d] = %d\n", sema_id, semas[sema_id]);
         semas[sema_id] = semas[sema_id] - 1;

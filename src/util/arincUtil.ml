@@ -136,7 +136,7 @@ let str_action_pml pid = function
   | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
   | CreateProcess x ->
       let open Action in
-      "CreateProcess("^str_id_pml x.pid^", "^str_i64 x.pri^", "^str_i64 x.per^", "^str_i64 x.cap^"); // "^str_resource x.pid^" (prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")"
+      "CreateProcess("^str_id_pml x.pid^", "^str_i64 x.pri^", "^str_i64 x.per^", "^str_i64 x.cap^"); // "^str_resource x.pid^" (prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")\n"
   | CreateErrorHandler (id, funs) -> "CreateErrorHandler("^str_id_pml id^");"
   | Start ids -> str_ids_pml ids (fun id -> "Start("^id^");")
   | Stop ids -> str_ids_pml ids (fun id -> "Stop("^id^");")
