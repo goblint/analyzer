@@ -7,7 +7,7 @@
 mtype = { IDLE, COLD_START, WARM_START, NORMAL } // partition modes
 mtype partitionMode = COLD_START;
 // processes
-mtype = { NOTCREATED, STOPPED, SUSPENDED, WAITING, READY, RUNNING } // possible process states
+mtype = { NOTCREATED, STOPPED, SUSPENDED, WAITING, READY, DONE } // possible process states
 // RUNNING is not used here (all READY are possibly RUNNING)
 mtype status[nproc] = NOTCREATED; // initialize all processes as not created
 byte lockLevel; // scheduling only takes place if this is 0

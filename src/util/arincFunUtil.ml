@@ -238,7 +238,7 @@ let save_promela_model () =
       else
         edges
     in
-    let body = goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":"] in
+    let body = goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ": status[id] = DONE"] in
     let head = match id with
       | Process, name ->
           let proc = find_option (fun x -> x.pid=id) procs in (* None for mainfun *)
