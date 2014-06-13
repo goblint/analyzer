@@ -8,9 +8,11 @@ open Apron
 
 module Man =
 struct
+  (* type mt = Oct.t *)
   type mt = Polka.strict Polka.t
   type t = mt Manager.t
 
+  (* let mgr = Oct.manager_alloc () *)
   let mgr = Polka.manager_alloc_strict ()
   let eenv = Environment.make [||] [||]
 end

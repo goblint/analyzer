@@ -5,7 +5,7 @@ set -e
 scripts/set_version.sh
 
 TARGET=src/goblint
-FLAGS="-no-links -use-ocamlfind -j 8 -no-log -package apron -package apron.polkaMPQ -ocamlopt ocamlopt.opt -cflag -g"
+FLAGS="-no-links -use-ocamlfind -j 8 -no-log -package apron -package apron.polkaMPQ -package apron.octD -ocamlopt ocamlopt.opt -cflag -g"
 OCAMLBUILD=ocamlbuild
 
 ocb() {
