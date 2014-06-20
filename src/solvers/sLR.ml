@@ -198,7 +198,7 @@ struct
 
     let get_value x = h_find_default vals x (S.Dom.bot ())
     let set_value x d = 
-      if (V.ver >= 5) && not (HM.mem val0 x) then HM.replace val0 x d
+      if (V.ver >= 5) && not (HM.mem val0 x) then HM.replace val0 x d;
       HM.replace vals x d
 
     let get_key x =
