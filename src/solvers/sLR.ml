@@ -193,10 +193,13 @@ struct
   struct
     let keys = HM.create 1024
     let vals = HM.create 1024
+    let val0 = HM.create 1024
     let last_key = ref 0
 
     let get_value x = h_find_default vals x (S.Dom.bot ())
-    let set_value = HM.replace vals
+    let set_value x d = 
+      if (V.ver >= 5) && not (HM.mem val0 x) then HM.replace val0 x d
+      HM.replace vals x d
 
     let get_key x =
       try
