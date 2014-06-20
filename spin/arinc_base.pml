@@ -53,13 +53,14 @@ inline postInit() {
     // NB: the extracted model is not precise enough with callstack_length = 0
     // TODO problem is, that then some paths in other processes later on are invalid if not all resources are created
     // e.g. P2 is not created but P1 calls Start(P2)
-    /* assert(processes_created == nproc-1); // mainfun is not created */
-    /* #if (nsema + 0) */
-    /* assert(semas_created == nsema); */
-    /* #endif */
-    /* #if (nevent + 0) */
-    /* assert(events_created == nevent); */
-    /* #endif */
+    // -> assert that process is created or do nothing
+    assert(processes_created == nproc-1); // mainfun is not created
+    #if (nsema + 0)
+    assert(semas_created == nsema);
+    #endif
+    #if (nevent + 0)
+    assert(events_created == nevent);
+    #endif
 }
 #define canRun(proc_id) (status[proc_id] == READY && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
 inline setReady(proc_id) {
@@ -75,6 +76,22 @@ inline setWaiting(resource_type, resource_id) {
 }
 // fallback to macro since inline doesn't support return values...
 #define isWaiting(proc_id, resource_type, resource_id)    status[proc_id] == WAITING && waiting[proc_id].resource == resource_type && waiting[proc_id].id == resource_id
+inline removeWaiting(proc_id) {
+    // remove process from waiting queues for all semas
+    byte sema_id;
+    for (sema_id in semas) {
+        byte i;
+        for (i : 1 .. len(semas_chan[sema_id])) {
+            byte p;
+            semas_chan[sema_id]?p;
+            if
+            :: p != proc_id -> semas_chan[sema_id]!p
+            :: p == proc_id -> skip
+            fi
+        }
+    }
+    waiting[proc_id].resource = NONE;
+}
 
 
 // ARINC functions collected by analysis
@@ -93,49 +110,36 @@ inline SetPartitionMode(mode) { atomic {
 } }
 inline CreateProcess(proc_id, pri, per, cap) { atomic {
     printf("CreateProcess: id %d, priority %d, period %d, capacity %d\n", proc_id, pri, per, cap);
-    /* assert(status[proc_id] == NOTCREATED); */
+    assert(status[proc_id] == NOTCREATED);
     status[proc_id] = STOPPED;
     waiting[proc_id].resource = NONE;
     processes_created++;
 } }
 inline CreateErrorHandler(proc_id) { atomic {
     printf("CreateErrorHandler: id %d\n", proc_id);
-    /* assert(status[proc_id] == NOTCREATED); */
+    assert(status[proc_id] == NOTCREATED);
     status[proc_id] = STOPPED;
     waiting[proc_id].resource = NONE;
     processes_created++;
 } }
 inline Start(proc_id) { atomic {
-    /* assert(status[proc_id] != NOTCREATED); */
+    assert(status[proc_id] != NOTCREATED);
+    removeWaiting(proc_id);
     status[proc_id] = READY;
     // TODO reset process if it is already running!
     // maybe insert after every statement: if restart[id] -> goto start_p1
-    // TODO remove process from waiting queues!
 } }
 inline Stop(proc_id) { atomic {
-    /* assert(status[proc_id] != NOTCREATED); */
+    assert(status[proc_id] != NOTCREATED);
+    removeWaiting(proc_id);
     status[proc_id] = STOPPED;
-    // remove process from waiting queues!
-    // for all semas
-    byte sema_id;
-    for (sema_id in semas) {
-        byte i;
-        for (i : 1 .. len(semas_chan[sema_id])) {
-            byte p;
-            semas_chan[sema_id]?p;
-            if
-            :: p != proc_id -> semas_chan[sema_id]!p
-            :: p == proc_id -> skip
-            fi
-        }
-    }
 } }
 inline Suspend(proc_id) { atomic {
-    /* assert(status[proc_id] != NOTCREATED); */
+    assert(status[proc_id] != NOTCREATED);
     status[proc_id] = SUSPENDED;
 } }
 inline Resume(proc_id) { atomic {
-    /* assert(status[proc_id] != NOTCREATED); */
+    assert(status[proc_id] != NOTCREATED);
     if
     :: status[proc_id] == SUSPENDED -> // only do something if process was really suspended
         if
@@ -145,7 +149,7 @@ inline Resume(proc_id) { atomic {
         :: ! (waiting[proc_id].resource != NONE) -> // otherwise resume
             status[proc_id] = READY;
         fi
-    :: status[proc_id] == SUSPENDED -> skip
+    :: status[proc_id] != SUSPENDED -> skip
     fi
 } }
 inline CreateBlackboard(bb_id) { atomic {
