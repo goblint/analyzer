@@ -1,4 +1,4 @@
-// PARAM: --enable allfuns --set ana.activated "[['base','escape','fmode','OSEK']]"
+// PARAM: --enable allfuns --set ana.activated "[['base','escape']]"
 
 int glob1 = 5;
 int glob2 = 7;

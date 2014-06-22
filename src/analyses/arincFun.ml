@@ -489,8 +489,8 @@ struct
           if Pri.is_int d.pri then
             `Int (Option.get @@ Pri.to_int d.pri)
           else if Pri.is_top d.pri then `Top else `Bot
-      | Queries.IsPrivate _ ->
-          `Bool ((PrE.to_int d.pre <> Some 0L && PrE.to_int d.pre <> None) || mode_is_init d.pmo)
+      | Queries.IsPublic _ ->
+          `Bool (not((PrE.to_int d.pre <> Some 0L && PrE.to_int d.pre <> None) || mode_is_init d.pmo))
       | _ -> Queries.Result.top ()
 
   let finalize () =

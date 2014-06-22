@@ -76,7 +76,10 @@ let _ =
   reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main).";
   reg Std "nonstatic"       "false"        "Analyzes all non-static functions.";
   reg Std "colors"          "false"        "Colored output.";
-  reg Std "g2html"          "false"        "Run g2html.jar on the generated xml."
+  reg Std "g2html"          "false"        "Run g2html.jar on the generated xml.";
+  reg Std "interact.out"    "'result'"     "The result directory in interactive mode.";
+  reg Std "interact.enabled" "false"       "Is interactive mode enabled.";
+  reg Std "interact.paused" "false"        "Start interactive in pause mode."
 
 (* {4 category [Analyses]} *)
 
@@ -232,6 +235,7 @@ let default_schema =
   , 'nonstatic'       : {}
   , 'colors'          : {}
   , 'g2html'          : {}
+  , 'interact'        : {}
   }
 }"
 

@@ -355,6 +355,8 @@ struct
       print_endline "done. "
     in
 
+    MyCFG.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
+
     if get_bool "exp.use_gen_solver" then begin
       (* Use "normal" constraint solving *)
       if (get_bool "dbg.verbose") then
