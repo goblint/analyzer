@@ -964,7 +964,7 @@ struct
 
   let init () =
     init ();
-    arinc_analysis_activated := List.exists (fun x -> Json.string x="arinc") (get_list "ana.activated[0]")
+    arinc_analysis_activated := List.exists (fun x -> Json.string x="arinc" || Json.string x="arincFun") (get_list "ana.activated[0]")
 
 end
 

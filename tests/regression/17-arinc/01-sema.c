@@ -68,10 +68,9 @@ void foo(int b) {
 }
 
 void P1(void){
-  foo(0);
-  foo(1);
-  RETURN_CODE_TYPE r;
+  // foo(0);
   // foo(1);
+  RETURN_CODE_TYPE r;
   while (r){
     LAP_Se_WaitSemaphore(sem_id,600,&r);
     g = g + 1; // NOWARN!
@@ -83,8 +82,8 @@ void P1(void){
 }
 
 void P2(void){
-  foo(0);
-  foo(1);
+  // foo(0);
+  // foo(1);
   // here we only get 1 context for foo without bg b/c P2 may run arbitrarily
   // foo(0); bg = 1; foo(0);
   // different contexts for different arguments work fine:

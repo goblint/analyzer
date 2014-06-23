@@ -148,16 +148,16 @@ projects.each do |p|
 #   solfile = File.join(testresults, p.name + ".sol.txt")
   cilfile = File.join(testresults, p.name + ".cil.txt")
   orgfile = File.join(testresults, p.name + ".c.html")
-  cmds = {"code2html" => "-l c -n #{filename} > #{orgfile}",
+  cmds = {"code2html" => "-l c -n #{filename} 2> /dev/null 1> #{orgfile}",
           "source-highlight" => "-n -i #{filename} -o #{orgfile}",
           "pygmentize" => "-O full,linenos=1 -o #{orgfile} #{filename}"}
   cmds.each do |cmd, args|
       # if `which #{cmd} 2> /dev/null`.empty? then
-      if not ENV['PATH'].split(':').map {|f| File.executable? "#{f}/#{cmd}"}.one? then
-          # puts "#{cmd} not found!"
-      else
+      if ENV['PATH'].split(':').map {|f| File.executable? "#{f}/#{cmd}"}.include?(true) then
           `#{cmd} #{args}`
           break
+      else
+          puts "#{cmd} not found!"
       end
   end
   # `code2html -l c -n #{filename} > #{orgfile}`
