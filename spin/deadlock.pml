@@ -15,12 +15,21 @@ init {
     run b(2);
 }
 
-/* ltl pw1 { ! (eventually always (status[1] == WAITING)) } */
-/* ltl pw2 { ! (eventually always (status[2] == WAITING)) } */
-/* ltl ps1 { ! (eventually always (status[1] == SUSPENDED)) } */
-/* ltl ps2 { ! (eventually always (status[2] == SUSPENDED)) } */
+#ifndef NOLTL
+ltl pw { ! (eventually always (status[0] == WAITING || status[1] == WAITING || status[2] == WAITING)) }
+ltl ps { ! (eventually always (status[0] == SUSPENDED || status[1] == SUSPENDED || status[2] == SUSPENDED)) }
+#endif
 
-proctype mainfun(byte id) provided canRun(0) {
+#define PRIO0
+#define PRIO1
+#define PRIO2
+#ifdef PRIO
+// here executability constraints arising from the priorities can be redefined for each process
+// e.g. let a have a higher prio than b, then b can only run if a is not READY:
+#define PRIO2 && status[1] != READY
+#endif
+
+proctype mainfun(byte id) provided (canRun(0) PRIO0) {
     CreateSemaphore(0, 1, 1, FIFO);
     CreateSemaphore(1, 1, 1, FIFO);
 	CreateProcess(1, 53, 4294967295, 4294967295); // a (prio 53, period ∞, capacity ∞)
@@ -28,21 +37,24 @@ proctype mainfun(byte id) provided canRun(0) {
     Start(1);
     Start(2);
 	SetPartitionMode(NORMAL);
+    status[id] = DONE;
 }
 
-proctype a(byte id) provided canRun(1) {
+proctype a(byte id) provided (canRun(1) PRIO1) {
     WaitSemaphore(0);
     WaitSemaphore(1);
     printf("Process a has both locks!\n");
     SignalSemaphore(1);
     SignalSemaphore(0);
+    status[id] = DONE;
 }
 
-proctype b(byte id) provided canRun(2) {
+proctype b(byte id) provided (canRun(2) PRIO2) {
     WaitSemaphore(1);
     WaitSemaphore(0);
     printf("Process b has both locks!\n");
     SignalSemaphore(0);
     SignalSemaphore(1);
+    status[id] = DONE;
 }
 

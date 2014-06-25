@@ -277,16 +277,20 @@ proctype monitor() {
     for(i in semas) {
         assert(semas[i] >= 0 && semas[i] <= semas_max[i]);
     }
-    // at least one process should be READY
-    byte nready = 0;
-    for(i in status) {
+    // at every time at least one process should be READY or all should be DONE
+    atomic {
+        byte nready = 0;
+        byte ndone = 0;
+        for(i in status) {
+            if
+            :: status[i] == READY -> nready++;
+            :: status[i] == DONE -> ndone++;
+            :: !(status[i] == READY || status[i] == DONE) -> skip
+            fi
+        }
         if
-        :: status[i] == READY -> nready++;
-        :: !(status[i] == READY) -> skip
+        :: nready == 0 && ndone < nproc -> printf("Deadlock detected (no process is READY (%d) but not all are DONE (%d))!\n", nready, ndone); assert(false);
+        :: !(nready == 0 && ndone < nproc) -> skip
         fi
     }
-    if
-    :: nready == 0 -> printf("Deadlock detected (no process is READY)!\n"); assert(false);
-    :: nready != 0 -> skip
-    fi
 }

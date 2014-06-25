@@ -36,7 +36,7 @@ let string_of_node = ArincFunDomain.Pred.string_of_elt
 type edge = node * action * node
 let action_of_edge (_, action, _) = action
 type edges = (id, edge Set.t) Hashtbl.t
-let edges = ref @@ Hashtbl.create 199
+let edges = ref (Hashtbl.create 199 : edges)
 
 let marshal ch = Marshal.to_channel ch !edges []
 let unmarshal ch = edges := Marshal.from_channel ch
@@ -243,7 +243,7 @@ let save_promela_model () =
       | Process, name ->
           let proc = find_option (fun x -> x.pid=id) procs in (* None for mainfun *)
           let priority = match proc with Some proc -> " priority "^str_i64 proc.pri | _ -> "" in
-          "proctype "^name^"(byte id)"^priority^" provided canRun("^str_i64 pid^") {"
+          "proctype "^name^"(byte id)"^priority^" provided (canRun("^str_i64 pid^") PRIO"^str_i64 pid^") {"
       | Function, name ->
           "inline Fun_"^name^"() {"
       | _ -> failwith "Only Process and Function are allowed as keys for collecting ARINC actions"
@@ -251,6 +251,25 @@ let save_promela_model () =
     "" :: head :: List.map indent body @ ["}"]
   in
   (* TODO simplify graph here, i.e. merge functions which consist of the same edges *)
+  (* generate ltl claims *)
+  let ltls =
+    let claim name status = "ltl " ^ name ^ " { ! (eventually always (" ^ (String.concat " || " @@ List.of_enum @@ (0 --^ nproc) /@ (fun i -> "status["^string_of_int i^"] == " ^ status)) ^ ")) }" in
+    (* no task may remain waiting or suspended: *)
+    claim "pw" "WAITING" ::
+    claim "ps" "SUSPENDED" :: []
+  in
+  (* generate priority based running constraints for each process (only used ifdef PRIO): process can only run if no higher prio process is ready *)
+  let prios =
+    let def proc =
+      let id = str_id_pml proc.pid in
+      let pri = proc.pri in
+      let higher = List.filter (fun x -> x.pri > pri) procs in
+      if List.is_empty higher
+      then None
+      else Some ("#define PRIO" ^ id ^ String.concat "" @@ List.map (fun x -> " && status[" ^ str_id_pml x.pid ^ "] != READY") higher)
+    in
+    List.filter_map def procs
+  in
   (* sort definitions so that inline functions come before the processes *)
   let process_defs = Hashtbl.keys !edges |> List.of_enum |> List.sort (compareBy str_pid_pml) |> List.map process_def |> List.concat in
   let promela = String.concat "\n" @@
@@ -258,7 +277,10 @@ let save_promela_model () =
     ("#define nsema "^string_of_int nsema) ::
     ("#define nevent "^string_of_int nevent) :: "" ::
     "#include \"arinc_base.pml\"" :: "" ::
-    "init {" :: List.map indent init_body @ "}" ::
+    "init {" :: List.map indent init_body @ "}" :: "" ::
+    "#ifndef NOLTL" :: ltls @ "#endif" :: "" ::
+    (List.of_enum @@ (0 --^ nproc) /@ (fun i -> "#define PRIO" ^ string_of_int i)) @
+    "#ifdef PRIO" :: prios @ "#endif" ::
     process_defs
   in
   save_result "promela model" "pml" promela;
