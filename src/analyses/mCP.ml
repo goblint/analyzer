@@ -370,22 +370,26 @@ struct
     iter (uncurry side_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
   let do_assigns ctx assigns (xs:(int * Obj.t) list) =
-    let spec_assign n d : int * Obj.t =
+    if List.is_empty assigns then xs (* nothing to do *)
+    else
+    let spec_assign n d : Obj.t =
       (* spec of current analysis *)
       let (module S:Spec) = spec n in
-      let assign_one (lval, exp, name, ctx) =
-        if Option.is_some name && Option.get name <> spec_name n then
-          obj d
-        else
-          let ctx = {(obj ctx) with local = obj d} in
-          S.assign ctx lval exp
+      let assign_one d (lval, exp, name, ctx) =
+        match name with
+        | Some x when x <> spec_name n -> obj d (* do nothing if current spec name is filtered out *)
+        | _ ->
+          let ctx' = {(obj ctx) with local = obj d} in
+          S.assign ctx' lval exp
       in
-      if List.is_empty assigns then
-        n, d
-      else
-        n, repr @@ List.reduce S.D.join @@ List.map assign_one assigns
+      let comp2 f g a b = f (g a) (g b) in
+      let compareBy f = comp2 Pervasives.compare f in
+      let get_lval (lval, exp, name, ctx) = lval in
+      (* group by assigns on the same lval -> only those must be joined *)
+      List.group (compareBy get_lval) assigns
+      |> List.fold_left (fun d xs -> List.map (assign_one d) xs |> List.reduce S.D.join |> repr) d
     in
-    List.map (uncurry spec_assign) xs
+    List.map (fun (n,d) -> n, spec_assign n d) xs
 
   let rec do_splits ctx pv (xs:(int * (Obj.t * exp * bool)) list) =
     let split_one n (d,e,tv) =
