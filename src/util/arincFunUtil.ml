@@ -189,7 +189,7 @@ let save_dot_graph () =
 let save_promela_model () =
   let open Action in (* needed to distinguish the record field names from the ones of D.t *)
   let comp2 f g a b = f (g a) (g b) in (* why is this not in batteries? *)
-  let compareBy f = comp2 compare f in
+  let compareBy ?cmp:(cmp=compare) f = comp2 cmp f in
   let find_option p xs = try Some (List.find p xs) with Not_found -> None in (* why is this in batteries for Hashtbl but not for List? *)
   let flat_map f = List.flatten % List.map f in (* and this? *)
   let indent s = "\t"^s in
@@ -250,7 +250,6 @@ let save_promela_model () =
     in
     "" :: head :: List.map indent body @ ["}"]
   in
-  (* TODO simplify graph here, i.e. merge functions which consist of the same edges *)
   (* generate ltl claims *)
   let ltls =
     let claim name status = "ltl " ^ name ^ " { ! (eventually always (" ^ (String.concat " || " @@ List.of_enum @@ (0 --^ nproc) /@ (fun i -> "status["^string_of_int i^"] == " ^ status)) ^ ")) }" in
@@ -270,6 +269,21 @@ let save_promela_model () =
     in
     List.filter_map def procs
   in
+  (* simplify graph here, i.e. merge functions which consist of the same edges *)
+  let dups = Hashtbl.enum !edges |> List.of_enum |> List.group (compareBy ~cmp:Set.compare snd) |> List.filter_map (function x::y::ys -> Some (x, y::ys) | _ -> None) in
+  let merge ((res,name),_) xs =
+    if res = Process then failwith "There should be no processes with duplicate content!" else
+    (* replace calls to the other functions with calls to name and remove them *)
+    let replace_call (res,name2) = function
+      | a, Call x, b when x=name2 -> a, Call name, b
+      | x -> x
+    in
+    List.iter (fun (k,_) ->
+      Hashtbl.map_inplace (fun _ v -> Set.map (replace_call k) v) !edges;
+      Hashtbl.remove_all !edges k
+    ) xs
+  in
+  List.iter (uncurry merge) dups;
   (* sort definitions so that inline functions come before the processes *)
   let process_defs = Hashtbl.keys !edges |> List.of_enum |> List.sort (compareBy str_pid_pml) |> List.map process_def |> List.concat in
   let promela = String.concat "\n" @@
