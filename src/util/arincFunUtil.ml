@@ -258,7 +258,7 @@ let save_promela_model () =
     claim "pw" "WAITING" ::
     claim "ps" "SUSPENDED" :: []
   in
-  (* generate priority based running constraints for each process (only used ifdef PRIO): process can only run if no higher prio process is ready *)
+  (* generate priority based running constraints for each process (only used ifdef PRIOS): process can only run if no higher prio process is ready *)
   let prios =
     let def proc =
       let id = str_id_pml proc.pid in
@@ -280,7 +280,7 @@ let save_promela_model () =
     "init {" :: List.map indent init_body @ "}" :: "" ::
     ltls @ "" ::
     (List.of_enum @@ (0 --^ nproc) /@ (fun i -> "#define PRIO" ^ string_of_int i)) @
-    "#ifdef PRIO" :: prios @ "#endif" ::
+    "#ifdef PRIOS" :: prios @ "#endif" ::
     process_defs
   in
   save_result "promela model" "pml" promela;

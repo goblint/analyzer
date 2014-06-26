@@ -21,10 +21,10 @@ ltl ps { ! (eventually always (status[0] == SUSPENDED || status[1] == SUSPENDED 
 #define PRIO0
 #define PRIO1
 #define PRIO2
-#ifdef PRIO
+#ifdef PRIOS
 // here executability constraints arising from the priorities can be redefined for each process
 // e.g. let a have a higher prio than b, then b can only run if a is not READY:
-#define PRIO2 && status[1] != READY
+/* #define PRIO2 && status[1] != READY */
 #endif
 
 proctype mainfun(byte id) provided (canRun(0) PRIO0) {
