@@ -15,10 +15,8 @@ init {
     run b(2);
 }
 
-#ifndef NOLTL
 ltl pw { ! (eventually always (status[0] == WAITING || status[1] == WAITING || status[2] == WAITING)) }
 ltl ps { ! (eventually always (status[0] == SUSPENDED || status[1] == SUSPENDED || status[2] == SUSPENDED)) }
-#endif
 
 #define PRIO0
 #define PRIO1
