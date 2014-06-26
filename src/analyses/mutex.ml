@@ -575,12 +575,12 @@ struct
 
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
-      | Queries.IsPublic _ when Lockset.is_bot ctx.local -> `Bool false
-      | Queries.IsPublic v ->
+      | _ when Lockset.is_bot ctx.local -> `Bool true
+      | Queries.IsPrivate v ->
           let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
           let lambda_v = ctx.global v in
           let intersect = Mutexes.inter held_locks lambda_v in
-          let tv = Mutexes.is_empty intersect in
+          let tv = not (Mutexes.is_empty intersect) in
             `Bool (tv)
       | _ -> Queries.Result.top ()
 

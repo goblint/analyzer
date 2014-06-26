@@ -41,11 +41,10 @@ struct
   let pretty_trace () (u,v:t) =
     Pretty.dprintf "(%a,%d)" B.pretty_trace u v
 
-  let var_id (c,_) = B.var_id c
-  let printXml f (c,_) = B.printXml f c
-  let file_name (c,_) = B.file_name c
-  let line_nr (c,_) = B.line_nr c
-  let node (c,_) = B.node c
+  let line_nr (n,_) = B.line_nr n
+  let file_name (n,_) = B.file_name n
+  let description (n,_) = B.description n
+  let context () (c,_) = B.context () c
 end
 
 
@@ -87,140 +86,6 @@ struct
         with Invalid_argument _ -> None
 end
 
-
-
-module SolverInteractiveWGlob 
-    (S:Analyses.GlobConstrSys)
-    (LH:Hash.H with type key=S.LVar.t)
-    (GH:Hash.H with type key=S.GVar.t) =
-struct
-  open S
-  open Printf
-  open Cil
-
-  let enabled = ref false
-  let step    = ref 1
-  let stopped = ref false
-  
-  let interact_init () = 
-    enabled := get_bool "interact.enabled";
-    stopped := get_bool "interact.paused"
-  
-  let _ = 
-    let open Sys in
-    set_signal sigcont (Signal_handle (fun i -> stopped := false));
-    set_signal sigusr1 (Signal_handle (fun i -> stopped := true));
-    set_signal sigusr2 (Signal_handle (fun i -> step    := 1));
-    ()
-  
-  let loc_start f = 
-    fprintf f "<?xml version=\"1.0\" ?>\n<?xml-stylesheet type=\"text/xsl\" href=\"../node.xsl\"?>\n<calls>"
-
-  let glob_start f = 
-    fprintf f "<?xml version=\"1.0\" ?>\n<?xml-stylesheet type=\"text/xsl\" href=\"../globals.xsl\"?>\n<globs>"
-
-  let loc_end f = 
-    fprintf f "</calls>\n"
-
-  let glob_end f = 
-    fprintf f "</globs>\n"
-    
-  let write_one_call v d f =
-    fprintf f "%a%a</loc>\n" LVar.printXml v D.printXml d
-
-  let write_one_glob v d f =
-    fprintf f "<glob><key>%a</key>\n%a</glob>\n" GVar.printXml v G.printXml d
-  
-  let mkdirs =
-    List.fold_left (fun p d -> Goblintutil.create_dir (p^"/"^d)) "." 
-  
-  let writeXmlWarnings () =
-    let one_text f (m,l) =
-      fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line m
-    in
-    let one_w f = function
-      | `text (m,l)  -> one_text f (m,l)
-      | `group (n,e) ->
-        fprintf f "<group name=\"%s\">%a</group>\n" n (List.print ~first:"" ~last:"" ~sep:"" one_text) e
-    in
-    let one_w x f = fprintf f "\n<warning>%a</warning>" one_w x in
-    let res_dir = mkdirs [get_string "interact.out" ^ "/warn"] in
-    let id = ref 1 in
-    let write_warning x = 
-      let full_name = res_dir ^ "/warn" ^ string_of_int !id ^ ".xml" in
-      incr id;
-      File.with_file_out ~mode:[`create;`excl;`text] full_name (one_w x)
-    in
-    List.iter write_warning !Messages.warning_table
-
-  module SSH = Hashtbl.Make (struct include String let hash (x:string) = Hashtbl.hash x end) 
-  let funs = SSH.create 100
-  module NH = Hashtbl.Make (MyCFG.Node) 
-  let liveness = NH.create 100
-  
-  let write_files lh gh = 
-    let res_dir = mkdirs [get_string "interact.out"; "nodes"] in
-    let created_files = Hashtbl.create 100 in
-    let one_var v d = 
-      let fname = LVar.var_id v in
-      let full_name = res_dir ^ "/" ^ fname ^ ".xml" in
-      if not (Sys.file_exists full_name) then begin
-        File.with_file_out ~mode:[`excl;`create;`text] full_name loc_start;
-        Hashtbl.add created_files full_name ()
-      end;
-      File.with_file_out ~mode:[`append;`excl;`text] full_name (write_one_call v d)
-    in
-    LH.iter one_var lh;
-    let full_gname = res_dir ^ "/globals.xml" in
-    File.with_file_out ~mode:[`excl;`create;`text] full_gname glob_start;
-    let one_glob v d = 
-      File.with_file_out ~mode:[`append;`excl;`text] full_gname (write_one_glob v d)
-    in
-    GH.iter one_glob gh;
-    File.with_file_out ~mode:[`append;`excl;`text] full_gname glob_end;
-    let close_vars f _ = 
-      File.with_file_out ~mode:[`append;`excl;`text] f loc_end
-    in
-    Hashtbl.iter close_vars created_files
-    
-  let write_index () = 
-    let dir = get_string "interact.out" in
-    let full_name = dir ^ "/index.xml" in
-    let write_index f =
-      let print_funs f fs = 
-        Set.iter (fun n -> fprintf f "<function name=\"%s\"></function>\n" n) fs
-      in
-      fprintf f "<?xml version=\"1.0\" ?>\n<?xml-stylesheet type=\"text/xsl\" href=\"report.xsl\"?>\n<report>\n";
-      SSH.iter (fun file funs -> fprintf f "<file name=\"%s\">%a</file>" file print_funs funs) funs;
-      fprintf f "</report>\n";
-    in
-    File.with_file_out ~mode:[`excl;`create;`text] full_name write_index
-
-  let delete_old_results () =
-    let dir = get_string "interact.out" in
-    if Sys.file_exists dir && Sys.is_directory dir then
-      try Goblintutil.rm_rf dir with _ -> ()
-      
-  let write_all hl hg =
-    delete_old_results ();
-    write_files hl hg;
-    writeXmlWarnings ();
-    write_index ();
-    !MyCFG.write_cfgs (NH.mem liveness)
-
-  let update_var_event_write hl hg x o n =
-    if !enabled && not (D.is_bot n) then begin
-      let node = LVar.node x in
-      let file = (MyCFG.getFun node).svar in
-      NH.replace liveness node ();
-      SSH.replace funs file.vdecl.file (Set.add file.vname (SSH.find_default funs file.vdecl.file Set.empty));
-      if !stopped then begin
-        write_all hl hg;
-        decr step;
-        while !stopped && !step <=0 do Unix.sleep 1 done
-      end
-    end
-end
 
 module SolverStatsWGlob (S:GlobConstrSys) =
 struct

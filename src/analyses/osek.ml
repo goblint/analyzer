@@ -455,7 +455,7 @@ let _ = print_endline (string_of_bool res) in res*)
         let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
           `Int (Int64.of_int pry)
     | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
-    | Queries.IsPublic v ->
+    | Queries.IsPrivate v ->
         let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
         if pry = min_int then begin `Bool false end else begin
           let off =
@@ -468,7 +468,7 @@ let _ = print_endline (string_of_bool res) in res*)
   (*             let flagstate = get_flags ctx.presub in *)
   (*               offpry_flags flagstate v *)
   (*           end *)
-          in `Bool (off > pry)
+          in `Bool (off <= pry)
         end
     | _ -> Queries.Result.top ()
 

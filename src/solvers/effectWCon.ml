@@ -12,7 +12,6 @@ module Make2
   (GH:Hash.H with type key=S.GVar.t) =
 struct
   open S
-  include Generic.SolverInteractiveWGlob (S) (LH) (GH)
   include Generic.SolverStatsWGlob (S)
 
   let lh_find_default t x a = try LH.find t x with Not_found -> a
@@ -81,7 +80,6 @@ struct
         let old_state = lh_find_default sigma x (D.bot ()) in
         let new_val = D.join !local_state old_state in
         if not (D.leq new_val old_state) then begin
-          update_var_event_write sigma theta x old_state new_val;
           update_var_event x old_state new_val;
           LH.replace sigma x new_val;
           let influenced_vars = ref [] in
@@ -110,7 +108,6 @@ struct
 
     in
       start_event ();
-      interact_init ();
       GU.may_narrow := false;
       let add_start (v,d) =
         incr Goblintutil.vars;

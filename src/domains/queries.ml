@@ -33,7 +33,7 @@ type t = ExpEq of exp * exp
        | Regions of exp
        | MayEscape of varinfo
        | Priority of string
-       | IsPublic of varinfo
+       | IsPrivate of varinfo
        | SingleThreaded       (* result is "boolean" in `Int form *)
        | IsNotUnique
        | EvalFunvar of exp

@@ -583,14 +583,6 @@ struct
     | `L a -> LV.pretty_trace () a
     | `G a -> GV.pretty_trace () a
 
-  let printXml f = function
-    | `L a -> LV.printXml f a
-    | `G a -> GV.printXml f a
-
-  let var_id = function
-    | `L a -> LV.var_id a
-    | `G a -> GV.var_id a
-
   let line_nr = function
     | `L a -> LV.line_nr a
     | `G a -> GV.line_nr a
@@ -599,9 +591,9 @@ struct
     | `L a -> LV.file_name a
     | `G a -> GV.file_name a
 
-  let node = function
-    | `L a -> LV.node a
-    | `G a -> GV.node a
+  let description n = sprint 80 (pretty_trace () n)
+  let context () _ = Pretty.nil
+  let loopSep _ = true
 end
 
 (** Translate a [GlobConstrSys] into a [IneqConstrSys] *)
@@ -613,13 +605,7 @@ module IneqConstrSysFromGlobConstrSys (S:GlobConstrSys)
   =
 struct
   module Var = Var2(S.LVar)(S.GVar)
-  module Dom = 
-  struct 
-    include Lattice.Either(S.G)(S.D)
-    let printXml f = function
-      | `Left  a -> S.G.printXml f a
-      | `Right a -> S.D.printXml f a
-  end
+  module Dom = Lattice.Either(S.G)(S.D)
 
   type v = Var.t
   type d = Dom.t

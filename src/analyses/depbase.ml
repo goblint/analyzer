@@ -35,7 +35,7 @@ let is_private (a: Q.ask) (_,fl) (v: varinfo): bool =
   ((not (BaseDomain.Flag.is_multi fl)) &&
    (List.exists (fun x -> v.vname = Json.string x) (get_list "exp.precious_globs")))
   ||
-  match a (Q.IsPublic v) with `Bool tv -> not tv | _ -> false
+  match a (Q.IsPrivate v) with `Bool tv -> tv | _ -> false
 
 let priv_cache = ref None
 let is_private q d v =

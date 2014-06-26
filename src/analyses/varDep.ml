@@ -23,7 +23,7 @@ struct
 
   let is_private ctx v =
     (not v.vglob) ||
-    match ctx.ask (Queries.IsPublic v) with `Bool tv -> not tv | _ -> false
+    match ctx.ask (Queries.IsPrivate v) with `Bool tv -> tv | _ -> false
 
   let sync ctx =
     let sync_one (v,os) vs (xs,ys) =
