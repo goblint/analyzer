@@ -1163,8 +1163,6 @@ struct
 
   let query ctx (q:Q.t) =
     match q with
-      (* | Q.IsPublic _ ->
-        `Bool (BaseDomain.Flag.is_multi (snd ctx.local)) *)
       | Q.EvalFunvar e ->
         begin
           let fs = eval_funvar ctx e in
@@ -1279,7 +1277,7 @@ struct
           let mode = List.hd @@ List.map (fun x -> stripCasts (constFold false x)) args in
           match ctx.ask (Queries.EvalInt mode) with
           | `Int i when i=3L ->
-              let r = List.map (create_thread None) (BatList.unique ~eq:(fun x y -> Pervasives.compare x y = 0) !processes) in
+              let r = List.map (create_thread None) (BatList.unique !processes) in
               processes := [];
               ignore @@ printf "base: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length r);
               r
