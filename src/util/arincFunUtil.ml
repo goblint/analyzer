@@ -162,6 +162,43 @@ let str_action_pml pid = function
   | ResetEvent ids -> str_ids_pml ids (fun id -> "ResetEvent("^id^");")
   | TimedWait t -> "TimedWait("^str_i64 t^");"
   | PeriodicWait -> "PeriodicWait();"
+
+(* helpers *)
+let comp2 f g a b = f (g a) (g b) (* why is this not in batteries? *)
+let compareBy ?cmp:(cmp=compare) f = comp2 cmp f
+let find_option p xs = try Some (List.find p xs) with Not_found -> None (* why is this in batteries for Hashtbl but not for List? *)
+let flat_map f = List.flatten % List.map f (* and this? *)
+
+(* simplify graph here, i.e. merge functions which consist of the same edges and contract call chains *)
+let simplify () =
+  let dups = Hashtbl.enum !edges |> List.of_enum |> List.group (compareBy ~cmp:Set.compare snd) |> List.filter_map (function x::y::ys -> Some (x, y::ys) | _ -> None) in
+  let replace_call oldname newname =
+    let f = function
+      | a, Call x, b when x = oldname -> a, Call newname, b
+      | x -> x
+    in
+    Hashtbl.map_inplace (fun _ v -> Set.map f v) !edges
+  in
+  let merge ((res,name),_) xs =
+    if res = Process then failwith "There should be no processes with duplicate content!" else
+    (* replace calls to the other functions with calls to name and remove them *)
+    List.iter (fun (k,_) ->
+      replace_call (snd k) name;
+      Hashtbl.remove_all !edges k
+    ) xs
+  in
+  List.iter (uncurry merge) dups;
+  (* contract call chains: replace functions which only contain another call *)
+  let rec contract_call_chains () =
+    let single_calls = Hashtbl.filter_map (fun (res,_) v -> match Set.choose v with _, Call name, _ when Set.cardinal v = 1 && res = Function -> Some name | _ -> None) !edges |> Hashtbl.enum |> List.of_enum in
+    List.iter (fun (k,name) ->
+      replace_call (snd k) name;
+      Hashtbl.remove_all !edges k
+    ) single_calls;
+    if List.length single_calls > 0 then contract_call_chains ()
+  in contract_call_chains ()
+
+(* print to stdout *)
 let print_actions () =
   let print_process pid =
     let str_node = string_of_node in
@@ -170,11 +207,14 @@ let print_actions () =
     M.debug @@ str_resource pid^" ->\n\t"^String.concat "\n\t" (Set.elements xs)
   in
   Hashtbl.keys !edges |> Enum.iter print_process
+
+(* helper for exporting results *)
 let save_result desc ext content = (* output helper *)
   let dir = Goblintutil.create_dir "result" in (* returns abs. path *)
   let path = dir ^ "/arinc.fun." ^ ext in
   output_file path content;
   print_endline @@ "saved " ^ desc ^ " as " ^ path
+
 let save_dot_graph () =
   let dot_process pid =
     (* 1 -> w1 [label="fopen(_)"]; *)
@@ -186,12 +226,9 @@ let save_dot_graph () =
   let lines = Hashtbl.keys !edges |> List.of_enum |> List.map dot_process |> List.concat in
   let dot_graph = String.concat "\n  " ("digraph file {"::lines) ^ "\n}" in
   save_result "graph" "dot" dot_graph
+
 let save_promela_model () =
   let open Action in (* needed to distinguish the record field names from the ones of D.t *)
-  let comp2 f g a b = f (g a) (g b) in (* why is this not in batteries? *)
-  let compareBy ?cmp:(cmp=compare) f = comp2 cmp f in
-  let find_option p xs = try Some (List.find p xs) with Not_found -> None in (* why is this in batteries for Hashtbl but not for List? *)
-  let flat_map f = List.flatten % List.map f in (* and this? *)
   let indent s = "\t"^s in
   let procs  = List.unique @@ filter_map_actions (function CreateProcess x -> Some x | _ -> None) in
   let has_error_handler = not @@ List.is_empty @@ filter_actions (function CreateErrorHandler _ -> true | _ -> false) in
@@ -211,6 +248,7 @@ let save_promela_model () =
   in
   let process_def id =
     let pid = id_pml id in (* id is type*name, pid is int64 *)
+    let spid = str_pid_pml id in
     (* build adjacency matrix for all nodes of this process *)
     let module HashtblN = Hashtbl.Make (ArincFunDomain.Pred.Base) in
     let module SetN = Set.Make (ArincFunDomain.Pred.Base) in
@@ -224,8 +262,8 @@ let save_promela_model () =
     let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
     let start_node = List.find (List.is_empty % in_edges) nodes in (* node with no incoming edges is the start node *)
     (* let str_nodes xs = "{"^(List.map string_of_node xs |> String.concat ",")^"}" in *)
-    let label ?prefix:(prefix="P") n = let node_str = if (MyCFG.getLoc n).line = -1 then "0" else string_of_node n in prefix ^ str_i64 pid ^ "_" ^ node_str in
-    let end_label = "P" ^ str_i64 pid ^ "_end" in
+    let label n = let node_str = if (MyCFG.getLoc n).line = -1 then "0" else string_of_node n in spid ^ "_" ^ node_str in
+    let end_label = spid ^ "_end" in
     let goto node = "goto " ^ label node in
     let str_edge (a, action, b) = let target = if List.is_empty (out_edges b) then "goto "^end_label else goto b in str_action_pml id action ^ " " ^ target in
     let choice xs = List.map (fun x -> "::\t"^x ) xs in (* choices in if-statements are prefixed with :: *)
@@ -269,21 +307,6 @@ let save_promela_model () =
     in
     List.filter_map def procs
   in
-  (* simplify graph here, i.e. merge functions which consist of the same edges *)
-  let dups = Hashtbl.enum !edges |> List.of_enum |> List.group (compareBy ~cmp:Set.compare snd) |> List.filter_map (function x::y::ys -> Some (x, y::ys) | _ -> None) in
-  let merge ((res,name),_) xs =
-    if res = Process then failwith "There should be no processes with duplicate content!" else
-    (* replace calls to the other functions with calls to name and remove them *)
-    let replace_call (res,name2) = function
-      | a, Call x, b when x=name2 -> a, Call name, b
-      | x -> x
-    in
-    List.iter (fun (k,_) ->
-      Hashtbl.map_inplace (fun _ v -> Set.map (replace_call k) v) !edges;
-      Hashtbl.remove_all !edges k
-    ) xs
-  in
-  List.iter (uncurry merge) dups;
   (* sort definitions so that inline functions come before the processes *)
   let process_defs = Hashtbl.keys !edges |> List.of_enum |> List.sort (compareBy str_pid_pml) |> List.map process_def |> List.concat in
   let promela = String.concat "\n" @@

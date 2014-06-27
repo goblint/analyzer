@@ -495,8 +495,9 @@ struct
 
   let finalize () =
     ArincFunUtil.print_actions ();
-    if Sys.file_exists "result" then ArincFunUtil.marshal @@ open_out_bin @@ "result/arinc.cs" ^ string_of_int (GobConfig.get_int "ana.arinc.cs_len") ^ ".out";
+    if Sys.file_exists "result" then ArincFunUtil.marshal @@ open_out_bin @@ "result/arinc.fun.out";
     if GobConfig.get_bool "ana.arinc.export" then (
+      ArincFunUtil.simplify ();
       ArincFunUtil.save_dot_graph ();
       ArincFunUtil.save_promela_model ()
     )
