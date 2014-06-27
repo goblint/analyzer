@@ -135,7 +135,7 @@ struct
     (* check if the callee has some relevant edges, i.e. advanced from the entry point. if not, we generate no edge for the call and keep the predecessors from the caller *)
     if Pred.is_bot d_callee.pred then failwith "d_callee.pred is bot!"; (* set should never be empty *)
     if Pred.equal d_callee.pred (Pred.of_node (MyCFG.Function f)) then
-      { d_callee with pred = d_caller.pred }
+      { d_callee with pred = d_caller.pred; ctx = d_caller.ctx }
     else (
       (* write out edges with call to f coming from all predecessor nodes of the caller *)
       (* if Option.is_some !last_ctx_hash && current_ctx_hash () = string_of_int (Option.get !last_ctx_hash) then *)
@@ -144,7 +144,7 @@ struct
         Pred.iter (fun node -> add_edge pid (node, Call (fname_ctx ~ctx:ctx f), current_node)) d_caller.pred
       );
       (* set current node as new predecessor, since something interesting happend during the call *)
-      { d_callee with pred = Pred.of_node current_node }
+      { d_callee with pred = Pred.of_node current_node; ctx = d_caller.ctx }
     )
 
   (* ARINC utility functions *)

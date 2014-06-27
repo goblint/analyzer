@@ -173,6 +173,7 @@ let flat_map f = List.flatten % List.map f (* and this? *)
 let simplify () =
   let dups = Hashtbl.enum !edges |> List.of_enum |> List.group (compareBy ~cmp:Set.compare snd) |> List.filter_map (function x::y::ys -> Some (x, y::ys) | _ -> None) in
   let replace_call oldname newname =
+    (* M.debug_each @@ "Replacing function calls to "^oldname^" with "^newname; *)
     let f = function
       | a, Call x, b when x = oldname -> a, Call newname, b
       | x -> x
@@ -190,12 +191,13 @@ let simplify () =
   List.iter (uncurry merge) dups;
   (* contract call chains: replace functions which only contain another call *)
   let rec contract_call_chains () =
-    let single_calls = Hashtbl.filter_map (fun (res,_) v -> match Set.choose v with _, Call name, _ when Set.cardinal v = 1 && res = Function -> Some name | _ -> None) !edges |> Hashtbl.enum |> List.of_enum in
-    List.iter (fun (k,name) ->
-      replace_call (snd k) name;
+    let single_calls = Hashtbl.filter_map (fun (res,_) v -> match Set.choose v with _, Call name, _ when Set.cardinal v = 1 && res = Function -> Some (Function, name) | _ -> None) !edges in
+    let last_calls = Hashtbl.filteri (fun k v -> not @@ Hashtbl.mem single_calls v) single_calls in
+    Hashtbl.iter (fun k v ->
+      replace_call (snd k) (snd v);
       Hashtbl.remove_all !edges k
-    ) single_calls;
-    if List.length single_calls > 0 then contract_call_chains ()
+    ) last_calls;
+    if Hashtbl.length single_calls > 0 then contract_call_chains ()
   in contract_call_chains ()
 
 (* print to stdout *)
