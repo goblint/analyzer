@@ -7,8 +7,8 @@
 mtype = { IDLE, COLD_START, WARM_START, NORMAL } // partition modes
 mtype partitionMode = COLD_START;
 // processes
-mtype = { NOTCREATED, STOPPED, SUSPENDED, WAITING, READY, DONE } // possible process states
-// RUNNING is not used here (all READY are possibly RUNNING)
+mtype = { NOTCREATED, STOPPED, SUSPENDED, WAITING, READY, RUNNING, DONE } // possible process states
+// of all READY the scheduler will choose one and set it to RUNNING (with prios there will only be one choice, without it will choose non-determ.)
 mtype status[nproc] = NOTCREATED; // initialize all processes as not created
 byte lockLevel; // scheduling only takes place if this is 0
 byte exclusive; // id of process that has exclusive privilige to execute if lockLevel > 0
@@ -45,7 +45,7 @@ byte tmp; // can't use skip as a placeholder. must do something. otherwise error
 // inline preInit() {
 //     status[0] = READY;
 // }
-#define preInit status[0] = READY
+#define preInit status[0] = RUNNING
 inline postInit() {
     (partitionMode == NORMAL); // block spin init until arinc init sets mode
     // at this point every resource should have been created!
@@ -61,8 +61,10 @@ inline postInit() {
     #if (nevent + 0)
     assert(events_created == nevent);
     #endif
+    printf("Done with postInit!\n");
 }
 #define canRun(proc_id) (status[proc_id] == READY && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
+#define isRunning(proc_id) (status[proc_id] == RUNNING)
 inline setReady(proc_id) {
     printf("setReady: process %d will be ready (was waiting for %e %d)\n", proc_id, waiting[proc_id].resource, waiting[proc_id].id);
     waiting[proc_id].resource = NONE;
@@ -73,6 +75,15 @@ inline setWaiting(resource_type, resource_id) {
     waiting[id].resource = resource_type; // waiting for...
     waiting[id].id = resource_id;
     status[id] = WAITING; // update process status (provided clause will block immediately)
+}
+inline changeStatus(from, to) {
+    byte i;
+    for (i in status) {
+        if
+        :: status[i] == from -> status[i] = to
+        :: else -> skip
+        fi
+    }
 }
 // fallback to macro since inline doesn't support return values...
 #define isWaiting(proc_id, resource_type, resource_id)    status[proc_id] == WAITING && waiting[proc_id].resource == resource_type && waiting[proc_id].id == resource_id
@@ -106,6 +117,7 @@ inline UnlockPreemption() { atomic {
     fi
 } }
 inline SetPartitionMode(mode) { atomic {
+    printf("SetPartitionMode(%e)\n", mode);
     partitionMode = mode;
 } }
 inline CreateProcess(proc_id, pri, per, cap) { atomic {
@@ -278,19 +290,19 @@ proctype monitor() {
         assert(semas[i] >= 0 && semas[i] <= semas_max[i]);
     }
     // at every time at least one process should be READY or all should be DONE
-    atomic {
-        byte nready = 0;
-        byte ndone = 0;
-        for(i in status) {
-            if
-            :: status[i] == READY -> nready++;
-            :: status[i] == DONE -> ndone++;
-            :: !(status[i] == READY || status[i] == DONE) -> skip
-            fi
-        }
-        if
-        :: nready == 0 && ndone < nproc -> printf("Deadlock detected (no process is READY (%d) but not all are DONE (%d))!\n", nready, ndone); assert(false);
-        :: !(nready == 0 && ndone < nproc) -> skip
-        fi
-    }
+    // atomic {
+    //     byte nready = 0;
+    //     byte ndone = 0;
+    //     for(i in status) {
+    //         if
+    //         :: status[i] == READY -> nready++;
+    //         :: status[i] == DONE -> ndone++;
+    //         :: !(status[i] == READY || status[i] == DONE) -> skip
+    //         fi
+    //     }
+    //     if
+    //     :: nready == 0 && ndone < nproc -> printf("Deadlock detected (no process is READY (%d) but not all are DONE (%d))!\n", nready, ndone); assert(false);
+    //     :: !(nready == 0 && ndone < nproc) -> skip
+    //     fi
+    // }
 }
