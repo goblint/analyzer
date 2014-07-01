@@ -1,5 +1,5 @@
-claim=${1-"pw"}
-pml=${2-"deadlock.pml"}
+pml=${1-"deadlock.pml"}
+claim=${2}
 max_depth=800000
 max_steps=800000
 rm -f $pml.trail

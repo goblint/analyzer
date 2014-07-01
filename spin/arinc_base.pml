@@ -12,10 +12,11 @@ mtype = { NOTCREATED, STOPPED, SUSPENDED, WAITING, READY, RUNNING, DONE } // pos
 mtype status[nproc] = NOTCREATED; // initialize all processes as not created
 byte lockLevel; // scheduling only takes place if this is 0
 byte exclusive; // id of process that has exclusive privilige to execute if lockLevel > 0
+byte nperiodicWait; // number of processes that did a PeriodicWait and still wait
 byte ncrit; // number of processes in critical section
 byte processes_created;
 // resources
-mtype = { NONE, SEMA, EVENT }
+mtype = { NONE, SEMA, EVENT, TIME }
 typedef Wait { mtype resource; byte id; }
 Wait waiting[nproc];
 
@@ -37,7 +38,7 @@ byte events_created;
 // debug macros
 // http://stackoverflow.com/questions/1644868/c-define-macro-for-debug-printing
 /* #define pprintf(fmt, ...)   do { printf("Proc %d: " fmt, __VA_ARGS); } while(0) */
-#define pprintf(fmt, args...)   printf("Proc %d: ", id); printf(fmt, args)
+// #define pprintf(fmt, args...)   printf("Proc %d: ", id); printf(fmt, args)
 byte tmp; // can't use skip as a placeholder. must do something. otherwise error "has unconditional self-loop"
 #define todo   tmp=0
 
@@ -63,7 +64,7 @@ inline postInit() {
     #endif
     printf("Done with postInit!\n");
 }
-#define canRun(proc_id) (status[proc_id] == READY && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
+#define canRun(proc_id) ((status[proc_id] == READY || status[proc_id] == RUNNING) && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
 #define isRunning(proc_id) (status[proc_id] == RUNNING)
 inline setReady(proc_id) {
     printf("setReady: process %d will be ready (was waiting for %e %d)\n", proc_id, waiting[proc_id].resource, waiting[proc_id].id);
@@ -85,9 +86,19 @@ inline changeStatus(from, to) {
         fi
     }
 }
+inline periodicWake() {
+    byte i;
+    for (i in status) {
+        if
+        :: status[i] == WAITING && waiting[i].resource == TIME -> status[i] = READY; waiting[i].resource = NONE; nperiodicWait--; break
+        :: else -> skip
+        fi
+    }
+}
 // fallback to macro since inline doesn't support return values...
 #define isWaiting(proc_id, resource_type, resource_id)    status[proc_id] == WAITING && waiting[proc_id].resource == resource_type && waiting[proc_id].id == resource_id
 inline removeWaiting(proc_id) {
+    #if (nsema + 0)
     // remove process from waiting queues for all semas
     byte sema_id;
     for (sema_id in semas) {
@@ -101,6 +112,7 @@ inline removeWaiting(proc_id) {
             fi
         }
     }
+    #endif
     waiting[proc_id].resource = NONE;
 }
 
@@ -267,7 +279,14 @@ inline TimedWait(time) { atomic {
     todo
 } }
 inline PeriodicWait() { atomic {
-    todo
+    // TODO PRIOS & PREEMPTION
+    #if PREEMPTION
+    status[id] = READY; // could be scheduled again right away
+    #else
+    status[id] = WAITING;
+    waiting[id].resource = TIME;
+    nperiodicWait++;
+    #endif
 } }
 
 
@@ -285,10 +304,12 @@ proctype monitor() {
     byte i;
     // at most 1 process may be in a critical region
     assert(ncrit == 0 || ncrit == 1);
+    #if (nsema + 0)
     // each semaphore value must be between 0 and max
     for(i in semas) {
         assert(semas[i] >= 0 && semas[i] <= semas_max[i]);
     }
+    #endif
     // at every time at least one process should be READY or all should be DONE
     // atomic {
     //     byte nready = 0;
