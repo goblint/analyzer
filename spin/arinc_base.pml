@@ -1,3 +1,14 @@
+// configuration defaults
+#ifndef PREEMPTION
+#define PREEMPTION 1
+#endif
+#ifndef nsema
+#define nsema 0
+#endif
+#ifndef nevent
+#define nevent 0
+#endif
+
 // arinc spin model
 // constants
 #define UP 1
@@ -20,7 +31,7 @@ mtype = { NONE, SEMA, EVENT, TIME }
 typedef Wait { mtype resource; byte id; }
 Wait waiting[nproc];
 
-#if (nsema + 0) // semaphores
+#if nsema // semaphores
 mtype = { FIFO, PRIO } // queuing discipline
 byte semas[nsema];
 byte semas_max[nsema];
@@ -28,7 +39,7 @@ chan semas_chan[nsema] = [nproc] of { byte }
 byte semas_created;
 #endif
 
-#if (nevent + 0) // events
+#if nevent // events
 bool events[nevent] = DOWN;
 /* chan events_chan[nevent] = [nroc] of { byte } */
 byte events_created;
@@ -43,6 +54,9 @@ byte tmp; // can't use skip as a placeholder. must do something. otherwise error
 #define todo   tmp=0
 
 // helpers for scheduling etc.
+#define oneIs(v) checkStatus(==, v, ||)
+#define allAre(v) checkStatus(==, v, &&)
+#define noneAre(v) checkStatus(!=, v, &&)
 // inline preInit() {
 //     status[0] = READY;
 // }
@@ -56,10 +70,10 @@ inline postInit() {
     // e.g. P2 is not created but P1 calls Start(P2)
     // -> assert that process is created or do nothing
     assert(processes_created == nproc-1); // mainfun is not created
-    #if (nsema + 0)
+    #if nsema
     assert(semas_created == nsema);
     #endif
-    #if (nevent + 0)
+    #if nevent
     assert(events_created == nevent);
     #endif
     printf("Done with postInit!\n");
@@ -98,7 +112,7 @@ inline periodicWake() {
 // fallback to macro since inline doesn't support return values...
 #define isWaiting(proc_id, resource_type, resource_id)    status[proc_id] == WAITING && waiting[proc_id].resource == resource_type && waiting[proc_id].id == resource_id
 inline removeWaiting(proc_id) {
-    #if (nsema + 0)
+    #if nsema
     // remove process from waiting queues for all semas
     byte sema_id;
     for (sema_id in semas) {
@@ -304,7 +318,10 @@ proctype monitor() {
     byte i;
     // at most 1 process may be in a critical region
     assert(ncrit == 0 || ncrit == 1);
-    #if (nsema + 0)
+    #if PREEMPTION
+    assert(nperiodicWait <= nproc);
+    #endif
+    #if nsema
     // each semaphore value must be between 0 and max
     for(i in semas) {
         assert(semas[i] >= 0 && semas[i] <= semas_max[i]);

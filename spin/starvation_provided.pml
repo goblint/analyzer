@@ -1,12 +1,9 @@
 // configuration
 #define nproc 3 // number of processes
 
-// process status macros
-#define oneIs(mode) (status[0] == mode || status[1] == mode || status[2] == mode)
-#define allAre(mode) (status[0] == mode && status[1] == mode && status[2] == mode)
-#define noneAre(mode) (status[0] != mode && status[1] != mode && status[2] != mode)
+// macro to check the status of all processes (derived macros defined in base)
+#define checkStatus(op1, v, op2) (status[0] op1 v op2 status[1] op1 v op2 status[2] op1 v)
 
-// setup arinc functions and resources
 #include "arinc_base.pml"
 
 // init
