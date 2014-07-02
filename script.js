@@ -83,6 +83,31 @@ function show_info_self(x){
   window.postMessage("load:1:"+x,"*");
 }
 
+// step forward with analysis
+function goblintNext() {
+	// if we know the function then show the graph, else try to show the whole file
+  if (getURLParameter("file")!=null) {
+    if (getURLParameter("fun")!=null) {
+		  // we know the function so we can show the graph
+      $('#file-view-frame-div').load("cfgs/"+encodeURIComponent(encodeURIComponent(getURLParameter("file")))+"/"+getURLParameter("fun")+'.svg?goblint=next',
+          function f(){
+              $("#file-view-frame-div svg").attr("width","100%");
+              $("#file-view-frame-div svg").attr("height","100%");
+              svgPanZoom.init({selector:"#file-view-frame-div svg"});
+          });
+      $('#function-button').text(getURLParameter("fun"));
+      $('#function-button').attr("href","frame.html?fun="+getURLParameter("fun")+"&file="+getURLParameter("file"));
+    } else {
+		  // we know the file only, so we show the file listing
+      $('#file-view-frame-div').empty();
+      $('#file-view-frame-div').append("<iframe class=\"borderless fill\"src=\"files/"+encodeURIComponent(encodeURIComponent(getURLParameter("file")))+".xml?line="+getURLParameter("line")+"\"></iframe>");
+
+      // fix breadcrumbs: function -- not avaliable
+      $('#function-button').css("display","none");
+      $('#function-slash').css("display","none");
+    }
+  }
+}
 
 
 // select lines from the code-listing

@@ -7,7 +7,7 @@
   <xsl:template match="map">
     <xsl:choose>
       <xsl:when test="normalize-space(.) != '' or ./@* != ''">
-        <xsl:for-each select="key" > 
+        <xsl:for-each select="key" >
           <xsl:choose>
             <xsl:when test="following-sibling::*[1]//value">
               <div class="toggle">
@@ -43,9 +43,9 @@
   <xsl:template match="set">
     <xsl:choose>
       <xsl:when test="normalize-space(.) != '' or ./@* != ''">
-          <xsl:for-each select="value" > 
+          <xsl:for-each select="value" >
             <div class="nontoggle">
-              <xsl:apply-templates select="." /> 
+              <xsl:apply-templates select="." />
             </div>
           </xsl:for-each>
       </xsl:when>
@@ -60,20 +60,20 @@
       <xsl:when test="value//value">
         <div class="toggle">
           <span>
-            <xsl:value-of select="@name" /> 
+            <xsl:value-of select="@name" />
           </span> &#8594;
           <div>
-            <xsl:apply-templates select="value" />        
+            <xsl:apply-templates select="value" />
           </div>
         </div>
       </xsl:when>
       <xsl:otherwise>
         <div class="nontoggle">
           <span class="emph">
-            <xsl:value-of select="@name" /> 
+            <xsl:value-of select="@name" />
           </span> &#8594;
           <span class="emph">
-            <xsl:apply-templates select="value" />        
+            <xsl:apply-templates select="value" />
           </span>
         </div>
       </xsl:otherwise>
@@ -86,7 +86,7 @@
         <div class="toggle">
           <span>path:</span>
           <div>
-            <xsl:apply-templates select="analysis" />        
+            <xsl:apply-templates select="analysis" />
           </div>
         </div>
       </xsl:when>
@@ -94,14 +94,14 @@
         <div class="nontoggle">
           <span>path:</span>
           <span>
-            <xsl:apply-templates select="analysis" />        
+            <xsl:apply-templates select="analysis" />
           </span>
         </div>
       </xsl:otherwise>
     </xsl:choose>
   </xsl:template>
 
-  <xsl:template match="loc">
+  <xsl:template match="call">
     <a target="_top" class="node-wrap">
         <xsl:attribute name="href">../frame.html?file=<xsl:value-of select="@file"/>&amp;fun=<xsl:value-of select="@fun"/>&amp;node=<xsl:value-of select="@id" /></xsl:attribute>
         <div class="node-id">
@@ -131,7 +131,7 @@
         <script type="text/javascript" src="../script.js"/>
       </head>
       <body onload="init_node()">
-        <xsl:apply-templates select="loc" />
+        <xsl:apply-templates select="loc/call" />
       </body>
     </html>
   </xsl:template>
