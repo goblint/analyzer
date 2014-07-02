@@ -55,6 +55,7 @@ struct
               let compls = D.join oldstate state in
                 if not (D.leq compls oldstate) then begin
                   let lst = lh_find_default vInfl v [] in
+                  update_var_event_local sigma theta x oldstate state;
                   LH.replace sigma v compls;
                   unsafe := lst @ !unsafe;
                   LH.remove vInfl v
@@ -67,6 +68,7 @@ struct
               let compgs = G.join oldgstate gstate in
                 if not (G.leq compgs oldgstate) then begin
                   let lst = gh_find_default gInfl g [] in
+                  update_var_event_global sigma theta g oldgstate compgs;
                   if tracing then tracel "theta" "Replacing value of variable \"%a\" in globals.\n" GVar.pretty_trace g;
                   GH.replace theta g compgs;
                   unsafe := lst @ !unsafe;
@@ -81,7 +83,7 @@ struct
         let old_state = lh_find_default sigma x (D.bot ()) in
         let new_val = D.join !local_state old_state in
         if not (D.leq new_val old_state) then begin
-          update_var_event_write sigma theta x old_state new_val;
+          update_var_event_local sigma theta x old_state new_val;
           update_var_event x old_state new_val;
           LH.replace sigma x new_val;
           let influenced_vars = ref [] in
@@ -115,6 +117,7 @@ struct
       let add_start (v,d) =
         incr Goblintutil.vars;
         LH.add sigma v d;
+        update_var_event_local sigma theta v (D.bot ()) d;
         let edges = fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system v) ([],0)) in
         LH.add todo v edges;
         workset := v :: !workset
@@ -131,6 +134,7 @@ struct
           List.iter recallConstraint !unsafe;
           unsafe := []
       done;
+      done_event sigma theta;
       stop_event ();
       (sigma, theta)
 end

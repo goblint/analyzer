@@ -75,7 +75,7 @@ struct
         | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.vid
     in
     let l = MyCFG.getLoc n in
-    BatPrintf.fprintf f "<loc id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte
+    BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte
 
   let var_id n =
     match n with
@@ -297,8 +297,8 @@ struct
         | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
     in
     let print_one (loc,n,fd) v =
-      BatPrintf.fprintf f "<loc id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\">\n" print_id n loc.file loc.line loc.byte;
-      BatPrintf.fprintf f "%a</loc>\n" Range.printXml v
+      BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\">\n" print_id n loc.file loc.line loc.byte;
+      BatPrintf.fprintf f "%a</call>\n" Range.printXml v
     in
     iter print_one xs
 
@@ -370,7 +370,7 @@ struct
           let write_file f fn =
             Messages.xml_file_name := fn;
             BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
-            BatPrintf.fprintf f "<run><call>%a</call><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+            BatPrintf.fprintf f "<run><parameters>%a</parameters><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
             BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (SH.keys file2funs);
             BatPrintf.fprintf f "%a" printXml (Lazy.force table);
             gtfxml f gtable;
