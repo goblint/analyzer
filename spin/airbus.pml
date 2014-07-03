@@ -4,7 +4,7 @@
 #define nevent 1 // number of events
 
 // setup arinc functions and resources
-#include "arinc_base.pml"
+#include "arinc.base.pml"
 
 // init
 init {

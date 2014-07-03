@@ -315,7 +315,7 @@ let save_promela_model () =
     ("#define nproc "^string_of_int nproc) ::
     ("#define nsema "^string_of_int nsema) ::
     ("#define nevent "^string_of_int nevent) :: "" ::
-    "#include \"arinc_base.pml\"" :: "" ::
+    "#include \"arinc.base.pml\"" :: "" ::
     "init {" :: List.map indent init_body @ "}" :: "" ::
     ltls @ "" ::
     (List.of_enum @@ (0 --^ nproc) /@ (fun i -> "#define PRIO" ^ string_of_int i)) @

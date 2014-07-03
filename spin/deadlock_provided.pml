@@ -6,7 +6,7 @@
 #define checkStatus(op1, v, op2) (status[0] op1 v op2 status[1] op1 v op2 status[2] op1 v)
 
 // setup arinc functions and resources
-#include "arinc_base.pml"
+#include "arinc.base.pml"
 
 // init
 init {

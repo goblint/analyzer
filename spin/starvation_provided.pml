@@ -4,7 +4,7 @@
 // macro to check the status of all processes (derived macros defined in base)
 #define checkStatus(op1, v, op2) (status[0] op1 v op2 status[1] op1 v op2 status[2] op1 v)
 
-#include "arinc_base.pml"
+#include "arinc.base.pml"
 
 // init
 init {
