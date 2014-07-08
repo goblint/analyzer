@@ -167,6 +167,7 @@ struct
   | INVALID_CONFIG -> 4
   | INVALID_MODE   -> 5
   | TIMED_OUT      -> 6
+  let pname_ErrorHandler = "ErrorHandler"
 
   (* set of processes to spawn once partition mode is set to NORMAL *)
   let processes = ref []
@@ -177,7 +178,6 @@ struct
     let d : D.t = ctx.local in
     let is_arinc_fun = startsWith "LAP_Se_" f.vname in
     let is_creating_fun = startsWith "LAP_Se_Create" f.vname in
-    let is_error_handler = false in (* TODO *)
     (* if is_arinc_fun then M.debug_each @@ "d.callstack: " ^ D.string_of_callstack d.callstack; *)
     if M.tracing && is_arinc_fun then (
       let args_str = String.concat ", " (List.map (sprint d_exp) arglist) in
@@ -189,7 +189,8 @@ struct
     (* M.debug_each @@ "Inside function "^curfun.svar.vname; *)
     let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "special: Pid.to_int = None inside function "^curfun.svar.vname in
     let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "special: no processname for pid in Hashtbl!" in
-    let curpid = Process, pname in
+    let is_error_handler = pname = pname_ErrorHandler in
+    let curid = Process, pname in
     let eval_int exp =
       match ctx.ask (Queries.EvalInt exp) with
       | `Int i -> i
@@ -370,35 +371,35 @@ struct
           let pid = eval_id pid in
           if List.is_empty pid then d else add_action (Stop pid) d
       | "LAP_Se_StopSelf", [] ->
-          add_action (Stop [curpid]) d
+          add_action (Stop [curid]) d
       | "LAP_Se_Suspend", [pid; r] ->
           let pid = eval_id pid in
           if List.is_empty pid then d else add_action (Suspend pid) d
       | "LAP_Se_SuspendSelf", [timeout; r] -> (* TODO timeout *)
-          add_action (Suspend [curpid]) d
+          add_action (Suspend [curid]) d
       | "LAP_Se_Resume", [pid; r] ->
           let pid = eval_id pid in
           if List.is_empty pid then d else add_action (Resume pid) d
-    (* Logbook *)
+    (* Logbook - not used *)
       | "LAP_Se_CreateLogBook", [name; max_size; max_logged; max_in_progress; lbid; r] -> todo ()
       | "LAP_Se_ReadLogBook", _ -> todo ()
       | "LAP_Se_WriteLogBook", _ -> todo ()
       | "LAP_Se_ClearLogBook", _ -> todo ()
       | "LAP_Se_GetLogBookId", _ -> todo ()
       | "LAP_Se_GetLogBookStatus", _ -> todo ()
-    (* SamplingPort *)
+    (* SamplingPort - inter-partition *)
       | "LAP_Se_CreateSamplingPort", [name; max_size; dir; period; spid; r] -> todo ()
       | "LAP_Se_WriteSamplingMessage", _ -> todo ()
       | "LAP_Se_ReadSamplingMessage", _ -> todo ()
       | "LAP_Se_GetSamplingPortId", _ -> todo ()
       | "LAP_Se_GetSamplingPortStatus", _ -> todo ()
-    (* QueuingPort *)
+    (* QueuingPort - inter-partition *)
       | "LAP_Se_CreateQueuingPort", [name; max_size; max_range; dir; queuing; qpid; r] -> todo ()
       | "LAP_Se_SendQueuingMessage", _ -> todo ()
       | "LAP_Se_ReceiveQueuingMessage", _ -> todo ()
       | "LAP_Se_GetQueuingPortId", _ -> todo ()
       | "LAP_Se_GetQueuingPortStatus", _ -> todo ()
-    (* Buffer *)
+    (* Buffer - not used *)
       | "LAP_Se_CreateBuffer", [name; max_size; max_range; queuing; buid; r] -> todo ()
       | "LAP_Se_SendBuffer", _ -> todo ()
       | "LAP_Se_ReceiveBuffer", _ -> todo ()
@@ -463,14 +464,14 @@ struct
       | "LAP_Se_CreateErrorHandler", [entry_point; stack_size; r] ->
           begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
           | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-              let name = "ErrorHandler" in
+              let pid = get_pid pname_ErrorHandler in
               let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* int64 -> D.t *)
+                let f_d pre = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* int64 -> D.t *)
                 add_process (f,f_d)
               in
               List.iter spawn funs;
-              add_action (CreateErrorHandler ((Process, name), funs)) d
+              add_action (CreateErrorHandler ((Process, pname_ErrorHandler), funs)) d
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
           end
       | "LAP_Se_GetErrorStatus", [status; r] -> todo ()

@@ -2,6 +2,9 @@
 #ifndef PREEMPTION
 #define PREEMPTION 1
 #endif
+#ifndef nbboard
+#define nbboard 0
+#endif
 #ifndef nsema
 #define nsema 0
 #endif
@@ -11,8 +14,10 @@
 
 // arinc spin model
 // constants
-#define UP 1
-#define DOWN 0
+#define DOWN  0 // events
+#define UP    1
+#define EMPTY 0 // blackboards
+#define NONEMPTY 1
 
 // partition
 mtype = { IDLE, COLD_START, WARM_START, NORMAL } // partition modes
@@ -27,9 +32,14 @@ byte nperiodicWait; // number of processes that did a PeriodicWait and still wai
 byte ncrit; // number of processes in critical section
 byte processes_created;
 // resources
-mtype = { NONE, SEMA, EVENT, TIME }
+mtype = { NONE, BLACKBOARD, SEMA, EVENT, TIME }
 typedef Wait { mtype resource; byte id; }
 Wait waiting[nproc];
+
+#if nbboard // blackboards
+bool bboards[nbboard] = EMPTY;
+byte bboards_created;
+#endif
 
 #if nsema // semaphores
 mtype = { FIFO, PRIO } // queuing discipline
@@ -70,6 +80,9 @@ inline postInit() {
     // e.g. P2 is not created but P1 calls Start(P2)
     // -> assert that process is created or do nothing
     assert(processes_created == nproc-1); // mainfun is not created
+    #if nbboard
+    assert(bboards_created == nbboard);
+    #endif
     #if nsema
     assert(semas_created == nsema);
     #endif
@@ -190,17 +203,33 @@ inline Resume(proc_id) { atomic {
     :: status[proc_id] != SUSPENDED -> skip
     fi
 } }
+// blocking behavior of blackboards and events are very similar
 inline CreateBlackboard(bb_id) { atomic {
-    todo
+    printf("CreateBlackboard: id %d\n", bb_id);
+    bboards[bb_id] = NONEMPTY;
+    bboards_created++;
 } }
 inline DisplayBlackboard(bb_id) { atomic {
-    todo
+    // filter processes waiting for bb_id
+    byte i;
+    for (i in status) {
+        if
+        :: isWaiting(i, BLACKBOARD, bb_id) ->
+            setReady(i);
+            // no break, since we want to wake all processes waiting for this BLACKBOARD
+        :: !(isWaiting(i, BLACKBOARD, bb_id)) -> skip
+        fi
+    }
+    bboards[bb_id] = NONEMPTY;
 } }
 inline ReadBlackboard(bb_id) { atomic {
-    todo
+    if
+    :: bboards[bb_id] == EMPTY -> setWaiting(BLACKBOARD, bb_id);
+    :: bboards[bb_id] == NONEMPTY -> skip // nothing to do
+    fi
 } }
 inline ClearBlackboard(bb_id) { atomic {
-    todo
+    bboards[bb_id] = EMPTY;
 } }
 inline CreateSemaphore(sema_id, cur, max, queuing) { atomic {
     printf("CreateSemaphore: id %d, current %d, max %d, queuing %e\n", sema_id, cur, max, queuing);
@@ -264,7 +293,7 @@ inline SignalSemaphore(sema_id) { atomic {
     fi
 } }
 inline CreateEvent(event_id) { atomic {
-    todo;
+    printf("CreateEvent: id %d\n", event_id);
     events_created++;
 } }
 inline WaitEvent(event_id) { atomic {
@@ -289,9 +318,6 @@ inline SetEvent(event_id) { atomic {
 inline ResetEvent(event_id) { atomic {
     events[event_id] = DOWN;
 } }
-inline TimedWait(time) { atomic {
-    todo
-} }
 inline PeriodicWait() { atomic {
     // TODO PRIOS & PREEMPTION
     #if PREEMPTION
@@ -301,6 +327,9 @@ inline PeriodicWait() { atomic {
     waiting[id].resource = TIME;
     nperiodicWait++;
     #endif
+} }
+inline TimedWait(time) { atomic {
+    PeriodicWait(); // TODO is this okay?
 } }
 
 

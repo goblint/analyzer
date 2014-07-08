@@ -234,11 +234,13 @@ let save_promela_model () =
   let indent s = "\t"^s in
   let procs  = List.unique @@ filter_map_actions (function CreateProcess x -> Some x | _ -> None) in
   let has_error_handler = not @@ List.is_empty @@ filter_actions (function CreateErrorHandler _ -> true | _ -> false) in
-  let semas  = List.unique @@ filter_map_actions (function CreateSemaphore x -> Some x | _ -> None) in
-  let events = List.unique @@ filter_map_actions (function CreateEvent id -> Some id | _ -> None) in
-  let nproc  = List.length procs + 1 + (if has_error_handler then 1 else 0) in (* +1 is init process *)
-  let nsema  = List.length semas in
-  let nevent = List.length events in
+  let bboards = List.unique @@ filter_map_actions (function CreateBlackboard id -> Some id | _ -> None) in
+  let semas   = List.unique @@ filter_map_actions (function CreateSemaphore x -> Some x | _ -> None) in
+  let events  = List.unique @@ filter_map_actions (function CreateEvent id -> Some id | _ -> None) in
+  let nproc   = List.length procs + 1 + (if has_error_handler then 1 else 0) in (* +1 is init process *)
+  let nbboard = List.length bboards in
+  let nsema   = List.length semas in
+  let nevent  = List.length events in
   let run_processes = List.map (fun x -> let name = snd x.pid in let id = id_pml x.pid in id, "run "^name^"("^str_i64 id^");") procs |> List.sort (compareBy fst) |> List.map snd in
   let init_body =
     "preInit;" ::
@@ -313,6 +315,7 @@ let save_promela_model () =
   let process_defs = Hashtbl.keys !edges |> List.of_enum |> List.sort (compareBy str_pid_pml) |> List.map process_def |> List.concat in
   let promela = String.concat "\n" @@
     ("#define nproc "^string_of_int nproc) ::
+    ("#define nbboard "^string_of_int nbboard) ::
     ("#define nsema "^string_of_int nsema) ::
     ("#define nevent "^string_of_int nevent) :: "" ::
     "#include \"arinc.base.pml\"" :: "" ::
