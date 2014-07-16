@@ -24,6 +24,8 @@ struct
   type semaphore = { sid: id; cur: int64; max: int64; queuing: int64 }
 end
 type action =
+  | Nop
+  | Cond of string
   | Call of string
   | LockPreemption | UnlockPreemption | SetPartitionMode of int64
   | CreateProcess of Action.process | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
@@ -62,6 +64,13 @@ let funs_for_process id : varinfo list =
   in
   filter_map_actions get_funs |> List.concat |> List.unique
 
+let return_vars = (Hashtbl.create 100 : (id * [`Branch | `Call], string Set.t) Hashtbl.t)
+let add_return_var pid kind var = Hashtbl.modify_def Set.empty (pid, kind) (Set.add var) return_vars
+let get_return_vars pid =
+  let calls    = Hashtbl.find_default return_vars (pid, `Call) Set.empty in
+  let branches = Hashtbl.find_default return_vars (pid, `Branch) Set.empty in
+  Set.union calls branches
+
 (* constants and helpers *)
 let infinity = 4294967295L (* time value used for infinity *)
 let string_of_partition_mode = function
@@ -91,6 +100,8 @@ let str_resource id =
       name
 let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]"
 let str_action pid = function
+  | Nop -> "Nop"
+  | Cond s -> "If "^s
   | Call fname -> "Call "^fname
   | LockPreemption -> "LockPreemption"
   | UnlockPreemption -> "UnlockPreemption"
@@ -133,6 +144,8 @@ let str_id_pml id = str_i64 @@ id_pml id
 let str_pid_pml id = (if fst id = Process then "P" else "F") ^ str_id_pml id (* process or function *)
 let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 let str_action_pml pid = function
+  | Nop -> ""
+  | Cond s -> s ^ " -> "
   | Call fname ->
       (* TODO we shouldn't have calls to functions without edges in the first place! *)
       if Hashtbl.mem !edges (Function, fname) then "Fun_"^fname^"();" else ""
@@ -140,8 +153,7 @@ let str_action_pml pid = function
   | UnlockPreemption -> "UnlockPreemption();"
   | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
   | CreateProcess x ->
-      let open Action in
-      "CreateProcess("^str_id_pml x.pid^", "^str_i64 x.pri^", "^str_i64 x.per^", "^str_i64 x.cap^"); // "^str_resource x.pid^" (prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")\n"
+      Action.("CreateProcess("^str_id_pml x.pid^", "^str_i64 x.pri^", "^str_i64 x.per^", "^str_i64 x.cap^"); /* "^str_resource x.pid^" (prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^") */")
   | CreateErrorHandler (id, funs) -> "CreateErrorHandler("^str_id_pml id^");"
   | Start ids -> str_ids_pml ids (fun id -> "Start("^id^");")
   | Stop ids -> str_ids_pml ids (fun id -> "Stop("^id^");")
@@ -247,7 +259,7 @@ let save_promela_model () =
     "run mainfun(0);" :: (* keep mainfun as name for init process? *)
     "postInit();" ::
     "run monitor();" ::
-    (if has_error_handler then "run ErrorHandler("^str_id_pml (Process, "ErrorHandler")^")" else "") ::
+    (if has_error_handler then "run ErrorHandler("^str_id_pml (Process, "ErrorHandler")^")" else "// no ErrorHandler") ::
     run_processes
   in
   let process_def id =
@@ -280,7 +292,8 @@ let save_promela_model () =
       else
         edges
     in
-    let body = goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if fst id = Process then " status[id] = DONE" else ""] in
+    let locals = if fst id = Process then Set.elements (get_return_vars id) |> List.map (fun vname -> "byte " ^ vname ^ ";") else [] in
+    let body = locals @ goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if fst id = Process then " status[id] = DONE" else ""] in
     let head = match id with
       | Process, name ->
           let proc = find_option (fun x -> x.pid=id) procs in (* None for mainfun *)

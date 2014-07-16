@@ -10,7 +10,8 @@
 				"suite_result",
 				"src",
 				".vagrant",
-				"webapp"
+				"webapp",
+				"g2html"
 			],
 			"file_exclude_patterns": ["goblint"],
 			"path": "."
@@ -33,7 +34,8 @@
 				"result",
 				"suite_result",
 				".vagrant",
-				"webapp"
+				"webapp",
+				"g2html"
 			],
 			"file_exclude_patterns": ["*.sublime-*"],
 			"patterns":

@@ -687,6 +687,7 @@ struct
       | `Index (i,o) -> Index (i, to_ciloffs o)
       | `Field (f,o) -> Field (f, to_ciloffs o)
 
+  let to_lval (v,o) = Var v, to_ciloffs o
   let to_exp (v,o) = Lval (Var v, to_ciloffs o)
 
   let short _ (v,o) = short_offs o (GU.demangle v.vname)

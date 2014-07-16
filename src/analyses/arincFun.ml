@@ -67,8 +67,9 @@ struct
         Hashtbl.replace h k id;
         id
   end
-  module CtxTbl = SymTbl (struct end) (* generative functor *)
 
+  (* context hash to differentiate function calls *)
+  module CtxTbl = SymTbl (struct end) (* generative functor *)
   let current_ctx_hash () = let hash = !MyCFG.current_ctx_hash |? 0 in string_of_int @@ CtxTbl.get hash
   let current_ctx_short () = !MyCFG.current_ctx_short |? "None"
   let print_current_ctx ?info name f args =
@@ -80,17 +81,88 @@ struct
   let is_single ctx =
     let fl : BaseDomain.Flag.t = snd (Obj.obj (List.assoc "base" ctx.presub)) in
     not (BaseDomain.Flag.is_multi fl)
-
   let part_mode_var = makeGlobalVar "__GOBLINT_ARINC_MUTLI_THREADED" voidPtrType
 
   let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
+
+  let is_return_code_type exp = typeOf exp |> unrollTypeDeep |> function
+    | TEnum(ei, _) when ei.ename = "T13" -> true
+    | _ -> false
+  let return_code_is_success = function 0L | 1L -> true | _ -> false
+
+  type env = { node: MyCFG.node; fundec: fundec; pname: string; procid: ArincFunUtil.id; id: ArincFunUtil.id }
+  let get_env ctx =
+    let open ArincFunUtil in let _ = 42 in
+    let node = Option.get !MyCFG.current_node in
+    (* determine if we are at the root of a process or in some called function *)
+    let fundec = MyCFG.getFun node in
+    let curpid = match Pid.to_int ctx.local.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname in
+    let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "get_env: no processname for pid in Hashtbl!" in
+    let procid = Process, pname in
+    let pfuns = funs_for_process (Process,pname) in
+    let id = if List.exists ((=) fundec.svar) pfuns || is_mainfun fundec.svar.vname then Process, pname else Function, fname_ctx fundec.svar in
+    { node; fundec; pname; procid; id }
+  let add_edges id action dst_node d =
+    Pred.iter (fun node -> ArincFunUtil.add_edge id (node, action, dst_node)) d.pred
+  let str_return_lval env (v,o as lval) =
+    (* sprint d_lval (Lval.CilLval.to_lval lval) ^ "_" ^ sprint d_loc v.vdecl *)
+    let vname = sprint d_lval (Lval.CilLval.to_lval lval) in
+    let vname_escaped = Str.global_replace (Str.regexp "[^a-zA-Z0-9]") "_" vname in
+    vname_escaped ^ "_" ^ string_of_int v.vdecl.line
+  let add_return_lval env kind lval =
+    ArincFunUtil.add_return_var env.procid kind (str_return_lval env lval)
+  let mayPointTo ?must:(must=false) ctx exp =
+    match ctx.ask (Queries.MayPointTo exp) with
+    | `LvalSet a when not (Queries.LS.is_top a) && (not must || Queries.LS.cardinal a = 1) ->
+        Some (Queries.LS.elements a)
+    | _ -> None
+  let iterMayPointTo ctx exp f = mayPointTo ctx exp |? [] |> List.iter f
+
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
+    (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
+    (* only if we don't assume success, we need to consider branching on return codes *)
+    if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
+    let env = get_env ctx in
+    let check a b tv =
+      (* we are interested in a comparison between some lval lval (which has the type of the return code enum) and a value of that enum (which gets converted to an Int by CIL) *)
+      match a, b with
+      | v, Const CInt64(i,_,_)
+      | Const CInt64(i,_,_), v when is_return_code_type v ->
+        let success = return_code_is_success i = tv in (* both must be true or false *)
+        ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line);
+        (match env.node with
+        | MyCFG.Statement({ skind = If(e, bt, bf, loc) } as stmt) ->
+          (* 1. write out edges to predecessors, 2. set predecessors to current node, 3. write edge to the first node of the taken branch and set it as predecessor *)
+          (* M.debug_each @@ "branch: If(" ^ (sprint d_exp e) ^ ") then " ^ (sprint d_block bt) ^ " else " ^ (sprint d_block bf); *)
+          let then_node = MyCFG.Statement (List.hd bt.bstmts) in
+          (* the then-block always has some stmts, but the else-block might be empty! in this case we use the successors of the if instead. *)
+          let else_stmts = if List.is_empty bf.bstmts then stmt.succs else bf.bstmts in
+          let else_node = MyCFG.Statement (List.hd else_stmts) in
+          let dst_node = if tv then then_node else else_node in
+          add_edges env.id ArincFunUtil.Nop env.node ctx.local;
+          let d_then = { ctx.local with pred = Pred.of_node env.node } in
+          (* now we have to add Pos/Neg-edges (depending on tv) for everything v may point to *)
+          let f lval =
+            let cond = str_return_lval env lval ^ " == " ^ string_of_int (i64_to_int i) in
+            let cond = if tv then cond else "!(" ^ cond ^ ")" in
+            add_edges env.id (ArincFunUtil.Cond cond) dst_node d_then;
+            add_return_lval env `Branch lval
+          in
+          iterMayPointTo ctx v f;
+          { ctx.local with pred = Pred.of_node dst_node }
+        | _ -> failwith "branch: current_node is not an If")
+      | _ -> ctx.local
+    in
+    match exp with
+    (* TODO limit to BinOp Eq/Ne? Could also be other type of expression! *)
+    | BinOp(Eq, a, b, _) -> check (stripCasts a) (stripCasts b) tv
+    | BinOp(Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
+    | _ -> ctx.local
 
   let checkPredBot d tf f xs =
     if d.pred = Pred.bot () then M.debug_each @@ tf^": mapping is BOT!!! function: "^f.vname^". "^(String.concat "\n" @@ List.map (fun (n,d) -> n ^ " = " ^ Pretty.sprint 200 (Pred.pretty () d.pred)) xs);
@@ -122,16 +194,9 @@ struct
     let f_ctx_hash = "f_ctx_hash = " ^ string_of_int (!last_ctx_hash |? -1) in
     (* somehow context is only right if f_ctx_hash == current_ctx_hash *)
     print_current_ctx ~info:f_ctx_hash "combine" f args;
+    let env = get_env ctx in
     let d_caller = ctx.local in
     let d_callee = au in
-    let current_node = Option.get !MyCFG.current_node in
-    (* determine if we are in some function or at the root of a process to get the key *)
-    let curfun = MyCFG.getFun current_node in
-    let curpid = match Pid.to_int ctx.local.pid with Some i -> i | None -> failwith @@ "combine: Pid.to_int = None inside function "^curfun.svar.vname in
-    let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "combine: no processname for pid in Hashtbl!" in
-    let open ArincFunUtil in
-    let pfuns = funs_for_process (Process,pname) in
-    let pid = if List.exists ((=) curfun.svar) pfuns || is_mainfun curfun.svar.vname then Process, pname else Function, fname_ctx curfun.svar in
     (* check if the callee has some relevant edges, i.e. advanced from the entry point. if not, we generate no edge for the call and keep the predecessors from the caller *)
     if Pred.is_bot d_callee.pred then failwith "d_callee.pred is bot!"; (* set should never be empty *)
     if Pred.equal d_callee.pred (Pred.of_node (MyCFG.Function f)) then
@@ -141,10 +206,10 @@ struct
       (* if Option.is_some !last_ctx_hash && current_ctx_hash () = string_of_int (Option.get !last_ctx_hash) then *)
       if Ctx.is_int d_callee.ctx then (
         let ctx = Ctx.to_int d_callee.ctx |> Option.get |> i64_to_int |> CtxTbl.get |> string_of_int in
-        Pred.iter (fun node -> add_edge pid (node, Call (fname_ctx ~ctx:ctx f), current_node)) d_caller.pred
+        add_edges env.id (ArincFunUtil.Call (fname_ctx ~ctx:ctx f)) env.node d_caller
       );
       (* set current node as new predecessor, since something interesting happend during the call *)
-      { d_callee with pred = Pred.of_node current_node; ctx = d_caller.ctx }
+      { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
     )
 
   (* ARINC utility functions *)
@@ -178,19 +243,14 @@ struct
     let d : D.t = ctx.local in
     let is_arinc_fun = startsWith "LAP_Se_" f.vname in
     let is_creating_fun = startsWith "LAP_Se_Create" f.vname in
-    (* if is_arinc_fun then M.debug_each @@ "d.callstack: " ^ D.string_of_callstack d.callstack; *)
+    let env = get_env ctx in
     if M.tracing && is_arinc_fun then (
       let args_str = String.concat ", " (List.map (sprint d_exp) arglist) in
       (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
-      M.debug_each @@ "found "^f.vname^"("^args_str^")"
+      M.debug_each @@ "found "^f.vname^"("^args_str^") in "^env.fundec.svar.vname
     );
-    let curfun = MyCFG.getFun (Option.get !MyCFG.current_node) in (* current_node should always be set here *)
-    print_current_ctx ~info:("inside "^curfun.svar.vname) "special" f arglist;
-    (* M.debug_each @@ "Inside function "^curfun.svar.vname; *)
-    let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "special: Pid.to_int = None inside function "^curfun.svar.vname in
-    let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "special: no processname for pid in Hashtbl!" in
-    let is_error_handler = pname = pname_ErrorHandler in
-    let curid = Process, pname in
+    print_current_ctx ~info:("inside "^env.fundec.svar.vname) "special" f arglist;
+    let is_error_handler = env.pname = pname_ErrorHandler in
     let eval_int exp =
       match ctx.ask (Queries.EvalInt exp) with
       | `Int i -> i
@@ -219,28 +279,28 @@ struct
     let assign_id_by_name resource_type name id =
       assign_id id (get_id (resource_type, eval_str name))
     in
-    let current_node = Option.get !MyCFG.current_node in
     let add_action action d =
-      (* determine parent: Process or Function? *)
-      let pfuns = funs_for_process (Process,pname) in
-      let pid = if List.exists ((=) curfun.svar) pfuns || is_mainfun curfun.svar.vname then Process, pname else Function, fname_ctx curfun.svar in
-      (* add edges for all predecessor nodes (from pred. node to current_node) *)
-      Pred.iter (fun node -> ArincFunUtil.add_edge pid (node, action, current_node)) d.pred;
+      (* add edges for all predecessor nodes (from pred. node to env.node) *)
+      add_edges env.id action env.node d;
       (* update domain by replacing the set of pred. nodes with the current node *)
-      D.pred (const @@ Pred.of_node current_node) d
+      D.pred (const @@ Pred.of_node env.node) d
     in
     let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else d in
-    let assume_success exp =
-      let f lval = ctx.assign ~name:"base" lval (integer @@ int_from_return_code NO_ERROR) in
+(*     let mapMayPointTo f exp =
       match exp with
       | AddrOf lval -> f lval
       | _ ->
-        M.debug_each @@ "assume_success: expected &r. Found "^sprint d_exp exp^". Try to query...";
+        M.debug_each @@ "mapMayPointTo: expected &r. Found "^sprint d_exp exp^". Try to query...";
         match ctx.ask (Queries.MayPointTo exp) with
         | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a = 1 ->
             let lval = Queries.LS.choose a |> fst |> var in
             f lval
-        | _ -> failwith @@ "assume_success: could not find out what "^sprint d_exp exp^" may point to..."
+        | _ -> failwith @@ "mapMayPointTo: could not find out what "^sprint d_exp exp^" may point to..."
+    in *)
+    let assume_success exp =
+      (* TODO NO_ACTION should probably also be assumed a success *)
+      let f lval = ctx.assign ~name:"base" lval (integer @@ int_from_return_code NO_ERROR) in
+      iterMayPointTo ctx exp (f % Lval.CilLval.to_lval)
     in
     let invalidate_arg exp =
       () (* TODO this is currently done in base b/c there is no interface for invalidating things (maybe use special value for assign or add new function to ctx?) *)
@@ -251,7 +311,8 @@ struct
       if GobConfig.get_bool "ana.arinc.assume_success" then
         assume_success r
       else
-        invalidate_arg r
+        invalidate_arg r;
+        iterMayPointTo ctx r (add_return_lval env `Call)
     );
     match f.vname, arglist with
       | _ when is_arinc_fun && is_creating_fun && not(mode_is_init d.pmo) ->
@@ -361,7 +422,7 @@ struct
           assign_id_by_name Process name pid; d
       | "LAP_Se_GetProcessStatus", [pid; status; r] -> todo ()
       | "LAP_Se_GetMyId", [pid; r] ->
-          assign_id pid (get_id (Process,pname)); d
+          assign_id pid (get_id env.procid); d
       | "LAP_Se_Start", [pid; r] ->
           (* at least one process should be started in main *)
           let pid = eval_id pid in
@@ -371,12 +432,13 @@ struct
           let pid = eval_id pid in
           if List.is_empty pid then d else add_action (Stop pid) d
       | "LAP_Se_StopSelf", [] ->
-          add_action (Stop [curid]) d
+          if mode_is_init d.pmo then failwith @@ "The behavior of " ^ f.vname ^ " is not defined in WARM_START/COLD_START!";
+          add_action (Stop [env.procid]) d
       | "LAP_Se_Suspend", [pid; r] ->
           let pid = eval_id pid in
           if List.is_empty pid then d else add_action (Suspend pid) d
       | "LAP_Se_SuspendSelf", [timeout; r] -> (* TODO timeout *)
-          add_action (Suspend [curid]) d
+          add_action (Suspend [env.procid]) d
       | "LAP_Se_Resume", [pid; r] ->
           let pid = eval_id pid in
           if List.is_empty pid then d else add_action (Resume pid) d
