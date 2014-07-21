@@ -2,7 +2,17 @@
 
 typedef char * SEMAPHORE_NAME_TYPE;
 typedef void * SEMAPHORE_ID_TYPE;
-typedef int    RETURN_CODE_TYPE;
+/* typedef int    RETURN_CODE_TYPE; */
+enum T13 {
+    NO_ERROR = 0,   // request valid and operation performed
+    NO_ACTION = 1,  // status of system unaffected by request
+    NOT_AVAILABLE = 2,  // resource required by request unavailable
+    INVALID_PARAM = 3,  // invalid parameter specified in request
+    INVALID_CONFIG = 4, // parameter incompatible with configuration
+    INVALID_MODE = 5,   // request incompatible with current mode
+    TIMED_OUT = 6   // time-out tied up with request has expired
+} ;
+typedef enum T13 RETURN_CODE_TYPE;
 typedef int    SEMAPHORE_VALUE_TYPE;
 typedef void * QUEUING_DISCIPLINE_TYPE;
 /* typedef int    SYSTEM_TIME_TYPE; // in monit.c it is defined as unsigned long, PDF says signed 64bit */
@@ -33,6 +43,7 @@ typedef int PROCESS_ID_TYPE;
 
 extern void LAP_Se_CreateProcess(PROCESS_ATTRIBUTE_TYPE*, PROCESS_ID_TYPE*, RETURN_CODE_TYPE*);
 
+extern void LAP_Se_GetMyId(PROCESS_ID_TYPE*, RETURN_CODE_TYPE*);
 extern void LAP_Se_Start(PROCESS_ID_TYPE, RETURN_CODE_TYPE*);
 
 typedef
@@ -61,7 +72,7 @@ void foo(int b) {
   RETURN_CODE_TYPE r;
   if(b) foo2();
   // if(b) LAP_Se_PeriodicWait(&r);
-  SEMAPHORE_ID_TYPE pid;
+  PROCESS_ID_TYPE pid;
   LAP_Se_GetMyId(&pid, &r);
   LAP_Se_Start(pid, &r);
   // if(bg) LAP_Se_PeriodicWait(&r);
@@ -91,6 +102,8 @@ void P2(void){
   RETURN_CODE_TYPE r;
   while (1){
     LAP_Se_WaitSemaphore(sem_id,600,&r);
+    if(r == NO_ERROR)
+        LAP_Se_PeriodicWait(&r);
     g = g - 1;    // NOWARN!
     g2 = g2 + 1;  // RACE!
     LAP_Se_SignalSemaphore(sem_id,&r);

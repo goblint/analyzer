@@ -35,8 +35,8 @@ type action =
   | TimedWait of time | PeriodicWait
 type node = MyCFG.node
 let string_of_node = ArincFunDomain.Pred.string_of_elt
-type edge = node * action * node
-let action_of_edge (_, action, _) = action
+type edge = node * action * string option * node
+let action_of_edge (_, action, _, _) = action
 type edges = (id, edge Set.t) Hashtbl.t
 let edges = ref (Hashtbl.create 199 : edges)
 
@@ -107,7 +107,7 @@ let str_action pid = function
   | UnlockPreemption -> "UnlockPreemption"
   | SetPartitionMode i -> "SetPartitionMode "^string_of_partition_mode i
   | CreateProcess x ->
-      let open Action in "CreateProcess "^str_resource x.pid^" (funs "^str_funs x.funs^", prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")"
+      Action.("CreateProcess "^str_resource x.pid^" (funs "^str_funs x.funs^", prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")")
   | CreateErrorHandler (id, funs) -> "CreateErrorHandler "^str_resource id
   | Start ids -> "Start "^str_resources ids
   | Stop ids when ids=[pid] -> "StopSelf"
@@ -120,7 +120,7 @@ let str_action pid = function
   | ReadBlackboard (ids, timeout) -> "ReadBlackboard "^str_resources ids^" (timeout "^str_time timeout^")"
   | ClearBlackboard ids -> "ClearBlackboard "^str_resources ids
   | CreateSemaphore x ->
-      let open Action in "CreateSemaphore "^str_resource x.sid^" ("^str_i64 x.cur^"/"^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^")"
+      Action.("CreateSemaphore "^str_resource x.sid^" ("^str_i64 x.cur^"/"^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^")")
   | WaitSemaphore ids -> "WaitSemaphore "^str_resources ids
   | SignalSemaphore ids -> "SignalSemaphore "^str_resources ids
   | CreateEvent id -> "CreateEvent "^str_resource id
@@ -129,6 +129,7 @@ let str_action pid = function
   | ResetEvent ids -> "ResetEvent "^str_resources ids
   | TimedWait t -> "TimedWait "^str_time t
   | PeriodicWait -> "PeriodicWait"
+let str_return_code = function Some r -> " : " ^ r | None -> ""
 (* spin/promela *)
 let pml_resources = Hashtbl.create 13
 let _ = Hashtbl.add pml_resources (Process, "mainfun") 0L
@@ -164,8 +165,7 @@ let str_action_pml pid = function
   | ReadBlackboard (ids, timeout) -> str_ids_pml ids (fun id -> "ReadBlackboard("^id^");")
   | ClearBlackboard ids -> str_ids_pml ids (fun id -> "ClearBlackboard("^id^");")
   | CreateSemaphore x ->
-      let open Action in
-      "CreateSemaphore("^str_id_pml x.sid^", "^str_i64 x.cur^", "^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^");"
+      Action.("CreateSemaphore("^str_id_pml x.sid^", "^str_i64 x.cur^", "^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^");")
   | WaitSemaphore ids -> str_ids_pml ids (fun id -> "WaitSemaphore("^id^");")
   | SignalSemaphore ids -> str_ids_pml ids (fun id -> "SignalSemaphore("^id^");")
   | CreateEvent id -> "CreateEvent("^str_id_pml id^");"
@@ -174,6 +174,9 @@ let str_action_pml pid = function
   | ResetEvent ids -> str_ids_pml ids (fun id -> "ResetEvent("^id^");")
   | TimedWait t -> "TimedWait("^str_i64 t^");"
   | PeriodicWait -> "PeriodicWait();"
+let str_return_code_pml action = function
+  | Some r -> "RET(" ^ action ^ ", " ^ r ^ ");"
+  | None -> action
 
 (* helpers *)
 let comp2 f g a b = f (g a) (g b) (* why is this not in batteries? *)
@@ -187,7 +190,7 @@ let simplify () =
   let replace_call oldname newname =
     (* M.debug_each @@ "Replacing function calls to "^oldname^" with "^newname; *)
     let f = function
-      | a, Call x, b when x = oldname -> a, Call newname, b
+      | a, Call x, r, b when x = oldname -> a, Call newname, r, b
       | x -> x
     in
     Hashtbl.map_inplace (fun _ v -> Set.map f v) !edges
@@ -203,7 +206,7 @@ let simplify () =
   List.iter (uncurry merge) dups;
   (* contract call chains: replace functions which only contain another call *)
   let rec contract_call_chains () =
-    let single_calls = Hashtbl.filter_map (fun (res,_) v -> match Set.choose v with _, Call name, _ when Set.cardinal v = 1 && res = Function -> Some (Function, name) | _ -> None) !edges in
+    let single_calls = Hashtbl.filter_map (fun (res,_) v -> match Set.choose v with _, Call name, _, _ when Set.cardinal v = 1 && res = Function -> Some (Function, name) | _ -> None) !edges in
     let last_calls = Hashtbl.filteri (fun k v -> not @@ Hashtbl.mem single_calls v) single_calls in
     Hashtbl.iter (fun k v ->
       replace_call (snd k) (snd v);
@@ -216,7 +219,7 @@ let simplify () =
 let print_actions () =
   let print_process pid =
     let str_node = string_of_node in
-    let str_edge (a, action, b) = str_node a ^ " -> " ^ str_action pid action ^ " -> " ^ str_node b in
+    let str_edge (a, action, r, b) = str_node a ^ " -> " ^ str_action pid action ^ str_return_code r ^ " -> " ^ str_node b in
     let xs = Set.map str_edge (get_edges pid) in
     M.debug @@ str_resource pid^" ->\n\t"^String.concat "\n\t" (Set.elements xs)
   in
@@ -233,7 +236,7 @@ let save_dot_graph () =
   let dot_process pid =
     (* 1 -> w1 [label="fopen(_)"]; *)
     let str_node x = "\"" ^ str_pid_pml pid ^ "_" ^ string_of_node x ^ "\"" in (* quote node names for dot *)
-    let str_edge (a, action, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ "\"]" in
+    let str_edge (a, action, r, b) = str_node a ^ "\t->\t" ^ str_node b ^ "\t[label=\"" ^ str_action pid action ^ str_return_code r ^ "\"]" in
     let xs = Set.map str_edge (get_edges pid) |> Set.elements in
     ("subgraph \"cluster_"^str_resource pid^"\" {") :: xs @ ("label = \""^str_resource pid^"\";") :: ["}\n"]
   in
@@ -269,19 +272,19 @@ let save_promela_model () =
     let module HashtblN = Hashtbl.Make (ArincFunDomain.Pred.Base) in
     let module SetN = Set.Make (ArincFunDomain.Pred.Base) in
     let a2bs = HashtblN.create 97 in
-    Set.iter (fun (a, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
+    Set.iter (fun (a, _, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
     let nodes = HashtblN.keys a2bs |> List.of_enum in
     (* let get_a (a,_,_) = a in *)
-    let get_b (_,_,b) = b in
+    let get_b (_,_,_,b) = b in
     (* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (* Set.empty leads to Out_of_memory!? *) *)
     let out_edges node = try HashtblN.find a2bs node |> Set.elements with Not_found -> [] in
     let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
     let start_node = List.find (List.is_empty % in_edges) nodes in (* node with no incoming edges is the start node *)
     (* let str_nodes xs = "{"^(List.map string_of_node xs |> String.concat ",")^"}" in *)
-    let label n = let node_str = if (MyCFG.getLoc n).line = -1 then "0" else string_of_node n in spid ^ "_" ^ node_str in
+    let label n = spid ^ "_" ^ string_of_node n in
     let end_label = spid ^ "_end" in
     let goto node = "goto " ^ label node in
-    let str_edge (a, action, b) = let target = if List.is_empty (out_edges b) then "goto "^end_label else goto b in str_action_pml id action ^ " " ^ target in
+    let str_edge (a, action, r, b) = let target = if List.is_empty (out_edges b) then "goto "^end_label else goto b in str_return_code_pml (str_action_pml id action) r ^ " " ^ target in
     let choice xs = List.map (fun x -> "::\t"^x ) xs in (* choices in if-statements are prefixed with :: *)
     let walk_edges (a, out_edges) =
       (* str_action_pml filters out calls to functions that have no definitions *)
@@ -292,7 +295,7 @@ let save_promela_model () =
       else
         edges
     in
-    let locals = if fst id = Process then Set.elements (get_return_vars id) |> List.map (fun vname -> "byte " ^ vname ^ ";") else [] in
+    let locals = if not @@ GobConfig.get_bool "ana.arinc.assume_success" && fst id = Process then Set.elements (get_return_vars id) |> List.map (fun vname -> "byte " ^ vname ^ ";") else [] in
     let body = locals @ goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if fst id = Process then " status[id] = DONE" else ""] in
     let head = match id with
       | Process, name ->
