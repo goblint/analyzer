@@ -278,6 +278,7 @@ struct
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
+    let old_hash = !current_ctx_hash in
     let _       = current_node := Some u in
     let _       = current_ctx_hash := Some (S.C.hash c) in
     (* let _       = current_ctx_short := Some (S.C.short 500 c) in *)
@@ -286,6 +287,7 @@ struct
                   with M.StopTheWorld -> D.bot ()
                      | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
     let _       = current_node := old_node in
+    let _       = current_ctx_hash := old_hash in
       d
 
   let system (v,c) =

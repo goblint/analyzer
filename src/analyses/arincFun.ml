@@ -109,13 +109,12 @@ struct
     { node; fundec; pname; procid; id }
   let add_edges id action r dst_node d =
     Pred.iter (fun node -> ArincFunUtil.add_edge id (node, action, r, dst_node)) d.pred
-  let str_return_dlval (v,o as lval) =
-    (* sprint d_lval (Lval.CilLval.to_lval lval) ^ "_" ^ sprint d_loc v.vdecl *)
-    let vname = sprint d_lval (Lval.CilLval.to_lval lval) in
+  let str_return_dlval (v,o as dlval) =
+    let vname = sprint d_lval (Lval.CilLval.to_lval dlval) in
     let vname_escaped = Str.global_replace (Str.regexp "[^a-zA-Z0-9]") "_" vname in
     vname_escaped ^ "_" ^ string_of_int v.vdecl.line
-  let add_return_lval env kind lval =
-    ArincFunUtil.add_return_var env.procid kind (str_return_dlval lval)
+  let add_return_dlval env kind dlval =
+    ArincFunUtil.add_return_var env.procid kind (str_return_dlval dlval)
   let mayPointTo ?must:(must=false) ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a) && (not must || Queries.LS.cardinal a = 1) ->
@@ -139,13 +138,11 @@ struct
       match a, b with
       | Lval lval, Const CInt64(i,_,_)
       | Const CInt64(i,_,_), Lval lval when is_return_code_type (Lval lval) ->
-        let success = return_code_is_success i = tv in (* both must be true or false *)
-        ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line);
+        (* let success = return_code_is_success i = tv in (* both must be true or false *) *)
+        (* ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line); *)
         (match env.node with
         | MyCFG.Statement({ skind = If(e, bt, bf, loc) } as stmt) ->
           (* 1. write out edges to predecessors, 2. set predecessors to current node, 3. write edge to the first node of the taken branch and set it as predecessor *)
-          (* M.debug_each @@ "branch: If(" ^ (sprint d_exp e) ^ ") then " ^ (sprint d_block bt) ^ " else " ^ (sprint d_block bf); *)
-          (* let mkDummyNode line = MyCFG.Statement (mkStmtOneInstr @@ dInstr (d_instr () dummyInstr) { !Tracing.current_loc with line = line }) in *)
           let mkDummyNode line = MyCFG.Statement { (mkStmtOneInstr @@ Set (lval, Lval lval, { !Tracing.current_loc with line = line })) with sid = SidTbl.get line } in
           let mkDummyNodeFromStmt stmt = mkDummyNode ((get_stmtLoc stmt.skind).line * -1) in
           (* the then-block always has some stmts, but the else-block might be empty! in this case we use the successors of the if instead. *)
@@ -153,21 +150,25 @@ struct
           let else_stmts = if List.is_empty bf.bstmts then stmt.succs else bf.bstmts in
           let else_node = mkDummyNodeFromStmt @@ List.hd else_stmts in
           let dst_node = if tv then then_node else else_node in
-          let d_if = if List.length stmt.preds > 1 then (
+          let d_if = if List.length stmt.preds > 1 then ( (* seems like this never happens *)
+              M.debug_each @@ "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
               add_edges env.id ArincFunUtil.Nop None env.node ctx.local;
               { ctx.local with pred = Pred.of_node env.node }
             ) else ctx.local
           in
           (* now we have to add Pos/Neg-edges (depending on tv) for everything v may point to *)
           let f dlval =
-            let cond = str_return_dlval dlval ^ " == " ^ str_return_code i in
+            let str_dlval = str_return_dlval dlval in
+            if Lval.CilLval.class_tag dlval = `Global then
+              M.debug_each @@ "WARN: branch: use of global lval: " ^ str_dlval;
+            let cond = str_dlval ^ " == " ^ str_return_code i in
             let cond = if tv then cond else "!(" ^ cond ^ ")" in
-            add_edges env.id (ArincFunUtil.Cond cond) None dst_node d_if;
-            add_return_lval env `Branch dlval
+            add_edges env.id (ArincFunUtil.Cond (str_dlval, cond)) None dst_node d_if;
+            add_return_dlval env `Branch dlval
           in
           iterMayPointTo ctx (AddrOf lval) f;
           { ctx.local with pred = Pred.of_node dst_node }
-        | _ -> failwith "branch: current_node is not an If")
+        | _ -> failwith "branch: current_node is not an If") (* this should never happen since CIL transforms switch *)
       | _ -> ctx.local
     in
     match exp with
@@ -199,7 +200,7 @@ struct
     print_current_ctx "enter" f args;
     (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug_each doesn't print anything here *) *)
     let d_caller = ctx.local in
-    let d_callee = { ctx.local with pred = Pred.of_node (MyCFG.Function f) } in (* set predecessor set to start node of function *)
+    let d_callee = { ctx.local with pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
@@ -292,17 +293,6 @@ struct
       assign_id id (get_id (resource_type, eval_str name))
     in
     let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else d in
-(*     let mapMayPointTo f exp =
-      match exp with
-      | AddrOf lval -> f lval
-      | _ ->
-        M.debug_each @@ "mapMayPointTo: expected &r. Found "^sprint d_exp exp^". Try to query...";
-        match ctx.ask (Queries.MayPointTo exp) with
-        | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a = 1 ->
-            let lval = Queries.LS.choose a |> fst |> var in
-            f lval
-        | _ -> failwith @@ "mapMayPointTo: could not find out what "^sprint d_exp exp^" may point to..."
-    in *)
     let assume_success exp =
       (* TODO NO_ACTION should probably also be assumed a success *)
       let f lval = ctx.assign ~name:"base" lval (integer @@ int_from_return_code NO_ERROR) in
@@ -328,7 +318,9 @@ struct
           add_actions [action,None]
         ) else (
           invalidate_arg r;
-          iterMayPointTo ctx r (add_return_lval env `Call);
+          iterMayPointTo ctx r (add_return_dlval env `Call);
+          (* warn about setting globals! *)
+          iterMayPointTo ctx r (fun dlval -> if Lval.CilLval.class_tag dlval = `Global then M.debug_each @@ "WARN: special: use of global lval: " ^ str_return_dlval dlval);
           (* add action for all lvals r may point to *)
           add_actions @@ mapMayPointTo ctx r (fun dlval -> action, Some(str_return_dlval dlval))
         )

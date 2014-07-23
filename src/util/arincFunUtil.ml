@@ -25,7 +25,7 @@ struct
 end
 type action =
   | Nop
-  | Cond of string
+  | Cond of string * string
   | Call of string
   | LockPreemption | UnlockPreemption | SetPartitionMode of int64
   | CreateProcess of Action.process | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
@@ -66,10 +66,8 @@ let funs_for_process id : varinfo list =
 
 let return_vars = (Hashtbl.create 100 : (id * [`Branch | `Call], string Set.t) Hashtbl.t)
 let add_return_var pid kind var = Hashtbl.modify_def Set.empty (pid, kind) (Set.add var) return_vars
-let get_return_vars pid =
-  let calls    = Hashtbl.find_default return_vars (pid, `Call) Set.empty in
-  let branches = Hashtbl.find_default return_vars (pid, `Branch) Set.empty in
-  Set.union calls branches
+let get_return_vars pid kind =
+  Hashtbl.find_default return_vars (pid, kind) Set.empty
 
 (* constants and helpers *)
 let infinity = 4294967295L (* time value used for infinity *)
@@ -101,7 +99,7 @@ let str_resource id =
 let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]"
 let str_action pid = function
   | Nop -> "Nop"
-  | Cond s -> "If "^s
+  | Cond (r, cond) -> "If "^r^", "^cond
   | Call fname -> "Call "^fname
   | LockPreemption -> "LockPreemption"
   | UnlockPreemption -> "UnlockPreemption"
@@ -146,10 +144,10 @@ let str_pid_pml id = (if fst id = Process then "P" else "F") ^ str_id_pml id (* 
 let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 let str_action_pml pid = function
   | Nop -> ""
-  | Cond s -> s ^ " -> "
+  | Cond (r, cond) -> if Set.mem r (get_return_vars pid `Call) then cond ^ " -> " else ""
   | Call fname ->
       (* TODO we shouldn't have calls to functions without edges in the first place! *)
-      if Hashtbl.mem !edges (Function, fname) then "Fun_"^fname^"();" else ""
+      if Hashtbl.mem !edges (Function, fname) then "Fun_"^fname^"();" else failwith @@ "call to undefined function " ^ fname
   | LockPreemption -> "LockPreemption();"
   | UnlockPreemption -> "UnlockPreemption();"
   | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
@@ -174,9 +172,9 @@ let str_action_pml pid = function
   | ResetEvent ids -> str_ids_pml ids (fun id -> "ResetEvent("^id^");")
   | TimedWait t -> "TimedWait("^str_i64 t^");"
   | PeriodicWait -> "PeriodicWait();"
-let str_return_code_pml action = function
-  | Some r -> "RET(" ^ action ^ ", " ^ r ^ ");"
-  | None -> action
+let str_return_code_pml id action = function
+  | Some r when Set.mem r (get_return_vars id `Branch) -> "RET(" ^ action ^ ", " ^ r ^ ");"
+  | _ -> action
 
 (* helpers *)
 let comp2 f g a b = f (g a) (g b) (* why is this not in batteries? *)
@@ -270,7 +268,6 @@ let save_promela_model () =
     let spid = str_pid_pml id in
     (* build adjacency matrix for all nodes of this process *)
     let module HashtblN = Hashtbl.Make (ArincFunDomain.Pred.Base) in
-    let module SetN = Set.Make (ArincFunDomain.Pred.Base) in
     let a2bs = HashtblN.create 97 in
     Set.iter (fun (a, _, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
     let nodes = HashtblN.keys a2bs |> List.of_enum in
@@ -284,7 +281,7 @@ let save_promela_model () =
     let label n = spid ^ "_" ^ string_of_node n in
     let end_label = spid ^ "_end" in
     let goto node = "goto " ^ label node in
-    let str_edge (a, action, r, b) = let target = if List.is_empty (out_edges b) then "goto "^end_label else goto b in str_return_code_pml (str_action_pml id action) r ^ " " ^ target in
+    let str_edge (a, action, r, b) = let target = if List.is_empty (out_edges b) then "goto "^end_label else goto b in str_return_code_pml id (str_action_pml id action) r ^ " " ^ target in
     let choice xs = List.map (fun x -> "::\t"^x ) xs in (* choices in if-statements are prefixed with :: *)
     let walk_edges (a, out_edges) =
       (* str_action_pml filters out calls to functions that have no definitions *)
@@ -295,7 +292,7 @@ let save_promela_model () =
       else
         edges
     in
-    let locals = if not @@ GobConfig.get_bool "ana.arinc.assume_success" && fst id = Process then Set.elements (get_return_vars id) |> List.map (fun vname -> "byte " ^ vname ^ ";") else [] in
+    let locals = if not @@ GobConfig.get_bool "ana.arinc.assume_success" && fst id = Process then Set.elements (Set.intersect (get_return_vars id `Branch) (get_return_vars id `Call)) |> List.map (fun vname -> "byte " ^ vname ^ ";") else [] in
     let body = locals @ goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if fst id = Process then " status[id] = DONE" else ""] in
     let head = match id with
       | Process, name ->
