@@ -4,7 +4,7 @@
 # goblint
 
 ## Setup
-### Linux, OS X
+### Linux 
 Install [opam](https://github.com/OCamlPro/opam) [[Quick Install](http://opam.ocamlpro.com/doc/Quick_Install.html)] and check that your OCaml version is at least 4.01.0. You can use `opam switch` to manage installations. Then do
 
     opam install ocamlfind batteries cil xml-light
@@ -16,7 +16,19 @@ After that you can build goblint:
     cd analyzer
     make
 
-If something goes wrong, take a look at [travis-ci.sh](scripts/travis-ci.sh) for an example setup.
+If something goes wrong, take a look at [travis-ci.sh](scripts/travis-ci.sh) for an example setup. 
+You may now try running goblint: `./goblint tests/regression/04-mutex/01-simple_rc.c`.
+
+### Mac OS X
+
+The above instructions for Linux work just as well for Mac OS X. Goblint
+successfully compiles, but it may fail to parse files. We need `cpp` in order
+to preprocess source files and current versions of the clang frontend will not
+work with goblint. You therefore have to do, e.g., `brew install gcc`, and if
+you do not want to mess with Apple's default wiring, you can edit src/config.ml
+and set the cpp variable to the gcc version installed by homebrew (currently
+"cpp-4.9").
+
 
 ### Windows/Cygwin
 For a goblint binary package, follow [these instructions](http://goblint.in.tum.de/download.html).

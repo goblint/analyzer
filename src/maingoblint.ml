@@ -142,8 +142,8 @@ let preprocess_one_file cppflags includes dirName fname =
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat dirName (Filename.basename fname) in
 
-  (* Preprocess using gcc -E *)
-  let command = "gcc --undef __BLOCKS__ -E " ^ cppflags ^ " " ^ includes ^ " " ^ fname ^ " -o " ^ nname in
+  (* Preprocess using cpp. *)
+  let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " " ^ includes ^ " " ^ fname ^ " -o " ^ nname in
   if get_bool "dbg.verbose" then print_endline command;
 
   (* if something goes wrong, we need to clean up and exit *)

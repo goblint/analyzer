@@ -131,6 +131,23 @@ regs.sort.each do |d|
   end
 end
 
+cmds = {"code2html" => lambda {|f,o| "code2html -l c -n #{f} 2> /dev/null 1> #{o}"},
+        "source-highlight" => lambda {|f,o| "source-highlight -n -i #{f} -o #{o}"},
+        "pygmentize" => lambda {|f,o| "pygmentize -O full,linenos=1 -o #{o} #{f}"}
+       }
+highlighter = nil
+cmds.each do |name, cmd|
+  # if `which #{cmd} 2> /dev/null`.empty? then
+  if ENV['PATH'].split(':').map {|f| File.executable? "#{f}/#{name}"}.include?(true) then
+    highlighter = cmd
+    break
+  end
+end
+if highlighter.nil? then
+  puts "Warning: No syntax highlighter installed (code2html, source-highlight, pygmentize)."
+  highlighter = lambda {|f,o| "cp #{f} #{o}"} 
+end
+
 #analysing the files
 startdir = Dir.pwd
 strs = ["Analysing","Testing","Goblinting"]
@@ -148,19 +165,8 @@ projects.each do |p|
 #   solfile = File.join(testresults, p.name + ".sol.txt")
   cilfile = File.join(testresults, p.name + ".cil.txt")
   orgfile = File.join(testresults, p.name + ".c.html")
-  cmds = {"code2html" => "-l c -n #{filename} 2> /dev/null 1> #{orgfile}",
-          "source-highlight" => "-n -i #{filename} -o #{orgfile}",
-          "pygmentize" => "-O full,linenos=1 -o #{orgfile} #{filename}"}
-  cmds.each do |cmd, args|
-      # if `which #{cmd} 2> /dev/null`.empty? then
-      if ENV['PATH'].split(':').map {|f| File.executable? "#{f}/#{cmd}"}.include?(true) then
-          `#{cmd} #{args}`
-          break
-      else
-          puts "#{cmd} not found!"
-      end
-  end
   # `code2html -l c -n #{filename} > #{orgfile}`
+  system(highlighter.call(filename, orgfile))
   `#{goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
   p.size = `wc -l #{cilfile}`.split[0]
   starttime = Time.now
