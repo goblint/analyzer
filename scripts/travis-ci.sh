@@ -28,10 +28,10 @@ fi
 
 
 # install ocaml and friends, see http://anil.recoil.org/2013/09/30/travis-and-ocaml.html
-OPAM_DEPENDS="ocamlfind camomile batteries xml-light cil"
+OPAM_DEPENDS="batteries xml-light cil"
 
 # use default versions if none are set in environment
-case "${OCAML_VERSION:=4.01.0},${OPAM_VERSION:=1.0.0}" in
+case "${OCAML_VERSION:=4.01.0},${OPAM_VERSION:=1.1.0}" in
 3.12.1,1.0.0) ppa=avsm/ocaml312+opam10 ;;
 3.12.1,1.1.0) ppa=avsm/ocaml312+opam11 ;;
 4.00.1,1.0.0) ppa=avsm/ocaml40+opam10 ;;
@@ -51,4 +51,4 @@ eval `opam config env`
 
 
 # compile
-./make.sh
+./make.sh nat
