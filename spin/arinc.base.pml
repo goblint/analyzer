@@ -20,11 +20,6 @@
 #define NONEMPTY 1
 #define SUCCESS 0   // return codes
 #define ERROR 1
-#define RET(action, rvar)   \
-    if\
-    :: action; rvar = SUCCESS\
-    :: rvar = ERROR\
-    fi
 
 // partition
 mtype = { IDLE, COLD_START, WARM_START, NORMAL } // partition modes
@@ -62,21 +57,18 @@ bool events[nevent] = DOWN;
 byte events_created;
 #endif
 
-
-// debug macros
-// http://stackoverflow.com/questions/1644868/c-define-macro-for-debug-printing
-/* #define pprintf(fmt, ...)   do { printf("Proc %d: " fmt, __VA_ARGS); } while(0) */
-// #define pprintf(fmt, args...)   printf("Proc %d: ", id); printf(fmt, args)
-byte tmp; // can't use skip as a placeholder. must do something. otherwise error "has unconditional self-loop"
-#define todo   tmp=0
-
 // helpers for scheduling etc.
 #define oneIs(v) checkStatus(==, v, ||)
 #define allAre(v) checkStatus(==, v, &&)
 #define noneAre(v) checkStatus(!=, v, &&)
-// inline preInit() {
-//     status[0] = READY;
-// }
+
+// LTL formulas
+ltl pw { ! (eventually always oneIs(WAITING)) }
+ltl ps { ! (eventually always oneIs(SUSPENDED)) }
+// starvation: process will always be READY but never RUNNING
+// ltl pr { ! (eventually always oneIs(READY)) }
+
+
 #define preInit status[0] = RUNNING
 inline postInit() {
     (partitionMode == NORMAL); // block spin init until arinc init sets mode

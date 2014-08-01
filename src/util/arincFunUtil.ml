@@ -147,9 +147,9 @@ let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 let str_action_pml pid = function
   | Nop -> ""
   | Cond (r, cond) -> if Set.mem r (get_return_vars pid `Call) then cond ^ " -> " else ""
-  | Param (callee, caller) -> callee^" = "^caller
+  | Param (callee, caller) -> callee^" = "^caller^";"
   | Call fname ->
-      (* TODO we shouldn't have calls to functions without edges in the first place! *)
+      (* we shouldn't have calls to functions without edges! *)
       if Hashtbl.mem !edges (Function, fname) then "Fun_"^fname^"();" else failwith @@ "call to undefined function " ^ fname
   | LockPreemption -> "LockPreemption();"
   | UnlockPreemption -> "UnlockPreemption();"
@@ -176,7 +176,7 @@ let str_action_pml pid = function
   | TimedWait t -> "TimedWait("^str_i64 t^");"
   | PeriodicWait -> "PeriodicWait();"
 let str_return_code_pml id action = function
-  | Some r -> "RET(" ^ action ^ ", " ^ r ^ ");"
+  | Some r -> "if :: "^action^" "^r^" = SUCCESS :: "^r^" = ERROR fi;"
   | _ -> action
 
 (* helpers *)
@@ -308,13 +308,8 @@ let save_promela_model () =
     in
     "" :: head :: List.map indent body @ ["}"]
   in
-  (* generate ltl claims *)
-  let ltls =
-    let claim name status = "ltl " ^ name ^ " { ! (eventually always (" ^ (String.concat " || " @@ List.of_enum @@ (0 --^ nproc) /@ (fun i -> "status["^string_of_int i^"] == " ^ status)) ^ ")) }" in
-    (* no task may remain waiting or suspended: *)
-    claim "pw" "WAITING" ::
-    claim "ps" "SUSPENDED" :: []
-  in
+  (* used for macros oneIs, allAre, noneAre... *)
+  let checkStatus = "(" ^ (String.concat " op2 " @@ List.of_enum @@ (0 --^ nproc) /@ (fun i -> "status["^string_of_int i^"] op1 v")) ^ ")" in
   (* generate priority based running constraints for each process (only used ifdef PRIOS): process can only run if no higher prio process is ready *)
   let prios =
     let def proc =
@@ -334,9 +329,9 @@ let save_promela_model () =
     ("#define nbboard "^string_of_int nbboard) ::
     ("#define nsema "^string_of_int nsema) ::
     ("#define nevent "^string_of_int nevent) :: "" ::
+    ("#define checkStatus(op1, v, op2) "^checkStatus) :: "" ::
     "#include \"arinc.base.pml\"" :: "" ::
     "init {" :: List.map indent init_body @ "}" :: "" ::
-    ltls @ "" ::
     (List.of_enum @@ (0 --^ nproc) /@ (fun i -> "#define PRIO" ^ string_of_int i)) @
     "#ifdef PRIOS" :: prios @ "#endif" ::
     process_defs

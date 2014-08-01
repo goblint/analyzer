@@ -232,13 +232,15 @@ struct
         let fctx = Ctx.to_int d_callee.ctx |> Option.get |> i64_to_int |> CtxTbl.get |> string_of_int in
         let assign pred dst_node callee_var caller_dlval =
           let callee_dlval = callee_var, `NoOffset in
-          (* add edge to an intermediate node that assigns the caller return code to the one of the function param *)
+          (* add edge to an intermediate node that assigns the caller return code to the one of the function params *)
           add_edges env.id (ArincFunUtil.Param (str_return_dlval callee_dlval, str_return_dlval caller_dlval)) None dst_node { d_caller with pred = pred };
           (* we also need to add the callee param as a `Call lval so that we see that it is written to *)
           add_return_dlval env `Call callee_dlval;
+          (* also add the caller param because it is read *)
+          add_return_dlval env `Branch caller_dlval;
         in
         (* we need to assign all lvals each caller arg may point to *)
-        let last_pred = List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (Lval caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
+        let last_pred = if GobConfig.get_bool "ana.arinc.assume_success" then d_caller.pred else List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (AddrOf caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
         add_edges env.id (ArincFunUtil.Call (fname_ctx ~ctx:fctx f)) None env.node { d_caller with pred = last_pred }
       );
       (* set current node as new predecessor, since something interesting happend during the call *)
