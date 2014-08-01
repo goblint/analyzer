@@ -5,9 +5,9 @@
 
 ## Setup
 ### Linux, OS X
-Install [opam](https://github.com/OCamlPro/opam) [[Quick Install](http://opam.ocamlpro.com/doc/Quick_Install.html)], then do
+Install [opam](https://github.com/OCamlPro/opam) [[Quick Install](http://opam.ocamlpro.com/doc/Quick_Install.html)] and check that your OCaml version is at least 4.01.0. You can use `opam switch` to manage installations. Then do
 
-    opam install ocamlfind camomile batteries cil xml-light
+    opam install ocamlfind batteries cil xml-light
 
 to install the latest versions of the dependencies for the current user.
 After that you can build goblint:
@@ -16,9 +16,7 @@ After that you can build goblint:
     cd analyzer
     make
 
-If something goes wrong, take a look at [travis-ci.sh](scripts/travis-ci.sh) for an example setup or try the versions listed in [INSTALL](INSTALL).
-
-Alternatively you can use your system's package manager to install the dependencies globally or use [install_script.sh](scripts/install_script.sh) to build everything from source without affecting any existing OCaml installation.
+If something goes wrong, take a look at [travis-ci.sh](scripts/travis-ci.sh) for an example setup.
 
 ### Windows/Cygwin
 For a goblint binary package, follow [these instructions](http://goblint.in.tum.de/download.html).
