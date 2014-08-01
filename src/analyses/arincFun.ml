@@ -55,25 +55,30 @@ struct
   let context d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
   (* let val_of d = d *)
 
-  module SymTbl (Values :
-  sig
-    type v
-    val getNew: v Enum.t -> v
-  end) =
+  module type GenSig = sig type k type v val getNew: v Enum.t -> v end
+  module type SymTblSig = sig type k type v val get: k -> v end
+  module SymTbl (Gen: GenSig) : SymTblSig with type k = Gen.k and type v = Gen.v =
   struct
-    let h = Hashtbl.create 123
+    type k = Gen.k
+    type v = Gen.v
+    let h = (Hashtbl.create 123 : (k, v) Hashtbl.t)
     let get k =
       try Hashtbl.find h k
       with Not_found ->
-        let v = Values.getNew (Hashtbl.values h) in
+        let v = Gen.getNew (Hashtbl.values h) in
         Hashtbl.replace h k v;
         v
   end
 
-  (* table from line to new sid for newly created intermediate statement nodes *)
-  module SidTbl = SymTbl (struct type v = int let getNew xs = new_sid () end) (* generative functor *)
+  (* function for creating a new intermediate node (will generate a new sid every time!) *)
+  let mkDummyNode ?loc line =
+    let loc = { (loc |? !Tracing.current_loc) with line = line } in
+    MyCFG.Statement { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc)) with sid = new_sid () }
+  (* table from sum type to negative line number for new intermediate node (-1 to -4 have special meanings) *)
+  type tmpNodeUse = Branch of stmt | Combine of lval
+  module NodeTbl = SymTbl (struct type k = tmpNodeUse type v = MyCFG.node let getNew xs = mkDummyNode @@ -5 - (List.length (List.of_enum xs)) end)
   (* context hash to differentiate function calls *)
-  module CtxTbl = SymTbl (struct type v = int let getNew xs = if Enum.is_empty xs then 0 else (Enum.arg_max identity xs)+1 end) (* generative functor *)
+  module CtxTbl = SymTbl (struct type k = int type v = int let getNew xs = if Enum.is_empty xs then 0 else (Enum.arg_max identity xs)+1 end) (* generative functor *)
   let current_ctx_hash () = let hash = !MyCFG.current_ctx_hash |? 0 in string_of_int @@ CtxTbl.get hash
   let current_ctx_short () = !MyCFG.current_ctx_short |? "None"
   let print_current_ctx ?info name f args =
@@ -110,9 +115,8 @@ struct
   let add_edges id action r dst_node d =
     Pred.iter (fun node -> ArincFunUtil.add_edge id (node, action, r, dst_node)) d.pred
   let str_return_dlval (v,o as dlval) =
-    let vname = sprint d_lval (Lval.CilLval.to_lval dlval) in
-    let vname_escaped = Str.global_replace (Str.regexp "[^a-zA-Z0-9]") "_" vname in
-    vname_escaped ^ "_" ^ string_of_int v.vdecl.line
+    sprint d_lval (Lval.CilLval.to_lval dlval) ^ "_" ^ string_of_int v.vdecl.line |>
+    Str.global_replace (Str.regexp "[^a-zA-Z0-9]") "_"
   let add_return_dlval env kind dlval =
     ArincFunUtil.add_return_var env.procid kind (str_return_dlval dlval)
   let mayPointTo ?must:(must=false) ctx exp =
@@ -143,12 +147,10 @@ struct
         (match env.node with
         | MyCFG.Statement({ skind = If(e, bt, bf, loc) } as stmt) ->
           (* 1. write out edges to predecessors, 2. set predecessors to current node, 3. write edge to the first node of the taken branch and set it as predecessor *)
-          let mkDummyNode line = MyCFG.Statement { (mkStmtOneInstr @@ Set (lval, Lval lval, { !Tracing.current_loc with line = line })) with sid = SidTbl.get line } in
-          let mkDummyNodeFromStmt stmt = mkDummyNode ((get_stmtLoc stmt.skind).line * -1) in
           (* the then-block always has some stmts, but the else-block might be empty! in this case we use the successors of the if instead. *)
-          let then_node = mkDummyNodeFromStmt @@ List.hd bt.bstmts in
+          let then_node = NodeTbl.get @@ Branch (List.hd bt.bstmts) in
           let else_stmts = if List.is_empty bf.bstmts then stmt.succs else bf.bstmts in
-          let else_node = mkDummyNodeFromStmt @@ List.hd else_stmts in
+          let else_node = NodeTbl.get @@ Branch (List.hd else_stmts) in
           let dst_node = if tv then then_node else else_node in
           let d_if = if List.length stmt.preds > 1 then ( (* seems like this never happens *)
               M.debug_each @@ "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
@@ -218,8 +220,26 @@ struct
       (* write out edges with call to f coming from all predecessor nodes of the caller *)
       (* if Option.is_some !last_ctx_hash && current_ctx_hash () = string_of_int (Option.get !last_ctx_hash) then *)
       if Ctx.is_int d_callee.ctx then (
-        let ctx = Ctx.to_int d_callee.ctx |> Option.get |> i64_to_int |> CtxTbl.get |> string_of_int in
-        add_edges env.id (ArincFunUtil.Call (fname_ctx ~ctx:ctx f)) None env.node d_caller
+        (* before doing the call we need to assign call-by-value return code parameters
+           we only need to take care of them and not AddrOf args since those are found by query *)
+        (* TODO optimally we would track if the caller_exp was used as a return code in an ARINC call before;
+           as a first step we should check if its value is top (if it's set to some value and not invalidated by a call, then we are not interested in creating branches for it) *)
+        let check (callee_var,caller_exp) = match stripCasts caller_exp with
+          | Lval lval when is_return_code_type (Lval (var callee_var)) -> Some (callee_var, lval)
+          | _ -> None
+        in
+        let rargs = List.combine (Cilfacade.getdec f).sformals args |> List.filter_map check in
+        let fctx = Ctx.to_int d_callee.ctx |> Option.get |> i64_to_int |> CtxTbl.get |> string_of_int in
+        let assign pred dst_node callee_var caller_dlval =
+          let callee_dlval = callee_var, `NoOffset in
+          (* add edge to an intermediate node that assigns the caller return code to the one of the function param *)
+          add_edges env.id (ArincFunUtil.Param (str_return_dlval callee_dlval, str_return_dlval caller_dlval)) None dst_node { d_caller with pred = pred };
+          (* we also need to add the callee param as a `Call lval so that we see that it is written to *)
+          add_return_dlval env `Call callee_dlval;
+        in
+        (* we need to assign all lvals each caller arg may point to *)
+        let last_pred = List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (Lval caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
+        add_edges env.id (ArincFunUtil.Call (fname_ctx ~ctx:fctx f)) None env.node { d_caller with pred = last_pred }
       );
       (* set current node as new predecessor, since something interesting happend during the call *)
       { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }

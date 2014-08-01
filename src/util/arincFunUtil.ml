@@ -26,6 +26,7 @@ end
 type action =
   | Nop
   | Cond of string * string
+  | Param of string * string (* var_callee = var_caller *)
   | Call of string
   | LockPreemption | UnlockPreemption | SetPartitionMode of int64
   | CreateProcess of Action.process | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
@@ -99,7 +100,8 @@ let str_resource id =
 let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]"
 let str_action pid = function
   | Nop -> "Nop"
-  | Cond (r, cond) -> "If "^r^", "^cond
+  | Cond (r, cond) -> if Set.mem r (get_return_vars pid `Call) then "If "^cond else ""
+  | Param (callee, caller) -> "Assign "^callee^" = "^caller
   | Call fname -> "Call "^fname
   | LockPreemption -> "LockPreemption"
   | UnlockPreemption -> "UnlockPreemption"
@@ -145,6 +147,7 @@ let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 let str_action_pml pid = function
   | Nop -> ""
   | Cond (r, cond) -> if Set.mem r (get_return_vars pid `Call) then cond ^ " -> " else ""
+  | Param (callee, caller) -> callee^" = "^caller
   | Call fname ->
       (* TODO we shouldn't have calls to functions without edges in the first place! *)
       if Hashtbl.mem !edges (Function, fname) then "Fun_"^fname^"();" else failwith @@ "call to undefined function " ^ fname
@@ -173,7 +176,7 @@ let str_action_pml pid = function
   | TimedWait t -> "TimedWait("^str_i64 t^");"
   | PeriodicWait -> "PeriodicWait();"
 let str_return_code_pml id action = function
-  | Some r when Set.mem r (get_return_vars id `Branch) -> "RET(" ^ action ^ ", " ^ r ^ ");"
+  | Some r -> "RET(" ^ action ^ ", " ^ r ^ ");"
   | _ -> action
 
 (* helpers *)
@@ -292,7 +295,7 @@ let save_promela_model () =
       else
         edges
     in
-    let locals = if not @@ GobConfig.get_bool "ana.arinc.assume_success" && fst id = Process then Set.elements (Set.intersect (get_return_vars id `Branch) (get_return_vars id `Call)) |> List.map (fun vname -> "byte " ^ vname ^ ";") else [] in
+    let locals = if not @@ GobConfig.get_bool "ana.arinc.assume_success" && fst id = Process then Set.elements (Set.union (get_return_vars id `Branch) (get_return_vars id `Call)) |> List.map (fun vname -> "byte " ^ vname ^ ";") else [] in
     let body = locals @ goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if fst id = Process then " status[id] = DONE" else ""] in
     let head = match id with
       | Process, name ->

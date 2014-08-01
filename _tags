@@ -1,2 +1,3 @@
 <src> or <src/**>: include
 <src/**/*.*> : package(cil), package(batteries), package(xml-light), package(num)
+true: bin_annot
