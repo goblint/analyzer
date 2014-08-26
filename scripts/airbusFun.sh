@@ -29,7 +29,8 @@ if $pedantic && git_dirty "$analyzer"; then
     exit 1
 fi
 commit=$(git -C $analyzer rev-parse --short HEAD)
-result="result_${commit}_${ret}"
+date=$(git -C $analyzer show -s --pretty=format:"%ai" $commit | sed 's/ +0200//' | sed 's/ /-/')
+result="result_${date}_${commit}_${ret}"
 if $pedantic && [ -e $result ]; then
     echo "$result already exists!"
     exit
