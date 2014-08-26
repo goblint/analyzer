@@ -43,6 +43,9 @@ header "Building & copying files from $analyzer"
 pushd $analyzer && make && popd
 cp -f $analyzer/goblint .
 cp -f $analyzer/spin/arinc?base.pml result # copy everything before the long running stuff...
+if [ "$2" = "init" ]; then
+    exit 0
+fi
 dbg="--enable colors --enable dbg.debug --enable dbg.verbose --trace arinc"
 header "Starting goblint"
 /bin/time -v -o time.fun.txt ./goblint --conf $inputs/ab.conf --set "ana.activated[0]" "['base','arincFun']" $dbg --enable ana.arinc.export $options $inputs/unrolled_monit.c 2>&1 | tee trace.fun.txt
