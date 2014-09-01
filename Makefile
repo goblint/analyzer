@@ -1,5 +1,5 @@
 all : opt
-	
+
 % :
 	@./make.sh $@
 

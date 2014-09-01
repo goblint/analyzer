@@ -100,7 +100,7 @@ let str_resource id =
 let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]"
 let str_action pid = function
   | Nop -> "Nop"
-  | Cond (r, cond) -> if Set.mem r (get_return_vars pid `Call) then "If "^cond else ""
+  | Cond (r, cond) -> "If "^cond
   | Param (callee, caller) -> "Assign "^callee^" = "^caller
   | Call fname -> "Call "^fname
   | LockPreemption -> "LockPreemption"
@@ -146,7 +146,8 @@ let str_pid_pml id = (if fst id = Process then "P" else "F") ^ str_id_pml id (* 
 let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 let str_action_pml pid = function
   | Nop -> ""
-  | Cond (r, cond) -> if Set.mem r (get_return_vars pid `Call) then cond ^ " -> " else ""
+  | Cond (r, cond) ->
+      if Set.mem r (get_return_vars pid `Call) then cond ^ " -> " else failwith @@ cond^": branching on return var that is never set by arinc functions"
   | Param (callee, caller) -> callee^" = "^caller^";"
   | Call fname ->
       (* we shouldn't have calls to functions without edges! *)
