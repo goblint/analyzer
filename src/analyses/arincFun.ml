@@ -55,30 +55,15 @@ struct
   let context d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
   (* let val_of d = d *)
 
-  module type GenSig = sig type k type v val getNew: v Enum.t -> v end
-  module type SymTblSig = sig type k type v val get: k -> v end
-  module SymTbl (Gen: GenSig) : SymTblSig with type k = Gen.k and type v = Gen.v =
-  struct
-    type k = Gen.k
-    type v = Gen.v
-    let h = (Hashtbl.create 123 : (k, v) Hashtbl.t)
-    let get k =
-      try Hashtbl.find h k
-      with Not_found ->
-        let v = Gen.getNew (Hashtbl.values h) in
-        Hashtbl.replace h k v;
-        v
-  end
-
   (* function for creating a new intermediate node (will generate a new sid every time!) *)
   let mkDummyNode ?loc line =
     let loc = { (loc |? !Tracing.current_loc) with line = line } in
     MyCFG.Statement { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc)) with sid = new_sid () }
   (* table from sum type to negative line number for new intermediate node (-1 to -4 have special meanings) *)
   type tmpNodeUse = Branch of stmt | Combine of lval
-  module NodeTbl = SymTbl (struct type k = tmpNodeUse type v = MyCFG.node let getNew xs = mkDummyNode @@ -5 - (List.length (List.of_enum xs)) end)
+  module NodeTbl = ArincFunUtil.SymTbl (struct type k = tmpNodeUse type v = MyCFG.node let getNew xs = mkDummyNode @@ -5 - (List.length (List.of_enum xs)) end)
   (* context hash to differentiate function calls *)
-  module CtxTbl = SymTbl (struct type k = int type v = int let getNew xs = if Enum.is_empty xs then 0 else (Enum.arg_max identity xs)+1 end) (* generative functor *)
+  module CtxTbl = ArincFunUtil.SymTbl (struct type k = int type v = int let getNew xs = if Enum.is_empty xs then 0 else (Enum.arg_max identity xs)+1 end) (* generative functor *)
   let current_ctx_hash () = let hash = !MyCFG.current_ctx_hash |? 0 in string_of_int @@ CtxTbl.get hash
   let current_ctx_short () = !MyCFG.current_ctx_short |? "None"
   let print_current_ctx ?info name f args =
@@ -314,7 +299,6 @@ struct
     let assign_id_by_name resource_type name id =
       assign_id id (get_id (resource_type, eval_str name))
     in
-    let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else d in
     let assume_success exp =
       (* TODO NO_ACTION should probably also be assumed a success *)
       let f lval = ctx.assign ~name:"base" lval (integer @@ int_from_return_code NO_ERROR) in
@@ -349,6 +333,7 @@ struct
       else (* no arinc fun or no args *)
         add_actions [action,None]
     in
+    let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else add_action Nop in
     match f.vname, arglist with
       | _ when is_arinc_fun && is_creating_fun && not(mode_is_init d.pmo) ->
           failwith @@ f.vname^" is only allowed in partition mode COLD_START or WARM_START"
@@ -595,9 +580,10 @@ struct
     ArincFunUtil.print_actions ();
     if Sys.file_exists "result" then ArincFunUtil.marshal @@ open_out_bin @@ "result/arinc.fun.out";
     if GobConfig.get_bool "ana.arinc.export" then (
-      ArincFunUtil.simplify ();
+      (* ArincFunUtil.simplify (); *)
       ArincFunUtil.save_dot_graph ();
-      ArincFunUtil.save_promela_model ()
+      ArincFunUtil.save_promela_model ();
+      ArincFunUtil.validate ()
     )
 
   let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main").svar) }

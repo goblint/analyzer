@@ -57,6 +57,13 @@ bool events[nevent] = DOWN;
 byte events_created;
 #endif
 
+// manage function calls at runtime to avoid inlining
+// each proctype has its own: stack, sp
+inline mark(pc) {
+    sp++;
+    stack[sp] = pc;
+}
+
 // helpers for scheduling etc.
 #define oneIs(v) checkStatus(==, v, ||)
 #define allAre(v) checkStatus(==, v, &&)

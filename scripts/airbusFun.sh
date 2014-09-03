@@ -4,7 +4,7 @@ function header() {
 }
 set -o errexit
 set -o pipefail # otherwise tee will always succeed, even if goblint has a non-zero exit status
-pedantic=true
+pedantic=false
 export OCAMLRUNPARAM=b
 export scrambled=true
 ret=${1-"success"}
@@ -40,7 +40,7 @@ mkdir -p $result && cd $result
 
 mkdir -p result
 header "Building & copying files from $analyzer"
-pushd $analyzer && make && popd
+pushd $analyzer && make nat && popd
 cp -f $analyzer/goblint .
 cp -f $analyzer/spin/arinc?base.pml result # copy everything before the long running stuff...
 if [ "$2" = "init" ]; then
@@ -65,7 +65,7 @@ set -o errexit
 cat time.spin.txt
 clang -DVECTORSZ=5000 -o pan pan.c # complained that VECTORSZ should be > 1280
 echo "Verify! If there are errors, this will generate a file arinc.fun.pml.trail"
-./pan -a || (echo "Verification failed! Do simulation guided by trail."; spin -g -l -p -r -s -t -X -u10000 arinc.fun.pml)
+./pan -n -a || (echo "Verification failed! Do simulation guided by trail."; spin -g -l -p -r -s -t -X -u10000 arinc.fun.pml)
 popd # result
 popd # script dir
 unset scrambled
