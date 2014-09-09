@@ -76,46 +76,88 @@ struct
     let fl : BaseDomain.Flag.t = snd (Obj.obj (List.assoc "base" ctx.presub)) in
     not (BaseDomain.Flag.is_multi fl)
   let part_mode_var = makeGlobalVar "__GOBLINT_ARINC_MUTLI_THREADED" voidPtrType
-
   let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
 
+  type env = { d: D.t; node: MyCFG.node; fundec: fundec; pname: string; procid: ArincFunUtil.id; id: ArincFunUtil.id }
+  let get_env ctx =
+    let open ArincFunUtil in let _ = 42 in
+    let d = ctx.local in
+    let node = Option.get !MyCFG.current_node in
+    (* determine if we are at the root of a process or in some called function *)
+    let fundec = MyCFG.getFun node in
+    let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname in
+    let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "get_env: no processname for pid in Hashtbl!" in
+    let procid = Process, pname in
+    let pfuns = funs_for_process (Process,pname) in
+    let id = if List.exists ((=) fundec.svar) pfuns || is_mainfun fundec.svar.vname then Process, pname else Function, fname_ctx fundec.svar in
+    { d; node; fundec; pname; procid; id }
+  let add_edges ?r ?dst ?d env action =
+    Pred.iter (fun node -> ArincFunUtil.add_edge env.id (node, action, r, dst |? env.node)) (d |? env.d).pred
+  let add_actions env xs =
+    (* add edges for all predecessor nodes (from pred. node to env.node) *)
+    List.iter (fun (action,r) -> match r with Some r -> add_edges ~r env action | None -> add_edges env action) xs;
+    (* update domain by replacing the set of pred. nodes with the current node *)
+    D.pred (const @@ Pred.of_node env.node) env.d
+  (* is exp of the return code type (pointers are not considered!) *)
   let is_return_code_type exp = typeOf exp |> unrollTypeDeep |> function
     | TEnum(ei, _) when ei.ename = "T13" -> true
     | _ -> false
   let return_code_is_success = function 0L | 1L -> true | _ -> false
   let str_return_code i = if return_code_is_success i then "SUCCESS" else "ERROR"
-
-  type env = { node: MyCFG.node; fundec: fundec; pname: string; procid: ArincFunUtil.id; id: ArincFunUtil.id }
-  let get_env ctx =
-    let open ArincFunUtil in let _ = 42 in
-    let node = Option.get !MyCFG.current_node in
-    (* determine if we are at the root of a process or in some called function *)
-    let fundec = MyCFG.getFun node in
-    let curpid = match Pid.to_int ctx.local.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname in
-    let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "get_env: no processname for pid in Hashtbl!" in
-    let procid = Process, pname in
-    let pfuns = funs_for_process (Process,pname) in
-    let id = if List.exists ((=) fundec.svar) pfuns || is_mainfun fundec.svar.vname then Process, pname else Function, fname_ctx fundec.svar in
-    { node; fundec; pname; procid; id }
-  let add_edges id action r dst_node d =
-    Pred.iter (fun node -> ArincFunUtil.add_edge id (node, action, r, dst_node)) d.pred
   let str_return_dlval (v,o as dlval) =
     sprint d_lval (Lval.CilLval.to_lval dlval) ^ "_" ^ string_of_int v.vdecl.line |>
     Str.global_replace (Str.regexp "[^a-zA-Z0-9]") "_"
   let add_return_dlval env kind dlval =
     ArincFunUtil.add_return_var env.procid kind (str_return_dlval dlval)
-  let mayPointTo ?must:(must=false) ctx exp =
+  let mayPointTo ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
-    | `LvalSet a when not (Queries.LS.is_top a) && (not must || Queries.LS.cardinal a = 1) ->
-        Some (Queries.LS.elements a)
+    | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
+        let top_elt = (dummyFunDec.svar, `NoOffset) in
+        let a' = if Queries.LS.mem top_elt a then (
+            M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!";
+            Queries.LS.remove top_elt a
+          ) else a
+        in
+        Some (Queries.LS.elements a')
     | _ -> None
+  let mustPointTo ctx exp = Option.bind (mayPointTo ctx exp) (fun xs -> if List.length xs = 1 then Some (List.hd xs) else None)
+  (* let dlval_from_lval ctx lval = mustPointTo ctx (AddrOf lval) |? failwith "dlval_from_lval: more than one result!" *)
   let mapMayPointTo ctx exp f = mayPointTo ctx exp |? [] |> List.map f
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |? [] |> List.iter f
 
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
+    (* if the lhs is (or points to) a return code variable, then:
+        if the rhs is a constant or another return code, output an assignment edge
+        else output edge that non-det. sets the lhs to a value from the range *)
+    (* things to note:
+    1. is_return_code_type must be checked on the result of mayPointTo and not on lval! otherwise we have problems with pointers
+    2. Cil.typeOf throws an exception because the base type of a query result from goblint is not an array but is accessed with an index TODO why is this? ignored casts?
+    3. mayPointTo also returns pointers if there's a top element in the set (outputs warning), so that we don't miss anything *)
+    (* OPT: this matching is just for speed up to avoid querying on every assign *)
+    match lval with Var _, _ when not @@ is_return_code_type (Lval lval) -> ctx.local | _ ->
+    (* TODO why is it that current_node can be None here, but not in other transfer functions? *)
+    if not @@ Option.is_some !MyCFG.current_node then (M.debug_each "assign: MyCFG.current_node not set :("; ctx.local) else
+    let env = get_env ctx in
+    let edges_added = ref false in
+    let f dlval =
+      (* if dlval = (dummyFunDec.svar, `NoOffset) then M.debug_each @@ "assign: MayPointTo-Set for " ^ sprint d_lval lval ^ " contains TOP!" else *)
+      (* M.debug_each @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
+      let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with _ -> M.debug_each @@ "assign: Cil.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
+      if not @@ is_ret_type then () else
+      edges_added := true;
+      add_return_dlval env `Call dlval;
+      let add_one str_rhs = add_edges env @@ ArincFunUtil.Param (str_return_dlval dlval, str_rhs) in
+      let add_top () = add_edges ~r:(str_return_dlval dlval) env @@ ArincFunUtil.Nop in
+      match stripCasts rval with
+      | Const CInt64(i,_,_) -> add_one @@ str_return_code i
+      | Lval rlval ->
+          iterMayPointTo ctx (AddrOf rlval) (fun rdlval -> add_return_dlval env `Branch rdlval; add_one @@ str_return_dlval rdlval)
+      | _ -> add_top ()
+    in
+    iterMayPointTo ctx (AddrOf lval) f;
+    if !edges_added then D.pred (const @@ Pred.of_node env.node) env.d else env.d
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
@@ -139,7 +181,7 @@ struct
           let dst_node = if tv then then_node else else_node in
           let d_if = if List.length stmt.preds > 1 then ( (* seems like this never happens *)
               M.debug_each @@ "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
-              add_edges env.id ArincFunUtil.Nop None env.node ctx.local;
+              add_edges env ArincFunUtil.Nop;
               { ctx.local with pred = Pred.of_node env.node }
             ) else ctx.local
           in
@@ -150,7 +192,7 @@ struct
               M.debug_each @@ "WARN: branch: use of global lval: " ^ str_dlval;
             let cond = str_dlval ^ " == " ^ str_return_code i in
             let cond = if tv then cond else "!(" ^ cond ^ ")" in
-            add_edges env.id (ArincFunUtil.Cond (str_dlval, cond)) None dst_node d_if;
+            add_edges ~dst:dst_node ~d:d_if env (ArincFunUtil.Cond (str_dlval, cond));
             add_return_dlval env `Branch dlval
           in
           iterMayPointTo ctx (AddrOf lval) f;
@@ -218,7 +260,7 @@ struct
         let assign pred dst_node callee_var caller_dlval =
           let callee_dlval = callee_var, `NoOffset in
           (* add edge to an intermediate node that assigns the caller return code to the one of the function params *)
-          add_edges env.id (ArincFunUtil.Param (str_return_dlval callee_dlval, str_return_dlval caller_dlval)) None dst_node { d_caller with pred = pred };
+          add_edges ~dst:dst_node ~d:{ d_caller with pred = pred } env (ArincFunUtil.Param (str_return_dlval callee_dlval, str_return_dlval caller_dlval));
           (* we also need to add the callee param as a `Call lval so that we see that it is written to *)
           add_return_dlval env `Call callee_dlval;
           (* also add the caller param because it is read *)
@@ -226,7 +268,7 @@ struct
         in
         (* we need to assign all lvals each caller arg may point to *)
         let last_pred = if GobConfig.get_bool "ana.arinc.assume_success" then d_caller.pred else List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (AddrOf caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
-        add_edges env.id (ArincFunUtil.Call (fname_ctx ~ctx:fctx f)) None env.node { d_caller with pred = last_pred }
+        add_edges ~d:{ d_caller with pred = last_pred } env (ArincFunUtil.Call (fname_ctx ~ctx:fctx f))
       );
       (* set current node as new predecessor, since something interesting happend during the call *)
       { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
@@ -308,12 +350,6 @@ struct
       () (* TODO this is currently done in base b/c there is no interface for invalidating things (maybe use special value for assign or add new function to ctx?) *)
     in
     let arglist = List.map (stripCasts%(constFold false)) arglist in
-    let add_actions xs =
-      (* add edges for all predecessor nodes (from pred. node to env.node) *)
-      List.iter (fun (action,r) -> add_edges env.id action r env.node d) xs;
-      (* update domain by replacing the set of pred. nodes with the current node *)
-      D.pred (const @@ Pred.of_node env.node) d
-    in
     (* if assume_success we set the return code and don't need to do anything else
        otherwise we need to invalidate the return code (TODO maybe not top but sth more precise) and include the return code variable for all arinc calls (so that it can be set non-deterministically in promela) *)
     let add_action action =
@@ -321,17 +357,17 @@ struct
         let r = List.last arglist in
         if GobConfig.get_bool "ana.arinc.assume_success" then (
           assume_success r;
-          add_actions [action,None]
+          add_actions env [action,None]
         ) else (
           invalidate_arg r;
           iterMayPointTo ctx r (add_return_dlval env `Call);
           (* warn about setting globals! *)
           iterMayPointTo ctx r (fun dlval -> if Lval.CilLval.class_tag dlval = `Global then M.debug_each @@ "WARN: special: use of global lval: " ^ str_return_dlval dlval);
           (* add action for all lvals r may point to *)
-          add_actions @@ mapMayPointTo ctx r (fun dlval -> action, Some(str_return_dlval dlval))
+          add_actions env @@ mapMayPointTo ctx r (fun dlval -> action, Some(str_return_dlval dlval))
         )
       else (* no arinc fun or no args *)
-        add_actions [action,None]
+        add_actions env [action,None]
     in
     let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else add_action Nop in
     match f.vname, arglist with

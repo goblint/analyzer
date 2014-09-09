@@ -30,7 +30,8 @@ if $pedantic && git_dirty "$analyzer"; then
 fi
 commit=$(git -C $analyzer rev-parse --short HEAD)
 date=$(git -C $analyzer show -s --pretty=format:"%ai" $commit | sed 's/ +0200//' | sed 's/ /-/')
-result="result_${date}_${commit}_${ret}"
+lastmod=$(find $analyzer/{src,scripts} -printf "%T@\n" | sort -nr | head -n 1 | cut -d. -f1)
+result="result_${date}_${commit}_${lastmod}_${ret}"
 if $pedantic && [ -e $result ]; then
     echo "$result already exists!"
     exit
@@ -48,7 +49,7 @@ if [ "$2" = "init" ]; then
 fi
 dbg="--enable colors --enable dbg.debug --enable dbg.verbose --trace arinc"
 header "Starting goblint"
-/bin/time -v -o time.fun.txt ./goblint --conf $inputs/ab.conf --set "ana.activated[0]" "['base','arincFun']" $dbg --enable ana.arinc.export $options $inputs/unrolled_monit.c 2>&1 | tee trace.fun.txt
+/bin/time -v -o time.fun.txt ./goblint --conf $inputs/ab.conf --set "ana.activated[0]" "['base','arincFun']" $dbg --enable noverify --enable ana.arinc.export $options $inputs/unrolled_monit.c 2>&1 | tee trace.fun.txt
 cat time.fun.txt
 dot="result/arinc.fun.dot"
 pml="result/arinc.fun.pml"

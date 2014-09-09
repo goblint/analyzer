@@ -5,7 +5,7 @@ set -e
 scripts/set_version.sh
 
 TARGET=src/goblint
-FLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt ocamlopt.opt -cflag -g"
+FLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt opt -cflag -g"
 OCAMLBUILD=ocamlbuild
 
 ocb() {

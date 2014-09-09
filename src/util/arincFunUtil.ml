@@ -82,6 +82,7 @@ struct
   let to_list () = Hashtbl.enum h |> List.of_enum
 end
 
+(* this is just used to make sure that every var that is read has been written before *)
 let return_vars = (Hashtbl.create 100 : (id * [`Branch | `Call], string Set.t) Hashtbl.t)
 let add_return_var pid kind var = Hashtbl.modify_def Set.empty (pid, kind) (Set.add var) return_vars
 let get_return_vars pid kind =
@@ -168,7 +169,9 @@ let str_action_pml pid = function
   | Nop -> ""
   | Cond (r, cond) ->
       (* if not @@ Set.mem r (get_return_vars pid `Call) then debug_each @@ cond^": branching on return var that is never set by arinc functions"; *)
-      if not @@ Set.mem r (get_return_vars pid `Call) then unset_ret_vars := Set.add r !unset_ret_vars;
+      if not @@ Set.mem r (get_return_vars pid `Call) then (unset_ret_vars := Set.add r !unset_ret_vars; "") else
+      (* if not @@ Set.mem r (get_return_vars pid `Call) then failwith @@ "branching on unset return var: "^cond; *)
+      (* edges for constants and var-to-var assignments are added by assign, if the rhs is top, there will be non-det. edges for all values *)
       cond ^ " -> "
   | Param (callee, caller) -> callee^" = "^caller^";"
   | Call fname ->
@@ -241,7 +244,7 @@ let simplify () =
 
 (* output warnings TODO *)
 let validate () =
-  debug_each "The following return code variables have never been set by any arinc functions (but maybe been set manually):";
+  debug_each "The following return code variables have never been set by arinc functions or assignments (conditions for these variables are ignored):";
   Set.iter (fun var -> debug_each @@ "branching on unset return var " ^ var) !unset_ret_vars
 
 (* print to stdout *)
@@ -377,7 +380,7 @@ let save_promela_model () =
       if List.is_empty xs then [] else
       let (name,_),_ = List.hd xs in
       let entries = xs |> List.map (fun ((_,k),v) -> "\t:: (stack[sp] == " ^ string_of_int v ^ ") -> sp--; goto " ^ k ^" \\") in
-      let debug_str = if GobConfig.get_bool "ana.arinc.debug_pml" then "\t:: else -> printf(\"wrong pc on stack!\"); assert(false)" else "" in
+      let debug_str = if GobConfig.get_bool "ana.arinc.debug_pml" then "\t:: else -> printf(\"wrong pc on stack!\"); assert(false) " else "" in
       ("#define ret_"^name^"() if \\") :: entries @ [debug_str ^ "fi"]
     in
     FunTbl.to_list () |> List.group (compareBy (fst%fst)) |> flat_map fun_map
