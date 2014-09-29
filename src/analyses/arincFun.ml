@@ -119,7 +119,7 @@ struct
           ) else a
         in
         Some (Queries.LS.elements a')
-    | _ -> None
+    | _ -> None (* TODO can `Top happen here? *)
   let mustPointTo ctx exp = Option.bind (mayPointTo ctx exp) (fun xs -> if List.length xs = 1 then Some (List.hd xs) else None)
   (* let dlval_from_lval ctx lval = mustPointTo ctx (AddrOf lval) |? failwith "dlval_from_lval: more than one result!" *)
   let mapMayPointTo ctx exp f = mayPointTo ctx exp |? [] |> List.map f
@@ -135,6 +135,7 @@ struct
     1. is_return_code_type must be checked on the result of mayPointTo and not on lval! otherwise we have problems with pointers
     2. Cil.typeOf throws an exception because the base type of a query result from goblint is not an array but is accessed with an index TODO why is this? ignored casts?
     3. mayPointTo also returns pointers if there's a top element in the set (outputs warning), so that we don't miss anything *)
+    if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
     (* OPT: this matching is just for speed up to avoid querying on every assign *)
     match lval with Var _, _ when not @@ is_return_code_type (Lval lval) -> ctx.local | _ ->
     (* TODO why is it that current_node can be None here, but not in other transfer functions? *)
@@ -142,18 +143,17 @@ struct
     let env = get_env ctx in
     let edges_added = ref false in
     let f dlval =
-      (* if dlval = (dummyFunDec.svar, `NoOffset) then M.debug_each @@ "assign: MayPointTo-Set for " ^ sprint d_lval lval ^ " contains TOP!" else *)
       (* M.debug_each @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
       let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with _ -> M.debug_each @@ "assign: Cil.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
       if not @@ is_ret_type then () else
       edges_added := true;
-      add_return_dlval env `Call dlval;
-      let add_one str_rhs = add_edges env @@ ArincFunUtil.Param (str_return_dlval dlval, str_rhs) in
+      add_return_dlval env `Write dlval;
+      let add_one str_rhs = add_edges env @@ ArincFunUtil.Assign (str_return_dlval dlval, str_rhs) in
       let add_top () = add_edges ~r:(str_return_dlval dlval) env @@ ArincFunUtil.Nop in
       match stripCasts rval with
       | Const CInt64(i,_,_) -> add_one @@ str_return_code i
-      | Lval rlval ->
-          iterMayPointTo ctx (AddrOf rlval) (fun rdlval -> add_return_dlval env `Branch rdlval; add_one @@ str_return_dlval rdlval)
+(*       | Lval rlval ->
+          iterMayPointTo ctx (AddrOf rlval) (fun rdlval -> add_return_dlval env `Read rdlval; add_one @@ str_return_dlval rdlval) *)
       | _ -> add_top ()
     in
     iterMayPointTo ctx (AddrOf lval) f;
@@ -193,7 +193,7 @@ struct
             let cond = str_dlval ^ " == " ^ str_return_code i in
             let cond = if tv then cond else "!(" ^ cond ^ ")" in
             add_edges ~dst:dst_node ~d:d_if env (ArincFunUtil.Cond (str_dlval, cond));
-            add_return_dlval env `Branch dlval
+            add_return_dlval env `Read dlval
           in
           iterMayPointTo ctx (AddrOf lval) f;
           { ctx.local with pred = Pred.of_node dst_node }
@@ -260,11 +260,11 @@ struct
         let assign pred dst_node callee_var caller_dlval =
           let callee_dlval = callee_var, `NoOffset in
           (* add edge to an intermediate node that assigns the caller return code to the one of the function params *)
-          add_edges ~dst:dst_node ~d:{ d_caller with pred = pred } env (ArincFunUtil.Param (str_return_dlval callee_dlval, str_return_dlval caller_dlval));
-          (* we also need to add the callee param as a `Call lval so that we see that it is written to *)
-          add_return_dlval env `Call callee_dlval;
+          add_edges ~dst:dst_node ~d:{ d_caller with pred = pred } env (ArincFunUtil.Assign (str_return_dlval callee_dlval, str_return_dlval caller_dlval));
+          (* we also need to add the callee param as a `Write lval so that we see that it is written to *)
+          add_return_dlval env `Write callee_dlval;
           (* also add the caller param because it is read *)
-          add_return_dlval env `Branch caller_dlval;
+          add_return_dlval env `Read caller_dlval;
         in
         (* we need to assign all lvals each caller arg may point to *)
         let last_pred = if GobConfig.get_bool "ana.arinc.assume_success" then d_caller.pred else List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (AddrOf caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
@@ -360,11 +360,16 @@ struct
           add_actions env [action,None]
         ) else (
           invalidate_arg r;
-          iterMayPointTo ctx r (add_return_dlval env `Call);
-          (* warn about setting globals! *)
-          iterMayPointTo ctx r (fun dlval -> if Lval.CilLval.class_tag dlval = `Global then M.debug_each @@ "WARN: special: use of global lval: " ^ str_return_dlval dlval);
+          let xs = mayPointTo ctx r |? [] in
+          (* warn about wrong type (r should always be a return code) and setting globals! *)
+          let f dlval =
+            if Lval.CilLval.class_tag dlval = `Global then M.debug_each @@ "WARN: special: use of global lval: " ^ str_return_dlval dlval;
+            if not @@ is_return_code_type @@ Lval.CilLval.to_exp dlval
+            then (M.debug_each @@ "WARN: last argument in arinc function may point to something other than a return code: " ^ str_return_dlval dlval; None)
+            else (add_return_dlval env `Write dlval; Some (action, Some (str_return_dlval dlval)))
+          in
           (* add action for all lvals r may point to *)
-          add_actions env @@ mapMayPointTo ctx r (fun dlval -> action, Some(str_return_dlval dlval))
+          add_actions env @@ List.filter_map f xs
         )
       else (* no arinc fun or no args *)
         add_actions env [action,None]

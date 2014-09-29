@@ -18,8 +18,9 @@
 #define UP    1
 #define EMPTY 0 // blackboards
 #define NONEMPTY 1
-#define SUCCESS 0   // return codes
-#define ERROR 1
+// #define SUCCESS 0   // return codes
+// #define ERROR 1
+mtype = { SUCCESS, ERROR }
 
 // partition
 mtype = { IDLE, COLD_START, WARM_START, NORMAL } // partition modes

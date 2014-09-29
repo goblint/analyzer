@@ -27,7 +27,7 @@ end
 type action =
   | Nop
   | Cond of string * string
-  | Param of string * string (* var_callee = var_caller *)
+  | Assign of string * string (* var_callee = var_caller *)
   | Call of string
   | LockPreemption | UnlockPreemption | SetPartitionMode of int64
   | CreateProcess of Action.process | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
@@ -83,11 +83,16 @@ struct
 end
 
 (* this is just used to make sure that every var that is read has been written before *)
-let return_vars = (Hashtbl.create 100 : (id * [`Branch | `Call], string Set.t) Hashtbl.t)
+let return_vars = (Hashtbl.create 100 : (id * [`Read | `Write], string Set.t) Hashtbl.t)
 let add_return_var pid kind var = Hashtbl.modify_def Set.empty (pid, kind) (Set.add var) return_vars
 let get_return_vars pid kind =
   if fst pid <> Process then failwith "get_return_vars: tried to get var for Function, but vars are saved Process!" else
   Hashtbl.find_default return_vars (pid, kind) Set.empty
+let decl_return_vars xs = Set.elements xs |> List.map (fun vname -> "mtype " ^ vname ^ ";")
+let is_global vname = startsWith "G" vname
+let get_locals pid = Set.union (get_return_vars pid `Read) (get_return_vars pid `Write) |> Set.filter (neg is_global) |> decl_return_vars
+let flatten_set xs = Set.fold Set.union xs Set.empty
+let get_globals () = Hashtbl.values return_vars |> Set.of_enum |> flatten_set |> Set.filter is_global |> decl_return_vars
 
 (* constants and helpers *)
 let infinity = 4294967295L (* time value used for infinity *)
@@ -120,7 +125,7 @@ let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]
 let str_action pid = function
   | Nop -> "Nop"
   | Cond (r, cond) -> "If "^cond
-  | Param (callee, caller) -> "Assign "^callee^" = "^caller
+  | Assign (lhs, rhs) -> "Assign "^lhs^" = "^rhs
   | Call fname -> "Call "^fname
   | LockPreemption -> "LockPreemption"
   | UnlockPreemption -> "UnlockPreemption"
@@ -168,12 +173,14 @@ let unset_ret_vars = ref Set.empty
 let str_action_pml pid = function
   | Nop -> ""
   | Cond (r, cond) ->
-      (* if not @@ Set.mem r (get_return_vars pid `Call) then debug_each @@ cond^": branching on return var that is never set by arinc functions"; *)
-      if not @@ Set.mem r (get_return_vars pid `Call) then (unset_ret_vars := Set.add r !unset_ret_vars; "") else
-      (* if not @@ Set.mem r (get_return_vars pid `Call) then failwith @@ "branching on unset return var: "^cond; *)
-      (* edges for constants and var-to-var assignments are added by assign, if the rhs is top, there will be non-det. edges for all values *)
-      cond ^ " -> "
-  | Param (callee, caller) -> callee^" = "^caller^";"
+      (* if the return var that is branched on was never set, we warn about it at the end and just leave out the condition, which leads to non-det. branching, i.e. the same behaviour as if it was set to top *)
+      if not @@ Set.mem r (get_return_vars pid `Write) then (
+        unset_ret_vars := Set.add r !unset_ret_vars; ""
+      ) else cond ^ " -> "
+  | Assign (lhs, rhs) -> (* for function parameters this is callee = caller *)
+      (* if the lhs is never read, we don't need to do anything *)
+      if not @@ Set.mem lhs (get_return_vars pid `Read) then ""
+      else lhs^" = "^rhs^";"
   | Call fname ->
       (* we shouldn't have calls to functions without edges! *)
       if Hashtbl.mem !edges (Function, fname) then "goto Fun_"^fname^";" else failwith @@ "call to undefined function " ^ fname
@@ -201,8 +208,8 @@ let str_action_pml pid = function
   | ResetEvent ids -> str_ids_pml ids (fun id -> "ResetEvent("^id^");")
   | TimedWait t -> "TimedWait("^str_i64 t^");"
   | PeriodicWait -> "PeriodicWait();"
-let str_return_code_pml action_str = function
-  | Some r -> "if :: "^action_str^" "^r^" = SUCCESS :: "^r^" = ERROR fi;"
+let str_return_code_pml pid action_str = function
+  | Some r when Set.mem r (get_return_vars pid `Read) -> "if :: "^action_str^" "^r^" = SUCCESS :: "^r^" = ERROR fi;"
   | _ -> action_str
 
 (* helpers *)
@@ -333,7 +340,7 @@ let save_promela_model () =
         | _ -> ""
       in
       (* for function calls the goto will never be reached since the function's return will already jump to that label; however it's nice to see where the program will continue at the site of the call. *)
-      mark ^ str_return_code_pml (str_action_pml (Process, !current_pname) action) r ^ " goto " ^ target_label
+      mark ^ str_return_code_pml (Process, !current_pname) (str_action_pml (Process, !current_pname) action) r ^ " goto " ^ target_label
     in
     let choice xs = List.map (fun x -> "::\t"^x ) xs in (* choices in if-statements are prefixed with :: *)
     let walk_edges (a, out_edges) =
@@ -344,7 +351,7 @@ let save_promela_model () =
       else
         edges
     in
-    let locals = if not @@ GobConfig.get_bool "ana.arinc.assume_success" && fst id = Process then Set.elements (Set.union (get_return_vars id `Branch) (get_return_vars id `Call)) |> List.map (fun vname -> "byte " ^ vname ^ ";") else [] in
+    let locals = if not @@ GobConfig.get_bool "ana.arinc.assume_success" && fst id = Process then get_locals id else [] in
     let body = locals @ goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if fst id = Process then " status[id] = DONE" else " ret_"^snd id^"()"] in
     let head = match id with
       | Process, name ->
@@ -396,6 +403,7 @@ let save_promela_model () =
     (List.of_enum @@ (0 --^ nproc) /@ (fun i -> "#define PRIO" ^ string_of_int i)) @
     "#ifdef PRIOS" :: prios @ "#endif" ::
     "" :: fun_mappings @
+    "" :: get_globals () @
     process_defs
   in
   save_result "promela model" "pml" promela;
