@@ -109,6 +109,12 @@ struct
     Str.global_replace (Str.regexp "[^a-zA-Z0-9]") "_"
   let add_return_dlval env kind dlval =
     ArincFunUtil.add_return_var env.procid kind (str_return_dlval dlval)
+  let dummy_global_dlval = { dummyFunDec.svar with vname = "Gret" }, `NoOffset
+  let global_dlval dlval fname =
+    if Lval.CilLval.class_tag dlval = `Global then (
+      M.debug_each @@ "WARN: " ^ fname ^ ": use of global lval: " ^ str_return_dlval dlval;
+      if GobConfig.get_bool "ana.arinc.merge_globals" then dummy_global_dlval else dlval
+    ) else dlval
   let mayPointTo ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
@@ -146,6 +152,7 @@ struct
       (* M.debug_each @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
       let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with _ -> M.debug_each @@ "assign: Cil.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
       if not @@ is_ret_type then () else
+      let dlval = global_dlval dlval "assign" in
       edges_added := true;
       add_return_dlval env `Write dlval;
       let add_one str_rhs = add_edges env @@ ArincFunUtil.Assign (str_return_dlval dlval, str_rhs) in
@@ -187,11 +194,11 @@ struct
           in
           (* now we have to add Pos/Neg-edges (depending on tv) for everything v may point to *)
           let f dlval =
+            let dlval = global_dlval dlval "branch" in
             let str_dlval = str_return_dlval dlval in
-            if Lval.CilLval.class_tag dlval = `Global then
-              M.debug_each @@ "WARN: branch: use of global lval: " ^ str_dlval;
             let cond = str_dlval ^ " == " ^ str_return_code i in
             let cond = if tv then cond else "!(" ^ cond ^ ")" in
+            let cond = if dlval = dummy_global_dlval || String.exists str_dlval "int___unknown" then "true" else cond in (* we don't know the index of the array -> assume that branch could always be taken *)
             add_edges ~dst:dst_node ~d:d_if env (ArincFunUtil.Cond (str_dlval, cond));
             add_return_dlval env `Read dlval
           in
@@ -258,6 +265,7 @@ struct
         let rargs = List.combine (Cilfacade.getdec f).sformals args |> List.filter_map check in
         let fctx = Ctx.to_int d_callee.ctx |> Option.get |> i64_to_int |> CtxTbl.get |> string_of_int in
         let assign pred dst_node callee_var caller_dlval =
+          let caller_dlval = global_dlval caller_dlval "combine" in
           let callee_dlval = callee_var, `NoOffset in
           (* add edge to an intermediate node that assigns the caller return code to the one of the function params *)
           add_edges ~dst:dst_node ~d:{ d_caller with pred = pred } env (ArincFunUtil.Assign (str_return_dlval callee_dlval, str_return_dlval caller_dlval));
@@ -363,7 +371,7 @@ struct
           let xs = mayPointTo ctx r |? [] in
           (* warn about wrong type (r should always be a return code) and setting globals! *)
           let f dlval =
-            if Lval.CilLval.class_tag dlval = `Global then M.debug_each @@ "WARN: special: use of global lval: " ^ str_return_dlval dlval;
+            let dlval = global_dlval dlval "special" in
             if not @@ is_return_code_type @@ Lval.CilLval.to_exp dlval
             then (M.debug_each @@ "WARN: last argument in arinc function may point to something other than a return code: " ^ str_return_dlval dlval; None)
             else (add_return_dlval env `Write dlval; Some (action, Some (str_return_dlval dlval)))

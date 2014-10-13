@@ -76,6 +76,7 @@ ltl ps { ! (eventually always oneIs(SUSPENDED)) }
 // starvation: process will always be READY but never RUNNING
 // ltl pr { ! (eventually always oneIs(READY)) }
 
+byte tmp;
 
 #define preInit status[0] = RUNNING
 inline postInit() {

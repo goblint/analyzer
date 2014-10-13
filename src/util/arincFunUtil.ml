@@ -171,12 +171,12 @@ let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 (* let ref_apply f r = r := f !r *)
 let unset_ret_vars = ref Set.empty
 let str_action_pml pid = function
-  | Nop -> ""
+  | Nop -> "tmp = 0;"
   | Cond (r, cond) ->
       (* if the return var that is branched on was never set, we warn about it at the end and just leave out the condition, which leads to non-det. branching, i.e. the same behaviour as if it was set to top *)
       if not @@ Set.mem r (get_return_vars pid `Write) then (
         unset_ret_vars := Set.add r !unset_ret_vars; ""
-      ) else cond ^ " -> "
+      ) else if cond = "true" then "" else cond ^ " -> "
   | Assign (lhs, rhs) -> (* for function parameters this is callee = caller *)
       (* if the lhs is never read, we don't need to do anything *)
       if not @@ Set.mem lhs (get_return_vars pid `Read) then ""
