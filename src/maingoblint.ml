@@ -162,7 +162,7 @@ let preprocess_files () =
   let myname = Filename.dirname Sys.executable_name in
   let kernel_root = Filename.concat myname "../bench/linux-headers" in
   let kernel_dir = kernel_root ^ "/include" in
-  let asm_dir = kernel_root ^ "/arch/x86/include" in
+  let arch_dir = kernel_root ^ "/arch/x86/include" in
 
   (* Preprocessor flags *)
   let cppflags = ref (get_string "cppflags") in
@@ -201,9 +201,9 @@ let preprocess_files () =
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then begin
     let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
-    let autoconf = Filename.concat kernel_dir "generated/autoconf.h" in
+    let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
     cppflags := "-D__KERNEL__ -U__i386__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
-    includes := !includes ^ " -I" ^ kernel_dir ^ " -I" ^ asm_dir ^ " -I" ^ asm_dir ^ "/asm/mach-default"
+    includes := !includes ^ " -I" ^ kernel_dir ^ " -I" ^ arch_dir ^ " -I" ^ arch_dir ^ "/generated"
   end;
 
   (* The temp directory for preprocessing the input files *)
