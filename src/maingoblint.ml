@@ -203,7 +203,10 @@ let preprocess_files () =
     let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
     cppflags := "-D__KERNEL__ -U__i386__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
-    includes := !includes ^ " -I" ^ kernel_dir ^ " -I" ^ arch_dir ^ " -I" ^ arch_dir ^ "/generated"
+    includes := !includes ^ " -I" ^ String.concat " -I" [
+      kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi";
+      arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi";
+    ]
   end;
 
   (* The temp directory for preprocessing the input files *)
