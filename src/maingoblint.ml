@@ -203,9 +203,11 @@ let preprocess_files () =
     let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
     cppflags := "-D__KERNEL__ -U__i386__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
+    (* These are not just random permutations of directories, but based on USERINCLUDE from the
+     * Linux kernel Makefile (in the root directory of the kernel distribution). *)
     includes := !includes ^ " -I" ^ String.concat " -I" [
       kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi";
-      arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi";
+      arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi"; arch_dir ^ "/generated/uapi";
     ]
   end;
 
