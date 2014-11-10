@@ -8,6 +8,23 @@ $vrsn = `#{goblint} --version`
 $testresults = File.expand_path("tests/bench_result") + "/"
 bench = "../bench/"
 
+cmds = {"code2html" => lambda {|f,o| "code2html -l c -n #{f} 2> /dev/null 1> #{o}"},
+        "source-highlight" => lambda {|f,o| "source-highlight -n -i #{f} -o #{o}"},
+        "pygmentize" => lambda {|f,o| "pygmentize -O full,linenos=1 -o #{o} #{f}"}
+       }
+highlighter = nil
+cmds.each do |name, cmd|
+  # if `which #{cmd} 2> /dev/null`.empty? then
+  if ENV['PATH'].split(':').map {|f| File.executable? "#{f}/#{name}"}.include?(true) then
+    highlighter = cmd
+    break
+  end
+end
+if highlighter.nil? then
+  puts "Warning: No syntax highlighter installed (code2html, source-highlight, pygmentize)."
+  highlighter = lambda {|f,o| "cp #{f} #{o}"} 
+end
+
 class Project
   attr_reader :id, :name, :group, :path, :params
   attr_accessor :url
@@ -169,7 +186,7 @@ $projects.each do |p|
   outfiles = $testresults + File.basename(filename,".c") + ".*"
   `rm -f #{outfiles}`
   if p.url == "generate!" then
-    `code2html -l c -n #{p.path} #{$testresults + p.name}.html`
+    system(highlighter.call(p.path, $testresults + p.name + ".html"))
     p.url = p.name + ".html"
   end
   puts "Analysing #{filename} (#{p.id}/#{$projects.length})"
@@ -181,7 +198,7 @@ $projects.each do |p|
     outfile = $testresults + File.basename(filename,".c") + ".#{aname}.txt"
     starttime = Time.now
     #Add --sets cilout /dev/null to ignore CIL output.
-    cmd = "timeout #{timeout} #{goblint} #{aparam} #{filename} #{p.params} --enable dbg.uncalled --enable allglobs --enable printstats 1>#{outfile} 2>&1"
+    cmd = "#{goblint} --set dbg.timeout #{timeout} #{aparam} #{filename} #{p.params} --enable allglobs --enable printstats 1>#{outfile} 2>&1"
     system(cmd)
     status = $?.exitstatus
     endtime   = Time.now
