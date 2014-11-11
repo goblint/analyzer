@@ -29,7 +29,7 @@ let traceOutdent () = indent_level := !indent_level - 2
 
 (* Parses a format string to generate a nop-function of the correct type. *)
 let mygprintf (format : ('a, unit, doc, 'b) format4) : 'a =
-  let format = (Obj.magic format : string) in
+  let format = string_of_format format in
   let flen    = String.length format in
   let fget    = String.unsafe_get format in
   let rec literal acc i =
