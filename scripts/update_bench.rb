@@ -6,7 +6,7 @@ fail "Please run script from goblint dir!" unless File.exist?(goblint)
 revshort = `git describe --tags --long`[/.*-\d+/]
 $vrsn = `#{goblint} --version`
 $testresults = File.expand_path("tests/bench_result") + "/"
-bench = "../bench/"
+bench = "bench/"
 
 cmds = {"code2html" => lambda {|f,o| "code2html -l c -n #{f} 2> /dev/null 1> #{o}"},
         "source-highlight" => lambda {|f,o| "source-highlight -n -i #{f} -o #{o}"},
