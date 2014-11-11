@@ -5,18 +5,18 @@
 
 ## Setup
 ### Linux 
-Install [opam](https://github.com/OCamlPro/opam) [[Quick Install](http://opam.ocamlpro.com/doc/Quick_Install.html)] and check that your OCaml version is at least 4.01.0. You can use `opam switch` to manage installations. Then do
-
-    opam install ocamlfind batteries cil xml-light
-
-to install the latest versions of the dependencies for the current user.
-After that you can build goblint:
+Install [opam](https://github.com/OCamlPro/opam) [[Quick Install](http://opam.ocamlpro.com/doc/Quick_Install.html)] and then do
 
     git clone https://github.com/goblint/analyzer.git
     cd analyzer
+    make setup
+
+to install OCaml 4.02.1 and the latest versions of the dependencies for the current user.
+After that you can build goblint:
+
     make
 
-If something goes wrong, take a look at [travis-ci.sh](scripts/travis-ci.sh) for an example setup. 
+If something goes wrong, take a look at [travis-ci.sh](scripts/travis-ci.sh) for an example setup.
 You may now try running goblint: `./goblint tests/regression/04-mutex/01-simple_rc.c`.
 
 ### Mac OS X

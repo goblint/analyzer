@@ -61,6 +61,15 @@ rule() {
              cp g2html/g2html.jar .
              ;;
     depend)  echo "No!";;
+    setup)   opam init
+             opam update
+             opam switch 4.02.1
+             eval `opam config env`
+             opam install ocamlfind batteries xml-light
+             # opam's cil is too old
+             opam pin -y add cil https://github.com/kerneis/cil.git
+             #git submodule update --init --recursive bench
+             ;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
 

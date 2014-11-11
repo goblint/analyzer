@@ -2,11 +2,11 @@ language: c
 git:
   submodules: false
 install: bash -ex scripts/travis-ci.sh
-before_script: git clone https://github.com/goblint/bench.git ../bench
+before_script: git submodule update --init --recursive bench
 script: ./scripts/update_suite.rb
 env:
-  # - OCAML_VERSION=4.01.0 OPAM_VERSION=1.0.0
-  - OCAML_VERSION=4.01.0 OPAM_VERSION=1.1.0
+  - OCAML_VERSION=4.02.1 OPAM_VERSION=1.2.0
+  # - OCAML_VERSION=4.01.0 OPAM_VERSION=1.1.0
   # - OCAML_VERSION=4.00.1 OPAM_VERSION=1.0.0
   # - OCAML_VERSION=4.00.1 OPAM_VERSION=1.1.0
   # - OCAML_VERSION=3.12.1 OPAM_VERSION=1.0.0
