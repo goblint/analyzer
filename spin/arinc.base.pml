@@ -1,25 +1,50 @@
+// configuration defaults
+#ifndef PREEMPTION
+#define PREEMPTION 1
+#endif
+#ifndef nbboard
+#define nbboard 0
+#endif
+#ifndef nsema
+#define nsema 0
+#endif
+#ifndef nevent
+#define nevent 0
+#endif
+
 // arinc spin model
 // constants
-#define UP 1
-#define DOWN 0
+#define DOWN  0 // events
+#define UP    1
+#define EMPTY 0 // blackboards
+#define NONEMPTY 1
+// #define SUCCESS 0   // return codes
+// #define ERROR 1
+mtype = { SUCCESS, ERROR }
 
 // partition
 mtype = { IDLE, COLD_START, WARM_START, NORMAL } // partition modes
 mtype partitionMode = COLD_START;
 // processes
-mtype = { NOTCREATED, STOPPED, SUSPENDED, WAITING, READY, DONE } // possible process states
-// RUNNING is not used here (all READY are possibly RUNNING)
+mtype = { NOTCREATED, STOPPED, SUSPENDED, WAITING, READY, RUNNING, DONE } // possible process states
+// of all READY the scheduler will choose one and set it to RUNNING (with prios there will only be one choice, without it will choose non-determ.)
 mtype status[nproc] = NOTCREATED; // initialize all processes as not created
 byte lockLevel; // scheduling only takes place if this is 0
 byte exclusive; // id of process that has exclusive privilige to execute if lockLevel > 0
+byte nperiodicWait; // number of processes that did a PeriodicWait and still wait
 byte ncrit; // number of processes in critical section
 byte processes_created;
 // resources
-mtype = { NONE, SEMA, EVENT }
+mtype = { NONE, BLACKBOARD, SEMA, EVENT, TIME }
 typedef Wait { mtype resource; byte id; }
 Wait waiting[nproc];
 
-#if (nsema + 0) // semaphores
+#if nbboard // blackboards
+bool bboards[nbboard] = EMPTY;
+byte bboards_created;
+#endif
+
+#if nsema // semaphores
 mtype = { FIFO, PRIO } // queuing discipline
 byte semas[nsema];
 byte semas_max[nsema];
@@ -27,25 +52,33 @@ chan semas_chan[nsema] = [nproc] of { byte }
 byte semas_created;
 #endif
 
-#if (nevent + 0) // events
+#if nevent // events
 bool events[nevent] = DOWN;
 /* chan events_chan[nevent] = [nroc] of { byte } */
 byte events_created;
 #endif
 
-
-// debug macros
-// http://stackoverflow.com/questions/1644868/c-define-macro-for-debug-printing
-/* #define pprintf(fmt, ...)   do { printf("Proc %d: " fmt, __VA_ARGS); } while(0) */
-#define pprintf(fmt, args...)   printf("Proc %d: ", id); printf(fmt, args)
-byte tmp; // can't use skip as a placeholder. must do something. otherwise error "has unconditional self-loop"
-#define todo   tmp=0
+// manage function calls at runtime to avoid inlining
+// each proctype has its own: stack, sp
+inline mark(pc) {
+    sp++;
+    stack[sp] = pc;
+}
 
 // helpers for scheduling etc.
-// inline preInit() {
-//     status[0] = READY;
-// }
-#define preInit status[0] = READY
+#define oneIs(v) checkStatus(==, v, ||)
+#define allAre(v) checkStatus(==, v, &&)
+#define noneAre(v) checkStatus(!=, v, &&)
+
+// LTL formulas
+ltl pw { ! (eventually always oneIs(WAITING)) }
+ltl ps { ! (eventually always oneIs(SUSPENDED)) }
+// starvation: process will always be READY but never RUNNING
+// ltl pr { ! (eventually always oneIs(READY)) }
+
+byte tmp;
+
+#define preInit status[0] = RUNNING
 inline postInit() {
     (partitionMode == NORMAL); // block spin init until arinc init sets mode
     // at this point every resource should have been created!
@@ -55,14 +88,19 @@ inline postInit() {
     // e.g. P2 is not created but P1 calls Start(P2)
     // -> assert that process is created or do nothing
     assert(processes_created == nproc-1); // mainfun is not created
-    #if (nsema + 0)
+    #if nbboard
+    assert(bboards_created == nbboard);
+    #endif
+    #if nsema
     assert(semas_created == nsema);
     #endif
-    #if (nevent + 0)
+    #if nevent
     assert(events_created == nevent);
     #endif
+    printf("Done with postInit!\n");
 }
-#define canRun(proc_id) (status[proc_id] == READY && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
+#define canRun(proc_id) ((status[proc_id] == READY || status[proc_id] == RUNNING) && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
+#define isRunning(proc_id) (status[proc_id] == RUNNING)
 inline setReady(proc_id) {
     printf("setReady: process %d will be ready (was waiting for %e %d)\n", proc_id, waiting[proc_id].resource, waiting[proc_id].id);
     waiting[proc_id].resource = NONE;
@@ -74,9 +112,28 @@ inline setWaiting(resource_type, resource_id) {
     waiting[id].id = resource_id;
     status[id] = WAITING; // update process status (provided clause will block immediately)
 }
+inline changeStatus(from, to) {
+    byte i;
+    for (i in status) {
+        if
+        :: status[i] == from -> status[i] = to
+        :: else -> skip
+        fi
+    }
+}
+inline periodicWake() {
+    byte i;
+    for (i in status) {
+        if
+        :: status[i] == WAITING && waiting[i].resource == TIME -> status[i] = READY; waiting[i].resource = NONE; nperiodicWait--; break
+        :: else -> skip
+        fi
+    }
+}
 // fallback to macro since inline doesn't support return values...
 #define isWaiting(proc_id, resource_type, resource_id)    status[proc_id] == WAITING && waiting[proc_id].resource == resource_type && waiting[proc_id].id == resource_id
 inline removeWaiting(proc_id) {
+    #if nsema
     // remove process from waiting queues for all semas
     byte sema_id;
     for (sema_id in semas) {
@@ -90,6 +147,7 @@ inline removeWaiting(proc_id) {
             fi
         }
     }
+    #endif
     waiting[proc_id].resource = NONE;
 }
 
@@ -106,6 +164,7 @@ inline UnlockPreemption() { atomic {
     fi
 } }
 inline SetPartitionMode(mode) { atomic {
+    printf("SetPartitionMode(%e)\n", mode);
     partitionMode = mode;
 } }
 inline CreateProcess(proc_id, pri, per, cap) { atomic {
@@ -152,17 +211,33 @@ inline Resume(proc_id) { atomic {
     :: status[proc_id] != SUSPENDED -> skip
     fi
 } }
+// blocking behavior of blackboards and events are very similar
 inline CreateBlackboard(bb_id) { atomic {
-    todo
+    printf("CreateBlackboard: id %d\n", bb_id);
+    bboards[bb_id] = NONEMPTY;
+    bboards_created++;
 } }
 inline DisplayBlackboard(bb_id) { atomic {
-    todo
+    // filter processes waiting for bb_id
+    byte i;
+    for (i in status) {
+        if
+        :: isWaiting(i, BLACKBOARD, bb_id) ->
+            setReady(i);
+            // no break, since we want to wake all processes waiting for this BLACKBOARD
+        :: !(isWaiting(i, BLACKBOARD, bb_id)) -> skip
+        fi
+    }
+    bboards[bb_id] = NONEMPTY;
 } }
 inline ReadBlackboard(bb_id) { atomic {
-    todo
+    if
+    :: bboards[bb_id] == EMPTY -> setWaiting(BLACKBOARD, bb_id);
+    :: bboards[bb_id] == NONEMPTY -> skip // nothing to do
+    fi
 } }
 inline ClearBlackboard(bb_id) { atomic {
-    todo
+    bboards[bb_id] = EMPTY;
 } }
 inline CreateSemaphore(sema_id, cur, max, queuing) { atomic {
     printf("CreateSemaphore: id %d, current %d, max %d, queuing %e\n", sema_id, cur, max, queuing);
@@ -226,7 +301,7 @@ inline SignalSemaphore(sema_id) { atomic {
     fi
 } }
 inline CreateEvent(event_id) { atomic {
-    todo;
+    printf("CreateEvent: id %d\n", event_id);
     events_created++;
 } }
 inline WaitEvent(event_id) { atomic {
@@ -251,11 +326,18 @@ inline SetEvent(event_id) { atomic {
 inline ResetEvent(event_id) { atomic {
     events[event_id] = DOWN;
 } }
-inline TimedWait(time) { atomic {
-    todo
-} }
 inline PeriodicWait() { atomic {
-    todo
+    // TODO PRIOS & PREEMPTION
+    #if PREEMPTION
+    status[id] = READY; // could be scheduled again right away
+    #else
+    status[id] = WAITING;
+    waiting[id].resource = TIME;
+    nperiodicWait++;
+    #endif
+} }
+inline TimedWait(time) { atomic {
+    PeriodicWait(); // TODO is this okay?
 } }
 
 
@@ -273,24 +355,29 @@ proctype monitor() {
     byte i;
     // at most 1 process may be in a critical region
     assert(ncrit == 0 || ncrit == 1);
+    #if PREEMPTION
+    assert(nperiodicWait <= nproc);
+    #endif
+    #if nsema
     // each semaphore value must be between 0 and max
     for(i in semas) {
         assert(semas[i] >= 0 && semas[i] <= semas_max[i]);
     }
+    #endif
     // at every time at least one process should be READY or all should be DONE
-    atomic {
-        byte nready = 0;
-        byte ndone = 0;
-        for(i in status) {
-            if
-            :: status[i] == READY -> nready++;
-            :: status[i] == DONE -> ndone++;
-            :: !(status[i] == READY || status[i] == DONE) -> skip
-            fi
-        }
-        if
-        :: nready == 0 && ndone < nproc -> printf("Deadlock detected (no process is READY (%d) but not all are DONE (%d))!\n", nready, ndone); assert(false);
-        :: !(nready == 0 && ndone < nproc) -> skip
-        fi
-    }
+    // atomic {
+    //     byte nready = 0;
+    //     byte ndone = 0;
+    //     for(i in status) {
+    //         if
+    //         :: status[i] == READY -> nready++;
+    //         :: status[i] == DONE -> ndone++;
+    //         :: !(status[i] == READY || status[i] == DONE) -> skip
+    //         fi
+    //     }
+    //     if
+    //     :: nready == 0 && ndone < nproc -> printf("Deadlock detected (no process is READY (%d) but not all are DONE (%d))!\n", nready, ndone); assert(false);
+    //     :: !(nready == 0 && ndone < nproc) -> skip
+    //     fi
+    // }
 }

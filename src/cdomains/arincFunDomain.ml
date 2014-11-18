@@ -31,7 +31,10 @@ struct
     let equal = N.equal
     let compare = N.compare
     let hash = N.hash
-    let string_of_node n = string_of_int (MyCFG.getLoc n).line
+    let string_of_node n =
+      let loc = MyCFG.getLoc n in
+      let f i = if i < 0 then "n" ^ string_of_int (i * -1) else string_of_int i in
+      f loc.line ^ "b" ^ f loc.byte
     let short w n = string_of_node n
     include Printable.PrintSimple (struct
       type t' = t
