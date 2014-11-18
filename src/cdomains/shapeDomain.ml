@@ -80,8 +80,8 @@ let is_private ask (lp:ListPtr.t) =
       | `Bot -> true
       | `Int b when Queries.ID.to_bool b = Some true -> true
       | _ ->
-    match ask (Queries.IsPrivate v)  with
-      | `Bot | `Bool true -> true
+    match ask (Queries.IsPublic v)  with
+      | `Bot | `Bool false -> true
       | b -> false
   in
   match lp with

@@ -17,11 +17,12 @@ sig
   val pretty_trace: unit -> t -> doc
   val compare : t -> t -> int
   val category : t -> int
-
-  val line_nr : t -> int
+  
+  val printXml : 'a BatInnerIO.output -> t -> unit
+  val var_id   : t -> string 
   val file_name : t -> string
-  val description : t -> string
-  val context : unit -> t -> doc
+  val line_nr   : t -> int
+  val node      : t -> MyCFG.node
 end
 
 module Var =
@@ -65,11 +66,28 @@ struct
     | MyCFG.Function f                         -> `ExitOfProc f
     | MyCFG.Statement {skind = Instr [Call _]} -> `ProcCall
     | _ -> `Other
+  
+  let printXml f n =
+    let id ch n =
+      match n with
+        | MyCFG.Statement s     -> BatPrintf.fprintf ch "%d" s.sid
+        | MyCFG.Function f      -> BatPrintf.fprintf ch "ret%d" f.vid
+        | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.vid
+    in
+    let l = MyCFG.getLoc n in
+    BatPrintf.fprintf f "<loc id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte
 
+  let var_id n =
+    match n with
+      | MyCFG.Statement s     -> string_of_int s.sid
+      | MyCFG.Function f      -> "ret" ^ string_of_int f.vid
+      | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.vid
+      
   let line_nr n = (MyCFG.getLoc n).line
   let file_name n = (MyCFG.getLoc n).file
   let description n = sprint 80 (pretty () n)
   let context () _ = Pretty.nil
+  let node n = n
 end
 
 
@@ -118,10 +136,19 @@ struct
     in
     if comp == 0 then LD.compare d1 d2 else comp
 
+  let printXml f (n,c) =
+    Var.printXml f n;
+    BatPrintf.fprintf f "<context>\n";
+    LD.printXml f c;
+    BatPrintf.fprintf f "</context>\n"
+
+  let var_id (n,_) = Var.var_id n
+  
   let line_nr (n,_) = (MyCFG.getLoc n).line
   let file_name (n,_) = (MyCFG.getLoc n).file
   let description (n,_) = sprint 80 (Var.pretty () n)
   let context () (_,c) = LD.pretty () c
+  let node (n,_) = n
 end
 
 module VarCS =
