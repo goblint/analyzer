@@ -810,13 +810,13 @@ struct
           let i = i64_to_int i in
           (* ignore @@ printf "%a[%i] = %c\n" d_lval lv i c; *)
           let s = try BatHashtbl.find char_array lv with Not_found -> "" in (* current string for lv or empty string *)
-          if i >= String.length s then ((* optimized b/c Out_of_memory *)
-            let dst = String.make (i+1) '\000' in
-            String.blit s 0 dst 0 (String.length s); (* dst[0:len(s)] = s *)
-            String.set dst i c; (* set character i to c inplace *)
+          if i >= Bytes.length s then ((* optimized b/c Out_of_memory *)
+            let dst = Bytes.make (i+1) '\000' in
+            Bytes.blit s 0 dst 0 (Bytes.length s); (* dst[0:len(s)] = s *)
+            Bytes.set dst i c; (* set character i to c inplace *)
             Hashtbl.replace char_array lv dst
           )else(
-            String.set s i c; (* set character i to c inplace *)
+            Bytes.set s i c; (* set character i to c inplace *)
             Hashtbl.replace char_array lv s
           )
       | _ -> ()
