@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[0][+] arinc --sets ana.activated[0][+] thread
+// PARAM: --sets ana.activated[0][+] arinc --sets ana.activated[0][+] thread --sets solver slr3
 
 typedef char * SEMAPHORE_NAME_TYPE;
 typedef void * SEMAPHORE_ID_TYPE;
