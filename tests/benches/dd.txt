@@ -14,6 +14,9 @@ inlined.c
 generate!
 synthetic/move-inl.c
 
+semi-inlined.c
+generate!
+synthetic/move-semi.c
 
 tail.c
 generate!
