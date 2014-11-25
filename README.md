@@ -5,7 +5,7 @@
 
 ## Setup
 ### Linux 
-Install [opam](https://github.com/OCamlPro/opam) [[Quick Install](http://opam.ocamlpro.com/doc/Quick_Install.html)] and then do
+Install [opam](https://github.com/OCamlPro/opam) version 1.2 [[Install](http://opam.ocaml.org/doc/Install.html)] and then do
 
     git clone https://github.com/goblint/analyzer.git
     cd analyzer
