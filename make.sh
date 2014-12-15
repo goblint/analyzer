@@ -49,6 +49,9 @@ rule() {
              ln -sf _build/doclist.docdir doc
              ;;
     tag*)    otags -vi `find src/ -iregex [^.]*\.mli?`;;
+    arinc)   ocb src/mainarinc.native &&
+             cp _build/src/mainarinc.native arinc
+             ;;
     npm)     if test ! -e "webapp/package.json"; then
                 git submodule update --init --recursive webapp
              fi

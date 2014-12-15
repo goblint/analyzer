@@ -1,14 +1,14 @@
 open Batteries
-open Arinc.Spec
+(*open Arinc.Spec*)
 open GobConfig
 
 let cs = ref "??"
 
 let save_all ch =
-  ArincUtil.unmarshal ch;
-  ArincUtil.print_actions ();
-  ArincUtil.save_dot_graph ();
-  ArincUtil.save_promela_model ()
+  ArincFunUtil.unmarshal ch;
+  ArincFunUtil.print_actions ();
+  ArincFunUtil.save_dot_graph ();
+  ArincFunUtil.save_promela_model ()
 
 let _ =
   set_auto "mainfun" "['main']"; (* TODO get original (maybe also marshal config) *)
