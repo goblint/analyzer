@@ -36,7 +36,7 @@ type action =
   | CreateEvent of id | WaitEvent of ids * time | SetEvent of ids | ResetEvent of ids
   | TimedWait of time | PeriodicWait
 type node = MyCFG.node
-let string_of_node = ArincFunDomain.Pred.string_of_elt
+let string_of_node = ArincDomain.Pred.string_of_elt
 type edge = node * action * string option * node
 let action_of_edge (_, action, _, _) = action
 type edges = (id, edge Set.t) Hashtbl.t
@@ -269,7 +269,7 @@ let print_actions () =
 (* helper for exporting results *)
 let save_result desc ext content = (* output helper *)
   let dir = Goblintutil.create_dir "result" in (* returns abs. path *)
-  let path = dir ^ "/arinc.fun." ^ ext in
+  let path = dir ^ "/arinc." ^ ext in
   output_file path content;
   print_endline @@ "saved " ^ desc ^ " as " ^ path
 
@@ -318,7 +318,7 @@ let save_promela_model () =
     (* for a process we start with no called functions, for a function we add its name *)
     called_funs_done := if fst id = Process then Set.empty else Set.add (snd id) !called_funs_done;
     (* build adjacency matrix for all nodes of this process *)
-    let module HashtblN = Hashtbl.Make (ArincFunDomain.Pred.Base) in
+    let module HashtblN = Hashtbl.Make (ArincDomain.Pred.Base) in
     let a2bs = HashtblN.create 97 in
     Set.iter (fun (a, _, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
     let nodes = HashtblN.keys a2bs |> List.of_enum in

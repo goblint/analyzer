@@ -9,18 +9,18 @@ module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name = "arincFun"
+  let name = "arinc"
 
   (* ARINC types and Hashtables for collecting CFG *)
   type id = varinfo
-  type resource = ArincFunUtil.resource
+  type resource = ArincUtil.resource
   (* lookup/generate id from resource type and name (needed for LAP_Se_GetXId functions; specified by LAP_Se_CreateX functions during init) *)
   (* map from tuple (resource, name) to varinfo (need to be saved b/c makeGlobalVar x t <> makeGlobalVar x t) *)
   let resources = Hashtbl.create 13
   let get_id (resource,name as k:resource*string) : id =
     try Hashtbl.find resources k
     with Not_found ->
-      let vname = ArincFunUtil.str_resource_type resource^":"^name in
+      let vname = ArincUtil.str_resource_type resource^":"^name in
       let v = makeGlobalVar vname voidPtrType in
       Hashtbl.replace resources k v;
       v
@@ -44,7 +44,7 @@ struct
 
 
   (* Domains *)
-  include ArincFunDomain
+  include ArincDomain
 
   module G = IntDomain.Booleans
   module C = D
@@ -61,9 +61,9 @@ struct
     MyCFG.Statement { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc)) with sid = new_sid () }
   (* table from sum type to negative line number for new intermediate node (-1 to -4 have special meanings) *)
   type tmpNodeUse = Branch of stmt | Combine of lval
-  module NodeTbl = ArincFunUtil.SymTbl (struct type k = tmpNodeUse type v = MyCFG.node let getNew xs = mkDummyNode @@ -5 - (List.length (List.of_enum xs)) end)
+  module NodeTbl = ArincUtil.SymTbl (struct type k = tmpNodeUse type v = MyCFG.node let getNew xs = mkDummyNode @@ -5 - (List.length (List.of_enum xs)) end)
   (* context hash to differentiate function calls *)
-  module CtxTbl = ArincFunUtil.SymTbl (struct type k = int type v = int let getNew xs = if Enum.is_empty xs then 0 else (Enum.arg_max identity xs)+1 end) (* generative functor *)
+  module CtxTbl = ArincUtil.SymTbl (struct type k = int type v = int let getNew xs = if Enum.is_empty xs then 0 else (Enum.arg_max identity xs)+1 end) (* generative functor *)
   let current_ctx_hash () = let hash = !MyCFG.current_ctx_hash |? 0 in string_of_int @@ CtxTbl.get hash
   let current_ctx_short () = !MyCFG.current_ctx_short |? "None"
   let print_current_ctx ?info name f args =
@@ -78,9 +78,9 @@ struct
   let part_mode_var = makeGlobalVar "__GOBLINT_ARINC_MUTLI_THREADED" voidPtrType
   let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
 
-  type env = { d: D.t; node: MyCFG.node; fundec: fundec; pname: string; procid: ArincFunUtil.id; id: ArincFunUtil.id }
+  type env = { d: D.t; node: MyCFG.node; fundec: fundec; pname: string; procid: ArincUtil.id; id: ArincUtil.id }
   let get_env ctx =
-    let open ArincFunUtil in let _ = 42 in
+    let open ArincUtil in let _ = 42 in
     let d = ctx.local in
     let node = Option.get !MyCFG.current_node in
     (* determine if we are at the root of a process or in some called function *)
@@ -92,7 +92,7 @@ struct
     let id = if List.exists ((=) fundec.svar) pfuns || is_mainfun fundec.svar.vname then Process, pname else Function, fname_ctx fundec.svar in
     { d; node; fundec; pname; procid; id }
   let add_edges ?r ?dst ?d env action =
-    Pred.iter (fun node -> ArincFunUtil.add_edge env.id (node, action, r, dst |? env.node)) (d |? env.d).pred
+    Pred.iter (fun node -> ArincUtil.add_edge env.id (node, action, r, dst |? env.node)) (d |? env.d).pred
   let add_actions env xs =
     (* add edges for all predecessor nodes (from pred. node to env.node) *)
     List.iter (fun (action,r) -> match r with Some r -> add_edges ~r env action | None -> add_edges env action) xs;
@@ -108,7 +108,7 @@ struct
     sprint d_lval (Lval.CilLval.to_lval dlval) ^ "_" ^ string_of_int v.vdecl.line |>
     Str.global_replace (Str.regexp "[^a-zA-Z0-9]") "_"
   let add_return_dlval env kind dlval =
-    ArincFunUtil.add_return_var env.procid kind (str_return_dlval dlval)
+    ArincUtil.add_return_var env.procid kind (str_return_dlval dlval)
   let dummy_global_dlval = { dummyFunDec.svar with vname = "Gret" }, `NoOffset
   let global_dlval dlval fname =
     if Lval.CilLval.class_tag dlval = `Global then (
@@ -156,8 +156,8 @@ struct
       let dlval = global_dlval dlval "assign" in
       edges_added := true;
       add_return_dlval env `Write dlval;
-      let add_one str_rhs = add_edges env @@ ArincFunUtil.Assign (str_return_dlval dlval, str_rhs) in
-      let add_top () = add_edges ~r:(str_return_dlval dlval) env @@ ArincFunUtil.Nop in
+      let add_one str_rhs = add_edges env @@ ArincUtil.Assign (str_return_dlval dlval, str_rhs) in
+      let add_top () = add_edges ~r:(str_return_dlval dlval) env @@ ArincUtil.Nop in
       match stripCasts rval with
       | Const CInt64(i,_,_) -> add_one @@ str_return_code i
 (*       | Lval rlval ->
@@ -189,7 +189,7 @@ struct
           let dst_node = if tv then then_node else else_node in
           let d_if = if List.length stmt.preds > 1 then ( (* seems like this never happens *)
               M.debug_each @@ "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
-              add_edges env ArincFunUtil.Nop;
+              add_edges env ArincUtil.Nop;
               { ctx.local with pred = Pred.of_node env.node }
             ) else ctx.local
           in
@@ -200,7 +200,7 @@ struct
             let cond = str_dlval ^ " == " ^ str_return_code i in
             let cond = if tv then cond else "!(" ^ cond ^ ")" in
             let cond = if dlval = dummy_global_dlval || String.exists str_dlval "int___unknown" then "true" else cond in (* we don't know the index of the array -> assume that branch could always be taken *)
-            add_edges ~dst:dst_node ~d:d_if env (ArincFunUtil.Cond (str_dlval, cond));
+            add_edges ~dst:dst_node ~d:d_if env (ArincUtil.Cond (str_dlval, cond));
             add_return_dlval env `Read dlval
           in
           iterMayPointTo ctx (AddrOf lval) f;
@@ -269,7 +269,7 @@ struct
           let caller_dlval = global_dlval caller_dlval "combine" in
           let callee_dlval = callee_var, `NoOffset in
           (* add edge to an intermediate node that assigns the caller return code to the one of the function params *)
-          add_edges ~dst:dst_node ~d:{ d_caller with pred = pred } env (ArincFunUtil.Assign (str_return_dlval callee_dlval, str_return_dlval caller_dlval));
+          add_edges ~dst:dst_node ~d:{ d_caller with pred = pred } env (ArincUtil.Assign (str_return_dlval callee_dlval, str_return_dlval caller_dlval));
           (* we also need to add the callee param as a `Write lval so that we see that it is written to *)
           add_return_dlval env `Write callee_dlval;
           (* also add the caller param because it is read *)
@@ -277,7 +277,7 @@ struct
         in
         (* we need to assign all lvals each caller arg may point to *)
         let last_pred = if GobConfig.get_bool "ana.arinc.assume_success" then d_caller.pred else List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (AddrOf caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
-        add_edges ~d:{ d_caller with pred = last_pred } env (ArincFunUtil.Call (fname_ctx ~ctx:fctx f))
+        add_edges ~d:{ d_caller with pred = last_pred } env (ArincUtil.Call (fname_ctx ~ctx:fctx f))
       );
       (* set current node as new predecessor, since something interesting happend during the call *)
       { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
@@ -310,7 +310,7 @@ struct
   let add_process p = processes := List.append !processes [p]
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let open ArincFunUtil in let _ = 42 in (* sublime's syntax highlighter gets confused without the second let... *)
+    let open ArincUtil in let _ = 42 in (* sublime's syntax highlighter gets confused without the second let... *)
     let d : D.t = ctx.local in
     let is_arinc_fun = startsWith "LAP_Se_" f.vname in
     let is_creating_fun = startsWith "LAP_Se_Create" f.vname in
@@ -613,13 +613,13 @@ struct
       | _ -> Queries.Result.top ()
 
   let finalize () =
-    ArincFunUtil.print_actions ();
-    if Sys.file_exists "result" then ArincFunUtil.marshal @@ open_out_bin @@ "result/arinc.fun.out";
+    ArincUtil.print_actions ();
+    if Sys.file_exists "result" then ArincUtil.marshal @@ open_out_bin @@ "result/arinc.out";
     if GobConfig.get_bool "ana.arinc.export" then (
-      (* ArincFunUtil.simplify (); *)
-      ArincFunUtil.save_dot_graph ();
-      ArincFunUtil.save_promela_model ();
-      ArincFunUtil.validate ()
+      (* ArincUtil.simplify (); *)
+      ArincUtil.save_dot_graph ();
+      ArincUtil.save_promela_model ();
+      ArincUtil.validate ()
     )
 
   let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main").svar) }

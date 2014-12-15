@@ -52,14 +52,14 @@ if [ "$2" = "init" ]; then
     exit 0
 fi
 dbg="--enable colors --enable dbg.debug --enable dbg.verbose --trace arinc --disable ana.arinc.debug_pml"
-goblint="./goblint --conf $conf --set ana.activated[0] ['base','arincFun'] $dbg --enable noverify --enable ana.arinc.export $options"
+goblint="./goblint --conf $conf --set ana.activated[0] ['base','arinc'] $dbg --enable noverify --enable ana.arinc.export $options"
 header "Write effective config"
 $goblint --writeconf all.conf
 header "Starting goblint"
 /bin/time -v -o time.fun.txt $goblint $input 2>&1 | tee trace.fun.txt
 cat time.fun.txt
-dot="result/arinc.fun.dot"
-pml="result/arinc.fun.pml"
+dot="result/arinc.dot"
+pml="result/arinc.pml"
 echo "$dot has $(wc -l < $dot) lines!"
 echo "$pml has $(wc -l < $pml) lines!"
 # fdp -Tpng -O $dot
@@ -68,12 +68,12 @@ echo "$pml has $(wc -l < $pml) lines!"
 pushd result
 header "Generating SPIN Verifier from Promela Code"
 set +o errexit # we want to be able to abort this if it takes too long
-/bin/time -v -o time.spin.txt spin -DPRIOS -a arinc.fun.pml 2>&1 | tee trace.spin.txt
+/bin/time -v -o time.spin.txt spin -DPRIOS -a arinc.pml 2>&1 | tee trace.spin.txt
 set -o errexit
 cat time.spin.txt
 clang -DVECTORSZ=5000 -o pan pan.c # complained that VECTORSZ should be > 1280
-echo "Verify! If there are errors, this will generate a file arinc.fun.pml.trail"
-./pan -n -a || (echo "Verification failed! Do simulation guided by trail."; spin -g -l -p -r -s -t -X -u10000 arinc.fun.pml)
+echo "Verify! If there are errors, this will generate a file arinc.pml.trail"
+./pan -n -a || (echo "Verification failed! Do simulation guided by trail."; spin -g -l -p -r -s -t -X -u10000 arinc.pml)
 popd # result
 popd # script dir
 unset scrambled
