@@ -251,8 +251,10 @@ let simplify () =
 
 (* output warnings TODO *)
 let validate () =
-  debug_each "The following return code variables have never been set by arinc functions or assignments (conditions for these variables are ignored):";
-  Set.iter (fun var -> debug_each @@ "branching on unset return var " ^ var) !unset_ret_vars
+  if neg Set.is_empty !unset_ret_vars then (
+    debug_each "The following return code variables have never been set by arinc functions or assignments (conditions for these variables are ignored):";
+    Set.iter (fun var -> debug_each @@ "branching on unset return var " ^ var) !unset_ret_vars
+  )
 
 (* print to stdout *)
 let print_actions () =

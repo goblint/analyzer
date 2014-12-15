@@ -120,16 +120,17 @@ struct
     | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
         let top_elt = (dummyFunDec.svar, `NoOffset) in
         let a' = if Queries.LS.mem top_elt a then (
-            M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!";
+            M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!"; (* UNSOUND *)
             Queries.LS.remove top_elt a
           ) else a
         in
-        Some (Queries.LS.elements a')
-    | _ -> None (* TODO can `Top happen here? *)
-  let mustPointTo ctx exp = Option.bind (mayPointTo ctx exp) (fun xs -> if List.length xs = 1 then Some (List.hd xs) else None)
-  (* let dlval_from_lval ctx lval = mustPointTo ctx (AddrOf lval) |? failwith "dlval_from_lval: more than one result!" *)
-  let mapMayPointTo ctx exp f = mayPointTo ctx exp |? [] |> List.map f
-  let iterMayPointTo ctx exp f = mayPointTo ctx exp |? [] |> List.iter f
+        if Queries.LS.cardinal a' = 0 then failwith "mayPointTo" else (* this shouldn't happen since addresses aren't thrown away *)
+        Queries.LS.elements a'
+    | v ->
+        M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " is " ^ sprint Queries.Result.pretty v;
+        failwith "mayPointTo"
+  let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.length xs = 1 then Some (List.hd xs) else None
+  let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
 
 
   (* transfer functions *)
@@ -331,14 +332,7 @@ struct
       | `Str s -> s
       | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp^" in "^f.vname
     in
-    let eval_id exp =
-      match ctx.ask (Queries.MayPointTo exp) with
-      | `LvalSet a when not (Queries.LS.is_top a) ->
-                     (* && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) a) -> *)
-          Queries.LS.remove (dummyFunDec.svar, `NoOffset) a |> Queries.LS.elements |> List.map (Option.get%get_by_id%fst)
-      | `LvalSet a -> (* failwith "LvalSet was top" *) []
-      | x -> M.debug_each @@ "Could not evaluate id-argument "^sprint d_plainexp exp^" in "^f.vname^". Query returned "^sprint Queries.Result.pretty x; []
-    in
+    let eval_id exp = mayPointTo ctx exp |> List.map (Option.get % get_by_id % fst) in
     let assign_id exp id =
       match exp with
       (* call assign for all analyses (we only need base)! *)
@@ -368,7 +362,7 @@ struct
           add_actions env [action,None]
         ) else (
           invalidate_arg r;
-          let xs = mayPointTo ctx r |? [] in
+          let xs = mayPointTo ctx r in
           (* warn about wrong type (r should always be a return code) and setting globals! *)
           let f dlval =
             let dlval = global_dlval dlval "special" in
@@ -430,21 +424,14 @@ struct
             | TPtr _, _ -> dst
             | _ -> failwith @@ f.vname ^ " expects first argument to be some Pointer, but got "^sprint d_exp dst^" which is "^sprint d_plainexp dst
           in
-          begin match ctx.ask (Queries.MayPointTo exp) with
-          | `LvalSet ls when not (Queries.LS.is_top ls) && Queries.LS.cardinal ls = 1 ->
-              let v, offs = Queries.LS.choose ls in
-              let ciloffs = Lval.CilLval.to_ciloffs offs in
-              let lval = Var v, ciloffs in
-              (* ignore @@ printf "dst: %a, MayPointTo: %a" d_plainexp dst d_plainlval lval; *)
+          begin match mayPointTo ctx exp with
+          | [v,offs] ->
+              let lval = Var v, Lval.CilLval.to_ciloffs offs in
               ctx.assign ~name:"base" lval src;
               d
-          | r ->
-              M.debug_each @@ f.vname ^ ": result of MayPointTo for " ^ sprint d_plainexp exp ^ " = " ^ Queries.Result.short 100 r;
-              begin match r with
-              | `LvalSet ls when Queries.LS.is_top ls -> d
-              | `Top -> d
-              | _ -> failwith @@ f.vname ^ " could not query MayPointTo "^sprint d_plainexp exp
-              end
+          | _ ->
+              M.debug_each @@ f.vname ^ ": SysFun: result of MayPointTo for " ^ sprint d_plainexp exp ^ " contains more than one result!";
+              failwith "mayPointTo"
           end
     (* Processes *)
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
@@ -622,7 +609,7 @@ struct
             `Int (Option.get @@ Pri.to_int d.pri)
           else if Pri.is_top d.pri then `Top else `Bot
       | Queries.IsPublic _ ->
-          `Bool (not((PrE.to_int d.pre <> Some 0L && PrE.to_int d.pre <> None) || mode_is_init d.pmo))
+          `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo)))
       | _ -> Queries.Result.top ()
 
   let finalize () =
