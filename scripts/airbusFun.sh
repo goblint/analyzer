@@ -16,7 +16,9 @@ else
 fi
 analyzer=~/analyzer
 inputs=~/Dropbox/airbus
-if $pedantic && [ `pwd` = $analyzer ]; then
+input=unrolled_monit.c
+conf=ab.conf
+if [ `pwd` = $analyzer ]; then
     echo "Do not run in $analyzer! Go somewhere else; the goblint binary will be copied."
     exit 1
 fi
@@ -32,7 +34,7 @@ commit=$(git -C $analyzer rev-parse --short HEAD)
 date=$(git -C $analyzer show -s --pretty=format:"%ai" $commit | sed 's/ +.*//' | sed 's/ /_/g')
 lastmod=$(find $analyzer/{src,scripts} -printf "%Tm-%Td-%TT\n" | sort -nr | head -n 1 | cut -d. -f1)
 result="result_${date}_${commit}_${lastmod}_${ret}"
-if $pedantic && [ -e $result ]; then
+if [ -e $result ]; then
     echo "$result already exists!"
     exit
 fi
@@ -44,12 +46,17 @@ header "Building & copying files from $analyzer"
 pushd $analyzer && make nat && popd
 cp -f $analyzer/goblint .
 cp -f $analyzer/spin/arinc?base.pml result # copy everything before the long running stuff...
+header "Copying input & config from $inputs"
+cp -f $inputs/{$input,$conf} .
 if [ "$2" = "init" ]; then
     exit 0
 fi
 dbg="--enable colors --enable dbg.debug --enable dbg.verbose --trace arinc --disable ana.arinc.debug_pml"
+goblint="./goblint --conf $conf --set ana.activated[0] ['base','arincFun'] $dbg --enable noverify --enable ana.arinc.export $options"
+header "Write effective config"
+$goblint --writeconf all.conf
 header "Starting goblint"
-/bin/time -v -o time.fun.txt ./goblint --conf $inputs/ab.conf --set "ana.activated[0]" "['base','arincFun']" $dbg --enable noverify --enable ana.arinc.export $options $inputs/unrolled_monit.c 2>&1 | tee trace.fun.txt
+/bin/time -v -o time.fun.txt $goblint $input 2>&1 | tee trace.fun.txt
 cat time.fun.txt
 dot="result/arinc.fun.dot"
 pml="result/arinc.fun.pml"
