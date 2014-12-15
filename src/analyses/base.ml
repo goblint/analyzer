@@ -1240,7 +1240,8 @@ struct
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
-    let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in
+    (*let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in*)
+    let new_cpa = CPA.filter_class 2 cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
@@ -1491,7 +1492,7 @@ struct
           match LF.get_invalidate_action f.vname with
             | Some fnc -> invalidate ctx.ask gs st (lv_list @ (fnc `Write  args));
             | None -> (
-                (if f.vid <> dummyFunDec.svar.vid then M.warn ("Function definition missing for " ^ f.vname));
+                (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn ("Function definition missing for " ^ f.vname));
                 let st_expr (v:varinfo) (value) a =
                   if is_global ctx.ask v && not (is_static v) then
                     mkAddrOf (Var v, NoOffset) :: a
