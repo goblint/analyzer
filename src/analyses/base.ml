@@ -1241,7 +1241,7 @@ struct
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     (*let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in*)
-    let new_cpa = CPA.filter_class 2 cpa in
+    let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> is_private ctx.ask ctx.local k) cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
