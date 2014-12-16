@@ -64,12 +64,11 @@ struct
   module NodeTbl = ArincUtil.SymTbl (struct type k = tmpNodeUse type v = MyCFG.node let getNew xs = mkDummyNode @@ -5 - (List.length (List.of_enum xs)) end)
   (* context hash to differentiate function calls *)
   module CtxTbl = ArincUtil.SymTbl (struct type k = int type v = int let getNew xs = if Enum.is_empty xs then 0 else (Enum.arg_max identity xs)+1 end) (* generative functor *)
-  let current_ctx_hash () = let hash = !MyCFG.current_ctx_hash |? 0 in string_of_int @@ CtxTbl.get hash
-  let current_ctx_short () = !MyCFG.current_ctx_short |? "None"
+  let current_ctx_hash () = let hash = !MyCFG.CtxHashes.current |? 0 in string_of_int @@ CtxTbl.get hash
   let print_current_ctx ?info name f args =
     if name = "foo" then
     let info = match info with Some info -> " ("^info^")" | None -> "" in
-    M.debug @@ name^info^": "^f.vname^"("^sprint_map d_exp args ^"), current_ctx_hash = " ^ current_ctx_hash () ^ ", current_ctx_short = " ^ current_ctx_short ()
+    M.debug @@ name^info^": "^f.vname^"("^sprint_map d_exp args ^"), current_ctx_hash = " ^ current_ctx_hash ()
   let fname_ctx ?ctx f = f.vname ^ "_" ^ (ctx |? current_ctx_hash ())
 
   let is_single ctx =
@@ -126,6 +125,7 @@ struct
         in
         if Queries.LS.cardinal a' = 0 then failwith "mayPointTo" else (* this shouldn't happen since addresses aren't thrown away *)
         Queries.LS.elements a'
+    | `Bot -> []
     | v ->
         M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " is " ^ sprint Queries.Result.pretty v;
         failwith "mayPointTo"
@@ -228,8 +228,8 @@ struct
   let last_ctx_hash : int option ref = ref None
   let return ctx (exp:exp option) (f:fundec) : D.t =
     print_current_ctx "return" f.svar [];
-    last_ctx_hash := !MyCFG.current_ctx_hash;
-    match !MyCFG.current_ctx_hash with
+    last_ctx_hash := !MyCFG.CtxHashes.current;
+    match !MyCFG.CtxHashes.current with
     | Some hash -> { ctx.local with ctx = Ctx.of_int (Int64.of_int hash) }
     | None -> ctx.local
 

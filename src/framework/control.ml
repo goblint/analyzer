@@ -377,6 +377,9 @@ struct
     if (get_bool "exp.cfgdot") then
       MyCFG.dead_code_cfg file (module Cfg:CfgBidir) !liveness;
 
+    if (get_bool "dbg.ctxinfo") then
+      MyCFG.CtxHashes.print print_endline;
+
     Spec.finalize ();
 
     if (get_bool "dbg.verbose") then print_endline "Generating output.";

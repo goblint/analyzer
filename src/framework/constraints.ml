@@ -215,6 +215,7 @@ struct
 
   let tf_entry fd getl sidel getg sideg d =
     let ctx, r = common_ctx d getl sidel getg sideg in
+    Option.may (CtxHashes.add fd.svar.vname) !CtxHashes.current;
     bigsqcup ((S.body ctx fd)::!r)
 
   let tf_test e tv getl sidel getg sideg d =
@@ -278,16 +279,14 @@ struct
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
-    let old_hash = !current_ctx_hash in
+    let old_hash = !CtxHashes.current in
     let _       = current_node := Some u in
-    let _       = current_ctx_hash := Some (S.C.hash c) in
-    (* let _       = current_ctx_short := Some (S.C.short 500 c) in *)
-    let _       = current_ctx_short := Some (Pretty.sprint 500 (S.C.pretty () c)) in (* just for debugging *)
+    let _       = CtxHashes.current := Some (S.C.hash c) in
     let d       = try tf (v,c) (e,u) getl sidel getg sideg
                   with M.StopTheWorld -> D.bot ()
                      | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
     let _       = current_node := old_node in
-    let _       = current_ctx_hash := old_hash in
+    let _       = CtxHashes.current := old_hash in
       d
 
   let system (v,c) =
