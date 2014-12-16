@@ -43,7 +43,10 @@ mkdir -p $result && cd $result
 
 mkdir -p result
 header "Building & copying files from $analyzer"
-pushd $analyzer && make nat && popd
+pushd $analyzer
+grep -q 'tracing = false' src/config.ml && \
+  sed 's/tracing = false/tracing = true/' src/config.ml > src/config.tmp && mv src/config.tmp src/config.ml
+make nat && popd
 cp -f $analyzer/goblint .
 cp -f $analyzer/spin/arinc?base.pml result # copy everything before the long running stuff...
 header "Copying input & config from $inputs"
