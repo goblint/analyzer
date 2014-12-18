@@ -70,7 +70,7 @@ rule() {
              eval `opam config env`
              opam install ocamlfind batteries xml-light
              # opam's cil is too old
-             opam pin -y add cil https://github.com/kerneis/cil.git#develop
+             opam pin -y add cil "https://github.com/kerneis/cil.git#develop"
              ;;
     bench)   git submodule update --init --recursive bench;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
