@@ -44,8 +44,6 @@ mkdir -p $result && cd $result
 mkdir -p result
 header "Building & copying files from $analyzer"
 pushd $analyzer
-grep -q 'tracing = false' src/config.ml && \
-  sed 's/tracing = false/tracing = true/' src/config.ml > src/config.tmp && mv src/config.tmp src/config.ml
 make nat && popd
 cp -f $analyzer/goblint .
 cp -f $analyzer/spin/arinc?base.pml result # copy everything before the long running stuff...
@@ -54,7 +52,7 @@ cp -f $inputs/{$input,$conf} .
 if [ "$2" = "init" ]; then
     exit 0
 fi
-dbg="--enable colors --enable dbg.debug --enable dbg.verbose --trace arinc --disable ana.arinc.debug_pml"
+dbg="--enable colors --enable dbg.debug --enable dbg.verbose --disable ana.arinc.debug_pml"
 goblint="./goblint --conf $conf --set ana.activated[0] ['base','arinc'] $dbg --enable noverify --enable ana.arinc.export $options"
 header "Write effective config"
 $goblint --writeconf all.conf
