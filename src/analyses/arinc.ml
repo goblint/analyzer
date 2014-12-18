@@ -123,7 +123,6 @@ struct
             Queries.LS.remove top_elt a
           ) else a
         in
-        if Queries.LS.cardinal a' = 0 then failwith "mayPointTo" else (* this shouldn't happen since addresses aren't thrown away *)
         Queries.LS.elements a'
     | `Bot -> []
     | v ->
@@ -416,31 +415,18 @@ struct
       | "F1" , [dst; src; _] (* memset TODO write char src to dst len times  *)
       ->
           (* M.debug @@ "strcpy("^sprint d_plainexp dst^", "^sprint d_plainexp src^")"; *)
-          (* let exp = mkAddrOrStartOf (mkMem ~addr:dst ~off:NoOffset) in *)
-          let exp = match unrollType (typeOf dst), dst with
-            | _, Lval lval
-            | _, AddrOf lval
-            | _, StartOf lval -> mkAddrOf lval
-            | TPtr _, _ -> dst
-            | _ -> failwith @@ f.vname ^ " expects first argument to be some Pointer, but got "^sprint d_exp dst^" which is "^sprint d_plainexp dst
-          in
-          begin match mayPointTo ctx exp with
-          | [v,offs] ->
-              let lval = Var v, Lval.CilLval.to_ciloffs offs in
-              ctx.assign ~name:"base" lval src;
-              d
-          | _ ->
-              M.debug_each @@ f.vname ^ ": SysFun: result of MayPointTo for " ^ sprint d_plainexp exp ^ " contains more than one result!";
-              failwith "mayPointTo"
-          end
+          let lval = mkMem ~addr:dst ~off:NoOffset in
+          let rval = Lval (mkMem ~addr:src ~off:NoOffset) in
+          ctx.assign ~name:"base" lval rval;
+          d
     (* Processes *)
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
           let cm = match unrollType (typeOfLval attr) with
             | TComp (c,_) -> c
             | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
           in
-          let struct_fail x =
-            failwith @@ "LAP_Se_CreateProcess: problem with first argument: " ^
+          let struct_fail f x =
+            f @@ "LAP_Se_CreateProcess: problem with first argument: " ^
             begin match x with
             | `Field ofs -> "cannot access field " ^ ofs
             | `Result (name, entry_point, pri, per, cap) ->
@@ -449,7 +435,7 @@ struct
           in
           let field ofs =
             try Lval (addOffsetLval (Field (getCompField cm ofs, NoOffset)) attr)
-            with Not_found -> struct_fail (`Field ofs)
+            with Not_found -> struct_fail failwith (`Field ofs)
           in
           let name = ctx.ask (Queries.EvalStr (field Goblintutil.arinc_name)) in
           let entry_point = ctx.ask (Queries.ReachableFrom (AddrOf attr)) in
@@ -470,9 +456,7 @@ struct
               let pid' = Process, name in
               assign_id pid (get_id pid');
               add_action (CreateProcess Action.({ pid = pid'; funs; pri; per; cap }))
-          (* TODO when is `Bot returned? *)
-          (* | `Bot, _ | _, `Bot -> D.bot () *)
-          | _ -> let f = Queries.Result.short 30 in struct_fail (`Result (f name, f entry_point, f pri, f per, f cap))
+          | _ -> let f = Queries.Result.short 30 in struct_fail debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); d
           end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
           assign_id_by_name Process name pid; d
