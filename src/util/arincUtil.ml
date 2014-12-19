@@ -17,11 +17,10 @@ let str_resource_type = function
   | Blackboard -> "Blackboard"
 (* id is resource type and name, there is a 1:1 mapping to varinfo in the analysis uses for assignments *)
 type id = resource*string
-type ids = id list
 type time = int64 (* Maybe use Nativeint which is the same as C long. OCaml int is just 31 or 63 bits wide! *)
 module Action = (* encapsulate types because some process field names are also used for D.t -> use local opening of modules (since OCaml 4.00) for output *)
 struct
-  type process = { pid: id; funs: varinfo list; pri: int64; per: time; cap: time }
+  type process = { pid: id; f: varinfo; pri: int64; per: time; cap: time }
   type semaphore = { sid: id; cur: int64; max: int64; queuing: int64 }
 end
 type action =
@@ -30,10 +29,10 @@ type action =
   | Assign of string * string (* var_callee = var_caller *)
   | Call of string
   | LockPreemption | UnlockPreemption | SetPartitionMode of int64
-  | CreateProcess of Action.process | CreateErrorHandler of id * varinfo list | Start of ids | Stop of ids | Suspend of ids | Resume of ids
-  | CreateBlackboard of id | DisplayBlackboard of ids | ReadBlackboard of ids * time | ClearBlackboard of ids
-  | CreateSemaphore of Action.semaphore | WaitSemaphore of ids | SignalSemaphore of ids
-  | CreateEvent of id | WaitEvent of ids * time | SetEvent of ids | ResetEvent of ids
+  | CreateProcess of Action.process | CreateErrorHandler of id * varinfo | Start of id | Stop of id | Suspend of id | Resume of id
+  | CreateBlackboard of id | DisplayBlackboard of id | ReadBlackboard of id * time | ClearBlackboard of id
+  | CreateSemaphore of Action.semaphore | WaitSemaphore of id | SignalSemaphore of id
+  | CreateEvent of id | WaitEvent of id * time | SetEvent of id | ResetEvent of id
   | TimedWait of time | PeriodicWait
 type node = MyCFG.node
 let string_of_node = ArincDomain.Pred.string_of_elt
@@ -60,11 +59,11 @@ let filter_actions p =
 
 let funs_for_process id : varinfo list =
   let get_funs = function
-    | CreateProcess x when x.Action.pid=id -> Some x.Action.funs
-    | CreateErrorHandler (id', funs) when id'=id -> Some funs
+    | CreateProcess x when x.Action.pid=id -> Some x.Action.f
+    | CreateErrorHandler (id', f) when id'=id -> Some f
     | _ -> None
   in
-  filter_map_actions get_funs |> List.concat |> List.unique
+  filter_map_actions get_funs |> List.unique
 
 module type GenSig = sig type k type v val getNew: v Enum.t -> v end
 module type SymTblSig = sig type k type v val get: k -> v val to_list: unit -> (k*v) list end
@@ -112,7 +111,8 @@ let string_of_queuing_discipline = function
 let str_i64 id = string_of_int (i64_to_int id)
 let str_time t = if t = infinity then "∞" else str_i64 t^"ns"
 (* console and dot *)
-let str_funs funs = "["^(List.map (fun v -> v.vname) funs |> String.concat ", ")^"]"
+let str_fun f = f.vname
+let str_funs fs = "["^(List.map str_fun fs |> String.concat ", ")^"]"
 let str_resource id =
   match id with
   | Process, "mainfun" ->
@@ -131,33 +131,33 @@ let str_action pid = function
   | UnlockPreemption -> "UnlockPreemption"
   | SetPartitionMode i -> "SetPartitionMode "^string_of_partition_mode i
   | CreateProcess x ->
-      Action.("CreateProcess "^str_resource x.pid^" (funs "^str_funs x.funs^", prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")")
+      Action.("CreateProcess "^str_resource x.pid^" (fun "^str_fun x.f^", prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")")
   | CreateErrorHandler (id, funs) -> "CreateErrorHandler "^str_resource id
-  | Start ids -> "Start "^str_resources ids
-  | Stop ids when ids=[pid] -> "StopSelf"
-  | Stop ids -> "Stop "^str_resources ids
-  | Suspend ids when ids=[pid] -> "SuspendSelf"
-  | Suspend ids -> "Suspend "^str_resources ids
-  | Resume ids -> "Resume "^str_resources ids
+  | Start id -> "Start "^str_resource id
+  | Stop id when id=pid -> "StopSelf"
+  | Stop id -> "Stop "^str_resource id
+  | Suspend id when id=pid -> "SuspendSelf"
+  | Suspend id -> "Suspend "^str_resource id
+  | Resume id -> "Resume "^str_resource id
   | CreateBlackboard id -> "CreateBlackboard "^str_resource id
-  | DisplayBlackboard ids -> "DisplayBlackboard "^str_resources ids
-  | ReadBlackboard (ids, timeout) -> "ReadBlackboard "^str_resources ids^" (timeout "^str_time timeout^")"
-  | ClearBlackboard ids -> "ClearBlackboard "^str_resources ids
+  | DisplayBlackboard id -> "DisplayBlackboard "^str_resource id
+  | ReadBlackboard (id, timeout) -> "ReadBlackboard "^str_resource id^" (timeout "^str_time timeout^")"
+  | ClearBlackboard id -> "ClearBlackboard "^str_resource id
   | CreateSemaphore x ->
       Action.("CreateSemaphore "^str_resource x.sid^" ("^str_i64 x.cur^"/"^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^")")
-  | WaitSemaphore ids -> "WaitSemaphore "^str_resources ids
-  | SignalSemaphore ids -> "SignalSemaphore "^str_resources ids
+  | WaitSemaphore id -> "WaitSemaphore "^str_resource id
+  | SignalSemaphore id -> "SignalSemaphore "^str_resource id
   | CreateEvent id -> "CreateEvent "^str_resource id
-  | WaitEvent (ids, timeout) -> "WaitEvent "^str_resources ids^" (timeout "^str_time timeout^")"
-  | SetEvent ids -> "SetEvent "^str_resources ids
-  | ResetEvent ids -> "ResetEvent "^str_resources ids
+  | WaitEvent (id, timeout) -> "WaitEvent "^str_resource id^" (timeout "^str_time timeout^")"
+  | SetEvent id -> "SetEvent "^str_resource id
+  | ResetEvent id -> "ResetEvent "^str_resource id
   | TimedWait t -> "TimedWait "^str_time t
   | PeriodicWait -> "PeriodicWait"
 let str_return_code = function Some r -> " : " ^ r | None -> ""
 (* spin/promela *)
 let pml_resources = Hashtbl.create 13
 let _ = Hashtbl.add pml_resources (Process, "mainfun") 0L
-let id_pml id = (* give ids starting from 0 (get_pid_by_id for all resources) *)
+let id_pml id = (* give id starting from 0 (get_pid_by_id for all resources) *)
   let resource, name as k = id in
   try Hashtbl.find pml_resources k
   with Not_found ->
@@ -189,23 +189,23 @@ let str_action_pml pid = function
   | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
   | CreateProcess x ->
       Action.("CreateProcess("^str_id_pml x.pid^", "^str_i64 x.pri^", "^str_i64 x.per^", "^str_i64 x.cap^"); /* "^str_resource x.pid^" (prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^") */")
-  | CreateErrorHandler (id, funs) -> "CreateErrorHandler("^str_id_pml id^");"
-  | Start ids -> str_ids_pml ids (fun id -> "Start("^id^");")
-  | Stop ids -> str_ids_pml ids (fun id -> "Stop("^id^");")
-  | Suspend ids -> str_ids_pml ids (fun id -> "Suspend("^id^");")
-  | Resume ids -> str_ids_pml ids (fun id -> "Resume("^id^");")
+  | CreateErrorHandler (id, f) -> "CreateErrorHandler("^str_id_pml id^");"
+  | Start id -> "Start("^str_id_pml id^");"
+  | Stop id -> "Stop("^str_id_pml id^");"
+  | Suspend id -> "Suspend("^str_id_pml id^");"
+  | Resume id -> "Resume("^str_id_pml id^");"
   | CreateBlackboard id -> "CreateBlackboard("^str_id_pml id^");"
-  | DisplayBlackboard ids -> str_ids_pml ids (fun id -> "DisplayBlackboard("^id^");")
-  | ReadBlackboard (ids, timeout) -> str_ids_pml ids (fun id -> "ReadBlackboard("^id^");")
-  | ClearBlackboard ids -> str_ids_pml ids (fun id -> "ClearBlackboard("^id^");")
+  | DisplayBlackboard id -> "DisplayBlackboard("^str_id_pml id^");"
+  | ReadBlackboard (id, timeout) -> "ReadBlackboard("^str_id_pml id^");"
+  | ClearBlackboard id -> "ClearBlackboard("^str_id_pml id^");"
   | CreateSemaphore x ->
       Action.("CreateSemaphore("^str_id_pml x.sid^", "^str_i64 x.cur^", "^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^");")
-  | WaitSemaphore ids -> str_ids_pml ids (fun id -> "WaitSemaphore("^id^");")
-  | SignalSemaphore ids -> str_ids_pml ids (fun id -> "SignalSemaphore("^id^");")
+  | WaitSemaphore id -> "WaitSemaphore("^str_id_pml id^");"
+  | SignalSemaphore id -> "SignalSemaphore("^str_id_pml id^");"
   | CreateEvent id -> "CreateEvent("^str_id_pml id^");"
-  | WaitEvent (ids, timeout) -> str_ids_pml ids (fun id -> "WaitEvent("^id^");")
-  | SetEvent ids -> str_ids_pml ids (fun id -> "SetEvent("^id^");")
-  | ResetEvent ids -> str_ids_pml ids (fun id -> "ResetEvent("^id^");")
+  | WaitEvent (id, timeout) -> "WaitEvent("^str_id_pml id^");"
+  | SetEvent id -> "SetEvent("^str_id_pml id^");"
+  | ResetEvent id -> "ResetEvent("^str_id_pml id^");"
   | TimedWait t -> "TimedWait("^str_i64 t^");"
   | PeriodicWait -> "PeriodicWait();"
 let str_return_code_pml pid action_str = function

@@ -96,7 +96,7 @@ struct
     (* add edges for all predecessor nodes (from pred. node to env.node) *)
     List.iter (fun (action,r) -> match r with Some r -> add_edges ~r env action | None -> add_edges env action) xs;
     (* update domain by replacing the set of pred. nodes with the current node *)
-    D.pred (const @@ Pred.of_node env.node) env.d
+    if List.is_empty xs then D.bot () else D.pred (const @@ Pred.of_node env.node) env.d
   (* is exp of the return code type (pointers are not considered!) *)
   let is_return_code_type exp = typeOf exp |> unrollTypeDeep |> function
     | TEnum(ei, _) when ei.ename = "T13" -> true
@@ -146,6 +146,7 @@ struct
     match lval with Var _, _ when not @@ is_return_code_type (Lval lval) -> ctx.local | _ ->
     (* TODO why is it that current_node can be None here, but not in other transfer functions? *)
     if not @@ Option.is_some !MyCFG.current_node then (M.debug_each "assign: MyCFG.current_node not set :("; ctx.local) else
+    if D.is_bot ctx.local then ctx.local else
     let env = get_env ctx in
     let edges_added = ref false in
     let f dlval =
@@ -170,6 +171,7 @@ struct
     (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
     (* only if we don't assume success, we need to consider branching on return codes *)
     if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
+    if D.is_bot ctx.local then ctx.local else
     let env = get_env ctx in
     let check a b tv =
       (* we are interested in a comparison between some lval lval (which has the type of the return code enum) and a value of that enum (which gets converted to an Int by CIL) *)
@@ -243,6 +245,7 @@ struct
     let f_ctx_hash = "f_ctx_hash = " ^ string_of_int (!last_ctx_hash |? -1) in
     (* somehow context is only right if f_ctx_hash == current_ctx_hash *)
     print_current_ctx ~info:f_ctx_hash "combine" f args;
+    if D.is_bot ctx.local then ctx.local else
     let env = get_env ctx in
     let d_caller = ctx.local in
     let d_callee = au in
@@ -311,9 +314,10 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let open ArincUtil in let _ = 42 in (* sublime's syntax highlighter gets confused without the second let... *)
     let d : D.t = ctx.local in
+    if D.is_bot d then d else
+    let env = get_env ctx in
     let is_arinc_fun = startsWith "LAP_Se_" f.vname in
     let is_creating_fun = startsWith "LAP_Se_Create" f.vname in
-    let env = get_env ctx in
     if M.tracing && is_arinc_fun then (
       let args_str = String.concat ", " (List.map (sprint d_exp) arglist) in
       (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
@@ -353,12 +357,12 @@ struct
     let arglist = List.map (stripCasts%(constFold false)) arglist in
     (* if assume_success we set the return code and don't need to do anything else
        otherwise we need to invalidate the return code (TODO maybe not top but sth more precise) and include the return code variable for all arinc calls (so that it can be set non-deterministically in promela) *)
-    let add_action action =
+    let add_actions actions =
       if is_arinc_fun && not @@ List.is_empty arglist then
         let r = List.last arglist in
         if GobConfig.get_bool "ana.arinc.assume_success" then (
           assume_success r;
-          add_actions env [action,None]
+          add_actions env @@ List.map (fun action -> action, None) actions
         ) else (
           invalidate_arg r;
           let xs = mayPointTo ctx r in
@@ -367,14 +371,16 @@ struct
             let dlval = global_dlval dlval "special" in
             if not @@ is_return_code_type @@ Lval.CilLval.to_exp dlval
             then (M.debug_each @@ "WARN: last argument in arinc function may point to something other than a return code: " ^ str_return_dlval dlval; None)
-            else (add_return_dlval env `Write dlval; Some (action, Some (str_return_dlval dlval)))
+            else (add_return_dlval env `Write dlval; Some (str_return_dlval dlval))
           in
-          (* add action for all lvals r may point to *)
-          add_actions env @@ List.filter_map f xs
+          (* add actions for all lvals r may point to *)
+          let rets = List.map Option.some @@ List.filter_map f xs in
+          add_actions env @@ List.cartesian_product actions rets
         )
-      else (* no arinc fun or no args *)
-        add_actions env [action,None]
+      else (* no args *)
+        add_actions env @@ List.map (fun action -> action,None) actions
     in
+    let add_action action = add_actions [action] in
     let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else add_action Nop in
     match f.vname, arglist with
       | _ when is_arinc_fun && is_creating_fun && not(mode_is_init d.pmo) ->
@@ -455,7 +461,7 @@ struct
               List.iter spawn funs;
               let pid' = Process, name in
               assign_id pid (get_id pid');
-              add_action (CreateProcess Action.({ pid = pid'; funs; pri; per; cap }))
+              add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
           | _ -> let f = Queries.Result.short 30 in struct_fail debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); d
           end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
@@ -465,23 +471,19 @@ struct
           assign_id pid (get_id env.procid); d
       | "LAP_Se_Start", [pid; r] ->
           (* at least one process should be started in main *)
-          let pid = eval_id pid in
-          if List.is_empty pid then d else add_action (Start pid)
+          add_actions @@ List.map (fun pid -> Start pid) (eval_id pid)
       | "LAP_Se_DelayedStart", [pid; delay; r] -> todo ()
       | "LAP_Se_Stop", [pid; r] ->
-          let pid = eval_id pid in
-          if List.is_empty pid then d else add_action (Stop pid)
+          add_actions @@ List.map (fun pid -> Stop pid) (eval_id pid)
       | "LAP_Se_StopSelf", [] ->
           if mode_is_init d.pmo then failwith @@ "The behavior of " ^ f.vname ^ " is not defined in WARM_START/COLD_START!";
-          add_action (Stop [env.procid])
+          add_action (Stop env.procid)
       | "LAP_Se_Suspend", [pid; r] ->
-          let pid = eval_id pid in
-          if List.is_empty pid then d else add_action (Suspend pid)
+          add_actions @@ List.map (fun pid -> Suspend pid) (eval_id pid)
       | "LAP_Se_SuspendSelf", [timeout; r] -> (* TODO timeout *)
-          add_action (Suspend [env.procid])
+          add_action (Suspend env.procid)
       | "LAP_Se_Resume", [pid; r] ->
-          let pid = eval_id pid in
-          if List.is_empty pid then d else add_action (Resume pid)
+          add_actions @@ List.map (fun pid -> Resume pid) (eval_id pid)
     (* Logbook - not used *)
       | "LAP_Se_CreateLogBook", [name; max_size; max_logged; max_in_progress; lbid; r] -> todo ()
       | "LAP_Se_ReadLogBook", _ -> todo ()
@@ -513,14 +515,12 @@ struct
           assign_id bbid (get_id bbid');
           add_action (CreateBlackboard bbid')
       | "LAP_Se_DisplayBlackboard", [bbid; msg_addr; len; r] ->
-          let id = eval_id bbid in
-          if List.is_empty id then d else add_action (DisplayBlackboard id)
+          add_actions @@ List.map (fun id -> DisplayBlackboard id) (eval_id bbid)
       | "LAP_Se_ReadBlackboard", [bbid; timeout; msg_addr; len; r] ->
-          let id = eval_id bbid in
-          if List.is_empty id then d else add_action (ReadBlackboard (id, eval_int timeout))
+          let t = eval_int timeout in
+          add_actions @@ List.map (fun id -> ReadBlackboard (id, t)) (eval_id bbid)
       | "LAP_Se_ClearBlackboard", [bbid; r] ->
-          let id = eval_id bbid in
-          if List.is_empty id then d else add_action (ClearBlackboard (id))
+          add_actions @@ List.map (fun id -> ClearBlackboard id) (eval_id bbid)
       | "LAP_Se_GetBlackboardId", [name; bbid; r] ->
           assign_id_by_name Blackboard name bbid; d
       | "LAP_Se_GetBlackboardStatus", _ -> todo ()
@@ -531,11 +531,9 @@ struct
           assign_id sid (get_id sid');
           add_action (CreateSemaphore Action.({ sid = sid'; cur = eval_int cur; max = eval_int max; queuing = eval_int queuing }))
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
-          let sid = eval_id sid in
-          if List.is_empty sid then d else add_action (WaitSemaphore sid)
+          add_actions @@ List.map (fun id -> WaitSemaphore id) (eval_id sid)
       | "LAP_Se_SignalSemaphore", [sid; r] ->
-          let sid = eval_id sid in
-          if List.is_empty sid then d else add_action (SignalSemaphore sid)
+          add_actions @@ List.map (fun id -> SignalSemaphore id) (eval_id sid)
       | "LAP_Se_GetSemaphoreId", [name; sid; r] ->
           assign_id_by_name Semaphore name sid; d
       | "LAP_Se_GetSemaphoreStatus", [sid; status; r] -> todo ()
@@ -545,14 +543,12 @@ struct
           assign_id eid (get_id eid');
           add_action (CreateEvent eid')
       | "LAP_Se_SetEvent", [eid; r] ->
-          let eid = eval_id eid in
-          if List.is_empty eid then d else add_action (SetEvent eid)
+          add_actions @@ List.map (fun id -> SetEvent id) (eval_id eid)
       | "LAP_Se_ResetEvent", [eid; r] ->
-          let eid = eval_id eid in
-          if List.is_empty eid then d else add_action (ResetEvent eid)
+          add_actions @@ List.map (fun id -> ResetEvent id) (eval_id eid)
       | "LAP_Se_WaitEvent", [eid; timeout; r] -> (* TODO timeout *)
-          let eid = eval_id eid in
-          if List.is_empty eid then d else add_action (WaitEvent (eid, eval_int timeout))
+          let t = eval_int timeout in
+          add_actions @@ List.map (fun id -> WaitEvent (id, t)) (eval_id eid)
       | "LAP_Se_GetEventId", [name; eid; r] ->
           assign_id_by_name Event name eid; d
       | "LAP_Se_GetEventStatus", [eid; status; r] -> todo ()
@@ -573,7 +569,7 @@ struct
                 add_process (f,f_d)
               in
               List.iter spawn funs;
-              add_action (CreateErrorHandler ((Process, pname_ErrorHandler), funs))
+              add_actions (List.map (fun f -> CreateErrorHandler ((Process, pname_ErrorHandler), f)) funs)
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
           end
       | "LAP_Se_GetErrorStatus", [status; r] -> todo ()
