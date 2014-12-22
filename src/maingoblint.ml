@@ -261,10 +261,23 @@ let do_analyze merged_AST =
   (* we let the "--eclipse" flag override result style: *)
   if get_bool "exp.eclipse" then set_string "result_style" "compact";
 
-  if get_bool "justcil" then
+  if get_bool "justcil" then (
     (* if we only want to print the output created by CIL: *)
-    Cilfacade.print merged_AST
-  else begin
+    Cilfacade.print merged_AST;
+    let open Cil in
+    let rec f_stmt stmt = (* check for loops *)
+      match stmt.skind with
+      | Loop(block, loc, continue, break) -> Printf.fprintf stderr "Found loop on line %i\n" loc.line
+      | Block b -> f_block b
+      | If (e, tb, fb, loc) -> f_block tb; f_block fb
+      | Switch (e, cases, jmps, lock) -> f_block cases
+      (*| _ -> print_endline @@ "other stmt: " ^ sprint d_stmt stmt*)
+      | _ -> ()
+    and f_block { bstmts = xs } = List.iter f_stmt xs
+    in
+    (*Cil.visitCilFileSameGlobals Cil.nopCilVisitor merged_AST;*)
+    Cil.iterGlobals merged_AST (function GFun(fundec,_) -> List.iter f_stmt fundec.sbody.bstmts | _ -> ())
+  ) else begin
     (* we first find the functions to analyze: *)
     if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
