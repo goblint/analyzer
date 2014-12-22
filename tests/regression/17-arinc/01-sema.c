@@ -58,6 +58,9 @@ extern void LAP_Se_SetPartitionMode (
        /*in */ OPERATING_MODE_TYPE OPERATING_MODE,
        /*out*/ RETURN_CODE_TYPE    *RETURN_CODE );
 extern void LAP_Se_PeriodicWait (RETURN_CODE_TYPE *RETURN_CODE);
+
+typedef char T1;
+char * F59(T1* destination, const T1* source ); // strcpy
 // -----------------------
 
 int g,g2;
@@ -111,7 +114,6 @@ void P2(void){
   return;
 }
 
-typedef char T1;
 int main(){
   // here we get 2 contexts for foo with bg=0 and bg=1:
   // foo(0); bg = 1; foo(0);
