@@ -457,7 +457,7 @@ struct
               done;
           | v -> debug_each @@ "F1/memset: don't know length: " ^ sprint Queries.Result.pretty v;
               let lval = mkMem ~addr:dst ~off:NoOffset in
-              ctx.assign ~name:"base" lval len (* if len is unknown and we assign it, it should have the desired effect *)
+              ctx.assign ~name:"base" lval MyCFG.unknown_exp
           );
           d
     (* Processes *)

@@ -1068,7 +1068,7 @@ struct
     CPA.map replace_val st
 
   let context (cpa,fl) =
-    (*if get_bool "exp.earlyglobs" then CPA.filter (fun k v -> not (V.is_global k)) cpa, fl else*)
+    if get_bool "exp.earlyglobs" then CPA.filter (fun k v -> not (V.is_global k)) cpa, fl else
     if get_bool "exp.addr-context" then drop_non_ptrs cpa, fl
     else if get_bool "exp.no-int-context" then drop_ints cpa, fl
     else cpa,fl
@@ -1206,11 +1206,11 @@ struct
       | Q.EvalStr e -> begin
           match eval_rv ctx.ask ctx.global ctx.local e with
             (* exactly one string in the set (works for assignments of string constants) *)
-            | `Address a when List.length (AD.to_string a) = 1 ->
+            | `Address a when List.length (AD.to_string a) = 1 -> (* exactly one string *)
                 `Str (List.hd (AD.to_string a))
             (* check if we have an array of chars that form a string *)
             (* TODO return may-points-to-set of strings *)
-            | `Address a when List.length (AD.to_var_may a) = 1 ->
+            | `Address a when List.length (AD.to_var_may a) = 1 -> (* some other address *)
                 (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
                 (* ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
                 begin match unrollType (typeOf e) with
