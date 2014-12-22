@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[0][+] arinc --sets ana.activated[0][+] thread --sets solver slr3
+// SKIP PARAM: --sets ana.activated[0][+] arinc --sets ana.activated[0][+] thread --sets solver slr3
 
 typedef char * SEMAPHORE_NAME_TYPE;
 typedef void * SEMAPHORE_ID_TYPE;
@@ -58,6 +58,9 @@ extern void LAP_Se_SetPartitionMode (
        /*in */ OPERATING_MODE_TYPE OPERATING_MODE,
        /*out*/ RETURN_CODE_TYPE    *RETURN_CODE );
 extern void LAP_Se_PeriodicWait (RETURN_CODE_TYPE *RETURN_CODE);
+
+typedef char T1;
+char * F59(T1* destination, const T1* source ); // strcpy
 // -----------------------
 
 int g,g2;
@@ -120,7 +123,8 @@ int main(){
   PROCESS_ATTRIBUTE_TYPE p1, p2;
   LAP_Se_CreateSemaphore("my_mutex",1,1,0,&sem_id_local,&r);
   LAP_Se_GetSemaphoreId("my_mutex",&sem_id,&r);
-  p1.NAME = "proc1";
+  F59(p1.NAME, (T1 *)"proc1");
+  /*p1.NAME = "proc1";*/
   p1.ENTRY_POINT = (void *) &P1;
   p1.BASE_PRIORITY = 10;
   p1.PERIOD = 600;
