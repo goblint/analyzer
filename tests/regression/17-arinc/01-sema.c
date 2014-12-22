@@ -111,6 +111,7 @@ void P2(void){
   return;
 }
 
+typedef char T1;
 int main(){
   // here we get 2 contexts for foo with bg=0 and bg=1:
   // foo(0); bg = 1; foo(0);
@@ -120,7 +121,8 @@ int main(){
   PROCESS_ATTRIBUTE_TYPE p1, p2;
   LAP_Se_CreateSemaphore("my_mutex",1,1,0,&sem_id_local,&r);
   LAP_Se_GetSemaphoreId("my_mutex",&sem_id,&r);
-  p1.NAME = "proc1";
+  F59(p1.NAME, (T1 *)"proc1");
+  /*p1.NAME = "proc1";*/
   p1.ENTRY_POINT = (void *) &P1;
   p1.BASE_PRIORITY = 10;
   p1.PERIOD = 600;

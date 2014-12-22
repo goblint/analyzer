@@ -1068,9 +1068,10 @@ struct
     CPA.map replace_val st
 
   let context (cpa,fl) =
-    if (get_bool "exp.addr-context") then (drop_non_ptrs cpa, fl)
-    else if (get_bool "exp.no-int-context") then (drop_ints cpa, fl)
-    else (cpa,fl)
+    (*if get_bool "exp.earlyglobs" then CPA.filter (fun k v -> not (V.is_global k)) cpa, fl else*)
+    if get_bool "exp.addr-context" then drop_non_ptrs cpa, fl
+    else if get_bool "exp.no-int-context" then drop_ints cpa, fl
+    else cpa,fl
 
   (* interpreter end *)
 
@@ -1241,7 +1242,7 @@ struct
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     (*let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in*)
-    let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> is_private ctx.ask ctx.local k) cpa in
+    let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in

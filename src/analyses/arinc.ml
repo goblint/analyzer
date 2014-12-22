@@ -127,9 +127,11 @@ struct
     | `Bot -> []
     | v ->
         M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " is " ^ sprint Queries.Result.pretty v;
-        failwith "mayPointTo"
+        (*failwith "mayPointTo"*)
+        []
   let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.length xs = 1 then Some (List.hd xs) else None
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
+  let debugMayPointTo ctx exp = M.debug_each @@ sprint d_exp exp ^ " mayPointTo " ^ (String.concat ", " (List.map (sprint Lval.CilLval.pretty) (mayPointTo ctx exp)))
 
 
   (* transfer functions *)
@@ -418,12 +420,45 @@ struct
       | "F61", [dst; src] (* TODO strcpy that ends at \000? *)
       | "F62", [dst; src; _] (* TODO strncpy that ends at \000? *)
       | "F63", [dst; src; _] (* memcpy TODO len *)
-      | "F1" , [dst; src; _] (* memset TODO write char src to dst len times  *)
       ->
-          (* M.debug @@ "strcpy("^sprint d_plainexp dst^", "^sprint d_plainexp src^")"; *)
-          let lval = mkMem ~addr:dst ~off:NoOffset in
-          let rval = Lval (mkMem ~addr:src ~off:NoOffset) in
-          ctx.assign ~name:"base" lval rval;
+          M.debug_each @@ "strcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^")";
+          (*let lval = mkMem ~addr:dst ~off:NoOffset in*)
+          (*let rval = Lval (mkMem ~addr:src ~off:NoOffset) in*)
+          (*debugMayPointTo ctx dst;*)
+          (*debugMayPointTo ctx src;*)
+          (*debugMayPointTo ctx (Lval lval);*)
+          (*debugMayPointTo ctx rval;*)
+          let exp = match unrollType (typeOf dst), dst with
+            | _, Lval lval
+            | _, AddrOf lval
+            | _, StartOf lval -> mkAddrOf lval
+            | TPtr _, _ -> dst
+            | _ -> failwith @@ f.vname ^ " expects first argument to be some Pointer, but got "^sprint d_exp dst^" which is "^sprint d_plainexp dst
+          in
+          begin match mayPointTo ctx exp with
+          | [v,offs] ->
+              let lval = Var v, Lval.CilLval.to_ciloffs offs in
+              ctx.assign ~name:"base" lval src;
+              d
+          | _ ->
+              M.debug_each @@ f.vname ^ ": SysFun: result of MayPointTo for " ^ sprint d_plainexp exp ^ " contains more than one result!";
+              failwith "mayPointTo"
+          end
+      | "F1" , [dst; data; len] (* memset: write char to dst len times *)
+      ->
+          (match ctx.ask (Queries.EvalInt len) with
+          | `Int i ->
+              let len = i64_to_int @@ eval_int len in
+              let exp = ref dst in
+              for i = 0 to len-1 do
+                let lval = mkMem ~addr:!exp ~off:NoOffset in
+                ctx.assign ~name:"base" lval data;
+                exp := increm !exp 1 (* int/pointer increment *)
+              done;
+          | v -> debug_each @@ "F1/memset: don't know length: " ^ sprint Queries.Result.pretty v;
+              let lval = mkMem ~addr:dst ~off:NoOffset in
+              ctx.assign ~name:"base" lval len (* if len is unknown and we assign it, it should have the desired effect *)
+          );
           d
     (* Processes *)
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
@@ -437,7 +472,7 @@ struct
             | `Field ofs -> "cannot access field " ^ ofs
             | `Result (name, entry_point, pri, per, cap) ->
               "struct PROCESS_ATTRIBUTE_TYPE needs all of the following fields (with result): NAME ("^name^"), ENTRY_POINT ("^entry_point^"), BASE_PRIORITY ("^pri^"), PERIOD ("^per^"), TIME_CAPACITY ("^cap^")"
-            end ^ "\nRunning scrambled: "^string_of_bool Goblintutil.scrambled
+            end ^ ". Running scrambled: "^string_of_bool Goblintutil.scrambled
           in
           let field ofs =
             try Lval (addOffsetLval (Field (getCompField cm ofs, NoOffset)) attr)
