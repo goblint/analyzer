@@ -2,7 +2,7 @@ language: c
 git:
   submodules: false
 install: bash -ex scripts/travis-ci.sh
-before_script: git submodule update --init --recursive bench
+before_script: ./make.sh headers
 script: ./scripts/update_suite.rb
 env:
   - OCAML_VERSION=4.02.1 OPAM_VERSION=1.2.0

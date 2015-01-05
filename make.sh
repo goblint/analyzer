@@ -72,7 +72,10 @@ rule() {
              # opam's cil is too old
              opam pin -y add cil "https://github.com/kerneis/cil.git"
              ;;
-    bench)   git submodule update --init --recursive bench;;
+    header*) wget http://www.ut.ee/~vesal/linux-headers.tbz
+             tar xaf linux-headers.tbz
+             rm linux-headers.tbz
+             ;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
 

@@ -6,7 +6,8 @@ fail "Please run script from goblint dir!" unless File.exist?(goblint)
 revshort = `git describe --tags --long`[/.*-\d+/]
 $vrsn = `#{goblint} --version`
 $testresults = File.expand_path("tests/bench_result") + "/"
-bench = "bench/"
+bench = "../bench/"
+linux = bench + "linux/"
 
 cmds = {"code2html" => lambda {|f,o| "code2html -l c -n #{f} 2> /dev/null 1> #{o}"},
         "source-highlight" => lambda {|f,o| "source-highlight -n -i #{f} -o #{o}"},
@@ -26,8 +27,8 @@ if highlighter.nil? then
 end
 
 class Project
-  attr_reader :id, :name, :group, :path, :params
-  attr_accessor :url
+  attr_reader :id, :name, :group, :path
+  attr_accessor :url, :params
   def initialize(id, name, size, url, group, path, params)
     @id       = id
     @name     = name
@@ -157,10 +158,17 @@ File.open(file, "r") do |f|
     else
       name = line.chomp
       url = f.gets.chomp
-      path = File.expand_path(f.gets.chomp, bench)
-      size = `wc -l #{path}`.split[0] + " lines"
+      path = f.gets.chomp
       params = f.gets.chomp
       params = "" if params == "-"
+      if url == "linux!" then
+        params = "--enable kernel " + params
+        url = "http://lxr.free-electrons.com/source/" + path + "?v=3.17"
+        path = File.expand_path(path, linux)
+      else
+        path = File.expand_path(path, bench)
+      end
+      size = `wc -l #{path}`.split[0] + " lines"
       id += 1
       p = Project.new(id,name,size,url,gname,path,params)
       $projects << p

@@ -160,7 +160,7 @@ let preprocess_one_file cppflags includes dirName fname =
 let preprocess_files () =
   (* Handy (almost) constants. *)
   let myname = Filename.dirname Sys.executable_name in
-  let kernel_root = Filename.concat myname "bench/linux-headers" in
+  let kernel_root = Filename.concat myname "linux-headers" in
   let kernel_dir = kernel_root ^ "/include" in
   let arch_dir = kernel_root ^ "/arch/x86/include" in
 

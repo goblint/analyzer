@@ -3,7 +3,7 @@ region: --sets ana.activated[0][+] 'region'
 shape: --sets ana.activated[0][+] 'shape'
 
 
-Group: Synthetic Modules
+Group: Synthetic
 
 move.c
 generate!
@@ -32,3 +32,11 @@ backptr.c
 generate!
 synthetic/backptr.c
 --enable kernel --enable nonstatic --sets exp.unique[+] usb_drv
+
+
+Group: Drivers
+
+apm-emulation.c
+linux!
+drivers/char/apm-emulation.c
+
