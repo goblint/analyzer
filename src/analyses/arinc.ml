@@ -174,19 +174,6 @@ struct
     (* only if we don't assume success, we need to consider branching on return codes *)
     if D.is_bot ctx.local then ctx.local else
     let env = get_env ctx in
-    (* termination check for loops *)
-    let rec loop_check stmt =
-      match stmt.skind with
-      | Loop(block, loc, continue, break) -> print_endline @@ "Found loop"
-      | Block { bstmts = xs } -> List.iter loop_check xs
-      | _ -> print_endline @@ "other stmt: " ^ sprint d_stmt stmt
-    in
-    (match env.node with
-    (*| MyCFG.Statement({ skind = Loop(block, loc, continue, break) as stmt}) ->*)
-        (*failwith "Found loop!"*)
-    | MyCFG.Statement(stmt) -> loop_check stmt
-    | _ -> ());
-
     if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
     let check a b tv =
       (* we are interested in a comparison between some lval lval (which has the type of the return code enum) and a value of that enum (which gets converted to an Int by CIL) *)

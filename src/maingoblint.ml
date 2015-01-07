@@ -250,7 +250,7 @@ let merge_preprocessed (cpp_file_names, dirName) =
   if get_bool "dopartial" then Cilfacade.partial merged_AST;
   Cilfacade.rmTemps merged_AST;
 
-  (* creat the Control Flow Graph from CIL's AST *)
+  (* create the Control Flow Graph from CIL's AST *)
   Cilfacade.createCFG merged_AST;
   Cilfacade.ugglyImperativeHack := merged_AST;
   merged_AST
@@ -261,16 +261,19 @@ let do_analyze merged_AST =
   (* we let the "--eclipse" flag override result style: *)
   if get_bool "exp.eclipse" then set_string "result_style" "compact";
 
-  if get_bool "justcil" then (
+  if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
-    Cilfacade.print merged_AST;
+    Cilfacade.print merged_AST
+  else if get_bool "dbg.justloops" then (
     let open Cil in
     let rec f_stmt stmt = (* check for loops *)
       match stmt.skind with
-      | Loop(block, loc, continue, break) -> Printf.fprintf stderr "Found loop on line %i\n" loc.line
+      | Loop(b, loc, continue, break) -> Printf.fprintf stderr "Found loop on line %i\n" loc.line; f_block b
       | Block b -> f_block b
       | If (e, tb, fb, loc) -> f_block tb; f_block fb
-      | Switch (e, cases, jmps, lock) -> f_block cases
+      | Switch (e, cases, jmps, loc) -> (*List.iter f_stmt jmps;*) f_block cases
+      | TryFinally (b1, b2, loc) -> f_block b1; f_block b2
+      | TryExcept (b1, _, b2, loc) -> f_block b1; f_block b2
       (*| _ -> print_endline @@ "other stmt: " ^ sprint d_stmt stmt*)
       | _ -> ()
     and f_block { bstmts = xs } = List.iter f_stmt xs
