@@ -20,38 +20,6 @@ module TermDomain = struct
   let toXML s  = toXML_f short s
 end
 
-let breaks : (int, location) Hashtbl.t = Hashtbl.create 13 (* break stmt sid -> corresponding loop *)
-let preprocess f =
-  let rec f_stmt f stmt = (* check for loops *)
-    let f_block = f_block f in
-    match stmt.skind with
-    | Loop(b, loc, Some continue, Some break) ->
-        (* Printf.printf "Found loop on line %i\n" loc.line; *)
-        Hashtbl.add breaks break.sid loc;
-        (* insert loop counter variable *)
-        let name = "term"^string_of_int loc.line in
-        let typ = TInt (IInt, []) in (* TODO the type should be the same as the one of the original loop counter *)
-        let v = makeLocalVar f name ~init:(SingleInit zero) typ in
-        (* increment it every iteration *)
-        let inc_instr = Set (var v, increm (Lval (var v)) 1, loc) in (* same loc as loop? *)
-        let inc_stmt = mkStmtOneInstr inc_instr in
-        ignore @@ printf "inc_stmt: %a\n" d_stmt inc_stmt;
-        (* inc_stmt.sid <- new_sid (); *)
-        (* inc_stmt.preds <- continue :: inc_stmt.succs; *)
-        (* continue.succs <- inc_stmt :: continue.succs; *)
-        f_block b;
-        b.bstmts <- inc_stmt :: b.bstmts
-    | Loop _ -> failwith "Termination.preprocess: every loop should have a break and continue stmt after prepareCFG"
-    | Block b -> f_block b
-    | If (e, tb, fb, loc) -> f_block tb; f_block fb
-    | Switch (e, cases, jmps, loc) -> (*List.iter f_stmt jmps;*) f_block cases
-    | TryFinally (b1, b2, loc) -> f_block b1; f_block b2
-    | TryExcept (b1, _, b2, loc) -> f_block b1; f_block b2
-    | _ -> ()
-  and f_block f { bstmts = xs } = List.iter (f_stmt f) xs in
-  (* iterGlobals ast (function GFun(f,_) -> List.iter (f_stmt f) f.sbody.bstmts | _ -> ()) *)
-  List.iter (f_stmt f) f.sbody.bstmts
-
 module Spec =
 struct
   include Analyses.DefaultSpec
@@ -61,7 +29,21 @@ struct
   module C = TermDomain
   module G = Lattice.Unit
 
-  let init () = ()
+  let breaks : (int, location) Hashtbl.t = Hashtbl.create 13 (* break stmt sid -> corresponding loop *)
+  class loopBreakVisitor = object
+    inherit nopCilVisitor
+    method vstmt s =
+      let action s = match s.skind with
+        | Loop (b, loc, Some continue, Some break) ->
+            (* Printf.printf "Found loop on line %i\n" loc.line; *)
+            Hashtbl.add breaks break.sid loc;
+            s
+        | Loop _ -> failwith "Termination.preprocess: every loop should have a break and continue stmt after prepareCFG"
+        | _ -> s
+      in ChangeDoChildrenPost (s, action)
+  end
+
+  let init () = visitCilFileSameGlobals (new loopBreakVisitor) !Cilfacade.ugglyImperativeHack
   let finalize () = ()
 
   (* queries *)

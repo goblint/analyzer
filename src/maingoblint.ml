@@ -250,10 +250,8 @@ let merge_preprocessed (cpp_file_names, dirName) =
   if get_bool "dopartial" then Cilfacade.partial merged_AST;
   Cilfacade.rmTemps merged_AST;
 
-  (* if the termination analysis is run, we need to insert loop counters *)
-  let post_prepare = if List.mem "term" (List.map Json.string @@ get_list "ana.activated[0]") then Termination.preprocess else ignore in
   (* create the Control Flow Graph from CIL's AST *)
-  Cilfacade.createCFG ~pre:post_prepare merged_AST;
+  Cilfacade.createCFG merged_AST;
   Cilfacade.ugglyImperativeHack := merged_AST;
   merged_AST
 
@@ -280,7 +278,6 @@ let do_analyze merged_AST =
       | _ -> ()
     and f_block { bstmts = xs } = List.iter f_stmt xs
     in
-    (*Cil.visitCilFileSameGlobals Cil.nopCilVisitor merged_AST;*)
     Cil.iterGlobals merged_AST (function GFun(fundec,_) -> List.iter f_stmt fundec.sbody.bstmts | _ -> ())
   ) else begin
     (* we first find the functions to analyze: *)
