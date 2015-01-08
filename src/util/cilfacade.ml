@@ -52,7 +52,7 @@ let end_basic_blocks f =
   let thisVisitor = new allBBVisitor in
   visitCilFileSameGlobals thisVisitor f
 
-let createCFG (fileAST: file) =
+let createCFG ~pre (fileAST: file) =
   end_basic_blocks fileAST;
   (* Partial.calls_end_basic_blocks fileAST; *)
   Partial.globally_unique_vids fileAST;
@@ -60,6 +60,7 @@ let createCFG (fileAST: file) =
     match glob with
       | GFun(fd,_) ->
           prepareCFG fd;
+          pre fd;
           computeCFGInfo fd true
       | _ -> ()
   )
