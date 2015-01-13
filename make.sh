@@ -14,7 +14,7 @@ ocb() {
 
 rule() {
   case $1 in
-    clean)   rm -rf goblint goblint.byte goblint.ml arinc doclist.odocl src/config.ml;
+    clean)   rm -rf goblint goblint.byte goblint.ml arinc doclist.odocl src/config.ml $TARGET.ml;
              ocb -clean
              ;;
     opt | nat*)
@@ -75,6 +75,11 @@ rule() {
     header*) wget http://www.ut.ee/~vesal/linux-headers.tbz
              tar xaf linux-headers.tbz
              rm linux-headers.tbz
+             ;;
+    poly)    echo "open ApronDomain" >> $TARGET.ml
+             echo "open Poly" >> $TARGET.ml
+             ocb -no-plugin -package apron -package apron.polkaMPQ -package apron.octD $TARGET.native &&
+             cp _build/$TARGET.native goblint
              ;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
