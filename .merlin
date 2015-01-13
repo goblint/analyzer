@@ -1,17 +1,21 @@
-PKG batteries cil xml-light
+PKG batteries cil xml-light apron
 S src
 S src/analyses
 S src/cdomains
+S src/cdomains/circular_intervals
 S src/domains
 S src/framework
 S src/solvers
 S src/spec
 S src/util
+S src/util/html_template
 B _build/src
 B _build/src/analyses
 B _build/src/cdomains
+B _build/src/cdomains/circular_intervals
 B _build/src/domains
 B _build/src/framework
 B _build/src/solvers
 B _build/src/spec
 B _build/src/util
+B _build/src/util/html_template
