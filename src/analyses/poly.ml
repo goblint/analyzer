@@ -18,7 +18,7 @@ struct
   module C = D
 
   let val_of x = x
-  let context x = x
+  let context x = D.bot ()
 
   let otherstate _ = D.top ()
   let exitstate  _ = D.top ()

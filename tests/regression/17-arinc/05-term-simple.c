@@ -2,10 +2,11 @@
 
 int main(){
     int i = 0;
-    int j = 0;
+    int j = 3;
 
     while (i < 5) {
         i++;
+        j+=2;
     }
 
     /* while (i < 5) { */
