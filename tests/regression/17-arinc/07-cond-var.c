@@ -7,9 +7,15 @@ int main(){
     /* srand((unsigned) time(&t)); */
     /* int i = rand() % 2000; */
     int i;
-    int b;
+    int a, b;
     printf("i = %d ", i);
-    b = i < 1000;
+    a = i < 1000;
+    if(a){
+        printf("<");
+    }else{
+        printf(">=");
+    }
+    b = a;
     if(b){
         printf("<");
     }else{

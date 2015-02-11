@@ -1,4 +1,4 @@
-(** Termination of loops. *)
+(** Must equality between variables and logical expressions. *)
 
 open Batteries
 open Cil
@@ -9,20 +9,19 @@ module M = Messages
 let sprint f x = Pretty.sprint 80 (f () x)
 
 module Domain = struct
-  (* module ToppedExp = SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All Expressions" end) *)
-  (* module V =  Lattice.Reverse (ToppedExp) *)
-  module ToppedExp = Queries.ES_r
   module V =  Queries.ES
   include MapDomain.MapBot (Lval.CilLval) (V)
-  let rec lval_in_lval = (=) (* TODO *)
-  and lval_in_expr lval = function
-  | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ -> false
-  | Lval x | AddrOf x | StartOf x -> lval_in_lval lval x
-  | SizeOfE x | AlignOfE x | UnOp (_,x,_) | CastE (_,x) -> lval_in_expr lval x
-  | BinOp (_,a,b,_) -> lval_in_expr lval a || lval_in_expr lval b
-  | Question (c,t,e,_) -> lval_in_expr lval c || lval_in_expr lval t || lval_in_expr lval e
-  | AddrOfLabel _ -> false (* TODO *)
-  let remove_exprs_with_lval lval = filter (fun _ v -> not @@ ToppedExp.exists (lval_in_expr lval) v)
+  (* let rec lval_in_lval = (=) (* TODO *) *)
+  (* and lval_in_expr lval = function *)
+  (* | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ -> false *)
+  (* | Lval x | AddrOf x | StartOf x -> lval_in_lval lval x *)
+  (* | SizeOfE x | AlignOfE x | UnOp (_,x,_) | CastE (_,x) -> lval_in_expr lval x *)
+  (* | BinOp (_,a,b,_) -> lval_in_expr lval a || lval_in_expr lval b *)
+  (* | Question (c,t,e,_) -> lval_in_expr lval c || lval_in_expr lval t || lval_in_expr lval e *)
+  (* | AddrOfLabel _ -> false (* TODO *) *)
+  (* let remove_exprs_with_lval lval = filter (fun _ v -> not @@ V.exists (lval_in_expr lval) v) *)
+  let get k d = if mem k d then let v = find k d in if V.cardinal v = 1 then Some v else None else None
+  let has k d = get k d |> Option.is_some
 end
 
 module Spec =
@@ -33,6 +32,8 @@ struct
   module D = Domain
   module C = Domain
   module G = Lattice.Unit
+
+  let (%?) = Option.bind
 
   let mayPointTo ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
@@ -46,8 +47,8 @@ struct
         Queries.LS.elements a'
     | _ -> []
 
-  let clval_from_lval ctx lval = (* this is just to get CilLval *)
-    match mayPointTo ctx (AddrOf lval) with
+  let mustPointTo ctx exp = (* this is just to get CilLval *)
+    match mayPointTo ctx exp with
     | [clval] -> Some clval
     | _ -> None
 
@@ -59,29 +60,25 @@ struct
       | Lval lval -> Some lval (* TODO accept more exprs *)
       | _ -> None
     in
-    let of_lval = clval_from_lval ctx in
+    let of_lval lval = mustPointTo ctx (AddrOf lval) in
     let of_clval k = if D.mem k d then Some (`ExprSet (D.find k d)) else None in
-    let (%?) = Option.bind in
     of_q q %? of_expr %? of_lval %? of_clval |? Queries.Result.top ()
-    (* match q with *)
-    (* | Queries.CondVars (Lval lval) -> (* TODO accept more exprs *) *)
-    (*     (match clval_from_lval ctx lval with *)
-    (*     | Some clval when D.mem clval d && D.ToppedExp.cardinal (D.find clval d) = 1 -> *)
-    (*         `ExprSet (D.find clval d) *)
-    (*     | _ -> Queries.Result.top ()) *)
-    (* | _ -> Queries.Result.top () *)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    let d = ctx.local in
+    (* remove all vars that lval may point to *)
+    let d = List.fold_left (flip D.remove) ctx.local (mayPointTo ctx (AddrOf lval)) in
     let save_expr lval expr =
-      match clval_from_lval ctx lval with
-      | Some clval -> D.remove_exprs_with_lval lval d |> D.add clval (D.ToppedExp.singleton expr)
+      match mustPointTo ctx (AddrOf lval) with
+      | Some clval -> D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
       | None -> d
     in
     let is_cmp = function Lt | Gt | Le | Ge | Eq | Ne -> true | _ -> false in
     match rval with
-    | BinOp (op, _, _, _) when is_cmp op -> save_expr lval rval
+    | BinOp (op, _, _, _) when is_cmp op -> (* logical expression *)
+        save_expr lval rval
+    | Lval k when Option.is_some @@ mustPointTo ctx (AddrOf k) %? flip D.get d -> (* var-eq for transitive closure *)
+        save_expr lval rval
     | _ -> d
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
