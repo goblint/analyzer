@@ -43,6 +43,7 @@ type t = ExpEq of exp * exp
        | IsImportant of lval
        | SetImportant of exp
        | PrintFullState
+       | CondVars of exp
        | TheAnswerToLifeUniverseAndEverything
 
 type result = [

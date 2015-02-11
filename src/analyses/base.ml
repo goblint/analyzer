@@ -692,7 +692,7 @@ struct
         let rec derived_invariant exp tv =
         match exp with
           (* Since we only handle equalities the order is not important *)
-          | BinOp(op, Lval x, rval, typ) -> helper op x (eval_rv a gs st rval) tv
+          | BinOp(op, Lval x, rval, typ)
           | BinOp(op, rval, Lval x, typ) -> helper op x (eval_rv a gs st rval) tv
           | BinOp(op, CastE (xt,x), CastE (yt,y), typ) when Basetype.CilType.equal xt yt
             -> derived_invariant (BinOp (op, x, y, typ)) tv
@@ -726,29 +726,26 @@ struct
           | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) n -> `Address o
           | _ -> VD.meet oldv newv
       in
-        match derived_invariant exp tv with
-          | Some (lval, value) ->
-              if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
-              let addr = eval_lv a gs st lval in
-               if (AD.is_top addr) then
-                         st
-                       else
-                         let oldval = get a gs st addr in
-                         let new_val = apply_invariant oldval value in
-                         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
-                (* make that address meet the invariant, i.e exclusion sets
-                 * will be joined *)
-                           if is_some_bot new_val
-                           then begin
-                			if M.tracing then M.tracel "branchosek" "C The branch %B is dead!\n" tv;
-					raise Analyses.Deadcode
-				end
-                else if VD.is_bot new_val
-                then set a gs st addr value ~effect:false
-                else set a gs st addr new_val ~effect:false
-          | None ->
-              if M.tracing then M.traceu "invariant" "Doing nothing.\n";
-              st
+      match derived_invariant exp tv with
+        | Some (lval, value) ->
+            if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
+            let addr = eval_lv a gs st lval in
+            if (AD.is_top addr) then st
+            else
+              let oldval = get a gs st addr in
+              let new_val = apply_invariant oldval value in
+              if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
+              (* make that address meet the invariant, i.e exclusion sets will be joined *)
+              if is_some_bot new_val then (
+                if M.tracing then M.tracel "branchosek" "C The branch %B is dead!\n" tv;
+                raise Analyses.Deadcode
+              )
+              else if VD.is_bot new_val
+              then set a gs st addr value ~effect:false
+              else set a gs st addr new_val ~effect:false
+        | None ->
+            if M.tracing then M.traceu "invariant" "Doing nothing.\n";
+            st
 
   let set_savetop ask (gs:glob_fun) st adr v =
     match v with
@@ -884,8 +881,14 @@ struct
           if !GU.in_verifying_stage then
             Locmap.replace (dead_branches tv) !Tracing.next_loc false;
           let res = invariant ctx.ask ctx.global ctx.local exp tv in
-            if M.tracing then M.traceu "branch" "Invariant enforced!\n";
-            res
+          if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.EqualSet exp));
+          if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.CondVars exp));
+          if M.tracing then M.traceu "branch" "Invariant enforced!\n";
+          match ctx.ask (Queries.CondVars exp) with
+          | `ExprSet s when Queries.ES.cardinal s = 1 ->
+              let e = Queries.ES.choose s in
+              invariant ctx.ask ctx.global res e tv
+          | _ -> res
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each varaiable *)
