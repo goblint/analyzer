@@ -11,15 +11,21 @@ let sprint f x = Pretty.sprint 80 (f () x)
 module Domain = struct
   module V =  Queries.ES
   include MapDomain.MapBot (Lval.CilLval) (V)
-  (* let rec lval_in_lval = (=) (* TODO *) *)
-  (* and lval_in_expr lval = function *)
-  (* | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ -> false *)
-  (* | Lval x | AddrOf x | StartOf x -> lval_in_lval lval x *)
-  (* | SizeOfE x | AlignOfE x | UnOp (_,x,_) | CastE (_,x) -> lval_in_expr lval x *)
-  (* | BinOp (_,a,b,_) -> lval_in_expr lval a || lval_in_expr lval b *)
-  (* | Question (c,t,e,_) -> lval_in_expr lval c || lval_in_expr lval t || lval_in_expr lval e *)
-  (* | AddrOfLabel _ -> false (* TODO *) *)
-  (* let remove_exprs_with_lval lval = filter (fun _ v -> not @@ V.exists (lval_in_expr lval) v) *)
+  let rec var_in_lval p (lh,offs) = var_in_offs p offs && match lh with
+  | Var v -> p v
+  | Mem e -> var_in_expr p e
+  and var_in_offs p = function
+  | NoOffset  -> false
+  | Field (_,o) -> var_in_offs p o
+  | Index (e,o) -> var_in_expr p e || var_in_offs p o
+  and var_in_expr p = function
+  | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ -> false
+  | Lval l | AddrOf l | StartOf l -> var_in_lval p l
+  | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) -> var_in_expr p e
+  | BinOp (_,e1,e2,_) -> var_in_expr p e1 || var_in_expr p e2
+  | Question (c,t,e,_) -> var_in_expr p c || var_in_expr p t || var_in_expr p e
+  | AddrOfLabel _ -> false (* TODO *)
+  let filter_exprs_with_var p = filter (fun _ v -> V.for_all (var_in_expr p) v)
   let get k d = if mem k d then let v = find k d in if V.cardinal v = 1 then Some v else None else None
   let has k d = get k d |> Option.is_some
 end
@@ -84,14 +90,33 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
 
+  (* local variables go out of scope -> remove them (keys and exprs containing them) *)
+  let remove_vars f d =
+    let p v = not @@ List.mem v (f.sformals @ f.slocals) in (* predicate for filtering *)
+    D.filter (fun (v,_) _ -> p v) d (* remove all keys that are in vars *)
+    (* TODO: what if there are locals *)
+    |> D.filter_exprs_with_var p
+
+  (* possible solutions:
+    * 1. only intra-procedural
+    * 2. enter: remove current locals, return: remove current locals
+    * 3. enter: only keep globals, combine: take globals from call
+    * 4. same, but also consider escaped vars
+    *)
+
   let body ctx (f:fundec) : D.t =
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
+    remove_vars f ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local,ctx.local]
+    (* let fundec = MyCFG.getFun (Option.get !MyCFG.current_node) in *)
+    let au = match !MyCFG.current_node with
+      | Some node -> remove_vars (MyCFG.getFun node) ctx.local
+      | None -> ctx.local
+    in
+    [ctx.local, au]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     au
