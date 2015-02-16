@@ -15,17 +15,28 @@ module Domain = struct
   | Var v -> p v
   | Mem e -> var_in_expr p e
   and var_in_offs p = function
-  | NoOffset  -> false
+  | NoOffset  -> true
   | Field (_,o) -> var_in_offs p o
-  | Index (e,o) -> var_in_expr p e || var_in_offs p o
+  | Index (e,o) -> var_in_expr p e && var_in_offs p o
   and var_in_expr p = function
-  | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ -> false
+  | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ -> true
   | Lval l | AddrOf l | StartOf l -> var_in_lval p l
   | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) -> var_in_expr p e
-  | BinOp (_,e1,e2,_) -> var_in_expr p e1 || var_in_expr p e2
-  | Question (c,t,e,_) -> var_in_expr p c || var_in_expr p t || var_in_expr p e
-  | AddrOfLabel _ -> false (* TODO *)
+  | BinOp (_,e1,e2,_) -> var_in_expr p e1 && var_in_expr p e2
+  | Question (c,t,e,_) -> var_in_expr p c && var_in_expr p t && var_in_expr p e
+  | AddrOfLabel _ -> true (* TODO *)
   let filter_exprs_with_var p = filter (fun _ v -> V.for_all (var_in_expr p) v)
+  (* when local variables go out of scope -> remove them (keys and exprs containing them) *)
+  let remove_vars p d =
+    filter (fun (v,_) _ -> p v) d (* apply predicate for filtering *)
+    |> filter_exprs_with_var p
+  let remove_fun_locals f d =
+    let p v = not @@ List.mem v (f.sformals @ f.slocals) in
+    remove_vars p d
+  let only_globals d =
+    let p v = v.vglob in
+    remove_vars p d
+  let only_global_exprs s = V.for_all (var_in_expr (fun v -> v.vglob)) s
   let get k d = if mem k d then let v = find k d in if V.cardinal v = 1 then Some v else None else None
   let has k d = get k d |> Option.is_some
 end
@@ -90,17 +101,10 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
 
-  (* local variables go out of scope -> remove them (keys and exprs containing them) *)
-  let remove_vars f d =
-    let p v = not @@ List.mem v (f.sformals @ f.slocals) in (* predicate for filtering *)
-    D.filter (fun (v,_) _ -> p v) d (* remove all keys that are in vars *)
-    (* TODO: what if there are locals *)
-    |> D.filter_exprs_with_var p
-
-  (* possible solutions:
+  (* possible solutions for functions:
     * 1. only intra-procedural
     * 2. enter: remove current locals, return: remove current locals
-    * 3. enter: only keep globals, combine: take globals from call
+    * 3. enter: only keep globals, combine: update caller's state with globals from call
     * 4. same, but also consider escaped vars
     *)
 
@@ -108,18 +112,16 @@ struct
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-    remove_vars f ctx.local
+    (* D.only_globals ctx.local *)
+    ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    (* let fundec = MyCFG.getFun (Option.get !MyCFG.current_node) in *)
-    let au = match !MyCFG.current_node with
-      | Some node -> remove_vars (MyCFG.getFun node) ctx.local
-      | None -> ctx.local
-    in
-    [ctx.local, au]
+    [ctx.local, D.only_globals ctx.local]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    au
+    (* combine caller's state with globals from callee *)
+    (* TODO (precision): globals with only global vars are kept, the rest is lost -> collect which globals are assignet to *)
+    D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) ctx.local au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     ctx.local
