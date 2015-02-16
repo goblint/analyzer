@@ -57,7 +57,7 @@ struct
     ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    (* if the then-block contains a goto while_break.* we want have the termination condition for a loop *)
+    (* if the then-block contains a goto while_break.* we have the termination condition for a loop *)
     let exits block = match block with
       | { bstmts = [{ skind = Goto (stmt, loc) }] } -> Hashtbl.find_option breaks !stmt.sid
       | _ -> None (* TODO handle return (need to find out what loop we are in) *)
@@ -99,5 +99,27 @@ struct
   let exitstate  v = D.bot ()
 end
 
+class loopCounterVisitor (fd : fundec) = object(self)
+  inherit nopCilVisitor
+  method vstmt s =
+    let action s = match s.skind with
+      | Loop (b, loc, _, _) ->
+          (* insert loop counter variable *)
+          let name = "term"^string_of_int loc.line in
+          let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
+          let v = makeLocalVar fd name ~init:(SingleInit zero) typ in
+          (* make an init stmt since the init above is apparently ignored *)
+          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc) in
+          (* increment it every iteration *)
+          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc) in
+          b.bstmts <- inc_stmt :: b.bstmts;
+          let nb = mkBlock [init_stmt; mkStmt s.skind] in
+          s.skind <- Block nb;
+          s
+      | _ -> s
+    in ChangeDoChildrenPost (s, action)
+end
+
 let _ =
+  Cilfacade.register_preprocess Spec.name (new loopCounterVisitor);
   MCP.register_analysis (module Spec : Spec)

@@ -48,39 +48,25 @@ class allBBVisitor = object
   method vtype _ = SkipChildren
 end
 
-class loopCounterVisitor (fd : fundec) = object(self)
-  inherit nopCilVisitor
-  method vstmt s =
-    let action s = match s.skind with
-      | Loop (b, loc, _, _) ->
-          (* insert loop counter variable *)
-          let name = "term"^string_of_int loc.line in
-          let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
-          let v = makeLocalVar fd name ~init:(SingleInit zero) typ in
-          (* make an init stmt since the init above is apparently ignored *)
-          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc) in
-          (* increment it every iteration *)
-          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc) in
-          b.bstmts <- inc_stmt :: b.bstmts;
-          let nb = mkBlock [init_stmt; mkStmt s.skind] in
-          s.skind <- Block nb;
-          s
-      | _ -> s
-    in ChangeDoChildrenPost (s, action)
-end
-
 let end_basic_blocks f =
   let thisVisitor = new allBBVisitor in
   visitCilFileSameGlobals thisVisitor f
 
-let loop_counter ast =
-  (* if the termination analysis is run, we need to insert loop counters *)
-  if List.mem "term" (List.map Json.string @@ get_list "ana.activated[0]") then
-    iterGlobals ast (function GFun (fd,_) -> let vis = new loopCounterVisitor fd in ignore @@ visitCilFunction vis fd | _ -> ())
+let visitors = ref []
+let register_preprocess name visitor_fun =
+    visitors := !visitors @ [name, visitor_fun]
+
+let do_preprocess ast =
+  let f fd (name, visitor_fun) =
+    (* this has to be done here, since the settings aren't available when register_preprocess is called *)
+    if List.mem name (List.map Json.string @@ get_list "ana.activated[0]") then
+      ignore @@ visitCilFunction (visitor_fun fd) fd
+  in
+  iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
 
 let createCFG (fileAST: file) =
   end_basic_blocks fileAST;
-  loop_counter fileAST;
+  do_preprocess fileAST;
   (* Partial.calls_end_basic_blocks fileAST; *)
   Partial.globally_unique_vids fileAST;
   iterGlobals fileAST (fun glob ->

@@ -24,7 +24,7 @@ module Domain = struct
   | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) -> var_in_expr p e
   | BinOp (_,e1,e2,_) -> var_in_expr p e1 && var_in_expr p e2
   | Question (c,t,e,_) -> var_in_expr p c && var_in_expr p t && var_in_expr p e
-  | AddrOfLabel _ -> true (* TODO *)
+  | AddrOfLabel _ -> true
   let filter_exprs_with_var p = filter (fun _ v -> V.for_all (var_in_expr p) v)
   (* when local variables go out of scope -> remove them (keys and exprs containing them) *)
   let remove_vars p d =
