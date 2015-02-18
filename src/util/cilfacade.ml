@@ -66,7 +66,6 @@ let do_preprocess ast =
 
 let createCFG (fileAST: file) =
   end_basic_blocks fileAST;
-  do_preprocess fileAST;
   (* Partial.calls_end_basic_blocks fileAST; *)
   Partial.globally_unique_vids fileAST;
   iterGlobals fileAST (fun glob ->
@@ -75,7 +74,8 @@ let createCFG (fileAST: file) =
           prepareCFG fd;
           computeCFGInfo fd true
       | _ -> ()
-  )
+  );
+  do_preprocess fileAST
 
 let partial fileAST =
   Partial.partial fileAST "main" []

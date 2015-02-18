@@ -12,19 +12,19 @@ module Domain = struct
   module V =  Queries.ES
   include MapDomain.MapBot (Lval.CilLval) (V)
   let rec var_in_lval p (lh,offs) = var_in_offs p offs && match lh with
-  | Var v -> p v
-  | Mem e -> var_in_expr p e
+    | Var v -> p v
+    | Mem e -> var_in_expr p e
   and var_in_offs p = function
-  | NoOffset  -> true
-  | Field (_,o) -> var_in_offs p o
-  | Index (e,o) -> var_in_expr p e && var_in_offs p o
+    | NoOffset  -> true
+    | Field (_,o) -> var_in_offs p o
+    | Index (e,o) -> var_in_expr p e && var_in_offs p o
   and var_in_expr p = function
-  | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ -> true
-  | Lval l | AddrOf l | StartOf l -> var_in_lval p l
-  | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) -> var_in_expr p e
-  | BinOp (_,e1,e2,_) -> var_in_expr p e1 && var_in_expr p e2
-  | Question (c,t,e,_) -> var_in_expr p c && var_in_expr p t && var_in_expr p e
-  | AddrOfLabel _ -> true
+    | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ -> true
+    | Lval l | AddrOf l | StartOf l -> var_in_lval p l
+    | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) -> var_in_expr p e
+    | BinOp (_,e1,e2,_) -> var_in_expr p e1 && var_in_expr p e2
+    | Question (c,t,e,_) -> var_in_expr p c && var_in_expr p t && var_in_expr p e
+    | AddrOfLabel _ -> true
   let filter_exprs_with_var p = filter (fun _ v -> V.for_all (var_in_expr p) v)
   (* when local variables go out of scope -> remove them (keys and exprs containing them) *)
   let remove_vars p d =

@@ -7,6 +7,8 @@ open Analyses
 
 module M = Messages
 let sprint f x = Pretty.sprint 80 (f () x)
+let (%?) = Option.bind
+let (||?) a b = match a,b with Some x,_ | _, Some x -> Some x | _ -> None
 
 module TermDomain = struct
   include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
@@ -20,6 +22,168 @@ module TermDomain = struct
   let toXML s  = toXML_f short s
 end
 
+class loopCounterVisitor (fd : fundec) = object(self)
+  inherit nopCilVisitor
+  method vstmt s =
+    let action s = match s.skind with
+      | Loop (b, loc, _, _) ->
+          (* insert loop counter variable *)
+          let name = "term"^string_of_int loc.line in
+          let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
+          let v = makeLocalVar fd name ~init:(SingleInit zero) typ in
+          (* make an init stmt since the init above is apparently ignored *)
+          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc) in
+          (* increment it every iteration *)
+          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc) in
+          b.bstmts <- inc_stmt :: b.bstmts;
+          let nb = mkBlock [init_stmt; mkStmt s.skind] in
+          s.skind <- Block nb;
+          s
+      | _ -> s
+    in ChangeDoChildrenPost (s, action)
+end
+
+let loopBreaks : (int, location) Hashtbl.t = Hashtbl.create 13 (* break stmt sid -> corresponding loop *)
+class loopBreaksVisitor (fd : fundec) = object(self)
+  inherit nopCilVisitor
+  method vstmt s =
+    (match s.skind with
+    | Loop (b, loc, Some continue, Some break) ->
+        (* Printf.printf "Found loop on line %i\n" loc.line; *)
+        Hashtbl.add loopBreaks break.sid loc
+    | Loop _ -> failwith "Termination.preprocess: every loop should have a break and continue stmt after prepareCFG"
+    | _ -> ());
+    DoChildren
+end
+
+(* if the then-block contains a goto while_break.* we have the termination condition for a loop *)
+let exits block = match block with
+  | { bstmts = [{ skind = Goto (stmt, loc) }] } -> Hashtbl.find_option loopBreaks !stmt.sid
+  | _ -> None (* TODO handle return (need to find out what loop we are in) *)
+
+let lvals_of_expr =
+  let rec f a = function
+    | Const _ | SizeOf _ | SizeOfStr _ | AlignOf _ | AddrOfLabel _ -> a
+    | Lval l | AddrOf l | StartOf l -> l :: a
+    | SizeOfE e | AlignOfE e | UnOp (_,e,_) | CastE (_,e) -> f a e
+    | BinOp (_,e1,e2,_) -> f a e1 @ f a e2
+    | Question (c,t,e,_) -> f a c @ f a t @ f a e
+  in f []
+
+let loopVars : (location, lval) Hashtbl.t = Hashtbl.create 13 (* loop location -> lval used for exit *)
+class loopVarsVisitor (fd : fundec) = object
+  inherit nopCilVisitor
+  method vstmt s =
+    let add_exit_cond loc e =
+      match lvals_of_expr e with
+      | [lval] when typeOf e |> isArithmeticType -> Hashtbl.add loopVars loc lval
+      | _ -> ()
+    in
+    (match s.skind with
+    | If (e, tb, fb, loc) ->
+        (match exits tb ||? exits fb with
+        | Some loop_loc ->
+            print_endline @@ "At an If-stmt!"
+              ^ "\nCil-exp: " ^ sprint d_exp e
+              ^ "\nExits loop: " ^ string_of_int loop_loc.line
+              ^ "\nloopVars: " ^ String.concat ", " @@ List.map (sprint d_lval) (lvals_of_expr e)
+              ;
+            add_exit_cond loop_loc e
+        | None -> ())
+    | _ -> ());
+    DoChildren
+end
+
+(* keep the enclosing loop for statements *)
+let cur_loop = ref None (* current loop *)
+let cur_loop' = ref None (* for nested loops *)
+let makeVar fd loc name =
+  let id = name ^ "'" ^ string_of_int loc.line in
+  try List.find (fun v -> v.vname = id) fd.slocals
+  with Not_found ->
+    let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
+    makeLocalVar fd id ~init:(SingleInit zero) typ
+class loopInstrVisitor (fd : fundec) = object(self)
+  inherit nopCilVisitor
+  method vstmt s =
+    (match s.skind with
+    | Loop (_, loc, _, _) ->
+        cur_loop' := !cur_loop;
+        cur_loop := Some loc
+    | _ -> ());
+    let action s =
+      (* first, restore old cur_loop *)
+      (match s.skind with
+      | Loop (_, loc, _, _) ->
+          cur_loop := !cur_loop';
+      | _ -> ());
+      let in_loop () = Option.is_some !cur_loop && Hashtbl.mem loopVars (Option.get !cur_loop) in
+      match s.skind with
+      | Loop (b, loc, Some continue, Some break) when Hashtbl.mem loopVars loc ->
+          (* find loop var for current loop *)
+          let x = Hashtbl.find loopVars loc in
+          (* insert loop counter and diff to loop var *)
+          let t = makeVar fd loc "t" in
+          let d = makeVar fd loc "d" in
+          (* make init stmts *)
+          let t_init = mkStmtOneInstr @@ Set (var t, zero, loc) in
+          let d_init = mkStmtOneInstr @@ Set (var d, Lval x, loc) in
+          (* increment/decrement in every iteration *)
+          let t_inc = mkStmtOneInstr @@ Set (var t, increm (Lval (var t)) 1, loc) in
+          let d_dec = mkStmtOneInstr @@ Set (var d, increm (Lval (var d)) (-1), loc) in
+          (* TODO: this is wrong if a continue happens and goblint finds out the inserted stuff is dead *)
+          b.bstmts <- b.bstmts @ [d_dec; t_inc];
+          (* why doesn't this work? *)
+          (* continue.succs <- d_dec :: t_inc :: continue.succs; *)
+          let nb = mkBlock [t_init; d_init; mkStmt s.skind] in
+          s.skind <- Block nb;
+          s
+      | Instr [Set (lval, e, loc)] when in_loop () ->
+          print_endline @@ "Loop for stmt: " ^ sprint d_stmt s ^ " is " ^ (match !cur_loop with Some loc -> string_of_int loc.line | None -> "None");
+          (* find loop var for current loop *)
+          let cur_loop = Option.get !cur_loop in
+          let x = Hashtbl.find loopVars cur_loop in
+          if x <> lval then
+            s
+          else (* we only care about the loop var *)
+            let d = makeVar fd cur_loop "d" in
+            (match e with
+            | BinOp (PlusA, Lval x', e2, typ) when x' = x && isArithmeticType typ -> (* TODO x = 1 + x, MinusA! *)
+                (* increase diff by same expr *)
+                let d_inc = mkStmtOneInstr @@ Set (var d, BinOp (PlusA, Lval (var d), e2, typ), loc) in
+                let nb = mkBlock [d_inc; mkStmt s.skind] in
+                s.skind <- Block nb;
+                s
+            | _ ->
+                (* otherwise diff is e - counter *)
+                let t = makeVar fd cur_loop "t" in
+                let dt = mkStmtOneInstr @@ Set (var d, BinOp (MinusA, Lval x, Lval (var t), typeOf e), loc) in
+                let nb = mkBlock [mkStmt s.skind; dt] in
+                s.skind <- Block nb;
+                s
+            )
+      | If (e, tb, fb, loc) when in_loop () ->
+          let transform b loop_loc =
+            let cur_loop = Option.get !cur_loop in
+            let x = Hashtbl.find loopVars cur_loop in
+            let t = var @@ makeVar fd cur_loop "t" in
+            let d = var @@ makeVar fd cur_loop "d" in
+            let typ = typeOf e in
+            let e' = BinOp (Eq, Lval t, BinOp (MinusA, Lval x, Lval d, typ), typ) in
+            print_endline @@ "Transforming If-stmt " ^ sprint d_exp e ^ ". Added " ^ sprint d_exp e';
+            mkBlock [mkStmt (If (e', b, mkBlock [], loc))]
+          in
+          (match exits tb, exits fb with
+            | Some x, _ -> s.skind <- If (e, tb, transform fb x, loc); s
+            | _, Some x -> s.skind <- If (e, transform tb x, fb, loc); s
+            | _ -> s
+          )
+      | _ -> s
+    in
+    ChangeDoChildrenPost (s, action)
+end
+
+
 module Spec =
 struct
   include Analyses.DefaultSpec
@@ -28,23 +192,6 @@ struct
   module D = TermDomain
   module C = TermDomain
   module G = Lattice.Unit
-
-  let breaks : (int, location) Hashtbl.t = Hashtbl.create 13 (* break stmt sid -> corresponding loop *)
-  class loopBreakVisitor = object
-    inherit nopCilVisitor
-    method vstmt s =
-      let action s = match s.skind with
-        | Loop (b, loc, Some continue, Some break) ->
-            (* Printf.printf "Found loop on line %i\n" loc.line; *)
-            Hashtbl.add breaks break.sid loc;
-            s
-        | Loop _ -> failwith "Termination.preprocess: every loop should have a break and continue stmt after prepareCFG"
-        | _ -> s
-      in ChangeDoChildrenPost (s, action)
-  end
-
-  let init () = visitCilFileSameGlobals (new loopBreakVisitor) !Cilfacade.ugglyImperativeHack
-  let finalize () = ()
 
   (* queries *)
   (*let query ctx (q:Queries.t) : Queries.Result.t =*)
@@ -59,7 +206,7 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =
     (* if the then-block contains a goto while_break.* we have the termination condition for a loop *)
     let exits block = match block with
-      | { bstmts = [{ skind = Goto (stmt, loc) }] } -> Hashtbl.find_option breaks !stmt.sid
+      | { bstmts = [{ skind = Goto (stmt, loc) }] } -> Hashtbl.find_option loopBreaks !stmt.sid
       | _ -> None (* TODO handle return (need to find out what loop we are in) *)
     in
     match !MyCFG.current_node with
@@ -99,27 +246,9 @@ struct
   let exitstate  v = D.bot ()
 end
 
-class loopCounterVisitor (fd : fundec) = object(self)
-  inherit nopCilVisitor
-  method vstmt s =
-    let action s = match s.skind with
-      | Loop (b, loc, _, _) ->
-          (* insert loop counter variable *)
-          let name = "term"^string_of_int loc.line in
-          let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
-          let v = makeLocalVar fd name ~init:(SingleInit zero) typ in
-          (* make an init stmt since the init above is apparently ignored *)
-          let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc) in
-          (* increment it every iteration *)
-          let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc) in
-          b.bstmts <- inc_stmt :: b.bstmts;
-          let nb = mkBlock [init_stmt; mkStmt s.skind] in
-          s.skind <- Block nb;
-          s
-      | _ -> s
-    in ChangeDoChildrenPost (s, action)
-end
-
 let _ =
-  Cilfacade.register_preprocess Spec.name (new loopCounterVisitor);
+  (* Cilfacade.register_preprocess Spec.name (new loopCounterVisitor); *)
+  Cilfacade.register_preprocess Spec.name (new loopBreaksVisitor);
+  Cilfacade.register_preprocess Spec.name (new loopVarsVisitor);
+  Cilfacade.register_preprocess Spec.name (new loopInstrVisitor);
   MCP.register_analysis (module Spec : Spec)
