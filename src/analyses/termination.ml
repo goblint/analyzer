@@ -48,9 +48,7 @@ class loopBreaksVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
   method vstmt s =
     (match s.skind with
-    | Loop (b, loc, Some continue, Some break) ->
-        (* Printf.printf "Found loop on line %i\n" loc.line; *)
-        Hashtbl.add loopBreaks break.sid loc
+    | Loop (b, loc, Some continue, Some break) -> Hashtbl.add loopBreaks break.sid loc
     | Loop _ -> failwith "Termination.preprocess: every loop should have a break and continue stmt after prepareCFG"
     | _ -> ());
     DoChildren
@@ -74,22 +72,13 @@ let loopVars : (location, lval) Hashtbl.t = Hashtbl.create 13 (* loop location -
 class loopVarsVisitor (fd : fundec) = object
   inherit nopCilVisitor
   method vstmt s =
-    let add_exit_cond loc e =
+    let add_exit_cond e loc =
       match lvals_of_expr e with
       | [lval] when typeOf e |> isArithmeticType -> Hashtbl.add loopVars loc lval
       | _ -> ()
     in
     (match s.skind with
-    | If (e, tb, fb, loc) ->
-        (match exits tb ||? exits fb with
-        | Some loop_loc ->
-            print_endline @@ "At an If-stmt!"
-              ^ "\nCil-exp: " ^ sprint d_exp e
-              ^ "\nExits loop: " ^ string_of_int loop_loc.line
-              ^ "\nloopVars: " ^ String.concat ", " @@ List.map (sprint d_lval) (lvals_of_expr e)
-              ;
-            add_exit_cond loop_loc e
-        | None -> ())
+    | If (e, tb, fb, loc) -> Option.map_default (add_exit_cond e) () (exits tb ||? exits fb)
     | _ -> ());
     DoChildren
 end
@@ -98,7 +87,7 @@ end
 let cur_loop = ref None (* current loop *)
 let cur_loop' = ref None (* for nested loops *)
 let makeVar fd loc name =
-  let id = name ^ "'" ^ string_of_int loc.line in
+  let id = name ^ "__" ^ string_of_int loc.line in
   try List.find (fun v -> v.vname = id) fd.slocals
   with Not_found ->
     let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
@@ -123,23 +112,27 @@ class loopInstrVisitor (fd : fundec) = object(self)
           (* find loop var for current loop *)
           let x = Hashtbl.find loopVars loc in
           (* insert loop counter and diff to loop var *)
-          let t = makeVar fd loc "t" in
-          let d = makeVar fd loc "d" in
+          let t = var @@ makeVar fd loc "t" in
+          let d = var @@ makeVar fd loc "d" in
           (* make init stmts *)
-          let t_init = mkStmtOneInstr @@ Set (var t, zero, loc) in
-          let d_init = mkStmtOneInstr @@ Set (var d, Lval x, loc) in
+          let t_init = mkStmtOneInstr @@ Set (t, zero, loc) in
+          let d_init = mkStmtOneInstr @@ Set (d, Lval x, loc) in
           (* increment/decrement in every iteration *)
-          let t_inc = mkStmtOneInstr @@ Set (var t, increm (Lval (var t)) 1, loc) in
-          let d_dec = mkStmtOneInstr @@ Set (var d, increm (Lval (var d)) (-1), loc) in
-          (* TODO: this is wrong if a continue happens and goblint finds out the inserted stuff is dead *)
-          b.bstmts <- b.bstmts @ [d_dec; t_inc];
-          (* why doesn't this work? *)
-          (* continue.succs <- d_dec :: t_inc :: continue.succs; *)
-          let nb = mkBlock [t_init; d_init; mkStmt s.skind] in
-          s.skind <- Block nb;
+          let t_inc = mkStmtOneInstr @@ Set (t, increm (Lval t) 1, loc) in
+          let d_inc = mkStmtOneInstr @@ Set (d, increm (Lval d) 1, loc) in
+          (match b.bstmts with
+          | cont :: cond :: ss ->
+              (* changing succs/preds directly doesn't work -> need to replace whole stmts  *)
+              (* continue.succs <- d_inc :: t_inc :: continue.succs; *)
+              let typ = intType in
+              let e' = BinOp (Eq, Lval t, BinOp (MinusA, Lval x, Lval d, typ), typ) in
+              let new_if = mkStmt (If (e', mkBlock (d_inc :: t_inc :: ss), mkBlock [], loc)) in
+              b.bstmts <- cont :: cond :: [new_if];
+              let nb = mkBlock [t_init; d_init; mkStmt s.skind] in
+              s.skind <- Block nb;
+          | _ -> ());
           s
       | Instr [Set (lval, e, loc)] when in_loop () ->
-          print_endline @@ "Loop for stmt: " ^ sprint d_stmt s ^ " is " ^ (match !cur_loop with Some loc -> string_of_int loc.line | None -> "None");
           (* find loop var for current loop *)
           let cur_loop = Option.get !cur_loop in
           let x = Hashtbl.find loopVars cur_loop in
@@ -150,8 +143,8 @@ class loopInstrVisitor (fd : fundec) = object(self)
             (match e with
             | BinOp (PlusA, Lval x', e2, typ) when x' = x && isArithmeticType typ -> (* TODO x = 1 + x, MinusA! *)
                 (* increase diff by same expr *)
-                let d_inc = mkStmtOneInstr @@ Set (var d, BinOp (PlusA, Lval (var d), e2, typ), loc) in
-                let nb = mkBlock [d_inc; mkStmt s.skind] in
+                let d_dec = mkStmtOneInstr @@ Set (var d, BinOp (MinusA, Lval (var d), e2, typ), loc) in
+                let nb = mkBlock [d_dec; mkStmt s.skind] in
                 s.skind <- Block nb;
                 s
             | _ ->
@@ -162,22 +155,6 @@ class loopInstrVisitor (fd : fundec) = object(self)
                 s.skind <- Block nb;
                 s
             )
-      | If (e, tb, fb, loc) when in_loop () ->
-          let transform b loop_loc =
-            let cur_loop = Option.get !cur_loop in
-            let x = Hashtbl.find loopVars cur_loop in
-            let t = var @@ makeVar fd cur_loop "t" in
-            let d = var @@ makeVar fd cur_loop "d" in
-            let typ = typeOf e in
-            let e' = BinOp (Eq, Lval t, BinOp (MinusA, Lval x, Lval d, typ), typ) in
-            print_endline @@ "Transforming If-stmt " ^ sprint d_exp e ^ ". Added " ^ sprint d_exp e';
-            mkBlock [mkStmt (If (e', b, mkBlock [], loc))]
-          in
-          (match exits tb, exits fb with
-            | Some x, _ -> s.skind <- If (e, tb, transform fb x, loc); s
-            | _, Some x -> s.skind <- If (e, transform tb x, fb, loc); s
-            | _ -> s
-          )
       | _ -> s
     in
     ChangeDoChildrenPost (s, action)
