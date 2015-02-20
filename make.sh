@@ -64,13 +64,19 @@ rule() {
              cp g2html/g2html.jar .
              ;;
     depend)  echo "No!";;
-    setup)   opam init
+    setup)   echo "Make sure you have the following installed: opam >= 1.2.0, m4, patch, autoconf, git"
+             echo "Press [Enter] to continue..."
+             read
+             opam init --comp=4.02.1
              opam update
-             opam switch 4.02.1
+             # opam switch 4.02.1
              eval `opam config env`
              opam install ocamlfind batteries xml-light
              # opam's cil is too old
              opam pin -y add cil "https://github.com/kerneis/cil.git"
+             ;;
+    dev)     opam install utop merlin ocp-indent ocp-index
+             echo "Be sure to adjust your vim/emacs config!"
              ;;
     header*) wget http://www.ut.ee/~vesal/linux-headers.tbz
              tar xaf linux-headers.tbz
