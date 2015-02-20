@@ -65,8 +65,6 @@ rule() {
              ;;
     depend)  echo "No!";;
     setup)   echo "Make sure you have the following installed: opam >= 1.2.0, m4, patch, autoconf, git"
-             echo "Press [Enter] to continue..."
-             read
              opam init --comp=4.02.1
              opam update
              # opam switch 4.02.1
