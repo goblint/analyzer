@@ -1416,6 +1416,12 @@ struct
                 end
             | _ -> M.bailwith "List function arguments are strange/complicated."
           end
+      | `Unknown "__builtin" ->
+          begin match args with
+            | Const (CStr "invariant") :: args when List.length args > 0 ->
+                List.fold_left (fun d e -> invariant ctx.ask ctx.global d e true) ctx.local args
+            | _ -> failwith "Unknown __builtin."
+          end
       | `Unknown "exit" ->  raise Deadcode
       | `Unknown "abort" -> raise Deadcode
       | `Unknown "__builtin_expect" ->
