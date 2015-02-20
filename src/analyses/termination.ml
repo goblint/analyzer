@@ -54,8 +54,8 @@ class loopBreaksVisitor (fd : fundec) = object(self)
     DoChildren
 end
 
-(* if the then-block contains a goto while_break.* we have the termination condition for a loop *)
-let exits block = match block with
+(* if the given block contains a goto while_break.* we have the termination condition for a loop *)
+let exits = function
   | { bstmts = [{ skind = Goto (stmt, loc) }] } -> Hashtbl.find_option loopBreaks !stmt.sid
   | _ -> None (* TODO handle return (need to find out what loop we are in) *)
 
@@ -124,10 +124,11 @@ class loopInstrVisitor (fd : fundec) = object(self)
           | cont :: cond :: ss ->
               (* changing succs/preds directly doesn't work -> need to replace whole stmts  *)
               (* continue.succs <- d_inc :: t_inc :: continue.succs; *)
-              let typ = intType in
-              let e' = BinOp (Eq, Lval t, BinOp (MinusA, Lval x, Lval d, typ), typ) in
-              let new_if = mkStmt (If (e', mkBlock (d_inc :: t_inc :: ss), mkBlock [], loc)) in
-              b.bstmts <- cont :: cond :: [new_if];
+              (* let typ = intType in *)
+              (* let e' = BinOp (Eq, Lval t, BinOp (MinusA, Lval x, Lval d, typ), typ) in *)
+              (* let new_if = mkStmt (If (e', mkBlock (d_inc :: t_inc :: ss), mkBlock [], loc)) in *)
+              (* b.bstmts <- cont :: cond :: [new_if]; *)
+              b.bstmts <- cont :: cond :: d_inc :: t_inc :: ss;
               let nb = mkBlock [t_init; d_init; mkStmt s.skind] in
               s.skind <- Block nb;
           | _ -> ());
@@ -182,25 +183,34 @@ struct
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     (* if the then-block contains a goto while_break.* we have the termination condition for a loop *)
-    let exits block = match block with
-      | { bstmts = [{ skind = Goto (stmt, loc) }] } -> Hashtbl.find_option loopBreaks !stmt.sid
-      | _ -> None (* TODO handle return (need to find out what loop we are in) *)
-    in
     match !MyCFG.current_node with
+    | Some (MyCFG.Statement({ skind = Loop (b, loc, Some continue, Some break) })) ->
+        M.debug_each @@ "Found loop on line " ^ string_of_int loc.line;
+        ctx.local
     | Some (MyCFG.Statement({ skind = If (e, tb, fb, loc) })) ->
-        let b = if tv then tb else fb in
-        let loop = exits b in
-        if loop = None then ctx.local else ( (* current branch doesn't exit the loop *)
-        M.debug_each @@ "At an If-stmt!"
-          ^ "\nCil-exp: " ^ sprint d_exp e
-          (*^ "; Goblint-exp: " ^ sprint d_exp exp*)
-          ^ "; Goblint: " ^ sprint Queries.Result.pretty (ctx.ask (Queries.EvalInt exp))
-          (*^ "\nThen-block: " ^ sprint d_block tb ^ "; Else-block: " ^ sprint d_block fb*)
-          ^ "\nCurrent block is: " ^ sprint d_block b
-          ^ "\nExits loop: " ^ (match loop with Some loc -> string_of_int loc.line | None -> "None")
-          ;
-        (*M.debug_each "Loop exit!";*)
-        ctx.local)
+          let str_exit b = match exits b with Some loc -> string_of_int loc.line | None -> "None" in
+          M.debug_each @@
+            "\nCil-exp: " ^ sprint d_exp e
+            (*^ "; Goblint-exp: " ^ sprint d_exp exp*)
+            ^ "; Goblint: " ^ sprint Queries.Result.pretty (ctx.ask (Queries.EvalInt exp))
+            ^ "\nCurrent block: " ^ (if tv then "Then" else "Else")
+            ^ "\nThen block (exits " ^ str_exit tb ^ "): " ^ sprint d_block tb
+            ^ "\nElse block (exits " ^ str_exit fb ^ "): " ^ sprint d_block fb
+            ;
+        (* if current branch exits the loop: *)
+        (* let f b loop_loc = *)
+        (*   M.debug_each @@ "At an If-stmt!" *)
+        (*     ^ "\nCil-exp: " ^ sprint d_exp e *)
+        (*     (*^ "; Goblint-exp: " ^ sprint d_exp exp*) *)
+        (*     ^ "; Goblint: " ^ sprint Queries.Result.pretty (ctx.ask (Queries.EvalInt exp)) *)
+        (*     (*^ "\nThen-block: " ^ sprint d_block tb ^ "; Else-block: " ^ sprint d_block fb*) *)
+        (*     ^ "\nCurrent block is: " ^ sprint d_block b *)
+        (*     ^ "\nExits loop: " ^ string_of_int loop_loc.line *)
+        (*     (* ; *) *)
+        (* in *)
+        (* let b = if tv then tb else fb in *)
+        (* Option.map_default (f b) () (exits b); *)
+        ctx.local
     | _ -> ctx.local
 
   let body ctx (f:fundec) : D.t =
@@ -223,9 +233,19 @@ struct
   let exitstate  v = D.bot ()
 end
 
+class recomputeVisitor (fd : fundec) = object(self)
+  inherit nopCilVisitor
+  method vfunc fd =
+    computeCFGInfo fd true;
+    SkipChildren
+end
+
 let _ =
   (* Cilfacade.register_preprocess Spec.name (new loopCounterVisitor); *)
   Cilfacade.register_preprocess Spec.name (new loopBreaksVisitor);
   Cilfacade.register_preprocess Spec.name (new loopVarsVisitor);
   Cilfacade.register_preprocess Spec.name (new loopInstrVisitor);
+  Cilfacade.register_preprocess Spec.name (new recomputeVisitor);
+  Hashtbl.clear loopBreaks; (* because the sids are now different *)
+  Cilfacade.register_preprocess Spec.name (new loopBreaksVisitor);
   MCP.register_analysis (module Spec : Spec)
