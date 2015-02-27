@@ -24,7 +24,7 @@ You may now try running goblint: `./goblint tests/regression/04-mutex/01-simple_
 The above instructions for Linux work just as well for Mac OS X. Goblint
 successfully compiles, but it may fail to parse files. We need `cpp` in order
 to preprocess source files and current versions of the clang frontend will not
-work with goblint. You therefore have to do, e.g., `brew install gcc`, and if
+work with goblint. You therefore have to do, e.g., `brew install gcc` (first do `xcode-select --install` if you don't want to build from source), and if
 you do not want to mess with Apple's default wiring, you can edit src/config.ml
 and set the cpp variable to the gcc version installed by homebrew (currently
 "cpp-4.9").
