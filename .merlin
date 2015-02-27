@@ -1,4 +1,4 @@
-PKG batteries cil xml-light apron
+PKG batteries cil xml-light
 S src
 S src/analyses
 S src/cdomains
