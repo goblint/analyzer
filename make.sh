@@ -77,7 +77,7 @@ rule() {
              echo "Be sure to adjust your vim/emacs config!"
              ;;
     header*) wget http://www.ut.ee/~vesal/linux-headers.tbz
-             tar xaf linux-headers.tbz
+             tar xf linux-headers.tbz
              rm linux-headers.tbz
              ;;
     poly)    echo "open ApronDomain" >> $TARGET.ml
