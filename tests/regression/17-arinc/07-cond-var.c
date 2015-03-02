@@ -9,13 +9,15 @@ int main(){
     int i;
     int a, b;
     printf("i = %d ", i);
-    a = i < 1000;
+    a = (int) ((int) i < 1000); // casts shouldn't be a problem
     if(a){
         printf("<");
     }else{
         printf(">=");
     }
+    /* a = 1; // this should destroy b -> i < 1000 */
     b = a;
+    a = 1; // this shouldn't destroy b -> i < 1000
     if(b){
         printf("<");
     }else{

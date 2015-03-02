@@ -883,13 +883,12 @@ struct
           let res = invariant ctx.ask ctx.global ctx.local exp tv in
           if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.EqualSet exp));
           if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.Result.pretty (ctx.ask (Queries.CondVars exp));
-          (* let sprint f x = Pretty.sprint 80 (f () x) in *)
-          (* M.debug_each @@ "EqualSet result for expression " ^ sprint d_exp exp ^ " is " ^ sprint Queries.Result.pretty (ctx.ask (Queries.EqualSet exp)); *)
-          (* M.debug_each @@ "CondVars result for expression " ^ sprint d_exp exp ^ " is " ^ sprint Queries.Result.pretty (ctx.ask (Queries.CondVars exp)); *)
           if M.tracing then M.traceu "branch" "Invariant enforced!\n";
           match ctx.ask (Queries.CondVars exp) with
           | `ExprSet s when Queries.ES.cardinal s = 1 ->
               let e = Queries.ES.choose s in
+              let sprint f x = Pretty.sprint 80 (f () x) in
+              M.debug_each @@ "CondVars result for expression " ^ sprint d_exp exp ^ " is " ^ sprint d_exp e;
               invariant ctx.ask ctx.global res e tv
           | _ -> res
 

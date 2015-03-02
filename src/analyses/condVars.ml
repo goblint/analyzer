@@ -27,17 +27,28 @@ module Domain = struct
     | AddrOfLabel _ -> true
   let filter_exprs_with_var p = filter (fun _ v -> V.for_all (var_in_expr p) v)
   (* when local variables go out of scope -> remove them (keys and exprs containing them) *)
-  let remove_vars p d =
+  let filter_vars p d =
     filter (fun (v,_) _ -> p v) d (* apply predicate for filtering *)
     |> filter_exprs_with_var p
+  let remove_var v = filter_vars ((<>) v)
   let remove_fun_locals f d =
     let p v = not @@ List.mem v (f.sformals @ f.slocals) in
-    remove_vars p d
+    filter_vars p d
   let only_globals d =
     let p v = v.vglob in
-    remove_vars p d
+    filter_vars p d
+  let only_locals d =
+    let p v = not v.vglob in
+    filter_vars p d
   let only_global_exprs s = V.for_all (var_in_expr (fun v -> v.vglob)) s
-  let get k d = if mem k d then let v = find k d in if V.cardinal v = 1 then Some v else None else None
+  let rec get k d =
+    if mem k d && V.cardinal (find k d) = 1 then
+      let s = find k d in
+      match V.choose s with
+      | Lval (Var v, offs) -> get (v, Lval.CilLval.of_ciloffs offs) d (* transitive lookup *)
+      | _ -> Some s
+    else None
+  let get_elt k d = Option.map V.choose @@ get k d
   let has k d = get k d |> Option.is_some
 end
 
@@ -50,7 +61,8 @@ struct
   module C = Domain
   module G = Lattice.Unit
 
-  let (%?) = Option.bind
+  (* >? is >>=, |? is >> *)
+  let (>?) = Option.bind
 
   let mayPointTo ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
@@ -73,36 +85,44 @@ struct
   let query ctx (q:Queries.t) : Queries.Result.t =
     let d = ctx.local in
     let of_q = function Queries.CondVars e -> Some e | _ -> None in
-    let of_expr = function
-      | Lval lval -> Some lval (* TODO accept more exprs *)
+    let rec of_expr tv = function
+      | UnOp (LNot, e, t) when isIntegralType t -> of_expr (not tv) e
+      | BinOp (Ne, e1, e2, t) when isIntegralType t -> of_expr (not tv) (BinOp (Eq, e1, e2, t))
+      | BinOp (Eq, e1, e2, t) when isIntegralType t && e2 = zero -> of_expr (not tv) e1
+      | BinOp (Eq, e2, e1, t) when isIntegralType t && e2 = zero -> of_expr (not tv) e1
+      | Lval lval -> Some (tv, lval)
       | _ -> None
     in
-    let of_lval lval = mustPointTo ctx (AddrOf lval) in
-    let of_clval k = if D.mem k d then Some (`ExprSet (D.find k d)) else None in
-    of_q q %? of_expr %? of_lval %? of_clval |? Queries.Result.top ()
+    let of_lval (tv,lval) = Option.map (fun k -> tv, k) @@ mustPointTo ctx (AddrOf lval) in
+    let t tv e = if tv then e else UnOp (LNot, e, intType) in
+    let f tv v = D.V.map (t tv) v |> fun v -> Some (`ExprSet v) in
+    let of_clval (tv,k) = D.get k d >? f tv in
+    of_q q >? of_expr true >? of_lval >? of_clval |? Queries.Result.top ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    (* remove all vars that lval may point to *)
-    let d = List.fold_left (flip D.remove) ctx.local (mayPointTo ctx (AddrOf lval)) in
+    (* remove all keys lval may point to, and all exprs that contain the variables (TODO precision) *)
+    let d = List.fold_left (fun d (v,o as k) -> D.remove k d |> D.remove_var v) ctx.local (mayPointTo ctx (AddrOf lval)) in
     let save_expr lval expr =
       match mustPointTo ctx (AddrOf lval) with
-      | Some clval -> D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
+      | Some clval ->
+          M.debug_each @@ "CondVars: saving " ^ sprint Lval.CilLval.pretty clval ^ " = " ^ sprint d_exp expr;
+          D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
       | None -> d
     in
     let is_cmp = function Lt | Gt | Le | Ge | Eq | Ne -> true | _ -> false in
     match rval with
     | BinOp (op, _, _, _) when is_cmp op -> (* logical expression *)
         save_expr lval rval
-    | Lval k when Option.is_some @@ mustPointTo ctx (AddrOf k) %? flip D.get d -> (* var-eq for transitive closure *)
-        save_expr lval rval
+    | Lval k when Option.is_some (mustPointTo ctx (AddrOf k) >? flip D.get d) -> (* var-eq for transitive closure *)
+        mustPointTo ctx (AddrOf k) >? flip D.get_elt d |> Option.map (save_expr lval) |? d
     | _ -> d
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
 
   (* possible solutions for functions:
-    * 1. only intra-procedural
+    * 1. only intra-procedural <- we do this
     * 2. enter: remove current locals, return: remove current locals
     * 3. enter: only keep globals, combine: update caller's state with globals from call
     * 4. same, but also consider escaped vars
@@ -116,12 +136,13 @@ struct
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local, D.only_globals ctx.local]
+    [ctx.local, D.bot ()]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     (* combine caller's state with globals from callee *)
-    (* TODO (precision): globals with only global vars are kept, the rest is lost -> collect which globals are assignet to *)
-    D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) ctx.local au
+    (* TODO (precision): globals with only global vars are kept, the rest is lost -> collect which globals are assigned to *)
+    (* D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) ctx.local au *)
+    D.only_locals ctx.local (* globals might have changed... *)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     ctx.local
