@@ -35,7 +35,7 @@ struct
     let module RT = Analyses.ResultType2 (Spec) in
     (** Set of triples [RT] *)
     let module LT = SetDomain.HeadlessSet (RT) in
-    (** Analysis result structure---a hashtable from porgram points to [LT] *)
+    (** Analysis result structure---a hashtable from program points to [LT] *)
     let module Result = Analyses.Result (LT) (struct let result_name = "analysis" end) in
 
     (** print out information about dead code *)
@@ -392,7 +392,7 @@ struct
       analyze f sf (module (DeadCodeLifter (PathSensitive2 (MCP.MCP2))) : Spec)
 end
 
-(** The main function to preform the selected analyses. *)
+(** The main function to perform the selected analyses. *)
 let analyze (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
   let cfgF, cfgB = MyCFG.getCFG file in

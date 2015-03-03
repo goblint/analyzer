@@ -146,7 +146,7 @@ class loopInstrVisitor (fd : fundec) = object(self)
           | _ -> ());
           s
       | Loop (b, loc, Some continue, Some break) ->
-          print_endline @@ "WARN: Found possibly non-terminating loop (no break) on line " ^ string_of_int loc.line;
+          print_endline @@ "WARN: Could not determine loop variable for loop on line " ^ string_of_int loc.line;
           s
       | _ when Hashtbl.mem loopBreaks s.sid -> (* after a loop, we check that t is bounded/positive (no overflow happened) *)
           let loc = Hashtbl.find loopBreaks s.sid in
