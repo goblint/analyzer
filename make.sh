@@ -27,6 +27,10 @@ rule() {
     bdebug)  ocb -tag debug $TARGET.d.byte &&
              cp _build/$TARGET.d.byte goblint.byte
              ;;
+    warn)    # be pedantic and show all warnings
+             $OCAMLBUILD $FLAGS -no-plugin -cflags "-w +a" $TARGET.native && # copied b/c passing a quoted argument to a function does not work
+             cp _build/$TARGET.native goblint
+             ;;
     # gprof (run only generates gmon.out). use: gprof goblint
     profile) ocb -tag profile $TARGET.p.native &&
              cp _build/$TARGET.p.native goblint
