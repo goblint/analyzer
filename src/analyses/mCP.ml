@@ -262,7 +262,7 @@ struct
       in
       List.filter_map f
     in
-    let xs = map Json.string @@ get_list @@ "ana.activated" in
+    let xs = map Json.string @@ get_list "ana.activated" in
     let xs = map' (flip assoc_inv !analyses_table) xs in
       base_id := assoc_inv "base" !analyses_table;
       analyses_list := map (fun s -> s, assoc s !analyses_list') xs;

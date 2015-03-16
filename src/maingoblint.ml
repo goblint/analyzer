@@ -297,7 +297,7 @@ let do_analyze merged_AST =
           if np = 0 && na = 0 && nt = 0 then failwith "No phases and no activated analyses or transformations!";
           max np 1
         in
-        ignore @@ Enum.fold do_one_phase ast (0 -- (num_phases - 1))
+        ignore @@ Enum.iter (do_one_phase ast) (0 -- (num_phases - 1))
       in
 
       (* Analyze with the new experimental framework. *)

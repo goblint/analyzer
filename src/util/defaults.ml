@@ -81,11 +81,11 @@ let _ = ()
   ; reg Std "interact.out"    "'result'"     "The result directory in interactive mode."
   ; reg Std "interact.enabled" "false"       "Is interactive mode enabled."
   ; reg Std "interact.paused" "false"        "Start interactive in pause mode."
-  ; reg Std "phases"          "[]"           "List of phases. Per-phase settings overwrite global ones. ana.activated is 1-dimensional when using this new format."
+  ; reg Std "phases"          "[]"           "List of phases. Per-phase settings overwrite global ones."
 
 (* {4 category [Analyses]} *)
 let _ = ()
-  ; reg Analyses "ana.activated" "['base','escape','mutex']"  "Lists of activated analyses in this phase."
+  ; reg Analyses "ana.activated"  "['base','escape','mutex']"  "Lists of activated analyses in this phase."
   ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','depmutex','malloc_null','uninit']"  "List of path-sensitive analyses"
   ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
   ; reg Analyses "ana.warnings"        "false" "Print soundness warnings."
@@ -124,7 +124,7 @@ let _ = ()
 
 (* {4 category [Transformations]} *)
 let _ = ()
-  ; reg Transformations "trans.activated" "[]"  "Lists of activated transformations in this phase."
+  ; reg Transformations "trans.activated" "[]"  "Lists of activated transformations in this phase. Transformations happen after analyses."
 
 (* {4 category [Experimental]} *)
 let _ = ()

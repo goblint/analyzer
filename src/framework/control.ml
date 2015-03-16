@@ -377,33 +377,31 @@ struct
         Spec.query ctx
       in
       get_list "trans.activated" |> List.map Json.string
-      |> List.fold_left (fun file name -> Transform.run name ask file) file
+      |> List.iter (fun name -> Transform.run name ask file)
       (* Transform.PartialEval.transform ask file *)
     in
 
     let do_analyze_using_iterator () =
       (* let _ = I.iterate file startvars' in *)
-      print_endline "done.";
-      file
+      print_endline "done."
     in
 
     MyCFG.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
 
-    let file' =
-      if get_bool "exp.use_gen_solver" then begin
-        (* Use "normal" constraint solving *)
-        if (get_bool "dbg.verbose") then
-          print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
-        Goblintutil.timeout do_analyze_using_solver () (float_of_int (get_int "dbg.timeout"))
-          (fun () -> Messages.waitWhat "Timeout reached!")
-      end else begin
-        (* ... or give in to peer-pressure? *)
-        if (get_bool "dbg.verbose") then
-          print_endline ("Pretending to be French ...");
-        Goblintutil.timeout do_analyze_using_iterator () (float_of_int (get_int "dbg.timeout"))
-          (fun () -> Messages.waitWhat "Timeout reached!")
-      end
-    in
+    if get_bool "exp.use_gen_solver" then begin
+      (* Use "normal" constraint solving *)
+      if (get_bool "dbg.verbose") then
+        print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
+      Goblintutil.timeout do_analyze_using_solver () (float_of_int (get_int "dbg.timeout"))
+        (fun () -> Messages.waitWhat "Timeout reached!")
+    end else begin
+      (* ... or give in to peer-pressure? *)
+      if (get_bool "dbg.verbose") then
+        print_endline ("Pretending to be French ...");
+      Goblintutil.timeout do_analyze_using_iterator () (float_of_int (get_int "dbg.timeout"))
+        (fun () -> Messages.waitWhat "Timeout reached!")
+    end;
+
     let liveness = ref (fun _ -> true) in
     if (get_bool "dbg.print_dead_code") then
       liveness := print_dead_code !local_xml;
@@ -417,9 +415,8 @@ struct
     Spec.finalize ();
 
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
-    Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file;
+    Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
 
-    file' (* return the transformed cfg *)
 
   let analyze file fs =
     if get_bool "ana.hashcons" then
