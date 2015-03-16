@@ -103,7 +103,7 @@ let option_spec_list =
 (** List of C files to consider. *)
 let cFileNames = ref []
 
-(** Parse arguments and fill [cFileNames]. Print help if needed. *)
+(** Parse arguments and fill [cFileNames] and [jsonFiles]. Print help if needed. *)
 let parse_arguments () =
   let jsonRegex = Str.regexp ".+\\.json$" in
   let recordFile fname =

@@ -254,7 +254,7 @@ struct
     let deps (x,_) = iter (check_dep x) @@ assoc x !dep_list in
     iter deps xs
 
-  let init     () =
+  let init () =
     let map' f =
       let f x =
         try Some (f x)

@@ -158,7 +158,7 @@ struct
   let print ch : unit =
     printJson ch !json_conf
 
-  (** Main function to recieve values from the conf. *)
+  (** Main function to receive values from the conf. *)
   let rec get_value o pth =
     match o, pth with
       | o, Here -> o

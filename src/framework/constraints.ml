@@ -522,7 +522,7 @@ struct
 end
 
 (** Depending on "exp.forward", [FromSpec] generates a forward-propagating
-   constraint system or a normal constriant system *)
+   constraint system or a normal constraint system *)
 module FromSpec (Solver:GenericIneqBoxSolver) (S:Spec) (Cfg:CfgBidir)
   : sig
       include GlobConstrSys with module LVar = VarF (S.C)
