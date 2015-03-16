@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[0][+] "'region'"  --set kernel true --set nonstatic true --set exp.region-offsets true
+// SKIP PARAM: --set ana.activated[+] "'region'"  --set kernel true --set nonstatic true --set exp.region-offsets true
 #include<linux/module.h>
 #include<linux/list.h>
 #include<linux/mutex.h>

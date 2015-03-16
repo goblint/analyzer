@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[0][+] "'var_eq'"  --set ana.activated[0][+] "'symb_locks'"  --set ana.activated[0][+] "'region'"  --set kernel true --set nonstatic true --set exp.region-offsets true
+// PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'region'"  --set kernel true --set nonstatic true --set exp.region-offsets true
 #include<linux/module.h>
 #include<linux/list.h>
 #include<linux/mutex.h>

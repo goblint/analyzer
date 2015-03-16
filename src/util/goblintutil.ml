@@ -11,11 +11,6 @@ open JsonLexer
 (** Use this instead of [exit n]. *)
 exception BailFromMain
 
-(* MCP adds analysis here ... *)
-let anas : string list ref = ref []
-(* Phase of the analysis *)
-let phase = ref 0
-
 (** command port for eclipse debuger support *)
 let command_port = ref (-1)
 (** event port for eclipse debuger support *)

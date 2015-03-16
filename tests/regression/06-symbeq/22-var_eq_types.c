@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[0][+] "'var_eq'" 
+// PARAM: --set ana.activated[+] "'var_eq'" 
 #include <stdio.h>
 
 extern short * anShortPlease();

@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets ana.activated[0][+] arinc --sets ana.activated[0][+] thread
+// SKIP PARAM: --sets ana.activated[+] arinc --sets ana.activated[+] thread
 
 typedef char * SEMAPHORE_NAME_TYPE;
 typedef void * SEMAPHORE_ID_TYPE;

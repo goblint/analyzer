@@ -59,7 +59,7 @@ let register_preprocess name visitor_fun =
 let do_preprocess ast =
   let f fd (name, visitor_fun) =
     (* this has to be done here, since the settings aren't available when register_preprocess is called *)
-    if List.mem name (List.map Json.string @@ get_list "ana.activated[0]") then
+    if List.mem name (List.map Json.string @@ get_list "ana.activated") then
       ignore @@ visitCilFunction (visitor_fun fd) fd
   in
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())

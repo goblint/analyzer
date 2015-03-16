@@ -10,7 +10,7 @@
       "trier" : false,
       "interval" : true
     },
-    "activated" : [["base"]]
+    "activated" : ["base"]
    ,"ctx_insens" : ["base"]
 },
   "exp" : {

@@ -7,17 +7,19 @@ open List
 (* TODO: add consistency checking *)
 
 (** Main categories of configuration variables. *)
-type category = Std           (** Parsing input, includes, standard stuff, etc. *)
-              | Analyses      (** Analyses                                      *)
-              | Experimental  (** Experimental features of analyses             *)
-              | Debugging     (** Debugging, tracing, etc.                      *)
+type category = Std             (** Parsing input, includes, standard stuff, etc. *)
+              | Analyses        (** Analyses                                      *)
+              | Transformations (** Transformations                               *)
+              | Experimental    (** Experimental features of analyses             *)
+              | Debugging       (** Debugging, tracing, etc.                      *)
 
 (** Description strings for categories. *)
 let catDescription = function
-  | Std          -> "Standard options for configuring input/output"
-  | Analyses     -> "Options for analyses"
-  | Experimental -> "Experimental features"
-  | Debugging    -> "Debugging options"
+  | Std             -> "Standard options for configuring input/output"
+  | Analyses        -> "Options for analyses"
+  | Transformations -> "Options for transformations"
+  | Experimental    -> "Experimental features"
+  | Debugging       -> "Debugging options"
 
 (** A place to store registered variables *)
 let registrar = ref []
@@ -46,7 +48,6 @@ let printAllCategories ch =
   iter (printCategory ch) [Std;Analyses;Experimental;Debugging]
 
 (* {4 category [Std]} *)
-
 let _ = ()
   ; reg Std "outfile"         ""             "File to print output to."
   ; reg Std "includes"        "[]"           "List of directories to include."
@@ -80,15 +81,13 @@ let _ = ()
   ; reg Std "interact.out"    "'result'"     "The result directory in interactive mode."
   ; reg Std "interact.enabled" "false"       "Is interactive mode enabled."
   ; reg Std "interact.paused" "false"        "Start interactive in pause mode."
+  ; reg Std "phases"          "[]"           "List of phases. Per-phase settings overwrite global ones. ana.activated is 1-dimensional when using this new format."
 
 (* {4 category [Analyses]} *)
-
 let _ = ()
-  ; reg Analyses "ana.activated" "[['base','escape','mutex']]"  "Lists of activated analyses, split into phases."
-
+  ; reg Analyses "ana.activated" "['base','escape','mutex']"  "Lists of activated analyses in this phase."
   ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','depmutex','malloc_null','uninit']"  "List of path-sensitive analyses"
   ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
-
   ; reg Analyses "ana.warnings"        "false" "Print soundness warnings."
   ; reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class."
   ; reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required)."
@@ -123,8 +122,11 @@ let _ = ()
   ; reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
   ; reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
 
-(* {4 category [Experimental]} *)
+(* {4 category [Transformations]} *)
+let _ = ()
+  ; reg Transformations "trans.activated" "[]"  "Lists of activated transformations in this phase."
 
+(* {4 category [Experimental]} *)
 let _ = ()
   ; reg Experimental "exp.privatization"     "true"  "Use privatization?"
   ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
@@ -161,7 +163,6 @@ let _ = ()
   ; reg Experimental "questions.file"        ""      "Questions database file"
 
 (* {4 category [Debugging]} *)
-
 let _ = ()
   ; reg Debugging "dbg.debug"           "false" "Debug mode: for testing the analyzer itself."
   ; reg Debugging "dbg.verbose"         "false" "Prints some status information."
@@ -179,10 +180,7 @@ let _ = ()
   ; reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
   ; reg Debugging "dbg.ctxinfo"         "false" "Print information about the number of different contexts."
 
-
-
-let default_schema =
-"
+let default_schema = "\
 { 'id'              : 'root'
 , 'type'            : 'object'
 , 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
@@ -193,6 +191,8 @@ let default_schema =
     , 'additionalProps' : true
     , 'required'        : []
     }
+  , 'trans'             : {}
+  , 'phases'            : {}
   , 'exp' :
     { 'type'            : 'object'
     , 'additionalProps' : true
@@ -240,7 +240,6 @@ let default_schema =
   , 'interact'        : {}
   }
 }"
-
 
 let _ =
   let v = JsonParser.value JsonLexer.token @@ Lexing.from_string default_schema in

@@ -19,7 +19,7 @@ let prepare_html_report () =
   close_out js_ch
 
 let do_stats fileNames =
-  let an = get_list "ana.activated" in
+  let an = get_list "ana.activated" |> List.map Json.string in
   let cn = get_list "ana.ctx_insens" |> List.map Json.string in
   let sn = get_list "ana.path_sens" |> List.map Json.string in
   let cont x = List.mem x cn |> not in
@@ -35,22 +35,8 @@ let do_stats fileNames =
       | false, true  -> str "intervals"
       | false, false -> str "disabled"
   in*)
-  let phase x =
-    let rec phase' n = function
-      | [] -> None
-      | xs::xss when List.exists (fun y->x=string !y) (!(array xs)) -> Some n
-      | xs::xss -> phase' (n+1) xss
-    in
-    phase' 1 an
-  in
-  let phaseTbl =
-    let f xs x =
-      let name = snd x in
-        match phase name with
-            None -> xs
-            | Some n -> (name, cont name, path name)::xs
-    in
-    List.fold_left f [] !MCP.analyses_table
+  let phaseTbl = (* TODO actually take phases into account *)
+    List.map (fun name -> name, cont name, path name) an
   in
   match get_bool "printstats", get_string "result" with
     | _ , "html" ->

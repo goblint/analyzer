@@ -24,6 +24,10 @@ open Printf
 open JsonSchema
 open Json
 
+(* Phase of the analysis (moved from GoblintUtil b/c of circular build...) *)
+let phase = ref 0
+let phase_config = ref true
+
 (** The type for [gobConfig] module. *)
 module type S =
 sig
@@ -216,7 +220,15 @@ struct
   (** Helper function for reading values. Handles error messages. *)
   let get_path_string f typ st =
     try
-      let x = get_value !json_conf (parse_path st) in
+      let st = String.trim st in
+      let st, x =
+        let g st = st, get_value !json_conf (parse_path st) in
+        if !phase_config then
+          try g ("phases["^ string_of_int !phase ^"]."^st) (* try to find value in config for current phase first *)
+          with _ -> g st (* do global lookup if undefined *)
+        else
+          g st (* just use the old format *)
+      in
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyJson x;
       try f x
       with JsonE _ ->

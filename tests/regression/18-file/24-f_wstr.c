@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[0][+] "'file'" --enable  ana.file.optimistic
+// PARAM: --set ana.activated[+] "'file'" --enable  ana.file.optimistic
 
 #include <stdio.h>
 #include <stddef.h>

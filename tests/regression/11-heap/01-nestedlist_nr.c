@@ -1,4 +1,4 @@
-// SKIP! PARAM: --set ana.activated[0][+] "'region'" 
+// SKIP! PARAM: --set ana.activated[+] "'region'" 
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>

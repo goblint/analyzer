@@ -54,7 +54,7 @@ let option_spec_list =
   in
   let oil file =
     set_string "ana.osek.oil" file;
-    set_auto "ana.activated" "[['base','escape','OSEK','OSEK2','stack_trace_set','fmode','flag']]";
+    set_auto "ana.activated" "['base','escape','OSEK','OSEK2','stack_trace_set','fmode','flag']";
     set_auto "mainfun" "[]"
   in
   let configure_html () =
@@ -143,6 +143,7 @@ let preprocess_one_file cppflags includes dirName fname =
   let nname =  Filename.concat dirName (Filename.basename fname) in
 
   (* Preprocess using cpp. *)
+  (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
   let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " " ^ includes ^ " " ^ fname ^ " -o " ^ nname in
   if get_bool "dbg.verbose" then print_endline command;
 
@@ -274,8 +275,33 @@ let do_analyze merged_AST =
       (* and here we run the analysis! *)
       if get_string "result" = "html" then Report.prepare_html_report ();
 
+      let do_all_phases ast funs =
+        let do_one_phase ast p =
+          phase := p;
+          if get_bool "dbg.verbose" then (
+            let aa = String.concat ", " @@ List.map Json.jsonString (get_list "ana.activated") in
+            let at = String.concat ", " @@ List.map Json.jsonString (get_list "trans.activated") in
+            print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
+            print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
+          );
+          Control.analyze ast funs
+          (* Cilfacade.ugglyImperativeHack := ast'; *)
+        in
+        (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
+        new style (Goblintutil.phase_config = true) is phases[i].ana.activated = [ana_1, ...]
+          phases[i].ana.x overwrites setting ana.x *)
+        let num_phases =
+          let np,na,nt = Tuple3.mapn (List.length % get_list) ("phases", "ana.activated", "trans.activated") in
+          phase_config := np > 0; (* TODO what about wrong usage like { phases = [...], ana.activated = [...] }? should child-lists add to parent-lists? *)
+          if get_bool "dbg.verbose" then print_endline @@ "Using " ^ if !phase_config then "new" else "old" ^ " format for phases!";
+          if np = 0 && na = 0 && nt = 0 then failwith "No phases and no activated analyses or transformations!";
+          max np 1
+        in
+        ignore @@ Enum.fold do_one_phase ast (0 -- (num_phases - 1))
+      in
+
       (* Analyze with the new experimental framework. *)
-      Stats.time "analysis" (Control.analyze merged_AST) funs
+      Stats.time "analysis" (do_all_phases merged_AST) funs
   end
 
 let do_html_output () =

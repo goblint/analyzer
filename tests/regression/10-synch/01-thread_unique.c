@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[0][+] thread
+// PARAM: --sets ana.activated[+] thread
 #include <pthread.h>
 #include <stdio.h>
 

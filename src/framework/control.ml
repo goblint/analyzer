@@ -347,29 +347,63 @@ struct
         Printf.printf "NB! Execution does not reach the end of Main.\n");
 
       if get_bool "dump_globs" then
-        print_globals gh
+        print_globals gh;
+
+      (* run activated transformations with the analysis result *)
+      let ask loc =
+        let open Batteries in let open Enum in
+        (* first join all contexts *)
+        let joined =
+          LHT.enum lh |> map (Tuple2.map1 fst) (* drop context from key *)
+          |> group fst (* group by key=node *)
+          |> map (reduce (fun (k,a) (_,b) -> k, Spec.D.join a b))
+          (* also, in cil visitors we only have the location, so we use that as the key *)
+          |> map (Tuple2.map1 MyCFG.getLoc)
+          |> Hashtbl.of_enum
+        in
+        (* build a ctx for using the query system *)
+        let rec ctx =
+          { ask    = query
+          ; local  = Hashtbl.find joined loc
+          ; global = GHT.find gh
+          ; presub = []
+          ; postsub= []
+          ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+          ; split  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
+          ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+          ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
+          }
+        and query x = Spec.query ctx x in
+        Spec.query ctx
+      in
+      get_list "trans.activated" |> List.map Json.string
+      |> List.fold_left (fun file name -> Transform.run name ask file) file
+      (* Transform.PartialEval.transform ask file *)
     in
 
     let do_analyze_using_iterator () =
       (* let _ = I.iterate file startvars' in *)
-      print_endline "done. "
+      print_endline "done.";
+      file
     in
 
     MyCFG.write_cfgs := MyCFG.dead_code_cfg file (module Cfg:CfgBidir);
 
-    if get_bool "exp.use_gen_solver" then begin
-      (* Use "normal" constraint solving *)
-      if (get_bool "dbg.verbose") then
-        print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
-      Goblintutil.timeout do_analyze_using_solver () (float_of_int (get_int "dbg.timeout"))
-        (fun () -> Messages.waitWhat "Timeout reached!");
-    end else begin
-      (* ... or give in to peer-pressure? *)
-      if (get_bool "dbg.verbose") then
-        print_endline ("Pretending to be French ...");
-      Goblintutil.timeout do_analyze_using_iterator () (float_of_int (get_int "dbg.timeout"))
-        (fun () -> Messages.waitWhat "Timeout reached!");
-    end;
+    let file' =
+      if get_bool "exp.use_gen_solver" then begin
+        (* Use "normal" constraint solving *)
+        if (get_bool "dbg.verbose") then
+          print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ".");
+        Goblintutil.timeout do_analyze_using_solver () (float_of_int (get_int "dbg.timeout"))
+          (fun () -> Messages.waitWhat "Timeout reached!")
+      end else begin
+        (* ... or give in to peer-pressure? *)
+        if (get_bool "dbg.verbose") then
+          print_endline ("Pretending to be French ...");
+        Goblintutil.timeout do_analyze_using_iterator () (float_of_int (get_int "dbg.timeout"))
+          (fun () -> Messages.waitWhat "Timeout reached!")
+      end
+    in
     let liveness = ref (fun _ -> true) in
     if (get_bool "dbg.print_dead_code") then
       liveness := print_dead_code !local_xml;
@@ -383,13 +417,15 @@ struct
     Spec.finalize ();
 
     if (get_bool "dbg.verbose") then print_endline "Generating output.";
-    Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
+    Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file;
 
-  let analyze f sf =
+    file' (* return the transformed cfg *)
+
+  let analyze file fs =
     if get_bool "ana.hashcons" then
-      analyze f sf (module (DeadCodeLifter (HashconsLifter (PathSensitive2 (MCP.MCP2)))) : Spec)
+      analyze file fs (module (DeadCodeLifter (HashconsLifter (PathSensitive2 (MCP.MCP2)))) : Spec)
     else
-      analyze f sf (module (DeadCodeLifter (PathSensitive2 (MCP.MCP2))) : Spec)
+      analyze file fs (module (DeadCodeLifter (PathSensitive2 (MCP.MCP2))) : Spec)
 end
 
 (** The main function to perform the selected analyses. *)

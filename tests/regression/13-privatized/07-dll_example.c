@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[0][+] "'shape'"  --set kernel true
+// SKIP PARAM: --set ana.activated[+] "'shape'"  --set kernel true
 #include<linux/module.h>
 #include<linux/miscdevice.h>
 #include<linux/init.h>

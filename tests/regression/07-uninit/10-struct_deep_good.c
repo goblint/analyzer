@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "[['base','escape','uninit']]"
+// PARAM: --set ana.activated "['base','escape','uninit']"
 typedef struct  {
 	int i;
 } S;
