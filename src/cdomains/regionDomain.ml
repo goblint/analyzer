@@ -14,6 +14,7 @@ struct
     let v_str = V.short w v in let w = w - String.length v_str in
     let fd_str = F.short w fd in
       v_str ^ fd_str
+  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   (* Indicates if the two var * offset pairs should collapse or not. *)
@@ -243,4 +244,6 @@ module RegionDom =
 struct
   include Lattice.Prod (Lif) (Vars)
   let short n (x,_:t) = Lif.short n x
+  let toXML_f sf (x,_:t) = Lif.toXML_f (fun x -> sf max_int (x,Vars.empty ())) x
+  let toXML x = toXML_f short x
 end

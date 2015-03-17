@@ -53,6 +53,7 @@ struct
   type elem = S.elt
 
   let short w _ = "Partitions"
+  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let leq x y =
@@ -103,6 +104,7 @@ struct
   type partition = t
 
   let short w _ = "Partitions"
+  let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let top = E.bot

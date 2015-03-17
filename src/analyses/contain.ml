@@ -25,6 +25,16 @@ struct
   struct
     include ContainDomain.Dom
     let short n (_,x,_:t) = Danger.short n x
+    let toXML_f sf (_,x,_:t) =
+      match Danger.toXML_f (fun _ x -> sf 800 (ContainDomain.FuncName.bot (),x,ContainDomain.Diff.bot ())) x with
+        | Xml.Element (node, (text, _)::xs, elems) when Danger.is_top x ->
+            Xml.Element (node, (text, "Containment Analysis (danger is top)")::xs, [])
+        | Xml.Element (node, (text, _)::xs, elems) when Danger.is_bot x ->
+            Xml.Element (node, (text, "Containment Analysis (danger is bot)")::xs, [])
+        | Xml.Element (node, (text, _)::xs, elems) ->
+            Xml.Element (node, (text, "Containment Analysis")::xs, elems)
+        | x -> x
+    let toXML x = toXML_f short x
   end
   module C = D
   module G = ContainDomain.Globals

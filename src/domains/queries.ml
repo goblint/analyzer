@@ -142,7 +142,19 @@ struct
       | `ExpTriples n ->  PS.isSimple n
       | _ -> true
 
+  let toXML_f sf state =
+    match state with
+      | `Int n -> ID.toXML n
+      | `Str s -> Xml.Element ("Leaf", [("text", s)],[])
+      | `Bool n -> BD.toXML n
+      | `LvalSet n -> LS.toXML n
+      | `ExprSet n -> ES.toXML n
+      | `ExpTriples n -> PS.toXML n
+      | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
+      | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
+
   let pretty () x = pretty_f short () x
+  let toXML s = toXML_f short s
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let leq x y =

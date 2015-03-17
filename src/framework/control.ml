@@ -138,8 +138,7 @@ struct
       let one_glob k v =
         let k = Xml.PCData k.vname in
         let varname = Xml.Element ("td",[],[k]) in
-        (* let varvalue = Xml.Element ("td",[],[Spec.G.toXML v]) in *)
-        let varvalue = Xml.Element ("td",[],[]) in
+        let varvalue = Xml.Element ("td",[],[Spec.G.toXML v]) in
         Xml.Element ("tr",[],[varname; varvalue])
       in
       let head =

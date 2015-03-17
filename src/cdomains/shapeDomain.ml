@@ -18,6 +18,7 @@ struct
       | (l,o) -> "&"^Lval.CilLval.short (w/2) l^"->"^Offs.short (w/2) o
 
     let pretty = pretty_f short
+    let toXML = toXML_f short
 end
 
   include Printable.Either (Var) (AdrPair)
@@ -29,6 +30,7 @@ end
   let get_var = function `Right ((v,_),_) | `Left v -> v | _ -> failwith "WTF?"
 
   let pretty = pretty_f short
+  let toXML  = toXML_f short
 
   let classify = function
     | `Left  v -> 1
@@ -58,11 +60,18 @@ struct
     | x -> short w x
 
   let pretty = pretty_f short
+  let toXML  = toXML_f short
 end
 
 module Rhs =
 struct
   include Lattice.Prod3 (Edges) (Edges) (ListPtrSetR)
+(*  module TR = Printable.Prod3 (Edges) (Edges) (ListPtrSetR)
+
+  let short w ((p,n),(e,_)) = TR.short w (p,n,e)
+  let pretty = pretty_f short
+  let toXML_f _ ((p,n),(e,_)) = TR.toXML_f TR.short (p,n,e)
+  let toXML  = toXML_f short*)
 end
 
 let is_private ask (lp:ListPtr.t) =
