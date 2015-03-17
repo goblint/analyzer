@@ -1,6 +1,6 @@
 
 let htmlTemp_BasePartOne =
-"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">
+  "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">
 <head>
   <title>%filename%</title>
   <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />
@@ -33,7 +33,7 @@ let htmlTemp_BasePartOne =
 ";;
 
 let htmlTemp_BasePartOneSecond =
-"    </div>
+  "    </div>
     <div id=\"globalsbox\" style=\"display: none; width: 100%; height: 100%; overflow: scroll;\">
 ";;
 
@@ -52,19 +52,19 @@ let htmlTemp_BasePartOneThird = "</div>
 ";;
 
 let htmlTemp_BasePartOneForth =
-"        <div id=\"lastline\" class=\"linetype0\" style=\"border-top: 1px solid #C0C0C0;\"><pre></pre></div>
+  "        <div id=\"lastline\" class=\"linetype0\" style=\"border-top: 1px solid #C0C0C0;\"><pre></pre></div>
       </div>
     </div>
     <div id=\"warningListBox\" style=\"display: none;\">
 ";;
 
 let htmlTemp_BasePartOneFifth =
-"    </div>
+  "    </div>
     <div id=\"deadcodeListBox\" style=\"display: none;\">
 ";;
 
 let htmlTemp_BasePartTwo =
-"    </div>
+  "    </div>
   </div>
   <div id=\"rightWindow\" class=\"mywindow\">
     <div class=\"mywindow_header\">Empty <a style=\"text-decoration: none; color: #000080;\" href=\"javascript:hideWindow('rightWindow');\">[X]</a></div>
@@ -78,14 +78,14 @@ let htmlTemp_BasePartTwo =
 ";;
 
 let htmlTemp_BasePartThree =
-"    </div>
+  "    </div>
   </div>
 </body>
 </html>
 ";;
 
 let htmlTemp_AnalysisFilePartOne =
-"<html>
+  "<html>
   <head>
     <link rel=\"stylesheet\" href=\"../style.css\" type=\"text/css\"></link>
     <script type=\"text/javascript\" src=\"../script.js\"></script>
@@ -94,6 +94,6 @@ let htmlTemp_AnalysisFilePartOne =
 ";;
 
 let htmlTemp_AnalysisFilePartTwo =
-"  </body>
+  "  </body>
 </html>
 ";;

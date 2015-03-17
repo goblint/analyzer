@@ -36,103 +36,103 @@
 open Xml
 
 let print_pcdata chan text =
-	let l = String.length text in
-	for p = 0 to l-1 do
-		match text.[p] with
-		| '>' -> output_string chan "&gt;"
-		| '<' -> output_string chan "&lt;"
-		| '&' ->
-			if p < l-1 && text.[p+1] = '#' then
-				output_char chan '&'
-			else
-				output_string chan "&amp;"
-		| '\'' -> output_string chan "&apos;"
-		| '"' -> output_string chan "&quot;"
-		| c -> output_char chan c
-	done
+  let l = String.length text in
+  for p = 0 to l-1 do
+    match text.[p] with
+    | '>' -> output_string chan "&gt;"
+    | '<' -> output_string chan "&lt;"
+    | '&' ->
+      if p < l-1 && text.[p+1] = '#' then
+        output_char chan '&'
+      else
+        output_string chan "&amp;"
+    | '\'' -> output_string chan "&apos;"
+    | '"' -> output_string chan "&quot;"
+    | c -> output_char chan c
+  done
 
 let print_attr chan (n,v) =
-	output_char chan ' ';
-	output_string chan n;
-	output_string chan "=\"";
-	let l = String.length v in
-	for p = 0 to l-1 do
-		match v.[p] with
-		| '\\' -> output_string chan "\\\\"
-		| '"' -> output_string chan "\\\""
-		| c -> output_char chan c
-	done;
-	output_char chan '"'
+  output_char chan ' ';
+  output_string chan n;
+  output_string chan "=\"";
+  let l = String.length v in
+  for p = 0 to l-1 do
+    match v.[p] with
+    | '\\' -> output_string chan "\\\\"
+    | '"' -> output_string chan "\\\""
+    | c -> output_char chan c
+  done;
+  output_char chan '"'
 
 let get_file alist =
-    List.fold_left (fun xs (n,v)-> if n="file" then v else xs) "" alist
+  List.fold_left (fun xs (n,v)-> if n="file" then v else xs) "" alist
 
 let filter tag alist =
-    tag <> "Loc" || (Str.string_match (!Goblintutil.result_regexp) (get_file alist) 0)
+  tag <> "Loc" || (Str.string_match (!Goblintutil.result_regexp) (get_file alist) 0)
 
 let print chan x =
-	let pcdata = ref false in
-	let rec loop = function
-		| Element (tag,alist,[]) when filter tag alist ->
-			output_char chan '<';
-			output_string chan tag;
-			List.iter (print_attr chan) alist;
-			output_string chan "/>";
-			pcdata := false;
-		| Element (tag,alist,l) when filter tag alist ->
-			output_char chan '<';
-			output_string chan tag;
-			List.iter (print_attr chan) alist;
-			output_char chan '>';
-			pcdata := false;
-			List.iter loop l;
-			output_string chan "</";
-			output_string chan tag;
-			output_char chan '>';
-			pcdata := false;
-                | Element _ -> pcdata := false
-		| PCData text ->
-			if !pcdata then output_char chan ' ';
-			print_pcdata chan text;
-			pcdata := true;
-        in
-        loop x
+  let pcdata = ref false in
+  let rec loop = function
+    | Element (tag,alist,[]) when filter tag alist ->
+      output_char chan '<';
+      output_string chan tag;
+      List.iter (print_attr chan) alist;
+      output_string chan "/>";
+      pcdata := false;
+    | Element (tag,alist,l) when filter tag alist ->
+      output_char chan '<';
+      output_string chan tag;
+      List.iter (print_attr chan) alist;
+      output_char chan '>';
+      pcdata := false;
+      List.iter loop l;
+      output_string chan "</";
+      output_string chan tag;
+      output_char chan '>';
+      pcdata := false;
+    | Element _ -> pcdata := false
+    | PCData text ->
+      if !pcdata then output_char chan ' ';
+      print_pcdata chan text;
+      pcdata := true;
+  in
+  loop x
 
 let print_fmt chan x =
-	let rec loop ?(newl=false) tab = function
-		| Element (tag,alist,[]) when filter tag alist  ->
-			output_string chan tab;
-			output_char chan '<';
-			output_string chan tag;
-			List.iter (print_attr chan) alist;
-			output_string chan "/>";
-			if newl then output_char chan '\n';
-		| Element (tag,alist,[PCData text]) when filter tag alist  ->
-			output_string chan tab;
-			output_char chan '<';
-			output_string chan tag;
-			List.iter (print_attr chan) alist;
-			output_string chan ">";
-			print_pcdata chan text;
-			output_string chan "</";
-			output_string chan tag;
-			output_char chan '>';
-			if newl then output_char chan '\n';
-		| Element (tag,alist,l) when filter tag alist  ->
-			output_string chan tab;
-			output_char chan '<';
-			output_string chan tag;
-			List.iter (print_attr chan) alist;
-			output_string chan ">\n";
-			List.iter (loop ~newl:true (tab^"  ")) l;
-			output_string chan tab;
-			output_string chan "</";
-			output_string chan tag;
-			output_char chan '>';
-			if newl then output_char chan '\n';
-                | Element _ -> ();
-		| PCData text ->
-			print_pcdata chan text;
-			if newl then output_char chan '\n';
-	in
-	loop "" x;
+  let rec loop ?(newl=false) tab = function
+    | Element (tag,alist,[]) when filter tag alist  ->
+      output_string chan tab;
+      output_char chan '<';
+      output_string chan tag;
+      List.iter (print_attr chan) alist;
+      output_string chan "/>";
+      if newl then output_char chan '\n';
+    | Element (tag,alist,[PCData text]) when filter tag alist  ->
+      output_string chan tab;
+      output_char chan '<';
+      output_string chan tag;
+      List.iter (print_attr chan) alist;
+      output_string chan ">";
+      print_pcdata chan text;
+      output_string chan "</";
+      output_string chan tag;
+      output_char chan '>';
+      if newl then output_char chan '\n';
+    | Element (tag,alist,l) when filter tag alist  ->
+      output_string chan tab;
+      output_char chan '<';
+      output_string chan tag;
+      List.iter (print_attr chan) alist;
+      output_string chan ">\n";
+      List.iter (loop ~newl:true (tab^"  ")) l;
+      output_string chan tab;
+      output_string chan "</";
+      output_string chan tag;
+      output_char chan '>';
+      if newl then output_char chan '\n';
+    | Element _ -> ();
+    | PCData text ->
+      print_pcdata chan text;
+      if newl then output_char chan '\n';
+  in
+  loop "" x;

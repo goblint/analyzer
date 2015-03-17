@@ -1,5 +1,5 @@
 let js_string =
-"
+  "
 var loadedPage = -1;
 var requestedLine = 0;
 var lineSelected = 0;

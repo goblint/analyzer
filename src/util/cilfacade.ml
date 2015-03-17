@@ -35,12 +35,12 @@ class allBBVisitor = object
   inherit nopCilVisitor
   method vstmt s =
     match s.skind with
-      | Instr(il) ->
-          let list_of_stmts =
-            List.map (fun one_inst -> mkStmtOneInstr one_inst) il in
-          let block = mkBlock list_of_stmts in
-            ChangeDoChildrenPost(s, (fun _ -> s.skind <- Block(block); s))
-      | _ -> DoChildren
+    | Instr(il) ->
+      let list_of_stmts =
+        List.map (fun one_inst -> mkStmtOneInstr one_inst) il in
+      let block = mkBlock list_of_stmts in
+      ChangeDoChildrenPost(s, (fun _ -> s.skind <- Block(block); s))
+    | _ -> DoChildren
 
   method vvdec _ = SkipChildren
   method vexpr _ = SkipChildren
@@ -54,7 +54,7 @@ let end_basic_blocks f =
 
 let visitors = ref []
 let register_preprocess name visitor_fun =
-    visitors := !visitors @ [name, visitor_fun]
+  visitors := !visitors @ [name, visitor_fun]
 
 let do_preprocess ast =
   let f fd (name, visitor_fun) =
@@ -69,12 +69,12 @@ let createCFG (fileAST: file) =
   (* Partial.calls_end_basic_blocks fileAST; *)
   Partial.globally_unique_vids fileAST;
   iterGlobals fileAST (fun glob ->
-    match glob with
+      match glob with
       | GFun(fd,_) ->
-          prepareCFG fd;
-          computeCFGInfo fd true
+        prepareCFG fd;
+        computeCFGInfo fd true
       | _ -> ()
-  );
+    );
   do_preprocess fileAST
 
 let partial fileAST =
@@ -85,19 +85,19 @@ let simplify fileAST =
 
 let oneret fileAST =
   iterGlobals fileAST (fun glob ->
-    match glob with
+      match glob with
       | GFun(fd,_) -> Oneret.oneret fd;
       | _ -> ()
-  )
+    )
 
 let getAST fileName =
   let fileAST = parse fileName in
-    (*  rmTemps fileAST; *)
-    (*  oneret fileAST;*)
-    (*  simplify fileAST;*)
-    fileAST
+  (*  rmTemps fileAST; *)
+  (*  oneret fileAST;*)
+  (*  simplify fileAST;*)
+  fileAST
 
-    (* a visitor that puts calls to constructors at the starting points to main *)
+(* a visitor that puts calls to constructors at the starting points to main *)
 class addConstructors cons = object
   inherit nopCilVisitor
   val mutable cons1 = cons
@@ -124,32 +124,32 @@ let getMergedAST fileASTs =
     E.s (E.error "There were errors during merging\n");
   merged
 
-  (* call constructors at start of main functions *)
+(* call constructors at start of main functions *)
 let callConstructors ast =
   let constructors =
     let cons = ref [] in
     iterGlobals ast (fun glob ->
-      match glob with
+        match glob with
         | GFun({svar={vattr=attr}} as def, _) when hasAttribute "constructor" attr ->
-            cons := def::!cons
+          cons := def::!cons
         | _ -> ()
       );
-      !cons
+    !cons
   in
-    visitCilFileSameGlobals (new addConstructors constructors) ast;
-    ast
+  visitCilFileSameGlobals (new addConstructors constructors) ast;
+  ast
 
 exception Found of fundec
 let getFun fun_name =
   try
     iterGlobals !ugglyImperativeHack (fun glob ->
-      match glob with
+        match glob with
         | GFun({svar={vname=vn}} as def,_) when vn = fun_name -> raise (Found def)
         | _ -> ()
-    );
+      );
     failwith ("Function "^ fun_name ^ " not found!")
   with
-    | Found def -> def
+  | Found def -> def
 
 let in_section check attr_list =
   let f attr = match attr with
@@ -164,22 +164,22 @@ let is_exit = in_section (fun s -> s = ".exit.text")
 let rec get_varinfo exp: varinfo =
   (* ignore (Pretty.printf "expression: %a\n" (printExp plainCilPrinter) exp); *)
   match exp with
-    | AddrOf (Var v, _) -> v
-    | CastE (_,e) -> get_varinfo e
-    | _ -> failwith "Unimplemented: searching for variable in more complicated expression"
+  | AddrOf (Var v, _) -> v
+  | CastE (_,e) -> get_varinfo e
+  | _ -> failwith "Unimplemented: searching for variable in more complicated expression"
 
 exception MyException of varinfo
 let find_module_init funs fileAST =
   try iterGlobals fileAST (
-    function
+      function
       | GVar ({vattr=attr}, {init=Some (SingleInit exp) }, _) when is_initptr attr ->
-          raise (MyException (get_varinfo exp))
+        raise (MyException (get_varinfo exp))
       | _ -> ()
     );
     (funs, [])
   with MyException var ->
     let f (s:fundec) = s.svar.vname = var.vname in
-      List.partition f funs
+    List.partition f funs
 
 type startfuns = fundec list * fundec list * fundec list
 
@@ -189,18 +189,18 @@ let getFuns fileAST : startfuns =
   let add_other f (m,e,o) = (m,e,f::o) in
   let f acc glob =
     match glob with
-      | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "mainfun")) -> add_main def acc
-      | GFun({svar={vname=mn}} as def,_) when mn="StartupHook" && !OilUtil.startuphook -> add_main def acc
-      | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "exitfun")) -> add_exit def acc
-      | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "otherfun")) -> add_other def acc
-      | GFun({svar={vname=mn; vattr=attr}} as def, _) when get_bool "kernel" && is_init attr ->
-          Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
-      | GFun({svar={vname=mn; vattr=attr}} as def, _) when get_bool "kernel" && is_exit attr ->
-          Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
-      | GFun ({svar={vstorage=NoStorage}} as def, _) when (get_bool "nonstatic") -> add_other def acc
-      | GFun (def, _) when ((get_bool "allfuns")) ->  add_other def  acc
-      | GFun (def, _) when get_string "ana.osek.oil" <> "" && OilUtil.is_starting def.svar.vname -> add_other def acc
-      | _ -> acc
+    | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "mainfun")) -> add_main def acc
+    | GFun({svar={vname=mn}} as def,_) when mn="StartupHook" && !OilUtil.startuphook -> add_main def acc
+    | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "exitfun")) -> add_exit def acc
+    | GFun({svar={vname=mn}} as def,_) when List.mem mn (List.map string (get_list "otherfun")) -> add_other def acc
+    | GFun({svar={vname=mn; vattr=attr}} as def, _) when get_bool "kernel" && is_init attr ->
+      Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
+    | GFun({svar={vname=mn; vattr=attr}} as def, _) when get_bool "kernel" && is_exit attr ->
+      Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
+    | GFun ({svar={vstorage=NoStorage}} as def, _) when (get_bool "nonstatic") -> add_other def acc
+    | GFun (def, _) when ((get_bool "allfuns")) ->  add_other def  acc
+    | GFun (def, _) when get_string "ana.osek.oil" <> "" && OilUtil.is_starting def.svar.vname -> add_other def acc
+    | _ -> acc
   in
   foldGlobals fileAST f ([],[],[])
 
@@ -210,10 +210,10 @@ let dec_make () : unit =
   dec_table_ok := true ;
   Hashtbl.clear dec_table;
   iterGlobals !ugglyImperativeHack (fun glob ->
-    match glob with
+      match glob with
       | GFun({svar={vid=vid}} as def,_) -> Hashtbl.add dec_table vid def
       | _ -> ()
-  )
+    )
 
 let rec getdec fv =
   if !dec_table_ok then
@@ -234,14 +234,14 @@ let rec typeOf (e: exp) : typ =
   match e with
   | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
 
-    (* Character constants have type int.  ISO/IEC 9899:1999 (E),
-     * section 6.4.4.4 [Character constants], paragraph 10, if you
-     * don't believe me. *)
+  (* Character constants have type int.  ISO/IEC 9899:1999 (E),
+   * section 6.4.4.4 [Character constants], paragraph 10, if you
+   * don't believe me. *)
   | Const(CChr _) -> intType
 
-    (* The type of a string is a pointer to characters ! The only case when
-     * you would want it to be an array is as an argument to sizeof, but we
-     * have SizeOfStr for that *)
+  (* The type of a string is a pointer to characters ! The only case when
+   * you would want it to be an array is as an argument to sizeof, but we
+   * have SizeOfStr for that *)
   | Const(CStr s) -> charPtrType
 
   | Const(CWStr s) -> TPtr(!wcharType,[])
@@ -260,7 +260,7 @@ let rec typeOf (e: exp) : typ =
   | StartOf (lv) -> begin
       match unrollType (typeOfLval lv) with
         TArray (t,_, a) -> TPtr(t, a)
-     | _ -> raise Not_found
+      | _ -> raise Not_found
     end
   | Question _ -> failwith "Logical operations should be compiled away by CIL."
   | _ -> failwith "Unmatched pattern."
@@ -276,7 +276,7 @@ and typeOfLval = function
       match unrollType (typeOf addr) with
         TPtr (t, _) -> typeOffset t off
       | _ -> raise Not_found
-  end
+    end
 
 and typeOffset basetyp =
   let blendAttributes baseAttrs =
@@ -289,13 +289,13 @@ and typeOffset basetyp =
   | Index (_, o) -> begin
       match unrollType basetyp with
         TArray (t, _, baseAttrs) ->
-	  let elementType = typeOffset t o in
-	  blendAttributes baseAttrs elementType
+        let elementType = typeOffset t o in
+        blendAttributes baseAttrs elementType
       | t -> raise Not_found
-  end
+    end
   | Field (fi, o) ->
-      match unrollType basetyp with
-        TComp (_, baseAttrs) ->
-	  let fieldType = typeOffset fi.ftype o in
-	  blendAttributes baseAttrs fieldType
-      | _ -> raise Not_found
+    match unrollType basetyp with
+      TComp (_, baseAttrs) ->
+      let fieldType = typeOffset fi.ftype o in
+      blendAttributes baseAttrs fieldType
+    | _ -> raise Not_found

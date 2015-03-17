@@ -11,9 +11,9 @@ open Batteries
 (** Lifts a [Spec] so that the domain and the context are [Hashcons]d. *)
 module HashconsLifter (S:Spec)
   : Spec with module D = Lattice.HConsed (S.D)
-           and module G = S.G
-           and module C = Printable.HConsed (S.C)
-  =
+          and module G = S.G
+          and module C = Printable.HConsed (S.C)
+=
 struct
   module D = Lattice.HConsed (S.D)
   module G = S.G
@@ -76,9 +76,9 @@ end
 (** Lifts a [Spec] with a special bottom element that represent unreachable code. *)
 module DeadCodeLifter (S:Spec)
   : Spec with module D = Dom (S.D)
-           and module G = S.G
-           and module C = S.C
-  =
+          and module G = S.G
+          and module C = S.C
+=
 struct
   module D = Dom (S.D)
   module G = S.G
@@ -91,8 +91,8 @@ struct
 
   let should_join x y =
     match x, y with
-      | `Lifted a, `Lifted b -> S.should_join a b
-      | _ -> true
+    | `Lifted a, `Lifted b -> S.should_join a b
+    | _ -> true
 
   let startstate v = `Lifted (S.startstate v)
   let exitstate  v = `Lifted (S.exitstate  v)
@@ -136,13 +136,13 @@ end
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
 module FlatFromSpec (S:Spec) (Cfg:CfgBackward)
   : sig
-      include GlobConstrSys with module LVar = VarF (S.C)
-                             and module GVar = Basetype.Variables
-                             and module D = S.D
-                             and module G = S.G
-      val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
-    end
-  =
+    include GlobConstrSys with module LVar = VarF (S.C)
+                           and module GVar = Basetype.Variables
+                           and module D = S.D
+                           and module G = S.G
+    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
+  end
+=
 struct
   type lv = MyCFG.node * S.C.t
   type gv = varinfo
@@ -164,8 +164,8 @@ struct
       ; presub  = []
       ; postsub = []
       ; spawn   = (fun f d -> let c = S.context d in
-                                sidel (FunctionEntry f, c) d;
-                                ignore (getl (Function f, c)))
+                    sidel (FunctionEntry f, c) d;
+                    ignore (getl (Function f, c)))
       ; split   = (fun (d:D.t) _ _ -> r := d::!r)
       ; sideg   = sideg
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
@@ -206,7 +206,7 @@ struct
     let ctx, r = common_ctx d getl sidel getg sideg in
     let d =
       if (fd.svar.vid = MyCFG.dummy_func.svar.vid
-           || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun")))
+          || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun")))
          && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
       then toplevel_kernel_return ret fd ctx sideg
       else normal_return ret fd ctx sideg
@@ -229,7 +229,7 @@ struct
     let paths = List.map (fun (c,v) -> (c, getl (Function f, S.context v))) paths in
     let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
     let paths = List.map combine paths in
-      List.fold_left D.join (D.bot ()) paths
+    List.fold_left D.join (D.bot ()) paths
 
   let tf_special_call ctx lv f args = S.special ctx lv f args
 
@@ -237,9 +237,9 @@ struct
     let ctx, r = common_ctx d getl sidel getg sideg in
     let functions =
       match ctx.ask (Queries.EvalFunvar e) with
-        | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
-        | `Bot -> []
-        | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
+      | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
+      | `Bot -> []
+      | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
     in
     let one_function f =
       let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in
@@ -270,7 +270,7 @@ struct
     let d       = tf getl sidel getg sideg edge d in
     let _       = Tracing.current_loc := old_loc in
     let _       = Tracing.next_loc := old_loc2 in
-      d
+    d
 
   let tf (v,c) (edges, u) getl sidel getg sideg =
     let pval = getl (u,c) in
@@ -283,17 +283,17 @@ struct
     let _       = current_node := Some u in
     let _       = CtxHashes.current := Some (S.C.hash c) in
     let d       = try tf (v,c) (e,u) getl sidel getg sideg
-                  with M.StopTheWorld -> D.bot ()
-                     | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
+      with M.StopTheWorld -> D.bot ()
+         | M.Bailure s -> Messages.warn_each s; (getl (u,c))  in
     let _       = current_node := old_node in
     let _       = CtxHashes.current := old_hash in
-      d
+    d
 
   let system (v,c) =
     match v with
-      | FunctionEntry _ when get_bool "exp.full-context" ->
-          [fun _ _ _ _ -> S.val_of c]
-      | _ -> List.map (tf (v,c)) (Cfg.prev v)
+    | FunctionEntry _ when get_bool "exp.full-context" ->
+      [fun _ _ _ _ -> S.val_of c]
+    | _ -> List.map (tf (v,c)) (Cfg.prev v)
 end
 
 
@@ -301,12 +301,12 @@ end
 (** Generating a [GlobConstrSys] from a [Spec]. *)
 module NestedFromSpec (Solver:GenericIneqBoxSolver) (S:Spec) (Cfg:CfgBackward)
   : sig
-      include GlobConstrSys with module LVar = VarF (S.C)
-                             and module GVar = Basetype.Variables
-                             and module D = S.D
-                             and module G = S.G
-    end
-  =
+    include GlobConstrSys with module LVar = VarF (S.C)
+                           and module GVar = Basetype.Variables
+                           and module D = S.D
+                           and module G = S.G
+  end
+=
 struct
   module LVar = VarF (S.C)
   module GVar = Basetype.Variables
@@ -319,7 +319,7 @@ struct
   type gd = S.G.t
 
   module InnerSystemFromSpec
-    =
+  =
   struct
     let get_l : (LVar.t -> S.D.t         ) ref = ref (fun _   -> failwith "get_l")
     let set_l : (LVar.t -> S.D.t -> unit ) ref = ref (fun _ _ -> failwith "set_l")
@@ -342,8 +342,8 @@ struct
         ; presub  = []
         ; postsub = []
         ; spawn   = (fun f d -> let c = S.context d in
-                                !set_l (FunctionEntry f, c) d;
-                                ignore (!get_l (Function f, c)))
+                      !set_l (FunctionEntry f, c) d;
+                      ignore (!get_l (Function f, c)))
         ; split   = (fun (d:Dom.t) _ _ -> r := d::!r)
         ; sideg   = !set_g
         ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
@@ -383,12 +383,12 @@ struct
       let ctx, r = common_ctx d get side in
       let d =
         if (fd.svar.vid = MyCFG.dummy_func.svar.vid
-             || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun")))
+            || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun")))
            && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
         then toplevel_kernel_return ret fd ctx
         else normal_return ret fd ctx
-    in
-    bigsqcup (d::!r)
+      in
+      bigsqcup (d::!r)
 
     let tf_entry fd d (get:v -> d) (side:v -> d -> unit) =
       let ctx, r = common_ctx d get side in
@@ -405,7 +405,7 @@ struct
       let paths = List.map (fun (c,v) -> (c, !get_l (Function f, S.context v))) paths in
       let paths = List.filter (fun (c,v) -> Dom.is_bot v = false) paths in
       let paths = List.map combine paths in
-        List.fold_left Dom.join (Dom.bot ()) paths
+      List.fold_left Dom.join (Dom.bot ()) paths
 
     let tf_special_call ctx lv f args = S.special ctx lv f args
 
@@ -413,9 +413,9 @@ struct
       let ctx, r = common_ctx d get side in
       let functions =
         match ctx.ask (Queries.EvalFunvar e) with
-          | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
-          | `Bot -> []
-          | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
+        | `LvalSet ls -> Queries.LS.fold (fun ((x,_)) xs -> x::xs) ls []
+        | `Bot -> []
+        | _ -> Messages.bailwith ("ProcCall: Failed to evaluate function expression "^(sprint 80 (d_exp () e)))
       in
       let one_function f =
         let has_dec = try ignore (Cilfacade.getdec f); true with Not_found -> false in
@@ -446,7 +446,7 @@ struct
       let d       = tf get side edge d in
       let _       = Tracing.current_loc := old_loc in
       let _       = Tracing.next_loc := old_loc2 in
-        d
+      d
 
     let tf v (edges, u) get side =
       let pval = get u in
@@ -457,10 +457,10 @@ struct
       let old_node = !current_node in
       let _       = current_node := Some u in
       let d       = try tf v (e,u) get side
-                    with M.StopTheWorld -> Dom.bot ()
-                       | M.Bailure s -> Messages.warn_each s; (get u)  in
+        with M.StopTheWorld -> Dom.bot ()
+           | M.Bailure s -> Messages.warn_each s; (get u)  in
       let _       = current_node := old_node in
-        d
+      d
 
     let system (v:v) = List.map (tf v) (Cfg.prev v)
 
@@ -483,24 +483,24 @@ struct
     InnerSystemFromSpec.set_g         := sideg;
     let ret_p = MyCFG.Function v in
     let sta_p = MyCFG.FunctionEntry v in
-     (* let _ = Pretty.printf "solving function '%s' with starting state:\n%a\n" v.vname S.D.pretty d in  *)
+    (* let _ = Pretty.printf "solving function '%s' with starting state:\n%a\n" v.vname S.D.pretty d in  *)
     let ht = Solver'.solve InnerSystemFromSpec.box [sta_p,d] [ret_p] in
     InnerSystemFromSpec.get_l         := t2;
     InnerSystemFromSpec.set_l         := t3;
     InnerSystemFromSpec.get_g         := t4;
     InnerSystemFromSpec.set_g         := t5;
-     (* let _ = Pretty.printf "solving function '%s' done\n\n" v.vname in  *)
+    (* let _ = Pretty.printf "solving function '%s' done\n\n" v.vname in  *)
     try VarHash.find ht ret_p
     with Not_found ->
       (* ignore (Pretty.printf "Searching for '%a':\n\n" Var.pretty ret_p);
-      let f k v = ignore (Pretty.printf "%a = ...\n" Var.pretty k) in
-      VarHash.iter f ht; *)
+         let f k v = ignore (Pretty.printf "%a = ...\n" Var.pretty k) in
+         VarHash.iter f ht; *)
       S.D.bot ()
 
 
   let system = function
     | (FunctionEntry v,c) when get_bool "exp.full-context" ->
-          [fun _ _ _ _ -> S.val_of c]
+      [fun _ _ _ _ -> S.val_of c]
     | (Function v,c) -> [tf (v, c)]
     | _ -> []
 
@@ -508,29 +508,29 @@ end
 
 
 (** [ForwardFromSpec] generates a forward-propagating
-   constraint system or a normal constriant system (using [FromSpec]) *)
+    constraint system or a normal constriant system (using [FromSpec]) *)
 module ForwardFromSpec (S:Spec) (Cfg:CfgBidir) =
 struct
-   include FlatFromSpec (S) (Cfg)
+  include FlatFromSpec (S) (Cfg)
 
-   let system (u,c) =
-     let tf' (u,c) (e,v) getl sidel getg sideg =
-       let d = tf (v,c) (e,u) getl sidel getg sideg in
-       sidel (v,c) d; S.D.bot ()
-     in
-     List.map (tf' (u,c)) (Cfg.next u)
+  let system (u,c) =
+    let tf' (u,c) (e,v) getl sidel getg sideg =
+      let d = tf (v,c) (e,u) getl sidel getg sideg in
+      sidel (v,c) d; S.D.bot ()
+    in
+    List.map (tf' (u,c)) (Cfg.next u)
 end
 
 (** Depending on "exp.forward", [FromSpec] generates a forward-propagating
-   constraint system or a normal constraint system *)
+    constraint system or a normal constraint system *)
 module FromSpec (Solver:GenericIneqBoxSolver) (S:Spec) (Cfg:CfgBidir)
   : sig
-      include GlobConstrSys with module LVar = VarF (S.C)
-                             and module GVar = Basetype.Variables
-                             and module D = S.D
-                             and module G = S.G
-    end
-  =
+    include GlobConstrSys with module LVar = VarF (S.C)
+                           and module GVar = Basetype.Variables
+                           and module D = S.D
+                           and module G = S.G
+  end
+=
 struct
   module LVar = VarF (S.C)
   module GVar = Basetype.Variables
@@ -556,15 +556,15 @@ end
 module Var2 (LV:VarType) (GV:VarType)
   : VarType
     with type t = [ `L of LV.t  | `G of GV.t ]
-  =
+=
 struct
   type t = [ `L of LV.t  | `G of GV.t ]
 
   let equal x y =
     match x, y with
-      | `L a, `L b -> LV.equal a b
-      | `G a, `G b -> GV.equal a b
-      | _ -> false
+    | `L a, `L b -> LV.equal a b
+    | `G a, `G b -> GV.equal a b
+    | _ -> false
 
   let hash = function
     | `L a -> LV.hash a
@@ -572,9 +572,9 @@ struct
 
   let compare x y =
     match x, y with
-      | `L a, `L b -> LV.compare a b
-      | `G a, `G b -> GV.compare a b
-      | `L a, _ -> -1 | _ -> 1
+    | `L a, `L b -> LV.compare a b
+    | `G a, `G b -> GV.compare a b
+    | `L a, _ -> -1 | _ -> 1
 
   let category = function
     | `L a -> LV.category a
@@ -611,7 +611,7 @@ module IneqConstrSysFromGlobConstrSys (S:GlobConstrSys)
                    and type d = Lattice.Either(S.G)(S.D).t
                    and module Var = Var2(S.LVar)(S.GVar)
                    and module Dom = Lattice.Either(S.G)(S.D)
-  =
+=
 struct
   module Var = Var2(S.LVar)(S.GVar)
   module Dom =
@@ -656,7 +656,7 @@ end
   = functor (S:GlobConstrSys) ->
     functor (LH:Hash.H with type key=S.lv) ->
     functor (GH:Hash.H with type key=S.gv) ->
-struct
+  struct
   module IneqSys = IneqConstrSysFromGlobConstrSys (S)
   module EqSys = Generic.SimpleSysConverter (IneqSys)
 
@@ -715,7 +715,7 @@ struct
     LH.iter (fun k v -> LH.add l' k (getL v)) l;
     GH.iter (fun k v -> GH.add g' k (getR v)) g;
     (l', g')
-end*)
+  end*)
 
 (** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
@@ -723,40 +723,40 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
   = functor (S:GlobConstrSys) ->
     functor (LH:Hash.H with type key=S.LVar.t) ->
     functor (GH:Hash.H with type key=S.GVar.t) ->
-struct
-  let lh_find_default h k d = try LH.find h k with Not_found -> d
-  let gh_find_default h k d = try GH.find h k with Not_found -> d
+    struct
+      let lh_find_default h k d = try LH.find h k with Not_found -> d
+      let gh_find_default h k d = try GH.find h k with Not_found -> d
 
-  module IneqSys = IneqConstrSysFromGlobConstrSys (S)
-  module EqSys = Generic.NormalSysConverter (IneqSys)
+      module IneqSys = IneqConstrSysFromGlobConstrSys (S)
+      module EqSys = Generic.NormalSysConverter (IneqSys)
 
-  module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
-  module Sol' = Sol (EqSys) (VH)
+      module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
+      module Sol' = Sol (EqSys) (VH)
 
-  let getR = function
-    | `Left x -> x
-    | `Right _ -> S.G.bot ()
-    | _ -> undefined ()
+      let getR = function
+        | `Left x -> x
+        | `Right _ -> S.G.bot ()
+        | _ -> undefined ()
 
-  let getL = function
-    | `Right x -> x
-    | `Left _ -> S.D.top ()
-    | _ -> undefined ()
+      let getL = function
+        | `Right x -> x
+        | `Left _ -> S.D.top ()
+        | _ -> undefined ()
 
-  let solve ls gs l =
-    let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Right v) ls
-           @ List.map (fun (x,v) -> EqSys.conv (`G x), `Left  v) gs in
-    let sv = List.map (fun x -> EqSys.conv (`L x)) l in
-    let hm = Sol'.solve EqSys.box vs sv in
-    let l' = LH.create 113 in
-    let g' = GH.create 113 in
-    let split_vars = function
-      | (`L x,_) -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
-      | (`G x,_) -> fun y -> GH.replace g' x (getR y)
-    in
-    VH.iter split_vars hm;
-    (l', g')
-end
+      let solve ls gs l =
+        let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Right v) ls
+                 @ List.map (fun (x,v) -> EqSys.conv (`G x), `Left  v) gs in
+        let sv = List.map (fun x -> EqSys.conv (`L x)) l in
+        let hm = Sol'.solve EqSys.box vs sv in
+        let l' = LH.create 113 in
+        let g' = GH.create 113 in
+        let split_vars = function
+          | (`L x,_) -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
+          | (`G x,_) -> fun y -> GH.replace g' x (getR y)
+        in
+        VH.iter split_vars hm;
+        (l', g')
+    end
 
 (** Transforms a [GenericIneqBoxSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
@@ -764,47 +764,47 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
   = functor (S:GlobConstrSys) ->
     functor (LH:Hash.H with type key=S.LVar.t) ->
     functor (GH:Hash.H with type key=S.GVar.t) ->
-struct
-  let lh_find_default h k d = try LH.find h k with Not_found -> d
-  let gh_find_default h k d = try GH.find h k with Not_found -> d
+    struct
+      let lh_find_default h k d = try LH.find h k with Not_found -> d
+      let gh_find_default h k d = try GH.find h k with Not_found -> d
 
-  module IneqSys = IneqConstrSysFromGlobConstrSys (S)
+      module IneqSys = IneqConstrSysFromGlobConstrSys (S)
 
-  module VH : Hash.H with type key=IneqSys.v = Hashtbl.Make(IneqSys.Var)
-  module Sol' = Sol (IneqSys) (VH)
+      module VH : Hash.H with type key=IneqSys.v = Hashtbl.Make(IneqSys.Var)
+      module Sol' = Sol (IneqSys) (VH)
 
-  let getR = function
-    | `Left x -> x
-    | `Right _ -> S.G.bot ()
-    | _ -> undefined ()
+      let getR = function
+        | `Left x -> x
+        | `Right _ -> S.G.bot ()
+        | _ -> undefined ()
 
-  let getL = function
-    | `Right x -> x
-    | `Left _ -> S.D.top ()
-    | _ -> undefined ()
+      let getL = function
+        | `Right x -> x
+        | `Left _ -> S.D.top ()
+        | _ -> undefined ()
 
-  let solve ls gs l =
-    let vs = List.map (fun (x,v) -> `L x, `Right v) ls
-           @ List.map (fun (x,v) -> `G x, `Left  v) gs in
-    let sv = List.map (fun x -> `L x) l in
-    let hm = Sol'.solve IneqSys.box vs sv in
-    let l' = LH.create 113 in
-    let g' = GH.create 113 in
-    let split_vars = function
-      | `L x -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
-      | `G x -> fun y -> GH.replace g' x (getR y)
-    in
-    VH.iter split_vars hm;
-    (l', g')
-end
+      let solve ls gs l =
+        let vs = List.map (fun (x,v) -> `L x, `Right v) ls
+                 @ List.map (fun (x,v) -> `G x, `Left  v) gs in
+        let sv = List.map (fun x -> `L x) l in
+        let hm = Sol'.solve IneqSys.box vs sv in
+        let l' = LH.create 113 in
+        let g' = GH.create 113 in
+        let split_vars = function
+          | `L x -> fun y -> LH.replace l' x (S.D.join (getL y) (lh_find_default l' x (S.D.bot ())))
+          | `G x -> fun y -> GH.replace g' x (getR y)
+        in
+        VH.iter split_vars hm;
+        (l', g')
+    end
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (S:Spec)
   : Spec
-  with type D.t = SetDomain.Make(S.D).t
-   and module G = S.G
-   and module C = S.C
-  =
+    with type D.t = SetDomain.Make(S.D).t
+     and module G = S.G
+     and module C = S.C
+=
 struct
   module D =
   struct
@@ -813,77 +813,77 @@ struct
 
     (** [leq a b] iff each element in [a] has a [leq] counterpart in [b]*)
     let leq s1 s2 =
-    let p t = exists (fun s -> S.D.leq t s) s2 in
-    for_all p s1
+      let p t = exists (fun s -> S.D.leq t s) s2 in
+      for_all p s1
 
     let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =
-    if leq s1 s2 then dprintf "%s: These are fine!" (name ()) else begin
-     let p t = not (exists (fun s -> S.D.leq t s) s2) in
-     let evil = choose (filter p s1) in
-     let other = choose s2 in
-       (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
-         S.D.pretty evil S.D.pretty other
-         S.D.pretty_diff (evil,other) *)
-       S.D.pretty_diff () (evil,other)
+      if leq s1 s2 then dprintf "%s: These are fine!" (name ()) else begin
+        let p t = not (exists (fun s -> S.D.leq t s) s2) in
+        let evil = choose (filter p s1) in
+        let other = choose s2 in
+        (* dprintf "%s has a problem with %a not leq %a because %a" (name ())
+           S.D.pretty evil S.D.pretty other
+           S.D.pretty_diff (evil,other) *)
+        S.D.pretty_diff () (evil,other)
 
-    end
+      end
 
     (** For [join x y] we take a union of [x] & [y] and join elements
-    * which base analysis suggests us to.*)
+     * which base analysis suggests us to.*)
     let join s1 s2 =
-    let rec loop s1 s2 =
-     let f b (ok, todo) =
-       let joinable, rest = partition (S.should_join b) ok in
-       if cardinal joinable = 0 then
-         (add b ok, todo)
-       else
-         let joint = fold (S.D.join) joinable b in
-         (fold remove joinable ok, add joint todo)
-     in
-     let (ok, todo) = fold f s2 (s1, empty ()) in
-       if is_empty todo then
-         ok
-       else
-         loop ok todo
-    in
-    loop s1 s2
+      let rec loop s1 s2 =
+        let f b (ok, todo) =
+          let joinable, rest = partition (S.should_join b) ok in
+          if cardinal joinable = 0 then
+            (add b ok, todo)
+          else
+            let joint = fold (S.D.join) joinable b in
+            (fold remove joinable ok, add joint todo)
+        in
+        let (ok, todo) = fold f s2 (s1, empty ()) in
+        if is_empty todo then
+          ok
+        else
+          loop ok todo
+      in
+      loop s1 s2
 
     (** carefully add element (because we might have to join something)*)
     let add e s = join s (singleton e)
 
     (** We dont have good info for this operation -- only thing is to [meet] all elements.*)
     let meet s1 s2 =
-    (* Try to not use top, as it is often not implemented. *)
-    let fold1 f s =
-     let g x = function
-       | None -> Some x
-       | Some y -> Some (f x y)
-     in
-     match fold g s None with
-       | Some x -> x
-       | None -> S.D.top()
-    in
-    singleton (fold1 S.D.meet (union s1 s2))
+      (* Try to not use top, as it is often not implemented. *)
+      let fold1 f s =
+        let g x = function
+          | None -> Some x
+          | Some y -> Some (f x y)
+        in
+        match fold g s None with
+        | Some x -> x
+        | None -> S.D.top()
+      in
+      singleton (fold1 S.D.meet (union s1 s2))
 
     (** Widening operator. We take all possible (growing) paths, do elementwise
-       widenging and join them together. When the used path sensitivity is
-       not overly dynamic then no joining occurs.*)
+        widenging and join them together. When the used path sensitivity is
+        not overly dynamic then no joining occurs.*)
     let widen s1 s2 =
       let f e =
-      let l = filter (fun x -> S.D.leq x e) s1 in
-      let m = map (fun x -> S.D.widen x e) l in
-      fold (S.D.join) m e
+        let l = filter (fun x -> S.D.leq x e) s1 in
+        let m = map (fun x -> S.D.widen x e) l in
+        fold (S.D.join) m e
       in
-        map f s2
+      map f s2
 
     (** Narrowing operator. As with [widen] some precision loss might occur.*)
     let narrow s1 s2 =
       let f e =
-      let l = filter (fun x -> S.D.leq x e) s2 in
-      let m = map (S.D.narrow e) l in
-      fold (S.D.join) m (S.D.bot ())
+        let l = filter (fun x -> S.D.leq x e) s2 in
+        let m = map (S.D.narrow e) l in
+        fold (S.D.join) m (S.D.bot ())
       in
-        map f s1
+      map f s1
 
     let printXml f x =
       let print_one x =
@@ -977,14 +977,14 @@ struct
 end
 
 module Compare
-  (S:Spec)
-  (Sys:GlobConstrSys with module LVar = VarF (S.C)
-                             and module GVar = Basetype.Variables
-                             and module D = S.D
-                             and module G = S.G)
-  (LH:Hash.H with type key=Sys.LVar.t)
-  (GH:Hash.H with type key=Sys.GVar.t)
-  =
+    (S:Spec)
+    (Sys:GlobConstrSys with module LVar = VarF (S.C)
+                        and module GVar = Basetype.Variables
+                        and module D = S.D
+                        and module G = S.G)
+    (LH:Hash.H with type key=Sys.LVar.t)
+    (GH:Hash.H with type key=Sys.GVar.t)
+=
 struct
   open S
 
@@ -1058,10 +1058,10 @@ end
 
 (** Verify if the hashmap pair is really a (partial) solution. *)
 module Verify2
-  (S:GlobConstrSys)
-  (LH:Hash.H with type key=S.LVar.t)
-  (GH:Hash.H with type key=S.GVar.t)
-  =
+    (S:GlobConstrSys)
+    (LH:Hash.H with type key=S.LVar.t)
+    (GH:Hash.H with type key=S.GVar.t)
+=
 struct
   open S
 
@@ -1088,24 +1088,24 @@ struct
          * invariant. *)
         let check_local l lv =
           let lv' = sigma' l in
-            if not (D.leq lv lv') then
-              complain_l l lv' lv
+          if not (D.leq lv lv') then
+            complain_l l lv' lv
         in
         let check_glob g gv =
           let gv' = theta' g in
-            if not (G.leq gv gv') then
-              complain_g v g gv' gv
+          if not (G.leq gv gv') then
+            complain_g v g gv' gv
         in
         let d = rhs sigma' check_local theta' check_glob in
         (* Then we check that the local state satisfies this constraint. *)
-          if not (D.leq d d') then
-            complain_l v d' d
+        if not (D.leq d d') then
+          complain_l v d' d
       in
       let rhs = system v in
-        List.iter verify_constraint rhs
+      List.iter verify_constraint rhs
     in
-      LH.iter verify_var sigma;
-      Goblintutil.in_verifying_stage := false
+    LH.iter verify_var sigma;
+    Goblintutil.in_verifying_stage := false
 end
 (*
 (** Use Astree-like abstract interpretation *)

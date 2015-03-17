@@ -5,10 +5,10 @@ let loose_dtd c =
 
 let rec alist c xs =
   match xs with
-    | []    -> ()
-    | (x,xv)::xs ->
-        fprintf c " %s=\"%s\"" x xv;
-        alist c xs
+  | []    -> ()
+  | (x,xv)::xs ->
+    fprintf c " %s=\"%s\"" x xv;
+    alist c xs
 
 let tag tn ?(tp=[]) tc c =
   fprintf c "<%s%a>" tn alist tp;
@@ -27,9 +27,9 @@ let newfile c ct =
 
 let rec ehcol tn ?(rp=[]) xs =
   match xs,rp with
-    | [],_        -> fun _ -> ()
-    | x::xs,[]    -> tag tn x       <:> ehcol tn xs
-    | x::xs,r::rp -> tag tn ~tp:r x <:> ehcol tn ~rp:rp xs
+  | [],_        -> fun _ -> ()
+  | x::xs,[]    -> tag tn x       <:> ehcol tn xs
+  | x::xs,r::rp -> tag tn ~tp:r x <:> ehcol tn ~rp:rp xs
 
 let hcol ?(rp=[]) xs = ehcol "th" ~rp:rp xs
 let col  ?(rp=[]) xs = ehcol "td" ~rp:rp xs

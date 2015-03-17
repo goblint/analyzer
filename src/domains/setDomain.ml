@@ -86,26 +86,26 @@ struct
 
   let map f s =
     let add_to_it x s = add (f x) s in
-      fold add_to_it s (empty ())
+    fold add_to_it s (empty ())
 
   let pretty_f _ () x =
     let elts = elements x in
     let content = List.map (Base.pretty ()) elts in
     let rec separate x =
       match x with
-        | [] -> []
-        | [x] -> [x]
-        | (x::xs) -> x ++ (text ", ") :: separate xs
+      | [] -> []
+      | [x] -> [x]
+      | (x::xs) -> x ++ (text ", ") :: separate xs
     in
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
-      (text "{") ++ content ++ (text "}")
+    (text "{") ++ content ++ (text "}")
 
   (** Short summary for sets. *)
   let short w x : string =
     let usable_length = w - 5 in
     let all_elems : string list = List.map (Base.short usable_length) (elements x) in
-      Printable.get_short_list "{" "}" usable_length all_elems
+    Printable.get_short_list "{" "}" usable_length all_elems
 
 
   let toXML_f sf x =
@@ -114,13 +114,13 @@ struct
       Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
     else
       let elems = List.map Base.toXML (elements x) in
-        Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
+      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
 
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let equal x y =
-       cardinal x = cardinal y
+    cardinal x = cardinal y
     && for_all (fun e -> exists (Base.equal e) y) x
 
   let isSimple x =
@@ -155,7 +155,7 @@ struct
     (* I want to check that forall e in x, the same key is in y with it's base
      * domain element being leq of this one *)
     let p (b1,u1) = exists (fun (b2,u2) -> User.equal u1 u2 && Base.leq b1 b2) s2 in
-      for_all p s1
+    for_all p s1
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -170,10 +170,10 @@ struct
         try let (b1,u1) = choose s1_match in (Base.join b1 b2, u2)
         with Not_found -> (b2,u2)
       in
-        (s1_rest, add el res)
+      (s1_rest, add el res)
     in
     let (s1', res) = fold f s2 (s1, empty ()) in
-      union s1' res
+    union s1' res
 
   let add e s = join (singleton e) s
 
@@ -185,18 +185,18 @@ struct
       let res =
         try
           let (b1,u1) = choose s1_match in
-            add (Base.meet b1 b2, u2) res
+          add (Base.meet b1 b2, u2) res
         with Not_found -> res
       in
-        (s1_rest, res)
+      (s1_rest, res)
     in
-      snd (fold f s2 (s1, empty ()))
+    snd (fold f s2 (s1, empty ()))
 end
 
 module Sensitive = SensitiveConf (struct
-                                    let expand_fst = true
-                                    let expand_snd = true
-                                  end)
+    let expand_fst = true
+    let expand_snd = true
+  end)
 
 (** Auxiliary signature for naming the top element *)
 module type ToppedSetNames =
@@ -214,8 +214,8 @@ struct
   type elt = Base.t
 
   let hash = function
-     | All -> 999999
-     | Set x -> S.hash x
+    | All -> 999999
+    | Set x -> S.hash x
   let name () = "Topped " ^ S.name ()
   let equal x y =
     match x, y with
@@ -225,54 +225,54 @@ struct
   let empty () = Set (S.empty ())
   let is_empty x =
     match x with
-      | All -> false
-      | Set x -> S.is_empty x
+    | All -> false
+    | Set x -> S.is_empty x
   let mem x s =
     match s with
-      | All -> true
-      | Set s -> S.mem x s
+    | All -> true
+    | Set s -> S.mem x s
   let add x s =
     match s with
-      | All -> All
-      | Set s -> Set (S.add x s)
+    | All -> All
+    | Set s -> Set (S.add x s)
   let singleton x = Set (S.singleton x)
   let remove x s =
     match s with
-      | All -> All   (* NB! NB! NB! *)
-      | Set s -> Set (S.remove x s)
+    | All -> All   (* NB! NB! NB! *)
+    | Set s -> Set (S.remove x s)
   let union x y =
     match x, y with
-      | All, _ -> All
-      | _, All -> All
-      | Set x, Set y -> Set (S.union x y)
+    | All, _ -> All
+    | _, All -> All
+    | Set x, Set y -> Set (S.union x y)
   let inter x y =
     match x, y with
-      | All, y -> y
-      | x, All -> x
-      | Set x, Set y -> Set (S.inter x y)
+    | All, y -> y
+    | x, All -> x
+    | Set x, Set y -> Set (S.inter x y)
   let diff x y =
     match x, y with
-      | x, All -> empty ()
-      | All, y -> All (* NB! NB! NB! *)
-      | Set x, Set y -> Set (S.diff x y)
+    | x, All -> empty ()
+    | All, y -> All (* NB! NB! NB! *)
+    | Set x, Set y -> Set (S.diff x y)
   let subset x y =
     match x, y with
-      | _, All -> true
-      | All, _ -> false
-      | Set x, Set y -> S.subset x y
+    | _, All -> true
+    | All, _ -> false
+    | Set x, Set y -> S.subset x y
 
   let schema normal abnormal x =
     match x with
-      | All -> raise (Unsupported abnormal)
-      | Set t -> normal t
+    | All -> raise (Unsupported abnormal)
+    | Set t -> normal t
   (* HACK! Map is an exception in that it doesn't throw an exception! *)
   let map f x =
     match x with
-      | All -> All
-      | Set t -> Set (S.map f t)
+    | All -> All
+    | Set t -> Set (S.map f t)
 
   let iter f = schema (S.iter f) "iter on All"
-(*  let map f = schema (fun t -> Set (S.map f t)) "map"*)
+  (*  let map f = schema (fun t -> Set (S.map f t)) "map"*)
   let fold f x e = schema (fun t -> S.fold f t e) "fold on All" x
   let for_all f = schema (S.for_all f) "for_all on All"
   let exists f = schema (S.exists f) "exists on All"
@@ -283,32 +283,32 @@ struct
   let max_elt = schema S.max_elt "max_elt on All"
   let choose = schema S.choose "choose on All"
   let partition f = schema (fun t -> match S.partition f t
-                            with (a,b) -> (Set a, Set b)) "filter on All"
+                             with (a,b) -> (Set a, Set b)) "filter on All"
   let split e = schema (fun t -> match S.split e t
-                        with (a,tv,b) -> (Set a,tv,Set b)) "split on All"
+                         with (a,tv,b) -> (Set a,tv,Set b)) "split on All"
 
 
   (* The printable implementation *)
 
   let pretty_f _ () x =
     match x with
-      | All -> text N.topname
-      | Set t -> S.pretty () t
+    | All -> text N.topname
+    | Set t -> S.pretty () t
 
   let short w x : string =
     match x with
-      | All -> N.topname
-      | Set t -> S.short w t
+    | All -> N.topname
+    | Set t -> S.short w t
 
   let isSimple x =
     match x with
-      | All -> true
-      | Set t -> S.isSimple t
+    | All -> true
+    | Set t -> S.isSimple t
 
   let toXML_f _ x =
     match x with
-      | All -> Xml.Element ("Leaf", [("text", N.topname)], [])
-      | Set t -> S.toXML t
+    | All -> Xml.Element ("Leaf", [("text", N.topname)], [])
+    | Set t -> S.toXML t
 
   let pretty () x = pretty_f short () x
   let toXML x = toXML_f short x
@@ -326,8 +326,8 @@ struct
   let meet = inter
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
-      | Set x, Set y -> S.pretty_diff () (x,y)
-      | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    | Set x, Set y -> S.pretty_diff () (x,y)
+    | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f = function
     | All   -> BatPrintf.fprintf f "<value>\n<data>\nAll\n</data>\n</value>\n"
     | Set s ->
@@ -342,14 +342,14 @@ struct
 
   let leq x y =
     match x, y with
-      | Set x, Set y -> S.for_all (fun x -> S.exists (B.leq x) y) x
-      | _, All -> true
-      | All, _ -> false
+    | Set x, Set y -> S.for_all (fun x -> S.exists (B.leq x) y) x
+    | _, All -> true
+    | All, _ -> false
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     match x,y with
-      | Set x, Set y -> S.pretty_diff () (x,y)
-      | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    | Set x, Set y -> S.pretty_diff () (x,y)
+    | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let meet x y =
     let f y r =
@@ -375,13 +375,13 @@ struct
     let content = List.map (Base.pretty ()) elts in
     let rec separate x =
       match x with
-        | [] -> []
-        | [x] -> [x]
-        | (x::xs) -> x ++ (text ", ") ++ line :: separate xs
+      | [] -> []
+      | [x] -> [x]
+      | (x::xs) -> x ++ (text ", ") ++ line :: separate xs
     in
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
-      content
+    content
 
   let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =

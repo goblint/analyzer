@@ -20,42 +20,42 @@ let osek_renames = ref false
 
 let classify' fn exps =
   match fn with
-    | "pthread_create" ->
-        begin match exps with
-          | [_;_;fn;x] -> `ThreadCreate (fn, x)
-          | _ -> M.bailwith "pthread_create arguments are strange."
-        end
-    | "pthread_join" ->
-        begin match exps with
-          | [id; ret_var] -> `ThreadJoin (id, ret_var)
-          | _ -> M.bailwith "pthread_join arguments are strange!"
-        end
-    | "malloc" | "kmalloc"  | "kzalloc" | "__kmalloc" | "usb_alloc_urb" -> `Malloc
-    | "calloc" -> `Calloc
-    | "assert" ->
-        begin match exps with
-            | [e] -> `Assert e
-            | _ -> M.bailwith "Assert argument mismatch!"
-        end
-    | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock"
-    | "pthread_rwlock_trywrlock" | "mutex_trylock"
-        -> `Lock (true, true)
-    | "LAP_Se_WaitSemaphore"
-    | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
-    | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
-    | "pthread_mutex_lock" | "__pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource"
-    | "_raw_spin_lock" | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave"
-        -> `Lock (get_bool "exp.failing-locks", true)
-    | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
-    | "down_read"
-        -> `Lock (get_bool "exp.failing-locks", false)
-    | "LAP_Se_SignalSemaphore"
-    | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
-    | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
-    | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
-    | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
-        -> `Unlock
-    | x -> `Unknown x
+  | "pthread_create" ->
+    begin match exps with
+      | [_;_;fn;x] -> `ThreadCreate (fn, x)
+      | _ -> M.bailwith "pthread_create arguments are strange."
+    end
+  | "pthread_join" ->
+    begin match exps with
+      | [id; ret_var] -> `ThreadJoin (id, ret_var)
+      | _ -> M.bailwith "pthread_join arguments are strange!"
+    end
+  | "malloc" | "kmalloc"  | "kzalloc" | "__kmalloc" | "usb_alloc_urb" -> `Malloc
+  | "calloc" -> `Calloc
+  | "assert" ->
+    begin match exps with
+      | [e] -> `Assert e
+      | _ -> M.bailwith "Assert argument mismatch!"
+    end
+  | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock"
+  | "pthread_rwlock_trywrlock" | "mutex_trylock"
+    -> `Lock (true, true)
+  | "LAP_Se_WaitSemaphore"
+  | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
+  | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
+  | "pthread_mutex_lock" | "__pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource"
+  | "_raw_spin_lock" | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave"
+    -> `Lock (get_bool "exp.failing-locks", true)
+  | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
+  | "down_read"
+    -> `Lock (get_bool "exp.failing-locks", false)
+  | "LAP_Se_SignalSemaphore"
+  | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
+  | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
+  | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
+  | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
+    -> `Unlock
+  | x -> `Unknown x
 
 let classify fn exps =
   if not(!osek_renames) then classify' fn exps else classify' (OilUtil.get_api_names fn) exps
@@ -66,79 +66,79 @@ let safe   x = []
 let unsafe x = x
 let rec drop n xs =
   match n,xs with
-    | (0, _) -> xs
-    | (_, y :: ys) -> drop (n - 1) ys
-    | _ -> []
+  | (0, _) -> xs
+  | (_, y :: ys) -> drop (n - 1) ys
+  | _ -> []
 
 
 let keep ns x =
   let rec go n =
     function
-      | [] -> []
-      | y :: ys -> if List.mem n ns
-        then y :: go (n + 1) ys
-        else      go (n + 1) ys
+    | [] -> []
+    | y :: ys -> if List.mem n ns
+      then y :: go (n + 1) ys
+      else      go (n + 1) ys
   in
-    go 1 x
+  go 1 x
 
 let partition ns x =
   let rec go n =
     function
-      | [] -> ([],[])
-      | y :: ys ->
+    | [] -> ([],[])
+    | y :: ys ->
       let (i,o) = go (n + 1) ys in
       if List.mem n ns
-        then (y::i,   o)
-        else (   i,y::o)
+      then (y::i,   o)
+      else (   i,y::o)
   in
-    go 1 x
+  go 1 x
 
 let writesAllButFirst n f a x =
   match a with
-    | `Write -> f a x @ drop n x
-    | `Read  -> f a x
+  | `Write -> f a x @ drop n x
+  | `Read  -> f a x
 
 let readsAllButFirst n f a x =
   match a with
-    | `Write -> f a x
-    | `Read  -> f a x @ drop n x
+  | `Write -> f a x
+  | `Read  -> f a x @ drop n x
 
 let reads ns a x =
   let i, o = partition ns x in
   match a with
-    | `Write -> o
-    | `Read  -> i
+  | `Write -> o
+  | `Read  -> i
 
 let writes ns a x =
   let i, o = partition ns x in
   match a with
-    | `Write -> i
-    | `Read  -> o
+  | `Write -> i
+  | `Read  -> o
 
 let onlyReads ns a x =
   match a with
-    | `Write -> []
-    | `Read  -> keep ns x
+  | `Write -> []
+  | `Read  -> keep ns x
 
 let onlyWrites ns a x =
   match a with
-    | `Write -> keep ns x
-    | `Read  -> []
+  | `Write -> keep ns x
+  | `Read  -> []
 
 let readsWrites rs ws a x =
   match a with
-    | `Write -> keep ws x
-    | `Read  -> keep rs x
+  | `Write -> keep ws x
+  | `Read  -> keep rs x
 
 let readsAll a x =
   match a with
-    | `Write -> []
-    | `Read  -> x
+  | `Write -> []
+  | `Read  -> x
 
 let writesAll a x =
   match a with
-    | `Write -> x
-    | `Read  -> []
+  | `Write -> x
+  | `Read  -> []
 
 (* just add your library functions here *)
 let invalidate_actions = [
@@ -394,7 +394,7 @@ let invalidate_actions = [
  * that hash of invalidates is built only once
  *
  * Hashtable from strings to functions of type (exp list -> exp list)
- *)
+*)
 let processed_table = ref None
 
 let get_invalidate_action name =
@@ -402,22 +402,22 @@ let get_invalidate_action name =
     | None -> begin
         let hash = Hashtbl.create 113 in
         let f (k, v) = Hashtbl.add hash k v in
-          List.iter f invalidate_actions;
-          processed_table := (Some hash);
-          hash
+        List.iter f invalidate_actions;
+        processed_table := (Some hash);
+        hash
       end
     | Some x -> x
   in
-    if Hashtbl.mem tbl name
-    then Some (Hashtbl.find tbl name)
-    else None
+  if Hashtbl.mem tbl name
+  then Some (Hashtbl.find tbl name)
+  else None
 
 let threadSafe =
   let rec threadSafe n ns xs =
     match ns, xs with
-      | n'::ns, x::xs when n=n' -> mone::threadSafe (n+1) ns xs
-      | n'::ns, x::xs -> x::threadSafe (n+1) (n'::ns) xs
-      | _ -> xs
+    | n'::ns, x::xs when n=n' -> mone::threadSafe (n+1) ns xs
+    | n'::ns, x::xs -> x::threadSafe (n+1) (n'::ns) xs
+    | _ -> xs
   in
   threadSafe 1
 
@@ -433,8 +433,8 @@ let get_threadsafe_inv_ac name =
   try
     let f = List.assoc name thread_safe_fn in
     match get_invalidate_action name with
-      | Some g -> Some (fun a xs -> g a (f xs))
-      | None -> Some (fun a xs -> f xs)
+    | Some g -> Some (fun a xs -> g a (f xs))
+    | None -> Some (fun a xs -> f xs)
   with Not_found -> get_invalidate_action name
 
 

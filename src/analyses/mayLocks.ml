@@ -26,30 +26,30 @@ struct
   (* Helper function to convert query-offsets to valuedomain-offsets *)
   let rec conv_offset x =
     match x with
-      | `NoOffset    -> `NoOffset
-      | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
-      | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
-      | `Field (f,o) -> `Field (f, conv_offset o)
+    | `NoOffset    -> `NoOffset
+    | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
+    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
+    | `Field (f,o) -> `Field (f, conv_offset o)
 
   (* Query the value (of the locking argument) to a list of locks. *)
   let eval_exp_addr a exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a (Queries.MayPointTo exp) with
-      | `LvalSet a when not (Queries.LS.is_top a) ->
-          Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-      | `Bot -> []
-      | b -> Messages.warn ("Could not evaluate '"^sprint 30 (d_exp () exp)^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
+    | `LvalSet a when not (Queries.LS.is_top a) ->
+      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
+    | `Bot -> []
+    | b -> Messages.warn ("Could not evaluate '"^sprint 30 (d_exp () exp)^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
 
   (* locking logic -- add all locks we can add *)
   let lock ctx rw may_fail a lv arglist ls : D.ReverseAddrSet.t =
     let add_one ls e = D.add (e,rw) ls in
     let nls = List.fold_left add_one ls (List.concat (List.map (eval_exp_addr a) arglist)) in
     match lv with
-      | None -> nls
-      | Some lv ->
-          ctx.split nls (Lval lv) false;
-          if may_fail then ctx.split ls (Lval lv) true;
-          raise Analyses.Deadcode
+    | None -> nls
+    | Some lv ->
+      ctx.split nls (Lval lv) false;
+      if may_fail then ctx.split ls (Lval lv) true;
+      raise Analyses.Deadcode
 
   (* transfer function to handle library functions --- for us locking & unlocking *)
   let special ctx (lv: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -57,19 +57,19 @@ struct
     (* unlocking logic *)
     let unlock remove_fn =
       match arglist with
-        | x::xs -> begin match  (eval_exp_addr ctx.ask x) with
-                        | [x] -> remove_fn x ctx.local
-                        | _ -> ctx.local
-                end
-        | _ -> ctx.local
+      | x::xs -> begin match  (eval_exp_addr ctx.ask x) with
+          | [x] -> remove_fn x ctx.local
+          | _ -> ctx.local
+        end
+      | _ -> ctx.local
     in
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
-      | `Lock (failing, rw), _
-          -> lock ctx rw failing ctx.ask lv arglist ctx.local
-      | `Unlock, _
-          -> unlock remove_rw
+    | `Lock (failing, rw), _
+      -> lock ctx rw failing ctx.ask lv arglist ctx.local
+    | `Unlock, _
+      -> unlock remove_rw
 
-      | _ -> ctx.local
+    | _ -> ctx.local
 
   let startstate v = D.empty ()
   let otherstate v = D.empty ()

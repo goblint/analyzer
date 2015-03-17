@@ -18,7 +18,7 @@ sig
   val iter: (key -> value -> unit) -> t -> unit
   val map: (value -> value) -> t -> t
   val filter: (key -> value -> bool) -> t -> t
-(*  val mapi: (key -> value -> value) -> t -> t*)
+  (*  val mapi: (key -> value -> value) -> t -> t*)
   val fold: (key -> value -> 'a -> 'a) -> t -> 'a -> 'a
 
   val add_list: (key * value) list -> t -> t
@@ -30,7 +30,7 @@ sig
   val map2: (value -> value -> value) -> t -> t -> t
   val long_map2: (value -> value -> value) -> t -> t -> t
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t
-(*  val fold2: (key -> value -> value -> 'a -> 'a) -> t -> t -> 'a -> 'a*)
+  (*  val fold2: (key -> value -> value -> 'a -> 'a) -> t -> t -> 'a -> 'a*)
 end
 
 module type Groupable =
@@ -78,12 +78,12 @@ struct
   exception Done
   let for_all p m =
     let f key value = if p key value then () else raise Done in
-      try iter f m; true with Done -> false
+    try iter f m; true with Done -> false
 
   exception Found of key
   let find_first p m =
     let f key value = if p key value then raise (Found key) else () in
-      try iter f m; raise Not_found with Found x -> x
+    try iter f m; raise Not_found with Found x -> x
 
 
   let add_list keyvalues m =
@@ -98,30 +98,30 @@ struct
   let long_map2 op =
     let f k v1 v2 =
       match v1, v2 with
-        | Some v1, Some v2 -> Some (op v1 v2)
-        | Some _, _ -> v1
-        | _, Some _ -> v2
-        | _ -> None
+      | Some v1, Some v2 -> Some (op v1 v2)
+      | Some _, _ -> v1
+      | _, Some _ -> v2
+      | _ -> None
     in
     M.merge f
 
   let map2 op =
     (* Similar to the previous, except we ignore elements that only occur in one
      * of the mappings, so we start from an empty map *)
-     let f k v1 v2 =
-       match v1, v2 with
-         | Some v1, Some v2 -> Some (op v1 v2)
-         | _ -> None
-     in
-     M.merge f
+    let f k v1 v2 =
+      match v1, v2 with
+      | Some v1, Some v2 -> Some (op v1 v2)
+      | _ -> None
+    in
+    M.merge f
 
   let map2' op =
     let f k v1 v2 =
       match v1, v2 with
-        | Some v1, Some v2 -> Some (op v1 v2)
-        | _ -> None
+      | Some v1, Some v2 -> Some (op v1 v2)
+      | _ -> None
     in
-      M.merge f
+    M.merge f
 
   let short _ x = "mapping"
   let isSimple _ = false
@@ -130,25 +130,25 @@ struct
     let esc = Goblintutil.escape in
     let f (key,st) =
       match Domain.toXML key with
-        | Xml.Element ("Loc",attr,[]) ->
-            Xml.Element ("Loc", attr, [Range.toXML st])
-        | Xml.Element ("Leaf",attr,[]) ->
-            let w = Goblintutil.summary_length - 4 in
-            let key_str = Domain.short w key in
-            let summary =
-              let st_str = Range.short (w - String.length key_str) st in
-                esc key_str ^ " -> " ^ esc st_str
-            in
+      | Xml.Element ("Loc",attr,[]) ->
+        Xml.Element ("Loc", attr, [Range.toXML st])
+      | Xml.Element ("Leaf",attr,[]) ->
+        let w = Goblintutil.summary_length - 4 in
+        let key_str = Domain.short w key in
+        let summary =
+          let st_str = Range.short (w - String.length key_str) st in
+          esc key_str ^ " -> " ^ esc st_str
+        in
 
-            let attr = [("text", summary);("id",esc key_str)] in begin
-              match Range.toXML st with
-                | Xml.Element (_, chattr, children) ->
-                    if List.length children=0 || Range.isSimple st
-                    then Xml.Element ("Leaf", attr, [])
-                    else Xml.Element ("Node", attr, children)
-                | x -> x
-            end
-        | kd -> Xml.Element ("Node", [("text",esc (Domain.short 40 key^" -> "^Range.short 40 st))], [kd; Range.toXML st])
+        let attr = [("text", summary);("id",esc key_str)] in begin
+          match Range.toXML st with
+          | Xml.Element (_, chattr, children) ->
+            if List.length children=0 || Range.isSimple st
+            then Xml.Element ("Leaf", attr, [])
+            else Xml.Element ("Node", attr, children)
+          | x -> x
+        end
+      | kd -> Xml.Element ("Node", [("text",esc (Domain.short 40 key^" -> "^Range.short 40 st))], [kd; Range.toXML st])
     in
     let module IMap = Map.Make (struct type t = int let compare = Pervasives.compare end) in
     let groups =
@@ -159,30 +159,30 @@ struct
       M.fold add_grpd mapping IMap.empty
     in
     let children =
-        let h g (kvs:(Domain.t * Range.t) list) xs =
-          match g with
-            | -1 when not (get_bool "dbg.showtemps") ->  xs
-            | 0 -> List.map f kvs @ xs
-            | _ -> (Xml.Element ("Node", [("text", Domain.class_name g);("id",Domain.class_name g)], List.map f kvs))::xs
-        in
-        IMap.fold h groups []
+      let h g (kvs:(Domain.t * Range.t) list) xs =
+        match g with
+        | -1 when not (get_bool "dbg.showtemps") ->  xs
+        | 0 -> List.map f kvs @ xs
+        | _ -> (Xml.Element ("Node", [("text", Domain.class_name g);("id",Domain.class_name g)], List.map f kvs))::xs
+      in
+      IMap.fold h groups []
     in
     let node_attrs = [("text", esc (short Goblintutil.summary_length mapping));("id","map")] in
-      Xml.Element ("Node", node_attrs, children)
+    Xml.Element ("Node", node_attrs, children)
 
   let pretty_f short () mapping =
     let groups =
       let group_fold key itm gps =
-	let cl = Domain.classify key in
-	  match gps with
-	    | (a,n) when cl <>  n -> ((cl,(M.add key itm M.empty))::a, cl)
-	    | (a,_) -> ((fst (List.hd a),(M.add key itm (snd (List.hd a))))::(List.tl a),cl) in
-	List.rev (fst (fold group_fold mapping ([],min_int)))
+        let cl = Domain.classify key in
+        match gps with
+        | (a,n) when cl <>  n -> ((cl,(M.add key itm M.empty))::a, cl)
+        | (a,_) -> ((fst (List.hd a),(M.add key itm (snd (List.hd a))))::(List.tl a),cl) in
+      List.rev (fst (fold group_fold mapping ([],min_int)))
     in
     let f key st dok =
       if ME.tracing && trace_enabled && !ME.tracevars <> [] &&
-        not (List.mem (Domain.short 80 key) !ME.tracevars) then
-          dok
+         not (List.mem (Domain.short 80 key) !ME.tracevars) then
+        dok
       else
         dok ++ (if Range.isSimple st then dprintf "%a -> %a\n" else
                   dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
@@ -191,10 +191,10 @@ struct
     let pretty_group  map () = fold f map nil in
     let pretty_groups rest map =
       match (fst map) with
-	| 0 ->  rest ++ pretty_group (snd map) ()
-	| a -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name a) (pretty_group (snd map)) in
+      | 0 ->  rest ++ pretty_group (snd map) ()
+      | a -> rest ++ dprintf "@[%t {\n  @[%t@]}@]\n" (group_name a) (pretty_group (snd map)) in
     let content () = List.fold_left pretty_groups nil groups in
-      dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
+    dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
 
   let toXML s  = toXML_f short s
 
@@ -217,8 +217,8 @@ end
 
 module MapBot (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and
-  type value = Range.t and
-  type t = Range.t Map.Make(Domain).t =
+type value = Range.t and
+type t = Range.t Map.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
@@ -227,7 +227,7 @@ struct
     let p key value =
       try Range.leq value (find key m2) with Not_found -> false
     in
-      m1 == m2 || for_all p m1
+    m1 == m2 || for_all p m1
 
   let find x m = try find x m with | Not_found -> Range.bot ()
   let top () = Lattice.unsupported "partial map top"
@@ -241,7 +241,7 @@ struct
     in
     let report key v1 v2 =
       Pretty.dprintf "Map: %a =@?@[%a@]"
-         Domain.pretty key Range.pretty_diff (v1,v2)
+        Domain.pretty key Range.pretty_diff (v1,v2)
     in
     let diff_key k v = function
       | None   when p k v -> Some (report k v (find k m2))
@@ -249,8 +249,8 @@ struct
       | x -> x
     in
     match fold diff_key m1 None with
-      | Some w -> w
-      | None -> Pretty.dprintf "No binding grew."
+    | Some w -> w
+    | None -> Pretty.dprintf "No binding grew."
 
   let meet m1 m2 = if m1 == m2 then m1 else map2 Range.meet m1 m2
   let join m1 m2 = if m1 == m2 then m1 else long_map2 Range.join m1 m2
@@ -260,8 +260,8 @@ end
 
 module MapTop (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and
-  type value = Range.t and
-  type t = Range.t Map.Make(Domain).t =
+type value = Range.t and
+type t = Range.t Map.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
@@ -270,7 +270,7 @@ struct
     let p key value =
       try Range.leq (find key m1) value with Not_found -> false
     in
-      m1 == m2 || for_all p m2
+    m1 == m2 || for_all p m2
 
   let find x m = try find x m with | Not_found -> Range.top ()
   let top () = M.empty
@@ -290,7 +290,7 @@ struct
     in
     let report key v1 v2 =
       Pretty.dprintf "Map: %a =@?@[%a@]"
-         Domain.pretty key Range.pretty_diff (v1,v2)
+        Domain.pretty key Range.pretty_diff (v1,v2)
     in
     let diff_key k v = function
       | None   when p k v -> Some (report k v (find k m2))
@@ -298,15 +298,15 @@ struct
       | x -> x
     in
     match fold diff_key m1 None with
-      | Some w -> w
-      | None -> Pretty.dprintf "No binding grew."
+    | Some w -> w
+    | None -> Pretty.dprintf "No binding grew."
 end
 
 exception Fn_over_All of string
 
 module MapBot_LiftTop (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and
-  type value = Range.t =
+type value = Range.t =
 struct
   module M = MapBot (Domain) (Range)
   include Lattice.LiftTop (M)
@@ -352,13 +352,13 @@ struct
 
   let map2 f x y =
     match x, y with
-      | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
-      | _ -> raise (Fn_over_All "map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
+    | _ -> raise (Fn_over_All "map2")
 
   let long_map2 f x y =
     match x, y with
-      | `Lifted x, `Lifted y -> `Lifted (M.long_map2 f x y)
-      | _ -> raise (Fn_over_All "long_map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.long_map2 f x y)
+    | _ -> raise (Fn_over_All "long_map2")
 
   let for_all f = function
     | `Top -> raise (Fn_over_All "for_all")
@@ -370,23 +370,23 @@ struct
 
   let fold f x a =
     match x with
-      | `Top -> raise (Fn_over_All "fold")
-      | `Lifted x -> M.fold f x a
+    | `Top -> raise (Fn_over_All "fold")
+    | `Lifted x -> M.fold f x a
 
   let filter f x =
     match x with
-      | `Top -> raise (Fn_over_All "filter")
-      | `Lifted x -> `Lifted (M.filter f x)
+    | `Top -> raise (Fn_over_All "filter")
+    | `Lifted x -> `Lifted (M.filter f x)
 
   let merge f x y  =
     match x, y with
-      | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
-      | _ -> raise (Fn_over_All "merge")
+    | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
+    | _ -> raise (Fn_over_All "merge")
 end
 
 module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with
   type key = Domain.t and
-  type value = Range.t =
+type value = Range.t =
 struct
   module M = MapTop (Domain) (Range)
   include Lattice.LiftBot (M)
@@ -432,13 +432,13 @@ struct
 
   let map2 f x y =
     match x, y with
-      | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
-      | _ -> raise (Fn_over_All "map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.map2 f x y)
+    | _ -> raise (Fn_over_All "map2")
 
   let long_map2 f x y =
     match x, y with
-      | `Lifted x, `Lifted y -> `Lifted (M.long_map2 f x y)
-      | _ -> raise (Fn_over_All "long_map2")
+    | `Lifted x, `Lifted y -> `Lifted (M.long_map2 f x y)
+    | _ -> raise (Fn_over_All "long_map2")
 
   let for_all f = function
     | `Bot -> raise (Fn_over_All "for_all")
@@ -450,16 +450,16 @@ struct
 
   let fold f x a =
     match x with
-      | `Bot -> raise (Fn_over_All "fold")
-      | `Lifted x -> M.fold f x a
+    | `Bot -> raise (Fn_over_All "fold")
+    | `Lifted x -> M.fold f x a
 
   let filter f x =
     match x with
-      | `Bot -> raise (Fn_over_All "filter")
-      | `Lifted x -> `Lifted (M.filter f x)
+    | `Bot -> raise (Fn_over_All "filter")
+    | `Lifted x -> `Lifted (M.filter f x)
 
   let merge f x y  =
     match x, y with
-      | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
-      | _ -> raise (Fn_over_All "merge")
+    | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
+    | _ -> raise (Fn_over_All "merge")
 end

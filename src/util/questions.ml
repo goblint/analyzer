@@ -16,55 +16,55 @@ let questionentrylist = ref []
 let type_to_num s =
   match s with
     "int" -> 1
-    | "bool" -> 2
-    | "string" -> 3
-    | "intlist" -> 4
-    | "boollist" -> 5
-    | "stringlist" -> 6
-    | _ -> 0
-  ;;
+  | "bool" -> 2
+  | "string" -> 3
+  | "intlist" -> 4
+  | "boollist" -> 5
+  | "stringlist" -> 6
+  | _ -> 0
+;;
 
 let num_to_type n =
   match n with
     1 -> "int"
-    | 2 -> "bool"
-    | 3 -> "string"
-    | 4 -> "intlist"
-    | 5 -> "boollist"
-    | 6 -> "stringlist"
-    | _ -> ""
-  ;;
+  | 2 -> "bool"
+  | 3 -> "string"
+  | 4 -> "intlist"
+  | 5 -> "boollist"
+  | 6 -> "stringlist"
+  | _ -> ""
+;;
 
 let value_to_str value =
   match value with
     QVInt i -> string_of_int i
-    | QVBool b -> if (b == true) then "true" else "false"
-    | QVString s -> s
-    | QVIntList l ->
-        begin
-          if ((List.length l) == 0) then "[]"
-          else let s = List.fold_left (fun s i -> s^","^(string_of_int i)) (string_of_int (List.hd l)) (List.tl l)
-          in "["^s^"]"
-        end
-    | QVBoolList l ->
-        begin
-          if ((List.length l) == 0) then "[]"
-          else let s = List.fold_left (fun s i -> s^","^(string_of_bool i)) (string_of_bool (List.hd l)) (List.tl l)
-          in "["^s^"]"
-        end
-    | QVStringList l ->
-        begin
-          if ((List.length l) == 0) then "[]"
-          else let s = List.fold_left (fun s i -> s^","^i) (List.hd l) (List.tl l)
-          in "["^s^"]"
-        end
-    | _ -> ""
-  ;;
+  | QVBool b -> if (b == true) then "true" else "false"
+  | QVString s -> s
+  | QVIntList l ->
+    begin
+      if ((List.length l) == 0) then "[]"
+      else let s = List.fold_left (fun s i -> s^","^(string_of_int i)) (string_of_int (List.hd l)) (List.tl l)
+        in "["^s^"]"
+    end
+  | QVBoolList l ->
+    begin
+      if ((List.length l) == 0) then "[]"
+      else let s = List.fold_left (fun s i -> s^","^(string_of_bool i)) (string_of_bool (List.hd l)) (List.tl l)
+        in "["^s^"]"
+    end
+  | QVStringList l ->
+    begin
+      if ((List.length l) == 0) then "[]"
+      else let s = List.fold_left (fun s i -> s^","^i) (List.hd l) (List.tl l)
+        in "["^s^"]"
+    end
+  | _ -> ""
+;;
 
 
 (* Load the question database from a file *)
 let question_load_db filename =
-printf "Load: %s\n" filename;
+  printf "Load: %s\n" filename;
   let chan = Pervasives.open_in filename in
   try
     let mode = ref 0 in
@@ -75,11 +75,11 @@ printf "Load: %s\n" filename;
       if ((String.length line) >= 1) then begin
         (* No active entry (mode == 0) : begin entry and check for { *)
         if (!mode == 0) then begin
-	  let (aname,strbuf) = split line ':' in
+          let (aname,strbuf) = split line ':' in
           let (qnameraw,typename) = split strbuf ':' in
           let qname = String.sub qnameraw 1 ((String.length qnameraw)-2) in
-	  if ((String.compare (String.trim (input_line chan)) "{") != 0) then printf "Question Database Error: \"{\" expected!\n"
-	  else ();
+          if ((String.compare (String.trim (input_line chan)) "{") != 0) then printf "Question Database Error: \"{\" expected!\n"
+          else ();
           mode := 1;
           entryid := List.length !questionentrylist;
           questionentrylist := !questionentrylist @ [{qf_analysis = aname; qf_question = qname; qf_type = (type_to_num typename); qf_values = ref []; qf_default = ref {qv_line_start = 0; qv_line_end = 0; qv_value = QVNone} }];
@@ -149,11 +149,11 @@ printf "Load: %s\n" filename;
     done;
   with End_of_file ->
     Pervasives.close_in chan;
-  ();;
+    ();;
 
 (* Save the question database to a file *)
 let question_save_db filename =
-printf "Save: %s\n" filename;
+  printf "Save: %s\n" filename;
   let chan = Pervasives.open_out filename in
   let writeentry e =
     fprintf chan "%s:\"%s\":%s\n{\n" e.qf_analysis e.qf_question (num_to_type e.qf_type);
@@ -167,7 +167,7 @@ printf "Save: %s\n" filename;
   in
   List.iter writeentry !questionentrylist;
   Pervasives.close_out chan;
-  ;;
+;;
 
 (* Register a question *)
 let question_register analysisname question defaultvalue =
@@ -175,10 +175,10 @@ let question_register analysisname question defaultvalue =
   let rec findindex l current =
     if ((List.length l) == 0) then -1
     else
-    let e = (List.hd l) in
-    let issame = (((String.compare e.qf_analysis analysisname) == 0) && ((String.compare e.qf_question question) == 0)) in
-    if (issame == true) then current
-    else findindex (List.tl l) (current+1)
+      let e = (List.hd l) in
+      let issame = (((String.compare e.qf_analysis analysisname) == 0) && ((String.compare e.qf_question question) == 0)) in
+      if (issame == true) then current
+      else findindex (List.tl l) (current+1)
   in
   let index = findindex (!questionentrylist) 0 in
   if (index >= 0) then index
@@ -186,12 +186,12 @@ let question_register analysisname question defaultvalue =
     let typenum =
       match defaultvalue with
         QVInt _ -> 1
-        | QVBool _ -> 2
-        | QVString _ -> 3
-        | QVIntList _ -> 4
-        | QVBoolList _ -> 5
-        | QVStringList _ -> 6
-        | _ -> 0
+      | QVBool _ -> 2
+      | QVString _ -> 3
+      | QVIntList _ -> 4
+      | QVBoolList _ -> 5
+      | QVStringList _ -> 6
+      | _ -> 0
     in
     questionentrylist := !questionentrylist @ [{qf_analysis = analysisname; qf_question = question; qf_type = typenum; qf_values = ref []; qf_default = ref {qv_line_start = 0; qv_line_end = 0; qv_value = defaultvalue} }];
     (List.length !questionentrylist)-1
@@ -219,29 +219,29 @@ let question_getvalue questionid line =
 let question_getvalue_int questionid line =
   match (question_getvalue questionid line) with
     QVInt i -> i
-    | _ -> 0
+  | _ -> 0
 
 let question_getvalue_bool questionid line =
   match (question_getvalue questionid line) with
     QVBool i -> i
-    | _ -> false
+  | _ -> false
 
 let question_getvalue_string questionid line =
   match (question_getvalue questionid line) with
     QVString s -> s
-    | _ -> ""
+  | _ -> ""
 
 let question_getvalue_intlist questionid line =
   match (question_getvalue questionid line) with
     QVIntList i -> i
-    | _ -> []
+  | _ -> []
 
 let question_getvalue_boollist questionid line =
   match (question_getvalue questionid line) with
     QVBoolList i -> i
-    | _ -> []
+  | _ -> []
 
 let question_getvalue_stringlist questionid line =
   match (question_getvalue questionid line) with
     QVStringList s -> s
-    | _ -> []
+  | _ -> []

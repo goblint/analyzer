@@ -67,8 +67,8 @@ struct
   let current_ctx_hash () = let hash = !MyCFG.CtxHashes.current |? 0 in string_of_int @@ CtxTbl.get hash
   let print_current_ctx ?info name f args =
     if name = "foo" then
-    let info = match info with Some info -> " ("^info^")" | None -> "" in
-    M.debug @@ name^info^": "^f.vname^"("^sprint_map d_exp args ^"), current_ctx_hash = " ^ current_ctx_hash ()
+      let info = match info with Some info -> " ("^info^")" | None -> "" in
+      M.debug @@ name^info^": "^f.vname^"("^sprint_map d_exp args ^"), current_ctx_hash = " ^ current_ctx_hash ()
   let fname_ctx ?ctx f = f.vname ^ "_" ^ (ctx |? current_ctx_hash ())
 
   let is_single ctx =
@@ -117,18 +117,18 @@ struct
   let mayPointTo ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
-        let top_elt = (dummyFunDec.svar, `NoOffset) in
-        let a' = if Queries.LS.mem top_elt a then (
-            M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!"; (* UNSOUND *)
-            Queries.LS.remove top_elt a
-          ) else a
-        in
-        Queries.LS.elements a'
+      let top_elt = (dummyFunDec.svar, `NoOffset) in
+      let a' = if Queries.LS.mem top_elt a then (
+          M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!"; (* UNSOUND *)
+          Queries.LS.remove top_elt a
+        ) else a
+      in
+      Queries.LS.elements a'
     | `Bot -> []
     | v ->
-        M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " is " ^ sprint Queries.Result.pretty v;
-        (*failwith "mayPointTo"*)
-        []
+      M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " is " ^ sprint Queries.Result.pretty v;
+      (*failwith "mayPointTo"*)
+      []
   let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.length xs = 1 then Some (List.hd xs) else None
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
   let debugMayPointTo ctx exp = M.debug_each @@ sprint d_exp exp ^ " mayPointTo " ^ (String.concat ", " (List.map (sprint Lval.CilLval.pretty) (mayPointTo ctx exp)))
@@ -140,82 +140,82 @@ struct
         if the rhs is a constant or another return code, output an assignment edge
         else output edge that non-det. sets the lhs to a value from the range *)
     (* things to note:
-    1. is_return_code_type must be checked on the result of mayPointTo and not on lval! otherwise we have problems with pointers
-    2. Cil.typeOf throws an exception because the base type of a query result from goblint is not an array but is accessed with an index TODO why is this? ignored casts?
-    3. mayPointTo also returns pointers if there's a top element in the set (outputs warning), so that we don't miss anything *)
+       1. is_return_code_type must be checked on the result of mayPointTo and not on lval! otherwise we have problems with pointers
+       2. Cil.typeOf throws an exception because the base type of a query result from goblint is not an array but is accessed with an index TODO why is this? ignored casts?
+       3. mayPointTo also returns pointers if there's a top element in the set (outputs warning), so that we don't miss anything *)
     if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
-    (* OPT: this matching is just for speed up to avoid querying on every assign *)
-    match lval with Var _, _ when not @@ is_return_code_type (Lval lval) -> ctx.local | _ ->
-    (* TODO why is it that current_node can be None here, but not in other transfer functions? *)
-    if not @@ Option.is_some !MyCFG.current_node then (M.debug_each "assign: MyCFG.current_node not set :("; ctx.local) else
-    if D.is_bot ctx.local then ctx.local else
-    let env = get_env ctx in
-    let edges_added = ref false in
-    let f dlval =
-      (* M.debug_each @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
-      let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with _ -> M.debug_each @@ "assign: Cil.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
-      if not @@ is_ret_type then () else
-      let dlval = global_dlval dlval "assign" in
-      edges_added := true;
-      add_return_dlval env `Write dlval;
-      let add_one str_rhs = add_edges env @@ ArincUtil.Assign (str_return_dlval dlval, str_rhs) in
-      let add_top () = add_edges ~r:(str_return_dlval dlval) env @@ ArincUtil.Nop in
-      match stripCasts rval with
-      | Const CInt64(i,_,_) -> add_one @@ str_return_code i
-(*       | Lval rlval ->
-          iterMayPointTo ctx (AddrOf rlval) (fun rdlval -> add_return_dlval env `Read rdlval; add_one @@ str_return_dlval rdlval) *)
-      | _ -> add_top ()
-    in
-    iterMayPointTo ctx (AddrOf lval) f;
-    if !edges_added then D.pred (const @@ Pred.of_node env.node) env.d else env.d
+      (* OPT: this matching is just for speed up to avoid querying on every assign *)
+      match lval with Var _, _ when not @@ is_return_code_type (Lval lval) -> ctx.local | _ ->
+        (* TODO why is it that current_node can be None here, but not in other transfer functions? *)
+        if not @@ Option.is_some !MyCFG.current_node then (M.debug_each "assign: MyCFG.current_node not set :("; ctx.local) else
+        if D.is_bot ctx.local then ctx.local else
+          let env = get_env ctx in
+          let edges_added = ref false in
+          let f dlval =
+            (* M.debug_each @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
+            let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with _ -> M.debug_each @@ "assign: Cil.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
+            if not @@ is_ret_type then () else
+              let dlval = global_dlval dlval "assign" in
+              edges_added := true;
+              add_return_dlval env `Write dlval;
+              let add_one str_rhs = add_edges env @@ ArincUtil.Assign (str_return_dlval dlval, str_rhs) in
+              let add_top () = add_edges ~r:(str_return_dlval dlval) env @@ ArincUtil.Nop in
+              match stripCasts rval with
+              | Const CInt64(i,_,_) -> add_one @@ str_return_code i
+              (*       | Lval rlval ->
+                        iterMayPointTo ctx (AddrOf rlval) (fun rdlval -> add_return_dlval env `Read rdlval; add_one @@ str_return_dlval rdlval) *)
+              | _ -> add_top ()
+          in
+          iterMayPointTo ctx (AddrOf lval) f;
+          if !edges_added then D.pred (const @@ Pred.of_node env.node) env.d else env.d
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
     (* only if we don't assume success, we need to consider branching on return codes *)
     if D.is_bot ctx.local then ctx.local else
-    let env = get_env ctx in
-    if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
-    let check a b tv =
-      (* we are interested in a comparison between some lval lval (which has the type of the return code enum) and a value of that enum (which gets converted to an Int by CIL) *)
-      match a, b with
-      | Lval lval, Const CInt64(i,_,_)
-      | Const CInt64(i,_,_), Lval lval when is_return_code_type (Lval lval) ->
-        (* let success = return_code_is_success i = tv in (* both must be true or false *) *)
-        (* ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line); *)
-        (match env.node with
-        | MyCFG.Statement({ skind = If(e, bt, bf, loc) } as stmt) ->
-          (* 1. write out edges to predecessors, 2. set predecessors to current node, 3. write edge to the first node of the taken branch and set it as predecessor *)
-          (* the then-block always has some stmts, but the else-block might be empty! in this case we use the successors of the if instead. *)
-          let then_node = NodeTbl.get @@ Branch (List.hd bt.bstmts) in
-          let else_stmts = if List.is_empty bf.bstmts then stmt.succs else bf.bstmts in
-          let else_node = NodeTbl.get @@ Branch (List.hd else_stmts) in
-          let dst_node = if tv then then_node else else_node in
-          let d_if = if List.length stmt.preds > 1 then ( (* seems like this never happens *)
-              M.debug_each @@ "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
-              add_edges env ArincUtil.Nop;
-              { ctx.local with pred = Pred.of_node env.node }
-            ) else ctx.local
-          in
-          (* now we have to add Pos/Neg-edges (depending on tv) for everything v may point to *)
-          let f dlval =
-            let dlval = global_dlval dlval "branch" in
-            let str_dlval = str_return_dlval dlval in
-            let cond = str_dlval ^ " == " ^ str_return_code i in
-            let cond = if tv then cond else "!(" ^ cond ^ ")" in
-            let cond = if dlval = dummy_global_dlval || String.exists str_dlval "int___unknown" then "true" else cond in (* we don't know the index of the array -> assume that branch could always be taken *)
-            add_edges ~dst:dst_node ~d:d_if env (ArincUtil.Cond (str_dlval, cond));
-            add_return_dlval env `Read dlval
-          in
-          iterMayPointTo ctx (AddrOf lval) f;
-          { ctx.local with pred = Pred.of_node dst_node }
-        | _ -> failwith "branch: current_node is not an If") (* this should never happen since CIL transforms switch *)
-      | _ -> ctx.local
-    in
-    match exp with
-    (* TODO limit to BinOp Eq/Ne? Could also be other type of expression! *)
-    | BinOp(Eq, a, b, _) -> check (stripCasts a) (stripCasts b) tv
-    | BinOp(Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
-    | _ -> ctx.local
+      let env = get_env ctx in
+      if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
+        let check a b tv =
+          (* we are interested in a comparison between some lval lval (which has the type of the return code enum) and a value of that enum (which gets converted to an Int by CIL) *)
+          match a, b with
+          | Lval lval, Const CInt64(i,_,_)
+          | Const CInt64(i,_,_), Lval lval when is_return_code_type (Lval lval) ->
+            (* let success = return_code_is_success i = tv in (* both must be true or false *) *)
+            (* ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line); *)
+            (match env.node with
+             | MyCFG.Statement({ skind = If(e, bt, bf, loc) } as stmt) ->
+               (* 1. write out edges to predecessors, 2. set predecessors to current node, 3. write edge to the first node of the taken branch and set it as predecessor *)
+               (* the then-block always has some stmts, but the else-block might be empty! in this case we use the successors of the if instead. *)
+               let then_node = NodeTbl.get @@ Branch (List.hd bt.bstmts) in
+               let else_stmts = if List.is_empty bf.bstmts then stmt.succs else bf.bstmts in
+               let else_node = NodeTbl.get @@ Branch (List.hd else_stmts) in
+               let dst_node = if tv then then_node else else_node in
+               let d_if = if List.length stmt.preds > 1 then ( (* seems like this never happens *)
+                   M.debug_each @@ "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
+                   add_edges env ArincUtil.Nop;
+                   { ctx.local with pred = Pred.of_node env.node }
+                 ) else ctx.local
+               in
+               (* now we have to add Pos/Neg-edges (depending on tv) for everything v may point to *)
+               let f dlval =
+                 let dlval = global_dlval dlval "branch" in
+                 let str_dlval = str_return_dlval dlval in
+                 let cond = str_dlval ^ " == " ^ str_return_code i in
+                 let cond = if tv then cond else "!(" ^ cond ^ ")" in
+                 let cond = if dlval = dummy_global_dlval || String.exists str_dlval "int___unknown" then "true" else cond in (* we don't know the index of the array -> assume that branch could always be taken *)
+                 add_edges ~dst:dst_node ~d:d_if env (ArincUtil.Cond (str_dlval, cond));
+                 add_return_dlval env `Read dlval
+               in
+               iterMayPointTo ctx (AddrOf lval) f;
+               { ctx.local with pred = Pred.of_node dst_node }
+             | _ -> failwith "branch: current_node is not an If") (* this should never happen since CIL transforms switch *)
+          | _ -> ctx.local
+        in
+        match exp with
+        (* TODO limit to BinOp Eq/Ne? Could also be other type of expression! *)
+        | BinOp(Eq, a, b, _) -> check (stripCasts a) (stripCasts b) tv
+        | BinOp(Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
+        | _ -> ctx.local
 
   let checkPredBot d tf f xs =
     if d.pred = Pred.bot () then M.debug_each @@ tf^": mapping is BOT!!! function: "^f.vname^". "^(String.concat "\n" @@ List.map (fun (n,d) -> n ^ " = " ^ Pretty.sprint 200 (Pred.pretty () d.pred)) xs);
@@ -248,65 +248,65 @@ struct
     (* somehow context is only right if f_ctx_hash == current_ctx_hash *)
     print_current_ctx ~info:f_ctx_hash "combine" f args;
     if D.is_bot ctx.local then ctx.local else
-    let env = get_env ctx in
-    let d_caller = ctx.local in
-    let d_callee = au in
-    (* check if the callee has some relevant edges, i.e. advanced from the entry point. if not, we generate no edge for the call and keep the predecessors from the caller *)
-    if Pred.is_bot d_callee.pred then failwith "d_callee.pred is bot!"; (* set should never be empty *)
-    if Pred.equal d_callee.pred (Pred.of_node (MyCFG.Function f)) then
-      { d_callee with pred = d_caller.pred; ctx = d_caller.ctx }
-    else (
-      (* write out edges with call to f coming from all predecessor nodes of the caller *)
-      (* if Option.is_some !last_ctx_hash && current_ctx_hash () = string_of_int (Option.get !last_ctx_hash) then *)
-      if Ctx.is_int d_callee.ctx then (
-        (* before doing the call we need to assign call-by-value return code parameters
-           we only need to take care of them and not AddrOf args since those are found by query *)
-        (* TODO optimally we would track if the caller_exp was used as a return code in an ARINC call before;
-           as a first step we should check if its value is top (if it's set to some value and not invalidated by a call, then we are not interested in creating branches for it) *)
-        let check (callee_var,caller_exp) = match stripCasts caller_exp with
-          | Lval lval when is_return_code_type (Lval (var callee_var)) -> Some (callee_var, lval)
-          | _ -> None
-        in
-        let rargs = List.combine (Cilfacade.getdec f).sformals args |> List.filter_map check in
-        let fctx = Ctx.to_int d_callee.ctx |> Option.get |> i64_to_int |> CtxTbl.get |> string_of_int in
-        let assign pred dst_node callee_var caller_dlval =
-          let caller_dlval = global_dlval caller_dlval "combine" in
-          let callee_dlval = callee_var, `NoOffset in
-          (* add edge to an intermediate node that assigns the caller return code to the one of the function params *)
-          add_edges ~dst:dst_node ~d:{ d_caller with pred = pred } env (ArincUtil.Assign (str_return_dlval callee_dlval, str_return_dlval caller_dlval));
-          (* we also need to add the callee param as a `Write lval so that we see that it is written to *)
-          add_return_dlval env `Write callee_dlval;
-          (* also add the caller param because it is read *)
-          add_return_dlval env `Read caller_dlval;
-        in
-        (* we need to assign all lvals each caller arg may point to *)
-        let last_pred = if GobConfig.get_bool "ana.arinc.assume_success" then d_caller.pred else List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (AddrOf caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
-        add_edges ~d:{ d_caller with pred = last_pred } env (ArincUtil.Call (fname_ctx ~ctx:fctx f))
-      );
-      (* set current node as new predecessor, since something interesting happend during the call *)
-      { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
-    )
+      let env = get_env ctx in
+      let d_caller = ctx.local in
+      let d_callee = au in
+      (* check if the callee has some relevant edges, i.e. advanced from the entry point. if not, we generate no edge for the call and keep the predecessors from the caller *)
+      if Pred.is_bot d_callee.pred then failwith "d_callee.pred is bot!"; (* set should never be empty *)
+      if Pred.equal d_callee.pred (Pred.of_node (MyCFG.Function f)) then
+        { d_callee with pred = d_caller.pred; ctx = d_caller.ctx }
+      else (
+        (* write out edges with call to f coming from all predecessor nodes of the caller *)
+        (* if Option.is_some !last_ctx_hash && current_ctx_hash () = string_of_int (Option.get !last_ctx_hash) then *)
+        if Ctx.is_int d_callee.ctx then (
+          (* before doing the call we need to assign call-by-value return code parameters
+             we only need to take care of them and not AddrOf args since those are found by query *)
+          (* TODO optimally we would track if the caller_exp was used as a return code in an ARINC call before;
+             as a first step we should check if its value is top (if it's set to some value and not invalidated by a call, then we are not interested in creating branches for it) *)
+          let check (callee_var,caller_exp) = match stripCasts caller_exp with
+            | Lval lval when is_return_code_type (Lval (var callee_var)) -> Some (callee_var, lval)
+            | _ -> None
+          in
+          let rargs = List.combine (Cilfacade.getdec f).sformals args |> List.filter_map check in
+          let fctx = Ctx.to_int d_callee.ctx |> Option.get |> i64_to_int |> CtxTbl.get |> string_of_int in
+          let assign pred dst_node callee_var caller_dlval =
+            let caller_dlval = global_dlval caller_dlval "combine" in
+            let callee_dlval = callee_var, `NoOffset in
+            (* add edge to an intermediate node that assigns the caller return code to the one of the function params *)
+            add_edges ~dst:dst_node ~d:{ d_caller with pred = pred } env (ArincUtil.Assign (str_return_dlval callee_dlval, str_return_dlval caller_dlval));
+            (* we also need to add the callee param as a `Write lval so that we see that it is written to *)
+            add_return_dlval env `Write callee_dlval;
+            (* also add the caller param because it is read *)
+            add_return_dlval env `Read caller_dlval;
+          in
+          (* we need to assign all lvals each caller arg may point to *)
+          let last_pred = if GobConfig.get_bool "ana.arinc.assume_success" then d_caller.pred else List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (AddrOf caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
+          add_edges ~d:{ d_caller with pred = last_pred } env (ArincUtil.Call (fname_ctx ~ctx:fctx f))
+        );
+        (* set current node as new predecessor, since something interesting happend during the call *)
+        { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
+      )
 
   (* ARINC utility functions *)
   let mode_is_init  i = match Pmo.to_int i with Some 1L | Some 2L -> true | _ -> false
   let mode_is_multi i = Pmo.to_int i = Some 3L
   (* return code data type *)
   type return_code = (* taken from ARINC_653_part1.pdf page 46 *)
-  | NO_ERROR       (* request valid and operation performed *)
-  | NO_ACTION      (* system’s operational status unaffected by request *)
-  | NOT_AVAILABLE  (* the request cannot be performed immediately *)
-  | INVALID_PARAM  (* parameter specified in request invalid *)
-  | INVALID_CONFIG (* parameter specified in request incompatible with current configuration (e.g., as specified by system integrator) *)
-  | INVALID_MODE   (* request incompatible with current mode of operation *)
-  | TIMED_OUT      (* time-out associated with request has expired *)
+    | NO_ERROR       (* request valid and operation performed *)
+    | NO_ACTION      (* system’s operational status unaffected by request *)
+    | NOT_AVAILABLE  (* the request cannot be performed immediately *)
+    | INVALID_PARAM  (* parameter specified in request invalid *)
+    | INVALID_CONFIG (* parameter specified in request incompatible with current configuration (e.g., as specified by system integrator) *)
+    | INVALID_MODE   (* request incompatible with current mode of operation *)
+    | TIMED_OUT      (* time-out associated with request has expired *)
   let int_from_return_code = function
-  | NO_ERROR       -> 0
-  | NO_ACTION      -> 1
-  | NOT_AVAILABLE  -> 2
-  | INVALID_PARAM  -> 3
-  | INVALID_CONFIG -> 4
-  | INVALID_MODE   -> 5
-  | TIMED_OUT      -> 6
+    | NO_ERROR       -> 0
+    | NO_ACTION      -> 1
+    | NOT_AVAILABLE  -> 2
+    | INVALID_PARAM  -> 3
+    | INVALID_CONFIG -> 4
+    | INVALID_MODE   -> 5
+    | TIMED_OUT      -> 6
   let pname_ErrorHandler = "ErrorHandler"
 
   (* set of processes to spawn once partition mode is set to NORMAL *)
@@ -317,299 +317,299 @@ struct
     let open ArincUtil in let _ = 42 in (* sublime's syntax highlighter gets confused without the second let... *)
     let d : D.t = ctx.local in
     if D.is_bot d then d else
-    let env = get_env ctx in
-    let is_arinc_fun = startsWith "LAP_Se_" f.vname in
-    let is_creating_fun = startsWith "LAP_Se_Create" f.vname in
-    if M.tracing && is_arinc_fun then (
-      let args_str = String.concat ", " (List.map (sprint d_exp) arglist) in
-      (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
-      M.debug_each @@ "found "^f.vname^"("^args_str^") in "^env.fundec.svar.vname
-    );
-    print_current_ctx ~info:("inside "^env.fundec.svar.vname) "special" f arglist;
-    let is_error_handler = env.pname = pname_ErrorHandler in
-    let eval_int exp =
-      match ctx.ask (Queries.EvalInt exp) with
-      | `Int i -> i
-      | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp^" in "^f.vname
-    in
-    let eval_str exp =
-      match ctx.ask (Queries.EvalStr exp) with
-      | `Str s -> s
-      | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp^" in "^f.vname
-    in
-    let eval_id exp = mayPointTo ctx exp |> List.map (Option.get % get_by_id % fst) in
-    let assign_id exp id =
-      match exp with
-      (* call assign for all analyses (we only need base)! *)
-      | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
-      (* TODO not needed for the given code, but we could use Queries.MayPointTo exp in this case *)
-      | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
-    in
-    let assign_id_by_name resource_type name id =
-      assign_id id (get_id (resource_type, eval_str name))
-    in
-    let assume_success exp =
-      (* TODO NO_ACTION should probably also be assumed a success *)
-      let f lval = ctx.assign ~name:"base" lval (integer @@ int_from_return_code NO_ERROR) in
-      iterMayPointTo ctx exp (f % Lval.CilLval.to_lval)
-    in
-    let invalidate_arg exp =
-      () (* TODO this is currently done in base b/c there is no interface for invalidating things (maybe use special value for assign or add new function to ctx?) *)
-    in
-    let arglist = List.map (stripCasts%(constFold false)) arglist in
-    (* if assume_success we set the return code and don't need to do anything else
-       otherwise we need to invalidate the return code (TODO maybe not top but sth more precise) and include the return code variable for all arinc calls (so that it can be set non-deterministically in promela) *)
-    let add_actions actions =
-      if is_arinc_fun && not @@ List.is_empty arglist then
-        let r = List.last arglist in
-        if GobConfig.get_bool "ana.arinc.assume_success" then (
-          assume_success r;
-          add_actions env @@ List.map (fun action -> action, None) actions
-        ) else (
-          invalidate_arg r;
-          let xs = mayPointTo ctx r in
-          (* warn about wrong type (r should always be a return code) and setting globals! *)
-          let f dlval =
-            let dlval = global_dlval dlval "special" in
-            if not @@ is_return_code_type @@ Lval.CilLval.to_exp dlval
-            then (M.debug_each @@ "WARN: last argument in arinc function may point to something other than a return code: " ^ str_return_dlval dlval; None)
-            else (add_return_dlval env `Write dlval; Some (str_return_dlval dlval))
-          in
-          (* add actions for all lvals r may point to *)
-          let rets = List.map Option.some @@ List.filter_map f xs in
-          add_actions env @@ List.cartesian_product actions rets
-        )
-      else (* no args *)
-        add_actions env @@ List.map (fun action -> action,None) actions
-    in
-    let add_action action = add_actions [action] in
-    let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else add_action Nop in
-    match f.vname, arglist with
+      let env = get_env ctx in
+      let is_arinc_fun = startsWith "LAP_Se_" f.vname in
+      let is_creating_fun = startsWith "LAP_Se_Create" f.vname in
+      if M.tracing && is_arinc_fun then (
+        let args_str = String.concat ", " (List.map (sprint d_exp) arglist) in
+        (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
+        M.debug_each @@ "found "^f.vname^"("^args_str^") in "^env.fundec.svar.vname
+      );
+      print_current_ctx ~info:("inside "^env.fundec.svar.vname) "special" f arglist;
+      let is_error_handler = env.pname = pname_ErrorHandler in
+      let eval_int exp =
+        match ctx.ask (Queries.EvalInt exp) with
+        | `Int i -> i
+        | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp^" in "^f.vname
+      in
+      let eval_str exp =
+        match ctx.ask (Queries.EvalStr exp) with
+        | `Str s -> s
+        | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp^" in "^f.vname
+      in
+      let eval_id exp = mayPointTo ctx exp |> List.map (Option.get % get_by_id % fst) in
+      let assign_id exp id =
+        match exp with
+        (* call assign for all analyses (we only need base)! *)
+        | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
+        (* TODO not needed for the given code, but we could use Queries.MayPointTo exp in this case *)
+        | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
+      in
+      let assign_id_by_name resource_type name id =
+        assign_id id (get_id (resource_type, eval_str name))
+      in
+      let assume_success exp =
+        (* TODO NO_ACTION should probably also be assumed a success *)
+        let f lval = ctx.assign ~name:"base" lval (integer @@ int_from_return_code NO_ERROR) in
+        iterMayPointTo ctx exp (f % Lval.CilLval.to_lval)
+      in
+      let invalidate_arg exp =
+        () (* TODO this is currently done in base b/c there is no interface for invalidating things (maybe use special value for assign or add new function to ctx?) *)
+      in
+      let arglist = List.map (stripCasts%(constFold false)) arglist in
+      (* if assume_success we set the return code and don't need to do anything else
+         otherwise we need to invalidate the return code (TODO maybe not top but sth more precise) and include the return code variable for all arinc calls (so that it can be set non-deterministically in promela) *)
+      let add_actions actions =
+        if is_arinc_fun && not @@ List.is_empty arglist then
+          let r = List.last arglist in
+          if GobConfig.get_bool "ana.arinc.assume_success" then (
+            assume_success r;
+            add_actions env @@ List.map (fun action -> action, None) actions
+          ) else (
+            invalidate_arg r;
+            let xs = mayPointTo ctx r in
+            (* warn about wrong type (r should always be a return code) and setting globals! *)
+            let f dlval =
+              let dlval = global_dlval dlval "special" in
+              if not @@ is_return_code_type @@ Lval.CilLval.to_exp dlval
+              then (M.debug_each @@ "WARN: last argument in arinc function may point to something other than a return code: " ^ str_return_dlval dlval; None)
+              else (add_return_dlval env `Write dlval; Some (str_return_dlval dlval))
+            in
+            (* add actions for all lvals r may point to *)
+            let rets = List.map Option.some @@ List.filter_map f xs in
+            add_actions env @@ List.cartesian_product actions rets
+          )
+        else (* no args *)
+          add_actions env @@ List.map (fun action -> action,None) actions
+      in
+      let add_action action = add_actions [action] in
+      let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else add_action Nop in
+      match f.vname, arglist with
       | _ when is_arinc_fun && is_creating_fun && not(mode_is_init d.pmo) ->
-          failwith @@ f.vname^" is only allowed in partition mode COLD_START or WARM_START"
-    (* Preemption *)
+        failwith @@ f.vname^" is only allowed in partition mode COLD_START or WARM_START"
+      (* Preemption *)
       | "LAP_Se_LockPreemption", [lock_level; r] when not is_error_handler ->
-          add_action LockPreemption
-          |> D.pre (PrE.add (PrE.of_int 1L))
+        add_action LockPreemption
+        |> D.pre (PrE.add (PrE.of_int 1L))
       | "LAP_Se_UnlockPreemption", [lock_level; r] when not is_error_handler ->
-          add_action UnlockPreemption
-          |> D.pre (PrE.sub (PrE.of_int 1L))
-    (* Partition *)
+        add_action UnlockPreemption
+        |> D.pre (PrE.sub (PrE.of_int 1L))
+      (* Partition *)
       | "LAP_Se_SetPartitionMode", [mode; r] -> begin
           match ctx.ask (Queries.EvalInt mode) with
           | `Int i ->
-              if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (string_of_partition_mode i);
-              if mode_is_multi (Pmo.of_int i) then (
-                ctx.sideg part_mode_var true;
-                (* spawn processes *)
-                ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length !processes);
-                List.iter (fun (f,f_d) -> ctx.spawn f (f_d d.pre)) !processes; (* what about duplicates? List.unique fails because d is fun! *)
-                (* clear list *)
-                processes := []
-              );
-              add_action (SetPartitionMode i)
-              |> D.pmo (const @@ Pmo.of_int i)
+            if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (string_of_partition_mode i);
+            if mode_is_multi (Pmo.of_int i) then (
+              ctx.sideg part_mode_var true;
+              (* spawn processes *)
+              ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length !processes);
+              List.iter (fun (f,f_d) -> ctx.spawn f (f_d d.pre)) !processes; (* what about duplicates? List.unique fails because d is fun! *)
+              (* clear list *)
+              processes := []
+            );
+            add_action (SetPartitionMode i)
+            |> D.pmo (const @@ Pmo.of_int i)
           | `Bot -> D.bot ()
           | _ -> ctx.sideg part_mode_var true; D.top ()
-          end
+        end
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
       | "LAP_Se_GetPartitionStartCondition", [start_condition; r] -> todo ()
-    (* treat functions from string.h as extern if they are added at the end of libraryFunctions.ml *)
+      (* treat functions from string.h as extern if they are added at the end of libraryFunctions.ml *)
       | "F59", [dst; src] (* strcpy *)
       | "F60", [dst; src; _] (* strncpy TODO len *)
       | "F61", [dst; src] (* TODO strcpy that ends at \000? *)
       | "F62", [dst; src; _] (* TODO strncpy that ends at \000? *)
       | "F63", [dst; src; _] (* memcpy TODO len *)
-      ->
-          M.debug_each @@ "strcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^")";
-          (*let lval = mkMem ~addr:dst ~off:NoOffset in*)
-          (*let rval = Lval (mkMem ~addr:src ~off:NoOffset) in*)
-          (*debugMayPointTo ctx dst;*)
-          (*debugMayPointTo ctx src;*)
-          (*debugMayPointTo ctx (Lval lval);*)
-          (*debugMayPointTo ctx rval;*)
-          let exp = match unrollType (typeOf dst), dst with
-            | _, Lval lval
-            | _, AddrOf lval
-            | _, StartOf lval -> mkAddrOf lval
-            | TPtr _, _ -> dst
-            | _ -> failwith @@ f.vname ^ " expects first argument to be some Pointer, but got "^sprint d_exp dst^" which is "^sprint d_plainexp dst
-          in
-          begin match mayPointTo ctx exp with
+        ->
+        M.debug_each @@ "strcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^")";
+        (*let lval = mkMem ~addr:dst ~off:NoOffset in*)
+        (*let rval = Lval (mkMem ~addr:src ~off:NoOffset) in*)
+        (*debugMayPointTo ctx dst;*)
+        (*debugMayPointTo ctx src;*)
+        (*debugMayPointTo ctx (Lval lval);*)
+        (*debugMayPointTo ctx rval;*)
+        let exp = match unrollType (typeOf dst), dst with
+          | _, Lval lval
+          | _, AddrOf lval
+          | _, StartOf lval -> mkAddrOf lval
+          | TPtr _, _ -> dst
+          | _ -> failwith @@ f.vname ^ " expects first argument to be some Pointer, but got "^sprint d_exp dst^" which is "^sprint d_plainexp dst
+        in
+        begin match mayPointTo ctx exp with
           | [v,offs] ->
-              let lval = Var v, Lval.CilLval.to_ciloffs offs in
-              ctx.assign ~name:"base" lval src;
-              d
+            let lval = Var v, Lval.CilLval.to_ciloffs offs in
+            ctx.assign ~name:"base" lval src;
+            d
           | _ ->
-              M.debug_each @@ f.vname ^ ": SysFun: result of MayPointTo for " ^ sprint d_plainexp exp ^ " contains more than one result!";
-              failwith "mayPointTo"
-          end
+            M.debug_each @@ f.vname ^ ": SysFun: result of MayPointTo for " ^ sprint d_plainexp exp ^ " contains more than one result!";
+            failwith "mayPointTo"
+        end
       | "F1" , [dst; data; len] (* memset: write char to dst len times *)
-      ->
-          (match ctx.ask (Queries.EvalInt len) with
-          | `Int i ->
-              let len = i64_to_int @@ eval_int len in
-              let exp = ref dst in
-              for i = 0 to len-1 do
-                let lval = mkMem ~addr:!exp ~off:NoOffset in
-                ctx.assign ~name:"base" lval data;
-                exp := increm !exp 1 (* int/pointer increment *)
-              done;
-          | v -> debug_each @@ "F1/memset: don't know length: " ^ sprint Queries.Result.pretty v;
-              let lval = mkMem ~addr:dst ~off:NoOffset in
-              ctx.assign ~name:"base" lval MyCFG.unknown_exp
-          );
-          d
-    (* Processes *)
+        ->
+        (match ctx.ask (Queries.EvalInt len) with
+         | `Int i ->
+           let len = i64_to_int @@ eval_int len in
+           let exp = ref dst in
+           for i = 0 to len-1 do
+             let lval = mkMem ~addr:!exp ~off:NoOffset in
+             ctx.assign ~name:"base" lval data;
+             exp := increm !exp 1 (* int/pointer increment *)
+           done;
+         | v -> debug_each @@ "F1/memset: don't know length: " ^ sprint Queries.Result.pretty v;
+           let lval = mkMem ~addr:dst ~off:NoOffset in
+           ctx.assign ~name:"base" lval MyCFG.unknown_exp
+        );
+        d
+      (* Processes *)
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
-          let cm = match unrollType (typeOfLval attr) with
-            | TComp (c,_) -> c
-            | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
-          in
-          let struct_fail f x =
-            f @@ "LAP_Se_CreateProcess: problem with first argument: " ^
-            begin match x with
-            | `Field ofs -> "cannot access field " ^ ofs
-            | `Result (name, entry_point, pri, per, cap) ->
-              "struct PROCESS_ATTRIBUTE_TYPE needs all of the following fields (with result): NAME ("^name^"), ENTRY_POINT ("^entry_point^"), BASE_PRIORITY ("^pri^"), PERIOD ("^per^"), TIME_CAPACITY ("^cap^")"
-            end ^ ". Running scrambled: "^string_of_bool Goblintutil.scrambled
-          in
-          let field ofs =
-            try Lval (addOffsetLval (Field (getCompField cm ofs, NoOffset)) attr)
-            with Not_found -> struct_fail failwith (`Field ofs)
-          in
-          let name = ctx.ask (Queries.EvalStr (field Goblintutil.arinc_name)) in
-          let entry_point = ctx.ask (Queries.ReachableFrom (AddrOf attr)) in
-          let pri  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_base_priority)) in
-          let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
-          let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
-          begin match name, entry_point, pri, per, cap with
+        let cm = match unrollType (typeOfLval attr) with
+          | TComp (c,_) -> c
+          | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
+        in
+        let struct_fail f x =
+          f @@ "LAP_Se_CreateProcess: problem with first argument: " ^
+               begin match x with
+                 | `Field ofs -> "cannot access field " ^ ofs
+                 | `Result (name, entry_point, pri, per, cap) ->
+                   "struct PROCESS_ATTRIBUTE_TYPE needs all of the following fields (with result): NAME ("^name^"), ENTRY_POINT ("^entry_point^"), BASE_PRIORITY ("^pri^"), PERIOD ("^per^"), TIME_CAPACITY ("^cap^")"
+               end ^ ". Running scrambled: "^string_of_bool Goblintutil.scrambled
+        in
+        let field ofs =
+          try Lval (addOffsetLval (Field (getCompField cm ofs, NoOffset)) attr)
+          with Not_found -> struct_fail failwith (`Field ofs)
+        in
+        let name = ctx.ask (Queries.EvalStr (field Goblintutil.arinc_name)) in
+        let entry_point = ctx.ask (Queries.ReachableFrom (AddrOf attr)) in
+        let pri  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_base_priority)) in
+        let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
+        let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
+        begin match name, entry_point, pri, per, cap with
           | `Str name, `LvalSet ls, `Int pri, `Int per, `Int cap when not (Queries.LS.is_top ls)
-            && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-              let funs_ls = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
-              if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
-              let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
-              let spawn f =
-                let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* int64 -> D.t *)
-                add_process (f,f_d)
-              in
-              List.iter spawn funs;
-              let pid' = Process, name in
-              assign_id pid (get_id pid');
-              add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
+                                                                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+            let funs_ls = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
+            if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
+            let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
+            let spawn f =
+              let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* int64 -> D.t *)
+              add_process (f,f_d)
+            in
+            List.iter spawn funs;
+            let pid' = Process, name in
+            assign_id pid (get_id pid');
+            add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
           | _ -> let f = Queries.Result.short 30 in struct_fail debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); d
-          end
+        end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
-          assign_id_by_name Process name pid; d
+        assign_id_by_name Process name pid; d
       | "LAP_Se_GetProcessStatus", [pid; status; r] -> todo ()
       | "LAP_Se_GetMyId", [pid; r] ->
-          assign_id pid (get_id env.procid); d
+        assign_id pid (get_id env.procid); d
       | "LAP_Se_Start", [pid; r] ->
-          (* at least one process should be started in main *)
-          add_actions @@ List.map (fun pid -> Start pid) (eval_id pid)
+        (* at least one process should be started in main *)
+        add_actions @@ List.map (fun pid -> Start pid) (eval_id pid)
       | "LAP_Se_DelayedStart", [pid; delay; r] -> todo ()
       | "LAP_Se_Stop", [pid; r] ->
-          add_actions @@ List.map (fun pid -> Stop pid) (eval_id pid)
+        add_actions @@ List.map (fun pid -> Stop pid) (eval_id pid)
       | "LAP_Se_StopSelf", [] ->
-          if mode_is_init d.pmo then failwith @@ "The behavior of " ^ f.vname ^ " is not defined in WARM_START/COLD_START!";
-          add_action (Stop env.procid)
+        if mode_is_init d.pmo then failwith @@ "The behavior of " ^ f.vname ^ " is not defined in WARM_START/COLD_START!";
+        add_action (Stop env.procid)
       | "LAP_Se_Suspend", [pid; r] ->
-          add_actions @@ List.map (fun pid -> Suspend pid) (eval_id pid)
+        add_actions @@ List.map (fun pid -> Suspend pid) (eval_id pid)
       | "LAP_Se_SuspendSelf", [timeout; r] -> (* TODO timeout *)
-          add_action (Suspend env.procid)
+        add_action (Suspend env.procid)
       | "LAP_Se_Resume", [pid; r] ->
-          add_actions @@ List.map (fun pid -> Resume pid) (eval_id pid)
-    (* Logbook - not used *)
+        add_actions @@ List.map (fun pid -> Resume pid) (eval_id pid)
+      (* Logbook - not used *)
       | "LAP_Se_CreateLogBook", [name; max_size; max_logged; max_in_progress; lbid; r] -> todo ()
       | "LAP_Se_ReadLogBook", _ -> todo ()
       | "LAP_Se_WriteLogBook", _ -> todo ()
       | "LAP_Se_ClearLogBook", _ -> todo ()
       | "LAP_Se_GetLogBookId", _ -> todo ()
       | "LAP_Se_GetLogBookStatus", _ -> todo ()
-    (* SamplingPort - inter-partition *)
+      (* SamplingPort - inter-partition *)
       | "LAP_Se_CreateSamplingPort", [name; max_size; dir; period; spid; r] -> todo ()
       | "LAP_Se_WriteSamplingMessage", _ -> todo ()
       | "LAP_Se_ReadSamplingMessage", _ -> todo ()
       | "LAP_Se_GetSamplingPortId", _ -> todo ()
       | "LAP_Se_GetSamplingPortStatus", _ -> todo ()
-    (* QueuingPort - inter-partition *)
+      (* QueuingPort - inter-partition *)
       | "LAP_Se_CreateQueuingPort", [name; max_size; max_range; dir; queuing; qpid; r] -> todo ()
       | "LAP_Se_SendQueuingMessage", _ -> todo ()
       | "LAP_Se_ReceiveQueuingMessage", _ -> todo ()
       | "LAP_Se_GetQueuingPortId", _ -> todo ()
       | "LAP_Se_GetQueuingPortStatus", _ -> todo ()
-    (* Buffer - not used *)
+      (* Buffer - not used *)
       | "LAP_Se_CreateBuffer", [name; max_size; max_range; queuing; buid; r] -> todo ()
       | "LAP_Se_SendBuffer", _ -> todo ()
       | "LAP_Se_ReceiveBuffer", _ -> todo ()
       | "LAP_Se_GetBufferId", _ -> todo ()
       | "LAP_Se_GetBufferStatus", _ -> todo ()
-    (* Blackboard *)
+      (* Blackboard *)
       | "LAP_Se_CreateBlackboard", [name; max_size; bbid; r] ->
-          let bbid' = Blackboard, eval_str name in
-          assign_id bbid (get_id bbid');
-          add_action (CreateBlackboard bbid')
+        let bbid' = Blackboard, eval_str name in
+        assign_id bbid (get_id bbid');
+        add_action (CreateBlackboard bbid')
       | "LAP_Se_DisplayBlackboard", [bbid; msg_addr; len; r] ->
-          add_actions @@ List.map (fun id -> DisplayBlackboard id) (eval_id bbid)
+        add_actions @@ List.map (fun id -> DisplayBlackboard id) (eval_id bbid)
       | "LAP_Se_ReadBlackboard", [bbid; timeout; msg_addr; len; r] ->
-          let t = eval_int timeout in
-          add_actions @@ List.map (fun id -> ReadBlackboard (id, t)) (eval_id bbid)
+        let t = eval_int timeout in
+        add_actions @@ List.map (fun id -> ReadBlackboard (id, t)) (eval_id bbid)
       | "LAP_Se_ClearBlackboard", [bbid; r] ->
-          add_actions @@ List.map (fun id -> ClearBlackboard id) (eval_id bbid)
+        add_actions @@ List.map (fun id -> ClearBlackboard id) (eval_id bbid)
       | "LAP_Se_GetBlackboardId", [name; bbid; r] ->
-          assign_id_by_name Blackboard name bbid; d
+        assign_id_by_name Blackboard name bbid; d
       | "LAP_Se_GetBlackboardStatus", _ -> todo ()
-    (* Semaphores *)
+      (* Semaphores *)
       | "LAP_Se_CreateSemaphore", [name; cur; max; queuing; sid; r] ->
-          (* create resource for name *)
-          let sid' = Semaphore, eval_str name in
-          assign_id sid (get_id sid');
-          add_action (CreateSemaphore Action.({ sid = sid'; cur = eval_int cur; max = eval_int max; queuing = eval_int queuing }))
+        (* create resource for name *)
+        let sid' = Semaphore, eval_str name in
+        assign_id sid (get_id sid');
+        add_action (CreateSemaphore Action.({ sid = sid'; cur = eval_int cur; max = eval_int max; queuing = eval_int queuing }))
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
-          add_actions @@ List.map (fun id -> WaitSemaphore id) (eval_id sid)
+        add_actions @@ List.map (fun id -> WaitSemaphore id) (eval_id sid)
       | "LAP_Se_SignalSemaphore", [sid; r] ->
-          add_actions @@ List.map (fun id -> SignalSemaphore id) (eval_id sid)
+        add_actions @@ List.map (fun id -> SignalSemaphore id) (eval_id sid)
       | "LAP_Se_GetSemaphoreId", [name; sid; r] ->
-          assign_id_by_name Semaphore name sid; d
+        assign_id_by_name Semaphore name sid; d
       | "LAP_Se_GetSemaphoreStatus", [sid; status; r] -> todo ()
-    (* Events (down after create/reset, up after set) *)
+      (* Events (down after create/reset, up after set) *)
       | "LAP_Se_CreateEvent", [name; eid; r] ->
-          let eid' = Event, eval_str name in
-          assign_id eid (get_id eid');
-          add_action (CreateEvent eid')
+        let eid' = Event, eval_str name in
+        assign_id eid (get_id eid');
+        add_action (CreateEvent eid')
       | "LAP_Se_SetEvent", [eid; r] ->
-          add_actions @@ List.map (fun id -> SetEvent id) (eval_id eid)
+        add_actions @@ List.map (fun id -> SetEvent id) (eval_id eid)
       | "LAP_Se_ResetEvent", [eid; r] ->
-          add_actions @@ List.map (fun id -> ResetEvent id) (eval_id eid)
+        add_actions @@ List.map (fun id -> ResetEvent id) (eval_id eid)
       | "LAP_Se_WaitEvent", [eid; timeout; r] -> (* TODO timeout *)
-          let t = eval_int timeout in
-          add_actions @@ List.map (fun id -> WaitEvent (id, t)) (eval_id eid)
+        let t = eval_int timeout in
+        add_actions @@ List.map (fun id -> WaitEvent (id, t)) (eval_id eid)
       | "LAP_Se_GetEventId", [name; eid; r] ->
-          assign_id_by_name Event name eid; d
+        assign_id_by_name Event name eid; d
       | "LAP_Se_GetEventStatus", [eid; status; r] -> todo ()
-    (* Time *)
+      (* Time *)
       | "LAP_Se_GetTime", [time; r] -> todo ()
       | "LAP_Se_TimedWait", [delay; r] ->
-          add_action (TimedWait (eval_int delay))
+        add_action (TimedWait (eval_int delay))
       | "LAP_Se_PeriodicWait", [r] ->
-          add_action PeriodicWait
-    (* Errors *)
+        add_action PeriodicWait
+      (* Errors *)
       | "LAP_Se_CreateErrorHandler", [entry_point; stack_size; r] ->
-          begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
+        begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
           | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-              let pid = get_pid pname_ErrorHandler in
-              let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst |> List.unique in
-              let spawn f =
-                let f_d pre = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* int64 -> D.t *)
-                add_process (f,f_d)
-              in
-              List.iter spawn funs;
-              add_actions (List.map (fun f -> CreateErrorHandler ((Process, pname_ErrorHandler), f)) funs)
+            let pid = get_pid pname_ErrorHandler in
+            let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst |> List.unique in
+            let spawn f =
+              let f_d pre = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* int64 -> D.t *)
+              add_process (f,f_d)
+            in
+            List.iter spawn funs;
+            add_actions (List.map (fun f -> CreateErrorHandler ((Process, pname_ErrorHandler), f)) funs)
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
-          end
+        end
       | "LAP_Se_GetErrorStatus", [status; r] -> todo ()
       | "LAP_Se_RaiseApplicationError", [error_code; message_addr; length; r] -> todo ()
-    (* Not allowed: change configured schedule *)
+      (* Not allowed: change configured schedule *)
       | "LAP_Se_SetPriority", [pid; prio; r] -> todo ()
       | "LAP_Se_Replenish", [budget; r] -> todo () (* name used in docs *)
       | "LAP_Se_ReplenishAperiodic", [budget; r] -> todo () (* name used in stdapi.c *)
@@ -619,13 +619,13 @@ struct
   let query ctx (q:Queries.t) : Queries.Result.t =
     let d = ctx.local in
     match q with
-      | Queries.Priority _ ->
-          if Pri.is_int d.pri then
-            `Int (Option.get @@ Pri.to_int d.pri)
-          else if Pri.is_top d.pri then `Top else `Bot
-      | Queries.IsPublic _ ->
-          `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo)))
-      | _ -> Queries.Result.top ()
+    | Queries.Priority _ ->
+      if Pri.is_int d.pri then
+        `Int (Option.get @@ Pri.to_int d.pri)
+      else if Pri.is_top d.pri then `Top else `Bot
+    | Queries.IsPublic _ ->
+      `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo)))
+    | _ -> Queries.Result.top ()
 
   let finalize () =
     ArincUtil.print_actions ();

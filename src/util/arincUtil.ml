@@ -86,7 +86,7 @@ let return_vars = (Hashtbl.create 100 : (id * [`Read | `Write], string Set.t) Ha
 let add_return_var pid kind var = Hashtbl.modify_def Set.empty (pid, kind) (Set.add var) return_vars
 let get_return_vars pid kind =
   if fst pid <> Process then failwith "get_return_vars: tried to get var for Function, but vars are saved Process!" else
-  Hashtbl.find_default return_vars (pid, kind) Set.empty
+    Hashtbl.find_default return_vars (pid, kind) Set.empty
 let decl_return_vars xs = Set.elements xs |> List.map (fun vname -> "mtype " ^ vname ^ ";")
 let is_global vname = startsWith "G" vname
 let get_locals pid = Set.union (get_return_vars pid `Read) (get_return_vars pid `Write) |> Set.filter (neg is_global) |> decl_return_vars
@@ -116,11 +116,11 @@ let str_funs fs = "["^(List.map str_fun fs |> String.concat ", ")^"]"
 let str_resource id =
   match id with
   | Process, "mainfun" ->
-      "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
+    "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
   | Process, name ->
-      name^"/"^str_funs @@ funs_for_process id
+    name^"/"^str_funs @@ funs_for_process id
   | resource_type, name ->
-      name
+    name
 let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]"
 let str_action pid = function
   | Nop -> "Nop"
@@ -131,7 +131,7 @@ let str_action pid = function
   | UnlockPreemption -> "UnlockPreemption"
   | SetPartitionMode i -> "SetPartitionMode "^string_of_partition_mode i
   | CreateProcess x ->
-      Action.("CreateProcess "^str_resource x.pid^" (fun "^str_fun x.f^", prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")")
+    Action.("CreateProcess "^str_resource x.pid^" (fun "^str_fun x.f^", prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")")
   | CreateErrorHandler (id, funs) -> "CreateErrorHandler "^str_resource id
   | Start id -> "Start "^str_resource id
   | Stop id when id=pid -> "StopSelf"
@@ -144,7 +144,7 @@ let str_action pid = function
   | ReadBlackboard (id, timeout) -> "ReadBlackboard "^str_resource id^" (timeout "^str_time timeout^")"
   | ClearBlackboard id -> "ClearBlackboard "^str_resource id
   | CreateSemaphore x ->
-      Action.("CreateSemaphore "^str_resource x.sid^" ("^str_i64 x.cur^"/"^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^")")
+    Action.("CreateSemaphore "^str_resource x.sid^" ("^str_i64 x.cur^"/"^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^")")
   | WaitSemaphore id -> "WaitSemaphore "^str_resource id
   | SignalSemaphore id -> "SignalSemaphore "^str_resource id
   | CreateEvent id -> "CreateEvent "^str_resource id
@@ -173,22 +173,22 @@ let unset_ret_vars = ref Set.empty
 let str_action_pml pid = function
   | Nop -> "tmp = 0;"
   | Cond (r, cond) ->
-      (* if the return var that is branched on was never set, we warn about it at the end and just leave out the condition, which leads to non-det. branching, i.e. the same behaviour as if it was set to top *)
-      if not @@ Set.mem r (get_return_vars pid `Write) then (
-        unset_ret_vars := Set.add r !unset_ret_vars; ""
-      ) else if cond = "true" then "" else cond ^ " -> "
+    (* if the return var that is branched on was never set, we warn about it at the end and just leave out the condition, which leads to non-det. branching, i.e. the same behaviour as if it was set to top *)
+    if not @@ Set.mem r (get_return_vars pid `Write) then (
+      unset_ret_vars := Set.add r !unset_ret_vars; ""
+    ) else if cond = "true" then "" else cond ^ " -> "
   | Assign (lhs, rhs) -> (* for function parameters this is callee = caller *)
-      (* if the lhs is never read, we don't need to do anything *)
-      if not @@ Set.mem lhs (get_return_vars pid `Read) then ""
-      else lhs^" = "^rhs^";"
+    (* if the lhs is never read, we don't need to do anything *)
+    if not @@ Set.mem lhs (get_return_vars pid `Read) then ""
+    else lhs^" = "^rhs^";"
   | Call fname ->
-      (* we shouldn't have calls to functions without edges! *)
-      if Hashtbl.mem !edges (Function, fname) then "goto Fun_"^fname^";" else failwith @@ "call to undefined function " ^ fname
+    (* we shouldn't have calls to functions without edges! *)
+    if Hashtbl.mem !edges (Function, fname) then "goto Fun_"^fname^";" else failwith @@ "call to undefined function " ^ fname
   | LockPreemption -> "LockPreemption();"
   | UnlockPreemption -> "UnlockPreemption();"
   | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
   | CreateProcess x ->
-      Action.("CreateProcess("^str_id_pml x.pid^", "^str_i64 x.pri^", "^str_i64 x.per^", "^str_i64 x.cap^"); /* "^str_resource x.pid^" (prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^") */")
+    Action.("CreateProcess("^str_id_pml x.pid^", "^str_i64 x.pri^", "^str_i64 x.per^", "^str_i64 x.cap^"); /* "^str_resource x.pid^" (prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^") */")
   | CreateErrorHandler (id, f) -> "CreateErrorHandler("^str_id_pml id^");"
   | Start id -> "Start("^str_id_pml id^");"
   | Stop id -> "Stop("^str_id_pml id^");"
@@ -199,7 +199,7 @@ let str_action_pml pid = function
   | ReadBlackboard (id, timeout) -> "ReadBlackboard("^str_id_pml id^");"
   | ClearBlackboard id -> "ClearBlackboard("^str_id_pml id^");"
   | CreateSemaphore x ->
-      Action.("CreateSemaphore("^str_id_pml x.sid^", "^str_i64 x.cur^", "^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^");")
+    Action.("CreateSemaphore("^str_id_pml x.sid^", "^str_i64 x.cur^", "^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^");")
   | WaitSemaphore id -> "WaitSemaphore("^str_id_pml id^");"
   | SignalSemaphore id -> "SignalSemaphore("^str_id_pml id^");"
   | CreateEvent id -> "CreateEvent("^str_id_pml id^");"
@@ -231,11 +231,11 @@ let simplify () =
   in
   let merge ((res,name),_) xs =
     if res = Process then failwith "There should be no processes with duplicate content!" else
-    (* replace calls to the other functions with calls to name and remove them *)
-    List.iter (fun (k,_) ->
-      replace_call (snd k) name;
-      Hashtbl.remove_all !edges k
-    ) xs
+      (* replace calls to the other functions with calls to name and remove them *)
+      List.iter (fun (k,_) ->
+          replace_call (snd k) name;
+          Hashtbl.remove_all !edges k
+        ) xs
   in
   List.iter (uncurry merge) dups;
   (* contract call chains: replace functions which only contain another call *)
@@ -243,9 +243,9 @@ let simplify () =
     let single_calls = Hashtbl.filter_map (fun (res,_) v -> match Set.choose v with _, Call name, _, _ when Set.cardinal v = 1 && res = Function -> Some (Function, name) | _ -> None) !edges in
     let last_calls = Hashtbl.filteri (fun k v -> not @@ Hashtbl.mem single_calls v) single_calls in
     Hashtbl.iter (fun k v ->
-      replace_call (snd k) (snd v);
-      Hashtbl.remove_all !edges k
-    ) last_calls;
+        replace_call (snd k) (snd v);
+        Hashtbl.remove_all !edges k
+      ) last_calls;
     if Hashtbl.length single_calls > 0 then contract_call_chains ()
   in contract_call_chains ()
 
@@ -311,62 +311,62 @@ let save_promela_model () =
   let called_funs_done = ref Set.empty in
   let rec process_def id =
     if fst id = Function && Set.mem (snd id) !called_funs_done then [] else (* if we already generated code for this function, we just return [] *)
-    let iid = id_pml id in (* id is type*name, iid is int64 (starting from 0 for each type of resource) *)
-    let spid = str_pid_pml id in (* string for id (either Function or Process) *)
-    (* set the name of the current process (this function is also run for functions, which need a reference to the process for checking branching on return vars) *)
-    if fst id = Process then current_pname := snd id;
-    (* for a process we start with no called functions, for a function we add its name *)
-    called_funs_done := if fst id = Process then Set.empty else Set.add (snd id) !called_funs_done;
-    (* build adjacency matrix for all nodes of this process *)
-    let module HashtblN = Hashtbl.Make (ArincDomain.Pred.Base) in
-    let a2bs = HashtblN.create 97 in
-    Set.iter (fun (a, _, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
-    let nodes = HashtblN.keys a2bs |> List.of_enum in
-    (* let get_a (a,_,_) = a in *)
-    let get_b (_,_,_,b) = b in
-    (* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (* Set.empty leads to Out_of_memory!? *) *)
-    let out_edges node = try HashtblN.find a2bs node |> Set.elements with Not_found -> [] in
-    let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
-    let start_node = List.find (List.is_empty % in_edges) nodes in (* node with no incoming edges is the start node *)
-    (* let str_nodes xs = "{"^(List.map string_of_node xs |> String.concat ",")^"}" in *)
-    let label n = spid ^ "_" ^ string_of_node n in
-    let end_label = spid ^ "_end" in
-    let goto node = "goto " ^ label node in
-    let called_funs = ref [] in
-    let str_edge (a, action, r, b) =
-      let target_label = if List.is_empty (out_edges b) then end_label else label b in
-      let mark = match action with
-        | Call fname ->
+      let iid = id_pml id in (* id is type*name, iid is int64 (starting from 0 for each type of resource) *)
+      let spid = str_pid_pml id in (* string for id (either Function or Process) *)
+      (* set the name of the current process (this function is also run for functions, which need a reference to the process for checking branching on return vars) *)
+      if fst id = Process then current_pname := snd id;
+      (* for a process we start with no called functions, for a function we add its name *)
+      called_funs_done := if fst id = Process then Set.empty else Set.add (snd id) !called_funs_done;
+      (* build adjacency matrix for all nodes of this process *)
+      let module HashtblN = Hashtbl.Make (ArincDomain.Pred.Base) in
+      let a2bs = HashtblN.create 97 in
+      Set.iter (fun (a, _, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
+      let nodes = HashtblN.keys a2bs |> List.of_enum in
+      (* let get_a (a,_,_) = a in *)
+      let get_b (_,_,_,b) = b in
+      (* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (* Set.empty leads to Out_of_memory!? *) *)
+      let out_edges node = try HashtblN.find a2bs node |> Set.elements with Not_found -> [] in
+      let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
+      let start_node = List.find (List.is_empty % in_edges) nodes in (* node with no incoming edges is the start node *)
+      (* let str_nodes xs = "{"^(List.map string_of_node xs |> String.concat ",")^"}" in *)
+      let label n = spid ^ "_" ^ string_of_node n in
+      let end_label = spid ^ "_end" in
+      let goto node = "goto " ^ label node in
+      let called_funs = ref [] in
+      let str_edge (a, action, r, b) =
+        let target_label = if List.is_empty (out_edges b) then end_label else label b in
+        let mark = match action with
+          | Call fname ->
             called_funs := fname :: !called_funs;
             let pc = string_of_int @@ FunTbl.get (fname,target_label) in "mark("^pc^"); "
-        | _ -> ""
+          | _ -> ""
+        in
+        (* for function calls the goto will never be reached since the function's return will already jump to that label; however it's nice to see where the program will continue at the site of the call. *)
+        mark ^ str_return_code_pml (Process, !current_pname) (str_action_pml (Process, !current_pname) action) r ^ " goto " ^ target_label
       in
-      (* for function calls the goto will never be reached since the function's return will already jump to that label; however it's nice to see where the program will continue at the site of the call. *)
-      mark ^ str_return_code_pml (Process, !current_pname) (str_action_pml (Process, !current_pname) action) r ^ " goto " ^ target_label
-    in
-    let choice xs = List.map (fun x -> "::\t"^x ) xs in (* choices in if-statements are prefixed with :: *)
-    let walk_edges (a, out_edges) =
-      let edges = Set.elements out_edges |> List.map str_edge in
-      (label a ^ ":") ::
-      if List.length edges > 1 then
-        "if" :: (choice edges) @ ["fi"]
-      else
-        edges
-    in
-    let locals = if not @@ GobConfig.get_bool "ana.arinc.assume_success" && fst id = Process then get_locals id else [] in
-    let body = locals @ goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if fst id = Process then " status[id] = DONE" else " ret_"^snd id^"()"] in
-    let head = match id with
-      | Process, name ->
+      let choice xs = List.map (fun x -> "::\t"^x ) xs in (* choices in if-statements are prefixed with :: *)
+      let walk_edges (a, out_edges) =
+        let edges = Set.elements out_edges |> List.map str_edge in
+        (label a ^ ":") ::
+        if List.length edges > 1 then
+          "if" :: (choice edges) @ ["fi"]
+        else
+          edges
+      in
+      let locals = if not @@ GobConfig.get_bool "ana.arinc.assume_success" && fst id = Process then get_locals id else [] in
+      let body = locals @ goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if fst id = Process then " status[id] = DONE" else " ret_"^snd id^"()"] in
+      let head = match id with
+        | Process, name ->
           let proc = find_option (fun x -> x.pid=id) procs in (* None for mainfun *)
           let priority = match proc with Some proc -> " priority "^str_i64 proc.pri | _ -> "" in
           "proctype "^name^"(byte id)"^priority^" provided (canRun("^str_i64 iid^") PRIO"^str_i64 iid^") {\nint stack[20]; int sp = -1;"
-      | Function, name ->
+        | Function, name ->
           "Fun_"^name^":"
-      | _ -> failwith "Only Process and Function are allowed as keys for collecting ARINC actions"
-    in
-    let called_fun_ids = List.map (fun fname -> Function, fname) !called_funs in
-    let funs = flat_map process_def called_fun_ids in
-    "" :: head :: List.map indent body @ funs @ [if fst id = Process then "}" else ""]
+        | _ -> failwith "Only Process and Function are allowed as keys for collecting ARINC actions"
+      in
+      let called_fun_ids = List.map (fun fname -> Function, fname) !called_funs in
+      let funs = flat_map process_def called_fun_ids in
+      "" :: head :: List.map indent body @ funs @ [if fst id = Process then "}" else ""]
   in
   (* used for macros oneIs, allAre, noneAre... *)
   let checkStatus = "(" ^ (String.concat " op2 " @@ List.of_enum @@ (0 --^ nproc) /@ (fun i -> "status["^string_of_int i^"] op1 v")) ^ ")" in
@@ -387,10 +387,10 @@ let save_promela_model () =
   let fun_mappings =
     let fun_map xs =
       if List.is_empty xs then [] else
-      let (name,_),_ = List.hd xs in
-      let entries = xs |> List.map (fun ((_,k),v) -> "\t:: (stack[sp] == " ^ string_of_int v ^ ") -> sp--; goto " ^ k ^" \\") in
-      let debug_str = if GobConfig.get_bool "ana.arinc.debug_pml" then "\t:: else -> printf(\"wrong pc on stack!\"); assert(false) " else "" in
-      ("#define ret_"^name^"() if \\") :: entries @ [debug_str ^ "fi"]
+        let (name,_),_ = List.hd xs in
+        let entries = xs |> List.map (fun ((_,k),v) -> "\t:: (stack[sp] == " ^ string_of_int v ^ ") -> sp--; goto " ^ k ^" \\") in
+        let debug_str = if GobConfig.get_bool "ana.arinc.debug_pml" then "\t:: else -> printf(\"wrong pc on stack!\"); assert(false) " else "" in
+        ("#define ret_"^name^"() if \\") :: entries @ [debug_str ^ "fi"]
     in
     FunTbl.to_list () |> List.group (compareBy (fst%fst)) |> flat_map fun_map
   in
@@ -402,9 +402,9 @@ let save_promela_model () =
     ("#define checkStatus(op1, v, op2) "^checkStatus) :: "" ::
     "#include \"arinc.base.pml\"" :: "" ::
     "init {" :: List.map indent init_body @ "}" :: "" ::
-    (List.of_enum @@ (0 --^ nproc) /@ (fun i -> "#define PRIO" ^ string_of_int i)) @
+                                            (List.of_enum @@ (0 --^ nproc) /@ (fun i -> "#define PRIO" ^ string_of_int i)) @
     "#ifdef PRIOS" :: prios @ "#endif" ::
-    "" :: fun_mappings @
+                              "" :: fun_mappings @
     "" :: get_globals () @
     process_defs
   in

@@ -12,7 +12,7 @@ struct
   let find_default (map,_) key def = try H.find map key with Not_found -> def
   let copy (map,def) = (H.copy map, def)  (* NB! maybe default should be copied? *)
 
-   (* and this is inheritance???   *)
+  (* and this is inheritance???   *)
   let lift f (map,_) = f map
   let clear x = lift H.clear x
   let add x k = lift H.add x k
@@ -25,41 +25,41 @@ struct
 end
 
 module type S =
-  sig
-    type key
-    type 'a t
-    val create: int -> 'a -> 'a t
-    val clear: 'a t -> unit
-    val copy: 'a t -> 'a t
-    val add: 'a t -> key -> 'a -> unit
-    val remove: 'a t -> key -> unit
-    val find: 'a t -> key -> 'a
-    val find_all: 'a t -> key -> 'a list
-    val replace : 'a t -> key -> 'a -> unit
-    val mem : 'a t -> key -> bool
-    val iter: (key -> 'a -> unit) -> 'a t -> unit
-    val fold: (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
-    val length: 'a t -> int
-  end
+sig
+  type key
+  type 'a t
+  val create: int -> 'a -> 'a t
+  val clear: 'a t -> unit
+  val copy: 'a t -> 'a t
+  val add: 'a t -> key -> 'a -> unit
+  val remove: 'a t -> key -> unit
+  val find: 'a t -> key -> 'a
+  val find_all: 'a t -> key -> 'a list
+  val replace : 'a t -> key -> 'a -> unit
+  val mem : 'a t -> key -> bool
+  val iter: (key -> 'a -> unit) -> 'a t -> unit
+  val fold: (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+  val length: 'a t -> int
+end
 
 module type H =
-  sig
-    type key
-    type 'a t
-    val create: int -> 'a t
-    val clear: 'a t -> unit
-    val copy: 'a t -> 'a t
-    val add: 'a t -> key -> 'a -> unit
-    val remove: 'a t -> key -> unit
-    val find: 'a t -> key -> 'a
-    val find_default: 'a t -> key -> 'a -> 'a
-    val find_all: 'a t -> key -> 'a list
-    val replace : 'a t -> key -> 'a -> unit
-    val mem : 'a t -> key -> bool
-    val iter: (key -> 'a -> unit) -> 'a t -> unit
-    val fold: (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
-    val length: 'a t -> int
-  end
+sig
+  type key
+  type 'a t
+  val create: int -> 'a t
+  val clear: 'a t -> unit
+  val copy: 'a t -> 'a t
+  val add: 'a t -> key -> 'a -> unit
+  val remove: 'a t -> key -> unit
+  val find: 'a t -> key -> 'a
+  val find_default: 'a t -> key -> 'a -> 'a
+  val find_all: 'a t -> key -> 'a list
+  val replace : 'a t -> key -> 'a -> unit
+  val mem : 'a t -> key -> bool
+  val iter: (key -> 'a -> unit) -> 'a t -> unit
+  val fold: (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+  val length: 'a t -> int
+end
 
 module type SP =
 sig
@@ -114,38 +114,38 @@ struct
   let toXML_f sf mapping =
     let f (key,st) =
       match Domain.toXML key with
-        | Xml.Element ("Loc",attr,[]) ->
-            Xml.Element ("Loc", attr, [Range.toXML st])
-        | Xml.Element ("Leaf",attr,[]) ->
-      	    let summary =
-      	      let w = Goblintutil.summary_length - 4 in
-      	      let key_str = Domain.short w key in
-      	      let st_str  = Range.short (w - String.length key_str) st in
-      		      key_str ^ " -> " ^ st_str
-            in
-            let attr = [("text", summary)] in begin
-              match Range.toXML st with
-                | Xml.Element (_, chattr, children) ->
-                    if Range.isSimple st then Xml.Element ("Leaf", attr, [])
-                    else Xml.Element ("Node", attr, children)
-                | x -> x
-            end
-        | _ -> Xml.Element ("Node", [("text","map")], [Domain.toXML key; Range.toXML st])
+      | Xml.Element ("Loc",attr,[]) ->
+        Xml.Element ("Loc", attr, [Range.toXML st])
+      | Xml.Element ("Leaf",attr,[]) ->
+        let summary =
+          let w = Goblintutil.summary_length - 4 in
+          let key_str = Domain.short w key in
+          let st_str  = Range.short (w - String.length key_str) st in
+          key_str ^ " -> " ^ st_str
+        in
+        let attr = [("text", summary)] in begin
+          match Range.toXML st with
+          | Xml.Element (_, chattr, children) ->
+            if Range.isSimple st then Xml.Element ("Leaf", attr, [])
+            else Xml.Element ("Node", attr, children)
+          | x -> x
+        end
+      | _ -> Xml.Element ("Node", [("text","map")], [Domain.toXML key; Range.toXML st])
     in
     let assoclist = fold (fun x y rest -> (x,y)::rest) mapping [] in
-      (* let default = Xml.Element ("Default", [], [Range.toXML defval]) in *)
+    (* let default = Xml.Element ("Default", [], [Range.toXML defval]) in *)
     let children = List.rev_map f assoclist in
-      Xml.Element ("Node", [("text", sf Goblintutil.summary_length mapping)], children)
+    Xml.Element ("Node", [("text", sf Goblintutil.summary_length mapping)], children)
 
   open Pretty
   let pretty_f _ () mapping =
     let f key st dok =
       dok ++ (if Range.isSimple st then dprintf "%a -> @[%a@]\n" else
-        dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
+                dprintf "%a -> \n  @[%a@]\n") Domain.pretty key Range.pretty st
     in
     let content () = fold f mapping nil in
     let defline () = dprintf "OTHERS -> Not available\n" in
-      dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
+    dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
 
   let pretty () x = pretty_f short () x
   let toXML m = toXML_f short m

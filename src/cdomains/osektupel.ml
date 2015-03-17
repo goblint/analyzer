@@ -5,10 +5,10 @@ include Printable.Blank
 include Lattice.StdCousot
 
 (* lowest priority obtained over:
-1st component = critical region (between first and last variable access)
-2nd component = first access till end of function
-3rd component = beginning of function till last variable access
-4th component = over whole function
+   1st component = critical region (between first and last variable access)
+   2nd component = first access till end of function
+   3rd component = beginning of function till last variable access
+   4th component = over whole function
 *)
 
 
@@ -21,7 +21,7 @@ let hash (a,b,c,d) =
   let b' = match b with Bot -> -1 | Val b'' -> b'' in
   let c' = match c with Bot -> -1 | Val c'' -> c'' in
   let d' = match d with Bot -> -1 | Val d'' -> d'' in
-    a' lxor b' lxor c' lxor d'
+  a' lxor b' lxor c' lxor d'
 
 let equal (a1,a2,a3,a4) (b1,b2,b3,b4) = a1=b1&&a2=b2&&a3=b3&&a4=b4
 
@@ -37,7 +37,7 @@ let short _ (a,b,c,d) =
   let b' = match b with Bot -> "bot" | Val b'' -> string_of_int b'' in
   let c' = match c with Bot -> "bot" | Val c'' -> string_of_int c'' in
   let d' = match d with Bot -> "bot" | Val d'' -> string_of_int d'' in
-    "("^a'^", "^b'^", "^c'^", "^d'^")"
+  "("^a'^", "^b'^", "^c'^", "^d'^")"
 
 let pretty_f _ _ x = Pretty.text (short 0 x)
 let toXML_f _ x = Xml.Element ("Leaf", [("text", short 0 x)],[])
@@ -70,7 +70,7 @@ let meet (a1,a2,a3,a4) (b1,b2,b3,b4) = (max_t' a1 b1 ,max_t' a2 b2 ,max_t' a3 b3
 
 (* composition operator  (b \fcon a) *)
 let fcon (a1,a2,a3,a4) (b1,b2,b3,b4) =  match (a2,b2) with
-    | (Bot,Bot) -> (a1,           a2,           a3,           min_t' a4 b4 )
-    | (Bot,_)  	-> (b1,           b2,           min_t' a4 b3 ,min_t' a4 b4 )
-    | (_,Bot)  	-> (a1,        	  min_t' a2 b4 ,a3,           min_t' a4 b4 )
-    | _       	-> (min_t' a2 b3 ,min_t' a2 b4 ,min_t' a4 b3 ,min_t' a4 b4 )
+  | (Bot,Bot) -> (a1,           a2,           a3,           min_t' a4 b4 )
+  | (Bot,_)  	-> (b1,           b2,           min_t' a4 b3 ,min_t' a4 b4 )
+  | (_,Bot)  	-> (a1,        	  min_t' a2 b4 ,a3,           min_t' a4 b4 )
+  | _       	-> (min_t' a2 b3 ,min_t' a2 b4 ,min_t' a4 b3 ,min_t' a4 b4 )

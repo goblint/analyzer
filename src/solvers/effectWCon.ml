@@ -7,9 +7,9 @@ open Pretty
 module GU = Goblintutil
 
 module Make2
-  (S:Analyses.GlobConstrSys)
-  (LH:Hash.H with type key=S.LVar.t)
-  (GH:Hash.H with type key=S.GVar.t) =
+    (S:Analyses.GlobConstrSys)
+    (LH:Hash.H with type key=S.LVar.t)
+    (GH:Hash.H with type key=S.GVar.t) =
 struct
   open S
   include Generic.SolverInteractiveWGlob (S) (LH) (GH)
@@ -38,7 +38,7 @@ struct
         if notnew x then
           let temp = lh_find_default todo x [] in
           let _ = LH.remove todo x in
-            temp
+          temp
         else begin
           new_var_event x;
           LH.add sigma x (D.bot ());
@@ -53,31 +53,31 @@ struct
               let oldstate = lh_find_default sigma v (D.bot ()) in
               begin if not (LH.mem sigma v) then constrainOneVar v end;
               let compls = D.join oldstate state in
-                if not (D.leq compls oldstate) then begin
-                  let lst = lh_find_default vInfl v [] in
-                  update_var_event_local sigma theta x oldstate state;
-                  LH.replace sigma v compls;
-                  unsafe := lst @ !unsafe;
-                  LH.remove vInfl v
-                end
+              if not (D.leq compls oldstate) then begin
+                let lst = lh_find_default vInfl v [] in
+                update_var_event_local sigma theta x oldstate state;
+                LH.replace sigma v compls;
+                unsafe := lst @ !unsafe;
+                LH.remove vInfl v
+              end
           in
           let global_side g gstate =
             if not ( G.leq gstate (G.bot ()) ) then
               if tracing then tracel "theta" "Value of \"%a\" is non-bottom: %a\n" GVar.pretty_trace g G.pretty_diff (gstate, G.bot ());
-              let oldgstate = gh_find_default theta g (G.bot ()) in
-              let compgs = G.join oldgstate gstate in
-                if not (G.leq compgs oldgstate) then begin
-                  let lst = gh_find_default gInfl g [] in
-                  update_var_event_global sigma theta g oldgstate compgs;
-                  if tracing then tracel "theta" "Replacing value of variable \"%a\" in globals.\n" GVar.pretty_trace g;
-                  GH.replace theta g compgs;
-                  unsafe := lst @ !unsafe;
-                  GH.remove gInfl g
-                end
+            let oldgstate = gh_find_default theta g (G.bot ()) in
+            let compgs = G.join oldgstate gstate in
+            if not (G.leq compgs oldgstate) then begin
+              let lst = gh_find_default gInfl g [] in
+              update_var_event_global sigma theta g oldgstate compgs;
+              if tracing then tracel "theta" "Replacing value of variable \"%a\" in globals.\n" GVar.pretty_trace g;
+              GH.replace theta g compgs;
+              unsafe := lst @ !unsafe;
+              GH.remove gInfl g
+            end
           in
           eval_rhs_event x i;
           let nls = f (vEval ((x,f),i)) local_side (gEval ((x,f),i)) global_side in
-            local_state := D.join !local_state nls
+          local_state := D.join !local_state nls
         in
         List.iter constrainOneRHS rhsides;
         let old_state = lh_find_default sigma x (D.bot ()) in
@@ -91,9 +91,9 @@ struct
             LH.replace todo y (cons_unique snd (f,i) (lh_find_default todo y []));
             influenced_vars := y :: !influenced_vars
           in
-            List.iter collectInfluence (lh_find_default vInfl x []);
-            LH.remove vInfl x;
-            List.iter constrainOneVar !influenced_vars
+          List.iter collectInfluence (lh_find_default vInfl x []);
+          LH.remove vInfl x;
+          List.iter constrainOneVar !influenced_vars
         end
       end
     and vEval c var =
@@ -111,32 +111,32 @@ struct
       GH.find theta glob
 
     in
-      start_event ();
-      interact_init ();
-      GU.may_narrow := false;
-      let add_start (v,d) =
-        incr Goblintutil.vars;
-        LH.add sigma v d;
-        update_var_event_local sigma theta v (D.bot ()) d;
-        let edges = fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system v) ([],0)) in
-        LH.add todo v edges;
-        workset := v :: !workset
+    start_event ();
+    interact_init ();
+    GU.may_narrow := false;
+    let add_start (v,d) =
+      incr Goblintutil.vars;
+      LH.add sigma v d;
+      update_var_event_local sigma theta v (D.bot ()) d;
+      let edges = fst (List.fold_right (fun x (xs,i) -> (x,i)::xs, i+1) (system v) ([],0)) in
+      LH.add todo v edges;
+      workset := v :: !workset
+    in
+    List.iter add_start sl;
+    List.iter (fun (v,g) -> GH.add theta v g) sg;
+    while not ([] = !workset) do
+      List.iter constrainOneVar !workset;
+      workset := [];
+      let recallConstraint ((y,f),i) =
+        LH.replace todo y (cons_unique snd (f,i) (lh_find_default todo y []));
+        workset := y :: !workset;
       in
-      List.iter add_start sl;
-      List.iter (fun (v,g) -> GH.add theta v g) sg;
-      while not ([] = !workset) do
-        List.iter constrainOneVar !workset;
-        workset := [];
-        let recallConstraint ((y,f),i) =
-          LH.replace todo y (cons_unique snd (f,i) (lh_find_default todo y []));
-          workset := y :: !workset;
-        in
-          List.iter recallConstraint !unsafe;
-          unsafe := []
-      done;
-      done_event sigma theta;
-      stop_event ();
-      (sigma, theta)
+      List.iter recallConstraint !unsafe;
+      unsafe := []
+    done;
+    done_event sigma theta;
+    stop_event ();
+    (sigma, theta)
 end
 
 module Make2GGS : Analyses.GenericGlobSolver = Make2

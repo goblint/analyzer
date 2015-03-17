@@ -39,15 +39,15 @@ struct
     let thread = Obj.obj (List.assoc "thread-id-location" ctx.presub) in
     let maylocks = Obj.obj (List.assoc "maylocks" ctx.presub) in
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
-      | `Lock (failing, rw), _ when add_access ctx.local maylocks thread ->
-          if add_gatelock ctx.local maylocks thread then begin
-            let nd = MSpec.special ctx None f [AddrOf (Var gate_var, NoOffset)] in
-            let nd = MSpec.assign (swap_st ctx nd) (Var extra_var, NoOffset) one in
-            let nd = MSpec.special (swap_st ctx nd) None fake_unlock [AddrOf (Var gate_var, NoOffset)] in
-              MSpec.special (swap_st ctx nd) lval f arglist
-          end else
-            MSpec.assign ctx (Var extra_var, NoOffset) one
-      | _ -> MSpec.special ctx lval f arglist
+    | `Lock (failing, rw), _ when add_access ctx.local maylocks thread ->
+      if add_gatelock ctx.local maylocks thread then begin
+        let nd = MSpec.special ctx None f [AddrOf (Var gate_var, NoOffset)] in
+        let nd = MSpec.assign (swap_st ctx nd) (Var extra_var, NoOffset) one in
+        let nd = MSpec.special (swap_st ctx nd) None fake_unlock [AddrOf (Var gate_var, NoOffset)] in
+        MSpec.special (swap_st ctx nd) lval f arglist
+      end else
+        MSpec.assign ctx (Var extra_var, NoOffset) one
+    | _ -> MSpec.special ctx lval f arglist
 
   let startstate v = MSpec.startstate v
   let otherstate v = MSpec.otherstate v

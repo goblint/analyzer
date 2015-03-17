@@ -24,8 +24,8 @@ let get_heap_var loc =
   with Not_found ->
     let name = "(alloc@" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
     let newvar = makeGlobalVar name voidType in
-      Hashtbl.add heap_hash loc newvar;
-      newvar
+    Hashtbl.add heap_hash loc newvar;
+    newvar
 
 module Glob =
 struct

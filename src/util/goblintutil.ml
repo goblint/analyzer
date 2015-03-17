@@ -59,7 +59,7 @@ let jsonFiles : string list ref = ref []
 let multi_threaded = ref false
 
 (** Tells the spec that result may still get smaller (on narrowing).
-   If this is false we can output messages and collect accesses. *)
+    If this is false we can output messages and collect accesses. *)
 let may_narrow = ref true
 
 (** hack to use a special integer to denote synchronized array-based locking *)
@@ -80,15 +80,15 @@ let type_inv_tbl = Hashtbl.create 13
 let type_inv (c:compinfo) : varinfo =
   try Hashtbl.find type_inv_tbl c.ckey
   with Not_found ->
-      let i = makeGlobalVar ("{struct "^c.cname^"}") (TComp (c,[])) in
-      Hashtbl.add type_inv_tbl c.ckey i;
-      i
+    let i = makeGlobalVar ("{struct "^c.cname^"}") (TComp (c,[])) in
+    Hashtbl.add type_inv_tbl c.ckey i;
+    i
 
 let is_blessed (t:typ): varinfo option =
   let me_gusta x = List.mem x (List.map string (get_list "exp.unique")) in
   match unrollType t with
-    | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
-    | _ -> (None : varinfo option)
+  | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
+  | _ -> (None : varinfo option)
 
 
 (** Length of summary description in XML output *)
@@ -105,11 +105,11 @@ let escape (x:string):string =
   let esc_2 = Str.global_replace (Str.regexp "<") "&lt;" esc_1 in
   let esc_3 = Str.global_replace (Str.regexp ">") "&gt;" esc_2 in
   let esc_4 = Str.global_replace (Str.regexp "\"") "&quot;" esc_3 in
-    esc_4
+  esc_4
 
 let trim (x:string): string =
   let len = String.length x in
-    if x.[len-1] = ' ' then String.sub x 0 (len-1) else x
+  if x.[len-1] = ' ' then String.sub x 0 (len-1) else x
 
 
 (** Creates a directory and returns the absolute path **)
@@ -128,29 +128,29 @@ let create_dir name =
         raise ex
       end
   in
-    dirName
+  dirName
 
 (** Remove directory and its content, as "rm -rf" would do. *)
 let rm_rf path =
   let rec f path =
     if Sys.is_directory path then begin
       let files = Array.map (Filename.concat path) (Sys.readdir path) in
-        Array.iter f files;
-        Unix.rmdir path
+      Array.iter f files;
+      Unix.rmdir path
     end else
       Sys.remove path
   in
-    f path
+  f path
 
 type name =
-   | Cons
-   | Dest
-   | Name     of string
-   | Unknown  of string
-   | Template of name
-   | Nested   of name * name
-   | PtrTo    of name
-   | TypeFun  of string * name
+  | Cons
+  | Dest
+  | Name     of string
+  | Unknown  of string
+  | Template of name
+  | Nested   of name * name
+  | PtrTo    of name
+  | TypeFun  of string * name
 
 let rec name_to_string_hlp = function
   | Cons -> "constructor"
@@ -169,7 +169,7 @@ let rec name_to_string_hlp = function
 let prefix = Str.regexp "^::.*"
 
 let name_to_string x =
-	name_to_string_hlp x
+  name_to_string_hlp x
 
 let rec show = function
   | Cons -> "Cons"
@@ -259,9 +259,9 @@ let op_name x =
     | "at"  -> "alignof" (* alignof (a type) *)
     | "az"  -> "alignof" (* alignof (an expression) *)
     | x -> x
-  (*   | "cv" <type> -> "(cast)" (* (cast)         *)
-    | "v" <digit> <source-name> -> "vendor" (* vendor extended operator *)
-  *)
+    (*   | "cv" <type> -> "(cast)" (* (cast)         *)
+         | "v" <digit> <source-name> -> "vendor" (* vendor extended operator *)
+    *)
   in
   let on = op_name x in
   if on = x then x else "operator" ^ on
@@ -269,15 +269,15 @@ let op_name x =
 let rec num_p x : name list * string =
   if Str.string_match num_prefix x 0
   then let n = int_of_string (Str.matched_group 1 x) in
-       let t = Str.matched_group 2 x in
-       let r = drop n t in
-       let xs, r = num_p r in
-       (Name (take n t) :: xs), r
+    let t = Str.matched_group 2 x in
+    let r = drop n t in
+    let xs, r = num_p r in
+    (Name (take n t) :: xs), r
   else if Str.string_match templ x 0
   then let nn = Str.string_after x (Str.match_end ()) in
-       let t,_ = conv (Str.matched_group 1 x) in
-       let xs, r = num_p nn in
-       (Template t::xs), r
+    let t,_ = conv (Str.matched_group 1 x) in
+    let xs, r = num_p nn in
+    (Template t::xs), r
   else if Str.string_match const x 0
   then num_p (Str.string_after x (Str.match_end ()))
   else if Str.string_match constructor x 0
@@ -291,7 +291,7 @@ let rec num_p x : name list * string =
 and conv x : name * string =
   if Str.string_match num_prefix x 0
   then let n = int_of_string (Str.matched_group 1 x) in
-        Name (take n (Str.matched_group 2 x)), drop n (Str.matched_group 2 x)
+    Name (take n (Str.matched_group 2 x)), drop n (Str.matched_group 2 x)
   else if Str.string_match ti_prefix x 0
   then appp (fun x -> TypeFun ("typeinfo", x)) (conv (Str.matched_group 1 x))
   else if Str.string_match tv_prefix x 0
@@ -302,32 +302,32 @@ and conv x : name * string =
   then appp (fun x -> TypeFun ("VTT", x)) (conv (Str.matched_group 1 x))
   else if Str.string_match templ x 0
   then let x,y = conv (Str.matched_group 1 x) in
-        appp (fun z -> Nested (Template x, z)) (conv (drop 1 y))
+    appp (fun z -> Nested (Template x, z)) (conv (drop 1 y))
 
   else if Str.string_match nested_std_a x 0 then
-		let ps, r = num_p ("9allocator"^(Str.matched_group 1 x)) in
-        match List.rev ps with
-          | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
-                       Nested (Name "std",fst r),snd r
-          | _ -> Unknown x, r
+    let ps, r = num_p ("9allocator"^(Str.matched_group 1 x)) in
+    match List.rev ps with
+    | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
+      Nested (Name "std",fst r),snd r
+    | _ -> Unknown x, r
   else if Str.string_match nested_std_s x 0
   then let ps, r = num_p ("6string"^(Str.matched_group 1 x)) in
-        match List.rev ps with
-          | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
-                       Nested (Name "std",fst r),snd r
-          | _ -> Unknown x, r
+    match List.rev ps with
+    | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
+      Nested (Name "std",fst r),snd r
+    | _ -> Unknown x, r
   else if Str.string_match nested_std_t x 0
   then let ps, r = num_p (Str.matched_group 1 x) in
-        match List.rev ps with
-          | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
-					   Nested (Name "std",fst r),snd r
-          | _ -> Unknown x, r
+    match List.rev ps with
+    | p::ps -> let r = List.fold_left (fun xs x -> Nested (x,xs)) p ps, r in
+      Nested (Name "std",fst r),snd r
+    | _ -> Unknown x, r
 
   else if Str.string_match nested x 0
   then let ps, r = num_p (Str.matched_group 1 x) in
-        match List.rev ps with
-          | p::ps -> List.fold_left (fun xs x -> Nested (x,xs)) p ps, r
-          | _ -> Unknown x, r
+    match List.rev ps with
+    | p::ps -> List.fold_left (fun xs x -> Nested (x,xs)) p ps, r
+    | _ -> Unknown x, r
   else if Str.string_match ptr_to x 0
   then appp (fun x -> PtrTo x) (conv (Str.matched_group 1 x))
   else if Str.string_match constructor x 0
@@ -351,14 +351,14 @@ let to_name x =
 let get_class x : string option =
   let rec git tf : name -> string option = function
     | Cons | Dest | Unknown _ | PtrTo _ | Template _ -> None
-		| Name x when tf -> Some x
-		| Name _ -> None
+    | Name x when tf -> Some x
+    | Name _ -> None
     | TypeFun (x,y) -> git true y (*vtables don't have a function name*)
     | Nested (x,y) ->
       begin match git tf y with
         | None ->
-					if not tf then begin match x with Name x -> Some x | _ -> None  end
-					else begin match y with | Name s -> Some s | _ -> None end
+          if not tf then begin match x with Name x -> Some x | _ -> None  end
+          else begin match y with | Name s -> Some s | _ -> None end
         | x -> x
       end
   in
@@ -379,13 +379,13 @@ let get_class_and_name x : (string * string) option =
 
 let demangle x =
   let y = to_name x in
-(*   Printf.printf "%s -> %s -> %s\n" x (show y) (name_to_string y);   *)
+  (*   Printf.printf "%s -> %s -> %s\n" x (show y) (name_to_string y);   *)
   let res=name_to_string y in
   if res="??" then x else res
 
 let set_timer tsecs =
   ignore (Unix.setitimer Unix.ITIMER_REAL
-                         { Unix.it_interval = 0.0; Unix.it_value = tsecs })
+            { Unix.it_interval = 0.0; Unix.it_value = tsecs })
 
 exception Timeout
 
@@ -405,14 +405,14 @@ let evals = ref 0
 
 let scrambled = try Sys.getenv "scrambled" = "true" with Not_found -> false
 (* typedef struct {
-  PROCESS_NAME_TYPE      NAME;
-  SYSTEM_ADDRESS_TYPE    ENTRY_POINT;
-  STACK_SIZE_TYPE        STACK_SIZE;
-  PRIORITY_TYPE          BASE_PRIORITY;
-  SYSTEM_TIME_TYPE       PERIOD;
-  SYSTEM_TIME_TYPE       TIME_CAPACITY;
-  DEADLINE_TYPE          DEADLINE;
-}                        PROCESS_ATTRIBUTE_TYPE; *)
+   PROCESS_NAME_TYPE      NAME;
+   SYSTEM_ADDRESS_TYPE    ENTRY_POINT;
+   STACK_SIZE_TYPE        STACK_SIZE;
+   PRIORITY_TYPE          BASE_PRIORITY;
+   SYSTEM_TIME_TYPE       PERIOD;
+   SYSTEM_TIME_TYPE       TIME_CAPACITY;
+   DEADLINE_TYPE          DEADLINE;
+   }                        PROCESS_ATTRIBUTE_TYPE; *)
 let arinc_name          = if scrambled then "M161" else "NAME"
 let arinc_entry_point   = if scrambled then "M162" else "ENTRY_POINT"
 let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"

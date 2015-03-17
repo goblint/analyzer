@@ -36,9 +36,9 @@ struct
 
   let hash x =
     match x with
-      | MyCFG.Statement     s -> Hashtbl.hash (s.sid, 0)
-      | MyCFG.Function      f -> Hashtbl.hash (f.vid, 1)
-      | MyCFG.FunctionEntry f -> Hashtbl.hash (f.vid, 2)
+    | MyCFG.Statement     s -> Hashtbl.hash (s.sid, 0)
+    | MyCFG.Function      f -> Hashtbl.hash (f.vid, 1)
+    | MyCFG.FunctionEntry f -> Hashtbl.hash (f.vid, 2)
 
   let equal = MyCFG.Node.equal
 
@@ -46,21 +46,21 @@ struct
 
   let pretty () x =
     match x with
-      | MyCFG.Statement     s -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
-      | MyCFG.Function      f -> dprintf "call of %s" f.vname
-      | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
+    | MyCFG.Statement     s -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
+    | MyCFG.Function      f -> dprintf "call of %s" f.vname
+    | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
 
   let pretty_trace () x =  dprintf "%a on %a \n" pretty x Basetype.ProgLines.pretty (getLocation x)
 
   let compare n1 n2 =
     match n1, n2 with
-      | MyCFG.FunctionEntry f, MyCFG.FunctionEntry g -> compare f.vid g.vid
-      | _                    , MyCFG.FunctionEntry g -> -1
-      | MyCFG.FunctionEntry g, _                     -> 1
-      | MyCFG.Statement _, MyCFG.Function _  -> -1
-      | MyCFG.Function  _, MyCFG.Statement _ -> 1
-      | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
-      | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
+    | MyCFG.FunctionEntry f, MyCFG.FunctionEntry g -> compare f.vid g.vid
+    | _                    , MyCFG.FunctionEntry g -> -1
+    | MyCFG.FunctionEntry g, _                     -> 1
+    | MyCFG.Statement _, MyCFG.Function _  -> -1
+    | MyCFG.Function  _, MyCFG.Statement _ -> 1
+    | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
+    | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
 
   let kind = function
     | MyCFG.Function f                         -> `ExitOfProc f
@@ -70,18 +70,18 @@ struct
   let printXml f n =
     let id ch n =
       match n with
-        | MyCFG.Statement s     -> BatPrintf.fprintf ch "%d" s.sid
-        | MyCFG.Function f      -> BatPrintf.fprintf ch "ret%d" f.vid
-        | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.vid
+      | MyCFG.Statement s     -> BatPrintf.fprintf ch "%d" s.sid
+      | MyCFG.Function f      -> BatPrintf.fprintf ch "ret%d" f.vid
+      | MyCFG.FunctionEntry f -> BatPrintf.fprintf ch "fun%d" f.vid
     in
     let l = MyCFG.getLoc n in
     BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\">\n" id n l.file (MyCFG.getFun n).svar.vname l.line l.byte
 
   let var_id n =
     match n with
-      | MyCFG.Statement s     -> string_of_int s.sid
-      | MyCFG.Function f      -> "ret" ^ string_of_int f.vid
-      | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.vid
+    | MyCFG.Statement s     -> string_of_int s.sid
+    | MyCFG.Function f      -> "ret" ^ string_of_int f.vid
+    | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.vid
 
   let line_nr n = (MyCFG.getLoc n).line
   let file_name n = (MyCFG.getLoc n).file
@@ -103,9 +103,9 @@ struct
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
   let hash x =
     match x with
-      | (MyCFG.Statement     s,d) -> hashmul (LD.hash d) (s.sid*17)
-      | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.vid*19)
-      | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.vid*23)
+    | (MyCFG.Statement     s,d) -> hashmul (LD.hash d) (s.sid*17)
+    | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.vid*19)
+    | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.vid*23)
 
   let equal (n1,d1) (n2,d2) = MyCFG.Node.equal n1 n2 && LD.equal d1 d2
 
@@ -113,19 +113,19 @@ struct
 
   let pretty () x =
     match x with
-      | (MyCFG.Statement     s,d) -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
-      | (MyCFG.Function      f,d) -> dprintf "call of %s" f.vname
-      | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.vname
+    | (MyCFG.Statement     s,d) -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
+    | (MyCFG.Function      f,d) -> dprintf "call of %s" f.vname
+    | (MyCFG.FunctionEntry f,d) -> dprintf "entry state of %s" f.vname
 
   let pretty_trace () x =
     match x with
-      | ((*MyCFG.FunctionEntry f*)_,d) -> dprintf "%a" pretty x
-(*       | _ -> dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x) *)
+    | ((*MyCFG.FunctionEntry f*)_,d) -> dprintf "%a" pretty x
+  (*       | _ -> dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x) *)
 
 
   let compare (n1,d1) (n2,d2) =
     let comp =
-    match n1, n2 with
+      match n1, n2 with
       | MyCFG.FunctionEntry f, MyCFG.FunctionEntry g -> compare f.vid g.vid
       | _                    , MyCFG.FunctionEntry g -> -1
       | MyCFG.FunctionEntry g, _                     -> 1
@@ -157,9 +157,9 @@ struct
 
   let hash (n,l) =
     match n with
-      | MyCFG.Statement s -> Hashtbl.hash (l, s.sid, 0)
-      | MyCFG.Function f -> Hashtbl.hash (l, f.vid, 1)
-      | MyCFG.FunctionEntry f -> Hashtbl.hash (l, f.vid, 2)
+    | MyCFG.Statement s -> Hashtbl.hash (l, s.sid, 0)
+    | MyCFG.Function f -> Hashtbl.hash (l, f.vid, 1)
+    | MyCFG.FunctionEntry f -> Hashtbl.hash (l, f.vid, 2)
 
   let equal (n1,d1) (n2,d2) =
     MyCFG.Node.equal n1 n2 && compareLoc d1 d1 = 0
@@ -168,9 +168,9 @@ struct
 
   let pretty () (n,d) =
     match n with
-      | MyCFG.Statement s -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
-      | MyCFG.Function f -> dprintf "call of %s" f.vname
-      | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
+    | MyCFG.Statement s -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
+    | MyCFG.Function f -> dprintf "call of %s" f.vname
+    | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
 
   let pretty_trace () x =
     dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
@@ -181,27 +181,27 @@ struct
   type t = MyCFG.node * MyCFG.edge * MyCFG.node
   let rec list_eq eq xs ys =
     match xs, ys with
-      | [], [] -> true
-      | x::xs, y::ys when eq x y -> list_eq eq xs ys
-      | _ -> false
+    | [], [] -> true
+    | x::xs, y::ys when eq x y -> list_eq eq xs ys
+    | _ -> false
 
   let eq_lval l1 l2 = Util.equals (Lval l1) (Lval l2)
 
   open MyCFG
   let eq_edge e1 e2 =
     match e1, e2 with
-      | Assign (l1,e1), Assign (l2,e2) -> Util.equals e1 e2 && eq_lval l1 l2
-      | Proc (Some l1, e1, es1), Proc (Some l2, e2, es2) -> eq_lval l1 l2 && Util.equals e1 e2 && list_eq Util.equals es1 es2
-      | Proc (None, e1, es1), Proc (None, e2, es2) -> Util.equals e1 e2 && list_eq Util.equals es1 es2
-      | Entry f1, Entry f2 -> f1.svar.vid = f2.svar.vid
-      | Ret (Some e1,f1), Ret (Some e2,f2)-> Util.equals e1 e2 && f1.svar.vid = f2.svar.vid
-      | Ret (None,f1), Ret (None,f2) -> f1.svar.vid = f2.svar.vid
-      | Test (e1,b1), Test (e2,b2) -> b1 = b2 && Util.equals e1 e2
-      | ASM (s1,o1,i1), ASM (s2,o2,i2) -> s1 = s2
-      | Skip, Skip -> true
-      | SelfLoop, SelfLoop -> true
-      | _ -> false
-	let equal (f1,e1,t1) (f2,e2,t2) = MyCFG.Node.equal f1 f2 && MyCFG.Node.equal t1 t2 && eq_edge e1 e2
+    | Assign (l1,e1), Assign (l2,e2) -> Util.equals e1 e2 && eq_lval l1 l2
+    | Proc (Some l1, e1, es1), Proc (Some l2, e2, es2) -> eq_lval l1 l2 && Util.equals e1 e2 && list_eq Util.equals es1 es2
+    | Proc (None, e1, es1), Proc (None, e2, es2) -> Util.equals e1 e2 && list_eq Util.equals es1 es2
+    | Entry f1, Entry f2 -> f1.svar.vid = f2.svar.vid
+    | Ret (Some e1,f1), Ret (Some e2,f2)-> Util.equals e1 e2 && f1.svar.vid = f2.svar.vid
+    | Ret (None,f1), Ret (None,f2) -> f1.svar.vid = f2.svar.vid
+    | Test (e1,b1), Test (e2,b2) -> b1 = b2 && Util.equals e1 e2
+    | ASM (s1,o1,i1), ASM (s2,o2,i2) -> s1 = s2
+    | Skip, Skip -> true
+    | SelfLoop, SelfLoop -> true
+    | _ -> false
+  let equal (f1,e1,t1) (f2,e2,t2) = MyCFG.Node.equal f1 f2 && MyCFG.Node.equal t1 t2 && eq_edge e1 e2
   let hash (f,e,t) = MyCFG.Node.hash f lxor MyCFG.Node.hash t
 end
 
@@ -212,21 +212,21 @@ exception Deadcode
 module Dom (LD: Lattice.S) =
 struct
   include Lattice.Lift (LD) (struct
-                               let bot_name = "Dead code"
-                               let top_name = "Totally unknown and messed up"
-                             end)
+      let bot_name = "Dead code"
+      let top_name = "Totally unknown and messed up"
+    end)
 
   let lift (x:LD.t) : t = `Lifted x
 
   let unlift x =
     match x with
-      | `Lifted x -> x
-      | _ -> raise Deadcode
+    | `Lifted x -> x
+    | _ -> raise Deadcode
 
   let lifted f x =
     match x with
-      | `Lifted x -> `Lifted (f x)
-      | tb -> tb
+    | `Lifted x -> `Lifted (f x)
+    | tb -> tb
 
   let printXml f = function
     | `Top -> BatPrintf.fprintf f "<value>%s</value>" (Goblintutil.escape top_name)
@@ -274,27 +274,27 @@ struct
     let full_result = toXML x in
     let fatten_maps  (o:xml list) (x:xml) :xml list =
       match x with
-        | Xml.Element (_,_,child) -> child @ o
-      	| z -> z::o in
+      | Xml.Element (_,_,child) -> child @ o
+      | z -> z::o in
 
     let group_loc_ch x =
       match x with
-      	| Xml.Element ("Loc",b,c) -> Xml.Element ("Loc",b,List.fold_left fatten_maps [] c)
-      	| z -> z in
+      | Xml.Element ("Loc",b,c) -> Xml.Element ("Loc",b,List.fold_left fatten_maps [] c)
+      | z -> z in
 
     match full_result with
-      | Xml.Element (_,_,child) ->
-          Xml.Element (result_name, [("name", "Who cares?")],
-		       List.map group_loc_ch child)
-      | _ -> failwith "Empty analysis?"
+    | Xml.Element (_,_,child) ->
+      Xml.Element (result_name, [("name", "Who cares?")],
+                   List.map group_loc_ch child)
+    | _ -> failwith "Empty analysis?"
 
   let resultXML x = toXML x
 
   let printXml f xs =
     let print_id f = function
-        | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-        | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
-        | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
+      | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
+      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
+      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
     in
     let print_one (loc,n,fd) v =
       BatPrintf.fprintf f "<call id=\"%a\" file=\"%s\" line=\"%d\" order=\"%d\">\n" print_id n loc.file loc.line loc.byte;
@@ -330,60 +330,60 @@ struct
     GU.result_regexp := (Str.regexp (!GU.result_filter));
     let out = Messages.get_out result_name !GU.out in
     match get_string "result" with
-      | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
-      | "indented" -> begin
-          Xmldump.print_fmt out (resultXML (Lazy.force table));
-          output_char out '\n'
-        end
-      | "compact" -> begin
-          if (get_bool "dbg.verbose") then Printf.printf "Converting to xml.%!";
-          let xml = resultXML (Lazy.force table) in
-          if (get_bool "dbg.verbose") then Printf.printf "Printing the result.%!";
-          Xmldump.print out xml;
-          output_char out '\n'
-        end
-      | "html" ->
-          Htmldump.print_html out (resultXML (Lazy.force table)) file (lazy ((gtxml gtable) :: []))
-      | "fast_xml" ->
-          let module SH = BatHashtbl.Make (Basetype.RawStrings) in
-          let file2funs = SH.create 100 in
-          let funs2node = SH.create 100 in
-          iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
-          iterGlobals file (function
-              | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
-              | _ -> ()
-          );
-          let p_node f = function
-              | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
-              | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
-              | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
-          in
-          let p_nodes f xs =
-            List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
-          in
-          let p_funs f xs =
-            let one_fun n =
-              BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node n)
-            in
-            List.iter one_fun xs
-          in
-          let write_file f fn =
-            Messages.xml_file_name := fn;
-            BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
-            BatPrintf.fprintf f "<run><parameters>%a</parameters><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
-            BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (SH.keys file2funs);
-            BatPrintf.fprintf f "%a" printXml (Lazy.force table);
-            gtfxml f gtable;
-            printXmlWarning f ();
-            BatPrintf.fprintf f "</result></run>\n";
-            BatPrintf.fprintf f "%!"
-          in
-          if get_bool "g2html" then
-            BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
-          else
-            let f = BatIO.output_channel out in
-            write_file f (get_string "outfile")
-      | _ -> ()
+    | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
+    | "indented" -> begin
+        Xmldump.print_fmt out (resultXML (Lazy.force table));
+        output_char out '\n'
+      end
+    | "compact" -> begin
+        if (get_bool "dbg.verbose") then Printf.printf "Converting to xml.%!";
+        let xml = resultXML (Lazy.force table) in
+        if (get_bool "dbg.verbose") then Printf.printf "Printing the result.%!";
+        Xmldump.print out xml;
+        output_char out '\n'
+      end
+    | "html" ->
+      Htmldump.print_html out (resultXML (Lazy.force table)) file (lazy ((gtxml gtable) :: []))
+    | "fast_xml" ->
+      let module SH = BatHashtbl.Make (Basetype.RawStrings) in
+      let file2funs = SH.create 100 in
+      let funs2node = SH.create 100 in
+      iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iterGlobals file (function
+          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
+          | _ -> ()
+        );
+      let p_node f = function
+        | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
+        | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
+        | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
+      in
+      let p_nodes f xs =
+        List.iter (BatPrintf.fprintf f "<node name=\"%a\"/>\n" p_node) xs
+      in
+      let p_funs f xs =
+        let one_fun n =
+          BatPrintf.fprintf f "<function name=\"%s\">\n%a</function>\n" n p_nodes (SH.find_all funs2node n)
+        in
+        List.iter one_fun xs
+      in
+      let write_file f fn =
+        Messages.xml_file_name := fn;
+        BatPrintf.printf "Writing xml to temp. file: %s\n%!" fn;
+        BatPrintf.fprintf f "<run><parameters>%a</parameters><result>\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+        BatEnum.iter (fun b -> BatPrintf.fprintf f "<file name=\"%s\" path=\"%s\">\n%a</file>\n" (Filename.basename b) b p_funs (SH.find_all file2funs b)) (SH.keys file2funs);
+        BatPrintf.fprintf f "%a" printXml (Lazy.force table);
+        gtfxml f gtable;
+        printXmlWarning f ();
+        BatPrintf.fprintf f "</result></run>\n";
+        BatPrintf.fprintf f "%!"
+      in
+      if get_bool "g2html" then
+        BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
+      else
+        let f = BatIO.output_channel out in
+        write_file f (get_string "outfile")
+    | _ -> ()
 end
 
 module ComposeResults (R1: Printable.S) (R2: Printable.S) (C: ResultConf) =
@@ -398,40 +398,40 @@ struct
     let hash = create 113 in
     let f k v = add hash k (`Left v) in
     let g k v = add hash k (`Right v) in
-      H1.iter f h1;
-      H2.iter g h2;
-      hash
+    H1.iter f h1;
+    H2.iter g h2;
+    hash
 end
 
 
 (* Experiment to reduce the number of arguments on transfer functions and allow
-  sub-analyses. The list sub contains the current local states of analyses in
-  the same order as writen in the dependencies list (in MCP).
+   sub-analyses. The list sub contains the current local states of analyses in
+   the same order as writen in the dependencies list (in MCP).
 
-  The foreign states when calling special_fn or enter are joined if the foreign
-  analysis tries to be path-sensitive in these functions. First try to only
-  depend on simple analyses.
+   The foreign states when calling special_fn or enter are joined if the foreign
+   analysis tries to be path-sensitive in these functions. First try to only
+   depend on simple analyses.
 
-  It is not clear if we need pre-states, post-states or both on foreign analyses.
- *)
+   It is not clear if we need pre-states, post-states or both on foreign analyses.
+*)
 type ('d,'g) ctx =
-    { ask      : Queries.t -> Queries.Result.t
-    ; local    : 'd
-    ; global   : varinfo -> 'g
-    ; presub   : (string * Obj.t) list
-    ; postsub  : (string * Obj.t) list
-    ; spawn    : varinfo -> 'd -> unit
-    ; split    : 'd -> exp -> bool -> unit
-    ; sideg    : varinfo -> 'g -> unit
-    ; assign   : ?name:string -> lval -> exp -> unit
-    }
+  { ask      : Queries.t -> Queries.Result.t
+  ; local    : 'd
+  ; global   : varinfo -> 'g
+  ; presub   : (string * Obj.t) list
+  ; postsub  : (string * Obj.t) list
+  ; spawn    : varinfo -> 'd -> unit
+  ; split    : 'd -> exp -> bool -> unit
+  ; sideg    : varinfo -> 'g -> unit
+  ; assign   : ?name:string -> lval -> exp -> unit
+  }
 
 let swap_st ctx st =
   {ctx with local=st}
 
 let set_st_gl ctx st gl spawn_tr eff_tr split_tr =
   {ctx with local=st; global=gl; spawn=spawn_tr ctx.spawn; sideg=eff_tr ctx.sideg;
-  split=split_tr ctx.split}
+            split=split_tr ctx.split}
 
 
 module type Spec =
@@ -509,32 +509,32 @@ end
 module type GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key=S.v) ->
-sig
-  (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-      reached from starting values [xs].  *)
-  val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
-end
+  sig
+    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs].  *)
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
+  end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericIneqBoxSolver =
   functor (S: IneqConstrSys) ->
   functor (H:Hash.H with type key=S.v) ->
-sig
-  (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-      reached from starting values [xs].  *)
-  val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
-end
+  sig
+    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs].  *)
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
+  end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericGlobSolver =
   functor (S:GlobConstrSys) ->
   functor (LH:Hash.H with type key=S.LVar.t) ->
   functor (GH:Hash.H with type key=S.GVar.t) ->
-sig
-  (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-      reached from starting values [xs].  *)
-  val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> S.D.t LH.t * S.G.t GH.t
-end
+  sig
+    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs].  *)
+    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> S.D.t LH.t * S.G.t GH.t
+  end
 
 module ResultType2 (S:Spec) =
 struct
@@ -547,13 +547,13 @@ struct
     let flatten_single = function
       | Element (_,_,[x]) | x ->  x in
     let try_replace_text s = function
-    	| Element (tag, attr, children) -> Element (tag, ["text", s], children)
-    	| x -> x
+      | Element (tag, attr, children) -> Element (tag, ["text", s], children)
+      | x -> x
     in
     let esc = Goblintutil.escape in
     let ctx = try_replace_text "Context" (flatten_single (C.toXML es)) in
     let res = try_replace_text "Value" (flatten_single (D.toXML x)) in
-      Element ("Node",["text",esc (short 80 st)],[ctx;res])
+    Element ("Node",["text",esc (short 80 st)],[ctx;res])
   let pretty () (_,x,_) = D.pretty () x
   let printXml f (c,d,fd) =
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d

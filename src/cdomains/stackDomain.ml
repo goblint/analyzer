@@ -17,16 +17,16 @@ struct
 
   let rec fold_left2 f a b xs ys =
     match xs, ys with
-      | [], _ | _, [] -> a
-      | x::xs, y::ys ->
-    try fold_left2 f (f a x y) b xs ys with
+    | [], _ | _, [] -> a
+    | x::xs, y::ys ->
+      try fold_left2 f (f a x y) b xs ys with
       | Lattice.Unsupported _ -> b
 
   let rec take n xs =
     match n, xs with
-      | _, [] -> []
-      | 0, _  -> []
-      | n, x::xs -> x :: take (n-1) xs
+    | _, [] -> []
+    | 0, _  -> []
+    | n, x::xs -> x :: take (n-1) xs
 
   module VarLat = Lattice.Fake (Basetype.Variables)
 
@@ -38,7 +38,7 @@ struct
 
   let rec leq (x:t) (y:t) =
     if List.length x < List.length y then false else
-    let f acc x y = Var.leq x y && acc in
+      let f acc x y = Var.leq x y && acc in
       fold_left2 f true false x y
 
   let join x y = map2 Var.join x y

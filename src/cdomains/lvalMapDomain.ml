@@ -62,11 +62,11 @@ sig
 end
 
 module Value (Impl: sig
-                type s (* state *)
-                val name: string
-                val var_state: s
-                val string_of_state: s -> string
-              end) : S with type s = Impl.s =
+    type s (* state *)
+    val name: string
+    val var_state: s
+    val string_of_state: s -> string
+  end) : S with type s = Impl.s =
 struct
   type k = Lval.CilLval.t
   type s = Impl.s

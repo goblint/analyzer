@@ -37,10 +37,10 @@ struct
       f loc.line ^ "b" ^ f loc.byte
     let short w n = string_of_node n
     include Printable.PrintSimple (struct
-      type t' = t
-      let name () = "predecessors"
-      let short = short
-    end)
+        type t' = t
+        let name () = "predecessors"
+        let short = short
+      end)
   end
   include SetDomain.Make (Base)
   let of_node : Base.t -> t = singleton
@@ -60,14 +60,14 @@ struct
   (* printing *)
   let short w x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; pred=%s; ctx=%s }" (Pid.short 3 x.pid) (Pri.short 3 x.pri) (Per.short 3 x.per) (Cap.short 3 x.cap) (Pmo.short 3 x.pmo) (PrE.short 3 x.pre) (Pretty.sprint 200 (Pred.pretty () x.pred)) (Ctx.short 50 x.ctx)
   include Printable.PrintSimple (struct
-    type t' = t
-    let name () = "ARINC state"
-    let short = short
-  end)
+      type t' = t
+      let name () = "ARINC state"
+      let short = short
+    end)
   let toXML_f sf d =
     let replace_top name = function
-        | Xml.Element (node, [text, n], elems) -> Xml.Element (node, [text, name ^ n], elems)
-        | x -> x
+      | Xml.Element (node, [text, n], elems) -> Xml.Element (node, [text, name ^ n], elems)
+      | x -> x
     in
     let elems = [ replace_top "PID: "   @@ Pid.toXML  d.pid
                 ; replace_top "Priority: "  @@ Pri.toXML d.pri

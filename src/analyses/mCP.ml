@@ -52,7 +52,7 @@ module PrintableOfLatticeSpec (D:DomainListLatticeSpec) : DomainListPrintableSpe
 struct
   let assoc_dom n =
     let f (module L:Lattice.S) = (module L : Printable.S)
-  in
+    in
     f (D.assoc_dom n)
 
   let domain_list () =
@@ -63,8 +63,8 @@ end
 exception DomListBroken of string
 
 module DomListPrintable (DLSpec : DomainListPrintableSpec)
-(*  : Printable.S with type t = (string * unknown) list *)
-  =
+  (*  : Printable.S with type t = (string * unknown) list *)
+=
 struct
   open DLSpec
   open List
@@ -82,11 +82,11 @@ struct
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
     let xs = unop_fold f [] x in
     match xs with
-      | [] -> text "[]"
-      | x :: [] -> x
-      | x :: y ->
-        let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
-        text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
+    | [] -> text "[]"
+    | x :: [] -> x
+    | x :: y ->
+      let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
+      text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 
   let short w x =
     let w2 = let n = List.length x in if n=0 then w else w / n in
@@ -100,8 +100,8 @@ struct
       f a n (assoc_dom n) d1 d2
     in
     try if length x <> length y
-        then raise (DomListBroken "binop_fold : differing lengths")
-        else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
+      then raise (DomListBroken "binop_fold : differing lengths")
+      else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
     with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
 
   let binop_map_rev (f: (module Printable.S) -> Obj.t -> Obj.t -> Obj.t) =
@@ -121,7 +121,7 @@ struct
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.toXML (obj x) :: a) [] x in
     let esc = Goblintutil.escape in
     let node_leaf = if xs = [] then "Leaf" else "Node" in
-      Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length x))], xs)
+    Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length x))], xs)
 
   let toXML = toXML_f short
 
@@ -143,7 +143,7 @@ let _ =
 
 module DomListLattice (DLSpec : DomainListLatticeSpec)
   : Lattice.S with type t = (int * unknown) list
-  =
+=
 struct
   open DLSpec
   open List
@@ -156,8 +156,8 @@ struct
       f a n (assoc_dom n) d1 d2
     in
     try if length x <> length y
-        then raise (DomListBroken "binop_fold : differing lengths")
-        else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
+      then raise (DomListBroken "binop_fold : differing lengths")
+      else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
     with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
 
   let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) x y =
@@ -212,9 +212,9 @@ struct
 end
 
 module MCP2 : Analyses.Spec
-    with module D = DomListLattice (LocalDomainListSpec)
-     and module G = DomListLattice (GlobalDomainListSpec)
-     and module C = DomListPrintable (ContextListSpec) =
+  with module D = DomListLattice (LocalDomainListSpec)
+   and module G = DomListLattice (GlobalDomainListSpec)
+   and module C = DomListPrintable (ContextListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
   module G = DomListLattice (GlobalDomainListSpec)
@@ -264,18 +264,18 @@ struct
     in
     let xs = map Json.string @@ get_list "ana.activated" in
     let xs = map' (flip assoc_inv !analyses_table) xs in
-      base_id := assoc_inv "base" !analyses_table;
-      analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
-      path_sens := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.path_sens";
-      cont_inse := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.ctx_insens";
-      dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
-      check_deps !analyses_list;
-      analyses_list := topo_sort_an !analyses_list;
-      (*iter (fun (x,y) -> Printf.printf "%s -> %a\n"  (flip assoc !analyses_table x) (List.print (fun f -> String.print f % flip assoc !analyses_table)) y) !dep_list_trans;
+    base_id := assoc_inv "base" !analyses_table;
+    analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
+    path_sens := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.path_sens";
+    cont_inse := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.ctx_insens";
+    dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
+    check_deps !analyses_list;
+    analyses_list := topo_sort_an !analyses_list;
+    (*iter (fun (x,y) -> Printf.printf "%s -> %a\n"  (flip assoc !analyses_table x) (List.print (fun f -> String.print f % flip assoc !analyses_table)) y) !dep_list_trans;
       Printf.printf "\n";
       iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) !analyses_list;
       Printf.printf "\n";*)
-      iter (fun (_,{spec=(module S:Spec)}) -> S.init ()) !analyses_list
+    iter (fun (_,{spec=(module S:Spec)}) -> S.init ()) !analyses_list
 
   let finalize () = iter (fun (_,{spec=(module S:Spec)}) -> S.finalize ()) !analyses_list
 
@@ -294,7 +294,7 @@ struct
   let context x =
     let x = filter (fun (x,_) -> not (mem x !cont_inse)) x in
     let x = spec_list x in
-      map (fun (n,(module S:Spec),d) -> n, repr @@ S.context (obj d)) x
+    map (fun (n,(module S:Spec),d) -> n, repr @@ S.context (obj d)) x
 
   let should_join x y =
     let xs = filter (fun (x,_) -> mem x !path_sens) x in
@@ -318,9 +318,9 @@ struct
   (** [assoc_split_eq (=) 1 [(1,a);(1,b);(2,x)] = ([a,b],[(2,x)])] *)
   let assoc_split_eq (=) (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
     let rec f a b = function
-       | [] -> a, b
-       | (k',v)::xs when k=k' -> f (v::a) b xs
-       | x::xs -> f a (x::b) xs
+      | [] -> a, b
+      | (k',v)::xs when k=k' -> f (v::a) b xs
+      | x::xs -> f a (x::b) xs
     in
     f [] [] xs
 
@@ -372,24 +372,24 @@ struct
   let do_assigns ctx assigns (xs:(int * Obj.t) list) =
     if List.is_empty assigns then xs (* nothing to do *)
     else
-    let spec_assign n d : Obj.t =
-      (* spec of current analysis *)
-      let (module S:Spec) = spec n in
-      let assign_one d (lval, exp, name, ctx) =
-        match name with
-        | Some x when x <> spec_name n -> obj d (* do nothing if current spec name is filtered out *)
-        | _ ->
-          let ctx' = {(obj ctx) with local = obj d} in
-          S.assign ctx' lval exp
+      let spec_assign n d : Obj.t =
+        (* spec of current analysis *)
+        let (module S:Spec) = spec n in
+        let assign_one d (lval, exp, name, ctx) =
+          match name with
+          | Some x when x <> spec_name n -> obj d (* do nothing if current spec name is filtered out *)
+          | _ ->
+            let ctx' = {(obj ctx) with local = obj d} in
+            S.assign ctx' lval exp
+        in
+        let comp2 f g a b = f (g a) (g b) in
+        let compareBy f = comp2 Pervasives.compare f in
+        let get_lval (lval, exp, name, ctx) = lval in
+        (* group by assigns on the same lval -> only those must be joined *)
+        List.group (compareBy get_lval) assigns
+        |> List.fold_left (fun d xs -> List.map (assign_one d) xs |> List.reduce S.D.join |> repr) d
       in
-      let comp2 f g a b = f (g a) (g b) in
-      let compareBy f = comp2 Pervasives.compare f in
-      let get_lval (lval, exp, name, ctx) = lval in
-      (* group by assigns on the same lval -> only those must be joined *)
-      List.group (compareBy get_lval) assigns
-      |> List.fold_left (fun d xs -> List.map (assign_one d) xs |> List.reduce S.D.join |> repr) d
-    in
-    List.map (fun (n,d) -> n, spec_assign n d) xs
+      List.map (fun (n,d) -> n, spec_assign n d) xs
 
   let rec do_splits ctx pv (xs:(int * (Obj.t * exp * bool)) list) =
     let split_one n (d,e,tv) =
@@ -420,11 +420,11 @@ struct
       n, repr @@ S.branch ctx' e tv
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      do_spawns ctx !spawns;
-      do_splits ctx d !splits;
-      let d = do_assigns ctx !assigns d in
-      if q then raise Deadcode else d
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits;
+    let d = do_assigns ctx !assigns d in
+    if q then raise Deadcode else d
 
   and query (ctx:(D.t, G.t) ctx) q =
     let sides  = ref [] in
@@ -443,16 +443,16 @@ struct
       in
       Queries.Result.meet a @@ S.query ctx' q
     in
-      let x = fold_left f `Top @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      x
+    let x = fold_left f `Top @@ spec_list ctx.local in
+    do_sideg ctx !sides;
+    x
 
   let query ctx q =
     match q with
-      | Queries.PrintFullState ->
-        ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-        `Bot
-      | _ -> query ctx q
+    | Queries.PrintFullState ->
+      ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
+      `Bot
+    | _ -> query ctx q
 
 
   let assign (ctx:(D.t, G.t) ctx) l e =
@@ -475,10 +475,10 @@ struct
       n, repr @@ S.assign ctx' l e
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      do_spawns ctx !spawns;
-      do_splits ctx d !splits;
-      if q then raise Deadcode else d
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits;
+    if q then raise Deadcode else d
 
   let body (ctx:(D.t, G.t) ctx) f =
     let spawns = ref [] in
@@ -501,11 +501,11 @@ struct
       n, repr @@ S.body ctx' f
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      do_spawns ctx !spawns;
-      do_splits ctx d !splits;
-      let d = do_assigns ctx !assigns d in
-      if q then raise Deadcode else d
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits;
+    let d = do_assigns ctx !assigns d in
+    if q then raise Deadcode else d
 
   let return (ctx:(D.t, G.t) ctx) e f =
     let spawns = ref [] in
@@ -528,11 +528,11 @@ struct
       n, repr @@ S.return ctx' e f
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      do_spawns ctx !spawns;
-      do_splits ctx d !splits;
-      let d = do_assigns ctx !assigns d in
-      if q then raise Deadcode else d
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits;
+    let d = do_assigns ctx !assigns d in
+    if q then raise Deadcode else d
 
   let intrpt (ctx:(D.t, G.t) ctx) =
     let spawns = ref [] in
@@ -555,11 +555,11 @@ struct
       n, repr @@ S.intrpt ctx'
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      do_spawns ctx !spawns;
-      do_splits ctx d !splits;
-      let d = do_assigns ctx !assigns d in
-      if q then raise Deadcode else d
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits;
+    let d = do_assigns ctx !assigns d in
+    if q then raise Deadcode else d
 
   let special (ctx:(D.t, G.t) ctx) r f a =
     let spawns = ref [] in
@@ -582,11 +582,11 @@ struct
       n, repr @@ S.special ctx' r f a
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      do_spawns ctx !spawns;
-      do_splits ctx d !splits;
-      let d = do_assigns ctx !assigns d in
-      if q then raise Deadcode else d
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits;
+    let d = do_assigns ctx !assigns d in
+    if q then raise Deadcode else d
 
   let sync (ctx:(D.t, G.t) ctx) =
     let spawns = ref [] in
@@ -609,10 +609,10 @@ struct
       (n, repr d)::dl, (map (fun (v,d) -> v, (n,repr d)::(remove_assoc n @@ G.bot ())) ds) @ cs
     in
     let d,cs = fold_right f (spec_list ctx.local) ([],[]) in
-      do_sideg ctx !sides;
-      do_spawns ctx !spawns;
-      do_splits ctx d !splits;
-      d, cs
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    do_splits ctx d !splits;
+    d, cs
 
   let enter (ctx:(D.t, G.t) ctx) r f a =
     let spawns = ref [] in
@@ -633,9 +633,9 @@ struct
       map (fun (c,d) -> ((n, repr c), (n, repr d))) @@ S.enter ctx' r f a
     in
     let css = map f @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      do_spawns ctx !spawns;
-      map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
 
   let combine (ctx:(D.t, G.t) ctx) r fe f a fd =
     let spawns = ref [] in
@@ -657,9 +657,9 @@ struct
       n, repr @@ S.combine ctx' r fe f a @@ obj @@ assoc n fd
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      do_spawns ctx !spawns;
-      let d = do_assigns ctx !assigns d in
-      if q then raise Deadcode else d
+    do_sideg ctx !sides;
+    do_spawns ctx !spawns;
+    let d = do_assigns ctx !assigns d in
+    if q then raise Deadcode else d
 
 end

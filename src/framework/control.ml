@@ -29,7 +29,7 @@ struct
     (** The comparator *)
     let module Comp = Compare (Spec) (EQSys) (LHT) (GHT) in
     (* (** Another iterator. Set "exp.use_gen_solver" to false. *)
-    let module I = IterateLikeAstree (Spec) (Cfg) (GHT) in *)
+       let module I = IterateLikeAstree (Spec) (Cfg) (GHT) in *)
 
     (** Triple of the function, context, and the local value. *)
     let module RT = Analyses.ResultType2 (Spec) in
@@ -72,9 +72,9 @@ struct
           count := !count + (e - b + 1);
           if not first then printf ", ";
           begin if b=e then
-            printf "%d" b
-          else
-            printf "%d..%d" b e
+              printf "%d" b
+            else
+              printf "%d..%d" b e
           end; false
         in
         printf "  function '%s' has dead code on lines: " f;
@@ -94,10 +94,10 @@ struct
       let str = function true -> "then" | false -> "else" in
       let report tv loc dead =
         if Deadcode.Locmap.mem dead_locations loc then
-        match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-         | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp d_loc loc)
-         | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) d_loc loc)
-         | _ -> ()
+          match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
+          | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp d_loc loc)
+          | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) d_loc loc)
+          | _ -> ()
       in
       if get_bool "dbg.print_dead_code" then begin
         Deadcode.Locmap.iter (report true)  Deadcode.dead_branches_then;
@@ -117,20 +117,20 @@ struct
       let add_local_var (n,es) state =
         let loc = MyCFG.getLoc n in
         if loc <> locUnknown then try
-          let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
-          if Result.mem res p then
-            (* If this source location has been added before, we look it up
-             * and add another node to it information to it. *)
-            let prev = Result.find res p in
-            Result.replace res p (LT.add (es,state,fundec) prev)
-          else
-            Result.add res p (LT.singleton (es,state,fundec))
+            let (_,_, fundec) as p = loc, n, MyCFG.getFun n in
+            if Result.mem res p then
+              (* If this source location has been added before, we look it up
+               * and add another node to it information to it. *)
+              let prev = Result.find res p in
+              Result.replace res p (LT.add (es,state,fundec) prev)
+            else
+              Result.add res p (LT.singleton (es,state,fundec))
           (* If the function is not defined, and yet has been included to the
            * analysis result, we generate a warning. *)
-        with Not_found -> Messages.warn ("Undefined function has escaped.")
+          with Not_found -> Messages.warn ("Undefined function has escaped.")
       in
-        LHT.iter add_local_var h;
-        res
+      LHT.iter add_local_var h;
+      res
     in
 
     (** exctract global xml from result *)
@@ -146,7 +146,7 @@ struct
                              ;Xml.Element ("th",[],[Xml.PCData "value"])])
       in
       let collect_globals k v b = one_glob k v :: b in
-        Xml.Element ("table", [], head :: GHT.fold collect_globals g [])
+      Xml.Element ("table", [], head :: GHT.fold collect_globals g [])
     in
     (** exctract global xml from result *)
     let make_global_fast_xml f g =
@@ -154,7 +154,7 @@ struct
       let print_globals k v =
         fprintf f "\n<glob><key>%s</key>%a</glob>" (Goblintutil.escape (Basetype.Variables.short 800 k)) Spec.G.printXml v;
       in
-        GHT.iter print_globals g
+      GHT.iter print_globals g
     in
 
     (** add extern variables to local state *)
@@ -196,25 +196,25 @@ struct
         try
           if M.tracing then M.trace "con" "Initializer %a\n" d_loc loc;
           (*incr count;
-          if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
+            if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
           Tracing.current_loc := loc;
           match edge with
-            | MyCFG.Entry func        -> Spec.body {ctx with local = st} func
-            | MyCFG.Assign (lval,exp) ->
-                begin match lval, exp with
-                  | (Var v,o), (AddrOf (Var f,NoOffset))
-                    when v.vstorage <> Static && isFunctionType f.vtype ->
-                    begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end
-                  | _ -> ()
-                end;
-                Spec.assign {ctx with local = st} lval exp
-            | _                       -> raise (Failure "This iz impossible!")
+          | MyCFG.Entry func        -> Spec.body {ctx with local = st} func
+          | MyCFG.Assign (lval,exp) ->
+            begin match lval, exp with
+              | (Var v,o), (AddrOf (Var f,NoOffset))
+                when v.vstorage <> Static && isFunctionType f.vtype ->
+                begin try funs := Cilfacade.getdec f :: !funs with Not_found -> () end
+              | _ -> ()
+            end;
+            Spec.assign {ctx with local = st} lval exp
+          | _                       -> raise (Failure "This iz impossible!")
         with Failure x -> M.warn x; st
       in
       let with_externs = do_extern_inits ctx file in
       (*if (get_bool "dbg.verbose") then Printf.printf "Number of init. edges : %d\nWorking:" (List.length edges);    *)
       let result : Spec.D.t = List.fold_left transfer_func with_externs edges in
-        result, !funs
+      result, !funs
     in
 
     let print_globals glob =
@@ -222,7 +222,7 @@ struct
       let print_one v st =
         ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v Spec.G.pretty st)
       in
-        GHT.iter print_one glob
+      GHT.iter print_one glob
     in
 
     (* real beginning of the [analyze] function *)
@@ -254,7 +254,7 @@ struct
       in
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
       let ents = Spec.enter ctx None fd.svar args in
-        List.map (fun (_,s) -> fd.svar, s) ents
+      List.map (fun (_,s) -> fd.svar, s) ents
     in
 
     let _ = try MyCFG.dummy_func.svar.vdecl <- (List.hd otherfuns).svar.vdecl with Failure _ -> () in
@@ -272,9 +272,9 @@ struct
     let startvars = List.concat (startvars @ exitvars @ othervars) in
 
     let _ =
-    if startvars = []
+      if startvars = []
       then failwith "BUG: Empty set of start variables; may happen if \
-         enter_func of any analysis returns an empty list."
+                     enter_func of any analysis returns an empty list."
     in
     let _ = set_bool "exp.earlyglobs" early in
     let _ = GU.global_initialization := false in
@@ -331,20 +331,20 @@ struct
             (* set of ids of called functions *)
             let calledFuns = LHT.fold insrt lh S.empty in
             function
-              | GFun (fn, loc) when not (S.mem fn.svar.vid calledFuns) ->
-                  begin
-                    let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
-                    ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
-                  end
-              | _ -> ()
+            | GFun (fn, loc) when not (S.mem fn.svar.vid calledFuns) ->
+              begin
+                let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+                ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+              end
+            | _ -> ()
           in
-            List.iter f file.globals;
+          List.iter f file.globals;
         end;
 
       (* check for dead code at the last state: *)
       let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
       (if (get_bool "dbg.debug") && Spec.D.is_bot main_sol then
-        Printf.printf "NB! Execution does not reach the end of Main.\n");
+         Printf.printf "NB! Execution does not reach the end of Main.\n");
 
       if get_bool "dump_globs" then
         print_globals gh;
@@ -430,10 +430,10 @@ let analyze (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function
-      | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
-      | n -> cfgB n
+    | MyCFG.Statement s as n -> ([get_stmtLoc s.skind,MyCFG.SelfLoop], n) :: cfgB n
+    | n -> cfgB n
   in
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
   let module CFG = struct let prev = cfgB let next = cfgF end in
   let module A = AnalyzeCFG (CFG) in
-    A.analyze file fs
+  A.analyze file fs

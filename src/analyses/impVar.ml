@@ -17,9 +17,9 @@ struct
 
   let get_deps ctx (v,os) =
     match ctx.ask (Queries.VariableDeps (Var v, os)) with
-      | `Bot -> LS.bot ()
-      | `LvalSet ls -> ls
-      | _ -> LS.top ()
+    | `Bot -> LS.bot ()
+    | `LvalSet ls -> ls
+    | _ -> LS.top ()
 
   let add_var ctx (v,os) =
     (* Printf.printf "%s is important too!\n" v.vname; *)
@@ -29,10 +29,10 @@ struct
   let os_leq (_,o1) (_,o2) =
     let rec leq o1 o2 =
       match o1, o2 with
-        | _, `NoOffset -> true
-        | `Index (i,os), `Index (i',os') -> Expcompare.compareExp   i i' && leq os os'
-        | `Field (f,os), `Field (f',os') -> Basetype.CilField.equal f f' && leq os os'
-        | _ -> false
+      | _, `NoOffset -> true
+      | `Index (i,os), `Index (i',os') -> Expcompare.compareExp   i i' && leq os os'
+      | `Field (f,os), `Field (f',os') -> Basetype.CilField.equal f f' && leq os os'
+      | _ -> false
     in
     leq o1 o2
 
@@ -54,7 +54,7 @@ struct
     | CastE (_,e)          -> rval_deref e
     | Question (e,e1,e2,_) -> LS.join (rval_deref e1) (rval_deref e2)
     | Const _ | SizeOf _ | SizeOfE _ | SizeOfStr _ | AlignOf _ | AlignOfE _ | AddrOf _ | StartOf _ | AddrOfLabel _
-        -> LS.empty ()
+      -> LS.empty ()
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -67,8 +67,8 @@ struct
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t = ()
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match f.vname, List.map stripCasts arglist with
-      | "important_var", [Lval (Var v, os)] -> add_var ctx (v,os)
-      | _ -> ()
+    | "important_var", [Lval (Var v, os)] -> add_var ctx (v,os)
+    | _ -> ()
 
   let startstate v = D.bot ()
   let otherstate v = D.bot ()
@@ -77,10 +77,10 @@ struct
   let query ctx = function
     | Queries.IsImportant (Var v, os) -> `Bool (is_important ctx (v, LV.of_ciloffs os))
     | Queries.SetImportant e ->
-        let ls = VarDep.Spec.eval_rval_shallow e in
-        if not (LS.is_top ls) then
-          LS.iter (fun (v,os) -> add_var ctx (v, LV.to_ciloffs os)) ls;
-        `Bot
+      let ls = VarDep.Spec.eval_rval_shallow e in
+      if not (LS.is_top ls) then
+        LS.iter (fun (v,os) -> add_var ctx (v, LV.to_ciloffs os)) ls;
+      `Bot
     | _ -> Queries.Result.top ()
 
 end

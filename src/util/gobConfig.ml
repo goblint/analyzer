@@ -1,7 +1,7 @@
 (**
-  New, untyped, path-based configuation subsystem.
+   New, untyped, path-based configuation subsystem.
 
-  {v
+   {v
   path' ::== \epsilon              (*  *)
            | . <field-name> path'  (* field access *)
            | [ <index-nr> ] path'  (* array index access *)
@@ -12,9 +12,9 @@
           | <field_name> path'     (* you can leave out the first dot *)
   v}
 
-  All functions [failwith] on error. Warnings are generated in [verbose] mode.
+   All functions [failwith] on error. Warnings are generated in [verbose] mode.
 
-  There is a "conf" [trace] option that traces setting.
+   There is a "conf" [trace] option that traces setting.
 *)
 
 open Batteries
@@ -113,20 +113,20 @@ struct
   (** Parse an index. *)
   let rec parse_index s =
     try if s = "+" then App
-        else if s = "*" then New
-        else Int (int_of_string s)
+      else if s = "*" then New
+      else Int (int_of_string s)
     with Failure _ -> raise PathParseError
 
   (** Parse a string path. *)
   let rec parse_path' (s:string) : path =
     if String.length s = 0 then Here else
-    match s.[0] with
+      match s.[0] with
       | '.' ->
-          let fld, pth = split '.' '[' (String.lchop s) in
-          Select (fld, parse_path' pth)
+        let fld, pth = split '.' '[' (String.lchop s) in
+        Select (fld, parse_path' pth)
       | '[' ->
-          let idx, pth = String.split (String.lchop s) "]" in
-          Index (parse_index idx, parse_path' pth)
+        let idx, pth = String.split (String.lchop s) "]" in
+        Index (parse_index idx, parse_path' pth)
       | _ -> raise PathParseError
 
   (** Parse a string path, but you may ignore the first dot. *)
@@ -135,9 +135,9 @@ struct
     try
       if String.length s = 0 then Here else begin
         let fld, pth = split '.' '[' s in
-          if fld = ""
-          then parse_path' pth
-          else Select (fld, parse_path' pth)
+        if fld = ""
+        then parse_path' pth
+        else Select (fld, parse_path' pth)
       end
     with PathParseError ->
       eprintf "Error: Couldn't parse the json path '%s'\n%!" s;
@@ -165,12 +165,12 @@ struct
   (** Main function to receive values from the conf. *)
   let rec get_value o pth =
     match o, pth with
-      | o, Here -> o
-      | Object m, Select (key,pth) -> begin
+    | o, Here -> o
+    | Object m, Select (key,pth) -> begin
         try get_value !(Object.find key !m) pth
         with Not_found -> raise ConfTypeError end
-      | Array a, Index (Int i, pth) -> get_value !(List.at !a i) pth
-      | _ -> raise ConfTypeError
+    | Array a, Index (Int i, pth) -> get_value !(List.at !a i) pth
+    | _ -> raise ConfTypeError
 
   (** Recursively create the value for some new path. *)
   let rec create_new v = function
@@ -181,38 +181,38 @@ struct
   (** Helper function to decide if types in the json conf have changed. *)
   let json_type_equals x y =
     match x, y with
-      | String _, String _
-      | Number _, Number _
-      | Object _, Object _
-      | Array  _, Array  _
-      | True    , True
-      | False   , False
-      | False   , True
-      | True    , False
-      | Null    , Null     -> true
-      | _                  -> false
+    | String _, String _
+    | Number _, Number _
+    | Object _, Object _
+    | Array  _, Array  _
+    | True    , True
+    | False   , False
+    | False   , True
+    | True    , False
+    | Null    , Null     -> true
+    | _                  -> false
 
   (** The main function to write new values into the conf. *)
   let set_value v o orig_pth =
     let rec set_value v o pth =
       match !o, pth with
-        | Object m, Select (key,pth) ->
-            begin try set_value v (Object.find key !m) pth
-            with Not_found -> m := Object.add key (ref (create_new v pth)) !m end
-        | Array a, Index (Int i, pth) ->
-            set_value v (List.at !a i) pth
-        | Array a, Index (App, pth) ->
-            o := Array (ref (!a @ [ref (create_new v pth)]))
-        | Array _, Index (New, pth) ->
-            o := Array (ref [ref (create_new v pth)])
-        | Null, _ ->
-            o := create_new v pth
-        | _ ->
-            let new_v = create_new v pth in
-            if not (json_type_equals !o new_v) then
-              printf "Warning, changing '%a' from '%a' to '%a'.\n"
-                        print_path orig_pth printJson !o printJson new_v;
-            o := new_v
+      | Object m, Select (key,pth) ->
+        begin try set_value v (Object.find key !m) pth
+          with Not_found -> m := Object.add key (ref (create_new v pth)) !m end
+      | Array a, Index (Int i, pth) ->
+        set_value v (List.at !a i) pth
+      | Array a, Index (App, pth) ->
+        o := Array (ref (!a @ [ref (create_new v pth)]))
+      | Array _, Index (New, pth) ->
+        o := Array (ref [ref (create_new v pth)])
+      | Null, _ ->
+        o := create_new v pth
+      | _ ->
+        let new_v = create_new v pth in
+        if not (json_type_equals !o new_v) then
+          printf "Warning, changing '%a' from '%a' to '%a'.\n"
+            print_path orig_pth printJson !o printJson new_v;
+        o := new_v
     in
     set_value v o orig_pth;
     validate conf_schema !json_conf
@@ -232,12 +232,12 @@ struct
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyJson x;
       try f x
       with JsonE _ ->
-          eprintf "The value for '%s' does not have type %s, it is actually %a.\n"
-                    st typ printJson x;
-          failwith "get_path_string"
+        eprintf "The value for '%s' does not have type %s, it is actually %a.\n"
+          st typ printJson x;
+        failwith "get_path_string"
     with ConfTypeError ->
       eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to defaults.ml?\n"
-                st print;
+        st print;
       failwith "get_path_string"
 
   (** Convienience functions for reading values. *)
@@ -273,24 +273,24 @@ struct
   (** A convienience functions for writing values. *)
   let rec set_auto' st v =
     if v = "null" then set_null st else
-    try set_bool st (bool_of_string v)
-    with Invalid_argument "bool_of_string" ->
-      try set_int st (int_of_string v)
-      with Failure "int_of_string" ->
-        set_string st v
+      try set_bool st (bool_of_string v)
+      with Invalid_argument "bool_of_string" ->
+        try set_int st (int_of_string v)
+        with Failure "int_of_string" ->
+          set_string st v
 
   (** The ultimate convienience functions for writing values. *)
   let one_quote = Str.regexp "\'"
   let rec set_auto st s =
     if s="null" then set_null st else
     if s="" then set_string st "" else
-    try
-      let s' = Str.global_replace one_quote "\"" s in
-      let v = JsonParser.value JsonLexer.token (Lexing.from_string s') in
-      set_path_string_trace st v
-    with e ->
-      eprintf "Cannot set %s to '%s'.\n" st s;
-      raise e
+      try
+        let s' = Str.global_replace one_quote "\"" s in
+        let v = JsonParser.value JsonLexer.token (Lexing.from_string s') in
+        set_path_string_trace st v
+      with e ->
+        eprintf "Cannot set %s to '%s'.\n" st s;
+        raise e
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
@@ -305,10 +305,10 @@ struct
     if tracing then
       trace "conf" "Removing index %d from '%s' to %a." i st prettyJson (Array old);
     match List.split_at i !old with
-      | pre, _::post -> set_path_string st (Array (ref (pre@post)))
-      | _ ->
-          eprintf "Cannot drop index %d in array %s:\n%t\n\n" i st print;
-          failwith "drop_index"
+    | pre, _::post -> set_path_string st (Array (ref (pre@post)))
+    | _ ->
+      eprintf "Cannot drop index %d in array %s:\n%t\n\n" i st print;
+      failwith "drop_index"
 end
 
 include Impl

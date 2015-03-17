@@ -40,13 +40,13 @@ let enclose tag doc =
   text ("<" ^ tag ^ ">") ++ line ++ indent 2 doc ++ line ++ text ("</" ^ tag ^ ">")
 
 class debugCilPrinterClass =
-object (self)
-  inherit defaultCilPrinterClass as super
+  object (self)
+    inherit defaultCilPrinterClass as super
 
-  method pStmtKind (next: stmt) () =
-    function
+    method pStmtKind (next: stmt) () =
+      function
       | Instr _ as x ->
-          enclose "INSTR LIST" (super#pStmtKind next () x)
+        enclose "INSTR LIST" (super#pStmtKind next () x)
       | x -> super#pStmtKind next () x
 
 (*
@@ -59,6 +59,6 @@ object (self)
   method pInstr () (i : instr) =
     enclose "INSTR" (super#pInstr () i)
 *)
-end
+  end
 
 let debugCilPrinter = new debugCilPrinterClass

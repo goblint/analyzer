@@ -29,10 +29,10 @@ struct
   let merge_effects gd1 gd2 =
     let gd1 = List.map (fun (g,x) -> (g,(x,G2.Val.bot ()))) gd1 in
     let gd2 = List.map (fun (g,x) -> (g,(G1.Val.bot (), x))) gd2 in
-      gd1 @ gd2
+    gd1 @ gd2
 
   let split_effects gd =
     let gs, ds = List.split gd in
     let d1s,d2s = List.split ds in
-      List.combine gs d1s, List.combine gs d2s
+    List.combine gs d1s, List.combine gs d2s
 end

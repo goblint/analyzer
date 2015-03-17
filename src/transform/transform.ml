@@ -23,11 +23,11 @@ module PartialEval = struct
     method vexpr e =
       let eval e = match ask !loc (Queries.EvalInt e) with
         | `Int i ->
-            let e' = integer @@ i64_to_int i in
-            ignore @@ Pretty.printf "Replacing non-constant expression %a with %a at %a\n" d_exp e d_exp e' d_loc !loc;
-            e'
+          let e' = integer @@ i64_to_int i in
+          ignore @@ Pretty.printf "Replacing non-constant expression %a with %a at %a\n" d_exp e d_exp e' d_loc !loc;
+          e'
         | _ ->
-            ignore @@ Pretty.printf "Can't replace expression %a at %a\n" d_exp e d_loc !loc; e
+          ignore @@ Pretty.printf "Can't replace expression %a at %a\n" d_exp e d_loc !loc; e
       in
       match e with
       | Const _ -> SkipChildren

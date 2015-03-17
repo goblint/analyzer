@@ -54,16 +54,16 @@ struct
   let for_all2 f i o =
     let len_i = Array.length i in
     let len_o = Array.length o in
-      if (len_i!=len_o) then
-  false
-      else
-  let tt = ref true in
-  let id = ref 0 in
-    while (!tt && !id < len_i) do
-      tt := f i.(!id) o.(!id);
-      id := succ !id
-    done;
-    !tt
+    if (len_i!=len_o) then
+      false
+    else
+      let tt = ref true in
+      let id = ref 0 in
+      while (!tt && !id < len_i) do
+        tt := f i.(!id) o.(!id);
+        id := succ !id
+      done;
+      !tt
 
   let equal i o =
     for_all2 Base.equal i o
@@ -83,11 +83,11 @@ struct
   let map_arrays f a b =
     let a_length = A.length a in
     let b_length = A.length b in
-      if (a_length = b_length) then
-  let items n = f a.(n) b.(n) in
-    A.init a_length items
-      else
-  failwith "Arrays have different lengths"
+    if (a_length = b_length) then
+      let items n = f a.(n) b.(n) in
+      A.init a_length items
+    else
+      failwith "Arrays have different lengths"
 
   let join a b =
     map_arrays Base.join a b
@@ -98,7 +98,7 @@ struct
   let short w x =
     let itemlist = Array.to_list x in
     let strlist  = List.map (Base.short max_int) itemlist in
-      Printable.get_short_list "Array: {" "}" (w-9) strlist
+    Printable.get_short_list "Array: {" "}" (w-9) strlist
 
 
   let toXML_f _ a =
@@ -106,11 +106,11 @@ struct
     let add_index i a =
       let attrib = Xml.attrib a "text" in
       let new_attr = string_of_int i ^ " -> " ^ attrib in
-  match a with
-      Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-    | _ -> a in
+      match a with
+        Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
+      | _ -> a in
     let indexed_children = A.to_list (A.mapi add_index (A.map Base.toXML a)) in
-      Xml.Element ("Node", [("text", text)], indexed_children )
+    Xml.Element ("Node", [("text", text)], indexed_children )
 
 
   let pretty_f _ () x =
@@ -118,13 +118,13 @@ struct
     let content = A.to_list (A.mapi pretty_index x) in
     let rec separate x =
       match x with
-        | [] -> []
-        | [x] -> [x]
-        | (x::xs) -> x ++ line :: separate xs
+      | [] -> []
+      | [x] -> [x]
+      | (x::xs) -> x ++ line :: separate xs
     in
     let separated = separate content in
     let content = List.fold_left (++) nil separated in
-      (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
+    (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
 
   let pretty ()  x = pretty_f short () x
   let toXML s = toXML_f short s
@@ -143,12 +143,12 @@ struct
     in
     if Idx.is_int i then
       match  Idx.to_int i with
-        | Some ix -> get_index (Int64.to_int ix)
-        | _       -> failwith "Can't get an index value"
-      else
-        (* If an index is unknown, return the upper bound of
-           all possible elements *)
-        folded ()
+      | Some ix -> get_index (Int64.to_int ix)
+      | _       -> failwith "Can't get an index value"
+    else
+      (* If an index is unknown, return the upper bound of
+         all possible elements *)
+      folded ()
 
   let set a i v =
     let set_inplace a i v =
@@ -161,15 +161,15 @@ struct
         a in
       if Idx.is_int i then
         match Idx.to_int i with
-          | Some ix -> set_index (Int64.to_int ix)
-          | _  -> warn "Array set with unknown index";
-                  top_value ()
+        | Some ix -> set_index (Int64.to_int ix)
+        | _  -> warn "Array set with unknown index";
+          top_value ()
       else
         joined_value () in
     set_inplace (A.copy a) i v
 
   let make i v =
-      A.make i v
+    A.make i v
 
   let length a =
     Some (A.length a)

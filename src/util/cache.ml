@@ -8,11 +8,11 @@ struct
     let cache = ref None in
     let f x =
       match !cache with
-        | Some (y,z) when V.equal x y -> z
-        | _ ->
-      let res = fn x in
-      cache := Some (x, res);
-      res
+      | Some (y,z) when V.equal x y -> z
+      | _ ->
+        let res = fn x in
+        cache := Some (x, res);
+        res
     in
     f
 

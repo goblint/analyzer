@@ -67,7 +67,7 @@ struct
 
   (* Body of a function starts *)
   let body ctx (f:fundec) : D.t =
-     ctx.local
+    ctx.local
 
   (* Returns from a function *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
@@ -84,36 +84,36 @@ struct
   (* Helper function to convert query-offsets to valuedomain-offsets *)
   let rec conv_offset x =
     match x with
-      | `NoOffset    -> `NoOffset
-      | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
-      | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
-      | `Field (f,o) -> `Field (f, conv_offset o)
+    | `NoOffset    -> `NoOffset
+    | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
+    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
+    | `Field (f,o) -> `Field (f, conv_offset o)
 
   (* Query the value (of the locking argument) to a list of locks. *)
   let eval_exp_addr a exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a (Queries.MayPointTo exp) with
-      | `LvalSet a when not (Queries.LS.is_top a) ->
-          Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-      | `Bot -> []
-      | b -> Messages.warn ("Could not evaluate '"^sprint 30 (d_exp () exp)^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
+    | `LvalSet a when not (Queries.LS.is_top a) ->
+      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
+    | `Bot -> []
+    | b -> Messages.warn ("Could not evaluate '"^sprint 30 (d_exp () exp)^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
 
   (* Called when calling a special/unknown function *)
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     if D.is_top ctx.local then ctx.local else
-    match LibraryFunctions.classify f.vname arglist with
+      match LibraryFunctions.classify f.vname arglist with
       | `Lock (_, _) ->
-          begin match eval_exp_addr ctx.ask (List.hd arglist) with
-            | [lockAddr] ->
-              addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
-              D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
-            | _ -> ctx.local
-          end
+        begin match eval_exp_addr ctx.ask (List.hd arglist) with
+          | [lockAddr] ->
+            addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
+            D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
+          | _ -> ctx.local
+        end
 
       | `Unlock ->
-           let lockAddrs = eval_exp_addr ctx.ask (List.hd arglist) in
-           let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
-           D.filter inLockAddrs ctx.local
+        let lockAddrs = eval_exp_addr ctx.ask (List.hd arglist) in
+        let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
+        D.filter inLockAddrs ctx.local
 
       | _ -> ctx.local
 

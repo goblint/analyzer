@@ -67,13 +67,13 @@ struct
   let mayPointTo ctx exp =
     match ctx.ask (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
-        let top_elt = (dummyFunDec.svar, `NoOffset) in
-        let a' = if Queries.LS.mem top_elt a then (
-            M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!"; (* UNSOUND *)
-            Queries.LS.remove top_elt a
-          ) else a
-        in
-        Queries.LS.elements a'
+      let top_elt = (dummyFunDec.svar, `NoOffset) in
+      let a' = if Queries.LS.mem top_elt a then (
+          M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!"; (* UNSOUND *)
+          Queries.LS.remove top_elt a
+        ) else a
+      in
+      Queries.LS.elements a'
     | _ -> []
 
   let mustPointTo ctx exp = (* this is just to get CilLval *)
@@ -106,16 +106,16 @@ struct
     let save_expr lval expr =
       match mustPointTo ctx (AddrOf lval) with
       | Some clval ->
-          M.debug_each @@ "CondVars: saving " ^ sprint Lval.CilLval.pretty clval ^ " = " ^ sprint d_exp expr;
-          D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
+        M.debug_each @@ "CondVars: saving " ^ sprint Lval.CilLval.pretty clval ^ " = " ^ sprint d_exp expr;
+        D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
       | None -> d
     in
     let is_cmp = function Lt | Gt | Le | Ge | Eq | Ne -> true | _ -> false in
     match rval with
     | BinOp (op, _, _, _) when is_cmp op -> (* logical expression *)
-        save_expr lval rval
+      save_expr lval rval
     | Lval k when Option.is_some (mustPointTo ctx (AddrOf k) >? flip D.get d) -> (* var-eq for transitive closure *)
-        mustPointTo ctx (AddrOf k) >? flip D.get_elt d |> Option.map (save_expr lval) |? d
+      mustPointTo ctx (AddrOf k) >? flip D.get_elt d |> Option.map (save_expr lval) |? d
     | _ -> d
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -126,7 +126,7 @@ struct
     * 2. enter: remove current locals, return: remove current locals
     * 3. enter: only keep globals, combine: update caller's state with globals from call
     * 4. same, but also consider escaped vars
-    *)
+  *)
 
   let body ctx (f:fundec) : D.t =
     ctx.local

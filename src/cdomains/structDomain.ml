@@ -26,7 +26,7 @@ struct
     let assoclist = M.fold (fun x y rest -> (x,y)::rest) mapping [] in
     let f (key, st) = Val.short usable_length st in
     let whole_str_list = List.rev_map f assoclist in
-      Printable.get_short_list "<" ">" usable_length whole_str_list
+    Printable.get_short_list "<" ">" usable_length whole_str_list
 
   let toXML_f sf = M.toXML_f sf
   let pretty_f sf = M.pretty_f sf

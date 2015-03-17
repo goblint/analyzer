@@ -60,12 +60,12 @@ module Thread = struct
     with Not_found ->
       let name =
         match loc with
-          | None -> f.vname
-          | Some l -> f.vname ^ "@" ^ Basetype.ProgLines.short 80 l
+        | None -> f.vname
+        | Some l -> f.vname ^ "@" ^ Basetype.ProgLines.short 80 l
       in
       let newvar = makeGlobalVar name voidType in
-        Hashtbl.add thread_hash (f,loc) newvar;
-        newvar
+      Hashtbl.add thread_hash (f,loc) newvar;
+      newvar
 
   let start_thread v: t = get_thread_var v None
   let spawn_thread l v: t = get_thread_var v (Some l)
@@ -99,13 +99,13 @@ module SimpleThreadDomain = struct
 
   let short w (x,y) =
     let tid = Lifted.short w y in
-      if x > 1 then tid else tid ^ "!"
+    if x > 1 then tid else tid ^ "!"
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let same_tid x y =
     match x,y with
-      | (_, `Lifted x), (_, `Lifted y) -> Thread.equal x y
-      | _ -> false
+    | (_, `Lifted x), (_, `Lifted y) -> Thread.equal x y
+    | _ -> false
 end
 
 module ThreadSet = SetDomain.ToppedSet (Thread) (struct let topname = "All Threads" end)
@@ -116,10 +116,10 @@ struct
 
   let toXML_f sf x =
     match toXML x with
-      | Xml.Element (node, [text, _], elems) ->
-          let summary = "Created Threads: " ^ sf Goblintutil.summary_length x in
-            Xml.Element (node, [text, summary], elems)
-      | x -> x
+    | Xml.Element (node, [text, _], elems) ->
+      let summary = "Created Threads: " ^ sf Goblintutil.summary_length x in
+      Xml.Element (node, [text, summary], elems)
+    | x -> x
 
   let toXML s  = toXML_f short s
 end
@@ -141,10 +141,10 @@ struct
 
   let toXML_f sf x =
     match toXML x with
-      | Xml.Element (node, [text, _], elems) ->
-          let summary = "Thread: " ^ sf Goblintutil.summary_length x in
-            Xml.Element (node, [text, summary], elems)
-      | x -> x
+    | Xml.Element (node, [text, _], elems) ->
+      let summary = "Thread: " ^ sf Goblintutil.summary_length x in
+      Xml.Element (node, [text, summary], elems)
+    | x -> x
 
   let toXML s  = toXML_f short s
 end

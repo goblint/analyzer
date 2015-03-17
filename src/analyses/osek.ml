@@ -40,68 +40,68 @@ struct
     Hashtbl.add resources "SuspendAllInterrupts" ("SuspendAllInterrupts",-1, make_lock "SuspendAllInterrupts");
     Hashtbl.add resources "SuspendOSInterrupts" ("SuspendOSInterrupts",-1, make_lock "SuspendOSInterrupts");
     match file token (Lexing.from_channel (open_in oil_file)) with
-      | [] -> failwith ( "No OIL-Objects found!")
-      | objs -> List.iter add_to_table (List.sort compare_objs objs);
-	if tracing then trace "osek" "Done parsing OIL-file\n";
-	();
-    if tracing then trace "osek" "Computing ceiling priorities...\n";
-    Hashtbl.iter compute_ceiling_priority resources;
-    if tracing then trace "osek" "Generating goblint.h...\n";
-    generate_header ();
-    if tracing then trace "osek" "Activating autostart alarms...\n";
-    finish_alarm_handling ();
-    if (get_bool "ana.osek.check") then begin
-      if tracing then trace "osek" "Checking conventions...\n";
-      check_osek ()
+    | [] -> failwith ( "No OIL-Objects found!")
+    | objs -> List.iter add_to_table (List.sort compare_objs objs);
+      if tracing then trace "osek" "Done parsing OIL-file\n";
+      ();
+      if tracing then trace "osek" "Computing ceiling priorities...\n";
+      Hashtbl.iter compute_ceiling_priority resources;
+      if tracing then trace "osek" "Generating goblint.h...\n";
+      generate_header ();
+      if tracing then trace "osek" "Activating autostart alarms...\n";
+      finish_alarm_handling ();
+      if (get_bool "ana.osek.check") then begin
+        if tracing then trace "osek" "Checking conventions...\n";
+        check_osek ()
       end;
-    if tracing then trace "osek" "Done processing OIL-file\n";
-    ()
+      if tracing then trace "osek" "Done processing OIL-file\n";
+      ()
 
-(*  let parse_tramp tramp =
-    if tracing then trace "osek" "Parsing trampolineish header...\n";
-    let input = open_in tramp in
-    let comment = Str.regexp "//.* \\|/\\*.*" in
-    let re = Str.regexp ".*resource_id_of_\\([a-zA-Z][a-zA-Z0-9_]*\\) +\\([0-9]+\\) *" in
-    let ev = Str.regexp ".*event_id_of_\\([a-zA-Z][a-zA-Z0-9_]*\\) +\\([0-9]+\\) *" in
-    let rec read_info () = try
-      let line = input_line input in
-(* 	if tracing then trace "osek" "Line: %s\n" line; *)
-	if (Str.string_match comment line 0) then begin
-	  if tracing then trace "osek" "Trampolineish: Skipping (JUST 1!) line: %s\n" line;
-	end else begin
-	  if Str.string_match re line 0 then begin
-	    let name = (Str.matched_group 1 line) in
-	    let id = Str.matched_group 2 line in
-	    if tracing then trace "osek" "Adding id (%s) for resource %s\n" id name;
-	    let _ = try
-	      let (_,p,l) = Hashtbl.find resources name in
-	      Hashtbl.replace resources name (id,p,l)
-	    with
-	      | Not_found -> print_endline ("Error: Resource " ^ name ^ " not found. ID not added.")
-	      | e -> raise e
-	    in ()
-	  end;
-	  if Str.string_match ev line 0 then begin
-	  let name = (Str.matched_group 1 line) in
-	    let id = Str.matched_group 2 line in
-	    if tracing then trace "osek" "Adding id (%s) for event %s\n" id name;
-	    let _ = try
-	      let (_,b) = Hashtbl.find events name in
-	      Hashtbl.replace events name (id,b);
-	    with
-	      | Not_found -> print_endline ("Error: Event " ^ name ^ " not found. ID not added.")
-	      | e -> raise e
-	    in ()
-	  end;
-	end;
-	read_info ();
-      with
-	| End_of_file -> ()
-	| e -> raise e
-    in read_info ();
-    if (get_bool "ana.osek.check") then check_tramp ();
-    if tracing then trace "osek" "Done parsing trampolineish header\n";
-    close_in input*)
+  (*  let parse_tramp tramp =
+      if tracing then trace "osek" "Parsing trampolineish header...\n";
+      let input = open_in tramp in
+      let comment = Str.regexp "//.* \\|/\\*.*" in
+      let re = Str.regexp ".*resource_id_of_\\([a-zA-Z][a-zA-Z0-9_]*\\) +\\([0-9]+\\) *" in
+      let ev = Str.regexp ".*event_id_of_\\([a-zA-Z][a-zA-Z0-9_]*\\) +\\([0-9]+\\) *" in
+      let rec read_info () = try
+        let line = input_line input in
+      (* 	if tracing then trace "osek" "Line: %s\n" line; *)
+      	if (Str.string_match comment line 0) then begin
+      	  if tracing then trace "osek" "Trampolineish: Skipping (JUST 1!) line: %s\n" line;
+      	end else begin
+      	  if Str.string_match re line 0 then begin
+      	    let name = (Str.matched_group 1 line) in
+      	    let id = Str.matched_group 2 line in
+      	    if tracing then trace "osek" "Adding id (%s) for resource %s\n" id name;
+      	    let _ = try
+      	      let (_,p,l) = Hashtbl.find resources name in
+      	      Hashtbl.replace resources name (id,p,l)
+      	    with
+      	      | Not_found -> print_endline ("Error: Resource " ^ name ^ " not found. ID not added.")
+      	      | e -> raise e
+      	    in ()
+      	  end;
+      	  if Str.string_match ev line 0 then begin
+      	  let name = (Str.matched_group 1 line) in
+      	    let id = Str.matched_group 2 line in
+      	    if tracing then trace "osek" "Adding id (%s) for event %s\n" id name;
+      	    let _ = try
+      	      let (_,b) = Hashtbl.find events name in
+      	      Hashtbl.replace events name (id,b);
+      	    with
+      	      | Not_found -> print_endline ("Error: Event " ^ name ^ " not found. ID not added.")
+      	      | e -> raise e
+      	    in ()
+      	  end;
+      	end;
+      	read_info ();
+        with
+      	| End_of_file -> ()
+      	| e -> raise e
+      in read_info ();
+      if (get_bool "ana.osek.check") then check_tramp ();
+      if tracing then trace "osek" "Done parsing trampolineish header\n";
+      close_in input*)
 
   let parse_names names =
     if tracing then trace "osek" "Parsing API (re)names...\n";
@@ -109,23 +109,23 @@ struct
     let comment = Str.regexp "//.* \\|/\\*.*" in
     let newname = Str.regexp " *\\(#define \\| *\\)\\([a-zA-Z_][a-zA-Z0-9_]*\\) +\\([a-zA-Z_][a-zA-Z0-9_]*\\)" in
     let rec read_info () = try
-      let line = input_line input in
-	if tracing then trace "osek" "Line: %s\n" line;
-	if (Str.string_match comment line 0) then begin
-	  if tracing then trace "osek" "API names: Skipping (JUST 1!) line: %s\n" line;
-	end else begin
-	  if Str.string_match newname line 0 then begin
-	    let newname = (Str.matched_group 3 line) in
-	    let oldname = (Str.matched_group 2 line) in
-	    if tracing then trace "osek" "Adding newname (%s) for function %s\n" newname oldname;
-	    Hashtbl.add osek_names newname oldname;
-	    LibraryFunctions.add_lib_funs [newname]
-	  end;
-	end;
-	read_info ();
+        let line = input_line input in
+        if tracing then trace "osek" "Line: %s\n" line;
+        if (Str.string_match comment line 0) then begin
+          if tracing then trace "osek" "API names: Skipping (JUST 1!) line: %s\n" line;
+        end else begin
+          if Str.string_match newname line 0 then begin
+            let newname = (Str.matched_group 3 line) in
+            let oldname = (Str.matched_group 2 line) in
+            if tracing then trace "osek" "Adding newname (%s) for function %s\n" newname oldname;
+            Hashtbl.add osek_names newname oldname;
+            LibraryFunctions.add_lib_funs [newname]
+          end;
+        end;
+        read_info ();
       with
-	| End_of_file -> ()
-	| e -> raise e
+      | End_of_file -> ()
+      | e -> raise e
     in read_info ();
     LibraryFunctions.osek_renames := true;
     if tracing then trace "osek" "Done parsing API (re)names\n";
@@ -137,47 +137,47 @@ struct
     let comment = Str.regexp "//.* \\|/\\*.*" in
     let idregex = Str.regexp " *#define +\\([a-zA-Z_][a-zA-Z0-9_]*\\) +.*\\([1-9][0-9]*\\|0\\)\\()\\| \\)*" in
     let rec read_info () = try
-      let line = input_line input in
-	if tracing then trace "osek" "Line: %s\n" line;
-	if (Str.string_match comment line 0) then begin
-	  if tracing then trace "osek" ": Skipping (JUST 1!) line: %s\n" line;
-	end else begin
-	  if Str.string_match idregex line 0 then begin
-	    let objectname = (Str.matched_group 1 line) in
-	    let id = (Str.matched_group 2 line) in
-	    match objectname with
-	      | x when Hashtbl.mem tasks (make_task objectname) -> begin
-		    if tracing then trace "osek" "Adding ID (%s) for task %s\n" id objectname;
-		    let intid = int_of_string id in
-		    Hashtbl.add taskids (Cil.integer(intid)) (make_task objectname)
-		  end
-	      | x when Hashtbl.mem isrs (make_isr objectname) -> begin
-		    if tracing then trace "osek" "Adding ID (%s) for isr %s\n" id objectname;
-		    let intid = int_of_string id in
-		    Hashtbl.add isrids (Cil.integer(intid)) (make_isr objectname)
-		  end
-	      | x when Hashtbl.mem resources objectname -> begin
-		    if tracing then trace "osek" "Adding ID (%s) for resource %s\n" id objectname;
-		    let intid = int_of_string id in
-		    Hashtbl.add resourceids (Cil.integer(intid)) objectname
-		  end
-	      | x when Hashtbl.mem events objectname -> begin
-		    if tracing then trace "osek" "Adding ID (%s) for event %s\n" id objectname;
-		    let intid = int_of_string id in
-		    Hashtbl.add eventids (Cil.integer(intid)) objectname
-		  end
-	      | x when Hashtbl.mem alarms objectname -> begin
-		    if tracing then trace "osek" "Adding ID (%s) for alarm %s\n" id objectname;
-		    let intid = int_of_string id in
-		    Hashtbl.add alarmids (Cil.integer(intid)) objectname
-		  end
-	      | _ -> if tracing then trace "osek" "No matching object found for %s\n" objectname;()
-	  end;
-	end;
-	read_info ();
+        let line = input_line input in
+        if tracing then trace "osek" "Line: %s\n" line;
+        if (Str.string_match comment line 0) then begin
+          if tracing then trace "osek" ": Skipping (JUST 1!) line: %s\n" line;
+        end else begin
+          if Str.string_match idregex line 0 then begin
+            let objectname = (Str.matched_group 1 line) in
+            let id = (Str.matched_group 2 line) in
+            match objectname with
+            | x when Hashtbl.mem tasks (make_task objectname) -> begin
+                if tracing then trace "osek" "Adding ID (%s) for task %s\n" id objectname;
+                let intid = int_of_string id in
+                Hashtbl.add taskids (Cil.integer(intid)) (make_task objectname)
+              end
+            | x when Hashtbl.mem isrs (make_isr objectname) -> begin
+                if tracing then trace "osek" "Adding ID (%s) for isr %s\n" id objectname;
+                let intid = int_of_string id in
+                Hashtbl.add isrids (Cil.integer(intid)) (make_isr objectname)
+              end
+            | x when Hashtbl.mem resources objectname -> begin
+                if tracing then trace "osek" "Adding ID (%s) for resource %s\n" id objectname;
+                let intid = int_of_string id in
+                Hashtbl.add resourceids (Cil.integer(intid)) objectname
+              end
+            | x when Hashtbl.mem events objectname -> begin
+                if tracing then trace "osek" "Adding ID (%s) for event %s\n" id objectname;
+                let intid = int_of_string id in
+                Hashtbl.add eventids (Cil.integer(intid)) objectname
+              end
+            | x when Hashtbl.mem alarms objectname -> begin
+                if tracing then trace "osek" "Adding ID (%s) for alarm %s\n" id objectname;
+                let intid = int_of_string id in
+                Hashtbl.add alarmids (Cil.integer(intid)) objectname
+              end
+            | _ -> if tracing then trace "osek" "No matching object found for %s\n" objectname;()
+          end;
+        end;
+        read_info ();
       with
-	| End_of_file -> ()
-	| e -> raise e
+      | End_of_file -> ()
+      | e -> raise e
     in read_info ();
     if tracing then trace "osek" "Done parsing IDs\n";
     close_in input
@@ -193,7 +193,7 @@ struct
       let prys = List.map names locks in
       let staticprys = List.filter is_task_res prys in
       let pry = resourceset_to_priority staticprys in
-        if pry = min_int then `Bot else `Lifted (Int64.of_int pry)
+      if pry = min_int then `Bot else `Lifted (Int64.of_int pry)
   end
 
   module M = Mutex.MakeSpec (MyParam)
@@ -235,17 +235,17 @@ struct
   let strip_tags y = match y with `Lifted x -> x | _ -> failwith "top/bot flags not properly filtered osek234"
 
   let get_val flag acc =
-(* let _ = print_endline (flag.vname ^"A" ^gl.vname) in     *)
+    (* let _ = print_endline (flag.vname ^"A" ^gl.vname) in     *)
     proj3_3 (strip_tags (Flags.find flag (proj2_2 acc)))
   let get_eq flag acc : bool =
-(* let _ = print_endline (flag.vname ^"B"^gl.vname) in     *)
+    (* let _ = print_endline (flag.vname ^"B"^gl.vname) in     *)
     proj3_2 (strip_tags (Flags.find flag (proj2_2 acc)))
   let get_method flag acc : bool =
-(* let _ = print_endline (flag.vname ^ "C"^gl.vname) in     *)
+    (* let _ = print_endline (flag.vname ^ "C"^gl.vname) in     *)
     proj3_1 (strip_tags (Flags.find flag (proj2_2 acc)))
   let flag_unknown flag accs = (not (Flags.mem flag (proj2_2 accs)))
   let flag_top flag accs =  (Flags.find flag (proj2_2 accs) = `Top)
-(*   let flag_exists flag accs = List.filter (fun x -> (Flags.mem flag (proj2_2 x))) accs *)
+  (*   let flag_exists flag accs = List.filter (fun x -> (Flags.mem flag (proj2_2 x))) accs *)
   let rec flag_list_to_string l = match l with
     | []  -> ""
     | [x] -> x.vname
@@ -253,15 +253,15 @@ struct
   let filter_bot flag accs =
     let doit flag acc =  not (( Flags.find flag (proj2_2 acc)) = `Bot) in
     List.filter (doit flag) accs
-(*  let check_top flag accs = (*true if top exist in list*)
-    let doit f init acc =
-        let res = match Flags.find f (proj2_2 acc) with
-          | `Top -> true
-          | _ -> false
-        in
-      init || res
-    in
-    List.fold_left (doit flag) false accs*)
+  (*  let check_top flag accs = (*true if top exist in list*)
+      let doit f init acc =
+          let res = match Flags.find f (proj2_2 acc) with
+            | `Top -> true
+            | _ -> false
+          in
+        init || res
+      in
+      List.fold_left (doit flag) false accs*)
   let split_accs_top flag accs =
     List.partition (flag_top flag) accs
   let split_accs_method flag accs =
@@ -286,14 +286,14 @@ struct
     let doit value acc =
       let acc_value = get_val flag acc in
       let acc_eq = get_eq flag acc in
-(*let f (Const (CInt64 (x,_,_) )) = Int64.to_string x in
-let _ = print_endline ("may equal " ^ (f value)) in
-let _ = print_endline (string_of_bool acc_eq) in
-let _ = print_endline (f acc_value) in
-let res =*)
+      (*let f (Const (CInt64 (x,_,_) )) = Int64.to_string x in
+        let _ = print_endline ("may equal " ^ (f value)) in
+        let _ = print_endline (string_of_bool acc_eq) in
+        let _ = print_endline (f acc_value) in
+        let res =*)
       ( ( (acc_value = value) && acc_eq ) || ( (not acc_eq) && not (acc_value = value) ) )
-(*in
-let _ = print_endline (string_of_bool res) in res*)
+      (*in
+        let _ = print_endline (string_of_bool res) in res*)
     in
     (List.filter (doit value) accs')@unknowns
 
@@ -304,7 +304,7 @@ let _ = print_endline (string_of_bool res) in res*)
 
   (*/flagstuff*)
   (*prioritystuff*)
-(*   let one_pry acc = resourceset_to_priority (List.filter is_task ((fun (_, dom_elem,_) -> (Lockset.ReverseAddrSet.elements dom_elem) ) acc)) *)
+  (*   let one_pry acc = resourceset_to_priority (List.filter is_task ((fun (_, dom_elem,_) -> (Lockset.ReverseAddrSet.elements dom_elem) ) acc)) *)
 
   let just_locks acc_list = List.map (fun (_, dom_elem,_) -> (Lockset.ReverseAddrSet.elements dom_elem) ) acc_list
   let prys acc_list = List.map (List.map names) (just_locks acc_list)
@@ -344,11 +344,11 @@ let _ = print_endline (string_of_bool res) in res*)
       in
 
       let acc_info : (Flags.t*int) list = if Hashtbl.mem off_pry_with_flag var then
-        Hashtbl.find off_pry_with_flag var
-      else begin
-        if tracing then trace "osek" "Empty access information when computing flag offensive priority for variable %s\n" var;
-        []
-      end
+          Hashtbl.find off_pry_with_flag var
+        else begin
+          if tracing then trace "osek" "Empty access information when computing flag offensive priority for variable %s\n" var;
+          []
+        end
       in
 
       let flag_prys = List.map doit acc_info in
@@ -356,26 +356,26 @@ let _ = print_endline (string_of_bool res) in res*)
     in
     Flags.fold helper flagstate min_int
 
-(* from thread*)
+  (* from thread*)
   let query_lv ask exp =
     match ask (Queries.MayPointTo exp) with
-      | `LvalSet l when not (Queries.LS.is_top l) ->
-          Queries.LS.elements l
-      | _ -> []
+    | `LvalSet l when not (Queries.LS.is_top l) ->
+      Queries.LS.elements l
+    | _ -> []
 
   let eval_fv ask exp =
     match query_lv ask exp with
-      | [(v,_)] -> Some v (* This currently assumes that there is a single possible l-value. *)
-      | _ -> None
+    | [(v,_)] -> Some v (* This currently assumes that there is a single possible l-value. *)
+    | _ -> None
 
   let eval_arg ctx (arg:exp) =
     match arg with
     | Lval (Var vinfo,_) -> vinfo
     | _ -> (match eval_fv ctx.ask arg with
-      | Some v -> v
-      | None   -> failwith "cannot extract arg")
+        | Some v -> v
+        | None   -> failwith "cannot extract arg")
 
-(* from mutex *)
+  (* from mutex *)
 
   (* Just adds accesses. It says concrete, but we use it to add verified
      non-concrete accesses too.*)
@@ -396,16 +396,16 @@ let _ = print_endline (string_of_bool res) in res*)
         end ;
         let ls = if rv then Lockset.filter proj2_2 ust else ust in
         let el = MyParam.effect_fun ls in
-  (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
-  (*      let _ = printf "Access to %s with offense priority %a\n" v.vname P.Glob.Val.pretty el in*)
+        (*       (if LockDomain.Mutexes.is_empty el then Messages.waitWhat ("Race on "^v.vname)); *)
+        (*      let _ = printf "Access to %s with offense priority %a\n" v.vname P.Glob.Val.pretty el in*)
         ctx.sideg v el
-        end else begin
-          if tracing then trace "osek" "Ignoring access to task/isr variable %s\n" v.vname;
-        end
+      end else begin
+        if tracing then trace "osek" "Ignoring access to task/isr variable %s\n" v.vname;
+      end
     end
 
   let add_per_element_access a b c d =
-(* print_endline "Per element access not supported.";  *)
+    (* print_endline "Per element access not supported.";  *)
     false
 
   (* All else must have failed --- making a last ditch effort to generate type
@@ -413,63 +413,63 @@ let _ = print_endline (string_of_bool res) in res*)
   let add_type_access ctx fl loc ust flagstate (e,rw:exp * bool) =
     let eqset =
       match ctx.ask (Queries.EqualSet e) with
-        | `ExprSet es
-            when not (Queries.ES.is_bot es)
-            -> Queries.ES.elements es
-        | _ -> [e]
+      | `ExprSet es
+        when not (Queries.ES.is_bot es)
+        -> Queries.ES.elements es
+      | _ -> [e]
     in
-      match M.best_type_inv eqset with
-      	| Some (v,o) -> add_concrete_access ctx fl loc ust flagstate (v,o,rw)
-        | _ -> M.unknown_access ()
+    match M.best_type_inv eqset with
+    | Some (v,o) -> add_concrete_access ctx fl loc ust flagstate (v,o,rw)
+    | _ -> M.unknown_access ()
 
   let add_accesses ctx (accessed: M.accesses) (flagstate: Flags.t) (ust:D.t) =
-      let fl = Mutex.get_flag ctx.presub in
-      if Base.Main.Flag.is_multi fl then
-        let loc = !Tracing.current_loc in
-        let dispatch ax =
-          match ax with
-            | M.Concrete (me,v,o,rw) ->
-                begin match me, M.struct_type_inv v o with
-                  | _, Some (v,o) when (get_bool "exp.type-inv") ->
-                      add_concrete_access ctx fl loc ust flagstate (v,o,rw)
-                  | Some e,_ ->
-                      if   not (add_per_element_access ctx loc ust (e,rw))
-                      then add_concrete_access ctx fl loc ust flagstate (v,o,rw)
-                  | None,_ ->
-                      add_concrete_access ctx fl loc ust flagstate (v,o,rw)
-                end
-            | M.Region (Some e,v,o,rw) ->
-                if   not (add_per_element_access ctx loc ust (e,rw))
-                then add_concrete_access ctx fl loc ust flagstate (v,o,rw)
-            | M.Region (None,v,o,rw) ->
-                add_concrete_access ctx fl loc ust flagstate (v,o,rw)
-            | M.Unknown a ->
-                if   not (add_per_element_access ctx loc ust a)
-                then add_type_access ctx fl loc ust flagstate a
-        in
-          List.iter dispatch accessed
+    let fl = Mutex.get_flag ctx.presub in
+    if Base.Main.Flag.is_multi fl then
+      let loc = !Tracing.current_loc in
+      let dispatch ax =
+        match ax with
+        | M.Concrete (me,v,o,rw) ->
+          begin match me, M.struct_type_inv v o with
+            | _, Some (v,o) when (get_bool "exp.type-inv") ->
+              add_concrete_access ctx fl loc ust flagstate (v,o,rw)
+            | Some e,_ ->
+              if   not (add_per_element_access ctx loc ust (e,rw))
+              then add_concrete_access ctx fl loc ust flagstate (v,o,rw)
+            | None,_ ->
+              add_concrete_access ctx fl loc ust flagstate (v,o,rw)
+          end
+        | M.Region (Some e,v,o,rw) ->
+          if   not (add_per_element_access ctx loc ust (e,rw))
+          then add_concrete_access ctx fl loc ust flagstate (v,o,rw)
+        | M.Region (None,v,o,rw) ->
+          add_concrete_access ctx fl loc ust flagstate (v,o,rw)
+        | M.Unknown a ->
+          if   not (add_per_element_access ctx loc ust a)
+          then add_type_access ctx fl loc ust flagstate a
+      in
+      List.iter dispatch accessed
 
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
     | Queries.Priority "" ->
-        let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
-          `Int (Int64.of_int pry)
+      let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
+      `Int (Int64.of_int pry)
     | Queries.Priority vname -> begin try `Int (Int64.of_int (Hashtbl.find offensivepriorities vname) ) with _ -> Queries.Result.top() end
     | Queries.IsPublic v ->
-        let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
-        if pry = min_int then begin `Bool false end else begin
-          let off =
-  (*         if !FlagModes.Spec.flag_list = [] then begin *)
-              match (ctx.global v: G.t) with
-                | `Bot -> min_int
-                | `Lifted i -> Int64.to_int i
-                | `Top -> max_int
-  (*           end else begin *)
-  (*             let flagstate = get_flags ctx.presub in *)
-  (*               offpry_flags flagstate v *)
-  (*           end *)
-          in `Bool (off > pry)
-        end
+      let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
+      if pry = min_int then begin `Bool false end else begin
+        let off =
+          (*         if !FlagModes.Spec.flag_list = [] then begin *)
+          match (ctx.global v: G.t) with
+          | `Bot -> min_int
+          | `Lifted i -> Int64.to_int i
+          | `Top -> max_int
+          (*           end else begin *)
+          (*             let flagstate = get_flags ctx.presub in *)
+          (*               offpry_flags flagstate v *)
+          (*           end *)
+        in `Bool (off > pry)
+      end
     | _ -> Queries.Result.top ()
 
 
@@ -487,7 +487,7 @@ let _ = print_endline (string_of_bool res) in res*)
     ctx.local (*currently ignored*)
 
   let assign ctx (lval:lval) (rval:exp) : D.t =
-(*     if tracing then trace "osek" "ASSIGN\n"; *)
+    (*     if tracing then trace "osek" "ASSIGN\n"; *)
     if !GU.global_initialization then
       ctx.local
     else
@@ -502,36 +502,36 @@ let _ = print_endline (string_of_bool res) in res*)
     ctx.local
 
   let body ctx (f:fundec) : D.t =
-  if tracing then trace "osek" "Analyzing function %s\n" f.svar.vname;
+    if tracing then trace "osek" "Analyzing function %s\n" f.svar.vname;
     let m_st = ctx.local in
     if (is_task f.svar.vname) then begin
-(* print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file); *)
-(* print_endline ( "Looking for " ^ f.svar.vname); *)
+      (* print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file); *)
+      (* print_endline ( "Looking for " ^ f.svar.vname); *)
       M.special (swap_st ctx m_st) None (dummy_get f) [get_lock (trim f.svar.vname)]
     end else
       m_st
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
-      let m_st = match exp with
-        | Some exp -> begin
-            let accessed = M.access_one_top ctx.ask false exp in
-            add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
-            ctx.local
-          end
-        | None -> ctx.local
-      in
-      let fname = f.svar.vname in
-      if (is_task fname) then begin
-(* let _ = print_endline ( "Leaving task " ^ f.svar.vname) in *)
-        let x = M.special (swap_st ctx m_st) None (dummy_release f) [get_lock (trim fname)] in
-          if (get_bool "ana.osek.check") && not(List.mem fname !warned) && not(D.is_empty x) then begin
-            warned := fname :: !warned;
-            let typ = if (Hashtbl.mem isrs fname) then "Interrupt " else "Task " in
-            let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements x) in
-            print_endline( typ ^ fname ^ " terminated while holding resource(s) " ^ res)
-	  end;
-	  x
-     end else
+    let m_st = match exp with
+      | Some exp -> begin
+          let accessed = M.access_one_top ctx.ask false exp in
+          add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
+          ctx.local
+        end
+      | None -> ctx.local
+    in
+    let fname = f.svar.vname in
+    if (is_task fname) then begin
+      (* let _ = print_endline ( "Leaving task " ^ f.svar.vname) in *)
+      let x = M.special (swap_st ctx m_st) None (dummy_release f) [get_lock (trim fname)] in
+      if (get_bool "ana.osek.check") && not(List.mem fname !warned) && not(D.is_empty x) then begin
+        warned := fname :: !warned;
+        let typ = if (Hashtbl.mem isrs fname) then "Interrupt " else "Task " in
+        let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements x) in
+        print_endline( typ ^ fname ^ " terminated while holding resource(s) " ^ res)
+      end;
+      x
+    end else
       m_st
 
   let eval_funvar ctx (fv:exp) =
@@ -541,109 +541,109 @@ let _ = print_endline (string_of_bool res) in res*)
     (M.enter ctx (lval: lval option) (f:varinfo) (args:exp list))
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-   M.combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) au
+    M.combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let fvname = get_api_names f.vname in
     if tracing then trace "osek" "special '%s'\n" fvname;
-(* try  *)
+    (* try  *)
     match fvname with (* suppress all fails  *)
-      | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
-	M.special ctx lval f (match arglist with
-	  | [Lval (Var info,_)] -> [get_lock info.vname]
-	  | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> failwith ("parameter for " ^ fvname ^ " is constant. Remove trampoline header?")
-(* | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
-	  | x -> x)
-      | "DisableAllInterrupts" -> let res = get_lock "DisableAllInterrupts" in
-	if (get_bool "ana.osek.check") then if (mem res ctx.local) then print_endline ( "Nested calls of DisableAllInterrupts are not allowed!");
-	M.special ctx lval (dummy_get (emptyFunction fvname)) [res]
-      | "EnableAllInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "DisableAllInterrupts"]
-      | "SuspendAllInterrupts" -> M.special ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
-      | "ResumeAllInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
-      | "SuspendOSInterrupts" -> M.special ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
-      | "ResumeOSInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
-      | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
-        let _ = (match arglist with (*call function *)
-	  | [arg] -> begin
-		let task_name' = match arg with
-		  | CastE (_, Const c ) | Const c -> begin
-			if (Hashtbl.mem taskids (Const c)) then begin
-			  if tracing then trace "osek" "Looking up ID\n";
-			  Hashtbl.find taskids (Const c)
-			end else failwith ("Task-ID not found!")
-		      end
-		  | _ -> let vinfo = eval_arg ctx arg in vinfo.vname
-		in
-		let task_name = make_task task_name' in
-                if (is_task task_name) then begin
-		  if tracing then tracel "osek" "Activating task %s\n" task_name';
-                  let _ = activate_task ctx task_name in
-                  [ctx.local, integer 1, true]
-                end else failwith (task_name' ^ " is not a task!")
-	      end
-	  | _  -> failwith "ActivateTask arguments are strange") in
-	M.special ctx lval f arglist
-      | "ChainTask" ->
-        print_endline "Found ChainTask!";
-        if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
-	M.special ctx lval f arglist (*call function *)
-      | "WaitEvent" -> (if (get_bool "ana.osek.check") then begin
-	let _ = check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
-	let static,regular = partition ctx.local in
-	let task = lockset_to_task static in
-	  if not(D.is_empty regular) then begin
-	    let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements regular) in
-	    let ev = (match arglist with
-	      | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> let e,_=Hashtbl.find events (Int64.to_string c) in e
-	      | _ -> print_endline( "No event found for argument of WaitEvent");"_not_found_" ) in
-	    print_endline( task ^ " waited for event "^ ev^ " while holding resource(s) " ^ res)
-	  end;
-	end;);
-	M.special ctx lval f arglist
-      | "SetRelAlarm"
-      | "SetAbsAlarm" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
-        let _ = (match arglist with (*call function *)
+    | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
+      M.special ctx lval f (match arglist with
+          | [Lval (Var info,_)] -> [get_lock info.vname]
+          | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> failwith ("parameter for " ^ fvname ^ " is constant. Remove trampoline header?")
+          (* | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
+          | x -> x)
+    | "DisableAllInterrupts" -> let res = get_lock "DisableAllInterrupts" in
+      if (get_bool "ana.osek.check") then if (mem res ctx.local) then print_endline ( "Nested calls of DisableAllInterrupts are not allowed!");
+      M.special ctx lval (dummy_get (emptyFunction fvname)) [res]
+    | "EnableAllInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "DisableAllInterrupts"]
+    | "SuspendAllInterrupts" -> M.special ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
+    | "ResumeAllInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
+    | "SuspendOSInterrupts" -> M.special ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
+    | "ResumeOSInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
+    | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
+      let _ = (match arglist with (*call function *)
+          | [arg] -> begin
+              let task_name' = match arg with
+                | CastE (_, Const c ) | Const c -> begin
+                    if (Hashtbl.mem taskids (Const c)) then begin
+                      if tracing then trace "osek" "Looking up ID\n";
+                      Hashtbl.find taskids (Const c)
+                    end else failwith ("Task-ID not found!")
+                  end
+                | _ -> let vinfo = eval_arg ctx arg in vinfo.vname
+              in
+              let task_name = make_task task_name' in
+              if (is_task task_name) then begin
+                if tracing then tracel "osek" "Activating task %s\n" task_name';
+                let _ = activate_task ctx task_name in
+                [ctx.local, integer 1, true]
+              end else failwith (task_name' ^ " is not a task!")
+            end
+          | _  -> failwith "ActivateTask arguments are strange") in
+      M.special ctx lval f arglist
+    | "ChainTask" ->
+      print_endline "Found ChainTask!";
+      if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
+      M.special ctx lval f arglist (*call function *)
+    | "WaitEvent" -> (if (get_bool "ana.osek.check") then begin
+        let _ = check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
+        let static,regular = partition ctx.local in
+        let task = lockset_to_task static in
+        if not(D.is_empty regular) then begin
+          let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements regular) in
+          let ev = (match arglist with
+              | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> let e,_=Hashtbl.find events (Int64.to_string c) in e
+              | _ -> print_endline( "No event found for argument of WaitEvent");"_not_found_" ) in
+          print_endline( task ^ " waited for event "^ ev^ " while holding resource(s) " ^ res)
+        end;
+      end;);
+      M.special ctx lval f arglist
+    | "SetRelAlarm"
+    | "SetAbsAlarm" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
+      let _ = (match arglist with (*call function *)
           | [x;_;_] -> (
-            let vinfo = eval_arg ctx x in
-            let alarm = vinfo.vname in
-            if (Hashtbl.mem alarms alarm) then begin
-              let (x,task_list) = Hashtbl.find alarms alarm in
-              List.map (activate_task ctx) task_list
-            end else
-              failwith (alarm ^ "is not an alarm!")
+              let vinfo = eval_arg ctx x in
+              let alarm = vinfo.vname in
+              if (Hashtbl.mem alarms alarm) then begin
+                let (x,task_list) = Hashtbl.find alarms alarm in
+                List.map (activate_task ctx) task_list
+              end else
+                failwith (alarm ^ "is not an alarm!")
             )
           | _  -> failwith "SetAlarm arguments are strange")
-        in
-        M.special ctx lval f arglist
-      | "SetEvent"
-      | "GetTaskID"
-      | "GetTaskState"
-      | "GetEvent"
-      | "GetAlarmBase"
-      | "GetAlarm"
-      | "CancelAlarm"
-      | "GetActiveApplicationMode"
-      | "ShutdownOS" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
-	M.special ctx lval f arglist
-      | "ClearEvent"
-      | "TerminateTask"
-      | "Schedule" -> let _ = if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
-	M.special ctx lval f arglist
-      | "StartOS" -> let _ =if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
-	M.special ctx lval f arglist
-      | _ -> M.special ctx lval f arglist
-(* with | _ -> M.special ctx lval f arglist (* suppress all fails  *) *)
+      in
+      M.special ctx lval f arglist
+    | "SetEvent"
+    | "GetTaskID"
+    | "GetTaskState"
+    | "GetEvent"
+    | "GetAlarmBase"
+    | "GetAlarm"
+    | "CancelAlarm"
+    | "GetActiveApplicationMode"
+    | "ShutdownOS" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
+      M.special ctx lval f arglist
+    | "ClearEvent"
+    | "TerminateTask"
+    | "Schedule" -> let _ = if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
+      M.special ctx lval f arglist
+    | "StartOS" -> let _ =if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
+      M.special ctx lval f arglist
+    | _ -> M.special ctx lval f arglist
+  (* with | _ -> M.special ctx lval f arglist (* suppress all fails  *) *)
 
   let name = "OSEK"
   let es_to_string f _ = f.svar.vname
 
   let should_join _ _ = true
 
-(** Finalization and other result printing functions: *)
+  (** Finalization and other result printing functions: *)
 
   (** are we still race free *)
   let race_free = ref true
-(*   let bad_flags = ref [] *)
+  (*   let bad_flags = ref [] *)
 
   type access_status =
     | Race
@@ -683,52 +683,52 @@ let _ = print_endline (string_of_bool res) in res*)
         else (   new_offs, M.OffsMap.find offs map, M.OffsMap.add group_offs access_list new_map)
       in
       let (last_offs,last_set, map) = M.OffsSet.fold f set (ValueDomain.Offs.bot (), [], M.OffsMap.empty) in
-        if ValueDomain.Offs.is_bot last_offs
-        then map
-        else M.OffsMap.add last_offs last_set map
+      if ValueDomain.Offs.is_bot last_offs
+      then map
+      else M.OffsMap.add last_offs last_set map
     in
     let acc = M.Acc.find acc gl in
     let acc_info = create_map acc in
     let acc_map = if !Mutex.unmerged_fields then proj2_1 acc_info else regroup_map acc_info in
     acc_map
 
- open Batteries
- let suppressed = ref 0
- let filtered = ref 0
+  open Batteries
+  let suppressed = ref 0
+  let filtered = ref 0
 
   (** [postprocess_acc gl] groups and report races in [gl] *)
   let postprocess_acc gl =
     let is_no_glob (gl:varinfo) = (match gl.vtype with TFun _ -> true | _ -> false )in
     if is_no_glob gl then () else
-    (* create mapping from offset to access list; set of offsets  *)
-    let get_common_locks acc_list =
-      let f locks ((_,_,writing), lock, _) =
-        let lock =
-          if writing then
-            (* when writing: ignore reader locks *)
-            Lockset.filter proj2_2 lock
-          else
-            (* when reading: bump reader locks to exclusive as they protect reads *)
-            Lockset.map (fun (x,_) -> (x,true)) lock
-        in
+      (* create mapping from offset to access list; set of offsets  *)
+      let get_common_locks acc_list =
+        let f locks ((_,_,writing), lock, _) =
+          let lock =
+            if writing then
+              (* when writing: ignore reader locks *)
+              Lockset.filter proj2_2 lock
+            else
+              (* when reading: bump reader locks to exclusive as they protect reads *)
+              Lockset.map (fun (x,_) -> (x,true)) lock
+          in
           Lockset.join locks lock
+        in
+        List.fold_left f (Lockset.bot ()) acc_list
       in
-	List.fold_left f (Lockset.bot ()) acc_list
-    in
-    let rw ((_,_,x),_,_) = x in
-    let non_main ((_,x,_),_,_) = Base.Main.Flag.is_bad x in
-    let is_race_no_flags acc_list =
-      let offpry = offpry acc_list in
-      let minpry = minpry acc_list in
-      let maxpry = maxpry acc_list in
-      let var_str = gl.vname in
-(* let _ = print_endline ("Var: " ^var_str) in *)
-(* let _ = print_endline ("Offpry " ^ (string_of_int offpry)) in *)
-(* let _ = print_endline ("minpry " ^ (string_of_int minpry)) in *)
-(* let _ = print_endline ("maxpry " ^ (string_of_int maxpry)) in*)
-      let _ = Hashtbl.add offensivepriorities var_str offpry in
-      let locks = get_common_locks acc_list in
-      if not (Lockset.is_empty locks || Lockset.is_top locks) then
+      let rw ((_,_,x),_,_) = x in
+      let non_main ((_,x,_),_,_) = Base.Main.Flag.is_bad x in
+      let is_race_no_flags acc_list =
+        let offpry = offpry acc_list in
+        let minpry = minpry acc_list in
+        let maxpry = maxpry acc_list in
+        let var_str = gl.vname in
+        (* let _ = print_endline ("Var: " ^var_str) in *)
+        (* let _ = print_endline ("Offpry " ^ (string_of_int offpry)) in *)
+        (* let _ = print_endline ("minpry " ^ (string_of_int minpry)) in *)
+        (* let _ = print_endline ("maxpry " ^ (string_of_int maxpry)) in*)
+        let _ = Hashtbl.add offensivepriorities var_str offpry in
+        let locks = get_common_locks acc_list in
+        if not (Lockset.is_empty locks || Lockset.is_top locks) then
           Guarded locks
         else if (maxpry=minpry) then
           Priority maxpry
@@ -740,129 +740,129 @@ let _ = print_endline (string_of_bool res) in res*)
           ThreadLocal
         else
           Race
-    in (*/is_race_no_flags*)
-    let is_race acc_list_some_glob =
-      let check_valset flag guards acc valset = (*do accesses with flag value valset race with guards?*)
-        let value = get_val flag (List.hd valset) in
-        let may_eq_guards = split_may_eq flag value guards in
-        let accs = valset@may_eq_guards in
-        acc && (not((is_race_no_flags (strip_flags accs)) = Race))
-      in (*/check_valset*)
-      let check_one_flag acc_list_some_glob' flag = (*does flag prevent the race?*)
-        (* are flag values concrete enough?*)
-      let acc_list_some_glob'' = filter_bot flag acc_list_some_glob' in
-(*     if check_top flag acc_list_some_glob then [] else begin (*too strong. check if top accesses are safe by priority*) *)
-        let tops,acc_list_some_glob = split_accs_top flag acc_list_some_glob'' in
-        let guards,assigns = split_accs_method flag acc_list_some_glob in
-(* let _ = print_endline ((string_of_int (List.length guards))^" guards and "^string_of_int (List.length assigns)^" assigns"  ) in        *)
-        let eq_asgn,weird_asgn = split_accs flag assigns in
-if (weird_asgn != [] ) then failwith "this never happens! osek 750";
-        if (is_race_no_flags (strip_flags (eq_asgn@tops)) = Race) then begin
-          [] (* setting does not protect. setters race *)
-        end else begin
-          (* check each set value against all guard access, which are not ineq value *)
-          let valsets' = split_equals flag eq_asgn in
-          let valsets = List.map (fun x -> (x@tops)) valsets' in
-          if List.fold_left (check_valset flag (guards@tops)) true valsets then
-            [flag]
-          else
-            []
-(*     end     *)
-        end
-      in (*/check_one_flag*)
-      let get_keys_from_flag_map flag_map = Flags.fold (fun key value acc -> (key::acc)) flag_map [] in
-      let get_flags acc_list_some_glob : (varinfo list) =
-        let flag_list = List.map proj2_2 acc_list_some_glob in
-        let doit acc flag_map =
-	  if Flags.is_bot(flag_map) then
-	    acc
-	  else
-	    let rec join l1 l2 = match l2 with
-	      | [] -> l1
-	      | l::ls -> let res = (join l1 ls) in
-	      if List.mem l l1 then res else (l :: res)
-	    in
-	    let flags = get_keys_from_flag_map flag_map in
-	      join acc flags
-        in
-        List.fold_left doit [] flag_list
-      in (*/get_flags*)
-      let valid_flag (flag :varinfo) : int=
-(*        let add_flag flag res =
-	  match res with
-	    | BadFlag -> begin
-	      bad_flags := flag::!bad_flags;
-	      if tracing then trace "osek" "Flag %s is invalid\n" flag.vname
-	      end
-	    | SomeFlag _ | GoodFlag -> ()
-	    | _ -> failwith "This never happens! osekml687"
-        in (*/add_flag*)*)
-(*        if List.mem flag !bad_flags then false else*)
-        let status_list = ref [] in
-        let check_one_list offset acc_list_some_glob = (* here we know of_pry of f *)
-          let acc_list = List.map proj2_1 acc_list_some_glob in
-          let writes,reads = List.partition rw acc_list in
-          let res : access_status =
-            if writes = [] || [] = reads then
-              BadFlag
-            else if ((is_race_no_flags writes) = Race) then
-              BadFlag
+      in (*/is_race_no_flags*)
+      let is_race acc_list_some_glob =
+        let check_valset flag guards acc valset = (*do accesses with flag value valset race with guards?*)
+          let value = get_val flag (List.hd valset) in
+          let may_eq_guards = split_may_eq flag value guards in
+          let accs = valset@may_eq_guards in
+          acc && (not((is_race_no_flags (strip_flags accs)) = Race))
+        in (*/check_valset*)
+        let check_one_flag acc_list_some_glob' flag = (*does flag prevent the race?*)
+          (* are flag values concrete enough?*)
+          let acc_list_some_glob'' = filter_bot flag acc_list_some_glob' in
+          (*     if check_top flag acc_list_some_glob then [] else begin (*too strong. check if top accesses are safe by priority*) *)
+          let tops,acc_list_some_glob = split_accs_top flag acc_list_some_glob'' in
+          let guards,assigns = split_accs_method flag acc_list_some_glob in
+          (* let _ = print_endline ((string_of_int (List.length guards))^" guards and "^string_of_int (List.length assigns)^" assigns"  ) in        *)
+          let eq_asgn,weird_asgn = split_accs flag assigns in
+          if (weird_asgn != [] ) then failwith "this never happens! osek 750";
+          if (is_race_no_flags (strip_flags (eq_asgn@tops)) = Race) then begin
+            [] (* setting does not protect. setters race *)
+          end else begin
+            (* check each set value against all guard access, which are not ineq value *)
+            let valsets' = split_equals flag eq_asgn in
+            let valsets = List.map (fun x -> (x@tops)) valsets' in
+            if List.fold_left (check_valset flag (guards@tops)) true valsets then
+              [flag]
             else
-              let write_off_pry = offpry writes in
-              let read_off_pry = offpry reads in
-              if write_off_pry > read_off_pry then
-              BadFlag
+              []
+              (*     end     *)
+          end
+        in (*/check_one_flag*)
+        let get_keys_from_flag_map flag_map = Flags.fold (fun key value acc -> (key::acc)) flag_map [] in
+        let get_flags acc_list_some_glob : (varinfo list) =
+          let flag_list = List.map proj2_2 acc_list_some_glob in
+          let doit acc flag_map =
+            if Flags.is_bot(flag_map) then
+              acc
             else
-(* let _ = print_endline ("flagpry: " ^ (string_of_int write_off_pry)) in             *)
-              SomeFlag write_off_pry
+              let rec join l1 l2 = match l2 with
+                | [] -> l1
+                | l::ls -> let res = (join l1 ls) in
+                  if List.mem l l1 then res else (l :: res)
+              in
+              let flags = get_keys_from_flag_map flag_map in
+              join acc flags
           in
-(*           let _ = add_flag flag res in *)
-          status_list := res::!status_list
-        in (*/check_one_list*)
-        let _ = M.OffsMap.iter check_one_list  (get_acc_map flag) in
-	let fold_fun acc status = match status with SomeFlag p -> max acc p | BadFlag -> max_int | _ -> acc in
-        List.fold_left (fold_fun) min_int !status_list
-      in (*/valid_flag*)
-      let check_flags acc_list' =
-	let acc_pry = minpry (strip_flags acc_list') in
-(* let _ = print_endline ("accpry: " ^ (string_of_int acc_pry)) in *)
-        let flag_list = List.filter (fun f -> (valid_flag f) <= acc_pry) (get_flags acc_list') in
-(* let _ = print_endline ("flaglist: " ^ (List.fold_left (fun x y -> (y.vname ^", " ^x) ) "" flag_list)) in *)
-        List.flatten (List.map (check_one_flag acc_list') flag_list)
-      in (*/check_flags*)
-      let check_high_acc acc_list = (*check high_accs (mark if higher only reads/writes*)
-        let filter_pry p acc =  not ((offpry [acc]) = p) in
-        let is_write acc = (fun ((_,_,x),_,_) -> x) acc in
-        let is_read acc = (fun ((_,_,x),_,_) -> not x) acc in
-        let low = minoffpry acc_list in
-        let high = offpry acc_list in
-        let highs = List.filter (filter_pry low) acc_list in
-        let lows = List.filter (filter_pry high) acc_list in
-        let high_writes = List.filter is_write highs in
-        let high_reads = List.filter is_read highs in
-        let low_writes = List.filter is_write lows in
-        let low_reads = List.filter is_read lows in
-        if (high_writes = []) then HighRead else
-        if (high_reads = []) then HighWrite else
-        if (low_writes = []) then LowRead else
-        if (low_reads = []) then LowWrite else
-        Race
-      in (*/check high_accs*)
-      let res = is_race_no_flags (strip_flags acc_list_some_glob) in
+          List.fold_left doit [] flag_list
+        in (*/get_flags*)
+        let valid_flag (flag :varinfo) : int=
+          (*        let add_flag flag res =
+                    	  match res with
+                    	    | BadFlag -> begin
+                    	      bad_flags := flag::!bad_flags;
+                    	      if tracing then trace "osek" "Flag %s is invalid\n" flag.vname
+                    	      end
+                    	    | SomeFlag _ | GoodFlag -> ()
+                    	    | _ -> failwith "This never happens! osekml687"
+                    in (*/add_flag*)*)
+          (*        if List.mem flag !bad_flags then false else*)
+          let status_list = ref [] in
+          let check_one_list offset acc_list_some_glob = (* here we know of_pry of f *)
+            let acc_list = List.map proj2_1 acc_list_some_glob in
+            let writes,reads = List.partition rw acc_list in
+            let res : access_status =
+              if writes = [] || [] = reads then
+                BadFlag
+              else if ((is_race_no_flags writes) = Race) then
+                BadFlag
+              else
+                let write_off_pry = offpry writes in
+                let read_off_pry = offpry reads in
+                if write_off_pry > read_off_pry then
+                  BadFlag
+                else
+                  (* let _ = print_endline ("flagpry: " ^ (string_of_int write_off_pry)) in             *)
+                  SomeFlag write_off_pry
+            in
+            (*           let _ = add_flag flag res in *)
+            status_list := res::!status_list
+          in (*/check_one_list*)
+          let _ = M.OffsMap.iter check_one_list  (get_acc_map flag) in
+          let fold_fun acc status = match status with SomeFlag p -> max acc p | BadFlag -> max_int | _ -> acc in
+          List.fold_left (fold_fun) min_int !status_list
+        in (*/valid_flag*)
+        let check_flags acc_list' =
+          let acc_pry = minpry (strip_flags acc_list') in
+          (* let _ = print_endline ("accpry: " ^ (string_of_int acc_pry)) in *)
+          let flag_list = List.filter (fun f -> (valid_flag f) <= acc_pry) (get_flags acc_list') in
+          (* let _ = print_endline ("flaglist: " ^ (List.fold_left (fun x y -> (y.vname ^", " ^x) ) "" flag_list)) in *)
+          List.flatten (List.map (check_one_flag acc_list') flag_list)
+        in (*/check_flags*)
+        let check_high_acc acc_list = (*check high_accs (mark if higher only reads/writes*)
+          let filter_pry p acc =  not ((offpry [acc]) = p) in
+          let is_write acc = (fun ((_,_,x),_,_) -> x) acc in
+          let is_read acc = (fun ((_,_,x),_,_) -> not x) acc in
+          let low = minoffpry acc_list in
+          let high = offpry acc_list in
+          let highs = List.filter (filter_pry low) acc_list in
+          let lows = List.filter (filter_pry high) acc_list in
+          let high_writes = List.filter is_write highs in
+          let high_reads = List.filter is_read highs in
+          let low_writes = List.filter is_write lows in
+          let low_reads = List.filter is_read lows in
+          if (high_writes = []) then HighRead else
+          if (high_reads = []) then HighWrite else
+          if (low_writes = []) then LowRead else
+          if (low_reads = []) then LowWrite else
+            Race
+        in (*/check high_accs*)
+        let res = is_race_no_flags (strip_flags acc_list_some_glob) in
         if res = Race then begin
           if not(List.mem gl.vname !FlagModes.Spec.flag_list) then begin
-  (* let _ = print_endline "check flag protection" in *)
+            (* let _ = print_endline "check flag protection" in *)
             let flags = check_flags acc_list_some_glob in
             if not(flags = []) then
-(*   let _ = print_endline "flag!!" in *)
+              (*   let _ = print_endline "flag!!" in *)
               Flag (flag_list_to_string flags)
             else
               check_high_acc (strip_flags acc_list_some_glob)
-            end else begin
-          (*handle Flag vars*)
-(*            if List.mem gl !bad_flags then
-              BadFlag
-            else *)
+          end else begin
+            (*handle Flag vars*)
+            (*            if List.mem gl !bad_flags then
+                          BadFlag
+                          else *)
             if (valid_flag gl < max_int) then
               GoodFlag
             else
@@ -871,7 +871,7 @@ if (weird_asgn != [] ) then failwith "this never happens! osek 750";
         end else begin
           match res with GoodFlag | BadFlag | SomeFlag(_)  ->
             failwith "This never happens! osekml812"
-          | _ -> res
+                       | _ -> res
         end
       in
 
@@ -879,139 +879,139 @@ if (weird_asgn != [] ) then failwith "this never happens! osek 750";
       let report_race offset acc_list =
         let f  (((loc, fl, write), dom_elem,o),flagstate) =
           let lock_str = Lockset.short 80 dom_elem in
-	  let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully2) never happens!" ) (Lockset.ReverseAddrSet.elements dom_elem) in
-	  let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in
-	  let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Pretty.sprint 80 (Flags.pretty () flagstate)) else "" in
+          let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully2) never happens!" ) (Lockset.ReverseAddrSet.elements dom_elem) in
+          let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in
+          let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Pretty.sprint 80 (Flags.pretty () flagstate)) else "" in
           let action = if write then "write" else "read" in
           let thread = "\"" ^ Base.Main.Flag.short 80 fl ^ "\"" in
           let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ flag_str in
-            (warn,loc)
+          (warn,loc)
         in (*/f*)
         let warnings =  List.map f acc_list in
         let var_str = gl.vname ^ ValueDomain.Offs.short 80 offset in
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
         let handle_race def_warn = begin
-            if (List.mem gl.vname  (List.map Json.string @@ get_list "ana.osek.safe_vars")) then begin
-              suppressed := !suppressed+1;
-              if (get_bool "allglobs") then
-                print_group (safe_str "safe variable") warnings
-              else
-                ignore (printf "Suppressed warning: %s is not guarded\n" var_str)
+          if (List.mem gl.vname  (List.map Json.string @@ get_list "ana.osek.safe_vars")) then begin
+            suppressed := !suppressed+1;
+            if (get_bool "allglobs") then
+              print_group (safe_str "safe variable") warnings
+            else
+              ignore (printf "Suppressed warning: %s is not guarded\n" var_str)
+          end else begin
+            (*filter out safe task access. redo is_race report accordingly List.not List.mem gl.vname  *)
+            let safe_tasks = List.map make_task (List.map Json.string @@ get_list "ana.osek.safe_task") in
+            let safe_irpts = List.map make_isr (List.map Json.string @@ get_list "ana.osek.safe_isr") in
+            let safe_funs = safe_irpts @ safe_tasks in
+            if safe_funs = [] then begin
+              race_free := false;
+              let warn = def_warn ^ " at " ^ var_str in
+              print_group warn warnings
             end else begin
-              (*filter out safe task access. redo is_race report accordingly List.not List.mem gl.vname  *)
-              let safe_tasks = List.map make_task (List.map Json.string @@ get_list "ana.osek.safe_task") in
-              let safe_irpts = List.map make_isr (List.map Json.string @@ get_list "ana.osek.safe_isr") in
-              let safe_funs = safe_irpts @ safe_tasks in
-              if safe_funs = [] then begin
-                race_free := false;
-                let warn = def_warn ^ " at " ^ var_str in
-                  print_group warn warnings
-              end else begin
-                filtered := !filtered +1;
-(*((_, dom_elem,_),_) -> let lock_names_list = names (Lockset.ReverseAddrSet.elements dom_elem) in
-any in there also in safe_tasks ... %TODO *)
-                let filter_fun ((_, dom_elem,_),_) =
-                  List.fold_left (fun old name -> not (old || List.mem name safe_funs)) false (List.map names (Lockset.ReverseAddrSet.elements dom_elem))
-                in
-                let acc_list' = List.filter filter_fun acc_list in
-                match (is_race acc_list') with
-                | Race -> begin
+              filtered := !filtered +1;
+              (*((_, dom_elem,_),_) -> let lock_names_list = names (Lockset.ReverseAddrSet.elements dom_elem) in
+                any in there also in safe_tasks ... %TODO *)
+              let filter_fun ((_, dom_elem,_),_) =
+                List.fold_left (fun old name -> not (old || List.mem name safe_funs)) false (List.map names (Lockset.ReverseAddrSet.elements dom_elem))
+              in
+              let acc_list' = List.filter filter_fun acc_list in
+              match (is_race acc_list') with
+              | Race -> begin
                   race_free := false;
                   let warn = "Datarace at " ^ var_str in
-                    print_group warn warnings
+                  print_group warn warnings
+                end
+              | Guarded locks ->
+                let lock_str = Mutex.Lockset.short 80 locks in
+                if (get_bool "allglobs") then
+                  print_group (safe_str "common mutex after filtering") warnings
+                else
+                  ignore (printf "Found correlation: %s is guarded by lockset %s after filtering\n" var_str lock_str)
+              | Priority pry ->
+                if (get_bool "allglobs") then
+                  print_group (safe_str "same priority after filtering") warnings
+                else
+                  ignore (printf "Found correlation: %s is guarded by priority %s after filtering\n" var_str (string_of_int pry))
+              | Defence (defpry,offpry) ->
+                if (get_bool "allglobs") then
+                  print_group (safe_str "defensive priority exceeds offensive priority after filtering") warnings
+                else
+                  ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s after filtering\n" var_str (string_of_int defpry) (string_of_int offpry))
+              | Flag (flagvar) ->
+                if (get_bool "allglobs") then
+                  print_group (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses after filtering") ) warnings
+                else
+                  ignore (printf "Found correlation: %s is guarded by flag %s after filtering\n" var_str flagvar)
+              | ReadOnly ->
+                if (get_bool "allglobs") then
+                  print_group (safe_str "only read after filtering") warnings
+              | ThreadLocal ->
+                if (get_bool "allglobs") then
+                  print_group (safe_str "thread local after filtering") warnings
+              | BadFlag -> begin
+                  race_free := false;
+                  let warn = "Writerace at 'flag' " ^ var_str in
+                  print_group warn warnings
+                end
+              | GoodFlag -> begin
+                  if (get_bool "allglobs") then begin
+                    print_group (safe_str "is a flag after filtering") warnings
+                  end else  begin
+                    ignore (printf "Found flag behaviour after filtering: %s\n" var_str)
                   end
-                | Guarded locks ->
-                    let lock_str = Mutex.Lockset.short 80 locks in
-                      if (get_bool "allglobs") then
-                        print_group (safe_str "common mutex after filtering") warnings
-                      else
-                        ignore (printf "Found correlation: %s is guarded by lockset %s after filtering\n" var_str lock_str)
-                | Priority pry ->
-                      if (get_bool "allglobs") then
-                        print_group (safe_str "same priority after filtering") warnings
-                      else
-                        ignore (printf "Found correlation: %s is guarded by priority %s after filtering\n" var_str (string_of_int pry))
-                | Defence (defpry,offpry) ->
-                      if (get_bool "allglobs") then
-                        print_group (safe_str "defensive priority exceeds offensive priority after filtering") warnings
-                      else
-                        ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s after filtering\n" var_str (string_of_int defpry) (string_of_int offpry))
-                | Flag (flagvar) ->
-                    if (get_bool "allglobs") then
-                      print_group (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses after filtering") ) warnings
-                    else
-                          ignore (printf "Found correlation: %s is guarded by flag %s after filtering\n" var_str flagvar)
-                | ReadOnly ->
-                    if (get_bool "allglobs") then
-                      print_group (safe_str "only read after filtering") warnings
-                | ThreadLocal ->
-                    if (get_bool "allglobs") then
-                      print_group (safe_str "thread local after filtering") warnings
-                | BadFlag -> begin
-                    race_free := false;
-                    let warn = "Writerace at 'flag' " ^ var_str in
-                      print_group warn warnings
-                  end
-                | GoodFlag -> begin
-                    if (get_bool "allglobs") then begin
-                      print_group (safe_str "is a flag after filtering") warnings
-                    end else  begin
-                      ignore (printf "Found flag behaviour after filtering: %s\n" var_str)
-                    end
-                  end
-                | SomeFlag _ | HighRead | HighWrite | LowRead | LowWrite -> failwith "This never happens! osekml984"
+                end
+              | SomeFlag _ | HighRead | HighWrite | LowRead | LowWrite -> failwith "This never happens! osekml984"
+            end
+          end
+        end in
+        let res = match is_race acc_list with
+          | Race -> handle_race "Datarace"
+          | HighRead -> handle_race "High read datarace"
+          | HighWrite -> handle_race "High write datarace"
+          | LowRead -> handle_race "Low read datarace"
+          | LowWrite -> handle_race "Low write datarace"
+          | Guarded locks ->
+            let lock_str = Mutex.Lockset.short 80 locks in
+            if (get_bool "allglobs") then
+              print_group (safe_str "common mutex") warnings
+            else
+              ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
+          | Priority pry ->
+            if (get_bool "allglobs") then
+              print_group (safe_str "same priority") warnings
+            else
+              ignore (printf "Found correlation: %s is guarded by priority %s\n" var_str (string_of_int pry))
+          | Defence (defpry,offpry) ->
+            if (get_bool "allglobs") then
+              print_group (safe_str "defensive priority exceeds offensive priority") warnings
+            else
+              ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s\n" var_str (string_of_int defpry) (string_of_int offpry))
+          | Flag (flagvar) ->
+            if (get_bool "allglobs") then
+              print_group (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses") ) warnings
+            else
+              ignore (printf "Found correlation: %s is guarded by flag %s\n" var_str flagvar)
+          | ReadOnly ->
+            if (get_bool "allglobs") then
+              print_group (safe_str "only read") warnings
+          | ThreadLocal ->
+            if (get_bool "allglobs") then
+              print_group (safe_str "thread local") warnings
+          | BadFlag -> begin
+              race_free := false;
+              let warn = "Writerace at 'flag' " ^ var_str in
+              print_group warn warnings
+            end
+          | GoodFlag -> begin
+              if (get_bool "allglobs") then begin
+                print_group (safe_str "is a flag") warnings
+              end else  begin
+                ignore (printf "Found flag behaviour: %s\n" var_str)
               end
             end
-          end in
-          let res = match is_race acc_list with
-            | Race -> handle_race "Datarace"
-            | HighRead -> handle_race "High read datarace"
-            | HighWrite -> handle_race "High write datarace"
-            | LowRead -> handle_race "Low read datarace"
-            | LowWrite -> handle_race "Low write datarace"
-            | Guarded locks ->
-                let lock_str = Mutex.Lockset.short 80 locks in
-                  if (get_bool "allglobs") then
-                    print_group (safe_str "common mutex") warnings
-                  else
-                    ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
-            | Priority pry ->
-                  if (get_bool "allglobs") then
-                    print_group (safe_str "same priority") warnings
-                  else
-                    ignore (printf "Found correlation: %s is guarded by priority %s\n" var_str (string_of_int pry))
-            | Defence (defpry,offpry) ->
-                  if (get_bool "allglobs") then
-                    print_group (safe_str "defensive priority exceeds offensive priority") warnings
-                  else
-                    ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s\n" var_str (string_of_int defpry) (string_of_int offpry))
-            | Flag (flagvar) ->
-                if (get_bool "allglobs") then
-		  print_group (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses") ) warnings
-		else
-		      ignore (printf "Found correlation: %s is guarded by flag %s\n" var_str flagvar)
-	    | ReadOnly ->
-                if (get_bool "allglobs") then
-                  print_group (safe_str "only read") warnings
-            | ThreadLocal ->
-                if (get_bool "allglobs") then
-                  print_group (safe_str "thread local") warnings
-            | BadFlag -> begin
-                race_free := false;
-                let warn = "Writerace at 'flag' " ^ var_str in
-                  print_group warn warnings
-              end
-            | GoodFlag -> begin
-                if (get_bool "allglobs") then begin
-                  print_group (safe_str "is a flag") warnings
-                end else  begin
-                  ignore (printf "Found flag behaviour: %s\n" var_str)
-                end
-              end
-	    | SomeFlag _ -> failwith "This never happens! osekml1027"
-          in
-          res
-    in (*/report_race*)
+          | SomeFlag _ -> failwith "This never happens! osekml1027"
+        in
+        res
+      in (*/report_race*)
       M.OffsMap.iter report_race (get_acc_map gl)
 
   (** postprocess and print races and other output *)
@@ -1026,7 +1026,7 @@ any in there also in safe_tasks ... %TODO *)
         print_endline ("However " ^ (string_of_int !suppressed) ^ " warnings have been suppressed.");
       if !filtered > 0 then
         print_endline ("Filtering of safe tasks/irpts was used " ^  (string_of_int !filtered) ^ " time(s).");
-      end else if not (get_bool "dbg.debug") then begin
+    end else if not (get_bool "dbg.debug") then begin
       print_endline "NB! That didn't seem like a multithreaded program.";
       print_endline "Try `goblint --help' to do something other than Data Race Analysis."
     end;
@@ -1050,7 +1050,7 @@ any in there also in safe_tasks ... %TODO *)
     if Sys.file_exists(names) then begin
       parse_ids names;
     end;
-  end
+end
 
 let _ =
   MCP.register_analysis ~dep:["base";"fmode"] (module Spec : Spec)

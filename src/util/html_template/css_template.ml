@@ -1,5 +1,5 @@
 let css_string =
-"
+  "
 html , body {
   font-family:Georgia,Serif;
   margin: 0;

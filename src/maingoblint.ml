@@ -68,37 +68,37 @@ let option_spec_list =
     set_string "result" "fast_xml"
   in
   let tmp_arg = ref "" in
-    [ "-o"                   , Arg.String (set_string "outfile"), ""
-    ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true), ""
-    ; "-I"                   , Arg.String (set_string "includes[+]"), ""
-    ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
-    ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
-    ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_string !tmp_arg x)], ""
-    ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
-    ; "--disable"            , Arg.String (fun x -> set_bool x false), ""
-    ; "--conf"               , Arg.String merge_file, ""
-    ; "--writeconf"          , Arg.String (fun fn -> writeconf:=true;writeconffile:=fn), ""
-    ; "--version"            , Arg.Unit print_version, ""
-    ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; raise BailFromMain), ""
-    ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; raise BailFromMain), ""
-    ; "--trace"              , Arg.String set_trace, ""
-    ; "--tracevars"          , add_string Tracing.tracevars, ""
-    ; "--tracelocs"          , add_int Tracing.tracelocs, ""
-    ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
-    ; "--halp"               , Arg.Unit (fun _ -> print_help stdout),""
-    ; "-help"                , Arg.Unit (fun _ -> print_help stdout),""
-    ; "--html"               , Arg.Unit (fun _ -> configure_html ()),""
-    ; "--oil"                , Arg.String oil, ""
-(*     ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""  *)
-    ; "--osekdefaults"       , Arg.Unit (fun () -> set_bool "ana.osek.defaults" false), ""
-    ; "--osektaskprefix"     , Arg.String (set_string "ana.osek.taskprefix"), ""
-    ; "--osekisrprefix"      , Arg.String (set_string "ana.osek.isrprefix"), ""
-    ; "--osektasksuffix"     , Arg.String (set_string "ana.osek.tasksuffix"), ""
-    ; "--osekisrsuffix"      , Arg.String (set_string "ana.osek.isrsuffix"), ""
-    ; "--osekcheck"          , Arg.Unit (fun () -> set_bool "ana.osek.check" true), ""
-    ; "--oseknames"          , Arg.Set_string OilUtil.osek_renames, ""
-    ; "--osekids"            , Arg.Set_string OilUtil.osek_ids, ""
-    ]
+  [ "-o"                   , Arg.String (set_string "outfile"), ""
+  ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true), ""
+  ; "-I"                   , Arg.String (set_string "includes[+]"), ""
+  ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
+  ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
+  ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_string !tmp_arg x)], ""
+  ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
+  ; "--disable"            , Arg.String (fun x -> set_bool x false), ""
+  ; "--conf"               , Arg.String merge_file, ""
+  ; "--writeconf"          , Arg.String (fun fn -> writeconf:=true;writeconffile:=fn), ""
+  ; "--version"            , Arg.Unit print_version, ""
+  ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; raise BailFromMain), ""
+  ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; raise BailFromMain), ""
+  ; "--trace"              , Arg.String set_trace, ""
+  ; "--tracevars"          , add_string Tracing.tracevars, ""
+  ; "--tracelocs"          , add_int Tracing.tracelocs, ""
+  ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
+  ; "--halp"               , Arg.Unit (fun _ -> print_help stdout),""
+  ; "-help"                , Arg.Unit (fun _ -> print_help stdout),""
+  ; "--html"               , Arg.Unit (fun _ -> configure_html ()),""
+  ; "--oil"                , Arg.String oil, ""
+  (*     ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""  *)
+  ; "--osekdefaults"       , Arg.Unit (fun () -> set_bool "ana.osek.defaults" false), ""
+  ; "--osektaskprefix"     , Arg.String (set_string "ana.osek.taskprefix"), ""
+  ; "--osekisrprefix"      , Arg.String (set_string "ana.osek.isrprefix"), ""
+  ; "--osektasksuffix"     , Arg.String (set_string "ana.osek.tasksuffix"), ""
+  ; "--osekisrsuffix"      , Arg.String (set_string "ana.osek.isrsuffix"), ""
+  ; "--osekcheck"          , Arg.Unit (fun () -> set_bool "ana.osek.check" true), ""
+  ; "--oseknames"          , Arg.Set_string OilUtil.osek_renames, ""
+  ; "--osekids"            , Arg.Set_string OilUtil.osek_ids, ""
+  ]
 
 (** List of C files to consider. *)
 let cFileNames = ref []
@@ -131,11 +131,11 @@ let handle_flags () =
   end;
 
   match get_string "dbg.dump" with
-    | "" -> ()
-    | path -> begin
-        Messages.warn_out := Legacy.open_out (Legacy.Filename.concat path "warnings.out");
-        set_string "outfile" ""
-      end
+  | "" -> ()
+  | path -> begin
+      Messages.warn_out := Legacy.open_out (Legacy.Filename.concat path "warnings.out");
+      set_string "outfile" ""
+    end
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let preprocess_one_file cppflags includes dirName fname =
@@ -151,11 +151,11 @@ let preprocess_one_file cppflags includes dirName fname =
   let rm_and_exit () =
     if not (get_bool "keepcpp") then ignore (Goblintutil.rm_rf dirName); raise BailFromMain
   in
-    try match Unix.system command with
-          | Unix.WEXITED 0 -> nname
-          | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
-    with Unix.Unix_error (e, f, a) ->
-      eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; rm_and_exit ()
+  try match Unix.system command with
+    | Unix.WEXITED 0 -> nname
+    | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
+  with Unix.Unix_error (e, f, a) ->
+    eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; rm_and_exit ()
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
@@ -172,10 +172,10 @@ let preprocess_files () =
   let include_dir =
     let incl1 = Filename.concat myname "includes" in
     let incl2 = "/usr/share/goblint/includes" in
-      if get_string "custom_incl" <> "" then (get_string "custom_incl")
-      else if Sys.file_exists incl1 then incl1
-      else if Sys.file_exists incl2 then incl2
-      else "/usr/local/share/goblint/includes"
+    if get_string "custom_incl" <> "" then (get_string "custom_incl")
+    else if Sys.file_exists incl1 then incl1
+    else if Sys.file_exists incl2 then incl2
+    else "/usr/local/share/goblint/includes"
   in
 
   (* include flags*)
@@ -184,7 +184,7 @@ let preprocess_files () =
   (* fill include flags *)
   let one_include_f f x = includes := "-I " ^ f (string x) ^ " " ^ !includes in
   if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (!OilUtil.header_path ^ !OilUtil.header) ^" "^ !includes;
-(*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
+  (*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
   get_list "includes" |> List.iter (one_include_f identity);
   get_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
 
@@ -197,7 +197,7 @@ let preprocess_files () =
 
   (* possibly add our lib.c to the files *)
   if get_bool "custom_libc" then
-      cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;
+    cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then begin
@@ -207,9 +207,9 @@ let preprocess_files () =
     (* These are not just random permutations of directories, but based on USERINCLUDE from the
      * Linux kernel Makefile (in the root directory of the kernel distribution). *)
     includes := !includes ^ " -I" ^ String.concat " -I" [
-      kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi";
-      arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi"; arch_dir ^ "/generated/uapi";
-    ]
+        kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi";
+        arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi"; arch_dir ^ "/generated/uapi";
+      ]
   end;
 
   (* The temp directory for preprocessing the input files *)
@@ -217,7 +217,7 @@ let preprocess_files () =
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-    List.rev_map (preprocess_one_file !cppflags !includes dirName) !cFileNames, dirName
+  List.rev_map (preprocess_one_file !cppflags !includes dirName) !cFileNames, dirName
 
 
 (** Possibly merge all postprocessed files *)
@@ -240,11 +240,11 @@ let merge_preprocessed (cpp_file_names, dirName) =
   (* we use CIL to merge all inputs to ONE file *)
   let merged_AST =
     match files_AST with
-      | [one] -> Cilfacade.callConstructors one
-      | [] -> prerr_endline "No arguments for Goblint?";
-              prerr_endline "Try `goblint --help' for more information.";
-              raise BailFromMain
-      | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
+    | [one] -> Cilfacade.callConstructors one
+    | [] -> prerr_endline "No arguments for Goblint?";
+      prerr_endline "Try `goblint --help' for more information.";
+      raise BailFromMain
+    | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
   in
 
   (* using CIL's partial evaluation and constant folding! *)
@@ -269,39 +269,39 @@ let do_analyze merged_AST =
     (* we first find the functions to analyze: *)
     if get_bool "dbg.verbose" then print_endline "And now...  the Goblin!";
     let (stf,exf,otf as funs) = Cilfacade.getFuns merged_AST in
-      if stf@exf@otf = [] then failwith "No suitable function to start from.";
-      if get_bool "dbg.verbose" then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
-                                                 L.pretty stf L.pretty exf L.pretty otf);
-      (* and here we run the analysis! *)
-      if get_string "result" = "html" then Report.prepare_html_report ();
+    if stf@exf@otf = [] then failwith "No suitable function to start from.";
+    if get_bool "dbg.verbose" then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
+                                             L.pretty stf L.pretty exf L.pretty otf);
+    (* and here we run the analysis! *)
+    if get_string "result" = "html" then Report.prepare_html_report ();
 
-      let do_all_phases ast funs =
-        let do_one_phase ast p =
-          phase := p;
-          if get_bool "dbg.verbose" then (
-            let aa = String.concat ", " @@ List.map Json.jsonString (get_list "ana.activated") in
-            let at = String.concat ", " @@ List.map Json.jsonString (get_list "trans.activated") in
-            print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
-            print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
-          );
-          Control.analyze ast funs
-          (* Cilfacade.ugglyImperativeHack := ast'; *)
-        in
-        (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
-        new style (Goblintutil.phase_config = true) is phases[i].ana.activated = [ana_1, ...]
-          phases[i].ana.x overwrites setting ana.x *)
-        let num_phases =
-          let np,na,nt = Tuple3.mapn (List.length % get_list) ("phases", "ana.activated", "trans.activated") in
-          phase_config := np > 0; (* TODO what about wrong usage like { phases = [...], ana.activated = [...] }? should child-lists add to parent-lists? *)
-          if get_bool "dbg.verbose" then print_endline @@ "Using " ^ if !phase_config then "new" else "old" ^ " format for phases!";
-          if np = 0 && na = 0 && nt = 0 then failwith "No phases and no activated analyses or transformations!";
-          max np 1
-        in
-        ignore @@ Enum.iter (do_one_phase ast) (0 -- (num_phases - 1))
+    let do_all_phases ast funs =
+      let do_one_phase ast p =
+        phase := p;
+        if get_bool "dbg.verbose" then (
+          let aa = String.concat ", " @@ List.map Json.jsonString (get_list "ana.activated") in
+          let at = String.concat ", " @@ List.map Json.jsonString (get_list "trans.activated") in
+          print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
+          print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
+        );
+        Control.analyze ast funs
+        (* Cilfacade.ugglyImperativeHack := ast'; *)
       in
+      (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
+         new style (Goblintutil.phase_config = true) is phases[i].ana.activated = [ana_1, ...]
+         phases[i].ana.x overwrites setting ana.x *)
+      let num_phases =
+        let np,na,nt = Tuple3.mapn (List.length % get_list) ("phases", "ana.activated", "trans.activated") in
+        phase_config := np > 0; (* TODO what about wrong usage like { phases = [...], ana.activated = [...] }? should child-lists add to parent-lists? *)
+        if get_bool "dbg.verbose" then print_endline @@ "Using " ^ if !phase_config then "new" else "old" ^ " format for phases!";
+        if np = 0 && na = 0 && nt = 0 then failwith "No phases and no activated analyses or transformations!";
+        max np 1
+      in
+      ignore @@ Enum.iter (do_one_phase ast) (0 -- (num_phases - 1))
+    in
 
-      (* Analyze with the new experimental framework. *)
-      Stats.time "analysis" (do_all_phases merged_AST) funs
+    (* Analyze with the new experimental framework. *)
+    Stats.time "analysis" (do_all_phases merged_AST) funs
   end
 
 let do_html_output () =
@@ -312,8 +312,8 @@ let do_html_output () =
     if Sys.file_exists jar then begin
       let command = "java -jar "^get_path jar^" --result-dir "^get_path (get_string "outfile")^" "^get_path !Messages.xml_file_name in
       try match Unix.system command with
-            | Unix.WEXITED 0 -> ()
-            | _ -> eprintf "HTML generation failed!\n"
+        | Unix.WEXITED 0 -> ()
+        | _ -> eprintf "HTML generation failed!\n"
       with Unix.Unix_error (e, f, a) ->
         eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a
     end else
@@ -324,19 +324,19 @@ let do_html_output () =
 (** the main function *)
 let main =
   let main_running = ref false in fun () ->
-  if !main_running then () else
-  let _ = main_running := true in
-  try
-    Stats.reset Stats.SoftwareTimer;
-    Cilfacade.init ();
-    parse_arguments ();
-    handle_flags ();
-    if String.length (get_string "questions.file") > 0 then question_load_db (get_string "questions.file");
-    preprocess_files () |> merge_preprocessed |> do_analyze;
-    if String.length (get_string "questions.file") > 0 then question_save_db (get_string "questions.file");
-    Report.do_stats !cFileNames;
-    do_html_output ()
-  with BailFromMain -> ()
+    if !main_running then () else
+      let _ = main_running := true in
+      try
+        Stats.reset Stats.SoftwareTimer;
+        Cilfacade.init ();
+        parse_arguments ();
+        handle_flags ();
+        if String.length (get_string "questions.file") > 0 then question_load_db (get_string "questions.file");
+        preprocess_files () |> merge_preprocessed |> do_analyze;
+        if String.length (get_string "questions.file") > 0 then question_save_db (get_string "questions.file");
+        Report.do_stats !cFileNames;
+        do_html_output ()
+      with BailFromMain -> ()
 
 let _ =
   at_exit main

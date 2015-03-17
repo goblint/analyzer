@@ -33,19 +33,19 @@ let rec printJson' ch = function
 and print_object ch = function
   | m when Object.is_empty m -> BatPrintf.fprintf ch "{}"
   | m ->
-      let prnt_str ch (x:string) = BatPrintf.fprintf ch "%S" x in
-      let ident ch = for i = 1 to !identCount do BatPrintf.fprintf ch " " done in
-      let n, i = Object.cardinal m, ref 1 in
-      let print_one k v =
-        let sep = if !i<n then "," else "" in
-        incr i;
-        BatPrintf.fprintf ch "%t%a : %a%s\n" ident prnt_str k (BatRef.print printJson')  v sep
-      in
-      identCount := !identCount + 2;
-      BatPrintf.fprintf ch "{\n";
-      Object.iter print_one m;
-      identCount := !identCount - 2;
-      BatPrintf.fprintf ch "%t}" ident
+    let prnt_str ch (x:string) = BatPrintf.fprintf ch "%S" x in
+    let ident ch = for i = 1 to !identCount do BatPrintf.fprintf ch " " done in
+    let n, i = Object.cardinal m, ref 1 in
+    let print_one k v =
+      let sep = if !i<n then "," else "" in
+      incr i;
+      BatPrintf.fprintf ch "%t%a : %a%s\n" ident prnt_str k (BatRef.print printJson')  v sep
+    in
+    identCount := !identCount + 2;
+    BatPrintf.fprintf ch "{\n";
+    Object.iter print_one m;
+    identCount := !identCount - 2;
+    BatPrintf.fprintf ch "%t}" ident
 
 let printJson ch m =
   identCount := 0;
@@ -67,7 +67,7 @@ let rec prettyJson () = function
 and pretty_of_array = function
   | [] -> text "[]"
   | x::xs -> List.fold_left (fun xs x -> xs ++ text ", " ++ prettyJson () !x)
-                (text "[ " ++ prettyJson () !x) xs ++ text " ]"
+               (text "[ " ++ prettyJson () !x) xs ++ text " ]"
 
 and pretty_of_object = function
   | m when Object.is_empty m -> text "{}"
@@ -114,24 +114,24 @@ let field v f =
 (** Call to [merge x y] returns a [jvalue]  where [x] is updated with values in [y] *)
 let rec merge (x:jvalue) (y:jvalue) : jvalue =
   match x, y with
-    | Object m1, Object m2 ->
-        let merger k v1 v2 =
-          match v1, v2 with
-            | Some v1, Some v2 -> Some (ref (merge !v1 !v2))
-            | None   , Some v
-            | Some v , None    -> Some v
-            | None   , None    -> None
-        in
-        let nm = Object.merge merger !m1 !m2 in
-        Object (ref nm)
-    | Array l1, Array l2 ->
-        let rec zipWith' x y : jvalue ref list =
-          match x, y with
-            | x::xs, y::ys    -> (ref (merge !x !y)) :: zipWith' xs ys
-            | [], xs | xs, [] -> y
-        in
-        Array (ref (zipWith' !l1 !l2))
-    | _ -> y
+  | Object m1, Object m2 ->
+    let merger k v1 v2 =
+      match v1, v2 with
+      | Some v1, Some v2 -> Some (ref (merge !v1 !v2))
+      | None   , Some v
+      | Some v , None    -> Some v
+      | None   , None    -> None
+    in
+    let nm = Object.merge merger !m1 !m2 in
+    Object (ref nm)
+  | Array l1, Array l2 ->
+    let rec zipWith' x y : jvalue ref list =
+      match x, y with
+      | x::xs, y::ys    -> (ref (merge !x !y)) :: zipWith' xs ys
+      | [], xs | xs, [] -> y
+    in
+    Array (ref (zipWith' !l1 !l2))
+  | _ -> y
 
 (** Json value generation. Added for compatibility with the old library. *)
 module Build = (* backward compatibility *)

@@ -38,7 +38,7 @@ struct
   let get_type xs =
     try Addr.get_type (choose xs)
     with (* WTF? Returns TVoid when it is unknown and stuff??? *)
-      | _ -> voidType
+    | _ -> voidType
 
   (* The basic strategy for the join and meet operations is to first just take
    * the union and intersection and then collapse the values. (Does the meet
@@ -49,16 +49,16 @@ struct
     let merge_addr op (v1,ofs1) (v2,ofs2) =
       let rec merge_offs x y =
         match x,y with
-          | `NoOffset, `NoOffset -> `NoOffset
-          | `Field (f1,of1), `Field (_,of2) -> `Field (f1, merge_offs of1 of2)
-          | `Index (i1,of1), `Index (i2,of2)-> `Index (op i1 i2, merge_offs of1 of2)
-          | x, _ -> x
+        | `NoOffset, `NoOffset -> `NoOffset
+        | `Field (f1,of1), `Field (_,of2) -> `Field (f1, merge_offs of1 of2)
+        | `Index (i1,of1), `Index (i2,of2)-> `Index (op i1 i2, merge_offs of1 of2)
+        | x, _ -> x
       in
-        v1, merge_offs ofs1 ofs2
+      v1, merge_offs ofs1 ofs2
     in
     match (Addr.to_var_offset x, Addr.to_var_offset y) with
-      | [x],[y]  -> Addr.from_var_offset (merge_addr op x y)
-      | _ -> failwith "This should never happen!"
+    | [x],[y]  -> Addr.from_var_offset (merge_addr op x y)
+    | _ -> failwith "This should never happen!"
 
   (* A function to find the addresses that need to be merged. Those that have
    * the same shape.  *)
@@ -66,16 +66,16 @@ struct
     let same_mod_idx_addr (v1,ofs1) (v2,ofs2) =
       let rec same_offs x y =
         match x,y with
-          | `NoOffset, `NoOffset -> true
-          | `Index (_,x), `Index (_,y) -> same_offs x y
-          | `Field (f1,x), `Field (f2,y) when f1.fcomp.ckey=f2.fcomp.ckey && f1.fname=f2.fname -> same_offs x y
-          | _ -> false
+        | `NoOffset, `NoOffset -> true
+        | `Index (_,x), `Index (_,y) -> same_offs x y
+        | `Field (f1,x), `Field (f2,y) when f1.fcomp.ckey=f2.fcomp.ckey && f1.fname=f2.fname -> same_offs x y
+        | _ -> false
       in
-        v1.vid = v2.vid && same_offs ofs1 ofs2
+      v1.vid = v2.vid && same_offs ofs1 ofs2
     in
     match Addr.to_var_offset x, Addr.to_var_offset y with
-      | [x],[y]  -> same_mod_idx_addr x y
-      | _ -> false
+    | [x],[y]  -> same_mod_idx_addr x y
+    | _ -> false
 
   let merge_idxs op (s:t) : t =
     let rec f xs acc =
@@ -85,9 +85,9 @@ struct
         let xs = remove x xs in
         let (fit,rest) =  partition (same_mod_idx x) xs in
         let merged = fold (merge op) fit x in
-          f rest (add merged acc)
+        f rest (add merged acc)
     in
-      try f s (empty ()) with SetDomain.Unsupported _ -> top ()
+    try f s (empty ()) with SetDomain.Unsupported _ -> top ()
 
   let join (s1:t) (s2:t) = merge_idxs Idx.join (join s1 s2)
   let meet (s1:t) (s2:t) = merge_idxs Idx.meet  (meet s1 s2)
@@ -109,8 +109,8 @@ struct
   (* add an & in front of real addresses *)
   let short_addr w a =
     match Addr.to_var a with
-      | [_] -> "&" ^ Addr.short w a
-      | _ -> Addr.short w a
+    | [_] -> "&" ^ Addr.short w a
+    | _ -> Addr.short w a
 
   let pretty_f w () x =
     try
@@ -118,41 +118,41 @@ struct
       let content = List.map (Addr.pretty_f short_addr ()) elts in
       let rec separate x =
         match x with
-          | [] -> []
-          | [x] -> [x]
-          | (x::xs) -> x ++ (text ", ") :: separate xs
+        | [] -> []
+        | [x] -> [x]
+        | (x::xs) -> x ++ (text ", ") :: separate xs
       in
       let separated = separate content in
       let content = List.fold_left (++) nil separated in
-         (text "{") ++ content ++ (text "}")
+      (text "{") ++ content ++ (text "}")
     with SetDomain.Unsupported _ -> pretty_f w () x
 
   let short w x : string =
     try
       let usable_length = w - 5 in
       let all_elems : string list = List.map (short_addr usable_length) (elements x) in
-        Printable.get_short_list "{" "}" usable_length all_elems
+      Printable.get_short_list "{" "}" usable_length all_elems
     with SetDomain.Unsupported _ -> short w x
 
   let toXML_f sf x =
     try
       let esc = Goblintutil.escape in
       let elems = List.map Addr.toXML (elements x) in
-        Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
+      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
     with SetDomain.Unsupported _ -> toXML_f sf x
 
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
   let leq = if not fast_addr_sets then leq else fun x y ->
-    match mem Addr.UnknownPtr x, mem Addr.UnknownPtr y with
+      match mem Addr.UnknownPtr x, mem Addr.UnknownPtr y with
       | true, false -> false
       | false, true -> true
       | true, true -> true
       | false, false -> leq x y
 
   let join = if not fast_addr_sets then join else fun x y ->
-    match mem Addr.UnknownPtr x, mem Addr.UnknownPtr y with
+      match mem Addr.UnknownPtr x, mem Addr.UnknownPtr y with
       | true, false
       | false, true
       | true, true -> unknown_ptr ()

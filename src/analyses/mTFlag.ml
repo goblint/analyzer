@@ -37,21 +37,21 @@ struct
 
   let enter ctx lval f args =
     match LF.classify f.vname args with
-      | `ThreadCreate (f,x) ->
-        let new_fl = Flag.join ctx.local (Flag.get_main ()) in
-          [ctx.local,new_fl]
-      | _ -> [ctx.local,ctx.local]
+    | `ThreadCreate (f,x) ->
+      let new_fl = Flag.join ctx.local (Flag.get_main ()) in
+      [ctx.local,new_fl]
+    | _ -> [ctx.local,ctx.local]
 
   let combine ctx lval fexp f args st2 = st2
 
   let special ctx lval f args =
-  match LF.classify f.vname args with
+    match LF.classify f.vname args with
     | `ThreadCreate (f,x) -> Flag.join ctx.local (Flag.get_main ())
     | `Unknown _ -> begin
         match LF.get_invalidate_action f.vname with
-          | None -> Flag.join ctx.local (Flag.get_main ())
-          | _ -> ctx.local
-    end
+        | None -> Flag.join ctx.local (Flag.get_main ())
+        | _ -> ctx.local
+      end
     | _ ->  ctx.local
 
 

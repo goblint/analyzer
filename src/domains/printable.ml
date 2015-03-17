@@ -24,8 +24,8 @@ end
 
 module Std =
 struct
-(*  let equal = Util.equals
-  let hash = Hashtbl.hash*)
+  (*  let equal = Util.equals
+      let hash = Hashtbl.hash*)
   let compare = Pervasives.compare
   let classify _ = 0
   let class_name _ = "None"
@@ -48,10 +48,10 @@ struct
 end
 
 module PrintSimple (P: sig
-                      type t'
-                      val short: int -> t' -> string
-                      val name: unit -> string
-                    end) =
+    type t'
+    val short: int -> t' -> string
+    val name: unit -> string
+  end) =
 struct
   let isSimple _ = true
   let pretty_f sf () x = text (sf max_int x)
@@ -59,7 +59,7 @@ struct
     let esc = Goblintutil.escape in
     let l = Goblintutil.summary_length in
     let summary = esc (sf l st) in
-      Xml.Element ("Leaf", ["text", summary], [])
+    Xml.Element ("Leaf", ["text", summary], [])
   let pretty () x = pretty_f P.short () x
   let toXML m = toXML_f P.short m
   let pretty_diff () (x,y) =
@@ -137,33 +137,33 @@ struct
 
   let equal x y =
     match (x, y) with
-      | (`Top, `Top) -> true
-      | (`Bot, `Bot) -> true
-      | (`Lifted x, `Lifted y) -> Base.equal x y
-      | _ -> false
+    | (`Top, `Top) -> true
+    | (`Bot, `Bot) -> true
+    | (`Lifted x, `Lifted y) -> Base.equal x y
+    | _ -> false
 
   let short w state =
     match state with
-      | `Lifted n ->  Base.short w n
-      | `Bot -> bot_name
-      | `Top -> top_name
+    | `Lifted n ->  Base.short w n
+    | `Bot -> bot_name
+    | `Top -> top_name
 
   let isSimple x =
     match x with
-      | `Lifted n -> Base.isSimple n
-      | _ -> true
+    | `Lifted n -> Base.isSimple n
+    | _ -> true
 
   let pretty_f _ () (state:t) =
     match state with
-      | `Lifted n ->  Base.pretty () n
-      | `Bot -> text bot_name
-      | `Top -> text top_name
+    | `Lifted n ->  Base.pretty () n
+    | `Bot -> text bot_name
+    | `Top -> text top_name
 
   let toXML_f _ (state:t) =
     match state with
-      | `Lifted n -> Base.toXML n
-      | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
-      | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
+    | `Lifted n -> Base.toXML n
+    | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
+    | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
 
   let toXML m = toXML_f short m
 
@@ -183,34 +183,34 @@ struct
 
   let hash state =
     match state with
-      | `Left n ->  Base1.hash n
-      | `Right n ->  133 * Base2.hash n
+    | `Left n ->  Base1.hash n
+    | `Right n ->  133 * Base2.hash n
 
   let equal x y =
     match (x, y) with
-      | (`Left x, `Left y) -> Base1.equal x y
-      | (`Right x, `Right y) -> Base2.equal x y
-      | _ -> false
+    | (`Left x, `Left y) -> Base1.equal x y
+    | (`Right x, `Right y) -> Base2.equal x y
+    | _ -> false
 
   let pretty_f _ () (state:t) =
     match state with
-      | `Left n ->  Base1.pretty () n
-      | `Right n ->  Base2.pretty () n
+    | `Left n ->  Base1.pretty () n
+    | `Right n ->  Base2.pretty () n
 
   let short w state =
     match state with
-      | `Left n ->  Base1.short w n
-      | `Right n ->  Base2.short w n
+    | `Left n ->  Base1.short w n
+    | `Right n ->  Base2.short w n
 
   let isSimple x =
     match x with
-      | `Left n ->  Base1.isSimple n
-      | `Right n ->  Base2.isSimple n
+    | `Left n ->  Base1.isSimple n
+    | `Right n ->  Base2.isSimple n
 
   let toXML_f _ (state:t) =
     match state with
-      | `Left n -> Base1.toXML n
-      | `Right n -> Base2.toXML n
+    | `Left n -> Base1.toXML n
+    | `Right n -> Base2.toXML n
 
   let toXML m = toXML_f short m
 
@@ -218,9 +218,9 @@ struct
   let name () = "either " ^ Base1.name () ^ " or " ^ Base2.name ()
   let pretty_diff () (x,y) =
     match (x,y) with
-      | `Left x, `Left y ->  Base1.pretty_diff () (x,y)
-      | `Right x, `Right y ->  Base2.pretty_diff () (x,y)
-      | _ -> Pretty.dprintf "%a not leq %a" pretty x pretty y
+    | `Left x, `Left y ->  Base1.pretty_diff () (x,y)
+    | `Right x, `Right y ->  Base2.pretty_diff () (x,y)
+    | _ -> Pretty.dprintf "%a not leq %a" pretty x pretty y
   let printXml f = function
     | `Left x  -> BatPrintf.fprintf f "<value><map>\n<key>\nLeft\n</key>\n%a</map>\n</value>\n" Base1.printXml x
     | `Right x -> BatPrintf.fprintf f "<value><map>\n<key>\nRight\n</key>\n%a</map>\n</value>\n" Base2.printXml x
@@ -236,45 +236,45 @@ struct
 
   let equal x y =
     match (x, y) with
-      | (`Top, `Top) -> true
-      | (`Bot, `Bot) -> true
-      | (`Lifted1 x, `Lifted1 y) -> Base1.equal x y
-      | (`Lifted2 x, `Lifted2 y) -> Base2.equal x y
-      | _ -> false
+    | (`Top, `Top) -> true
+    | (`Bot, `Bot) -> true
+    | (`Lifted1 x, `Lifted1 y) -> Base1.equal x y
+    | (`Lifted2 x, `Lifted2 y) -> Base2.equal x y
+    | _ -> false
 
   let hash state =
     match state with
-      | `Lifted1 n -> Base1.hash n
-      | `Lifted2 n -> 77 * Base2.hash n
-      | `Bot -> 13432255
-      | `Top -> -33434577
+    | `Lifted1 n -> Base1.hash n
+    | `Lifted2 n -> 77 * Base2.hash n
+    | `Bot -> 13432255
+    | `Top -> -33434577
 
   let pretty_f _ () (state:t) =
     match state with
-      | `Lifted1 n ->  Base1.pretty () n
-      | `Lifted2 n ->  Base2.pretty () n
-      | `Bot -> text bot_name
-      | `Top -> text top_name
+    | `Lifted1 n ->  Base1.pretty () n
+    | `Lifted2 n ->  Base2.pretty () n
+    | `Bot -> text bot_name
+    | `Top -> text top_name
 
   let short w state =
     match state with
-      | `Lifted1 n ->  Base1.short w n
-      | `Lifted2 n ->  Base2.short w n
-      | `Bot -> bot_name
-      | `Top -> top_name
+    | `Lifted1 n ->  Base1.short w n
+    | `Lifted2 n ->  Base2.short w n
+    | `Bot -> bot_name
+    | `Top -> top_name
 
   let isSimple x =
     match x with
-      | `Lifted1 n ->  Base1.isSimple n
-      | `Lifted2 n ->  Base2.isSimple n
-      | _ -> true
+    | `Lifted1 n ->  Base1.isSimple n
+    | `Lifted2 n ->  Base2.isSimple n
+    | _ -> true
 
   let toXML_f _ (state:t) =
     match state with
-      | `Lifted1 n -> Base1.toXML n
-      | `Lifted2 n -> Base2.toXML n
-      | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
-      | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
+    | `Lifted1 n -> Base1.toXML n
+    | `Lifted2 n -> Base2.toXML n
+    | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
+    | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
 
   let toXML m = toXML_f short m
 
@@ -307,18 +307,18 @@ struct
 
   let compare (x1,x2) (y1,y2) =
     match Base1.compare x1 y1, Base2.compare x2 y2 with
-      | (-1, _) -> -1
-      | ( 1, _) ->  1
-      | ( 0,-1) -> -1
-      | ( 0, 1) ->  1
-      | ( 0, 0) ->  0
-      | _       -> failwith "is this possible?"
+    | (-1, _) -> -1
+    | ( 1, _) ->  1
+    | ( 0,-1) -> -1
+    | ( 0, 1) ->  1
+    | ( 0, 0) ->  0
+    | _       -> failwith "is this possible?"
 
   let short w (x,y) =
     let first  = ref "" in
     let second = ref "" in
-      first  := Base1.short (w - 4 - 6 (* chars for 2.*) ) x;
-      second := Base2.short (w - 4 - String.length !first) y;
+    first  := Base1.short (w - 4 - 6 (* chars for 2.*) ) x;
+    second := Base2.short (w - 4 - String.length !first) y;
     "(" ^ !first ^ ", " ^ !second ^ ")"
 
   let isSimple (x,y) = Base1.isSimple x && Base2.isSimple y
@@ -340,13 +340,13 @@ struct
   let toXML_f sf ((x, y) as st) =
     let esc = Goblintutil.escape in
     let nodes = match expand_fst,expand_snd with
-        | (true, false) -> [Base1.toXML x]
-        | (false, true) -> [Base2.toXML y]
-        | (true, true) -> [Base1.toXML x; Base2.toXML y]
-        | _ -> []
+      | (true, false) -> [Base1.toXML x]
+      | (false, true) -> [Base2.toXML y]
+      | (true, true) -> [Base1.toXML x; Base2.toXML y]
+      | _ -> []
     in
     let node_leaf = if nodes = [] then "Leaf" else "Node" in
-      Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length st))], nodes)
+    Xml.Element (node_leaf, [("text", esc (sf Goblintutil.summary_length st))], nodes)
 
   let toXML m = toXML_f short m
 
@@ -374,25 +374,25 @@ struct
     let first = ref "" in
     let second= ref "" in
     let third = ref "" in
-      first  := Base1.short (w-6- 12 (* chars for 2.&3.*) ) x;
-      second := Base2.short (w-6- 6 - String.length !first) y;
-      third  := Base3.short (w-6- String.length !first - String.length !second) z;
-      "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ")"
+    first  := Base1.short (w-6- 12 (* chars for 2.&3.*) ) x;
+    second := Base2.short (w-6- 6 - String.length !first) y;
+    third  := Base3.short (w-6- String.length !first - String.length !second) z;
+    "(" ^ !first ^ ", " ^ !second ^ ", " ^ !third ^ ")"
 
   let pretty_f _ () (x,y,z) =
     text "(" ++
-      Base1.pretty () x
+    Base1.pretty () x
     ++ text ", " ++
-      Base2.pretty () y
+    Base2.pretty () y
     ++ text ", " ++
-      Base3.pretty () z
+    Base3.pretty () z
     ++ text ")"
 
   let isSimple (x,y,z) = Base1.isSimple x && Base2.isSimple y && Base3.isSimple z
   let toXML_f sf ((x,y,z) as st) =
     let esc = Goblintutil.escape in
-      Xml.Element ("Node", [("text", esc (sf Goblintutil.summary_length st))],
-                   [Base1.toXML x; Base2.toXML y; Base3.toXML z])
+    Xml.Element ("Node", [("text", esc (sf Goblintutil.summary_length st))],
+                 [Base1.toXML x; Base2.toXML y; Base3.toXML z])
 
   let toXML m = toXML_f short m
 
@@ -413,18 +413,18 @@ struct
 
   let short _ x =
     let elems = List.map (Base.short max_int) x in
-      "[" ^ (String.concat ", " elems) ^ "]"
+    "[" ^ (String.concat ", " elems) ^ "]"
 
   let pretty_f sf () x = text (sf max_int x)
   let isSimple _ = true
 
   let toXML_f sf x =
     let esc = Goblintutil.escape in
-      match x with
-        | (y::_) when not (Base.isSimple y) ->
-            let elems = List.map Base.toXML x in
-              Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
-        | _ -> Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
+    match x with
+    | (y::_) when not (Base.isSimple y) ->
+      let elems = List.map Base.toXML x in
+      Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
+    | _ -> Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
 
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
@@ -476,9 +476,9 @@ struct
 
   let equal x y =
     match (x, y) with
-      | (`Bot, `Bot) -> true
-      | (`Lifted x, `Lifted y) -> Base.equal x y
-      | _ -> false
+    | (`Bot, `Bot) -> true
+    | (`Lifted x, `Lifted y) -> Base.equal x y
+    | _ -> false
 
   let hash = function
     | `Bot -> 56613454
@@ -486,23 +486,23 @@ struct
 
   let short w state =
     match state with
-      | `Lifted n ->  Base.short w n
-      | `Bot -> "bot of " ^ (Base.name ())
+    | `Lifted n ->  Base.short w n
+    | `Bot -> "bot of " ^ (Base.name ())
 
   let isSimple x =
     match x with
-      | `Lifted n -> Base.isSimple n
-      | _ -> true
+    | `Lifted n -> Base.isSimple n
+    | _ -> true
 
   let pretty_f _ () (state:t) =
     match state with
-      | `Lifted n ->  Base.pretty () n
-      | `Bot -> text ("bot of " ^ (Base.name ()))
+    | `Lifted n ->  Base.pretty () n
+    | `Bot -> text ("bot of " ^ (Base.name ()))
 
   let toXML_f _ (state:t) =
     match state with
-      | `Lifted n -> Base.toXML n
-      | `Bot -> Xml.Element ("Leaf", ["text","bot of " ^ (Base.name ())], [])
+    | `Lifted n -> Base.toXML n
+    | `Bot -> Xml.Element ("Leaf", ["text","bot of " ^ (Base.name ())], [])
 
   let toXML m = toXML_f short m
 
@@ -523,9 +523,9 @@ struct
 
   let equal x y =
     match (x, y) with
-      | (`Top, `Top) -> true
-      | (`Lifted x, `Lifted y) -> Base.equal x y
-      | _ -> false
+    | (`Top, `Top) -> true
+    | (`Lifted x, `Lifted y) -> Base.equal x y
+    | _ -> false
 
   let hash = function
     | `Top -> 7890
@@ -533,23 +533,23 @@ struct
 
   let short w state =
     match state with
-      | `Lifted n ->  Base.short w n
-      | `Top -> "top of " ^ (Base.name ())
+    | `Lifted n ->  Base.short w n
+    | `Top -> "top of " ^ (Base.name ())
 
   let isSimple x =
     match x with
-      | `Lifted n -> Base.isSimple n
-      | _ -> true
+    | `Lifted n -> Base.isSimple n
+    | _ -> true
 
   let pretty_f _ () (state:t) =
     match state with
-      | `Lifted n ->  Base.pretty () n
-      | `Top -> text ("top of " ^ (Base.name ()))
+    | `Lifted n ->  Base.pretty () n
+    | `Top -> text ("top of " ^ (Base.name ()))
 
   let toXML_f _ (state:t) =
     match state with
-      | `Lifted n -> Base.toXML n
-      | `Top -> Xml.Element ("Leaf", ["text","top of " ^ (Base.name ())], [])
+    | `Lifted n -> Base.toXML n
+    | `Top -> Xml.Element ("Leaf", ["text","top of " ^ (Base.name ())], [])
 
   let toXML m = toXML_f short m
 
@@ -557,8 +557,8 @@ struct
   let name () = "top or " ^ Base.name ()
   let pretty_diff () (x,y) =
     match (x,y) with
-      | `Lifted x, `Lifted y -> Base.pretty_diff () (x,y)
-      | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    | `Lifted x, `Lifted y -> Base.pretty_diff () (x,y)
+    | _ -> dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f = function
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
@@ -586,35 +586,35 @@ end
 
 
 (** Concatenates a list of strings that
-   fit in the given character constraint *)
+    fit in the given character constraint *)
 let get_short_list begin_str end_str w list =
-    let continues = "..." in
-    (* Maximal space for short description *)
-    let usable_length =
-      w-String.length continues
-       -String.length begin_str
-       -String.length end_str in
-    (* Structure elements separator *)
-    let separator = ", " in
-    let separator_length = String.length separator in
-    (* List of elements, that are in our character boundaries*)
-    let str_list_w_size = List.map (fun a -> (a,String.length a)) list in
-    let to_length_pair alst (b,bb) =
-      match alst with
-	  []         -> [b,bb]
-	| (a,aa)::tl -> (b,aa+bb+separator_length)::(a,aa)::tl in
-    let str_list_sum_size_rev = List.fold_left to_length_pair [] str_list_w_size in
+  let continues = "..." in
+  (* Maximal space for short description *)
+  let usable_length =
+    w-String.length continues
+    -String.length begin_str
+    -String.length end_str in
+  (* Structure elements separator *)
+  let separator = ", " in
+  let separator_length = String.length separator in
+  (* List of elements, that are in our character boundaries*)
+  let str_list_w_size = List.map (fun a -> (a,String.length a)) list in
+  let to_length_pair alst (b,bb) =
+    match alst with
+      []         -> [b,bb]
+    | (a,aa)::tl -> (b,aa+bb+separator_length)::(a,aa)::tl in
+  let str_list_sum_size_rev = List.fold_left to_length_pair [] str_list_w_size in
 
-    let cut_str_pair_list_rev =
-      List.filter (fun (a,s) -> s<=usable_length) str_list_sum_size_rev in
+  let cut_str_pair_list_rev =
+    List.filter (fun (a,s) -> s<=usable_length) str_list_sum_size_rev in
 
-    let cut_str_list_rev = List.map fst cut_str_pair_list_rev in
+  let cut_str_list_rev = List.map fst cut_str_pair_list_rev in
 
-    let cut_str_list =
-      if ((List.length cut_str_list_rev) < (List.length list)) then
-	 List.rev (continues::cut_str_list_rev)
-      else
-	 List.rev cut_str_list_rev in
+  let cut_str_list =
+    if ((List.length cut_str_list_rev) < (List.length list)) then
+      List.rev (continues::cut_str_list_rev)
+    else
+      List.rev cut_str_list_rev in
 
-    let str = String.concat separator cut_str_list in
-      begin_str ^ str ^ end_str
+  let str = String.concat separator cut_str_list in
+  begin_str ^ str ^ end_str

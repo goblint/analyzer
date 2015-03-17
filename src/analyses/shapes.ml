@@ -22,43 +22,43 @@ struct
 
   let rec tryReallyHard ask gl upd f st =
     if LD.is_empty st then raise Deadcode else
-    try f st
-    with PleaseMaterialize k ->
-      let st = LD.union
-                  (LD.map (SHMap.add' k (empty_list k   )) st)
-                  (LD.map (SHMap.add' k (nonempty_list k)) st)
-      in
-      assert (LD.for_all (fun sm -> SHMap.mem k sm) st);
-      tryReallyHard ask gl upd f st
-    | PleaseKillMe k -> raise Deadcode
+      try f st
+      with PleaseMaterialize k ->
+        let st = LD.union
+            (LD.map (SHMap.add' k (empty_list k   )) st)
+            (LD.map (SHMap.add' k (nonempty_list k)) st)
+        in
+        assert (LD.for_all (fun sm -> SHMap.mem k sm) st);
+        tryReallyHard ask gl upd f st
+         | PleaseKillMe k -> raise Deadcode
 
 
   let vars e =
     let module S = Set.Make (Var) in
     let rec offs_contains o =
       match o with
-        | NoOffset -> S.empty
-        | Field (_,o) -> offs_contains o
-        | Index (e,o) -> S.union (cv e) (offs_contains o)
+      | NoOffset -> S.empty
+      | Field (_,o) -> offs_contains o
+      | Index (e,o) -> S.union (cv e) (offs_contains o)
     and cv e =
       match e with
-        | SizeOf _
-        | SizeOfE _
-        | SizeOfStr _
-        | AlignOf _
-        | Const _
-        | AlignOfE _ -> S.empty
-        | UnOp  (_,e,_)     -> cv e
-        | BinOp (_,e1,e2,_) -> S.union (cv e1) (cv e2)
-        | AddrOf  (Mem e,o)
-        | StartOf (Mem e,o)
-        | Lval    (Mem e,o) -> S.union (cv e) (offs_contains o)
-        | CastE (_,e)           -> cv e
-        | Lval    (Var v2,o) -> S.add v2 (offs_contains o)
-        | AddrOf  (Var v2,o)
-        | StartOf (Var v2,o) -> S.add v2 (offs_contains o)
-        | Question _ -> failwith "Logical operations should be compiled away by CIL."
-	| _ -> failwith "Unmatched pattern."
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _
+      | Const _
+      | AlignOfE _ -> S.empty
+      | UnOp  (_,e,_)     -> cv e
+      | BinOp (_,e1,e2,_) -> S.union (cv e1) (cv e2)
+      | AddrOf  (Mem e,o)
+      | StartOf (Mem e,o)
+      | Lval    (Mem e,o) -> S.union (cv e) (offs_contains o)
+      | CastE (_,e)           -> cv e
+      | Lval    (Var v2,o) -> S.add v2 (offs_contains o)
+      | AddrOf  (Var v2,o)
+      | StartOf (Var v2,o) -> S.add v2 (offs_contains o)
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | _ -> failwith "Unmatched pattern."
     in
     S.elements (cv e)
 
@@ -67,7 +67,7 @@ struct
     let spawn f v x = f v (LD.singleton (SHMap.top ()), x) in
     let geffect f v d = f v (false, d) in
     let split f d e t = f (LD.singleton (SHMap.top ()), d) e t in
-      set_st_gl ctx re ge spawn geffect split
+    set_st_gl ctx re ge spawn geffect split
 
   let sync_ld ask gl upd st =
     let f sm (st, ds, rm, part)=
@@ -75,7 +75,7 @@ struct
       let add_regmap (ls,gs) (rm,part) =
         let set =
           if List.length gs = 0 then RS.singleton VFB.bullet else
-          List.fold_right (fun x -> RS.add (VFB.of_vf (x,[]))) gs (RS.empty ())
+            List.fold_right (fun x -> RS.add (VFB.of_vf (x,[]))) gs (RS.empty ())
         in
         let write_map l rm =
           RegMap.add (l,[]) set rm
@@ -92,13 +92,13 @@ struct
 
   let reclaimLostRegions alive ctx (e,_) v =
     if (not e.vglob) &&  (not (Usedef.VS.mem e alive)) then () else
-    let is_public = function
-      | `Left (v,_) -> (not (is_private ctx.ask (`Left v)))
-      | `Right _    -> false
-    in
-    let rs = RS.filter is_public v in
-(*    if RS.cardinal rs >= 2 then  Messages.waitWhat (e.vname^": "^RS.short 80 rs);*)
-    if not (RS.is_empty rs) then ctx.sideg (Re.partition_varinfo ()) (false, RegPart.singleton rs)
+      let is_public = function
+        | `Left (v,_) -> (not (is_private ctx.ask (`Left v)))
+        | `Right _    -> false
+      in
+      let rs = RS.filter is_public v in
+      (*    if RS.cardinal rs >= 2 then  Messages.waitWhat (e.vname^": "^RS.short 80 rs);*)
+      if not (RS.is_empty rs) then ctx.sideg (Re.partition_varinfo ()) (false, RegPart.singleton rs)
 
 
 
@@ -116,40 +116,40 @@ struct
     in
     let nre =
       match nre with
-        | `Lifted (e,m) -> `Lifted (e,RegMap.fold update rm m)
-        | x -> x
+      | `Lifted (e,m) -> `Lifted (e,RegMap.fold update rm m)
+      | x -> x
     in
     let _ =
       match nre with
-        | `Lifted (_,m) ->
-          let alive =
-            match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
-              | Some x -> x
-              | _      -> Usedef.VS.empty
-    	  in
-          RegMap.iter (reclaimLostRegions alive ctx) m
-        | x -> ()
+      | `Lifted (_,m) ->
+        let alive =
+          match MyLiveness.getLiveSet !Cilfacade.currentStatement.sid with
+          | Some x -> x
+          | _      -> Usedef.VS.empty
+        in
+        RegMap.iter (reclaimLostRegions alive ctx) m
+      | x -> ()
     in
     ctx.sideg (Re.partition_varinfo ()) (false, part);
     let is_public (v,_) = gl v in
     (nst,(nre,nvar)),
     (List.map (fun (v,d) -> (v,(false,d))) (List.filter is_public dre)
-    @ List.map (fun (v,d) -> (v,(d, Re.G.bot ()))) dst)
+     @ List.map (fun (v,d) -> (v,(d, Re.G.bot ()))) dst)
 
   (* transfer functions *)
   let assign_ld ask gl dup (lval:lval) (rval:exp) st : LD.t =
     match eval_lp ask (Lval lval), eval_lp ask rval, rval with
-      | Some (l,`Next), Some (r,`NA),_ -> LD.map (normal ask gl dup l `Next r) st
-      | Some (l,`Prev), Some (r,`NA),_ -> LD.map (normal ask gl dup l `Prev r) st
-      | Some (l,`NA)  , Some (r,dir),_ ->
-          LD.fold (fun d xs -> List.fold_right LD.add (add_alias ask gl dup l (r,dir) d) xs) st (LD.empty ())
-      | Some (l,`Next)  , _, c when isZero c ->
-          LD.map (write_null ask gl dup l `Next) st
-      | Some (l,`Prev)  , _, c when isZero c ->
-          LD.map (write_null ask gl dup l `Prev) st
-      | _ ->
-          let ls = vars (Lval lval) in
-          LD.map (kill_vars ask gl dup ls) st
+    | Some (l,`Next), Some (r,`NA),_ -> LD.map (normal ask gl dup l `Next r) st
+    | Some (l,`Prev), Some (r,`NA),_ -> LD.map (normal ask gl dup l `Prev r) st
+    | Some (l,`NA)  , Some (r,dir),_ ->
+      LD.fold (fun d xs -> List.fold_right LD.add (add_alias ask gl dup l (r,dir) d) xs) st (LD.empty ())
+    | Some (l,`Next)  , _, c when isZero c ->
+      LD.map (write_null ask gl dup l `Next) st
+    | Some (l,`Prev)  , _, c when isZero c ->
+      LD.map (write_null ask gl dup l `Prev) st
+    | _ ->
+      let ls = vars (Lval lval) in
+      LD.map (kill_vars ask gl dup ls) st
 
 
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -173,13 +173,13 @@ struct
     let xor x y = if x then not y else y in
     let eval_lps e1 e2 b =
       match eval_lp ask e1, eval_lp ask e2 with
-        | Some lpe1, Some lpe2 -> invariant ask gl lpe1 lpe2 st (xor tv b)
-        | _ -> st
+      | Some lpe1, Some lpe2 -> invariant ask gl lpe1 lpe2 st (xor tv b)
+      | _ -> st
     in
     match stripCasts exp with
-      | BinOp (Ne,e1,e2,_) -> eval_lps (stripCasts e1) (stripCasts e2) false
-      | BinOp (Eq,e1,e2,_) -> eval_lps (stripCasts e1) (stripCasts e2) true
-      | _ -> st
+    | BinOp (Ne,e1,e2,_) -> eval_lps (stripCasts e1) (stripCasts e2) false
+    | BinOp (Eq,e1,e2,_) -> eval_lps (stripCasts e1) (stripCasts e2) true
+    | _ -> st
 
   let branch ctx exp tv : D.t =
     let st, re = ctx.local in
@@ -206,8 +206,8 @@ struct
   let enter_func_ld ask gl dup (lval: lval option) (f:varinfo) (args:exp list) st : LD.t =
     let rec zip xs ys =
       match xs, ys with
-        | x::xs, y::ys -> (x, y) :: zip xs ys
-        | _ -> []
+      | x::xs, y::ys -> (x, y) :: zip xs ys
+      | _ -> []
     in
     let fd = Cilfacade.getdec f in
     let asg (v,e) d = assign_ld ask gl dup (Var v,NoOffset) e d in
@@ -227,34 +227,34 @@ struct
   let special_fn_ld ask gl dup (lval: lval option) (f:varinfo) (arglist:exp list) st  =
     let lift_st x = [x,integer 1, true] in
     match f.vname, arglist, lval with
-      | "kill", [ee], _ -> begin
-          match eval_lp ask ee with
-            | Some (lp, _) -> lift_st (LD.map (kill ask gl dup lp) st)
-            | _ -> lift_st st
-        end
-      | "collapse", [e1;e2], _ -> begin
-          match eval_lp ask e1, eval_lp ask e2 with
-            | Some (lp1, _), Some (lp2, _) -> lift_st (LD.map (collapse_summary ask gl dup lp1 lp2) st)
-            | _ -> lift_st st
-        end
-      | "list_empty", [e], Some lv ->
-          begin match eval_lp ask (stripCasts e) with
-            | Some (lp, `NA) ->
-                let branch = invariant ask gl (lp,`NA) (lp,`Next) st in
-                let s1 = branch true in
-                let s2 = branch false in
-                if LD.is_empty s1 then [s2, Lval lv, true] else
-                if LD.is_empty s2 then [s1, Lval lv, false] else
-                [ branch true , Lval lv, false
-                ; branch false, Lval lv, true ]
-            | _ -> lift_st st
-          end
-      | _ ->
-    match lval with
+    | "kill", [ee], _ -> begin
+        match eval_lp ask ee with
+        | Some (lp, _) -> lift_st (LD.map (kill ask gl dup lp) st)
+        | _ -> lift_st st
+      end
+    | "collapse", [e1;e2], _ -> begin
+        match eval_lp ask e1, eval_lp ask e2 with
+        | Some (lp1, _), Some (lp2, _) -> lift_st (LD.map (collapse_summary ask gl dup lp1 lp2) st)
+        | _ -> lift_st st
+      end
+    | "list_empty", [e], Some lv ->
+      begin match eval_lp ask (stripCasts e) with
+        | Some (lp, `NA) ->
+          let branch = invariant ask gl (lp,`NA) (lp,`Next) st in
+          let s1 = branch true in
+          let s2 = branch false in
+          if LD.is_empty s1 then [s2, Lval lv, true] else
+          if LD.is_empty s2 then [s1, Lval lv, false] else
+            [ branch true , Lval lv, false
+            ; branch false, Lval lv, true ]
+        | _ -> lift_st st
+      end
+    | _ ->
+      match lval with
       | None -> lift_st st
       | Some x ->
-    let ls = vars (Lval x) in
-    lift_st (LD.map (kill_vars ask gl dup ls) st)
+        let ls = vars (Lval x) in
+        lift_st (LD.map (kill_vars ask gl dup ls) st)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let st, re = ctx.local in
@@ -262,8 +262,8 @@ struct
     let upd v d = ctx.sideg v (d,Re.G.bot ()) in
     let s1 = tryReallyHard ctx.ask gl upd (special_fn_ld ctx.ask gl upd lval f arglist) st in
     let s2 = Re.special (re_context ctx re) lval f arglist in
-      List.iter (fun (x,y,z) -> ctx.split (x,s2) y z) s1;
-      raise Analyses.Deadcode
+    List.iter (fun (x,y,z) -> ctx.split (x,s2) y z) s1;
+    raise Analyses.Deadcode
 
   let query ctx (q:Queries.t) : Queries.Result.t =
     let st, re = ctx.local in
@@ -275,8 +275,8 @@ struct
 
   let init () = Printexc.record_backtrace true
 
-(*  let init () = *)
-(*    Goblintutil.region_offsets := false*)
+  (*  let init () = *)
+  (*    Goblintutil.region_offsets := false*)
 end
 
 let _ =

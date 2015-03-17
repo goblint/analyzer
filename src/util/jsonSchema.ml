@@ -46,16 +46,16 @@ let rec toJson (s:jschema) : jvalue =
     | JNull    -> fields := ("type",Build.string "null"   ) :: !fields
     | JString  -> fields := ("type",Build.string "string" ) :: !fields
     | JArray x ->
-        fields := ("type",Build.string "string") :: !fields;
-        fields := ("item",toJson x.sitem) :: !fields
+      fields := ("type",Build.string "string") :: !fields;
+      fields := ("item",toJson x.sitem) :: !fields
     | JObj   x ->
-        let prop  = List.map (fun (x,y) -> (x,toJson y)) x.sprops in
-        let pprop = List.map (fun (x,y) -> (x,toJson y)) x.spatternprops in
-        fields := ("type"             , Build.string "object"                           ) :: !fields;
-        fields := ("properties"       , Build.objekt prop                               ) :: !fields;
-        fields := ("patternproperties", Build.objekt pprop                              ) :: !fields;
-        fields := ("patternProperties", Build.bool x.sadditionalprops                   ) :: !fields;
-        fields := ("required"         , Build.array @@ List.map Build.string x.srequired) :: !fields
+      let prop  = List.map (fun (x,y) -> (x,toJson y)) x.sprops in
+      let pprop = List.map (fun (x,y) -> (x,toJson y)) x.spatternprops in
+      fields := ("type"             , Build.string "object"                           ) :: !fields;
+      fields := ("properties"       , Build.objekt prop                               ) :: !fields;
+      fields := ("patternproperties", Build.objekt pprop                              ) :: !fields;
+      fields := ("patternProperties", Build.bool x.sadditionalprops                   ) :: !fields;
+      fields := ("required"         , Build.array @@ List.map Build.string x.srequired) :: !fields
   in
   let fields = ref [] in
   Option.may (fun id -> fields := ("id"         ,Build.string id) :: !fields) s.sid;
@@ -80,8 +80,8 @@ let collectIds (s:jschema) : string list =
     | JBool | JInt | JNum  | JNull | JString  -> ()
     | JArray a -> f_sc a.sitem
     | JObj   o ->
-        List.iter (f_sc % snd) o.sprops;
-        List.iter (f_sc % snd) o.spatternprops;
+      List.iter (f_sc % snd) o.sprops;
+      List.iter (f_sc % snd) o.spatternprops;
   in f_sc s; !acc
 
 (** Call to [validate s v] validates the [jvalue] [v] in the [jschema] [s].
@@ -99,32 +99,32 @@ let validate (s:jschema) (v:jvalue) : unit =
     List.iter  (f_sc n v) s.saddenum
   and f_ty (n:string) (v:jvalue) (t:jtype) =
     match (t,v) with
-      | JBool, True
-      | JBool, False -> ()
-      | JBool,_      -> err n "of type boolean."
-      | JInt, Number n when Num.is_integer_num n -> ()
-      | JInt, _      -> err n "of type integer."
-      | JNum, Number _ -> ()
-      | JNum, _      -> err n "of type number."
-      | JNull, Null  -> ()
-      | JNull, _     -> err n "of type null."
-      | JString, String _ -> ()
-      | JString, _   -> err n "of type string."
-      | JArray a, Array b -> List.iter (fun x -> f_sc ("element of "^n) !x a.sitem) !b
-      | JArray _, _  -> err n "of type array."
-      | JObj o, Object i ->
-          Object.iter (one_map o) !i;
-          let r = List.filter (not % flip Object.mem !i) o.srequired in
-          if r<>[] then err (List.hd r) "present."
-      | JObj o, _    -> err n "of type object."
+    | JBool, True
+    | JBool, False -> ()
+    | JBool,_      -> err n "of type boolean."
+    | JInt, Number n when Num.is_integer_num n -> ()
+    | JInt, _      -> err n "of type integer."
+    | JNum, Number _ -> ()
+    | JNum, _      -> err n "of type number."
+    | JNull, Null  -> ()
+    | JNull, _     -> err n "of type null."
+    | JString, String _ -> ()
+    | JString, _   -> err n "of type string."
+    | JArray a, Array b -> List.iter (fun x -> f_sc ("element of "^n) !x a.sitem) !b
+    | JArray _, _  -> err n "of type array."
+    | JObj o, Object i ->
+      Object.iter (one_map o) !i;
+      let r = List.filter (not % flip Object.mem !i) o.srequired in
+      if r<>[] then err (List.hd r) "present."
+    | JObj o, _    -> err n "of type object."
   and one_map o k v =
     try
       f_sc k !v (List.assoc k o.sprops)
     with Not_found ->
-    try
-      f_sc k !v (assoc_regex k o.spatternprops)
-    with Not_found ->
-      if not o.sadditionalprops then err k "in the mapping."
+      try
+        f_sc k !v (assoc_regex k o.spatternprops)
+      with Not_found ->
+        if not o.sadditionalprops then err k "in the mapping."
   in
   f_sc "root" v s
 
@@ -160,15 +160,15 @@ let rec fromJson (jv:jvalue) : jschema =
   let typeFromJson jv =
     let typ = try Some (string @@ (!) @@ field (objekt jv) "type") with JsonE _ -> None in
     Option.bind typ @@ fun typ ->
-      match typ with
-        | "string"  -> Some JString
-        | "boolean" -> Some JBool
-        | "integer" -> Some JInt
-        | "number"  -> Some JNum
-        | "null"    -> Some JNull
-        | "array"   -> Some (JArray (jarrayFromJson jv))
-        | "object"  -> Some (JObj   (jobjFromJson   jv))
-        | _ -> raise (JsonSchemaMalformed "typeFromJson")
+    match typ with
+    | "string"  -> Some JString
+    | "boolean" -> Some JBool
+    | "integer" -> Some JInt
+    | "number"  -> Some JNum
+    | "null"    -> Some JNull
+    | "array"   -> Some (JArray (jarrayFromJson jv))
+    | "object"  -> Some (JObj   (jobjFromJson   jv))
+    | _ -> raise (JsonSchemaMalformed "typeFromJson")
   in
   let id     = try Some (string @@ (!) @@ field (objekt jv) "id"         ) with JsonE _ -> None in
   let descr  = try Some (string @@ (!) @@ field (objekt jv) "description") with JsonE _ -> None in
@@ -198,14 +198,14 @@ let addenum (r:jschema) (l:jschema) =
       | JBool | JInt | JNum  | JNull | JString  -> ()
       | JArray a -> f_sc a.sitem
       | JObj   o ->
-          List.iter (f_sc % snd) o.sprops;
-          List.iter (f_sc % snd) o.spatternprops;
+        List.iter (f_sc % snd) o.sprops;
+        List.iter (f_sc % snd) o.spatternprops;
     in f_sc r
   in
   match l.sid with
-    | None -> raise (JsonSchemaMalformed "addenum")
-    | Some id ->
-  if not @@ List.mem id @@ collectIds r then
-    raise (JsonSchemaMalformed "addenum")
-  else
-    addingJson r id l
+  | None -> raise (JsonSchemaMalformed "addenum")
+  | Some id ->
+    if not @@ List.mem id @@ collectIds r then
+      raise (JsonSchemaMalformed "addenum")
+    else
+      addingJson r id l

@@ -1,5 +1,5 @@
 let script_str =
-"
+  "
 function changeContentVisibility(e) {
   if (e.parentNode.children[1].style.display == 'none') {
     e.parentNode.children[1].style.display = '';

@@ -71,22 +71,22 @@ struct
 
   let query_lv ask exp =
     match ask (Queries.MayPointTo exp) with
-      | `LvalSet l when not (Queries.LS.is_top l) ->
-          Queries.LS.elements l
-      | _ -> []
+    | `LvalSet l when not (Queries.LS.is_top l) ->
+      Queries.LS.elements l
+    | _ -> []
 
   let fork ctx lv f args =
     match LF.classify f.vname args with
-      | `ThreadCreate (start,ptc_arg) ->
-          let nst = D.push !Tracing.current_loc ctx.local in
-            List.map (fun (v,_) -> (v,nst)) (query_lv ctx.ask start)
-      | _ ->  []
+    | `ThreadCreate (start,ptc_arg) ->
+      let nst = D.push !Tracing.current_loc ctx.local in
+      List.map (fun (v,_) -> (v,nst)) (query_lv ctx.ask start)
+    | _ ->  []
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let forks = fork ctx lval f arglist in
     let spawn (x,y) = ctx.spawn x y in
     let _ = List.iter spawn forks in
-      ctx.local
+    ctx.local
 
 
   let startstate v = D.bot ()

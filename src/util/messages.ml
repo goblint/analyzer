@@ -24,11 +24,11 @@ let warn_lowr = ref stdout
 let warn_loww = ref stdout
 
 (*let warn_race = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_race.txt") else warn_out
-let warn_safe = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_safe.txt") else warn_out
-let warn_higr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highreadrace.txt") else warn_out
-let warn_higw = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highwriterace.txt") else warn_out
-let warn_lowr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowreadrace.txt") else warn_out
-let warn_loww = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowwriterace.txt") else warn_out*)
+  let warn_safe = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_safe.txt") else warn_out
+  let warn_higr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highreadrace.txt") else warn_out
+  let warn_higw = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highwriterace.txt") else warn_out
+  let warn_lowr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowreadrace.txt") else warn_out
+  let warn_loww = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowwriterace.txt") else warn_out*)
 
 
 let init_warn_files () =
@@ -48,7 +48,7 @@ let xml_warn : (location, (string*string) list) Hashtbl.t = Hashtbl.create 10
 
 let colorize ?on:(on=get_bool "colors") msg =
   let colors = [("gray", "30"); ("red", "31"); ("green", "32"); ("yellow", "33"); ("blue", "34");
-    ("violet", "35"); ("turquoise", "36"); ("white", "37"); ("reset", "0;00")] in
+                ("violet", "35"); ("turquoise", "36"); ("white", "37"); ("reset", "0;00")] in
   let replace msg (color,code) =
     let msg = Str.global_replace (Str.regexp ("{"^color^"}")) (if on then "\027[0;"^code^"m" else "") msg in (* normal *)
     Str.global_replace (Str.regexp ("{"^String.uppercase color^"}")) (if on then "\027[1;"^code^"m" else "") msg (* bold *)
@@ -87,17 +87,17 @@ let print_group group_name errors =
     List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
   else
     let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
-      if (get_bool "ana.osek.warnfiles") then begin
-        match (String.sub group_name 0 6) with
-          | "Safely" -> ignore (Pretty.fprintf !warn_safe "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-          | "Datara" -> ignore (Pretty.fprintf !warn_race "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-          | "High r" -> ignore (Pretty.fprintf !warn_higr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-          | "High w" -> ignore (Pretty.fprintf !warn_higw "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-          | "Low re" -> ignore (Pretty.fprintf !warn_lowr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-          | "Low wr" -> ignore (Pretty.fprintf !warn_loww "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-          | _ -> ()
-      end;
-      ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+    if (get_bool "ana.osek.warnfiles") then begin
+      match (String.sub group_name 0 6) with
+      | "Safely" -> ignore (Pretty.fprintf !warn_safe "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+      | "Datara" -> ignore (Pretty.fprintf !warn_race "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+      | "High r" -> ignore (Pretty.fprintf !warn_higr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+      | "High w" -> ignore (Pretty.fprintf !warn_higw "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+      | "Low re" -> ignore (Pretty.fprintf !warn_lowr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+      | "Low wr" -> ignore (Pretty.fprintf !warn_loww "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+      | _ -> ()
+    end;
+    ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
 let warn_urgent msg =
   if not !GU.may_narrow then begin
@@ -136,7 +136,7 @@ let report ?loc:(loc= !Tracing.current_loc) msg =
 let report_error msg =
   if not !GU.may_narrow then begin
     let loc = !Tracing.current_loc in
-		  print_err msg loc
+    print_err msg loc
   end
 
 let warn_str_hashtbl = Hashtbl.create 10
@@ -154,11 +154,11 @@ let warn msg =
 let warn_each msg =
   if not !GU.may_narrow then begin
     let loc = !Tracing.current_loc in
-      if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
-        begin
+    if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
+      begin
         warn_all msg;
         Hashtbl.add warn_lin_hashtbl (msg,loc) true
-        end
+      end
   end
 
 let debug msg =

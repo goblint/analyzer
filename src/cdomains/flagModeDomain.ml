@@ -39,21 +39,21 @@ struct
     | _, `Lifted (true,true,_) -> false
     | `Lifted (true, true, _), _ -> true
     | `Lifted (true,false,c1),`Lifted (true,false,c2) -> c1=c2
-(*    | _, `Lifted (true,false,c1) -> false
-    | `Lifted (true,false,_), _ -> true    *)
-(*     | _ -> false *)
+    (*    | _, `Lifted (true,false,c1) -> false
+          | `Lifted (true,false,_), _ -> true    *)
+    (*     | _ -> false *)
 end
 
 module Dom =
 struct
   include MapDomain.MapTop_LiftBot (Basetype.Variables) (P)
 
-(*   let find k x = if mem k x then find k x else P.top() *)
+  (*   let find k x = if mem k x then find k x else P.top() *)
 
   let toXML_f s x =
     match toXML_f s x with
-      | Xml.Element ("Node",_,[]) ->  Xml.Element ("Leaf",["text","Flag Modes"],[])
-      | Xml.Element ("Node",_,xs) ->  Xml.Element ("Node",["text","Flag Modes";"id","map"],xs)
-      | x -> x
+    | Xml.Element ("Node",_,[]) ->  Xml.Element ("Leaf",["text","Flag Modes"],[])
+    | Xml.Element ("Node",_,xs) ->  Xml.Element ("Node",["text","Flag Modes";"id","map"],xs)
+    | x -> x
   let toXML = toXML_f short
 end
