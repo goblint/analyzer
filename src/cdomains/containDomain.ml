@@ -65,7 +65,6 @@ struct
 
   let short _ x = lookup x
 
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
 
 end
@@ -88,7 +87,6 @@ struct
 
   let short _ x = lookup x
 
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
 
 end

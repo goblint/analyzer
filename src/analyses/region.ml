@@ -18,16 +18,7 @@ struct
   module Lif    = RegionDomain.Lif
   module Var    = RegionDomain.Var
   module Vars   = RegionDomain.Vars
-  module D =
-  struct
-    include RegionDomain.RegionDom
-    let toXML_f sf x =
-      match toXML x with
-        | Xml.Element (node, [text, _], elems) -> Xml.Element (node, [text, "Region Analysis"], elems)
-        | x -> x
-
-    let toXML s  = toXML_f short s
-  end
+  module D = RegionDomain.RegionDom
   module G = RegPart
   module C = D
 

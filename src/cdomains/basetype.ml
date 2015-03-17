@@ -12,10 +12,8 @@ struct
     x.line = y.line && x.file = y.file
   let compare x y = compare (x.file, x.line) (y.file, y.line)
   let hash x = Hashtbl.hash (x.line, x.file)
-  let toXML_f sf x = Xml.Element ("Loc", [("file", x.file); ("line", string_of_int x.line); ("text", sf 80 x)], [])
   let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S"
   let pretty_f sf () x = text (sf max_int x)
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "proglines"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -37,13 +35,8 @@ struct
       | MyCFG.Function      f -> dprintf "result of %s at %a" f.vname ProgLines.pretty l
       | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.vname ProgLines.pretty l
 
-  let toXML_f _ (x,a,f) = Xml.Element ("Loc", [("file", x.file);
-               ("line", string_of_int x.line);
-               (*("node", sprint 80 (pretty_node () (x,a)));*)
-					     ("fun", f.svar.vname)], [])
   let short w (x,a,f) = ProgLines.short w x ^ "(" ^ f.svar.vname ^ ")"
   let pretty_f sf () x = text (sf max_int x)
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "proglinesfun"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -62,11 +55,6 @@ struct
   let compare x y = compare x.vid y.vid
   let hash x = x.vid - 4773
   let short _ x = GU.demangle x.vname
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-    let typeinf = Pretty.sprint Goblintutil.summary_length (d_type () x.vtype) in
-    let info = "id=" ^ string_of_int x.vid ^ "; type=" ^ esc typeinf in
-      Xml.Element ("Leaf", [("text", esc (sf max_int x)); ("info", info)],[])
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location x = x.vdecl
@@ -83,7 +71,6 @@ struct
     |  5 -> "Parameter"
     | -1 -> "Temp"
     |  _ -> "None"
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -111,11 +98,6 @@ struct
   let compare (x,sx) (y,sy) = compare (x.vid,sx) (y.vid,sy)
   let hash (x,s) = Hashtbl.hash (x.vid,s)
   let short _ (x,s) = x.vname
-  let toXML_f sf (x,_ as xs) =
-    let esc = Goblintutil.escape in
-    let typeinf = Pretty.sprint Goblintutil.summary_length (d_type () x.vtype) in
-    let info = "id=" ^ string_of_int x.vid ^ "; type=" ^ esc typeinf in
-      Xml.Element ("Leaf", [("text", esc (sf max_int xs)); ("info", info)],[])
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let pretty_trace () (x,s) = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
   let get_location (x,s) = x.vdecl
@@ -132,7 +114,6 @@ struct
     |  5 -> "Parameter"
     | -1 -> "Temp"
     |  _ -> "None"
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -148,11 +129,7 @@ struct
   let equal (x:t) (y:t) = x=y
   let isSimple _ = true
   let short _ x = "\"" ^ x ^ "\""
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-      Xml.Element ("Leaf", ["text", esc (sf 80 x)], [])
   let pretty_f sf () x = text (sf 80 x)
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "raw strings"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -175,12 +152,8 @@ struct
   let equal x y = Util.equals x y
   let hash x = Hashtbl.hash x
   let short w x = sprint ~width:w (d_exp () x)
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-      Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
   let pretty_f sf () x = d_exp () x
 
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "expresssions"
 
@@ -237,15 +210,12 @@ struct
   let equal x y = x.sid = y.sid
   let hash x = Hashtbl.hash (x.sid) * 97
   let short _ x = "<stmt>"
-  let toXML_f _ x = Xml.Element ("Stmt", [("id", string_of_int x.sid);
-					  ("sourcecode", Pretty.sprint ~width:0 (dn_stmt () x))], [])
   let pretty_f _ () x =
     match x.skind with
       | Instr (y::ys) -> dn_instr () y
       | If (exp,_,_,_) -> dn_exp () exp
       | _ -> dn_stmt () x
 
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "expressions"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -261,11 +231,8 @@ struct
   let compare x y = compare x.vid y.vid
   let equal x y = x.vid = y.vid
   let hash x = Hashtbl.hash x.vid
-  let toXML_f _ x = Xml.Element ("Fun", [("id", string_of_int x.vid)
-                                        ;("text", x.vname)], [])
   let short _ x = x.vname
   let pretty_f sf () x = Pretty.text (sf max_int x)
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "functions"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -281,10 +248,8 @@ struct
   let compare x y = compare x.svar.vid y.svar.vid
   let equal x y = x.svar.vid = y.svar.vid
   let hash x = x.svar.vid * 3
-  let toXML_f _ x = CilFun.toXML x.svar
   let short _ x = x.svar.vname
   let pretty_f _ () x = CilFun.pretty () x.svar
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "function decs"
   let dummy = dummyFunDec
@@ -302,13 +267,9 @@ struct
   let equal x y = x.fname = y.fname
   let hash x = Hashtbl.hash x.fname
   let short _ x = x.fname
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-      Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let classify _ = 0
   let class_name _ = "None"
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "field"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -352,12 +313,6 @@ struct
 
   let hash x = Hashtbl.hash ((get_var x).vid,(apply_field (fun x->"::"^x.fname) "" x))
 
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-		let typeinf = Pretty.sprint Goblintutil.summary_length (d_type () (apply_field (fun x->x.ftype) (get_var x).vtype x)) in
-    let info = "id=" ^ string_of_int (get_var x).vid ^ "; type=" ^ esc typeinf in
-      Xml.Element ("Leaf", [("text", esc (sf max_int x)); ("info", info)],[])
-
   let pretty_f sf () x = Pretty.text (sf max_int x)
   let pretty_trace () x = let name = short 0 x in
 		Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
@@ -377,7 +332,6 @@ struct
     | -1 -> "Temp"
     |  _ -> "None"
 
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "variables and fields"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -394,12 +348,8 @@ struct
   let equal x y = Util.equals x y
   let hash (x:typ) = Hashtbl.hash x
   let short w x = sprint ~width:w (d_type () x)
-  let toXML_f sf x =
-    let esc = Goblintutil.escape in
-      Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
   let pretty_f sf () x = d_type () x
 
-  let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let name () = "types"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y

@@ -27,7 +27,6 @@ struct
   let short w x = "Array: " ^ Val.short (w - 7) x
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let toXML m = toXML_f short m
   let get a i = a
   let set a i v = join a v
   let make i v = v
@@ -100,19 +99,6 @@ struct
     let strlist  = List.map (Base.short max_int) itemlist in
       Printable.get_short_list "Array: {" "}" (w-9) strlist
 
-
-  let toXML_f _ a =
-    let text = short Goblintutil.summary_length a in
-    let add_index i a =
-      let attrib = Xml.attrib a "text" in
-      let new_attr = string_of_int i ^ " -> " ^ attrib in
-  match a with
-      Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-    | _ -> a in
-    let indexed_children = A.to_list (A.mapi add_index (A.map Base.toXML a)) in
-      Xml.Element ("Node", [("text", text)], indexed_children )
-
-
   let pretty_f _ () x =
     let pretty_index i e = num i ++ text " -> " ++ (Base.pretty () e) in
     let content = A.to_list (A.mapi pretty_index x) in
@@ -127,7 +113,6 @@ struct
       (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
 
   let pretty ()  x = pretty_f short () x
-  let toXML s = toXML_f short s
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let get a i =
@@ -290,21 +275,6 @@ struct
   Value v -> "Array: {" ^ (Base.short (w - 9) v) ^ "}"
       | Array v -> Array.short w v
 
-  let valueToXML a =
-    let add_prefix x =
-      let text = Base.short (Goblintutil.summary_length - 9) a in
-      let new_attr = "Array: {" ^ text ^ "}" in
-  match x with
-      Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-    | _ -> x in
-      add_prefix (Base.toXML a)
-
-  let toXML_f _ a =
-    match a with
-  Value v -> valueToXML v
-      | Array v -> Array.toXML v
-
-
   let bot () = Value (Base.bot ())
   let is_bot a =
     match a with
@@ -336,7 +306,6 @@ struct
       | Array v -> Array (Array.set v i n)
 
   let pretty () x = pretty_f short () x
-  let toXML m = toXML_f short m
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let make i v =
@@ -434,24 +403,6 @@ struct
 
   let pretty () = pretty_f short ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-  let toXML_f s x =
-    let text = s Goblintutil.summary_length x in
-    match x with
-      | Bot -> Xml.Element ("Node", [("text", text)],[])
-      | Mapping a ->
-    let add_index i a =
-      let attrib = Xml.attrib a "text" in
-      let new_attr = (Idx.short max_int i) ^ " -> " ^ attrib in
-      match a with
-        | Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-        | _ -> a in
-    let transform i v l : Xml.xml list =
-      (add_index i (Base.toXML v)) :: l in
-    let indexed_children = M.fold transform a [] in
-      Xml.Element ("Node", [("text", text)], indexed_children )
-
-  let toXML = toXML_f short
 
   let meet x y =
     let meet_base2 key a b map =
@@ -749,21 +700,6 @@ struct
       (text "Array: {") ++ line ++ indent 2 content ++ line ++ (text "}")
 
   let pretty () = pretty_f short ()
-
-  let toXML_f s (((map:M.t), length) as a) =
-    let text = s Goblintutil.summary_length a in
-    let add_index i a =
-      let attrib = Xml.attrib a "text" in
-      let new_attr = (Idx.short max_int i) ^ " -> " ^ attrib in
-      match a with
-        | Xml.Element (n,m,o) -> Xml.Element (n,["text",new_attr], o )
-        | _ -> a in
-    let transform i v l : Xml.xml list =
-      (add_index i (Base.toXML v)) :: l in
-    let indexed_children = M.fold map transform [] in
-      Xml.Element ("Node", [("text", text)], indexed_children )
-
-  let toXML = toXML_f short
 
 end
 
