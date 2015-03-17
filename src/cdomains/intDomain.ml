@@ -884,7 +884,7 @@ struct
   let cast_to_width x w =
     match (I.bounds x) with
     | None -> Bot w
-    | Some(a,b) -> I.of_t w a b;;
+    | Some(a,b) -> I.of_t w a b
 
   (* Int Conversion *)
   let to_int x =

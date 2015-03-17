@@ -7,7 +7,7 @@ open CircularIntOps
 type 'a interval =
     Top of int
   | Int of int * 'a * 'a
-  | Bot of int;;
+  | Bot of int
 
 (* IntervalOps
  * Operations to be implemented by Intervals. *)
@@ -82,14 +82,14 @@ exception IntervalOutOfBounds
  * - conversion to string *)
 module IntervalBase (I : CircularIntOps) : IntervalBaseOps with type t = I.t =
 struct
-  type t = I.t;;
+  type t = I.t
 
   (* Bounds *)
   let bounds x =
     match x with
     | Bot _ -> None
     | Top w -> Some (I.zero, I.max_value w)
-    | Int(w,a,b) -> Some (a,b);;
+    | Int(w,a,b) -> Some (a,b)
 
 
   (* Width *)
@@ -97,7 +97,7 @@ struct
     match x with
     | Bot w -> w
     | Top w -> w
-    | Int(w,_,_) -> w;;
+    | Int(w,_,_) -> w
 
   (* Creation (ensure Top is returned if the interval spans everything) *)
   let of_t w a b =
@@ -107,11 +107,11 @@ struct
       if I.top_range w a b
       then Top w
       else Int (w,a,b)
-    else Top w;;
+    else Top w
 
-  let of_int64 w a b = of_t w (I.of_int64 w a) (I.of_int64 w b);;
-  let of_string w a b = of_t w (I.of_string w a) (I.of_string w b);;
-  let of_int w a b = of_int64 w (Int64.of_int a) (Int64.of_int b);;
+  let of_int64 w a b = of_t w (I.of_int64 w a) (I.of_int64 w b)
+  let of_string w a b = of_t w (I.of_string w a) (I.of_string w b)
+  let of_int w a b = of_int64 w (Int64.of_int a) (Int64.of_int b)
 
   (* Conversion *)
   let to_string =
@@ -131,10 +131,10 @@ struct
       match i with
       | Top w -> max_interval_string w
       | Bot _ -> min_interval_string
-      | Int(w,a,b) -> as_string (I.to_string w a) (I.to_string w b);;
+      | Int(w,a,b) -> as_string (I.to_string w a) (I.to_string w b)
 
   (* Output *)
-  let prn x = print_endline (to_string x);;
+  let prn x = print_endline (to_string x)
 
   (* Equality *)
   let eql s t =

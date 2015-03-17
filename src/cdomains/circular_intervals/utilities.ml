@@ -7,7 +7,7 @@ struct
          List.fold_left
            (fun acc y -> (x,y) :: acc)
            acc ys)
-      [] xs;;
+      [] xs
 
   (* Map on two Lists *)
   let cartesian_map f xs ys =
@@ -16,12 +16,12 @@ struct
          List.fold_left
            (fun acc y -> (f x y) :: acc)
            acc ys)
-      [] xs;;
+      [] xs
 
   (* Create Range from zero to k-1 *)
   let range k =
     let rec f n l =
       if n <= 0 then (0::l) else f (n-1) (n::l)
     in
-    f (k-1) [];;
+    f (k-1) []
 end

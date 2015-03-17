@@ -30,12 +30,12 @@ let htmlTemp_BasePartOne =
         </iframe>
       </div>
       <div id=\"declsbox\" style=\"display: none;\">
-";;
+"
 
 let htmlTemp_BasePartOneSecond =
   "    </div>
     <div id=\"globalsbox\" style=\"display: none; width: 100%; height: 100%; overflow: scroll;\">
-";;
+"
 
 let htmlTemp_BasePartOneThird = "</div>
     </div>
@@ -49,19 +49,19 @@ let htmlTemp_BasePartOneThird = "</div>
     </div>
     <div id=\"codeWindowContent\" class=\"mywindow_content\">
       <div id=\"codelineBox\">
-";;
+"
 
 let htmlTemp_BasePartOneForth =
   "        <div id=\"lastline\" class=\"linetype0\" style=\"border-top: 1px solid #C0C0C0;\"><pre></pre></div>
       </div>
     </div>
     <div id=\"warningListBox\" style=\"display: none;\">
-";;
+"
 
 let htmlTemp_BasePartOneFifth =
   "    </div>
     <div id=\"deadcodeListBox\" style=\"display: none;\">
-";;
+"
 
 let htmlTemp_BasePartTwo =
   "    </div>
@@ -75,14 +75,14 @@ let htmlTemp_BasePartTwo =
   <div id=\"bottomWindow\" class=\"mywindow\">
     <div class=\"mywindow_header\"><span id=\"title_function_info\" style=\"display: none;\">Function Info</span><span id=\"title_warning_info\" style=\"display: none;\">Warning Info</span><a style=\"text-decoration: none; color: #000080;\" href=\"javascript:hideWindow('bottomWindow');\">[X]</a></div>
     <div id=\"bottomWindowContent\" class=\"mywindow_content\">
-";;
+"
 
 let htmlTemp_BasePartThree =
   "    </div>
   </div>
 </body>
 </html>
-";;
+"
 
 let htmlTemp_AnalysisFilePartOne =
   "<html>
@@ -91,9 +91,9 @@ let htmlTemp_AnalysisFilePartOne =
     <script type=\"text/javascript\" src=\"../script.js\"></script>
   </head>
   <body id=\"analysisfilebody\" onload=\"OnAnalysisFileLoaded();\">
-";;
+"
 
 let htmlTemp_AnalysisFilePartTwo =
   "  </body>
 </html>
-";;
+"

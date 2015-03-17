@@ -6,11 +6,11 @@ open Utilities
 
 module CircularInterval (C : CircularIntOps) : IntervalOps with type t = C.t =
 struct
-  include CircularIntervalBase(C);;
+  include CircularIntervalBase(C)
 
   (* Helper Modules *)
-  module W = Warren(C);;
-  module U = Utilities;;
+  module W = Warren(C)
+  module U = Utilities
 
   (* Addition/Substraction (Section 3.2) *)
   let add x y =
@@ -21,7 +21,7 @@ struct
     | _, Top w -> Top w
     | Int(w0,a,b), Int(w1,c,d) ->
       let w = max w0 w1 in
-      Int (w, C.add w a c, C.add w b d);;
+      Int (w, C.add w a c, C.add w b d)
 
   let sub x y =
     match x,y with
@@ -31,19 +31,19 @@ struct
     | _, Top w -> Top w
     | Int(w0,a,b), Int(w1,c,d) ->
       let w = max w0 w1 in
-      Int (w, C.sub w a d, C.sub w b c);;
+      Int (w, C.sub w a d, C.sub w b c)
 
   (* Negation *)
-  let neg x = sub (of_t (width x) C.zero C.zero) x;;
+  let neg x = sub (of_t (width x) C.zero C.zero) x
 
   (* Multiplication (Section 3.2) *)
   let mul_is_top w a c b d =
-    C.geq (C.sub' (C.mul' b d) (C.mul' a c)) (C.top_value w);;
+    C.geq (C.sub' (C.mul' b d) (C.mul' a c)) (C.top_value w)
 
   let msb w x =
     if (C.gt x (north_pole_start w))
     then 1
-    else 0;;
+    else 0
 
   let mul_u s t =
     match s,t with
@@ -54,7 +54,7 @@ struct
     | Int(w0,a,b), Int(w1,c,d) ->
       let w = max w0 w1 in
       if mul_is_top w a c b d then Top w
-      else of_t w (C.mul w a c) (C.mul w b d);;
+      else of_t w (C.mul w a c) (C.mul w b d)
 
   let mul_s s t =
     match s,t with
@@ -74,10 +74,10 @@ struct
       | 1,1,1,1 -> build_interval a c b d
       | 1,1,0,0 -> build_interval a d b c
       | 0,0,1,1 -> build_interval b c a d
-      | _ -> Top w;;
+      | _ -> Top w
 
   let mul_us s t =
-    intersect (mul_u s t) (mul_s s t);;
+    intersect (mul_u s t) (mul_s s t)
 
   let mul s t =
     let spheres_s = cut_spheres s
@@ -85,7 +85,7 @@ struct
     least_upper_bound
       (max (width s) (width t))
       (List.flatten
-         (U.cartesian_map mul_us spheres_s spheres_t));;
+         (U.cartesian_map mul_us spheres_s spheres_t))
 
   (* Division/Modulo
    * Logic taken from C++ Code at
@@ -116,10 +116,10 @@ struct
       else if t = (zero_range w) then Top w
       else
         let sp_s = split_fn s and sp_t = split_fn t in
-        least_upper_bound w (U.cartesian_map (calc w) sp_s sp_t);;
+        least_upper_bound w (U.cartesian_map (calc w) sp_s sp_t)
 
-  let div_s = calc_fn north_pole_split;;
-  let div_u = calc_fn south_pole_split;;
+  let div_s = calc_fn north_pole_split
+  let div_u = calc_fn south_pole_split
 
   (* Modulo *)
   let rem s t =
@@ -142,18 +142,18 @@ struct
       and spheres_t = south_pole_split t in
       least_upper_bound
         (max (width s) (width t))
-        (U.cartesian_map f spheres_s spheres_t);;
+        (U.cartesian_map f spheres_s spheres_t)
 
-  let logor = log_fn W.interval_or;;
-  let logand = log_fn W.interval_and;;
-  let logxor = log_fn W.interval_xor;;
+  let logor = log_fn W.interval_or
+  let logand = log_fn W.interval_and
+  let logxor = log_fn W.interval_xor
 
   (* Truncation (Section 3.2)
    * Returns Top if the element count before truncation exceeds
    * the maximum count after truncation? *)
   let trunc_t x k =
     let msk = C.sub' (C.shift_left C.one k) C.one in
-    C.logand x msk;;
+    C.logand x msk
 
   let trunc s k =
     if k >= (width s)
@@ -176,18 +176,18 @@ struct
           (* a's higher bits are one less than b's; a's lower ones are
            * greater than b's -> possibly not Top *)
           of_t k ta tb
-        else Top k;;
+        else Top k
 
   (* Shifting by k (Section 3.2) *)
   let one_bits_right w ones =
     if ones <= 0 then C.zero
     else if ones >= w then (C.max_value w)
-    else C.shift_right (C.max_value w) (w - ones);;
+    else C.shift_right (C.max_value w) (w - ones)
 
   let zero_bits_right w zeros =
     if zeros <= 0 then (C.max_value w)
     else if zeros >= w then C.zero
-    else C.wrap w (C.shift_left (C.max_value w) zeros);;
+    else C.wrap w (C.shift_left (C.max_value w) zeros)
 
   let shift_left_k s k =
     let w = (width s) in
@@ -200,7 +200,7 @@ struct
         let st = trunc s (w - k) in
         match st with
         | Int(_,a,b) -> of_t w (C.shift_left a k) (C.shift_left b k)
-        | _ -> of_t w C.zero (zero_bits_right w k);;
+        | _ -> of_t w C.zero (zero_bits_right w k)
 
   let shift_right_k s k =
     let w = (width s) in
@@ -215,7 +215,7 @@ struct
         if contains s (south_pole w) then
           default_result
         else
-          of_t w (C.shift_right a k) (C.shift_right b k);;
+          of_t w (C.shift_right a k) (C.shift_right b k)
 
   let arith_shift_right_k s k =
     (* NOTE: Why should (0111,1001) >>a 1 be Top?
@@ -235,7 +235,7 @@ struct
         if contains s (north_pole w) then
           default_result
         else
-          of_t w (C.arith_shift_right w a k) (C.arith_shift_right w b k);;
+          of_t w (C.arith_shift_right w a k) (C.arith_shift_right w b k)
 
   (* Variable Shifting (Section 3.2) *)
   let variable_shift f s t =
@@ -253,15 +253,15 @@ struct
             possible_ks
         | _ -> possible_ks
       in
-      least_upper_bound w (List.map (f s) ks);;
+      least_upper_bound w (List.map (f s) ks)
 
-  let shift_left = variable_shift shift_left_k;;
-  let shift_right = variable_shift shift_right_k;;
-  let arith_shift_right = variable_shift arith_shift_right_k;;
+  let shift_left = variable_shift shift_left_k
+  let shift_right = variable_shift shift_right_k
+  let arith_shift_right = variable_shift arith_shift_right_k
 end
 
 (* Predefined Interval Types *)
-module CNInt = CircularInterval(CircularNInt);;
-module CInt32 = CircularInterval(CircularInt32);;
-module CInt64 = CircularInterval(CircularInt64);;
-module CBigInt = CircularInterval(CircularBigInt);;
+module CNInt = CircularInterval(CircularNInt)
+module CInt32 = CircularInterval(CircularInt32)
+module CInt64 = CircularInterval(CircularInt64)
+module CBigInt = CircularInterval(CircularBigInt)

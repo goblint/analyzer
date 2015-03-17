@@ -22,7 +22,7 @@ let type_to_num s =
   | "boollist" -> 5
   | "stringlist" -> 6
   | _ -> 0
-;;
+
 
 let num_to_type n =
   match n with
@@ -33,7 +33,7 @@ let num_to_type n =
   | 5 -> "boollist"
   | 6 -> "stringlist"
   | _ -> ""
-;;
+
 
 let value_to_str value =
   match value with
@@ -59,7 +59,7 @@ let value_to_str value =
         in "["^s^"]"
     end
   | _ -> ""
-;;
+
 
 
 (* Load the question database from a file *)
@@ -149,7 +149,7 @@ let question_load_db filename =
     done;
   with End_of_file ->
     Pervasives.close_in chan;
-    ();;
+    ()
 
 (* Save the question database to a file *)
 let question_save_db filename =
@@ -166,8 +166,8 @@ let question_save_db filename =
     fprintf chan "}\n\n"
   in
   List.iter writeentry !questionentrylist;
-  Pervasives.close_out chan;
-;;
+  Pervasives.close_out chan
+
 
 (* Register a question *)
 let question_register analysisname question defaultvalue =
@@ -195,7 +195,7 @@ let question_register analysisname question defaultvalue =
     in
     questionentrylist := !questionentrylist @ [{qf_analysis = analysisname; qf_question = question; qf_type = typenum; qf_values = ref []; qf_default = ref {qv_line_start = 0; qv_line_end = 0; qv_value = defaultvalue} }];
     (List.length !questionentrylist)-1
-  end;;
+  end
 
 (* Print question database for debugging *)
 let question_db_print qlist =
@@ -208,7 +208,7 @@ let question_db_print qlist =
     List.iter printvalue !(e.qf_values)
   in
   List.iter printentry qlist;
-  ();;
+  ()
 
 let question_getvalue questionid line =
   let entry = (List.nth !questionentrylist questionid) in

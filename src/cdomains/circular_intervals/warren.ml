@@ -9,11 +9,11 @@ open IntervalOps
  * Source: Henry S. Warren - Hacker's Delight *)
 module Warren (C : CircularIntOps) =
 struct
-  module I = IntervalBase(C);;
+  module I = IntervalBase(C)
 
   (* Helpers *)
   let logand3 a b c =
-    C.logand (C.logand a b) c;;
+    C.logand (C.logand a b) c
 
   let interval_fn min_fn max_fn =
     fun u v ->
@@ -26,7 +26,7 @@ struct
         let w = max w0 w1 in
         I.of_t w
           (min_fn w a b c d)
-          (max_fn w a b c d);;
+          (max_fn w a b c d)
 
   (* Warren's OR: p. 75f, figs. 4-3/4-4 *)
   let min_or w a b c d =
@@ -46,7 +46,7 @@ struct
         else loop (C.shift_right m 1) a c
       else loop (C.shift_right m 1) a c
     in
-    loop (C.shift_right (C.top_value w) 1) a c;;
+    loop (C.shift_right (C.top_value w) 1) a c
 
   let max_or w a b c d =
     let rec loop m b d =
@@ -63,9 +63,9 @@ struct
           else loop (C.shift_right m 1) b d
       else loop (C.shift_right m 1) b d
     in
-    loop (C.shift_right (C.top_value w) 1) b d;;
+    loop (C.shift_right (C.top_value w) 1) b d
 
-  let interval_or = interval_fn min_or max_or;;
+  let interval_or = interval_fn min_or max_or
 
   (* Warren's AND: p. 76f, figs. 4-5/4-6
    * NOTE: Might be directly implemented or using DeMorgan. *)
@@ -75,7 +75,7 @@ struct
          (C.lognot w b)
          (C.lognot w a)
          (C.lognot w d)
-         (C.lognot w c));;
+         (C.lognot w c))
 
   let max_and w a b c d =
     C.lognot w
@@ -83,23 +83,23 @@ struct
          (C.lognot w b)
          (C.lognot w a)
          (C.lognot w d)
-         (C.lognot w c));;
+         (C.lognot w c))
 
-  let interval_and = interval_fn min_and max_and;;
+  let interval_and = interval_fn min_and max_and
 
   (* Warren's XOR: p78
    * NOTE: Might be directly implemented or using AND/OR. *)
   let min_xor w a b c d =
     C.logor
       (min_and w a b (C.lognot w d) (C.lognot w c))
-      (min_and w (C.lognot w b) (C.lognot w a) c d);;
+      (min_and w (C.lognot w b) (C.lognot w a) c d)
 
   let max_xor w a b c d =
     max_or w
       C.zero
       (max_and w a b (C.lognot w d) (C.lognot w c))
       C.zero
-      (max_and w (C.lognot w b) (C.lognot w a) c d);;
+      (max_and w (C.lognot w b) (C.lognot w a) c d)
 
-  let interval_xor = interval_fn min_xor max_xor;;
+  let interval_xor = interval_fn min_xor max_xor
 end

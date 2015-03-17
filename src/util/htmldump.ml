@@ -1,24 +1,24 @@
 open Pretty
-open Printf;;
-open Xml;;
-open Cil;;
-open Unix;;
-open Lazy;;
-open Html_template;;
+open Printf
+open Xml
+open Cil
+open Unix
+open Lazy
+open Html_template
 
 let size = 50 (* also change the value in js_template.ml *)
 
 let htmlGlobalWarningList : (string*int*string) list ref = ref []
 
 (* Some lists for syntax highlighting *)
-let cppPreprocessorList = ["#endif";"#ifdef";"#undef";"#else";"include";"#define"];;
-let cppKeywordList = ["int";"return";"void";"char";"short";"long";"unsigned";"if";"else";"switch";"default";"while";"do";"for";"typedef";"class";"struct";"sizeof";"case"];;
+let cppPreprocessorList = ["#endif";"#ifdef";"#undef";"#else";"include";"#define"]
+let cppKeywordList = ["int";"return";"void";"char";"short";"long";"unsigned";"if";"else";"switch";"default";"while";"do";"for";"typedef";"class";"struct";"sizeof";"case"]
 
-type entryType = {filename : string ; analysis_out : out_channel list ref ; lines : string list ref ; lineInfo : int array ref ; deadcodeInfo : int array ref} ;;
-type functionInfo = {funname : string ; funid : int};;
+type entryType = {filename : string ; analysis_out : out_channel list ref ; lines : string list ref ; lineInfo : int array ref ; deadcodeInfo : int array ref} 
+type functionInfo = {funname : string ; funid : int}
 
-let functionInfoList : functionInfo list ref = ref [];;
-let functionInfoString = "";;
+let functionInfoList : functionInfo list ref = ref []
+let functionInfoString = ""
 
 let createFunctionInfoList cilFile =
   let iterGlobals global =
@@ -27,7 +27,7 @@ let createFunctionInfoList cilFile =
     | _ -> ()
   in
   List.iter (iterGlobals) cilFile.globals;
-  ();;
+  ()
 
 let createHtmlFunctionInfo outchan cilFile =
   let iterGlobals global =
@@ -37,7 +37,7 @@ let createHtmlFunctionInfo outchan cilFile =
     | _ -> ()
   in
   List.iter (iterGlobals) cilFile.globals;
-  ();;
+  ()
 
 let createHtmlWarningsInfo outchan fileEntry =
   let htmlPrintWarningBox line =
@@ -46,7 +46,7 @@ let createHtmlWarningsInfo outchan fileEntry =
     fprintf outchan "</div>"
   in
   Array.iteri (fun i x -> if (x >= 2) then htmlPrintWarningBox i) !(fileEntry.lineInfo);
-  ();;
+  ()
 
 let createHtmlWarningsListBox outchan fileEntry =
   let ltid = ref 0 in
@@ -55,7 +55,7 @@ let createHtmlWarningsListBox outchan fileEntry =
     ltid := (!ltid)+1;
   in
   List.iter printWarningLine !htmlGlobalWarningList;
-  if (!ltid) = 0 then fprintf outchan "No warnings found!";;
+  if (!ltid) = 0 then fprintf outchan "No warnings found!"
 
 let createDeadcodeListBox outchan fileEntry =
   let firstDeadLine = ref 0 in
@@ -70,7 +70,7 @@ let createDeadcodeListBox outchan fileEntry =
     end
   in
   Array.iteri processArrayEntry !(fileEntry.deadcodeInfo);
-  if (!ltid) = 0 then fprintf outchan "No dead code found!";;
+  if (!ltid) = 0 then fprintf outchan "No dead code found!"
 
 let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
   let currentLine = ref 1 in
@@ -163,7 +163,7 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
   in
 
   List.iter (fun lc -> createLine lc) (List.rev !lines);
-  ();;
+  ()
 
 let createGlobalMenu outchan shortFilename filename cilFile =
   (* Functions *)
@@ -210,7 +210,7 @@ let createGlobalMenu outchan shortFilename filename cilFile =
   List.iter (iterEnums) cilFile.globals;
   fprintf outchan "</div></div>\n";
 
-  ();;
+  ()
 
 let createGlobalsTable outchan gtable =
   let trid = ref 0 in
@@ -241,7 +241,7 @@ let createGlobalsTable outchan gtable =
   fprintf outchan "<table>";
   List.iter (fun xmlfile -> parseGlobalsXmlFile xmlfile ) (Lazy.force gtable);
   fprintf outchan "</table>";
-  ();;
+  ()
 
 let generateCodeFile fileEntry (file: file) gtable =
   let shortFilename = Filename.basename fileEntry.filename in
@@ -289,7 +289,7 @@ let generateCodeFile fileEntry (file: file) gtable =
   (* Write third part *)
   fprintf outputChannel "%s" htmlTemp_BasePartThree;
   close_out outputChannel;
-  ();;
+  ()
 
 (* Read code lines from file into a list *)
 let readCodeLines filename lines =
@@ -299,7 +299,7 @@ let readCodeLines filename lines =
       lines := input_line chan_code :: !lines;
     done;
   with End_of_file -> close_in chan_code;
-    ();;
+    ()
 
 (* === print_fmt : html output === *)
 let print_html chan xmlNode (file: file) gtable =
@@ -415,4 +415,4 @@ let print_html chan xmlNode (file: file) gtable =
   List.iter (fun fileEntry -> List.iter (fun chan -> closeAnalysisFile chan) !(fileEntry.analysis_out) ) !fileList;
 
   (*printf "End: %f \n" (Unix.time ());*)
-;;
+
