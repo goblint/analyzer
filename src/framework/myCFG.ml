@@ -19,7 +19,7 @@ type node =
   | Function of varinfo
   (** The variable information associated with the function declaration. *)
 
-let write_cfgs : ((node -> bool) -> unit) ref = ref (fun _ -> ()) 
+let write_cfgs : ((node -> bool) -> unit) ref = ref (fun _ -> ())
 
 let pretty_node () = function
   | Statement s -> text "Statement " ++ dn_stmt () s

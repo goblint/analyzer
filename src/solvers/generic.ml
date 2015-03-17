@@ -89,7 +89,7 @@ end
 
 
 
-module SolverInteractiveWGlob 
+module SolverInteractiveWGlob
     (S:Analyses.GlobConstrSys)
     (LH:Hash.H with type key=S.LVar.t)
     (GH:Hash.H with type key=S.GVar.t) =
@@ -101,41 +101,41 @@ struct
   let enabled = ref false
   let step    = ref 1
   let stopped = ref false
-  
-  let interact_init () = 
+
+  let interact_init () =
     enabled := get_bool "interact.enabled";
     stopped := get_bool "interact.paused"
-  
-  let _ = 
+
+  let _ =
     let open Sys in
     set_signal sigtstp (Signal_handle (fun i -> stopped := true));
     set_signal sigusr1 (Signal_handle (fun i -> stopped := false));
     set_signal sigusr2 (Signal_handle (fun i -> step    := 1));
     ()
-  
-  let loc_start f = 
+
+  let loc_start f =
     fprintf f "<?xml version=\"1.0\" ?>\n<?xml-stylesheet type=\"text/xsl\" href=\"../node.xsl\"?>\n<loc>"
 
-  let glob_start f = 
+  let glob_start f =
     fprintf f "<?xml version=\"1.0\" ?>\n<?xml-stylesheet type=\"text/xsl\" href=\"../globals.xsl\"?>\n<globs>"
 
-  let loc_end f = 
+  let loc_end f =
     fprintf f "</loc>\n"
 
-  let glob_end f = 
+  let glob_end f =
     fprintf f "</globs>\n"
-    
+
   let write_one_call v d f =
     fprintf f "%a%a</call>\n" LVar.printXml v D.printXml d
 
   let write_one_glob v d f =
     fprintf f "<glob><key>%a</key>\n%a</glob>\n" GVar.printXml v G.printXml d
-  
+
   let mkdirs =
-    List.fold_left (fun p d -> Goblintutil.create_dir (p^"/"^d)) "." 
-  
-  let warning_id = ref 1 
-  let writeXmlWarnings () = 
+    List.fold_left (fun p d -> Goblintutil.create_dir (p^"/"^d)) "."
+
+  let warning_id = ref 1
+  let writeXmlWarnings () =
     let one_text f (m,l) =
       fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line m
     in
@@ -146,24 +146,24 @@ struct
     in
     let one_w x f = fprintf f "\n<warning>%a</warning>" one_w x in
     let res_dir = mkdirs [get_string "interact.out" ^ "/warn"] in
-    let write_warning x = 
+    let write_warning x =
       let full_name = res_dir ^ "/warn" ^ string_of_int !warning_id ^ ".xml" in
       incr warning_id;
       File.with_file_out ~mode:[`create;`excl;`text] full_name (one_w x)
     in
     List.iter write_warning !Messages.warning_table
 
-  module SSH = Hashtbl.Make (struct include String let hash (x:string) = Hashtbl.hash x end) 
+  module SSH = Hashtbl.Make (struct include String let hash (x:string) = Hashtbl.hash x end)
   let funs = SSH.create 100
-  module NH = Hashtbl.Make (MyCFG.Node) 
+  module NH = Hashtbl.Make (MyCFG.Node)
   let liveness = NH.create 100
   let updated_l = NH.create 100
   let updated_g = GH.create 100
-    
-  let write_files lh gh = 
+
+  let write_files lh gh =
     let res_dir = mkdirs [get_string "interact.out"; "nodes"] in
     let created_files = Hashtbl.create 100 in
-    let one_var v d = 
+    let one_var v d =
       let fname = LVar.var_id v in
       let full_name = res_dir ^ "/" ^ fname ^ ".xml" in
       if not (Sys.file_exists full_name) then begin
@@ -175,17 +175,17 @@ struct
     LH.iter one_var lh;
     let full_gname = res_dir ^ "/globals.xml" in
     File.with_file_out ~mode:[`excl;`create;`text] full_gname glob_start;
-    let one_glob v d = 
+    let one_glob v d =
       File.with_file_out ~mode:[`append;`excl;`text] full_gname (write_one_glob v d)
     in
     GH.iter one_glob gh;
     File.with_file_out ~mode:[`append;`excl;`text] full_gname glob_end;
-    let close_vars f _ = 
+    let close_vars f _ =
       File.with_file_out ~mode:[`append;`excl;`text] f loc_end
     in
     Hashtbl.iter close_vars created_files
 
-  let write_updates () = 
+  let write_updates () =
     let dir = get_string "interact.out" in
     let full_name = dir ^ "/updates.xml" in
     let write_updates f =
@@ -199,11 +199,11 @@ struct
     in
     File.with_file_out ~mode:[`excl;`create;`text] full_name write_updates
 
-  let write_index () = 
+  let write_index () =
     let dir = get_string "interact.out" in
     let full_name = dir ^ "/index.xml" in
     let write_index f =
-      let print_funs f fs = 
+      let print_funs f fs =
         Set.iter (fun n -> fprintf f "<function name=\"%s\"></function>\n" n) fs
       in
       fprintf f "<?xml version=\"1.0\" ?>\n<?xml-stylesheet type=\"text/xsl\" href=\"report.xsl\"?>\n<report>\n";
@@ -216,7 +216,7 @@ struct
     let dir = get_string "interact.out" in
     if Sys.file_exists dir && Sys.is_directory dir then
       try Goblintutil.rm_rf dir with _ -> ()
-      
+
   let write_all hl hg =
     delete_old_results ();
     write_files hl hg;
@@ -244,8 +244,8 @@ struct
 
   let update_var_event_global hl hg x o n =
     GH.replace updated_g x ()
-  
-  let done_event hl hg = 
+
+  let done_event hl hg =
     if !enabled then
       write_all hl hg
 end

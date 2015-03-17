@@ -614,8 +614,8 @@ module IneqConstrSysFromGlobConstrSys (S:GlobConstrSys)
   =
 struct
   module Var = Var2(S.LVar)(S.GVar)
-  module Dom = 
-  struct 
+  module Dom =
+  struct
     include Lattice.Either(S.G)(S.D)
     let printXml f = function
       | `Left  a -> S.G.printXml f a

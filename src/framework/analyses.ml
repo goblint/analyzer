@@ -17,9 +17,9 @@ sig
   val pretty_trace: unit -> t -> doc
   val compare : t -> t -> int
   val category : t -> int
-  
+
   val printXml : 'a BatInnerIO.output -> t -> unit
-  val var_id   : t -> string 
+  val var_id   : t -> string
   val file_name : t -> string
   val line_nr   : t -> int
   val node      : t -> MyCFG.node
@@ -66,7 +66,7 @@ struct
     | MyCFG.Function f                         -> `ExitOfProc f
     | MyCFG.Statement {skind = Instr [Call _]} -> `ProcCall
     | _ -> `Other
-  
+
   let printXml f n =
     let id ch n =
       match n with
@@ -82,7 +82,7 @@ struct
       | MyCFG.Statement s     -> string_of_int s.sid
       | MyCFG.Function f      -> "ret" ^ string_of_int f.vid
       | MyCFG.FunctionEntry f -> "fun" ^ string_of_int f.vid
-      
+
   let line_nr n = (MyCFG.getLoc n).line
   let file_name n = (MyCFG.getLoc n).file
   let description n = sprint 80 (pretty () n)
@@ -143,7 +143,7 @@ struct
     BatPrintf.fprintf f "</context>\n"
 
   let var_id (n,_) = Var.var_id n
-  
+
   let line_nr (n,_) = (MyCFG.getLoc n).line
   let file_name (n,_) = (MyCFG.getLoc n).file
   let description (n,_) = sprint 80 (Var.pretty () n)

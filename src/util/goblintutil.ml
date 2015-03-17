@@ -43,7 +43,7 @@ let open_sockets i =
 
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
- 
+
 (** prints the CFG on [getCFG] *)
 let cfg_print = ref false
 

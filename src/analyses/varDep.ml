@@ -11,10 +11,10 @@ struct
   include Analyses.DefaultSpec
 
   let name = "vardep"
-  module D = 
+  module D =
   struct
     include LM
-    let equal x y = 
+    let equal x y =
       (* ignore (Pretty.printf "equal: %a and %a\n" pretty x pretty y); *)
       equal x y
   end
@@ -68,7 +68,7 @@ struct
         | _ -> `Index (kinteger64 IInt GU.inthack, remove_idx os)
       end
     | `Field (f, os) -> `Field (f, remove_idx os)
-  
+
   let rec eval_lval ctx d = function
     | (Mem e,os) -> LS.join (LS.join (eval_offset ctx d os) (ctx_mpt ctx e)) (eval_rval ctx d e)
     | (Var v,os) ->
