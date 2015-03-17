@@ -416,4 +416,3 @@ let print_html chan xmlNode (file: file) gtable =
 
 	(*printf "End: %f \n" (Unix.time ());*)
 	;;
-

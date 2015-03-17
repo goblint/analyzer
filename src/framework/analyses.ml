@@ -592,4 +592,3 @@ struct
 
   let val_of x = x
 end
-

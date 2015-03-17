@@ -50,4 +50,3 @@ module LooseMapArrayDomain
 (** Arrays as maps --  keeps at some I.n items in map plus
     a magic rest (top) indexed element *)
 *)
-

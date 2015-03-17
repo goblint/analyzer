@@ -124,4 +124,3 @@ let do_stats fileNames =
       prerr_endline ("  globals changed "^string_of_int !Goblintutil.globals_changed^" times");
       Stats.print (M.get_out "timing" Legacy.stderr) "Timings:\n"
     | _ -> ()
-

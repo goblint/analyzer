@@ -507,4 +507,3 @@ let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
         printFun (module Cfg : CfgBidir) live fd (open_out fname)
       | _ -> ()
     )
-

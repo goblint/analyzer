@@ -159,4 +159,3 @@ struct
     iter print_one xs;
     BatPrintf.fprintf f "</set>\n</value>\n"
 end
-

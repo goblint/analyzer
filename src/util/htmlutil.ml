@@ -50,4 +50,3 @@ let table' ?(tp=[]) ?(rp=[]) t =
 
 let tablehead ?(tp=[]) th t =
   tag "table" ~tp:tp (th <:> row t)
-

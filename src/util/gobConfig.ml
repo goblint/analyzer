@@ -312,5 +312,3 @@ struct
 end
 
 include Impl
-
-

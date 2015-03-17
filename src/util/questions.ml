@@ -245,4 +245,3 @@ let question_getvalue_stringlist questionid line =
   match (question_getvalue questionid line) with
     QVStringList s -> s
     | _ -> []
-

@@ -29,4 +29,3 @@ case "$mode" in
        echo  "generated $dst/$file.pdf"
   ;;
 esac
-

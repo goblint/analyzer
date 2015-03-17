@@ -666,4 +666,3 @@ struct
     stop_event ();
     sol
 end
-

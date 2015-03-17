@@ -62,4 +62,3 @@ object (self)
 end
 
 let debugCilPrinter = new debugCilPrinterClass
-
