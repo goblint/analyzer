@@ -26,8 +26,7 @@ let createFunctionInfoList cilFile =
       GFun (fundec,loc) -> functionInfoList := !functionInfoList @ [ { funname = fundec.svar.vname ; funid = fundec.svar.vid } ]
     | _ -> ()
   in
-  List.iter (iterGlobals) cilFile.globals;
-  ()
+  List.iter (iterGlobals) cilFile.globals
 
 let createHtmlFunctionInfo outchan cilFile =
   let iterGlobals global =
@@ -36,8 +35,7 @@ let createHtmlFunctionInfo outchan cilFile =
       fprintf outchan "<div id=\"function_info%i\" style=\"display: none;\">Name: %s ()<br/>Line %i<br/>File: %s</div>" fundec.svar.vid fundec.svar.vname loc.line loc.file
     | _ -> ()
   in
-  List.iter (iterGlobals) cilFile.globals;
-  ()
+  List.iter (iterGlobals) cilFile.globals
 
 let createHtmlWarningsInfo outchan fileEntry =
   let htmlPrintWarningBox line =
@@ -45,8 +43,7 @@ let createHtmlWarningsInfo outchan fileEntry =
     List.iter (fun (filename,lineTwo,msg) -> if (((String.compare filename fileEntry.filename) = 0) && (line = lineTwo)) then fprintf outchan "%s <br/>\n" msg else ()) !htmlGlobalWarningList;
     fprintf outchan "</div>"
   in
-  Array.iteri (fun i x -> if (x >= 2) then htmlPrintWarningBox i) !(fileEntry.lineInfo);
-  ()
+  Array.iteri (fun i x -> if (x >= 2) then htmlPrintWarningBox i) !(fileEntry.lineInfo)
 
 let createHtmlWarningsListBox outchan fileEntry =
   let ltid = ref 0 in
@@ -158,12 +155,10 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
     let linkStart = if (isAnalyzed = true) then "<a "^styleString^"href=\"javascript:showLine('"^shortFilename^"',"^(string_of_int !currentLine)^");\">" else "" in
     let linkEnd = if (isAnalyzed = true) then "</a>" else "" in
     fprintf outchan "      <div id=\"line%i\" class=\"lt%i\"><pre> %s%i:%s %s</pre></div>\n" !currentLine (!currentLine mod 2) linkStart !currentLine linkEnd (prepareLine line);
-    currentLine := !currentLine + 1;
-    ()
+    currentLine := !currentLine + 1
   in
 
-  List.iter (fun lc -> createLine lc) (List.rev !lines);
-  ()
+  List.iter (fun lc -> createLine lc) (List.rev !lines)
 
 let createGlobalMenu outchan shortFilename filename cilFile =
   (* Functions *)
@@ -208,9 +203,7 @@ let createGlobalMenu outchan shortFilename filename cilFile =
     | _ -> ()
   in
   List.iter (iterEnums) cilFile.globals;
-  fprintf outchan "</div></div>\n";
-
-  ()
+  fprintf outchan "</div></div>\n"
 
 let createGlobalsTable outchan gtable =
   let trid = ref 0 in
@@ -226,8 +219,7 @@ let createGlobalsTable outchan gtable =
   let parseTdNode tdnode =
     try
       Xml.iter (fun child -> fprintf outchan "<td>%s</td>\n" (getTableEntryCode child) ) tdnode;
-    with Xml.Not_element _ -> fprintf outchan "%s\n" (Xml.to_string tdnode);
-      ()
+    with Xml.Not_element _ -> fprintf outchan "%s\n" (Xml.to_string tdnode)
   in
   let parseTrNode trnode =
     fprintf outchan "<tr style=\"background-color: %s;\">" (if (!trid == 0) then "#D0D0D0" else "#F0F0F0");
@@ -240,8 +232,7 @@ let createGlobalsTable outchan gtable =
   in
   fprintf outchan "<table>";
   List.iter (fun xmlfile -> parseGlobalsXmlFile xmlfile ) (Lazy.force gtable);
-  fprintf outchan "</table>";
-  ()
+  fprintf outchan "</table>"
 
 let generateCodeFile fileEntry (file: file) gtable =
   let shortFilename = Filename.basename fileEntry.filename in
@@ -288,8 +279,7 @@ let generateCodeFile fileEntry (file: file) gtable =
 
   (* Write third part *)
   fprintf outputChannel "%s" htmlTemp_BasePartThree;
-  close_out outputChannel;
-  ()
+  close_out outputChannel
 
 (* Read code lines from file into a list *)
 let readCodeLines filename lines =
@@ -298,8 +288,7 @@ let readCodeLines filename lines =
     while true; do
       lines := input_line chan_code :: !lines;
     done;
-  with End_of_file -> close_in chan_code;
-    ()
+  with End_of_file -> close_in chan_code
 
 (* === print_fmt : html output === *)
 let print_html chan xmlNode (file: file) gtable =

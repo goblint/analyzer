@@ -37,8 +37,7 @@ let init_warn_files () =
   warn_higr := (open_out "goblint_warnings_highreadrace.txt");
   warn_higw := (open_out "goblint_warnings_highwriterace.txt");
   warn_lowr := (open_out "goblint_warnings_lowreadrace.txt");
-  warn_loww := (open_out "goblint_warnings_lowwriterace.txt");
-  ()
+  warn_loww := (open_out "goblint_warnings_lowwriterace.txt")
 
 let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative

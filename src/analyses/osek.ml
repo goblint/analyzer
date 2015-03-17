@@ -43,7 +43,6 @@ struct
     | [] -> failwith ( "No OIL-Objects found!")
     | objs -> List.iter add_to_table (List.sort compare_objs objs);
       if tracing then trace "osek" "Done parsing OIL-file\n";
-      ();
       if tracing then trace "osek" "Computing ceiling priorities...\n";
       Hashtbl.iter compute_ceiling_priority resources;
       if tracing then trace "osek" "Generating goblint.h...\n";
@@ -54,8 +53,7 @@ struct
         if tracing then trace "osek" "Checking conventions...\n";
         check_osek ()
       end;
-      if tracing then trace "osek" "Done processing OIL-file\n";
-      ()
+      if tracing then trace "osek" "Done processing OIL-file\n"
 
   (*  let parse_tramp tramp =
       if tracing then trace "osek" "Parsing trampolineish header...\n";
@@ -171,7 +169,7 @@ struct
                 let intid = int_of_string id in
                 Hashtbl.add alarmids (Cil.integer(intid)) objectname
               end
-            | _ -> if tracing then trace "osek" "No matching object found for %s\n" objectname;()
+            | _ -> if tracing then trace "osek" "No matching object found for %s\n" objectname
           end;
         end;
         read_info ();

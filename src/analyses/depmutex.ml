@@ -348,8 +348,7 @@ struct
       in
       (*     Messages.report (Printf.sprintf "%d + %d" (List.length accs_write) (List.length accs_read));   *)
       List.iter (add_one true ) accs_write ;
-      List.iter (add_one false) accs_read ;
-      ()
+      List.iter (add_one false) accs_read
   *)
   (*
     Access counting using side-effects: ('|->' is a hash-map)

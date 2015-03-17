@@ -139,8 +139,7 @@ let question_load_db filename =
             in
             (* Add value to the entry's list *)
             if (linestart == 0) then qentry.qf_default := {qv_line_start = 0; qv_line_end = 0; qv_value = value}
-            else qentry.qf_values := !(qentry.qf_values) @ [{qv_line_start = linestart; qv_line_end = lineend; qv_value = value}];
-            ()
+            else qentry.qf_values := !(qentry.qf_values) @ [{qv_line_start = linestart; qv_line_end = lineend; qv_value = value}]
           end
         end
         else ()
@@ -148,8 +147,7 @@ let question_load_db filename =
       else ()
     done;
   with End_of_file ->
-    Pervasives.close_in chan;
-    ()
+    Pervasives.close_in chan
 
 (* Save the question database to a file *)
 let question_save_db filename =
@@ -207,8 +205,7 @@ let question_db_print qlist =
     in
     List.iter printvalue !(e.qf_values)
   in
-  List.iter printentry qlist;
-  ()
+  List.iter printentry qlist
 
 let question_getvalue questionid line =
   let entry = (List.nth !questionentrylist questionid) in

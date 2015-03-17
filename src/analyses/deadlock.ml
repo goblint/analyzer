@@ -39,8 +39,7 @@ struct
           add_comb newLock lock;
           let transAddList = List.find_all (fun (a,b) -> MyLock.equal a lock) !forbiddenList in
           List.iter (fun (a,b) -> add_comb newLock b) transAddList
-      ) lockList;
-      ()
+      ) lockList
     end
 
 

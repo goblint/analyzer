@@ -110,8 +110,7 @@ struct
     let open Sys in
     set_signal sigtstp (Signal_handle (fun i -> stopped := true));
     set_signal sigusr1 (Signal_handle (fun i -> stopped := false));
-    set_signal sigusr2 (Signal_handle (fun i -> step    := 1));
-    ()
+    set_signal sigusr2 (Signal_handle (fun i -> step    := 1))
 
   let loc_start f =
     fprintf f "<?xml version=\"1.0\" ?>\n<?xml-stylesheet type=\"text/xsl\" href=\"../node.xsl\"?>\n<loc>"

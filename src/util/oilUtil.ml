@@ -214,13 +214,11 @@ let find_name id =
 
 let check_res_decl res =
   if not(Hashtbl.mem resources res) then
-    if tracing then trace "osek" "Resource %s is undeclared!\n" res;
-  ()
+    if tracing then trace "osek" "Resource %s is undeclared!\n" res
 
 let check_event_decl ev =
   if not(Hashtbl.mem events ev) then
-    if tracing then trace "osek" "Event %s is undeclared!\n" ev;
-  ()
+    if tracing then trace "osek" "Event %s is undeclared!\n" ev
 
 let check_task task t_value =
   let (sched,pry,res_list,event_list,timetriggered,autostart,activation) = t_value in
@@ -240,8 +238,7 @@ let check_osek () =
   let min_cat2_pry = pry "RES_SCHEDULER" in
   let min_cat1_pry = pry "SuspendOSInterrupts" in
   Hashtbl.iter (check_isr min_cat2_pry min_cat1_pry) isrs;
-  Hashtbl.iter check_task  tasks;
-  ()
+  Hashtbl.iter check_task  tasks
 
 (*let check_tramp () =
   if tracing then trace "osek" "Checking trampoline IDs\n";
@@ -254,8 +251,7 @@ let check_osek () =
     | ("-1",_) -> let _ = printf "Warning: No ID found for event %s!" ev_name in ()
     | _ -> ()
   in
-  Hashtbl.iter check_ev_id events;
-  ()*)
+  Hashtbl.iter check_ev_id events *)
 
 let compute_ceiling_priority res r_value =
   let id,pry,lock = r_value in
@@ -280,15 +276,13 @@ let handle_attribute_os attr =
     | _ -> false
   in
   match name with
-  | "USERESSCHEDULER" -> use_res_scheduler := true; ()
+  | "USERESSCHEDULER" -> use_res_scheduler := true
   | "STARTUPHOOK" -> startuphook := get_bool value
   | "SHUTDOWNHOOK" -> shutdownhook:= get_bool value
   | "ERRORHOOK" -> errorhook := get_bool value
   | "PRETASKHOOK" -> pretaskhook := get_bool value
   | "POSTTASKHOOK" -> posttaskhook := get_bool value
-  | _ ->
-    if tracing then trace "oil" "Unhandled OS attribute %s\n" name;
-    ()
+  | _ -> if tracing then trace "oil" "Unhandled OS attribute %s\n" name
 
 let handle_attribute_task object_name t_value (attr : (string*attribute_v)) =
   let (sched,pry,res_list,event_list,timetriggered,autostart,activation) = t_value in
@@ -428,13 +422,11 @@ let handle_action_alarm object_name attr =
           (*             concurrent_tasks :=  task :: !concurrent_tasks *)
           | other  ->
             (* TODO	    if tracing then trace "oil" "Unknown parameter (%s) for ACTIVATETASK of ALARM %s\n" other object_name;*)
-            if tracing then trace "oil" "Unable to determine task (_) for ACTIVATETASK of ALARM %s\n" object_name;
-            ()
+            if tracing then trace "oil" "Unable to determine task (_) for ACTIVATETASK of ALARM %s\n" object_name
         )
       | other ->
         (* TODO	  if tracing then trace "oil" "Wrong parameter (%s) for ACTIVATETASK of ALARM %s\n" other object_name;*)
-        if tracing then trace "oil" "Wrong parameter (_) for ACTIVATETASK of ALARM %s\n" object_name;
-        ()
+        if tracing then trace "oil" "Wrong parameter (_) for ACTIVATETASK of ALARM %s\n" object_name
     )
 
 let handle_event_alarm object_name attr =
@@ -450,15 +442,12 @@ let handle_event_alarm object_name attr =
               Hashtbl.replace events ev (helper (Hashtbl.find events ev))
             | other  ->
               (* TODO	    if tracing then trace "oil" "Unknown parameter (%s) for SETEVENT of ALARM %s\n" other object_name;*)
-              if tracing then trace "oil" "Unknown parameter (_) for SETEVENT of ALARM %s\n" object_name;
-              ()
+              if tracing then trace "oil" "Unknown parameter (_) for SETEVENT of ALARM %s\n" object_name
           )
-      | "TASK" ->if tracing then trace "oil" "Skipped parameter TASK for SETEVENT of ALARM %s\n" object_name;
-        ()
+      | "TASK" ->if tracing then trace "oil" "Skipped parameter TASK for SETEVENT of ALARM %s\n" object_name
       | other ->
         (* TODO	  if tracing then trace "oil" "Wrong parameter (%s) for SETEVENT of ALARM %s\n" other object_name;*)
-        if tracing then trace "oil" "Wrong parameter (_) for SETEVENT of ALARM %s\n" object_name;
-        ()
+        if tracing then trace "oil" "Wrong parameter (_) for SETEVENT of ALARM %s\n" object_name
     )
 
 let handle_attribute_alarm object_name attr =
@@ -469,41 +458,34 @@ let handle_attribute_alarm object_name attr =
       | Name (action,params)  -> ( match (String.uppercase action) with
           | "ACTIVATETASK" -> ( match params with
               | None ->
-                if tracing then trace "oil" "No argument for ACTIVATETASK of ALARM %s\n" object_name;
-                ()
+                if tracing then trace "oil" "No argument for ACTIVATETASK of ALARM %s\n" object_name
               | Some a_params -> List.iter (handle_action_alarm object_name) a_params
             )
           | "SETEVENT" ->  ( match params with
               | None ->
-                if tracing then trace "oil" "No argument for SETEVENT of ALARM %s\n" object_name;
-                ()
+                if tracing then trace "oil" "No argument for SETEVENT of ALARM %s\n" object_name
               | Some a_params -> List.iter (handle_event_alarm object_name) a_params
             )
-          | "ALARMCALLBACK" -> print_endline("Found ALARMCALLBACK in alarm " ^ object_name);
+          | "ALARMCALLBACK" -> print_endline("Found ALARMCALLBACK in alarm " ^ object_name)
             (* TODO add as interrupts above tasks below isr?
                add treatment for the macro
                see page 36 of oil spec *)
-            ()
           | other  ->
             (* TODO	if tracing then trace "oil" "Wrong parameter (%s) for ACTION of ALARM %s\n" other object_name;*)
-            if tracing then trace "oil" "Wrong parameter (_) for ACTION of ALARM %s\n" object_name;
-            ()
+            if tracing then trace "oil" "Wrong parameter (_) for ACTION of ALARM %s\n" object_name
         )
       | String s  ->
-        if tracing then trace "oil" "String as ACTION attribute: %s\n" s;
-        ()
+        if tracing then trace "oil" "String as ACTION attribute: %s\n" s
       | other  ->
         (*  TODO      if tracing then trace "oil" "Wrong value (%s) for ACTION of ALARM %s\n" other object_name; *)
-        if tracing then trace "oil" "Wrong value (_) for ACTION of ALARM %s\n" object_name;
-        ()
+        if tracing then trace "oil" "Wrong value (_) for ACTION of ALARM %s\n" object_name
     )
   | "AUTOSTART" ->
     if tracing then trace "oil" "Activating ALARM %s\n" object_name;
     Hashtbl.replace alarms object_name ((fun (_,l) -> (true,l)) (Hashtbl.find alarms object_name))
   | "COUNTER"
   | _ ->
-    if tracing then trace "oil" "Skipped unhandled ALARM attribute %s\n" name;
-    ()
+    if tracing then trace "oil" "Skipped unhandled ALARM attribute %s\n" name
 
 let handle_attribute_resource object_name attr =
   let tmp, value = attr in
@@ -521,17 +503,14 @@ let handle_attribute_resource object_name attr =
                see page 34 in OSEK spec *)
             ()
           | other  ->
-            if tracing then trace "oil" "Wrong RESOURCEPROPERTY (%s) for RESOURCE %s\n" other object_name;
-            ()
+            if tracing then trace "oil" "Wrong RESOURCEPROPERTY (%s) for RESOURCE %s\n" other object_name
         )
       | other  ->
         (*  TODO     if tracing then trace "oil" "Wrong value (%s) for ACTION of ALARM %s\n" other object_name;*)
-        if tracing then trace "oil" "Wrong value (_) for ACTION of ALARM %s\n" object_name;
-        ()
+        if tracing then trace "oil" "Wrong value (_) for ACTION of ALARM %s\n" object_name
     )
   | _ ->
-    if tracing then trace "oil" "Unhandled RESOURCE attribute %s\n" name;
-    ()
+    if tracing then trace "oil" "Unhandled RESOURCE attribute %s\n" name
 
 let handle_attribute_event object_name attr =
   let _ = Hashtbl.replace events object_name ("-1",false) in
@@ -539,11 +518,9 @@ let handle_attribute_event object_name attr =
   let name = String.uppercase tmp in
   match name with
   | "MASK" ->
-    if tracing then trace "oil" "Skipped MASK of EVENT %s\n" object_name;
-    ()
+    if tracing then trace "oil" "Skipped MASK of EVENT %s\n" object_name
   | _ ->
-    if tracing then trace "oil" "Unhandled EVENT attribute %s\n" name;
-    ()
+    if tracing then trace "oil" "Unhandled EVENT attribute %s\n" name
 
 let add_to_table oil_info =
   let object_type, object_name, attribute_list = oil_info in
@@ -604,7 +581,4 @@ let add_to_table oil_info =
   | "APPMODE"
   | "IPDU"
   | _ ->
-    if tracing then trace "oil" "Skipped unhandled object %s \n" object_type;
-    ()
-    ;
-    ()
+    if tracing then trace "oil" "Skipped unhandled object %s \n" object_type

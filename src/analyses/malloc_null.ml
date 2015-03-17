@@ -85,7 +85,7 @@ struct
 
   let may (f: 'a -> 'b) (x: 'a option) : unit =
     match x with
-    | Some x -> f x; ()
+    | Some x -> f x
     | None -> ()
 
   (* Generate addresses to all points in an given varinfo. (Depends on type) *)

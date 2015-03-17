@@ -491,8 +491,7 @@ let printFun (module Cfg : CfgBidir) live fd out =
   NH.iter printNodeStyle node_table;
   Printf.fprintf out "}\n";
   flush out;
-  close_out_noerr out;
-  ()
+  close_out_noerr out
 
 let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
   iterGlobals file (fun glob ->
