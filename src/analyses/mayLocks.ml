@@ -1,8 +1,6 @@
 (** May-lockset analysis. *)
 
-open Prelude
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 open GobConfig
 

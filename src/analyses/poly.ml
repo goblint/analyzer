@@ -1,8 +1,6 @@
 (** Analysis using Apron for integer variables. *)
 
-open Prelude
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 open Apron
 

@@ -1,10 +1,8 @@
 (** Master Control Program *)
 
-open Prelude
+open Prelude.Ana
 open GobConfig
 open Analyses
-open Pretty
-open Cil
 
 type spec_modules = { spec : (module Spec)
                     ; dom  : (module Lattice.S)

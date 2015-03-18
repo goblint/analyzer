@@ -1,7 +1,6 @@
 (** Stack-trace "analyses". *)
 
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 module LF = LibraryFunctions
 

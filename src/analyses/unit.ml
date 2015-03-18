@@ -1,7 +1,6 @@
 (** An analysis specification for didactic purposes. *)
 
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 
 module Spec : Analyses.Spec =

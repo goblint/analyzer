@@ -5,8 +5,7 @@ module LP = Exp.LockingPattern
 module Exp = Exp.Exp
 module VarEq = VarEq.Spec
 
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 
 (* Note: This is currently more conservative than varEq --- but

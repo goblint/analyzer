@@ -8,8 +8,7 @@ module AD = ValueDomain.AD
 module Exp = Exp.Exp
 (*module BS = Base.Spec*)
 module LF = LibraryFunctions
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 
 

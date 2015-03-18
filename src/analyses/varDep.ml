@@ -1,5 +1,4 @@
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 
 module LV = Lval.CilLval

@@ -1,11 +1,9 @@
 (** Value analysis + multi-threadedness analysis.  *)
 
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 open GobConfig
 module A = Analyses
-module M = Messages
 module H = Hashtbl
 module Q = Queries
 

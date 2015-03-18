@@ -1,8 +1,6 @@
 (** Tracking of arinc processes and their actions. Output to console, graphviz and promela. *)
 
-open Prelude
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 
 module Spec : Analyses.Spec =

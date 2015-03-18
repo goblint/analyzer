@@ -14,8 +14,7 @@ module Exp = Exp.Exp
 (*module BS = Base.Spec*)
 module BS = Base.Main
 module LF = LibraryFunctions
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 open GobConfig
 

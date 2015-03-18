@@ -1,7 +1,6 @@
 (** Deadlock analysis using data race detection. *)
 
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 
 module Spec =

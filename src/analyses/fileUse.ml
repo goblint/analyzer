@@ -1,8 +1,6 @@
 (** An analysis for checking correct use of file handles. *)
 
-open Prelude
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 
 module Spec =

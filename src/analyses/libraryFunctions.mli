@@ -1,6 +1,6 @@
 (** This allows us to query information about library functions. *)
 
-open Cil
+open Prelude.Ana
 
 type categories = [
   | `Malloc

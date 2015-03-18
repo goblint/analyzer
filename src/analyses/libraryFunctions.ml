@@ -1,6 +1,6 @@
 (** Tools for dealing with library functions. *)
 
-open Cil
+open Prelude.Ana
 open GobConfig
 open Goblintutil
 

@@ -1,7 +1,6 @@
 (** Protection using 'private' field modifier in C++.  *)
 
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 open GobConfig
 open Json
@@ -182,7 +181,7 @@ struct
 			D.Danger.pp_vars;
       fprintf stderr "\nSUM VARS:%d\n" !sum;
 			*)
-    ignore (fprintf stderr "\n************************finialize finished******************\n");
+    ignore (fprintf Legacy.stderr "\n************************finialize finished******************\n");
     flush stderr;
     D.final:=false
   (*failwith "Finished"*)
@@ -269,14 +268,14 @@ struct
               if !repeat mod 50 = 0 then
                 begin
                   Hashtbl.iter (fun n c-> if c> 30 then ignore (printf "%s : %d \n" n c ) ) entered_funs;
-                  ignore (fprintf stderr "********************50 REPEATS******************** \n")
+                  ignore (fprintf Legacy.stderr "********************50 REPEATS******************** \n")
                 end
             end
           else
             begin
               last_pp := pp;
               repeat := 0;
-              ignore(fprintf stderr "%d%% " pp)
+              ignore(fprintf Legacy.stderr "%d%% " pp)
             end;
           flush stderr
       end

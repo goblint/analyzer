@@ -1,6 +1,5 @@
 (** Thread-id analyses. *)
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 
 module T  = ConcDomain.Thread

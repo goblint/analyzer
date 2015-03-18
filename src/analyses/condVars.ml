@@ -1,11 +1,8 @@
 (** Must equality between variables and logical expressions. *)
 
-open Prelude
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 
-module M = Messages
 let sprint f x = Pretty.sprint 80 (f () x)
 
 module Domain = struct

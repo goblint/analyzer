@@ -1,8 +1,6 @@
 (** Analysis by specification file. *)
 
-open Prelude
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 
 module SC = SpecCore

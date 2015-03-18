@@ -1,8 +1,6 @@
 (** Termination of loops. *)
 
-open Prelude
-open Cil
-open Pretty
+open Prelude.Ana
 open Analyses
 
 module M = Messages
