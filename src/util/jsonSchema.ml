@@ -1,6 +1,6 @@
 (** A simpler schema than http://json-schema.org *)
 
-open Batteries
+open Prelude
 open Json
 
 (** type of a [jvalue] *)

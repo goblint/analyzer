@@ -1,10 +1,10 @@
 (** May-lockset analysis. *)
 
+open Prelude
 open Cil
 open Pretty
 open Analyses
 open GobConfig
-open Batteries
 
 module Spec =
 struct

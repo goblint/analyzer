@@ -1,4 +1,4 @@
-open Batteries (* otherwise open_in would return wrong type for SpecUtil *)
+open Prelude (* otherwise open_in would return wrong type for SpecUtil *)
 open SpecUtil
 
 let _ =

@@ -1,6 +1,6 @@
 (* functions for driving specParser *)
 
-open Batteries
+open Prelude
 
 (* config *)
 let save_dot = true

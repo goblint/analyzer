@@ -17,7 +17,7 @@
    There is a "conf" [trace] option that traces setting.
 *)
 
-open Batteries
+open Prelude
 open Tracing
 open Config
 open Printf

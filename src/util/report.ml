@@ -1,11 +1,11 @@
-module GU = Goblintutil
-module M = Messages
-
-open Batteries
+open Prelude
 open GobConfig
 open Htmlutil
 open Printf
 open Json
+
+module GU = Goblintutil
+module M = Messages
 
 let report_dir = "result"
 

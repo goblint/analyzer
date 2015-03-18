@@ -1,6 +1,6 @@
 (** An analysis for checking correct use of file handles. *)
 
-open Batteries
+open Prelude
 open Cil
 open Pretty
 open Analyses

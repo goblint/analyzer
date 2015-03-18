@@ -1,6 +1,6 @@
 (** Analysis by specification file. *)
 
-open Batteries
+open Prelude
 open Cil
 open Pretty
 open Analyses

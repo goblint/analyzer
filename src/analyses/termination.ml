@@ -1,6 +1,6 @@
 (** Termination of loops. *)
 
-open Batteries
+open Prelude
 open Cil
 open Pretty
 open Analyses

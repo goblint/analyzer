@@ -1,11 +1,11 @@
 (** How to generate constraints for a solver using specifications described in [Analyses]. *)
 
+open Prelude
 open Cil
 open MyCFG
 open Pretty
 open Analyses
 open GobConfig
-open Batteries
 
 
 (** Lifts a [Spec] so that the domain and the context are [Hashcons]d. *)

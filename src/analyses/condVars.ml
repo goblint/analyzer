@@ -1,6 +1,6 @@
 (** Must equality between variables and logical expressions. *)
 
-open Batteries
+open Prelude
 open Cil
 open Pretty
 open Analyses

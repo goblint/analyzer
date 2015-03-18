@@ -1,6 +1,6 @@
 (** This is the main program! *)
 
-open Batteries
+open Prelude
 open GobConfig
 open Defaults
 open Printf

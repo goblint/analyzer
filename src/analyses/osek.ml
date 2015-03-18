@@ -1,5 +1,6 @@
 (** Data race analysis for OSEK programs. *)
 
+open Prelude
 open Cil
 open Pretty
 open Analyses
@@ -690,7 +691,6 @@ struct
     let acc_map = if !Mutex.unmerged_fields then proj2_1 acc_info else regroup_map acc_info in
     acc_map
 
-  open Batteries
   let suppressed = ref 0
   let filtered = ref 0
 

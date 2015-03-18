@@ -1,5 +1,6 @@
+(** Analysis using Apron for integer variables. *)
 
-open Batteries
+open Prelude
 open Cil
 open Pretty
 open Analyses

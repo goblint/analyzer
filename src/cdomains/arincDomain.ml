@@ -1,5 +1,4 @@
-module OMap = Map (* save Ocaml's Map before overwriting it with BatMap *)
-open Batteries
+open Prelude
 open Cil
 
 (* Information for one task *)

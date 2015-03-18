@@ -1,7 +1,6 @@
+open Prelude
 open Cil
 open Pretty
-module OMap = Map (* save Ocaml's Map before overwriting it with BatMap *)
-open Batteries
 
 module M = Messages
 
@@ -163,7 +162,7 @@ struct
   (* Used to access additional functions of Map.
      Can't use BatMap because type is not compatible with MD.
      Also avoids dependencies for other files using the following functions. *)
-  module MDMap = OMap.Make (Lval.CilLval) (* why does OMap.Make (K) not work? *)
+  module MDMap = Legacy.Map.Make (Lval.CilLval) (* why does Make (K) not work? *)
 
   (* Map functions *)
   (* find that resolves aliases *)
