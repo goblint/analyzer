@@ -79,6 +79,8 @@ rule() {
              ;;
     dev)     opam install utop merlin ocp-indent ocp-index
              echo "Be sure to adjust your vim/emacs config!"
+             pushd .git/hooks; ln -s ../../scripts/hooks/pre-commit; popd
+             echo "Pre-commit hook installed!"
              ;;
     header*) wget http://www.ut.ee/~vesal/linux-headers.tbz
              tar xf linux-headers.tbz
