@@ -406,8 +406,7 @@ struct
     let binop op e1 e2 =
       let equality () =
         match ask (Q.ExpEq (e1,e2)) with
-        | `Int 0L -> Some false
-        | `Int _ -> Some true
+        | `Bool x -> Some x
         | _ -> None
       in
       match op with
@@ -1222,7 +1221,7 @@ struct
           `LvalSet addrs
         | _ -> `LvalSet (Q.LS.empty ())
       end
-    | Q.SingleThreaded -> `Int (Q.ID.of_bool (not (Flag.is_multi (get_fl ctx.local))))
+    | Q.SingleThreaded -> `Bool (Q.BD.of_bool (not (Flag.is_multi (get_fl ctx.local))))
     | Q.EvalStr e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         (* exactly one string in the set (works for assignments of string constants) *)

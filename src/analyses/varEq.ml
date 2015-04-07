@@ -538,7 +538,7 @@ struct
   let query ctx x =
     match x with
     | Queries.ExpEq (e1,e2) when query_exp_equal ctx.ask e1 e2 ctx.global ctx.local ->
-      `Int (Queries.ID.of_bool true)
+      `Bool (Queries.BD.of_bool true)
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
       (*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
