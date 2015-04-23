@@ -447,11 +447,9 @@ struct
         (match ctx.ask (Queries.EvalInt len) with
          | `Int i ->
            let len = i64_to_int @@ eval_int len in
-           let exp = ref dst in
            for i = 0 to len-1 do
-             let lval = mkMem ~addr:!exp ~off:NoOffset in
+             let lval = mkMem ~addr:dst ~off:(Index (integer i, NoOffset)) in
              ctx.assign ~name:"base" lval data;
-             exp := increm !exp 1 (* int/pointer increment *)
            done;
          | v -> debug_each @@ "F1/memset: don't know length: " ^ sprint Queries.Result.pretty v;
            let lval = mkMem ~addr:dst ~off:NoOffset in
