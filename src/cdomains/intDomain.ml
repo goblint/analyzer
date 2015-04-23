@@ -1738,7 +1738,7 @@ struct
   let meet = (&&)
 
   let of_bool x = x
-  let to_bool x = if x then None else Some false
+  let to_bool x = Some x
   let is_bool x = not x
   let of_int x  = x = Int64.zero
   let to_int x  = if x then None else Some Int64.zero
