@@ -12,7 +12,7 @@ fi
 if [ ! -f src/config.ml ]; then
   cpp="cpp"
   # if we are on OS X and cpp is the Apple LLVM version, we should look for some Homebrew gcc cpp-4.9 (or other version)
-  case $OSTYPE in darwin*) if compgen -c | grep -q "^cpp-"; then cpp=$(compgen -c | grep "^cpp-"); fi;; esac
+  case $OSTYPE in darwin*) if compgen -c | grep -q "^cpp-"; then cpp=$(compgen -c | grep "^cpp-" | head -n1); fi;; esac
   {
     echo "let tracing = false"
     echo "let tracking = false"
