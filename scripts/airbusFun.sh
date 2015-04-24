@@ -32,7 +32,7 @@ if $pedantic && git_dirty "$analyzer"; then
 fi
 commit=$(git -C $analyzer rev-parse --short HEAD)
 date=$(git -C $analyzer show -s --pretty=format:"%ai" $commit | sed 's/ +.*//' | sed 's/ /_/g')
-lastmod=$(find $analyzer/{src,scripts} -printf "%Tm-%Td-%TT\n" | sort -nr | head -n 1 | cut -d. -f1)
+lastmod=$(find $analyzer/{src,scripts} -printf "%Ty-%Tm-%Td-%TT\n" | sort -nr | head -n 1 | cut -d. -f1)
 result="result_${date}_${commit}_${lastmod}_${ret}"
 if [ -e $result ]; then
     echo "$result already exists!"
