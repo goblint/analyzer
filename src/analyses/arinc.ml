@@ -451,7 +451,7 @@ struct
              let lval = mkMem ~addr:dst ~off:(Index (integer i, NoOffset)) in
              ctx.assign ~name:"base" lval data;
            done;
-         | v -> debug_each @@ "F1/memset: don't know length: " ^ sprint Queries.Result.pretty v;
+         | v -> M.debug_each @@ "F1/memset: don't know length: " ^ sprint Queries.Result.pretty v;
            let lval = mkMem ~addr:dst ~off:NoOffset in
            ctx.assign ~name:"base" lval MyCFG.unknown_exp
         );
@@ -493,7 +493,7 @@ struct
             let pid' = Process, name in
             assign_id pid (get_id pid');
             add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
-          | _ -> let f = Queries.Result.short 30 in struct_fail debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); d
+          | _ -> let f = Queries.Result.short 30 in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); d
         end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
         assign_id_by_name Process name pid; d
