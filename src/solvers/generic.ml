@@ -297,17 +297,15 @@ struct
 
   let new_var_event x =
     Goblintutil.vars := !Goblintutil.vars + 1;
-    if tracing
-    then trace "sol" x "New %a\n" LVar.pretty_trace x
+    if tracing then trace "sol" x "New %a\n" LVar.pretty_trace x
 
   let get_var_event x =
-    if full_trace
-    then trace "sol" x "Querying %a\n" LVar.pretty_trace x
+    if full_trace then trace "sol" x "Querying %a\n" LVar.pretty_trace x
 
 
   let eval_rhs_event x i =
-    if full_trace
-    then trace "sol" x "(Re-)evaluating %a (%d)\n" LVar.pretty_trace x i;
+    if full_trace then trace "sol" x "(Re-)evaluating %a (%d)\n" LVar.pretty_trace x i;
+    if Config.tracking then M.track "eval";
     Goblintutil.evals := !Goblintutil.evals + 1;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
@@ -363,12 +361,10 @@ struct
 
   let new_var_event x =
     Goblintutil.vars := !Goblintutil.vars + 1;
-    if tracing
-    then trace "sol" "New %a\n" Var.pretty_trace x
+    if tracing then trace "sol" "New %a\n" Var.pretty_trace x
 
   let get_var_event x =
-    if full_trace
-    then trace "sol" "Querying %a\n" Var.pretty_trace x
+    if full_trace then trace "sol" "Querying %a\n" Var.pretty_trace x
 
 
   let eval_rhs_event x =

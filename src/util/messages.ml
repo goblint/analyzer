@@ -15,6 +15,10 @@ let warn_out = ref stdout
 let tracing = Config.tracing
 let xml_file_name = ref ""
 
+let track m =
+  let loc = !Tracing.current_loc in 
+  Printf.fprintf !warn_out "Track (%s:%d); %s\n" loc.file loc.line m
+
 (*Warning files*)
 let warn_race = ref stdout
 let warn_safe = ref stdout
