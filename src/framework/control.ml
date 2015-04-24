@@ -313,11 +313,6 @@ struct
       local_xml := solver2source_result lh;
       global_xml := gh;
 
-      if Progress.tracking then
-        begin
-          Progress.track_with_profile () ;
-          Progress.track_call_profile ()
-        end ;
       let module S = Set.Make (Int) in
       if (get_bool "dbg.uncalled") then
         begin

@@ -1,7 +1,6 @@
 open Analyses
 open GobConfig
 open Messages
-open Progress
 open Pretty
 
 module Make =
