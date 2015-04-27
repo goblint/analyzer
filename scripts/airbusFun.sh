@@ -57,7 +57,9 @@ goblint="./goblint --conf $conf --set ana.activated ['base','arinc'] $dbg --enab
 header "Write effective config"
 $goblint --writeconf all.conf
 header "Starting goblint"
-/bin/time -v -o time.fun.txt $goblint $input 2>&1 | tee trace.fun.txt
+time=$(which gtime 2>&- || which time 2>&-) # brew's GNU time on OS X is called gtime...
+echo "Using time command at $time (this needs to be GNU time since the shell builtin doesn't support -v)"
+$time -v -o time.fun.txt $goblint $input 2>&1 | tee trace.fun.txt
 cat time.fun.txt
 dot="result/arinc.dot"
 pml="result/arinc.pml"
@@ -69,7 +71,7 @@ echo "$pml has $(wc -l < $pml) lines!"
 pushd result
 header "Generating SPIN Verifier from Promela Code"
 set +o errexit # we want to be able to abort this if it takes too long
-/bin/time -v -o time.spin.txt spin -DPRIOS -a arinc.pml 2>&1 | tee trace.spin.txt
+$time -v -o time.spin.txt spin -DPRIOS -a arinc.pml 2>&1 | tee trace.spin.txt
 set -o errexit
 cat time.spin.txt
 clang -DVECTORSZ=5000 -o pan pan.c # complained that VECTORSZ should be > 1280
