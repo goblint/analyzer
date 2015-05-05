@@ -179,6 +179,8 @@ let _ = ()
       ; reg Debugging "dbg.debug-sockets"   "null"  "Eclipse debugger plugin support."
       ; reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
       ; reg Debugging "dbg.ctxinfo"         "false" "Print information about the number of different contexts."
+      ; reg Debugging "dbg.slice.on"        "false" "Turn slicer on or off."
+      ; reg Debugging "dbg.slice.n"         "10"    "How deep function stack do we analyze."
 
 let default_schema = "\
 { 'id'              : 'root'

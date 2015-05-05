@@ -73,6 +73,110 @@ struct
     D.lift @@ S.combine (conv ctx) r fe f args (D.unlift es)
 end
 
+
+(** Lifts a [Spec] with a special bottom element that represent unreachable code. *)
+module LevelSliceLifter (S:Spec)
+  : Spec with module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+          and module G = S.G
+          and module C = S.C
+=
+struct
+  module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
+  module G = S.G
+  module C = S.C
+
+  let name = S.name^" level sliced"
+
+  let start_level = ref (`Top)
+  let error_level = ref (`Lifted  0L)
+
+  let init () = 
+    if get_bool "dbg.slice.on" then
+      start_level := `Lifted (Int64.of_int (get_int "dbg.slice.n"));
+    S.init ()
+
+  let finalize = S.finalize
+
+  let should_join (x,_) (y,_) = S.should_join x y
+
+  let startstate v = (S.startstate v, !start_level)
+  let exitstate  v = (S.exitstate  v, !start_level)
+  let otherstate v = (S.otherstate v, !start_level)
+  let morphstate v (d,l) = (S.morphstate v d, l)
+
+  let val_of d = (S.val_of d, !error_level)
+  let context (d,_) = S.context d
+  let call_descr f = S.call_descr f
+
+  let conv ctx =
+    { ctx with local = fst ctx.local
+             ; spawn = (fun v d -> ctx.spawn v (d, snd ctx.local) )
+             ; split = (fun d e tv -> ctx.split (d, snd ctx.local) e tv )
+    }
+
+  let lift_fun ctx f g h =
+    f @@ h (g (conv ctx))
+
+  let sync ctx =
+    let liftpair (x, y) = (x, snd ctx.local), y in
+    lift_fun ctx liftpair S.sync identity 
+
+  let enter' ctx r f args =
+    let liftmap = List.map (fun (x,y) -> (x, snd ctx.local), (y, snd ctx.local)) in
+    lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) 
+
+  let lift ctx d = (d, snd ctx.local)
+
+  let query' ctx q    = lift_fun ctx identity   S.query  ((|>) q)            
+  let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)  
+  let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)  
+  let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)            
+  let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)   
+  let intrpt ctx      = lift_fun ctx (lift ctx) S.intrpt identity            
+  let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)       
+  let combine' ctx r fe f args es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args (fst es))
+
+  let leq0 = function
+    | `Top -> false
+    | `Lifted x -> x <= 0L
+    | `Bot -> true
+
+  let sub1 = function 
+    | `Lifted x -> `Lifted (Int64.sub x 1L)
+    | x -> x
+
+  let add1 = function 
+    | `Lifted x -> `Lifted (Int64.add x 1L)
+    | x -> x
+
+  let enter ctx r f args = 
+    let (d,l) = ctx.local in
+    if leq0 l then
+      [(ctx.local, ctx.local)]
+    else
+      enter' {ctx with local=(d, sub1 l)} r f args
+
+  let combine ctx r fe f args es = 
+    let (d,l) = ctx.local in
+    let l = add1 l in
+    if leq0 l then
+      (d, l)
+    else
+      let d',_ = combine' ctx r fe f args es in
+      (d', l)
+
+  let query ctx = function 
+    | Queries.EvalFunvar e ->
+      let (d,l) = ctx.local in
+      if leq0 l then 
+        `LvalSet (Queries.LS.empty ())
+      else 
+        query' ctx (Queries.EvalFunvar e)
+    | q -> query' ctx q
+
+end
+
+
 (** Lifts a [Spec] with a special bottom element that represent unreachable code. *)
 module DeadCodeLifter (S:Spec)
   : Spec with module D = Dom (S.D)
@@ -247,8 +351,11 @@ struct
       then tf_normal_call ctx lv e f args getl sidel getg sideg
       else tf_special_call ctx lv f args
     in
-    let funs = List.map one_function functions in
-    bigsqcup (funs @ !r)
+    if [] = functions then
+      d (* because LevelSliceLifter *)
+    else
+      let funs = List.map one_function functions in
+      bigsqcup (funs @ !r)
 
   let tf getl sidel getg sideg edge d =
     begin match edge with

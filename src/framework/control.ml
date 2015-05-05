@@ -415,9 +415,9 @@ struct
 
   let analyze file fs =
     if get_bool "ana.hashcons" then
-      analyze file fs (module (DeadCodeLifter (HashconsLifter (PathSensitive2 (MCP.MCP2)))) : Spec)
+      analyze file fs (module (LevelSliceLifter(DeadCodeLifter (HashconsLifter (PathSensitive2 (MCP.MCP2))))) : Spec)
     else
-      analyze file fs (module (DeadCodeLifter (PathSensitive2 (MCP.MCP2))) : Spec)
+      analyze file fs (module (LevelSliceLifter(DeadCodeLifter (PathSensitive2 (MCP.MCP2)))) : Spec)
 end
 
 (** The main function to perform the selected analyses. *)
