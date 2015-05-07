@@ -82,7 +82,7 @@ struct
     let node = Option.get !MyCFG.current_node in
     (* determine if we are at the root of a process or in some called function *)
     let fundec = MyCFG.getFun node in
-    let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname in
+    let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname^". State: " ^ D.short 100 d in
     let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "get_env: no processname for pid in Hashtbl!" in
     let procid = Process, pname in
     let pfuns = funs_for_process (Process,pname) in
@@ -170,7 +170,7 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =
     (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
     (* only if we don't assume success, we need to consider branching on return codes *)
-    if D.is_bot ctx.local then ctx.local else
+    if D.is_bot ctx.local then ctx.local else (* TODO how can it be that everything is bot here, except pred? *)
       let env = get_env ctx in
       if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
         let check a b tv =
@@ -245,7 +245,7 @@ struct
     let f_ctx_hash = "f_ctx_hash = " ^ string_of_int (!last_ctx_hash |? -1) in
     (* somehow context is only right if f_ctx_hash == current_ctx_hash *)
     print_current_ctx ~info:f_ctx_hash "combine" f args;
-    if D.is_bot ctx.local then ctx.local else
+    if D.is_bot ctx.local || D.is_bot au then ctx.local else
       let env = get_env ctx in
       let d_caller = ctx.local in
       let d_callee = au in
@@ -413,35 +413,27 @@ struct
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
       | "LAP_Se_GetPartitionStartCondition", [start_condition; r] -> todo ()
       (* treat functions from string.h as extern if they are added at the end of libraryFunctions.ml *)
-      | "F59", [dst; src] (* strcpy *)
-      | "F60", [dst; src; _] (* strncpy TODO len *)
-      | "F61", [dst; src] (* TODO strcpy that ends at \000? *)
-      | "F62", [dst; src; _] (* TODO strncpy that ends at \000? *)
-      | "F63", [dst; src; _] (* memcpy TODO len *)
+      | "F59", [dst; src] (* strcpy: stops at \000 in src *)
+      | "F60", [dst; src; _] (* strncpy: stops at \000 in src or if len has been copied. if src ends before len, dst is padded with zeros. TODO len *)
+        (* | "F61", [str1; str2] (* strcmp: compares chars until they differ or \000 is reached. returns c1 - c2  *) *)
+        (* | "F62", [dst; src; len] (* strncmp *) *)
+        (* | "F63", [dst; src; len] (* memcpy *) *)
         ->
         M.debug_each @@ "strcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^")";
-        (*let lval = mkMem ~addr:dst ~off:NoOffset in*)
-        (*let rval = Lval (mkMem ~addr:src ~off:NoOffset) in*)
         (*debugMayPointTo ctx dst;*)
-        (*debugMayPointTo ctx src;*)
-        (*debugMayPointTo ctx (Lval lval);*)
-        (*debugMayPointTo ctx rval;*)
-        let exp = match unrollType (typeOf dst), dst with
-          | _, Lval lval
-          | _, AddrOf lval
-          | _, StartOf lval -> mkAddrOf lval
-          | TPtr _, _ -> dst
-          | _ -> failwith @@ f.vname ^ " expects first argument to be some Pointer, but got "^sprint d_exp dst^" which is "^sprint d_plainexp dst
+        let assert_ptr e = match unrollType (typeOf e) with
+          | TPtr _ -> ()
+          | _ -> failwith @@ f.vname ^ " expects arguments to be some pointer, but got "^sprint d_exp e^" which is "^sprint d_plainexp e
         in
-        begin match mayPointTo ctx exp with
-          | [v,offs] ->
-            let lval = Var v, Lval.CilLval.to_ciloffs offs in
-            ctx.assign ~name:"base" lval src;
-            d
-          | _ ->
-            M.debug_each @@ f.vname ^ ": SysFun: result of MayPointTo for " ^ sprint d_plainexp exp ^ " contains more than one result!";
-            failwith "mayPointTo"
-        end
+        assert_ptr dst; assert_ptr src;
+        (* let dst_lval = mkMem ~addr:dst ~off:NoOffset in *)
+        (* let src_expr = Lval (mkMem ~addr:src ~off:NoOffset) in *)
+        begin match dst with
+          | StartOf lval
+          | AddrOf lval -> ctx.assign ~name:"base" lval src;
+          | _ -> failwith @@ "strcpy expects first argument to be a pointer or array, but got " ^ sprint d_plainexp dst
+        end;
+        d
       | "F1" , [dst; data; len] (* memset: write char to dst len times *)
         ->
         (match ctx.ask (Queries.EvalInt len) with
