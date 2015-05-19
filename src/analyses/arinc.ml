@@ -417,6 +417,7 @@ struct
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
       | "LAP_Se_GetPartitionStartCondition", [start_condition; r] -> todo ()
       (* treat functions from string.h as extern if they are added at the end of libraryFunctions.ml *)
+      (*
       | "F59", [dst; src] (* strcpy: stops at \000 in src *)
       | "F60", [dst; src; _] (* strncpy: stops at \000 in src or if len has been copied. if src ends before len, dst is padded with zeros. TODO len *)
         (* | "F61", [str1; str2] (* strcmp: compares chars until they differ or \000 is reached. returns c1 - c2  *) *)
@@ -428,12 +429,12 @@ struct
         assert_ptr dst; assert_ptr src;
         (* let dst_lval = mkMem ~addr:dst ~off:NoOffset in *)
         (* let src_expr = Lval (mkMem ~addr:src ~off:NoOffset) in *)
-        begin match dst with
-          | StartOf lval
-          | AddrOf lval -> ctx.assign ~name:"base" lval src;
-          | _ -> failwith @@ "strcpy expects first argument to be a pointer or array, but got " ^ sprint d_plainexp dst
+        begin match ctx.ask (Queries.MayPointTo dst) with
+        | `LvalSet ls ->
+            ignore @@ Pretty.printf "strcpy %a points to %a\n" d_exp dst Queries.LS.pretty ls;
+            Queries.LS.iter (fun (v,o) -> ctx.assign ~name:"base" (Var v, Lval.CilLval.to_ciloffs o) src) ls
+        | _ -> M.debug_each @@ "strcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^"): dst may point to anything!";
         end;
-        M.debug_each @@ "done with strcpy/"^f.vname;
         d
       | "F63" , [dst; src; len] (* memcpy *)
         ->
@@ -458,6 +459,7 @@ struct
         );
         M.debug_each @@ "done with memcpy/"^f.vname;
         d
+        *)
       | "F1" , [dst; data; len] (* memset: write char to dst len times *)
         ->
         (match ctx.ask (Queries.EvalInt len) with

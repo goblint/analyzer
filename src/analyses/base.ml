@@ -1296,7 +1296,7 @@ struct
         | [proc_att;AddrOf id;AddrOf r] ->
           let pa = eval_fv ctx.ask ctx.global ctx.local proc_att in
           let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
-          let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
+          let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in (* TODO print reach_fs, 11? *)
           processes := BatList.append !processes reach_fs;
           (* List.map (create_thread None) reach_fs *)
           []
@@ -1374,6 +1374,31 @@ struct
     let cpa,fl as st = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with
+    | `Unknown "F59" (* strcpy *)
+    | `Unknown "F60" (* strncpy *)
+    | `Unknown "F63" (* memcpy *)
+      ->
+      begin match args with
+        | [dst; src]
+        | [dst; src; _] ->
+          (* let dst_val = eval_rv ctx.ask ctx.global ctx.local dst in *)
+          (* let src_val = eval_rv ctx.ask ctx.global ctx.local src in *)
+          (* begin match dst_val with *)
+          (* | `Address ls -> set_savetop ctx.ask ctx.global ctx.local ls src_val *)
+          (* | _ -> ignore @@ Pretty.printf "strcpy: dst %a may point to anything!\n" d_exp dst; *)
+          (*     ctx.local *)
+          (* end *)
+          let rec get_lval exp = match stripCasts exp with
+            | Lval x | AddrOf x | StartOf x -> x
+            | BinOp (PlusPI, e, i, _)
+            | BinOp (MinusPI, e, i, _) -> get_lval e
+            | x ->
+              ignore @@ Pretty.printf "strcpy: dst is %a!\n" d_plainexp dst;
+              failwith "strcpy: expecting first argument to be a pointer!"
+          in
+          assign ctx (get_lval dst) src
+        | _ -> M.bailwith "strcpy arguments are strange/complicated."
+      end
     | `Unknown "list_add" when (get_bool "exp.list-type") ->
       begin match args with
         | [ AddrOf (Var elm,next);(AddrOf (Var lst,NoOffset))] ->
