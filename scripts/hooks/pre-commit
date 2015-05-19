@@ -49,4 +49,4 @@ fi
 git diff-index --check --cached $against -- || exit 1
 
 # Check indentation for OCaml files
-git diff --cached --name-only | grep -E ".*\.ml(i|l|y)?$" | xargs -I% sh -c 'ocp-indent % | diff % - 1>/dev/null || (echo "You suck at indentation! See ocp-indent %"; false)' || exit 1
+git diff --cached --name-only | grep -E ".*\.ml(i|l|y)?$" | xargs -I% bash -c 'diff <(git show :%) <(git show :% | ocp-indent) || (echo; echo "ocp-indent says you suck at indentation in % (diff shown above)."; false)' || (echo "You shall not commit!"; exit 1)
