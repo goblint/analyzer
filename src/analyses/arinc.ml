@@ -146,7 +146,7 @@ struct
       match lval with Var _, _ when not @@ is_return_code_type (Lval lval) -> ctx.local | _ ->
         (* TODO why is it that current_node can be None here, but not in other transfer functions? *)
         if not @@ Option.is_some !MyCFG.current_node then (M.debug_each "assign: MyCFG.current_node not set :("; ctx.local) else
-        if D.is_bot ctx.local then ctx.local else
+        if D.is_bot1 ctx.local then ctx.local else
           let env = get_env ctx in
           let edges_added = ref false in
           let f dlval =
@@ -170,7 +170,7 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =
     (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
     (* only if we don't assume success, we need to consider branching on return codes *)
-    if D.is_bot ctx.local then ctx.local else (* TODO how can it be that everything is bot here, except pred? *)
+    if D.is_bot1 ctx.local then ctx.local else (* TODO how can it be that everything is bot here, except pred? *)
       let env = get_env ctx in
       if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
         let check a b tv =
@@ -245,7 +245,7 @@ struct
     let f_ctx_hash = "f_ctx_hash = " ^ string_of_int (!last_ctx_hash |? -1) in
     (* somehow context is only right if f_ctx_hash == current_ctx_hash *)
     print_current_ctx ~info:f_ctx_hash "combine" f args;
-    if D.is_bot ctx.local || D.is_bot au then ctx.local else
+    if D.is_bot1 ctx.local || D.is_bot1 au then ctx.local else
       let env = get_env ctx in
       let d_caller = ctx.local in
       let d_callee = au in
@@ -314,7 +314,7 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let open ArincUtil in let _ = 42 in (* sublime's syntax highlighter gets confused without the second let... *)
     let d : D.t = ctx.local in
-    if D.is_bot d then d else
+    if D.is_bot1 d then d else
       let env = get_env ctx in
       let is_arinc_fun = startsWith "LAP_Se_" f.vname in
       let is_creating_fun = startsWith "LAP_Se_Create" f.vname in
@@ -381,6 +381,10 @@ struct
           add_actions env @@ List.map (fun action -> action,None) actions
       in
       let add_action action = add_actions [action] in
+      let assert_ptr e = match unrollType (typeOf e) with
+        | TPtr _ -> ()
+        | _ -> failwith @@ f.vname ^ " expects arguments to be some pointer, but got "^sprint d_exp e^" which is "^sprint d_plainexp e
+      in
       let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else add_action Nop in
       match f.vname, arglist with
       | _ when is_arinc_fun && is_creating_fun && not(mode_is_init d.pmo) ->
@@ -421,10 +425,6 @@ struct
         ->
         M.debug_each @@ "strcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^")";
         (*debugMayPointTo ctx dst;*)
-        let assert_ptr e = match unrollType (typeOf e) with
-          | TPtr _ -> ()
-          | _ -> failwith @@ f.vname ^ " expects arguments to be some pointer, but got "^sprint d_exp e^" which is "^sprint d_plainexp e
-        in
         assert_ptr dst; assert_ptr src;
         (* let dst_lval = mkMem ~addr:dst ~off:NoOffset in *)
         (* let src_expr = Lval (mkMem ~addr:src ~off:NoOffset) in *)
@@ -433,16 +433,44 @@ struct
           | AddrOf lval -> ctx.assign ~name:"base" lval src;
           | _ -> failwith @@ "strcpy expects first argument to be a pointer or array, but got " ^ sprint d_plainexp dst
         end;
+        M.debug_each @@ "done with strcpy/"^f.vname;
+        d
+      | "F63" , [dst; src; len] (* memcpy *)
+        ->
+        M.debug_each @@ "memcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^")";
+        (match ctx.ask (Queries.EvalInt len) with
+         | `Int i ->
+           (*
+             let len = i64_to_int @@ eval_int len in
+             for i = 0 to len-1 do
+               let dst_lval = mkMem ~addr:dst ~off:(Index (integer i, NoOffset)) in
+               let src_lval = mkMem ~addr:src ~off:(Index (integer i, NoOffset)) in
+               ctx.assign ~name:"base" dst_lval (Lval src_lval);
+             done;
+           *)
+           assert_ptr dst; assert_ptr src;
+           let dst_lval = mkMem ~addr:dst ~off:NoOffset in
+           let src_lval = mkMem ~addr:src ~off:NoOffset in
+           ctx.assign ~name:"base" dst_lval (Lval src_lval); (* this is only ok because we use ArrayDomain.Trivial per default, i.e., there's no difference between the first element or the whole array *)
+         | v -> M.debug_each @@ "F63/memcpy: don't know length: " ^ sprint Queries.Result.pretty v;
+           let lval = mkMem ~addr:dst ~off:NoOffset in
+           ctx.assign ~name:"base" lval MyCFG.unknown_exp
+        );
+        M.debug_each @@ "done with memcpy/"^f.vname;
         d
       | "F1" , [dst; data; len] (* memset: write char to dst len times *)
         ->
         (match ctx.ask (Queries.EvalInt len) with
          | `Int i ->
-           let len = i64_to_int @@ eval_int len in
-           for i = 0 to len-1 do
-             let lval = mkMem ~addr:dst ~off:(Index (integer i, NoOffset)) in
-             ctx.assign ~name:"base" lval data;
-           done;
+           (*
+             let len = i64_to_int @@ eval_int len in
+             for i = 0 to len-1 do
+               let lval = mkMem ~addr:dst ~off:(Index (integer i, NoOffset)) in
+               ctx.assign ~name:"base" lval data;
+             done;
+           *)
+           let dst_lval = mkMem ~addr:dst ~off:NoOffset in
+           ctx.assign ~name:"base" dst_lval data; (* this is only ok because we use ArrayDomain.Trivial per default, i.e., there's no difference between the first element or the whole array *)
          | v -> M.debug_each @@ "F1/memset: don't know length: " ^ sprint Queries.Result.pretty v;
            let lval = mkMem ~addr:dst ~off:NoOffset in
            ctx.assign ~name:"base" lval MyCFG.unknown_exp
@@ -625,7 +653,7 @@ struct
       ArincUtil.validate ()
     )
 
-  let startstate v = { (D.bot ()) with  pid = Pid.of_int 0L; pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main").svar) }
+  let startstate v = { pid = Pid.of_int 0L; pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main").svar); ctx = Ctx.top () }
   let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
 end

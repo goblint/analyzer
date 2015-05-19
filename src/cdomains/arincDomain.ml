@@ -95,6 +95,7 @@ struct
 
   let bot () = { pid = Pid.bot (); pri = Pri.bot (); per = Per.bot (); cap = Cap.bot (); pmo = Pmo.bot (); pre = PrE.bot (); pred = Pred.bot (); ctx = Ctx.bot () }
   let is_bot x = x = bot ()
+  let is_bot1 x = Pid.is_bot x.pid || Pri.is_bot x.pri || Per.is_bot x.per || Cap.is_bot x.cap || Pmo.is_bot x.pmo || PrE.is_bot x.pre || Pred.is_bot x.pred
   let top () = { pid = Pid.top (); pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.top (); pre = PrE.top (); pred = Pred.top (); ctx = Ctx.top () }
   let is_top x = Pid.is_top x.pid && Pri.is_top x.pri && Per.is_top x.per && Cap.is_top x.cap && Pmo.is_top x.pmo && PrE.is_top x.pre && Pred.is_top x.pred && Ctx.is_top x.ctx
 
