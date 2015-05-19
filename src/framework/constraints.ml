@@ -152,7 +152,7 @@ struct
   let enter ctx r f args = 
     let (d,l) = ctx.local in
     if leq0 l then
-      [(ctx.local, ctx.local)]
+      [ctx.local, D.bot ()]
     else
       enter' {ctx with local=(d, sub1 l)} r f args
 
