@@ -44,7 +44,8 @@ struct
   (* Domains *)
   include ArincDomain
 
-  module G = IntDomain.Booleans
+  module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (ArincDomain.D)) (* set of created tasks to spawn when going multithreaded *)
+  module G = Tasks
   module C = D
 
   let sprint f x = Pretty.sprint 80 (f () x)
@@ -72,7 +73,7 @@ struct
   let is_single ctx =
     let fl : BaseDomain.Flag.t = snd (Obj.obj (List.assoc "base" ctx.presub)) in
     not (BaseDomain.Flag.is_multi fl)
-  let part_mode_var = makeGlobalVar "__GOBLINT_ARINC_MUTLI_THREADED" voidPtrType
+  let tasks_var = makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType
   let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
 
   type env = { d: D.t; node: MyCFG.node; fundec: fundec; pname: string; procid: ArincUtil.id; id: ArincUtil.id }
@@ -222,7 +223,7 @@ struct
   let body ctx (f:fundec) : D.t = (* enter is not called for spawned processes -> initialize them here *)
     print_current_ctx "body" f.svar [];
     (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
-    if not (is_single ctx || !Goblintutil.global_initialization || ctx.global part_mode_var) then raise Analyses.Deadcode;
+    (* if not (is_single ctx || !Goblintutil.global_initialization || fst (ctx.global part_mode_var)) then raise Analyses.Deadcode; *)
     (* checkPredBot ctx.local "body" f.svar [] *)
     ctx.local
 
@@ -306,10 +307,6 @@ struct
     | INVALID_MODE   -> 5
     | TIMED_OUT      -> 6
   let pname_ErrorHandler = "ErrorHandler"
-
-  (* set of processes to spawn once partition mode is set to NORMAL *)
-  let processes = ref []
-  let add_process p = processes := List.append !processes [p]
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let open ArincUtil in let _ = 42 in (* sublime's syntax highlighter gets confused without the second let... *)
@@ -402,17 +399,14 @@ struct
           | `Int i ->
             if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (string_of_partition_mode i);
             if mode_is_multi (Pmo.of_int i) then (
-              ctx.sideg part_mode_var true;
-              (* spawn processes *)
-              ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length !processes);
-              List.iter (fun (f,f_d) -> ctx.spawn f (f_d d.pre)) !processes; (* what about duplicates? List.unique fails because d is fun! *)
-              (* clear list *)
-              processes := []
+              let tasks = ctx.global tasks_var in
+              ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
+              Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn (fst f) ({ f_d with pre = d.pre })) fs) tasks;
             );
             add_action (SetPartitionMode i)
             |> D.pmo (const @@ Pmo.of_int i)
           | `Bot -> D.bot ()
-          | _ -> ctx.sideg part_mode_var true; D.top ()
+          | _ -> D.top ()
         end
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
       | "LAP_Se_GetPartitionStartCondition", [start_condition; r] -> todo ()
@@ -504,14 +498,12 @@ struct
         begin match name, entry_point, pri, per, cap with
           | `Str name, `LvalSet ls, `Int pri, `Int per, `Int cap when not (Queries.LS.is_top ls)
                                                                       && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-            let funs_ls = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls in
+            let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
-            let spawn f =
-              let f_d pre = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* int64 -> D.t *)
-              add_process (f,f_d)
-            in
-            List.iter spawn funs;
+            let f_d = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in
+            let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
+            ctx.sideg tasks_var tasks;
             let pid' = Process, name in
             assign_id pid (get_id pid');
             add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
@@ -616,12 +608,11 @@ struct
         begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
           | `LvalSet ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
             let pid = get_pid pname_ErrorHandler in
-            let funs = Queries.LS.filter (fun l -> isFunctionType (fst l).vtype) ls |> Queries.LS.elements |> List.map fst |> List.unique in
-            let spawn f =
-              let f_d pre = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = pre; pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* int64 -> D.t *)
-              add_process (f,f_d)
-            in
-            List.iter spawn funs;
+            let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in
+            let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
+            let f_d = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in
+            let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
+            ctx.sideg tasks_var tasks;
             add_actions (List.map (fun f -> CreateErrorHandler ((Process, pname_ErrorHandler), f)) funs)
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
         end
