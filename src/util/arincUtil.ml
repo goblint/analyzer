@@ -34,7 +34,7 @@ type action =
   | CreateSemaphore of Action.semaphore | WaitSemaphore of id | SignalSemaphore of id
   | CreateEvent of id | WaitEvent of id * time | SetEvent of id | ResetEvent of id
   | TimedWait of time | PeriodicWait
-type node = MyCFG.node
+type node = ArincDomain.Pred.Base.t
 let string_of_node = ArincDomain.Pred.string_of_elt
 type edge = node * action * string option * node
 let action_of_edge (_, action, _, _) = action

@@ -90,7 +90,7 @@ struct
     let id = if List.exists ((=) fundec.svar) pfuns || is_mainfun fundec.svar.vname then Process, pname else Function, fname_ctx fundec.svar in
     { d; node; fundec; pname; procid; id }
   let add_edges ?r ?dst ?d env action =
-    Pred.iter (fun node -> ArincUtil.add_edge env.id (node, action, r, dst |? env.node)) (d |? env.d).pred
+    Pred.iter (fun node -> ArincUtil.add_edge env.id (node, action, r, MyCFG.getLoc (dst |? env.node))) (d |? env.d).pred
   let add_actions env xs =
     (* add edges for all predecessor nodes (from pred. node to env.node) *)
     List.iter (fun (action,r) -> match r with Some r -> add_edges ~r env action | None -> add_edges env action) xs;

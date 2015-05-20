@@ -23,29 +23,16 @@ module Pred =
 struct
   module Base =
   struct
-    module N = MyCFG.Node
-    type t = N.t
-    include Printable.Std
-    include Lattice.StdCousot
-    let equal = N.equal
-    let compare = N.compare
-    let hash = N.hash
-    let string_of_node n =
-      let loc = MyCFG.getLoc n in
+    include Basetype.ProgLines
+    let show loc =
       let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
       f loc.line ^ "b" ^ f loc.byte
-    let short w n = string_of_node n
-    include Printable.PrintSimple (struct
-        type t' = t
-        let name () = "predecessors"
-        let short = short
-      end)
+    let short w x = show x
   end
   include SetDomain.Make (Base)
-  let of_node : Base.t -> t = singleton
+  let of_node = singleton % MyCFG.getLoc
   let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-  let of_list : Base.t list -> t = List.fold_left (fun a b -> add b a) (empty ())
-  let string_of_elt = Base.string_of_node
+  let string_of_elt = Base.show
 end
 
 (* define record type here so that fields are accessable outside of D *)
