@@ -378,7 +378,7 @@ let save_promela_model () =
       let higher = List.filter (fun x -> x.pri > pri) procs in
       if List.is_empty higher
       then None
-      else Some ("#define PRIO" ^ id ^ String.concat "" @@ List.map (fun x -> " && status[" ^ str_id_pml x.pid ^ "] != READY") higher)
+      else Some ("#undef PRIO" ^ id ^ "\n#define PRIO" ^ id ^ String.concat "" @@ List.map (fun x -> " && status[" ^ str_id_pml x.pid ^ "] != READY") higher)
     in
     List.filter_map def procs
   in
