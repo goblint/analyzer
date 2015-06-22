@@ -15,7 +15,7 @@ let str_resource_type = function
   | QueuingPort -> "QueuingPort"
   | Buffer -> "Buffer"
   | Blackboard -> "Blackboard"
-(* id is resource type and name, there is a 1:1 mapping to varinfo in the analysis uses for assignments *)
+(* id is resource type and name, there is a 1:1 mapping to varinfo in the analysis used for assignments *)
 type id = resource*string
 type time = int64 (* Maybe use Nativeint which is the same as C long. OCaml int is just 31 or 63 bits wide! *)
 module Action = (* encapsulate types because some process field names are also used for D.t -> use local opening of modules (since OCaml 4.00) for output *)
@@ -40,6 +40,8 @@ type edge = node * action * string option * node
 let action_of_edge (_, action, _, _) = action
 type edges = (id, edge Set.t) Hashtbl.t
 let edges = ref (Hashtbl.create 199 : edges)
+let get_a (a,_,_,_) = a
+let get_b (_,_,_,b) = b
 
 let marshal ch = Marshal.to_channel ch !edges []
 let unmarshal ch = edges := Marshal.from_channel ch
@@ -170,10 +172,11 @@ let str_pid_pml id = (if fst id = Process then "P" else "F") ^ str_id_pml id (* 
 let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 (* let ref_apply f r = r := f !r *)
 let unset_ret_vars = ref Set.empty
+let undef_funs = ref Set.empty
 let str_action_pml pid = function
   | Nop -> "tmp = 0;"
   | Cond (r, cond) ->
-    (* if the return var that is branched on was never set, we warn about it at the end and just leave out the condition, which leads to non-det. branching, i.e. the same behaviour as if it was set to top *)
+    (* if the return var that is branched on was never set, we warn about it at the end and just leave out the condition, which leads to non-det. branching, i.e. the same behaviour as if it was set to top. TODO: this is not precise for globals, since those are initialized with 0. *)
     if not @@ Set.mem r (get_return_vars pid `Write) then (
       unset_ret_vars := Set.add r !unset_ret_vars; ""
     ) else if cond = "true" then "" else cond ^ " -> "
@@ -183,7 +186,7 @@ let str_action_pml pid = function
     else lhs^" = "^rhs^";"
   | Call fname ->
     (* we shouldn't have calls to functions without edges! *)
-    if Hashtbl.mem !edges (Function, fname) then "goto Fun_"^fname^";" else failwith @@ "call to undefined function " ^ fname
+    if Hashtbl.mem !edges (Function, fname) then "goto Fun_"^fname^";" else (undef_funs := Set.add fname !undef_funs; "")
   | LockPreemption -> "LockPreemption();"
   | UnlockPreemption -> "UnlockPreemption();"
   | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
@@ -249,10 +252,21 @@ let simplify () =
     if Hashtbl.length single_calls > 0 then contract_call_chains ()
   in contract_call_chains ()
 
-(* output warnings TODO *)
+(* output warnings *)
 let validate () =
+  debug_each @@ "Validating arinc graph...";
+  if neg Set.is_empty !undef_funs then (
+    debug_each "The following functions are called, but have no edges:";
+    Set.iter (fun fname -> debug_each @@ "call to undefined function " ^ fname) !undef_funs
+  );
+  (* search for multi-edges (might appear for call-edges with intermediate context hash) *)
+  let warn_multi_edge id s =
+    Set.to_list s |> List.group (compareBy (fun x -> get_a x, get_b x)) |> List.filter ((>) 1 % List.length)
+    |> List.iter (fun xs -> let x = List.hd xs in debug_each @@ str_resource id ^ ": Found " ^ string_of_int (List.length xs) ^" multi-edges between " ^ string_of_node (get_a x) ^ " and " ^ string_of_node (get_b x) ^ ": [" ^ String.concat ", " (List.map (str_action id % action_of_edge) xs) ^ "]")
+  in
+  Hashtbl.iter (fun k v -> warn_multi_edge k v) !edges;
   if neg Set.is_empty !unset_ret_vars then (
-    debug_each "The following return code variables have never been set by arinc functions or assignments (conditions for these variables are ignored):";
+    debug_each "The following return code variables have never been set by arinc functions or assignments (conditions for these variables are ignored):"; (* this probably shouldn't happen in the input program - at least for local variables... *)
     Set.iter (fun var -> debug_each @@ "branching on unset return var " ^ var) !unset_ret_vars
   )
 
@@ -322,8 +336,6 @@ let save_promela_model () =
       let a2bs = HashtblN.create 97 in
       Set.iter (fun (a, _, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
       let nodes = HashtblN.keys a2bs |> List.of_enum in
-      (* let get_a (a,_,_) = a in *)
-      let get_b (_,_,_,b) = b in
       (* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (* Set.empty leads to Out_of_memory!? *) *)
       let out_edges node = try HashtblN.find a2bs node |> Set.elements with Not_found -> [] in
       let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in

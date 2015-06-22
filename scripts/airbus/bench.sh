@@ -46,14 +46,16 @@ header "Building & copying files from $analyzer"
 pushd $analyzer
 make nat && popd
 cp -f $analyzer/goblint .
+cp -f $analyzer/g2html.jar .
 cp -f $analyzer/spin/arinc?base.pml result # copy everything before the long running stuff...
 header "Copying input & config from $inputs"
 cp -f $inputs/{$input,$conf} .
 if [ "$2" = "init" ]; then
     exit 0
 fi
-dbg="--enable colors --enable dbg.debug --enable dbg.verbose --disable ana.arinc.debug_pml"
-goblint="./goblint --conf $conf --set ana.activated ['base','arinc'] $dbg --enable noverify --enable ana.arinc.export $options"
+dbg="--enable colors --enable dbg.debug --enable dbg.verbose --enable ana.arinc.debug_pml --enable dbg.ctxinfo"
+# dbg="$dbg --enable dbg.slice.on --set dbg.slice.n 4"
+goblint="./goblint --conf $conf --set ana.activated ['base','arinc'] $dbg --disable noverify --enable ana.arinc.export $options"
 header "Write effective config"
 $goblint --writeconf all.conf
 header "Starting goblint"
@@ -71,7 +73,7 @@ echo "$pml has $(wc -l < $pml) lines!"
 pushd result
 header "Generating SPIN Verifier from Promela Code"
 set +o errexit # we want to be able to abort this if it takes too long
-$time -v -o time.spin.txt spin -DPRIOS -a arinc.pml 2>&1 | tee trace.spin.txt
+$time -v -o time.spin.txt spin -DPRIOS -a arinc.pml -v 2>&1 | tee trace.spin.txt
 set -o errexit
 cat time.spin.txt
 clang -DVECTORSZ=5000 -o pan pan.c # complained that VECTORSZ should be > 1280

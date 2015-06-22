@@ -639,12 +639,12 @@ struct
   let finalize () =
     ArincUtil.print_actions ();
     if Sys.file_exists "result" then ArincUtil.marshal @@ open_out_bin @@ "result/arinc.out";
+    if GobConfig.get_bool "ana.arinc.simplify" then ArincUtil.simplify ();
     if GobConfig.get_bool "ana.arinc.export" then (
-      (* ArincUtil.simplify (); *)
       ArincUtil.save_dot_graph ();
-      ArincUtil.save_promela_model ();
-      ArincUtil.validate ()
-    )
+      ArincUtil.save_promela_model ()
+    );
+    if GobConfig.get_bool "ana.arinc.validate" then ArincUtil.validate ()
 
   let startstate v = { pid = Pid.of_int 0L; pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main").svar); ctx = Ctx.top () }
   let otherstate v = D.bot ()
