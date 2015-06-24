@@ -87,7 +87,7 @@ end
 let return_vars = (Hashtbl.create 100 : (id * [`Read | `Write], string Set.t) Hashtbl.t)
 let add_return_var pid kind var = Hashtbl.modify_def Set.empty (pid, kind) (Set.add var) return_vars
 let get_return_vars pid kind =
-  if fst pid <> Process then failwith "get_return_vars: tried to get var for Function, but vars are saved Process!" else
+  if fst pid <> Process then failwith "get_return_vars: tried to get var for Function, but vars are saved per Process!" else
     Hashtbl.find_default return_vars (pid, kind) Set.empty
 let decl_return_vars xs = Set.elements xs |> List.map (fun vname -> "mtype " ^ vname ^ ";")
 let is_global vname = startsWith "G" vname
@@ -339,14 +339,16 @@ let save_promela_model () =
       (* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (* Set.empty leads to Out_of_memory!? *) *)
       let out_edges node = try HashtblN.find a2bs node |> Set.elements with Not_found -> [] in
       let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
-      let start_node = List.find (List.is_empty % in_edges) nodes in (* node with no incoming edges is the start node *)
+      let is_end_node = List.is_empty % out_edges in
+      let is_start_node = List.is_empty % in_edges in
+      let start_node = List.find is_start_node nodes in (* node with no incoming edges is the start node *)
       (* let str_nodes xs = "{"^(List.map string_of_node xs |> String.concat ",")^"}" in *)
       let label n = spid ^ "_" ^ string_of_node n in
       let end_label = spid ^ "_end" in
       let goto node = "goto " ^ label node in
       let called_funs = ref [] in
       let str_edge (a, action, r, b) =
-        let target_label = if List.is_empty (out_edges b) then end_label else label b in
+        let target_label = if is_end_node b then end_label else label b in
         let mark = match action with
           | Call fname ->
             called_funs := fname :: !called_funs;
