@@ -413,11 +413,18 @@ struct
     Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
 
 
+  module type S2S = functor (X : Spec) -> Spec
   let analyze file fs =
-    if get_bool "ana.hashcons" then
-      analyze file fs (module (LevelSliceLifter(DeadCodeLifter (HashconsLifter (PathSensitive2 (MCP.MCP2))))) : Spec)
-    else
-      analyze file fs (module (LevelSliceLifter(DeadCodeLifter (PathSensitive2 (MCP.MCP2)))) : Spec)
+    let open Batteries in
+    (* apply functor F on module X if opt is true *)
+    let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
+    let module S = (val
+      (module PathSensitive2 (MCP.MCP2) : Spec)
+      |> lift (get_bool "ana.hashcons") (module HashconsLifter)
+      |> lift true (module DeadCodeLifter)
+      |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter))
+    in
+    analyze file fs (module S)
 end
 
 (** The main function to perform the selected analyses. *)
