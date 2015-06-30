@@ -39,7 +39,7 @@ if [ -e $result ]; then
     exit
 fi
 echo "results will be in $result"
-mkdir -p $result && cd $result
+mkdir -p $result && pushd $result
 
 mkdir -p result
 header "Building & copying files from $analyzer"
