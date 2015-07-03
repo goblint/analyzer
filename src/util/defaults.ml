@@ -180,7 +180,6 @@ let _ = ()
       ; reg Debugging "dbg.solver-progress" "false" "Used for debugging. Prints out a symbol on solving a rhs."
       ; reg Debugging "dbg.debug-sockets"   "null"  "Eclipse debugger plugin support."
       ; reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
-      ; reg Debugging "dbg.ctxinfo"         "false" "Print information about the number of different contexts."
       ; reg Debugging "dbg.slice.on"        "false" "Turn slicer on or off."
       ; reg Debugging "dbg.slice.n"         "10"    "How deep function stack do we analyze."
 

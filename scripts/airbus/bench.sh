@@ -53,7 +53,7 @@ cp -f $inputs/{$input,$conf} .
 if [ "$2" = "init" ]; then
     exit 0
 fi
-dbg="--enable colors --enable dbg.debug --enable dbg.verbose --enable ana.arinc.debug_pml --enable dbg.ctxinfo"
+dbg="--enable colors --enable dbg.debug --enable dbg.verbose --enable ana.arinc.debug_pml"
 # dbg="$dbg --enable dbg.slice.on --set dbg.slice.n 4"
 goblint="./goblint --conf $conf --set ana.activated ['base','arinc'] $dbg --disable noverify --enable ana.arinc.export --enable ana.arinc.simplify $options"
 header "Write effective config"

@@ -137,20 +137,6 @@ let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 
 let stmt_index_hack = Hashtbl.create 113
 let current_node : node option ref = ref None
-module CtxHashes = struct
-  open Batteries
-  let current : int option ref = ref None (* contains the hash of the context at current_node (and the target node) *)
-
-  let h : (string,int) Hashtbl.t = Hashtbl.create 16
-  let add fname ctx_hash = Hashtbl.add h fname ctx_hash (* collects all hashes for each function *)
-  let len () = Hashtbl.length h (* number of bindings *)
-  let to_list () = Hashtbl.keys h |> List.of_enum |> List.unique |> List.map (fun k -> k, Hashtbl.find_all h k)
-  let compare_by f a b = compare (f a) (f b)
-  let print f =
-    f @@ "dbg.ctxinfo\n\ttotal number of contexts: " ^ string_of_int @@ len ();
-    to_list () |> List.sort (compare_by (List.length%snd))
-    |> List.iter (fun (k, vs) -> let n = List.length vs in f @@ "\t\t"^k^": "^string_of_int n);
-end
 
 let do_the_params (fd: fundec) =
   (* This function used to create extra variables, but now it just sets the

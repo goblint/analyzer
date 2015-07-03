@@ -63,12 +63,7 @@ struct
   module NodeTbl = ArincUtil.SymTbl (struct type k = tmpNodeUse type v = MyCFG.node let getNew xs = mkDummyNode @@ -5 - (List.length (List.of_enum xs)) end)
   (* context hash to differentiate function calls *)
   module CtxTbl = ArincUtil.SymTbl (struct type k = int type v = int let getNew xs = if Enum.is_empty xs then 0 else (Enum.arg_max identity xs)+1 end) (* generative functor *)
-  let current_ctx_hash () = let hash = !MyCFG.CtxHashes.current |? 0 in string_of_int @@ CtxTbl.get hash
-  let print_current_ctx ?info name f args =
-    if name = "foo" then
-      let info = match info with Some info -> " ("^info^")" | None -> "" in
-      M.debug @@ name^info^": "^f.vname^"("^sprint_map d_exp args ^"), current_ctx_hash = " ^ current_ctx_hash ()
-  let fname_ctx ?ctx f = f.vname ^ "_" ^ (ctx |? current_ctx_hash ())
+  let fname_ctx ctx f = f.vname ^ "_" ^ (match Ctx.to_int ctx with Some i -> i |> i64_to_int |> CtxTbl.get |> string_of_int | None -> "TOP")
 
   let is_single ctx =
     let fl : BaseDomain.Flag.t = snd (Obj.obj (List.assoc "base" ctx.presub)) in
@@ -87,7 +82,7 @@ struct
     let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "get_env: no processname for pid in Hashtbl!" in
     let procid = Process, pname in
     let pfuns = funs_for_process (Process,pname) in
-    let id = if List.exists ((=) fundec.svar) pfuns || is_mainfun fundec.svar.vname then Process, pname else Function, fname_ctx fundec.svar in
+    let id = if List.exists ((=) fundec.svar) pfuns || is_mainfun fundec.svar.vname then Process, pname else Function, fname_ctx d.ctx fundec.svar in
     { d; node; fundec; pname; procid; id }
   let add_edges ?r ?dst ?d env action =
     Pred.iter (fun node -> ArincUtil.add_edge env.id (node, action, r, MyCFG.getLoc (dst |? env.node))) (d |? env.d).pred
@@ -95,7 +90,7 @@ struct
     (* add edges for all predecessor nodes (from pred. node to env.node) *)
     List.iter (fun (action,r) -> match r with Some r -> add_edges ~r env action | None -> add_edges env action) xs;
     (* update domain by replacing the set of pred. nodes with the current node *)
-    if List.is_empty xs then D.bot () else D.pred (const @@ Pred.of_node env.node) env.d
+    if List.is_empty xs then env.d else D.pred (const @@ Pred.of_node env.node) env.d
   (* is exp of the return code type (pointers are not considered!) *)
   let is_return_code_type exp = typeOf exp |> unrollTypeDeep |> function
     | TEnum(ei, _) when ei.ename = "T13" -> true
@@ -221,31 +216,23 @@ struct
     d
 
   let body ctx (f:fundec) : D.t = (* enter is not called for spawned processes -> initialize them here *)
-    print_current_ctx "body" f.svar [];
     (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     (* if not (is_single ctx || !Goblintutil.global_initialization || fst (ctx.global part_mode_var)) then raise Analyses.Deadcode; *)
     (* checkPredBot ctx.local "body" f.svar [] *)
+    let base_context = fst (Obj.obj (List.assoc "base" ctx.presub)) |> Base.Main.context in
+    let context_hash = Hashtbl.hash (base_context, ctx.local.pid) in
+    { ctx.local with ctx = Ctx.of_int (Int64.of_int context_hash) }
+
+  let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let last_ctx_hash : int option ref = ref None
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    print_current_ctx "return" f.svar [];
-    last_ctx_hash := !MyCFG.CtxHashes.current;
-    match !MyCFG.CtxHashes.current with
-    | Some hash -> { ctx.local with ctx = Ctx.of_int (Int64.of_int hash) }
-    | None -> ctx.local
-
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = (* on function calls (also for main); not called for spawned processes *)
-    print_current_ctx "enter" f args;
     (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug_each doesn't print anything here *) *)
     let d_caller = ctx.local in
-    let d_callee = { ctx.local with pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.bot () } in (* set predecessor set to start node of function *)
+    let d_callee = if D.is_bot ctx.local then ctx.local else { ctx.local with pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
-    let f_ctx_hash = "f_ctx_hash = " ^ string_of_int (!last_ctx_hash |? -1) in
-    (* somehow context is only right if f_ctx_hash == current_ctx_hash *)
-    print_current_ctx ~info:f_ctx_hash "combine" f args;
     if D.is_bot1 ctx.local || D.is_bot1 au then ctx.local else
       let env = get_env ctx in
       let d_caller = ctx.local in
@@ -267,7 +254,6 @@ struct
             | _ -> None
           in
           let rargs = List.combine (Cilfacade.getdec f).sformals args |> List.filter_map check in
-          let fctx = Ctx.to_int d_callee.ctx |> Option.get |> i64_to_int |> CtxTbl.get |> string_of_int in
           let assign pred dst_node callee_var caller_dlval =
             let caller_dlval = global_dlval caller_dlval "combine" in
             let callee_dlval = callee_var, `NoOffset in
@@ -280,7 +266,7 @@ struct
           in
           (* we need to assign all lvals each caller arg may point to *)
           let last_pred = if GobConfig.get_bool "ana.arinc.assume_success" then d_caller.pred else List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (AddrOf caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
-          add_edges ~d:{ d_caller with pred = last_pred } env (ArincUtil.Call (fname_ctx ~ctx:fctx f))
+          add_edges ~d:{ d_caller with pred = last_pred } env (ArincUtil.Call (fname_ctx d_callee.ctx f))
         );
         (* set current node as new predecessor, since something interesting happend during the call *)
         { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
@@ -320,7 +306,6 @@ struct
         (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
         M.debug_each @@ "found "^f.vname^"("^args_str^") in "^env.fundec.svar.vname
       );
-      print_current_ctx ~info:("inside "^env.fundec.svar.vname) "special" f arglist;
       let is_error_handler = env.pname = pname_ErrorHandler in
       let eval_int exp =
         match ctx.ask (Queries.EvalInt exp) with
