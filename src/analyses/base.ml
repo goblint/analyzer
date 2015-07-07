@@ -29,9 +29,11 @@ let is_global (a: Q.ask) (v: varinfo): bool =
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
+let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) (get_list "exp.precious_globs")
+
 let is_private (a: Q.ask) (_,fl) (v: varinfo): bool =
   ((not (BaseDomain.Flag.is_multi fl)) &&
-   (List.exists (fun x -> v.vname = Json.string x) (get_list "exp.precious_globs")))
+   is_precious_glob v)
   ||
   match a (Q.IsPublic v) with `Bool tv -> not tv | _ -> false
 
@@ -1071,7 +1073,7 @@ struct
       CPA.map replace_val st
 
   let context (cpa,fl) =
-    if get_bool "exp.earlyglobs" then CPA.filter (fun k v -> not (V.is_global k)) cpa, fl else
+    if get_bool "exp.earlyglobs" then CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k) cpa, fl else
     if get_bool "exp.addr-context" then drop_non_ptrs cpa, fl
     else if get_bool "exp.no-int-context" then drop_ints cpa, fl
     else cpa,fl
