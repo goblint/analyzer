@@ -1258,7 +1258,7 @@ struct
     [ctx.local, make_entry ctx fn args]
 
 
-  let processes = ref []
+  let tasks_var = makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType
 
   let forkfun ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list =
     let cpa,fl = ctx.local in
@@ -1285,31 +1285,24 @@ struct
         let mode = List.hd @@ List.map (fun x -> stripCasts (constFold false x)) args in
         match ctx.ask (Queries.EvalInt mode) with
         | `Int i when i=3L ->
-          let r = List.map (create_thread None) (BatList.unique ~eq:(fun x y -> Pervasives.compare x y = 0) !processes) in
-          processes := [];
+          let a = match ctx.global tasks_var with `Address a -> a | _ -> AD.empty () in
+          let r = AD.to_var_may a |> List.map (create_thread None) in
+          ctx.sideg tasks_var (`Address (AD.empty ()));
           ignore @@ printf "base: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length r);
           r
         | _ -> []
       end
-    | `Unknown "LAP_Se_CreateProcess" -> begin
-        match List.map (fun x -> stripCasts (constFold false x)) args with
-        | [proc_att;AddrOf id;AddrOf r] ->
-          let pa = eval_fv ctx.ask ctx.global ctx.local proc_att in
-          let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
-          let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in (* TODO print reach_fs, 11? *)
-          processes := BatList.append !processes reach_fs;
-          (* List.map (create_thread None) reach_fs *)
-          []
-        (*  let st = invalidate ctx.ask ctx.global ctx.local [Lval id, Lval r] in*)
-        | _ -> []
-      end
+    | `Unknown "LAP_Se_CreateProcess"
     | `Unknown "LAP_Se_CreateErrorHandler" -> begin
         match List.map (fun x -> stripCasts (constFold false x)) args with
-        | [entry_point;stack_size;AddrOf r] ->
+        (* | [proc_att;AddrOf id;AddrOf r] -> (* CreateProcess *) *)
+        (* | [entry_point;stack_size;AddrOf r] -> (* CreateErrorHandler *) *)
+        | [entry_point; _; AddrOf r] -> (* both *)
           let pa = eval_fv ctx.ask ctx.global ctx.local entry_point in
           let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
-          let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
-          processes := BatList.append !processes reach_fs;
+          let reach_fs = List.concat (List.map AD.to_var_may reach_fs) |> List.filter (fun v -> isFunctionType v.vtype) in
+          let a = match ctx.global tasks_var with `Address a -> a | _ -> AD.empty () in
+          ctx.sideg tasks_var (`Address (List.map AD.from_var reach_fs |> List.fold_left AD.join a));
           (* List.map (create_thread None) reach_fs *)
           []
         | _ -> []
