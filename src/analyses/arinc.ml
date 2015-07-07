@@ -390,7 +390,7 @@ struct
             );
             add_action (SetPartitionMode i)
             |> D.pmo (const @@ Pmo.of_int i)
-          | `Bot -> D.bot ()
+          | `Bot -> failwith "DEAD"
           | _ -> D.top ()
         end
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
@@ -438,7 +438,6 @@ struct
         );
         M.debug_each @@ "done with memcpy/"^f.vname;
         d
-        *)
       | "F1" , [dst; data; len] (* memset: write char to dst len times *)
         ->
         (match ctx.ask (Queries.EvalInt len) with
@@ -457,6 +456,7 @@ struct
            ctx.assign ~name:"base" lval MyCFG.unknown_exp
         );
         d
+        *)
       (* Processes *)
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
         let cm = match unrollType (typeOfLval attr) with

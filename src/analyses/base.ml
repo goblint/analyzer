@@ -1215,6 +1215,10 @@ struct
           `Str (List.hd (AD.to_string a))
         (* check if we have an array of chars that form a string *)
         (* TODO return may-points-to-set of strings *)
+        | `Address a when List.length (AD.to_string a) > 1 -> (* oh oh *)
+          let sprint f x = Pretty.sprint 80 (f () x) in
+          M.debug_each @@ "EvalStr (" ^ sprint d_exp e ^ ") returned " ^ AD.short 80 a;
+          `Top
         | `Address a when List.length (AD.to_var_may a) = 1 -> (* some other address *)
           (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
           (* ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
@@ -1393,6 +1397,13 @@ struct
           in
           assign ctx (get_lval dst) src
         | _ -> M.bailwith "strcpy arguments are strange/complicated."
+      end
+    | `Unknown "F1" ->
+      begin match args with
+        | [dst; data; len] -> (* memset: write char to dst len times *)
+          let dst_lval = mkMem ~addr:dst ~off:NoOffset in
+          assign ctx dst_lval data (* this is only ok because we use ArrayDomain.Trivial per default, i.e., there's no difference between the first element or the whole array *)
+        | _ -> M.bailwith "memset arguments are strange/complicated."
       end
     | `Unknown "list_add" when (get_bool "exp.list-type") ->
       begin match args with

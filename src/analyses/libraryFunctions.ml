@@ -451,5 +451,6 @@ let _ = add_lib_funs ["LAP_Se_TimedWait";"LAP_Se_PeriodicWait";"LAP_Se_GetTime";
 (* this is needed since strcpy is used for some process names, which will be top otherwise *)
 let _ = add_lib_funs ["F59"; "F60"] (* strcpy, strncpy *)
 let _ = add_lib_funs ["F63"] (* memcpy *)
+let _ = add_lib_funs ["F1"] (* memset *)
 (* these are optional. add them to speed up the analysis. *)
 (* let _ = add_lib_funs ["F60"; "F61"; "F62"; "F63"; "F1"] *)
