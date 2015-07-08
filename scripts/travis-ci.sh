@@ -46,7 +46,7 @@ sudo apt-get update -qq
 sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam
 
 export OPAMYES=1
-./make.sh setup
+./make.sh travis
 eval `opam config env`
 
 # compile

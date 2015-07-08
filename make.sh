@@ -12,6 +12,14 @@ ocb() {
   $OCAMLBUILD $FLAGS $*
 }
 
+setuprest() {
+  opam update
+  eval `opam config env`
+  opam install ocamlfind batteries xml-light
+  # opam's cil is too old
+  opam pin -y add cil "https://github.com/goblint/cil.git"
+}
+
 rule() {
   case $1 in
     clean)   rm -rf goblint goblint.byte goblint.ml arinc doclist.odocl src/config.ml $TARGET.ml;
@@ -70,12 +78,10 @@ rule() {
     depend)  echo "No!";;
     setup)   echo "Make sure you have the following installed: opam >= 1.2.0, m4, patch, autoconf, git"
              opam init --comp=4.02.1
-             opam update
-             # opam switch 4.02.1
-             eval `opam config env`
-             opam install ocamlfind batteries xml-light
-             # opam's cil is too old
-             opam pin -y add cil "https://github.com/goblint/cil.git"
+             setuprest
+             ;;
+    travis)  opam init
+             setuprest
              ;;
     dev)     opam install utop merlin ocp-indent ocp-index
              echo "Be sure to adjust your vim/emacs config!"
