@@ -75,7 +75,7 @@ rule() {
              eval `opam config env`
              opam install ocamlfind batteries xml-light
              # opam's cil is too old
-             opam pin -y add cil "https://github.com/kerneis/cil.git"
+             opam pin -y add cil "https://github.com/goblint/cil.git"
              ;;
     dev)     opam install utop merlin ocp-indent ocp-index
              echo "Be sure to adjust your vim/emacs config!"
