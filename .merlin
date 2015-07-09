@@ -1,4 +1,4 @@
-PKG batteries cil xml-light
+PKG batteries cil xml-light ppx_deriving ppx_deriving.std
 S src
 S src/analyses
 S src/cdomains

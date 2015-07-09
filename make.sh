@@ -15,7 +15,7 @@ ocb() {
 setuprest() {
   opam update
   eval `opam config env`
-  opam install ocamlfind batteries xml-light
+  opam install ocamlfind batteries xml-light ppx_deriving
   # opam's cil is too old
   opam pin -y add cil "https://github.com/goblint/cil.git"
 }
@@ -76,8 +76,8 @@ rule() {
              cp g2html/g2html.jar .
              ;;
     depend)  echo "No!";;
-    setup)   echo "Make sure you have the following installed: opam >= 1.2.0, m4, patch, autoconf, git"
-             opam init --comp=4.02.1
+    setup)   echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
+             opam init --comp=4.02.2
              setuprest
              ;;
     travis)  opam init
