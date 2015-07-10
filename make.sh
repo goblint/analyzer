@@ -17,7 +17,7 @@ setuprest() {
   eval `opam config env`
   opam install ocamlfind batteries xml-light ppx_deriving
   # opam's cil is too old
-  opam pin -v -y add cil "https://github.com/kerneis/cil.git"
+  opam pin -y add cil "https://github.com/goblint/cil.git"
 }
 
 rule() {
