@@ -363,10 +363,12 @@ struct
           add_actions env @@ List.map (fun action -> action,None) actions
       in
       let add_action action = add_actions [action] in
-      let assert_ptr e = match unrollType (typeOf e) with
-        | TPtr _ -> ()
-        | _ -> failwith @@ f.vname ^ " expects arguments to be some pointer, but got "^sprint d_exp e^" which is "^sprint d_plainexp e
-      in
+      (*
+         let assert_ptr e = match unrollType (typeOf e) with
+           | TPtr _ -> ()
+           | _ -> failwith @@ f.vname ^ " expects arguments to be some pointer, but got "^sprint d_exp e^" which is "^sprint d_plainexp e
+         in
+      *)
       let todo () = if false then failwith @@ f.vname^": Not implemented yet!" else add_action Nop in
       match f.vname, arglist with
       | _ when is_arinc_fun && is_creating_fun && not(mode_is_init d.pmo) ->
