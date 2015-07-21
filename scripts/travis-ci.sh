@@ -28,20 +28,10 @@ fi
 
 
 # install ocaml and friends, see http://anil.recoil.org/2013/09/30/travis-and-ocaml.html
-# use default versions if none are set in environment
-case "${OCAML_VERSION:=4.02.1},${OPAM_VERSION:=1.2.0}" in
-3.12.1,1.0.0) ppa=avsm/ocaml312+opam10 ;;
-3.12.1,1.1.0) ppa=avsm/ocaml312+opam11 ;;
-4.00.1,1.0.0) ppa=avsm/ocaml40+opam10 ;;
-4.00.1,1.1.0) ppa=avsm/ocaml40+opam11 ;;
-4.01.0,1.0.0) ppa=avsm/ocaml41+opam10 ;;
-4.01.0,1.1.0) ppa=avsm/ocaml41+opam11 ;;
-4.02.1,1.1.0) ppa=avsm/ocaml42+opam11 ;;
-4.02.1,1.2.0) ppa=avsm/ocaml42+opam12 ;;
-*) echo Unknown $OCAML_VERSION,$OPAM_VERSION; exit 1 ;;
-esac
+# Replace with something more stable once we can:
+ppa=avsm/ppa-opam-experimental
 
-echo "yes" | sudo add-apt-repository ppa:$ppa
+sudo add-apt-repository ppa:$ppa
 sudo apt-get update -qq
 sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam
 
