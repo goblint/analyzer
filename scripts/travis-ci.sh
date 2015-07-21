@@ -31,7 +31,7 @@ fi
 # Replace with something more stable once we can:
 ppa=avsm/ppa-opam-experimental
 
-sudo add-apt-repository ppa:$ppa
+echo 'yes' | sudo add-apt-repository ppa:$ppa
 sudo apt-get update -qq
 sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam
 
