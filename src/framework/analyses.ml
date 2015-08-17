@@ -304,7 +304,7 @@ struct
 
   let printXmlWarning f () =
     let one_text f (m,l) =
-      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line m
+      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line (GU.escape m)
     in
     let one_w f = function
       | `text (m,l)  -> one_text f (m,l)

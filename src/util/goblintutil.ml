@@ -101,11 +101,10 @@ let global_initialization = ref false
 let in_verifying_stage = ref false
 
 let escape (x:string):string =
-  let esc_1 = Str.global_replace (Str.regexp "&") "&amp;" x in
-  let esc_2 = Str.global_replace (Str.regexp "<") "&lt;" esc_1 in
-  let esc_3 = Str.global_replace (Str.regexp ">") "&gt;" esc_2 in
-  let esc_4 = Str.global_replace (Str.regexp "\"") "&quot;" esc_3 in
-  esc_4
+  Str.global_replace (Str.regexp "&") "&amp;" x |>
+  Str.global_replace (Str.regexp "<") "&lt;" |>
+  Str.global_replace (Str.regexp ">") "&gt;" |>
+  Str.global_replace (Str.regexp "\"") "&quot;"
 
 let trim (x:string): string =
   let len = String.length x in
