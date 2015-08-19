@@ -25,12 +25,6 @@ let classify' fn exps =
       | [_;_;fn;x] -> `ThreadCreate (fn, x)
       | _ -> M.bailwith "pthread_create arguments are strange."
     end
-  | "ActivateTask" ->
-    begin match exps with
-      | [Lval (Var v,o)] -> `ThreadCreate (AddrOf (Var (Cilfacade.getFun ("function_of_" ^ v.vname)).svar, o), Cil.zero)
-      (* | [f] -> `ThreadCreate (f, Cil.zero) *)
-      | _ -> M.bailwith "ActivateTask arguments are strange."
-    end
   | "pthread_join" ->
     begin match exps with
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
