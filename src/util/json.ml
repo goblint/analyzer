@@ -2,7 +2,7 @@
 open Pretty
 open Num
 
-(** General json exceprion *)
+(** General json exception *)
 exception JsonE of string
 
 (** An json object -- this is just a map from strings *)
