@@ -55,7 +55,7 @@ if [ "$2" = "init" ]; then
 fi
 dbg="--enable colors --enable dbg.debug --enable dbg.verbose --enable ana.arinc.debug_pml"
 # dbg="$dbg --enable dbg.slice.on --set dbg.slice.n 4"
-goblint="./goblint --conf $conf --set ana.activated ['base','arinc'] $dbg --disable noverify --enable ana.arinc.export --enable ana.arinc.simplify $options"
+goblint="./goblint --conf $conf --set ana.activated ['base','arinc'] $dbg --disable noverify --enable ana.arinc.export --disable ana.arinc.simplify $options"
 header "Write effective config"
 $goblint --writeconf all.conf
 header "Starting goblint"
