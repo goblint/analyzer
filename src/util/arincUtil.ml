@@ -4,36 +4,50 @@ open Cil
 let debug_each msg = print_endline @@ Messages.colorize @@ "{blue}"^msg
 
 (* ARINC types and Hashtables for collecting CFG *)
-type resource = Process | Function | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard
-let str_resource_type = function
-  | Process -> "Process"
-  | Function -> "Function"
-  | Semaphore -> "Semaphore"
-  | Event -> "Event"
-  | Logbook -> "Logbook"
-  | SamplingPort -> "SamplingPort"
-  | QueuingPort -> "QueuingPort"
-  | Buffer -> "Buffer"
-  | Blackboard -> "Blackboard"
+type resource = Process | Function | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard [@@deriving show]
 (* id is resource type and name, there is a 1:1 mapping to varinfo in the analysis used for assignments *)
-type id = resource*string
-type time = int64 (* Maybe use Nativeint which is the same as C long. OCaml int is just 31 or 63 bits wide! *)
+type id = resource*string [@@deriving show]
+let infinity = 4294967295L (* time value used for infinity *)
+type time = int64 [@printer fun fmt t -> Format.(if t = infinity then fprintf fmt "∞" else fprintf fmt "%Ldns" t)] [@@deriving show] (* Maybe use Nativeint which is the same as C long. OCaml int is just 31 or 63 bits wide! *)
+let pp_varinfo fmt v = Format.fprintf fmt "%s" v.vname
+let show_varinfo v = v.vname (* use ppx_import? *)
+(* map int values to enum names *)
+type partition_mode = Idle | Cold_Start | Warm_Start | Normal [@@deriving show, enum]
+let show_partition_mode_opt = String.uppercase % Option.default "Unknown!" % Option.map show_partition_mode
+let mode_is f i = match Option.bind (ArincDomain.Pmo.to_int i) (partition_mode_of_enum % Int64.to_int) with Some x -> f x | None -> false
+let mode_is_init  = mode_is (function Cold_Start | Warm_Start -> true | _ -> false)
+let mode_is_multi = mode_is (function Normal -> true | _ -> false)
+type queuing_discipline = Fifo | Prio [@@deriving show, enum]
+let string_of_queuing_discipline = String.uppercase % Option.default "Unknown!" % Option.map show_queuing_discipline % queuing_discipline_of_enum % Int64.to_int
+(* return code data type *)
+type return_code = (* taken from ARINC_653_part1.pdf page 46 *)
+  | NO_ERROR       (* request valid and operation performed *)
+  | NO_ACTION      (* system’s operational status unaffected by request *)
+  | NOT_AVAILABLE  (* the request cannot be performed immediately *)
+  | INVALID_PARAM  (* parameter specified in request invalid *)
+  | INVALID_CONFIG (* parameter specified in request incompatible with current configuration (e.g., as specified by system integrator) *)
+  | INVALID_MODE   (* request incompatible with current mode of operation *)
+  | TIMED_OUT      (* time-out associated with request has expired *)
+      [@@deriving show, enum]
+
+let pname_ErrorHandler = "ErrorHandler"
+
 module Action = (* encapsulate types because some process field names are also used for D.t -> use local opening of modules (since OCaml 4.00) for output *)
 struct
-  type process = { pid: id; f: varinfo; pri: int64; per: time; cap: time }
-  type semaphore = { sid: id; cur: int64; max: int64; queuing: int64 }
+  type process = { pid: id; f: varinfo; pri: int64; per: time; cap: time } [@@deriving show]
+  type semaphore = { sid: id; cur: int64; max: int64; queuing: int64 } [@@deriving show]
 end
 type action =
   | Nop
   | Cond of string * string
   | Assign of string * string (* var_callee = var_caller *)
   | Call of string
-  | LockPreemption | UnlockPreemption | SetPartitionMode of int64
+  | LockPreemption | UnlockPreemption | SetPartitionMode of partition_mode option
   | CreateProcess of Action.process | CreateErrorHandler of id * varinfo | Start of id | Stop of id | Suspend of id | Resume of id
   | CreateBlackboard of id | DisplayBlackboard of id | ReadBlackboard of id * time | ClearBlackboard of id
   | CreateSemaphore of Action.semaphore | WaitSemaphore of id | SignalSemaphore of id
   | CreateEvent of id | WaitEvent of id * time | SetEvent of id | ResetEvent of id
-  | TimedWait of time | PeriodicWait
+  | TimedWait of time | PeriodicWait [@@deriving show]
 type node = ArincDomain.Pred.Base.t
 let string_of_node = ArincDomain.Pred.string_of_elt
 type edge = node * action * string option * node
@@ -95,27 +109,10 @@ let get_locals pid = Set.union (get_return_vars pid `Read) (get_return_vars pid 
 let flatten_set xs = Set.fold Set.union xs Set.empty
 let get_globals () = Hashtbl.values return_vars |> Set.of_enum |> flatten_set |> Set.filter is_global |> decl_return_vars
 
-(* constants and helpers *)
-let infinity = 4294967295L (* time value used for infinity *)
-let string_of_partition_mode = function
-  | 0L -> "IDLE"
-  | 1L -> "COLD_START"
-  | 2L -> "WARM_START"
-  | 3L -> "NORMAL"
-  | _  -> "UNKNOWN!"
-let string_of_queuing_discipline = function
-  | 0L -> "FIFO"
-  | 1L -> "PRIO"
-  | _  -> "UNKNOWN!"
-
 (* ARINC output *)
-(* common *)
-let str_i64 id = string_of_int (i64_to_int id)
-let str_time t = if t = infinity then "∞" else str_i64 t^"ns"
 (* console and dot *)
-let str_fun f = f.vname
-let str_funs fs = "["^(List.map str_fun fs |> String.concat ", ")^"]"
 let str_resource id =
+  let str_funs fs = "["^(List.map show_varinfo fs |> String.concat ", ")^"]" in
   match id with
   | Process, "mainfun" ->
     "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
@@ -125,36 +122,17 @@ let str_resource id =
     name
 let str_resources ids = "["^(String.concat ", " @@ List.map str_resource ids)^"]"
 let str_action pid = function
-  | Nop -> "Nop"
   | Cond (r, cond) -> "If "^cond
-  | Assign (lhs, rhs) -> "Assign "^lhs^" = "^rhs
-  | Call fname -> "Call "^fname
-  | LockPreemption -> "LockPreemption"
-  | UnlockPreemption -> "UnlockPreemption"
-  | SetPartitionMode i -> "SetPartitionMode "^string_of_partition_mode i
+  | SetPartitionMode m -> "SetPartitionMode "^show_partition_mode_opt m
   | CreateProcess x ->
-    Action.("CreateProcess "^str_resource x.pid^" (fun "^str_fun x.f^", prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^")")
+    Action.("CreateProcess "^str_resource x.pid^" (fun "^show_varinfo x.f^", prio "^Int64.to_string x.pri^", period "^show_time x.per^", capacity "^show_time x.cap^")")
   | CreateErrorHandler (id, funs) -> "CreateErrorHandler "^str_resource id
-  | Start id -> "Start "^str_resource id
   | Stop id when id=pid -> "StopSelf"
   | Stop id -> "Stop "^str_resource id
   | Suspend id when id=pid -> "SuspendSelf"
-  | Suspend id -> "Suspend "^str_resource id
-  | Resume id -> "Resume "^str_resource id
-  | CreateBlackboard id -> "CreateBlackboard "^str_resource id
-  | DisplayBlackboard id -> "DisplayBlackboard "^str_resource id
-  | ReadBlackboard (id, timeout) -> "ReadBlackboard "^str_resource id^" (timeout "^str_time timeout^")"
-  | ClearBlackboard id -> "ClearBlackboard "^str_resource id
   | CreateSemaphore x ->
-    Action.("CreateSemaphore "^str_resource x.sid^" ("^str_i64 x.cur^"/"^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^")")
-  | WaitSemaphore id -> "WaitSemaphore "^str_resource id
-  | SignalSemaphore id -> "SignalSemaphore "^str_resource id
-  | CreateEvent id -> "CreateEvent "^str_resource id
-  | WaitEvent (id, timeout) -> "WaitEvent "^str_resource id^" (timeout "^str_time timeout^")"
-  | SetEvent id -> "SetEvent "^str_resource id
-  | ResetEvent id -> "ResetEvent "^str_resource id
-  | TimedWait t -> "TimedWait "^str_time t
-  | PeriodicWait -> "PeriodicWait"
+    Action.("CreateSemaphore "^str_resource x.sid^" ("^Int64.to_string x.cur^"/"^Int64.to_string x.max^", "^string_of_queuing_discipline x.queuing^")")
+  | a -> show_action a
 let str_return_code = function Some r -> " : " ^ r | None -> ""
 (* spin/promela *)
 let pml_resources = Hashtbl.create 13
@@ -167,7 +145,7 @@ let id_pml id = (* give id starting from 0 (get_pid_by_id for all resources) *)
     let id = if Enum.is_empty ids then 0L else Int64.succ (Enum.arg_max identity ids) in
     Hashtbl.replace pml_resources k id;
     id
-let str_id_pml id = str_i64 @@ id_pml id
+let str_id_pml id = Int64.to_string @@ id_pml id
 let str_pid_pml id = (if fst id = Process then "P" else "F") ^ str_id_pml id (* process or function *)
 let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 (* let ref_apply f r = r := f !r *)
@@ -189,9 +167,9 @@ let str_action_pml pid = function
     if Hashtbl.mem !edges (Function, fname) then "goto Fun_"^fname^";" else (undef_funs := Set.add fname !undef_funs; "")
   | LockPreemption -> "LockPreemption();"
   | UnlockPreemption -> "UnlockPreemption();"
-  | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
+  | SetPartitionMode i -> "SetPartitionMode("^show_partition_mode_opt i^");"
   | CreateProcess x ->
-    Action.("CreateProcess("^str_id_pml x.pid^", "^str_i64 x.pri^", "^str_i64 x.per^", "^str_i64 x.cap^"); /* "^str_resource x.pid^" (prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^") */")
+    Action.("CreateProcess("^str_id_pml x.pid^", "^Int64.to_string x.pri^", "^Int64.to_string x.per^", "^Int64.to_string x.cap^"); /* "^str_resource x.pid^" (prio "^Int64.to_string x.pri^", period "^show_time x.per^", capacity "^show_time x.cap^") */")
   | CreateErrorHandler (id, f) -> "CreateErrorHandler("^str_id_pml id^");"
   | Start id -> "Start("^str_id_pml id^");"
   | Stop id -> "Stop("^str_id_pml id^");"
@@ -202,14 +180,14 @@ let str_action_pml pid = function
   | ReadBlackboard (id, timeout) -> "ReadBlackboard("^str_id_pml id^");"
   | ClearBlackboard id -> "ClearBlackboard("^str_id_pml id^");"
   | CreateSemaphore x ->
-    Action.("CreateSemaphore("^str_id_pml x.sid^", "^str_i64 x.cur^", "^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^");")
+    Action.("CreateSemaphore("^str_id_pml x.sid^", "^Int64.to_string x.cur^", "^Int64.to_string x.max^", "^string_of_queuing_discipline x.queuing^");")
   | WaitSemaphore id -> "WaitSemaphore("^str_id_pml id^");"
   | SignalSemaphore id -> "SignalSemaphore("^str_id_pml id^");"
   | CreateEvent id -> "CreateEvent("^str_id_pml id^");"
   | WaitEvent (id, timeout) -> "WaitEvent("^str_id_pml id^");"
   | SetEvent id -> "SetEvent("^str_id_pml id^");"
   | ResetEvent id -> "ResetEvent("^str_id_pml id^");"
-  | TimedWait t -> "TimedWait("^str_i64 t^");"
+  | TimedWait t -> "TimedWait("^Int64.to_string t^");"
   | PeriodicWait -> "PeriodicWait();"
 let str_return_code_pml pid action_str = function
   | Some r when Set.mem r (get_return_vars pid `Read) -> "if :: "^action_str^" "^r^" = SUCCESS :: "^r^" = ERROR fi;"
@@ -312,7 +290,7 @@ let save_promela_model () =
   let nbboard = List.length bboards in
   let nsema   = List.length semas in
   let nevent  = List.length events in
-  let run_processes = List.map (fun x -> let name = snd x.pid in let id = id_pml x.pid in id, "run "^name^"("^str_i64 id^");") procs |> List.sort (compareBy fst) |> List.map snd in
+  let run_processes = List.map (fun x -> let name = snd x.pid in let id = id_pml x.pid in id, "run "^name^"("^Int64.to_string id^");") procs |> List.sort (compareBy fst) |> List.map snd in
   let init_body =
     "preInit;" ::
     "run mainfun(0);" :: (* keep mainfun as name for init process? *)
@@ -372,8 +350,8 @@ let save_promela_model () =
       let head = match id with
         | Process, name ->
           let proc = find_option (fun x -> x.pid=id) procs in (* None for mainfun *)
-          let priority = match proc with Some proc -> " priority "^str_i64 proc.pri | _ -> "" in
-          "proctype "^name^"(byte id)"^priority^" provided (canRun("^str_i64 iid^") PRIO"^str_i64 iid^") {\nint stack[20]; int sp = -1;"
+          let priority = match proc with Some proc -> " priority "^Int64.to_string proc.pri | _ -> "" in
+          "proctype "^name^"(byte id)"^priority^" provided (canRun("^Int64.to_string iid^") PRIO"^Int64.to_string iid^") {\nint stack[20]; int sp = -1;"
         | Function, name ->
           "Fun_"^name^":"
         | _ -> failwith "Only Process and Function are allowed as keys for collecting ARINC actions"

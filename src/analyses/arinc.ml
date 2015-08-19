@@ -18,7 +18,7 @@ struct
   let get_id (resource,name as k:resource*string) : id =
     try Hashtbl.find resources k
     with Not_found ->
-      let vname = ArincUtil.str_resource_type resource^":"^name in
+      let vname = ArincUtil.show_resource resource^":"^name in
       let v = makeGlobalVar vname voidPtrType in
       Hashtbl.replace resources k v;
       v
@@ -272,28 +272,6 @@ struct
         { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
       )
 
-  (* ARINC utility functions *)
-  let mode_is_init  i = match Pmo.to_int i with Some 1L | Some 2L -> true | _ -> false
-  let mode_is_multi i = Pmo.to_int i = Some 3L
-  (* return code data type *)
-  type return_code = (* taken from ARINC_653_part1.pdf page 46 *)
-    | NO_ERROR       (* request valid and operation performed *)
-    | NO_ACTION      (* system’s operational status unaffected by request *)
-    | NOT_AVAILABLE  (* the request cannot be performed immediately *)
-    | INVALID_PARAM  (* parameter specified in request invalid *)
-    | INVALID_CONFIG (* parameter specified in request incompatible with current configuration (e.g., as specified by system integrator) *)
-    | INVALID_MODE   (* request incompatible with current mode of operation *)
-    | TIMED_OUT      (* time-out associated with request has expired *)
-  let int_from_return_code = function
-    | NO_ERROR       -> 0
-    | NO_ACTION      -> 1
-    | NOT_AVAILABLE  -> 2
-    | INVALID_PARAM  -> 3
-    | INVALID_CONFIG -> 4
-    | INVALID_MODE   -> 5
-    | TIMED_OUT      -> 6
-  let pname_ErrorHandler = "ErrorHandler"
-
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let open ArincUtil in let _ = 42 in (* sublime's syntax highlighter gets confused without the second let... *)
     let d : D.t = ctx.local in
@@ -330,7 +308,7 @@ struct
       in
       let assume_success exp =
         (* TODO NO_ACTION should probably also be assumed a success *)
-        let f lval = ctx.assign ~name:"base" lval (integer @@ int_from_return_code NO_ERROR) in
+        let f lval = ctx.assign ~name:"base" lval (integer @@ return_code_to_enum NO_ERROR) in
         iterMayPointTo ctx exp (f % Lval.CilLval.to_lval)
       in
       let invalidate_arg exp =
@@ -384,13 +362,14 @@ struct
       | "LAP_Se_SetPartitionMode", [mode; r] -> begin
           match ctx.ask (Queries.EvalInt mode) with
           | `Int i ->
-            if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (string_of_partition_mode i);
+            let pm = partition_mode_of_enum @@ Int64.to_int i in
+            if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (show_partition_mode_opt pm);
             if mode_is_multi (Pmo.of_int i) then (
               let tasks = ctx.global tasks_var in
               ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
               Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn (fst f) ({ f_d with pre = d.pre })) fs) tasks;
             );
-            add_action (SetPartitionMode i)
+            add_action (SetPartitionMode pm)
             |> D.pmo (const @@ Pmo.of_int i)
           | `Bot -> failwith "DEAD"
           | _ -> D.top ()
