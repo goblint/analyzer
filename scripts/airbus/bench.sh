@@ -14,7 +14,7 @@ else
     options="--disable ana.arinc.assume_success"
     ret="fail"
 fi
-analyzer=~/analyzer
+analyzer=~/goblint/analyzer
 inputs=~/Dropbox/airbus
 input=unrolled_monit.c
 conf=ab.conf
