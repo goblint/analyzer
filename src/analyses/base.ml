@@ -1369,7 +1369,7 @@ struct
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
-    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
+    List.iter (uncurry ctx.spawn) forks;
     let cpa,fl as st = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with
