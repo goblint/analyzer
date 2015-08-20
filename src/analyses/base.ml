@@ -85,12 +85,12 @@ struct
    * State functions
    **************************************************************************)
 
-  let globalize a (cpa,fl): cpa * glob_diff  =
+  let globalize ?(privates=false) a (cpa,fl): cpa * glob_diff  =
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) (cpa,acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-        if is_global a v && not (is_private a (cpa,fl) v) then begin
+        if is_global a v && (not (is_private a (cpa,fl) v) || privates) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           (CPA.remove v cpa, (v,value) :: acc)
         end else
@@ -102,10 +102,16 @@ struct
     (* We fold over the local state, and collect the globals *)
     CPA.fold add_var cpa (cpa, [])
 
-  let sync ctx: D.t * glob_diff =
+  let sync' privates ctx: D.t * glob_diff =
     let cpa,fl = ctx.local in
-    let cpa, diff = if (get_bool "exp.earlyglobs") || Flag.is_multi fl then globalize ctx.ask ctx.local else (cpa,[]) in
+    let cpa, diff = if (get_bool "exp.earlyglobs") || Flag.is_multi fl then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
     (cpa,fl), diff
+
+  let sync = sync' false
+
+  let publish_all ctx =
+    let ctx_mul = swap_st ctx (fst ctx.local, Flag.get_multi ()) in
+    List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' true ctx_mul))
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies *)
@@ -903,7 +909,9 @@ struct
     let (cp,fl) = ctx.local in
     match fundec.svar.vname with
     | "__goblint_dummy_init" -> if Flag.is_multi fl then ctx.local else (cp, Flag.get_main ())
-    | "StartupHook" -> cp, Flag.get_multi ()
+    | "StartupHook" ->
+      publish_all ctx;
+      cp, Flag.get_multi ()
     | _ -> let nst = rem_many ctx.local (fundec.sformals @ fundec.slocals) in
       match exp with
       | None -> nst
@@ -1315,8 +1323,7 @@ struct
       end
     | `ThreadCreate (start,ptc_arg) -> begin
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
-        let ctx_mul = swap_st ctx (cpa, Flag.get_multi ()) in
-        let _ = List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync ctx_mul)) in
+        publish_all ctx;
         (* Collect the threads. *)
         let start_addr = eval_tv ctx.ask ctx.global ctx.local start in
         List.map (create_thread (Some ptc_arg)) (AD.to_var_may start_addr)
