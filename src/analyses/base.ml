@@ -408,8 +408,7 @@ struct
     let binop op e1 e2 =
       let equality () =
         match ask (Q.ExpEq (e1,e2)) with
-        | `Int 0L -> Some false
-        | `Int _ -> Some true
+        | `Bool x -> Some x
         | _ -> None
       in
       match op with
@@ -1215,7 +1214,7 @@ struct
           `LvalSet addrs
         | _ -> `LvalSet (Q.LS.empty ())
       end
-    | Q.SingleThreaded -> `Int (Q.ID.of_bool (not (Flag.is_multi (get_fl ctx.local))))
+    | Q.SingleThreaded -> `Bool (Q.BD.of_bool (not (Flag.is_multi (get_fl ctx.local))))
     | Q.EvalStr e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         (* exactly one string in the set (works for assignments of string constants) *)
@@ -1376,7 +1375,7 @@ struct
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
-    let spawn (x,y) = ctx.spawn x y in List.iter spawn forks ;
+    List.iter (uncurry ctx.spawn) forks;
     let cpa,fl as st = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with

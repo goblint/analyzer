@@ -34,7 +34,7 @@ type t = ExpEq of exp * exp
        | MayEscape of varinfo
        | Priority of string
        | IsPublic of varinfo
-       | SingleThreaded       (* result is "boolean" in `Int form *)
+       | SingleThreaded
        | IsNotUnique
        | EvalFunvar of exp
        | EvalInt of exp

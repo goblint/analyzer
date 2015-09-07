@@ -77,12 +77,11 @@ end
 let is_private ask (lp:ListPtr.t) =
   let check v =
     match ask Queries.SingleThreaded with
-    | `Bot -> true
-    | `Int b when Queries.ID.to_bool b = Some true -> true
+    | `Bot | `Bool true -> true
     | _ ->
       match ask (Queries.IsPublic v)  with
       | `Bot | `Bool false -> true
-      | b -> false
+      | _ -> false
   in
   match lp with
   | `Right ((v,_),_) when v.vname.[0] = '{' -> true

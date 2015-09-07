@@ -67,7 +67,7 @@ struct
       | _,(Const _) -> false
       | _ ->
         match ask (Queries.ExpEq (i1, i2)) with
-        | `Int i when i <> 0L -> true
+        | `Bool true -> true
         | _ -> false
     in
     let lock_index ei ee x xs =
