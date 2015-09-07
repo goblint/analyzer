@@ -90,6 +90,7 @@ rule() {
              ;;
     header*) wget http://www.ut.ee/~vesal/linux-headers.tbz
              tar xf linux-headers.tbz
+             cp linux-headers/include/linux/compiler-gcc4.h linux-headers/include/linux/compiler-gcc5.h
              rm linux-headers.tbz
              ;;
     poly)    echo "open ApronDomain" >> $TARGET.ml
