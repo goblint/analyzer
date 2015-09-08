@@ -66,7 +66,7 @@ inline mark(pc) {
     stack[sp] = pc;
 }
 
-#define call(proc_id, fun_id, fun_name, parent_id) run fun_name(proc_id, parent_id); fun[proc_id] = fun_id;
+#define call_fun(fun_name, fun_id, proc_id, caller_id) run fun_name(proc_id, caller_id); fun[proc_id] = fun_id;
 
 // helpers for scheduling etc.
 #define oneIs(v) checkStatus(==, v, ||)
