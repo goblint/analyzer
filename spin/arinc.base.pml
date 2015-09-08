@@ -29,7 +29,7 @@ mtype partitionMode = COLD_START;
 mtype = { NOTCREATED, STOPPED, SUSPENDED, WAITING, READY, RUNNING, DONE } // possible process states
 // of all READY the scheduler will choose one and set it to RUNNING (with prios there will only be one choice, without it will choose non-determ.)
 mtype status[nproc] = NOTCREATED; // initialize all processes as not created
-byte fun[nproc] = 0; // initialize all processes as not created
+byte fun_done[nproc] = 0; // initialize all processes as not created
 byte lockLevel; // scheduling only takes place if this is 0
 byte exclusive; // id of process that has exclusive privilige to execute if lockLevel > 0
 byte nperiodicWait; // number of processes that did a PeriodicWait and still wait
@@ -59,14 +59,8 @@ bool events[nevent] = DOWN;
 byte events_created;
 #endif
 
-// manage function calls at runtime to avoid inlining
-// each proctype has its own: stack, sp
-inline mark(pc) {
-    sp++;
-    stack[sp] = pc;
-}
-
-#define call_fun(fun_name, fun_id, proc_id, caller_id) run fun_name(proc_id, caller_id); fun[proc_id] = fun_id;
+#define call_fun(fun_name, proc_id) run fun_name(proc_id); (fun_done[proc_id] == 1); fun_done[proc_id] = 0;
+#define ret_fun() fun_done[id] = 1;
 
 // helpers for scheduling etc.
 #define oneIs(v) checkStatus(==, v, ||)
@@ -102,7 +96,7 @@ inline postInit() {
     #endif
     printf("Done with postInit!\n");
 }
-#define canRun(proc_id, fun_id) (fun[proc_id] == fun_id && (status[proc_id] == READY || status[proc_id] == RUNNING) && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
+#define canRun(proc_id) ((status[proc_id] == READY || status[proc_id] == RUNNING) && (lockLevel == 0 || exclusive == proc_id) && (partitionMode == NORMAL || proc_id == 0))
 #define isRunning(proc_id) (status[proc_id] == RUNNING)
 inline setReady(proc_id) {
     printf("setReady: process %d will be ready (was waiting for %e %d)\n", proc_id, waiting[proc_id].resource, waiting[proc_id].id);
