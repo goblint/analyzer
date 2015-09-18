@@ -59,8 +59,8 @@ bool events[nevent] = DOWN;
 byte events_created;
 #endif
 
-#define call_fun(fun_name, proc_id) run fun_name(proc_id); (fun_done[proc_id] == 1); fun_done[proc_id] = 0;
-#define ret_fun() fun_done[id] = 1;
+#define call_fun(fun_name, fun_id) run fun_name(id, fun_id); (fun_done[id] == fun_id);
+#define ret_fun() fun_done[id] = fun_id;
 
 // helpers for scheduling etc.
 #define oneIs(v) checkStatus(==, v, ||)
