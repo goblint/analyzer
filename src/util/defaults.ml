@@ -120,7 +120,7 @@ let _ = ()
       ; reg Analyses "ana.arinc.validate"    "true" "Validate the graph and output warnings for: call to functions without edges, multi-edge-calls for intermediate contexts, branching on unset return variables."
       ; reg Analyses "ana.arinc.export"    "true" "Generate dot graph and Promela for ARINC calls right after analysis. Result is saved in result/arinc.out either way."
       ; reg Analyses "ana.arinc.debug_pml" "true"  "Insert extra assertions into Promela code for debugging."
-      ; reg Analyses "ana.arinc.merge_globals" "true"  "Merge all global return code variables into one."
+      ; reg Analyses "ana.arinc.merge_globals" "false"  "Merge all global return code variables into one."
       ; reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
       ; reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
 
