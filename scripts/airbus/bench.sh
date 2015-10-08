@@ -76,6 +76,14 @@ set +o errexit # we want to be able to abort this if it takes too long
 $time -v -o time.spin.txt spin -DPRIOS -a arinc.pml -v 2>&1 | tee trace.spin.txt
 set -o errexit
 cat time.spin.txt
+# do we need to patch the generated code?
+nproc=$(grep -c proctype arinc.pml)
+echo "$nproc proctype definitions"
+if [[ $nproc -gt 255 ]]; then
+  echo "more then 255 proctype... need to patch...";
+  $analyzer/spin/maxproc_patch.sh
+fi
+# ok, time to compile
 clang -DVECTORSZ=5000 -o pan pan.c # complained that VECTORSZ should be > 1280
 echo "Verify! If there are errors, this will generate a file arinc.pml.trail"
 ./pan -n -a || (echo "Verification failed! Do simulation guided by trail."; spin -g -l -p -r -s -t -X -u10000 arinc.pml)

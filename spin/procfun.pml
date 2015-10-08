@@ -27,15 +27,15 @@ proctype mainfun(byte id) provided canRun(0) {
     SetPartitionMode(NORMAL);
 }
 
-proctype f1(byte id; byte fun_id) provided canRun(1) {
+proctype f1(byte id; int fun_id) provided canRun(1) {
     WaitSemaphore(0);
     ret_fun();
 }
-proctype f2(byte id; byte fun_id) provided canRun(2) {
+proctype f2(byte id; int fun_id) provided canRun(2) {
     call_fun(f3, 3);
     ret_fun();
 }
-proctype f3(byte id; byte fun_id) provided canRun(2) {
+proctype f3(byte id; int fun_id) provided canRun(2) {
     WaitSemaphore(0);
     ret_fun();
 }
