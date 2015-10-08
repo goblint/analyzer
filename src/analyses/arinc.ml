@@ -60,9 +60,9 @@ struct
     MyCFG.Statement { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc)) with sid = new_sid () }
   (* table from sum type to negative line number for new intermediate node (-1 to -4 have special meanings) *)
   type tmpNodeUse = Branch of stmt | Combine of lval
-  module NodeTbl = ArincUtil.SymTbl (struct type k = tmpNodeUse type v = MyCFG.node let getNew xs = mkDummyNode @@ -5 - (List.length (List.of_enum xs)) end)
+  module NodeTbl = ArincUtil.SymTbl (struct type k = tmpNodeUse type v = MyCFG.node let getNew k xs = mkDummyNode @@ -5 - (List.length (List.of_enum xs)) end)
   (* context hash to differentiate function calls *)
-  module CtxTbl = ArincUtil.SymTbl (struct type k = int type v = int let getNew xs = if Enum.is_empty xs then 0 else (Enum.arg_max identity xs)+1 end) (* generative functor *)
+  module CtxTbl = ArincUtil.SymTbl (struct type k = int type v = int let getNew k xs = if Enum.is_empty xs then 0 else snd (Enum.arg_max snd xs) + 1 end) (* generative functor *)
   let fname_ctx ctx f = f.vname ^ "_" ^ (match Ctx.to_int ctx with Some i -> i |> i64_to_int |> CtxTbl.get |> string_of_int | None -> "TOP")
 
   let is_single ctx =
@@ -92,9 +92,8 @@ struct
     (* update domain by replacing the set of pred. nodes with the current node *)
     if List.is_empty xs then env.d else D.pred (const @@ Pred.of_node env.node) env.d
   (* is exp of the return code type (pointers are not considered!) *)
-  let is_return_code_type exp = typeOf exp |> unrollTypeDeep |> function
-    | TEnum(ei, _) when ei.ename = "T13" -> true
-    | _ -> false
+  let is_return_code_type = function | TEnum(ei, _) when ei.ename = "T13" -> true | _ -> false
+  let is_of_return_code_type exp = let typ = typeOf exp in is_return_code_type (unrollTypeDeep typ) (* && not @@ is_array_type typ *)
   let return_code_is_success = function 0L | 1L -> true | _ -> false
   let str_return_code i = if return_code_is_success i then "SUCCESS" else "ERROR"
   let str_return_dlval (v,o as dlval) =
@@ -123,7 +122,6 @@ struct
       M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " is " ^ sprint Queries.Result.pretty v;
       (*failwith "mayPointTo"*)
       []
-  let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.length xs = 1 then Some (List.hd xs) else None
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
   let debugMayPointTo ctx exp = M.debug_each @@ sprint d_exp exp ^ " mayPointTo " ^ (String.concat ", " (List.map (sprint Lval.CilLval.pretty) (mayPointTo ctx exp)))
 
@@ -134,31 +132,32 @@ struct
         if the rhs is a constant or another return code, output an assignment edge
         else output edge that non-det. sets the lhs to a value from the range *)
     (* things to note:
-       1. is_return_code_type must be checked on the result of mayPointTo and not on lval! otherwise we have problems with pointers
+       1. is_of_return_code_type must be checked on the result of mayPointTo and not on lval! otherwise we have problems with pointers
        2. Cil.typeOf throws an exception because the base type of a query result from goblint is not an array but is accessed with an index TODO why is this? ignored casts?
        3. mayPointTo also returns pointers if there's a top element in the set (outputs warning), so that we don't miss anything *)
     if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
       (* OPT: this matching is just for speed up to avoid querying on every assign *)
-      match lval with Var _, _ when not @@ is_return_code_type (Lval lval) -> ctx.local | _ ->
-        (* TODO why is it that current_node can be None here, but not in other transfer functions? *)
+      match lval with Var _, _ when not @@ is_of_return_code_type (Lval lval) -> ctx.local | _ ->
+        (* TODO why is it that current_node can be None here, but not in other transfer functions? probably b/c of control:do_global_inits *)
         if not @@ Option.is_some !MyCFG.current_node then (M.debug_each "assign: MyCFG.current_node not set :("; ctx.local) else
         if D.is_bot1 ctx.local then ctx.local else
           let env = get_env ctx in
           let edges_added = ref false in
           let f dlval =
             (* M.debug_each @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
-            let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with _ -> M.debug_each @@ "assign: Cil.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
-            if not @@ is_ret_type then () else
+            let is_ret_type = try is_of_return_code_type @@ Lval.CilLval.to_exp dlval with _ -> M.debug_each @@ "assign: Cil.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
+            if is_ret_type && neg Lval.CilLval.has_index dlval then
               let dlval = global_dlval dlval "assign" in
-              edges_added := true;
               add_return_dlval env `Write dlval;
               let add_one str_rhs = add_edges env @@ ArincUtil.Assign (str_return_dlval dlval, str_rhs) in
+              edges_added := true;
               let add_top () = add_edges ~r:(str_return_dlval dlval) env @@ ArincUtil.Nop in
               match stripCasts rval with
               | Const CInt64(i,_,_) -> add_one @@ str_return_code i
               (*       | Lval rlval ->
                         iterMayPointTo ctx (AddrOf rlval) (fun rdlval -> add_return_dlval env `Read rdlval; add_one @@ str_return_dlval rdlval) *)
               | _ -> add_top ()
+            else ()
           in
           iterMayPointTo ctx (AddrOf lval) f;
           if !edges_added then D.pred (const @@ Pred.of_node env.node) env.d else env.d
@@ -173,7 +172,7 @@ struct
           (* we are interested in a comparison between some lval lval (which has the type of the return code enum) and a value of that enum (which gets converted to an Int by CIL) *)
           match a, b with
           | Lval lval, Const CInt64(i,_,_)
-          | Const CInt64(i,_,_), Lval lval when is_return_code_type (Lval lval) ->
+          | Const CInt64(i,_,_), Lval lval when is_of_return_code_type (Lval lval) ->
             (* let success = return_code_is_success i = tv in (* both must be true or false *) *)
             (* ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line); *)
             (match env.node with
@@ -191,17 +190,20 @@ struct
                  ) else ctx.local
                in
                (* now we have to add Pos/Neg-edges (depending on tv) for everything v may point to *)
+               let edges_added = ref false in
                let f dlval =
-                 let dlval = global_dlval dlval "branch" in
-                 let str_dlval = str_return_dlval dlval in
-                 let cond = str_dlval ^ " == " ^ str_return_code i in
-                 let cond = if tv then cond else "!(" ^ cond ^ ")" in
-                 let cond = if dlval = dummy_global_dlval || String.exists str_dlval "int___unknown" then "true" else cond in (* we don't know the index of the array -> assume that branch could always be taken *)
-                 add_edges ~dst:dst_node ~d:d_if env (ArincUtil.Cond (str_dlval, cond));
-                 add_return_dlval env `Read dlval
+                 if Lval.CilLval.has_index dlval then () else
+                   let dlval = global_dlval dlval "branch" in
+                   let str_dlval = str_return_dlval dlval in
+                   let cond = str_dlval ^ " == " ^ str_return_code i in
+                   let cond = if tv then cond else "!(" ^ cond ^ ")" in
+                   let cond = if dlval = dummy_global_dlval || String.exists str_dlval "int___unknown" then "true" else cond in (* we don't know the index of the array -> assume that branch could always be taken *)
+                   add_return_dlval env `Read dlval;
+                   add_edges ~dst:dst_node ~d:d_if env (ArincUtil.Cond (str_dlval, cond));
+                   edges_added := true
                in
                iterMayPointTo ctx (AddrOf lval) f;
-               { ctx.local with pred = Pred.of_node dst_node }
+               if !edges_added then { ctx.local with pred = Pred.of_node dst_node } else ctx.local
              | _ -> failwith "branch: current_node is not an If") (* this should never happen since CIL transforms switch *)
           | _ -> ctx.local
         in
@@ -211,14 +213,9 @@ struct
         | BinOp(Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
         | _ -> ctx.local
 
-  let checkPredBot d tf f xs =
-    if d.pred = Pred.bot () then M.debug_each @@ tf^": mapping is BOT!!! function: "^f.vname^". "^(String.concat "\n" @@ List.map (fun (n,d) -> n ^ " = " ^ Pretty.sprint 200 (Pred.pretty () d.pred)) xs);
-    d
-
   let body ctx (f:fundec) : D.t = (* enter is not called for spawned processes -> initialize them here *)
     (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     (* if not (is_single ctx || !Goblintutil.global_initialization || fst (ctx.global part_mode_var)) then raise Analyses.Deadcode; *)
-    (* checkPredBot ctx.local "body" f.svar [] *)
     let base_context = fst @@ Base.Main.context @@ Obj.obj @@ List.assoc "base" ctx.presub in
     let context_hash = Hashtbl.hash (base_context, ctx.local.pid) in
     { ctx.local with ctx = Ctx.of_int (Int64.of_int context_hash) }
@@ -250,19 +247,20 @@ struct
           (* TODO optimally we would track if the caller_exp was used as a return code in an ARINC call before;
              as a first step we should check if its value is top (if it's set to some value and not invalidated by a call, then we are not interested in creating branches for it) *)
           let check (callee_var,caller_exp) = match stripCasts caller_exp with
-            | Lval lval when is_return_code_type (Lval (var callee_var)) -> Some (callee_var, lval)
+            | Lval lval when is_of_return_code_type (Lval (var callee_var)) -> Some (callee_var, lval)
             | _ -> None
           in
           let rargs = List.combine (Cilfacade.getdec f).sformals args |> List.filter_map check in
           let assign pred dst_node callee_var caller_dlval =
             let caller_dlval = global_dlval caller_dlval "combine" in
-            let callee_dlval = callee_var, `NoOffset in
-            (* add edge to an intermediate node that assigns the caller return code to the one of the function params *)
-            add_edges ~dst:dst_node ~d:{ d_caller with pred = pred } env (ArincUtil.Assign (str_return_dlval callee_dlval, str_return_dlval caller_dlval));
-            (* we also need to add the callee param as a `Write lval so that we see that it is written to *)
-            add_return_dlval env `Write callee_dlval;
-            (* also add the caller param because it is read *)
-            add_return_dlval env `Read caller_dlval;
+            if Lval.CilLval.has_index caller_dlval then () else
+              let callee_dlval = callee_var, `NoOffset in
+              (* add edge to an intermediate node that assigns the caller return code to the one of the function params *)
+              add_edges ~dst:dst_node ~d:{ d_caller with pred = pred } env (ArincUtil.Assign (str_return_dlval callee_dlval, str_return_dlval caller_dlval));
+              (* we also need to add the callee param as a `Write lval so that we see that it is written to *)
+              add_return_dlval env `Write callee_dlval;
+              (* also add the caller param because it is read *)
+              add_return_dlval env `Read caller_dlval;
           in
           (* we need to assign all lvals each caller arg may point to *)
           let last_pred = if GobConfig.get_bool "ana.arinc.assume_success" then d_caller.pred else List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (AddrOf caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
@@ -351,8 +349,9 @@ struct
             (* warn about wrong type (r should always be a return code) and setting globals! *)
             let f dlval =
               let dlval = global_dlval dlval "special" in
-              if not @@ is_return_code_type @@ Lval.CilLval.to_exp dlval
-              then (M.debug_each @@ "WARN: last argument in arinc function may point to something other than a return code: " ^ str_return_dlval dlval; None)
+              if not @@ is_of_return_code_type @@ Lval.CilLval.to_exp dlval
+              then (M.debug_each @@ "WARN: last argument in arinc function may point to something other than a return code (or it's inside an array, which we ignore): " ^ str_return_dlval dlval; None)
+              else if Lval.CilLval.has_index dlval then (M.debug_each @@ "WARN: last argument in arinc function contains array index: " ^ str_return_dlval dlval; None)
               else (add_return_dlval env `Write dlval; Some (str_return_dlval dlval))
             in
             (* add actions for all lvals r may point to *)
@@ -484,7 +483,7 @@ struct
         let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
         begin match name, entry_point, pri, per, cap with
           | `Str name, `LvalSet ls, `Int pri, `Int per, `Int cap when not (Queries.LS.is_top ls)
-                                                                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+                                                                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
