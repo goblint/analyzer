@@ -1,7 +1,7 @@
 // configuration
 #define nproc 3 // number of processes
 #define nsema 2 // number of semaphores
-#define PREEMPTION 1
+#define PREEMPTION 1 // default is 1
 
 // macro to check the status of all processes (derived macros defined in base)
 #define checkStatus(op1, v, op2) (status[0] op1 v op2 status[1] op1 v op2 status[2] op1 v)

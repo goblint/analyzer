@@ -353,6 +353,7 @@ proctype monitor() {
     // at most 1 process may be in a critical region
     assert(ncrit == 0 || ncrit == 1);
     #if PREEMPTION
+    #else
     assert(nperiodicWait <= nproc);
     #endif
     #if nsema
