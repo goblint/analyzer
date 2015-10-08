@@ -148,7 +148,7 @@ struct
           let f dlval =
             (* M.debug_each @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
             let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with _ -> M.debug_each @@ "assign: Cil.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
-            if not @@ is_ret_type then () else
+            if (not is_ret_type) || Lval.CilLval.has_index dlval then () else
               let dlval = global_dlval dlval "assign" in
               edges_added := true;
               add_return_dlval env `Write dlval;
@@ -192,13 +192,14 @@ struct
                in
                (* now we have to add Pos/Neg-edges (depending on tv) for everything v may point to *)
                let f dlval =
-                 let dlval = global_dlval dlval "branch" in
-                 let str_dlval = str_return_dlval dlval in
-                 let cond = str_dlval ^ " == " ^ str_return_code i in
-                 let cond = if tv then cond else "!(" ^ cond ^ ")" in
-                 let cond = if dlval = dummy_global_dlval || String.exists str_dlval "int___unknown" then "true" else cond in (* we don't know the index of the array -> assume that branch could always be taken *)
-                 add_edges ~dst:dst_node ~d:d_if env (ArincUtil.Cond (str_dlval, cond));
-                 add_return_dlval env `Read dlval
+                 if Lval.CilLval.has_index dlval then () else
+                   let dlval = global_dlval dlval "branch" in
+                   let str_dlval = str_return_dlval dlval in
+                   let cond = str_dlval ^ " == " ^ str_return_code i in
+                   let cond = if tv then cond else "!(" ^ cond ^ ")" in
+                   let cond = if dlval = dummy_global_dlval || String.exists str_dlval "int___unknown" then "true" else cond in (* we don't know the index of the array -> assume that branch could always be taken *)
+                   add_edges ~dst:dst_node ~d:d_if env (ArincUtil.Cond (str_dlval, cond));
+                   add_return_dlval env `Read dlval
                in
                iterMayPointTo ctx (AddrOf lval) f;
                { ctx.local with pred = Pred.of_node dst_node }
@@ -484,7 +485,7 @@ struct
         let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
         begin match name, entry_point, pri, per, cap with
           | `Str name, `LvalSet ls, `Int pri, `Int per, `Int cap when not (Queries.LS.is_top ls)
-                                                                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+                                                                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in

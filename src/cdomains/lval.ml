@@ -690,6 +690,13 @@ struct
   let to_lval (v,o) = Var v, to_ciloffs o
   let to_exp (v,o) = Lval (Var v, to_ciloffs o)
 
+  let rec has_index_offs =
+    function
+    | `NoOffset    -> false
+    | `Index _     -> true
+    | `Field (_,o) -> has_index_offs o
+  let has_index (v,o) = has_index_offs o
+
   let short _ (v,o) = short_offs o (GU.demangle v.vname)
 
   let pretty_f sf () x = text (sf 80 x)
