@@ -173,7 +173,12 @@ let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 (* let ref_apply f r = r := f !r *)
 let unset_ret_vars = ref Set.empty
 let undef_funs = ref Set.empty
-let str_action_pml pid = function
+let str_action_pml pid r action =
+  let may_fail action_str = match r with
+    | Some r (* when Set.mem r (get_return_vars pid `Read) *) -> "if :: "^action_str^" "^r^" = SUCCESS :: "^r^" = ERROR fi;"
+    | _ -> action_str
+  in
+  match action with
   | Nop -> "tmp = 0;"
   | Cond (r, cond) ->
     (* if the return var that is branched on was never set, we warn about it at the end and just leave out the condition, which leads to non-det. branching, i.e. the same behaviour as if it was set to top. TODO: this is not precise for globals, since those are initialized with 0. *)
@@ -196,24 +201,26 @@ let str_action_pml pid = function
   | Start id -> "Start("^str_id_pml id^");"
   | Stop id -> "Stop("^str_id_pml id^");"
   | Suspend id -> "Suspend("^str_id_pml id^");"
+  (* TODO SuspendSelf may_fail b/c it has a timeout while Suspend doesn't *)
   | Resume id -> "Resume("^str_id_pml id^");"
   | CreateBlackboard id -> "CreateBlackboard("^str_id_pml id^");"
   | DisplayBlackboard id -> "DisplayBlackboard("^str_id_pml id^");"
-  | ReadBlackboard (id, timeout) -> "ReadBlackboard("^str_id_pml id^");"
+  | ReadBlackboard (id, timeout) -> may_fail @@ "ReadBlackboard("^str_id_pml id^");"
   | ClearBlackboard id -> "ClearBlackboard("^str_id_pml id^");"
   | CreateSemaphore x ->
     Action.("CreateSemaphore("^str_id_pml x.sid^", "^str_i64 x.cur^", "^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^");")
-  | WaitSemaphore id -> "WaitSemaphore("^str_id_pml id^");"
+  | WaitSemaphore id -> may_fail @@ "WaitSemaphore("^str_id_pml id^");" (* TODO why is the timeout missing here? *)
   | SignalSemaphore id -> "SignalSemaphore("^str_id_pml id^");"
   | CreateEvent id -> "CreateEvent("^str_id_pml id^");"
-  | WaitEvent (id, timeout) -> "WaitEvent("^str_id_pml id^");"
+  | WaitEvent (id, timeout) -> may_fail @@ "WaitEvent("^str_id_pml id^");"
   | SetEvent id -> "SetEvent("^str_id_pml id^");"
   | ResetEvent id -> "ResetEvent("^str_id_pml id^");"
   | TimedWait t -> "TimedWait("^str_i64 t^");"
   | PeriodicWait -> "PeriodicWait();"
-let str_return_code_pml pid action_str = function
-  | Some r when Set.mem r (get_return_vars pid `Read) -> "if :: "^action_str^" "^r^" = SUCCESS :: "^r^" = ERROR fi;"
-  | _ -> action_str
+(* TODO also may_fail b/c they have timeout but missing above (b/c they don't affect the status of the modelled system (e.g. communication with outside)):
+ * {Send,Receive}QueuingMessage
+ * {Send,Receive}Buffer
+*)
 
 (* helpers *)
 let comp2 f g a b = f (g a) (g b) (* why is this not in batteries? *)
@@ -356,7 +363,7 @@ let save_promela_model () =
           | _ -> ""
         in
         (* for function calls the goto will never be reached since the function's return will already jump to that label; however it's nice to see where the program will continue at the site of the call. *)
-        mark ^ str_return_code_pml (Process, !current_pname) (str_action_pml (Process, !current_pname) action) r ^ " goto " ^ target_label
+        mark ^ str_action_pml (Process, !current_pname) r action ^ " goto " ^ target_label
       in
       let choice xs = List.map (fun x -> "::\t"^x ) xs in (* choices in if-statements are prefixed with :: *)
       let walk_edges (a, out_edges) =
