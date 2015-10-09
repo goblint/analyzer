@@ -29,9 +29,9 @@ type action =
   | Assign of string * string (* var_callee = var_caller *)
   | Call of string
   | LockPreemption | UnlockPreemption | SetPartitionMode of int64
-  | CreateProcess of Action.process | CreateErrorHandler of id * varinfo | Start of id | Stop of id | Suspend of id | Resume of id
+  | CreateProcess of Action.process | CreateErrorHandler of id * varinfo | Start of id | Stop of id | Suspend of id | SuspendSelf of id * time | Resume of id
   | CreateBlackboard of id | DisplayBlackboard of id | ReadBlackboard of id * time | ClearBlackboard of id
-  | CreateSemaphore of Action.semaphore | WaitSemaphore of id | SignalSemaphore of id
+  | CreateSemaphore of Action.semaphore | WaitSemaphore of id * time | SignalSemaphore of id
   | CreateEvent of id | WaitEvent of id * time | SetEvent of id | ResetEvent of id
   | TimedWait of time | PeriodicWait
 type node = ArincDomain.Pred.Base.t
@@ -138,8 +138,8 @@ let str_action pid = function
   | Start id -> "Start "^str_resource id
   | Stop id when id=pid -> "StopSelf"
   | Stop id -> "Stop "^str_resource id
-  | Suspend id when id=pid -> "SuspendSelf"
   | Suspend id -> "Suspend "^str_resource id
+  | SuspendSelf (id, timeout) -> "SuspendSelf"^" (timeout "^str_time timeout^")"
   | Resume id -> "Resume "^str_resource id
   | CreateBlackboard id -> "CreateBlackboard "^str_resource id
   | DisplayBlackboard id -> "DisplayBlackboard "^str_resource id
@@ -147,7 +147,7 @@ let str_action pid = function
   | ClearBlackboard id -> "ClearBlackboard "^str_resource id
   | CreateSemaphore x ->
     Action.("CreateSemaphore "^str_resource x.sid^" ("^str_i64 x.cur^"/"^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^")")
-  | WaitSemaphore id -> "WaitSemaphore "^str_resource id
+  | WaitSemaphore (id, timeout) -> "WaitSemaphore "^str_resource id^" (timeout "^str_time timeout^")"
   | SignalSemaphore id -> "SignalSemaphore "^str_resource id
   | CreateEvent id -> "CreateEvent "^str_resource id
   | WaitEvent (id, timeout) -> "WaitEvent "^str_resource id^" (timeout "^str_time timeout^")"
@@ -201,7 +201,7 @@ let str_action_pml pid r action =
   | Start id -> "Start("^str_id_pml id^");"
   | Stop id -> "Stop("^str_id_pml id^");"
   | Suspend id -> "Suspend("^str_id_pml id^");"
-  (* TODO SuspendSelf may_fail b/c it has a timeout while Suspend doesn't *)
+  | SuspendSelf (id, timeout) -> may_fail @@ "Suspend("^str_id_pml id^");"
   | Resume id -> "Resume("^str_id_pml id^");"
   | CreateBlackboard id -> "CreateBlackboard("^str_id_pml id^");"
   | DisplayBlackboard id -> "DisplayBlackboard("^str_id_pml id^");"
@@ -209,7 +209,7 @@ let str_action_pml pid r action =
   | ClearBlackboard id -> "ClearBlackboard("^str_id_pml id^");"
   | CreateSemaphore x ->
     Action.("CreateSemaphore("^str_id_pml x.sid^", "^str_i64 x.cur^", "^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^");")
-  | WaitSemaphore id -> may_fail @@ "WaitSemaphore("^str_id_pml id^");" (* TODO why is the timeout missing here? *)
+  | WaitSemaphore (id, timeout) -> may_fail @@ "WaitSemaphore("^str_id_pml id^");"
   | SignalSemaphore id -> "SignalSemaphore("^str_id_pml id^");"
   | CreateEvent id -> "CreateEvent("^str_id_pml id^");"
   | WaitEvent (id, timeout) -> may_fail @@ "WaitEvent("^str_id_pml id^");"

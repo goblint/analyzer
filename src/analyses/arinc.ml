@@ -513,8 +513,9 @@ struct
         add_action (Stop env.procid)
       | "LAP_Se_Suspend", [pid; r] ->
         add_actions @@ List.map (fun pid -> Suspend pid) (eval_id pid)
-      | "LAP_Se_SuspendSelf", [timeout; r] -> (* TODO timeout *)
-        add_action (Suspend env.procid)
+      | "LAP_Se_SuspendSelf", [timeout; r] ->
+        let t = eval_int timeout in
+        add_action (SuspendSelf (env.procid, t))
       | "LAP_Se_Resume", [pid; r] ->
         add_actions @@ List.map (fun pid -> Resume pid) (eval_id pid)
       (* Logbook - not used *)
@@ -564,7 +565,8 @@ struct
         assign_id sid (get_id sid');
         add_action (CreateSemaphore Action.({ sid = sid'; cur = eval_int cur; max = eval_int max; queuing = eval_int queuing }))
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
-        add_actions @@ List.map (fun id -> WaitSemaphore id) (eval_id sid)
+        let t = eval_int timeout in
+        add_actions @@ List.map (fun id -> WaitSemaphore (id, t)) (eval_id sid)
       | "LAP_Se_SignalSemaphore", [sid; r] ->
         add_actions @@ List.map (fun id -> SignalSemaphore id) (eval_id sid)
       | "LAP_Se_GetSemaphoreId", [name; sid; r] ->
