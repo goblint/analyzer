@@ -78,7 +78,7 @@ set -o errexit
 cat time.spin.txt
 clang -DVECTORSZ=5000 -o pan pan.c # complained that VECTORSZ should be > 1280
 echo "Verify! If there are errors, this will generate a file arinc.pml.trail"
-./pan -n -a || (echo "Verification failed! Do simulation guided by trail."; spin -g -l -p -r -s -t -X -u10000 arinc.pml)
+./pan -n -a -m200000 -w26 || (echo "Verification failed! Do simulation guided by trail."; spin -g -l -p -r -s -t -X -u10000 arinc.pml)
 popd # result
 popd # script dir
 unset scrambled
