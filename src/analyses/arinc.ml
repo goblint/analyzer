@@ -340,14 +340,14 @@ struct
       let arglist = List.map (stripCasts%(constFold false)) arglist in
       (* if assume_success we set the return code and don't need to do anything else
          otherwise we need to invalidate the return code (TODO maybe not top but sth more precise) and include the return code variable for all arinc calls (so that it can be set non-deterministically in promela) *)
-      let add_actions actions =
+      let add_actions ?(may_fail=false) actions =
         if is_arinc_fun && not @@ List.is_empty arglist then
           let r = List.last arglist in
           if GobConfig.get_bool "ana.arinc.assume_success" then (
             assume_success r;
             add_actions env @@ List.map (fun action -> action, None) actions
           ) else (
-            invalidate_arg r;
+            if may_fail then invalidate_arg r else assume_success r;
             let xs = mayPointTo ctx r in
             (* warn about wrong type (r should always be a return code) and setting globals! *)
             let f dlval =
@@ -363,7 +363,7 @@ struct
         else (* no args *)
           add_actions env @@ List.map (fun action -> action,None) actions
       in
-      let add_action action = add_actions [action] in
+      let add_action ?(may_fail=false) action = add_actions ~may_fail:may_fail [action] in
       (*
          let assert_ptr e = match unrollType (typeOf e) with
            | TPtr _ -> ()
@@ -515,7 +515,7 @@ struct
         add_actions @@ List.map (fun pid -> Suspend pid) (eval_id pid)
       | "LAP_Se_SuspendSelf", [timeout; r] ->
         let t = eval_int timeout in
-        add_action (SuspendSelf (env.procid, t))
+        add_action ~may_fail:true (SuspendSelf (env.procid, t))
       | "LAP_Se_Resume", [pid; r] ->
         add_actions @@ List.map (fun pid -> Resume pid) (eval_id pid)
       (* Logbook - not used *)
@@ -552,7 +552,7 @@ struct
         add_actions @@ List.map (fun id -> DisplayBlackboard id) (eval_id bbid)
       | "LAP_Se_ReadBlackboard", [bbid; timeout; msg_addr; len; r] ->
         let t = eval_int timeout in
-        add_actions @@ List.map (fun id -> ReadBlackboard (id, t)) (eval_id bbid)
+        add_actions ~may_fail:true @@ List.map (fun id -> ReadBlackboard (id, t)) (eval_id bbid)
       | "LAP_Se_ClearBlackboard", [bbid; r] ->
         add_actions @@ List.map (fun id -> ClearBlackboard id) (eval_id bbid)
       | "LAP_Se_GetBlackboardId", [name; bbid; r] ->
@@ -566,7 +566,7 @@ struct
         add_action (CreateSemaphore Action.({ sid = sid'; cur = eval_int cur; max = eval_int max; queuing = eval_int queuing }))
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
         let t = eval_int timeout in
-        add_actions @@ List.map (fun id -> WaitSemaphore (id, t)) (eval_id sid)
+        add_actions ~may_fail:true @@ List.map (fun id -> WaitSemaphore (id, t)) (eval_id sid)
       | "LAP_Se_SignalSemaphore", [sid; r] ->
         add_actions @@ List.map (fun id -> SignalSemaphore id) (eval_id sid)
       | "LAP_Se_GetSemaphoreId", [name; sid; r] ->
@@ -583,7 +583,7 @@ struct
         add_actions @@ List.map (fun id -> ResetEvent id) (eval_id eid)
       | "LAP_Se_WaitEvent", [eid; timeout; r] -> (* TODO timeout *)
         let t = eval_int timeout in
-        add_actions @@ List.map (fun id -> WaitEvent (id, t)) (eval_id eid)
+        add_actions ~may_fail:true @@ List.map (fun id -> WaitEvent (id, t)) (eval_id eid)
       | "LAP_Se_GetEventId", [name; eid; r] ->
         assign_id_by_name Event name eid; d
       | "LAP_Se_GetEventStatus", [eid; status; r] -> todo ()

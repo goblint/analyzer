@@ -173,54 +173,59 @@ let str_ids_pml ids f = String.concat " " (List.map (f%str_id_pml) ids)
 (* let ref_apply f r = r := f !r *)
 let unset_ret_vars = ref Set.empty
 let undef_funs = ref Set.empty
-let str_action_pml pid r action =
-  let may_fail action_str = match r with
-    | Some r (* when Set.mem r (get_return_vars pid `Read) *) -> "if :: "^action_str^" "^r^" = SUCCESS :: "^r^" = ERROR fi;"
-    | _ -> action_str
-  in
-  match action with
-  | Nop -> "tmp = 0;"
-  | Cond (r, cond) ->
-    (* if the return var that is branched on was never set, we warn about it at the end and just leave out the condition, which leads to non-det. branching, i.e. the same behaviour as if it was set to top. TODO: this is not precise for globals, since those are initialized with 0. *)
-    if not @@ Set.mem r (get_return_vars pid `Write) then (
-      unset_ret_vars := Set.add r !unset_ret_vars; ""
-    ) else if cond = "true" then "" else cond ^ " -> "
-  | Assign (lhs, rhs) -> (* for function parameters this is callee = caller *)
-    (* if the lhs is never read, we don't need to do anything *)
-    if not @@ Set.mem lhs (get_return_vars pid `Read) then ""
-    else lhs^" = "^rhs^";"
-  | Call fname ->
-    (* we shouldn't have calls to functions without edges! *)
-    if Hashtbl.mem !edges (Function, fname) then "goto Fun_"^fname^";" else (undef_funs := Set.add fname !undef_funs; "")
-  | LockPreemption -> "LockPreemption();"
-  | UnlockPreemption -> "UnlockPreemption();"
-  | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
-  | CreateProcess x ->
-    Action.("CreateProcess("^str_id_pml x.pid^", "^str_i64 x.pri^", "^str_i64 x.per^", "^str_i64 x.cap^"); /* "^str_resource x.pid^" (prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^") */")
-  | CreateErrorHandler (id, f) -> "CreateErrorHandler("^str_id_pml id^");"
-  | Start id -> "Start("^str_id_pml id^");"
-  | Stop id -> "Stop("^str_id_pml id^");"
-  | Suspend id -> "Suspend("^str_id_pml id^");"
-  | SuspendSelf (id, timeout) -> may_fail @@ "Suspend("^str_id_pml id^");"
-  | Resume id -> "Resume("^str_id_pml id^");"
-  | CreateBlackboard id -> "CreateBlackboard("^str_id_pml id^");"
-  | DisplayBlackboard id -> "DisplayBlackboard("^str_id_pml id^");"
-  | ReadBlackboard (id, timeout) -> may_fail @@ "ReadBlackboard("^str_id_pml id^");"
-  | ClearBlackboard id -> "ClearBlackboard("^str_id_pml id^");"
-  | CreateSemaphore x ->
-    Action.("CreateSemaphore("^str_id_pml x.sid^", "^str_i64 x.cur^", "^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^");")
-  | WaitSemaphore (id, timeout) -> may_fail @@ "WaitSemaphore("^str_id_pml id^");"
-  | SignalSemaphore id -> "SignalSemaphore("^str_id_pml id^");"
-  | CreateEvent id -> "CreateEvent("^str_id_pml id^");"
-  | WaitEvent (id, timeout) -> may_fail @@ "WaitEvent("^str_id_pml id^");"
-  | SetEvent id -> "SetEvent("^str_id_pml id^");"
-  | ResetEvent id -> "ResetEvent("^str_id_pml id^");"
-  | TimedWait t -> "TimedWait("^str_i64 t^");"
-  | PeriodicWait -> "PeriodicWait();"
+let action_may_fail = function
+  | SuspendSelf _ | ReadBlackboard _ | WaitSemaphore _ | WaitEvent _ -> true
+  | _ -> false
 (* TODO also may_fail b/c they have timeout but missing above (b/c they don't affect the status of the modelled system (e.g. communication with outside)):
  * {Send,Receive}QueuingMessage
  * {Send,Receive}Buffer
 *)
+let str_action_pml pid r action =
+  let action_str =
+    match action with
+    | Nop -> "tmp = 0;"
+    | Cond (r, cond) ->
+      (* if the return var that is branched on was never set, we warn about it at the end and just leave out the condition, which leads to non-det. branching, i.e. the same behaviour as if it was set to top. TODO: this is not precise for globals, since those are initialized with 0. *)
+      if not @@ Set.mem r (get_return_vars pid `Write) then (
+        unset_ret_vars := Set.add r !unset_ret_vars; ""
+      ) else if cond = "true" then "" else cond ^ " -> "
+    | Assign (lhs, rhs) -> (* for function parameters this is callee = caller *)
+      (* if the lhs is never read, we don't need to do anything *)
+      if not @@ Set.mem lhs (get_return_vars pid `Read) then ""
+      else lhs^" = "^rhs^";"
+    | Call fname ->
+      (* we shouldn't have calls to functions without edges! *)
+      if Hashtbl.mem !edges (Function, fname) then "goto Fun_"^fname^";" else (undef_funs := Set.add fname !undef_funs; "")
+    | LockPreemption -> "LockPreemption();"
+    | UnlockPreemption -> "UnlockPreemption();"
+    | SetPartitionMode i -> "SetPartitionMode("^string_of_partition_mode i^");"
+    | CreateProcess x ->
+      Action.("CreateProcess("^str_id_pml x.pid^", "^str_i64 x.pri^", "^str_i64 x.per^", "^str_i64 x.cap^"); /* "^str_resource x.pid^" (prio "^str_i64 x.pri^", period "^str_time x.per^", capacity "^str_time x.cap^") */")
+    | CreateErrorHandler (id, f) -> "CreateErrorHandler("^str_id_pml id^");"
+    | Start id -> "Start("^str_id_pml id^");"
+    | Stop id -> "Stop("^str_id_pml id^");"
+    | Suspend id -> "Suspend("^str_id_pml id^");"
+    | SuspendSelf (id, timeout) -> "Suspend("^str_id_pml id^");"
+    | Resume id -> "Resume("^str_id_pml id^");"
+    | CreateBlackboard id -> "CreateBlackboard("^str_id_pml id^");"
+    | DisplayBlackboard id -> "DisplayBlackboard("^str_id_pml id^");"
+    | ReadBlackboard (id, timeout) -> "ReadBlackboard("^str_id_pml id^");"
+    | ClearBlackboard id -> "ClearBlackboard("^str_id_pml id^");"
+    | CreateSemaphore x ->
+      Action.("CreateSemaphore("^str_id_pml x.sid^", "^str_i64 x.cur^", "^str_i64 x.max^", "^string_of_queuing_discipline x.queuing^");")
+    | WaitSemaphore (id, timeout) -> "WaitSemaphore("^str_id_pml id^");"
+    | SignalSemaphore id -> "SignalSemaphore("^str_id_pml id^");"
+    | CreateEvent id -> "CreateEvent("^str_id_pml id^");"
+    | WaitEvent (id, timeout) -> "WaitEvent("^str_id_pml id^");"
+    | SetEvent id -> "SetEvent("^str_id_pml id^");"
+    | ResetEvent id -> "ResetEvent("^str_id_pml id^");"
+    | TimedWait t -> "TimedWait("^str_i64 t^");"
+    | PeriodicWait -> "PeriodicWait();"
+  in
+  match r with
+  | Some r when action_may_fail action (* when Set.mem r (get_return_vars pid `Read) *) -> "if :: "^action_str^" "^r^" = SUCCESS :: "^r^" = ERROR fi;"
+  | Some r -> action_str^" "^r^" = SUCCESS;"
+  | None -> action_str
 
 (* helpers *)
 let comp2 f g a b = f (g a) (g b) (* why is this not in batteries? *)
