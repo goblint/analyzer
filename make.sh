@@ -88,10 +88,9 @@ rule() {
              pushd .git/hooks; ln -s ../../scripts/hooks/pre-commit; popd
              echo "Pre-commit hook installed!"
              ;;
-    header*) wget http://www.ut.ee/~vesal/linux-headers.tbz
-             tar xf linux-headers.tbz
-             cp linux-headers/include/linux/compiler-gcc4.h linux-headers/include/linux/compiler-gcc5.h
-             rm linux-headers.tbz
+    header*) wget http://www.ut.ee/~vesal/linux-headers.tar.xz
+             tar xf linux-headers.tar.xz
+             rm linux-headers.tar.xz
              ;;
     poly)    echo "open ApronDomain" >> $TARGET.ml
              echo "open Poly" >> $TARGET.ml
