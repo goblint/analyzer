@@ -10,7 +10,7 @@ module BISet = BatSet.Make (BatInt)
 
 (** A node in the Control Flow Graph is either a statement or function. Think of
  * the function node as last node that all the returning nodes point to.  So
- * the result of the function call is contained in the fucntion node. *)
+ * the result of the function call is contained in the function node. *)
 type node =
   | Statement of stmt
   (** The statements as identified by CIL *)
@@ -250,7 +250,7 @@ let createCFG (file: file) =
                 mkEdge stmt (Test (exp, true )) true_stmt;
                 mkEdge stmt (Test (exp, false)) false_stmt
             end
-          (* Loops can generally be ignored because CIL creats gotos for us,
+          (* Loops can generally be ignored because CIL creates gotos for us,
            * except constant conditions are eliminated, so non-terminating
            * loops are not connected to the rest of the code. This is a
            * problem for side-effecting demand driven solvers. I add one

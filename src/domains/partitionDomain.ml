@@ -1,4 +1,4 @@
-(** Partitionign domains. *)
+(** Partitioning domains. *)
 
 open Pretty
 

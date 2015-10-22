@@ -56,7 +56,7 @@ rule() {
              ;;
     doc*)    rm -rf doc;
              ls src/*/*/*.ml src/*/*.ml src/*.ml | egrep -v "apronDomain|poly"  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
-             ocb -ocamldoc ocamldoc -docflags -colorize-code,-keep-code doclist.docdir/index.html;
+             ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
              rm doclist.odocl;
              ln -sf _build/doclist.docdir doc
              ;;

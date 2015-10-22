@@ -1,4 +1,4 @@
-(** Signatures for aanlyzers, analysis specifications, and result output.  *)
+(** Signatures for analyzers, analysis specifications, and result output.  *)
 
 open Cil
 open Pretty

@@ -7,19 +7,16 @@ the framework, constraint solvers, domains, and analysis instances.
 
 {2 Framework}
 {!modules: 
-Version
-Config 
-
 Maingoblint
 Analyses
-Compose
 Constraints
 Control
-Multithread
 MyCFG
+Version
+Config
 }
 
-{4 Util}
+{3 Util}
 {!modules: 
 Cache
 Cilfacade
@@ -27,25 +24,20 @@ Defaults
 GobConfig
 Goblintutil
 Hash
-Html_template
 Htmldump
 Htmlutil
 Json
-JsonLexer
-JsonParser
 Messages
 MyLiveness
-OilLexer
-OilParser
 OilUtil
 Printer
-Progress
+Questions
 Report
 Tracing
 Xmldump
 }
 
-{4 CIL components}
+{3 CIL components}
 {!modules: 
 Cil
 Pretty
@@ -53,86 +45,101 @@ Pretty
 
 {2 Solvers}
 {!modules: 
-WNCon
 EffectWCon
-EffectWNCon
+EffectWConEq
 Generic
 Interactive
-OracleSolver
 SLR
 Selector
 SharirPnueli
-Solver
-SolverConSideRR
-SolverConSideWNRR
 TopDown
 }
 
-
 {2 Domains}
+
 {!modules: 
-AccessDomain
-AddressDomain
-ArrayDomain
+
+ValueDomain
 Basetype
-BaseDomain
-ConcDomain
-ContainDomain
-EscapeDomain
+
 Exp
-FlagModeDomain
 IntDomain
-ListDomain
-LockDomain
+CircularInterval
+ArrayDomain
+StructDomain
+UnionDomain
+
 Lval
+AddressDomain
 MemoryDomain
 MusteqDomain
 RegionDomain
-Osektupel
 ShapeDomain
+ListDomain
+
+BaseDomain
+ArincDomain
+ConcDomain
+ContainDomain
+EscapeDomain
+FlagModeDomain
+Osektupel
+LockDomain
 StackDomain
-StructDomain
-UnionDomain
-ValueDomain
+FileDomain
+SpecDomain
+LvalMapDomain
+
 }
 
-{4 General Lattice Functors} 
+{3 General Lattice Functors}
 
 {!modules: 
-Glob
 Lattice
+Printable
 MapDomain
 PartitionDomain
-Printable
-Queries
 SetDomain
+Queries
+Glob
 }
 
 {2 Analyses}
 {!modules: 
+MCP
 Base
+Spec
+
+Arinc
+CondVars
 Contain
+Deadlock
 DeadlocksByRaces
+Depbase
+Depmutex
+FileUse
 Flag
 FlagModes
-LibraryFunctions
-MCP
-MTFlag
+ImpVar
 Malloc_null
 MayLocks
+MTFlag
 Mutex
 Osek
-Osekpriority
 Osektransactionality
 Region
 Shapes
 StackTrace
 SymbLocks
-Thread
+Termination
 ThreadEscape
+Thread
 Uninit
 Unit
+VarDep
 VarEq
+
+LibraryFunctions
 }
 
 {9 Indexes}
