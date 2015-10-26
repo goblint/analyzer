@@ -144,7 +144,7 @@ let preprocess_one_file cppflags includes dirName fname =
 
   (* Preprocess using cpp. *)
   (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-  let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " " ^ includes ^ " " ^ fname ^ " -o " ^ nname in
+  let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " " ^ includes ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
   if get_bool "dbg.verbose" then print_endline command;
 
   (* if something goes wrong, we need to clean up and exit *)
