@@ -325,7 +325,7 @@ struct
   let minimal      x = None
 
   let neg  = Int64.neg
-  let add  = Int64.add
+  let add  = Int64.add (* TODO: signed overflow is undefined behavior! *)
   let sub  = Int64.sub
   let mul  = Int64.mul
   let div x y =
@@ -352,7 +352,7 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let cast_to_width x _ = x
+  let cast_to_width x w = Int64.rem x (BatInt64.pow 2L (Int64.of_int w)) (* TODO: this is implementation-dependent! *)
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
@@ -530,7 +530,10 @@ struct
     | `Bot
   ]
 
-  let cast_to_width x _ = x
+  let cast_to_width x w = match x with
+    | `Excluded s -> `Excluded (S.empty ()) (* TODO can we do better here? *)
+    | `Definite x -> `Definite (Integers.cast_to_width x w)
+    | `Bot -> `Bot
   let hash (x:t) =
     match x with
     | `Excluded s -> S.hash s
