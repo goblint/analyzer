@@ -2031,7 +2031,7 @@ struct
 
 end
 
-module IntDomList : S =
+module IntDomList : S = (* deprecated, use IntDomTuple below *)
 struct
   include Printable.Std
   exception IntDomListBroken
@@ -2048,8 +2048,8 @@ struct
 
   (* constructors *)
 
-  let name () = I1.name ()
-  let cast_to_width' x w =
+  let name () = I1.name () (* why do we just use the first name? *)
+  let cast_to_width' x w = (* why do we not call this on all?? *)
     match x with
     | CInterval a -> CInterval (I3.cast_to_width a w)
     | _ -> x
@@ -2477,7 +2477,7 @@ struct
 
   let toXML = toXML_f short
 
-  let compare =
+  let compare = (* ?? doesn't use a! just returns the compare value of the last domain or 0 if the one before wasn't equal?! *)
     let f a x y =
       if a == 0
       then compare' x y
@@ -2542,4 +2542,115 @@ struct
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
+end
+
+module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate. we have to touch every function in S if we want to add a new domain. here if we add a new option, we only have to edit the places where fn are applied, i.e. create, mapp, map, map2. *)
+  open Batteries
+  module I1 = Trier
+  module I2 = Interval32
+  module I3 = CircInterval
+  type t = I1.t option * I2.t option * I3.t option
+
+  type 'a m = (module S with type t = 'a)
+  (* only first-order polymorphism on functions -> use records to get around monomorphism restriction on arguments *)
+  type 'b poly_in  = { fi  : 'a. 'a m -> 'b -> 'a } (* inject *)
+  type 'b poly_pr  = { fp  : 'a. 'a m -> 'a -> 'b } (* project *)
+  type 'b poly2_pr  = { f2p  : 'a. 'a m -> 'a -> 'a -> 'b }
+  type poly1 = { f1 : 'a. 'a m -> 'a -> 'a } (* needed b/c above 'b must be different from 'a *)
+  type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a }
+  let create r x = (* use where values are introduced *)
+    let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
+    f "trier" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3)
+  let mapp r (a,b,c) = Option.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c)
+  let map  r (a,b,c) = Option.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c)
+  let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
+  let map2  r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc
+  let map2p r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb, opt_map2 (r.f2p (module I3)) xc yc
+  let to_list x = Tuple3.enum x |> List.of_enum |> List.filter_map identity
+  let to_list_some x = List.filter_map identity @@ to_list x
+  let exists, for_all = let f g = g identity % to_list in List.(f exists, f for_all)
+
+  let name () = "intdomtuple"
+
+  (* f0: constructors *)
+  let top = create { fi = fun (type a) (module I:S with type t = a) -> I.top }
+  let bot = create { fi = fun (type a) (module I:S with type t = a) -> I.bot }
+  let starting = create { fi = fun (type a) (module I:S with type t = a) -> I.starting }
+  let ending = create { fi = fun (type a) (module I:S with type t = a) -> I.ending }
+  let of_bool = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool }
+  let of_excl_list = create { fi = fun (type a) (module I:S with type t = a) -> I.of_excl_list }
+  let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
+  let starting = create { fi = fun (type a) (module I:S with type t = a) -> I.starting }
+  let ending = create { fi = fun (type a) (module I:S with type t = a) -> I.ending }
+
+  (* f1: unary ops *)
+  let neg = map { f1 = fun (type a) (module I:S with type t = a) -> I.neg }
+  let bitnot = map { f1 = fun (type a) (module I:S with type t = a) -> I.bitnot }
+  let lognot = map { f1 = fun (type a) (module I:S with type t = a) -> I.lognot }
+  let cast_to_width x w = map { f1 = fun (type a) (module I:S with type t = a) x -> I.cast_to_width x w } x (* NOTE: we call it on all domains - above it is only called on I3=CircInterval, despite being also implemented in I2=Interval32. I1=Trier just ignores the cast. *)
+
+  (* fp: projections *)
+  let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
+    if n = 1 then Some (List.hd xs)
+    else (
+      if n>1 then Messages.warn_all @@ "Inconsistent state! "^String.concat "," @@ List.map show us;
+      None
+    )
+  let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
+  let to_int = same Int64.to_string % mapp { fp = fun (type a) (module I:S with type t = a) -> I.to_int }
+  let to_bool = same string_of_bool % mapp { fp = fun (type a) (module I:S with type t = a) -> I.to_bool }
+  let to_excl_list x = mapp { fp = fun (type a) (module I:S with type t = a) -> I.to_excl_list } x |> flat List.concat
+  let minimal = flat List.max % mapp { fp = fun (type a) (module I:S with type t = a) -> I.minimal }
+  let maximal = flat List.min % mapp { fp = fun (type a) (module I:S with type t = a) -> I.maximal }
+  (* exists/for_all *)
+  let is_bot = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bot }
+  let is_top = for_all % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_top }
+  let is_int = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_int }
+  let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
+  let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
+  (* others *)
+  let short _ = String.concat ";" % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.short 30 }
+  let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
+
+  (* f2: binary ops *)
+  let join = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.join }
+  let meet = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.meet }
+  let widen  = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.widen }
+  let narrow = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.narrow }
+  let add = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.add }
+  let sub = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.sub }
+  let mul = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.mul }
+  let div = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.div }
+  let rem = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.rem }
+  let lt = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.lt }
+  let gt = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.gt }
+  let le = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.le }
+  let ge = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.ge }
+  let eq = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.eq }
+  let ne = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.ne }
+  let bitand = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitand }
+  let bitor = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitor }
+  let bitxor = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.bitxor }
+  let shift_left = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.shift_left }
+  let shift_right = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.shift_right }
+  let logand = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.logand }
+  let logor = map2 { f2 = fun (type a) (module I:S with type t = a) -> I.logor }
+
+  (* f2p: binary projections *)
+  let (%%) f g x = f % (g x) (* composition for binary function g *)
+  let leq = for_all %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.leq }
+  let equal = for_all %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.equal }
+  let compare = List.fold_left (fun a x -> if x<>0 then x else a) 0 % to_list %% map2p { f2p = fun (type a) (module I:S with type t = a) -> I.compare } (* idea? same impl. as above... *)
+  (* val pretty_f: (int -> t -> string) -> unit -> t -> doc *)
+  let pretty_f sf () : t -> doc = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty_f I.short () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
+
+  (* printing boilerplate *)
+  let isSimple _ = true
+  let toXML_f sf x =
+    let esc = Goblintutil.escape in
+    Xml.Element ("Leaf", [("text", esc (sf Goblintutil.summary_length x))], [])
+  let toXML = toXML_f short
+  let pretty = pretty_f short
+  let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end

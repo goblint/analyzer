@@ -157,6 +157,7 @@ module Interval : S
 
 module ManyInts : S
 module IntDomList : S
+module IntDomTuple : S
 
 (** {b Boolean domains} *)
 
