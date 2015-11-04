@@ -283,7 +283,7 @@ end
 exception Unknown
 exception Error
 
-module Integers : S with type t = int64  =
+module Integers : S with type t = int64  = (* no top/bot, order is <= *)
 struct
   include Printable.Std
   include Lattice.StdCousot
@@ -357,7 +357,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
-module FlatPureIntegers =
+module FlatPureIntegers = (* Integers, but raises Unknown/Error on join/meet *)
 struct
   include Integers
 
@@ -369,7 +369,7 @@ struct
   let meet x y = if equal x y then x else bot ()
 end
 
-module Flat (Base: S) =
+module Flat (Base: S) = (* identical to Lift, but goes to `Top/`Bot if Base raises Unknown/Error *)
 struct
   include Lattice.Flat (Base) (struct
       let top_name = "Unknown int"
@@ -436,7 +436,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
-module Lift (Base: S) =
+module Lift (Base: S) = (* identical to Flat, but does not go to `Top/`Bot if Base raises Unknown/Error *)
 struct
   include Lattice.Lift (Base) (struct
       let top_name = "MaxInt"
@@ -504,7 +504,7 @@ end
 module Flattened = Flat (Integers)
 module Lifted    = Lift (Integers)
 
-module Reverse (Base: S) =
+module Reverse (Base: S) = (* TODO: (almost) copy of Lattice.Reverse... *)
 struct
   include Base
   let bot = Base.top
