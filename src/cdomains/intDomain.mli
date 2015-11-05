@@ -92,7 +92,7 @@ sig
   (** Logical or: [x || y] *)
 
   (** {b Cast} *)
-  val cast_to_width: t -> int -> t
+  val cast_to_width: int -> t -> t
   (** Cast interval/integer to type of the given width. *)
 end
 (** The signature of integral value domains. They need to support all integer

@@ -247,8 +247,8 @@ struct
       match x.vtype, CPA.find x es with
       | TPtr (t, attr), `Address a
         when (not (AD.is_top a))
-             && List.length (AD.to_var_may a) = 1
-             && not (is_immediate_type t)
+          && List.length (AD.to_var_may a) = 1
+          && not (is_immediate_type t)
         ->
         let cv = List.hd (AD.to_var_may a) in
         "ref " ^ VD.short 26 (CPA.find cv es)
@@ -495,7 +495,7 @@ struct
               `Int (ID.of_int Int64.zero)
             | Cil.TInt (k,_), `Int a ->
               let w = get_type_width k in
-              `Int (ID.cast_to_width a w)
+              `Int (ID.cast_to_width w a)
             | _, s -> s
           end
         | _ -> VD.top ()
@@ -642,8 +642,8 @@ struct
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
               match eval_rv a gs st (Lval x) with
               | `Address a when not (AD.is_top n)
-                                && not (AD.mem (Addr.unknown_ptr ()) n)
-                                && not (AD.mem (Addr.safe_ptr ()) n)->
+                             && not (AD.mem (Addr.unknown_ptr ()) n)
+                             && not (AD.mem (Addr.safe_ptr ()) n)->
                 Some (x, `Address (AD.diff a n))
               | `Address a when not (AD.is_top n) && AD.mem (Addr.safe_ptr ()) n ->
                 Some (x, `Address (AD.add (Addr.safe_ptr ()) (AD.diff a n)))

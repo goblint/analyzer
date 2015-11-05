@@ -52,7 +52,7 @@ sig
   val logand: t -> t -> t
   val logor : t -> t -> t
 
-  val cast_to_width : t -> int -> t
+  val cast_to_width : int -> t -> t
 end
 
 module Interval32 : S with type t = (int64 * int64) option =
@@ -136,8 +136,7 @@ struct
   let of_excl_list _ = top ()
   let is_excl_list _ = false
 
-  let cast_to_width x b =
-    match x with
+  let cast_to_width b = function
     | None -> None
     | Some (x,y) -> norm @@ Some (max x (min_int_f b),min y (max_int_f b))
 
@@ -352,7 +351,7 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let cast_to_width x w = Int64.rem x (BatInt64.pow 2L (Int64.of_int w)) (* TODO: this is implementation-dependent! *)
+  let cast_to_width w x = Int64.rem x (BatInt64.pow 2L (Int64.of_int w)) (* TODO: this is implementation-dependent! *)
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
@@ -377,7 +376,7 @@ struct
     end)
 
   let name () = "flat integers"
-  let cast_to_width x _ = x
+  let cast_to_width _ x = x
 
   let of_int  x = `Lifted (Base.of_int x)
   let to_int  x = match x with
@@ -444,7 +443,7 @@ struct
     end)
 
   let name () = "lifted integers"
-  let cast_to_width x _ = x
+  let cast_to_width _ x = x
 
   let of_int  x = `Lifted (Base.of_int x)
   let to_int  x = match x with
@@ -530,9 +529,9 @@ struct
     | `Bot
   ]
 
-  let cast_to_width x w = match x with
+  let cast_to_width w = function
     | `Excluded s -> `Excluded (S.empty ()) (* TODO can we do better here? *)
-    | `Definite x -> `Definite (Integers.cast_to_width x w)
+    | `Definite x -> `Definite (Integers.cast_to_width w x)
     | `Bot -> `Bot
   let hash (x:t) =
     match x with
@@ -884,7 +883,7 @@ struct
   let max_width = 64
 
   let name () = "circular int intervals"
-  let cast_to_width x w =
+  let cast_to_width w x =
     match (I.bounds x) with
     | None -> Bot w
     | Some(a,b) -> I.of_t w a b
@@ -1404,7 +1403,7 @@ struct
   let sub x y = try sub x y with OverflowInt64.Overflow _ -> top ()
   let mul x y = try mul x y with OverflowInt64.Overflow _ -> top ()
   *)
-  let cast_to_width x _ = x
+  let cast_to_width _ x = x
 end
 
 (*module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] =
@@ -1723,7 +1722,7 @@ struct
   let hash = function true -> 51534333 | _ -> 561123444
   let equal (x:t) (y:t) = x=y
   let name () = "booleans"
-  let cast_to_width x _ = x
+  let cast_to_width _ x = x
   let copy x = x
   let isSimple _ = true
   let short _ x = if x then N.truename else N.falsename
@@ -1791,7 +1790,7 @@ module None : S with type t = unit  =
 struct
   include Printable.Std
   include Lattice.StdCousot
-  let cast_to_width x _ = x
+  let cast_to_width _ x = x
   let name () = "none"
   type t = unit
   let hash () = 101010
@@ -1860,7 +1859,7 @@ struct
 
   include Lattice.Prod (I1) (I2)
 
-  let cast_to_width x _ = x
+  let cast_to_width _ x = x
   let name () = I1.name () ^ " * " ^ I2.name ()
 
   let equal (x1,x2) (y1,y2) =
@@ -2052,9 +2051,9 @@ struct
   (* constructors *)
 
   let name () = I1.name () (* why do we just use the first name? *)
-  let cast_to_width' x w = (* why do we not call this on all?? *)
+  let cast_to_width' w x = (* why do we not call this on all?? *)
     match x with
-    | CInterval a -> CInterval (I3.cast_to_width a w)
+    | CInterval a -> CInterval (I3.cast_to_width w a)
     | _ -> x
 
   let constr_scheme xs =
@@ -2423,8 +2422,7 @@ struct
   let sub = List.map2 sub'
   let add = List.map2 add'
   let neg = List.map neg'
-  let cast_to_width xs w =
-    List.map (fun x -> cast_to_width' x w) xs
+  let cast_to_width w = List.map (cast_to_width' w)
 
   let minimal x =
     let max x y =
@@ -2590,7 +2588,7 @@ module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate
   let neg = map { f1 = fun (type a) (module I:S with type t = a) -> I.neg }
   let bitnot = map { f1 = fun (type a) (module I:S with type t = a) -> I.bitnot }
   let lognot = map { f1 = fun (type a) (module I:S with type t = a) -> I.lognot }
-  let cast_to_width x w = map { f1 = fun (type a) (module I:S with type t = a) x -> I.cast_to_width x w } x (* NOTE: we call it on all domains - above it is only called on I3=CircInterval, despite being also implemented in I2=Interval32. I1=Trier just ignores the cast. *)
+  let cast_to_width w = map { f1 = fun (type a) (module I:S with type t = a) -> I.cast_to_width w } (* NOTE: we call it on all domains - above it is only called on I3=CircInterval, despite being also implemented in I2=Interval32. I1=Trier just ignores the cast. *)
 
   (* fp: projections *)
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
