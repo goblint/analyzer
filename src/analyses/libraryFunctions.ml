@@ -438,8 +438,10 @@ let get_threadsafe_inv_ac name =
   with Not_found -> get_invalidate_action name
 
 
+
 module StringSet = Set.Make(String)
-let lib_funs = ref (List.fold_right StringSet.add ["list_empty"; "kzalloc"; "kmalloc"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_unlock_irqrestore"] StringSet.empty)
+let setOfList lst = List.fold_right StringSet.add lst StringSet.empty
+let lib_funs = ref (setOfList ["list_empty"; "kzalloc"; "kmalloc"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_unlock_irqrestore"])
 
 let use_special fn_name = StringSet.mem fn_name !lib_funs
 
@@ -454,3 +456,6 @@ let _ = add_lib_funs ["F63"] (* memcpy *)
 let _ = add_lib_funs ["F1"] (* memset *)
 (* these are optional. add them to speed up the analysis. *)
 (* let _ = add_lib_funs ["F60"; "F61"; "F62"; "F63"; "F1"] *)
+
+let kernel_safe_uncalled = setOfList ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
+let is_safe_uncalled fn_name = StringSet.mem fn_name kernel_safe_uncalled

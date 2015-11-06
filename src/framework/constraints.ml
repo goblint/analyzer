@@ -7,6 +7,7 @@ open Pretty
 open Analyses
 open GobConfig
 
+module M = Messages
 
 (** Lifts a [Spec] so that the domain and the context are [Hashcons]d. *)
 module HashconsLifter (S:Spec)
@@ -309,9 +310,9 @@ struct
   let tf_ret ret fd getl sidel getg sideg d =
     let ctx, r = common_ctx d getl sidel getg sideg in
     let d =
-      if (fd.svar.vid = MyCFG.dummy_func.svar.vid
-          || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun")))
-         && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
+      if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
+          List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
+         (get_bool "kernel" || get_string "ana.osek.oil" <> "")
       then toplevel_kernel_return ret fd ctx sideg
       else normal_return ret fd ctx sideg
     in
@@ -363,7 +364,7 @@ struct
       | Entry f        -> tf_entry f
       | Ret (r,fd)     -> tf_ret r fd
       | Test (p,b)     -> tf_test p b
-      | ASM _          -> fun _ _ _ _ d -> ignore (warn "ASM statement ignored."); d
+      | ASM _          -> fun _ _ _ _ d -> ignore (M.warn "ASM statement ignored."); d
       | Skip           -> fun _ _ _ _ d -> d
       | SelfLoop       -> tf_loop
     end getl sidel getg sideg d
@@ -485,9 +486,9 @@ struct
     let tf_ret ret fd d (get:v -> d) (side:v -> d -> unit) =
       let ctx, r = common_ctx d get side in
       let d =
-        if (fd.svar.vid = MyCFG.dummy_func.svar.vid
-            || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun")))
-           && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
+        if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
+            List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
+           (get_bool "kernel" || get_string "ana.osek.oil" <> "")
         then toplevel_kernel_return ret fd ctx
         else normal_return ret fd ctx
       in
@@ -1320,9 +1321,9 @@ struct
   let tf_ret ret fd d =
     let sideg _ = failwith "sideg" in
     let ctx = common_ctx d in
-    if (fd.svar.vid = MyCFG.dummy_func.svar.vid
-         || List.mem fd.svar.vname (List.map Json.string (get_list "mainfun")))
-       && (get_bool "kernel" || get_string "ana.osek.oil" <> "")
+    if (fd.svar.vid = MyCFG.dummy_func.svar.vid ||
+        List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
+       (get_bool "kernel" || get_string "ana.osek.oil" <> "")
     then toplevel_kernel_return ret fd ctx sideg
     else normal_return ret fd ctx sideg
 

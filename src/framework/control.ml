@@ -325,13 +325,17 @@ struct
             in
             (* set of ids of called functions *)
             let calledFuns = LHT.fold insrt lh S.empty in
-            function
-            | GFun (fn, loc) when not (S.mem fn.svar.vid calledFuns) ->
-              begin
-                let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
-                ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
-              end
-            | _ -> ()
+            let is_bad_uncalled fn loc =
+              not (S.mem fn.vid calledFuns) &&
+              not (Str.last_chars loc.file 2 = ".h") &&
+              not (LibraryFunctions.is_safe_uncalled fn.vname)
+            in function
+              | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
+                begin
+                  let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called." in
+                  ignore (Pretty.fprintf out "%s (%a)\n" msg Basetype.ProgLines.pretty loc)
+                end
+              | _ -> ()
           in
           List.iter f file.globals;
         end;
@@ -415,11 +419,13 @@ struct
     let open Batteries in
     (* apply functor F on module X if opt is true *)
     let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
-    let module S = (val
-      (module PathSensitive2 (MCP.MCP2) : Spec)
-      |> lift (get_bool "ana.hashcons") (module HashconsLifter)
-      |> lift true (module DeadCodeLifter)
-      |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter))
+    let module S =
+      (val
+        (module PathSensitive2 (MCP.MCP2) : Spec)
+        |> lift (get_bool "ana.hashcons") (module HashconsLifter)
+        |> lift true (module DeadCodeLifter)
+        |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
+      )
     in
     analyze file fs (module S)
 end
