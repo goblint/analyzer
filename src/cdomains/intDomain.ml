@@ -2545,12 +2545,179 @@ struct
 
 end
 
+module Enums : S = struct
+  open Batteries
+  module I = Integers
+  type e = I.t
+  type t = Neg of e list | Pos of e list
+
+  let name () = "enums"
+
+  let bot () = Pos []
+  let top () = Neg []
+  let short _ = function
+    | Pos[] -> "bot" | Neg[] -> "top"
+    | Pos xs -> "{" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
+    | Neg xs -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
+
+  let of_int x = Pos [x]
+  let cast_to_width w = function Pos xs -> Pos (List.map (I.cast_to_width w) xs) | Neg _ -> top ()
+
+  let rec merge_cup l l' = match l,l' with
+    | [],_ -> l'
+    | _,[] -> l
+    | x::xs, y::ys -> (match compare x y with
+        | 0 -> x :: merge_cup xs ys
+        | 1 -> y :: merge_cup l ys
+        | _ -> x :: merge_cup xs l'
+      )
+  let rec merge_cap l l' = match l,l' with
+    | [],_ -> []
+    | _,[] -> []
+    | x::xs, y::ys -> (match compare x y with
+        | 0 -> x :: merge_cap xs ys
+        | 1 -> merge_cap l ys
+        | _ -> merge_cap xs l'
+      )
+  let rec merge_sub l l' = match l,l' with
+    | [],_ -> []
+    | _,[] -> []
+    | x::xs, y::ys -> (match compare x y with
+        | 0 -> merge_sub xs ys
+        | 1 -> merge_sub l ys
+        | _ -> x :: merge_sub xs l'
+      )
+  let join = curry @@ function
+    | Neg l, Neg l' -> Neg (merge_cap l l')
+    | Neg l, Pos l' -> Neg (merge_sub l l')
+    | Pos l, Neg l' -> Neg (merge_sub l' l)
+    | Pos l, Pos l' -> Pos (merge_cup l l')
+  let meet = curry @@ function
+    | Neg l, Neg l' -> Neg (merge_cup l l')
+    | Neg l, Pos l' -> Pos (merge_sub l' l)
+    | Pos l, Neg l' -> Pos (merge_sub l l')
+    | Pos l, Pos l' -> Pos (merge_cap l l')
+
+  let widen x y = join x y
+  let narrow x y = meet x y
+
+  let leq x y = join x y = y
+
+  let add = curry @@ function
+    | Pos[],_ | _,Pos[] -> Pos[]
+    | Pos[x],Pos[y] -> Pos[I.add x y]
+    | Pos[0L],x | x,Pos[0L] -> x
+    | _,_ -> Neg[]
+
+  let mul = curry @@ function
+    | Pos[],_ | _,Pos[] -> Pos[]
+    | Pos[x],Pos[y] -> Pos[I.mul x y]
+    | Pos[0L],_ | _,Pos[0L] -> Pos[0L]
+    | Pos[1L],x | x,Pos[1L] -> x
+    | _,_ -> Neg[]
+
+  let abstr_compare = curry @@ function
+    | Neg _, Neg _ -> Pos[-1L; 0L ;1L]
+    | Pos[],_ | _,Pos[] -> Pos[]
+    | Pos x, Pos y ->
+      let x_max = List.last x in
+      let x_min = List.hd x in
+      let y_max = List.last y in
+      let y_min = List.hd y in
+      if  x_max < y_min then Pos[-1L]
+      else if y_max < x_min then Pos[1L]
+      else if x_min = y_max then
+        if  y_min = x_max then Pos[0L]
+        else Pos[0L;1L]
+      else if y_min = x_max then Pos[-1L;0L]
+      else Pos[-1L;0L;1L]
+    | Pos l, Neg l' ->
+      (match merge_sub l l' with
+       | [] -> Pos[-1L;1L]
+       | _ -> Pos[-1L;0L;1L]
+      )
+    | Neg l, Pos l' ->
+      (match merge_sub l' l with
+       | [] -> Pos[-1L;1L]
+       | _ -> Pos[-1L;0L;1L]
+      )
+
+  let max_elems () = get_int "ana.int.enums_max" (* maximum number of resulting elements before going to top *)
+  let lift1 f = function
+    | Pos[x] -> Pos[f x]
+    | Pos xs when List.length xs <= max_elems () -> Pos (List.map f xs)
+    | _ -> Neg[]
+  let lift2 f = curry @@ function
+    | Pos[],_| _,Pos[] -> Pos[]
+    | Pos[x],Pos[y] -> Pos[f x y]
+    | Pos xs,Pos ys when (List.length xs) * (List.length ys) <= max_elems () -> Pos (List.cartesian_product xs ys |> List.map (uncurry f))
+    | _,_ -> Neg[]
+
+  let neg  = lift1 I.neg
+  let add  = lift2 I.add
+  let sub  = lift2 I.sub
+  let mul  = lift2 I.mul
+  let div  = lift2 I.div
+  let rem  = lift2 I.rem
+  let lt = lift2 I.lt
+  let gt = lift2 I.gt
+  let le = lift2 I.le
+  let ge = lift2 I.ge
+  let eq = lift2 I.eq
+  let ne = lift2 I.ne
+  let bitnot = lift1 I.bitnot
+  let bitand = lift2 I.bitand
+  let bitor  = lift2 I.bitor
+  let bitxor = lift2 I.bitxor
+  let shift_left  = lift2 I.shift_left
+  let shift_right = lift2 I.shift_right
+  let lognot = lift1 I.lognot
+  let logand = lift2 I.logand
+  let logor  = lift2 I.logor
+
+  let is_top x = x = top ()
+  let is_bot x = x = bot ()
+  let hash = Hashtbl.hash
+  let equal = (=)
+  let compare = compare
+  let isSimple _  = true
+  let pretty_list xs = text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")"
+  let pretty_f _ _ = function
+    | Pos [] -> text "bot"
+    | Neg [] -> text "top"
+    | Pos xs -> text "Pos" ++ pretty_list (List.map (I.pretty ()) xs)
+    | Neg xs -> text "Neg" ++ pretty_list (List.map (I.pretty ()) xs)
+  let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
+  let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+
+  let of_bool x = Pos [if x then Int64.one else Int64.zero]
+  let to_bool' x = x <> Pos [Int64.zero]
+  let to_bool x = Some (to_bool' x)
+  let is_bool _ = true
+  let of_int  x = Pos [x]
+  let to_int = function Pos [x] -> Some x | _ -> None
+  let is_int  _ = true
+
+  let to_excl_list = function Neg x when x<>[] -> Some x | _ -> None
+  let of_excl_list x = Neg x
+  let is_excl_list = function Neg x when x<>[] -> true | _ -> false
+  (* let of_interval  x y = Pos (List.of_enum (x--y)) *)
+  let starting     x = top ()
+  let ending       x = top ()
+  let maximal = function Pos xs when xs<>[] -> Some (List.last xs) | _ -> None
+  let minimal = function Pos (x::xs) -> Some x | _ -> None
+end
+
 module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate. we have to touch every function in S if we want to add a new domain. here if we add a new option, we only have to edit the places where fn are applied, i.e. create, mapp, map, map2. *)
   open Batteries
   module I1 = Trier
   module I2 = Interval32
   module I3 = CircInterval
-  type t = I1.t option * I2.t option * I3.t option
+  module I4 = Enums
+  type t = I1.t option * I2.t option * I3.t option * I4.t option
 
   type 'a m = (module S with type t = 'a)
   (* only first-order polymorphism on functions -> use records to get around monomorphism restriction on arguments *)
@@ -2561,13 +2728,13 @@ module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate
   type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a }
   let create r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "trier" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3)
-  let mapp r (a,b,c) = Option.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c)
-  let map  r (a,b,c) = Option.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c)
+    f "trier" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3), f "enums" @@ r.fi (module I4)
+  let mapp r (a,b,c,d) = Option.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c, map (r.fp (module I4)) d)
+  let map  r (a,b,c,d) = Option.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
-  let map2  r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc
-  let map2p r (xa,xb,xc) (ya,yb,yc) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb, opt_map2 (r.f2p (module I3)) xc yc
-  let to_list x = Tuple3.enum x |> List.of_enum |> List.filter_map identity
+  let map2  r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc, opt_map2 (r.f2  (module I4)) xd yd
+  let map2p r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb, opt_map2 (r.f2p (module I3)) xc yc, opt_map2 (r.f2p  (module I4)) xd yd
+  let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity
   let to_list_some x = List.filter_map identity @@ to_list x
   let exists, for_all = let f g = g identity % to_list in List.(f exists, f for_all)
 
@@ -2610,7 +2777,7 @@ module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate
   let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
   (* others *)
-  let short _ = String.concat ";" % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.short 30 }
+  let short _ = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.short 30 }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
 
   (* f2: binary ops *)

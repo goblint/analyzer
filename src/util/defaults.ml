@@ -110,6 +110,8 @@ let _ = ()
       ; reg Analyses "ana.int.trier"       "true"  "Exclusion set based integer domain."
       ; reg Analyses "ana.int.interval"    "false" "Interval based integer domain."
       ; reg Analyses "ana.int.cinterval"   "false" "Wrapped, Signedness agnostic intervals."
+      ; reg Analyses "ana.int.enums"       "false" "Pos/Neg-Constants"
+      ; reg Analyses "ana.int.enums_max"   "1"     "Maximum number of resulting elements of operations before going to top. Widening is still just the join, so this might increase the size by n^2!"
       ; reg Analyses "ana.int.cdebug"      "false" "Debugging output for wrapped interval analysis."
       ; reg Analyses "ana.int.cwiden"      "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'double')"
       ; reg Analyses "ana.int.cnarrow"     "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'half')"
