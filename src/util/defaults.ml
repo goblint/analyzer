@@ -165,6 +165,7 @@ let _ = ()
       ; reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists."
       ; reg Experimental "exp.g2html_path"       "'.'"   "Location of the g2html.jar file."
       ; reg Experimental "questions.file"        ""      "Questions database file"
+      ; reg Experimental "exp.extraspecials"     "[]"    "List of functions that must be analyzed as unknown extern functions"
 
 (* {4 category [Debugging]} *)
 let _ = ()

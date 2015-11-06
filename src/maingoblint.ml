@@ -324,6 +324,13 @@ let do_html_output () =
       eprintf "Warning: jar file %s not found.\n" jar
   end
 
+let handle_extraspecials () = 
+  let f xs = function
+    | String x -> x::xs
+    | _ -> xs
+  in
+  let funs = List.fold_left f [] (get_list "exp.extraspecials") in
+   LibraryFunctions.add_lib_funs funs
 
 (** the main function *)
 let main =
@@ -334,6 +341,7 @@ let main =
         Stats.reset Stats.SoftwareTimer;
         Cilfacade.init ();
         parse_arguments ();
+        handle_extraspecials ();
         handle_flags ();
         if String.length (get_string "questions.file") > 0 then question_load_db (get_string "questions.file");
         preprocess_files () |> merge_preprocessed |> do_analyze;

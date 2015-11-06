@@ -351,7 +351,12 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let cast_to_width w x = Int64.rem x (BatInt64.pow 2L (Int64.of_int w)) (* TODO: this is implementation-dependent! *)
+  let cast_to_width w x = 
+    let y = BatInt64.pow 2L (Int64.of_int w) in
+    if y=0L then 
+      x 
+    else
+      Int64.rem x (BatInt64.pow 2L (Int64.of_int w)) (* TODO: this is implementation-dependent! *)
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
