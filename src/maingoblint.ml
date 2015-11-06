@@ -284,8 +284,12 @@ let do_analyze merged_AST =
           print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
           print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
         );
-        Control.analyze ast funs
-        (* Cilfacade.ugglyImperativeHack := ast'; *)
+        try Control.analyze ast funs
+        with x ->
+          let loc = !Tracing.current_loc in
+          Printf.printf "About to crash on %s:%d\n" loc.file loc.line;
+          raise x
+          (* Cilfacade.ugglyImperativeHack := ast'; *)
       in
       (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
          new style (Goblintutil.phase_config = true) is phases[i].ana.activated = [ana_1, ...]
