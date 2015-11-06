@@ -287,7 +287,7 @@ let do_analyze merged_AST =
         try Control.analyze ast funs
         with x ->
           let loc = !Tracing.current_loc in
-          Printf.printf "About to crash on %s:%d\n" loc.file loc.line;
+          Printf.printf "About to crash on %s:%d\n" loc.Cil.file loc.Cil.line;
           raise x
           (* Cilfacade.ugglyImperativeHack := ast'; *)
       in
@@ -330,7 +330,7 @@ let handle_extraspecials () =
     | _ -> xs
   in
   let funs = List.fold_left f [] (get_list "exp.extraspecials") in
-   LibraryFunctions.add_lib_funs funs
+  LibraryFunctions.add_lib_funs funs
 
 (** the main function *)
 let main =

@@ -8,5 +8,5 @@ int main() {
   j = 100;
 
   j = (unsigned long long) i;
-  assert(j == 100);
+  assert(j == 10);
 }
