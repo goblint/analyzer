@@ -327,7 +327,7 @@ struct
   let add  = Int64.add (* TODO: signed overflow is undefined behavior! *)
   let sub  = Int64.sub
   let mul  = Int64.mul
-  let div x y =
+  let div x y = (* TODO: exception is not very helpful here?! *)
     match y with
     | 0L -> raise Division_by_zero  (* -- this is for a bug (#253) where div throws *)
     | _  -> Int64.div x y           (*    sigfpe and ocaml has somehow forgotten how to deal with it*)
@@ -351,10 +351,10 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let cast_to_width w x = 
+  let cast_to_width w x =
     let y = BatInt64.pow 2L (Int64.of_int w) in
-    if y=0L then 
-      x 
+    if y=0L then
+      x
     else
       Int64.rem x (BatInt64.pow 2L (Int64.of_int w)) (* TODO: this is implementation-dependent! *)
 
@@ -2568,58 +2568,46 @@ module Enums : S = struct
   let of_int x = Pos [x]
   let cast_to_width w = function Pos xs -> Pos (List.map (I.cast_to_width w) xs) | Neg _ -> top ()
 
-  let rec merge_cup l l' = match l,l' with
-    | [],_ -> l'
-    | _,[] -> l
+  let rec merge_cup a b = match a,b with
+    | [],x | x,[] -> x
     | x::xs, y::ys -> (match compare x y with
         | 0 -> x :: merge_cup xs ys
-        | 1 -> y :: merge_cup l ys
-        | _ -> x :: merge_cup xs l'
+        | 1 -> y :: merge_cup a ys
+        | _ -> x :: merge_cup xs b
       )
-  let rec merge_cap l l' = match l,l' with
-    | [],_ -> []
-    | _,[] -> []
+  let rec merge_cap a b = match a,b with
+    | [],_ | _,[] -> []
     | x::xs, y::ys -> (match compare x y with
         | 0 -> x :: merge_cap xs ys
-        | 1 -> merge_cap l ys
-        | _ -> merge_cap xs l'
+        | 1 -> merge_cap a ys
+        | _ -> merge_cap xs b
       )
-  let rec merge_sub l l' = match l,l' with
+  let rec merge_sub a b = match a,b with
     | [],_ -> []
-    | _,[] -> []
+    | _,[] -> a
     | x::xs, y::ys -> (match compare x y with
         | 0 -> merge_sub xs ys
-        | 1 -> merge_sub l ys
-        | _ -> x :: merge_sub xs l'
+        | 1 -> merge_sub a ys
+        | _ -> x :: merge_sub xs b
       )
+  (* let merge_sub x y = Set.(diff (of_list x) (of_list y) |> to_list) *)
   let join = curry @@ function
-    | Neg l, Neg l' -> Neg (merge_cap l l')
-    | Neg l, Pos l' -> Neg (merge_sub l l')
-    | Pos l, Neg l' -> Neg (merge_sub l' l)
-    | Pos l, Pos l' -> Pos (merge_cup l l')
+    | Pos x, Pos y -> Pos (merge_cup x y)
+    | Neg x, Neg y -> Neg (merge_cap x y)
+    | Neg x, Pos y
+    | Pos y, Neg x -> Neg (merge_sub x y)
   let meet = curry @@ function
-    | Neg l, Neg l' -> Neg (merge_cup l l')
-    | Neg l, Pos l' -> Pos (merge_sub l' l)
-    | Pos l, Neg l' -> Pos (merge_sub l l')
-    | Pos l, Pos l' -> Pos (merge_cap l l')
+    | Pos x, Pos y -> Pos (merge_cap x y)
+    | Neg x, Neg y -> Neg (merge_cup x y)
+    | Pos x, Neg y
+    | Neg y, Pos x -> Pos (merge_sub x y)
+  (* let join x y = let r = join x y in print_endline @@ "join " ^ short 10 x ^ " " ^ short 10 y ^ " = " ^ short 10 r; r *)
+  (* let meet x y = let r = meet x y in print_endline @@ "meet " ^ short 10 x ^ " " ^ short 10 y ^ " = " ^ short 10 r; r *)
 
   let widen x y = join x y
   let narrow x y = meet x y
 
   let leq x y = join x y = y
-
-  let add = curry @@ function
-    | Pos[],_ | _,Pos[] -> Pos[]
-    | Pos[x],Pos[y] -> Pos[I.add x y]
-    | Pos[0L],x | x,Pos[0L] -> x
-    | _,_ -> Neg[]
-
-  let mul = curry @@ function
-    | Pos[],_ | _,Pos[] -> Pos[]
-    | Pos[x],Pos[y] -> Pos[I.mul x y]
-    | Pos[0L],_ | _,Pos[0L] -> Pos[0L]
-    | Pos[1L],x | x,Pos[1L] -> x
-    | _,_ -> Neg[]
 
   let abstr_compare = curry @@ function
     | Neg _, Neg _ -> Pos[-1L; 0L ;1L]
@@ -2650,19 +2638,31 @@ module Enums : S = struct
   let max_elems () = get_int "ana.int.enums_max" (* maximum number of resulting elements before going to top *)
   let lift1 f = function
     | Pos[x] -> Pos[f x]
-    | Pos xs when List.length xs <= max_elems () -> Pos (List.map f xs)
+    | Pos xs when List.length xs <= max_elems () -> Pos (List.sort_unique compare @@ List.map f xs)
     | _ -> Neg[]
   let lift2 f = curry @@ function
     | Pos[],_| _,Pos[] -> Pos[]
     | Pos[x],Pos[y] -> Pos[f x y]
-    | Pos xs,Pos ys when (List.length xs) * (List.length ys) <= max_elems () -> Pos (List.cartesian_product xs ys |> List.map (uncurry f))
+    | Pos xs,Pos ys when (List.length xs) * (List.length ys) <= max_elems () -> (* TODO this is an over-approximation of the result size. maybe do operation and test then if it's too many? *)
+      let r = Pos (List.cartesian_product xs ys |> List.map (uncurry f) |> List.sort_unique compare) in
+      (* print_endline @@ "enums_max: " ^ string_of_int (max_elems ()) ^ ". Operands: " ^ short 10 (Pos xs) ^ " and " ^ short 10 (Pos ys) ^ " = " ^ short 10 r; *)
+      r
     | _,_ -> Neg[]
 
   let neg  = lift1 I.neg
-  let add  = lift2 I.add
+  let add  = curry @@ function
+    | Pos[0L],x | x,Pos[0L] -> x
+    | x,y -> lift2 I.add x y
   let sub  = lift2 I.sub
-  let mul  = lift2 I.mul
-  let div  = lift2 I.div
+  let mul  = curry @@ function
+    | Pos[1L],x | x,Pos[1L] -> x
+    | Pos[0L],_ | _,Pos[0L] -> Pos[0L]
+    | x,y -> lift2 I.mul x y
+  let div  = curry @@ function
+    | Pos[1L],x | x,Pos[1L] -> x
+    | Pos[0L],_ -> Pos[0L]
+    | _,Pos[0L] -> raise Division_by_zero
+    | x,y -> lift2 I.div x y
   let rem  = lift2 I.rem
   let lt = lift2 I.lt
   let gt = lift2 I.gt
@@ -2699,16 +2699,20 @@ module Enums : S = struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let of_bool x = Pos [if x then Int64.one else Int64.zero]
-  let to_bool' x = x <> Pos [Int64.zero]
-  let to_bool x = Some (to_bool' x)
-  let is_bool _ = true
+  let to_bool = function
+    | Pos [] | Neg [] -> None
+    | Pos [0L] -> Some false
+    | Pos xs when List.for_all ((<>) 0L) xs -> Some true
+    | Neg xs when List.exists ((=) 0L) xs -> Some true
+    | _ -> None
+  let is_bool = Option.is_some % to_bool
   let of_int  x = Pos [x]
   let to_int = function Pos [x] -> Some x | _ -> None
-  let is_int  _ = true
+  let is_int = Option.is_some % to_int
 
   let to_excl_list = function Neg x when x<>[] -> Some x | _ -> None
   let of_excl_list x = Neg x
-  let is_excl_list = function Neg x when x<>[] -> true | _ -> false
+  let is_excl_list = Option.is_some % to_excl_list
   (* let of_interval  x y = Pos (List.of_enum (x--y)) *)
   let starting     x = top ()
   let ending       x = top ()
@@ -2739,8 +2743,8 @@ module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
   let map2  r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2  (module I1)) xa ya, opt_map2 (r.f2  (module I2)) xb yb, opt_map2 (r.f2  (module I3)) xc yc, opt_map2 (r.f2  (module I4)) xd yd
   let map2p r (xa,xb,xc,xd) (ya,yb,yc,yd) = opt_map2 (r.f2p (module I1)) xa ya, opt_map2 (r.f2p (module I2)) xb yb, opt_map2 (r.f2p (module I3)) xc yc, opt_map2 (r.f2p  (module I4)) xd yd
-  let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity
-  let to_list_some x = List.filter_map identity @@ to_list x
+  let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
+  let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
   let exists, for_all = let f g = g identity % to_list in List.(f exists, f for_all)
 
   let name () = "intdomtuple"
