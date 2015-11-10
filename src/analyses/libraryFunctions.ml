@@ -458,4 +458,7 @@ let _ = add_lib_funs ["F1"] (* memset *)
 (* let _ = add_lib_funs ["F60"; "F61"; "F62"; "F63"; "F1"] *)
 
 let kernel_safe_uncalled = setOfList ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
-let is_safe_uncalled fn_name = StringSet.mem fn_name kernel_safe_uncalled
+let kernel_safe_uncalled_regex = List.map Str.regexp ["__check_.*"]
+let is_safe_uncalled fn_name =
+  StringSet.mem fn_name kernel_safe_uncalled ||
+  List.exists (fun r -> Str.string_match r fn_name 0) kernel_safe_uncalled_regex
