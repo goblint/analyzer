@@ -40,7 +40,7 @@ let classify' fn exps =
   | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock"
   | "pthread_rwlock_trywrlock" | "mutex_trylock"
     -> `Lock (true, true)
-  | "LAP_Se_WaitSemaphore"
+  | "LAP_Se_WaitSemaphore" (* TODO: only handle those when arinc analysis is enabled? *)
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_mutex_lock" | "__pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource"
@@ -440,24 +440,11 @@ let get_threadsafe_inv_ac name =
 
 
 module StringSet = Set.Make(String)
-let setOfList lst = List.fold_right StringSet.add lst StringSet.empty
-let lib_funs = ref (setOfList ["list_empty"; "kzalloc"; "kmalloc"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_unlock_irqrestore"])
-
+let lib_funs = ref (StringSet.of_list ["list_empty"; "kzalloc"; "kmalloc"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_unlock_irqrestore"])
+let add_lib_funs funs = lib_funs := List.fold_right StringSet.add funs !lib_funs
 let use_special fn_name = StringSet.mem fn_name !lib_funs
 
-let add_lib_funs funs = lib_funs := List.fold_right StringSet.add funs !lib_funs
-
-(* ARINC functions copied from stdapi.c *)
-let _ = add_lib_funs ["LAP_Se_TimedWait";"LAP_Se_PeriodicWait";"LAP_Se_GetTime";"LAP_Se_ReplenishAperiodic";"LAP_Se_CreateProcess";"LAP_Se_SetPriority";"LAP_Se_SuspendSelf";"LAP_Se_Suspend";"LAP_Se_Resume";"LAP_Se_StopSelf";"LAP_Se_Stop";"LAP_Se_Start";"LAP_Se_DelayedStart";"LAP_Se_LockPreemption";"LAP_Se_UnlockPreemption";"LAP_Se_GetMyId";"LAP_Se_GetProcessId";"LAP_Se_GetProcessStatus";"LAP_Se_GetPartitionStatus";"LAP_Se_SetPartitionMode";"LAP_Se_GetPartitionStartCondition";"LAP_Se_CreateLogBook";"LAP_Se_ReadLogBook";"LAP_Se_WriteLogBook";"LAP_Se_ClearLogBook";"LAP_Se_GetLogbookId";"LAP_Se_GetLogBookStatus";"LAP_Se_CreateSamplingPort";"LAP_Se_WriteSamplingMessage";"LAP_Se_ReadSamplingMessage";"LAP_Se_GetSamplingPortId";"LAP_Se_GetSamplingPortStatus";"LAP_Se_CreateQueuingPort";"LAP_Se_SendQueuingMessage";"LAP_Se_ReceiveQueuingMessage";"LAP_Se_GetQueuingPortId";"LAP_Se_GetQueuingPortStatus";"LAP_Se_CreateBuffer";"LAP_Se_SendBuffer";"LAP_Se_ReceiveBuffer";"LAP_Se_GetBufferId";"LAP_Se_GetBufferStatus";"LAP_Se_CreateBlackboard";"LAP_Se_DisplayBlackboard";"LAP_Se_ReadBlackboard";"LAP_Se_ClearBlackboard";"LAP_Se_GetBlackboardId";"LAP_Se_GetBlackboardStatus";"LAP_Se_CreateSemaphore";"LAP_Se_WaitSemaphore";"LAP_Se_SignalSemaphore";"LAP_Se_GetSemaphoreId";"LAP_Se_GetSemaphoreStatus";"LAP_Se_CreateEvent";"LAP_Se_SetEvent";"LAP_Se_ResetEvent";"LAP_Se_WaitEvent";"LAP_Se_GetEventId";"LAP_Se_GetEventStatus";"LAP_Se_CreateErrorHandler";"LAP_Se_GetErrorStatus";"LAP_Se_RaiseApplicationError"]
-(* functions from string.h which are implemented included in the scrambled code *)
-(* this is needed since strcpy is used for some process names, which will be top otherwise *)
-let _ = add_lib_funs ["F59"; "F60"] (* strcpy, strncpy *)
-let _ = add_lib_funs ["F63"] (* memcpy *)
-let _ = add_lib_funs ["F1"] (* memset *)
-(* these are optional. add them to speed up the analysis. *)
-(* let _ = add_lib_funs ["F60"; "F61"; "F62"; "F63"; "F1"] *)
-
-let kernel_safe_uncalled = setOfList ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
+let kernel_safe_uncalled = StringSet.of_list ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
 let kernel_safe_uncalled_regex = List.map Str.regexp ["__check_.*"]
 let is_safe_uncalled fn_name =
   StringSet.mem fn_name kernel_safe_uncalled ||

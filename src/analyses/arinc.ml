@@ -3,11 +3,45 @@
 open Prelude.Ana
 open Analyses
 
+module Functions = struct
+  let prefix = "LAP_Se_"
+  (* ARINC functions copied from stdapi.c *)
+  let with_timeout = List.map ((^) prefix) ["SuspendSelf"; "ReadBlackboard"; "WaitSemaphore"; "WaitEvent"]
+  let without_timeout = List.map ((^) prefix) ["TimedWait";"PeriodicWait";"GetTime";"ReplenishAperiodic";"CreateProcess";"SetPriority";"Suspend";"Resume";"StopSelf";"Stop";"Start";"DelayedStart";"LockPreemption";"UnlockPreemption";"GetMyId";"GetProcessId";"GetProcessStatus";"GetPartitionStatus";"SetPartitionMode";"GetPartitionStartCondition";"CreateLogBook";"ReadLogBook";"WriteLogBook";"ClearLogBook";"GetLogbookId";"GetLogBookStatus";"CreateSamplingPort";"WriteSamplingMessage";"ReadSamplingMessage";"GetSamplingPortId";"GetSamplingPortStatus";"CreateQueuingPort";"SendQueuingMessage";"ReceiveQueuingMessage";"GetQueuingPortId";"GetQueuingPortStatus";"CreateBuffer";"SendBuffer";"ReceiveBuffer";"GetBufferId";"GetBufferStatus";"CreateBlackboard";"DisplayBlackboard";"ClearBlackboard";"GetBlackboardId";"GetBlackboardStatus";"CreateSemaphore";"SignalSemaphore";"GetSemaphoreId";"GetSemaphoreStatus";"CreateEvent";"SetEvent";"ResetEvent";"GetEventId";"GetEventStatus";"CreateErrorHandler";"GetErrorStatus";"RaiseApplicationError"]
+  (* functions from string.h which are implemented in the scrambled code *)
+  (* this is needed since strcpy is used for some process names, which will be top otherwise *)
+  let others = [
+    "F59" (* strcpy *); "F60" (* strncpy *); "F63" (* memcpy *); "F1" (* memset *);
+    (* "F60"; "F61"; "F62"; "F63"; "F1"; (* these are optional. add them to speed up the analysis. *) *)
+  ]
+  let arinc_special = with_timeout @ without_timeout
+  let special = arinc_special @ others
+  (* possible return code values *)
+  type return_code = (* taken from ARINC_653_part1.pdf page 46 *)
+    | NO_ERROR       (* request valid and operation performed *)
+    | NO_ACTION      (* system’s operational status unaffected by request *)
+    | NOT_AVAILABLE  (* the request cannot be performed immediately *)
+    | INVALID_PARAM  (* parameter specified in request invalid *)
+    | INVALID_CONFIG (* parameter specified in request incompatible with current configuration (e.g., as specified by system integrator) *)
+    | INVALID_MODE   (* request incompatible with current mode of operation *)
+    | TIMED_OUT      (* time-out associated with request has expired *)
+  let int_from_return_code = function
+    | NO_ERROR       -> 0
+    | NO_ACTION      -> 1
+    | NOT_AVAILABLE  -> 2
+    | INVALID_PARAM  -> 3
+    | INVALID_CONFIG -> 4
+    | INVALID_MODE   -> 5
+    | TIMED_OUT      -> 6
+end
+
 module Spec : Analyses.Spec =
 struct
   include Analyses.DefaultSpec
 
   let name = "arinc"
+
+  let init () = LibraryFunctions.add_lib_funs Functions.special
 
   (* ARINC types and Hashtables for collecting CFG *)
   type id = varinfo
@@ -276,23 +310,6 @@ struct
   (* ARINC utility functions *)
   let mode_is_init  i = match Pmo.to_int i with Some 1L | Some 2L -> true | _ -> false
   let mode_is_multi i = Pmo.to_int i = Some 3L
-  (* return code data type *)
-  type return_code = (* taken from ARINC_653_part1.pdf page 46 *)
-    | NO_ERROR       (* request valid and operation performed *)
-    | NO_ACTION      (* system’s operational status unaffected by request *)
-    | NOT_AVAILABLE  (* the request cannot be performed immediately *)
-    | INVALID_PARAM  (* parameter specified in request invalid *)
-    | INVALID_CONFIG (* parameter specified in request incompatible with current configuration (e.g., as specified by system integrator) *)
-    | INVALID_MODE   (* request incompatible with current mode of operation *)
-    | TIMED_OUT      (* time-out associated with request has expired *)
-  let int_from_return_code = function
-    | NO_ERROR       -> 0
-    | NO_ACTION      -> 1
-    | NOT_AVAILABLE  -> 2
-    | INVALID_PARAM  -> 3
-    | INVALID_CONFIG -> 4
-    | INVALID_MODE   -> 5
-    | TIMED_OUT      -> 6
   let pname_ErrorHandler = "ErrorHandler"
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -300,8 +317,8 @@ struct
     let d : D.t = ctx.local in
     if D.is_bot1 d then d else
       let env = get_env ctx in
-      let is_arinc_fun = startsWith "LAP_Se_" f.vname in
-      let is_creating_fun = startsWith "LAP_Se_Create" f.vname in
+      let is_arinc_fun = startsWith Functions.prefix f.vname in
+      let is_creating_fun = startsWith (Functions.prefix^"Create") f.vname in
       if M.tracing && is_arinc_fun then (
         let args_str = String.concat ", " (List.map (sprint d_exp) arglist) in
         (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
@@ -331,7 +348,7 @@ struct
       in
       let assume_success exp =
         (* TODO NO_ACTION should probably also be assumed a success *)
-        let f lval = ctx.assign ~name:"base" lval (integer @@ int_from_return_code NO_ERROR) in
+        let f lval = ctx.assign ~name:"base" lval (integer @@ Functions.(int_from_return_code NO_ERROR)) in
         iterMayPointTo ctx exp (f % Lval.CilLval.to_lval)
       in
       let invalidate_arg exp =
