@@ -2643,10 +2643,9 @@ module Enums : S = struct
   let lift2 f = curry @@ function
     | Pos[],_| _,Pos[] -> Pos[]
     | Pos[x],Pos[y] -> Pos[f x y]
-    | Pos xs,Pos ys when (List.length xs) * (List.length ys) <= max_elems () -> (* TODO this is an over-approximation of the result size. maybe do operation and test then if it's too many? *)
-      let r = Pos (List.cartesian_product xs ys |> List.map (uncurry f) |> List.sort_unique compare) in
-      (* print_endline @@ "enums_max: " ^ string_of_int (max_elems ()) ^ ". Operands: " ^ short 10 (Pos xs) ^ " and " ^ short 10 (Pos ys) ^ " = " ^ short 10 r; *)
-      r
+    | Pos xs,Pos ys ->
+      let r = List.cartesian_product xs ys |> List.map (uncurry f) |> List.sort_unique compare in
+      if List.length r <= max_elems () then Pos r else Neg[]
     | _,_ -> Neg[]
 
   let neg  = lift1 I.neg
