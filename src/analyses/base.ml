@@ -1536,47 +1536,42 @@ struct
           | Some x -> [mkAddrOrStartOf x]
           | None -> []
         in
-        match LF.get_invalidate_action f.vname with
-        | Some fnc -> invalidate ctx.ask gs st (lv_list @ (fnc `Write  args));
-        | None -> (
-            (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn ("Function definition missing for " ^ f.vname));
-            let st_expr (v:varinfo) (value) a =
-              if is_global ctx.ask v && not (is_static v) then
-                mkAddrOf (Var v, NoOffset) :: a
-              else a
-            in
-            let addrs = CPA.fold st_expr cpa (lv_list @ args) in
-            (* This rest here is just to see of something got spawned. *)
-            let flist = collect_funargs ctx.ask gs st args in
-            (* invalidate arguments for unknown functions, except for arinc functions *)
-            let (cpa,fl as st) =
-              if startsWith "LAP_Se_" f.vname then
-                (* handle return code: if not assume_success then invalidate it (else the assign is done by the arinc-analysis)  *)
-                if List.length args > 0 && not @@ get_bool "ana.arinc.assume_success" then
-                  let r = BatList.last args in
-                  invalidate ctx.ask gs st [r]
-                  (* all other arguments don't get changed. TODO invalidate all OUT params if they are not set by the arinc-analysis?! *)
-                else cpa,fl
-              else invalidate ctx.ask gs st addrs
-            in
-            let f addr acc =
-              try
-                let var = List.hd (AD.to_var_may addr) in
-                let _ = Cilfacade.getdec var in true
-              with _ -> acc
-            in
-            if List.fold_right f flist false && not (get_bool "exp.single-threaded") then begin
-              let new_fl =
-                if (not !GU.multi_threaded) && get_bool "exp.unknown_funs_spawn" then begin
-                  GU.multi_threaded := true;
-                  Flag.join fl (Flag.get_main ())
-                end else
-                  fl
+        let st =
+          match LF.get_invalidate_action f.vname with
+          | Some fnc -> invalidate ctx.ask gs st (lv_list @ (fnc `Write  args));
+          | None -> (
+              (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn ("Function definition missing for " ^ f.vname));
+              let st_expr (v:varinfo) (value) a =
+                if is_global ctx.ask v && not (is_static v) then
+                  mkAddrOf (Var v, NoOffset) :: a
+                else a
               in
-              cpa,new_fl
-            end else
-              st
-          )
+              let addrs = CPA.fold st_expr cpa (lv_list @ args) in
+              (* This rest here is just to see of something got spawned. *)
+              let flist = collect_funargs ctx.ask gs st args in
+              (* invalidate arguments for unknown functions *)
+              let (cpa,fl as st) = invalidate ctx.ask gs st addrs in
+              let f addr acc =
+                try
+                  let var = List.hd (AD.to_var_may addr) in
+                  let _ = Cilfacade.getdec var in true
+                with _ -> acc
+              in
+              if List.fold_right f flist false && not (get_bool "exp.single-threaded") then begin
+                let new_fl =
+                  if (not !GU.multi_threaded) && get_bool "exp.unknown_funs_spawn" then begin
+                    GU.multi_threaded := true;
+                    Flag.join fl (Flag.get_main ())
+                  end else
+                    fl
+                in
+                cpa,new_fl
+              end else
+                st
+            )
+        in
+        (* apply all registered abstract effects from other analysis on the base value domain *)
+        List.map (fun f -> f (fun lv -> set ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
       end
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: D.t) : D.t =

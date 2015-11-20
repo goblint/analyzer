@@ -444,6 +444,10 @@ let lib_funs = ref (StringSet.of_list ["list_empty"; "kzalloc"; "kmalloc"; "__ra
 let add_lib_funs funs = lib_funs := List.fold_right StringSet.add funs !lib_funs
 let use_special fn_name = StringSet.mem fn_name !lib_funs
 
+let effects = ref []
+let add_effects f = effects := f :: !effects
+let effects_for fname args = List.filter_map (fun f -> f fname args) !effects
+
 let kernel_safe_uncalled = StringSet.of_list ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
 let kernel_safe_uncalled_regex = List.map Str.regexp ["__check_.*"]
 let is_safe_uncalled fn_name =
