@@ -582,15 +582,15 @@ let _ =
   let module S2 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 2 end))) in
   let module S3 = GlobSolverFromIneqSolver (JoinContr (SLR3)) in
   let module S4 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 4 end))) in
-  Selector.add_solver ("slr1", (module S1 : GenericGlobSolver));
-  Selector.add_solver ("slr2", (module S2 : GenericGlobSolver));
-  Selector.add_solver ("slr3", (module S3 : GenericGlobSolver));
-  Selector.add_solver ("slr4", (module S4 : GenericGlobSolver));
+  Selector.add_solver ("slr1", (module S1 : GenericGlobSolver)); (* W&N at every program point *)
+  Selector.add_solver ("slr2", (module S2 : GenericGlobSolver)); (* W&N dynamic at certain points, growing number of W-points *)
+  Selector.add_solver ("slr3", (module S3 : GenericGlobSolver)); (* same as S2 but number of W-points may also shrink *)
+  Selector.add_solver ("slr4", (module S4 : GenericGlobSolver)); (* restarting: set influenced variables to bot and start up-iteration instead of narrowing *)
   let module S1p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 1 end)))) in
   let module S2p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 2 end)))) in
   let module S3p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 3 end)))) in
   let module S4p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 4 end)))) in
-  Selector.add_solver ("slr1p", (module S1p : GenericGlobSolver));
+  Selector.add_solver ("slr1p", (module S1p : GenericGlobSolver)); (* same as S1-4 above but with side-effects *)
   Selector.add_solver ("slr2p", (module S2p : GenericGlobSolver));
   Selector.add_solver ("slr3p", (module S3p : GenericGlobSolver));
   Selector.add_solver ("slr4p", (module S4p : GenericGlobSolver));
@@ -598,7 +598,7 @@ let _ =
   let module S2 = GlobSolverFromIneqSolver (MoreVars (Make (struct let ver = 2 end))) in
   let module S3 = GlobSolverFromIneqSolver (MoreVars (Make (struct let ver = 3 end))) in
   let module S4 = GlobSolverFromIneqSolver (MoreVars (Make (struct let ver = 4 end))) in
-  Selector.add_solver ("slr1x", (module S1 : GenericGlobSolver));
+  Selector.add_solver ("slr1x", (module S1 : GenericGlobSolver)); (* alias for S1-4 *)
   Selector.add_solver ("slr2x", (module S2 : GenericGlobSolver));
   Selector.add_solver ("slr3x", (module S3 : GenericGlobSolver));
   Selector.add_solver ("slr4x", (module S4 : GenericGlobSolver));
@@ -606,7 +606,7 @@ let _ =
   let module S2p = GlobSolverFromIneqSolver (MoreVars (PrintInfluence (Make (struct let ver = 2 end)))) in
   let module S3p = GlobSolverFromIneqSolver (MoreVars (PrintInfluence (Make (struct let ver = 3 end)))) in
   let module S4p = GlobSolverFromIneqSolver (MoreVars (PrintInfluence (Make (struct let ver = 4 end)))) in
-  Selector.add_solver ("slr1xp", (module S1p : GenericGlobSolver));
+  Selector.add_solver ("slr1xp", (module S1p : GenericGlobSolver)); (* alias for S1p-4p *)
   Selector.add_solver ("slr2xp", (module S2p : GenericGlobSolver));
   Selector.add_solver ("slr3xp", (module S3p : GenericGlobSolver));
   Selector.add_solver ("slr4xp", (module S4p : GenericGlobSolver));
