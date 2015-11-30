@@ -170,6 +170,169 @@ module SLR3 =
 
   end
 
+(** the terminating SLR3 box solver *)
+module SLR3 =
+  functor (S:EqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+  struct
+
+    include Generic.SolverStats (S)
+    module VS = Set.Make (S.Var)
+
+    module P =
+    struct
+      type t = S.Var.t * S.Var.t
+      let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
+      let hash  (x1,x2)         = (S.Var.hash x1 - 800) * S.Var.hash x2
+    end
+
+    module HPM = Hashtbl.Make (P)
+
+    let solve box st vs =
+      let key    = HM.create 10 in
+      let module H = Heap.Make (struct
+          type t = S.Var.t
+          let compare x y = compare (HM.find key x) (HM.find key y)
+        end)
+      in
+      let extract_min q =
+        let x = H.find_min !q in
+        q := H.del_min !q; x
+      in
+      let min_key q =
+        let x = H.find_min !q in
+        HM.find key x
+      in
+      let wpoint = HM.create  10 in
+      let stable = HM.create  10 in
+      let infl   = HM.create  10 in
+      let set    = HM.create  10 in
+      let rho    = HM.create  10 in
+      let rho'   = HPM.create 10 in
+      let q      = ref H.empty in
+      let count  = ref 0 in
+
+      let rec solve x =
+        let wpx = HM.mem wpoint x in
+        HM.remove wpoint x;
+        if not (HM.mem stable x) then begin
+          HM.add stable x ();
+          let old = HM.find rho x in
+          let tmp = eq x (eval x) (side x) in
+          let tmp = S.Dom.join tmp (sides x) in
+          if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
+          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
+          let tmp = if wpx then box x old tmp else tmp in
+          update_var_event x old tmp;
+          if not (S.Dom.equal old tmp) then begin
+            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
+            HM.replace rho x tmp;
+            let w = try HM.find infl x with Not_found -> VS.empty in
+            let w = if wpx then VS.add x w else w in
+            q := Enum.fold (fun x y -> H.add y x) !q (VS.enum w);
+            HM.replace infl x VS.empty;
+            Enum.iter (HM.remove stable) (VS.enum w)
+          end;
+          while (H.size !q <> 0) && (min_key q <= HM.find key x) do
+            solve (extract_min q)
+          done;
+        end
+      and eq x get set =
+        eval_rhs_event x;
+        match S.system x with
+        | None -> S.Dom.bot ()
+        | Some f ->
+          let sides = HM.create 10 in
+          let collect_set x v =
+            init x;
+            (try HM.find sides x with Not_found -> S.Dom.bot ()) |> S.Dom.join v |> HM.replace sides x
+          in
+          let d = f get collect_set in
+          HM.iter set sides;
+          d
+      and eval x y =
+        get_var_event y;
+        if not (HM.mem rho y) then begin
+          init y;
+          solve y
+        end;
+        if HM.find key x <= HM.find key y then begin
+          HM.replace wpoint y ();
+          q := H.add y !q
+        end;
+        HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
+        HM.find rho y
+      and sides x =
+        let w = try HM.find set x with Not_found -> VS.empty in
+        Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
+      and side x y d =
+        HM.replace wpoint y ();
+        if not (HPM.mem rho' (x,y)) then
+          HPM.add rho' (x,y) (S.Dom.bot ());
+        let old = HPM.find rho' (x,y) in
+        if not (S.Dom.equal old d) then begin
+          HPM.replace rho' (x,y) d;
+          if HM.mem rho y then begin
+            HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
+            HM.remove stable y;
+            q := H.add y !q
+          end else begin
+            init y;
+            HM.replace set y (VS.add x VS.empty);
+            solve y
+          end
+        end
+      and init x =
+        if not (HM.mem rho x) then begin
+          new_var_event x;
+          HM.replace rho  x (S.Dom.bot ());
+          HM.replace infl x (VS.add x VS.empty);
+          HM.replace key  x (- !count); incr count
+        end
+      in
+
+      let set_start (x,d) =
+        init x;
+        HM.replace rho x d;
+        HM.replace set x (VS.add x VS.empty);
+        HPM.add rho' (x,x) d
+      in
+
+      start_event ();
+      List.iter init vs;
+      List.iter set_start st;
+      q := List.fold_left (fun q v -> H.add v q) H.empty vs;
+
+      List.iter solve vs;
+
+      let reachability xs =
+        let reachable = HM.create (HM.length rho) in
+        let rec one_var x =
+          if not (HM.mem reachable x) then begin
+            HM.replace reachable x ();
+            match S.system x with
+            | None -> ()
+            | Some x -> one_constaint x
+          end
+        and one_constaint f =
+          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
+        in
+        List.iter one_var xs;
+        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho
+      in
+      reachability vs;
+      stop_event ();
+
+      HM.clear key   ;
+      HM.clear wpoint;
+      HM.clear stable;
+      HM.clear infl  ;
+      HM.clear set   ;
+      HPM.clear rho'  ;
+
+      rho
+
+  end
 
 module type Version = sig val ver : int end
 
