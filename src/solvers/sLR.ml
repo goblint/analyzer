@@ -310,9 +310,9 @@ module SLR3term =
 
       let set_start (x,d) =
         init x;
-        HM.replace rho x d;
+        HM.replace rho x (d,false);
         HM.replace set x (VS.add x VS.empty);
-        HPM.add rho' (x,x) (fst d)
+        HPM.add rho' (x,x) d
       in
 
       start_event ();
@@ -345,10 +345,12 @@ module SLR3term =
       HM.clear stable;
       HM.clear infl  ;
       HM.clear set   ;
-      HPM.clear rho'  ;
+      HPM.clear rho' ;
 
-      rho
-
+      (* return without bool *)
+      let rho_r = HM.create 133 in
+      HM.iter (fun x (d,b) -> HM.add rho_r x d) rho;
+      rho_r
   end
 
 module type Version = sig val ver : int end
