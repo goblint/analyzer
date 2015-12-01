@@ -1,9 +1,10 @@
 
 let htmlTemp_BasePartOne =
-  "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">
+  "<!doctype html>
+<html>
 <head>
+  <meta charset=\"utf-8\" />
   <title>%filename%</title>
-  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />
   <link rel=\"stylesheet\" href=\"style.css\" type=\"text/css\"></link>
   <script type=\"text/javascript\" src=\"script.js\"></script>
 </head>
@@ -85,8 +86,10 @@ let htmlTemp_BasePartThree =
 "
 
 let htmlTemp_AnalysisFilePartOne =
-  "<html>
+  "<!doctype html>
+<html>
   <head>
+    <meta charset=\"utf-8\">
     <link rel=\"stylesheet\" href=\"../style.css\" type=\"text/css\"></link>
     <script type=\"text/javascript\" src=\"../script.js\"></script>
   </head>
