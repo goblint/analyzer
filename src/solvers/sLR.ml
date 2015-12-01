@@ -171,7 +171,7 @@ module SLR3 =
   end
 
 (** the terminating SLR3 box solver *)
-module SLR3 =
+module SLR3term =
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
   struct
@@ -217,16 +217,62 @@ module SLR3 =
         HM.remove wpoint x;
         if not (HM.mem stable x) then begin
           HM.add stable x ();
-          let old = HM.find rho x in
-          let tmp = eq x (eval x) (side x) in
+          let old,b_old = HM.find rho x in
+          let r = ref true in
+          let eval y =
+            get_var_event y;
+            if not (HM.mem rho y) then begin
+              init y;
+              solve y
+            end;
+            if HM.find key x <= HM.find key y then begin
+              HM.replace wpoint y ();
+              q := H.add y !q (* ? *)
+            end;
+            HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
+
+            let x,b = HM.find rho y in
+            if not b then r := false;
+            x
+          in
+          let side y d =
+            HM.replace wpoint y ();
+            if not (HPM.mem rho' (x,y)) then
+              HPM.add rho' (x,y) (S.Dom.bot ());
+            let old = HPM.find rho' (x,y) in
+            if not (S.Dom.equal old d) then begin
+              HPM.replace rho' (x,y) d;
+              if HM.mem rho y then begin
+                HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
+                HM.remove stable y;
+                q := H.add y !q
+              end else begin
+                init y;
+                HM.replace set y (VS.add x VS.empty);
+                solve y
+              end
+            end
+          in
+          let tmp = eq x eval side in
           let tmp = S.Dom.join tmp (sides x) in
+          let val_new, b_new =
+            if wpx then
+              if S.Dom.leq tmp old
+              then S.Dom.narrow old tmp, true
+              else
+              if b_old then S.Dom.narrow old tmp, true
+              else S.Dom.widen old tmp, false
+            else
+              tmp, !r
+          in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           let tmp = if wpx then box x old tmp else tmp in
           update_var_event x old tmp;
-          if not (S.Dom.equal old tmp) then begin
+          if b_old = b_new && S.Dom.equal old tmp then ()
+          else begin
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
-            HM.replace rho x tmp;
+            HM.replace rho x (val_new, b_new);
             let w = try HM.find infl x with Not_found -> VS.empty in
             let w = if wpx then VS.add x w else w in
             q := Enum.fold (fun x y -> H.add y x) !q (VS.enum w);
@@ -250,42 +296,13 @@ module SLR3 =
           let d = f get collect_set in
           HM.iter set sides;
           d
-      and eval x y =
-        get_var_event y;
-        if not (HM.mem rho y) then begin
-          init y;
-          solve y
-        end;
-        if HM.find key x <= HM.find key y then begin
-          HM.replace wpoint y ();
-          q := H.add y !q
-        end;
-        HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
-        HM.find rho y
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
         Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
-      and side x y d =
-        HM.replace wpoint y ();
-        if not (HPM.mem rho' (x,y)) then
-          HPM.add rho' (x,y) (S.Dom.bot ());
-        let old = HPM.find rho' (x,y) in
-        if not (S.Dom.equal old d) then begin
-          HPM.replace rho' (x,y) d;
-          if HM.mem rho y then begin
-            HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
-            HM.remove stable y;
-            q := H.add y !q
-          end else begin
-            init y;
-            HM.replace set y (VS.add x VS.empty);
-            solve y
-          end
-        end
       and init x =
         if not (HM.mem rho x) then begin
           new_var_event x;
-          HM.replace rho  x (S.Dom.bot ());
+          HM.replace rho  x (S.Dom.bot (), false);
           HM.replace infl x (VS.add x VS.empty);
           HM.replace key  x (- !count); incr count
         end
@@ -295,7 +312,7 @@ module SLR3 =
         init x;
         HM.replace rho x d;
         HM.replace set x (VS.add x VS.empty);
-        HPM.add rho' (x,x) d
+        HPM.add rho' (x,x) (fst d)
       in
 
       start_event ();
@@ -315,7 +332,7 @@ module SLR3 =
             | Some x -> one_constaint x
           end
         and one_constaint f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
+          ignore (f (fun x -> one_var x; try fst @@ HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
         in
         List.iter one_var xs;
         HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho
@@ -744,10 +761,12 @@ let _ =
   let module S1 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 1 end))) in
   let module S2 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 2 end))) in
   let module S3 = GlobSolverFromIneqSolver (JoinContr (SLR3)) in
+  let module S3t = GlobSolverFromIneqSolver (JoinContr (SLR3term)) in
   let module S4 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 4 end))) in
   Selector.add_solver ("slr1", (module S1 : GenericGlobSolver)); (* W&N at every program point *)
   Selector.add_solver ("slr2", (module S2 : GenericGlobSolver)); (* W&N dynamic at certain points, growing number of W-points *)
   Selector.add_solver ("slr3", (module S3 : GenericGlobSolver)); (* same as S2 but number of W-points may also shrink *)
+  Selector.add_solver ("slr3t", (module S3t : GenericGlobSolver)); (* same as S2 but number of W-points may also shrink + terminating? *)
   Selector.add_solver ("slr4", (module S4 : GenericGlobSolver)); (* restarting: set influenced variables to bot and start up-iteration instead of narrowing *)
   let module S1p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 1 end)))) in
   let module S2p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 2 end)))) in
