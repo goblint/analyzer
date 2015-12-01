@@ -348,7 +348,7 @@ module SLR3term =
       HPM.clear rho' ;
 
       (* return without bool *)
-      let rho_r = HM.create 133 in
+      let rho_r = HM.create (HM.length rho) in
       HM.iter (fun x (d,b) -> HM.add rho_r x d) rho;
       rho_r
   end
