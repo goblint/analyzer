@@ -15,7 +15,7 @@ struct
 (** The main function to preform the selected analyses. *)
 let analyzeBackwards (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec: BackwardSpec) =
   (** The Equation system *)
-  let module EQSys = BackwardSpec (Spec) (Cfg) in
+  let module EQSys = FromBackwardSpec (Spec) (Cfg) in
 
   (** Hashtbl for locals *)
   let module LHT   = BatHashtbl.Make (EQSys.LVar) in

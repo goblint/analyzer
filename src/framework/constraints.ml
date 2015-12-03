@@ -237,7 +237,7 @@ struct
 
 end
 
-module BackwardSpec (S:BackwardSpec) (Cfg:CfgForward)
+module FromBackwardSpec (S:BackwardSpec) (Cfg:CfgForward)
  : GlobConstrSys with module LVar = Analyses.Var
                   and module GVar = Basetype.Variables
                   and module G = S.G
