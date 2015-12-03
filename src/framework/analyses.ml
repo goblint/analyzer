@@ -469,6 +469,35 @@ sig
   val combine : (D.t, G.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
 end
 
+
+module type BackwardSpec =
+sig
+  module D : Lattice.S
+  module G : Lattice.S
+  
+  val name: string
+  
+  val startstate: varinfo -> D.t
+
+  val body: fundec -> D.t -> D.t
+  val assign : lval -> exp -> D.t -> D.t  
+  val enter : lval option -> exp -> exp list -> D.t -> D.t  
+end
+
+module UnitBackwardSpec : BackwardSpec = 
+struct
+  module D = Lattice.Unit
+  module G = Lattice.Unit
+  
+  let name = "unit"
+  
+  let startstate _ = ()
+  
+  let body f st = st
+  let assign lv rv st = st
+  let enter lvo fn args st = st
+end
+
 (** A side-effecting system. *)
 module type MonSystem =
 sig
@@ -534,6 +563,28 @@ module type GenericGlobSolver =
     (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].  *)
     val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> S.D.t LH.t * S.G.t GH.t
+  end
+
+  module BackwardsResultType (S:BackwardSpec) =
+  struct
+    open S
+    include Printable.Prod (D) (Basetype.CilFundec)
+    let isSimple _ = false
+    let short w _ = ""
+    let toXML (x,_ as st:t) =
+      let open Xml in
+      let flatten_single = function
+        | Element (_,_,[x]) | x ->  x in
+      let try_replace_text s = function
+        | Element (tag, attr, children) -> Element (tag, ["text", s], children)
+        | x -> x
+      in
+      let esc = Goblintutil.escape in
+      let res = try_replace_text "Value" (flatten_single (D.toXML x)) in
+      Element ("Node",["text",esc (short 80 st)],[res])
+    let pretty () (x,_) = D.pretty () x
+    let printXml f (d,fd) =
+      D.printXml f d
   end
 
 module ResultType2 (S:Spec) =
