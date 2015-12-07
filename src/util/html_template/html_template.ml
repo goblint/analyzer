@@ -1,11 +1,11 @@
 
 let htmlTemp_BasePartOne =
-  "<!doctype html>
+  "<!DOCTYPE html>
 <html>
 <head>
   <meta charset=\"utf-8\" />
   <title>%filename%</title>
-  <link rel=\"stylesheet\" href=\"style.css\" type=\"text/css\"></link>
+  <link rel=\"stylesheet\" href=\"style.css\" type=\"text/css\" />
   <script type=\"text/javascript\" src=\"script.js\"></script>
 </head>
 <body onload=\"onLoad();\">
@@ -86,11 +86,11 @@ let htmlTemp_BasePartThree =
 "
 
 let htmlTemp_AnalysisFilePartOne =
-  "<!doctype html>
+  "<!DOCTYPE html>
 <html>
   <head>
     <meta charset=\"utf-8\">
-    <link rel=\"stylesheet\" href=\"../style.css\" type=\"text/css\"></link>
+    <link rel=\"stylesheet\" href=\"../style.css\" type=\"text/css\" />
     <script type=\"text/javascript\" src=\"../script.js\"></script>
   </head>
   <body id=\"analysisfilebody\" onload=\"OnAnalysisFileLoaded();\">
