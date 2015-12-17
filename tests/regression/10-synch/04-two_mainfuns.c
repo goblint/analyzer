@@ -1,4 +1,4 @@
-// SKIP PARAM: --set exitfun "['f1','f2']"
+// PARAM: --sets ana.activated[+] thread --set exitfun "['f1','f2']"
 #include <stdio.h>
 
 int myglobal1;
