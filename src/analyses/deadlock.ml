@@ -28,7 +28,7 @@ struct
     if !Goblintutil.in_verifying_stage then begin
       D.iter (fun e -> List.iter (fun (a,b) ->
           if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
-            let msg = (sprintf "Deadlock warning: Locking order %s, %s in line %i, %i (after %i, %i)\n" (ValueDomain.Addr.short () e.addr) (ValueDomain.Addr.short () newLock.addr) e.loc.line newLock.loc.line b.loc.line a.loc.line) in
+            let msg = (sprintf "Deadlock warning: Locking order %s, %s in line %i, %i after %i, %i." (ValueDomain.Addr.short () e.addr) (ValueDomain.Addr.short () newLock.addr) e.loc.line newLock.loc.line b.loc.line a.loc.line) in
             Messages.report msg;
           )
           else () ) !forbiddenList ) lockList;
