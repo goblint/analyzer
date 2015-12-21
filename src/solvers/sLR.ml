@@ -214,6 +214,8 @@ module SLR3term =
       let rho'   = HPM.create 10 in
       let q      = ref H.empty in
       let count  = ref 0 in
+      let count_side  = ref 1 in
+      let first  = ref true in
 
       let rec solve b_old x =
         let wpx = HM.mem wpoint x in
@@ -235,20 +237,20 @@ module SLR3term =
             HM.find rho y
           in
           let side y d =
-            let wp = if HM.find key y < HM.find key x then x else y in
-            HM.replace wpoint wp ();
+            HM.replace wpoint y ();
             if not (HPM.mem rho' (x,y)) then (
-              HPM.add rho' (x,y) (S.Dom.bot ());
-              solve false y
+              HPM.add rho' (x,y) (S.Dom.bot ())
+              (* solve false y *)
             );
+            let old = HPM.find rho' (x,y) in
             if not (S.Dom.equal old d) then begin
-              HPM.replace rho' (x,y) (if b_old then S.Dom.narrow old d else S.Dom.widen old d);
+              HPM.replace rho' (x,y) d;
               if HM.mem rho y then begin
                 HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
                 HM.remove stable y;
                 q := H.add y !q
               end else begin
-                init y;
+                init ~side:true y;
                 HM.replace set y (VS.add x VS.empty);
                 solve false y
               end
@@ -299,7 +301,7 @@ module SLR3term =
         | Some f ->
           let sides = HM.create 10 in
           let collect_set x v =
-            init x;
+            init ~side:true x;
             (try HM.find sides x with Not_found -> S.Dom.bot ()) |> S.Dom.join v |> HM.replace sides x
           in
           let d = f get collect_set in
@@ -308,12 +310,22 @@ module SLR3term =
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
         Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
-      and init x =
+      and init ?(side=false) x =
         if not (HM.mem rho x) then begin
           new_var_event x;
           HM.replace rho  x (S.Dom.bot ());
           HM.replace infl x (VS.add x VS.empty);
-          HM.replace key  x (- !count); incr count
+          (* print_endline @@ "Init variable " ^ S.Var.var_id x; *)
+          if !first then (
+            print_endline @@ "First variable " ^ S.Var.var_id x ^ " to " ^ string_of_int max_int;
+            HM.replace key  x max_int; first := false
+          ) else if side then (
+            print_endline @@ "Increased variable " ^ S.Var.var_id x ^ " to " ^ string_of_int !count_side;
+            HM.replace key  x !count_side; incr count_side
+          ) else (
+            print_endline @@ "Decreased variable " ^ S.Var.var_id x ^ " to " ^ string_of_int !count;
+            HM.replace key  x (- !count); incr count
+          )
         end
       in
 
