@@ -102,9 +102,12 @@ module SLR3 =
         let w = try HM.find set x with Not_found -> VS.empty in
         Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
       and side x y d =
-        HM.replace wpoint y ();
-        if not (HPM.mem rho' (x,y)) then
+        let wp = if HM.find key y < HM.find key x then x else y in (* not clear whether this helps with test 20/01 *)
+        HM.replace wpoint wp ();
+        if not (HPM.mem rho' (x,y)) then (
           HPM.add rho' (x,y) (S.Dom.bot ());
+          solve y
+        );
         let old = HPM.find rho' (x,y) in
         if not (S.Dom.equal old d) then begin
           HPM.replace rho' (x,y) d;
@@ -221,25 +224,25 @@ module SLR3term =
           let eval y =
             get_var_event y;
             if not (HM.mem rho y) then begin
-              init y
+              init y;
+              solve b_old y
             end;
             if HM.find key x <= HM.find key y then begin
               HM.replace wpoint y ();
               q := H.add y !q (* ? *)
-            end
-            else begin
-              solve b_old y
             end;
             HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
             HM.find rho y
           in
           let side y d =
-            HM.replace wpoint y ();
-            if not (HPM.mem rho' (x,y)) then
+            let wp = if HM.find key y < HM.find key x then x else y in
+            HM.replace wpoint wp ();
+            if not (HPM.mem rho' (x,y)) then (
               HPM.add rho' (x,y) (S.Dom.bot ());
-            let old = HPM.find rho' (x,y) in
+              solve false y
+            );
             if not (S.Dom.equal old d) then begin
-              HPM.replace rho' (x,y) d;
+              HPM.replace rho' (x,y) (if b_old then S.Dom.narrow old d else S.Dom.widen old d);
               if HM.mem rho y then begin
                 HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
                 HM.remove stable y;
@@ -257,13 +260,22 @@ module SLR3term =
             if wpx then
               if S.Dom.leq tmp old then S.Dom.narrow old tmp, true
               else
-              if b_old then (print_endline "NARROW!!!"; S.Dom.narrow old tmp, true)
+              if b_old then (
+                (* print_endline "NARROW!!!"; *)
+                let nar = S.Dom.narrow old tmp in
+                trace "sol" "NARROW: Var: %a\nOld: %a\nNew: %a\nNarrow: %a"
+                  S.Var.pretty_trace x
+                  S.Dom.pretty old
+                  S.Dom.pretty tmp
+                  S.Dom.pretty nar;
+                nar, true
+              )
               else S.Dom.widen old tmp, false
             else
               tmp, b_old
           in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
-          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
+          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty val_new;
           (* let tmp = if wpx then box x old tmp else tmp in *)
           update_var_event x old val_new;
           if S.Dom.equal old val_new then ()
