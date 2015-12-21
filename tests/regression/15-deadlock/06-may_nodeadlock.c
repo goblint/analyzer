@@ -20,7 +20,7 @@ void *t2(void *arg) {
   if (k)
     pthread_mutex_lock(&mutex2);
   else
-    pthread_mutex_lock(&mutex1);
+    pthread_mutex_lock(&mutex1); // NODEADLOCK
   g2 = g1 + 1;
   if (k)
     pthread_mutex_unlock(&mutex2);

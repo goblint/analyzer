@@ -8,7 +8,7 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
 void *t1(void *arg) {
   pthread_mutex_lock(&mutex1);
-  pthread_mutex_lock(&mutex2);
+  pthread_mutex_lock(&mutex2); // DEADLOCK
   g1 = g2 + 1;
   pthread_mutex_unlock(&mutex2);
   pthread_mutex_unlock(&mutex1);

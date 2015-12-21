@@ -27,7 +27,7 @@ void deposit(bank_account *f, bank_account *t, int ammount) {
     pthread_mutex_lock(&t->mutex); // DEADLOCK
   } else {
     pthread_mutex_lock(&f->mutex);
-    pthread_mutex_lock(&t->mutex);
+    pthread_mutex_lock(&t->mutex); // DEADLOCK
   }
 
   t->balance += ammount;
