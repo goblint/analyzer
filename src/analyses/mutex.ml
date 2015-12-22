@@ -202,7 +202,7 @@ struct
     let do_exp e =
       match ask (Queries.ReachableFrom e) with
       | `LvalSet a when not (Queries.LS.is_top a)
-                        && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
         let to_extra (v,o) xs =
           if is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
             Concrete (None, v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
@@ -217,7 +217,7 @@ struct
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a)
-                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | _ -> []
 
@@ -954,9 +954,12 @@ struct
         print_endline "Goblint did not find any Data Races in this program!"
       else if get_bool "dbg.verbose" then
         BatPrintf.printf "%!raceLines = %d%!\n" (LineSet.cardinal !err_lines);
-    end else if not (get_bool "dbg.debug") then begin
-      print_endline "NB! That didn't seem like a multithreaded program.";
-      print_endline "Try `goblint --help' to do something other than Data Race Analysis."
+    end else  begin
+      print_endline "Warning: Did not detect thread creation in main method!";
+      if !GU.has_otherfuns && not (get_bool "exp.earlyglobs") then begin
+        print_endline "This is more serious: otherfuns were analyzed with uninitialzied globals.";
+        print_endline "You should run with \"exp.earlyglobs\" enabled if otherfuns can run immediately."
+      end
     end;
     BS.finalize ()
 
