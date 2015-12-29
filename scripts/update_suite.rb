@@ -100,7 +100,7 @@ regs.sort.each do |d|
         i = $1.to_i - 1
       end
       next if obj =~ /^\s*\/\//
-      if obj =~ /NORACE/ then
+      if obj =~ /RACE/ then
         hash[i] = if obj =~ /NORACE/ then "norace" else "race" end
       elsif obj =~ /DEADLOCK/ then
         hash[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
