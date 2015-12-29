@@ -29,21 +29,14 @@ let is_global (a: Q.ask) (v: varinfo): bool =
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
-let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) (get_list "exp.precious_globs")
+let precious_globs = ref []
+let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
+let privatization = ref false
 let is_private (a: Q.ask) (_,fl) (v: varinfo): bool =
-  ((not (BaseDomain.Flag.is_multi fl)) &&
-   is_precious_glob v)
-  ||
-  match a (Q.IsPublic v) with `Bool tv -> not tv | _ -> false
-
-let priv_cache = ref None
-let is_private q d v =
-  match !priv_cache with
-  | None when get_bool "exp.privatization" -> priv_cache := Some true; is_private q d v
-  | None -> priv_cache := Some false; false
-  | Some true -> is_private q d v
-  | Some false -> false
+  !privatization &&
+  (not (BaseDomain.Flag.is_multi fl) && is_precious_glob v ||
+   match a (Q.IsPublic v) with `Bool tv -> not tv | _ -> false)
 
 module Main =
 struct
@@ -90,7 +83,7 @@ struct
     let add_var (v: varinfo) (value) (cpa,acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-        if is_global a v && (not (is_private a (cpa,fl) v) || privates) then begin
+        if is_global a v && (privates || not (is_private a (cpa,fl) v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           (CPA.remove v cpa, (v,value) :: acc)
         end else
@@ -269,6 +262,8 @@ struct
   let heap_var loc = AD.from_var (BaseDomain.get_heap_var loc)
 
   let init () =
+    privatization := get_bool "exp.privatization";
+    precious_globs := get_list "exp.precious_globs";
     return_varstore := makeVarinfo false "RETURN" voidType;
     H.clear BaseDomain.heap_hash
 
@@ -1024,7 +1019,7 @@ struct
     in
     (* We concatMap the previous function on the list of expressions. *)
     let invalids = List.concat (List.map invalidate_exp exps) in
-    let my_favorite_things = List.map Json.string (get_list "exp.precious_globs") in
+    let my_favorite_things = List.map Json.string !precious_globs in
     let is_fav_addr x =
       List.exists (fun x -> List.mem x.vname my_favorite_things) (AD.to_var_may x)
     in
