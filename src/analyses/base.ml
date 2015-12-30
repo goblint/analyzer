@@ -1245,14 +1245,13 @@ struct
    * Function calls
    **************************************************************************)
 
-  let make_entry ctx fn args: D.t =
+  let make_entry ctx ?nfl:(nfl=(snd ctx.local)) fn args: D.t =
     let cpa,fl as st = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv ctx.ask ctx.global st) args in
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
-    (*let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in*)
     let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
@@ -1260,7 +1259,7 @@ struct
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
-    new_cpa, fl
+    new_cpa, nfl
 
   let enter ctx lval fn args : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
@@ -1279,8 +1278,8 @@ struct
           | Some x -> [x]
           | None -> List.map (fun x -> MyCFG.unknown_exp) fd.sformals
         in
-        let ctx = swap_st ctx (cpa, create_tid v) in
-        let nst = make_entry ctx v args in
+        let nfl = create_tid v in
+        let nst = make_entry ctx ~nfl:nfl v args in
         v, nst
       with Not_found ->
         if not (LF.use_special f.vname) then
