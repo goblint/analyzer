@@ -202,7 +202,7 @@ struct
     let do_exp e =
       match ask (Queries.ReachableFrom e) with
       | `LvalSet a when not (Queries.LS.is_top a)
-                        && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
         let to_extra (v,o) xs =
           if is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
             Concrete (None, v, Depbase.Offs.from_offset (conv_offset o), true) :: xs  in
@@ -217,7 +217,7 @@ struct
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a)
-                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | _ -> []
 

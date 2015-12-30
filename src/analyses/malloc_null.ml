@@ -58,7 +58,7 @@ struct
       | Lval (Var v, offs) ->
         begin match a (Queries.MayPointTo (mkAddrOf (Var v,offs))) with
           | `LvalSet a when not (Queries.LS.is_top a)
-                            && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+                         && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
             Queries.LS.iter (fun (v,o) -> warn_lval st (v, conv_offset o)) a
           | _ -> ()
         end
@@ -126,7 +126,7 @@ struct
   let get_concrete_lval ask (lval:lval) =
     match ask (Queries.MayPointTo (mkAddrOf lval)) with
     | `LvalSet a when Queries.LS.cardinal a = 1
-                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       let v, o = Queries.LS.choose a in
       Some (Var v, conv_offset o)
     | _ -> None

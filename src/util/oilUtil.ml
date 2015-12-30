@@ -467,9 +467,9 @@ let handle_attribute_alarm object_name attr =
               | Some a_params -> List.iter (handle_event_alarm object_name) a_params
             )
           | "ALARMCALLBACK" -> print_endline("Found ALARMCALLBACK in alarm " ^ object_name)
-            (* TODO add as interrupts above tasks below isr?
-               add treatment for the macro
-               see page 36 of oil spec *)
+          (* TODO add as interrupts above tasks below isr?
+             add treatment for the macro
+             see page 36 of oil spec *)
           | other  ->
             (* TODO	if tracing then trace "oil" "Wrong parameter (%s) for ACTION of ALARM %s\n" other object_name;*)
             if tracing then trace "oil" "Wrong parameter (_) for ACTION of ALARM %s\n" object_name

@@ -238,10 +238,10 @@ struct
 end
 
 module FromBackwardSpec (S:BackwardSpec) (Cfg:CfgForward)
- : GlobConstrSys with module LVar = Analyses.Var
-                  and module GVar = Basetype.Variables
-                  and module G = S.G
-                  and module D = S.D
+  : GlobConstrSys with module LVar = Analyses.Var
+                   and module GVar = Basetype.Variables
+                   and module G = S.G
+                   and module D = S.D
 =
 struct
   type lv = MyCFG.node

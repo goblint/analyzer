@@ -1454,9 +1454,9 @@ struct
     in
     (*dbg_report("assign_to_local "^(sprint 160 (d_exp () (Lval lval)))^" = "^str);*)
     if  p rval
-        && may_be_constructed_from_this st (Lval lval)
-        && not (FieldSet.is_bot flds)
-        && (not (is_loc_method rval glob)) (*fptrs are globals but they are handled separately*)
+     && may_be_constructed_from_this st (Lval lval)
+     && not (FieldSet.is_bot flds)
+     && (not (is_loc_method rval glob)) (*fptrs are globals but they are handled separately*)
     then begin
       if
         (maybe_deref (Lval lval)) || may_be_constructed_from_this_direct st (Lval lval)

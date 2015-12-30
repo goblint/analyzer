@@ -275,9 +275,9 @@ struct
     if v = "null" then set_null st else
       try set_bool st (bool_of_string v)
       with Invalid_argument "bool_of_string" ->
-        try set_int st (int_of_string v)
-        with Failure "int_of_string" ->
-          set_string st v
+      try set_int st (int_of_string v)
+      with Failure "int_of_string" ->
+        set_string st v
 
   (** The ultimate convienience functions for writing values. *)
   let one_quote = Str.regexp "\'"

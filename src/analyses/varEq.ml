@@ -348,9 +348,9 @@ struct
     *)  let lvt = typeOf (Lval lv) in
     (*     Messages.report (sprint 80 (d_type () lvt)); *)
     if Exp.is_global_var (Lval lv) = Some false
-       && Exp.interesting rv
-       && Exp.is_global_var rv = Some false
-       && (isArithmeticType lvt || isPointerType lvt)
+    && Exp.interesting rv
+    && Exp.is_global_var rv = Some false
+    && (isArithmeticType lvt || isPointerType lvt)
     then D.add_eq (rv,Lval lv) (remove ask lv st)
     else remove ask lv st
   (*    in
