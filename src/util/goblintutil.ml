@@ -100,6 +100,9 @@ let summary_length = 80
 (** A hack to see if we are currently doing global inits *)
 let global_initialization = ref false
 
+(** Another hack to see if earlyglobs is enabled *)
+let earlyglobs = ref false
+
 (** true if in verifying stage *)
 let in_verifying_stage = ref false
 

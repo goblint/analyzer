@@ -138,16 +138,14 @@ struct
     in
 
     (* real beginning of the [analyze] function *)
-    let early = (get_bool "exp.earlyglobs") in
+    let _ = GU.earlyglobs := false in
     let _ = GU.global_initialization := true in
-    let _ = set_bool "exp.earlyglobs" false in
-    (* Spec.init (); *)
     let startstate, more_funs =
       if (get_bool "dbg.verbose") then print_endline "Initializing globals.";
       do_global_inits file
     in
     let _ = GU.global_initialization := false in
-    let _ = set_bool "exp.earlyglobs" early in
+    let _ = GU.earlyglobs := get_bool "exp.earlyglobs" in
 
     let otherfuns = if get_bool "kernel" then otherfuns @ more_funs else otherfuns in
 
@@ -421,9 +419,8 @@ struct
     in
 
     (* real beginning of the [analyze] function *)
-    let early = (get_bool "exp.earlyglobs") in
     let _ = GU.global_initialization := true in
-    let _ = set_bool "exp.earlyglobs" false in
+    let _ = GU.earlyglobs := false in
     Spec.init ();
 
     let startstate, more_funs =
@@ -471,7 +468,7 @@ struct
       then failwith "BUG: Empty set of start variables; may happen if \
                      enter_func of any analysis returns an empty list."
     in
-    let _ = set_bool "exp.earlyglobs" early in
+    let _ = GU.earlyglobs := get_bool "exp.earlyglobs" in
     let _ = GU.global_initialization := false in
 
     let startvars' =

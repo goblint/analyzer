@@ -956,7 +956,7 @@ struct
         BatPrintf.printf "%!raceLines = %d%!\n" (LineSet.cardinal !err_lines);
     end else  begin
       print_endline "Warning: Did not detect thread creation in main method!";
-      if !GU.has_otherfuns && not (get_bool "exp.earlyglobs") then begin
+      if !GU.has_otherfuns && not !GU.earlyglobs then begin
         print_endline "This is more serious: otherfuns were analyzed with uninitialzied globals.";
         print_endline "You should run with \"exp.earlyglobs\" enabled if otherfuns can run immediately."
       end
