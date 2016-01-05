@@ -389,13 +389,16 @@ struct
       in
       List.map (fun (n,d) -> n, spec_assign n d) xs
 
+  let finalize () =
+    finalize ();
+    Access.print_result ()
+
   let rec do_splits ctx pv (xs:(int * (Obj.t * exp * bool)) list) =
     let split_one n (d,e,tv) =
       let nv = assoc_replace (n,d) pv in
       ctx.split (branch {ctx with local = nv} e tv) one true
     in
     iter (uncurry split_one) xs
-
 
   and branch (ctx:(D.t, G.t) ctx) (e:exp) (tv:bool) =
     let spawns = ref [] in
@@ -441,17 +444,66 @@ struct
       in
       Queries.Result.meet a @@ S.query ctx' q
     in
-    let x = fold_left f `Top @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    x
-
-  let query ctx q =
     match q with
     | Queries.PrintFullState ->
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
       `Bot
-    | _ -> query ctx q
+    | Queries.Access(e,b) -> 
+      do_access ctx e b;
+      `Bot
+    | _ ->
+      let x = fold_left f `Top @@ spec_list ctx.local in
+      do_sideg ctx !sides;
+      x
 
+  and part_access ctx (e:exp) (vo:varinfo option) = 
+    let open Access in
+    let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
+    let sides  = ref [] in
+    let f (po,lo) (n, (module S: Spec), d) : part = 
+      let rec ctx' : (S.D.t, S.G.t) ctx =
+        { local  = obj d
+        ; ask    = query ctx
+        ; presub = filter_presubs n ctx.local
+        ; postsub= []
+        ; global = (fun v         -> ctx.global v |> assoc n |> obj)
+        ; spawn  = (fun v d       -> failwith "part_access::spawn")
+        ; split  = (fun d e tv    -> failwith "part_access::split")
+        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; assign = (fun ?name v e -> failwith "part_access::assign")
+        }
+      in
+      let (pd, ld) = S.part_access ctx' e vo in
+      let ln = LSSet.union lo ld in
+      let mult_po s = LSSSet.union (LSSSet.map (LSSet.union s) po) in
+      let pn = LSSSet.fold mult_po pd (LSSSet.empty ())  in
+      do_sideg ctx !sides;
+      (* printf "e=%a po=%a pd=%a pn=%a\n" d_exp e LSSSet.pretty po LSSSet.pretty pd LSSSet.pretty pn; *)
+      (pn, ln)
+      (* (LSSSet.map (LSSet.add pn) po, LSSet.union lo ln) *)
+    in
+    List.fold_left f start (spec_list ctx.local)
+
+  and do_access (ctx: (D.t, G.t) ctx) (e:exp) (w:bool) = 
+    let open Queries in
+    let add_access vo oo = 
+      let bla = part_access ctx e vo in
+      Access.add e w vo oo bla
+    in
+    match ctx.ask (MayPointTo (mkAddrOf (Mem e,NoOffset))) with
+    | `Bot -> ()
+    | `LvalSet ls when not (LS.is_top ls) ->
+      let f (var, offs) = 
+        let coffs = Lval.CilLval.to_ciloffs offs in
+        if var.vid = dummyFunDec.svar.vid then 
+          add_access None (Some coffs)
+        else
+          add_access (Some var) (Some coffs) 
+      in
+      let ls = LS.filter (fun (g,_) -> g.vglob) ls in
+      LS.iter f ls
+    | _ -> 
+      add_access None None
 
   let assign (ctx:(D.t, G.t) ctx) l e =
     let spawns = ref [] in

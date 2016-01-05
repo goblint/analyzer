@@ -58,6 +58,31 @@ struct
     | `Top -> false
     | `Bot -> true
 
+  let get_region ctx e = 
+    let regpart = get_regpart ctx.global in
+    if is_bullet e regpart ctx.local then 
+      None 
+    else
+      Some (regions e regpart ctx.local)
+
+  let part_access ctx e v =
+    let open Access in
+    let e' = match e with
+      | AddrOf lv -> Lval lv
+      | _ -> e
+    in
+    let es = LSSet.empty () in
+    let add_region xs r =
+      let rs = Lval.CilLval.short 80 r in
+      LSSet.add("region", rs) xs
+    in
+    match get_region ctx e' with
+    | None -> (LSSSet.empty (),es) 
+    | Some xs -> 
+      let ps = List.fold_left add_region (LSSet.empty ()) xs in
+      (* ignore (Pretty.printf "%a in region %a\n" d_exp e LSSSet.pretty ps); *)
+      (LSSSet.singleton ps, es)
+
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     let regpart = get_regpart ctx.global in

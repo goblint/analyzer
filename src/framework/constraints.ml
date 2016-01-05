@@ -72,6 +72,9 @@ struct
 
   let combine ctx r fe f args es =
     D.lift @@ S.combine (conv ctx) r fe f args (D.unlift es)
+
+  let part_access _ _ _ = 
+    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 
@@ -175,6 +178,8 @@ struct
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q
 
+  let part_access _ _ _ = 
+    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 
@@ -235,13 +240,15 @@ struct
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine ctx r fe f args es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args (D.unlift es)) `Bot
 
+  let part_access _ _ _ = 
+    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 module FromBackwardSpec (S:BackwardSpec) (Cfg:CfgForward)
- : GlobConstrSys with module LVar = Analyses.Var
-                  and module GVar = Basetype.Variables
-                  and module G = S.G
-                  and module D = S.D
+  : GlobConstrSys with module LVar = Analyses.Var
+                   and module GVar = Basetype.Variables
+                   and module G = S.G
+                   and module D = S.D
 =
 struct
   type lv = MyCFG.node
@@ -1098,6 +1105,8 @@ struct
     let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d
 
+  let part_access _ _ _ = 
+    (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
 module Compare

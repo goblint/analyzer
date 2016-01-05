@@ -44,6 +44,7 @@ type t = ExpEq of exp * exp
        | SetImportant of exp
        | PrintFullState
        | CondVars of exp
+       | Access of exp * bool
        | TheAnswerToLifeUniverseAndEverything
 
 type result = [

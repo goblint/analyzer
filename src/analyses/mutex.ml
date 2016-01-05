@@ -104,6 +104,16 @@ struct
     | _ -> v, Offs.from_offset (conv_offset o)
 
 
+  let part_access ctx e v =
+    let open Access in
+    let ps = LSSSet.singleton (LSSet.empty ()) in
+    let add_lock l =
+      let ls = Lockset.Lock.short 80 l in
+      LSSet.add ("lock",ls)
+    in
+    let ls = D.fold add_lock ctx.local (LSSet.empty ())in
+    (ps, ls)
+
   type access = Concrete of (exp option * varinfo * Offs.t * bool)
               | Region   of (exp option * varinfo * Offs.t * bool)
               | Unknown  of (exp * bool)
@@ -147,6 +157,8 @@ struct
       | Const _ -> []
       (* Variables and address expressions *)
       | Lval lval ->
+        if not !GU.may_narrow then
+          ignore (a (Queries.Access(mkAddrOf lval, rw))) ;
         let a1 = access_address a regs rw lval in
         let a2 = access_lv_byval a lval in
         a1 @  a2
@@ -202,7 +214,7 @@ struct
     let do_exp e =
       match ask (Queries.ReachableFrom e) with
       | `LvalSet a when not (Queries.LS.is_top a)
-                        && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
         let to_extra (v,o) xs =
           if is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
             Concrete (None, v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
@@ -217,7 +229,7 @@ struct
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a (Queries.MayPointTo exp) with
     | `LvalSet a when not (Queries.LS.is_top a)
-                      && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | _ -> []
 

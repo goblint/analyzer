@@ -1599,6 +1599,18 @@ struct
       | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val
     in
     combine_one ctx.local after
+
+  let part_access ctx e v =
+    let es = Access.LSSet.empty () in
+    let _, fl = ctx.local in
+    if BaseDomain.Flag.is_multi fl then begin
+      if BaseDomain.Flag.is_bad fl then
+        (Access.LSSSet.singleton es, es)
+      else 
+        let tid = BaseDomain.Flag.short 20 fl in
+        (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
+    end else 
+      Access.LSSSet.empty (), es
 end
 
 let _ =
