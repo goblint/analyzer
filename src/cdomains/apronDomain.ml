@@ -107,7 +107,7 @@ struct
     | BinOp (Mult,e1,e2,_) ->
       Binop (Mul,exptoexpr e1,exptoexpr e2,Int,Near)
     | BinOp (Div,e1,e2,_) ->
-      Binop (Div,exptoexpr e1,exptoexpr e2,Int,Near)
+      Binop (Div,exptoexpr e1,exptoexpr e2,Int,Zero)
     | BinOp (Mod,e1,e2,_) ->
       Binop (Mod,exptoexpr e1,exptoexpr e2,Int,Near)
     | CastE (TFloat (FFloat,_),e) -> Unop(Cast,exptoexpr e,Texpr0.Single,Zero)
@@ -141,10 +141,16 @@ struct
 
   let rec exptolinexp =
     let add ((xs:lexpr),x,r) ((ys:lexpr),y,r') =
-      let add_one xs (x, y) = List.modify_def y x (fun x -> add_t x y) xs in
-      let xs':lexpr = List.map (fun (x,y) -> (x,neg_t y)) xs in
+      let add_one xs (var_name, var_coefficient) =
+        let found_var_in_list var_name var_coeff_list =
+          let find found_already (var_name_in_list, _)  =
+            found_already || (String.compare var_name var_name_in_list) == 0 in
+          List.fold_left find false var_coeff_list in
+        if (found_var_in_list var_name xs) then
+          List.modify var_name (fun x -> add_t x var_coefficient) xs
+        else (var_name, var_coefficient)::xs in
       match r, r' with
-      | EQ, EQ -> List.fold_left add_one xs' ys, add_t' x y, EQ
+      | EQ, EQ -> List.fold_left add_one xs ys, add_t' x y, EQ
       | _ -> raise (Invalid_argument "exptolinexp")
     in
     function
@@ -176,10 +182,10 @@ struct
         | _ -> raise (Invalid_argument "exptolinexp")
       in
       begin match r with
-        | Lt -> comb SUP   (add (exptolinexp e1) (negate (exptolinexp e2)))
-        | Gt -> comb SUP   (add (exptolinexp e2) (negate (exptolinexp e1)))
-        | Le -> comb SUPEQ (add (exptolinexp e1) (negate (exptolinexp e2)))
-        | Ge -> comb SUPEQ (add (exptolinexp e2) (negate (exptolinexp e1)))
+        | Lt -> comb SUP   (add (exptolinexp e2) (negate (exptolinexp e1)))
+        | Gt -> comb SUP   (add (exptolinexp e1) (negate (exptolinexp e2)))
+        | Le -> comb SUPEQ (add (exptolinexp e2) (negate (exptolinexp e1)))
+        | Ge -> comb SUPEQ (add (exptolinexp e1) (negate (exptolinexp e2)))
         | Eq -> comb EQ    (add (exptolinexp e1) (negate (exptolinexp e2)))
         | Ne -> comb DISEQ (add (exptolinexp e1) (negate (exptolinexp e2)))
         | _ -> raise (Invalid_argument "exptolinexp")
@@ -200,13 +206,18 @@ struct
     let cs, c, r = exptolinexp (Cil.constFold false x) in
     let cs, c, r = if b then cs, c, r else negate (cs,c,inverse r) in
     let cs = List.map (function (x,`int y) -> Coeff.s_of_int y, Var.of_string x | (x,`float f) ->Coeff.s_of_float f, Var.of_string x) cs in
-    let c = match c with `int x -> Some (Coeff.s_of_int (-x)) | `float f -> Some (Coeff.s_of_float (0.0-.f)) | `none -> None in
+    let c = match c with `int x -> Some (Coeff.s_of_int x) | `float f -> Some (Coeff.s_of_float f) | `none -> None in
     let le = Linexpr1.make env in
     Linexpr1.set_list le cs c;
     Lincons1.make le r
 
   let assert_inv d x b =
     try
+      (* if assert(x) then convert it to assert(x != 0) *)
+      let x = match x with
+        | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
+          UnOp(LNot, (BinOp (Eq, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)), intType)
+        | _ -> x in
       let ea = { lincons0_array = [|Lincons1.get_lincons0 (exptolinecons (A.env d) x b) |]
                ; array_env = A.env d
                }
