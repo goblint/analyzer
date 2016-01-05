@@ -102,10 +102,10 @@ regs.sort.each do |d|
       next if obj =~ /^\s*\/\//
       if obj =~ /RACE/ then
         hash[i] = if obj =~ /NORACE/ then "norace" else "race" end
-      elsif obj =~ /NOWARN/ then
-        hash[i] = "nowarn"
+      elsif obj =~ /DEADLOCK/ then
+        hash[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
       elsif obj =~ /WARN/ then
-        hash[i] = "warn"
+        hash[i] = if obj =~ /NOWARN/ then "nowarn" else "warn" end
       elsif obj =~ /assert.*\(/ then
         debug = true
         if obj =~ /FAIL/ then
@@ -228,9 +228,10 @@ File.open(theresultfile, "w") do |f|
       next unless l =~ /(.*)\(.*\:(.*)\)/
       obj,i = $1,$2.to_i
 
-      ranking = ["other", "warn", "race", "norace", "success", "fail", "unknown", "term", "noterm"]
+      ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
                     when /lockset:/                  then "race"
+                    when /Deadlock/                  then "deadlock"
                     when /Assertion .* will fail/    then "fail"
                     when /Assertion .* will succeed/ then "success"
                     when /Assertion .* is unknown/   then "unknown"
@@ -262,7 +263,7 @@ File.open(theresultfile, "w") do |f|
         end
       }
       case type
-      when "race", "fail", "unknown", "noterm", "term", "warn"
+      when "deadlock", "race", "fail", "unknown", "noterm", "term", "warn"
         check.call warnings[idx] == type
       when "nowarn"
         check.call warnings[idx].nil?
@@ -270,6 +271,8 @@ File.open(theresultfile, "w") do |f|
         check.call warnings[idx] == "success"
       when "norace"
         check.call warnings[idx] != "race"
+      when "nodeadlock"
+        check.call warnings[idx] != "deadlock"
       end
     end
     f.puts "<td><a href=\"#{warnfile}\">#{correct} of #{p.warnings.size}</a></td>"

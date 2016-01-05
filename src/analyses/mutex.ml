@@ -966,9 +966,12 @@ struct
         print_endline "Goblint did not find any Data Races in this program!"
       else if get_bool "dbg.verbose" then
         BatPrintf.printf "%!raceLines = %d%!\n" (LineSet.cardinal !err_lines);
-    end else if not (get_bool "dbg.debug") then begin
-      print_endline "NB! That didn't seem like a multithreaded program.";
-      print_endline "Try `goblint --help' to do something other than Data Race Analysis."
+    end else  begin
+      print_endline "Warning: Did not detect thread creation in main method!";
+      if !GU.has_otherfuns && not !GU.earlyglobs then begin
+        print_endline "This is more serious: otherfuns were analyzed with uninitialzied globals.";
+        print_endline "You should run with \"exp.earlyglobs\" enabled if otherfuns can run immediately."
+      end
     end;
     BS.finalize ()
 

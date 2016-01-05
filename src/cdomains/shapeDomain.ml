@@ -312,7 +312,7 @@ let proper_list_segment ask gl (lp1:ListPtr.t) (sm:SHMap.t) : bool =
       app_edge (ListPtrSet.equal e) p
     in
     if Edges.is_top n
-       || app_edge' (fun x -> ListPtrSet.is_empty x) (fun () -> true) n
+    || app_edge' (fun x -> ListPtrSet.is_empty x) (fun () -> true) n
     then None else
       let lp' = app_edge' ListPtrSet.choose (fun () -> Messages.bailwith "not implemented2") n in
       if app_edge (ListPtrSet.for_all point_to_me) n

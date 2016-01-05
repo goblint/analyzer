@@ -58,6 +58,9 @@ let jsonFiles : string list ref = ref []
 (** has any threads have been spawned *)
 let multi_threaded = ref false
 
+(** has user specified other thread functions *)
+let has_otherfuns = ref false
+
 (** Tells the spec that result may still get smaller (on narrowing).
     If this is false we can output messages and collect accesses. *)
 let may_narrow = ref true
@@ -96,6 +99,9 @@ let summary_length = 80
 
 (** A hack to see if we are currently doing global inits *)
 let global_initialization = ref false
+
+(** Another hack to see if earlyglobs is enabled *)
+let earlyglobs = ref false
 
 (** true if in verifying stage *)
 let in_verifying_stage = ref false

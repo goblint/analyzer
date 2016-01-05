@@ -121,10 +121,10 @@ let validate (s:jschema) (v:jvalue) : unit =
     try
       f_sc k !v (List.assoc k o.sprops)
     with Not_found ->
-      try
-        f_sc k !v (assoc_regex k o.spatternprops)
-      with Not_found ->
-        if not o.sadditionalprops then err k "in the mapping."
+    try
+      f_sc k !v (assoc_regex k o.spatternprops)
+    with Not_found ->
+      if not o.sadditionalprops then err k "in the mapping."
   in
   f_sc "root" v s
 

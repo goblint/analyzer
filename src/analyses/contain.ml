@@ -488,7 +488,7 @@ struct
       let fs=D.get_tainted_fields ctx.global in
       let allow_from_this = is_private f.svar ctx.global in (*private funcs may return ptrs constructed from this*)
       if not allow_from_this
-         && D.has_bad_reachables ctx.ask arglist (not allow_from_this) (fn,st,gd) fs ("return statement of "^(GU.demangle f.svar.vname))
+      && D.has_bad_reachables ctx.ask arglist (not allow_from_this) (fn,st,gd) fs ("return statement of "^(GU.demangle f.svar.vname))
       then
         begin
           (*FIXME: D.may_be_a_perfectly_normal_global doesn't trigger where D.warn_bad_reachables did*)

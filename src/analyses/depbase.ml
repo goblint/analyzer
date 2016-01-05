@@ -108,7 +108,7 @@ struct
 
   let sync ctx: D.t * glob_diff =
     let cpa,fl = ctx.local in
-    let cpa, diff = if (get_bool "exp.earlyglobs") || Flag.is_multi fl then globalize ctx.ask ctx.local else (cpa,[]) in
+    let cpa, diff = if !GU.earlyglobs || Flag.is_multi fl then globalize ctx.ask ctx.local else (cpa,[]) in
     (cpa,fl), diff
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
@@ -121,7 +121,7 @@ struct
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let var = if ((get_bool "exp.earlyglobs") || Flag.is_multi fl) && is_global a x then
+        let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
             match CPA.find x st with
             | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
             | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
@@ -180,7 +180,7 @@ struct
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
-      if ((get_bool "exp.earlyglobs") || Flag.is_multi fl) && is_global a x then
+      if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
         if not effect && not (is_private a (st,fl) x) then begin
@@ -1260,7 +1260,7 @@ struct
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
-    let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in
+    let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in

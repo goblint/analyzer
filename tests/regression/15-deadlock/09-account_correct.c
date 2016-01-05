@@ -1,3 +1,4 @@
+// PARAM: --sets ana.activated[+] deadlock
 #include <pthread.h>
 #include <stdio.h>
 
@@ -23,10 +24,10 @@ void deposit(bank_account *f, bank_account *t, int ammount) {
 
   if (f->id < t->id) {
     pthread_mutex_lock(&f->mutex);
-    pthread_mutex_lock(&t->mutex);
+    pthread_mutex_lock(&t->mutex); // NODEADLOCK
   } else {
     pthread_mutex_lock(&t->mutex);
-    pthread_mutex_lock(&f->mutex);
+    pthread_mutex_lock(&f->mutex); // NODEADLOCK
   }
 
   t->balance += ammount;

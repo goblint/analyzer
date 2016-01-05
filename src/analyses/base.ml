@@ -29,21 +29,14 @@ let is_global (a: Q.ask) (v: varinfo): bool =
 
 let is_static (v:varinfo): bool = v.vstorage == Static
 
-let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) (get_list "exp.precious_globs")
+let precious_globs = ref []
+let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
+let privatization = ref false
 let is_private (a: Q.ask) (_,fl) (v: varinfo): bool =
-  ((not (BaseDomain.Flag.is_multi fl)) &&
-   is_precious_glob v)
-  ||
-  match a (Q.IsPublic v) with `Bool tv -> not tv | _ -> false
-
-let priv_cache = ref None
-let is_private q d v =
-  match !priv_cache with
-  | None when get_bool "exp.privatization" -> priv_cache := Some true; is_private q d v
-  | None -> priv_cache := Some false; false
-  | Some true -> is_private q d v
-  | Some false -> false
+  !privatization &&
+  (not (BaseDomain.Flag.is_multi fl) && is_precious_glob v ||
+   match a (Q.IsPublic v) with `Bool tv -> not tv | _ -> false)
 
 module Main =
 struct
@@ -90,7 +83,7 @@ struct
     let add_var (v: varinfo) (value) (cpa,acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-        if is_global a v && (not (is_private a (cpa,fl) v) || privates) then begin
+        if is_global a v && (privates || not (is_private a (cpa,fl) v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           (CPA.remove v cpa, (v,value) :: acc)
         end else
@@ -104,7 +97,8 @@ struct
 
   let sync' privates ctx: D.t * glob_diff =
     let cpa,fl = ctx.local in
-    let cpa, diff = if (get_bool "exp.earlyglobs") || Flag.is_multi fl then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
+    let privates = privates || (!GU.earlyglobs && not (Flag.is_multi fl)) in
+    let cpa, diff = if !GU.earlyglobs || Flag.is_multi fl then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
     (cpa,fl), diff
 
   let sync = sync' false
@@ -123,7 +117,7 @@ struct
     let res =
       let f_addr (x, offs) =
         (* get hold of the variable value, either from local or global state *)
-        let var = if ((get_bool "exp.earlyglobs") || Flag.is_multi fl) && is_global a x then
+        let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
             match CPA.find x st with
             | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
             | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
@@ -182,7 +176,7 @@ struct
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
-      if ((get_bool "exp.earlyglobs") || Flag.is_multi fl) && is_global a x then
+      if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
         if not effect && not (is_private a (st,fl) x) then begin
@@ -269,6 +263,8 @@ struct
   let heap_var loc = AD.from_var (BaseDomain.get_heap_var loc)
 
   let init () =
+    privatization := get_bool "exp.privatization";
+    precious_globs := get_list "exp.precious_globs";
     return_varstore := makeVarinfo false "RETURN" voidType;
     H.clear BaseDomain.heap_hash
 
@@ -1024,7 +1020,7 @@ struct
     in
     (* We concatMap the previous function on the list of expressions. *)
     let invalids = List.concat (List.map invalidate_exp exps) in
-    let my_favorite_things = List.map Json.string (get_list "exp.precious_globs") in
+    let my_favorite_things = List.map Json.string !precious_globs in
     let is_fav_addr x =
       List.exists (fun x -> List.mem x.vname my_favorite_things) (AD.to_var_may x)
     in
@@ -1080,7 +1076,7 @@ struct
       CPA.map replace_val st
 
   let context (cpa,fl) =
-    if get_bool "exp.earlyglobs" then CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k) cpa, fl else
+    if !GU.earlyglobs then CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k) cpa, fl else
     if get_bool "exp.addr-context" then drop_non_ptrs cpa, fl
     else if get_bool "exp.no-int-context" then drop_ints cpa, fl
     else cpa,fl
@@ -1250,22 +1246,21 @@ struct
    * Function calls
    **************************************************************************)
 
-  let make_entry ctx fn args: D.t =
+  let make_entry ctx ?nfl:(nfl=(snd ctx.local)) fn args: D.t =
     let cpa,fl as st = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv ctx.ask ctx.global st) args in
     (* generate the entry states *)
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
-    (*let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.bot () in*)
-    let new_cpa = if not ((get_bool "exp.earlyglobs") || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
+    let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
-    new_cpa, fl
+    new_cpa, nfl
 
   let enter ctx lval fn args : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
@@ -1284,8 +1279,8 @@ struct
           | Some x -> [x]
           | None -> List.map (fun x -> MyCFG.unknown_exp) fd.sformals
         in
-        let ctx = swap_st ctx (cpa, create_tid v) in
-        let nst = make_entry ctx v args in
+        let nfl = create_tid v in
+        let nst = make_entry ctx ~nfl:nfl v args in
         v, nst
       with Not_found ->
         if not (LF.use_special f.vname) then

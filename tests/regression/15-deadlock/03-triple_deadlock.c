@@ -1,3 +1,4 @@
+// SKIP PARAM: --sets ana.activated[+] deadlock
 #include <pthread.h>
 #include <stdio.h>
 
@@ -8,7 +9,7 @@ pthread_mutex_t mutex3 = PTHREAD_MUTEX_INITIALIZER;
 
 void *t1(void *arg) {
   pthread_mutex_lock(&mutex1);
-  pthread_mutex_lock(&mutex2);
+  pthread_mutex_lock(&mutex2); // DEADLOCK
   g1 = g2 + 1;
   pthread_mutex_unlock(&mutex2);
   pthread_mutex_unlock(&mutex1);
@@ -17,7 +18,7 @@ void *t1(void *arg) {
 
 void *t2(void *arg) {
   pthread_mutex_lock(&mutex2);
-  pthread_mutex_lock(&mutex3);
+  pthread_mutex_lock(&mutex3); // DEADLOCK
   g2 = g3 - 1;
   pthread_mutex_unlock(&mutex3);
   pthread_mutex_unlock(&mutex2);
@@ -26,7 +27,7 @@ void *t2(void *arg) {
 
 void *t3(void *arg) {
   pthread_mutex_lock(&mutex3);
-  pthread_mutex_lock(&mutex1);
+  pthread_mutex_lock(&mutex1); // DEADLOCK
   g3 = g1 + 1;
   pthread_mutex_unlock(&mutex1);
   pthread_mutex_unlock(&mutex3);

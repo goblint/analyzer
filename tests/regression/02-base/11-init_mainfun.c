@@ -1,4 +1,4 @@
-// SKIP PARAM: --set otherfun "['f']"
+// PARAM: --set otherfun "['f']" --enable exp.earlyglobs
 
 int glob;
 
