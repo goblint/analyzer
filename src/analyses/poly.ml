@@ -62,11 +62,16 @@ struct
 
   let special ctx r f args =
     if D.is_bot ctx.local then D.bot () else
-      D.topE (A.env ctx.local)
+      begin
+        match LibraryFunctions.classify f.vname args with
+        | `Assert expression -> D.assert_inv ctx.local expression true
+        | `Unknown "printf" -> ctx.local
+        | _ -> D.topE (A.env ctx.local)
+      end
 
   let branch ctx e b =
     if D.is_bot ctx.local then D.bot () else
-      D.assert_inv ctx.local e b
+      D.assert_inv ctx.local e (not b)
 
   let return ctx e f =
     if D.is_bot ctx.local then D.bot () else
