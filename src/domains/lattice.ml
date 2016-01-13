@@ -79,7 +79,9 @@ end
 module Reverse (Base: S) =
 struct
   include Base
-  include StdCousot (* this isn't good *)
+  (* include StdCousot (* this isn't good *) *)
+  let widen = Base.meet
+  let narrow = Base.join
   let bot = Base.top
   let is_bot = Base.is_top
   let top = Base.bot
