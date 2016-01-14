@@ -28,8 +28,7 @@ fi
 
 
 # install ocaml and friends, see http://anil.recoil.org/2013/09/30/travis-and-ocaml.html
-# Replace with something more stable once we can:
-ppa=avsm/ppa-opam-experimental
+ppa=avsm/ocaml42+opam12
 
 echo 'yes' | sudo add-apt-repository ppa:$ppa
 sudo apt-get update -qq
