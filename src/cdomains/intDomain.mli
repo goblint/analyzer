@@ -154,6 +154,8 @@ module Interval : S
 
 (*module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] *)
 (** Inclusive and exclusive intervals. Warning: NOT A LATTICE *)
+module Interval32 : S
+module Enums : S
 
 module ManyInts : S
 module IntDomList : S

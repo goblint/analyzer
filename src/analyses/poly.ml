@@ -101,6 +101,17 @@ struct
       match lv with
       | Var v, NoOffset when isArithmeticType v.vtype && (not v.vglob) -> D.assign_var ctx.local v.vname e
       | _ -> D.topE (A.env ctx.local)
+
+  let query ctx (q:Queries.t) : Queries.Result.t =
+    let open Queries in
+    let d = ctx.local in
+    match q with
+    | EvalInt e
+    | EvalIntSet e
+    | EvalInterval e
+    | ExpEq (e1, e2)
+      -> Result.top () (* TODO *)
+    | _ -> Result.top ()
 end
 
 let _ =

@@ -220,6 +220,8 @@ struct
     match result with
     | `Top -> "`Top"
     | `Int x -> "`Int"
+    | `Interval x -> "`Interval"
+    | `IntSet x -> "`IntSet"
     | `Str x -> "`Str"
     | `Bool x -> "`Bool"
     | `LvalSet x -> "`LvalSet"
