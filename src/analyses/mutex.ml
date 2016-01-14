@@ -79,6 +79,7 @@ struct
         | [ `Access x ] -> x
         | _ -> AccessDomain.Access.top () (*failwith "Dependencies broken for mutex analysis"*)
   *)
+    (**)
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)
   let rec conv_offset x =
@@ -103,17 +104,34 @@ struct
     | CastE (_,e)           -> replace_elem (v,o) q e
     | _ -> v, Offs.from_offset (conv_offset o)
 
-
-  let part_access ctx e v =
+  let part_access ctx e v w =
+    (*privatization*)
+    begin match v with
+    | Some v -> 
+      if not (Lockset.is_bot ctx.local) then
+        let ls = Lockset.filter snd ctx.local in
+        let el = P.effect_fun ls in
+        ctx.sideg v el
+    | None -> M.warn "Write to unknown address: privatization is unsound."
+    end;
+    (*partitions & locks*)
     let open Access in
     let ps = LSSSet.singleton (LSSet.empty ()) in
     let add_lock l =
       let ls = Lockset.Lock.short 80 l in
-      LSSet.add ("lock",ls)
+       LSSet.add ("lock",ls)
     in
-    let ls = D.fold add_lock ctx.local (LSSet.empty ())in
-    (ps, ls)
-
+    let locks =
+      if w then
+        (* when writing: ignore reader locks *)
+        Lockset.filter snd ctx.local
+      else
+        (* when reading: bump reader locks to exclusive as they protect reads *)
+        Lockset.map (fun (x,_) -> (x,true)) ctx.local
+    in
+    let ls = D.fold add_lock locks (LSSet.empty ())in
+      (ps, ls)
+(*
   type access = Concrete of (exp option * varinfo * Offs.t * bool)
               | Region   of (exp option * varinfo * Offs.t * bool)
               | Unknown  of (exp * bool)
@@ -158,7 +176,7 @@ struct
       (* Variables and address expressions *)
       | Lval lval ->
         if not !GU.may_narrow then
-          ignore (a (Queries.Access(mkAddrOf lval, rw))) ;
+          ignore (a (Queries.Access(mkAddrOf lval, rw, false))) ;
         let a1 = access_address a regs rw lval in
         let a2 = access_lv_byval a lval in
         a1 @  a2
@@ -224,6 +242,7 @@ struct
       | _ -> [Unknown (e,true)]
     in
     List.concat (List.map do_exp exps)
+*)
 
   let eval_exp_addr a exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
@@ -258,7 +277,7 @@ struct
         | _ -> ls
       end
     | _ -> Lockset.top ()
-
+    (*
   (* [per_elementize oa op locks] takes offset of current access [oa],
      quantified access offset [op] and lockset and returns a quantified
      lock lval *)
@@ -335,6 +354,7 @@ struct
     | Failure _ -> None
 
   (** Access counting is done using side-effect (accesses added in [add_accesses] and read in [finalize]) : *)
+*)
 
   (*  module Acc2 = Hashtbl.Make (AccessDomain.Acc)
       module AccKeySet2 = Set.Make (AccessDomain.Acc)
@@ -371,10 +391,10 @@ struct
     As you can see, [accKeys] is just premature optimization, so we dont have to iterate over [acc] to get all keys.
    *)
   let arinc_analysis_activated = ref false
-
   module Acc = Hashtbl.Make (Basetype.Variables)
   module AccKeySet = Set.Make (Basetype.Variables)
   module AccValSet = Set.Make (Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (BS.Flag) (IntDomain.Booleans)) (Printable.Prod (Lockset) (IntDomain.Lifted)) (Offs))
+  (*
   let acc     : AccValSet.t Acc.t = Acc.create 100
   let accKeys : AccKeySet.t ref   = ref AccKeySet.empty
 
@@ -409,8 +429,9 @@ struct
         ctx.sideg v el
     end
 
+*)
 
-  let struct_type_inv (v:varinfo) (o:Offs.t) : (varinfo * Offs.t) option =
+(*  let struct_type_inv (v:varinfo) (o:Offs.t) : (varinfo * Offs.t) option =
     let rec append os = function
       | `NoOffset    -> os
       | `Field (f,o) -> `Field (f,append o os)
@@ -443,9 +464,9 @@ struct
           Some (a, Offs.from_offset b)
         with Not_found -> None end
     | _ -> None
-
+*)
   (* Try to add symbolic locks --- returns [false] on failure.*)
-  let rec add_per_element_access ctx loc ust (e,rw:exp * bool) =
+  (*let rec add_per_element_access ctx loc ust (e,rw:exp * bool) =
     let query_lv exp ci =
       match ctx.ask (Queries.MayPointTo exp), ci with
       | `LvalSet l, _ when not (Queries.LS.is_top l || Queries.LS.mem (dummyFunDec.svar, `NoOffset) l) ->
@@ -575,7 +596,13 @@ struct
           then add_type_access ctx fl loc ust a
       in
       List.iter dispatch accessed
+*)
 
+  let access_one_top ctx write reach exp = 
+    (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
+    let fl = get_flag ctx.presub in
+    if BS.Flag.is_multi fl then
+      ignore(ctx.ask (Queries.Access(exp,write,reach)))
 
   (** We just lift start state, global and dependecy functions: *)
 
@@ -606,31 +633,25 @@ struct
 
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
-    if !GU.global_initialization then ctx.local else
-      let b1 = access_one_top ctx.ask true (Lval lval) in
-      let b2 = access_one_top ctx.ask false rval in
-      add_accesses ctx (b1@b2) ctx.local;
+    if !GU.global_initialization then ctx.local else begin
+      access_one_top ctx true  false (Lval lval);
+      access_one_top ctx false false rval;
       ctx.local
+    end
 
   let branch ctx exp tv : D.t =
-    let accessed = access_one_top ctx.ask false exp in
-    add_accesses ctx accessed ctx.local;
+    access_one_top ctx false false exp;
     ctx.local
 
   let return ctx exp fundec : D.t =
     begin match exp with
       | Some exp ->
-        let accessed = access_one_top ctx.ask false exp in
-        add_accesses ctx accessed ctx.local;
+        access_one_top ctx false false exp;
         ctx.local
       | None -> ctx.local
     end
 
   let body ctx f : D.t = ctx.local
-
-  let eval_funvar ctx exp =
-    let read = access_one_top ctx.ask false exp in
-    add_accesses ctx read ctx.local
 
   let special ctx lv f arglist : D.t =
     let remove_rw x st = Lockset.remove (x,true) (Lockset.remove (x,false) st) in
@@ -687,28 +708,27 @@ struct
         | Some fnc -> (fnc act arglist)
         | _ -> arglist
       in
-      let r1 = access_byval ctx.ask false (arg_acc `Read) in
-      let a1 = access_reachable ctx.ask   (arg_acc `Write) in
-      add_accesses ctx (r1@a1) ctx.local;
+      List.iter (access_one_top ctx false false) (arg_acc `Read);
+      List.iter (access_one_top ctx true  true ) (arg_acc `Write);
       ctx.local
 
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
   let combine ctx lv fexp f args al =
-    eval_funvar ctx fexp;
-    let wr = match lv with
-      | None      -> []
-      | Some lval -> access_one_top ctx.ask true (Lval lval) in
-    let read = access_byval ctx.ask false args in
-    add_accesses ctx (wr@read) ctx.local;
+    access_one_top ctx false false fexp;
+    begin match lv with
+      | None      -> ()
+      | Some lval -> access_one_top ctx true false (Lval lval)
+    end;
+    List.iter (access_one_top ctx false false) args;
     al
 
 
   (** Finalization and other result printing functions: *)
 
-  (** are we still race free *)
-  let race_free = ref true
+  (* (** are we still race free *)
+  let race_free = ref true *)
 
   (** modules used for grouping [varinfo]s by [Offset] *)
   module OffsMap = Map.Make (Offs)
@@ -727,7 +747,7 @@ struct
     List.iter (fun (_,l) -> err_lines := LineSet.add l !err_lines) xs;
     xs
 
-  (** [postprocess_acc gl] groups and report races in [gl] *)
+  (* (** [postprocess_acc gl] groups and report races in [gl] *)
   let postprocess_acc (gl : varinfo) =
     if not (!vips = []  || List.mem gl.vname !vips) then () else
       (* create mapping from offset to access list; set of offsets  *)
@@ -909,7 +929,7 @@ struct
       let acc_info = create_map acc in
       let acc_map = if !unmerged_fields then fst acc_info else regroup_map acc_info in
       OffsMap.iter report_race acc_map
-
+ *)
   (*let postprocess_acc2 () =
     let module PartSet =
      struct
@@ -960,7 +980,7 @@ struct
   *)
   (** postprocess and print races and other output *)
   let finalize () =
-    AccKeySet.iter postprocess_acc !accKeys;
+    (* AccKeySet.iter postprocess_acc !accKeys;
     if !GU.multi_threaded then begin
       if !race_free then
         print_endline "Goblint did not find any Data Races in this program!"
@@ -972,7 +992,7 @@ struct
         print_endline "This is more serious: otherfuns were analyzed with uninitialzied globals.";
         print_endline "You should run with \"exp.earlyglobs\" enabled if otherfuns can run immediately."
       end
-    end;
+    end; *)
     BS.finalize ()
 
   let init () =

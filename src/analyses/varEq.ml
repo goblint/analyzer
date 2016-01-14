@@ -199,6 +199,7 @@ struct
          Here we implement it in part --- minimum to protect local integers. *)
       (*       Messages.report ("a: "^sprint 80 (d_plainexp () a)); *)
       (*       Messages.report ("b: "^sprint 80 (d_plainexp () b)); *)
+      (* ignore (printf "may_change %a %a\n*%a\n*%a\n\n" d_exp a d_exp b d_plainexp a d_plainexp b); *)
       match a, b with
       | Lval (Var _,NoOffset), AddrOf (Mem(Lval _),Field(_, _)) ->
         (* lval *.field changes -> local var stays the same *)

@@ -1,4 +1,4 @@
-//PARAM: --set exp.type-inv true
+//PARAM: --disable exp.unsoundbasic
 #include <pthread.h>
 #include <stdio.h>
 

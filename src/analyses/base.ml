@@ -517,6 +517,7 @@ struct
       match exp_rv with
       | `Int i -> `Index (iDtoIdx i, convert_offset a gs st ofs)
       | `Top   -> `Index (IdxDom.top (), convert_offset a gs st ofs)
+      | `Bot -> `Index (IdxDom.bot (), convert_offset a gs st ofs)
       | _ -> M.bailwith "Index not an integer value"
   (* Evaluation of lvalues to our abstract address domain. *)
   and eval_lv (a: Q.ask) (gs:glob_fun) st (lval:lval): AD.t =
@@ -1595,15 +1596,21 @@ struct
     in
     combine_one ctx.local after
 
-  let part_access ctx e v =
+  let is_unique ctx fl = 
+    not (BaseDomain.Flag.is_bad fl) || 
+      match ctx.ask Queries.IsNotUnique with
+      | `Bool false -> true
+      | _ -> false
+
+  let part_access ctx e v w =
     let es = Access.LSSet.empty () in
     let _, fl = ctx.local in
     if BaseDomain.Flag.is_multi fl then begin
-      if BaseDomain.Flag.is_bad fl then
-        (Access.LSSSet.singleton es, es)
-      else 
+      if is_unique ctx fl then
         let tid = BaseDomain.Flag.short 20 fl in
         (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
+      else 
+        (Access.LSSSet.singleton es, es)
     end else 
       Access.LSSSet.empty (), es
 end

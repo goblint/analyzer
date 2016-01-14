@@ -65,16 +65,23 @@ struct
     else
       Some (regions e regpart ctx.local)
 
-  let part_access ctx e v =
+  let part_access ctx e _ _ = (*todo: remove regions that cannot be reached from the var*)
     let open Access in
     let e' = match e with
       | AddrOf lv -> Lval lv
       | _ -> e
     in
+    let rec pretty_offs () = function
+      | `NoOffset     -> dprintf ""
+      | `Field (f,os) -> dprintf ".%s%a" f.fname pretty_offs os
+      | `Index (_,os) -> dprintf "[?]%a" pretty_offs os
+    in
+    let show (v,os) =
+      v.vname ^ sprint 80 (pretty_offs () os)
+    in
     let es = LSSet.empty () in
     let add_region xs r =
-      let rs = Lval.CilLval.short 80 r in
-      LSSet.add("region", rs) xs
+      LSSet.add("region", show r) xs
     in
     match get_region ctx e' with
     | None -> (LSSSet.empty (),es) 

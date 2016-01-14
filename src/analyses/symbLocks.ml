@@ -62,13 +62,9 @@ struct
 
   let same_unknown_index ask exp slocks =
     let uk_index_equal i1 i2 =
-      match constFold true i1, constFold true i2 with
-      | (Const _), _
-      | _,(Const _) -> false
-      | _ ->
-        match ask (Queries.ExpEq (i1, i2)) with
-        | `Bool true -> true
-        | _ -> false
+      match ask (Queries.ExpEq (i1, i2)) with
+      | `Bot | `Bool true -> true
+      | _ -> false
     in
     let lock_index ei ee x xs =
       match Exp.one_unknown_array_index x with
@@ -77,7 +73,7 @@ struct
       | _ -> xs
     in
     match Exp.one_unknown_array_index exp with
-    | Some (false, i, e) -> D.fold (lock_index i e) slocks (Queries.PS.empty ())
+    | Some (_, i, e) -> D.fold (lock_index i e) slocks (Queries.PS.empty ())
     | _ -> Queries.PS.empty ()
 
   let special ctx lval f arglist =
@@ -163,30 +159,84 @@ struct
       LockDomain.Lockset.is_empty (LockDomain.Lockset.ReverseAddrSet.inter ls1 ls2)
 
     | _ -> true
-  (* Per-element returns a triple of exps, first are the "element" pointers,
-     in the second and third positions are the respectively access and mutex.
-     Access and mutex expressions have exactly the given "elements" as "prefixes".
 
-     To know if a access-mutex pair matches our per-element pattern we listify
-     the offset (adding dereferencing to our special offset type). Then we take
-     the longest common prefix till a dereference and check if the rest is "concrete".
-
-     ----
-     Array lockstep also returns a triple of exps. Second and third elements in
-     triples are access and mutex exps. Common index is replaced with *.
-     First element is unused.
-
-     To find if this pattern matches, we try to separate the base variable and
-     the index from both -- access exp and mutex exp. We check if indexes match
-     and the rest is concrete. Then replace the common index with *.
-  *)
   let query ctx (q:Queries.t) =
     match q with
-    | Queries.PerElementLock e ->
-      `ExpTriples (get_all_locks ctx.ask e ctx.local)
-    | Queries.ArrayLockstep e ->
-      `ExpTriples (same_unknown_index ctx.ask e ctx.local)
     | _ -> Queries.Result.top ()
+
+  let rec add_per_element_access ctx e rw =
+    let module LSSet = Access.LSSet in
+    (* Per-element returns a triple of exps, first are the "element" pointers,
+       in the second and third positions are the respectively access and mutex.
+       Access and mutex expressions have exactly the given "elements" as "prefixes".
+
+       To know if a access-mutex pair matches our per-element pattern we listify
+       the offset (adding dereferencing to our special offset type). Then we take
+       the longest common prefix till a dereference and check if the rest is "concrete".
+    *)
+    let one_perelem (e,a,l) xs =
+      (* ignore (printf "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l); *)
+      match Exp.fold_offs (Exp.replace_base (dummyFunDec.svar,`NoOffset) e l) with
+      | Some (v, o) -> 
+        let l = sprint 80 (d_offset (text "*") () o) in
+        (* ignore (printf "adding lock %s\n" l); *)
+        LSSet.add ("p-lock",l) xs
+      | None -> xs
+    in
+    (* Array lockstep also returns a triple of exps. Second and third elements in
+    triples are access and mutex exps. Common index is replaced with *.
+    First element is unused.
+
+    To find if this pattern matches, we try to separate the base variable and
+    the index from both -- access exp and mutex exp. We check if indexes match
+    and the rest is concrete. Then replace the common index with *. *)
+    let one_lockstep (_,a,m) xs =
+      match m with
+      | AddrOf (Var v,o) ->
+        let lock = ValueDomain.Addr.from_var_offset (v, conv_const_offset o) in
+        LSSet.add ("i-lock",ValueDomain.Addr.short 80 lock) xs
+      | _ ->
+        Messages.warn "Internal error: found a strange lockstep pattern.";
+        xs
+    in
+    let do_perel e xs =
+      match get_all_locks ctx.ask e ctx.local with
+      | a
+        when not (Queries.PS.is_top a || Queries.PS.is_empty a)
+        -> Queries.PS.fold one_perelem a xs
+      | _ -> xs
+    in
+    let do_lockstep e xs =
+      match same_unknown_index ctx.ask e ctx.local with
+      | a
+        when not (Queries.PS.is_top a || Queries.PS.is_empty a)
+        -> Queries.PS.fold one_lockstep a xs
+      | _ -> xs
+    in
+    let matching_exps =
+      Queries.ES.meet
+        (match ctx.ask (Queries.EqualSet e) with
+         | `ExprSet es when not (Queries.ES.is_top es || Queries.ES.is_empty es)
+           -> Queries.ES.add e es
+         | _ -> Queries.ES.singleton e)
+        (match ctx.ask (Queries.Regions e) with
+         | `LvalSet ls when not (Queries.LS.is_top ls || Queries.LS.is_empty ls)
+           -> let add_exp x xs =
+                try Queries.ES.add (Lval.CilLval.to_exp x) xs
+                with Lattice.BotValue -> xs
+           in begin
+             try Queries.LS.fold add_exp ls (Queries.ES.singleton e)
+             with Lattice.TopValue -> Queries.ES.top () end
+         | _ -> Queries.ES.singleton e)
+    in
+    Queries.ES.fold do_lockstep matching_exps 
+      (Queries.ES.fold do_perel matching_exps (LSSet.empty ()))
+
+  let part_access ctx e v _ =
+    let open Access in
+    let ls = add_per_element_access ctx e false in
+    (* ignore (printf "bla %a %a = %a\n" d_exp e D.pretty ctx.local LSSet.pretty ls); *)
+    (LSSSet.singleton (LSSet.empty ()), ls)
 end
 
 let _ =

@@ -448,15 +448,15 @@ struct
     | Queries.PrintFullState ->
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
       `Bot
-    | Queries.Access(e,b) -> 
-      do_access ctx e b;
+    | Queries.Access(e,b,reach) -> 
+      Access.distribute_access_exp (do_access ctx) b reach e;
       `Bot
     | _ ->
       let x = fold_left f `Top @@ spec_list ctx.local in
       do_sideg ctx !sides;
       x
 
-  and part_access ctx (e:exp) (vo:varinfo option) = 
+  and part_access ctx (e:exp) (vo:varinfo option) (w: bool) = 
     let open Access in
     let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
     let sides  = ref [] in
@@ -473,7 +473,7 @@ struct
         ; assign = (fun ?name v e -> failwith "part_access::assign")
         }
       in
-      let (pd, ld) = S.part_access ctx' e vo in
+      let (pd, ld) = S.part_access ctx' e vo w in
       let ln = LSSet.union lo ld in
       let mult_po s = LSSSet.union (LSSSet.map (LSSet.union s) po) in
       let pn = LSSSet.fold mult_po pd (LSSSet.empty ())  in
@@ -484,13 +484,25 @@ struct
     in
     List.fold_left f start (spec_list ctx.local)
 
-  and do_access (ctx: (D.t, G.t) ctx) (e:exp) (w:bool) = 
+  and do_access (ctx: (D.t, G.t) ctx) (w:bool) (reach:bool) (e:exp) = 
     let open Queries in
+    let open Access in
     let add_access vo oo = 
-      let bla = part_access ctx e vo in
-      Access.add e w vo oo bla
+      let (po,pd) = part_access ctx e vo w in
+      Access.add e w vo oo (po,pd)
     in
-    match ctx.ask (MayPointTo (mkAddrOf (Mem e,NoOffset))) with
+    let has_escaped g = 
+      match ctx.ask (Queries.MayEscape g) with
+        | `Bool false -> false
+        | _ -> true
+    in
+    let reach_or_mpt = 
+      if reach then
+        ReachableFrom (mkAddrOf (Mem e,NoOffset))
+      else
+        MayPointTo (mkAddrOf (Mem e,NoOffset))
+    in
+    match ctx.ask reach_or_mpt with
     | `Bot -> ()
     | `LvalSet ls when not (LS.is_top ls) ->
       let f (var, offs) = 
@@ -500,7 +512,8 @@ struct
         else
           add_access (Some var) (Some coffs) 
       in
-      let ls = LS.filter (fun (g,_) -> g.vglob) ls in
+      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
+      (* printf "accessable set of %a = %a\n" d_exp e LS.pretty ls; *)
       LS.iter f ls
     | _ -> 
       add_access None None

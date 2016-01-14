@@ -38,7 +38,7 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ((ctxs,ctxr): D.t) = ctx.local in
     let p = (pry_d (get_lockset ctx)) in
-    let access_one_top = Mutex.Spec.access_one_top in
+    let access_one_top = Osek.Spec.access_one_top in
     let b1 = access_one_top ctx.ask true (Lval lval) in
     let b2 = access_one_top ctx.ask false rval in
     let stack = get_stack ctx in
@@ -54,7 +54,7 @@ struct
       else
         (* let _ = if (StackDomain.Dom2.is_top stack) then print_endline("Top stack") in *)
         begin match x with
-            Mutex.Spec.Concrete (_, vinfo, _, _) -> if vinfo.vglob then
+            Osek.Spec.Concrete (_, vinfo, _, _) -> if vinfo.vglob then
               (* let _ = print_endline ( "checking " ^ vinfo.vname) in *)
               let _ = StackDomain.Dom2.map (addvars vinfo.vname) stack in () else ()
           | _ ->

@@ -167,6 +167,7 @@ let _ = ()
       ; reg Experimental "questions.file"        ""      "Questions database file"
       ; reg Experimental "exp.extraspecials"     "[]"    "List of functions that must be analyzed as unknown extern functions"
       ; reg Experimental "exp.backwards"         "false" "Backwards analysis"
+      ; reg Experimental "exp.unsoundbasic"      "true"  "Do not propagate basic type writes to all struct fields"
 
 (* {4 category [Debugging]} *)
 let _ = ()

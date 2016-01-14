@@ -9,6 +9,9 @@ open OilParser
 open OilLexer
 open OilUtil
 
+module LockingPattern = Exp.LockingPattern
+
+
 module CF = Cilfacade
 module GU = Goblintutil
 
@@ -405,6 +408,44 @@ struct
     (* print_endline "Per element access not supported.";  *)
     false
 
+    (* Type invariant variables. *)
+    let type_inv_tbl = Hashtbl.create 13
+    let type_inv (c:compinfo) : Lval.CilLval.t list =
+      try [Hashtbl.find type_inv_tbl c.ckey,`NoOffset]
+      with Not_found ->
+        let i = makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[])) in
+        Hashtbl.add type_inv_tbl c.ckey i;
+        [i, `NoOffset]
+
+    (* Try to find a suitable type invarinat --- and by that we mean a struct. *)
+    let best_type_inv exs : (varinfo * Offs.t) option =
+      let add_el es e : LockingPattern.ee list list =
+        try LockingPattern.toEl e :: es
+        with LockingPattern.NotSimpleEnough -> es
+      in
+      let full_els = List.fold_left add_el [] exs in
+      let el_os = List.map LockingPattern.strip_fields full_els in
+      (*     let dummy = integer 42 in *)
+      let add_struct xs (e,fs) =
+        match fs with
+        | LockingPattern.EField f :: _ -> (e,f.fcomp,fs) :: xs
+        | _ -> xs
+        (*      match unrollType (typeOf (LockingPattern.fromEl e dummy)) with
+                | TComp (c,_) -> (e,c,fs) :: xs
+                | _ -> xs*)
+      in
+      try
+        let es, c, fs = List.hd (List.fold_left add_struct [] el_os) in
+        let e_inv = type_inv c in
+        Some (fst (List.hd e_inv), Offs.from_offset (LockingPattern.ees_to_offs fs))
+      with
+      | LockingPattern.NotSimpleEnough -> None
+      | Failure _ -> None
+  
+  let unknown_access () =
+    (*M.report "unknown access 'with lockset:'";*)
+    Messages.warn_all "Access to unknown address could be global"
+
   (* All else must have failed --- making a last ditch effort to generate type
       invariant if that fails then give up and become unsound. *)
   let add_type_access ctx fl loc ust flagstate (e,rw:exp * bool) =
@@ -415,18 +456,57 @@ struct
         -> Queries.ES.elements es
       | _ -> [e]
     in
-    match M.best_type_inv eqset with
+    match best_type_inv eqset with
     | Some (v,o) -> add_concrete_access ctx fl loc ust flagstate (v,o,rw)
-    | _ -> M.unknown_access ()
+    | _ -> unknown_access ()
 
-  let add_accesses ctx (accessed: M.accesses) (flagstate: Flags.t) (ust:D.t) =
+  type access = Concrete of (exp option * varinfo * Offs.t * bool)
+              | Region   of (exp option * varinfo * Offs.t * bool)
+              | Unknown  of (exp * bool)
+  type accesses = access list
+
+  let struct_type_inv (v:varinfo) (o:Offs.t) : (varinfo * Offs.t) option =
+    let rec append os = function
+      | `NoOffset    -> os
+      | `Field (f,o) -> `Field (f,append o os)
+      | `Index (i,o) -> `Index (i,append o os)
+    in
+    let replace_struct t (v,o) =
+      begin match t with
+        | TComp (c,_) when c.cstruct ->
+          begin match type_inv c with
+            | [(v,_)] -> (v,`NoOffset)
+            | _   -> (v,o)
+          end
+        | _ -> (v,o)
+      end
+    in
+    let rec get_lv t (v,u) = function
+      | `NoOffset    -> (v,u)
+      | `Field (f,o) -> get_lv f.ftype (replace_struct f.ftype (v, append (`Field (f,`NoOffset)) u)) o
+      | `Index (i,o) ->
+        begin match unrollType t with
+          | TPtr (t,_)     -> get_lv t (replace_struct t (v, append (`Index (i,`NoOffset)) u)) o
+          | TArray (t,_,_) -> get_lv t (replace_struct t (v, append (`Index (i,`NoOffset)) u)) o
+          | _ -> raise Not_found
+        end
+    in
+    match Offs.to_offset o with
+    | [o] ->
+      begin try
+          let a,b = (get_lv (v.vtype) (replace_struct v.vtype (v,`NoOffset)) o) in
+          Some (a, Offs.from_offset b)
+        with Not_found -> None end
+    | _ -> None
+
+  let add_accesses ctx (accessed: accesses) (flagstate: Flags.t) (ust:D.t) =
     let fl = Mutex.get_flag ctx.presub in
     if Base.Main.Flag.is_multi fl then
       let loc = !Tracing.current_loc in
       let dispatch ax =
         match ax with
-        | M.Concrete (me,v,o,rw) ->
-          begin match me, M.struct_type_inv v o with
+        | Concrete (me,v,o,rw) ->
+          begin match me, struct_type_inv v o with
             | _, Some (v,o) when (get_bool "exp.type-inv") ->
               add_concrete_access ctx fl loc ust flagstate (v,o,rw)
             | Some e,_ ->
@@ -435,12 +515,12 @@ struct
             | None,_ ->
               add_concrete_access ctx fl loc ust flagstate (v,o,rw)
           end
-        | M.Region (Some e,v,o,rw) ->
+        | Region (Some e,v,o,rw) ->
           if   not (add_per_element_access ctx loc ust (e,rw))
           then add_concrete_access ctx fl loc ust flagstate (v,o,rw)
-        | M.Region (None,v,o,rw) ->
+        | Region (None,v,o,rw) ->
           add_concrete_access ctx fl loc ust flagstate (v,o,rw)
-        | M.Unknown a ->
+        | Unknown a ->
           if   not (add_per_element_access ctx loc ust a)
           then add_type_access ctx fl loc ust flagstate a
       in
@@ -469,7 +549,125 @@ struct
       end
     | _ -> Queries.Result.top ()
 
+    let rec conv_offset x =
+      match x with
+      | `NoOffset    -> `NoOffset
+      | `Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_offset o)
+      | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
+      | `Field (f,o) -> `Field (f, conv_offset o)
 
+    let rec conv_const_offset x =
+      match x with
+      | NoOffset    -> `NoOffset
+      | Index (Const (CInt64 (i,_,_)),o) -> `Index (ValueDomain.IndexDomain.of_int i, conv_const_offset o)
+      | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
+      | Field (f,o) -> `Field (f, conv_const_offset o)
+
+    let rec replace_elem (v,o) q ex =
+      match ex with
+      | AddrOf  (Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
+      | StartOf (Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
+      | Lval    (Mem e,_) when e == q ->v, Offs.from_offset (conv_offset o)
+      | CastE (_,e)           -> replace_elem (v,o) q e
+      | _ -> v, Offs.from_offset (conv_offset o)
+
+
+    let access_address ask regs write lv : accesses =
+      if Mutex.is_ignorable lv then [] else
+        let add_reg (v,o) =
+          (*       Messages.report ("Region: "^(sprint 80 (d_lval () lv))^" = "^v.vname^(Offs.short 80 (Offs.from_offset (conv_offset o)))); *)
+          Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
+        in
+        match ask (Queries.MayPointTo (mkAddrOf lv)) with
+        | `LvalSet a when not (Queries.LS.is_top a) ->
+          let to_accs (v,o) xs =
+            Concrete (Some (Lval lv), v, Offs.from_offset (conv_offset o), write) :: xs
+          in
+          if List.length regs = 0 then begin
+            if Queries.LS.mem (dummyFunDec.svar,`NoOffset) a
+            then [Unknown (Lval lv,write)]
+                 @ Queries.LS.fold to_accs (Queries.LS.remove (dummyFunDec.svar,`NoOffset) a) []
+            else Queries.LS.fold to_accs a []
+          end else List.map add_reg regs
+        | _ ->
+          if List.length regs = 0
+          then [Unknown (Lval lv,write)]
+          else List.map add_reg regs
+
+    let rec access_one_byval a rw (exp:exp): accesses  =
+      let accs regs =
+        match exp with
+        (* Integer literals *)
+        | Const _ -> []
+        (* Variables and address expressions *)
+        | Lval lval ->
+          if not !GU.may_narrow then
+            ignore (a (Queries.Access(mkAddrOf lval, rw, false))) ;
+          let a1 = access_address a regs rw lval in
+          let a2 = access_lv_byval a lval in
+          a1 @  a2
+        (* Binary operators *)
+        | BinOp (op,arg1,arg2,typ) ->
+          let a1 = access_one_byval a rw arg1 in
+          let a2 = access_one_byval a rw arg2 in
+          a1 @ a2
+        (* Unary operators *)
+        | UnOp (op,arg1,typ) -> access_one_byval a rw arg1
+        (* The address operators, we just check the accesses under them *)
+        | AddrOf lval -> access_lv_byval a lval
+        | StartOf lval -> access_lv_byval a lval
+        (* Most casts are currently just ignored, that's probably not a good idea! *)
+        | CastE  (t, exp) -> access_one_byval a rw exp
+        | _ -> []
+      in
+      (*    let is_unknown x = match x with Unknown _ -> true | _ -> false in*)
+      match a (Queries.Regions exp) with
+      | `Bot ->
+        (*          Messages.report ((sprint 80 (d_exp () exp))^" is thread local"); *)
+        [] (*List.filter is_unknown (accs [])*)
+      | `LvalSet regs ->
+        (*           Messages.report ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs); *)
+        accs (Queries.LS.elements regs)
+      | _ -> accs []
+    (* Accesses during the evaluation of an lval, not the lval itself! *)
+    and access_lv_byval a (lval:lval): accesses =
+      let rec access_offset (ofs: offset): accesses =
+        match ofs with
+        | NoOffset -> []
+        | Field (fld, ofs) -> access_offset ofs
+        | Index (exp, ofs) ->
+          let a1 = access_one_byval a false exp in
+          let a2 = access_offset ofs in
+          a1 @ a2
+      in
+      match lval with
+      | Var x, ofs -> access_offset ofs
+      | Mem n, ofs ->
+        let a1 = access_one_byval a false n in
+        let a2 = access_offset ofs in
+        a1 @ a2
+
+    let access_one_top = access_one_byval
+
+    let access_byval a (rw: bool) (exps: exp list): accesses =
+      List.concat (List.map (access_one_top a rw) exps)
+
+    let access_reachable ask (exps: exp list) =
+      (* Find the addresses reachable from some expression, and assume that these
+       * can all be written to. *)
+      let do_exp e =
+        match ask (Queries.ReachableFrom e) with
+        | `LvalSet a when not (Queries.LS.is_top a)
+                       && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+          let to_extra (v,o) xs =
+            if Mutex.is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
+              Concrete (None, v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
+          Queries.LS.fold to_extra a []
+        | `Bot -> []
+        (* Ignore soundness warnings, as invalidation proper will raise them. *)
+        | _ -> [Unknown (e,true)]
+      in
+      List.concat (List.map do_exp exps)
 
   let startstate v = D.top ()
   let otherstate v = D.top ()
@@ -488,13 +686,13 @@ struct
     if !GU.global_initialization then
       ctx.local
     else
-      let b1 = M.access_one_byval ctx.ask true (Lval lval) in
-      let b2 = M.access_one_byval ctx.ask false rval in
+      let b1 = access_one_byval ctx.ask true (Lval lval) in
+      let b2 = access_one_byval ctx.ask false rval in
       add_accesses ctx (b1@b2) (get_flags ctx.presub) ctx.local;
       ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
-    let accessed = M.access_one_top ctx.ask false exp in
+    let accessed = access_one_top ctx.ask false exp in
     add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
     ctx.local
 
@@ -511,7 +709,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let m_st = match exp with
       | Some exp -> begin
-          let accessed = M.access_one_top ctx.ask false exp in
+          let accessed = access_one_top ctx.ask false exp in
           add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
           ctx.local
         end
@@ -531,9 +729,10 @@ struct
     end else
       m_st
 
-  let eval_funvar ctx (fv:exp) =
-    M.eval_funvar ctx (fv:exp)
-
+  let eval_funvar ctx exp =
+      let read = access_one_top ctx.ask false exp in
+      add_accesses ctx read ctx.local
+          
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
     (M.enter ctx (lval: lval option) (f:varinfo) (args:exp list))
 

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] "'var_eq'" 
+// PARAM: --disable exp.unsoundbasic --set ana.activated[+] "'var_eq'" 
 #include <stdio.h>
 
 extern short * anShortPlease();

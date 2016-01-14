@@ -138,6 +138,16 @@ struct
       Some (v, o)
     | _ -> None
 
+  let eq_const c1 c2 =
+    match c1, c2 with
+    | CInt64 (i1,_,_), CInt64 (i2,_,_) -> i1=i2
+    |	CStr s1        , CStr s2         -> s1=s2
+    |	CWStr s1       , CWStr s2        -> s1=s2
+    |	CChr c1        , CChr c2         -> c1=c2
+    |	CReal (f1,_,_) , CReal (f2,_,_)  -> f1=f2
+    |	CEnum (_,n1,_) , CEnum (_,n2,_)  -> n1=n2
+    | _ -> false
+
   let rec off_eq x y =
     match x, y with
     | NoOffset, NoOffset -> true
@@ -146,6 +156,7 @@ struct
     | _ -> false
   and simple_eq x y =
     match x, y with
+    | Const c1, Const c2 -> eq_const c1 c2
     | Lval (Var v1,o1)   , Lval (Var v2,o2)
     | AddrOf (Var v1,o1) , AddrOf (Var v2,o2)
     | StartOf (Var v1,o1), StartOf (Var v2,o2)
@@ -365,6 +376,7 @@ struct
 
   let from_exps a l : t option =
     let a, l = toEl a, toEl l in
+    (* ignore (printf "from_exps:\n %s\n %s\n" (ees_to_str a) (ees_to_str l)); *)
     (*let rec fold_left2 f a xs ys =
       match xs, ys with
         | x::xs, y::ys -> fold_left2 f (f a x y) xs ys
@@ -393,6 +405,7 @@ struct
       | `Todo ([],_,_) -> None
       | `Todo (zs,xs,ys)
       | `Done (zs,xs,ys) when is_concrete xs && is_concrete ys ->
+        (* ignore (printf " found: %s\n\n" (ees_to_str zs)); *)
         let elem = fromEl (List.rev (EAddr::zs)) dummy in
         Some (elem, fromEl a dummy, fromEl l dummy)
       | _ -> None
