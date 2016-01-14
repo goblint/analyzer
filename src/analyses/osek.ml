@@ -201,10 +201,12 @@ struct
   module Lockset = LockDomain.Lockset
 
   module Flags = FlagModes.Spec.D
+  module Acc = Hashtbl.Make (Basetype.Variables)
+  module AccKeySet = Set.Make (Basetype.Variables)
   module AccLoc = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (Base.Main.Flag) (IntDomain.Booleans)) (Lockset) (Offs)
   module AccValSet = Set.Make (Printable.Prod (AccLoc) (Flags))
-  let acc     : AccValSet.t M.Acc.t = M.Acc.create 100
-  let accKeys : M.AccKeySet.t ref   = ref M.AccKeySet.empty
+  let acc     : AccValSet.t Acc.t = Acc.create 100
+  let accKeys : AccKeySet.t ref   = ref AccKeySet.empty
 
   module D = M.D
   module C = M.C
@@ -386,10 +388,10 @@ struct
       if not (is_task v.vname) || flagstate = Flags.top() then begin
         if not !GU.may_narrow then begin
           let new_acc = ((loc,fl,rv),ust,o) in
-          let curr : AccValSet.t = try M.Acc.find acc v with _ -> AccValSet.empty in
+          let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
           let neww : AccValSet.t = AccValSet.add (new_acc,flagstate) (remove_acc new_acc curr) in
-          M.Acc.replace acc v neww;
-          accKeys := M.AccKeySet.add v !accKeys;
+          Acc.replace acc v neww;
+          accKeys := AccKeySet.add v !accKeys;
           let curr = try Hashtbl.find off_pry_with_flag v.vname with _ -> [] in
           let pry = offpry [new_acc] in
           Hashtbl.replace off_pry_with_flag v.vname ((flagstate,pry)::curr)
@@ -857,16 +859,21 @@ struct
     | GoodFlag
     | SomeFlag of int
 
+  (** modules used for grouping [varinfo]s by [Offset] *)
+  module OffsMap = Map.Make (Offs)
+  (** modules used for grouping [varinfo]s by [Offset] *)
+  module OffsSet = Set.Make (Offs)
+
   let get_acc_map gl =
     let create_map (accesses_map) =
       let f ((((_, _, rw), _, offs),_) as accs) (map,set) =
-        if M.OffsMap.mem offs map
-        then (M.OffsMap.add offs ([accs] @ (M.OffsMap.find offs map)) map,
-              M.OffsSet.add offs set)
-        else (M.OffsMap.add offs [accs] map,
-              M.OffsSet.add offs set)
+        if OffsMap.mem offs map
+        then (OffsMap.add offs ([accs] @ (OffsMap.find offs map)) map,
+              OffsSet.add offs set)
+        else (OffsMap.add offs [accs] map,
+              OffsSet.add offs set)
       in
-      AccValSet.fold f accesses_map (M.OffsMap.empty, M.OffsSet.empty)
+      AccValSet.fold f accesses_map (OffsMap.empty, OffsSet.empty)
     in
     (* join map elements, that we cannot be sure are logically separate *)
     let regroup_map (map,set) =
@@ -875,15 +882,15 @@ struct
         let new_gr_offs = ValueDomain.Offs.join new_offs group_offs in
         (* we assume f is called in the right order: we get the greatest offset first (leq'wise) *)
         if (ValueDomain.Offs.leq new_offs group_offs || (ValueDomain.Offs.is_bot group_offs))
-        then (new_gr_offs, M.OffsMap.find offs map @ access_list, new_map)
-        else (   new_offs, M.OffsMap.find offs map, M.OffsMap.add group_offs access_list new_map)
+        then (new_gr_offs, OffsMap.find offs map @ access_list, new_map)
+        else (   new_offs, OffsMap.find offs map, OffsMap.add group_offs access_list new_map)
       in
-      let (last_offs,last_set, map) = M.OffsSet.fold f set (ValueDomain.Offs.bot (), [], M.OffsMap.empty) in
+      let (last_offs,last_set, map) = OffsSet.fold f set (ValueDomain.Offs.bot (), [], OffsMap.empty) in
       if ValueDomain.Offs.is_bot last_offs
       then map
-      else M.OffsMap.add last_offs last_set map
+      else OffsMap.add last_offs last_set map
     in
-    let acc = M.Acc.find acc gl in
+    let acc = Acc.find acc gl in
     let acc_info = create_map acc in
     let acc_map = if !Mutex.unmerged_fields then proj2_1 acc_info else regroup_map acc_info in
     acc_map
@@ -1014,7 +1021,7 @@ struct
             (*           let _ = add_flag flag res in *)
             status_list := res::!status_list
           in (*/check_one_list*)
-          let _ = M.OffsMap.iter check_one_list  (get_acc_map flag) in
+          let _ = OffsMap.iter check_one_list  (get_acc_map flag) in
           let fold_fun acc status = match status with SomeFlag p -> max acc p | BadFlag -> max_int | _ -> acc in
           List.fold_left (fold_fun) min_int !status_list
         in (*/valid_flag*)
@@ -1207,11 +1214,11 @@ struct
         in
         res
       in (*/report_race*)
-      M.OffsMap.iter report_race (get_acc_map gl)
+      OffsMap.iter report_race (get_acc_map gl)
 
   (** postprocess and print races and other output *)
   let finalize () =
-    M.AccKeySet.iter postprocess_acc !accKeys;
+    AccKeySet.iter postprocess_acc !accKeys;
     if !Goblintutil.multi_threaded then begin
       if !race_free then
         print_endline "Goblint did not find any Data Races in this program!";
