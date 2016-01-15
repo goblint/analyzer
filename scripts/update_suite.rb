@@ -47,7 +47,8 @@ end
 #Either only run a single test, or
 #"future" will also run tests we normally skip
 # -v at the end stands for verbose output
-if ARGV.last == "-v" then ARGV.pop; verbose = true else verbose = false end
+verbose = ARGV.last == "-v" && ARGV.pop
+parallel = ARGV.last == "-p" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
 if only == "future" then
   future = true
@@ -152,7 +153,7 @@ end
 startdir = Dir.pwd
 strs = ["Analysing","Testing","Goblinting"]
 astr = strs[rand(strs.size)]
-projects.each do |p|
+doproject = lambda do |p|
   Dir.chdir(startdir)
   filepath = p.path
   dirname = File.dirname(filepath)
@@ -184,6 +185,17 @@ projects.each do |p|
     f.puts "Goblint params: #{cmd}"
     f.puts vrsn
   end
+end
+if parallel then
+  begin
+    require 'parallel'
+    Parallel.each projects, &doproject
+  rescue LoadError => e
+    puts "Missing dependency. Please run: sudo gem install parallel"
+    raise e
+  end
+else
+  projects.each &doproject
 end
 
 #Outputting
@@ -329,6 +341,7 @@ puts "  Single: ./scripts/update_suite.rb simple_rc"
 puts "  Groups: ./scripts/update_suite.rb group mutex"
 puts "  Exclude group: ./scripts/update_suite.rb group -mutex"
 puts "  Future: ./scripts/update_suite.rb future"
+puts "  Parallel execution: append -p"
 puts "  Verbose output: append -v"
 puts ("Results: " + theresultfile)
 if alliswell then
