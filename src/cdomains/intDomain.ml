@@ -21,7 +21,7 @@ sig
   val to_excl_list: t -> int64 list option
   val of_excl_list: int64 list -> t
   val is_excl_list: t -> bool
-  val of_interval: int64 -> int64 -> t
+  val of_interval: int64 * int64 -> t
   val starting   : int64 -> t
   val ending     : int64 -> t
   val maximal    : t -> int64 option
@@ -119,7 +119,7 @@ struct
   let of_int x = norm @@ Some (x,x)
   let to_int = function Some (x,y) when Int64.compare x y = 0 -> Some x | _ -> None
 
-  let of_interval x y = norm @@ Some (x,y)
+  let of_interval (x,y) = norm @@ Some (x,y)
 
   let of_bool = function true -> Some (Int64.one,Int64.one) | false -> Some (Int64.zero,Int64.zero)
   let is_bool = function None -> false | Some (x,y) ->
@@ -402,7 +402,7 @@ struct
   let to_excl_list x = None
   let of_excl_list x = top ()
   let is_excl_list x = false
-  let of_interval  x y = top ()
+  let of_interval  x = top ()
   let starting     x = top ()
   let ending       x = top ()
   let maximal      x = None
@@ -469,7 +469,7 @@ struct
   let to_excl_list x = None
   let of_excl_list x = top ()
   let is_excl_list x = false
-  let of_interval  x y = top ()
+  let of_interval  x = top ()
   let starting     x = top ()
   let ending       x = top ()
   let maximal      x = None
@@ -651,7 +651,7 @@ struct
     | `Definite x -> true
     | _ -> false
 
-  let of_interval x y = if Int64.compare x y == 0 then of_int x else top ()
+  let of_interval (x,y) = if Int64.compare x y == 0 then of_int x else top ()
   let ending   x = top ()
   let starting x = top ()
   let maximal _ = None
@@ -906,8 +906,7 @@ struct
     | Int(_,a,b) -> C.eq a b
     | _ -> false
 
-  let of_interval x y =
-    I.of_int64 max_width x y
+  let of_interval (x,y) = I.of_int64 max_width x y
 
   (* Bool Conversion *)
   let to_bool x =
@@ -1178,7 +1177,7 @@ struct
   type t = I.t * I.t
   let name () = "int intervals"
 
-  let of_interval x y = (I.Fin x, I.Fin y)
+  let of_interval (x,y) = (I.Fin x, I.Fin y)
   let ending   x = (I.NInf , I.Fin x)
   let starting x = (I.Fin x, I.PInf)
   let maximal (_,y:t) =
@@ -1759,7 +1758,7 @@ struct
   let to_excl_list x = None
   let of_excl_list x = top ()
   let is_excl_list x = false
-  let of_interval  x y = top ()
+  let of_interval  x = top ()
   let starting     x = top ()
   let ending       x = top ()
   let maximal      x = None
@@ -1830,7 +1829,7 @@ struct
   let is_excl_list _ = false
   let of_excl_list _ = top ()
   let to_excl_list _ = None
-  let of_interval  x y = top ()
+  let of_interval  x = top ()
   let starting     x = top ()
   let ending       x = top ()
   let maximal      x = None
@@ -1983,7 +1982,7 @@ struct
     (I1.of_int x
     ,I2.of_int x)
 
-  let of_interval x y = top ()
+  let of_interval x = top ()
 
   let compare (x1,x2) (y1,y2) =
     match I1.compare x1 y1 with
@@ -2111,7 +2110,7 @@ struct
       ;("interval",fun () -> Interval (I2.of_int x))
       ;("cinterval",fun () -> CInterval (I3.of_int x))]
 
-  let of_interval x y = top ()
+  let of_interval x = top ()
 
   (* element functions *)
 
@@ -2577,7 +2576,7 @@ module Enums : S = struct
   let of_int x = Pos [x]
   let cast_to_width w = function Pos xs -> Pos (List.map (I.cast_to_width w) xs) | Neg _ -> top ()
 
-  let of_interval x y =
+  let of_interval (x,y) =
     let rec build_set set start_num end_num =
       if start_num >= end_num then set
       else (build_set ([start_num] @ set) (Int64.add start_num (Int64.of_int 1)) end_num) in
@@ -2744,7 +2743,6 @@ module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate
   type 'a m = (module S with type t = 'a)
   (* only first-order polymorphism on functions -> use records to get around monomorphism restriction on arguments *)
   type 'b poly_in  = { fi  : 'a. 'a m -> 'b -> 'a } (* inject *)
-  type 'b poly2_in  = { f2i  : 'a. 'a m -> 'b -> 'b -> 'a }
   type 'b poly_pr  = { fp  : 'a. 'a m -> 'a -> 'b } (* project *)
   type 'b poly2_pr  = { f2p  : 'a. 'a m -> 'a -> 'a -> 'b }
   type poly1 = { f1 : 'a. 'a m -> 'a -> 'a } (* needed b/c above 'b must be different from 'a *)
@@ -2752,9 +2750,6 @@ module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate
   let create r x = (* use where values are introduced *)
     let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
     f "trier" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "cinterval" @@ r.fi (module I3), f "enums" @@ r.fi (module I4)
-  let createTwoParams r x y = (* use where values are introduced *)
-    let f n g = if get_bool ("ana.int."^n) then Some (g x y) else None in
-    f "trier" @@ r.f2i (module I1), f "interval" @@ r.f2i (module I2), f "cinterval" @@ r.f2i (module I3), f "enums" @@ r.f2i (module I4)
   let mapp r (a,b,c,d) = Option.(map (r.fp (module I1)) a, map (r.fp (module I2)) b, map (r.fp (module I3)) c, map (r.fp (module I4)) d)
   let map  r (a,b,c,d) = Option.(map (r.f1 (module I1)) a, map (r.f1 (module I2)) b, map (r.f1 (module I3)) c, map (r.f1 (module I4)) d)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
@@ -2776,7 +2771,7 @@ module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate
   let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
   let starting = create { fi = fun (type a) (module I:S with type t = a) -> I.starting }
   let ending = create { fi = fun (type a) (module I:S with type t = a) -> I.ending }
-  let of_interval = createTwoParams { f2i = fun (type a) (module I:S with type t = a) -> I.of_interval }
+  let of_interval = create { fi = fun (type a) (module I:S with type t = a) -> I.of_interval }
 
   (* f1: unary ops *)
   let neg = map { f1 = fun (type a) (module I:S with type t = a) -> I.neg }

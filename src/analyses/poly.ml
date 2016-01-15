@@ -116,7 +116,7 @@ struct
     | EvalInterval e ->
       begin
         match D.get_int_interval_for_cil_exp d e with
-        | Some i, Some s -> `Interval (IntDomain.Interval.of_interval i s)
+        | Some i, Some s -> `Interval (IntDomain.Interval.of_interval (i,s))
         | Some i, _ ->  `Interval (IntDomain.Interval.starting i)
         | _, Some s -> `Interval (IntDomain.Interval.ending s)
         | _ -> `Top
