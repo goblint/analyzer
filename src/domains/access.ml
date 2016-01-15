@@ -349,29 +349,21 @@ let print_races_oldscool () =
     | None ->
       sprint 80 (dprintf "%s by ??? _L and lockset: %a" wt LSSet.pretty lp), loc
   in
-  let g ty lv ls (accs,lp) =
-    if bot_partition ls (accs,lp) then begin
-      if allglobs then begin
-        let groupname = sprint 80 (dprintf "Safely accessed %a (non-shared)" d_memo (ty,lv))in
-        Messages.print_group groupname (Set.fold (fun e xs -> (k ls e) :: xs) accs [])
-      end
-    end else if only_read ls (accs,lp) then begin
-      if allglobs then begin
-        let groupname = sprint 80 (dprintf "Safely accessed %a (only read)" d_memo (ty,lv))in
-        Messages.print_group groupname (Set.fold (fun e xs -> (k ls e) :: xs) accs [])
-      end
-    end else if common_resource ls (accs,lp) then begin
-      if allglobs then begin
-        let groupname = sprint 80 (dprintf "Safely accessed %a (common mutex)" d_memo (ty,lv))in
-        Messages.print_group groupname (Set.fold (fun e xs -> (k ls e) :: xs) accs [])
-      end
-    end else begin
-      let groupname = sprint 80 (dprintf "Datarace at %a" d_memo (ty,lv)) in
-      Messages.print_group groupname (Set.fold (fun e xs -> (k ls e) :: xs) accs [])
-    end
+  let g ty lv ls (accs,lp) (s,xs) =
+    let nxs  = Set.fold (fun e xs -> (k ls e) :: xs) accs xs in
+    let safe = s && not (partition_race ls (accs,lp)) in
+    (safe, nxs)
   in
-  let h ty lv =
-    Hashtbl.iter (g ty lv)
+  let h ty lv ht =
+    let safe, xs = Hashtbl.fold (g ty lv) ht (true, []) in
+    let groupname = 
+      if safe then
+        sprint 80 (dprintf "Safely accessed %a (reasons ...)" d_memo (ty,lv)) 
+      else
+        sprint 80 (dprintf "Datarace at %a" d_memo (ty,lv)) 
+    in
+    if not safe || allglobs then
+      Messages.print_group groupname xs
   in
   let f ty = Hashtbl.iter (h ty) in
   ignore (Pretty.printf "vvvv This output is here because our regression test scripts parse this format. \n");
