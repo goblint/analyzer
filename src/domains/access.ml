@@ -352,17 +352,17 @@ let print_races_oldscool () =
   let g ty lv ls (accs,lp) =
     if bot_partition ls (accs,lp) then begin
       if allglobs then begin
-        let groupname = sprint 80 (printf "Safely accessed %a (non-shared var.)" d_memo (ty,lv))in
+        let groupname = sprint 80 (dprintf "Safely accessed %a (non-shared)" d_memo (ty,lv))in
         Messages.print_group groupname (Set.fold (fun e xs -> (k ls e) :: xs) accs [])
       end
     end else if only_read ls (accs,lp) then begin
       if allglobs then begin
-        let groupname = sprint 80 (printf "Safely accessed %a (only read)" d_memo (ty,lv))in
+        let groupname = sprint 80 (dprintf "Safely accessed %a (only read)" d_memo (ty,lv))in
         Messages.print_group groupname (Set.fold (fun e xs -> (k ls e) :: xs) accs [])
       end
     end else if common_resource ls (accs,lp) then begin
       if allglobs then begin
-        let groupname = sprint 80 (printf "Safely accessed %a (common mutex)" d_memo (ty,lv))in
+        let groupname = sprint 80 (dprintf "Safely accessed %a (common mutex)" d_memo (ty,lv))in
         Messages.print_group groupname (Set.fold (fun e xs -> (k ls e) :: xs) accs [])
       end
     end else begin
