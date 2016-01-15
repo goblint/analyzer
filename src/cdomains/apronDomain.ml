@@ -90,7 +90,7 @@ struct
     in
     List.fold_left f ([],[])
 
-  let rec exptoexpr =
+  let rec cil_exp_to_cil_lhost =
     function
     | Lval (Var v,NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
       Var (Var.of_string v.vname)
@@ -99,22 +99,22 @@ struct
     | Const (CReal (f,_,_)) ->
       Cst (Coeff.s_of_float f)
     | UnOp  (Neg ,e,_) ->
-      Unop (Neg,exptoexpr e,Int,Near)
+      Unop (Neg,cil_exp_to_cil_lhost e,Int,Near)
     | BinOp (PlusA,e1,e2,_) ->
-      Binop (Add,exptoexpr e1,exptoexpr e2,Int,Near)
+      Binop (Add,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
     | BinOp (MinusA,e1,e2,_) ->
-      Binop (Sub,exptoexpr e1,exptoexpr e2,Int,Near)
+      Binop (Sub,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
     | BinOp (Mult,e1,e2,_) ->
-      Binop (Mul,exptoexpr e1,exptoexpr e2,Int,Near)
+      Binop (Mul,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
     | BinOp (Div,e1,e2,_) ->
-      Binop (Div,exptoexpr e1,exptoexpr e2,Int,Zero)
+      Binop (Div,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Zero)
     | BinOp (Mod,e1,e2,_) ->
-      Binop (Mod,exptoexpr e1,exptoexpr e2,Int,Near)
-    | CastE (TFloat (FFloat,_),e) -> Unop(Cast,exptoexpr e,Texpr0.Single,Zero)
-    | CastE (TFloat (FDouble,_),e) -> Unop(Cast,exptoexpr e,Texpr0.Double,Zero)
-    | CastE (TFloat (FLongDouble,_),e) -> Unop(Cast,exptoexpr e,Texpr0.Extended,Zero)
-    | CastE (TInt _,e) -> Unop(Cast,exptoexpr e,Int,Zero)
-    | _ -> raise (Invalid_argument "exptotexpr1")
+      Binop (Mod,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
+    | CastE (TFloat (FFloat,_),e) -> Unop(Cast,cil_exp_to_cil_lhost e,Texpr0.Single,Zero)
+    | CastE (TFloat (FDouble,_),e) -> Unop(Cast,cil_exp_to_cil_lhost e,Texpr0.Double,Zero)
+    | CastE (TFloat (FLongDouble,_),e) -> Unop(Cast,cil_exp_to_cil_lhost e,Texpr0.Extended,Zero)
+    | CastE (TInt _,e) -> Unop(Cast,cil_exp_to_cil_lhost e,Int,Zero)
+    | _ -> raise (Invalid_argument "cil_exp_to_apron_texpr1")
 
 
   let add_t x y =
@@ -139,7 +139,7 @@ struct
 
   type lexpr = (string * [`int of int | `float of float]) list
 
-  let rec exptolinexp =
+  let rec cil_exp_to_lexp =
     let add ((xs:lexpr),x,r) ((ys:lexpr),y,r') =
       let add_one xs (var_name, var_coefficient) =
         let found_var_in_list var_name var_coeff_list =
@@ -151,7 +151,7 @@ struct
         else (var_name, var_coefficient)::xs in
       match r, r' with
       | EQ, EQ -> List.fold_left add_one xs ys, add_t' x y, EQ
-      | _ -> raise (Invalid_argument "exptolinexp")
+      | _ -> raise (Invalid_argument "cil_exp_to_lexp")
     in
     function
     | Lval (Var v,NoOffset) when isArithmeticType v.vtype && (not v.vglob) ->
@@ -161,55 +161,60 @@ struct
     | Const (CReal (f,_,_)) ->
       [], `float f, EQ
     | UnOp  (Neg ,e,_) ->
-      negate (exptolinexp e)
+      negate (cil_exp_to_lexp e)
     | BinOp (PlusA,e1,e2,_) ->
-      add (exptolinexp e1) (exptolinexp e2)
+      add (cil_exp_to_lexp e1) (cil_exp_to_lexp e2)
     | BinOp (MinusA,e1,e2,_) ->
-      add (exptolinexp e1) (negate (exptolinexp e2))
+      add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2))
     | BinOp (Mult,e1,e2,_) ->
-      begin match exptolinexp e1, exptolinexp e2 with
+      begin match cil_exp_to_lexp e1, cil_exp_to_lexp e2 with
         | ([], `int x, EQ), ([], `int y, EQ) -> ([], `int (x*y), EQ)
         | ([], `float x, EQ), ([], `float y, EQ) -> ([], `float (x*.y), EQ)
         | (xs, `none, EQ), ([], `int y, EQ) | ([], `int y, EQ), (xs, `none, EQ) ->
           (List.map (function (n,`int x) -> n, `int (x*y) | (n,`float x) -> n, `float (x*.float_of_int y)) xs, `none, EQ)
         | (xs, `none, EQ), ([], `float y, EQ) | ([], `float y, EQ), (xs, `none, EQ) ->
           (List.map (function (n,`float x) -> n, `float (x*.y) | (n,`int x) -> (n,`float (float_of_int x*.y))) xs, `none, EQ)
-        | _ -> raise (Invalid_argument "exptolinexp")
+        | _ -> raise (Invalid_argument "cil_exp_to_lexp")
       end
     | BinOp (r,e1,e2,_) ->
       let comb r = function
         | (xs,y,EQ) -> (xs,y,r)
-        | _ -> raise (Invalid_argument "exptolinexp")
+        | _ -> raise (Invalid_argument "cil_exp_to_lexp")
       in
       begin match r with
-        | Lt -> comb SUP   (add (exptolinexp e2) (negate (exptolinexp e1)))
-        | Gt -> comb SUP   (add (exptolinexp e1) (negate (exptolinexp e2)))
-        | Le -> comb SUPEQ (add (exptolinexp e2) (negate (exptolinexp e1)))
-        | Ge -> comb SUPEQ (add (exptolinexp e1) (negate (exptolinexp e2)))
-        | Eq -> comb EQ    (add (exptolinexp e1) (negate (exptolinexp e2)))
-        | Ne -> comb DISEQ (add (exptolinexp e1) (negate (exptolinexp e2)))
-        | _ -> raise (Invalid_argument "exptolinexp")
+        | Lt -> comb SUP   (add (cil_exp_to_lexp e2) (negate (cil_exp_to_lexp e1)))
+        | Gt -> comb SUP   (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
+        | Le -> comb SUPEQ (add (cil_exp_to_lexp e2) (negate (cil_exp_to_lexp e1)))
+        | Ge -> comb SUPEQ (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
+        | Eq -> comb EQ    (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
+        | Ne -> comb DISEQ (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
+        | _ -> raise (Invalid_argument "cil_exp_to_lexp")
       end
-    | CastE (_,e) -> exptolinexp e
+    | CastE (_,e) -> cil_exp_to_lexp e
     | _ ->
-      raise (Invalid_argument "exptolinexp")
+      raise (Invalid_argument "cil_exp_to_lexp")
 
-  let exptolinecons env x b =
+  let inverse_comparator comparator =
+    match comparator with
+    | EQ -> DISEQ
+    | DISEQ -> EQ
+    | SUPEQ -> SUP
+    | SUP -> SUPEQ
+    | EQMOD x -> EQMOD x
+
+  let cil_exp_to_apron_linexpr1 environment cil_exp should_negate =
+    let var_name_coeff_pairs, constant, comparator = cil_exp_to_lexp (Cil.constFold false cil_exp) in
+    let var_name_coeff_pairs, constant, comparator = if should_negate then var_name_coeff_pairs, constant, comparator else negate (var_name_coeff_pairs, constant, (inverse_comparator comparator)) in
+    let apron_var_coeff_pairs = List.map (function (x,`int y) -> Coeff.s_of_int y, Var.of_string x | (x,`float f) -> Coeff.s_of_float f, Var.of_string x) var_name_coeff_pairs in
+    let apron_constant = match constant with `int x -> Some (Coeff.s_of_int x) | `float f -> Some (Coeff.s_of_float f) | `none -> None in
+    let linexpr1 = Linexpr1.make environment in
+    Linexpr1.set_list linexpr1 apron_var_coeff_pairs apron_constant;
+    linexpr1, comparator
+
+  let cil_exp_to_apron_linecons environment cil_exp should_negate =
     (* ignore (Pretty.printf "exptolinecons '%a'\n" d_plainexp x); *)
-    let inverse = function
-      | EQ -> DISEQ
-      | DISEQ -> EQ
-      | SUPEQ -> SUP
-      | SUP -> SUPEQ
-      | EQMOD x -> EQMOD x
-    in
-    let cs, c, r = exptolinexp (Cil.constFold false x) in
-    let cs, c, r = if b then cs, c, r else negate (cs,c,inverse r) in
-    let cs = List.map (function (x,`int y) -> Coeff.s_of_int y, Var.of_string x | (x,`float f) ->Coeff.s_of_float f, Var.of_string x) cs in
-    let c = match c with `int x -> Some (Coeff.s_of_int x) | `float f -> Some (Coeff.s_of_float f) | `none -> None in
-    let le = Linexpr1.make env in
-    Linexpr1.set_list le cs c;
-    Lincons1.make le r
+    let linexpr1, comparator = cil_exp_to_apron_linexpr1 environment cil_exp should_negate in
+    Lincons1.make linexpr1 comparator
 
   let assert_inv d x b =
     try
@@ -218,16 +223,16 @@ struct
         | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
           UnOp(LNot, (BinOp (Eq, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)), intType)
         | _ -> x in
-      let ea = { lincons0_array = [|Lincons1.get_lincons0 (exptolinecons (A.env d) x b) |]
+      let ea = { lincons0_array = [|Lincons1.get_lincons0 (cil_exp_to_apron_linecons (A.env d) x b) |]
                ; array_env = A.env d
                }
       in
       A.meet_lincons_array Man.mgr d ea
-    with Invalid_argument "exptolinexp" -> d
+    with Invalid_argument "cil_exp_to_lexp" -> d
 
-  let exptotexpr1 env x =
+  let cil_exp_to_apron_texpr1 env exp =
     (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
-    Texpr1.of_expr env (exptoexpr x)
+    Texpr1.of_expr env (cil_exp_to_cil_lhost exp)
 
   let assign_var_eq_with d v v' =
     A.assign_texpr_with Man.mgr d (Var.of_string v)
@@ -242,8 +247,8 @@ struct
     (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
     begin try
         A.assign_texpr_with Man.mgr d (Var.of_string v)
-          (exptotexpr1 (A.env d) (Cil.constFold false e)) None
-      with Invalid_argument "exptotexpr1" ->
+          (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
+      with Invalid_argument "cil_exp_to_apron_texpr1" ->
         A.forget_array_with Man.mgr d [|Var.of_string v|] false
         (* | Manager.Error q -> *)
         (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
@@ -268,8 +273,8 @@ struct
     (* ignore (Pretty.printf "substitute_var_with %a %s %a\n" pretty d v d_plainexp e); *)
     begin try
         A.substitute_texpr_with Man.mgr d (Var.of_string v)
-          (exptotexpr1 (A.env d) (Cil.constFold false e)) None
-      with Invalid_argument "exptotexpr1" ->
+          (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
+      with Invalid_argument "cil_exp_to_apron_texpr1" ->
         A.forget_array_with Man.mgr d [|Var.of_string v|] false
         (* | Manager.Error q ->
            ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
