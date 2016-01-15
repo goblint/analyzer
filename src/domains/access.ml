@@ -164,12 +164,12 @@ struct
 
 end
 
-(* type -> lval option -> part -> (2^(write, loc, e, locks), locks_union) *)
+(* type -> lval option -> partition option -> (2^(write, loc, e, locks), locks_union) *)
 let accs = Hashtbl.create 100
 
 type var_o = varinfo option
 type off_o = offset  option
-type part  = LSSSet.t * LSSet.t 
+type part  = LSSSet.t * LSSet.t
 
 let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
   try (* FIXME: Cil's typeOf fails on our fake variables: (struct s).data *)
@@ -186,18 +186,21 @@ let add_one (e:exp) (w:bool) (ty:acc_typ) lv ((pp,lp):part): unit =
     | None -> None 
     | Some (v,os) -> Some (v, remove_idx os)
   in
-  if (LSSSet.is_empty pp) then () else begin
-    some_accesses := true;
-    let tyh = Ht.find_def accs  ty (lazy (Ht.create 10)) in
-    let lvh = Ht.find_def tyh lv (lazy (Ht.create 10)) in
-    let add_part ls =
-      let loc = !Tracing.current_loc in
-      Ht.modify_def lvh ls (lazy (Set.empty,lp)) (fun (s,o_lp) ->
-          (Set.add (w,loc,e,lp) s, LSSet.inter lp o_lp)
-        )
-    in
+  some_accesses := true;
+  let tyh = Ht.find_def accs  ty (lazy (Ht.create 10)) in
+  let lvh = Ht.find_def tyh lv (lazy (Ht.create 10)) in
+  let loc = !Tracing.current_loc in
+  let add_part ls =
+    Ht.modify_def lvh (Some(ls)) (lazy (Set.empty,lp)) (fun (s,o_lp) ->
+        (Set.add (w,loc,e,lp) s, LSSet.inter lp o_lp)
+      )
+  in
+  if LSSSet.is_empty pp then
+    Ht.modify_def lvh None (lazy (Set.empty,lp)) (fun (s,o_lp) ->
+        (Set.add (w,loc,e,lp) s, LSSet.inter lp o_lp)
+      )
+  else
     LSSSet.iter add_part pp
-  end
 
 let type_from_type_offset : acc_typ -> typ = function
   | `Type t -> t
@@ -315,13 +318,17 @@ and distribute_access_exp f w r = function
 
 let partition_race ps (accs,ls) =
   let write (w,loc,e,lp) = w in
-  LSSet.is_empty ls && Set.exists write accs
+  ps <> None && LSSet.is_empty ls && Set.exists write accs
 
 let only_read ps (accs,ls) =
   let read (w,loc,e,lp) = not w in
   Set.for_all read accs
 
-let common_resource ps (accs,ls) = not (LSSet.is_empty ls)
+let common_resource ps (accs,ls) = 
+  not (LSSet.is_empty ls)
+
+let bot_partition ps _ = 
+  ps = None
 
 (* let is_data_race k =
    let ht_exists f ht = Hashtbl.fold (fun k v z -> z || f k v) ht false in
@@ -336,10 +343,19 @@ let print_races_oldscool () =
   let allglobs = get_bool "allglobs" in
   let k ls (w,loc,e,lp) = 
     let wt = if w then "write" else "read" in
-    sprint 80 (dprintf "%s by ??? %a and lockset: %a" wt LSSet.pretty ls LSSet.pretty lp), loc
+    match ls with
+    | Some ls ->
+      sprint 80 (dprintf "%s by ??? %a and lockset: %a" wt LSSet.pretty ls LSSet.pretty lp), loc
+    | None ->
+      sprint 80 (dprintf "%s by ??? _L and lockset: %a" wt LSSet.pretty lp), loc
   in
   let g ty lv ls (accs,lp) =
-    if only_read ls (accs,lp) then begin
+    if bot_partition ls (accs,lp) then begin
+      if allglobs then begin
+        let groupname = sprint 80 (printf "Safely accessed %a (non-shared var.)" d_memo (ty,lv))in
+        Messages.print_group groupname (Set.fold (fun e xs -> (k ls e) :: xs) accs [])
+      end
+    end else if only_read ls (accs,lp) then begin
       if allglobs then begin
         let groupname = sprint 80 (printf "Safely accessed %a (only read)" d_memo (ty,lv))in
         Messages.print_group groupname (Set.fold (fun e xs -> (k ls e) :: xs) accs [])
@@ -365,53 +381,53 @@ let print_races_oldscool () =
 
 let print_races () =
   let allglobs = get_bool "allglobs" in
-  let only_rd = ref 0 in
-  let common_res = ref 0 in
-  let race = ref 0 in
-  let g print_loc ls (accs,lp) =
-    let reason, bad = 
-      if only_read ls (accs,lp) then begin
-        incr only_rd;
-        "only read", false
-      end else if common_resource ls (accs,lp) then begin
-        incr common_res;
-        "common resource", false 
-      end else begin
-        incr race;
-        "race", true
-      end
-    in
-    if bad || allglobs then begin
-      print_loc ();
-      ignore (Pretty.printf "  %a -> %a (%s)\n" LSSet.pretty ls LSSet.pretty lp reason)
-    end
+  let safe   = ref 0 in
+  let unsafe = ref 0 in
+  let check_safe ls (accs,lp) prev_safe =
+    prev_safe && (ls = None || only_read ls (accs,lp) || common_resource ls (accs,lp)) 
   in
-  let h ty lv =
-    let printed = ref false in
-    let print_loc () = 
-      if not !printed then begin
-        ignore(printf "Memory location %a\n" d_memo (ty,lv));
-        printed := true
-      end
+  let g ls (accs,lp) =
+    let reason = 
+      if bot_partition ls (accs,lp) then
+        "non-shared"
+      else if only_read ls (accs,lp) then
+        "only read"
+      else if common_resource ls (accs,lp) then
+        "common resource"
+      else
+        "race"
     in
-    Hashtbl.iter (g print_loc) 
+    match ls with
+    | Some ls ->
+      ignore (Pretty.printf "  %a -> %a (%s)\n" LSSet.pretty ls LSSet.pretty lp reason)
+    | None ->
+      ignore (Pretty.printf "  _L -> %a (%s)\n" LSSet.pretty lp reason)
+  in
+  let h ty lv ht =
+    let safety = Hashtbl.fold check_safe ht true in
+    incr (if safety then safe else unsafe);
+    if not safety || allglobs then begin
+      let safetext = if safety then "safe"  else "unsafe" in
+      ignore(printf "Memory location %a (%s)\n" d_memo (ty,lv) safetext);
+      Hashtbl.iter g ht
+    end
   in
   let f ty = Hashtbl.iter (h ty) in
   Hashtbl.iter f accs;
   ignore (Pretty.printf "\nSummary:\n");
-  ignore (Pretty.printf "\tonly read:       %d\n" !only_rd);
-  ignore (Pretty.printf "\tcommon resource: %d\n" !common_res);
-  ignore (Pretty.printf "\tno protection:   %d\n" !race);
-  ignore (Pretty.printf "\t-----------------------\n");
-  ignore (Pretty.printf "\ttotal:           %d\n" ((!race) + (!common_res) + (!only_rd)))
+  ignore (Pretty.printf "\tsafe:    %d\n" !safe);
+  ignore (Pretty.printf "\tunsafe:  %d\n" !unsafe);
+  ignore (Pretty.printf "\t-------------------\n");
+  ignore (Pretty.printf "\ttotal:   %d\n" ((!safe) + (!unsafe)))
 
 let print_accesses () =
   let debug = get_bool "dbg.debug" in
   let g ls (acs,_) =
+    let d_ls () = match ls with None -> text "_L" | Some ls -> LSSet.pretty () ls in
     let h (w,loc,e,lp) =
       let atyp = if w then "write" else "read" in
-      ignore (printf "  %s@@%a %a -> %a" atyp d_loc loc
-                LSSet.pretty ls LSSet.pretty lp);
+      ignore (printf "  %s@@%a %t -> %a" atyp d_loc loc
+                d_ls LSSet.pretty lp);
       if debug then
         ignore (printf "  (exp: %a)\n" d_exp e)
       else
