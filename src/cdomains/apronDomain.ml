@@ -194,15 +194,14 @@ struct
     | _ ->
       raise (Invalid_argument "cil_exp_to_lexp")
 
-  let inverse_comparator comparator =
-    match comparator with
-    | EQ -> DISEQ
-    | DISEQ -> EQ
-    | SUPEQ -> SUP
-    | SUP -> SUPEQ
-    | EQMOD x -> EQMOD x
-
   let cil_exp_to_apron_linexpr1 environment cil_exp should_negate =
+    let inverse_comparator comparator =
+      match comparator with
+      | EQ -> DISEQ
+      | DISEQ -> EQ
+      | SUPEQ -> SUP
+      | SUP -> SUPEQ
+      | EQMOD x -> EQMOD x in
     let var_name_coeff_pairs, constant, comparator = cil_exp_to_lexp (Cil.constFold false cil_exp) in
     let var_name_coeff_pairs, constant, comparator = if should_negate then var_name_coeff_pairs, constant, comparator else negate (var_name_coeff_pairs, constant, (inverse_comparator comparator)) in
     let apron_var_coeff_pairs = List.map (function (x,`int y) -> Coeff.s_of_int y, Var.of_string x | (x,`float f) -> Coeff.s_of_float f, Var.of_string x) var_name_coeff_pairs in
@@ -320,5 +319,39 @@ struct
 
   let copy = A.copy Man.mgr
 
+  let get_int_interval_for_cil_exp d cil_exp =
+    let get_int_for_apron_scalar (scalar: Scalar.t) =
+      match scalar with
+      | Float scalar -> Some (Pervasives.int_of_float scalar)
+      | Mpqf scalar ->
+        begin
+          match Mpqf.to_string scalar with
+          (* apron has an internal representation of -1/0 as -infinity and 1/0 as infinity.*)
+          | "-1/0" | "1/0" -> None
+          | _ -> Some (Pervasives.int_of_float (Mpqf.to_float scalar))
+        end
+      | Mpfrf scalar -> Some (Pervasives.int_of_float (Mpfrf.to_float scalar)) in
+    let environment = A.env d in
+    try
+      let linexpr1, _  = cil_exp_to_apron_linexpr1 environment cil_exp false in
+      let interval_of_variable = A.bound_linexpr Man.mgr d linexpr1 in
+      let infimum = get_int_for_apron_scalar interval_of_variable.inf in
+      let supremum = get_int_for_apron_scalar interval_of_variable.sup in
+      match infimum, supremum with
+      | Some infimum, Some supremum -> Some (Int64.of_int (-infimum)),  Some (Int64.of_int (-supremum))
+      | Some infimum, None -> Some (Int64.of_int (-infimum)), None
+      | None, Some supremum ->  None, Some (Int64.of_int (-supremum))
+      | _, _ -> None, None
+    with Invalid_argument "cil_exp_to_lexp" -> None, None
+
+  let get_int_val_for_cil_exp d cil_exp =
+    match get_int_interval_for_cil_exp d cil_exp with
+    | Some infimum, Some supremum ->
+      begin
+        if (supremum = infimum) then
+          (Some infimum)
+        else None
+      end
+    | _ -> None
 
 end
