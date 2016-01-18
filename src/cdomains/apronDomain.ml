@@ -203,7 +203,7 @@ struct
       | SUP -> SUPEQ
       | EQMOD x -> EQMOD x in
     let var_name_coeff_pairs, constant, comparator = cil_exp_to_lexp (Cil.constFold false cil_exp) in
-    let var_name_coeff_pairs, constant, comparator = if should_negate then var_name_coeff_pairs, constant, comparator else negate (var_name_coeff_pairs, constant, (inverse_comparator comparator)) in
+    let var_name_coeff_pairs, constant, comparator = if should_negate then negate (var_name_coeff_pairs, constant, (inverse_comparator comparator)) else var_name_coeff_pairs, constant, comparator in
     let apron_var_coeff_pairs = List.map (function (x,`int y) -> Coeff.s_of_int y, Var.of_string x | (x,`float f) -> Coeff.s_of_float f, Var.of_string x) var_name_coeff_pairs in
     let apron_constant = match constant with `int x -> Some (Coeff.s_of_int x) | `float f -> Some (Coeff.s_of_float f) | `none -> None in
     let linexpr1 = Linexpr1.make environment in
@@ -331,14 +331,13 @@ struct
           | _ -> Some (Pervasives.int_of_float (Mpqf.to_float scalar))
         end
       | Mpfrf scalar -> Some (Pervasives.int_of_float (Mpfrf.to_float scalar)) in
-    let environment = A.env d in
     try
-      let linexpr1, _  = cil_exp_to_apron_linexpr1 environment cil_exp false in
+      let linexpr1, _  = cil_exp_to_apron_linexpr1 (A.env d) cil_exp false in
       let interval_of_variable = A.bound_linexpr Man.mgr d linexpr1 in
       let infimum = get_int_for_apron_scalar interval_of_variable.inf in
       let supremum = get_int_for_apron_scalar interval_of_variable.sup in
       match infimum, supremum with
-      | Some infimum, Some supremum -> Some (Int64.of_int (-infimum)),  Some (Int64.of_int (-supremum))
+      | Some infimum, Some supremum -> Some (Int64.of_int (infimum)),  Some (Int64.of_int (supremum))
       | Some infimum, None -> Some (Int64.of_int (-infimum)), None
       | None, Some supremum ->  None, Some (Int64.of_int (-supremum))
       | _, _ -> None, None
@@ -353,5 +352,13 @@ struct
         else None
       end
     | _ -> None
+
+  let cil_exp_equals d exp1 exp2 =
+    if (is_bot d) then false
+    else
+      begin
+        let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
+        equal d (assert_inv d compare_expression false)
+      end
 
 end
