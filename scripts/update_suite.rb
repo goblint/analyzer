@@ -3,6 +3,10 @@
 require 'find'
 require 'fileutils'
 
+def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
+  print(o+"\n")
+end
+
 goblint = File.join(Dir.getwd,"goblint")
 goblintbyte = File.join(Dir.getwd,"goblint.byte")
 if File.exists?(goblintbyte) then
