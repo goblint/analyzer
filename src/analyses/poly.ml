@@ -64,7 +64,7 @@ struct
     if D.is_bot ctx.local then D.bot () else
       begin
         match LibraryFunctions.classify f.vname args with
-        | `Assert expression -> D.assert_inv ctx.local expression true
+        | `Assert expression -> D.assert_inv ctx.local expression false
         | `Unknown "printf" -> ctx.local
         | _ -> D.topE (A.env ctx.local)
       end
@@ -112,7 +112,12 @@ struct
         | Some i -> `Int i
         | _ -> `Top
       end
-    | EvalIntSet _ -> Result.top ()  (* TODO *)
+    | EvalIntSet e ->
+      begin
+        match D.get_int_interval_for_cil_exp d e with
+        | Some i, Some s -> `IntSet (IntDomain.Enums.of_interval (i,s))
+        | _ -> Result.top ()
+      end
     | EvalInterval e ->
       begin
         match D.get_int_interval_for_cil_exp d e with
@@ -121,7 +126,9 @@ struct
         | _, Some s -> `Interval (IntDomain.Interval.ending s)
         | _ -> `Top
       end
-    | ExpEq (_, _) -> Result.top () (* TODO *)
+    | ExpEq (e1, e2) ->
+      if D.cil_exp_equals d e1 e2 then `Bool (Queries.BD.of_bool true)
+      else Result.top ()
     | _ -> Result.top ()
 end
 
