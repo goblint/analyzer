@@ -31,7 +31,7 @@ sig
   (* Creates a exclusion set from a given list of integers. *)
   val is_excl_list: t -> bool
   (* Checks if the element is an exclusion set. *)
-  (*  val of_interval: int64 -> int64 -> t*)
+  val of_interval: int64 * int64 -> t
   val starting   : int64 -> t
   val ending     : int64 -> t
   val maximal    : t -> int64 option

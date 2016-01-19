@@ -21,7 +21,7 @@ sig
   val to_excl_list: t -> int64 list option
   val of_excl_list: int64 list -> t
   val is_excl_list: t -> bool
-  (*  val of_interval: int64 -> int64 -> t*)
+  val of_interval: int64 * int64 -> t
   val starting   : int64 -> t
   val ending     : int64 -> t
   val maximal    : t -> int64 option
@@ -118,6 +118,8 @@ struct
   let is_int = function Some (x,y) when Int64.compare x y = 0 -> true | _ -> false
   let of_int x = norm @@ Some (x,x)
   let to_int = function Some (x,y) when Int64.compare x y = 0 -> Some x | _ -> None
+
+  let of_interval (x,y) = norm @@ Some (x,y)
 
   let of_bool = function true -> Some (Int64.one,Int64.one) | false -> Some (Int64.zero,Int64.zero)
   let is_bool = function None -> false | Some (x,y) ->
@@ -400,7 +402,7 @@ struct
   let to_excl_list x = None
   let of_excl_list x = top ()
   let is_excl_list x = false
-  let of_interval  x y = top ()
+  let of_interval  x = top ()
   let starting     x = top ()
   let ending       x = top ()
   let maximal      x = None
@@ -467,7 +469,7 @@ struct
   let to_excl_list x = None
   let of_excl_list x = top ()
   let is_excl_list x = false
-  let of_interval  x y = top ()
+  let of_interval  x = top ()
   let starting     x = top ()
   let ending       x = top ()
   let maximal      x = None
@@ -649,7 +651,7 @@ struct
     | `Definite x -> true
     | _ -> false
 
-  let of_interval x y = if Int64.compare x y == 0 then of_int x else top ()
+  let of_interval (x,y) = if Int64.compare x y == 0 then of_int x else top ()
   let ending   x = top ()
   let starting x = top ()
   let maximal _ = None
@@ -903,6 +905,8 @@ struct
     match x with
     | Int(_,a,b) -> C.eq a b
     | _ -> false
+
+  let of_interval (x,y) = I.of_int64 max_width x y
 
   (* Bool Conversion *)
   let to_bool x =
@@ -1173,7 +1177,7 @@ struct
   type t = I.t * I.t
   let name () = "int intervals"
 
-  let of_interval x y = (I.Fin x, I.Fin y)
+  let of_interval (x,y) = (I.Fin x, I.Fin y)
   let ending   x = (I.NInf , I.Fin x)
   let starting x = (I.Fin x, I.PInf)
   let maximal (_,y:t) =
@@ -1754,7 +1758,7 @@ struct
   let to_excl_list x = None
   let of_excl_list x = top ()
   let is_excl_list x = false
-  let of_interval  x y = top ()
+  let of_interval  x = top ()
   let starting     x = top ()
   let ending       x = top ()
   let maximal      x = None
@@ -1825,7 +1829,7 @@ struct
   let is_excl_list _ = false
   let of_excl_list _ = top ()
   let to_excl_list _ = None
-  let of_interval  x y = top ()
+  let of_interval  x = top ()
   let starting     x = top ()
   let ending       x = top ()
   let maximal      x = None
@@ -1978,6 +1982,8 @@ struct
     (I1.of_int x
     ,I2.of_int x)
 
+  let of_interval x = top ()
+
   let compare (x1,x2) (y1,y2) =
     match I1.compare x1 y1 with
     | 0 -> I2.compare x2 y2
@@ -2103,6 +2109,8 @@ struct
       [("trier"   ,fun () -> Trier    (I1.of_int x))
       ;("interval",fun () -> Interval (I2.of_int x))
       ;("cinterval",fun () -> CInterval (I3.of_int x))]
+
+  let of_interval x = top ()
 
   (* element functions *)
 
@@ -2568,6 +2576,12 @@ module Enums : S = struct
   let of_int x = Pos [x]
   let cast_to_width w = function Pos xs -> Pos (List.map (I.cast_to_width w) xs) | Neg _ -> top ()
 
+  let of_interval (x,y) =
+    let rec build_set set start_num end_num =
+      if start_num >= end_num then set
+      else (build_set ([start_num] @ set) (Int64.add start_num (Int64.of_int 1)) end_num) in
+    Pos (build_set [] x y)
+
   let rec merge_cup a b = match a,b with
     | [],x | x,[] -> x
     | x::xs, y::ys -> (match compare x y with
@@ -2712,7 +2726,6 @@ module Enums : S = struct
   let to_excl_list = function Neg x when x<>[] -> Some x | _ -> None
   let of_excl_list x = Neg x
   let is_excl_list = Option.is_some % to_excl_list
-  (* let of_interval  x y = Pos (List.of_enum (x--y)) *)
   let starting     x = top ()
   let ending       x = top ()
   let maximal = function Pos xs when xs<>[] -> Some (List.last xs) | _ -> None
@@ -2758,6 +2771,7 @@ module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate
   let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
   let starting = create { fi = fun (type a) (module I:S with type t = a) -> I.starting }
   let ending = create { fi = fun (type a) (module I:S with type t = a) -> I.ending }
+  let of_interval = create { fi = fun (type a) (module I:S with type t = a) -> I.of_interval }
 
   (* f1: unary ops *)
   let neg = map { f1 = fun (type a) (module I:S with type t = a) -> I.neg }

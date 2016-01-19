@@ -106,11 +106,22 @@ struct
     let open Queries in
     let d = ctx.local in
     match q with
-    | EvalInt e
-    | EvalIntSet e
-    | EvalInterval e
-    | ExpEq (e1, e2)
-      -> Result.top () (* TODO *)
+    | EvalInt e ->
+      begin
+        match D.get_int_val_for_cil_exp d e with
+        | Some i -> `Int i
+        | _ -> `Top
+      end
+    | EvalIntSet _ -> Result.top ()  (* TODO *)
+    | EvalInterval e ->
+      begin
+        match D.get_int_interval_for_cil_exp d e with
+        | Some i, Some s -> `Interval (IntDomain.Interval.of_interval (i,s))
+        | Some i, _ ->  `Interval (IntDomain.Interval.starting i)
+        | _, Some s -> `Interval (IntDomain.Interval.ending s)
+        | _ -> `Top
+      end
+    | ExpEq (_, _) -> Result.top () (* TODO *)
     | _ -> Result.top ()
 end
 
