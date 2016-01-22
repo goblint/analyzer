@@ -256,8 +256,7 @@ let rec add_propagate e w ty ls p =
     List.iter (just_vars t) vars
 
 let rec distribute_access_lval f w r lv =
-  if not !Goblintutil.may_narrow then
-    f w r (mkAddrOf lv);
+  f w r (mkAddrOf lv);
   distribute_access_lval_addr f w r lv
 
 and distribute_access_lval_addr f w r lv =
@@ -306,15 +305,17 @@ and distribute_access_exp f w r = function
   | _ -> ()
 
   let add e w vo oo p =
-    let ty = get_val_type e vo oo in
-    (* ignore (printf "add %a\n" d_exp e); *)
-    match vo, oo with
-    | Some v, Some o -> add_one e w ty (Some (v, o)) p
-    | _ -> 
-      if !unsound && isArithmeticType (type_from_type_offset ty) then
-        add_one e w ty None p
-      else
-        add_propagate e w ty None p
+    if not !Goblintutil.may_narrow then begin
+      let ty = get_val_type e vo oo in
+      (* ignore (printf "add %a\n" d_exp e); *)
+      match vo, oo with
+      | Some v, Some o -> add_one e w ty (Some (v, o)) p
+      | _ -> 
+        if !unsound && isArithmeticType (type_from_type_offset ty) then
+          add_one e w ty None p
+        else
+          add_propagate e w ty None p
+    end
 
 let partition_race ps (accs,ls) =
   let write (w,loc,e,lp) = w in
