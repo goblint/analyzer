@@ -15,6 +15,26 @@ module LockingPattern = Exp.LockingPattern
 module CF = Cilfacade
 module GU = Goblintutil
 
+(* Some helper functions to avoid flagging race warnings on atomic types, and
+ * other irrelevant stuff, such as mutexes and functions. *)
+
+let is_atomic_type (t: typ): bool =
+  (*  ignore (printf "Type %a\n" (printType plainCilPrinter) t);*)
+  match t with
+  | TNamed (info, attr) -> info.tname = "atomic_t"
+  | TComp (info, attr) -> info.cname = "lock_class_key"
+  | _ -> false
+
+let is_atomic lval =
+  let (lval, _) = removeOffsetLval lval in
+  let typ = typeOfLval lval in
+  is_atomic_type typ
+
+let is_ignorable lval =
+  (*  ignore (printf "Var %a\n" d_lval lval);*)
+  try Base.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
+  with Not_found -> false
+
 module Spec =
 struct
 
@@ -575,7 +595,7 @@ struct
 
 
     let access_address ask regs write lv : accesses =
-      if Mutex.is_ignorable lv then [] else
+      if is_ignorable lv then [] else
         let add_reg (v,o) =
           (*       Messages.report ("Region: "^(sprint 80 (d_lval () lv))^" = "^v.vname^(Offs.short 80 (Offs.from_offset (conv_offset o)))); *)
           Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
@@ -662,7 +682,7 @@ struct
         | `LvalSet a when not (Queries.LS.is_top a)
                        && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
           let to_extra (v,o) xs =
-            if Mutex.is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
+            if is_ignorable (Var v, Lval.CilLval.to_ciloffs o) then xs else
               Concrete (None, v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
           Queries.LS.fold to_extra a []
         | `Bot -> []

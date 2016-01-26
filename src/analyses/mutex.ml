@@ -27,26 +27,6 @@ let unmerged_fields = ref false
 (** Only report races on these variables/types. *)
 let vips = ref ([]: string list)
 
-(* Some helper functions to avoid flagging race warnings on atomic types, and
- * other irrelevant stuff, such as mutexes and functions. *)
-
-let is_atomic_type (t: typ): bool =
-  (*  ignore (printf "Type %a\n" (printType plainCilPrinter) t);*)
-  match t with
-  | TNamed (info, attr) -> info.tname = "atomic_t"
-  | TComp (info, attr) -> info.cname = "lock_class_key"
-  | _ -> false
-
-let is_atomic lval =
-  let (lval, _) = removeOffsetLval lval in
-  let typ = typeOfLval lval in
-  is_atomic_type typ
-
-let is_ignorable lval =
-  (*  ignore (printf "Var %a\n" d_lval lval);*)
-  try Base.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
-  with Not_found -> false
-
 let get_flag (state: (string * Obj.t) list) : BS.Flag.t =
   snd (Obj.obj (List.assoc "base" state))
 

@@ -3,6 +3,22 @@ open Cil
 open Pretty
 open GobConfig
 
+(* Some helper functions to avoid flagging race warnings on atomic types, and
+ * other irrelevant stuff, such as mutexes and functions. *)
+
+let is_ignorable_type (t: typ): bool =
+  match t with
+  | TNamed (info, attr) -> info.tname = "atomic_t" || info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
+  | TComp (info, attr) -> info.cname = "lock_class_key"
+  | TInt (IInt, attr) -> hasAttribute "mutex" attr
+  | _ -> false
+
+let is_ignorable = function
+  | None -> false
+  | Some (v,os) ->
+      try isFunctionType v.vtype || is_ignorable_type v.vtype
+      with Not_found -> false
+
 module Ident : Printable.S with type t = string = 
 struct
   open Pretty
@@ -186,21 +202,23 @@ let add_one (e:exp) (w:bool) (ty:acc_typ) lv ((pp,lp):part): unit =
     | None -> None 
     | Some (v,os) -> Some (v, remove_idx os)
   in
-  some_accesses := true;
-  let tyh = Ht.find_def accs  ty (lazy (Ht.create 10)) in
-  let lvh = Ht.find_def tyh lv (lazy (Ht.create 10)) in
-  let loc = !Tracing.current_loc in
-  let add_part ls =
-    Ht.modify_def lvh (Some(ls)) (lazy (Set.empty,lp)) (fun (s,o_lp) ->
-        (Set.add (w,loc,e,lp) s, LSSet.inter lp o_lp)
-      )
-  in
-  if LSSSet.is_empty pp then
-    Ht.modify_def lvh None (lazy (Set.empty,lp)) (fun (s,o_lp) ->
-        (Set.add (w,loc,e,lp) s, LSSet.inter lp o_lp)
-      )
-  else
-    LSSSet.iter add_part pp
+  if is_ignorable lv then () else begin
+    some_accesses := true;
+    let tyh = Ht.find_def accs  ty (lazy (Ht.create 10)) in
+    let lvh = Ht.find_def tyh lv (lazy (Ht.create 10)) in
+    let loc = !Tracing.current_loc in
+    let add_part ls =
+      Ht.modify_def lvh (Some(ls)) (lazy (Set.empty,lp)) (fun (s,o_lp) ->
+          (Set.add (w,loc,e,lp) s, LSSet.inter lp o_lp)
+        )
+    in
+    if LSSSet.is_empty pp then
+      Ht.modify_def lvh None (lazy (Set.empty,lp)) (fun (s,o_lp) ->
+          (Set.add (w,loc,e,lp) s, LSSet.inter lp o_lp)
+        )
+    else
+      LSSSet.iter add_part pp
+  end
 
 let type_from_type_offset : acc_typ -> typ = function
   | `Type t -> t
