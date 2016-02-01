@@ -47,8 +47,6 @@ module SLR3 =
       let rho'   = HPM.create 10 in
       let q      = ref H.empty in
       let count  = ref 0 in
-      let count_side  = ref (max_int - 1) in
-      let first  = ref true in
 
       let rec solve x =
         let wpx = HM.mem wpoint x in
@@ -82,7 +80,7 @@ module SLR3 =
         | Some f ->
           let sides = HM.create 10 in
           let collect_set x v =
-            init ~side:true x;
+            init x;
             (try HM.find sides x with Not_found -> S.Dom.bot ()) |> S.Dom.join v |> HM.replace sides x
           in
           let d = f get collect_set in
@@ -116,24 +114,18 @@ module SLR3 =
             HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
             HM.remove stable y
           end else begin
-            init ~side:true y;
+            init y;
             HM.replace rho  y d;
             HM.replace set y (VS.add x VS.empty);
           end;
           q := H.add y !q
         end
-      and init ?(side=false) x =
+      and init x =
         if not (HM.mem rho x) then begin
           new_var_event x;
           HM.replace rho  x (S.Dom.bot ());
           HM.replace infl x (VS.add x VS.empty);
-          if !first then (
-            HM.replace key  x max_int; first := false
-          ) else if side then (
-            HM.replace key  x !count_side; decr count_side
-          ) else (
-            HM.replace key  x (- !count); incr count
-          )
+          HM.replace key  x (- !count); incr count
         end
       in
 
