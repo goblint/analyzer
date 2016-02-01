@@ -115,14 +115,6 @@ struct
     in
     M.merge f
 
-  let map2' op =
-    let f k v1 v2 =
-      match v1, v2 with
-      | Some v1, Some v2 -> Some (op v1 v2)
-      | _ -> None
-    in
-    M.merge f
-
   let short _ x = "mapping"
   let isSimple _ = false
 

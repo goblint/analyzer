@@ -2764,8 +2764,6 @@ module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate
   (* f0: constructors *)
   let top = create { fi = fun (type a) (module I:S with type t = a) -> I.top }
   let bot = create { fi = fun (type a) (module I:S with type t = a) -> I.bot }
-  let starting = create { fi = fun (type a) (module I:S with type t = a) -> I.starting }
-  let ending = create { fi = fun (type a) (module I:S with type t = a) -> I.ending }
   let of_bool = create { fi = fun (type a) (module I:S with type t = a) -> I.of_bool }
   let of_excl_list = create { fi = fun (type a) (module I:S with type t = a) -> I.of_excl_list }
   let of_int = create { fi = fun (type a) (module I:S with type t = a) -> I.of_int }
