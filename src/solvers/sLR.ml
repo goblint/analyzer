@@ -209,7 +209,6 @@ module SLR3term =
         HM.find key x
       in
       let wpoint = HM.create  10 in
-      let stable = HM.create  10 in
       let infl   = HM.create  10 in
       let set    = HM.create  10 in
       let rho    = HM.create  10 in
@@ -217,112 +216,14 @@ module SLR3term =
       let q      = ref H.empty in
       let count  = ref 0 in
       let count_side  = ref (max_int - 1) in
-      let first  = ref true in
 
-      let rec solve b_old x =
-        let wpx = HM.mem wpoint x in
-        HM.remove wpoint x;
-        if not (HM.mem stable x) then begin
-          HM.add stable x ();
-          let old = HM.find rho x in
-          let eval y =
-            get_var_event y;
-            if not (HM.mem rho y) then begin
-              init y;
-              solve b_old y
-            end;
-            if HM.find key x <= HM.find key y then begin
-              HM.replace wpoint y ();
-              q := H.add y !q (* ? *)
-            end;
-            HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
-            HM.find rho y
-          in
-          let side y d =
-            HM.replace wpoint y ();
-            if not (HPM.mem rho' (x,y)) then (
-              HPM.add rho' (x,y) (S.Dom.bot ())
-              (* solve false y *)
-            );
-            let old = HPM.find rho' (x,y) in
-            if not (S.Dom.equal old d) then begin
-              HPM.replace rho' (x,y) d;
-              if HM.mem rho y then begin
-                HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
-                HM.remove stable y;
-              end else begin
-                init ~side:true y;
-                HM.replace rho  y d;
-                HM.replace set y (VS.add x VS.empty);
-              end;
-              q := H.add y !q
-            end
-          in
-          let tmp = eq x eval side in
-          let tmp = S.Dom.join tmp (sides x) in
-          let val_new, b_new =
-            if wpx then
-              if S.Dom.leq tmp old then S.Dom.narrow old tmp, true
-              else
-              if b_old then (
-                (* print_endline "NARROW!!!"; *)
-                let nar = S.Dom.narrow old tmp in
-                trace "sol" "NARROW: Var: %a\nOld: %a\nNew: %a\nNarrow: %a"
-                  S.Var.pretty_trace x
-                  S.Dom.pretty old
-                  S.Dom.pretty tmp
-                  S.Dom.pretty nar;
-                nar, true
-              )
-              else S.Dom.widen old tmp, false
-            else
-              tmp, b_old
-          in
-          if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
-          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty val_new;
-          (* let tmp = if wpx then box x old tmp else tmp in *)
-          update_var_event x old val_new;
-          if S.Dom.equal old val_new then ()
-          else begin
-            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty val_new;
-            HM.replace rho x val_new;
-            let w = try HM.find infl x with Not_found -> VS.empty in
-            let w = if wpx then VS.add x w else w in
-            q := Enum.fold (fun x y -> H.add y x) !q (VS.enum w);
-            HM.replace infl x VS.empty;
-            Enum.iter (HM.remove stable) (VS.enum w)
-          end;
-          while (H.size !q <> 0) && (min_key q <= HM.find key x) do
-            solve b_new (extract_min q)
-          done;
-        end
-      and eq x get set =
-        eval_rhs_event x;
-        match S.system x with
-        | None -> S.Dom.bot ()
-        | Some f ->
-          let sides = HM.create 10 in
-          let collect_set x v =
-            init ~side:true x;
-            (try HM.find sides x with Not_found -> S.Dom.bot ()) |> S.Dom.join v |> HM.replace sides x
-          in
-          let d = f get collect_set in
-          HM.iter set sides;
-          d
-      and sides x =
-        let w = try HM.find set x with Not_found -> VS.empty in
-        Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
-      and init ?(side=false) x =
+      let init ?(side=false) x =
         if not (HM.mem rho x) then begin
           new_var_event x;
           HM.replace rho  x (S.Dom.bot ());
           HM.replace infl x (VS.add x VS.empty);
-          (* print_endline @@ "Init variable " ^ S.Var.var_id x; *)
-          if !first then (
-            print_endline @@ "First variable " ^ S.Var.var_id x ^ " to " ^ string_of_int max_int;
-            HM.replace key  x max_int; first := false
-          ) else if side then (
-            print_endline @@ "Variable by side-effect" ^ S.Var.var_id x ^ " to " ^ string_of_int !count_side;
+          if side then (
+            print_endline @@ "Variable by side-effect " ^ S.Var.var_id x ^ " to " ^ string_of_int !count_side;
             HM.replace key  x !count_side; decr count_side
           ) else (
             print_endline @@ "Variable " ^ S.Var.var_id x ^ " to " ^ string_of_int (- !count);
@@ -330,20 +231,129 @@ module SLR3term =
           )
         end
       in
+      let sides x =
+        let w = try HM.find set x with Not_found -> VS.empty in
+        let v = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
+        in trace "sol" "SIDES: Var: %a\nVal: %a\n" S.Var.pretty_trace x S.Dom.pretty v; v
+      in
+      let rec iterate b_old prio =
+        if H.size !q = 0 || min_key q > prio then ()
+        else
+          let n = min_key q in
+          let x = extract_min q in
+          let b_new = do_var b_old x in
+          if b_old <> b_new && n < prio then (
+            iterate b_new n;
+            iterate b_old prio
+          ) else
+            iterate b_new prio
+      and solve x =
+        if not (HM.mem rho x) then begin
+          init x;
+          let b_new = do_var false x in
+          iterate b_new (HM.find key x)
+        end
+      and do_var b_old x =
+        let wpx = HM.mem wpoint x in
+        HM.remove wpoint x;
+        let old = HM.find rho x in
+        let eval y =
+          get_var_event y;
+          solve y;
+          if HM.find key x <= HM.find key y then begin
+            HM.replace wpoint y ()
+          end;
+          HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
+          HM.find rho y
+        in
+        let side y d =
+          trace "sol" "SIDE: Var: %a\nVal: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
+          if not (HPM.mem rho' (x,y)) then (
+            HPM.add rho' (x,y) d;
+            HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
+            init ~side:true y;
+            ignore @@ do_var false y
+          );
+          let old = HPM.find rho' (x,y) in
+          let newd = S.Dom.join old d in
+          if not (S.Dom.equal old newd) then begin
+            HPM.replace rho' (x,y) newd;
+            if not (HM.mem rho y) then begin
+              init ~side:true y;
+              ignore @@ do_var false y
+            end;
+            HM.replace wpoint y ();
+            q := H.add y !q
+          end
+        in
+        let tmp = eq x eval side in
+        let tmp = S.Dom.join tmp (sides x) in
+        let val_new, b_new =
+          if wpx then
+            if S.Dom.leq tmp old then S.Dom.narrow old tmp, true
+            else
+            if b_old then (
+              let nar = S.Dom.narrow old tmp in
+              trace "sol" "NARROW: Var: %a\nOld: %a\nNew: %a\nNarrow: %a"
+                S.Var.pretty_trace x
+                S.Dom.pretty old
+                S.Dom.pretty tmp
+                S.Dom.pretty nar;
+              nar, true
+            )
+            else (
+              let wid = S.Dom.widen old (S.Dom.join old tmp) in
+              trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a"
+                S.Var.pretty_trace x
+                S.Dom.pretty old
+                S.Dom.pretty tmp
+                S.Dom.pretty wid;
+              wid, false
+            )
+          else
+            tmp, b_old
+        in
+        if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
+        if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty val_new;
+        update_var_event x old val_new;
+        if S.Dom.equal old val_new then ()
+        else begin
+          if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty val_new;
+          HM.replace rho x val_new;
+          let w = try HM.find infl x with Not_found -> VS.empty in
+          let w = if wpx then VS.add x w else w in
+          q := Enum.fold (fun x y -> H.add y x) !q (VS.enum w);
+          HM.replace infl x VS.empty
+        end;
+        b_new
+      and eq x get set =
+        eval_rhs_event x;
+        match S.system x with
+        | None -> S.Dom.bot ()
+        | Some f ->
+          let effects = ref Set.empty in
+          let sidef y d =
+            if not (Set.mem y !effects) then (
+              if HPM.mem rho' (x,y) then HPM.replace rho' (x,y) (S.Dom.bot ());
+              effects := Set.add y !effects
+            );
+            set y d
+          in
+          f get sidef
+      in
 
       let set_start (x,d) =
-        init x;
+        init ~side:true x;
         HM.replace rho x d;
         HM.replace set x (VS.add x VS.empty);
         HPM.add rho' (x,x) d
       in
 
       start_event ();
-      List.iter init vs;
       List.iter set_start st;
-      q := List.fold_left (fun q v -> H.add v q) H.empty vs;
 
-      List.iter (solve false) vs;
+      List.iter solve vs;
+      iterate false max_int;
 
       let reachability xs =
         let reachable = HM.create (HM.length rho) in
@@ -365,7 +375,6 @@ module SLR3term =
 
       HM.clear key   ;
       HM.clear wpoint;
-      HM.clear stable;
       HM.clear infl  ;
       HM.clear set   ;
       HPM.clear rho' ;
