@@ -174,7 +174,7 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match f.vname with
-    | "malloc" | "calloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
+    | "malloc" | "calloc" | "kmalloc"| "kzalloc" | "__kmalloc" | "usb_alloc_urb" -> begin
         match ctx.local, lval with
         | (`Lifted (equ,reg), gd), Some lv ->
           let old_regpart = get_regpart ctx.global in
