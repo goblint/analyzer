@@ -141,7 +141,10 @@ module SLR3 =
       List.iter set_start st;
       q := List.fold_left (fun q v -> H.add v q) H.empty vs;
 
-      List.iter solve vs;
+      (* List.iter solve vs; *)
+      while (H.size !q <> 0) do
+        solve (extract_min q)
+      done;
 
       let reachability xs =
         let reachable = HM.create (HM.length rho) in
