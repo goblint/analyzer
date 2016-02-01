@@ -1,3 +1,4 @@
+// PARAM: --enable ana.int.interval --sets solver slr3t
 #include <pthread.h>
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -9,7 +10,7 @@ void *counter_thread (void *arg) {
     pthread_mutex_lock (&mutex);
     while(i<5){
       tmp = counter;
-      tmp++; // RACE!
+      tmp++;
       counter = tmp;
       i++;
     }
