@@ -104,8 +104,7 @@ module SLR3 =
       and side x y d =
         HM.replace wpoint y ();
         if not (HPM.mem rho' (x,y)) then (
-          HPM.add rho' (x,y) (S.Dom.bot ());
-          solve y
+          HPM.add rho' (x,y) (S.Dom.bot ())
         );
         let old = HPM.find rho' (x,y) in
         if not (S.Dom.equal old d) then begin
@@ -115,8 +114,9 @@ module SLR3 =
             HM.remove stable y
           end else begin
             init y;
-            HM.replace rho  y d;
+            (* HM.replace rho  y d; *)
             HM.replace set y (VS.add x VS.empty);
+            solve y
           end;
           q := H.add y !q
         end
