@@ -26,9 +26,11 @@ module SLR3 =
 
     let solve box st vs =
       let key    = HM.create 10 in
+      let count  = ref 0 in
+      let get_key x = try HM.find key x with Not_found -> (HM.replace key  x (- !count); incr count; !count) in
       let module H = Heap.Make (struct
           type t = S.Var.t
-          let compare x y = compare (HM.find key x) (HM.find key y)
+          let compare x y = compare (get_key x) (get_key y)
         end)
       in
       let extract_min q =
@@ -37,7 +39,7 @@ module SLR3 =
       in
       let min_key q =
         let x = H.find_min !q in
-        HM.find key x
+        get_key x
       in
       let wpoint = HM.create  10 in
       let stable = HM.create  10 in
@@ -46,8 +48,9 @@ module SLR3 =
       let rho    = HM.create  10 in
       let rho'   = HPM.create 10 in
       let q      = ref H.empty in
-      let count  = ref 0 in
 
+      let add_infl y x = HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
+      let make_wpoint x = HM.replace wpoint x () in
       let rec solve x =
         let wpx = HM.mem wpoint x in
         HM.remove wpoint x;
@@ -69,7 +72,7 @@ module SLR3 =
             HM.replace infl x VS.empty;
             Enum.iter (HM.remove stable) (VS.enum w)
           end;
-          while (H.size !q <> 0) && (min_key q <= HM.find key x) do
+          while (H.size !q <> 0) && (min_key q <= get_key x) do
             solve (extract_min q)
           done;
         end
@@ -78,25 +81,23 @@ module SLR3 =
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f ->
-          let sides = HM.create 10 in
-          let collect_set x v =
-            init x;
-            (try HM.find sides x with Not_found -> S.Dom.bot ()) |> S.Dom.join v |> HM.replace sides x
+          let effects = ref Set.empty in
+          let sidef y d =
+            if not (Set.mem y !effects) then (
+              if HPM.mem rho' (x,y) then HPM.replace rho' (x,y) (S.Dom.bot ());
+              effects := Set.add y !effects
+            );
+            set y d
           in
-          let d = f get collect_set in
-          HM.iter set sides;
-          d
+          f get sidef
       and eval x y =
         get_var_event y;
         if not (HM.mem rho y) then begin
           init y;
           solve y
         end;
-        if HM.find key x <= HM.find key y then begin
-          HM.replace wpoint y ();
-          q := H.add y !q
-        end;
-        HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
+        if get_key x <= get_key y then make_wpoint y else solve y;
+        add_infl y x;
         HM.find rho y
       and sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
@@ -104,28 +105,28 @@ module SLR3 =
       and side x y d =
         HM.replace wpoint y ();
         if not (HPM.mem rho' (x,y)) then (
-          HPM.add rho' (x,y) (S.Dom.bot ())
+          HPM.add rho' (x,y) (S.Dom.bot ());
+          solve y
         );
         let old = HPM.find rho' (x,y) in
         if not (S.Dom.equal old d) then begin
-          HPM.replace rho' (x,y) d;
+          HPM.replace rho' (x,y) (S.Dom.join old d);
+          HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
           if HM.mem rho y then begin
-            HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
-            HM.remove stable y
+            HM.remove stable y;
+            make_wpoint y;
+            q := H.add y !q
           end else begin
             init y;
-            (* HM.replace rho  y d; *)
+            HM.replace rho  y d;
             HM.replace set y (VS.add x VS.empty);
-            solve y
           end;
-          q := H.add y !q
         end
       and init x =
         if not (HM.mem rho x) then begin
           new_var_event x;
           HM.replace rho  x (S.Dom.bot ());
-          HM.replace infl x (VS.add x VS.empty);
-          HM.replace key  x (- !count); incr count
+          HM.replace infl x (VS.add x VS.empty)
         end
       in
 
@@ -269,7 +270,7 @@ module SLR3term =
         let side y d =
           trace "sol" "SIDE: Var: %a\nVal: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
           if not (HPM.mem rho' (x,y)) then (
-            HPM.add rho' (x,y) d;
+            HPM.replace rho' (x,y) d;
             HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
             init ~side:true y;
             ignore @@ do_var false y
