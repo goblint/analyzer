@@ -168,6 +168,7 @@ let _ = ()
       ; reg Experimental "exp.extraspecials"     "[]"    "List of functions that must be analyzed as unknown extern functions"
       ; reg Experimental "exp.backwards"         "false" "Backwards analysis"
       ; reg Experimental "exp.unsoundbasic"      "true"  "Do not propagate basic type writes to all struct fields"
+      ; reg Experimental "exp.ignored_threads"   "[]"    "Eliminate accesses in these threads"
 
 (* {4 category [Debugging]} *)
 let _ = ()
