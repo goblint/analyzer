@@ -92,10 +92,7 @@ module SLR3 =
           f get sidef
       and eval x y =
         get_var_event y;
-        if not (HM.mem rho y) then begin
-          init y;
-          solve y
-        end;
+        if not (HM.mem rho y) then init y;
         if get_key x <= get_key y then make_wpoint y else solve y;
         add_infl y x;
         HM.find rho y
@@ -103,24 +100,19 @@ module SLR3 =
         let w = try HM.find set x with Not_found -> VS.empty in
         Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
       and side x y d =
-        HM.replace wpoint y ();
-        if not (HPM.mem rho' (x,y)) then (
-          HPM.add rho' (x,y) (S.Dom.bot ());
-          solve y
-        );
-        let old = HPM.find rho' (x,y) in
-        if not (S.Dom.equal old d) then begin
-          HPM.replace rho' (x,y) (S.Dom.join old d);
+        if not (HPM.mem rho' (x,y)) then begin
+          init y;
+          HPM.add rho' (x,y) d;
           HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
-          if HM.mem rho y then begin
+          solve y
+        end else begin
+          let old = HPM.find rho' (x,y) in
+          if not (S.Dom.equal old d) then begin
+            HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
             HM.remove stable y;
             make_wpoint y;
             q := H.add y !q
-          end else begin
-            init y;
-            HM.replace rho  y d;
-            HM.replace set y (VS.add x VS.empty);
-          end;
+          end
         end
       and init x =
         if not (HM.mem rho x) then begin
