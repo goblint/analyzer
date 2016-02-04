@@ -2,37 +2,41 @@
 # Inspired by https://github.com/lunaryorn/flycheck
 
 # setup base system and clone goblint if not running in travis-ci
-if test -e "make.sh"; then # travis-ci
-    echo "already in repository"
-    # USER=`whoami`
-else # vagrant
-    apt () {
-        sudo apt-get install -yy --fix-missing "$@"
-    }
-    # update repositories to prevent errors caused by missing packages
-    sudo apt-get update -qq
-    apt python-software-properties # needed for ppa
-    apt make m4  # needed for compiling ocamlfind
-    apt patch    # needed for compiling xml-light
-    apt autoconf # needed for compiling cil
-    apt git      # needed for cloning goblint source
+if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    brew update
+    brew install make m4 autoconf git ocaml opam
+else
+    if test -e "make.sh"; then # travis-ci
+        echo "already in repository"
+        # USER=`whoami`
+    else # vagrant
+        apt () {
+            sudo apt-get install -yy --fix-missing "$@"
+        }
+        # update repositories to prevent errors caused by missing packages
+        sudo apt-get update -qq
+        apt python-software-properties # needed for ppa
+        apt make m4  # needed for compiling ocamlfind
+        apt patch    # needed for compiling xml-light
+        apt autoconf # needed for compiling cil
+        apt git      # needed for cloning goblint source
 
-    # USER=vagrant # provisioning is done as root, but ssh login is 'vagrant'
-    cd /root # just do everything as root and later use 'sudo su -' for ssh
-    if test ! -e "analyzer"; then # ignore if source already exists
-        git clone https://github.com/goblint/analyzer.git
-        # chown -hR $USER:$USER analyzer # make ssh user the owner
+        # USER=vagrant # provisioning is done as root, but ssh login is 'vagrant'
+        cd /root # just do everything as root and later use 'sudo su -' for ssh
+        if test ! -e "analyzer"; then # ignore if source already exists
+            git clone https://github.com/goblint/analyzer.git
+            # chown -hR $USER:$USER analyzer # make ssh user the owner
+        fi
+        pushd analyzer
     fi
-    pushd analyzer
+
+    # install ocaml and friends, see http://anil.recoil.org/2013/09/30/travis-and-ocaml.html
+    ppa=avsm/ocaml42+opam12
+
+    echo 'yes' | sudo add-apt-repository ppa:$ppa
+    sudo apt-get update -qq
+    sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam
 fi
-
-
-# install ocaml and friends, see http://anil.recoil.org/2013/09/30/travis-and-ocaml.html
-ppa=avsm/ocaml42+opam12
-
-echo 'yes' | sudo add-apt-repository ppa:$ppa
-sudo apt-get update -qq
-sudo apt-get install -qq ocaml ocaml-native-compilers camlp4-extra opam
 
 export OPAMYES=1
 ./make.sh travis
