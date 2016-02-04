@@ -9,9 +9,15 @@ def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
   print(o+"\n")
 end
 # colors
-ered   = "\e[31m"
-egreen = "\e[32m"
-eend   = "\e[0m"
+class String
+  def colorize(color_code); "\e[#{color_code}m#{self}\e[0m" end
+  def red; colorize(31) end
+  def green; colorize(32) end
+  def yellow; colorize(33) end
+  def blue; colorize(34) end
+  def pink; colorize(35) end
+  def light_blue; colorize(36) end
+end
 # clear the current line
 def clearline
   print "\r\e[K"
@@ -64,7 +70,7 @@ end
 # -v at the end stands for verbose output
 verbose = ARGV.last == "-v" && ARGV.pop
 parallel = ARGV.last == "-p" && ARGV.pop
-fast = ARGV.last == "-f" && ARGV.pop
+report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
 if only == "future" then
   future = true
@@ -148,21 +154,22 @@ regs.sort.each do |d|
   end
 end
 
-cmds = {"code2html" => lambda {|f,o| "code2html -l c -n #{f} 2> /dev/null 1> #{o}"},
-        "source-highlight" => lambda {|f,o| "source-highlight -n -i #{f} -o #{o}"},
-        "pygmentize" => lambda {|f,o| "pygmentize -O full,linenos=1 -o #{o} #{f}"}
-       }
-highlighter = nil
-cmds.each do |name, cmd|
-  # if `which #{cmd} 2> /dev/null`.empty? then
-  if ENV['PATH'].split(':').map {|f| File.executable? "#{f}/#{name}"}.include?(true) then
-    highlighter = cmd
-    break
+highlighter = lambda {|f,o| "cp #{f} #{o}"}
+if report then
+  cmds = {"code2html" => lambda {|f,o| "code2html -l c -n #{f} 2> /dev/null 1> #{o}"},
+          "source-highlight" => lambda {|f,o| "source-highlight -n -i #{f} -o #{o}"},
+          "pygmentize" => lambda {|f,o| "pygmentize -O full,linenos=1 -o #{o} #{f}"}
+         }
+  cmds.each do |name, cmd|
+    # if `which #{cmd} 2> /dev/null`.empty? then
+    if ENV['PATH'].split(':').map {|f| File.executable? "#{f}/#{name}"}.include?(true) then
+      highlighter = cmd
+      break
+    end
   end
-end
-if highlighter.nil? then
-  puts "Warning: No syntax highlighter installed (code2html, source-highlight, pygmentize)."
-  highlighter = lambda {|f,o| "cp #{f} #{o}"}
+  if highlighter.nil? then
+    puts "Warning: No syntax highlighter installed (code2html, source-highlight, pygmentize)."
+  end
 end
 
 #analysing the files
@@ -181,7 +188,7 @@ doproject = lambda do |p|
 #   solfile = File.join(testresults, p.name + ".sol.txt")
   cilfile = File.join(testresults, p.name + ".cil.txt")
   orgfile = File.join(testresults, p.name + ".c.html")
-  if not fast then
+  if report then
     system(highlighter.call(filename, orgfile))
     `#{goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
     p.size = `wc -l #{cilfile}`.split[0]
@@ -192,7 +199,7 @@ doproject = lambda do |p|
   begin
     Timeout::timeout(timeout) {Process.wait pid}
   rescue Timeout::Error
-    puts "\t #{ered}Timeout reached!#{eend} Killing process #{pid}..."
+    puts "\t Timeout reached!".red + "Killing process #{pid}..."
     timedout.push "#{p.group}/#{p.name}"
     Process.kill('TERM', pid)
     return
@@ -200,7 +207,7 @@ doproject = lambda do |p|
   endtime   = Time.now
   status = $?.exitstatus
   if status != 0 then
-    puts "\t #{ered}Status: #{status}#{eend}"
+    puts "\t Status: #{status}".red
   end
 #   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
 #   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
@@ -367,7 +374,7 @@ File.open(theresultfile, "w") do |f|
   f.puts "</html>"
 end
 
-if not fast then
+if report then
   puts "Usage examples for high-tech script parameters: "
   puts "  Single: ./scripts/update_suite.rb simple_rc"
   puts "  Groups: ./scripts/update_suite.rb group mutex"
@@ -378,9 +385,9 @@ if not fast then
   puts ("Results: " + theresultfile)
 end
 if alliswell then
-  puts "#{egreen}All is well!#{eend}"
+  puts "All is well!".green
 else
-  puts "#{ered}All is not well!#{eend}"
+  puts "All is not well!".red
   # puts "failed tests: #{failed}"
 end
 exit alliswell
