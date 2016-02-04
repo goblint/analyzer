@@ -2,9 +2,19 @@
 
 require 'find'
 require 'fileutils'
+require 'timeout'
+timeout = 5 # seconds
 
 def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
   print(o+"\n")
+end
+# colors
+ered   = "\e[31m"
+egreen = "\e[32m"
+eend   = "\e[0m"
+# clear the current line
+def clearline
+  print "\r\e[K"
 end
 
 goblint = File.join(Dir.getwd,"goblint")
@@ -22,6 +32,7 @@ testfiles   = File.expand_path("tests/regression")
 
 alliswell = true
 failed    = [] # failed tests
+timedout  = [] # timed out tests
 
 class Project
   attr_reader :name, :group, :path, :params, :warnings
@@ -53,6 +64,7 @@ end
 # -v at the end stands for verbose output
 verbose = ARGV.last == "-v" && ARGV.pop
 parallel = ARGV.last == "-p" && ARGV.pop
+fast = ARGV.last == "-f" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
 if only == "future" then
   future = true
@@ -150,35 +162,46 @@ cmds.each do |name, cmd|
 end
 if highlighter.nil? then
   puts "Warning: No syntax highlighter installed (code2html, source-highlight, pygmentize)."
-  highlighter = lambda {|f,o| "cp #{f} #{o}"} 
+  highlighter = lambda {|f,o| "cp #{f} #{o}"}
 end
 
 #analysing the files
 startdir = Dir.pwd
-strs = ["Analysing","Testing","Goblinting"]
-astr = strs[rand(strs.size)]
 doproject = lambda do |p|
   Dir.chdir(startdir)
   filepath = p.path
   dirname = File.dirname(filepath)
   filename = File.basename(filepath)
   Dir.chdir(dirname)
-  puts "#{astr} #{p.group}/#{p.name}"
+  clearline
+  print "Testing #{p.group}/#{p.name}"
   warnfile = File.join(testresults, p.name + ".warn.txt")
   statsfile = File.join(testresults, p.name + ".stats.txt")
 #   confile = File.join(testresults, p.name + ".con.txt")
 #   solfile = File.join(testresults, p.name + ".sol.txt")
   cilfile = File.join(testresults, p.name + ".cil.txt")
   orgfile = File.join(testresults, p.name + ".c.html")
-  # `code2html -l c -n #{filename} > #{orgfile}`
-  system(highlighter.call(filename, orgfile))
-  `#{goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
-  p.size = `wc -l #{cilfile}`.split[0]
+  if not fast then
+    system(highlighter.call(filename, orgfile))
+    `#{goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
+    p.size = `wc -l #{cilfile}`.split[0]
+  end
   starttime = Time.now
   cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true  2>#{statsfile}"
-  system(cmd)
+  pid = Process.spawn(cmd)
+  begin
+    Timeout::timeout(timeout) {Process.wait pid}
+  rescue Timeout::Error
+    puts "\t #{ered}Timeout reached!#{eend} Killing process #{pid}..."
+    timedout.push "#{p.group}/#{p.name}"
+    Process.kill('TERM', pid)
+    return
+  end
   endtime   = Time.now
-  #status = $?.exitstatus
+  status = $?.exitstatus
+  if status != 0 then
+    puts "\t #{ered}Status: #{status}#{eend}"
+  end
 #   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
 #   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
   File.open(statsfile, "a") do |f|
@@ -201,6 +224,8 @@ if parallel then
 else
   projects.each &doproject
 end
+clearline
+`pkill goblint` # FIXME somehow the killing above is not complete...
 
 #Outputting
 header = <<END
@@ -319,8 +344,10 @@ File.open(theresultfile, "w") do |f|
       f.puts "<td style =\"color: green\">NONE</td>"
     else
       alliswell = false
-      failed.push p.name
-      puts "#{p.group}/#{p.name} \e[31mfailed! \u2620\e[0m"
+      if not timedout.include? "#{p.group}/#{p.name}" then
+        failed.push p.name
+        puts "#{p.group}/#{p.name} \e[31mfailed! \u2620\e[0m"
+      end
       if not is_ok or ferr.nil? then
         f.puts "<td style =\"color: red\">FAILED</td>"
       else
@@ -340,18 +367,20 @@ File.open(theresultfile, "w") do |f|
   f.puts "</html>"
 end
 
-puts "Usage examples for high-tech script parameters: "
-puts "  Single: ./scripts/update_suite.rb simple_rc"
-puts "  Groups: ./scripts/update_suite.rb group mutex"
-puts "  Exclude group: ./scripts/update_suite.rb group -mutex"
-puts "  Future: ./scripts/update_suite.rb future"
-puts "  Parallel execution: append -p"
-puts "  Verbose output: append -v"
-puts ("Results: " + theresultfile)
+if not fast then
+  puts "Usage examples for high-tech script parameters: "
+  puts "  Single: ./scripts/update_suite.rb simple_rc"
+  puts "  Groups: ./scripts/update_suite.rb group mutex"
+  puts "  Exclude group: ./scripts/update_suite.rb group -mutex"
+  puts "  Future: ./scripts/update_suite.rb future"
+  puts "  Parallel execution: append -p"
+  puts "  Verbose output: append -v"
+  puts ("Results: " + theresultfile)
+end
 if alliswell then
-  puts "\e[32mAll is well!\e[0m"
+  puts "#{egreen}All is well!#{eend}"
 else
-  puts "\e[31mAll is not well!\e[0m"
+  puts "#{ered}All is not well!#{eend}"
   # puts "failed tests: #{failed}"
 end
 exit alliswell
