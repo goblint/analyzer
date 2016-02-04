@@ -1331,7 +1331,6 @@ struct
         in
         let flist = collect_funargs ctx.ask ctx.global ctx.local args in
         let addrs = List.concat (List.map AD.to_var_may flist) in
-        publish_all ctx;
         List.map (create_thread None) addrs
       end
     | _ ->  []
