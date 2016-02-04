@@ -122,7 +122,7 @@ struct
             | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
             | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
           else begin
-            if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
+            if M.tracing then M.tracec "get" "Singlethreaded mode.\n"; (* TODO what about locals? *)
             CPA.find x st
           end
         in

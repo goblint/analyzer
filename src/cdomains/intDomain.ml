@@ -142,13 +142,15 @@ struct
     | None -> None
     | Some (x,y) -> norm @@ Some (max x (min_int_f b),min y (max_int_f b))
 
-  let widen x y =
+  let widen x y = (* TODO args should be normalized before *)
     match x, y with
     | None, z | z, None -> z
     | Some (l0,u0), Some (l1,u1) ->
-      let l2 = if Int64.compare l0 l1 = 0 then l0 else min l1 min_int in
-      let u2 = if Int64.compare u0 u1 = 0 then u0 else max u1 max_int in
-      norm @@ Some (l2,u2)
+      (* let l2 = if Int64.compare l0 l1 = 0 then l0 else min l1 min_int in *)
+      (* let u2 = if Int64.compare u0 u1 = 0 then u0 else max u1 max_int in *)
+      let l2 = if l0 <= l1 then l0 else min_int in
+      let u2 = if u0 >= u1 then u0 else max_int in
+      Some (l2,u2)
 
   let narrow x y =
     match x, y with

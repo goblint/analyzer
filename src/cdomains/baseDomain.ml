@@ -6,7 +6,7 @@ module VD = ValueDomain.Compound
 
 module CPA =
 struct
-  include MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
+  include MapDomain.MapBot_LiftTop (Basetype.Variables) (VD) (* TODO would it be better to make this MapTop? *)
   let name () = "value domain"
 end
 
