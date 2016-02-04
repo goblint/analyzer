@@ -4,7 +4,7 @@
 # setup base system and clone goblint if not running in travis-ci
 if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     brew update
-    brew install make m4 autoconf git ocaml opam
+    brew install ocaml opam
 else
     if test -e "make.sh"; then # travis-ci
         echo "already in repository"
