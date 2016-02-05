@@ -336,7 +336,7 @@ let handle_extraspecials () =
 (** the main function *)
 let main =
   let main_running = ref false in fun () ->
-    if !main_running then () else
+    if !main_running then () else (* when can this happen? *)
       let _ = main_running := true in
       try
         Stats.reset Stats.SoftwareTimer;
@@ -352,4 +352,4 @@ let main =
       with BailFromMain -> ()
 
 let _ =
-  at_exit main
+  at_exit main (* at_exit is only used here, so what's the point of it? *)
