@@ -199,7 +199,7 @@ doproject = lambda do |p|
   begin
     Timeout::timeout(timeout) {Process.wait pid}
   rescue Timeout::Error
-    puts "\t Timeout reached!".red + "Killing process #{pid}..."
+    puts "\t Timeout reached!".red + " Killing process #{pid}..."
     timedout.push "#{p.group}/#{p.name}"
     Process.kill('TERM', pid)
     return
@@ -208,6 +208,10 @@ doproject = lambda do |p|
   status = $?.exitstatus
   if status != 0 then
     puts "\t Status: #{status}".red
+    stats = File.readlines statsfile
+    if stats[0] =~ /exception/ then
+      puts stats[0..9].join()
+    end
   end
 #   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
 #   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
