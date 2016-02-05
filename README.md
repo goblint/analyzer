@@ -1,5 +1,6 @@
 [![Stories in Ready](https://badge.waffle.io/goblint/analyzer.png?label=ready&title=Ready)](https://waffle.io/goblint/analyzer)
 [![Build status](https://travis-ci.org/goblint/analyzer.png)](https://travis-ci.org/goblint/analyzer)
+[![Circle CI](https://circleci.com/gh/goblint/analyzer.svg?style=svg)](https://circleci.com/gh/goblint/analyzer)
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/goblint)
 # goblint
 
