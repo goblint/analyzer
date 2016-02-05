@@ -348,7 +348,8 @@ let main =
         preprocess_files () |> merge_preprocessed |> do_analyze;
         if String.length (get_string "questions.file") > 0 then question_save_db (get_string "questions.file");
         Report.do_stats !cFileNames;
-        do_html_output ()
+        do_html_output ();
+        if !verified = Some false then exit 3 (* verifier failed! *)
       with BailFromMain -> ()
 
 let _ =

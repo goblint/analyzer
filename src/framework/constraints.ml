@@ -1200,14 +1200,14 @@ struct
 
   let verify (sigma:D.t LH.t) (theta:G.t GH.t) =
     Goblintutil.in_verifying_stage := true;
-    let correct = ref true in
+    Goblintutil.verified := Some true;
     let complain_l (v:LVar.t) lhs rhs =
-      correct := false;
+      Goblintutil.verified := Some false;
       ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]"
                 LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
     in
     let complain_g v (g:GVar.t) lhs rhs =
-      correct := false;
+      Goblintutil.verified := Some false;
       ignore (Pretty.printf "Unsatisfied constraint for global %a at variable %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]"
                 GVar.pretty_trace g LVar.pretty_trace v G.pretty lhs G.pretty rhs)
     in

@@ -207,10 +207,15 @@ doproject = lambda do |p|
   endtime   = Time.now
   status = $?.exitstatus
   if status != 0 then
-    puts "\t Status: #{status}".red
+    reason = if status == 2 then "exception" elsif status == 3 then "verify" end
+    puts "\t Status: #{status} (#{reason})".red
     stats = File.readlines statsfile
     if stats[0] =~ /exception/ then
       puts stats[0..9].join()
+    end
+    if status == 3 then
+      warn = File.readlines warnfile
+      puts (warn.select { |x| x["Unsatisfied constraint"] || x["Fixpoint not reached"] }).uniq.join()
     end
   end
 #   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing

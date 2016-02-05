@@ -106,6 +106,9 @@ let earlyglobs = ref false
 (** true if in verifying stage *)
 let in_verifying_stage = ref false
 
+(* None for noverify, Some true for verified, Some false if verfication failed *)
+let verified : bool option ref = ref None
+
 let escape (x:string):string =
   Str.global_replace (Str.regexp "&") "&amp;" x |>
   Str.global_replace (Str.regexp "<") "&lt;" |>
