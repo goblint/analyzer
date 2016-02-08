@@ -56,7 +56,13 @@ struct
 
   let narrow = meet
 
-  let equal = A.is_eq  (Man.mgr)
+  let equal x y =
+    if is_bot x then is_bot y
+    else if is_bot y then false
+    else if is_top x then is_top y
+    else if is_top y then false
+    else A.is_eq Man.mgr x y
+
   let leq x y =
     if is_bot x || is_top y then true else
     if is_bot y || is_top x then false else
@@ -286,12 +292,19 @@ struct
     List.of_enum (Array.enum xs), List.of_enum (Array.enum ys)
 
   let add_vars_with newd (newis, newfs) =
+    let rec remove_duplicates list =
+      match list with
+      | [] -> []
+      | head::tail -> head::(remove_duplicates (List.filter (fun x -> x <> head) tail)) in
     let oldis, oldfs = get_vars newd in
     let oldvs = oldis@oldfs in
-    let cis = List.filter (fun x -> not (List.mem x oldvs)) (List.map Var.of_string newis) in
-    let cfs = List.filter (fun x -> not (List.mem x oldvs)) (List.map Var.of_string newfs) in
+    let environment = (A.env newd) in
+    let newis = remove_duplicates newis in
+    let newfs = remove_duplicates newfs in
+    let cis = List.filter (fun x -> not (List.mem x oldvs) && (not (Environment.mem_var environment x))) (List.map Var.of_string newis) in
+    let cfs = List.filter (fun x -> not (List.mem x oldvs) && (not (Environment.mem_var environment x))) (List.map Var.of_string newfs) in
     let cis, cfs = Array.of_enum (List.enum cis), Array.of_enum (List.enum cfs) in
-    let newenv = Environment.add (A.env newd) cis cfs in
+    let newenv = Environment.add environment cis cfs in
     A.change_environment_with Man.mgr newd newenv false
 
   let add_vars d vars =
