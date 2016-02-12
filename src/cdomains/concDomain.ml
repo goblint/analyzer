@@ -87,15 +87,13 @@ module SimpleThreadDomain = struct
   let is_multi (x,_) = x > 0
   let is_bad   (x,_) = x > 1
   let get_multi () = (2, Lifted.top ())
-  let get_main  () = (1, Lifted.top ())
-  let get_single () = (0, Lifted.top ())
+  let make_main (x,y) = (Simple.join 1 x, y)
   let spawn_thread l v = (2, `Lifted (Thread.spawn_thread l v))
   let start_single v : t = (0, `Lifted (Thread.start_thread v))
   let start_main   v : t = (2, `Lifted (Thread.start_thread v))
   let start_multi  v : t = (2, `Lifted (Thread.start_thread v))
   let switch (x,z) (y,_) = (Simple.switch x y, z)
 
-  let make_main (_,x) = (1,x)
 
   let short w (x,y) =
     let tid = Lifted.short w y in

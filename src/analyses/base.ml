@@ -904,7 +904,7 @@ struct
   let return ctx exp fundec =
     let (cp,fl) = ctx.local in
     match fundec.svar.vname with
-    | "__goblint_dummy_init" -> if Flag.is_multi fl then ctx.local else (cp, Flag.get_main ())
+    | "__goblint_dummy_init" -> cp, Flag.make_main fl
     | "StartupHook" ->
       publish_all ctx;
       cp, Flag.get_multi ()
@@ -1129,103 +1129,6 @@ struct
       M.warn ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
       [dummyFunDec.svar]
 
-  let may_race (ctx1,ac1) (ctx,ac2) =
-    let gs = ctx1.global in
-    let ask1 = ctx1.ask in
-    let ask = ctx.ask in
-    let cpa1, f1 = ctx1.local in
-    let cpa2, f2 = ctx.local in
-    let rt_closure f d =
-      let rec loop don todo =
-        if AD.is_empty todo then don else
-          let fd = f todo in
-          let new_done = AD.union todo don in
-          loop new_done (AD.diff fd new_done)
-      in
-      loop (AD.empty ()) d
-    in
-    let is_glob ask lv =
-      (not (Addr.equal (Addr.str_ptr ()) lv)) &&
-      (not (Addr.is_null lv)) &&
-      match Addr.to_var lv with
-      | [v] ->not(isFunctionType v.vtype) && is_global ask v
-      | _ -> true
-    in
-    Flag.is_multi f1 &&
-    Flag.is_multi f2 &&
-    not (Flag.get_main ()=f1 && f1=f2) &&
-    let changed_addrs ask st ac =
-      match ac with
-      | `Lval (l,rw) -> eval_lv ask gs st l
-      | `Reach (e,rw) ->
-        match eval_rv ask gs st e with
-        | `Address a -> rt_closure (reachable_from_address ask gs st) a
-        | `Top -> AD.top ()
-        | _ -> AD.bot ()
-    in
-    let filter p x = if AD.is_top x then x else AD.filter p x in
-    let val1 = changed_addrs ctx1.ask (cpa1,f1) ac1 in
-    let val2 = changed_addrs ctx.ask (cpa2,f2) ac2 in
-    let gval1 = filter (is_glob ask1) val1 in
-    let gval2 = filter (is_glob ask) val2 in
-    (( AD.mem (Addr.unknown_ptr ()) val1 && not (AD.is_empty gval2))
-     ||(AD.mem (Addr.unknown_ptr ()) val2 && not (AD.is_empty gval1))
-     || not (AD.is_bot (AD.meet gval1 gval2)) )
-
-  let reachable_top_pointers_types ctx (ps: AD.t) : Queries.TS.t =
-    let module TS = Queries.TS in
-    let reachable_from_address (adr: address) =
-      let with_type t = function 
-        | (ad,ts,true) -> 
-          begin match unrollType t with
-          | TPtr (p,_) ->
-            (ad, TS.add (unrollType p) ts, false)
-          | _ -> 
-            (ad, ts, false)
-          end
-        | x -> x
-      in
-      let with_field (a,t,b) = function 
-        | `Top -> (AD.empty (), TS.top (), false)
-        | `Bot -> (a,t,false)
-        | `Lifted f -> with_type f.ftype (a,t,b)
-      in 
-      let rec reachable_from_value (value: value) =
-        match value with
-        | `Top -> (empty, TS.top (), true)
-        | `Bot -> (empty, TS.bot (), false)
-        | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
-        | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
-        | `Union (t,e) -> with_field (reachable_from_value e) t
-        | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (IdxDom.top ()))
-        | `Blob e -> reachable_from_value e
-        | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
-        | `Struct s -> 
-          let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
-          let f k v = 
-            join_tr (with_type k.ftype (reachable_from_value v))
-          in
-          ValueDomain.Structs.fold f s (empty, TS.bot (), false)
-        | `Int _ -> (empty, TS.bot (), false)
-      in
-      reachable_from_value (get ctx.ask ctx.global ctx.local adr)
-    in
-    let visited = ref empty in
-    let work = ref ps in
-    let collected = ref (TS.empty ()) in
-    while not (AD.is_empty !work) do
-      let next = ref empty in
-      let do_one a = 
-        let (x,y,_) = reachable_from_address (AD.singleton a) in
-        collected := TS.union !collected y;
-        next := AD.union !next x
-      in
-      if not (AD.is_top !work) then
-        AD.iter do_one !work;
-      visited := AD.union !visited !work;
-      work := AD.diff !next !visited
-    done;
-    !collected
 
   let query ctx (q:Q.t) =
     match q with
@@ -1534,10 +1437,7 @@ struct
         match ctx.ask (Queries.EvalInt (List.hd args)) with
         | `Int i when i=1L || i=2L -> ctx.local
         | `Bot -> ctx.local
-        | _ ->
-          let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
-          let new_fl = (x,y) in
-          cpa, new_fl
+        | _ -> cpa, Flag.make_main fl
       end
     (* handling thread creations *)
     (*       | `Unknown "LAP_Se_CreateProcess" -> begin
@@ -1549,9 +1449,7 @@ struct
               end *)
     | `ThreadCreate (f,x) ->
       GU.multi_threaded := true;
-      let (x,_), (_,y) = Flag.join fl (Flag.get_main ()), fl in
-      let new_fl = (x,y) in
-      cpa, new_fl
+      cpa, Flag.make_main fl
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv ctx.ask gs st ret_var) with
@@ -1623,7 +1521,7 @@ struct
                 let new_fl =
                   if (not !GU.multi_threaded) && get_bool "exp.unknown_funs_spawn" then begin
                     GU.multi_threaded := true;
-                    Flag.join fl (Flag.get_main ())
+                    Flag.make_main fl
                   end else
                     fl
                 in
@@ -1664,16 +1562,16 @@ struct
 
   let is_unique ctx fl = 
     not (BaseDomain.Flag.is_bad fl) || 
-      match ctx.ask Queries.IsNotUnique with
-      | `Bool false -> true
-      | _ -> false
+    match ctx.ask Queries.IsNotUnique with
+    | `Bool false -> true
+    | _ -> false
 
   (* remove this function and everything related to exp.ignored_threads *)
   let is_special_ignorable_thread = function
-  | (_, `Lifted f) ->
-    let fs = get_list "exp.ignored_threads" |> List.map Json.string in
-    List.mem f.vname fs
-  | _ -> false
+    | (_, `Lifted f) ->
+      let fs = get_list "exp.ignored_threads" |> List.map Json.string in
+      List.mem f.vname fs
+    | _ -> false
 
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in

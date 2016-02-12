@@ -81,19 +81,19 @@ struct
   let part_access ctx e v w =
     (*privatization*)
     begin match v with
-    | Some v -> 
-      if not (Lockset.is_bot ctx.local) then
-        let ls = Lockset.filter snd ctx.local in
-        let el = P.effect_fun ls in
-        ctx.sideg v el
-    | None -> M.warn "Write to unknown address: privatization is unsound."
+      | Some v ->
+        if not (Lockset.is_bot ctx.local) then
+          let ls = Lockset.filter snd ctx.local in
+          let el = P.effect_fun ls in
+          ctx.sideg v el
+      | None -> M.warn "Write to unknown address: privatization is unsound."
     end;
     (*partitions & locks*)
     let open Access in
     let ps = LSSSet.singleton (LSSet.empty ()) in
     let add_lock l =
       let ls = Lockset.Lock.short 80 l in
-       LSSet.add ("lock",ls)
+      LSSet.add ("lock",ls)
     in
     let locks =
       if w then
@@ -104,7 +104,7 @@ struct
         Lockset.map (fun (x,_) -> (x,true)) ctx.local
     in
     let ls = D.fold add_lock locks (LSSet.empty ())in
-      (ps, ls)
+    (ps, ls)
 
   let eval_exp_addr a exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
@@ -265,10 +265,6 @@ struct
     end;
     List.iter (access_one_top ctx false false) args;
     al
-
-  (** postprocess and print races and other output *)
-  let finalize () =
-    BS.finalize ()
 
   let init () =
     init ();
