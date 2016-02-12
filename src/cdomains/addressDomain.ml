@@ -34,6 +34,7 @@ struct
   let safe_ptr ()    = singleton (Addr.safe_ptr ())
   let unknown_ptr () = singleton (Addr.unknown_ptr ())
   let is_unknown x = cardinal x = 1 && Addr.is_unknown (choose x)
+  let has_unknown x = mem Addr.UnknownPtr x
 
   let get_type xs =
     try Addr.get_type (choose xs)

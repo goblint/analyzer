@@ -623,8 +623,6 @@ struct
         | Const _ -> []
         (* Variables and address expressions *)
         | Lval lval ->
-          if not !GU.may_narrow then
-            ignore (a (Queries.Access(mkAddrOf lval, rw, false))) ;
           let a1 = access_address a regs rw lval in
           let a2 = access_lv_byval a lval in
           a1 @  a2

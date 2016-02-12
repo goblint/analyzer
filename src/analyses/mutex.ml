@@ -176,7 +176,7 @@ struct
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
     if !GU.global_initialization then ctx.local else begin
-      access_one_top ctx true  false (Lval lval);
+      access_one_top ctx true  false (AddrOf lval);
       access_one_top ctx false false rval;
       ctx.local
     end

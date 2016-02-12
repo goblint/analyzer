@@ -1172,6 +1172,60 @@ struct
      ||(AD.mem (Addr.unknown_ptr ()) val2 && not (AD.is_empty gval1))
      || not (AD.is_bot (AD.meet gval1 gval2)) )
 
+  let reachable_top_pointers_types ctx (ps: AD.t) : Queries.TS.t =
+    let module TS = Queries.TS in
+    let reachable_from_address (adr: address) =
+      let with_type t = function 
+        | (ad,ts,true) -> 
+          begin match unrollType t with
+          | TPtr (p,_) ->
+            (ad, TS.add (unrollType p) ts, false)
+          | _ -> 
+            (ad, ts, false)
+          end
+        | x -> x
+      in
+      let with_field (a,t,b) = function 
+        | `Top -> (AD.top (), TS.top (), false)
+        | `Bot -> (a,t,false)
+        | `Lifted f -> with_type f.ftype (a,t,b)
+      in 
+      let rec reachable_from_value (value: value) =
+        match value with
+        | `Top -> (empty, TS.top (), true)
+        | `Bot -> (empty, TS.bot (), false)
+        | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
+        | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
+        | `Union (t,e) -> with_field (reachable_from_value e) t
+        | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (IdxDom.top ()))
+        | `Blob e -> reachable_from_value e
+        | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
+        | `Struct s -> 
+          let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
+          let f k v = 
+            join_tr (with_type k.ftype (reachable_from_value v))
+          in
+          ValueDomain.Structs.fold f s (empty, TS.bot (), false)
+        | `Int _ -> (empty, TS.bot (), false)
+      in
+      reachable_from_value (get ctx.ask ctx.global ctx.local adr)
+    in
+    let visited = ref empty in
+    let work = ref ps in
+    let collected = ref (TS.empty ()) in
+    while not (AD.is_empty !work) do
+      let next = ref empty in
+      let do_one a = 
+        let (x,y,_) = reachable_from_address (AD.singleton a) in
+        collected := TS.union !collected y;
+        next := AD.union !next x
+      in
+      AD.iter do_one !work;
+      visited := AD.union !visited !work;
+      work := AD.diff !next !visited
+    done;
+    !collected
+
   let query ctx (q:Q.t) =
     match q with
     (* | Q.IsPublic _ ->
@@ -1210,6 +1264,16 @@ struct
           let addrs = List.fold_left (Q.LS.join) (Q.LS.empty ()) xs in
           `LvalSet addrs
         | _ -> `LvalSet (Q.LS.empty ())
+      end
+    | Q.ReachableUkTypes e -> begin
+        match eval_rv ctx.ask ctx.global ctx.local e with
+        | `Top -> `Top
+        | `Bot -> `Bot
+        | `Address a when AD.is_top a || AD.mem (Addr.unknown_ptr ()) a ->
+          `TypeSet (Q.TS.top ())
+        | `Address a ->
+          `TypeSet (reachable_top_pointers_types ctx a)
+        | _ -> `TypeSet (Q.TS.empty ())
       end
     | Q.SingleThreaded -> `Bool (Q.BD.of_bool (not (Flag.is_multi (get_fl ctx.local))))
     | Q.EvalStr e -> begin

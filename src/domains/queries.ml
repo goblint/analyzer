@@ -9,6 +9,7 @@ module IV = IntDomain.Interval
 module IS = IntDomain.Enums
 module BD = IntDomain.Booleans
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
+module TS = SetDomain.ToppedSet (Basetype.CilType) (struct let topname = "All" end)
 module PS = SetDomain.ToppedSet (Exp.LockingPattern) (struct let topname = "All" end)
 module LPS = SetDomain.ToppedSet (Printable.Prod (Lval.CilLval) (Lval.CilLval)) (struct let topname = "All" end)
 
@@ -30,6 +31,7 @@ type t = ExpEq of exp * exp
        | EqualSet of exp
        | MayPointTo of exp
        | ReachableFrom of exp
+       | ReachableUkTypes of exp
        | PerElementLock of exp
        | ArrayLockstep of exp
        | Regions of exp
@@ -61,6 +63,7 @@ type result = [
   | `LvalSet of LS.t
   | `ExprSet of ES.t
   | `ExpTriples of PS.t
+  | `TypeSet of TS.t
   | `Bot
 ]
 
@@ -91,6 +94,7 @@ struct
     | (`LvalSet x, `LvalSet y) -> LS.equal x y
     | (`ExprSet x, `ExprSet y) -> ES.equal x y
     | (`ExpTriples x, `ExpTriples y) -> PS.equal x y
+    | (`TypeSet x, `TypeSet y) -> TS.equal x y
     | _ -> false
 
   let hash (x:t) =
@@ -100,6 +104,7 @@ struct
     | `LvalSet n -> LS.hash n
     | `ExprSet n -> ES.hash n
     | `ExpTriples n -> PS.hash n
+    | `TypeSet n -> TS.hash n
     | _ -> Hashtbl.hash x
 
   let compare x y =
@@ -113,6 +118,7 @@ struct
       | `Str _ -> 6
       | `Interval _ -> 7
       | `IntSet _ -> 8
+      | `TypeSet _ -> 9
       | `Top -> 100
     in match x,y with
     | `Int x, `Int y -> ID.compare x y
@@ -122,6 +128,7 @@ struct
     | `LvalSet x, `LvalSet y -> LS.compare x y
     | `ExprSet x, `ExprSet y -> ES.compare x y
     | `ExpTriples x, `ExpTriples y -> PS.compare x y
+    | `TypeSet x, `TypeSet y -> TS.compare x y
     | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f s () state =
@@ -134,6 +141,7 @@ struct
     | `LvalSet n ->  LS.pretty () n
     | `ExprSet n ->  ES.pretty () n
     | `ExpTriples n ->  PS.pretty () n
+    | `TypeSet n -> TS.pretty () n
     | `Bot -> text bot_name
     | `Top -> text top_name
 
@@ -147,6 +155,7 @@ struct
     | `LvalSet n ->  LS.short w n
     | `ExprSet n ->  ES.short w n
     | `ExpTriples n ->  PS.short w n
+    | `TypeSet n -> TS.short w n
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -159,6 +168,7 @@ struct
     | `LvalSet n ->  LS.isSimple n
     | `ExprSet n ->  ES.isSimple n
     | `ExpTriples n ->  PS.isSimple n
+    | `TypeSet n -> TS.isSimple n
     | _ -> true
 
   let toXML_f sf state =
@@ -171,6 +181,7 @@ struct
     | `LvalSet n -> LS.toXML n
     | `ExprSet n -> ES.toXML n
     | `ExpTriples n -> PS.toXML n
+    | `TypeSet n -> TS.toXML n
     | `Bot -> Xml.Element ("Leaf", ["text",bot_name], [])
     | `Top -> Xml.Element ("Leaf", ["text",top_name], [])
 
@@ -191,6 +202,7 @@ struct
     | (`LvalSet x, `LvalSet y) -> LS.leq x y
     | (`ExprSet x, `ExprSet y) -> ES.leq x y
     | (`ExpTriples x, `ExpTriples y) -> PS.leq x y
+    | (`TypeSet x, `TypeSet y) -> TS.leq x y
     | _ -> false
 
   let join x y =
@@ -206,6 +218,7 @@ struct
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.join x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.join x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.join x y)
+      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.join x y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -222,6 +235,7 @@ struct
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.meet x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.meet x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.meet x y)
+      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.meet x y)      
       | _ -> `Bot
     with IntDomain.Error -> `Bot
 
@@ -238,6 +252,7 @@ struct
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.widen x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.widen x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.widen x y)
+      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.widen x y)      
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 
@@ -250,6 +265,7 @@ struct
     | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.narrow x y)
     | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.narrow x y)
     | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.narrow x y)
+    | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.narrow x y)
     | (x,_) -> x
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))

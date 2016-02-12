@@ -237,6 +237,28 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
+let add_struct (e:exp) (w:bool) (ty:acc_typ) lv (p:part): unit =
+  let rec dist_fields ty =
+    match unrollType ty with
+    | TComp (ci,_)   ->
+      let one_field fld =
+        List.map (fun x -> Field (fld,x)) (dist_fields fld.ftype)
+      in
+      List.concat (List.map one_field ci.cfields)
+    | TArray (t,_,_) -> 
+      List.map (fun x -> Index(mone,x)) (dist_fields t)
+    | _ -> [NoOffset]
+  in
+  match ty with
+  | `Struct (s,os2) ->
+    let add_lv os = match lv with
+      | Some (v, os1) -> Some (v, addOffset os1 os)
+      | None -> None
+    in
+    let oss = dist_fields (type_from_type_offset ty) in
+    List.iter (fun os -> add_one e w (`Struct (s,addOffset os2 os)) (add_lv os) p) oss
+  | _ -> add_one e w ty lv p
+
 let rec add_propagate e w ty ls p =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
@@ -253,14 +275,14 @@ let rec add_propagate e w ty ls p =
     let ts = typeSig (TComp (fi.fcomp,[])) in
     let vars = Ht.find_all typeVar ts in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
-    let add_vars v = add_one e w (`Struct (fi.fcomp, f)) (Some (v, f)) p in
+    let add_vars v = add_struct e w (`Struct (fi.fcomp, f)) (Some (v, f)) p in
     List.iter add_vars vars;
-    add_one e w (`Struct (fi.fcomp, f)) None p;
+    add_struct e w (`Struct (fi.fcomp, f)) None p;
   in
   let just_vars t v = 
-    add_one e w (`Type t) (Some (v, NoOffset)) p;    
+    add_struct e w (`Type t) (Some (v, NoOffset)) p;    
   in
-  add_one e w ty None p;
+  add_struct e w ty None p;
   match ty with
   | `Struct (c,os) when only_fields os && os <> NoOffset ->
     (* ignore (printf "  * type is a struct\n"); *)
@@ -322,18 +344,19 @@ and distribute_access_exp f w r = function
     distribute_access_exp f w     r e
   | _ -> ()
 
-  let add e w vo oo p =
-    if not !Goblintutil.may_narrow then begin
-      let ty = get_val_type e vo oo in
-      (* ignore (printf "add %a\n" d_exp e); *)
-      match vo, oo with
-      | Some v, Some o -> add_one e w ty (Some (v, o)) p
-      | _ -> 
-        if !unsound && isArithmeticType (type_from_type_offset ty) then
-          add_one e w ty None p
-        else
-          add_propagate e w ty None p
-    end
+let add e w vo oo p =
+  if not !Goblintutil.may_narrow then begin
+    let ty = get_val_type e vo oo in
+    (* let loc = !Tracing.current_loc in *)
+    (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
+    match vo, oo with
+    | Some v, Some o -> add_struct e w ty (Some (v, o)) p
+    | _ -> 
+      if !unsound && isArithmeticType (type_from_type_offset ty) then
+        add_struct e w ty None p
+      else
+        add_propagate e w ty None p
+  end
 
 let partition_race ps (accs,ls) =
   let write (w,loc,e,lp) = w in

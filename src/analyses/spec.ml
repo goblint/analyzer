@@ -227,6 +227,7 @@ struct
     | `LvalSet x -> "`LvalSet"
     | `ExprSet x -> "`ExprSet"
     | `ExpTriples x -> "`ExpTriples"
+    | `TypeSet x -> "`TypeSet"
     | `Bot -> "`Bot"
 
 

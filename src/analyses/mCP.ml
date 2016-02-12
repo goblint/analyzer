@@ -449,7 +449,8 @@ struct
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
       `Bot
     | Queries.Access(e,b,reach) -> 
-      Access.distribute_access_exp (do_access ctx) b reach e;
+      if reach || b then do_access ctx b reach e;
+      Access.distribute_access_exp (do_access ctx) false false e;
       `Bot
     | _ ->
       let x = fold_left f `Top @@ spec_list ctx.local in
@@ -491,6 +492,10 @@ struct
       let (po,pd) = part_access ctx e vo w in
       Access.add e w vo oo (po,pd)
     in
+    let add_access_struct ci =
+      let (po,pd) = part_access ctx e None w in
+      Access.add_struct e w (`Struct (ci,NoOffset)) None (po,pd)
+    in
     let has_escaped g = 
       match ctx.ask (Queries.MayEscape g) with
         | `Bool false -> false
@@ -514,7 +519,19 @@ struct
       in
       let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
       (* printf "accessable set of %a = %a\n" d_exp e LS.pretty ls; *)
-      LS.iter f ls
+      LS.iter f ls;
+      begin match ctx.ask (ReachableUkTypes (mkAddrOf (Mem e,NoOffset))) with
+      | `Bot -> ()
+      | `TypeSet ts when Queries.TS.is_top ts -> ()
+      | `TypeSet ts ->
+        let f = function
+        | TComp (ci, _) ->
+          add_access_struct ci
+        | _ -> ()
+        in
+        Queries.TS.iter f ts
+      | _ -> ()(* add_access None None *)
+      end
     | _ -> 
       add_access None None
 
