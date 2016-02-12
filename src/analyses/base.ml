@@ -1186,7 +1186,7 @@ struct
         | x -> x
       in
       let with_field (a,t,b) = function 
-        | `Top -> (AD.top (), TS.top (), false)
+        | `Top -> (AD.empty (), TS.top (), false)
         | `Bot -> (a,t,false)
         | `Lifted f -> with_type f.ftype (a,t,b)
       in 
@@ -1220,7 +1220,8 @@ struct
         collected := TS.union !collected y;
         next := AD.union !next x
       in
-      AD.iter do_one !work;
+      if not (AD.is_top !work) then
+        AD.iter do_one !work;
       visited := AD.union !visited !work;
       work := AD.diff !next !visited
     done;

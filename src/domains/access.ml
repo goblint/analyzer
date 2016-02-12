@@ -255,8 +255,12 @@ let add_struct (e:exp) (w:bool) (ty:acc_typ) lv (p:part): unit =
       | Some (v, os1) -> Some (v, addOffset os1 os)
       | None -> None
     in
-    let oss = dist_fields (type_from_type_offset ty) in
-    List.iter (fun os -> add_one e w (`Struct (s,addOffset os2 os)) (add_lv os) p) oss
+    begin try 
+      let oss = dist_fields (type_from_type_offset ty) in
+      List.iter (fun os -> add_one e w (`Struct (s,addOffset os2 os)) (add_lv os) p) oss
+    with Failure _ ->
+      add_one e w ty lv p
+    end
   | _ -> add_one e w ty lv p
 
 let rec add_propagate e w ty ls p =
