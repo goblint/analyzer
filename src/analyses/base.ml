@@ -1200,6 +1200,26 @@ struct
         | `Bot   -> `Bot
         | _      -> `Top
       end
+    | Q.EvalInterval e -> begin
+        match eval_rv ctx.ask ctx.global ctx.local e with
+        | `Int e -> (
+              match ID.is_top e with
+                | true -> `Top
+                | false -> (
+                    match ID.minimal e, ID.maximal e with
+                      Some i, Some s -> `Interval (IntDomain.Interval.of_interval (i,s))
+                    | _ -> `Top
+                  )
+          )
+        | `Bot   -> `Bot
+        | _      -> `Top
+      end
+    | Q.EvalIntSet e -> begin
+        match eval_rv ctx.ask ctx.global ctx.local e with
+        | `Int e -> (match ID.to_excl_list e with Some l -> `IntSet (IntDomain.Enums.of_excl_list l) | _ -> `Top)
+        | `Bot   -> `Bot
+        | _      -> `Top
+      end
     | Q.MayPointTo e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Address a when AD.is_top a -> `LvalSet (Q.LS.top ())
