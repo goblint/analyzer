@@ -606,9 +606,11 @@ struct
 
   let improve_abstract_value_with_queries ask exp base_value =
     try
-      match refine_answer ask (Queries.EvalInt exp) base_value with
-      | `Top -> base_value
-      | x -> x
+      if (get_bool "ana.int.queries") then
+        match refine_answer ask (Queries.EvalInt exp) base_value with
+        | `Top -> base_value
+        | x -> x
+      else base_value
     with Not_found -> base_value
 
   let eval_rv_with_query (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp) =
