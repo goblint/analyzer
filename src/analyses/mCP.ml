@@ -442,7 +442,19 @@ struct
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         }
       in
-      Queries.Result.meet a @@ S.query ctx' q
+      let answer = ref (Queries.Result.meet a @@ S.query ctx' q) in
+      let q = ref q in
+      let break = ref false in
+      while not(!break) && (!answer = `Top) do
+        let next_q = (Queries.Query.get_next_query_in_hierarchy !q) in
+        match next_q with
+        | Some x -> (
+            q := x;
+            answer := (Queries.Result.meet a @@ S.query ctx' !q);
+          )
+        | _ -> break := true;
+       done;
+      !answer
     in
     match q with
     | Queries.PrintFullState ->
