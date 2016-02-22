@@ -2578,8 +2578,8 @@ module Enums : S = struct
 
   let of_interval (x,y) =
     let rec build_set set start_num end_num =
-      if start_num >= end_num then set
-      else (build_set ([start_num] @ set) (Int64.add start_num (Int64.of_int 1)) end_num) in
+      if start_num > end_num then set
+      else (build_set (set @ [start_num]) (Int64.add start_num (Int64.of_int 1)) end_num) in
     Pos (build_set [] x y)
 
   let rec merge_cup a b = match a,b with
