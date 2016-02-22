@@ -69,6 +69,16 @@ type result = [
 
 type ask = t -> result
 
+module Query =
+struct
+  let get_next_query_in_hierarchy (query: t) =
+    match query with
+    | EvalInt x -> Some (EvalInterval x)
+    | EvalInterval x -> Some (EvalIntSet x)
+    | _ -> None
+end
+
+
 module Result: Lattice.S with type t = result =
 struct
   include Printable.Std

@@ -212,14 +212,21 @@ struct
     let var_name_coeff_pairs, constant, comparator = if should_negate then negate (var_name_coeff_pairs, constant, (inverse_comparator comparator)) else var_name_coeff_pairs, constant, comparator in
     let apron_var_coeff_pairs = List.map (function (x,`int y) -> Coeff.s_of_int y, Var.of_string x | (x,`float f) -> Coeff.s_of_float f, Var.of_string x) var_name_coeff_pairs in
     let apron_constant = match constant with `int x -> Some (Coeff.s_of_int x) | `float f -> Some (Coeff.s_of_float f) | `none -> None in
-    let linexpr1 = Linexpr1.make environment in
-    Linexpr1.set_list linexpr1 apron_var_coeff_pairs apron_constant;
-    linexpr1, comparator
+    let all_variables_known_to_environment = List.fold_left (fun known (_,var) -> known && (Environment.mem_var environment var)) true apron_var_coeff_pairs in
+    if not(all_variables_known_to_environment) then None, None
+    else
+      begin
+        let linexpr1 = Linexpr1.make environment in
+        Linexpr1.set_list linexpr1 apron_var_coeff_pairs apron_constant;
+        Some linexpr1, Some comparator
+      end
 
   let cil_exp_to_apron_linecons environment cil_exp should_negate =
     (* ignore (Pretty.printf "exptolinecons '%a'\n" d_plainexp x); *)
     let linexpr1, comparator = cil_exp_to_apron_linexpr1 environment cil_exp should_negate in
-    Lincons1.make linexpr1 comparator
+    match linexpr1, comparator with
+    | Some linexpr1, Some comparator -> Some (Lincons1.make linexpr1 comparator)
+    | _ -> None
 
   let assert_inv d x b =
     try
@@ -228,11 +235,15 @@ struct
         | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
           UnOp(LNot, (BinOp (Eq, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)), intType)
         | _ -> x in
-      let ea = { lincons0_array = [|Lincons1.get_lincons0 (cil_exp_to_apron_linecons (A.env d) x b) |]
-               ; array_env = A.env d
-               }
-      in
-      A.meet_lincons_array Man.mgr d ea
+      let linecons = cil_exp_to_apron_linecons (A.env d) x b in
+      match linecons with
+      | Some linecons ->
+        let ea = { lincons0_array = [|Lincons1.get_lincons0 linecons |]
+                 ; array_env = A.env d
+                 }
+        in
+        A.meet_lincons_array Man.mgr d ea
+      | None -> d
     with Invalid_argument "cil_exp_to_lexp" -> d
 
   let cil_exp_to_apron_texpr1 env exp =
@@ -346,14 +357,17 @@ struct
       | Mpfrf scalar -> Some (Pervasives.int_of_float (Mpfrf.to_float scalar)) in
     try
       let linexpr1, _  = cil_exp_to_apron_linexpr1 (A.env d) cil_exp false in
-      let interval_of_variable = A.bound_linexpr Man.mgr d linexpr1 in
-      let infimum = get_int_for_apron_scalar interval_of_variable.inf in
-      let supremum = get_int_for_apron_scalar interval_of_variable.sup in
-      match infimum, supremum with
-      | Some infimum, Some supremum -> Some (Int64.of_int (infimum)),  Some (Int64.of_int (supremum))
-      | Some infimum, None -> Some (Int64.of_int (-infimum)), None
-      | None, Some supremum ->  None, Some (Int64.of_int (-supremum))
-      | _, _ -> None, None
+      match linexpr1 with
+      | Some linexpr1 -> (
+          let interval_of_variable = A.bound_linexpr Man.mgr d linexpr1 in
+          let infimum = get_int_for_apron_scalar interval_of_variable.inf in
+          let supremum = get_int_for_apron_scalar interval_of_variable.sup in
+          match infimum, supremum with
+          | Some infimum, Some supremum -> Some (Int64.of_int (infimum)),  Some (Int64.of_int (supremum))
+          | Some infimum, None -> Some (Int64.of_int (-infimum)), None
+          | None, Some supremum ->  None, Some (Int64.of_int (-supremum))
+          | _, _ -> None, None)
+      | _ -> None, None
     with Invalid_argument "cil_exp_to_lexp" -> None, None
 
   let get_int_val_for_cil_exp d cil_exp =
