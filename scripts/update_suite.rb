@@ -3,7 +3,7 @@
 require 'find'
 require 'fileutils'
 require 'timeout'
-timeout = 5 # seconds
+timeout = 9 # seconds
 
 def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
   print(o+"\n")
@@ -32,6 +32,11 @@ elsif not File.exist?(goblint) then
   fail "Goblint not present in working directory. Please run script from goblint dir!"
 end
 vrsn = `#{goblint} --version`
+
+if not File.exists? "linux-headers" then
+  puts "Missing linux-headers, will download now!"
+  `make headers`
+end
 
 testresults = File.expand_path("tests/suite_result")
 testfiles   = File.expand_path("tests/regression")
