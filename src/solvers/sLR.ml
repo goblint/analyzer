@@ -286,10 +286,9 @@ module SLR3term =
           trace "sol" "SIDE: Var: %a\nVal: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
           let first = not (Set.mem y !effects) in
           effects := Set.add y !effects;
-          if not (HPM.mem rho' (x,y)) then (
+          if first then (
             HPM.replace rho' (x,y) d;
             HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
-            (* init ~side:true y; *)
             if not (HM.mem rho y) then (
               init ~side:true y;
               ignore @@ do_var false y
@@ -298,30 +297,13 @@ module SLR3term =
               (* trace "sol" "SIDE: Var: %a already exists with Prio: %i and Val: %a\n" S.Var.pretty_trace y (HM.find key y) S.Dom.pretty d; *)
               if HM.find key y < 0 then HM.replace key y (Ref.post_decr count_side)
             );
-            HM.replace wpoint y ();
             q := H.add y !q
           ) else (
             let old = HPM.find rho' (x,y) in
-            if first then (
-              let newd = S.Dom.join old d in
-              HPM.replace rho' (x,y) newd;
-              if not (S.Dom.equal old newd) then (
-                (* HM.replace wpoint y (); *)
-                if HM.find key y >= HM.find key x then
-                  q := H.add y !q
-                else
-                  iterate b_old (HM.find key y)
-              )
-            ) else (
-              let newd = S.Dom.join old d in
-              if not (S.Dom.equal old newd) then (
-                HPM.replace rho' (x,y) newd;
-                (* HM.replace wpoint y (); *)
-                if HM.find key y >= HM.find key x then
-                  q := H.add y !q
-                else
-                  iterate b_old (HM.find key y)
-              )
+            let newd = S.Dom.join old d in
+            HPM.replace rho' (x,y) newd;
+            if not (S.Dom.equal old newd) then (
+              q := H.add y !q
             )
           );
           HM.replace wpoint y ()
