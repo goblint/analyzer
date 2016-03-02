@@ -3,7 +3,7 @@
 require 'find'
 require 'fileutils'
 require 'timeout'
-timeout = 9 # seconds
+timeout = 15 # seconds
 
 def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
   print(o+"\n")
@@ -46,7 +46,7 @@ failed    = [] # failed tests
 timedout  = [] # timed out tests
 
 class Project
-  attr_reader :name, :group, :path, :params, :warnings
+  attr_reader :id, :name, :group, :path, :params, :warnings
   attr_writer :size
   def initialize(id, name, size, group, path, params, warnings)
     @id       = id
@@ -186,7 +186,7 @@ doproject = lambda do |p|
   filename = File.basename(filepath)
   Dir.chdir(dirname)
   clearline
-  print "Testing #{p.group}/#{p.name}"
+  print "Testing #{p.id} #{p.group}/#{p.name}"
   warnfile = File.join(testresults, p.name + ".warn.txt")
   statsfile = File.join(testresults, p.name + ".stats.txt")
 #   confile = File.join(testresults, p.name + ".con.txt")
@@ -205,7 +205,7 @@ doproject = lambda do |p|
     Timeout::timeout(timeout) {Process.wait pid}
   rescue Timeout::Error
     puts "\t Timeout reached!".red + " Killing process #{pid}..."
-    timedout.push "#{p.group}/#{p.name}"
+    timedout.push "#{p.id}-#{p.group}/#{p.name}"
     Process.kill('TERM', pid)
     return
   end
@@ -365,9 +365,9 @@ File.open(theresultfile, "w") do |f|
       f.puts "<td style =\"color: green\">NONE</td>"
     else
       alliswell = false
-      if not timedout.include? "#{p.group}/#{p.name}" then
+      if not timedout.include? "#{p.id}-#{p.group}/#{p.name}" then
         failed.push p.name
-        puts "#{p.group}/#{p.name} \e[31mfailed! \u2620\e[0m"
+        puts "#{p.id} #{p.group}/#{p.name} \e[31mfailed! \u2620\e[0m"
       end
       if not is_ok or ferr.nil? then
         f.puts "<td style =\"color: red\">FAILED</td>"
