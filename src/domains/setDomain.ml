@@ -389,3 +389,59 @@ struct
   let printXml f xs =
     iter (Base.printXml f) xs
 end
+
+module Hoare (B : Lattice.S) : sig
+  include S with type elt = B.t
+  val apply_list : (elt list -> elt list) -> t -> t
+  val product_top : (elt -> elt -> elt) -> t -> t -> t
+end =
+struct
+  include ToppedSet (B) (struct let topname = "Top" end)
+
+  let exists p = function
+    | All -> true
+    | Set s -> S.exists p s
+  let for_all p = function
+    | All -> false
+    | Set s -> S.for_all p s
+  let mem x = function
+    | All -> true
+    | Set s -> S.exists (B.leq x) s
+  let leq a b =
+    match a with
+    | All -> b = All
+    | _ -> for_all (fun x -> mem x b) a
+  let eq a b = leq a b && leq b a
+  let le x y = B.leq x y && not (B.equal x y)
+  let reduce = function
+    | All -> All
+    | Set s -> Set (S.filter (fun x -> not (S.exists (le x) s)) s)
+  (* let reduce x = x *)
+  let product_bot op a b = match a,b with
+    | All, a | a, All -> a
+    | Set a, Set b ->
+      let a,b = S.elements a, S.elements b in
+      List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (Set (S.of_list x))
+  let product_top op a b = match a,b with
+    | All, _ | _, All -> All
+    | Set a, Set b ->
+      let a,b = S.elements a, S.elements b in
+      List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (Set (S.of_list x))
+  let widen = product_top (fun x y -> if B.leq x y then B.widen x y else B.bot ())
+  let narrow = product_bot B.narrow
+
+  let add x a = if mem x a then a else add x a (* special mem! *)
+  let remove x a = failwith "Hoare: unsupported remove"
+  let union a b = union a b |> reduce
+  let join = union
+  let inter = product_bot B.meet
+  let inter = meet
+  let diff a b = failwith "Hoare: unsupported diff"
+  let subset = leq
+  let map f a = map f a |> reduce
+  let min_elt a = B.bot ()
+  let split x a = failwith "Hoare: unsupported split"
+  let apply_list f = function
+    | All -> All
+    | Set s -> Set (S.elements s |> f |> S.of_list)
+end
