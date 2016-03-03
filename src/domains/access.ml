@@ -180,7 +180,7 @@ struct
 
 end
 
-(* type -> lval option -> partition option -> (2^(write, loc, e, locks), locks_union) *)
+(* type -> lval option -> partition option -> (2^(confidence, write, loc, e, locks), locks_union) *)
 let accs = Hashtbl.create 100
 
 type var_o = varinfo option
@@ -196,7 +196,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
   with _ -> get_type voidType e
 
 let some_accesses = ref false
-let add_one (e:exp) (w:bool) (ty:acc_typ) lv ((pp,lp):part): unit =
+let add_one (e:exp) (w:bool) (conf:int) (ty:acc_typ) lv ((pp,lp):part): unit =
   let lv = 
     match lv with
     | None -> None 
@@ -209,12 +209,12 @@ let add_one (e:exp) (w:bool) (ty:acc_typ) lv ((pp,lp):part): unit =
     let loc = !Tracing.current_loc in
     let add_part ls =
       Ht.modify_def lvh (Some(ls)) (lazy (Set.empty,lp)) (fun (s,o_lp) ->
-          (Set.add (w,loc,e,lp) s, LSSet.inter lp o_lp)
+          (Set.add (conf, w,loc,e,lp) s, LSSet.inter lp o_lp)
         )
     in
     if LSSSet.is_empty pp then
       Ht.modify_def lvh None (lazy (Set.empty,lp)) (fun (s,o_lp) ->
-          (Set.add (w,loc,e,lp) s, LSSet.inter lp o_lp)
+          (Set.add (conf, w,loc,e,lp) s, LSSet.inter lp o_lp)
         )
     else
       LSSSet.iter add_part pp
@@ -237,7 +237,7 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct (e:exp) (w:bool) (ty:acc_typ) lv (p:part): unit =
+let add_struct (e:exp) (w:bool) (conf:int) (ty:acc_typ) lv (p:part): unit =
   let rec dist_fields ty =
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -257,13 +257,17 @@ let add_struct (e:exp) (w:bool) (ty:acc_typ) lv (p:part): unit =
     in
     begin try 
       let oss = dist_fields (type_from_type_offset ty) in
-      List.iter (fun os -> add_one e w (`Struct (s,addOffset os2 os)) (add_lv os) p) oss
+      List.iter (fun os -> add_one e w conf (`Struct (s,addOffset os2 os)) (add_lv os) p) oss
     with Failure _ ->
-      add_one e w ty lv p
+      add_one e w conf ty lv p
     end
-  | _ -> add_one e w ty lv p
+  | _ when lv = None && !unsound -> 
+    (* don't recognize accesses to locations such as (long ) and (int ). *)
+    ()
+  | _ -> 
+    add_one e w conf ty lv p
 
-let rec add_propagate e w ty ls p =
+let rec add_propagate e w conf ty ls p =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
     | NoOffset -> true
@@ -279,14 +283,14 @@ let rec add_propagate e w ty ls p =
     let ts = typeSig (TComp (fi.fcomp,[])) in
     let vars = Ht.find_all typeVar ts in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
-    let add_vars v = add_struct e w (`Struct (fi.fcomp, f)) (Some (v, f)) p in
+    let add_vars v = add_struct e w conf (`Struct (fi.fcomp, f)) (Some (v, f)) p in
     List.iter add_vars vars;
-    add_struct e w (`Struct (fi.fcomp, f)) None p;
+    add_struct e w conf (`Struct (fi.fcomp, f)) None p;
   in
   let just_vars t v = 
-    add_struct e w (`Type t) (Some (v, NoOffset)) p;    
+    add_struct e w conf (`Type t) (Some (v, NoOffset)) p;    
   in
-  add_struct e w ty None p;
+  add_struct e w conf ty None p;
   match ty with
   | `Struct (c,os) when only_fields os && os <> NoOffset ->
     (* ignore (printf "  * type is a struct\n"); *)
@@ -299,75 +303,75 @@ let rec add_propagate e w ty ls p =
     let vars = Ht.find_all typeVar (typeSig t) in
     List.iter (just_vars t) vars
 
-let rec distribute_access_lval f w r lv =
-  f w r (mkAddrOf lv);
-  distribute_access_lval_addr f w r lv
+let rec distribute_access_lval f w r c lv =
+  f w r c (mkAddrOf lv);
+  distribute_access_lval_addr f w r c lv
 
-and distribute_access_lval_addr f w r lv =
+and distribute_access_lval_addr f w r c lv =
   match lv with 
   | (Var v, os) -> 
-    distribute_access_offset f os
+    distribute_access_offset f c os
   | (Mem e, os) ->
-    distribute_access_offset f os;
-    distribute_access_exp f false false e
+    distribute_access_offset f c os;
+    distribute_access_exp f false false c e
 
-and distribute_access_offset f = function
+and distribute_access_offset f c = function
   | NoOffset -> ()
   | Field (_,os) -> 
-    distribute_access_offset f os
+    distribute_access_offset f c os
   | Index (e,os) -> 
-    distribute_access_exp f false false e;
-    distribute_access_offset f os
+    distribute_access_exp f false false c e;
+    distribute_access_offset f c os
 
-and distribute_access_exp f w r = function
+and distribute_access_exp f w r c = function
   (* Variables and address expressions *)
   | Lval lval ->
-    distribute_access_lval f w r lval;
+    distribute_access_lval f w r c lval;
 
   (* Binary operators *)
   | BinOp (op,arg1,arg2,typ) ->
-    distribute_access_exp f w r arg1;
-    distribute_access_exp f w r arg2 
+    distribute_access_exp f w r c arg1;
+    distribute_access_exp f w r c arg2 
 
   (* Unary operators *)
-  | UnOp (op,arg1,typ) -> distribute_access_exp f w r arg1
+  | UnOp (op,arg1,typ) -> distribute_access_exp f w r c arg1
   
   (* The address operators, we just check the accesses under them *)
   | AddrOf lval | StartOf lval -> 
     if r then
-      distribute_access_lval f w r lval
+      distribute_access_lval f w r c lval
     else
-      distribute_access_lval_addr f false r lval
+      distribute_access_lval_addr f false r c lval
     
   (* Most casts are currently just ignored, that's probably not a good idea! *)
   | CastE  (t, exp) -> 
-    distribute_access_exp f w r exp
+    distribute_access_exp f w r c exp
   | Question (b,t,e,_) ->
-    distribute_access_exp f false r b;
-    distribute_access_exp f w     r t;
-    distribute_access_exp f w     r e
+    distribute_access_exp f false r c b;
+    distribute_access_exp f w     r c t;
+    distribute_access_exp f w     r c e
   | _ -> ()
 
-let add e w vo oo p =
+let add e w conf vo oo p =
   if not !Goblintutil.may_narrow then begin
     let ty = get_val_type e vo oo in
     (* let loc = !Tracing.current_loc in *)
     (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
     match vo, oo with
-    | Some v, Some o -> add_struct e w ty (Some (v, o)) p
+    | Some v, Some o -> add_struct e w conf ty (Some (v, o)) p
     | _ -> 
       if !unsound && isArithmeticType (type_from_type_offset ty) then
-        add_struct e w ty None p
+        add_struct e w conf ty None p
       else
-        add_propagate e w ty None p
+        add_propagate e w conf ty None p
   end
 
 let partition_race ps (accs,ls) =
-  let write (w,loc,e,lp) = w in
+  let write (conf,w,loc,e,lp) = w in
   ps <> None && LSSet.is_empty ls && Set.exists write accs
 
 let only_read ps (accs,ls) =
-  let read (w,loc,e,lp) = not w in
+  let read (conf,w,loc,e,lp) = not w in
   Set.for_all read accs
 
 let common_resource ps (accs,ls) = 
@@ -376,18 +380,30 @@ let common_resource ps (accs,ls) =
 let bot_partition ps _ = 
   ps = None
 
-(* let is_data_race k =
-   let ht_exists f ht = Hashtbl.fold (fun k v z -> z || f k v) ht false in
-   if not (Hashtbl.mem accs k) then
-    false
-   else begin
-    let ht = Hashtbl.find accs k in
-    ht_exists partition_race ht
-   end *)
+let check_accs (prev_r,prev_lp,prev_w) (conf,w,loc,e,lp) = 
+  match prev_r with
+  | None ->
+    let new_w  = prev_w || w in
+    let new_lp = LSSet.inter lp prev_lp in
+    let union_empty = LSSet.is_empty new_lp in
+    let new_r  = if union_empty && new_w then Some conf else None in
+    (new_r, new_lp, new_w)
+  | _ -> (prev_r,prev_lp,prev_w)
+
+let check_safe ls (accs,lp) prev_safe =
+  if ls = None then
+    prev_safe
+  else
+    let lp_start = (fun (_,_,_,_,lp) -> lp) (Set.choose accs) in
+    match BatEnum.fold check_accs (None, lp_start, false) (Set.backwards accs), prev_safe with
+    | (None, _,_), _ -> prev_safe
+    | (Some n,_,_), Some m -> Some (max n m)
+    | (Some n,_,_), None -> Some n
+
 
 let print_races_oldscool () =
   let allglobs = get_bool "allglobs" in
-  let k ls (w,loc,e,lp) = 
+  let k ls (conf,w,loc,e,lp) = 
     let wt = if w then "write" else "read" in
     match ls with
     | Some ls ->
@@ -416,14 +432,12 @@ let print_races_oldscool () =
   Hashtbl.iter f accs;
   ignore (Pretty.printf "^^^^ This output is here because our regression test scripts parse this format. \n")
 
-
+  (* Commenting your code is for the WEAK! *)
 let print_races () =
   let allglobs = get_bool "allglobs" in
-  let safe   = ref 0 in
-  let unsafe = ref 0 in
-  let check_safe ls (accs,lp) prev_safe =
-    prev_safe && (ls = None || only_read ls (accs,lp) || common_resource ls (accs,lp)) 
-  in
+  let safe       = ref 0 in
+  let vulnerable = ref 0 in
+  let unsafe     = ref 0 in
   let g ls (accs,lp) =
     let reason = 
       if bot_partition ls (accs,lp) then
@@ -442,30 +456,41 @@ let print_races () =
       ignore (Pretty.printf "  _L -> %a (%s)\n" LSSet.pretty lp reason)
   in
   let h ty lv ht =
-    let safety = Hashtbl.fold check_safe ht true in
-    incr (if safety then safe else unsafe);
-    if not safety || allglobs then begin
-      let safetext = if safety then "safe"  else "unsafe" in
+    let safety = Hashtbl.fold check_safe ht None in
+    let print_location safetext = 
       ignore(printf "Memory location %a (%s)\n" d_memo (ty,lv) safetext);
       Hashtbl.iter g ht
-    end
+    in
+    match safety with
+    | None -> 
+        incr safe;
+        if allglobs then begin
+          print_location "safe"
+        end
+    | Some n when n >= 100 -> 
+        incr unsafe;
+        print_location "unsafe"
+    | Some n ->
+        incr vulnerable;
+        print_location "vulnerable"
   in
   let f ty = Hashtbl.iter (h ty) in
   Hashtbl.iter f accs;
   ignore (Pretty.printf "\nSummary:\n");
-  ignore (Pretty.printf "\tsafe:    %d\n" !safe);
-  ignore (Pretty.printf "\tunsafe:  %d\n" !unsafe);
+  ignore (Pretty.printf "\tsafe:        %5d\n" !safe);
+  ignore (Pretty.printf "\tvulnerable:  %5d\n" !vulnerable);
+  ignore (Pretty.printf "\tunsafe:      %5d\n" !unsafe);
   ignore (Pretty.printf "\t-------------------\n");
-  ignore (Pretty.printf "\ttotal:   %d\n" ((!safe) + (!unsafe)))
+  ignore (Pretty.printf "\ttotal:       %5d\n" ((!safe) + (!unsafe) + (!vulnerable)))
 
 let print_accesses () =
   let debug = get_bool "dbg.debug" in
   let g ls (acs,_) =
     let d_ls () = match ls with None -> text "_L" | Some ls -> LSSet.pretty () ls in
-    let h (w,loc,e,lp) =
+    let h (conf,w,loc,e,lp) =
       let atyp = if w then "write" else "read" in
-      ignore (printf "  %s@@%a %t -> %a" atyp d_loc loc
-                d_ls LSSet.pretty lp);
+      ignore (printf "  %s@@%a %t -> %a (conf. %d)" atyp d_loc loc
+                d_ls LSSet.pretty lp conf);
       if debug then
         ignore (printf "  (exp: %a)\n" d_exp e)
       else
@@ -473,9 +498,14 @@ let print_accesses () =
     in
     Set.iter h acs
   in
-  let h ty lv ht = 
-    ignore(printf "Memory location %a\n" d_memo (ty,lv));
-    Hashtbl.iter g ht
+  let h ty lv ht =
+    match Hashtbl.fold check_safe ht None with 
+    | None ->
+      ignore(printf "Memory location %a (safe)\n" d_memo (ty,lv));
+      Hashtbl.iter g ht
+    | Some n -> 
+      ignore(printf "Memory location %a (race with conf. %d)\n" d_memo (ty,lv) n);
+      Hashtbl.iter g ht
   in
   let f ty ht = 
     Hashtbl.iter (h ty) ht

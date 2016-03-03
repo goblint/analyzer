@@ -460,9 +460,9 @@ struct
     | Queries.PrintFullState ->
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
       `Bot
-    | Queries.Access(e,b,reach) -> 
-      if reach || b then do_access ctx b reach e;
-      Access.distribute_access_exp (do_access ctx) false false e;
+    | Queries.Access(e,b,reach,conf) -> 
+      if reach || b then do_access ctx b reach conf e;
+      Access.distribute_access_exp (do_access ctx) false false conf e;
       `Bot
     | _ ->
       let x = fold_left f `Top @@ spec_list ctx.local in
@@ -497,16 +497,16 @@ struct
     in
     List.fold_left f start (spec_list ctx.local)
 
-  and do_access (ctx: (D.t, G.t) ctx) (w:bool) (reach:bool) (e:exp) = 
+  and do_access (ctx: (D.t, G.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) = 
     let open Queries in
     let open Access in
-    let add_access vo oo = 
+    let add_access conf vo oo = 
       let (po,pd) = part_access ctx e vo w in
-      Access.add e w vo oo (po,pd)
+      Access.add e w conf vo oo (po,pd)
     in
-    let add_access_struct ci =
+    let add_access_struct conf ci =
       let (po,pd) = part_access ctx e None w in
-      Access.add_struct e w (`Struct (ci,NoOffset)) None (po,pd)
+      Access.add_struct e w conf (`Struct (ci,NoOffset)) None (po,pd)
     in
     let has_escaped g = 
       match ctx.ask (Queries.MayEscape g) with
@@ -523,11 +523,12 @@ struct
     | `Bot -> ()
     | `LvalSet ls when not (LS.is_top ls) ->
       let f (var, offs) = 
+        let conf = if reach then conf - 10 else conf in
         let coffs = Lval.CilLval.to_ciloffs offs in
         if var.vid = dummyFunDec.svar.vid then 
-          add_access None (Some coffs)
+          add_access conf None (Some coffs)
         else
-          add_access (Some var) (Some coffs) 
+          add_access conf (Some var) (Some coffs) 
       in
       let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
       (* printf "accessable set of %a = %a\n" d_exp e LS.pretty ls; *)
@@ -538,14 +539,14 @@ struct
       | `TypeSet ts ->
         let f = function
         | TComp (ci, _) ->
-          add_access_struct ci
+          add_access_struct (conf - 50) ci
         | _ -> ()
         in
         Queries.TS.iter f ts
       | _ -> ()(* add_access None None *)
       end
     | _ -> 
-      add_access None None
+      add_access conf None None
 
   let assign (ctx:(D.t, G.t) ctx) l e =
     let spawns = ref [] in
