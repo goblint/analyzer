@@ -146,7 +146,7 @@ struct
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
     let fl = get_flag ctx.presub in
     if BS.Flag.is_multi fl then
-      ignore(ctx.ask (Queries.Access(exp,write,reach,100)))
+      ignore(ctx.ask (Queries.Access(exp,write,reach,110)))
 
   (** We just lift start state, global and dependecy functions: *)
   let startstate v = Lockset.empty ()

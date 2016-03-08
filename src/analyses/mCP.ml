@@ -522,29 +522,36 @@ struct
     match ctx.ask reach_or_mpt with
     | `Bot -> ()
     | `LvalSet ls when not (LS.is_top ls) ->
-      let f (var, offs) = 
-        let conf = if reach then conf - 10 else conf in
-        let coffs = Lval.CilLval.to_ciloffs offs in
-        if var.vid = dummyFunDec.svar.vid then 
-          add_access conf None (Some coffs)
-        else
-          add_access conf (Some var) (Some coffs) 
-      in
-      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
-      (* printf "accessable set of %a = %a\n" d_exp e LS.pretty ls; *)
-      LS.iter f ls;
+      let includes_uk = ref false in
       begin match ctx.ask (ReachableUkTypes (mkAddrOf (Mem e,NoOffset))) with
       | `Bot -> ()
-      | `TypeSet ts when Queries.TS.is_top ts -> ()
+      | `TypeSet ts when Queries.TS.is_top ts -> 
+        includes_uk := true
       | `TypeSet ts ->
+        if Queries.TS.is_empty ts = false then
+          includes_uk := true;
         let f = function
         | TComp (ci, _) ->
           add_access_struct (conf - 50) ci
         | _ -> ()
         in
         Queries.TS.iter f ts
-      | _ -> ()(* add_access None None *)
-      end
+      | _ -> 
+        includes_uk := true
+        (* add_access None None *)
+      end;
+      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
+      let conf = if reach then conf - 20 else conf in
+      let conf = if !includes_uk then conf - 10 else conf in
+      let f (var, offs) = 
+        let coffs = Lval.CilLval.to_ciloffs offs in
+        if var.vid = dummyFunDec.svar.vid then 
+          add_access conf None (Some coffs)
+        else
+          add_access conf (Some var) (Some coffs) 
+      in
+      (* printf "accessable set of %a = %a\n" d_exp e LS.pretty ls; *)
+      LS.iter f ls
     | _ -> 
       add_access conf None None
 
