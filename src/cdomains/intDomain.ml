@@ -55,6 +55,8 @@ sig
   val cast_to_width : int -> t -> t
 end
 
+(* TODO functor for different sizes *)
+
 module Interval32 : S with type t = (int64 * int64) option =
 struct
   open Int64
@@ -2574,7 +2576,7 @@ module Enums : S = struct
     | Neg xs -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
 
   let of_int x = Pos [x]
-  let cast_to_width w = function Pos xs -> Pos (List.map (I.cast_to_width w) xs) | Neg _ -> top ()
+  let cast_to_width w = function Pos xs -> Pos (List.map (I.cast_to_width w) xs |> List.sort_unique compare) | Neg _ -> top ()
 
   let of_interval (x,y) =
     let rec build_set set start_num end_num =
@@ -2730,6 +2732,7 @@ module Enums : S = struct
   let ending       x = top ()
   let maximal = function Pos xs when xs<>[] -> Some (List.last xs) | _ -> None
   let minimal = function Pos (x::xs) -> Some x | _ -> None
+  (* let of_incl_list xs = failwith "TODO" *)
 end
 
 module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate. we have to touch every function in S if we want to add a new domain. here if we add a new option, we only have to edit the places where fn are applied, i.e. create, mapp, map, map2. *)
