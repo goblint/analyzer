@@ -73,6 +73,7 @@ struct
   type glob_fun  = V.t -> G.t
   type glob_diff = (V.t * G.t) list
 
+  let bool_top () = ID.(join (of_int 0L) (of_int 1L))
 
   (**************************************************************************
    * State functions
@@ -301,16 +302,15 @@ struct
       | Shiftrt -> ID.shift_right
       | LAnd -> ID.logand
       | LOr -> ID.logor
-      | _ -> (fun x y -> ID.top ())
+      | _ -> (fun x y -> (ID.top ()))
       (* An auxiliary function for ptr arithmetic on array values. *)
     in let addToAddr n (addr:Addr.t) =
          match Addr.to_var_offset addr with
-         | [x,`Index (i, offs)] when IdxDom.is_int i ->
+         | [x,`Index (i, offs)] ->
            Addr.from_var_offset (x, `Index (IdxDom.add i (iDtoIdx n), offs))
          | [x,`NoOffset] ->
            Addr.from_var_offset (x, `Index (iDtoIdx n, `NoOffset))
-         | [_] -> raise Top
-         | _ -> addr
+         | _ -> Addr.unknown_ptr () (* TODO fields? *)
     in
     (* The main function! *)
     match a1,a2 with
@@ -318,7 +318,7 @@ struct
     | `Int v1, `Int v2 -> `Int (the_op v1 v2)
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n  -> begin
-        try match op with
+        match op with
           (* For array indexing, e[i] we have *)
           | IndexPI -> `Address (AD.map (addToAddr n) p)
           (* Pointer addition e + i, it's the same: *)
@@ -328,24 +328,16 @@ struct
             `Address (AD.map (addToAddr n) p)
           | Mod -> `Int (ID.top ()) (* we assume that address is actually casted to int first*)
           | _ -> `Address (AD.unknown_ptr ())
-        with
-        | Top -> `Address (AD.unknown_ptr ())
       end
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result, but it's an integer. *)
     | `Address p1, `Address p2 -> begin
-        let single a = try AD.cardinal a = 1 with _ -> false in
-        let eq x y =
-          let xl = AD.to_var_must x in
-          let yl = AD.to_var_must y in
-          if List.length xl = 1 && List.length yl = 1
-          then ID.of_bool (List.exists2 (fun x y -> x.vid = y.vid) xl yl)
-          else ID.top ()
-        in
+        let eq x y = if AD.is_definite x && AD.is_definite y then Some (AD.eq x y) else None in
         match op with
+        (* TODO use ID.of_incl_list [0; 1] for all comparisons *)
         | MinusPP -> `Int (ID.top ())
-        | Eq -> `Int (if (single p1)&&(single p2) then (eq p1 p2) else ID.top())
-        | Ne -> `Int (if (single p1)&&(single p2) then ID.lognot (eq p1 p2) else ID.top())
+        | Eq -> `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int 0L else match eq p1 p2 with Some x when x -> ID.of_int 1L | _ -> bool_top ())
+        | Ne -> `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int 1L else match eq p1 p2 with Some x when x -> ID.of_int 0L | _ -> bool_top ())
         | _ -> VD.top ()
       end
     (* For other values, we just give up! *)
@@ -460,6 +452,10 @@ struct
         | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
         | Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs
         (* Binary operators *)
+        | BinOp (op, CastE (ta, ea), CastE (tb, eb), t) when ta = tb && (op = Eq || op = Ne) ->
+          let a1 = eval_rv a gs st ea in
+          let a2 = eval_rv a gs st eb in
+          evalbinop op a1 a2 (* TODO this is only sound for upcasts *)
         | BinOp (op,arg1,arg2,typ) ->
           let a1 = eval_rv a gs st arg1 in
           let a2 = eval_rv a gs st arg2 in
@@ -484,15 +480,21 @@ struct
         (* Most casts are currently just ignored, that's probably not a good idea! *)
         | CastE  (t, exp) -> begin
             match t,eval_rv a gs st exp with
-            | TPtr (_,_), `Top -> `Address (AD.unknown_ptr ())
+            | TPtr (_,_), `Top -> `Address (AD.top_ptr ())
             | TPtr _, `Int a when Some Int64.zero = ID.to_int a ->
               `Address (AD.null_ptr ())
-            | TInt _, `Address a when AD.equal a (AD.null_ptr()) ->
+            | TPtr (t,_), `Int a when t<>voidType ->
+              `Address (AD.unknown_ptr ())
+            | TInt _, `Address a when AD.equal a (AD.null_ptr ()) ->
               `Int (ID.of_int Int64.zero)
+            (* TODO not AD.exists null... *)
+            | TInt _, `Address a ->
+              `Int (ID.top ())
             | Cil.TInt (k,_), `Int a ->
               let w = get_type_width k in
               `Int (ID.cast_to_width w a)
-            | _, s -> s
+            (* | TPtr (_,_), `Address -> assert false (* TODO *) *)
+            | _, s -> s (* TODO care about casts... *)
           end
         | _ -> VD.top ()
   (* A hackish evaluation of expressions that should immediately yield an
@@ -657,19 +659,30 @@ struct
     | TNamed ({ttype=t}, _) -> init_value a gs st t
     | _ -> `Top
 
-  let rec top_value (st: store) (t: typ): value =
+  let rec top_value a (gs:glob_fun) (st: store) (t: typ): value =
     let rec top_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
-      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value st fd.ftype) in
+      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value a gs st fd.ftype) in
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
     | TInt _ -> `Int (ID.top ())
-    | TPtr _ -> `Address (AD.unknown_ptr ())
+    | TPtr _ -> `Address (AD.top_ptr ())
     | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray _ -> `Array (ValueDomain.CArrays.top ())
-    | TNamed ({ttype=t}, _) -> top_value st t
+    | TArray (ai, exp, _) ->
+        let default = `Array (ValueDomain.CArrays.top ()) in
+        (match exp with
+        | Some exp ->
+          (match eval_rv_with_query a gs st exp with
+          | `Int n -> begin
+              match ID.to_int n with
+              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai))
+              | _ -> default
+            end
+          | _ -> default)
+        | None -> default)
+    | TNamed ({ttype=t}, _) -> top_value a gs st t
     | _ -> `Top
 
   let invariant a (gs:glob_fun) st exp tv =
@@ -695,14 +708,11 @@ struct
           | `Address n -> begin
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
               match eval_rv a gs st (Lval x) with
-              | `Address a when not (AD.is_top n)
-                             && not (AD.mem (Addr.unknown_ptr ()) n)
-                             && not (AD.mem (Addr.safe_ptr ()) n)->
+              | `Address a when AD.is_definite n ->
                 Some (x, `Address (AD.diff a n))
-              | `Address a when not (AD.is_top n) && AD.mem (Addr.safe_ptr ()) n ->
-                Some (x, `Address (AD.add (Addr.safe_ptr ()) (AD.diff a n)))
               | _ -> None
             end
+          (* | `Address a -> Some (x, value) *)
           | _ ->
             (* We can't say anything else, exclusion sets are finite, so not
              * being in one means an infinite number of values *)
@@ -750,7 +760,7 @@ struct
     in
     let rec derived_invariant exp tv =
       match exp with
-      (* Since we only handle equalities the order is not important *)
+      (* Since we only handle equalities the order is not important *) (* TODO make independent of ordering *)
       | BinOp(op, Lval x, rval, typ)
       | BinOp(op, rval, Lval x, typ) -> helper op x (eval_rv a gs st rval) tv
       | BinOp(op, CastE (xt,x), CastE (yt,y), typ) when Basetype.CilType.equal xt yt
@@ -779,10 +789,10 @@ struct
     in
     let apply_invariant oldv newv =
       match oldv, newv with
-      | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n ->
-        `Address (AD.join o n)
-      | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o -> `Address n
-      | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) n -> `Address o
+      (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o && AD.mem (Addr.unknown_ptr ()) n -> *)
+      (*   `Address (AD.join o n) *)
+      (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) o -> `Address n *)
+      (* | `Address o, `Address n when AD.mem (Addr.unknown_ptr ()) n -> `Address o *)
       | _ -> VD.meet oldv newv
     in
     match derived_invariant exp tv with
@@ -809,7 +819,7 @@ struct
 
   let set_savetop ask (gs:glob_fun) st adr v =
     match v with
-    | `Top -> set ask gs st adr (top_value st (AD.get_type adr))
+    | `Top -> set ask gs st adr (top_value ask gs st (AD.get_type adr))
     | v -> set ask gs st adr v
 
 
@@ -1649,6 +1659,12 @@ struct
                   let _ = Cilfacade.getdec var in true
                 with _ -> acc
               in
+              (*
+               *  TODO: invalidate vars reachable via args
+               *  publish globals
+               *  if single-threaded: *call f*, privatize globals
+               *  else: spawn f
+               *)
               if List.fold_right f flist false && not (get_bool "exp.single-threaded") then begin
                 let new_fl =
                   if (not !GU.multi_threaded) && get_bool "exp.unknown_funs_spawn" then begin
