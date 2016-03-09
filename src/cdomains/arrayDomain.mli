@@ -24,6 +24,10 @@ module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and 
   * indexing type is taken as a parameter to satisfy the type system, it is not
   * used in the implementation. *)
 
+module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t
+(** This functor creates a trivial single cell representation of an array. The
+  * indexing type is also used to manage the length. *)
+
 (*
 module NativeArray (Base: Lattice.S) (Idx: IntDomain.S): S with type value = Base.t and type idx = Idx.t
 (** Stores values in a real array *)
