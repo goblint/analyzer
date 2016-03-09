@@ -23,7 +23,7 @@ sig
   val invalidate_value: typ -> t -> t
 end
 
-module Blob (Val: Lattice.S): Lattice.S with type t = Val.t =
+module Blob (Val: Lattice.S) =
 struct
   let name () = "blobs"
   include Val
@@ -65,6 +65,8 @@ struct
     | `Bot
   ]
 
+  module B = Blob (Compound)
+
   include Printable.Std
   let name () = "compound"
 
@@ -88,6 +90,9 @@ struct
     | (`Union x, `Union y) -> Unions.equal x y
     | (`Array x, `Array y) -> CArrays.equal x y
     | (`Blob x, `Blob y) -> Blobs.equal x y
+    | `Blob x, y
+    | y, `Blob x ->
+      Blobs.equal (x:t) ((B.make 0 y):t)
     | _ -> false
 
   let hash x =
@@ -119,6 +124,8 @@ struct
     | `Array x, `Array y -> CArrays.compare x y
     | `List x, `List y -> Lists.compare x y
     | `Blob x, `Blob y -> Blobs.compare x y
+    | `Blob x, y -> Blobs.compare (x:t) ((B.make 0 y):t)
+    | y, `Blob x -> Blobs.compare ((B.make 0 y):t) (x:t)
     | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f _ () state =
@@ -196,6 +203,8 @@ struct
     | (`Array x, `Array y) -> CArrays.leq x y
     | (`List x, `List y) -> Lists.leq x y
     | (`Blob x, `Blob y) -> Blobs.leq x y
+    | `Blob x, y -> Blobs.leq (x:t) ((B.make 0 y):t)
+    | y, `Blob x -> Blobs.leq ((B.make 0 y):t) (x:t)
     | _ -> false
 
   let join x y =
@@ -215,7 +224,14 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.join x y)
     | (`List x, `List y) -> `List (Lists.join x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
-    | _ -> `Top
+    | `Blob x, y
+    |  y, `Blob x ->
+      `Blob (B.join (x:t) ((B.make 0 y):t))
+    | x, y ->
+      (* let _ = printf "%a\n" pretty_diff (x,y) in *)
+      let _ = printf "Compound.join: %s\n%s\n" (short 1000 x) (short 1000 y) in
+      (* failwith "missing cast?!" *)
+      `Top
 
   let meet x y =
     match (x,y) with
@@ -230,6 +246,9 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.meet x y)
     | (`List x, `List y) -> `List (Lists.meet x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
+    | `Blob x, y
+    |  y, `Blob x ->
+      `Blob (B.meet (x:t) ((B.make 0 y):t))
     | _ -> `Bot
 
   let widen x y =
@@ -245,6 +264,10 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.widen x y)
     | (`List x, `List y) -> `List (Lists.widen x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
+    | `Blob x, y ->
+      `Blob (B.widen (x:t) ((B.make 0 y):t))
+    |  y, `Blob x ->
+      `Blob (B.widen ((B.make 0 y):t) (x:t))
     | _ -> `Top
 
   let narrow x y =
@@ -256,6 +279,10 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.narrow x y)
     | (`List x, `List y) -> `List (Lists.narrow x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.narrow x y)
+    | `Blob x, y ->
+      `Blob (B.narrow (x:t) ((B.make 0 y):t))
+    |  y, `Blob x ->
+      `Blob (B.narrow ((B.make 0 y):t) (x:t))
     | (x,_) -> x
 
   (************************************************************
@@ -433,7 +460,7 @@ and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
   UnionDomain.Simple (Compound)
 
 and CArrays: ArrayDomain.S with type idx = IndexDomain.t and type value = Compound.t =
-  ArrayDomain.Trivial (Compound) (IndexDomain)
+  ArrayDomain.TrivialWithLength (Compound) (IndexDomain)
 
 and Blobs: Lattice.S with type t = Compound.t = Blob (Compound)
 
