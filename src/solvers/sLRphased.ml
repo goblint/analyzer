@@ -22,6 +22,8 @@ module Make =
 
     module HPM = Hashtbl.Make (P)
 
+    let narrow = narrow S.Dom.narrow
+
     let solve box st vs =
       let key    = HM.create 10 in
       let module H = Heap.Make (struct
@@ -106,12 +108,10 @@ module Make =
         let val_new =
           if wpx then
             if b then
-              let nar = S.Dom.narrow old (S.Dom.meet old tmp) in
+              let nar = narrow old tmp in
               trace "sol" "NARROW: Var: %a\nOld: %a\nNew: %a\nWiden: %a\n" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
-              (* nar *)
-              old
+              nar
             else
-              (* let wid = tmp in *)
               let wid = S.Dom.widen old (S.Dom.join old tmp) in
               trace "sol" "WIDEN: Var: %a\nOld: %a\nNew: %a\nWiden: %a\n" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty wid;
               wid
@@ -186,10 +186,10 @@ module Make =
       List.iter (solve0) vs;
       iterate false max_int;
       List.iter (solve1 max_int) vs;
-      (* iterate true max_int; *)
+      iterate true max_int; (* TODO remove? *)
 
-      let reachability xs =
-        let reachable = HM.create (HM.length rho1) in
+      let reachability rho xs =
+        let reachable = HM.create (HM.length rho) in
         let rec one_var x =
           if not (HM.mem reachable x) then begin
             HM.replace reachable x ();
@@ -198,12 +198,12 @@ module Make =
             | Some x -> one_constaint x
           end
         and one_constaint f =
-          ignore (f (fun x -> one_var x; HM.find rho1 x) (fun x _ -> one_var x))
+          ignore (f (fun x -> one_var x; HM.find rho x) (fun x _ -> one_var x))
         in
         List.iter one_var xs;
-        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho1 x) rho1
+        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho1
       in
-      reachability vs;
+      reachability rho1 vs;
       stop_event ();
 
       HM.clear key   ;

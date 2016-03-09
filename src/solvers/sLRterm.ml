@@ -22,6 +22,8 @@ module SLR3term =
 
     module HPM = Hashtbl.Make (P)
 
+    let narrow = narrow S.Dom.narrow
+
     let solve box st vs =
       let key    = HM.create 10 in
       let module H = Heap.Make (struct
@@ -145,12 +147,12 @@ module SLR3term =
         let val_new, b_new =
           if wpx then
             if S.Dom.leq tmp old then (
-              let nar = S.Dom.narrow old tmp in
+              let nar = narrow old tmp in
               trace "sol" "NARROW1: Var: %a\nOld: %a\nNew: %a\nNarrow: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
               nar, true
             ) else
             if b_old then (
-              let nar = S.Dom.narrow old tmp in
+              let nar = narrow old tmp in
               trace "sol" "NARROW2: Var: %a\nOld: %a\nNew: %a\nNarrow: %a" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty nar;
               nar, true
             )

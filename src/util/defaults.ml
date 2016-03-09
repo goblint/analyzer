@@ -170,6 +170,7 @@ let _ = ()
       ; reg Experimental "exp.backwards"         "false" "Backwards analysis"
       ; reg Experimental "exp.unsoundbasic"      "true"  "Do not propagate basic type writes to all struct fields"
       ; reg Experimental "exp.ignored_threads"   "[]"    "Eliminate accesses in these threads"
+      ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
 
 (* {4 category [Debugging]} *)
 let _ = ()

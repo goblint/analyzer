@@ -5,6 +5,7 @@ open Analyses
 open Constraints
 open Messages
 
+let narrow f = if GobConfig.get_bool "exp.no-narrow" then (fun a b -> a) else f
 
 (** the SLR3 box solver *)
 module SLR3 =
@@ -545,12 +546,13 @@ module TwoPhased =
   functor (HM:Hash.H with type key = S.v) ->
   struct
     include Make (V) (S) (HM)
+    let narrow = narrow S.Dom.narrow
     let solve box is iv =
       let sd = solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv in
       let iv' = HM.fold (fun k _ b -> k::b) sd [] in
       let f v x y =
         (* ignore (Pretty.printf "changed %a\nold:%a\nnew:%a\n\n" S.Var.pretty_trace v S.Dom.pretty x S.Dom.pretty y); *)
-        S.Dom.narrow x y
+        narrow x y
       in
       solve f [] iv'
   end
