@@ -929,17 +929,18 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
         (l', g')
     end
 
+module N = struct let topname = "Top" end
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)
   : Spec
-    with type D.t = SetDomain.Hoare(Spec.D).t
+    with type D.t = SetDomain.Hoare(Spec.D)(N).t
      and module G = Spec.G
      and module C = Spec.C
 =
 struct
   module D =
   struct
-    include SetDomain.Hoare (Spec.D)
+    include SetDomain.Hoare (Spec.D) (N)
     let name () = "PathSensitive (" ^ name () ^ ")"
 
     let pretty_diff () ((s1:t),(s2:t)): Pretty.doc =

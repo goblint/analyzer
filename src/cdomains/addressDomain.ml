@@ -20,10 +20,10 @@ sig
   val get_type: t -> typ
 end
 
-module AddressSet (Idx: Lattice.S) =
+module AddressSet (Idx: IntDomain.S) =
 struct
   module Addr = Lval.NormalLat (Idx)
-  include SetDomain.MacroSet (Addr) (struct let topname = "Anywhere" end)
+  include SetDomain.Hoare (Addr) (struct let topname = "Anywhere" end)
 
   type field = Addr.field
   type idx = Idx.t
@@ -33,6 +33,7 @@ struct
   let str_ptr ()     = singleton (Addr.str_ptr ())
   let safe_ptr ()    = singleton (Addr.safe_ptr ())
   let unknown_ptr () = singleton (Addr.unknown_ptr ())
+  let top_ptr ()     = Addr.(of_list [unknown_ptr (); null_ptr (); safe_ptr ()])
   let is_unknown x = cardinal x = 1 && Addr.is_unknown (choose x)
   let has_unknown x = mem Addr.UnknownPtr x
 
@@ -78,6 +79,18 @@ struct
     | [x],[y]  -> same_mod_idx_addr x y
     | _ -> false
 
+  (* reduce elements in the same partition (specified by same_mod_idx) *)
+  let reduce op a =
+    let rec loop js = function
+      | [] -> js
+      | x::xs -> let (j,r) = List.fold_left (fun (j,r) x ->
+          if same_mod_idx x j then op x j, r else j, x::r
+        ) (x,[]) xs in
+        loop (j::js) r
+    in
+    apply_list (loop []) a
+
+  (*
   let merge_idxs op (s:t) : t =
     let rec f xs acc =
       if is_empty xs then begin acc
@@ -89,9 +102,14 @@ struct
         f rest (add merged acc)
     in
     try f s (empty ()) with SetDomain.Unsupported _ -> top ()
+  *)
+
+  let merge_idxs op (s:t) : t = reduce (merge op) s
 
   let join (s1:t) (s2:t) = merge_idxs Idx.join (join s1 s2)
   let meet (s1:t) (s2:t) = merge_idxs Idx.meet  (meet s1 s2)
+  let widen (s1:t) (s2:t) = merge_idxs Idx.widen (widen s1 s2)
+  let narrow (s1:t) (s2:t) = merge_idxs Idx.narrow (narrow s1 s2)
   let leq (s1:t) (s2:t) = match (s1,s2) with
     | _, All -> true
     | All, _ -> false
@@ -102,6 +120,9 @@ struct
   let to_var_may x = List.concat (List.map Addr.to_var_may (elements x))
   let to_var_must x = List.concat (List.map Addr.to_var_must (elements x))
   let to_var_offset x = List.concat (List.map Addr.to_var_offset (elements x))
+  let is_definite x = match elements x with
+    | [x] when Addr.is_definite x -> true
+    | _ -> false
 
   (* strings *)
   let from_string x = singleton (Addr.from_string x)

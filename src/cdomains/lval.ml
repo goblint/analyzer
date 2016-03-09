@@ -70,6 +70,7 @@ struct
     | Offs x -> [x]
     | _ -> []
 
+  (* what is this used for? seems unsound *)
   let definite o =
     let rec def o =
       match o with
@@ -80,6 +81,11 @@ struct
     match o with
     | Offs o -> Offs (def o)
     | Bot -> Bot
+
+  let rec is_definite = function
+    | `NoOffset -> true
+    | `Field (f,o) -> is_definite o
+    | `Index (i,o) ->  Idx.is_int i && is_definite o
 
   let top () = Offs `NoOffset
   let bot () = Bot
@@ -237,6 +243,8 @@ sig
   val get_type: t -> typ
   (** Finds the type of the address location. *)
 end
+
+(* TODO functor for type info *)
 
 module Normal (Idx: Printable.S) =
 struct
@@ -427,7 +435,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end
 
-module NormalLat (Idx: Lattice.S) =
+module NormalLat (Idx: IntDomain.S) =
 struct
   include Normal (Idx)
 
@@ -436,13 +444,25 @@ struct
     | _   -> false
 
   let is_bot = function
-    | Bot -> false
-    | _   -> true
+    | Bot -> true
+    | _   -> false
 
   let top () = Top
   let bot () = Bot
 
-  include Lattice.StdCousot
+  (* include Lattice.StdCousot *)
+  (*  *)
+  (* let widen x y = *)
+  (*   if equal x y then y else *)
+  (*     match x,y with *)
+  (*     | Addr _, Addr _ -> y *)
+  (*     | _ -> failwith "no" *)
+
+  module OffsI = Offset (Idx)
+  let is_definite = function
+    | NullPtr | StrPtr _ -> true
+    | Addr (v,o) when OffsI.is_definite o -> true
+    | _ -> false
 
   let leq x y =
     let rec leq_offs x y =
@@ -460,18 +480,18 @@ struct
     | UnknownPtr, UnknownPtr    -> true
     | NullPtr   , NullPtr       -> true
     | SafePtr   , SafePtr       -> true
-    | StrPtr a  , StrPtr b      -> a <= b (* TODO *)
+    | StrPtr a  , StrPtr b      -> a = b (* TODO *)
     | Addr (x,o), Addr (y,u) when x.vid = y.vid -> leq_offs o u
     | _                      -> false
 
-  let join x y =
-    let rec join_offs x y =
-      match x, y with
-      | `Index (i,x), `Index (o,y) -> `Index (Idx.join i o, join_offs x y)
-      | `Field (f,x), `Field (g,y) when f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname
-        -> `Field (f,join_offs x y)
-      | _ -> `NoOffset
-    in
+  let rec merge_offs op x y =
+    match x, y with
+    | `Index (i,x), `Index (o,y) -> `Index (op i o, merge_offs op x y)
+    | `Field (f,x), `Field (g,y) when f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname
+      -> `Field (f,merge_offs op x y)
+    | _ -> `NoOffset
+
+  let merge_up op x y =
     match x, y with
     | Top       , _       -> Top
     | _         , Top     -> Top
@@ -480,16 +500,14 @@ struct
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr -> NullPtr
     | SafePtr   , SafePtr -> SafePtr
-    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x,join_offs o u)
+    | StrPtr a  , StrPtr b when a=b -> StrPtr a
+    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x,merge_offs op o u)
     | _ -> Top
 
-  let meet x y =
-    let rec meet_offs x y =
-      match x, y with
-      | `Index (i,x), `Index (o,y) -> `Index (Idx.meet i o, meet_offs x y)
-      | `Field (f,x), `Field (g,y) when f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname -> `Field (f,meet_offs x y)
-      | _ -> `NoOffset
-    in
+  let join = merge_up Idx.join
+  let widen = merge_up Idx.widen
+
+  let merge_down op x y =
     match x, y with
     | Bot       , _          -> Bot
     | _         , Bot        -> Bot
@@ -498,8 +516,16 @@ struct
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr    -> NullPtr
     | SafePtr   , SafePtr    -> SafePtr
-    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (y, meet_offs o u)
+    | StrPtr a  , StrPtr b when a=b -> StrPtr a
+    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (y, merge_offs op o u)
+    | UnknownPtr, StrPtr a
+    | StrPtr a  , UnknownPtr -> StrPtr a
+    | UnknownPtr, Addr a
+    | Addr a    , UnknownPtr -> Addr a
     | _ -> Bot
+
+  let meet = merge_down Idx.meet
+  let narrow = merge_down Idx.narrow
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end

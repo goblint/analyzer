@@ -32,6 +32,7 @@ sig
   val partition: (elt -> bool) -> t -> t * t
   val cardinal: t -> int
   val elements: t -> elt list
+  val of_list: elt list -> t
   val min_elt: t -> elt
   val max_elt: t -> elt
   val choose: t -> elt
@@ -61,6 +62,7 @@ struct
   let partition _ _ = raise (Unsupported "partition")
   let cardinal _ = raise (Unsupported "cardinal")
   let elements _ = raise (Unsupported "elements")
+  let of_list _ = raise (Unsupported "of_list")
   let min_elt _ = raise (Unsupported "min_elt")
   let max_elt _ = raise (Unsupported "max_elt")
   let choose _ = raise (Unsupported "choose")
@@ -278,6 +280,7 @@ struct
   let exists f = schema (S.exists f) "exists on All"
   let filter f = schema (fun t -> Set (S.filter f t)) "filter on All"
   let elements = schema S.elements "elements on All"
+  let of_list xs = Set (List.fold_right S.add xs (S.empty ()))
   let cardinal = schema S.cardinal "cardinal on All"
   let min_elt = schema S.min_elt "min_elt on All"
   let max_elt = schema S.max_elt "max_elt on All"
@@ -336,6 +339,8 @@ struct
       BatPrintf.fprintf f "</set></value>\n"
 end
 
+(* superseded by Hoare *)
+(*
 module MacroSet (B: Lattice.S) (N: ToppedSetNames)=
 struct
   include ToppedSet (B) (N)
@@ -359,6 +364,7 @@ struct
     in
     if is_top y then y else if is_top x then x else fold f y (empty ())
 end
+*)
 
 (* This one just removes the extra "{" notation and also by always returning
  * false for the isSimple, the answer looks better, but this is essentially a
@@ -390,13 +396,15 @@ struct
     iter (Base.printXml f) xs
 end
 
-module Hoare (B : Lattice.S) : sig
-  include S with type elt = B.t
-  val apply_list : (elt list -> elt list) -> t -> t
-  val product_top : (elt -> elt -> elt) -> t -> t -> t
-end =
+(* module Hoare (B : Lattice.S) (N: ToppedSetNames) : sig *)
+(*   include S with type elt = B.t *)
+(*   val apply_list : (elt list -> elt list) -> t -> t *)
+(*   val product_top : (elt -> elt -> elt) -> t -> t -> t *)
+(* end = *)
+module Hoare (B : Lattice.S) (N: ToppedSetNames) =
 struct
-  include ToppedSet (B) (struct let topname = "Top" end)
+  include ToppedSet (B) (N)
+  (* include ToppedSet (B) (struct let topname = "Top" end) *)
 
   let exists p = function
     | All -> true
@@ -415,19 +423,18 @@ struct
   let le x y = B.leq x y && not (B.equal x y)
   let reduce = function
     | All -> All
-    | Set s -> Set (S.filter (fun x -> not (S.exists (le x) s)) s)
-  (* let reduce x = x *)
+    | Set s -> Set (S.filter (fun x -> not (S.exists (le x) s) && not (B.is_bot x)) s)
   let product_bot op a b = match a,b with
     | All, a | a, All -> a
     | Set a, Set b ->
       let a,b = S.elements a, S.elements b in
       List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (Set (S.of_list x))
-  let product_top op a b = match a,b with
+  let product_widen op a b = match a,b with (* assumes b to be bigger than a *)
     | All, _ | _, All -> All
     | Set a, Set b ->
-      let a,b = S.elements a, S.elements b in
-      List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (Set (S.of_list x))
-  let widen = product_top (fun x y -> if B.leq x y then B.widen x y else B.bot ())
+      let xs,ys = S.elements a, S.elements b in
+      List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> reduce (Set (S.union b (S.of_list x)))
+  let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ())
   let narrow = product_bot B.narrow
 
   let add x a = if mem x a then a else add x a (* special mem! *)
@@ -435,8 +442,7 @@ struct
   let union a b = union a b |> reduce
   let join = union
   let inter = product_bot B.meet
-  let inter = meet
-  let diff a b = failwith "Hoare: unsupported diff"
+  let meet = inter
   let subset = leq
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
@@ -444,4 +450,6 @@ struct
   let apply_list f = function
     | All -> All
     | Set s -> Set (S.elements s |> f |> S.of_list)
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let of_list xs = List.fold_right add xs (empty ()) |> reduce
 end
