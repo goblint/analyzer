@@ -1,4 +1,6 @@
 // PARAM: --set ana.activated[+] "'symb_locks'"  --set ana.activated[+] "'var_eq'" 
+#include <stdlib.h>
+
 typedef long long pthread_t;
 typedef long long pthread_mutex_t;
 

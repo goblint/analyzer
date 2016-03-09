@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[+] arinc --sets ana.activated[+] thread --sets solver slr3 --disable ana.arinc.export
+// PARAM: --sets ana.activated[+] arinc --sets ana.activated[+] thread --sets solver slr3t --disable ana.arinc.export
 
 typedef char * SEMAPHORE_NAME_TYPE;
 typedef void * SEMAPHORE_ID_TYPE;

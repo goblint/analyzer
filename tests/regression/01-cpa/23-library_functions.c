@@ -5,9 +5,7 @@
 #include <stdio.h>
 #include <sys/socket.h>
 
-/**
- * DO NOT run this code!
- */
+// DO NOT run this code!
 
 void test_scanf() {
   int n = 0, m = 0;
@@ -48,7 +46,7 @@ void test_free() {
   int* n = malloc(sizeof(int));
   *n = 0;
   free(n);
-  assert(n == 0); // UNKNOWN!
+  assert(n != 0);
 }
 
 void test_memcpy() {

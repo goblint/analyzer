@@ -1,4 +1,6 @@
 // PARAM: --set dbg.debug true
+#include <assert.h>
+
 void QQ(){
 }
 
@@ -13,7 +15,7 @@ int main(){
   int i = 1;
 
   assert(A[0].aa == 50);
-  assert(A[0].qq == &QQ);
+  assert(A[0].qq == &QQ); // UNKNOWN
 
   return 0;
 }
