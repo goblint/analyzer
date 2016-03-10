@@ -581,6 +581,15 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
 
+  let rec printInnerXml f = function 
+  | [] -> ()
+  | (`Left x :: xs) -> 
+    BatPrintf.fprintf f ".%a%a" F.printXml x printXml xs
+  | (`Right x :: xs) -> 
+    BatPrintf.fprintf f "[%a]%a" I.printXml x printXml xs
+
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
+
   let rec prefix x y = match x,y with
     | (x::xs), (y::ys) when FI.equal x y -> prefix xs ys
     | [], ys -> Some ys

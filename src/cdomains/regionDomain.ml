@@ -17,6 +17,9 @@ struct
   let toXML s  = toXML_f short s
   let pretty () x = pretty_f short () x
 
+  let printXml f (v,fi) =
+    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (Goblintutil.escape (V.short 80 v)) F.printInnerXml fi
+
   (* Indicates if the two var * offset pairs should collapse or not. *)
   let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
   let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
@@ -30,6 +33,12 @@ end
 module VFB =
 struct
   include Printable.Either (VF) (B)
+
+  let printXml f = function 
+  | `Right () ->
+    BatPrintf.fprintf f "<value>\n<data>\n•\n</data>\n</value>\n"
+  | `Left x ->
+    BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" VF.printXml x
 
   let collapse (x:t) (y:t): bool =
     match x,y with
