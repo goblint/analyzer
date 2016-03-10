@@ -553,7 +553,7 @@ struct
       (* printf "accessable set of %a = %a\n" d_exp e LS.pretty ls; *)
       LS.iter f ls
     | _ -> 
-      add_access conf None None
+      add_access (conf - 60) None None
 
   let assign (ctx:(D.t, G.t) ctx) l e =
     let spawns = ref [] in
