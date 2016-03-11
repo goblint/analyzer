@@ -89,6 +89,14 @@ let rec compareOffset (off1: offset) (off2: offset) : bool =
 
 type acc_typ = [ `Type of typ | `Struct of compinfo * offset ]
 
+let d_offset b () os : Pretty.doc = 
+  let rec d_o () = function 
+    | NoOffset -> nil
+    | Index (_,o) -> dprintf "[?]%a" d_o o
+    | Field (f,o) -> dprintf ".%s%a" f.fname d_o o
+  in
+  b ++ d_o () os
+
 let d_acct () = function
   | `Type t -> dprintf "(%a)" d_type t
   | `Struct (s,o) -> d_offset (dprintf "(struct %s)" s.cname) () o
@@ -101,6 +109,13 @@ let d_loc () loc =
     dprintf "%s:%d" loc.file loc.line
 
 type offs = [`NoOffset | `Index of 't | `Field of fieldinfo * 't] as 't
+
+let rec offs_eq x y = 
+  match x, y with
+  | `NoOffset, `NoOffset -> true
+  | `Index x, `Index y -> offs_eq x y
+  | `Field (f,x), `Field (g,y) -> f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname && offs_eq x y
+  | _ -> false
 
 let rec remove_idx : offset -> offs  = function
   | NoOffset    -> `NoOffset
@@ -159,11 +174,11 @@ let get_type fb e =
   | `Type (TPtr (t,a)) -> `Type t
   | x -> x
 
-module Ht = 
+module HtF (T:Hashtbl.HashedType) = 
 struct
-  include Hashtbl
+  include Hashtbl.Make (T)
 
-  let find_def (ht:('a,'b) Hashtbl.t) (k:'a) (z:'b Lazy.t ) : 'b = 
+  let find_def ht k z : 'b = 
     try 
       find ht k 
     with Not_found ->
@@ -171,7 +186,28 @@ struct
       add ht k v;
       v
 
-  let modify_def (ht:('a,'b) Hashtbl.t) (k:'a) (z:'b Lazy.t) (f: 'b -> 'b): unit =
+  let modify_def ht k z f: unit =
+    let g = function
+      | None -> Some (f (Lazy.force z))
+      | Some b -> Some (f b)
+    in
+    modify_opt k g ht
+
+end
+
+module Ht = 
+struct
+  include Hashtbl
+
+  let find_def ht k z : 'b = 
+    try 
+      find ht k 
+    with Not_found ->
+      let v = Lazy.force z in
+      add ht k v;
+      v
+
+  let modify_def ht k z f: unit =
     let g = function
       | None -> Some (f (Lazy.force z))
       | Some b -> Some (f b)
@@ -181,7 +217,53 @@ struct
 end
 
 (* type -> lval option -> partition option -> (2^(confidence, write, loc, e, locks), locks_union) *)
-let accs = Hashtbl.create 100
+module Acc_typHashable 
+  : Hashtbl.HashedType with type t = acc_typ = 
+struct
+  type t = acc_typ
+  let equal (x:t) y = 
+    match x, y with
+    | `Type t, `Type v -> Basetype.CilType.equal t v
+    | `Struct (c1,o1), `Struct (c2,o2) -> c1.ckey = c2.ckey && Exp.Exp.off_eq o1 o2
+    | _ -> false  
+  let hash = function
+  | `Type t -> Basetype.CilType.hash t
+  | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
+end
+module TypeHash = HtF (Acc_typHashable)
+
+module LvalOptHashable 
+  : Hashtbl.HashedType with type t = (varinfo * offs) option = 
+struct
+  type t = (varinfo * offs) option
+  let equal (x:t) (y:t) =  
+    match x, y with
+    | Some (v1,o1), Some (v2,o2) -> v1.vid = v2.vid && offs_eq o1 o2
+    | None, None -> true
+    | _ -> false
+  let hash = function
+  | None -> 435
+  | Some (x,y) -> Hashtbl.hash (x.vid, Hashtbl.hash y)
+end
+module LvalOptHash = HtF (LvalOptHashable)
+
+module PartOptHashable 
+  : Hashtbl.HashedType with type t = LSSet.t option = 
+struct
+  type t = LSSet.t option
+  let equal x y = 
+    match x, y with
+    | Some x, Some y -> LSSet.equal x y
+    | None  , None   -> true
+    | _ -> false
+    
+  let hash = function
+  | Some x -> LSSet.hash x
+  | None -> 101
+end
+module PartOptHash = HtF (PartOptHashable)
+
+let accs = TypeHash.create 100
 
 type var_o = varinfo option
 type off_o = offset  option
@@ -204,16 +286,16 @@ let add_one (e:exp) (w:bool) (conf:int) (ty:acc_typ) lv ((pp,lp):part): unit =
   in
   if is_ignorable lv then () else begin
     some_accesses := true;
-    let tyh = Ht.find_def accs  ty (lazy (Ht.create 10)) in
-    let lvh = Ht.find_def tyh lv (lazy (Ht.create 10)) in
+    let tyh = TypeHash.find_def accs  ty (lazy (LvalOptHash.create 10)) in
+    let lvh = LvalOptHash.find_def tyh lv (lazy (PartOptHash.create 10)) in
     let loc = !Tracing.current_loc in
     let add_part ls =
-      Ht.modify_def lvh (Some(ls)) (lazy (Set.empty,lp)) (fun (s,o_lp) ->
+      PartOptHash.modify_def lvh (Some(ls)) (lazy (Set.empty,lp)) (fun (s,o_lp) ->
           (Set.add (conf, w,loc,e,lp) s, LSSet.inter lp o_lp)
         )
     in
     if LSSSet.is_empty pp then
-      Ht.modify_def lvh None (lazy (Set.empty,lp)) (fun (s,o_lp) ->
+      PartOptHash.modify_def lvh None (lazy (Set.empty,lp)) (fun (s,o_lp) ->
           (Set.add (conf, w,loc,e,lp) s, LSSet.inter lp o_lp)
         )
     else
@@ -417,7 +499,7 @@ let print_races_oldscool () =
     (safe, nxs)
   in
   let h ty lv ht =
-    let safe, xs = Hashtbl.fold (g ty lv) ht (true, []) in
+    let safe, xs = PartOptHash.fold (g ty lv) ht (true, []) in
     let groupname = 
       if safe then
         sprint 80 (dprintf "Safely accessed %a (reasons ...)" d_memo (ty,lv)) 
@@ -427,9 +509,9 @@ let print_races_oldscool () =
     if not safe || allglobs then
       Messages.print_group groupname xs
   in
-  let f ty = Hashtbl.iter (h ty) in
+  let f ty = LvalOptHash.iter (h ty) in
   ignore (Pretty.printf "vvvv This output is here because our regression test scripts parse this format. \n");
-  Hashtbl.iter f accs;
+  TypeHash.iter f accs;
   ignore (Pretty.printf "^^^^ This output is here because our regression test scripts parse this format. \n")
 
   (* Commenting your code is for the WEAK! *)
@@ -456,10 +538,10 @@ let print_races () =
       ignore (Pretty.printf "  _L -> %a (%s)\n" LSSet.pretty lp reason)
   in
   let h ty lv ht =
-    let safety = Hashtbl.fold check_safe ht None in
+    let safety = PartOptHash.fold check_safe ht None in
     let print_location safetext = 
       ignore(printf "Memory location %a (%s)\n" d_memo (ty,lv) safetext);
-      Hashtbl.iter g ht
+      PartOptHash.iter g ht
     in
     match safety with
     | None -> 
@@ -474,8 +556,8 @@ let print_races () =
         incr vulnerable;
         print_location "vulnerable"
   in
-  let f ty = Hashtbl.iter (h ty) in
-  Hashtbl.iter f accs;
+  let f ty = LvalOptHash.iter (h ty) in
+  TypeHash.iter f accs;
   ignore (Pretty.printf "\nSummary:\n");
   ignore (Pretty.printf "\tsafe:        %5d\n" !safe);
   ignore (Pretty.printf "\tvulnerable:  %5d\n" !vulnerable);
@@ -499,18 +581,18 @@ let print_accesses () =
     Set.iter h acs
   in
   let h ty lv ht =
-    match Hashtbl.fold check_safe ht None with 
+    match PartOptHash.fold check_safe ht None with 
     | None ->
       ignore(printf "Memory location %a (safe)\n" d_memo (ty,lv));
-      Hashtbl.iter g ht
+      PartOptHash.iter g ht
     | Some n -> 
       ignore(printf "Memory location %a (race with conf. %d)\n" d_memo (ty,lv) n);
-      Hashtbl.iter g ht
+      PartOptHash.iter g ht
   in
   let f ty ht = 
-    Hashtbl.iter (h ty) ht
+    LvalOptHash.iter (h ty) ht
   in
-  Hashtbl.iter f accs
+  TypeHash.iter f accs
 
 let print_result () = 
   if !some_accesses then begin
