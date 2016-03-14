@@ -1391,7 +1391,7 @@ struct
       | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (IdxDom.top ()))
       | `Blob e -> reachable_from_value e
       | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
-      | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> let v = v in AD.join (reachable_from_value v) acc) s empty
+      | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
       |  _ -> empty
     in
     let res = reachable_from_value (get ask gs st false adr) in
