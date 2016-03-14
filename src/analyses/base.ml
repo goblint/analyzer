@@ -8,7 +8,7 @@ module H = Hashtbl
 module Q = Queries
 
 module GU = Goblintutil
-module ID = ValueDomain.ID
+module ID = IntDomain.IntDomTuple
 module IdxDom = ValueDomain.IndexDomain
 module IntSet = SetDomain.Make (IntDomain.Integers)
 module AD = ValueDomain.AD
@@ -786,6 +786,7 @@ struct
       | `List n ->  ValueDomain.Lists.is_bot n
       | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast approprietly) *)
       | `Top -> false
+      | _ -> false
     in
     let apply_invariant oldv newv =
       match oldv, newv with
@@ -1035,7 +1036,7 @@ struct
       | `Blob e -> reachable_from_value e
       | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
       | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
-      | `Int _ -> empty
+      |  _ -> empty
     in
     let res = reachable_from_value (get ask gs st adr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
@@ -1231,7 +1232,7 @@ struct
             join_tr (with_type k.ftype (reachable_from_value v))
           in
           ValueDomain.Structs.fold f s (empty, TS.bot (), false)
-        | `Int _ -> (empty, TS.bot (), false)
+        |  _ -> (empty, TS.bot (), false)
       in
       reachable_from_value (get ctx.ask ctx.global ctx.local adr)
     in
