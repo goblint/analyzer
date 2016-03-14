@@ -9,6 +9,7 @@ module Q = Queries
 
 module GU = Goblintutil
 module ID = IntDomain.IntDomTuple
+module RD = RelationalIntDomain.RelationalIntDomainTuple
 module IdxDom = ValueDomain.IndexDomain
 module IntSet = SetDomain.Make (IntDomain.Integers)
 module AD = ValueDomain.AD
@@ -72,12 +73,92 @@ struct
   type address = AD.t
   type glob_fun  = V.t -> G.t
   type glob_diff = (V.t * G.t) list
+  type relational_ints = RD.t
 
   let bool_top () = ID.(join (of_int 0L) (of_int 1L))
 
   (**************************************************************************
    * State functions
    **************************************************************************)
+
+  let first_value_in_local_store store =
+    let first_relational_value = CPA.fold
+        (fun key value first_value ->
+           let value =
+             match value with
+             | `RelationalInt x -> Some value
+             | _ -> None in
+           match key.vtype with
+           | TInt _ -> (
+               match first_value with
+               | Some x -> (
+                   match x with
+                   | `RelationalInt _ -> Some x
+                   |  _ -> value
+                 )
+               | _ -> value
+             )
+           | _ -> first_value) store None in
+    match first_relational_value with
+    | Some first_relational_value -> first_relational_value
+    | _ -> `RelationalInt (RD.top ())
+
+  let assign_new_relational_abstract_value_in_store store relational_int_abstract_value =
+    match relational_int_abstract_value with
+    | `RelationalInt x when (get_bool "ana.int.relational") ->
+      let store_int_variables = CPA.filter
+          (fun variable _ ->
+             match variable.vtype with
+             | TInt _ -> true
+             | _ -> false)
+          store
+      in
+      let store_not_int_variables = CPA.filter
+          (fun variable _ ->
+             match variable.vtype with
+             | TInt _ -> false
+             | _ -> true)
+          store
+      in
+      let store_int_variables = (CPA.map (fun _ -> `RelationalInt x) store_int_variables) in
+      CPA.long_map2 (fun val1 val2 -> val1) store_int_variables store_not_int_variables
+    | _ -> store
+
+  let meet_global_and_local_value store =
+    let local_value = CPA.fold (fun variable value local_value -> match local_value with | Some x -> Some x | None -> if not(variable.vglob) then Some value else None) store None in
+    let global_value = CPA.fold (fun variable value local_value -> match local_value with | Some x -> Some x | None -> if variable.vglob then Some value else None) store None in
+    match local_value, global_value with
+    | Some (`RelationalInt local_value), Some (`RelationalInt global_value) ->
+      assign_new_relational_abstract_value_in_store store (`RelationalInt (RD.meet_local_and_global_state local_value global_value))
+    | Some local_value, _ -> assign_new_relational_abstract_value_in_store store local_value
+    | _, Some global_value -> assign_new_relational_abstract_value_in_store store global_value
+    | _ -> store
+
+  let assign_new_relational_abstract_value store relational_int_abstract_value lhost =
+    let new_abstract_value =
+      match relational_int_abstract_value with
+      | `RelationalInt x when (get_bool "ana.int.relational") -> `RelationalInt x
+      | `Int x when (get_bool "ana.int.relational") -> (
+          let rel_abstract_val = first_value_in_local_store store in
+          match rel_abstract_val with
+          | `RelationalInt rel_abstract_val -> (
+              match lhost with
+              | Var var -> `RelationalInt (RD.add_variable_value_pair (lhost, x) rel_abstract_val)
+              | Mem exp -> `RelationalInt (RD.eval_assign_int_value (x, exp) rel_abstract_val)
+            )
+          | _ -> `RelationalInt (RD.top())
+        )
+      | _ -> relational_int_abstract_value in
+    assign_new_relational_abstract_value_in_store store new_abstract_value, new_abstract_value
+
+  let remove_variable cpa_s variable =
+    if (get_bool "ana.int.relational") then
+      let abstract_value = first_value_in_local_store cpa_s in
+      match abstract_value with
+      | `RelationalInt abstract_value ->
+        CPA.remove variable (assign_new_relational_abstract_value_in_store cpa_s (`RelationalInt (RD.remove_variable variable abstract_value)))
+      | _ -> CPA.remove variable cpa_s
+    else CPA.remove variable cpa_s
 
   let globalize ?(privates=false) a (cpa,fl): cpa * glob_diff  =
     (* For each global variable, we create the diff *)
@@ -86,7 +167,7 @@ struct
       let res =
         if is_global a v && (privates || not (is_private a (cpa,fl) v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          (CPA.remove v cpa, (v,value) :: acc)
+          (remove_variable cpa v, (v,value) :: acc)
         end else
           (cpa,acc)
       in
@@ -110,7 +191,7 @@ struct
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies *)
-  let rec get a (gs: glob_fun) (st,fl: store) (addrs:address): value =
+  let rec get a (gs: glob_fun) (st,fl: store) return_relational_value (addrs:address): value =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
     let get_global x = gs x in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
@@ -121,13 +202,20 @@ struct
         let var = if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
             match CPA.find x st with
             | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
-            | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
+            | value -> (
+                match value with
+                | `RelationalInt relint_value when (not return_relational_value) -> `Int (RD.get_value_of_variable x relint_value)
+                | _ ->
+                  (if M.tracing then M.tracec "get" "Using privatized version.\n"; value)
+              )
           else begin
             if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
-            CPA.find x st
+            match CPA.find x st with
+            | `RelationalInt relint_value when (not return_relational_value) -> `Int (RD.get_value_of_variable x relint_value)
+            | value -> value
           end
         in
-        VD.eval_offset (get a gs (st,fl)) var offs
+        VD.eval_offset (get a gs (st,fl) return_relational_value) var offs
       in
       let f x =
         match Addr.to_var_offset x with
@@ -150,7 +238,11 @@ struct
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
       CPA.add variable (VD.top ()) state
     else
-      CPA.add variable value state
+      match value with
+      | `RelationalInt _ | `Int _ when (get_bool "ana.int.relational")  ->
+        let store, value = assign_new_relational_abstract_value state value (Var variable) in
+        CPA.add variable value store
+      | _ -> CPA.add variable value state
 
 
   (** [set st addr val] returns a state where [addr] is set to [val] *)
@@ -234,7 +326,7 @@ struct
     (D.join st1 st2, gl1 @ gl2)
 
   let rem_many (st,fl: store) (v_list: varinfo list): store =
-    let f acc v = CPA.remove v acc in
+    let f acc v = remove_variable acc v in
     List.fold_left f st v_list, fl
 
   let call_descr f (es,fl) =
@@ -449,8 +541,8 @@ struct
           let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
         (* Variables and address expressions *)
-        | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
-        | Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs
+        | Lval (Var v, ofs) -> do_offs (get a gs st false (eval_lv a gs st (Var v, ofs))) ofs
+        | Lval (Mem e, ofs) -> do_offs (get a gs st false (eval_lv a gs st (Mem e, ofs))) ofs
         (* Binary operators *)
         | BinOp (op, CastE (ta, ea), CastE (tb, eb), t) when ta = tb && (op = Eq || op = Ne) ->
           let a1 = eval_rv a gs st ea in
@@ -689,20 +781,34 @@ struct
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
     let rec helper (op: binop) (lval: lval) (value: value) (tv: bool) =
+      let make_relational lvalue int_value st =
+        if not(get_bool "ana.int.relational") then Some (lvalue, `Int int_value)
+        else (
+          let store, _ = st in
+          match first_value_in_local_store store with
+          | `RelationalInt first_value_in_local_store ->
+            Some (lvalue, `RelationalInt (RD.eval_assign_int_value (int_value, (Lval lvalue)) first_value_in_local_store))
+          | _ -> Some (lvalue, `Int int_value)
+        )
+      in
       match (op, lval, value, tv) with
       (* The true-branch where x == value: *)
-      | Eq, x, value, true ->
-        if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
-        Some (x, value)
+      | Eq, x, value, true -> (
+          if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
+          match value with
+          | `Int n -> make_relational x n st
+          | _ -> Some (x, value)
+        )
       (* The false-branch for x == value: *)
       | Eq, x, value, false -> begin
           match value with
           | `Int n -> begin
               match ID.to_int n with
-              | Some n ->
-                (* When x != n, we can return a singleton exclusion set *)
-                if M.tracing then M.tracec "invariant" "Yes, %a is not %Ld\n" d_lval x n;
-                Some (x, `Int (ID.of_excl_list [n]))
+              | Some n -> (
+                  (* When x != n, we can return a singleton exclusion set *)
+                  if M.tracing then M.tracec "invariant" "Yes, %a is not %Ld\n" d_lval x n;
+                  make_relational x (ID.of_excl_list [n]) st
+                )
               | None -> None
             end
           | `Address n -> begin
@@ -728,7 +834,7 @@ struct
               match limit_from n with
               | Some n ->
                 if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" d_lval x n;
-                Some (x, `Int (range_from n))
+                make_relational x (range_from n) st
               | None -> None
             end
           | _ -> None
@@ -739,9 +845,10 @@ struct
           match value with
           | `Int n -> begin
               match limit_from n with
-              | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" d_lval x n;
-                Some (x, `Int (range_from n))
+              | Some n -> (
+                  if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" d_lval x n;
+                  make_relational x (range_from n) st
+                )
               | None -> None
             end
           | _ -> None
@@ -778,6 +885,7 @@ struct
     let is_some_bot x =
       match x with
       | `Int n ->  ID.is_bot n
+      | `RelationalInt n -> RD.is_bot n
       | `Address n ->  AD.is_bot n
       | `Struct n ->  ValueDomain.Structs.is_bot n
       | `Union n ->  ValueDomain.Unions.is_bot n
@@ -802,9 +910,11 @@ struct
       let addr = eval_lv a gs st lval in
       if (AD.is_top addr) then st
       else
-        let oldval = get a gs st addr in
+        let oldval = get a gs st (get_bool "ana.int.relational") addr in
         let new_val = apply_invariant oldval value in
-        let new_val = improve_abstract_value_with_queries a (Lval lval) new_val in
+        let map, flag = st in
+        let map, new_val = assign_new_relational_abstract_value map new_val (Mem (Lval lval)) in
+        let st = map, flag in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
         (* make that address meet the invariant, i.e exclusion sets will be joined *)
         if is_some_bot new_val then (
@@ -830,6 +940,34 @@ struct
 
   (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
   let char_array : (lval, string) Hashtbl.t = Hashtbl.create 500
+
+  let eval_relational_int_domain (rval_val: CPA.value) first_value_in_local_store lval rval ctx_local =
+    match lval with
+    | Mem _, _ -> ctx_local, rval_val
+    | Var var, _ -> (
+        match var.vtype with
+        | TInt _ -> (
+            let rel_int = match first_value_in_local_store with
+              | Some (`RelationalInt rel_int) -> rel_int
+              | Some (`Top) -> RD.top ()
+              | Some (`Bot) -> RD.bot ()
+              | _ -> RD.top ()
+            in
+            match rval_val, first_value_in_local_store with
+            | `Int x, Some y when (get_bool "ana.int.relational") ->
+              let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value (x, (Lval lval)) rel_int) in
+              assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
+            | _ when (get_bool "ana.int.relational") ->
+              let relational_int_abstract_value = RD.eval_assign_cil_exp ((Lval lval), rval) rel_int in
+              if RD.is_top relational_int_abstract_value then
+                ctx_local, rval_val
+              else
+                let relational_int_abstract_value = `RelationalInt (relational_int_abstract_value) in
+                assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
+            | _ -> ctx_local, rval_val
+          )
+        | _ -> ctx_local, rval_val
+      )
 
   let assign ctx (lval:lval) (rval:exp)  =
     let char_array_hack () =
@@ -885,6 +1023,8 @@ struct
     | _ ->
       let rval_val = eval_rv_with_query ctx.ask ctx.global ctx.local rval in
       let lval_val = eval_lv ctx.ask ctx.global ctx.local lval in
+      let store, flag = ctx.local in
+      let store, rval_val = eval_relational_int_domain rval_val (Some (first_value_in_local_store store)) lval rval store in
       (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
       (* M.debug @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
       let not_local xs =
@@ -904,7 +1044,7 @@ struct
           List.iter (fun x -> ctx.spawn x (threadstate x)) funs
         | _ -> ()
       end;
-      set_savetop ctx.ask ctx.global ctx.local lval_val rval_val
+      set_savetop ctx.ask ctx.global (store, flag) lval_val rval_val
 
   module Locmap = Deadcode.Locmap
 
@@ -1038,7 +1178,7 @@ struct
       | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
       |  _ -> empty
     in
-    let res = reachable_from_value (get ask gs st adr) in
+    let res = reachable_from_value (get ask gs st false adr) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
     res
 
@@ -1072,7 +1212,7 @@ struct
      * top value. *)
     let invalidate_address st a =
       let t = AD.get_type a in
-      let v = get ask gs st a in
+      let v = get ask gs st false a in
       let nv =  VD.invalidate_value t v in
       (a, nv)
     in
@@ -1136,6 +1276,7 @@ struct
     if CPA.is_top st then st else
       let rec replace_val = function
         | `Int _       -> `Top
+        | `RelationalInt _ -> `Top
         | `Array n     -> `Array (ValueDomain.CArrays.set n (ValueDomain.IndexDomain.top ())
                                     (replace_val (ValueDomain.CArrays.get n (ValueDomain.IndexDomain.top ()))))
         | `Struct n    -> `Struct (ValueDomain.Structs.map replace_val n)
@@ -1236,7 +1377,7 @@ struct
           ValueDomain.Structs.fold f s (empty, TS.bot (), false)
         |  _ -> (empty, TS.bot (), false)
       in
-      reachable_from_value (get ctx.ask ctx.global ctx.local adr)
+      reachable_from_value (get ctx.ask ctx.global ctx.local false adr)
     in
     let visited = ref empty in
     let work = ref ps in
@@ -1360,6 +1501,58 @@ struct
    * Function calls
    **************************************************************************)
 
+  let transform_varinfo_intval_list_to_relational_list store (varinfo_val_list: (Cil.varinfo * value) list)  =
+    let all_int_values = List.fold_left (fun all_ints (varinfo, value) -> match value with `Int x -> all_ints | _ -> false) true varinfo_val_list in
+    if all_int_values then (
+      let varinfo_val_list = List.filter (
+          fun (varinfo, value) -> match varinfo, value with varinfo, `Int x -> true | _ -> false
+        ) varinfo_val_list in
+      let varinfo_val_list = List.map (
+          fun (varinfo, value) ->
+            match varinfo, value with
+            | varinfo, `Int x -> ((Var varinfo), x)
+            | varinfo, _ -> ((Var varinfo), ID.top())) varinfo_val_list in
+      let abstract_value =
+        match (first_value_in_local_store store) with
+        | `RelationalInt x ->
+          let x = RD.remove_all_local_variables x in
+          RD.add_variable_value_list varinfo_val_list x
+        | _ -> RD.add_variable_value_list varinfo_val_list (RD.top ())
+      in
+      let abstract_value = RD.remove_all_top_variables abstract_value in
+      List.map (
+        fun (varinfo, abstr) ->
+          match varinfo with
+          | Var varinfo -> (varinfo, `RelationalInt (abstract_value))
+          | _ -> (* this case does not happen and is here just to avoid warnings *)((Cil.makeGlobalVar " " (TVoid [])),`RelationalInt (abstract_value))
+        ) varinfo_val_list
+    ) else varinfo_val_list
+
+  let assign_relational_ints_to_new_cpa new_cpa pa nfl =
+    let first_relational_value_in_store =
+      first_value_in_local_store new_cpa in
+    let new_relational_int =
+      match pa with
+      | (_,value)::_ -> (
+          match value with
+          | `RelationalInt x ->
+            `RelationalInt(RD.remove_all_top_variables x)
+          | _ ->
+            match first_relational_value_in_store with
+            | `RelationalInt first_relational_value_in_store ->
+              let x = RD.remove_all_top_variables first_relational_value_in_store in
+              `RelationalInt(RD.remove_all_local_variables x)
+            | _ -> `RelationalInt(RD.top ())
+        )
+      | _ ->
+        match first_relational_value_in_store with
+        | `RelationalInt first_relational_value_in_store ->
+          let x = RD.remove_all_top_variables first_relational_value_in_store in
+          `RelationalInt(RD.remove_all_local_variables x)
+        | _ -> `RelationalInt(RD.top ())
+    in
+    assign_new_relational_abstract_value_in_store new_cpa new_relational_int, nfl
+
   let make_entry ctx ?nfl:(nfl=(snd ctx.local)) fn args: D.t =
     let cpa,fl as st = ctx.local in
     (* Evaluate the arguments. *)
@@ -1370,11 +1563,16 @@ struct
     let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
+    let pa = if (get_bool "ana.int.relational") then transform_varinfo_intval_list_to_relational_list new_cpa pa else pa in
     let new_cpa = CPA.add_list pa new_cpa in
     (* List of reachable variables *)
-    let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
+    let reachable_variables = (reachable_vars ctx.ask (get_ptrs vals) ctx.global st) in
+    let reachable = List.concat (List.map AD.to_var_may reachable_variables) in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
-    new_cpa, nfl
+    if (get_bool "ana.int.relational") then
+      assign_relational_ints_to_new_cpa new_cpa pa nfl
+    else
+      new_cpa, nfl
 
   let enter ctx lval fn args : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
@@ -1458,7 +1656,22 @@ struct
           | _ -> `Top
         end
       | `Bot -> `Bot
-      | _ -> `Top
+      | _ ->
+        let store, _ = ctx.local in
+        let rel_int = match first_value_in_local_store store with
+          | `RelationalInt x -> x
+          | _ -> RD.top ()
+        in
+        if (get_bool "ana.int.relational") then (
+          let relational_assert_result = RD.eval_assert_cil_exp e rel_int in
+          if RD.is_top relational_assert_result then `Top
+          else (
+            if RD.is_bot relational_assert_result then `False
+            else `RelationalInt relational_assert_result
+          )
+        )
+        else
+          `Top
     in
     let expr () = sprint ~width:80 (d_exp () e) in
     match check_assert e ctx.local with
@@ -1468,6 +1681,11 @@ struct
     | `True ->
       if warn then M.warn_each ("Assertion \"" ^ expr () ^ "\" will succeed");
       ctx.local
+    | `RelationalInt x ->
+      if warn then M.warn_each ("Assertion \"" ^ expr () ^ "\" will succeed");
+      let store, flag = ctx.local in
+      let store = assign_new_relational_abstract_value_in_store store (`RelationalInt x) in
+      store, flag
     | `Bot ->
       M.warn_each ("Assertion \"" ^ expr () ^ "\" produces a bottom. What does that mean?");
       ctx.local
@@ -1526,7 +1744,7 @@ struct
         | [ AddrOf (Var elm,next);(AddrOf (Var lst,NoOffset))] ->
           begin
             let ladr = AD.singleton (Addr.from_var lst) in
-            match get ctx.ask ctx.global ctx.local ladr with
+            match get ctx.ask ctx.global ctx.local false ladr with
             | `List ld ->
               let eadr = AD.singleton (Addr.from_var elm) in
               let eitemadr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
@@ -1544,12 +1762,12 @@ struct
           begin
             let eadr = AD.singleton (Addr.from_var elm) in
             let lptr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
-            let lprt_val = get ctx.ask ctx.global ctx.local lptr in
+            let lprt_val = get ctx.ask ctx.global ctx.local false lptr in
             let lst_poison = `Address (AD.singleton (Addr.from_var ListDomain.list_poison)) in
             let s1 = set ctx.ask ctx.global ctx.local lptr (VD.join lprt_val lst_poison) in
-            match get ctx.ask ctx.global ctx.local lptr with
+            match get ctx.ask ctx.global ctx.local false lptr with
             | `Address ladr -> begin
-                match get ctx.ask ctx.global ctx.local ladr with
+                match get ctx.ask ctx.global ctx.local false ladr with
                 | `List ld ->
                   let del_ls = ValueDomain.Lists.del eadr ld in
                   let s2 = set ctx.ask ctx.global s1 ladr (`List del_ls) in
@@ -1687,19 +1905,19 @@ struct
        * variables of the called function from cpa_s. *)
       let add_globals (cpa_s,fl_s) (cpa_d,fl_dl) =
         (* Remove the return value as this is dealt with separately. *)
-        let cpa_s = CPA.remove (return_varinfo ()) cpa_s in
+        let cpa_s = remove_variable cpa_s (return_varinfo ()) in
         let new_cpa = CPA.fold CPA.add cpa_s cpa_d in
         (new_cpa, fl_s)
       in
       let return_var = return_var () in
       let return_val =
         if CPA.mem (return_varinfo ()) fun_st
-        then get ctx.ask ctx.global fun_d return_var
+        then get ctx.ask ctx.global fun_d false return_var
         else VD.top ()
       in
       let st = add_globals (fun_st,fun_fl) st in
       match lval with
-      | None      -> st
+      | None      -> if (get_bool "ana.int.relational") then let store, fl = st in meet_global_and_local_value store, fl else st
       | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val
     in
     combine_one ctx.local after
