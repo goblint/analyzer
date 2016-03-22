@@ -319,15 +319,15 @@ struct
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n  -> begin
         match op with
-          (* For array indexing, e[i] we have *)
-          | IndexPI -> `Address (AD.map (addToAddr n) p)
-          (* Pointer addition e + i, it's the same: *)
-          | PlusPI -> `Address (AD.map (addToAddr n) p)
-          (* Pointer subtracted by a value (e-i) is very similar *)
-          | MinusPI -> let n = ID.neg n in
-            `Address (AD.map (addToAddr n) p)
-          | Mod -> `Int (ID.top ()) (* we assume that address is actually casted to int first*)
-          | _ -> `Address (AD.unknown_ptr ())
+        (* For array indexing, e[i] we have *)
+        | IndexPI -> `Address (AD.map (addToAddr n) p)
+        (* Pointer addition e + i, it's the same: *)
+        | PlusPI -> `Address (AD.map (addToAddr n) p)
+        (* Pointer subtracted by a value (e-i) is very similar *)
+        | MinusPI -> let n = ID.neg n in
+          `Address (AD.map (addToAddr n) p)
+        | Mod -> `Int (ID.top ()) (* we assume that address is actually casted to int first*)
+        | _ -> `Address (AD.unknown_ptr ())
       end
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result, but it's an integer. *)
@@ -671,17 +671,17 @@ struct
     | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
     | TArray (ai, exp, _) ->
-        let default = `Array (ValueDomain.CArrays.top ()) in
-        (match exp with
-        | Some exp ->
-          (match eval_rv_with_query a gs st exp with
+      let default = `Array (ValueDomain.CArrays.top ()) in
+      (match exp with
+       | Some exp ->
+         (match eval_rv_with_query a gs st exp with
           | `Int n -> begin
               match ID.to_int n with
               | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai))
               | _ -> default
             end
           | _ -> default)
-        | None -> default)
+       | None -> default)
     | TNamed ({ttype=t}, _) -> top_value a gs st t
     | _ -> `Top
 
@@ -1271,13 +1271,13 @@ struct
     | Q.EvalInterval e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Int e -> (
-              match ID.is_top e with
-                | true -> `Top
-                | false -> (
-                    match ID.minimal e, ID.maximal e with
-                      Some i, Some s -> `Interval (IntDomain.Interval.of_interval (i,s))
-                    | _ -> `Top
-                  )
+            match ID.is_top e with
+            | true -> `Top
+            | false -> (
+                match ID.minimal e, ID.maximal e with
+                  Some i, Some s -> `Interval (IntDomain.Interval.of_interval (i,s))
+                | _ -> `Top
+              )
           )
         | `Bot   -> `Bot
         | _      -> `Top
