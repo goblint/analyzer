@@ -1237,19 +1237,14 @@ struct
   (** postprocess and print races and other output *)
   let finalize () =
     AccKeySet.iter postprocess_acc !accKeys;
-    if !Goblintutil.multi_threaded then begin
-      if !race_free then
-        print_endline "Goblint did not find any Data Races in this program!";
-      if !suppressed = 1 then
-        print_endline ("However 1 warning has been suppressed.");
-      if !suppressed > 1 then
-        print_endline ("However " ^ (string_of_int !suppressed) ^ " warnings have been suppressed.");
-      if !filtered > 0 then
-        print_endline ("Filtering of safe tasks/irpts was used " ^  (string_of_int !filtered) ^ " time(s).");
-    end else if not (get_bool "dbg.debug") then begin
-      print_endline "NB! That didn't seem like a multithreaded program.";
-      print_endline "Try `goblint --help' to do something other than Data Race Analysis."
-    end;
+    if !race_free then
+      print_endline "Goblint did not find any Data Races in this program!";
+    if !suppressed = 1 then
+      print_endline ("However 1 warning has been suppressed.");
+    if !suppressed > 1 then
+      print_endline ("However " ^ (string_of_int !suppressed) ^ " warnings have been suppressed.");
+    if !filtered > 0 then
+      print_endline ("Filtering of safe tasks/irpts was used " ^  (string_of_int !filtered) ^ " time(s).");
     Base.Main.finalize ()
 
   let init () = (*

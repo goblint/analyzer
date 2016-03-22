@@ -55,9 +55,6 @@ let result_regexp = ref (Str.regexp "")
 (** Json files that are given as arguments *)
 let jsonFiles : string list ref = ref []
 
-(** has any threads have been spawned *)
-let multi_threaded = ref false
-
 (** has user specified other thread functions *)
 let has_otherfuns = ref false
 

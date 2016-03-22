@@ -1589,9 +1589,7 @@ struct
                       cpa, fl
                 | _ -> raise Deadcode
               end *)
-    | `ThreadCreate (f,x) ->
-      GU.multi_threaded := true;
-      cpa, Flag.make_main fl
+    | `ThreadCreate (f,x) -> cpa, Flag.make_main fl
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv_with_query ctx.ask gs st ret_var) with
@@ -1665,16 +1663,11 @@ struct
                *  if single-threaded: *call f*, privatize globals
                *  else: spawn f
                *)
-              if List.fold_right f flist false && not (get_bool "exp.single-threaded") then begin
-                let new_fl =
-                  if (not !GU.multi_threaded) && get_bool "exp.unknown_funs_spawn" then begin
-                    GU.multi_threaded := true;
-                    Flag.make_main fl
-                  end else
-                    fl
-                in
-                cpa,new_fl
-              end else
+              if List.fold_right f flist false
+              && not (get_bool "exp.single-threaded")
+              && get_bool "exp.unknown_funs_spawn" then
+                cpa,Flag.make_main fl
+              else
                 st
             )
         in
