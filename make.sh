@@ -5,7 +5,7 @@ set -e
 scripts/set_version.sh
 
 TARGET=src/goblint
-INCLUDE_DUMMY_MODULES="-I src/util/dummymodules/apronDomain -X src/cdomains/apronDomain"
+INCLUDE_DUMMY_MODULES="-I src/util/dummymodules/apronDomain"
 FLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt opt -cflag -g"
 FLAGS_POLY="$FLAGS -I src/cdomains/apronDomain -no-plugin -package apron -package apron.polkaMPQ -package apron.octD"
 OCAMLBUILD=ocamlbuild
