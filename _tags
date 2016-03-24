@@ -1,3 +1,3 @@
-<src> or <src/*> or <src/*/*>: include
+(<src> or <src/*> or <src/**>) and not (<src/cdomains/apronDomain/*>) and not (<src/util/dummymodules/*>): include
 <src/**/*.*> : package(findlib), package(cil), package(cil.all-features), package(batteries), package(xml-light), package(ppx_deriving.std)
 true: bin_annot
