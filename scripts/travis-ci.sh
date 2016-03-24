@@ -43,5 +43,4 @@ export OPAMYES=1
 eval `opam config env`
 
 # compile
-./make.sh clean
 ./make.sh nat
