@@ -1146,10 +1146,11 @@ struct
       CPA.map replace_val st
 
   let context (cpa,fl) =
-    if !GU.earlyglobs then CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k) cpa, fl else
-    if get_bool "exp.addr-context" then drop_non_ptrs cpa, fl
-    else if get_bool "exp.no-int-context" then drop_ints cpa, fl
-    else cpa,fl
+    let f t f (cpa,fl) = if t then f cpa, fl else cpa, fl in
+    (cpa,fl) |>
+    f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
+    %> f (get_bool "exp.addr-context") drop_non_ptrs
+    %> f (get_bool "exp.no-int-context") drop_ints
 
   (* interpreter end *)
 
