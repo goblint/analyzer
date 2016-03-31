@@ -491,6 +491,15 @@ struct
       -> `Field (f,merge_offs op x y)
     | _ -> `NoOffset
 
+  let rec drop_ints_offs = function
+    | `Index (i, x) -> `Index (Idx.top (), drop_ints_offs x)
+    | `Field (i, x) -> `Field (i, drop_ints_offs x)
+    | x -> x
+
+  let drop_ints = function
+    | Addr (x, o) -> Addr (x, drop_ints_offs o)
+    | x -> x
+
   let merge_up op x y =
     match x, y with
     | Top       , _       -> Top
