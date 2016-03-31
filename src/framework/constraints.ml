@@ -1091,7 +1091,8 @@ struct
     let f_gr () = incr gr in
     let f_uk () = incr uk in
     let f k v1 =
-      let v2 = try PP.find h2 k with Not_found -> D.bot () in
+      if not (PP.mem h2 k) then () else
+      let v2 = PP.find h2 k in
       let b1 = D.leq v1 v2 in
       let b2 = D.leq v2 v1 in
       if b1 && b2 then
@@ -1108,7 +1109,11 @@ struct
         f_uk ()
     in
     PP.iter f h1;
-    Printf.printf "locals:  eq=%d\t%s=%d\t%s=%d\tuk=%d\n" !eq (get_string "solver") !le (get_string "comparesolver") !gr !uk
+    let k1 = Set.of_enum @@ PP.keys h1 in
+    let k2 = Set.of_enum @@ PP.keys h2 in
+    let o1 = Set.cardinal @@ Set.diff k1 k2 in
+    let o2 = Set.cardinal @@ Set.diff k2 k1 in
+    Printf.printf "locals:  eq=%d\t%s=%d[%d]\t%s=%d[%d]\tuk=%d\n" !eq (get_string "solver") !le o1 (get_string "comparesolver") !gr o2 !uk
 
   let compare_globals g1 g2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
