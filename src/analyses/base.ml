@@ -327,7 +327,7 @@ struct
         | MinusPI -> let n = ID.neg n in
           `Address (AD.map (addToAddr n) p)
         | Mod -> `Int (ID.top ()) (* we assume that address is actually casted to int first*)
-        | _ -> `Address (AD.unknown_ptr ())
+        | _ -> `Address (AD.top_ptr ())
       end
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result, but it's an integer. *)
