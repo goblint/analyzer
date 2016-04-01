@@ -26,6 +26,8 @@ open Json
 
 exception ConfigError of string
 
+let build_config = ref false
+
 (* Phase of the analysis (moved from GoblintUtil b/c of circular build...) *)
 let phase = ref 0
 let phase_config = ref true
@@ -200,7 +202,12 @@ struct
       match !o, pth with
       | Object m, Select (key,pth) ->
         begin try set_value v (Object.find key !m) pth
-          with Not_found -> m := Object.add key (ref (create_new v pth)) !m end
+          with Not_found ->
+            if !build_config then
+              m := Object.add key (ref (create_new v pth)) !m
+            else
+              raise @@ ConfigError ("Unknown path "^ (sprintf2 "%a" print_path orig_pth))
+        end
       | Array a, Index (Int i, pth) ->
         set_value v (List.at !a i) pth
       | Array a, Index (App, pth) ->

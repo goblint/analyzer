@@ -27,7 +27,7 @@ let registrar = ref []
 (** A function to register a variable *)
 let reg (c:category) (n:string) (def:string) (desc:string) =
   registrar := (c,(n,(desc,def))) :: !registrar;
-  GobConfig.set_auto n def
+  GobConfig.(build_config := true; set_auto n def; build_config := false)
 
 (** find all associations in the list *)
 let rec assoc_all k = function
