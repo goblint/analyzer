@@ -38,7 +38,7 @@ module Functions = struct
   let with_success = [NO_ERROR; NO_ACTION]
   let wout_success = [NO_ERROR; NO_ACTION; NOT_AVAILABLE; INVALID_PARAM; INVALID_CONFIG; INVALID_MODE; TIMED_OUT]
   let wout_success_wout_timeout = [NO_ERROR; NO_ACTION; NOT_AVAILABLE; INVALID_PARAM; INVALID_CONFIG; INVALID_MODE]
-  let vd xs = `Int (ValueDomain.ID.(List.map (of_int % Int64.of_int % int_from_return_code) xs |> List.fold_left join (bot ())))
+  let vd xs = `Int (IntDomain.IntDomTuple.(List.map (of_int % Int64.of_int % int_from_return_code) xs |> List.fold_left join (bot ())))
   let effects fname args =
     if not (List.mem fname arinc_special) || List.is_empty args then None
     else
