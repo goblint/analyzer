@@ -24,6 +24,8 @@ open Printf
 open JsonSchema
 open Json
 
+exception ConfigError of string
+
 (* Phase of the analysis (moved from GoblintUtil b/c of circular build...) *)
 let phase = ref 0
 let phase_config = ref true

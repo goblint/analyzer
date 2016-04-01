@@ -16,13 +16,11 @@ module Make =
   functor (GH:Hash.H with type key=S.GVar.t) ->
   struct
 
-    (** Dynamically choose the solver. Fall back to 'effectWCon' in case the
-        asked solver is not found. *)
+    (** Dynamically choose the solver. *)
     let choose_solver solver =
       try List.assoc solver !solvers
       with Not_found ->
-        Printf.eprintf "Solver '%s' not found, falling back to 'effectWCon'!\n" solver;
-        (module EffectWCon.Make2 : GenericGlobSolver)
+        raise @@ ConfigError ("Solver '"^solver^"' not found. Abort!")
 
     (** You wont belive this! It really works! *)
     let solve =

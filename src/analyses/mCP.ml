@@ -256,7 +256,7 @@ struct
     let map' f =
       let f x =
         try Some (f x)
-        with Not_found -> Legacy.Printf.fprintf !Messages.warn_out "Analysis '%s' not found. Ignoring.\n" x;None
+        with Not_found -> raise @@ ConfigError ("Analysis '"^x^"' not found. Abort!")
       in
       List.filter_map f
     in
