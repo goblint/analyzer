@@ -678,9 +678,9 @@ struct
     | `Excluded _, _ -> top ()
     | _, `Excluded _ -> top ()
     (* The good case: *)
-    | `Definite x, `Definite y -> (try `Definite (f x y) with | Division_by_zero -> `Bot)
-    (* If any one of them is bottom, we return bottom *)
-    | _ -> `Bot
+    | `Definite x, `Definite y -> (try `Definite (f x y) with | Division_by_zero -> top ())
+    (* If any one of them is bottom, we return top *)
+    | _ -> top ()
 
   (* Default behaviour for binary operators that are injective in either
    * argument, so that Exclusion Sets can be used: *)
@@ -2663,6 +2663,8 @@ module Enums : S = struct
       let r = List.cartesian_product xs ys |> List.map (uncurry f) |> List.sort_unique compare in
       if List.length r <= max_elems () then Pos r else Neg[]
     | _,_ -> Neg[]
+  let lift2 f a b =
+    try lift2 f a b with Division_by_zero -> top ()
 
   let neg  = lift1 I.neg
   let add  = curry @@ function
@@ -2676,7 +2678,7 @@ module Enums : S = struct
   let div  = curry @@ function
     | Pos[1L],x | x,Pos[1L] -> x
     | Pos[0L],_ -> Pos[0L]
-    | _,Pos[0L] -> raise Division_by_zero
+    | _,Pos[0L] -> top ()
     | x,y -> lift2 I.div x y
   let rem  = lift2 I.rem
   let lt = lift2 I.lt
