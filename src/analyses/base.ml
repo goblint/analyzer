@@ -6,7 +6,6 @@ open GobConfig
 module A = Analyses
 module H = Hashtbl
 module Q = Queries
-
 module GU = Goblintutil
 module ID = IntDomain.IntDomTuple
 module RD = RelationalIntDomain.RelationalIntDomainTuple
@@ -297,8 +296,8 @@ struct
             | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
             | value -> (
                 match value with
-                | `RelationalInt relint_value when (not return_relational_value) -> `Int (RD.get_value_of_variable x relint_value)
-                | `RelationalStruct relstruct_value when (not return_relational_value) ->
+                | `RelationalInt relint_value when (not return_relational_value) && (get_bool analyse_ints_relationally)-> `Int (RD.get_value_of_variable x relint_value)
+                | `RelationalStruct relstruct_value when (not return_relational_value) && (get_bool analyse_structs_relationally)->
                   `RelationalStruct (ValueDomain.RelationalStructs.get_value_of_variable x relstruct_value)
                 | _ ->
                   (if M.tracing then M.tracec "get" "Using privatized version.\n"; value)
@@ -331,11 +330,11 @@ struct
   let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
 
   let update_variable variable value state =
-(*    Pervasives.print_endline ("update variable: " ^variable.vname);
+    Pervasives.print_endline ("update variable: " ^variable.vname);
     Pretty.fprint Pervasives.stdout 0 (VD.pretty () value);
     Pervasives.print_endline "\n Store before update variable ";
     Pretty.fprint Pervasives.stdout 0 (CPA.pretty () state);
-      Pervasives.print_endline " ";*)
+    Pervasives.print_endline " ";
     let state = if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
         CPA.add variable (VD.top ()) state
       else (
@@ -347,7 +346,6 @@ struct
         | `RelationalInt _ | `Int _ when (get_bool analyse_ints_relationally)  ->
           add_relational_information value
         | `RelationalStruct x when (get_bool analyse_structs_relationally) -> (
-          (if variable.vname = "xx" then (Pervasives.print_endline "Update variable xx!"; Pretty.fprint Pervasives.stdout 0 (VD.pretty () value);) else ());
             let rel_structs_value_renamed_variable =
               ValueDomain.RelationalStructs.map (
                 fun (struct_value, struct_name, is_local) ->
@@ -962,14 +960,26 @@ struct
   let invariant a (gs:glob_fun) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
+    Pervasives.print_endline "INVARIANT";
+    Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () exp);
     let rec helper (op: binop) (lval: lval) (value: value) (tv: bool) =
       let make_relational lvalue int_value st =
-        if not(get_bool analyse_ints_relationally) then Some (lvalue, `Int int_value)
+        if not(get_bool analyse_ints_relationally) && not (get_bool analyse_structs_relationally)
+        then Some (lvalue, `Int int_value)
         else (
-          let store, _ = st in
-          match first_value_in_local_store store `RelationalIntInformation with
-          | `RelationalInt first_value_in_local_store ->
-            Some (lvalue, `RelationalInt (RD.eval_assign_int_value (int_value, (Lval lvalue)) first_value_in_local_store))
+           let store, _ = st in
+          match lvalue with
+          | Var v, Field (field,_) when get_bool analyse_structs_relationally -> (
+            match first_value_in_local_store store `RelationalStructInformation with
+            | `RelationalStruct first_value_in_local_store ->
+              Some (lvalue, `RelationalStruct (ValueDomain.RelationalStructs.replace first_value_in_local_store field (`Int int_value, v.vname, (not v.vglob))))
+            | _ -> Some (lvalue, `Int int_value)
+            )
+          | Var v, _  when get_bool analyse_ints_relationally -> (
+              match first_value_in_local_store store `RelationalIntInformation with
+              | `RelationalInt first_value_in_local_store ->
+                Some (lvalue, `RelationalInt (RD.eval_assign_int_value (int_value, (Lval lvalue)) first_value_in_local_store))
+              | _ -> Some (lvalue, `Int int_value))
           | _ -> Some (lvalue, `Int int_value)
         )
       in
@@ -1009,6 +1019,7 @@ struct
         end
       | Ne, x, value, _ -> helper Eq x value (not tv)
       | Lt, x, value, _ -> begin
+          Pervasives.print_endline "LT";
           let range_from x = if tv then ID.ending (Int64.sub x 1L) else ID.starting x in
           let limit_from = if tv then ID.maximal else ID.minimal in
           match value with
@@ -1022,18 +1033,25 @@ struct
           | _ -> None
         end
       | Le, x, value, _ -> begin
+          Pervasives.print_endline "LE";
           let range_from x = if tv then ID.ending x else ID.starting (Int64.add x 1L) in
           let limit_from = if tv then ID.maximal else ID.minimal in
           match value with
           | `Int n -> begin
+              Pervasives.print_endline "value int";
+              Pretty.fprint Pervasives.stdout 0 (VD.pretty () value);
+              Pervasives.print_endline "das war das value";
               match limit_from n with
               | Some n -> (
                   if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" d_lval x n;
-                  make_relational x (range_from n) st
+                  let result = make_relational x (range_from n) st in
+                  (match result with
+                  | Some (a, b) -> Pervasives.print_endline "result relational";Pretty.fprint Pervasives.stdout 0 (VD.pretty () b));
+                  result
                 )
               | None -> None
             end
-          | _ -> None
+          | _ -> Pervasives.print_endline "value not int"; None
         end
       | Gt, x, value, _ -> helper Le x value (not tv)
       | Ge, x, value, _ -> helper Lt x value (not tv)
@@ -1093,7 +1111,7 @@ struct
       let addr = eval_lv a gs st lval in
       if (AD.is_top addr) then st
       else
-        let oldval = get a gs st (get_bool analyse_ints_relationally) addr in
+        let oldval = get a gs st (get_bool analyse_ints_relationally || get_bool analyse_structs_relationally) addr in
         let new_val = apply_invariant oldval value in
         let new_val = improve_abstract_value_with_queries a (Lval lval) new_val in
         let map, flag = st in
@@ -1154,8 +1172,11 @@ struct
       )
 
   let assign ctx (lval:lval) (rval:exp)  =
-    Pervasives.print_endline "assign";
+    Pervasives.print_endline "assign!!!!!!";
     Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () (Lval lval));
+    Pervasives.print_string " = ";
+    Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () rval);
+    Pervasives.print_endline " ";
     let char_array_hack () =
       let rec split_offset = function
         | Index(Const(CInt64(i, _, _)), NoOffset) -> (* ...[i] *)
@@ -1237,11 +1258,6 @@ struct
           List.iter (fun x -> ctx.spawn x (threadstate x)) funs
         | _ -> ()
       end;
-      Pervasives.print_endline "Lval val after magic: ";
-      Pretty.fprint Pervasives.stdout 0 (AD.pretty () lval_val);
-      Pervasives.print_endline "\n store after magic";
-      Pretty.fprint Pervasives.stdout 0 (CPA.pretty () store);
-      Pervasives.print_endline " ";
       set_savetop ctx.ask ctx.global (store, flag) lval_val rval_val
 
   module Locmap = Deadcode.Locmap
@@ -1255,6 +1271,8 @@ struct
       Locmap.add h k d
 
   let branch ctx (exp:exp) (tv:bool) : store =
+    Pervasives.print_endline "branch!!!!";
+    Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () exp);
     Locmap.replace Deadcode.dead_branches_cond !Tracing.next_loc exp;
     let valu = eval_rv_with_query ctx.ask ctx.global ctx.local exp in
     if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
@@ -1263,6 +1281,7 @@ struct
     match valu with
     (* For a boolean value: *)
     | `Int value when (ID.is_bool value) ->
+      Pervasives.print_endline "branch is true";
       if M.tracing then M.traceu "branch" "Expression %a evaluated to %a\n" d_exp exp ID.pretty value;
       (* to suppress pattern matching warnings: *)
       let fromJust x = match x with Some x -> x | None -> assert false in
