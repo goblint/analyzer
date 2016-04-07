@@ -131,7 +131,11 @@ struct
         else (
           if IntStore.is_top storey then (storex, eqx)
           else
-            IntStore.map (fun value -> if (ID.is_top value) then (ID.top ()) else value) (IntStore.long_map2 ID.meet storex storey), (Equations.meet_equations eqx eqy)
+            let result_store =
+              IntStore.map (fun value ->
+                  if (ID.is_top value) then (ID.top ()) else value)
+                (IntStore.long_map2 ID.meet storex storey) in
+            result_store, (Equations.meet_equations eqx eqy)
         )
       )
     in
