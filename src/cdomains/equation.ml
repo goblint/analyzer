@@ -63,7 +63,6 @@ struct
          (match (IntDomain.IntDomTuple.to_int new_value), (IntDomain.IntDomTuple.to_int value_in_store) with
           | Some x, Some y -> (Int64.add x y)
           | _ -> 0L)) in
-    Pervasives.print_endline ("sum values: " ^ (Pervasives.string_of_float sum_values));
     if Key.compare key_in_store new_key > 0 then ((new_key, 1.0), (key_in_store, 1.0), (-. sum_values))
     else ((key_in_store, 1.0), (new_key, 1.0), (-. sum_values))
 
@@ -104,20 +103,7 @@ struct
 
   let solve_equation_for_key ((key_to_solve_for, const1), (key2, const2), const) store =
     let key1_int_dom_tuple, key1_variable_name, key1_is_local = (Domain.to_int_val (Store.find key_to_solve_for store)) in
-
-    Pervasives.print_endline ("key1_variable_name: " ^ key1_variable_name);
-    Pervasives.print_string ("key1 domain value:" );
-    Pretty.fprint Pervasives.stdout 0 (Domain.pretty () (Store.find key_to_solve_for store));
-    Pervasives.print_string ("key1 int value:" );
-    Pretty.fprint Pervasives.stdout 0 (IntDomain.IntDomTuple.pretty () key1_int_dom_tuple);
     let key2_int_dom_tuple, key2_variable_name, _ = (Domain.to_int_val (Store.find key2 store)) in
-    Pervasives.print_string "\n";
-    Pervasives.print_endline ("key2_variable_name: " ^ key2_variable_name);
-    Pervasives.print_string ("key2 domain value:" );
-    Pretty.fprint Pervasives.stdout 0 (Domain.pretty () (Store.find key2 store));
-    Pervasives.print_string ("key2 int value:" );
-    Pretty.fprint Pervasives.stdout 0 (IntDomain.IntDomTuple.pretty () key2_int_dom_tuple);
-    Pervasives.print_string "\n";
     Domain.of_int_val (IntDomain.IntDomTuple.meet key1_int_dom_tuple (IntDomain.IntDomTuple.div (IntDomain.IntDomTuple.sub (IntDomain.IntDomTuple.mul (IntDomain.IntDomTuple.neg (IntDomain.IntDomTuple.of_int (Int64.of_float const2))) key2_int_dom_tuple) (IntDomain.IntDomTuple.of_int (Int64.of_float const))) (IntDomain.IntDomTuple.of_int (Int64.of_float const1)))) key1_variable_name key1_is_local
 
   let filter_equations_for_useful_keys filter (store, equations) =
@@ -270,10 +256,10 @@ struct
     | [],_ | _,[] -> []
     | x::xs, y::ys -> (
         match Equation.compare_equation x y with
-        | 0 -> x :: meet_equations  xs ys
+        | 0 -> x :: meet_equations xs ys
         | 1 -> meet_equations eqlist1 ys
         | -1 -> meet_equations xs eqlist2
-        | _ -> meet_equations  xs ys
+        | _ -> meet_equations xs ys
       )
 
   let rec join_equations store eqlist1 eqlist2 =
@@ -288,8 +274,7 @@ struct
           | _ -> join_equations store xs ys
         )
     in
-    let result = Equation.remove_invalid_equations fold (fun equation_list equation -> List.append [equation] equation_list)[] store result in
-    result
+    Equation.remove_invalid_equations fold (fun equation_list equation -> List.append [equation] equation_list)[] store result
 
   let remove_equations_with_key = Equation.remove_equations_with_key filter
   let filter_equations_for_useful_keys = Equation.filter_equations_for_useful_keys filter
@@ -370,6 +355,7 @@ struct
       equation_map1 false
 
   let meet_with_new_equation = Equation.meet_with_new_equation filter fold
+
   let join_equations store eqmap1 eqmap2 =
     let result = EquationMap.fold EquationMap.add eqmap2 eqmap1
     in
@@ -385,7 +371,6 @@ struct
           else result_eqmap
         ) else result_eqmap
     ) eqmap2 (empty ())
-
 
   let remove_equations_with_key = Equation.remove_equations_with_key filter
   let filter_equations_for_useful_keys = Equation.filter_equations_for_useful_keys filter
