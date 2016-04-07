@@ -706,6 +706,11 @@ struct
         Pretty.fprint Pervasives.stdout 0 (Compound.pretty () value);
         Pervasives.print_endline " ";
         Pervasives.print_endline ("cname of fcomp: " ^ field.fcomp.cname);
+        let new_compound_val, struct_name, is_local = new_value in
+        let new_value =
+          if Compound.is_top new_compound_val then
+            (`Int (IntDomain.IntDomTuple.top ())), struct_name, is_local
+          else new_value in
         let equations =
           if StructStore.is_top s || StructStore.is_bot s then equations
           else (
@@ -729,9 +734,12 @@ struct
                       )
                   ) s equations
                 )
-                else equations
+                else
+                  Equations.remove_equations_with_key field equations
               )
-            | _ -> equations
+            | new_value, _, _ -> Pervasives.print_endline "new value is something different ";
+
+              Pretty.fprint Pervasives.stdout 0 (Compound.pretty () new_value); equations
           )
         in
         s, equations, struct_name_mapping
@@ -990,15 +998,9 @@ struct
 
 
   let get_value_of_variable varinfo (struct_store, equations, struct_name_mapping) =
-    Pervasives.print_endline ("\n\nget_value_of_variable: " ^ varinfo.vname);
     let struct_names_to_remove =
       StructStore.fold (fun field (_, struct_name, _) struct_name_list -> if struct_name = varinfo.vname then struct_name_list else [struct_name] @ struct_name_list) struct_store [] in
-    let result =
-      List.fold_left (fun abstract_value struct_name_to_remove -> remove_variable_with_name struct_name_to_remove abstract_value) (struct_store, equations, struct_name_mapping) struct_names_to_remove
-    in
-    Pretty.fprint Pervasives.stdout 0 (pretty () result);
-    Pervasives.print_endline "\n!!";
-    result
+    List.fold_left (fun abstract_value struct_name_to_remove -> remove_variable_with_name struct_name_to_remove abstract_value) (struct_store, equations, struct_name_mapping) struct_names_to_remove
 
   let select_local_or_global_variables_in_equations should_select_local equations struct_store =
     if should_select_local then
