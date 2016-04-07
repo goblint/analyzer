@@ -62,7 +62,8 @@ sig
   val merge_file : string -> unit
   (** Add a schema to the conf*)
   val addenum_sch: jvalue -> unit
-
+  (** Function to query if the conf list contains a string *)
+  val list_contains_string: string -> string -> bool
 
   (** printer for the current configuration *)
   val print : 'a BatInnerIO.output -> unit
@@ -259,6 +260,13 @@ struct
   let get_length = List.length % (!) % get_path_string array "array"
   (** Convenience functions for reading lists. *)
   let get_list = List.map (!) % (!) % get_path_string array "array"
+  let list_contains_string conf_key string =
+    List.exists (
+      fun x ->
+        let json_string = (Json.jsonString x) in
+        let json_string = String.sub json_string 1 ((String.length json_string) - 2) in
+        json_string = string
+    ) (get_list conf_key)
 
   (** Helper functions for writing values. *)
   let set_path_string st v =
