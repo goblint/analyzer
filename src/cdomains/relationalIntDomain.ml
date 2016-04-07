@@ -69,7 +69,7 @@ struct
                         else
                           Equations.new_equation key 1.0 v 1.0 (-. sum_value_x)
                       ) in
-                      let joined_equations = Equations.join_equations equations (Equations.equations_of_equation new_equation) in
+                      let joined_equations = Equations.join_equations store equations (Equations.equations_of_equation new_equation) in
                       if (Equations.equation_count joined_equations) < (Equations.equation_count equations) then
                         Equations.append_equation new_equation joined_equations
                       else joined_equations
@@ -111,9 +111,11 @@ struct
       if IntStore.is_bot storex then (storey, eqy)
       else (
         if IntStore.is_bot storey then (storex, eqx)
-        else
-          (IntStore.map2 ID.join storex storey),
-          (Equations.join_equations eqx eqy)
+        else (
+          let result_store = IntStore.map2 ID.join storex storey in
+          result_store,
+          (Equations.join_equations result_store eqx eqy)
+        )
       )
     )
 
@@ -160,7 +162,7 @@ struct
     match x, y with
     | (storex, equationsx), (storey, equationsy) ->
       let storeresult = IntStore.map2 (fun valuex valuey -> ID.widen valuex valuey) storex storey in
-      let equationsresult = Equations.join_equations equationsx equationsy in
+      let equationsresult = Equations.join_equations storeresult equationsx equationsy in
       (storeresult, equationsresult)
 
   let narrow x y =
@@ -212,7 +214,7 @@ struct
     | Lval(Var v, _) -> (
         match build_equation_of_cil_exp r_exp v with
         | Some x ->
-          let equations = Equations.join_equations rel_ints (Equations.equations_of_equation x) in
+          let equations = Equations.join_equations store rel_ints (Equations.equations_of_equation x) in
           if (Equations.equation_count equations) < (Equations.equation_count rel_ints) then (store,  Equations.append_equation x equations)
           else (store,  equations)
         | _ -> (store, rel_ints)
@@ -229,7 +231,7 @@ struct
         | _ -> (
             match build_equation_of_cil_exp r_exp v with
             | Some x -> (
-                let equations = Equations.join_equations rel_ints (Equations.equations_of_equation x) in
+                let equations = Equations.join_equations store rel_ints (Equations.equations_of_equation x) in
                 if (Equations.equation_count equations) < (Equations.equation_count rel_ints) then bot ()
                 else (
                   (store,  equations))
