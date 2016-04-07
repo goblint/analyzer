@@ -121,6 +121,8 @@ let _ = ()
       ; reg Analyses "ana.int.queries"     "false"  "Use queries in the base analysis to improve abstract values using EvalInt in other domains"
       ; reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails."
       ; reg Analyses "ana.spec.file"       ""      "Path to the specification file."
+      ; reg Analyses "ana.structs.relational" "false" "Decide whether the struct domain is used with relations or not."
+      ; reg Analyses "ana.structs.relational_to_analyze" "[]" "List all struct names to be analyzed."
       ; reg Analyses "ana.arinc.assume_success" "true"    "Assume that all ARINC functions succeed (sets return code to NO_ERROR, otherwise invalidates it)."
       ; reg Analyses "ana.arinc.simplify"    "true" "Simplify the graph by merging functions consisting of the same edges and contracting call chains where functions just consist of another call."
       ; reg Analyses "ana.arinc.validate"    "true" "Validate the graph and output warnings for: call to functions without edges, multi-edge-calls for intermediate contexts, branching on unset return variables."
