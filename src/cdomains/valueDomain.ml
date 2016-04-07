@@ -655,50 +655,20 @@ struct
     let whole_str_list = List.rev_map f assoclist in
     Printable.get_short_list "[" "] " usable_length whole_str_list
 
-  let get_unique_field field struct_name struct_name_mapping =
-    let get_field_in_copied_compinfo old_field compInfo =
-      List.fold_left (fun old_field copied_field -> if old_field.fname = copied_field.fname then copied_field else old_field) old_field compInfo.cfields
-    in
-    let struct_map_empty_key = "" in
-    let struct_map_key = struct_name in
-    let remove_empty_map_key struct_name_mapping =
-      if StructNameMap.mem struct_map_empty_key struct_name_mapping then
-        (Pervasives.print_endline "remove empty mapping";
-         StructNameMap.remove struct_map_empty_key struct_name_mapping)
-      else struct_name_mapping
-    in
-    if StructNameMap.mem struct_map_key struct_name_mapping then (
-      Pervasives.print_endline "struct map key found in mapping";
-      let compInfo = StructNameMap.find struct_map_key struct_name_mapping in
-      (*      let struct_name_mapping = StructNameMap.add struct_map_key compInfo struct_name_mapping in*)
-      get_field_in_copied_compinfo field compInfo, remove_empty_map_key struct_name_mapping
-    )
-    else (
-      if StructNameMap.mem struct_map_empty_key struct_name_mapping then (
-        Pervasives.print_endline "empty struct map key found in mapping";
-        let compInfo = StructNameMap.find struct_map_empty_key struct_name_mapping in
-        Pervasives.print_endline "empty struct map key found in mapping after";
-        let struct_name_mapping = remove_empty_map_key struct_name_mapping in
-        get_field_in_copied_compinfo field compInfo, (StructNameMap.add struct_map_key compInfo struct_name_mapping)
-      )
-      else (
-        Pervasives.print_endline "nothing found in mapping";
-        let compInfo = copy_comp field.fcomp in
-        let field = get_field_in_copied_compinfo field compInfo in
-        Pervasives.print_endline ("new compname: " ^ compInfo.cname ^ " field cmp: " ^ field.fcomp.cname);
-        field, (StructNameMap.add struct_map_key compInfo struct_name_mapping)
-      )
-    )
-
   let get (s, _, struct_name_mapping) field struct_name =
-    let field, _ = if struct_name = "" then field, struct_name_mapping else get_unique_field field struct_name struct_name_mapping in
+    let field, _ = if struct_name = "" then field, struct_name_mapping else StructNameMap.get_unique_field field struct_name struct_name_mapping in
     StructStore.find field s
 
   let short n (mapping, equations, struct_name_mapping) =
-    let fieldinfo_to_string fieldinfo =
-      let _, struct_name, _ = get (mapping, equations, struct_name_mapping) fieldinfo "" in
-      struct_name ^ "." ^ fieldinfo.fname in
-    (mapping_to_string n mapping) ^ (Equations.equations_to_string equations fieldinfo_to_string)
+    if is_top (mapping, equations, struct_name_mapping) then "top"
+    else (
+      if is_bot (mapping, equations, struct_name_mapping) then "bot"
+      else
+        let fieldinfo_to_string fieldinfo =
+          let _, struct_name, _ = get (mapping, equations, struct_name_mapping) fieldinfo "" in
+          struct_name ^ "." ^ fieldinfo.fname in
+        (mapping_to_string n mapping) ^ (Equations.equations_to_string equations fieldinfo_to_string)
+    )
 
   let pretty () x = Pretty.text (short 100 x)
 
@@ -718,7 +688,7 @@ struct
     match new_value with
     | `Int x, struct_name, is_local when IntDomain.IntDomTuple.is_top x ->
       let _, struct_name_mapping =
-        get_unique_field field struct_name struct_name_mapping in
+        StructNameMap.get_unique_field field struct_name struct_name_mapping in
       (s,equations, struct_name_mapping)
     (* this needs to be done, because else wrong initializations destroy correct values, ID.bot will still be assigned *)
     | `Bot, _, _ ->
@@ -726,7 +696,7 @@ struct
     | value, struct_name, is_local -> (
         Pervasives.print_endline ("Replace value for struct: " ^ struct_name ^ "." ^ field.fname ^ ": ");
         let field, struct_name_mapping =
-          get_unique_field field struct_name struct_name_mapping in
+          StructNameMap.get_unique_field field struct_name struct_name_mapping in
         Pervasives.print_endline "Store directly before add:";
         Pretty.fprint Pervasives.stdout 0 (StructStore.pretty () s);
         let s = (StructStore.add field new_value s) in
@@ -750,7 +720,7 @@ struct
                         | `Int old_value, _, is_local ->
                           if IntDomain.IntDomTuple.is_int old_value then
                             let new_equation =  Equations.build_new_equation (key, old_value) (field, new_value) in
-                            let joined_equations = Equations.join_equations equations (Equations.equations_of_equation new_equation) in
+                            let joined_equations = Equations.join_equations s equations (Equations.equations_of_equation new_equation) in
                             if (Equations.equation_count joined_equations) < (Equations.equation_count equations) then
                               Equations.append_equation new_equation joined_equations
                             else joined_equations
@@ -773,7 +743,7 @@ struct
   let compare (struct_storex, _, _) (struct_storey, _, struct_name_mappingy) =
     StructStore.fold (fun field (comp_valx, struct_name, _) comp_val ->
         if comp_val = 0 then
-          let field_in_y, _ = get_unique_field field struct_name struct_name_mappingy in
+          let field_in_y, _ = StructNameMap.get_unique_field field struct_name struct_name_mappingy in
           if StructStore.mem field_in_y struct_storey then
             let comp_valy, _, _ = (StructStore.find field_in_y struct_storey) in
             Compound.compare comp_valx comp_valy
@@ -794,21 +764,6 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let leq x y = compare x y <= 0
-(*
-    Pervasives.print_endline "LEQLEQLEQ";
-    StructStore.fold (fun field (comp_valx, struct_name, _) is_leq ->
-        if not is_leq then false
-        else (
-          let field_in_y, _ = get_unique_field field struct_name struct_name_mappingy in
-          if StructStore.mem field_in_y struct_storey then
-            let comp_valy, _, _ = (StructStore.find field_in_y struct_storey) in
-            Pervasives.print_endline "leq? ";
-            Pretty.fprint Pervasives.stdout 0 (Compound.pretty () comp_valx);
-            Pretty.fprint Pervasives.stdout 0 (Compound.pretty () comp_valy);
-            Compound.leq comp_valx comp_valy
-          else true
-        )
-      ) struct_storex true*)
 
   let join (struct_storex, equationsx, struct_name_mappingx) (struct_storey, equationsy, struct_name_mappingy) =
     Pervasives.print_endline "JOIN!";
@@ -859,7 +814,7 @@ struct
               ) struct_storey new_struct_store
             in
             new_struct_store,
-            Equations.join_equations equationsx equationsy,
+            Equations.join_equations new_struct_store equationsx equationsy,
             (StructNameMap.join struct_name_mappingx struct_name_mappingy)
           )
         )
@@ -912,7 +867,7 @@ struct
     | (storex, equationsx, struct_name_mappingx), (storey, equationsy, struct_name_mappingy) ->
       let storeresult = StructStore.map2 (fun (valuex, name, is_localx) (valuey, _, is_localy) ->
           Compound.widen valuex valuey, name, is_localx || is_localy) storex storey in
-      let equationsresult = Equations.join_equations equationsx equationsy in
+      let equationsresult = Equations.join_equations storeresult equationsx equationsy in
       let struct_name_mapping = (StructNameMap.fold (
           fun key value struct_name_mapping -> StructNameMap.add key value struct_name_mapping
         ) struct_name_mappingx struct_name_mappingy) in
@@ -969,7 +924,7 @@ struct
     match struct_val with
     | (struct_store, equations, struct_name_mapping) ->
       let (compound_t, old_name, is_local) = get struct_val old_field old_name in
-      let new_field, struct_name_mapping = get_unique_field old_field new_name struct_name_mapping in
+      let new_field, struct_name_mapping = StructNameMap.get_unique_field old_field new_name struct_name_mapping in
       Pervasives.print_endline ("old field cname: " ^ old_field.fcomp.cname);
       Pervasives.print_endline ("new field cname: " ^ new_field.fcomp.cname);
       Pretty.fprint Pervasives.stdout 0 (Compound.pretty () compound_t);
@@ -1081,11 +1036,12 @@ struct
     Pretty.fprint Pervasives.stdout 0 (pretty () result);
     result
 
-  let build_equation_of_cil_exp rexp field =
+  let build_equation_of_cil_exp rexp field struct_name_mapping=
     let rvar_field, offset, const =
       match rexp with
       | BinOp (op, Lval (Var rvar, Field(rfield, _)), Const (CInt64 (num, _, _)), _)
       | BinOp (op, Const (CInt64 (num, _, _)), Lval (Var rvar, Field(rfield, _)), _) ->
+        let rfield, struct_name_mapping = StructNameMap.get_unique_field rfield rvar.vname struct_name_mapping in
         if EquationKey.compare field rfield = 0 then None, None, None
         else (
           match op with
@@ -1106,21 +1062,33 @@ struct
           | _ -> None, None, None
         )
       | Lval(Var rvar, Field(rfield, _)) ->
+        let rfield, struct_name_mapping = StructNameMap.get_unique_field rfield rvar.vname struct_name_mapping in
+
+        Pervasives.print_endline "lval here";
+        Pervasives.print_endline field.fcomp.cname;
+        Pervasives.print_endline rfield.fcomp.cname;
+
         if EquationKey.compare field rfield = 0 then None, None, None
         else Some rfield, Some 1.0, Some 0.0
       | _ -> None, None, None in
     Equations.get_equation_of_keys_and_offset field (rvar_field, offset) const
 
   let eval_assert_left_var (store, equations, struct_name_mapping) (l_exp: Cil.exp) (r_exp: Cil.exp) =
+    Pervasives.print_endline "\nl_exp:";
+    Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () l_exp);
+    Pervasives.print_endline "\nr_exp:";
+    Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () r_exp);
+    StructNameMap.print struct_name_mapping;
     match l_exp with
     | Lval(Var v, Field (fieldinfo, _)) -> (
+        let fieldinfo, struct_name_mapping = StructNameMap.get_unique_field fieldinfo v.vname struct_name_mapping in
         match v.vtype with
         | TNamed (t, _) -> (
             match t.ttype with
             | TComp (comp, _) -> (
                 match r_exp with
                 | Const (CInt64 (const, _, _)) ->
-                  let fieldinfo, struct_name_mapping = get_unique_field fieldinfo v.vname struct_name_mapping in
+                  Pervasives.print_endline fieldinfo.fcomp.cname;
                   let val_in_store, struct_name, is_local = (StructStore.find fieldinfo store) in
                   let new_val_of_var =
                     Compound.meet val_in_store (`Int (IntDomain.IntDomTuple.of_int const)) in
@@ -1134,22 +1102,23 @@ struct
                     ) equations in
                   (StructStore.add fieldinfo (new_val_of_var, struct_name, is_local) store, equations, struct_name_mapping)
                 | _ -> (
-                    match build_equation_of_cil_exp r_exp fieldinfo with
+                    match build_equation_of_cil_exp r_exp fieldinfo struct_name_mapping with
                     | Some x -> (
-                        let equations = Equations.join_equations equations (Equations.equations_of_equation x) in
-                        if (Equations.equation_count equations) < (Equations.equation_count equations) then bot ()
+                        Pervasives.print_endline fieldinfo.fcomp.cname;
+                        let new_equations = Equations.join_equations store equations (Equations.equations_of_equation x) in
+                        if (Equations.equation_count new_equations) < (Equations.equation_count equations) then bot ()
                         else (
-                          (store,  equations, struct_name_mapping)
+                          (store, new_equations, struct_name_mapping)
                         )
                       )
-                    | _ -> top ()
+                    | _ -> Pervasives.print_endline "top wegen build_eq none"; top ()
                   )
               )
-            | _ -> top()
+            | _ ->  Pervasives.print_endline "top wegen nicht tcomp"; top()
           )
-        | _ -> top ()
+        | _ -> Pervasives.print_endline "nicht tnamed"; top ()
       )
-    | _ -> top ()
+    | _ -> Pervasives.print_endline "top wegen nicht lval var"; top ()
 
   let meet_with_new_equation abstract_value =
     let store, equations, struct_name_mapping = abstract_value in
@@ -1168,6 +1137,9 @@ struct
       Pervasives.print_endline " ";
       if is_top single_var_left then (
         let single_var_right = eval_assert_left_var (store, equations, struct_name_mapping) r_exp l_exp in
+        Pervasives.print_endline "SINGLE VAR RIGHT:";
+        Pretty.fprint Pervasives.stdout 0 (pretty () single_var_left);
+        Pervasives.print_endline " ";
         if is_top single_var_right then (
           top ()
         ) else (
