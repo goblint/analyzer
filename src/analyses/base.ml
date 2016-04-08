@@ -109,11 +109,7 @@ struct
            let value =
              match value, interesting_relational_information with
              | `RelationalInt x, `RelationalIntInformation -> Some value
-             | `RelationalStruct x, `RelationalStructInformation ->
-               Pervasives.print_endline "Relational struct as first value!";
-               Pretty.fprint Pervasives.stdout 0 (VD.pretty () value);
-               Pervasives.print_endline " ";
-               Some value
+             | `RelationalStruct x, `RelationalStructInformation -> Some value
              | _ -> None in
            let decide_between_value_and_first_value key =
              print_typ key.vtype;
@@ -135,11 +131,10 @@ struct
            in
            decide_between_value_and_first_value key
         ) store None in
-    (match first_relational_value with Some first_relational_value -> Pretty.fprint Pervasives.stdout 0 (VD.pretty () first_relational_value) | _ -> (););
     match first_relational_value, interesting_relational_information with
     | Some first_relational_value, _ -> first_relational_value
     | _, `RelationalIntInformation -> `RelationalInt (RD.top ())
-    | _, `RelationalStructInformation -> Pervasives.print_endline "here top"; `RelationalStruct (ValueDomain.RelationalStructs.top())
+    | _, `RelationalStructInformation -> `RelationalStruct (ValueDomain.RelationalStructs.top())
 
   let assign_new_relational_abstract_value_in_store store relational_abstract_value =
     match relational_abstract_value with
@@ -161,8 +156,6 @@ struct
       let store_int_variables = (CPA.map (fun _ -> `RelationalInt x) store_int_variables) in
       CPA.long_map2 (fun val1 val2 -> val1) store_int_variables store_not_int_variables
     | `RelationalStruct x when (get_bool analyse_structs_relationally) ->
-      Pervasives.print_endline ("assign_new_relational_abstract_value_in_store");
-      Pretty.fprint Pervasives.stdout 0 (VD.pretty () relational_abstract_value);
       let store_relational_struct_variables = CPA.filter
           (fun variable _ ->
              match variable.vtype with
@@ -225,7 +218,7 @@ struct
           let existing_rel_abstract_val = first_value_in_local_store store `RelationalStructInformation in
           match existing_rel_abstract_val with
           | `RelationalStruct existing_rel_abstract_val ->
-            `RelationalStruct(ValueDomain.RelationalStructs.fold (fun field value value_where_added -> Pervasives.print_endline "fold in assign_new_relational_abstract_value"; ValueDomain.RelationalStructs.replace value_where_added field value) x existing_rel_abstract_val)
+            `RelationalStruct(ValueDomain.RelationalStructs.fold (fun field value value_where_added -> ValueDomain.RelationalStructs.replace value_where_added field value) x existing_rel_abstract_val)
           | _ -> relational_abstract_value
         )
       | `Int x when (get_bool analyse_ints_relationally) -> (
@@ -327,58 +320,43 @@ struct
   let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
 
   let update_variable variable value state =
-    Pervasives.print_endline ("update variable: " ^variable.vname);
-    Pretty.fprint Pervasives.stdout 0 (VD.pretty () value);
-    Pervasives.print_endline "\n Store before update variable ";
-    Pretty.fprint Pervasives.stdout 0 (CPA.pretty () state);
-    Pervasives.print_endline " ";
-    let state = if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
-        CPA.add variable (VD.top ()) state
-      else (
-        let add_relational_information value =
-          let store, value = assign_new_relational_abstract_value state value (Var variable) in
-          CPA.add variable value store
-        in
-        match value with
-        | `RelationalInt _ | `Int _ when (get_bool analyse_ints_relationally)  ->
-          add_relational_information value
-        | `RelationalStruct x when (get_bool analyse_structs_relationally) -> (
-            let rel_structs_value_renamed_variable =
-              ValueDomain.RelationalStructs.map (
-                fun (struct_value, struct_name, is_local) ->
-                  if struct_name = "" then
-                    (struct_value, variable.vname, not(variable.vglob))
-                  else
-                    (struct_value, struct_name, is_local)) x
-            in
-            match variable.vtype with
-            | TNamed (t, _) -> (
-                match t.ttype with
-                | TComp ({cstruct=true},_) ->
-                  if list_contains_string relational_struct_list t.tname then
-                    add_relational_information (`RelationalStruct rel_structs_value_renamed_variable)
-                  else
-                    CPA.add variable (VD.to_struct_value (`RelationalStruct (ValueDomain.RelationalStructs.get_value_of_variable variable rel_structs_value_renamed_variable))) state
-                | _ -> CPA.add variable value state
-              )
-            | _ -> CPA.add variable value state
-          )
-        | _ ->
-          CPA.add variable value state
-      )
-    in
-    Pervasives.print_endline "\n Store aftera update variable ";
-    Pretty.fprint Pervasives.stdout 0 (CPA.pretty () state);
-    Pervasives.print_endline " ";
-    state
+    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
+      CPA.add variable (VD.top ()) state
+    else (
+      let add_relational_information value =
+        let store, value = assign_new_relational_abstract_value state value (Var variable) in
+        CPA.add variable value store
+      in
+      match value with
+      | `RelationalInt _ | `Int _ when (get_bool analyse_ints_relationally)  ->
+        add_relational_information value
+      | `RelationalStruct x when (get_bool analyse_structs_relationally) -> (
+          let rel_structs_value_renamed_variable =
+            ValueDomain.RelationalStructs.map (
+              fun (struct_value, struct_name, is_local) ->
+                if struct_name = "" then
+                  (struct_value, variable.vname, not(variable.vglob))
+                else
+                  (struct_value, struct_name, is_local)) x
+          in
+          match variable.vtype with
+          | TNamed (t, _) -> (
+              match t.ttype with
+              | TComp ({cstruct=true},_) ->
+                if list_contains_string relational_struct_list t.tname then
+                  add_relational_information (`RelationalStruct rel_structs_value_renamed_variable)
+                else
+                  CPA.add variable (VD.to_struct_value (`RelationalStruct (ValueDomain.RelationalStructs.get_value_of_variable variable rel_structs_value_renamed_variable))) state
+              | _ -> CPA.add variable value state
+            )
+          | _ -> CPA.add variable value state
+        )
+      | _ ->
+        CPA.add variable value state
+    )
 
   (** [set st addr val] returns a state where [addr] is set to [val] *)
   let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value): store =
-(*    Pervasives.print_endline "set: ";
-    Pretty.fprint Pervasives.stdout 0 (VD.pretty () value);
-    Pervasives.print_endline "\nstore before set: ";
-    Pretty.fprint Pervasives.stdout 0 (CPA.pretty () st);
-      Pervasives.print_endline " ";*)
     let update_variable x y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x y z in
@@ -483,10 +461,7 @@ struct
   let return_varstore = ref dummyFunDec.svar
   let return_varinfo () = !return_varstore
   let return_var () =
-    Pervasives.print_endline "Return var: ";
-    let result = AD.from_var (return_varinfo ()) in
-    Pretty.fprint Pervasives.stdout 0 (AD.pretty () result);
-    result
+    AD.from_var (return_varinfo ())
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
   let heap_var loc = AD.from_var (BaseDomain.get_heap_var loc)
@@ -813,17 +788,10 @@ struct
       | `Bot -> `Bot
       | _ -> `Int (ID.of_excl_list excl_list)
     in
-    Pervasives.print_endline "refine_answer with prior value: ";
-    Pretty.fprint Pervasives.stdout 0 (VD.pretty () prior_value);
-    Pervasives.print_endline " ";
     match ask question with
     | `Int x -> (
         match prior_value with
-        | `Int prior_value  ->
-          let improved_result = ID.meet (ID.of_int x) prior_value in
-          Pretty.fprint Pervasives.stdout 0 (ID.pretty () improved_result);
-          Pervasives.print_endline " ";
-          `Int (ID.meet (ID.of_int x) prior_value)
+        | `Int prior_value  -> `Int (ID.meet (ID.of_int x) prior_value)
         | `Bot -> `Bot
         | _ -> `Int (ID.of_int x)
       )
@@ -883,14 +851,10 @@ struct
           end
         | _ -> default
       end
-    | TNamed (t, _) ->
-      Pervasives.print_endline "T INFORMATION:";
-      Pervasives.print_endline ("t.tname" ^ t.tname);
-      bot_value a gs st t.ttype t.tname
+    | TNamed (t, _) -> bot_value a gs st t.ttype t.tname
     | _ -> `Bot
 
   let rec init_value a (gs:glob_fun) (st: store) (t: typ) struct_name: value =
-    Pervasives.print_endline ("init_value: " ^ struct_name);
     print_typ t;
     let rec init_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top() in
@@ -898,9 +862,7 @@ struct
       List.fold_left init_field nstruct compinfo.cfields
     in
     let rec init_comp_relational compinfo: ValueDomain.RelationalStructs.t =
-      Pervasives.print_endline "init_comp_relational";
       let store, _ = st in
-      Pretty.fprint Pervasives.stdout 0 (CPA.pretty () store);
       let nstruct = match first_value_in_local_store store `RelationalStructInformation with `RelationalStruct x -> x | _ ->  ValueDomain.RelationalStructs.top() in
        let init_field nstruct fd = ValueDomain.RelationalStructs.replace nstruct fd ((init_value a gs st fd.ftype struct_name), "", true) in
       List.fold_left init_field nstruct compinfo.cfields
@@ -957,8 +919,6 @@ struct
   let invariant a (gs:glob_fun) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
-    Pervasives.print_endline "INVARIANT";
-    Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () exp);
     let rec helper (op: binop) (lval: lval) (value: value) (tv: bool) =
       let make_relational lvalue int_value st =
         if not(get_bool analyse_ints_relationally) && not (get_bool analyse_structs_relationally)
@@ -1016,7 +976,6 @@ struct
         end
       | Ne, x, value, _ -> helper Eq x value (not tv)
       | Lt, x, value, _ -> begin
-          Pervasives.print_endline "LT";
           let range_from x = if tv then ID.ending (Int64.sub x 1L) else ID.starting x in
           let limit_from = if tv then ID.maximal else ID.minimal in
           match value with
@@ -1030,14 +989,10 @@ struct
           | _ -> None
         end
       | Le, x, value, _ -> begin
-          Pervasives.print_endline "LE";
           let range_from x = if tv then ID.ending x else ID.starting (Int64.add x 1L) in
           let limit_from = if tv then ID.maximal else ID.minimal in
           match value with
           | `Int n -> begin
-              Pervasives.print_endline "value int";
-              Pretty.fprint Pervasives.stdout 0 (VD.pretty () value);
-              Pervasives.print_endline "das war das value";
               match limit_from n with
               | Some n -> (
                   if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" d_lval x n;
@@ -1045,7 +1000,7 @@ struct
                 )
               | None -> None
             end
-          | _ -> Pervasives.print_endline "value not int"; None
+          | _ -> None
         end
       | Gt, x, value, _ -> helper Le x value (not tv)
       | Ge, x, value, _ -> helper Lt x value (not tv)
@@ -1352,6 +1307,12 @@ struct
         Pretty.fprint Pervasives.stdout 0 (VD.pretty () value);
         match value with
         | `RelationalStruct value when (get_bool analyse_structs_relationally) ->
+          let value =
+            match exp with
+            | (Lval (Var v, _)) ->
+              ValueDomain.RelationalStructs.get_value_of_variable_and_globals v value
+            | _ -> value
+          in
           let lhost_val_list = [(Var (return_varinfo()), value)] in
           let value = `RelationalStruct (ValueDomain.RelationalStructs.add_variable_value_list lhost_val_list value) in
           set ctx.ask ctx.global nst (return_var ()) value

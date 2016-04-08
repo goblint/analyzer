@@ -651,6 +651,8 @@ struct
   let is_bot (x, _, _) = StructStore.is_bot x
   let top () = (StructStore.top ()), (Equations.empty ()), StructNameMap.empty
   let is_top (x, _, _) = StructStore.is_top x
+  let fold func (store, _, _) x = StructStore.fold func store x
+  let map func (store, equations, struct_name_mapping) = StructStore.map func store, equations, struct_name_mapping
 
   let copy_comp ci =
     Cil.copyCompInfo ci ("c" ^(Pervasives.string_of_int (Random.int 10000000)))
@@ -681,7 +683,41 @@ struct
 
   let pretty () x = Pretty.text (short 100 x)
 
-  let replace (s, equations, struct_name_mapping) field new_value =
+  let remove_all_equations_with_variable_name variable_name equations struct_name_mapping =
+    if not(StructNameMap.mem variable_name struct_name_mapping) then equations
+    else (
+      let comp_variable = StructNameMap.find variable_name struct_name_mapping in
+      Equations.filter (fun ((field1,_),(field2,_),_) -> not(field1.fcomp.cname = comp_variable.cname) && not(field2.fcomp.cname = comp_variable.cname)) equations
+    )
+
+  let remove_variable_with_name variable_name (struct_store, equations, struct_name_mapping) =
+    if not(StructNameMap.mem variable_name struct_name_mapping) then (struct_store, equations, struct_name_mapping)
+    else (
+      let fields_to_remove_from_struct_store =
+        (StructNameMap.find variable_name struct_name_mapping).cfields in
+      let struct_store =
+        List.fold_left (fun struct_store field -> StructStore.remove field struct_store) struct_store fields_to_remove_from_struct_store in
+      let equations = remove_all_equations_with_variable_name variable_name equations struct_name_mapping in
+      struct_store, equations, (StructNameMap.remove variable_name struct_name_mapping)
+    )
+
+  let get_value_of_variable_name varname (struct_store, equations, struct_name_mapping) should_also_return_globals =
+    let struct_names_to_remove =
+      StructStore.fold (fun field (_, struct_name, is_local) struct_name_list ->
+          (Pervasives.print_endline (struct_name ^ " local? " ^ (Pervasives.string_of_bool is_local)));
+          if (struct_name = varname) || ((not is_local) && should_also_return_globals) then struct_name_list
+          else [struct_name] @ struct_name_list) struct_store [] in
+    Pervasives.print_endline "struct_names_to_remove:";
+    List.iter (Pervasives.print_endline) struct_names_to_remove;
+    List.fold_left (fun abstract_value struct_name_to_remove -> remove_variable_with_name struct_name_to_remove abstract_value) (struct_store, equations, struct_name_mapping) struct_names_to_remove
+
+  let get_value_of_variable varinfo (struct_store, equations, struct_name_mapping) =
+    get_value_of_variable_name varinfo.vname (struct_store, equations, struct_name_mapping) false
+
+  let get_value_of_variable_and_globals varinfo (struct_store, equations, struct_name_mapping) =
+    get_value_of_variable_name varinfo.vname (struct_store, equations, struct_name_mapping) true
+
+  let rec replace (s, equations, struct_name_mapping) field new_value =
     (
       match new_value with
       | `Struct x, _, _ -> Pervasives.print_endline "new value is a struct";
@@ -706,7 +742,9 @@ struct
       when StructNameMap.mem struct_name struct_name_mapping && (StructNameMap.find struct_name struct_name_mapping).cname = field.fcomp.cname
       -> (
           match x with
-          | (s,equations, struct_name_mapping) -> (s,equations, struct_name_mapping)
+          | (new_struct_store,new_equations, new_struct_name_mapping) ->
+            let new_value_of_variable = get_value_of_variable_name struct_name (new_struct_store,new_equations, new_struct_name_mapping) false in
+            fold (fun field value result -> replace result field (get new_value_of_variable field struct_name)) new_value_of_variable (s,equations, struct_name_mapping)
         )
     | value, struct_name, is_local -> (
         Pervasives.print_endline ("Replace value for struct: " ^ struct_name ^ "." ^ field.fname ^ ": ");
@@ -759,9 +797,6 @@ struct
         in
         s, equations, struct_name_mapping
       )
-
-  let fold func (store, _, _) x = StructStore.fold func store x
-  let map func (store, equations, struct_name_mapping) = StructStore.map func store, equations, struct_name_mapping
 
   let compare (struct_storex, _, _) (struct_storey, _, struct_name_mappingy) =
     StructStore.fold (fun field (comp_valx, struct_name, _) comp_val ->
@@ -886,6 +921,9 @@ struct
     result
 
   let widen x y =
+    Pervasives.print_endline "Widening!!";
+    Pretty.fprint Pervasives.stdout 0 (pretty () x);
+    Pretty.fprint Pervasives.stdout 0 (pretty () y);
     match x, y with
     | (storex, equationsx, struct_name_mappingx), (storey, equationsy, struct_name_mappingy) ->
       let storeresult = StructStore.map2 (fun (valuex, name, is_localx) (valuey, _, is_localy) ->
@@ -897,6 +935,7 @@ struct
       (storeresult, equationsresult, struct_name_mapping)
 
   let narrow x y =
+    Pervasives.print_endline "Narrowing!!";
     match x, y with
     | (storex, equationsx, struct_name_mappingx), (storey, equationsy, struct_name_mappingy) ->
       let storeresult = StructStore.map2 (fun (valuex, name, is_localx) (valuey, _, is_localy) ->
@@ -908,24 +947,6 @@ struct
           StructNameMap.add name (StructNameMap.find name struct_name_mappingx) new_struct_name_mapping
         ) storeresult new_struct_name_mapping
       in (storeresult, equationsresult, struct_name_mapping)
-
-  let remove_all_equations_with_variable_name variable_name equations struct_name_mapping =
-    if not(StructNameMap.mem variable_name struct_name_mapping) then equations
-    else (
-      let comp_variable = StructNameMap.find variable_name struct_name_mapping in
-      Equations.filter (fun ((field1,_),(field2,_),_) -> not(field1.fcomp.cname = comp_variable.cname) && not(field2.fcomp.cname = comp_variable.cname)) equations
-    )
-
-  let remove_variable_with_name variable_name (struct_store, equations, struct_name_mapping) =
-    if not(StructNameMap.mem variable_name struct_name_mapping) then (struct_store, equations, struct_name_mapping)
-    else (
-      let fields_to_remove_from_struct_store =
-        (StructNameMap.find variable_name struct_name_mapping).cfields in
-      let struct_store =
-        List.fold_left (fun struct_store field -> StructStore.remove field struct_store) struct_store fields_to_remove_from_struct_store in
-      let equations = remove_all_equations_with_variable_name variable_name equations struct_name_mapping in
-      struct_store, equations, (StructNameMap.remove variable_name struct_name_mapping)
-    )
 
   let remove_variable varinfo (struct_store, equations, struct_name_mapping) =
     remove_variable_with_name varinfo.vname (struct_store, equations, struct_name_mapping)
@@ -1003,17 +1024,6 @@ struct
 
       ) abstract_value lhost_val_list
 
-
-  let get_value_of_variable varinfo (struct_store, equations, struct_name_mapping) =
-    Pervasives.print_endline ("\nget_value_of_variable: " ^ varinfo.vname);
-    Pervasives.print_endline ("value before get_value_of_variable: " );
-    Pretty.fprint Pervasives.stdout 0 (pretty () (struct_store, equations, struct_name_mapping));
-    let struct_names_to_remove =
-      StructStore.fold (fun field (_, struct_name, _) struct_name_list -> if struct_name = varinfo.vname then struct_name_list else [struct_name] @ struct_name_list) struct_store [] in
-    let result = List.fold_left (fun abstract_value struct_name_to_remove -> remove_variable_with_name struct_name_to_remove abstract_value) (struct_store, equations, struct_name_mapping) struct_names_to_remove in
-    Pervasives.print_endline ("\n result of get_value_of_variable: ");
-    Pretty.fprint Pervasives.stdout 0 (pretty () result);
-    result
 
   let select_local_or_global_variables_in_equations should_select_local equations struct_store =
     if should_select_local then
