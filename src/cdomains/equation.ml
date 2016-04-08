@@ -187,10 +187,6 @@ struct
           else
             let int_val_of_key1_in_store, _, _ = (Domain.to_int_val val_of_key1_in_store) in
             let int_val_of_key2_in_store, _, _ = (Domain.to_int_val val_of_key2_in_store) in
-            Pervasives.print_endline ("key1 int val in store: ");
-            Pretty.fprint Pervasives.stdout 0 (Domain.pretty () val_of_key1_in_store);
-            Pervasives.print_endline ("key2 int val in store: ");
-            Pretty.fprint Pervasives.stdout 0 (Domain.pretty () val_of_key2_in_store);
             let real_int value = match IntDomain.IntDomTuple.to_int value with | Some x -> true | _ -> false in
             if real_int int_val_of_key1_in_store && real_int int_val_of_key2_in_store then
               add new_equations (build_new_equation (key1, int_val_of_key1_in_store) (key2, int_val_of_key2_in_store))
