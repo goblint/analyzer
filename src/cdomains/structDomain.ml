@@ -20,6 +20,7 @@ sig
   val eval_assert_cil_exp: Cil.exp -> t -> t
   val get: t -> field -> string -> value
   val get_value_of_variable: varinfo -> t -> t
+  val get_value_of_variable_and_globals: varinfo -> t -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val map: (value -> value) -> t -> t
   val meet_local_and_global_state: t -> t -> t
