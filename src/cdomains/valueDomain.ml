@@ -984,9 +984,14 @@ struct
         Pretty.fprint Pervasives.stdout 0 (pretty () value);
         Pervasives.print_endline (" ");
         let name_to_replace =
-            match value with (_, _, struct_name_mapping) ->
-              (* there should only be one comp in that mapping *)
-              StructNameMap.fold (fun struct_name _ _ -> struct_name) struct_name_mapping ""
+            match value with (struct_store, _, struct_name_mapping) ->
+              (* there should only be one local comp in that mapping *)
+              StructNameMap.fold (fun struct_name _ old_struct_name ->
+                  let field = List.nth (StructNameMap.get_all_fields_of_variable_name struct_name struct_name_mapping) 0 in
+                  let _, _, is_local = StructStore.find field struct_store in
+                  if is_local then struct_name
+                  else old_struct_name
+                ) struct_name_mapping ""
           in
         let old_comp = match value with (_, _, struct_name_mapping) -> StructNameMap.find name_to_replace struct_name_mapping in
         let fields, name =
