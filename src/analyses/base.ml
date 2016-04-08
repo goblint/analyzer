@@ -112,7 +112,6 @@ struct
              | `RelationalStruct x, `RelationalStructInformation -> Some value
              | _ -> None in
            let decide_between_value_and_first_value key =
-             print_typ key.vtype;
              match key.vtype, interesting_relational_information with
              | TInt _, `RelationalIntInformation -> (match first_value with | Some x -> (match x with | `RelationalInt _ -> Some x |  _ -> value) | _ -> value)
              | TNamed _, `RelationalStructInformation ->(
@@ -1299,7 +1298,7 @@ struct
       match exp with
       | None -> nst
       | Some exp ->
-        let st, _ = nst in
+        let st, fl = nst in
         Pervasives.print_endline "St in return2 ";
         Pretty.fprint Pervasives.stdout 0 (CPA.pretty () st);
         let value = (eval_rv_with_query ctx.ask ctx.global ctx.local exp) in
@@ -1314,8 +1313,9 @@ struct
             | _ -> value
           in
           let lhost_val_list = [(Var (return_varinfo()), value)] in
-          let value = `RelationalStruct (ValueDomain.RelationalStructs.add_variable_value_list lhost_val_list value) in
-          set ctx.ask ctx.global nst (return_var ()) value
+          let value = (ValueDomain.RelationalStructs.add_variable_value_list lhost_val_list value) in
+          let st = assign_new_relational_abstract_value_in_store st (`RelationalStruct value) in
+          set ctx.ask ctx.global (st, fl) (return_var ()) (`RelationalStruct value)
         | _ -> set ctx.ask ctx.global nst (return_var ()) value
 
 
@@ -2252,9 +2252,6 @@ struct
         then get ctx.ask ctx.global fun_d false return_var
         else VD.top ()
       in
-      Pervasives.print_endline "COMBINE: RETURN VAL:";
-      Pretty.fprint Pervasives.stdout 0 (VD.pretty () return_val);
-      Pervasives.print_endline " ";
       let st = add_globals (fun_st,fun_fl) st in
       let st = match lval with
         | None      -> st
@@ -2272,6 +2269,8 @@ struct
                 )
               | _ -> return_val
             in
+            let st, fl = st in
+            let st = assign_new_relational_abstract_value_in_store st return_val, fl in
             set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val
           )
       in
