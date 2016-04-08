@@ -916,56 +916,59 @@ struct
     | _ -> `Top
 
   let invariant a (gs:glob_fun) st exp tv =
-    (* We use a recursive helper function so that x != 0 is false can be handled
-     * as x == 0 is true etc *)
-    let rec helper (op: binop) (lval: lval) (value: value) (tv: bool) =
-      let make_relational lvalue int_value st =
-        if not(get_bool analyse_ints_relationally) && not (get_bool analyse_structs_relationally)
-        then Some (lvalue, `Int int_value)
-        else (
-           let store, _ = st in
-          match lvalue with
-          | Var v, Field (field,_) when get_bool analyse_structs_relationally -> (
-            match first_value_in_local_store store `RelationalStructInformation with
-            | `RelationalStruct first_value_in_local_store ->
-              Some (lvalue, `RelationalStruct (ValueDomain.RelationalStructs.replace first_value_in_local_store field (`Int int_value, v.vname, (not v.vglob))))
+    let result =
+      Pervasives.print_endline "INVARIANT";
+      Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () exp);
+      (* We use a recursive helper function so that x != 0 is false can be handoled
+       * as x == 0 is true etc *)
+      let rec helper (op: binop) (lval: lval) (value: value) (tv: bool) =
+        let make_relational lvalue int_value st =
+          if not(get_bool analyse_ints_relationally) && not (get_bool analyse_structs_relationally)
+          then Some (lvalue, `Int int_value)
+          else (
+            let store, _ = st in
+            match lvalue with
+            | Var v, Field (field,_) when get_bool analyse_structs_relationally -> (
+                match first_value_in_local_store store `RelationalStructInformation with
+                | `RelationalStruct first_value_in_local_store ->
+                  Some (lvalue, `RelationalStruct (ValueDomain.RelationalStructs.replace first_value_in_local_store field (`Int int_value, v.vname, (not v.vglob))))
+                | _ -> Some (lvalue, `Int int_value)
+              )
+            | Var v, _  when get_bool analyse_ints_relationally -> (
+                match first_value_in_local_store store `RelationalIntInformation with
+                | `RelationalInt first_value_in_local_store ->
+                  Some (lvalue, `RelationalInt (RD.eval_assign_int_value (int_value, (Lval lvalue)) first_value_in_local_store))
+                | _ -> Some (lvalue, `Int int_value))
             | _ -> Some (lvalue, `Int int_value)
-            )
-          | Var v, _  when get_bool analyse_ints_relationally -> (
-              match first_value_in_local_store store `RelationalIntInformation with
-              | `RelationalInt first_value_in_local_store ->
-                Some (lvalue, `RelationalInt (RD.eval_assign_int_value (int_value, (Lval lvalue)) first_value_in_local_store))
-              | _ -> Some (lvalue, `Int int_value))
-          | _ -> Some (lvalue, `Int int_value)
-        )
-      in
-      match (op, lval, value, tv) with
-      (* The true-branch where x == value: *)
-      | Eq, x, value, true -> (
-          if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
-          match value with
-          | `Int n -> make_relational x n st
-          | _ -> Some (x, value)
-        )
-      (* The false-branch for x == value: *)
-      | Eq, x, value, false -> begin
-          match value with
-          | `Int n -> begin
-              match ID.to_int n with
-              | Some n -> (
-                  (* When x != n, we can return a singleton exclusion set *)
-                  if M.tracing then M.tracec "invariant" "Yes, %a is not %Ld\n" d_lval x n;
-                  make_relational x (ID.of_excl_list [n]) st
-                )
-              | None -> None
-            end
-          | `Address n -> begin
-              if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
-              match eval_rv_with_query a gs st (Lval x) with
-              | `Address a when AD.is_definite n ->
-                Some (x, `Address (AD.diff a n))
-              | _ -> None
-            end
+          )
+        in
+        match (op, lval, value, tv) with
+        (* The true-branch where x == value: *)
+        | Eq, x, value, true -> (
+            if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
+            match value with
+            | `Int n -> make_relational x n st
+            | _ -> Some (x, value)
+          )
+        (* The false-branch for x == value: *)
+        | Eq, x, value, false -> begin
+            match value with
+            | `Int n -> begin
+                match ID.to_int n with
+                | Some n -> (
+                    (* When x != n, we can return a singleton exclusion set *)
+                    if M.tracing then M.tracec "invariant" "Yes, %a is not %Ld\n" d_lval x n;
+                    make_relational x (ID.of_excl_list [n]) st
+                  )
+                | None -> None
+              end
+            | `Address n -> begin
+                if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
+                match eval_rv_with_query a gs st (Lval x) with
+                | `Address a when AD.is_definite n ->
+                  Some (x, `Address (AD.diff a n))
+                | _ -> None
+              end
           (* | `Address a -> Some (x, value) *)
           | _ ->
             (* We can't say anything else, exclusion sets are finite, so not
@@ -1061,7 +1064,7 @@ struct
       else
         let oldval = get a gs st (get_bool analyse_ints_relationally || get_bool analyse_structs_relationally) addr in
         let new_val = apply_invariant oldval value in
-        let new_val = improve_abstract_value_with_queries a (Lval lval) new_val in
+        let new_val = if not(get_bool analyse_ints_relationally || get_bool analyse_structs_relationally) then improve_abstract_value_with_queries a (Lval lval) new_val else new_val in
         let map, flag = st in
         let map, new_val = assign_new_relational_abstract_value map new_val (Mem (Lval lval)) in
         let st = map, flag in
@@ -1077,6 +1080,11 @@ struct
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       st
+    in
+    let st, _ = result in
+    Pervasives.print_endline "Result invariant";
+    Pretty.fprint Pervasives.stdout 0 (CPA.pretty () st);
+    result
 
   let set_savetop ask (gs:glob_fun) st adr v =
     match v with
@@ -1108,7 +1116,7 @@ struct
               let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value (x, (Lval lval)) rel_int) in
               assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
             | _ when (get_bool analyse_ints_relationally) ->
-                      let relational_int_abstract_value = RD.eval_assign_cil_exp ((Lval lval), rval) rel_int in
+              let relational_int_abstract_value = RD.eval_assign_cil_exp ((Lval lval), rval) rel_int in
               if RD.is_top relational_int_abstract_value then
                 ctx_local, rval_val
               else
