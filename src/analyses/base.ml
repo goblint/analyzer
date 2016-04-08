@@ -283,7 +283,7 @@ struct
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies *)
-  let rec get a (gs: glob_fun) (st,fl: store) return_relational_value (addrs:address): value =
+  let rec get a (gs: glob_fun) (st,fl: store) should_return_relational_value (addrs:address): value =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
     let get_global x = gs x in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
@@ -296,21 +296,18 @@ struct
             | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; get_global x)
             | value -> (
                 match value with
-                | `RelationalInt relint_value when (not return_relational_value) && (get_bool analyse_ints_relationally)-> `Int (RD.get_value_of_variable x relint_value)
-                | `RelationalStruct relstruct_value when (not return_relational_value) && (get_bool analyse_structs_relationally)->
-                  `RelationalStruct (ValueDomain.RelationalStructs.get_value_of_variable x relstruct_value)
+                | `RelationalInt relint_value when (not should_return_relational_value) -> `Int (RD.get_value_of_variable x relint_value)
                 | _ ->
                   (if M.tracing then M.tracec "get" "Using privatized version.\n"; value)
               )
           else begin
             if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
             match CPA.find x st with
-            | `RelationalInt relint_value when (not return_relational_value) -> `Int (RD.get_value_of_variable x relint_value)
-            | `RelationalStruct relstruct_value when (not return_relational_value) -> `RelationalStruct (ValueDomain.RelationalStructs.get_value_of_variable x relstruct_value)
+            | `RelationalInt relint_value when (not should_return_relational_value) -> `Int (RD.get_value_of_variable x relint_value)
             | value -> value
           end
         in
-        VD.eval_offset (get a gs (st,fl) return_relational_value) var offs x.vname
+        VD.eval_offset (get a gs (st,fl) should_return_relational_value) var offs x.vname (should_return_relational_value && get_bool analyse_structs_relationally)
       in
       let f x =
         match Addr.to_var_offset x with
@@ -1044,10 +1041,7 @@ struct
               match limit_from n with
               | Some n -> (
                   if M.tracing then M.tracec "invariant" "Yes, success! %a is not %Ld\n\n" d_lval x n;
-                  let result = make_relational x (range_from n) st in
-                  (match result with
-                  | Some (a, b) -> Pervasives.print_endline "result relational";Pretty.fprint Pervasives.stdout 0 (VD.pretty () b));
-                  result
+                  make_relational x (range_from n) st
                 )
               | None -> None
             end
