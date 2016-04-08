@@ -21,7 +21,7 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: (AD.t -> t) -> t -> offs -> string -> t
+  val eval_offset: (AD.t -> t) -> t -> offs -> string -> bool -> t
   val update_offset: t -> offs -> t -> string -> bool -> t
   val invalidate_value: typ -> t -> string -> bool -> t
   val to_struct_value: t -> t
@@ -216,6 +216,7 @@ struct
     | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
 
   let leq x y =
+    Pervasives.print_endline "LEQ IN COMPOUND";
     match (x,y) with
     | (_, `Top) -> true
     | (`Top, _) -> false
@@ -397,15 +398,17 @@ struct
     | _ -> `Struct (Structs.top())
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset f (x: t) (offs:offs) struct_name : t =
+  let rec eval_offset f (x: t) (offs:offs) struct_name should_return_relational_value : t =
+    Pervasives.print_endline ("eval_offset: " ^ struct_name);
     match x, offs with
-    | `Blob c, `Index (_,o) -> eval_offset f c o struct_name
-    | `Blob c, _ -> eval_offset f c offs struct_name
+    | `Blob c, `Index (_,o) -> eval_offset f c o struct_name should_return_relational_value
+    | `Blob c, _ -> eval_offset f c offs struct_name should_return_relational_value
     | `Bot, _ -> `Bot
     | _ ->
       match offs with
-      | `NoOffset -> x
+      | `NoOffset -> Pervasives.print_endline ("eval_offset: nooffset"); x
       | `Field (fld, offs) when fld.fcomp.cstruct -> begin
+          Pervasives.print_endline ("eval_offset: field");
           match x with
           | `List ls when fld.fname = "next" || fld.fname = "prev" ->
             `Address (Lists.entry_rand ls)
@@ -417,10 +420,16 @@ struct
             end
           | `Struct str ->
             let x = Structs.get str fld struct_name in
-            eval_offset f x offs struct_name
+            eval_offset f x offs struct_name should_return_relational_value
           | `RelationalStruct str ->
-            let x, _, _ = RelationalStructs.get str fld struct_name in
-            eval_offset f x offs struct_name
+            Pervasives.print_endline "eval_offset";
+            if should_return_relational_value then
+(              Pervasives.print_endline "eval_offset should_return_relational_value: ";
+            Pretty.fprint Pervasives.stdout 0 (pretty () x);
+              x)
+            else
+              let x, _, _ = RelationalStructs.get str fld struct_name in
+              eval_offset f x offs struct_name should_return_relational_value
           | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
           | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
         end
@@ -428,16 +437,16 @@ struct
           match x with
           | `Union (`Lifted l_fld, valu) ->
             let x = do_cast l_fld.ftype fld.ftype valu in
-            eval_offset f x offs struct_name
+            eval_offset f x offs struct_name should_return_relational_value
           | `Union (_, valu) -> top ()
           | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
           | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
         end
       | `Index (idx, offs) -> begin
           match x with
-          | `Array x -> eval_offset f (CArrays.get x idx) offs struct_name
-          | `Address _ ->  eval_offset f x offs struct_name (* this used to be `blob `address -> we ignore the index *)
-          | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs struct_name
+          | `Array x -> eval_offset f (CArrays.get x idx) offs struct_name should_return_relational_value
+          | `Address _ ->  eval_offset f x offs struct_name should_return_relational_value (* this used to be `blob `address -> we ignore the index *)
+          | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs struct_name should_return_relational_value
           | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
           | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
@@ -682,9 +691,9 @@ struct
       | value, _, _  -> Pervasives.print_endline "new value is neither a struct, nor an int";
         Pretty.fprint Pervasives.stdout 0 (Compound.pretty () value);
     );
-    Pervasives.print_endline "\n\nBEFORE REPLACE:";
+(*    Pervasives.print_endline "\n\nBEFORE REPLACE:";
     Pretty.fprint Pervasives.stdout 0 (pretty () (s, equations, struct_name_mapping) );
-    Pervasives.print_endline " ";
+      Pervasives.print_endline " ";*)
     match new_value with
     | `Int x, struct_name, is_local when IntDomain.IntDomTuple.is_top x ->
       let _, struct_name_mapping =
@@ -693,19 +702,25 @@ struct
     (* this needs to be done, because else wrong initializations destroy correct values, ID.bot will still be assigned *)
     | `Bot, _, _ ->
       (s,equations, struct_name_mapping)
+    | `RelationalStruct x, struct_name, _
+      when StructNameMap.mem struct_name struct_name_mapping && (StructNameMap.find struct_name struct_name_mapping).cname = field.fcomp.cname
+      -> (
+          match x with
+          | (s,equations, struct_name_mapping) -> (s,equations, struct_name_mapping)
+        )
     | value, struct_name, is_local -> (
         Pervasives.print_endline ("Replace value for struct: " ^ struct_name ^ "." ^ field.fname ^ ": ");
         let field, struct_name_mapping =
           StructNameMap.get_unique_field field struct_name struct_name_mapping in
-        Pervasives.print_endline "Store directly before add:";
-        Pretty.fprint Pervasives.stdout 0 (StructStore.pretty () s);
+(*        Pervasives.print_endline "Store directly before add:";
+          Pretty.fprint Pervasives.stdout 0 (StructStore.pretty () s); *)
         let s = (StructStore.add field new_value s) in
-        Pervasives.print_endline "\nStore directly after add: ";
+(*        Pervasives.print_endline "\nStore directly after add: ";
         Pretty.fprint Pervasives.stdout 0 (StructStore.pretty () s);
         Pervasives.print_endline " ";
         Pretty.fprint Pervasives.stdout 0 (Compound.pretty () value);
         Pervasives.print_endline " ";
-        Pervasives.print_endline ("cname of fcomp: " ^ field.fcomp.cname);
+          Pervasives.print_endline ("cname of fcomp: " ^ field.fcomp.cname); *)
         let new_compound_val, struct_name, is_local = new_value in
         let new_value =
           if Compound.is_top new_compound_val then
@@ -902,7 +917,6 @@ struct
     )
 
   let remove_variable_with_name variable_name (struct_store, equations, struct_name_mapping) =
-    Pervasives.print_endline ("Remove variable: " ^ variable_name);
     if not(StructNameMap.mem variable_name struct_name_mapping) then (struct_store, equations, struct_name_mapping)
     else (
       let fields_to_remove_from_struct_store =
@@ -973,14 +987,7 @@ struct
             let value_after_renaming =
               List.fold_left (
                 fun abstract_value field ->
-                  Pervasives.print_endline "result before renaming";
-                  Pretty.fprint Pervasives.stdout 0 (pretty () abstract_value);
-                  let result =
-                    rename_variable_for_field abstract_value field name_to_replace name
-                  in
-                  Pervasives.print_endline "result after renaming";
-                  Pretty.fprint Pervasives.stdout 0 (pretty () result);
-                  result
+                  rename_variable_for_field abstract_value field name_to_replace name
               ) value fields
             in
             let result =
@@ -998,9 +1005,15 @@ struct
 
 
   let get_value_of_variable varinfo (struct_store, equations, struct_name_mapping) =
+    Pervasives.print_endline ("\nget_value_of_variable: " ^ varinfo.vname);
+    Pervasives.print_endline ("value before get_value_of_variable: " );
+    Pretty.fprint Pervasives.stdout 0 (pretty () (struct_store, equations, struct_name_mapping));
     let struct_names_to_remove =
       StructStore.fold (fun field (_, struct_name, _) struct_name_list -> if struct_name = varinfo.vname then struct_name_list else [struct_name] @ struct_name_list) struct_store [] in
-    List.fold_left (fun abstract_value struct_name_to_remove -> remove_variable_with_name struct_name_to_remove abstract_value) (struct_store, equations, struct_name_mapping) struct_names_to_remove
+    let result = List.fold_left (fun abstract_value struct_name_to_remove -> remove_variable_with_name struct_name_to_remove abstract_value) (struct_store, equations, struct_name_mapping) struct_names_to_remove in
+    Pervasives.print_endline ("\n result of get_value_of_variable: ");
+    Pretty.fprint Pervasives.stdout 0 (pretty () result);
+    result
 
   let select_local_or_global_variables_in_equations should_select_local equations struct_store =
     if should_select_local then
