@@ -120,28 +120,19 @@ struct
     )
 
   let meet (storex, eqx) (storey, eqy) =
-    Pervasives.print_endline "MEET IN RELATIONAL INT DOMAIN";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (storex, eqx));
-    Pervasives.print_string " meets ";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (storey, eqy));
-    let result =
-      if (IntStore.is_bot storex || IntStore.is_bot storey) then bot ()
+    if (IntStore.is_bot storex || IntStore.is_bot storey) then bot ()
+    else (
+      if IntStore.is_top storex then (storey, eqy)
       else (
-        if IntStore.is_top storex then (storey, eqy)
-        else (
-          if IntStore.is_top storey then (storex, eqx)
-          else
-            let result_store =
-              IntStore.map (fun value ->
-                  if (ID.is_top value) then (ID.top ()) else value)
-                (IntStore.long_map2 ID.meet storex storey) in
-            result_store, (Equations.meet_equations eqx eqy)
-        )
+        if IntStore.is_top storey then (storex, eqx)
+        else
+          let result_store =
+            IntStore.map (fun value ->
+                if (ID.is_top value) then (ID.top ()) else value)
+              (IntStore.long_map2 ID.meet storex storey) in
+          result_store, (Equations.meet_equations eqx eqy)
       )
-    in
-    Pervasives.print_string " result ";
-    Pretty.fprint Pervasives.stdout 0 (pretty () result);
-    result
+    )
 
   let equal x y =
     if ((is_top x) && (is_top y)) || ((is_bot x) && (is_bot y)) then true

@@ -216,7 +216,6 @@ struct
     | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
 
   let leq x y =
-    Pervasives.print_endline "LEQ IN COMPOUND";
     match (x,y) with
     | (_, `Top) -> true
     | (`Top, _) -> false
@@ -399,16 +398,14 @@ struct
 
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset f (x: t) (offs:offs) struct_name should_return_relational_value : t =
-    Pervasives.print_endline ("eval_offset: " ^ struct_name);
     match x, offs with
     | `Blob c, `Index (_,o) -> eval_offset f c o struct_name should_return_relational_value
     | `Blob c, _ -> eval_offset f c offs struct_name should_return_relational_value
     | `Bot, _ -> `Bot
     | _ ->
       match offs with
-      | `NoOffset -> Pervasives.print_endline ("eval_offset: nooffset"); x
+      | `NoOffset ->  x
       | `Field (fld, offs) when fld.fcomp.cstruct -> begin
-          Pervasives.print_endline ("eval_offset: field");
           match x with
           | `List ls when fld.fname = "next" || fld.fname = "prev" ->
             `Address (Lists.entry_rand ls)
@@ -422,11 +419,7 @@ struct
             let x = Structs.get str fld struct_name in
             eval_offset f x offs struct_name should_return_relational_value
           | `RelationalStruct str ->
-            Pervasives.print_endline "eval_offset";
-            if should_return_relational_value then
-(              Pervasives.print_endline "eval_offset should_return_relational_value: ";
-            Pretty.fprint Pervasives.stdout 0 (pretty () x);
-              x)
+            if should_return_relational_value then x
             else
               let x, _, _ = RelationalStructs.get str fld struct_name in
               eval_offset f x offs struct_name should_return_relational_value
@@ -475,12 +468,12 @@ struct
             | `Bot ->
               let rec init_comp compinfo =
                 let nstruct = Structs.top () in
-                let init_field nstruct fd = Pervasives.print_endline "Init here"; Structs.replace nstruct fd `Bot in
+                let init_field nstruct fd = Structs.replace nstruct fd `Bot in
                 List.fold_left init_field nstruct compinfo.cfields
               in
               let rec init_comp_relational compinfo =
                 let nstruct = RelationalStructs.top () in
-                let init_field nstruct fd = Pervasives.print_endline "Init here"; RelationalStructs.replace nstruct fd (`Bot, "", true) in
+                let init_field nstruct fd = RelationalStructs.replace nstruct fd (`Bot, "", true) in
                 List.fold_left init_field nstruct compinfo.cfields
               in
               if GobConfig.get_bool analyse_structs_relationally then
@@ -704,11 +697,8 @@ struct
   let get_value_of_variable_name varname (struct_store, equations, struct_name_mapping) should_also_return_globals =
     let struct_names_to_remove =
       StructStore.fold (fun field (_, struct_name, is_local) struct_name_list ->
-          (Pervasives.print_endline (struct_name ^ " local? " ^ (Pervasives.string_of_bool is_local)));
           if (struct_name = varname) || ((not is_local) && should_also_return_globals) then struct_name_list
           else [struct_name] @ struct_name_list) struct_store [] in
-    Pervasives.print_endline "struct_names_to_remove:";
-    List.iter (Pervasives.print_endline) struct_names_to_remove;
     List.fold_left (fun abstract_value struct_name_to_remove -> remove_variable_with_name struct_name_to_remove abstract_value) (struct_store, equations, struct_name_mapping) struct_names_to_remove
 
   let get_value_of_variable varinfo (struct_store, equations, struct_name_mapping) =
@@ -718,18 +708,6 @@ struct
     get_value_of_variable_name varinfo.vname (struct_store, equations, struct_name_mapping) true
 
   let rec replace (s, equations, struct_name_mapping) field new_value =
-    (
-      match new_value with
-      | `Struct x, _, _ -> Pervasives.print_endline "new value is a struct";
-      | `Int x, _, _  ->
-        Pervasives.print_endline "new value is an int: ";
-        Pretty.fprint Pervasives.stdout 0 (IntDomain.IntDomTuple.pretty () x);
-      | value, _, _  -> Pervasives.print_endline "new value is neither a struct, nor an int";
-        Pretty.fprint Pervasives.stdout 0 (Compound.pretty () value);
-    );
-(*    Pervasives.print_endline "\n\nBEFORE REPLACE:";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (s, equations, struct_name_mapping) );
-      Pervasives.print_endline " ";*)
     match new_value with
     | `Int x, struct_name, is_local when IntDomain.IntDomTuple.is_top x ->
       let _, struct_name_mapping =
@@ -747,18 +725,9 @@ struct
             fold (fun field value result -> replace result field (get new_value_of_variable field struct_name)) new_value_of_variable (s,equations, struct_name_mapping)
         )
     | value, struct_name, is_local -> (
-        Pervasives.print_endline ("Replace value for struct: " ^ struct_name ^ "." ^ field.fname ^ ": ");
         let field, struct_name_mapping =
           StructNameMap.get_unique_field field struct_name struct_name_mapping in
-(*        Pervasives.print_endline "Store directly before add:";
-          Pretty.fprint Pervasives.stdout 0 (StructStore.pretty () s); *)
         let s = (StructStore.add field new_value s) in
-(*        Pervasives.print_endline "\nStore directly after add: ";
-        Pretty.fprint Pervasives.stdout 0 (StructStore.pretty () s);
-        Pervasives.print_endline " ";
-        Pretty.fprint Pervasives.stdout 0 (Compound.pretty () value);
-        Pervasives.print_endline " ";
-          Pervasives.print_endline ("cname of fcomp: " ^ field.fcomp.cname); *)
         let new_compound_val, struct_name, is_local = new_value in
         let new_value =
           if Compound.is_top new_compound_val then
@@ -790,15 +759,13 @@ struct
                 else
                   Equations.remove_equations_with_key field equations
               )
-            | new_value, _, _ -> Pervasives.print_endline "new value is something different ";
-
-              Pretty.fprint Pervasives.stdout 0 (Compound.pretty () new_value); equations
+            | new_value, _, _ -> equations
           )
         in
         s, equations, struct_name_mapping
       )
 
-  let compare (struct_storex, _, _) (struct_storey, _, struct_name_mappingy) =
+  let compare (struct_storex, equationsx, struct_name_mappingx) (struct_storey, equationsy, struct_name_mappingy) =
     StructStore.fold (fun field (comp_valx, struct_name, _) comp_val ->
         if comp_val = 0 then
           let field_in_y, _ = StructNameMap.get_unique_field field struct_name struct_name_mappingy in
@@ -808,6 +775,7 @@ struct
           else -1
         else comp_val
       ) struct_storex 0
+
 
   let equal x y = compare x y = 0
 
@@ -824,106 +792,83 @@ struct
   let leq x y = compare x y <= 0
 
   let join (struct_storex, equationsx, struct_name_mappingx) (struct_storey, equationsy, struct_name_mappingy) =
-    Pervasives.print_endline "JOIN!";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (struct_storex, equationsx, struct_name_mappingx));
-    Pervasives.print_string " joins ";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (struct_storey, equationsy, struct_name_mappingy));
-    let result =
-      if StructStore.is_top struct_storex || StructStore.is_top struct_storey then top()
+    if StructStore.is_top struct_storex || StructStore.is_top struct_storey then top()
+    else (
+      if StructStore.is_bot struct_storex then (struct_storey, equationsy, struct_name_mappingy)
       else (
-        if StructStore.is_bot struct_storex then (struct_storey, equationsy, struct_name_mappingy)
+        if StructStore.is_bot struct_storey then (struct_storex, equationsx, struct_name_mappingx)
         else (
-          if StructStore.is_bot struct_storey then (struct_storex, equationsx, struct_name_mappingx)
-          else (
-            let new_struct_store = StructStore.top() in
-            let new_struct_store, struct_storey, equationsy = StructStore.fold (
-                fun field value (new_struct_store, struct_storey, equationsy) ->
-                  match value with
-                  | (compoundx, struct_namex, is_localx) ->
-                    if StructStore.mem field new_struct_store then (new_struct_store, struct_storey, equationsy)
+          let new_struct_store = StructStore.top() in
+          let new_struct_store, struct_storey, equationsy = StructStore.fold (
+              fun field value (new_struct_store, struct_storey, equationsy) ->
+                match value with
+                | (compoundx, struct_namex, is_localx) ->
+                  if StructStore.mem field new_struct_store then (new_struct_store, struct_storey, equationsy)
+                  else (
+                    if not (StructStore.mem field struct_storey) && StructNameMap.mem struct_namex struct_name_mappingy then
+                      let all_fields_of_struct = StructNameMap.get_all_fields_of_variable_name struct_namex struct_name_mappingy in
+                      let field_equivalent = List.find (fun field_struct -> field.fname = field_struct.fname) all_fields_of_struct in
+                      let struct_storey = StructStore.add field (StructStore.find field_equivalent struct_storey) struct_storey in
+                      let struct_storey = StructStore.remove field_equivalent struct_storey in
+                      let equationsy = Equations.remove_equations_with_key field_equivalent equationsy in
+                      match StructStore.find field struct_storey  with
+                      | (compoundy, _, is_localy) ->
+                        ((StructStore.add field (Compound.join compoundx compoundy, struct_namex, is_localx || is_localy) new_struct_store), struct_storey, equationsy)
                     else (
-                      if not (StructStore.mem field struct_storey) && StructNameMap.mem struct_namex struct_name_mappingy then
-                        let all_fields_of_struct = StructNameMap.get_all_fields_of_variable_name struct_namex struct_name_mappingy in
-                        let field_equivalent = List.find (fun field_struct -> field.fname = field_struct.fname) all_fields_of_struct in
-                        let struct_storey = StructStore.add field (StructStore.find field_equivalent struct_storey) struct_storey in
-                        let struct_storey = StructStore.remove field_equivalent struct_storey in
-                        let equationsy = Equations.remove_equations_with_key field_equivalent equationsy in
+                      if (StructStore.mem field struct_storey) then
                         match StructStore.find field struct_storey  with
                         | (compoundy, _, is_localy) ->
-                          Pervasives.print_endline "JOIN COMPOUNDS:";
-                          Pretty.fprint Pervasives.stdout 0 (Compound.pretty () compoundx);
-                          Pretty.fprint Pervasives.stdout 0 (Compound.pretty () compoundy);
                           ((StructStore.add field (Compound.join compoundx compoundy, struct_namex, is_localx || is_localy) new_struct_store), struct_storey, equationsy)
-                      else (
-                        if (StructStore.mem field struct_storey) then
-                          match StructStore.find field struct_storey  with
-                          | (compoundy, _, is_localy) ->
-                            ((StructStore.add field (Compound.join compoundx compoundy, struct_namex, is_localx || is_localy) new_struct_store), struct_storey, equationsy)
-                        else
-                          (new_struct_store, struct_storey, equationsy)
-                      )
+                      else
+                        (new_struct_store, struct_storey, equationsy)
                     )
-              ) struct_storex (new_struct_store, struct_storey, equationsy) in
-            let new_struct_store = StructStore.fold (
-                fun field value new_struct_store ->
-                  if not (StructStore.mem field new_struct_store) then
-                    StructStore.add field value new_struct_store
-                  else new_struct_store
-              ) struct_storey new_struct_store
-            in
-            new_struct_store,
-            Equations.join_equations new_struct_store equationsx equationsy,
-            (StructNameMap.join struct_name_mappingx struct_name_mappingy)
-          )
+                  )
+            ) struct_storex (new_struct_store, struct_storey, equationsy) in
+          let new_struct_store = StructStore.fold (
+              fun field value new_struct_store ->
+                if not (StructStore.mem field new_struct_store) then
+                  StructStore.add field value new_struct_store
+                else new_struct_store
+            ) struct_storey new_struct_store
+          in
+          new_struct_store,
+          Equations.join_equations new_struct_store equationsx equationsy,
+          (StructNameMap.join struct_name_mappingx struct_name_mappingy)
         )
       )
-    in
-    Pretty.fprint Pervasives.stdout 0 (pretty () result);
-    result
-
+    )
 
   let meet (struct_storex, equationsx, struct_name_mappingx) (struct_storey, equationsy, struct_name_mappingy) =
-    Pervasives.print_endline "MEET!";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (struct_storex, equationsx, struct_name_mappingx));
-    Pervasives.print_string " meets ";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (struct_storey, equationsy, struct_name_mappingy));
-    let result =
-      if StructStore.is_bot struct_storex || StructStore.is_bot struct_storey then bot()
+    if StructStore.is_bot struct_storex || StructStore.is_bot struct_storey then bot()
+    else (
+      if StructStore.is_top struct_storex then (struct_storey, equationsy, struct_name_mappingy)
       else (
-        if StructStore.is_top struct_storex then (struct_storey, equationsy, struct_name_mappingy)
+        if StructStore.is_top struct_storey then (struct_storex, equationsx, struct_name_mappingx)
         else (
-          if StructStore.is_top struct_storey then (struct_storex, equationsx, struct_name_mappingx)
-          else (
-            let met_struct_store =
-              StructStore.map (
-                fun (value, name, is_local) ->
-                  if (Compound.is_top value)
-                  then (Compound.top (), name, is_local)
-                  else value, name, is_local
-              ) (StructStore.long_map2 (
-                  fun (valuex, namex, is_localx) (valuey, namey, is_localy)->
-                    (Compound.meet valuex valuey), namex, (is_localx || is_localy)
-                ) struct_storex struct_storey
-                )
-            in
-            let new_struct_name_mapping = StructNameMap.empty in
-            met_struct_store, (Equations.meet_equations equationsx equationsx),
-            StructStore.fold(fun _ (_, name, _) new_struct_name_mapping ->
-                if StructNameMap.mem name struct_name_mappingx then
+          let met_struct_store =
+            StructStore.map (
+              fun (value, name, is_local) ->
+                if (Compound.is_top value)
+                then (Compound.top (), name, is_local)
+                else value, name, is_local
+            ) (StructStore.long_map2 (
+                fun (valuex, namex, is_localx) (valuey, namey, is_localy)->
+                  (Compound.meet valuex valuey), namex, (is_localx || is_localy)
+              ) struct_storex struct_storey
+              )
+          in
+          let new_struct_name_mapping = StructNameMap.empty in
+          met_struct_store, (Equations.meet_equations equationsx equationsx),
+          StructStore.fold(fun _ (_, name, _) new_struct_name_mapping ->
+              if StructNameMap.mem name struct_name_mappingx then
                   StructNameMap.add name (StructNameMap.find name struct_name_mappingx) new_struct_name_mapping
-                else StructNameMap.add name (StructNameMap.find name struct_name_mappingy) new_struct_name_mapping
-              ) met_struct_store new_struct_name_mapping
-          )
+              else StructNameMap.add name (StructNameMap.find name struct_name_mappingy) new_struct_name_mapping
+            ) met_struct_store new_struct_name_mapping
         )
       )
-    in
-    Pretty.fprint Pervasives.stdout 0 (pretty () result);
-    result
+    )
 
   let widen x y =
-    Pervasives.print_endline "Widening!!";
-    Pretty.fprint Pervasives.stdout 0 (pretty () x);
-    Pretty.fprint Pervasives.stdout 0 (pretty () y);
     match x, y with
     | (storex, equationsx, struct_name_mappingx), (storey, equationsy, struct_name_mappingy) ->
       let storeresult = StructStore.map2 (fun (valuex, name, is_localx) (valuey, _, is_localy) ->
@@ -935,7 +880,6 @@ struct
       (storeresult, equationsresult, struct_name_mapping)
 
   let narrow x y =
-    Pervasives.print_endline "Narrowing!!";
     match x, y with
     | (storex, equationsx, struct_name_mappingx), (storey, equationsy, struct_name_mappingy) ->
       let storeresult = StructStore.map2 (fun (valuex, name, is_localx) (valuey, _, is_localy) ->
@@ -963,26 +907,17 @@ struct
     List.fold_left (fun abstract_value struct_name_to_remove -> remove_variable_with_name struct_name_to_remove abstract_value) (struct_store, equations, struct_name_mapping) struct_names_to_remove
 
   let rename_variable_for_field struct_val old_field old_name new_name =
-    Pervasives.print_endline ("RENAME VARIABLE: " ^ old_name ^ " to: " ^ new_name ^ " for field: " ^ old_field.fname);
     match struct_val with
     | (struct_store, equations, struct_name_mapping) ->
       let (compound_t, old_name, is_local) = get struct_val old_field old_name in
       let new_field, struct_name_mapping = StructNameMap.get_unique_field old_field new_name struct_name_mapping in
-      Pervasives.print_endline ("old field cname: " ^ old_field.fcomp.cname);
-      Pervasives.print_endline ("new field cname: " ^ new_field.fcomp.cname);
-      Pretty.fprint Pervasives.stdout 0 (Compound.pretty () compound_t);
       let new_struct_store_value = (compound_t, new_name, is_local) in
       let struct_store = StructStore.add new_field new_struct_store_value struct_store in
       let equations = (Equations.change_keys_in_equations old_field new_field equations) in
-      Pervasives.print_endline "result after renaming";
-      Pretty.fprint Pervasives.stdout 0 (pretty () (struct_store, equations, struct_name_mapping));
       struct_store, equations, struct_name_mapping
 
   let add_variable_value_list lhost_val_list abstract_value =
     List.fold_left (fun abstract_value (key,value) ->
-        Pervasives.print_endline ("ADD VARIABLE VALUE LIST: Variable: " ^ (match key with | Var v -> v.vname | Mem _ -> "mem") ^ " VALUE: ");
-        Pretty.fprint Pervasives.stdout 0 (pretty () value);
-        Pervasives.print_endline (" ");
         let name_to_replace =
             match value with (struct_store, _, struct_name_mapping) ->
               (* there should only be one local comp in that mapping *)
@@ -1016,14 +951,8 @@ struct
                   rename_variable_for_field abstract_value field name_to_replace name
               ) value fields
             in
-            let result =
-              remove_variable_with_name name_to_replace value_after_renaming
-            in
-             Pretty.fprint Pervasives.stdout 0 (pretty () result);
-            result
-
+            remove_variable_with_name name_to_replace value_after_renaming
         else (
-          Pervasives.print_endline "LENGTH FIELDS 0";
           abstract_value
         )
 
@@ -1059,12 +988,7 @@ struct
     let global_equations = select_local_or_global_variables_in_equations false global_equations global_store in
     let global_store = StructStore.filter (fun _ (_, _, is_local) -> not is_local) global_store in
     let global_struct_name_mapping = select_local_or_global_variables_in_struct_name_mapping false global_struct_name_mapping global_store in
-    let result =
-      meet (local_store, local_equations, local_struct_name_mapping) (global_store, global_equations, global_struct_name_mapping)
-    in
-    Pervasives.print_endline "meet_local_and_global_state result:";
-    Pretty.fprint Pervasives.stdout 0 (pretty () result);
-    result
+    meet (local_store, local_equations, local_struct_name_mapping) (global_store, global_equations, global_struct_name_mapping)
 
   let build_equation_of_cil_exp rexp field struct_name_mapping=
     let rvar_field, offset, const =
@@ -1093,22 +1017,12 @@ struct
         )
       | Lval(Var rvar, Field(rfield, _)) ->
         let rfield, struct_name_mapping = StructNameMap.get_unique_field rfield rvar.vname struct_name_mapping in
-
-        Pervasives.print_endline "lval here";
-        Pervasives.print_endline field.fcomp.cname;
-        Pervasives.print_endline rfield.fcomp.cname;
-
         if EquationKey.compare field rfield = 0 then None, None, None
         else Some rfield, Some 1.0, Some 0.0
       | _ -> None, None, None in
     Equations.get_equation_of_keys_and_offset field (rvar_field, offset) const
 
   let eval_assert_left_var (store, equations, struct_name_mapping) (l_exp: Cil.exp) (r_exp: Cil.exp) =
-    Pervasives.print_endline "\nl_exp:";
-    Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () l_exp);
-    Pervasives.print_endline "\nr_exp:";
-    Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () r_exp);
-    StructNameMap.print struct_name_mapping;
     match l_exp with
     | Lval(Var v, Field (fieldinfo, _)) -> (
         let fieldinfo, struct_name_mapping = StructNameMap.get_unique_field fieldinfo v.vname struct_name_mapping in
@@ -1118,7 +1032,6 @@ struct
             | TComp (comp, _) -> (
                 match r_exp with
                 | Const (CInt64 (const, _, _)) ->
-                  Pervasives.print_endline fieldinfo.fcomp.cname;
                   let val_in_store, struct_name, is_local = (StructStore.find fieldinfo store) in
                   let new_val_of_var =
                     Compound.meet val_in_store (`Int (IntDomain.IntDomTuple.of_int const)) in
@@ -1134,42 +1047,32 @@ struct
                 | _ -> (
                     match build_equation_of_cil_exp r_exp fieldinfo struct_name_mapping with
                     | Some x -> (
-                        Pervasives.print_endline fieldinfo.fcomp.cname;
                         let new_equations = Equations.join_equations store equations (Equations.equations_of_equation x) in
                         if (Equations.equation_count new_equations) < (Equations.equation_count equations) then bot ()
                         else (
                           (store, new_equations, struct_name_mapping)
                         )
                       )
-                    | _ -> Pervasives.print_endline "top wegen build_eq none"; top ()
+                    | _ ->  top ()
                   )
               )
-            | _ ->  Pervasives.print_endline "top wegen nicht tcomp"; top()
+            | _ ->  top ()
           )
-        | _ -> Pervasives.print_endline "nicht tnamed"; top ()
+        | _ -> top ()
       )
-    | _ -> Pervasives.print_endline "top wegen nicht lval var"; top ()
+    | _ -> top ()
 
   let meet_with_new_equation abstract_value =
     let store, equations, struct_name_mapping = abstract_value in
     let store, equations = Equations.meet_with_new_equation (store, equations) in
-    Pervasives.print_endline "Result of meeting with new eq";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (store, equations, struct_name_mapping));
     (store, equations, struct_name_mapping)
 
   let eval_assert_cil_exp cil_exp (store, equations, struct_name_mapping) =
-    Pervasives.print_endline "eval_assert_cil_exp:";
     match cil_exp with
     | BinOp (Eq, l_exp, r_exp, _) ->
       let single_var_left = eval_assert_left_var (store, equations, struct_name_mapping) l_exp r_exp in
-      Pervasives.print_endline "SINGLE VAR LEFT:";
-      Pretty.fprint Pervasives.stdout 0 (pretty () single_var_left);
-      Pervasives.print_endline " ";
       if is_top single_var_left then (
         let single_var_right = eval_assert_left_var (store, equations, struct_name_mapping) r_exp l_exp in
-        Pervasives.print_endline "SINGLE VAR RIGHT:";
-        Pretty.fprint Pervasives.stdout 0 (pretty () single_var_left);
-        Pervasives.print_endline " ";
         if is_top single_var_right then (
           top ()
         ) else (
