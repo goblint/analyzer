@@ -658,8 +658,7 @@ struct
   let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
   let toXML x = toXML_f short x
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
-
-  end
+end
 
 and RelationalStructsSimpleEquations: StructDomain.Relational
   with type field = EquationField.t
