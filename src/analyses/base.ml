@@ -1102,6 +1102,33 @@ struct
         | _ -> ctx_local, rval_val
       )
 
+  let eval_relational_struct_domain (rval_val: CPA.value) first_value_in_local_store lval rval ctx_local =
+    match lval with
+    | Var var, NoOffset -> (
+        match var.vtype with
+        | TNamed (t, _) -> (
+            match t.ttype with
+            | TComp (ci, _) when ci.cstruct -> (
+                let rel_struct = match first_value_in_local_store with
+                  | Some (`RelationalStruct rel_struct) -> rel_struct
+                  | Some (`Top) -> ValueDomain.RelationalStructs.top ()
+                  | Some (`Bot) -> ValueDomain.RelationalStructs.bot ()
+                  | _ -> ValueDomain.RelationalStructs.top ()
+                in
+                match rval_val, rel_struct with
+                | `RelationalStruct x, y when (get_bool analyse_structs_relationally) ->
+                  let lhost_val_list = [(Var var, x)] in
+                  let value = `RelationalStruct  (ValueDomain.RelationalStructs.add_variable_value_list lhost_val_list y) in
+                  assign_new_relational_abstract_value ctx_local value (Mem (Lval lval))
+                | _ -> ctx_local, rval_val
+              )
+            | _ -> ctx_local, rval_val
+          )
+        | _ -> ctx_local, rval_val
+      )
+    | _ -> ctx_local, rval_val
+
+
   let assign ctx (lval:lval) (rval:exp)  =
     let char_array_hack () =
       let rec split_offset = function
@@ -1160,6 +1187,11 @@ struct
       let store, rval_val =
         if (get_bool analyse_ints_relationally) then
          eval_relational_int_domain rval_val (Some (first_value_in_local_store store `RelationalIntInformation)) lval rval store
+        else store, rval_val
+      in
+      let store, rval_val =
+        if (get_bool analyse_structs_relationally) then
+          eval_relational_struct_domain rval_val (Some (first_value_in_local_store store `RelationalStructInformation)) lval rval store
         else store, rval_val
       in
       (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
