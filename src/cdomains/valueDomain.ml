@@ -3,13 +3,14 @@ open Pretty
 (*module ID: IntDomain.ExclList = IntDomain.None*)
 (* module ID: IntDomain.S = IntDomain.Trier   *)
 module ID: IntDomain.S = IntDomain.IntDomTuple
-module IndexDomain: IntDomain.S = ID
+module IndexDomain: IntDomain.S = IntDomain.IntDomTuple
 (* module ID: IntDomain.S = IntDomain.IncExcInterval *)
 module AD = AddressDomain.AddressSet (IndexDomain)
 module Addr = Lval.NormalLat (IndexDomain)
 module Offs = Lval.Offset (IndexDomain)
 module M = Messages
 module GU = Goblintutil
+module RD = RelationalIntDomain.RelationalIntDomainTuple
 
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 
@@ -43,7 +44,8 @@ end
 
 module rec Compound: S with type t = [
     | `Top
-    | `Int of ID.t
+    | `Int of IntDomain.IntDomTuple.t
+    | `RelationalInt of RD.t
     | `Address of AD.t
     | `Struct of Structs.t
     | `Union of Unions.t
@@ -55,7 +57,8 @@ module rec Compound: S with type t = [
 struct
   type t = [
     | `Top
-    | `Int of ID.t
+    | `Int of IntDomain.IntDomTuple.t
+    | `RelationalInt of RD.t
     | `Address of AD.t
     | `Struct of Structs.t
     | `Union of Unions.t
@@ -84,7 +87,8 @@ struct
     match (x, y) with
     | (`Top, `Top) -> true
     | (`Bot, `Bot) -> true
-    | (`Int x, `Int y) -> ID.equal x y
+    | (`Int x, `Int y) -> IntDomain.IntDomTuple.equal x y
+    | (`RelationalInt x, `RelationalInt y) -> RD.equal x y
     | (`Address x, `Address y) -> AD.equal x y
     | (`Struct x, `Struct y) -> Structs.equal x y
     | (`Union x, `Union y) -> Unions.equal x y
@@ -97,18 +101,20 @@ struct
 
   let hash x =
     match x with
-    | `Int n -> 17 * ID.hash n
+    | `Int n -> 17 * IntDomain.IntDomTuple.hash n
     | `Address n -> 19 * AD.hash n
     | `Struct n -> 23 * Structs.hash n
     | `Union n -> 29 * Unions.hash n
     | `Array n -> 31 * CArrays.hash n
     | `Blob n -> 37 * Blobs.hash n
+    | `RelationalInt n -> 41 * RD.hash n
     | _ -> Hashtbl.hash x
 
   let compare x y =
     let constr_to_int x = match x with
       | `Bot -> 0
       | `Int _ -> 1
+      | `RelationalInt _ -> 2
       | `Address _ -> 3
       | `Struct _ -> 5
       | `Union _ -> 6
@@ -117,7 +123,8 @@ struct
       | `List _ -> 10
       | `Top -> 100
     in match x,y with
-    | `Int x, `Int y -> ID.compare x y
+    | `Int x, `Int y -> IntDomain.IntDomTuple.compare x y
+    | `RelationalInt x, `RelationalInt y -> RD.compare x y
     | `Address x, `Address y -> AD.compare x y
     | `Struct x, `Struct y -> Structs.compare x y
     | `Union x, `Union y -> Unions.compare x y
@@ -130,7 +137,8 @@ struct
 
   let pretty_f _ () state =
     match state with
-    | `Int n ->  ID.pretty () n
+    | `Int n ->  IntDomain.IntDomTuple.pretty () n
+    | `RelationalInt n -> RD.pretty () n
     | `Address n ->  AD.pretty () n
     | `Struct n ->  Structs.pretty () n
     | `Union n ->  Unions.pretty () n
@@ -142,7 +150,8 @@ struct
 
   let short w state =
     match state with
-    | `Int n ->  ID.short w n
+    | `Int n ->  IntDomain.IntDomTuple.short w n
+    | `RelationalInt n -> RD.short w n
     | `Address n ->  AD.short w n
     | `Struct n ->  Structs.short w n
     | `Union n ->  Unions.short w n
@@ -154,7 +163,8 @@ struct
 
   let rec isSimple x =
     match x with
-    | `Int n ->  ID.isSimple n
+    | `Int n ->  IntDomain.IntDomTuple.isSimple n
+    | `RelationalInt n -> RD.isSimple n
     | `Address n ->  AD.isSimple n
     | `Struct n ->  Structs.isSimple n
     | `Union n ->  Unions.isSimple n
@@ -165,7 +175,8 @@ struct
 
   let toXML_f _ state =
     match state with
-    | `Int n -> ID.toXML n
+    | `Int n -> IntDomain.IntDomTuple.toXML n
+    | `RelationalInt n -> RD.toXML n
     | `Address n -> AD.toXML n
     | `Struct n -> Structs.toXML n
     | `Union n -> Unions.toXML n
@@ -180,7 +191,8 @@ struct
   let toXML s = toXML_f short s
   let pretty_diff () (x,y) =
     match (x,y) with
-    | (`Int x, `Int y) -> ID.pretty_diff () (x,y)
+    | (`Int x, `Int y) -> IntDomain.IntDomTuple.pretty_diff () (x,y)
+    | (`RelationalInt x, `RelationalInt y) -> RD.pretty_diff () (x, y)
     | (`Address x, `Address y) -> AD.pretty_diff () (x,y)
     | (`Struct x, `Struct y) -> Structs.pretty_diff () (x,y)
     | (`Union x, `Union y) -> Unions.pretty_diff () (x,y)
@@ -195,8 +207,9 @@ struct
     | (`Top, _) -> false
     | (`Bot, _) -> true
     | (_, `Bot) -> false
-    | (`Int x, `Int y) -> ID.leq x y
-    | (`Int x, `Address y) when ID.to_int x = Some 0L -> true
+    | (`Int x, `Int y) -> IntDomain.IntDomTuple.leq x y
+    | (`RelationalInt x, `RelationalInt y) -> RD.leq x y
+    | (`Int x, `Address y) when IntDomain.IntDomTuple.to_int x = Some 0L -> true
     | (`Address x, `Address y) -> AD.leq x y
     | (`Struct x, `Struct y) -> Structs.leq x y
     | (`Union x, `Union y) -> Unions.leq x y
@@ -213,10 +226,11 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> `Int (ID.join x y)
+    | (`Int x, `Int y) -> `Int (IntDomain.IntDomTuple.join x y)
+    | (`RelationalInt x, `RelationalInt y) -> `RelationalInt (RD.join x y)
     | (`Int x, `Address y)
-    | (`Address y, `Int x) when ID.to_int x = Some 0L ->
-      ignore @@ printf "JOIN Int %a and Address %a\n" ID.pretty x AD.pretty y;
+    | (`Address y, `Int x) when IntDomain.IntDomTuple.to_int x = Some 0L ->
+      ignore @@ printf "JOIN Int %a and Address %a\n" IntDomain.IntDomTuple.pretty x AD.pretty y;
       `Address (AD.join (AD.null_ptr ()) y)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
@@ -239,7 +253,8 @@ struct
     | (_, `Bot) -> `Bot
     | (`Top, x) -> x
     | (x, `Top) -> x
-    | (`Int x, `Int y) -> `Int (ID.meet x y)
+    | (`Int x, `Int y) -> `Int (IntDomain.IntDomTuple.meet x y)
+    | (`RelationalInt x, `RelationalInt y) -> `RelationalInt (RD.meet x y)
     | (`Address x, `Address y) -> `Address (AD.meet x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
     | (`Union x, `Union y) -> `Union (Unions.meet x y)
@@ -257,7 +272,8 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> `Int (ID.widen x y)
+    | (`Int x, `Int y) -> `Int (IntDomain.IntDomTuple.widen x y)
+    | (`RelationalInt x, `RelationalInt y) -> `RelationalInt (RD.widen x y)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
     | (`Union x, `Union y) -> `Union (Unions.widen x y)
@@ -272,7 +288,8 @@ struct
 
   let narrow x y =
     match (x,y) with
-    | (`Int x, `Int y) -> `Int (ID.narrow x y)
+    | (`Int x, `Int y) -> `Int (IntDomain.IntDomTuple.narrow x y)
+    | (`RelationalInt x, `RelationalInt y) -> `RelationalInt (RD.narrow x y)
     | (`Address x, `Address y) -> `Address (AD.narrow x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.narrow x y)
     | (`Union x, `Union y) -> `Union (Unions.narrow x y)
@@ -292,9 +309,8 @@ struct
   let do_cast (fromt: typ) (tot: typ) (value: t): t  =
     if Util.equals fromt tot then value
     else match fromt, tot with
-      | _, TInt _     -> `Int (ID.top ())
+      | _, TInt _     -> `Int (IntDomain.IntDomTuple.top ())
       | _ -> top ()
-
   let rec top_value (t: typ) =
     let rec top_comp compinfo: Structs.t =
       let nstruct = Structs.top () in
@@ -302,7 +318,7 @@ struct
       List.fold_left top_field nstruct compinfo.cfields
     in
     match t with
-    | TInt _ -> `Int (ID.top ())
+    | TInt _ -> `Int (IntDomain.IntDomTuple.top ())
     | TPtr _ -> `Address (AD.unknown_ptr ())
     | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false},_) -> `Union (Unions.top ())
@@ -442,7 +458,8 @@ struct
 
   let printXml f state =
     match state with
-    | `Int n ->  ID.printXml f n
+    | `Int n ->  IntDomain.IntDomTuple.printXml f n
+    | `RelationalInt n -> RD.printXml f n
     | `Address n ->  AD.printXml f n
     | `Struct n ->  Structs.printXml f n
     | `Union n ->  Unions.printXml f n

@@ -5,11 +5,13 @@ set -e
 scripts/set_version.sh
 
 TARGET=src/goblint
+INCLUDE_DUMMY_MODULES="-I src/util/dummymodules/apronDomain"
 FLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt opt -cflag -g"
+FLAGS_POLY="$FLAGS -I src/cdomains/apronDomain -no-plugin -package apron -package apron.polkaMPQ -package apron.octD"
 OCAMLBUILD=ocamlbuild
 
 ocb() {
-  $OCAMLBUILD $FLAGS $*
+  $OCAMLBUILD $INCLUDE_DUMMY_MODULES $FLAGS $*
 }
 
 setuprest() {
@@ -55,7 +57,7 @@ rule() {
              cp _build/$TARGET.byte goblint.byte
              ;;
     doc*)    rm -rf doc;
-             ls src/*/*/*.ml src/*/*.ml src/*.ml | egrep -v "apronDomain|poly"  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
+             ls src/*/*/*.ml src/*/*.ml src/*.ml | egrep -v "poly"  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
              ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
              rm doclist.odocl;
              ln -sf _build/doclist.docdir doc
@@ -92,16 +94,15 @@ rule() {
              tar xf linux-headers.tar.xz
              rm linux-headers.tar.xz
              ;;
-    poly)    echo "open ApronDomain" >> $TARGET.ml
-             echo "open Poly" >> $TARGET.ml
-             ocb -no-plugin -package apron -package apron.polkaMPQ -package apron.octD $TARGET.native &&
+    poly)    echo "open Poly" >> $TARGET.ml
+	     $OCAMLBUILD $FLAGS_POLY $TARGET.native &&
              cp _build/$TARGET.native goblint
              ;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
 
-ls -1 src/*/*.ml | egrep -v "apronDomain|poly" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
 ls -1 src/*/*/*.ml | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' >> $TARGET.ml
+ls -1 src/*/*.ml | egrep -v "poly" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
 echo "open Maingoblint" >> $TARGET.ml
 
 if [ $# -eq 0 ]; then
@@ -112,4 +113,3 @@ else
     shift
   done
 fi
-
