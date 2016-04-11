@@ -617,14 +617,14 @@ struct
             | _ -> (int_variables, real_variables)
         ) variable_value_list ([],[]) in
       let abstract_value = add_vars abstract_value variable_names in
-    List.fold_right (
-      fun (lhost, value) abstract_val ->
-        match lhost with
-        | Cil.Var variable -> (
-            assign_int_value_to_variable_name abstract_val value (get_variable_name variable)
-          )
-        | _ -> abstract_value
-    ) variable_value_list abstract_value
+      List.fold_right (
+        fun (lhost, value) abstract_val ->
+          match lhost with
+          | Cil.Var variable -> (
+              assign_int_value_to_variable_name abstract_val value (get_variable_name variable)
+            )
+          | _ -> abstract_value
+      ) variable_value_list abstract_value
     with Manager.Error x ->
       Manager.print_exclog Format.std_formatter x;
       bot ()
@@ -810,11 +810,6 @@ struct
       vars_int @ vars_real
 
   let remove_all_local_variables (apron_abstract_value, struct_name_mapping) =
-    let environment = (A.env apron_abstract_value) in
-    let local_vars = get_all_local_or_global_variables environment `Local in
-(*    let struct_name_mapping =
-      List.fold_left (fun struct_name_mapping unique_field_name ->
-          StructNameMap.remove_variable (original_variable_name (Var.to_string unique_field_name)) struct_name_mapping) struct_name_mapping local_vars in *)
     remove_all_local_variables apron_abstract_value, struct_name_mapping
 
   let remove_variable varinfo (apron_abstract_value, struct_mapping) =
@@ -907,7 +902,6 @@ struct
       )
 
   let get_field_and_struct_name_from_variable_name variable_name =
-    (*    Pervasives.print_endline ("get_field_and_struct_name_from_variable_name: '" ^ variable_name ^ "'");*)
     let index_character_between_field_and_comp_name_char = (String.index variable_name character_between_field_and_comp_name_char) in
     let last_index_field_name = if String.contains variable_name local_identifier_char then (String.length variable_name) - 2 else (String.length variable_name) - 1  in
     let first_index_field_name = index_character_between_field_and_comp_name_char + 1 in
@@ -919,7 +913,6 @@ struct
     let field_name, old_struct_name = get_field_and_struct_name_from_variable_name unique_field_name in
     if old_struct_name = struct_name then unique_field_name
     else (
-      let start_field_name = (String.index unique_field_name character_between_field_and_comp_name_char) + 1 in
       if (String.contains unique_field_name local_identifier_char) then
         struct_name ^ character_between_field_and_comp_name ^ field_name ^ local_identifier
       else struct_name ^ character_between_field_and_comp_name ^ field_name
