@@ -31,6 +31,7 @@ sig
   val long_map2: (value -> value -> value) -> t -> t -> t
   val merge : (key -> value option -> value option -> value option) -> t -> t -> t
   (*  val fold2: (key -> value -> value -> 'a -> 'a) -> t -> t -> 'a -> 'a*)
+  val cardinal : t -> int
 end
 
 module type Groupable =
@@ -69,6 +70,7 @@ struct
   let mapi = M.mapi
   let fold = M.fold
   let filter = M.filter
+  let cardinal = M.cardinal
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal = for_all2 Range.equal
@@ -374,6 +376,11 @@ struct
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
     | _ -> raise (Fn_over_All "merge")
+
+  let cardinal x =
+    match x with
+    | `Lifted x -> M.cardinal x
+    | _ -> raise (Fn_over_All  "cardinal")
 end
 
 module MapTop_LiftBot (Domain: Groupable) (Range: Lattice.S): S with
@@ -454,4 +461,10 @@ struct
     match x, y with
     | `Lifted x, `Lifted y -> `Lifted (M.merge f x y)
     | _ -> raise (Fn_over_All "merge")
+
+  let cardinal x =
+    match x with
+    | `Lifted x -> M.cardinal x
+    | _ -> raise (Fn_over_All "cardinal")
+
 end
