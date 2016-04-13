@@ -12,7 +12,7 @@ struct
 
   let name = "poly"
 
-  module D = D
+  module D = PolyDomain
   module G = Lattice.Unit
   module C = D
 

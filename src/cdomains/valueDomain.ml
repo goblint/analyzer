@@ -571,11 +571,11 @@ and Compound_TransformableToIntDomTupleT : Equation.Domain_TransformableFromIntD
     | `Bot
 ] = struct
   include Compound
-  let of_int_val x _ _ = `Int x
+  let of_int_val x  = `Int x
   let to_int_val x =
     match x with
-    | `Int x -> x, "", true
-    | _ -> IntDomain.IntDomTuple.top(), "", true
+    | `Int x -> x
+    | _ -> IntDomain.IntDomTuple.top()
 end
 
 and EquationField : Equation.GroupableLatticeS with type t = [`Top | `Bot | `Field of Basetype.VariableFields.t] =
@@ -661,7 +661,7 @@ struct
 
   end
 
-and RelationalStructs: StructDomain.Relational
+and RelationalStructsSimpleEquations: StructDomain.Relational
   with type field = EquationField.t
    and type value = Compound_TransformableToIntDomTupleT.t
    and type t = Lattice.Prod(MapDomain.MapTop_LiftBot (EquationField)(Compound_TransformableToIntDomTupleT))(Equation.EquationMap(EquationField)(Compound_TransformableToIntDomTupleT)).t
@@ -773,7 +773,7 @@ struct
           (s,equations)
         (* this needs to be done, because else wrong initializations destroy correct values, ID.bot will still be assigned *)
         | `Bot -> (s,equations)
-        | `RelationalStruct x -> (
+        (*| `RelationalStruct x -> (
             match x with
             | (new_struct_store,new_equations) ->
               let struct_name = match new_var with | Some var -> var.vname | _ -> "" in
@@ -784,7 +784,7 @@ struct
                     (get new_value_of_variable (field))
               )
                 new_value_of_variable (s,equations)
-          )
+              ) *)
         | _ -> (
             let s = (StructStore.add (`Field(new_var, new_field)) new_value s) in
             let new_compound_val = new_value in
@@ -1052,6 +1052,11 @@ struct
     | _ -> (store, equations)
 
 end
+
+and RelationalStructs: StructDomain.Relational
+  with type field = EquationField.t
+   and type value = Compound_TransformableToIntDomTupleT.t
+  = ApronDomain.ApronRelationalStructDomain(Compound_TransformableToIntDomTupleT)(EquationField)
 
 and Structs: StructDomain.S
   with type field = Cil.fieldinfo
