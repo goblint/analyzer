@@ -748,8 +748,8 @@ struct
   let name () = "ApronRelationalStructDomain"
 
   let is_top (x, _) = is_top x
-  let is_bot (x, _) = Pervasives.print_endline "is_bot?"; is_bot x
-  let top () = Pervasives.print_endline "TOP"; top (), StructMap.top()
+  let is_bot (x, _) = is_bot x
+  let top () = top (), StructMap.top()
   let bot () = bot(), StructMap.bot()
   let short w (x, m) = (short w x)
   let isSimple _ = true
@@ -928,7 +928,6 @@ struct
         fun (result, struct_mapping, variables_to_remove) var ->
           let field_name = Var.to_string var in
           let variable_name =  (original_variable_name field_name) in
-          let is_local = (String.contains field_name local_identifier_char) in
           let int_val = get_int_val_for_field_name field_name apron_abstract_value in
           let value = Compound.of_int_val int_val in
           let compound_val_result_func = (func value) in
@@ -957,7 +956,6 @@ struct
       fun result var ->
         let unique_field_name = (Var.to_string var) in
         let int_val = get_int_val_for_field_name unique_field_name apron_abstract_value in
-        let is_local = (String.contains unique_field_name local_identifier_char) in
         let field_name, struct_name = get_field_and_struct_name_from_variable_name unique_field_name in
         let map_key = `Lifted struct_name, `Lifted field_name in
         let value = Compound.of_int_val int_val in
@@ -991,7 +989,6 @@ struct
     apron_abstract_value, struct_mapping
 
   let get_value_of_variable_name varname (apron_abstract_value, struct_mapping) =
-    let environment = A.env apron_abstract_value in
     let fields_not_to_remove =
       StructMap.fold (fun _ value fields_not_to_remove ->
           match value with
@@ -1062,8 +1059,7 @@ struct
         match abstract_value with
         | (apron_val, struct_map) ->
           let old_field_name = get_unique_field_name old_key in
-          let new_key = match old_key with | `Field(_, new_field) -> (match new_variable with Some variable -> `Field(new_variable,new_field)) | _ -> raise (Invalid_argument "") in
-          let old_struct_map_key = match old_key with | `Field(Some var, old_field) -> `Lifted var.vname, `Lifted old_field.fname | `Field(_, old_field) -> `Lifted "", `Lifted old_field.fname | _ -> raise (Invalid_argument "") in
+          let new_key = match old_key with | `Field(_, new_field) -> (match new_variable with Some variable -> `Field(new_variable,new_field) | _ -> raise (Invalid_argument "")) | _ -> raise (Invalid_argument "") in
           let new_struct_map_key = match new_key with | `Field(Some var, new_field) -> `Lifted var.vname, `Lifted new_field.fname | `Field(_, new_field) -> `Lifted "", `Lifted new_field.fname | _ -> raise (Invalid_argument "") in
           let new_field_name = get_unique_field_name new_key in
           let struct_map = StructMap.add new_struct_map_key new_key struct_map in
@@ -1111,7 +1107,6 @@ struct
               | _ -> (keys_of_old_var, old_var)
             ) all_vars ([], None)
         in
-        let length_struct_mapping = StructMap.fold (fun _ _ length -> length + 1) struct_mapping 0 in
         let new_var =
           match key with
           | Var v -> (
