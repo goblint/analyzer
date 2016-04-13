@@ -119,10 +119,6 @@ struct
 
 
   let name () = "equations"
-  let bot () = (IntStore.bot ()) , (Equations.bot ())
-  let is_bot (s,e) = IntStore.is_bot s && Equations.is_bot e
-  let top () = (IntStore.top ()), (Equations.top ())
-  let is_top (s,e) = IntStore.is_top s && Equations.is_top e
 
   let join_equations eq1 eq2 store =
     let joined_equations = Equations.join eq1 eq2 in
@@ -170,10 +166,6 @@ struct
   let add_variable_value_pair varinfo_val_pair abstract_value =
     add_variable_value_list [varinfo_val_pair] abstract_value
 
-  let leq x y =
-    match x, y with
-    | (storex, eqx), (storey, eqy) -> (IntStore.leq storex storey) && Equations.leq eqx eqy
-
   let equation_key_to_string key =
     match key with `Var key -> key.vname | `Bot -> "Bot" | _ -> "Top"
 
@@ -184,6 +176,7 @@ struct
       else match x with store, equationlist ->
         "{{" ^ (store_to_string a store) ^ "} {" ^ Equations.equations_to_string equationlist equation_key_to_string ^ "}}"
     )
+
   let pretty () x = Pretty.text (short 100 x)
 
   let join (storex, eqx) (storey, eqy) =
@@ -199,17 +192,6 @@ struct
         )
       )
     )
-
-(*  let meet (storex, eqx) (storey, eqy) =
-    if (IntStore.is_bot storex || IntStore.is_bot storey) then bot ()
-    else (
-      if IntStore.is_top storex then (storey, eqy)
-      else (
-        if IntStore.is_top storey then (storex, eqx)
-        else
-          IntStore.meet storex storey, (Equations.meet eqx eqy)
-      )
-    ) *)
 
   let equal x y =
     if ((is_top x) && (is_top y)) || ((is_bot x) && (is_bot y)) then true
@@ -236,13 +218,6 @@ struct
       let storeresult = IntStore.widen storex storey in
       let joined_equations, storeresult = join_equations equationsx equationsy storeresult in
       (storeresult, joined_equations)
-
-(*  let narrow x y =
-    match x, y with
-    | (storex, equationsx), (storey, equationsy) ->
-      let storeresult = IntStore.narrow storex storey in
-      let equationsresult = Equations.meet equationsx equationsy in
-      (storeresult, equationsresult) *)
 
   let isSimple x = true
   let pretty_diff () ((sa,ea), (sb,eb)) = IntStore.pretty_diff () (sa, sb) (* TODO equations *)

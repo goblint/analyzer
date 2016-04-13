@@ -8,10 +8,9 @@ typedef struct  {
 S some_function(){
     S xx;
     xx.i = 5;
-    xx.k = 5;
-    int z;
-    z = 5;
-    for (z = 5; z > 0; z--) {
+    S z;
+    z.i = 5;
+    for (z.i = 5; z.i > 0; z.i--) {
         xx.i = xx.i - 1;
     }
     return xx;
