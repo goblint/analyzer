@@ -1057,7 +1057,13 @@ struct
         let new_val = apply_invariant oldval value in
         let new_val = if not(get_bool analyse_ints_relationally || get_bool analyse_structs_relationally) then improve_abstract_value_with_queries a (Lval lval) new_val else new_val in
         let map, flag = st in
-        let map, new_val = assign_new_relational_abstract_value map new_val (Mem (Lval lval)) in
+        Pervasives.print_endline "INVARIANT OLD VAL:";
+        Pervasives.print_endline (VD.short 1000 oldval);
+        Pervasives.print_endline "INVARIANT NEW VAL:";
+        Pervasives.print_endline (VD.short 1000 new_val);
+        let map = assign_new_relational_abstract_value_in_store map new_val(* (Mem (Lval lval)) in *) in
+        Pervasives.print_endline "INVARIANT NEW VAL AFTER ASSIGN:";
+        Pervasives.print_endline (VD.short 1000 new_val);
         let st = map, flag in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
         (* make that address meet the invariant, i.e exclusion sets will be joined *)
@@ -2249,6 +2255,8 @@ struct
                         | `RelationalStruct x -> x
                         | _ -> ValueDomain.RelationalStructs.top()
                       in
+                      let val_in_store =
+                        ValueDomain.RelationalStructs.remove_variable v val_in_store in
                       `RelationalStruct (ValueDomain.RelationalStructs.add_variable_value_list [(Var v), struct_val] val_in_store)
                   | _ -> return_val
                 )
