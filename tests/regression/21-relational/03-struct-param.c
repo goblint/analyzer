@@ -2,26 +2,29 @@
 typedef struct  {
     int i;
     int k;
-    
 } S;
 
 S some_function(S test){
     S xx;
     xx = test;
-    assert(xx.i == 5); //NOWARN
-    assert(xx.k == 7); //NOWARN
+    assert(xx.i == 4);
+    xx.i = 5;
+    assert(xx.i == 5);
+    assert(xx.k == 7); 
+    S yy;
+    yy.i = 7;
     int z;
     z = 5;
-    for (z = 5; z > 0; z--) {
-        xx.i = xx.i - 1;
-    }
-    return xx;
+    return yy;
 }
 
 int main(){
     S a;
-    a.i = 5;
+    a.i = 4;
     a.k = 7;
-    a = some_function(a);
+    S b;
+    b = some_function(a);
+    assert(b.i == 7);
+    assert(a.i == 4);
     return a.i;
 }

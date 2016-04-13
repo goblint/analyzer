@@ -283,7 +283,7 @@ struct
             | value -> value
           end
         in
-        VD.eval_offset (get a gs (st,fl) should_return_relational_value) var offs x.vname (should_return_relational_value && get_bool analyse_structs_relationally)
+        VD.eval_offset (get a gs (st,fl) should_return_relational_value) var offs x (should_return_relational_value && get_bool analyse_structs_relationally)
       in
       let f x =
         match Addr.to_var_offset x with
@@ -315,12 +315,13 @@ struct
         add_relational_information value
       | `RelationalStruct x when (get_bool analyse_structs_relationally) -> (
           let rel_structs_value_renamed_variable =
-            ValueDomain.RelationalStructs.map (
-              fun (struct_value, struct_name, is_local) ->
-                if struct_name = "" then
-                  (struct_value, variable.vname, not(variable.vglob))
-                else
-                  (struct_value, struct_name, is_local)) x
+            ValueDomain.RelationalStructs.fold (
+              fun key value result ->
+                match key with
+                | `Field (None, field) ->
+                  ValueDomain.RelationalStructs.replace result (`Field(Some variable, field)) value
+                | _ -> ValueDomain.RelationalStructs.replace result key value
+            ) x (ValueDomain.RelationalStructs.top())
           in
           match variable.vtype with
           | TNamed (t, _) -> (
@@ -377,12 +378,12 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset (get x nst) offs value x.vname (not(x.vglob))) nst
+          update_variable x (VD.update_offset (get x nst) offs value (Some x)) nst
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
-        update_variable x (VD.update_offset (CPA.find x nst) offs value x.vname (not(x.vglob))) nst
+        update_variable x (VD.update_offset (CPA.find x nst) offs value (Some x)) nst
       end
     in
     let update_one x (y: cpa) =
@@ -815,9 +816,9 @@ struct
       let nstruct = match first_value_in_local_store store RelationalStructInformation with `RelationalStruct x -> x | _ -> ValueDomain.RelationalStructs.top() in
 
       let bot_field nstruct fd =
-        let typ = match fd with `Field fd -> fd.ftype | _ -> raise (Invalid_argument "") in
-        ValueDomain.RelationalStructs.replace nstruct fd ((bot_value a gs st typ struct_name), "", true) in
-      let fields = List.map (fun field -> `Field field) compinfo.cfields in
+        let typ = match fd with `Field (_, fd) -> fd.ftype | _ -> raise (Invalid_argument "bot_value") in
+        ValueDomain.RelationalStructs.replace nstruct fd ((bot_value a gs st typ struct_name)) in
+      let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
       List.fold_left bot_field nstruct fields
     in
     match t with
@@ -851,9 +852,9 @@ struct
       let store, _ = st in
       let nstruct = match first_value_in_local_store store RelationalStructInformation with `RelationalStruct x -> x | _ ->  ValueDomain.RelationalStructs.top() in
       let init_field nstruct fd =
-        let typ = match fd with |`Field fd -> fd.ftype | _ -> raise (Invalid_argument "") in
-        ValueDomain.RelationalStructs.replace nstruct fd ((init_value a gs st typ struct_name), "", true) in
-      let fields = List.map (fun field -> `Field field) compinfo.cfields in
+        let typ = match fd with |`Field (_, fd) -> fd.ftype | _ -> raise (Invalid_argument "init_field") in
+        ValueDomain.RelationalStructs.replace nstruct fd ((init_value a gs st typ struct_name)) in
+      let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
       List.fold_left init_field nstruct fields
     in
     match t with
@@ -881,9 +882,9 @@ struct
         | `RelationalStruct x -> x
         | _ -> ValueDomain.RelationalStructs.top() in
       let top_field nstruct fd =
-        let typ = match fd with | `Field fd -> fd.ftype | _ -> raise (Invalid_argument "") in
-        ValueDomain.RelationalStructs.replace nstruct fd ((top_value a gs st typ struct_name), struct_name, true) in
-      let fields = List.map (fun field -> `Field field) compinfo.cfields in
+        let typ = match fd with | `Field (_, fd) -> fd.ftype | _ -> raise (Invalid_argument "top_field") in
+        ValueDomain.RelationalStructs.replace nstruct fd ((top_value a gs st typ struct_name)) in
+      let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
       List.fold_left top_field nstruct fields
     in
     match t with
@@ -921,7 +922,7 @@ struct
           | Var v, Field (field,_) when get_bool analyse_structs_relationally -> (
               match first_value_in_local_store store RelationalStructInformation with
               | `RelationalStruct first_value_in_local_store ->
-                Some (lvalue, `RelationalStruct (ValueDomain.RelationalStructs.replace first_value_in_local_store (`Field field) (`Int int_value, v.vname, (not v.vglob))))
+                Some (lvalue, `RelationalStruct (ValueDomain.RelationalStructs.replace first_value_in_local_store (`Field (Some v, field)) (`Int int_value)))
               | _ -> Some (lvalue, `Int int_value)
             )
           | Var v, _  when get_bool analyse_ints_relationally -> (
@@ -1377,7 +1378,7 @@ struct
       | `Blob e -> reachable_from_value e
       | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
       | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> let v = v in AD.join (reachable_from_value v) acc) s empty
-      | `RelationalStruct s -> ValueDomain.RelationalStructs.fold (fun k v acc -> let v, _, _ = v in AD.join (reachable_from_value v) acc) s empty
+      | `RelationalStruct s -> ValueDomain.RelationalStructs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
       |  _ -> empty
     in
     let res = reachable_from_value (get ask gs st false adr) in
@@ -1473,10 +1474,9 @@ struct
           `Struct (ValueDomain.Structs.fold one_field (ValueDomain.Structs.top ()) s)
         | `RelationalStruct s ->
           let one_field fl vl st =
-            let vl, struct_name, is_local = vl in
             match replace_val vl with
             | `Top -> st
-            | v    -> ValueDomain.RelationalStructs.replace st fl (v, struct_name, is_local)
+            | v    -> ValueDomain.RelationalStructs.replace st fl v
           in
           `RelationalStruct (ValueDomain.RelationalStructs.fold one_field (ValueDomain.RelationalStructs.top ()) s)
         | _ -> `Top
@@ -1496,10 +1496,7 @@ struct
             replace_val value in
           `Struct (ValueDomain.Structs.map replace_val_struct n)
         | `RelationalStruct n    ->
-          let replace_val_struct value =
-            let value, struct_name, is_local = value in
-            replace_val value, struct_name, is_local in
-          `RelationalStruct (ValueDomain.RelationalStructs.map replace_val_struct n)
+          `RelationalStruct (ValueDomain.RelationalStructs.map replace_val n)
         | `Union (f,v) -> `Union (f,replace_val v)
         | `Blob n      -> `Blob (replace_val n)
         | `Address x -> `Address (ValueDomain.AD.map ValueDomain.Addr.drop_ints x)
@@ -1598,8 +1595,7 @@ struct
         | `RelationalStruct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
           let f k v =
-            let k = match k with `Field k -> k | _ -> raise (Invalid_argument "") in
-            let v, _, _ = v in
+            let k = match k with `Field (_, k) -> k | _ -> raise (Invalid_argument "f") in
             join_tr (with_type k.ftype (reachable_from_value v))
           in
           ValueDomain.RelationalStructs.fold f s (empty, TS.bot (), false)
@@ -2247,7 +2243,13 @@ struct
                     if v.vid = (return_varinfo ()).vid then
                       return_val
                     else
-                      `RelationalStruct (ValueDomain.RelationalStructs.add_variable_value_list [(Var v), struct_val] struct_val)
+                      let st, _ = st in
+                      let val_in_store =
+                        match first_value_in_local_store st RelationalStructInformation with
+                        | `RelationalStruct x -> x
+                        | _ -> ValueDomain.RelationalStructs.top()
+                      in
+                      `RelationalStruct (ValueDomain.RelationalStructs.add_variable_value_list [(Var v), struct_val] val_in_store)
                   | _ -> return_val
                 )
               | _ -> return_val
