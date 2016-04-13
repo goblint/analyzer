@@ -64,24 +64,22 @@ struct
 
   let adjust_environments x y =
     let environment_x, environment_y = (A.env x), (A.env y) in
-    if not(Environment.size environment_x = Environment.size environment_y) then
-      let (vars_x_int, vars_x_real), (vars_y_int, vars_y_real) =
-        Environment.vars environment_x, Environment.vars environment_y
-      in
-      let missing_variables all_variables environment =
-        (Array.filter (fun variable -> not(Environment.mem_var environment variable)) all_variables)
-      in
-      let environment_x, environment_y =
-        (Environment.add environment_x
-           (missing_variables vars_y_int environment_x)
-           (missing_variables vars_y_real environment_x)),
-        (Environment.add environment_y
-           (missing_variables vars_x_int environment_y)
-           (missing_variables vars_x_real environment_y))
-      in
-      A.change_environment Man.mgr x environment_x false,
-      A.change_environment Man.mgr y environment_y false
-    else x, y
+    let (vars_x_int, vars_x_real), (vars_y_int, vars_y_real) =
+      Environment.vars environment_x, Environment.vars environment_y
+    in
+    let missing_variables all_variables environment =
+      (Array.filter (fun variable -> not(Environment.mem_var environment variable)) all_variables)
+    in
+    let environment_x, environment_y =
+      (Environment.add environment_x
+         (missing_variables vars_y_int environment_x)
+         (missing_variables vars_y_real environment_x)),
+      (Environment.add environment_y
+         (missing_variables vars_x_int environment_y)
+         (missing_variables vars_x_real environment_y))
+    in
+    A.change_environment Man.mgr x environment_x false,
+    A.change_environment Man.mgr y environment_y false
 
   let join x y =
     if is_bot x then
@@ -136,7 +134,7 @@ struct
   let toXML = toXML_f short
   let pretty_f s () (x:apronType) = text (s 10 x)
   let pretty = pretty_f short
-  let pretty_diff () (x,y) = text "pretty_diff"
+  let pretty_diff () (x,y) = text "prettydiff"
 
   open Texpr1
   open Lincons0
@@ -758,8 +756,8 @@ struct
   let printXml out (x, _) = printXml out x
   let toXML (x, _) = toXML x
   let toXML_f s x = Xml.Element ("Leaf",["text", "APRON:"^Goblintutil.escape (s 90 x)],[])
-  let pretty_diff = pretty_diff
   let pretty_f s () x = text (s 10 x)
+  let pretty_diff () (x, y)= text ((short 100 x) ^ " vs. " ^ (short 100 y))
   let pretty () x = pretty_f short () x
 
   let compare (x, _) (y, _) = compare x y
@@ -853,13 +851,13 @@ struct
     result
 
   let narrow (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
-    narrow apron_abstract_valuex apron_abstract_valuey, StructMap.meet struct_mappingx struct_mappingy
+    narrow apron_abstract_valuex apron_abstract_valuey, StructMap.narrow struct_mappingx struct_mappingy
 
   let widen (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
-    widen apron_abstract_valuex apron_abstract_valuey, StructMap.join struct_mappingx struct_mappingy
+    widen apron_abstract_valuex apron_abstract_valuey, StructMap.widen struct_mappingx struct_mappingy
 
-  let leq (apron_abstract_valuex, _) (apron_abstract_valuey, _) =
-    leq apron_abstract_valuex apron_abstract_valuey
+  let leq (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
+    leq apron_abstract_valuex apron_abstract_valuey && StructMap.leq struct_mappingx struct_mappingy
 
   let replace (apron_abstract_value, struct_map) field compound_val =
 (*    Pervasives.print_endline "Replace with the following compound value: ";
@@ -1070,22 +1068,34 @@ struct
     | `Field _ -> (
         match abstract_value with
         | (apron_val, struct_map) ->
-          let field_name = get_unique_field_name old_key in
+          let old_field_name = get_unique_field_name old_key in
           let new_key = match old_key with | `Field(_, new_field) -> (match new_variable with Some variable -> `Field(new_variable,new_field)) | _ -> raise (Invalid_argument "") in
           let old_struct_map_key = match old_key with | `Field(Some var, old_field) -> `Lifted var.vname, `Lifted old_field.fname | `Field(_, old_field) -> `Lifted "", `Lifted old_field.fname | _ -> raise (Invalid_argument "") in
           let new_struct_map_key = match new_key with | `Field(Some var, new_field) -> `Lifted var.vname, `Lifted new_field.fname | `Field(_, new_field) -> `Lifted "", `Lifted new_field.fname | _ -> raise (Invalid_argument "") in
           let new_field_name = get_unique_field_name new_key in
           let struct_map = StructMap.add new_struct_map_key new_key struct_map in
           let environment = A.env apron_val in
-          let apron_val =
-            if Environment.mem_var environment (Var.of_string field_name) &&
-               not (Environment.mem_var environment (Var.of_string new_field_name))
-            then
-              A.rename_array Man.mgr apron_val (Array.of_list [Var.of_string field_name]) (Array.of_list [Var.of_string new_field_name])
-            else
-              apron_val
-          in
-          apron_val, struct_map
+          if Environment.mem_var environment (Var.of_string old_field_name) &&
+             not (Environment.mem_var environment (Var.of_string new_field_name))
+          then
+            let apron_new_val = A.rename_array Man.mgr apron_val (Array.of_list [Var.of_string old_field_name]) (Array.of_list [Var.of_string new_field_name]) in
+            apron_new_val, struct_map
+          else (
+            if not (Environment.mem_var environment (Var.of_string new_field_name)) then (
+              let value_old_key, old_struct_map = value_old_key in
+              let value_old_key = A.rename_array Man.mgr value_old_key (Array.of_list [Var.of_string old_field_name]) (Array.of_list [Var.of_string new_field_name]) in
+              meet (apron_val,struct_map) (value_old_key, old_struct_map))
+            else (
+              if Environment.mem_var environment (Var.of_string old_field_name) then (
+                let int_val_of_old_field = get_int_val_for_field_name old_field_name apron_val in
+                let apron_val = assign_int_value_to_variable_name apron_val int_val_of_old_field new_field_name  in
+                Pervasives.print_endline "HERE";
+                apron_val, struct_map
+              )
+              else
+                apron_val, struct_map
+            )
+          )
       )
     | _ -> abstract_value
 
@@ -1129,7 +1139,11 @@ struct
           let apron_value_after_renaming, _ =
             List.fold_left (
               fun (abstract_value, value_old_key) old_key ->
-                rename_variable_of_field abstract_value old_key value_old_key new_var, value_old_key
+                let result =
+                  rename_variable_of_field abstract_value old_key value_old_key new_var in
+                Pervasives.print_endline "Result of rename";
+                Pervasives.print_endline (short 1000 result);
+                result, value_old_key
             ) (abstract_value, value) keys_of_old_var
           in
           apron_value_after_renaming
