@@ -3,8 +3,8 @@ open RelationalIntDomainSignature
 module ID =
 struct
   include IntDomain.IntDomTuple
-  let of_int_val x _ _ = x
-  let to_int_val x = x, "", true
+  let of_int_val x = x
+  let to_int_val x = x
 end
 
 module EquationVariable : Equation.GroupableLatticeS with type t = [`Top | `Bot | `Var of Basetype.Variables.t] =
