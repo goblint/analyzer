@@ -22,6 +22,7 @@ sig
   val eval_assert_cil_exp: Cil.exp -> t -> t
   val get: t -> field -> value
   val get_value_of_variable: varinfo -> t -> t
+  val get_value_of_variable_name: string -> t -> t
   val get_value_of_variable_and_globals: varinfo -> t -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val map: (value -> value) -> t -> t
