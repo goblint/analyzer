@@ -375,9 +375,11 @@ struct
     A.forget_array_with Man.mgr d (Array.of_enum (List.enum (List.map Var.of_string xs))) false
 
   let remove_all_with d xs =
-    (* let vars = List.filter (fun v -> isArithmeticType v.vtype) xs in *)
-    let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
-    let env = Environment.remove (A.env d) vars in
+    let environment = (A.env d) in
+    let vars = List.filter (fun v -> Environment.mem_var environment (Var.of_string v)) xs in
+    let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) vars)) in
+    Pervasives.print_endline "remove_all_with";
+    let env = Environment.remove environment vars in
     A.change_environment_with Man.mgr d env false
 
 end
@@ -813,7 +815,6 @@ struct
     remove_all_local_variables apron_abstract_value, struct_name_mapping
 
   let remove_variable varinfo (apron_abstract_value, struct_mapping) =
-    Pervasives.print_endline "remove_variable!!";
     let field_names_to_remove =
       StructMap.fold(fun _ field result ->
           result @ [get_unique_field_name field]) struct_mapping [] in
