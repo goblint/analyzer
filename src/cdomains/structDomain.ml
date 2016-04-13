@@ -5,7 +5,7 @@ sig
   include Lattice.S
   type value
   type field
-  val get: t -> field -> string -> value
+  val get: t -> field -> value
   val replace: t -> field -> value -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val map: (value -> value) -> t -> t
@@ -18,7 +18,7 @@ sig
   type field
   val add_variable_value_list: (Prelude.Ana.lhost * t) list -> t-> t
   val eval_assert_cil_exp: Cil.exp -> t -> t
-  val get: t -> field -> string -> value
+  val get: t -> field -> value
   val get_value_of_variable: varinfo -> t -> t
   val get_value_of_variable_and_globals: varinfo -> t -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
@@ -55,7 +55,7 @@ struct
   let pretty () x = M.pretty_f short () x
 
   let replace s field value = M.add field value s
-  let get s field _ = M.find field s
+  let get s field = M.find field s
   let fold = M.fold
   let map = M.map
 
@@ -80,11 +80,10 @@ end
 
 module type StructNameMapSignature =
 sig
-  type t
+  include Lattice.S
   val add: string -> Cil.compinfo -> t -> t
-  val empty : t
-  val join: t ->  t -> t
-  val meet: t ->  t -> t
+  val class_name: int -> string
+  val classify: t -> int
   val find: string -> t -> Cil.compinfo
   val fold: (string -> Cil.compinfo -> 'b -> 'b) -> t -> 'b -> 'b
   val get_all_fields_of_variable_name: string -> t -> Cil.fieldinfo list
@@ -93,71 +92,5 @@ sig
   val mem: string -> t -> bool
   val print: t -> unit
   val remove: string -> t -> t
-end
-
-
-module StructNameMap(Compound: Lattice.S)(Val: Lattice.S with type t = Compound.t * string * bool) : StructNameMapSignature
-  with type t = Cil.compinfo Map.Make(String).t =
-struct
-  module Map =  Map.Make(String)
-  type t = Cil.compinfo Map.t
-  let fold = Map.fold
-  let mem = Map.mem
-  let remove = Map.remove
-  let find = Map.find
-  let iter = Map.iter
-  let add = Map.add
-  let empty = Map.empty
-
-  let print map =
-    iter (fun key value -> Pervasives.print_endline (key ^ ": " ^ value.cname)) map
-
-  let join x y =
-    fold (
-      fun key value struct_name_mapping -> add key value struct_name_mapping
-    ) x y
-
-  let meet x y  =
-    let new_struct_name_mapping = empty in
-    Map.fold (fun key value new_struct_name_mapping -> if mem key y then add key value new_struct_name_mapping else new_struct_name_mapping) x new_struct_name_mapping
-
-  let copy_comp ci =
-    Cil.copyCompInfo ci ("c" ^(Pervasives.string_of_int (Random.int 10000000)))
-
-  let get_field_in_compinfo field_name compInfo =
-    List.fold_left (fun result_field field_of_comp -> if field_name = field_of_comp.fname then Some field_of_comp else result_field)  None compInfo.cfields
-
-  let get_unique_field field struct_name struct_name_mapping =
-    let struct_map_empty_key = "" in
-    let struct_map_key = struct_name in
-    let remove_empty_map_key struct_name_mapping =
-      if mem struct_map_empty_key struct_name_mapping then
-        remove struct_map_empty_key struct_name_mapping
-      else struct_name_mapping
-    in
-    if mem struct_map_key struct_name_mapping then
-      let compInfo = find struct_map_key struct_name_mapping in
-      match get_field_in_compinfo field.fname compInfo with
-      | Some field -> field, remove_empty_map_key struct_name_mapping
-      | _ -> field, remove_empty_map_key struct_name_mapping
-    else (
-      if mem struct_map_empty_key struct_name_mapping then
-        let compInfo = find struct_map_empty_key struct_name_mapping in
-        let struct_name_mapping = remove_empty_map_key struct_name_mapping in
-        match get_field_in_compinfo field.fname compInfo with
-        | Some field -> field, (add struct_map_key compInfo struct_name_mapping)
-        | _ -> field, (add struct_map_key compInfo struct_name_mapping)
-      else
-        let compInfo = copy_comp field.fcomp in
-        let field = match get_field_in_compinfo field.fname compInfo with Some field -> field | _ -> field in
-        field, (add struct_map_key compInfo struct_name_mapping)
-    )
-
-  let remove_variable variable_name map =
-    if mem variable_name map then
-      remove variable_name map
-    else map
-
-  let get_all_fields_of_variable_name variable_name map =
-    (find variable_name map).cfields
+  val trace_enabled: bool
 end

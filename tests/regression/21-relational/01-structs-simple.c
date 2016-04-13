@@ -15,11 +15,14 @@ S some_function(){
     if (z != 0){
         yy.i = 8;
         xx.k = 9;
+        yy.k = 5;
     } else {
         yy.i = 9;
         xx.k = 8;
+        yy.k = 5;
     }
-
+    
+    assert(yy.k == 5);
     assert(xx.k<10);
     assert(xx.k<=9);
     assert(!(xx.k<8));
@@ -27,7 +30,7 @@ S some_function(){
     assert(yy.i>7);
     assert(yy.i>=8);
     assert(!(xx.k>9));
-    assert(yy.i==8); //FAIL
+    assert(yy.i==8); //NOWARN
     return xx;
 }
 

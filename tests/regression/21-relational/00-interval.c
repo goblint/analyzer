@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base']"  --set ana.int.interval true --set ana.int.trier true --set ana.int.relational true --set ana.int.equations true
+// PARAM: --set ana.activated "['base']"  --set ana.int.interval true --set ana.int.trier false --set ana.int.relational true --set ana.int.equations true
 #include<stdio.h>
 #include<assert.h>
 
@@ -10,7 +10,8 @@ int main () {
     int true = 42;
     
     if (x){
-        assert(x != 0);
+        assert(x != 0);//NOWARN
+
     } else {
         assert(x == 0);
     }
