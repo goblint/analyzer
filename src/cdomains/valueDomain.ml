@@ -682,8 +682,6 @@ struct
   include Prod
 
   let name () = "SimpleStructEquations"
-  let bot () = (StructStore.bot()), (Equations.bot ())
-  let top () = (StructStore.top ()), (Equations.top ())
   let fold func (store, _) x = StructStore.fold func store x
   let map func (store, equations) = StructStore.map func store, equations
 
@@ -728,7 +726,6 @@ struct
           not(variable1.vid = variable.vid) && not(variable2.vid = variable.vid)
         | _ -> false
       ) equations
-
 
   let remove_variable variable (struct_store, equations) =
     match variable.vtype with
@@ -864,11 +861,15 @@ struct
        else (
          let result_store = StructStore.join storex storey in
          let joined_equations, result_store = join_equations eqx eqy result_store in
-         Pervasives.print_endline (short 200 (result_store, joined_equations));
          result_store, joined_equations
        )
      )
    )
+
+ let widen (storex, eqx) (storey, eqy) =
+   let storeresult = StructStore.widen storex storey in
+   let joined_equations, storeresult = join_equations eqx eqy storeresult in
+   (storeresult, joined_equations)
 
   let remove_all_local_variables (struct_store, equations) =
     let variables_to_remove =
@@ -907,11 +908,7 @@ struct
     | _ -> raise (Invalid_argument "")
 
   let add_variable_value_list lhost_val_list abstract_value =
-    Pervasives.print_endline "add_variable_value_list structs";
-    Pervasives.print_endline (short 100 abstract_value);
     List.fold_left (fun abstract_value (key,value) ->
-        Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () (Cil.Lval (key, NoOffset)));
-        Pervasives.print_endline (": " ^ (short 2000 value));
         let keys_of_old_var, old_var =
           match value with (struct_store, _) ->
             (* there should only be one local variable in that mapping, but this may have several fields *)
@@ -975,15 +972,9 @@ struct
     let local_store = StructStore.filter (fun key _ -> match key with `Field(Some var, _ ) -> not(var.vglob) | _ -> false) local_store in
     let global_equations = select_local_or_global_variables_in_equations false global_equations global_store in
     let global_store = StructStore.filter (fun key _ -> match key with `Field(Some var, _ ) -> var.vglob | _ -> false) global_store in
-    Pervasives.print_endline "\n local:";
-    Pervasives.print_endline (short 1000 (local_store, local_equations));
-    Pervasives.print_endline "\n global:";
-    Pervasives.print_endline (short 1000 (global_store, global_equations));
     meet (local_store, local_equations) (global_store, global_equations)
 
   let build_equation_of_cil_exp rexp field =
-    Pervasives.print_endline "build_equation_of_cil_exp";
-    Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () rexp);
     let rvar_field, offset, const =
       match rexp with
       | BinOp (op, Lval (Var rvar, Field(rfield, _)), Const (CInt64 (num, _, _)), _)
@@ -993,18 +984,6 @@ struct
           match op with
           | PlusA -> Some (`Field (Some rvar, rfield)), Some `Plus, Some (IntDomain.IntDomTuple.of_int num)
           | MinusA -> Some (`Field (Some rvar, rfield)), Some `Minus, Some (IntDomain.IntDomTuple.of_int num)
-          (* TODO          | Mult -> Some rfield, Some (Int64.to_float num), Some (IntDomain.IntDomTuple.of_int 0L)*)
-          | _ -> None, None, None
-        )
-      | BinOp (op, Const (CInt64 (const, _, _)), BinOp(Mult, Lval (Var rvar, Field(rfield, _)), Const (CInt64 (coeffx, _, _)), _), _)
-      | BinOp (op, Const (CInt64 (const, _, _)), BinOp(Mult, Const (CInt64 (coeffx, _, _)), Lval (Var rvar, Field(rfield, _)), _), _)
-      | BinOp (op, BinOp(Mult, Const (CInt64 (coeffx, _, _)), Lval (Var rvar, Field(rfield, _)), _), Const (CInt64 (const, _, _)), _)
-      | BinOp (op, BinOp(Mult, Lval (Var rvar, Field(rfield, _)), Const (CInt64 (coeffx, _, _)), _), Const (CInt64 (const, _, _)), _) ->
-        if EquationField.compare field (`Field (Some rvar, rfield)) = 0 then None, None, None
-        else (
-          match op with
-   (*       | PlusA -> Some rfield, Some (Int64.to_float coeffx), Some (Int64.to_float const)
-            | MinusA -> Some rfield, Some (Int64.to_float (Int64.neg coeffx)), Some (Int64.to_float const) *)
           | _ -> None, None, None
         )
       | Lval(Var rvar, Field(rfield, _)) ->
