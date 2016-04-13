@@ -236,8 +236,8 @@ end
 module type Domain_TransformableFromIntDomTupleT =
 sig
   include Lattice.S
-  val of_int_val: IntDomain.IntDomTuple.t -> string -> bool -> t
-  val to_int_val: t -> IntDomain.IntDomTuple.t * string * bool
+  val of_int_val: IntDomain.IntDomTuple.t -> t
+  val to_int_val: t -> IntDomain.IntDomTuple.t
 end
 
 module type AbstractKeyTuple =
@@ -365,8 +365,8 @@ struct
     | `Top -> Domain.top ()
     | _ ->
       if index_key_to_solve_for = 0 then
-        let key1_int_dom_tuple, key1_variable_name, key1_is_local = (Domain.to_int_val (Store.find key1 store)) in
-        let key2_int_dom_tuple, key2_variable_name, _ = (Domain.to_int_val (Store.find key2 store)) in
+        let key1_int_dom_tuple = (Domain.to_int_val (Store.find key1 store)) in
+        let key2_int_dom_tuple= (Domain.to_int_val (Store.find key2 store)) in
         let key2_int_dom_tuple =
           match sign with
           | `Minus -> IntDomain.IntDomTuple.neg key2_int_dom_tuple
@@ -380,10 +380,10 @@ struct
                const
                key2_int_dom_tuple
             )
-        ) key1_variable_name key1_is_local
+        )
       else
-        let key1_int_dom_tuple, key1_variable_name, _  = (Domain.to_int_val (Store.find key1 store)) in
-        let key2_int_dom_tuple, key2_variable_name, key2_is_local = (Domain.to_int_val (Store.find key2 store)) in
+        let key1_int_dom_tuple  = (Domain.to_int_val (Store.find key1 store)) in
+        let key2_int_dom_tuple = (Domain.to_int_val (Store.find key2 store)) in
         let key2_int_dom_tuple =
           match sign with
           | `Minus -> IntDomain.IntDomTuple.neg key2_int_dom_tuple
@@ -406,7 +406,7 @@ struct
               )
               sign
           )
-        ) key2_variable_name key2_is_local
+        )
 
   let filter_equations_for_useful_keys (store, equations) =
     filter(
@@ -431,14 +431,14 @@ struct
       match (IntDomain.IntDomTuple.to_int value) with | Some int64 -> [int64] | _ -> []
     in
     let get_new_val_for_key key store not_val_for_other_key =
-      let not_val_int_dom_tuple_other_key, not_val_variable_name_tuple_other_key, not_val_is_local_tuple_other_key =
+      let not_val_int_dom_tuple_other_key =
         Domain.to_int_val not_val_for_other_key in
       Domain.meet (Store.find key store)(
         Domain.of_int_val (
           IntDomain.IntDomTuple.of_excl_list (
             get_excl_list_of_int_abstract_value not_val_int_dom_tuple_other_key
           )
-        ) not_val_variable_name_tuple_other_key not_val_is_local_tuple_other_key
+        )
       )
     in
     let store = fold (
@@ -503,8 +503,8 @@ struct
             if Domain.is_top val_of_key1_in_store || Domain.is_top val_of_key2_in_store then
               new_equations, new_store
             else
-              let int_val_of_key1_in_store, _, _ = (Domain.to_int_val val_of_key1_in_store) in
-              let int_val_of_key2_in_store, _, _ = (Domain.to_int_val val_of_key2_in_store) in
+              let int_val_of_key1_in_store = (Domain.to_int_val val_of_key1_in_store) in
+              let int_val_of_key2_in_store = (Domain.to_int_val val_of_key2_in_store) in
               let new_store = Store.add key1 val_of_key1_in_store new_store in
               let new_store = Store.add key2  val_key2_after_equation new_store in
               add (key1, key2) (build_new_equation (key1, int_val_of_key1_in_store) (key2, int_val_of_key2_in_store)) new_equations, new_store

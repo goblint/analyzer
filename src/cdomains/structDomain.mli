@@ -22,7 +22,6 @@ sig
   val eval_assert_cil_exp: Cil.exp -> t -> t
   val get: t -> field -> value
   val get_value_of_variable: varinfo -> t -> t
-  val get_value_of_variable_name: string -> t -> t
   val get_value_of_variable_and_globals: varinfo -> t -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val map: (value -> value) -> t -> t
@@ -37,3 +36,23 @@ end
 module Simple (Val: Lattice.S): S with type value = Val.t and type field = fieldinfo
 (** Creates a simple structure domain by mapping fieldnames to their values
   * using the {!MapDomain.InfMap} functor *)
+
+
+module type StructNameMapSignature =
+sig
+  type t
+  val add: string -> Cil.compinfo -> t -> t
+  val empty : t
+  val join: t ->  t -> t
+  val meet: t ->  t -> t
+  val find: string -> t -> Cil.compinfo
+  val fold: (string -> Cil.compinfo -> 'b -> 'b) -> t -> 'b -> 'b
+  val get_all_fields_of_variable_name: string -> t -> Cil.fieldinfo list
+  val get_field_in_compinfo: string -> Cil.compinfo -> Cil.fieldinfo option
+  val get_unique_field: Cil.fieldinfo -> string -> t -> Cil.fieldinfo * t
+  val mem: string -> t -> bool
+  val print: t -> unit
+  val remove: string -> t -> t
+end
+
+module StructNameMap (Compound: Lattice.S)(Val: Lattice.S with type t = Compound.t * string * bool): StructNameMapSignature with type t = Cil.compinfo Map.Make(String).t
