@@ -331,8 +331,6 @@ struct
   let build_new_equation (key_in_store, value_in_store) (new_key, new_value) =
     let neg_sum_values =
       (IntDomain.IntDomTuple.add new_value value_in_store) in
-    Pervasives.print_endline "build_new_equation";
-    Pervasives.print_endline (IntDomain.IntDomTuple.short 20 neg_sum_values);
     if Key.compare key_in_store new_key > 0 then
       (new_key, (key_in_store, `Plus), (neg_sum_values))
     else (key_in_store, (new_key, `Plus), (neg_sum_values))
@@ -376,13 +374,6 @@ struct
           | `Bot -> IntDomain.IntDomTuple.bot ()
           | `Zero -> IntDomain.IntDomTuple.of_int 0L
           | `Plus -> key2_int_dom_tuple in
-        (if IntDomain.IntDomTuple.equal (IntDomain.IntDomTuple.of_int 17L) const then (
-            Pervasives.print_endline " ";
-            Pervasives.print_endline (IntDomain.IntDomTuple.short 100 const);
-            Pervasives.print_endline (IntDomain.IntDomTuple.short 100 key2_int_dom_tuple);
-            Pervasives.print_endline (IntDomain.IntDomTuple.short 100 (IntDomain.IntDomTuple.sub const key2_int_dom_tuple));
-          )
-        );
         Domain.of_int_val (
           IntDomain.IntDomTuple.meet key1_int_dom_tuple
             (IntDomain.IntDomTuple.sub
@@ -509,11 +500,14 @@ struct
             let new_store = Store.add key2 val_key2_after_equation new_store in
             add (key1, key2) equation new_equations, new_store
           else (
-            let int_val_of_key1_in_store, _, _ = (Domain.to_int_val val_of_key1_in_store) in
-            let int_val_of_key2_in_store, _, _ = (Domain.to_int_val val_of_key2_in_store) in
-            let new_store = Store.add key1 val_of_key1_in_store new_store in
-            let new_store = Store.add key2  val_key2_after_equation new_store in
-            add (key1, key2) (build_new_equation (key1, int_val_of_key1_in_store) (key2, int_val_of_key2_in_store)) new_equations, new_store
+            if Domain.is_top val_of_key1_in_store || Domain.is_top val_of_key2_in_store then
+              new_equations, new_store
+            else
+              let int_val_of_key1_in_store, _, _ = (Domain.to_int_val val_of_key1_in_store) in
+              let int_val_of_key2_in_store, _, _ = (Domain.to_int_val val_of_key2_in_store) in
+              let new_store = Store.add key1 val_of_key1_in_store new_store in
+              let new_store = Store.add key2  val_key2_after_equation new_store in
+              add (key1, key2) (build_new_equation (key1, int_val_of_key1_in_store) (key2, int_val_of_key2_in_store)) new_equations, new_store
           )
         )  equations (top(), Store.top()) in
     new_equations, new_store
@@ -539,8 +533,6 @@ struct
 
   let equations_to_string eqmap key_to_string =
     fold(fun _ value string -> string ^ (if string = "" then "" else ", ") ^ equation_to_string value key_to_string) eqmap ""
-
-  let build_new_equation = build_new_equation
 
   let equations_equal x y =
     let all_equations_equal_until_now eq_until_now eq1 eq2 =

@@ -102,9 +102,8 @@ struct
 
   module Equations = Equation.EquationMap(Key)(ID) (* this should also have Lattice.S signature *)
   type equations = Equations.t
-  type t = store * equations
-  (* module D = Lattice.Prod (IntStore) (Equations) *) (* TODO *)
-  (* include D *)
+    module D = Lattice.Prod (IntStore) (Equations)
+  include D
 
   let store_to_string length store =
     let key_value_pair_string (key: Cil.varinfo) value =
@@ -201,7 +200,7 @@ struct
       )
     )
 
-  let meet (storex, eqx) (storey, eqy) =
+(*  let meet (storex, eqx) (storey, eqy) =
     if (IntStore.is_bot storex || IntStore.is_bot storey) then bot ()
     else (
       if IntStore.is_top storex then (storey, eqy)
@@ -210,7 +209,7 @@ struct
         else
           IntStore.meet storex storey, (Equations.meet eqx eqy)
       )
-    )
+    ) *)
 
   let equal x y =
     if ((is_top x) && (is_top y)) || ((is_bot x) && (is_bot y)) then true
@@ -238,12 +237,12 @@ struct
       let joined_equations, storeresult = join_equations equationsx equationsy storeresult in
       (storeresult, joined_equations)
 
-  let narrow x y =
+(*  let narrow x y =
     match x, y with
     | (storex, equationsx), (storey, equationsy) ->
       let storeresult = IntStore.narrow storex storey in
       let equationsresult = Equations.meet equationsx equationsy in
-      (storeresult, equationsresult)
+      (storeresult, equationsresult) *)
 
   let isSimple x = true
   let pretty_diff () ((sa,ea), (sb,eb)) = IntStore.pretty_diff () (sa, sb) (* TODO equations *)

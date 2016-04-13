@@ -21,8 +21,8 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: (AD.t -> t) -> t -> offs -> string -> bool -> t
-  val update_offset: t -> offs -> t -> string -> bool -> t
+  val eval_offset: (AD.t -> t) -> t -> offs -> Cil.varinfo -> bool -> t
+  val update_offset: t -> offs -> t -> Cil.varinfo option -> t
   val invalidate_value: typ -> t -> string -> bool -> t
   val to_struct_value: t -> t
 end
@@ -340,9 +340,9 @@ struct
     let rec top_relational_comp compinfo: RelationalStructs.t =
       let nstruct = RelationalStructs.top () in
       let top_field nstruct field =
-        let typ = match field with `Field field -> field.ftype | _ -> raise (Invalid_argument "") in
-        RelationalStructs.replace nstruct field ((top_value typ struct_name), "", true) in
-      let fields = List.map (fun field -> `Field field) compinfo.cfields in
+        let typ = match field with `Field (_, field) -> field.ftype | _ -> raise (Invalid_argument "top_field") in
+        RelationalStructs.replace nstruct field ((top_value typ struct_name)) in
+      let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
       List.fold_left top_field nstruct fields
     in
     match t with
@@ -361,7 +361,7 @@ struct
     let rec invalid_struct compinfo old =
       let nstruct = Structs.top () in
       let top_field nstruct field =
-        let old_struct_value = Structs.get old field struct_name in
+        let old_struct_value = Structs.get old field in
         Structs.replace nstruct field ((invalidate_value field.ftype old_struct_value struct_name is_local))
       in
       List.fold_left top_field nstruct compinfo.cfields
@@ -369,11 +369,11 @@ struct
     let rec invalid_relational_struct compinfo old =
       let nstruct = RelationalStructs.top () in
       let top_field nstruct field =
-        let old_struct_value, old_struct_name, old_is_local = RelationalStructs.get old field struct_name in
-        let typ = match field with `Field field -> field.ftype | _ -> raise (Invalid_argument "") in
-        RelationalStructs.replace nstruct field ((invalidate_value typ old_struct_value struct_name is_local), old_struct_name, old_is_local)
+        let old_struct_value = RelationalStructs.get old field in
+        let typ = match field with `Field (_, field) -> field.ftype | _ -> raise (Invalid_argument "top_field valuedomain") in
+        RelationalStructs.replace nstruct field ((invalidate_value typ old_struct_value struct_name is_local))
       in
-      let fields = List.map (fun field -> `Field field ) compinfo.cfields in
+      let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
       List.fold_left top_field nstruct fields
     in
     match typ, state with
@@ -381,7 +381,7 @@ struct
     | TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
     |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> (invalidate_value voidType x struct_name is_local)) n)
     | TComp (ci,_)  , `RelationalStruct n     -> `RelationalStruct (invalid_relational_struct ci n)
-    |                 _ , `RelationalStruct n     -> `RelationalStruct (RelationalStructs.map (fun (x, struct_name, _) -> (invalidate_value voidType x struct_name is_local), struct_name, is_local) n)
+    |                 _ , `RelationalStruct n     -> `RelationalStruct (RelationalStructs.map (fun (x) -> (invalidate_value voidType x struct_name is_local)) n)
     | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n "" is_local)
     | TArray (t,_,_), `Array n      ->
       let v = invalidate_value t (CArrays.get n (IndexDomain.top ())) "" is_local in
@@ -397,19 +397,19 @@ struct
     match x with
     | `RelationalStruct x ->
       `Struct (RelationalStructs.fold (
-          fun field (value, _, _) new_struct ->
+          fun field value new_struct ->
             match field with
-            | `Field field ->
+            | `Field (_, field) ->
               Structs.replace new_struct field value
             | _ -> Structs.top ()
         ) x (Structs.top ()))
     | _ -> `Struct (Structs.top())
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset f (x: t) (offs:offs) struct_name should_return_relational_value : t =
+  let rec eval_offset f (x: t) (offs:offs) variable should_return_relational_value : t =
     match x, offs with
-    | `Blob c, `Index (_,o) -> eval_offset f c o struct_name should_return_relational_value
-    | `Blob c, _ -> eval_offset f c offs struct_name should_return_relational_value
+    | `Blob c, `Index (_,o) -> eval_offset f c o variable should_return_relational_value
+    | `Blob c, _ -> eval_offset f c offs variable should_return_relational_value
     | `Bot, _ -> `Bot
     | _ ->
       match offs with
@@ -425,13 +425,13 @@ struct
               | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
             end
           | `Struct str ->
-            let x = Structs.get str fld struct_name in
-            eval_offset f x offs struct_name should_return_relational_value
+            let x = Structs.get str fld in
+            eval_offset f x offs variable should_return_relational_value
           | `RelationalStruct str ->
             if should_return_relational_value then x
             else
-              let x, _, _ = RelationalStructs.get str (`Field fld) struct_name in
-              eval_offset f x offs struct_name should_return_relational_value
+              let x = RelationalStructs.get str (`Field (Some variable, fld)) in
+              eval_offset f x offs variable should_return_relational_value
           | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
           | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
         end
@@ -439,25 +439,25 @@ struct
           match x with
           | `Union (`Lifted l_fld, valu) ->
             let x = do_cast l_fld.ftype fld.ftype valu in
-            eval_offset f x offs struct_name should_return_relational_value
+            eval_offset f x offs variable should_return_relational_value
           | `Union (_, valu) -> top ()
           | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
           | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
         end
       | `Index (idx, offs) -> begin
           match x with
-          | `Array x -> eval_offset f (CArrays.get x idx) offs struct_name should_return_relational_value
-          | `Address _ ->  eval_offset f x offs struct_name should_return_relational_value (* this used to be `blob `address -> we ignore the index *)
-          | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs struct_name should_return_relational_value
+          | `Array x -> eval_offset f (CArrays.get x idx) offs variable should_return_relational_value
+          | `Address _ ->  eval_offset f x offs variable should_return_relational_value (* this used to be `blob `address -> we ignore the index *)
+          | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs variable should_return_relational_value
           | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
           | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
 
-  let rec update_offset (x:t) (offs:offs) (value:t) struct_name is_local: t =
+  let rec update_offset (x:t) (offs:offs) (value:t) variable: t =
     let mu = function `Blob (`Blob y) -> `Blob y | x -> x in
     match x, offs with
-    | `Blob x, `Index (_,o) -> mu (`Blob (join x (update_offset x o value struct_name is_local)))
-    | `Blob x,_ -> mu (`Blob (join x (update_offset x offs value struct_name is_local)))
+    | `Blob x, `Index (_,o) -> mu (`Blob (join x (update_offset x o value variable)))
+    | `Blob x,_ -> mu (`Blob (join x (update_offset x offs value variable)))
     | _ ->
       let result =
         match offs with
@@ -469,11 +469,11 @@ struct
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
             match x with
             | `Struct str ->
-              let value_struct = Structs.get str fld struct_name in
-              `Struct (Structs.replace str fld (update_offset value_struct offs value struct_name is_local))
+              let value_struct = Structs.get str fld in
+              `Struct (Structs.replace str fld (update_offset value_struct offs value variable))
             | `RelationalStruct str ->
-              let value_struct, struct_name, is_local = RelationalStructs.get str (`Field fld) struct_name in
-              `RelationalStruct (RelationalStructs.replace str (`Field fld) ((update_offset value_struct offs value struct_name is_local), struct_name, is_local))
+              let value_struct = RelationalStructs.get str (`Field (variable, fld)) in
+              `RelationalStruct (RelationalStructs.replace str (`Field (variable, fld)) ((update_offset value_struct offs value variable)))
             | `Bot ->
               let rec init_comp compinfo =
                 let nstruct = Structs.top () in
@@ -482,16 +482,16 @@ struct
               in
               let rec init_comp_relational compinfo =
                 let nstruct = RelationalStructs.top () in
-                let init_field nstruct fd = RelationalStructs.replace nstruct fd (`Bot, "", true) in
-                let field = List.map (fun field -> `Field field ) compinfo.cfields in
+                let init_field nstruct fd = RelationalStructs.replace nstruct fd `Bot in
+                let field = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
                 List.fold_left init_field nstruct field
               in
               if GobConfig.get_bool analyse_structs_relationally then
                 let strc = init_comp_relational fld.fcomp in
-                `RelationalStruct (RelationalStructs.replace strc (`Field fld) ((update_offset `Bot offs value struct_name is_local), "", true))
+                `RelationalStruct (RelationalStructs.replace strc (`Field (variable, fld)) ((update_offset `Bot offs value variable)))
               else
                 let strc = init_comp fld.fcomp in
-                `Struct (Structs.replace strc fld (update_offset `Bot offs value struct_name is_local))
+                `Struct (Structs.replace strc fld (update_offset `Bot offs value variable))
             | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
             | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
           end
@@ -514,18 +514,18 @@ struct
                     top (), offs
                 end
               in
-              `Union (`Lifted fld, update_offset tempval tempoffs value "" is_local)
-            | `Bot -> `Union (`Lifted fld, update_offset `Bot offs value "" is_local)
+              `Union (`Lifted fld, update_offset tempval tempoffs value None)
+            | `Bot -> `Union (`Lifted fld, update_offset `Bot offs value None)
             | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
             match x with
             | `Array x' ->
-              let nval = update_offset (CArrays.get x' idx) offs value "" is_local in
+              let nval = update_offset (CArrays.get x' idx) offs value None in
               `Array (CArrays.set x' idx nval)
-            | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value "" is_local
-            | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value "" is_local))
+            | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value None
+            | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value None))
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
@@ -578,61 +578,12 @@ and Compound_TransformableToIntDomTupleT : Equation.Domain_TransformableFromIntD
     | _ -> IntDomain.IntDomTuple.top(), "", true
 end
 
-and StructValue : Equation.Domain_TransformableFromIntDomTupleT
-  with type t = Compound_TransformableToIntDomTupleT.t * string * bool
-=
-  struct
-    (* Abstract value * variable name of struct variable * is local variable *)
-    type t = Compound_TransformableToIntDomTupleT.t * string * bool
-    let of_int_val x struct_name is_local =
-      (Compound_TransformableToIntDomTupleT.of_int_val x struct_name is_local), struct_name, is_local
-    let to_int_val (x, struct_name, is_local) =
-      match Compound_TransformableToIntDomTupleT.to_int_val x with
-      | value, _, _ -> value, struct_name, is_local
-    let name () = "StructValue"
-    let equal (compoundx, struct_namex, is_localx) (compoundy, struct_namey, is_localy) = Compound.equal compoundx compoundy && (struct_namex = struct_namey) && is_localx = is_localy
-    let hash (compound, _, _) = Compound.hash compound
-    let compare (compoundx, _, _) (compoundy, _, _) = Compound.compare compoundx compoundy
-    let short l (compound, _, _) = Compound.short l compound
-    let isSimple _ = true
-    let pretty_f sf () x = Pretty.text (sf max_int x)
-    let pretty () x = pretty_f short () x
-    let pretty_diff () (x,y) = Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-    let toXML_f sf x =
-      let esc = Goblintutil.escape in
-      Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
-    let toXML m = toXML_f short m
-    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
-    let name () = "struct-value-compound-struct-name-is-local"
-    let top () = Compound.top (), "", true
-    let bot () = (Compound.bot ()), "", true
-    let join (compoundx, struct_namex, is_localx) (compoundy, struct_namey, _) =
-      if struct_namex = struct_namey then
-        Compound.join compoundx compoundy, struct_namex, is_localx
-      else top()
-    let meet (compoundx, struct_namex, is_localx) (compoundy, struct_namey, _) =
-      if struct_namex = struct_namey then
-        Compound.meet compoundx compoundy, struct_namex, is_localx
-      else bot()
-    let is_bot (compound, _, _) = Compound.is_bot compound
-    let is_top (compound, _, _) = Compound.is_top compound
-    let widen (compoundx, struct_namex, is_localx) (compoundy, struct_namey, _) =
-      if struct_namex = struct_namey then
-        Compound.widen compoundx compoundy, struct_namex, is_localx
-      else top()
-    let narrow (compoundx, struct_namex, is_localx) (compoundy, struct_namey, _) =
-      if struct_namex = struct_namey then
-        Compound.narrow compoundx compoundy, struct_namex, is_localx
-      else top()
-    let leq (compoundx, _, _) (compoundy, _, _) = Compound.leq compoundx compoundy
-  end
-
-and EquationField : Equation.GroupableLatticeS with type t = [`Top | `Bot | `Field of Basetype.CilField.t] =
+and EquationField : Equation.GroupableLatticeS with type t = [`Top | `Bot | `Field of Basetype.VariableFields.t] =
 struct
-  module Fields = Basetype.CilField
+  module Fields = Basetype.VariableFields
   let name () = "EquationField"
 
-  type t = [`Top | `Bot | `Field of Basetype.CilField.t]
+  type t = [`Top | `Bot | `Field of Basetype.VariableFields.t]
   let classify x =
     match x with
     |`Top -> 100
@@ -712,8 +663,8 @@ struct
 
 and RelationalStructs: StructDomain.Relational
   with type field = EquationField.t
-   and type value = StructValue.t
-   and type t = MapDomain.MapTop_LiftBot (EquationField)(StructValue).t *  Equation.EquationMap(EquationField)(StructValue).t * (Cil.compinfo Map.Make(String).t)
+   and type value = Compound_TransformableToIntDomTupleT.t
+   and type t = Lattice.Prod(MapDomain.MapTop_LiftBot (EquationField)(Compound_TransformableToIntDomTupleT))(Equation.EquationMap(EquationField)(Compound_TransformableToIntDomTupleT)).t
 =
 struct
   include Printable.Std
@@ -721,23 +672,20 @@ struct
   (* Abstract value * variable name of struct variable * is local variable *)
   type field = EquationField.t
 
-  module StructStore = MapDomain.MapTop_LiftBot (EquationField)(StructValue)
-  type value = StructValue.t
+  module StructStore = MapDomain.MapTop_LiftBot (EquationField)(Compound_TransformableToIntDomTupleT)
+  type value = Compound_TransformableToIntDomTupleT.t
 
-  module StructNameMap = StructDomain.StructNameMap(Compound_TransformableToIntDomTupleT)(StructValue)
-
-  module Equations = Equation.EquationMap(EquationField)(StructValue)
+  module Equations = Equation.EquationMap(EquationField)(Compound_TransformableToIntDomTupleT)
   type equations = Equations.t
 
-  type t = StructStore.t * equations * StructNameMap.t
+  module Prod = Lattice.Prod(StructStore)(Equations)
+  include Prod
 
   let name () = "SimpleStructEquations"
-  let bot () = (StructStore.bot()), (Equations.bot ()), StructNameMap.empty
-  let is_bot (s, e, _) = StructStore.is_bot s || Equations.is_bot e
-  let top () = (StructStore.top ()), (Equations.top ()), StructNameMap.empty
-  let is_top (s, e, _) = StructStore.is_top s && Equations.is_top e
-  let fold func (store, _, _) x = StructStore.fold func store x
-  let map func (store, equations, struct_name_mapping) = StructStore.map func store, equations, struct_name_mapping
+  let bot () = (StructStore.bot()), (Equations.bot ())
+  let top () = (StructStore.top ()), (Equations.top ())
+  let fold func (store, _) x = StructStore.fold func store x
+  let map func (store, equations) = StructStore.map func store, equations
 
   let copy_comp ci =
     Cil.copyCompInfo ci ("c" ^(Pervasives.string_of_int (Random.int 10000000)))
@@ -745,32 +693,24 @@ struct
   let mapping_to_string w mapping =
     let usable_length = w - 5 in
     let assoclist = StructStore.fold (fun x y rest -> (x,y)::rest) mapping [] in
-    let f  (field, (value, struct_name, _)) = struct_name ^ "." ^ (EquationField.short 20 field) ^ ": (" ^ (
+    let f  (field, value) = (EquationField.short 20 field) ^ ": (" ^ (
         if Compound.is_bot value then "bot" else (
           (if Compound.is_bot value then "top" else (Compound.short usable_length value)))) ^ ")" in
     let whole_str_list = List.rev_map f assoclist in
     Printable.get_short_list "[" "] " usable_length whole_str_list
 
-  let get (s, _, struct_name_mapping) field struct_name =
-    let field, _ =
-      if struct_name = "" then
-        field, struct_name_mapping
-      else
-        let field = match field with `Field field -> field | _ -> raise (Invalid_argument "") in
-        let field, struct_name_map = StructNameMap.get_unique_field field struct_name struct_name_mapping in
-        `Field field, struct_name_map
-    in
+  let get (s, _) field =
     StructStore.find field s
 
-  let short n (mapping, equations, struct_name_mapping) =
-    if is_top (mapping, equations, struct_name_mapping) then "top"
+  let short n (mapping, equations) =
+    if is_top (mapping, equations) then "top"
     else (
-      if is_bot (mapping, equations, struct_name_mapping) then "bot"
+      if is_bot (mapping, equations) then "bot"
       else
         let fieldinfo_to_string fieldinfo = (
           match fieldinfo with
-          | `Field fieldinfo ->
-            let _, struct_name, _ = get (mapping, equations, struct_name_mapping) (`Field fieldinfo) "" in
+          | `Field (variable, fieldinfo) ->
+            let struct_name= match variable with Some variable -> variable.vname | _ -> "" in
             struct_name ^ "." ^ fieldinfo.fname
           | _ -> ""
         )
@@ -780,137 +720,118 @@ struct
 
   let pretty () x = Pretty.text (short 100 x)
 
-  let remove_all_equations_with_variable_name variable_name equations struct_name_mapping =
-    if not(StructNameMap.mem variable_name struct_name_mapping) then equations
-    else (
-      let comp_variable = StructNameMap.find variable_name struct_name_mapping in
-      Equations.filter (fun (field1,(field2,_),_) ->
-          match field1, field2 with
-          | `Field field1, `Field field2 ->
-            not(field1.fcomp.cname = comp_variable.cname) && not(field2.fcomp.cname = comp_variable.cname)
-          | _ -> false
-        ) equations
-    )
+  let remove_all_equations_with_variable variable equations =
 
-  let remove_variable_with_name variable_name (struct_store, equations, struct_name_mapping) =
-    if not(StructNameMap.mem variable_name struct_name_mapping) then (struct_store, equations, struct_name_mapping)
-    else (
-      let fields_to_remove_from_struct_store =
-        List.map (fun field -> `Field field ) (StructNameMap.find variable_name struct_name_mapping).cfields
-      in
-      let struct_store =
-        List.fold_left (fun struct_store field ->
-            StructStore.remove field struct_store
-          ) struct_store fields_to_remove_from_struct_store in
-      let equations = remove_all_equations_with_variable_name variable_name equations struct_name_mapping in
-      struct_store, equations, (StructNameMap.remove variable_name struct_name_mapping)
-    )
+    Equations.filter (fun (field1,(field2,_),_) ->
+        match field1, field2 with
+        | `Field (Some variable1, field1), `Field (Some variable2, field2) ->
+          not(variable1.vid = variable.vid) && not(variable2.vid = variable.vid)
+        | _ -> false
+      ) equations
 
-  let get_value_of_variable_name varname (struct_store, equations, struct_name_mapping) should_also_return_globals =
-    let struct_names_to_remove =
-      StructStore.fold (fun field (_, struct_name, is_local) struct_name_list ->
-          if (struct_name = varname) || ((not is_local) && should_also_return_globals) then struct_name_list
-          else [struct_name] @ struct_name_list) struct_store [] in
-    List.fold_left (fun abstract_value struct_name_to_remove -> remove_variable_with_name struct_name_to_remove abstract_value) (struct_store, equations, struct_name_mapping) struct_names_to_remove
 
-  let get_value_of_variable varinfo (struct_store, equations, struct_name_mapping) =
-    get_value_of_variable_name varinfo.vname (struct_store, equations, struct_name_mapping) false
+  let remove_variable variable (struct_store, equations) =
+    match variable.vtype with
+    | TNamed (t, _) -> (
+        match t.ttype with
+        | TComp (ci, _) when ci.cstruct ->
+          let fields_to_remove_from_struct_store = List.map (fun field -> `Field (Some variable, field)) ci.cfields in
+          let struct_store =
+            List.fold_left (fun struct_store field ->
+                    StructStore.remove field struct_store
+              ) struct_store fields_to_remove_from_struct_store in
+          let equations = remove_all_equations_with_variable variable equations in
+          struct_store, equations
+        | _ -> struct_store, equations
+      )
+    | _ -> struct_store, equations
 
-  let get_value_of_variable_and_globals varinfo (struct_store, equations, struct_name_mapping) =
-    get_value_of_variable_name varinfo.vname (struct_store, equations, struct_name_mapping) true
+  let get_value_of_variable_name varname (struct_store, equations) should_also_return_globals =
+    let variables_to_remove =
+      StructStore.fold (fun field _ variable_name_list ->
+          match field with
+          | `Field (Some variable, field) ->
+            if (variable.vname = varname) || (variable.vglob && should_also_return_globals) then variable_name_list
+            else [variable] @ variable_name_list
+          | _ -> variable_name_list
+        ) struct_store []
+    in
+    List.fold_left (fun abstract_value variable_to_remove -> remove_variable variable_to_remove abstract_value) (struct_store, equations) variables_to_remove
+
+  let get_value_of_variable varinfo (struct_store, equations) =
+    get_value_of_variable_name varinfo.vname (struct_store, equations) false
+
+  let get_value_of_variable_and_globals varinfo (struct_store, equations) =
+    get_value_of_variable_name varinfo.vname (struct_store, equations) true
 
   let join_equations eq1 eq2 store =
     let eq = Equations.join eq1 eq2 in
     Equations.remove_invalid_equations store eq
 
-  let rec replace (s, equations, struct_name_mapping) field new_value =
+  let rec replace (s, equations) field new_value =
     match field with
-    | `Field field -> (
+    | `Field (new_var, new_field) -> (
         match new_value with
-        | `Int x, struct_name, is_local when IntDomain.IntDomTuple.is_top x ->
-          let _, struct_name_mapping =
-            StructNameMap.get_unique_field field struct_name struct_name_mapping in
-          (s,equations, struct_name_mapping)
+        | `Int x when IntDomain.IntDomTuple.is_top x ->
+          (s,equations)
         (* this needs to be done, because else wrong initializations destroy correct values, ID.bot will still be assigned *)
-        | `Bot, _, _ ->
-          (s,equations, struct_name_mapping)
-        | `RelationalStruct x, struct_name, _
-          when StructNameMap.mem struct_name struct_name_mapping && (StructNameMap.find struct_name struct_name_mapping).cname = field.fcomp.cname
-          -> (
-              match x with
-              | (new_struct_store,new_equations, new_struct_name_mapping) ->
-                let new_value_of_variable = get_value_of_variable_name struct_name (new_struct_store,new_equations, new_struct_name_mapping) false in
-                fold (
-                  fun field value result ->
-                    replace result field (get new_value_of_variable field struct_name)
-                )new_value_of_variable (s,equations, struct_name_mapping)
-            )
-        | value, struct_name, is_local -> (
-            let field, struct_name_mapping =
-              StructNameMap.get_unique_field field struct_name struct_name_mapping in
-            let s = (StructStore.add (`Field field) new_value s) in
-            let new_compound_val, struct_name, is_local = new_value in
+        | `Bot -> (s,equations)
+        | `RelationalStruct x -> (
+            match x with
+            | (new_struct_store,new_equations) ->
+              let struct_name = match new_var with | Some var -> var.vname | _ -> "" in
+              let new_value_of_variable = get_value_of_variable_name struct_name (new_struct_store,new_equations) false in
+              fold (
+                fun field value result ->
+                  replace result field
+                    (get new_value_of_variable (field))
+              )
+                new_value_of_variable (s,equations)
+          )
+        | _ -> (
+            let s = (StructStore.add (`Field(new_var, new_field)) new_value s) in
+            let new_compound_val = new_value in
             let new_value =
               if Compound.is_top new_compound_val then
-                (`Int (IntDomain.IntDomTuple.top ())), struct_name, is_local
+                (`Int (IntDomain.IntDomTuple.top ()))
               else new_value in
             let equations =
               if StructStore.is_top s || StructStore.is_bot s then equations
               else (
                 match new_value with
-                | `Int new_value, _, is_local -> (
+                | `Int new_value -> (
                     if (IntDomain.IntDomTuple.is_int new_value) then (
                       StructStore.fold (
                         fun key old_value equations ->
                           match key with
-                          | `Field key -> (
-                              if field.fname = key.fname && field.fcomp.cname = key.fcomp.cname then equations
+                          | `Field (var, key) -> (
+                              if new_field.fname = key.fname && new_field.fcomp.cname = key.fcomp.cname then equations
                               else (
                                 match old_value with
-                                | `Int old_value, _, is_local ->
-                                  if IntDomain.IntDomTuple.is_int old_value then
-                                    let new_equation =  Equations.build_new_equation ((`Field key), old_value) ((`Field field), new_value) in
-                                    let joined_equations, s = join_equations equations (Equations.equations_of_equation new_equation) s in
-                                    if (Equations.equation_count joined_equations) < (Equations.equation_count equations) then
-                                      Equations.append_equation new_equation joined_equations
-                                    else joined_equations
-                                  else equations
-                            | _ -> equations
+                                | `Int old_value ->
+                                  let new_equation =  Equations.build_new_equation ((`Field(var, key)), old_value) ((`Field(new_var, new_field)), new_value) in
+                                  let joined_equations, s = join_equations equations (Equations.equations_of_equation new_equation) s in
+                                  if (Equations.equation_count joined_equations) < (Equations.equation_count equations) then
+                                    Equations.append_equation new_equation joined_equations
+                                  else joined_equations
+                                | _ -> equations
                               )
                             )
                           | _ -> equations
                       ) s equations
                     )
                     else
-                      Equations.remove_equations_with_key (`Field field) equations
+                      Equations.remove_equations_with_key (`Field(new_var, new_field)) equations
                   )
-                | new_value, _, _ -> equations
+                | _ -> equations
               )
             in
-            s, equations, struct_name_mapping
+            s, equations
           )
       )
     | _ -> raise (Invalid_argument "")
 
-  let compare (struct_storex, equationsx, struct_name_mappingx) (struct_storey, equationsy, struct_name_mappingy) =
-    StructStore.fold (fun field (comp_valx, struct_name, _) comp_val ->
-        if comp_val = 0 then
-          match field with
-          | `Field field ->
-            let field_in_y, _ = StructNameMap.get_unique_field field struct_name struct_name_mappingy in
-            if StructStore.mem (`Field field_in_y) struct_storey then
-              let comp_valy, _, _ = (StructStore.find (`Field field_in_y) struct_storey) in
-              Compound.compare comp_valx comp_valy
-            else -1
-          | _ -> comp_val
-        else comp_val
-      ) struct_storex 0
-
-
-  let equal x y = compare x y = 0
-
   let hash x = Hashtbl.hash x
-  let compare (struct_storex, _, _) (struct_storey, _, _) = StructStore.compare struct_storex struct_storey
   let isSimple x = true
   let pretty_diff () (x, y) = Pretty.text ((short 100 x) ^ " vs. " ^ (short 100 y))
   let pretty_f _ = pretty
@@ -918,228 +839,160 @@ struct
   let toXML x = toXML_f short x
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
-  let leq x y = compare x y <= 0
-
-  let join (struct_storex, equationsx, struct_name_mappingx) (struct_storey, equationsy, struct_name_mappingy) =
-    if StructStore.is_top struct_storex || StructStore.is_top struct_storey then top()
-    else (
-      if StructStore.is_bot struct_storex then (struct_storey, equationsy, struct_name_mappingy)
-      else (
-        if StructStore.is_bot struct_storey then (struct_storex, equationsx, struct_name_mappingx)
-        else (
-          let new_struct_store = StructStore.top() in
-          let new_struct_store, struct_storey, equationsy = StructStore.fold (
-              fun field value (new_struct_store, struct_storey, equationsy) ->
-                match value with
-                | (compoundx, struct_namex, is_localx) ->
-                  if StructStore.mem field new_struct_store then (new_struct_store, struct_storey, equationsy)
-                  else (
-                    if not (StructStore.mem field struct_storey) && StructNameMap.mem struct_namex struct_name_mappingy then
-                      let all_fields_of_struct = StructNameMap.get_all_fields_of_variable_name struct_namex struct_name_mappingy in
-                      let field_equivalent =
-                        match field with
-                        | `Field field ->
-                          `Field (List.find (fun field_struct -> field.fname = field_struct.fname) all_fields_of_struct)
-                        | _ -> `Top
-                      in
-                      let struct_storey = StructStore.add field (StructStore.find field_equivalent struct_storey) struct_storey in
-                      let struct_storey = StructStore.remove field_equivalent struct_storey in
-                      let equationsy = Equations.remove_equations_with_key field_equivalent equationsy in
-                      match StructStore.find field struct_storey  with
-                      | (compoundy, _, is_localy) ->
-                        ((StructStore.add field (Compound.join compoundx compoundy, struct_namex, is_localx || is_localy) new_struct_store), struct_storey, equationsy)
-                    else (
-                      if (StructStore.mem field struct_storey) then
-                        match StructStore.find field struct_storey  with
-                        | (compoundy, _, is_localy) ->
-                          ((StructStore.add field (Compound.join compoundx compoundy, struct_namex, is_localx || is_localy) new_struct_store), struct_storey, equationsy)
-                      else
-                        (new_struct_store, struct_storey, equationsy)
-                    )
-                  )
-            ) struct_storex (new_struct_store, struct_storey, equationsy) in
-          let new_struct_store = StructStore.fold (
-              fun field value new_struct_store ->
-                if not (StructStore.mem field new_struct_store) then
-                  StructStore.add field value new_struct_store
-                else new_struct_store
-            ) struct_storey new_struct_store
-          in
-          let joined_equations, new_struct_store = join_equations equationsx equationsy new_struct_store in
-          new_struct_store, joined_equations, (StructNameMap.join struct_name_mappingx struct_name_mappingy)
+  let get_all_fields_of_variable variable =
+    let list =
+      match variable with
+      | Some variable -> (
+          match variable.vtype with
+          | TNamed (t, _) -> (
+              match t.ttype with
+              |TComp (ci, _) when ci.cstruct -> ci.cfields
+              | _ -> []
+            )
+          | _ -> []
         )
-      )
-    )
+      | _ -> []
+    in
+    List.map (fun field -> `Field (variable, field)) list
 
-  let meet (struct_storex, equationsx, struct_name_mappingx) (struct_storey, equationsy, struct_name_mappingy) =
-    if StructStore.is_bot struct_storex || StructStore.is_bot struct_storey then bot()
-    else (
-      if StructStore.is_top struct_storex then (struct_storey, equationsy, struct_name_mappingy)
-      else (
-        if StructStore.is_top struct_storey then (struct_storex, equationsx, struct_name_mappingx)
-        else (
-          let met_struct_store =
-            StructStore.map (
-              fun (value, name, is_local) ->
-                if (Compound.is_top value)
-                then (Compound.top (), name, is_local)
-                else value, name, is_local
-            ) (StructStore.long_map2 (
-                fun (valuex, namex, is_localx) (valuey, namey, is_localy)->
-                  (Compound.meet valuex valuey), namex, (is_localx || is_localy)
-              ) struct_storex struct_storey
-              )
-          in
-          let new_struct_name_mapping = StructNameMap.empty in
-          met_struct_store, (Equations.meet equationsx equationsx),
-          StructStore.fold(fun _ (_, name, _) new_struct_name_mapping ->
-              if StructNameMap.mem name struct_name_mappingx then
-                  StructNameMap.add name (StructNameMap.find name struct_name_mappingx) new_struct_name_mapping
-              else StructNameMap.add name (StructNameMap.find name struct_name_mappingy) new_struct_name_mapping
-            ) met_struct_store new_struct_name_mapping
-        )
-      )
-    )
+ let join (storex, eqx) (storey, eqy) =
+   if (StructStore.is_top storex || StructStore.is_top storey) then top ()
+   else (
+     if StructStore.is_bot storex then (storey, eqy)
+     else (
+       if StructStore.is_bot storey then (storex, eqx)
+       else (
+         let result_store = StructStore.join storex storey in
+         let joined_equations, result_store = join_equations eqx eqy result_store in
+         Pervasives.print_endline (short 200 (result_store, joined_equations));
+         result_store, joined_equations
+       )
+     )
+   )
 
-  let widen x y =
-    match x, y with
-    | (storex, equationsx, struct_name_mappingx), (storey, equationsy, struct_name_mappingy) ->
-      let storeresult = StructStore.map2 (fun (valuex, name, is_localx) (valuey, _, is_localy) ->
-          Compound.widen valuex valuey, name, is_localx || is_localy) storex storey in
-      let equationsresult, storeresult = join_equations equationsx equationsy storeresult in
-      let struct_name_mapping = (StructNameMap.fold (
-          fun key value struct_name_mapping -> StructNameMap.add key value struct_name_mapping
-        ) struct_name_mappingx struct_name_mappingy) in
-      (storeresult, equationsresult, struct_name_mapping)
+  let remove_all_local_variables (struct_store, equations) =
+    let variables_to_remove =
+      StructStore.fold (fun field _ variable_list ->
+          match field with
+          | `Field(Some variable, field) ->
+            if not(variable.vglob) then [variable] @ variable_list else variable_list
+          | _ -> variable_list
+        ) struct_store [] in
+    List.fold_left (fun abstract_value variable_to_remove -> remove_variable variable_to_remove abstract_value) (struct_store, equations) variables_to_remove
 
-  let narrow x y =
-    match x, y with
-    | (storex, equationsx, struct_name_mappingx), (storey, equationsy, struct_name_mappingy) ->
-      let storeresult = StructStore.map2 (fun (valuex, name, is_localx) (valuey, _, is_localy) ->
-          Compound.narrow valuex valuey, name, (is_localx || is_localy)
-        ) storex storey in
-      let equationsresult = Equations.meet equationsx equationsy in
-      let new_struct_name_mapping = StructNameMap.empty in
-      let struct_name_mapping = StructStore.fold(fun _ (_, name, _) new_struct_name_mapping ->
-          StructNameMap.add name (StructNameMap.find name struct_name_mappingx) new_struct_name_mapping
-        ) storeresult new_struct_name_mapping
-      in (storeresult, equationsresult, struct_name_mapping)
+  let remove_all_top_variables (struct_store, equations) =
+    let variables_to_remove =
+      StructStore.fold (fun field struct_val variable_list ->
+          match field with
+          | `Field(Some variable, field) ->
+            if Compound.is_top struct_val then [variable] @ variable_list else variable_list
+          | _ -> variable_list
+        ) struct_store [] in
+    List.fold_left (fun abstract_value variable_to_remove -> remove_variable variable_to_remove abstract_value) (struct_store, equations) variables_to_remove
 
-  let remove_variable varinfo (struct_store, equations, struct_name_mapping) =
-    remove_variable_with_name varinfo.vname (struct_store, equations, struct_name_mapping)
-
-  let remove_all_local_variables (struct_store, equations, struct_name_mapping) =
-    let struct_names_to_remove =
-      StructStore.fold (fun field (_, struct_name, is_local) struct_name_list -> if is_local then [struct_name] @ struct_name_list else struct_name_list) struct_store [] in
-    List.fold_left (fun abstract_value struct_name_to_remove -> remove_variable_with_name struct_name_to_remove abstract_value) (struct_store, equations, struct_name_mapping) struct_names_to_remove
-
-  let remove_all_top_variables (struct_store, equations, struct_name_mapping) =
-    let struct_names_to_remove =
-      StructStore.fold (fun field (struct_val, struct_name, is_local) struct_name_list ->
-          if Compound.is_top struct_val then [struct_name] @ struct_name_list else struct_name_list) struct_store [] in
-    List.fold_left (fun abstract_value struct_name_to_remove -> remove_variable_with_name struct_name_to_remove abstract_value) (struct_store, equations, struct_name_mapping) struct_names_to_remove
-
-  let rename_variable_for_field struct_val old_field old_name new_name =
-    match old_field with
-    | `Field old_field -> (
+  let rename_variable_for_field struct_val old_key value_old_key new_variable =
+    match old_key with
+    | `Field _ -> (
         match struct_val with
-        | (struct_store, equations, struct_name_mapping) ->
-          let (compound_t, old_name, is_local) = get struct_val (`Field old_field) old_name in
-          let new_field, struct_name_mapping = StructNameMap.get_unique_field old_field new_name struct_name_mapping in
-          let new_struct_store_value = (compound_t, new_name, is_local) in
-          let struct_store = StructStore.add (`Field new_field) new_struct_store_value struct_store in
-          let equations = (Equations.change_keys_in_equations (`Field old_field) (`Field new_field) equations) in
-          struct_store, equations, struct_name_mapping
+        | (struct_store, equations) ->
+          let compound_t = get value_old_key old_key in
+          let new_key =
+            match old_key with
+            | `Field(_, old_field) -> `Field(new_variable,old_field) | _ -> raise (Invalid_argument "") in
+          let struct_store = StructStore.remove old_key struct_store in
+          let struct_store = StructStore.add new_key compound_t struct_store in
+          let equations = (Equations.change_keys_in_equations  old_key new_key equations) in
+          (struct_store, equations), value_old_key
       )
     | _ -> raise (Invalid_argument "")
 
   let add_variable_value_list lhost_val_list abstract_value =
+    Pervasives.print_endline "add_variable_value_list structs";
+    Pervasives.print_endline (short 100 abstract_value);
     List.fold_left (fun abstract_value (key,value) ->
-        let name_to_replace =
-            match value with (struct_store, _, struct_name_mapping) ->
-              (* there should only be one local comp in that mapping *)
-              StructNameMap.fold (fun struct_name _ old_struct_name ->
-                  let field = List.nth (StructNameMap.get_all_fields_of_variable_name struct_name struct_name_mapping) 0 in
-                  let _, _, is_local = StructStore.find (`Field field) struct_store in
-                  if is_local then struct_name
-                  else old_struct_name
-                ) struct_name_mapping ""
-          in
-        let old_comp = match value with (_, _, struct_name_mapping) -> StructNameMap.find name_to_replace struct_name_mapping in
-        let fields, name =
+        Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () (Cil.Lval (key, NoOffset)));
+        Pervasives.print_endline (": " ^ (short 2000 value));
+        let keys_of_old_var, old_var =
+          match value with (struct_store, _) ->
+            (* there should only be one local variable in that mapping, but this may have several fields *)
+            StructStore.fold (fun field _ (old_keys, old_var) ->
+                match field with
+                | `Field(Some variable, field) ->
+                  if variable.vglob then old_keys, old_var else ([`Field (Some variable, field)] @ old_keys), Some variable
+                | _ -> (old_keys, old_var)
+              ) struct_store ([], None)
+        in
+        let new_var =
           match key with
           | Var v -> (
               match v.vtype with
               | TNamed (t, _) -> (
                   match t.ttype with
-                  | TComp (comp, _) -> comp.cfields, v.vname
-                  | _ -> [], ""
+                  | TComp (comp, _) ->
+                    Some v
+                  | _ -> None
                 )
               | TVoid _ -> (* this is the case for the return variable *)
-                old_comp.cfields, v.vname
-              | _ -> [], ""
+                Some v
+              | _ -> None
             )
-          | _ -> [], ""
+          | _ -> None
         in
-        if List.length fields > 0 then
-          let fields = List.map (fun field -> `Field field ) fields in
-          let value_after_renaming =
-              List.fold_left (
-                fun abstract_value field ->
-                  rename_variable_for_field abstract_value field name_to_replace name
-              ) value fields
-            in
-            remove_variable_with_name name_to_replace value_after_renaming
+        if List.length keys_of_old_var > 0 then
+          let value_after_renaming, _ =
+            List.fold_left (
+              fun (abstract_value, value_old_key) old_key ->
+                rename_variable_for_field abstract_value old_key value_old_key new_var
+            ) (abstract_value, value) keys_of_old_var
+          in
+          match old_var with
+          | Some old_var ->
+            remove_variable old_var value_after_renaming
+          | _ -> value_after_renaming
         else (
           abstract_value
         )
-
       ) abstract_value lhost_val_list
-
 
   let select_local_or_global_variables_in_equations should_select_local equations struct_store =
     if should_select_local then
       Equations.filter (fun (field1,(field2,_),_) ->
-          let _, _, field1_is_local = StructStore.find field1 struct_store in
-          let _, _, field2_is_local = StructStore.find field2 struct_store in
-          field1_is_local && field2_is_local) equations
+          match field1, field2 with
+          | `Field(Some var1, _), `Field(Some var2, _) -> not var1.vglob && not var2.vglob
+          | _ -> false
+        ) equations
     else
-    Equations.filter (fun (field1,(field2,_),_) ->
-          let _, _, field1_is_local = StructStore.find field1 struct_store in
-          let _, _, field2_is_local = StructStore.find field2 struct_store in
-          (not field1_is_local) && (not field2_is_local)) equations
-
-  let select_local_or_global_variables_in_struct_name_mapping should_select_local struct_name_mapping struct_store =
-    let new_struct_name_mapping = StructNameMap.empty in
-    StructStore.fold(fun _ (_, name, is_local) new_struct_name_mapping ->
-        if (is_local && should_select_local) || ((not is_local) && (not should_select_local)) then
-          StructNameMap.add name (StructNameMap.find name struct_name_mapping) new_struct_name_mapping
-        else new_struct_name_mapping
-      ) struct_store new_struct_name_mapping
+      Equations.filter (fun (field1,(field2,_),_) ->
+          match field1, field2 with
+          | `Field(Some var1, _), `Field(Some var2, _) -> var1.vglob && var2.vglob
+          | _ -> false
+        ) equations
 
   let meet_local_and_global_state local_state global_state =
-    let local_store, local_equations, local_struct_name_mapping = local_state in
-    let global_store, global_equations, global_struct_name_mapping = global_state in
+    let local_store, local_equations = local_state in
+    let global_store, global_equations = global_state in
     let local_equations = select_local_or_global_variables_in_equations true local_equations local_store in
-    let local_store = StructStore.filter (fun _ (_, _, is_local) -> is_local) local_store in
-    let local_struct_name_mapping = select_local_or_global_variables_in_struct_name_mapping true local_struct_name_mapping local_store in
+    let local_store = StructStore.filter (fun key _ -> match key with `Field(Some var, _ ) -> not(var.vglob) | _ -> false) local_store in
     let global_equations = select_local_or_global_variables_in_equations false global_equations global_store in
-    let global_store = StructStore.filter (fun _ (_, _, is_local) -> not is_local) global_store in
-    let global_struct_name_mapping = select_local_or_global_variables_in_struct_name_mapping false global_struct_name_mapping global_store in
-    meet (local_store, local_equations, local_struct_name_mapping) (global_store, global_equations, global_struct_name_mapping)
+    let global_store = StructStore.filter (fun key _ -> match key with `Field(Some var, _ ) -> var.vglob | _ -> false) global_store in
+    Pervasives.print_endline "\n local:";
+    Pervasives.print_endline (short 1000 (local_store, local_equations));
+    Pervasives.print_endline "\n global:";
+    Pervasives.print_endline (short 1000 (global_store, global_equations));
+    meet (local_store, local_equations) (global_store, global_equations)
 
-  let build_equation_of_cil_exp rexp field struct_name_mapping=
+  let build_equation_of_cil_exp rexp field =
+    Pervasives.print_endline "build_equation_of_cil_exp";
+    Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () rexp);
     let rvar_field, offset, const =
       match rexp with
       | BinOp (op, Lval (Var rvar, Field(rfield, _)), Const (CInt64 (num, _, _)), _)
       | BinOp (op, Const (CInt64 (num, _, _)), Lval (Var rvar, Field(rfield, _)), _) ->
-        let rfield, struct_name_mapping = StructNameMap.get_unique_field rfield rvar.vname struct_name_mapping in
-        if EquationField.compare field (`Field rfield) = 0 then None, None, None
+        if EquationField.compare field (`Field (Some rvar, rfield)) = 0 then None, None, None
         else (
-
           match op with
-          | PlusA -> Some (`Field rfield), Some `Plus, Some (IntDomain.IntDomTuple.of_int num)
-          | MinusA -> Some (`Field rfield), Some `Minus, Some (IntDomain.IntDomTuple.of_int num)
+          | PlusA -> Some (`Field (Some rvar, rfield)), Some `Plus, Some (IntDomain.IntDomTuple.of_int num)
+          | MinusA -> Some (`Field (Some rvar, rfield)), Some `Minus, Some (IntDomain.IntDomTuple.of_int num)
           (* TODO          | Mult -> Some rfield, Some (Int64.to_float num), Some (IntDomain.IntDomTuple.of_int 0L)*)
           | _ -> None, None, None
         )
@@ -1147,7 +1000,7 @@ struct
       | BinOp (op, Const (CInt64 (const, _, _)), BinOp(Mult, Const (CInt64 (coeffx, _, _)), Lval (Var rvar, Field(rfield, _)), _), _)
       | BinOp (op, BinOp(Mult, Const (CInt64 (coeffx, _, _)), Lval (Var rvar, Field(rfield, _)), _), Const (CInt64 (const, _, _)), _)
       | BinOp (op, BinOp(Mult, Lval (Var rvar, Field(rfield, _)), Const (CInt64 (coeffx, _, _)), _), Const (CInt64 (const, _, _)), _) ->
-        if EquationField.compare field (`Field rfield) = 0 then None, None, None
+        if EquationField.compare field (`Field (Some rvar, rfield)) = 0 then None, None, None
         else (
           match op with
    (*       | PlusA -> Some rfield, Some (Int64.to_float coeffx), Some (Int64.to_float const)
@@ -1155,41 +1008,39 @@ struct
           | _ -> None, None, None
         )
       | Lval(Var rvar, Field(rfield, _)) ->
-        let rfield, struct_name_mapping = StructNameMap.get_unique_field rfield rvar.vname struct_name_mapping in
-        if EquationField.compare field (`Field rfield) = 0 then None, None, None
-        else Some (`Field rfield), Some `Plus, Some (IntDomain.IntDomTuple.of_int 0L)
+        if EquationField.compare field (`Field (Some rvar, rfield)) = 0 then None, None, None
+        else Some (`Field (Some rvar, rfield)), Some `Plus, Some (IntDomain.IntDomTuple.of_int 0L)
       | _ -> None, None, None in
     Equations.get_equation_of_keys_and_sign_rkey field (rvar_field, offset) const
 
-  let eval_assert_left_var (store, equations, struct_name_mapping) (l_exp: Cil.exp) (r_exp: Cil.exp) =
+  let eval_assert_left_var (store, equations) (l_exp: Cil.exp) (r_exp: Cil.exp) =
     match l_exp with
     | Lval(Var v, Field (fieldinfo, _)) -> (
-        let fieldinfo, struct_name_mapping = StructNameMap.get_unique_field fieldinfo v.vname struct_name_mapping in
         match v.vtype with
         | TNamed (t, _) -> (
             match t.ttype with
             | TComp (comp, _) -> (
                 match r_exp with
                 | Const (CInt64 (const, _, _)) ->
-                  let val_in_store, struct_name, is_local = (StructStore.find (`Field fieldinfo) store) in
+                  let val_in_store = (StructStore.find (`Field(Some v, fieldinfo)) store) in
                   let new_val_of_var =
                     Compound.meet val_in_store (`Int (IntDomain.IntDomTuple.of_int const)) in
                   let equations = Equations.map_keys (
                       fun key ->
-                        if EquationField.compare (`Field fieldinfo) key = 0
+                        if EquationField.compare (`Field (Some v, fieldinfo)) key = 0
                         then
-                          `Field fieldinfo
+                          `Field (Some v, fieldinfo)
                         else
                           key
                     ) equations in
-                  (StructStore.add (`Field fieldinfo) (new_val_of_var, struct_name, is_local) store, equations, struct_name_mapping)
+                  (StructStore.add (`Field (Some v, fieldinfo)) new_val_of_var store, equations)
                 | _ -> (
-                    match build_equation_of_cil_exp r_exp (`Field fieldinfo) struct_name_mapping with
+                    match build_equation_of_cil_exp r_exp (`Field (Some v, fieldinfo))  with
                     | Some x -> (
                         let new_equations, store = join_equations equations (Equations.equations_of_equation x) store in
                         if (Equations.equation_count new_equations) < (Equations.equation_count equations) then bot ()
                         else (
-                          (store, new_equations, struct_name_mapping)
+                          (store, new_equations)
                         )
                       )
                     | _ ->  top ()
@@ -1202,16 +1053,16 @@ struct
     | _ -> top ()
 
   let meet_with_new_equation abstract_value =
-    let store, equations, struct_name_mapping = abstract_value in
+    let store, equations = abstract_value in
     let store, equations = Equations.meet_with_new_equation (store, equations) in
-    (store, equations, struct_name_mapping)
+    (store, equations)
 
-  let eval_assert_cil_exp cil_exp (store, equations, struct_name_mapping) =
+  let eval_assert_cil_exp cil_exp (store, equations) =
     match cil_exp with
     | BinOp (Eq, l_exp, r_exp, _) ->
-      let single_var_left = eval_assert_left_var (store, equations, struct_name_mapping) l_exp r_exp in
+      let single_var_left = eval_assert_left_var (store, equations) l_exp r_exp in
       if is_top single_var_left then (
-        let single_var_right = eval_assert_left_var (store, equations, struct_name_mapping) r_exp l_exp in
+        let single_var_right = eval_assert_left_var (store, equations) r_exp l_exp in
         if is_top single_var_right then (
           top ()
         ) else (
@@ -1219,7 +1070,7 @@ struct
         )
       ) else
         meet_with_new_equation single_var_left
-    | _ -> (store, equations, struct_name_mapping)
+    | _ -> (store, equations)
 
 end
 
