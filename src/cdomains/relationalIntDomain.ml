@@ -379,7 +379,7 @@ struct
   let name () = "RelationalIntDomainTuple"
 
   module R1 = SimpleEquations
-  module R2 = ApronDomain.D
+  module R2 = ApronDomain.ApronRelationalIntDomain
 
   type t = R1.t option * R2.t option
   type 'a m = (module S with type t = 'a)
