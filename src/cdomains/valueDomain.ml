@@ -889,6 +889,9 @@ struct
     List.fold_left (fun abstract_value variable_to_remove -> remove_variable variable_to_remove abstract_value) (struct_store, equations) variables_to_remove
 
   let rename_variable_for_field struct_val old_key value_old_key new_variable =
+    Pervasives.print_endline "rename_variable_for_field";
+    Pervasives.print_endline ("old_key: " ^ (EquationField.short 100 old_key));
+    Pervasives.print_endline ("new_variable " ^ match new_variable with Some new_variable -> new_variable.vname | _ -> "None");
     match old_key with
     | `Field _ -> (
         match struct_val with
@@ -905,7 +908,33 @@ struct
     | _ -> raise (Invalid_argument "")
 
   let add_variable_value_list lhost_val_list abstract_value =
+    Pervasives.print_endline "add_variable_value_list";
+    let get_variable_from_lhost key =
+      match key with
+      | Var v -> (
+          match v.vtype with
+          | TNamed (t, _) -> (
+              match t.ttype with
+              | TComp (comp, _) when comp.cstruct ->
+                Some v
+              | _ -> None
+            )
+          | TVoid _ -> (* this is the case for the return variable *)
+            Some v
+          | _ -> None
+        )
+      | _ -> None
+    in
+    let variables_to_remove = List.fold_left (
+        fun variables_to_remove (key,_) ->
+          match get_variable_from_lhost key with
+          | Some var -> [var] @ variables_to_remove
+          | _ -> variables_to_remove
+      ) [] lhost_val_list in
+    let abstract_value = List.fold_left (fun abstract_value variable_to_remove -> remove_variable variable_to_remove abstract_value) abstract_value variables_to_remove in
     List.fold_left (fun abstract_value (key,value) ->
+        Pervasives.print_endline "key";
+        Pervasives.print_endline (short 100 value);
         let keys_of_old_var, old_var =
           match value with (struct_store, _) ->
             (* there should only be one local variable in that mapping, but this may have several fields *)
@@ -916,22 +945,7 @@ struct
                 | _ -> (old_keys, old_var)
               ) struct_store ([], None)
         in
-        let new_var =
-          match key with
-          | Var v -> (
-              match v.vtype with
-              | TNamed (t, _) -> (
-                  match t.ttype with
-                  | TComp (comp, _) ->
-                    Some v
-                  | _ -> None
-                )
-              | TVoid _ -> (* this is the case for the return variable *)
-                Some v
-              | _ -> None
-            )
-          | _ -> None
-        in
+        let new_var = get_variable_from_lhost key in
         if List.length keys_of_old_var > 0 then
           let value_after_renaming, _ =
             List.fold_left (
@@ -963,6 +977,9 @@ struct
         ) equations
 
   let meet_local_and_global_state local_state global_state =
+    Pervasives.print_endline "meet_local_and_global_state";
+    Pervasives.print_endline (short 1000 local_state);
+    Pervasives.print_endline (short 1000 global_state);
     let local_store, local_equations = local_state in
     let global_store, global_equations = global_state in
     let local_equations = select_local_or_global_variables_in_equations true local_equations local_store in
