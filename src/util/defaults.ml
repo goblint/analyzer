@@ -122,6 +122,8 @@ let _ = ()
       ; reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails."
       ; reg Analyses "ana.spec.file"       ""      "Path to the specification file."
       ; reg Analyses "ana.structs.relational" "false" "Decide whether the struct domain is used with relations or not."
+      ; reg Analyses "ana.structs.apron" "false" "Decide whether the apron struct domain is used."
+      ; reg Analyses "ana.structs.equations" "true" "Decide whether the equations struct domain is used."
       ; reg Analyses "ana.structs.relational_to_analyze" "[]" "List all struct names to be analyzed."
       ; reg Analyses "ana.arinc.assume_success" "true"    "Assume that all ARINC functions succeed (sets return code to NO_ERROR, otherwise invalidates it)."
       ; reg Analyses "ana.arinc.simplify"    "true" "Simplify the graph by merging functions consisting of the same edges and contracting call chains where functions just consist of another call."
