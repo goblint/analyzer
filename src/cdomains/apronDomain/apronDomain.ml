@@ -989,22 +989,6 @@ struct
     remove_all_but_with apron_abstract_value fields_not_to_remove;
     apron_abstract_value, struct_mapping
 
-  let get_value_of_variable_name varname (apron_abstract_value, struct_mapping) =
-    let fields_not_to_remove =
-      StructMap.fold (fun _ value fields_not_to_remove ->
-          match value with
-          | `Field(Some v, field) ->
-            if v.vname = varname then
-              [value] @ fields_not_to_remove
-            else fields_not_to_remove
-          | _ -> raise (Invalid_argument "")
-        ) struct_mapping [] in
-    let fields_not_to_remove =
-      List.map (fun field ->
-          get_unique_field_name field) fields_not_to_remove in
-      remove_all_but_with apron_abstract_value fields_not_to_remove;
-      apron_abstract_value, struct_mapping
-
   let get_value_of_variable varinfo (apron_abstract_value, struct_mapping) =
     let fields_not_to_remove =
       StructMap.fold (fun _ value fields_not_to_remove ->
@@ -1053,6 +1037,11 @@ struct
     let result = assert_inv apron_abstract_value cil_exp false in
     let _ = rename_cil_variables cil_exp false struct_name_mapping in
     result, struct_name_mapping
+
+  let get_value_of_cil_exp cil_exp (apron_abstract_value, struct_mapping) =
+    match cil_exp with
+    | Lval (Var v, _) -> get_value_of_variable v (apron_abstract_value, struct_mapping)
+    | _ -> top ()
 
   let rename_variable_of_field abstract_value old_key value_old_key new_variable =
     match old_key with

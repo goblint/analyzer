@@ -1134,6 +1134,7 @@ struct
                 in
                 match rval_val, rel_struct with
                 | `RelationalStruct x, y when (get_bool analyse_structs_relationally) ->
+                  let x = ValueDomain.RelationalStructs.get_value_of_cil_exp rval x in
                   let lhost_val_list = [(Var var, x)] in
                   let value = `RelationalStruct  (ValueDomain.RelationalStructs.add_variable_value_list lhost_val_list y) in
                   assign_new_relational_abstract_value ctx_local value (Mem (Lval lval))
