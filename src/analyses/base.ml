@@ -120,6 +120,7 @@ struct
     | _, RelationalStructInformation -> `RelationalStruct (ValueDomain.RelationalStructs.top())
 
   let assign_new_relational_abstract_value_in_store store relational_abstract_value =
+    Pervasives.print_endline "assign_new_relational_abstract_value_in_store";
     match relational_abstract_value with
     | `RelationalInt x when (get_bool analyse_ints_relationally) ->
       let store_int_variables = CPA.filter
@@ -201,7 +202,12 @@ struct
           let existing_rel_abstract_val = first_value_in_local_store store RelationalStructInformation in
           match existing_rel_abstract_val with
           | `RelationalStruct existing_rel_abstract_val ->
-            `RelationalStruct(ValueDomain.RelationalStructs.fold (fun field value value_where_added -> ValueDomain.RelationalStructs.replace value_where_added field value) x existing_rel_abstract_val)
+            Pervasives.print_endline "fold assign new rel abstract value";
+            Pervasives.print_endline (VD.short 1000 (`RelationalStruct(existing_rel_abstract_val)));
+            let result =
+              `RelationalStruct(ValueDomain.RelationalStructs.fold (fun field value value_where_added -> ValueDomain.RelationalStructs.replace value_where_added field value) x existing_rel_abstract_val) in
+            Pervasives.print_endline ("result fold assign new rel abstract value: " ^(VD.short 1000 result));
+            result
           | _ -> relational_abstract_value
         )
       | `Int x when (get_bool analyse_ints_relationally) -> (
@@ -303,38 +309,22 @@ struct
   let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
 
   let update_variable variable value state =
+    Pervasives.print_endline ("update variable: " ^ variable.vname);
+    Pervasives.print_endline (VD.short 1000 value);
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
       CPA.add variable (VD.top ()) state
     else (
       let add_relational_information value =
+        Pervasives.print_endline ("add_relational_information: " ^ variable.vname);
+        Pervasives.print_endline (VD.short 1000 value);
         let store, value = assign_new_relational_abstract_value state value (Var variable) in
         CPA.add variable value store
       in
       match value with
       | `RelationalInt _ | `Int _ when (get_bool analyse_ints_relationally)  ->
         add_relational_information value
-      | `RelationalStruct x when (get_bool analyse_structs_relationally) -> (
-          let rel_structs_value_renamed_variable =
-            ValueDomain.RelationalStructs.fold (
-              fun key value result ->
-                match key with
-                | `Field (None, field) ->
-                  ValueDomain.RelationalStructs.replace result (`Field(Some variable, field)) value
-                | _ -> ValueDomain.RelationalStructs.replace result key value
-            ) x (ValueDomain.RelationalStructs.top())
-          in
-          match variable.vtype with
-          | TNamed (t, _) -> (
-              match t.ttype with
-              | TComp ({cstruct=true},_) ->
-                if list_contains_string relational_struct_list t.tname then
-                  add_relational_information (`RelationalStruct rel_structs_value_renamed_variable)
-                else
-                  CPA.add variable (VD.to_struct_value (`RelationalStruct (ValueDomain.RelationalStructs.get_value_of_variable variable rel_structs_value_renamed_variable))) state
-              | _ -> CPA.add variable value state
-            )
-          | _ -> CPA.add variable value state
-        )
+      | `RelationalStruct x when (get_bool analyse_structs_relationally) ->
+          add_relational_information (`RelationalStruct x)
       | _ ->
         CPA.add variable value state
     )
@@ -805,10 +795,10 @@ struct
   let eval_rv_with_query (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp) =
     improve_abstract_value_with_queries a exp (eval_rv a gs st exp)
 
-  let rec bot_value a (gs:glob_fun) (st: store) (t: typ) struct_name: value =
+  let rec bot_value a (gs:glob_fun) (st: store) (t: typ) variable: value =
     let rec bot_comp compinfo: ValueDomain.Structs.t =
       let nstruct =  ValueDomain.Structs.top () in
-      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value a gs st fd.ftype struct_name) in
+      let bot_field nstruct fd = ValueDomain.Structs.replace nstruct fd (bot_value a gs st fd.ftype variable) in
       List.fold_left bot_field nstruct compinfo.cfields
     in
     let rec bot_comp_relational compinfo: ValueDomain.RelationalStructs.t =
@@ -817,10 +807,11 @@ struct
 
       let bot_field nstruct fd =
         let typ = match fd with `Field (_, fd) -> fd.ftype | _ -> raise (Invalid_argument "bot_value") in
-        ValueDomain.RelationalStructs.replace nstruct fd ((bot_value a gs st typ struct_name)) in
-      let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
+        ValueDomain.RelationalStructs.replace nstruct fd ((bot_value a gs st typ variable)) in
+      let fields = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
       List.fold_left bot_field nstruct fields
     in
+    let struct_name = match variable with | Some var -> (match var.vtype with TNamed(t, _) -> t.tname | _ -> "" ) | _ -> "" in
     match t with
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
     | TPtr _ -> `Address (AD.bot ())
@@ -834,18 +825,18 @@ struct
         match eval_rv_with_query a gs st exp with
         | `Int n -> begin
             match ID.to_int n with
-            | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai struct_name))
+            | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai variable))
             | _ -> default
           end
         | _ -> default
       end
-    | TNamed (t, _) -> bot_value a gs st t.ttype t.tname
+    | TNamed (t, _) -> bot_value a gs st t.ttype variable
     | _ -> `Bot
 
-  let rec init_value a (gs:glob_fun) (st: store) (t: typ) struct_name: value =
+  let rec init_value a (gs:glob_fun) (st: store) (t: typ) variable: value =
     let rec init_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top() in
-       let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.ftype struct_name) in
+       let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.ftype variable) in
       List.fold_left init_field nstruct compinfo.cfields
     in
     let rec init_comp_relational compinfo: ValueDomain.RelationalStructs.t =
@@ -853,26 +844,27 @@ struct
       let nstruct = match first_value_in_local_store store RelationalStructInformation with `RelationalStruct x -> x | _ ->  ValueDomain.RelationalStructs.top() in
       let init_field nstruct fd =
         let typ = match fd with |`Field (_, fd) -> fd.ftype | _ -> raise (Invalid_argument "init_field") in
-        ValueDomain.RelationalStructs.replace nstruct fd ((init_value a gs st typ struct_name)) in
-      let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
+        ValueDomain.RelationalStructs.replace nstruct fd ((init_value a gs st typ variable)) in
+      let fields = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
       List.fold_left init_field nstruct fields
     in
+    let var_name = match variable with Some var -> (match var.vtype with TNamed (t, _) -> t.tname | _ -> "")  | _ -> "" in
     match t with
     | t when is_mutex_type t -> `Top
     | TInt _ -> `Int (ID.top ())
     | TPtr _ -> `Address (AD.join (AD.safe_ptr ()) (AD.null_ptr ()))
-    | TComp ({cstruct=true} as ci,_) when get_bool analyse_structs_relationally  && list_contains_string relational_struct_list struct_name  ->
+    | TComp ({cstruct=true} as ci,_) when get_bool analyse_structs_relationally  && list_contains_string relational_struct_list var_name  ->
       `RelationalStruct (init_comp_relational ci)
     | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
-    | TArray _ -> bot_value a gs st t ""
-    | TNamed (t, _) -> init_value a gs st t.ttype t.tname
+    | TArray _ -> bot_value a gs st t variable
+    | TNamed (t, _) -> init_value a gs st t.ttype variable
     | _ -> `Top
 
-  let rec top_value a (gs:glob_fun) (st: store) (t: typ) struct_name : value =
+  let rec top_value a (gs:glob_fun) (st: store) (t: typ) variable : value =
     let rec top_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top() in
-      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value a gs st fd.ftype struct_name) in
+      let top_field nstruct fd = ValueDomain.Structs.replace nstruct fd (top_value a gs st fd.ftype variable) in
       List.fold_left top_field nstruct compinfo.cfields
     in
     let rec top_comp_relational compinfo: ValueDomain.RelationalStructs.t =
@@ -883,14 +875,15 @@ struct
         | _ -> ValueDomain.RelationalStructs.top() in
       let top_field nstruct fd =
         let typ = match fd with | `Field (_, fd) -> fd.ftype | _ -> raise (Invalid_argument "top_field") in
-        ValueDomain.RelationalStructs.replace nstruct fd ((top_value a gs st typ struct_name)) in
-      let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
+        ValueDomain.RelationalStructs.replace nstruct fd ((top_value a gs st typ variable)) in
+      let fields = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
       List.fold_left top_field nstruct fields
     in
+    let var_name = match variable with Some var -> (match var.vtype with TNamed (t, _) -> t.tname | _ -> "")  | _ -> "" in
     match t with
     | TInt _ -> `Int (ID.top ())
     | TPtr _ -> `Address (AD.top_ptr ())
-    | TComp ({cstruct=true} as ci,_) when get_bool analyse_structs_relationally && list_contains_string relational_struct_list struct_name  ->
+    | TComp ({cstruct=true} as ci,_) when get_bool analyse_structs_relationally && list_contains_string relational_struct_list var_name  ->
       `RelationalStruct (top_comp_relational ci)
     | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
@@ -901,12 +894,12 @@ struct
          (match eval_rv_with_query a gs st exp with
           | `Int n -> begin
               match ID.to_int n with
-              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai ""))
+              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai None))
               | _ -> default
             end
           | _ -> default)
        | None -> default)
-    | TNamed (t, _) -> top_value a gs st t.ttype t.tname
+    | TNamed (t, _) -> top_value a gs st t.ttype variable
     | _ -> `Top
 
   let invariant a (gs:glob_fun) st exp tv =
@@ -1080,7 +1073,7 @@ struct
 
   let set_savetop ask (gs:glob_fun) st adr v =
     match v with
-    | `Top -> set ask gs st adr (top_value ask gs st (AD.get_type adr) "")
+    | `Top -> set ask gs st adr (top_value ask gs st (AD.get_type adr) None)
     | v -> set ask gs st adr v
 
 
@@ -1292,7 +1285,7 @@ struct
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each varaiable *)
-    let init_var v ctx_local = (AD.from_var v, init_value ctx.ask ctx.global ctx_local v.vtype "") in
+    let init_var v ctx_local = (AD.from_var v, init_value ctx.ask ctx.global ctx_local v.vtype (Some v)) in
     (* Apply it to all the locals and then assign them all *)
     if (get_bool analyse_structs_relationally) then
       List.fold_left
@@ -1317,6 +1310,19 @@ struct
       | Some exp ->
         let st, fl = nst in
         let value = (eval_rv_with_query ctx.ask ctx.global ctx.local exp) in
+(*        let nst =
+          if get_bool analyse_structs_relationally then
+            let value =
+              match first_value_in_local_store st RelationalStructInformation with
+              | `RelationalStruct value -> value
+              | _ -> ValueDomain.RelationalStructs.top ()
+            in
+            let value = ValueDomain.RelationalStructs.get_value_of_globals value in
+            let lhost_val_list = [(Var (return_varinfo()), value)] in
+            let value = (ValueDomain.RelationalStructs.add_variable_value_list lhost_val_list value) in
+            assign_new_relational_abstract_value_in_store st (`RelationalStruct value), fl
+          else st, fl
+          in *)
         match value with
         | `RelationalStruct value when (get_bool analyse_structs_relationally) ->
           let value =
@@ -1385,7 +1391,6 @@ struct
       | `Blob e -> reachable_from_value e
       | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
       | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> let v = v in AD.join (reachable_from_value v) acc) s empty
-      | `RelationalStruct s -> ValueDomain.RelationalStructs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
       |  _ -> empty
     in
     let res = reachable_from_value (get ask gs st false adr) in
@@ -1597,13 +1602,6 @@ struct
             join_tr (with_type k.ftype (reachable_from_value v))
           in
           ValueDomain.Structs.fold f s (empty, TS.bot (), false)
-        | `RelationalStruct s ->
-          let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
-          let f k v =
-            let k = match k with `Field (_, k) -> k | _ -> raise (Invalid_argument "f") in
-            join_tr (with_type k.ftype (reachable_from_value v))
-          in
-          ValueDomain.RelationalStructs.fold f s (empty, TS.bot (), false)
         |  _ -> (empty, TS.bot (), false)
       in
       reachable_from_value (get ctx.ask ctx.global ctx.local false adr)
@@ -2243,6 +2241,20 @@ struct
             let return_val =
               match return_val with
               | `RelationalStruct struct_val when (get_bool analyse_structs_relationally) -> (
+                  let cpa, fl = st in
+(*                  let st =
+                    if get_bool analyse_structs_relationally then
+                      let value =
+                        match first_value_in_local_store cpa RelationalStructInformation with
+                        | `RelationalStruct value -> value
+                        | _ -> ValueDomain.RelationalStructs.top ()
+                      in
+                      let value = ValueDomain.RelationalStructs.get_value_of_globals value in
+                      let lhost_val_list = [(Var (return_varinfo()), value)] in
+                      let value = (ValueDomain.RelationalStructs.add_variable_value_list lhost_val_list value) in
+                      assign_new_relational_abstract_value_in_store cpa (`RelationalStruct value), fl
+                    else cpa, fl
+                    in *)
                   match lval with
                   | (Var v, _) ->
                     if v.vid = (return_varinfo ()).vid then
@@ -2254,8 +2266,8 @@ struct
                         | `RelationalStruct x -> x
                         | _ -> ValueDomain.RelationalStructs.top()
                       in
-                      let val_in_store =
-                        ValueDomain.RelationalStructs.remove_variable v val_in_store in
+(*                      let val_in_store =
+                        ValueDomain.RelationalStructs.remove_variable v val_in_store in *)
                       `RelationalStruct (ValueDomain.RelationalStructs.add_variable_value_list [(Var v), struct_val] val_in_store)
                   | _ -> return_val
                 )

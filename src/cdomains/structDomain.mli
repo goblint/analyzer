@@ -20,11 +20,12 @@ sig
   type value (** The abstract domain of values stored in the struct. *)
   val add_variable_value_list: (Prelude.Ana.lhost * t) list -> t-> t
   val eval_assert_cil_exp: Cil.exp -> t -> t
-  val get: t -> field -> value
+  val get: field -> t -> value
   val get_value_of_cil_exp: Cil.exp -> t -> t
+  val get_value_of_globals: t -> t
   val get_value_of_variable: varinfo -> t -> t
   val get_value_of_variable_and_globals: varinfo -> t -> t
-  val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
+  val fold: (field -> value -> t -> t) -> t -> t -> t
   val map: (value -> value) -> t -> t
   val meet_local_and_global_state: t -> t -> t
   val remove_all_local_variables: t -> t
