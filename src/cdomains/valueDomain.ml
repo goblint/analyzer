@@ -760,6 +760,11 @@ struct
   let get_value_of_variable_and_globals varinfo (struct_store, equations) =
     get_value_of_variable_name varinfo.vname (struct_store, equations) true
 
+  let get_value_of_cil_exp cil_exp abstract_val =
+    match cil_exp with
+    | Lval (Var v, _) -> get_value_of_variable v abstract_val
+    | _ -> top ()
+
   let join_equations eq1 eq2 store =
     let eq = Equations.join eq1 eq2 in
     Equations.remove_invalid_equations store eq
