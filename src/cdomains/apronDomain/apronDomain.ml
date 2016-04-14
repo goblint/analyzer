@@ -747,7 +747,7 @@ struct
   type field = EquationField.t
   type value = Compound.t
 
-  let name () = "ApronRelationalStructDomain"
+  let name () = "apron"
 
   let is_top (x, _) = is_top x
   let is_bot (x, _) = is_bot x
@@ -823,57 +823,54 @@ struct
     (*    StructNameMap.remove_variable varinfo.vname*) struct_mapping
 
   let join (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
-    Pervasives.print_string "join: ";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (apron_abstract_valuex, struct_mappingx));
-    Pervasives.print_string " and: ";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (apron_abstract_valuey, struct_mappingy));
-    Pervasives.print_string "\nresult:";
-    let result =
-      join apron_abstract_valuex apron_abstract_valuey, StructMap.join struct_mappingx struct_mappingy
-    in
-    Pretty.fprint Pervasives.stdout 0 (pretty () result);
-    result
+    join apron_abstract_valuex apron_abstract_valuey, StructMap.join struct_mappingx struct_mappingy
 
   let meet (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
-    Pervasives.print_string "meet: ";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (apron_abstract_valuex, struct_mappingx));
-    Pervasives.print_string " and: ";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (apron_abstract_valuey, struct_mappingy));
-    Pervasives.print_string "\nresult:";
-    let result =
-      meet apron_abstract_valuex apron_abstract_valuey, StructMap.meet struct_mappingx struct_mappingy
-    in
-    Pretty.fprint Pervasives.stdout 0 (pretty () result);
-    result
+    meet apron_abstract_valuex apron_abstract_valuey, StructMap.meet struct_mappingx struct_mappingy
 
   let narrow (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
-    narrow apron_abstract_valuex apron_abstract_valuey, StructMap.narrow struct_mappingx struct_mappingy
+    Pervasives.print_endline "BEFORE NARROW";
+    Pervasives.print_endline (short 100 (apron_abstract_valuex, struct_mappingx));
+    let result =
+      narrow apron_abstract_valuex apron_abstract_valuey, StructMap.narrow struct_mappingx struct_mappingy
+    in
+    Pervasives.print_endline "Narrow Result";
+    Pervasives.print_endline (short 100 result);
+    result
 
   let widen (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
-    widen apron_abstract_valuex apron_abstract_valuey, StructMap.widen struct_mappingx struct_mappingy
+    Pervasives.print_endline "BEFORE WIDEN";
+    Pervasives.print_endline (short 100 (apron_abstract_valuex, struct_mappingx));
+    let result =
+      widen apron_abstract_valuex apron_abstract_valuey, StructMap.widen struct_mappingx struct_mappingy in
+    Pervasives.print_endline "WIDEN Result";
+    Pervasives.print_endline (short 100 result);
+    result
 
   let leq (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
     leq apron_abstract_valuex apron_abstract_valuey && StructMap.leq struct_mappingx struct_mappingy
 
   let replace (apron_abstract_value, struct_map) field compound_val =
-(*    Pervasives.print_endline "Replace with the following compound value: ";
+    Pervasives.print_endline "Replace with the following compound value: ";
     Pretty.fprint Pervasives.stdout 0 (Compound.pretty () compound_val);
+    Pervasives.print_endline ("replace field: " ^ (EquationField.short 1000 field));
     Pervasives.print_endline "Before replace:";
-      StructNameMap.print struct_name_mapping;*)
+    Pervasives.print_endline (short 1000 (apron_abstract_value, struct_map) );
     let int_val = Compound.to_int_val compound_val in
     let new_field_name = get_unique_field_name field in
     let var_name, field_name = match field with | `Field(Some var, f) -> `Lifted var.vname, `Lifted f.fname | `Field (_, f) -> `Lifted "", `Lifted f.fname | _ -> raise (Invalid_argument "") in
     let struct_map = StructMap.add (var_name, field_name) field struct_map in
     let apron_abstract_value = assign_int_value_to_variable_name apron_abstract_value int_val new_field_name in
-(*    Pervasives.print_endline "After replace:";
-    StructNameMap.print struct_name_mapping;
-      Pretty.fprint Pervasives.stdout 0 (pretty () (apron_abstract_value, struct_name_mapping));*)
+    Pervasives.print_endline "After replace:";
+    Pervasives.print_endline (short 1000 (apron_abstract_value, struct_map) );
     apron_abstract_value, struct_map
 
   let equal (apron_abstract_valuex,_) (apron_abstract_valuey, _) =
     equal apron_abstract_valuex apron_abstract_valuey
 
   let get_int_val_for_field_name field_name apron_abstract_value =
+    Pervasives.print_endline ("\nget_int_val_for_field_name: " ^ field_name ^ ".");
+    Pervasives.print_endline (ApronDomain.short 1000 apron_abstract_value);
     let environment = (A.env apron_abstract_value) in
     let var = (Var.of_string field_name) in
     if not (Environment.mem_var environment var) then IntDomain.IntDomTuple.bot()(*raise (Invalid_argument ("get_int_val_for_field_name field_name not found: " ^ field_name))*)
@@ -957,6 +954,14 @@ struct
       fun result var ->
         let unique_field_name = (Var.to_string var) in
         let int_val = get_int_val_for_field_name unique_field_name apron_abstract_value in
+        Pervasives.print_endline "unique_field_name";
+        Pervasives.print_endline (unique_field_name ^ ".");
+        (*        let int_val =
+          if IntDomain.IntDomTuple.id_top int_val then
+
+          else
+            int_val
+          in *)
         let field_name, struct_name = get_field_and_struct_name_from_variable_name unique_field_name in
         let map_key = `Lifted struct_name, `Lifted field_name in
         let value = Compound.of_int_val int_val in
@@ -973,39 +978,36 @@ struct
     Pervasives.print_endline "meet_local_and_global_state";
     meet_local_and_global_state local_apron_abstract_value global_apron_abstract_value, StructMap.meet local_struct_mapping global_struct_mapping
 
-  let get_value_of_variable_and_globals varinfo (apron_abstract_value, struct_mapping) =
+  let get_value_of_variable_and_possibly_globals varinfo (apron_abstract_value, struct_mapping) should_return_globals  =
     let fields_not_to_remove =
       StructMap.fold (fun _ value fields_not_to_remove ->
-          match value with
-          | `Field(Some v, field) ->
-            if v.vid = varinfo.vid || v.vglob then
+          match value, varinfo with
+          | `Field(Some v, field), Some varinfo ->
+            if (v.vid = varinfo.vid) || (v.vglob && should_return_globals) then
               [value] @ fields_not_to_remove
             else fields_not_to_remove
-          | _ -> raise (Invalid_argument "")
+          | `Field(Some v, field), Some varinfo when should_return_globals ->
+            if v.vglob then
+              [value] @ fields_not_to_remove
+            else fields_not_to_remove
+          | _ -> fields_not_to_remove
         ) struct_mapping [] in
     let fields_not_to_remove =
       List.map (fun field ->
           get_unique_field_name field) fields_not_to_remove in
     remove_all_but_with apron_abstract_value fields_not_to_remove;
     apron_abstract_value, struct_mapping
+
+  let get_value_of_variable_and_globals varinfo (apron_abstract_value, struct_mapping) =
+    get_value_of_variable_and_possibly_globals (Some varinfo) (apron_abstract_value, struct_mapping) true
 
   let get_value_of_variable varinfo (apron_abstract_value, struct_mapping) =
-    let fields_not_to_remove =
-      StructMap.fold (fun _ value fields_not_to_remove ->
-          match value with
-          | `Field(Some v, field) ->
-            if v.vid = varinfo.vid then
-              [value] @ fields_not_to_remove
-            else fields_not_to_remove
-          | _ -> raise (Invalid_argument "")
-        ) struct_mapping [] in
-    let fields_not_to_remove =
-      List.map (fun field ->
-          get_unique_field_name field) fields_not_to_remove in
-    remove_all_but_with apron_abstract_value fields_not_to_remove;
-    apron_abstract_value, struct_mapping
+    get_value_of_variable_and_possibly_globals (Some varinfo) (apron_abstract_value, struct_mapping) false
 
-  let get (apron_abstract_value, struct_mapping) key =
+  let get_value_of_globals (apron_abstract_value, struct_mapping) =
+    get_value_of_variable_and_possibly_globals None (apron_abstract_value, struct_mapping) true
+
+  let get key (apron_abstract_value, struct_mapping) =
     match key with
     | `Field(var, field) -> (
           let field_name = get_unique_field_name key in
@@ -1049,9 +1051,11 @@ struct
         match abstract_value with
         | (apron_val, struct_map) ->
           let old_field_name = get_unique_field_name old_key in
+          Pervasives.print_endline ("old field name: " ^ old_field_name);
           let new_key = match old_key with | `Field(_, new_field) -> (match new_variable with Some variable -> `Field(new_variable,new_field) | _ -> raise (Invalid_argument "")) | _ -> raise (Invalid_argument "") in
           let new_struct_map_key = match new_key with | `Field(Some var, new_field) -> `Lifted var.vname, `Lifted new_field.fname | `Field(_, new_field) -> `Lifted "", `Lifted new_field.fname | _ -> raise (Invalid_argument "") in
           let new_field_name = get_unique_field_name new_key in
+          Pervasives.print_endline ("new field name: " ^ new_field_name);
           let struct_map = StructMap.add new_struct_map_key new_key struct_map in
           let environment = A.env apron_val in
           if Environment.mem_var environment (Var.of_string old_field_name) &&
@@ -1079,7 +1083,7 @@ struct
     | _ -> abstract_value
 
   let add_variable_value_list lhost_val_list abstract_value =
-    let result = List.fold_left (fun abstract_value (key,value) ->
+  let result = List.fold_left (fun abstract_value (key,value) ->
         Pervasives.print_endline "\n\nadd_variable_value_list";
         Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () (Lval (key, NoOffset)));
         Pervasives.print_endline (": " ^ (short 100 value));
