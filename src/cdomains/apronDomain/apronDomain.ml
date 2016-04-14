@@ -1050,24 +1050,29 @@ struct
     | `Field _ -> (
         match abstract_value with
         | (apron_val, struct_map) ->
+          let value_old_key, old_struct_map = value_old_key in
           let old_field_name = get_unique_field_name old_key in
           Pervasives.print_endline ("old field name: " ^ old_field_name);
           let new_key = match old_key with | `Field(_, new_field) -> (match new_variable with Some variable -> `Field(new_variable,new_field) | _ -> raise (Invalid_argument "")) | _ -> raise (Invalid_argument "") in
           let new_struct_map_key = match new_key with | `Field(Some var, new_field) -> `Lifted var.vname, `Lifted new_field.fname | `Field(_, new_field) -> `Lifted "", `Lifted new_field.fname | _ -> raise (Invalid_argument "") in
           let new_field_name = get_unique_field_name new_key in
           Pervasives.print_endline ("new field name: " ^ new_field_name);
+          Pervasives.print_endline ("old val: " ^ (short 1000 (value_old_key, old_struct_map)));
+          Pervasives.print_endline ("new val: " ^ (short 1000 (abstract_value)));
           let struct_map = StructMap.add new_struct_map_key new_key struct_map in
-          let environment = A.env apron_val in
+          let environment = A.env value_old_key in
           if Environment.mem_var environment (Var.of_string old_field_name) &&
              not (Environment.mem_var environment (Var.of_string new_field_name))
           then
-            let apron_new_val = A.rename_array Man.mgr apron_val (Array.of_list [Var.of_string old_field_name]) (Array.of_list [Var.of_string new_field_name]) in
-            apron_new_val, struct_map
+            let renamed_old_val = A.rename_array Man.mgr value_old_key (Array.of_list [Var.of_string old_field_name]) (Array.of_list [Var.of_string new_field_name]) in
+            let new_apron_val, _ = remove_variable (Var.of_string new_field_name) abstract_value in
+            meet (new_apron_val, struct_map) (renamed_old_val, old_struct_map)
           else (
             if not (Environment.mem_var environment (Var.of_string new_field_name)) then (
-              let value_old_key, old_struct_map = value_old_key in
-              let value_old_key = A.rename_array Man.mgr value_old_key (Array.of_list [Var.of_string old_field_name]) (Array.of_list [Var.of_string new_field_name]) in
-              meet (apron_val,struct_map) (value_old_key, old_struct_map))
+              Pervasives.print_endline "here not mem var";
+              let value_old_key = A.rename_array Man.mgr apron_val (Array.of_list [Var.of_string old_field_name]) (Array.of_list [Var.of_string new_field_name]) in
+              meet (apron_val,struct_map) (value_old_key, old_struct_map)
+            )
             else (
               if Environment.mem_var environment (Var.of_string old_field_name) then (
                 let int_val_of_old_field = get_int_val_for_field_name old_field_name apron_val in
@@ -1075,27 +1080,48 @@ struct
                 Pervasives.print_endline "HERE";
                 apron_val, struct_map
               )
-              else
+              else (
+                Pervasives.print_endline "else";
                 apron_val, struct_map
-            )
+              )
+          )
           )
       )
     | _ -> abstract_value
 
   let add_variable_value_list lhost_val_list abstract_value =
-  let result = List.fold_left (fun abstract_value (key,value) ->
+    let variables_to_remove = List.fold_left (
+        fun variables_to_remove (key,_) ->
+          match key with
+          | Var v -> (
+              match v.vtype with
+              | TNamed (t, _) -> (
+                  match t.ttype with
+                  | TComp (comp, _) when comp.cstruct ->
+                    (List.map (fun fieldinfo -> (`Field (Some v, fieldinfo))) comp.cfields) @ variables_to_remove
+                  | _ -> variables_to_remove
+                )
+              | _ -> variables_to_remove
+            )
+          | _ -> variables_to_remove
+      ) [] lhost_val_list in
+    let abstract_value = List.fold_left (fun abstract_value variable_to_remove ->
+        replace abstract_value variable_to_remove (Compound.top())) abstract_value variables_to_remove in
+    let result = List.fold_left (fun abstract_value (key,value) ->
         Pervasives.print_endline "\n\nadd_variable_value_list";
         Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () (Lval (key, NoOffset)));
         Pervasives.print_endline (": " ^ (short 100 value));
-        let apron_abstract_value, struct_mapping = value in
-        let environment = (A.env apron_abstract_value) in
+        let value_old_key, struct_mapping_old_key = value in
+        let environment = (A.env value_old_key) in
         let (vars_int, vars_real) = Environment.vars environment in
         let all_vars = (Array.to_list vars_int) @ (Array.to_list vars_real) in
         let keys_of_old_var, old_var =
-          (* there should only be one struct in the abstract_value (but can be several variables, as a struct can have several fields)  *)
+          (* there should only be one struct in the abstract_value
+             (but can be several variables, as a struct can have several fields) *)
           List.fold_right (fun apron_variable (keys_of_old_var, old_var) ->
-              let field_name, struct_name = get_field_and_struct_name_from_variable_name (Var.to_string apron_variable) in
-              let old_key = StructMap.find (`Lifted struct_name, `Lifted field_name) struct_mapping in
+              let field_name, struct_name =
+                get_field_and_struct_name_from_variable_name (Var.to_string apron_variable) in
+              let old_key = StructMap.find (`Lifted struct_name, `Lifted field_name) struct_mapping_old_key in
               match old_key with
               | `Field(Some var, _) -> [old_key] @ keys_of_old_var, Some var
               | _ -> (keys_of_old_var, old_var)
@@ -1125,8 +1151,8 @@ struct
                   rename_variable_of_field abstract_value old_key value_old_key new_var in
                 Pervasives.print_endline "Result of rename";
                 Pervasives.print_endline (short 1000 result);
-                result, value_old_key
-            ) (abstract_value, value) keys_of_old_var
+                result, result
+            ) (abstract_value, (value_old_key, struct_mapping_old_key)) keys_of_old_var
           in
           apron_value_after_renaming
         else

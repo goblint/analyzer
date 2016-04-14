@@ -2241,34 +2241,20 @@ struct
             let return_val =
               match return_val with
               | `RelationalStruct struct_val when (get_bool analyse_structs_relationally) -> (
-                  let cpa, fl = st in
-(*                  let st =
-                    if get_bool analyse_structs_relationally then
-                      let value =
-                        match first_value_in_local_store cpa RelationalStructInformation with
-                        | `RelationalStruct value -> value
-                        | _ -> ValueDomain.RelationalStructs.top ()
-                      in
-                      let value = ValueDomain.RelationalStructs.get_value_of_globals value in
-                      let lhost_val_list = [(Var (return_varinfo()), value)] in
-                      let value = (ValueDomain.RelationalStructs.add_variable_value_list lhost_val_list value) in
-                      assign_new_relational_abstract_value_in_store cpa (`RelationalStruct value), fl
-                    else cpa, fl
-                    in *)
                   match lval with
                   | (Var v, _) ->
                     if v.vid = (return_varinfo ()).vid then
                       return_val
-                    else
+                    else (
+                      Pervasives.print_endline "Combine";
+                      Pervasives.print_endline v.vname;
                       let st, _ = st in
                       let val_in_store =
                         match first_value_in_local_store st RelationalStructInformation with
-                        | `RelationalStruct x -> x
+                        | `RelationalStruct x -> Pervasives.print_endline "first val in store: "; Pervasives.print_endline (ValueDomain.RelationalStructs.short 1000 x); x
                         | _ -> ValueDomain.RelationalStructs.top()
                       in
-(*                      let val_in_store =
-                        ValueDomain.RelationalStructs.remove_variable v val_in_store in *)
-                      `RelationalStruct (ValueDomain.RelationalStructs.add_variable_value_list [(Var v), struct_val] val_in_store)
+                      `RelationalStruct (ValueDomain.RelationalStructs.add_variable_value_list [(Var v), struct_val] val_in_store) )
                   | _ -> return_val
                 )
               | _ -> return_val
