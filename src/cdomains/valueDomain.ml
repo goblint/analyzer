@@ -857,7 +857,7 @@ struct
        if StructStore.is_bot storey then (storex, eqx)
        else (
          let result_store = StructStore.join storex storey in
-         let joined_equations, result_store = join_equations eqx eqy result_store in
+         let joined_equations, _ = join_equations eqx eqy result_store in
          result_store, joined_equations
        )
      )

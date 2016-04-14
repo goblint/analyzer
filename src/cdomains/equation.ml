@@ -347,10 +347,10 @@ struct
       match eq1, eq2 with
       | (key1a, (key1b, sign1), consteq1), (key2a, (key2b, sign2), consteq2) -> (
           let comparison_first_keys = Key.compare key1a key2a in
-          if comparison_first_keys <> 0 then comparison_first_keys
+          if comparison_first_keys <> 0 then 1
           else (
             let comparison_second_keys = Key.compare key1b key2b in
-            if comparison_second_keys <> 0 then comparison_second_keys
+            if comparison_second_keys <> 0 then 1
             else (
               if (not (IntDomain.IntDomTuple.equal consteq1 consteq2)) then 1
               else 0
@@ -552,7 +552,5 @@ struct
   let join eqmap1 eqmap2 =
     EquationMap.fold EquationMap.add eqmap2 eqmap1
 
-    (*
-    remove_invalid_equations fold (fun new_equations equation -> match equation with ((key1, _), (key2, _),_) -> EquationMap.add (key1, key2) equation new_equations) (top()) store  result *)
 
 end
