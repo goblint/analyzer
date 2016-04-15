@@ -976,7 +976,13 @@ struct
 
   let meet_local_and_global_state (local_apron_abstract_value, local_struct_mapping) (global_apron_abstract_value, global_struct_mapping) =
     Pervasives.print_endline "meet_local_and_global_state";
-    meet_local_and_global_state local_apron_abstract_value global_apron_abstract_value, StructMap.meet local_struct_mapping global_struct_mapping
+    Pervasives.print_endline (short 1000 (local_apron_abstract_value, local_struct_mapping));
+    Pervasives.print_endline (short 1000 (global_apron_abstract_value, global_struct_mapping));
+    let result =
+      meet_local_and_global_state local_apron_abstract_value global_apron_abstract_value, StructMap.meet local_struct_mapping global_struct_mapping
+    in
+    Pervasives.print_endline (short 1000 result);
+    result
 
   let get_value_of_variable_and_possibly_globals varinfo (apron_abstract_value, struct_mapping) should_return_globals  =
     let fields_not_to_remove =
@@ -1089,46 +1095,56 @@ struct
       )
     | _ -> abstract_value
 
+  let get_apron_keys_of_variable varinfo =
+    match varinfo.vtype with
+    | TNamed (t, _) -> (
+        match t.ttype with
+        | TComp (comp, _) when comp.cstruct ->
+          (List.map (fun fieldinfo -> (`Field (Some varinfo, fieldinfo))) comp.cfields)
+        | _ -> []
+      )
+    | _ -> []
+
   let add_variable_value_list lhost_val_list abstract_value =
-    let variables_to_remove = List.fold_left (
-        fun variables_to_remove (key,_) ->
-          match key with
-          | Var v -> (
-              match v.vtype with
-              | TNamed (t, _) -> (
-                  match t.ttype with
-                  | TComp (comp, _) when comp.cstruct ->
-                    (List.map (fun fieldinfo -> (`Field (Some v, fieldinfo))) comp.cfields) @ variables_to_remove
-                  | _ -> variables_to_remove
-                )
-              | _ -> variables_to_remove
-            )
-          | _ -> variables_to_remove
-      ) [] lhost_val_list in
-    let abstract_value = List.fold_left (fun abstract_value variable_to_remove ->
-        replace abstract_value variable_to_remove (Compound.top())) abstract_value variables_to_remove in
-    let result = List.fold_left (fun abstract_value (key,value) ->
+(*    let abstract_value = List.fold_left (fun abstract_value variable_to_remove ->
+        replace abstract_value variable_to_remove (Compound.top())) abstract_value variables_to_remove in *)
+    let result = List.fold_left (fun abstract_value (old_variable, new_lhost, abstract_value) ->
         Pervasives.print_endline "\n\nadd_variable_value_list";
-        Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () (Lval (key, NoOffset)));
-        Pervasives.print_endline (": " ^ (short 100 value));
-        let value_old_key, struct_mapping_old_key = value in
+        Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () (Lval (new_lhost, NoOffset)));
+        Pervasives.print_endline (": " ^ (short 100 abstract_value));
+        let value_old_key, struct_mapping_old_key = abstract_value in
         let environment = (A.env value_old_key) in
         let (vars_int, vars_real) = Environment.vars environment in
         let all_vars = (Array.to_list vars_int) @ (Array.to_list vars_real) in
         let keys_of_old_var, old_var =
-          (* there should only be one struct in the abstract_value
-             (but can be several variables, as a struct can have several fields) *)
-          List.fold_right (fun apron_variable (keys_of_old_var, old_var) ->
-              let field_name, struct_name =
-                get_field_and_struct_name_from_variable_name (Var.to_string apron_variable) in
-              let old_key = StructMap.find (`Lifted struct_name, `Lifted field_name) struct_mapping_old_key in
-              match old_key with
-              | `Field(Some var, _) -> [old_key] @ keys_of_old_var, Some var
-              | _ -> (keys_of_old_var, old_var)
-            ) all_vars ([], None)
+          match old_variable with
+          | Some old_variable -> (
+              let apron_keys_of_variable = get_apron_keys_of_variable old_variable in
+              List.fold_right (fun field_of_old_var (keys_of_old_var, _) ->
+                  let unique_field_name_of_old_var = get_unique_field_name field_of_old_var in
+                  let _, field_of_old_var =
+                    get_field_and_struct_name_from_variable_name unique_field_name_of_old_var in
+                  let old_key = StructMap.find (`Lifted old_variable.vname, `Lifted field_of_old_var) struct_mapping_old_key in
+                  match old_key with
+                  | `Field(Some var, _) -> [old_key] @ keys_of_old_var, Some old_variable
+                  | _ -> (keys_of_old_var), Some old_variable
+                ) apron_keys_of_variable ([], None)
+            )
+          | _ -> (
+              List.fold_right (fun apron_variable (keys_of_old_var, old_var) ->
+                  let field_name, struct_name =
+                    get_field_and_struct_name_from_variable_name (Var.to_string apron_variable)
+                  in
+                  let old_key = StructMap.find (`Lifted struct_name, `Lifted field_name) struct_mapping_old_key
+                  in
+                  match old_key with
+                  | `Field(Some var, _) -> [old_key] @ keys_of_old_var, Some var
+                  | _ -> (keys_of_old_var, old_var)
+                ) all_vars ([], None)
+            )
         in
         let new_var =
-          match key with
+          match new_lhost with
           | Var v -> (
               match v.vtype with
               | TNamed (t, _) -> (

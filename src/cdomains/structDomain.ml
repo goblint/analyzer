@@ -16,7 +16,7 @@ sig
   include Lattice.S
   type value
   type field
-  val add_variable_value_list: (Prelude.Ana.lhost * t) list -> t-> t
+  val add_variable_value_list: (Cil.varinfo option * Prelude.Ana.lhost * t) list -> t-> t
   val eval_assert_cil_exp: Cil.exp -> t -> t
   val get: field -> t -> value
   val get_value_of_cil_exp: Cil.exp -> t -> t
