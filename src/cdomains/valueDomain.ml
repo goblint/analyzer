@@ -770,18 +770,22 @@ struct
           (s,equations)
         (* this needs to be done, because else wrong initializations destroy correct values, ID.bot will still be assigned *)
         | `Bot -> (s,equations)
-        (*| `RelationalStruct x -> (
-            match x with
-            | (new_struct_store,new_equations) ->
-              let struct_name = match new_var with | Some var -> var.vname | _ -> "" in
-              let new_value_of_variable = get_value_of_variable_name struct_name (new_struct_store,new_equations) false in
-              fold (
-                fun field value result ->
-                  replace result field
-                    (get new_value_of_variable (field))
+        | `RelationalStruct x -> (
+            Pervasives.print_endline "REPLACE HERE VAR NONE";
+            match new_var with
+            | Some new_var -> (
+                Pervasives.print_endline "REPLACE HERE";
+                let new_value_of_variable = RelationalStructs.get_value_of_variable new_var x in
+                match RelationalStructs.fold (
+                    fun field value result ->
+                      RelationalStructs.replace result field value
+                  ) new_value_of_variable (Some (s,equations), None) with
+                | Some (x:t), _ ->
+                x
+                | _ -> (s,equations)
               )
-                new_value_of_variable (s,equations)
-              ) *)
+            | _ -> (s,equations)
+          )
         | _ -> (
             let s = (StructStore.add (`Field(new_var, new_field)) new_value s) in
             let new_compound_val = new_value in
@@ -900,7 +904,20 @@ struct
           let new_key =
             match old_key with
             | `Field(_, old_field) -> `Field(new_variable,old_field) | _ -> raise (Invalid_argument "") in
-          let struct_store = StructStore.remove old_key struct_store in
+          let struct_store =
+            match old_key with
+            | `Field(Some var, _) ->
+              if var.vglob then (
+                Pervasives.print_endline "DO not remove old var";
+                struct_store
+              )
+              else (
+                Pervasives.print_endline "remove old var";
+                StructStore.remove old_key struct_store
+              )
+            | _ -> StructStore.remove old_key struct_store
+          in
+
           let struct_store = StructStore.add new_key compound_t struct_store in
           let equations = (Equations.change_keys_in_equations  old_key new_key equations) in
           (struct_store, equations), value_old_key
@@ -909,53 +926,84 @@ struct
 
   let add_variable_value_list lhost_val_list abstract_value =
     Pervasives.print_endline "add_variable_value_list";
-    let get_variable_from_lhost key =
+    let get_variable_with_fields_from_lhost key =
       match key with
       | Var v -> (
           match v.vtype with
           | TNamed (t, _) -> (
               match t.ttype with
               | TComp (comp, _) when comp.cstruct ->
-                Some v
-              | _ -> None
+                Some v, comp.cfields
+              | _ -> None, []
             )
           | TVoid _ -> (* this is the case for the return variable *)
-            Some v
-          | _ -> None
+            Some v, []
+          | _ -> None, []
         )
-      | _ -> None
+      | _ -> None, []
     in
     let variables_to_remove = List.fold_left (
-        fun variables_to_remove (key,_) ->
-          match get_variable_from_lhost key with
-          | Some var -> [var] @ variables_to_remove
+        fun variables_to_remove (_, key,_) ->
+          match get_variable_with_fields_from_lhost key with
+          | Some var, _ -> [var] @ variables_to_remove
           | _ -> variables_to_remove
       ) [] lhost_val_list in
     let abstract_value = List.fold_left (fun abstract_value variable_to_remove -> remove_variable variable_to_remove abstract_value) abstract_value variables_to_remove in
-    List.fold_left (fun abstract_value (key,value) ->
-        Pervasives.print_endline "key";
-        Pervasives.print_endline (short 100 value);
+    List.fold_left (fun abstract_value (old_variable, new_lhost, new_abstract_value) ->
+        Pervasives.print_endline (short 100 new_abstract_value);
         let keys_of_old_var, old_var =
-          match value with (struct_store, _) ->
-            (* there should only be one local variable in that mapping, but this may have several fields *)
-            StructStore.fold (fun field _ (old_keys, old_var) ->
-                match field with
-                | `Field(Some variable, field) ->
-                  if variable.vglob then old_keys, old_var else ([`Field (Some variable, field)] @ old_keys), Some variable
-                | _ -> (old_keys, old_var)
-              ) struct_store ([], None)
+          match old_variable with
+          | Some old_variable -> (
+              let _, fields_of_old_variable = get_variable_with_fields_from_lhost (Var old_variable) in
+              (List.map (fun field -> (`Field (Some old_variable, field))) fields_of_old_variable), Some old_variable
+            )
+          | _ ->
+            match new_abstract_value with (struct_store, _) ->
+              StructStore.fold (fun field _ (old_keys, old_var) ->
+                  match field with
+                  | `Field(Some variable, field) ->
+                    if variable.vglob then
+                      old_keys, old_var
+                    else
+                      ([`Field (Some variable, field)] @ old_keys), Some variable
+                  | _ -> (old_keys, old_var)
+                ) struct_store ([], None)
         in
-        let new_var = get_variable_from_lhost key in
+        let new_var, _ = get_variable_with_fields_from_lhost new_lhost in
+        Pervasives.print_endline ("keys_of_old_var length: " ^ (Pervasives.string_of_int (List.length keys_of_old_var)));
+        let keys_of_old_var =
+          (* this is the case when the old variable is the return variable, as the return variable is a variable of the type void *)
+          if List.length keys_of_old_var = 0 then
+            StructStore.fold (
+              fun key _ keys_of_old_var ->
+                match key with
+                | (`Field (variable, field)) -> (
+                    match variable, old_variable with
+                    | Some var, Some old_variable ->
+                      if var.vid = old_variable.vid then
+                        [(`Field (variable, field))] @ keys_of_old_var
+                      else keys_of_old_var
+                    | None, None -> [(`Field (variable, field))] @ keys_of_old_var
+                    | _ -> keys_of_old_var
+                  )
+                | _ -> keys_of_old_var
+            ) (match new_abstract_value with (struct_store, _) -> struct_store) []
+          else
+            keys_of_old_var
+        in
         if List.length keys_of_old_var > 0 then
           let value_after_renaming, _ =
             List.fold_left (
               fun (abstract_value, value_old_key) old_key ->
                 rename_variable_for_field abstract_value old_key value_old_key new_var
-            ) (abstract_value, value) keys_of_old_var
+            ) (abstract_value, new_abstract_value) keys_of_old_var
           in
           match old_var with
           | Some old_var ->
-            remove_variable old_var value_after_renaming
+            if old_var.vglob then
+              value_after_renaming
+            else
+              remove_variable old_var value_after_renaming
           | _ -> value_after_renaming
         else (
           abstract_value
@@ -1070,11 +1118,14 @@ end
 and RelationalStructsApron: StructDomain.Relational
   with type field = EquationField.t
    and type value = Compound_TransformableToIntDomTupleT.t
+   and type t = ApronDomain.ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
   = ApronDomain.ApronRelationalStructDomain(Compound_TransformableToIntDomTupleT)(EquationField)
 
 and RelationalStructs : StructDomain.Relational
   with type field = EquationField.t
-   and type value = Compound_TransformableToIntDomTupleT.t =
+   and type value = Compound_TransformableToIntDomTupleT.t
+   and type t = (Lattice.Prod(MapDomain.MapTop_LiftBot (EquationField)(Compound_TransformableToIntDomTupleT))(Equation.EquationMap(EquationField)(Compound_TransformableToIntDomTupleT)).t) option * (ApronDomain.ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t) option
+=
 struct
   open Batteries
   open Pretty
@@ -1184,9 +1235,9 @@ struct
   let replace = map5p { f5p = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.replace }
 
   let add_variable_value_list list (a, b) =
-    let list1 = List.fold_left (fun list (a, (l1, _)) ->
+    let list1 = List.fold_left (fun list (a,b, (l1, _)) ->
         match l1 with
-        | Some l1 -> [(a, l1)] @ list
+        | Some l1 -> [(a, b, l1)] @ list
         | _ -> list
       ) [] list in
     let a =
@@ -1194,9 +1245,9 @@ struct
       | Some ap -> Some (R1.add_variable_value_list list1 ap)
       | _ -> None
     in
-    let list2 = List.fold_left (fun list (a, (_, l2)) ->
+    let list2 = List.fold_left (fun list (a,b, (_, l2)) ->
         match l2 with
-        | Some l2 -> [(a, l2)] @ list
+        | Some l2 -> [(a,b, l2)] @ list
         | _ -> list
       ) [] list in
     let b =
