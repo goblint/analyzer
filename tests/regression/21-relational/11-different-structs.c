@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base']" --set ana.int.interval true --set ana.int.trier true --set ana.int.queries true --set ana.int.relational true --set ana.int.equations true --set ana.structs.relational true --set ana.structs.relational_to_analyze "['S','T']" --set ana.structs.apron true --set ana.structs.equations false
+// PARAM: --set ana.activated "['base']" --set ana.int.interval true --set ana.int.trier true --set ana.int.queries true --set ana.int.relational true --set ana.int.equations true --set ana.structs.relational true --set ana.structs.relational_to_analyze "['S','T']"
 typedef struct  {
     int i;
     int k;
@@ -53,7 +53,7 @@ S some_function(){
     assert(yy.i>7);
     assert(yy.i>=8);
     assert(!(xx.k>9));
-    assert(yy.i==8); //FAIL
+    assert(yy.i==8); //NOWARN
     return xx;
 }
 
