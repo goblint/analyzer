@@ -828,9 +828,10 @@ struct
    **************************************************************************)
 
   (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
-  let char_array : (lval, string) Hashtbl.t = Hashtbl.create 500
+  (* let char_array : (lval, string) Hashtbl.t = Hashtbl.create 500 *)
 
   let assign ctx (lval:lval) (rval:exp)  =
+    (*
     let char_array_hack () =
       let rec split_offset = function
         | Index(Const(CInt64(i, _, _)), NoOffset) -> (* ...[i] *)
@@ -865,6 +866,7 @@ struct
       (*BatHashtbl.modify_def "" lv (fun s -> Bytes.set s i c) char_array*)
       | _ -> ()
     in char_array_hack ();
+    *)
     let is_list_init () =
       match lval, rval with
       | (Var a, Field (fi,NoOffset)), AddrOf((Var b, NoOffset))
@@ -1340,11 +1342,13 @@ struct
           (* ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
           begin match unrollType (typeOf e) with
             | TPtr(TInt(IChar, _), _) ->
+              (*
               let v, offs = Q.LS.choose @@ addrToLvalSet a in
               let ciloffs = Lval.CilLval.to_ciloffs offs in
               let lval = Var v, ciloffs in
               (try `Str (Hashtbl.find char_array lval)
                with Not_found -> `Top)
+              *) `Top
             | _ -> (* what about ISChar and IUChar? *)
               (* ignore @@ printf "Type %a\n" d_plaintype t; *)
               `Top
