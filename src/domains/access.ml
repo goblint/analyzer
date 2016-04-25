@@ -87,28 +87,16 @@ let rec compareOffset (off1: offset) (off2: offset) : bool =
   | NoOffset, NoOffset -> true
   | _ -> false
 
-type acc_typ = [ `Type of typ | `Struct of compinfo * offset ]
-
-let d_offset b () os : Pretty.doc = 
-  let rec d_o () = function 
-    | NoOffset -> nil
-    | Index (_,o) -> dprintf "[?]%a" d_o o
-    | Field (f,o) -> dprintf ".%s%a" f.fname d_o o
-  in
-  b ++ d_o () os
-
-let d_acct () = function
-  | `Type t -> dprintf "(%a)" d_type t
-  | `Struct (s,o) -> d_offset (dprintf "(struct %s)" s.cname) () o
-
-let file_re = Str.regexp "\\(.*/\\|\\)\\([^/]*\\)"
-let d_loc () loc = 
-  if Str.string_match file_re loc.file 0 then
-    dprintf "%s:%d" (Str.matched_group 2 loc.file) loc.line
-  else
-    dprintf "%s:%d" loc.file loc.line
-
 type offs = [`NoOffset | `Index of 't | `Field of fieldinfo * 't] as 't
+
+let rec compareOffs (off1: offs) (off2: offs) : bool =
+  match off1, off2 with
+  | `Field (fld1, off1'), `Field (fld2, off2') ->
+    fld1 == fld2 && compareOffs off1' off2'
+  | `Index off1', `Index off2' ->
+    compareOffs off1' off2'
+  | `NoOffset, `NoOffset -> true
+  | _ -> false
 
 let rec offs_eq x y = 
   match x, y with
@@ -122,10 +110,29 @@ let rec remove_idx : offset -> offs  = function
   | Index (_,o) -> `Index (remove_idx o)
   | Field (f,o) -> `Field (f, remove_idx o)
 
+let rec addOffs os1 os2 : offs = 
+  match os1 with
+  | `NoOffset -> os2
+  | `Index os -> `Index (addOffs os os2)
+  | `Field (f,os) -> `Field (f, addOffs os os2)
+
 let rec d_offs () : offs -> doc = function
   | `NoOffset -> nil
   | `Index o -> dprintf "[?]%a" d_offs o
   | `Field (f,o) -> dprintf ".%s%a" f.fname d_offs o
+
+type acc_typ = [ `Type of typ | `Struct of compinfo * offs ]
+
+let d_acct () = function
+  | `Type t -> dprintf "(%a)" d_type t
+  | `Struct (s,o) -> dprintf "(struct %s)%a" s.cname d_offs o
+
+let file_re = Str.regexp "\\(.*/\\|\\)\\([^/]*\\)"
+let d_loc () loc = 
+  if Str.string_match file_re loc.file 0 then
+    dprintf "%s:%d" (Str.matched_group 2 loc.file) loc.line
+  else
+    dprintf "%s:%d" loc.file loc.line
 
 let d_memo () (t, lv) =
   match lv with 
@@ -136,12 +143,12 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
   | AddrOf (h,o) | StartOf (h,o) -> 
     let rec f htyp = 
       match htyp with
-      | TComp (ci,_) -> `Struct (ci,o)
+      | TComp (ci,_) -> `Struct (ci,remove_idx o)
       | TNamed (ti,_) -> f ti.ttype
       | _ -> `Type fb
     in
     begin match o with
-      | Field (f, on) -> `Struct (f.fcomp, o)
+      | Field (f, on) -> `Struct (f.fcomp, remove_idx o)
       | NoOffset | Index _ ->
         begin match h with
           | Var v -> f (v.vtype)
@@ -160,7 +167,7 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
   | Question (_,b,c,t) -> 
     begin match get_type fb b, get_type fb c with
       | `Struct (s1,o1), `Struct (s2,o2) 
-        when s1.ckey = s2.ckey && compareOffset o1 o2 ->
+        when s1.ckey = s2.ckey && compareOffs o1 o2 ->
         `Struct (s1, o1)
       | _ -> `Type t
     end
@@ -224,7 +231,7 @@ struct
   let equal (x:t) y = 
     match x, y with
     | `Type t, `Type v -> Basetype.CilType.equal t v
-    | `Struct (c1,o1), `Struct (c2,o2) -> c1.ckey = c2.ckey && Exp.Exp.off_eq o1 o2
+    | `Struct (c1,o1), `Struct (c2,o2) -> c1.ckey = c2.ckey && compareOffs o1 o2
     | _ -> false  
   let hash = function
   | `Type t -> Basetype.CilType.hash t
@@ -278,12 +285,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
   with _ -> get_type voidType e
 
 let some_accesses = ref false
-let add_one (e:exp) (w:bool) (conf:int) (ty:acc_typ) lv ((pp,lp):part): unit =
-  let lv = 
-    match lv with
-    | None -> None 
-    | Some (v,os) -> Some (v, remove_idx os)
-  in
+let add_one (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
   if is_ignorable lv then () else begin
     some_accesses := true;
     let tyh = TypeHash.find_def accs  ty (lazy (LvalOptHash.create 10)) in
@@ -313,33 +315,33 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     let rec type_from_offs (t,o) = 
       match o with
-      | NoOffset -> t
-      | Index (i,os) -> type_from_offs (deref t, os)
-      | Field (f,os) -> type_from_offs (f.ftype, os)
+      | `NoOffset -> t
+      | `Index os -> type_from_offs (deref t, os)
+      | `Field (f,os) -> type_from_offs (f.ftype, os)
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct (e:exp) (w:bool) (conf:int) (ty:acc_typ) lv (p:part): unit =
+let add_struct (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) (p:part): unit =
   let rec dist_fields ty =
     match unrollType ty with
     | TComp (ci,_)   ->
       let one_field fld =
-        List.map (fun x -> Field (fld,x)) (dist_fields fld.ftype)
+        List.map (fun x -> `Field (fld,x)) (dist_fields fld.ftype)
       in
       List.concat (List.map one_field ci.cfields)
     | TArray (t,_,_) -> 
-      List.map (fun x -> Index(mone,x)) (dist_fields t)
-    | _ -> [NoOffset]
+      List.map (fun x -> `Index x) (dist_fields t)
+    | _ -> [`NoOffset]
   in
   match ty with
   | `Struct (s,os2) ->
     let add_lv os = match lv with
-      | Some (v, os1) -> Some (v, addOffset os1 os)
+      | Some (v, os1) -> Some (v, addOffs os1 os)
       | None -> None
     in
     begin try 
       let oss = dist_fields (type_from_type_offset ty) in
-      List.iter (fun os -> add_one e w conf (`Struct (s,addOffset os2 os)) (add_lv os) p) oss
+      List.iter (fun os -> add_one e w conf (`Struct (s,addOffs os2 os)) (add_lv os) p) oss
     with Failure _ ->
       add_one e w conf ty lv p
     end
@@ -352,14 +354,14 @@ let add_struct (e:exp) (w:bool) (conf:int) (ty:acc_typ) lv (p:part): unit =
 let rec add_propagate e w conf ty ls p =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
-    | NoOffset -> true
-    | Field (_,os) -> only_fields os
-    | Index _ -> false
+    | `NoOffset -> true
+    | `Field (_,os) -> only_fields os
+    | `Index _ -> false
   in
-  let struct_inv f = 
+  let struct_inv (f:offs) = 
     let fi = 
       match f with
-      | Field (fi,_) -> fi
+      | `Field (fi,_) -> fi
       | _ -> Messages.bailwith "add_propagate: no field found"
     in
     let ts = typeSig (TComp (fi.fcomp,[])) in
@@ -370,18 +372,18 @@ let rec add_propagate e w conf ty ls p =
     add_struct e w conf (`Struct (fi.fcomp, f)) None p;
   in
   let just_vars t v = 
-    add_struct e w conf (`Type t) (Some (v, NoOffset)) p;    
+    add_struct e w conf (`Type t) (Some (v, `NoOffset)) p;    
   in
   add_struct e w conf ty None p;
   match ty with
-  | `Struct (c,os) when only_fields os && os <> NoOffset ->
+  | `Struct (c,os) when only_fields os && os <> `NoOffset ->
     (* ignore (printf "  * type is a struct\n"); *)
     struct_inv  os
   | _ ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = type_from_type_offset ty in
     let incl = Ht.find_all typeIncl (typeSig t) in
-    List.iter (fun fi -> struct_inv (Field (fi,NoOffset))) incl;
+    List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset))) incl;
     let vars = Ht.find_all typeVar (typeSig t) in
     List.iter (just_vars t) vars
 
@@ -440,7 +442,7 @@ let add e w conf vo oo p =
     (* let loc = !Tracing.current_loc in *)
     (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
     match vo, oo with
-    | Some v, Some o -> add_struct e w conf ty (Some (v, o)) p
+    | Some v, Some o -> add_struct e w conf ty (Some (v, remove_idx o)) p
     | _ -> 
       if !unsound && isArithmeticType (type_from_type_offset ty) then
         add_struct e w conf ty None p
