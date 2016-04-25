@@ -215,7 +215,7 @@ struct
           match rel_abstract_val with
           | `RelationalInt rel_abstract_val -> (
               match lhost with
-              | Var var -> `RelationalInt (RD.add_variable_value_pair (lhost, x) rel_abstract_val)
+              | Var var -> `RelationalInt (RD.add_variable_value_list [(var, x)] rel_abstract_val)
               | Mem exp -> `RelationalInt (RD.eval_assign_int_value (x, exp) rel_abstract_val)
             )
           | _ -> `RelationalInt (RD.top())
@@ -1740,15 +1740,17 @@ struct
           List.filter (
             fun (varinfo, value) -> match varinfo, value with _, `Int x -> true | _ -> false
           ) varinfo_val_list in
-        let lhost_int_val_list = List.map (fun (varinfo, value) -> match varinfo, value with | varinfo, `Int x -> ((Var varinfo), x) | varinfo, _ -> ((Var varinfo), ID.top())) varinfo_int_val_list in
-        let abstract_value_relational_ints = match (first_value_in_local_store store RelationalIntInformation) with | `RelationalInt x -> RD.add_variable_value_list lhost_int_val_list (RD.remove_all_local_variables x) | _ -> RD.add_variable_value_list lhost_int_val_list (RD.top ()) in
+        let varinfo_val_list = List.map (fun (varinfo,value) ->
+            match value with
+            | `Int int_val -> varinfo, int_val
+            | _ -> varinfo, ID.top ()
+          ) varinfo_int_val_list in
+        let abstract_value_relational_ints = match (first_value_in_local_store store RelationalIntInformation) with | `RelationalInt x -> RD.add_variable_value_list varinfo_val_list (RD.remove_all_local_variables x) | _ -> RD.add_variable_value_list varinfo_val_list (RD.top ()) in
         let abstract_value_relational_ints = RD.remove_all_top_variables abstract_value_relational_ints in
         List.map (
           fun (varinfo, abstr) ->
-            match varinfo with
-            | Var varinfo -> (varinfo, `RelationalInt (abstract_value_relational_ints))
-            | _ -> (* this case does not happen and is here just to avoid warnings *)((Cil.makeGlobalVar " " (TVoid [])),`RelationalInt (abstract_value_relational_ints))
-        ) lhost_int_val_list
+            (varinfo, `RelationalInt (abstract_value_relational_ints))
+        ) varinfo_int_val_list
       )
       else []
     in

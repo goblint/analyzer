@@ -160,11 +160,8 @@ struct
       )
     | _ -> top ()
 
-  let add_variable_value_list (varinfo_val_list: (Cil.lhost * ID.t) list) abstract_value =
-    List.fold_left (fun abstract_value (key,value) -> eval_assign_int_value (value, (Cil.Lval(key, NoOffset)))abstract_value) abstract_value varinfo_val_list
-
-  let add_variable_value_pair varinfo_val_pair abstract_value =
-    add_variable_value_list [varinfo_val_pair] abstract_value
+  let add_variable_value_list (varinfo_val_list: (Cil.varinfo * ID.t) list) abstract_value =
+    List.fold_left (fun abstract_value (key,value) -> eval_assign_int_value (value, (Cil.Lval(Var key, NoOffset)))abstract_value) abstract_value varinfo_val_list
 
   let equation_key_to_string key =
     match key with `Var key -> key.vname | `Bot -> "Bot" | _ -> "Top"
@@ -418,7 +415,6 @@ struct
 
   (* f3p: projections *)
   let add_variable_value_list = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.add_variable_value_list }
-  let add_variable_value_pair = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.add_variable_value_pair }
   let eval_assert_cil_exp = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.eval_assert_cil_exp }
   let eval_assign_int_value = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.eval_assign_int_value }
   let eval_assign_cil_exp = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.eval_assign_cil_exp }
