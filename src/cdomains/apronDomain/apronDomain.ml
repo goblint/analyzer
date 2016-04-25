@@ -240,6 +240,7 @@ struct
       end
 
   let get_int_for_apron_scalar (scalar: Scalar.t) =
+    let open Scalar in
     match scalar with
     | Float scalar -> Some (Pervasives.int_of_float scalar)
     | Mpqf scalar ->
@@ -256,6 +257,7 @@ struct
       let linexpr1, _  = cil_exp_to_apron_linexpr1 (A.env d) cil_exp false in
       match linexpr1 with
       | Some linexpr1 -> (
+          let open Interval in
           let interval_of_variable = A.bound_linexpr Man.mgr d linexpr1 in
           let infimum = get_int_for_apron_scalar interval_of_variable.inf in
           let supremum = get_int_for_apron_scalar interval_of_variable.sup in
@@ -435,6 +437,7 @@ struct
   let topE = topE
 
   let substitute_var_eq_with d v v' =
+    let open Texpr1 in
     A.substitute_texpr_with Man.mgr d (Var.of_string v)
       (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 
@@ -475,6 +478,7 @@ struct
       end
 
   let assign_var_eq_with d v v' =
+    let open Texpr1 in
     A.assign_texpr_with Man.mgr d (Var.of_string v)
       (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 
@@ -608,24 +612,16 @@ struct
   let add_variable_value_list get_variable_name variable_value_list abstract_value =
     try
       let variable_names = List.fold_right (
-          fun (lhost, _) (int_variables, real_variables) ->
-            match lhost with
-            | Cil.Var variable -> (
-                match variable.vtype with
-                | TInt _ -> ([(get_variable_name variable)] @ int_variables, real_variables)
-                | TFloat _ -> (int_variables,[(get_variable_name variable)] @real_variables)
-                | _ -> (int_variables, real_variables)
-              )
+          fun (variable, _) (int_variables, real_variables) ->
+            match variable.vtype with
+            | TInt _ -> ([(get_variable_name variable)] @ int_variables, real_variables)
+            | TFloat _ -> (int_variables,[(get_variable_name variable)] @real_variables)
             | _ -> (int_variables, real_variables)
         ) variable_value_list ([],[]) in
       let abstract_value = add_vars abstract_value variable_names in
       List.fold_right (
-        fun (lhost, value) abstract_val ->
-          match lhost with
-          | Cil.Var variable -> (
-              assign_int_value_to_variable_name abstract_val value (get_variable_name variable)
-            )
-          | _ -> abstract_value
+        fun (variable, value) abstract_val ->
+          assign_int_value_to_variable_name abstract_val value (get_variable_name variable)
       ) variable_value_list abstract_value
     with Manager.Error x ->
       Manager.print_exclog Format.std_formatter x;
@@ -698,9 +694,6 @@ struct
     match l_exp with
     | Lval(Var v, _) -> assign_int_value_to_variable_name (add_variable_with_name (get_variable_name v) abstract_value) int_val (get_variable_name v)
     | _ -> abstract_value
-
-  let add_variable_value_pair variable_value_pair abstract_value =
-    add_variable_value_list [variable_value_pair] abstract_value
 
   let eval_assign_cil_exp (lval, rval) abstract_value =
     match lval with
@@ -884,6 +877,7 @@ struct
         | Some x -> Int64.of_int x
         | _ -> if is_min_int then Int64.min_int else Int64.max_int
       in
+      let open Interval in
       let infimum = get_int64_for_apron_scalar interval_of_variable.inf true in
       let supremum = get_int64_for_apron_scalar interval_of_variable.sup false in
       if infimum = Int64.min_int && supremum = Int64.max_int then
