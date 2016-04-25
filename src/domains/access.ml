@@ -470,6 +470,7 @@ let check_accs (prev_r,prev_lp,prev_w) (conf,w,loc,e,lp) =
     let new_w  = prev_w || w in
     let new_lp = LSSet.inter lp prev_lp in
     let union_empty = LSSet.is_empty new_lp in
+    (* ignore(printf "intersection with %a = %a\n" LSSet.pretty lp LSSet.pretty new_lp); *)
     let new_r  = if union_empty && new_w then Some conf else None in
     (new_r, new_lp, new_w)
   | _ -> (prev_r,prev_lp,prev_w)
@@ -478,11 +479,19 @@ let check_safe ls (accs,lp) prev_safe =
   if ls = None then
     prev_safe
   else
-    let lp_start = (fun (_,_,_,_,lp) -> lp) (Set.choose accs) in
+    let ord_enum = Set.backwards accs in (* hope that it is not nil *)
+    let lp_start = (fun (_,_,_,_,lp) -> lp) (BatOption.get (BatEnum.peek ord_enum)) in
+    (* ignore(printf "starting with lockset %a\n" LSSet.pretty lp_start); *)
     match BatEnum.fold check_accs (None, lp_start, false) (Set.backwards accs), prev_safe with
-    | (None, _,_), _ -> prev_safe
-    | (Some n,_,_), Some m -> Some (max n m)
-    | (Some n,_,_), None -> Some n
+    | (None, _,_), _ -> 
+      (* ignore(printf "this batch is safe\n"); *)
+      prev_safe
+    | (Some n,_,_), Some m -> 
+      (* ignore(printf "race with %d and %d \n" n m); *)
+      Some (max n m)
+    | (Some n,_,_), None -> 
+      (* ignore(printf "race with %d\n" n); *)
+      Some n
 
 
 let print_races_oldscool () =
@@ -540,6 +549,7 @@ let print_races () =
       ignore (Pretty.printf "  _L -> %a (%s)\n" LSSet.pretty lp reason)
   in
   let h ty lv ht =
+    (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
     let safety = PartOptHash.fold check_safe ht None in
     let print_location safetext = 
       ignore(printf "Memory location %a (%s)\n" d_memo (ty,lv) safetext);
