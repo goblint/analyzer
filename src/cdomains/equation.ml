@@ -227,7 +227,7 @@ sig
   val map_keys: (equation_key -> equation_key) -> t -> t
   val meet_with_new_equation: store * t -> store * t
   val new_equation: equation_key -> equation_key -> Sign.t -> IntDomain.IntDomTuple.t -> equation
-  val not_meet_with_new_equation: store * t -> store * t
+  val disjoin_with_new_equation: store * t -> store * t
   val remove_equations_with_key: equation_key -> t -> t
   val remove_invalid_equations: store -> t -> t * store
 
@@ -426,13 +426,12 @@ struct
       )  equations store in
     (store, equations)
 
-  let not_meet_with_new_equation (store, equations) =
+  let disjoin_with_new_equation (store, equations) =
     let get_excl_list_of_int_abstract_value value =
       match (IntDomain.IntDomTuple.to_int value) with | Some int64 -> [int64] | _ -> []
     in
     let get_new_val_for_key key store not_val_for_other_key =
-      let not_val_int_dom_tuple_other_key =
-        Domain.to_int_val not_val_for_other_key in
+      let not_val_int_dom_tuple_other_key = Domain.to_int_val not_val_for_other_key in
       Domain.meet (Store.find key store)(
         Domain.of_int_val (
           IntDomain.IntDomTuple.of_excl_list (
