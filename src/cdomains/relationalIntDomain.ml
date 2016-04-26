@@ -287,9 +287,9 @@ struct
           if is_bot single_var_right then (
             (store, rel_ints)
           ) else
-            Equations.not_meet_with_new_equation single_var_right
+            Equations.disjoin_with_new_equation single_var_right
         ) else
-          Equations.not_meet_with_new_equation single_var_left
+          Equations.disjoin_with_new_equation single_var_left
       in
       (store, rel_ints)
     | _ -> Equations.meet_with_new_equation (store, rel_ints)
