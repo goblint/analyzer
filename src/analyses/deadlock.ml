@@ -103,7 +103,7 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     if D.is_top ctx.local then ctx.local else
       match LibraryFunctions.classify f.vname arglist with
-      | `Lock (_, _) ->
+      | `Lock (_, _, _) ->
         begin match eval_exp_addr ctx.ask (List.hd arglist) with
           | [lockAddr] ->
             addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
