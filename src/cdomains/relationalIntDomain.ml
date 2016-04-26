@@ -124,44 +124,40 @@ struct
     let joined_equations = Equations.join eq1 eq2 in
     Equations.remove_invalid_equations store joined_equations
 
-  let eval_assign_int_value (x, (l_exp: Cil.exp)) (store, rel_ints) =
-    match l_exp with
-    | Lval(Var v, _) -> (
-        let store = (IntStore.add (`Var v) x store) in
-        let equations, store =
-          if IntStore.is_top store || IntStore.is_bot store then rel_ints, store
-          else (
-            if (ID.is_int x) then (
-              IntStore.fold (
-                fun key value (equations, store) ->
-                  if Key.compare (`Var v) key = 0
-                  then
-                    equations, store
-                  else (
-                    if ID.is_int value then
-                      let sum_value_x = ID.add x value in
-                      let new_equation = (
-                        if EquationVariable.leq (`Var v) key then
-                          Equations.new_equation (`Var v) key `Plus sum_value_x
-                        else
-                          Equations.new_equation key (`Var v) `Plus sum_value_x
-                      ) in
-                      let joined_equations, store = join_equations equations (Equations.equations_of_equation new_equation) store in
-                      if (Equations.equation_count joined_equations) < (Equations.equation_count equations) then
-                        Equations.append_equation new_equation joined_equations, store
-                      else joined_equations, store
-                    else equations, store
+  let eval_assign_int_value variable x (store, rel_ints) =
+    let store = (IntStore.add (`Var variable) x store) in
+    let equations, store =
+      if IntStore.is_top store || IntStore.is_bot store then rel_ints, store
+      else (
+        if (ID.is_int x) then (
+          IntStore.fold (
+            fun key value (equations, store) ->
+              if Key.compare (`Var variable) key = 0
+              then
+                equations, store
+              else (
+                if ID.is_int value then
+                  let sum_value_x = ID.add x value in
+                  let new_equation = (
+                    if EquationVariable.leq (`Var variable) key then
+                      Equations.new_equation (`Var variable) key `Plus sum_value_x
+                    else
+                      Equations.new_equation key (`Var variable) `Plus sum_value_x
+                  ) in
+                  let joined_equations, store = join_equations equations (Equations.equations_of_equation new_equation) store in
+                  if (Equations.equation_count joined_equations) < (Equations.equation_count equations) then
+                    Equations.append_equation new_equation joined_equations, store
+                  else joined_equations, store
+                else equations, store
                   )
-              ) store (rel_ints, store)
+          ) store (rel_ints, store)
             )
-            else rel_ints, store
-          ) in
-        (store, equations)
-      )
-    | _ -> top ()
+        else rel_ints, store
+      ) in
+    (store, equations)
 
   let add_variable_value_list (varinfo_val_list: (Cil.varinfo * ID.t) list) abstract_value =
-    List.fold_left (fun abstract_value (key,value) -> eval_assign_int_value (value, (Cil.Lval(Var key, NoOffset)))abstract_value) abstract_value varinfo_val_list
+    List.fold_left (fun abstract_value (key,value) -> eval_assign_int_value key value abstract_value) abstract_value varinfo_val_list
 
   let equation_key_to_string key =
     match key with `Var key -> key.vname | `Bot -> "Bot" | _ -> "Top"
@@ -253,17 +249,13 @@ struct
       | _ -> None, None, None in
     Equations.get_equation_of_keys_and_sign_rkey (`Var var) (rvar_var,  offset) const
 
-  let eval_assign_cil_exp ((l_exp: Cil.exp), (r_exp: Cil.exp)) (store, rel_ints) =
-    match l_exp with
-    | Lval(Var v, _) -> (
-        match build_equation_of_cil_exp r_exp v with
-        | Some x ->
-          let equations, store = join_equations rel_ints (Equations.equations_of_equation x ) store in
-          if (Equations.equation_count equations) < (Equations.equation_count rel_ints) then (store,  Equations.append_equation x equations)
-          else (store,  equations)
-        | _ -> (store, rel_ints)
-      )
-    | _ -> top ()
+  let eval_assign_cil_exp variable r_exp (store, rel_ints) =
+    match build_equation_of_cil_exp r_exp variable with
+    | Some x ->
+      let equations, store = join_equations rel_ints (Equations.equations_of_equation x ) store in
+      if (Equations.equation_count equations) < (Equations.equation_count rel_ints) then (store,  Equations.append_equation x equations)
+      else (store,  equations)
+    | _ -> (store, rel_ints)
 
   let eval_assert_left_var (store, rel_ints) (l_exp: Cil.exp) (r_exp: Cil.exp) =
     match l_exp with
@@ -386,6 +378,7 @@ struct
   type 'b poly2_pr  = { f2p  : 'a. 'a m -> 'a -> 'a -> 'b }
   type 'b poly3_pr = { f3p  : 'a. 'a m -> 'b -> 'a -> 'a }
   type ('b, 'c) poly4_pr = { f4p  : 'a. 'a m -> 'b -> 'a -> 'c }
+  type ('b, 'c) poly5_pr = { f5p  : 'a. 'a m -> 'b -> 'c -> 'a -> 'a }
   type poly1 = { f1 : 'a. 'a m -> 'a -> 'a }
   type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a }
 
@@ -394,12 +387,15 @@ struct
     f (R1.name ()) @@ r.fi (module R1), f (R2.name ()) @@ r.fi (module R2)
 
   let mapp r (a,b) = Option.(map (r.fp (module R1)) a, map (r.fp (module R2)) b)
+  let curry_2 f a b c = f (a, b, c)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
   let opt_map3 f = curry @@ function | x, Some y -> Some (f x y) | _ -> None
+  let opt_map5 f = curry_2 @@ function | x, y, Some z -> Some (f x y z) | _ -> None
 
   let map2p r (xa,xb) (ya,yb) = opt_map2 (r.f2p (module R1)) xa ya, opt_map2 (r.f2p (module R2)) xb yb
   let map3p r x (ya,yb) = opt_map3 (r.f3p (module R1)) x ya,opt_map3 (r.f3p (module R2)) x yb
   let map4p r x (ya,yb) = (opt_map3 (r.f4p (module R1)) x ya), (opt_map3 (r.f4p (module R2)) x yb)
+  let map5p r x y (za,zb) = (opt_map5 (r.f5p (module R1)) x y za), (opt_map5 (r.f5p (module R2)) x y zb)
   let map2  r (xa,xb) (ya,yb) = opt_map2 (r.f2  (module R1)) xa ya, opt_map2 (r.f2(module R2)) xb yb
   let map r (a,b) = Option.(map (r.f1 (module R1)) a, map (r.f1 (module R2)) b)
   let to_list x = Tuple2.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
@@ -416,8 +412,6 @@ struct
   (* f3p: projections *)
   let add_variable_value_list = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.add_variable_value_list }
   let eval_assert_cil_exp = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.eval_assert_cil_exp }
-  let eval_assign_int_value = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.eval_assign_int_value }
-  let eval_assign_cil_exp = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.eval_assign_cil_exp }
   let remove_variable = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.remove_variable }
 
   (* f4p: projections *)
@@ -427,6 +421,10 @@ struct
     | Some x, _ -> x
     | _, Some y -> y
     | _ -> ID.bot ()
+
+  (* f5p: projections *)
+  let eval_assign_int_value = map5p { f5p = fun (type a) (module R:S with type t = a) -> R.eval_assign_int_value }
+  let eval_assign_cil_exp = map5p { f5p = fun (type a) (module R:S with type t = a) -> R.eval_assign_cil_exp }
 
   (* for_all *)
   let is_bot x = for_all ((mapp { fp = fun (type a) (module R:S with type t = a) -> R.is_bot }) x)

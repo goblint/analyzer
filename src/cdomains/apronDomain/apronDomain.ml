@@ -690,16 +690,11 @@ struct
     in
     result
 
-  let eval_assign_int_value (int_val, l_exp) abstract_value =
-    match l_exp with
-    | Lval(Var v, _) -> assign_int_value_to_variable_name (add_variable_with_name (get_variable_name v) abstract_value) int_val (get_variable_name v)
-    | _ -> abstract_value
+  let eval_assign_int_value variable int_val abstract_value =
+    assign_int_value_to_variable_name (add_variable_with_name (get_variable_name variable) abstract_value) int_val (get_variable_name variable)
 
-  let eval_assign_cil_exp (lval, rval) abstract_value =
-    match lval with
-    | Lval(Var v, _) ->
-      assign_var (add_variable_with_name (get_variable_name v) abstract_value) (get_variable_name v) rval
-    | _ -> abstract_value
+  let eval_assign_cil_exp variable rval abstract_value =
+    assign_var (add_variable_with_name (get_variable_name variable) abstract_value) (get_variable_name variable) rval
 
   let rec rename_cil_variables cil_exp add_local_identifier =
     match cil_exp with
