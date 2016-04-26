@@ -93,7 +93,7 @@ struct
 end
 
 
-module SimpleEquations : S =
+module SimpleEquations : RelationalIntDomainSignature =
 struct
   module Key = EquationVariable
 
@@ -347,8 +347,10 @@ struct
 
 end
 
+module type S = RelationalIntDomainSignature
+
 (* Took from IntDomain.IntDomTuple as example *)
-module RelationalIntDomainTuple : S =
+module RelationalIntDomainTuple : RelationalIntDomainSignature =
 struct
   open Batteries
   open Pretty
