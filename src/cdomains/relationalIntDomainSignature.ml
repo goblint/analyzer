@@ -1,6 +1,6 @@
 module ID = IntDomain.IntDomTuple
 
-module type S =
+module type RelationalIntDomainSignature =
 sig
   include Lattice.S
   val add_variable_value_list: (Cil.varinfo * ID.t) list -> t -> t
