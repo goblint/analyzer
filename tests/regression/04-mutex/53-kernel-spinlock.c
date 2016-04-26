@@ -15,7 +15,7 @@ static ssize_t my_read(struct file *file, char __user *buf, size_t count, loff_t
   if (!spin_trylock(&lock)) {
     return 0;
   }
-  
+
   data++; //NORACE
 
   spin_unlock(&lock);
@@ -51,4 +51,4 @@ module_init(test_init);
 module_exit(test_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Vesal Vojdani <vojdanig@in.tum.de>");
+MODULE_AUTHOR("Vootele Rotov <vooteler@ut.ee>");
