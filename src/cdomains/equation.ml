@@ -206,7 +206,7 @@ struct
   let cast_to_width _ _ = `Top
 end
 
-module type Signature =
+module type EquationsSignature =
 sig
   include Lattice.S
   type equation
@@ -306,7 +306,7 @@ struct
   let top () = (Key.top(), Key.top())
 
 end
-module EquationMap (Key: GroupableLatticeS) (Domain: Domain_TransformableFromIntDomTupleT) : Signature
+module EquationMap (Key: GroupableLatticeS) (Domain: Domain_TransformableFromIntDomTupleT) : EquationsSignature
   with type equation_key = Key.t
    and type store = MapDomain.MapTop_LiftBot(Key)(Domain).t
    and type store_value = Domain.t

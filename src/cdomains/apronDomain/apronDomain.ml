@@ -20,7 +20,7 @@ module ID = IntDomain.IntDomTuple
 
 module type ApronRelationalIntDomainSignature =
 sig
-  include RelationalIntDomainSignature.S
+  include RelationalIntDomainSignature.RelationalIntDomainSignature
 end
 
 module type PolyDomainSignature =
