@@ -216,7 +216,7 @@ struct
           | `RelationalInt rel_abstract_val -> (
               match lhost with
               | Var var -> `RelationalInt (RD.add_variable_value_list [(var, x)] rel_abstract_val)
-              | Mem exp -> `RelationalInt (RD.eval_assign_int_value (x, exp) rel_abstract_val)
+              | _ -> `RelationalInt (RD.top())
             )
           | _ -> `RelationalInt (RD.top())
         )
@@ -921,7 +921,7 @@ struct
           | Var v, _  when get_bool analyse_ints_relationally -> (
               match first_value_in_local_store store RelationalIntInformation with
               | `RelationalInt first_value_in_local_store ->
-                Some (lvalue, `RelationalInt (RD.eval_assign_int_value (int_value, (Lval lvalue)) first_value_in_local_store))
+                Some (lvalue, `RelationalInt (RD.eval_assign_int_value v int_value first_value_in_local_store))
               | _ -> Some (lvalue, `Int int_value))
           | _ -> Some (lvalue, `Int int_value)
         )
@@ -1098,10 +1098,10 @@ struct
             in
             match rval_val, first_value_in_local_store with
             | `Int x, Some y when (get_bool analyse_ints_relationally) ->
-              let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value (x, (Lval lval)) rel_int) in
+              let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value var x rel_int) in
               assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
             | _ when (get_bool analyse_ints_relationally) ->
-              let relational_int_abstract_value = RD.eval_assign_cil_exp ((Lval lval), rval) rel_int in
+              let relational_int_abstract_value = RD.eval_assign_cil_exp var rval rel_int in
               if RD.is_top relational_int_abstract_value then
                 ctx_local, rval_val
               else
