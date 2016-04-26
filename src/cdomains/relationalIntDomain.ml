@@ -100,9 +100,9 @@ struct
   module IntStore = MapDomain.MapTop_LiftBot (Key)(ID)
   type store = IntStore.t
 
-  module Equations = Equation.EquationMap(Key)(ID) (* this should also have Lattice.S signature *)
+  module Equations = Equation.EquationMap(Key)(ID)
   type equations = Equations.t
-    module D = Lattice.Prod (IntStore) (Equations)
+  module D = Lattice.Prod (IntStore) (Equations)
   include D
 
   let store_to_string length store =
@@ -116,7 +116,6 @@ struct
          | `Var key, _ -> string ^ ", " ^ (key_value_pair_string key value)
          | _ -> string
       ) store ""
-
 
   let name () = "equations"
 
@@ -213,7 +212,7 @@ struct
       (storeresult, joined_equations)
 
   let isSimple x = true
-  let pretty_diff () ((sa,ea), (sb,eb)) = IntStore.pretty_diff () (sa, sb) (* TODO equations *)
+  let pretty_diff () (a, b) = Pretty.text ((short 100 a) ^ " vs. " ^ (short 100 b))
   let pretty_f _ = pretty
   let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
   let toXML x = toXML_f short x
@@ -229,18 +228,6 @@ struct
           match op with
           | PlusA -> Some (`Var rvar), Some `Plus, Some (ID.of_int num)
           | MinusA -> Some (`Var rvar), Some `Minus, Some (ID.of_int num)
-          (*  TODO         | Mult -> Some rvar, Some (Int64.to_float num), Some 0.0*)
-          | _ -> None, None, None
-        )
-      | BinOp (op, Const (CInt64 (const, _, _)), BinOp(Mult, Lval (Var rvar, _), Const (CInt64 (coeffx, _, _)), _), _)
-      | BinOp (op, Const (CInt64 (const, _, _)), BinOp(Mult, Const (CInt64 (coeffx, _, _)), Lval (Var rvar, _), _), _)
-      | BinOp (op, BinOp(Mult, Const (CInt64 (coeffx, _, _)), Lval (Var rvar, _), _), Const (CInt64 (const, _, _)), _)
-      | BinOp (op, BinOp(Mult, Lval (Var rvar, _), Const (CInt64 (coeffx, _, _)), _), Const (CInt64 (const, _, _)), _) ->
-        if rvar.vid = var.vid then None, None, None
-        else (
-          match op with
-(* TODO          | PlusA -> Some rvar, Some (Int64.to_float coeffx), Some (Int64.to_float const)
-          | MinusA -> Some rvar, Some (Int64.to_float (Int64.neg coeffx)), Some (Int64.to_float const) *)
           | _ -> None, None, None
         )
       | Lval(Var rvar, _) ->
