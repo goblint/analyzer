@@ -808,7 +808,7 @@ struct
                                 match old_value with
                                 | `Int old_value ->
                                   let new_equation =  Equations.build_new_equation ((`Field(var, key)), old_value) ((`Field(new_var, new_field)), new_value) in
-                                  let joined_equations, s = join_equations equations (Equations.equations_of_equation new_equation) s in
+                                  let joined_equations, s = join_equations equations (Equations.equationmap_of_equation new_equation) s in
                                   if (Equations.equation_count joined_equations) < (Equations.equation_count equations) then
                                     Equations.append_equation new_equation joined_equations
                                   else joined_equations
@@ -893,9 +893,6 @@ struct
     List.fold_left (fun abstract_value variable_to_remove -> remove_variable variable_to_remove abstract_value) (struct_store, equations) variables_to_remove
 
   let rename_variable_for_field struct_val old_key value_old_key new_variable =
-    Pervasives.print_endline "rename_variable_for_field";
-    Pervasives.print_endline ("old_key: " ^ (EquationField.short 100 old_key));
-    Pervasives.print_endline ("new_variable " ^ match new_variable with Some new_variable -> new_variable.vname | _ -> "None");
     match old_key with
     | `Field _ -> (
         match struct_val with
@@ -1078,7 +1075,7 @@ struct
                 | _ -> (
                     match build_equation_of_cil_exp r_exp (`Field (Some v, fieldinfo))  with
                     | Some x -> (
-                        let new_equations, store = join_equations equations (Equations.equations_of_equation x) store in
+                        let new_equations, store = join_equations equations (Equations.equationmap_of_equation x) store in
                         if (Equations.equation_count new_equations) < (Equations.equation_count equations) then bot ()
                         else (
                           (store, new_equations)

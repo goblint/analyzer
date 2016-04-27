@@ -143,7 +143,7 @@ struct
                     else
                       Equations.new_equation key (`Var variable) `Plus sum_value_x
                   ) in
-                  let joined_equations, store = join_equations equations (Equations.equations_of_equation new_equation) store in
+                  let joined_equations, store = join_equations equations (Equations.equationmap_of_equation new_equation) store in
                   if (Equations.equation_count joined_equations) < (Equations.equation_count equations) then
                     Equations.append_equation new_equation joined_equations, store
                   else joined_equations, store
@@ -218,7 +218,7 @@ struct
   let toXML x = toXML_f short x
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
-  let build_equation_of_cil_exp (rexp: Cil.exp) (var: Cil.varinfo) =
+  let build_equation_of_cil_exp (rexp: Cil.exp) (var: Cil.varinfo) should_negate =
     let rvar_var, offset, const =
       match rexp with
       | BinOp (op, Lval (Var rvar, _), Const (CInt64 (num, _, _)), _)
@@ -226,35 +226,53 @@ struct
         if rvar.vid = var.vid then None, None, None
         else (
           match op with
-          | PlusA -> Some (`Var rvar), Some `Plus, Some (ID.of_int num)
-          | MinusA -> Some (`Var rvar), Some `Minus, Some (ID.of_int num)
+          | PlusA ->
+            if should_negate then
+              Some (`Var rvar), Some `Plus, Some (ID.of_excl_list [num])
+            else
+              Some (`Var rvar), Some `Plus, Some (ID.of_int num)
+          | MinusA ->
+            if should_negate then
+              Some (`Var rvar), Some `Minus, Some (ID.of_excl_list [num])
+            else
+              Some (`Var rvar), Some `Minus, Some (ID.of_int num)
           | _ -> None, None, None
         )
       | Lval(Var rvar, _) ->
         if rvar.vid = var.vid then None, None, None
-        else Some (`Var rvar), Some `Plus, Some (ID.of_int 0L)
+        else (
+          if should_negate then
+            Some (`Var rvar), Some `Plus, Some (ID.of_excl_list [0L])
+          else
+            Some (`Var rvar), Some `Plus, Some (ID.of_int 0L)
+        )
       | _ -> None, None, None in
     Equations.get_equation_of_keys_and_sign_rkey (`Var var) (rvar_var,  offset) const
 
   let eval_assign_cil_exp variable r_exp (store, rel_ints) =
-    match build_equation_of_cil_exp r_exp variable with
+    match build_equation_of_cil_exp r_exp variable false with
     | Some x ->
-      let equations, store = join_equations rel_ints (Equations.equations_of_equation x ) store in
+      let equations, store = join_equations rel_ints (Equations.equationmap_of_equation x ) store in
       if (Equations.equation_count equations) < (Equations.equation_count rel_ints) then (store,  Equations.append_equation x equations)
       else (store,  equations)
     | _ -> (store, rel_ints)
 
-  let eval_assert_left_var (store, rel_ints) (l_exp: Cil.exp) (r_exp: Cil.exp) =
+  let eval_assert_left_var (store, rel_ints) (l_exp: Cil.exp) (r_exp: Cil.exp) should_negate =
     match l_exp with
     | Lval(Var v, _) -> (
         match r_exp with
         | Const (CInt64 (const, _, _)) ->
-          let new_val_of_var = ID.meet (IntStore.find (`Var v) store) (ID.of_int const) in
+          let new_val_of_var =
+            if should_negate then
+              ID.meet (IntStore.find (`Var v) store) (ID.of_excl_list [const])
+            else
+              ID.meet (IntStore.find (`Var v) store) (ID.of_int const)
+          in
           (IntStore.add (`Var v) new_val_of_var store, rel_ints)
         | _ -> (
-            match build_equation_of_cil_exp r_exp v with
+            match build_equation_of_cil_exp r_exp v should_negate with
             | Some x -> (
-                let equations, store = join_equations rel_ints (Equations.equations_of_equation x) store in
+                let equations, store = join_equations rel_ints (Equations.equationmap_of_equation x) store in
                 if (Equations.equation_count equations) < (Equations.equation_count rel_ints) then bot ()
                 else (
                   (store,  equations))
@@ -270,9 +288,9 @@ struct
   let eval_assert_cil_exp (assert_exp: Cil.exp) (store, rel_ints) =
     match assert_exp with
     | BinOp (Eq, l_exp, r_exp, _) ->
-      let single_var_left = eval_assert_left_var (store, rel_ints) l_exp r_exp in
+      let single_var_left = eval_assert_left_var (store, rel_ints) l_exp r_exp false in
       if is_top single_var_left then (
-        let single_var_right = eval_assert_left_var (store, rel_ints) r_exp l_exp in
+        let single_var_right = eval_assert_left_var (store, rel_ints) r_exp l_exp false in
         if is_top single_var_right then (
           top ()
         ) else (
@@ -281,15 +299,15 @@ struct
       ) else Equations.meet_with_new_equation single_var_left
     | BinOp (Ne, l_exp, r_exp, _)  ->
       let store, _ =
-        let single_var_left = eval_assert_left_var (store, rel_ints) l_exp r_exp in
+        let single_var_left = eval_assert_left_var (store, rel_ints) l_exp r_exp true in
         if is_bot single_var_left then (
-          let single_var_right = eval_assert_left_var (store, rel_ints) r_exp l_exp in
+          let single_var_right = eval_assert_left_var (store, rel_ints) r_exp l_exp true in
           if is_bot single_var_right then (
             (store, rel_ints)
           ) else
-            Equations.disjoin_with_new_equation single_var_right
+            Equations.meet_with_new_equation single_var_right
         ) else
-          Equations.disjoin_with_new_equation single_var_left
+          Equations.meet_with_new_equation single_var_left
       in
       (store, rel_ints)
     | _ -> Equations.meet_with_new_equation (store, rel_ints)
