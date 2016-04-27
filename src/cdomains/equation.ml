@@ -223,7 +223,6 @@ sig
   val filter: (equation -> bool) -> t -> t
   val filter_equations_for_not_top_keys: (store * t) -> t
   val get_equation_of_keys_and_sign_rkey: equation_key -> (equation_key option * Sign.t option) -> IntDomain.IntDomTuple.t option -> equation option
-  val map_keys: (equation_key -> equation_key) -> t -> t
   val meet_with_new_equation: store * t -> store * t
   val new_equation: equation_key -> equation_key -> Sign.t -> IntDomain.IntDomTuple.t -> equation
   val remove_equations_with_key: equation_key -> t -> t
@@ -496,14 +495,6 @@ struct
 
   let filter func equations =
     filter (fun _ value -> func value) equations
-
-  let map_keys func equations =
-    fold (
-      fun (key1, key2) (key1,(key2, const2), const) new_map ->
-        let new_key1 = func key1 in
-        let new_key2 = func key2 in
-        add (new_key1, new_key2)((new_key1), (new_key2, const2), const) new_map
-    ) equations (top())
 
   let equationmap_of_equation x = append_equation x (top())
 
