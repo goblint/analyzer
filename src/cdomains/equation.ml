@@ -222,9 +222,9 @@ sig
   val equations_to_string: t -> (equation_key -> string) -> string
   val filter: (equation -> bool) -> t -> t
   val filter_equations_for_not_top_keys: (store * t) -> t
-  val get_equation_of_keys_and_sign_rkey: equation_key -> (equation_key option * Sign.t option) -> IntDomain.IntDomTuple.t option -> equation option
   val meet_with_new_equation: store * t -> store * t
   val new_equation: equation_key -> equation_key -> Sign.t -> IntDomain.IntDomTuple.t -> equation
+  val new_optional_equation: equation_key -> (equation_key option * Sign.t option) -> IntDomain.IntDomTuple.t option -> equation option
   val remove_equations_with_key: equation_key -> t -> t
   val remove_invalid_equations: store -> t -> t * store
 end
@@ -438,7 +438,7 @@ struct
   let new_equation keya keyb sign const =
     (keya, (keyb, sign), const)
 
-  let get_equation_of_keys_and_sign_rkey lkey rval const =
+  let new_optional_equation lkey rval const =
     match rval, const with
     | (Some rkey, Some sign), Some const ->
       if Key.compare lkey rkey < 0 then
