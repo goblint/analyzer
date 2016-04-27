@@ -1063,14 +1063,6 @@ struct
                   let val_in_store = (StructStore.find (`Field(Some v, fieldinfo)) store) in
                   let new_val_of_var =
                     Compound.meet val_in_store (`Int (IntDomain.IntDomTuple.of_int const)) in
-                  let equations = Equations.map_keys (
-                      fun key ->
-                        if EquationField.compare (`Field (Some v, fieldinfo)) key = 0
-                        then
-                          `Field (Some v, fieldinfo)
-                        else
-                          key
-                    ) equations in
                   (StructStore.add (`Field (Some v, fieldinfo)) new_val_of_var store, equations)
                 | _ -> (
                     match build_equation_of_cil_exp r_exp (`Field (Some v, fieldinfo))  with
