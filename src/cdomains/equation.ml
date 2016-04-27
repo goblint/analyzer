@@ -218,8 +218,7 @@ sig
   val build_new_equation: equation_key * IntDomain.IntDomTuple.t -> equation_key * IntDomain.IntDomTuple.t -> equation
   val change_keys_in_equations: equation_key -> equation_key -> t -> t
   val equation_count: t -> int
-  val equation_to_string: equation -> (equation_key -> string) -> string
-  val equations_of_equation: equation -> t
+  val equationmap_of_equation: equation -> t
   val equations_to_string: t -> (equation_key -> string) -> string
   val filter: (equation -> bool) -> t -> t
   val filter_equations_for_useful_keys: (store * t) -> t
@@ -227,10 +226,8 @@ sig
   val map_keys: (equation_key -> equation_key) -> t -> t
   val meet_with_new_equation: store * t -> store * t
   val new_equation: equation_key -> equation_key -> Sign.t -> IntDomain.IntDomTuple.t -> equation
-  val disjoin_with_new_equation: store * t -> store * t
   val remove_equations_with_key: equation_key -> t -> t
   val remove_invalid_equations: store -> t -> t * store
-
 end
 
 module type Domain_TransformableFromIntDomTupleT =
@@ -320,8 +317,7 @@ struct
   type const = IntDomain.IntDomTuple.t
   module EQ =  Lattice.Prod3(Key)(Lattice.Prod(Key)(Sign))(IntDomain.IntDomTuple)
   type equation = EQ.t
-  module EquationMap = MapDomain.MapTop_LiftBot(KeyTuple(Key))(EQ)
-  include EquationMap
+  include MapDomain.MapTop_LiftBot(KeyTuple(Key))(EQ)
 
   type store_value = Domain.t
 
@@ -420,37 +416,10 @@ struct
         fun key (key1, (key2, sign), const) store ->
           let equation = (key1, (key2, sign), const) in
           let new_val_for_key1 = solve_equation_for_key 0 equation store in
-          let store = Store.add key1 new_val_for_key1 store in
+          let store = if Domain.is_top new_val_for_key1 then store else Store.add key1 new_val_for_key1 store in
           let new_val_for_key2 = solve_equation_for_key 1 equation store in
-          Store.add key2 new_val_for_key2 store
+          if Domain.is_top new_val_for_key1 then store else Store.add key2 new_val_for_key2 store
       )  equations store in
-    (store, equations)
-
-  let disjoin_with_new_equation (store, equations) =
-    let get_excl_list_of_int_abstract_value value =
-      match (IntDomain.IntDomTuple.to_int value) with | Some int64 -> [int64] | _ -> []
-    in
-    let get_new_val_for_key key store not_val_for_other_key =
-      let not_val_int_dom_tuple_other_key = Domain.to_int_val not_val_for_other_key in
-      Domain.meet (Store.find key store)(
-        Domain.of_int_val (
-          IntDomain.IntDomTuple.of_excl_list (
-            get_excl_list_of_int_abstract_value not_val_int_dom_tuple_other_key
-          )
-        )
-      )
-    in
-    let store = fold (
-        fun _ (key1, (key2, sign), const) store ->
-          let equation = (key1, (key2, sign), const) in
-          let not_val_for_key1 =  solve_equation_for_key 0 equation store in
-          let not_val_for_key2 =  solve_equation_for_key 1  equation store in
-          let new_val_for_key1 = get_new_val_for_key key1 store not_val_for_key2 in
-          let store = if (Domain.is_bot new_val_for_key1) then store else Store.add key1 new_val_for_key1 store in
-          let new_val_for_key2 = get_new_val_for_key key2 store not_val_for_key1 in
-          if (Domain.is_bot new_val_for_key1) || (Domain.is_bot new_val_for_key2) then (Store.bot ())
-          else Store.add key2 new_val_for_key2 store
-        ) equations store in
     (store, equations)
 
   let change_keys_in_equations old_key new_key equations =
@@ -488,36 +457,46 @@ struct
       fold (fun _ equation (new_equations, new_store) ->
         match equation with
           (key1,(key2,sign),const) ->
-          let val_of_key1_in_store = Store.find key1 store in
-          let val_key1_after_equation = solve_equation_for_key 0 equation store in
-          let val_of_key2_in_store = Store.find key2 store in
-          let val_key2_after_equation = solve_equation_for_key 1 equation store in
-          if
-            (Domain.equal val_key1_after_equation val_of_key1_in_store) && (Domain.equal val_key2_after_equation val_of_key2_in_store)
-          then
-            let new_store = Store.add key1 val_key1_after_equation new_store in
-            let new_store = Store.add key2 val_key2_after_equation new_store in
-            add (key1, key2) equation new_equations, new_store
+          if IntDomain.IntDomTuple.is_top const then (new_equations, new_store)
           else (
-            if Domain.is_top val_of_key1_in_store || Domain.is_top val_of_key2_in_store then
-              new_equations, new_store
-            else
-              let int_val_of_key1_in_store = (Domain.to_int_val val_of_key1_in_store) in
-              let int_val_of_key2_in_store = (Domain.to_int_val val_of_key2_in_store) in
-              let new_store = Store.add key1 val_of_key1_in_store new_store in
-              let new_store = Store.add key2  val_key2_after_equation new_store in
-              add (key1, key2) (build_new_equation (key1, int_val_of_key1_in_store) (key2, int_val_of_key2_in_store)) new_equations, new_store
+            let val_of_key1_in_store = Store.find key1 store in
+            let val_key1_after_equation = solve_equation_for_key 0 equation store in
+            let val_of_key2_in_store = Store.find key2 store in
+            let val_key2_after_equation = solve_equation_for_key 1 equation store in
+            if
+              (Domain.equal val_key1_after_equation val_of_key1_in_store) && (Domain.equal val_key2_after_equation val_of_key2_in_store)
+            then
+              let new_store = Store.add key1 val_key1_after_equation new_store in
+              let new_store = Store.add key2 val_key2_after_equation new_store in
+              add (key1, key2) equation new_equations, new_store
+            else (
+              if Domain.is_top val_of_key1_in_store || Domain.is_top val_of_key2_in_store then
+                new_equations, new_store
+              else
+                let int_val_of_key1_in_store = (Domain.to_int_val val_of_key1_in_store) in
+                let int_val_of_key2_in_store = (Domain.to_int_val val_of_key2_in_store) in
+                let new_store = Store.add key1 val_of_key1_in_store new_store in
+                let new_store = Store.add key2 val_key2_after_equation new_store in
+                let new_equation = (build_new_equation (key1, int_val_of_key1_in_store) (key2, int_val_of_key2_in_store)) in
+                match new_equation with (_,(_,_),const) ->
+                  if IntDomain.IntDomTuple.is_top const then (new_equations, new_store)
+                  else
+                add (key1, key2) new_equation new_equations, new_store
+            )
           )
         )  equations (top(), Store.top()) in
     new_equations, new_store
 
   let append_equation equation equations =
-    let key1, key2 =
-      match equation with (key1, (key2, _), _) -> key1, key2 in
-    add (key1, key2) equation equations
+    match equation with
+      (key1, (key2, _), const) ->
+      if (IntDomain.IntDomTuple.is_top const) then equations
+      else
+        add (key1, key2) equation equations
 
   let filter func equations =
     filter (fun _ value -> func value) equations
+
   let map_keys func equations =
     fold (
       fun (key1, key2) (key1,(key2, const2), const) new_map ->
@@ -528,7 +507,7 @@ struct
 
   let equation_count x = cardinal x
 
-  let equations_of_equation x = append_equation x (top())
+  let equationmap_of_equation x = append_equation x (top())
 
   let equations_to_string eqmap key_to_string =
     fold(fun _ value string -> string ^ (if string = "" then "" else ", ") ^ equation_to_string value key_to_string) eqmap ""
@@ -536,20 +515,20 @@ struct
   let equations_equal x y =
     let all_equations_equal_until_now eq_until_now eq1 eq2 =
       eq_until_now && (equation_equal eq1 eq2) in
-    if (EquationMap.cardinal x) = (EquationMap.cardinal y) then
-      EquationMap.fold
+    if (cardinal x) = (cardinal y) then
+      fold
         (fun key equation equal_until_now ->
-           all_equations_equal_until_now equal_until_now equation (EquationMap.find key y))
+           all_equations_equal_until_now equal_until_now equation (find key y))
         x true
     else false
 
   let equations_leq equation_map1 equation_map2 =
-    EquationMap.fold
-      (fun key equation leq -> leq && compare_equation equation (EquationMap.find key equation_map2) < 1)
+    fold
+      (fun key equation leq -> leq && compare_equation equation (find key equation_map2) < 1)
       equation_map1 false
 
   let join eqmap1 eqmap2 =
-    EquationMap.fold EquationMap.add eqmap2 eqmap1
+    fold add eqmap2 eqmap1
 
 
 end
