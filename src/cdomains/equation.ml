@@ -221,7 +221,7 @@ sig
   val equationmap_of_equation: equation -> t
   val equations_to_string: t -> (equation_key -> string) -> string
   val filter: (equation -> bool) -> t -> t
-  val filter_equations_for_useful_keys: (store * t) -> t
+  val filter_equations_for_not_top_keys: (store * t) -> t
   val get_equation_of_keys_and_sign_rkey: equation_key -> (equation_key option * Sign.t option) -> IntDomain.IntDomTuple.t option -> equation option
   val map_keys: (equation_key -> equation_key) -> t -> t
   val meet_with_new_equation: store * t -> store * t
@@ -404,14 +404,14 @@ struct
           )
         )
 
-  let filter_equations_for_useful_keys (store, equations) =
+  let filter_equations_for_not_top_keys (store, equations) =
     filter(
       fun _ (key1, (key2, _), _) ->
         not(Domain.is_top (Store.find key1 store)) && not(Domain.is_top (Store.find key2 store))
     ) equations
 
   let meet_with_new_equation (store, equations) =
-    let equations = filter_equations_for_useful_keys (store, equations) in
+    let equations = filter_equations_for_not_top_keys (store, equations) in
     let store = fold (
         fun key (key1, (key2, sign), const) store ->
           let equation = (key1, (key2, sign), const) in

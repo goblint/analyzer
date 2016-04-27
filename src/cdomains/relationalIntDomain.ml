@@ -321,7 +321,7 @@ struct
   let remove_all_top_variables (old_store, old_equations) =
     let filtered_store =
       IntStore.filter (fun variable value -> not(ID.is_top (IntStore.find variable old_store))) old_store in
-    filtered_store, Equations.filter_equations_for_useful_keys(filtered_store, old_equations)
+    filtered_store, Equations.filter_equations_for_not_top_keys(filtered_store, old_equations)
 
   let remove_all_local_variables (old_store, old_equations) =
     let filtered_store =
@@ -330,7 +330,7 @@ struct
           | `Var variable -> variable.vglob
           | _ -> false
         ) old_store in
-    filtered_store, Equations.filter_equations_for_useful_keys(filtered_store, old_equations)
+    filtered_store, Equations.filter_equations_for_not_top_keys(filtered_store, old_equations)
 
   let select_local_or_global_variables_in_equation_list should_select_local equations =
     if should_select_local then
