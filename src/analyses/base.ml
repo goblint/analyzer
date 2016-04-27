@@ -1812,7 +1812,8 @@ struct
           | _ ->
             match first_relational_value_in_store with
             | `RelationalStruct first_relational_value_in_store ->
-              `RelationalStruct first_relational_value_in_store
+              let x = ValueDomain.RelationalStructs.remove_all_top_variables first_relational_value_in_store in
+              `RelationalStruct(ValueDomain.RelationalStructs.remove_all_local_variables x)
             | _ -> `RelationalStruct(ValueDomain.RelationalStructs.top ())
         )
       | _ ->
@@ -1833,6 +1834,11 @@ struct
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
+    let new_cpa = CPA.map (fun value ->
+        match value with
+        | `RelationalStruct x -> `RelationalStruct (ValueDomain.RelationalStructs.remove_all_local_variables x)
+        | _ -> value
+      ) new_cpa in
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let pa = if (get_bool analyse_ints_relationally) || (get_bool analyse_structs_relationally) then transform_varinfo_value_list_to_relational_list new_cpa pa else pa in
