@@ -85,7 +85,19 @@ struct
     | `Unknown fn when VarEq.safe_fn fn ->
       Messages.warn ("Assume that "^fn^" does not change lockset.");
       ctx.local
-    | `Unknown x -> begin
+    | `Unknown x -> 
+      let invalidate_arg st e = 
+        match ctx.ask (Queries.ReachableFrom e) with
+        | `LvalSet a when not (Queries.LS.is_top a)
+                       && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
+          let do_one_lval (v,os) = 
+            invalidate_lval ctx.ask (Var v, Lval.CilLval.to_ciloffs os)
+          in
+          Queries.LS.fold do_one_lval  a st
+        | `Top -> invalidate_exp ctx.ask e st
+        | _ -> st
+      in
+      begin
         let st =
           match lval with
           | Some lv -> invalidate_lval ctx.ask lv ctx.local
@@ -96,7 +108,7 @@ struct
           | Some fnc -> fnc `Write arglist
           | _ -> arglist
         in
-        List.fold_left (fun st e -> invalidate_exp ctx.ask e st) st write_args
+        List.fold_left invalidate_arg st write_args
       end
     | _ ->
       ctx.local
