@@ -144,7 +144,7 @@ struct
                       Equations.new_equation key (`Var variable) `Plus sum_value_x
                   ) in
                   let joined_equations, store = join_equations equations (Equations.equationmap_of_equation new_equation) store in
-                  if (Equations.equation_count joined_equations) < (Equations.equation_count equations) then
+                  if (Equations.cardinal joined_equations) < (Equations.cardinal equations) then
                     Equations.append_equation new_equation joined_equations, store
                   else joined_equations, store
                 else equations, store
@@ -253,7 +253,7 @@ struct
     match build_equation_of_cil_exp r_exp variable false with
     | Some x ->
       let equations, store = join_equations rel_ints (Equations.equationmap_of_equation x ) store in
-      if (Equations.equation_count equations) < (Equations.equation_count rel_ints) then (store,  Equations.append_equation x equations)
+      if (Equations.cardinal equations) < (Equations.cardinal rel_ints) then (store,  Equations.append_equation x equations)
       else (store,  equations)
     | _ -> (store, rel_ints)
 
@@ -273,7 +273,7 @@ struct
             match build_equation_of_cil_exp r_exp v should_negate with
             | Some x -> (
                 let equations, store = join_equations rel_ints (Equations.equationmap_of_equation x) store in
-                if (Equations.equation_count equations) < (Equations.equation_count rel_ints) then bot ()
+                if (Equations.cardinal equations) < (Equations.cardinal rel_ints) then bot ()
                 else (
                   (store,  equations))
               )

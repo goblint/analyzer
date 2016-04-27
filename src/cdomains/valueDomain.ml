@@ -809,7 +809,7 @@ struct
                                 | `Int old_value ->
                                   let new_equation =  Equations.build_new_equation ((`Field(var, key)), old_value) ((`Field(new_var, new_field)), new_value) in
                                   let joined_equations, s = join_equations equations (Equations.equationmap_of_equation new_equation) s in
-                                  if (Equations.equation_count joined_equations) < (Equations.equation_count equations) then
+                                  if (Equations.cardinal joined_equations) < (Equations.cardinal equations) then
                                     Equations.append_equation new_equation joined_equations
                                   else joined_equations
                                 | _ -> equations
@@ -1076,7 +1076,7 @@ struct
                     match build_equation_of_cil_exp r_exp (`Field (Some v, fieldinfo))  with
                     | Some x -> (
                         let new_equations, store = join_equations equations (Equations.equationmap_of_equation x) store in
-                        if (Equations.equation_count new_equations) < (Equations.equation_count equations) then bot ()
+                        if (Equations.cardinal new_equations) < (Equations.cardinal equations) then bot ()
                         else (
                           (store, new_equations)
                         )

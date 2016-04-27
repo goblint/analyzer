@@ -216,8 +216,8 @@ sig
 
   val append_equation: equation -> t -> t
   val build_new_equation: equation_key * IntDomain.IntDomTuple.t -> equation_key * IntDomain.IntDomTuple.t -> equation
+  val cardinal: t -> int
   val change_keys_in_equations: equation_key -> equation_key -> t -> t
-  val equation_count: t -> int
   val equationmap_of_equation: equation -> t
   val equations_to_string: t -> (equation_key -> string) -> string
   val filter: (equation -> bool) -> t -> t
@@ -504,8 +504,6 @@ struct
         let new_key2 = func key2 in
         add (new_key1, new_key2)((new_key1), (new_key2, const2), const) new_map
     ) equations (top())
-
-  let equation_count x = cardinal x
 
   let equationmap_of_equation x = append_equation x (top())
 
