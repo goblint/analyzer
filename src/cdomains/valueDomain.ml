@@ -1049,7 +1049,7 @@ struct
         if EquationField.compare field (`Field (Some rvar, rfield)) = 0 then None, None, None
         else Some (`Field (Some rvar, rfield)), Some `Plus, Some (IntDomain.IntDomTuple.of_int 0L)
       | _ -> None, None, None in
-    Equations.get_equation_of_keys_and_sign_rkey field (rvar_field, offset) const
+    Equations.new_optional_equation field (rvar_field, offset) const
 
   let eval_assert_left_var (store, equations) (l_exp: Cil.exp) (r_exp: Cil.exp) =
     match l_exp with

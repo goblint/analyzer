@@ -247,7 +247,7 @@ struct
             Some (`Var rvar), Some `Plus, Some (ID.of_int 0L)
         )
       | _ -> None, None, None in
-    Equations.get_equation_of_keys_and_sign_rkey (`Var var) (rvar_var,  offset) const
+    Equations.new_optional_equation (`Var var) (rvar_var,  offset) const
 
   let eval_assign_cil_exp variable r_exp (store, rel_ints) =
     match build_equation_of_cil_exp r_exp variable false with
