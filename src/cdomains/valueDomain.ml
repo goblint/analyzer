@@ -647,7 +647,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
 
-and RelationalStructsSimpleEquations: StructDomain.Relational
+and RelationalStructsSimpleEquations: StructDomain.RelationalStructDomainSignature
   with type field = EquationField.t
    and type value = Compound_TransformableToIntDomTupleT.t
    and type t = Lattice.Prod(MapDomain.MapTop_LiftBot (EquationField)(Compound_TransformableToIntDomTupleT))(Equation.EquationMap(EquationField)(Compound_TransformableToIntDomTupleT)).t
@@ -748,10 +748,6 @@ struct
 
   let get_value_of_variable_and_globals varinfo (struct_store, equations) =
     get_value_of_variable_name varinfo.vname (struct_store, equations) true
-
-  let get_value_of_globals (struct_store, equations) =
-    (* there is no variable which has the name space so there will only be returned global vars *)
-    get_value_of_variable_name " " (struct_store, equations) true
 
   let get_value_of_cil_exp cil_exp abstract_val =
     match cil_exp with
@@ -921,37 +917,32 @@ struct
       )
     | _ -> raise (Invalid_argument "")
 
-  let add_variable_value_list lhost_val_list abstract_value =
-    Pervasives.print_endline "add_variable_value_list";
-    let get_variable_with_fields_from_lhost key =
-      match key with
-      | Var v -> (
-          match v.vtype with
-          | TNamed (t, _) -> (
-              match t.ttype with
-              | TComp (comp, _) when comp.cstruct ->
-                Some v, comp.cfields
-              | _ -> None, []
-            )
-          | TVoid _ -> (* this is the case for the return variable *)
-            Some v, []
+  let add_variable_value_list variable_val_list abstract_value =
+    let get_variable_fields v =
+      match v.vtype with
+      | TNamed (t, _) -> (
+          match t.ttype with
+          | TComp (comp, _) when comp.cstruct ->
+            Some v, comp.cfields
           | _ -> None, []
         )
+      | TVoid _ -> (* this is the case for the return variable *)
+        Some v, []
       | _ -> None, []
     in
     let variables_to_remove = List.fold_left (
         fun variables_to_remove (_, key,_) ->
-          match get_variable_with_fields_from_lhost key with
+          match get_variable_fields key with
           | Some var, _ -> [var] @ variables_to_remove
           | _ -> variables_to_remove
-      ) [] lhost_val_list in
+      ) [] variable_val_list in
     let abstract_value = List.fold_left (fun abstract_value variable_to_remove -> remove_variable variable_to_remove abstract_value) abstract_value variables_to_remove in
     List.fold_left (fun abstract_value (old_variable, new_lhost, new_abstract_value) ->
         Pervasives.print_endline (short 100 new_abstract_value);
         let keys_of_old_var, old_var =
           match old_variable with
           | Some old_variable -> (
-              let _, fields_of_old_variable = get_variable_with_fields_from_lhost (Var old_variable) in
+              let _, fields_of_old_variable = get_variable_fields old_variable in
               (List.map (fun field -> (`Field (Some old_variable, field))) fields_of_old_variable), Some old_variable
             )
           | _ ->
@@ -966,8 +957,7 @@ struct
                   | _ -> (old_keys, old_var)
                 ) struct_store ([], None)
         in
-        let new_var, _ = get_variable_with_fields_from_lhost new_lhost in
-        Pervasives.print_endline ("keys_of_old_var length: " ^ (Pervasives.string_of_int (List.length keys_of_old_var)));
+        let new_var, _ = get_variable_fields new_lhost in
         let keys_of_old_var =
           (* this is the case when the old variable is the return variable, as the return variable is a variable of the type void *)
           if List.length keys_of_old_var = 0 then
@@ -1005,7 +995,7 @@ struct
         else (
           abstract_value
         )
-      ) abstract_value lhost_val_list
+      ) abstract_value variable_val_list
 
   let select_local_or_global_variables_in_equations should_select_local equations struct_store =
     if should_select_local then
@@ -1104,13 +1094,13 @@ struct
 
 end
 
-and RelationalStructsApron: StructDomain.Relational
+and RelationalStructsApron: StructDomain.RelationalStructDomainSignature
   with type field = EquationField.t
    and type value = Compound_TransformableToIntDomTupleT.t
    and type t = ApronDomain.ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
   = ApronDomain.ApronRelationalStructDomain(Compound_TransformableToIntDomTupleT)(EquationField)
 
-and RelationalStructs : StructDomain.Relational
+and RelationalStructs : StructDomain.RelationalStructDomainSignature
   with type field = EquationField.t
    and type value = Compound_TransformableToIntDomTupleT.t
    and type t = (Lattice.Prod(MapDomain.MapTop_LiftBot (EquationField)(Compound_TransformableToIntDomTupleT))(Equation.EquationMap(EquationField)(Compound_TransformableToIntDomTupleT)).t) option * (ApronDomain.ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t) option
@@ -1125,7 +1115,7 @@ struct
   type t = R1.t option * R2.t option
   type field = EquationField.t
   type value = Compound_TransformableToIntDomTupleT.t
-  type 'a m = (module StructDomain.Relational with type t = 'a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t )
+  type 'a m = (module StructDomain.RelationalStructDomainSignature with type t = 'a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t )
 
   type 'b poly_in  = { fi  : 'a. 'a m -> 'b -> 'a } (* inject *)
   type 'b poly_pr  = { fp  : 'a. 'a m -> 'a -> 'b } (* project *)
@@ -1159,28 +1149,27 @@ struct
   let for_all = let f g = g identity % to_list in List.(f for_all)
 
   (* f0: constructors *)
-  let top = create { fi = fun (type a)(module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.top }
-  let bot = create { fi = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.bot }
+  let top = create { fi = fun (type a)(module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.top }
+  let bot = create { fi = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.bot }
 
   (* for_all *)
-  let is_bot x = for_all ((mapp { fp = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.is_bot }) x)
-  let is_top x = for_all ((mapp { fp = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.is_top }) x)
+  let is_bot x = for_all ((mapp { fp = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.is_bot }) x)
+  let is_top x = for_all ((mapp { fp = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.is_top }) x)
 
   (* f1: unary ops *)
-  let get_value_of_globals =  map { f1 = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get_value_of_globals }
-  let remove_all_local_variables = map { f1 = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.remove_all_local_variables }
-  let remove_all_top_variables = map { f1 = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.remove_all_top_variables }
+  let remove_all_local_variables = map { f1 = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.remove_all_local_variables }
+  let remove_all_top_variables = map { f1 = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.remove_all_top_variables }
 
   (* f3p: projections *)
-  let eval_assert_cil_exp = map3p { f3p = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.eval_assert_cil_exp }
-  let get_value_of_cil_exp = map3p { f3p = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get_value_of_cil_exp }
-  let get_value_of_variable = map3p { f3p = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get_value_of_variable }
-  let get_value_of_variable_and_globals = map3p { f3p = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get_value_of_variable_and_globals }
-  let remove_variable = map3p { f3p = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.remove_variable }
+  let eval_assert_cil_exp = map3p { f3p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.eval_assert_cil_exp }
+  let get_value_of_cil_exp = map3p { f3p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get_value_of_cil_exp }
+  let get_value_of_variable = map3p { f3p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get_value_of_variable }
+  let get_value_of_variable_and_globals = map3p { f3p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get_value_of_variable_and_globals }
+  let remove_variable = map3p { f3p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.remove_variable }
 
   (* map4p projections *)
   let get x y  =
-    match (map4p { f4p = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get } x y) with
+    match (map4p { f4p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get } x y) with
     | Some x, Some y -> Compound.meet x y
     | Some x, _ -> x
     | _, Some y -> y
@@ -1221,7 +1210,7 @@ struct
     val1, val2
 
   (* map5p projections *)
-  let replace = map5p { f5p = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.replace }
+  let replace = map5p { f5p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.replace }
 
   let add_variable_value_list list (a, b) =
     let list1 = List.fold_left (fun list (a,b, (l1, _)) ->
@@ -1248,22 +1237,22 @@ struct
 
 
   (* others *)
-  let short _ = String.concat "; " % to_list % mapp { fp = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.short 3000 }
-  let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t and type value = Compound_TransformableToIntDomTupleT.t ) -> R.hash }
+  let short _ = String.concat "; " % to_list % mapp { fp = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.short 3000 }
+  let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t and type value = Compound_TransformableToIntDomTupleT.t ) -> R.hash }
 
   (* f2: binary ops *)
-  let join = map2 { f2 = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.join }
-  let meet = map2 { f2 = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.meet }
-  let widen  = map2 { f2 = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.widen }
-  let narrow = map2 { f2 = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.narrow }
-  let meet_local_and_global_state = map2 { f2 = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t )-> R.meet_local_and_global_state }
+  let join = map2 { f2 = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.join }
+  let meet = map2 { f2 = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.meet }
+  let widen  = map2 { f2 = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.widen }
+  let narrow = map2 { f2 = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.narrow }
+  let meet_local_and_global_state = map2 { f2 = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t )-> R.meet_local_and_global_state }
 
   (* f2p: binary projections *)
   let (%%) f g x = f % (g x) (* composition for binary function g *)
-  let compare = List.fold_left (fun a x -> if x<>0 then x else a) 0 % to_list %% map2p { f2p = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.compare }
-  let equal x y = for_all ((map2p { f2p = fun (type a)(module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.equal }) x y)
-  let pretty_f sf () : t -> doc = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text " ," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.pretty_f R.short () }
-  let leq x y = for_all ((map2p { f2p = fun (type a) (module R:StructDomain.Relational with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.leq }) x y)
+  let compare = List.fold_left (fun a x -> if x<>0 then x else a) 0 % to_list %% map2p { f2p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.compare }
+  let equal x y = for_all ((map2p { f2p = fun (type a)(module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.equal }) x y)
+  let pretty_f sf () : t -> doc = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text " ," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.pretty_f R.short () }
+  let leq x y = for_all ((map2p { f2p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.leq }) x y)
 
   (* printing boilerplate *)
   let isSimple _ = true
