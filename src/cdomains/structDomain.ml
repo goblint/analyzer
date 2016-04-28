@@ -17,6 +17,7 @@ sig
   type value
   type field
   val add_variable_value_list: (Cil.varinfo option * Cil.varinfo * t) list -> t-> t
+  val assign: t -> field -> value -> t
   val eval_assert_cil_exp: Cil.exp -> t -> t
   val get: field -> t -> value
   val get_value_of_cil_exp: Cil.exp -> t -> t
@@ -28,7 +29,6 @@ sig
   val remove_all_local_variables: t -> t
   val remove_all_top_variables: t -> t
   val remove_variable: varinfo -> t -> t
-  val replace: t -> field -> value -> t
 end
 
 

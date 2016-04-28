@@ -811,40 +811,20 @@ struct
     meet apron_abstract_valuex apron_abstract_valuey, StructMap.meet struct_mappingx struct_mappingy
 
   let narrow (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
-    Pervasives.print_endline "BEFORE NARROW";
-    Pervasives.print_endline (short 100 (apron_abstract_valuex, struct_mappingx));
-    let result =
-      narrow apron_abstract_valuex apron_abstract_valuey, StructMap.narrow struct_mappingx struct_mappingy
-    in
-    Pervasives.print_endline "Narrow Result";
-    Pervasives.print_endline (short 100 result);
-    result
+    narrow apron_abstract_valuex apron_abstract_valuey, StructMap.narrow struct_mappingx struct_mappingy
 
   let widen (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
-    Pervasives.print_endline "BEFORE WIDEN";
-    Pervasives.print_endline (short 100 (apron_abstract_valuex, struct_mappingx));
-    let result =
-      widen apron_abstract_valuex apron_abstract_valuey, StructMap.widen struct_mappingx struct_mappingy in
-    Pervasives.print_endline "WIDEN Result";
-    Pervasives.print_endline (short 100 result);
-    result
+    widen apron_abstract_valuex apron_abstract_valuey, StructMap.widen struct_mappingx struct_mappingy
 
   let leq (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
     leq apron_abstract_valuex apron_abstract_valuey && StructMap.leq struct_mappingx struct_mappingy
 
-  let replace (apron_abstract_value, struct_map) field compound_val =
-    Pervasives.print_endline "Replace with the following compound value: ";
-    Pretty.fprint Pervasives.stdout 0 (Compound.pretty () compound_val);
-    Pervasives.print_endline ("replace field: " ^ (EquationField.short 1000 field));
-    Pervasives.print_endline "Before replace:";
-    Pervasives.print_endline (short 1000 (apron_abstract_value, struct_map) );
+  let assign (apron_abstract_value, struct_map) field compound_val =
     let int_val = Compound.to_int_val compound_val in
     let new_field_name = get_unique_field_name field in
     let var_name, field_name = match field with | `Field(Some var, f) -> `Lifted var.vname, `Lifted f.fname | `Field (_, f) -> `Lifted "", `Lifted f.fname | _ -> raise (Invalid_argument "") in
     let struct_map = StructMap.add (var_name, field_name) field struct_map in
     let apron_abstract_value = assign_int_value_to_variable_name apron_abstract_value int_val new_field_name in
-(*    Pervasives.print_endline "After replace:";
-      Pervasives.print_endline (short 1000 (apron_abstract_value, struct_map) );*)
     apron_abstract_value, struct_map
 
   let equal (apron_abstract_valuex,_) (apron_abstract_valuey, _) =
@@ -975,10 +955,6 @@ struct
             if (v.vid = varinfo.vid) || (v.vglob && should_return_globals) then
               [value] @ fields_not_to_remove
             else fields_not_to_remove
-          | `Field(Some v, field), Some varinfo when should_return_globals ->
-            if v.vglob then
-              [value] @ fields_not_to_remove
-            else fields_not_to_remove
           | _ -> fields_not_to_remove
         ) struct_mapping [] in
     let fields_not_to_remove =
@@ -1089,7 +1065,7 @@ struct
     | _ -> []
 
   let add_variable_value_list variable_val_list abstract_value =
-    let result = List.fold_left (fun abstract_value (old_variable, new_variable, abstract_value) ->
+    List.fold_left (fun abstract_value (old_variable, new_variable, abstract_value) ->
         let value_old_key, struct_mapping_old_key = abstract_value in
         let environment = (A.env value_old_key) in
         let (vars_int, vars_real) = Environment.vars environment in
@@ -1127,8 +1103,6 @@ struct
               fun (abstract_value, value_old_key) old_key ->
                 let result =
                   rename_variable_of_field abstract_value old_key value_old_key (Some new_variable) in
-                Pervasives.print_endline "Result of rename";
-                Pervasives.print_endline (short 1000 result);
                 result, result
             ) (abstract_value, (value_old_key, struct_mapping_old_key)) keys_of_old_var
           in
@@ -1139,7 +1113,6 @@ struct
             match old_variable with
             | Some old_variable ->
               let fields_old_var = get_apron_keys_of_variable old_variable in
-              Pervasives.print_endline (Pervasives.string_of_int (List.length fields_old_var));
               let abstract_value =
                 List.fold_left (
                   fun (apron_abstract_value, struct_map) field_old_var ->
@@ -1149,18 +1122,13 @@ struct
                       | _ -> field_old_var
                     in
                     let interval_field_in_abstract_val = Compound.of_int_val (get_int_val_for_field_name unique_field_name apron_abstract_value) in
-                    replace (apron_abstract_value, struct_map) new_field interval_field_in_abstract_val
+                    assign (apron_abstract_value, struct_map) new_field interval_field_in_abstract_val
                 ) (apron_abstract_value, struct_map) fields_old_var in
               abstract_value
             | _ -> apron_abstract_value, struct_map
           in
-          Pervasives.print_endline "length 0";
           apron_abstract_value, struct_map
         )
       ) abstract_value variable_val_list
-    in
-    Pervasives.print_endline "Result of add_var_val_list";
-    Pervasives.print_endline (short 1000 result);
-    result
 
 end
