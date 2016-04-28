@@ -1129,8 +1129,8 @@ struct
                 | `RelationalStruct x, y when (get_bool analyse_structs_relationally) ->
                   let x = ValueDomain.RelationalStructs.get_value_of_cil_exp rval x in
                   let rvar = match rval with | Lval (Var v, _ ) -> Some v | _ -> None in
-                  let lhost_val_list = [(rvar, Var var, x)] in
-                  let value = `RelationalStruct  (ValueDomain.RelationalStructs.add_variable_value_list lhost_val_list y) in
+                  let variable_val_list = [(rvar, var, x)] in
+                  let value = `RelationalStruct  (ValueDomain.RelationalStructs.add_variable_value_list variable_val_list y) in
                   assign_new_relational_abstract_value ctx_local value (Mem (Lval lval))
                 | _ -> ctx_local, rval_val
               )
@@ -1332,8 +1332,8 @@ struct
               ValueDomain.RelationalStructs.get_value_of_variable_and_globals v value, Some v
             | _ -> value, None
           in
-          let lhost_val_list = [(rvar, Var (return_varinfo()), value)] in
-          let value = (ValueDomain.RelationalStructs.add_variable_value_list lhost_val_list value) in
+          let variable_val_list = [(rvar, return_varinfo(), value)] in
+          let value = (ValueDomain.RelationalStructs.add_variable_value_list variable_val_list value) in
           let st = assign_new_relational_abstract_value_in_store st (`RelationalStruct value) in
           set ctx.ask ctx.global (st, fl) (return_var ()) (`RelationalStruct value)
         | _ -> set ctx.ask ctx.global nst (return_var ()) value
@@ -1761,18 +1761,16 @@ struct
         let varinfo_struct_val_list = List.filter (
             fun (varinfo, value) -> match varinfo, value with _, `RelationalStruct x -> true | _ -> false
           ) varinfo_val_list in
-        let lhost_struct_val_list = List.map (fun (new_varinfo, value) ->
+        let variable_struct_val_list = List.map (fun (new_varinfo, value) ->
             match new_varinfo, value with
-            | varinfo, `RelationalStruct x -> (None, (Var varinfo), x)
-            | varinfo, _ -> (None, (Var varinfo), ValueDomain.RelationalStructs.top())) varinfo_struct_val_list
+            | varinfo, `RelationalStruct x -> (None, varinfo, x)
+            | varinfo, _ -> (None, varinfo, ValueDomain.RelationalStructs.top())) varinfo_struct_val_list
         in
-        let abstract_value_relational_structs = match (first_value_in_local_store store RelationalStructInformation) with | `RelationalStruct x -> ValueDomain.RelationalStructs.add_variable_value_list lhost_struct_val_list (ValueDomain.RelationalStructs.remove_all_local_variables x) | _ -> ValueDomain.RelationalStructs.add_variable_value_list lhost_struct_val_list (ValueDomain.RelationalStructs.top ()) in
+        let abstract_value_relational_structs = match (first_value_in_local_store store RelationalStructInformation) with | `RelationalStruct x -> ValueDomain.RelationalStructs.add_variable_value_list variable_struct_val_list (ValueDomain.RelationalStructs.remove_all_local_variables x) | _ -> ValueDomain.RelationalStructs.add_variable_value_list variable_struct_val_list (ValueDomain.RelationalStructs.top ()) in
         List.map (
           fun (_, varinfo, abstr) ->
-            match varinfo with
-            | Var varinfo -> (varinfo, `RelationalStruct (abstract_value_relational_structs))
-            | _ -> (* this case does not happen and is here just to avoid warnings *)((Cil.makeGlobalVar " " (TVoid [])),`RelationalStruct (abstract_value_relational_structs))
-        ) lhost_struct_val_list
+            (varinfo, `RelationalStruct (abstract_value_relational_structs))
+        ) variable_struct_val_list
       ) else []
     in
     varinfo_not_int_not_struct_val_list @ varinfo_int_val_list  @ varinfo_struct_val_list
@@ -2268,7 +2266,7 @@ struct
                         | `RelationalStruct x -> Pervasives.print_endline "first val in store: "; Pervasives.print_endline (ValueDomain.RelationalStructs.short 1000 x); x
                         | _ -> ValueDomain.RelationalStructs.top()
                       in
-                      `RelationalStruct (ValueDomain.RelationalStructs.add_variable_value_list ([Some (return_varinfo ()), (Var v), struct_val]) val_in_store) )
+                      `RelationalStruct (ValueDomain.RelationalStructs.add_variable_value_list ([Some (return_varinfo ()), v, struct_val]) val_in_store) )
                   | _ -> return_val
                 )
               | _ -> return_val

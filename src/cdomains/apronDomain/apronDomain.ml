@@ -45,12 +45,6 @@ sig
   val typesort: Cil.varinfo list -> string list * string list
 end
 
-module type ApronRelationalStructDomainSignature =
-sig
-  include StructDomain.Relational
-end
-
-
 (* contains functions, used by all apron domains *)
 module ApronDomain =
 struct
@@ -720,7 +714,7 @@ end
 
 module ApronRelationalStructDomain
     (Compound: Compound)(EquationField: Equation.GroupableLatticeS with type t = ([`Top | `Bot | `Field of Basetype.VariableFields.t]))
-    : ApronRelationalStructDomainSignature
+    : StructDomain.RelationalStructDomainSignature
       with type t = ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
        and type field = EquationField.t
        and type value = Compound.t
@@ -999,9 +993,6 @@ struct
   let get_value_of_variable varinfo (apron_abstract_value, struct_mapping) =
     get_value_of_variable_and_possibly_globals (Some varinfo) (apron_abstract_value, struct_mapping) false
 
-  let get_value_of_globals (apron_abstract_value, struct_mapping) =
-    get_value_of_variable_and_possibly_globals None (apron_abstract_value, struct_mapping) true
-
   let get key (apron_abstract_value, struct_mapping) =
     match key with
     | `Field(var, field) -> (
@@ -1097,15 +1088,8 @@ struct
       )
     | _ -> []
 
-  let add_variable_value_list lhost_val_list abstract_value =
-(*    let abstract_value = List.fold_left (fun abstract_value variable_to_remove ->
-        replace abstract_value variable_to_remove (Compound.top())) abstract_value variables_to_remove in *)
-    let result = List.fold_left (fun abstract_value (old_variable, new_lhost, abstract_value) ->
-        Pervasives.print_endline "\n\nadd_variable_value_list";
-        Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () (Lval (new_lhost, NoOffset)));
-        Pervasives.print_endline (": " ^ (short 100 abstract_value));
-
-        Pervasives.print_endline ("old variable: " ^ match old_variable with | Some old_variable -> old_variable.vname |_ -> "NONE");
+  let add_variable_value_list variable_val_list abstract_value =
+    let result = List.fold_left (fun abstract_value (old_variable, new_variable, abstract_value) ->
         let value_old_key, struct_mapping_old_key = abstract_value in
         let environment = (A.env value_old_key) in
         let (vars_int, vars_real) = Environment.vars environment in
@@ -1137,28 +1121,12 @@ struct
                 ) all_vars ([], None)
             )
         in
-        let new_var =
-          match new_lhost with
-          | Var v -> (
-              match v.vtype with
-              | TNamed (t, _) -> (
-                  match t.ttype with
-                  | TComp (comp, _) ->
-                    Some v
-                  | _ -> None
-                )
-                | TVoid _ -> (* this is the case for the return variable *)
-                  Some v
-                | _ -> None
-            )
-          | _ -> None
-        in
         if List.length keys_of_old_var > 0 then
           let apron_value_after_renaming, _ =
             List.fold_left (
               fun (abstract_value, value_old_key) old_key ->
                 let result =
-                  rename_variable_of_field abstract_value old_key value_old_key new_var in
+                  rename_variable_of_field abstract_value old_key value_old_key (Some new_variable) in
                 Pervasives.print_endline "Result of rename";
                 Pervasives.print_endline (short 1000 result);
                 result, result
@@ -1177,7 +1145,7 @@ struct
                   fun (apron_abstract_value, struct_map) field_old_var ->
                     let unique_field_name = get_unique_field_name field_old_var in
                     let new_field = match field_old_var with
-                      | `Field(_, f) -> `Field(new_var, f)
+                      | `Field(_, f) -> `Field(Some new_variable, f)
                       | _ -> field_old_var
                     in
                     let interval_field_in_abstract_val = Compound.of_int_val (get_int_val_for_field_name unique_field_name apron_abstract_value) in
@@ -1189,7 +1157,7 @@ struct
           Pervasives.print_endline "length 0";
           apron_abstract_value, struct_map
         )
-      ) abstract_value lhost_val_list
+      ) abstract_value variable_val_list
     in
     Pervasives.print_endline "Result of add_var_val_list";
     Pervasives.print_endline (short 1000 result);
