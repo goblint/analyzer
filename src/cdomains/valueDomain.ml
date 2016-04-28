@@ -340,7 +340,7 @@ struct
       let nstruct = RelationalStructs.top () in
       let top_field nstruct field =
         let typ = match field with `Field (_, field) -> field.ftype | _ -> raise (Invalid_argument "top_field") in
-        RelationalStructs.replace nstruct field ((top_value typ struct_name)) in
+        RelationalStructs.assign nstruct field ((top_value typ struct_name)) in
       let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
       List.fold_left top_field nstruct fields
     in
@@ -370,7 +370,7 @@ struct
       let top_field nstruct field =
         let old_struct_value = RelationalStructs.get field old in
         let typ = match field with `Field (_, field) -> field.ftype | _ -> raise (Invalid_argument "top_field valuedomain") in
-        RelationalStructs.replace nstruct field ((invalidate_value typ old_struct_value struct_name is_local))
+        RelationalStructs.assign nstruct field ((invalidate_value typ old_struct_value struct_name is_local))
       in
       let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
       List.fold_left top_field nstruct fields
@@ -460,7 +460,7 @@ struct
               `Struct (Structs.replace str fld (update_offset value_struct offs value variable))
             | `RelationalStruct str ->
               let value_struct = RelationalStructs.get (`Field (variable, fld)) str in
-              `RelationalStruct (RelationalStructs.replace str (`Field (variable, fld)) ((update_offset value_struct offs value variable)))
+              `RelationalStruct (RelationalStructs.assign str (`Field (variable, fld)) ((update_offset value_struct offs value variable)))
             | `Bot ->
               let rec init_comp compinfo =
                 let nstruct = Structs.top () in
@@ -469,13 +469,13 @@ struct
               in
               let rec init_comp_relational compinfo =
                 let nstruct = RelationalStructs.top () in
-                let init_field nstruct fd = RelationalStructs.replace nstruct fd `Bot in
+                let init_field nstruct fd = RelationalStructs.assign nstruct fd `Bot in
                 let field = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
                 List.fold_left init_field nstruct field
               in
               if GobConfig.get_bool analyse_structs_relationally then
                 let strc = init_comp_relational fld.fcomp in
-                `RelationalStruct (RelationalStructs.replace strc (`Field (variable, fld)) ((update_offset `Bot offs value variable)))
+                `RelationalStruct (RelationalStructs.assign strc (`Field (variable, fld)) ((update_offset `Bot offs value variable)))
               else
                 let strc = init_comp fld.fcomp in
                 `Struct (Structs.replace strc fld (update_offset `Bot offs value variable))
@@ -758,7 +758,7 @@ struct
     let eq = Equations.join eq1 eq2 in
     Equations.remove_invalid_equations store eq
 
-  let rec replace (s, equations) field new_value =
+  let rec assign (s, equations) field new_value =
     match field with
     | `Field (new_var, new_field) -> (
         match new_value with
@@ -767,14 +767,12 @@ struct
         (* this needs to be done, because else wrong initializations destroy correct values, ID.bot will still be assigned *)
         | `Bot -> (s,equations)
         | `RelationalStruct x -> (
-            Pervasives.print_endline "REPLACE HERE VAR NONE";
             match new_var with
             | Some new_var -> (
-                Pervasives.print_endline "REPLACE HERE";
                 let new_value_of_variable = RelationalStructs.get_value_of_variable new_var x in
                 match RelationalStructs.fold (
                     fun field value result ->
-                      RelationalStructs.replace result field value
+                      RelationalStructs.assign result field value
                   ) new_value_of_variable (Some (s,equations), None) with
                 | Some (x:t), _ ->
                 x
@@ -1210,7 +1208,7 @@ struct
     val1, val2
 
   (* map5p projections *)
-  let replace = map5p { f5p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.replace }
+  let assign = map5p { f5p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.assign }
 
   let add_variable_value_list list (a, b) =
     let list1 = List.fold_left (fun list (a,b, (l1, _)) ->

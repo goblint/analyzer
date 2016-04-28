@@ -202,12 +202,7 @@ struct
           let existing_rel_abstract_val = first_value_in_local_store store RelationalStructInformation in
           match existing_rel_abstract_val with
           | `RelationalStruct existing_rel_abstract_val ->
-            Pervasives.print_endline "fold assign new rel abstract value";
-            Pervasives.print_endline (VD.short 1000 (`RelationalStruct(existing_rel_abstract_val)));
-            let result =
-              `RelationalStruct(ValueDomain.RelationalStructs.fold (fun field value value_where_added -> ValueDomain.RelationalStructs.replace value_where_added field value) x existing_rel_abstract_val) in
-            Pervasives.print_endline ("result fold assign new rel abstract value: " ^(VD.short 1000 result));
-            result
+            `RelationalStruct(ValueDomain.RelationalStructs.fold (fun field value value_where_added -> ValueDomain.RelationalStructs.assign value_where_added field value) x existing_rel_abstract_val)
           | _ -> relational_abstract_value
         )
       | `Int x when (get_bool analyse_ints_relationally) -> (
@@ -807,7 +802,7 @@ struct
 
       let bot_field nstruct fd =
         let typ = match fd with `Field (_, fd) -> fd.ftype | _ -> raise (Invalid_argument "bot_value") in
-        ValueDomain.RelationalStructs.replace nstruct fd ((bot_value a gs st typ variable)) in
+        ValueDomain.RelationalStructs.assign nstruct fd ((bot_value a gs st typ variable)) in
       let fields = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
       List.fold_left bot_field nstruct fields
     in
@@ -844,7 +839,7 @@ struct
       let nstruct = match first_value_in_local_store store RelationalStructInformation with `RelationalStruct x -> x | _ ->  ValueDomain.RelationalStructs.top() in
       let init_field nstruct fd =
         let typ = match fd with |`Field (_, fd) -> fd.ftype | _ -> raise (Invalid_argument "init_field") in
-        ValueDomain.RelationalStructs.replace nstruct fd ((init_value a gs st typ variable)) in
+        ValueDomain.RelationalStructs.assign nstruct fd ((init_value a gs st typ variable)) in
       let fields = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
       List.fold_left init_field nstruct fields
     in
@@ -875,7 +870,7 @@ struct
         | _ -> ValueDomain.RelationalStructs.top() in
       let top_field nstruct fd =
         let typ = match fd with | `Field (_, fd) -> fd.ftype | _ -> raise (Invalid_argument "top_field") in
-        ValueDomain.RelationalStructs.replace nstruct fd ((top_value a gs st typ variable)) in
+        ValueDomain.RelationalStructs.assign nstruct fd ((top_value a gs st typ variable)) in
       let fields = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
       List.fold_left top_field nstruct fields
     in
@@ -915,7 +910,7 @@ struct
           | Var v, Field (field,_) when get_bool analyse_structs_relationally -> (
               match first_value_in_local_store store RelationalStructInformation with
               | `RelationalStruct first_value_in_local_store ->
-                Some (lvalue, `RelationalStruct (ValueDomain.RelationalStructs.replace first_value_in_local_store (`Field (Some v, field)) (`Int int_value)))
+                Some (lvalue, `RelationalStruct (ValueDomain.RelationalStructs.assign first_value_in_local_store (`Field (Some v, field)) (`Int int_value)))
               | _ -> Some (lvalue, `Int int_value)
             )
           | Var v, _  when get_bool analyse_ints_relationally -> (
@@ -1311,19 +1306,6 @@ struct
       | Some exp ->
         let st, fl = nst in
         let value = (eval_rv_with_query ctx.ask ctx.global ctx.local exp) in
-(*        let nst =
-          if get_bool analyse_structs_relationally then
-            let value =
-              match first_value_in_local_store st RelationalStructInformation with
-              | `RelationalStruct value -> value
-              | _ -> ValueDomain.RelationalStructs.top ()
-            in
-            let value = ValueDomain.RelationalStructs.get_value_of_globals value in
-            let lhost_val_list = [(Var (return_varinfo()), value)] in
-            let value = (ValueDomain.RelationalStructs.add_variable_value_list lhost_val_list value) in
-            assign_new_relational_abstract_value_in_store st (`RelationalStruct value), fl
-          else st, fl
-          in *)
         match value with
         | `RelationalStruct value when (get_bool analyse_structs_relationally) ->
           let value, rvar =
@@ -1489,7 +1471,7 @@ struct
           let one_field fl vl st =
             match replace_val vl with
             | `Top -> st
-            | v    -> ValueDomain.RelationalStructs.replace st fl v
+            | v    -> ValueDomain.RelationalStructs.assign st fl v
           in
           `RelationalStruct (ValueDomain.RelationalStructs.fold one_field (ValueDomain.RelationalStructs.top ()) s)
         | _ -> `Top
