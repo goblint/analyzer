@@ -11,16 +11,15 @@ sig
   val map: (value -> value) -> t -> t
 end
 
-module type Relational =
+module type RelationalStructDomainSignature =
 sig
   include Lattice.S
   type value
   type field
-  val add_variable_value_list: (Cil.varinfo option * Prelude.Ana.lhost * t) list -> t-> t
+  val add_variable_value_list: (Cil.varinfo option * Cil.varinfo * t) list -> t-> t
   val eval_assert_cil_exp: Cil.exp -> t -> t
   val get: field -> t -> value
   val get_value_of_cil_exp: Cil.exp -> t -> t
-  val get_value_of_globals: t -> t
   val get_value_of_variable: varinfo -> t -> t
   val get_value_of_variable_and_globals: varinfo -> t -> t
   val fold: (field -> value -> t -> t) -> t -> t -> t
