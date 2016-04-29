@@ -1,3 +1,8 @@
+module ApronDomain =
+struct
+  type apronType = unit
+end
+
 module PolyDomain =
 struct
   type t = unit
@@ -26,7 +31,7 @@ struct
   let is_top _ = raise_error ()
 end
 
-module ApronRelationalIntDomain : RelationalIntDomainSignature.S =
+module ApronRelationalIntDomain : RelationalIntDomainSignature.RelationalIntDomainSignature =
 struct
   type t = unit
 
@@ -71,12 +76,13 @@ sig
   val to_int_val: t -> IntDomain.IntDomTuple.t
 end
 
-module ApronRelationalStructDomain(Compound: Compound)(EquationField: Equation.GroupableLatticeS with type t = ([`Top | `Bot| `Field of Basetype.VariableFields.t]))  : StructDomain.Relational
-  with type field = EquationField.t
+module ApronRelationalStructDomain(Compound: Compound)(EquationField: Equation.GroupableLatticeS with type t = ([`Top | `Bot| `Field of Basetype.VariableFields.t]))  : StructDomain.RelationalStructDomainSignature
+  with type t = ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
+   and type field = EquationField.t
    and type value = Compound.t
 =
 struct
-  type t = unit
+  type t = ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
   type field = EquationField.t
   type value = Compound.t
 
@@ -84,9 +90,10 @@ struct
 
   let fold _ _ _ = raise_error ()
   let get _ _ =  raise_error ()
+  let get_value_of_cil_exp _ _ =  raise_error ()
   let get_value_of_variable_and_globals _ = raise_error ()
   let map _ _ = raise_error ()
-  let replace _ _ = raise_error ()
+  let assign _ _ = raise_error ()
 
   let equal _ _ =  raise_error ()
   let hash _ = raise_error ()
@@ -99,7 +106,7 @@ struct
   let pretty _ _ = raise_error ()
   let toXML_f _ _  = raise_error ()
   let printXml _ _  = raise_error ()
-  let name _ =  "aprondomain"
+  let name _ =  "apron"
   let leq _ _  = raise_error ()
   let join _ _  = raise_error ()
   let meet _ _  = raise_error ()
