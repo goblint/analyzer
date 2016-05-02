@@ -1095,13 +1095,13 @@ end
 and RelationalStructsApron: StructDomain.RelationalStructDomainSignature
   with type field = EquationField.t
    and type value = Compound_TransformableToIntDomTupleT.t
-   and type t = ApronDomain.ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
+   and type t = ApronDomain.ApronDomain.t * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
   = ApronDomain.ApronRelationalStructDomain(Compound_TransformableToIntDomTupleT)(EquationField)
 
 and RelationalStructs : StructDomain.RelationalStructDomainSignature
   with type field = EquationField.t
    and type value = Compound_TransformableToIntDomTupleT.t
-   and type t = (Lattice.Prod(MapDomain.MapTop_LiftBot (EquationField)(Compound_TransformableToIntDomTupleT))(Equation.EquationMap(EquationField)(Compound_TransformableToIntDomTupleT)).t) option * (ApronDomain.ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t) option
+   and type t = (Lattice.Prod(MapDomain.MapTop_LiftBot (EquationField)(Compound_TransformableToIntDomTupleT))(Equation.EquationMap(EquationField)(Compound_TransformableToIntDomTupleT)).t) option * (ApronDomain.ApronDomain.t * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t) option
 =
 struct
   open Batteries

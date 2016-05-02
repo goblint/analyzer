@@ -18,11 +18,6 @@ end
 module A = Abstract1
 module ID = IntDomain.IntDomTuple
 
-module type ApronRelationalIntDomainSignature =
-sig
-  include RelationalIntDomainSignature.RelationalIntDomainSignature
-end
-
 module type PolyDomainSignature =
 sig
   include Lattice.S
@@ -45,10 +40,19 @@ sig
   val typesort: Cil.varinfo list -> string list * string list
 end
 
+module type ApronDomainSignature =
+sig
+  include Lattice.S
+  val adjust_environments: t -> t -> t * t
+  val botE: Apron.Environment.t -> t
+  val topE: Apron.Environment.t -> t
+end
+
 (* contains functions, used by all apron domains *)
 module ApronDomain =
 struct
-  type apronType = Man.mt A.t
+  type t = Man.mt A.t
+  let name () = "aprondomain"
   let topE = A.top    Man.mgr
   let botE = A.bottom Man.mgr
   let top () = topE Man.eenv
@@ -117,16 +121,16 @@ struct
       let x, y = adjust_environments x y in
       A.is_leq (Man.mgr) x y
 
-  let hash (x:apronType) = Hashtbl.hash x
-  let compare (x:apronType) y = let x, y = adjust_environments x y in Pervasives.compare x y
+  let hash (x:t) = Hashtbl.hash x
+  let compare (x:t) y = let x, y = adjust_environments x y in Pervasives.compare x y
   let isSimple x = true
   let short n x =
     A.print Legacy.Format.str_formatter x;
     Legacy.Format.flush_str_formatter ()
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
-  let toXML_f s (x:apronType) = Xml.Element ("Leaf",["text", "APRON:"^Goblintutil.escape (s 90 x)],[])
+  let toXML_f s (x:t) = Xml.Element ("Leaf",["text", "APRON:"^Goblintutil.escape (s 90 x)],[])
   let toXML = toXML_f short
-  let pretty_f s () (x:apronType) = text (s 10 x)
+  let pretty_f s () (x:t) = text (s 10 x)
   let pretty = pretty_f short
   let pretty_diff () (x,y) = text "prettydiff"
 
@@ -381,10 +385,9 @@ struct
 end
 
 
-module PolyDomain : PolyDomainSignature with type t = ApronDomain.apronType =
+module PolyDomain : PolyDomainSignature with type t = ApronDomain.t =
 struct
-  open ApronDomain
-  type t = apronType
+  include ApronDomain
   let name () = "aprondomain"
 
   let typesort =
@@ -398,38 +401,6 @@ struct
     in
     List.fold_left f ([],[])
 
-  let meet = meet
-  let join = join
-  let widen = widen
-  let narrow = narrow
-  let is_top = is_top
-  let is_bot = is_bot
-  let top = top
-  let bot = bot
-  let leq = leq
-  let printXml = printXml
-  let toXML_f = toXML_f
-  let pretty_f = pretty_f
-  let toXML = toXML
-  let pretty_diff = pretty_diff
-  let pretty = pretty
-  let isSimple = isSimple
-  let short = short
-  let compare = compare
-  let hash = hash
-  let equal = equal
-
-  let add_vars = add_vars
-  let assert_inv = assert_inv
-  let assign_var_with = assign_var_with
-  let assign_var = assign_var
-  let forget_all_with = forget_all_with
-  let get_int_interval_for_cil_exp = get_int_interval_for_cil_exp
-  let get_vars = get_vars
-  let remove_all_but_with = remove_all_but_with
-  let remove_all_with = remove_all_with
-  let topE = topE
-
   let substitute_var_eq_with d v v' =
     let open Texpr1 in
     A.substitute_texpr_with Man.mgr d (Var.of_string v)
@@ -442,10 +413,6 @@ struct
           (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
       with Invalid_argument "cil_exp_to_apron_texpr1" ->
         A.forget_array_with Man.mgr d [|Var.of_string v|] false
-        (* | Manager.Error q ->
-           ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
-           ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e);
-           raise (Manager.Error q) *)
     end
 
   let get_int_val_for_cil_exp d cil_exp =
@@ -478,7 +445,7 @@ struct
 
 end
 
-(* contains functions, used by both aprpn relational  domains (structs and ints) *)
+(* contains functions, used by both apron relational  domains (structs and ints) *)
 module ApronRelationalDomain =
 struct
   open ApronDomain
@@ -559,7 +526,6 @@ struct
         | _ -> None
       in
       let maximum = match maximum with
-
         | Some maximum ->
           if (ID.equal (ID.ending maximum) int_val) || ((Int64.compare maximum 2147483647L) >= 0) then
             None
@@ -623,34 +589,10 @@ struct
 
 end
 
-module ApronRelationalIntDomain: ApronRelationalIntDomainSignature =
+module ApronRelationalIntDomain : RelationalIntDomainSignature.RelationalIntDomainSignature =
 struct
-  open ApronDomain
+  include ApronDomain
   open ApronRelationalDomain
-  type t = apronType
-
-  let name () = "aprondomain"
-
-  let meet = meet
-  let join = join
-  let widen = widen
-  let narrow = narrow
-  let is_top = is_top
-  let is_bot = is_bot
-  let top = top
-  let bot = bot
-  let leq = leq
-  let printXml = printXml
-  let toXML_f = toXML_f
-  let pretty_f = pretty_f
-  let toXML = toXML
-  let pretty_diff = pretty_diff
-  let pretty = pretty
-  let isSimple = isSimple
-  let short = short
-  let compare = compare
-  let hash = hash
-  let equal = equal
 
   let get_variable_name variable =
     if variable.vglob then variable.vname
@@ -715,7 +657,7 @@ end
 module ApronRelationalStructDomain
     (Compound: Compound)(EquationField: Equation.GroupableLatticeS with type t = ([`Top | `Bot | `Field of Basetype.VariableFields.t]))
     : StructDomain.RelationalStructDomainSignature
-      with type t = ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
+      with type t = ApronDomain.t * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
        and type field = EquationField.t
        and type value = Compound.t
 =
@@ -725,7 +667,7 @@ struct
 
   module StructMapKey = Lattice.Prod(Basetype.Strings)(Basetype.Strings)
   module StructMap = MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings) )(EquationField)
-  type t = apronType  * StructMap.t
+  type t = ApronDomain.t  * StructMap.t
   type field = EquationField.t
   type value = Compound.t
 
