@@ -822,8 +822,6 @@ struct
     )
 
   let map func (apron_abstract_value, struct_mapping) =
-(*    Pervasives.print_endline "MAP";
-      Pretty.fprint Pervasives.stdout 0 (pretty () (apron_abstract_value, struct_mapping)); *)
     let environment = (A.env apron_abstract_value) in
     let (vars_int, vars_real) = Environment.vars environment in
     let all_vars = (Array.to_list vars_int) @ (Array.to_list vars_real) in
@@ -844,14 +842,10 @@ struct
             assign_int_value_to_variable_name result int_val_result_func field_name, struct_mapping, variables_to_remove
       ) (apron_abstract_value, struct_mapping, []) all_vars
     in
-    (*    let struct_name_mapping = List.fold_left (fun struct_name_mapping variable_to_remove -> StructNameMap.remove variable_to_remove struct_name_mapping) struct_name_mapping variables_to_remove in*)
-    Pervasives.print_endline "Result map!";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (result, struct_mapping));
+    let struct_mapping = List.fold_left (fun struct_mapping variable_to_remove -> StructMap.remove variable_to_remove struct_mapping) struct_mapping variables_to_remove in
     result, struct_mapping
 
   let fold func (apron_abstract_value, struct_mapping) init_value =
-    Pervasives.print_endline "FOLD";
-    Pretty.fprint Pervasives.stdout 0 (pretty () (apron_abstract_value, struct_mapping));
     let environment = (A.env apron_abstract_value) in
     let (vars_int, vars_real) = Environment.vars environment in
     let all_vars = (Array.to_list vars_int) @ (Array.to_list vars_real) in
@@ -859,19 +853,10 @@ struct
       fun result var ->
         let unique_field_name = (Var.to_string var) in
         let int_val = get_int_val_for_field_name unique_field_name apron_abstract_value in
-        Pervasives.print_endline "unique_field_name";
-        Pervasives.print_endline (unique_field_name ^ ".");
-        (*        let int_val =
-          if IntDomain.IntDomTuple.id_top int_val then
-
-          else
-            int_val
-          in *)
         let field_name, struct_name = get_field_and_struct_name_from_variable_name unique_field_name in
         let map_key = `Lifted struct_name, `Lifted field_name in
         let value = Compound.of_int_val int_val in
         if not (StructMap.mem map_key struct_mapping) then (
-          Pervasives.print_endline (StructMapKey.short 100 map_key);
           raise (Invalid_argument (struct_name ^ " not in mapping!"))
         )
         else
@@ -880,14 +865,7 @@ struct
     ) init_value all_vars
 
   let meet_local_and_global_state (local_apron_abstract_value, local_struct_mapping) (global_apron_abstract_value, global_struct_mapping) =
-    Pervasives.print_endline "meet_local_and_global_state";
-    Pervasives.print_endline (short 1000 (local_apron_abstract_value, local_struct_mapping));
-    Pervasives.print_endline (short 1000 (global_apron_abstract_value, global_struct_mapping));
-    let result =
-      meet_local_and_global_state local_apron_abstract_value global_apron_abstract_value, StructMap.meet local_struct_mapping global_struct_mapping
-    in
-    Pervasives.print_endline (short 1000 result);
-    result
+    meet_local_and_global_state local_apron_abstract_value global_apron_abstract_value, StructMap.meet local_struct_mapping global_struct_mapping
 
   let get_value_of_variable_and_possibly_globals varinfo (apron_abstract_value, struct_mapping) should_return_globals  =
     let fields_not_to_remove =
