@@ -761,65 +761,69 @@ struct
   let rec assign (s, equations) field new_value =
     match field with
     | `Field (new_var, new_field) -> (
-        match new_value with
-        | `Int x when IntDomain.IntDomTuple.is_top x ->
-          (s,equations)
-        (* this needs to be done, because else wrong initializations destroy correct values, ID.bot will still be assigned *)
-        | `Bot -> (s,equations)
-        | `RelationalStruct x -> (
-            match new_var with
-            | Some new_var -> (
-                let new_value_of_variable = RelationalStructs.get_value_of_variable new_var x in
-                match RelationalStructs.fold (
+        match new_field.ftype with
+        | TInt _ -> (
+            match new_value with
+            | `Int x when IntDomain.IntDomTuple.is_top x ->
+              (s,equations)
+            (* this needs to be done, because else wrong initializations destroy correct values, ID.bot will still be assigned *)
+            | `Bot -> (s,equations)
+            | `RelationalStruct x -> (
+                match new_var with
+                | Some new_var -> (
+                    let new_value_of_variable = RelationalStructs.get_value_of_variable new_var x in
+                    match RelationalStructs.fold (
                     fun field value result ->
                       RelationalStructs.assign result field value
-                  ) new_value_of_variable (Some (s,equations), None) with
-                | Some (x:t), _ ->
-                x
+                      ) new_value_of_variable (Some (s,equations), None) with
+                    | Some (x:t), _ ->
+                      x
+                    | _ -> (s,equations)
+                  )
                 | _ -> (s,equations)
               )
-            | _ -> (s,equations)
-          )
-        | _ -> (
-            let s = (StructStore.add (`Field(new_var, new_field)) new_value s) in
-            let new_compound_val = new_value in
-            let new_value =
-              if Compound.is_top new_compound_val then
-                (`Int (IntDomain.IntDomTuple.top ()))
-              else new_value in
-            let equations =
-              if StructStore.is_top s || StructStore.is_bot s then equations
-              else (
-                match new_value with
-                | `Int new_value -> (
-                    if (IntDomain.IntDomTuple.is_int new_value) then (
-                      StructStore.fold (
-                        fun key old_value equations ->
-                          match key with
-                          | `Field (var, key) -> (
-                              if new_field.fname = key.fname && new_field.fcomp.cname = key.fcomp.cname then equations
-                              else (
-                                match old_value with
-                                | `Int old_value ->
-                                  let new_equation =  Equations.build_new_equation ((`Field(var, key)), old_value) ((`Field(new_var, new_field)), new_value) in
-                                  let joined_equations, s = join_equations equations (Equations.equationmap_of_equation new_equation) s in
-                                  if (Equations.cardinal joined_equations) < (Equations.cardinal equations) then
-                                    Equations.append_equation new_equation joined_equations
-                                  else joined_equations
-                                | _ -> equations
-                              )
-                            )
+            | _ -> (
+                let s = (StructStore.add (`Field(new_var, new_field)) new_value s) in
+                let new_compound_val = new_value in
+                let new_value =
+                  if Compound.is_top new_compound_val then
+                    (`Int (IntDomain.IntDomTuple.top ()))
+                  else new_value in
+                let equations =
+                  if StructStore.is_top s || StructStore.is_bot s then equations
+                  else (
+                    match new_value with
+                    | `Int new_value -> (
+                        if (IntDomain.IntDomTuple.is_int new_value) then (
+                          StructStore.fold (
+                            fun key old_value equations ->
+                              match key with
+                              | `Field (var, key) -> (
+                                  if new_field.fname = key.fname && new_field.fcomp.cname = key.fcomp.cname then equations
+                                  else (
+                                    match old_value with
+                                    | `Int old_value ->
+                                      let new_equation =  Equations.build_new_equation ((`Field(var, key)), old_value) ((`Field(new_var, new_field)), new_value) in
+                                      let joined_equations, s = join_equations equations (Equations.equationmap_of_equation new_equation) s in
+                                      if (Equations.cardinal joined_equations) < (Equations.cardinal equations) then
+                                        Equations.append_equation new_equation joined_equations
+                                      else joined_equations
+                                    | _ -> equations
+                                  )
+                                )
                           | _ -> equations
-                      ) s equations
-                    )
-                    else
-                      Equations.remove_equations_with_key (`Field(new_var, new_field)) equations
+                          ) s equations
+                        )
+                        else
+                          Equations.remove_equations_with_key (`Field(new_var, new_field)) equations
+                      )
+                    | _ -> equations
                   )
-                | _ -> equations
+                in
+                s, equations
               )
-            in
-            s, equations
           )
+        | _ -> (StructStore.add (`Field(new_var, new_field)) new_value s), equations
       )
     | _ -> raise (Invalid_argument "")
 
