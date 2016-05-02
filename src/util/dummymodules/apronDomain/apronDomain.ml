@@ -1,6 +1,6 @@
 module ApronDomain =
 struct
-  type apronType = unit
+  type t = unit
 end
 
 module PolyDomain =
@@ -77,12 +77,12 @@ sig
 end
 
 module ApronRelationalStructDomain(Compound: Compound)(EquationField: Equation.GroupableLatticeS with type t = ([`Top | `Bot| `Field of Basetype.VariableFields.t]))  : StructDomain.RelationalStructDomainSignature
-  with type t = ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
+  with type t = ApronDomain.t * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
    and type field = EquationField.t
    and type value = Compound.t
 =
 struct
-  type t = ApronDomain.apronType * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
+  type t = ApronDomain.t * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
   type field = EquationField.t
   type value = Compound.t
 
