@@ -22,8 +22,8 @@ sig
   include Lattice.S
   type offs
   val eval_offset: (AD.t -> t) -> t -> offs -> Cil.varinfo -> bool -> t
-  val update_offset: t -> offs -> t -> Cil.varinfo option -> t
-  val invalidate_value: typ -> t -> string -> bool -> t
+  val update_offset: t -> offs -> t -> Cil.varinfo -> t
+  val invalidate_value: typ -> t -> Cil.varinfo -> bool -> t
 end
 
 module Blob (Val: Lattice.S) =
@@ -330,38 +330,40 @@ struct
       | _, TInt _     -> `Int (IntDomain.IntDomTuple.top ())
       | _ -> top ()
 
-  let rec top_value (t: typ) struct_name =
+  let rec top_value (t: typ) variable =
     let rec top_comp compinfo: Structs.t =
       let nstruct = Structs.top () in
-      let top_field nstruct field = Structs.replace nstruct field (top_value field.ftype struct_name) in
+      let top_field nstruct field = Structs.replace nstruct field (top_value field.ftype variable) in
       List.fold_left top_field nstruct compinfo.cfields
     in
     let rec top_relational_comp compinfo: RelationalStructs.t =
       let nstruct = RelationalStructs.top () in
       let top_field nstruct field =
         let typ = match field with `Field (_, field) -> field.ftype | _ -> raise (Invalid_argument "top_field") in
-        RelationalStructs.assign nstruct field ((top_value typ struct_name)) in
-      let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
+        RelationalStructs.assign nstruct field ((top_value typ variable)) in
+      let fields = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
       List.fold_left top_field nstruct fields
     in
     match t with
     | TInt _ -> `Int (IntDomain.IntDomTuple.top ())
     | TPtr _ -> `Address (AD.unknown_ptr ())
-    | TComp ({cstruct=true} as ci,_) when (GobConfig.get_bool analyse_structs_relationally) && GobConfig.list_contains_string relational_struct_list struct_name ->
+    | TComp ({cstruct=true} as ci,_) when
+        (GobConfig.get_bool analyse_structs_relationally) &&
+        GobConfig.list_contains_string relational_struct_list variable.vname ->
       `RelationalStruct (top_relational_comp ci)
     | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false},_) -> `Union (Unions.top ())
     | TArray _ -> `Array (CArrays.top ())
-    | TNamed (t, _) -> top_value t.ttype t.tname
+    | TNamed (t, _) -> top_value t.ttype variable
     | _ -> `Top
 
-  let rec invalidate_value typ (state:t) struct_name is_local : t =
+  let rec invalidate_value typ (state:t) variable is_local : t =
     let typ = unrollType typ in
     let rec invalid_struct compinfo old =
       let nstruct = Structs.top () in
       let top_field nstruct field =
         let old_struct_value = Structs.get old field in
-        Structs.replace nstruct field ((invalidate_value field.ftype old_struct_value struct_name is_local))
+        Structs.replace nstruct field ((invalidate_value field.ftype old_struct_value variable is_local))
       in
       List.fold_left top_field nstruct compinfo.cfields
     in
@@ -370,27 +372,27 @@ struct
       let top_field nstruct field =
         let old_struct_value = RelationalStructs.get field old in
         let typ = match field with `Field (_, field) -> field.ftype | _ -> raise (Invalid_argument "top_field valuedomain") in
-        RelationalStructs.assign nstruct field ((invalidate_value typ old_struct_value struct_name is_local))
+        RelationalStructs.assign nstruct field ((invalidate_value typ old_struct_value variable is_local))
       in
-      let fields = List.map (fun field -> `Field (None, field)) compinfo.cfields in
+      let fields = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
       List.fold_left top_field nstruct fields
     in
     match typ, state with
     |                 _ , `Address n    -> `Address (AD.add (Addr.unknown_ptr ()) n)
     | TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
-    |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> (invalidate_value voidType x struct_name is_local)) n)
+    |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> (invalidate_value voidType x variable is_local)) n)
     | TComp (ci,_)  , `RelationalStruct n     -> `RelationalStruct (invalid_relational_struct ci n)
-    |                 _ , `RelationalStruct n     -> `RelationalStruct (RelationalStructs.map (fun (x) -> (invalidate_value voidType x struct_name is_local)) n)
-    | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n "" is_local)
+    |                 _ , `RelationalStruct n     -> `RelationalStruct (RelationalStructs.map (fun (x) -> (invalidate_value voidType x variable is_local)) n)
+    | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n variable is_local)
     | TArray (t,_,_), `Array n      ->
-      let v = invalidate_value t (CArrays.get n (IndexDomain.top ())) "" is_local in
+      let v = invalidate_value t (CArrays.get n (IndexDomain.top ())) variable is_local in
       `Array (CArrays.set n (IndexDomain.top ()) v)
     |                 _ , `Array n      ->
-      let v = invalidate_value voidType (CArrays.get n (IndexDomain.top ())) "" is_local in
+      let v = invalidate_value voidType (CArrays.get n (IndexDomain.top ())) variable is_local in
       `Array (CArrays.set n (IndexDomain.top ()) v)
-    |                 t , `Blob n       -> `Blob (invalidate_value t n "" is_local)
+    |                 t , `Blob n       -> `Blob (invalidate_value t n variable is_local)
     |                 _ , `List n       -> `Top
-    |                 t , _             -> top_value t ""
+    |                 t , _             -> top_value t variable
 
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset f (x: t) (offs:offs) variable should_return_relational_value : t =
@@ -417,7 +419,7 @@ struct
           | `RelationalStruct str ->
             if should_return_relational_value then x
             else
-              let x = RelationalStructs.get (`Field (Some variable, fld)) str in
+              let x = RelationalStructs.get (`Field (variable, fld)) str in
               eval_offset f x offs variable should_return_relational_value
           | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
           | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
@@ -501,18 +503,18 @@ struct
                     top (), offs
                 end
               in
-              `Union (`Lifted fld, update_offset tempval tempoffs value None)
-            | `Bot -> `Union (`Lifted fld, update_offset `Bot offs value None)
+              `Union (`Lifted fld, update_offset tempval tempoffs value variable)
+            | `Bot -> `Union (`Lifted fld, update_offset `Bot offs value variable)
             | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
             match x with
             | `Array x' ->
-              let nval = update_offset (CArrays.get x' idx) offs value None in
+              let nval = update_offset (CArrays.get x' idx) offs value variable in
               `Array (CArrays.set x' idx nval)
-            | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value None
-            | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value None))
+            | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value variable
+            | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value variable))
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
@@ -695,9 +697,7 @@ struct
       else
         let fieldinfo_to_string fieldinfo = (
           match fieldinfo with
-          | `Field (variable, fieldinfo) ->
-            let struct_name= match variable with Some variable -> variable.vname | _ -> "" in
-            struct_name ^ "." ^ fieldinfo.fname
+          | `Field (variable, fieldinfo) -> variable.vname ^ "." ^ fieldinfo.fname
           | _ -> ""
         )
         in
@@ -710,7 +710,7 @@ struct
 
     Equations.filter (fun (field1,(field2,_),_) ->
         match field1, field2 with
-        | `Field (Some variable1, field1), `Field (Some variable2, field2) ->
+        | `Field (variable1, field1), `Field (variable2, field2) ->
           not(variable1.vid = variable.vid) && not(variable2.vid = variable.vid)
         | _ -> false
       ) equations
@@ -720,7 +720,7 @@ struct
     | TNamed (t, _) -> (
         match t.ttype with
         | TComp (ci, _) when ci.cstruct ->
-          let fields_to_remove_from_struct_store = List.map (fun field -> `Field (Some variable, field)) ci.cfields in
+          let fields_to_remove_from_struct_store = List.map (fun field -> `Field (variable, field)) ci.cfields in
           let struct_store =
             List.fold_left (fun struct_store field ->
                     StructStore.remove field struct_store
@@ -735,7 +735,7 @@ struct
     let variables_to_remove =
       StructStore.fold (fun field _ variable_name_list ->
           match field with
-          | `Field (Some variable, field) ->
+          | `Field (variable, field) ->
             if (variable.vname = varname) || (variable.vglob && should_also_return_globals) then variable_name_list
             else [variable] @ variable_name_list
           | _ -> variable_name_list
@@ -769,17 +769,13 @@ struct
             (* this needs to be done, because else wrong initializations destroy correct values, ID.bot will still be assigned *)
             | `Bot -> (s,equations)
             | `RelationalStruct x -> (
-                match new_var with
-                | Some new_var -> (
-                    let new_value_of_variable = RelationalStructs.get_value_of_variable new_var x in
-                    match RelationalStructs.fold (
+                let new_value_of_variable = RelationalStructs.get_value_of_variable new_var x in
+                match RelationalStructs.fold (
                     fun field value result ->
                       RelationalStructs.assign result field value
-                      ) new_value_of_variable (Some (s,equations), None) with
-                    | Some (x:t), _ ->
-                      x
-                    | _ -> (s,equations)
-                  )
+                  ) new_value_of_variable (Some (s,equations), None) with
+                | Some (x:t), _ ->
+                  x
                 | _ -> (s,equations)
               )
             | _ -> (
@@ -874,7 +870,7 @@ struct
     let variables_to_remove =
       StructStore.fold (fun field _ variable_list ->
           match field with
-          | `Field(Some variable, field) ->
+          | `Field(variable, field) ->
             if not(variable.vglob) then [variable] @ variable_list else variable_list
           | _ -> variable_list
         ) struct_store [] in
@@ -884,7 +880,7 @@ struct
     let variables_to_remove =
       StructStore.fold (fun field struct_val variable_list ->
           match field with
-          | `Field(Some variable, field) ->
+          | `Field(variable, field) ->
             if Compound.is_top struct_val then [variable] @ variable_list else variable_list
           | _ -> variable_list
         ) struct_store [] in
@@ -901,15 +897,9 @@ struct
             | `Field(_, old_field) -> `Field(new_variable,old_field) | _ -> raise (Invalid_argument "") in
           let struct_store =
             match old_key with
-            | `Field(Some var, _) ->
-              if var.vglob then (
-                Pervasives.print_endline "DO not remove old var";
-                struct_store
-              )
-              else (
-                Pervasives.print_endline "remove old var";
-                StructStore.remove old_key struct_store
-              )
+            | `Field(var, _) ->
+              if var.vglob then struct_store
+              else StructStore.remove old_key struct_store
             | _ -> StructStore.remove old_key struct_store
           in
 
@@ -945,21 +935,21 @@ struct
           match old_variable with
           | Some old_variable -> (
               let _, fields_of_old_variable = get_variable_fields old_variable in
-              (List.map (fun field -> (`Field (Some old_variable, field))) fields_of_old_variable), Some old_variable
+              (List.map (fun field -> (`Field (old_variable, field))) fields_of_old_variable), Some old_variable
             )
           | _ ->
             match new_abstract_value with (struct_store, _) ->
               StructStore.fold (fun field _ (old_keys, old_var) ->
                   match field with
-                  | `Field(Some variable, field) ->
+                  | `Field(variable, field) ->
                     if variable.vglob then
                       old_keys, old_var
                     else
-                      ([`Field (Some variable, field)] @ old_keys), Some variable
+                      ([`Field (variable, field)] @ old_keys), Some variable
                   | _ -> (old_keys, old_var)
                 ) struct_store ([], None)
         in
-        let new_var, _ = get_variable_fields new_lhost in
+        let new_var = match get_variable_fields new_lhost with Some v, _ -> v | _ -> new_lhost in
         let keys_of_old_var =
           (* this is the case when the old variable is the return variable, as the return variable is a variable of the type void *)
           if List.length keys_of_old_var = 0 then
@@ -967,13 +957,12 @@ struct
               fun key _ keys_of_old_var ->
                 match key with
                 | (`Field (variable, field)) -> (
-                    match variable, old_variable with
-                    | Some var, Some old_variable ->
-                      if var.vid = old_variable.vid then
+                    match  old_variable with
+                    | Some old_variable ->
+                      if variable.vid = old_variable.vid then
                         [(`Field (variable, field))] @ keys_of_old_var
                       else keys_of_old_var
-                    | None, None -> [(`Field (variable, field))] @ keys_of_old_var
-                    | _ -> keys_of_old_var
+                    | None -> [(`Field (variable, field))] @ keys_of_old_var
                   )
                 | _ -> keys_of_old_var
             ) (match new_abstract_value with (struct_store, _) -> struct_store) []
@@ -1003,13 +992,13 @@ struct
     if should_select_local then
       Equations.filter (fun (field1,(field2,_),_) ->
           match field1, field2 with
-          | `Field(Some var1, _), `Field(Some var2, _) -> not var1.vglob && not var2.vglob
+          | `Field(var1, _), `Field(var2, _) -> not var1.vglob && not var2.vglob
           | _ -> false
         ) equations
     else
       Equations.filter (fun (field1,(field2,_),_) ->
           match field1, field2 with
-          | `Field(Some var1, _), `Field(Some var2, _) -> var1.vglob && var2.vglob
+          | `Field(var1, _), `Field(var2, _) -> var1.vglob && var2.vglob
           | _ -> false
         ) equations
 
@@ -1020,9 +1009,9 @@ struct
     let local_store, local_equations = local_state in
     let global_store, global_equations = global_state in
     let local_equations = select_local_or_global_variables_in_equations true local_equations local_store in
-    let local_store = StructStore.filter (fun key _ -> match key with `Field(Some var, _ ) -> not(var.vglob) | _ -> false) local_store in
+    let local_store = StructStore.filter (fun key _ -> match key with `Field(var, _ ) -> not(var.vglob) | _ -> false) local_store in
     let global_equations = select_local_or_global_variables_in_equations false global_equations global_store in
-    let global_store = StructStore.filter (fun key _ -> match key with `Field(Some var, _ ) -> var.vglob | _ -> false) global_store in
+    let global_store = StructStore.filter (fun key _ -> match key with `Field(var, _ ) -> var.vglob | _ -> false) global_store in
     meet (local_store, local_equations) (global_store, global_equations)
 
   let build_equation_of_cil_exp rexp field =
@@ -1030,16 +1019,16 @@ struct
       match rexp with
       | BinOp (op, Lval (Var rvar, Field(rfield, _)), Const (CInt64 (num, _, _)), _)
       | BinOp (op, Const (CInt64 (num, _, _)), Lval (Var rvar, Field(rfield, _)), _) ->
-        if EquationField.compare field (`Field (Some rvar, rfield)) = 0 then None, None, None
+        if EquationField.compare field (`Field (rvar, rfield)) = 0 then None, None, None
         else (
           match op with
-          | PlusA -> Some (`Field (Some rvar, rfield)), Some `Plus, Some (IntDomain.IntDomTuple.of_int num)
-          | MinusA -> Some (`Field (Some rvar, rfield)), Some `Minus, Some (IntDomain.IntDomTuple.of_int num)
+          | PlusA -> Some (`Field (rvar, rfield)), Some `Plus, Some (IntDomain.IntDomTuple.of_int num)
+          | MinusA -> Some (`Field (rvar, rfield)), Some `Minus, Some (IntDomain.IntDomTuple.of_int num)
           | _ -> None, None, None
         )
       | Lval(Var rvar, Field(rfield, _)) ->
-        if EquationField.compare field (`Field (Some rvar, rfield)) = 0 then None, None, None
-        else Some (`Field (Some rvar, rfield)), Some `Plus, Some (IntDomain.IntDomTuple.of_int 0L)
+        if EquationField.compare field (`Field(rvar, rfield)) = 0 then None, None, None
+        else Some (`Field (rvar, rfield)), Some `Plus, Some (IntDomain.IntDomTuple.of_int 0L)
       | _ -> None, None, None in
     Equations.new_optional_equation field (rvar_field, offset) const
 
@@ -1052,12 +1041,12 @@ struct
             | TComp (comp, _) -> (
                 match r_exp with
                 | Const (CInt64 (const, _, _)) ->
-                  let val_in_store = (StructStore.find (`Field(Some v, fieldinfo)) store) in
+                  let val_in_store = (StructStore.find (`Field(v, fieldinfo)) store) in
                   let new_val_of_var =
                     Compound.meet val_in_store (`Int (IntDomain.IntDomTuple.of_int const)) in
-                  (StructStore.add (`Field (Some v, fieldinfo)) new_val_of_var store, equations)
+                  (StructStore.add (`Field (v, fieldinfo)) new_val_of_var store, equations)
                 | _ -> (
-                    match build_equation_of_cil_exp r_exp (`Field (Some v, fieldinfo))  with
+                    match build_equation_of_cil_exp r_exp (`Field (v, fieldinfo))  with
                     | Some x -> (
                         let new_equations, store = join_equations equations (Equations.equationmap_of_equation x) store in
                         if (Equations.cardinal new_equations) < (Equations.cardinal equations) then bot ()

@@ -417,48 +417,36 @@ module VariableFields =
 struct
   include Printable.Std
 
-  type t = varinfo option*fieldinfo
-
-  let gen v = (None,v)
-  let gen_f v f = (Some v, f)
+  type t = varinfo * fieldinfo
 
   let get_var x = fst x
   let get_field x = snd x
-
-  let has_variable x = match get_var x with
-    | Some x -> true
-    | _ -> false
-
-  let apply_variable f default v =
-    match get_var v with
-    | Some x -> f x
-    | _ -> default
 
   let isSimple _  = true
   let is_global v = (get_var v).vglob
   let copy x = x
   let equal x y =
     (get_field x).fname = (get_field y).fname &&
-    (apply_variable (fun v->v.vid) (-1) x)=(apply_variable (fun v->v.vid) (-1) y)
+    (get_var x).vid = (get_var y).vid
 
   let short _ x =
-    (apply_variable (fun x-> x.vname) "" x) ^ "." ^ (get_field x).fname
+    (get_var x).vname ^ "." ^ (get_field x).fname
 
   let compare x y =
     let cmp = compare (get_field x).fname (get_field y).fname in
     if cmp = 0 then
-      compare (apply_variable (fun v->v.vid) (-1) x) (apply_variable (fun v->v.vid) (-1) y)
+      compare (get_var x).vid (get_var y).vid
     else
       cmp
 
-  let hash x = Hashtbl.hash ((get_field x).fname,(apply_variable (fun x->x.vid) (-1) x))
+  let hash x = Hashtbl.hash ((get_field x).fname,(get_var x).vid)
 
   let toXML_f sf x =
     let esc = Goblintutil.escape in
     let typeinf = Pretty.sprint Goblintutil.summary_length (
         d_type ()
-          (apply_variable (fun x->x.vtype) (get_field x).ftype x)) in
-    let info = "id=" ^  (string_of_int (apply_variable (fun x->x.vid) (-1) x)) ^ "; type=" ^ esc typeinf in
+          (get_var x).vtype) in
+    let info = "id=" ^  (string_of_int (get_var x).vid) ^ "; type=" ^ esc typeinf in
     Xml.Element ("Leaf", [("text", esc (sf max_int x)); ("info", info)],[])
 
   let pretty_f sf () x = Pretty.text (sf max_int x)
@@ -468,10 +456,10 @@ struct
   let get_location x = (get_var x).vdecl
   let classify x =
     match get_var x with
-    | Some x when x.vglob -> 2
-    | Some x when x.vdecl.line = -1 -> -1
-    | Some x when x.vdecl.line = -3 -> 5
-    | Some x when x.vdecl.line = -4 -> 4
+    | x when x.vglob -> 2
+    | x when x.vdecl.line = -1 -> -1
+    | x when x.vdecl.line = -3 -> 5
+    | x when x.vdecl.line = -4 -> 4
     | _ -> 1
   let class_name n = match n with
     |  1 -> "Local"
