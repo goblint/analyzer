@@ -221,7 +221,6 @@ sig
   val equationmap_of_equation: equation -> t
   val equations_to_string: t -> (equation_key -> string) -> string
   val filter: (equation -> bool) -> t -> t
-  val filter_equations_for_not_top_keys: (store * t) -> t
   val meet_with_new_equation: store * t -> store * t
   val new_equation: equation_key -> equation_key -> Sign.t -> IntDomain.IntDomTuple.t -> equation
   val new_optional_equation: equation_key -> (equation_key option * Sign.t option) -> IntDomain.IntDomTuple.t option -> equation option
