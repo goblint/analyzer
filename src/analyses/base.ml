@@ -363,12 +363,12 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset (get x nst) offs value (Some x)) nst
+          update_variable x (VD.update_offset (get x nst) offs value x) nst
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
-        update_variable x (VD.update_offset (CPA.find x nst) offs value (Some x)) nst
+        update_variable x (VD.update_offset (CPA.find x nst) offs value x) nst
       end
     in
     let update_one x (y: cpa) =
@@ -806,7 +806,7 @@ struct
       let fields = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
       List.fold_left bot_field nstruct fields
     in
-    let struct_name = match variable with | Some var -> (match var.vtype with TNamed(t, _) -> t.tname | _ -> "" ) | _ -> "" in
+    let struct_name = match variable.vtype with TNamed(t, _) -> t.tname | _ -> "" in
     match t with
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
     | TPtr _ -> `Address (AD.bot ())
@@ -843,7 +843,7 @@ struct
       let fields = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
       List.fold_left init_field nstruct fields
     in
-    let var_name = match variable with Some var -> (match var.vtype with TNamed (t, _) -> t.tname | _ -> "")  | _ -> "" in
+    let var_name = match variable.vtype with TNamed (t, _) -> t.tname | _ -> "" in
     match t with
     | t when is_mutex_type t -> `Top
     | TInt _ -> `Int (ID.top ())
@@ -874,7 +874,7 @@ struct
       let fields = List.map (fun field -> `Field (variable, field)) compinfo.cfields in
       List.fold_left top_field nstruct fields
     in
-    let var_name = match variable with Some var -> (match var.vtype with TNamed (t, _) -> t.tname | _ -> "")  | _ -> "" in
+    let var_name = match variable.vtype with TNamed (t, _) -> t.tname | _ -> "" in
     match t with
     | TInt _ -> `Int (ID.top ())
     | TPtr _ -> `Address (AD.top_ptr ())
@@ -889,7 +889,7 @@ struct
          (match eval_rv_with_query a gs st exp with
           | `Int n -> begin
               match ID.to_int n with
-              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai None))
+              | Some n -> `Array (ValueDomain.CArrays.make (Int64.to_int n) (bot_value a gs st ai variable))
               | _ -> default
             end
           | _ -> default)
@@ -910,7 +910,7 @@ struct
           | Var v, Field (field,_) when get_bool analyse_structs_relationally -> (
               match first_value_in_local_store store RelationalStructInformation with
               | `RelationalStruct first_value_in_local_store ->
-                Some (lvalue, `RelationalStruct (ValueDomain.RelationalStructs.assign first_value_in_local_store (`Field (Some v, field)) (`Int int_value)))
+                Some (lvalue, `RelationalStruct (ValueDomain.RelationalStructs.assign first_value_in_local_store (`Field (v, field)) (`Int int_value)))
               | _ -> Some (lvalue, `Int int_value)
             )
           | Var v, _  when get_bool analyse_ints_relationally -> (
@@ -1068,7 +1068,9 @@ struct
 
   let set_savetop ask (gs:glob_fun) st adr v =
     match v with
-    | `Top -> set ask gs st adr (top_value ask gs st (AD.get_type adr) None)
+    | `Top ->
+      let var = let var_list = AD.to_var_may adr in if List.length var_list > 0 then List.nth var_list 0 else return_varinfo () in
+      set ask gs st adr (top_value ask gs st (AD.get_type adr) var)
     | v -> set ask gs st adr v
 
 
@@ -1274,7 +1276,7 @@ struct
 
   let body ctx f =
     (* First we create a variable-initvalue pair for each varaiable *)
-    let init_var v ctx_local = (AD.from_var v, init_value ctx.ask ctx.global ctx_local v.vtype (Some v)) in
+    let init_var v ctx_local = (AD.from_var v, init_value ctx.ask ctx.global ctx_local v.vtype v) in
     (* Apply it to all the locals and then assign them all *)
     if (get_bool analyse_structs_relationally) then
       List.fold_left
@@ -1405,7 +1407,13 @@ struct
       let t = AD.get_type a in
       let v = get ask gs st false a in
       (* TODO *)
-      let nv =  VD.invalidate_value t v "" true in
+      let var =
+        let var_list = (AD.to_var_may a) in
+        if List.length var_list > 0 then
+          List.nth var_list 0
+        else return_varinfo ()
+      in
+      let nv =  VD.invalidate_value t v var true in
       (a, nv)
     in
     (* We define the function that invalidates all the values that an address
