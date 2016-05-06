@@ -382,6 +382,11 @@ struct
     let env = Environment.remove environment vars in
     A.change_environment_with Man.mgr d env false
 
+  let assign_var_eq_with d v v' =
+    let open Texpr1 in
+    A.assign_texpr_with Man.mgr d (Var.of_string v)
+      (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
+
 end
 
 
@@ -437,11 +442,6 @@ struct
         let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
         equal d (assert_inv d compare_expression false)
       end
-
-  let assign_var_eq_with d v v' =
-    let open Texpr1 in
-    A.assign_texpr_with Man.mgr d (Var.of_string v)
-      (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
 
 end
 
@@ -629,9 +629,6 @@ struct
   let eval_assign_int_value variable int_val abstract_value =
     assign_int_value_to_variable_name (add_variable_with_name (get_variable_name variable) abstract_value) int_val (get_variable_name variable)
 
-  let eval_assign_cil_exp variable rval abstract_value =
-    assign_var (add_variable_with_name (get_variable_name variable) abstract_value) (get_variable_name variable) rval
-
   let rec rename_cil_variables cil_exp add_local_identifier =
     match cil_exp with
     | BinOp(op, exp1, exp2, typ) -> BinOp(op, (rename_cil_variables exp1 add_local_identifier), (rename_cil_variables exp2 add_local_identifier), typ)
@@ -743,8 +740,13 @@ struct
       StructMap.fold(fun _ field result ->
           result @ [get_unique_field_name field]) struct_mapping [] in
     remove_all_with apron_abstract_value field_names_to_remove;
-    apron_abstract_value,
-    (*    StructNameMap.remove_variable varinfo.vname*) struct_mapping
+    let struct_mapping =
+      List.fold_left (
+        fun struct_mapping field_name ->
+          let struct_map_key = (`Lifted varinfo.vname, `Lifted field_name) in
+          StructMap.remove struct_map_key struct_mapping
+      ) struct_mapping field_names_to_remove in
+    apron_abstract_value, struct_mapping
 
   let join (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
     join apron_abstract_valuex apron_abstract_valuey, StructMap.join struct_mappingx struct_mappingy
@@ -947,24 +949,19 @@ struct
              not (Environment.mem_var environment (Var.of_string new_field_name))
           then
             let renamed_old_val = A.rename_array Man.mgr value_old_key (Array.of_list [Var.of_string old_field_name]) (Array.of_list [Var.of_string new_field_name]) in
-            let new_apron_val, _ = remove_variable (Var.of_string new_field_name) abstract_value in
-            Pervasives.print_endline "IF HERE";
+            let new_apron_val, _ = match new_variable with Some new_variable -> remove_variable new_variable abstract_value  | _ -> abstract_value  in
             meet (new_apron_val, struct_map) (renamed_old_val, old_struct_map)
           else (
             if not (Environment.mem_var environment (Var.of_string new_field_name)) then (
-              Pervasives.print_endline "here not mem var";
               let value_old_key = A.rename_array Man.mgr apron_val (Array.of_list [Var.of_string old_field_name]) (Array.of_list [Var.of_string new_field_name]) in
               meet (apron_val,struct_map) (value_old_key, old_struct_map)
             )
             else (
               if Environment.mem_var environment (Var.of_string old_field_name) then (
-                let int_val_of_old_field = get_int_val_for_field_name old_field_name apron_val in
-                let apron_val = assign_int_value_to_variable_name apron_val int_val_of_old_field new_field_name  in
-                Pervasives.print_endline "HERE";
+                assign_var_eq_with apron_val old_field_name new_field_name;
                 apron_val, struct_map
               )
               else (
-                Pervasives.print_endline "else";
                 apron_val, struct_map
               )
           )

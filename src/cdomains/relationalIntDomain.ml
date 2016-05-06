@@ -249,14 +249,6 @@ struct
       | _ -> None, None, None in
     Equations.new_optional_equation (`Var var) (rvar_var,  offset) const
 
-  let eval_assign_cil_exp variable r_exp (store, rel_ints) =
-    match build_equation_of_cil_exp r_exp variable false with
-    | Some x ->
-      let equations, store = join_equations rel_ints (Equations.equationmap_of_equation x ) store in
-      if (Equations.cardinal equations) < (Equations.cardinal rel_ints) then (store,  Equations.append_equation x equations)
-      else (store,  equations)
-    | _ -> (store, rel_ints)
-
   let eval_assert_left_var (store, rel_ints) (l_exp: Cil.exp) (r_exp: Cil.exp) should_negate =
     match l_exp with
     | Lval(Var v, _) -> (
@@ -431,7 +423,6 @@ struct
 
   (* f5p: projections *)
   let eval_assign_int_value = map5p { f5p = fun (type a) (module R:S with type t = a) -> R.eval_assign_int_value }
-  let eval_assign_cil_exp = map5p { f5p = fun (type a) (module R:S with type t = a) -> R.eval_assign_cil_exp }
 
   (* for_all *)
   let is_bot x = for_all ((mapp { fp = fun (type a) (module R:S with type t = a) -> R.is_bot }) x)
