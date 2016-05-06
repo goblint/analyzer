@@ -1095,13 +1095,6 @@ struct
             | `Int x, Some y when (get_bool analyse_ints_relationally) ->
               let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value var x rel_int) in
               assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
-            | _ when (get_bool analyse_ints_relationally) ->
-              let relational_int_abstract_value = RD.eval_assign_cil_exp var rval rel_int in
-              if RD.is_top relational_int_abstract_value then
-                ctx_local, rval_val
-              else
-                let relational_int_abstract_value = `RelationalInt (relational_int_abstract_value) in
-                assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
             | _ -> ctx_local, rval_val
           )
         | _ -> ctx_local, rval_val
