@@ -35,14 +35,6 @@ S return_struct(){
     glob2.i = glob1.k;
     S z;
     z.i = 5;
-    for (z.i = 5; z.i > 0; z.i--) {
-        xx = xx - 1;
-    }
-    xx = 5;
-    z.i = 6;
-    for (xx = 5; xx > 0; xx--) {
-        z.i = z.i - 1;
-    }
     globInt = 7;
     glob1.i = -1;
     return glob1;

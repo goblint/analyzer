@@ -117,47 +117,6 @@ struct
          | _ -> string
       ) store ""
 
-  let name () = "equations"
-
-  let join_equations eq1 eq2 store =
-    let joined_equations = Equations.join eq1 eq2 in
-    Equations.remove_invalid_equations store joined_equations
-
-  let eval_assign_int_value variable x (store, rel_ints) =
-    let store = (IntStore.add (`Var variable) x store) in
-    let equations, store =
-      if IntStore.is_top store || IntStore.is_bot store then rel_ints, store
-      else (
-        if (ID.is_int x) then (
-          IntStore.fold (
-            fun key value (equations, store) ->
-              if Key.compare (`Var variable) key = 0
-              then
-                equations, store
-              else (
-                if ID.is_int value then
-                  let sum_value_x = ID.add x value in
-                  let new_equation = (
-                    if EquationVariable.leq (`Var variable) key then
-                      Equations.new_equation (`Var variable) key `Plus sum_value_x
-                    else
-                      Equations.new_equation key (`Var variable) `Plus sum_value_x
-                  ) in
-                  let joined_equations, store = join_equations equations (Equations.equationmap_of_equation new_equation) store in
-                  if (Equations.cardinal joined_equations) < (Equations.cardinal equations) then
-                    Equations.append_equation new_equation joined_equations, store
-                  else joined_equations, store
-                else equations, store
-                  )
-          ) store (rel_ints, store)
-            )
-        else rel_ints, store
-      ) in
-    (store, equations)
-
-  let add_variable_value_list (varinfo_val_list: (Cil.varinfo * ID.t) list) abstract_value =
-    List.fold_left (fun abstract_value (key,value) -> eval_assign_int_value key value abstract_value) abstract_value varinfo_val_list
-
   let equation_key_to_string key =
     match key with `Var key -> key.vname | `Bot -> "Bot" | _ -> "Top"
 
@@ -168,6 +127,49 @@ struct
       else match x with store, equationlist ->
         "{{" ^ (store_to_string a store) ^ "} {" ^ Equations.equations_to_string equationlist equation_key_to_string ^ "}}"
     )
+
+  let name () = "equations"
+
+  let build_new_equation_for_variable_pair var1 var2 store =
+    let val1 = IntStore.find var1 store in
+    let val2 = IntStore.find var2 store in
+    let sum_value_x = ID.add val1 val2 in
+    if EquationVariable.leq var1 var2 then
+      Equations.new_equation var1 var2 `Plus sum_value_x
+    else
+      Equations.new_equation var1  var2 `Plus sum_value_x
+
+  let join_equations eq1 eq2 store =
+    let joined_equations = Equations.join eq1 eq2 in
+    Equations.remove_invalid_equations store joined_equations
+
+  let eval_assign_int_value variable x (store, equations) =
+    let store = (IntStore.add (`Var variable) x store) in
+    let equations = Equations.remove_equations_with_key (`Var variable) equations in
+    let equations, store =
+      if IntStore.is_top store || IntStore.is_bot store then equations, store
+      else if not (ID.is_top x) && not (ID.is_bot x) then (
+        IntStore.fold (
+          fun key value (equations, store) ->
+            if Key.compare (`Var variable) key = 0
+            then
+              equations, store
+            else (
+              if not (ID.is_top value) && not (ID.is_bot value) then (
+                let new_equation = build_new_equation_for_variable_pair (`Var variable) key store in
+                Equations.append_equation new_equation equations, store
+              )
+              else equations, store
+            )
+        ) store (equations, store)
+      )
+      else equations, store
+    in
+    Pervasives.print_endline ("end eval_assign_int_value: " ^(short 1000 (store, equations) ));
+    (store, equations)
+
+  let add_variable_value_list (varinfo_val_list: (Cil.varinfo * ID.t) list) abstract_value =
+    List.fold_left (fun abstract_value (key,value) -> eval_assign_int_value key value abstract_value) abstract_value varinfo_val_list
 
   let pretty () x = Pretty.text (short 100 x)
 

@@ -455,7 +455,7 @@ struct
       fold (fun _ equation (new_equations, new_store) ->
         match equation with
           (key1,(key2,sign),const) ->
-          if IntDomain.IntDomTuple.is_top const then (new_equations, new_store)
+          if IntDomain.IntDomTuple.is_top const || IntDomain.IntDomTuple.is_bot const then (new_equations, new_store)
           else (
             let val_of_key1_in_store = Store.find key1 store in
             let val_key1_after_equation = solve_equation_for_key 0 equation store in
@@ -488,7 +488,7 @@ struct
   let append_equation equation equations =
     match equation with
       (key1, (key2, _), const) ->
-      if (IntDomain.IntDomTuple.is_top const) then equations
+      if (IntDomain.IntDomTuple.is_top const) || (IntDomain.IntDomTuple.is_bot const) then equations
       else
         add (key1, key2) equation equations
 
