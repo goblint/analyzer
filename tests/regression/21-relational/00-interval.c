@@ -48,13 +48,7 @@ int main () {
     assert(b>=8);
     assert(!(a>9));
     assert(b==8); //FAIL
-    
-    for(x = 0; x < 10; x++){
-        assert(x >= 0);
-        assert(x <= 9);
-    }
-    assert(x == 10);
-    
+        
     return 0;
 }
 
