@@ -2,17 +2,16 @@
 
 int main () {
     int a = 1;
-    int b = 2;
-    int c = 3;
-    int z;
-    if (z != 0){
-        a = 8;
-        b = 9;
+    int b;
+    int c;
+    if (c == 0) {
+        a = 2;
+        b = 3;
     } else {
-        a = 9;
-        b = 8;
+        a = 3;
+        b = 2;
     }
     c = a + b;
-    return 0;
+    return c;
 }
 

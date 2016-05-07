@@ -636,6 +636,21 @@ struct
     | UnOp (op, exp, typ) -> UnOp (op, (rename_cil_variables exp add_local_identifier), typ)
     | _ -> cil_exp
 
+  let eval_assign_cil_exp variable rval abstract_value =
+    let rval = rename_cil_variables rval true in
+    let infimum, supremum = get_int_interval_for_cil_exp abstract_value rval in
+    let _ = rename_cil_variables rval false in
+    let int_val = match infimum, supremum with
+      | Some infimum, Some supremum ->
+        Pervasives.print_endline "some infimum and some supremum";
+        if Int64.compare infimum supremum > 0 then (ID.bot ())
+        else (ID.of_interval (infimum, supremum))
+      | Some infimum, _ -> (ID.starting infimum)
+      | _, Some supremum -> (ID.ending supremum)
+    | _ -> (ID.top ())
+    in
+    eval_assign_int_value variable int_val abstract_value
+
   let eval_assert_cil_exp cil_exp abstract_value =
     let cil_exp = rename_cil_variables cil_exp true in
     let result = assert_inv abstract_value cil_exp false in

@@ -1093,11 +1093,28 @@ struct
               | Some (`Bot) -> RD.bot ()
               | _ -> RD.top ()
             in
-            match rval_val, first_value_in_local_store with
-            | `Int x, Some y when (get_bool analyse_ints_relationally) ->
-              let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value var x rel_int) in
-              assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
-            | _ -> ctx_local, rval_val
+            if (get_bool analyse_ints_relationally) then (
+              match rval_val, first_value_in_local_store with
+              | `Int x, Some y ->
+                if ID.is_int x then (
+                  let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value var x rel_int) in
+                  assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
+                )
+                else (
+                  Pervasives.print_endline "is not int";
+                  let relational_int_abstract_value = RD.eval_assign_cil_exp var rval rel_int in
+                  if ID.is_top (RD.get_value_of_variable var relational_int_abstract_value) then (
+                    Pervasives.print_endline ("is top: " ^ (ID.short 1000 (RD.get_value_of_variable var relational_int_abstract_value)));
+                    let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value var x rel_int) in
+                    assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval)))
+                  else (
+                    Pervasives.print_endline ("is not top: " ^ (ID.short 1000 (RD.get_value_of_variable var relational_int_abstract_value)));
+                    let relational_int_abstract_value = `RelationalInt (relational_int_abstract_value) in
+                    assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
+                  )
+                )
+              | _ -> ctx_local, rval_val
+            ) else ctx_local, rval_val
           )
         | _ -> ctx_local, rval_val
       )
