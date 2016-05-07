@@ -1117,7 +1117,7 @@ struct
                 in
                 match rval_val, rel_struct with
                 | `RelationalStruct x, y when (get_bool analyse_structs_relationally) ->
-                  let x = match rval with Lval (Var v, _) -> ValueDomain.RelationalStructs.get_value_of_variable v x | _ ->   ValueDomain.RelationalStructs.top () in
+                  let x = ValueDomain.RelationalStructs.get_value_of_cil_exp rval x in
                   let rvar = match rval with | Lval (Var v, _ ) -> Some v | _ -> None in
                   let variable_val_list = [(rvar, var, x)] in
                   let value = `RelationalStruct  (ValueDomain.RelationalStructs.add_variable_value_list variable_val_list y) in
