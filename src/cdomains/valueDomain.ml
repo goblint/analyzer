@@ -749,11 +749,6 @@ struct
   let get_value_of_variable_and_globals varinfo (struct_store, equations) =
     get_value_of_variable_name varinfo.vname (struct_store, equations) true
 
-  let get_value_of_cil_exp cil_exp abstract_val =
-    match cil_exp with
-    | Lval (Var v, _) -> get_value_of_variable v abstract_val
-    | _ -> top ()
-
   let join_equations eq1 eq2 store =
     let eq = Equations.join eq1 eq2 in
     Equations.remove_invalid_equations store eq
@@ -1153,7 +1148,6 @@ struct
 
   (* f3p: projections *)
   let eval_assert_cil_exp = map3p { f3p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.eval_assert_cil_exp }
-  let get_value_of_cil_exp = map3p { f3p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get_value_of_cil_exp }
   let get_value_of_variable = map3p { f3p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get_value_of_variable }
   let get_value_of_variable_and_globals = map3p { f3p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get_value_of_variable_and_globals }
   let remove_variable = map3p { f3p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.remove_variable }
