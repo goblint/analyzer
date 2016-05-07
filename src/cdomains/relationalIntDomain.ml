@@ -125,7 +125,7 @@ struct
     else (
       if is_bot x then "bot"
       else match x with store, equationlist ->
-        "{{" ^ (store_to_string a store) ^ "} {" ^ Equations.equations_to_string equationlist equation_key_to_string ^ "}}"
+        "({" ^ (store_to_string a store) ^ "} (" ^ Equations.equations_to_string equationlist equation_key_to_string ^ "))"
     )
 
   let name () = "equations"
