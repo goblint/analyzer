@@ -924,11 +924,6 @@ struct
     let _ = rename_cil_variables cil_exp false struct_name_mapping in
     result, struct_name_mapping
 
-  let get_value_of_cil_exp cil_exp (apron_abstract_value, struct_mapping) =
-    match cil_exp with
-    | Lval (Var v, _) -> get_value_of_variable v (apron_abstract_value, struct_mapping)
-    | _ -> top ()
-
   let rename_variable_of_field abstract_value old_key value_old_key new_variable =
     match old_key with
     | `Field _ -> (
