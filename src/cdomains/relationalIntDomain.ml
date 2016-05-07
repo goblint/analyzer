@@ -120,6 +120,9 @@ struct
   let equation_key_to_string key =
     match key with `Var key -> key.vname | `Bot -> "Bot" | _ -> "Top"
 
+  let is_top (x, eq) =
+    IntStore.fold (fun _ value is_top -> if ID.is_top value then is_top else false) x true
+
   let short a x =
     if is_top x then "top"
     else (
@@ -250,6 +253,36 @@ struct
         )
       | _ -> None, None, None in
     Equations.new_optional_equation (`Var var) (rvar_var,  offset) const
+
+  let eval_assign_cil_exp variable r_exp (store, rel_ints) =
+    Pervasives.print_endline "eval_assign_cil_exp";
+    let int_val =
+      match r_exp with
+      | BinOp (op, Lval (Var var1, _), Lval (Var var2, _), _) -> (
+          if var1.vid = variable.vid || var2.vid = variable.vid then
+            ID.top()
+          else (
+            let (key1, (key2, sign), const) =
+              Equations.get_equation_with_keys (`Var var2) (`Var var1) rel_ints
+            in
+            match op, sign with
+            | PlusA, `Plus -> const
+            | MinusA, `Minus -> const
+            | _ -> ID.top ()
+          )
+        )
+      | _ -> ID.top ()
+    in
+    if ID.is_top int_val then
+      match build_equation_of_cil_exp r_exp variable false with
+      | Some x ->
+        Pretty.fprint Pervasives.stdout 0 (Equations.pretty () (Equations.equationmap_of_equation x ));
+        let equations, store = join_equations rel_ints (Equations.equationmap_of_equation x ) store in
+        if (Equations.cardinal equations) < (Equations.cardinal rel_ints) then (store,  Equations.append_equation x equations)
+        else (store,  equations)
+      | _ -> (store, rel_ints)
+    else
+      eval_assign_int_value variable int_val (store, rel_ints)
 
   let eval_assert_left_var (store, rel_ints) (l_exp: Cil.exp) (r_exp: Cil.exp) should_negate =
     match l_exp with
@@ -425,6 +458,7 @@ struct
 
   (* f5p: projections *)
   let eval_assign_int_value = map5p { f5p = fun (type a) (module R:S with type t = a) -> R.eval_assign_int_value }
+  let eval_assign_cil_exp = map5p { f5p = fun (type a) (module R:S with type t = a) -> R.eval_assign_cil_exp }
 
   (* for_all *)
   let is_bot x = for_all ((mapp { fp = fun (type a) (module R:S with type t = a) -> R.is_bot }) x)

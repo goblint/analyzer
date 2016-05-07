@@ -221,6 +221,7 @@ sig
   val equationmap_of_equation: equation -> t
   val equations_to_string: t -> (equation_key -> string) -> string
   val filter: (equation -> bool) -> t -> t
+  val get_equation_with_keys : equation_key -> equation_key -> t -> equation
   val meet_with_new_equation: store * t -> store * t
   val new_equation: equation_key -> equation_key -> Sign.t -> IntDomain.IntDomTuple.t -> equation
   val new_optional_equation: equation_key -> (equation_key option * Sign.t option) -> IntDomain.IntDomTuple.t option -> equation option
@@ -407,6 +408,10 @@ struct
       fun _ (key1, (key2, _), _) ->
         not(Domain.is_top (Store.find key1 store)) && not(Domain.is_top (Store.find key2 store))
     ) equations
+
+  let get_equation_with_keys key1 key2 eqs =
+    let key1, key2 = if Key.compare key2 key1 < 0 then key1, key2 else key2, key1 in
+    find (key1, key2) eqs
 
   let meet_with_new_equation (store, equations) =
     let equations = filter_equations_for_not_top_keys (store, equations) in
