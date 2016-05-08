@@ -202,7 +202,10 @@ struct
           let existing_rel_abstract_val = first_value_in_local_store store RelationalStructInformation in
           match existing_rel_abstract_val with
           | `RelationalStruct existing_rel_abstract_val ->
-            `RelationalStruct(ValueDomain.RelationalStructs.fold (fun field value value_where_added -> ValueDomain.RelationalStructs.assign value_where_added field value) x existing_rel_abstract_val)
+            `RelationalStruct(ValueDomain.RelationalStructs.fold (
+                fun field value existing_relational_value ->
+                  ValueDomain.RelationalStructs.assign existing_relational_value field value
+              ) x existing_rel_abstract_val)
           | _ -> relational_abstract_value
         )
       | `Int x when (get_bool analyse_ints_relationally) -> (
