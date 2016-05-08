@@ -12,6 +12,7 @@ int main () {
         b = 2;
     }
     c = a + b;
+    assert(c == 5);
     return c;
 }
 

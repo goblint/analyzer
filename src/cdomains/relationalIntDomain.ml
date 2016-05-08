@@ -273,16 +273,7 @@ struct
         )
       | _ -> ID.top ()
     in
-    if ID.is_top int_val then
-      match build_equation_of_cil_exp r_exp variable false with
-      | Some x ->
-        Pretty.fprint Pervasives.stdout 0 (Equations.pretty () (Equations.equationmap_of_equation x ));
-        let equations, store = join_equations rel_ints (Equations.equationmap_of_equation x ) store in
-        if (Equations.cardinal equations) < (Equations.cardinal rel_ints) then (store,  Equations.append_equation x equations)
-        else (store,  equations)
-      | _ -> (store, rel_ints)
-    else
-      eval_assign_int_value variable int_val (store, rel_ints)
+    eval_assign_int_value variable int_val (store, rel_ints)
 
   let eval_assert_left_var (store, rel_ints) (l_exp: Cil.exp) (r_exp: Cil.exp) should_negate =
     match l_exp with
