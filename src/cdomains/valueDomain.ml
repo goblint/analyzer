@@ -670,20 +670,19 @@ struct
   include Prod
 
   let name () = "equations"
-  let fold func (store, eq) (x: t) =
-
-    StructStore.fold func store x
+  let fold func (store, eq) (x: t) = StructStore.fold func store x
   let map func (store, equations) = StructStore.map func store, equations
-
-  let copy_comp ci =
-    Cil.copyCompInfo ci ("c" ^(Pervasives.string_of_int (Random.int 10000000)))
 
   let mapping_to_string w mapping =
     let usable_length = w - 5 in
     let assoclist = StructStore.fold (fun x y rest -> (x,y)::rest) mapping [] in
     let f  (field, value) = (EquationField.short 20 field) ^ ": (" ^ (
         if Compound.is_bot value then "bot" else (
-          (if Compound.is_bot value then "top" else (Compound.short usable_length value)))) ^ ")" in
+          if Compound.is_top value then "top" else (
+            Compound.short usable_length value
+          )
+        )
+      ) ^ ")" in
     let whole_str_list = List.rev_map f assoclist in
     Printable.get_short_list "[" "] " usable_length whole_str_list
 
@@ -780,12 +779,13 @@ struct
                   if Compound.is_top new_compound_val then
                     (`Int (IntDomain.IntDomTuple.top ()))
                   else new_value in
+                let equations = Equations.remove_equations_with_key (`Field(new_var, new_field)) equations in
                 let equations =
                   if StructStore.is_top s || StructStore.is_bot s then equations
                   else (
                     match new_value with
                     | `Int new_value -> (
-                        if (IntDomain.IntDomTuple.is_int new_value) then (
+                        if not (IntDomain.IntDomTuple.is_top new_value) && not (IntDomain.IntDomTuple.is_bot new_value) then (
                           StructStore.fold (
                             fun key old_value equations ->
                               match key with
@@ -794,15 +794,15 @@ struct
                                   else (
                                     match old_value with
                                     | `Int old_value ->
-                                      let new_equation =  Equations.build_new_equation ((`Field(var, key)), old_value) ((`Field(new_var, new_field)), new_value) in
-                                      let joined_equations, s = join_equations equations (Equations.equationmap_of_equation new_equation) s in
-                                      if (Equations.cardinal joined_equations) < (Equations.cardinal equations) then
-                                        Equations.append_equation new_equation joined_equations
-                                      else joined_equations
+                                      if not (IntDomain.IntDomTuple.is_top old_value) && not (IntDomain.IntDomTuple.is_bot old_value) then (
+                                        let new_equation =  Equations.build_new_equation ((`Field(var, key)), old_value) ((`Field(new_var, new_field)), new_value) in
+                                        Equations.append_equation new_equation equations
+                                      )
+                                      else equations
                                     | _ -> equations
                                   )
                                 )
-                          | _ -> equations
+                              | _ -> equations
                           ) s equations
                         )
                         else

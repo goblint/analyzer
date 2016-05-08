@@ -9,8 +9,8 @@ int some_function(){
     for (z = 5; z > 0; z--) {
         xx = xx - 1;
     }
-    assert (z == 0);
-    assert (z < 1);
+    assert (z == 0); //NOWARN
+    assert (z < 1); //NOWARN
     return xx;
 }
 
