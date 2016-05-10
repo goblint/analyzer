@@ -610,68 +610,77 @@ struct
        * Ideally we would meet both values, but we fear types might not match. (bottom) *)
       match eval_rv_pre a exp st with
       | Some x -> x
-      | None ->
-        (* query functions were no help ... now try with values*)
-        match constFold true exp with
-        (* Integer literals *)
-        (* seems like constFold already converts CChr to CInt64 *)
-        | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
-        | Const (CInt64 (num,typ,str)) -> `Int (ID.of_int num)
-        (* String literals *)
-        | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
-        | Const (CWStr xs as c) -> (* wide character strings, type: wchar_t* *)
-          let x = Pretty.sprint 80 (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
-          let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
+      | None -> (
+          let relational_int_val =
+          if (get_bool analyse_ints_relationally) then
+            let cpa_s, _ = st in
+            let abstract_relational_int_value = match first_value_in_local_store cpa_s RelationalIntInformation with `RelationalInt x -> x | _ -> RD.top() in
+            RD.eval_cil_exp exp abstract_relational_int_value
+          else ID.top() in
+          if not(ID.is_top relational_int_val) then `Int (relational_int_val)
+          else
+            (* query functions were no help ... now try with values*)
+            match constFold true exp with
+            (* Integer literals *)
+            (* seems like constFold already converts CChr to CInt64 *)
+            | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
+            | Const (CInt64 (num,typ,str)) -> `Int (ID.of_int num)
+            (* String literals *)
+            | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
+            | Const (CWStr xs as c) -> (* wide character strings, type: wchar_t* *)
+              let x = Pretty.sprint 80 (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
+              let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
-        (* Variables and address expressions *)
-        | Lval (Var v, ofs) -> do_offs (get a gs st false (eval_lv a gs st (Var v, ofs))) ofs
-        | Lval (Mem e, ofs) -> do_offs (get a gs st false (eval_lv a gs st (Mem e, ofs))) ofs
-        (* Binary operators *)
-        | BinOp (op, CastE (ta, ea), CastE (tb, eb), t) when ta = tb && (op = Eq || op = Ne) ->
-          let a1 = eval_rv a gs st ea in
-          let a2 = eval_rv a gs st eb in
-          evalbinop op a1 a2 (* TODO this is only sound for upcasts *)
-        | BinOp (op,arg1,arg2,typ) ->
-          let a1 = eval_rv a gs st arg1 in
-          let a2 = eval_rv a gs st arg2 in
-          evalbinop op a1 a2
-        (* Unary operators *)
-        | UnOp (op,arg1,typ) ->
-          let a1 = eval_rv a gs st arg1 in
-          evalunop op a1
-        (* The &-operator: we create the address abstract element *)
-        | AddrOf lval -> `Address (eval_lv a gs st lval)
-        (* CIL's very nice implicit conversion of an array name [a] to a pointer
+            (* Variables and address expressions *)
+            | Lval (Var v, ofs) -> do_offs (get a gs st false (eval_lv a gs st (Var v, ofs))) ofs
+            | Lval (Mem e, ofs) -> do_offs (get a gs st false (eval_lv a gs st (Mem e, ofs))) ofs
+            (* Binary operators *)
+            | BinOp (op, CastE (ta, ea), CastE (tb, eb), t) when ta = tb && (op = Eq || op = Ne) ->
+              let a1 = eval_rv a gs st ea in
+              let a2 = eval_rv a gs st eb in
+              evalbinop op a1 a2 (* TODO this is only sound for upcasts *)
+            | BinOp (op,arg1,arg2,typ) ->
+              let a1 = eval_rv a gs st arg1 in
+              let a2 = eval_rv a gs st arg2 in
+              evalbinop op a1 a2
+            (* Unary operators *)
+            | UnOp (op,arg1,typ) ->
+              let a1 = eval_rv a gs st arg1 in
+              evalunop op a1
+            (* The &-operator: we create the address abstract element *)
+            | AddrOf lval -> `Address (eval_lv a gs st lval)
+            (* CIL's very nice implicit conversion of an array name [a] to a pointer
          * to its first element [&a[0]]. *)
-        | StartOf lval ->
-          let array_ofs = `Index (IdxDom.of_int 0L, `NoOffset) in
-          let array_start ad =
-            match Addr.to_var_offset ad with
-            | [x, offs] -> Addr.from_var_offset (x, add_offset offs array_ofs)
-            | _ -> ad
-          in
-          `Address (AD.map array_start (eval_lv a gs st lval))
-        | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
-        (* Most casts are currently just ignored, that's probably not a good idea! *)
-        | CastE  (t, exp) -> begin
-            match t,eval_rv a gs st exp with
-            | TPtr (_,_), `Top -> `Address (AD.top_ptr ())
-            | TPtr _, `Int a when Some Int64.zero = ID.to_int a ->
-              `Address (AD.null_ptr ())
-            | TPtr (t,_), `Int a when t<>voidType ->
-              `Address (AD.unknown_ptr ())
-            | TInt _, `Address a when AD.equal a (AD.null_ptr ()) ->
-              `Int (ID.of_int Int64.zero)
-            (* TODO not AD.exists null... *)
-            | TInt _, `Address a ->
-              `Int (ID.top ())
-            | Cil.TInt (k,_), `Int a ->
-              let w = get_type_width k in
-              `Int (ID.cast_to_width w a)
-            (* | TPtr (_,_), `Address -> assert false (* TODO *) *)
-            | _, s -> s (* TODO care about casts... *)
-          end
-        | _ -> VD.top ()
+            | StartOf lval ->
+              let array_ofs = `Index (IdxDom.of_int 0L, `NoOffset) in
+              let array_start ad =
+                match Addr.to_var_offset ad with
+                | [x, offs] -> Addr.from_var_offset (x, add_offset offs array_ofs)
+                | _ -> ad
+              in
+              `Address (AD.map array_start (eval_lv a gs st lval))
+            | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
+            (* Most casts are currently just ignored, that's probably not a good idea! *)
+            | CastE  (t, exp) -> begin
+                match t,eval_rv a gs st exp with
+                | TPtr (_,_), `Top -> `Address (AD.top_ptr ())
+                | TPtr _, `Int a when Some Int64.zero = ID.to_int a ->
+                  `Address (AD.null_ptr ())
+                | TPtr (t,_), `Int a when t<>voidType ->
+                  `Address (AD.unknown_ptr ())
+                | TInt _, `Address a when AD.equal a (AD.null_ptr ()) ->
+                  `Int (ID.of_int Int64.zero)
+                (* TODO not AD.exists null... *)
+                | TInt _, `Address a ->
+                  `Int (ID.top ())
+                | Cil.TInt (k,_), `Int a ->
+                  let w = get_type_width k in
+                  `Int (ID.cast_to_width w a)
+                (* | TPtr (_,_), `Address -> assert false (* TODO *) *)
+                | _, s -> s (* TODO care about casts... *)
+              end
+            | _ -> VD.top ()
+        )
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
   and eval_fv a (gs:glob_fun) st (exp:exp): AD.t =
@@ -1104,17 +1113,8 @@ struct
                   assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
                 )
                 else (
-                  Pervasives.print_endline "is not int";
-                  let relational_int_abstract_value = RD.eval_assign_cil_exp var rval rel_int in
-                  if ID.is_top (RD.get_value_of_variable var relational_int_abstract_value) then (
-                    Pervasives.print_endline ("is top: " ^ (ID.short 1000 (RD.get_value_of_variable var relational_int_abstract_value)));
-                    let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value var x rel_int) in
-                    assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval)))
-                  else (
-                    Pervasives.print_endline ("is not top: " ^ (ID.short 1000 (RD.get_value_of_variable var relational_int_abstract_value)));
-                    let relational_int_abstract_value = `RelationalInt (relational_int_abstract_value) in
-                    assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
-                  )
+                  let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value var x rel_int) in
+                  assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
                 )
               | _ -> ctx_local, rval_val
             ) else ctx_local, rval_val

@@ -254,26 +254,18 @@ struct
       | _ -> None, None, None in
     Equations.new_optional_equation (`Var var) (rvar_var,  offset) const
 
-  let eval_assign_cil_exp variable r_exp (store, rel_ints) =
-    Pervasives.print_endline "eval_assign_cil_exp";
-    let int_val =
-      match r_exp with
-      | BinOp (op, Lval (Var var1, _), Lval (Var var2, _), _) -> (
-          if var1.vid = variable.vid || var2.vid = variable.vid then
-            ID.top()
-          else (
-            let (key1, (key2, sign), const) =
-              Equations.get_equation_with_keys (`Var var2) (`Var var1) rel_ints
-            in
-            match op, sign with
-            | PlusA, `Plus -> const
-            | MinusA, `Minus -> const
-            | _ -> ID.top ()
-          )
-        )
-      | _ -> ID.top ()
-    in
-    eval_assign_int_value variable int_val (store, rel_ints)
+  let eval_cil_exp r_exp (store, rel_ints) =
+    match r_exp with
+    | BinOp (op, Lval (Var var1, _), Lval (Var var2, _), _) -> (
+        let (key1, (key2, sign), const) =
+          Equations.get_equation_with_keys (`Var var2) (`Var var1) rel_ints
+        in
+        match op, sign with
+        | PlusA, `Plus -> const
+        | MinusA, `Minus -> const
+        | _ -> ID.top ()
+      )
+    | _ -> ID.top ()
 
   let eval_assert_left_var (store, rel_ints) (l_exp: Cil.exp) (r_exp: Cil.exp) should_negate =
     match l_exp with
@@ -446,10 +438,15 @@ struct
     | Some x, _ -> x
     | _, Some y -> y
     | _ -> ID.bot ()
+  let eval_cil_exp x y =
+    match map4p { f4p = fun (type a) (module R:S with type t = a) -> R.eval_cil_exp } x y with
+    | Some x, Some y -> ID.meet x y
+    | Some x, _ -> x
+    | _, Some y -> y
+    | _ -> ID.bot ()
 
   (* f5p: projections *)
   let eval_assign_int_value = map5p { f5p = fun (type a) (module R:S with type t = a) -> R.eval_assign_int_value }
-  let eval_assign_cil_exp = map5p { f5p = fun (type a) (module R:S with type t = a) -> R.eval_assign_cil_exp }
 
   (* for_all *)
   let is_bot x = for_all ((mapp { fp = fun (type a) (module R:S with type t = a) -> R.is_bot }) x)

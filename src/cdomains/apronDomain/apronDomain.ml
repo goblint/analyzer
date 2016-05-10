@@ -355,6 +355,7 @@ struct
 
   let assert_inv d x b =
     try
+      Pervasives.print_endline "assert inv";
       (* if assert(x) then convert it to assert(x != 0) *)
       let x = match x with
         | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
@@ -636,26 +637,39 @@ struct
     | UnOp (op, exp, typ) -> UnOp (op, (rename_cil_variables exp add_local_identifier), typ)
     | _ -> cil_exp
 
-  let eval_assign_cil_exp variable rval abstract_value =
-    let rval = rename_cil_variables rval true in
-    let infimum, supremum = get_int_interval_for_cil_exp abstract_value rval in
-    let _ = rename_cil_variables rval false in
-    let int_val = match infimum, supremum with
-      | Some infimum, Some supremum ->
-        Pervasives.print_endline "some infimum and some supremum";
-        if Int64.compare infimum supremum > 0 then (ID.bot ())
-        else (ID.of_interval (infimum, supremum))
-      | Some infimum, _ -> (ID.starting infimum)
-      | _, Some supremum -> (ID.ending supremum)
-    | _ -> (ID.top ())
-    in
-    eval_assign_int_value variable int_val abstract_value
-
   let eval_assert_cil_exp cil_exp abstract_value =
     let cil_exp = rename_cil_variables cil_exp true in
     let result = assert_inv abstract_value cil_exp false in
     let _ = rename_cil_variables cil_exp false in
     result
+
+  let eval_cil_exp cil_exp abstract_value =
+    Pervasives.print_endline ("eval_cil_exp: " ^(short 1000 abstract_value));
+    Pretty.fprint Pervasives.stdout 0 (Cil.printExp Cil.defaultCilPrinter () cil_exp);
+    let is_comparison =
+      match cil_exp with
+      | BinOp(op, _, _, _) -> (
+          match op with
+          | Lt | Gt | Le | Ge | Eq | Ne -> true
+          | _ -> false
+        )
+      | _ -> false
+    in
+    if is_comparison then
+      if is_bot (eval_assert_cil_exp cil_exp abstract_value) then
+        ID.of_int 0L
+      else ID.top()
+    else
+      let cil_exp = rename_cil_variables cil_exp true in
+      let infimum, supremum = get_int_interval_for_cil_exp abstract_value cil_exp in
+      let _ = rename_cil_variables cil_exp false in
+      match infimum, supremum with
+      | Some infimum, Some supremum ->
+        if Int64.compare infimum supremum > 0 then (ID.bot ())
+        else (ID.of_interval (infimum, supremum))
+      | Some infimum, _ -> (ID.starting infimum)
+      | _, Some supremum -> (ID.ending supremum)
+      | _ -> (ID.top ())
 
 end
 
