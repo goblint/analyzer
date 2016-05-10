@@ -1751,7 +1751,6 @@ struct
             | _ -> varinfo, ID.top ()
           ) varinfo_int_val_list in
         let abstract_value_relational_ints = match (first_value_in_local_store store RelationalIntInformation) with | `RelationalInt x -> RD.add_variable_value_list varinfo_val_list (RD.remove_all_local_variables x) | _ -> RD.add_variable_value_list varinfo_val_list (RD.top ()) in
-        let abstract_value_relational_ints = RD.remove_all_top_variables abstract_value_relational_ints in
         List.map (
           fun (varinfo, abstr) ->
             (varinfo, `RelationalInt (abstract_value_relational_ints))
@@ -1784,20 +1783,17 @@ struct
       match pa with
       | (_,value)::_ -> (
           match value with
-          | `RelationalInt x ->
-            `RelationalInt(RD.remove_all_top_variables x)
+          | `RelationalInt x -> value
           | _ ->
             match first_relational_value_in_store with
             | `RelationalInt first_relational_value_in_store ->
-              let x = RD.remove_all_top_variables first_relational_value_in_store in
-              `RelationalInt(RD.remove_all_local_variables x)
+              `RelationalInt(RD.remove_all_local_variables first_relational_value_in_store)
             | _ -> `RelationalInt(RD.top ())
         )
       | _ ->
         match first_relational_value_in_store with
         | `RelationalInt first_relational_value_in_store ->
-          let x = RD.remove_all_top_variables first_relational_value_in_store in
-          `RelationalInt(RD.remove_all_local_variables x)
+          `RelationalInt(RD.remove_all_local_variables first_relational_value_in_store)
         | _ -> `RelationalInt(RD.top ())
     in
     assign_new_relational_abstract_value_in_store new_cpa new_relational_int, nfl

@@ -107,7 +107,7 @@ struct
 
   let store_to_string length store =
     let key_value_pair_string (key: Cil.varinfo) value =
-      if ID.is_top value then key.vname ^ " = top"
+      if ID.is_top value then ""
       else key.vname ^ " = (" ^ (ID.short length value) ^ ")" in
     IntStore.fold
       (fun key value string ->
@@ -328,11 +328,6 @@ struct
   let remove_variable (var:  Cil.varinfo) (store, equations) =
     IntStore.remove (`Var var) store, (Equations.remove_equations_with_key (`Var var) equations)
 
-  let remove_all_top_variables (old_store, old_equations) =
-    let filtered_store =
-      IntStore.filter (fun variable value -> not(ID.is_top (IntStore.find variable old_store))) old_store in
-    filtered_store, old_equations
-
   let remove_all_local_variables (old_store, old_equations) =
     let filtered_store =
       IntStore.filter (fun variable value ->
@@ -424,7 +419,6 @@ struct
 
   (* f1: unary ops *)
   let remove_all_local_variables = map { f1 = fun (type a) (module R:S with type t = a) -> R.remove_all_local_variables }
-  let remove_all_top_variables = map { f1 = fun (type a) (module R:S with type t = a) -> R.remove_all_top_variables }
 
   (* f3p: projections *)
   let add_variable_value_list = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.add_variable_value_list }

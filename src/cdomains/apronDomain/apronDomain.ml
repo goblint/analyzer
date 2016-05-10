@@ -609,9 +609,6 @@ struct
 
   let remove_variable varinfo = remove_variable_with_name (get_variable_name varinfo)
 
-  let remove_all_top_variables abstract_value =
-    abstract_value
-
   let get_value_of_variable var abstract_value =
     let old_var_name = var.vname in
     var.vname <- (get_variable_name var);
@@ -683,7 +680,7 @@ end
 module ApronRelationalStructDomain
     (Compound: Compound)(EquationField: Equation.GroupableLatticeS with type t = ([`Top | `Bot | `Field of Basetype.VariableFields.t]))
     : StructDomain.RelationalStructDomainSignature
-      with type t = ApronDomain.t * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
+      with type t = ApronDomain.t * MapDomain.MapTop(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
        and type field = EquationField.t
        and type value = Compound.t
 =
@@ -692,7 +689,7 @@ struct
   open ApronRelationalDomain
 
   module StructMapKey = Lattice.Prod(Basetype.Strings)(Basetype.Strings)
-  module StructMap = MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings) )(EquationField)
+  module StructMap = MapDomain.MapTop(Lattice.Prod(Basetype.Strings)(Basetype.Strings) )(EquationField)
   type t = ApronDomain.t  * StructMap.t
   type field = EquationField.t
   type value = Compound.t

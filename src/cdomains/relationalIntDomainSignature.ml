@@ -10,6 +10,5 @@ sig
   val get_value_of_variable: Cil.varinfo -> t -> ID.t
   val meet_local_and_global_state: t -> t -> t
   val remove_all_local_variables:  t -> t
-  val remove_all_top_variables:  t -> t
   val remove_variable: Cil.varinfo -> t -> t
 end
