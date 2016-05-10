@@ -676,9 +676,10 @@ struct
   let mapping_to_string w mapping =
     let usable_length = w - 5 in
     let assoclist = StructStore.fold (fun x y rest -> (x,y)::rest) mapping [] in
-    let f  (field, value) = (EquationField.short 20 field) ^ ": (" ^ (
-        if Compound.is_bot value then "bot" else (
-          if Compound.is_top value then "top" else (
+    let f  (field, value) =
+      if Compound.is_bot value then "" else (
+        if Compound.is_top value then "" else (
+          (EquationField.short 20 field) ^ ": (" ^ (
             Compound.short usable_length value
           )
         )
@@ -1083,13 +1084,13 @@ end
 and RelationalStructsApron: StructDomain.RelationalStructDomainSignature
   with type field = EquationField.t
    and type value = Compound_TransformableToIntDomTupleT.t
-   and type t = ApronDomain.ApronDomain.t * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
+   and type t = ApronDomain.ApronDomain.t * MapDomain.MapTop(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
   = ApronDomain.ApronRelationalStructDomain(Compound_TransformableToIntDomTupleT)(EquationField)
 
 and RelationalStructs : StructDomain.RelationalStructDomainSignature
   with type field = EquationField.t
    and type value = Compound_TransformableToIntDomTupleT.t
-   and type t = (Lattice.Prod(MapDomain.MapTop_LiftBot (EquationField)(Compound_TransformableToIntDomTupleT))(Equation.EquationMap(EquationField)(Compound_TransformableToIntDomTupleT)).t) option * (ApronDomain.ApronDomain.t * MapDomain.MapTop_LiftBot(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t) option
+   and type t = (Lattice.Prod(MapDomain.MapTop_LiftBot (EquationField)(Compound_TransformableToIntDomTupleT))(Equation.EquationMap(EquationField)(Compound_TransformableToIntDomTupleT)).t) option * (ApronDomain.ApronDomain.t * MapDomain.MapTop(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t) option
 =
 struct
   open Batteries
