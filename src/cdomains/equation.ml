@@ -458,14 +458,17 @@ struct
   let remove_invalid_equations store equations =
     let new_equations, new_store =
       fold (fun _ equation (new_equations, new_store) ->
-        match equation with
-          (key1,(key2,sign),const) ->
-          if IntDomain.IntDomTuple.is_top const || IntDomain.IntDomTuple.is_bot const then (new_equations, new_store)
-          else (
+          match equation with
+            (key1,(key2,sign),const) ->
             let val_of_key1_in_store = Store.find key1 store in
-            let val_key1_after_equation = solve_equation_for_key 0 equation store in
             let val_of_key2_in_store = Store.find key2 store in
-            let val_key2_after_equation = solve_equation_for_key 1 equation store in
+            if IntDomain.IntDomTuple.is_top const || IntDomain.IntDomTuple.is_bot const
+               || Domain.is_top val_of_key1_in_store || Domain.is_top val_of_key2_in_store
+            then
+              (new_equations, new_store)
+            else (
+              let val_key1_after_equation = solve_equation_for_key 0 equation store in
+              let val_key2_after_equation = solve_equation_for_key 1 equation store in
             if
               (Domain.equal val_key1_after_equation val_of_key1_in_store) && (Domain.equal val_key2_after_equation val_of_key2_in_store)
             then
@@ -473,18 +476,15 @@ struct
               let new_store = Store.add key2 val_key2_after_equation new_store in
               add (key1, key2) equation new_equations, new_store
             else (
-              if Domain.is_top val_of_key1_in_store || Domain.is_top val_of_key2_in_store then
-                new_equations, new_store
-              else
-                let int_val_of_key1_in_store = (Domain.to_int_val val_of_key1_in_store) in
-                let int_val_of_key2_in_store = (Domain.to_int_val val_of_key2_in_store) in
-                let new_store = Store.add key1 val_of_key1_in_store new_store in
-                let new_store = Store.add key2 val_key2_after_equation new_store in
-                let new_equation = (build_new_equation (key1, int_val_of_key1_in_store) (key2, int_val_of_key2_in_store)) in
-                match new_equation with (_,(_,_),const) ->
-                  if IntDomain.IntDomTuple.is_top const then (new_equations, new_store)
-                  else
-                add (key1, key2) new_equation new_equations, new_store
+              let int_val_of_key1_in_store = (Domain.to_int_val val_of_key1_in_store) in
+              let int_val_of_key2_in_store = (Domain.to_int_val val_of_key2_in_store) in
+              let new_store = Store.add key1 val_of_key1_in_store new_store in
+              let new_store = Store.add key2 val_key2_after_equation new_store in
+              let new_equation = (build_new_equation (key1, int_val_of_key1_in_store) (key2, int_val_of_key2_in_store)) in
+              match new_equation with (_,(_,_),const) ->
+                if IntDomain.IntDomTuple.is_top const then (new_equations, new_store)
+                else
+                  add (key1, key2) new_equation new_equations, new_store
             )
           )
         )  equations (top(), Store.top()) in
