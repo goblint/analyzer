@@ -707,7 +707,6 @@ struct
   let pretty () x = Pretty.text (short 100 x)
 
   let remove_all_equations_with_variable variable equations =
-
     Equations.filter (fun (field1,(field2,_),_) ->
         match field1, field2 with
         | `Field (variable1, field1), `Field (variable2, field2) ->
@@ -868,16 +867,6 @@ struct
           match field with
           | `Field(variable, field) ->
             if not(variable.vglob) then [variable] @ variable_list else variable_list
-          | _ -> variable_list
-        ) struct_store [] in
-    List.fold_left (fun abstract_value variable_to_remove -> remove_variable variable_to_remove abstract_value) (struct_store, equations) variables_to_remove
-
-  let remove_all_top_variables (struct_store, equations) =
-    let variables_to_remove =
-      StructStore.fold (fun field struct_val variable_list ->
-          match field with
-          | `Field(variable, field) ->
-            if Compound.is_top struct_val then [variable] @ variable_list else variable_list
           | _ -> variable_list
         ) struct_store [] in
     List.fold_left (fun abstract_value variable_to_remove -> remove_variable variable_to_remove abstract_value) (struct_store, equations) variables_to_remove
@@ -1145,7 +1134,6 @@ struct
 
   (* f1: unary ops *)
   let remove_all_local_variables = map { f1 = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.remove_all_local_variables }
-  let remove_all_top_variables = map { f1 = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.remove_all_top_variables }
 
   (* f3p: projections *)
   let eval_assert_cil_exp = map3p { f3p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.eval_assert_cil_exp }
