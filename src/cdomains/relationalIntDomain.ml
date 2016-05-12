@@ -146,7 +146,7 @@ struct
     let joined_equations = Equations.join eq1 eq2 in
     Equations.remove_invalid_equations store joined_equations
 
-  let eval_assign_int_value variable x (store, equations) =
+  let assign_int_value variable x (store, equations) =
     let store = (IntStore.add (`Var variable) x store) in
     let equations = Equations.remove_equations_with_key (`Var variable) equations in
     if IntStore.is_top store || IntStore.is_bot store then store, equations
@@ -168,7 +168,7 @@ struct
     else store, equations
 
   let add_variable_value_list (varinfo_val_list: (Cil.varinfo * ID.t) list) abstract_value =
-    List.fold_left (fun abstract_value (key,value) -> eval_assign_int_value key value abstract_value) abstract_value varinfo_val_list
+    List.fold_left (fun abstract_value (key,value) -> assign_int_value key value abstract_value) abstract_value varinfo_val_list
 
   let pretty () x = Pretty.text (short 100 x)
 
@@ -436,7 +436,7 @@ struct
     | _ -> ID.bot ()
 
   (* f5p: projections *)
-  let eval_assign_int_value = map5p { f5p = fun (type a) (module R:S with type t = a) -> R.eval_assign_int_value }
+  let assign_int_value = map5p { f5p = fun (type a) (module R:S with type t = a) -> R.assign_int_value }
 
   (* for_all *)
   let is_bot x = for_all ((mapp { fp = fun (type a) (module R:S with type t = a) -> R.is_bot }) x)

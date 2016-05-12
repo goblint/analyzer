@@ -606,15 +606,9 @@ struct
       match eval_rv_pre a exp st with
       | Some x -> x
       | None -> (
-          let relational_int_val =
-          if (get_bool analyse_ints_relationally) then
-            let cpa_s, _ = st in
-            let abstract_relational_int_value = match first_value_in_local_store cpa_s RelationalIntInformation with `RelationalInt x -> x | _ -> RD.top() in
-            RD.eval_cil_exp exp abstract_relational_int_value
-          else ID.top() in
-          if not(ID.is_top relational_int_val) then `Int (relational_int_val)
-          else
-            (* query functions were no help ... now try with values*)
+          let evaluate () =
+            (* neither relational domains, nor query functions were a help ..
+               . now try with values *)
             match constFold true exp with
             (* Integer literals *)
             (* seems like constFold already converts CChr to CInt64 *)
@@ -675,7 +669,32 @@ struct
                 | _, s -> s (* TODO care about casts... *)
               end
             | _ -> VD.top ()
+          in
+          (* try to get some information out of the relational domains, if the result is top, evaluate using values *)
+          let relational_val =
+            if (get_bool analyse_ints_relationally) || (get_bool analyse_structs_relationally)then (
+              let cpa_s, _ = st in
+              let relational_int_val =
+                if (get_bool analyse_ints_relationally) then
+                  let abstract_relational_int_value = match first_value_in_local_store cpa_s RelationalIntInformation with `RelationalInt x -> x | _ -> RD.top() in
+                  RD.eval_cil_exp exp abstract_relational_int_value
+                else ID.top()
+              in
+              if ID.is_top relational_int_val && (get_bool analyse_structs_relationally) then
+                let abstract_relational_struct_val = match first_value_in_local_store cpa_s RelationalStructInformation with `RelationalStruct x -> x | _ -> ValueDomain.RelationalStructs.top() in
+                ValueDomain.RelationalStructs.eval_cil_exp exp abstract_relational_struct_val
+              else `Int relational_int_val
+            )
+            else ValueDomain.Compound.top() in
+          match relational_val with
+          | `Int int_val when not(ID.is_top int_val) ->
+            Pervasives.print_endline (ID.short 1000 int_val);
+            relational_val
+          | `Int _ -> evaluate ()
+          | _ when not(ValueDomain.Compound.is_top relational_val) -> relational_val
+          | _ -> evaluate ()
         )
+
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
   and eval_fv a (gs:glob_fun) st (exp:exp): AD.t =
@@ -923,7 +942,7 @@ struct
           | Var v, _  when get_bool analyse_ints_relationally -> (
               match first_value_in_local_store store RelationalIntInformation with
               | `RelationalInt first_value_in_local_store ->
-                Some (lvalue, `RelationalInt (RD.eval_assign_int_value v int_value first_value_in_local_store))
+                Some (lvalue, `RelationalInt (RD.assign_int_value v int_value first_value_in_local_store))
               | _ -> Some (lvalue, `Int int_value))
           | _ -> Some (lvalue, `Int int_value)
         )
@@ -1098,11 +1117,11 @@ struct
               match rval_val, first_value_in_local_store with
               | `Int x, Some y ->
                 if ID.is_int x then (
-                  let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value var x rel_int) in
+                  let relational_int_abstract_value = `RelationalInt (RD.assign_int_value var x rel_int) in
                   assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
                 )
                 else (
-                  let relational_int_abstract_value = `RelationalInt (RD.eval_assign_int_value var x rel_int) in
+                  let relational_int_abstract_value = `RelationalInt (RD.assign_int_value var x rel_int) in
                   assign_new_relational_abstract_value ctx_local relational_int_abstract_value (Mem (Lval lval))
                 )
               | _ -> ctx_local, rval_val

@@ -752,6 +752,19 @@ struct
     let eq = Equations.join eq1 eq2 in
     Equations.remove_invalid_equations store eq
 
+  let eval_cil_exp cil_exp (store, equations) =
+    match cil_exp with
+    | BinOp (op, Lval (Var var1, (Field(fieldinfo1, _))), Lval (Var var2, (Field(fieldinfo2, _))), _) -> (
+        let (key1, (key2, sign), const) =
+          Equations.get_equation_with_keys (`Field (var2, fieldinfo2)) (`Field (var1, fieldinfo1)) equations
+        in
+        match op, sign with
+        | PlusA, `Plus -> `Int const
+        | MinusA, `Minus -> `Int const
+        | _ -> Compound.top ()
+      )
+    | _ -> Compound.top ()
+
   let rec assign (s, equations) field new_value =
     match field with
     | `Field (new_var, new_field) -> (
@@ -1140,6 +1153,12 @@ struct
   (* map4p projections *)
   let get x y  =
     match (map4p { f4p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.get } x y) with
+    | Some x, Some y -> Compound.meet x y
+    | Some x, _ -> x
+    | _, Some y -> y
+    | _ -> Compound.bot ()
+  let eval_cil_exp x y  =
+    match (map4p { f4p = fun (type a) (module R:StructDomain.RelationalStructDomainSignature with type t = a and type field = EquationField.t  and type value = Compound_TransformableToIntDomTupleT.t ) -> R.eval_cil_exp } x y) with
     | Some x, Some y -> Compound.meet x y
     | Some x, _ -> x
     | _, Some y -> y

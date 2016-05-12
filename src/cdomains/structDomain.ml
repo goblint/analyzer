@@ -19,6 +19,7 @@ sig
   val add_variable_value_list: (Cil.varinfo option * Cil.varinfo * t) list -> t-> t
   val assign: t -> field -> value -> t
   val eval_assert_cil_exp: Cil.exp -> t -> t
+  val eval_cil_exp: Cil.exp -> t -> value
   val get: field -> t -> value
   val get_value_of_variable: varinfo -> t -> t
   val get_value_of_variable_and_globals: varinfo -> t -> t

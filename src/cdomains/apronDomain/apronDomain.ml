@@ -586,6 +586,39 @@ struct
       Manager.print_exclog Format.std_formatter x;
       bot ()
 
+  let eval_assert_cil_exp cil_exp abstract_value rename_cil_variables =
+    let cil_exp = rename_cil_variables cil_exp true in
+    let result = assert_inv abstract_value cil_exp false in
+    let _ = rename_cil_variables cil_exp false in
+    result
+
+  let eval_cil_exp cil_exp abstract_value rename_cil_variables =
+    let is_comparison =
+      match cil_exp with
+      | BinOp(op, _, _, _) -> (
+          match op with
+          | Lt | Gt | Le | Ge | Eq | Ne -> true
+          | _ -> false
+        )
+      | _ -> false
+    in
+    if is_comparison then
+      if is_bot (eval_assert_cil_exp cil_exp abstract_value rename_cil_variables) then
+        ID.of_int 0L
+      else ID.top()
+    else
+      let cil_exp = rename_cil_variables cil_exp true in
+      let infimum, supremum = get_int_interval_for_cil_exp abstract_value cil_exp in
+      let _ = rename_cil_variables cil_exp false in
+      match infimum, supremum with
+      | Some infimum, Some supremum ->
+        if Int64.compare infimum supremum > 0 then (ID.bot ())
+        else (ID.of_interval (infimum, supremum))
+      | Some infimum, _ -> (ID.starting infimum)
+      | _, Some supremum -> (ID.ending supremum)
+      | _ -> (ID.top ())
+
+
 end
 
 module ApronRelationalIntDomain : RelationalIntDomainSignature.RelationalIntDomainSignature =
@@ -623,7 +656,7 @@ struct
     in
     result
 
-  let eval_assign_int_value variable int_val abstract_value =
+  let assign_int_value variable int_val abstract_value =
     assign_int_value_to_variable_name (add_variable_with_name (get_variable_name variable) abstract_value) int_val (get_variable_name variable)
 
   let rec rename_cil_variables cil_exp add_local_identifier =
@@ -633,37 +666,10 @@ struct
     | UnOp (op, exp, typ) -> UnOp (op, (rename_cil_variables exp add_local_identifier), typ)
     | _ -> cil_exp
 
-  let eval_assert_cil_exp cil_exp abstract_value =
-    let cil_exp = rename_cil_variables cil_exp true in
-    let result = assert_inv abstract_value cil_exp false in
-    let _ = rename_cil_variables cil_exp false in
-    result
-
   let eval_cil_exp cil_exp abstract_value =
-    let is_comparison =
-      match cil_exp with
-      | BinOp(op, _, _, _) -> (
-          match op with
-          | Lt | Gt | Le | Ge | Eq | Ne -> true
-          | _ -> false
-        )
-      | _ -> false
-    in
-    if is_comparison then
-      if is_bot (eval_assert_cil_exp cil_exp abstract_value) then
-        ID.of_int 0L
-      else ID.top()
-    else
-      let cil_exp = rename_cil_variables cil_exp true in
-      let infimum, supremum = get_int_interval_for_cil_exp abstract_value cil_exp in
-      let _ = rename_cil_variables cil_exp false in
-      match infimum, supremum with
-      | Some infimum, Some supremum ->
-        if Int64.compare infimum supremum > 0 then (ID.bot ())
-        else (ID.of_interval (infimum, supremum))
-      | Some infimum, _ -> (ID.starting infimum)
-      | _, Some supremum -> (ID.ending supremum)
-      | _ -> (ID.top ())
+    eval_cil_exp cil_exp abstract_value rename_cil_variables
+  let eval_assert_cil_exp cil_exp abstract_value =
+    eval_assert_cil_exp cil_exp abstract_value rename_cil_variables
 
 end
 
@@ -905,9 +911,9 @@ struct
       )
     | _ -> raise (Invalid_argument "")
 
-  let rec rename_cil_variables cil_exp add_local_identifier struct_name_mapping =
+  let rec rename_cil_variables struct_name_mapping cil_exp add_local_identifier =
     match cil_exp with
-    | BinOp(op, exp1, exp2, typ) -> BinOp(op, (rename_cil_variables exp1 add_local_identifier struct_name_mapping), (rename_cil_variables exp2 add_local_identifier struct_name_mapping), typ)
+    | BinOp(op, exp1, exp2, typ) -> BinOp(op, (rename_cil_variables struct_name_mapping exp1 add_local_identifier), (rename_cil_variables struct_name_mapping exp2 add_local_identifier), typ)
     | Lval (Var v, (Field (field, offs))) -> (
         (if add_local_identifier then (
             let new_var_name = (get_unique_field_name (`Field (v, field))) in
@@ -920,14 +926,14 @@ struct
         );
         Lval (Var v, (Field (field, offs)))
       )
-    | UnOp (op, exp, typ) -> UnOp (op, (rename_cil_variables exp add_local_identifier struct_name_mapping), typ)
+    | UnOp (op, exp, typ) -> UnOp (op, (rename_cil_variables struct_name_mapping exp add_local_identifier), typ)
     | _ -> cil_exp
 
-  let eval_assert_cil_exp cil_exp (apron_abstract_value, struct_name_mapping) =
-    let cil_exp = rename_cil_variables cil_exp true struct_name_mapping in
-    let result = assert_inv apron_abstract_value cil_exp false in
-    let _ = rename_cil_variables cil_exp false struct_name_mapping in
-    result, struct_name_mapping
+  let eval_cil_exp cil_exp (apron_value, map) =
+    Compound.of_int_val (eval_cil_exp cil_exp apron_value (rename_cil_variables map))
+
+  let eval_assert_cil_exp cil_exp (apron_value, map) =
+     eval_assert_cil_exp cil_exp apron_value (rename_cil_variables map), map
 
   let rename_variable_of_field abstract_value old_key value_old_key new_variable =
     match old_key with
