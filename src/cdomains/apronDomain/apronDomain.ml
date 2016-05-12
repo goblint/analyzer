@@ -760,8 +760,15 @@ struct
   let narrow (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
     narrow apron_abstract_valuex apron_abstract_valuey, StructMap.narrow struct_mappingx struct_mappingy
 
+  let equal (apron_abstract_valuex,_) (apron_abstract_valuey, _) =
+    equal apron_abstract_valuex apron_abstract_valuey
+
   let widen (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
-    widen apron_abstract_valuex apron_abstract_valuey, StructMap.widen struct_mappingx struct_mappingy
+    if equal (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) then
+      (apron_abstract_valuex, struct_mappingx)
+    else
+      let apron_top, _ = top() in
+      apron_top, StructMap.widen struct_mappingx struct_mappingy
 
   let leq (apron_abstract_valuex, struct_mappingx) (apron_abstract_valuey, struct_mappingy) =
     leq apron_abstract_valuex apron_abstract_valuey && StructMap.leq struct_mappingx struct_mappingy
@@ -773,9 +780,6 @@ struct
     let struct_map = StructMap.add (var_name, field_name) field struct_map in
     let apron_abstract_value = assign_int_value_to_variable_name apron_abstract_value int_val new_field_name in
     apron_abstract_value, struct_map
-
-  let equal (apron_abstract_valuex,_) (apron_abstract_valuey, _) =
-    equal apron_abstract_valuex apron_abstract_valuey
 
   let get_int_val_for_field_name field_name apron_abstract_value =
     let environment = (A.env apron_abstract_value) in
