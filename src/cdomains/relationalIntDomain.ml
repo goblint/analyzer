@@ -149,27 +149,23 @@ struct
   let eval_assign_int_value variable x (store, equations) =
     let store = (IntStore.add (`Var variable) x store) in
     let equations = Equations.remove_equations_with_key (`Var variable) equations in
-    let equations, store =
-      if IntStore.is_top store || IntStore.is_bot store then equations, store
-      else if not (ID.is_top x) && not (ID.is_bot x) then (
-        IntStore.fold (
-          fun key value (equations, store) ->
-            if Key.compare (`Var variable) key = 0
-            then
-              equations, store
-            else (
-              if not (ID.is_top value) && not (ID.is_bot value) then (
-                let new_equation = build_new_equation_for_variable_pair (`Var variable) key store in
-                Equations.append_equation new_equation equations, store
-              )
-              else equations, store
+    if IntStore.is_top store || IntStore.is_bot store then store, equations
+    else if not (ID.is_top x) && not (ID.is_bot x) then (
+      IntStore.fold (
+        fun key value (store, equations) ->
+          if Key.compare (`Var variable) key = 0
+          then
+            store, equations
+          else (
+            if not (ID.is_top value) && not (ID.is_bot value) then (
+              let new_equation = build_new_equation_for_variable_pair (`Var variable) key store in
+              store, Equations.append_equation new_equation equations
             )
-        ) store (equations, store)
-      )
-      else equations, store
-    in
-    Pervasives.print_endline ("end eval_assign_int_value: " ^(short 1000 (store, equations) ));
-    (store, equations)
+            else store, equations
+            )
+      ) store (store, equations)
+    )
+    else store, equations
 
   let add_variable_value_list (varinfo_val_list: (Cil.varinfo * ID.t) list) abstract_value =
     List.fold_left (fun abstract_value (key,value) -> eval_assign_int_value key value abstract_value) abstract_value varinfo_val_list

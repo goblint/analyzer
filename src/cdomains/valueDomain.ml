@@ -676,14 +676,14 @@ struct
   let mapping_to_string w mapping =
     let usable_length = w - 5 in
     let assoclist = StructStore.fold (fun x y rest -> (x,y)::rest) mapping [] in
-    let f  (field, value) =
+    let f (field, value) =
       if Compound.is_bot value then "" else (
         if Compound.is_top value then "" else (
           (EquationField.short 20 field) ^ ": (" ^ (
             Compound.short usable_length value
-          )
+          ) ^ ")"
         )
-      ) ^ ")" in
+      ) in
     let whole_str_list = List.rev_map f assoclist in
     Printable.get_short_list "[" "] " usable_length whole_str_list
 
@@ -915,7 +915,6 @@ struct
       ) [] variable_val_list in
     let abstract_value = List.fold_left (fun abstract_value variable_to_remove -> remove_variable variable_to_remove abstract_value) abstract_value variables_to_remove in
     List.fold_left (fun abstract_value (old_variable, new_lhost, new_abstract_value) ->
-        Pervasives.print_endline (short 100 new_abstract_value);
         let keys_of_old_var, old_var =
           match old_variable with
           | Some old_variable -> (
@@ -988,9 +987,6 @@ struct
         ) equations
 
   let meet_local_and_global_state local_state global_state =
-    Pervasives.print_endline "meet_local_and_global_state";
-    Pervasives.print_endline (short 1000 local_state);
-    Pervasives.print_endline (short 1000 global_state);
     let local_store, local_equations = local_state in
     let global_store, global_equations = global_state in
     let local_equations = select_local_or_global_variables_in_equations true local_equations local_store in
