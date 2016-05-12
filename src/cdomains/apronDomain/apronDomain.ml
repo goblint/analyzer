@@ -355,7 +355,6 @@ struct
 
   let assert_inv d x b =
     try
-      Pervasives.print_endline "assert inv";
       (* if assert(x) then convert it to assert(x != 0) *)
       let x = match x with
         | Lval (Var v,NoOffset) when isArithmeticType v.vtype ->
@@ -816,7 +815,6 @@ struct
     String.sub variable_name (index_character_between_field_and_comp_name_char + 1) length_field_name,
     String.sub variable_name 0 index_character_between_field_and_comp_name_char,
     if is_local then (
-      Pervasives.print_endline (variable_name ^": " ^ (Pervasives.string_of_int (last_index_field_name + 1)) ^ " - " ^ (Pervasives.string_of_int ((String.length variable_name) - last_index_field_name - 1)));
       String.sub variable_name (last_index_field_name + 1) ((String.length variable_name) - (last_index_field_name + 1))
     )
     else ""
@@ -863,12 +861,9 @@ struct
         let unique_field_name = (Var.to_string var) in
         let int_val = get_int_val_for_field_name unique_field_name apron_abstract_value in
         let field_name, struct_name, location = get_field_and_struct_name_and_location_from_variable_name unique_field_name in
-        Pervasives.print_endline ("unique field name: " ^unique_field_name);
-        Pervasives.print_endline ("field name: " ^ field_name ^". struct name: " ^struct_name ^" location: " ^ location);
         let map_key = `Lifted struct_name, `Lifted field_name in
         let value = Compound.of_int_val int_val in
         if not (StructMap.mem map_key struct_mapping) then (
-          Pretty.fprint Pervasives.stdout 0 (StructMap.pretty () struct_mapping);
           raise (Invalid_argument (struct_name ^ " not in mapping!"))
         )
         else
@@ -945,9 +940,6 @@ struct
           let new_key = match old_key with | `Field(_, new_field) -> ((*match new_variable with Some variable -> *)`Field(new_variable,new_field)(* | _ -> raise (Invalid_argument "")) | _ -> raise (Invalid_argument ""*)) in
           let new_struct_map_key = match new_key with | `Field(var, new_field) -> `Lifted var.vname, `Lifted new_field.fname | _ -> raise (Invalid_argument "") in
           let new_field_name = get_unique_field_name new_key in
-          Pervasives.print_endline ("new field name: " ^ new_field_name);
-          Pervasives.print_endline ("old val: " ^ (short 1000 (value_old_key, old_struct_map)));
-          Pervasives.print_endline ("new val: " ^ (short 1000 (abstract_value)));
           let struct_map = StructMap.add new_struct_map_key new_key struct_map in
           let environment = A.env value_old_key in
           if Environment.mem_var environment (Var.of_string old_field_name) &&

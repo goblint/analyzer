@@ -120,7 +120,6 @@ struct
     | _, RelationalStructInformation -> `RelationalStruct (ValueDomain.RelationalStructs.top())
 
   let assign_new_relational_abstract_value_in_store store relational_abstract_value =
-    Pervasives.print_endline "assign_new_relational_abstract_value_in_store";
     match relational_abstract_value with
     | `RelationalInt x when (get_bool analyse_ints_relationally) ->
       let store_int_variables = CPA.filter
@@ -307,14 +306,10 @@ struct
   let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
 
   let update_variable variable value state =
-    Pervasives.print_endline ("update variable: " ^ variable.vname);
-    Pervasives.print_endline (VD.short 1000 value);
     if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
       CPA.add variable (VD.top ()) state
     else (
       let add_relational_information value =
-        Pervasives.print_endline ("add_relational_information: " ^ variable.vname);
-        Pervasives.print_endline (VD.short 1000 value);
         let store, value = assign_new_relational_abstract_value state value (Var variable) in
         CPA.add variable value store
       in
@@ -1057,13 +1052,7 @@ struct
         let new_val = apply_invariant oldval value in
         let new_val = if not(get_bool analyse_ints_relationally || get_bool analyse_structs_relationally) then improve_abstract_value_with_queries a (Lval lval) new_val else new_val in
         let map, flag = st in
-        Pervasives.print_endline "INVARIANT OLD VAL:";
-        Pervasives.print_endline (VD.short 1000 oldval);
-        Pervasives.print_endline "INVARIANT NEW VAL:";
-        Pervasives.print_endline (VD.short 1000 new_val);
         let map = assign_new_relational_abstract_value_in_store map new_val(* (Mem (Lval lval)) in *) in
-        Pervasives.print_endline "INVARIANT NEW VAL AFTER ASSIGN:";
-        Pervasives.print_endline (VD.short 1000 new_val);
         let st = map, flag in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
         (* make that address meet the invariant, i.e exclusion sets will be joined *)
@@ -2255,11 +2244,9 @@ struct
                     if v.vid = (return_varinfo ()).vid then
                       return_val
                     else (
-                      Pervasives.print_endline "Combine";
-                      Pervasives.print_endline v.vname;
                       let val_in_store =
                         match first_value_in_local_store st RelationalStructInformation with
-                        | `RelationalStruct x -> Pervasives.print_endline "first val in store: "; Pervasives.print_endline (ValueDomain.RelationalStructs.short 1000 x); x
+                        | `RelationalStruct x -> x
                         | _ -> ValueDomain.RelationalStructs.top()
                       in
                       `RelationalStruct (ValueDomain.RelationalStructs.add_variable_value_list ([Some (return_varinfo ()), v, struct_val]) val_in_store) )
@@ -2267,14 +2254,7 @@ struct
                 )
               | _ -> return_val
             in
-
-            Pervasives.print_endline "RETURN VAL:";
-            Pervasives.print_endline (VD.short 1000 return_val);
-            Pervasives.print_endline "Before assign_new_relational_abstract_value_in_store:";
-            Pretty.fprint Pervasives.stdout 0 (CPA.pretty () st);
             let st = assign_new_relational_abstract_value_in_store st return_val in
-            Pervasives.print_endline "Before meet local global:";
-            Pretty.fprint Pervasives.stdout 0 (CPA.pretty () st);
             let st = meet_global_and_local_value st RelationalStructInformation, fl in
             set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val
           )
