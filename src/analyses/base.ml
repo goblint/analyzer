@@ -1804,20 +1804,17 @@ struct
       match pa with
       | (_,value)::_ -> (
           match value with
-          | `RelationalStruct x ->
-            `RelationalStruct(ValueDomain.RelationalStructs.remove_all_top_variables x)
+          | `RelationalStruct _ -> value
           | _ ->
             match first_relational_value_in_store with
             | `RelationalStruct first_relational_value_in_store ->
-              let x = ValueDomain.RelationalStructs.remove_all_top_variables first_relational_value_in_store in
-              `RelationalStruct(ValueDomain.RelationalStructs.remove_all_local_variables x)
+              `RelationalStruct(ValueDomain.RelationalStructs.remove_all_local_variables first_relational_value_in_store)
             | _ -> `RelationalStruct(ValueDomain.RelationalStructs.top ())
         )
       | _ ->
         match first_relational_value_in_store with
         | `RelationalStruct first_relational_value_in_store ->
-          let x = ValueDomain.RelationalStructs.remove_all_top_variables first_relational_value_in_store in
-          `RelationalStruct(ValueDomain.RelationalStructs.remove_all_local_variables x)
+          `RelationalStruct(ValueDomain.RelationalStructs.remove_all_local_variables first_relational_value_in_store)
         | _ ->
           `RelationalStruct(ValueDomain.RelationalStructs.top ())
     in
