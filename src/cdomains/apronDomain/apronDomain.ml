@@ -378,7 +378,6 @@ struct
     let environment = (A.env d) in
     let vars = List.filter (fun v -> Environment.mem_var environment (Var.of_string v)) xs in
     let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) vars)) in
-    Pervasives.print_endline "remove_all_with";
     let env = Environment.remove environment vars in
     A.change_environment_with Man.mgr d env false
 
@@ -530,7 +529,7 @@ struct
             None
           else
             Some maximum
-        | _ -> Pervasives.print_endline "no max"; None
+        | _ -> None
       in
       let abstract_value = add_variable_with_name variable_name abstract_value in
       match minimum, maximum with
@@ -946,7 +945,6 @@ struct
         | (apron_val, struct_map) ->
           let value_old_key, old_struct_map = value_old_key in
           let old_field_name = get_unique_field_name old_key in
-          Pervasives.print_endline ("old field name: " ^ old_field_name);
           let new_key = match old_key with | `Field(_, new_field) -> ((*match new_variable with Some variable -> *)`Field(new_variable,new_field)(* | _ -> raise (Invalid_argument "")) | _ -> raise (Invalid_argument ""*)) in
           let new_struct_map_key = match new_key with | `Field(var, new_field) -> `Lifted var.vname, `Lifted new_field.fname | _ -> raise (Invalid_argument "") in
           let new_field_name = get_unique_field_name new_key in

@@ -687,9 +687,7 @@ struct
             )
             else ValueDomain.Compound.top() in
           match relational_val with
-          | `Int int_val when not(ID.is_top int_val) ->
-            Pervasives.print_endline (ID.short 1000 int_val);
-            relational_val
+          | `Int int_val when not(ID.is_top int_val) -> relational_val
           | `Int _ -> evaluate ()
           | _ when not(ValueDomain.Compound.is_top relational_val) -> relational_val
           | _ -> evaluate ()
