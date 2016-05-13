@@ -64,6 +64,7 @@ sig
   val addenum_sch: jvalue -> unit
   (** Function to query if the conf list contains a string *)
   val list_contains_string: string -> string -> bool
+  val list_is_empty: string -> bool
 
   (** printer for the current configuration *)
   val print : 'a BatInnerIO.output -> unit
@@ -260,6 +261,8 @@ struct
   let get_length = List.length % (!) % get_path_string array "array"
   (** Convenience functions for reading lists. *)
   let get_list = List.map (!) % (!) % get_path_string array "array"
+  let list_is_empty conf_key =
+    (List.length (get_list conf_key)) = 0
   let list_contains_string conf_key string =
     List.exists (
       fun x ->

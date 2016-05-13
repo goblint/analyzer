@@ -42,6 +42,8 @@ let analyse_ints_relationally = "ana.int.relational"
 let analyse_structs_relationally = "ana.structs.relational"
 let relational_struct_list = "ana.structs.relational_to_analyze"
 
+let analyze_this_struct_relationally struct_name =
+  list_is_empty relational_struct_list || list_contains_string relational_struct_list struct_name
 
 module Main =
 struct
@@ -144,7 +146,7 @@ struct
              match variable.vtype with
              | TNamed (t, _) -> (
                  match t.ttype with
-                 | TComp ({cstruct=true},_) -> list_contains_string relational_struct_list t.tname
+                 | TComp ({cstruct=true},_) -> analyze_this_struct_relationally t.tname
                  | _ -> false
                )
              | _ -> false)
@@ -155,7 +157,7 @@ struct
              match variable.vtype with
              | TNamed (t, _) -> (
                  match t.ttype with
-                 | TComp ({cstruct=true},_) -> not(list_contains_string relational_struct_list t.tname)
+                 | TComp ({cstruct=true},_) -> not(analyze_this_struct_relationally t.tname)
                  | _ -> false
                )
              | _ -> true)
@@ -834,7 +836,7 @@ struct
     match t with
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
     | TPtr _ -> `Address (AD.bot ())
-    | TComp ({cstruct=true} as ci,_) when get_bool analyse_structs_relationally && list_contains_string relational_struct_list struct_name  ->
+    | TComp ({cstruct=true} as ci,_) when get_bool analyse_structs_relationally && analyze_this_struct_relationally struct_name  ->
       `RelationalStruct (bot_comp_relational ci)
     | TComp ({cstruct=true} as ci,_) -> `Struct (bot_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.bot ())
@@ -872,7 +874,8 @@ struct
     | t when is_mutex_type t -> `Top
     | TInt _ -> `Int (ID.top ())
     | TPtr _ -> `Address (AD.join (AD.safe_ptr ()) (AD.null_ptr ()))
-    | TComp ({cstruct=true} as ci,_) when get_bool analyse_structs_relationally  && list_contains_string relational_struct_list var_name  ->
+    | TComp ({cstruct=true} as ci,_) when get_bool analyse_structs_relationally  &&
+                                          analyze_this_struct_relationally var_name ->
       `RelationalStruct (init_comp_relational ci)
     | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
@@ -902,7 +905,7 @@ struct
     match t with
     | TInt _ -> `Int (ID.top ())
     | TPtr _ -> `Address (AD.top_ptr ())
-    | TComp ({cstruct=true} as ci,_) when get_bool analyse_structs_relationally && list_contains_string relational_struct_list var_name  ->
+    | TComp ({cstruct=true} as ci,_) when get_bool analyse_structs_relationally && analyze_this_struct_relationally var_name ->
       `RelationalStruct (top_comp_relational ci)
     | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
@@ -1948,7 +1951,7 @@ struct
                 match v.vtype with
                 | TNamed (t, _) -> (
                     match t.ttype with
-                    | TComp (comp, _) -> comp.cstruct && list_contains_string relational_struct_list t.tname
+                    | TComp (comp, _) -> comp.cstruct && analyze_this_struct_relationally t.tname
                     | _ -> false
                   )
                 | _ -> false
