@@ -301,7 +301,7 @@ struct
     begin try
         A.assign_texpr_with Man.mgr d (Var.of_string v)
           (cil_exp_to_apron_texpr1 (A.env d) (Cil.constFold false e)) None
-      with Invalid_argument "cil_exp_to_apron_texpr1" ->
+      with _ ->
         A.forget_array_with Man.mgr d [|Var.of_string v|] false
         (* | Manager.Error q -> *)
         (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
@@ -369,7 +369,7 @@ struct
         in
         A.meet_lincons_array Man.mgr d ea
       | None -> d
-    with Invalid_argument "cil_exp_to_lexp" -> d
+    with _ -> d
 
   let forget_all_with d xs =
     A.forget_array_with Man.mgr d (Array.of_enum (List.enum (List.map Var.of_string xs))) false
