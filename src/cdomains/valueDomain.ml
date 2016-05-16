@@ -726,9 +726,9 @@ struct
               ) struct_store fields_to_remove_from_struct_store in
           let equations = remove_all_equations_with_variable variable equations in
           struct_store, equations
-        | _ -> struct_store, equations
+        | _ -> struct_store, remove_all_equations_with_variable variable equations
       )
-    | _ -> struct_store, equations
+    | _ -> struct_store, remove_all_equations_with_variable variable equations
 
   let get_value_of_variable_name varname (struct_store, equations) should_also_return_globals =
     let variables_to_remove =
@@ -902,9 +902,8 @@ struct
               else StructStore.remove old_key struct_store
             | _ -> StructStore.remove old_key struct_store
           in
-
           let struct_store = StructStore.add new_key compound_t struct_store in
-          let equations = (Equations.change_keys_in_equations  old_key new_key equations) in
+          let equations = (Equations.change_keys_in_equations old_key new_key equations) in
           (struct_store, equations), value_old_key
       )
     | _ -> raise (Invalid_argument "")
@@ -982,6 +981,7 @@ struct
             else
               remove_variable old_var value_after_renaming
           | _ -> value_after_renaming
+
         else (
           abstract_value
         )
