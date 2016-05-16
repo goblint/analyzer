@@ -214,7 +214,12 @@ struct
           match rel_abstract_val with
           | `RelationalInt rel_abstract_val -> (
               match lhost with
-              | Var var -> `RelationalInt (RD.add_variable_value_list [(var, x)] rel_abstract_val)
+              | Var var -> (
+                  match var.vtype with
+                  | TInt _ ->
+                    `RelationalInt (RD.add_variable_value_list [(var, x)] rel_abstract_val)
+                  | _ -> `Int (ID.top())
+                )
               | _ -> `RelationalInt (RD.top())
             )
           | _ -> `RelationalInt (RD.top())
@@ -315,10 +320,10 @@ struct
         let store, value = assign_new_relational_abstract_value state value (Var variable) in
         CPA.add variable value store
       in
-      match value with
-      | `RelationalInt _ | `Int _ when (get_bool analyse_ints_relationally)  ->
+      match value, variable.vtype with
+      | `RelationalInt _, (TInt _) | `Int _, (TInt _) when (get_bool analyse_ints_relationally)  ->
         add_relational_information value
-      | `RelationalStruct x when (get_bool analyse_structs_relationally) ->
+      | `RelationalStruct x, _ when (get_bool analyse_structs_relationally) ->
           add_relational_information (`RelationalStruct x)
       | _ ->
         CPA.add variable value state
@@ -940,7 +945,7 @@ struct
                 Some (lvalue, `RelationalStruct (ValueDomain.RelationalStructs.assign first_value_in_local_store (`Field (v, field)) (`Int int_value)))
               | _ -> Some (lvalue, `Int int_value)
             )
-          | Var v, _  when get_bool analyse_ints_relationally -> (
+          | Var v, NoOffset  when get_bool analyse_ints_relationally -> (
               match first_value_in_local_store store RelationalIntInformation with
               | `RelationalInt first_value_in_local_store ->
                 Some (lvalue, `RelationalInt (RD.assign_int_value v int_value first_value_in_local_store))
@@ -1072,7 +1077,7 @@ struct
         let new_val = apply_invariant oldval value in
         let new_val = if not(get_bool analyse_ints_relationally || get_bool analyse_structs_relationally) then improve_abstract_value_with_queries a (Lval lval) new_val else new_val in
         let map, flag = st in
-        let map = assign_new_relational_abstract_value_in_store map new_val(* (Mem (Lval lval)) in *) in
+        let map = assign_new_relational_abstract_value_in_store map new_val in
         let st = map, flag in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
         (* make that address meet the invariant, i.e exclusion sets will be joined *)
@@ -1105,7 +1110,7 @@ struct
   let eval_relational_int_domain (rval_val: CPA.value) first_value_in_local_store lval rval ctx_local =
     match lval with
     | Mem _, _ -> ctx_local, rval_val
-    | Var var, _ -> (
+    | Var var, NoOffset -> (
         match var.vtype with
         | TInt _ -> (
             let rel_int = match first_value_in_local_store with
@@ -1130,10 +1135,11 @@ struct
           )
         | _ -> ctx_local, rval_val
       )
+    | _ -> ctx_local, rval_val
 
   let eval_relational_struct_domain (rval_val: CPA.value) first_value_in_local_store lval rval ctx_local =
     match lval with
-    | Var var, NoOffset -> (
+    | Var var, _ -> (
         match var.vtype with
         | TNamed (t, _) -> (
             match t.ttype with
@@ -2282,7 +2288,6 @@ struct
       if (get_bool analyse_ints_relationally) || (get_bool analyse_structs_relationally) then
         let store, fl = st in
         let store = meet_global_and_local_value store RelationalIntInformation in
-
         store, fl
       else st
     in

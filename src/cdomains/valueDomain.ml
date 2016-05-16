@@ -772,6 +772,8 @@ struct
         | TInt _ -> (
             match new_value with
             | `Int x when IntDomain.IntDomTuple.is_top x ->
+              let s = (StructStore.add (`Field(new_var, new_field)) new_value s) in
+              let equations = Equations.remove_equations_with_key (`Field(new_var, new_field)) equations in
               (s,equations)
             (* this needs to be done, because else wrong initializations destroy correct values, ID.bot will still be assigned *)
             | `Bot -> (s,equations)
