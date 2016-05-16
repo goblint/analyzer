@@ -906,13 +906,15 @@ struct
     get_value_of_variable_and_possibly_globals (Some varinfo) (apron_abstract_value, struct_mapping) false
 
   let get key (apron_abstract_value, struct_mapping) =
-    match key with
-    | `Field(var, field) -> (
+    if is_top (apron_abstract_value, struct_mapping) then Compound.top()
+    else
+      match key with
+      | `Field(var, field) -> (
           let field_name = get_unique_field_name key in
           let int_val = get_int_val_for_field_name field_name apron_abstract_value in
           Compound.of_int_val int_val
-      )
-    | _ -> raise (Invalid_argument "")
+        )
+      | _ -> raise (Invalid_argument "")
 
   let rec rename_cil_variables struct_name_mapping cil_exp add_local_identifier =
     match cil_exp with
