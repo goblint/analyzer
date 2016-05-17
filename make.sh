@@ -77,7 +77,7 @@ rule() {
              ;;
     depend)  echo "No!";;
     setup)   echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
-             opam init --comp=4.02.3
+             opam init --comp=4.03.0
              setuprest
              ;;
     travis)  opam init

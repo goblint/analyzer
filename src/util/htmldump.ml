@@ -97,7 +97,7 @@ let createCodeLines outchan shortFilename lines lineInfo deadcodeInfo =
   in
 
   let rec syntaxHighlighter line =
-    let getCharType character = if ((character = '#') || ((Char.code character >= Char.code '0') && (Char.code character <= Char.code '9')) || ((Char.code (Char.lowercase character) >= Char.code 'a') && (Char.code (Char.lowercase character) <= Char.code 'z'))) then 1 else 0 in
+    let getCharType character = if ((character = '#') || ((Char.code character >= Char.code '0') && (Char.code character <= Char.code '9')) || ((Char.code (Char.lowercase_ascii character) >= Char.code 'a') && (Char.code (Char.lowercase_ascii character) <= Char.code 'z'))) then 1 else 0 in
     let currentType = ref 0 in
     let currentStr = ref "" in
     let currentResult = ref "" in
