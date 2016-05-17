@@ -25,7 +25,6 @@ S return_struct(){
     globalStruct2.k = globalStruct1.i;
     globalStruct2.i = globalStruct1.k;
     globalInt = 7;
-    globalStruct1.i = -1;
     for(globalStruct1.i = 5; globalStruct1.i > 0; globalStruct1.i --){
         localInt1 = localInt1 - 1;
     }
