@@ -157,8 +157,8 @@ module Interval : S
 module Interval32 : S
 module Enums : S
 
-module ManyInts : S
-module IntDomList : S
+(* module ManyInts : S *)
+(* module IntDomList : S *)
 module IntDomTuple : S
 
 (** {b Boolean domains} *)
@@ -177,5 +177,7 @@ module Booleans: S with type t = bool
 (** Boolean abstract domain, where true is output "True" and false is output
   * "False" *)
 
+(*
 module None: S with type t = unit
 (** Domain with nothing in it. *)
+*)
