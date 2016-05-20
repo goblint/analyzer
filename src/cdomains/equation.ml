@@ -1,4 +1,4 @@
-module type GroupableLatticeS =
+module type GroupableLattice =
 sig
   include MapDomain.Groupable
   val leq: t -> t -> bool
@@ -10,6 +10,7 @@ sig
   val is_top: t -> bool
   val widen: t -> t -> t
   val narrow: t -> t -> t
+  val short: int -> t -> string
 end
 
 module type GroupableIntDomain =
@@ -219,7 +220,6 @@ sig
   val cardinal: t -> int
   val change_keys_in_equations: equation_key -> equation_key -> t -> t
   val equationmap_of_equation: equation -> t
-  val equations_to_string: t -> (equation_key -> string) -> string
   val filter: (equation -> bool) -> t -> t
   val get_equation_with_keys : equation_key -> equation_key -> t -> equation
   val meet_with_new_equation: store * t -> store * t
@@ -238,11 +238,11 @@ end
 
 module type AbstractKeyTuple =
 sig
-  include GroupableLatticeS
+  include GroupableLattice
   type key
 end
 
-module KeyTuple(Key: GroupableLatticeS) : AbstractKeyTuple with type key = Key.t and type t = Key.t * Key.t =
+module KeyTuple(Key: GroupableLattice) : AbstractKeyTuple with type key = Key.t and type t = Key.t * Key.t =
 struct
   type key = Key.t
   type t = Key.t * Key.t
@@ -302,7 +302,7 @@ struct
   let top () = (Key.top(), Key.top())
 
 end
-module EquationMap (Key: GroupableLatticeS) (Domain: Domain_TransformableFromIntDomTupleT) : EquationsSignature
+module EquationMap (Key: GroupableLattice) (Domain: Domain_TransformableFromIntDomTupleT) : EquationsSignature
   with type equation_key = Key.t
    and type store = MapDomain.MapTop_LiftBot(Key)(Domain).t
    and type store_value = Domain.t
@@ -502,8 +502,8 @@ struct
 
   let equationmap_of_equation x = append_equation x (top())
 
-  let equations_to_string eqmap key_to_string =
-    fold(fun _ value string -> string ^ (if string = "" then "" else ", ") ^ equation_to_string value key_to_string) eqmap ""
+  let short _ eqmap =
+    fold(fun _ value string -> string ^ (if string = "" then "" else ", ") ^ equation_to_string value (Key.short 100)) eqmap ""
 
   let equations_equal x y =
     let all_equations_equal_until_now eq_until_now eq1 eq2 =

@@ -680,7 +680,7 @@ sig
 end
 
 module ApronRelationalStructDomain
-    (Compound: Compound)(EquationField: Equation.GroupableLatticeS with type t = ([`Top | `Bot | `Field of Basetype.VariableFields.t]))
+    (Compound: Compound)(EquationField: Equation.GroupableLattice with type t = ([`Top | `Bot | `Field of Basetype.VariableFields.t]))
     : StructDomain.RelationalStructDomainSignature
       with type t = ApronDomain.t * MapDomain.MapTop(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
        and type field = EquationField.t

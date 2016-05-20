@@ -567,7 +567,7 @@ and Compound_TransformableToIntDomTupleT : Equation.Domain_TransformableFromIntD
     | _ -> IntDomain.IntDomTuple.top()
 end
 
-and EquationField : Equation.GroupableLatticeS with type t = [`Top | `Bot | `Field of Basetype.VariableFields.t] =
+and EquationField : Equation.GroupableLattice with type t = [`Top | `Bot | `Field of Basetype.VariableFields.t] =
 struct
   module Fields = Basetype.VariableFields
   let name () = "EquationField"
@@ -638,7 +638,7 @@ struct
     match x with
     | `Top -> "Top"
     | `Bot -> "Bot"
-    | `Field x -> Fields.short w x
+    | `Field (variable, fieldinfo) -> variable.vname ^ "." ^ fieldinfo.fname
 
   let isSimple _ = true
   let pretty () a = Pretty.text (short 100 a)
@@ -695,13 +695,7 @@ struct
     else (
       if is_bot (mapping, equations) then "bot"
       else
-        let fieldinfo_to_string fieldinfo = (
-          match fieldinfo with
-          | `Field (variable, fieldinfo) -> variable.vname ^ "." ^ fieldinfo.fname
-          | _ -> ""
-        )
-        in
-        (mapping_to_string n mapping) ^ (Equations.equations_to_string equations fieldinfo_to_string)
+        (mapping_to_string n mapping) ^ (Equations.short n equations)
     )
 
   let pretty () x = Pretty.text (short 100 x)

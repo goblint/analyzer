@@ -7,7 +7,7 @@ struct
   let to_int_val x = x
 end
 
-module EquationVariable : Equation.GroupableLatticeS with type t = [`Top | `Bot | `Var of Basetype.Variables.t] =
+module EquationVariable : Equation.GroupableLattice with type t = [`Top | `Bot | `Var of Basetype.Variables.t] =
 struct
   module Variables = Basetype.Variables
   let name () = "EquationVariable"
@@ -117,9 +117,6 @@ struct
          | _ -> string
       ) store ""
 
-  let equation_key_to_string key =
-    match key with `Var key -> key.vname | `Bot -> "Bot" | _ -> "Top"
-
   let is_top (x, eq) =
     IntStore.fold (fun _ value is_top -> if ID.is_top value then is_top else false) x true
 
@@ -128,7 +125,7 @@ struct
     else (
       if is_bot x then "bot"
       else match x with store, equationlist ->
-        "({" ^ (store_to_string a store) ^ "} (" ^ Equations.equations_to_string equationlist equation_key_to_string ^ "))"
+        "({" ^ (store_to_string a store) ^ "} (" ^ Equations.short a equationlist ^ "))"
     )
 
   let name () = "equations"
