@@ -80,7 +80,7 @@ rule() {
              opam init --comp=4.03.0
              setuprest
              ;;
-    travis)  opam init
+    travis)  opam init --comp=4.03.0
              setuprest
              ;;
     dev)     opam install utop merlin ocp-indent ocp-index
