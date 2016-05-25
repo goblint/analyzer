@@ -21,9 +21,9 @@ sig
   val trace_enabled: bool
 end
 
-module Sign : GroupableIntDomain  with type t = [`Bot | `Minus | `Zero | `Plus | `Top] =
+module Sign : GroupableIntDomain  with type t = [`Bot | `Minus | `Plus | `Top] =
 struct
-  type t = [`Bot | `Minus | `Zero | `Plus | `Top]
+  type t = [`Bot | `Minus | `Plus | `Top]
 
   let name () = "Sign"
 
@@ -36,34 +36,31 @@ struct
     match x with
     | `Minus -> Some (Int64.of_int (-1))
     | `Plus -> Some 1L
-    | `Zero -> Some 0L
     | _ -> None
 
   let of_int x =
     if (Int64.compare x 0L) > 0 then
       `Plus
     else (
-      if (Int64.compare x 0L) = 0 then `Zero
-      else `Minus
+      if (Int64.compare x 0L) < 0 then `Minus
+      else `Top
     )
 
   let is_int x =
     match x with
     | `Minus
-    | `Plus
-    | `Zero -> true
+    | `Plus -> true
     | _ -> false
 
   let to_bool x =
     match x with
     | `Plus -> Some true
-    | `Zero -> Some false
     | _ -> None
 
   let of_bool x =
     match x with
     | true -> `Plus
-    | _ -> `Zero
+    | _ -> `Top
 
   let is_bool x = match to_bool x with None -> false | _ -> true
 
@@ -76,10 +73,7 @@ struct
     if comparex0 > 0 && comparey0 > 0 then `Plus
     else (
       if comparex0 < 0 && comparey0 < 0 then `Minus
-      else (
-        if comparex0 = 0 && comparey0 = 0 then `Zero
-        else `Top
-      )
+      else `Top
     )
 
   let starting x =
@@ -93,14 +87,12 @@ struct
   let maximal x =
     match x with
     | `Minus -> Some (Int64.of_int (-1))
-    | `Zero -> Some 0L
     | `Plus | `Top -> Some (Int64.max_int)
     | _ -> None
 
   let minimal x =
     match x with
     | `Plus -> Some 1L
-    | `Zero -> Some 0L
     | `Minus | `Top -> Some (Int64.min_int)
     | _ -> None
 
@@ -110,9 +102,6 @@ struct
     | `Minus -> `Plus
     | `Top -> `Top
     | `Bot -> `Bot
-    | `Zero -> `Zero
-
-
 
   let equal x y =
     match x, y with
@@ -127,8 +116,6 @@ struct
     | _, `Bot -> 1
     | `Minus, _ -> -1
     | _,  `Minus -> 1
-    | `Zero, _ -> -1
-    | _,  `Zero -> 1
     | `Plus, _ -> -1
     | _, `Plus -> 1
 
@@ -147,7 +134,6 @@ struct
     match x with
     | `Bot -> -2
     | `Minus -> -1
-    | `Zero -> 0
     | `Plus -> 1
     | `Top -> 2
 
@@ -155,7 +141,6 @@ struct
     match x with
     | -2 -> "Bot"
     | -1 -> "Minus"
-    | 0 -> "Zero"
     | 1 -> "Plus"
     | _ -> "Top"
 
@@ -169,7 +154,6 @@ struct
     | `Bot, x | x, `Bot -> x
     | `Minus, `Minus -> `Minus
     | `Plus, `Plus -> `Plus
-    | `Zero, `Zero -> `Zero
     | _ -> `Top
 
   let meet x y =
@@ -178,7 +162,6 @@ struct
     | `Bot, _ | _, `Bot -> `Bot
     | `Minus, `Minus -> `Minus
     | `Plus, `Plus -> `Plus
-    | `Zero, `Zero -> `Zero
     | _ -> `Bot
 
   let widen = join
@@ -367,7 +350,6 @@ struct
           | `Minus -> IntDomain.IntDomTuple.neg key2_int_dom_tuple
           | `Top -> IntDomain.IntDomTuple.top ()
           | `Bot -> IntDomain.IntDomTuple.bot ()
-          | `Zero -> IntDomain.IntDomTuple.of_int 0L
           | `Plus -> key2_int_dom_tuple in
         Domain.of_int_val (
           IntDomain.IntDomTuple.meet key1_int_dom_tuple
@@ -382,14 +364,12 @@ struct
         let key2_int_dom_tuple =
           match sign with
           | `Minus -> IntDomain.IntDomTuple.neg key2_int_dom_tuple
-          | `Zero -> IntDomain.IntDomTuple.of_int 0L
           | _ -> key2_int_dom_tuple in
 
         let sign =
           IntDomain.IntDomTuple.of_int
             (match sign with
              | `Minus -> -1L
-             | `Zero -> 0L
              | _ -> 1L)
         in
         Domain.of_int_val (
