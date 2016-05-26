@@ -450,7 +450,7 @@ struct
               let val_key1_after_equation = solve_equation_for_key 0 equation store in
               let val_key2_after_equation = solve_equation_for_key 1 equation store in
             if
-              (Domain.equal val_key1_after_equation val_of_key1_in_store) && (Domain.equal val_key2_after_equation val_of_key2_in_store)
+              (Domain.leq val_key1_after_equation val_of_key1_in_store) && (Domain.leq val_key2_after_equation val_of_key2_in_store)
             then
               let new_store = Store.add key1 val_key1_after_equation new_store in
               let new_store = Store.add key2 val_key2_after_equation new_store in
@@ -501,7 +501,13 @@ struct
       equation_map1 false
 
   let join eqmap1 eqmap2 =
-    fold add eqmap2 eqmap1
+    map2 (
+      fun (keya1, (keya2, signa), consta) (keyb1, (keyb2, signb), constb) ->
+        if (Sign.equal signa signb) then
+          (keya1, (keya2, signa), IntDomain.IntDomTuple.join consta constb)
+        else
+          (keya1, (keya2, signa), consta)
+    ) eqmap1 eqmap2
 
 
 end
