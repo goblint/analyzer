@@ -130,15 +130,6 @@ struct
 
   let name () = "equations"
 
-  let build_new_equation_for_variable_pair var1 var2 store =
-    let val1 = IntStore.find var1 store in
-    let val2 = IntStore.find var2 store in
-    let sum_value_x = ID.add val1 val2 in
-    if EquationVariable.leq var1 var2 then
-      Equations.new_equation var1 var2 `Plus sum_value_x
-    else
-      Equations.new_equation var2 var1 `Plus sum_value_x
-
   let join_equations eq1 eq2 store =
     let joined_equations = Equations.join eq1 eq2 in
     Equations.remove_invalid_equations store joined_equations
@@ -155,7 +146,7 @@ struct
             store, equations
           else (
             if not (ID.is_top value) && not (ID.is_bot value) then (
-              let new_equation = build_new_equation_for_variable_pair (`Var variable) key store in
+              let new_equation = Equations.build_new_equation ((`Var variable), (IntStore.find (`Var variable) store)) (key, IntStore.find key store) in
               store, Equations.append_equation new_equation equations
             )
             else store, equations
@@ -183,31 +174,23 @@ struct
       )
     )
 
-  let equal x y =
-    if ((is_top x) && (is_top y)) || ((is_bot x) && (is_bot y)) then true
-    else (
-      if (is_top x) || (is_top y)|| (is_bot x) || (is_bot y) then false
-      else (
-        match x, y with
-        | (store_x, equations_x), (store_y, equations_y) ->
-          (Equations.equal equations_x equations_y) && (IntStore.equal store_x store_y)
-      )
-    )
-
   let hash x = 0
-  let compare x y =
-    if leq x y then (
-      if equal x y then 0
-        else -1
-    )
-    else 1
 
   let widen x y =
     match x, y with
     | (storex, equationsx), (storey, equationsy) ->
       let storeresult = IntStore.widen storex storey in
-      let joined_equations, storeresult = join_equations equationsx equationsy storeresult in
-      (storeresult, joined_equations)
+      let equations =
+        IntStore.fold (fun variable1 value1 equations ->
+            IntStore.fold (fun variable2 value2 equations ->
+                if (Key.compare variable1 variable2 = 0) then
+                  equations
+                else
+                  Equations.append_equation (Equations.build_new_equation (variable1, value1) (variable2, value2)) equations
+              ) storeresult equations
+          ) storeresult (Equations.top())
+      in
+      (storeresult, equations)
 
   let isSimple x = true
   let pretty_diff () (a, b) = Pretty.text ((short 100 a) ^ " vs. " ^ (short 100 b))
@@ -369,7 +352,7 @@ struct
           fun local_var _ equations ->
             IntStore.fold(
               fun global_var _ equations ->
-                Equations.append_equation (build_new_equation_for_variable_pair local_var global_var met_store) equations
+                Equations.append_equation (Equations.build_new_equation (local_var, (IntStore.find local_var met_store)) (global_var, (IntStore.find global_var met_store))) equations
             ) global_store equations
         ) local_store equations
       in
