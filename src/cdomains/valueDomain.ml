@@ -865,10 +865,33 @@ struct
      )
    )
 
+ let create_equations_for_all_fields store =
+   StructStore.fold (fun field1 value1 equations ->
+       match value1 with
+       | `Int value1 -> (
+           StructStore.fold (fun field2 value2 equations ->
+               match value2 with
+               | `Int value2 -> (
+                   if (EquationField.compare field1 field2 = 0) then
+                     equations
+                   else
+                     Equations.append_equation (Equations.build_new_equation (field1, value1) (field2, value2)) equations
+                 )
+               | _ -> equations
+             ) store equations)
+       | _ -> equations
+     ) store (Equations.top())
+
+
  let widen (storex, eqx) (storey, eqy) =
    let storeresult = StructStore.widen storex storey in
-   let joined_equations, storeresult = join_equations eqx eqy storeresult in
-   (storeresult, joined_equations)
+   let equations = create_equations_for_all_fields storeresult in
+   (storeresult, equations)
+
+ let narrow (storex, eqx) (storey, eqy) =
+   let storeresult = StructStore.narrow storex storey in
+   let equations = create_equations_for_all_fields storeresult in
+   (storeresult, equations)
 
   let remove_all_local_variables (struct_store, equations) =
     let variables_to_remove =
