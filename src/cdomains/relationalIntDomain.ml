@@ -137,7 +137,7 @@ struct
     if EquationVariable.leq var1 var2 then
       Equations.new_equation var1 var2 `Plus sum_value_x
     else
-      Equations.new_equation var1  var2 `Plus sum_value_x
+      Equations.new_equation var2 var1 `Plus sum_value_x
 
   let join_equations eq1 eq2 store =
     let joined_equations = Equations.join eq1 eq2 in
@@ -159,7 +159,7 @@ struct
               store, Equations.append_equation new_equation equations
             )
             else store, equations
-            )
+          )
       ) store (store, equations)
     )
     else store, equations
@@ -251,7 +251,7 @@ struct
     match r_exp with
     | BinOp (op, Lval (Var var1, _), Lval (Var var2, _), _) -> (
         let (key1, (key2, sign), const) =
-          Equations.get_equation_with_keys (`Var var2) (`Var var1) rel_ints
+          Equations.get_equation_with_keys (`Var var1) (`Var var2) rel_ints
         in
         match op, sign with
         | PlusA, `Plus -> const
@@ -345,21 +345,35 @@ struct
         ) equations
 
   let meet_local_and_global_state local_state global_state =
-    let local_store, local_equations = local_state in
-    let local_store = IntStore.filter (fun variable _ ->
-        match variable with
-        | `Var variable -> not(variable.vglob)
-        | _ -> false
-      ) local_store in
-    let local_equations = select_local_or_global_variables_in_equation_list true local_equations in
-    let global_store, global_equations = global_state in
-    let global_store = IntStore.filter (fun variable _ ->
+    if equal local_state global_state then local_state
+    else
+      let local_store, local_equations = local_state in
+      let local_store = IntStore.filter (fun variable _ ->
+          match variable with
+          | `Var variable -> not(variable.vglob)
+          | _ -> false
+        ) local_store in
+      let local_equations = select_local_or_global_variables_in_equation_list true local_equations in
+      let global_store, global_equations = global_state in
+      let global_store = IntStore.filter (fun variable _ ->
         match variable with
         | `Var variable -> variable.vglob
         | _ -> false
-      ) global_store in
-    let global_equations = select_local_or_global_variables_in_equation_list false global_equations in
-    meet (local_store, local_equations) (global_store, global_equations)
+        ) global_store in
+      let global_equations = select_local_or_global_variables_in_equation_list false global_equations in
+      let met_store, equations =
+        meet (local_store, local_equations) (global_store, global_equations)
+      in
+      let equations =
+        IntStore.fold(
+          fun local_var _ equations ->
+            IntStore.fold(
+              fun global_var _ equations ->
+                Equations.append_equation (build_new_equation_for_variable_pair local_var global_var met_store) equations
+            ) global_store equations
+        ) local_store equations
+      in
+      met_store, equations
 
 end
 

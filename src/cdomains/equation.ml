@@ -383,18 +383,17 @@ struct
           )
         )
 
-  let filter_equations_for_not_top_keys (store, equations) =
-    filter(
-      fun _ (key1, (key2, _), _) ->
-        not(Domain.is_top (Store.find key1 store)) && not(Domain.is_top (Store.find key2 store))
-    ) equations
-
   let get_equation_with_keys key1 key2 eqs =
-    let key1, key2 = if Key.compare key2 key1 < 0 then key1, key2 else key2, key1 in
+    let key1, key2 = if Key.compare key1 key2 < 0 then key1, key2 else key2, key1 in
     find (key1, key2) eqs
 
   let meet_with_new_equation (store, equations) =
-    let equations = filter_equations_for_not_top_keys (store, equations) in
+    let equations =
+      filter(
+        fun _ (key1, (key2, _), _) ->
+          not(Domain.is_top (Store.find key1 store)) && not(Domain.is_top (Store.find key2 store))
+      ) equations
+    in
     let store = fold (
         fun key (key1, (key2, sign), const) store ->
           let equation = (key1, (key2, sign), const) in
@@ -474,8 +473,12 @@ struct
     match equation with
       (key1, (key2, _), const) ->
       if (IntDomain.IntDomTuple.is_top const) || (IntDomain.IntDomTuple.is_bot const) then equations
-      else
-        add (key1, key2) equation equations
+      else (
+        if Key.compare key1 key2 < 0 then
+          add (key1, key2) equation equations
+        else
+          add (key2, key1) equation equations
+      )
 
   let filter func equations =
     filter (fun _ value -> func value) equations
