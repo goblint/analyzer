@@ -799,7 +799,7 @@ struct
                             fun key old_value equations ->
                               match key with
                               | `Field (var, key) -> (
-                                  if new_field.fname = key.fname && new_field.fcomp.cname = key.fcomp.cname then equations
+                                  if EquationField.compare (`Field (var, key)) (`Field (new_var, new_field)) = 0 then equations
                                   else (
                                     match old_value with
                                     | `Int old_value ->
