@@ -1794,16 +1794,12 @@ struct
 
   let assign_relational_ints_to_new_cpa new_cpa pa nfl =
     let first_relational_value_in_store = first_value_in_local_store new_cpa RelationalIntInformation in
-    let new_relational_int =
+    let rec new_relational_int pa =
       match pa with
-      | (_,value)::_ -> (
+      | (_,value)::next -> (
           match value with
           | `RelationalInt x -> value
-          | _ ->
-            match first_relational_value_in_store with
-            | `RelationalInt first_relational_value_in_store ->
-              `RelationalInt(RD.remove_all_local_variables first_relational_value_in_store)
-            | _ -> `RelationalInt(RD.top ())
+          | _ -> new_relational_int next
         )
       | _ ->
         match first_relational_value_in_store with
@@ -1811,20 +1807,16 @@ struct
           `RelationalInt(RD.remove_all_local_variables first_relational_value_in_store)
         | _ -> `RelationalInt(RD.top ())
     in
-    assign_new_relational_abstract_value_in_store new_cpa new_relational_int, nfl
+    assign_new_relational_abstract_value_in_store new_cpa (new_relational_int pa), nfl
 
   let assign_relational_structs_to_new_cpa new_cpa pa nfl =
     let first_relational_value_in_store = first_value_in_local_store new_cpa RelationalStructInformation in
-    let new_relational_struct =
+    let rec new_relational_struct pa =
       match pa with
-      | (_,value)::_ -> (
+      | (_,value)::next -> (
           match value with
           | `RelationalStruct _ -> value
-          | _ ->
-            match first_relational_value_in_store with
-            | `RelationalStruct first_relational_value_in_store ->
-              `RelationalStruct(ValueDomain.RelationalStructs.remove_all_local_variables first_relational_value_in_store)
-            | _ -> `RelationalStruct(ValueDomain.RelationalStructs.top ())
+          | _ -> new_relational_struct next
         )
       | _ ->
         match first_relational_value_in_store with
@@ -1833,7 +1825,7 @@ struct
         | _ ->
           `RelationalStruct(ValueDomain.RelationalStructs.top ())
     in
-    assign_new_relational_abstract_value_in_store new_cpa new_relational_struct, nfl
+    assign_new_relational_abstract_value_in_store new_cpa (new_relational_struct pa), nfl
 
   let make_entry ctx ?nfl:(nfl=(snd ctx.local)) fn args: D.t =
     let cpa,fl as st = ctx.local in
