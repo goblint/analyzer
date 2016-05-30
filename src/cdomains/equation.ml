@@ -307,11 +307,11 @@ struct
     (key_to_string keya) ^ (Sign.short 5 signb) ^ (key_to_string keyb) ^ " = " ^ (IntDomain.IntDomTuple.short 20 const)
 
   let build_new_equation (key_in_store, value_in_store) (new_key, new_value) =
-    let neg_sum_values =
+    let sum_values =
       (IntDomain.IntDomTuple.add new_value value_in_store) in
-    if Key.compare key_in_store new_key > 0 then
-      (new_key, (key_in_store, `Plus), (neg_sum_values))
-    else (key_in_store, (new_key, `Plus), (neg_sum_values))
+    if Key.leq new_key key_in_store then
+      (new_key, (key_in_store, `Plus), (sum_values))
+    else (key_in_store, (new_key, `Plus), (sum_values))
 
   let equation_equal ((keyxa), (keyxb, signx), constx) ((keyya), (keyyb, signy), consty) =
     (if ((Key.compare keyxa keyya) = 0 && (Key.compare keyxb keyyb) = 0) then
@@ -384,7 +384,7 @@ struct
         )
 
   let get_equation_with_keys key1 key2 eqs =
-    let key1, key2 = if Key.compare key1 key2 < 0 then key1, key2 else key2, key1 in
+    let key1, key2 = if Key.leq key1 key2 then key1, key2 else key2, key1 in
     find (key1, key2) eqs
 
   let meet_with_new_equation (store, equations) =
@@ -434,6 +434,17 @@ struct
       )
     | _ -> None
 
+  let append_equation equation equations =
+    match equation with
+      (key1, (key2, _), const) ->
+      if (IntDomain.IntDomTuple.is_top const) || (IntDomain.IntDomTuple.is_bot const) then equations
+      else (
+        if Key.compare key1 key2 < 0 then
+          add (key1, key2) equation equations
+        else
+          add (key2, key1) equation equations
+      )
+
   let remove_invalid_equations store equations =
     let new_equations, new_store =
       fold (fun _ equation (new_equations, new_store) ->
@@ -463,22 +474,11 @@ struct
               match new_equation with (_,(_,_),const) ->
                 if IntDomain.IntDomTuple.is_top const then (new_equations, new_store)
                 else
-                  add (key1, key2) new_equation new_equations, new_store
+                  append_equation new_equation new_equations, new_store
             )
           )
         )  equations (top(), Store.top()) in
     new_equations, new_store
-
-  let append_equation equation equations =
-    match equation with
-      (key1, (key2, _), const) ->
-      if (IntDomain.IntDomTuple.is_top const) || (IntDomain.IntDomTuple.is_bot const) then equations
-      else (
-        if Key.compare key1 key2 < 0 then
-          add (key1, key2) equation equations
-        else
-          add (key2, key1) equation equations
-      )
 
   let filter func equations =
     filter (fun _ value -> func value) equations
