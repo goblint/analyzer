@@ -310,13 +310,13 @@ struct
     IntStore.remove (`Var var) store, (Equations.remove_equations_with_key (`Var var) equations)
 
   let remove_all_local_variables (old_store, old_equations) =
-    let filtered_store =
-      IntStore.filter (fun variable value ->
-          match variable with
-          | `Var variable -> variable.vglob
-          | _ -> false
-        ) old_store in
-    filtered_store, old_equations
+    IntStore.fold (fun variable value (storeresult, equationsresult) ->
+        match variable with
+        | `Var var when var.vglob ->
+          IntStore.add variable value storeresult, equationsresult
+        | `Var var -> storeresult, (Equations.remove_equations_with_key variable equationsresult)
+        | _ -> (storeresult, equationsresult)
+      ) old_store (IntStore.top(), Equations.top())
 
   let select_local_or_global_variables_in_equation_list should_select_local equations =
     if should_select_local then
