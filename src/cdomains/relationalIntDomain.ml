@@ -176,21 +176,26 @@ struct
 
   let hash x = 0
 
+  let create_new_equations_for_all_variables store =
+    IntStore.fold (fun variable1 value1 equations ->
+        IntStore.fold (fun variable2 value2 equations ->
+            if (Key.compare variable1 variable2 = 0) then
+              equations
+            else
+              Equations.append_equation (Equations.build_new_equation (variable1, value1) (variable2, value2)) equations
+          ) store equations
+      ) store (Equations.top())
+
   let widen x y =
     match x, y with
     | (storex, equationsx), (storey, equationsy) ->
       let storeresult = IntStore.widen storex storey in
-      let equations =
-        IntStore.fold (fun variable1 value1 equations ->
-            IntStore.fold (fun variable2 value2 equations ->
-                if (Key.compare variable1 variable2 = 0) then
-                  equations
-                else
-                  Equations.append_equation (Equations.build_new_equation (variable1, value1) (variable2, value2)) equations
-              ) storeresult equations
-          ) storeresult (Equations.top())
-      in
+      let equations = create_new_equations_for_all_variables storeresult in
       (storeresult, equations)
+
+  let narrow x y =
+    let store, _ = narrow x y in
+    store, create_new_equations_for_all_variables store
 
   let isSimple x = true
   let pretty_diff () (a, b) = Pretty.text ((short 100 a) ^ " vs. " ^ (short 100 b))
