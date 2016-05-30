@@ -996,13 +996,36 @@ struct
         ) equations
 
   let meet_local_and_global_state local_state global_state =
-    let local_store, local_equations = local_state in
-    let global_store, global_equations = global_state in
-    let local_equations = select_local_or_global_variables_in_equations true local_equations local_store in
-    let local_store = StructStore.filter (fun key _ -> match key with `Field(var, _ ) -> not(var.vglob) | _ -> false) local_store in
-    let global_equations = select_local_or_global_variables_in_equations false global_equations global_store in
-    let global_store = StructStore.filter (fun key _ -> match key with `Field(var, _ ) -> var.vglob | _ -> false) global_store in
-    meet (local_store, local_equations) (global_store, global_equations)
+    if equal local_state global_state then local_state
+    else
+      let local_store, local_equations = local_state in
+      let global_store, global_equations = global_state in
+      let local_equations = select_local_or_global_variables_in_equations true local_equations local_store in
+      let local_store = StructStore.filter (fun key _ -> match key with `Field(var, _ ) -> not(var.vglob) | _ -> false) local_store in
+      let global_equations = select_local_or_global_variables_in_equations false global_equations global_store in
+      let global_store = StructStore.filter (fun key _ -> match key with `Field(var, _ ) -> var.vglob | _ -> false) global_store in
+      let met_store, equations =
+        meet (local_store, local_equations) (global_store, global_equations)
+      in
+      let equations =
+        StructStore.fold(
+          fun local_field local_value equations ->
+            match local_value with
+            | `Int local_value -> (
+                StructStore.fold(
+                  fun global_field global_value equations ->
+                    match global_value with
+                    | `Int global_value ->
+                      Equations.append_equation (
+                        Equations.build_new_equation (local_field, local_value) (global_field, global_value)
+                      ) equations
+                    | _ -> equations
+                )
+              ) global_store equations
+            | _ -> equations
+        ) local_store equations
+      in
+      met_store, equations
 
   let build_equation_of_cil_exp rexp field =
     let rvar_field, offset, const =
