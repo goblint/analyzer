@@ -952,6 +952,7 @@ struct
           let new_field_name = get_unique_field_name new_key in
           let struct_map = StructMap.add new_struct_map_key new_key struct_map in
           let environment = A.env value_old_key in
+          (* old field name in old environment known but new field name not known *)
           if Environment.mem_var environment (Var.of_string old_field_name) &&
              not (Environment.mem_var environment (Var.of_string new_field_name))
           then
@@ -959,17 +960,22 @@ struct
             let new_apron_val, _ = remove_variable new_variable abstract_value in
             meet (new_apron_val, struct_map) (renamed_old_val, old_struct_map)
           else (
-            if not (Environment.mem_var environment (Var.of_string new_field_name)) then (
-              let value_old_key = A.rename_array Man.mgr apron_val (Array.of_list [Var.of_string old_field_name]) (Array.of_list [Var.of_string new_field_name]) in
-              meet (apron_val,struct_map) (value_old_key, old_struct_map)
+            (* old field name in old environment not known and new field name not known *)
+            if not (Environment.mem_var environment (Var.of_string old_field_name)) &&
+               not (Environment.mem_var environment (Var.of_string new_field_name)) then (
+              (value_old_key, old_struct_map)
             )
             else (
-              if Environment.mem_var environment (Var.of_string old_field_name) then (
+              (* old field name in old environment known and new field name known *)
+              if Environment.mem_var environment (Var.of_string old_field_name) &&
+                 Environment.mem_var environment (Var.of_string old_field_name) then (
+                Pervasives.print_endline "OLD FIELD NAME KNOWN";
                 assign_var_eq_with apron_val old_field_name new_field_name;
                 apron_val, struct_map
               )
               else (
-                apron_val, struct_map
+                let value_old_key = A.rename_array Man.mgr apron_val (Array.of_list [Var.of_string old_field_name]) (Array.of_list [Var.of_string new_field_name]) in
+                meet (apron_val,struct_map) (value_old_key, old_struct_map)
               )
             )
           )
@@ -986,6 +992,7 @@ struct
     | _ -> []
 
   let add_variable_value_list variable_val_list abstract_value =
+    Pervasives.print_endline "add_variable_value_list";
     List.fold_left (fun abstract_value (old_variable, new_variable, abstract_value) ->
         let value_old_key, struct_mapping_old_key = abstract_value in
         let environment = (A.env value_old_key) in
@@ -994,7 +1001,10 @@ struct
         let keys_of_old_var, old_var =
           match old_variable with
           | Some old_variable -> (
+              Pervasives.print_endline old_variable.vname;
+              Pervasives.print_endline new_variable.vname;
               let apron_keys_of_variable = get_apron_keys_of_variable old_variable in
+              Pervasives.print_endline (Pervasives.string_of_int (List.length apron_keys_of_variable));
               List.fold_right (fun field_of_old_var (keys_of_old_var, _) ->
                   let unique_field_name_of_old_var = get_unique_field_name field_of_old_var in
                   let _, field_of_old_var, _ =
@@ -1014,10 +1024,26 @@ struct
                   in
                   match old_key with
                   | `Field(var, x) -> [`Field(var, x)] @ keys_of_old_var, Some var
-                    | _ -> (keys_of_old_var, old_var)
+                  | _ -> (keys_of_old_var, old_var)
                 ) all_vars ([], None)
             )
         in
+(*        let keys_of_old_var =
+          if List.length keys_of_old_var = 0 then
+            match old_variable with
+            | Some old_variable -> (
+                let apron_keys_of_new_variable = get_apron_keys_of_variable new_variable in
+                List.fold_right (fun field_of_new_var keys_of_old_var ->
+                    let field_of_old_var =
+                      match field_of_new_var with
+                      | `Field(_, x) -> `Field(old_variable, x) in
+                    keys_of_old_var @ [field_of_old_var]
+                  ) apron_keys_of_new_variable []
+              )
+            | _ -> keys_of_old_var
+          else
+            keys_of_old_var
+          in*)
         if List.length keys_of_old_var > 0 then
           let apron_value_after_renaming, _ =
             List.fold_left (
@@ -1026,14 +1052,25 @@ struct
                   rename_variable_of_field abstract_value old_key value_old_key (new_variable) in
                 result, result
             ) (abstract_value, (value_old_key, struct_mapping_old_key)) keys_of_old_var
-          in
-          apron_value_after_renaming
+            in
+            apron_value_after_renaming
         else (
+          Pervasives.print_endline "list length 0";
           let apron_abstract_value, struct_map = abstract_value in
           let apron_abstract_value, struct_map =
             match old_variable with
             | Some old_variable ->
-              let fields_old_var = get_apron_keys_of_variable old_variable in
+              let fields_old_variable = get_apron_keys_of_variable old_variable in
+              let fields_old_variable, remove_old_var =
+                if List.length fields_old_variable = 0 then
+                  (* this is the case if the return variable is the old variable, since its varinfo does not have any fields *)
+                  let fields_new_var = get_apron_keys_of_variable new_variable in
+                  List.map (fun field_new_var ->
+                      match field_new_var with
+                      | `Field(new_variable, f) -> `Field(old_variable, f)
+                    ) fields_new_var, true
+                else fields_old_variable, false
+              in
               let abstract_value =
                 List.fold_left (
                   fun (apron_abstract_value, struct_map) field_old_var ->
@@ -1043,8 +1080,14 @@ struct
                       | _ -> field_old_var
                     in
                     let interval_field_in_abstract_val = Compound.of_int_val (get_int_val_for_field_name unique_field_name apron_abstract_value) in
-                    assign (apron_abstract_value, struct_map) new_field interval_field_in_abstract_val
-                ) (apron_abstract_value, struct_map) fields_old_var in
+                    let apron_abstract_value, struct_map =
+                      assign (apron_abstract_value, struct_map) new_field interval_field_in_abstract_val
+                    in
+                    if remove_old_var then
+                      remove_variable_with_name unique_field_name apron_abstract_value, struct_map
+                    else
+                      apron_abstract_value, struct_map
+                ) (apron_abstract_value, struct_map) fields_old_variable in
               abstract_value
             | _ -> apron_abstract_value, struct_map
           in
