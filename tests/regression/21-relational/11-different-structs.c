@@ -53,7 +53,7 @@ S some_function(){
     assert(yy.i>7);
     assert(yy.i>=8);
     assert(!(xx.k>9));
-    assert(yy.i==8); //NOWARN
+    assert(yy.i==8); //FAIL
     return xx;
 }
 
