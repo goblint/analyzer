@@ -679,9 +679,12 @@ struct
     let f (field, value) =
       if Compound.is_bot value then "" else (
         if Compound.is_top value then "" else (
-          (EquationField.short 20 field) ^ ": (" ^ (
-            Compound.short usable_length value
-          ) ^ ")"
+          match value with
+          | `Int x when IntDomain.IntDomTuple.is_top x -> ""
+          | _ ->
+            (EquationField.short 20 field) ^ ": (" ^ (
+              Compound.short usable_length value
+            ) ^ ")"
         )
       ) in
     let whole_str_list = List.rev_map f assoclist in
