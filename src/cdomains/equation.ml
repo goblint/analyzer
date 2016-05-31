@@ -21,175 +21,6 @@ sig
   val trace_enabled: bool
 end
 
-module Sign : GroupableIntDomain  with type t = [`Bot | `Minus | `Plus | `Top] =
-struct
-  type t = [`Bot | `Minus | `Plus | `Top]
-
-  let name () = "Sign"
-
-  let bot () = `Bot
-  let top () = `Top
-  let is_bot x = compare `Bot x = 0
-  let is_top x = compare `Top x = 0
-
-  let to_int x =
-    match x with
-    | `Minus -> Some (Int64.of_int (-1))
-    | `Plus -> Some 1L
-    | _ -> None
-
-  let of_int x =
-    if (Int64.compare x 0L) > 0 then
-      `Plus
-    else (
-      if (Int64.compare x 0L) < 0 then `Minus
-      else `Top
-    )
-
-  let is_int x =
-    match x with
-    | `Minus
-    | `Plus -> true
-    | _ -> false
-
-  let to_bool x =
-    match x with
-    | `Plus -> Some true
-    | _ -> None
-
-  let of_bool x =
-    match x with
-    | true -> `Plus
-    | _ -> `Top
-
-  let is_bool x = match to_bool x with None -> false | _ -> true
-
-  let to_excl_list _ = None
-  let of_excl_list _ = (top ())
-  let is_excl_list _ = false
-
-  let of_interval (x, y) =
-    let comparex0, comparey0 = (Int64.compare x 0L), (Int64.compare y 0L) in
-    if comparex0 > 0 && comparey0 > 0 then `Plus
-    else (
-      if comparex0 < 0 && comparey0 < 0 then `Minus
-      else `Top
-    )
-
-  let starting x =
-    if (Int64.compare x 0L) > 0 then `Plus
-    else `Top
-
-  let ending x =
-    if (Int64.compare x 0L) < 0 then `Minus
-    else `Top
-
-  let maximal x =
-    match x with
-    | `Minus -> Some (Int64.of_int (-1))
-    | `Plus | `Top -> Some (Int64.max_int)
-    | _ -> None
-
-  let minimal x =
-    match x with
-    | `Plus -> Some 1L
-    | `Minus | `Top -> Some (Int64.min_int)
-    | _ -> None
-
-  let neg x =
-    match x with
-    | `Plus -> `Minus
-    | `Minus -> `Plus
-    | `Top -> `Top
-    | `Bot -> `Bot
-
-  let equal x y =
-    match x, y with
-    | `Minus, `Minus | `Plus, `Plus -> true
-    | _ -> false
-
-  let hash x = Hashtbl.hash x
-  let compare x y =
-    match x, y with
-    | `Minus, `Minus | `Bot, `Bot | `Top, `Top | `Plus, `Plus -> 0
-    | `Bot, _ -> -1
-    | _, `Bot -> 1
-    | `Minus, _ -> -1
-    | _,  `Minus -> 1
-    | `Plus, _ -> -1
-    | _, `Plus -> 1
-
-  let short w x = match x with | `Minus -> "-" | _ -> "+"
-  let isSimple _ = true
-  let pretty () a =
-    Pretty.text (short 100 a)
-  let pretty_f _ = pretty
-  let pretty_diff () (a, b) =
-    Pretty.text ((short 100 a) ^ " vs. " ^ (short 100 b))
-  let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
-  let toXML x = toXML_f short x
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
-
-  let classify x =
-    match x with
-    | `Bot -> -2
-    | `Minus -> -1
-    | `Plus -> 1
-    | `Top -> 2
-
-  let class_name x =
-    match x with
-    | -2 -> "Bot"
-    | -1 -> "Minus"
-    | 1 -> "Plus"
-    | _ -> "Top"
-
-  let trace_enabled = true
-
-  let leq x y = compare x y <= 0
-
-  let join x y =
-    match x, y with
-    | `Top, _ | _, `Top -> `Top
-    | `Bot, x | x, `Bot -> x
-    | `Minus, `Minus -> `Minus
-    | `Plus, `Plus -> `Plus
-    | _ -> `Top
-
-  let meet x y =
-    match x, y with
-    | `Top, x | x, `Top -> x
-    | `Bot, _ | _, `Bot -> `Bot
-    | `Minus, `Minus -> `Minus
-    | `Plus, `Plus -> `Plus
-    | _ -> `Bot
-
-  let widen = join
-  let narrow = meet
-  let add  = join
-  let sub = add
-  let mul = add
-  let div = mul
-
-  let rem x y = `Top
-  let lt n1 n2 = of_bool (n1 <  n2)
-  let gt n1 n2 = of_bool (n1 >  n2)
-  let le n1 n2 = of_bool (n1 <= n2)
-  let ge n1 n2 = of_bool (n1 >= n2)
-  let eq n1 n2 = of_bool (n1 =  n2)
-  let ne n1 n2 = of_bool (n1 <> n2)
-  let bitnot _ = `Top
-  let bitand _ _ = `Top
-  let bitor _ _ = `Top
-  let bitxor _ _ = `Top
-  let shift_left _ _ = `Top
-  let shift_right _ _ = `Top
-  let lognot _ = `Top
-  let logand _ _ = `Top
-  let logor _ _ = `Top
-  let cast_to_width _ _ = `Top
-end
-
 module type EquationsSignature =
 sig
   include Lattice.S
@@ -206,8 +37,7 @@ sig
   val filter: (equation -> bool) -> t -> t
   val get_equation_with_keys : equation_key -> equation_key -> t -> equation
   val meet_with_new_equation: store * t -> store * t
-  val new_equation: equation_key -> equation_key -> Sign.t -> IntDomain.IntDomTuple.t -> equation
-  val new_optional_equation: equation_key -> (equation_key option * Sign.t option) -> IntDomain.IntDomTuple.t option -> equation option
+  val new_equation: equation_key -> equation_key -> IntDomain.IntDomTuple.t -> equation
   val remove_equations_with_key: equation_key -> t -> t
   val remove_invalid_equations: store -> t -> t * store
 end
@@ -289,7 +119,7 @@ module EquationMap (Key: GroupableLattice) (Domain: Domain_TransformableFromIntD
   with type equation_key = Key.t
    and type store = MapDomain.MapTop_LiftBot(Key)(Domain).t
    and type store_value = Domain.t
-   and type equation = Lattice.Prod3(Key)(Lattice.Prod(Key)(Sign))(IntDomain.IntDomTuple).t
+   and type equation = Lattice.Prod3(Key)(Key)(IntDomain.IntDomTuple).t
 =
 struct
 
@@ -297,33 +127,32 @@ struct
   type equation_key = Key.t
   type store = Store.t
   type const = IntDomain.IntDomTuple.t
-  module EQ =  Lattice.Prod3(Key)(Lattice.Prod(Key)(Sign))(IntDomain.IntDomTuple)
+  module EQ =  Lattice.Prod3(Key)(Key)(IntDomain.IntDomTuple)
   type equation = EQ.t
   include MapDomain.MapTop_LiftBot(KeyTuple(Key))(EQ)
 
   type store_value = Domain.t
 
-  let equation_to_string ((keya), (keyb, signb), const) key_to_string =
-    (key_to_string keya) ^ (Sign.short 5 signb) ^ (key_to_string keyb) ^ " = " ^ (IntDomain.IntDomTuple.short 20 const)
+  let equation_to_string (keya, keyb, const) key_to_string =
+    (key_to_string keya) ^ " + " ^ (key_to_string keyb) ^ " = " ^ (IntDomain.IntDomTuple.short 20 const)
 
   let build_new_equation (key_in_store, value_in_store) (new_key, new_value) =
     let sum_values =
       (IntDomain.IntDomTuple.add new_value value_in_store) in
     if Key.leq new_key key_in_store then
-      (new_key, (key_in_store, `Plus), (sum_values))
-    else (key_in_store, (new_key, `Plus), (sum_values))
+      (new_key, key_in_store, sum_values)
+    else (key_in_store, new_key, sum_values)
 
-  let equation_equal ((keyxa), (keyxb, signx), constx) ((keyya), (keyyb, signy), consty) =
-    (if ((Key.compare keyxa keyya) = 0 && (Key.compare keyxb keyyb) = 0) then
-       (Sign.equal signx signy) && (IntDomain.IntDomTuple.equal constx consty)
-     else false
-     )
+  let equation_equal (keyxa, keyxb, constx) (keyya, keyyb, consty) =
+    if ((Key.compare keyxa keyya) = 0 && (Key.compare keyxb keyyb) = 0) then
+      IntDomain.IntDomTuple.equal constx consty
+    else false
 
   let compare_equation eq1 eq2 =
     if equation_equal eq1 eq2 then 0
     else (
       match eq1, eq2 with
-      | (key1a, (key1b, sign1), consteq1), (key2a, (key2b, sign2), consteq2) -> (
+      | (key1a, key1b, consteq1), (key2a, key2b, consteq2) -> (
           let comparison_first_keys = Key.compare key1a key2a in
           if comparison_first_keys <> 0 then 1
           else (
@@ -337,51 +166,27 @@ struct
         )
     )
 
-  let solve_equation_for_key index_key_to_solve_for (key1, (key2, sign), const) store =
-    match sign with
-    | `Bot -> Domain.bot ()
-    | `Top -> Domain.top ()
-    | _ ->
-      if index_key_to_solve_for = 0 then
-        let key1_int_dom_tuple = (Domain.to_int_val (Store.find key1 store)) in
-        let key2_int_dom_tuple= (Domain.to_int_val (Store.find key2 store)) in
-        let key2_int_dom_tuple =
-          match sign with
-          | `Minus -> IntDomain.IntDomTuple.neg key2_int_dom_tuple
-          | `Top -> IntDomain.IntDomTuple.top ()
-          | `Bot -> IntDomain.IntDomTuple.bot ()
-          | `Plus -> key2_int_dom_tuple in
-        Domain.of_int_val (
-          IntDomain.IntDomTuple.meet key1_int_dom_tuple
-            (IntDomain.IntDomTuple.sub
-               const
-               key2_int_dom_tuple
-            )
-        )
-      else
-        let key1_int_dom_tuple  = (Domain.to_int_val (Store.find key1 store)) in
-        let key2_int_dom_tuple = (Domain.to_int_val (Store.find key2 store)) in
-        let key2_int_dom_tuple =
-          match sign with
-          | `Minus -> IntDomain.IntDomTuple.neg key2_int_dom_tuple
-          | _ -> key2_int_dom_tuple in
-
-        let sign =
-          IntDomain.IntDomTuple.of_int
-            (match sign with
-             | `Minus -> -1L
-             | _ -> 1L)
-        in
-        Domain.of_int_val (
-          IntDomain.IntDomTuple.meet key2_int_dom_tuple (
-            IntDomain.IntDomTuple.div
-              (IntDomain.IntDomTuple.sub
-                 const
-                 key1_int_dom_tuple
-              )
-              sign
+  let solve_equation_for_key index_key_to_solve_for (key1, key2, const) store =
+    if index_key_to_solve_for = 0 then
+      let key1_int_dom_tuple = (Domain.to_int_val (Store.find key1 store)) in
+      let key2_int_dom_tuple= (Domain.to_int_val (Store.find key2 store)) in
+      Domain.of_int_val (
+        IntDomain.IntDomTuple.meet key1_int_dom_tuple
+          (IntDomain.IntDomTuple.sub
+             const
+             key2_int_dom_tuple
           )
+      )
+    else
+      let key1_int_dom_tuple  = (Domain.to_int_val (Store.find key1 store)) in
+      let key2_int_dom_tuple = (Domain.to_int_val (Store.find key2 store)) in
+      Domain.of_int_val (
+        IntDomain.IntDomTuple.meet key2_int_dom_tuple (
+          IntDomain.IntDomTuple.sub
+            const
+            key1_int_dom_tuple
         )
+      )
 
   let get_equation_with_keys key1 key2 eqs =
     let key1, key2 = if Key.leq key1 key2 then key1, key2 else key2, key1 in
@@ -390,13 +195,13 @@ struct
   let meet_with_new_equation (store, equations) =
     let equations =
       filter(
-        fun _ (key1, (key2, _), _) ->
+        fun _ (key1, key2, _) ->
           not(Domain.is_top (Store.find key1 store)) && not(Domain.is_top (Store.find key2 store))
       ) equations
     in
     let store = fold (
-        fun key (key1, (key2, sign), const) store ->
-          let equation = (key1, (key2, sign), const) in
+        fun key (key1, key2, const) store ->
+          let equation = (key1, key2, const) in
           let new_val_for_key1 = solve_equation_for_key 0 equation store in
           let store = if Domain.is_top new_val_for_key1 then store else Store.add key1 new_val_for_key1 store in
           let new_val_for_key2 = solve_equation_for_key 1 equation store in
@@ -405,38 +210,28 @@ struct
     (store, equations)
 
   let change_keys_in_equations old_key new_key equations =
-    map (fun (key1, (key2, sign), const) ->
+    map (fun (key1, key2, const) ->
         if Key.compare key1 new_key = 0 then
-          (new_key, (key2, sign), const)
+          (new_key, key2, const)
         else (
           if Key.compare key2 new_key = 0 then
-            (key1, (new_key, sign), const)
-          else (key1, (key2, sign), const)
+            (key1, new_key, const)
+          else (key1, key2, const)
         )
       ) equations
 
   let remove_equations_with_key key equations =
-    filter (fun _ (key1,(key2,_),_) -> not(Key.compare key1 key = 0) && not(Key.compare key key2 = 0)) equations
+    filter (fun _ (key1, key2,_) -> not(Key.compare key1 key = 0) && not(Key.compare key key2 = 0)) equations
 
-  let new_equation keya keyb sign const =
-    (keya, (keyb, sign), const)
-
-  let new_optional_equation lkey rval const =
-    match rval, const with
-    | (Some rkey, Some sign), Some const ->
-      if Key.compare lkey rkey < 0 then
-        Some (new_equation lkey rkey sign (IntDomain.IntDomTuple.neg const))
-      else (
-        match sign with
-        | `Minus -> Some (new_equation rkey lkey `Plus (IntDomain.IntDomTuple.neg const))
-        | `Plus -> Some (new_equation rkey lkey `Minus const)
-        | _ -> None
-      )
-    | _ -> None
+  let new_equation keya keyb const =
+    if Key.leq keya keyb then
+      (keya, keyb, const)
+    else
+      (keyb, keya, const)
 
   let append_equation equation equations =
     match equation with
-      (key1, (key2, _), const) ->
+      (key1, key2, const) ->
       if (IntDomain.IntDomTuple.is_top const) || (IntDomain.IntDomTuple.is_bot const) then equations
       else (
         if Key.compare key1 key2 < 0 then
@@ -449,7 +244,7 @@ struct
     let new_equations, new_store =
       fold (fun _ equation (new_equations, new_store) ->
           match equation with
-            (key1,(key2,sign),const) ->
+            (key1, key2,const) ->
             let val_of_key1_in_store = Store.find key1 store in
             let val_of_key2_in_store = Store.find key2 store in
             if IntDomain.IntDomTuple.is_top const || IntDomain.IntDomTuple.is_bot const
@@ -471,7 +266,7 @@ struct
               let new_store = Store.add key1 val_of_key1_in_store new_store in
               let new_store = Store.add key2 val_key2_after_equation new_store in
               let new_equation = (build_new_equation (key1, int_val_of_key1_in_store) (key2, int_val_of_key2_in_store)) in
-              match new_equation with (_,(_,_),const) ->
+              match new_equation with (_, _,const) ->
                 if IntDomain.IntDomTuple.is_top const then (new_equations, new_store)
                 else
                   append_equation new_equation new_equations, new_store
@@ -505,12 +300,8 @@ struct
 
   let join eqmap1 eqmap2 =
     map2 (
-      fun (keya1, (keya2, signa), consta) (keyb1, (keyb2, signb), constb) ->
-        if (Sign.equal signa signb) then
-          (keya1, (keya2, signa), IntDomain.IntDomTuple.join consta constb)
-        else
-          (keya1, (keya2, signa), consta)
+      fun (keya1, keya2, consta) (keyb1, keyb2, constb) ->
+        (keya1, keya2, IntDomain.IntDomTuple.join consta constb)
     ) eqmap1 eqmap2
-
 
 end

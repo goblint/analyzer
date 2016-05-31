@@ -704,7 +704,7 @@ struct
   let pretty () x = Pretty.text (short 100 x)
 
   let remove_all_equations_with_variable variable equations =
-    Equations.filter (fun (field1,(field2,_),_) ->
+    Equations.filter (fun (field1,field2,_) ->
         match field1, field2 with
         | `Field (variable1, field1), `Field (variable2, field2) ->
           not(variable1.vid = variable.vid) && not(variable2.vid = variable.vid)
@@ -755,7 +755,7 @@ struct
                   | `Int value2 -> (
                       if not(IntDomain.IntDomTuple.is_top value2) then (
                         let equation = (Equations.get_equation_with_keys field1 field2 equations) in
-                        let const = match equation with (_, (_, _), const) -> const in
+                        let const = match equation with (_, _, const) -> const in
                         if (IntDomain.IntDomTuple.is_top const) then (
                           if (EquationField.compare field1 field2 = 0) then
                             equations
@@ -783,12 +783,11 @@ struct
   let eval_cil_exp cil_exp (store, equations) =
     match cil_exp with
     | BinOp (op, Lval (Var var1, (Field(fieldinfo1, _))), Lval (Var var2, (Field(fieldinfo2, _))), _) -> (
-        let (key1, (key2, sign), const) =
+        let (key1, key2, const) =
           Equations.get_equation_with_keys (`Field (var2, fieldinfo2)) (`Field (var1, fieldinfo1)) equations
         in
-        match op, sign with
-        | PlusA, `Plus -> `Int const
-        | MinusA, `Minus -> `Int const
+        match op with
+        | PlusA -> `Int const
         | _ -> Compound.top ()
       )
     | _ -> Compound.top ()
@@ -990,13 +989,13 @@ struct
 
   let select_local_or_global_variables_in_equations should_select_local equations struct_store =
     if should_select_local then
-      Equations.filter (fun (field1,(field2,_),_) ->
+      Equations.filter (fun (field1,field2,_) ->
           match field1, field2 with
           | `Field(var1, _), `Field(var2, _) -> not var1.vglob && not var2.vglob
           | _ -> false
         ) equations
     else
-      Equations.filter (fun (field1,(field2,_),_) ->
+      Equations.filter (fun (field1,field2,_) ->
           match field1, field2 with
           | `Field(var1, _), `Field(var2, _) -> var1.vglob && var2.vglob
           | _ -> false
@@ -1035,22 +1034,24 @@ struct
       met_store, equations
 
   let build_equation_of_cil_exp rexp field =
-    let rvar_field, offset, const =
+    let rvar_field, const =
       match rexp with
       | BinOp (op, Lval (Var rvar, Field(rfield, _)), Const (CInt64 (num, _, _)), _)
       | BinOp (op, Const (CInt64 (num, _, _)), Lval (Var rvar, Field(rfield, _)), _) ->
-        if EquationField.compare field (`Field (rvar, rfield)) = 0 then None, None, None
+        if EquationField.compare field (`Field (rvar, rfield)) = 0 then None, None
         else (
           match op with
-          | PlusA -> Some (`Field (rvar, rfield)), Some `Plus, Some (IntDomain.IntDomTuple.of_int num)
-          | MinusA -> Some (`Field (rvar, rfield)), Some `Minus, Some (IntDomain.IntDomTuple.of_int num)
-          | _ -> None, None, None
+          | PlusA -> Some (`Field (rvar, rfield)), Some (IntDomain.IntDomTuple.of_int num)
+          | _ -> None, None
         )
       | Lval(Var rvar, Field(rfield, _)) ->
-        if EquationField.compare field (`Field(rvar, rfield)) = 0 then None, None, None
-        else Some (`Field (rvar, rfield)), Some `Plus, Some (IntDomain.IntDomTuple.of_int 0L)
-      | _ -> None, None, None in
-    Equations.new_optional_equation field (rvar_field, offset) const
+        if EquationField.compare field (`Field(rvar, rfield)) = 0 then None, None
+        else Some (`Field (rvar, rfield)), Some (IntDomain.IntDomTuple.of_int 0L)
+      | _ -> None, None in
+    match rvar_field, const with
+    | Some rvar_field, Some const ->
+      Some (Equations.new_equation field rvar_field (IntDomain.IntDomTuple.neg const))
+    | _ -> None
 
   let eval_assert_left_var (store, equations) (l_exp: Cil.exp) (r_exp: Cil.exp) =
     match l_exp with

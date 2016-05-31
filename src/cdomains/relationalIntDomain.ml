@@ -140,7 +140,7 @@ struct
           IntStore.fold (fun variable2 value2 equations ->
               if not(IntDomain.IntDomTuple.is_top value2) then (
                 let equation = (Equations.get_equation_with_keys variable1 variable2 equations) in
-                let const = match equation with (_, (_, _), const) -> const in
+                let const = match equation with (_, _, const) -> const in
                 if (IntDomain.IntDomTuple.is_top const) then (
                   if (Key.compare variable1 variable2 = 0) then
                     equations
@@ -203,45 +203,42 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
   let build_equation_of_cil_exp (rexp: Cil.exp) (var: Cil.varinfo) should_negate =
-    let rvar_var, offset, const =
+    let rvar_var, const =
       match rexp with
       | BinOp (op, Lval (Var rvar, _), Const (CInt64 (num, _, _)), _)
       | BinOp (op, Const (CInt64 (num, _, _)), Lval (Var rvar, _), _) ->
-        if rvar.vid = var.vid then None, None, None
+        if rvar.vid = var.vid then None, None
         else (
           match op with
           | PlusA ->
             if should_negate then
-              Some (`Var rvar), Some `Plus, Some (ID.of_excl_list [num])
+              Some (`Var rvar), Some (ID.of_excl_list [num])
             else
-              Some (`Var rvar), Some `Plus, Some (ID.of_int num)
-          | MinusA ->
-            if should_negate then
-              Some (`Var rvar), Some `Minus, Some (ID.of_excl_list [num])
-            else
-              Some (`Var rvar), Some `Minus, Some (ID.of_int num)
-          | _ -> None, None, None
+              Some (`Var rvar), Some (ID.of_int num)
+          | _ -> None, None
         )
       | Lval(Var rvar, _) ->
-        if rvar.vid = var.vid then None, None, None
+        if rvar.vid = var.vid then None, None
         else (
           if should_negate then
-            Some (`Var rvar), Some `Plus, Some (ID.of_excl_list [0L])
+            Some (`Var rvar), Some (ID.of_excl_list [0L])
           else
-            Some (`Var rvar), Some `Plus, Some (ID.of_int 0L)
+            Some (`Var rvar), Some (ID.of_int 0L)
         )
-      | _ -> None, None, None in
-    Equations.new_optional_equation (`Var var) (rvar_var,  offset) const
+      | _ -> None, None in
+    match rvar_var, const with
+    | Some rvar_var, Some const ->
+      Some (Equations.new_equation (`Var var) rvar_var (ID.neg const))
+    | _ -> None
 
   let eval_cil_exp r_exp (store, rel_ints) =
     match r_exp with
     | BinOp (op, Lval (Var var1, _), Lval (Var var2, _), _) -> (
-        let (key1, (key2, sign), const) =
+        let (key1, key2, const) =
           Equations.get_equation_with_keys (`Var var1) (`Var var2) rel_ints
         in
-        match op, sign with
-        | PlusA, `Plus -> const
-        | MinusA, `Minus -> const
+        match op with
+        | PlusA -> const
         | _ -> ID.top ()
       )
     | _ -> ID.top ()
@@ -318,13 +315,13 @@ struct
 
   let select_local_or_global_variables_in_equation_list should_select_local equations =
     if should_select_local then
-      Equations.filter (fun (var1,(var2,_),_) ->
+      Equations.filter (fun (var1, var2,_) ->
           match var1, var2 with
           | `Var var1, `Var var2 -> not(var1.vglob) && not(var2.vglob)
           | _ -> false
         ) equations
     else
-      Equations.filter (fun (var1,(var2,_),_) ->
+      Equations.filter (fun (var1,var2,_) ->
           match var1, var2 with
           | `Var var1, `Var var2 -> var1.vglob && var2.vglob
           | _ -> false
