@@ -742,6 +742,37 @@ struct
   let get_value_of_variable_and_globals varinfo (struct_store, equations) =
     get_value_of_variable_name varinfo.vname (struct_store, equations) true
 
+  let create_missing_equations equations store =
+    StructStore.fold (fun field1 value1 equations ->
+        match value1 with
+        | `Int value1 -> (
+            if not(IntDomain.IntDomTuple.is_top value1) then (
+              StructStore.fold (fun field2 value2 equations ->
+                  match value2 with
+                  | `Int value2 -> (
+                      if not(IntDomain.IntDomTuple.is_top value2) then (
+                        let equation = (Equations.get_equation_with_keys field1 field2 equations) in
+                        let const = match equation with (_, (_, _), const) -> const in
+                        if (IntDomain.IntDomTuple.is_top const) then (
+                          if (EquationField.compare field1 field2 = 0) then
+                            equations
+                          else (
+                            Equations.append_equation (Equations.build_new_equation (field1, value1) (field2, value2)) equations
+                          )
+                        ) else equations
+                      ) else equations
+                    )
+                  | _ -> equations
+                ) store equations)
+            else equations
+          )
+        | _ -> equations
+      ) store equations
+
+  let meet x y =
+    let store, equations = meet x y in
+    store, create_missing_equations equations store
+
   let join_equations eq1 eq2 store =
     let eq = Equations.join eq1 eq2 in
     Equations.remove_invalid_equations store eq
@@ -783,43 +814,8 @@ struct
               )
             | _ -> (
                 let s = (StructStore.add (`Field(new_var, new_field)) new_value s) in
-                let new_compound_val = new_value in
-                let new_value =
-                  if Compound.is_top new_compound_val then
-                    (`Int (IntDomain.IntDomTuple.top ()))
-                  else new_value in
                 let equations = Equations.remove_equations_with_key (`Field(new_var, new_field)) equations in
-                let equations =
-                  if StructStore.is_top s || StructStore.is_bot s then equations
-                  else (
-                    match new_value with
-                    | `Int new_value -> (
-                        if not (IntDomain.IntDomTuple.is_top new_value) && not (IntDomain.IntDomTuple.is_bot new_value) then (
-                          StructStore.fold (
-                            fun key old_value equations ->
-                              match key with
-                              | `Field (var, key) -> (
-                                  if EquationField.compare (`Field (var, key)) (`Field (new_var, new_field)) = 0 then equations
-                                  else (
-                                    match old_value with
-                                    | `Int old_value ->
-                                      if not (IntDomain.IntDomTuple.is_top old_value) && not (IntDomain.IntDomTuple.is_bot old_value) then (
-                                        let new_equation =  Equations.build_new_equation ((`Field(var, key)), old_value) ((`Field(new_var, new_field)), new_value) in
-                                        Equations.append_equation new_equation equations
-                                      )
-                                      else equations
-                                    | _ -> equations
-                                  )
-                                )
-                              | _ -> equations
-                          ) s equations
-                        )
-                        else
-                          Equations.remove_equations_with_key (`Field(new_var, new_field)) equations
-                      )
-                    | _ -> equations
-                  )
-                in
+                let equations = create_missing_equations equations s in
                 s, equations
               )
           )
@@ -866,22 +862,7 @@ struct
    )
 
  let create_equations_for_all_fields store =
-   StructStore.fold (fun field1 value1 equations ->
-       match value1 with
-       | `Int value1 -> (
-           StructStore.fold (fun field2 value2 equations ->
-               match value2 with
-               | `Int value2 -> (
-                   if (EquationField.compare field1 field2 = 0) then
-                     equations
-                   else
-                     Equations.append_equation (Equations.build_new_equation (field1, value1) (field2, value2)) equations
-                 )
-               | _ -> equations
-             ) store equations)
-       | _ -> equations
-     ) store (Equations.top())
-
+   create_missing_equations (Equations.top()) store
 
  let widen (storex, eqx) (storey, eqy) =
    let storeresult = StructStore.widen storex storey in

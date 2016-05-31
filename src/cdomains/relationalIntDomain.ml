@@ -134,26 +134,31 @@ struct
     let joined_equations = Equations.join eq1 eq2 in
     Equations.remove_invalid_equations store joined_equations
 
+  let create_missing_equations equations store =
+    IntStore.fold (fun variable1 value1 equations ->
+        if not(IntDomain.IntDomTuple.is_top value1) then (
+          IntStore.fold (fun variable2 value2 equations ->
+              if not(IntDomain.IntDomTuple.is_top value2) then (
+                let equation = (Equations.get_equation_with_keys variable1 variable2 equations) in
+                let const = match equation with (_, (_, _), const) -> const in
+                if (IntDomain.IntDomTuple.is_top const) then (
+                  if (Key.compare variable1 variable2 = 0) then
+                    equations
+                  else (
+                    let eq = Equations.append_equation (Equations.build_new_equation (variable1, value1) (variable2, value2)) equations in
+                    eq
+                  )
+                ) else equations
+              ) else equations
+            ) store equations
+        )
+        else equations
+      ) store equations
+
   let assign_int_value variable x (store, equations) =
     let store = (IntStore.add (`Var variable) x store) in
     let equations = Equations.remove_equations_with_key (`Var variable) equations in
-    if IntStore.is_top store || IntStore.is_bot store then store, equations
-    else if not (ID.is_top x) && not (ID.is_bot x) then (
-      IntStore.fold (
-        fun key value (store, equations) ->
-          if Key.compare (`Var variable) key = 0
-          then
-            store, equations
-          else (
-            if not (ID.is_top value) && not (ID.is_bot value) then (
-              let new_equation = Equations.build_new_equation ((`Var variable), (IntStore.find (`Var variable) store)) (key, IntStore.find key store) in
-              store, Equations.append_equation new_equation equations
-            )
-            else store, equations
-          )
-      ) store (store, equations)
-    )
-    else store, equations
+    store, create_missing_equations equations store
 
   let add_variable_value_list (varinfo_val_list: (Cil.varinfo * ID.t) list) abstract_value =
     List.fold_left (fun abstract_value (key,value) -> assign_int_value key value abstract_value) abstract_value varinfo_val_list
@@ -177,14 +182,7 @@ struct
   let hash x = 0
 
   let create_new_equations_for_all_variables store =
-    IntStore.fold (fun variable1 value1 equations ->
-        IntStore.fold (fun variable2 value2 equations ->
-            if (Key.compare variable1 variable2 = 0) then
-              equations
-            else
-              Equations.append_equation (Equations.build_new_equation (variable1, value1) (variable2, value2)) equations
-          ) store equations
-      ) store (Equations.top())
+    create_missing_equations (Equations.top()) store
 
   let widen x y =
     match x, y with
@@ -331,6 +329,10 @@ struct
           | `Var var1, `Var var2 -> var1.vglob && var2.vglob
           | _ -> false
         ) equations
+
+  let meet x y =
+    let store, equations = meet x y in
+    store, create_missing_equations equations store
 
   let meet_local_and_global_state local_state global_state =
     if equal local_state global_state then local_state
