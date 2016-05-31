@@ -97,6 +97,8 @@ rule() {
              ocb -no-plugin -package apron -package apron.polkaMPQ -package apron.octD $TARGET.native &&
              cp _build/$TARGET.native goblint
              ;;
+    watch)   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
+             ;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
 
