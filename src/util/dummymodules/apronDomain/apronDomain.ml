@@ -75,7 +75,7 @@ sig
   val to_int_val: t -> IntDomain.IntDomTuple.t
 end
 
-module ApronRelationalStructDomain(Compound: Compound)(EquationField: Equation.GroupableLatticeS with type t = ([`Top | `Bot| `Field of Basetype.VariableFields.t]))  : StructDomain.RelationalStructDomainSignature
+module ApronRelationalStructDomain(Compound: Compound)(EquationField: Equation.GroupableLattice with type t = ([`Top | `Bot| `Field of Basetype.VariableFields.t]))  : StructDomain.RelationalStructDomainSignature
   with type t = ApronDomain.t * MapDomain.MapTop(Lattice.Prod(Basetype.Strings)(Basetype.Strings))(EquationField).t
    and type field = EquationField.t
    and type value = Compound.t
