@@ -190,6 +190,7 @@ let _ = ()
       ; reg Debugging "dbg.print_dead_code" "false" "Print information about dead code"
       ; reg Debugging "dbg.slice.on"        "false" "Turn slicer on or off."
       ; reg Debugging "dbg.slice.n"         "10"    "How deep function stack do we analyze."
+      ; reg Debugging "dbg.earlywarn"       "false" "Output warnings already while solving (may lead to spurious warnings/asserts)."
 
 let default_schema = "\
 { 'id'              : 'root'
