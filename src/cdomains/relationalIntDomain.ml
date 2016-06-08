@@ -1,4 +1,6 @@
 open Cil
+open GobConfig
+
 open RelationalIntDomainSignature
 module ID =
 struct
@@ -104,6 +106,8 @@ struct
   type equations = Equations.t
   module D = Lattice.Prod (IntStore) (Equations)
   include D
+
+  let use_plus = "ana.equation.plus"
 
   let store_to_string length store =
     let key_value_pair_string (key: Cil.varinfo) value =
@@ -229,7 +233,10 @@ struct
           Equations.get_equation_with_keys (`Var var1) (`Var var2) rel_ints
         in
         match op with
-        | PlusA -> const
+        | Eq when not (get_bool use_plus) -> (ID.of_bool (ID.equal const (ID.of_int 0L)))
+        | Ne when not (get_bool use_plus) -> (ID.of_bool (not (ID.equal const (ID.of_int 0L))))
+        | PlusA when (get_bool use_plus) -> const
+        | MinusA when not (get_bool use_plus) -> const
         | _ -> ID.top ()
       )
     | _ -> ID.top ()
@@ -258,9 +265,6 @@ struct
           )
       )
     | _ -> top ()
-
-  let solve_equation_for_var (((var_to_solve_for: Cil.varinfo), const1), ((var2: Cil.varinfo), const2), const) store =
-    ID.meet (IntStore.find (`Var var_to_solve_for) store) (ID.div (ID.sub (ID.mul (ID.neg (ID.of_int (Int64.of_float const2))) (IntStore.find (`Var var2) store)) (ID.of_int (Int64.of_float const))) (ID.of_int (Int64.of_float const1)))
 
   let eval_assert_cil_exp (assert_exp: Cil.exp) (store, rel_ints) =
     match assert_exp with

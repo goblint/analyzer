@@ -1,3 +1,5 @@
+open GobConfig
+
 module type GroupableLattice =
 sig
   include MapDomain.Groupable
@@ -133,15 +135,19 @@ struct
 
   type store_value = Domain.t
 
+  let use_plus = "ana.equation.plus"
+
   let equation_to_string (keya, keyb, const) key_to_string =
-    (key_to_string keya) ^ " + " ^ (key_to_string keyb) ^ " = " ^ (IntDomain.IntDomTuple.short 20 const)
+    let sign = if (get_bool use_plus) then "+" else "-" in
+    (key_to_string keya) ^ sign ^ (key_to_string keyb) ^ " = " ^ (IntDomain.IntDomTuple.short 20 const)
 
   let build_new_equation (key_in_store, value_in_store) (new_key, new_value) =
-    let sum_values =
-      (IntDomain.IntDomTuple.add new_value value_in_store) in
     if Key.leq new_key key_in_store then
-      (new_key, key_in_store, sum_values)
-    else (key_in_store, new_key, sum_values)
+      let constant = if (get_bool use_plus) then (IntDomain.IntDomTuple.add new_value value_in_store) else (IntDomain.IntDomTuple.sub new_value value_in_store) in
+      (new_key, key_in_store, constant)
+    else
+      let constant = if (get_bool use_plus) then (IntDomain.IntDomTuple.add new_value value_in_store) else (IntDomain.IntDomTuple.sub value_in_store new_value) in
+      (key_in_store, new_key, constant)
 
   let equation_equal (keyxa, keyxb, constx) (keyya, keyyb, consty) =
     if ((Key.compare keyxa keyya) = 0 && (Key.compare keyxb keyyb) = 0) then
@@ -166,27 +172,44 @@ struct
         )
     )
 
+  let solve_plus_equation val1 val2 const =
+    Domain.of_int_val (
+      IntDomain.IntDomTuple.meet val1
+        (IntDomain.IntDomTuple.sub
+           const
+           val2
+        )
+    )
+
   let solve_equation_for_key index_key_to_solve_for (key1, key2, const) store =
-    if index_key_to_solve_for = 0 then
+    if index_key_to_solve_for = 0 then (
       let key1_int_dom_tuple = (Domain.to_int_val (Store.find key1 store)) in
       let key2_int_dom_tuple= (Domain.to_int_val (Store.find key2 store)) in
-      Domain.of_int_val (
-        IntDomain.IntDomTuple.meet key1_int_dom_tuple
-          (IntDomain.IntDomTuple.sub
-             const
-             key2_int_dom_tuple
-          )
-      )
-    else
+      if get_bool use_plus then
+        solve_plus_equation key1_int_dom_tuple key2_int_dom_tuple const
+      else
+        Domain.of_int_val (
+          IntDomain.IntDomTuple.meet key1_int_dom_tuple
+            (IntDomain.IntDomTuple.add
+               const
+               key2_int_dom_tuple
+            )
+        )
+    )
+    else (
       let key1_int_dom_tuple  = (Domain.to_int_val (Store.find key1 store)) in
       let key2_int_dom_tuple = (Domain.to_int_val (Store.find key2 store)) in
-      Domain.of_int_val (
-        IntDomain.IntDomTuple.meet key2_int_dom_tuple (
-          IntDomain.IntDomTuple.sub
-            const
-            key1_int_dom_tuple
+      if get_bool use_plus then
+        solve_plus_equation key2_int_dom_tuple key1_int_dom_tuple const
+      else
+        Domain.of_int_val (
+          IntDomain.IntDomTuple.meet key2_int_dom_tuple
+            (IntDomain.IntDomTuple.add
+               const
+               key1_int_dom_tuple
+            )
         )
-      )
+    )
 
   let get_equation_with_keys key1 key2 eqs =
     let key1, key2 = if Key.leq key1 key2 then key1, key2 else key2, key1 in

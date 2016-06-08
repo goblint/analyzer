@@ -669,6 +669,10 @@ struct
   module Prod = Lattice.Prod(StructStore)(Equations)
   include Prod
 
+  open GobConfig
+
+  let use_plus = "ana.equation.plus"
+
   let name () = "equations"
   let fold func (store, eq) (x: t) = StructStore.fold func store x
   let map func (store, equations) = StructStore.map func store, equations
@@ -787,7 +791,10 @@ struct
           Equations.get_equation_with_keys (`Field (var2, fieldinfo2)) (`Field (var1, fieldinfo1)) equations
         in
         match op with
-        | PlusA -> `Int const
+        | Eq when not (get_bool use_plus) -> `Int (IntDomain.IntDomTuple.of_bool (IntDomain.IntDomTuple.equal const (IntDomain.IntDomTuple.of_int 0L)))
+        | Ne when not (get_bool use_plus) -> `Int (IntDomain.IntDomTuple.of_bool (not (IntDomain.IntDomTuple.equal const (IntDomain.IntDomTuple.of_int 0L))))
+        | PlusA when (get_bool use_plus) -> `Int (const)
+        | MinusA when not (get_bool use_plus) -> `Int (const)
         | _ -> Compound.top ()
       )
     | _ -> Compound.top ()
