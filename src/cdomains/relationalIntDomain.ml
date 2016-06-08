@@ -172,7 +172,7 @@ struct
 
   let join (storex, eqx) (storey, eqy) =
     let result_store = IntStore.join storex storey in
-    let equations = create_new_equations_for_all_variables result_store in
+    let equations, _ = join_equations eqx eqy result_store in
     (result_store, equations)
 
   let widen x y =

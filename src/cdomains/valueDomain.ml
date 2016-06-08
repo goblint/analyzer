@@ -854,7 +854,7 @@ struct
 
   let join (storex, eqx) (storey, eqy) =
     let storeresult = StructStore.join storex storey in
-    let equations = create_equations_for_all_fields storeresult in
+    let equations, _ = join_equations eqx eqy storeresult in
     (storeresult, equations)
 
   let widen (storex, eqx) (storey, eqy) =
