@@ -165,24 +165,15 @@ struct
 
   let pretty () x = Pretty.text (short 100 x)
 
-  let join (storex, eqx) (storey, eqy) =
-    if (IntStore.is_top storex || IntStore.is_top storey) then top ()
-    else (
-      if IntStore.is_bot storex then (storey, eqy)
-      else (
-        if IntStore.is_bot storey then (storex, eqx)
-        else (
-          let result_store = IntStore.join storex storey in
-          let joined_equations, result_store = join_equations eqx eqy result_store in
-          result_store, joined_equations
-        )
-      )
-    )
-
   let hash x = 0
 
   let create_new_equations_for_all_variables store =
     create_missing_equations (Equations.top()) store
+
+  let join (storex, eqx) (storey, eqy) =
+    let result_store = IntStore.join storex storey in
+    let equations = create_new_equations_for_all_variables result_store in
+    (result_store, equations)
 
   let widen x y =
     match x, y with

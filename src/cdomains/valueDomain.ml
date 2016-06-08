@@ -849,27 +849,18 @@ struct
     in
     List.map (fun field -> `Field (variable, field)) list
 
- let join (storex, eqx) (storey, eqy) =
-   if (StructStore.is_top storex || StructStore.is_top storey) then top ()
-   else (
-     if StructStore.is_bot storex then (storey, eqy)
-     else (
-       if StructStore.is_bot storey then (storex, eqx)
-       else (
-         let result_store = StructStore.join storex storey in
-         let joined_equations, _ = join_equations eqx eqy result_store in
-         result_store, joined_equations
-       )
-     )
-   )
+  let create_equations_for_all_fields store =
+    create_missing_equations (Equations.top()) store
 
- let create_equations_for_all_fields store =
-   create_missing_equations (Equations.top()) store
+  let join (storex, eqx) (storey, eqy) =
+    let storeresult = StructStore.join storex storey in
+    let equations = create_equations_for_all_fields storeresult in
+    (storeresult, equations)
 
- let widen (storex, eqx) (storey, eqy) =
-   let storeresult = StructStore.widen storex storey in
-   let equations = create_equations_for_all_fields storeresult in
-   (storeresult, equations)
+  let widen (storex, eqx) (storey, eqy) =
+    let storeresult = StructStore.widen storex storey in
+    let equations = create_equations_for_all_fields storeresult in
+    (storeresult, equations)
 
  let narrow (storex, eqx) (storey, eqy) =
    let storeresult = StructStore.narrow storex storey in
