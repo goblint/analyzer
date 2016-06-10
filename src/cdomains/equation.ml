@@ -31,11 +31,10 @@ sig
   type store
   type store_value
 
-  val append_equation: equation -> t -> t
+  val add_equation: equation -> t -> t
   val build_new_equation: equation_key * IntDomain.IntDomTuple.t -> equation_key * IntDomain.IntDomTuple.t -> equation
   val cardinal: t -> int
   val change_keys_in_equations: equation_key -> equation_key -> t -> t
-  val equationmap_of_equation: equation -> t
   val filter: (equation -> bool) -> t -> t
   val get_equation_with_keys : equation_key -> equation_key -> t -> equation
   val meet_with_new_equation: store * t -> store * t
@@ -252,7 +251,7 @@ struct
     else
       (keyb, keya, const)
 
-  let append_equation equation equations =
+  let add_equation equation equations =
     match equation with
       (key1, key2, const) ->
       if (IntDomain.IntDomTuple.is_top const) || (IntDomain.IntDomTuple.is_bot const) then equations
@@ -292,7 +291,7 @@ struct
               match new_equation with (_, _,const) ->
                 if IntDomain.IntDomTuple.is_top const then (new_equations, new_store)
                 else
-                  append_equation new_equation new_equations, new_store
+                  add_equation new_equation new_equations, new_store
             )
           )
         )  equations (top(), Store.top()) in
@@ -300,8 +299,6 @@ struct
 
   let filter func equations =
     filter (fun _ value -> func value) equations
-
-  let equationmap_of_equation x = append_equation x (top())
 
   let short _ eqmap =
     fold(fun _ value string -> string ^ (if string = "" then "" else ", ") ^ equation_to_string value (Key.short 100)) eqmap ""

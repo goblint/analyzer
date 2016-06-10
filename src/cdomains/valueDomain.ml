@@ -764,7 +764,7 @@ struct
                           if (EquationField.compare field1 field2 = 0) then
                             equations
                           else (
-                            Equations.append_equation (Equations.build_new_equation (field1, value1) (field2, value2)) equations
+                            Equations.add_equation (Equations.build_new_equation (field1, value1) (field2, value2)) equations
                           )
                         ) else equations
                       ) else equations
@@ -1020,7 +1020,7 @@ struct
                   fun global_field global_value equations ->
                     match global_value with
                     | `Int global_value ->
-                      Equations.append_equation (
+                      Equations.add_equation (
                         Equations.build_new_equation (local_field, local_value) (global_field, global_value)
                       ) equations
                     | _ -> equations
@@ -1067,7 +1067,7 @@ struct
                 | _ -> (
                     match build_equation_of_cil_exp r_exp (`Field (v, fieldinfo))  with
                     | Some x -> (
-                        let new_equations, store = join_equations equations (Equations.equationmap_of_equation x) store in
+                        let new_equations, store = join_equations equations (Equations.add_equation x (Equations.top())) store in
                         if (Equations.cardinal new_equations) < (Equations.cardinal equations) then bot ()
                         else (
                           (store, new_equations)

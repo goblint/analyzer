@@ -149,7 +149,7 @@ struct
                   if (Key.compare variable1 variable2 = 0) then
                     equations
                   else (
-                    let eq = Equations.append_equation (Equations.build_new_equation (variable1, value1) (variable2, value2)) equations in
+                    let eq = Equations.add_equation (Equations.build_new_equation (variable1, value1) (variable2, value2)) equations in
                     eq
                   )
                 ) else equations
@@ -256,7 +256,7 @@ struct
         | _ -> (
             match build_equation_of_cil_exp r_exp v should_negate with
             | Some x -> (
-                let equations, store = join_equations rel_ints (Equations.equationmap_of_equation x) store in
+                let equations, store = join_equations rel_ints (Equations.add_equation x (Equations.top())) store in
                 if (Equations.cardinal equations) < (Equations.cardinal rel_ints) then bot ()
                 else (
                   (store,  equations))
@@ -351,7 +351,7 @@ struct
           fun local_var _ equations ->
             IntStore.fold(
               fun global_var _ equations ->
-                Equations.append_equation (Equations.build_new_equation (local_var, (IntStore.find local_var met_store)) (global_var, (IntStore.find global_var met_store))) equations
+                Equations.add_equation (Equations.build_new_equation (local_var, (IntStore.find local_var met_store)) (global_var, (IntStore.find global_var met_store))) equations
             ) global_store equations
         ) local_store equations
       in

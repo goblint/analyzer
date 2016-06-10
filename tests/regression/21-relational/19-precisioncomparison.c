@@ -45,13 +45,11 @@ int return_int(){
     if (localInt4 < 0) {
         localInt2 = 6;
         localInt3 = 5;
-        localInt4 = 0;
     } else {
         localInt2 = 5;
         localInt3 = 6;
-        localInt4 = 0;
     }
-    return localInt2 - localInt3;
+    return localInt2 + localInt3;
 }
 
 int main(){
