@@ -584,18 +584,13 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" x
 end
 
-
-(** Concatenates a list of strings that
-    fit in the given character constraint *)
-let get_short_list begin_str end_str w list =
+let get_short_list_with_separator begin_str end_str w list separator =
   let continues = "..." in
   (* Maximal space for short description *)
   let usable_length =
     w-String.length continues
     -String.length begin_str
     -String.length end_str in
-  (* Structure elements separator *)
-  let separator = ", " in
   let separator_length = String.length separator in
   (* List of elements, that are in our character boundaries*)
   let str_list_w_size = List.map (fun a -> (a,String.length a)) list in
@@ -618,3 +613,8 @@ let get_short_list begin_str end_str w list =
 
   let str = String.concat separator cut_str_list in
   begin_str ^ str ^ end_str
+
+(** Concatenates a list of strings that
+    fit in the given character constraint *)
+let get_short_list begin_str end_str w list =
+  get_short_list_with_separator begin_str end_str w list ", "

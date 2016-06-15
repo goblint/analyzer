@@ -298,9 +298,13 @@ struct
   let isSimple _  = true
   let copy x = x
   type t = fieldinfo
-  let compare x y = compare x.fname y.fname
-  let equal x y = x.fname = y.fname
-  let hash x = Hashtbl.hash x.fname
+  let compare x y =
+    let compare_names = compare x.fname y.fname in
+    if compare_names = 0 then
+      compare x.fcomp.cname y.fcomp.cname
+    else compare_names
+  let equal x y = x.fname = y.fname && x.fcomp.cname = y.fcomp.cname
+  let hash x = Hashtbl.hash x.fname + Hashtbl.hash x.fcomp.cname
   let short _ x = x.fname
   let toXML_f sf x =
     let esc = Goblintutil.escape in
@@ -314,6 +318,30 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end
+
+module CilCompinfo =
+struct
+  include Printable.Std
+  let isSimple _  = true
+  let copy x = x
+  type t = compinfo
+  let compare x y = compare x.cname y.cname
+  let equal x y = x.fname = y.fname && x.fcomp.cname = y.fcomp.cname
+  let hash x = Hashtbl.hash x.cname
+  let short _ x = x.cname
+  let toXML_f sf x =
+    let esc = Goblintutil.escape in
+    Xml.Element ("Leaf", [("text", esc (sf max_int x))], [])
+  let pretty_f sf () x = Pretty.text (sf max_int x)
+  let classify _ = 0
+  let class_name _ = "None"
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
+  let name () = "field"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+end
+
 
 module FieldVariables =
 struct
@@ -384,6 +412,71 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 
 end
+
+module VariableFields =
+struct
+  include Printable.Std
+
+  type t = varinfo * fieldinfo
+
+  let get_var x = fst x
+  let get_field x = snd x
+
+  let isSimple _  = true
+  let is_global v = (get_var v).vglob
+  let copy x = x
+  let equal x y =
+    (get_field x).fname = (get_field y).fname &&
+    (get_var x).vid = (get_var y).vid
+
+  let short _ x =
+    (get_var x).vname ^ "." ^ (get_field x).fname
+
+  let compare x y =
+    let cmp = compare (get_field x).fname (get_field y).fname in
+    if cmp = 0 then
+      compare (get_var x).vid (get_var y).vid
+    else
+      cmp
+
+  let hash x = Hashtbl.hash ((get_field x).fname,(get_var x).vid)
+
+  let toXML_f sf x =
+    let esc = Goblintutil.escape in
+    let typeinf = Pretty.sprint Goblintutil.summary_length (
+        d_type ()
+          (get_var x).vtype) in
+    let info = "id=" ^  (string_of_int (get_var x).vid) ^ "; type=" ^ esc typeinf in
+    Xml.Element ("Leaf", [("text", esc (sf max_int x)); ("info", info)],[])
+
+  let pretty_f sf () x = Pretty.text (sf max_int x)
+  let pretty_trace () x =
+    Pretty.dprintf "TODO"
+
+  let get_location x = (get_var x).vdecl
+  let classify x =
+    match get_var x with
+    | x when x.vglob -> 2
+    | x when x.vdecl.line = -1 -> -1
+    | x when x.vdecl.line = -3 -> 5
+    | x when x.vdecl.line = -4 -> 4
+    | _ -> 1
+  let class_name n = match n with
+    |  1 -> "Local"
+    |  2 -> "Global"
+    |  4 -> "Context"
+    |  5 -> "Parameter"
+    | -1 -> "Temp"
+    |  _ -> "None"
+
+  let toXML m = toXML_f short m
+  let pretty () x = pretty_f short () x
+  let name () = "variables and fields"
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+
+end
+
 
 module CilType =
 struct

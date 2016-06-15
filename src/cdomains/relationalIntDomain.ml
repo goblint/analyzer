@@ -1,313 +1,263 @@
-module ID = IntDomain.IntDomTuple
-module IntStore = MapDomain.MapTop_LiftBot (Basetype.Variables) (ID)
-type store = IntStore.t
-type const = float
-type equation = (Cil.varinfo * const) * (Cil.varinfo * const) * const
+open Cil
+open GobConfig
 
 open RelationalIntDomainSignature
-open Prelude
-open Cil
-
-module SimpleEquations : S =
+module ID =
 struct
-  type t = store * (equation list)
+  include IntDomain.IntDomTuple
+  let of_int_val x = x
+  let to_int_val x = x
+end
 
-  let store_to_string length store =
-    let key_value_pair_string (key: Cil.varinfo) value =
-      if ID.is_top value then key.vname ^ " = top"
-      else key.vname ^ " = (" ^ (ID.short length value) ^ ")" in
-    IntStore.fold
-      (fun key value string ->
-         match string with
-         | "" -> key_value_pair_string key value
-         | _ -> string ^ ", " ^ (key_value_pair_string key value)) store ""
+module EquationVariable : Equation.GroupableLattice with type t = [`Top | `Bot | `Var of Basetype.Variables.t] =
+struct
+  module Variables = Basetype.Variables
+  let name () = "EquationVariable"
 
-  let name () = "equations"
-  let bot () = (IntStore.bot ()) , []
-  let is_bot =
-    function (storex, _) ->
-      if (IntStore.is_top storex) then false else (
-        if (IntStore.is_bot storex) then true
-        else IntStore.fold (fun _ value bot_until_here -> bot_until_here || (ID.is_bot value)) storex false
-      )
-  let top () = (IntStore.top ()), []
-  let is_top (storex, _) =
-    if (IntStore.is_top storex) then true else (
-      if (IntStore.is_bot storex) then false
-      else IntStore.fold (fun _ value top_until_here -> top_until_here && (ID.is_top value)) storex true
-    )
+  type t = [`Top | `Bot | `Var of Basetype.Variables.t]
+  let classify x =
+    match x with
+    |`Top -> 100
+    | `Bot -> -100
+    | `Var x -> Variables.classify x
+  let class_name x =
+    match x with
+    | 100 -> "Top"
+    | -100 -> "Bot"
+    | x -> Variables.class_name x
 
-  let equation_equal (x: equation) (y: equation) =
-    match x, y with
-    | ((varxa, constxa), (varxb, constxb), constx), ((varya, constya), (varyb, constyb), consty) ->
-      (if ((varxa.vid = varya.vid) && (varxb.vid = varyb.vid)) then
-         (
-           if (((constxa = constya) && (constxb = constyb) && (constx = consty)) ||
-               ((constxa = -. constya) && (constxb = -. constyb) && (constx = -. consty)))
-           then true
-           else false
-         ) else (
-         if ((varxa.vid = varyb.vid) && (varxb.vid = varya.vid))
-         then (
-           if (((constxa = constyb) && (constxb = constya) && (constx = consty)) ||
-               ((constxa = -. constyb) && (constxb = -. constya) && (constx = -. consty)))
-           then true
-           else false
-         )
-         else false
-       )
-      )
-
-  let compare_equation eq1 eq2 =
-    if equation_equal eq1 eq2 then 0
-    else (
-      match eq1, eq2 with
-      | ((vareq1a, consteq1a), (vareq1b, consteq1b), consteq1), ((vareq2a, consteq2a), (vareq2b, consteq2b), consteq2) -> (
-          if vareq1a.vid != vareq2a.vid then (
-            if vareq1a.vid < vareq2a.vid then -1
-            else 1
-          )
-          else (
-            if vareq1b.vid != vareq2b.vid then (
-              if vareq1b.vid < vareq2b.vid then -1
-              else 1
-            )
-            else if consteq1 != consteq2 && consteq1 != -. consteq2 then -2
-            else 0
-          )
-        )
-    )
-
-  let rec join_equations eqlist1 eqlist2 =
-    match eqlist1, eqlist2 with
-    | [], x | x, [] -> x
-    | x::xs, y::ys -> (
-        match compare_equation x y with
-        | 0 -> x :: join_equations xs ys
-        | 1 -> y :: join_equations eqlist1 ys
-        | -1 -> x :: join_equations xs eqlist2
-        | _ -> join_equations xs ys
-      )
-
-  let eval_assign_int_value (x, (l_exp: Cil.exp)) (store, rel_ints) =
-    match l_exp with
-    | Lval(Var v, _) -> (
-        let store = (IntStore.add v x store) in
-        let equations =
-          if IntStore.is_top store || IntStore.is_bot store then rel_ints
-          else (
-            if (ID.is_int x) then (
-              IntStore.fold (
-                fun key value equations ->
-                  if v.vid = key.vid
-                  then
-                    equations
-                  else (
-                    if ID.is_int value then
-                      let sum_value_x =
-                        (Int64.to_float (match (ID.to_int x), (ID.to_int value) with
-                             | Some x, Some y -> (Int64.add x y)
-                             | _ -> 0L)) in
-                      let new_equation = (
-                        if v.vid < key.vid then
-                          ((v, 1.0), (key, 1.0), (-. sum_value_x))
-                        else ((key, 1.0), (v, 1.0), (-. sum_value_x))
-                      ) in
-                      let joined_equations = join_equations equations [new_equation] in
-                      if (List.length joined_equations) < (List.length equations) then joined_equations @ [new_equation]
-                      else joined_equations
-                    else equations
-                  )
-              ) store rel_ints
-            )
-            else rel_ints
-          ) in
-        (store, equations)
-      )
-    | _ -> top ()
-
-  let add_variable_value_list (varinfo_val_list: (Cil.lhost * ID.t) list) abstract_value =
-    List.fold_left (fun abstract_value (key,value) -> eval_assign_int_value (value, (Cil.Lval(key, NoOffset)))abstract_value) abstract_value varinfo_val_list
-
-  let add_variable_value_pair varinfo_val_pair abstract_value =
-    add_variable_value_list [varinfo_val_pair] abstract_value
+  let trace_enabled = true
 
   let leq x y =
     match x, y with
-    | (storex, eqx), (storey, eqy) -> (IntStore.leq storex storey)
+    | `Var x, `Var y -> x.vid <= y.vid
+    | `Top, `Top -> true
+    | `Bot, `Bot -> true
+    | `Bot, _
+    | _, `Top -> true
+    | _ -> false
 
-  let join (storex, eqx) (storey, eqy) =
-    if (IntStore.is_top storex || IntStore.is_top storey) then top ()
-    else (
-      if IntStore.is_bot storex then (storey, eqy)
-      else (
-        if IntStore.is_bot storey then (storex, eqx)
-        else
-          (IntStore.map2 ID.join storex storey),
-          (join_equations eqx eqy)
-      )
-    )
+  let join x y =
+    match x, y with
+    | `Var x, `Var y when x.vid = y.vid->
+      `Var x
+    | _ -> `Top
 
-  let rec meet_equations eqlist1 eqlist2 =
-    match eqlist1, eqlist2 with
-    | [],_ | _,[] -> []
-    | x::xs, y::ys -> (
-        match compare_equation x y with
-        | 0 -> x :: meet_equations  xs ys
-        | 1 -> meet_equations eqlist1 ys
-        | -1 -> meet_equations xs eqlist2
-        | _ -> meet_equations  xs ys
-      )
+  let meet x y =
+    match x, y with
+    | `Var x, `Var y when x.vid = y.vid ->  `Var x
+    | x, `Top
+    | `Top, x -> x
+    | _ -> `Bot
 
-  let meet (storex, eqx) (storey, eqy) =
-    if (IntStore.is_bot storex || IntStore.is_bot storey) then bot ()
-    else (
-      if IntStore.is_top storex then (storey, eqy)
-      else (
-        if IntStore.is_top storey then (storex, eqx)
-        else
-          IntStore.map (fun value -> if (ID.is_top value) then (ID.top ()) else value) (IntStore.long_map2 ID.meet storex storey), (meet_equations eqx eqy)
-      )
-    )
+  let bot () = `Bot
+  let is_bot x = match x with | `Bot -> true | _ -> false
+  let top () = `Top
+  let is_top x = match x with | `Top -> false | _ -> true
 
-  let equationlist_equal x y =
-    let all_equations_equal_until_now eq_until_now eq1 eq2 =
-      eq_until_now && (equation_equal eq1 eq2) in
-    if (List.length x) = (List.length y) then
-      List.fold_left2 all_equations_equal_until_now true x y
-    else false
+  let widen = join
+  let narrow = meet
 
+  let of_varinfo x = `Variable x
   let equal x y =
-    if ((is_top x) && (is_top y)) || ((is_bot x) && (is_bot y)) then true
-    else (
-      if (is_top x) || (is_top y)|| (is_bot x) || (is_bot y) then false
-      else (
-        match x, y with
-        | (store_x, equations_x), (store_y, equations_y) ->
-          (equationlist_equal equations_x equations_y) && (IntStore.equal store_x store_y)
-      )
-    )
+    match x, y with
+    | `Top, `Top
+    | `Bot, `Bot -> true
+    | `Var x, `Var y when x.vid = y.vid ->
+      true
+    | _ -> false
 
-  let hash x = 0
+  let hash x = Hashtbl.hash x
   let compare x y =
-    if leq x y then (
-      if equal x y then 0
-        else -1
-    )
-    else 1
+    match x, y with
+    | `Top, `Top
+    | `Bot, `Bot -> 0
+    | `Var x, `Var y -> x.vid - y.vid
+    | _ , `Bot
+    | `Top, _ -> 1
+    | _, `Top
+    | `Bot, _ -> -1
 
-  let equation_to_string (((vara: Cil.varinfo), consta), ((varb: Cil.varinfo), constb), const) =
-    let minus = " - " in
-    let plus = " + " in
-    let float_is_int fl = (Pervasives.float_of_int (Pervasives.int_of_float fl)) = fl in
-    let string_of_float fl sign = if float_is_int fl then (sign ^ Pervasives.string_of_int (Pervasives.int_of_float fl)) else (sign ^ Pervasives.string_of_float fl) in
-    let string_of_coeff fl sign = if (fl = 0.0 || fl = 1.0 || fl = -1.0) then sign else (string_of_float fl sign) in
-    let string_of_const fl sign = if (fl = 0.0) then "" else (string_of_float fl sign) in
-    let sign_constb, constb = if constb < 0.0 then minus, -.constb else plus, constb in
-    let sign_const, const = if const < 0.0 then minus, -.const else plus, const in
-    "0 = " ^ (string_of_coeff consta "") ^ vara.vname ^ (string_of_coeff constb sign_constb) ^ varb.vname ^ (string_of_const const sign_const)
+  let short w x =
+    match x with
+    | `Top -> "Top"
+    | `Bot -> "Bot"
+    | `Var x -> x.vname
 
-  let rec equation_list_to_string eqlist =
-    match eqlist with
-    | [] -> ""
-    | e::[] -> (equation_to_string e)
-    | e::l -> (equation_to_string e) ^ ", " ^ equation_list_to_string l
+  let isSimple _ = true
+  let pretty () a = Pretty.text (short 100 a)
+  let pretty_f _ = pretty
+  let pretty_diff () (a, b) = Pretty.text ((short 100 a) ^ " vs. " ^ (short 100 b))
+  let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
+  let toXML x = toXML_f short x
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+
+end
+
+
+module SimpleEquations : RelationalIntDomainSignature =
+struct
+  module Key = EquationVariable
+
+  module IntStore = MapDomain.MapTop_LiftBot (Key)(ID)
+  type store = IntStore.t
+
+  module Equations = Equation.EquationMap(Key)(ID)
+  type equations = Equations.t
+  module D = Lattice.Prod (IntStore) (Equations)
+  include D
+
+  let use_plus = "ana.equation.plus"
+
+  let store_to_string length store =
+    let key_value_pair_string (key: Cil.varinfo) value =
+      if ID.is_top value then ""
+      else key.vname ^ " = (" ^ (ID.short length value) ^ ")" in
+    IntStore.fold
+      (fun key value string ->
+         match key, string with
+         | `Var key, "" -> key_value_pair_string key value
+         | `Var key, _ -> string ^ ", " ^ (key_value_pair_string key value)
+         | _ -> string
+      ) store ""
+
+  let is_top (x, eq) =
+    IntStore.fold (fun _ value is_top -> if ID.is_top value then is_top else false) x true
 
   let short a x =
     if is_top x then "top"
     else (
       if is_bot x then "bot"
       else match x with store, equationlist ->
-        "{{" ^ (store_to_string a store) ^ "} {" ^ equation_list_to_string equationlist ^ "}}"
+        "({" ^ (store_to_string a store) ^ "} (" ^ Equations.short a equationlist ^ "))"
     )
+
+  let name () = "equations"
+
+  let join_equations eq1 eq2 store =
+    let joined_equations = Equations.join eq1 eq2 in
+    Equations.remove_invalid_equations store joined_equations
+
+  let create_missing_equations equations store =
+    IntStore.fold (fun variable1 value1 equations ->
+        if not(IntDomain.IntDomTuple.is_top value1) then (
+          IntStore.fold (fun variable2 value2 equations ->
+              if not(IntDomain.IntDomTuple.is_top value2) then (
+                let equation = (Equations.get_equation_with_keys variable1 variable2 equations) in
+                let const = match equation with (_, _, const) -> const in
+                if (IntDomain.IntDomTuple.is_top const) then (
+                  if (Key.compare variable1 variable2 = 0) then
+                    equations
+                  else (
+                    let eq = Equations.add_equation (Equations.build_new_equation (variable1, value1) (variable2, value2)) equations in
+                    eq
+                  )
+                ) else equations
+              ) else equations
+            ) store equations
+        )
+        else equations
+      ) store equations
+
+  let assign_int_value variable x (store, equations) =
+    let store = (IntStore.add (`Var variable) x store) in
+    let equations = Equations.remove_equations_with_key (`Var variable) equations in
+    store, create_missing_equations equations store
+
+  let add_variable_value_list (varinfo_val_list: (Cil.varinfo * ID.t) list) abstract_value =
+    List.fold_left (fun abstract_value (key,value) -> assign_int_value key value abstract_value) abstract_value varinfo_val_list
+
+  let pretty () x = Pretty.text (short 100 x)
+
+  let hash x = 0
+
+  let create_new_equations_for_all_variables store =
+    create_missing_equations (Equations.top()) store
+
+  let join (storex, eqx) (storey, eqy) =
+    let result_store = IntStore.join storex storey in
+    let equations, _ = join_equations eqx eqy result_store in
+    (result_store, equations)
 
   let widen x y =
     match x, y with
     | (storex, equationsx), (storey, equationsy) ->
-      let storeresult = IntStore.map2 (fun valuex valuey -> ID.widen valuex valuey) storex storey in
-      let equationsresult = join_equations equationsx equationsy in
-      (storeresult, equationsresult)
+      let storeresult = IntStore.widen storex storey in
+      let equations = create_new_equations_for_all_variables storeresult in
+      (storeresult, equations)
 
   let narrow x y =
-    match x, y with
-    | (storex, equationsx), (storey, equationsy) ->
-      let storeresult = IntStore.map2 (fun valuex valuey -> ID.narrow valuex valuey) storex storey in
-      let equationsresult = meet_equations equationsx equationsy in
-      (storeresult, equationsresult)
+    let store, _ = narrow x y in
+    store, create_new_equations_for_all_variables store
 
   let isSimple x = true
-  let pretty () x = Pretty.text (short 100 x)
-  let pretty_diff () (x, y) = Pretty.text "Output not yet supported"
+  let pretty_diff () (a, b) = Pretty.text ((short 100 a) ^ " vs. " ^ (short 100 b))
   let pretty_f _ = pretty
   let toXML_f sh x = Xml.Element ("Leaf", [("text", sh 80 x)],[])
   let toXML x = toXML_f short x
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
-  let get_equation_of_variables_and_offset (lvar: Cil.varinfo) ((rvar: Cil.varinfo), offs) const =
-    if lvar.vid < rvar.vid then (
-      ((lvar, 1.0), (rvar, (-. offs)), (-. const))
-    ) else (
-      ((rvar, offs), (lvar, (-.1.0)), const)
-    )
-
-  let build_equation_of_cil_exp (rexp: Cil.exp) (var: Cil.varinfo) =
-    let rvar_var, offset, const =
+  let build_equation_of_cil_exp (rexp: Cil.exp) (var: Cil.varinfo) should_negate =
+    let rvar_var, const =
       match rexp with
       | BinOp (op, Lval (Var rvar, _), Const (CInt64 (num, _, _)), _)
       | BinOp (op, Const (CInt64 (num, _, _)), Lval (Var rvar, _), _) ->
-        if rvar.vid = var.vid then None, None, None
+        if rvar.vid = var.vid then None, None
         else (
           match op with
-          | PlusA -> Some rvar, Some 1L, Some num
-          | MinusA -> Some rvar, Some (-1L), Some num
-          | Mult -> Some rvar, Some num, Some 0L
-          | _ -> None, None, None
-        )
-      | BinOp (op, Const (CInt64 (const, _, _)), BinOp(Mult, Lval (Var rvar, _), Const (CInt64 (coeffx, _, _)), _), _)
-      | BinOp (op, Const (CInt64 (const, _, _)), BinOp(Mult, Const (CInt64 (coeffx, _, _)), Lval (Var rvar, _), _), _)
-      | BinOp (op, BinOp(Mult, Const (CInt64 (coeffx, _, _)), Lval (Var rvar, _), _), Const (CInt64 (const, _, _)), _)
-      | BinOp (op, BinOp(Mult, Lval (Var rvar, _), Const (CInt64 (coeffx, _, _)), _), Const (CInt64 (const, _, _)), _) ->
-        if rvar.vid = var.vid then None, None, None
-        else (
-          match op with
-          | PlusA -> Some rvar, Some coeffx, Some const
-          | MinusA -> Some rvar, Some (Int64.neg coeffx), Some const
-          | _ -> None, None, None
+          | PlusA ->
+            if should_negate then
+              Some (`Var rvar), Some (ID.of_excl_list [num])
+            else
+              Some (`Var rvar), Some (ID.of_int num)
+          | _ -> None, None
         )
       | Lval(Var rvar, _) ->
-        if rvar.vid = var.vid then None, None, None
-        else Some rvar, Some 1L, Some 0L
-      | _ -> None, None, None in
-    match rvar_var, offset, const with
-    | Some rvar_var, Some offset, Some const ->
-      Some (get_equation_of_variables_and_offset var (rvar_var, (Int64.to_float offset)) (Int64.to_float const))
+        if rvar.vid = var.vid then None, None
+        else (
+          if should_negate then
+            Some (`Var rvar), Some (ID.of_excl_list [0L])
+          else
+            Some (`Var rvar), Some (ID.of_int 0L)
+        )
+      | _ -> None, None in
+    match rvar_var, const with
+    | Some rvar_var, Some const ->
+      Some (Equations.new_equation (`Var var) rvar_var (ID.neg const))
     | _ -> None
 
-
-  let eval_assign_cil_exp ((l_exp: Cil.exp), (r_exp: Cil.exp)) (store, rel_ints) =
-    match l_exp with
-    | Lval(Var v, _) -> (
-        match build_equation_of_cil_exp r_exp v with
-        | Some x ->
-          let equations = join_equations rel_ints [x] in
-          if (List.length equations) < (List.length rel_ints) then (store,  equations @ [x])
-          else (store,  equations)
-        | _ -> (store, rel_ints)
+  let eval_cil_exp r_exp (store, rel_ints) =
+    match r_exp with
+    | BinOp (op, Lval (Var var1, _), Lval (Var var2, _), _) -> (
+        let (key1, key2, const) =
+          Equations.get_equation_with_keys (`Var var1) (`Var var2) rel_ints
+        in
+        match op with
+        | Eq when not (get_bool use_plus) -> (ID.of_bool (ID.equal const (ID.of_int 0L)))
+        | Ne when not (get_bool use_plus) -> (ID.of_bool (not (ID.equal const (ID.of_int 0L))))
+        | PlusA when (get_bool use_plus) -> const
+        | MinusA when not (get_bool use_plus) -> const
+        | _ -> ID.top ()
       )
-    | _ -> top ()
+    | _ -> ID.top ()
 
-  let eval_assert_left_var (store, rel_ints) (l_exp: Cil.exp) (r_exp: Cil.exp) =
+  let eval_assert_left_var (store, rel_ints) (l_exp: Cil.exp) (r_exp: Cil.exp) should_negate =
     match l_exp with
     | Lval(Var v, _) -> (
         match r_exp with
         | Const (CInt64 (const, _, _)) ->
-          let new_val_of_var = ID.meet (IntStore.find v store) (ID.of_int const) in
-          (IntStore.add v new_val_of_var store, rel_ints)
+          let new_val_of_var =
+            if should_negate then
+              ID.meet (IntStore.find (`Var v) store) (ID.of_excl_list [const])
+            else
+              ID.meet (IntStore.find (`Var v) store) (ID.of_int const)
+          in
+          (IntStore.add (`Var v) new_val_of_var store, rel_ints)
         | _ -> (
-            match build_equation_of_cil_exp r_exp v with
+            match build_equation_of_cil_exp r_exp v should_negate with
             | Some x -> (
-                let equations = join_equations rel_ints [x] in
-                if (List.length equations) < (List.length rel_ints) then bot ()
+                let equations, store = join_equations rel_ints (Equations.add_equation x (Equations.top())) store in
+                if (Equations.cardinal equations) < (Equations.cardinal rel_ints) then bot ()
                 else (
                   (store,  equations))
               )
@@ -316,114 +266,110 @@ struct
       )
     | _ -> top ()
 
-  let solve_equation_for_var (((var_to_solve_for: Cil.varinfo), const1), ((var2: Cil.varinfo), const2), const) store =
-    ID.meet (IntStore.find var_to_solve_for store) (ID.div (ID.sub (ID.mul (ID.neg (ID.of_int (Int64.of_float const2))) (IntStore.find var2 store)) (ID.of_int (Int64.of_float const))) (ID.of_int (Int64.of_float const1)))
-
-  let not_meet_with_new_equation (store, equations) =
-    let get_excl_list_of_int_abstract_value value =
-      match (ID.to_int value) with | Some int64 -> [int64] | _ -> []
-    in
-    let store = List.fold_left (
-        fun store (((var1: Cil.varinfo), const1), ((var2: Cil.varinfo), const2), const) ->
-          let not_val_for_var1 =  solve_equation_for_var ((var1, const1), (var2, const2), const) store in
-          let not_val_for_var2 =  solve_equation_for_var ((var2, const2), (var1, const1), const) store in
-          let new_val_for_var1 = ID.meet (IntStore.find var1 store)(ID.of_excl_list (get_excl_list_of_int_abstract_value not_val_for_var2)) in
-          let store = if (ID.is_bot new_val_for_var1) then store else IntStore.add var1 new_val_for_var1 store in
-          let new_val_for_var2 = ID.meet (IntStore.find var2 store)(ID.of_excl_list (get_excl_list_of_int_abstract_value not_val_for_var1)) in
-          if (ID.is_bot new_val_for_var1) || (ID.is_bot new_val_for_var2) then (IntStore.bot ())
-          else IntStore.add var2 new_val_for_var2 store
-      ) store equations in
-    (store, equations)
-
-  let filter_equations_for_useful_variables (store, equations) =
-    List.filter(
-      fun (((var1: Cil.varinfo), const1), ((var2: Cil.varinfo), const2), const) ->
-        not(ID.is_top (IntStore.find var1 store)) && not(ID.is_top (IntStore.find var2 store))
-    ) equations
-
-  let meet_with_new_equation (store, equations) =
-    let equations = filter_equations_for_useful_variables (store, equations) in
-    let store = List.fold_left (
-        fun store (((var1: Cil.varinfo), const1), ((var2: Cil.varinfo), const2), const) ->
-          let new_val_for_var1 =  solve_equation_for_var ((var1, const1), (var2, const2), const) store in
-          let store = IntStore.add var1 new_val_for_var1 store in
-          let new_val_for_var2 =  solve_equation_for_var ((var2, const2), (var1, const1), const) store in
-          IntStore.add var2 new_val_for_var2 store;
-      ) store equations in
-    (store, equations)
-
   let eval_assert_cil_exp (assert_exp: Cil.exp) (store, rel_ints) =
     match assert_exp with
     | BinOp (Eq, l_exp, r_exp, _) ->
-      let single_var_left = eval_assert_left_var (store, rel_ints) l_exp r_exp in
+      let single_var_left = eval_assert_left_var (store, rel_ints) l_exp r_exp false in
       if is_top single_var_left then (
-        let single_var_right = eval_assert_left_var (store, rel_ints) r_exp l_exp in
+        let single_var_right = eval_assert_left_var (store, rel_ints) r_exp l_exp false in
         if is_top single_var_right then (
           top ()
         ) else (
-          meet_with_new_equation single_var_right
+          Equations.meet_with_new_equation single_var_right
         )
-      ) else meet_with_new_equation single_var_left
+      ) else Equations.meet_with_new_equation single_var_left
     | BinOp (Ne, l_exp, r_exp, _)  ->
       let store, _ =
-        let single_var_left = eval_assert_left_var (store, rel_ints) l_exp r_exp in
+        let single_var_left = eval_assert_left_var (store, rel_ints) l_exp r_exp true in
         if is_bot single_var_left then (
-          let single_var_right = eval_assert_left_var (store, rel_ints) r_exp l_exp in
+          let single_var_right = eval_assert_left_var (store, rel_ints) r_exp l_exp true in
           if is_bot single_var_right then (
             (store, rel_ints)
           ) else
-            not_meet_with_new_equation single_var_right
+            Equations.meet_with_new_equation single_var_right
         ) else
-          not_meet_with_new_equation single_var_left
+          Equations.meet_with_new_equation single_var_left
       in
       (store, rel_ints)
-    | _ -> meet_with_new_equation (store, rel_ints)
+    | _ -> Equations.meet_with_new_equation (store, rel_ints)
 
   let get_value_of_variable var (store,_) =
-    IntStore.find var store
-
-  let remove_equations_with_variable (variable: Cil.varinfo) equations =
-    List.filter (fun (((var1: Cil.varinfo),_),((var2: Cil.varinfo),_),_) -> not(var1.vid = variable.vid) && not(var2.vid = variable.vid)) equations
+    IntStore.find (`Var var) store
 
   let remove_variable (var:  Cil.varinfo) (store, equations) =
-    IntStore.remove var store, (remove_equations_with_variable var equations)
-
-  let remove_all_top_variables (old_store, old_equations) =
-    let filtered_store =
-      IntStore.filter (fun variable value -> not(ID.is_top (IntStore.find variable old_store))) old_store in
-    filtered_store, filter_equations_for_useful_variables(filtered_store, old_equations)
+    IntStore.remove (`Var var) store, (Equations.remove_equations_with_key (`Var var) equations)
 
   let remove_all_local_variables (old_store, old_equations) =
-    let filtered_store =
-      IntStore.filter (fun variable value -> variable.vglob) old_store in
-    filtered_store, filter_equations_for_useful_variables(filtered_store, old_equations)
+    IntStore.fold (fun variable value (storeresult, equationsresult) ->
+        match variable with
+        | `Var var when var.vglob ->
+          IntStore.add variable value storeresult, equationsresult
+        | `Var var -> storeresult, (Equations.remove_equations_with_key variable equationsresult)
+        | _ -> (storeresult, equationsresult)
+      ) old_store (IntStore.top(), Equations.top())
 
   let select_local_or_global_variables_in_equation_list should_select_local equations =
     if should_select_local then
-      List.filter (fun (((var1: Cil.varinfo),_),((var2: Cil.varinfo),_),_) -> not(var1.vglob) && not(var2.vglob)) equations
+      Equations.filter (fun (var1, var2,_) ->
+          match var1, var2 with
+          | `Var var1, `Var var2 -> not(var1.vglob) && not(var2.vglob)
+          | _ -> false
+        ) equations
     else
-      List.filter (fun (((var1: Cil.varinfo),_),((var2: Cil.varinfo),_),_) -> var1.vglob && var2.vglob) equations
+      Equations.filter (fun (var1,var2,_) ->
+          match var1, var2 with
+          | `Var var1, `Var var2 -> var1.vglob && var2.vglob
+          | _ -> false
+        ) equations
+
+  let meet x y =
+    let store, equations = meet x y in
+    store, create_missing_equations equations store
 
   let meet_local_and_global_state local_state global_state =
-    let local_store, local_equations = local_state in
-    let local_store = IntStore.filter (fun variable _ -> not(variable.vglob)) local_store in
-    let local_equations = select_local_or_global_variables_in_equation_list true local_equations in
-    let global_store, global_equations = global_state in
-    let global_store = IntStore.filter (fun variable _ -> variable.vglob) global_store in
-    let global_equations = select_local_or_global_variables_in_equation_list false global_equations in
-    meet (local_store, local_equations) (global_store, global_equations)
+    if equal local_state global_state then local_state
+    else
+      let local_store, local_equations = local_state in
+      let local_store = IntStore.filter (fun variable _ ->
+          match variable with
+          | `Var variable -> not(variable.vglob)
+          | _ -> false
+        ) local_store in
+      let local_equations = select_local_or_global_variables_in_equation_list true local_equations in
+      let global_store, global_equations = global_state in
+      let global_store = IntStore.filter (fun variable _ ->
+        match variable with
+        | `Var variable -> variable.vglob
+        | _ -> false
+        ) global_store in
+      let global_equations = select_local_or_global_variables_in_equation_list false global_equations in
+      let met_store, equations =
+        meet (local_store, local_equations) (global_store, global_equations)
+      in
+      let equations =
+        IntStore.fold(
+          fun local_var _ equations ->
+            IntStore.fold(
+              fun global_var _ equations ->
+                Equations.add_equation (Equations.build_new_equation (local_var, (IntStore.find local_var met_store)) (global_var, (IntStore.find global_var met_store))) equations
+            ) global_store equations
+        ) local_store equations
+      in
+      met_store, equations
 
 end
 
+module type S = RelationalIntDomainSignature
+
 (* Took from IntDomain.IntDomTuple as example *)
-module RelationalIntDomainTuple : S =
+module RelationalIntDomainTuple : RelationalIntDomainSignature =
 struct
   open Batteries
   open Pretty
   let name () = "RelationalIntDomainTuple"
 
   module R1 = SimpleEquations
-  module R2 = ApronDomain.D
+  module R2 = ApronDomain.ApronRelationalIntDomain
 
   type t = R1.t option * R2.t option
   type 'a m = (module S with type t = 'a)
@@ -433,6 +379,7 @@ struct
   type 'b poly2_pr  = { f2p  : 'a. 'a m -> 'a -> 'a -> 'b }
   type 'b poly3_pr = { f3p  : 'a. 'a m -> 'b -> 'a -> 'a }
   type ('b, 'c) poly4_pr = { f4p  : 'a. 'a m -> 'b -> 'a -> 'c }
+  type ('b, 'c) poly5_pr = { f5p  : 'a. 'a m -> 'b -> 'c -> 'a -> 'a }
   type poly1 = { f1 : 'a. 'a m -> 'a -> 'a }
   type poly2 = { f2 : 'a. 'a m -> 'a -> 'a -> 'a }
 
@@ -441,12 +388,15 @@ struct
     f (R1.name ()) @@ r.fi (module R1), f (R2.name ()) @@ r.fi (module R2)
 
   let mapp r (a,b) = Option.(map (r.fp (module R1)) a, map (r.fp (module R2)) b)
+  let curry_2 f a b c = f (a, b, c)
   let opt_map2 f = curry @@ function | Some x, Some y -> Some (f x y) | _ -> None
   let opt_map3 f = curry @@ function | x, Some y -> Some (f x y) | _ -> None
+  let opt_map5 f = curry_2 @@ function | x, y, Some z -> Some (f x y z) | _ -> None
 
   let map2p r (xa,xb) (ya,yb) = opt_map2 (r.f2p (module R1)) xa ya, opt_map2 (r.f2p (module R2)) xb yb
   let map3p r x (ya,yb) = opt_map3 (r.f3p (module R1)) x ya,opt_map3 (r.f3p (module R2)) x yb
   let map4p r x (ya,yb) = (opt_map3 (r.f4p (module R1)) x ya), (opt_map3 (r.f4p (module R2)) x yb)
+  let map5p r x y (za,zb) = (opt_map5 (r.f5p (module R1)) x y za), (opt_map5 (r.f5p (module R2)) x y zb)
   let map2  r (xa,xb) (ya,yb) = opt_map2 (r.f2  (module R1)) xa ya, opt_map2 (r.f2(module R2)) xb yb
   let map r (a,b) = Option.(map (r.f1 (module R1)) a, map (r.f1 (module R2)) b)
   let to_list x = Tuple2.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
@@ -458,14 +408,10 @@ struct
 
   (* f1: unary ops *)
   let remove_all_local_variables = map { f1 = fun (type a) (module R:S with type t = a) -> R.remove_all_local_variables }
-  let remove_all_top_variables = map { f1 = fun (type a) (module R:S with type t = a) -> R.remove_all_top_variables }
 
   (* f3p: projections *)
   let add_variable_value_list = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.add_variable_value_list }
-  let add_variable_value_pair = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.add_variable_value_pair }
   let eval_assert_cil_exp = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.eval_assert_cil_exp }
-  let eval_assign_int_value = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.eval_assign_int_value }
-  let eval_assign_cil_exp = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.eval_assign_cil_exp }
   let remove_variable = map3p { f3p = fun (type a) (module R:S with type t = a) -> R.remove_variable }
 
   (* f4p: projections *)
@@ -475,6 +421,15 @@ struct
     | Some x, _ -> x
     | _, Some y -> y
     | _ -> ID.bot ()
+  let eval_cil_exp x y =
+    match map4p { f4p = fun (type a) (module R:S with type t = a) -> R.eval_cil_exp } x y with
+    | Some x, Some y -> ID.meet x y
+    | Some x, _ -> x
+    | _, Some y -> y
+    | _ -> ID.bot ()
+
+  (* f5p: projections *)
+  let assign_int_value = map5p { f5p = fun (type a) (module R:S with type t = a) -> R.assign_int_value }
 
   (* for_all *)
   let is_bot x = for_all ((mapp { fp = fun (type a) (module R:S with type t = a) -> R.is_bot }) x)
