@@ -27,14 +27,6 @@ let warn_higw = ref stdout
 let warn_lowr = ref stdout
 let warn_loww = ref stdout
 
-(*let warn_race = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_race.txt") else warn_out
-  let warn_safe = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_safe.txt") else warn_out
-  let warn_higr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highreadrace.txt") else warn_out
-  let warn_higw = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_highwriterace.txt") else warn_out
-  let warn_lowr = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowreadrace.txt") else warn_out
-  let warn_loww = if get_bool "ana.osek.warnfiles" then ref (open_out "goblint_warnings_lowwriterace.txt") else warn_out*)
-
-
 let init_warn_files () =
   warn_race := (open_out "goblint_warnings_race.txt");
   warn_safe := (open_out "goblint_warnings_safe.txt");
@@ -46,8 +38,6 @@ let init_warn_files () =
 let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative
   | path -> open_out (Filename.concat path (name ^ ".out"))
-
-let xml_warn : (location, (string*string) list) Hashtbl.t = Hashtbl.create 10
 
 let colorize ?on:(on=get_bool "colors") msg =
   let colors = [("gray", "30"); ("red", "31"); ("green", "32"); ("yellow", "33"); ("blue", "34");
@@ -109,9 +99,6 @@ let warn_urgent msg =
     soundness := false;
     print_msg msg (!Tracing.current_loc)
   end
-
-let write msg =
-  print_msg msg !Tracing.current_loc
 
 let warn_all msg =
   if not !GU.may_narrow then begin
