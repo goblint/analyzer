@@ -416,6 +416,8 @@ end
 *)
 type ('d,'g) ctx =
   { ask      : Queries.t -> Queries.Result.t
+  ; node     : MyCFG.node
+  ; context  : Obj.t
   ; local    : 'd
   ; global   : varinfo -> 'g
   ; presub   : (string * Obj.t) list

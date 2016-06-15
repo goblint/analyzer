@@ -408,6 +408,8 @@ struct
     let f post_all (n,(module S:Spec),d) =
       let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -432,6 +434,8 @@ struct
     let f a (n,(module S:Spec),d) =
       let ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= []
@@ -476,6 +480,8 @@ struct
     let f (po,lo) (n, (module S: Spec), d) : part = 
       let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= []
@@ -562,6 +568,8 @@ struct
     let f post_all (n,(module S:Spec),d) =
       let ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -588,6 +596,8 @@ struct
     let f post_all (n,(module S:Spec),d) =
       let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -615,6 +625,8 @@ struct
     let f post_all (n,(module S:Spec),d) =
       let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -642,6 +654,8 @@ struct
     let f post_all (n,(module S:Spec),d) =
       let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -669,6 +683,8 @@ struct
     let f post_all (n,(module S:Spec),d) =
       let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
@@ -695,6 +711,8 @@ struct
     let f (n,(module S:Spec),d) (dl,cs) =
       let ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= []
@@ -720,6 +738,8 @@ struct
     let f (n,(module S:Spec),d) =
       let ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= []
@@ -744,6 +764,8 @@ struct
     let f post_all (n,(module S:Spec),d) =
       let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
+        ; node   = ctx.node
+        ; context = ctx.context
         ; ask    = query ctx
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all

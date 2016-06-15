@@ -8,6 +8,19 @@ open Analyses
 open GobConfig
 open Constraints
 
+module type S2S = functor (X : Spec) -> Spec
+(* gets Spec for current options *)
+let get_spec () : (module Spec) =
+  let open Batteries in
+  (* apply functor F on module X if opt is true *)
+  let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
+  (module (val
+    (module PathSensitive2 (MCP.MCP2) : Spec)
+    |> lift (get_bool "ana.hashcons") (module HashconsLifter)
+    |> lift true (module DeadCodeLifter)
+    |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
+  ))
+
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) =
 struct
@@ -372,6 +385,8 @@ struct
     let do_global_inits (file: file) : Spec.D.t * fundec list =
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
+        ; node    = MyCFG.dummy_node
+        ; context = Obj.repr (fun () -> failwith "Global initializers have no context.")
         ; local   = Spec.D.top ()
         ; global  = (fun _ -> Spec.G.bot ())
         ; presub  = []
@@ -435,6 +450,8 @@ struct
       let st = st fd.svar in
       let ctx =
         { ask     = (fun _ -> Queries.Result.top ())
+        ; node    = MyCFG.dummy_node
+        ; context = Obj.repr (fun () -> failwith "enter_func has no context.")
         ; local   = st
         ; global  = (fun _ -> Spec.G.bot ())
         ; presub  = []
@@ -557,6 +574,8 @@ struct
         (* build a ctx for using the query system *)
         let rec ctx =
           { ask    = query
+          ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+          ; context = Obj.repr (fun () -> failwith "No context in query context.")
           ; local  = Hashtbl.find joined loc
           ; global = GHT.find gh
           ; presub = []
@@ -608,23 +627,11 @@ struct
     Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
 
 
-  module type S2S = functor (X : Spec) -> Spec
   let analyze file fs =
     if get_bool "exp.backwards" then
       analyzeBackwards file fs (module UnitBackwardSpec)
     else begin
-      let open Batteries in
-      (* apply functor F on module X if opt is true *)
-      let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
-      let module S =
-        (val
-          (module PathSensitive2 (MCP.MCP2) : Spec)
-          |> lift (get_bool "ana.hashcons") (module HashconsLifter)
-          |> lift true (module DeadCodeLifter)
-          |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
-        )
-      in
-      analyze file fs (module S)
+      analyze file fs (get_spec ())
     end
 end
 

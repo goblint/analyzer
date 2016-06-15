@@ -150,6 +150,7 @@ let do_the_params (fd: fundec) =
 
 let unknown_exp : exp = mkString "__unknown_value__"
 let dummy_func = emptyFunction "__goblint_dummy_init"
+let dummy_node = FunctionEntry Cil.dummyFunDec.svar
 
 let getLoc (node: node) =
   match node with
