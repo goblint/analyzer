@@ -7,8 +7,7 @@ matrix:
 language: c
 git:
   submodules: false
-install: bash -ex scripts/travis-ci.sh
-before_script: ./make.sh headers
+install: bash -ex scripts/travis-ci.sh poly
 script: ruby scripts/update_suite.rb
 notifications:
   webhooks:
