@@ -114,7 +114,7 @@ struct
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | _ -> []
 
-  let lock ctx rw may_fail a lv arglist ls =
+  let lock ctx rw may_fail return_value_when_aquired a lv arglist ls =
     let is_a_blob addr =
       match LockDomain.Addr.to_var addr with
       | [a] -> a.vname.[0] = '('
@@ -128,8 +128,8 @@ struct
         match lv with
         | None -> if may_fail then ls else nls
         | Some lv ->
-          ctx.split nls (Lval lv) false;
-          if may_fail then ctx.split ls (Lval lv) true;
+          ctx.split nls (Lval lv ) return_value_when_aquired;
+          if may_fail then ctx.split ls (Lval lv) (not return_value_when_aquired);
           raise Analyses.Deadcode
       end
     in
@@ -217,9 +217,9 @@ struct
       -> Lockset.add (big_kernel_lock,true) ctx.local
     | _, "_unlock_kernel"
       -> Lockset.remove (big_kernel_lock,true) ctx.local
-    | `Lock (failing, rw), _
+    | `Lock (failing, rw, zero_return_when_aquired), _
       -> let arglist = if f.vname = "LAP_Se_WaitSemaphore" then [List.hd arglist] else arglist in
-      lock ctx rw failing ctx.ask lv arglist ctx.local
+      lock ctx rw failing zero_return_when_aquired ctx.ask lv arglist ctx.local
     | `Unlock, "__raw_read_unlock"
     | `Unlock, "__raw_write_unlock"  ->
       let drop_raw_lock x =

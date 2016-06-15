@@ -269,7 +269,7 @@ let compute_ceiling_priority res r_value =
 
 let handle_attribute_os attr =
   let tmp, value = attr in
-  let name = String.uppercase tmp in
+  let name = String.uppercase_ascii tmp in
   let get_bool value =
     match value with
     | Bool (x,_) -> x
@@ -287,17 +287,17 @@ let handle_attribute_os attr =
 let handle_attribute_task object_name t_value (attr : (string*attribute_v)) =
   let (sched,pry,res_list,event_list,timetriggered,autostart,activation) = t_value in
   let tmp, value = attr in
-  let a_name = String.uppercase tmp in
+  let a_name = String.uppercase_ascii tmp in
   match a_name with
   | "SCHEDULE" -> (match value with
-      | Name (sched,_)  -> ( match (String.uppercase sched) with  (*This should not occur *)
+      | Name (sched,_)  -> ( match (String.uppercase_ascii sched) with  (*This should not occur *)
           | "NON"   ->false,pry,res_list,event_list,timetriggered,autostart,activation
           | "FULL"  ->true, pry,res_list,event_list,timetriggered,autostart,activation
           | other  ->
             if tracing then trace "oil" "Wrong value (%s) for attribute SCHEDULE of TASK %s\n" other object_name;
             t_value
         )
-      | String sched  -> ( match (String.uppercase sched) with
+      | String sched  -> ( match (String.uppercase_ascii sched) with
           | "NON"   ->false,pry,res_list,event_list,timetriggered,autostart,activation
           | "FULL"  ->true, pry,res_list,event_list,timetriggered,autostart,activation
           | other  ->
@@ -360,7 +360,7 @@ let handle_attribute_task object_name t_value (attr : (string*attribute_v)) =
 let handle_attribute_isr object_name i_value (attr : (string*attribute_v)) =
   let (pry,res_list,category) = i_value in
   let tmp, value = attr in
-  let a_name = String.uppercase tmp in
+  let a_name = String.uppercase_ascii tmp in
   match a_name with
   | "CATEGORY" -> (match value with
       | Int c  -> (match c with
@@ -408,7 +408,7 @@ let handle_attribute_isr object_name i_value (attr : (string*attribute_v)) =
     i_value
 
 let handle_action_alarm object_name attr =
-  let subaction, target = attr in (match (String.uppercase subaction) with
+  let subaction, target = attr in (match (String.uppercase_ascii subaction) with
       | "TASK" -> (match target with
           | Name (name,None) -> let task = make_task name in
             if tracing then trace "oil" "ActivateTask %s as Name\n" task;
@@ -430,7 +430,7 @@ let handle_action_alarm object_name attr =
     )
 
 let handle_event_alarm object_name attr =
-  let subaction, target = attr in (match (String.uppercase subaction) with
+  let subaction, target = attr in (match (String.uppercase_ascii subaction) with
       | "EVENT" ->
         if tracing then trace "oil" "Handling parameter EVENT for SETEVENT of ALARM %s\n" object_name;
         let helper (a,_) = (a,true) in (match target with
@@ -452,10 +452,10 @@ let handle_event_alarm object_name attr =
 
 let handle_attribute_alarm object_name attr =
   let tmp, value = attr in
-  let name = String.uppercase tmp in
+  let name = String.uppercase_ascii tmp in
   match name with
   | "ACTION" -> (match value with
-      | Name (action,params)  -> ( match (String.uppercase action) with
+      | Name (action,params)  -> ( match (String.uppercase_ascii action) with
           | "ACTIVATETASK" -> ( match params with
               | None ->
                 if tracing then trace "oil" "No argument for ACTIVATETASK of ALARM %s\n" object_name
@@ -489,10 +489,10 @@ let handle_attribute_alarm object_name attr =
 
 let handle_attribute_resource object_name attr =
   let tmp, value = attr in
-  let name = String.uppercase tmp in
+  let name = String.uppercase_ascii tmp in
   match name with
   | "RESOURCEPROPERTY" -> (match value with
-      | Name (action,params)  -> ( match (String.uppercase action) with
+      | Name (action,params)  -> ( match (String.uppercase_ascii action) with
           | "STANDARD" -> ()
           | "LINKED" -> print_endline("Found LINKED RESOURCE " ^ object_name);
             (* TODO? subresources???
@@ -515,7 +515,7 @@ let handle_attribute_resource object_name attr =
 let handle_attribute_event object_name attr =
   let _ = Hashtbl.replace events object_name ("-1",false) in
   let tmp, value = attr in
-  let name = String.uppercase tmp in
+  let name = String.uppercase_ascii tmp in
   match name with
   | "MASK" ->
     if tracing then trace "oil" "Skipped MASK of EVENT %s\n" object_name

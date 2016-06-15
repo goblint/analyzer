@@ -10,7 +10,7 @@ type categories = [
   | `Malloc
   | `Calloc
   | `Assert       of exp
-  | `Lock         of bool * bool (* try? * write? *)
+  | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
   | `ThreadCreate of exp * exp (* f  * x       *)
   | `ThreadJoin   of exp * exp (* id * ret_var *)
@@ -37,21 +37,24 @@ let classify' fn exps =
       | [e] -> `Assert e
       | _ -> M.bailwith "Assert argument mismatch!"
     end
-  | "_spin_trylock" | "_spin_trylock_irqsave" | "pthread_mutex_trylock"
-  | "pthread_rwlock_trywrlock" | "mutex_trylock"
-    -> `Lock (true, true)
+  | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
+    -> `Lock(true, true, true)
+  | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock"
+    -> `Lock (true, true, false)
   | "LAP_Se_WaitSemaphore" (* TODO: only handle those when arinc analysis is enabled? *)
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
-  | "pthread_mutex_lock" | "__pthread_mutex_lock" | "pthread_rwlock_wrlock" | "GetResource"
-  | "_raw_spin_lock" | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave"
-    -> `Lock (get_bool "exp.failing-locks", true)
+  | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
+  | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave"
+    -> `Lock (get_bool "exp.failing-locks", true, true)
+  | "pthread_mutex_lock" | "__pthread_mutex_lock"
+    -> `Lock (get_bool "exp.failing-locks", true, false)
   | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
   | "down_read"
-    -> `Lock (get_bool "exp.failing-locks", false)
+    -> `Lock (get_bool "exp.failing-locks", false, true)
   | "LAP_Se_SignalSemaphore"
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
-  | "_spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
+  | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
   | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
     -> `Unlock
@@ -425,7 +428,7 @@ let get_threadsafe_inv_ac name =
 
 
 module StringSet = Set.Make(String)
-let lib_funs = ref (StringSet.of_list ["list_empty"; "kzalloc"; "kmalloc"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_unlock_irqrestore"])
+let lib_funs = ref (StringSet.of_list ["list_empty"; "kzalloc"; "kmalloc"; "__raw_read_unlock"; "__raw_write_unlock"; "spinlock_check"; "spin_trylock"; "spin_unlock_irqrestore"])
 let add_lib_funs funs = lib_funs := List.fold_right StringSet.add funs !lib_funs
 let use_special fn_name = StringSet.mem fn_name !lib_funs
 

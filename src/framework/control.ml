@@ -486,6 +486,7 @@ struct
     let local_xml = ref (Result.create 0) in
     let global_xml = ref (GHT.create 0) in
     let do_analyze_using_solver () =
+      if get_bool "dbg.earlywarn" then Goblintutil.may_narrow := false;
       let lh, gh = Stats.time "solving" (Slvr.solve entrystates []) startvars' in
 
       if not (get_string "comparesolver"="") then begin

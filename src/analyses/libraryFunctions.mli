@@ -6,7 +6,7 @@ type categories = [
   | `Malloc
   | `Calloc
   | `Assert       of exp
-  | `Lock         of bool * bool (* try? * write? *)
+  | `Lock         of bool * bool * bool (* try? * write? *)
   | `Unlock
   | `ThreadCreate of exp * exp
   | `ThreadJoin   of exp * exp

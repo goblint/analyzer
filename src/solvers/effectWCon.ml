@@ -112,7 +112,6 @@ struct
     in
     start_event ();
     interact_init ();
-    GU.may_narrow := false;
     let add_start (v,d) =
       incr Goblintutil.vars;
       LH.add sigma v d;

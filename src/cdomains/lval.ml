@@ -260,62 +260,60 @@ struct
   let unknown_ptr () = UnknownPtr
   let is_unknown = function UnknownPtr -> true | _ -> false
 
-  let is_null a =
-    match a with
-    | NullPtr -> true
-    | _ -> false
+  let is_null a = a = NullPtr
 
-  let get_location x =
-    match x with
+  let get_location = function
     | Addr (x,_) -> x.vdecl
     | _ -> builtinLoc
 
-  let classify x =
-    match x with
+  let classify = function
     | Addr (x,_) when x.vglob -> 2
     | Addr (x,_) when x.vdecl.line = -1 -> -1
     | Addr (x,_) when x.vdecl.line = -3 -> 5
     | Addr (x,_) when x.vdecl.line = -4 -> 4
     | _ -> 1
 
-  let class_name n =
-    match n with
+  let class_name = function
     |  1 -> "Local"
     |  2 -> "Global"
     |  4 -> "Context"
     |  5 -> "Parameter"
     | -1 -> "Temp"
     |  _ -> "None"
-  let from_var x = Addr (x, `NoOffset)
 
+  let from_var x = Addr (x, `NoOffset)
   let from_var_offset x = Addr x
 
-  let to_var a =
-    match a with
+  let to_var = function
     | Addr (x,_) -> [x]
     | _          -> []
-  let to_var_may a =
-    match a with
+  let to_var_may = function
     | Addr (x,_) -> [x]
     | _          -> []
-  let to_var_must a =
-    match a with
+  let to_var_must = function
     | Addr (x,`NoOffset) -> [x]
     | _                  -> []
-
-  let to_var_offset a =
-    match a with
+  let to_var_offset = function
     | Addr x -> [x]
     | _      -> []
 
   (* strings *)
   let from_string x = StrPtr x
-  let to_string x =
-    match x with
+  let to_string = function
     | StrPtr x -> [x]
     | _        -> []
 
-  let get_type_addr (x, ofs) =
+  let rec type_offset t o = match unrollType t, o with (* resolves TNamed *)
+    | t, `NoOffset -> t
+    | TArray (t,_,_), `Index (i,o)
+    | TPtr (t,_), `Index (i,o) -> type_offset t o
+    | TComp (ci,_), `Field (f,o) ->
+      let fi = try getCompField ci f.fname
+        with Not_found -> raise (Failure ("Addr.type_offset: field "^f.fname^" not found"))
+      in type_offset fi.ftype o
+    | _ -> raise (Failure "Addr.type_offset: type error")
+
+  let get_type_addr (x, ofs) = (* TODO remove in favor of type_offset *)
     let unarray t = match t with
       | TArray (t,_,_) -> t
       | _ -> failwith "C'est Unpossible!"
@@ -326,8 +324,7 @@ struct
     in
     find_type x.vtype ofs
 
-  let get_type x =
-    match x with
+  let get_type = function
     | Addr x   -> get_type_addr x
     | StrPtr _  (* TODO Cil.charConstPtrType? *)
     | SafePtr  -> charPtrType
@@ -347,8 +344,7 @@ struct
     in
     GU.demangle x.vname ^ off_str offs
 
-  let short _ x =
-    match x with
+  let short _ = function
     | Addr x     -> short_addr x
     | StrPtr x   -> x
     | UnknownPtr -> "?"
@@ -357,20 +353,13 @@ struct
     | Bot        -> "bot"
     | Top        -> "top"
 
-  let hash x =
-    let rec hash = function
-      | `NoOffset -> 1
-      | `Index(i,o) -> Idx.hash i * 35 * hash o
-      | `Field(f,o) -> Hashtbl.hash f.fname * hash o
-    in
-    match x with
-    | Addr (v,o) -> v.vid * hash o
-    | StrPtr x   -> Hashtbl.hash x
-    | UnknownPtr -> 12341234
-    | SafePtr    -> 46263754
-    | NullPtr    -> 1265262
-    | Bot        -> 4554434
-    | Top        -> 445225637
+  let rec hash_offset = function
+    | `NoOffset -> 1
+    | `Index(i,o) -> Idx.hash i * 35 * hash_offset o
+    | `Field(f,o) -> Hashtbl.hash f.fname * hash_offset o
+  let hash = function
+    | Addr (v,o) -> v.vid * hash_offset o
+    | x -> Hashtbl.hash x
 
   let equal x y =
     let rec eq_offs x y =
@@ -396,10 +385,9 @@ struct
     let info = "id=" ^ esc (string_of_int x.vid) ^ "; type=" ^ typeinf in
     Xml.Element ("Leaf", [("text", esc (sf max_int (Addr (x,y)))); ("info", info)],[])
 
-  let toXML_f sf x =
-    match x with
+  let toXML_f sf = function
     | Addr x  -> toXML_f_addr sf x
-    | _ -> Xml.Element ("Leaf", [("text", short max_int x)],[])
+    | x -> Xml.Element ("Leaf", [("text", short max_int x)],[])
 
   let pretty_f sf () x = Pretty.text (sf max_int x)
 
@@ -421,16 +409,18 @@ struct
     | UnknownPtr
     | Top     -> raise Lattice.TopValue
     | Bot     -> raise Lattice.BotValue
-  let add_offset x o =
-    let rec append x y =
-      match x with
-      | `NoOffset    -> y
-      | `Index (i,x) -> `Index (i, append x o)
-      | `Field (f,x) -> `Field (f, append x o)
-    in
-    match x with
-    | Addr (v, u) -> Addr (v, append u o)
+  let rec add_offsets x y = match x with
+    | `NoOffset    -> y
+    | `Index (i,x) -> `Index (i, add_offsets x y)
+    | `Field (f,x) -> `Field (f, add_offsets x y)
+  let add_offset x o = match x with
+    | Addr (v, u) -> Addr (v, add_offsets u o)
     | x -> x
+  let rec remove_offset = function
+    | `NoOffset -> `NoOffset
+    | `Index (_,`NoOffset) | `Field (_,`NoOffset) -> `NoOffset
+    | `Index (i,o) -> `Index (i, remove_offset o)
+    | `Field (f,o) -> `Field (f, remove_offset o)
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
 end
@@ -590,12 +580,12 @@ struct
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
 
-  let rec printInnerXml f = function 
-  | [] -> ()
-  | (`Left x :: xs) -> 
-    BatPrintf.fprintf f ".%a%a" F.printXml x printXml xs
-  | (`Right x :: xs) -> 
-    BatPrintf.fprintf f "[%a]%a" I.printXml x printXml xs
+  let rec printInnerXml f = function
+    | [] -> ()
+    | (`Left x :: xs) ->
+      BatPrintf.fprintf f ".%a%a" F.printXml x printXml xs
+    | (`Right x :: xs) ->
+      BatPrintf.fprintf f "[%a]%a" I.printXml x printXml xs
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
 

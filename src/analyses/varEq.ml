@@ -486,6 +486,7 @@ struct
 
   let safe_fn = function
     | "memcpy" -> true
+    | "__builtin_return_address" -> true
     | _ -> false
 
   (* remove all variables that are reachable from arguments *)

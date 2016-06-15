@@ -38,7 +38,7 @@ struct
     let thread = Obj.obj (List.assoc "thread-id-location" ctx.presub) in
     let maylocks = Obj.obj (List.assoc "maylocks" ctx.presub) in
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
-    | `Lock (failing, rw), _ when add_access ctx.local maylocks thread ->
+    | `Lock (failing, rw, _), _ when add_access ctx.local maylocks thread ->
       if add_gatelock ctx.local maylocks thread then begin
         let nd = MSpec.special ctx None f [AddrOf (Var gate_var, NoOffset)] in
         let nd = MSpec.assign (swap_st ctx nd) (Var extra_var, NoOffset) one in

@@ -506,7 +506,7 @@ struct
     in
     let add_access_struct conf ci =
       let (po,pd) = part_access ctx e None w in
-      Access.add_struct e w conf (`Struct (ci,NoOffset)) None (po,pd)
+      Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
     in
     let has_escaped g = 
       match ctx.ask (Queries.MayEscape g) with

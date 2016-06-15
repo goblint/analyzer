@@ -512,19 +512,10 @@ end
 module Flattened = Flat (Integers)
 module Lifted    = Lift (Integers)
 
-module Reverse (Base: S) = (* TODO: (almost) copy of Lattice.Reverse... *)
+module Reverse (Base: S) =
 struct
   include Base
-  let bot = Base.top
-  let is_bot = Base.is_top
-  let top = Base.bot
-  let is_top = Base.is_bot
-  let leq x y = Base.leq y x
-  let join x y = Base.meet x y
-  let meet x y = Base.join x y
-  let name () = "Reversed (" ^ name () ^ ")"
-  let pretty_diff () (x,y) =
-    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  include (Lattice.Reverse (Base) : Lattice.S with type t := Base.t)
 end
 
 module Trier =
@@ -1797,6 +1788,7 @@ module Booleans = MakeBooleans (
     let falsename = "False"
   end)
 
+(*
 module None : S with type t = unit  =
 struct
   include Printable.Std
@@ -1861,8 +1853,9 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
+*)
 
-
+(*
 module ManyInts : S =
 struct
   module I1 = Trier
@@ -2045,7 +2038,9 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
 end
+*)
 
+(*
 module IntDomList : S = (* deprecated, use IntDomTuple below *)
 struct
   include Printable.Std
@@ -2559,6 +2554,7 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
 end
+*)
 
 module Enums : S = struct
   open Batteries

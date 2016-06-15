@@ -39,14 +39,14 @@ struct
     | b -> Messages.warn ("Could not evaluate '"^sprint 30 (d_exp () exp)^"' to an points-to set, instead got '"^Queries.Result.short 60 b^"'."); []
 
   (* locking logic -- add all locks we can add *)
-  let lock ctx rw may_fail a lv arglist ls : D.ReverseAddrSet.t =
+  let lock ctx rw may_fail return_value_on_success a lv arglist ls : D.ReverseAddrSet.t =
     let add_one ls e = D.add (e,rw) ls in
     let nls = List.fold_left add_one ls (List.concat (List.map (eval_exp_addr a) arglist)) in
     match lv with
     | None -> nls
     | Some lv ->
-      ctx.split nls (Lval lv) false;
-      if may_fail then ctx.split ls (Lval lv) true;
+      ctx.split nls (Lval lv) return_value_on_success;
+      if may_fail then ctx.split ls (Lval lv) (not return_value_on_success);
       raise Analyses.Deadcode
 
   (* transfer function to handle library functions --- for us locking & unlocking *)
@@ -62,8 +62,8 @@ struct
       | _ -> ctx.local
     in
     match (LibraryFunctions.classify f.vname arglist, f.vname) with
-    | `Lock (failing, rw), _
-      -> lock ctx rw failing ctx.ask lv arglist ctx.local
+    | `Lock (failing, rw, return_value_on_success), _
+      -> lock ctx rw failing return_value_on_success ctx.ask lv arglist ctx.local
     | `Unlock, _
       -> unlock remove_rw
 

@@ -243,7 +243,7 @@ struct
       `Blob (B.join (x:t) ((B.make 0 y):t))
     | x, y ->
       (* let _ = printf "%a\n" pretty_diff (x,y) in *)
-      let _ = printf "Compound.join: %s\n%s\n" (short 1000 x) (short 1000 y) in
+      (* let _ = printf "Compound.join: %s\n%s\n" (short 1000 x) (short 1000 y) in *)
       (* failwith "missing cast?!" *)
       `Top
 

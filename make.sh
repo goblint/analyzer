@@ -79,10 +79,10 @@ rule() {
              ;;
     depend)  echo "No!";;
     setup)   echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
-             opam init --comp=4.02.3
+             opam init --comp=4.03.0
              setuprest
              ;;
-    travis)  opam init
+    travis)  opam init --comp=4.03.0
              setuprest
              ;;
     dev)     opam install utop merlin ocp-indent ocp-index
@@ -97,6 +97,8 @@ rule() {
     poly)    echo "open Poly" >> $TARGET.ml
 	     $OCAMLBUILD $FLAGS_POLY $TARGET.native &&
              cp _build/$TARGET.native goblint
+             ;;
+    watch)   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
              ;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
