@@ -91,6 +91,7 @@ rule() {
     header*) wget http://www.ut.ee/~vesal/linux-headers.tar.xz
              tar xf linux-headers.tar.xz
              rm linux-headers.tar.xz
+             cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc6.h
              ;;
     poly)    echo "open ApronDomain" >> $TARGET.ml
              echo "open Poly" >> $TARGET.ml
