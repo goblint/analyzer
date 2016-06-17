@@ -99,6 +99,8 @@ rule() {
              ;;
     watch)   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
              ;;
+    test)    ./scripts/update_suite.rb
+             ;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
 
