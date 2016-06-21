@@ -375,22 +375,6 @@ struct
     | [x,ofs] -> Addr.from_var_offset (x, add_offset ofs add)
     | _ -> ad
 
-  (* Get width in bits of a CIL type *)
-  let get_type_width t =
-    match t with
-    | IChar -> 8
-    | ISChar -> 8
-    | IUChar -> 8
-    | IBool -> 1
-    | IInt -> 32
-    | IUInt -> 32
-    | IShort -> 8
-    | IUShort -> 8
-    | ILong -> 64
-    | IULong -> 64
-    | ILongLong -> 64
-    | IULongLong -> 64
-
   (* evaluate value using our "query functions" *)
   let eval_rv_pre (ask: Q.ask) exp pr =
     let binop op e1 e2 =
@@ -399,13 +383,14 @@ struct
         | `Bool x -> Some x
         | _ -> None
       in
+      let ptrdiff_ikind = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
       match op with
       | MinusA
       | MinusPI
       | MinusPP when equality () = Some true -> Some (`Int (ID.of_int 0L))
       | MinusA
       | MinusPI
-      | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list [0L]))
+      | MinusPP when equality () = Some false -> Some (`Int (ID.of_excl_list ptrdiff_ikind [0L]))
       | Le
       | Ge when equality () = Some true -> Some (`Int (ID.of_bool true))
       | Lt
@@ -491,8 +476,7 @@ struct
             | TInt _, `Address a ->
               `Int (ID.top ())
             | Cil.TInt (k,_), `Int a ->
-              let w = get_type_width k in
-              `Int (ID.cast_to_width w a)
+              `Int (ID.cast_to k a)
             (* | TPtr (_,_), `Address -> assert false (* TODO *) *)
             | _, s -> s (* TODO care about casts... *)
           end
@@ -579,11 +563,11 @@ struct
       match prior_value with
       | `Int prior_value  -> (
           match ID.to_excl_list prior_value with
-          | Some prior_excl_list -> `Int (ID.meet (ID.of_excl_list prior_excl_list) (ID.of_excl_list excl_list))
-          | _ -> `Int (ID.of_excl_list excl_list)
+          | Some prior_excl_list -> `Int (ID.meet (ID.of_excl_list ILongLong prior_excl_list) (ID.of_excl_list ILongLong excl_list)) (* TODO use something better than ILongLong? *)
+          | _ -> `Int (ID.of_excl_list ILongLong excl_list)
         )
       | `Bot -> `Bot
-      | _ -> `Int (ID.of_excl_list excl_list)
+      | _ -> `Int (ID.of_excl_list ILongLong excl_list)
     in
     match ask question with
     | `Int x -> (
@@ -702,7 +686,7 @@ struct
               | Some n ->
                 (* When x != n, we can return a singleton exclusion set *)
                 if M.tracing then M.tracec "invariant" "Yes, %a is not %Ld\n" d_lval x n;
-                Some (x, `Int (ID.of_excl_list [n]))
+                Some (x, `Int (ID.of_excl_list ILongLong [n]))
               | None -> None
             end
           | `Address n -> begin
@@ -1286,7 +1270,7 @@ struct
       end
     | Q.EvalIntSet e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
-        | `Int e -> (match ID.to_excl_list e with Some l -> `IntSet (IntDomain.Enums.of_excl_list l) | _ -> `Top)
+        | `Int e -> (match ID.to_excl_list e with Some l -> `IntSet (IntDomain.Enums.of_excl_list ILongLong l) | _ -> `Top)
         | `Bot   -> `Bot
         | _      -> `Top
       end
