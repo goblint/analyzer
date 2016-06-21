@@ -131,11 +131,16 @@ let report_error msg =
     print_err msg loc
   end
 
+let with_context msg = function
+  | Some ctx when GobConfig.get_bool "dbg.warn_with_context" -> msg ^ " in context " ^ string_of_int (Hashtbl.hash ctx)
+  | _ -> msg
+
 let warn_str_hashtbl = Hashtbl.create 10
 let warn_lin_hashtbl = Hashtbl.create 10
 
-let warn msg =
+let warn ?ctx msg =
   if not !GU.may_narrow then begin
+    let msg = with_context msg ctx in
     if (Hashtbl.mem warn_str_hashtbl msg == false) then
       begin
         warn_all msg;
@@ -143,15 +148,25 @@ let warn msg =
       end
   end
 
-let warn_each msg =
+let warn_each ?ctx msg =
   if not !GU.may_narrow then begin
     let loc = !Tracing.current_loc in
+    let msg = with_context msg ctx in
     if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
       begin
         warn_all msg;
         Hashtbl.add warn_lin_hashtbl (msg,loc) true
       end
   end
+
+(*
+let warn_each_ctx ctx msg = (* cyclic dependency... *)
+  if not @@ GobConfig.get_bool "dbg.warn_with_context" then warn_each msg else
+  (* let module S = (val Control.get_spec ()) in *)
+  (* warn_each (msg ^ " in context " ^ S.C.short 99999 (Obj.obj ctx.context ())) *)
+  (* warn_each (msg ^ " in context " ^ IO.to_string S.C.printXml (Obj.obj ctx.context ())) *)
+  warn_each (msg ^ " in context " ^ string_of_int (Hashtbl.hash (Obj.obj ctx.context ())))
+*)
 
 let debug msg =
   if (get_bool "dbg.debug") then warn ("{BLUE}"^msg)

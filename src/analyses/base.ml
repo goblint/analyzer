@@ -1462,16 +1462,16 @@ struct
     let expr () = sprint ~width:80 (d_exp () e) in
     match check_assert e ctx.local with
     | `False ->
-      if warn then M.warn_each ("Assertion \"" ^ expr () ^ "\" will fail.");
+      if warn then M.warn_each ~ctx:ctx.context ("Assertion \"" ^ expr () ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
     | `True ->
-      if warn then M.warn_each ("Assertion \"" ^ expr () ^ "\" will succeed");
+      if warn then M.warn_each ~ctx:ctx.context ("Assertion \"" ^ expr () ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      M.warn_each ("Assertion \"" ^ expr () ^ "\" produces a bottom. What does that mean?");
+      M.warn_each ~ctx:ctx.context ("Assertion \"" ^ expr () ^ "\" produces a bottom. What does that mean?");
       ctx.local
     | `Top ->
-      if warn then M.warn_each ("Assertion \"" ^ expr () ^ "\" is unknown.");
+      if warn then M.warn_each ~ctx:ctx.context ("Assertion \"" ^ expr () ^ "\" is unknown.");
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx.ask ctx.global ctx.local e true in

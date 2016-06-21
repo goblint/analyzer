@@ -191,6 +191,7 @@ let _ = ()
       ; reg Debugging "dbg.slice.on"        "false" "Turn slicer on or off."
       ; reg Debugging "dbg.slice.n"         "10"    "How deep function stack do we analyze."
       ; reg Debugging "dbg.earlywarn"       "false" "Output warnings already while solving (may lead to spurious warnings/asserts)."
+      ; reg Debugging "dbg.warn_with_context" "false" "Keep warnings for different contexts apart (currently only done for asserts)."
 
 let default_schema = "\
 { 'id'              : 'root'
