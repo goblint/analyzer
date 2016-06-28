@@ -88,7 +88,7 @@ rule() {
              pushd .git/hooks; ln -s ../../scripts/hooks/pre-commit; popd
              echo "Pre-commit hook installed!"
              ;;
-    header*) wget http://www.ut.ee/~vesal/linux-headers.tar.xz
+    header*) wget https://github.com/goblint/bench/releases/download/v4.0/linux-headers.tar.xz
              tar xf linux-headers.tar.xz
              rm linux-headers.tar.xz
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc6.h
