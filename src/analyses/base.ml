@@ -1444,18 +1444,28 @@ struct
       | _ -> `Top
     in
     let expr () = sprint ~width:80 (d_exp () e) in
+    let warn ?annot msg = if warn then
+      if get_bool "dbg.regression" then (
+        let loc = !M.current_loc in
+        let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
+        let expected = let open Str in if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
+        if expected <> annot then
+          M.warn_each ~ctx:ctx.context (msg ^ " Expected: " ^ (expected |? "SUCCESS"))
+      ) else
+        M.warn_each ~ctx:ctx.context msg
+    in
     match check_assert e ctx.local with
     | `False ->
-      if warn then M.warn_each ~ctx:ctx.context ("{red}Assertion \"" ^ expr () ^ "\" will fail.");
+      warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr () ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
     | `True ->
-      if warn then M.warn_each ~ctx:ctx.context ("{green}Assertion \"" ^ expr () ^ "\" will succeed");
+      warn ("{green}Assertion \"" ^ expr () ^ "\" will succeed");
       ctx.local
     | `Bot ->
       M.warn_each ~ctx:ctx.context ("{red}Assertion \"" ^ expr () ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
       ctx.local
     | `Top ->
-      if warn then M.warn_each ~ctx:ctx.context ("{yellow}Assertion \"" ^ expr () ^ "\" is unknown.");
+      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr () ^ "\" is unknown.");
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx.ask ctx.global ctx.local e true in
