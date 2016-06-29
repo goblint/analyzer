@@ -1,5 +1,6 @@
 #include<pthread.h>
 #include<assert.h>
+#include<stdio.h>
 
 void *t_fun(void *arg) {
   return (void*) 7;
@@ -17,7 +18,7 @@ int main() {
   pthread_create(&id, NULL, t_fun, NULL);
 
   // Join the thread
-  pthread_join(id, (void*) &i);
+  pthread_join(id, (void**) &i);
   assert(i == 7); // UNKNOWN, maybe some day...
   printf("%d\n", i);
 

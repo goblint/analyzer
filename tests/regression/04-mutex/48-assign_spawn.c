@@ -5,7 +5,7 @@
 
 static struct class *misc_class;
 
-static char *misc_devnode(struct device *dev, mode_t *mode)
+static char *misc_devnode(struct device *dev, umode_t *mode)
 {
   assert(false); // FAIL
   return NULL;
