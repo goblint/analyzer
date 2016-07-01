@@ -177,26 +177,26 @@ let createCFG (file: file) =
   let mkEdge fromNode edge toNode = addCfg (Statement toNode) (edge, Statement fromNode) in
   (* Function for finding the next real successor of a statement. CIL tends to
    * put a lot of junk between stuff: *)
-  let realnode ie stmt =
-    let rec realnode ie visited stmt =
-      if List.mem stmt.sid visited then stmt  else
-        let sid = stmt.sid in
-        try
-          match stmt.skind with
-          | Block _ -> realnode ie (sid::visited) (List.hd stmt.succs)
-          | Goto _ -> realnode ie (sid::visited) (List.hd stmt.succs)
-          | Instr [] -> begin
-              let next = List.hd stmt.succs in
-              if next.sid == stmt.sid
-              then stmt
-              else realnode ie (sid::visited) next
-            end
-          | Loop _ -> realnode ie (sid::visited) (List.hd stmt.succs)
-          | If (exp,_,_,_) -> if isZero exp then realnode ie (sid::visited) (List.hd stmt.succs) else stmt
-          | _ -> stmt
-        with
-        | Failure "hd" -> if ie then stmt else raise (Failure "hd")
-    in realnode ie [] stmt
+  let realnode is_entry stmt =
+    let rec realnode is_entry visited stmt =
+      if List.mem stmt.sid visited then stmt
+      else match (List.hd stmt.succs) with
+        | exception (Failure _) -> if is_entry then stmt else raise Not_found
+        | next -> begin
+            let sid = stmt.sid in
+            match stmt.skind with
+            | Block _ -> realnode is_entry (sid::visited) next
+            | Goto _ -> realnode is_entry (sid::visited) next
+            | Instr [] -> begin
+                if next.sid == stmt.sid
+                then stmt
+                else realnode is_entry (sid::visited) next
+              end
+            | Loop _ -> realnode is_entry (sid::visited) next
+            | If (exp,_,_,_) -> if isZero exp then realnode is_entry (sid::visited) next else stmt
+            | _ -> stmt
+          end
+    in realnode is_entry [] stmt
   in
   addCfg (Function dummy_func.svar) (Ret (None, dummy_func), FunctionEntry dummy_func.svar);
   (* We iterate over all globals looking for functions: *)
@@ -263,7 +263,7 @@ let createCFG (file: file) =
               (* The [realnode brk] fails when the break label is at the end
                * of the function. In that case, we need to connect it to
                * the [Call] node. *)
-              | Failure "hd" ->
+              | Not_found ->
                 let newst = mkStmt (Return (None, locUnknown)) in
                 newst.sid <- new_sid ();
                 mkEdge (realnode true stmt) (Test (one, false)) newst;

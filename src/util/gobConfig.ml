@@ -283,9 +283,9 @@ struct
   let rec set_auto' st v =
     if v = "null" then set_null st else
       try set_bool st (bool_of_string v)
-      with Invalid_argument "bool_of_string" ->
+      with Invalid_argument _ ->
       try set_int st (int_of_string v)
-      with Failure "int_of_string" ->
+      with Failure _ ->
         set_string st v
 
   (** The ultimate convenience function for writing values. *)

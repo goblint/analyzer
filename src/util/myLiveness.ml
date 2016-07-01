@@ -172,16 +172,14 @@ class livenessVisitorClass (out : bool) = object(self)
       end
 
   method vinst i =
-    try
+    if liv_dat_lst = [] then (if !debug then E.log "livnessVisitor: il liv_dat_lst mismatch\n")
+    else begin
       let data = List.hd liv_dat_lst in
       cur_liv_dat <- Some(data);
       liv_dat_lst <- List.tl liv_dat_lst;
-      if !debug then E.log "livVis: at %a, data is %a\n"
-          d_instr i debug_print data;
-      DoChildren
-    with Failure "hd" ->
-      if !debug then E.log "livnessVisitor: il liv_dat_lst mismatch\n";
-      DoChildren
+      if !debug then E.log "livVis: at %a, data is %a\n" d_instr i debug_print data;
+    end;
+    DoChildren
 end
 
 let print_everything () =
