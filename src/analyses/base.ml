@@ -627,7 +627,7 @@ struct
     | TNamed ({ttype=t}, _) -> bot_value a gs st t
     | _ -> `Bot
 
-  let rec init_value a (gs:glob_fun) (st: store) (t: typ): value =
+  let rec init_value a (gs:glob_fun) (st: store) (t: typ): value = (* TODO why is VD.top_value not used here? *)
     let rec init_comp compinfo: ValueDomain.Structs.t =
       let nstruct = ValueDomain.Structs.top () in
       let init_field nstruct fd = ValueDomain.Structs.replace nstruct fd (init_value a gs st fd.ftype) in
@@ -635,7 +635,7 @@ struct
     in
     match t with
     | t when is_mutex_type t -> `Top
-    | TInt _ -> `Int (ID.top ())
+    | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
     | TPtr _ -> `Address (AD.join (AD.safe_ptr ()) (AD.null_ptr ()))
     | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
