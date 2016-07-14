@@ -107,7 +107,7 @@ regs.sort.each do |d|
   group.sort.each do |f|
     next if File.basename(f)[0] == ?.
     next if f =~ /goblin_temp/
-    next unless f =~ /.*\.c$/
+    next unless f =~ /^[0-9]+-.*\.c$/
     id = gid + "/" + f[0..1]
     testname = f[3..-3]
     next unless only.nil? or testname == only
