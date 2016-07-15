@@ -3,6 +3,7 @@
 require 'find'
 require 'fileutils'
 require 'timeout'
+require 'pathname'
 timeout = 15 # seconds
 
 def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
@@ -217,6 +218,8 @@ doproject = lambda do |p|
     puts "\t Status: #{status} (#{reason})".red
     stats = File.readlines statsfile
     if stats[0] =~ /exception/ then
+      relpath = (Pathname.new filepath).relative_path_from (Pathname.new File.dirname(goblint))
+      puts (File.readlines warnfile).last().strip().sub filename, relpath.to_s
       puts stats[0..9].join()
     end
     if status == 3 then
