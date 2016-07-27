@@ -6,7 +6,6 @@ open Defaults
 open Printf
 open Json
 open Goblintutil
-open Questions
 
 let writeconf = ref false
 let writeconffile = ref ""
@@ -255,9 +254,6 @@ let merge_preprocessed (cpp_file_names, dirName) =
 (** Perform the analysis over the merged AST.  *)
 let do_analyze merged_AST =
   let module L = Printable.Liszt (Basetype.CilFundec) in
-  (* we let the "--eclipse" flag override result style: *)
-  if get_bool "exp.eclipse" then set_string "result_style" "compact";
-
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
     Cilfacade.print merged_AST
@@ -340,9 +336,7 @@ let main =
         parse_arguments ();
         handle_extraspecials ();
         handle_flags ();
-        if String.length (get_string "questions.file") > 0 then question_load_db (get_string "questions.file");
         preprocess_files () |> merge_preprocessed |> do_analyze;
-        if String.length (get_string "questions.file") > 0 then question_save_db (get_string "questions.file");
         Report.do_stats !cFileNames;
         do_html_output ();
         if !verified = Some false then exit 3 (* verifier failed! *)

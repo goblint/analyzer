@@ -244,27 +244,6 @@ struct
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
-module FromBackwardSpec (S:BackwardSpec) (Cfg:CfgForward)
-  : GlobConstrSys with module LVar = Analyses.Var
-                   and module GVar = Basetype.Variables
-                   and module G = S.G
-                   and module D = S.D
-=
-struct
-  type lv = MyCFG.node
-  type gv = varinfo
-  type ld = S.D.t
-  type gd = S.G.t
-  module LVar = Analyses.Var
-  module GVar = Basetype.Variables
-  module D = S.D
-  module G = S.G
-
-  let tf (u:lv) ((e:(Cil.location * MyCFG.edge) list),(v:MyCFG.node)) get set gget gset = get v
-
-  let system v = List.map (tf v) (Cfg.next v)
-end
-
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
 module FlatFromSpec (S:Spec) (Cfg:CfgBackward)
   : sig

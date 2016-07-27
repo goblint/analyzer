@@ -56,8 +56,6 @@ let print_msg msg loc =
   if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
   if get_bool "gccwarn" then
     Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
-  else if get_bool "exp.eclipse" then
-    Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
   else
     let color = if get_bool "colors" then "{violet}" else "" in
     let s = Printf.sprintf "%s %s(%s:%d)" msgc color loc.file loc.line in
@@ -68,8 +66,6 @@ let print_err msg loc =
   if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
   if get_bool "gccwarn" then
     Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
-  else if get_bool "exp.eclipse" then
-    Printf.printf "WARNING /-/ %s /-/ %d /-/ %s\n%!" loc.file loc.line msg
   else
     Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
 
@@ -78,21 +74,18 @@ let print_group group_name errors =
   (* Add warnings to global warning list *)
   if (get_string "result") = "html" then List.iter (fun (msg,loc) -> htmlGlobalWarningList := (loc.file,loc.line,(group_name^" : "^msg))::!htmlGlobalWarningList ) errors;
   if (get_string "result") = "fast_xml" then warning_table := (`group (group_name,errors))::!warning_table;
-  if get_bool "exp.eclipse" then
-    List.iter (fun (msg,loc) -> print_msg (group_name ^ ", " ^ msg) loc) errors
-  else
-    let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
-    if (get_bool "ana.osek.warnfiles") then begin
-      match (String.sub group_name 0 6) with
-      | "Safely" -> ignore (Pretty.fprintf !warn_safe "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-      | "Datara" -> ignore (Pretty.fprintf !warn_race "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-      | "High r" -> ignore (Pretty.fprintf !warn_higr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-      | "High w" -> ignore (Pretty.fprintf !warn_higw "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-      | "Low re" -> ignore (Pretty.fprintf !warn_lowr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-      | "Low wr" -> ignore (Pretty.fprintf !warn_loww "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-      | _ -> ()
-    end;
-    ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+  let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
+  if (get_bool "ana.osek.warnfiles") then begin
+    match (String.sub group_name 0 6) with
+    | "Safely" -> ignore (Pretty.fprintf !warn_safe "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+    | "Datara" -> ignore (Pretty.fprintf !warn_race "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+    | "High r" -> ignore (Pretty.fprintf !warn_higr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+    | "High w" -> ignore (Pretty.fprintf !warn_higw "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+    | "Low re" -> ignore (Pretty.fprintf !warn_lowr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+    | "Low wr" -> ignore (Pretty.fprintf !warn_loww "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+    | _ -> ()
+  end;
+  ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
 let warn_urgent msg =
   if not !GU.may_narrow then begin

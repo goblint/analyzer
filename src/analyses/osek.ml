@@ -528,13 +528,11 @@ struct
       let dispatch ax =
         match ax with
         | Concrete (me,v,o,rw) ->
-          begin match me, struct_type_inv v o with
-            | _, Some (v,o) when (get_bool "exp.type-inv") ->
-              add_concrete_access ctx fl loc ust flagstate (v,o,rw)
-            | Some e,_ ->
+          begin match me with
+            | Some e ->
               if   not (add_per_element_access ctx loc ust (e,rw))
               then add_concrete_access ctx fl loc ust flagstate (v,o,rw)
-            | None,_ ->
+            | None ->
               add_concrete_access ctx fl loc ust flagstate (v,o,rw)
           end
         | Region (Some e,v,o,rw) ->
