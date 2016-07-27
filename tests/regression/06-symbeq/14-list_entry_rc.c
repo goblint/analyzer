@@ -1,4 +1,4 @@
-// PARAM: --disable exp.unsoundbasic --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  
+// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"  
 #include<pthread.h>
 #include<stdlib.h>
 #include<stdio.h>

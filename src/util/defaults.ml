@@ -126,6 +126,7 @@ let _ = ()
       ; reg Analyses "ana.arinc.merge_globals" "false"  "Merge all global return code variables into one."
       ; reg Analyses "ana.hashcons"        "true"  "Should we try to save memory by hashconsing?"
       ; reg Analyses "ana.restart_count"   "1"     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration."
+      ; reg Analyses "ana.mutex.disjoint_types" "true" "Do not propagate basic type writes to all struct fields"
 
 (* {4 category [Transformations]} *)
 let _ = ()
@@ -162,7 +163,6 @@ let _ = ()
       ; reg Experimental "exp.list-type"         "false" "Use a special abstract value for lists."
       ; reg Experimental "exp.g2html_path"       "'.'"   "Location of the g2html.jar file."
       ; reg Experimental "exp.extraspecials"     "[]"    "List of functions that must be analyzed as unknown extern functions"
-      ; reg Experimental "exp.unsoundbasic"      "true"  "Do not propagate basic type writes to all struct fields"
       ; reg Experimental "exp.ignored_threads"   "[]"    "Eliminate accesses in these threads"
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
 

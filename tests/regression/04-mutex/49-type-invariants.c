@@ -1,4 +1,4 @@
-//PARAM: --disable exp.unsoundbasic
+//PARAM: --disable ana.mutex.disjoint_types
 #include <pthread.h>
 #include <stdio.h>
 

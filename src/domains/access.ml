@@ -59,7 +59,7 @@ let typeIncl = Hashtbl.create 101
 let unsound = ref false 
 
 let init (f:file) = 
-  unsound := get_bool "exp.unsoundbasic";
+  unsound := get_bool "ana.mutex.disjoint_types";
   let visited_vars = Hashtbl.create 100 in
   let visit_field fi = 
     Hashtbl.add typeIncl (typeSig fi.ftype) fi
