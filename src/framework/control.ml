@@ -15,11 +15,11 @@ let get_spec () : (module Spec) =
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   (module (val
-    (module PathSensitive2 (MCP.MCP2) : Spec)
-    |> lift (get_bool "ana.hashcons") (module HashconsLifter)
-    |> lift true (module DeadCodeLifter)
-    |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
-  ))
+            (module PathSensitive2 (MCP.MCP2) : Spec)
+            |> lift (get_bool "ana.hashcons") (module HashconsLifter)
+            |> lift true (module DeadCodeLifter)
+            |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
+          ))
 
 (** Given a [Cfg], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) =
@@ -28,7 +28,7 @@ struct
   (** The main function to preform the selected analyses. *)
   let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) =
     (** The Equation system *)
-    let module EQSys = FromSpec (SLR.JoinContr (EffectWConEq.Make)) (Spec) (Cfg) in
+    let module EQSys = FromSpec (Spec) (Cfg) in
 
     (** Hashtbl for locals *)
     let module LHT   = BatHashtbl.Make (EQSys.LVar) in
@@ -420,7 +420,7 @@ struct
 
 
   let analyze file fs =
-      analyze file fs (get_spec ())
+    analyze file fs (get_spec ())
 end
 
 (** The main function to perform the selected analyses. *)

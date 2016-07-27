@@ -150,61 +150,6 @@ struct
   let context () (_,c) = LD.pretty () c
   let node (n,_) = n
 end
-
-module VarCS =
-struct
-  type t = MyCFG.node * location
-
-  let hash (n,l) =
-    match n with
-    | MyCFG.Statement s -> Hashtbl.hash (l, s.sid, 0)
-    | MyCFG.Function f -> Hashtbl.hash (l, f.vid, 1)
-    | MyCFG.FunctionEntry f -> Hashtbl.hash (l, f.vid, 2)
-
-  let equal (n1,d1) (n2,d2) =
-    MyCFG.Node.equal n1 n2 && compareLoc d1 d1 = 0
-
-  let getLocation (n,d) = MyCFG.getLoc n
-
-  let pretty () (n,d) =
-    match n with
-    | MyCFG.Statement s -> dprintf "node \"%a\"" Basetype.CilStmt.pretty s
-    | MyCFG.Function f -> dprintf "call of %s" f.vname
-    | MyCFG.FunctionEntry f -> dprintf "entry state of %s" f.vname
-
-  let pretty_trace () x =
-    dprintf "%a on %a" pretty x Basetype.ProgLines.pretty (getLocation x)
-end
-
-module Edge : Hashtbl.HashedType with type t = MyCFG.node * MyCFG.edge * MyCFG.node =
-struct
-  type t = MyCFG.node * MyCFG.edge * MyCFG.node
-  let rec list_eq eq xs ys =
-    match xs, ys with
-    | [], [] -> true
-    | x::xs, y::ys when eq x y -> list_eq eq xs ys
-    | _ -> false
-
-  let eq_lval l1 l2 = Util.equals (Lval l1) (Lval l2)
-
-  open MyCFG
-  let eq_edge e1 e2 =
-    match e1, e2 with
-    | Assign (l1,e1), Assign (l2,e2) -> Util.equals e1 e2 && eq_lval l1 l2
-    | Proc (Some l1, e1, es1), Proc (Some l2, e2, es2) -> eq_lval l1 l2 && Util.equals e1 e2 && list_eq Util.equals es1 es2
-    | Proc (None, e1, es1), Proc (None, e2, es2) -> Util.equals e1 e2 && list_eq Util.equals es1 es2
-    | Entry f1, Entry f2 -> f1.svar.vid = f2.svar.vid
-    | Ret (Some e1,f1), Ret (Some e2,f2)-> Util.equals e1 e2 && f1.svar.vid = f2.svar.vid
-    | Ret (None,f1), Ret (None,f2) -> f1.svar.vid = f2.svar.vid
-    | Test (e1,b1), Test (e2,b2) -> b1 = b2 && Util.equals e1 e2
-    | ASM (s1,o1,i1), ASM (s2,o2,i2) -> s1 = s2
-    | Skip, Skip -> true
-    | SelfLoop, SelfLoop -> true
-    | _ -> false
-  let equal (f1,e1,t1) (f2,e2,t2) = MyCFG.Node.equal f1 f2 && MyCFG.Node.equal t1 t2 && eq_edge e1 e2
-  let hash (f,e,t) = MyCFG.Node.hash f lxor MyCFG.Node.hash t
-end
-
 exception Deadcode
 
 
