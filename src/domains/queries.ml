@@ -32,8 +32,6 @@ type t = ExpEq of exp * exp
        | MayPointTo of exp
        | ReachableFrom of exp
        | ReachableUkTypes of exp
-       | PerElementLock of exp
-       | ArrayLockstep of exp
        | Regions of exp
        | MayEscape of varinfo
        | Priority of string
@@ -45,9 +43,6 @@ type t = ExpEq of exp * exp
        | EvalInterval of exp
        | EvalIntSet of exp
        | EvalStr of exp
-       | VariableDeps of lval
-       | IsImportant of lval
-       | SetImportant of exp
        | PrintFullState
        | CondVars of exp
        | Access of exp * bool * bool * int
