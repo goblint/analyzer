@@ -51,6 +51,9 @@ let create_temp_dir () =
   let tmpDirName = create_dir tmpDirRel in
   Goblintutil.tempDirName := tmpDirName
 
+let remove_temp_dir () =
+  if not (get_bool "keepcpp") then ignore (Goblintutil.rm_rf !Goblintutil.tempDirName)
+
 (** [Arg] option specification *)
 let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
@@ -142,10 +145,9 @@ let handle_flags () =
     end
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
-let preprocess_one_file cppflags includes dirName fname =
-  let dirName = !Goblintutil.tempDirName in
+let preprocess_one_file cppflags includes fname =
   (* The actual filename of the preprocessed sourcefile *)
-  let nname =  Filename.concat dirName (Filename.basename fname) in
+  let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
 
   (* Preprocess using cpp. *)
   (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
@@ -153,9 +155,7 @@ let preprocess_one_file cppflags includes dirName fname =
   if get_bool "dbg.verbose" then print_endline command;
 
   (* if something goes wrong, we need to clean up and exit *)
-  let rm_and_exit () =
-    if not (get_bool "keepcpp") then ignore (Goblintutil.rm_rf dirName); raise BailFromMain
-  in
+  let rm_and_exit () = remove_temp_dir (); raise BailFromMain in
   try match Unix.system command with
     | Unix.WEXITED 0 -> nname
     | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
@@ -164,7 +164,6 @@ let preprocess_one_file cppflags includes dirName fname =
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
-  let dirName = !Goblintutil.tempDirName in
   (* Handy (almost) constants. *)
   let myname = Filename.dirname Sys.executable_name in
   let kernel_root = Filename.concat myname "linux-headers" in
@@ -189,7 +188,7 @@ let preprocess_files () =
 
   (* fill include flags *)
   let one_include_f f x = includes := "-I " ^ f (string x) ^ " " ^ !includes in
-  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (Filename.concat dirName OilUtil.header) ^" "^ !includes;
+  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (Filename.concat !Goblintutil.tempDirName OilUtil.header) ^" "^ !includes;
   (*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
   get_list "includes" |> List.iter (one_include_f identity);
   get_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
@@ -220,17 +219,14 @@ let preprocess_files () =
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-  List.rev_map (preprocess_one_file !cppflags !includes dirName) !cFileNames, dirName
-
+  List.rev_map (preprocess_one_file !cppflags !includes) !cFileNames
 
 (** Possibly merge all postprocessed files *)
-let merge_preprocessed (cpp_file_names, dirName) =
+let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
   let files_AST = List.rev_map Cilfacade.getAST cpp_file_names in
-
-  (* remove the files *)
-  if not (get_bool "keepcpp") then ignore (Goblintutil.rm_rf dirName);
+  remove_temp_dir ();
 
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
@@ -341,9 +337,9 @@ let main =
       try
         Stats.reset Stats.SoftwareTimer;
         Cilfacade.init ();
-        create_temp_dir ();
         parse_arguments ();
         handle_extraspecials ();
+        create_temp_dir ();
         handle_flags ();
         preprocess_files () |> merge_preprocessed |> do_analyze;
         Report.do_stats !cFileNames;
