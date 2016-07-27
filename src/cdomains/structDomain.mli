@@ -11,6 +11,8 @@ sig
   val replace: t -> field -> value -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val map: (value -> value) -> t -> t
+  val cardinal: t -> int
+  val keys: t -> field list
 end
 
 module Simple (Val: Lattice.S): S with type value = Val.t and type field = fieldinfo

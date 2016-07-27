@@ -56,6 +56,7 @@ sig
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
+  exception Bigger_than_Int64
   open Cil open Int64
   let sign x = if x<0L then `Signed else `Unsigned
   let max = function
@@ -63,18 +64,31 @@ module Size = struct (* size in bits as int, range as int64 *)
     | `Unsigned -> IULongLong
   let min_for x = intKindForValue (mkCilint (max (sign x)) x) (sign x = `Unsigned)
   let bit ik = bytesSizeOfInt ik * 8 (* total bits *)
-  let bits ik = (* bits for neg/pos values *)
+  let card ik = (* cardinality *)
+    let b = bit ik in
+    if b>=64 then raise Bigger_than_Int64
+    else shift_left 1L b
+  let bits ik = (* highest bits for neg/pos values *)
     let s = bit ik in
     if isSigned ik then s-1, s-1 else 0, s
   let bits_i64 ik = BatTuple.Tuple2.mapn of_int (bits ik)
   let range ik = (* min/max values as int64 (signed), anything bigger is cropped! *)
     let a,b = bits ik in
-    let x,y = if isSigned ik then
-      neg (shift_left 1L a) (* -2^a *), sub (shift_left 1L b) 1L (* 2^b - 1 *)
-    else
-      0L, shift_left 1L b
+    if a>63 || b>63 then raise Bigger_than_Int64 else
+    let x = if isSigned ik then neg (shift_left 1L a) (* -2^a *) else 0L in
+    let y = sub (shift_left 1L b) 1L in (* 2^b - 1 *)
+    x,y
+  let cast t x = (* TODO: overflow is implementation-dependent! *)
+    let a,b = range t in
+    let c = card t in
+    (* let z = add (rem (sub x a) c) a in (* might lead to overflows itself... *)*)
+    let y = rem x c in
+    let y = if y > b then sub y c
+       else if y < a then add y c
+       else y
     in
-    (if a<63 then min_int else x), (if b>63 then max_int else y)
+    M.tracel "cast_int" "Cast %Li to range [%Li, %Li] (%Li) = %Li\n" x a b c y;
+    y
 end
 
 module Interval32 : S with type t = (int64 * int64) option = (* signed 32bit ints *)
@@ -159,8 +173,8 @@ struct
   let cast_to t = function
     | None -> None
     | Some (x,y) ->
-      let a,b = Size.range t in
-      norm @@ Some (max x a,min y b)
+      try norm @@ Some (Size.cast t x, Size.cast t y)
+      with Size.Bigger_than_Int64 -> top () (* TODO top not safe b/c range too small *)
 
   let widen x y =
     match x, y with
@@ -373,9 +387,7 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let cast_to t x =
-    let a,b = Size.range t in
-    Int64.rem x b (* TODO: overflow is implementation-dependent! *)
+  let cast_to t x = Size.cast t x
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 end
@@ -541,7 +553,7 @@ module Trier = (* definite or set of excluded values *)
 struct
   module S = SetDomain.Make (Integers)
   module R = Interval32 (* range for exclusion *)
-  let size t = R.of_interval (Size.bits_i64 t)
+  let size t = R.of_interval (let a,b = Size.bits_i64 t in Int64.neg a,b)
   include Printable.Std
   include Lattice.StdCousot
   type t = [
@@ -1179,7 +1191,7 @@ module Enums : S = struct
     | Neg (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
 
   let of_int x = Pos [x]
-  let cast_to t = function Pos xs -> Pos (List.map (I.cast_to t) xs |> List.sort_unique compare) | Neg _ -> top ()
+  let cast_to t = function Pos xs -> Pos (List.map (I.cast_to t) xs |> List.sort_unique compare) | Neg _ -> top_of t
 
   let of_interval (x,y) =
     let rec build_set set start_num end_num =

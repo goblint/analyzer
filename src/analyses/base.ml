@@ -73,8 +73,6 @@ struct
   type glob_fun  = V.t -> G.t
   type glob_diff = (V.t * G.t) list
 
-  let bool_top () = ID.(join (of_int 0L) (of_int 1L))
-
   (**************************************************************************
    * State functions
    **************************************************************************)
@@ -279,7 +277,7 @@ struct
     | Some n -> IdxDom.of_int n
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop (op: binop) (a1:value) (a2:value): value =
+  let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value): value =
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
     let the_op =
@@ -303,8 +301,10 @@ struct
       | LAnd -> ID.logand
       | LOr -> ID.logor
       | _ -> (fun x y -> (ID.top ()))
-      (* An auxiliary function for ptr arithmetic on array values. *)
-    in let addToAddr n (addr:Addr.t) =
+    in
+    let bool_top () = ID.(join (of_int 0L) (of_int 1L)) in
+    (* An auxiliary function for ptr arithmetic on array values. *)
+    let addToAddr n (addr:Addr.t) =
          match Addr.to_var_offset addr with
          | [x,`Index (i, offs)] ->
            Addr.from_var_offset (x, `Index (IdxDom.add i (iDtoIdx n), offs))
@@ -317,12 +317,16 @@ struct
     (* For the integer values, we apply the domain operator *)
     | `Int v1, `Int v2 -> `Int (the_op v1 v2)
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
+    | `Address p, `Int n
+    | `Int n, `Address p when op=Eq || op=Ne ->
+      `Int (match ID.to_bool n, AD.to_bool p with
+      | Some a, Some b -> ID.of_bool (op=Eq && a=b || op=Ne && a<>b)
+      | _ -> bool_top ())
     | `Address p, `Int n  -> begin
         match op with
-        (* For array indexing, e[i] we have *)
-        | IndexPI -> `Address (AD.map (addToAddr n) p)
-        (* Pointer addition e + i, it's the same: *)
-        | PlusPI -> `Address (AD.map (addToAddr n) p)
+        (* For array indexing e[i] and pointer addition e + i we have: *)
+        | IndexPI | PlusPI ->
+          `Address (AD.map (addToAddr n) p)
         (* Pointer subtracted by a value (e-i) is very similar *)
         | MinusPI -> let n = ID.neg n in
           `Address (AD.map (addToAddr n) p)
@@ -332,7 +336,7 @@ struct
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result, but it's an integer. *)
     | `Address p1, `Address p2 -> begin
-        let eq x y = if AD.is_definite x && AD.is_definite y then Some (AD.eq x y) else None in
+        let eq x y = if AD.is_definite x && AD.is_definite y then Some (AD.Addr.equal (AD.choose x) (AD.choose y)) else None in
         match op with
         (* TODO use ID.of_incl_list [0; 1] for all comparisons *)
         | MinusPP -> `Int (ID.top ())
@@ -405,7 +409,7 @@ struct
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
   let rec eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
-    let rec do_offs def = function
+    let rec do_offs def = function (* for types that only have one value *)
       | Field (fd, offs) -> begin
           match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
           | Some v -> do_offs (`Address (AD.singleton (Addr.from_var_offset (v,convert_offset a gs st (Field (fd, offs)))))) offs
@@ -426,7 +430,9 @@ struct
         (* Integer literals *)
         (* seems like constFold already converts CChr to CInt64 *)
         | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
-        | Const (CInt64 (num,typ,str)) -> `Int (ID.of_int num)
+        | Const (CInt64 (num,typ,str)) ->
+          (match str with Some x -> M.tracel "casto" "CInt64 (%s, %a, %s)\n" (Int64.to_string num) d_ikind typ x | None -> ());
+          `Int (ID.of_int num)
         (* String literals *)
         | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
         | Const (CWStr xs as c) -> (* wide character strings, type: wchar_t* *)
@@ -435,16 +441,43 @@ struct
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
         (* Variables and address expressions *)
         | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
-        | Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs
+        (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
+        | Lval (Mem e, ofs) ->
+          (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
+          let b = Mem e, NoOffset in (* base pointer *)
+          let t = typeOfLval b in (* static type of base *)
+          let p = eval_lv a gs st b in (* abstract base addresses *)
+          let v = (* abstract base value *)
+            let open Addr in
+            if AD.for_all (function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false) p then
+              get a gs st p (* downcasts are safe *)
+            else
+              VD.top () (* upcasts not! *)
+          in
+          let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
+          M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+          let v' = VD.eval_offset (get a gs st) v' (convert_offset a gs st ofs) in (* handle offset *)
+          let v' = do_offs v' ofs in (* handle blessed fields? *)
+          v'
         (* Binary operators *)
-        | BinOp (op, CastE (ta, ea), CastE (tb, eb), t) when ta = tb && (op = Eq || op = Ne) ->
-          let a1 = eval_rv a gs st ea in
-          let a2 = eval_rv a gs st eb in
-          evalbinop op a1 a2 (* TODO this is only sound for upcasts *)
+        (* Eq/Ne when both values are equal and casted to the same type *)
+        | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), t) when t1 = t2 && (op = Eq || op = Ne) ->
+          let a1 = eval_rv a gs st e1 in
+          let a2 = eval_rv a gs st e2 in
+          let is_safe = VD.equal a1 a2 || VD.is_safe_cast t1 (typeOf e1) && VD.is_safe_cast t2 (typeOf e2) in
+          M.tracel "cast" "remove cast on both sides for %a -> %b\n" d_exp exp is_safe;
+          if is_safe then (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
+            eval_rv a gs st (BinOp (op, e1, e2, t))
+          else
+            let a1 = eval_rv a gs st c1 in
+            let a2 = eval_rv a gs st c2 in
+            evalbinop op t1 a1 t2 a2
         | BinOp (op,arg1,arg2,typ) ->
           let a1 = eval_rv a gs st arg1 in
           let a2 = eval_rv a gs st arg2 in
-          evalbinop op a1 a2
+          let t1 = typeOf arg1 in
+          let t2 = typeOf arg2 in
+          evalbinop op t1 a1 t2 a2
         (* Unary operators *)
         | UnOp (op,arg1,typ) ->
           let a1 = eval_rv a gs st arg1 in
@@ -463,23 +496,9 @@ struct
           `Address (AD.map array_start (eval_lv a gs st lval))
         | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
         (* Most casts are currently just ignored, that's probably not a good idea! *)
-        | CastE  (t, exp) -> begin
-            match t,eval_rv a gs st exp with
-            | TPtr (_,_), `Top -> `Address (AD.top_ptr ())
-            | TPtr _, `Int a when Some Int64.zero = ID.to_int a ->
-              `Address (AD.null_ptr ())
-            | TPtr (t,_), `Int a when t<>voidType ->
-              `Address (AD.unknown_ptr ())
-            | TInt _, `Address a when AD.equal a (AD.null_ptr ()) ->
-              `Int (ID.of_int Int64.zero)
-            (* TODO not AD.exists null... *)
-            | TInt _, `Address a ->
-              `Int (ID.top ())
-            | Cil.TInt (k,_), `Int a ->
-              `Int (ID.cast_to k a)
-            (* | TPtr (_,_), `Address -> assert false (* TODO *) *)
-            | _, s -> s (* TODO care about casts... *)
-          end
+        | CastE  (t, exp) ->
+          let v = eval_rv a gs st exp in
+          VD.cast ~torg:(typeOf exp) t v
         | _ -> VD.top ()
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)

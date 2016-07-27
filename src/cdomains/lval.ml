@@ -246,7 +246,7 @@ end
 
 (* TODO functor for type info *)
 
-module Normal (Idx: Printable.S) =
+module Normal (Idx: IntDomain.S) =
 struct
   type field = fieldinfo
   type idx = Idx.t
@@ -352,12 +352,22 @@ struct
     | Addr (v,o) -> v.vid * hash_offset o
     | x -> Hashtbl.hash x
 
+  let rec is_zero_offset =
+    let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname in
+    let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false in
+    function
+    | `Field (x,o) -> is_first_field x && is_zero_offset o
+    | `Index (x,o) -> Idx.to_int x = Some 0L && is_zero_offset o
+    | `NoOffset -> true
+
   let equal x y =
     let rec eq_offs x y =
       match x, y with
       | `NoOffset, `NoOffset -> true
       | `Index (i,x), `Index (o,y) -> Idx.equal i o && eq_offs x y
       | `Field (i,x), `Field (o,y) -> i.fcomp.ckey=o.fcomp.ckey && i.fname = o.fname && eq_offs x y
+      | `NoOffset, o
+      | o, `NoOffset -> is_zero_offset o
       | _ -> false
     in
     match x, y with
