@@ -22,7 +22,7 @@ setuprest() {
 
 rule() {
   case $1 in
-    clean)   rm -rf goblint goblint.byte goblint.ml arinc doclist.odocl src/config.ml $TARGET.ml;
+    clean)   rm -rf goblint goblint.byte goblint.ml arinc doclist.odocl $TARGET.ml;
              ocb -clean
              ;;
     opt | nat*)
