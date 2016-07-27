@@ -17,8 +17,7 @@ type isr_t = 	int*	(string list)*	int
 
 let osek_renames = ref ""
 let osek_ids = ref ""
-let header = ref "osek_goblint.h"
-let header_path = ref "./"
+let header = "osek_goblint.h"
 let osek_names : (string,string) Hashtbl.t = Hashtbl.create 16
 let osek_ISR_PRIORITY = ref ["PRIORITY"; "INTERRUPTPRIORITY"] (*add fancy priority names here*)
 let osek_API_funs = ["ActivateTask"; "TerminateTask"; "ChainTask"; "Schedule"; "GetTaskID"; "GetTaskState"; "DisableAllInterrupts"; "EnableAllInterrupts"; "SuspendAllInterrupts"; "ResumeAllInterrupts"; "SuspendOSInterrupts"; "ResumeOSInterrupts"; "GetResource"; "ReleaseResource"; "SetEvent"; "GetEvent"; "ClearEvent"; "WaitEvent"; "GetAlarmBase"; "GetAlarm"; "SetRelAlarm"; "SetAbsAlarm"; "CancelAlarm"; "GetActiveApplicationMode"; "StartOS"; "ShutdownOS"]
@@ -93,7 +92,7 @@ let is_starting f = (List.mem f !concurrent_tasks) || (List.mem f !starting_task
 
 (*print id header *)
 let generate_header () =
-  let f = open_out (!header_path ^ !header) in
+  let f = open_out (Filename.concat !Goblintutil.tempDirName header) in
   let print_resources id value = if not(is_task_res id) then output_string f ("int " ^ id ^ ";\n") else () in
   let print_events id value 	 = output_string f ("int " ^ id           ^ ";\n") in
   let print_tasks id value     = output_string f ("int " ^ trim_task id ^ ";\n") in

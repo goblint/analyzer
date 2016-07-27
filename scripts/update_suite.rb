@@ -28,7 +28,7 @@ goblint = File.join(Dir.getwd,"goblint")
 goblintbyte = File.join(Dir.getwd,"goblint.byte")
 if File.exists?(goblintbyte) then
   puts "Running the byte-code version! Continue? (y/n)"
-  exit unless gets()[0] == 'y'
+  exit unless $stdin.gets()[0] == 'y'
   goblint = goblintbyte
 elsif not File.exist?(goblint) then
   fail "Goblint not present in working directory. Please run script from goblint dir!"

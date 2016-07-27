@@ -42,6 +42,15 @@ let print_help ch =
   fprintf ch "A <jpath> is a path in a json structure. E.g. 'field.another_field[42]';\n";
   fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n"
 
+(* The temp directory for preprocessing the input files *)
+let create_temp_dir () =
+  (* Using the stdlib to create a free tmp file name. *)
+  let tmpDirRel = Filename.temp_file ~temp_dir:"" "goblint_temp_" "" in
+  (* ... and then delete it to create a directory instead. *)
+  Sys.remove tmpDirRel;
+  let tmpDirName = create_dir tmpDirRel in
+  Goblintutil.tempDirName := tmpDirName
+
 (** [Arg] option specification *)
 let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
@@ -134,6 +143,7 @@ let handle_flags () =
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let preprocess_one_file cppflags includes dirName fname =
+  let dirName = !Goblintutil.tempDirName in
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat dirName (Filename.basename fname) in
 
@@ -154,6 +164,7 @@ let preprocess_one_file cppflags includes dirName fname =
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
+  let dirName = !Goblintutil.tempDirName in
   (* Handy (almost) constants. *)
   let myname = Filename.dirname Sys.executable_name in
   let kernel_root = Filename.concat myname "linux-headers" in
@@ -178,7 +189,7 @@ let preprocess_files () =
 
   (* fill include flags *)
   let one_include_f f x = includes := "-I " ^ f (string x) ^ " " ^ !includes in
-  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (!OilUtil.header_path ^ !OilUtil.header) ^" "^ !includes;
+  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (Filename.concat dirName OilUtil.header) ^" "^ !includes;
   (*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
   get_list "includes" |> List.iter (one_include_f identity);
   get_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
@@ -206,9 +217,6 @@ let preprocess_files () =
         arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi"; arch_dir ^ "/generated/uapi";
       ]
   end;
-
-  (* The temp directory for preprocessing the input files *)
-  let dirName = Goblintutil.create_dir "goblint_temp" in
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
@@ -333,6 +341,7 @@ let main =
       try
         Stats.reset Stats.SoftwareTimer;
         Cilfacade.init ();
+        create_temp_dir ();
         parse_arguments ();
         handle_extraspecials ();
         handle_flags ();

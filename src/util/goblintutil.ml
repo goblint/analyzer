@@ -74,6 +74,8 @@ let old_accesses = ref true
 (** The file where everything is output *)
 let out = ref stdout
 
+(** Temp directory, set in maingoblint.ml, but used by the OSEK analysis. *)
+let tempDirName = ref "goblint_temp"
 
 (* Type invariant variables. *)
 let type_inv_tbl = Hashtbl.create 13
