@@ -36,3 +36,5 @@ g2html.jar
 gmon.out
 ocamlprof.dump
 arinc
+
+.vscode
