@@ -88,9 +88,9 @@ rule() {
              pushd .git/hooks; ln -s ../../scripts/hooks/pre-commit; popd
              echo "Pre-commit hook installed!"
              ;;
-    header*) wget https://github.com/goblint/bench/releases/download/v4.0/linux-headers.tar.xz
-             tar xf linux-headers.tar.xz
-             rm linux-headers.tar.xz
+    header*) wget https://github.com/goblint/linux-headers/archive/master.tar.gz
+             tar xf master.tar.gz && rm master.tar.gz
+             rm -rf linux-headers && mv linux-headers-master linux-headers
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc6.h
              ;;
     poly)    echo "open ApronDomain" >> $TARGET.ml
