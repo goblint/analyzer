@@ -1,9 +1,6 @@
 os:
   - linux
   - osx
-matrix:
-  allow_failures:
-    - os: osx
 language: c
 git:
   submodules: false
