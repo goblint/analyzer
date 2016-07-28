@@ -1,8 +1,4 @@
-[![In Progress](https://badge.waffle.io/goblint/analyzer.svg?label=In%20Progress&title=In%20Progress)](https://waffle.io/goblint/analyzer)
-[![Build status](https://travis-ci.org/goblint/analyzer.png)](https://travis-ci.org/goblint/analyzer)
-[![Circle CI](https://circleci.com/gh/goblint/analyzer.svg?style=svg)](https://circleci.com/gh/goblint/analyzer)
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/goblint)
-# goblint
+# goblint &nbsp; [![Travis-CI](https://travis-ci.org/goblint/analyzer.png)](https://travis-ci.org/goblint/analyzer/branches) [![Circle CI](https://circleci.com/gh/goblint/analyzer.svg?style=svg)](https://circleci.com/gh/goblint/analyzer) [![In Progress](https://badge.waffle.io/goblint/analyzer.svg?label=In%20Progress&title=In%20Progress)](https://waffle.io/goblint/analyzer) [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/goblint)
 
 ## Setup
 ### Linux 
