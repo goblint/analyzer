@@ -75,6 +75,7 @@ end
 #Either only run a single test, or
 #"future" will also run tests we normally skip
 # -v at the end stands for verbose output
+dump = ARGV.last == "-d" && ARGV.pop
 verbose = ARGV.last == "-v" && ARGV.pop
 parallel = ARGV.last == "-p" && ARGV.pop
 report = ARGV.last == "-r" && ARGV.pop
@@ -372,6 +373,13 @@ File.open(theresultfile, "w") do |f|
       if not timedout.include? "#{p.id}-#{p.group}/#{p.name}" then
         failed.push p.name
         puts "#{p.id} #{p.group}/#{p.name} \e[31mfailed! \u2620\e[0m"
+        if dump then
+          puts "============== WARNINGS ==============="
+          puts File.read(File.join(testresults, warnfile))
+          puts "================ STATS ================"
+          puts File.read(File.join(testresults, statsfile))
+          puts "======================================="
+        end
       end
       if not is_ok or ferr.nil? then
         f.puts "<td style =\"color: red\">FAILED</td>"
