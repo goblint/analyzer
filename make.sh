@@ -83,10 +83,13 @@ rule() {
     travis)  opam init --comp=4.03.0
              setuprest
              ;;
-    dev)     opam install utop merlin ocp-indent ocp-index
+    dev)     echo "Installing opam packages..."
+             opam install utop merlin ocp-indent ocp-index
              echo "Be sure to adjust your vim/emacs config!"
+             echo "Installing Pre-commit hook..."
              pushd .git/hooks; ln -s ../../scripts/hooks/pre-commit; popd
-             echo "Pre-commit hook installed!"
+             echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
+             sudo gem install parallel
              ;;
     header*) wget https://github.com/goblint/linux-headers/archive/master.tar.gz
              tar xf master.tar.gz && rm master.tar.gz

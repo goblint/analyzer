@@ -77,7 +77,7 @@ end
 # -v at the end stands for verbose output
 dump = ARGV.last == "-d" && ARGV.pop
 verbose = ARGV.last == "-v" && ARGV.pop
-parallel = ARGV.last == "-p" && ARGV.pop
+sequential = ARGV.last == "-s" && ARGV.pop
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
 if only == "future" then
@@ -239,7 +239,9 @@ doproject = lambda do |p|
     f.puts vrsn
   end
 end
-if parallel then
+if sequential then
+  projects.each &doproject
+else
   begin
     require 'parallel'
     Parallel.each projects, &doproject
@@ -247,8 +249,6 @@ if parallel then
     puts "Missing dependency. Please run: sudo gem install parallel"
     raise e
   end
-else
-  projects.each &doproject
 end
 clearline
 `pkill goblint` # FIXME somehow the killing above is not complete...
@@ -406,7 +406,7 @@ if report then
   puts "  Groups: ./scripts/update_suite.rb group mutex"
   puts "  Exclude group: ./scripts/update_suite.rb group -mutex"
   puts "  Future: ./scripts/update_suite.rb future"
-  puts "  Parallel execution: append -p"
+  puts "  Force sequential execution: append -s"
   puts "  Verbose output: append -v"
   puts ("Results: " + theresultfile)
 end
