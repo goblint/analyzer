@@ -115,7 +115,6 @@ let _ = ()
       ; reg Analyses "ana.int.cdebug"      "false" "Debugging output for wrapped interval analysis."
       ; reg Analyses "ana.int.cwiden"      "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'double')"
       ; reg Analyses "ana.int.cnarrow"     "'basic'" "Widing variant to use for wrapped interval analysis ('basic', 'half')"
-      ; reg Analyses "ana.int.queries"     "false"  "Use queries in the base analysis to improve abstract values using EvalInt in other domains"
       ; reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails."
       ; reg Analyses "ana.spec.file"       ""      "Path to the specification file."
       ; reg Analyses "ana.arinc.assume_success" "true"    "Assume that all ARINC functions succeed (sets return code to NO_ERROR, otherwise invalidates it)."

@@ -5,8 +5,6 @@ include Pretty
 
 module GU = Goblintutil
 module ID = IntDomain.FlatPureIntegers
-module IV = IntDomain.Interval
-module IS = IntDomain.Enums
 module BD = IntDomain.Booleans
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (Basetype.CilType) (struct let topname = "All" end)
@@ -40,8 +38,6 @@ type t = ExpEq of exp * exp
        | IsNotUnique
        | EvalFunvar of exp
        | EvalInt of exp
-       | EvalInterval of exp
-       | EvalIntSet of exp
        | EvalStr of exp
        | PrintFullState
        | CondVars of exp
@@ -51,8 +47,6 @@ type t = ExpEq of exp * exp
 type result = [
   | `Top
   | `Int of ID.t
-  | `Interval of IV.t
-  | `IntSet of IS.t
   | `Str of string
   | `Bool of BD.t
   | `LvalSet of LS.t
@@ -63,16 +57,6 @@ type result = [
 ]
 
 type ask = t -> result
-
-module Query =
-struct
-  let get_next_query_in_hierarchy (query: t) =
-    match query with
-    | EvalInt x -> Some (EvalInterval x)
-    | EvalInterval x -> Some (EvalIntSet x)
-    | _ -> None
-end
-
 
 module Result: Lattice.S with type t = result =
 struct
@@ -93,8 +77,6 @@ struct
     | (`Top, `Top) -> true
     | (`Bot, `Bot) -> true
     | (`Int x, `Int y) -> ID.equal x y
-    | (`Interval x, `Interval y) -> IV.equal x y
-    | (`IntSet x, `IntSet y) -> IS.equal x y
     | (`Bool x, `Bool y) -> BD.equal x y
     | (`LvalSet x, `LvalSet y) -> LS.equal x y
     | (`ExprSet x, `ExprSet y) -> ES.equal x y
@@ -121,14 +103,11 @@ struct
       | `ExprSet _ -> 4
       | `ExpTriples _ -> 5
       | `Str _ -> 6
-      | `Interval _ -> 7
       | `IntSet _ -> 8
       | `TypeSet _ -> 9
       | `Top -> 100
     in match x,y with
     | `Int x, `Int y -> ID.compare x y
-    | `Interval x, `Interval y -> IV.compare x y
-    | `IntSet x, `IntSet y -> IS.compare x y
     | `Bool x, `Bool y -> BD.compare x y
     | `LvalSet x, `LvalSet y -> LS.compare x y
     | `ExprSet x, `ExprSet y -> ES.compare x y
@@ -139,8 +118,6 @@ struct
   let pretty_f s () state =
     match state with
     | `Int n ->  ID.pretty () n
-    | `Interval n ->  IV.pretty () n
-    | `IntSet n ->  IS.pretty () n
     | `Str s ->  text s
     | `Bool n ->  BD.pretty () n
     | `LvalSet n ->  LS.pretty () n
@@ -153,8 +130,6 @@ struct
   let rec short w state =
     match state with
     | `Int n ->  ID.short w n
-    | `Interval n ->  IV.short w n
-    | `IntSet n ->  IS.short w n
     | `Str s ->  s
     | `Bool n ->  BD.short w n
     | `LvalSet n ->  LS.short w n
@@ -167,8 +142,6 @@ struct
   let isSimple x =
     match x with
     | `Int n ->  ID.isSimple n
-    | `Interval n ->  IV.isSimple n
-    | `IntSet n ->  IS.isSimple n
     | `Bool n ->  BD.isSimple n
     | `LvalSet n ->  LS.isSimple n
     | `ExprSet n ->  ES.isSimple n
@@ -179,8 +152,6 @@ struct
   let toXML_f sf state =
     match state with
     | `Int n -> ID.toXML n
-    | `Interval n -> IV.toXML n
-    | `IntSet n -> IS.toXML n
     | `Str s -> Xml.Element ("Leaf", [("text", s)],[])
     | `Bool n -> BD.toXML n
     | `LvalSet n -> LS.toXML n
@@ -201,8 +172,6 @@ struct
     | (`Bot, _) -> true
     | (_, `Bot) -> false
     | (`Int x, `Int y) -> ID.leq x y
-    | (`Interval x, `Interval y) -> IV.leq x y
-    | (`IntSet x, `IntSet y) -> IS.leq x y
     | (`Bool x, `Bool y) -> BD.leq x y
     | (`LvalSet x, `LvalSet y) -> LS.leq x y
     | (`ExprSet x, `ExprSet y) -> ES.leq x y
@@ -217,8 +186,6 @@ struct
       | (`Bot, x)
       | (x, `Bot) -> x
       | (`Int x, `Int y) -> `Int (ID.join x y)
-      | (`Interval x, `Interval y) -> `Interval (IV.join x y)
-      | (`IntSet x, `IntSet y) -> `IntSet (IS.join x y)
       | (`Bool x, `Bool y) -> `Bool (BD.join x y)
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.join x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.join x y)
@@ -234,8 +201,6 @@ struct
       | (`Top, x)
       | (x, `Top) -> x
       | (`Int x, `Int y) -> `Int (ID.meet x y)
-      | (`Interval x, `Interval y) -> `Interval (IV.meet x y)
-      | (`IntSet x, `IntSet y) -> `IntSet (IS.meet x y)
       | (`Bool x, `Bool y) -> `Bool (BD.meet x y)
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.meet x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.meet x y)
@@ -251,8 +216,6 @@ struct
       | (`Bot, x)
       | (x, `Bot) -> x
       | (`Int x, `Int y) -> `Int (ID.widen x y)
-      | (`Interval x, `Interval y) -> `Interval (IV.widen x y)
-      | (`IntSet x, `IntSet y) -> `IntSet (IS.widen x y)
       | (`Bool x, `Bool y) -> `Bool (BD.widen x y)
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.widen x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.widen x y)
@@ -264,8 +227,6 @@ struct
   let narrow x y =
     match (x,y) with
     | (`Int x, `Int y) -> `Int (ID.narrow x y)
-    | (`Interval x, `Interval y) -> `Interval (IV.narrow x y)
-    | (`IntSet x, `IntSet y) -> `IntSet (IS.narrow x y)
     | (`Bool x, `Bool y) -> `Bool (BD.narrow x y)
     | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.narrow x y)
     | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.narrow x y)

@@ -1,10 +1,7 @@
 open Cil
 open Pretty
-(*module ID: IntDomain.ExclList = IntDomain.None*)
-(* module ID: IntDomain.S = IntDomain.Trier   *)
 module ID: IntDomain.S = IntDomain.IntDomTuple
 module IndexDomain: IntDomain.S = ID
-(* module ID: IntDomain.S = IntDomain.IncExcInterval *)
 module AD = AddressDomain.AddressSet (IndexDomain)
 module Addr = Lval.NormalLat (IndexDomain)
 module Offs = Lval.Offset (IndexDomain)
