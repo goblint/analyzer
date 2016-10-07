@@ -216,7 +216,8 @@ doproject = lambda do |p|
   status = $?.exitstatus
   if status != 0 then
     reason = if status == 2 then "exception" elsif status == 3 then "verify" end
-    puts "\t Status: #{status} (#{reason})".red
+    clearline
+    puts "Testing #{p.id} #{p.group}/#{p.name}" + "\t Status: #{status} (#{reason})".red
     stats = File.readlines statsfile
     if stats[0] =~ /exception/ then
       relpath = (Pathname.new filepath).relative_path_from (Pathname.new File.dirname(goblint))
@@ -372,8 +373,8 @@ File.open(theresultfile, "w") do |f|
       alliswell = false
       if not timedout.include? "#{p.id}-#{p.group}/#{p.name}" then
         failed.push p.name
-        exc = if lines[0] =~ /exception/ then " (exception, see above)" else "" end
-        puts "#{p.id} #{p.group}/#{p.name} \e[31mfailed#{exc}! \u2620\e[0m"
+        exc = if lines[0] =~ /exception/ then " (see exception above)" else "" end
+        puts "#{p.id} #{p.group}/#{p.name}" + " failed#{exc}!".red
         if dump then
           puts "============== WARNINGS ==============="
           puts File.read(File.join(testresults, warnfile))
