@@ -313,16 +313,7 @@ struct
       in type_offset fi.ftype o
     | _ -> raise (Failure "Addr.type_offset: type error")
 
-  let get_type_addr (x, ofs) = (* TODO remove in favor of type_offset *)
-    let unarray t = match t with
-      | TArray (t,_,_) -> t
-      | _ -> failwith "C'est Unpossible!"
-    in let rec find_type t ofs = match ofs with
-        | `NoOffset -> t
-        | `Field (fld, ofs) -> find_type fld.ftype ofs
-        | `Index (idx, ofs) -> find_type (unarray t) ofs
-    in
-    find_type x.vtype ofs
+  let get_type_addr (v,o) = type_offset v.vtype o
 
   let get_type = function
     | Addr x   -> get_type_addr x
