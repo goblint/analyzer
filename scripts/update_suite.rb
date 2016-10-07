@@ -372,7 +372,8 @@ File.open(theresultfile, "w") do |f|
       alliswell = false
       if not timedout.include? "#{p.id}-#{p.group}/#{p.name}" then
         failed.push p.name
-        puts "#{p.id} #{p.group}/#{p.name} \e[31mfailed! \u2620\e[0m"
+        exc = if lines[0] =~ /exception/ then " (exception, see above)" else "" end
+        puts "#{p.id} #{p.group}/#{p.name} \e[31mfailed#{exc}! \u2620\e[0m"
         if dump then
           puts "============== WARNINGS ==============="
           puts File.read(File.join(testresults, warnfile))
