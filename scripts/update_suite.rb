@@ -74,9 +74,7 @@ end
 #Command line parameters
 #Either only run a single test, or
 #"future" will also run tests we normally skip
-# -v at the end stands for verbose output
 dump = ARGV.last == "-d" && ARGV.pop
-verbose = ARGV.last == "-v" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
@@ -326,7 +324,7 @@ File.open(theresultfile, "w") do |f|
       check = lambda {|cond|
         if cond then correct += 1
         else
-          puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}" if verbose
+          puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}"
           ferr = idx if ferr.nil? or idx < ferr
         end
       }
@@ -409,7 +407,6 @@ if report then
   puts "  Exclude group: ./scripts/update_suite.rb group -mutex"
   puts "  Future: ./scripts/update_suite.rb future"
   puts "  Force sequential execution: append -s"
-  puts "  Verbose output: append -v"
   puts ("Results: " + theresultfile)
 end
 if alliswell then
