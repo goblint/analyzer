@@ -84,7 +84,7 @@ struct
     let add_var (v: varinfo) (value) (cpa,acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-        if is_global a v && (privates || not (is_private a (cpa,fl) v)) then begin
+        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a (cpa,fl) v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           (CPA.remove v cpa, (v,value) :: acc)
         end else
@@ -98,6 +98,7 @@ struct
 
   let sync' privates ctx: D.t * glob_diff =
     let cpa,fl = ctx.local in
+    let privates = privates || (!GU.earlyglobs && not (Flag.is_multi fl)) in
     let cpa, diff = if !GU.earlyglobs || Flag.is_multi fl then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
     (cpa,fl), diff
 
