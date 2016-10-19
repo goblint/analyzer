@@ -98,7 +98,6 @@ struct
 
   let sync' privates ctx: D.t * glob_diff =
     let cpa,fl = ctx.local in
-    let privates = privates || (!GU.earlyglobs && not (Flag.is_multi fl)) in
     let cpa, diff = if !GU.earlyglobs || Flag.is_multi fl then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
     (cpa,fl), diff
 
