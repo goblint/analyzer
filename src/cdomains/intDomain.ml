@@ -56,39 +56,45 @@ sig
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
-  exception Bigger_than_Int64
-  open Cil open Int64
+  exception Not_in_int64
+  open Cil open Int64 open Big_int
   let sign x = if x<0L then `Signed else `Unsigned
   let max = function
     | `Signed -> ILongLong
     | `Unsigned -> IULongLong
   let min_for x = intKindForValue (mkCilint (max (sign x)) x) (sign x = `Unsigned)
   let bit ik = bytesSizeOfInt ik * 8 (* total bits *)
+  let is_int64_big_int x = try let _ = int64_of_big_int x in true with _ -> false
   let card ik = (* cardinality *)
     let b = bit ik in
-    if b>=64 then raise Bigger_than_Int64
-    else shift_left 1L b
+    shift_left_big_int unit_big_int b
   let bits ik = (* highest bits for neg/pos values *)
     let s = bit ik in
     if isSigned ik then s-1, s-1 else 0, s
   let bits_i64 ik = BatTuple.Tuple2.mapn of_int (bits ik)
   let range ik = (* min/max values as int64 (signed), anything bigger is cropped! *)
     let a,b = bits ik in
-    if a>63 || b>63 then raise Bigger_than_Int64 else
+    if a>63 || b>63 then raise Not_in_int64 else
     let x = if isSigned ik then neg (shift_left 1L a) (* -2^a *) else 0L in
     let y = sub (shift_left 1L b) 1L in (* 2^b - 1 *)
     x,y
+  let range_big_int ik =
+    let a,b = bits ik in
+    let x = if isSigned ik then minus_big_int (shift_left_big_int unit_big_int a) (* -2^a *) else zero_big_int in
+    let y = sub_big_int (shift_left_big_int unit_big_int b) unit_big_int in (* 2^b - 1 *)
+    x,y
   let cast t x = (* TODO: overflow is implementation-dependent! *)
-    let a,b = range t in
+    let a,b = range_big_int t in
     let c = card t in
+    let x' = big_int_of_int64 x in
     (* let z = add (rem (sub x a) c) a in (* might lead to overflows itself... *)*)
-    let y = rem x c in
-    let y = if y > b then sub y c
-       else if y < a then add y c
+    let y = mod_big_int x' c in
+    let y = if gt_big_int y b then sub_big_int y c
+       else if lt_big_int y a then add_big_int y c
        else y
     in
-    M.tracel "cast_int" "Cast %Li to range [%Li, %Li] (%Li) = %Li\n" x a b c y;
-    y
+    M.tracel "cast_int" "Cast %Li to range [%s, %s] (%s) = %s (%s in int64)\n" x (string_of_big_int a) (string_of_big_int b) (string_of_big_int c) (string_of_big_int y) (if is_int64_big_int y then "fits" else "does not fit");
+    try int64_of_big_int y with _ -> raise Not_in_int64
 end
 
 module Interval32 : S with type t = (int64 * int64) option = (* signed 32bit ints *)
@@ -174,7 +180,7 @@ struct
     | None -> None
     | Some (x,y) ->
       try norm @@ Some (Size.cast t x, Size.cast t y)
-      with Size.Bigger_than_Int64 -> top () (* TODO top not safe b/c range too small *)
+      with Size.Not_in_int64 -> top () (* TODO top not safe b/c range too small *)
 
   let widen x y =
     match x, y with
