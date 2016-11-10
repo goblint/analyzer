@@ -246,7 +246,7 @@ end
 
 (* TODO functor for type info *)
 
-module Normal (Idx: Printable.S) =
+module Normal (Idx: IntDomain.S) =
 struct
   type field = fieldinfo
   type idx = Idx.t
@@ -303,6 +303,23 @@ struct
     | StrPtr x -> [x]
     | _        -> []
 
+  let rec short_offs = function
+    | `NoOffset -> ""
+    | `Field (fld, o) -> "." ^ fld.fname ^ short_offs o
+    | `Index (v, o) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ short_offs o
+
+  let short_addr (x, o) =
+    GU.demangle x.vname ^ short_offs o
+
+  let short _ = function
+    | Addr x     -> short_addr x
+    | StrPtr x   -> x
+    | UnknownPtr -> "?"
+    | SafePtr    -> "SAFE"
+    | NullPtr    -> "NULL"
+    | Bot        -> "bot"
+    | Top        -> "top"
+
   let rec type_offset t o = match unrollType t, o with (* resolves TNamed *)
     | t, `NoOffset -> t
     | TArray (t,_,_), `Index (i,o)
@@ -311,7 +328,9 @@ struct
       let fi = try getCompField ci f.fname
         with Not_found -> raise (Failure ("Addr.type_offset: field "^f.fname^" not found"))
       in type_offset fi.ftype o
-    | _ -> raise (Failure "Addr.type_offset: type error")
+    | t,o ->
+      let s = sprint ~width:0 @@ dprintf "Addr.type_offset: type error: %a and %s" d_plaintype t (short_offs o) in
+      raise (Failure s)
 
   let get_type_addr (v,o) = type_offset v.vtype o
 
@@ -326,24 +345,6 @@ struct
   let copy x = x
   let isSimple _  = true
 
-  let short_addr (x, offs) =
-    let rec off_str ofs =
-      match ofs with
-      | `NoOffset -> ""
-      | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
-      | `Index (v, ofs) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ off_str ofs
-    in
-    GU.demangle x.vname ^ off_str offs
-
-  let short _ = function
-    | Addr x     -> short_addr x
-    | StrPtr x   -> x
-    | UnknownPtr -> "?"
-    | SafePtr    -> "SAFE"
-    | NullPtr    -> "NULL"
-    | Bot        -> "bot"
-    | Top        -> "top"
-
   let rec hash_offset = function
     | `NoOffset -> 1
     | `Index(i,o) -> Idx.hash i * 35 * hash_offset o
@@ -352,12 +353,22 @@ struct
     | Addr (v,o) -> v.vid * hash_offset o
     | x -> Hashtbl.hash x
 
+  let rec is_zero_offset =
+    let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname in
+    let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false in
+    function
+    | `Field (x,o) -> is_first_field x && is_zero_offset o
+    | `Index (x,o) -> Idx.to_int x = Some 0L && is_zero_offset o
+    | `NoOffset -> true
+
   let equal x y =
     let rec eq_offs x y =
       match x, y with
       | `NoOffset, `NoOffset -> true
       | `Index (i,x), `Index (o,y) -> Idx.equal i o && eq_offs x y
       | `Field (i,x), `Field (o,y) -> i.fcomp.ckey=o.fcomp.ckey && i.fname = o.fname && eq_offs x y
+      | `NoOffset, o
+      | o, `NoOffset -> is_zero_offset o
       | _ -> false
     in
     match x, y with

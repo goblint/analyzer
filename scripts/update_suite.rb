@@ -74,9 +74,7 @@ end
 #Command line parameters
 #Either only run a single test, or
 #"future" will also run tests we normally skip
-# -v at the end stands for verbose output
 dump = ARGV.last == "-d" && ARGV.pop
-verbose = ARGV.last == "-v" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
@@ -216,11 +214,13 @@ doproject = lambda do |p|
   status = $?.exitstatus
   if status != 0 then
     reason = if status == 2 then "exception" elsif status == 3 then "verify" end
-    puts "\t Status: #{status} (#{reason})".red
+    clearline
+    puts "Testing #{p.id} #{p.group}/#{p.name}" + "\t Status: #{status} (#{reason})".red
     stats = File.readlines statsfile
     if stats[0] =~ /exception/ then
       relpath = (Pathname.new filepath).relative_path_from (Pathname.new File.dirname(goblint))
-      puts (File.readlines warnfile).last().strip().sub filename, relpath.to_s
+      lastline = (File.readlines warnfile).last()
+      puts lastline.strip().sub filename, relpath.to_s unless lastline.nil?
       puts stats[0..9].join()
     end
     if status == 3 then
@@ -325,7 +325,7 @@ File.open(theresultfile, "w") do |f|
       check = lambda {|cond|
         if cond then correct += 1
         else
-          puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}" if verbose
+          puts "Expected #{type}, but registered #{warnings[idx]} on #{p.name}:#{idx}"
           ferr = idx if ferr.nil? or idx < ferr
         end
       }
@@ -372,8 +372,8 @@ File.open(theresultfile, "w") do |f|
       alliswell = false
       if not timedout.include? "#{p.id}-#{p.group}/#{p.name}" then
         failed.push p.name
-        exc = if lines[0] =~ /exception/ then " (exception, see above)" else "" end
-        puts "#{p.id} #{p.group}/#{p.name} \e[31mfailed#{exc}! \u2620\e[0m"
+        exc = if lines[0] =~ /exception/ then " (see exception above)" else "" end
+        puts "#{p.id} #{p.group}/#{p.name}" + " failed#{exc}!".red
         if dump then
           puts "============== WARNINGS ==============="
           puts File.read(File.join(testresults, warnfile))
@@ -408,7 +408,6 @@ if report then
   puts "  Exclude group: ./scripts/update_suite.rb group -mutex"
   puts "  Future: ./scripts/update_suite.rb future"
   puts "  Force sequential execution: append -s"
-  puts "  Verbose output: append -v"
   puts ("Results: " + theresultfile)
 end
 if alliswell then
