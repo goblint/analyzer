@@ -311,7 +311,7 @@ struct
 
   let cast_addr t a =
     let rec adjust_offs v o =
-      let ta = Addr.type_offset v.vtype o in
+      let ta = try Addr.type_offset v.vtype o with Failure s -> raise (CastError s) in
       let info = Pretty.(sprint ~width:0 @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
       M.tracel "casta" "%s\n" info;
       let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in

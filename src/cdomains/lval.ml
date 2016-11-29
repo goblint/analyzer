@@ -320,6 +320,7 @@ struct
     | Bot        -> "bot"
     | Top        -> "top"
 
+  (* tries to follow o in t *)
   let rec type_offset t o = match unrollType t, o with (* resolves TNamed *)
     | t, `NoOffset -> t
     | TArray (t,_,_), `Index (i,o)
@@ -328,9 +329,10 @@ struct
       let fi = try getCompField ci f.fname
         with Not_found -> raise (Failure ("Addr.type_offset: field "^f.fname^" not found"))
       in type_offset fi.ftype o
+    | TComp _, `Index (_,o) -> type_offset t o (* this happens (hmmer, perlbench). safe? *)
     | t,o ->
-      let s = sprint ~width:0 @@ dprintf "Addr.type_offset: type error: %a and %s" d_plaintype t (short_offs o) in
-      raise (Failure s)
+      let s = sprint ~width:0 @@ dprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %s" d_plaintype t (short_offs o) in
+      failwith s
 
   let get_type_addr (v,o) = type_offset v.vtype o
 
