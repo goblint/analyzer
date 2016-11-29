@@ -22,10 +22,10 @@ int main(){
     b = *c;
     assert(b == -128);
     // and also for neg. values:
-    a = -1;        b = *c; printf("a: %d, b: %d\n", a, b); assert(b == -1);
-    a = INT_MIN+1; b = *c; printf("a: %d, b: %d\n", a, b); assert(b == 1);
-    a = CHAR_MIN;  b = *c; printf("a: %d, b: %d\n", a, b); assert(b == -128);
-    a = CHAR_MIN-1;  b = *c; printf("a: %d, b: %d\n", a, b); assert(b == 127);
+    a = -1;         b = *c; printf("a: %d, b: %d\n", a, b); assert(b == -1);
+    a = INT_MIN+1;  b = *c; printf("a: %d, b: %d\n", a, b); assert(b == 1);
+    a = CHAR_MIN;   b = *c; printf("a: %d, b: %d\n", a, b); assert(b == -128);
+    a = CHAR_MIN-1; b = *c; printf("a: %d, b: %d\n", a, b); assert(b == 127);
     // upcast must always lead to top since we might read garbage (except we know there was a corresponding downcast before)
     {
       schar a = 1;
@@ -53,13 +53,15 @@ int main(){
   // # structs
   {
     // pointer to struct == pointer to first field
+
+    // cast in (add first field)
     struct a a;
     a.x = 3;
     assert(a.x == 3);
     assert(*((int*) &a) == 3);
     *((int*) &a) = 5;
     assert(a.x == 5);
-
+    // two levels
     struct b b;
     b.x = a;
     assert(b.x.x == 5);
@@ -68,9 +70,17 @@ int main(){
     *((int*) &b) = 7;
     assert(b.x.x == 7);
 
-    // this is not guaranteed for the following fields
+    // cast out (strip first field)
     a.y = 8;
+    assert(((struct a*) &a.x)->y == 8);
+    b.y = 9;
+    assert(((struct b*) &b.x.x)->y == 9);
+
+    // there are no assumptions one can make for following fields!
     assert(*((&a.x)+1) == 8); // UNKNOWN!
+    // pointers into the middle that are casted out must be top!
+    // this gives a segfault:
+    assert(((struct a*) &a.y)->y == 8); // UNKNOWN!
   }
 
 

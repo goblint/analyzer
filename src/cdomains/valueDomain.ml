@@ -299,22 +299,22 @@ struct
     (*| _ -> false*)
 
   let ptr_ikind () = match !upointType with TInt (ik,_) -> ik | _ -> assert false
-  
+
   exception CastError of string
-  
+
   let typ_eq t1 t2 = match typeSig t1, typeSig t2 with
     (* f() and f(void) are not the same (1. no args specified, 2. specified as no args), but we don't care for function pointer casts TODO why does CIL have type f(void) for function definitions f(){..}? *)
     | TSFun (r1, None, false, _), TSFun (r2, Some [], false, _)
     | TSFun (r1, Some [], false, _), TSFun (r2, None, false, _)
       -> r1 = r2
     | a, b -> a = b
-  
+
   let cast_addr t a =
     let rec adjust_offs v o =
       let ta = Addr.type_offset v.vtype o in
       let info = Pretty.(sprint ~width:0 @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
       M.tracel "casta" "%s\n" info;
-      let err s = raise (CastError (s ^ " " ^ info)) in
+      let err s = raise (CastError (s ^ " (" ^ info ^ ")")) in
       match Pervasives.compare (bitsSizeOf t) (bitsSizeOf ta) with (* TODO is it enough to compare the size? -> yes? *)
       | 0 ->
         M.tracel "casta" "same size\n";
@@ -322,8 +322,9 @@ struct
         else (M.tracel "casta" "SUCCESS!\n"; o)
       | 1 -> (* cast to bigger/outer type *)
         M.tracel "casta" "cast to bigger size\n";
-        if o = `NoOffset then err "Cast to bigger type, but no offset to remove."
-        else adjust_offs v (Addr.remove_offset o)
+        if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
+        else if Addr.is_zero_offset o then adjust_offs v (Addr.remove_offset o)
+        else err "Ptr-cast to outer type, but possibly from non-zero offset."
       | _ -> (* cast to smaller/inner type *)
         M.tracel "casta" "cast to smaller size\n";
         begin match ta, t with
@@ -332,7 +333,7 @@ struct
           M.tracel "casta" "cast struct to its first field\n";
           adjust_offs v (Addr.add_offsets o (`Field (fi, `NoOffset)))
         (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
-        | TArray (t1, _, _), TArray (t2, _, _) when typ_eq t1 t2 -> o 
+        | TArray (t1, _, _), TArray (t2, _, _) when typ_eq t1 t2 -> o
         (* array to its first element *)
         | TArray _, _ ->
           M.tracel "casta" "cast array to its first element\n";
@@ -347,9 +348,8 @@ struct
       | Addr (v, o) as a ->
         begin try Addr (v, (adjust_offs v o)) (* cast of one address by adjusting the abstract offset *)
         with CastError s -> (* don't know how to handle this cast :( *)
-          (*M.warn s;*)
           M.tracel "caste" "%s\n" s;
-          a
+          a (* probably garbage, but this is deref's problem *)
           (*raise (CastError s)*)
         end
       | x -> x (* TODO we should also keep track of the type here *)
