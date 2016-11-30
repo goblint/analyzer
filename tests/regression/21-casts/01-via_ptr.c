@@ -59,6 +59,7 @@ int main(){
     a.x = 3;
     assert(a.x == 3);
     assert(*((int*) &a) == 3);
+    assert((&a)[0].x == 3);
     *((int*) &a) = 5;
     assert(a.x == 5);
     // two levels
