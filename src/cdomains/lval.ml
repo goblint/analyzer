@@ -320,6 +320,8 @@ struct
     | Bot        -> "bot"
     | Top        -> "top"
 
+  (* exception if the offset can't be followed completely *)
+  exception Type_offset of typ * string
   (* tries to follow o in t *)
   let rec type_offset t o = match unrollType t, o with (* resolves TNamed *)
     | t, `NoOffset -> t
@@ -332,9 +334,9 @@ struct
     | TComp _, `Index (_,o) -> type_offset t o (* this happens (hmmer, perlbench). safe? *)
     | t,o ->
       let s = sprint ~width:0 @@ dprintf "Addr.type_offset: could not follow offset in type. type: %a, offset: %s" d_plaintype t (short_offs o) in
-      failwith s
+      raise (Type_offset (t, s))
 
-  let get_type_addr (v,o) = type_offset v.vtype o
+  let get_type_addr (v,o) = try type_offset v.vtype o with Type_offset (t,_) -> t
 
   let get_type = function
     | Addr x   -> get_type_addr x
