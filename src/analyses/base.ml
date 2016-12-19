@@ -709,6 +709,15 @@ struct
       (* Since we only handle equalities the order is not important *) (* TODO make independent of ordering *)
       | BinOp(op, Lval x, rval, typ)
       | BinOp(op, rval, Lval x, typ) -> helper op x (eval_rv a gs st rval) tv
+      | BinOp(op, CastE (TInt (ik, _), Lval x), rval, typ)
+      | BinOp(op, rval, CastE (TInt (ik, _), Lval x), typ) ->
+          (match eval_rv a gs st (Lval x) with
+          | `Int v ->
+            if ID.cast_to ik v = v then
+              derived_invariant (BinOp (op, Lval x, rval, typ)) tv
+            else
+              None
+          | _ -> None)
       | BinOp(op, CastE (xt,x), CastE (yt,y), typ) when Basetype.CilType.equal xt yt
         -> derived_invariant (BinOp (op, x, y, typ)) tv
       (* Cases like if (x) are treated like if (x != 0) *)

@@ -179,7 +179,11 @@ struct
   let cast_to t = function
     | None -> None
     | Some (x,y) ->
-      try norm @@ Some (Size.cast t x, Size.cast t y)
+      try
+        let a = Size.cast t x in
+        let b = Size.cast t y in
+        let a,b = if x<>a || y<>b then Size.range t else a,b in
+        norm @@ Some (a, b)
       with Size.Not_in_int64 -> top () (* TODO top not safe b/c range too small *)
 
   let widen x y =
