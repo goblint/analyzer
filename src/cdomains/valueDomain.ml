@@ -310,7 +310,7 @@ struct
     | a, b -> a = b
 
   let cast_addr t a =
-    let rec adjust_offs v o =
+    let rec adjust_offs v o d =
       let ta = try Addr.type_offset v.vtype o with Addr.Type_offset (t,s) -> raise (CastError s) in
       let info = Pretty.(sprint ~width:0 @@ dprintf "Ptr-Cast %a from %a to %a" Addr.pretty (Addr.Addr (v,o)) d_type ta d_type t) in
       M.tracel "casta" "%s\n" info;
@@ -322,22 +322,24 @@ struct
         else (M.tracel "casta" "SUCCESS!\n"; o)
       | 1 -> (* cast to bigger/outer type *)
         M.tracel "casta" "cast to bigger size\n";
+        if d = Some false then err "Ptr-cast to type of incompatible size!" else
         if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
-        else if Addr.is_zero_offset o then adjust_offs v (Addr.remove_offset o)
+        else if Addr.is_zero_offset o then adjust_offs v (Addr.remove_offset o) (Some true)
         else err "Ptr-cast to outer type, but possibly from non-zero offset."
       | _ -> (* cast to smaller/inner type *)
         M.tracel "casta" "cast to smaller size\n";
+        if d = Some true then err "Ptr-cast to type of incompatible size!" else
         begin match ta, t with
         (* struct to its first field *)
         | TComp ({cfields = fi::_}, _), _ ->
           M.tracel "casta" "cast struct to its first field\n";
-          adjust_offs v (Addr.add_offsets o (`Field (fi, `NoOffset)))
+          adjust_offs v (Addr.add_offsets o (`Field (fi, `NoOffset))) (Some false)
         (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
         | TArray (t1, _, _), TArray (t2, _, _) when typ_eq t1 t2 -> o
         (* array to its first element *)
         | TArray _, _ ->
           M.tracel "casta" "cast array to its first element\n";
-          adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int 0L, `NoOffset)))
+          adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int 0L, `NoOffset))) (Some false)
         | _ -> err @@ "Cast to neither array index nor struct field."
           ^ Pretty.(sprint ~width:0 @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
         end
@@ -346,7 +348,7 @@ struct
       | Addr ({ vtype = TVoid _ } as v, `NoOffset) -> (* we had no information about the type (e.g. malloc), so we add it TODO what about offsets? *)
         Addr ({ v with vtype = t }, `NoOffset)
       | Addr (v, o) as a ->
-        begin try Addr (v, (adjust_offs v o)) (* cast of one address by adjusting the abstract offset *)
+        begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
         with CastError s -> (* don't know how to handle this cast :( *)
           M.tracel "caste" "%s\n" s;
           a (* probably garbage, but this is deref's problem *)
