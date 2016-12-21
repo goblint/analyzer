@@ -572,10 +572,6 @@ struct
     | `Bot
   ]
 
-  let cast_to t = function
-    | `Excluded (s,r) -> let r' = size t in `Excluded (if R.leq r r' then s,r else S.empty (), r') (* TODO can we do better here? *)
-    | `Definite x -> `Definite (Integers.cast_to t x)
-    | `Bot -> `Bot
   let hash (x:t) =
     match x with
     | `Excluded (s,r) -> S.hash s + R.hash r
@@ -598,6 +594,11 @@ struct
 
   let bot_name = "Error int"
   let top_name = "Unknown int"
+
+  let cast_to t = function
+    | `Excluded (s,r) -> let r' = size t in `Excluded (if R.leq r r' then s,r else S.empty (), r') (* TODO can we do better here? *)
+    | `Definite x -> (try `Definite (Integers.cast_to t x) with Size.Not_in_int64 -> top_of t)
+    | `Bot -> `Bot
 
   let isSimple _ = true
 
@@ -1201,7 +1202,7 @@ module Enums : S = struct
     | Neg (xs,r) -> "not {" ^ (String.concat ", " (List.map (I.short 30) xs)) ^ "}"
 
   let of_int x = Pos [x]
-  let cast_to t = function Pos xs -> Pos (List.map (I.cast_to t) xs |> List.sort_unique compare) | Neg _ -> top_of t
+  let cast_to t = function Pos xs -> (try Pos (List.map (I.cast_to t) xs |> List.sort_unique compare) with Size.Not_in_int64 -> top_of t) | Neg _ -> top_of t
 
   let of_interval (x,y) =
     let rec build_set set start_num end_num =
