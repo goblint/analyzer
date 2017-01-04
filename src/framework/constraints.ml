@@ -746,27 +746,23 @@ struct
 
   let compare_locals h1 h2 =
     let eq, le, gr, uk = ref 0, ref 0, ref 0, ref 0 in
-    let f_eq () = incr eq in
-    let f_le () = incr le in
-    let f_gr () = incr gr in
-    let f_uk () = incr uk in
     let f k v1 =
       if not (PP.mem h2 k) then () else
         let v2 = PP.find h2 k in
         let b1 = D.leq v1 v2 in
         let b2 = D.leq v2 v1 in
         if b1 && b2 then
-          f_eq ()
+          incr eq
         else if b1 then begin
           if get_bool "solverdiffs" then
             ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "solver") D.pretty_diff (v1,v2));
-          f_le ()
+          incr le
         end else if b2 then begin
           if get_bool "solverdiffs" then
             ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "comparesolver") D.pretty_diff (v1,v2));
-          f_gr ()
+          incr gr
         end else
-          f_uk ()
+          incr uk
     in
     PP.iter f h1;
     let k1 = Set.of_enum @@ PP.keys h1 in
