@@ -19,18 +19,21 @@ module Functions = struct
   let arinc_special = with_timeout @ wout_timeout
   let special = arinc_special @ others
   open ArincUtil
-  (* possible return code values *)
-  let with_success = [NO_ERROR; NO_ACTION]
-  let wout_success = [NO_ERROR; NO_ACTION; NOT_AVAILABLE; INVALID_PARAM; INVALID_CONFIG; INVALID_MODE; TIMED_OUT]
-  let wout_success_wout_timeout = [NO_ERROR; NO_ACTION; NOT_AVAILABLE; INVALID_PARAM; INVALID_CONFIG; INVALID_MODE]
-  let vd xs = `Int (ValueDomain.ID.(List.map (of_int % Int64.of_int % return_code_to_enum) xs |> List.fold_left join (bot ()))) (* ana.int.enums should be enabled *)
+  (* possible return code classes *)
+  let ret_success = [NO_ERROR; NO_ACTION]
+  let ret_error   = [NOT_AVAILABLE; INVALID_PARAM; INVALID_CONFIG; INVALID_MODE; TIMED_OUT]
+  let ret_any     = ret_success @ ret_error
+  let ret_no_timeout = List.remove ret_any TIMED_OUT
+  (* abstract value for return codes *)
+  let vd ret = `Int (ValueDomain.ID.(List.map (of_int % Int64.of_int % return_code_to_enum) ret |> List.fold_left join (bot ()))) (* ana.int.enums should be enabled *)
   let effects fname args =
     if not (List.mem fname arinc_special) || List.is_empty args then None
     else
       match List.last args with
       | AddrOf lv ->
         Some (fun set ->
-            let v = vd (if GobConfig.get_bool "ana.arinc.assume_success" then with_success else if List.mem fname with_timeout then wout_success else wout_success_wout_timeout) in
+            let ret = if GobConfig.get_bool "ana.arinc.assume_success" then ret_success else if List.mem fname with_timeout then ret_any else ret_no_timeout in
+            let v = vd ret in
             debug_doc @@ Pretty.dprintf "effect of %s: set %a to %a" fname d_lval lv ValueDomain.Compound.pretty v;
             set lv v
           )
