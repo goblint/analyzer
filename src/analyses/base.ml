@@ -310,7 +310,9 @@ struct
            Addr.from_var_offset (x, `Index (IdxDom.add i (iDtoIdx n), offs))
          | [x,`NoOffset] ->
            Addr.from_var_offset (x, `Index (iDtoIdx n, `NoOffset))
-         | _ -> Addr.unknown_ptr () (* TODO fields? *)
+         | _ -> match addr with
+            | Addr.SafePtr | Addr.NullPtr -> addr
+            | _ -> Addr.unknown_ptr () (* TODO fields? *)
     in
     (* The main function! *)
     match a1,a2 with
