@@ -128,7 +128,7 @@ regs.sort.each do |d|
       if obj =~ /#line ([0-9]+).*$/ then
         i = $1.to_i - 1
       end
-      next if obj =~ /^\s*\/\//
+      next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
       if obj =~ /RACE/ then
         hash[i] = if obj =~ /NORACE/ then "norace" else "race" end
       elsif obj =~ /DEADLOCK/ then
