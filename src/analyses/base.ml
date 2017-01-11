@@ -710,8 +710,8 @@ struct
       match exp with
       (* Since we only handle equalities the order is not important *) (* TODO make independent of ordering *)
       | BinOp(op, Lval x, rval, typ)
-      | BinOp(op, rval, Lval x, typ) -> helper op x (eval_rv a gs st rval) tv
-      | BinOp(op, CastE (xt,x), CastE (yt,y), typ) when Basetype.CilType.equal xt yt
+      | BinOp(op, rval, Lval x, typ) -> helper op x (VD.cast (typeOfLval x) (eval_rv a gs st rval)) tv
+      | BinOp(op, CastE (xt,x), CastE (yt,y), typ) when (op = Eq || op = Ne) && xt = yt && VD.is_safe_cast xt (typeOf x) && VD.is_safe_cast yt (typeOf y)
         -> derived_invariant (BinOp (op, x, y, typ)) tv
       | BinOp(op, CastE (TInt (ik, _), Lval x), rval, typ)
       | BinOp(op, rval, CastE (TInt (ik, _), Lval x), typ) ->
