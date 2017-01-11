@@ -188,102 +188,6 @@ struct
     | (`Blob x, `Blob y) -> Blobs.pretty_diff () (x,y)
     | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
 
-  let leq x y =
-    match (x,y) with
-    | (_, `Top) -> true
-    | (`Top, _) -> false
-    | (`Bot, _) -> true
-    | (_, `Bot) -> false
-    | (`Int x, `Int y) -> ID.leq x y
-    | (`Int x, `Address y) when ID.to_int x = Some 0L -> true
-    | (`Address x, `Address y) -> AD.leq x y
-    | (`Struct x, `Struct y) -> Structs.leq x y
-    | (`Union x, `Union y) -> Unions.leq x y
-    | (`Array x, `Array y) -> CArrays.leq x y
-    | (`List x, `List y) -> Lists.leq x y
-    | (`Blob x, `Blob y) -> Blobs.leq x y
-    | `Blob x, y -> Blobs.leq (x:t) ((B.make 0 y):t)
-    | y, `Blob x -> Blobs.leq ((B.make 0 y):t) (x:t)
-    | _ -> false
-
-  let join x y =
-    match (x,y) with
-    | (`Top, _) -> `Top
-    | (_, `Top) -> `Top
-    | (`Bot, x) -> x
-    | (x, `Bot) -> x
-    | (`Int x, `Int y) -> `Int (ID.join x y)
-    | (`Int x, `Address y)
-    | (`Address y, `Int x) when ID.to_int x = Some 0L ->
-      ignore @@ printf "JOIN Int %a and Address %a\n" ID.pretty x AD.pretty y;
-      `Address (AD.join (AD.null_ptr ()) y)
-    | (`Address x, `Address y) -> `Address (AD.join x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
-    | (`Union x, `Union y) -> `Union (Unions.join x y)
-    | (`Array x, `Array y) -> `Array (CArrays.join x y)
-    | (`List x, `List y) -> `List (Lists.join x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
-    | `Blob x, y
-    |  y, `Blob x ->
-      `Blob (B.join (x:t) ((B.make 0 y):t))
-    | x, y ->
-      (* let _ = printf "%a\n" pretty_diff (x,y) in *)
-      (* let _ = printf "Compound.join: %s\n%s\n" (short 1000 x) (short 1000 y) in *)
-      (* failwith "missing cast?!" *)
-      `Top
-
-  let meet x y =
-    match (x,y) with
-    | (`Bot, _) -> `Bot
-    | (_, `Bot) -> `Bot
-    | (`Top, x) -> x
-    | (x, `Top) -> x
-    | (`Int x, `Int y) -> `Int (ID.meet x y)
-    | (`Address x, `Address y) -> `Address (AD.meet x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
-    | (`Union x, `Union y) -> `Union (Unions.meet x y)
-    | (`Array x, `Array y) -> `Array (CArrays.meet x y)
-    | (`List x, `List y) -> `List (Lists.meet x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
-    | `Blob x, y
-    |  y, `Blob x ->
-      `Blob (B.meet (x:t) ((B.make 0 y):t))
-    | _ -> `Bot
-
-  let widen x y =
-    match (x,y) with
-    | (`Top, _) -> `Top
-    | (_, `Top) -> `Top
-    | (`Bot, x) -> x
-    | (x, `Bot) -> x
-    | (`Int x, `Int y) -> `Int (ID.widen x y)
-    | (`Address x, `Address y) -> `Address (AD.widen x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
-    | (`Union x, `Union y) -> `Union (Unions.widen x y)
-    | (`Array x, `Array y) -> `Array (CArrays.widen x y)
-    | (`List x, `List y) -> `List (Lists.widen x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
-    | `Blob x, y ->
-      `Blob (B.widen (x:t) ((B.make 0 y):t))
-    |  y, `Blob x ->
-      `Blob (B.widen ((B.make 0 y):t) (x:t))
-    | _ -> `Top
-
-  let narrow x y =
-    match (x,y) with
-    | (`Int x, `Int y) -> `Int (ID.narrow x y)
-    | (`Address x, `Address y) -> `Address (AD.narrow x y)
-    | (`Struct x, `Struct y) -> `Struct (Structs.narrow x y)
-    | (`Union x, `Union y) -> `Union (Unions.narrow x y)
-    | (`Array x, `Array y) -> `Array (CArrays.narrow x y)
-    | (`List x, `List y) -> `List (Lists.narrow x y)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.narrow x y)
-    | `Blob x, y ->
-      `Blob (B.narrow (x:t) ((B.make 0 y):t))
-    |  y, `Blob x ->
-      `Blob (B.narrow ((B.make 0 y):t) (x:t))
-    | (x,_) -> x
-
   (************************************************************
    * Functions for getting state out of a compound:
    ************************************************************)
@@ -390,7 +294,7 @@ struct
       | TPtr (t,_) ->
         `Address (match v with
           | `Int x when ID.to_int x = Some Int64.zero -> AD.null_ptr ()
-          | `Int x -> AD.unknown_ptr ()
+          | `Int x -> AD.top_ptr ()
           (* we ignore casts to void*! TODO report UB! *)
           | `Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
           (*| `Address x -> x*)
@@ -430,11 +334,101 @@ struct
     Messages.tracel "cast" "cast %a to %a is %a!\n" pretty v d_type t pretty v'; v'
 
 
-  let do_cast (fromt: typ) (tot: typ) (value: t): t  =
-    if Util.equals fromt tot then value
-    else match fromt, tot with
-      | _, TInt _     -> `Int (ID.top ())
-      | _ -> top ()
+  let leq x y =
+    match (x,y) with
+    | (_, `Top) -> true
+    | (`Top, _) -> false
+    | (`Bot, _) -> true
+    | (_, `Bot) -> false
+    | (`Int x, `Int y) -> ID.leq x y
+    | (`Int x, `Address y) when ID.to_int x = Some 0L -> true
+    | (`Address x, `Address y) -> AD.leq x y
+    | (`Struct x, `Struct y) -> Structs.leq x y
+    | (`Union x, `Union y) -> Unions.leq x y
+    | (`Array x, `Array y) -> CArrays.leq x y
+    | (`List x, `List y) -> Lists.leq x y
+    | (`Blob x, `Blob y) -> Blobs.leq x y
+    | `Blob x, y -> Blobs.leq (x:t) ((B.make 0 y):t)
+    | y, `Blob x -> Blobs.leq ((B.make 0 y):t) (x:t)
+    | _ -> false
+
+  let join x y =
+    match (x,y) with
+    | (`Top, _) -> `Top
+    | (_, `Top) -> `Top
+    | (`Bot, x) -> x
+    | (x, `Bot) -> x
+    | (`Int x, `Int y) -> `Int (ID.join x y)
+    | (`Int x, `Address y)
+    | (`Address y, `Int x) when ID.to_int x = Some 0L ->
+      ignore @@ printf "JOIN Int %a and Address %a\n" ID.pretty x AD.pretty y;
+      `Address (AD.join (AD.null_ptr ()) y)
+    | (`Address x, `Address y) -> `Address (AD.join x y)
+    | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
+    | (`Union x, `Union y) -> `Union (Unions.join x y)
+    | (`Array x, `Array y) -> `Array (CArrays.join x y)
+    | (`List x, `List y) -> `List (Lists.join x y)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
+    | `Blob x, y
+    |  y, `Blob x ->
+      `Blob (B.join (x:t) ((B.make 0 y):t))
+    | x, y ->
+      (* let _ = printf "%a\n" pretty_diff (x,y) in *)
+      (* let _ = printf "Compound.join: %s\n%s\n" (short 1000 x) (short 1000 y) in *)
+      (* failwith "missing cast?!" *)
+      `Top
+
+  let meet x y =
+    match (x,y) with
+    | (`Bot, _) -> `Bot
+    | (_, `Bot) -> `Bot
+    | (`Top, x) -> x
+    | (x, `Top) -> x
+    | (`Int x, `Int y) -> `Int (ID.meet x y)
+    | (`Address x, `Address y) -> `Address (AD.meet x y)
+    | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
+    | (`Union x, `Union y) -> `Union (Unions.meet x y)
+    | (`Array x, `Array y) -> `Array (CArrays.meet x y)
+    | (`List x, `List y) -> `List (Lists.meet x y)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
+    | `Blob x, y
+    |  y, `Blob x ->
+      `Blob (B.meet (x:t) ((B.make 0 y):t))
+    | _ -> `Bot
+
+  let widen x y =
+    match (x,y) with
+    | (`Top, _) -> `Top
+    | (_, `Top) -> `Top
+    | (`Bot, x) -> x
+    | (x, `Bot) -> x
+    | (`Int x, `Int y) -> `Int (ID.widen x y)
+    | (`Address x, `Address y) -> `Address (AD.widen x y)
+    | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
+    | (`Union x, `Union y) -> `Union (Unions.widen x y)
+    | (`Array x, `Array y) -> `Array (CArrays.widen x y)
+    | (`List x, `List y) -> `List (Lists.widen x y)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
+    | `Blob x, y ->
+      `Blob (B.widen (x:t) ((B.make 0 y):t))
+    |  y, `Blob x ->
+      `Blob (B.widen ((B.make 0 y):t) (x:t))
+    | _ -> `Top
+
+  let narrow x y =
+    match (x,y) with
+    | (`Int x, `Int y) -> `Int (ID.narrow x y)
+    | (`Address x, `Address y) -> `Address (AD.narrow x y)
+    | (`Struct x, `Struct y) -> `Struct (Structs.narrow x y)
+    | (`Union x, `Union y) -> `Union (Unions.narrow x y)
+    | (`Array x, `Array y) -> `Array (CArrays.narrow x y)
+    | (`List x, `List y) -> `List (Lists.narrow x y)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.narrow x y)
+    | `Blob x, y ->
+      `Blob (B.narrow (x:t) ((B.make 0 y):t))
+    |  y, `Blob x ->
+      `Blob (B.narrow ((B.make 0 y):t) (x:t))
+    | (x,_) -> x
 
   let rec top_value (t: typ) =
     let rec top_comp compinfo: Structs.t =
@@ -503,7 +497,7 @@ struct
       | `Field (fld, offs) -> begin
           match x with
           | `Union (`Lifted l_fld, valu) ->
-            let x = do_cast l_fld.ftype fld.ftype valu in
+            let x = cast ~torg:l_fld.ftype fld.ftype valu in
             eval_offset f x offs
           | `Union (_, valu) -> top ()
           | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
