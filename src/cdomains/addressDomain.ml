@@ -40,6 +40,13 @@ struct
   let to_bool x = if is_null x then Some false else if is_not_null x then Some true else None
   let has_unknown x = mem Addr.UnknownPtr x
 
+  let of_int (type a) (module ID : IntDomain.S with type t = a) i =
+    match ID.to_int i with
+    | Some 0L -> null_ptr ()
+    | _ -> match ID.to_excl_list i with
+      | Some xs when List.mem 0L xs -> Addr.(of_list [safe_ptr (); unknown_ptr ()])
+      | _ -> top_ptr ()
+
   let get_type xs =
     try Addr.get_type (choose xs)
     with (* WTF? Returns TVoid when it is unknown and stuff??? *)

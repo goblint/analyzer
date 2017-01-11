@@ -360,9 +360,9 @@ struct
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> `Int (ID.join x y)
     | (`Int x, `Address y)
-    | (`Address y, `Int x) when ID.to_int x = Some 0L ->
-      ignore @@ printf "JOIN Int %a and Address %a\n" ID.pretty x AD.pretty y;
-      `Address (AD.join (AD.null_ptr ()) y)
+    | (`Address y, `Int x) -> `Address (match ID.to_int x with
+      | Some 0L -> AD.join (AD.null_ptr ()) y
+      | _ -> AD.top_ptr ())
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
     | (`Union x, `Union y) -> `Union (Unions.join x y)
@@ -373,18 +373,18 @@ struct
     |  y, `Blob x ->
       `Blob (B.join (x:t) ((B.make 0 y):t))
     | x, y ->
-      (* let _ = printf "%a\n" pretty_diff (x,y) in *)
-      (* let _ = printf "Compound.join: %s\n%s\n" (short 1000 x) (short 1000 y) in *)
-      (* failwith "missing cast?!" *)
+      ignore @@ printf "JOIN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
       `Top
 
-  let meet x y =
+  let rec meet x y =
     match (x,y) with
     | (`Bot, _) -> `Bot
     | (_, `Bot) -> `Bot
     | (`Top, x) -> x
     | (x, `Top) -> x
     | (`Int x, `Int y) -> `Int (ID.meet x y)
+    | (`Int _, `Address _) -> meet x (cast Cil.longType y)
+    | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.S with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.meet x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
     | (`Union x, `Union y) -> `Union (Unions.meet x y)
@@ -394,7 +394,9 @@ struct
     | `Blob x, y
     |  y, `Blob x ->
       `Blob (B.meet (x:t) ((B.make 0 y):t))
-    | _ -> `Bot
+    | _ ->
+        ignore @@ printf "MEET incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
+        `Bot
 
   let widen x y =
     match (x,y) with
@@ -413,7 +415,9 @@ struct
       `Blob (B.widen (x:t) ((B.make 0 y):t))
     |  y, `Blob x ->
       `Blob (B.widen ((B.make 0 y):t) (x:t))
-    | _ -> `Top
+    | _ ->
+        ignore @@ printf "WIDEN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
+        `Top
 
   let narrow x y =
     match (x,y) with
@@ -428,7 +432,11 @@ struct
       `Blob (B.narrow (x:t) ((B.make 0 y):t))
     |  y, `Blob x ->
       `Blob (B.narrow ((B.make 0 y):t) (x:t))
-    | (x,_) -> x
+    | x, `Top | `Top, x -> x
+    | x, `Bot | `Bot, x -> `Bot
+    | (x,_) ->
+        ignore @@ printf "NARROW incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
+        x
 
   let rec top_value (t: typ) =
     let rec top_comp compinfo: Structs.t =
