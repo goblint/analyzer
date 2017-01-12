@@ -383,7 +383,7 @@ struct
     | (`Top, x) -> x
     | (x, `Top) -> x
     | (`Int x, `Int y) -> `Int (ID.meet x y)
-    | (`Int _, `Address _) -> meet x (cast Cil.longType y)
+    | (`Int _, `Address _) -> meet x (cast IntDomain.Size.top_typ y)
     | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.S with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.meet x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)

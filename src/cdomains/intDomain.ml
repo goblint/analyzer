@@ -62,6 +62,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let max = function
     | `Signed -> ILongLong
     | `Unsigned -> IULongLong
+  let top_typ = TInt (ILongLong, [])
   let min_for x = intKindForValue (mkCilint (max (sign x)) x) (sign x = `Unsigned)
   let bit ik = bytesSizeOfInt ik * 8 (* total bits *)
   let is_int64_big_int x = try let _ = int64_of_big_int x in true with _ -> false

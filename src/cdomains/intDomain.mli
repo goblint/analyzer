@@ -98,6 +98,10 @@ end
 (** The signature of integral value domains. They need to support all integer
   * operations that are allowed in C *)
 
+module Size : sig
+  val top_typ : Cil.typ
+  (** The biggest type we support for integers. *)
+end
 
 exception Unknown
 (** An exception that can be raised when the result of a computation is unknown.
