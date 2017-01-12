@@ -830,7 +830,7 @@ struct
     in
     let complain_g v (g:GVar.t) lhs rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Unsatisfied constraint for global %a at variable %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]"
+      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]"
                 GVar.pretty_trace g LVar.pretty_trace v G.pretty lhs G.pretty rhs)
     in
     (* For each variable v which has been assigned value d', would like to check
