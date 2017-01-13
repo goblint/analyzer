@@ -342,6 +342,7 @@ struct
     | (_, `Bot) -> false
     | (`Int x, `Int y) -> ID.leq x y
     | (`Int x, `Address y) when ID.to_int x = Some 0L -> true
+    | (`Int _, `Address y) when AD.may_be_unknown y -> true
     | (`Address x, `Address y) -> AD.leq x y
     | (`Struct x, `Struct y) -> Structs.leq x y
     | (`Union x, `Union y) -> Unions.leq x y
@@ -373,8 +374,8 @@ struct
     |  y, `Blob x ->
       `Blob (B.join (x:t) ((B.make 0 y):t))
     | x, y ->
-      ignore @@ printf "JOIN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
-      `Top
+       ignore @@ printf "JOIN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line; 
+       `Top 
 
   let rec meet x y =
     match (x,y) with
@@ -405,6 +406,10 @@ struct
     | (`Bot, x) -> x
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> `Int (ID.widen x y)
+    | (`Int x, `Address y)
+    | (`Address y, `Int x) -> `Address (match ID.to_int x with
+      | Some 0L -> AD.widen (AD.null_ptr ()) y
+      | _ -> AD.top_ptr ())
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
     | (`Union x, `Union y) -> `Union (Unions.widen x y)
@@ -419,9 +424,11 @@ struct
         ignore @@ printf "WIDEN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
         `Top
 
-  let narrow x y =
+  let rec narrow x y =
     match (x,y) with
     | (`Int x, `Int y) -> `Int (ID.narrow x y)
+    | (`Int _, `Address _) -> narrow x (cast IntDomain.Size.top_typ y)
+    | (`Address x, `Int y) -> `Address (AD.narrow x (AD.of_int (module ID:IntDomain.S with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.narrow x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.narrow x y)
     | (`Union x, `Union y) -> `Union (Unions.narrow x y)

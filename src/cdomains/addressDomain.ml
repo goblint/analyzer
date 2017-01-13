@@ -35,6 +35,7 @@ struct
   let unknown_ptr () = singleton (Addr.unknown_ptr ())
   let top_ptr ()     = Addr.(of_list [unknown_ptr (); null_ptr (); safe_ptr ()])
   let is_unknown x = cardinal x = 1 && Addr.is_unknown (choose x)
+  let may_be_unknown x = exists Addr.is_unknown x
   let is_null x = cardinal x = 1 && Addr.is_null (choose x)
   let is_not_null x = for_all (Batteries.neg Addr.is_null) x
   let to_bool x = if is_null x then Some false else if is_not_null x then Some true else None
