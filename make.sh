@@ -87,7 +87,7 @@ rule() {
              opam install utop merlin ocp-indent ocp-index
              echo "Be sure to adjust your vim/emacs config!"
              echo "Installing Pre-commit hook..."
-             pushd .git/hooks; ln -s ../../scripts/hooks/pre-commit; popd
+             cd .git/hooks; ln -s ../../scripts/hooks/pre-commit; cd -
              echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
              sudo gem install parallel
              ;;
