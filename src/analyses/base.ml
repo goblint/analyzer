@@ -216,7 +216,7 @@ struct
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x;
-      M.warn "Assignment to unknown address"; (st,fl)
+      M.warn_each "Assignment to unknown address"; (st,fl)
 
   let set_many a (gs:glob_fun) (st,fl as store: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
@@ -952,12 +952,12 @@ struct
   let get_ptrs (vals: value list): address list =
     let f x acc = match x with
       | `Address adrs when AD.is_top adrs ->
-        M.warn "Unkown address given as function argument"; acc
+        M.warn_each "Unkown address given as function argument"; acc
       | `Address adrs when AD.to_var_may adrs = [] -> acc
       | `Address adrs ->
         let typ = AD.get_type adrs in
         if isFunctionType typ then acc else adrs :: acc
-      | `Top -> M.warn "Unkown value type given as function argument"; acc
+      | `Top -> M.warn_each "Unkown value type given as function argument"; acc
       | _ -> acc
     in
     List.fold_right f vals []
@@ -976,11 +976,11 @@ struct
       | `Top ->
         let typ = AD.get_type adr in
         let warning = "Unknown value in " ^ AD.short 40 adr ^ " could be an escaped pointer address!" in
-        if is_immediate_type typ then () else M.warn warning; empty
+        if is_immediate_type typ then () else M.warn_each warning; empty
       | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
       | `Address adrs when AD.is_top adrs ->
         let warning = "Unknown address in " ^ AD.short 40 adr ^ " has escaped." in
-        M.warn warning; empty
+        M.warn_each warning; empty
       (* The main thing is to track where pointers go: *)
       | `Address adrs -> adrs
       (* Unions are easy, I just ingore the type info. *)
@@ -1041,7 +1041,7 @@ struct
         List.map (invalidate_address st) (reachable_vars ask [a] gs st)
       | `Int _ -> []
       | _ -> let expr = sprint ~width:80 (d_exp () e) in
-        M.warn ("Failed to invalidate unknown address: " ^ expr); []
+        M.warn_each ("Failed to invalidate unknown address: " ^ expr); []
     in
     (* We concatMap the previous function on the list of expressions. *)
     let invalids = List.concat (List.map invalidate_exp exps) in
@@ -1147,12 +1147,12 @@ struct
     try
       let fp = eval_fv ctx.ask ctx.global ctx.local fval in
       if AD.mem (Addr.unknown_ptr ()) fp then begin
-        M.warn ("Function pointer " ^ Pretty.sprint 100 (d_exp () fval) ^ " may contain unknown functions.");
+        M.warn_each ("Function pointer " ^ Pretty.sprint 100 (d_exp () fval) ^ " may contain unknown functions.");
         dummyFunDec.svar :: AD.to_var_may fp
       end else
         AD.to_var_may fp
     with SetDomain.Unsupported _ ->
-      M.warn ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
+      M.warn_each ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
       [dummyFunDec.svar]
 
   let reachable_top_pointers_types ctx (ps: AD.t) : Queries.TS.t =
@@ -1333,7 +1333,7 @@ struct
         v, nst
       with Not_found ->
         if not (LF.use_special f.vname) then
-          M.warn ("creating a thread from unknown function " ^ v.vname);
+          M.warn_each ("creating a thread from unknown function " ^ v.vname);
         v, (cpa, create_tid v)
     in
     match LF.classify f.vname args with
@@ -1590,7 +1590,7 @@ struct
           match LF.get_invalidate_action f.vname with
           | Some fnc -> invalidate ctx.ask gs st (lv_list @ (fnc `Write  args));
           | None -> (
-              (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn ("Function definition missing for " ^ f.vname));
+              (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
               let st_expr (v:varinfo) (value) a =
                 if is_global ctx.ask v && not (is_static v) then
                   mkAddrOf (Var v, NoOffset) :: a
