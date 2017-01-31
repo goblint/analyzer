@@ -16,7 +16,7 @@ ocb() {
 setuprest() {
   opam update
   eval `opam config env`
-  opam install ocamlfind batteries xml-light ppx_deriving ppx_distr_guards
+  opam install ocamlfind batteries xml-light ppx_deriving ppx_distr_guards ppx_monadic
   # opam's cil is too old
   opam pin -y add cil "https://github.com/goblint/cil.git"
 }

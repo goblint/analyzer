@@ -1,0 +1,2 @@
+true: package(batteries), package(ppx_deriving.std), package(ppx_monadic)
+true: bin_annot
