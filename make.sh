@@ -1,4 +1,4 @@
-#! /bin/sh
+#! /bin/bash
 set -e
 
 # generate the version file
@@ -7,6 +7,7 @@ scripts/set_version.sh
 TARGET=src/goblint
 FLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt opt -cflag -g"
 OCAMLBUILD=ocamlbuild
+EXCLUDE="_build|goblint.ml|apronDomain|poly"
 
 ocb() {
   $OCAMLBUILD $FLAGS $*
@@ -22,7 +23,7 @@ setuprest() {
 
 rule() {
   case $1 in
-    clean)   rm -rf goblint goblint.byte goblint.ml arinc doclist.odocl $TARGET.ml;
+    clean)   rm -rf goblint goblint.byte arinc doclist.odocl $TARGET.ml;
              ocb -clean
              ;;
     opt | nat*)
@@ -55,7 +56,7 @@ rule() {
              cp _build/$TARGET.byte goblint.byte
              ;;
     doc*)    rm -rf doc;
-             ls src/*/*/*.ml src/*/*.ml src/*.ml | egrep -v "apronDomain|poly"  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
+             ls src/**/*.ml | egrep -v $EXCLUDE  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
              ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
              rm doclist.odocl;
              ln -sf _build/doclist.docdir doc
@@ -108,8 +109,7 @@ rule() {
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
 
-ls -1 src/*/*.ml | egrep -v "apronDomain|poly" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
-ls -1 src/*/*/*.ml | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' >> $TARGET.ml
+ls -1 src/**/*.ml | egrep -v $EXCLUDE | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > $TARGET.ml
 echo "open Maingoblint" >> $TARGET.ml
 
 if [ $# -eq 0 ]; then
