@@ -31,21 +31,21 @@ module Pml = struct
     | Int x -> "int", string_of_int, x
 
   type _ var = (* variable with initial value and printer. type: content * get * set * mod *)
-    | Var : { name : string; value : 'a ref; show : 'a -> string } ->
+    | Var : { name : string; init : 'a t; value : 'a ref; show : 'a -> string } ->
         ('a e * 'a e * ('a e -> unit e) * unit e) var
-    | Arr : { name : string; value : 'a array; show : 'a -> string; show_all : 'a array -> string; length : int } ->
+    | Arr : { name : string; init : 'a t; value : 'a array; show : 'a -> string; show_all : 'a array -> string; length : int } ->
         ('a e * (int e -> 'a e) * (int e * 'a e -> unit e) * (int e -> unit e)) var
 
   let var value name =
     assert (is_declared value);
     let t,s,v = unbox value in
-    Var { name; value = ref v; show = s },
+    Var { name; init = value; value = ref v; show = s },
     t^" "^name^" = "^s v^";"
   let arr length value name =
     assert (is_declared value);
     let t,s,v = unbox value in
     let show_arr a = Array.to_list a |> List.map s |> String.concat ", " in
-    Arr { name; value = Array.create length v; show = s; show_all = show_arr; length },
+    Arr { name; init = value; value = Array.create length v; show = s; show_all = show_arr; length },
     t^" "^name^"["^string_of_int length^"] = "^s v^";"
 
   (* to avoid having to give the string for enum literals, we use a dummy string and replace it using the show function from the delcaration *)
@@ -134,10 +134,35 @@ module Pml = struct
     var (Byte 0) ("i_"^v.name) >>= (* TODO this doesn't work for nested loops on the same array! *)
     fun i -> _for i a (b !i (!a !i)) (* NOTE this already gives the values to the body instead of the variables TODO for interpreter *)
 
-  let extract fname sem =
-    line @@ "inline "^fname^"() { atomic {";
-    line "}}";
-    nop
+  type ('a,'b,'c,'d,'z) args = A0 of 'z e | A1 of 'a * ('a -> 'z e) | A2 of 'a*'b * ('a -> 'b -> 'z e) | A3 of 'a*'b*'c * ('a -> 'b -> 'c -> 'z e) | A4 of 'a*'b*'c*'d * ('a -> 'b -> 'c -> 'd -> 'z e)
+
+  type eval = EvalEnum of string | EvalInt
+
+  let extract_funs = Hashtbl.create 123
+  let special name = Hashtbl.find extract_funs name
+  let specials () = Hashtbl.values extract_funs
+  let extract fname args =
+    let unpack =
+      let name (Var v) = v.name in
+      let eval (type a) (Var v : a var) = match v.init with
+        | Enum _ -> EvalEnum v.name (* TODO map int to enum *)
+        | Byte _ -> EvalInt
+        | Short _ -> EvalInt
+        | Int _ -> EvalInt
+        | _ -> failwith "unsupported argument type"
+      in
+      let p a = name a, eval a in
+      function
+      | A0 z -> [], z
+      | A1 (a,f) -> [p a], f a
+      | A2 (a,b,f) -> [p a; p b], f a b
+      | A3 (a,b,c,f) -> [p a; p b; p c], f a b c
+      | A4 (a,b,c,d,f) -> [p a; p b; p c; p d], f a b c d
+    in
+    let aa, body = unpack args in
+    let arg_names, arg_evals = List.map fst aa, List.map snd aa in
+    Hashtbl.add extract_funs fname arg_evals;
+    (), "inline "^fname^"("^String.concat ", " arg_names^") { atomic {\n"^snd body^"\n}}"
 
   let op o s x y = o (fst x) (fst y), snd x^" "^s^" "^snd y
   let (==) x y = op (=)  "==" x y
@@ -242,60 +267,71 @@ let _ =
     else nop;
     waiting_for := id, e NONE;
   in
-  
+ 
+  (* this is the id we give out for every new task *)
+  let tid,tid_decl = var (Byte 0) "tid" in
+  (* general arguments *)
+  let id,_   = var (Byte 0) "id" in
+  (*let r,_    = var (Enum (SUCCESS, show_return_code)) "r" in*)
+
   (* preemption *)
-  extract "LockPreemption" (fun tid -> Pml.do_;
+  let mode,_ = var (Enum (COLD_START, show_partition_mode)) "mode" in
+  extract "LockPreemption" @@ A0 (Pml.do_;
     incr lock_level;
-    exclusive := tid; (* TODO is this really changed if lock_level > 0? if yes, it is probably also restored... *)
+    exclusive := !tid; (* TODO is this really changed if lock_level > 0? if yes, it is probably also restored... *)
   );
-  extract "UnlockPreemption" (fun tid ->
+  extract "UnlockPreemption" @@ A0 (
     _ift (!lock_level > i 0) (decr lock_level)
   );
-  extract "SetPartitionMode" (fun tid mode ->
-    partition_mode := mode
+  extract "SetPartitionMode" @@ A1 (mode, fun mode ->
+    partition_mode := !mode
   );
 
   (* processes *)
-  extract "CreateProcess" (fun tid id pri per cap -> Pml.do_;
-    _assert (!status id == e NOTCREATED);
-    status := id, e STOPPED;
-    waiting_for := id, e NONE;
+  extract "CreateProcess" @@ A1 (id(*; pri; per; cap]*), fun id -> Pml.do_;
+    _assert (!status !id == e NOTCREATED);
+    status := !id, e STOPPED;
+    waiting_for := !id, e NONE;
     incr tasks_created;
   );
   (* CreateErrorHandler *)
-  extract "Start" (fun tid id -> Pml.do_;
-    _assert (!status id != e NOTCREATED);
-    remove_waiting id;
-    status := id, e READY;
+  extract "Start" @@ A1 (id, fun id -> Pml.do_;
+    _assert (!status !id != e NOTCREATED);
+    remove_waiting !id;
+    status := !id, e READY;
   );
-  extract "Stop" (fun tid id -> Pml.do_;
-    _assert (!status id != e NOTCREATED);
-    remove_waiting id;
-    status := id, e STOPPED;
+  extract "Stop" @@ A1 (id, fun id -> Pml.do_;
+    _assert (!status !id != e NOTCREATED);
+    remove_waiting !id;
+    status := !id, e STOPPED;
   );
-  extract "Suspend" (fun tid id -> Pml.do_;
-    _assert (!status id != e NOTCREATED);
-    status := id, e SUSPENDED;
+  extract "Suspend" @@ A1 (id, fun id -> Pml.do_;
+    _assert (!status !id != e NOTCREATED);
+    status := !id, e SUSPENDED;
   );
-  extract "Resume" (fun tid id -> Pml.do_;
-    _assert (!status id != e NOTCREATED);
-    _ift (!status id == e SUSPENDED) (
-      _ifte (!waiting_for id == e NONE)
-        (status := id, e READY)
-        (status := id, e WAITING)
+  extract "Resume" @@ A1 (id, fun id -> Pml.do_;
+    _assert (!status !id != e NOTCREATED);
+    _ift (!status !id == e SUSPENDED) (
+      _ifte (!waiting_for !id == e NONE)
+        (status := !id, e READY)
+        (status := !id, e WAITING)
     );
-    status := id, e SUSPENDED;
+    status := !id, e SUSPENDED;
   );
 
   (* semaphores *)
-  extract "CreateSemaphore" (fun t id cur max queuing -> Pml.do_;
+  let cur,_   = var (Byte 0) "cur" in
+  let max,_   = var (Byte 0) "max" in
+  let queuing,_ = var (Enum (FIFO, show_queuing_discipline)) "queuing" in
+  extract "CreateSemaphore" @@ A4 (id,cur,max,queuing, fun id cur max queuing -> Pml.do_;
     println (s "CreateSemaphore: TODO");
     _assert (!queuing == e FIFO);
-    semas := id, cur;
-    semas_max := id, max;
+    semas := !id, !cur;
+    semas_max := !id, !max;
     incr semas_created;
   );
-  extract "WaitSemaphore" (fun tid id ->
+  extract "WaitSemaphore" @@ A1 (id, fun id ->
+    let id = !id in
     let sema = !semas id in
     let chan = !semas_chan id in
     _if [
@@ -303,9 +339,9 @@ let _ =
         println (s "WaitSema will block: "^sema_info id) >>
         _if [
           full  chan, fail (s "WaitSema: queue is full: "^sema_info id);
-          nfull chan, println (s "WaitSema: Process "^i2s tid^s " put into queue for sema "^i2s id)
+          nfull chan, println (s "WaitSema: Process "^i2s !tid^s " put into queue for sema "^i2s id)
         ] >>
-        set_waiting tid SEMA id;
+        set_waiting !tid SEMA id;
       sema > i 0,
         println (s "WaitSema will go through: "^sema_info id) >>
         incr semas id;
@@ -313,7 +349,8 @@ let _ =
         fail (s "WaitSema: count<0: "^sema_info id)
     ]
   );
-  extract "SignalSemaphore" (fun tid id ->
+  extract "SignalSemaphore" @@ A1 (id, fun id ->
+    let id = !id in
     let sema = !semas id in
     let chan = !semas_chan id in
     _if [
@@ -326,7 +363,7 @@ let _ =
         _foreach status (fun j _ ->
           println (s "SignalSema: check if process "^i2s j^s " is waiting. "^task_info j) >>
           _ift (is_waiting j SEMA id && poll `First chan j) (* process is waiting for this semaphore and is at the front of its queue *) (
-              println (s "SignalSema: process "^i2s tid^s " is waking up process "^i2s j) >>
+              println (s "SignalSema: process "^i2s !tid^s " is waking up process "^i2s j) >>
               wait (recv `First chan j) >> (* consume msg from queue *)
               set_ready j >>
               break
