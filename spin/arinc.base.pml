@@ -150,6 +150,7 @@ inline removeWaiting(proc_id) {
     byte sema_id;
     for (sema_id in semas) {
         byte i;
+        // this takes every element out of the channel and appends it again if it is not proc_id?! should just use semas_chan[sema_id]?p. but that would block if it's not in the queue...
         for (i : 1 .. len(semas_chan[sema_id])) {
             byte p;
             semas_chan[sema_id]?p;
@@ -299,6 +300,7 @@ inline SignalSemaphore(sema_id) { atomic {
     :: nempty(semas_chan[sema_id]) -> // else doesn't work here because !empty is disallowed...
         printf("SignalSema: %d processes in queue for sema %d with count %d\n", len(semas_chan[sema_id]), sema_id, semas[sema_id]);
         byte i;
+        // replace this loop by using semas_chan[sema_id]?i and waking up process i? what if it's not waiting?
         for (i in status) {
             printf("SignalSema: check if process %d is waiting. status[%d] = %e. waiting for %e %d\n", i, i, status[i], waiting[i].resource, waiting[i].id);
             if

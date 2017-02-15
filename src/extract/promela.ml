@@ -7,15 +7,27 @@ module Pml = struct
   let line x = Buffer.add_string b (x^"\n")
   let print () = print_string (Buffer.contents b)
 
-  type _ t = Enum : 'a * ('a -> string) -> 'a t | Chan : 'a chan -> 'a chan t | Bool : bool -> bool t | Byte : int -> int t | Short : int -> int t | Int : int -> int t (* maybe do something like Bigarray.kind to avoid conflating ints of different size *)
+  type _ t =
+    | Enum : 'a * ('a -> string) -> 'a t
+    | Chan : 'a chan -> 'a chan t
+    | Bool : bool -> bool t
+    | Byte : int -> int t | Short : int -> int t | Int : int -> int t (* maybe do something like Bigarray.kind to avoid conflating ints of different size *)
+    (* the following are for arguments, and can not be declared in promela *)
+    | String : string -> string t
+    | Void : unit t (* this is just for skipping uninteresting arguments *)
   and 'a chan = { capacity : int (* 0 = rendez-vous *); mutable content : 'a list; content_type : 'a t }
   type 'a e = 'a * string (* expression and its promela representation *)
 
-  let env = Hashtbl.create 123 (* TODO something better? *)
-  let enum values =
-    List.iter (flip (Hashtbl.add env) ()) values;
+  let enums = Hashtbl.create 123 (* value -> type (both as strings) *)
+  let of_enums = Hashtbl.create 123
+  let enum of_enum show name =
+    let str_remove m s = String.nreplace ~str:s ~sub:m ~by:"" in
+    Hashtbl.add of_enums name (fun x -> Option.map (str_remove "Promela." % show) (of_enum x));
+    let values = List.of_enum @@ (0 -- 13) //@ of_enum /@ show in
+    List.iter (flip (Hashtbl.add enums) name) values;
     line ("mtype = {"^ String.concat ", " values ^"}")
-  let is_enum = Option.is_some % Hashtbl.find env
+  let enum_type x = Hashtbl.find enums x
+  let is_enum = Option.is_some % Hashtbl.find enums
   let rec is_declared : type a . a t -> bool = function
     | Enum (x,s) -> is_enum (s x)
     | Chan c -> is_declared c.content_type
@@ -23,18 +35,20 @@ module Pml = struct
   let rec unbox : type a . a t -> string * (a -> string) * a = function (* type, show, value *)
     | Enum (x,s) -> "mtype", s, x
     | Chan c ->
-        let t',s,x = unbox c.content_type in
-        "chan", (fun c -> "["^string_of_int c.capacity^"] of {"^t'^"}"), c
+      let t',s,x = unbox c.content_type in
+      "chan", (fun c -> "["^string_of_int c.capacity^"] of {"^t'^"}"), c
     | Bool x -> "bool", string_of_bool, x
     | Byte x -> "byte", string_of_int, x
     | Short x -> "short", string_of_int, x
     | Int x -> "int", string_of_int, x
+    | String x -> "string", identity, x
+    | Void -> "byte", (fun () -> assert false), ()
 
   type _ var = (* variable with initial value and printer. type: content * get * set * mod *)
     | Var : { name : string; init : 'a t; value : 'a ref; show : 'a -> string } ->
-        ('a e * 'a e * ('a e -> unit e) * unit e) var
+      ('a e * 'a e * ('a e -> unit e) * unit e) var
     | Arr : { name : string; init : 'a t; value : 'a array; show : 'a -> string; show_all : 'a array -> string; length : int } ->
-        ('a e * (int e -> 'a e) * (int e * 'a e -> unit e) * (int e -> unit e)) var
+      ('a e * (int e -> 'a e) * (int e * 'a e -> unit e) * (int e -> unit e)) var
 
   let var value name =
     assert (is_declared value);
@@ -54,13 +68,13 @@ module Pml = struct
   let get : type c g s m. (c*g*s*m) var -> g = function
     | Var v -> !(v.value), v.name
     | Arr v -> fun i ->
-        assert (fst i >= 0 && fst i < v.length);
-        Array.get v.value (fst i), v.name^"["^snd i^"]"
+      assert (fst i >= 0 && fst i < v.length);
+      Array.get v.value (fst i), v.name^"["^snd i^"]"
   let set : type c g s m. (c*g*s*m) var -> s = function
     | Var v -> fun x -> (v.value := fst x), v.name^" = "^fix_enum v.show x^";"
     | Arr v -> fun (i,x) ->
-        assert (fst i >= 0 && fst i < v.length);
-        Array.set v.value (fst i) (fst x), v.name^"["^snd i^"] = "^fix_enum v.show x^";"
+      assert (fst i >= 0 && fst i < v.length);
+      Array.set v.value (fst i) (fst x), v.name^"["^snd i^"] = "^fix_enum v.show x^";"
 
   (* Var x: !x, x := v. Arr x: !x i, x := i, v *)
   let (!) = get
@@ -70,7 +84,7 @@ module Pml = struct
   (* we do not define `not` since this may tempt people to use !empty instead of nempty (same with nfull) *)
 
   let _assert x = assert (fst x), "assert("^snd x^");"
-  let println x = print_endline (fst x), "printf(\\\"%s\\n\\\""^snd x^");"
+  let println x = (* print_endline (fst x) *) (), "printf(\\\"%s\\n\\\""^snd x^");"
 
   let _true  = true,  "true"
   let _false = false, "false"
@@ -134,22 +148,34 @@ module Pml = struct
     var (Byte 0) ("i_"^v.name) >>= (* TODO this doesn't work for nested loops on the same array! *)
     fun i -> _for i a (b !i (!a !i)) (* NOTE this already gives the values to the body instead of the variables TODO for interpreter *)
 
-  type ('a,'b,'c,'d,'z) args = A0 of 'z e | A1 of 'a * ('a -> 'z e) | A2 of 'a*'b * ('a -> 'b -> 'z e) | A3 of 'a*'b*'c * ('a -> 'b -> 'c -> 'z e) | A4 of 'a*'b*'c*'d * ('a -> 'b -> 'c -> 'd -> 'z e)
+  type ('a,'b,'c,'d,'e,'z) args = A0 of 'z e | A1 of 'a * ('a -> 'z e) | A2 of 'a*'b * ('a -> 'b -> 'z e) | A3 of 'a*'b*'c * ('a -> 'b -> 'c -> 'z e) | A4 of 'a*'b*'c*'d * ('a -> 'b -> 'c -> 'd -> 'z e) | A5 of 'a*'b*'c*'d*'e * ('a -> 'b -> 'c -> 'd -> 'e -> 'z e)
 
-  type eval = EvalEnum of string | EvalInt
+  type eval = (* how to evaluate function arguments *)
+    | EvalEnum of (int -> string option) | EvalInt | EvalString (* standard types *)
+    | EvalSkip (* don't evaluate *)
+    | AssignIdOfString of int (* evaluate argument at position as a string, use it to generate an address, and assign it to argument *)
+    (*| EvalSpecial of string*)
 
   let extract_funs = Hashtbl.create 123
-  let special name = Hashtbl.find extract_funs name
-  let specials () = Hashtbl.values extract_funs
-  let extract fname args =
+  let special_fun name = Hashtbl.find extract_funs name
+  let special_funs () = Hashtbl.keys extract_funs |> List.of_enum
+  let extracted_funs : (string,string) Hashtbl.t = Hashtbl.create 123
+  let extract_fun ?(info_args=[]) pid name args =
+    let comment = if List.is_empty info_args then "" else " // " ^ String.concat ", " info_args in
+    let call = name^"("^String.concat ", " args^");"^comment in
+    print_endline @@ "EXTRACT in "^pid^": "^call;
+    Hashtbl.add extracted_funs pid call
+  let extract ?id fname args =
     let unpack =
       let name (Var v) = v.name in
       let eval (type a) (Var v : a var) = match v.init with
-        | Enum _ -> EvalEnum v.name (* TODO map int to enum *)
+        | Enum (x,s) -> EvalEnum (Option.get @@ Hashtbl.find of_enums (Option.get (enum_type (s x))))
         | Byte _ -> EvalInt
         | Short _ -> EvalInt
         | Int _ -> EvalInt
-        | _ -> failwith "unsupported argument type"
+        | String _ -> EvalString
+        | Void -> EvalSkip
+        | _ -> failwith ("unsupported argument type for "^v.name)
       in
       let p a = name a, eval a in
       function
@@ -158,9 +184,15 @@ module Pml = struct
       | A2 (a,b,f) -> [p a; p b], f a b
       | A3 (a,b,c,f) -> [p a; p b; p c], f a b c
       | A4 (a,b,c,d,f) -> [p a; p b; p c; p d], f a b c d
+      | A5 (a,b,c,d,e,f) -> [p a; p b; p c; p d; p e], f a b c d e
     in
     let aa, body = unpack args in
-    let arg_names, arg_evals = List.map fst aa, List.map snd aa in
+    let aa' = List.filter (fun (n,e) -> e <> EvalSkip && e <> EvalString) aa in (* don't want skipped arguments or strings in definition *)
+    let arg_names, arg_evals = List.map fst aa', List.map snd aa in
+    let arg_evals = match id with
+      | Some (dst, src) -> List.modify_at dst (fun _ -> AssignIdOfString src) arg_evals
+      | None -> arg_evals
+    in
     Hashtbl.add extract_funs fname arg_evals;
     (), "inline "^fname^"("^String.concat ", " arg_names^") { atomic {\n"^snd body^"\n}}"
 
@@ -181,7 +213,7 @@ module Pml = struct
   let i i = i, string_of_int i (* int literal *)
   let s s = s, s (* string literal *)
   let (^) a b = fst a^fst b, snd a^snd b (* string concatenation *)
-  let fail m = println (s "FAIL: "^m) >> _assert _false  
+  let fail m = println (s "FAIL: "^m) >> _assert _true (* TODO _assert _false evaluates too early :( *)
   let i2s (i,s) = string_of_int i, s
   let e x = x, "enum"
   let e2s x = s (snd x) (* TODO ? *)
@@ -203,27 +235,20 @@ and waiting_for = NONE | BLACKBOARD | SEMA | EVENT | TIME
 and queuing_discipline = FIFO | PRIO
 [@@deriving show, enum]
 
-(* TODO generate me *)
-let values of_enum show = List.of_enum @@ (0 -- 13) //@ of_enum /@ show
-let return_code_strings = values return_code_of_enum show_return_code
-let partition_mode_strings = values partition_mode_of_enum show_partition_mode
-let status_strings = values status_of_enum show_status
-let waiting_for_strings = values waiting_for_of_enum show_waiting_for
-let queuing_discipline_strings = values queuing_discipline_of_enum show_queuing_discipline
-
 let extract_types = ["t123"] (* TODO extract variables of a certain type *)
 
-let _ =
+let os =
   let ntasks = 42 in let nsemas = 42 in (* TODO analyze number of resources *)
   let preemption = true in
   let has_semas = nsemas > 0 in
   let open Pml in let open Chan in
   (* type delcarations, TODO generate this? *)
-  enum return_code_strings;
-  enum partition_mode_strings;
-  enum status_strings;
-  enum waiting_for_strings;
-  enum queuing_discipline_strings;
+  (* TODO might need adjustment if there are enums with gaps or enums not starting at 0 *)
+  enum return_code_of_enum show_return_code "return_code";
+  enum partition_mode_of_enum show_partition_mode "partition_mode";
+  enum status_of_enum show_status "status";
+  enum waiting_for_of_enum show_waiting_for "waiting_for";
+  enum queuing_discipline_of_enum show_queuing_discipline "queuing_discipline";
   (* variable declarations *)
   Pml.do_;
   (* TODO inject: let%s status = arr ntask NOTCREATED in *)
@@ -262,16 +287,17 @@ let _ =
   let remove_waiting id = Pml.do_;
     if has_semas then
       _foreach semas (fun j _ ->
-      _ift (poll `Any (!semas_chan j) id) (wait (recv `Any (!semas_chan j) id))
-      )
+          _ift (poll `Any (!semas_chan j) id) (wait (recv `Any (!semas_chan j) id))
+        )
     else nop;
     waiting_for := id, e NONE;
   in
- 
+
   (* this is the id we give out for every new task *)
   let tid,tid_decl = var (Byte 0) "tid" in
   (* general arguments *)
-  let id,_   = var (Byte 0) "id" in
+  let id,_     = var (Byte 0) "id" in
+  let name,_   = var (String "") "name" in
   (*let r,_    = var (Enum (SUCCESS, show_return_code)) "r" in*)
 
   (* preemption *)
@@ -323,13 +349,14 @@ let _ =
   let cur,_   = var (Byte 0) "cur" in
   let max,_   = var (Byte 0) "max" in
   let queuing,_ = var (Enum (FIFO, show_queuing_discipline)) "queuing" in
-  extract "CreateSemaphore" @@ A4 (id,cur,max,queuing, fun id cur max queuing -> Pml.do_;
-    println (s "CreateSemaphore: TODO");
+  extract "CreateSemaphore" ~id:(4,0) @@ A5 (name,cur,max,queuing,id, fun name cur max queuing id -> Pml.do_;
+    println (s "CreateSemaphore: " ^ !name ^s ", "^ i2s !cur ^s ", "^ i2s !max ^s ", "^ e2s !queuing);
     _assert (!queuing == e FIFO);
     semas := !id, !cur;
     semas_max := !id, !max;
     incr semas_created;
   );
+  extract "GetSemaphoreId" ~id:(1,0) @@ A2 (name, id, fun name id -> nop);
   extract "WaitSemaphore" @@ A1 (id, fun id ->
     let id = !id in
     let sema = !semas id in
