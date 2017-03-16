@@ -502,7 +502,7 @@ let print_races_oldscool () =
     | Some ls ->
       sprint 80 (dprintf "%s by ??? %a and lockset: %a" wt LSSet.pretty ls LSSet.pretty lp), loc
     | None ->
-      sprint 80 (dprintf "%s by ??? _L and lockset: %a" wt LSSet.pretty lp), loc
+      sprint 80 (dprintf "%s by ??? ⊥ and lockset: %a" wt LSSet.pretty lp), loc
   in
   let g ty lv ls (accs,lp) (s,xs) =
     let nxs  = Set.fold (fun e xs -> (k ls e) :: xs) accs xs in
@@ -524,52 +524,21 @@ let print_races_oldscool () =
   TypeHash.iter f accs
 
   (* Commenting your code is for the WEAK! *)
-let print_races () =
-  let allglobs = get_bool "allglobs" in
+let print_summary () =
   let safe       = ref 0 in
   let vulnerable = ref 0 in
   let unsafe     = ref 0 in
-  let g ls (accs,lp) =
-    let reason = 
-      if bot_partition ls (accs,lp) then
-        "non-shared"
-      else if only_read ls (accs,lp) then
-        "only read"
-      else if common_resource ls (accs,lp) then
-        "common resource"
-      else
-        "race"
-    in
-    if (not (reason = "race")) then
-    match ls with
-    | Some ls ->
-      ignore (Pretty.printf "  %a -> %a (%s)\n" LSSet.pretty ls LSSet.pretty lp reason)
-    | None ->
-      ignore (Pretty.printf "  _L -> %a (%s)\n" LSSet.pretty lp reason)
-  in
   let h ty lv ht =
     (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
     let safety = PartOptHash.fold check_safe ht None in
-    let print_location safetext = 
-      ignore(printf "Memory location %a (%s)\n" d_memo (ty,lv) safetext);
-      PartOptHash.iter g ht
-    in
     match safety with
-    | None -> 
-        incr safe;
-        if allglobs then begin
-          print_location "safe"
-        end
-    | Some n when n >= 100 -> 
-        incr unsafe;
-        print_location "unsafe"
-    | Some n ->
-        incr vulnerable;
-        print_location "vulnerable"
+    | None -> incr safe
+    | Some n when n >= 100 -> incr unsafe
+    | Some n -> incr vulnerable
   in
   let f ty = LvalOptHash.iter (h ty) in
   TypeHash.iter f accs;
-  ignore (Pretty.printf "\nSummary:\n");
+  ignore (Pretty.printf "\nSummary for all memory locations:\n");
   ignore (Pretty.printf "\tsafe:        %5d\n" !safe);
   ignore (Pretty.printf "\tvulnerable:  %5d\n" !vulnerable);
   ignore (Pretty.printf "\tunsafe:      %5d\n" !unsafe);
@@ -580,10 +549,10 @@ let print_accesses () =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
   let g ls (acs,_) =
-    let d_ls () = match ls with None -> text "_L" | Some ls -> LSSet.pretty () ls in
+    let d_ls () = match ls with None -> text "⊥" | Some ls -> LSSet.pretty () ls in
     let h (conf,w,loc,e,lp) =
       let atyp = if w then "write" else "read" in
-      ignore (printf "  %s@@%a %t -> %a (conf. %d)" atyp d_loc loc
+      ignore (printf "  %s@@%a in %t with %a (conf. %d)" atyp d_loc loc
                 d_ls LSSet.pretty lp conf);
       if debug then
         ignore (printf "  (exp: %a)\n" d_exp e)
@@ -613,7 +582,5 @@ let print_result () =
   match get_string "warnstyle" with
   | "legacy" -> print_races_oldscool ()
   | _ ->
-    ignore (printf "Listing of accesses:\n");
     print_accesses ();
-    ignore (printf "\nListing of results:\n");
-    print_races ()
+    print_summary ()
