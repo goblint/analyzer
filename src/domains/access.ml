@@ -521,9 +521,7 @@ let print_races_oldscool () =
       Messages.print_group groupname xs
   in
   let f ty = LvalOptHash.iter (h ty) in
-  ignore (Pretty.printf "vvvv This output is here because our regression test scripts parse this format. \n");
-  TypeHash.iter f accs;
-  ignore (Pretty.printf "^^^^ This output is here because our regression test scripts parse this format. \n")
+  TypeHash.iter f accs
 
   (* Commenting your code is for the WEAK! *)
 let print_races () =
@@ -542,6 +540,7 @@ let print_races () =
       else
         "race"
     in
+    if (not (reason = "race")) then
     match ls with
     | Some ls ->
       ignore (Pretty.printf "  %a -> %a (%s)\n" LSSet.pretty ls LSSet.pretty lp reason)
@@ -578,6 +577,7 @@ let print_races () =
   ignore (Pretty.printf "\ttotal:       %5d\n" ((!safe) + (!unsafe) + (!vulnerable)))
 
 let print_accesses () =
+  let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
   let g ls (acs,_) =
     let d_ls () = match ls with None -> text "_L" | Some ls -> LSSet.pretty () ls in
@@ -594,9 +594,11 @@ let print_accesses () =
   in
   let h ty lv ht =
     match PartOptHash.fold check_safe ht None with 
-    | None ->
-      ignore(printf "Memory location %a (safe)\n" d_memo (ty,lv));
-      PartOptHash.iter g ht
+    | None -> 
+      if allglobs then begin
+        ignore(printf "Memory location %a (safe)\n" d_memo (ty,lv));
+        PartOptHash.iter g ht
+      end
     | Some n -> 
       ignore(printf "Memory location %a (race with conf. %d)\n" d_memo (ty,lv) n);
       PartOptHash.iter g ht
@@ -607,11 +609,11 @@ let print_accesses () =
   TypeHash.iter f accs
 
 let print_result () = 
-  if !some_accesses then begin
-    print_races_oldscool ();
-    ignore (printf "--------------------\nListing of accesses:\n");
+  if !some_accesses then
+  match get_string "warnstyle" with
+  | "legacy" -> print_races_oldscool ()
+  | _ ->
+    ignore (printf "Listing of accesses:\n");
     print_accesses ();
     ignore (printf "\nListing of results:\n");
     print_races ()
-  end
-    

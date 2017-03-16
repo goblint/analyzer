@@ -200,7 +200,7 @@ doproject = lambda do |p|
     p.size = `wc -l #{cilfile}`.split[0]
   end
   starttime = Time.now
-  cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true  2>#{statsfile}"
+  cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --sets warnstyle \"legacy\" --set printstats true  2>#{statsfile}"
   pid = Process.spawn(cmd)
   begin
     Timeout::timeout(timeout) {Process.wait pid}

@@ -70,7 +70,8 @@ let _ = ()
       ; reg Std "cppflags"        "''"           "Pre-processing parameters."
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
-      ; reg Std "result"          "'none'"       "Result style: none, indented, compact, or pretty."
+      ; reg Std "result"          "'none'"       "Result style: none, indented, compact, fast_xml, or pretty."
+      ; reg Std "warnstyle"       "'pretty'"     "Result style: legacy, pretty, or xml."
       ; reg Std "solver"          "'effectWCon'" "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
       ; reg Std "solverdiffs"     "false"        "Print out solver differences."
@@ -190,7 +191,7 @@ let _ = ()
 let default_schema = "\
 { 'id'              : 'root'
 , 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
+, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
 , 'additionalProps' : false
 , 'properties' :
   { 'ana' :
@@ -235,6 +236,9 @@ let default_schema = "\
   , 'kernel'          : {}
   , 'dump_globs'      : {}
   , 'result'          :
+    { 'type'            : 'string'
+    }
+  , 'warnstyle'          :
     { 'type'            : 'string'
     }
   , 'solver'          : {}
