@@ -363,7 +363,8 @@ struct
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
       | Some 0L -> AD.join (AD.null_ptr ()) y
-      | _ -> AD.top_ptr ())
+      | Some x when x<>0L -> AD.(join y (join (safe_ptr ()) (unknown_ptr ())))
+      | _ -> AD.join y (AD.top_ptr ()))
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
     | (`Union x, `Union y) -> `Union (Unions.join x y)
@@ -375,7 +376,7 @@ struct
       `Blob (B.join (x:t) ((B.make 0 y):t))
     | x, y ->
        ignore @@ printf "JOIN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line; 
-       `Top 
+       `Top
 
   let rec meet x y =
     match (x,y) with
