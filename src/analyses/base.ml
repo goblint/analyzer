@@ -1374,7 +1374,7 @@ struct
     | `Unknown _ -> begin
         let args =
           match LF.get_invalidate_action f.vname with
-          | Some fnc -> fnc `Write  args
+          | Some fnc -> fnc `Spawn  args
           | None -> args
         in
         let flist = collect_funargs ctx.ask ctx.global ctx.local args in

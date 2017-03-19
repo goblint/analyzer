@@ -20,6 +20,7 @@ val classify : string -> exp list -> categories
 
 type action = [ `Write  (** argument may be read or written to *)
               | `Read   (** argument may be read *)
+              | `Spawn  (** argument may be spawned *)
               ]
 (** Specifies what is known about an argument. *)
 

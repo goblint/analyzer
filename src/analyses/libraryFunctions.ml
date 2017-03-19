@@ -63,7 +63,7 @@ let classify' fn exps =
 let classify fn exps =
   if not(!osek_renames) then classify' fn exps else classify' (OilUtil.get_api_names fn) exps
 
-type action = [ `Write | `Read ]
+type action = [ `Write | `Read | `Spawn ]
 
 let drop = List.drop
 let keep ns = List.filteri (fun i _ -> List.mem i ns)
@@ -84,48 +84,61 @@ let writesAllButFirst n f a x =
   match a with
   | `Write -> f a x @ drop n x
   | `Read  -> f a x
+  | `Spawn -> x
 
 let readsAllButFirst n f a x =
   match a with
   | `Write -> f a x
   | `Read  -> f a x @ drop n x
+  | `Spawn -> x
 
 let reads ns a x =
   let i, o = partition ns x in
   match a with
   | `Write -> o
   | `Read  -> i
+  | `Spawn -> x
 
 let writes ns a x =
   let i, o = partition ns x in
   match a with
   | `Write -> i
   | `Read  -> o
+  | `Spawn -> x
 
 let onlyReads ns a x =
   match a with
   | `Write -> []
   | `Read  -> keep ns x
+  | `Spawn -> x
 
 let onlyWrites ns a x =
   match a with
   | `Write -> keep ns x
   | `Read  -> []
+  | `Spawn -> x
 
 let readsWrites rs ws a x =
   match a with
   | `Write -> keep ws x
   | `Read  -> keep rs x
+  | `Spawn -> x
 
 let readsAll a x =
   match a with
   | `Write -> []
   | `Read  -> x
+  | `Spawn -> x
 
 let writesAll a x =
   match a with
   | `Write -> x
   | `Read  -> []
+  | `Spawn -> x
+
+let noSpawn f = function
+  | `Spawn -> fun _ -> []
+  | x -> f x
 
 (* just add your library functions here *)
 let invalidate_actions = ref [
@@ -137,7 +150,7 @@ let invalidate_actions = ref [
     "fclose", readsAll;           (*safe*)
     "fflush", writesAll;          (*unsafe*)
     "fopen", readsAll;            (*safe*)
-    "fprintf", writes [1];          (*keep [1]*)
+    "fprintf", noSpawn @@ writes [1];          (*keep [1]*)
     "fread", writes [1];            (*keep [1]*)
     "free", writesAll; (*unsafe*)
     "fwrite", readsAll;(*safe*)
@@ -146,7 +159,7 @@ let invalidate_actions = ref [
     "memcpy", writes [1];(*keep [1]*)
     "__builtin___memcpy_chk", writes [1];
     "memset", writesAll;(*unsafe*)
-    "printf", readsAll;(*safe*)
+    "printf", noSpawn readsAll;(*safe*)
     "printk", readsAll;(*safe*)
     "perror", readsAll;(*safe*)
     "pthread_mutex_lock", readsAll;(*safe*)
@@ -169,11 +182,11 @@ let invalidate_actions = ref [
     "pthread_self", readsAll;(*safe*)
     "read", writes [2];(*keep [2]*)
     "recv", writes [2];(*keep [2]*)
-    "scanf",  writesAllButFirst 1 readsAll;(*drop 1*)
+    "scanf",  noSpawn (writesAllButFirst 1 readsAll);(*drop 1*)
     "send", readsAll;(*safe*)
-    "snprintf", writes [1];(*keep [1]*)
-    "sprintf", writes [1];(*keep [1]*)
-    "sscanf", writesAllButFirst 2 readsAll;(*drop 2*)
+    "snprintf", noSpawn @@ writes [1];(*keep [1]*)
+    "sprintf", noSpawn @@ writes [1];(*keep [1]*)
+    "sscanf", noSpawn (writesAllButFirst 2 readsAll);(*drop 2*)
     "strcmp", readsAll;(*safe*)
     "strftime", writes [1];(*keep [1]*)
     "strlen", readsAll;(*safe*)
@@ -184,9 +197,9 @@ let invalidate_actions = ref [
     "toupper", readsAll;(*safe*)
     "tolower", readsAll;(*safe*)
     "time", writesAll;(*unsafe*)
-    "vfprintf", writes [1];(*keep [1]*)
-    "vprintf", readsAll;(*safe*)
-    "vsprintf", writes [1];(*keep [1]*)
+    "vfprintf", noSpawn @@ writes [1];(*keep [1]*)
+    "vprintf", noSpawn @@ readsAll;(*safe*)
+    "vsprintf", noSpawn @@ writes [1];(*keep [1]*)
     "write", readsAll;(*safe*)
     "__builtin_va_arg", readsAll;(*safe*)
     "__builtin_va_end", readsAll;(*safe*)
@@ -297,11 +310,13 @@ let invalidate_actions = ref [
     "bind", readsAll;(*safe*)
     "svcudp_create", readsAll;(*safe*)
     "svc_register", writesAll;(*unsafe*)
+    "misc_register", readsAll;
+    "misc_deregister", readsAll;
     "sleep", readsAll;(*safe*)
     "svc_run", writesAll;(*unsafe*)
     "dup", readsAll; (*safe*)
     "__builtin_expect", readsAll; (*safe*)
-    "vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
+    "vsnprintf", noSpawn @@ writesAllButFirst 3 readsAll; (*drop 3*)
     "syslog", readsAll; (*safe*)
     "strcasecmp", readsAll; (*safe*)
     "strchr", readsAll; (*safe*)
