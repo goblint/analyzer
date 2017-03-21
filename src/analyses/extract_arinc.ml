@@ -2,9 +2,17 @@
 
 open Prelude.Ana
 open Analyses
+module OList = List (* TODO get rid of *)
+open BatteriesExceptionless
+
+(* helpers *)
+let comp2 f g a b = f (g a) (g b)
+let compareBy ?cmp:(cmp=compare) f = comp2 cmp f
+let find_option p xs = try Some (List.find p xs) with Not_found -> None
+let flat_map f = List.flatten % List.map f
 
 module M = Messages
-module E = Promela.Pml
+module E = Promela.Dsl
 
 module Spec =
 struct
@@ -15,6 +23,7 @@ struct
   let init () =
     LibraryFunctions.add_lib_funs (E.special_funs ())
 
+  (* domains *)
   (* Process ID *)
   module Pid = IntDomain.Flattened
   (* context hash for function calls *)
@@ -56,6 +65,40 @@ struct
   module G = Tasks
   let tasks_var = makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType
 
+  type pname = string (* process name *)
+  type fname = string (* function name *)
+  type id = pname * fname option
+  type node  = location
+  type action = string
+  type edge = node * action * node
+  let extracted : (id, edge Set.t) Hashtbl.t = Hashtbl.create 123
+
+  let add_edge pid edge =
+    Hashtbl.modify_def Set.empty pid (Set.add edge) extracted
+
+  (* code generation *)
+  module SymTbl () =
+  struct
+    let h = Hashtbl.create 123
+    let get k =
+      Option.default_delayed (fun () ->
+        let v = List.length @@ List.of_enum @@ Hashtbl.keys h in
+        Hashtbl.replace h k v;
+        v) (Hashtbl.find h k)
+    let inv v = Hashtbl.enum h |> List.of_enum |> List.assoc_inv
+    let to_list () = Hashtbl.enum h |> List.of_enum
+  end
+  module ProcIds = SymTbl ()
+  let id_of_proc name = ProcIds.get name
+  let prio_of_proc name = None (* TODO *)
+  let codegen_proc (pname, fname) edges =
+    let id = string_of_int @@ id_of_proc name in
+    let prio = match prio_of_proc name with Some x -> " priority "^Int64.to_string x | None -> "" in
+    "proctype "^name^"(byte id)"^prio^" provided (canRun("^id^") PRIO"^id^") {\nint stack[20]; int sp = -1;"
+  let codegen () =
+    let procs = Hashtbl.enum extracted |> List.of_enum |> List.map (uncurry codegen_proc) |> String.concat "\n" in
+    procs
+
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with
@@ -69,13 +112,20 @@ struct
     ctx.local
 
   let body ctx (f:fundec) : D.t =
-    ctx.local
+    (*let pid, ctxh, pred = ctx.local in
+    let base_context = fst @@ Base.Main.context @@ Obj.obj @@ List.assoc "base" ctx.presub in
+    let context_hash = Hashtbl.hash (base_context, pid) in
+    pid, Ctx.of_int (Int64.of_int context_hash), pred*)
+    ctx.local (* TODO above throws Not_found *)
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
   let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    [ctx.local,ctx.local]
+    let d_caller = ctx.local in
+    let pid, ctxh, pred = ctx.local in
+    let d_callee = if D.is_bot ctx.local then ctx.local else pid, Ctx.top (), Pred.of_node (MyCFG.Function f) in (* set predecessor set to start node of function *)
+    [d_caller, d_callee]
 
   let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) (au:D.t) : D.t =
     au
@@ -83,13 +133,12 @@ struct
   (* generate id (varinfo, int) via (resource, name) *)
   let resources = Hashtbl.create 13
   let get_id (resource,name as k) =
-    try Hashtbl.find resources k
-    with Not_found ->
+    Option.default_delayed (fun () ->
       let vname = resource^":"^name in
       let v = makeGlobalVar vname voidPtrType in
       let i = Hashtbl.keys resources |> List.of_enum |> List.filter (fun x -> fst x = resource) |> List.length in
       Hashtbl.replace resources k (v,i);
-      v,i
+      v,i) (Hashtbl.find resources k)
   let get_by_id id =
     Hashtbl.filter (fun (v,i) -> v = id) resources |> Hashtbl.keys |> Enum.get
 
@@ -99,12 +148,11 @@ struct
   let get_by_pid pid =
     Hashtbl.filter ((=) pid) pnames |> Hashtbl.keys |> Enum.get
   let get_pid pname =
-    try Hashtbl.find pnames pname
-    with Not_found ->
+    Option.default_delayed (fun () ->
       let ids = Hashtbl.values pnames in
       let id = if Enum.is_empty ids then 1L else Int64.succ (Enum.arg_max identity ids) in
       Hashtbl.replace pnames pname id;
-      id
+      id) (Hashtbl.find pnames pname)
   let get_pid_by_id id = get_by_id id |> Option.get |> snd |> get_pid
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
@@ -117,37 +165,59 @@ struct
     let sprint f x = Pretty.sprint 80 (f () x) in
     let eval_int exp =
       match ctx.ask (Queries.EvalInt exp) with
-      | `Int i -> Int64.to_string i
-      | _ -> "TopInt"
-      (*| _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp^" in "*)
+      | `Int x -> [Int64.to_string x]
+      | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
     in
     let eval_str exp =
       match ctx.ask (Queries.EvalStr exp) with
-      | `Str s -> s
-      | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp^" in "
+      | `Str x -> [x]
+      | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp
     in
-    (*let eval_id ctx exp = mayPointTo ctx exp |> List.map (Option.get % get_by_id % fst) in*)
+    let eval_id exp =
+      match ctx.ask (Queries.MayPointTo exp) with
+      | `LvalSet x when not (Queries.LS.is_top x) ->
+        let top_elt = dummyFunDec.svar, `NoOffset in
+        if Queries.LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";
+        let xs = Queries.LS.elements x in
+        (* assert (List.length xs = 1); (* TODO return list list instead, outer list is number of arguments, inner list is possible values -> cross product for edges *) *)
+        let id2i (id,o) =
+          let v,i = Hashtbl.filter (fun (v,i) -> v = id) resources |> Hashtbl.values |> List.of_enum |> OList.hd in
+          string_of_int i
+        in
+        List.map id2i xs
+      | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp
+    in
     let assign_id exp id =
-      if M.tracing then M.trace "extract_arinc" "assign_id %a %i\n" d_exp exp id;
+      if M.tracing then M.trace "extract_arinc" "assign_id %a %s\n" d_exp exp id.vname;
       match exp with
-      | AddrOf lval -> ctx.assign ~name:"base" lval (integer id)
+      | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
       | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
     in
-    (* evaluates an argument. returns a list because a struct argument could contain multiple arguments that are relevant, and some arguments are not relevant at all. *)
+    (* evaluates an argument. returns a list because a struct argument could contain multiple arguments that are relevant, and some arguments are not relevant at all. the inner list is the possible values for that argument. *)
     let eval = function
       | E.EvalSkip -> const []
-      | E.EvalInt -> fun e -> [eval_int e]
-      | E.EvalString -> fun e -> ["\""^eval_str e^"\""]
-      | E.EvalEnum f -> fun e -> [Option.get @@ f (int_of_string (eval_int e))]
-      | E.AssignIdOfString i -> fun e ->
+      | E.EvalInt -> fun e ->
+          [try eval_int e with _ -> eval_id e]
+      | E.EvalString -> fun e -> [List.map (fun x -> "\""^x^"\"") (eval_str e)]
+      | E.EvalEnum f -> fun e -> [List.map (fun x -> Option.get (f (int_of_string x))) (eval_int e)]
+      | E.AssignIdOfString (res, pos) -> fun e ->
           (* evaluate argument at i as string *)
-          let name = eval_str (List.at arglist i) in
+          let name = OList.hd @@ eval_str (OList.at arglist pos) in
           (* generate variable from it *)
-          let resource = String.lowercase (str_remove "Create" fname) in (* kind of created resource, e.g., semaphore *)
-          let v,i = get_id (resource, name) in
-          assign_id e i;
-          [string_of_int i]
-      (*| E.EvalSpecial x -> fun _ -> failwith ("TODO EvalSpecial "^x)*)
+          let v,i = get_id (res, name) in
+          (* assign generated variable in base *)
+          assign_id e v;
+          [[string_of_int i]]
+    in
+    let node = Option.get !MyCFG.current_node in
+    let fundec = MyCFG.getFun node in
+    let id = pname, Some fundec.svar.vname in
+    let extract_fun ?(info_args=[]) args =
+      let comment = if List.is_empty info_args then "" else " // " ^ String.concat ", " info_args in (* append additional info as comment *)
+      let action = fname^"("^String.concat ", " args^");"^comment in
+      (*print_endline @@ "EXTRACT in "^pid^": "^call;*)
+      Pred.iter (fun pred -> add_edge id (pred, action, MyCFG.getLoc node)) pred;
+      pid, ctx_hash, Pred.of_node node
     in
     match fname, arglist with (* first some special cases *)
     | "CreateProcess", [AddrOf attr; pid'; r] ->
@@ -181,14 +251,13 @@ struct
           let f_d = Pid.of_int (get_pid name), Ctx.top (), Pred.of_node (MyCFG.Function f) in
           let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
           ctx.sideg tasks_var tasks;
-          let id,i = get_id ("process", name) in
-          assign_id pid' i;
-          List.iter (fun f -> E.extract_fun pname "CreateProcess" [string_of_int i]) funs;
-          ctx.local
+          let v,i = get_id ("process", name) in
+          assign_id pid' v;
+          List.fold_left (fun d f -> extract_fun ~info_args:[f.vname] [string_of_int i]) ctx.local funs
         | _ -> let f = Queries.Result.short 30 in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local
       end
     | _ -> match E.special_fun fname with
-      | None -> ctx.local
+      | None -> M.debug_each ("extract_arinc: unhandled function"^fname); ctx.local
       | Some eval_args ->
         if M.tracing then M.trace "extract_arinc" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
         let rec combine_opt f a b = match a, b with (* combine list of arguments with list of eval rules, fill with Skip *)
@@ -198,26 +267,28 @@ struct
           | x::xs, [] -> f (Some x) None :: combine_opt f xs []
         in
         let combine_skip a b = combine_opt (curry @@ function None, Some e -> E.EvalSkip, e | _, _ -> assert false) a b in
-        let args = List.flatten @@ List.map (uncurry eval) @@ combine_skip eval_args arglist in
-        let str_args, args = List.partition (flip String.starts_with "\"") args in (* strings can't be arguments, but we want them as a comment *)
-        E.extract_fun ~info_args:str_args pname fname args;
-        (* some calls have side effects *)
-        begin match fname, args with
-          | "SetPartitionMode", "NORMAL"::_ ->
-            let tasks = ctx.global tasks_var in
-            ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
-            Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn (fst f) f_d) fs) tasks;
-          | "SetPartitionMode", x::_ -> failwith @@ "SetPartitionMode: arg "^x
-          | _ -> ()
-        end;
-        ctx.local
+        let args_product = List.flatten @@ List.n_cartesian_product @@ List.map (uncurry eval) @@ combine_skip eval_args arglist in
+        List.fold_left (fun d args ->
+          (* some calls have side effects *)
+          begin match fname, args with
+            | "SetPartitionMode", "NORMAL"::_ ->
+              let tasks = ctx.global tasks_var in
+              ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
+              Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn (fst f) f_d) fs) tasks;
+            | "SetPartitionMode", x::_ -> failwith @@ "SetPartitionMode: arg "^x
+            | _ -> ()
+          end;
+          let str_args, args = List.partition (flip String.starts_with "\"") args in (* strings can't be arguments, but we want them as a comment *)
+          extract_fun ~info_args:str_args args
+        ) ctx.local args_product
 
   let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main").svar)
   let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
 
   let finalize () =
-    print_endline (snd Promela.os)
+    output_file "result/arinc.os.pml" (snd Promela.os);
+    output_file "result/arinc.pml" (codegen ());
 end
 
 let _ =

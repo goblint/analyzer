@@ -1,12 +1,8 @@
 open BatteriesExceptionless
 (* https://bitbucket.org/camlspotter/ppx_monadic *)
 
-module Pml = struct
-  (* output *)
-  let b = Buffer.create 123
-  let line x = Buffer.add_string b (x^"\n")
-  let print () = print_string (Buffer.contents b)
-
+module Dsl = struct
+  (* promela types *)
   type _ t =
     | Enum : 'a * ('a -> string) -> 'a t
     | Chan : 'a chan -> 'a chan t
@@ -19,13 +15,12 @@ module Pml = struct
   type 'a e = 'a * string (* expression and its promela representation *)
 
   let enums = Hashtbl.create 123 (* value -> type (both as strings) *)
-  let of_enums = Hashtbl.create 123
+  let of_enums = Hashtbl.create 123 (* enum type -> (enum value as int -> enum value as string option) *)
   let enum of_enum show name =
-    let str_remove m s = String.nreplace ~str:s ~sub:m ~by:"" in
-    Hashtbl.add of_enums name (fun x -> Option.map (str_remove "Promela." % show) (of_enum x));
+    Hashtbl.add of_enums name (fun x -> Option.map show (of_enum x));
     let values = List.of_enum @@ (0 -- 13) //@ of_enum /@ show in
     List.iter (flip (Hashtbl.add enums) name) values;
-    line ("mtype = {"^ String.concat ", " values ^"}")
+    (), "mtype = { "^ String.concat ", " values ^" }"
   let enum_type x = Hashtbl.find enums x
   let is_enum = Option.is_some % Hashtbl.find enums
   let rec is_declared : type a . a t -> bool = function
@@ -124,15 +119,17 @@ module Pml = struct
   end
 
   (* OCaml's ; - sequential composition *)
-  let (>>) a b = fst b, snd a^";\\n"^snd b
+  let (>>) a b = fst b, snd a^"\n"^snd b
   let bind x f = x >> f (fst x)
   let (>>=) = bind
   let return x = x (* ? *)
 
-  let surround a b (v,s) = v, a^"\\n"^s^"\\n"^b
+  let indent x = String.nsplit x "\n" |> List.map (fun x -> "  "^x) |> String.concat "\n"
+
+  let surround a b (v,s) = v, a^"\n"^indent s^"\n"^b
   let _match xs =
     assert (List.length xs > 0);
-    let s = String.concat "\\n" @@ List.map (fun (c,b) -> ":: ("^snd c^") -> "^snd b) xs in
+    let s = String.concat "\n" @@ List.map (fun (c,b) -> ":: ("^snd c^") -> "^snd b) xs in
     (*List.find (fst%fst) xs, s*)
     (), s
   let _do xs = surround "do" "od;" (_match xs)
@@ -148,24 +145,21 @@ module Pml = struct
     var (Byte 0) ("i_"^v.name) >>= (* TODO this doesn't work for nested loops on the same array! *)
     fun i -> _for i a (b !i (!a !i)) (* NOTE this already gives the values to the body instead of the variables TODO for interpreter *)
 
+
+  (* extraction *)
   type ('a,'b,'c,'d,'e,'z) args = A0 of 'z e | A1 of 'a * ('a -> 'z e) | A2 of 'a*'b * ('a -> 'b -> 'z e) | A3 of 'a*'b*'c * ('a -> 'b -> 'c -> 'z e) | A4 of 'a*'b*'c*'d * ('a -> 'b -> 'c -> 'd -> 'z e) | A5 of 'a*'b*'c*'d*'e * ('a -> 'b -> 'c -> 'd -> 'e -> 'z e)
 
   type eval = (* how to evaluate function arguments *)
     | EvalEnum of (int -> string option) | EvalInt | EvalString (* standard types *)
     | EvalSkip (* don't evaluate *)
-    | AssignIdOfString of int (* evaluate argument at position as a string, use it to generate an address, and assign it to argument *)
+    | AssignIdOfString of string * int (* kind * position: evaluate argument at position as a string, use it to generate an id of kind, and assign it to argument, map id to int for promela *)
     (*| EvalSpecial of string*)
 
-  let extract_funs = Hashtbl.create 123
+  let extract_funs = Hashtbl.create 123 (* name of function to list of how to evaluate arguments *)
   let special_fun name = Hashtbl.find extract_funs name
   let special_funs () = Hashtbl.keys extract_funs |> List.of_enum
-  let extracted_funs : (string,string) Hashtbl.t = Hashtbl.create 123
-  let extract_fun ?(info_args=[]) pid name args =
-    let comment = if List.is_empty info_args then "" else " // " ^ String.concat ", " info_args in
-    let call = name^"("^String.concat ", " args^");"^comment in
-    print_endline @@ "EXTRACT in "^pid^": "^call;
-    Hashtbl.add extracted_funs pid call
-  let extract ?id fname args =
+
+  let extract ?id fname args = (* generate code for function and register for extraction *)
     let unpack =
       let name (Var v) = v.name in
       let eval (type a) (Var v : a var) = match v.init with
@@ -190,12 +184,16 @@ module Pml = struct
     let aa' = List.filter (fun (n,e) -> e <> EvalSkip && e <> EvalString) aa in (* don't want skipped arguments or strings in definition *)
     let arg_names, arg_evals = List.map fst aa', List.map snd aa in
     let arg_evals = match id with
-      | Some (dst, src) -> List.modify_at dst (fun _ -> AssignIdOfString src) arg_evals
+      | Some (dst, src, res) -> List.modify_at dst (fun _ -> AssignIdOfString (res, src)) arg_evals
       | None -> arg_evals
     in
     Hashtbl.add extract_funs fname arg_evals;
-    (), "inline "^fname^"("^String.concat ", " arg_names^") { atomic {\n"^snd body^"\n}}"
+    (), "\ninline "^fname^"("^String.concat ", " arg_names^") { atomic {\n" ^
+      indent (snd body) ^
+    "\n}}\n"
 
+
+  (* overwrite remaining operators *)
   let op o s x y = o (fst x) (fst y), snd x^" "^s^" "^snd y
   let (==) x y = op (=)  "==" x y
   let (!=) x y = op (<>) "!=" x y
@@ -238,25 +236,27 @@ and queuing_discipline = FIFO | PRIO
 let extract_types = ["t123"] (* TODO extract variables of a certain type *)
 
 let os =
+  let str_remove m s = String.nreplace ~str:s ~sub:m ~by:"" in
+  let nomod show = str_remove "Promela." % show in (* remove the module prefix. TODO this should be an option for ppx_deriving show *)
   let ntasks = 42 in let nsemas = 42 in (* TODO analyze number of resources *)
   let preemption = true in
   let has_semas = nsemas > 0 in
-  let open Pml in let open Chan in
+  let open Dsl in let open Chan in
+  Dsl.do_; (* from now on ; is bind *)
   (* type delcarations, TODO generate this? *)
   (* TODO might need adjustment if there are enums with gaps or enums not starting at 0 *)
-  enum return_code_of_enum show_return_code "return_code";
-  enum partition_mode_of_enum show_partition_mode "partition_mode";
-  enum status_of_enum show_status "status";
-  enum waiting_for_of_enum show_waiting_for "waiting_for";
-  enum queuing_discipline_of_enum show_queuing_discipline "queuing_discipline";
+  enum return_code_of_enum (nomod show_return_code) "return_code";
+  enum partition_mode_of_enum (nomod show_partition_mode) "partition_mode";
+  enum status_of_enum (nomod show_status) "status";
+  enum waiting_for_of_enum (nomod show_waiting_for) "waiting_for";
+  enum queuing_discipline_of_enum (nomod show_queuing_discipline) "queuing_discipline";
   (* variable declarations *)
-  Pml.do_;
   (* TODO inject: let%s status = arr ntask NOTCREATED in *)
-  partition_mode <-- var (Enum (COLD_START, show_partition_mode)) "partition_mode";
+  partition_mode <-- var (Enum (COLD_START, nomod show_partition_mode)) "partition_mode";
   lock_level  <-- var (Byte 0) "lock_level"; (* scheduling only takes place if this is 0 *)exclusive   <-- var (Byte 0) "exclusive"; (* id of process that has exclusive privilige toecute if lockLevel > 0 *)
-  status      <-- arr ntasks (Enum (NOTCREATED, show_status)) "status";
+  status      <-- arr ntasks (Enum (NOTCREATED, nomod show_status)) "status";
   (* TODO type for structured data types *)
-  waiting_for <-- arr ntasks (Enum (NONE, show_waiting_for)) "waiting_for";
+  waiting_for <-- arr ntasks (Enum (NONE, nomod show_waiting_for)) "waiting_for";
   waiting_id  <-- arr ntasks (Byte 0) "waiting_id";
   semas       <-- arr nsemas (Byte 0) "semas";
   semas_max   <-- arr nsemas (Byte 0) "semas_max";
@@ -269,13 +269,13 @@ let os =
   (* helpers *)
   let task_info id = s "status["^i2s id^s "] = "^e2s (!status id)^s ", waiting_for[] = "^e2s (!waiting_for id)^s ", waiting_id[] = "^i2s (!waiting_id id) in
   let sema_info id = s "semas["^i2s id^s "] = "^i2s (!semas id) in
-  let set_waiting id wfor wid = Pml.do_;
+  let set_waiting id wfor wid = Dsl.do_;
     println (s "set_waiting: process "^i2s id^s " will wait for "^i2s wid);
     waiting_for := id, (e wfor);
     waiting_id  := id, wid;
     status      := id, (e WAITING)
   in
-  let set_ready id = Pml.do_;
+  let set_ready id = Dsl.do_;
     println (s "set_ready: process "^i2s id^s " set to ready. "^task_info id);
     waiting_for := id, (e NONE);
     waiting_id  := id, i 0;
@@ -284,7 +284,7 @@ let os =
   let is_waiting id wfor wid = !status id == e WAITING && !waiting_for id == e wfor && !waiting_id id == wid in
   let can_run id = (!status id == e READY || !status id == e RUNNING) && (!lock_level == i 0 || !exclusive == id) && (!partition_mode == e NORMAL || id == i 0) in
   let is_running id = !status id = e RUNNING in
-  let remove_waiting id = Pml.do_;
+  let remove_waiting id = Dsl.do_;
     if has_semas then
       _foreach semas (fun j _ ->
           _ift (poll `Any (!semas_chan j) id) (wait (recv `Any (!semas_chan j) id))
@@ -301,8 +301,8 @@ let os =
   (*let r,_    = var (Enum (SUCCESS, show_return_code)) "r" in*)
 
   (* preemption *)
-  let mode,_ = var (Enum (COLD_START, show_partition_mode)) "mode" in
-  extract "LockPreemption" @@ A0 (Pml.do_;
+  let mode,_ = var (Enum (COLD_START, nomod show_partition_mode)) "mode" in
+  extract "LockPreemption" @@ A0 (Dsl.do_;
     incr lock_level;
     exclusive := !tid; (* TODO is this really changed if lock_level > 0? if yes, it is probably also restored... *)
   );
@@ -314,28 +314,28 @@ let os =
   );
 
   (* processes *)
-  extract "CreateProcess" @@ A1 (id(*; pri; per; cap]*), fun id -> Pml.do_;
+  extract "CreateProcess" @@ A1 (id(*; pri; per; cap]*), fun id -> Dsl.do_;
     _assert (!status !id == e NOTCREATED);
     status := !id, e STOPPED;
     waiting_for := !id, e NONE;
     incr tasks_created;
   );
   (* CreateErrorHandler *)
-  extract "Start" @@ A1 (id, fun id -> Pml.do_;
+  extract "Start" @@ A1 (id, fun id -> Dsl.do_;
     _assert (!status !id != e NOTCREATED);
     remove_waiting !id;
     status := !id, e READY;
   );
-  extract "Stop" @@ A1 (id, fun id -> Pml.do_;
+  extract "Stop" @@ A1 (id, fun id -> Dsl.do_;
     _assert (!status !id != e NOTCREATED);
     remove_waiting !id;
     status := !id, e STOPPED;
   );
-  extract "Suspend" @@ A1 (id, fun id -> Pml.do_;
+  extract "Suspend" @@ A1 (id, fun id -> Dsl.do_;
     _assert (!status !id != e NOTCREATED);
     status := !id, e SUSPENDED;
   );
-  extract "Resume" @@ A1 (id, fun id -> Pml.do_;
+  extract "Resume" @@ A1 (id, fun id -> Dsl.do_;
     _assert (!status !id != e NOTCREATED);
     _ift (!status !id == e SUSPENDED) (
       _ifte (!waiting_for !id == e NONE)
@@ -348,15 +348,15 @@ let os =
   (* semaphores *)
   let cur,_   = var (Byte 0) "cur" in
   let max,_   = var (Byte 0) "max" in
-  let queuing,_ = var (Enum (FIFO, show_queuing_discipline)) "queuing" in
-  extract "CreateSemaphore" ~id:(4,0) @@ A5 (name,cur,max,queuing,id, fun name cur max queuing id -> Pml.do_;
+  let queuing,_ = var (Enum (FIFO, nomod show_queuing_discipline)) "queuing" in
+  extract "CreateSemaphore" ~id:(4,0,"sema") @@ A5 (name,cur,max,queuing,id, fun name cur max queuing id -> Dsl.do_;
     println (s "CreateSemaphore: " ^ !name ^s ", "^ i2s !cur ^s ", "^ i2s !max ^s ", "^ e2s !queuing);
     _assert (!queuing == e FIFO);
     semas := !id, !cur;
     semas_max := !id, !max;
     incr semas_created;
   );
-  extract "GetSemaphoreId" ~id:(1,0) @@ A2 (name, id, fun name id -> nop);
+  extract "GetSemaphoreId" ~id:(1,0,"sema") @@ A2 (name, id, fun name id -> nop);
   extract "WaitSemaphore" @@ A1 (id, fun id ->
     let id = !id in
     let sema = !semas id in
