@@ -12,7 +12,6 @@ let find_option p xs = try Some (List.find p xs) with Not_found -> None
 let flat_map f = List.flatten % List.map f
 
 module M = Messages
-module E = Promela.Dsl
 
 module Spec =
 struct
@@ -21,7 +20,7 @@ struct
   let name = "extract_arinc"
 
   let init () =
-    LibraryFunctions.add_lib_funs (E.special_funs ())
+    LibraryFunctions.add_lib_funs (Pml.special_funs ())
 
   (* domains *)
   (* Process ID *)
@@ -195,12 +194,11 @@ struct
     in
     (* evaluates an argument. returns a list because a struct argument could contain multiple arguments that are relevant, and some arguments are not relevant at all. the inner list is the possible values for that argument. *)
     let eval = function
-      | E.EvalSkip -> const []
-      | E.EvalInt -> fun e ->
-          [try eval_int e with _ -> eval_id e]
-      | E.EvalString -> fun e -> [List.map (fun x -> "\""^x^"\"") (eval_str e)]
-      | E.EvalEnum f -> fun e -> [List.map (fun x -> Option.get (f (int_of_string x))) (eval_int e)]
-      | E.AssignIdOfString (res, pos) -> fun e ->
+      | Pml.EvalSkip -> const []
+      | Pml.EvalInt -> fun e -> [try eval_int e with _ -> eval_id e]
+      | Pml.EvalString -> fun e -> [List.map (fun x -> "\""^x^"\"") (eval_str e)]
+      | Pml.EvalEnum f -> fun e -> [List.map (fun x -> Option.get (f (int_of_string x))) (eval_int e)]
+      | Pml.AssignIdOfString (res, pos) -> fun e ->
           (* evaluate argument at i as string *)
           let name = OList.hd @@ eval_str (OList.at arglist pos) in
           (* generate variable from it *)
@@ -256,7 +254,7 @@ struct
           List.fold_left (fun d f -> extract_fun ~info_args:[f.vname] [string_of_int i]) ctx.local funs
         | _ -> let f = Queries.Result.short 30 in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local
       end
-    | _ -> match E.special_fun fname with
+    | _ -> match Pml.special_fun fname with
       | None -> M.debug_each ("extract_arinc: unhandled function"^fname); ctx.local
       | Some eval_args ->
         if M.tracing then M.trace "extract_arinc" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
@@ -266,7 +264,7 @@ struct
           | [], x::xs -> f None (Some x) :: combine_opt f [] xs
           | x::xs, [] -> f (Some x) None :: combine_opt f xs []
         in
-        let combine_skip a b = combine_opt (curry @@ function None, Some e -> E.EvalSkip, e | _, _ -> assert false) a b in
+        let combine_skip a b = combine_opt (curry @@ function None, Some e -> Pml.EvalSkip, e | _, _ -> assert false) a b in
         let args_product = List.flatten @@ List.n_cartesian_product @@ List.map (uncurry eval) @@ combine_skip eval_args arglist in
         List.fold_left (fun d args ->
           (* some calls have side effects *)
@@ -286,9 +284,11 @@ struct
   let otherstate v = D.bot ()
   let exitstate  v = D.bot ()
 
-  let finalize () =
-    output_file "result/arinc.os.pml" (snd Promela.os);
-    output_file "result/arinc.pml" (codegen ());
+  let init () = (* registers which functions to extract and writes out their definitions *)
+    output_file "result/arinc.os.pml" (snd (Pml_arinc.init ()))
+
+  let finalize () = (* writes out collected cfg *)
+    output_file "result/arinc.pml" (codegen ())
 end
 
 let _ =
