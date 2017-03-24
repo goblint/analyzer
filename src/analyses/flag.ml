@@ -17,7 +17,7 @@ struct
   let vars : (string , VSet.t) Hashtbl.t = Hashtbl.create 16
   let flags = ref ([] : string list)
   let noflags = ref ([] : string list)
-  let flagmax = ref 3
+  let flagmax = 3
   let branchvars = ref ([] : string list)
 
   (* transfer functions *)
@@ -58,7 +58,7 @@ struct
                  (* let _ = print_endline ( "assign" ^ (Int64.to_string i)) in   *)
                  (* let _ = print_endline ( x ^ " has values " ^ VSet.fold (fun e str -> (Val.short 50 e) ^", " ^str  ) v " ") in       *)
                  if (VSet.mem (Val.of_int i) v) then () else
-                 if (VSet.cardinal v < 3) then
+                 if (VSet.cardinal v < flagmax) then
                    (* let _ = print_endline ( "add") in   *)
                    Hashtbl.replace vars x (VSet.add (Val.of_int i) v)
                  else begin
