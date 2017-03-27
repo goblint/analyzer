@@ -89,7 +89,6 @@ struct
   module G = Tasks
   module C = D
 
-  let sprint f x = Pretty.sprint 80 (f () x)
   let sprint_map f xs = String.concat ", " @@ List.map (sprint f) xs
 
   let context d = { d with pred = Pred.bot (); ctx = Ctx.bot () }

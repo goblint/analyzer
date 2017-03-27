@@ -19,9 +19,6 @@ struct
   (* keys that were already warned about; needed for multiple returns (i.e. can't be kept in D) *)
   let warned_unclosed = ref Set.empty
 
-  (* get string from Cil values, e.g. sprint d_exp exp, sprint d_plainlval lval etc. *)
-  let sprint f x = Pretty.sprint 80 (f () x)
-
   (* queries *)
   let query ctx (q:Queries.t) : Queries.Result.t =
     match q with

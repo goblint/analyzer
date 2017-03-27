@@ -3,8 +3,6 @@
 open Prelude.Ana
 open Analyses
 
-let sprint f x = Pretty.sprint 80 (f () x)
-
 module Domain = struct
   module V =  Queries.ES
   include MapDomain.MapBot (Lval.CilLval) (V)

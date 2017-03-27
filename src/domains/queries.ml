@@ -1,7 +1,7 @@
 (** Structures for the querying subsystem. *)
 
-include Cil
-include Pretty
+open Cil
+open Pretty
 
 module GU = Goblintutil
 module ID = IntDomain.FlatPureIntegers

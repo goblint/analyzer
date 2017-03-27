@@ -380,8 +380,6 @@ struct
             let ctx' = {(obj ctx) with local = obj d} in
             S.assign ctx' lval exp
         in
-        let comp2 f g a b = f (g a) (g b) in
-        let compareBy f = comp2 Pervasives.compare f in
         let get_lval (lval, exp, name, ctx) = lval in
         (* group by assigns on the same lval -> only those must be joined *)
         List.group (compareBy get_lval) assigns

@@ -4,7 +4,6 @@ open Prelude.Ana
 open Analyses
 
 module M = Messages
-let sprint f x = Pretty.sprint 80 (f () x)
 let (%?) = Option.bind
 let (||?) a b = match a,b with Some x,_ | _, Some x -> Some x | _ -> None
 

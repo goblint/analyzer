@@ -1,6 +1,7 @@
 (** Protection using 'private' field modifier in C++.  *)
 
 open Prelude.Ana
+let sprint = Pretty.sprint
 open Analyses
 open GobConfig
 open Json

@@ -913,7 +913,6 @@ struct
       match ctx.ask (Queries.CondVars exp) with
       | `ExprSet s when Queries.ES.cardinal s = 1 ->
         let e = Queries.ES.choose s in
-        let sprint f x = Pretty.sprint 80 (f () x) in
         M.debug_each @@ "CondVars result for expression " ^ sprint d_exp exp ^ " is " ^ sprint d_exp e;
         invariant ctx.ask ctx.global res e tv
       | _ -> res
@@ -1040,8 +1039,7 @@ struct
       | `Address a when not (AD.is_top a) ->
         List.map (invalidate_address st) (reachable_vars ask [a] gs st)
       | `Int _ -> []
-      | _ -> let expr = sprint ~width:80 (d_exp () e) in
-        M.warn_each ("Failed to invalidate unknown address: " ^ expr); []
+      | _ -> M.warn_each ("Failed to invalidate unknown address: " ^ sprint d_exp e); []
     in
     (* We concatMap the previous function on the list of expressions. *)
     let invalids = List.concat (List.map invalidate_exp exps) in
@@ -1147,12 +1145,12 @@ struct
     try
       let fp = eval_fv ctx.ask ctx.global ctx.local fval in
       if AD.mem (Addr.unknown_ptr ()) fp then begin
-        M.warn_each ("Function pointer " ^ Pretty.sprint 100 (d_exp () fval) ^ " may contain unknown functions.");
+        M.warn_each ("Function pointer " ^ sprint d_exp fval ^ " may contain unknown functions.");
         dummyFunDec.svar :: AD.to_var_may fp
       end else
         AD.to_var_may fp
     with SetDomain.Unsupported _ ->
-      M.warn_each ("Unknown call to function " ^ Pretty.sprint 100 (d_exp () fval) ^ ".");
+      M.warn_each ("Unknown call to function " ^ sprint d_exp fval ^ ".");
       [dummyFunDec.svar]
 
   let reachable_top_pointers_types ctx (ps: AD.t) : Queries.TS.t =
@@ -1268,7 +1266,6 @@ struct
         (* check if we have an array of chars that form a string *)
         (* TODO return may-points-to-set of strings *)
         | `Address a when List.length (AD.to_string a) > 1 -> (* oh oh *)
-          let sprint f x = Pretty.sprint 80 (f () x) in
           M.debug_each @@ "EvalStr (" ^ sprint d_exp e ^ ") returned " ^ AD.short 80 a;
           `Top
         | `Address a when List.length (AD.to_var_may a) = 1 -> (* some other address *)
@@ -1395,7 +1392,7 @@ struct
       | `Bot -> `Bot
       | _ -> `Top
     in
-    let expr () = sprint ~width:80 (d_exp () e) in
+    let expr = sprint d_exp e in
     let warn ?annot msg = if warn then
       if get_bool "dbg.regression" then (
         let loc = !M.current_loc in
@@ -1410,21 +1407,21 @@ struct
     in
     match check_assert e ctx.local with
     | `False ->
-      warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr () ^ "\" will fail.");
+      warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
     | `True ->
-      warn ("{green}Assertion \"" ^ expr () ^ "\" will succeed");
+      warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      M.warn_each ~ctx:ctx.context ("{red}Assertion \"" ^ expr () ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
+      M.warn_each ~ctx:ctx.context ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
       ctx.local
     | `Top ->
-      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr () ^ "\" is unknown.");
+      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx.ask ctx.global ctx.local e true in
         if check_assert e newst <> `True then
-          M.warn_each ("Invariant \"" ^ expr () ^ "\" does not stick.");
+          M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick.");
         newst
       end
 

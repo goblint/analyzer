@@ -77,7 +77,7 @@ struct
       | `Index (_,os) -> dprintf "[?]%a" pretty_offs os
     in
     let show (v,os) =
-      v.vname ^ sprint 80 (pretty_offs () os)
+      v.vname ^ sprint pretty_offs os
     in
     let es = LSSet.empty () in
     let add_region xs r =

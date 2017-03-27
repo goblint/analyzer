@@ -29,9 +29,6 @@ struct
     let _nodes, _edges = SpecUtil.parseFile specfile in
     nodes := _nodes; edges := _edges (* don't change -> no need to save them in domain *)
 
-  (* get string from Cil values, e.g. sprint d_exp exp, sprint d_plainlval lval etc. *)
-  let sprint f x = Pretty.sprint 80 (f () x)
-
   (* module for encapsulating general spec checking functions used in multiple transfer functions (assign, special) *)
   (*
   .spec-format:

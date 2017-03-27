@@ -203,10 +203,7 @@ let str_action_pml pid r action =
   | None -> action_str
 
 (* helpers *)
-let comp2 f g a b = f (g a) (g b) (* why is this not in batteries? *)
-let compareBy ?cmp:(cmp=compare) f = comp2 cmp f
 let find_option p xs = try Some (List.find p xs) with Not_found -> None (* why is this in batteries for Hashtbl but not for List? *)
-let flat_map f = List.flatten % List.map f (* and this? *)
 
 (* simplify graph here, i.e. merge functions which consist of the same edges and contract call chains *)
 let simplify () =
