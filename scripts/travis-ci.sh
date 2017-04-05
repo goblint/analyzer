@@ -39,6 +39,6 @@ else
 fi
 
 # install dependencies
-./make.sh deps
+./make.sh setup
 # compile
 ./make.sh nat
