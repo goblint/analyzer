@@ -13,9 +13,9 @@ ocb() {
   $OCAMLBUILD $FLAGS $*
 }
 
-setuprest() {
-  opam update
+opam_build() {
   eval `opam config env`
+  opam update
   opam install ocamlfind batteries xml-light ppx_deriving ppx_distr_guards ppx_monadic
   # opam's cil is too old
   opam pin -y add cil "https://github.com/goblint/cil.git"
@@ -30,10 +30,7 @@ rule() {
              ocb -no-plugin $TARGET.native &&
              cp _build/$TARGET.native goblint
              ;;
-    debug)   ocb -tag debug $TARGET.native &&
-             cp _build/$TARGET.native goblint
-             ;;
-    bdebug)  ocb -tag debug $TARGET.d.byte &&
+    debug)  ocb -tag debug $TARGET.d.byte &&
              cp _build/$TARGET.d.byte goblint.byte
              ;;
     warn)    # be pedantic and show all warnings
@@ -48,13 +45,6 @@ rule() {
     ocamlprof) ocb -ocamlopt ocamloptp $TARGET.p.native &&
              cp _build/$TARGET.p.native goblint
              ;;
-    byte)    ocb $TARGET.byte &&
-             cp _build/$TARGET.byte goblint.byte
-             ;;
-    all)     ocb $TARGET.native $TARGET.byte &&
-             cp _build/$TARGET.native goblint &&
-             cp _build/$TARGET.byte goblint.byte
-             ;;
     doc*)    rm -rf doc;
              ls src/**/*.ml | egrep -v $EXCLUDE  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
              ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
@@ -62,6 +52,11 @@ rule() {
              ln -sf _build/doclist.docdir doc
              ;;
     tag*)    otags -vi `find src/ -iregex [^.]*\.mli?`;;
+    poly)    echo "open ApronDomain" >> $TARGET.ml
+             echo "open Poly" >> $TARGET.ml
+             ocb -no-plugin -package apron -package apron.polkaMPQ -package apron.octD $TARGET.native &&
+             cp _build/$TARGET.native goblint
+             ;;
     arinc)   ocb src/mainarinc.native &&
              cp _build/src/mainarinc.native arinc
              ;;
@@ -76,15 +71,12 @@ rule() {
              cd g2html && ant jar && cd .. &&
              cp g2html/g2html.jar .
              ;;
-    depend)  echo "No!";;
+    dep*)    OPAMYES=1 opam_build;;
     setup)   echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
-             opam init --comp=4.03.0
-             setuprest
+             opam init --comp=4.04.0
+             opam_build
              ;;
-    travis)  opam init --comp=4.03.0
-             setuprest
-             ;;
-    dev)     echo "Installing opam packages..."
+    dev)     echo "Installing opam packages for development..."
              opam install utop merlin ocp-indent ocp-index
              echo "Be sure to adjust your vim/emacs config!"
              echo "Installing Pre-commit hook..."
@@ -92,17 +84,12 @@ rule() {
              echo "Installing gem parallel (not needed for ./scripts/update_suite.rb -s)"
              sudo gem install parallel
              ;;
+    watch)   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
+             ;;
     header*) wget https://github.com/goblint/linux-headers/archive/master.tar.gz
              tar xf master.tar.gz && rm master.tar.gz
              rm -rf linux-headers && mv linux-headers-master linux-headers
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc6.h
-             ;;
-    poly)    echo "open ApronDomain" >> $TARGET.ml
-             echo "open Poly" >> $TARGET.ml
-             ocb -no-plugin -package apron -package apron.polkaMPQ -package apron.octD $TARGET.native &&
-             cp _build/$TARGET.native goblint
-             ;;
-    watch)   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
              ;;
     test)    ./scripts/update_suite.rb
              ;;
@@ -113,7 +100,7 @@ ls -1 src/**/*.ml | egrep -v $EXCLUDE | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' > 
 echo "open Maingoblint" >> $TARGET.ml
 
 if [ $# -eq 0 ]; then
-  rule all
+  rule nat
 else
   while [ $# -gt 0 ]; do
     rule $1;
