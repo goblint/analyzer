@@ -86,7 +86,7 @@ rule() {
              ;;
     watch)   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
              ;;
-    header*) wget https://github.com/goblint/linux-headers/archive/master.tar.gz
+    header*) curl -L -O https://github.com/goblint/linux-headers/archive/master.tar.gz
              tar xf master.tar.gz && rm master.tar.gz
              rm -rf linux-headers && mv linux-headers-master linux-headers
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc6.h
