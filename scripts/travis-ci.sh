@@ -40,5 +40,6 @@ fi
 
 # install dependencies
 OPAMYES=1 ./make.sh setup
+eval `opam config env`
 # compile
 ./make.sh nat
