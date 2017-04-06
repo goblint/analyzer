@@ -1,4 +1,5 @@
 FROM ocaml/opam:ubuntu
+RUN sudo apt-get install -yq ruby
 COPY / analyzer
 WORKDIR analyzer
 # ugh... https://github.com/docker/docker/issues/6119
