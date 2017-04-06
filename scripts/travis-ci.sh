@@ -39,6 +39,6 @@ else
 fi
 
 # install dependencies
-./make.sh setup
+OPAMYES=1 ./make.sh setup
 # compile
 ./make.sh nat
