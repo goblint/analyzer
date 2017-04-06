@@ -4,7 +4,7 @@ require 'find'
 require 'fileutils'
 require 'timeout'
 require 'pathname'
-timeout = 15 # seconds
+timeout = 5 # seconds
 
 def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
   print(o+"\n")
@@ -187,7 +187,8 @@ doproject = lambda do |p|
   filename = File.basename(filepath)
   Dir.chdir(dirname)
   clearline
-  print "Testing #{p.id} #{p.group}/#{p.name}"
+  id = "#{p.id} #{p.group}/#{p.name}"
+  print "Testing #{id}"
   warnfile = File.join(testresults, p.name + ".warn.txt")
   statsfile = File.join(testresults, p.name + ".stats.txt")
 #   confile = File.join(testresults, p.name + ".con.txt")
@@ -205,8 +206,8 @@ doproject = lambda do |p|
   begin
     Timeout::timeout(timeout) {Process.wait pid}
   rescue Timeout::Error
-    puts "\t Timeout reached!".red + " Killing process #{pid}..."
-    timedout.push "#{p.id}-#{p.group}/#{p.name}"
+    puts "\t #{id} reached timeout of #{timeout}s!".red + " Killing process #{pid}..."
+    timedout.push id
     Process.kill('INT', pid)
     return
   end
@@ -215,7 +216,7 @@ doproject = lambda do |p|
   if status != 0 then
     reason = if status == 2 then "exception" elsif status == 3 then "verify" end
     clearline
-    puts "Testing #{p.id} #{p.group}/#{p.name}" + "\t Status: #{status} (#{reason})".red
+    puts "Testing #{id}" + "\t Status: #{status} (#{reason})".red
     stats = File.readlines statsfile
     if stats[0] =~ /exception/ then
       relpath = (Pathname.new filepath).relative_path_from (Pathname.new File.dirname(goblint))
@@ -272,6 +273,7 @@ File.open(theresultfile, "w") do |f|
   f.puts "<table border=2 cellpadding=4>"
   gname = ""
   projects.each do |p|
+    id = "#{p.id} #{p.group}/#{p.name}"
     is_ok = true
     if p.group != gname then
       gname = p.group
@@ -369,10 +371,10 @@ File.open(theresultfile, "w") do |f|
       f.puts "<td style =\"color: green\">NONE</td>"
     else
       alliswell = false
-      if not timedout.include? "#{p.id}-#{p.group}/#{p.name}" then
+      if not timedout.include? id then
         failed.push p.name
         exc = if lines[0] =~ /exception/ then " (see exception above)" else "" end
-        puts "#{p.id} #{p.group}/#{p.name}" + " failed#{exc}!".red
+        puts "#{id}" + " failed#{exc}!".red
         if dump then
           puts "============== WARNINGS ==============="
           puts File.read(File.join(testresults, warnfile))
