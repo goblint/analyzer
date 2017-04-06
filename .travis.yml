@@ -5,8 +5,7 @@ language: c
 git:
   submodules: false
 install: bash -ex scripts/travis-ci.sh
-before_script: ./make.sh headers
-script: ruby scripts/update_suite.rb -s -d
+script: make headers testci
 notifications:
   webhooks:
     urls:

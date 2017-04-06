@@ -91,8 +91,8 @@ rule() {
              rm -rf linux-headers && mv linux-headers-master linux-headers
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc6.h
              ;;
-    test)    ./scripts/update_suite.rb
-             ;;
+    test)    ./scripts/update_suite.rb;;
+    testci)  ./scripts/update_suite.rb -s -d;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
 
