@@ -1,3 +1,3 @@
 sut:
   build: .
-  command: make headers testci
+  command: ./make.sh nat headers testci

@@ -5,7 +5,7 @@ language: c
 git:
   submodules: false
 install: bash -ex scripts/travis-ci.sh
-script: make headers testci
+script: ./make.sh headers testci
 notifications:
   webhooks:
     urls:

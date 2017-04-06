@@ -219,7 +219,7 @@ doproject = lambda do |p|
     puts "Testing #{id}" + "\t Status: #{status} (#{reason})".red
     stats = File.readlines statsfile
     if stats[0] =~ /exception/ then
-      relpath = (Pathname.new filepath).relative_path_from (Pathname.new File.dirname(goblint))
+      relpath = (Pathname.new filepath).relative_path_from(Pathname.new File.dirname(goblint))
       lastline = (File.readlines warnfile).last()
       puts lastline.strip().sub filename, relpath.to_s unless lastline.nil?
       puts stats[0..9].join()
