@@ -92,7 +92,7 @@ rule() {
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc6.h
              ;;
     test)    ./scripts/update_suite.rb;;
-    testci)  ./scripts/update_suite.rb -s -d;;
+    testci)  ruby scripts/update_suite.rb -s -d;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
 
