@@ -207,7 +207,7 @@ doproject = lambda do |p|
   rescue Timeout::Error
     puts "\t Timeout reached!".red + " Killing process #{pid}..."
     timedout.push "#{p.id}-#{p.group}/#{p.name}"
-    Process.kill('TERM', pid)
+    Process.kill('INT', pid)
     return
   end
   endtime   = Time.now
@@ -251,7 +251,6 @@ else
   end
 end
 clearline
-`pkill goblint` # FIXME somehow the killing above is not complete...
 
 #Outputting
 header = <<END
