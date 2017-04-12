@@ -1,33 +1,34 @@
 CPU CPU1 {
-OS OSEK1 {
-	STARTUPHOOK = TRUE;
-};
-APPMODE appmode1{};
+  OS OSEK1 {
+    STARTUPHOOK = TRUE;
+  };
 
-RESOURCE r{
-RESOURCEPROPERTY = STANDARD;
-};
+  APPMODE appmode1 {};
 
-RESOURCE ri{
-RESOURCEPROPERTY = STANDARD;
-};
+  RESOURCE r {
+    RESOURCEPROPERTY = STANDARD;
+  };
 
-ISR ii{
-PRIORITY = 3;
-RESOURCE = r;
-CATEGORY = 2;
-};
+  RESOURCE ri {
+    RESOURCEPROPERTY = STANDARD;
+  };
 
-ISR i{
-   PRIORITY = 2;
-   RESOURCE = r;
-   CATEGORY = 2;
-};
+  ISR ii {
+    PRIORITY = 3;
+    RESOURCE = r;
+    CATEGORY = 2;
+  };
 
-TASK t {
-   AUTOSTART = TRUE;
-   PRIORITY = 1;
-   ACTIVATION = 1;
-   SCHEDULE = FULL;
-};
+  ISR i {
+    PRIORITY = 2;
+    RESOURCE = r;
+    CATEGORY = 2;
+  };
+
+  TASK t {
+    AUTOSTART = TRUE;
+    PRIORITY = 1;
+    ACTIVATION = 1;
+    SCHEDULE = FULL;
+  };
 };
