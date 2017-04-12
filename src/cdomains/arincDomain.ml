@@ -19,35 +19,12 @@ module PrE = IntDomain.Flattened
 (* context hash for function calls *)
 module Ctx = IntDomain.Flattened
 (* predecessor nodes *)
-module Pred =
-struct
-  module Base =
-  struct
-    (* include Basetype.ProgLines *)
-    (* copied and adjusted from Basetype.ProgLine... Problem was that it doesn't discern byte *)
-    open Pretty
-    type t = location
-    let isSimple _  = true
-    let equal = (=)
-    let compare = compare
-    let hash = Hashtbl.hash
-    let toXML_f sf x = Xml.Element ("Loc", [("file", x.file); ("line", string_of_int x.line); ("byte", string_of_int x.byte); ("text", sf 80 x)], [])
-    (* let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S" *)
-    let show loc =
-      let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
-      f loc.line ^ "b" ^ f loc.byte
-    let short w x = show x
-    let pretty_f sf () x = text (sf max_int x)
-    let toXML m = toXML_f short m
-    let pretty () x = pretty_f short () x
-    let name () = "proglines_byte"
-    let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
-  end
+module Pred = struct
+  module Base = Basetype.ProgLocation
   include SetDomain.Make (Base)
   let of_node = singleton % MyCFG.getLoc
   let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-  let string_of_elt = Base.show
+  let string_of_elt = Basetype.ProgLocation.short 99
 end
 
 (* define record type here so that fields are accessable outside of D *)
