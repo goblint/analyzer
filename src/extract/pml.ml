@@ -1,8 +1,8 @@
 open BatteriesExceptionless
 (* https://bitbucket.org/camlspotter/ppx_monadic *)
 
-(* promela types *)
-type _ t =
+type 'a e = 'a * string (* some expression and its promela representation *)
+type _ t = (* promela types *)
   | Enum : 'a * ('a -> string) -> 'a t
   | Chan : 'a chan -> 'a chan t
   | Bool : bool -> bool t
@@ -10,8 +10,7 @@ type _ t =
   (* the following are for arguments, and can not be declared in promela *)
   | String : string -> string t
   | Void : unit t (* this is just for skipping uninteresting arguments *)
-and 'a chan = { capacity : int (* 0 = rendez-vous *); mutable content : 'a list; content_type : 'a t }
-type 'a e = 'a * string (* expression and its promela representation *)
+and 'a chan = { capacity : int e (* 0 = rendez-vous *); mutable content : 'a list; content_type : 'a t }
 
 let enums : (string, string) Hashtbl.t = Hashtbl.create 123 (* value -> type (both as strings) *)
 let of_enums = Hashtbl.create 123 (* enum type -> (enum value as int -> enum value as string option) *)
@@ -30,7 +29,7 @@ let rec unbox : type a . a t -> string * (a -> string) * a = function (* type, s
   | Enum (x,s) -> "mtype", s, x
   | Chan c ->
     let t',s,x = unbox c.content_type in
-    "chan", (fun c -> "["^string_of_int c.capacity^"] of {"^t'^"}"), c
+    "chan", (fun c -> "["^snd c.capacity^"] of {"^t'^"}"), c
   | Bool x -> "bool", string_of_bool, x
   | Byte x -> "byte", string_of_int, x
   | Short x -> "short", string_of_int, x
@@ -40,7 +39,7 @@ let rec unbox : type a . a t -> string * (a -> string) * a = function (* type, s
 
 type _ var = (* variable with initial value and printer. type: content * get * set * mod *)
   | Var : { name : string; init : 'a t; value : 'a ref; show : 'a -> string } ->
-    ('a e * 'a e * ('a e -> unit e) * unit e) var
+    ('a e * 'a e            * ('a e -> unit e)         * unit e) var
   | Arr : { name : string; init : 'a t; value : 'a array; show : 'a -> string; show_all : 'a array -> string; length : int } ->
     ('a e * (int e -> 'a e) * (int e * 'a e -> unit e) * (int e -> unit e)) var
 
@@ -53,11 +52,8 @@ let arr length value name =
   assert (is_declared value);
   let t,s,v = unbox value in
   let show_arr a = Array.to_list a |> List.map s |> String.concat ", " in
-  Arr { name; init = value; value = Array.create length v; show = s; show_all = show_arr; length },
-  t^" "^name^"["^string_of_int length^"] = "^s v^";"
-
-(* to avoid having to give the string for enum literals, we use a dummy string and replace it using the show function from the delcaration *)
-let fix_enum show (x,s) = if s = "enum" then show x else s
+  Arr { name; init = value; value = Array.create (fst length) v; show = s; show_all = show_arr; length = fst length },
+  t^" "^name^"["^snd length^"] = "^s v^";"
 
 let get : type c g s m. (c*g*s*m) var -> g = function
   | Var v -> !(v.value), v.name
@@ -65,10 +61,10 @@ let get : type c g s m. (c*g*s*m) var -> g = function
     assert (fst i >= 0 && fst i < v.length);
     Array.get v.value (fst i), v.name^"["^snd i^"]"
 let set : type c g s m. (c*g*s*m) var -> s = function
-  | Var v -> fun x -> (v.value := fst x), v.name^" = "^fix_enum v.show x^";"
+  | Var v -> fun x -> (v.value := fst x), v.name^" = "^snd x^";"
   | Arr v -> fun (i,x) ->
     assert (fst i >= 0 && fst i < v.length);
-    Array.set v.value (fst i) (fst x), v.name^"["^snd i^"] = "^fix_enum v.show x^";"
+    Array.set v.value (fst i) (fst x), v.name^"["^snd i^"] = "^snd x^";"
 
 (* Var x: !x, x := v. Arr x: !x i, x := i, v *)
 let (!) = get
@@ -78,7 +74,7 @@ let (@=) = set (* maybe use this since it has higher precedence than >> *)
 (* we do not define `not` since this may tempt people to use !empty instead of nempty (same with nfull) *)
 
 let _assert x = assert (fst x), "assert("^snd x^");"
-let println x = (* print_endline (fst x) *) (), "printf(\\\"%s\\n\\\""^snd x^");"
+let println x = (* print_endline (fst x) *) (), "printf(\""^snd x^"\\n\");"
 
 let _true  = true,  "true"
 let _false = false, "false"
@@ -91,8 +87,8 @@ let nop = (), ""
 module Chan = struct (* channels *)
   let create len content = Chan { capacity = len; content = []; content_type = content }
 
-  let full   (c,s) = List.length c.content >= c.capacity, "full("^s^")"
-  let nfull  (c,s) = List.length c.content < c.capacity, "nfull("^s^")"
+  let full   (c,s) = List.length c.content >= fst c.capacity, "full("^s^")"
+  let nfull  (c,s) = List.length c.content < fst c.capacity, "nfull("^s^")"
   let empty  (c,s) = List.length c.content = 0, "empty("^s^")"
   let nempty (c,s) = List.length c.content > 0, "nempty("^s^")"
   let len    (c,s) = List.length c.content, "len("^s^")"
@@ -106,13 +102,13 @@ module Chan = struct (* channels *)
       | `Any   -> any c e,   "??"
     in
     b, s^op^"["^snd e^"]"
-  let recv m (c,s) e = (* checks if (the first|any) element is e (w/o changing e) and removes it from the channel *)
+  let recv m (c,s) e = (* blocks until (the first|any) element is e (w/o changing e) and removes it from the channel *)
     let b,op = match m with
       | `First -> first c e, "?"
       | `Any   -> any c e,   "??"
     in
     c.content <- List.remove c.content (fst e);
-    b, s^op^"eval("^snd e^")"
+    (), s^op^"eval("^snd e^")"
   let send (c,s) e = (* append|sorted *)
     fst (nfull (c,s)), s^"!"^snd e
 end
@@ -128,7 +124,7 @@ let indent x = String.nsplit x "\n" |> List.map (fun x -> "  "^x) |> String.conc
 let surround a b (v,s) = v, a^"\n"^indent s^"\n"^b
 let _match xs =
   assert (List.length xs > 0);
-  let s = String.concat "\n" @@ List.map (fun (c,b) -> ":: ("^snd c^") -> "^snd b) xs in
+  let s = String.concat "\n" @@ List.map (fun (c,b) -> ":: "^snd c^" -> "^snd b) xs in
   (*List.find (fst%fst) xs, s*)
   (), s
 let _do xs = surround "do" "od;" (_match xs)
@@ -148,11 +144,25 @@ let _foreach (Arr v as a) b = (* for (i in a) { `b i a[i]` } *)
 (* extraction *)
 type ('a,'b,'c,'d,'e,'z) args = A0 of 'z e | A1 of 'a * ('a -> 'z e) | A2 of 'a*'b * ('a -> 'b -> 'z e) | A3 of 'a*'b*'c * ('a -> 'b -> 'c -> 'z e) | A4 of 'a*'b*'c*'d * ('a -> 'b -> 'c -> 'd -> 'z e) | A5 of 'a*'b*'c*'d*'e * ('a -> 'b -> 'c -> 'd -> 'e -> 'z e)
 
+let define name args =
+  let unpack p = function
+    | A0 z -> [], z
+    | A1 (a,f) -> [p a], f a
+    | A2 (a,b,f) -> [p a; p b], f a b
+    | A3 (a,b,c,f) -> [p a; p b; p c], f a b c
+    | A4 (a,b,c,d,f) -> [p a; p b; p c; p d], f a b c d
+    | A5 (a,b,c,d,e,f) -> [p a; p b; p c; p d; p e], f a b c d e
+  in
+  let aa, body = unpack (fun (Var v) -> v.name) args in
+  let args = String.concat ", " aa |> fun x -> if List.is_empty aa then x else "("^x^")" in
+  (), "\n#define "^name^args^"    "^snd body
+
 type eval = (* how to evaluate function arguments *)
   | EvalEnum of (int -> string option) | EvalInt | EvalString (* standard types *)
   | EvalSkip (* don't evaluate *)
   | AssignIdOfString of string * int (* kind * position: evaluate argument at position as a string, use it to generate an id of kind, and assign it to argument, map id to int for promela *)
   (*| EvalSpecial of string*)
+  [@@deriving show]
 
 let extract_funs = Hashtbl.create 123 (* name of function to list of how to evaluate arguments *)
 let special_fun name = Hashtbl.find extract_funs name
@@ -161,7 +171,7 @@ let special_funs () = Hashtbl.keys extract_funs |> List.of_enum
 let extract ?id fname args = (* generate code for function and register for extraction *)
   let unpack =
     let name (Var v) = v.name in
-    let eval (type a) (Var v : a var) = match v.init with
+    let eval (type a b c) (Var v : (a*b*c*unit e) var) = match v.init with
       | Enum (x,s) -> EvalEnum (Option.get @@ Hashtbl.find of_enums (Option.get (enum_type (s x))))
       | Byte _ -> EvalInt
       | Short _ -> EvalInt
@@ -212,7 +222,7 @@ let s s = s, s (* string literal *)
 let (^) a b = fst a^fst b, snd a^snd b (* string concatenation *)
 let fail m = println (s "FAIL: "^m) >> _assert _true (* TODO _assert _false evaluates too early :( *)
 let i2s (i,s) = string_of_int i, s
-let e x = x, "enum"
+let e x s = x, s x
 let e2s x = s (snd x) (* TODO ? *)
 
 let incr : type g s m. (int e*g*s*m) var -> m = function
