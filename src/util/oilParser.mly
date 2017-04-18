@@ -22,13 +22,12 @@
 file:
   | oil_version implementation_definition application_definition EOF  {$3}
   | oil_version implementation_definition application_definition      {$3}
-
+;
 /* version details */
 oil_version:
   | /* empty */ {}
   | OIL_VERSION ASSIGN OIL_STRING description SEMICOLON  {}
 ;
-
 /* implementation definitions */
 implementation_definition:
   | /* empty */  {}
@@ -41,7 +40,6 @@ implementation_spec_list:
 implementation_spec:
   | OBJECT LCURL implementation_list RCURL description SEMICOLON  {}
 ;
-
 implementation_list:
   | /* empty */  {}
   | implementation_def implementation_list  {}
@@ -53,7 +51,7 @@ implementation_def:
 description:
   | /* empty */  {}
   | COLON OIL_STRING  {}
-
+;
 impl_attr_def:
   | UINT32  auto_specifier number_range attribute_name multiple_specifier default_number description SEMICOLON  {}
   | INT32   auto_specifier number_range attribute_name multiple_specifier default_number description SEMICOLON  {}
@@ -83,7 +81,6 @@ default_number:
   | ASSIGN NO_DEFAULT  {}
   | ASSIGN AUTO  {}
 ;
-
 float_range:
   | /* empty */  {}
   | LBRACK OIL_FLOAT ".." OIL_FLOAT RBRACK  {}
