@@ -55,8 +55,8 @@ struct
       let module NH = Hashtbl.Make (MyCFG.Node) in
       let live_nodes : unit NH.t = NH.create 10 in
       let count = ref 0 in
+      let module StringMap = BatMap.Make (String) in
       let open BatMap in let open BatPrintf in
-      let module StringMap = Make (String) in
       let live_lines = ref StringMap.empty in
       let dead_lines = ref StringMap.empty in
       let add_one (l,n,f) v =
