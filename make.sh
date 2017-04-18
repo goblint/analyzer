@@ -16,9 +16,11 @@ ocb() {
 opam_build() {
   eval `opam config env`
   opam update
-  opam install ocamlfind batteries xml-light ppx_deriving ppx_distr_guards ppx_monadic
+  opam install ocamlfind batteries xml-light ppx_distr_guards ppx_monadic
   # opam's cil is too old
   opam pin -y add cil "https://github.com/goblint/cil.git"
+  # unpin once deriving show with_path is available in opam version
+  opam pin add ppx_deriving https://github.com/whitequark/ppx_deriving.git
 }
 
 rule() {
