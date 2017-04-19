@@ -6,12 +6,12 @@ and waiting_for = NONE | EVENT | RESOURCE
 [@@deriving show { with_path = false }, enum]
 
 let init oil =
-  let has_resources = Hashtbl.length OilUtil.resources > 0 in  
+  (*let has_resources = Hashtbl.length OilUtil.resources > 0 in  *)
   let open Pml in let open Chan in
 
   let nproc     = fst @@ var (Byte (Hashtbl.length OilUtil.tasks)) "nproc" in
   let nresource = fst @@ var (Byte (Hashtbl.length OilUtil.resources)) "nresource" in
-  let nevent    = fst @@ var (Byte (Hashtbl.length OilUtil.events)) "nevent" in
+  (*let nevent    = fst @@ var (Byte (Hashtbl.length OilUtil.events)) "nevent" in*)
 
   Pml.do_; (* from now on ; is bind *)
   (* type delcarations, TODO generate this? *)
@@ -54,14 +54,14 @@ let init oil =
     state      := id, (e READY show_state)
   in
   let is_waiting id wfor wid = !state id == e WAITING show_state && !waiting_for id == e wfor show_waiting_for && !waiting_id id == wid in  
-  let remove_waiting id = Pml.do_;
+  (*let remove_waiting id = Pml.do_;
     if has_resources then
       _foreach resources (fun j _ ->
           _ift (poll `Any (!resources_chan j) id) (recv `Any (!resources_chan j) id)
         )
     else nop;
     waiting_for := id, e NONE show_waiting_for;
-  in
+  in*)
 
   (* Specification of operating system services *)
   (* Task management *)
