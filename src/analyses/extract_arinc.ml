@@ -180,7 +180,7 @@ struct
         if List.is_empty xs then [] else
           let (name,_),_ = OList.hd xs in
           let entries = xs |> List.map (fun ((_,k),v) -> "\t:: (stack[sp] == " ^ string_of_int v ^ ") -> sp--; goto " ^ k ^" \\") in
-          let debug_str = if GobConfig.get_bool "ana.arinc.debug_pml" then "\t:: else -> printf(\"wrong pc on stack!\"); assert(false) " else "" in
+          let debug_str = if GobConfig.get_bool "ana.pml.debug" then "\t:: else -> printf(\"wrong pc on stack!\"); assert(false) " else "" in
           ("#define ret_"^name^"() if \\") :: entries @ [debug_str ^ "fi"]
       in
       FunTbl.to_list () |> List.group (compareBy (fst%fst)) |> flat_map fun_map
