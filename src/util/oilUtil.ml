@@ -3,8 +3,8 @@ open Messages
 open GobConfig
 open Pretty
 
-type attribute_v = Name of (string * ( ((string * attribute_v) list) option)) | Bool of (bool * (((string * attribute_v) list) option)) | Int of int | Float of float | String of string | Auto
-type param_t = string * attribute_v
+type attribute_v = Name of (string * ( ((string * attribute_v) list) option)) | Bool of (bool * (((string * attribute_v) list) option)) | Int of int | Float of float | String of string | Auto 
+and param_t = string * attribute_v [@@deriving show]
 type object_t = string*string*(param_t list)
 (*		id	pry 	"lock"*)
 type res_t = 	string*	int*	exp
@@ -14,13 +14,15 @@ type event_t = 	string*	bool
 type task_t = 	bool*		int*	(string list)*	(string list)*	bool*		bool*		int
 (*		pry	res		category *)
 type isr_t = 	int*	(string list)*	int
+(* id accessing_applications lock *)
+type spinlock_t = string * string list * exp
 
 let osek_renames = ref ""
 let osek_ids = ref ""
 let header = "osek_goblint.h"
 let osek_names : (string,string) Hashtbl.t = Hashtbl.create 16
 let osek_ISR_PRIORITY = ref ["PRIORITY"; "INTERRUPTPRIORITY"] (*add fancy priority names here*)
-let osek_API_funs = ["ActivateTask"; "TerminateTask"; "ChainTask"; "Schedule"; "GetTaskID"; "GetTaskState"; "DisableAllInterrupts"; "EnableAllInterrupts"; "SuspendAllInterrupts"; "ResumeAllInterrupts"; "SuspendOSInterrupts"; "ResumeOSInterrupts"; "GetResource"; "ReleaseResource"; "SetEvent"; "GetEvent"; "ClearEvent"; "WaitEvent"; "GetAlarmBase"; "GetAlarm"; "SetRelAlarm"; "SetAbsAlarm"; "CancelAlarm"; "GetActiveApplicationMode"; "StartOS"; "ShutdownOS"]
+let osek_API_funs = ["ActivateTask"; "TerminateTask"; "ChainTask"; "Schedule"; "GetTaskID"; "GetTaskState"; "DisableAllInterrupts"; "EnableAllInterrupts"; "SuspendAllInterrupts"; "ResumeAllInterrupts"; "SuspendOSInterrupts"; "ResumeOSInterrupts"; "GetResource"; "ReleaseResource"; "SetEvent"; "GetEvent"; "ClearEvent"; "WaitEvent"; "GetAlarmBase"; "GetAlarm"; "SetRelAlarm"; "SetAbsAlarm"; "CancelAlarm"; "GetActiveApplicationMode"; "StartOS"; "ShutdownOS"; "GetSpinlock"; "ReleaseSpinlock"]
 (* let safe_vars = ref false *)
 
 (*let group_pry : (string,int) Hashtbl.t = Hashtbl.create 16
@@ -48,6 +50,9 @@ let tasks  : (string,task_t) Hashtbl.t = Hashtbl.create 16
 let isrs   : (string,isr_t) Hashtbl.t = Hashtbl.create 16
 let alarms   : (string,bool*(string list)) Hashtbl.t = Hashtbl.create 16
 
+let spinlocks : (string,spinlock_t) Hashtbl.t = Hashtbl.create 16
+let spinlockids : (Cil.exp,string) Hashtbl.t = Hashtbl.create 16
+
 let resourceids : (Cil.exp,string) Hashtbl.t = Hashtbl.create 16 (*Const CInt64 ,_,_ *)
 let eventids : (Cil.exp,string) Hashtbl.t = Hashtbl.create 16
 let taskids  : (Cil.exp,string) Hashtbl.t = Hashtbl.create 16
@@ -71,7 +76,9 @@ let trim_isr name = (Str.string_after (Str.string_before name ((String.length na
 let trim name = if (Hashtbl.mem tasks name) then trim_task name else trim_isr name
 
 (*priority function*)
-let pry res = try let (_,pry,_) =Hashtbl.find resources res in pry with Not_found -> print_endline("Priority not found. Using default value -1"); (-1)
+let pry res = try let (_,pry,_) =Hashtbl.find resources res in pry with Not_found -> print_endline("Priority not found. Using default value -1");
+assert false
+(*(-1)*)
 
 let get_api_names name =
   if List.mem name osek_API_funs then name else begin
@@ -97,7 +104,8 @@ let generate_header () =
   let print_events id value 	 = output_string f ("int " ^ id           ^ ";\n") in
   let print_tasks id value     = output_string f ("int " ^ trim_task id ^ ";\n") in
   let print_isrs id value      = output_string f ("int " ^ trim_isr id  ^ ";\n") in
-  let print_alarms id value      = output_string f ("int " ^ id  ^ ";\n") in
+  let print_alarms id value    = output_string f ("int " ^ id  ^ ";\n") in
+  let print_spinlocks id value = output_string f ("int " ^ id  ^ ";\n") in
   let task_macro () =
     if (get_string "ana.osek.taskprefix") = "" then
       if (get_string "ana.osek.tasksuffix") = "" then
@@ -139,6 +147,7 @@ let generate_header () =
     if tracing then trace "osek" "//No ISR prefix/suffix. Tasksids not generated. ActivateTask will fail.\n";
   end;
   Hashtbl.iter print_alarms alarms;
+  Hashtbl.iter print_spinlocks spinlocks;
   output_string f "#endif\n";
   if (get_bool "ana.osek.def_header") then begin
     output_string f "#ifndef E_OK\n";
@@ -199,8 +208,18 @@ let get_lock name =
     in*)
   lock
 
+let get_spinlock name =
+  if tracing then trace "osek" "Looking for spinlock %s\n" name;
+  let _,_,lock = Hashtbl.find spinlocks name in
+  lock
+
 let make_lock name =
   if tracing then trace "osek" "Generating lock for resource %s\n" name;
+  let varinfo = makeGlobalVar name voidType in
+  AddrOf (Var varinfo,NoOffset)
+
+let make_spinlock name =
+  if tracing then trace "osek" "Generating spinlock %s\n" name;
   let varinfo = makeGlobalVar name voidType in
   AddrOf (Var varinfo,NoOffset)
 
@@ -573,6 +592,12 @@ let add_to_table oil_info =
   | "EVENT" -> List.iter (handle_attribute_event object_name) attribute_list
   (*    | "GROUPPRIORITY" -> (*add to group pry check for open isr with that group at the very end check for left over open isr*)
                             ()*)
+  | "SPINLOCK" ->
+    (*print_endline @@ object_type ^ " " ^ object_name ^ " " ^ String.concat ", " (List.map show_param_t attribute_list);*)
+    let accessing_applications = BatList.filter_map (function "ACCESSING_APPLICATION", Name (name, _) -> Some name | _ -> None) attribute_list in
+    (*print_endline @@ String.concat ", " accessing_applications;*)
+    Hashtbl.add spinlocks object_name ("-1", accessing_applications, make_spinlock object_name);
+    Hashtbl.add resources object_name (object_name,-1,make_lock ("spinlock_"^object_name))
   | "COUNTER"
   | "MESSAGE"
   | "COM"

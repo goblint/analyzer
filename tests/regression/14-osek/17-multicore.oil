@@ -1,0 +1,80 @@
+OIL_VERSION = "4.0" : "tasks_multicore" ;
+
+CPU CPU1 {
+  OS OSEK1 {
+    STARTUPHOOK = TRUE;
+  };
+
+  APPMODE appmode1 {};
+
+  APPLICATION Application1Name {
+    TRUSTED = TRUE;
+    STARTUPHOOK = TRUE;
+    SHUTDOWNHOOK = FALSE;
+    ERRORHOOK = FALSE;
+    AS_RESTARTTASK = FALSE;
+
+    TASK = Task1Name;
+    // ALARM = Alarm1Name;
+    CORE = 0;
+  };
+
+  APPLICATION Application2Name {
+    TRUSTED = TRUE;
+    STARTUPHOOK = TRUE;
+    SHUTDOWNHOOK = FALSE;
+    ERRORHOOK = FALSE;
+    AS_RESTARTTASK = FALSE;
+
+    TASK = Task2Name;
+    // ALARM = Alarm2Name;
+    CORE = 1;
+  };
+
+  SPINLOCK SpinLock1Name {
+    ACCESSING_APPLICATION = Application1Name;
+    ACCESSING_APPLICATION = Application2Name;
+  };
+
+  SPINLOCK SpinLock2Name {
+    ACCESSING_APPLICATION = Application1Name;
+    ACCESSING_APPLICATION = Application2Name;
+  };
+
+  TASK Task1Name {
+    ACCESSING_APPLICATION = Application2Name;  // Liste von anderen Applikationen welche mit dem Task in Verbindung stehen (nicht der eigene) -> Rechteerweiterung über den eigenen ApplicationContainer hinaus.
+    // ACCESSING_APPLICATION = Application3Name;
+
+    PRIORITY = 1;
+    AUTOSTART = TRUE;
+    ACTIVATION = 1;
+    SCHEDULE = FULL;
+  };
+
+  TASK Task2Name {
+    PRIORITY = 2;
+    AUTOSTART = TRUE;
+    ACTIVATION = 1;
+    SCHEDULE = FULL;
+  };
+
+  /*
+  ALARM Alarm1Name {
+    COUNTER = SystemTimerCore0;  // Alarme beziehen sich auf Core spezifische Counter.
+    ACTION = SETEVENT {
+      TASK = Task1Name;
+      EVENT = Event1Name;
+    };
+    AUTOSTART = TRUE;
+  };
+
+  ALARM Alarm2Name {
+    COUNTER = SystemTimerCore1;  // Alarme beziehen sich auf Core spezifische Counter.
+    ACTION = SETEVENT {
+      TASK = Task2Name;
+      EVENT = Event2Name;
+    };
+    AUTOSTART = TRUE;
+  };
+  */
+};

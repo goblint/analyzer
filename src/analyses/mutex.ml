@@ -219,6 +219,7 @@ struct
       -> Lockset.remove (big_kernel_lock,true) ctx.local
     | `Lock (failing, rw, zero_return_when_aquired), _
       -> let arglist = if f.vname = "LAP_Se_WaitSemaphore" then [List.hd arglist] else arglist in
+      (*print_endline @@ "Mutex `Lock "^f.vname;*)
       lock ctx rw failing zero_return_when_aquired ctx.ask lv arglist ctx.local
     | `Unlock, "__raw_read_unlock"
     | `Unlock, "__raw_write_unlock"  ->
@@ -235,8 +236,9 @@ struct
         | _ -> x
       in
       unlock (fun l -> remove_rw (drop_raw_lock l))
-    | `Unlock, _
-      -> unlock remove_rw
+    | `Unlock, _ ->
+      (*print_endline @@ "Mutex `Unlock "^f.vname;*)
+      unlock remove_rw
     | _, "spinlock_check" -> ctx.local
     | _, "acquire_console_sem" when get_bool "kernel" ->
       Lockset.add (console_sem,true) ctx.local

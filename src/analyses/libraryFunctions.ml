@@ -41,6 +41,8 @@ let classify' fn exps =
     -> `Lock(true, true, true)
   | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock"
     -> `Lock (true, true, false)
+  | "GetSpinlock" -> `Lock (false, true, true)
+  | "ReleaseSpinlock" -> `Unlock
   | "LAP_Se_WaitSemaphore" (* TODO: only handle those when arinc analysis is enabled? *)
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
@@ -131,6 +133,8 @@ let writesAll a x =
 let invalidate_actions = ref [
     "GetResource", readsAll;
     "ReleaseResource", readsAll;
+    "GetSpinlock", readsAll;
+    "ReleaseSpinlock", readsAll;
     "atoi", readsAll;             (*safe*)
     "bzero", writes [1]; (*keep 1*)
     "connect", readsAll;          (*safe*)

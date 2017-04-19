@@ -181,6 +181,11 @@ struct
                 let intid = int_of_string id in
                 Hashtbl.add resourceids (Cil.integer(intid)) objectname
               end
+            | x when Hashtbl.mem spinlocks objectname -> begin
+                if tracing then trace "osek" "Adding ID (%s) for spinlock %s\n" id objectname;
+                let intid = int_of_string id in
+                Hashtbl.add spinlockids (Cil.integer(intid)) objectname
+              end
             | x when Hashtbl.mem events objectname -> begin
                 if tracing then trace "osek" "Adding ID (%s) for event %s\n" id objectname;
                 let intid = int_of_string id in
@@ -765,6 +770,12 @@ struct
     | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
       M.special ctx lval f (match arglist with
           | [Lval (Var info,_)] -> [get_lock info.vname]
+          | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> failwith ("parameter for " ^ fvname ^ " is constant. Remove trampoline header?")
+          (* | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
+          | x -> x)
+    | "GetSpinlock" | "ReleaseSpinlock" ->
+      M.special ctx lval f (match arglist with
+          | [Lval (Var info,_)] -> [get_spinlock info.vname]
           | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> failwith ("parameter for " ^ fvname ^ " is constant. Remove trampoline header?")
           (* | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
           | x -> x)
