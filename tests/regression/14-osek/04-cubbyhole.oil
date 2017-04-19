@@ -17,7 +17,7 @@ CPU test {
     PRETASKHOOK = FALSE;
     STARTUPHOOK = FALSE;
     SHUTDOWNHOOK = FALSE;
-  } ;
+  };
 
   APPMODE std {};
 

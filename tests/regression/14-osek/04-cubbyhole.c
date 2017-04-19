@@ -15,15 +15,15 @@ TASK(ping)
 {
     printf("Ping started.\n");
     while(1){
-/*    	WaitEvent(pong_deployed);
-        ClearEvent(pong_deployed);*/
+        // WaitEvent(pong_deployed);
+        // ClearEvent(pong_deployed);
         GetResource(cubbyHoleMutex);
-	cubbyHole = "ping"; //NORACE
+        cubbyHole = "ping"; //NORACE
         printf("Current state is: %s\n", cubbyHole);
         ReleaseResource(cubbyHoleMutex);
-//         SetEvent(pong, ping_deployed);
+        // SetEvent(pong, ping_deployed);
     }
-    TerminateTask();    
+    TerminateTask();
 }
 
 /*Autostarted once at system start. Blocks in WaitEvent(...)*/
@@ -31,17 +31,17 @@ TASK(pong)
 {
     printf("Pong started.\n");
     while(1){
-/*    	WaitEvent(ping_deployed);
-        ClearEvent(ping_deployed);*/
+        // WaitEvent(ping_deployed);
+        // ClearEvent(ping_deployed);
         GetResource(cubbyHoleMutex);
         cubbyHole = "pong"; //NORACE
-	printf("Current state is: %s\n", cubbyHole);
+        printf("Current state is: %s\n", cubbyHole);
         ReleaseResource(cubbyHoleMutex);
-//         SetEvent(ping, pong_deployed);
+        // SetEvent(ping, pong_deployed);
     }
 }
 
-/*Started once after 10 seconds with hight priority.*/
+/* Started once after 10 seconds with high priority. */
 TASK(shutdown)
 {
     printf("Shutting down...");
