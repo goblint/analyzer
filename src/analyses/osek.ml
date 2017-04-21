@@ -829,8 +829,15 @@ struct
     | "SetAbsAlarm" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
       let _ = (match arglist with (*call function *)
           | [x;_;_] -> (
-              let vinfo = eval_arg ctx x in
-              let alarm = vinfo.vname in
+              let alarm = match x with
+                | CastE (_, Const c ) | Const c -> begin
+                    if (Hashtbl.mem taskids (Const c)) then begin
+                      if tracing then trace "osek" "Looking up ID\n";
+                      Hashtbl.find taskids (Const c)
+                    end else failwith ("Task-ID not found!")
+                  end
+                | _ -> let vinfo = eval_arg ctx x in vinfo.vname
+              in
               if (Hashtbl.mem alarms alarm) then begin
                 let (x,task_list) = Hashtbl.find alarms alarm in
                 List.map (activate_task ctx) task_list
