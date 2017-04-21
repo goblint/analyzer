@@ -155,7 +155,7 @@ struct
     if tracing then trace "osek" "Parsing IDs...\n";
     let input = open_in ids in
     let comment = Str.regexp "//.* \\|/\\*.*" in
-    let idregex = Str.regexp " *#define +\\([a-zA-Z_][a-zA-Z0-9_]*\\) +.*\\([1-9][0-9]*\\|0\\)\\()\\| \\)*" in
+    let idregex = Str.regexp " *#define +\\([a-zA-Z_][a-zA-Z0-9_]*\\) +[^1-9]*\\([1-9][0-9]*\\|0\\)\\()\\| \\)*" in
     let rec read_info () = try
         let line = input_line input in
         if tracing then trace "osek" "Line: %s\n" line;
