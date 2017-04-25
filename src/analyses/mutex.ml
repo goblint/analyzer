@@ -252,7 +252,7 @@ struct
         | Some fnc -> (fnc act arglist)
         | _ -> arglist
       in
-      List.iter (access_one_top ctx false false) (arg_acc `Read);
+      List.iter (access_one_top ctx false true) (arg_acc `Read);
       List.iter (access_one_top ctx true  true ) (arg_acc `Write);
       ctx.local
 
