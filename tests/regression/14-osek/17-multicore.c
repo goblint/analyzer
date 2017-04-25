@@ -5,8 +5,8 @@ int y;
 int z;
 
 TASK(Task1Name) {
-  x = 1;
-  assert(x == 1); // UNKNOWN!
+  /* x = 1; */
+  /* assert(x == 1); // UNKNOWN! */
   GetSpinlock(SpinLock1Name);
   x = 2;
   assert(x == 2);
