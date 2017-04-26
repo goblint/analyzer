@@ -44,12 +44,15 @@ let print_help ch =
 
 (* The temp directory for preprocessing the input files *)
 let create_temp_dir () =
-  (* Using the stdlib to create a free tmp file name. *)
-  let tmpDirRel = Filename.temp_file ~temp_dir:"" "goblint_temp_" "" in
-  (* ... and then delete it to create a directory instead. *)
-  Sys.remove tmpDirRel;
-  let tmpDirName = create_dir tmpDirRel in
-  Goblintutil.tempDirName := tmpDirName
+  if Sys.file_exists (get_string "tempDir") then
+    Goblintutil.tempDirName := get_string "tempDir"
+  else
+    (* Using the stdlib to create a free tmp file name. *)
+    let tmpDirRel = Filename.temp_file ~temp_dir:"" "goblint_temp_" "" in
+    (* ... and then delete it to create a directory instead. *)
+    Sys.remove tmpDirRel;
+    let tmpDirName = create_dir tmpDirRel in
+    Goblintutil.tempDirName := tmpDirName
 
 let remove_temp_dir () =
   if not (get_bool "keepcpp") then ignore (Goblintutil.rm_rf !Goblintutil.tempDirName)
@@ -148,19 +151,21 @@ let handle_flags () =
 let preprocess_one_file cppflags includes fname =
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
+  if Sys.file_exists (get_string "tempDir") then
+    nname
+  else
+    (* Preprocess using cpp. *)
+    (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
+    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " " ^ includes ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    if get_bool "dbg.verbose" then print_endline command;
 
-  (* Preprocess using cpp. *)
-  (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-  let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " " ^ includes ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
-  if get_bool "dbg.verbose" then print_endline command;
-
-  (* if something goes wrong, we need to clean up and exit *)
-  let rm_and_exit () = remove_temp_dir (); raise BailFromMain in
-  try match Unix.system command with
-    | Unix.WEXITED 0 -> nname
-    | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
-  with Unix.Unix_error (e, f, a) ->
-    eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; rm_and_exit ()
+    (* if something goes wrong, we need to clean up and exit *)
+    let rm_and_exit () = remove_temp_dir (); raise BailFromMain in
+    try match Unix.system command with
+      | Unix.WEXITED 0 -> nname
+      | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
+    with Unix.Unix_error (e, f, a) ->
+      eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; rm_and_exit ()
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =

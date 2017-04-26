@@ -66,6 +66,7 @@ let _ = ()
       ; reg Std "otherfun"        "[]"           "Sets the name of other functions."
       ; reg Std "allglobs"        "false"        "Prints access information about all globals, not just races."
       ; reg Std "keepcpp"         "false"        "Keep the intermediate output of running the C preprocessor."
+      ; reg Std "tempDir"         "''"           "Reuse temporary directory for preprocessed files."
       ; reg Std "merge-conflicts" "true"         "Abort on merging conflicts."
       ; reg Std "cppflags"        "''"           "Pre-processing parameters."
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
@@ -191,7 +192,7 @@ let _ = ()
 let default_schema = "\
 { 'id'              : 'root'
 , 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
+, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'dopartial', 'printstats', 'gccwarn', 'noverify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'merge-conflicts', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
 , 'additionalProps' : false
 , 'properties' :
   { 'ana' :
@@ -231,6 +232,9 @@ let default_schema = "\
   , 'otherfun'        : {}
   , 'allglobs'        : {}
   , 'keepcpp'         : {}
+  , 'tempDir'         :
+    { 'type'            : 'string'
+    }
   , 'merge-conflicts' : {}
   , 'cppflags'        : {}
   , 'kernel'          : {}
