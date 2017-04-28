@@ -770,14 +770,16 @@ struct
     | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
       M.special ctx lval f (match arglist with
           | [Lval (Var info,_)] -> [get_lock info.vname]
-          | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> failwith ("parameter for " ^ fvname ^ " is constant. Remove trampoline header?")
-          (* | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
+          | [CastE (_, Const c ) | Const c] ->
+              let name = Hashtbl.find resourceids (Const c) in
+              [get_lock name]
           | x -> x)
     | "GetSpinlock" | "ReleaseSpinlock" ->
       M.special ctx lval f (match arglist with
           | [Lval (Var info,_)] -> [get_spinlock info.vname]
-          | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> failwith ("parameter for " ^ fvname ^ " is constant. Remove trampoline header?")
-          (* | [x] -> let _ = printf "Whatever: %a" (printExp plainCilPrinter) x in [x] *)
+          | [CastE (_, Const c ) | Const c] ->
+              let name = Hashtbl.find spinlockids (Const c) in
+              [get_spinlock name]
           | x -> x)
     | "DisableAllInterrupts" -> let res = get_lock "DisableAllInterrupts" in
       if (get_bool "ana.osek.check") then if (mem res ctx.local) then print_endline ( "Nested calls of DisableAllInterrupts are not allowed!");
