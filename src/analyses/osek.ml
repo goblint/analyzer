@@ -765,24 +765,25 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let fvname = get_api_names f.vname in
     if tracing then trace "osek" "special '%s'\n" fvname;
-    (* try  *)
-    match fvname with (* suppress all fails  *)
+    match fvname with (* suppress all fails *)
     | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
       M.special ctx lval f (match arglist with
           | [Lval (Var info,_)] -> [get_lock info.vname]
           | [CastE (_, Const c ) | Const c] ->
-              let name = Hashtbl.find resourceids (Const c) in
-              [get_lock name]
+            if tracing then trace "osek" "Looking up Resource-ID %a\n" d_const c;
+            let name = Hashtbl.find resourceids (Const c) in
+            [get_lock name]
           | x -> x)
     | "GetSpinlock" | "ReleaseSpinlock" ->
       M.special ctx lval f (match arglist with
           | [Lval (Var info,_)] -> [get_spinlock info.vname]
           | [CastE (_, Const c ) | Const c] ->
-              let name = Hashtbl.find spinlockids (Const c) in
-              [get_spinlock name]
+            if tracing then trace "osek" "Looking up Spinlock-ID %a\n" d_const c;
+            let name = Hashtbl.find spinlockids (Const c) in
+            [get_spinlock name]
           | x -> x)
     | "DisableAllInterrupts" -> let res = get_lock "DisableAllInterrupts" in
-      if (get_bool "ana.osek.check") then if (mem res ctx.local) then print_endline ( "Nested calls of DisableAllInterrupts are not allowed!");
+      if get_bool "ana.osek.check" && mem res ctx.local then print_endline "Nested calls of DisableAllInterrupts are not allowed!";
       M.special ctx lval (dummy_get (emptyFunction fvname)) [res]
     | "EnableAllInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "DisableAllInterrupts"]
     | "SuspendAllInterrupts" -> M.special ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendAllInterrupts"]
@@ -790,64 +791,61 @@ struct
     | "SuspendOSInterrupts" -> M.special ctx lval (dummy_get (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
     | "ResumeOSInterrupts" -> M.special ctx lval (dummy_release (emptyFunction fvname)) [get_lock "SuspendOSInterrupts"]
     | "ActivateTask" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
-      let _ = (match arglist with (*call function *)
-          | [arg] -> begin
-              let task_name' = match arg with
-                | CastE (_, Const c ) | Const c -> begin
-                    if (Hashtbl.mem taskids (Const c)) then begin
-                      if tracing then trace "osek" "Looking up ID\n";
-                      Hashtbl.find taskids (Const c)
-                    end else failwith ("Task-ID not found!")
-                  end
-                | _ -> let vinfo = eval_arg ctx arg in vinfo.vname
-              in
-              let task_name = make_task task_name' in
-              if (is_task task_name) then begin
-                if tracing then tracel "osek" "Activating task %s\n" task_name';
-                let _ = activate_task ctx task_name in
-                [ctx.local, integer 1, true]
-              end else failwith (task_name' ^ " is not a task!")
-            end
-          | _  -> failwith "ActivateTask arguments are strange") in
+      let _ = match arglist with
+        | [arg] ->
+          let task_name' = match arg with
+            | CastE (_, Const c ) | Const c ->
+              if tracing then trace "osek" "Looking up Task-ID %a\n" d_const c;
+              Hashtbl.find taskids (Const c)
+            | _ -> let vinfo = eval_arg ctx arg in vinfo.vname
+          in
+          let task_name = make_task task_name' in
+          if (is_task task_name) then (
+            if tracing then tracel "osek" "Activating task %s\n" task_name';
+            activate_task ctx task_name;
+            [ctx.local, integer 1, true]
+          ) else failwith (task_name' ^ " is not a task!")
+        | _  -> failwith "ActivateTask arguments are strange"
+      in
       M.special ctx lval f arglist
     | "ChainTask" ->
       print_endline "Found ChainTask!";
       if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
-      M.special ctx lval f arglist (*call function *)
-    | "WaitEvent" -> (if (get_bool "ana.osek.check") then begin
-        let _ = check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
-        let static,regular = partition ctx.local in
+      M.special ctx lval f arglist
+    | "WaitEvent" ->
+      if (get_bool "ana.osek.check") then (
+        check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
+        let static, regular = partition ctx.local in
         let task = lockset_to_task static in
-        if not(D.is_empty regular) then begin
+        if not (D.is_empty regular) then (
           let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements regular) in
-          let ev = (match arglist with
-              | [CastE (_, Const (CInt64 (c,_,_) ) ) ] | [Const (CInt64 (c,_,_) ) ] -> let e,_=Hashtbl.find events (Int64.to_string c) in e
-              | _ -> print_endline( "No event found for argument of WaitEvent");"_not_found_" ) in
-          print_endline( task ^ " waited for event "^ ev^ " while holding resource(s) " ^ res)
-        end;
-      end;);
+          let ev = match arglist with
+            | [CastE (_, Const (CInt64 (c,_,_))) | Const (CInt64 (c,_,_))] ->
+              fst @@ Hashtbl.find events (Int64.to_string c)
+            | _ -> print_endline "No event found for argument of WaitEvent"; "_not_found_"
+          in
+          print_endline (task ^ " waited for event "^ ev ^ " while holding resource(s) " ^ res)
+        );
+      );
       M.special ctx lval f arglist
     | "SetRelAlarm"
-    | "SetAbsAlarm" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
-      let _ = (match arglist with (*call function *)
-          | [x;_;_] -> (
-              let alarm = match x with
-                | CastE (_, Const c ) | Const c -> begin
-                    if (Hashtbl.mem alarmids (Const c)) then begin
-                      if tracing then trace "osek" "Looking up ID\n";
-                      Hashtbl.find alarmids (Const c)
-                    end else failwith ("Task-ID not found!")
-                  end
-                | _ -> let vinfo = eval_arg ctx x in vinfo.vname
-              in
-              if (Hashtbl.mem alarms alarm) then begin
-                let (x,task_list) = Hashtbl.find alarms alarm in
-                List.map (activate_task ctx) task_list
-              end else
-                failwith (alarm ^ "is not an alarm!")
-            )
-          | _  -> failwith "SetAlarm arguments are strange")
-      in
+    | "SetAbsAlarm" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
+      (match arglist with
+       | [x;_;_] -> (
+           let alarm = match x with
+             | CastE (_, Const c ) | Const c ->
+               if tracing then trace "osek" "Looking up Alarm-ID %a\n" d_const c;
+               Hashtbl.find alarmids (Const c)
+             | _ -> let vinfo = eval_arg ctx x in vinfo.vname
+           in
+           if (Hashtbl.mem alarms alarm) then (
+             let (x,task_list) = Hashtbl.find alarms alarm in
+             List.iter (activate_task ctx) task_list
+           ) else
+             failwith (alarm ^ "is not an alarm!")
+         )
+       | _  -> failwith "SetAlarm arguments are strange"
+      );
       M.special ctx lval f arglist
     | "SetEvent"
     | "GetTaskID"
@@ -857,13 +855,13 @@ struct
     | "GetAlarm"
     | "CancelAlarm"
     | "GetActiveApplicationMode"
-    | "ShutdownOS" -> let _ = if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
+    | "ShutdownOS" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
       M.special ctx lval f arglist
     | "ClearEvent"
     | "TerminateTask"
-    | "Schedule" -> let _ = if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
+    | "Schedule" -> if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
       M.special ctx lval f arglist
-    | "StartOS" -> let _ =if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task (proj2_1 (partition ctx.local))) in
+    | "StartOS" -> if (get_bool "ana.osek.check") then check_api_use 0 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
       M.special ctx lval f arglist
     | _ -> M.special ctx lval f arglist
   (* with | _ -> M.special ctx lval f arglist (* suppress all fails  *) *)
@@ -1285,5 +1283,4 @@ struct
     end;
 end
 
-let _ =
-  MCP.register_analysis ~dep:["base";"fmode"] (module Spec : Spec)
+let () = MCP.register_analysis ~dep:["base";"fmode"] (module Spec : Spec)
