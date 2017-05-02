@@ -833,9 +833,9 @@ struct
           | [x;_;_] -> (
               let alarm = match x with
                 | CastE (_, Const c ) | Const c -> begin
-                    if (Hashtbl.mem taskids (Const c)) then begin
+                    if (Hashtbl.mem alarmids (Const c)) then begin
                       if tracing then trace "osek" "Looking up ID\n";
-                      Hashtbl.find taskids (Const c)
+                      Hashtbl.find alarmids (Const c)
                     end else failwith ("Task-ID not found!")
                   end
                 | _ -> let vinfo = eval_arg ctx x in vinfo.vname
