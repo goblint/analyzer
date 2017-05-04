@@ -205,7 +205,7 @@ struct
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.meet x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.meet x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.meet x y)
-      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.meet x y)      
+      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.meet x y)
       | _ -> `Bot
     with IntDomain.Error -> `Bot
 
@@ -220,7 +220,7 @@ struct
       | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.widen x y)
       | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.widen x y)
       | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.widen x y)
-      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.widen x y)      
+      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.widen x y)
       | _ -> `Top
     with IntDomain.Unknown -> `Top
 

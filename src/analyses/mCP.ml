@@ -450,7 +450,7 @@ struct
     | Queries.PrintFullState ->
       ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
       `Bot
-    | Queries.Access(e,b,reach,conf) -> 
+    | Queries.Access(e,b,reach,conf) ->
       if reach || b then do_access ctx b reach conf e;
       Access.distribute_access_exp (do_access ctx) false false conf e;
       `Bot
@@ -459,11 +459,11 @@ struct
       do_sideg ctx !sides;
       x
 
-  and part_access ctx (e:exp) (vo:varinfo option) (w: bool) = 
+  and part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
     let open Access in
     let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
     let sides  = ref [] in
-    let f (po,lo) (n, (module S: Spec), d) : part = 
+    let f (po,lo) (n, (module S: Spec), d) : part =
       let rec ctx' : (S.D.t, S.G.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -489,10 +489,10 @@ struct
     in
     List.fold_left f start (spec_list ctx.local)
 
-  and do_access (ctx: (D.t, G.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) = 
+  and do_access (ctx: (D.t, G.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
     let open Access in
-    let add_access conf vo oo = 
+    let add_access conf vo oo =
       let (po,pd) = part_access ctx e vo w in
       Access.add e w conf vo oo (po,pd)
     in
@@ -500,12 +500,12 @@ struct
       let (po,pd) = part_access ctx e None w in
       Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
     in
-    let has_escaped g = 
+    let has_escaped g =
       match ctx.ask (Queries.MayEscape g) with
       | `Bool false -> false
       | _ -> true
     in
-    let reach_or_mpt = 
+    let reach_or_mpt =
       if reach then
         ReachableFrom (mkAddrOf (Mem e,NoOffset))
       else
@@ -517,7 +517,7 @@ struct
       let includes_uk = ref false in
       begin match ctx.ask (ReachableUkTypes (mkAddrOf (Mem e,NoOffset))) with
         | `Bot -> ()
-        | `TypeSet ts when Queries.TS.is_top ts -> 
+        | `TypeSet ts when Queries.TS.is_top ts ->
           includes_uk := true
         | `TypeSet ts ->
           if Queries.TS.is_empty ts = false then
@@ -528,23 +528,23 @@ struct
             | _ -> ()
           in
           Queries.TS.iter f ts
-        | _ -> 
+        | _ ->
           includes_uk := true
           (* add_access None None *)
       end;
       let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
       let conf = if reach then conf - 20 else conf in
       let conf = if !includes_uk then conf - 10 else conf in
-      let f (var, offs) = 
+      let f (var, offs) =
         let coffs = Lval.CilLval.to_ciloffs offs in
-        if var.vid = dummyFunDec.svar.vid then 
+        if var.vid = dummyFunDec.svar.vid then
           add_access conf None (Some coffs)
         else
-          add_access conf (Some var) (Some coffs) 
+          add_access conf (Some var) (Some coffs)
       in
       (* printf "accessable set of %a = %a\n" d_exp e LS.pretty ls; *)
       LS.iter f ls
-    | _ -> 
+    | _ ->
       add_access (conf - 60) None None
 
   let assign (ctx:(D.t, G.t) ctx) l e =

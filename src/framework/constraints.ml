@@ -73,7 +73,7 @@ struct
   let combine ctx r fe f args es =
     D.lift @@ S.combine (conv ctx) r fe f args (D.unlift es)
 
-  let part_access _ _ _ _ = 
+  let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
@@ -94,7 +94,7 @@ struct
   let start_level = ref (`Top)
   let error_level = ref (`Lifted  0L)
 
-  let init () = 
+  let init () =
     if get_bool "dbg.slice.on" then
       start_level := `Lifted (Int64.of_int (get_int "dbg.slice.n"));
     S.init ()
@@ -123,21 +123,21 @@ struct
 
   let sync ctx =
     let liftpair (x, y) = (x, snd ctx.local), y in
-    lift_fun ctx liftpair S.sync identity 
+    lift_fun ctx liftpair S.sync identity
 
   let enter' ctx r f args =
     let liftmap = List.map (fun (x,y) -> (x, snd ctx.local), (y, snd ctx.local)) in
-    lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) 
+    lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r)
 
   let lift ctx d = (d, snd ctx.local)
 
-  let query' ctx q    = lift_fun ctx identity   S.query  ((|>) q)            
-  let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)  
-  let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)  
-  let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)            
-  let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)   
-  let intrpt ctx      = lift_fun ctx (lift ctx) S.intrpt identity            
-  let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)       
+  let query' ctx q    = lift_fun ctx identity   S.query  ((|>) q)
+  let assign ctx lv e = lift_fun ctx (lift ctx) S.assign ((|>) e % (|>) lv)
+  let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
+  let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
+  let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
+  let intrpt ctx      = lift_fun ctx (lift ctx) S.intrpt identity
+  let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
   let combine' ctx r fe f args es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args (fst es))
 
   let leq0 = function
@@ -145,22 +145,22 @@ struct
     | `Lifted x -> x <= 0L
     | `Bot -> true
 
-  let sub1 = function 
+  let sub1 = function
     | `Lifted x -> `Lifted (Int64.sub x 1L)
     | x -> x
 
-  let add1 = function 
+  let add1 = function
     | `Lifted x -> `Lifted (Int64.add x 1L)
     | x -> x
 
-  let enter ctx r f args = 
+  let enter ctx r f args =
     let (d,l) = ctx.local in
     if leq0 l then
       [ctx.local, D.bot ()]
     else
       enter' {ctx with local=(d, sub1 l)} r f args
 
-  let combine ctx r fe f args es = 
+  let combine ctx r fe f args es =
     let (d,l) = ctx.local in
     let l = add1 l in
     if leq0 l then
@@ -169,16 +169,16 @@ struct
       let d',_ = combine' ctx r fe f args es in
       (d', l)
 
-  let query ctx = function 
+  let query ctx = function
     | Queries.EvalFunvar e ->
       let (d,l) = ctx.local in
-      if leq0 l then 
+      if leq0 l then
         `LvalSet (Queries.LS.empty ())
-      else 
+      else
         query' ctx (Queries.EvalFunvar e)
     | q -> query' ctx q
 
-  let part_access _ _ _ _ = 
+  let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
@@ -240,7 +240,7 @@ struct
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine ctx r fe f args es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args (D.unlift es)) `Bot
 
-  let part_access _ _ _ _ = 
+  let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 
@@ -726,7 +726,7 @@ struct
     let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d
 
-  let part_access _ _ _ _ = 
+  let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
 end
 

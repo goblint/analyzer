@@ -142,7 +142,7 @@ struct
 
   let arinc_analysis_activated = ref false
 
-  let access_one_top ctx write reach exp = 
+  let access_one_top ctx write reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
     let fl = get_flag ctx.presub in
     if BS.Flag.is_multi fl then

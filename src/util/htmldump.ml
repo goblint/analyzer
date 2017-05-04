@@ -14,7 +14,7 @@ let htmlGlobalWarningList : (string*int*string) list ref = ref []
 let cppPreprocessorList = ["#endif";"#ifdef";"#undef";"#else";"include";"#define"]
 let cppKeywordList = ["int";"return";"void";"char";"short";"long";"unsigned";"if";"else";"switch";"default";"while";"do";"for";"typedef";"class";"struct";"sizeof";"case"]
 
-type entryType = {filename : string ; analysis_out : out_channel list ref ; lines : string list ref ; lineInfo : int array ref ; deadcodeInfo : int array ref} 
+type entryType = {filename : string ; analysis_out : out_channel list ref ; lines : string list ref ; lineInfo : int array ref ; deadcodeInfo : int array ref}
 type functionInfo = {funname : string ; funid : int}
 
 let functionInfoList : functionInfo list ref = ref []

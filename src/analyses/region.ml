@@ -58,10 +58,10 @@ struct
     | `Top -> false
     | `Bot -> true
 
-  let get_region ctx e = 
+  let get_region ctx e =
     let regpart = get_regpart ctx.global in
-    if is_bullet e regpart ctx.local then 
-      None 
+    if is_bullet e regpart ctx.local then
+      None
     else
       Some (regions e regpart ctx.local)
 
@@ -84,8 +84,8 @@ struct
       LSSet.add("region", show r) xs
     in
     match get_region ctx e' with
-    | None -> (LSSSet.empty (),es) 
-    | Some xs -> 
+    | None -> (LSSSet.empty (),es)
+    | Some xs ->
       let ps = List.fold_left add_region (LSSet.empty ()) xs in
       (* ignore (Pretty.printf "%a in region %a\n" d_exp e LSSSet.pretty ps); *)
       (LSSSet.singleton ps, es)

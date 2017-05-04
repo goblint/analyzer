@@ -177,7 +177,7 @@ struct
     let one_perelem (e,a,l) xs =
       (* ignore (printf "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l); *)
       match Exp.fold_offs (Exp.replace_base (dummyFunDec.svar,`NoOffset) e l) with
-      | Some (v, o) -> 
+      | Some (v, o) ->
         let l = Pretty.sprint 80 (d_offset (text "*") () o) in
         (* ignore (printf "adding lock %s\n" l); *)
         LSSet.add ("p-lock",l) xs
@@ -229,7 +229,7 @@ struct
              with Lattice.TopValue -> Queries.ES.top () end
          | _ -> Queries.ES.singleton e)
     in
-    Queries.ES.fold do_lockstep matching_exps 
+    Queries.ES.fold do_lockstep matching_exps
       (Queries.ES.fold do_perel matching_exps (LSSet.empty ()))
 
   let part_access ctx e v _ =

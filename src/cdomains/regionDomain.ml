@@ -34,7 +34,7 @@ module VFB =
 struct
   include Printable.Either (VF) (B)
 
-  let printXml f = function 
+  let printXml f = function
     | `Right () ->
       BatPrintf.fprintf f "<value>\n<data>\n•\n</data>\n</value>\n"
     | `Left x ->

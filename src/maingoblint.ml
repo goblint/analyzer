@@ -326,7 +326,7 @@ let do_html_output () =
       eprintf "Warning: jar file %s not found.\n" jar
   end
 
-let handle_extraspecials () = 
+let handle_extraspecials () =
   let f xs = function
     | String x -> x::xs
     | _ -> xs

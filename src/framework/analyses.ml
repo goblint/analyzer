@@ -542,7 +542,7 @@ struct
   let val_of x = x
   (* Assume that context is same as local domain. *)
 
-  let part_access _ _ _ _ = 
+  let part_access _ _ _ _ =
     (Access.LSSSet.singleton (Access.LSSet.empty ()), Access.LSSet.empty ())
     (* No partitioning on accesses and not locks *)
 end

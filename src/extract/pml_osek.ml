@@ -53,7 +53,7 @@ let init oil =
     waiting_id  := id, i 0;
     state      := id, (e READY show_state)
   in
-  let is_waiting id wfor wid = !state id == e WAITING show_state && !waiting_for id == e wfor show_waiting_for && !waiting_id id == wid in  
+  let is_waiting id wfor wid = !state id == e WAITING show_state && !waiting_for id == e wfor show_waiting_for && !waiting_id id == wid in
   (*let remove_waiting id = Pml.do_;
     if has_resources then
       _foreach resources (fun j _ ->
@@ -176,7 +176,7 @@ let init oil =
     );
 
   (* Event control *)
-  let mask,_ = var (Byte 0) "mask" in  
+  let mask,_ = var (Byte 0) "mask" in
   (*extract "DeclareEvent" @@ A1 (id, fun id ->
     Pml.do_;
     nop

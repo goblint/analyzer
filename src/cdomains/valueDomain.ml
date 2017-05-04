@@ -281,7 +281,7 @@ struct
               | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
-                let first = List.hd some.fcomp.cfields in 
+                let first = List.hd some.fcomp.cfields in
                 (match Structs.get x first with `Int x -> x | _ -> raise CastError)*)
               | _ -> log_top __POS__; ID.top ()
             ))
@@ -375,7 +375,7 @@ struct
     |  y, `Blob x ->
       `Blob (B.join (x:t) ((B.make 0 y):t))
     | x, y ->
-      ignore @@ printf "JOIN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line; 
+      ignore @@ printf "JOIN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
       `Top
 
   let rec meet x y =

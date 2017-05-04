@@ -3,7 +3,7 @@ open Messages
 open GobConfig
 open Pretty
 
-type attribute_v = Name of (string * ( ((string * attribute_v) list) option)) | Bool of (bool * (((string * attribute_v) list) option)) | Int of int | Float of float | String of string | Auto 
+type attribute_v = Name of (string * ( ((string * attribute_v) list) option)) | Bool of (bool * (((string * attribute_v) list) option)) | Int of int | Float of float | String of string | Auto
 and param_t = string * attribute_v [@@deriving show]
 type object_t = string*string*(param_t list)
 (*		id	pry 	"lock"*)

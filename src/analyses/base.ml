@@ -1648,8 +1648,8 @@ struct
     in
     combine_one ctx.local after
 
-  let is_unique ctx fl = 
-    not (BaseDomain.Flag.is_bad fl) || 
+  let is_unique ctx fl =
+    not (BaseDomain.Flag.is_bad fl) ||
     match ctx.ask Queries.IsNotUnique with
     | `Bool false -> true
     | _ -> false
@@ -1668,9 +1668,9 @@ struct
       if is_unique ctx fl then
         let tid = BaseDomain.Flag.short 20 fl in
         (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
-      else 
+      else
         (Access.LSSSet.singleton es, es)
-    end else 
+    end else
       Access.LSSSet.empty (), es
 end
 

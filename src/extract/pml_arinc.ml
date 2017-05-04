@@ -69,7 +69,7 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
     waiting_id  := id, i 0;
     status      := id, (e READY show_status)
   in
-  let is_waiting id wfor wid = !status id == e WAITING show_status && !waiting_for id == e wfor show_waiting_for && !waiting_id id == wid in  
+  let is_waiting id wfor wid = !status id == e WAITING show_status && !waiting_for id == e wfor show_waiting_for && !waiting_id id == wid in
   let remove_waiting id = Pml.do_;
     if has_semas then
       _foreach semas (fun j _ ->
