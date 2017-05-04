@@ -357,15 +357,15 @@ end
 
 
 module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included of Interval.t ] =
-  struct
+struct
   include Printable.Std
   module I = Interval
 
   type t = [
     | `Excluded of I.t
     | `Included of I.t
-  (*    | `Bot*)
-    ]
+    (*    | `Bot*)
+  ]
 
   let name () = "Exclusive & Inclusive Integer Intervals"
 
@@ -375,32 +375,32 @@ module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included o
 
   let equal (x:t) (y:t) =
     match x, y with
-      | `Excluded x, `Excluded y
-      | `Included x, `Included y -> I.equal x y
-  (*      | `Bot, `Bot -> true*)
-      | _ -> false
+    | `Excluded x, `Excluded y
+    | `Included x, `Included y -> I.equal x y
+    (*      | `Bot, `Bot -> true*)
+    | _ -> false
 
   let hash (x:t) =
     match x with
-      | `Excluded x -> 2 * I.hash x
-      | `Included x -> I.hash x
+    | `Excluded x -> 2 * I.hash x
+    | `Included x -> I.hash x
   (*      | `Bot -> 7*)
 
   let compare (x:t) (y:t) =
     match x, y with
-  (*      | `Bot, `Bot -> 0
-      |    _, `Bot -> 1
-      | `Bot,    _ -> -1*)
-      | `Excluded x, `Excluded y
-      | `Included x, `Included y -> I.compare x y
-      | `Included _, `Excluded _ -> -1
-      | `Excluded _, `Included _ -> 1
+    (*      | `Bot, `Bot -> 0
+            |    _, `Bot -> 1
+            | `Bot,    _ -> -1*)
+    | `Excluded x, `Excluded y
+    | `Included x, `Included y -> I.compare x y
+    | `Included _, `Excluded _ -> -1
+    | `Excluded _, `Included _ -> 1
 
   let short w (x:t) =
     match x with
-  (*       | `Bot -> "⊥" *)
-      | `Included x -> I.short w x
-      | `Excluded x -> "Not " ^ I.short w x
+    (*       | `Bot -> "⊥" *)
+    | `Included x -> I.short w x
+    | `Excluded x -> "Not " ^ I.short w x
 
   let isSimple _ = true
 
@@ -415,18 +415,18 @@ module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included o
 
   let is_top (x:t) =
     match x with
-      | `Included x -> I.is_top x
-      | _ -> false
+    | `Included x -> I.is_top x
+    | _ -> false
 
   let is_bot (x:t) =
     match x with
-      | `Included x -> I.is_bot x
-      | _ -> false
+    | `Included x -> I.is_bot x
+    | _ -> false
 
   let leq (x:t) (y:t) =
     match x, y with
-  (*    | `Bot, _    -> true
-    |    _, `Bot -> false*)
+    (*    | `Bot, _    -> true
+          |    _, `Bot -> false*)
     | `Excluded x, `Excluded y -> I.leq y x
     | `Included x, `Included y -> I.leq x y
     | `Included (x1,x2), `Excluded (y1,y2) -> InfInt.lt x2 y1 || InfInt.lt y2 x1
@@ -434,67 +434,67 @@ module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included o
 
   let norm (x:t) : t =
     match x with
-      | `Excluded x when I.is_bot x -> `Included (I.top ())
-      | `Excluded x when I.is_top x -> `Included (I.bot ())
-      | `Excluded (InfInt.Fin x,InfInt.PInf ) -> `Included (InfInt.NInf, InfInt.Fin (Int64.sub x 1L))
-      | `Excluded (InfInt.NInf ,InfInt.Fin x) -> `Included (InfInt.Fin (Int64.add x 1L), InfInt.PInf)
-      | x -> x
+    | `Excluded x when I.is_bot x -> `Included (I.top ())
+    | `Excluded x when I.is_top x -> `Included (I.bot ())
+    | `Excluded (InfInt.Fin x,InfInt.PInf ) -> `Included (InfInt.NInf, InfInt.Fin (Int64.sub x 1L))
+    | `Excluded (InfInt.NInf ,InfInt.Fin x) -> `Included (InfInt.Fin (Int64.add x 1L), InfInt.PInf)
+    | x -> x
 
   let join (x:t) (y:t) =
     match x, y with
-      | `Excluded x, `Excluded y -> norm (`Excluded (I.meet x y))
-      | `Included x, `Included y -> `Included (I.join x y)
-      | `Included (y1, y2), `Excluded (x1, x2)
-      | `Excluded (x1, x2), `Included (y1, y2) ->
-        if InfInt.lt y2 x1 || InfInt.lt x2 y1 then
-          `Excluded (x1, x2)
-        else if InfInt.leq y1 x1 then
-          norm (`Excluded (InfInt.addp InfInt.PInf y2 (InfInt.Fin 1L) , x2))
-        else if InfInt.leq x2 y2 then
-          norm (`Excluded (x1, InfInt.addp InfInt.NInf y2 (InfInt.Fin (-1L))))
-        else
-          top ()
+    | `Excluded x, `Excluded y -> norm (`Excluded (I.meet x y))
+    | `Included x, `Included y -> `Included (I.join x y)
+    | `Included (y1, y2), `Excluded (x1, x2)
+    | `Excluded (x1, x2), `Included (y1, y2) ->
+      if InfInt.lt y2 x1 || InfInt.lt x2 y1 then
+        `Excluded (x1, x2)
+      else if InfInt.leq y1 x1 then
+        norm (`Excluded (InfInt.addp InfInt.PInf y2 (InfInt.Fin 1L) , x2))
+      else if InfInt.leq x2 y2 then
+        norm (`Excluded (x1, InfInt.addp InfInt.NInf y2 (InfInt.Fin (-1L))))
+      else
+        top ()
 
   let meet (x:t) (y:t) =
     match x, y with
-  (*      |    _, `Bot
-      | `Bot,    _ -> `Bot*)
-      | `Excluded x, `Excluded y -> norm (`Excluded (I.join x y))
-      | `Included x, `Included y -> `Included (I.meet x y)
-      | `Included (y1, y2), `Excluded (x1, x2)
-      | `Excluded (x1, x2), `Included (y1, y2) ->
-        if InfInt.lt y2 x1 || InfInt.lt x2 y1 then
-          `Included (y1, y2)
-        else if I.leq (y1,y2) (x1,x2) then
-          bot ()
-        else if InfInt.leq x1 y1 then
-          `Included (InfInt.addp InfInt.NInf x2 (InfInt.Fin 1L),y2)
-        else if InfInt.leq y2 x2 then
-          `Included (y1, InfInt.addp InfInt.NInf x1 (InfInt.Fin (-1L)))
-        else
-          `Excluded (x1, x2) (* this is the bad case --- we just pick one of the arguments *)
+    (*      |    _, `Bot
+            | `Bot,    _ -> `Bot*)
+    | `Excluded x, `Excluded y -> norm (`Excluded (I.join x y))
+    | `Included x, `Included y -> `Included (I.meet x y)
+    | `Included (y1, y2), `Excluded (x1, x2)
+    | `Excluded (x1, x2), `Included (y1, y2) ->
+      if InfInt.lt y2 x1 || InfInt.lt x2 y1 then
+        `Included (y1, y2)
+      else if I.leq (y1,y2) (x1,x2) then
+        bot ()
+      else if InfInt.leq x1 y1 then
+        `Included (InfInt.addp InfInt.NInf x2 (InfInt.Fin 1L),y2)
+      else if InfInt.leq y2 x2 then
+        `Included (y1, InfInt.addp InfInt.NInf x1 (InfInt.Fin (-1L)))
+      else
+        `Excluded (x1, x2) (* this is the bad case --- we just pick one of the arguments *)
 
   let widen (x:t) (y:t) =
     match x, y with
-      | `Included x, `Included y -> `Included (I.widen x y)
-      | `Excluded x, `Excluded y when I.equal x y -> `Excluded y
-      | `Excluded x, `Excluded y -> top ()
-      | x, y  -> y
+    | `Included x, `Included y -> `Included (I.widen x y)
+    | `Excluded x, `Excluded y when I.equal x y -> `Excluded y
+    | `Excluded x, `Excluded y -> top ()
+    | x, y  -> y
 
   let narrow (x:t) (y:t) =
     match x, y with
-      | `Included x, `Included y -> `Included (I.narrow x y)
-      | x, y  -> x
+    | `Included x, `Included y -> `Included (I.narrow x y)
+    | x, y  -> x
 
   let minimal (x:t) =
     match x with
-      | `Included x -> I.minimal x
-      | _ -> None
+    | `Included x -> I.minimal x
+    | _ -> None
 
   let maximal (x:t) =
     match x with
-      | `Included x -> I.maximal x
-      | _ -> None
+    | `Included x -> I.maximal x
+    | _ -> None
 
   let starting x : t = `Included (I.starting x)
   let ending x : t = `Included (I.ending x)
@@ -503,71 +503,71 @@ module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included o
   let to_excl_list (x:t)  =
     let rec els x y = if x == y then [x] else  x :: els (Int64.add x 1L) y in
     match x with
-      | `Excluded (InfInt.Fin x, InfInt.Fin y) -> Some (els x y)
-      | _ -> None
+    | `Excluded (InfInt.Fin x, InfInt.Fin y) -> Some (els x y)
+    | _ -> None
 
   let is_excl_list (x:t) =
     match x with
-      | `Excluded (InfInt.Fin x, InfInt.Fin y) -> true
-      | _ -> false
+    | `Excluded (InfInt.Fin x, InfInt.Fin y) -> true
+    | _ -> false
 
   let of_excl_list t x =
     match x with
-      | [] -> top ()
-      | x::xs ->
-        let f (min, max) x =
-          if Int64.compare x min <= 0
-          then (x,max)
-          else if Int64.compare max x <= 0
-          then (min,x)
-          else (min,max)
-        in
-        let (x,y) = List.fold_left f (x,x) xs in
-        `Excluded (InfInt.Fin x, InfInt.Fin y)
+    | [] -> top ()
+    | x::xs ->
+      let f (min, max) x =
+        if Int64.compare x min <= 0
+        then (x,max)
+        else if Int64.compare max x <= 0
+        then (min,x)
+        else (min,max)
+      in
+      let (x,y) = List.fold_left f (x,x) xs in
+      `Excluded (InfInt.Fin x, InfInt.Fin y)
 
 
   let to_int (x:t) =
     match x with
-      | `Included x -> I.to_int x
-      | _ -> None
+    | `Included x -> I.to_int x
+    | _ -> None
 
   let is_int (x:t) =
     match x with
-      | `Included x -> I.is_int x
-      | _ -> false
+    | `Included x -> I.is_int x
+    | _ -> false
 
   let of_int x : t = `Included (I.of_int x)
 
   let to_bool (x:t) =
     match x with
-      | `Included x -> I.to_bool x
-      | `Excluded x when I.leq (I.of_int 0L) x -> Some true
-      | _ -> None
+    | `Included x -> I.to_bool x
+    | `Excluded x when I.leq (I.of_int 0L) x -> Some true
+    | _ -> None
 
   let is_bool (x:t) =
     match x with
-      | `Included x -> I.is_bool x
-      | `Excluded x -> I.leq (I.of_int 0L) x
+    | `Included x -> I.is_bool x
+    | `Excluded x -> I.leq (I.of_int 0L) x
 
   let of_bool x : t =
     match x with
-      | true  -> `Excluded (I.of_int 0L)
-      | false -> `Included (I.of_int 0L)
+    | true  -> `Excluded (I.of_int 0L)
+    | false -> `Included (I.of_int 0L)
 
   let lognot x : t =
     match is_bot x with
-      | true -> bot ()
-      | _ ->
-    match to_bool x with
+    | true -> bot ()
+    | _ ->
+      match to_bool x with
       | Some x -> of_bool (not x)
       | _ -> top ()
 
   let log_f f x y : t =
     match is_bot x, is_bot y with
-      | true, _
-      | _   , true -> bot ()
-      | _ ->
-    match to_bool x, to_bool y with
+    | true, _
+    | _   , true -> bot ()
+    | _ ->
+      match to_bool x, to_bool y with
       | Some x, Some y -> of_bool (f x y)
       | _ -> top ()
 
@@ -576,18 +576,18 @@ module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included o
 
   let bitnot x : t =
     match is_bot x with
-      | true -> bot ()
-      | _ ->
-    match to_int x with
+    | true -> bot ()
+    | _ ->
+      match to_int x with
       | Some x -> of_int (Int64.lognot x)
       | _ -> top ()
 
   let bit_f f x y : t =
     match is_bot x, is_bot y with
-      | true, _
-      | _   , true -> bot ()
-      | _ ->
-    match to_int x, to_int y with
+    | true, _
+    | _   , true -> bot ()
+    | _ ->
+      match to_int x, to_int y with
       | Some x, Some y -> of_int (f x y)
       | _ -> top ()
 
@@ -601,10 +601,10 @@ module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included o
 
   let scheme2 f g h (x:t) (y:t) : t =
     match x, y with
-      | `Included x, `Included y -> `Included (f x y)
-      | `Excluded x, `Excluded y -> top ()
-      | `Excluded x, `Included y -> (h x y)
-      | `Included x, `Excluded y -> (g x y)
+    | `Included x, `Included y -> `Included (f x y)
+    | `Excluded x, `Excluded y -> top ()
+    | `Excluded x, `Included y -> (h x y)
+    | `Included x, `Excluded y -> (g x y)
 
   let adde (e1,e2) (i1,i2) =
     norm (`Excluded (InfInt.addp InfInt.NInf e1 i2, InfInt.addp InfInt.PInf e2 i1))
@@ -617,11 +617,11 @@ module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included o
 
   let mul x y =
     match x, y with
-      | `Excluded x, `Included (y1,y2) when InfInt.equal y1 y2
-        -> `Excluded (I.mul x (y1,y1))
-      | `Included (x1,x2), `Excluded y when InfInt.equal x1 x2
-        -> `Excluded (I.mul (x1,x1) y)
-      | _ -> scheme2 I.mul (fun _ _ -> top ()) (fun _ _ -> top ()) x y
+    | `Excluded x, `Included (y1,y2) when InfInt.equal y1 y2
+      -> `Excluded (I.mul x (y1,y1))
+    | `Included (x1,x2), `Excluded y when InfInt.equal x1 x2
+      -> `Excluded (I.mul (x1,x1) y)
+    | _ -> scheme2 I.mul (fun _ _ -> top ()) (fun _ _ -> top ()) x y
 
   let div = scheme2 I.div (fun _ _ -> top ()) (fun _ _ -> top ())
 
@@ -638,26 +638,26 @@ module IncExcInterval : S with type t = [ | `Excluded of Interval.t| `Included o
   let eq (x:t) (y:t) : t =
     let eq i e = if I.leq i e then of_bool false else top () in
     match x, y with
-      | `Included x, `Included y
-        -> begin match I.to_bool (I.eq x y) with
-            | Some x -> of_bool x
-            | None -> top () end
-      | `Excluded x, `Excluded y -> top ()
-      | `Excluded x, `Included y -> eq x y
-      | `Included x, `Excluded y -> eq y x
+    | `Included x, `Included y
+      -> begin match I.to_bool (I.eq x y) with
+          | Some x -> of_bool x
+          | None -> top () end
+    | `Excluded x, `Excluded y -> top ()
+    | `Excluded x, `Included y -> eq x y
+    | `Included x, `Excluded y -> eq y x
 
   let ne (x:t) (y:t) : t =
     let ne i e = if I.leq i e then of_bool true else top () in
     match x, y with
-      | `Included x, `Included y
-        -> begin match I.to_bool (I.ne x y) with
-            | Some x -> of_bool x
-            | None -> top () end
-      | `Excluded x, `Excluded y -> top ()
-      | `Excluded x, `Included y -> ne x y
-      | `Included x, `Excluded y -> ne y x
+    | `Included x, `Included y
+      -> begin match I.to_bool (I.ne x y) with
+          | Some x -> of_bool x
+          | None -> top () end
+    | `Excluded x, `Excluded y -> top ()
+    | `Excluded x, `Included y -> ne x y
+    | `Included x, `Excluded y -> ne y x
 
-  end
+end
 
 
 module None : S with type t = unit  =

@@ -305,14 +305,14 @@ struct
     let bool_top () = ID.(join (of_int 0L) (of_int 1L)) in
     (* An auxiliary function for ptr arithmetic on array values. *)
     let addToAddr n (addr:Addr.t) =
-         match Addr.to_var_offset addr with
-         | [x,`Index (i, offs)] ->
-           Addr.from_var_offset (x, `Index (IdxDom.add i (iDtoIdx n), offs))
-         | [x,`NoOffset] ->
-           Addr.from_var_offset (x, `Index (iDtoIdx n, `NoOffset))
-         | _ -> match addr with
-            | Addr.SafePtr | Addr.NullPtr -> addr
-            | _ -> Addr.unknown_ptr () (* TODO fields? *)
+      match Addr.to_var_offset addr with
+      | [x,`Index (i, offs)] ->
+        Addr.from_var_offset (x, `Index (IdxDom.add i (iDtoIdx n), offs))
+      | [x,`NoOffset] ->
+        Addr.from_var_offset (x, `Index (iDtoIdx n, `NoOffset))
+      | _ -> match addr with
+        | Addr.SafePtr | Addr.NullPtr -> addr
+        | _ -> Addr.unknown_ptr () (* TODO fields? *)
     in
     (* The main function! *)
     match a1,a2 with
@@ -322,8 +322,8 @@ struct
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
       `Int (match ID.to_bool n, AD.to_bool p with
-      | Some a, Some b -> ID.of_bool (op=Eq && a=b || op=Ne && a<>b)
-      | _ -> bool_top ())
+          | Some a, Some b -> ID.of_bool (op=Eq && a=b || op=Ne && a<>b)
+          | _ -> bool_top ())
     | `Address p, `Int n  -> begin
         match op with
         (* For array indexing e[i] and pointer addition e + i we have: *)
@@ -715,13 +715,13 @@ struct
         -> derived_invariant (BinOp (op, x, y, typ)) tv
       | BinOp(op, CastE (TInt (ik, _), Lval x), rval, typ)
       | BinOp(op, rval, CastE (TInt (ik, _), Lval x), typ) ->
-          (match eval_rv a gs st (Lval x) with
-          | `Int v ->
-            if ID.cast_to ik v = v then
-              derived_invariant (BinOp (op, Lval x, rval, typ)) tv
-            else
-              None
-          | _ -> None)
+        (match eval_rv a gs st (Lval x) with
+         | `Int v ->
+           if ID.cast_to ik v = v then
+             derived_invariant (BinOp (op, Lval x, rval, typ)) tv
+           else
+             None
+         | _ -> None)
       (* Cases like if (x) are treated like if (x != 0) *)
       | Lval x ->
         (* There are two correct ways of doing it: "if ((int)x != 0)" or "if (x != (typeof(x))0))"
@@ -1394,16 +1394,16 @@ struct
     in
     let expr = sprint d_exp e in
     let warn ?annot msg = if warn then
-      if get_bool "dbg.regression" then (
-        let loc = !M.current_loc in
-        let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
-        let expected = let open Str in if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
-        if expected <> annot then (
-          let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
-          M.warn_each ~ctx:ctx.context (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
-        )
-      ) else
-        M.warn_each ~ctx:ctx.context msg
+        if get_bool "dbg.regression" then (
+          let loc = !M.current_loc in
+          let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
+          let expected = let open Str in if string_match (regexp ".+//.*\\(FAIL\\|UNKNOWN\\).*") line 0 then Some (matched_group 1 line) else None in
+          if expected <> annot then (
+            let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
+            M.warn_each ~ctx:ctx.context (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
+          )
+        ) else
+          M.warn_each ~ctx:ctx.context msg
     in
     match check_assert e ctx.local with
     | `False ->

@@ -61,44 +61,44 @@ let init oil =
         )
     else nop;
     waiting_for := id, e NONE show_waiting_for;
-  in*)
+    in*)
 
   (* Specification of operating system services *)
   (* Task management *)
   (*extract "DeclareTask" @@ A1 (id, fun id -> Pml.do_;
     nop
-  );*)
+    );*)
   extract "ActivateTask" @@ A1 (id, fun id ->
-    Pml.do_;
-    state := !id, (e READY show_state)
-    (* TODO When an extended task is transferred from suspended state into ready state all its events are cleared. *)
-  );
+      Pml.do_;
+      state := !id, (e READY show_state)
+      (* TODO When an extended task is transferred from suspended state into ready state all its events are cleared. *)
+    );
   extract "TerminateTask" @@ A0 (
     Pml.do_;
     state := !tid, (e SUSPENDED show_state)
     (* TODO NON release internal resource *)
   );
   extract "ChainTask" @@ A1 (id, fun id ->
-    Pml.do_;
-    state := !tid, (e SUSPENDED show_state);
-    state := !id, (e READY show_state)
-    (* TODO NON ensures that the succeeding task starts to run at the earliest?, release internal resource *)
-  );
+      Pml.do_;
+      state := !tid, (e SUSPENDED show_state);
+      state := !id, (e READY show_state)
+      (* TODO NON ensures that the succeeding task starts to run at the earliest?, release internal resource *)
+    );
   extract "Schedule" @@ A0 (
     Pml.do_;
     nop
     (* TODO NON release internal resource *)
   );
   extract "GetTaskID" @@ A1 (id, fun id ->
-    Pml.do_;
-    (* TODO ANA assign tid to id *)
-    nop
-  );
+      Pml.do_;
+      (* TODO ANA assign tid to id *)
+      nop
+    );
   extract "GetTaskState" @@ A1 (id,(* state, *) fun id ->
-    Pml.do_;
-    (* TODO ANA Returns the state of a task (running, ready, waiting, suspended) at the time of calling GetTaskState. *)
-    nop
-  );
+      Pml.do_;
+      (* TODO ANA Returns the state of a task (running, ready, waiting, suspended) at the time of calling GetTaskState. *)
+      nop
+    );
 
   (* Interrupt handling *)
   extract "EnableAllInterrupts" @@ A0 (
@@ -130,138 +130,138 @@ let init oil =
   (*extract "DeclareResource" @@ A1 (id, fun id ->
     Pml.do_;
     nop
-  );*)
+    );*)
   extract "GetResource" @@ A1 (id, fun id ->
-    Pml.do_;
-    let id = !id in
-    let resource = !resources id in
-    let chan = !resources_chan id in
-    _if [
-      resource == i 0,
+      Pml.do_;
+      let id = !id in
+      let resource = !resources id in
+      let chan = !resources_chan id in
+      _if [
+        resource == i 0,
         println (s "GetResource will block: "^resource_info id) >>
         _if [
           full  chan, fail (s "GetResource: queue is full: "^resource_info id);
           nfull chan, println (s "GetResource: Process "^i2s !tid^s " put into queue for resource "^i2s id)
         ] >>
         set_waiting !tid RESOURCE id;
-      resource > i 0,
+        resource > i 0,
         println (s "GetResource will go through: "^resource_info id) >>
         incr resources id;
-      resource < i 0,
+        resource < i 0,
         fail (s "GetResource: count<0: "^resource_info id)
-    ]
-  );
+      ]
+    );
   extract "ReleaseResource" @@ A1 (id, fun id ->
-    Pml.do_;
-    let id = !id in
-    let resource = !resources id in
-    let chan = !resources_chan id in
-    _if [
-      (* no processes waiting on this resourcephore -> increase count until max *)
-      empty chan,
+      Pml.do_;
+      let id = !id in
+      let resource = !resources id in
+      let chan = !resources_chan id in
+      _if [
+        (* no processes waiting on this resourcephore -> increase count until max *)
+        empty chan,
         println (s "ReleaseResource: empty queue") >>
         _ift (resource < !resources_max id) (incr resources id);
-      nempty chan,
+        nempty chan,
         println (s "ReleaseResource: "^i2s (len chan)^s " processes in queue for "^resource_info id) >>
         _foreach state (fun j _ ->
-          println (s "ReleaseResource: check if process "^i2s j^s " is waiting. "^task_info j) >>
-          _ift (is_waiting j RESOURCE id && poll `First chan j) (* process is waiting for this resource and is at the front of its queue *) (
+            println (s "ReleaseResource: check if process "^i2s j^s " is waiting. "^task_info j) >>
+            _ift (is_waiting j RESOURCE id && poll `First chan j) (* process is waiting for this resource and is at the front of its queue *) (
               println (s "ReleaseResource: process "^i2s !tid^s " is waking up process "^i2s j) >>
               recv `First chan j >> (* consume msg from queue *)
               set_ready j >>
               break
+            )
           )
-        )
-    ]
-  );
+      ]
+    );
 
   (* Event control *)
   let mask,_ = var (Byte 0) "mask" in  
   (*extract "DeclareEvent" @@ A1 (id, fun id ->
     Pml.do_;
     nop
-  );*)
+    );*)
   extract "SetEvent" @@ A2 (id, mask, fun id mask ->
-    Pml.do_;
-    events := !id, !mask
-  );
+      Pml.do_;
+      events := !id, !mask
+    );
   extract "ClearEvent" @@ A1 (mask, fun mask ->
-    Pml.do_;
-    (*events := !id, mask*)
-    let id = !tid in
-    let event = !events id in
-    let chan = !events_chan id in
-    _if [
-      (* no processes waiting on this event -> increase count until max *)
-      empty chan,
+      Pml.do_;
+      (*events := !id, mask*)
+      let id = !tid in
+      let event = !events id in
+      let chan = !events_chan id in
+      _if [
+        (* no processes waiting on this event -> increase count until max *)
+        empty chan,
         println (s "ClearEvent: empty queue") >>
         _ift (event < !events_max id) (incr events id);
-      nempty chan,
+        nempty chan,
         println (s "ClearEvent: "^i2s (len chan)^s " processes in queue for "^event_info id) >>
         _foreach state (fun j _ ->
-          println (s "ClearEvent: check if process "^i2s j^s " is waiting. "^task_info j) >>
-          _ift (is_waiting j EVENT id && poll `First chan j) (* process is waiting for this event and is at the front of its queue *) (
+            println (s "ClearEvent: check if process "^i2s j^s " is waiting. "^task_info j) >>
+            _ift (is_waiting j EVENT id && poll `First chan j) (* process is waiting for this event and is at the front of its queue *) (
               println (s "ClearEvent: process "^i2s !tid^s " is waking up process "^i2s j) >>
               recv `First chan j >> (* consume msg from queue *)
               set_ready j >>
               break
+            )
           )
-        )
-    ]
-  );
+      ]
+    );
   extract "GetEvent" @@ A2 (id, mask, fun id mask ->
-    Pml.do_;
-    (* TODO ANA? *)
-    !events !id
-  );
+      Pml.do_;
+      (* TODO ANA? *)
+      !events !id
+    );
   extract "WaitEvent" @@ A1 (mask, fun mask ->
-    Pml.do_;
-    let id = !id in
-    let resource = !resources id in
-    let chan = !resources_chan id in
-    _if [
-      resource == i 0,
+      Pml.do_;
+      let id = !id in
+      let resource = !resources id in
+      let chan = !resources_chan id in
+      _if [
+        resource == i 0,
         println (s "WaitEvent will block: "^event_info id) >>
         _if [
           full  chan, fail (s "WaitEvent: queue is full: "^event_info id);
           nfull chan, println (s "WaitEvent: Process "^i2s !tid^s " put into queue for resource "^i2s id)
         ] >>
         set_waiting !tid EVENT id;
-      resource > i 0,
+        resource > i 0,
         println (s "WaitEvent will go through: "^event_info id) >>
         incr resources id;
-      resource < i 0,
+        resource < i 0,
         fail (s "WaitEvent: count<0: "^event_info id)
-    ]
-  );
+      ]
+    );
 
   (* Alarms *)
   (*extract "DeclareAlarm" @@ A1 (id, fun id ->
     Pml.do_;
     nop
-  );*)
+    );*)
   extract "GetAlarmBase" @@ A1 (id,(* info, *) fun id ->
-    Pml.do_;
-    (* TODO ANA *)
-    nop
-  );
+      Pml.do_;
+      (* TODO ANA *)
+      nop
+    );
   extract "GetAlarm" @@ A1 (id,(* tick, *) fun id ->
-    Pml.do_;
-    (* TODO ANA *)
-    nop
-  );
+      Pml.do_;
+      (* TODO ANA *)
+      nop
+    );
   extract "SetRelAlarm" @@ A1 (id,(* increment, cycle, *) fun id ->
-    Pml.do_;
-    (* TODO *)
-    nop
-  );
+      Pml.do_;
+      (* TODO *)
+      nop
+    );
   extract "SetAbsAlarm" @@ A1 (id,(* start, cycle, *) fun id ->
-    Pml.do_;
-    (* TODO *)
-    nop
-  );
+      Pml.do_;
+      (* TODO *)
+      nop
+    );
   extract "CancelAlarm" @@ A1 (id, fun id ->
-    Pml.do_;
-    (* TODO *)
-    nop
-  );
+      Pml.do_;
+      (* TODO *)
+      nop
+    );

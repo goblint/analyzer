@@ -161,8 +161,8 @@ type eval = (* how to evaluate function arguments *)
   | EvalEnum of (int -> string option) | EvalInt | EvalString (* standard types *)
   | EvalSkip (* don't evaluate *)
   | AssignIdOfString of string * int (* kind * position: evaluate argument at position as a string, use it to generate an id of kind, and assign it to argument, map id to int for promela *)
-  (*| EvalSpecial of string*)
-  [@@deriving show]
+(*| EvalSpecial of string*)
+[@@deriving show]
 
 let extract_funs = Hashtbl.create 123 (* name of function to list of how to evaluate arguments *)
 let special_fun name = Hashtbl.find extract_funs name
@@ -198,8 +198,8 @@ let extract ?id fname args = (* generate code for function and register for extr
   in
   Hashtbl.add extract_funs fname arg_evals;
   (), "\ninline "^fname^"("^String.concat ", " arg_names^") { atomic {\n" ^
-    indent (snd body) ^
-  "\n}}\n"
+      indent (snd body) ^
+      "\n}}\n"
 
 
 (* overwrite remaining operators *)

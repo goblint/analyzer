@@ -76,9 +76,9 @@ module Size = struct (* size in bits as int, range as int64 *)
   let range ik = (* min/max values as int64 (signed), anything bigger is cropped! *)
     let a,b = bits ik in
     if a>63 || b>63 then raise Not_in_int64 else
-    let x = if isSigned ik then neg (shift_left 1L a) (* -2^a *) else 0L in
-    let y = sub (shift_left 1L b) 1L in (* 2^b - 1 *)
-    x,y
+      let x = if isSigned ik then neg (shift_left 1L a) (* -2^a *) else 0L in
+      let y = sub (shift_left 1L b) 1L in (* 2^b - 1 *)
+      x,y
   let range_big_int ik =
     let a,b = bits ik in
     let x = if isSigned ik then minus_big_int (shift_left_big_int unit_big_int a) (* -2^a *) else zero_big_int in
@@ -91,8 +91,8 @@ module Size = struct (* size in bits as int, range as int64 *)
     (* let z = add (rem (sub x a) c) a in (* might lead to overflows itself... *)*)
     let y = mod_big_int x' c in
     let y = if gt_big_int y b then sub_big_int y c
-       else if lt_big_int y a then add_big_int y c
-       else y
+      else if lt_big_int y a then add_big_int y c
+      else y
     in
     M.tracel "cast_int" "Cast %Li to range [%s, %s] (%s) = %s (%s in int64)\n" x (string_of_big_int a) (string_of_big_int b) (string_of_big_int c) (string_of_big_int y) (if is_int64_big_int y then "fits" else "does not fit");
     try int64_of_big_int y with _ -> raise Not_in_int64

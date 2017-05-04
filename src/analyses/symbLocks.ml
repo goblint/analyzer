@@ -184,12 +184,12 @@ struct
       | None -> xs
     in
     (* Array lockstep also returns a triple of exps. Second and third elements in
-    triples are access and mutex exps. Common index is replaced with *.
-    First element is unused.
+       triples are access and mutex exps. Common index is replaced with *.
+       First element is unused.
 
-    To find if this pattern matches, we try to separate the base variable and
-    the index from both -- access exp and mutex exp. We check if indexes match
-    and the rest is concrete. Then replace the common index with *. *)
+       To find if this pattern matches, we try to separate the base variable and
+       the index from both -- access exp and mutex exp. We check if indexes match
+       and the rest is concrete. Then replace the common index with *. *)
     let one_lockstep (_,a,m) xs =
       match m with
       | AddrOf (Var v,o) ->

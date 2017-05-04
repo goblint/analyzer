@@ -48,7 +48,7 @@ let mygprintf (format : ('a, unit, doc, 'b) format4) : 'a =
       if c = '%' then begin
         let j = skip_args (succ i) in
         match fget j with
-          '%' -> literal acc j
+        '%' -> literal acc j
         | ',' -> collect acc (succ j)
         | 's' | 'c' | 'd' | 'i' | 'o' | 'x' | 'X' | 'u'
         | 'f' | 'e' | 'E' | 'g' | 'G' | 'b' | 'B' ->
@@ -72,8 +72,8 @@ let mygprintf (format : ('a, unit, doc, 'b) format4) : 'a =
     end
   and skip_args j =
     match String.unsafe_get format j with
-      '0' .. '9' | ' ' | '.' | '-' -> skip_args (succ j)
-    | c -> j
+    '0' .. '9' | ' ' | '.' | '-' -> skip_args (succ j)
+               | c -> j
   in
   collect nil 0
 

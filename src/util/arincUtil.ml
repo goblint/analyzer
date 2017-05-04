@@ -28,8 +28,8 @@ type return_code = (* taken from ARINC_653_part1.pdf page 46 *)
   | INVALID_CONFIG (* parameter specified in request incompatible with current configuration (e.g., as specified by system integrator) *)
   | INVALID_MODE   (* request incompatible with current mode of operation *)
   | TIMED_OUT      (* time-out associated with request has expired *)
-  [@@deriving show, enum]
- 
+[@@deriving show, enum]
+
 let pname_ErrorHandler = "ErrorHandler"
 
 module Action = (* encapsulate types because some process field names are also used for D.t -> use local opening of modules (since OCaml 4.00) for output *)

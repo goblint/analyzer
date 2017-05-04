@@ -77,7 +77,7 @@ let trim name = if (Hashtbl.mem tasks name) then trim_task name else trim_isr na
 
 (*priority function*)
 let pry res = try let (_,pry,_) =Hashtbl.find resources res in pry with Not_found -> print_endline("Priority not found. Using default value -1");
-assert false
+  assert false
 (*(-1)*)
 
 let get_api_names name =

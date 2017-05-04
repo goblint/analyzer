@@ -502,8 +502,8 @@ struct
     in
     let has_escaped g = 
       match ctx.ask (Queries.MayEscape g) with
-        | `Bool false -> false
-        | _ -> true
+      | `Bool false -> false
+      | _ -> true
     in
     let reach_or_mpt = 
       if reach then
@@ -516,21 +516,21 @@ struct
     | `LvalSet ls when not (LS.is_top ls) ->
       let includes_uk = ref false in
       begin match ctx.ask (ReachableUkTypes (mkAddrOf (Mem e,NoOffset))) with
-      | `Bot -> ()
-      | `TypeSet ts when Queries.TS.is_top ts -> 
-        includes_uk := true
-      | `TypeSet ts ->
-        if Queries.TS.is_empty ts = false then
-          includes_uk := true;
-        let f = function
-        | TComp (ci, _) ->
-          add_access_struct (conf - 50) ci
-        | _ -> ()
-        in
-        Queries.TS.iter f ts
-      | _ -> 
-        includes_uk := true
-        (* add_access None None *)
+        | `Bot -> ()
+        | `TypeSet ts when Queries.TS.is_top ts -> 
+          includes_uk := true
+        | `TypeSet ts ->
+          if Queries.TS.is_empty ts = false then
+            includes_uk := true;
+          let f = function
+            | TComp (ci, _) ->
+              add_access_struct (conf - 50) ci
+            | _ -> ()
+          in
+          Queries.TS.iter f ts
+        | _ -> 
+          includes_uk := true
+          (* add_access None None *)
       end;
       let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
       let conf = if reach then conf - 20 else conf in

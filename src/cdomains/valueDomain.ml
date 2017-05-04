@@ -195,12 +195,12 @@ struct
   (* is a cast t1 to t2 invertible, i.e., content-preserving? TODO also use abstract value? *)
   let is_safe_cast t2 t1 = match t2, t1 with
     (*| TPtr _, t -> bitsSizeOf t <= bitsSizeOf !upointType
-    | t, TPtr _ -> bitsSizeOf t >= bitsSizeOf !upointType*)
+      | t, TPtr _ -> bitsSizeOf t >= bitsSizeOf !upointType*)
     | TInt (ik,_), TFloat (fk,_) (* does a1 fit into ik's range? *)
     | TFloat (fk,_), TInt (ik,_) (* can a1 be represented as fk? *)
       -> false (* TODO precision *)
     | _ -> bitsSizeOf t2 >= bitsSizeOf t1
-    (*| _ -> false*)
+  (*| _ -> false*)
 
   let ptr_ikind () = match !upointType with TInt (ik,_) -> ik | _ -> assert false
 
@@ -233,32 +233,32 @@ struct
       | _ -> (* cast to smaller/inner type *)
         M.tracel "casta" "cast to smaller size\n";
         if d = Some true then err "Ptr-cast to type of incompatible size!" else
-        begin match ta, t with
-        (* struct to its first field *)
-        | TComp ({cfields = fi::_}, _), _ ->
-          M.tracel "casta" "cast struct to its first field\n";
-          adjust_offs v (Addr.add_offsets o (`Field (fi, `NoOffset))) (Some false)
-        (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
-        | TArray (t1, _, _), TArray (t2, _, _) when typ_eq t1 t2 -> o
-        (* array to its first element *)
-        | TArray _, _ ->
-          M.tracel "casta" "cast array to its first element\n";
-          adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int 0L, `NoOffset))) (Some false)
-        | _ -> err @@ "Cast to neither array index nor struct field."
-          ^ Pretty.(sprint ~width:0 @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
-        end
+          begin match ta, t with
+            (* struct to its first field *)
+            | TComp ({cfields = fi::_}, _), _ ->
+              M.tracel "casta" "cast struct to its first field\n";
+              adjust_offs v (Addr.add_offsets o (`Field (fi, `NoOffset))) (Some false)
+            (* array of the same type but different length, e.g. assign array (with length) to array-ptr (no length) *)
+            | TArray (t1, _, _), TArray (t2, _, _) when typ_eq t1 t2 -> o
+            (* array to its first element *)
+            | TArray _, _ ->
+              M.tracel "casta" "cast array to its first element\n";
+              adjust_offs v (Addr.add_offsets o (`Index (IndexDomain.of_int 0L, `NoOffset))) (Some false)
+            | _ -> err @@ "Cast to neither array index nor struct field."
+                          ^ Pretty.(sprint ~width:0 @@ dprintf " is_zero_offset: %b" (Addr.is_zero_offset o))
+          end
     in
     let one_addr = let open Addr in function
-      | Addr ({ vtype = TVoid _ } as v, `NoOffset) -> (* we had no information about the type (e.g. malloc), so we add it TODO what about offsets? *)
-        Addr ({ v with vtype = t }, `NoOffset)
-      | Addr (v, o) as a ->
-        begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
-        with CastError s -> (* don't know how to handle this cast :( *)
-          M.tracel "caste" "%s\n" s;
-          a (* probably garbage, but this is deref's problem *)
-          (*raise (CastError s)*)
-        end
-      | x -> x (* TODO we should also keep track of the type here *)
+        | Addr ({ vtype = TVoid _ } as v, `NoOffset) -> (* we had no information about the type (e.g. malloc), so we add it TODO what about offsets? *)
+          Addr ({ v with vtype = t }, `NoOffset)
+        | Addr (v, o) as a ->
+          begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
+            with CastError s -> (* don't know how to handle this cast :( *)
+              M.tracel "caste" "%s\n" s;
+              a (* probably garbage, but this is deref's problem *)
+              (*raise (CastError s)*)
+          end
+        | x -> x (* TODO we should also keep track of the type here *)
     in
     let a' = AD.map one_addr a in
     M.tracel "cast" "cast_addr %a to %a is %a!\n" AD.pretty a d_type t AD.pretty a'; a'
@@ -266,72 +266,72 @@ struct
   (* this is called for:
    * 1. normal casts
    * 2. dereferencing pointers (needed?)
-   *)
+  *)
   let rec cast ?torg t v =
     (*if v = `Bot || (match torg with Some x -> is_safe_cast t x | None -> false) then v else*)
     if v = `Bot then v else
-    let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
-    let t = unrollType t in
-    let v' = match t with
-      | TFloat (fk,_) -> log_top __POS__; `Top
-      | TInt (ik,_) ->
-        `Int (ID.cast_to ik (match v with
-          | `Int x -> x
-          | `Address x when AD.equal x (AD.null_ptr ()) -> ID.of_int Int64.zero
-          | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
-          (*| `Struct x when Structs.cardinal x > 0 ->
-            let some  = List.hd (Structs.keys x) in
-            let first = List.hd some.fcomp.cfields in 
-            (match Structs.get x first with `Int x -> x | _ -> raise CastError)*)
-          | _ -> log_top __POS__; ID.top ()
-        ))
-      | TEnum ({ekind=ik},_) ->
-        `Int (ID.cast_to ik (match v with
-          | `Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
-          | _ -> log_top __POS__; ID.top ()
-        ))
-      | TPtr (t,_) when isVoidType t || isVoidPtrType t -> v (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
-      | TPtr (t,_) ->
-        `Address (match v with
-          | `Int x when ID.to_int x = Some Int64.zero -> AD.null_ptr ()
-          | `Int x -> AD.top_ptr ()
-          (* we ignore casts to void*! TODO report UB! *)
-          | `Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
-          (*| `Address x -> x*)
-          | _ -> log_top __POS__; AD.top_ptr ()
-        )
-      | TArray (ta, l, _) -> (* TODO, why is the length exp option? *)
-        `Array (match v, Goblintutil.tryopt Cil.lenOfArray l with
-          | `Array x, _ (* Some l' when Some l' = CArrays.length x *) -> x (* TODO handle casts between different sizes? *)
-          | _ -> log_top __POS__; CArrays.top ()
-        )
-      | TComp (ci,_) -> (* struct/union *)
-        (* rather clumsy, but our abstract values don't kepp their type *)
-        let same_struct x = (* check if both have the same parent *)
-          (* compinfo is cyclic, so we only check the name *)
-          try compFullName (List.hd (Structs.keys x)).fcomp = compFullName (List.hd ci.cfields).fcomp
-          with _ -> false (* can't say if struct is empty *)
-        in
-        (* 1. casting between structs of different type does not work
-        * 2. dereferencing a casted pointer works, but is undefined behavior because of the strict aliasing rule (compiler assumes that pointers of different type can never point to the same location)
-        *)
-        if ci.cstruct then
-          `Struct (match v with
-            | `Struct x when same_struct x -> x
-            | `Struct x when List.length ci.cfields > 0 ->
-              let first = List.hd ci.cfields in
-              Structs.(replace (top ()) first (get x first))
-            | _ -> log_top __POS__; Structs.top ()
-          )
-        else
-          `Union (match v with
-            | `Union x (* when same (Unions.keys x) *) -> x
-            | _ -> log_top __POS__; Unions.top ()
-          )
-      (* | _ -> log_top (); `Top *)
-      | _ -> log_top __POS__; assert false
-    in
-    Messages.tracel "cast" "cast %a to %a is %a!\n" pretty v d_type t pretty v'; v'
+      let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
+      let t = unrollType t in
+      let v' = match t with
+        | TFloat (fk,_) -> log_top __POS__; `Top
+        | TInt (ik,_) ->
+          `Int (ID.cast_to ik (match v with
+              | `Int x -> x
+              | `Address x when AD.equal x (AD.null_ptr ()) -> ID.of_int Int64.zero
+              | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
+              (*| `Struct x when Structs.cardinal x > 0 ->
+                let some  = List.hd (Structs.keys x) in
+                let first = List.hd some.fcomp.cfields in 
+                (match Structs.get x first with `Int x -> x | _ -> raise CastError)*)
+              | _ -> log_top __POS__; ID.top ()
+            ))
+        | TEnum ({ekind=ik},_) ->
+          `Int (ID.cast_to ik (match v with
+              | `Int x -> (* TODO warn if x is not in the constant values of ei.eitems? (which is totally valid (only ik is relevant for wrapping), but might be unintended) *) x
+              | _ -> log_top __POS__; ID.top ()
+            ))
+        | TPtr (t,_) when isVoidType t || isVoidPtrType t -> v (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
+        | TPtr (t,_) ->
+          `Address (match v with
+              | `Int x when ID.to_int x = Some Int64.zero -> AD.null_ptr ()
+              | `Int x -> AD.top_ptr ()
+              (* we ignore casts to void*! TODO report UB! *)
+              | `Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
+              (*| `Address x -> x*)
+              | _ -> log_top __POS__; AD.top_ptr ()
+            )
+        | TArray (ta, l, _) -> (* TODO, why is the length exp option? *)
+          `Array (match v, Goblintutil.tryopt Cil.lenOfArray l with
+              | `Array x, _ (* Some l' when Some l' = CArrays.length x *) -> x (* TODO handle casts between different sizes? *)
+              | _ -> log_top __POS__; CArrays.top ()
+            )
+        | TComp (ci,_) -> (* struct/union *)
+          (* rather clumsy, but our abstract values don't kepp their type *)
+          let same_struct x = (* check if both have the same parent *)
+            (* compinfo is cyclic, so we only check the name *)
+            try compFullName (List.hd (Structs.keys x)).fcomp = compFullName (List.hd ci.cfields).fcomp
+            with _ -> false (* can't say if struct is empty *)
+          in
+          (* 1. casting between structs of different type does not work
+           * 2. dereferencing a casted pointer works, but is undefined behavior because of the strict aliasing rule (compiler assumes that pointers of different type can never point to the same location)
+          *)
+          if ci.cstruct then
+            `Struct (match v with
+                | `Struct x when same_struct x -> x
+                | `Struct x when List.length ci.cfields > 0 ->
+                  let first = List.hd ci.cfields in
+                  Structs.(replace (top ()) first (get x first))
+                | _ -> log_top __POS__; Structs.top ()
+              )
+          else
+            `Union (match v with
+                | `Union x (* when same (Unions.keys x) *) -> x
+                | _ -> log_top __POS__; Unions.top ()
+              )
+        (* | _ -> log_top (); `Top *)
+        | _ -> log_top __POS__; assert false
+      in
+      Messages.tracel "cast" "cast %a to %a is %a!\n" pretty v d_type t pretty v'; v'
 
 
   let leq x y =
@@ -362,9 +362,9 @@ struct
     | (`Int x, `Int y) -> `Int (ID.join x y)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-      | Some 0L -> AD.join (AD.null_ptr ()) y
-      | Some x when x<>0L -> AD.(join y (join (safe_ptr ()) (unknown_ptr ())))
-      | _ -> AD.join y (AD.top_ptr ()))
+        | Some 0L -> AD.join (AD.null_ptr ()) y
+        | Some x when x<>0L -> AD.(join y (join (safe_ptr ()) (unknown_ptr ())))
+        | _ -> AD.join y (AD.top_ptr ()))
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
     | (`Union x, `Union y) -> `Union (Unions.join x y)
@@ -375,8 +375,8 @@ struct
     |  y, `Blob x ->
       `Blob (B.join (x:t) ((B.make 0 y):t))
     | x, y ->
-       ignore @@ printf "JOIN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line; 
-       `Top
+      ignore @@ printf "JOIN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line; 
+      `Top
 
   let rec meet x y =
     match (x,y) with
@@ -397,8 +397,8 @@ struct
     |  y, `Blob x ->
       `Blob (B.meet (x:t) ((B.make 0 y):t))
     | _ ->
-        ignore @@ printf "MEET incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
-        `Bot
+      ignore @@ printf "MEET incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
+      `Bot
 
   let widen x y =
     match (x,y) with
@@ -409,8 +409,8 @@ struct
     | (`Int x, `Int y) -> `Int (ID.widen x y)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-      | Some 0L -> AD.widen (AD.null_ptr ()) y
-      | _ -> AD.top_ptr ())
+        | Some 0L -> AD.widen (AD.null_ptr ()) y
+        | _ -> AD.top_ptr ())
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
     | (`Union x, `Union y) -> `Union (Unions.widen x y)
@@ -422,8 +422,8 @@ struct
     |  y, `Blob x ->
       `Blob (B.widen ((B.make 0 y):t) (x:t))
     | _ ->
-        ignore @@ printf "WIDEN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
-        `Top
+      ignore @@ printf "WIDEN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
+      `Top
 
   let rec narrow x y =
     match (x,y) with
@@ -443,8 +443,8 @@ struct
     | x, `Top | `Top, x -> x
     | x, `Bot | `Bot, x -> `Bot
     | (x,_) ->
-        ignore @@ printf "NARROW incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
-        x
+      ignore @@ printf "NARROW incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
+      x
 
   let rec top_value (t: typ) =
     let rec top_comp compinfo: Structs.t =

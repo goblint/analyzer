@@ -90,99 +90,99 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
     _ift (!lock_level > i 0) (decr lock_level)
   );
   extract "SetPartitionMode" @@ A1 (mode, fun mode ->
-    partition_mode := !mode
-  );
+      partition_mode := !mode
+    );
 
   (* processes *)
   extract "CreateProcess" @@ A1 (id(*; pri; per; cap]*), fun id ->
-    Pml.do_;
-    _assert (!status !id == e NOTCREATED show_status);
-    status := !id, e STOPPED show_status;
-    waiting_for := !id, e NONE show_waiting_for;
-    incr tasks_created;
-  );
+      Pml.do_;
+      _assert (!status !id == e NOTCREATED show_status);
+      status := !id, e STOPPED show_status;
+      waiting_for := !id, e NONE show_waiting_for;
+      incr tasks_created;
+    );
   (* CreateErrorHandler *)
   extract "Start" @@ A1 (id, fun id ->
-    Pml.do_;
-    _assert (!status !id != e NOTCREATED show_status);
-    remove_waiting !id;
-    status := !id, e READY show_status;
-  );
-  extract "Stop" @@ A1 (id, fun id ->
-    Pml.do_;
-    _assert (!status !id != e NOTCREATED show_status);
-    remove_waiting !id;
-    status := !id, e STOPPED show_status;
-  );
-  extract "Suspend" @@ A1 (id, fun id ->
-    Pml.do_;
-    _assert (!status !id != e NOTCREATED show_status);
-    status := !id, e SUSPENDED show_status;
-  );
-  extract "Resume" @@ A1 (id, fun id ->
-    Pml.do_;
-    _assert (!status !id != e NOTCREATED show_status);
-    _ift (!status !id == e SUSPENDED show_status) (
-      _ifte (!waiting_for !id == e NONE show_waiting_for)
-        (status := !id, e READY show_status)
-        (status := !id, e WAITING show_status)
+      Pml.do_;
+      _assert (!status !id != e NOTCREATED show_status);
+      remove_waiting !id;
+      status := !id, e READY show_status;
     );
-    status := !id, e SUSPENDED show_status;
-  );
+  extract "Stop" @@ A1 (id, fun id ->
+      Pml.do_;
+      _assert (!status !id != e NOTCREATED show_status);
+      remove_waiting !id;
+      status := !id, e STOPPED show_status;
+    );
+  extract "Suspend" @@ A1 (id, fun id ->
+      Pml.do_;
+      _assert (!status !id != e NOTCREATED show_status);
+      status := !id, e SUSPENDED show_status;
+    );
+  extract "Resume" @@ A1 (id, fun id ->
+      Pml.do_;
+      _assert (!status !id != e NOTCREATED show_status);
+      _ift (!status !id == e SUSPENDED show_status) (
+        _ifte (!waiting_for !id == e NONE show_waiting_for)
+          (status := !id, e READY show_status)
+          (status := !id, e WAITING show_status)
+      );
+      status := !id, e SUSPENDED show_status;
+    );
 
   (* semaphores *)
   let cur,_   = var (Byte 0) "cur" in
   let max,_   = var (Byte 0) "max" in
   let queuing,_ = var (Enum (FIFO, show_queuing_discipline)) "queuing" in
   extract "CreateSemaphore" ~id:(4,0,"sema") @@ A5 (name,cur,max,queuing,id, fun name cur max queuing id ->
-    Pml.do_;
-    println (s "CreateSemaphore: " ^ !name ^s ", "^ i2s !cur ^s ", "^ i2s !max ^s ", "^ e2s !queuing);
-    _assert (!queuing == e FIFO show_queuing_discipline);
-    semas := !id, !cur;
-    semas_max := !id, !max;
-    incr semas_created;
-  );
+      Pml.do_;
+      println (s "CreateSemaphore: " ^ !name ^s ", "^ i2s !cur ^s ", "^ i2s !max ^s ", "^ e2s !queuing);
+      _assert (!queuing == e FIFO show_queuing_discipline);
+      semas := !id, !cur;
+      semas_max := !id, !max;
+      incr semas_created;
+    );
   extract "GetSemaphoreId" ~id:(1,0,"sema") @@ A2 (name, id, fun name id -> skip);
   extract "WaitSemaphore" @@ A1 (id, fun id ->
-    let id = !id in
-    let sema = !semas id in
-    let chan = !semas_chan id in
-    _if [
-      sema == i 0,
+      let id = !id in
+      let sema = !semas id in
+      let chan = !semas_chan id in
+      _if [
+        sema == i 0,
         println (s "WaitSema will block: "^sema_info id) >>
         _if [
           full  chan, fail (s "WaitSema: queue is full: "^sema_info id);
           nfull chan, println (s "WaitSema: Process "^i2s !tid^s " put into queue for sema "^i2s id)
         ] >>
         set_waiting !tid SEMA id;
-      sema > i 0,
+        sema > i 0,
         println (s "WaitSema will go through: "^sema_info id) >>
         incr semas id;
-      sema < i 0,
+        sema < i 0,
         fail (s "WaitSema: count<0: "^sema_info id)
-    ]
-  );
+      ]
+    );
   extract "SignalSemaphore" @@ A1 (id, fun id ->
-    let id = !id in
-    let sema = !semas id in
-    let chan = !semas_chan id in
-    _if [
-      (* no processes waiting on this semaphore -> increase count until max *)
-      empty chan,
+      let id = !id in
+      let sema = !semas id in
+      let chan = !semas_chan id in
+      _if [
+        (* no processes waiting on this semaphore -> increase count until max *)
+        empty chan,
         println (s "SignalSema: empty queue") >>
         _ift (sema < !semas_max id) (incr semas id);
-      nempty chan,
+        nempty chan,
         println (s "SignalSema: "^i2s (len chan)^s " processes in queue for "^sema_info id) >>
         _foreach status (fun j _ ->
-          println (s "SignalSema: check if process "^i2s j^s " is waiting. "^task_info j) >>
-          _ift (is_waiting j SEMA id && poll `First chan j) (* process is waiting for this semaphore and is at the front of its queue *) (
+            println (s "SignalSema: check if process "^i2s j^s " is waiting. "^task_info j) >>
+            _ift (is_waiting j SEMA id && poll `First chan j) (* process is waiting for this semaphore and is at the front of its queue *) (
               println (s "SignalSema: process "^i2s !tid^s " is waking up process "^i2s j) >>
               recv `First chan j >> (* consume msg from queue *)
               set_ready j >>
               break
+            )
           )
-        )
-    ]
-  );
+      ]
+    );
 
   (* events *)

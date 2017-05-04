@@ -53,9 +53,9 @@ struct
     let h : (G.k, 'v) Hashtbl.t = Hashtbl.create 13
     let get k =
       Option.default_delayed (fun () ->
-        let v = List.length @@ List.of_enum @@ Hashtbl.keys h in
-        Hashtbl.replace h k v;
-        v) (Hashtbl.find h k)
+          let v = List.length @@ List.of_enum @@ Hashtbl.keys h in
+          Hashtbl.replace h k v;
+          v) (Hashtbl.find h k)
     let inv v = Hashtbl.enum h |> List.of_enum |> List.assoc_inv v
     let to_list () = Hashtbl.enum h |> List.of_enum
   end
@@ -77,11 +77,11 @@ struct
     let resources = Hashtbl.create 13
     let get (resource,name as k) =
       Option.default_delayed (fun () ->
-        let vname = resource^":"^name in
-        let v = makeGlobalVar vname voidPtrType in
-        let i = Hashtbl.keys resources |> List.of_enum |> List.filter (fun x -> fst x = resource) |> List.length in
-        Hashtbl.replace resources k (v,i);
-        v,i) (Hashtbl.find resources k)
+          let vname = resource^":"^name in
+          let v = makeGlobalVar vname voidPtrType in
+          let i = Hashtbl.keys resources |> List.of_enum |> List.filter (fun x -> fst x = resource) |> List.length in
+          Hashtbl.replace resources k (v,i);
+          v,i) (Hashtbl.find resources k)
     let inv_by f k =
       Hashtbl.filter (fun k' -> f k' = k) resources |> Hashtbl.keys |> Enum.get
     let inv_v = inv_by fst
@@ -237,83 +237,83 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     if not (String.starts_with f.vname "LAP_Se_") then ctx.local else
-    let pid, ctx_hash, pred = ctx.local in
-    if Pid.is_bot pid || Ctx.is_bot ctx_hash || Pred.is_bot pred then ctx.local else
-    let pname = Pid.to_int pid |> Option.get |> Int64.to_int |> Pids.inv |> Option.get in
-    let fname = str_remove "LAP_Se_" f.vname in
-    let eval_int exp =
-      match ctx.ask (Queries.EvalInt exp) with
-      | `Int x -> [Int64.to_string x]
-      | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
-    in
-    let eval_str exp =
-      match ctx.ask (Queries.EvalStr exp) with
-      | `Str x -> [x]
-      | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp
-    in
-    let eval_id exp =
-      let module LS = Queries.LS in
-      match ctx.ask (Queries.MayPointTo exp) with
-      | `LvalSet x when not (LS.is_top x) ->
-        let top_elt = dummyFunDec.svar, `NoOffset in
-        if LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";
-        let xs = LS.remove top_elt x |> LS.elements in
-        List.map (fun (v,o) -> string_of_int (Res.i_by_v v)) xs
-      | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp
-    in
-    let assign_id exp id =
-      if M.tracing then M.trace "extract_osek" "assign_id %a %s\n" d_exp exp id.vname;
-      match exp with
-      | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
-      | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
-    in
-    (* evaluates an argument and returns a list of possible values for that argument. *)
-    let eval = function
-      | Pml.EvalSkip -> const None
-      | Pml.EvalInt -> fun e -> Some (try eval_int e with _ -> eval_id e)
-      | Pml.EvalString -> fun e -> Some (List.map (fun x -> "\""^x^"\"") (eval_str e))
-      | Pml.EvalEnum f -> fun e -> Some (List.map (fun x -> Option.get (f (int_of_string x))) (eval_int e))
-      | Pml.AssignIdOfString (res, pos) -> fun e ->
-          (* evaluate argument at i as string *)
-          let name = OList.hd @@ eval_str (OList.at arglist pos) in
-          (* generate variable from it *)
-          let v,i = Res.get (res, name) in
-          (* assign generated variable in base *)
-          assign_id e v;
-          Some [string_of_int i]
-    in
-    let node = Option.get !MyCFG.current_node in
-    let fundec = MyCFG.getFun node in
-    let id = pname, fundec.svar.vname in
-    let extract_fun ?(info_args=[]) args =
-      let comment = if List.is_empty info_args then "" else " /* " ^ String.concat ", " info_args ^ " */" in (* append additional info as comment *)
-      let action = fname^"("^String.concat ", " args^");"^comment in
-      print_endline @@ "EXTRACT in "^pname^": "^action;
-      Pred.iter (fun pred -> add_edge id (pred, Sys action, MyCFG.getLoc node)) pred;
-      pid, ctx_hash, Pred.of_node node
-    in
-    match Pml.special_fun fname with
-      | None -> M.debug_each ("extract_osek: unhandled function "^fname); ctx.local
-      | Some eval_args ->
-        if M.tracing then M.trace "extract_osek" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
-        let rec combine_opt f a b = match a, b with
-          | [], [] -> []
-          | x::xs, y::ys -> (x,y) :: combine_opt f xs ys
-          | [], x::xs -> f None (Some x) :: combine_opt f [] xs
-          | x::xs, [] -> f (Some x) None :: combine_opt f xs []
+      let pid, ctx_hash, pred = ctx.local in
+      if Pid.is_bot pid || Ctx.is_bot ctx_hash || Pred.is_bot pred then ctx.local else
+        let pname = Pid.to_int pid |> Option.get |> Int64.to_int |> Pids.inv |> Option.get in
+        let fname = str_remove "LAP_Se_" f.vname in
+        let eval_int exp =
+          match ctx.ask (Queries.EvalInt exp) with
+          | `Int x -> [Int64.to_string x]
+          | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
-        (* combine list of eval rules with list of arguments, fill with Skip *)
-        let combine_skip a b = combine_opt (curry @@ function None, Some e -> Pml.EvalSkip, e | _, _ -> assert false) a b in
-        print_endline @@ String.concat "; " @@ List.map (fun (e,a) -> Pml.show_eval e^", "^sprint d_exp a) (combine_skip eval_args arglist);
-        let args_eval = List.filter_map (uncurry eval) @@ combine_skip eval_args arglist in
-        List.iter (fun args -> assert (args <> [])) args_eval; (* arguments that are not skipped always need to evaluate to at least one value *)
-        print_endline @@ "osek: FUN " ^ fname ^ " with args_eval " ^ String.concat "; " (List.map (String.concat ", ") args_eval);
-        let args_product = List.n_cartesian_product @@ args_eval in
-        print_endline @@ "osek: FUN " ^ fname ^ " with args_product " ^ String.concat "; " (List.map (String.concat ", ") args_product);
-        List.fold_left (fun d args ->
-          let str_args, args = List.partition (flip String.starts_with "\"") args in (* strings can't be arguments, but we want them as a comment *)
-          extract_fun ~info_args:str_args args
-        ) ctx.local args_product
+        let eval_str exp =
+          match ctx.ask (Queries.EvalStr exp) with
+          | `Str x -> [x]
+          | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp
+        in
+        let eval_id exp =
+          let module LS = Queries.LS in
+          match ctx.ask (Queries.MayPointTo exp) with
+          | `LvalSet x when not (LS.is_top x) ->
+            let top_elt = dummyFunDec.svar, `NoOffset in
+            if LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";
+            let xs = LS.remove top_elt x |> LS.elements in
+            List.map (fun (v,o) -> string_of_int (Res.i_by_v v)) xs
+          | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp
+        in
+        let assign_id exp id =
+          if M.tracing then M.trace "extract_osek" "assign_id %a %s\n" d_exp exp id.vname;
+          match exp with
+          | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
+          | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
+        in
+        (* evaluates an argument and returns a list of possible values for that argument. *)
+        let eval = function
+          | Pml.EvalSkip -> const None
+          | Pml.EvalInt -> fun e -> Some (try eval_int e with _ -> eval_id e)
+          | Pml.EvalString -> fun e -> Some (List.map (fun x -> "\""^x^"\"") (eval_str e))
+          | Pml.EvalEnum f -> fun e -> Some (List.map (fun x -> Option.get (f (int_of_string x))) (eval_int e))
+          | Pml.AssignIdOfString (res, pos) -> fun e ->
+            (* evaluate argument at i as string *)
+            let name = OList.hd @@ eval_str (OList.at arglist pos) in
+            (* generate variable from it *)
+            let v,i = Res.get (res, name) in
+            (* assign generated variable in base *)
+            assign_id e v;
+            Some [string_of_int i]
+        in
+        let node = Option.get !MyCFG.current_node in
+        let fundec = MyCFG.getFun node in
+        let id = pname, fundec.svar.vname in
+        let extract_fun ?(info_args=[]) args =
+          let comment = if List.is_empty info_args then "" else " /* " ^ String.concat ", " info_args ^ " */" in (* append additional info as comment *)
+          let action = fname^"("^String.concat ", " args^");"^comment in
+          print_endline @@ "EXTRACT in "^pname^": "^action;
+          Pred.iter (fun pred -> add_edge id (pred, Sys action, MyCFG.getLoc node)) pred;
+          pid, ctx_hash, Pred.of_node node
+        in
+        match Pml.special_fun fname with
+        | None -> M.debug_each ("extract_osek: unhandled function "^fname); ctx.local
+        | Some eval_args ->
+          if M.tracing then M.trace "extract_osek" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
+          let rec combine_opt f a b = match a, b with
+            | [], [] -> []
+            | x::xs, y::ys -> (x,y) :: combine_opt f xs ys
+            | [], x::xs -> f None (Some x) :: combine_opt f [] xs
+            | x::xs, [] -> f (Some x) None :: combine_opt f xs []
+          in
+          (* combine list of eval rules with list of arguments, fill with Skip *)
+          let combine_skip a b = combine_opt (curry @@ function None, Some e -> Pml.EvalSkip, e | _, _ -> assert false) a b in
+          print_endline @@ String.concat "; " @@ List.map (fun (e,a) -> Pml.show_eval e^", "^sprint d_exp a) (combine_skip eval_args arglist);
+          let args_eval = List.filter_map (uncurry eval) @@ combine_skip eval_args arglist in
+          List.iter (fun args -> assert (args <> [])) args_eval; (* arguments that are not skipped always need to evaluate to at least one value *)
+          print_endline @@ "osek: FUN " ^ fname ^ " with args_eval " ^ String.concat "; " (List.map (String.concat ", ") args_eval);
+          let args_product = List.n_cartesian_product @@ args_eval in
+          print_endline @@ "osek: FUN " ^ fname ^ " with args_product " ^ String.concat "; " (List.map (String.concat ", ") args_product);
+          List.fold_left (fun d args ->
+              let str_args, args = List.partition (flip String.starts_with "\"") args in (* strings can't be arguments, but we want them as a comment *)
+              extract_fun ~info_args:str_args args
+            ) ctx.local args_product
 
   let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main").svar)
   let otherstate v = D.bot ()

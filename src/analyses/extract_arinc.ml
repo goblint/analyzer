@@ -53,9 +53,9 @@ struct
     let h : (G.k, 'v) Hashtbl.t = Hashtbl.create 13
     let get k =
       Option.default_delayed (fun () ->
-        let v = List.length @@ List.of_enum @@ Hashtbl.keys h in
-        Hashtbl.replace h k v;
-        v) (Hashtbl.find h k)
+          let v = List.length @@ List.of_enum @@ Hashtbl.keys h in
+          Hashtbl.replace h k v;
+          v) (Hashtbl.find h k)
     let inv v = Hashtbl.enum h |> List.of_enum |> List.assoc_inv v
     let to_list () = Hashtbl.enum h |> List.of_enum
   end
@@ -77,11 +77,11 @@ struct
     let resources = Hashtbl.create 13
     let get (resource,name as k) =
       Option.default_delayed (fun () ->
-        let vname = resource^":"^name in
-        let v = makeGlobalVar vname voidPtrType in
-        let i = Hashtbl.keys resources |> List.of_enum |> List.filter (fun x -> fst x = resource) |> List.length in
-        Hashtbl.replace resources k (v,i);
-        v,i) (Hashtbl.find resources k)
+          let vname = resource^":"^name in
+          let v = makeGlobalVar vname voidPtrType in
+          let i = Hashtbl.keys resources |> List.of_enum |> List.filter (fun x -> fst x = resource) |> List.length in
+          Hashtbl.replace resources k (v,i);
+          v,i) (Hashtbl.find resources k)
     let inv_by f k =
       Hashtbl.filter (fun k' -> f k' = k) resources |> Hashtbl.keys |> Enum.get
     let inv_v = inv_by fst
@@ -244,131 +244,131 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     if not (String.starts_with f.vname "LAP_Se_") then ctx.local else
-    let pid, ctx_hash, pred = ctx.local in
-    if Pid.is_bot pid || Ctx.is_bot ctx_hash || Pred.is_bot pred then ctx.local else
-    let pname = Pid.to_int pid |> Option.get |> Int64.to_int |> Pids.inv |> Option.get in
-    let fname = str_remove "LAP_Se_" f.vname in
-    let eval_int exp =
-      match ctx.ask (Queries.EvalInt exp) with
-      | `Int x -> [Int64.to_string x]
-      | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
-    in
-    let eval_str exp =
-      match ctx.ask (Queries.EvalStr exp) with
-      | `Str x -> [x]
-      | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp
-    in
-    let eval_id exp =
-      let module LS = Queries.LS in
-      match ctx.ask (Queries.MayPointTo exp) with
-      | `LvalSet x when not (LS.is_top x) ->
-        let top_elt = dummyFunDec.svar, `NoOffset in
-        if LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";
-        let xs = LS.remove top_elt x |> LS.elements in
-        List.map (fun (v,o) -> string_of_int (Res.i_by_v v)) xs
-      | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp
-    in
-    let assign_id exp id =
-      if M.tracing then M.trace "extract_arinc" "assign_id %a %s\n" d_exp exp id.vname;
-      match exp with
-      | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
-      | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
-    in
-    (* evaluates an argument and returns a list of possible values for that argument. *)
-    let eval = function
-      | Pml.EvalSkip -> const None
-      | Pml.EvalInt -> fun e -> Some (try eval_int e with _ -> eval_id e)
-      | Pml.EvalString -> fun e -> Some (List.map (fun x -> "\""^x^"\"") (eval_str e))
-      | Pml.EvalEnum f -> fun e -> Some (List.map (fun x -> Option.get (f (int_of_string x))) (eval_int e))
-      | Pml.AssignIdOfString (res, pos) -> fun e ->
-          (* evaluate argument at i as string *)
-          let name = OList.hd @@ eval_str (OList.at arglist pos) in
-          (* generate variable from it *)
-          let v,i = Res.get (res, name) in
-          (* assign generated variable in base *)
-          assign_id e v;
-          Some [string_of_int i]
-    in
-    let node = Option.get !MyCFG.current_node in
-    let fundec = MyCFG.getFun node in
-    let id = pname, fundec.svar.vname in
-    let extract_fun ?(info_args=[]) args =
-      let comment = if List.is_empty info_args then "" else " /* " ^ String.concat ", " info_args ^ " */" in (* append additional info as comment *)
-      let action = fname^"("^String.concat ", " args^");"^comment in
-      print_endline @@ "EXTRACT in "^pname^": "^action;
-      Pred.iter (fun pred -> add_edge id (pred, Sys action, MyCFG.getLoc node)) pred;
-      pid, ctx_hash, Pred.of_node node
-    in
-    match fname, arglist with (* first some special cases *)
-    | "CreateProcess", [AddrOf attr; pid'; r] ->
-      let cm = match unrollType (typeOfLval attr) with
-        | TComp (c,_) -> c
-        | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
-      in
-      let struct_fail f x =
-        f @@ "LAP_Se_CreateProcess: problem with first argument: " ^
-              begin match x with
-                | `Field ofs -> "cannot access field " ^ ofs
-                | `Result (name, entry_point, pri, per, cap) ->
-                  "struct PROCESS_ATTRIBUTE_TYPE needs all of the following fields (with result): NAME ("^name^"), ENTRY_POINT ("^entry_point^"), BASE_PRIORITY ("^pri^"), PERIOD ("^per^"), TIME_CAPACITY ("^cap^")"
-              end ^ ". Running scrambled: "^string_of_bool Goblintutil.scrambled
-      in
-      let field ofs =
-        try Lval (addOffsetLval (Field (getCompField cm ofs, NoOffset)) attr)
-        with Not_found -> struct_fail failwith (`Field ofs)
-      in
-      let name = ctx.ask (Queries.EvalStr (field Goblintutil.arinc_name)) in
-      let entry_point = ctx.ask (Queries.ReachableFrom (AddrOf attr)) in
-      let pri  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_base_priority)) in
-      let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
-      let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
-      begin match name, entry_point, pri, per, cap with
-        | `Str name, `LvalSet ls, `Int pri, `Int per, `Int cap when not (Queries.LS.is_top ls)
-                                                                  && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-          let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
-          if M.tracing then M.tracel "extract_arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
-          let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
-          let f_d = Pid.of_int (Int64.of_int (Pids.get name)), Ctx.top (), Pred.of_node (MyCFG.Function f) in
-          List.iter (fun f -> Pfuns.add name f.vname) funs;
-          Prios.add name pri;
-          let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
-          ctx.sideg tasks_var tasks;
-          let v,i = Res.get ("process", name) in
-          assign_id pid' v;
-          List.fold_left (fun d f -> extract_fun ~info_args:[f.vname] [string_of_int i]) ctx.local funs
-        | _ -> let f = Queries.Result.short 30 in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local
-      end
-    | _ -> match Pml.special_fun fname with
-      | None -> M.debug_each ("extract_arinc: unhandled function "^fname); ctx.local
-      | Some eval_args ->
-        if M.tracing then M.trace "extract_arinc" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
-        let rec combine_opt f a b = match a, b with
-          | [], [] -> []
-          | x::xs, y::ys -> (x,y) :: combine_opt f xs ys
-          | [], x::xs -> f None (Some x) :: combine_opt f [] xs
-          | x::xs, [] -> f (Some x) None :: combine_opt f xs []
+      let pid, ctx_hash, pred = ctx.local in
+      if Pid.is_bot pid || Ctx.is_bot ctx_hash || Pred.is_bot pred then ctx.local else
+        let pname = Pid.to_int pid |> Option.get |> Int64.to_int |> Pids.inv |> Option.get in
+        let fname = str_remove "LAP_Se_" f.vname in
+        let eval_int exp =
+          match ctx.ask (Queries.EvalInt exp) with
+          | `Int x -> [Int64.to_string x]
+          | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
-        (* combine list of eval rules with list of arguments, fill with Skip *)
-        let combine_skip a b = combine_opt (curry @@ function None, Some e -> Pml.EvalSkip, e | _, _ -> assert false) a b in
-        print_endline @@ String.concat "; " @@ List.map (fun (e,a) -> Pml.show_eval e^", "^sprint d_exp a) (combine_skip eval_args arglist);
-        let args_eval = List.filter_map (uncurry eval) @@ combine_skip eval_args arglist in
-        List.iter (fun args -> assert (args <> [])) args_eval; (* arguments that are not skipped always need to evaluate to at least one value *)
-        print_endline @@ "arinc: FUN " ^ fname ^ " with args_eval " ^ String.concat "; " (List.map (String.concat ", ") args_eval);
-        let args_product = List.n_cartesian_product @@ args_eval in
-        print_endline @@ "arinc: FUN " ^ fname ^ " with args_product " ^ String.concat "; " (List.map (String.concat ", ") args_product);
-        List.fold_left (fun d args ->
-          (* some calls have side effects *)
-          begin match fname, args with
-            | "SetPartitionMode", "NORMAL"::_ ->
-              let tasks = ctx.global tasks_var in
-              ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
-              Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn (fst f) f_d) fs) tasks;
-            | "SetPartitionMode", x::_ -> failwith @@ "SetPartitionMode: arg "^x
-            | s, a -> print_endline @@ "arinc: FUN: "^s^"("^String.concat ", " a^")"
-          end;
-          let str_args, args = List.partition (flip String.starts_with "\"") args in (* strings can't be arguments, but we want them as a comment *)
-          extract_fun ~info_args:str_args args
-        ) ctx.local args_product
+        let eval_str exp =
+          match ctx.ask (Queries.EvalStr exp) with
+          | `Str x -> [x]
+          | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp
+        in
+        let eval_id exp =
+          let module LS = Queries.LS in
+          match ctx.ask (Queries.MayPointTo exp) with
+          | `LvalSet x when not (LS.is_top x) ->
+            let top_elt = dummyFunDec.svar, `NoOffset in
+            if LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";
+            let xs = LS.remove top_elt x |> LS.elements in
+            List.map (fun (v,o) -> string_of_int (Res.i_by_v v)) xs
+          | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp
+        in
+        let assign_id exp id =
+          if M.tracing then M.trace "extract_arinc" "assign_id %a %s\n" d_exp exp id.vname;
+          match exp with
+          | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
+          | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
+        in
+        (* evaluates an argument and returns a list of possible values for that argument. *)
+        let eval = function
+          | Pml.EvalSkip -> const None
+          | Pml.EvalInt -> fun e -> Some (try eval_int e with _ -> eval_id e)
+          | Pml.EvalString -> fun e -> Some (List.map (fun x -> "\""^x^"\"") (eval_str e))
+          | Pml.EvalEnum f -> fun e -> Some (List.map (fun x -> Option.get (f (int_of_string x))) (eval_int e))
+          | Pml.AssignIdOfString (res, pos) -> fun e ->
+            (* evaluate argument at i as string *)
+            let name = OList.hd @@ eval_str (OList.at arglist pos) in
+            (* generate variable from it *)
+            let v,i = Res.get (res, name) in
+            (* assign generated variable in base *)
+            assign_id e v;
+            Some [string_of_int i]
+        in
+        let node = Option.get !MyCFG.current_node in
+        let fundec = MyCFG.getFun node in
+        let id = pname, fundec.svar.vname in
+        let extract_fun ?(info_args=[]) args =
+          let comment = if List.is_empty info_args then "" else " /* " ^ String.concat ", " info_args ^ " */" in (* append additional info as comment *)
+          let action = fname^"("^String.concat ", " args^");"^comment in
+          print_endline @@ "EXTRACT in "^pname^": "^action;
+          Pred.iter (fun pred -> add_edge id (pred, Sys action, MyCFG.getLoc node)) pred;
+          pid, ctx_hash, Pred.of_node node
+        in
+        match fname, arglist with (* first some special cases *)
+        | "CreateProcess", [AddrOf attr; pid'; r] ->
+          let cm = match unrollType (typeOfLval attr) with
+            | TComp (c,_) -> c
+            | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
+          in
+          let struct_fail f x =
+            f @@ "LAP_Se_CreateProcess: problem with first argument: " ^
+                 begin match x with
+                   | `Field ofs -> "cannot access field " ^ ofs
+                   | `Result (name, entry_point, pri, per, cap) ->
+                     "struct PROCESS_ATTRIBUTE_TYPE needs all of the following fields (with result): NAME ("^name^"), ENTRY_POINT ("^entry_point^"), BASE_PRIORITY ("^pri^"), PERIOD ("^per^"), TIME_CAPACITY ("^cap^")"
+                 end ^ ". Running scrambled: "^string_of_bool Goblintutil.scrambled
+          in
+          let field ofs =
+            try Lval (addOffsetLval (Field (getCompField cm ofs, NoOffset)) attr)
+            with Not_found -> struct_fail failwith (`Field ofs)
+          in
+          let name = ctx.ask (Queries.EvalStr (field Goblintutil.arinc_name)) in
+          let entry_point = ctx.ask (Queries.ReachableFrom (AddrOf attr)) in
+          let pri  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_base_priority)) in
+          let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
+          let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
+          begin match name, entry_point, pri, per, cap with
+            | `Str name, `LvalSet ls, `Int pri, `Int per, `Int cap when not (Queries.LS.is_top ls)
+                                                                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+              let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
+              if M.tracing then M.tracel "extract_arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
+              let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
+              let f_d = Pid.of_int (Int64.of_int (Pids.get name)), Ctx.top (), Pred.of_node (MyCFG.Function f) in
+              List.iter (fun f -> Pfuns.add name f.vname) funs;
+              Prios.add name pri;
+              let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
+              ctx.sideg tasks_var tasks;
+              let v,i = Res.get ("process", name) in
+              assign_id pid' v;
+              List.fold_left (fun d f -> extract_fun ~info_args:[f.vname] [string_of_int i]) ctx.local funs
+            | _ -> let f = Queries.Result.short 30 in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local
+          end
+        | _ -> match Pml.special_fun fname with
+          | None -> M.debug_each ("extract_arinc: unhandled function "^fname); ctx.local
+          | Some eval_args ->
+            if M.tracing then M.trace "extract_arinc" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
+            let rec combine_opt f a b = match a, b with
+              | [], [] -> []
+              | x::xs, y::ys -> (x,y) :: combine_opt f xs ys
+              | [], x::xs -> f None (Some x) :: combine_opt f [] xs
+              | x::xs, [] -> f (Some x) None :: combine_opt f xs []
+            in
+            (* combine list of eval rules with list of arguments, fill with Skip *)
+            let combine_skip a b = combine_opt (curry @@ function None, Some e -> Pml.EvalSkip, e | _, _ -> assert false) a b in
+            print_endline @@ String.concat "; " @@ List.map (fun (e,a) -> Pml.show_eval e^", "^sprint d_exp a) (combine_skip eval_args arglist);
+            let args_eval = List.filter_map (uncurry eval) @@ combine_skip eval_args arglist in
+            List.iter (fun args -> assert (args <> [])) args_eval; (* arguments that are not skipped always need to evaluate to at least one value *)
+            print_endline @@ "arinc: FUN " ^ fname ^ " with args_eval " ^ String.concat "; " (List.map (String.concat ", ") args_eval);
+            let args_product = List.n_cartesian_product @@ args_eval in
+            print_endline @@ "arinc: FUN " ^ fname ^ " with args_product " ^ String.concat "; " (List.map (String.concat ", ") args_product);
+            List.fold_left (fun d args ->
+                (* some calls have side effects *)
+                begin match fname, args with
+                  | "SetPartitionMode", "NORMAL"::_ ->
+                    let tasks = ctx.global tasks_var in
+                    ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
+                    Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn (fst f) f_d) fs) tasks;
+                  | "SetPartitionMode", x::_ -> failwith @@ "SetPartitionMode: arg "^x
+                  | s, a -> print_endline @@ "arinc: FUN: "^s^"("^String.concat ", " a^")"
+                end;
+                let str_args, args = List.partition (flip String.starts_with "\"") args in (* strings can't be arguments, but we want them as a comment *)
+                extract_fun ~info_args:str_args args
+              ) ctx.local args_product
 
   let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main").svar)
   let otherstate v = D.bot ()
