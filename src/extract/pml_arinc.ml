@@ -81,7 +81,8 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
 
   (* preemption *)
   let mode,_ = var (Enum (COLD_START, show_partition_mode)) "mode" in
-  extract "LockPreemption" @@ A0 (Pml.do_;
+  extract "LockPreemption" @@ A0 (
+    Pml.do_;
     incr lock_level;
     exclusive := !tid; (* TODO is this really changed if lock_level > 0? if yes, it is probably also restored... *)
   );
@@ -93,28 +94,33 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
   );
 
   (* processes *)
-  extract "CreateProcess" @@ A1 (id(*; pri; per; cap]*), fun id -> Pml.do_;
+  extract "CreateProcess" @@ A1 (id(*; pri; per; cap]*), fun id ->
+    Pml.do_;
     _assert (!status !id == e NOTCREATED show_status);
     status := !id, e STOPPED show_status;
     waiting_for := !id, e NONE show_waiting_for;
     incr tasks_created;
   );
   (* CreateErrorHandler *)
-  extract "Start" @@ A1 (id, fun id -> Pml.do_;
+  extract "Start" @@ A1 (id, fun id ->
+    Pml.do_;
     _assert (!status !id != e NOTCREATED show_status);
     remove_waiting !id;
     status := !id, e READY show_status;
   );
-  extract "Stop" @@ A1 (id, fun id -> Pml.do_;
+  extract "Stop" @@ A1 (id, fun id ->
+    Pml.do_;
     _assert (!status !id != e NOTCREATED show_status);
     remove_waiting !id;
     status := !id, e STOPPED show_status;
   );
-  extract "Suspend" @@ A1 (id, fun id -> Pml.do_;
+  extract "Suspend" @@ A1 (id, fun id ->
+    Pml.do_;
     _assert (!status !id != e NOTCREATED show_status);
     status := !id, e SUSPENDED show_status;
   );
-  extract "Resume" @@ A1 (id, fun id -> Pml.do_;
+  extract "Resume" @@ A1 (id, fun id ->
+    Pml.do_;
     _assert (!status !id != e NOTCREATED show_status);
     _ift (!status !id == e SUSPENDED show_status) (
       _ifte (!waiting_for !id == e NONE show_waiting_for)
@@ -128,7 +134,8 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
   let cur,_   = var (Byte 0) "cur" in
   let max,_   = var (Byte 0) "max" in
   let queuing,_ = var (Enum (FIFO, show_queuing_discipline)) "queuing" in
-  extract "CreateSemaphore" ~id:(4,0,"sema") @@ A5 (name,cur,max,queuing,id, fun name cur max queuing id -> Pml.do_;
+  extract "CreateSemaphore" ~id:(4,0,"sema") @@ A5 (name,cur,max,queuing,id, fun name cur max queuing id ->
+    Pml.do_;
     println (s "CreateSemaphore: " ^ !name ^s ", "^ i2s !cur ^s ", "^ i2s !max ^s ", "^ e2s !queuing);
     _assert (!queuing == e FIFO show_queuing_discipline);
     semas := !id, !cur;

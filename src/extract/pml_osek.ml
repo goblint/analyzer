@@ -68,57 +68,71 @@ let init oil =
   (*extract "DeclareTask" @@ A1 (id, fun id -> Pml.do_;
     nop
   );*)
-  extract "ActivateTask" @@ A1 (id, fun id -> Pml.do_;
+  extract "ActivateTask" @@ A1 (id, fun id ->
+    Pml.do_;
     state := !id, (e READY show_state)
     (* TODO When an extended task is transferred from suspended state into ready state all its events are cleared. *)
   );
-  extract "TerminateTask" @@ A0 (Pml.do_;
+  extract "TerminateTask" @@ A0 (
+    Pml.do_;
     state := !tid, (e SUSPENDED show_state)
     (* TODO NON release internal resource *)
   );
-  extract "ChainTask" @@ A1 (id, fun id -> Pml.do_;
+  extract "ChainTask" @@ A1 (id, fun id ->
+    Pml.do_;
     state := !tid, (e SUSPENDED show_state);
     state := !id, (e READY show_state)
     (* TODO NON ensures that the succeeding task starts to run at the earliest?, release internal resource *)
   );
-  extract "Schedule" @@ A0 (Pml.do_;
+  extract "Schedule" @@ A0 (
+    Pml.do_;
     nop
     (* TODO NON release internal resource *)
   );
-  extract "GetTaskID" @@ A1 (id, fun id -> Pml.do_;
+  extract "GetTaskID" @@ A1 (id, fun id ->
+    Pml.do_;
     (* TODO ANA assign tid to id *)
     nop
   );
-  extract "GetTaskState" @@ A1 (id,(* state, *) fun id -> Pml.do_;
+  extract "GetTaskState" @@ A1 (id,(* state, *) fun id ->
+    Pml.do_;
     (* TODO ANA Returns the state of a task (running, ready, waiting, suspended) at the time of calling GetTaskState. *)
     nop
   );
 
   (* Interrupt handling *)
-  extract "EnableAllInterrupts" @@ A0 (Pml.do_;
+  extract "EnableAllInterrupts" @@ A0 (
+    Pml.do_;
     nop
   );
-  extract "DisableAllInterrupts" @@ A0 (Pml.do_;
+  extract "DisableAllInterrupts" @@ A0 (
+    Pml.do_;
     nop
   );
-  extract "ResumeAllInterrupts" @@ A0 (Pml.do_;
+  extract "ResumeAllInterrupts" @@ A0 (
+    Pml.do_;
     nop
   );
-  extract "SuspendAllInterrupts" @@ A0 (Pml.do_;
+  extract "SuspendAllInterrupts" @@ A0 (
+    Pml.do_;
     nop
   );
-  extract "ResumeOSInterrupts" @@ A0 (Pml.do_;
+  extract "ResumeOSInterrupts" @@ A0 (
+    Pml.do_;
     nop
   );
-  extract "SuspendOSInterrupts" @@ A0 (Pml.do_;
+  extract "SuspendOSInterrupts" @@ A0 (
+    Pml.do_;
     nop
   );
 
   (* Resource management *)
-  (*extract "DeclareResource" @@ A1 (id, fun id -> Pml.do_;
+  (*extract "DeclareResource" @@ A1 (id, fun id ->
+    Pml.do_;
     nop
   );*)
-  extract "GetResource" @@ A1 (id, fun id -> Pml.do_;
+  extract "GetResource" @@ A1 (id, fun id ->
+    Pml.do_;
     let id = !id in
     let resource = !resources id in
     let chan = !resources_chan id in
@@ -137,7 +151,8 @@ let init oil =
         fail (s "GetResource: count<0: "^resource_info id)
     ]
   );
-  extract "ReleaseResource" @@ A1 (id, fun id -> Pml.do_;
+  extract "ReleaseResource" @@ A1 (id, fun id ->
+    Pml.do_;
     let id = !id in
     let resource = !resources id in
     let chan = !resources_chan id in
@@ -162,13 +177,16 @@ let init oil =
 
   (* Event control *)
   let mask,_ = var (Byte 0) "mask" in  
-  (*extract "DeclareEvent" @@ A1 (id, fun id -> Pml.do_;
+  (*extract "DeclareEvent" @@ A1 (id, fun id ->
+    Pml.do_;
     nop
   );*)
-  extract "SetEvent" @@ A2 (id, mask, fun id mask -> Pml.do_;
+  extract "SetEvent" @@ A2 (id, mask, fun id mask ->
+    Pml.do_;
     events := !id, !mask
   );
-  extract "ClearEvent" @@ A1 (mask, fun mask -> Pml.do_;
+  extract "ClearEvent" @@ A1 (mask, fun mask ->
+    Pml.do_;
     (*events := !id, mask*)
     let id = !tid in
     let event = !events id in
@@ -191,11 +209,13 @@ let init oil =
         )
     ]
   );
-  extract "GetEvent" @@ A2 (id, mask, fun id mask -> Pml.do_;
+  extract "GetEvent" @@ A2 (id, mask, fun id mask ->
+    Pml.do_;
     (* TODO ANA? *)
     !events !id
   );
-  extract "WaitEvent" @@ A1 (mask, fun mask -> Pml.do_;
+  extract "WaitEvent" @@ A1 (mask, fun mask ->
+    Pml.do_;
     let id = !id in
     let resource = !resources id in
     let chan = !resources_chan id in
@@ -216,26 +236,32 @@ let init oil =
   );
 
   (* Alarms *)
-  (*extract "DeclareAlarm" @@ A1 (id, fun id -> Pml.do_;
+  (*extract "DeclareAlarm" @@ A1 (id, fun id ->
+    Pml.do_;
     nop
   );*)
-  extract "GetAlarmBase" @@ A1 (id,(* info, *) fun id -> Pml.do_;
+  extract "GetAlarmBase" @@ A1 (id,(* info, *) fun id ->
+    Pml.do_;
     (* TODO ANA *)
     nop
   );
-  extract "GetAlarm" @@ A1 (id,(* tick, *) fun id -> Pml.do_;
+  extract "GetAlarm" @@ A1 (id,(* tick, *) fun id ->
+    Pml.do_;
     (* TODO ANA *)
     nop
   );
-  extract "SetRelAlarm" @@ A1 (id,(* increment, cycle, *) fun id -> Pml.do_;
+  extract "SetRelAlarm" @@ A1 (id,(* increment, cycle, *) fun id ->
+    Pml.do_;
     (* TODO *)
     nop
   );
-  extract "SetAbsAlarm" @@ A1 (id,(* start, cycle, *) fun id -> Pml.do_;
+  extract "SetAbsAlarm" @@ A1 (id,(* start, cycle, *) fun id ->
+    Pml.do_;
     (* TODO *)
     nop
   );
-  extract "CancelAlarm" @@ A1 (id, fun id -> Pml.do_;
+  extract "CancelAlarm" @@ A1 (id, fun id ->
+    Pml.do_;
     (* TODO *)
     nop
   );
