@@ -1300,6 +1300,7 @@ struct
     let fundec = Cilfacade.getdec fn in
     (* If we need the globals, add them *)
     let new_cpa = if not (!GU.earlyglobs || Flag.is_multi fl) then CPA.filter_class 2 cpa else CPA.filter (fun k v -> V.is_global k && is_private ctx.ask ctx.local k) cpa in
+    let new_cpa = if List.mem fn.vname (List.map Json.string (get_list "ana.ctx_insens_funs")) then CPA.bot () else new_cpa in (* this way globals will be bot inside the function :/ *)
     (* Assign parameters to arguments *)
     let pa = zip fundec.sformals vals in
     let new_cpa = CPA.add_list pa new_cpa in
