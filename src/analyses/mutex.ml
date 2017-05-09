@@ -252,8 +252,11 @@ struct
         | Some fnc -> (fnc act arglist)
         | _ -> arglist
       in
-      List.iter (access_one_top ctx false false) (arg_acc `Read);
+      List.iter (access_one_top ctx false true) (arg_acc `Read);
       List.iter (access_one_top ctx true  true ) (arg_acc `Write);
+      (match lv with
+      | Some x -> access_one_top ctx true false (AddrOf x)
+      | None -> ());
       ctx.local
 
   let enter ctx lv f args : (D.t * D.t) list =
@@ -263,7 +266,7 @@ struct
     access_one_top ctx false false fexp;
     begin match lv with
       | None      -> ()
-      | Some lval -> access_one_top ctx true false (Lval lval)
+      | Some lval -> access_one_top ctx true false (AddrOf lval)
     end;
     List.iter (access_one_top ctx false false) args;
     al
