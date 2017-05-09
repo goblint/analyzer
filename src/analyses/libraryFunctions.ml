@@ -375,7 +375,7 @@ let invalidate_actions = ref [
     "dev_driver_string", readsAll;
     "__spin_lock_init", writes [1];
     "kmem_cache_create", readsAll;
-    "pthread_create", writes [1];
+    "pthread_create", onlyWrites [1];
     "__builtin_prefetch", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5]
