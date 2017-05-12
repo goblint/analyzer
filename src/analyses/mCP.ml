@@ -511,10 +511,30 @@ struct
       else
         MayPointTo (mkAddrOf (Mem e,NoOffset))
     in
+    (* The following function adds accesses to the lval-set ls
+       -- this is the common case if we have a sound points-to set. *)
+    let on_lvals ls includes_uk =
+      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
+      let conf = if reach then conf - 20 else conf in
+      let conf = if includes_uk then conf - 10 else conf in
+      let f (var, offs) =
+        let coffs = Lval.CilLval.to_ciloffs offs in
+        if var.vid = dummyFunDec.svar.vid then
+          add_access conf None (Some coffs)
+        else
+          add_access conf (Some var) (Some coffs)
+      in
+      LS.iter f ls
+    in
     match ctx.ask reach_or_mpt with
     | `Bot -> ()
-    | `LvalSet ls when not (LS.is_top ls) ->
+    | `LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
+      (* the case where the points-to set is non top and does not contain unknown values *)
+      on_lvals ls false
+    | `LvalSet ls when not (LS.is_top ls) ->      
+      (* the case where the points-to set is non top and contains unknown values *)
       let includes_uk = ref false in
+      (* now we need to access all fields that might be pointed to: is this correct? *)
       begin match ctx.ask (ReachableUkTypes (mkAddrOf (Mem e,NoOffset))) with
         | `Bot -> ()
         | `TypeSet ts when Queries.TS.is_top ts ->
@@ -530,21 +550,9 @@ struct
           Queries.TS.iter f ts
         | _ ->
           includes_uk := true
-          (* add_access None None *)
       end;
-      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
-      let conf = if reach then conf - 20 else conf in
-      let conf = if !includes_uk then conf - 10 else conf in
-      let f (var, offs) =
-        let coffs = Lval.CilLval.to_ciloffs offs in
-        if var.vid = dummyFunDec.svar.vid then
-          add_access conf None (Some coffs)
-        else
-          add_access conf (Some var) (Some coffs)
-      in
-      (* printf "accessable set of %a = %a\n" d_exp e LS.pretty ls; *)
-      LS.iter f ls
-    | _ ->
+      on_lvals ls !includes_uk
+    | _ -> 
       add_access (conf - 60) None None
 
   let assign (ctx:(D.t, G.t) ctx) l e =
