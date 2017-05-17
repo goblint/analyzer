@@ -1,6 +1,6 @@
 #!/bin/bash
-VERSION=$(git describe --tags --dirty 2> /dev/null | sed s/^v//)
-CILVERSION=$(git --git-dir=../cil/.git describe --tags 2> /dev/null | sed s/^cil-//)
+VERSION=$(git describe --tags --dirty 2> /dev/null | sed s@^v@@)
+CILVERSION=$(git --git-dir=../cil/.git describe --tags 2> /dev/null | sed s@^cil-@@)
 
 if [ ! -f src/version.ml ]; then
   {
@@ -23,10 +23,10 @@ fi
 
 if [ "$VERSION" ]; then
   grep -q "goblint = \"$VERSION\"" src/version.ml 2> /dev/null ||
-    (sed "s/goblint = .*/goblint = \"$VERSION\"/" src/version.ml > src/version.tmp && mv src/version.tmp src/version.ml)
+    (sed "s@goblint = .*@goblint = \"$VERSION\"@" src/version.ml > src/version.tmp && mv src/version.tmp src/version.ml)
 fi
 
 if [ "$CILVERSION" ]; then
   grep -q "cil = \"$CILVERSION\"" src/version.ml 2> /dev/null ||
-    (sed "s/cil = .*/cil = \"$CILVERSION\"/" src/version.ml > src/version.tmp && mv src/version.tmp src/version.ml)
+    (sed "s@cil = .*@cil = \"$CILVERSION\"@" src/version.ml > src/version.tmp && mv src/version.tmp src/version.ml)
 fi
