@@ -797,6 +797,37 @@ struct
     GH.iter f g1;
     Printf.printf "globals: eq=%d\t%s=%d\t%s=%d\tuk=%d\n" !eq (get_string "solver") !le (get_string "comparesolver") !gr !uk
 
+  let compare_locals_ctx h1 h2 =
+    let eq, le, gr, uk, n2 = ref 0, ref 0, ref 0, ref 0, ref 0 in
+    let f_eq () = incr eq in
+    let f_le () = incr le in
+    let f_gr () = incr gr in
+    let f_uk () = incr uk in
+    let f k v1 =
+      if not (LH.mem h2 k) then incr n2 else
+      let v2 = LH.find h2 k in
+      let b1 = D.leq v1 v2 in
+      let b2 = D.leq v2 v1 in
+      if b1 && b2 then
+        f_eq ()
+      else if b1 then begin
+        (* if get_bool "solverdiffs" then *)
+        (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "solver") D.pretty_diff (v1,v2)); *)
+        f_le ()
+      end else if b2 then begin
+        (* if get_bool "solverdiffs" then *)
+        (*   ignore (Pretty.printf "%a @@ %a is more precise using %s:\n%a\n" pretty_node k d_loc (getLoc k) (get_string "comparesolver") D.pretty_diff (v1,v2)); *)
+        f_gr ()
+      end else
+        f_uk ()
+    in
+    LH.iter f h1;
+    (* let k1 = Set.of_enum @@ PP.keys h1 in *)
+    (* let k2 = Set.of_enum @@ PP.keys h2 in *)
+    (* let o1 = Set.cardinal @@ Set.diff k1 k2 in *)
+    (* let o2 = Set.cardinal @@ Set.diff k2 k1 in *)
+    Printf.printf "locals_ctx:  eq=%d\t%s=%d\t\t%s=%d\tuk=%d\tn2=%d\n" !eq (get_string "solver") !le (get_string "comparesolver") !gr !uk !n2
+
   let compare (l1,g1) (l2,g2) =
     let one_ctx (n,_) v h =
       PP.replace h n (try D.join v (PP.find h n) with Not_found -> v);
@@ -807,7 +838,8 @@ struct
     let _  = LH.fold one_ctx l1 h1 in
     let _  = LH.fold one_ctx l2 h2 in
     compare_locals h1 h2;
-    compare_globals g1 g2
+    compare_globals g1 g2;
+    compare_locals_ctx l1 l2
 
 end
 
