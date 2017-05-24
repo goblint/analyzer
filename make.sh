@@ -16,7 +16,7 @@ ocb() {
 opam_build() {
   eval `opam config env`
   opam update
-  opam install ocamlfind batteries xml-light ppx_distr_guards ppx_monadic ppx_import ppx_deriving_yojson
+  opam install ocamlfind batteries xml-light ppx_distr_guards ppx_monadic ppx_import ppx_deriving_yojson camlp4 mongo # camlp4 needed for mongo
   # opam's cil is too old
   opam pin -y add cil "https://github.com/goblint/cil.git"
   # unpin once deriving show with_path is available in opam version
