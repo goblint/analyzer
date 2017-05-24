@@ -62,7 +62,7 @@ struct
     | `Blob of Blobs.t
     | `List of Lists.t
     | `Bot
-  ]
+  ] [@@deriving to_yojson]
 
   module B = Blob (Compound)
 

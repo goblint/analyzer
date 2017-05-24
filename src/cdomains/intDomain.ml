@@ -102,7 +102,7 @@ module Interval32 : S with type t = (int64 * int64) option = (* signed 32bit int
 struct
   open Int64
 
-  type t = (int64 * int64) option
+  type t = (int64 * int64) option [@@deriving to_yojson]
 
   let min_int, max_int = Size.range Cil.IInt (* TODO this currently depends on the machine Cil was compiled on... *)
 
@@ -334,7 +334,7 @@ struct
   include Printable.Std
   include Lattice.StdCousot
   let name () = "integers"
-  type t = int64
+  type t = int64 [@@deriving to_yojson]
   let hash (x:t) = ((Int64.to_int x) - 787) * 17
   let equal (x:t) (y:t) = x=y
   let copy x = x
@@ -571,7 +571,7 @@ struct
     | `Excluded of S.t * R.t
     | `Definite of Integers.t
     | `Bot
-  ]
+  ] [@@deriving to_yojson]
 
   let hash (x:t) =
     match x with
@@ -819,6 +819,8 @@ struct
   module I = CBigInt
   module C = CircularBigInt
   type t = I.t interval
+
+  let to_yojson _ = failwith "TODO to_yojson"
 
   let max_width = 64
   let size t = Size.bit t
@@ -1116,7 +1118,7 @@ module MakeBooleans (N: BooleansNames) =
 struct
   include Printable.Std
   include Lattice.StdCousot
-  type t = bool
+  type t = bool [@@deriving to_yojson]
   let hash = function true -> 51534333 | _ -> 561123444
   let equal (x:t) (y:t) = x=y
   let name () = "booleans"
@@ -1190,7 +1192,7 @@ module Enums : S = struct
   module R = Interval32 (* range for exclusion *)
   let size t = R.of_interval (Size.bits_i64 t)
   type e = I.t
-  type t = Neg of e list * R.t | Pos of e list
+  and t = Neg of e list * R.t | Pos of e list [@@deriving to_yojson]
 
   let name () = "enums"
 
@@ -1370,7 +1372,7 @@ module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate
   module I2 = Interval32
   module I3 = CircInterval
   module I4 = Enums
-  type t = I1.t option * I2.t option * I3.t option * I4.t option
+  type t = I1.t option * I2.t option * I3.t option * I4.t option [@@deriving to_yojson]
 
   type 'a m = (module S with type t = 'a)
   (* only first-order polymorphism on functions -> use records to get around monomorphism restriction on arguments *)

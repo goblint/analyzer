@@ -247,6 +247,17 @@ struct
     in
     iter print_one xs
 
+  let printJson f xs =
+    let print_id f = function
+      | MyCFG.Statement stmt  -> BatPrintf.fprintf f "%d" stmt.sid
+      | MyCFG.Function g      -> BatPrintf.fprintf f "ret%d" g.vid
+      | MyCFG.FunctionEntry g -> BatPrintf.fprintf f "fun%d" g.vid
+    in
+    let print_one (loc,n,fd) v =
+      BatPrintf.fprintf f "{\n\"id\": \"%a\", \"file\": \"%s\", \"line\": \"%d\", \"byte\": \"%d\", \"states\": %s\n},\n" print_id n loc.file loc.line loc.byte (Yojson.Safe.to_string (Range.to_yojson v))
+    in
+    iter print_one xs
+
   let printXmlWarning f () =
     let one_text f (m,l) =
       BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line (GU.escape m)
@@ -322,6 +333,42 @@ struct
         printXmlWarning f ();
         BatPrintf.fprintf f "</result></run>\n";
         BatPrintf.fprintf f "%!"
+      in
+      if get_bool "g2html" then
+        BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
+      else
+        let f = BatIO.output_channel out in
+        write_file f (get_string "outfile")
+    | "json" ->
+      let open BatPrintf in
+      let module SH = BatHashtbl.Make (Basetype.RawStrings) in
+      let file2funs = SH.create 100 in
+      let funs2node = SH.create 100 in
+      iter (fun (_,n,_) _ -> SH.add funs2node (MyCFG.getFun n).svar.vname n) (Lazy.force table);
+      iterGlobals file (function
+          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
+          | _ -> ()
+        );
+      let p_enum p f xs = BatEnum.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
+      let p_list p f xs = BatList.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
+      (*let p_kv f (k,p,v) = fprintf f "\"%s\": %a" k p v in*)
+      (*let p_obj f xs = BatList.print ~first:"{\n  " ~last:"\n}" ~sep:",\n  " p_kv xs in*)
+      let p_node f = function
+        | MyCFG.Statement stmt  -> fprintf f "\"%d\"" stmt.sid
+        | MyCFG.Function g      -> fprintf f "\"ret%d\"" g.vid
+        | MyCFG.FunctionEntry g -> fprintf f "\"fun%d\"" g.vid
+      in
+      let p_fun f x = fprintf f "{\n  \"name: \"%s\",\n  \"nodes\": %a\n}" x (p_list p_node) (SH.find_all funs2node x) in
+      (*let p_fun f x = p_obj f [ "name", BatString.print, x; "nodes", p_list p_node, SH.find_all funs2node x ] in*)
+      let p_file f x = fprintf f "{\n  \"name\": \"%s\",\n  \"path\": \"%s\",\n  \"functions\": %a\n}" (Filename.basename x) x (p_list p_fun) (SH.find_all file2funs x) in
+      let write_file f fn =
+        printf "Writing json to temp. file: %s\n%!" fn;
+        fprintf f "{\n  \"parameters\": \"%a\",\n  " (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+        fprintf f "\"files\": %a,\n  " (p_enum p_file) (SH.keys file2funs);
+        fprintf f "\"results\": [\n  %a\n]\n" printJson (Lazy.force table);
+        (*gtfxml f gtable;*)
+        (*printXmlWarning f ();*)
+        fprintf f "}\n";
       in
       if get_bool "g2html" then
         BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file

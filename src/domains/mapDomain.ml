@@ -51,11 +51,15 @@ end
 
 module PMap (Domain: Groupable) (Range: Lattice.S) =
 struct
-  module M = Map.Make (Domain)
+  module M = struct
+    include Map.Make (Domain)
+    let to_yojson poly_v x = [%to_yojson: (Domain.t * 'v) list] (bindings x) (* TODO pull this into Prelude *)
+  end
+
   include Printable.Std
   type key = Domain.t
   type value = Range.t
-  type t = Range.t M.t  (* key -> value  mapping *)
+  type t = Range.t M.t [@@deriving to_yojson] (* key -> value  mapping *)
   let trace_enabled = Domain.trace_enabled
 
   (* And some braindead definitions, because I would want to do

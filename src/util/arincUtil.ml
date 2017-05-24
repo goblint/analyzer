@@ -1,6 +1,6 @@
 open Prelude
 open Cil
-open Ppx.Deriving.Cil
+open Deriving.Cil
 (* we don't want to use M.debug_each because everything here should be done after the analysis, so the location would be some old value for all invocations *)
 let debug_each msg = print_endline @@ Messages.colorize @@ "{blue}"^msg
 

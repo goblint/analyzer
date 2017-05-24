@@ -1,6 +1,7 @@
 (** Structures for the querying subsystem. *)
 
 open Cil
+open Deriving.Cil
 open Pretty
 
 module GU = Goblintutil
@@ -43,6 +44,7 @@ type t = ExpEq of exp * exp
        | CondVars of exp
        | Access of exp * bool * bool * int
        | TheAnswerToLifeUniverseAndEverything
+[@@deriving to_yojson]
 
 type result = [
   | `Top
@@ -54,14 +56,14 @@ type result = [
   | `ExpTriples of PS.t
   | `TypeSet of TS.t
   | `Bot
-]
+] [@@deriving to_yojson]
 
 type ask = t -> result
 
 module Result: Lattice.S with type t = result =
 struct
   include Printable.Std
-  type t = result
+  type t = result [@@deriving to_yojson]
 
   let name () = "query result domain"
 

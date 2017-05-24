@@ -109,6 +109,7 @@ struct
     let all_elems : string list = List.map (Base.short usable_length) (elements x) in
     Printable.get_short_list "{" "}" usable_length all_elems
 
+  let to_yojson x = [%to_yojson: Base.t list] (elements x)
 
   let toXML_f sf x =
     let esc = Goblintutil.escape in
@@ -212,7 +213,7 @@ struct
   module S = Make (Base)
   include Printable.Blank
   include Lattice.StdCousot
-  type t = All | Set of S.t
+  type t = All | Set of S.t [@@deriving to_yojson]
   type elt = Base.t
 
   let hash = function

@@ -91,6 +91,10 @@ struct
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.short w2 (obj x) :: a) [] x in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs
 
+  let to_yojson x =
+    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
+    [%to_yojson: Printable.json list] xs
+
   let pretty = pretty_f short
 
   let binop_fold f a (x:t) (y:t) =

@@ -3,7 +3,8 @@ open BatteriesExceptionless
 (* enums *)
 type state = SUSPENDED | WAITING | READY
 and waiting_for = NONE | EVENT | RESOURCE
-[@@deriving show { with_path = false }, enum]
+(*[@@deriving show { with_path = false }, enum]*)
+[@@deriving show, enum]
 
 let init oil =
   (*let has_resources = Hashtbl.length OilUtil.resources > 0 in  *)

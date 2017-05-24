@@ -3,6 +3,7 @@
 module GU = Goblintutil
 module CF = Cilfacade
 open Cil
+open Deriving.Cil
 open Pretty
 open GobConfig
 
@@ -18,6 +19,7 @@ type node =
   (** *)
   | Function of varinfo
   (** The variable information associated with the function declaration. *)
+[@@deriving to_yojson]
 
 let write_cfgs : ((node -> bool) -> unit) ref = ref (fun _ -> ())
 

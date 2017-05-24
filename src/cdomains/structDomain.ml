@@ -18,7 +18,7 @@ struct
   include Printable.Std
   module M = MapDomain.MapTop (Basetype.CilField) (Val)
   let name () = "simple structs"
-  type t = M.t
+  type t = M.t [@@deriving to_yojson]
   type field = fieldinfo
   type value = M.value
 

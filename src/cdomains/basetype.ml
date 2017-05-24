@@ -1,11 +1,12 @@
 module GU = Goblintutil
 open Cil
+open Deriving.Cil
 open Pretty
 
 module ProgLines : Printable.S with type t = location =
 struct
   include Printable.Std
-  type t = location
+  type t = location [@@deriving to_yojson]
   let isSimple _  = true
   let copy x = x
   let equal x y =
@@ -25,7 +26,7 @@ end
 module ProgLocation : Printable.S with type t = location =
 struct
   open Pretty
-  type t = location
+  type t = location [@@deriving to_yojson]
   let isSimple _  = true
   let equal = (=)
   let compare = compare
@@ -47,7 +48,7 @@ end
 module ProgLinesFun: Printable.S with type t = location * MyCFG.node * fundec =
 struct
   include Printable.Std
-  type t = location * MyCFG.node * fundec
+  type t = location * MyCFG.node * fundec [@@deriving to_yojson]
   let isSimple _  = true
   let copy x = x
   let equal (x,a,_) (y,b,_) = ProgLines.equal x y && MyCFG.Node.equal a b
@@ -75,7 +76,7 @@ end
 module Variables =
 struct
   include Printable.Std
-  type t = varinfo
+  type t = varinfo [@@deriving to_yojson]
   let trace_enabled = true
   let isSimple _  = true
   let is_global v = v.vglob
@@ -165,7 +166,7 @@ module RawStrings: Printable.S with type t = string =
 struct
   include Printable.Std
   open Pretty
-  type t = string
+  type t = string [@@deriving to_yojson]
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
   let isSimple _ = true
@@ -190,7 +191,7 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
 module CilExp =
 struct
   include Printable.Std
-  type t = exp
+  type t = exp [@@deriving to_yojson]
   let isSimple _  = true
   let copy x = x
   let compare x y = Pervasives.compare x y
@@ -252,7 +253,7 @@ end
 module CilStmt: Printable.S with type t = stmt =
 struct
   include Printable.Std
-  type t = stmt
+  type t = stmt [@@deriving to_yojson]
   let isSimple _  = false
   let copy x = x
   let compare x y = compare x.sid y.sid
@@ -279,7 +280,7 @@ struct
   include Printable.Std
   let isSimple _  = false
   let copy x = x
-  type t = varinfo
+  type t = varinfo [@@deriving to_yojson]
   let compare x y = compare x.vid y.vid
   let equal x y = x.vid = y.vid
   let hash x = Hashtbl.hash x.vid
@@ -299,7 +300,7 @@ struct
   include Printable.Std
   let isSimple _  = false
   let copy x = x
-  type t = fundec
+  type t = fundec [@@deriving to_yojson]
   let compare x y = compare x.svar.vid y.svar.vid
   let equal x y = x.svar.vid = y.svar.vid
   let hash x = x.svar.vid * 3
@@ -319,7 +320,7 @@ struct
   include Printable.Std
   let isSimple _  = true
   let copy x = x
-  type t = fieldinfo
+  type t = fieldinfo [@@deriving to_yojson]
   let compare x y = compare x.fname y.fname
   let equal x y = x.fname = y.fname
   let hash x = Hashtbl.hash x.fname
@@ -341,7 +342,7 @@ module FieldVariables =
 struct
   include Printable.Std
 
-  type t = varinfo*fieldinfo option
+  type t = varinfo*fieldinfo option [@@deriving to_yojson]
 
   let gen v = (v,None)
   let gen_f v f = (v,Some f)
@@ -411,7 +412,7 @@ module CilType =
 struct
   include Printable.Std
   let isSimple _  = true
-  type t = typ
+  type t = typ [@@deriving to_yojson]
   let compare x y = Pervasives.compare x y
   let equal x y = Util.equals x y
   let hash (x:typ) = Hashtbl.hash x

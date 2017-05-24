@@ -6,7 +6,8 @@ and partition_mode = IDLE | COLD_START | WARM_START | NORMAL
 and status = NOTCREATED | STOPPED | SUSPENDED | WAITING | READY | DONE
 and waiting_for = NONE | BLACKBOARD | SEMA | EVENT | TIME
 and queuing_discipline = FIFO | PRIO
-[@@deriving show { with_path = false }, enum]
+(*[@@deriving show { with_path = false }, enum]*)
+[@@deriving show, enum]
 
 let extract_types = ["t123"] (* TODO extract variables of a certain type *)
 

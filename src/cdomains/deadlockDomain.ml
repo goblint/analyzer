@@ -1,13 +1,14 @@
 open Cil
+open Deriving.Cil
 open Pretty
 open Printf
 
-type myowntypeEntry = {addr : ValueDomain.Addr.t ; loc : location}
+type myowntypeEntry = {addr : ValueDomain.Addr.t ; loc : location} [@@deriving to_yojson]
 
 
 module MyLock : Printable.S with type t = myowntypeEntry =
 struct
-  type t = myowntypeEntry
+  type t = myowntypeEntry [@@deriving to_yojson]
   module Ad = ValueDomain.Addr
   let name () = "address with location"
   let equal x y = Ad.equal x.addr y.addr

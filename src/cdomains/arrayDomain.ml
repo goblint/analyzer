@@ -69,7 +69,7 @@ struct
   include Lattice.StdCousot
   type idx = Idx.t
   type value = Base.t
-  type t = value array
+  and t = value array [@@deriving to_yojson]
 
   let name () = "native arrays"
   let hash = Hashtbl.hash

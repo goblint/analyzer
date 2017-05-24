@@ -1,4 +1,5 @@
 open Cil
+open Deriving.Cil
 open Pretty
 
 module GU = Goblintutil
@@ -7,14 +8,14 @@ type ('a, 'b) offs = [
   | `NoOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
-]
+] [@@deriving to_yojson]
 
 type ('a,'b) offs_uk = [
   | `NoOffset
   | `UnknownOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
-]
+] [@@deriving to_yojson]
 
 
 let rec listify ofs =
@@ -25,7 +26,7 @@ let rec listify ofs =
 
 module Offset (Idx: IntDomain.S) =
 struct
-  type t = Offs of ((fieldinfo, Idx.t) offs) | Bot
+  type t = Offs of ((fieldinfo, Idx.t) offs) | Bot [@@deriving to_yojson]
   include Printable.Std
   include Lattice.StdCousot
 
@@ -248,9 +249,9 @@ end
 
 module Normal (Idx: IntDomain.S) =
 struct
-  type field = fieldinfo
-  type idx = Idx.t
-  type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | SafePtr | UnknownPtr | Top | Bot
+  type field = fieldinfo [@@deriving to_yojson]
+  type idx = Idx.t [@@deriving to_yojson]
+  type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | SafePtr | UnknownPtr | Top | Bot [@@deriving to_yojson]
   include Printable.Std
   let name () = "Normal Lvals"
 
@@ -684,7 +685,7 @@ end
 module CilLval =
 struct
   include Printable.Std
-  type t = varinfo * (fieldinfo, exp) offs
+  type t = varinfo * (fieldinfo, exp) offs [@@deriving to_yojson]
 
   let equal  (x1,o1) (x2,o2) =
     let rec eq a b =

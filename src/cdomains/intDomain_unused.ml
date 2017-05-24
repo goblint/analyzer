@@ -1,3 +1,4 @@
+(*
 open GobConfig
 open Pretty
 include IntDomain
@@ -1425,3 +1426,4 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
 end
+*)

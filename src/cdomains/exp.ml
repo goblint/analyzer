@@ -1,9 +1,10 @@
 open Pretty
 open Cil
+open Deriving.Cil
 
 module Exp =
 struct
-  type t = exp
+  type t = exp [@@deriving to_yojson]
   include Printable.Std
 
   let equal = Expcompare.compareExp
@@ -270,7 +271,7 @@ end
 module LockingPattern =
 struct
   include Printable.Std
-  type t = Exp.t * Exp.t * Exp.t
+  type t = Exp.t * Exp.t * Exp.t [@@deriving to_yojson]
 
   let equal = Util.equals
   let hash = Hashtbl.hash

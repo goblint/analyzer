@@ -72,6 +72,8 @@ struct
   type r = { key: k; loc: location list; state: s }
   type t = r Set.t * r Set.t (* must, may *)
 
+  let to_yojson _ = failwith "TODO to_yojson"
+
   include Printable.Std
   include Lattice.StdCousot
 

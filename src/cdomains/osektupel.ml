@@ -1,5 +1,5 @@
 type t' = Val of int | Bot
-type t = t' * t' * t'* t'
+and t = t' * t' * t'* t' [@@deriving to_yojson]
 
 include Printable.Blank
 include Lattice.StdCousot

@@ -22,7 +22,7 @@ let is_ignorable = function
 module Ident : Printable.S with type t = string =
 struct
   open Pretty
-  type t = string
+  type t = string [@@deriving to_yojson]
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
   let compare (x:t) (y:t) = compare x y

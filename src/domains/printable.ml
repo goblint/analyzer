@@ -2,6 +2,9 @@
 
 open Pretty
 
+type json = Yojson.Safe.json
+let json_to_yojson x = x
+
 module type S =
 sig
   type t
@@ -20,6 +23,7 @@ sig
   val printXml : 'a BatInnerIO.output -> t -> unit
   (* This is for debugging *)
   val name: unit -> string
+  val to_yojson : t -> json
 end
 
 module Std =
@@ -71,7 +75,7 @@ end
 module type Name = sig val name: string end
 module UnitConf (N: Name) =
 struct
-  type t = unit
+  type t = unit [@@deriving yojson]
   include Std
   let hash () = 7134679
   let equal _ _ = true
@@ -115,6 +119,7 @@ struct
   let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
   let compare x y =  Pervasives.compare x.BatHashcons.tag y.BatHashcons.tag
   let short w = lift_f (Base.short w)
+  let to_yojson = lift_f (Base.to_yojson)
   let pretty_f sf () = lift_f (Base.pretty_f (fun w x -> sf w (lift x)) ())
   let pretty = pretty_f short
   let toXML_f sf = lift_f (Base.toXML_f (fun w x -> sf w (lift x)))
@@ -126,7 +131,7 @@ end
 
 module Lift (Base: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted of Base.t | `Top]
+  type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving to_yojson]
   include Std
   include N
 
@@ -178,7 +183,7 @@ end
 
 module Either (Base1: S) (Base2: S) =
 struct
-  type t = [`Left of Base1.t | `Right of Base2.t]
+  type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving to_yojson]
   include Std
 
   let hash state =
@@ -230,7 +235,7 @@ module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N))
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top]
+  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving to_yojson]
   include Std
   include N
 
@@ -298,7 +303,7 @@ module ProdConf (C: ProdConfiguration) (Base1: S) (Base2: S)=
 struct
   include C
 
-  type t = Base1.t * Base2.t
+  type t = Base1.t * Base2.t [@@deriving to_yojson]
 
   include Std
 
@@ -365,7 +370,7 @@ module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = fal
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
-  type t = Base1.t * Base2.t * Base3.t
+  type t = Base1.t * Base2.t * Base3.t [@@deriving to_yojson]
   include Std
   let hash (x,y,z) = Base1.hash x + Base2.hash y * 17 + Base3.hash z * 33
   let equal (x1,x2,x3) (y1,y2,y3) =
@@ -406,7 +411,7 @@ end
 
 module Liszt (Base: S) =
 struct
-  type t = Base.t list
+  type t = Base.t list [@@deriving to_yojson]
   include Std
   let equal x y = try List.for_all2 Base.equal x y with Invalid_argument _ -> false
   let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
@@ -450,7 +455,7 @@ end
 
 module Chain (P: ChainParams): S with type t = int =
 struct
-  type t = int
+  type t = int [@@deriving yojson]
   include Std
 
   let short _ x = P.names x
@@ -469,7 +474,7 @@ end
 
 module LiftBot (Base : S) =
 struct
-  type t = [`Bot | `Lifted of Base.t ]
+  type t = [`Bot | `Lifted of Base.t ] [@@deriving to_yojson]
   include Std
 
   let lift x = `Lifted x
@@ -516,7 +521,7 @@ end
 
 module LiftTop (Base : S) =
 struct
-  type t = [`Top | `Lifted of Base.t ]
+  type t = [`Top | `Lifted of Base.t ] [@@deriving to_yojson]
   include Std
 
   let lift x = `Lifted x
@@ -568,7 +573,7 @@ end
 
 module Strings =
 struct
-  type t = string
+  type t = string [@@deriving to_yojson]
   include Std
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y

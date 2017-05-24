@@ -28,10 +28,10 @@ module Pred = struct
 end
 
 (* define record type here so that fields are accessable outside of D *)
-type process = { pid: Pid.t; pri: Pri.t; per: Per.t; cap: Cap.t; pmo: Pmo.t; pre: PrE.t; pred: Pred.t; ctx: Ctx.t }
+type process = { pid: Pid.t; pri: Pri.t; per: Per.t; cap: Cap.t; pmo: Pmo.t; pre: PrE.t; pred: Pred.t; ctx: Ctx.t } [@@deriving to_yojson]
 module D =
 struct
-  type t = process
+  type t = process [@@deriving to_yojson]
   include Printable.Std
   include Lattice.StdCousot
 
