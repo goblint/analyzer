@@ -330,7 +330,9 @@ struct
     | TPtr (t,_), `Index (i,o) -> type_offset t o
     | TComp (ci,_), `Field (f,o) ->
       let fi = try getCompField ci f.fname
-        with Not_found -> raise (Failure ("Addr.type_offset: field "^f.fname^" not found"))
+        with Not_found ->
+          let s = sprint ~width:0 @@ dprintf "Addr.type_offset: field %s not found in type %a" f.fname d_plaintype t in
+          raise (Type_offset (t, s))
       in type_offset fi.ftype o
     | TComp _, `Index (_,o) -> type_offset t o (* this happens (hmmer, perlbench). safe? *)
     | t,o ->
