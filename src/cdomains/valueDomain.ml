@@ -1,6 +1,6 @@
 open Cil
 open Pretty
-module ID: IntDomain.S = IntDomain.IntDomTuple
+module ID = IntDomain.IntDomTuple
 module IndexDomain: IntDomain.S = ID
 module AD = AddressDomain.AddressSet (IndexDomain)
 module Addr = Lval.NormalLat (IndexDomain)

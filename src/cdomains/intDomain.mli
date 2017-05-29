@@ -163,7 +163,10 @@ module Enums : S
 
 (* module ManyInts : S *)
 (* module IntDomList : S *)
-module IntDomTuple : S
+module IntDomTuple : sig
+  include S
+  val no_interval32: t -> t
+end
 
 (** {b Boolean domains} *)
 

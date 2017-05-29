@@ -1366,13 +1366,17 @@ module Enums : S = struct
   (* let of_incl_list xs = failwith "TODO" *)
 end
 
-module IntDomTuple : S = struct (* the above IntDomList has too much boilerplate. we have to touch every function in S if we want to add a new domain. here if we add a new option, we only have to edit the places where fn are applied, i.e. create, mapp, map, map2. *)
+(* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)
+module IntDomTuple = struct
   open Batteries
   module I1 = Trier
   module I2 = Interval32
   module I3 = CircInterval
   module I4 = Enums
   type t = I1.t option * I2.t option * I3.t option * I4.t option [@@deriving to_yojson]
+
+  (* The Interval32 domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
+  let no_interval32 = Tuple4.map2 (const None)
 
   type 'a m = (module S with type t = 'a)
   (* only first-order polymorphism on functions -> use records to get around monomorphism restriction on arguments *)

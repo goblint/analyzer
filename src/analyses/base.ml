@@ -1099,12 +1099,15 @@ struct
       in
       CPA.map replace_val st
 
+  let drop_interval32 = CPA.map (function `Int x -> `Int (ID.no_interval32 x) | x -> x)
+
   let context (cpa,fl) =
     let f t f (cpa,fl) = if t then f cpa, fl else cpa, fl in
     (cpa,fl) |>
     f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
     %> f (get_bool "exp.addr-context") drop_non_ptrs
     %> f (get_bool "exp.no-int-context") drop_ints
+    %> f (get_bool "exp.no-interval32-context") drop_interval32
 
   (* interpreter end *)
 
