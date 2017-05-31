@@ -75,7 +75,7 @@ rule() {
              ;;
     dep*)    OPAMYES=1 opam_build;;
     setup)   echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
-             opam init --comp=4.04.0
+             opam init --comp=4.04.1
              opam_build
              ;;
     dev)     echo "Installing opam packages for development..."
