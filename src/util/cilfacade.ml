@@ -31,7 +31,7 @@ let printDebug fileAST =
 let rmTemps fileAST =
   Rmtmps.removeUnusedTemps fileAST
 
-class allBBVisitor = object
+class allBBVisitor = object (* puts every instruction into its own basic block *)
   inherit nopCilVisitor
   method vstmt s =
     match s.skind with
@@ -65,7 +65,7 @@ let do_preprocess ast =
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
 
 let createCFG (fileAST: file) =
-  end_basic_blocks fileAST;
+  if not (get_bool "exp.basic-blocks") then end_basic_blocks fileAST;
   (* Partial.calls_end_basic_blocks fileAST; *)
   Partial.globally_unique_vids fileAST;
   iterGlobals fileAST (fun glob ->

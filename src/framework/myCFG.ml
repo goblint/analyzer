@@ -104,6 +104,11 @@ let pretty_edge () = function
   | Skip -> text "Skip"
   | SelfLoop -> text "SelfLoop"
 
+let rec pretty_edges () = function
+  | [] -> Pretty.dprintf ""
+  | [_,x] -> pretty_edge () x
+  | (_,x)::xs -> Pretty.dprintf "%a; %a" pretty_edge x pretty_edges xs
+
 let pretty_edge_kind () = function
   | Assign (lv,rv) -> dprintf "Assign"
   | Proc (_  ,f,ars) -> dprintf "Proc"
@@ -166,17 +171,19 @@ let createCFG (file: file) =
   if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
 
   (* Utility function to add stmt edges to the cfg *)
-  let addCfg t (e,f) =
+  let addCfg' t xs f =
     if Messages.tracing then
-      Messages.trace "cfg" "Adding edge (%a) from\n\t%a\nto\n\t%a ... "
-        pretty_edge_kind e
+      Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
+        pretty_edges xs
         pretty_short_node f
         pretty_short_node t;
-    H.add cfgB t ([getLoc f,e],f);
-    H.add cfgF f ([getLoc f,e],t);
+    H.add cfgB t (xs,f);
+    H.add cfgF f (xs,t);
     Messages.trace "cfg" "done\n\n"
   in
+  let addCfg t (e,f) = addCfg' t [getLoc f,e] f in
   let mkEdge fromNode edge toNode = addCfg (Statement toNode) (edge, Statement fromNode) in
+  let mkEdges fromNode edges toNode = addCfg' toNode edges fromNode in
   (* Function for finding the next real successor of a statement. CIL tends to
    * put a lot of junk between stuff: *)
   let realnode is_entry stmt =
@@ -222,25 +229,18 @@ let createCFG (file: file) =
           match stmt.skind with
           (* Normal instructions are easy. They should be a list of a single
            * instruction, either Set, Call or ASM: *)
-          | Instr x ->
-            (* We need to add an edge to each of the successors of the
-             * current statement *)
-            let foreach succ =
-              match x with
-              | [Set (lval,exp,loc)] -> mkEdge stmt (Assign (lval, exp)) succ
-              | [Call (lval,func,args,loc)] -> mkEdge stmt (Proc (lval,func,args)) succ
-              | [Asm (attr,tmpl,out,inp,regs,loc)] -> mkEdge stmt (ASM (tmpl,out,inp)) succ
-              | [] -> ()
-              | _ -> print_endline "block escaped:"; pstmt stmt;
-            in begin
-              (* Sometimes a statement might not have a successor, but we
-               * still need to do something about him, this can happen if
-               * the last statement of a function is a call to exit.
-               * Also see test 00/11. Code changed in revision 244. *)
-              match stmt.succs with
-              | [] -> addCfg (Function fd.svar) (Ret (None, fd), Statement stmt)
-              | _ -> List.iter foreach (List.map (realnode true) stmt.succs)
-            end
+          | Instr xs ->
+            (* We need to add an edge to each of the successors of the current statement *)
+            let handle_instr = function
+              | Set (lval,exp,loc) -> loc, Assign (lval, exp)
+              | Call (lval,func,args,loc) -> loc, Proc (lval,func,args)
+              | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
+            in
+            let handle_instrs succ = mkEdges (Statement stmt) (List.map handle_instr xs) succ in
+            (* Sometimes a statement might not have a successor.
+             * This can happen if the last statement of a function is a call to exit. *)
+            let succs = if stmt.succs = [] then [Function fd.svar] else List.map (fun x -> Statement (realnode true x)) stmt.succs in
+            List.iter handle_instrs succs
           (* If expressions are a bit more interesting, but CIL has done
            * it's job well and we just pick out the right successors *)
           | If (exp, true_block, false_block, loc) -> begin
