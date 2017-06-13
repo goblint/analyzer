@@ -168,6 +168,7 @@ let _ = ()
       ; reg Experimental "exp.ignored_threads"   "[]"    "Eliminate accesses in these threads"
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
+      ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Method depends on exp.full-context - costly if true."
 
 (* {4 category [Debugging]} *)
 let _ = ()

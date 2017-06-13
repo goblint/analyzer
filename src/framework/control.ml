@@ -15,7 +15,10 @@ let get_spec () : (module Spec) =
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   (module (val
-            (module PathSensitive2 (MCP.MCP2) : Spec)
+            (module MCP.MCP2 : Spec)
+            |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
+            |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
+            |> lift true (module PathSensitive2)
             |> lift (get_bool "ana.hashcons") (module HashconsLifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
