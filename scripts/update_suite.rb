@@ -202,13 +202,14 @@ doproject = lambda do |p|
   end
   starttime = Time.now
   cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --sets warnstyle \"legacy\" --set printstats true  2>#{statsfile}"
-  pid = Process.spawn(cmd)
+  pid = Process.spawn(cmd, :pgroup=>true)
   begin
     Timeout::timeout(timeout) {Process.wait pid}
   rescue Timeout::Error
-    puts "\t #{id} reached timeout of #{timeout}s!".red + " Killing process #{pid}..."
+    pgid = Process.getpgid(pid)
+    puts "\t #{id} reached timeout of #{timeout}s!".red + " Killing pgid #{pgid}..."
     timedout.push id
-    Process.kill('INT', pid)
+    Process.kill('INT', -1*pgid)
     return
   end
   endtime   = Time.now
