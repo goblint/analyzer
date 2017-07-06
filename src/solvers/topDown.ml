@@ -412,8 +412,180 @@ module TD2 =
       sigma
   end
 
+(** modified SLR3 as top down solver *)
+module TD3 =
+  functor (S:EqConstrSys) ->
+  functor (HM:Hash.H with type key = S.v) ->
+  struct
 
+    include Generic.SolverStats (S)
+    module VS = Set.Make (S.Var)
+
+    module P =
+    struct
+      type t = S.Var.t * S.Var.t
+      let equal (x1,x2) (y1,y2) = S.Var.equal x1 y1 && S.Var.equal x2 y2
+      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+    end
+
+    module HPM = Hashtbl.Make (P)
+
+    let solve box st vs =
+      let wpoint = HM.create  10 in
+      let stable = HM.create  10 in
+      let infl   = HM.create  10 in (* y -> xs *)
+      let set    = HM.create  10 in (* y -> xs *)
+      let sidevs = HM.create  10 in
+      let called = HM.create  10 in
+      let rho    = HM.create  10 in
+      let rho'   = HPM.create 10 in (* x,y -> d *)
+
+      let add_infl y x = HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
+      let add_set x y d = HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty)); HPM.add rho' (x,y) d; HM.add sidevs y () in
+      let is_side x = HM.mem set x in
+      let make_wpoint x =
+        if tracing then trace "sol2" "make_wpoint %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        HM.replace wpoint x ()
+      in
+      let rec destabilize x =
+        if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        let t = HM.find_default infl x VS.empty in
+        HM.replace infl x VS.empty;
+        VS.iter (fun y -> HM.remove stable y; if not (HM.mem called y) then destabilize y) t
+      and solve x =
+        if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
+        if not (HM.mem called x || HM.mem stable x) then begin
+          HM.replace called x ();
+          let wpx = HM.mem wpoint x in
+          HM.remove wpoint x;
+          HM.replace stable x ();
+          let old = HM.find rho x in
+          let tmp = eq x (eval x) (side x) in
+          let tmp = S.Dom.join tmp (sides x) in
+          if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
+          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
+          let tmp = if is_side x then S.Dom.widen old (S.Dom.join old tmp) else if wpx then box x old tmp else tmp in
+          HM.remove called x;
+          if not (S.Dom.equal old tmp) then begin
+            update_var_event x old tmp;
+            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
+            if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) on %i is %a. Old value was %a\n" S.Var.pretty_trace x wpx (is_side x) (S.Var.line_nr x) S.Dom.pretty tmp S.Dom.pretty old;
+            HM.replace rho x tmp;
+            destabilize x;
+            (solve[@tailcall]) x;
+          end;
+        end;
+      and eq x get set =
+        if tracing then trace "sol2" "eq %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        eval_rhs_event x;
+        match S.system x with
+        | None -> S.Dom.bot ()
+        | Some f ->
+          let effects = ref Set.empty in
+          let sidef y d =
+            if not (Set.mem y !effects) then (
+              HPM.replace rho' (x,y) (S.Dom.bot ());
+              effects := Set.add y !effects
+            );
+            set y d
+          in
+          f get sidef
+      and eval x y =
+        if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
+        get_var_event y;
+        if not (HM.mem rho y) then init y;
+        if HM.mem called y then make_wpoint y else if neg is_side y then solve y;
+        add_infl y x;
+        HM.find rho y
+      and sides x =
+        let w = try HM.find set x with Not_found -> VS.empty in
+        let d = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w) in
+        if tracing then trace "sol2" "sides %a on %i ## %a\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Dom.pretty d;
+        d
+      and side x y d =
+        if S.Dom.is_bot d then () else
+        if tracing then trace "sol2" "side %a on %i ## %a on %i (wpx: %b) ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem wpoint y) S.Dom.pretty d;
+        if not (HM.mem rho y) then begin
+          init y;
+          add_set x y d;
+          solve y
+        end else begin
+          let old = HPM.find rho' (x,y) in
+          if not (S.Dom.equal old d) then begin
+            add_set x y (S.Dom.join old d);
+            (*make_wpoint y;*)
+            (*destabilize y;*)
+            HM.remove stable y;
+            HM.replace sidevs y ();
+            (*solve y;*)
+          end
+        end
+      and init x =
+        if tracing then trace "sol2" "init %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        if not (HM.mem rho x) then begin
+          new_var_event x;
+          HM.replace rho  x (S.Dom.bot ());
+          HM.replace infl x (VS.add x VS.empty)
+        end
+      in
+
+      let set_start (x,d) =
+        if tracing then trace "sol2" "set_start %a on %i ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Dom.pretty d;
+        init x;
+        add_set x x d;
+        solve x
+      in
+
+      start_event ();
+      List.iter set_start st;
+      List.iter init vs;
+      List.iter solve vs;
+      let get_gs () =
+        let vs = ref [] in
+        HM.iter (fun k _ -> vs := k :: !vs) sidevs;
+        HM.clear sidevs;
+        !vs
+      in
+      (* iterate until there are no more new side-effects *)
+      let rec solveg () =
+        let gs = get_gs () in
+        if gs <> [] then (
+          List.iter solve gs;
+          List.iter solve vs;
+          solveg ()
+        )
+      in
+      solveg ();
+
+      let reachability xs =
+        let reachable = HM.create (HM.length rho) in
+        let rec one_var x =
+          if not (HM.mem reachable x) then begin
+            HM.replace reachable x ();
+            match S.system x with
+            | None -> ()
+            | Some x -> one_constaint x
+          end
+        and one_constaint f =
+          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
+        in
+        List.iter one_var xs;
+        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho
+      in
+      reachability vs;
+      stop_event ();
+
+      HM.clear wpoint;
+      HM.clear stable;
+      HM.clear infl  ;
+      HM.clear set   ;
+      HPM.clear rho'  ;
+
+      rho
+
+  end
 
 module Make2GGS : Analyses.GenericGlobSolver = GlobSolverFromIneqSolver (TD2)
 let _ =
-  Selector.add_solver ("TD", (module Make2GGS : Analyses.GenericGlobSolver))
+  (*Selector.add_solver ("TD", (module Make2GGS : Analyses.GenericGlobSolver));*)
+  Selector.add_solver ("topdown", (module GlobSolverFromIneqSolver (SLR.JoinContr (TD3)) : Analyses.GenericGlobSolver));
