@@ -419,8 +419,8 @@ struct
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
     let combine (cd, fd) = S.combine {ctx with local = cd} lv e f args fd in
     let paths = S.enter ctx lv f args in
-    let _     = if not (get_bool "exp.full-context") then List.iter (fun (c,v) -> sidel (FunctionEntry f, S.context v) v) paths in
-    let paths = List.map (fun (c,v) -> (c, getl (Function f, S.context v))) paths in
+    let _     = if not (get_bool "exp.full-context") then List.iter (fun (c,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, S.context v) v) paths in
+    let paths = List.map (fun (c,v) -> (c, if S.D.is_bot v then v else getl (Function f, S.context v))) paths in
     let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
     let paths = List.map combine paths in
     List.fold_left D.join (D.bot ()) paths
@@ -944,8 +944,8 @@ struct
     in
     let complain_g v (g:GVar.t) lhs rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]"
-                GVar.pretty_trace g LVar.pretty_trace v G.pretty lhs G.pretty rhs)
+      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\n@]"
+                GVar.pretty_trace g LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) G.pretty lhs G.pretty rhs)
     in
     (* For each variable v which has been assigned value d', would like to check
      * that d' satisfied all constraints. *)
