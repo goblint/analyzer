@@ -169,6 +169,7 @@ let _ = ()
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
       ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Method depends on exp.full-context - costly if true."
+      ; reg Experimental "exp.solver.wp.restore" "true" "Should the wp solver restore values for non-widening-points?"
 
 (* {4 category [Debugging]} *)
 let _ = ()
