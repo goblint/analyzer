@@ -179,6 +179,7 @@ let _ = ()
       (* ; reg Debugging "dbg.trace.sys"       ""      "Subsystem to show debug printfs for, such as con, sol." *)
       (* ; reg Debugging "dbg.trace.vars"      "[]"    "Identifier name of interest for tracing." *)
       (* ; reg Debugging "dbg.trace.locs"      "[]"    "Line number of interest for tracing." *)
+      ; reg Debugging "dbg.trace.context"   "false" "Also print the context of solver variables."
       ; reg Debugging "dbg.showtemps"       "false" "Shows CIL's temporary variables when printing the state."
       ; reg Debugging "dbg.uncalled"        "false" "Display uncalled functions."
       ; reg Debugging "dbg.dump"            ""      "Dumps the results to the given path"
