@@ -55,6 +55,10 @@ let arr length value name =
   Arr { name; init = value; value = Array.create (fst length) v; show = s; show_all = show_arr; length = fst length },
   t^" "^name^"["^snd length^"] = "^s v^";"
 
+let var_name : type x. x var -> string = function
+  | Var v -> v.name
+  | Arr v -> v.name
+
 let get : type c g s m. (c*g*s*m) var -> g = function
   | Var v -> !(v.value), v.name
   | Arr v -> fun i ->
@@ -144,18 +148,24 @@ let _foreach (Arr v as a) b = (* for (i in a) { `b i a[i]` } *)
 (* extraction *)
 type ('a,'b,'c,'d,'e,'z) args = A0 of 'z e | A1 of 'a * ('a -> 'z e) | A2 of 'a*'b * ('a -> 'b -> 'z e) | A3 of 'a*'b*'c * ('a -> 'b -> 'c -> 'z e) | A4 of 'a*'b*'c*'d * ('a -> 'b -> 'c -> 'd -> 'z e) | A5 of 'a*'b*'c*'d*'e * ('a -> 'b -> 'c -> 'd -> 'e -> 'z e)
 
-let define name args =
-  let unpack p = function
-    | A0 z -> [], z
-    | A1 (a,f) -> [p a], f a
-    | A2 (a,b,f) -> [p a; p b], f a b
-    | A3 (a,b,c,f) -> [p a; p b; p c], f a b c
-    | A4 (a,b,c,d,f) -> [p a; p b; p c; p d], f a b c d
-    | A5 (a,b,c,d,e,f) -> [p a; p b; p c; p d; p e], f a b c d e
-  in
-  let aa, body = unpack (fun (Var v) -> v.name) args in
-  let args = String.concat ", " aa |> fun x -> if List.is_empty aa then x else "("^x^")" in
-  (), "\n#define "^name^args^"    "^snd body
+module Macro = struct
+  let define name args =
+    let unpack p = function
+      | A0 z -> [], z
+      | A1 (a,f) -> [p a], f a
+      | A2 (a,b,f) -> [p a; p b], f a b
+      | A3 (a,b,c,f) -> [p a; p b; p c], f a b c
+      | A4 (a,b,c,d,f) -> [p a; p b; p c; p d], f a b c d
+      | A5 (a,b,c,d,e,f) -> [p a; p b; p c; p d; p e], f a b c d e
+    in
+    let aa, body = unpack (fun (Var v) -> v.name) args in
+    let args = String.concat ", " aa |> fun x -> if List.is_empty aa then x else "("^x^")" in
+    (), "\n#define "^name^args^"    "^snd body
+
+  (* let _if e body = (), "\n#if "^snd e^"\n"^indent body^"\n#endif" *)
+  let _if e = (), "#if "^snd e
+  let _endif = (), "#endif"
+end
 
 type eval = (* how to evaluate function arguments *)
   | EvalEnum of (int -> string option) | EvalInt | EvalString (* standard types *)

@@ -42,7 +42,7 @@ let init oil =
   (*let name,_   = var (String "") "name" in*)
 
   (* macros - used in extracted pml *)
-  define "can_run" @@ A1 (id, fun id -> (!state !id == e READY show_state));
+  Macro.define "can_run" @@ A1 (id, fun id -> (!state !id == e READY show_state));
 
   (* helpers - these get inlined *)
   let task_info id = s "state["^i2s id^s "] = "^e2s (!state id)^s ", waiting_for[] = "^e2s (!waiting_for id)^s ", waiting_id[] = "^i2s (!waiting_id id) in

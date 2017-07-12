@@ -37,7 +37,7 @@ struct
   type pname = string (* process name *)
   type fname = string (* function name *)
   type id = pname * fname
-  type node  = location
+  type node  = Cil.location
   type action = Call of fname | Sys of string
   type edge = node * action * node
 
@@ -48,7 +48,7 @@ struct
   let get_edges pid =
     Hashtbl.find_default extracted pid Set.empty
 
-  (* code generation *)
+  (* tables for code generation *)
   module SymTbl (G : sig type k end) = struct (* generate int id *)
     let h : (G.k, 'v) Hashtbl.t = Hashtbl.create 13
     let get k =
@@ -384,7 +384,12 @@ struct
 
   let finalize () = (* writes out collected cfg *)
     (* TODO call Pml_arinc.init again with the right number of resources to find out of bounds accesses? *)
-    output_file "result/arinc.pml" (codegen ())
+    if GobConfig.get_bool "ana.arinc.export" then (
+      let path = Goblintutil.create_dir "result" ^ "/arinc.pml" in (* returns abs. path *)
+      output_file path (codegen ());
+      print_endline @@ "Model saved as " ^ path;
+      print_endline "Run ./spin/check.sh to verify."
+    )
 end
 
 let _ =

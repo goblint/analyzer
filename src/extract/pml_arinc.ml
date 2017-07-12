@@ -44,11 +44,17 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
   (* TODO type for structured data types *)
   waiting_for <-- arr !nproc (Enum (NONE, show_waiting_for)) "waiting_for";
   waiting_id  <-- arr !nproc (Byte 0) "waiting_id";
+  Macro._if !nsema;
   semas       <-- arr !nsema (Byte 0) "semas";
   semas_max   <-- arr !nsema (Byte 0) "semas_max";
   semas_chan  <-- arr !nsema (Chan.create !nproc (Byte 0)) "semas_chan";
+  Macro._endif;
+  Macro._if !nevent;
   events      <-- arr !nevent (Bool false) "events";
+  Macro._endif;
+  Macro._if !nbboard;
   bboards     <-- arr !nbboard (Bool false) "bboards";
+  Macro._endif;
 
   (* just for asserts *)
   tasks_created <-- var (Byte 0) "tasks_created";
@@ -62,7 +68,7 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
   (*let r,_    = var (Enum (SUCCESS, show_return_code)) "r" in*)
 
   (* macros - used in extracted pml *)
-  define "can_run" @@ A1 (id, fun id -> (!status !id == e READY show_status) && (!lock_level == i 0 || !exclusive == !id) && (!partition_mode == e NORMAL show_partition_mode || !id == i 0));
+  Macro.define "can_run" @@ A1 (id, fun id -> (!status !id == e READY show_status) && (!lock_level == i 0 || !exclusive == !id) && (!partition_mode == e NORMAL show_partition_mode || !id == i 0));
 
   (* helpers - these get inlined *)
   let task_info id = s "status["^i2s id^s "] = "^e2s (!status id)^s ", waiting_for[] = "^e2s (!waiting_for id)^s ", waiting_id[] = "^i2s (!waiting_id id) in
