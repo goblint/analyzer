@@ -40,6 +40,7 @@ if [ -e $result ]; then
 fi
 echo "results will be in $result"
 mkdir -p $result && pushd $result
+echo $result >> log
 
 mkdir -p result
 header "Building & copying files from $analyzer"
@@ -53,32 +54,41 @@ cp -f $inputs/{$input,$conf} .
 if [ "$2" = "init" ]; then
     exit 0
 fi
-dbg="--enable colors --enable dbg.verbose"
 # dbg="$dbg --enable dbg.slice.on --set dbg.slice.n 4"
-goblint="./goblint --conf $conf --set ana.activated ['base','arinc'] $dbg --enable ana.arinc.export --disable ana.arinc.simplify $options"
+goblint="./goblint --conf $conf --set ana.activated ['base','arinc'] --enable ana.arinc.export --disable ana.arinc.simplify $options"
 header "Write effective config"
 $goblint --writeconf all.conf
 header "Starting goblint"
 time=$(which gtime 2>&- || which time 2>&-) # brew's GNU time on OS X is called gtime...
 echo "Using time command at $time (this needs to be GNU time since the shell builtin doesn't support -v)"
-$time -v -o time.fun.txt $goblint $input 2>&1 | tee trace.fun.txt
-cat time.fun.txt
+function trace(){
+    cmd=`echo ${1#./} | cut -d' ' -f1`
+    tt="time.$cmd.txt"
+    $time -v -o $tt $* 2>&1 | tee trace.$cmd.txt
+    cat $tt
+    t=`ag "wall clock" $tt | cut -f2 | cut -c-45 --complement`
+    c=`head -n1 $tt | cut -c-22 --complement`
+    echo "$t $c" >> log
+}
+trace $goblint $input
 dot="result/arinc.dot"
 pml="result/arinc.pml"
-echo "$dot has $(wc -l < $dot) lines!"
-echo "$pml has $(wc -l < $pml) lines!"
+echo "$dot has $(wc -l < $dot) lines!" | tee -a log
+echo "$pml has $(wc -l < $pml) lines!" | tee -a log
 # fdp -Tpng -O $dot
 # gnome-open ${dot}.png
 
 pushd result
+mv ../log .
 header "Generating SPIN Verifier from Promela Code"
 set +o errexit # we want to be able to abort this if it takes too long
-$time -v -o time.spin.txt spin -DPRIOS -a arinc.pml -v 2>&1 | tee trace.spin.txt
+trace spin -DPRIOS -a arinc.pml -v
 set -o errexit
-cat time.spin.txt
-clang -DVECTORSZ=5000 -o pan pan.c # complained that VECTORSZ should be > 1280
+trace clang -DVECTORSZ=5000 -o pan pan.c # complained that VECTORSZ should be > 1280
 echo "Verify! If there are errors, this will generate a file arinc.pml.trail"
-./pan -n -a -m200000 -w26 || (echo "Verification failed! Do simulation guided by trail."; spin -g -l -p -r -s -t -X -u10000 arinc.pml)
+trace ./pan -n -a -m200000 -w26 2>&1 || (echo "Verification failed! Do simulation guided by trail."; spin -g -l -p -r -s -t -X -u10000 arinc.pml)
+cat trace.pan.txt >> log
+mv log ..
 popd # result
-popd # script dir
+# popd # script dir
 unset scrambled
