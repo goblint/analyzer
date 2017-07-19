@@ -86,6 +86,7 @@ trace spin -DPRIOS -a arinc.pml -v
 set -o errexit
 trace clang -DVECTORSZ=5000 -o pan pan.c # complained that VECTORSZ should be > 1280
 echo "Verify! If there are errors, this will generate a file arinc.pml.trail"
+# -f for fair scheduling
 trace ./pan -n -a -m200000 -w26 2>&1 || (echo "Verification failed! Do simulation guided by trail."; spin -g -l -p -r -s -t -X -u10000 arinc.pml)
 cat trace.pan.txt >> log
 mv log ..

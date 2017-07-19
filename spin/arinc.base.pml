@@ -73,7 +73,8 @@ inline mark(pc) {
 
 // status: NOTCREATED, STOPPED, SUSPENDED, WAITING, READY, (RUNNING), DONE
 // LTL formulas
-ltl not_starving  { ! (eventually always oneIs(WAITING) || oneIs(SUSPENDED)) }
+ltl not_starving  { Not_Starving }
+// ltl not_starving  { ! (eventually always oneIs(WAITING) || oneIs(SUSPENDED)) }
 ltl not_waiting   { ! (eventually always oneIs(WAITING)) }
 ltl not_suspended { ! (eventually always oneIs(SUSPENDED)) }
 ltl all_created   { eventually always noneAre(NOTCREATED) }
