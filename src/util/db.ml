@@ -1,4 +1,4 @@
-open BatteriesExceptionless
+(* open BatteriesExceptionless
 
 let rec bson_of_yojson = let open Bson in function
     | `Assoc x -> create_doc_element (List.fold_left (fun doc (k,v) -> add_element k (bson_of_yojson v) doc) empty x)
@@ -20,4 +20,4 @@ let insert db (loc,node,v) =
       add_element "node" (bson_of_yojson node) |>
       add_element "states" (bson_of_yojson v))
   in
-  Mongo.insert db [x]
+  Mongo.insert db [x] *)

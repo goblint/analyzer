@@ -373,7 +373,7 @@ struct
       else
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
-    | "mongo" ->
+    (* | "mongo" ->
       let open Deriving.Cil in
       Printf.printf "Connecting to local MongoDB... ";
       let db = Db.connect () in
@@ -384,7 +384,7 @@ struct
       Printf.printf "Inserting %d entries... " (length (Lazy.force table));
       iter insert (Lazy.force table);
       let t1 = Unix.gettimeofday () -. t in
-      Printf.printf "Done in %fs!\n" t1
+      Printf.printf "Done in %fs!\n" t1 *)
     | _ -> ()
 end
 
