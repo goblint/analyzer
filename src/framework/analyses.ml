@@ -385,7 +385,8 @@ struct
       iter insert (Lazy.force table);
       let t1 = Unix.gettimeofday () -. t in
       Printf.printf "Done in %fs!\n" t1 *)
-    | _ -> ()
+    | "none" -> ()
+    | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
 
 module ComposeResults (R1: Printable.S) (R2: Printable.S) (C: ResultConf) =
