@@ -28,7 +28,7 @@ module SLR3 =
     let solve box st vs =
       let key    = HM.create 10 in
       let count  = ref 0 in
-      let get_key x = try HM.find key x with Not_found -> (let c = !count in HM.replace key  x c; decr count; print_endline ("Variable " ^ S.Var.var_id x ^ " to " ^ string_of_int c); c) in
+      let get_key x = try HM.find key x with Not_found -> (let c = !count in HM.replace key  x c; decr count; (* print_endline ("Variable " ^ S.Var.var_id x ^ " to " ^ string_of_int c); *) c) in
       let module H = Heap.Make (struct
           type t = S.Var.t
           let compare x y = compare (get_key x) (get_key y)
