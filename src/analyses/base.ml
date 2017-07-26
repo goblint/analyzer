@@ -771,6 +771,7 @@ struct
         else set a gs st addr new_val ~effect:false
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
+      M.warn_each ("Invariant failed: expression " ^ sprint d_exp exp ^ "\" not understood.");
       st
 
   let set_savetop ask (gs:glob_fun) st adr v =
@@ -1423,8 +1424,8 @@ struct
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx.ask ctx.global ctx.local e true in
-        if check_assert e newst <> `True then
-          M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick.");
+        (* if check_assert e newst <> `True then
+            M.warn_each ("Invariant \"" ^ expr ^ "\" does not stick."); *)
         newst
       end
 
