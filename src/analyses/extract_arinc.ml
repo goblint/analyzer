@@ -380,7 +380,7 @@ struct
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
     assert (List.length mainfuns = 1); (* TODO? *)
     List.iter (fun fname -> Pfuns.add "main" fname) mainfuns;
-    output_file (Goblintutil.create_dir "result/" ^ "arinc.os.pml") (snd (Pml_arinc.init ()))
+    if GobConfig.get_bool "ana.arinc.export" then output_file (Goblintutil.create_dir "result/" ^ "arinc.os.pml") (snd (Pml_arinc.init ()))
 
   let finalize () = (* writes out collected cfg *)
     (* TODO call Pml_arinc.init again with the right number of resources to find out of bounds accesses? *)
