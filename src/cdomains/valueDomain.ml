@@ -64,6 +64,9 @@ struct
     | `Bot
   ] [@@deriving to_yojson]
 
+  let tag_name : t -> string = function
+    | `Top -> "Top" | `Int _ -> "Int" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `List _ -> "List" | `Bot -> "Bot"
+
   module B = Blob (Compound)
 
   include Printable.Std
@@ -353,6 +356,9 @@ struct
     | y, `Blob x -> Blobs.leq ((B.make 0 y):t) (x:t)
     | _ -> false
 
+  let warn_type op x y =
+    ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.line pretty x pretty y
+
   let join x y =
     match (x,y) with
     | (`Top, _) -> `Top
@@ -375,7 +381,7 @@ struct
     |  y, `Blob x ->
       `Blob (B.join (x:t) ((B.make 0 y):t))
     | x, y ->
-      ignore @@ printf "JOIN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
+      warn_type "join" x y;
       `Top
 
   let rec meet x y =
@@ -397,7 +403,7 @@ struct
     |  y, `Blob x ->
       `Blob (B.meet (x:t) ((B.make 0 y):t))
     | _ ->
-      ignore @@ printf "MEET incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
+      warn_type "meet" x y;
       `Bot
 
   let widen x y =
@@ -422,7 +428,7 @@ struct
     |  y, `Blob x ->
       `Blob (B.widen ((B.make 0 y):t) (x:t))
     | _ ->
-      ignore @@ printf "WIDEN incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
+      warn_type "widen" x y;
       `Top
 
   let rec narrow x y =
@@ -443,7 +449,7 @@ struct
     | x, `Top | `Top, x -> x
     | x, `Bot | `Bot, x -> `Bot
     | (x,_) ->
-      ignore @@ printf "NARROW incomparable abstr. values: %a and %a at line %i\n" pretty x pretty y !Tracing.current_loc.line;
+      warn_type "narrow" x y;
       x
 
   let rec top_value (t: typ) =

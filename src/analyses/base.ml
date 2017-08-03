@@ -1598,7 +1598,7 @@ struct
                 else a
               in
               let addrs = CPA.fold st_expr cpa (lv_list @ args) in
-              (* This rest here is just to see of something got spawned. *)
+              (* This rest here is just to see if something got spawned. *)
               let flist = collect_funargs ctx.ask gs st args in
               (* invalidate arguments for unknown functions *)
               let (cpa,fl as st) = invalidate ctx.ask gs st addrs in

@@ -48,16 +48,16 @@ module WP =
       in
       let rec destabilize x =
         if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
-        let t = HM.find_default infl x VS.empty in
+        let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
-        VS.iter (fun y -> HM.remove stable y; if not (HM.mem called y) then destabilize y) t
+        VS.iter (fun y -> HM.remove stable y; destabilize y) w
       and solve x =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         if not (HM.mem called x || HM.mem stable x) then begin
+          HM.replace stable x ();
           HM.replace called x ();
           let wpx = HM.mem wpoint x in
           HM.remove wpoint x;
-          HM.replace stable x ();
           let old = HM.find rho x in
           let l = HM.create 10 in
           let effects = ref Set.empty in
@@ -99,7 +99,8 @@ module WP =
           if neg is_side y then solve y;
           add_infl y x;
           HM.find rho y
-        ) else if HM.mem l y then HM.find l y
+        )
+        else if HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
           let d = eq y (eval l effects x) (side x) effects in
@@ -130,7 +131,6 @@ module WP =
           if not (S.Dom.equal old d) then begin
             add_set x y (S.Dom.join old d);
             HM.remove stable y;
-            HM.replace sidevs y ();
             solve y;
           end
         end

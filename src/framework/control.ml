@@ -206,6 +206,7 @@ struct
         }
       in
       let edges = MyCFG.getGlobalInits file in
+      if (get_bool "dbg.verbose") then print_endline ("Executing "^string_of_int (List.length edges)^" assigns.");
       let funs = ref [] in
       (*let count = ref 0 in*)
       let transfer_func (st : Spec.D.t) (edge, loc) : Spec.D.t =
@@ -215,8 +216,11 @@ struct
             if (get_bool "dbg.verbose")&& (!count mod 1000 = 0)  then Printf.printf "%d %!" !count;    *)
           Tracing.current_loc := loc;
           match edge with
-          | MyCFG.Entry func        -> Spec.body {ctx with local = st} func
+          | MyCFG.Entry func        ->
+            if M.tracing then M.trace "global_inits" "Entry %a\n" d_lval (var func.svar);
+            Spec.body {ctx with local = st} func
           | MyCFG.Assign (lval,exp) ->
+            if M.tracing then M.trace "global_inits" "Assign %a = %a\n" d_lval lval d_exp exp;
             begin match lval, exp with
               | (Var v,o), (AddrOf (Var f,NoOffset))
                 when v.vstorage <> Static && isFunctionType f.vtype ->
@@ -248,7 +252,7 @@ struct
     Access.init file;
 
     let startstate, more_funs =
-      if (get_bool "dbg.verbose") then print_endline "Initializing globals.";
+      if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
       do_global_inits file
     in
 

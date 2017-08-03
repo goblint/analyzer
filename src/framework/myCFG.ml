@@ -364,6 +364,11 @@ let getGlobalInits (file: file) : (edge * location) list  =
   iterGlobals file f;
   initfun.slocals <- List.rev !vars;
   (Entry initfun, {line = 0; file="initfun"; byte= 0} ) :: List.rev !inits
+let numGlobals file =
+  let n = ref 0 in
+  (* GVar Cannot have storage Extern or function type *)
+  Cil.iterGlobals file (function GVar _ -> incr n | _ -> ());
+  !n
 
 let generate_irpt_edges cfg =
   let make_irpt_edge toNode (_, fromNode) =
