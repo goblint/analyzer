@@ -156,7 +156,7 @@ let do_the_params (fd: fundec) =
   List.iter create_extra_var fd.sformals
 
 let unknown_exp : exp = mkString "__unknown_value__"
-let dummy_func = emptyFunction "__goblint_dummy_init"
+let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *)
 let dummy_node = FunctionEntry Cil.dummyFunDec.svar
 
 let getLoc (node: node) =
@@ -333,19 +333,31 @@ let print cfg  =
   flush out;
   close_out_noerr out
 
-let initfun = emptyFunction "goblin_initfun"
+(* let initfun = emptyFunction "goblin_initfun" *)
 let getGlobalInits (file: file) : (edge * location) list  =
   let vars = ref [] in
-  let inits = ref [] in
-  let rec doInit lval loc init =
+  (* let inits = ref [] in *)
+  (* runtime with fast_global_inits: List: 36.25s, Hashtbl: 0.56s *)
+  let inits = Hashtbl.create 13 in
+  let fast_global_inits = get_bool "exp.fast_global_inits" in
+  let rec doInit lval loc init is_zero =
     let rec initoffs offs init typ lval =
-      doInit (addOffsetLval offs lval) loc init;
+      doInit (addOffsetLval offs lval) loc init is_zero;
       lval
     in
+    let rec zero_index = function
+      | Index (e,o) -> Index (zero, zero_index o)
+      | Field (f,o) -> Field (f, zero_index o)
+      | NoOffset -> NoOffset
+    in
+    let zero_index (lh,offs) = lh, zero_index offs in
     match init with
-    | SingleInit exp -> begin
-        inits := (Assign (lval, exp), loc) :: !inits
-      end
+    | SingleInit exp ->
+      let assign lval = Assign (lval, exp), loc in
+      (* This is an optimization so that we don't get n*m assigns for a zero-initialized array a[n][m]
+         TODO This is only sound for our flat array domain. Change this once we use others. *)
+      if not (fast_global_inits && is_zero && Hashtbl.mem inits (assign (zero_index lval))) then
+        Hashtbl.add inits (assign lval) ()
     | CompoundInit (typ, lst) ->
       ignore (foldLeftCompound ~implicit:true ~doinit:initoffs ~ct:typ ~initl:lst ~acc:lval)
   in
@@ -353,17 +365,21 @@ let getGlobalInits (file: file) : (edge * location) list  =
     match glob with
     | GVar ({vtype=vtype} as v, init, loc) -> begin
         vars := v :: !vars;
-        let init = match init.init with
-          | None -> makeZeroInit vtype
-          | Some x -> x
+        let init, is_zero = match init.init with
+          | None -> makeZeroInit vtype, true
+          | Some x -> x, false
         in
-        doInit (var v) loc init
+        doInit (var v) loc init is_zero
       end
     | _ -> ()
   in
   iterGlobals file f;
-  initfun.slocals <- List.rev !vars;
-  (Entry initfun, {line = 0; file="initfun"; byte= 0} ) :: List.rev !inits
+  (* initfun.slocals <- List.rev !vars; *) (* why slocals and not sformals? *)
+  (* (Entry initfun, {line = 0; file="initfun"; byte= 0} ) :: List.rev !inits *)
+  (* List.rev !inits *)
+  (* order is not important since only compile-time constants can be assigned *)
+  BatHashtbl.keys inits |> BatList.of_enum
+
 let numGlobals file =
   let n = ref 0 in
   (* GVar Cannot have storage Extern or function type *)
