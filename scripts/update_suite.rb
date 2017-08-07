@@ -11,6 +11,8 @@ def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
 end
 # colors
 class String
+  def indent(n=2); " "*n + self end
+  # colors
   def colorize(color_code); "\e[#{color_code}m#{self}\e[0m" end
   def red; colorize(31) end
   def green; colorize(32) end
@@ -18,6 +20,9 @@ class String
   def blue; colorize(34) end
   def pink; colorize(35) end
   def light_blue; colorize(36) end
+end
+class Array
+  def itemize(n=2); self.map {|x| "- #{x}".indent(n)}.join() end
 end
 # clear the current line
 def clearline
@@ -223,11 +228,11 @@ doproject = lambda do |p|
       relpath = (Pathname.new filepath).relative_path_from(Pathname.new File.dirname(goblint))
       lastline = (File.readlines warnfile).last()
       puts lastline.strip().sub filename, relpath.to_s unless lastline.nil?
-      puts stats[0..9].join()
+      puts stats[0..9].itemize
     end
     if status == 3 then
       warn = File.readlines warnfile
-      puts (warn.select { |x| x["Unsatisfied constraint"] || x["Fixpoint not reached"] }).uniq.join()
+      puts (warn.select { |x| x["Unsatisfied constraint"] || x["Fixpoint not reached"] }).uniq.itemize
     end
   end
 #   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
@@ -240,15 +245,17 @@ doproject = lambda do |p|
     f.puts "Goblint params: #{cmd}"
     f.puts vrsn
   end
+  status == 0
 end
 if sequential then
-  projects.each &doproject
+  alliswell = projects.map(&doproject).all?
 else
   begin
     require 'parallel'
-    Parallel.each projects, &doproject
+    # globals are protected from change when running processes instead of threads
+    alliswell = Parallel.map(projects, &doproject).all?
   rescue LoadError => e
-    puts "Missing dependency. Please run: sudo gem install parallel"
+    puts "Missing dependency. Please run: gem install parallel"
     raise e
   end
 end
