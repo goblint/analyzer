@@ -1,4 +1,4 @@
-/*#include "stdio.h"*/
+// PARAM: --set ana.activated "['base','term']" --enable dbg.debug --enable ana.int.interval --sets solver slr3
 
 int main(){
     int i = 0;
@@ -98,5 +98,16 @@ int main(){
     while (1) {
         i++;
     }
+//    {
+//#line 99
+//    while (1) {
+//      while_continue___4: /* CIL Label */ ;
+//      {
+//#line 100
+//      i ++;
+//      }
+//    }
+//    while_break___4: /* CIL Label */ ;
+//    }
     return 0;
 }
