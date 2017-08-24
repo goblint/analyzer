@@ -49,13 +49,14 @@ struct
   let leq x y =
     match x,y with
     | `Right (), `Right () -> true
-    | `Right (), _ | _, `Right () -> false
     | `Left x, `Left y -> VF.leq x y
+    | `Left _, _ -> false
+    | _, `Left _ -> true
 
   let join (x:t) (y:t) :t =
     match x,y with
-    | `Right (), _ -> `Right ()
-    | _, `Right () -> `Right ()
+    | `Right (), _ -> y
+    | _, `Right () -> x
     | `Left x, `Left y -> `Left (VF.join x y)
 
   let lift f y = match y with
