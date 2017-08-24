@@ -244,7 +244,7 @@ struct
   let value_size o = let t = Obj.repr o in if Obj.is_block t then 1 + Obj.size t else 0
 
   let print_progress f (a,b,c) =
-    if f.svar.vname<>"goblin_initfun" then
+    if f.svar.vname <> "__goblint_dummy_init" then
       begin
         if !last_globs <> !Goblintutil.globals_changed then
           begin

@@ -145,7 +145,7 @@ struct
     in
     let printwarnings warn = match warn with
         [] -> if !transactional then () else
-        if ( (fname = "__goblint_dummy_init") || (fname = "goblin_initfun") ) then () else
+        if fname = "__goblint_dummy_init" then () else
         if (pryd == (-1)) then print_endline ("Function " ^ fname ^ " contains (at most) one variable access.") else
           print_endline ("Function " ^ fname ^ " is transactional with a defensive overall priority of " ^ (string_of_int pryd) ^ " .")
       | _  -> if !violations then begin

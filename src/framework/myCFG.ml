@@ -333,10 +333,7 @@ let print cfg  =
   flush out;
   close_out_noerr out
 
-(* let initfun = emptyFunction "goblin_initfun" *)
 let getGlobalInits (file: file) : (edge * location) list  =
-  let vars = ref [] in
-  (* let inits = ref [] in *)
   (* runtime with fast_global_inits: List: 36.25s, Hashtbl: 0.56s *)
   let inits = Hashtbl.create 13 in
   let fast_global_inits = get_bool "exp.fast_global_inits" in
@@ -364,7 +361,6 @@ let getGlobalInits (file: file) : (edge * location) list  =
   let f glob =
     match glob with
     | GVar ({vtype=vtype} as v, init, loc) -> begin
-        vars := v :: !vars;
         let init, is_zero = match init.init with
           | None -> makeZeroInit vtype, true
           | Some x -> x, false
@@ -374,9 +370,6 @@ let getGlobalInits (file: file) : (edge * location) list  =
     | _ -> ()
   in
   iterGlobals file f;
-  (* initfun.slocals <- List.rev !vars; *) (* why slocals and not sformals? *)
-  (* (Entry initfun, {line = 0; file="initfun"; byte= 0} ) :: List.rev !inits *)
-  (* List.rev !inits *)
   (* order is not important since only compile-time constants can be assigned *)
   BatHashtbl.keys inits |> BatList.of_enum
 

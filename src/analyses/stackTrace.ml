@@ -21,7 +21,7 @@ struct
     ctx.local
 
   let body ctx (f:fundec) : D.t =
-    if f.svar.vname = "goblin_initfun" then ctx.local else D.push f.svar ctx.local
+    if f.svar.vname = "__goblint_dummy_init" then ctx.local else D.push f.svar ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
