@@ -6,17 +6,7 @@ and partition_mode = IDLE | COLD_START | WARM_START | NORMAL
 and status = NOTCREATED | STOPPED | SUSPENDED | WAITING | READY | DONE
 and waiting_for = NONE | BLACKBOARD | SEMA | EVENT | TIME
 and queuing_discipline = FIFO | PRIO
-[@@deriving show, enum]
-(*[@@deriving show { with_path = false }, enum]*)
-(* TODO remove once with_path is available in opam version *)
-let find_last x s = String.(length s - (find (rev s) (rev x) |? 0))
-let suffix x s = let i = find_last x s in String.(sub s i (length s - i))
-let no_path = suffix "."
-let show_return_code = no_path % show_return_code
-let show_partition_mode = no_path % show_partition_mode
-let show_status = no_path % show_status
-let show_waiting_for = no_path % show_waiting_for
-let show_queuing_discipline = no_path % show_queuing_discipline
+[@@deriving show { with_path = false }, enum]
 
 let extract_types = ["t123"] (* TODO extract variables of a certain type *)
 

@@ -20,8 +20,6 @@ opam_build() {
   # opam install camlp4 mongo # camlp4 needed for mongo
   # opam's cil is too old
   opam pin -y add cil "https://github.com/goblint/cil.git"
-  # unpin once deriving show with_path is available in opam version
-  # opam pin add ppx_deriving https://github.com/whitequark/ppx_deriving.git
 }
 
 rule() {

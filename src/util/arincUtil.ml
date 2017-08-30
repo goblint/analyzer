@@ -4,28 +4,20 @@ open Deriving.Cil
 (* we don't want to use M.debug_each because everything here should be done after the analysis, so the location would be some old value for all invocations *)
 let debug_each msg = print_endline @@ Messages.colorize @@ "{blue}"^msg
 
-(* TODO remove once with_path is available in opam version *)
-let find_last x s = String.(length s - try find (rev s) (rev x) with Not_found -> 0)
-let suffix x s = let i = find_last x s in String.(sub s i (length s - i))
-let no_path = suffix "."
-
 (* ARINC types and Hashtables for collecting CFG *)
-type resource = Process | Function | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard [@@deriving show]
-let show_resource = no_path % show_resource
+type resource = Process | Function | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard [@@deriving show { with_path = false }]
 (* id is resource type and name, there is a 1:1 mapping to varinfo in the analysis used for assignments *)
 type id = resource*string [@@deriving show]
 let infinity = 4294967295L (* time value used for infinity *)
 type time = int64 [@printer fun fmt t -> Format.(if t = infinity then fprintf fmt "∞" else fprintf fmt "%Ldns" t)] [@@deriving show]
 
 (* map int values to enum names *)
-type partition_mode = Idle | Cold_Start | Warm_Start | Normal [@@deriving show, enum]
-let show_partition_mode = no_path % show_partition_mode
+type partition_mode = Idle | Cold_Start | Warm_Start | Normal [@@deriving show { with_path = false }, enum]
 let show_partition_mode_opt = String.uppercase % Option.default "Unknown!" % Option.map show_partition_mode
 let mode_is f i = match Option.bind (ArincDomain.Pmo.to_int i) (partition_mode_of_enum % Int64.to_int) with Some x -> f x | None -> false
 let mode_is_init  = mode_is (function Cold_Start | Warm_Start -> true | _ -> false)
 let mode_is_multi = mode_is (function Normal -> true | _ -> false)
-type queuing_discipline = Fifo | Prio [@@deriving show, enum]
-let show_queuing_discipline = no_path % show_queuing_discipline
+type queuing_discipline = Fifo | Prio [@@deriving show { with_path = false }, enum]
 let string_of_queuing_discipline = String.uppercase % Option.default "Unknown!" % Option.map show_queuing_discipline % queuing_discipline_of_enum % Int64.to_int
 (* return code data type *)
 type return_code = (* taken from ARINC_653_part1.pdf page 46 *)
@@ -36,8 +28,7 @@ type return_code = (* taken from ARINC_653_part1.pdf page 46 *)
   | INVALID_CONFIG (* parameter specified in request incompatible with current configuration (e.g., as specified by system integrator) *)
   | INVALID_MODE   (* request incompatible with current mode of operation *)
   | TIMED_OUT      (* time-out associated with request has expired *)
-[@@deriving show, enum]
-let show_return_code = no_path % show_return_code
+[@@deriving show { with_path = false }, enum]
 
 let pname_ErrorHandler = "ErrorHandler"
 
@@ -56,8 +47,7 @@ type action =
   | CreateBlackboard of id | DisplayBlackboard of id | ReadBlackboard of id * time | ClearBlackboard of id
   | CreateSemaphore of Action.semaphore | WaitSemaphore of id * time | SignalSemaphore of id
   | CreateEvent of id | WaitEvent of id * time | SetEvent of id | ResetEvent of id
-  | TimedWait of time | PeriodicWait [@@deriving show]
-let show_action = no_path % show_action
+  | TimedWait of time | PeriodicWait [@@deriving show { with_path = false }]
 type node = ArincDomain.Pred.Base.t
 let string_of_node = ArincDomain.Pred.string_of_elt
 type edge = node * action * string option * node

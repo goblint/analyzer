@@ -3,14 +3,7 @@ open BatteriesExceptionless
 (* enums *)
 type state = SUSPENDED | WAITING | READY
 and waiting_for = NONE | EVENT | RESOURCE
-[@@deriving show, enum]
-(*[@@deriving show { with_path = false }, enum]*)
-(* TODO remove once with_path is available in opam version *)
-let find_last x s = String.(length s - (find (rev s) (rev x) |? 0))
-let suffix x s = let i = find_last x s in String.(sub s i (length s - i))
-let no_path = suffix "."
-let show_state = no_path % show_state
-let show_waiting_for = no_path % show_waiting_for
+[@@deriving show { with_path = false }, enum]
 
 let init oil =
   (*let has_resources = Hashtbl.length OilUtil.resources > 0 in  *)
