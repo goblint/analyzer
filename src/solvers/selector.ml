@@ -3,8 +3,7 @@ open Analyses
 open GobConfig
 
 (* Registered solvers. *)
-let solvers =
-  ref ["effectWCon", (module EffectWCon.Make2 : GenericGlobSolver)]
+let solvers = ref []
 
 (** Register your solvers here!!! *)
 let add_solver x = solvers := x::!solvers
@@ -22,15 +21,10 @@ module Make =
       with Not_found ->
         raise @@ ConfigError ("Solver '"^solver^"' not found. Abort!")
 
-    (** You wont belive this! It really works! *)
     let solve =
-      (* Watch and learn! *)
-      let dark_magic (module SOL : GenericGlobSolver) =
-        let module F = SOL (S) (LH) (GH) in F.solve
-      in
-      (* Did you see! *)
-      dark_magic (choose_solver (get_string "solver"))
-
+      let module Sol = (val choose_solver (get_string "solver") : GenericGlobSolver) in
+      let module F = Sol (S) (LH) (GH) in
+      F.solve
   end
 
 let _ =

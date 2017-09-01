@@ -137,4 +137,5 @@ struct
     (sigma, theta)
 end
 
-module Make2GGS : Analyses.GenericGlobSolver = Make2
+let _ =
+  Selector.add_solver ("effectWCon", (module Make2 : GenericGlobSolver));
