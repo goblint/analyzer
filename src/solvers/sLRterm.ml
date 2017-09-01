@@ -39,6 +39,7 @@ module SLR3term =
         let x = H.find_min !q in
         HM.find key x
       in
+      let rebuild = H.of_list % H.to_list in
       let wpoint = HM.create  10 in
       let infl   = HM.create  10 in
       let set    = HM.create  10 in
@@ -129,7 +130,10 @@ module SLR3term =
               (* solve ~side:true y *)
             ) else (
               (* trace "sol" "SIDE: Var: %a already exists with Prio: %i and Val: %a\n" S.Var.pretty_trace y (HM.find key y) S.Dom.pretty d; *)
-              if HM.find key y < 0 then HM.replace key y (Ref.post_decr count_side)
+              if HM.find key y < 0 then (
+                HM.replace key y (Ref.post_decr count_side);
+                q := rebuild !q
+              )
             );
             q := H.add y !q
           ) else (
