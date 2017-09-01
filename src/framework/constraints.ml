@@ -183,6 +183,33 @@ struct
 end
 
 
+(** Limits the number of widenings per node. *)
+module LimitLifter (S:Spec) =
+struct
+  include (S : module type of S with module D := S.D)
+
+  let name = S.name^" limited"
+
+  let limit = ref 0
+
+  let init () =
+    limit := get_int "dbg.limit.widen";
+    S.init ()
+
+  module H = MyCFG.H
+  let h = H.create 13
+  let incr k =
+    H.modify_def 1 k (fun v ->
+        if v >= !limit then failwith ("LimitLifter: Reached limit ("^string_of_int !limit^") for node "^Ana.sprint MyCFG.pretty_short_node (Option.get !MyCFG.current_node));
+        v+1
+    ) h;
+  module D = struct
+    include S.D
+    let widen x y = Option.may incr !MyCFG.current_node; widen x y (* when is this None? *)
+  end
+end
+
+
 (* widening on contexts, keeps contexts for calls in context *)
 module WidenContextLifter (S:Spec)
 =

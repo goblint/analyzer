@@ -137,7 +137,7 @@ sig
   include CfgForward
 end
 
-module H = Hashtbl.Make(Node)
+module H = BatHashtbl.Make(Node)
 
 (* Dumps a statement to the standard output *)
 let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
