@@ -762,7 +762,10 @@ struct
   let neg  = lift1 Integers.neg
   let add  = lift2_inj Integers.add
   let sub  = lift2_inj Integers.sub
-  let mul  = lift2_inj Integers.mul
+  let mul x y = match x, y with
+    | `Definite 0L, _
+    | _, `Definite 0L -> `Definite 0L
+    | _ -> lift2_inj Integers.mul x y
   let div  = lift2 Integers.div
   let rem  = lift2 Integers.rem
   let lt = lift2 Integers.lt
@@ -1419,7 +1422,7 @@ module IntDomTuple = struct
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (
-      if n>1 then Messages.warn_all @@ "Inconsistent state! "^String.concat "," @@ List.map show us;
+      if n>1 then Messages.warn_all @@ "Inconsistent state! "^String.concat "," @@ List.map show us; (* do not want to abort, but we need some unsound category *)
       None
     )
   let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
