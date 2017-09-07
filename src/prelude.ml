@@ -6,6 +6,15 @@ module All = struct
   let compareBy ?cmp:(cmp=compare) f = comp2 cmp f
   let flat_map f = List.flatten % List.map f
   let str_remove m s = String.nreplace ~str:s ~sub:m ~by:""
+  (* Sys.time gives runtime in seconds as float *)
+  let split_time () = (* gives runtime in h,m,s,ms *)
+    let f = Sys.time () in
+    let i = int_of_float f in
+    let ms = int_of_float (Float.modulo f 1.0 *. 1000.) in
+    i / 3600, i / 60, i mod 60, ms
+  let string_of_time () =
+    let h,m,s,ms = split_time () in
+    Printf.sprintf "%02d:%02d:%02d.%03d" h m s ms
 end
 include All (* shortcut so that 'open Prelude' is enough *)
 

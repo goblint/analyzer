@@ -380,6 +380,25 @@ struct
       if tracing then traceu "sol" "%a\n\n" Dom.pretty_diff (n, o)
     end
 
+  let print_stats = ref (fun () -> ())
+  let () =
+    let open Sys in
+    let handler i =
+      print_newline ();
+      print_newline ();
+      (* print_endline "# Generic solver stats"; *)
+      Printf.printf "runtime: %s\n" (string_of_time ());
+      Printf.printf "vars: %d, evals %d\n" !Goblintutil.vars !Goblintutil.evals;
+      Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a on line %d\n" !max_c Var.pretty_trace v (Var.line_nr v)) !max_var;
+      (* print_endline "# Solver specific stats"; *)
+      !print_stats ();
+      (* Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
+      (* Gc.print_stat stdout;       *)
+      (* print_string "Do you want to continue? [Y/n]"; *)
+      flush stdout;
+      (* if read_line () = "n" then raise Break *)
+    in
+    set_signal sigquit (Signal_handle handler);      
 end
 
 (** use this if your [box] is [join] --- the simple solver *)
