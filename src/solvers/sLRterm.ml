@@ -62,20 +62,15 @@ module SLR3term =
           new_var_event x;
           HM.replace rho  x (S.Dom.bot ());
           HM.replace infl x (VS.add x VS.empty);
-          if side then (
-            print_endline @@ "Variable by side-effect " ^ S.Var.var_id x ^ " ("^ string_of_int (S.Var.line_nr x) ^") to " ^ string_of_int !count_side;
-            HM.replace key  x !count_side; decr count_side
-            (* HM.replace key  x !count; decr count *)
-          ) else (
-            print_endline @@ "Variable " ^ S.Var.var_id x ^ " ("^ string_of_int (S.Var.line_nr x) ^") to " ^ string_of_int !count;
-            HM.replace key  x !count; decr count
-          )
+          let c = if side then count_side else count in
+          trace "sol" "INIT: Var: %a with prio %d\n" S.Var.pretty_trace x !c;
+          HM.replace key x !c; decr c
         end
       in
       let sides x =
         let w = try HM.find set x with Not_found -> VS.empty in
-        let v = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w)
-        in trace "sol" "SIDES: Var: %a\nVal: %a\n" S.Var.pretty_trace x S.Dom.pretty v; v
+        let v = Enum.fold (fun d z -> try S.Dom.join d (HPM.find rho' (z,x)) with Not_found -> d) (S.Dom.bot ()) (VS.enum w) in
+        trace "sol" "SIDES: Var: %a\nVal: %a\n" S.Var.pretty_trace x S.Dom.pretty v; v
       in
       let rec iterate b_old prio =
         if H.size !q = 0 || min_key q > prio then ()
