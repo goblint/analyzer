@@ -25,7 +25,6 @@ struct
     | `Lifted (true,false,c1),`Lifted (true, true, c2) when not(c1=c2) -> x
     | _ -> `Top
 
-  let meet x y = failwith "Unsupported 'meet' on flagModeDomainlattice"
 
   let leq (x:t) (y:t) = match x,y with
     | `Bot , _  -> true

@@ -268,6 +268,9 @@ struct
     match x with
     | All -> raise (Unsupported abnormal)
     | Set t -> normal t
+  let schema_default v f = function
+    | All -> v
+    | Set x -> f x
   (* HACK! Map is an exception in that it doesn't throw an exception! *)
   let map f x =
     match x with
@@ -277,8 +280,8 @@ struct
   let iter f = schema (S.iter f) "iter on All"
   (*  let map f = schema (fun t -> Set (S.map f t)) "map"*)
   let fold f x e = schema (fun t -> S.fold f t e) "fold on All" x
-  let for_all f = schema (S.for_all f) "for_all on All"
-  let exists f = schema (S.exists f) "exists on All"
+  let for_all f = schema_default false (S.for_all f)
+  let exists f = schema_default true (S.exists f) 
   let filter f = schema (fun t -> Set (S.filter f t)) "filter on All"
   let elements = schema S.elements "elements on All"
   let of_list xs = Set (List.fold_right S.add xs (S.empty ()))
