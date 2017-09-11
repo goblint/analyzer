@@ -376,8 +376,8 @@ struct
   let update_var_event x o n =
     if tracing then increase x;
     if full_trace || ((not (Dom.is_bot o)) && is_some !max_var && Var.equal (from_some !max_var) x) then begin
-      if tracing then tracei "sol" "(%d) Update to %a.\n" !max_c Var.pretty_trace x;
-      if tracing then traceu "sol" "%a\n\n" Dom.pretty_diff (n, o)
+      if tracing then tracei "sol_max" "(%d) Update to %a.\n" !max_c Var.pretty_trace x;
+      if tracing then traceu "sol_max" "%a\n\n" Dom.pretty_diff (n, o)
     end
 
   let print_stats = ref (fun () -> ())
