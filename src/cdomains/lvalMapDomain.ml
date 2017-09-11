@@ -69,19 +69,31 @@ module Value (Impl: sig
 struct
   type k = Lval.CilLval.t
   type s = Impl.s
-  type r = { key: k; loc: location list; state: s }
-  type t = r Set.t * r Set.t (* must, may *)
+  module R = struct
+    type t = { key: k; loc: location list; state: s }
+    let hash = Hashtbl.hash
+    let equal a b = Lval.CilLval.equal a.key b.key && a.loc = b.loc && a.state = b.state
+    let to_yojson _ = failwith "TODO to_yojson"    
+    include Printable.Blank
+  end
+  type r = R.t
+  open R
+  module Must' = SetDomain.ToppedSet (R) (struct let topname = "top" end)
+  module Must = Lattice.Reverse (Must')
+  module May  = SetDomain.ToppedSet (R) (struct let topname = "top" end)
+  include Lattice.Prod (Must) (May)
 
-  let to_yojson _ = failwith "TODO to_yojson"
-
+  (* converts to polymorphic sets *)
+  let split (x,y) = try Must'.elements x |> Set.of_list, May.elements y |> Set.of_list with SetDomain.Unsupported _ -> Set.empty, Set.empty
+    
   include Printable.Std
   include Lattice.StdCousot
 
   (* special variable used for indirection *)
   let alias_var = Cil.makeVarinfo false "@alias" Cil.voidType, `NoOffset
   (* alias structure: x[0].key=alias_var, y[0].key=linked_var *)
-  let is_alias (x,y) = x<>Set.empty && (Set.choose x).key=alias_var
-  let get_alias (x,y) = (Set.choose y).key
+  let is_alias (x,y) = neg Must'.is_empty x && (Must'.choose x).key=alias_var
+  let get_alias (x,y) = (May.choose y).key
 
   (* Printing *)
   let string_of_key k = Lval.CilLval.short 80 k
@@ -90,7 +102,9 @@ struct
   let string_of (x,y) =
     if is_alias (x,y) then
       "alias for "^string_of_key @@ get_alias (x,y)
-    else let z = Set.diff y x in
+    else
+      let x, y = split (x,y) in
+      let z = Set.diff y x in
       "{ "^String.concat ", " (List.map string_of_record (Set.elements x))^" }, "^
       "{ "^String.concat ", " (List.map string_of_record (Set.elements z))^" }"
   let short i x = string_of x
@@ -99,45 +113,26 @@ struct
       let name () = Impl.name
       let short = short
     end)
-
-  (* Printable.S *)
-  (* let equal = Util.equals *)
-  let hash = Hashtbl.hash
-  (* Lattice.S must be implemented to be used as Range for MapDomain *)
-  (* let leq x y = equal y (join x y) *)
-  let leq  (a,b) (c,d) = Set.subset c a && Set.subset b d (* this is subseteq! *)
-  let equal a b = leq a b && leq b a
-  let join (a,b) (c,d) = (* M.report ("JOIN\tx: " ^ (string_of (a,b)) ^ "\n\ty: " ^ (string_of (c,d))); *)
-    let r = Set.intersect a c, Set.union b d in
-    (* M.report @@ "result: "^string_of r; *)
-    r
-  let meet x y = M.report ("MEET\tx: " ^ (string_of x) ^ "\n\ty: " ^ (string_of y)); x
-  (* top/bot are handled by MapDomain, only bot () gets called *)
-  let top ()   = Set.empty, Set.empty
-  let is_top x = x=top ()
-  let bot ()   = raise Unknown (* called in MapDomain.MapBot(K)(V).find *)
-  let is_bot x = false
-
   (* constructing & manipulation *)
   let make_record k l s = { key=k; loc=l; state=s }
-  let make k l s = let v = Set.singleton (make_record k l s) in v,v
-  let map f (x,y)  = Set.map f x, Set.map f y
-  let filter p (x,y) = Set.filter p x, Set.filter p y (* retains top *)
-  let union (a,b) (c,d) = Set.union a c, Set.union b d
+  let make k l s = let v = make_record k l s in Must'.singleton v, May.singleton v
+  let map f (x,y)  = Must'.map f x, May.map f y
+  let filter p (x,y) = Must'.filter p x, May.filter p y (* retains top *)
+  let union (a,b) (c,d) = Must'.union a c, May.union b d
   let set_key k v = map (fun x -> {x with key=k}) v (* changes key for all elements *)
   let set_state s v = map (fun x -> {x with state=s}) v
   let remove_state s v = filter (fun x -> x.state<>s) v
-  let locs ?p:(p=const true) v = filter p v |> map (fun x -> x.loc) |> snd |> Set.elements
 
   (* deconstructing *)
-  let split = identity
-  let length (x,y) = Set.cardinal x, Set.cardinal y
-  let map' = map
-  let filter' = filter
+  let length = split %> Tuple2.mapn Set.cardinal
+  let map' f = split %> Tuple2.mapn (Set.map f)
+  let filter' f = split %> Tuple2.mapn (Set.filter f)
+
+  let locs ?p:(p=const true) v = filter p v |> map' (fun x -> x.loc) |> snd |> Set.elements
 
   (* predicates *)
-  let must   p (x,y) = Set.exists p x || not (Set.is_empty y) && Set.for_all p y
-  let may    p (x,y) = Set.exists p y || is_top (x,y)
+  let must   p (x,y) = Must'.exists p x || May.for_all p y
+  let may    p (x,y) = May.exists p y
 
   (* properties of records *)
   let key r = r.key
@@ -147,12 +142,11 @@ struct
   let in_state s r = r.state = s
 
   (* special variables *)
-  let get_record (x,y) = if Set.is_empty x then None else Some (Set.choose x)
+  let get_record (x,y) = if Must'.is_empty x then None else Some (Must'.choose x)
   let make_var_record k = make_record k [] Impl.var_state
-  let make_var_set k = Set.singleton (make_var_record k)
-  let make_var k = make_var_set k, make_var_set k
-  let make_alias k = make_var_set alias_var, make_var_set k
-  let from_tuple = identity
+  let make_var k = Must'.singleton (make_var_record k), May.singleton (make_var_record k)
+  let make_alias k = Must'.singleton (make_var_record alias_var), May.singleton (make_var_record k)
+  let from_tuple (x,y) = Set.to_list x |> Must'.of_list, Set.to_list y |> May.of_list
 end
 
 
