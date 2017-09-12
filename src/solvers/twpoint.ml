@@ -71,6 +71,8 @@ module WP =
             HM.replace rho x tmp;
             destabilize x;
             (solve[@tailcall]) x phase;
+          ) else if not (HM.mem stable x) then (
+            (solve[@tailcall]) x phase;
           ) else if phase = Widen && neg is_side x then (
             HM.remove stable x;
             (solve[@tailcall]) x Narrow;

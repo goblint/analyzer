@@ -68,6 +68,8 @@ module WP =
             HM.replace rho x tmp;
             destabilize x;
             (solve[@tailcall]) x;
+          ) else if not (HM.mem stable x) then (
+            (solve[@tailcall]) x;
           )
         )
       and eq x get set effects =
