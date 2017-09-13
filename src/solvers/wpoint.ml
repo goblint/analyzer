@@ -67,10 +67,8 @@ module WP =
             if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) on %i is %a. Old value was %a\n" S.Var.pretty_trace x (HM.mem rho x) (is_side x) (S.Var.line_nr x) S.Dom.pretty tmp S.Dom.pretty old;
             HM.replace rho x tmp;
             destabilize x;
-            (solve[@tailcall]) x;
-          ) else if not (HM.mem stable x) then (
-            (solve[@tailcall]) x;
-          )
+          );
+          (solve[@tailcall]) x;
         )
       and eq x get set effects =
         if tracing then trace "sol2" "eq %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
