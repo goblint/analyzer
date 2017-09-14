@@ -368,7 +368,7 @@ let save_promela_model () =
   in
   (* used for macros oneIs, allAre, noneAre... *)
   let checkStatus = "(" ^ (String.concat " op2 " @@ List.of_enum @@ (0 --^ nproc) /@ (fun i -> "status["^string_of_int i^"] op1 v")) ^ ")" in
-  let not_starving = "(" ^ (String.concat " && " @@ List.of_enum @@ (0 --^ nproc) /@ (fun i -> let s = "status["^string_of_int i^"]" in "always ("^s^" == READY implies eventually ("^s^" == READY || "^s^" == STOPPED || "^s^" == DONE))")) ^ ")" in
+  let allTasks = "(" ^ (String.concat " && " @@ List.of_enum @@ (0 --^ nproc) /@ (fun i -> "prop("^string_of_int i^")")) ^ ")" in
   (* generate priority based running constraints for each process (only used ifdef PRIOS): process can only run if no higher prio process is ready *)
   let prios =
     let def proc =
@@ -399,7 +399,7 @@ let save_promela_model () =
     ("#define nsema "^string_of_int nsema) ::
     ("#define nevent "^string_of_int nevent) :: "" ::
     ("#define checkStatus(op1, v, op2) "^checkStatus) :: "" ::
-    ("#define Not_Starving "^not_starving) :: "" ::
+    ("#define allTasks(prop) "^allTasks) :: "" ::
     "#include \"arinc.base.pml\"" :: "" ::
     "init {" :: List.map indent init_body @ "}" :: "" ::
                                             (List.of_enum @@ (0 --^ nproc) /@ (fun i -> "#define PRIO" ^ string_of_int i)) @
