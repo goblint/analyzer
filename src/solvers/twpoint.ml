@@ -51,14 +51,15 @@ module WP =
       and solve x phase =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         if not (HM.mem called x || HM.mem stable x) then (
-          let box x a b = if phase = Widen then S.Dom.widen a (S.Dom.join a b) else S.Dom.narrow (S.Dom.meet a b) b in
+          let box x a b = if phase = Widen then S.Dom.widen a (S.Dom.join a b) else S.Dom.narrow a b in
           HM.replace stable x ();
           HM.replace called x ();
           let old = HM.find rho x in
           let l = HM.create 10 in
           let effects = ref Set.empty in
           let tmp' = eq x (eval l effects x) (side x) effects in
-          let tmp = S.Dom.join tmp' (sides x) in
+          let tmp' = S.Dom.join tmp' (sides x) in
+          let tmp = tmp' in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           let tmp = if is_side x then S.Dom.widen old (S.Dom.join old tmp) else box x old tmp in
@@ -74,8 +75,12 @@ module WP =
           ) else if not (HM.mem stable x) then (
             (solve[@tailcall]) x phase;
           ) else if phase = Widen && neg is_side x then (
-            HM.remove stable x;
-            (solve[@tailcall]) x Narrow;
+            let tmp = S.Dom.narrow old tmp' in
+            if not (S.Dom.equal old tmp) then (
+              HM.replace rho x tmp;
+              destabilize x;
+              (solve[@tailcall]) x Narrow;
+            )
           );
         );
       and eq x get set effects =
