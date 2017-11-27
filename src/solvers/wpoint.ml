@@ -36,6 +36,7 @@ module WP =
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
       let add_set x y d =
+        if tracing then trace "sol2" "add_set %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty d;
         HM.replace set y (VS.add x (try HM.find set y with Not_found -> VS.empty));
         HPM.add rho' (x,y) d;
         HM.replace sidevs y ()
@@ -99,6 +100,8 @@ module WP =
           let d = eq y (eval l effects x) (side x) effects in
           HM.remove called y;
           if HM.mem rho y then (
+            (* not necessesary, but easier to reason about: variable is either in rho or l *)
+            (* HM.remove l y; *)
             solve y;
             add_infl y x;
             HM.find rho y
@@ -113,7 +116,7 @@ module WP =
         if tracing then trace "sol2" "sides %a on %i ## %a\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Dom.pretty d;
         d
       and side x y d =
-        if tracing then trace "sol2" "side %a on %i ## %a on %i (wpx: %b) ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem rho y) S.Dom.pretty d;
+        if tracing then trace "sol2" "side from %a on %i ## to %a on %i (wpx: %b) ## value: %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem rho y) S.Dom.pretty d;
         let old = try HPM.find rho' (x,y) with Not_found -> S.Dom.bot () in
         if not (S.Dom.equal old d) then (
           add_set x y (S.Dom.join old d);
@@ -133,7 +136,7 @@ module WP =
       let set_start (x,d) =
         if tracing then trace "sol2" "set_start %a on %i ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Dom.pretty d;
         init x;
-        add_set x x d;
+        (* add_set x x d; *)
         solve x
       in
 
@@ -192,7 +195,7 @@ module WP =
           print_endline ("Restoring missing values.");
         let restore () = ignore @@ List.map get vs in
         Stats.time "restore" restore ();
-        ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
+        if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
       );
 
       let reachability xs =

@@ -92,7 +92,7 @@ module SLR3term =
       and do_var b_old x =
         let wpx = HM.mem wpoint x in
         (* let wpx = true in *)
-        HM.remove wpoint x;
+        (* HM.remove wpoint x; *)
         let old = HM.find rho x in
         let eval y =
           get_var_event y;
