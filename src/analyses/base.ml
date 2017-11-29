@@ -785,7 +785,7 @@ struct
    **************************************************************************)
 
   (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
-  let char_array : (lval, string) Hashtbl.t = Hashtbl.create 500
+  let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
 
   let assign ctx (lval:lval) (rval:exp)  =
     let char_array_hack () =
@@ -809,7 +809,7 @@ struct
       | Some (lv, i), Const(CChr c) when c<>'\000' -> (* "abc" <> "abc\000" in OCaml! *)
         let i = i64_to_int i in
         (* ignore @@ printf "%a[%i] = %c\n" d_lval lv i c; *)
-        let s = try BatHashtbl.find char_array lv with Not_found -> "" in (* current string for lv or empty string *)
+        let s = BatHashtbl.find_default char_array lv Bytes.empty in (* current string for lv or empty string *)
         if i >= Bytes.length s then ((* optimized b/c Out_of_memory *)
           let dst = Bytes.make (i+1) '\000' in
           Bytes.blit s 0 dst 0 (Bytes.length s); (* dst[0:len(s)] = s *)
@@ -1280,7 +1280,7 @@ struct
               let v, offs = Q.LS.choose @@ addrToLvalSet a in
               let ciloffs = Lval.CilLval.to_ciloffs offs in
               let lval = Var v, ciloffs in
-              (try `Str (Hashtbl.find char_array lval)
+              (try `Str (Bytes.to_string (Hashtbl.find char_array lval))
                with Not_found -> `Top)
             | _ -> (* what about ISChar and IUChar? *)
               (* ignore @@ printf "Type %a\n" d_plaintype t; *)
