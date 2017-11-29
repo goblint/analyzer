@@ -4,5 +4,5 @@ COPY / analyzer
 WORKDIR analyzer
 # ugh, this takes forever... https://github.com/docker/docker/issues/6119
 RUN sudo chown -R opam .
-RUN make deps
+RUN make setup
 CMD make
