@@ -1,4 +1,4 @@
-FROM ocaml/opam:ubuntu
+FROM ocaml/opam:ubuntu-17.04_ocaml-4.06.0
 RUN sudo apt-get install -yq ruby
 COPY / analyzer
 WORKDIR analyzer
