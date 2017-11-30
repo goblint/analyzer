@@ -13,6 +13,7 @@ ocb() {
   $OCAMLBUILD $FLAGS $*
 }
 
+ocaml_version="4.06.0"
 opam_build() {
   eval `opam config env`
   opam update
@@ -74,7 +75,8 @@ rule() {
              ;;
     dep*)    OPAMYES=1 opam_build;;
     setup)   echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
-             opam init --comp=4.06.0
+             opam init --comp=$ocaml_version
+             opam switch $ocaml_version # in case opam was already initialized
              opam_build
              ;;
     dev)     echo "Installing opam packages for development..."
