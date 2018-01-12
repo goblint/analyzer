@@ -33,11 +33,11 @@ module WP =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
-      let rec destabilize x =
+      let rec destabilize l x =
         if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
-        VS.iter (fun y -> HM.remove stable y; if not (HM.mem called x) then destabilize y) w
+        VS.iter (fun y -> HM.remove l y; HM.remove stable y; if not (HM.mem called x) then destabilize l y) w
       and solve x phase =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         if not (HM.mem called x || HM.mem stable x) then (
@@ -45,7 +45,7 @@ module WP =
           HM.replace called x ();
           let old = HM.find rho x in
           let l = HM.create 10 in
-          let tmp = eq x (eval l x) side in
+          let tmp = eq x (eval l x) (side l) in
           let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
@@ -57,7 +57,7 @@ module WP =
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             (* if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) on %i is %a. Old value was %a\n" S.Var.pretty_trace x (HM.mem rho x) (is_side x) (S.Var.line_nr x) S.Dom.pretty tmp S.Dom.pretty old; *)
             HM.replace rho x tmp;
-            destabilize x;
+            destabilize l x;
             (solve[@tailcall]) x phase;
           ) else if not (HM.mem stable x) then (
             (solve[@tailcall]) x phase;
@@ -84,7 +84,7 @@ module WP =
         else if HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let d = eq y (eval l x) side in
+          let d = eq y (eval l x) (side l) in
           HM.remove called y;
           if HM.mem rho y then (
             (* not necessesary, but easier to reason about: variable is either in rho or l *)
@@ -94,12 +94,17 @@ module WP =
             HM.find rho y
           ) else (
             HM.replace l y d;
+            add_infl y x;
             d
           )
         )
-      and side y d =
+      and side l y d =
         if tracing then trace "sol2" "side to %a on %i (wpx: %b) ## value: %a\n" S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem rho y) S.Dom.pretty d;
         let old = try HM.find rho' y with Not_found -> S.Dom.bot () in
+        if not (HM.mem rho y) then (
+          HM.remove l y;
+          destabilize l y
+        );
         if not (S.Dom.leq d old) then (
           HM.replace rho' y (S.Dom.join old d);
           HM.remove stable y;
