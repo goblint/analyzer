@@ -88,7 +88,7 @@ module WP =
           HM.remove called y;
           if HM.mem rho y then (
             (* not necessesary, but easier to reason about: variable is either in rho or l *)
-            (* HM.remove l y; *)
+            HM.remove l y;
             solve y Widen;
             add_infl y x;
             HM.find rho y
