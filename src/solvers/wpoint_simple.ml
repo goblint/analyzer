@@ -88,6 +88,7 @@ module WP =
             HM.find rho y
           ) else (
             HM.replace l y d;
+            add_infl y x;            
             d
           )
         )
