@@ -181,4 +181,4 @@ module WP =
 
 let _ =
   let module WP = GlobSolverFromIneqSolver (SLR.JoinContr (WP)) in
-  Selector.add_solver ("ttopdown", (module WP : GenericGlobSolver));
+  Selector.add_solver ("topdown_term", (module WP : GenericGlobSolver));

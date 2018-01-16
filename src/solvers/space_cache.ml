@@ -1,4 +1,4 @@
-(** Terminating top down solver that only keeps values at widening points and restores other values afterwards. *)
+(** Top down solver that only keeps values at widening points and restores other values afterwards. *)
 
 open Prelude
 open Analyses
@@ -20,8 +20,6 @@ module WP =
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
-    type phase = Widen | Narrow      
-    
     let solve box st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
@@ -38,7 +36,7 @@ module WP =
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y -> HM.remove l y; HM.remove stable y; if not (HM.mem called x) then destabilize l y) w
-      and solve x phase =
+      and solve x =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         if not (HM.mem called x || HM.mem stable x) then (
           HM.replace stable x ();
@@ -49,8 +47,8 @@ module WP =
           let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
-          let tmp = match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp in
-          HM.remove called x;
+          let tmp = box x old tmp in
+          (* HM.remove called x; *)
           if not (S.Dom.equal old tmp) then (
             (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a\n" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); *)
             update_var_event x old tmp;
@@ -58,13 +56,9 @@ module WP =
             (* if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) on %i is %a. Old value was %a\n" S.Var.pretty_trace x (HM.mem rho x) (is_side x) (S.Var.line_nr x) S.Dom.pretty tmp S.Dom.pretty old; *)
             HM.replace rho x tmp;
             destabilize l x;
-            (solve[@tailcall]) x phase;
-          ) else if not (HM.mem stable x) then (
-            (solve[@tailcall]) x phase;
-          ) else if phase = Widen then (
-            HM.remove stable x;
-            (solve[@tailcall]) x Narrow;
           );
+          HM.remove called x;
+          (solve[@tailcall]) x;
         )
       and eq x get set =
         if tracing then trace "sol2" "eq %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
@@ -77,7 +71,7 @@ module WP =
         get_var_event y;
         if HM.mem called y then init y;
         if HM.mem rho y then (
-          solve y Widen;
+          solve y;
           add_infl y x;
           HM.find rho y
         )
@@ -89,12 +83,12 @@ module WP =
           if HM.mem rho y then (
             (* not necessesary, but easier to reason about: variable is either in rho or l *)
             HM.remove l y;
-            solve y Widen;
+            solve y;
             add_infl y x;
             HM.find rho y
           ) else (
             HM.replace l y d;
-            add_infl y x;
+            add_infl y x;            
             d
           )
         )
@@ -109,7 +103,7 @@ module WP =
           HM.replace rho' y (S.Dom.join old d);
           HM.remove stable y;
           init y;
-          solve y Widen;
+          solve y;
         )
       and init x =
         if tracing then trace "sol2" "init %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
@@ -124,13 +118,13 @@ module WP =
         if tracing then trace "sol2" "set_start %a on %i ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Dom.pretty d;
         init x;
         HM.replace rho x d;
-        solve x Widen
+        solve x
       in
 
       start_event ();
       List.iter set_start st;
       List.iter init vs;
-      List.iter (fun x -> solve x Widen) vs;
+      List.iter solve vs;
       (* iterate until there are no unstable variables
        * after termination, only those variables are stable which are
        * - reachable from any of the queried variables vs, or
@@ -139,7 +133,7 @@ module WP =
       let rec solve_sidevs () =
         let non_stable = List.filter (neg (HM.mem stable)) vs in
         if non_stable <> [] then (
-          List.iter (fun x -> solve x Widen) non_stable;
+          List.iter solve non_stable;
           solve_sidevs ()
         )
       in
@@ -216,4 +210,4 @@ module WP =
 
 let _ =
   let module WP = GlobSolverFromIneqSolver (SLR.JoinContr (WP)) in
-  Selector.add_solver ("wpoint_simple_term", (module WP : GenericGlobSolver));
+  Selector.add_solver ("space_cache", (module WP : GenericGlobSolver));
