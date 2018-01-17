@@ -809,7 +809,7 @@ struct
       | Some (lv, i), Const(CChr c) when c<>'\000' -> (* "abc" <> "abc\000" in OCaml! *)
         let i = i64_to_int i in
         (* ignore @@ printf "%a[%i] = %c\n" d_lval lv i c; *)
-        let s = BatHashtbl.find_default char_array lv Bytes.empty in (* current string for lv or empty string *)
+        let s = try Hashtbl.find char_array lv with Not_found -> Bytes.empty in (* current string for lv or empty string *)
         if i >= Bytes.length s then ((* optimized b/c Out_of_memory *)
           let dst = Bytes.make (i+1) '\000' in
           Bytes.blit s 0 dst 0 (Bytes.length s); (* dst[0:len(s)] = s *)
