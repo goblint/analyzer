@@ -26,6 +26,7 @@ module WP =
       let called = HM.create  10 in
       let rho    = HM.create  10 in
       let rho'   = HM.create  10 in
+      let cache_sizes = ref [] in
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
@@ -49,6 +50,7 @@ module WP =
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           let tmp = box x old tmp in
           if tracing then trace "cache" "cache size %d for %a on %i\n" (HM.length l) S.Var.pretty_trace x (S.Var.line_nr x);
+          cache_sizes := HM.length l :: !cache_sizes;
           (* HM.remove called x; *)
           if not (S.Dom.equal old tmp) then (
             (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a\n" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); *)
@@ -183,6 +185,8 @@ module WP =
         Stats.time "restore" restore ();
         if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
       );
+      let avg xs = float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
+      if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
 
       let reachability xs =
         let reachable = HM.create (HM.length rho) in
