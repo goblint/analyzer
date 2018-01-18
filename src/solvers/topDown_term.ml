@@ -51,7 +51,7 @@ module WP =
         VS.iter (fun y ->
           HM.remove stable y;
           if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y);
-          destabilize y) w
+          if not (HM.mem called y) then destabilize y) w
       and solve x phase =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         if not (HM.mem called x || HM.mem stable x) then (
@@ -120,8 +120,7 @@ module WP =
         if tracing then trace "sol2" "init %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
         if not (HM.mem rho x) then (
           new_var_event x;
-          HM.replace rho  x (S.Dom.bot ());
-          HM.replace infl x (VS.add x VS.empty)
+          HM.replace rho  x (S.Dom.bot ())
         )
       in
 

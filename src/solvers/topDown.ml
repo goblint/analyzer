@@ -113,8 +113,7 @@ module WP =
         if tracing then trace "sol2" "init %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
         if not (HM.mem rho x) then (
           new_var_event x;
-          HM.replace rho  x (S.Dom.bot ());
-          HM.replace infl x (VS.add x VS.empty)
+          HM.replace rho  x (S.Dom.bot ())
         )
       in
 
