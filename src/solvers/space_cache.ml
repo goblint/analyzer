@@ -32,11 +32,11 @@ module WP =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
-      let rec destabilize l x =
+      let rec destabilize x =
         if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
-        VS.iter (fun y -> HM.remove l y; HM.remove stable y; if not (HM.mem called y) then destabilize l y) w
+        VS.iter (fun y -> HM.remove stable y; if not (HM.mem called y) then destabilize y) w
       and solve x =
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         if not (HM.mem called x || HM.mem stable x) then (
@@ -58,7 +58,7 @@ module WP =
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             (* if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) on %i is %a. Old value was %a\n" S.Var.pretty_trace x (HM.mem rho x) (is_side x) (S.Var.line_nr x) S.Dom.pretty tmp S.Dom.pretty old; *)
             HM.replace rho x tmp;
-            destabilize l x;
+            destabilize x;
           );
           HM.remove called x;
           (solve[@tailcall]) x;
@@ -69,25 +69,22 @@ module WP =
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> f get set
-      and simple_solve l x =
-        if tracing then trace "sol2" "simple_solve %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
-        if HM.mem rho x then (solve x; HM.find rho x) else
-        if HM.mem called x then (init x; HM.find rho x) else
-        if HM.mem l x && HM.mem stable x then HM.find l x (* how can this not be stable?? *)
+      and simple_solve l x y =
+        if tracing then trace "sol2" "simple_solve %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y);
+        if HM.mem rho y then (solve y; HM.find rho y) else
+        if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
+        if HM.mem l y then HM.find l y
         else (
-          HM.replace called x ();
-          HM.replace stable x ();
-          let tmp = eq x (eval l x) (side l) in
-          HM.remove called x;
-          if HM.mem rho x then (HM.remove l x; HM.remove stable x; solve x; HM.find rho x)
-          else
-            if HM.mem stable x then (HM.replace l x tmp; tmp)
-            else simple_solve l x
+          HM.replace called y ();
+          let tmp = eq y (eval l x) (side l) in
+          HM.remove called y;
+          if HM.mem rho y then (HM.remove l y; solve y; HM.find rho y)
+          else (HM.replace l y tmp; tmp)
         )
       and eval l x y =
         if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
         get_var_event y;
-        let tmp = simple_solve l y in
+        let tmp = simple_solve l x y in
         add_infl y x;
         tmp
       and side l y d =

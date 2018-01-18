@@ -65,24 +65,21 @@ module WP =
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> f get set
-      and simple_solve x =
-        if tracing then trace "sol2" "simple_solve %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
-        if HM.mem rho x then (solve x; HM.find rho x) else
-        if HM.mem called x then (init x; HM.find rho x)
+      and simple_solve x y =
+        if tracing then trace "sol2" "simple_solve %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y);
+        if HM.mem rho y then (solve y; HM.find rho y) else
+        if HM.mem called y then (init y; HM.find rho y)
         else (
-          HM.replace called x ();
-          HM.replace stable x ();
-          let tmp = eq x (eval x) side in
-          HM.remove called x;
-          if HM.mem rho x then (HM.remove stable x; solve x; HM.find rho x)
-          else
-            if HM.mem stable x then tmp
-            else simple_solve x
+          HM.replace called y ();
+          let tmp = eq y (eval x) side in
+          HM.remove called y;
+          if HM.mem rho y then (solve y; HM.find rho y)
+          else tmp
         )
       and eval x y =
         if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
         get_var_event y;
-        let tmp = simple_solve y in
+        let tmp = simple_solve x y in
         add_infl y x;
         tmp
       and side y d =
