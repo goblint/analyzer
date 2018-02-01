@@ -136,7 +136,7 @@ let d_loc () loc =
 
 let d_memo () (t, lv) =
   match lv with
-  | Some (v,o) -> dprintf "%s%a" v.vname d_offs o
+  | Some (v,o) -> dprintf "%s%a@@%a" v.vname d_offs o d_loc v.vdecl
   | None       -> dprintf "%a" d_acct t
 
 let rec get_type (fb: typ) : exp -> acc_typ = function
