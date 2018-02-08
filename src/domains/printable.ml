@@ -109,6 +109,8 @@ end
 (* HAS SIDE-EFFECTS ---- PLEASE INSTANCIATE ONLY ONCE!!! *)
 module HConsed (Base:S) =
 struct
+  include Std (* for property-based testing *)
+
   module HC = BatHashcons.MakeTable (Base)
   let htable = HC.create 100000
 

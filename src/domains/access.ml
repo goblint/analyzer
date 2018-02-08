@@ -21,6 +21,8 @@ let is_ignorable = function
 
 module Ident : Printable.S with type t = string =
 struct
+  include Printable.Std (* for property-based testing *)
+
   open Pretty
   type t = string [@@deriving to_yojson]
   let hash (x:t) = Hashtbl.hash x

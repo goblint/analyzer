@@ -25,6 +25,8 @@ end
 
 module ProgLocation : Printable.S with type t = location =
 struct
+  include Printable.Std (* for property-based testing *)
+
   open Pretty
   type t = location [@@deriving to_yojson]
   let isSimple _  = true
