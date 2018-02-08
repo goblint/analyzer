@@ -24,6 +24,7 @@ sig
   (* This is for debugging *)
   val name: unit -> string
   val to_yojson : t -> json
+  val arbitrary: unit -> t QCheck.arbitrary
 end
 
 module Std =
@@ -35,6 +36,7 @@ struct
   let class_name _ = "None"
   let name () = "std"
   let trace_enabled = false
+  let arbitrary () = failwith "no arbitrary"
 end
 
 module Blank =
