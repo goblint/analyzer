@@ -1,11 +1,16 @@
 open QCheck
 
-module DomainProperties (D: Lattice.S) =
+module DomainTest (D: Printable.S) =
 struct
   (* Wrapper for Test.make: prepends domain name to required name *)
   let make ?count ?long_factor ?max_gen ?max_fail ?small ~name arb law =
     let full_name = D.name () ^ " " ^ name in
     Test.make ?count ?long_factor ?max_gen ?max_fail ?small ~name:full_name arb law
+end
+
+module DomainProperties (D: Lattice.S) =
+struct
+  include DomainTest (D)
 
   let arb = D.arbitrary ()
 
