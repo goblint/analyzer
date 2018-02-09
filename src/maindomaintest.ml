@@ -1,9 +1,12 @@
+open Defaults (* CircInterval needs initialized conf *)
+
 let domains: (module Lattice.S) list = [
   (module IntDomain.Integers);
   (module IntDomain.Flattened);
   (module IntDomain.Lifted);
   (module IntDomain.Interval32);
-  (module IntDomain.Booleans)
+  (module IntDomain.Booleans);
+  (module IntDomain.CircInterval)
 ]
 
 let testsuite =

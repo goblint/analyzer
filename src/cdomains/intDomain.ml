@@ -1113,6 +1113,7 @@ struct
 
   let narrow = wrap_debug2 "narrow" narrow'
 
+  let arbitrary () = QCheck.map of_interval @@ QCheck.pair QCheck.int64 QCheck.int64
 end
 
 (* BOOLEAN DOMAINS *)
