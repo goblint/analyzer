@@ -1,6 +1,9 @@
 let domains: (module Lattice.S) list = [
   (module IntDomain.Integers);
-  (module IntDomain.Flattened)
+  (module IntDomain.Flattened);
+  (module IntDomain.Lifted);
+  (module IntDomain.Interval32);
+  (module IntDomain.Booleans)
 ]
 
 let testsuite =

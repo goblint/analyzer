@@ -325,6 +325,8 @@ struct
       if Int64.compare x2 y1 < 0 then of_bool true
       else if Int64.compare y2 x1 <= 0 then of_bool false
       else top ()
+
+  let arbitrary () = QCheck.map of_interval @@ QCheck.pair QCheck.int64 QCheck.int64
 end
 
 
@@ -1185,6 +1187,8 @@ struct
   let logor  = (||)
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+
+  let arbitrary () = QCheck.bool
 end
 
 module Booleans = MakeBooleans (
