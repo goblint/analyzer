@@ -8,6 +8,7 @@ obj
 goblint
 goblint.byte
 goblint.json
+goblint.domaintest
 src/version.ml
 src/config.ml
 src/goblint.ml
