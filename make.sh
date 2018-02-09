@@ -19,6 +19,7 @@ opam_build() {
   opam update
   opam install ocamlfind batteries xml-light ppx_distr_guards ppx_monadic ppx_import ppx_deriving ppx_deriving_yojson
   # opam install camlp4 mongo # camlp4 needed for mongo
+  opam install qcheck # for property-based testing
   # opam's cil is too old
   opam pin -y add cil "https://github.com/goblint/cil.git"
 }
