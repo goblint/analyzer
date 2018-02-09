@@ -404,7 +404,7 @@ struct
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
-  let arbitrary () = QCheck.int64
+  let arbitrary () = QCheck.int64 (* S TODO: custom int64 arbitrary with shrinker *)
 end
 
 module FlatPureIntegers = (* Integers, but raises Unknown/Error on join/meet *)

@@ -1,6 +1,6 @@
 open QCheck
 
-module D = IntDomain.Integers
+module D = IntDomain.Flattened
 let arb = D.arbitrary ()
 let testsuite = [
   Test.make ~name:"leq refl" (arb) (fun x -> D.leq x x);
