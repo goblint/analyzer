@@ -252,6 +252,19 @@ struct
     Spec.init ();
     Access.init file;
 
+    let test_domain (module D: Lattice.S): unit =
+      let module DP = DomainProperties.All (D) in
+      let errcode = QCheck_runner.run_tests DP.tests in
+      if (errcode <> 0) then
+        failwith "domain tests failed"
+    in
+    let _ =
+      if (get_bool "dbg.test.domain") then (
+        test_domain (module Spec.D);
+        test_domain (module Spec.G);
+      )
+    in
+
     let startstate, more_funs =
       if (get_bool "dbg.verbose") then print_endline ("Initializing "^string_of_int (MyCFG.numGlobals file)^" globals.");
       do_global_inits file
