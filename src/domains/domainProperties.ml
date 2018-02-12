@@ -8,9 +8,9 @@ struct
   (* let arb = D.arbitrary () *)
 
   (* Wrapper for Test.make: prepends domain name to required name *)
-  let make ?count ?long_factor ?max_gen ?max_fail ?small ~name arb law =
+  let make ?count ?(long_factor=100) ?max_gen ?max_fail ?small ~name arb law =
     let full_name = D.name () ^ " " ^ name in
-    Test.make ?count ?long_factor ?max_gen ?max_fail ?small ~name:full_name arb law
+    Test.make ?count ~long_factor ?max_gen ?max_fail ?small ~name:full_name arb law
 end
 
 module type S =
