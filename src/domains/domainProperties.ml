@@ -3,7 +3,9 @@ open QCheck
 module DomainTest (D: Printable.S) =
 struct
   (* Shorthand for domain arbitrary *)
-  let arb = D.arbitrary ()
+  let arb = try D.arbitrary () with
+    | Failure(s) -> failwith (D.name () ^ ": " ^ s)
+  (* let arb = D.arbitrary () *)
 
   (* Wrapper for Test.make: prepends domain name to required name *)
   let make ?count ?long_factor ?max_gen ?max_fail ?small ~name arb law =
