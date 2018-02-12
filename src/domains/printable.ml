@@ -91,6 +91,8 @@ struct
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f () = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.name)
+
+  let arbitrary () = QCheck.unit
 end
 module Unit = UnitConf (struct let name = "()" end)
 

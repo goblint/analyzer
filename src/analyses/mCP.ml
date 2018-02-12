@@ -144,7 +144,9 @@ struct
     in
     unop_fold print_one () xs
 
-  let arbitrary () = QCheck.always [] (* S TODO: correct non-empty list *)
+  let arbitrary () =
+    let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
+    MyArbitrary.sequence arbs
 end
 
 let _ =

@@ -608,6 +608,8 @@ struct
     | `List n ->  Lists.printXml f n
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
+
+  let arbitrary () = QCheck.always `Bot (* S TODO: other elements *)
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
