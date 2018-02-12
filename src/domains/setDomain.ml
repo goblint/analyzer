@@ -143,6 +143,8 @@ struct
     BatPrintf.fprintf f "<value>\n<set>\n";
     iter (Base.printXml f) xs;
     BatPrintf.fprintf f "</set>\n</value>\n"
+
+  let arbitrary () = QCheck.always (empty ()) (* S TODO: actual non-empty set *)
 end
 
 (** A functor for creating a path sensitive set domain, that joins the base
@@ -341,6 +343,11 @@ struct
       BatPrintf.fprintf f "<value><set>\n" ;
       S.iter (Base.printXml f) s;
       BatPrintf.fprintf f "</set></value>\n"
+
+  let arbitrary () = QCheck.frequency ~print:(fun x -> short 32 x) [ (* S TODO: better way to define printer? *)
+      1, QCheck.always All;
+      20, QCheck.map (fun x -> Set x) (S.arbitrary ())
+    ] (* S TODO: decide frequencies *)
 end
 
 (* superseded by Hoare *)

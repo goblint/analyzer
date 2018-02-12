@@ -254,6 +254,7 @@ struct
 
     let test_domain (module D: Lattice.S): unit =
       let module DP = DomainProperties.All (D) in
+      ignore (printf "domain testing...: %s\n" (D.name ()));
       let errcode = QCheck_runner.run_tests DP.tests in
       if (errcode <> 0) then
         failwith "domain tests failed"

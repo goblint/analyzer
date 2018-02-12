@@ -131,6 +131,8 @@ struct
   let isSimple = lift_f Base.isSimple
   let pretty_diff () (x,y) = Base.pretty_diff () (x.BatHashcons.obj,y.BatHashcons.obj)
   let printXml f x = Base.printXml f x.BatHashcons.obj
+
+  let arbitrary () = QCheck.map lift (Base.arbitrary ())
 end
 
 module Lift (Base: S) (N: LiftingNames) =

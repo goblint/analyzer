@@ -144,6 +144,7 @@ struct
     in
     unop_fold print_one () xs
 
+  let arbitrary () = QCheck.always [] (* S TODO: correct non-empty list *)
 end
 
 let _ =
