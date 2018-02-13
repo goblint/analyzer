@@ -144,7 +144,7 @@ struct
     iter (Base.printXml f) xs;
     BatPrintf.fprintf f "</set>\n</value>\n"
 
-  let arbitrary () = QCheck.always (empty ()) (* S TODO: actual non-empty set *)
+  let arbitrary () = QCheck.map of_list @@ QCheck.small_list (Base.arbitrary ())
 end
 
 (** A functor for creating a path sensitive set domain, that joins the base

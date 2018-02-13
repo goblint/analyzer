@@ -122,6 +122,8 @@ struct
   let printXml f x = BatPrintf.fprintf f "%s\n" (Goblintutil.escape (short 80 x))
   let var_id _ = "globals"
   let node _ = MyCFG.Function Cil.dummyFunDec.svar
+
+  let arbitrary () = QCheck.always (Cil.makeGlobalVar "arbVar" Cil.voidPtrType) (* S TODO: how to generate this *)
 end
 
 
@@ -162,6 +164,8 @@ struct
   let name () = "variables"
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
+
+  let arbitrary () = failwith "VarStatus: no arb"
 end
 
 module RawStrings: Printable.S with type t = string =

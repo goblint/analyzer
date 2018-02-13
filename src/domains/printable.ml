@@ -377,6 +377,8 @@ struct
       Base2.pretty_diff () (x2,y2)
     else
       Base1.pretty_diff () (x1,y1)
+
+  let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
 end
 
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
@@ -421,6 +423,8 @@ struct
   let pretty () x = pretty_f short () x
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+
+  let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
 end
 
 module Liszt (Base: S) =
@@ -484,6 +488,8 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%d\n</data>\n</value>\n" x
+
+  let arbitrary () = QCheck.int_range 0 (P.n - 1)
 end
 
 module LiftBot (Base : S) =
@@ -582,6 +588,11 @@ struct
   let printXml f = function
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
     | `Lifted n -> Base.printXml f n
+
+  let arbitrary () = QCheck.frequency ~print:(fun x -> short 32 x) [ (* S TODO: better way to define printer? *)
+      1, QCheck.always `Top;
+      20, QCheck.map (fun x -> `Lifted x) (Base.arbitrary ())
+    ] (* S TODO: decide frequencies *)
 end
 
 
