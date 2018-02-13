@@ -123,7 +123,7 @@ struct
   let var_id _ = "globals"
   let node _ = MyCFG.Function Cil.dummyFunDec.svar
 
-  let arbitrary () = QCheck.always (Cil.makeGlobalVar "arbVar" Cil.voidPtrType) (* S TODO: how to generate this *)
+  let arbitrary () = MyArbitrary.varinfo
 end
 
 
