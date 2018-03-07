@@ -265,7 +265,7 @@ struct
     let d' v_cur =
       let v_old = M.find f m in
       let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
-      Messages.(if tracing then tracel "widen-context" "enter with %a\ngives %a\nsaved: %a\nwidened: %a\n" S.D.pretty (fst ctx.local) S.D.pretty v_cur S.D.pretty v_old S.D.pretty v_new);
+      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.vname);
       v_new, M.add f v_new m
     in
     S.enter (conv ctx) r f args |> List.map (fun (c,v) -> (c,m), d' v)
