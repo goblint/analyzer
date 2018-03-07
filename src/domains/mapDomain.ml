@@ -77,17 +77,9 @@ struct
   let for_all2 = M.equal
   let equal = for_all2 Range.equal
   let merge = M.merge
+  let for_all = M.for_all
+  let find_first = M.find_first
   let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
-
-  exception Done
-  let for_all p m =
-    let f key value = if p key value then () else raise Done in
-    try iter f m; true with Done -> false
-
-  exception Found of key
-  let find_first p m =
-    let f key value = if p key value then raise (Found key) else () in
-    try iter f m; raise Not_found with Found x -> x
 
 
   let add_list keyvalues m =
@@ -261,7 +253,7 @@ type t = Range.t Map.Make(Domain).t =
 struct
   include PMap (Domain) (Range)
 
-  let leq m1 m2 =
+  let leq m1 m2 = (* TODO use merge or sth faster? *)
     (* For each key-value in m2, the same key must be in m1 with a leq value: *)
     let p key value =
       try Range.leq (find key m1) value with Not_found -> false
@@ -273,6 +265,8 @@ struct
   let bot () = Lattice.unsupported "partial map bot"
   let is_top = M.is_empty
   let is_bot _ = false
+
+  (* let cleanup m = fold (fun k v m -> if Range.is_top v then remove k m else m) m m *)
 
   let meet m1 m2 = if m1 == m2 then m1 else long_map2 Range.meet m1 m2
   let join m1 m2 = if m1 == m2 then m1 else map2 Range.join m1 m2
