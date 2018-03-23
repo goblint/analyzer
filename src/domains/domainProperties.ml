@@ -18,6 +18,22 @@ sig
   val tests: Test.t list
 end
 
+(* Should also test this because other tests expect equal to behave as such *)
+module Equal (D: Lattice.S): S =
+struct
+  include DomainTest (D)
+
+  let equal_refl = make ~name:"equal refl" (arb) (fun a -> D.equal a a)
+  let equal_trans = make ~name:"equal trans" (triple arb arb arb) (fun (a, b, c) -> (D.equal a b && D.equal b c) ==> D.equal a c)
+  let equal_sym = make ~name:"equal sym" (pair arb arb) (fun (a, b) -> D.equal a b = D.equal b a)
+
+  let tests = [
+    equal_refl;
+    equal_trans;
+    equal_sym
+  ]
+end
+
 module Leq (D: Lattice.S): S =
 struct
   include DomainTest (D)
@@ -116,6 +132,7 @@ end
 
 module All (D: Lattice.S): S =
 struct
+  module E = Equal (D)
   module L = Leq (D)
   module J = Join (D)
   module M = Meet (D)
@@ -123,5 +140,5 @@ struct
   module T = Top (D)
   module C = Connect (D)
 
-  let tests = L.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests
+  let tests = E.tests @ L.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests
 end
