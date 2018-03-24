@@ -12,16 +12,13 @@ end
 
 module Shrink =
 struct
-  let sequence (shrinks: 'a Shrink.t list) (xs: 'a list) yield = (* https://github.com/c-cube/qcheck/blob/e2c27723bbffd85b992355f91e2e2ba7dcd04f43/src/QCheck.ml#L380-L387 *)
-    let ss = Array.of_list shrinks in
-    let ys = Array.of_list xs in
-    for i = 0 to Array.length ys - 1 do
-      ss.(i) ys.(i) (fun x ->
-          let zs = Array.copy ys in
-          zs.(i) <- x;
-          yield (Array.to_list zs)
-        )
-    done
+  let sequence (shrinks: 'a Shrink.t list) (xs: 'a list) =
+    let open Iter in
+    BatList.combine xs shrinks |>
+    BatList.fold_lefti (fun acc i (x, shrink) ->
+        let modify_ith y = BatList.modify_at i (fun _ -> y) xs in
+        acc <+> (shrink x >|= modify_ith)
+      ) empty
 end
 
 module Arbitrary =
