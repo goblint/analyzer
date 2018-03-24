@@ -326,7 +326,7 @@ struct
       else if Int64.compare y2 x1 <= 0 then of_bool false
       else top ()
 
-  let arbitrary () = QCheck.map ~rev:BatOption.get of_interval @@ QCheck.pair MyArbitrary.int64 MyArbitrary.int64
+  let arbitrary () = QCheck.map ~rev:BatOption.get of_interval @@ QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64
 end
 
 
@@ -406,7 +406,7 @@ struct
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
 
-  let arbitrary () = MyArbitrary.int64
+  let arbitrary () = MyCheck.Arbitrary.int64
 end
 
 module FlatPureIntegers = (* Integers, but raises Unknown/Error on join/meet *)
@@ -1113,7 +1113,7 @@ struct
 
   let narrow = wrap_debug2 "narrow" narrow'
 
-  let arbitrary () = QCheck.map (* ~rev:(fun x -> BatTuple.Tuple2.mapn BatOption.get (minimal x, maximal x)) *) of_interval @@ QCheck.pair MyArbitrary.int64 MyArbitrary.int64
+  let arbitrary () = QCheck.map (* ~rev:(fun x -> BatTuple.Tuple2.mapn BatOption.get (minimal x, maximal x)) *) of_interval @@ QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64
 end
 
 (* BOOLEAN DOMAINS *)

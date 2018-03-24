@@ -150,7 +150,7 @@ struct
 
   let arbitrary () =
     let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
-    MyArbitrary.sequence arbs
+    MyCheck.Arbitrary.sequence arbs
 end
 
 let _ =

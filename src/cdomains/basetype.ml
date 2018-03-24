@@ -123,7 +123,7 @@ struct
   let var_id _ = "globals"
   let node _ = MyCFG.Function Cil.dummyFunDec.svar
 
-  let arbitrary () = MyArbitrary.varinfo
+  let arbitrary () = MyCheck.Arbitrary.varinfo
 end
 
 
