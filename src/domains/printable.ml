@@ -143,6 +143,8 @@ struct
   include Std
   include N
 
+  let lift x = `Lifted x
+
   let hash = function
     | `Top -> 4627833
     | `Bot -> -30385673
@@ -188,10 +190,16 @@ struct
     | `Top      -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape N.top_name)
     | `Lifted x -> Base.printXml f x
 
-  let arbitrary () = QCheck.frequency ~print:(fun x -> short 32 x) [ (* S TODO: better way to define printer? *)
+  let arbitrary () =
+    let open QCheck.Iter in
+    let shrink = function
+      | `Lifted x -> MyCheck.shrink (Base.arbitrary ()) x >|= lift
+      | `Bot | `Top -> empty
+    in
+    QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [ (* S TODO: better way to define printer? *)
+      20, QCheck.map lift (Base.arbitrary ());
       1, QCheck.always `Bot;
-      1, QCheck.always `Top;
-      20, QCheck.map (fun x -> `Lifted x) (Base.arbitrary ())
+      1, QCheck.always `Top
     ] (* S TODO: decide frequencies *)
 end
 
@@ -589,9 +597,15 @@ struct
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
     | `Lifted n -> Base.printXml f n
 
-  let arbitrary () = QCheck.frequency ~print:(fun x -> short 32 x) [ (* S TODO: better way to define printer? *)
-      1, QCheck.always `Top;
-      20, QCheck.map (fun x -> `Lifted x) (Base.arbitrary ())
+  let arbitrary () =
+    let open QCheck.Iter in
+    let shrink = function
+      | `Lifted x -> MyCheck.shrink (Base.arbitrary ()) x >|= lift
+      | `Top -> empty
+    in
+    QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [ (* S TODO: better way to define printer? *)
+      20, QCheck.map lift (Base.arbitrary ());
+      1, QCheck.always `Top
     ] (* S TODO: decide frequencies *)
 end
 

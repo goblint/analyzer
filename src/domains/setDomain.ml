@@ -344,9 +344,16 @@ struct
       S.iter (Base.printXml f) s;
       BatPrintf.fprintf f "</set></value>\n"
 
-  let arbitrary () = QCheck.frequency ~print:(fun x -> short 32 x) [ (* S TODO: better way to define printer? *)
-      1, QCheck.always All;
-      20, QCheck.map (fun x -> Set x) (S.arbitrary ())
+  let arbitrary () =
+    let set x = Set x in
+    let open QCheck.Iter in
+    let shrink = function
+      | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
+      | All -> empty
+    in
+    QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [ (* S TODO: better way to define printer? *)
+      20, QCheck.map set (S.arbitrary ());
+      1, QCheck.always All
     ] (* S TODO: decide frequencies *)
 end
 
