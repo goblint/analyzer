@@ -145,7 +145,7 @@ struct
     unop_fold print_one () xs
 
   let arbitrary () =
-    let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
+    let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
     MyArbitrary.sequence arbs
 end
 

@@ -326,7 +326,7 @@ struct
       else if Int64.compare y2 x1 <= 0 then of_bool false
       else top ()
 
-  let arbitrary () = QCheck.map of_interval @@ QCheck.pair MyArbitrary.int64 MyArbitrary.int64
+  let arbitrary () = QCheck.map ~rev:BatOption.get of_interval @@ QCheck.pair MyArbitrary.int64 MyArbitrary.int64
 end
 
 
@@ -1113,7 +1113,7 @@ struct
 
   let narrow = wrap_debug2 "narrow" narrow'
 
-  let arbitrary () = QCheck.map of_interval @@ QCheck.pair MyArbitrary.int64 MyArbitrary.int64
+  let arbitrary () = QCheck.map (* ~rev:(fun x -> BatTuple.Tuple2.mapn BatOption.get (minimal x, maximal x)) *) of_interval @@ QCheck.pair MyArbitrary.int64 MyArbitrary.int64
 end
 
 (* BOOLEAN DOMAINS *)
