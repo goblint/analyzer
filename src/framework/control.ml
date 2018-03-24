@@ -261,6 +261,7 @@ struct
     in
     let _ =
       if (get_bool "dbg.test.domain") then (
+        ignore (printf "domain testing analysis...: %s\n" (Spec.name));
         test_domain (module Spec.D);
         test_domain (module Spec.G);
       )

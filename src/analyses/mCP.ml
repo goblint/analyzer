@@ -90,7 +90,11 @@ struct
 
   let short w x =
     let w2 = let n = List.length x in if n=0 then w else w / n in
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.short w2 (obj x) :: a) [] x in
+    (* width violated anyway? *)
+    let xs = unop_fold (fun a n (module S : Printable.S) x ->
+        let analysis_name = assoc n !analyses_table in
+        (analysis_name ^ ":(" ^ S.short w2 (obj x) ^ ")") :: a) [] x
+    in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs
 
   let to_yojson x =
