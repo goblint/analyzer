@@ -130,6 +130,30 @@ struct
   ]
 end
 
+module Widen (D: Lattice.S): S =
+struct
+  include DomainTest (D)
+
+  let widen_join = make ~name:"widen join" (pair arb arb) (fun (a, b) -> D.leq (D.join a b) (D.widen a b))
+
+  let tests = [
+    widen_join
+  ]
+end
+
+module Narrow (D: Lattice.S): S =
+struct
+  include DomainTest (D)
+
+  let narrow_meet = make ~name:"narrow meet" (pair arb arb) (fun (a, b) -> D.leq (D.meet a b) (D.narrow a b))
+  let narrow_fst = make ~name:"narrow fst" (pair arb arb) (fun (a, b) -> D.leq (D.narrow a b) a)
+
+  let tests = [
+    narrow_meet;
+    narrow_fst
+  ]
+end
+
 module All (D: Lattice.S): S =
 struct
   module E = Equal (D)
@@ -139,6 +163,8 @@ struct
   module B = Bot (D)
   module T = Top (D)
   module C = Connect (D)
+  module W = Widen (D)
+  module N = Narrow (D)
 
-  let tests = E.tests @ L.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests
+  let tests = E.tests @ L.tests @ J.tests @ M.tests @ B.tests @ T.tests @ C.tests @ W.tests @ N.tests
 end
