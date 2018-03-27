@@ -30,7 +30,16 @@ end
 
 module Arbitrary =
 struct
-  let int64: int64 arbitrary = int64 (* S TODO: custom int64 arbitrary with shrinker *)
+  let int64: int64 arbitrary =
+    (* https://github.com/c-cube/qcheck/blob/e2c27723bbffd85b992355f91e2e2ba7dcd04f43/src/QCheck.ml#L330-L337 *)
+    (* only divisions are fast enough *)
+    let shrink x yield =
+      let y = ref x in
+      (* try some divisors *)
+      while !y <> 0L do y := Int64.div !y 2L; yield !y; done; (* fast path *)
+      ()
+    in
+    set_shrink shrink int64
 
   let sequence (arbs: 'a arbitrary list): 'a list arbitrary =
     let gens = List.map gen arbs in
