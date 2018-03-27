@@ -1113,7 +1113,8 @@ struct
 
   let narrow = wrap_debug2 "narrow" narrow'
 
-  let arbitrary () = QCheck.map (* ~rev:(fun x -> BatTuple.Tuple2.mapn BatOption.get (minimal x, maximal x)) *) of_interval @@ QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64
+  (* S TODO: shrinker for bigint circular intervals *)
+  let arbitrary () = QCheck.set_print (fun x -> short 10000 x) @@ QCheck.map (* ~rev:(fun x -> BatTuple.Tuple2.mapn BatOption.get (minimal x, maximal x)) *) of_interval @@ QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64
 end
 
 (* BOOLEAN DOMAINS *)
