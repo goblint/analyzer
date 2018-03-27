@@ -789,6 +789,21 @@ struct
   let logor  = lift2 Integers.logor
   let lognot = eq (of_int 0L)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+
+  let arbitrary () =
+    let open QCheck.Iter in
+    let excluded s = `Excluded (s, size Cil.ILongLong) in (* S TODO: non-fixed range *)
+    let definite x = `Definite x in
+    let shrink = function
+      | `Excluded (s, _) -> MyCheck.shrink (S.arbitrary ()) s >|= excluded (* S TODO: possibly shrink excluded to definite *)
+      | `Definite x -> (return `Bot) <+> (MyCheck.shrink (Integers.arbitrary ()) x >|= definite)
+      | `Bot -> empty
+    in
+    QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [
+      20, QCheck.map excluded (S.arbitrary ());
+      10, QCheck.map definite (Integers.arbitrary ());
+      1, QCheck.always `Bot
+    ] (* S TODO: decide frequencies *)
 end
 
 module OverflowInt64 = (* throws Overflow for add, sub, mul *)
@@ -1379,6 +1394,20 @@ module Enums : S = struct
   let maximal = function Pos xs when xs<>[] -> Some (List.last xs) | _ -> None
   let minimal = function Pos (x::xs) -> Some x | _ -> None
   (* let of_incl_list xs = failwith "TODO" *)
+
+  let arbitrary () =
+    let open QCheck.Iter in
+    let i_list_arb = QCheck.small_list (Integers.arbitrary ()) in
+    let neg is = Neg (is, size Cil.ILongLong) in (* S TODO: non-fixed range *)
+    let pos is = Pos is in
+    let shrink = function
+      | Neg (is, _) -> MyCheck.shrink i_list_arb is >|= neg (* S TODO: possibly shrink neg to pos *)
+      | Pos is -> MyCheck.shrink i_list_arb is >|= pos
+    in
+    QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [
+      20, QCheck.map neg i_list_arb;
+      10, QCheck.map pos i_list_arb;
+    ] (* S TODO: decide frequencies *)
 end
 
 (* The above IntDomList has too much boilerplate since we have to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. *)

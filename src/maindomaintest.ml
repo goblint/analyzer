@@ -6,7 +6,9 @@ let domains: (module Lattice.S) list = [
   (module IntDomain.Lifted);
   (module IntDomain.Interval32);
   (module IntDomain.Booleans);
-  (module IntDomain.CircInterval)
+  (module IntDomain.CircInterval);
+  (module IntDomain.Trier);
+  (module IntDomain.Enums)
 ]
 
 let testsuite =
