@@ -193,8 +193,9 @@ struct
   let arbitrary () =
     let open QCheck.Iter in
     let shrink = function
-      | `Lifted x -> MyCheck.shrink (Base.arbitrary ()) x >|= lift
-      | `Bot | `Top -> empty
+      | `Lifted x -> (return `Bot) <+> (MyCheck.shrink (Base.arbitrary ()) x >|= lift)
+      | `Bot -> empty
+      | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
     QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [ (* S TODO: better way to define printer? *)
       20, QCheck.map lift (Base.arbitrary ());
@@ -601,7 +602,7 @@ struct
     let open QCheck.Iter in
     let shrink = function
       | `Lifted x -> MyCheck.shrink (Base.arbitrary ()) x >|= lift
-      | `Top -> empty
+      | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
     QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [ (* S TODO: better way to define printer? *)
       20, QCheck.map lift (Base.arbitrary ());

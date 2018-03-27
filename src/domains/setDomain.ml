@@ -349,7 +349,7 @@ struct
     let open QCheck.Iter in
     let shrink = function
       | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
-      | All -> empty
+      | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
     in
     QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [ (* S TODO: better way to define printer? *)
       20, QCheck.map set (S.arbitrary ());

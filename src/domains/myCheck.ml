@@ -10,10 +10,17 @@ struct
     List.fold_right f gens (return [])
 end
 
+module Iter =
+struct
+  let of_gen ~n gen = QCheck.Gen.generate ~n gen |> Iter.of_list
+
+  let of_arbitrary ~n arb = of_gen ~n (gen arb)
+end
+
 module Shrink =
 struct
   let sequence (shrinks: 'a Shrink.t list) (xs: 'a list) =
-    let open Iter in
+    let open QCheck.Iter in
     BatList.combine xs shrinks |>
     BatList.fold_lefti (fun acc i (x, shrink) ->
         let modify_ith y = BatList.modify_at i (fun _ -> y) xs in
