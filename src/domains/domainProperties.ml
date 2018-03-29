@@ -1,6 +1,6 @@
 open QCheck
 
-module DomainTest (D: Printable.S) =
+module DomainTest (D: Lattice.S) =
 struct
   (* Shorthand for domain arbitrary *)
   let arb = try D.arbitrary () with
@@ -12,7 +12,8 @@ struct
     let full_name = D.name () ^ " " ^ name in
     Test.make ?count ~long_factor ?max_gen ?max_fail ?small ~name:full_name arb law
 
-  let (@=) = D.equal
+  (* let (@=) = D.equal *)
+  let (@=) a b = D.leq a b && D.leq b a
 end
 
 module type S =
@@ -42,7 +43,7 @@ struct
 
   let leq_refl = make ~name:"leq refl" (arb) (fun a -> D.leq a a)
   let leq_trans = make ~name:"leq trans" (triple arb arb arb) (fun (a, b, c) -> (D.leq a b && D.leq b c) ==> D.leq a c)
-  let leq_antisym = make ~name:"leq antisym" (pair arb arb) (fun (a, b) -> (D.leq a b && D.leq b a) ==> a @= b) (* S TODO: check equivalence instead? *)
+  let leq_antisym = make ~name:"leq antisym" (pair arb arb) (fun (a, b) -> (D.leq a b && D.leq b a) ==> D.equal a b) (* S TODO: check equivalence instead? *)
 
   let tests = [
     leq_refl;
