@@ -41,6 +41,16 @@ struct
     in
     set_shrink shrink int64
 
+  let big_int: Big_int.big_int arbitrary =
+    let open Big_int in
+    let shrink x yield =
+      let y = ref x in
+      let two_big_int = big_int_of_int 2 in
+      while not (eq_big_int !y zero_big_int) do y := div_big_int !y two_big_int; yield !y; done;
+      ()
+    in
+    set_print string_of_big_int @@ set_shrink shrink @@ QCheck.map big_int_of_int64 int64
+
   let sequence (arbs: 'a arbitrary list): 'a list arbitrary =
     let gens = List.map gen arbs in
     let shrinks = List.map shrink arbs in
