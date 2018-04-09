@@ -95,7 +95,7 @@ struct
         let analysis_name = assoc n !analyses_table in
         (analysis_name ^ ":(" ^ S.short w2 (obj x) ^ ")") :: a) [] x
     in
-    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) xs
+    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
   let to_yojson x =
     let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
