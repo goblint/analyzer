@@ -197,7 +197,7 @@ struct
       | `Bot -> empty
       | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
-    QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [ (* S TODO: better way to define printer? *)
+    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
       20, QCheck.map lift (Base.arbitrary ());
       1, QCheck.always `Bot;
       1, QCheck.always `Top
@@ -604,7 +604,7 @@ struct
       | `Lifted x -> MyCheck.shrink (Base.arbitrary ()) x >|= lift
       | `Top -> MyCheck.Iter.of_arbitrary ~n:20 (Base.arbitrary ()) >|= lift
     in
-    QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [ (* S TODO: better way to define printer? *)
+    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
       20, QCheck.map lift (Base.arbitrary ());
       1, QCheck.always `Top
     ] (* S TODO: decide frequencies *)

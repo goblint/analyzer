@@ -351,7 +351,7 @@ struct
       | Set x -> MyCheck.shrink (S.arbitrary ()) x >|= set
       | All -> MyCheck.Iter.of_arbitrary ~n:20 (S.arbitrary ()) >|= set
     in
-    QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [ (* S TODO: better way to define printer? *)
+    QCheck.frequency ~shrink ~print:(short 10000) [ (* S TODO: better way to define printer? *)
       20, QCheck.map set (S.arbitrary ());
       1, QCheck.always All
     ] (* S TODO: decide frequencies *)

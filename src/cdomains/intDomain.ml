@@ -799,7 +799,7 @@ struct
       | `Definite x -> (return `Bot) <+> (MyCheck.shrink (Integers.arbitrary ()) x >|= definite)
       | `Bot -> empty
     in
-    QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [
+    QCheck.frequency ~shrink ~print:(short 10000) [
       20, QCheck.map excluded (S.arbitrary ());
       10, QCheck.map definite (Integers.arbitrary ());
       1, QCheck.always `Bot
@@ -1129,7 +1129,7 @@ struct
   let narrow = wrap_debug2 "narrow" narrow'
 
   (* S TODO: shrinker for bigint circular intervals *)
-  (* let arbitrary () = QCheck.set_print (fun x -> short 10000 x) @@ QCheck.map (* ~rev:(fun x -> BatTuple.Tuple2.mapn BatOption.get (minimal x, maximal x)) *) of_interval @@ QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64 *)
+  (* let arbitrary () = QCheck.set_print (short 10000) @@ QCheck.map (* ~rev:(fun x -> BatTuple.Tuple2.mapn BatOption.get (minimal x, maximal x)) *) of_interval @@ QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64 *)
   let arbitrary () =
     let open QCheck.Iter in
     let pair_arb = QCheck.pair MyCheck.Arbitrary.big_int MyCheck.Arbitrary.big_int in
@@ -1140,7 +1140,7 @@ struct
       | Bot w -> empty
       | Top w -> MyCheck.Iter.of_arbitrary ~n:20 pair_arb >|= int
     in
-    QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [
+    QCheck.frequency ~shrink ~print:(short 10000) [
       20, QCheck.map int pair_arb;
       1, QCheck.always (Bot max_width);
       1, QCheck.always (Top max_width)
@@ -1419,7 +1419,7 @@ module Enums : S = struct
       | Neg (is, _) -> MyCheck.shrink i_list_arb is >|= neg (* S TODO: possibly shrink neg to pos *)
       | Pos is -> MyCheck.shrink i_list_arb is >|= pos
     in
-    QCheck.frequency ~shrink ~print:(fun x -> short 10000 x) [
+    QCheck.frequency ~shrink ~print:(short 10000) [
       20, QCheck.map neg i_list_arb;
       10, QCheck.map pos i_list_arb;
     ] (* S TODO: decide frequencies *)
