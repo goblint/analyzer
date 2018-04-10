@@ -71,6 +71,7 @@ module WP =
         | Some f -> f get set
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y);
+        if S.system y = None then init y;
         if HM.mem rho y then (solve y; HM.find rho y) else
         if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
         if HM.mem l y then HM.find l y
@@ -85,7 +86,7 @@ module WP =
         if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
         get_var_event y;
         let tmp = simple_solve l x y in
-        add_infl y x;
+        if HM.mem rho y then add_infl y x;
         tmp
       and side l y d =
         if tracing then trace "sol2" "side to %a on %i (wpx: %b) ## value: %a\n" S.Var.pretty_trace y (S.Var.line_nr y) (HM.mem rho y) S.Dom.pretty d;
