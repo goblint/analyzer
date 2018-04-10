@@ -119,7 +119,7 @@ module WP =
       (* iterate until there are no unstable variables
        * after termination, only those variables are stable which are
        * - reachable from any of the queried variables vs, or
-       * - effected by side-effects and have no constraints on their own (this should not be the case for any of our analyses)
+       * - effected by side-effects and have no constraints on their own (this should be the case for all of our analyses)
        *)
       let rec solve_sidevs () =
         let non_stable = List.filter (neg (HM.mem stable)) vs in
