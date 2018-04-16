@@ -326,7 +326,14 @@ struct
       else if Int64.compare y2 x1 <= 0 then of_bool false
       else top ()
 
-  let arbitrary () = QCheck.map ~rev:BatOption.get of_interval @@ QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64
+  let arbitrary () =
+    let open QCheck.Iter in
+    let pair_arb = QCheck.pair MyCheck.Arbitrary.int64 MyCheck.Arbitrary.int64 in
+    let shrink = function
+      | Some (l, u) -> (return None) <+> (MyCheck.shrink pair_arb (l, u) >|= of_interval)
+      | None -> empty
+    in
+    QCheck.(set_shrink shrink @@ set_print (short 10000) @@ map (*~rev:BatOption.get*) of_interval pair_arb)
 end
 
 
@@ -1496,7 +1503,7 @@ module IntDomTuple = struct
   let is_bool = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_bool }
   let is_excl_list = exists % mapp { fp = fun (type a) (module I:S with type t = a) -> I.is_excl_list }
   (* others *)
-  let short _ = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.short 30 }
+  let short w = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.name () ^ ":" ^ (I.short (w / 4) x) }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
 
   (* f2: binary ops *)
@@ -1540,4 +1547,6 @@ module IntDomTuple = struct
   let pretty = pretty_f short
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (short 800 x)
+
+  let arbitrary () = QCheck.(set_print (short 10000) @@ quad (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())))
 end

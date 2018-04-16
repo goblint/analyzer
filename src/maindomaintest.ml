@@ -8,7 +8,8 @@ let domains: (module Lattice.S) list = [
   (module IntDomain.Booleans);
   (module IntDomain.CircInterval);
   (module IntDomain.Trier);
-  (module IntDomain.Enums)
+  (module IntDomain.Enums);
+  (module IntDomain.IntDomTuple)
 ]
 
 let testsuite =
