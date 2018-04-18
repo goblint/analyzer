@@ -44,16 +44,13 @@ struct
 
   let arb = CD.arbitrary ()
 
-  let make_valid1 ~name cf af =
+  let make_valid ~name arb cf abstract2 af =
     let full_name = "valid " ^ name in
     make ~name:full_name arb (fun a ->
-        AD.leq (abstract (cf a)) (af (abstract a))
+        AD.leq (abstract (cf a)) (af (abstract2 a))
       )
-  let make_valid2 ~name cf af =
-    let full_name = "valid " ^ name in
-    make ~name:full_name (QCheck.pair arb arb) (fun (a, b) ->
-        AD.leq (abstract (cf a b)) (af (abstract a) (abstract b))
-      )
+  let make_valid1 ~name cf af = make_valid ~name arb cf abstract af
+  let make_valid2 ~name cf af = make_valid ~name (QCheck.pair arb arb) (Batteries.uncurry cf) (BatTuple.Tuple2.mapn abstract) (Batteries.uncurry af)
 
   let valid_neg = make_valid1 ~name:"neg" CD.neg AD.neg
   let valid_add = make_valid2 ~name:"add" CD.add AD.add
