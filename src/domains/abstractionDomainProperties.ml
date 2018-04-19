@@ -11,6 +11,10 @@ struct
 
   let arb = CD.arbitrary ()
 
+  let make ~name =
+    let domain_name = CD.name () ^ " -> " ^ AD.name () in
+    make ~domain_name ~name
+
   let make_valid ~name arb cf abstract2 af =
     let full_name = "valid " ^ name in
     make ~name:full_name arb (fun a ->
