@@ -35,14 +35,15 @@ struct
   let logor  = lift2 Base.logor
 end
 
+module CD = IntegerSet
+module AF (AD: IntDomain.S) =
+struct
+  let abstract s = CD.fold (fun c a -> AD.join (AD.of_int c) a) s (AD.bot ())
+end
+
 module Valid (AD: IntDomain.S): DomainProperties.S =
 struct
-  module CD = IntegerSet
-  module AbstractFunction =
-  struct
-    let abstract s = CD.fold (fun c a -> AD.join (AD.of_int c) a) s (AD.bot ())
-  end
-  include AbstractionDomainProperties.ValidTest (CD) (AD) (AbstractFunction)
+  include AbstractionDomainProperties.ValidTest (CD) (AD) (AF (AD))
 
   let valid_neg = make_valid1 ~name:"neg" CD.neg AD.neg
   let valid_add = make_valid2 ~name:"add" CD.add AD.add
@@ -95,4 +96,13 @@ struct
     valid_logand;
     valid_logor
   ]
+end
+
+module All (D: IntDomain.S): DomainProperties.S =
+struct
+  module A = DomainProperties.All (D)
+  module M = AbstractionDomainProperties.Monotone (CD) (D) (AF (D))
+  module V = Valid (D)
+
+  let tests = A.tests @ M.tests @ V.tests
 end
