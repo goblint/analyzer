@@ -38,19 +38,11 @@ end
 module Valid (AD: IntDomain.S): DomainProperties.S =
 struct
   module CD = IntegerSet
-  include DomainProperties.DomainTest (AD)
-
-  let abstract s = CD.fold (fun c a -> AD.join (AD.of_int c) a) s (AD.bot ())
-
-  let arb = CD.arbitrary ()
-
-  let make_valid ~name arb cf abstract2 af =
-    let full_name = "valid " ^ name in
-    make ~name:full_name arb (fun a ->
-        AD.leq (abstract (cf a)) (af (abstract2 a))
-      )
-  let make_valid1 ~name cf af = make_valid ~name arb cf abstract af
-  let make_valid2 ~name cf af = make_valid ~name (QCheck.pair arb arb) (Batteries.uncurry cf) (BatTuple.Tuple2.mapn abstract) (Batteries.uncurry af)
+  module AbstractFunction =
+  struct
+    let abstract s = CD.fold (fun c a -> AD.join (AD.of_int c) a) s (AD.bot ())
+  end
+  include AbstractionDomainProperties.ValidTest (CD) (AD) (AbstractFunction)
 
   let valid_neg = make_valid1 ~name:"neg" CD.neg AD.neg
   let valid_add = make_valid2 ~name:"add" CD.add AD.add
