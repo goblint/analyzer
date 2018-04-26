@@ -49,8 +49,10 @@ struct
   let valid_add = make_valid2 ~name:"add" CD.add AD.add
   let valid_sub = make_valid2 ~name:"sub" CD.sub AD.sub
   let valid_mul = make_valid2 ~name:"mul" CD.mul AD.mul
-  let valid_div = make_valid2 ~name:"div" CD.div AD.div
-  let valid_rem = make_valid2 ~name:"rem" CD.rem AD.rem
+
+  let snd_not_0 (_, b) = not (CD.mem 0L b) (* CD (IntegerSet) can't handle because no top *)
+  let valid_div = make_valid2 ~name:"div" ~cond:snd_not_0 CD.div AD.div
+  let valid_rem = make_valid2 ~name:"rem" ~cond:snd_not_0 CD.rem AD.rem
 
   let valid_lt = make_valid2 ~name:"lt" CD.lt AD.lt
   let valid_gt = make_valid2 ~name:"gt" CD.gt AD.gt

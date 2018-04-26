@@ -35,11 +35,12 @@ module ValidTest (CD: Lattice.S) (AD: Lattice.S) (AF: AbstractFunction with type
 struct
   include AbstractTest (CD) (AD)
 
-  let make_valid ~name arb cf abstract2 af =
+  let make_valid ~name arb ?(cond=fun _ -> true) cf abstract2 af =
     let full_name = "valid " ^ name in
-    make ~name:full_name arb (fun a ->
+    make ~name:full_name arb QCheck.(fun a ->
+        assume (cond a); (* assume is lazy, ==> is eager *)
         AD.leq (AF.abstract (cf a)) (af (abstract2 a))
       )
-  let make_valid1 ~name cf af = make_valid ~name arb cf AF.abstract af
-  let make_valid2 ~name cf af = make_valid ~name (QCheck.pair arb arb) (Batteries.uncurry cf) (BatTuple.Tuple2.mapn AF.abstract) (Batteries.uncurry af)
+  let make_valid1 ?cond cf af = make_valid arb ?cond cf AF.abstract af
+  let make_valid2 ?cond cf af = make_valid (QCheck.pair arb arb) ?cond (Batteries.uncurry cf) (BatTuple.Tuple2.mapn AF.abstract) (Batteries.uncurry af)
 end
