@@ -59,7 +59,7 @@ module WP =
             destabilize x;
             (solve[@tailcall]) x phase;
           ) else if not (HM.mem stable x) then (
-            (solve[@tailcall]) x phase;
+            (solve[@tailcall]) x Widen;
           ) else if phase = Widen then (
             HM.remove stable x;
             (solve[@tailcall]) x Narrow;
