@@ -92,7 +92,7 @@ module WP =
       and eval x y =
         if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
         get_var_event y;
-        if HM.mem called y then HM.replace wpoint y ();
+        if HM.mem called y || S.system y = None then HM.replace wpoint y ();
         solve y;
         add_infl y x;
         HM.find rho y
