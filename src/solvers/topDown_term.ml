@@ -22,8 +22,8 @@ module WP =
 
     module HPM = Hashtbl.Make (P)
 
-    type phase = Widen | Narrow      
-    
+    type phase = Widen | Narrow
+
     let solve box st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
@@ -57,7 +57,7 @@ module WP =
         if not (HM.mem called x || HM.mem stable x) then (
           HM.replace stable x ();
           HM.replace called x ();
-          let wpx = HM.mem wpoint x in          
+          let wpx = HM.mem wpoint x in
           init x;
           let old = HM.find rho x in
           let tmp' = eq x (eval x) (side x) in
@@ -73,7 +73,7 @@ module WP =
             if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) on %i is %a. Old value was %a\n" S.Var.pretty_trace x (HM.mem rho x) (is_side x) (S.Var.line_nr x) S.Dom.pretty tmp S.Dom.pretty old;
             HM.replace rho x tmp;
             destabilize x;
-            (solve[@tailcall]) x phase;            
+            (solve[@tailcall]) x phase;
           ) else if not (HM.mem stable x) then (
             (solve[@tailcall]) x phase;
           ) else if phase = Widen && neg is_side x then (

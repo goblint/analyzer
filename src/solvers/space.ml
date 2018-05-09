@@ -46,8 +46,8 @@ module WP =
           let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
+          HM.remove called x;
           let tmp = box x old tmp in
-          (* HM.remove called x; *)
           if not (S.Dom.equal old tmp) then (
             (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a\n" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); *)
             update_var_event x old tmp;
@@ -56,7 +56,6 @@ module WP =
             HM.replace rho x tmp;
             destabilize x;
           );
-          HM.remove called x;
           (solve[@tailcall]) x;
         )
       and eq x get set =

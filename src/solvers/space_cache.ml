@@ -48,10 +48,10 @@ module WP =
           let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
+          HM.remove called x;
           let tmp = box x old tmp in
           if tracing then trace "cache" "cache size %d for %a on %i\n" (HM.length l) S.Var.pretty_trace x (S.Var.line_nr x);
           cache_sizes := HM.length l :: !cache_sizes;
-          (* HM.remove called x; *)
           if not (S.Dom.equal old tmp) then (
             (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a\n" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); *)
             update_var_event x old tmp;
@@ -60,7 +60,6 @@ module WP =
             HM.replace rho x tmp;
             destabilize x;
           );
-          HM.remove called x;
           (solve[@tailcall]) x;
         )
       and eq x get set =
@@ -70,7 +69,7 @@ module WP =
         | None -> S.Dom.bot ()
         | Some f -> f get set
       and simple_solve l x y =
-        if tracing then trace "sol2" "simple_solve %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y);
+        if tracing then trace "sol2" "simple_solve %a on %i (rhs: %b)\n" S.Var.pretty_trace y (S.Var.line_nr y) (S.system y <> None);
         if S.system y = None then init y;
         if HM.mem rho y then (solve y; HM.find rho y) else
         if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else

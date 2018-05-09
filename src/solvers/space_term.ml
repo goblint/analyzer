@@ -20,8 +20,8 @@ module WP =
       let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
     end
 
-    type phase = Widen | Narrow      
-    
+    type phase = Widen | Narrow
+
     let solve box st vs =
       let stable = HM.create  10 in
       let infl   = HM.create  10 in (* y -> xs *)
@@ -48,8 +48,8 @@ module WP =
           let tmp = S.Dom.join tmp (try HM.find rho' x with Not_found -> S.Dom.bot ()) in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
-          let tmp = match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp in
           HM.remove called x;
+          let tmp = match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp in
           if not (S.Dom.equal old tmp) then (
             (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a\n" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); *)
             update_var_event x old tmp;
