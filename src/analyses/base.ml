@@ -1228,6 +1228,12 @@ struct
         | `Bot   -> `Bot
         | _      -> `Top
       end
+    | Q.EvalLength e -> begin
+        match eval_rv ctx.ask ctx.global ctx.local e with
+        | `Array x -> (match ValueDomain.CArrays.length x with Some x -> `Int (Int64.of_int x) | None -> `Top)
+        | `Bot   -> `Bot
+        | _      -> `Top
+      end
     | Q.MayPointTo e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Address a when AD.is_top a -> `LvalSet (Q.LS.top ())
