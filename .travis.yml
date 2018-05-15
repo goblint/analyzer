@@ -6,6 +6,9 @@ git:
   submodules: false
 install: bash -x scripts/travis-ci.sh
 script: ./make.sh headers testci
+addons:
+  apt:
+    update: true
 notifications:
   webhooks:
     urls:
