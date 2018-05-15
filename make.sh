@@ -94,6 +94,7 @@ rule() {
              rm -rf linux-headers && mv linux-headers-master linux-headers
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc6.h
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc7.h
+             cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc8.h
              ;;
     test)    ./scripts/update_suite.rb;;
     testci)  ruby scripts/update_suite.rb -s -d;;
