@@ -1,8 +1,8 @@
-FROM ocaml/opam:ubuntu-17.04_ocaml-4.06.0
-RUN sudo apt-get install -yq ruby
-COPY / analyzer
-WORKDIR analyzer
-# ugh, this takes forever... https://github.com/docker/docker/issues/6119
-RUN sudo chown -R opam .
-RUN make setup
-CMD make
+FROM ocaml/opam2-staging:ubuntu-18.04-ocaml-4.06
+SHELL ["/bin/bash", "--login", "-c"]
+RUN sudo apt-get update && sudo apt-get install -yq m4 ruby
+COPY --chown=opam . /home/opam/analyzer
+WORKDIR /home/opam/analyzer
+RUN make dep
+RUN make
+CMD ./goblint --help
