@@ -22,10 +22,9 @@ For building from source, install Cygwin using [setup-cygwin-dev.bat](scripts/se
     wget "https://raw.githubusercontent.com/goblint/analyzer/master/scripts/setup-cygwin-dev.sh" && source setup-cygwin-dev.sh
 
 ### Docker container
-You can run Goblint in a [Docker](http://www.docker.com/) container using:
+You can run Goblint in a [Docker container](https://hub.docker.com/r/voglerr/goblint/) using:
 
-    docker pull voglerr/goblint
-    docker run voglerr/goblint /analyzer/goblint --help
+    docker run -it voglerr/goblint ./goblint --help
 
 ### Virtual machine
 A virtual machine containing Goblint can be set up using [Vagrant](http://www.vagrantup.com/):
