@@ -1,6 +1,9 @@
 FROM ocaml/opam2-staging:ubuntu-18.04-ocaml-4.06
 SHELL ["/bin/bash", "--login", "-c"]
+# {ruby, gem, locale} needed for `make test`
 RUN sudo apt-get update && sudo apt-get install -yq m4 ruby
+RUN sudo gem install parallel
+RUN echo "export LC_ALL=C.UTF-8; export LANG=en_US.UTF-8; export LANGUAGE=en_US.UTF-8" >> /home/opam/.bashrc
 COPY . /home/opam/analyzer
 WORKDIR /home/opam/analyzer
 # ugh, this takes forever... https://github.com/docker/docker/issues/6119
