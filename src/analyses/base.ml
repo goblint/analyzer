@@ -1230,9 +1230,18 @@ struct
       end
     | Q.EvalLength e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
-        | `Array x -> (match ValueDomain.CArrays.length x with Some x -> `Int (Int64.of_int x) | None -> `Top)
-        | `Bot   -> `Bot
-        | _      -> `Top
+        | `Address a ->
+          let slen = List.map String.length (AD.to_string a) in
+          let lenOf = function
+            | TArray (_, l, _) -> (try Some (lenOfArray l) with _ -> None)
+            | _ -> None
+          in
+          let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
+          let d = List.fold_left ID.join (ID.bot ()) (List.map (ID.of_int%Int64.of_int) (slen @ alen)) in
+          (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
+          (match ID.to_int d with Some i -> `Int i | None -> `Top)
+        | `Bot -> `Bot
+        | _ -> `Top
       end
     | Q.MayPointTo e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
