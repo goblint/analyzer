@@ -10,6 +10,6 @@ WORKDIR /home/opam/analyzer
 RUN sudo chown -R opam .
 # replace with the following once Docker Cloud has version 17.09 (currently 17.06)
 # COPY --chown=opam . /home/opam/analyzer
-RUN make dep
+RUN make dep > /dev/null
 RUN make
 CMD ./goblint --help
