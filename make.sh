@@ -67,7 +67,8 @@ rule() {
              fi
              cd webapp && npm install && npm start
              ;;
-    jar)     if test ! -e "g2html/build.xml"; then
+    jar)     echo "Make sure you have the following installed: javac, ant"
+             if test ! -e "g2html/build.xml"; then
                 git submodule update --init --recursive g2html
              fi
              cd g2html && ant jar && cd .. &&
@@ -75,6 +76,8 @@ rule() {
              ;;
     dep*)    OPAMYES=1 opam_build;;
     setup)   echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
+             echo "For the --html output you also need: javac, ant, dot (graphviz)"
+             echo "For running the regression tests you also need: ruby, gem"
              opam init --comp=$ocaml_version
              opam switch $ocaml_version # in case opam was already initialized
              opam_build
@@ -96,7 +99,7 @@ rule() {
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc7.h
              cp linux-headers/include/linux/compiler-gcc5.h linux-headers/include/linux/compiler-gcc8.h
              ;;
-    test)    ./scripts/update_suite.rb;;
+    test)    ./scripts/update_suite.rb;; # run regression tests
     testci)  ruby scripts/update_suite.rb -s -d;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
