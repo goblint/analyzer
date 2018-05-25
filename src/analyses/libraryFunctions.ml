@@ -9,17 +9,29 @@ module M = Messages
 type categories = [
   | `Malloc
   | `Calloc
+  | `Memcpy       of exp * exp * exp
+  | `Strncpy      of exp * exp * exp
+  | `Strcpy       of exp * exp
   | `Assert       of exp
   | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
   | `ThreadCreate of exp * exp (* f  * x       *)
   | `ThreadJoin   of exp * exp (* id * ret_var *)
-  | `Unknown      of string ]
+  | `Unknown      of string
+  ]
 
 let osek_renames = ref false
 
 let classify' fn exps =
-  match fn with
+  let unscramble =
+    if Analyses.is_activated "arinc" then function
+      | "F63" -> "memcpy"
+      | "F60" -> "strncpy"
+      | "F59" -> "strcpy"
+      | x -> x
+    else fun x -> x
+  in
+  match unscramble fn with
   | "pthread_create" ->
     begin match exps with
       | [_;_;fn;x] -> `ThreadCreate (fn, x)
@@ -60,6 +72,21 @@ let classify' fn exps =
   | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
     -> `Unlock
+  | "memcpy" | "__builtin___memcpy_chk" ->
+    begin match exps with
+      | dst :: src :: size :: _ -> `Memcpy (dst, src, size)
+      | _ -> M.bailwith "memcpy arguments mismatch!"
+    end
+  | "strncpy" | "__builtin___strncpy_chk" ->
+    begin match exps with
+      | dst :: src :: size :: _ -> `Strncpy (dst, src, size)
+      | _ -> M.bailwith "strncpy arguments mismatch!"
+    end
+  | "strcpy" | "__builtin___strcpy_chk" ->
+    begin match exps with
+      | dst :: src :: _ -> `Strcpy (dst, src)
+      | _ -> M.bailwith "strcpy arguments mismatch!"
+    end
   | x -> `Unknown x
 
 let classify fn exps =

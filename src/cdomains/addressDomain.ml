@@ -40,6 +40,7 @@ struct
   let is_not_null x = for_all (Batteries.neg Addr.is_null) x
   let to_bool x = if is_null x then Some false else if is_not_null x then Some true else None
   let has_unknown x = mem Addr.UnknownPtr x
+  let is_toplevel x = for_all Addr.is_toplevel x
 
   let of_int (type a) (module ID : IntDomain.S with type t = a) i =
     match ID.to_int i with

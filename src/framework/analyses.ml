@@ -475,6 +475,9 @@ sig
   val combine : (D.t, G.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
 end
 
+(* can't use the following b/c of cyclic deps :( *)
+(* let is_activated (module X : Spec) = List.exists (fun x -> Json.string x = X.name) (get_list "ana.activated") *)
+let is_activated ana_name = List.exists (fun x -> Json.string x = ana_name) (get_list "ana.activated")
 
 (** A side-effecting system. *)
 module type MonSystem =

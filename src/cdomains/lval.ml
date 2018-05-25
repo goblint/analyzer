@@ -463,6 +463,10 @@ struct
     | Addr (v,o) when OffsI.is_definite o -> true
     | _ -> false
 
+  let is_toplevel = function
+    | Addr (v, `NoOffset) -> not (v.vglob && v.vtype = voidType && startsWith "(alloc" v.vname)
+    | _ -> false
+
   let leq x y =
     let rec leq_offs x y =
       match x, y with

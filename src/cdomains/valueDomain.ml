@@ -305,7 +305,7 @@ struct
             )
         | TArray (ta, l, _) -> (* TODO, why is the length exp option? *)
           `Array (match v, Goblintutil.tryopt Cil.lenOfArray l with
-              | `Array x, _ (* Some l' when Some l' = CArrays.length x *) -> x (* TODO handle casts between different sizes? *)
+              | `Array x, _ (* Some l' when Some l' = CArrays.length x *) -> x (* TODO handle casts between different sizes? handle casts between nested and flat arrays? *)
               | _ -> log_top __POS__; CArrays.top ()
             )
         | TComp (ci,_) -> (* struct/union *)
@@ -331,8 +331,9 @@ struct
                 | `Union x (* when same (Unions.keys x) *) -> x
                 | _ -> log_top __POS__; Unions.top ()
               )
+        | TFun (ret, args, vararg, attr) -> v (* TODO this is needed because we strip casts for memcpy, and we don't have abstract *)
         (* | _ -> log_top (); `Top *)
-        | _ -> log_top __POS__; assert false
+        | _ -> log_top __POS__; `Top
       in
       Messages.tracel "cast" "cast %a to %a is %a!\n" pretty v d_type t pretty v'; v'
 

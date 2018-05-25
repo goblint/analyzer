@@ -857,6 +857,8 @@ struct
     | "GetActiveApplicationMode"
     | "ShutdownOS" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
       M.special ctx lval f arglist
+    | "GetCoreID" ->
+      M.special ctx lval f arglist  (* TODO create map taskname -> coreid in OilParser *)
     | "ClearEvent"
     | "TerminateTask"
     | "Schedule" -> if (get_bool "ana.osek.check") then check_api_use 2 fvname (lockset_to_task (proj2_1 (partition ctx.local)));

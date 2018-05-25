@@ -429,3 +429,22 @@ let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 let get_goblint_path = Filename.dirname BatSys.executable_name
 
 let tryopt f a = try Some (f a) with _ -> None (* reason: match .. with _ does not include exceptions, or-patterns currently not supported for exceptions *)
+
+(* symbol table
+ * val get : X.t -> int
+ * val inv : int -> X.t
+ *)
+module SymTbl (X : Hashtbl.HashedType) = struct
+  let a = BatDynArray.create ()
+  let inv i = BatDynArray.get a i
+  module H = BatHashtbl.Make (X)
+  let h = H.create 13
+  let get k = match H.find_option h k with
+    | Some i -> i
+    | None ->
+        let i = BatDynArray.length a in
+        H.add h k i;
+        BatDynArray.add a k;
+        i
+  let to_list () = H.enum h |> BatList.of_enum
+end

@@ -5,12 +5,16 @@ open Prelude.Ana
 type categories = [
   | `Malloc
   | `Calloc
+  | `Memcpy       of exp * exp * exp
+  | `Strncpy      of exp * exp * exp
+  | `Strcpy       of exp * exp
   | `Assert       of exp
   | `Lock         of bool * bool * bool (* try? * write? *)
   | `Unlock
   | `ThreadCreate of exp * exp
   | `ThreadJoin   of exp * exp
-  | `Unknown      of string ]
+  | `Unknown      of string
+  ]
 
 (** Categories of special functions *)
 

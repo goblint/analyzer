@@ -442,6 +442,8 @@ struct
           let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
         (* Variables and address expressions *)
+        | Lval (Var v, ofs as l) when isFunctionType (typeOfLval l) ->
+          `Address (AD.singleton (Addr.from_var_offset (v, convert_offset a gs st ofs)))
         | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
@@ -1451,32 +1453,43 @@ struct
     List.iter (uncurry ctx.spawn) forks;
     let cpa,fl as st = ctx.local in
     let gs = ctx.global in
+    (* ignore @@ Pretty.printf "special %s %s\n" f.vname (match LF.classify f.vname args with `Memcpy -> "memcpy" | `Unknown x -> "unknown "^x | _ -> "other"); *)
+    let copy dst src replace =
+      (* here we do: *dst = *src join *dst *)
+      let src_mem = mkMem ~addr:(stripCasts src) ~off:NoOffset in
+      let dst_mem = mkMem ~addr:(stripCasts dst) ~off:NoOffset in
+      let src_exp = Lval src_mem in
+      let dst_exp = Lval dst_mem in
+      let src_rval = eval_rv ctx.ask ctx.global ctx.local src_exp in
+      let dst_rval = eval_rv ctx.ask ctx.global ctx.local dst_exp in
+      let dst_lval = eval_lv ctx.ask ctx.global ctx.local dst_mem in
+      set_savetop ctx.ask ctx.global ctx.local dst_lval (if replace then src_rval else VD.join src_rval dst_rval)
+    in
     match LF.classify f.vname args with
-    | `Unknown "F59" (* strcpy *)
-    | `Unknown "F60" (* strncpy *)
-    | `Unknown "F63" (* memcpy *)
-      ->
-      begin match args with
-        | [dst; src]
-        | [dst; src; _] ->
-          (* let dst_val = eval_rv ctx.ask ctx.global ctx.local dst in *)
-          (* let src_val = eval_rv ctx.ask ctx.global ctx.local src in *)
-          (* begin match dst_val with *)
-          (* | `Address ls -> set_savetop ctx.ask ctx.global ctx.local ls src_val *)
-          (* | _ -> ignore @@ Pretty.printf "strcpy: dst %a may point to anything!\n" d_exp dst; *)
-          (*     ctx.local *)
-          (* end *)
-          let rec get_lval exp = match stripCasts exp with
-            | Lval x | AddrOf x | StartOf x -> x
-            | BinOp (PlusPI, e, i, _)
-            | BinOp (MinusPI, e, i, _) -> get_lval e
-            | x ->
-              ignore @@ Pretty.printf "strcpy: dst is %a!\n" d_plainexp dst;
-              failwith "strcpy: expecting first argument to be a pointer!"
-          in
-          assign ctx (get_lval dst) src
-        | _ -> M.bailwith "strcpy arguments are strange/complicated."
-      end
+    | `Memcpy (dst, src, size) ->
+      let dst_t = typeOf (stripCasts dst) in
+      let src_t = typeOf (stripCasts src) in
+      let replace = typeSig dst_t = typeSig src_t && match eval_rv ctx.ask ctx.global ctx.local dst with
+        | `Address a when AD.is_definite a && AD.is_toplevel a -> begin
+            let dst_r = eval_rv ctx.ask ctx.global ctx.local (Lval (mkMem ~addr:(stripCasts dst) ~off:NoOffset)) in
+            let src_r = eval_rv ctx.ask ctx.global ctx.local (Lval (mkMem ~addr:(stripCasts src) ~off:NoOffset)) in
+            let size_r = eval_rv ctx.ask ctx.global ctx.local size in
+            match dst_r, src_r, size_r with
+            | `Array a, `Array b, `Int i ->
+              (match CArrays.length a, CArrays.length b, ID.to_int i, dst_t with
+              | Some a, Some b, Some i, TPtr(TArray(elem_typ, _, _), _) ->
+                a = b && Int64.to_int i * 8 = a * bitsSizeOf elem_typ
+              | _ -> false)
+            (* TODO also keep size for blobs? *)
+            | _ -> false
+          end
+        | _ -> false
+      in
+      copy dst src replace
+    | `Strncpy (dst, src, size) ->
+      copy dst src true (* TODO *)
+    | `Strcpy (dst, src) ->
+      copy dst src true (* TODO *)
     | `Unknown "F1" ->
       begin match args with
         | [dst; data; len] -> (* memset: write char to dst len times *)
