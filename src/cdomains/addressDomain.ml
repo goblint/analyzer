@@ -31,9 +31,9 @@ struct
 
   let null_ptr ()    = singleton (Addr.null_ptr ())
   let str_ptr ()     = singleton (Addr.str_ptr ())
-  let safe_ptr ()    = singleton (Addr.safe_ptr ())
+  let heap_ptr ()    = singleton (Addr.heap_ptr ())
   let unknown_ptr () = singleton (Addr.unknown_ptr ())
-  let top_ptr ()     = Addr.(of_list [unknown_ptr (); null_ptr (); safe_ptr ()])
+  let top_ptr ()     = Addr.(of_list [unknown_ptr (); null_ptr (); heap_ptr ()])
   let is_unknown x = cardinal x = 1 && Addr.is_unknown (choose x)
   let may_be_unknown x = exists Addr.is_unknown x
   let is_null x = cardinal x = 1 && Addr.is_null (choose x)
@@ -45,7 +45,7 @@ struct
     match ID.to_int i with
     | Some 0L -> null_ptr ()
     | _ -> match ID.to_excl_list i with
-      | Some xs when List.mem 0L xs -> Addr.(of_list [safe_ptr (); unknown_ptr ()])
+      | Some xs when List.mem 0L xs -> Addr.(of_list [heap_ptr (); unknown_ptr ()])
       | _ -> top_ptr ()
 
   let get_type xs =

@@ -369,7 +369,7 @@ struct
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some 0L -> AD.join (AD.null_ptr ()) y
-        | Some x when x<>0L -> AD.(join y (join (safe_ptr ()) (unknown_ptr ())))
+        | Some x when x<>0L -> AD.(join y (join (heap_ptr ()) (unknown_ptr ())))
         | _ -> AD.join y (AD.top_ptr ()))
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
