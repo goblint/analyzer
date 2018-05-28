@@ -400,6 +400,52 @@ struct
     iter (Base.printXml f) xs
 end
 
+(* Hoare hash set for partial orders: keeps uncomparable elements separate
+ *  - all comparable elements must have the same hash so that they land in the same bucket
+ *  - pairwise operations like join then only need to be done per bucket
+ *  - E should throw Lattice.Uncomparable if an operation is not defined for two elements
+ *)
+module HoarePO (E : Lattice.PO) =
+struct
+  open Batteries
+  type hash = int
+  type bucket = E.t list
+  type t = (hash, bucket) Map.t
+
+  module B = struct (* bucket *)
+    (* join element e with bucket using op *)
+    let rec join op e = function
+      | [] -> [e]
+      | x::xs -> try op e x :: xs with Lattice.Uncomparable -> x :: join op e xs
+
+    (* meet element e with bucket using op *)
+    let rec meet op e = function
+      | [] -> []
+      | x::xs -> try [op e x] with Lattice.Uncomparable -> meet op e xs
+
+    (* merge element e into its bucket in m using f, discard bucket if empty *)
+    let merge f e m =
+      let i = E.hash e in
+      let b = f e (Map.find_default [] i m) in
+      if b = [] then m
+      else Map.add i b m
+  end
+
+  let elements m = Map.values m |> List.of_enum |> List.flatten
+
+  (* merge all elements from x into their bucket in y *)
+  let merge f x y = List.fold_left (flip (B.merge f)) y (elements x)
+
+  let join   x y = merge (B.join E.join) x y
+  let widen  x y = merge (B.join E.widen) x y
+  let meet   x y = merge (B.meet E.meet) x y
+  let narrow x y = merge (B.meet E.narrow) x y
+
+  (* set functions *)
+  let singleton e = B.merge (B.join E.join) e Map.empty
+  let is_element e m = Map.cardinal m = 1 && snd (Map.choose m) = [e]
+end
+
 (* module Hoare (B : Lattice.S) (N: ToppedSetNames) : sig *)
 (*   include S with type elt = B.t *)
 (*   val apply_list : (elt list -> elt list) -> t -> t *)

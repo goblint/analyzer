@@ -2,18 +2,34 @@
 
 module GU = Goblintutil
 
-module type S =
+(* module type Rel =
+sig
+  type t
+  type relation = Less | Equal | Greater | Uncomparable
+  val rel : t -> t -> relation
+  val in_rel : t -> relation -> t -> bool
+end *)
+
+(* partial order: elements might not be comparable and no bot/top -> join etc. might fail *)
+exception Uncomparable
+module type PO =
 sig
   include Printable.S
   val leq: t -> t -> bool
   val join: t -> t -> t
   val meet: t -> t -> t
+  val widen: t -> t -> t
+  val narrow: t -> t -> t
+end
+
+(* complete lattice *)
+module type S =
+sig
+  include PO
   val bot: unit -> t
   val is_bot: t -> bool
   val top: unit -> t
   val is_top: t -> bool
-  val widen: t -> t -> t
-  val narrow: t -> t -> t
 end
 
 module StdCousot =
