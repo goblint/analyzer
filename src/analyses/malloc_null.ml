@@ -166,7 +166,7 @@ struct
   let body ctx (f:fundec) : D.t =
     ctx.local
 
-  let return_addr_ = ref (Addr.null_ptr ())
+  let return_addr_ = ref Addr.NullPtr
   let return_addr () = !return_addr_
 
   let return ctx (exp:exp option) (f:fundec) : D.t =

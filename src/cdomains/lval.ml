@@ -255,14 +255,6 @@ struct
   include Printable.Std
   let name () = "Normal Lvals"
 
-  let null_ptr () = NullPtr
-  let str_ptr () = HeapPtr
-  let heap_ptr () = HeapPtr
-  let unknown_ptr () = UnknownPtr
-  let is_unknown = function UnknownPtr -> true | _ -> false
-
-  let is_null a = a = NullPtr
-
   let get_location = function
     | Addr (x,_) -> x.vdecl
     | _ -> builtinLoc

@@ -130,7 +130,7 @@ struct
       let f x =
         match Addr.to_var_offset x with
         | [x] -> f_addr x                    (* norml reference *)
-        | _ when Addr.is_null x -> VD.bot () (* null pointer *)
+        | _ when x = Addr.NullPtr -> VD.bot () (* null pointer *)
         | _ -> `Int (ID.top ())              (* string pointer *)
       in
       (* We form the collecting function by joining *)
@@ -312,7 +312,7 @@ struct
         Addr.from_var_offset (x, `Index (iDtoIdx n, `NoOffset))
       | _ -> match addr with
         | Addr.HeapPtr | Addr.NullPtr -> addr
-        | _ -> Addr.unknown_ptr () (* TODO fields? *)
+        | _ -> Addr.UnknownPtr (* TODO fields? *)
     in
     (* The main function! *)
     match a1,a2 with
@@ -847,7 +847,7 @@ struct
         let not_local x =
           match Addr.to_var_may x with
           | [x] -> is_global ctx.ask x
-          | _ -> Addr.is_top x || Addr.is_unknown x
+          | _ -> x = Addr.Top || x = Addr.UnknownPtr
         in
         AD.is_top xs || AD.exists not_local xs
       in
@@ -1148,7 +1148,7 @@ struct
   let eval_funvar ctx fval: varinfo list =
     try
       let fp = eval_fv ctx.ask ctx.global ctx.local fval in
-      if AD.mem (Addr.unknown_ptr ()) fp then begin
+      if AD.mem Addr.UnknownPtr fp then begin
         M.warn_each ("Function pointer " ^ sprint d_exp fval ^ " may contain unknown functions.");
         dummyFunDec.svar :: AD.to_var_may fp
       end else
@@ -1248,7 +1248,7 @@ struct
         | `Address a when AD.is_top a -> `LvalSet (Q.LS.top ())
         | `Address a ->
           let s = addrToLvalSet a in
-          if AD.mem (Addr.unknown_ptr ()) a
+          if AD.mem Addr.UnknownPtr a
           then `LvalSet (Q.LS.add (dummyFunDec.svar, `NoOffset) s)
           else `LvalSet s
         | `Bot -> `Bot
@@ -1258,7 +1258,7 @@ struct
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Top -> `Top
         | `Bot -> `Bot
-        | `Address a when AD.is_top a || AD.mem (Addr.unknown_ptr ()) a ->
+        | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
           `LvalSet (Q.LS.top ())
         | `Address a ->
           let xs = List.map addrToLvalSet (reachable_vars ctx.ask [a] ctx.global ctx.local) in
@@ -1270,7 +1270,7 @@ struct
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Top -> `Top
         | `Bot -> `Bot
-        | `Address a when AD.is_top a || AD.mem (Addr.unknown_ptr ()) a ->
+        | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
           `TypeSet (Q.TS.top ())
         | `Address a ->
           `TypeSet (reachable_top_pointers_types ctx a)

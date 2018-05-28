@@ -477,7 +477,7 @@ struct
       List.fold_left top_field nstruct compinfo.cfields
     in
     match typ, state with
-    |                 _ , `Address n    -> `Address (AD.add (Addr.unknown_ptr ()) n)
+    |                 _ , `Address n    -> `Address (AD.add (Addr.UnknownPtr) n)
     | TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
     |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value voidType x) n)
     | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n)

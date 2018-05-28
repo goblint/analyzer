@@ -29,23 +29,22 @@ struct
   type idx = Idx.t
   type offs = [`NoOffset | `Field of (field * offs) | `Index of (idx * offs)]
 
-  let null_ptr ()    = singleton (Addr.null_ptr ())
-  let str_ptr ()     = singleton (Addr.str_ptr ())
-  let heap_ptr ()    = singleton (Addr.heap_ptr ())
-  let unknown_ptr () = singleton (Addr.unknown_ptr ())
-  let top_ptr ()     = Addr.(of_list [unknown_ptr (); null_ptr (); heap_ptr ()])
-  let is_unknown x = cardinal x = 1 && Addr.is_unknown (choose x)
-  let may_be_unknown x = exists Addr.is_unknown x
-  let is_null x = cardinal x = 1 && Addr.is_null (choose x)
-  let is_not_null x = for_all (Batteries.neg Addr.is_null) x
+  let null_ptr ()    = singleton Addr.NullPtr
+  let heap_ptr ()    = singleton Addr.HeapPtr
+  let unknown_ptr () = singleton Addr.UnknownPtr
+  let top_ptr ()     = of_list Addr.([UnknownPtr; NullPtr; HeapPtr])
+  let is_unknown     = is_element Addr.UnknownPtr
+  let may_be_unknown = exists (fun e -> e = Addr.UnknownPtr)
+  let is_null        = is_element Addr.NullPtr
+  let is_not_null    = for_all (fun e -> e <> Addr.NullPtr)
   let to_bool x = if is_null x then Some false else if is_not_null x then Some true else None
-  let has_unknown x = mem Addr.UnknownPtr x
+  let has_unknown    = mem Addr.UnknownPtr
 
   let of_int (type a) (module ID : IntDomain.S with type t = a) i =
     match ID.to_int i with
     | Some 0L -> null_ptr ()
     | _ -> match ID.to_excl_list i with
-      | Some xs when List.mem 0L xs -> Addr.(of_list [heap_ptr (); unknown_ptr ()])
+      | Some xs when List.mem 0L xs -> Addr.(of_list [HeapPtr; UnknownPtr])
       | _ -> top_ptr ()
 
   let get_type xs =

@@ -456,4 +456,5 @@ struct
     | Set s -> Set (S.elements s |> f |> S.of_list)
   let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
   let of_list xs = List.fold_right add xs (empty ()) |> reduce
+  let is_element e s = cardinal s = 1 && choose s = e
 end
