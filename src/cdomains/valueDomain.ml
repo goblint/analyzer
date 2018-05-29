@@ -8,6 +8,9 @@ module Offs = Lval.Offset (IndexDomain)
 module M = Messages
 module GU = Goblintutil
 
+module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
+
+
 module type S =
 sig
   include Lattice.S
