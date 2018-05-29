@@ -1,4 +1,5 @@
 module Addr = ValueDomain.Addr
+module Offs = ValueDomain.Offs
 module Equ = MusteqDomain.Equ
 module Exp = Exp.Exp
 module IdxDom = ValueDomain.IndexDomain
@@ -63,16 +64,6 @@ struct
 
   let toXML s  = toXML_f short s
 
-  let rec concrete_offset offs =
-    match offs with
-    | `NoOffset -> true
-    | `Field (x,y) -> concrete_offset y
-    | `Index (x,y) ->
-      (*         if !Goblintutil.regions then *)
-      (*           IdxDom.equal x (IdxDom.of_int Goblintutil.inthack) *)
-      (*         else *)
-      IdxDom.is_int x && concrete_offset y
-
   let rec may_be_same_offset of1 of2 =
     match of1, of2 with
     | `NoOffset , `NoOffset -> true
@@ -84,7 +75,7 @@ struct
 
   let add (addr,rw) set =
     match (Addr.to_var_offset addr) with
-    | [(_,x)] when concrete_offset x -> ReverseAddrSet.add (addr,rw) set
+    | [(_,x)] when Offs.is_definite x -> ReverseAddrSet.add (addr,rw) set
     | _ -> set
 
   let remove (addr,rw) set =
@@ -95,7 +86,7 @@ struct
       | _ -> false
     in
     match (Addr.to_var_offset addr) with
-    | [(_,x)] when concrete_offset x -> ReverseAddrSet.remove (addr,rw) set
+    | [(_,x)] when Offs.is_definite x -> ReverseAddrSet.remove (addr,rw) set
     | [x] -> ReverseAddrSet.filter (collect_diff_varinfo_with x) set
     | _   -> AddrSet.top ()
 
