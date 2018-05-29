@@ -22,8 +22,6 @@ open GobConfig
 let no_read = ref false
 (** Turns off field-sensitivity. *)
 let field_insensitive = ref false
-(** Avoids the merging of fields, not really sound *)
-let unmerged_fields = ref false
 (** Only report races on these variables/types. *)
 let vips = ref ([]: string list)
 

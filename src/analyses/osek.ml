@@ -909,25 +909,9 @@ struct
       in
       AccValSet.fold f accesses_map (OffsMap.empty, OffsSet.empty)
     in
-    (* join map elements, that we cannot be sure are logically separate *)
-    let regroup_map (map,set) =
-      let f offs (group_offs, access_list, new_map) =
-        let new_offs = ValueDomain.Offs.definite offs in
-        let new_gr_offs = ValueDomain.Offs.join new_offs group_offs in
-        (* we assume f is called in the right order: we get the greatest offset first (leq'wise) *)
-        if (ValueDomain.Offs.leq new_offs group_offs || (ValueDomain.Offs.is_bot group_offs))
-        then (new_gr_offs, OffsMap.find offs map @ access_list, new_map)
-        else (   new_offs, OffsMap.find offs map, OffsMap.add group_offs access_list new_map)
-      in
-      let (last_offs,last_set, map) = OffsSet.fold f set (ValueDomain.Offs.bot (), [], OffsMap.empty) in
-      if ValueDomain.Offs.is_bot last_offs
-      then map
-      else OffsMap.add last_offs last_set map
-    in
     let acc = Acc.find acc gl in
     let acc_info = create_map acc in
-    let acc_map = if !Mutex.unmerged_fields then proj2_1 acc_info else regroup_map acc_info in
-    acc_map
+    proj2_1 acc_info
 
   let suppressed = ref 0
   let filtered = ref 0

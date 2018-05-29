@@ -71,18 +71,6 @@ struct
     | Offs x -> [x]
     | _ -> []
 
-  (* what is this used for? seems unsound *)
-  let definite o =
-    let rec def o =
-      match o with
-      | `Index (i,o) when Idx.is_int i && Idx.to_int i <> Some GU.inthack -> `Index (i,def o)
-      | `Field (f,o) -> `Field (f,def o)
-      | _ -> `NoOffset
-    in
-    match o with
-    | Offs o -> Offs (def o)
-    | Bot -> Bot
-
   let rec is_definite = function
     | `NoOffset -> true
     | `Field (f,o) -> is_definite o
