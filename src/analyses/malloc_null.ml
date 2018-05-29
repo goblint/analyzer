@@ -14,8 +14,8 @@ struct
   include Analyses.DefaultSpec
 
   module Addr = ValueDomain.Addr
-  module D = ValueDomain.AddrSetDomain
-  module C = ValueDomain.AddrSetDomain
+  module D = ValueDomain.AD
+  module C = ValueDomain.AD
   module G = Lattice.Unit
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
