@@ -129,7 +129,7 @@ struct
       in
       let f x =
         match Addr.to_var_offset x with
-        | [x] -> f_addr x                    (* norml reference *)
+        | [x] -> f_addr x                    (* normal reference *)
         | _ when x = Addr.NullPtr -> VD.bot () (* null pointer *)
         | _ -> `Int (ID.top ())              (* string pointer *)
       in
