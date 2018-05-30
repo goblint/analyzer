@@ -420,9 +420,8 @@ if report then
   puts ("Results: " + theresultfile)
 end
 if alliswell then
-  puts "All is well!".green
+  puts "No errors :)".green
 else
-  puts "All is not well!".red
-  # puts "failed tests: #{failed}"
+  puts "#{failed.length} tests failed: #{failed}".red
 end
 exit alliswell
