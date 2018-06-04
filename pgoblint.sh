@@ -9,7 +9,7 @@ if [ ! -e $file ]; then
   exit 1
 fi
 params="`grep -oP "PARAM: \K.*" $file`"
-cmd="./goblint --enable colors --enable dbg.verbose --enable dbg.showtemps --enable dbg.regression --enable printstats --html $params ${@:3} $file"
+cmd="./goblint --enable dbg.debug --enable colors --enable dbg.verbose --enable dbg.showtemps --enable dbg.regression --enable printstats --html $params ${@:3} $file"
 echo "$cmd"
 eval $cmd
 echo "See result/index.xml"
