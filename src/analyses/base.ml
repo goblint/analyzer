@@ -771,7 +771,7 @@ struct
         else set a gs st addr new_val ~effect:false
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
-      M.warn_each ("Invariant failed: expression " ^ sprint d_exp exp ^ "\" not understood.");
+      M.warn_each ("Invariant failed: expression \"" ^ sprint d_exp exp ^ "\" not understood.");
       st
 
   let set_savetop ask (gs:glob_fun) st adr v =
