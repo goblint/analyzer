@@ -239,7 +239,8 @@ module Normal (Idx: IntDomain.S) =
 struct
   type field = fieldinfo [@@deriving to_yojson]
   type idx = Idx.t [@@deriving to_yojson]
-  type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | HeapPtr | UnknownPtr | Top | Bot [@@deriving to_yojson]
+  (* a SafePtr is a pointer that does not point to any variables of the analyzed program (assuming external functions don't return random pointers but only pointers to things they can reach) *)
+  type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | SafePtr | UnknownPtr | Top | Bot [@@deriving to_yojson]
   include Printable.Std
   let name () = "Normal Lvals"
 
@@ -296,7 +297,7 @@ struct
     | Addr x     -> short_addr x
     | StrPtr x   -> x
     | UnknownPtr -> "?"
-    | HeapPtr    -> "HEAP"
+    | SafePtr    -> "SAFE"
     | NullPtr    -> "NULL"
     | Bot        -> "bot"
     | Top        -> "top"
@@ -324,7 +325,7 @@ struct
   let get_type = function
     | Addr x   -> get_type_addr x
     | StrPtr _  (* TODO Cil.charConstPtrType? *)
-    | HeapPtr  -> charPtrType
+    | SafePtr  -> charPtrType
     | NullPtr  -> voidType
     | Bot      -> voidType
     | Top | UnknownPtr -> voidPtrType
@@ -362,7 +363,7 @@ struct
     | Addr (v,o), Addr (u,p) -> v.vid = u.vid && eq_offs o p
     | StrPtr a  , StrPtr b -> a=b (* TODO problematic if the same literal appears more than once *)
     | UnknownPtr, UnknownPtr
-    | HeapPtr   , HeapPtr
+    | SafePtr   , SafePtr
     | NullPtr   , NullPtr
     | Bot       , Bot
     | Top       , Top        -> true
@@ -393,7 +394,7 @@ struct
     match x with
     | Addr (v,o) -> Lval (Var v, to_cil o)
     | StrPtr x -> mkString x
-    | HeapPtr -> mkString "a safe pointer into the heap or a string"
+    | SafePtr -> mkString "a safe pointer/string"
     | NullPtr -> integer 0
     | UnknownPtr
     | Top     -> raise Lattice.TopValue
@@ -458,7 +459,7 @@ struct
     | _         , Bot           -> false
     | UnknownPtr, UnknownPtr    -> true
     | NullPtr   , NullPtr       -> true
-    | HeapPtr   , HeapPtr       -> true
+    | SafePtr   , SafePtr       -> true
     | StrPtr a  , StrPtr b      -> a = b (* TODO *)
     | Addr (x,o), Addr (y,u) when x.vid = y.vid -> leq_offs o u
     | _                      -> false
@@ -487,7 +488,7 @@ struct
     | x         , Bot     -> x
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr -> NullPtr
-    | HeapPtr   , HeapPtr -> HeapPtr
+    | SafePtr   , SafePtr -> SafePtr
     | StrPtr a  , StrPtr b when a=b -> StrPtr a
     | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x,merge_offs op o u)
     | _ -> Top
@@ -503,7 +504,7 @@ struct
     | x         , Top        -> x
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr    -> NullPtr
-    | HeapPtr   , HeapPtr    -> HeapPtr
+    | SafePtr   , SafePtr    -> SafePtr
     | StrPtr a  , StrPtr b when a=b -> StrPtr a
     | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (y, merge_offs op o u)
     | UnknownPtr, StrPtr a

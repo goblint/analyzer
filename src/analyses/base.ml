@@ -311,7 +311,7 @@ struct
       | [x,`NoOffset] ->
         Addr.from_var_offset (x, `Index (iDtoIdx n, `NoOffset))
       | _ -> match addr with
-        | Addr.HeapPtr | Addr.NullPtr -> addr
+        | Addr.SafePtr | Addr.NullPtr -> addr
         | _ -> Addr.UnknownPtr (* TODO fields? *)
     in
     (* The main function! *)
@@ -600,7 +600,7 @@ struct
     match t with
     | t when is_mutex_type t -> `Top
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
-    | TPtr _ -> `Address (AD.join (AD.heap_ptr ()) (AD.null_ptr ()))
+    | TPtr _ -> `Address (AD.join (AD.safe_ptr ()) (AD.null_ptr ()))
     | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
     | TArray _ -> bot_value a gs st t

@@ -30,9 +30,9 @@ struct
   type offs = [`NoOffset | `Field of (field * offs) | `Index of (idx * offs)]
 
   let null_ptr ()    = singleton Addr.NullPtr
-  let heap_ptr ()    = singleton Addr.HeapPtr
+  let safe_ptr ()    = singleton Addr.SafePtr
   let unknown_ptr () = singleton Addr.UnknownPtr
-  let top_ptr ()     = of_list Addr.([UnknownPtr; NullPtr; HeapPtr])
+  let top_ptr ()     = of_list Addr.([UnknownPtr; NullPtr; SafePtr])
   let is_unknown     = is_element Addr.UnknownPtr
   let may_be_unknown = exists (fun e -> e = Addr.UnknownPtr)
   let is_null        = is_element Addr.NullPtr
@@ -44,7 +44,7 @@ struct
     match ID.to_int i with
     | Some 0L -> null_ptr ()
     | _ -> match ID.to_excl_list i with
-      | Some xs when List.mem 0L xs -> Addr.(of_list [HeapPtr; UnknownPtr])
+      | Some xs when List.mem 0L xs -> Addr.(of_list [SafePtr; UnknownPtr])
       | _ -> top_ptr ()
 
   let get_type xs =
