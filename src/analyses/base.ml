@@ -600,7 +600,7 @@ struct
     match t with
     | t when is_mutex_type t -> `Top
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
-    | TPtr _ -> `Address (AD.join (AD.safe_ptr ()) (AD.null_ptr ()))
+    | TPtr _ -> `Address (AD.top_ptr ())
     | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
     | TArray _ -> bot_value a gs st t
