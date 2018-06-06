@@ -337,20 +337,19 @@ struct
       local_xml := solver2source_result lh;
       global_xml := gh;
 
-      let module S = Set.Make (Int) in
       if (get_bool "dbg.uncalled") then
         begin
           let out = M.get_out "uncalled" Legacy.stdout in
           let f =
             let insrt k _ s = match k with
-              | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then S.add fn.vid s else s
-              | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then S.add fn.vid s else s
+              | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+              | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
               | _ -> s
             in
             (* set of ids of called functions *)
-            let calledFuns = LHT.fold insrt lh S.empty in
+            let calledFuns = LHT.fold insrt lh Set.Int.empty in
             let is_bad_uncalled fn loc =
-              not (S.mem fn.vid calledFuns) &&
+              not (Set.Int.mem fn.vid calledFuns) &&
               not (Str.last_chars loc.file 2 = ".h") &&
               not (LibraryFunctions.is_safe_uncalled fn.vname)
             in function

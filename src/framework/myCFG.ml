@@ -7,8 +7,6 @@ open Deriving.Cil
 open Pretty
 open GobConfig
 
-module BISet = BatSet.Make (BatInt)
-
 (** A node in the Control Flow Graph is either a statement or function. Think of
  * the function node as last node that all the returning nodes point to.  So
  * the result of the function call is contained in the function node. *)
