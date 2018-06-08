@@ -333,7 +333,7 @@ struct
         | MinusPI -> let n = ID.neg n in
           `Address (AD.map (addToAddr n) p)
         | Mod -> `Int (ID.top ()) (* we assume that address is actually casted to int first*)
-        | _ -> `Address (AD.top_ptr ())
+        | _ -> `Address AD.top_ptr
       end
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result, but it's an integer. *)
@@ -557,7 +557,7 @@ struct
         | `Address adr -> do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-          M.debug ("Failed evaluating "^str^" to lvalue"); do_offs (AD.unknown_ptr ()) ofs
+          M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
       end
 
 
@@ -600,7 +600,7 @@ struct
     match t with
     | t when is_mutex_type t -> `Top
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
-    | TPtr _ -> `Address (AD.top_ptr ())
+    | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true} as ci,_) -> `Struct (init_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
     | TArray _ -> bot_value a gs st t
@@ -615,7 +615,7 @@ struct
     in
     match t with
     | TInt _ -> `Int (ID.top ())
-    | TPtr _ -> `Address (AD.top_ptr ())
+    | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false},_) -> `Union (ValueDomain.Unions.top ())
     | TArray (ai, exp, _) ->
@@ -703,7 +703,7 @@ struct
     if M.tracing then M.traceli "invariant" "assume expression %a is %B\n" d_exp exp tv;
     let null_val typ =
       match typ with
-      | TPtr _ -> `Address (AD.null_ptr())
+      | TPtr _ -> `Address AD.null_ptr
       | _      -> `Int (ID.of_int 0L)
     in
     let rec derived_invariant exp tv =
@@ -1036,7 +1036,7 @@ struct
     let invalidate_exp e =
       match eval_rv ask gs st e with
       (*a null pointer is invalid by nature*)
-      | `Address a when AD.equal a (AD.null_ptr()) -> []
+      | `Address a when AD.equal a AD.null_ptr -> []
       | `Address a when not (AD.is_top a) ->
         List.map (invalidate_address st) (reachable_vars ask [a] gs st)
       | `Int _ -> []
@@ -1055,7 +1055,7 @@ struct
   let collect_funargs ask (gs:glob_fun) (st:store) (exps: exp list) =
     let do_exp e =
       match eval_rv ask gs st e with
-      | `Address a when AD.equal a (AD.null_ptr ()) -> []
+      | `Address a when AD.equal a AD.null_ptr -> []
       | `Address a when not (AD.is_top a) ->
         let rble = reachable_vars ask [a] gs st in
         if M.tracing then
@@ -1571,7 +1571,7 @@ struct
         | Some lv ->
           let heap_var =
             if (get_bool "exp.malloc-fail")
-            then AD.join (heap_var !Tracing.current_loc) (AD.null_ptr ())
+            then AD.join (heap_var !Tracing.current_loc) AD.null_ptr
             else heap_var !Tracing.current_loc
           in
           set_many ctx.ask gs st [(heap_var, `Blob (VD.bot ()));

@@ -280,7 +280,7 @@ struct
         | TInt (ik,_) ->
           `Int (ID.cast_to ik (match v with
               | `Int x -> x
-              | `Address x when AD.equal x (AD.null_ptr ()) -> ID.of_int Int64.zero
+              | `Address x when AD.equal x AD.null_ptr -> ID.of_int Int64.zero
               | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [0L]
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
@@ -296,12 +296,12 @@ struct
         | TPtr (t,_) when isVoidType t || isVoidPtrType t -> v (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
           `Address (match v with
-              | `Int x when ID.to_int x = Some Int64.zero -> AD.null_ptr ()
-              | `Int x -> AD.top_ptr ()
+              | `Int x when ID.to_int x = Some Int64.zero -> AD.null_ptr
+              | `Int x -> AD.top_ptr
               (* we ignore casts to void*! TODO report UB! *)
               | `Address x -> (match t with TVoid _ -> x | _ -> cast_addr t x)
               (*| `Address x -> x*)
-              | _ -> log_top __POS__; AD.top_ptr ()
+              | _ -> log_top __POS__; AD.top_ptr
             )
         | TArray (ta, l, _) -> (* TODO, why is the length exp option? *)
           `Array (match v, Goblintutil.tryopt Cil.lenOfArray l with
@@ -368,9 +368,9 @@ struct
     | (`Int x, `Int y) -> `Int (ID.join x y)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some 0L -> AD.join (AD.null_ptr ()) y
-        | Some x when x<>0L -> AD.(join y (join (safe_ptr ()) (unknown_ptr ())))
-        | _ -> AD.join y (AD.top_ptr ()))
+        | Some 0L -> AD.join AD.null_ptr y
+        | Some x when x<>0L -> AD.(join y (join safe_ptr unknown_ptr))
+        | _ -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
     | (`Union x, `Union y) -> `Union (Unions.join x y)
@@ -415,8 +415,8 @@ struct
     | (`Int x, `Int y) -> `Int (ID.widen x y)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
-        | Some 0L -> AD.widen (AD.null_ptr ()) y
-        | _ -> AD.top_ptr ())
+        | Some 0L -> AD.widen AD.null_ptr y
+        | _ -> AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.widen x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.widen x y)
     | (`Union x, `Union y) -> `Union (Unions.widen x y)
@@ -460,7 +460,7 @@ struct
     in
     match t with
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top ())))
-    | TPtr _ -> `Address (AD.unknown_ptr ())
+    | TPtr _ -> `Address AD.unknown_ptr
     | TComp ({cstruct=true} as ci,_) -> `Struct (top_comp ci)
     | TComp ({cstruct=false},_) -> `Union (Unions.top ())
     | TArray _ -> `Array (CArrays.top ())

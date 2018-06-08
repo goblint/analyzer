@@ -29,10 +29,10 @@ struct
   type idx = Idx.t
   type offs = [`NoOffset | `Field of (field * offs) | `Index of (idx * offs)]
 
-  let null_ptr ()    = singleton Addr.NullPtr
-  let safe_ptr ()    = singleton Addr.SafePtr
-  let unknown_ptr () = singleton Addr.UnknownPtr
-  let top_ptr ()     = of_list Addr.([UnknownPtr; NullPtr; SafePtr])
+  let null_ptr       = singleton Addr.NullPtr
+  let safe_ptr       = singleton Addr.SafePtr
+  let unknown_ptr    = singleton Addr.UnknownPtr
+  let top_ptr        = of_list Addr.([UnknownPtr; NullPtr; SafePtr])
   let is_unknown     = is_element Addr.UnknownPtr
   let may_be_unknown = exists (fun e -> e = Addr.UnknownPtr)
   let is_null        = is_element Addr.NullPtr
@@ -42,10 +42,10 @@ struct
 
   let of_int (type a) (module ID : IntDomain.S with type t = a) i =
     match ID.to_int i with
-    | Some 0L -> null_ptr ()
+    | Some 0L -> null_ptr
     | _ -> match ID.to_excl_list i with
       | Some xs when List.mem 0L xs -> Addr.(of_list [SafePtr; UnknownPtr])
-      | _ -> top_ptr ()
+      | _ -> top_ptr
 
   let get_type xs =
     try Addr.get_type (choose xs)
@@ -187,6 +187,6 @@ struct
       match mem Addr.UnknownPtr x, mem Addr.UnknownPtr y with
       | true, false
       | false, true
-      | true, true -> unknown_ptr ()
+      | true, true -> unknown_ptr
       | false, false -> join x y
 end
