@@ -311,7 +311,7 @@ struct
       | [x,`NoOffset] ->
         Addr.from_var_offset (x, `Index (iDtoIdx n, `NoOffset))
       | _ -> match addr with
-        | Addr.SafePtr | Addr.NullPtr -> addr
+        | Addr.NullPtr when ID.to_int n = Some 0L -> Addr.NullPtr
         | _ -> Addr.UnknownPtr (* TODO fields? *)
     in
     (* The main function! *)
