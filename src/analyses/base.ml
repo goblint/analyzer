@@ -1334,7 +1334,6 @@ struct
   let tasks_var = makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType
 
   let forkfun ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list =
-    let cpa,fl = ctx.local in
     let create_thread arg v =
       try
         (* try to get function declaration *)
@@ -1346,11 +1345,16 @@ struct
         in
         let nfl = create_tid v in
         let nst = make_entry ctx ~nfl:nfl v args in
-        v, nst
+        Some (v, nst)
       with Not_found ->
-        if not (LF.use_special f.vname) then
-          M.warn_each ("creating a thread from unknown function " ^ v.vname);
-        v, (cpa, create_tid v)
+        if LF.use_special f.vname then None (* we handle this function *)
+        else if isFunctionType v.vtype then (
+          M.warn_each ("Creating a thread from unknown function " ^ v.vname);
+          Some (v, (fst ctx.local, create_tid v))
+        ) else (
+          M.warn_each ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype);
+          None
+        )
     in
     match LF.classify f.vname args with
     (* handling thread creations *)
@@ -1359,7 +1363,7 @@ struct
         match ctx.ask (Queries.EvalInt mode) with
         | `Int i when i=3L ->
           let a = match ctx.global tasks_var with `Address a -> a | _ -> AD.empty () in
-          let r = AD.to_var_may a |> List.map (create_thread None) in
+          let r = AD.to_var_may a |> List.filter_map (create_thread None) in
           ctx.sideg tasks_var (`Address (AD.empty ()));
           ignore @@ printf "base: SetPartitionMode NORMAL: spawning %i processes!\n" (List.length r);
           r
@@ -1373,10 +1377,10 @@ struct
         | [entry_point; _; AddrOf r] -> (* both *)
           let pa = eval_fv ctx.ask ctx.global ctx.local entry_point in
           let reach_fs = reachable_vars ctx.ask [pa] ctx.global ctx.local in
-          let reach_fs = List.concat (List.map AD.to_var_may reach_fs) |> List.filter (fun v -> isFunctionType v.vtype) in
+          let reach_fs = List.concat (List.map AD.to_var_may reach_fs) in
           let a = match ctx.global tasks_var with `Address a -> a | _ -> AD.empty () in
           ctx.sideg tasks_var (`Address (List.map AD.from_var reach_fs |> List.fold_left AD.join a));
-          (* List.map (create_thread None) reach_fs *)
+          (* List.filter_map (create_thread None) reach_fs *)
           []
         | _ -> []
       end
@@ -1385,7 +1389,7 @@ struct
         publish_all ctx;
         (* Collect the threads. *)
         let start_addr = eval_tv ctx.ask ctx.global ctx.local start in
-        List.map (create_thread (Some ptc_arg)) (AD.to_var_may start_addr)
+        List.filter_map (create_thread (Some ptc_arg)) (AD.to_var_may start_addr)
       end
     | `Unknown _ -> begin
         let args =
@@ -1395,7 +1399,7 @@ struct
         in
         let flist = collect_funargs ctx.ask ctx.global ctx.local args in
         let addrs = List.concat (List.map AD.to_var_may flist) in
-        List.map (create_thread None) addrs
+        List.filter_map (create_thread None) addrs
       end
     | _ ->  []
 
@@ -1447,7 +1451,7 @@ struct
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     (*    let heap_var = heap_var !Tracing.current_loc in*)
     let forks = forkfun ctx lv f args in
-    if M.tracing then M.tracel "spawn" "Base.special %s: spawning %i functions\n" f.vname (List.length forks);
+    if M.tracing then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map fst forks);
     List.iter (uncurry ctx.spawn) forks;
     let cpa,fl as st = ctx.local in
     let gs = ctx.global in
