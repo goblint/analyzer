@@ -171,6 +171,7 @@ let _ = ()
       ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Method depends on exp.full-context - costly if true."
       ; reg Experimental "exp.solver.wp.restore" "true" "Should the wp solver restore values for non-widening-points?"
       ; reg Experimental "exp.fast_global_inits" "true" "Only generate 'a[0] = 0' for a zero-initialized array a[n]. This is only sound for our flat array domain! TODO change this once we use others!"
+      ; reg Experimental "exp.uninit-ptr-safe"   "false" "Assume that uninitizalized stack-allocated pointers may only point to variables not in the program or null."
 
 (* {4 category [Debugging]} *)
 let _ = ()
