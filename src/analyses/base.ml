@@ -312,6 +312,7 @@ struct
         Addr.from_var_offset (x, `Index (iDtoIdx n, `NoOffset))
       | _ -> match addr with
         | Addr.NullPtr when ID.to_int n = Some 0L -> Addr.NullPtr
+        | Addr.SafePtr | Addr.NullPtr when get_bool "exp.ptr-arith-safe" -> Addr.SafePtr
         | _ -> Addr.UnknownPtr (* TODO fields? *)
     in
     (* The main function! *)
