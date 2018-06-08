@@ -380,7 +380,7 @@ File.open(theresultfile, "w") do |f|
     else
       alliswell = false
       if not timedout.include? id then
-        failed.push p.name
+        failed.push "#{p.id} #{p.name}"
         exc = if lines[0] =~ /exception/ then " (see exception above)" else "" end
         puts "#{id}" + " failed#{exc}!".red
         if dump then
