@@ -77,7 +77,7 @@ rule() {
     dep*)    OPAMYES=1 opam_build;;
     setup)   echo "Make sure you have the following installed: opam >= 1.2.2, m4, patch, autoconf, git"
              echo "For the --html output you also need: javac, ant, dot (graphviz)"
-             echo "For running the regression tests you also need: ruby, gem"
+             echo "For running the regression tests you also need: ruby, gem, curl"
              opam init --comp=$ocaml_version
              opam switch $ocaml_version # in case opam was already initialized
              opam_build
