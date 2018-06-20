@@ -17,7 +17,7 @@ let print_version ch =
   printf "Goblint version: %s\n" goblint;
   printf "Cil version:     %s (%s)\n" Cil.cilVersion cil;
   printf "Configuration:   tracing %a, tracking %a\n" f tracing f tracking ;
-  raise BailFromMain
+  raise Exit
 
 (** Print helpful messages. *)
 let print_help ch =
@@ -62,9 +62,9 @@ let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
   let add_int    l = let f str = l := str :: !l in Arg.Int f in
   let set_trace sys =
-    let msg = "Goblin has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
+    let msg = "Goblint has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
     if Config.tracing then Tracing.addsystem sys
-    else (prerr_endline msg; raise BailFromMain)
+    else (prerr_endline msg; raise Exit)
   in
   let oil file =
     set_string "ana.osek.oil" file;
@@ -93,8 +93,8 @@ let option_spec_list =
   ; "--conf"               , Arg.String merge_file, ""
   ; "--writeconf"          , Arg.String (fun fn -> writeconf:=true;writeconffile:=fn), ""
   ; "--version"            , Arg.Unit print_version, ""
-  ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; raise BailFromMain), ""
-  ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; raise BailFromMain), ""
+  ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; raise Exit), ""
+  ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; raise Exit), ""
   ; "--trace"              , Arg.String set_trace, ""
   ; "--tracevars"          , add_string Tracing.tracevars, ""
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""
@@ -126,7 +126,7 @@ let parse_arguments () =
     else cFileNames := fname :: !cFileNames
   in
   Arg.parse option_spec_list recordFile "Look up options using 'goblint --help'.";
-  if !writeconf then begin File.with_file_out !writeconffile print; raise BailFromMain end
+  if !writeconf then begin File.with_file_out !writeconffile print; raise Exit end
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -160,7 +160,7 @@ let preprocess_one_file cppflags includes fname =
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
-    let rm_and_exit () = remove_temp_dir (); raise BailFromMain in
+    let rm_and_exit () = remove_temp_dir (); raise Exit in
     try match Unix.system command with
       | Unix.WEXITED 0 -> nname
       | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
@@ -247,7 +247,7 @@ let merge_preprocessed cpp_file_names =
     | [one] -> Cilfacade.callConstructors one
     | [] -> prerr_endline "No arguments for Goblint?";
       prerr_endline "Try `goblint --help' for more information.";
-      raise BailFromMain
+      raise Exit
     | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
   in
 
@@ -337,8 +337,8 @@ let handle_extraspecials () =
 (** the main function *)
 let main =
   let main_running = ref false in fun () ->
-    if !main_running then () else
-      let _ = main_running := true in
+    if not !main_running then (
+      main_running := true;
       try
         Stats.reset Stats.SoftwareTimer;
         Cilfacade.init ();
@@ -350,7 +350,8 @@ let main =
         Report.do_stats !cFileNames;
         do_html_output ();
         if !verified = Some false then exit 3 (* verifier failed! *)
-      with BailFromMain -> ()
+      with Exit -> ()
+    )
 
 let _ =
   at_exit main

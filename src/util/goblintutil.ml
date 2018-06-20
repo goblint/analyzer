@@ -8,9 +8,6 @@ open Json
 open JsonParser
 open JsonLexer
 
-(** Use this instead of [exit n]. *)
-exception BailFromMain
-
 (** command port for eclipse debuger support *)
 let command_port = ref (-1)
 (** event port for eclipse debuger support *)

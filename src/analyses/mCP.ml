@@ -250,7 +250,7 @@ struct
         let xn = assoc x !analyses_table in
         let yn = assoc y !analyses_table in
         Legacy.Printf.fprintf !Messages.warn_out "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
-        raise Goblintutil.BailFromMain
+        raise Exit
       end
     in
     let deps (x,_) = iter (check_dep x) @@ assoc x !dep_list in
