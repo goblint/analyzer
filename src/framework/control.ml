@@ -142,7 +142,8 @@ struct
               Result.add res p (LT.singleton (es,state,fundec))
           (* If the function is not defined, and yet has been included to the
            * analysis result, we generate a warning. *)
-          with Not_found -> Messages.warn ("Undefined function has escaped.")
+          with Not_found ->
+            Messages.warn ("Calculated state for undefined function: unexpected node "^Ana.sprint MyCFG.pretty_node n)
       in
       LHT.iter add_local_var h;
       res
