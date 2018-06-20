@@ -129,7 +129,8 @@ let writesAll a x =
   | `Write -> x
   | `Read  -> []
 
-(* just add your library functions here *)
+(* Data races: which arguments are read/written?
+ * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
 let invalidate_actions = ref [
     "GetResource", readsAll;
     "ReleaseResource", readsAll;
