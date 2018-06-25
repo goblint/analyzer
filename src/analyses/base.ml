@@ -1024,6 +1024,7 @@ struct
     List.map AD.singleton (AD.elements !visited)
 
   let invalidate ask (gs:glob_fun) (st:store) (exps: exp list): store =
+    if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
@@ -1050,6 +1051,10 @@ struct
       List.exists (fun x -> List.mem x.vname my_favorite_things) (AD.to_var_may x)
     in
     let invalids' = List.filter (fun (x,_) -> not (is_fav_addr x)) invalids in
+    if M.tracing && exps <> [] then (
+      let addrs, vs = List.split invalids' in
+      M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
+    );
     set_many ask gs st invalids'
 
   (* Variation of the above for yet another purpose, uhm, code reuse? *)
@@ -1602,14 +1607,9 @@ struct
     | `Unknown "__goblint_assert" -> assert_fn ctx (List.hd args) true true
     | `Assert e -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug"))
     | _ -> begin
-        let lv_list =
-          match lv with
-          | Some x -> [mkAddrOrStartOf x]
-          | None -> []
-        in
         let st =
           match LF.get_invalidate_action f.vname with
-          | Some fnc -> invalidate ctx.ask gs st (lv_list @ (fnc `Write  args));
+          | Some fnc -> invalidate ctx.ask gs st (fnc `Write  args)
           | None -> (
               (if f.vid <> dummyFunDec.svar.vid  && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
               let st_expr (v:varinfo) (value) a =
@@ -1617,7 +1617,7 @@ struct
                   mkAddrOf (Var v, NoOffset) :: a
                 else a
               in
-              let addrs = CPA.fold st_expr cpa (lv_list @ args) in
+              let addrs = CPA.fold st_expr cpa args in
               (* This rest here is just to see if something got spawned. *)
               let flist = collect_funargs ctx.ask gs st args in
               (* invalidate arguments for unknown functions *)
@@ -1641,6 +1641,13 @@ struct
               else
                 st
             )
+        in
+        (* invalidate lhs in case of assign *)
+        let st = match lv with
+          | None -> st
+          | Some x ->
+            if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for unknown function call %s\n" d_plainlval x f.vname;
+            invalidate ctx.ask gs st [mkAddrOrStartOf x]
         in
         (* apply all registered abstract effects from other analysis on the base value domain *)
         List.map (fun f -> f (fun lv -> set ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
