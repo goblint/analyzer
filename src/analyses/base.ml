@@ -659,7 +659,11 @@ struct
               match eval_rv a gs st (Lval x) with
               | `Address a when AD.is_definite n ->
                 Some (x, `Address (AD.diff a n))
-              | _ -> None
+              | `Top when AD.is_null n ->
+                Some (x, `Address AD.not_null)
+              | v ->
+                if M.tracing then M.tracec "invariant" "No address invariant for: %a != %a\n" VD.pretty v AD.pretty n;
+                None
             end
           (* | `Address a -> Some (x, value) *)
           | _ ->
@@ -730,7 +734,7 @@ struct
         helper Ne x (null_val (typeOf exp)) tv
       | UnOp (LNot,uexp,typ) -> derived_invariant uexp (not tv)
       | _ ->
-        if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)\n\n" d_exp exp;
+        if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)\n\n" d_plainexp exp;
         None
     in
     let is_some_bot x =
@@ -772,7 +776,7 @@ struct
         else set a gs st addr new_val ~effect:false
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
-      M.warn_each ("Invariant failed: expression \"" ^ sprint d_exp exp ^ "\" not understood.");
+      M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");
       st
 
   let set_savetop ask (gs:glob_fun) st adr v =
