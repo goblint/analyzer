@@ -95,10 +95,7 @@ struct
 
   (* list accessed addresses *)
   let varoffs a (rval:exp) =
-    let f vs (v,o,_) =
-      match o with
-      | Offs.Offs o -> (v,o) :: vs
-      | _ -> vs in
+    let f vs (v,o,_) = (v,o) :: vs in
     List.fold_left f [] (access_one_byval a false rval)
 
   let vars a (rval:exp) : Addr.t list =

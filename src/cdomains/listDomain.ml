@@ -26,7 +26,7 @@ end
 
 let list_poison = makeGlobalVar "LIST_POISON" voidType
 
-module SimpleList (Base: SetDomain.S)
+module SimpleList (Base: Lattice.S)
   : S with type elem = Base.t =
 struct
   include Base

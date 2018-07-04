@@ -401,16 +401,20 @@ struct
 end
 
 (* Hoare hash set for partial orders: keeps uncomparable elements separate
- *  - all comparable elements must have the same hash so that they land in the same bucket
- *  - pairwise operations like join then only need to be done per bucket
- *  - E should throw Lattice.Uncomparable if an operation is not defined for two elements
- *)
+   - All comparable elements must have the same hash so that they land in the same bucket!
+   - Pairwise operations like join then only need to be done per bucket.
+   - E should throw Lattice.Uncomparable if an operation is not defined for two elements.
+     In this case the operation will be done on the level of the set instead.
+   - Hoare set means that for comparable elements, we only keep the biggest one.
+     -> We only need to find the first comparable element for a join etc.
+     -> There should only be one element per bucket except for hash collissions.
+*)
 module HoarePO (E : Lattice.PO) =
 struct
   open Batteries
-  type hash = int
   type bucket = E.t list
-  type t = (hash, bucket) Map.t
+  type t = bucket Map.Int.t
+  module Map = Map.Int
 
   module B = struct (* bucket *)
     (* join element e with bucket using op *)
@@ -424,26 +428,118 @@ struct
       | x::xs -> try [op e x] with Lattice.Uncomparable -> meet op e xs
 
     (* merge element e into its bucket in m using f, discard bucket if empty *)
-    let merge f e m =
+    let merge_element f e m =
       let i = E.hash e in
       let b = f e (Map.find_default [] i m) in
-      if b = [] then m
+      if b = [] then Map.remove i m
       else Map.add i b m
   end
 
   let elements m = Map.values m |> List.of_enum |> List.flatten
 
-  (* merge all elements from x into their bucket in y *)
-  let merge f x y = List.fold_left (flip (B.merge f)) y (elements x)
+  (* merge elements in x and y by f *)
+  let merge op f x y =
+    let g = match op with
+      | `Join -> B.join
+      | `Meet -> B.meet
+    in
+    Map.merge (fun i a b -> match a, b with
+        | Some a, Some b ->
+          let r = List.fold_left (flip (g f)) a b in
+          if r = [] then None else Some r
+        | Some x, None
+        | None, Some x when op = `Join -> Some x
+        | _ -> None
+      ) x y
+  (* join all elements from the smaller map into their bucket in the other one.
+   * this doesn't need to go over all elements of both maps as the general merge above. *)
+  let merge_join f x y =
+    (* let x, y = if Map.cardinal x < Map.cardinal y then x, y else y, x in *)
+    List.fold_left (flip (B.merge_element (B.join f))) y (elements x)
 
-  let join   x y = merge (B.join E.join) x y
-  let widen  x y = merge (B.join E.widen) x y
-  let meet   x y = merge (B.meet E.meet) x y
-  let narrow x y = merge (B.meet E.narrow) x y
+  let join   x y = merge_join E.join x y
+  let widen  x y = merge_join E.widen x y
+  let meet   x y = merge `Meet E.meet x y
+  let narrow x y = merge `Meet E.narrow x y
 
-  (* set functions *)
-  let singleton e = B.merge (B.join E.join) e Map.empty
+  (* Set *)
+  let of_list_by f es = List.fold_left (flip (B.merge_element (B.join f))) Map.empty es
+  let of_list es = of_list_by E.join es
+  let keep_apart x y = raise Lattice.Uncomparable
+  let of_list_apart es = of_list_by keep_apart es
+  let singleton e = of_list [e]
+  let exists p m = List.exists p (elements m)
+  let for_all p m = List.for_all p (elements m)
+  let mem e m = exists (E.leq e) m
+  let choose m = List.hd (snd (Map.choose m))
+  let apply_list f m = of_list (f (elements m))
+  let map f m =
+    (* Map.map (List.map f) m *)
+    (* since hashes might change we need to rebuild: *)
+    apply_list (List.map f) m
+  let filter f m = apply_list (List.filter f) m (* TODO do something better? *)
+  let remove x m =
+    let ngreq x y = not (E.leq y x) in
+    B.merge_element (fun _ -> List.filter (ngreq x)) x m
+  (* let add e m = if mem e m then m else B.merge List.cons e m *)
+  let add e m = if mem e m then m else join (singleton e) m
+  let fold f m a = Map.fold (fun _ -> List.fold_right f) m a
+  let cardinal m = fold (const succ) m 0
+  let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
+  let empty () = Map.empty
+  let is_empty m = Map.is_empty m
+  (* let union x y = merge (B.join keep_apart) x y *)
+  let union x y = join x y
+  let iter f m = Map.iter (fun _ -> List.iter f) m
+
   let is_element e m = Map.cardinal m = 1 && snd (Map.choose m) = [e]
+
+  (* Lattice *)
+  let bot () = Map.empty
+  let is_bot = Map.is_empty
+  let top () = raise (Unsupported "HoarePO.top")
+  let is_top _ = false
+  let leq x y = (* all elements in x must be leq than the ones in y *)
+    for_all (flip mem y) x
+
+  (* Printable *)
+  let name () = "Set (" ^ E.name () ^ ")"
+  let equal x y = try Map.equal (List.for_all2 E.equal) x y with Invalid_argument _ -> false
+  let hash = Hashtbl.hash
+  let compare = compare
+  let isSimple _ = false
+  let short w x : string =
+    let usable_length = w - 5 in
+    let all_elems : string list = List.map (E.short usable_length) (elements x) in
+    Printable.get_short_list "{" "}" usable_length all_elems
+
+  let to_yojson x = [%to_yojson: E.t list] (elements x)
+
+  let toXML_f sf x =
+    let esc = Goblintutil.escape in
+    let elems = List.map E.toXML (elements x) in
+    Xml.Element ("Node", [("text", esc (sf max_int x))], elems)
+
+  let toXML s  = toXML_f short s
+  let pretty_f _ () x =
+    let content = List.map (E.pretty ()) (elements x) in
+    let rec separate x =
+      match x with
+      | [] -> []
+      | [x] -> [x]
+      | (x::xs) -> x ++ (text ", ") :: separate xs
+    in
+    let separated = separate content in
+    let content = List.fold_left (++) nil separated in
+    (text "{") ++ content ++ (text "}")
+  let pretty () x = pretty_f short () x
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "HoarePO: %a not leq %a" pretty x pretty y
+  let printXml f x =
+    BatPrintf.fprintf f "<value>\n<set>\n";
+    List.iter (E.printXml f) (elements x);
+    BatPrintf.fprintf f "</set>\n</value>\n"
 end
 
 (* module Hoare (B : Lattice.S) (N: ToppedSetNames) : sig *)
@@ -468,7 +564,7 @@ struct
   let leq a b =
     match a with
     | All -> b = All
-    | _ -> for_all (fun x -> mem x b) a
+    | _ -> for_all (fun x -> mem x b) a (* mem uses B.leq! *)
   let eq a b = leq a b && leq b a
   let le x y = B.leq x y && not (B.equal x y)
   let reduce = function

@@ -848,7 +848,7 @@ struct
         let not_local x =
           match Addr.to_var_may x with
           | [x] -> is_global ctx.ask x
-          | _ -> x = Addr.Top || x = Addr.UnknownPtr
+          | _ -> x = Addr.UnknownPtr
         in
         AD.is_top xs || AD.exists not_local xs
       in
@@ -1012,7 +1012,7 @@ struct
     while not (AD.is_empty !workset) do
       visited := AD.union !visited !workset;
       (* ok, let's visit all the variables in the workset and collect the new variables *)
-      let visit_and_collect (var: AD.elt) (acc: address): address =
+      let visit_and_collect var (acc: address): address =
         let var = AD.singleton var in (* Very bad hack! Pathetic really! *)
         AD.union (reachable_from_address ask gs st var) acc in
       let collected = AD.fold visit_and_collect !workset empty in
@@ -1038,7 +1038,7 @@ struct
     let invalidate_exp e =
       match eval_rv ask gs st e with
       (*a null pointer is invalid by nature*)
-      | `Address a when AD.equal a AD.null_ptr -> []
+      | `Address a when AD.is_null a -> []
       | `Address a when not (AD.is_top a) ->
         List.map (invalidate_address st) (reachable_vars ask [a] gs st)
       | `Int _ -> []

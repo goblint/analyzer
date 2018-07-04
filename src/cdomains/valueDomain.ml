@@ -369,7 +369,7 @@ struct
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some 0L -> AD.join AD.null_ptr y
-        | Some x when x<>0L -> AD.(join y (join safe_ptr unknown_ptr))
+        | Some x when x<>0L -> AD.(join y not_null)
         | _ -> AD.join y AD.top_ptr)
     | (`Address x, `Address y) -> `Address (AD.join x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.join x y)
@@ -477,7 +477,7 @@ struct
       List.fold_left top_field nstruct compinfo.cfields
     in
     match typ, state with
-    |                 _ , `Address n    -> `Address (AD.add (Addr.UnknownPtr) n)
+    |                 _ , `Address n    -> `Address (AD.join AD.top_ptr n)
     | TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
     |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value voidType x) n)
     | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n)
