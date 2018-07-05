@@ -9,6 +9,7 @@ module M = Messages
 type categories = [
   | `Malloc       of exp
   | `Calloc       of exp
+  | `Realloc      of exp * exp
   | `Assert       of exp
   | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
@@ -43,6 +44,11 @@ let classify' fn exps =
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc Cil.(BinOp (Mult, n, size, typeOf one))
+      | _ -> M.bailwith (fn^" arguments are strange!")
+    end
+  | "realloc" ->
+    begin match exps with
+      | p::size::_ -> `Realloc (p, size)
       | _ -> M.bailwith (fn^" arguments are strange!")
     end
   | "assert" ->
