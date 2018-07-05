@@ -44,7 +44,7 @@ struct
   let make v s = v, s
   let value = fst
   let size = snd
-  let invalidate_value t (v, s) = Value.invalidate_value t v, Size.top () (* TODO sound to use s instead? *)
+  let invalidate_value t (v, s) = Value.invalidate_value t v, s
 end
 
 module rec Compound: S with type t = [
@@ -378,7 +378,7 @@ struct
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
     | `Blob (x,s), y
     | y, `Blob (x,s) ->
-      `Blob (join (x:t) y, s) (* TODO why is this needed? 09/07 fails w/o it. *)
+      `Blob (join (x:t) y, s)
     | _ ->
       warn_type "join" x y;
       `Top
