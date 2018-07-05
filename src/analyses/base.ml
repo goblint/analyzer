@@ -514,6 +514,10 @@ struct
     match (eval_rv a gs st exp) with
     | `Address x -> x
     | _          -> M.bailwith "Problems evaluating expression to function calls!"
+  and eval_int a gs st exp =
+    match eval_rv a gs st exp with
+    | `Int x -> x
+    | _ -> ID.top ()
   (* A function to convert the offset to our abstract representation of
    * offsets, i.e.  evaluate the index expression to the integer domain. *)
   and convert_offset a (gs:glob_fun) (st: store) (ofs: offset) =
@@ -993,7 +997,7 @@ struct
       (* For arrays, we ask to read from an unknown index, this will cause it
        * join all its values. *)
       | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (IdxDom.top ()))
-      | `Blob e -> reachable_from_value e
+      | `Blob (e,_) -> reachable_from_value e
       | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
       | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
       | `Int _ -> empty
@@ -1079,11 +1083,11 @@ struct
     if CPA.is_top st then st else
       let rec replace_val = function
         | `Address _ as v -> v
-        | `Blob v ->
+        | `Blob (v,s) ->
           begin match replace_val v with
-            | `Blob `Top
+            | `Blob (`Top, _)
             | `Top -> `Top
-            | t -> `Blob t
+            | t -> `Blob (t, s)
           end
         | `Struct s ->
           let one_field fl vl st =
@@ -1104,7 +1108,7 @@ struct
                                     (replace_val (ValueDomain.CArrays.get n (ValueDomain.IndexDomain.top ()))))
         | `Struct n    -> `Struct (ValueDomain.Structs.map replace_val n)
         | `Union (f,v) -> `Union (f,replace_val v)
-        | `Blob n      -> `Blob (replace_val n)
+        | `Blob (n,s)  -> `Blob (replace_val n,s)
         | `Address x -> `Address (ValueDomain.AD.map ValueDomain.Addr.drop_ints x)
         | x -> x
       in
@@ -1193,7 +1197,7 @@ struct
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
         | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (IdxDom.top ()))
-        | `Blob e -> reachable_from_value e
+        | `Blob (e,_) -> reachable_from_value e
         | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
         | `Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
@@ -1251,6 +1255,11 @@ struct
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
           (match ID.to_int d with Some i -> `Int i | None -> `Top)
         | `Bot -> `Bot
+        | _ -> `Top
+      end
+    | Q.BlobSize e -> begin
+        match eval_rv ctx.ask ctx.global ctx.local (Lval (Mem e, NoOffset)) with
+        | `Blob (_,s) -> (match ID.to_int s with Some i -> `Int i | None -> `Top)
         | _ -> `Top
       end
     | Q.MayPointTo e -> begin
@@ -1576,7 +1585,7 @@ struct
         | `Int n when n = ID.of_int 0L -> cpa,fl
         | _      -> invalidate ctx.ask gs st [ret_var]
       end
-    | `Malloc  -> begin
+    | `Malloc size -> begin
         match lv with
         | Some lv ->
           let heap_var =
@@ -1584,15 +1593,15 @@ struct
             then AD.join (heap_var !Tracing.current_loc) AD.null_ptr
             else heap_var !Tracing.current_loc
           in
-          set_many ctx.ask gs st [(heap_var, `Blob (VD.bot ()));
+          set_many ctx.ask gs st [(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));
                                   (eval_lv ctx.ask gs st lv, `Address heap_var)]
         | _ -> st
       end
-    | `Calloc ->
+    | `Calloc size ->
       begin match lv with
         | Some lv ->
-          let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in
-          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot ()))));
+          let heap_var = BaseDomain.get_heap_var !Tracing.current_loc in (* TODO calloc can also fail and return NULL *)
+          set_many ctx.ask gs st [(AD.from_var heap_var, `Array (CArrays.make 0 (`Blob (VD.bot (), eval_int ctx.ask gs st size)))); (* TODO why? should be zero-initialized *)
                                   (eval_lv ctx.ask gs st lv, `Address (AD.from_var_offset (heap_var, `Index (IdxDom.of_int 0L, `NoOffset))))]
         | _ -> st
       end

@@ -7,8 +7,8 @@ open Goblintutil
 module M = Messages
 
 type categories = [
-  | `Malloc
-  | `Calloc
+  | `Malloc       of exp
+  | `Calloc       of exp
   | `Assert       of exp
   | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
@@ -30,8 +30,16 @@ let classify' fn exps =
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
       | _ -> M.bailwith "pthread_join arguments are strange!"
     end
-  | "malloc" | "kmalloc"  | "kzalloc" | "__kmalloc" | "usb_alloc_urb" -> `Malloc
-  | "calloc" -> `Calloc
+  | "malloc" | "kmalloc" | "kzalloc" | "__kmalloc" | "usb_alloc_urb" ->
+    begin match exps with
+      | size::_ -> `Malloc size
+      | _ -> M.bailwith (fn^" arguments are strange!")
+    end
+  | "calloc" ->
+    begin match exps with
+      | n::size::_ -> `Calloc Cil.(BinOp (Mult, n, size, typeOf one))
+      | _ -> M.bailwith (fn^" arguments are strange!")
+    end
   | "assert" ->
     begin match exps with
       | [e] -> `Assert e

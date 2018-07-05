@@ -37,10 +37,11 @@ type t = ExpEq of exp * exp
        | IsPublic of varinfo
        | SingleThreaded
        | IsNotUnique
-       | EvalLength of exp
        | EvalFunvar of exp
        | EvalInt of exp
        | EvalStr of exp
+       | EvalLength of exp (* length of an array or string *)
+       | BlobSize of exp (* size of a dynamically allocated `Blob pointed to by exp *)
        | PrintFullState
        | CondVars of exp
        | Access of exp * bool * bool * int

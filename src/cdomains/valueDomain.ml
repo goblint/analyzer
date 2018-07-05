@@ -22,22 +22,29 @@ sig
   val cast: ?torg:typ -> typ -> t -> t
 end
 
-module Blob (Val: Lattice.S) =
+module type Blob =
+sig
+  type value
+  type size
+  include Lattice.S with type t = value * size
+
+  val make: value -> size -> t
+  val value: t -> value
+  val size: t -> size
+  val invalidate_value: typ -> t -> t
+end
+
+module Blob (Value: S) (Size: IntDomain.S) =
 struct
-  let name () = "blobs"
-  include Val
-  type value = Val.t
+  let name () = "blob"
+  include Lattice.Prod (Value) (Size)
+  type value = Value.t
+  type size = Size.t
 
-  let short w x = "Blob: " ^ Val.short (w - 7) x
-  let pretty () x = pretty_f short () x
-  let toXML m = toXML_f short m
-  let get a i = a
-  let set a i v = join a v
-  let make i v = v
-  let length _ = None
-
-  let set_inplace = set
-  let copy a = a
+  let make v s = v, s
+  let value = fst
+  let size = snd
+  let invalidate_value t (v, s) = Value.invalidate_value t v, Size.top () (* TODO sound to use s instead? *)
 end
 
 module rec Compound: S with type t = [
@@ -67,7 +74,6 @@ struct
   let tag_name : t -> string = function
     | `Top -> "Top" | `Int _ -> "Int" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `List _ -> "List" | `Bot -> "Bot"
 
-  module B = Blob (Compound)
 
   include Printable.Std
   let name () = "compound"
@@ -92,9 +98,6 @@ struct
     | (`Union x, `Union y) -> Unions.equal x y
     | (`Array x, `Array y) -> CArrays.equal x y
     | (`Blob x, `Blob y) -> Blobs.equal x y
-    | `Blob x, y
-    | y, `Blob x ->
-      Blobs.equal (x:t) ((B.make 0 y):t)
     | _ -> false
 
   let hash x =
@@ -126,8 +129,6 @@ struct
     | `Array x, `Array y -> CArrays.compare x y
     | `List x, `List y -> Lists.compare x y
     | `Blob x, `Blob y -> Blobs.compare x y
-    | `Blob x, y -> Blobs.compare (x:t) ((B.make 0 y):t)
-    | y, `Blob x -> Blobs.compare ((B.make 0 y):t) (x:t)
     | _ -> Pervasives.compare (constr_to_int x) (constr_to_int y)
 
   let pretty_f _ () state =
@@ -337,6 +338,9 @@ struct
       Messages.tracel "cast" "cast %a to %a is %a!\n" pretty v d_type t pretty v'; v'
 
 
+  let warn_type op x y =
+    ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.line pretty x pretty y
+
   let leq x y =
     match (x,y) with
     | (_, `Top) -> true
@@ -352,14 +356,9 @@ struct
     | (`Array x, `Array y) -> CArrays.leq x y
     | (`List x, `List y) -> Lists.leq x y
     | (`Blob x, `Blob y) -> Blobs.leq x y
-    | `Blob x, y -> Blobs.leq (x:t) ((B.make 0 y):t)
-    | y, `Blob x -> Blobs.leq ((B.make 0 y):t) (x:t)
-    | _ -> false
+    | _ -> warn_type "leq" x y; false
 
-  let warn_type op x y =
-    ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.line pretty x pretty y
-
-  let join x y =
+  let rec join x y =
     match (x,y) with
     | (`Top, _) -> `Top
     | (_, `Top) -> `Top
@@ -377,10 +376,10 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.join x y)
     | (`List x, `List y) -> `List (Lists.join x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
-    | `Blob x, y
-    |  y, `Blob x ->
-      `Blob (B.join (x:t) ((B.make 0 y):t))
-    | x, y ->
+    | `Blob (x,s), y
+    | y, `Blob (x,s) ->
+      `Blob (join (x:t) y, s) (* TODO why is this needed? 09/07 fails w/o it. *)
+    | _ ->
       warn_type "join" x y;
       `Top
 
@@ -399,9 +398,6 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.meet x y)
     | (`List x, `List y) -> `List (Lists.meet x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
-    | `Blob x, y
-    |  y, `Blob x ->
-      `Blob (B.meet (x:t) ((B.make 0 y):t))
     | _ ->
       warn_type "meet" x y;
       `Bot
@@ -423,10 +419,6 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.widen x y)
     | (`List x, `List y) -> `List (Lists.widen x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
-    | `Blob x, y ->
-      `Blob (B.widen (x:t) ((B.make 0 y):t))
-    |  y, `Blob x ->
-      `Blob (B.widen ((B.make 0 y):t) (x:t))
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -442,13 +434,9 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.narrow x y)
     | (`List x, `List y) -> `List (Lists.narrow x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.narrow x y)
-    | `Blob x, y ->
-      `Blob (B.narrow (x:t) ((B.make 0 y):t))
-    |  y, `Blob x ->
-      `Blob (B.narrow ((B.make 0 y):t) (x:t))
     | x, `Top | `Top, x -> x
     | x, `Bot | `Bot, x -> `Bot
-    | (x,_) ->
+    | _ ->
       warn_type "narrow" x y;
       x
 
@@ -487,15 +475,15 @@ struct
     |                 _ , `Array n      ->
       let v = invalidate_value voidType (CArrays.get n (IndexDomain.top ())) in
       `Array (CArrays.set n (IndexDomain.top ()) v)
-    |                 t , `Blob n       -> `Blob (invalidate_value t n)
+    |                 t , `Blob n       -> `Blob (Blobs.invalidate_value t n)
     |                 _ , `List n       -> `Top
     |                 t , _             -> top_value t
 
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset f (x: t) (offs:offs): t =
     match x, offs with
-    | `Blob c, `Index (_,o) -> eval_offset f c o
-    | `Blob c, _ -> eval_offset f c offs
+    | `Blob c, `Index (_,o) -> eval_offset f (Blobs.value c) o
+    | `Blob c, _ -> eval_offset f (Blobs.value c) offs
     | `Bot, _ -> `Bot
     | _ ->
       match offs with
@@ -535,16 +523,16 @@ struct
         end
 
   let rec update_offset (x:t) (offs:offs) (value:t): t =
-    let mu = function `Blob (`Blob y) -> `Blob y | x -> x in
+    let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
     match x, offs with
-    | `Blob x, `Index (_,o) -> mu (`Blob (join x (update_offset x o value)))
-    | `Blob x,_ -> mu (`Blob (join x (update_offset x offs value)))
+    | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset x o value), s))
+    | `Blob (x,s),_ -> mu (`Blob (join x (update_offset x offs value), s))
     | _ ->
       let result =
         match offs with
         | `NoOffset -> begin
             match value with
-            | `Blob y -> mu (`Blob (join x y))
+            | `Blob (y,s) -> mu (`Blob (join x y, s))
             | _ -> value
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
@@ -619,6 +607,6 @@ and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
 and CArrays: ArrayDomain.S with type idx = IndexDomain.t and type value = Compound.t =
   ArrayDomain.TrivialWithLength (Compound) (IndexDomain)
 
-and Blobs: Lattice.S with type t = Compound.t = Blob (Compound)
+and Blobs: Blob with type size = ID.t and type value = Compound.t = Blob (Compound) (ID)
 
 and Lists: ListDomain.S with type elem = AD.t = ListDomain.SimpleList (AD)

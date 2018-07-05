@@ -3,8 +3,8 @@
 open Prelude.Ana
 
 type categories = [
-  | `Malloc
-  | `Calloc
+  | `Malloc       of exp
+  | `Calloc       of exp
   | `Assert       of exp
   | `Lock         of bool * bool * bool (* try? * write? *)
   | `Unlock
