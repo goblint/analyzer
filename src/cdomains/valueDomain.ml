@@ -483,7 +483,8 @@ struct
   let rec eval_offset f (x: t) (offs:offs): t =
     match x, offs with
     | `Blob c, `Index (_,o) -> eval_offset f (Blobs.value c) o
-    | `Blob c, _ -> eval_offset f (Blobs.value c) offs
+    | `Blob c, `Field _ -> eval_offset f (Blobs.value c) offs
+    | `Blob c, `NoOffset -> `Blob c
     | `Bot, _ -> `Bot
     | _ ->
       match offs with

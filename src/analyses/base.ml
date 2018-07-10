@@ -108,7 +108,7 @@ struct
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies *)
-  let rec get a (gs: glob_fun) (st,fl: store) (addrs:address): value =
+  let rec get ?(full=false) a (gs: glob_fun) (st,fl: store) (addrs:address): value =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
     let get_global x = gs x in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
@@ -125,7 +125,11 @@ struct
             CPA.find x st
           end
         in
-        VD.eval_offset (get a gs (st,fl)) var offs
+        let v = VD.eval_offset (get a gs (st,fl)) var offs in
+        if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
+        if full then v else match v with
+          | `Blob (c, s) -> c
+          | x -> x
       in
       let f x =
         match Addr.to_var_offset x with
@@ -1258,8 +1262,15 @@ struct
         | _ -> `Top
       end
     | Q.BlobSize e -> begin
-        match eval_rv ctx.ask ctx.global ctx.local (Lval (Mem e, NoOffset)) with
-        | `Blob (_,s) -> (match ID.to_int s with Some i -> `Int i | None -> `Top)
+        let p = eval_rv ctx.ask ctx.global ctx.local e in
+        (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
+        match p with
+        | `Address a ->
+          let r = get ~full:true ctx.ask ctx.global ctx.local a in
+          (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
+          (match r with
+           | `Blob (_,s) -> (match ID.to_int s with Some i -> `Int i | None -> `Top)
+           | _ -> `Top)
         | _ -> `Top
       end
     | Q.MayPointTo e -> begin
@@ -1593,6 +1604,7 @@ struct
             then AD.join (heap_var !Tracing.current_loc) AD.null_ptr
             else heap_var !Tracing.current_loc
           in
+          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ctx.ask gs st [(heap_var, `Blob (VD.bot (), eval_int ctx.ask gs st size));
                                   (eval_lv ctx.ask gs st lv, `Address heap_var)]
         | _ -> st
