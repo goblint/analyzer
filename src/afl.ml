@@ -1,7 +1,9 @@
-(* afl-fuzz -i input -o output ./a.out *)
+(* ocamlbuild -use-ocamlfind src/afl.native *)
+(* afl-fuzz -i input -o output ./afl.native *)
 open BatteriesExceptionless
 
-let test (module X : Lattice.S) n =
+let test (module X : IntDomain.S) =
+  let open X in
   let read () =
     try match read_line () with
       | "bot" -> bot ()
