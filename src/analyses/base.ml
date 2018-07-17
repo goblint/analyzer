@@ -1275,7 +1275,6 @@ struct
       end
     | Q.MayPointTo e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
-        | `Address a when AD.is_top a -> `LvalSet (Q.LS.top ())
         | `Address a ->
           let s = addrToLvalSet a in
           if AD.mem Addr.UnknownPtr a
