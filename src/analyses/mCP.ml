@@ -509,12 +509,6 @@ struct
       | `Bool false -> false
       | _ -> true
     in
-    let reach_or_mpt =
-      if reach then
-        ReachableFrom (mkAddrOf (Mem e,NoOffset))
-      else
-        MayPointTo (mkAddrOf (Mem e,NoOffset))
-    in
     (* The following function adds accesses to the lval-set ls
        -- this is the common case if we have a sound points-to set. *)
     let on_lvals ls includes_uk =
@@ -530,16 +524,17 @@ struct
       in
       LS.iter f ls
     in
+    let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
     match ctx.ask reach_or_mpt with
     | `Bot -> ()
     | `LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
       (* the case where the points-to set is non top and does not contain unknown values *)
       on_lvals ls false
-    | `LvalSet ls when not (LS.is_top ls) ->      
+    | `LvalSet ls when not (LS.is_top ls) ->
       (* the case where the points-to set is non top and contains unknown values *)
       let includes_uk = ref false in
       (* now we need to access all fields that might be pointed to: is this correct? *)
-      begin match ctx.ask (ReachableUkTypes (mkAddrOf (Mem e,NoOffset))) with
+      begin match ctx.ask (ReachableUkTypes e) with
         | `Bot -> ()
         | `TypeSet ts when Queries.TS.is_top ts ->
           includes_uk := true
@@ -556,7 +551,7 @@ struct
           includes_uk := true
       end;
       on_lvals ls !includes_uk
-    | _ -> 
+    | _ ->
       add_access (conf - 60) None None
 
   let assign (ctx:(D.t, G.t) ctx) l e =
