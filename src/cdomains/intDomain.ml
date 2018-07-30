@@ -14,6 +14,7 @@ sig
   val to_int: t -> int64 option
   val of_int: int64 -> t
   val is_int: t -> bool
+  val equal_to: int64 -> t -> [`Eq | `Neq | `Top] 
 
   val to_bool: t -> bool option
   val of_bool: bool -> t
@@ -103,6 +104,10 @@ struct
   open Int64
 
   type t = (int64 * int64) option [@@deriving to_yojson]
+
+  let equal_to i = function
+    | None -> failwith "unsupported: equal_to with bottom"
+    | Some (a, b) -> if a = b && b = i then `Eq else if a <= i && i <= b then `Top else `Neq
 
   let min_int, max_int = Size.range Cil.IInt (* TODO this currently depends on the machine Cil was compiled on... *)
 
@@ -329,7 +334,7 @@ end
 exception Unknown
 exception Error
 
-module Integers : S with type t = int64  = (* no top/bot, order is <= *)
+module Integers = (* no top/bot, order is <= *)
 struct
   include Printable.Std
   include Lattice.StdCousot
@@ -338,6 +343,7 @@ struct
   let hash (x:t) = ((Int64.to_int x) - 787) * 17
   let equal (x:t) (y:t) = x=y
   let copy x = x
+  let equal_to i x = if i > x then `Neq else `Top
   let top () = raise Unknown
   let is_top _ = false
   let bot () = raise Error
@@ -427,6 +433,11 @@ struct
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
 
+  let equal_to i = function
+    | `Bot -> failwith "unsupported: equal_to with bottom"
+    | `Top -> `Top
+    | `Lifted x -> Base.equal_to i x
+
   let of_int  x = `Lifted (Base.of_int x)
   let to_int  x = match x with
     | `Lifted x -> Base.to_int x
@@ -495,6 +506,11 @@ struct
   let cast_to t = function
     | `Lifted x -> `Lifted (Base.cast_to t x)
     | x -> x
+
+  let equal_to i = function
+    | `Bot -> failwith "unsupported: equal_to with bottom"
+    | `Top -> `Top
+    | `Lifted x -> Base.equal_to i x
 
   let of_int  x = `Lifted (Base.of_int x)
   let to_int  x = match x with
@@ -578,6 +594,11 @@ struct
     | `Excluded (s,r) -> S.hash s + R.hash r
     | `Definite i -> 83*Integers.hash i
     | `Bot -> 61426164
+
+  let equal_to i = function
+    | `Bot -> failwith "unsupported: equal_to with bottom"
+    | `Definite x -> if i = x then `Eq else `Neq
+    | `Excluded (s,r) -> if S.mem i s then `Top else `Neq
 
   let equal x y =
     match x, y with
@@ -833,6 +854,8 @@ struct
     match (I.bounds x) with
     | None -> Bot (size t)
     | Some(a,b) -> I.of_t (size t) a b
+
+  let equal_to i x = failwith "equal_to not implemented"
 
   (* Int Conversion *)
   let to_int x =
@@ -1123,6 +1146,7 @@ struct
   include Lattice.StdCousot
   type t = bool [@@deriving to_yojson]
   let hash = function true -> 51534333 | _ -> 561123444
+  let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
   let equal (x:t) (y:t) = x=y
   let name () = "booleans"
   let cast_to _ x = x
@@ -1198,6 +1222,16 @@ module Enums : S = struct
   and t = Neg of e list * R.t | Pos of e list [@@deriving to_yojson]
 
   let name () = "enums"
+
+  let equal_to i = function
+    | Pos x ->
+      if List.mem i x then
+        if List.length x = 1 then `Eq
+        else `Top
+      else `Neq
+    | Neg (x, r) ->
+      if List.mem i x then `Neq
+      else `Top
 
   let bot () = Pos []
   let top_of ik = Neg ([], size ik)
@@ -1419,6 +1453,11 @@ module IntDomTuple = struct
   let cast_to t = map { f1 = fun (type a) (module I:S with type t = a) -> I.cast_to t }
 
   (* fp: projections *)
+  let equal_to i x =
+    let xs = mapp { fp = fun (type a) (module I:S with type t = a) -> I.equal_to i } x |> Tuple4.enum |> List.of_enum |> List.filter_map identity in
+    if List.mem `Eq xs then `Eq else
+    if List.mem `Neq xs then `Neq else
+    `Top
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (
