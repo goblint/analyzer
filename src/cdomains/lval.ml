@@ -30,10 +30,10 @@ struct
   include Printable.Std
   include Lattice.StdCousot
 
-  let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] =
-    let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname in
-    let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false in
-    function
+  let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname
+  let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false
+
+  let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
     | `NoOffset -> `MustZero
     | `Index (x, o) -> (match cmp_zero_offset o, Idx.equal_to 0L x with
       | `MustNonzero, _
@@ -67,9 +67,9 @@ struct
 
   let rec hash = function
     | `NoOffset -> 1
-    | x when cmp_zero_offset x <> `MustNonzero -> 1 (* zero offsets need to yield the same hash as `NoOffset! *)
-    | `Field (f,o) -> Hashtbl.hash f.fname * hash o
-    | `Index (i,o) -> 2 * hash o + 13
+    | `Field (f,o) when not (is_first_field f) -> Hashtbl.hash f.fname * hash o + 13
+    | `Field (_,o) (* zero offsets need to yield the same hash as `NoOffset! *)
+    | `Index (_,o) -> hash o (* index might become top during fp -> might be zero offset *)
   let name () = "Offset"
 
   let from_offset x = x
