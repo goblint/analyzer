@@ -236,7 +236,7 @@ struct
     | _   , true -> bot ()
     | _ ->
       match to_int i1, to_int i2 with
-      | Some x, Some y -> (try of_int (f x y) with Division_by_zero -> top ())
+      | Some x, Some y -> (try norm (of_int (f x y)) with Division_by_zero -> top ())
       | _              -> top ()
 
   let bitxor = bit Int64.logxor
@@ -254,9 +254,10 @@ struct
   let bitnot = bit1 Int64.lognot
   let shift_right = bit (fun x y -> Int64.shift_right x (Int64.to_int y))
   let shift_left  = bit (fun x y -> Int64.shift_left  x (Int64.to_int y))
-  let rem  = bit Int64.rem
 
   let neg = function None -> None | Some (x,y) -> norm @@ Some (Int64.neg y, Int64.neg x)
+  let rem x y = meet (bit Int64.rem x y) (join y (neg y))
+
   let add x y =
     match x, y with
     | None, _ | _, None -> None
