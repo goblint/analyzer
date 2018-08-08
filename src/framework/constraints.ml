@@ -386,7 +386,7 @@ struct
       ; presub  = []
       ; postsub = []
       ; spawn   = (fun f d -> let c = S.context d in
-                    sidel (FunctionEntry f, c) d;
+                    if not (get_bool "exp.full-context") then sidel (FunctionEntry f, c) d;
                     ignore (getl (Function f, c)))
       ; split   = (fun (d:D.t) _ _ -> r := d::!r)
       ; sideg   = sideg
