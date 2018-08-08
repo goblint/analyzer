@@ -119,7 +119,7 @@ struct
 
   let pretty_trace () (n,c as x) =
     if get_bool "dbg.trace.context" then dprintf "(%a, %a)" pretty x LD.pretty c
-    else pretty () x
+    else dprintf "%a on %a \n" pretty x Basetype.ProgLines.pretty (getLocation x)
 
   let compare (n1,d1) (n2,d2) =
     let comp =
