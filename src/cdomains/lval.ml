@@ -116,7 +116,7 @@ struct
     | `NoOffset, x
     | x, `NoOffset -> (match cop, cmp_zero_offset x with
       | (`Join | `Widen), (`MustZero | `MayZero) -> x
-      | (`Meet | `Narrow), _ -> `NoOffset
+      | (`Meet | `Narrow), (`MustZero | `MayZero) -> `NoOffset
       | _ -> raise Lattice.Uncomparable)
     | `Field (x1,y1), `Field (x2,y2) when x1.fname = x2.fname -> `Field (x1, merge cop y1 y2)
     | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
