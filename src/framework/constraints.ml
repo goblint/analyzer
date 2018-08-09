@@ -373,6 +373,8 @@ struct
   module D = S.D
   module G = S.G
 
+  let full_context = get_bool "exp.full-context"
+
   let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
@@ -386,7 +388,7 @@ struct
       ; presub  = []
       ; postsub = []
       ; spawn   = (fun f d -> let c = S.context d in
-                    if not (get_bool "exp.full-context") then sidel (FunctionEntry f, c) d;
+                    if not full_context then sidel (FunctionEntry f, c) d;
                     ignore (getl (Function f, c)))
       ; split   = (fun (d:D.t) _ _ -> r := d::!r)
       ; sideg   = sideg
@@ -446,7 +448,7 @@ struct
   let tf_normal_call ctx lv e f args  getl sidel getg sideg =
     let combine (cd, fd) = S.combine {ctx with local = cd} lv e f args fd in
     let paths = S.enter ctx lv f args in
-    let _     = if not (get_bool "exp.full-context") then List.iter (fun (c,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, S.context v) v) paths in
+    let _     = if not full_context then List.iter (fun (c,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, S.context v) v) paths in
     let paths = List.map (fun (c,v) -> (c, if S.D.is_bot v then v else getl (Function f, S.context v))) paths in
     let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
     let paths = List.map combine paths in
@@ -512,7 +514,7 @@ struct
 
   let system (v,c) =
     match v with
-    | FunctionEntry _ when get_bool "exp.full-context" ->
+    | FunctionEntry _ when full_context ->
       [fun _ _ _ _ -> S.val_of c]
     | _ -> List.map (tf (v,c)) (Cfg.prev v)
 end
