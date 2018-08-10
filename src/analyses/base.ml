@@ -1661,7 +1661,7 @@ struct
               if List.fold_right f flist false
               && not (get_bool "exp.single-threaded")
               && get_bool "exp.unknown_funs_spawn" then
-                cpa,Flag.make_main fl
+                cpa, Flag.make_main fl
               else
                 st
             )

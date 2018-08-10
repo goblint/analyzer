@@ -450,7 +450,7 @@ struct
     let paths = S.enter ctx lv f args in
     let _     = if not full_context then List.iter (fun (c,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, S.context v) v) paths in
     let paths = List.map (fun (c,v) -> (c, if S.D.is_bot v then v else getl (Function f, S.context v))) paths in
-    let paths = List.filter (fun (c,v) -> D.is_bot v = false) paths in
+    let paths = List.filter (fun (c,v) -> not (D.is_bot v)) paths in
     let paths = List.map combine paths in
     List.fold_left D.join (D.bot ()) paths
 
@@ -966,10 +966,10 @@ struct
   let verify (sigma:D.t LH.t) (theta:G.t GH.t) =
     Goblintutil.in_verifying_stage := true;
     Goblintutil.verified := Some true;
-    let complain_l (v:LVar.t) lhs rhs =
+    let complain_l ?(side=false) (v:LVar.t) lhs rhs =
       Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nCalculating one more step changes: %a\n@]"
-                LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
+      ignore (Pretty.printf "Fixpoint not reached at %a (%s:%d)\n @[Solver computed:\n%a\n%s:\n%a\nDifference: %a\n@]"
+                LVar.pretty_trace v (LVar.file_name v) (LVar.line_nr v) D.pretty lhs (if side then "Side-effect" else "Right-Hand-Side") D.pretty rhs D.pretty_diff (rhs,lhs))
     in
     let complain_g v (g:GVar.t) lhs rhs =
       Goblintutil.verified := Some false;
@@ -987,7 +987,7 @@ struct
         let check_local l lv =
           let lv' = sigma' l in
           if not (D.leq lv lv') then
-            complain_l l lv' lv
+            complain_l ~side:true l lv' lv
         in
         let check_glob g gv =
           let gv' = theta' g in
