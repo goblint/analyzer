@@ -294,9 +294,11 @@ struct
 
   let val_of = identity
   let context x =
-    let x = filter (fun (x,_) -> not (mem x !cont_inse)) x in
     let x = spec_list x in
-    map (fun (n,(module S:Spec),d) -> n, repr @@ S.context (obj d)) x
+    map (fun (n,(module S:Spec),d) ->
+        let d' = if mem n !cont_inse then S.D.top () else obj d in
+        n, repr @@ S.context d'
+      ) x
 
   let should_join x y =
     let xs = filter (fun (x,_) -> mem x !path_sens) x in
