@@ -76,7 +76,7 @@ let _ = ()
       ; reg Std "solver"          "'effectWCon'" "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
       ; reg Std "solverdiffs"     "false"        "Print out solver differences."
-      ; reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main)."
+      ; reg Std "allfuns"         "false"        "Analyzes all the functions (not just beginning from main). This requires exp.earlyglobs!"
       ; reg Std "nonstatic"       "false"        "Analyzes all non-static functions."
       ; reg Std "colors"          "false"        "Colored output."
       ; reg Std "g2html"          "false"        "Run g2html.jar on the generated xml."

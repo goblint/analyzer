@@ -326,6 +326,12 @@ let do_html_output () =
       eprintf "Warning: jar file %s not found.\n" jar
   end
 
+let check_arguments () =
+  let fail m = failwith ("Option clash: " ^ m) in
+  let partial_context = get_bool "exp.addr-context" || get_bool "exp.no-int-context" || get_bool "exp.no-interval32-context" in
+  if partial_context && get_bool "exp.full-context" then fail "exp.full-context can't be used with partial contexts (exp.addr-context, exp.no-int.context, exp.no-interval32-context)";
+  if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then fail "allfuns requires exp.earlyglobs"
+
 let handle_extraspecials () =
   let f xs = function
     | String x -> x::xs
@@ -343,6 +349,7 @@ let main =
         Stats.reset Stats.SoftwareTimer;
         Cilfacade.init ();
         parse_arguments ();
+        check_arguments ();
         handle_extraspecials ();
         create_temp_dir ();
         handle_flags ();
