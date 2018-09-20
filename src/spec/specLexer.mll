@@ -42,12 +42,17 @@ rule token = parse
   | ">="           { GE }
   | "&&"           { AND }
   | "||"           { OR }
+  | "in"           { IN }
+  | "length"       { LENGTH }
+  | "stack_alloc"  { STACKALLOC }
+  | "may"          { MAY }
   | '!'            { NOT }
   | '='            { EQ }
   | ','            { COMMA  }
-  | ';'            { SEMICOLON  }
+  | ';'            { SEMICOLON }
 
   (* literals, identifiers *)
+  | "when"         { WHEN }
   | "true"         { BOOL(true)   }
   | "false"        { BOOL(false)  }
   | "null"         { NULL   }

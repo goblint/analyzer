@@ -356,6 +356,7 @@ let main =
         preprocess_files () |> merge_preprocessed |> do_analyze;
         Report.do_stats !cFileNames;
         do_html_output ();
+        Messages.print_pools ();
         if !verified = Some false then exit 3 (* verifier failed! *)
       with Exit -> ()
     )
