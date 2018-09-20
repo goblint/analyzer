@@ -197,6 +197,8 @@ let _ = ()
       ; reg Debugging "dbg.earlywarn"       "false" "Output warnings already while solving (may lead to spurious warnings/asserts)."
       ; reg Debugging "dbg.warn_with_context" "false" "Keep warnings for different contexts apart (currently only done for asserts)."
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
+      ; reg Debugging "dbg.ignore-warn"      "[]" "Ignores warnings with the specified IDs"
+      ; reg Debugging "dbg.only-warn"      "[]"   "Only issue warnings with the specified IDs"
 
 let default_schema = "\
 { 'id'              : 'root'
