@@ -5,6 +5,7 @@ open Deriving.Cil
 open Pretty
 
 module GU = Goblintutil
+module VD = ValueDomain
 module ID = IntDomain.FlatPureIntegers
 module BD = IntDomain.Booleans
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
@@ -42,6 +43,7 @@ type t = ExpEq of exp * exp
        | EvalStr of exp
        | EvalLength of exp (* length of an array or string *)
        | BlobSize of exp (* size of a dynamically allocated `Blob pointed to by exp *)
+       | IsStackArray of exp
        | PrintFullState
        | CondVars of exp
        | Access of exp * bool * bool * int

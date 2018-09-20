@@ -10,8 +10,9 @@
 /* operators */
 %token LPAREN RPAREN LCURL RCURL LBRACK RBRACK
 %token PLUS MINUS MUL DIV MOD
-%token LT GT EQEQ NE LE GE AND OR NOT
-%token EQ COMMA SEMICOLON
+%token LT GT EQEQ NE LE GE AND OR NOT IN
+%token EQ COMMA SEMICOLON 
+%token WHEN LENGTH MAY STACKALLOC
 /* literals, identifiers */
 %token <bool> BOOL
 %token NULL
@@ -27,6 +28,7 @@
 
 /* precedence groups from low to high */
 %right EQ
+%left WHEN
 %left OR
 %left AND
 %left EQEQ NE
@@ -49,15 +51,18 @@ file:
 
 def:
   | NODE                     { Node($1) }
-  | EDGE stmt                { let a, ws, fwd, b = $1 in Edge(a, ws, fwd, b, $2) }
+  | EDGE stmt                { let a, ws, fwd, b = $1 in Edge(a, ws, fwd, b, $2, None) }
+  | EDGE stmt WHEN expr      { let a, ws, fwd, b = $1 in Edge(a, ws, fwd, b, $2, Some $4) }
 ;
 
 stmt:
   | lval EQ expr             { {lval = Some $1; exp = $3} } /* TODO expression would be better */
+  | UNDERS EQ expr           { {lval = Some (Ident "_"); exp = $3} }
   | expr                     { {lval = None; exp = $1} }
 ;
 
 lval:
+  | VAR LBRACK expr RBRACK   { Offset ($1, $3) } /* spec variable with subscript, e.g. $foo[i] */
   | MUL lval %prec DEREF     { Ptr $2 }
   | IDENT                    { Ident $1 } /* C identifier, e.g. foo, _foo, _1, but not 1b */
   | VAR                      { Var $1 }  /* spec variable, e.g. $foo, $123, $__ */
@@ -78,8 +83,18 @@ expr:
   | nexpr NE    nexpr        { Bool ($1<>$3) }
   | nexpr LE    nexpr        { Bool ($1<=$3) }
   | nexpr GE    nexpr        { Bool ($1>=$3) } */
+  | VAR   IN    IDENT        { Instate (false, $1, $3) }
+  | VAR MAY IN  IDENT        { Instate (true, $1, $4) }
+  | LENGTH LPAREN VAR RPAREN { Length ($3) }
+  | STACKALLOC LPAREN VAR RPAREN { StackAlloc ($3) }
   | expr  OR    expr         { Binop ("||", $1, $3) }
   | expr  AND   expr         { Binop ("&&", $1, $3) }
+  | expr  MAY EQEQ expr      { Compare (true, "==", $1, $4) }
+  | expr  MAY NE   expr      { Compare (true, "!=", $1, $4) }
+  | expr  MAY LT   expr      { Compare (true, "<",  $1, $4) }
+  | expr  MAY GT   expr      { Compare (true, ">",  $1, $4) }
+  | expr  MAY LE   expr      { Compare (true, "<=", $1, $4) }
+  | expr  MAY GE   expr      { Compare (true, ">=", $1, $4) }
   | expr  EQEQ  expr         { Binop ("==", $1, $3) }
   | expr  NE    expr         { Binop ("!=", $1, $3) }
   | expr  LT    expr         { Binop ("<",  $1, $3) }
