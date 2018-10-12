@@ -357,7 +357,8 @@ let main =
         preprocess_files () |> merge_preprocessed |> do_analyze;
         Report.do_stats !cFileNames;
         do_html_output ();
-        if !verified = Some false then exit 3 (* verifier failed! *)
+        if !verified = Some false then exit 3;  (* verifier failed! *)
+        if !Messages.worldStopped then exit 124 (* timeout! *)
       with Exit -> ()
     )
 
