@@ -104,7 +104,7 @@ let worldStopped = ref false
 exception StopTheWorld
 let waitWhat s =
   worldStopped := true;
-  print_msg msg (!Tracing.current_loc);
+  print_msg s (!Tracing.current_loc);
   raise StopTheWorld
 
 let report_lin_hashtbl  = Hashtbl.create 10
