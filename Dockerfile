@@ -1,4 +1,4 @@
-FROM ocaml/opam2-staging:ubuntu-18.04-ocaml-4.06
+FROM ocaml/opam2-staging:ubuntu-18.04-ocaml-4.06-linux-amd64
 SHELL ["/bin/bash", "--login", "-c"]
 # {ruby, gem, locale} needed for `make test`
 RUN sudo apt-get update && sudo apt-get install -yq m4 ruby
