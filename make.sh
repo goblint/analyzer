@@ -10,12 +10,13 @@ OCAMLBUILD=ocamlbuild
 EXCLUDE="_build|goblint.ml|apronDomain|poly"
 
 ocb() {
+  command -v opam >/dev/null 2>&1 && eval $(opam env)
   $OCAMLBUILD $FLAGS $*
 }
 
 ocaml_version="4.06.0"
 opam_build() {
-  eval `opam config env`
+  eval $(opam env)
   opam update
   opam install ocamlfind batteries xml-light ppx_distr_guards ppx_monadic ppx_import ppx_deriving ppx_deriving_yojson
   # opam install camlp4 mongo # camlp4 needed for mongo

@@ -5,7 +5,6 @@
 if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     brew update
     brew install ocaml opam gcc
-    brew link --overwrite gcc
 else
     if test -e "make.sh"; then # travis-ci
         echo "already in repository"
