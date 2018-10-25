@@ -407,7 +407,7 @@ struct
   and branch (ctx:(D.t, G.t) ctx) (e:exp) (tv:bool) =
     let spawns = ref [] in
     let splits = ref [] in
-    let sides  = ref [] in
+    let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
     let assigns = ref [] in
     let f post_all (n,(module S:Spec),d) =
       let rec ctx' : (S.D.t, S.G.t) ctx =
