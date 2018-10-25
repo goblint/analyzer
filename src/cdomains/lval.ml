@@ -28,7 +28,6 @@ module Offset (Idx: IntDomain.S) =
 struct
   type t = (fieldinfo, Idx.t) offs [@@deriving to_yojson]
   include Printable.Std
-  include Lattice.StdCousot
 
   let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname
   let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false
@@ -103,6 +102,8 @@ struct
   let rec leq x y =
     match x, y with
     | `NoOffset, `NoOffset -> true
+    | `NoOffset, x -> cmp_zero_offset x <> `MustNonzero
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero
     | `Index (i1,o1), `Index (i2,o2) when Idx.leq i1 i2 -> leq o1 o2
     | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> leq o1 o2
     | _ -> false
@@ -124,6 +125,8 @@ struct
 
   let join x y = merge `Join x y
   let meet x y = merge `Meet x y
+  let widen x y = merge `Widen x y
+  let narrow x y = merge `Narrow x y
 
   let rec drop_ints = function
     | `Index (x, o) -> `Index (Idx.top (), drop_ints o)
@@ -223,7 +226,7 @@ struct
 
   let short _ = function
     | Addr x     -> short_addr x
-    | StrPtr x   -> x
+    | StrPtr x   -> "\"" ^ x ^ "\""
     | UnknownPtr -> "?"
     | SafePtr    -> "SAFE"
     | NullPtr    -> "NULL"
