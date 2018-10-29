@@ -102,6 +102,7 @@ rule() {
              ;;
     test)    ./scripts/update_suite.rb;; # run regression tests
     testci)  ruby scripts/update_suite.rb -s -d;;
+    unit)    ocamlbuild -use-ocamlfind unittest/mainTest.native && ./mainTest.native;;
     *)       echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
   esac; }
 
