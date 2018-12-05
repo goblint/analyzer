@@ -608,7 +608,7 @@ and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
   UnionDomain.Simple (Compound)
 
 and CArrays: ArrayDomain.S with type idx = IndexDomain.t and type value = Compound.t =
-  ArrayDomain.TrivialWithLength (Compound) (IndexDomain)
+  ArrayDomain.TrivialFragmentedWithLength (Compound) (IndexDomain)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t = Blob (Compound) (ID)
 

@@ -8,8 +8,8 @@ int main(void) {
   array1[0] = 42;
   array2[0] = 42;
 
-  // getFirst(array1);
-  // getFirst(array2);
+  getFirst(array1);
+  getFirst(array2);
   getFirst(array);
 }
 

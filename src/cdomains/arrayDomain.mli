@@ -27,3 +27,9 @@ module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and 
 module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is also used to manage the length. *)
+
+module TrivialFragmented (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
+(* Comments are TODO *)
+
+module TrivialFragmentedWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t
+(* Comments are TODO *)
