@@ -60,21 +60,6 @@ struct
 end
 
 
-
-
-
-(* TODO make this work with ppx? *)
-(*
-module WithLength (Val: S) =
-struct
-  module Length = IntDomain.Flattened
-  include Lattice.Prod (Val) (Length)
-  let make l x = Val.make l x, Length.of_int (Int64.of_int l)
-  let length (_,l) = Length.to_int l
-  (* lift rest *)
-end
-*)
-
 module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t =
 struct
   module Base = Trivial (Val) (Idx)
@@ -86,6 +71,7 @@ struct
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 end
+
 
 module TrivialFragmentedWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t =
 struct
