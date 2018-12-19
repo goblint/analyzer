@@ -42,7 +42,7 @@ module TrivialFragmented (Val: Lattice.S) (Idx: Lattice.S): S with type value = 
 struct
   let name () = "trivial arrays"
   module Base = Lattice.Prod3 (Val) (Val) (Val)
-  include Lattice.ProdSimple(Lattice.Unit) (Base)
+  include Lattice.ProdSimple(Lattice.Unit) (Base) (* TODO: Replace Lattice.Unit with something rperesenting expressions *)
   type idx = Idx.t
   type value = Val.t
 
@@ -51,7 +51,7 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
 
-  (* For set&get we later need to distinguish between must & may euality to see *)
+  (* For set&get we later need to distinguish between must & may equality to see *)
   (* decide whether to apply a least upper bound or not *)
 
   let get (e, (xl, xm, xr)) i =    (* This is currently under the assumption that we *)
@@ -65,6 +65,7 @@ struct
     else (e, (xl, xm, Val.join xr a))
 
   let make i v = (Lattice.Unit.top(), (Val.top(), v, Val.top()))    (* We need to see whether we need to modify the bottom element from the Prod3 domain here *)
+                                                                    (* It would also seem we need to provide the expression taht we are suing to split it here *)
   let length _ = None
 
   let move (e, (xl, xm, xr)) (i:int) =     (* Under the assumption that we always get exact information about how much it moved *)
