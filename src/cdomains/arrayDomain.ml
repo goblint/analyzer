@@ -75,6 +75,7 @@ struct
       -> (Val.join (Val.join xl xm) xr, xr, xr) (* moved more than one to the right *)
     | _ when i < -1
       -> (xl, xl, Val.join (Val.join xl xm) xr) (* moved more than one to the left *)
+    | _ -> top()
 
   let set_inplace = set
   let copy a = a
