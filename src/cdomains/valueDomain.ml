@@ -2,6 +2,7 @@ open Cil
 open Pretty
 module ID = IntDomain.IntDomTuple
 module IndexDomain: IntDomain.S = ID
+module Expp = Lattice.Flat (Exp.Exp) (struct let bot_name = "End" let top_name = "Top" end)
 module AD = AddressDomain.AddressSet (IndexDomain)
 module Addr = Lval.NormalLat (IndexDomain)
 module Offs = Lval.Offset (IndexDomain)
@@ -472,11 +473,11 @@ struct
     |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value voidType x) n)
     | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n)
     | TArray (t,_,_), `Array n      ->
-      let v = invalidate_value t (CArrays.get n (IndexDomain.top ())) in
-      `Array (CArrays.set n (IndexDomain.top ()) v)
+      let v = invalidate_value t (CArrays.get n (Expp.top ())) in
+      `Array (CArrays.set n (Expp.top ()) v)
     |                 _ , `Array n      ->
-      let v = invalidate_value voidType (CArrays.get n (IndexDomain.top ())) in
-      `Array (CArrays.set n (IndexDomain.top ()) v)
+      let v = invalidate_value voidType (CArrays.get n (Expp.top ())) in
+      `Array (CArrays.set n (Expp.top ()) v)
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value t n)
     |                 _ , `List n       -> `Top
     |                 t , _             -> top_value t
@@ -518,7 +519,7 @@ struct
         end
       | `Index (idx, offs) -> begin
           match x with
-          | `Array x -> eval_offset f (CArrays.get x idx) offs
+          | `Array x -> eval_offset f (CArrays.get x (Expp.top ())) offs  (* TODO: This is a very bad idea *)
           | `Address _ ->  eval_offset f x offs (* this used to be `blob `address -> we ignore the index *)
           | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs
           | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
@@ -579,8 +580,8 @@ struct
         | `Index (idx, offs) -> begin
             match x with
             | `Array x' ->
-              let nval = update_offset (CArrays.get x' idx) offs value in
-              `Array (CArrays.set x' idx nval)
+              let nval = update_offset (CArrays.get x' (Expp.top ())) offs value in (* TODO This a very bad idea *)
+              `Array (CArrays.set x' (Expp.top ()) nval) (* TODO This is a very bad idea *)
             | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value
             | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value))
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
@@ -597,7 +598,7 @@ struct
     | `Array n ->  CArrays.printXml f n
     | `Blob n ->  Blobs.printXml f n
     | `List n ->  Lists.printXml f n
-    | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
+    | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbLattice.Flat (Exp.Exp)ottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
 end
 
@@ -607,8 +608,8 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
   UnionDomain.Simple (Compound)
 
-and CArrays: ArrayDomain.S with type idx = IndexDomain.t and type value = Compound.t =
-  ArrayDomain.TrivialFragmentedWithLength (Compound) (IndexDomain)
+and CArrays: ArrayDomain.S with type idx = Expp.t and type value = Compound.t =
+  ArrayDomain.TrivialFragmented (Compound) (Expp)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t = Blob (Compound) (ID)
 

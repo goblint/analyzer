@@ -40,13 +40,14 @@ end
 
 module TrivialFragmented (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
-  let name () = "trivial arrays"
+  let name () = "trivial fragmented arrays"
   module Base = Lattice.Prod3 (Val) (Val) (Val)
-  include Lattice.ProdSimple(Lattice.Unit) (Base) (* TODO: Replace Lattice.Unit with something rperesenting expressions *)
+  module Expp = Lattice.Flat (Exp.Exp) (struct let bot_name = "End" let top_name = "Top" end)
+  include Lattice.ProdSimple(Expp) (Base)
   type idx = Idx.t
   type value = Val.t
 
-  let short w (_,(xl, xm, xr)) = "Array: (" ^ Val.short (w - 7) xl ^ "," ^ Val.short (w - 7) xm ^ "," ^ Val.short (w - 7) xr ^ ")" (* TODO w-7 needs to be replaced here *)
+  let short w (e,(xl, xm, xr)) = "Array (partitioned by " ^ Expp.short (w-7) e ^ "): (" ^ Val.short (w - 7) xl ^ "," ^ Val.short (w - 7) xm ^ "," ^ Val.short (w - 7) xr ^ ")" (* TODO w-7 needs to be replaced here *)
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
@@ -55,16 +56,24 @@ struct
   (* decide whether to apply a least upper bound or not *)
 
   let get (e, (xl, xm, xr)) i =    (* This is currently under the assumption that we *)
-    if i == Idx.bot () then xm     (* always get exact integers here *)
-    else if i < Idx.bot () then xl
+    if 1 == 0 then xm     (* always get exact integers here *)
+    else if 1 < 0 then xl
     else xr
 
-  let set (e, (xl, xm, xr)) i a =         (* Also under the assumption that we always get *)
-    if i == Idx.bot () then (e, (xl, a, xr))   (* exact integers as the indices *)
-    else if i < Idx.bot () then (e, (Val.join xl a, xm, xr))
-    else (e, (xl, xm, Val.join xr a))
+  let set (e, (xl, xm, xr)) i a =
+    let newExp = if Expp.is_bot e then Expp.top () else e in
+    let lub = Val.join a in
+    (newExp, (lub xl, lub xm, lub xr))
 
-  let make i v = (Lattice.Unit.top(), (Val.top(), v, Val.top()))    (* We need to see whether we need to modify the bottom element from the Prod3 domain here *)
+(*  let set (e, (xl, xm, xr)) i a =         (* Also under the assumption that we always get *)
+    let newExp = if Idx.is_bot e then i else e in (* exact integers as the indices *)
+    let leftOrBot = xl in                 (* Compare to zero if its equal, the left side will be \bot *)
+    Messages.report ("Called set on our arrays " ^ Idx.short 0 i);
+    if i == newExp then (newExp, (leftOrBot, a, xr))
+    else if i < newExp then (newExp, (Val.join xl a, xm, xr))
+    else (newExp, (leftOrBot, xm, Val.join xr a)) *)
+
+  let make i v = (Expp.bot(), (Val.top(), v, Val.top()))    (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
                                                                     (* It would also seem we need to provide the expression taht we are suing to split it here *)
   let length _ = None
 
@@ -72,7 +81,7 @@ struct
     match i with
     | 0   -> (e, (xl, xm, xr))
     | 1   -> (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
-    | -1  -> (e, (xl, xl, Val.join xm xr)) (* moved one to the left *)
+    | -1  -> (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
     | _ when i > 1
       -> (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)
     | _ when i < -1
