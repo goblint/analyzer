@@ -519,14 +519,18 @@ struct
         end
       | `Index (idx, offs) -> begin
           match x with
-          | `Array x -> eval_offset f (CArrays.get x (Expp.top ())) offs  (* TODO: This is a very bad idea *)
+          | `Array x ->   (* TODO: This is a very bad idea *)
+            let e = match IndexDomain.to_int idx with
+              | Some i -> `Lifted (integer (i64_to_int i))
+              | None -> Expp.top () in
+            eval_offset f (CArrays.get x e) offs
           | `Address _ ->  eval_offset f x offs (* this used to be `blob `address -> we ignore the index *)
           | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs
           | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
           | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
 
-  let rec update_offset (x:t) (offs:offs) (value:t): t =
+  let rec update_offset (x:t) (offs:offs) (value:t): t =  (* Idea: Carry the expression used to obtain the offset *)
     let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
     match x, offs with
     | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset x o value), s))
@@ -580,8 +584,11 @@ struct
         | `Index (idx, offs) -> begin
             match x with
             | `Array x' ->
-              let nval = update_offset (CArrays.get x' (Expp.top ())) offs value in (* TODO This a very bad idea *)
-              `Array (CArrays.set x' (Expp.top ()) nval) (* TODO This is a very bad idea *)
+              let e = match IndexDomain.to_int idx with  (* TODO This a very bad idea *)
+                | Some i -> `Lifted (integer (i64_to_int i))
+                | None -> Expp.top () in
+              let nval = update_offset (CArrays.get x' e) offs value in
+              `Array (CArrays.set x' e nval) (* TODO This is a very bad idea *)
             | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value
             | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value))
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
@@ -598,7 +605,7 @@ struct
     | `Array n ->  CArrays.printXml f n
     | `Blob n ->  Blobs.printXml f n
     | `List n ->  Lists.printXml f n
-    | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbLattice.Flat (Exp.Exp)ottom\n</data>\n</value>\n"
+    | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
 end
 

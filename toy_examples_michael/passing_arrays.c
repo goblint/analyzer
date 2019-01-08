@@ -2,12 +2,14 @@ int main(void) {
   int* array = arrayOf42();
   int val = array[10];
 
-  int array1[1];
-  int array2[1];
+  int array1[10];
+  int array2[10];
 
   array1[0] = 42;
   array2[0] = 42;
 
+  int x = array1[0];
+	
   getFirst(array1);
   getFirst(array2);
   getFirst(array);

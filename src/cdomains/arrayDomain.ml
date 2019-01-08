@@ -42,7 +42,7 @@ module TrivialFragmented (Val: Lattice.S) (Idx: Lattice.S): S with type value = 
 struct
   let name () = "trivial fragmented arrays"
   module Base = Lattice.Prod3 (Val) (Val) (Val)
-  module Expp = Lattice.Flat (Exp.Exp) (struct let bot_name = "End" let top_name = "Top" end)
+  module Expp = Idx
   include Lattice.ProdSimple(Expp) (Base)
   type idx = Idx.t
   type value = Val.t
@@ -56,14 +56,16 @@ struct
   (* decide whether to apply a least upper bound or not *)
 
   let get (e, (xl, xm, xr)) i =    (* This is currently under the assumption that we *)
-    if 1 == 0 then xm     (* always get exact integers here *)
-    else if 1 < 0 then xl
-    else xr
+    if Idx.equal e i then xm
+    else xl (* TODO: This is obviously wrong *)
 
   let set (e, (xl, xm, xr)) i a =
-    let newExp = if Expp.is_bot e then Expp.top () else e in
-    let lub = Val.join a in
-    (newExp, (lub xl, lub xm, lub xr))
+    begin
+      Messages.report (Expp.short 20 i);
+      let newExp = if Expp.is_bot e then i else e in
+      let lub = Val.join a in
+      (newExp, (lub xl, lub xm, lub xr))
+    end
 
 (*  let set (e, (xl, xm, xr)) i a =         (* Also under the assumption that we always get *)
     let newExp = if Idx.is_bot e then i else e in (* exact integers as the indices *)
@@ -74,7 +76,7 @@ struct
     else (newExp, (leftOrBot, xm, Val.join xr a)) *)
 
   let make i v = (Expp.bot(), (Val.top(), v, Val.top()))    (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
-                                                                    (* It would also seem we need to provide the expression taht we are suing to split it here *)
+                                                            (* TODO: It would also seem we need to provide the expression that we are suing to split it here *)
   let length _ = None
 
   let move (e, (xl, xm, xr)) (i:int) =     (* Under the assumption that we always get exact information about how much it moved *)
