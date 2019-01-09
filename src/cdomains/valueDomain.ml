@@ -16,8 +16,8 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: (AD.t -> t) -> t -> offs -> t
-  val update_offset: t -> offs -> t -> t
+  val eval_offset: (AD.t -> t) -> t-> offs -> exp option -> t
+  val update_offset: t -> offs -> t -> exp option -> t
   val invalidate_value: typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
@@ -483,10 +483,10 @@ struct
     |                 t , _             -> top_value t
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset f (x: t) (offs:offs): t =
+  let rec eval_offset f (x: t) (offs:offs) (exp:exp option): t =
     match x, offs with
-    | `Blob c, `Index (_,o) -> eval_offset f (Blobs.value c) o
-    | `Blob c, `Field _ -> eval_offset f (Blobs.value c) offs
+    | `Blob c, `Index (_,o) -> eval_offset f (Blobs.value c) o exp
+    | `Blob c, `Field _ -> eval_offset f (Blobs.value c) offs exp
     | `Blob c, `NoOffset -> `Blob c
     | `Bot, _ -> `Bot
     | _ ->
@@ -504,7 +504,7 @@ struct
             end
           | `Struct str ->
             let x = Structs.get str fld in
-            eval_offset f x offs
+            eval_offset f x offs exp
           | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
           | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
         end
@@ -512,7 +512,7 @@ struct
           match x with
           | `Union (`Lifted l_fld, valu) ->
             let x = cast ~torg:l_fld.ftype fld.ftype valu in
-            eval_offset f x offs
+            eval_offset f x offs exp
           | `Union (_, valu) -> top ()
           | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
           | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
@@ -520,21 +520,21 @@ struct
       | `Index (idx, offs) -> begin
           match x with
           | `Array x ->   (* TODO: This is a very bad idea *)
-            let e = match IndexDomain.to_int idx with
-              | Some i -> `Lifted (integer (i64_to_int i))
+            let e = match exp with
+              | Some exp -> `Lifted (exp)
               | None -> Expp.top () in
-            eval_offset f (CArrays.get x e) offs
-          | `Address _ ->  eval_offset f x offs (* this used to be `blob `address -> we ignore the index *)
-          | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs
+            eval_offset f (CArrays.get x e) offs exp
+          | `Address _ ->  eval_offset f x offs exp (* this used to be `blob `address -> we ignore the index *)
+          | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs exp
           | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
           | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
 
-  let rec update_offset (x:t) (offs:offs) (value:t): t =  (* Idea: Carry the expression used to obtain the offset *)
+  let rec update_offset (x:t) (offs:offs) (value:t) (exp:exp option): t =  (* Idea: Carry the expression used to obtain the offset *)
     let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
     match x, offs with
-    | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset x o value), s))
-    | `Blob (x,s),_ -> mu (`Blob (join x (update_offset x offs value), s))
+    | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset x o value exp), s))
+    | `Blob (x,s),_ -> mu (`Blob (join x (update_offset x offs value exp), s))
     | _ ->
       let result =
         match offs with
@@ -545,7 +545,7 @@ struct
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
             match x with
-            | `Struct str -> `Struct (Structs.replace str fld (update_offset (Structs.get str fld) offs value))
+            | `Struct str -> `Struct (Structs.replace str fld (update_offset (Structs.get str fld) offs value exp))
             | `Bot ->
               let rec init_comp compinfo =
                 let nstruct = Structs.top () in
@@ -553,7 +553,7 @@ struct
                 List.fold_left init_field nstruct compinfo.cfields
               in
               let strc = init_comp fld.fcomp in
-              `Struct (Structs.replace strc fld (update_offset `Bot offs value))
+              `Struct (Structs.replace strc fld (update_offset `Bot offs value exp))
             | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
             | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
           end
@@ -576,21 +576,21 @@ struct
                     top (), offs
                 end
               in
-              `Union (`Lifted fld, update_offset tempval tempoffs value)
-            | `Bot -> `Union (`Lifted fld, update_offset `Bot offs value)
+              `Union (`Lifted fld, update_offset tempval tempoffs value exp)
+            | `Bot -> `Union (`Lifted fld, update_offset `Bot offs value exp)
             | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
             match x with
             | `Array x' ->
-              let e = match IndexDomain.to_int idx with  (* TODO This a very bad idea *)
-                | Some i -> `Lifted (integer (i64_to_int i))
+              let e = match exp with
+                | Some exp -> `Lifted exp
                 | None -> Expp.top () in
-              let nval = update_offset (CArrays.get x' e) offs value in
+              let nval = update_offset (CArrays.get x' e) offs value exp in
               `Array (CArrays.set x' e nval) (* TODO This is a very bad idea *)
-            | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value
-            | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value))
+            | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value exp
+            | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value exp))
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end

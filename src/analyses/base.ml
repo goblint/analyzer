@@ -108,7 +108,7 @@ struct
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies *)
-  let rec get ?(full=false) a (gs: glob_fun) (st,fl: store) (addrs:address): value =
+  let rec get ?(full=false) a (gs: glob_fun) (st,fl: store) (addrs:address) (exp:exp option): value =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
     let get_global x = gs x in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
@@ -125,7 +125,7 @@ struct
             CPA.find x st
           end
         in
-        let v = VD.eval_offset (get a gs (st,fl)) var offs in
+        let v = VD.eval_offset (fun x -> get a gs (st,fl) x exp) var offs exp in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
           | `Blob (c, s) -> c
@@ -158,23 +158,23 @@ struct
   (** [set st addr val] returns a state where [addr] is set to [val] *)
   let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value) (lval_raw:lval option): store =
     let update_variable x y z =
-      if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
+      (* if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z; *)
       let r = update_variable x y z in
-      if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
+      (* if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pretty y CPA.pretty z CPA.pretty r; *)
       r
     in
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may lval)).vname with _ -> "" else "" in
-    if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st;
+    (* if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st; *)
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
     let update_one_addr (x, offs) nst: cpa =
-      if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
+      (* if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st; *)
       if isFunctionType x.vtype then begin
-        if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
+        (* if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype; *)
         nst
       end else
       if get_bool "exp.globs_are_top" then begin
-        if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: BAD? exp.globs_are_top is set \n";
+        (* if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: BAD? exp.globs_are_top is set \n"; *)
         CPA.add x `Top nst
       end else
         (* Check if we need to side-effect this one. We no longer generate
@@ -194,12 +194,12 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset (get x nst) offs value) nst
+          update_variable x (VD.update_offset (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw)) nst
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
-        update_variable x (VD.update_offset (CPA.find x nst) offs value) nst
+        update_variable x (VD.update_offset (CPA.find x nst) offs value (Option.map (fun x -> Lval x) lval_raw)) nst
       end
     in
     let update_one x (y: cpa) =
@@ -210,16 +210,16 @@ struct
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the the different possible places: *)
       let nst = AD.fold update_one lval st in
-      if M.tracing then M.tracel "setosek" ~var:firstvar "new state1 %a\n" CPA.pretty nst;
+      (* if M.tracing then M.tracel "setosek" ~var:firstvar "new state1 %a\n" CPA.pretty nst; *)
       (* If the address was definite, then we just return it. If the address
        * was ambiguous, we have to join it with the initial state. *)
       let nst = if AD.cardinal lval > 1 then CPA.join st nst else nst in
-      if M.tracing then M.tracel "setosek" ~var:firstvar "new state2 %a\n" CPA.pretty nst;
+      (* if M.tracing then M.tracel "setosek" ~var:firstvar "new state2 %a\n" CPA.pretty nst; *)
       (nst,fl)
     with
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
-      if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x;
+      (* if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x; *)
       M.warn_each "Assignment to unknown address"; (st,fl)
 
   let set_many a (gs:glob_fun) (st,fl as store: store) lval_value_list: store =
@@ -447,7 +447,7 @@ struct
           let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
           `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
         (* Variables and address expressions *)
-        | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs))) ofs
+        | Lval (Var v, ofs) -> do_offs (get a gs st (eval_lv a gs st (Var v, ofs)) (Some exp)) ofs (* TODO: probably incorrect *)
         (*| Lval (Mem e, ofs) -> do_offs (get a gs st (eval_lv a gs st (Mem e, ofs))) ofs*)
         | Lval (Mem e, ofs) ->
           (*M.tracel "cast" "Deref: lval: %a\n" d_plainlval lv;*)
@@ -457,13 +457,13 @@ struct
           let v = (* abstract base value *)
             let open Addr in
             if AD.for_all (function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false) p then
-              get a gs st p (* downcasts are safe *)
+              get a gs st p  None(* TODO probably wrong*) (* downcasts are safe *)
             else
               VD.top () (* upcasts not! *)
           in
           let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
           M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-          let v' = VD.eval_offset (get a gs st) v' (convert_offset a gs st ofs) in (* handle offset *)
+          let v' = VD.eval_offset (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) in (* handle offset *) (* TODO: probably incorrect *)
           let v' = do_offs v' ofs in (* handle blessed fields? *)
           v'
         (* Binary operators *)
@@ -771,7 +771,7 @@ struct
       let addr = eval_lv a gs st lval in
       if (AD.is_top addr) then st
       else
-        let oldval = get a gs st addr in
+        let oldval = get a gs st addr  None in (* TODO probably wrong*)
         let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
         let new_val = apply_invariant oldval value in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
@@ -1008,7 +1008,7 @@ struct
       | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
       | `Int _ -> empty
     in
-    let res = reachable_from_value (get ask gs st adr) in
+    let res = reachable_from_value (get ask gs st adr  None (* TODO probably wrong*)) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
     res
 
@@ -1043,7 +1043,7 @@ struct
      * top value. *)
     let invalidate_address st a =
       let t = AD.get_type a in
-      let v = get ask gs st a in
+      let v = get ask gs st a None in (* TODO probably wrong*)
       let nv =  VD.invalidate_value t v in
       (a, nv)
     in
@@ -1213,7 +1213,7 @@ struct
           ValueDomain.Structs.fold f s (empty, TS.bot (), false)
         | `Int _ -> (empty, TS.bot (), false)
       in
-      reachable_from_value (get ctx.ask ctx.global ctx.local adr)
+      reachable_from_value (get ctx.ask ctx.global ctx.local adr  None (* TODO probably wrong*))
     in
     let visited = ref empty in
     let work = ref ps in
@@ -1268,7 +1268,7 @@ struct
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | `Address a ->
-          let r = get ~full:true ctx.ask ctx.global ctx.local a in
+          let r = get ~full:true ctx.ask ctx.global ctx.local a  None (* TODO probably wrong*) in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
           (match r with
            | `Blob (_,s) -> (match ID.to_int s with Some i -> `Int i | None -> `Top)
@@ -1524,7 +1524,7 @@ struct
         | [ AddrOf (Var elm,next);(AddrOf (Var lst,NoOffset))] ->
           begin
             let ladr = AD.singleton (Addr.from_var lst) in
-            match get ctx.ask ctx.global ctx.local ladr with
+            match get ctx.ask ctx.global ctx.local ladr  None (* TODO probably wrong*) with
             | `List ld ->
               let eadr = AD.singleton (Addr.from_var elm) in
               let eitemadr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
@@ -1542,12 +1542,12 @@ struct
           begin
             let eadr = AD.singleton (Addr.from_var elm) in
             let lptr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
-            let lprt_val = get ctx.ask ctx.global ctx.local lptr in
+            let lprt_val = get ctx.ask ctx.global ctx.local lptr None in (* TODO probably wrong*)
             let lst_poison = `Address (AD.singleton (Addr.from_var ListDomain.list_poison)) in
             let s1 = set ctx.ask ctx.global ctx.local lptr (VD.join lprt_val lst_poison)  None (* most likely wrong *) in
-            match get ctx.ask ctx.global ctx.local lptr with
+            match get ctx.ask ctx.global ctx.local lptr  None (* TODO probably wrong*) with
             | `Address ladr -> begin
-                match get ctx.ask ctx.global ctx.local ladr with
+                match get ctx.ask ctx.global ctx.local ladr  None (* TODO probably wrong*) with
                 | `List ld ->
                   let del_ls = ValueDomain.Lists.del eadr ld in
                   let s2 = set ctx.ask ctx.global s1 ladr (`List del_ls)  None (* most likely wrong *) in
@@ -1695,7 +1695,7 @@ struct
       let return_var = return_var () in
       let return_val =
         if CPA.mem (return_varinfo ()) fun_st
-        then get ctx.ask ctx.global fun_d return_var
+        then get ctx.ask ctx.global fun_d return_var None (* TODO probably wrong*)
         else VD.top ()
       in
       let st = add_globals (fun_st,fun_fl) st in
