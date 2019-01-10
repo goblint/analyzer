@@ -56,22 +56,23 @@ struct
   (* decide whether to apply a least upper bound or not *)
 
   let get (e, (xl, xm, xr)) i =
-    if Idx.is_bot e then Val.top () (* When the array is not partitioned, we return top. TODO: Check how that works with the case in which we want to get rid of the expression when we are at the end. *)
+    let join_over_all = Val.join (Val.join xl xm) xr in
+    if Idx.is_bot e then (if Val.is_bot join_over_all then Val.top () else join_over_all)
+    (* When the array is not partitioned, and all segments are \bot, we return \top. TODO: Check how that works with the case in which we want to get rid of the expression when we are at the end. *)
     else if Idx.equal e i then xm
     (* TODO: else if all the other ways in which e and i might relate *)
-    else Val.join (Val.join xl xm) xr (* The case in which we don't know anything *)
+    else join_over_all (* The case in which we don't know anything *)
 
   let set (e, (xl, xm, xr)) i a =
     begin
-      Messages.report ("Array set@" ^ (Expp.short 20 i));
+      Messages.report ("Array set@" ^ (Idx.short 20 i) ^ " (partitioned by " ^ (Idx.short 20 e) ^ ")");
       let lub = Val.join a in
       if Expp.is_bot e then
         begin
-          Messages.warn ("e was BOT, new is " ^ (Expp.short 20 i));
-          let e_equals_zero = true in
+          let e_equals_zero = false in
           let e_equals_maxIndex = false in
-          let l = if e_equals_zero then ( Messages.warn_all "SET LEFT TO BOT"; Val.bot ()) else Val.top() in (* TODO: How does this play with partitioning again according to a different rule? *)
-          let r = if e_equals_maxIndex then Val.bot () else Val.top() in (* TODO: How does this play with partitioning again according to a different rule? *)
+          let l = if e_equals_zero then Val.bot () else Val.top () in (* TODO: How does this play with partitioning again according to a different rule? *)
+          let r = if e_equals_maxIndex then Val.bot () else Val.top () in (* TODO: How does this play with partitioning again according to a different rule? *)
           (i, (l, a, r))
         end
       else
