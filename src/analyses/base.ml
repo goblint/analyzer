@@ -159,11 +159,11 @@ struct
   let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value) (lval_raw:lval option): store =
     let update_variable x y z =
       (* if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z; *)
-      let r = update_variable x y z in
+      let r = update_variable x y z in (* refers to defintion that is outside of set *)
       (* if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pretty y CPA.pretty z CPA.pretty r; *)
       r
     in
-    let firstvar = if M.tracing then try (List.hd (AD.to_var_may lval)).vname with _ -> "" else "" in
+    (* let firstvar = if M.tracing then try (List.hd (AD.to_var_may lval)).vname with _ -> "" else "" in *)
     (* if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st; *)
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
@@ -199,7 +199,14 @@ struct
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
-        update_variable x (VD.update_offset (CPA.find x nst) offs value (Option.map (fun x -> Lval x) lval_raw)) nst
+        (* TODO: what effect does changing this local variable have on arrays - we only need to do this here since globals are not allowed in the expressions for partitioning *)
+        (* affected arrays =  mapOfArraysWhereVarMatters(x)                                                   *)
+        (* foreach affected array:                                                                            *)
+        (*     x = how does e behave compared to e'                                                           *)
+        (*     move array partitioning according to x                                                         *)
+        let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
+        let new_value = VD.update_offset (CPA.find x nst) offs value lval_raw in
+        update_variable x new_value nst
       end
     in
     let update_one x (y: cpa) =

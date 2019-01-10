@@ -17,6 +17,9 @@ sig
     * containing the element [e]. *)
   val length: t -> int option
   (** returns length of array if known *)
+
+  val get_e: t -> idx option
+  (** TODO **)
 end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t

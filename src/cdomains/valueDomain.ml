@@ -2,7 +2,7 @@ open Cil
 open Pretty
 module ID = IntDomain.IntDomTuple
 module IndexDomain: IntDomain.S = ID
-module Expp = Lattice.Flat (Exp.Exp) (struct let bot_name = "End" let top_name = "Top" end)
+module Expp = Lattice.Flat (Exp.Exp) (struct let bot_name = "Bot" let top_name = "Top" end)
 module AD = AddressDomain.AddressSet (IndexDomain)
 module Addr = Lval.NormalLat (IndexDomain)
 module Offs = Lval.Offset (IndexDomain)
@@ -600,7 +600,9 @@ struct
                   end
                 | None -> Expp.top () in
               let nval = update_offset (CArrays.get x' e) offs value exp in
-              `Array (CArrays.set x' e nval) (* TODO This is a very bad idea *)
+              let ne = (CArrays.set x' e nval) in
+              let nexpr = CArrays.get_e ne in  (* TODO: Start here again on Friday *)
+              `Array ne (* TODO This is a very bad idea *)
             | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value exp
             | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value exp))
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()

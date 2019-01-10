@@ -14,6 +14,8 @@ sig
   val set: t -> idx -> value -> t
   val make: int -> value -> t
   val length: t -> int option
+
+  val get_e: t -> idx option
 end
 
 
@@ -32,6 +34,8 @@ struct
   let set a i v = join a v
   let make i v = v
   let length _ = None
+
+  let get_e _ = None
 
   let set_inplace = set
   let copy a = a
@@ -62,6 +66,8 @@ struct
     else if Idx.equal e i then xm
     (* TODO: else if all the other ways in which e and i might relate *)
     else join_over_all (* The case in which we don't know anything *)
+
+  let get_e (e, _) = Some e (* TODO:This looks like it should reallt not be here, we should probably do all that internally *)
 
   let set (e, (xl, xm, xr)) i a =
     begin
@@ -118,6 +124,8 @@ struct
   let set (x,l) i v = Base.set x i v, l
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
+
+  let get_e _ = None
 end
 
 
@@ -131,4 +139,6 @@ struct
   let set (x,l) i v = Base.set x i v, l
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
+
+  let get_e _ = None
 end
