@@ -595,7 +595,7 @@ struct
                     `Lifted e (* the expression that is inside the [] (if any) *) (* TODO what about offset here? *)
                 | Some exp ->
                   begin
-                    M.warn "There is something fishy going on in eval_offset with an array access";
+                    M.warn "There is something fishy going on in update_offset with an array access";
                     `Lifted exp
                   end
                 | None -> Expp.top () in

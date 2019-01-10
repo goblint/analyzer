@@ -2,20 +2,20 @@ int main(void) {
   int* array = arrayOf42();
   int val = array[10];
 
-  int i = 0;
+  int i = -1;
 
   int array1[10];
   int array2[10];
 
   while(i < 10) {
-    array1[i] = i;
+    array1[i+1] = i;
     i++;
   }
 
   array1[0] = 42;
   array2[0] = 42;
 
-  int x = array1[i];
+  int x = array1[i+1] + 7;
   int y = array1[0];
 
   getFirst(array1);

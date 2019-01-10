@@ -55,23 +55,39 @@ struct
   (* For set&get we later need to distinguish between must & may equality to see *)
   (* decide whether to apply a least upper bound or not *)
 
-  let get (e, (xl, xm, xr)) i =    (* This is currently under the assumption that we *)
-    if Idx.equal e i then xm
+  let get (e, (xl, xm, xr)) i =
+    if Idx.is_bot e then Val.top () (* When the array is not partitioned, we return top. TODO: Check how that works with the case in which we want to get rid of the expression when we are at the end. *)
+    else if Idx.equal e i then xm
     (* TODO: else if all the other ways in which e and i might relate *)
     else Val.join (Val.join xl xm) xr (* The case in which we don't know anything *)
 
   let set (e, (xl, xm, xr)) i a =
     begin
-      Messages.report (Expp.short 20 i);
-      let newExp = if Expp.is_bot e then i else e in
+      Messages.report ("Array set@" ^ (Expp.short 20 i));
       let lub = Val.join a in
-      if Idx.equal e i then (newExp, (xl, a, xr))
-      (* TODO: else if all the other cases *)
-      else (newExp, (lub xl, lub xm, lub xr))
+      if Expp.is_bot e then
+        begin
+          Messages.warn ("e was BOT, new is " ^ (Expp.short 20 i));
+          let e_equals_zero = true in
+          let e_equals_maxIndex = false in
+          let l = if e_equals_zero then ( Messages.warn_all "SET LEFT TO BOT"; Val.bot ()) else Val.top() in (* TODO: How does this play with partitioning again according to a different rule? *)
+          let r = if e_equals_maxIndex then Val.bot () else Val.top() in (* TODO: How does this play with partitioning again according to a different rule? *)
+          (i, (l, a, r))
+        end
+      else
+        begin
+          Messages.warn ("e is " ^ (Expp.short 20 e) ^ ", i is " ^ (Expp.short 20 i));
+          if Idx.equal e i then (e, (xl, a, xr))
+          (* TODO: else if all the other cases *)
+          else (e, (lub xl, lub xm, lub xr));
+        end
     end
 
-  let make i v = (Expp.bot(), (Val.top(), v, Val.top()))    (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
-                                                            (* TODO: It would also seem we need to provide the expression that we are suing to split it here *)
+  let make i v = (Expp.bot(), (Val.bot(), v, Val.bot()))  (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
+                                                          (* TODO: It would also seem we need to provide the expression that we are suing to split it here *)
+                                                          (* TODO: WTF is going on here? This better be only called with v = \bot *)
+                                                          (* TODO: Interaction with get and the catch all *)
+
   let length _ = None
 
   let move (e, (xl, xm, xr)) (i:int) =     (* Under the assumption that we always get exact information about how much it moved *)
