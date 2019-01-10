@@ -57,23 +57,18 @@ struct
 
   let get (e, (xl, xm, xr)) i =    (* This is currently under the assumption that we *)
     if Idx.equal e i then xm
-    else xl (* TODO: This is obviously wrong *)
+    (* TODO: else if all the other ways in which e and i might relate *)
+    else Val.join (Val.join xl xm) xr (* The case in which we don't know anything *)
 
   let set (e, (xl, xm, xr)) i a =
     begin
       Messages.report (Expp.short 20 i);
       let newExp = if Expp.is_bot e then i else e in
       let lub = Val.join a in
-      (newExp, (lub xl, lub xm, lub xr))
+      if Idx.equal e i then (newExp, (xl, a, xr))
+      (* TODO: else if all the other cases *)
+      else (newExp, (lub xl, lub xm, lub xr))
     end
-
-(*  let set (e, (xl, xm, xr)) i a =         (* Also under the assumption that we always get *)
-    let newExp = if Idx.is_bot e then i else e in (* exact integers as the indices *)
-    let leftOrBot = xl in                 (* Compare to zero if its equal, the left side will be \bot *)
-    Messages.report ("Called set on our arrays " ^ Idx.short 0 i);
-    if i == newExp then (newExp, (leftOrBot, a, xr))
-    else if i < newExp then (newExp, (Val.join xl a, xm, xr))
-    else (newExp, (leftOrBot, xm, Val.join xr a)) *)
 
   let make i v = (Expp.bot(), (Val.top(), v, Val.top()))    (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
                                                             (* TODO: It would also seem we need to provide the expression that we are suing to split it here *)

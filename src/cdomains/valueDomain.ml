@@ -521,7 +521,13 @@ struct
           match x with
           | `Array x ->   (* TODO: This is a very bad idea *)
             let e = match exp with
-              | Some exp -> `Lifted (exp)
+              | Some (Lval (Var _, (Index (e, offset) ))) ->
+                  `Lifted e (* the expression that is inside the [] (if any) *)
+              | Some exp ->
+                begin
+                  M.warn "There is something fishy going on in eval_offset with an array access";
+                  `Lifted (exp)
+                end
               | None -> Expp.top () in
             eval_offset f (CArrays.get x e) offs exp
           | `Address _ ->  eval_offset f x offs exp (* this used to be `blob `address -> we ignore the index *)
@@ -530,7 +536,7 @@ struct
           | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
 
-  let rec update_offset (x:t) (offs:offs) (value:t) (exp:exp option): t =  (* Idea: Carry the expression used to obtain the offset *)
+  let rec update_offset (x:t) (offs:offs) (value:t) (exp:exp option): t =
     let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
     match x, offs with
     | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset x o value exp), s))
@@ -585,7 +591,13 @@ struct
             match x with
             | `Array x' ->
               let e = match exp with
-                | Some exp -> `Lifted exp
+                | Some (Lval (Var _, (Index (e, offset) ))) ->
+                    `Lifted e (* the expression that is inside the [] (if any) *) (* TODO what about offset here? *)
+                | Some exp ->
+                  begin
+                    M.warn "There is something fishy going on in eval_offset with an array access";
+                    `Lifted exp
+                  end
                 | None -> Expp.top () in
               let nval = update_offset (CArrays.get x' e) offs value exp in
               `Array (CArrays.set x' e nval) (* TODO This is a very bad idea *)

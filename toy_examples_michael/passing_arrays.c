@@ -2,17 +2,25 @@ int main(void) {
   int* array = arrayOf42();
   int val = array[10];
 
+  int i = 0;
+
   int array1[10];
   int array2[10];
+
+  while(i < 10) {
+    array1[i] = i;
+    i++;
+  }
 
   array1[0] = 42;
   array2[0] = 42;
 
-  int x = array1[0];
-	
+  int x = array1[i];
+  int y = array1[0];
+
   getFirst(array1);
-  getFirst(array2);
-  getFirst(array);
+  // getFirst(array2);
+  // getFirst(array);
 }
 
 int* arrayOf42() {
