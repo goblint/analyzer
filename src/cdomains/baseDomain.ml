@@ -17,6 +17,25 @@ struct
 end
 
 
+(* TODO: Do we need to make this dependant on the node? Probably yes, if we want
+ to partition an array according to different things at different points *)
+let affected_arrays = Hashtbl.create 113 (* TODO: Is this a good estimate? *)
+
+let get_affected_arrays var =
+  try Hashtbl.find affected_arrays var
+  with Not_found -> []
+
+let add_affected_array var arr =
+  let current = get_affected_arrays var in
+  if List.exists (fun x -> x == arr) current
+  then ()
+  else begin
+    Hashtbl.replace affected_arrays var (arr::current); ()
+  end
+
+let add_all_affected_array arr vars =
+  List.iter (fun x -> add_affected_array x arr) vars
+
 let heap_hash = Hashtbl.create 113
 
 let get_heap_var loc =
