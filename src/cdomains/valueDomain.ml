@@ -601,7 +601,29 @@ struct
                 | None -> Expp.top () in
               let nval = update_offset (CArrays.get x' e) offs value exp in
               let ne = (CArrays.set x' e nval) in
-              let nexpr = CArrays.get_e ne in  (* TODO: Start here again on Friday *)
+              let rec varsInExpr expr = match expr with (* TODO: What if a variable occurs multiple times? *)
+                | Const _
+                | SizeOf _
+                | SizeOfE _
+                | AlignOfE _
+                | AddrOfLabel _
+                | SizeOfStr _
+                | AlignOf _
+                | Question _ (* TODO is this correct? *)
+                | AddrOf _
+                | StartOf _ -> []
+                | UnOp (_, exp, _ )
+                | CastE (_, exp) -> varsInExpr exp
+                | BinOp (_, e1, e2, _) -> (varsInExpr e1)@(varsInExpr e2)
+                | Lval (Var v, _) -> [v]
+                | Lval (Mem _,_) -> [] in
+              let varsInExprAE (e:Expp.t option) =
+                match e with
+                | None
+                | Some `Top
+                | Some `Bot  -> []
+                | Some (`Lifted expr) -> varsInExpr expr in
+              let vars_in_expr = varsInExprAE (CArrays.get_e ne) in
               `Array ne (* TODO This is a very bad idea *)
             | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value exp
             | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value exp))
