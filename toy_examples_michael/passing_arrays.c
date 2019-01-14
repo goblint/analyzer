@@ -4,6 +4,7 @@ int main(void) {
 
   int i = -1;
   int j = 0;
+  j = 5;
 
   int array1[10];
   int array2[10];

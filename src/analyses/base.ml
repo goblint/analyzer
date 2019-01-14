@@ -199,26 +199,39 @@ struct
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
-        (* TODO: what effect does changing this local variable have on arrays - we only need to do this here since globals are not allowed in the expressions for partitioning *)
-        (* affected arrays =  mapOfArraysWhereVarMatters(x)                                                   *)
-        (* foreach affected array:                                                                            *)
-        (*     x = how does e behave compared to e'                                                           *)
-        (*     move array partitioning according to x                                                         *)
         let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
         let new_value = VD.update_offset (CPA.find x nst) offs value lval_raw ~addVariables:(BaseDomain.add_all_affected_array)  in
-        let affected_arrays = BaseDomain.get_affected_arrays x in
-        begin
-          (** debug stuff **)
-          if List.length affected_arrays > 0 then
-            begin
-              Printf.printf "Assignment to %s potentially affects: " x.vname;
-              List.iter (fun x -> Printf.printf "%s " x.vname) affected_arrays;
-              Printf.printf "\n"
-            end
-          else ();
-          (** end debug stuff **)
+        (* what effect does changing this local variable have on arrays -
+           we only need to do this here since globals are not allowed in the
+           expressions for partitioning *)
+        let affected_arrays =
+          let is_truely_affected arr var =
+            let arr' = CPA.find arr nst in
+            VD.is_array_affected_by arr' var in
+          let potentially_affected = BaseDomain.get_affected_arrays x in
+          let print_message_about_affected arr var =
+            if is_truely_affected arr var then
+              Printf.printf " (truely affected %s) " arr.vname
+            else
+              Printf.printf " (not truely affected %s) " arr.vname
+          in
+          begin
+            (** debug stuff **)
+            if List.length potentially_affected > 0 then
+              begin
+                Printf.printf "Assignment to %s potentially affects: " x.vname;
+                List.iter (fun arr -> print_message_about_affected arr x) potentially_affected;
+                Printf.printf "\n"
+              end
+            else ();
+            (** end debug stuff **)
+            List.filter (fun arr -> is_truely_affected arr x) potentially_affected
+          end
+        in
+        (* TODO foreach affected array:                          *)
+        (*     x = how does e behave compared to e'         *)
+        (*     move array partitioning according to x       *)
           update_variable x new_value nst
-        end
       end
     in
     let update_one x (y: cpa) =

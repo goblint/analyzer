@@ -16,6 +16,7 @@ sig
   val length: t -> int option
 
   val get_e: t -> idx option
+  val is_affected_by: t -> Cil.varinfo -> bool
 end
 
 
@@ -36,6 +37,7 @@ struct
   let length _ = None
 
   let get_e _ = None
+  let is_affected_by _ _ = false
 
   let set_inplace = set
   let copy a = a
@@ -56,7 +58,7 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
 
-  (* For set&get we later need to distinguish between must & may equality to see *)
+  (* TODO For set&get we later need to distinguish between must & may equality to see *)
   (* decide whether to apply a least upper bound or not *)
 
   let get (e, (xl, xm, xr)) i =
@@ -67,7 +69,11 @@ struct
     (* TODO: else if all the other ways in which e and i might relate *)
     else join_over_all (* The case in which we don't know anything *)
 
-  let get_e (e, _) = Some e (* TODO:This looks like it should really not be here, we should probably do all that internally *)
+  let get_e (e, _) = Some e (* TODO:This looks like it should really not be here,
+                               we should probably do all that internally *)
+
+  let is_affected_by (e, _) v = false (* TODO: This doesn't work yet because we don't know enough about
+                                          Idx, we need to ensure it is an expression here *)
 
   let set (e, (xl, xm, xr)) i a =
     begin
@@ -125,6 +131,7 @@ struct
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
+  let is_affected_by _ _ = false
   let get_e _ = None
 end
 
@@ -140,5 +147,6 @@ struct
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
-  let get_e _ = None
+  let is_affected_by (x, _) v = Base.is_affected_by x v
+  let get_e (x, _) = Base.get_e x
 end

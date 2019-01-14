@@ -18,6 +18,7 @@ sig
   type offs
   val eval_offset: (AD.t -> t) -> t-> offs -> exp option -> t
   val update_offset: ?addVariables:(varinfo -> exp -> unit) -> t -> offs -> t -> exp option -> t
+  val is_array_affected_by: t -> varinfo -> bool
   val invalidate_value: typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
@@ -622,6 +623,33 @@ struct
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
       in mu result
+
+  let is_array_affected_by (x:t) (v:varinfo) =
+    let rec contains e v = match e with
+      | Const _
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _
+      | AlignOfE _
+      | AddrOf _
+      | Lval (Mem _, _)
+      | AddrOfLabel _
+      | Question _
+      | StartOf _ -> false
+      | UnOp (_, exp, _)
+      | CastE (_, exp) -> contains exp v
+      | BinOp (_, e1, e2, _) -> (contains e1 v) || (contains e2 v)
+      | Lval(Var vinfo, _) -> (v == vinfo) in
+    match x with
+    | `Array x' ->
+      begin
+        let e = CArrays.get_e x' in
+        match e with
+        | Some (`Lifted exp) -> contains exp v
+        | _ -> false
+      end
+    | _ -> false
 
   let printXml f state =
     match state with
