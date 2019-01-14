@@ -17,7 +17,7 @@ sig
   include Lattice.S
   type offs
   val eval_offset: (AD.t -> t) -> t-> offs -> exp option -> t
-  val update_offset: t -> offs -> t -> exp option -> t
+  val update_offset: ?addVariables:(varinfo -> exp -> unit) -> t -> offs -> t -> exp option -> t
   val invalidate_value: typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
@@ -536,7 +536,7 @@ struct
           | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
 
-  let rec update_offset (x:t) (offs:offs) (value:t) (exp:exp option): t =
+  let rec update_offset ?(addVariables = (fun x y-> ())) (x:t) (offs:offs) (value:t) (exp:exp option): t =
     let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
     match x, offs with
     | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset x o value exp), s))
@@ -590,41 +590,32 @@ struct
         | `Index (idx, offs) -> begin
             match x with
             | `Array x' ->
-              let e = match exp with
-                | Some (Lval (Var _, (Index (e, offset) ))) ->
-                    `Lifted e (* the expression that is inside the [] (if any) *) (* TODO what about offset here? *)
+              let v, e = match exp with
+                | Some (Lval (Var v, (Index (e, offset) ))) ->
+                    Some v, `Lifted e (* the expression that is inside the [] (if any) *) (* TODO what about offset here? *)
                 | Some exp ->
                   begin
                     M.warn "There is something fishy going on in update_offset with an array access";
-                    `Lifted exp
+                    None, `Lifted exp
                   end
-                | None -> Expp.top () in
-              let nval = update_offset (CArrays.get x' e) offs value exp in
-              let ne = (CArrays.set x' e nval) in
-              let rec varsInExpr expr = match expr with (* TODO: What if a variable occurs multiple times? *)
-                | Const _
-                | SizeOf _
-                | SizeOfE _
-                | AlignOfE _
-                | AddrOfLabel _
-                | SizeOfStr _
-                | AlignOf _
-                | Question _ (* TODO is this correct? *)
-                | AddrOf _
-                | StartOf _ -> []
-                | UnOp (_, exp, _ )
-                | CastE (_, exp) -> varsInExpr exp
-                | BinOp (_, e1, e2, _) -> (varsInExpr e1)@(varsInExpr e2)
-                | Lval (Var v, _) -> [v]
-                | Lval (Mem _,_) -> [] in
-              let varsInExprAE (e:Expp.t option) =
+                | None -> None, Expp.top () in
+              let new_value_at_index = update_offset (CArrays.get x' e) offs value exp in
+              let new_array_value = (CArrays.set x' e new_value_at_index) in
+              let add_vars_in_expr_if_v_known (expr: exp) =
+                match v with
+                   | Some var -> addVariables var expr
+                   | None -> ()
+              in
+              let add_vars_in_expr (e:Expp.t option) =
                 match e with
                 | None
                 | Some `Top
-                | Some `Bot  -> []
-                | Some (`Lifted expr) -> varsInExpr expr in
-              let vars_in_expr = varsInExprAE (CArrays.get_e ne) in
-              `Array ne (* TODO This is a very bad idea *)
+                | Some `Bot  -> ()
+                | Some (`Lifted expr) -> add_vars_in_expr_if_v_known expr in
+              begin
+                add_vars_in_expr (CArrays.get_e new_array_value);
+                `Array new_array_value
+              end
             | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value exp
             | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value exp))
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()

@@ -67,7 +67,7 @@ struct
     (* TODO: else if all the other ways in which e and i might relate *)
     else join_over_all (* The case in which we don't know anything *)
 
-  let get_e (e, _) = Some e (* TODO:This looks like it should reallt not be here, we should probably do all that internally *)
+  let get_e (e, _) = Some e (* TODO:This looks like it should really not be here, we should probably do all that internally *)
 
   let set (e, (xl, xm, xr)) i a =
     begin

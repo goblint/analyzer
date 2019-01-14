@@ -205,7 +205,7 @@ struct
         (*     x = how does e behave compared to e'                                                           *)
         (*     move array partitioning according to x                                                         *)
         let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
-        let new_value = VD.update_offset (CPA.find x nst) offs value lval_raw in
+        let new_value = VD.update_offset (CPA.find x nst) offs value lval_raw ~addVariables:(BaseDomain.add_all_affected_array)  in
         update_variable x new_value nst
       end
     in
@@ -277,6 +277,8 @@ struct
     precious_globs := get_list "exp.precious_globs";
     return_varstore := makeVarinfo false "RETURN" voidType;
     H.clear BaseDomain.heap_hash
+
+    (* TODO: Do something that make sense with the map of affected shit here *)
 
   (**************************************************************************
    * Abstract evaluation functions
