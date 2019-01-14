@@ -228,10 +228,18 @@ struct
             List.filter (fun arr -> is_truely_affected arr x) potentially_affected
           end
         in
+        let effect_on_array arr st = st
         (* TODO foreach affected array:                          *)
         (*     x = how does e behave compared to e'         *)
         (*     move array partitioning according to x       *)
-          update_variable x new_value nst
+        in
+        let rec effect_on_arrays arrs st =
+          match arrs with
+          | [] -> st
+          | arr::arrs -> effect_on_arrays arrs (effect_on_array arr st)
+        in
+        let x_updated = update_variable x new_value nst
+        in effect_on_arrays affected_arrays x_updated
       end
     in
     let update_one x (y: cpa) =
