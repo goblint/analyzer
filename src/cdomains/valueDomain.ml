@@ -613,7 +613,7 @@ struct
                 | Some `Bot  -> ()
                 | Some (`Lifted expr) -> add_vars_in_expr_if_v_known expr in
               begin
-                add_vars_in_expr (CArrays.get_e new_array_value);
+                add_vars_in_expr (CArrays.get_e new_array_value); (* TODO: Maybe only call this if the expression changed*)
                 `Array new_array_value
               end
             | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value exp

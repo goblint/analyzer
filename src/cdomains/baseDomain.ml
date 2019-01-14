@@ -18,24 +18,27 @@ end
 
 
 (* TODO: Do we need to make this dependant on the node? Probably yes, if we want
- to partition an array according to different things at different points *)
+   to partition an array according to different things at different points *)
+(* TODO: Probably not really, we can always look up if a certain array is currently partitioned
+   according to that var *)
 let affected_arrays:(varinfo,varinfo list) Hashtbl.t = Hashtbl.create 113 (* TODO: Is this a good estimate? *)
 
+(* Return all arrays where a change of var potentially(!) leads to needing to change partition *)
 let get_affected_arrays var =
   try Hashtbl.find affected_arrays var
   with Not_found -> []
 
-let add_affected_array var arr =
-  let current = get_affected_arrays var in
-  if List.exists (fun x -> x == arr) current
-  then ()
-  else begin
-    Printf.printf "Added %s affected by %s \n" arr.vname var.vname;
-    Hashtbl.replace affected_arrays var (arr::current); ()
-  end
-
+(* Add this array to the list of affected arrays for all variables that occur in exp *)
 let add_all_affected_array arr exp =
-  let rec varsInExp exp = match exp with (* TODO: What if a variable occurs multiple times? *)
+  let add_one var arr =
+    let current = get_affected_arrays var in
+    if List.exists (fun x -> x == arr) current
+    then ()
+    else begin
+      Printf.printf "Added %s affected by %s \n" arr.vname var.vname;
+      Hashtbl.replace affected_arrays var (arr::current); ()
+    end in
+  let rec varsInExp exp = match exp with
     | Const _
     | SizeOf _
     | SizeOfE _
@@ -51,7 +54,7 @@ let add_all_affected_array arr exp =
     | BinOp (_, e1, e2, _) -> (varsInExp e1)@(varsInExp e2)
     | Lval (Var v, _) -> [v]
     | Lval (Mem _,_) -> [] in
-  List.iter (fun x -> add_affected_array x arr) (varsInExp exp)
+  List.iter (fun x -> add_one x arr) (varsInExp exp)
 
 let heap_hash = Hashtbl.create 113
 

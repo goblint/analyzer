@@ -276,9 +276,8 @@ struct
     privatization := get_bool "exp.privatization";
     precious_globs := get_list "exp.precious_globs";
     return_varstore := makeVarinfo false "RETURN" voidType;
-    H.clear BaseDomain.heap_hash
-
-    (* TODO: Do something that make sense with the map of affected shit here *)
+    H.clear BaseDomain.heap_hash;
+    H.clear BaseDomain.affected_arrays
 
   (**************************************************************************
    * Abstract evaluation functions
