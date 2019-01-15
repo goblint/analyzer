@@ -17,10 +17,10 @@ struct
 end
 
 
-(* TODO: Do we need to make this dependant on the node? Probably yes, if we want
-   to partition an array according to different things at different points *)
-(* TODO: Probably not really, we can always look up if a certain array is currently partitioned
-   according to that var *)
+(* Do we need to make this dependant on the node? Probably yes, if we want
+   to partition an array according to different things at different points
+   Probably not really, we can always look up if a certain array is currently
+   partitioned according to that var -> we are doing that at the moment *)
 let affected_arrays:(varinfo,varinfo list) Hashtbl.t = Hashtbl.create 113 (* TODO: Is this a good estimate? *)
 
 (* Return all arrays where a change of var potentially(!) leads to needing to change partition *)

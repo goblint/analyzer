@@ -2,12 +2,12 @@ open Cil
 open Pretty
 module ID = IntDomain.IntDomTuple
 module IndexDomain: IntDomain.S = ID
-module Expp = Lattice.Flat (Exp.Exp) (struct let bot_name = "Bot" let top_name = "Top" end)
 module AD = AddressDomain.AddressSet (IndexDomain)
 module Addr = Lval.NormalLat (IndexDomain)
 module Offs = Lval.Offset (IndexDomain)
 module M = Messages
 module GU = Goblintutil
+module Expp = ExpDomain
 
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 
@@ -76,7 +76,6 @@ struct
 
   let tag_name : t -> string = function
     | `Top -> "Top" | `Int _ -> "Int" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `List _ -> "List" | `Bot -> "Bot"
-
 
   include Printable.Std
   let name () = "compound"
@@ -677,8 +676,9 @@ and Structs: StructDomain.S with type field = fieldinfo and type value = Compoun
 and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
   UnionDomain.Simple (Compound)
 
-and CArrays: ArrayDomain.S with type idx = Expp.t and type value = Compound.t =
-  ArrayDomain.TrivialFragmented (Compound) (Expp)
+and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ExpDomain.t =
+  ArrayDomain.TrivialFragmented(Compound)
+
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t = Blob (Compound) (ID)
 

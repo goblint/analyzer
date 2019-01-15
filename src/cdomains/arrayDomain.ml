@@ -20,6 +20,7 @@ sig
   val move: t -> int -> t
 end
 
+module Expp = Lattice.Flat (Exp.Exp) (struct let bot_name = "Bot" let top_name = "Top" end)
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
@@ -46,14 +47,15 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
 end
 
-module TrivialFragmented (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
+module TrivialFragmented (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t =
 struct
   let name () = "trivial fragmented arrays"
   module Base = Lattice.Prod3 (Val) (Val) (Val)
-  module Expp = Idx
   include Lattice.ProdSimple(Expp) (Base)
-  type idx = Idx.t
+  type idx = ExpDomain.t
   type value = Val.t
+
+  module Expp = ExpDomain
 
   let short w (e,(xl, xm, xr)) = "Array (partitioned by " ^ Expp.short (w-7) e ^ "): (" ^
                                  Val.short (w - 7) xl ^ " -- " ^ Val.short (w - 7) xm ^ " -- "
@@ -69,9 +71,9 @@ struct
 
   let get (e, (xl, xm, xr)) i =
     let join_over_all = Val.join (Val.join xl xm) xr in
-    if Idx.is_bot e then (if Val.is_bot join_over_all then Val.top () else join_over_all)
+    if Expp.is_bot e then (if Val.is_bot join_over_all then Val.top () else join_over_all)
     (* When the array is not partitioned, and all segments are \bot, we return \top. TODO: Check how that works with the case in which we want to get rid of the expression when we are at the end. *)
-    else if Idx.equal e i then xm
+    else if Expp.equal e i then xm
     (* TODO: else if all the other ways in which e and i might relate *)
     else join_over_all (* The case in which we don't know anything *)
 
@@ -83,7 +85,7 @@ struct
 
   let set (e, (xl, xm, xr)) i a =
     begin
-      Messages.report ("Array set@" ^ (Idx.short 20 i) ^ " (partitioned by " ^ (Idx.short 20 e) ^ ")");
+      Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
       let lub = Val.join a in
       if Expp.is_bot e then
         begin
@@ -96,7 +98,7 @@ struct
       else
         begin
           Messages.warn ("e is " ^ (Expp.short 20 e) ^ ", i is " ^ (Expp.short 20 i));
-          if Idx.equal e i then (e, (xl, a, xr))
+          if Expp.equal e i then (e, (xl, a, xr))
           (* TODO: else if all the other cases *)
           else (e, (lub xl, lub xm, lub xr));
         end
@@ -143,10 +145,10 @@ struct
   let move x _ = x
 end
 
-
+(*
 module TrivialFragmentedWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t =
 struct
-  module Base = TrivialFragmented (Val) (Idx)
+  module Base = TrivialFragmented (Val)
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
@@ -159,3 +161,4 @@ struct
   let get_e (x, _) = Base.get_e x
   let move (x, l) i = (Base.move x i, l)
 end
+*)

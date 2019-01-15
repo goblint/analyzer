@@ -26,6 +26,7 @@ sig
   (** moves the way in which the array is partitioned **)
 end
 
+
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is taken as a parameter to satisfy the type system, it is not
@@ -35,8 +36,10 @@ module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value 
 (** This functor creates a trivial single cell representation of an array. The
   * indexing type is also used to manage the length. *)
 
-module TrivialFragmented (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t
+module TrivialFragmented (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t
 (* Comments are TODO *)
 
+(*
 module TrivialFragmentedWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t
 (* Comments are TODO *)
+*)
