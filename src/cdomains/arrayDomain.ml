@@ -17,6 +17,7 @@ sig
 
   val get_e: t -> idx option
   val is_affected_by: t -> Cil.varinfo -> bool
+  val move: t -> int -> t
 end
 
 
@@ -38,6 +39,7 @@ struct
 
   let get_e _ = None
   let is_affected_by _ _ = false
+  let move a _ = a
 
   let set_inplace = set
   let copy a = a
@@ -53,7 +55,11 @@ struct
   type idx = Idx.t
   type value = Val.t
 
-  let short w (e,(xl, xm, xr)) = "Array (partitioned by " ^ Expp.short (w-7) e ^ "): (" ^ Val.short (w - 7) xl ^ "," ^ Val.short (w - 7) xm ^ "," ^ Val.short (w - 7) xr ^ ")" (* TODO w-7 needs to be replaced here *)
+  let short w (e,(xl, xm, xr)) = "Array (partitioned by " ^ Expp.short (w-7) e ^ "): (" ^
+                                 Val.short (w - 7) xl ^ " -- " ^ Val.short (w - 7) xm ^ " -- "
+                                 ^ Val.short (w - 7) xr ^ ")"
+                                (* TODO w-7 needs to be replaced here *)
+
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
@@ -81,7 +87,7 @@ struct
       let lub = Val.join a in
       if Expp.is_bot e then
         begin
-          let e_equals_zero = false in
+          let e_equals_zero = true in
           let e_equals_maxIndex = false in
           let l = if e_equals_zero then Val.bot () else Val.top () in (* TODO: How does this play with partitioning again according to a different rule? *)
           let r = if e_equals_maxIndex then Val.bot () else Val.top () in (* TODO: How does this play with partitioning again according to a different rule? *)
@@ -96,17 +102,18 @@ struct
         end
     end
 
-  let make i v = (Expp.bot(), (Val.bot(), v, Val.bot()))  (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
-                                                          (* TODO: It would also seem we need to provide the expression that we are suing to split it here *)
-                                                          (* TODO: WTF is going on here? This better be only called with v = \bot *)
-                                                          (* TODO: Interaction with get and the catch all *)
+  let make i v = (Expp.bot(), (Val.bot(), v, Val.bot()))
+  (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
+  (* TODO: It would also seem we need to provide the expression that we are suing to split it here *)
+  (* TODO: WTF is going on here? This better be only called with v = \bot *)
+  (* TODO: Interaction with get and the catch all *)
 
   let length _ = None
 
   let move (e, (xl, xm, xr)) (i:int) =     (* Under the assumption that we always get exact information about how much it moved *)
     match i with
     | 0   -> (e, (xl, xm, xr))
-    | 1   -> (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
+    | 1   -> Messages.report ("moved - old was "^(short 20 (e, (xl, xm, xr)))^"\n") ; (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
     | -1  -> (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
     | _ when i > 1
       -> (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)
@@ -133,6 +140,7 @@ struct
 
   let is_affected_by _ _ = false
   let get_e _ = None
+  let move x _ = x
 end
 
 
@@ -149,4 +157,5 @@ struct
 
   let is_affected_by (x, _) v = Base.is_affected_by x v
   let get_e (x, _) = Base.get_e x
+  let move (x, l) i = (Base.move x i, l)
 end

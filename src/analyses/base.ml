@@ -156,7 +156,7 @@ struct
 
 
   (** [set st addr val] returns a state where [addr] is set to [val] *)
-  let set a ?(effect=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value) (lval_raw:lval option): store =
+  let set a ?(effect=true) ?(change_array=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value) (lval_raw:lval option): store =
     let update_variable x y z =
       (* if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z; *)
       let r = update_variable x y z in (* refers to defintion that is outside of set *)
@@ -228,12 +228,22 @@ struct
             List.filter (fun arr -> is_truely_affected arr x) potentially_affected
           end
         in
-        let effect_on_array arr st = st
-        (* TODO foreach affected array:                          *)
-        (*     x = how does e behave compared to e'         *)
-        (*     move array partitioning according to x       *)
+        let effect_on_array arr st =
+          let v = CPA.find arr st in
+          let nval = VD.move_array v 1 in
+          (* TODO  x = how does e behave compared to e'         *)
+          (*     move array partitioning according to x       *)
+          (M.warn ("effect on "^arr.vname); update_variable arr nval st)
         in
         let rec effect_on_arrays arrs st =
+          if not change_array then
+            (* change_array is false if a change to the way arrays are partitioned is not desired *)
+            (* for now, this is only the case when guards are evaluated *)
+            begin
+              M.warn "There would have been affected arrays but no change was made because change_array was false";
+              st
+            end
+          else
           match arrs with
           | [] -> st
           | arr::arrs -> effect_on_arrays arrs (effect_on_array arr st)
@@ -822,8 +832,8 @@ struct
           raise Analyses.Deadcode
         )
         else if VD.is_bot new_val
-        then set a gs st addr value None ~effect:false (* TODO: This is most liekly wrong *)
-        else set a gs st addr new_val None  ~effect:false  (* TODO: This is most liekly wrong *)
+        then set a gs st addr value None ~effect:false ~change_array:false (* TODO: Putting None here is most likely wrong *)
+        else set a gs st addr new_val None  ~effect:false ~change_array:false  (* TODO: Putting None here is most likely wrong *)
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");

@@ -20,7 +20,10 @@ sig
   val get_e: t -> idx option
   (** returns the expression that is used to partition the array (if any) **)
   val is_affected_by: t -> Cil.varinfo -> bool
-
+  (** returns whether assigning a new value to the var will change the way the
+  array is partitioned **)
+  val move: t -> int -> t
+  (** moves the way in which the array is partitioned **)
 end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t

@@ -19,6 +19,7 @@ sig
   val eval_offset: (AD.t -> t) -> t-> offs -> exp option -> t
   val update_offset: ?addVariables:(varinfo -> exp -> unit) -> t -> offs -> t -> exp option -> t
   val is_array_affected_by: t -> varinfo -> bool
+  val move_array: t -> int -> t
   val invalidate_value: typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
@@ -650,6 +651,12 @@ struct
         | _ -> false
       end
     | _ -> false
+
+  let move_array (x:t) (i:int) =
+    match x with
+    | `Array x' ->
+      (`Array (CArrays.move x' i))
+    | _ -> M.warn "sth weird is going on"; x
 
   let printXml f state =
     match state with
