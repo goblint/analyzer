@@ -17,7 +17,7 @@ sig
   include Lattice.S
   type offs
   val eval_offset: (AD.t -> t) -> t-> offs -> exp option -> t
-  val update_offset: ?addVariables:(varinfo -> exp -> unit) -> t -> offs -> t -> exp option -> t
+  val update_offset: ?addVariables:(varinfo -> varinfo list -> unit) -> t -> offs -> t -> exp option -> t
   val is_array_affected_by: t -> varinfo -> bool
   val move_array: t -> int -> t
   val invalidate_value: typ -> t -> t
@@ -601,20 +601,15 @@ struct
                   end
                 | None -> None, Expp.top () in
               let new_value_at_index = update_offset (CArrays.get x' e) offs value exp in
-              let new_array_value = (CArrays.set x' e new_value_at_index) in
-              let add_vars_in_expr_if_v_known (expr: exp) =
+              let new_array_value = CArrays.set x' e new_value_at_index in
+              let vars_in_expr = CArrays.get_vars_in_e new_array_value in
+              let add_vars_in_expr_if_v_known vars =
                 match v with
-                   | Some var -> addVariables var expr
+                   | Some var -> addVariables var vars
                    | None -> ()
               in
-              let add_vars_in_expr (e:Expp.t option) =
-                match e with
-                | None
-                | Some `Top
-                | Some `Bot  -> ()
-                | Some (`Lifted expr) -> add_vars_in_expr_if_v_known expr in
               begin
-                add_vars_in_expr (CArrays.get_e new_array_value); (* TODO: Maybe only call this if the expression changed*)
+                add_vars_in_expr_if_v_known vars_in_expr; (* TODO: Maybe only call this if the expression changed *)
                 `Array new_array_value
               end
             | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value exp
@@ -625,31 +620,9 @@ struct
       in mu result
 
   let is_array_affected_by (x:t) (v:varinfo) =
-    let rec contains e v = match e with
-      | Const _
-      | SizeOf _
-      | SizeOfE _
-      | SizeOfStr _
-      | AlignOf _
-      | AlignOfE _
-      | AddrOf _
-      | Lval (Mem _, _)
-      | AddrOfLabel _
-      | Question _
-      | StartOf _ -> false
-      | UnOp (_, exp, _)
-      | CastE (_, exp) -> contains exp v
-      | BinOp (_, e1, e2, _) -> (contains e1 v) || (contains e2 v)
-      | Lval(Var vinfo, _) -> (v == vinfo) in
     match x with
-    | `Array x' ->
-      begin
-        let e = CArrays.get_e x' in
-        match e with
-        | Some (`Lifted exp) -> contains exp v
-        | _ -> false
-      end
-    | _ -> false
+    | `Array x' -> CArrays.is_affected_by x' v
+    | _ -> M.warn "our map for affected arrays somehow contains a non-array value"; false
 
   let move_array (x:t) (i:int) =
     match x with

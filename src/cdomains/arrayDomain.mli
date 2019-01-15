@@ -19,6 +19,9 @@ sig
   (** returns length of array if known *)
   val get_e: t -> idx option
   (** returns the expression that is used to partition the array (if any) **)
+  val get_vars_in_e: t -> Cil.varinfo list
+  (** returns the variables occuring in the epxression according to which the
+    * array was split *)
   val is_affected_by: t -> Cil.varinfo -> bool
   (** returns whether assigning a new value to the var will change the way the
   array is partitioned **)

@@ -28,8 +28,8 @@ let get_affected_arrays var =
   try Hashtbl.find affected_arrays var
   with Not_found -> []
 
-(* Add this array to the list of affected arrays for all variables that occur in exp *)
-let add_all_affected_array arr exp =
+(* Add this array to the list of affected arrays for all variables in vars *)
+let add_all_affected_array arr vars =
   let add_one var arr =
     let current = get_affected_arrays var in
     if List.exists (fun x -> x == arr) current
@@ -38,23 +38,7 @@ let add_all_affected_array arr exp =
       Printf.printf "Added %s affected by %s \n" arr.vname var.vname;
       Hashtbl.replace affected_arrays var (arr::current); ()
     end in
-  let rec varsInExp exp = match exp with
-    | Const _
-    | SizeOf _
-    | SizeOfE _
-    | AlignOfE _
-    | AddrOfLabel _
-    | SizeOfStr _
-    | AlignOf _
-    | Question _ (* TODO is this correct? *)
-    | AddrOf _
-    | StartOf _ -> []
-    | UnOp (_, e, _ )
-    | CastE (_, e) -> varsInExp e
-    | BinOp (_, e1, e2, _) -> (varsInExp e1)@(varsInExp e2)
-    | Lval (Var v, _) -> [v]
-    | Lval (Mem _,_) -> [] in
-  List.iter (fun x -> add_one x arr) (varsInExp exp)
+  List.iter (fun x -> add_one x arr) (vars)
 
 let heap_hash = Hashtbl.create 113
 

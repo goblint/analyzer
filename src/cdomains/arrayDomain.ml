@@ -1,6 +1,7 @@
 open Pretty
-open Messages
+open Cil
 
+module M = Messages
 module A = Array
 module GU = Goblintutil
 
@@ -16,6 +17,7 @@ sig
   val length: t -> int option
 
   val get_e: t -> idx option
+  val get_vars_in_e: t -> Cil.varinfo list
   val is_affected_by: t -> Cil.varinfo -> bool
   val move: t -> int -> t
 end
@@ -41,6 +43,7 @@ struct
   let get_e _ = None
   let is_affected_by _ _ = false
   let move a _ = a
+  let get_vars_in_e _ = []
 
   let set_inplace = set
   let copy a = a
@@ -80,8 +83,33 @@ struct
   let get_e (e, _) = Some e (* TODO:This looks like it should really not be here,
                                we should probably do all that internally *)
 
-  let is_affected_by (e, _) v = false (* TODO: This doesn't work yet because we don't know enough about
-                                          Idx, we need to ensure it is an expression here *)
+  let get_vars_in_e (e, _) = (* Maybe move this inward even further by putting it in ExprDomain *)
+    let rec varsInExp exp = match exp with
+      | Const _
+      | SizeOf _
+      | SizeOfE _
+      | AlignOfE _
+      | AddrOfLabel _
+      | SizeOfStr _
+      | AlignOf _
+      | Question _ (* TODO is this correct? *)
+      | AddrOf _
+      | StartOf _ -> []
+      | UnOp (_, e, _ )
+      | CastE (_, e) -> varsInExp e
+      | BinOp (_, e1, e2, _) -> (varsInExp e1)@(varsInExp e2)
+      | Lval (Var v, _) -> [v]
+      | Lval (Mem _,_) -> [] in
+    match e with
+    | `Top
+    | `Bot -> []
+    | `Lifted exp -> varsInExp exp
+
+
+  let is_affected_by (e, (xl,xm,xr)) v =
+    let vars = get_vars_in_e (e, (xl,xm,xr)) in
+    List.exists (fun x -> x ==v) vars
+
 
   let set (e, (xl, xm, xr)) i a =
     begin
@@ -143,6 +171,7 @@ struct
   let is_affected_by _ _ = false
   let get_e _ = None
   let move x _ = x
+  let get_vars_in_e _ = []
 end
 
 (*
