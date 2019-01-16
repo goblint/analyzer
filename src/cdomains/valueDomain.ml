@@ -622,6 +622,7 @@ struct
   let is_array_affected_by (x:t) (v:varinfo) =
     match x with
     | `Array x' -> CArrays.is_affected_by x' v
+    | `Bot -> false (* not a problem, simply not initialized yet *)
     | _ -> M.warn "our map for affected arrays somehow contains a non-array value"; false
 
   let move_array (x:t) (i:int) =
