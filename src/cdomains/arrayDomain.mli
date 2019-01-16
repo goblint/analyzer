@@ -9,7 +9,7 @@ sig
 
   val get: t -> idx -> value
   (** Returns the element residing at the given index. *)
-  val set: ?getValue:(ExpDomain.t -> IntDomain.Flattened.t option) -> t -> idx -> value -> t
+  val set: ?getValue:(ExpDomain.t -> IntDomain.Flattened.t option) -> ?length:(int64 option) -> t -> idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
   val make: int -> value -> t

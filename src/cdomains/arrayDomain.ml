@@ -12,7 +12,7 @@ sig
   type value
 
   val get: t -> idx -> value
-  val set: ?getValue:(ExpDomain.t -> IntDomain.Flattened.t option) -> t -> idx -> value -> t
+  val set: ?getValue:(ExpDomain.t -> IntDomain.Flattened.t option) -> ?length:(int64 option) -> t -> idx -> value -> t
   val make: int -> value -> t
   val length: t -> int option
 
@@ -34,7 +34,7 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
   let get a i = a
-  let set ?(getValue = (fun x -> None)) a i v = join a v
+  let set ?(getValue = (fun x -> None)) ?(length=None) a i v = join a v
   let make i v = v
   let length _ = None
 
@@ -111,7 +111,7 @@ struct
     List.exists (fun x -> x ==v) vars
 
 
-  let set ?(getValue = (fun x -> None)) (e, (xl, xm, xr)) i a =
+  let set ?(getValue = (fun x -> None)) ?(length=None) (e, (xl, xm, xr)) i a =
     begin
       Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
       let lub = Val.join a in
@@ -122,12 +122,26 @@ struct
                 | Some v -> 
                   begin
                     match IntDomain.Flattened.to_int v with
-                      | Some v' -> Messages.warn "eq"; Int64.equal v' Int64.zero
-                      | _ -> Messages.warn "neq"; false
+                      | Some v' -> Int64.equal v' Int64.zero
+                      | _ -> false
                   end
-                | _ -> Messages.warn "neq";  false
+                | _ -> false
            in
-          let e_equals_maxIndex = false in
+          let e_equals_maxIndex = 
+            match length with
+            | Some l ->
+              begin
+                match getValue i with
+                  | Some v -> 
+                    begin
+                      match IntDomain.Flattened.to_int v with
+                        | Some v' -> Int64.equal v' (Int64.sub l Int64.one)
+                        | _ -> false
+                    end
+                  | _ -> false
+              end
+            | _ -> false
+          in
           let join_over_all = Val.join (Val.join xl xm) xr in
           let top_if_bot_lub_otherwise = if Val.is_bot join_over_all then Val.top () else join_over_all in
           let l = if e_equals_zero then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
@@ -142,6 +156,7 @@ struct
           else (e, (lub xl, lub xm, lub xr));
         end
     end
+
 
   let make i v = (Expp.bot(), (Val.bot(), v, Val.bot()))
   (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
@@ -175,7 +190,7 @@ struct
   type idx = Idx.t
   type value = Val.t
   let get (x ,l) i = Base.get x i (* TODO check if in-bounds *)
-  let set ?(getValue = (fun x -> None)) (x,l) i v = Base.set x i v, l
+  let set ?(getValue = (fun x -> None)) ?(length=None) (x,l) i v = Base.set x i v, l
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
@@ -190,12 +205,13 @@ module TrivialFragmentedWithLength (Val: Lattice.S): S with type value = Val.t a
 struct
   module Base = TrivialFragmented (Val)
   module Length = IntDomain.Flattened (* We only keep one exact value or top/bot here *)
-
   include Lattice.Prod (Base) (Length)
   type idx = ExpDomain.t
   type value = Val.t
   let get (x,l) i = Base.get x i (* TODO check if in-bounds *)
-  let set ?(getValue = (fun x -> None)) (x,l) i v = Base.set ~getValue:(getValue) x i v, l 
+  let set ?(getValue = (fun x -> None)) ?(length=None) (x,l) i v =
+    let new_l = IntDomain.Flattened.to_int l in
+    Base.set ~getValue:getValue ~length:new_l  x i v, l 
   let make l x = Base.make l x, Length.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
 

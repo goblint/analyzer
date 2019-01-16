@@ -1,16 +1,16 @@
 int main(void) {
   int i = 0;
   int a;
-  int array1[10];
+  int array1[10000000];
 
-  array1[i] = 0;
+  int array2[10];
+  array2[9] = 42;
 
   a = 5;
-  i++;
   a = 7;
 
-  while(i < 10) {
-    array1[i] = 0;
+  while(i < 10000000) {
+    array1[i] = 42;
     i++;
     a=2;
   }
