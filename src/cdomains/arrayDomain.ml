@@ -75,7 +75,9 @@ struct
   let get (e, (xl, xm, xr)) i =
     let join_over_all = Val.join (Val.join xl xm) xr in
     if Expp.is_bot e then (if Val.is_bot join_over_all then Val.top () else join_over_all)
-    (* When the array is not partitioned, and all segments are \bot, we return \top. TODO: Check how that works with the case in which we want to get rid of the expression when we are at the end. *)
+    (* When the array is not partitioned, and all segments are \bot, we return \top.
+    TODO: Check how that works with the case in which we want to get rid of the expression when we are at the end.
+    Should not really cause any issues since in those cases the rest of the values would not be \bot *)
     else if Expp.equal e i then xm
     (* TODO: else if all the other ways in which e and i might relate *)
     else join_over_all (* The case in which we don't know anything *)
@@ -83,7 +85,7 @@ struct
   let get_e (e, _) = Some e (* TODO:This looks like it should really not be here,
                                we should probably do all that internally *)
 
-  let get_vars_in_e (e, _) = (* Maybe move this inward even further by putting it in ExprDomain *)
+  let get_vars_in_e (e, _) = (* TODO: Maybe move this inward even further by putting it in ExprDomain *)
     let rec varsInExp exp = match exp with
       | Const _
       | SizeOf _
@@ -119,8 +121,10 @@ struct
         begin
           let e_equals_zero = true in
           let e_equals_maxIndex = false in
-          let l = if e_equals_zero then Val.bot () else Val.top () in (* TODO: How does this play with partitioning again according to a different rule? *)
-          let r = if e_equals_maxIndex then Val.bot () else Val.top () in (* TODO: How does this play with partitioning again according to a different rule? *)
+          let join_over_all = Val.join (Val.join xl xm) xr in
+          let top_if_bot_lub_otherwise = if Val.is_bot join_over_all then Val.top () else join_over_all in
+          let l = if e_equals_zero then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
+          let r = if e_equals_maxIndex then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
           (i, (l, a, r))
         end
       else
