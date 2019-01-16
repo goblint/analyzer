@@ -12,7 +12,7 @@ sig
   type value
 
   val get: t -> idx -> value
-  val set: t -> idx -> value -> t
+  val set: ?getValue:(ExpDomain.t -> IntDomain.Flattened.t option) -> t -> idx -> value -> t
   val make: int -> value -> t
   val length: t -> int option
 
@@ -34,7 +34,7 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
   let get a i = a
-  let set a i v = join a v
+  let set ?(getValue = (fun x -> None)) a i v = join a v
   let make i v = v
   let length _ = None
 
@@ -111,13 +111,22 @@ struct
     List.exists (fun x -> x ==v) vars
 
 
-  let set (e, (xl, xm, xr)) i a =
+  let set ?(getValue = (fun x -> None)) (e, (xl, xm, xr)) i a =
     begin
       Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
       let lub = Val.join a in
       if Expp.is_bot e then
         begin
-          let e_equals_zero = true in
+          let e_equals_zero = 
+              match getValue i with
+                | Some v -> 
+                  begin
+                    match IntDomain.Flattened.to_int v with
+                      | Some v' -> Messages.warn "eq"; Int64.equal v' Int64.zero
+                      | _ -> Messages.warn "neq"; false
+                  end
+                | _ -> Messages.warn "neq";  false
+           in
           let e_equals_maxIndex = false in
           let join_over_all = Val.join (Val.join xl xm) xr in
           let top_if_bot_lub_otherwise = if Val.is_bot join_over_all then Val.top () else join_over_all in
@@ -166,7 +175,7 @@ struct
   type idx = Idx.t
   type value = Val.t
   let get (x ,l) i = Base.get x i (* TODO check if in-bounds *)
-  let set (x,l) i v = Base.set x i v, l
+  let set ?(getValue = (fun x -> None)) (x,l) i v = Base.set x i v, l
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
@@ -186,7 +195,7 @@ struct
   type idx = ExpDomain.t
   type value = Val.t
   let get (x,l) i = Base.get x i (* TODO check if in-bounds *)
-  let set (x,l) i v = Base.set x i v, l
+  let set ?(getValue = (fun x -> None)) (x,l) i v = Base.set ~getValue:(getValue) x i v, l 
   let make l x = Base.make l x, Length.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
 

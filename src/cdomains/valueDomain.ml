@@ -90,6 +90,8 @@ struct
   let is_top x = x = `Top
   let top_name = "Unknown"
 
+  module ArrIdxDomain = ExpDomain
+
   let equal x y =
     match (x, y) with
     | (`Top, `Top) -> true
@@ -474,11 +476,11 @@ struct
     |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value voidType x) n)
     | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n)
     | TArray (t,_,_), `Array n      ->
-      let v = invalidate_value t (CArrays.get n (Expp.top ())) in
-      `Array (CArrays.set n (Expp.top ()) v)
+      let v = invalidate_value t (CArrays.get n (ArrIdxDomain.top ())) in
+      `Array (CArrays.set n (ArrIdxDomain.top ()) v)
     |                 _ , `Array n      ->
-      let v = invalidate_value voidType (CArrays.get n (Expp.top ())) in
-      `Array (CArrays.set n (Expp.top ()) v)
+      let v = invalidate_value voidType (CArrays.get n (ArrIdxDomain.top ())) in
+      `Array (CArrays.set n (ArrIdxDomain.top ()) v)
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value t n)
     |                 _ , `List n       -> `Top
     |                 t , _             -> top_value t
@@ -601,7 +603,16 @@ struct
                   end
                 | None -> None, Expp.top () in
               let new_value_at_index = update_offset (CArrays.get x' e) offs value exp in
-              let new_array_value = CArrays.set x' e new_value_at_index in
+              let get_value x = match x with
+                | _ when x == e ->
+                  begin
+                    match IndexDomain.to_int idx with
+                    | Some v ->  Some (IntDomain.Flattened.of_int v)
+                    | None -> None
+                  end
+                | _ -> None
+              in
+              let new_array_value = CArrays.set x' e new_value_at_index  ~getValue:(get_value) in
               let vars_in_expr = CArrays.get_vars_in_e new_array_value in
               let add_vars_in_expr_if_v_known vars =
                 match v with
@@ -613,7 +624,7 @@ struct
                 `Array new_array_value
               end
             | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value exp
-            | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value exp))
+            | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value exp)) (* TODO: why 42? *)
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
@@ -652,7 +663,6 @@ and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
 
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ExpDomain.t =
   ArrayDomain.TrivialFragmentedWithLength(Compound)
-
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t = Blob (Compound) (ID)
 
