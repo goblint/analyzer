@@ -22,8 +22,6 @@ sig
   val move: t -> int -> t
 end
 
-module Expp = Lattice.Flat (Exp.Exp) (struct let bot_name = "Bot" let top_name = "Top" end)
-
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
   let name () = "trivial arrays"
@@ -53,12 +51,12 @@ end
 module TrivialFragmented (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t =
 struct
   let name () = "trivial fragmented arrays"
+  module Expp = ExpDomain
   module Base = Lattice.Prod3 (Val) (Val) (Val)
   include Lattice.ProdSimple(Expp) (Base)
   type idx = ExpDomain.t
   type value = Val.t
-
-  module Expp = ExpDomain
+  
 
   let short w (e,(xl, xm, xr)) = "Array (partitioned by " ^ Expp.short (w-7) e ^ "): (" ^
                                  Val.short (w - 7) xl ^ " -- " ^ Val.short (w - 7) xm ^ " -- "
@@ -178,20 +176,22 @@ struct
   let get_vars_in_e _ = []
 end
 
-(*
-module TrivialFragmentedWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t =
+
+module TrivialFragmentedWithLength (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t =
 struct
   module Base = TrivialFragmented (Val)
-  include Lattice.Prod (Base) (Idx)
-  type idx = Idx.t
+  module Length = IntDomain.Flattened (* We only keep one exact value or top/bot here *)
+
+  include Lattice.Prod (Base) (Length)
+  type idx = ExpDomain.t
   type value = Val.t
   let get (x,l) i = Base.get x i (* TODO check if in-bounds *)
   let set (x,l) i v = Base.set x i v, l
-  let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
-  let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
+  let make l x = Base.make l x, Length.of_int (Int64.of_int l)
+  let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
 
   let is_affected_by (x, _) v = Base.is_affected_by x v
   let get_e (x, _) = Base.get_e x
   let move (x, l) i = (Base.move x i, l)
+  let get_vars_in_e (x, _) = Base.get_vars_in_e x
 end
-*)

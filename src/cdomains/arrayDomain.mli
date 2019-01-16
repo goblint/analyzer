@@ -42,7 +42,6 @@ module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value 
 module TrivialFragmented (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t
 (* Comments are TODO *)
 
-(*
-module TrivialFragmentedWithLength (Val: Lattice.S) (Idx: IntDomain.S): S with type value = Val.t and type idx = Idx.t
+module TrivialFragmentedWithLength (Val: Lattice.S): S with type value = Val.t and type idx = ExpDomain.t
 (* Comments are TODO *)
-*)
+<<<<<<< HEAD
