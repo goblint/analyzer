@@ -71,6 +71,7 @@ struct
   (* decide whether to apply a least upper bound or not *)
 
   let get (e, (xl, xm, xr)) i =
+    Messages.report ("Array get@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
     let join_over_all = Val.join (Val.join xl xm) xr in
     if Expp.is_bot e then (if Val.is_bot join_over_all then Val.top () else join_over_all)
     (* When the array is not partitioned, and all segments are \bot, we return \top.
