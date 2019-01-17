@@ -526,14 +526,29 @@ struct
             let e = match exp with
               | Some (Lval (Var _, (Index (e, offset) ))) ->
                   `Lifted e (* the expression that is inside the [] (if any) *)
+              | Some (Lval (Mem ptr, NoOffset)) -> 
+                  begin
+                    let start_of_array = ptr in (* TODO: now we would need the lval(s) this could potentially be  *) (* TODO: What does the map look like right now? Is the dependency on the pointers added? *)
+                    let equivalent_expr = BinOp (MinusPP, start_of_array, ptr, intType) in 
+                    M.warn ("eval_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
+                    `Lifted (equivalent_expr)
+                  end
               | Some exp ->
                 begin
-                  M.warn "There is something fishy going on in eval_offset with an array access";
-                  `Lifted (exp)
+                  M.warn ("There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted exp)));
+                  `Lifted exp
                 end
-              | None -> Expp.top () in
+              | None ->
+                begin
+                  M.warn "There is something fishy going on in eval_offset with an array access (TOP)" ;
+                  Expp.top ()
+                end in
             eval_offset f (CArrays.get x e) offs exp
-          | `Address _ ->  eval_offset f x offs exp (* this used to be `blob `address -> we ignore the index *)
+          | `Address _ -> 
+            begin  
+              eval_offset f x offs exp (* this used to be `blob `address -> we ignore the index *)
+              (* TODO: This seems like a good place to pop in the pointer related stuff *)
+            end
           | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs exp
           | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
           | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
@@ -595,10 +610,17 @@ struct
             | `Array x' ->
               let v, e = match exp with
                 | Some (Lval (Var v, (Index (e, offset) ))) ->
-                    Some v, `Lifted e (* the expression that is inside the [] (if any) *) (* TODO what about offset here? *)
+                    Some v, `Lifted e (* the expression that is inside the [] (if any) *) (* TODO: what about offset here? *)
+                | Some (Lval (Mem ptr, NoOffset)) -> 
+                  begin
+                    let start_of_array = ptr in (* TODO: now we would need the lval(s) this could potentially be  *) (* TODO: What does the map look like right now? Is the dependency on the pointers added? *)
+                    let equivalent_expr = BinOp (MinusPP, start_of_array, ptr, intType) in 
+                    M.warn ("set_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
+                    None, `Lifted (equivalent_expr)
+                  end
                 | Some exp ->
                   begin
-                    M.warn "There is something fishy going on in update_offset with an array access";
+                    M.warn ("There is something fishy going on in update_offset with an array access " ^ (Expp.short 20 (`Lifted exp)));
                     None, `Lifted exp
                   end
                 | None -> None, Expp.top () in
