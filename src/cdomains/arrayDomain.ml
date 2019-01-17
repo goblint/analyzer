@@ -84,6 +84,8 @@ struct
   let get_e (e, _) = Some e (* TODO:This looks like it should really not be here,
                                we should probably do all that internally *)
 
+
+  (* TODO: both possibilities to use as underlying element here have support for pulling this in  *)
   let get_vars_in_e (e, _) = (* TODO: Maybe move this inward even further by putting it in ExprDomain *)
     let rec varsInExp exp = match exp with
       | Const _
@@ -158,6 +160,13 @@ struct
         end
     end
 
+  let join (e1, (xl1,xm1,xr1)) (e2, (xl2,xm2,xr2)) =
+    let new_e = Expp.join e1 e2 in
+    if Expp.is_top new_e then (* TODO: Figure out how this relates with what bottom means i.e. How does this play with partitioning again according to a different rule? *)
+      let join_over_all = Val.join (Val.join (Val.join xl1 xm1) xr1) (Val.join (Val.join xl2 xm2) xr2) in
+      (new_e, (join_over_all, join_over_all, join_over_all))
+    else
+      (new_e, (Val.join xl1 xl2, Val.join xm1 xm2, Val.join xr1 xr2))
 
   let make i v = (Expp.bot(), (Val.bot(), v, Val.bot()))
   (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
