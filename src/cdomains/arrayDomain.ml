@@ -160,6 +160,8 @@ struct
         end
     end
 
+
+  (* TODO: Do i really need to make this explicit? if the array is partitioned according to \top every read while have to take a least upper bound regardless of what the rest of the code does?! *)
   let join (e1, (xl1,xm1,xr1)) (e2, (xl2,xm2,xr2)) =
     let new_e = Expp.join e1 e2 in
     if Expp.is_top new_e then (* TODO: Figure out how this relates with what bottom means i.e. How does this play with partitioning again according to a different rule? *)
