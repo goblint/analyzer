@@ -19,9 +19,51 @@ let eqB (a: Cil.block) (b: Cil.block) =
 let eqS (a: Cil.stmt) (b: Cil.stmt) =
   a.Cil.skind = b.Cil.skind
 
-let eq_lval (a: lval) (b: lval) = false
+let print (a: Pretty.doc)  =
+    print_endline @@ Pretty.sprint 100 a
 
-let eq_exp (a: exp) (b: exp) = false
+let eq_varinfo (a: varinfo) (b: varinfo) = true 
+    (* a.vname = b.vname && a.vtype = b.vtype && a.vattr = b.vattr &&
+    a.vstorage = b.vstorage && a.vglob = b.vglob && a.vinline = b.vinline *)
+
+let rec eq_constant (a: constant) (b: constant) = match a, b with
+    CInt64 (val1, kind1, str1), CInt64 (val2, kind2, str2) -> val1 = val2 && kind1 = kind2 (* Ignore string representation, i.e. 0x2 == 2 *)
+    | CEnum (exp1, str1, enuminfo1), CEnum (exp2, str2, enuminfo2) -> eq_exp exp1 exp2 (* Ignore name and enuminfo  *)
+    | a, b -> a = b
+
+and eq_exp (a: exp) (b: exp) = match a,b with
+    | Const c1, Const c2 -> eq_constant c1 c2
+    | Lval lv1, Lval lv2 -> eq_lval lv1 lv2
+    | SizeOf typ1, SizeOf typ2 -> eq_typ typ1 typ2
+    | SizeOfE exp1, SizeOfE exp2 -> eq_exp exp1 exp2
+    | SizeOfStr str1, SizeOfStr str2 -> str1 = str2 (* possibly, having the same length would suffice *)
+    | AlignOf typ1, AlignOf typ2 -> eq_typ typ1 typ2 
+    | AlignOfE exp1, AlignOfE exp2 -> eq_exp exp1 exp2
+    | UnOp (op1, exp1, typ1), UnOp (op2, exp2, typ2) -> op1 == op2 && eq_exp exp1 exp2 && eq_typ typ1 typ2
+    | BinOp (op1, left1, right1, typ1), BinOp (op2, left2, right2, typ2) ->  op1 = op2 && eq_exp left1 left2 && eq_exp right1 right2 && eq_typ typ1 typ2
+    | CastE (typ1, exp1), CastE (typ2, exp2) -> (* eq_typ typ1 typ2 && *) eq_exp exp1 exp2 
+    | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2 
+    | StartOf lv1, StartOf lv2 -> eq_lval lv1 lv2
+    | _, _ -> false
+
+and eq_lhost (a: lhost) (b: lhost) = match a, b with 
+    Var v1, Var v2 -> true (* eq_varinfo v1 v2 *) 
+    | Mem exp1, Mem exp2 -> eq_exp exp1 exp2 
+    | _, _ -> false
+
+and eq_typ (a: typ) (b: typ) = true (* a = b *) (* seems to be non-recursive and not to contain line-information *)
+
+and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) =
+    a.fname = b.fname && eq_typ a.ftype b.ftype && a.fbitfield = b.fbitfield &&  eq_list (=) a.fattr b.fattr
+
+and eq_offset (a: offset) (b: offset) = match a, b with
+    NoOffset, NoOffset -> true 
+    | Field (info1, offset1), Field (info2, offset2) -> eq_fieldinfo info1 info2 && eq_offset offset1 offset2 
+    | Index (exp1, offset1), Index (exp2, offset2) -> eq_exp exp1 exp2 && eq_offset offset1 offset2
+    | _, _ -> false 
+
+and eq_lval (a: lval) (b: lval) = match a, b with
+    (host1, off1), (host2, off2) ->  eq_lhost host1 host2 && eq_offset off1 off2  
 
 let eq_instr (a: instr) (b: instr) = match a, b with
     | Set (lv1, exp1, _l1), Set (lv2, exp2, _l2) -> eq_lval lv1 lv2 && eq_exp exp1 exp2
@@ -29,10 +71,6 @@ let eq_instr (a: instr) (b: instr) = match a, b with
     | Call (None, f1, args1, _l1), Call (None, f2, args2, _l2) -> eq_exp f1 f2 && eq_list eq_exp args1 args2
     | Asm _, Asm _ -> false (* We don't handle inline assembler yet *)
     | _, _ -> false
-let eq_varinfo (a: varinfo) (b: varinfo) = 
-    a.vname = b.vname && a.vtype = b.vtype && a.vattr = b.vattr &&
-    a.vstorage = b.vstorage && a.vglob = b.vglob && a.vinline = b.vinline
-
 
 let eq_label (a: label) (b: label) = match a, b with
     Label (lb1, _l1, s1), Label (lb2, _l2, s2) -> lb1 = lb2 && s1 = s2 
