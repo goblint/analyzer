@@ -26,6 +26,14 @@ let eq_varinfo (a: varinfo) (b: varinfo) = true
     (* a.vname = b.vname && a.vtype = b.vtype && a.vattr = b.vattr &&
     a.vstorage = b.vstorage && a.vglob = b.vglob && a.vinline = b.vinline *)
 
+let eq_typinfo (a: typeinfo) (b: typeinfo) = true
+
+let eq_compinfo (a: compinfo) (b: compinfo) = true
+
+let eq_enuminfo (a: enuminfo) (b: enuminfo) = true
+
+let eq_args (a: string * typ * attributes) (b: string * typ * attributes) = true
+
 let rec eq_constant (a: constant) (b: constant) = match a, b with
     CInt64 (val1, kind1, str1), CInt64 (val2, kind2, str2) -> val1 = val2 && kind1 = kind2 (* Ignore string representation, i.e. 0x2 == 2 *)
     | CEnum (exp1, str1, enuminfo1), CEnum (exp2, str2, enuminfo2) -> eq_exp exp1 exp2 (* Ignore name and enuminfo  *)
@@ -51,7 +59,22 @@ and eq_lhost (a: lhost) (b: lhost) = match a, b with
     | Mem exp1, Mem exp2 -> eq_exp exp1 exp2 
     | _, _ -> false
 
-and eq_typ (a: typ) (b: typ) = true (* a = b *) (* seems to be non-recursive and not to contain line-information *)
+and eq_typ (a: typ) (b: typ) = match a, b with
+    | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ typ1 typ2 && attr1 = attr2
+    | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ typ1 typ2 && eq_exp lenExp1 lenExp2 && attr1 = attr2
+    | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ typ1 typ2 && attr1 = attr2
+    | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2) 
+                ->  eq_typ typ1 typ2 && eq_list eq_args list1 list2 && varArg1 = varArg2 &&
+                    attr1 = attr2
+    | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2) 
+                ->  eq_typ typ1 typ2 && varArg1 = varArg2 &&
+                    attr1 = attr2
+    | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typinfo typinfo1 typeinfo2 && attr1 = attr2
+    | TComp (compinfo1, attr1), TComp (compinfo2, attr2) -> eq_compinfo compinfo1 compinfo2 && attr1 = attr2 
+    | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> eq_enuminfo enuminfo1 enuminfo2 && attr1 = attr2
+    | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> attr1 = attr2
+    | _, _ -> a = b
+
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) =
     a.fname = b.fname && eq_typ a.ftype b.ftype && a.fbitfield = b.fbitfield &&  eq_list (=) a.fattr b.fattr
