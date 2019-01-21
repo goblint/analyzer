@@ -181,7 +181,7 @@ struct
   let move (e, (xl, xm, xr)) (i:int) =     (* Under the assumption that we always get exact information about how much it moved *)
     match i with
     | 0   -> (e, (xl, xm, xr))
-    | 1   -> Messages.report ("moved - old was "^(short 20 (e, (xl, xm, xr)))^"\n") ; (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
+    | 1   -> Messages.report ("moved - old was "^(short 20 (e, (xl, xm, xr)))^" , new is "^(short 20 (e, (Val.join xl xm, xr, xr)))^"\n") ; (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
     | -1  -> (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
     | _ when i > 1
       -> (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)

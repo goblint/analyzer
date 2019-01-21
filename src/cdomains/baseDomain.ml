@@ -30,12 +30,13 @@ let get_affected_arrays var =
 
 (* Add this array to the list of affected arrays for all variables in vars *)
 let add_all_affected_array arr vars =
+  Printf.printf "call add all affected for %s \n" arr.vname;
   let add_one var arr =
     let current = get_affected_arrays var in
     if List.exists (fun x -> x == arr) current
     then ()
     else begin
-      Printf.printf "Added %s affected by %s \n" arr.vname var.vname;
+      Printf.printf "\t -> Added %s affected by %s \n" arr.vname var.vname;
       Hashtbl.replace affected_arrays var (arr::current); ()
     end in
   List.iter (fun x -> add_one x arr) (vars)

@@ -17,7 +17,7 @@ sig
   include Lattice.S
   type offs
   val eval_offset: (AD.t -> t) -> t-> offs -> exp option -> t
-  val update_offset: ?addVariables:(varinfo -> varinfo list -> unit) -> t -> offs -> t -> exp option -> t
+  val update_offset: ?getF:(exp -> t) -> t -> offs -> t -> exp option -> t
   val is_array_affected_by: t -> varinfo -> bool
   val move_array: t -> int -> t
   val invalidate_value: typ -> t -> t
@@ -528,7 +528,8 @@ struct
                   `Lifted e (* the expression that is inside the [] (if any) *)
               | Some (Lval (Mem ptr, NoOffset)) -> 
                   begin
-                    let start_of_array = ptr in (* TODO: now we would need the lval(s) this could potentially be  *) (* TODO: What does the map look like right now? Is the dependency on the pointers added? *)
+                    let array_name:lval = (Mem ptr, NoOffset) in (* TODO: now we would need the lval(s) this could potentially be  *) 
+                    let start_of_array = ptr (* StartOf array_name *) in (* TODO: What does the map look like right now? Is the dependency on the pointers added? *)
                     let equivalent_expr = BinOp (MinusPP, start_of_array, ptr, intType) in 
                     M.warn ("eval_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
                     `Lifted (equivalent_expr)
@@ -554,7 +555,7 @@ struct
           | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
 
-  let rec update_offset ?(addVariables = (fun x y-> ())) (x:t) (offs:offs) (value:t) (exp:exp option): t =
+  let rec update_offset ?(getF = (fun x -> top ())) (x:t) (offs:offs) (value:t) (exp:exp option): t =
     let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
     match x, offs with
     | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset x o value exp), s))
@@ -613,10 +614,12 @@ struct
                     Some v, `Lifted e (* the expression that is inside the [] (if any) *) (* TODO: what about offset here? *)
                 | Some (Lval (Mem ptr, NoOffset)) -> 
                   begin
-                    let start_of_array = ptr in (* TODO: now we would need the lval(s) this could potentially be  *) (* TODO: What does the map look like right now? Is the dependency on the pointers added? *)
+                    let res = getF (Lval (Mem ptr, NoOffset)) in
+                    let array_name:lval = (Mem ptr, NoOffset) in (* TODO: now we would need the lval(s) this could potentially be  *) 
+                    let start_of_array = ptr (* StartOf array_name *) in (* TODO: What does the map look like right now? Is the dependency on the pointers added? *)
                     let equivalent_expr = BinOp (MinusPP, start_of_array, ptr, intType) in 
                     M.warn ("set_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
-                    None, `Lifted (equivalent_expr)
+                    None, `Lifted (equivalent_expr)   (* TODO: this the place where work to add the dependency needs to be done *)
                   end
                 | Some exp ->
                   begin
@@ -635,16 +638,7 @@ struct
                 | _ -> None
               in
               let new_array_value = CArrays.set x' e new_value_at_index  ~getValue:(get_value) in
-              let vars_in_expr = CArrays.get_vars_in_e new_array_value in
-              let add_vars_in_expr_if_v_known vars =
-                match v with
-                   | Some var -> addVariables var vars
-                   | None -> ()
-              in
-              begin
-                add_vars_in_expr_if_v_known vars_in_expr; (* TODO: Maybe only call this if the expression changed *)
-                `Array new_array_value
-              end
+              `Array new_array_value
             | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value exp
             | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value exp)) (* TODO: why 42? *)
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()

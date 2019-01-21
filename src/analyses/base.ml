@@ -155,6 +155,15 @@ struct
       CPA.add variable value state
 
 
+  let add_array_dependencies (x:varinfo) (v:VD.t) =
+    match v with
+      | `Array x' ->
+        begin
+          BaseDomain.add_all_affected_array x (CArrays.get_vars_in_e x')
+        end
+      | _ ->  ()
+
+
   (** [set st addr val] returns a state where [addr] is set to [val] *)
   let set a ?(effect=true) ?(change_array=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value) (lval_raw:lval option): store =
     let update_variable x y z =
@@ -200,7 +209,7 @@ struct
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
-        let new_value = VD.update_offset (CPA.find x nst) offs value lval_raw ~addVariables:(BaseDomain.add_all_affected_array)  in
+        let new_value = VD.update_offset (CPA.find x nst) offs value lval_raw ~getF:(fun x -> VD.top ()) in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
@@ -249,7 +258,11 @@ struct
           | arr::arrs -> effect_on_arrays arrs (effect_on_array arr st)
         in
         let x_updated = update_variable x new_value nst
-        in effect_on_arrays affected_arrays x_updated
+        in 
+          begin
+            add_array_dependencies x new_value; (* TODO: Maybe only call this if the expression changed *)
+            effect_on_arrays affected_arrays x_updated
+          end
       end
     in
     let update_one x (y: cpa) =
