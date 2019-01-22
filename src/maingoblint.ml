@@ -262,7 +262,6 @@ let merge_preprocessed cpp_file_names =
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze merged_AST =
-  print_endline "do_analyze";
   let module L = Printable.Liszt (Basetype.CilFundec) in
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
@@ -358,12 +357,18 @@ let main =
         create_temp_dir ();
         handle_flags ();
         let file = preprocess_files () |> merge_preprocessed in
-        CompareAST.compareCilFiles file file;
-        file|> do_analyze;
-        Report.do_stats !cFileNames;
-        do_html_output ();
-        if !verified = Some false then exit 3;  (* verifier failed! *)
-        if !Messages.worldStopped then exit 124 (* timeout! *)
+        (match Serialize.loadCil () with
+          | Some file2 ->(
+              let _ = CompareAST.compareCilFiles file2 file in
+              file|> do_analyze;
+              Report.do_stats !cFileNames;
+              do_html_output ();
+              if !verified = Some false then exit 3;  (* verifier failed! *)
+              if !Messages.worldStopped then exit 124 (* timeout! *)
+              )
+          | None -> ()
+        );
+        Serialize.saveCil file;
       with Exit -> ()
     )
 

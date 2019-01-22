@@ -33,6 +33,14 @@ let saveCil (file: Cil.file) = match current_commit_dir () with
     Cil.saveBinaryFile file cilFile
   | None -> ()
 
+let loadCil () = 
+  (* TODO: Use the previous commit, or more specifally, the last analyzed commit *)
+  match current_commit_dir () with
+  |Some dir ->
+    let cilFile = Filename.concat dir cilFileName in
+    Some (Cil.loadBinaryFile cilFile)
+  | None -> None
+
 let create_commit_dir (dirName: string) = match current_commit_dir () with
   | Some dir -> Some (Goblintutil.create_dir dir)
   | None -> None
