@@ -22,14 +22,6 @@ let eqS (a: Cil.stmt) (b: Cil.stmt) =
 let print (a: Pretty.doc)  =
     print_endline @@ Pretty.sprint 100 a
 
-let eq_varinfo (a: varinfo) (b: varinfo) = true 
-    (* a.vname = b.vname && a.vtype = b.vtype && a.vattr = b.vattr &&
-    a.vstorage = b.vstorage && a.vglob = b.vglob && a.vinline = b.vinline *)
-
-let eq_typinfo (a: typeinfo) (b: typeinfo) = true
-
-let eq_compinfo (a: compinfo) (b: compinfo) = true
-
 let eq_enuminfo (a: enuminfo) (b: enuminfo) = true
 
 let eq_args (a: string * typ * attributes) (b: string * typ * attributes) = true
@@ -59,6 +51,8 @@ and eq_lhost (a: lhost) (b: lhost) = match a, b with
     | Mem exp1, Mem exp2 -> eq_exp exp1 exp2 
     | _, _ -> false
 
+and eq_typinfo (a: typeinfo) (b: typeinfo) = a.tname = b.tname && eq_typ a.ttype b.ttype (* Ignore the treferenced field *)
+
 and eq_typ (a: typ) (b: typ) = match a, b with
     | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ typ1 typ2 && attr1 = attr2
     | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ typ1 typ2 && eq_exp lenExp1 lenExp2 && attr1 = attr2
@@ -73,8 +67,19 @@ and eq_typ (a: typ) (b: typ) = match a, b with
     | TComp (compinfo1, attr1), TComp (compinfo2, attr2) -> eq_compinfo compinfo1 compinfo2 && attr1 = attr2 
     | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> eq_enuminfo enuminfo1 enuminfo2 && attr1 = attr2
     | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> attr1 = attr2
-    | _, _ -> a = b
+    | _, _ -> a = b (* The remaining cases can be checked by the generic equality operator *)
 
+and eq_attrparam (a: attrparam) (b: attrparam) = true
+
+and eq_attribute (a: attribute) (b: attribute) = match a, b with
+  Attr (name1, params1), Attr (name2, params2) -> name1 = name2 && eq_list eq_attrparam params1 params2
+
+and eq_varinfo (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b.vtype && eq_list eq_attribute a.vattr b.vattr &&
+  a.vstorage = b.vstorage && a.vglob = b.vglob && a.vinline = b.vinline && a.vaddrof = b.vaddrof
+  (* Ignore the location, vid, vreferenced, vdescr, vdescrpure *)
+
+and eq_compinfo (a: compinfo) (b: compinfo) = a.cstruct = b.cstruct && a.cname = b.cname && eq_list eq_fieldinfo a.cfields b.cfields
+  && eq_list eq_attribute a.cattr b.cattr && a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *)
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) =
     a.fname = b.fname && eq_typ a.ftype b.ftype && a.fbitfield = b.fbitfield &&  eq_list (=) a.fattr b.fattr
