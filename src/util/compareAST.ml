@@ -37,34 +37,40 @@ and eq_exp (a: exp) (b: exp) = match a,b with
     | AlignOfE exp1, AlignOfE exp2 -> eq_exp exp1 exp2
     | UnOp (op1, exp1, typ1), UnOp (op2, exp2, typ2) -> op1 == op2 && eq_exp exp1 exp2 && eq_typ typ1 typ2
     | BinOp (op1, left1, right1, typ1), BinOp (op2, left2, right2, typ2) ->  op1 = op2 && eq_exp left1 left2 && eq_exp right1 right2 && eq_typ typ1 typ2
-    | CastE (typ1, exp1), CastE (typ2, exp2) -> (* eq_typ typ1 typ2 && *) eq_exp exp1 exp2 
+    | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ typ1 typ2 &&  eq_exp exp1 exp2 
     | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2 
     | StartOf lv1, StartOf lv2 -> eq_lval lv1 lv2
     | _, _ -> false
 
 and eq_lhost (a: lhost) (b: lhost) = match a, b with 
-    Var v1, Var v2 -> true (* eq_varinfo v1 v2 *) 
+    Var v1, Var v2 -> eq_varinfo v1 v2 
     | Mem exp1, Mem exp2 -> eq_exp exp1 exp2 
     | _, _ -> false
 
 and eq_typinfo (a: typeinfo) (b: typeinfo) = a.tname = b.tname && eq_typ a.ttype b.ttype (* Ignore the treferenced field *)
 
-and eq_typ (a: typ) (b: typ) = match a, b with
-    | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ typ1 typ2 && attr1 = attr2
-    | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ typ1 typ2 && eq_exp lenExp1 lenExp2 && attr1 = attr2
-    | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ typ1 typ2 && attr1 = attr2
-    | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2) 
-                ->  eq_typ typ1 typ2 && eq_list eq_args list1 list2 && varArg1 = varArg2 &&
-                    attr1 = attr2
-    | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2) 
-                ->  eq_typ typ1 typ2 && varArg1 = varArg2 &&
-                    attr1 = attr2
-    | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typinfo typinfo1 typeinfo2 && attr1 = attr2
-    | TComp (compinfo1, attr1), TComp (compinfo2, attr2) -> eq_compinfo compinfo1 compinfo2 && attr1 = attr2 
-    | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> eq_enuminfo enuminfo1 enuminfo2 && attr1 = attr2
-    | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> attr1 = attr2
-    | _, _ -> a = b (* The remaining cases can be checked by the generic equality operator *)
+and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) = 
+  if( List.exists (fun x-> match x with (x,y)-> a==x && b == y) acc) 
+    then true 
+    else (let acc = List.cons (a,b) acc in
+          match a, b with
+          | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
+          | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  eq_list eq_attribute attr1 attr2
+          | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
+          | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2) 
+                      ->  eq_typ_acc typ1 typ2 acc && eq_list eq_args list1 list2 && varArg1 = varArg2 &&
+                          eq_list eq_attribute attr1 attr2
+          | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2) 
+                      ->  eq_typ_acc typ1 typ2 acc && varArg1 = varArg2 &&
+                          eq_list eq_attribute attr1 attr2
+          | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typinfo typinfo1 typeinfo2 && eq_list eq_attribute attr1 attr2
+          | TComp (compinfo1, attr1), TComp (compinfo2, attr2) ->  eq_compinfo compinfo1 compinfo2 acc &&  eq_list eq_attribute attr1 attr2 
+          | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> eq_enuminfo enuminfo1 enuminfo2 && eq_list eq_attribute attr1 attr2
+          | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> eq_list eq_attribute attr1 attr2
+          | _, _ -> a = b)
 
+and eq_typ (a: typ) (b: typ) = eq_typ_acc a b []
+ 
 and eq_eitems (a: string * exp * location) (b: string * exp * location) = match a, b with
   (name1, exp1, _l1), (name2, exp2, _l2) -> name1 = name2 && eq_exp exp1 exp2
   (* Ignore location *)
@@ -110,20 +116,21 @@ and eq_varinfo (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b
   a.vstorage = b.vstorage && a.vglob = b.vglob && a.vinline = b.vinline && a.vaddrof = b.vaddrof
   (* Ignore the location, vid, vreferenced, vdescr, vdescrpure *)
 
-and eq_compinfo (a: compinfo) (b: compinfo) = a.cstruct = b.cstruct && a.cname = b.cname && eq_list eq_fieldinfo a.cfields b.cfields
+(* Accumulator is needed because of recursive types: we have to assume that two types we already encountered in a previous step of the recursion are equivalent *)
+ and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) = a.cstruct = b.cstruct && a.cname = b.cname && eq_list (fun a b-> eq_fieldinfo a b acc) a.cfields b.cfields 
   && eq_list eq_attribute a.cattr b.cattr && a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *)
 
-and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) =
-    a.fname = b.fname && eq_typ a.ftype b.ftype && a.fbitfield = b.fbitfield &&  eq_list (=) a.fattr b.fattr
+and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) (acc: (typ * typ) list)=
+    a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr
 
 and eq_offset (a: offset) (b: offset) = match a, b with
     NoOffset, NoOffset -> true 
-    | Field (info1, offset1), Field (info2, offset2) -> eq_fieldinfo info1 info2 && eq_offset offset1 offset2 
+    | Field (info1, offset1), Field (info2, offset2) -> eq_fieldinfo info1 info2 [] && eq_offset offset1 offset2 
     | Index (exp1, offset1), Index (exp2, offset2) -> eq_exp exp1 exp2 && eq_offset offset1 offset2
     | _, _ -> false 
 
 and eq_lval (a: lval) (b: lval) = match a, b with
-    (host1, off1), (host2, off2) ->  eq_lhost host1 host2 && eq_offset off1 off2  
+    (host1, off1), (host2, off2) -> eq_lhost host1 host2 && eq_offset off1 off2  
 
 let eq_instr (a: instr) (b: instr) = match a, b with
     | Set (lv1, exp1, _l1), Set (lv2, exp2, _l2) -> eq_lval lv1 lv2 && eq_exp exp1 exp2
