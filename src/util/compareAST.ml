@@ -76,7 +76,24 @@ and eq_enuminfo (a: enuminfo) (b: enuminfo) = a.ename = b.ename && eq_list eq_at
 and eq_args (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
   (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ typ1 typ2 && eq_list eq_attribute attr1 attr2
 
-and eq_attrparam (a: attrparam) (b: attrparam) = true
+and eq_typsig (a: typsig) (b: typsig) = true
+
+and eq_attrparam (a: attrparam) (b: attrparam) = match a, b with
+  | ACons (str1, attrparams1), ACons (str2, attrparams2) -> str1 = str2 && eq_list eq_attrparam attrparams1 attrparams2
+  | ASizeOf typ1, ASizeOf typ2 -> eq_typ typ1 typ2
+  | ASizeOfE attrparam1, ASizeOfE attrparam2 -> eq_attrparam attrparam1 attrparam2
+  | ASizeOfS typsig1, ASizeOfS typsig2 -> eq_typsig typsig1 typsig2
+  | AAlignOf typ1, AAlignOf typ2 -> eq_typ typ1 typ2
+  | AAlignOfE attrparam1, AAlignOfE attrparam2 -> eq_attrparam attrparam1 attrparam2
+  | AAlignOfS typsig1, AAlignOfS typsig2 -> eq_typsig typsig1 typsig2
+  | AUnOp (op1, attrparam1), AUnOp (op2, attrparam2) -> op1 = op2 && eq_attrparam attrparam1 attrparam2
+  | ABinOp (op1, left1, right1), ABinOp (op2, left2, right2) -> op1 = op2 && eq_attrparam left1 left2 && eq_attrparam right1 right2
+  | ADot (attrparam1, str1), ADot (attrparam2, str2) -> eq_attrparam attrparam1 attrparam2 && str1 = str2
+  | AStar attrparam1, AStar attrparam2 -> eq_attrparam attrparam1 attrparam2 
+  | AAddrOf attrparam1, AAddrOf attrparam2 -> eq_attrparam attrparam1 attrparam2
+  | AIndex (left1, right1), AIndex (left2, right2) -> eq_attrparam left1 left2 && eq_attrparam right1 right2
+  | AQuestion (left1, middle1, right1), AQuestion (left2, middle2, right2) -> eq_attrparam left1 left2 && eq_attrparam middle1 middle2 && eq_attrparam right1 right2
+  | a, b -> a = b
 
 and eq_attribute (a: attribute) (b: attribute) = match a, b with
   Attr (name1, params1), Attr (name2, params2) -> name1 = name2 && eq_list eq_attrparam params1 params2
