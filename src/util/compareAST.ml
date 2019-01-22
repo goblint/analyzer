@@ -22,10 +22,6 @@ let eqS (a: Cil.stmt) (b: Cil.stmt) =
 let print (a: Pretty.doc)  =
     print_endline @@ Pretty.sprint 100 a
 
-let eq_enuminfo (a: enuminfo) (b: enuminfo) = true
-
-let eq_args (a: string * typ * attributes) (b: string * typ * attributes) = true
-
 let rec eq_constant (a: constant) (b: constant) = match a, b with
     CInt64 (val1, kind1, str1), CInt64 (val2, kind2, str2) -> val1 = val2 && kind1 = kind2 (* Ignore string representation, i.e. 0x2 == 2 *)
     | CEnum (exp1, str1, enuminfo1), CEnum (exp2, str2, enuminfo2) -> eq_exp exp1 exp2 (* Ignore name and enuminfo  *)
@@ -68,6 +64,17 @@ and eq_typ (a: typ) (b: typ) = match a, b with
     | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> eq_enuminfo enuminfo1 enuminfo2 && attr1 = attr2
     | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> attr1 = attr2
     | _, _ -> a = b (* The remaining cases can be checked by the generic equality operator *)
+
+and eq_eitems (a: string * exp * location) (b: string * exp * location) = match a, b with
+  (name1, exp1, _l1), (name2, exp2, _l2) -> name1 = name2 && eq_exp exp1 exp2
+  (* Ignore location *)
+
+and eq_enuminfo (a: enuminfo) (b: enuminfo) = a.ename = b.ename && eq_list eq_attribute a.eattr b.eattr &&
+  eq_list eq_eitems a.eitems b.eitems
+  (* Ignore ereferenced *)
+
+and eq_args (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
+  (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ typ1 typ2 && eq_list eq_attribute attr1 attr2
 
 and eq_attrparam (a: attrparam) (b: attrparam) = true
 
