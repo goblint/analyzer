@@ -193,6 +193,7 @@ let eq (a:Cil.global) (b: Cil.global) = match a, b with
 
 type status = Unchanged | NotFound | Changed
 
+(* Returns a list of changed functions *)
 let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
   let oldMap = StringMap.empty in
   let addGlobal map global  = 
@@ -201,23 +202,25 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
       None -> map 
   in
   let checkUnchanged map global = 
-    match toFunctionName global with
-      Some funName -> (try
+    match global with
+       GFun (fundec,_location) ->                          
+                    let funName = fundec.svar.vname in
+                    (try
                         let oldFunction =  StringMap.find funName map in
                         (* Do a (recursive) equal comparision ignoring location information *)
                         let identical = eq oldFunction global in
                         Prelude.print_string @@ funName ^ " ";
                         Prelude.print_bool identical;
                         Prelude.print_newline (); 
-                        Some identical
-                        with Not_found -> Prelude.print_string (funName ^ "Not found\n"); Some false)
-      | None -> None
+                        Some (identical, fundec)
+                    with Not_found -> Prelude.print_string (funName ^ "Not found\n"); Some (false, fundec))
+      | _ -> None
   in
   (* Store a map from functionNames in the old file to the function definition*)
   let oldMap = Cil.foldGlobals oldAST addGlobal oldMap in
   (*  For each function in the new file, check whether a function with the same name 
       already existed in the old version, and whether it is the same function.
    *)
-  Cil.iterGlobals newAST (fun a-> ignore @@ checkUnchanged oldMap a)
+  Cil.foldGlobals newAST (fun acc glob-> match checkUnchanged oldMap glob with Some (true, fundec) -> List.cons fundec acc | _ -> acc) []
 
 

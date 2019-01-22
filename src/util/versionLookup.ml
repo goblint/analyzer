@@ -1,9 +1,8 @@
 open CompareAST
 open Cil
-type commitID = string
+open Serialize
 
-let versionMapFilename = "version.data"
-let cilFileName = "ast.data"
+type commitID = string
 
 let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (string, Cil.varinfo * commitID) Hashtbl.t) = 
     let assocList = compareCilFiles oldFile newFile in
