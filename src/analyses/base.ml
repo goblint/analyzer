@@ -203,13 +203,13 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw)) nst
+          update_variable x (VD.update_offset (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) x) nst
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
-        let new_value = VD.update_offset (CPA.find x nst) offs value lval_raw ~getF:(fun x -> VD.top ()) in
+        let new_value = VD.update_offset (CPA.find x nst) offs value lval_raw x in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)

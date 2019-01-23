@@ -17,7 +17,7 @@ sig
   include Lattice.S
   type offs
   val eval_offset: (AD.t -> t) -> t-> offs -> exp option -> t
-  val update_offset: ?getF:(exp -> t) -> t -> offs -> t -> exp option -> t
+  val update_offset: t -> offs -> t -> exp option -> varinfo -> t
   val is_array_affected_by: t -> varinfo -> bool
   val move_array: t -> int -> t
   val invalidate_value: typ -> t -> t
@@ -555,11 +555,11 @@ struct
           | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
 
-  let rec update_offset ?(getF = (fun x -> top ())) (x:t) (offs:offs) (value:t) (exp:exp option): t =
+  let rec update_offset (x:t) (offs:offs) (value:t) (exp:exp option) (v:varinfo): t =
     let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
     match x, offs with
-    | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset x o value exp), s))
-    | `Blob (x,s),_ -> mu (`Blob (join x (update_offset x offs value exp), s))
+    | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset x o value exp v), s))
+    | `Blob (x,s),_ -> mu (`Blob (join x (update_offset x offs value exp v), s))
     | _ ->
       let result =
         match offs with
@@ -570,7 +570,7 @@ struct
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
             match x with
-            | `Struct str -> `Struct (Structs.replace str fld (update_offset (Structs.get str fld) offs value exp))
+            | `Struct str -> `Struct (Structs.replace str fld (update_offset (Structs.get str fld) offs value exp v))
             | `Bot ->
               let rec init_comp compinfo =
                 let nstruct = Structs.top () in
@@ -578,7 +578,7 @@ struct
                 List.fold_left init_field nstruct compinfo.cfields
               in
               let strc = init_comp fld.fcomp in
-              `Struct (Structs.replace strc fld (update_offset `Bot offs value exp))
+              `Struct (Structs.replace strc fld (update_offset `Bot offs value exp v))
             | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
             | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
           end
@@ -601,33 +601,33 @@ struct
                     top (), offs
                 end
               in
-              `Union (`Lifted fld, update_offset tempval tempoffs value exp)
-            | `Bot -> `Union (`Lifted fld, update_offset `Bot offs value exp)
+              `Union (`Lifted fld, update_offset tempval tempoffs value exp v)
+            | `Bot -> `Union (`Lifted fld, update_offset `Bot offs value exp v)
             | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
             match x with
             | `Array x' ->
-              let v, e = match exp with
+              let e = match exp with
                 | Some (Lval (Var v, (Index (e, offset) ))) ->
-                    Some v, `Lifted e (* the expression that is inside the [] (if any) *) (* TODO: what about offset here? *)
+                    `Lifted e (* the expression that is inside the [] (if any) *) (* TODO: what about offset here? *)
                 | Some (Lval (Mem ptr, NoOffset)) -> 
                   begin
-                    let res = getF (Lval (Mem ptr, NoOffset)) in
-                    let array_name:lval = (Mem ptr, NoOffset) in (* TODO: now we would need the lval(s) this could potentially be  *) 
-                    let start_of_array = ptr (* StartOf array_name *) in (* TODO: What does the map look like right now? Is the dependency on the pointers added? *)
-                    let equivalent_expr = BinOp (MinusPP, start_of_array, ptr, intType) in 
+                    (* Accessing the array via a pointer, turn this into an equivalent access into the array via subscript *)
+                    let array_name:lval = (Var v, NoOffset) in
+                    let start_of_array = StartOf array_name in
+                    let equivalent_expr = BinOp (MinusPP, ptr, start_of_array, intType) in 
                     M.warn ("set_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
-                    None, `Lifted (equivalent_expr)   (* TODO: this the place where work to add the dependency needs to be done *)
+                    `Lifted (equivalent_expr)
                   end
                 | Some exp ->
                   begin
                     M.warn ("There is something fishy going on in update_offset with an array access " ^ (Expp.short 20 (`Lifted exp)));
-                    None, `Lifted exp
+                    `Lifted exp
                   end
-                | None -> None, Expp.top () in
-              let new_value_at_index = update_offset (CArrays.get x' e) offs value exp in
+                | None -> Expp.top () in
+              let new_value_at_index = update_offset (CArrays.get x' e) offs value exp v in
               let get_value x = match x with
                 | _ when x == e ->
                   begin
@@ -639,8 +639,8 @@ struct
               in
               let new_array_value = CArrays.set x' e new_value_at_index  ~getValue:(get_value) in
               `Array new_array_value
-            | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value exp
-            | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value exp)) (* TODO: why 42? *)
+            | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value exp v
+            | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value exp v)) (* TODO: why 42? *)
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
