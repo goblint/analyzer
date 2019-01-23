@@ -54,7 +54,7 @@ let check_log functionName fileName =
     execGit args
 
 let is_clean (directory: string) = 
-    let args = [|"git"; "diff"; "^HEAD"; "-C"; directory|] in
+    let args = [|"git"; "-C"; directory; "diff"; "^HEAD";|] in
     let diff = execGit args in
     0 = String.length diff 
 
@@ -74,8 +74,6 @@ let may f opt = match opt with
 let git_log dir = 
     let args = [|"git"; "-C"; dir ; "log"; "--pretty=format:%H" |] in
     execGit args
-
-let () = may print_endline (current_commit ".")
 
 let run () = 
     let gitOutput = runGitDiff () in 
