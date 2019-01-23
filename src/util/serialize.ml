@@ -44,12 +44,12 @@ let get_analyzed_commits src_files =
   Sys.readdir src_dir
 
 let last_analyzed_commit src_files =
-  let src_dir = src_direcotry src_files in
-  let commits = Git.git_log src_dir in
-  let commitList = String.split_on_char '\n' commits in 
-  let analyzed = get_analyzed_commits src_files in
-  let analyzed_set = Set.of_array analyzed in
   try
+    let src_dir = src_direcotry src_files in
+    let commits = Git.git_log src_dir in
+    let commitList = String.split_on_char '\n' commits in 
+    let analyzed = get_analyzed_commits src_files in
+    let analyzed_set = Set.of_array analyzed in
     Some (List.hd @@ List.drop_while (fun el -> not @@ Set.mem el analyzed_set) commitList)
   with e -> None
 
@@ -78,9 +78,13 @@ let loadCil (fileList: string list) =
     Some (Cil.loadBinaryFile cilFile)
   | None -> None
 
+let results_exist (src_files: string list) =
+  last_analyzed_commit src_files <> None
+
 let load_latest_cil (src_files: string list) = 
   match last_analyzed_commit src_files with
-    | Some commit -> let dir = commit_dir src_files commit in
-                     let cil = Filename.concat dir cilFileName in
-                     Some (Cil.loadBinaryFile cil)
+    | Some commit ->   (let dir = commit_dir src_files commit in
+                        let cil = Filename.concat dir cilFileName in
+                        try (Some (Cil.loadBinaryFile cil))
+                        with e -> None)
     | None -> None

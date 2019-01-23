@@ -357,24 +357,36 @@ let main =
         create_temp_dir ();
         handle_flags ();
         let file = preprocess_files () |> merge_preprocessed in
-        let commit = Serialize.last_analyzed_commit !cFileNames in
-        (match commit with
-          | Some c -> print_endline ("Last analyzed commit is: " ^ c )
-          | None -> ());
+        print_endline "after file";
+        if Serialize.results_exist !cFileNames  then (
+          let commit = Serialize.last_analyzed_commit !cFileNames in
+          (match commit with
+            | Some c -> print_endline ("Last analyzed commit is: " ^ c )
+            | None -> ());
+        ) else (
+          let functionNameMap = VersionLookup.create_map file in
+          match Serialize.current_commit_dir !cFileNames with 
+            | Some commit_dir ->
+              Serialize.marshall functionNameMap commit_dir;
+            | None -> ()
+        );
+        print_endline "after res_exist";
         (match Serialize.load_latest_cil !cFileNames with
           | Some file2 ->(
               let _ = CompareAST.compareCilFiles file2 file in
-              file|> do_analyze;
-              Report.do_stats !cFileNames;
-              do_html_output ();
-              if !verified = Some false then exit 3;  (* verifier failed! *)
-              if !Messages.worldStopped then exit 124; (* timeout! *)
-              Serialize.save_cil file !cFileNames;
+              ()
               )
           | None -> print_string "Failue when loading latest cil file"
         );
-      with Exit -> ()
-    )
+        print_endline "after load latest cil";
+        file|> do_analyze;
+        Report.do_stats !cFileNames;
+        do_html_output ();
+        if !verified = Some false then exit 3;  (* verifier failed! *)
+        if !Messages.worldStopped then exit 124; (* timeout! *)
+        Serialize.save_cil file !cFileNames;
+      with Exit -> ())
+    
 
 let _ =
   at_exit main
