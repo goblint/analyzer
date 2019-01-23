@@ -65,7 +65,7 @@ let last_commit_id (directory: string) =
 
 let current_commit (directory: string) = 
     if is_clean directory then Some (last_commit_id directory)
-    else Some (last_commit_id directory)
+    else None
 
 let may f opt = match opt with
     Some x -> f x |
