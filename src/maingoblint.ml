@@ -359,7 +359,7 @@ let main =
         let file = preprocess_files () |> merge_preprocessed in
         Serialize.saveCil file !cFileNames;
 
-        let commit = Serialize.get_last_analyzed_commit !cFileNames in
+        let commit = Serialize.last_analyzed_commit !cFileNames in
         (match commit with
           | Some c -> print_endline ("Last analyzed commit is: " ^ c )
           | None -> ());

@@ -6,6 +6,10 @@ let base_dir () = get_string "incremental.basedir"
 
 let goblint_dirname = ".gob"
 
+let versionMapFilename = "version.data"
+
+let cilFileName = "ast.data"
+
 let src_direcotry src_files =  let firstFile = List.first src_files in
                                Filename.dirname firstFile
 
@@ -15,6 +19,10 @@ let gob_directory src_files = let src_dir = src_direcotry src_files in
 
 let current_commit src_files =
                         Git.current_commit (src_direcotry src_files) (* TODO: change to file path of analyzed src *)
+
+let commit_dir src_files commit = 
+  let gob_dir = gob_directory src_files in
+  Filename.concat gob_dir commit
 
 let current_commit_dir src_files = match current_commit src_files with 
     | Some commit -> (
@@ -35,7 +43,7 @@ let get_analyzed_commits src_files =
   let src_dir = gob_directory src_files in
   Sys.readdir src_dir
 
-let get_last_analyzed_commit src_files =
+let last_analyzed_commit src_files =
   let src_dir = src_direcotry src_files in
   let commits = Git.git_log src_dir in
   let commitList = String.split_on_char '\n' commits in 
@@ -44,10 +52,6 @@ let get_last_analyzed_commit src_files =
   try
     Some (List.hd @@ List.drop_while (fun el -> not @@ Set.mem el analyzed_set) commitList)
   with e -> None
-
-let versionMapFilename = "version.data"
-
-let cilFileName = "ast.data"
 
 let marshall obj fileName  =
   let objString = Marshal.to_string obj [] in
@@ -74,6 +78,9 @@ let loadCil (fileList: string list) =
     Some (Cil.loadBinaryFile cilFile)
   | None -> None
 
-let create_commit_dir (dirName: string) (fileList: string list)= match current_commit_dir fileList with
-  | Some dir -> Some (Goblintutil.create_dir dir)
-  | None -> None
+let load_latest_cil (src_files: string list) = 
+  match last_analyzed_commit src_files with
+    | Some commit -> let commit_dira = commit_dir src_files commit in
+                     let cil = Filename.concat commit_dira cilFileName in
+                     Some (Cil.loadBinaryFile cil)
+    | None -> None
