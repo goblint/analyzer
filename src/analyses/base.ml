@@ -249,7 +249,8 @@ struct
             (* change_array is false if a change to the way arrays are partitioned is not desired *)
             (* for now, this is only the case when guards are evaluated *)
             begin
-              M.warn "There would have been affected arrays but no change was made because change_array was false";
+              (if List.length arrs > 0 then
+              M.warn "There would have been affected arrays but no change was made because change_array was false");
               st
             end
           else
