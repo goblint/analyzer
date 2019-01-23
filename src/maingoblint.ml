@@ -357,8 +357,6 @@ let main =
         create_temp_dir ();
         handle_flags ();
         let file = preprocess_files () |> merge_preprocessed in
-        Serialize.save_cil file !cFileNames;
-
         let commit = Serialize.last_analyzed_commit !cFileNames in
         (match commit with
           | Some c -> print_endline ("Last analyzed commit is: " ^ c )
@@ -370,7 +368,8 @@ let main =
               Report.do_stats !cFileNames;
               do_html_output ();
               if !verified = Some false then exit 3;  (* verifier failed! *)
-              if !Messages.worldStopped then exit 124 (* timeout! *)
+              if !Messages.worldStopped then exit 124; (* timeout! *)
+              Serialize.save_cil file !cFileNames;
               )
           | None -> print_string "Failue when loading latest cil file"
         );
