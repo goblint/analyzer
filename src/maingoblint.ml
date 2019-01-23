@@ -343,6 +343,18 @@ let handle_extraspecials () =
   let funs = List.fold_left f [] (get_list "exp.extraspecials") in
   LibraryFunctions.add_lib_funs funs
 
+let srcPath () = List.first (!cFileNames)
+
+let update_and_store_map cil_file = 
+  match Serialize.current_commit !cFileNames with
+  | Some commit -> 
+    let dir = Serialize.gob_directory !cFileNames in
+    let updated_map = VersionLookup.restoreMap dir commit cil_file in
+    let commit_dir = Filename.concat dir commit in
+    let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
+    Serialize.marshall updated_map map_file_name
+  | None -> raise (Failure "store_map failed")
+
 (** the main function *)
 let main =
   let main_running = ref false in fun () ->
@@ -364,17 +376,21 @@ let main =
             | Some c -> print_endline ("Last analyzed commit is: " ^ c )
             | None -> ());
         ) else (
-          let functionNameMap = VersionLookup.create_map file in
-          match Serialize.current_commit_dir !cFileNames with 
+          match Serialize.current_commit !cFileNames with
+          Some commit ->
+          let functionNameMap = VersionLookup.create_map file commit  in
+          (match Serialize.current_commit_dir !cFileNames with 
             | Some commit_dir ->
                 let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
                 Serialize.marshall functionNameMap map_file_name;
-            | None -> ()
+            | None -> ());
+          | None -> ();
         );
         print_endline "after res_exist";
         (match Serialize.load_latest_cil !cFileNames with
           | Some file2 ->(
               let _ = CompareAST.compareCilFiles file2 file in
+              update_and_store_map file2;
               ()
               )
           | None -> print_string "Failue when loading latest cil file"

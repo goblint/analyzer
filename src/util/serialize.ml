@@ -54,15 +54,18 @@ let last_analyzed_commit src_files =
   with e -> None
 
 let marshall obj fileName  =
-  let objString = Marshal.to_string obj [Marshal.Closures] in
+  let objString = Marshal.to_string obj [] in
   let file = File.open_out fileName in
-  BatInnerIO.write_string file objString;
-  BatInnerIO.close_out file
+  Printf.fprintf file "%s" objString;
+  flush file;
+  close_out file;;
 
 let unmarshall fileName =
-  let file = File.open_in fileName in
-  let marshalled = BatInnerIO.read_string file in
-  Marshal.from_string marshalled 0 
+  let marshalled = input_file fileName in
+  print_endline "unmarshalling";
+  let r = Marshal.from_string marshalled 0 in
+  print_endline "unmarshalled";
+  r 
 
 let save_cil (file: Cil.file) (fileList: string list)= match current_commit_dir fileList with
   |Some dir ->
