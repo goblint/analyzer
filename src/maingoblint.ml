@@ -357,7 +357,8 @@ let main =
         create_temp_dir ();
         handle_flags ();
         let file = preprocess_files () |> merge_preprocessed in
-        (match Serialize.loadCil () with
+        Serialize.saveCil file !cFileNames;
+        (match Serialize.loadCil !cFileNames with
           | Some file2 ->(
               let _ = CompareAST.compareCilFiles file2 file in
               file|> do_analyze;
@@ -368,7 +369,6 @@ let main =
               )
           | None -> ()
         );
-        Serialize.saveCil file;
       with Exit -> ()
     )
 
