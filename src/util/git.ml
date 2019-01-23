@@ -60,7 +60,8 @@ let is_clean (directory: string) =
 
 let last_commit_id (directory: string) = 
     let args = [|"git"; "-C"; directory; "rev-parse"; "HEAD"; |] in
-    execGit args
+    let output = execGit args in
+    String.trim output
 
 let current_commit (directory: string) = 
     if is_clean directory then Some (last_commit_id directory)
@@ -69,6 +70,10 @@ let current_commit (directory: string) =
 let may f opt = match opt with
     Some x -> f x |
     None -> ()
+
+let git_log dir = 
+    let args = [|"git"; "-C"; dir ; "log"; "--pretty=format:%H" |] in
+    execGit args
 
 let () = may print_endline (current_commit ".")
 

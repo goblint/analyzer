@@ -9,14 +9,17 @@ let goblint_dirname = ".gob"
 let src_direcotry src_files =  let firstFile = List.first src_files in
                                Filename.dirname firstFile
 
+let gob_directory src_files = let src_dir = src_direcotry src_files in
+                              Filename.concat src_dir goblint_dirname
+
+
 let current_commit src_files =
                         Git.current_commit (src_direcotry src_files) (* TODO: change to file path of analyzed src *)
 
 let current_commit_dir src_files = match current_commit src_files with 
     | Some commit -> (
       try
-        let src_dir = src_direcotry src_files in
-        let gob_dir  = Filename.concat src_dir goblint_dirname in
+        let gob_dir = gob_directory src_files in
         let _path  = Goblintutil.create_dir gob_dir in
         let dir = Filename.concat gob_dir commit in
         Some (Goblintutil.create_dir dir)
@@ -26,6 +29,21 @@ let current_commit_dir src_files = match current_commit src_files with
                 print_endline error_message;
                 None)
     | None -> None (* git-directory not clean *)
+
+(** A list of commits previously analyzed for the given src directory *)
+let get_analyzed_commits src_files = 
+  let src_dir = gob_directory src_files in
+  Sys.readdir src_dir
+
+let get_last_analyzed_commit src_files =
+  let src_dir = src_direcotry src_files in
+  let commits = Git.git_log src_dir in
+  let commitList = String.split_on_char '\n' commits in 
+  let analyzed = get_analyzed_commits src_files in
+  let analyzed_set = Set.of_array analyzed in
+  try
+    Some (List.hd @@ List.drop_while (fun el -> not @@ Set.mem el analyzed_set) commitList)
+  with e -> None
 
 let versionMapFilename = "version.data"
 

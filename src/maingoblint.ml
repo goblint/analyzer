@@ -358,6 +358,11 @@ let main =
         handle_flags ();
         let file = preprocess_files () |> merge_preprocessed in
         Serialize.saveCil file !cFileNames;
+
+        let commit = Serialize.get_last_analyzed_commit !cFileNames in
+        (match commit with
+          | Some c -> print_endline ("Last analyzed commit is: " ^ c )
+          | None -> ());
         (match Serialize.loadCil !cFileNames with
           | Some file2 ->(
               let _ = CompareAST.compareCilFiles file2 file in
