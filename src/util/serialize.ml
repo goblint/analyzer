@@ -54,7 +54,7 @@ let last_analyzed_commit src_files =
   with e -> None
 
 let marshall obj fileName  =
-  let objString = Marshal.to_string obj [] in
+  let objString = Marshal.to_string obj [Marshal.Closures] in
   let file = File.open_out fileName in
   BatInnerIO.write_string file objString;
   BatInnerIO.close_out file
@@ -81,10 +81,14 @@ let loadCil (fileList: string list) =
 let results_exist (src_files: string list) =
   last_analyzed_commit src_files <> None
 
-let load_latest_cil (src_files: string list) = 
+let last_analyzed_commit_dir (src_files: string list) =
   match last_analyzed_commit src_files with
-    | Some commit ->   (let dir = commit_dir src_files commit in
-                        let cil = Filename.concat dir cilFileName in
-                        try (Some (Cil.loadBinaryFile cil))
-                        with e -> None)
-    | None -> None
+    | Some commit -> commit_dir src_files commit
+    | None -> raise (Failure "No previous analysis results")
+
+let load_latest_cil (src_files: string list) = 
+  try
+    let dir = last_analyzed_commit_dir src_files  in
+    let cil = Filename.concat dir cilFileName in
+    Some (Cil.loadBinaryFile cil)
+  with e -> None

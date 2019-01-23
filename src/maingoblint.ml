@@ -367,7 +367,8 @@ let main =
           let functionNameMap = VersionLookup.create_map file in
           match Serialize.current_commit_dir !cFileNames with 
             | Some commit_dir ->
-              Serialize.marshall functionNameMap commit_dir;
+                let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
+                Serialize.marshall functionNameMap map_file_name;
             | None -> ()
         );
         print_endline "after res_exist";
