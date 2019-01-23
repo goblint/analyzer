@@ -64,12 +64,12 @@ let unmarshall fileName =
   let marshalled = BatInnerIO.read_string file in
   Marshal.from_string marshalled 0 
 
-let saveCil (file: Cil.file) (fileList: string list)= match current_commit_dir fileList with
+let save_cil (file: Cil.file) (fileList: string list)= match current_commit_dir fileList with
   |Some dir ->
     let cilFile = Filename.concat dir cilFileName in
     Cil.saveBinaryFile file cilFile
-  | None -> ()
-
+  | None -> print_endline "Failure when saving cil: working directory is dirty"
+ 
 let loadCil (fileList: string list) = 
   (* TODO: Use the previous commit, or more specifally, the last analyzed commit *)
   match current_commit_dir fileList with
@@ -80,7 +80,7 @@ let loadCil (fileList: string list) =
 
 let load_latest_cil (src_files: string list) = 
   match last_analyzed_commit src_files with
-    | Some commit -> let commit_dira = commit_dir src_files commit in
-                     let cil = Filename.concat commit_dira cilFileName in
+    | Some commit -> let dir = commit_dir src_files commit in
+                     let cil = Filename.concat dir cilFileName in
                      Some (Cil.loadBinaryFile cil)
     | None -> None
