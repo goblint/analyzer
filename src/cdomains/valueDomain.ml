@@ -16,7 +16,7 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: (AD.t -> t) -> t-> offs -> exp option -> t
+  val eval_offset: (AD.t -> t) -> t-> offs -> exp option -> varinfo option -> t
   val update_offset: t -> offs -> t -> exp option -> varinfo -> t
   val is_array_affected_by: t -> varinfo -> bool
   val move_array: t -> int -> t
@@ -486,10 +486,10 @@ struct
     |                 t , _             -> top_value t
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset f (x: t) (offs:offs) (exp:exp option): t =
+  let rec eval_offset f (x: t) (offs:offs) (exp:exp option) (v:varinfo option): t =
     match x, offs with
-    | `Blob c, `Index (_,o) -> eval_offset f (Blobs.value c) o exp
-    | `Blob c, `Field _ -> eval_offset f (Blobs.value c) offs exp
+    | `Blob c, `Index (_,o) -> eval_offset f (Blobs.value c) o exp v
+    | `Blob c, `Field _ -> eval_offset f (Blobs.value c) offs exp v
     | `Blob c, `NoOffset -> `Blob c
     | `Bot, _ -> `Bot
     | _ ->
@@ -507,7 +507,7 @@ struct
             end
           | `Struct str ->
             let x = Structs.get str fld in
-            eval_offset f x offs exp
+            eval_offset f x offs exp v
           | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
           | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
         end
@@ -515,7 +515,7 @@ struct
           match x with
           | `Union (`Lifted l_fld, valu) ->
             let x = cast ~torg:l_fld.ftype fld.ftype valu in
-            eval_offset f x offs exp
+            eval_offset f x offs exp v
           | `Union (_, valu) -> top ()
           | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
           | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
@@ -528,11 +528,20 @@ struct
                   `Lifted e (* the expression that is inside the [] (if any) *)
               | Some (Lval (Mem ptr, NoOffset)) -> 
                   begin
-                    let array_name:lval = (Mem ptr, NoOffset) in (* TODO: now we would need the lval(s) this could potentially be  *) 
-                    let start_of_array = ptr (* StartOf array_name *) in (* TODO: What does the map look like right now? Is the dependency on the pointers added? *)
-                    let equivalent_expr = BinOp (MinusPP, start_of_array, ptr, intType) in 
-                    M.warn ("eval_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
-                    `Lifted (equivalent_expr)
+                  match v with
+                    | Some v' ->
+                      begin
+                        let array_name:lval = (Var v', NoOffset) in
+                        let start_of_array = StartOf array_name in
+                        let equivalent_expr = BinOp (MinusPP, ptr, start_of_array, intType) in
+                        M.warn ("eval_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
+                        `Lifted (equivalent_expr)
+                      end
+                    | _ ->
+                      begin
+                        M.warn ("There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))));
+                        `Lifted (Lval (Mem ptr, NoOffset))
+                      end
                   end
               | Some exp ->
                 begin
@@ -544,13 +553,13 @@ struct
                   M.warn "There is something fishy going on in eval_offset with an array access (TOP)" ;
                   Expp.top ()
                 end in
-            eval_offset f (CArrays.get x e) offs exp
+            eval_offset f (CArrays.get x e) offs exp v
           | `Address _ -> 
             begin  
-              eval_offset f x offs exp (* this used to be `blob `address -> we ignore the index *)
+              eval_offset f x offs exp v (* this used to be `blob `address -> we ignore the index *)
               (* TODO: This seems like a good place to pop in the pointer related stuff *)
             end
-          | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs exp
+          | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs exp v
           | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
           | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end

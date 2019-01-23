@@ -125,7 +125,7 @@ struct
             CPA.find x st
           end
         in
-        let v = VD.eval_offset (fun x -> get a gs (st,fl) x exp) var offs exp in
+        let v = VD.eval_offset (fun x -> get a gs (st,fl) x exp) var offs exp (Some x) in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
           | `Blob (c, s) -> c
@@ -527,7 +527,7 @@ struct
           in
           let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
           M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-          let v' = VD.eval_offset (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) in (* handle offset *) (* TODO: probably incorrect *)
+          let v' = VD.eval_offset (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None in (* handle offset *) (* TODO: probably incorrect *)
           let v' = do_offs v' ofs in (* handle blessed fields? *)
           v'
         (* Binary operators *)
