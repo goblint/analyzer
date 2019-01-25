@@ -381,7 +381,7 @@ struct
           |> group fst (* group by key=node *)
           |> map (reduce (fun (k,a) (_,b) -> k, Spec.D.join a b))
           (* also, in cil visitors we only have the location, so we use that as the key *)
-          |> map (Tuple2.map1 (fun (node, commit) -> MyCFG.getLoc node)
+          |> map (Tuple2.map1 (fun (node, commit) -> MyCFG.getLoc node))
           |> Hashtbl.of_enum
         in
         (* build a ctx for using the query system *)
