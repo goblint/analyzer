@@ -305,13 +305,13 @@ struct
 
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, "COMMIT_ID"), Spec.context e)) startvars
+        List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, "COMMIT_ID3"), Spec.context e)) startvars
       else
-        List.map (fun (n,e) -> ((MyCFG.Function n, "COMMIT_ID"), Spec.context e)) startvars
+        List.map (fun (n,e) -> ((MyCFG.Function n, "COMMIT_ID4"), Spec.context e)) startvars
     in
 
     let entrystates =
-      List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, "COMMIT_ID"), Spec.context e), e) startvars in
+      List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, "COMMIT_ID5"), Spec.context e), e) startvars in
 
 
     let local_xml = ref (Result.create 0) in

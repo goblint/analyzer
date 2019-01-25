@@ -15,7 +15,8 @@ sig
 end =
 struct
   type t = node * commitID
-  let equal (x,_) (y,_) =
+  let equal (x,xid) (y,yid) =
+    xid = yid &&
     match x,y with
     | Statement s1, Statement s2 -> s1.sid = s2.sid
     | Function f1, Function f2 -> f1.vid = f2.vid
@@ -27,7 +28,9 @@ struct
     | Function f      -> f.vid
     | FunctionEntry f -> -f.vid
 
-  let compare (x,_) (y,_)= node_compare x y
+  let compare (x,xid) (y,yid)= match node_compare x y with
+    | 0 -> String.compare xid yid
+    | n -> n
 end
 
 
@@ -296,8 +299,8 @@ struct
       ; presub  = []
       ; postsub = []
       ; spawn   = (fun f d -> let c = S.context d in
-                    if not full_context then sidel ((FunctionEntry f, "COMMIT_ID"), c) d;
-                    ignore (getl ((Function f, "COMMIT_ID"), c)))
+                    if not full_context then sidel ((FunctionEntry f, "COMMIT_ID2"), c) d;
+                    ignore (getl ((Function f, "COMMIT_ID1"), c)))
       ; split   = (fun (d:D.t) _ _ -> r := d::!r)
       ; sideg   = sideg
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
@@ -422,11 +425,18 @@ struct
 
   let add_commit (x: ((Deriving.Cil.location * MyCFG.edge) list * MyCFG.node) list) (commit: commitID)= List.map (fun (innerList, node)-> (innerList, (node, commit)) ) x
 
+  let print_node (node: node) =  print_endline @@ Pretty.sprint 100 (MyCFG.pretty_node () node)
+
+
+
   let system ((v,i),c) =
+    print_string "Constraints for: ";
+    print_node v;
+    print_endline ("Commit: " ^ i);
     match v with
     | FunctionEntry _ when full_context ->
       [fun _ _ _ _ -> S.val_of c]
-    | _ -> List.map (tf ((v,i),c)) (add_commit (Cfg.prev v) i)  
+    | _ ->  List.map (tf ((v,i),c)) (add_commit (Cfg.prev v) i)  
 end
 
 

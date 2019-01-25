@@ -261,7 +261,7 @@ let merge_preprocessed cpp_file_names =
   merged_AST
 
 (** Perform the analysis over the merged AST.  *)
-let do_analyze merged_AST =
+let do_analyze function_map merged_AST =
   let module L = Printable.Liszt (Basetype.CilFundec) in
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
@@ -354,7 +354,8 @@ let update_and_store_map old_file new_file =
       | Some commit_dir ->
         let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
         Serialize.marshall updated_map map_file_name
-      | None -> ())
+      | None -> ());
+    updated_map
 
 (** the main function *)
 let main =
@@ -387,14 +388,19 @@ let main =
           | None -> ();
         );
         (match Serialize.load_latest_cil !cFileNames with
-          | Some file2 -> update_and_store_map file2 file;
+          | Some file2 -> let functionNameMap = update_and_store_map file2 file in
+                          file|> do_analyze functionNameMap;
+                          Report.do_stats !cFileNames;
+                          do_html_output ();
+                          if !verified = Some false then exit 3;  (* verifier failed! *)
+                          if !Messages.worldStopped then exit 124; (* timeout! *)
           | None -> print_string "Failue when loading latest cil file"
         );
-        file|> do_analyze;
+        (* file|> do_analyze;
         Report.do_stats !cFileNames;
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
-        if !Messages.worldStopped then exit 124; (* timeout! *)
+        if !Messages.worldStopped then exit 124; (* timeout! *) *)
 
         Serialize.save_cil file !cFileNames;
       with Exit -> ())
