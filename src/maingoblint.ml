@@ -345,14 +345,17 @@ let handle_extraspecials () =
 
 let srcPath () = List.first (!cFileNames)
 
-let update_and_store_map cil_file = 
-  match Serialize.current_commit !cFileNames with
+let update_and_store_map old_file new_file = 
+  match Serialize.last_analyzed_commit !cFileNames with
   | Some commit -> 
     let dir = Serialize.gob_directory !cFileNames in
-    let updated_map = VersionLookup.restoreMap dir commit cil_file in
-    let commit_dir = Filename.concat dir commit in
-    let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
-    Serialize.marshall updated_map map_file_name
+    let updated_map = VersionLookup.restoreMap dir commit old_file new_file in
+    (* Creates the directory for the commit *)
+    (match Serialize.current_commit_dir !cFileNames with 
+      | Some commit_dir ->
+        let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
+        Serialize.marshall updated_map map_file_name
+      | None -> ())
   | None -> raise (Failure "store_map failed")
 
 (** the main function *)
@@ -388,11 +391,7 @@ let main =
         );
         print_endline "after res_exist";
         (match Serialize.load_latest_cil !cFileNames with
-          | Some file2 ->(
-              let _ = CompareAST.compareCilFiles file2 file in
-              update_and_store_map file2;
-              ()
-              )
+          | Some file2 -> update_and_store_map file2 file;
           | None -> print_string "Failue when loading latest cil file"
         );
         print_endline "after load latest cil";
@@ -401,6 +400,7 @@ let main =
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
         if !Messages.worldStopped then exit 124; (* timeout! *)
+
         Serialize.save_cil file !cFileNames;
       with Exit -> ())
     
