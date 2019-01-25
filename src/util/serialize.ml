@@ -62,10 +62,7 @@ let marshall obj fileName  =
 
 let unmarshall fileName =
   let marshalled = input_file fileName in
-  print_endline "unmarshalling";
-  let r = Marshal.from_string marshalled 0 in
-  print_endline "unmarshalled";
-  r 
+  Marshal.from_string marshalled 0
 
 let save_cil (file: Cil.file) (fileList: string list)= match current_commit_dir fileList with
   |Some dir ->

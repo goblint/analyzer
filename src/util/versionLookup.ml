@@ -6,9 +6,7 @@ type commitID = string
 
 let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (string, Cil.fundec * commitID) Hashtbl.t) = 
     let assocList = compareCilFiles oldFile newFile in
-    print_endline ("List is " ^ string_of_int (List.length assocList) ^ "long");
     List.iter (fun (fundec: fundec) ->  Hashtbl.replace ht fundec.svar.vname (fundec, newCommitID)) assocList;
-    print_endline "after list.iter";
     ht
 
 

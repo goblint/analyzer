@@ -370,7 +370,6 @@ let main =
         create_temp_dir ();
         handle_flags ();
         let file = preprocess_files () |> merge_preprocessed in
-        print_endline "after file";
         if Serialize.results_exist !cFileNames  then (
           let commit = Serialize.last_analyzed_commit !cFileNames in
           (match commit with
@@ -387,12 +386,10 @@ let main =
             | None -> ());
           | None -> ();
         );
-        print_endline "after res_exist";
         (match Serialize.load_latest_cil !cFileNames with
           | Some file2 -> update_and_store_map file2 file;
           | None -> print_string "Failue when loading latest cil file"
         );
-        print_endline "after load latest cil";
         file|> do_analyze;
         Report.do_stats !cFileNames;
         do_html_output ();
