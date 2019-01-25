@@ -346,17 +346,15 @@ let handle_extraspecials () =
 let srcPath () = List.first (!cFileNames)
 
 let update_and_store_map old_file new_file = 
-  match Serialize.last_analyzed_commit !cFileNames with
-  | Some commit -> 
+
     let dir = Serialize.gob_directory !cFileNames in
-    let updated_map = VersionLookup.restoreMap dir commit old_file new_file in
+    let updated_map = VersionLookup.restore_map !cFileNames dir old_file new_file in
     (* Creates the directory for the commit *)
     (match Serialize.current_commit_dir !cFileNames with 
       | Some commit_dir ->
         let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
         Serialize.marshall updated_map map_file_name
       | None -> ())
-  | None -> raise (Failure "store_map failed")
 
 (** the main function *)
 let main =
