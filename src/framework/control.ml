@@ -32,7 +32,7 @@ struct
   (** The main function to preform the selected analyses. *)
   let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) =
     (** The Equation system *)
-    let module EQSys = FromSpec (Spec) (Cfg) in
+    let module EQSys = IncrConstraints.FromSpec (Spec) (Cfg) in
 
     (** Hashtbl for locals *)
     let module LHT   = BatHashtbl.Make (EQSys.LVar) in
@@ -44,7 +44,7 @@ struct
     (** The verifyer *)
     let module Vrfyr = Verify2 (EQSys) (LHT) (GHT) in
     (** The comparator *)
-    let module Comp = Compare (Spec) (EQSys) (LHT) (GHT) in
+    let module Comp = IncrConstraints.Compare (Spec) (EQSys) (LHT) (GHT) in
 
     (** Triple of the function, context, and the local value. *)
     let module RT = Analyses.ResultType2 (Spec) in
@@ -145,7 +145,7 @@ struct
           with Not_found ->
             Messages.warn ("Calculated state for undefined function: unexpected node "^Ana.sprint MyCFG.pretty_node n)
       in
-      LHT.iter add_local_var h;
+      LHT.iter (fun ((n,i),b) c -> add_local_var (n,b) c) h;
       res
     in
 
@@ -305,13 +305,13 @@ struct
 
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e)) startvars
+        List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, "COMMIT_ID"), Spec.context e)) startvars
       else
-        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context e)) startvars
+        List.map (fun (n,e) -> ((MyCFG.Function n, "COMMIT_ID"), Spec.context e)) startvars
     in
 
     let entrystates =
-      List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
+      List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, "COMMIT_ID"), Spec.context e), e) startvars in
 
 
     let local_xml = ref (Result.create 0) in
@@ -343,8 +343,8 @@ struct
           let out = M.get_out "uncalled" Legacy.stdout in
           let f =
             let insrt k _ s = match k with
-              | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
-              | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+              | ((MyCFG.Function fn, commit),_) -> if not (get_bool "exp.forward") then Set.Int.add fn.vid s else s
+              | ((MyCFG.FunctionEntry fn, commit),_) -> if (get_bool "exp.forward") then Set.Int.add fn.vid s else s
               | _ -> s
             in
             (* set of ids of called functions *)
@@ -381,7 +381,7 @@ struct
           |> group fst (* group by key=node *)
           |> map (reduce (fun (k,a) (_,b) -> k, Spec.D.join a b))
           (* also, in cil visitors we only have the location, so we use that as the key *)
-          |> map (Tuple2.map1 MyCFG.getLoc)
+          |> map (Tuple2.map1 (fun (node, commit) -> MyCFG.getLoc node)
           |> Hashtbl.of_enum
         in
         (* build a ctx for using the query system *)
