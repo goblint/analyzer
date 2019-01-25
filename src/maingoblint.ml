@@ -286,7 +286,7 @@ let do_analyze function_map merged_AST =
           print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
           print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
         );
-        try Control.analyze ast funs
+        try Control.analyze function_map ast funs
         with x ->
           let loc = !Tracing.current_loc in
           Printf.printf "About to crash on %s:%d\n" loc.Cil.file loc.Cil.line;

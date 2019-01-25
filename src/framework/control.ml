@@ -8,6 +8,8 @@ open Analyses
 open GobConfig
 open Constraints
 
+let function_map = ref @@ (Hashtbl.create 0: (string, Cil.fundec * string) Hashtbl.t)
+
 module type S2S = functor (X : Spec) -> Spec
 (* gets Spec for current options *)
 let get_spec () : (module Spec) =
@@ -305,13 +307,13 @@ struct
 
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, "COMMIT_ID3"), Spec.context e)) startvars
+        List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, snd @@ Hashtbl.find !function_map n.vname), Spec.context e)) startvars
       else
-        List.map (fun (n,e) -> ((MyCFG.Function n, "COMMIT_ID4"), Spec.context e)) startvars
+        List.map (fun (n,e) -> ((MyCFG.Function n, snd @@ Hashtbl.find !function_map n.vname), Spec.context e)) startvars
     in
 
     let entrystates =
-      List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, "COMMIT_ID5"), Spec.context e), e) startvars in
+      List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, snd @@ Hashtbl.find !function_map n.vname), Spec.context e), e) startvars in
 
 
     let local_xml = ref (Result.create 0) in
@@ -431,8 +433,10 @@ struct
     analyze file fs (get_spec ())
 end
 
+
 (** The main function to perform the selected analyses. *)
-let analyze (file: file) fs =
+let analyze fnctn_map (file: file) fs =
+  function_map := fnctn_map;
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function
