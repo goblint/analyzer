@@ -9,7 +9,7 @@ sig
 
   val get: Queries.ask -> t -> idx -> value
   (** Returns the element residing at the given index. *)
-  val set: ?getValue:(ExpDomain.t -> IntDomain.Flattened.t option) -> ?length:(int64 option) -> Queries.ask -> t -> idx -> value -> t
+  val set: ?length:(int64 option) -> Queries.ask -> t -> idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
   val make: int -> value -> t

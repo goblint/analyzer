@@ -637,16 +637,7 @@ struct
                   end
                 | None -> Expp.top () in
               let new_value_at_index = update_offset ask (CArrays.get ask x' e) offs value exp v in
-              let get_value x = match x with
-                | _ when x == e ->
-                  begin
-                    match IndexDomain.to_int idx with
-                    | Some v ->  Some (IntDomain.Flattened.of_int v)
-                    | None -> None
-                  end
-                | _ -> None
-              in
-              let new_array_value = CArrays.set ask x' e new_value_at_index  ~getValue:(get_value) in
+              let new_array_value = CArrays.set ask x' e new_value_at_index in
               `Array new_array_value
             | x when IndexDomain.to_int idx = Some 0L -> update_offset ask x offs value exp v
             | `Bot -> `Array (CArrays.make 42 (update_offset ask `Bot offs value exp v)) (* TODO: why 42? *)

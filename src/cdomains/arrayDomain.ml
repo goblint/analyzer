@@ -13,7 +13,7 @@ sig
   type value
 
   val get: Q.ask -> t -> idx -> value
-  val set: ?getValue:(ExpDomain.t -> IntDomain.Flattened.t option) -> ?length:(int64 option)  -> Q.ask -> t -> idx -> value -> t
+  val set: ?length:(int64 option)  -> Q.ask -> t -> idx -> value -> t
   val make: int -> value -> t
   val length: t -> int option
 
@@ -35,7 +35,7 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
   let get (ask: Q.ask) a i = a
-  let set ?(getValue = (fun x -> None)) ?(length=None) (ask: Q.ask) a i v = join a v
+  let set ?(length=None) (ask: Q.ask) a i v = join a v
   let make i v = v
   let length _ = None
 
@@ -125,34 +125,33 @@ struct
     List.exists (fun x -> x ==v) vars
 
 
-  let set ?(getValue = (fun x -> None)) ?(length=None) (ask:Q.ask) (e, (xl, xm, xr)) i a =
+  let set ?(length=None) (ask:Q.ask) (e, (xl, xm, xr)) i a =
     begin
       Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
       let lub = Val.join a in
       if Expp.is_bot e then
         begin
+          let exp_value = 
+            match i with
+             | `Lifted i' -> 
+                begin
+                  match ask (Q.EvalInt i') with
+                  | `Int n -> Q.ID.to_int n
+                  | _ -> None
+                end
+            |_ -> None in
           let e_equals_zero = 
-              match getValue i with
-                | Some v -> 
-                  begin
-                    match IntDomain.Flattened.to_int v with
-                      | Some v' -> Int64.equal v' Int64.zero
-                      | _ -> false
-                  end
+              match exp_value with
+                | Some v -> Int64.equal v Int64.zero
                 | _ -> false
-           in
+          in
           let e_equals_maxIndex = 
             match length with
             | Some l ->
               begin
-                match getValue i with
-                  | Some v -> 
-                    begin
-                      match IntDomain.Flattened.to_int v with
-                        | Some v' -> Int64.equal v' (Int64.sub l Int64.one)
-                        | _ -> false
-                    end
-                  | _ -> false
+                match exp_value with
+                | Some v -> Int64.equal v (Int64.sub l Int64.one)
+                | _ -> false
               end
             | _ -> false
           in
@@ -213,7 +212,7 @@ struct
   type idx = Idx.t
   type value = Val.t
   let get (ask: Q.ask) (x ,l) i = Base.get ask x i (* TODO check if in-bounds *)
-  let set ?(getValue = (fun x -> None)) ?(length=None) (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
+  let set ?(length=None) (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
@@ -232,9 +231,9 @@ struct
   type idx = ExpDomain.t
   type value = Val.t
   let get ask (x,l) i = Base.get ask x i (* TODO check if in-bounds *)
-  let set ?(getValue = (fun x -> None)) ?(length=None) ask (x,l) i v =
+  let set ?(length=None) ask (x,l) i v =
     let new_l = IntDomain.Flattened.to_int l in
-    Base.set ~getValue:getValue ~length:new_l ask x i v, l 
+    Base.set ~length:new_l ask x i v, l 
   let make l x = Base.make l x, Length.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
 
