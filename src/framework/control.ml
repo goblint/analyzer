@@ -33,8 +33,10 @@ struct
 
   (** The main function to preform the selected analyses. *)
   let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) =
+    
+    let module Fm = struct let map = !function_map end in
     (** The Equation system *)
-    let module EQSys = IncrConstraints.FromSpec (Spec) (Cfg) in
+    let module EQSys = IncrConstraints.FromSpec (Spec) (Cfg) (Fm) in
 
     (** Hashtbl for locals *)
     let module LHT   = BatHashtbl.Make (EQSys.LVar) in

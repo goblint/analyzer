@@ -260,8 +260,13 @@ sig
   val system : (LVar.t) -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
 end
 
+module type FunctionMap =
+sig
+  val map: (string, Cil.fundec * string) Hashtbl.t
+end
+
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
-module FromSpec (S:Spec) (Cfg:CfgBackward) (* Possibly have to remove the signature *)
+module FromSpec (S:Spec) (Cfg:CfgBackward) (Fm: FunctionMap)(* Possibly have to remove the signature *)
   : sig
     include GlobConstrSys with module LVar = VarFI (S.C)
                            and module GVar = Basetype.Variables
@@ -299,8 +304,10 @@ struct
       ; presub  = []
       ; postsub = []
       ; spawn   = (fun f d -> let c = S.context d in
-                    if not full_context then sidel ((FunctionEntry f, "COMMIT_ID2"), c) d;
-                    ignore (getl ((Function f, "COMMIT_ID1"), c)))
+                    print_endline ("Looking up: " ^ f.vname);
+                    let commit = Hashtbl.find Fm.map f.vname in
+                    if not full_context then sidel ((FunctionEntry f, snd commit), c) d;
+                    ignore (getl ((Function f, snd commit), c)))
       ; split   = (fun (d:D.t) _ _ -> r := d::!r)
       ; sideg   = sideg
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
