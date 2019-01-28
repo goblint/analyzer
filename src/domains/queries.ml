@@ -46,6 +46,7 @@ type t = ExpEq of exp * exp
        | CondVars of exp
        | Access of exp * bool * bool * int
        | InInterval of exp * IntDomain.Interval32.t
+       | MustBeEqual of exp * exp
        | TheAnswerToLifeUniverseAndEverything
 [@@deriving to_yojson]
 
