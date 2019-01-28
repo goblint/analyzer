@@ -366,8 +366,8 @@ struct
   let tf_normal_call ctx lv e f args (getl: lv -> ld) (sidel: lv->ld->unit) getg sideg =
     let combine (cd, fd) = S.combine {ctx with local = cd} lv e f args fd in
     let paths = S.enter ctx lv f args in
-    let _     = if not full_context then List.iter (fun (c,v) -> if not (S.D.is_bot v) then sidel ((FunctionEntry f, "COMMIT_ID"), S.context v) v) paths in
-    let paths = List.map (fun (c,v) -> (c, if S.D.is_bot v then v else getl ((Function f, "COMMIT_ID"), S.context v))) paths in
+    let _     = if not full_context then List.iter (fun (c,v) -> if not (S.D.is_bot v) then let commit = Hashtbl.find Fm.map f.vname in sidel ((FunctionEntry f, snd commit), S.context v) v) paths in
+    let paths = List.map (fun (c,v) -> (c, if S.D.is_bot v then v else let commit = Hashtbl.find Fm.map f.vname in getl ((Function f, snd commit), S.context v))) paths in
     let paths = List.filter (fun (c,v) -> not (D.is_bot v)) paths in
     let paths = List.map combine paths in
     List.fold_left D.join (D.bot ()) paths
