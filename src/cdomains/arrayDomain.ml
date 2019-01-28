@@ -4,6 +4,7 @@ open Cil
 module M = Messages
 module A = Array
 module GU = Goblintutil
+module Q = Queries
 
 module type S =
 sig
@@ -11,8 +12,8 @@ sig
   type idx
   type value
 
-  val get: t -> idx -> value
-  val set: ?getValue:(ExpDomain.t -> IntDomain.Flattened.t option) -> ?length:(int64 option) -> t -> idx -> value -> t
+  val get: Q.ask -> t -> idx -> value
+  val set: ?getValue:(ExpDomain.t -> IntDomain.Flattened.t option) -> ?length:(int64 option)  -> Q.ask -> t -> idx -> value -> t
   val make: int -> value -> t
   val length: t -> int option
 
@@ -33,8 +34,8 @@ struct
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
-  let get a i = a
-  let set ?(getValue = (fun x -> None)) ?(length=None) a i v = join a v
+  let get (ask: Q.ask) a i = a
+  let set ?(getValue = (fun x -> None)) ?(length=None) (ask: Q.ask) a i v = join a v
   let make i v = v
   let length _ = None
 
@@ -70,7 +71,7 @@ struct
   (* TODO For set&get we later need to distinguish between must & may equality to see *)
   (* decide whether to apply a least upper bound or not *)
 
-  let get (e, (xl, xm, xr)) i =
+  let get (ask:Q.ask) (e, (xl, xm, xr)) i =
     Messages.report ("Array get@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
     let join_over_all = Val.join (Val.join xl xm) xr in
     if Expp.is_bot e then (if Val.is_bot join_over_all then Val.top () else join_over_all)
@@ -114,7 +115,7 @@ struct
     List.exists (fun x -> x ==v) vars
 
 
-  let set ?(getValue = (fun x -> None)) ?(length=None) (e, (xl, xm, xr)) i a =
+  let set ?(getValue = (fun x -> None)) ?(length=None) (ask:Q.ask) (e, (xl, xm, xr)) i a =
     begin
       Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
       let lub = Val.join a in
@@ -201,8 +202,8 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get (x ,l) i = Base.get x i (* TODO check if in-bounds *)
-  let set ?(getValue = (fun x -> None)) ?(length=None) (x,l) i v = Base.set x i v, l
+  let get (ask: Q.ask) (x ,l) i = Base.get ask x i (* TODO check if in-bounds *)
+  let set ?(getValue = (fun x -> None)) ?(length=None) (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
@@ -220,10 +221,10 @@ struct
   include Lattice.Prod (Base) (Length)
   type idx = ExpDomain.t
   type value = Val.t
-  let get (x,l) i = Base.get x i (* TODO check if in-bounds *)
-  let set ?(getValue = (fun x -> None)) ?(length=None) (x,l) i v =
+  let get ask (x,l) i = Base.get ask x i (* TODO check if in-bounds *)
+  let set ?(getValue = (fun x -> None)) ?(length=None) ask (x,l) i v =
     let new_l = IntDomain.Flattened.to_int l in
-    Base.set ~getValue:getValue ~length:new_l  x i v, l 
+    Base.set ~getValue:getValue ~length:new_l ask x i v, l 
   let make l x = Base.make l x, Length.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
 

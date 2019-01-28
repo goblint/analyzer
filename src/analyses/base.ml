@@ -125,7 +125,7 @@ struct
             CPA.find x st
           end
         in
-        let v = VD.eval_offset (fun x -> get a gs (st,fl) x exp) var offs exp (Some x) in
+        let v = VD.eval_offset a (fun x -> get a gs (st,fl) x exp) var offs exp (Some x) in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
           | `Blob (c, s) -> c
@@ -203,13 +203,13 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) x) nst
+          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) x) nst
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
-        let new_value = VD.update_offset (CPA.find x nst) offs value lval_raw x in
+        let new_value = VD.update_offset a (CPA.find x nst) offs value lval_raw x in
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
@@ -528,7 +528,7 @@ struct
           in
           let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
           M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
-          let v' = VD.eval_offset (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None in (* handle offset *) (* TODO: probably incorrect *)
+          let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None in (* handle offset *) (* TODO: probably incorrect *)
           let v' = do_offs v' ofs in (* handle blessed fields? *)
           v'
         (* Binary operators *)
@@ -1067,7 +1067,7 @@ struct
       | `Union (t,e) -> reachable_from_value e
       (* For arrays, we ask to read from an unknown index, this will cause it
        * join all its values. *)
-      | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (ValueDomain.Expp.top ()))
+      | `Array a -> reachable_from_value (ValueDomain.CArrays.get ask a (ValueDomain.Expp.top ()))
       | `Blob (e,_) -> reachable_from_value e
       | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
       | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
@@ -1109,7 +1109,7 @@ struct
     let invalidate_address st a =
       let t = AD.get_type a in
       let v = get ask gs st a None in (* TODO: None probably wrong*)
-      let nv =  VD.invalidate_value t v in
+      let nv =  VD.invalidate_value ask t v in
       (a, nv)
     in
     (* We define the function that invalidates all the values that an address
@@ -1175,8 +1175,9 @@ struct
     if CPA.is_top st then st else
       let rec replace_val = function
         | `Int _       -> `Top
-        | `Array n     -> `Array (ValueDomain.CArrays.set n (ValueDomain.Expp.top ())
-                                    (replace_val (ValueDomain.CArrays.get n (ValueDomain.Expp.top ()))))
+        | `Array n     -> `Array (ValueDomain.CArrays.set (fun x -> Queries.Result.top ()) n (ValueDomain.Expp.top ())
+                                    (replace_val (ValueDomain.CArrays.get (fun x -> Queries.Result.top ()) n (ValueDomain.Expp.top ()))))
+          (* TODO: Figure out what this does and if it is ok to simply give the query function that says top *)
         | `Struct n    -> `Struct (ValueDomain.Structs.map replace_val n)
         | `Union (f,v) -> `Union (f,replace_val v)
         | `Blob (n,s)  -> `Blob (replace_val n,s)
@@ -1267,7 +1268,7 @@ struct
         | `Address adrs when AD.is_top adrs -> (empty,TS.bot (), true)
         | `Address adrs -> (adrs,TS.bot (), AD.has_unknown adrs)
         | `Union (t,e) -> with_field (reachable_from_value e) t
-        | `Array a -> reachable_from_value (ValueDomain.CArrays.get a (ValueDomain.Expp.top ()))
+        | `Array a -> reachable_from_value (ValueDomain.CArrays.get ctx.ask a (ValueDomain.Expp.top ()))
         | `Blob (e,_) -> reachable_from_value e
         | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
         | `Struct s ->

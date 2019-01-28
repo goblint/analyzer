@@ -7,9 +7,9 @@ sig
   type idx (** The abstract domain used to index on arrays. *)
   type value (** The abstract domain of values stored in the array. *)
 
-  val get: t -> idx -> value
+  val get: Queries.ask -> t -> idx -> value
   (** Returns the element residing at the given index. *)
-  val set: ?getValue:(ExpDomain.t -> IntDomain.Flattened.t option) -> ?length:(int64 option) -> t -> idx -> value -> t
+  val set: ?getValue:(ExpDomain.t -> IntDomain.Flattened.t option) -> ?length:(int64 option) -> Queries.ask -> t -> idx -> value -> t
   (** Returns a new abstract value, where the given index is replaced with the
     * given element. *)
   val make: int -> value -> t

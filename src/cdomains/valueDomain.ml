@@ -8,7 +8,7 @@ module Offs = Lval.Offset (IndexDomain)
 module M = Messages
 module GU = Goblintutil
 module Expp = ExpDomain
-
+module Q = Queries
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 
 
@@ -16,11 +16,11 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: (AD.t -> t) -> t-> offs -> exp option -> varinfo option -> t
-  val update_offset: t -> offs -> t -> exp option -> varinfo -> t
+  val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> varinfo option -> t
+  val update_offset: Q.ask -> t -> offs -> t -> exp option -> varinfo -> t
   val is_array_affected_by: t -> varinfo -> bool
   val move_array: t -> int -> t
-  val invalidate_value: typ -> t -> t
+  val invalidate_value: Q.ask -> typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
 end
@@ -34,7 +34,7 @@ sig
   val make: value -> size -> t
   val value: t -> value
   val size: t -> size
-  val invalidate_value: typ -> t -> t
+  val invalidate_value: Q.ask -> typ -> t -> t
 end
 
 module Blob (Value: S) (Size: IntDomain.S) =
@@ -47,7 +47,7 @@ struct
   let make v s = v, s
   let value = fst
   let size = snd
-  let invalidate_value t (v, s) = Value.invalidate_value t v, s
+  let invalidate_value ask t (v, s) = Value.invalidate_value ask t v, s
 end
 
 module rec Compound: S with type t = [
@@ -461,35 +461,35 @@ struct
     | TNamed ({ttype=t}, _) -> top_value t
     | _ -> `Top
 
-  let rec invalidate_value typ (state:t) : t =
+  let rec invalidate_value (ask:Q.ask) typ (state:t) : t =
     let typ = unrollType typ in
     let rec invalid_struct compinfo old =
       let nstruct = Structs.top () in
       let top_field nstruct fd =
-        Structs.replace nstruct fd (invalidate_value fd.ftype (Structs.get old fd))
+        Structs.replace nstruct fd (invalidate_value ask fd.ftype (Structs.get old fd))
       in
       List.fold_left top_field nstruct compinfo.cfields
     in
     match typ, state with
     |                 _ , `Address n    -> `Address (AD.join AD.top_ptr n)
     | TComp (ci,_)  , `Struct n     -> `Struct (invalid_struct ci n)
-    |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value voidType x) n)
-    | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value fd.ftype n)
+    |                 _ , `Struct n     -> `Struct (Structs.map (fun x -> invalidate_value ask voidType x) n)
+    | TComp (ci,_)  , `Union (`Lifted fd,n) -> `Union (`Lifted fd, invalidate_value ask fd.ftype n)
     | TArray (t,_,_), `Array n      ->
-      let v = invalidate_value t (CArrays.get n (ArrIdxDomain.top ())) in
-      `Array (CArrays.set n (ArrIdxDomain.top ()) v)
+      let v = invalidate_value ask t (CArrays.get ask n (ArrIdxDomain.top ())) in
+      `Array (CArrays.set ask n (ArrIdxDomain.top ()) v)
     |                 _ , `Array n      ->
-      let v = invalidate_value voidType (CArrays.get n (ArrIdxDomain.top ())) in
-      `Array (CArrays.set n (ArrIdxDomain.top ()) v)
-    |                 t , `Blob n       -> `Blob (Blobs.invalidate_value t n)
+      let v = invalidate_value ask voidType (CArrays.get ask n (ArrIdxDomain.top ())) in
+      `Array (CArrays.set ask n (ArrIdxDomain.top ()) v)
+    |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
     |                 _ , `List n       -> `Top
     |                 t , _             -> top_value t
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset f (x: t) (offs:offs) (exp:exp option) (v:varinfo option): t =
+  let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:varinfo option): t =
     match x, offs with
-    | `Blob c, `Index (_,o) -> eval_offset f (Blobs.value c) o exp v
-    | `Blob c, `Field _ -> eval_offset f (Blobs.value c) offs exp v
+    | `Blob c, `Index (_,o) -> eval_offset ask f (Blobs.value c) o exp v
+    | `Blob c, `Field _ -> eval_offset ask f (Blobs.value c) offs exp v
     | `Blob c, `NoOffset -> `Blob c
     | `Bot, _ -> `Bot
     | _ ->
@@ -507,7 +507,7 @@ struct
             end
           | `Struct str ->
             let x = Structs.get str fld in
-            eval_offset f x offs exp v
+            eval_offset ask f x offs exp v
           | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
           | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
         end
@@ -515,7 +515,7 @@ struct
           match x with
           | `Union (`Lifted l_fld, valu) ->
             let x = cast ~torg:l_fld.ftype fld.ftype valu in
-            eval_offset f x offs exp v
+            eval_offset ask f x offs exp v
           | `Union (_, valu) -> top ()
           | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
           | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
@@ -553,22 +553,22 @@ struct
                   M.warn "There is something fishy going on in eval_offset with an array access (TOP)" ;
                   Expp.top ()
                 end in
-            eval_offset f (CArrays.get x e) offs exp v
+            eval_offset ask f (CArrays.get ask x e) offs exp v
           | `Address _ -> 
             begin  
-              eval_offset f x offs exp v (* this used to be `blob `address -> we ignore the index *)
+              eval_offset ask f x offs exp v (* this used to be `blob `address -> we ignore the index *)
               (* TODO: This seems like a good place to pop in the pointer related stuff *)
             end
-          | x when IndexDomain.to_int idx = Some 0L -> eval_offset f x offs exp v
+          | x when IndexDomain.to_int idx = Some 0L -> eval_offset ask f x offs exp v
           | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
           | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
         end
 
-  let rec update_offset (x:t) (offs:offs) (value:t) (exp:exp option) (v:varinfo): t =
+  let rec update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:varinfo): t =
     let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
     match x, offs with
-    | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset x o value exp v), s))
-    | `Blob (x,s),_ -> mu (`Blob (join x (update_offset x offs value exp v), s))
+    | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset ask x o value exp v), s))
+    | `Blob (x,s),_ -> mu (`Blob (join x (update_offset ask x offs value exp v), s))
     | _ ->
       let result =
         match offs with
@@ -579,7 +579,7 @@ struct
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
             match x with
-            | `Struct str -> `Struct (Structs.replace str fld (update_offset (Structs.get str fld) offs value exp v))
+            | `Struct str -> `Struct (Structs.replace str fld (update_offset ask (Structs.get str fld) offs value exp v))
             | `Bot ->
               let rec init_comp compinfo =
                 let nstruct = Structs.top () in
@@ -587,7 +587,7 @@ struct
                 List.fold_left init_field nstruct compinfo.cfields
               in
               let strc = init_comp fld.fcomp in
-              `Struct (Structs.replace strc fld (update_offset `Bot offs value exp v))
+              `Struct (Structs.replace strc fld (update_offset ask `Bot offs value exp v))
             | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
             | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
           end
@@ -610,8 +610,8 @@ struct
                     top (), offs
                 end
               in
-              `Union (`Lifted fld, update_offset tempval tempoffs value exp v)
-            | `Bot -> `Union (`Lifted fld, update_offset `Bot offs value exp v)
+              `Union (`Lifted fld, update_offset ask tempval tempoffs value exp v)
+            | `Bot -> `Union (`Lifted fld, update_offset ask `Bot offs value exp v)
             | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
           end
@@ -636,7 +636,7 @@ struct
                     `Lifted exp
                   end
                 | None -> Expp.top () in
-              let new_value_at_index = update_offset (CArrays.get x' e) offs value exp v in
+              let new_value_at_index = update_offset ask (CArrays.get ask x' e) offs value exp v in
               let get_value x = match x with
                 | _ when x == e ->
                   begin
@@ -646,10 +646,10 @@ struct
                   end
                 | _ -> None
               in
-              let new_array_value = CArrays.set x' e new_value_at_index  ~getValue:(get_value) in
+              let new_array_value = CArrays.set ask x' e new_value_at_index  ~getValue:(get_value) in
               `Array new_array_value
-            | x when IndexDomain.to_int idx = Some 0L -> update_offset x offs value exp v
-            | `Bot -> `Array (CArrays.make 42 (update_offset `Bot offs value exp v)) (* TODO: why 42? *)
+            | x when IndexDomain.to_int idx = Some 0L -> update_offset ask x offs value exp v
+            | `Bot -> `Array (CArrays.make 42 (update_offset ask `Bot offs value exp v)) (* TODO: why 42? *)
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
