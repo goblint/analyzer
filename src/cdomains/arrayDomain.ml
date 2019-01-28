@@ -78,9 +78,19 @@ struct
     (* When the array is not partitioned, and all segments are \bot, we return \top.
     TODO: Check how that works with the case in which we want to get rid of the expression when we are at the end.
     Should not really cause any issues since in those cases the rest of the values would not be \bot *)
-    else if Expp.equal e i then xm
-    (* TODO: else if all the other ways in which e and i might relate *)
-    else join_over_all (* The case in which we don't know anything *)
+    else
+      match e, i with
+        | `Lifted e', `Lifted i' ->
+          begin
+            let isEqual = match ask (Q.MustBeEqual (e',i')) with
+              | `Bool x when x == true -> true
+              | _ -> false in
+            if isEqual then xm
+            (* TODO: else if all the other ways in which e and i might relate *)
+            else join_over_all
+          end
+        | _ -> join_over_all (* The case in which we don't know anything *)
+
 
   let get_e (e, _) = Some e (* TODO:This looks like it should really not be here,
                                we should probably do all that internally *)
