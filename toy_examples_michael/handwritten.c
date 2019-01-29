@@ -10,6 +10,7 @@ int main(void) {
   example8();
   example9();
   example10();
+  example11();
 }
 
 // Simple example
@@ -157,5 +158,13 @@ void example10(void) {
       a[i] = 0;
       i++;
     }
+  }
+}
+
+// Example where initialization proceeds backwards
+void example11(void) {
+  int a[42];
+  for(int j=41; j >= 0; j--) {
+    a[j] = 0;
   }
 }
