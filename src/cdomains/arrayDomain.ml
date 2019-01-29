@@ -195,10 +195,10 @@ struct
     | 0   -> (e, (xl, xm, xr))
     | 1   -> Messages.report ("moved - old was "^(short 20 (e, (xl, xm, xr)))^" , new is "^(short 20 (e, (Val.join xl xm, xr, xr)))^"\n") ; (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
     | -1  -> (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
-    | _ when i > 1
-      -> (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)
-    | _ when i < -1
-      -> (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
+  (*  | _ when i > 1 *)
+  (*    -> (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *) *)
+  (*  | _ when i < -1 *)
+  (*    -> (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *) *)
     | _ -> top()
 
   let set_inplace = set

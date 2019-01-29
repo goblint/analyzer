@@ -165,7 +165,7 @@ struct
 
 
   (** [set st addr val] returns a state where [addr] is set to [val] *)
-  let set a ?(effect=true) ?(change_array=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value) (lval_raw:lval option): store =
+  let set a ?(effect=true) ?(change_array=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value) (lval_raw:lval option) (rval_raw: exp option): store =
     let update_variable x y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x y z in (* refers to defintion that is outside of set *)
@@ -239,7 +239,20 @@ struct
         in
         let effect_on_array arr st =
           let v = CPA.find arr st in
-          let nval = VD.move_array v 1 in
+          let nval = match lval_raw, rval_raw with
+          | Some l', Some r' ->
+              begin
+                let lPlusOne = BinOp (PlusA, l', Cil.integer 1, Cil.intType) in 
+                match a (Q.MustBeEqual (lPlusOne, r' )) with
+                | `Bool t ->
+                  begin
+                    match Q.BD.to_bool t with
+                    | Some t' when t' == true -> Printf.printf "eek-baba-durkel\n \n"; VD.move_array v 1
+                    | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42)
+                  end
+                | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42)
+              end
+          | _,_ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42) in
           (* TODO  x = how does e behave compared to e'       *)
           (*     move array partitioning according to x       *)
           (M.warn ("effect on "^arr.vname); update_variable arr nval st)
@@ -289,7 +302,7 @@ struct
   let set_many a (gs:glob_fun) (st,fl as store: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(value:value)): store =
-      set a gs acc lval value None (* TODO: This is most likely wrong *)
+      set a gs acc lval value None None (* TODO: This is most likely wrong *)
     in
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f store lval_value_list
@@ -846,17 +859,17 @@ struct
           raise Analyses.Deadcode
         )
         else if VD.is_bot new_val
-        then set a gs st addr value None ~effect:false ~change_array:false (* TODO: Putting None here is most likely wrong *)
-        else set a gs st addr new_val None  ~effect:false ~change_array:false  (* TODO: Putting None here is most likely wrong *)
+        then set a gs st addr value None None ~effect:false ~change_array:false (* TODO: Putting None here is most likely wrong *)
+        else set a gs st addr new_val None None ~effect:false ~change_array:false  (* TODO: Putting None here is most likely wrong *)
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");
       st
 
-  let set_savetop ask (gs:glob_fun) st adr v lval :store =
+  let set_savetop ask (gs:glob_fun) st adr v lval rval:store =
     match v with
-    | `Top -> set ask gs st adr (top_value ask gs st (AD.get_type adr)) lval
-    | v -> set ask gs st adr v lval
+    | `Top -> set ask gs st adr (top_value ask gs st (AD.get_type adr)) lval rval
+    | v -> set ask gs st adr v lval rval
 
 
   (**************************************************************************
@@ -917,6 +930,7 @@ struct
           (AD.singleton (Addr.from_var a))
           (`List (ValueDomain.Lists.bot ()))
           None (* TODO: None most likely wrong *)
+          None (* TODO: None most likely wrong *)
       end
     | _ ->
       let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
@@ -940,7 +954,7 @@ struct
           List.iter (fun x -> ctx.spawn x (threadstate x)) funs
         | _ -> ()
       end;
-      set_savetop ctx.ask ctx.global ctx.local lval_val rval_val (Some lval) (* Idea: Carry lval here *)
+      set_savetop ctx.ask ctx.global ctx.local lval_val rval_val (Some lval) (Some rval) (* Idea: Carry lval and rval here *)
 
   module Locmap = Deadcode.Locmap
 
@@ -1015,7 +1029,7 @@ struct
     | _ -> let nst = rem_many ctx.local (fundec.sformals @ fundec.slocals) in
       match exp with
       | None -> nst
-      | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp) None (* TODO: None most likely wrong *)
+      | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp) None None(* TODO: None most likely wrong *)
 
 
   (**************************************************************************
@@ -1595,10 +1609,10 @@ struct
               let eadr = AD.singleton (Addr.from_var elm) in
               let eitemadr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
               let new_list = `List (ValueDomain.Lists.add eadr ld) in
-              let s1 = set ctx.ask ctx.global ctx.local ladr new_list None (* TODO: None most likely wrong *) in
-              let s2 = set ctx.ask ctx.global s1 eitemadr (`Address (AD.singleton (Addr.from_var lst))) None (* most likely wrong *) in
+              let s1 = set ctx.ask ctx.global ctx.local ladr new_list None None (* TODO: None most likely wrong *) in
+              let s2 = set ctx.ask ctx.global s1 eitemadr (`Address (AD.singleton (Addr.from_var lst))) None None (* most likely wrong *) in
               s2
-            | _ -> set ctx.ask ctx.global ctx.local ladr `Top  None (* TODO: None most likely wrong *)
+            | _ -> set ctx.ask ctx.global ctx.local ladr `Top  None None (* TODO: None most likely wrong *)
           end
         | _ -> M.bailwith "List function arguments are strange/complicated."
       end
@@ -1610,13 +1624,13 @@ struct
             let lptr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
             let lprt_val = get ctx.ask ctx.global ctx.local lptr None in (* TODO: None probably wrong*)
             let lst_poison = `Address (AD.singleton (Addr.from_var ListDomain.list_poison)) in
-            let s1 = set ctx.ask ctx.global ctx.local lptr (VD.join lprt_val lst_poison)  None (* most likely wrong *) in
-            match get ctx.ask ctx.global ctx.local lptr  None (* TODO: None probably wrong*) with
+            let s1 = set ctx.ask ctx.global ctx.local lptr (VD.join lprt_val lst_poison)  None None (* most likely wrong *) in
+            match get ctx.ask ctx.global ctx.local lptr  None(* TODO: None probably wrong*) with
             | `Address ladr -> begin
                 match get ctx.ask ctx.global ctx.local ladr  None (* TODO: None probably wrong*) with
                 | `List ld ->
                   let del_ls = ValueDomain.Lists.del eadr ld in
-                  let s2 = set ctx.ask ctx.global s1 ladr (`List del_ls)  None (* TODO: most likely wrong *) in
+                  let s2 = set ctx.ask ctx.global s1 ladr (`List del_ls)  None None (* TODO: most likely wrong *) in
                   s2
                 | _ -> s1
               end
@@ -1687,7 +1701,7 @@ struct
     | `Unknown "__goblint_unknown" ->
       begin match args with
         | [Lval lv] | [CastE (_,AddrOf lv)] ->
-          let st = set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global st lv) `Top None (* TODO: most likely wrong *) in
+          let st = set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global st lv) `Top None None (* TODO: most likely wrong *) in
           st
         | _ ->
           M.bailwith "Function __goblint_unknown expected one address-of argument."
@@ -1742,7 +1756,7 @@ struct
             invalidate ctx.ask gs st [mkAddrOrStartOf x]
         in
         (* apply all registered abstract effects from other analysis on the base value domain *)
-        List.map (fun f -> f (fun lv -> (fun x -> set ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) x None  (* TODO: None most likely wrong *)))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
+        List.map (fun f -> f (fun lv -> (fun x -> set ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) x None None (* TODO: None most likely wrong *)))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
       end
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: D.t) : D.t =
@@ -1767,7 +1781,7 @@ struct
       let st = add_globals (fun_st,fun_fl) st in
       match lval with
       | None      -> st
-      | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val None (* TODO: Why None here? *)
+      | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val None None(* TODO: Why None here? *)
     in
     combine_one ctx.local after
 

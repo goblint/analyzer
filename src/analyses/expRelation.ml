@@ -18,6 +18,7 @@ struct
   match q with
   | Queries.MustBeEqual (e1, e2) ->
       begin
+        Printf.printf "---------------------->   test %s \n" (ExpDomain.short 20 (`Lifted e1));
         `Bool (Expcompare.compareExp e1 e2)
       end
   | _ -> Queries.Result.top ()
