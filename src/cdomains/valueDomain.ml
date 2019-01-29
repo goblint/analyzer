@@ -19,7 +19,7 @@ sig
   val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> varinfo option -> t
   val update_offset: Q.ask -> t -> offs -> t -> exp option -> varinfo -> t
   val is_array_affected_by: t -> varinfo -> bool
-  val move_array: t -> int -> t
+  val move_array: t -> int option -> t
   val invalidate_value: Q.ask -> typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
@@ -652,7 +652,7 @@ struct
     | `Bot -> false (* not a problem, simply not initialized yet *)
     | _ -> M.warn "our map for affected arrays somehow contains a non-array value"; false
 
-  let move_array (x:t) (i:int) =
+  let move_array (x:t) (i:int option) =
     match x with
     | `Array x' ->
       (`Array (CArrays.move x' i))

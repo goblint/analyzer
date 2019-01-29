@@ -25,7 +25,7 @@ sig
   val is_affected_by: t -> Cil.varinfo -> bool
   (** returns whether assigning a new value to the var will change the way the
   array is partitioned **)
-  val move: t -> int -> t
+  val move: t -> int option -> t
   (** moves the way in which the array is partitioned **)
 end
 

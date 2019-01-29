@@ -20,7 +20,7 @@ sig
   val get_e: t -> idx option
   val get_vars_in_e: t -> Cil.varinfo list
   val is_affected_by: t -> Cil.varinfo -> bool
-  val move: t -> int -> t
+  val move: t -> int option -> t
 end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
@@ -174,15 +174,15 @@ struct
 
   let length _ = None
 
-  let move (e, (xl, xm, xr)) (i:int) =     (* Under the assumption that we always get exact information about how much it moved *)
+  let move (e, (xl, xm, xr)) (i:int option) =     (* Under the assumption that we always get exact information about how much it moved *)
     match i with
-    | 0   -> (e, (xl, xm, xr))
-    | 1   -> Messages.report ("moved - old was "^(short 20 (e, (xl, xm, xr)))^" , new is "^(short 20 (e, (Val.join xl xm, xr, xr)))^"\n") ; (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
-    | -1  -> (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
-  (*  | _ when i > 1 *)
-  (*    -> (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *) *)
-  (*  | _ when i < -1 *)
-  (*    -> (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *) *)
+    | Some 0   -> (e, (xl, xm, xr))
+    | Some 1   -> Messages.report ("moved - old was "^(short 20 (e, (xl, xm, xr)))^" , new is "^(short 20 (e, (Val.join xl xm, xr, xr)))^"\n") ; (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
+    | Some -1  -> (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
+    | Some x when x > 1
+      -> (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)
+    | Some x when x < -1
+      -> (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
     | _ -> top()
 
   let set_inplace = set

@@ -250,11 +250,11 @@ struct
         let move_value l' r' currentE' =
           let newE = Basetype.CilExp.replace l' r' currentE' in
           let currentEPlusOne = BinOp (PlusA, currentE', Cil.integer 1, Cil.intType) in 
-          if are_equal newE currentEPlusOne then 1 else
+          if are_equal newE currentEPlusOne then Some 1 else
             begin
               let currentEMinusOne = BinOp (MinusA, currentE', Cil.integer 1, Cil.intType) in
-              if are_equal newE currentEMinusOne then -1 else
-             (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; 42)
+              if are_equal newE currentEMinusOne then Some (-1) else
+             (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; None)
             end
         in
         let effect_on_array arr st =
@@ -268,9 +268,9 @@ struct
                   begin
                     VD.move_array v (move_value l' r' currentE')
                   end
-              | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42)
+              | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v None)
             end
-          | _,_  ,  _-> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42) in
+          | _,_  ,  _-> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v None) in
           (M.warn ("effect on "^arr.vname); update_variable arr nval st)
         in
         let rec effect_on_arrays arrs st =
