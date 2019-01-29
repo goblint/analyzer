@@ -95,34 +95,18 @@ struct
   let get_e (e, _) = Some e (* TODO:This looks like it should really not be here,
                                we should probably do all that internally *)
 
-
-  (* TODO: both possibilities to use as underlying element here have support for pulling this in  *)
-  let get_vars_in_e (e, _) = (* TODO: Maybe move this inward even further by putting it in ExprDomain *)
-    let rec varsInExp exp = match exp with
-      | Const _
-      | SizeOf _
-      | SizeOfE _
-      | AlignOfE _
-      | AddrOfLabel _
-      | SizeOfStr _
-      | AlignOf _
-      | Question _ (* TODO is this correct? *)
-      | AddrOf _
-      | StartOf _ -> []
-      | UnOp (_, e, _ )
-      | CastE (_, e) -> varsInExp e
-      | BinOp (_, e1, e2, _) -> (varsInExp e1)@(varsInExp e2)
-      | Lval (Var v, _) -> [v]
-      | Lval (Mem _,_) -> [] in
+  let get_vars_in_e (e, _) =
     match e with
     | `Top
     | `Bot -> []
-    | `Lifted exp -> varsInExp exp
+    | `Lifted exp -> Basetype.CilExp.get_vars exp
 
 
   let is_affected_by (e, (xl,xm,xr)) v =
-    let vars = get_vars_in_e (e, (xl,xm,xr)) in
-    List.exists (fun x -> x ==v) vars
+    match e with
+    | `Top
+    | `Bot -> false
+    | `Lifted exp -> Basetype.CilExp.occurs v exp
 
 
   let set ?(length=None) (ask:Q.ask) (e, (xl, xm, xr)) i a =

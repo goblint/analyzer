@@ -245,6 +245,24 @@ struct
     in
     constFold true (replace_rv e)
 
+  (* get a list of varinfo in the expression *)
+  let rec get_vars e = match e with
+    | Const _
+    | SizeOf _
+    | SizeOfE _
+    | AlignOfE _
+    | AddrOfLabel _
+    | SizeOfStr _
+    | AlignOf _
+    | Question _ (* TODO is this correct? *)
+    | AddrOf _
+    | StartOf _ -> []
+    | UnOp (_, e, _ )
+    | CastE (_, e) -> get_vars e
+    | BinOp (_, e1, e2, _) -> (get_vars e1)@(get_vars e2)
+    | Lval (Var v, _) -> [v]
+    | Lval (Mem _,_) -> []
+
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 80 x))
 end
