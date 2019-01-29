@@ -240,20 +240,26 @@ struct
         let effect_on_array arr st =
           let v = CPA.find arr st in
           let nval = match lval_raw, rval_raw with
-          | Some l', Some r' ->
+          | Some (Lval(Var l',_)), Some r' ->
               begin
                 match v with
                 | `Array v' ->
                     begin
                       let currentE = CArrays.get_e v' in
-                      let lPlusOne = BinOp (PlusA, l', Cil.integer 1, Cil.intType) in 
-                      match a (Q.MustBeEqual (lPlusOne, r' )) with
-                      | `Bool t ->
-                        begin
-                          match Q.BD.to_bool t with
-                          | Some t' when t' == true -> Printf.printf "eek-baba-durkel\n \n"; VD.move_array v 1
-                          | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42)
-                        end
+                      match currentE with
+                      | Some (`Lifted currentE') ->
+                          begin
+                            let newE = Basetype.CilExp.replace l' r' currentE' in
+                            let currentEPlusOne = BinOp (PlusA, currentE', Cil.integer 1, Cil.intType) in 
+                            match a (Q.MustBeEqual (newE, currentEPlusOne)) with
+                            | `Bool t ->
+                              begin
+                                match Q.BD.to_bool t with
+                                | Some t' when t' == true -> Printf.printf "eek-baba-durkel\n \n"; VD.move_array v 1
+                                | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42)
+                              end
+                            | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42)
+                          end
                       | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42)
                     end
                 | _ -> (Messages.warn "Thing actually was not an array?!";  VD.move_array v 42)
