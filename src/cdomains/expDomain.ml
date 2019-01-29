@@ -1,1 +1,1 @@
-include Lattice.Flat (Exp.Exp) (struct let bot_name = "Bot" let top_name = "Top" end)
+include Lattice.Flat (Basetype.CilExp) (struct let bot_name = "Bot" let top_name = "Top" end)

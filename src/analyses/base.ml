@@ -242,15 +242,21 @@ struct
           let nval = match lval_raw, rval_raw with
           | Some l', Some r' ->
               begin
-                let lPlusOne = BinOp (PlusA, l', Cil.integer 1, Cil.intType) in 
-                match a (Q.MustBeEqual (lPlusOne, r' )) with
-                | `Bool t ->
-                  begin
-                    match Q.BD.to_bool t with
-                    | Some t' when t' == true -> Printf.printf "eek-baba-durkel\n \n"; VD.move_array v 1
-                    | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42)
-                  end
-                | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42)
+                match v with
+                | `Array v' ->
+                    begin
+                      let currentE = CArrays.get_e v' in
+                      let lPlusOne = BinOp (PlusA, l', Cil.integer 1, Cil.intType) in 
+                      match a (Q.MustBeEqual (lPlusOne, r' )) with
+                      | `Bool t ->
+                        begin
+                          match Q.BD.to_bool t with
+                          | Some t' when t' == true -> Printf.printf "eek-baba-durkel\n \n"; VD.move_array v 1
+                          | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42)
+                        end
+                      | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42)
+                    end
+                | _ -> (Messages.warn "Thing actually was not an array?!";  VD.move_array v 42)
               end
           | _,_ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v 42) in
           (* TODO  x = how does e behave compared to e'       *)
