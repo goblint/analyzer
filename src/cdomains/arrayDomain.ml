@@ -180,10 +180,12 @@ struct
     else
       (new_e, (Val.join xl1 xl2, Val.join xm1 xm2, Val.join xr1 xr2))
 
-  let make i v = (Expp.bot(), (Val.bot(), v, Val.bot()))
+  let make i v =
+    if Val.is_bot v then (Expp.bot(), (Val.bot(), Val.top(), Val.bot()))
+    else  (Expp.bot(), (Val.bot(), v, Val.bot()))
   (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
-  (* TODO: It would also seem we need to provide the expression that we are suing to split it here *)
-  (* TODO: WTF is going on here? This better be only called with v = \bot *)
+  (* TODO: What about the cases where this is called with v != \bot, are we still sound in those *)
+      (* TODO: Do we need to provide the expression that we are using to split it here *)
   (* TODO: Interaction with get and the catch all *)
 
   let length _ = None
