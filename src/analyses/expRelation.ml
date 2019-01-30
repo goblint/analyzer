@@ -13,13 +13,23 @@ struct
 
   let name = "expRelation"
 
+  let rec canonize (e:exp) =
+    match e with
+      | BinOp (MinusA, BinOp(PlusA, e1, e2, typ1), e3, typ2)  when typ1 == typ2 -> (* (e1+e2)-e3 --> (e1-e3)+e2 *)
+        begin
+            let ce1 = canonize e1 in
+            let ce2 = canonize e2 in
+            let ce3 = canonize e3 in
+            BinOp(PlusA, BinOp(MinusA, ce1, ce3, typ1), ce2, typ2)
+        end
+      | x -> x
 
   let query ctx (q:Queries.t) : Queries.Result.t =
   match q with
   | Queries.MustBeEqual (e1, e2) ->
       begin
         Printf.printf "---------------------->   comparing %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2));
-        `Bool (Expcompare.compareExp e1 e2)
+        `Bool (Expcompare.compareExp (canonize e1) (canonize e2))
       end
   | _ -> Queries.Result.top ()
 
