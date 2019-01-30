@@ -1,6 +1,6 @@
 int main(void) {
   simple();
-
+  simple2();
 /**
   int i = 0;
   int a;
@@ -41,6 +41,13 @@ int main(void) {
 
   int x = array1[i] + 7;
   int y = array1[0]; **/
+}
+
+void simple2(void) {
+  int array1[5];
+  int *ptr = &(array1[4]);
+
+  *ptr = 42;
 }
 
 void simple(void) {
