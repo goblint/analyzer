@@ -58,7 +58,9 @@ void simple(void) {
   int v = *ptr;
 
   ptr++;
+  *ptr = 6;
   ptr++;
+  *ptr = 7;
 
   int j = &array1-ptr;
   int k = ptr-&array1;
