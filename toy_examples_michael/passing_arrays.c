@@ -48,6 +48,10 @@ void simple2(void) {
   int *ptr = &(array1[4]);
 
   *ptr = 42;
+  ptr--;
+  *ptr=41;
+  ptr--;
+  *ptr=40;
 }
 
 void simple(void) {
