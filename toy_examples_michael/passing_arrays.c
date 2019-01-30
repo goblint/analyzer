@@ -50,7 +50,13 @@ void simple(void) {
   *ptr = 5;
   int v = *ptr;
 
+  ptr++;
+  ptr++;
+
   int j = &array1-ptr;
+  int k = ptr-&array1;
+  int l = ptr-array1;
+  int m = array1-ptr;
 }
 
 int sth(int* ptr, int length) {
