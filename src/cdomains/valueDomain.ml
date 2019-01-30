@@ -557,7 +557,6 @@ struct
           | `Address _ -> 
             begin  
               eval_offset ask f x offs exp v (* this used to be `blob `address -> we ignore the index *)
-              (* TODO: This seems like a good place to pop in the pointer related stuff *)
             end
           | x when IndexDomain.to_int idx = Some 0L -> eval_offset ask f x offs exp v
           | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()

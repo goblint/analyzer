@@ -1,4 +1,7 @@
 int main(void) {
+  simple();
+
+/**
   int i = 0;
   int a;
   int array1[10000000];
@@ -37,7 +40,17 @@ int main(void) {
   a = 5;
 
   int x = array1[i] + 7;
-  int y = array1[0];
+  int y = array1[0]; **/
+}
+
+void simple(void) {
+  int array1[100];
+  int* ptr = &array1;
+  
+  *ptr = 5;
+  int v = *ptr;
+
+  int j = &array1-ptr;
 }
 
 int sth(int* ptr, int length) {

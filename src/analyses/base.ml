@@ -440,7 +440,13 @@ struct
         let eq x y = if AD.is_definite x && AD.is_definite y then Some (AD.Addr.equal (AD.choose x) (AD.choose y)) else None in
         match op with
         (* TODO use ID.of_incl_list [0; 1] for all comparisons *)
-        | MinusPP -> `Int (ID.top ())
+        | MinusPP ->
+          (* when subtracting pointers to arrays, per 6.5.6 of C-standard if we substract two pointers to the same array, the difference between them is the difference is subscript *)
+          begin
+            match eq p1 p2 with 
+            | Some x when x -> Printf.printf "---------------------> we subtracted pointers and got not top from it\n"; `Int (ID.of_int 0L)
+            | _ -> Printf.printf "---------------------> we subtracted pointers and got top from it\n"; `Int (ID.top ())
+          end
         | Eq -> `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int 0L else match eq p1 p2 with Some x when x -> ID.of_int 1L | _ -> bool_top ())
         | Ne -> `Int (if AD.is_bot (AD.meet p1 p2) then ID.of_int 1L else match eq p1 p2 with Some x when x -> ID.of_int 0L | _ -> bool_top ())
         | _ -> VD.top ()
@@ -1342,7 +1348,7 @@ struct
         match eval_rv ctx.ask ctx.global ctx.local e with
         | `Int i when ID.is_int i -> `Int (Option.get (ID.to_int i))
         | `Bot   -> `Bot
-        | _      -> `Top
+        | v      -> M.warn ("Query function answered " ^ (VD.short 20 v)); `Top
       end
     | Q.EvalLength e -> begin
         match eval_rv ctx.ask ctx.global ctx.local e with
