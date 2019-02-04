@@ -22,16 +22,17 @@ module WP =
 
     type phase = Widen | Narrow
 
+    let solve_count = ref 0
 
-    let solve box st vs =
+    let solve box st vs infl rho =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
 
       let stable = HM.create  10 in
-      let infl   = HM.create  10 in (* y -> xs *)
+(*       let infl   = HM.create  10 in (* y -> xs *) *)
       let called = HM.create  10 in
-      let rho    = HM.create  10 in
+(*       let rho    = HM.create  10 in*)
       let wpoint = HM.create  10 in
       let cache_sizes = ref [] in
 
@@ -45,6 +46,7 @@ module WP =
         HM.replace infl x VS.empty;
         VS.iter (fun y -> HM.remove stable y; if not (HM.mem called y) then destabilize y) w
       and solve x phase =
+        solve_count := !solve_count + 1;
         if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
         init x;
         assert (S.system x <> None);
@@ -242,7 +244,17 @@ module WP =
       HM.clear stable;
       HM.clear infl  ;
 
-      rho
+      (infl, rho)
+
+      let solve box st vs =
+        let infl   = HM.create  10 in (* y -> xs *)
+        let rho    = HM.create  10 in
+        let  (infl, rho) = solve box st vs infl rho in
+        print_endline "Called solve :";
+        print_int !solve_count;
+        print_endline " times";
+        rho
+
 
   end
 
