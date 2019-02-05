@@ -24,17 +24,17 @@ module WP =
 
     let solve_count = ref 0
 
-    let solve box st vs infl rho =
+    let solve box st vs infl rho called wpoint =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
 
       let stable = HM.create  10 in
 (*       let infl   = HM.create  10 in (* y -> xs *) *)
-      let called = HM.create  10 in
-(*       let rho    = HM.create  10 in*)
-      let wpoint = HM.create  10 in
-      let cache_sizes = ref [] in
+(*       let called = HM.create  10 in
+ *)(*       let rho    = HM.create  10 in*)
+(*       let wpoint = HM.create  10 in
+ *)      let cache_sizes = ref [] in
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
@@ -241,18 +241,56 @@ module WP =
 
       stop_event ();
 
+(*       HM.iter (fun key vl ->  (print_int (S.Var.line_nr key); print_string " "; print_string (S.Var.file_name key); print_string ((S.Var.var_id key)^ " "));  print_newline ()) rho;
+ *)      let sum = HM.fold (fun key vl acc -> acc +1 ) rho 0 in
+      print_string "Number of elemnts in rho: ";
+      print_int sum;
+      print_newline ();
       HM.clear stable;
-      HM.clear infl  ;
-
-      (infl, rho)
+(*       HM.clear infl  ;
+ *)
+      (infl, rho, called, wpoint)
 
       let solve box st vs =
         let infl   = HM.create  10 in (* y -> xs *)
         let rho    = HM.create  10 in
-        let  (infl, rho) = solve box st vs infl rho in
+        let called = HM.create 10 in
+        let wpoint = HM.create 10 in
+
+(* 
+         *)
+        let  (infl1, rho1, called1, wpoint1) = solve box st vs infl rho called wpoint in
+
+        let (infl, rho, called, wpoint) =  if Sys.file_exists "/" 
+                                            then Serialize.unmarshall "res.data"
+                                            else (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
+        let  (infl, rho, called, wpoint) = solve box st vs infl rho called wpoint in
+        Serialize.marshall (infl1, rho1, called1, wpoint1) "res.data";
+
+        let i = 123 in
+        let rho_keys = HM.fold (fun key vl acc -> List.cons key acc) infl [] in
+        let rho_vals = HM.fold (fun key vl acc -> List.cons vl acc) rho [] in
+        (*if Sys.file_exists "rho_keys.data" then (
+          let old_keys = Serialize.unmarshall "rho_keys.data" in 
+          let res = List.for_all (fun (a,b) -> S.Var.equal a b) (List.combine rho_keys old_keys) in
+          print_string "Equal: ";
+          print_endline (if res then "true" else "false");
+        );
+        if Sys.file_exists "rho_vals.data" then (
+          let old_vals = Serialize.unmarshall "rho_vals.data" in 
+          let res = List.for_all (fun (a,b) -> S.Dom.equal a b) (List.combine rho_vals old_vals) in
+          print_string "Equal: ";
+          print_endline (if res then "true" else "false");
+        );*)
+        print_int i;
+
+        Serialize.marshall rho_keys "rho_keys.data";
+        Serialize.marshall rho_vals "rho_vals.data";
+
         print_endline "Called solve :";
         print_int !solve_count;
         print_endline " times";
+        print_newline ();
         rho
 
 
