@@ -107,7 +107,7 @@ struct
     | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.vid*19)
     | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.vid*23) *)
 
-  let equal (n1,d1) (n2,d2) = MyCFG.Node.equal n1 n2 (* && LD.equal d1 d2 *)
+  let equal (n1,d1) (n2,d2) = MyCFG.Node.equal n1 n2 && LD.equal d1 d2
 
   let getLocation (n,d) = MyCFG.getLoc n
 
