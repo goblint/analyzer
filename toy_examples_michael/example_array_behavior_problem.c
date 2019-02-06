@@ -16,7 +16,7 @@ int main(void) {
   // after this, it is incorrect to have
   //    array1: part by ptr-array1 (\bot, 5, \top)
   //    array2: part by ptr-array2 (\bot, 5, \top)
-  // sth taht would be correct is e.g.
+  // sth that would be correct is e.g.
   //    array1: part by ptr-array1 (\bot, \top, \top)
   //    array2: part by ptr-array2 (\bot, \top, \top)  
 }

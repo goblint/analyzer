@@ -70,6 +70,11 @@ void simple(void) {
   int k = ptr-&array1;
   int l = ptr-array1;
   int m = array1-ptr;
+
+  int* np = &array1;
+  np++;
+  np++;
+  int x = *np;
 }
 
 int sth(int* ptr, int length) {
