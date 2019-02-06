@@ -46,7 +46,9 @@ type t = ExpEq of exp * exp
        | CondVars of exp
        | Access of exp * bool * bool * int
        | InInterval of exp * IntDomain.Interval32.t
-       | MustBeEqual of exp * exp
+       | MustBeEqual of exp * exp (* are two expression known to must-equal ? *)
+       | MayBeEqual of exp * exp (* may two expressions be equal? *)
+       | MayBeLess of exp * exp (* may exp1 < exp2 ? *)
        | TheAnswerToLifeUniverseAndEverything
 [@@deriving to_yojson]
 

@@ -11,6 +11,7 @@ int main(void) {
   example9();
   example10();
   example11();
+  example12();
 }
 
 // Simple example
@@ -167,4 +168,19 @@ void example11(void) {
   for(int j=41; j >= 0; j--) {
     a[j] = 0;
   }
+}
+
+// Example reading from the array
+void example12(void) {
+  int a[42];
+  int i = 0;
+
+  while (i < 42) {
+    a[i] = 7;
+    i++;
+  }
+
+  int x = a[5];
+  int y = a[1];
+  int z = a[i-1];
 }

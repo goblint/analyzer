@@ -45,6 +45,14 @@ struct
         Printf.printf "---------------------->   comparing %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2));
         `Bool (Expcompare.compareExp (canonize e1) (canonize e2))
       end
+  | Queries.MayBeEqual (e1, e2) ->
+    begin
+      Queries.Result.top ()
+    end
+  | Queries.MayBeLess (e1, e2) ->
+    begin
+      Queries.Result.top ()
+    end
   | _ -> Queries.Result.top ()
 
 

@@ -86,8 +86,19 @@ struct
               | `Bool x when x == true -> true
               | _ -> false in
             if isEqual then xm
-            (* TODO: else if all the other ways in which e and i might relate *)
-            else join_over_all
+            else
+              begin
+                let contributionLess = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
+                | `Bool x when x == false -> Val.bot ()
+                | _ -> xl in
+                let contributionEqual = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
+                | `Bool x when x == false -> Val.bot ()
+                | _ -> xm in
+                let contributionGreater =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
+                | `Bool x when x == false -> Val.bot ()
+                | _ -> xr in
+                Val.join (Val.join contributionLess contributionEqual) contributionGreater
+              end
           end
         | _ -> join_over_all (* The case in which we don't know anything *)
 
