@@ -47,6 +47,7 @@ struct
       end
   | Queries.MayBeEqual (e1, e2) ->
     begin
+      Printf.printf "----------------------> (2)  comparing %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2));
       Queries.Result.top ()
     end
   | Queries.MayBeLess (e1, e2) ->
