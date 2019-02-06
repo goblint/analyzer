@@ -252,40 +252,42 @@ module WP =
       (infl, rho, called, wpoint)
 
       let solve box st vs =
+        print_string "SOLVER STARTED\n";
+        let infl   = HM.create 10 in (* y -> xs *)
+        let rho    = HM.create 10 in
+        let called = HM.create 10 in
+        let wpoint = HM.create 10 in
+
+        let (infl, rho, called, wpoint) =  if Sys.file_exists "res.data" 
+                                            then Serialize.unmarshall "res.data"
+                                            else (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
+        let  (infl, rho, called, wpoint) = solve box st vs infl rho called wpoint in 
+        
         let infl   = HM.create  10 in (* y -> xs *)
         let rho    = HM.create  10 in
         let called = HM.create 10 in
         let wpoint = HM.create 10 in
 
-(* 
-         *)
         let  (infl1, rho1, called1, wpoint1) = solve box st vs infl rho called wpoint in
+(*         Serialize.marshall (infl1, rho1, called1, wpoint1) "res1.data";
+ *)
+        let keys hm = HM.fold (fun key vl acc -> List.cons key acc) hm [] in
+        let vals hm = HM.fold (fun key vl acc -> List.cons vl acc) hm [] in
 
-        let (infl, rho, called, wpoint) =  if Sys.file_exists "/" 
-                                            then Serialize.unmarshall "res.data"
-                                            else (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
-        let  (infl, rho, called, wpoint) = solve box st vs infl rho called wpoint in
-        Serialize.marshall (infl1, rho1, called1, wpoint1) "res.data";
+        let (_,r,_,_) = Serialize.unmarshall "res.data" in
+        let (_,r1,_,_) = Serialize.unmarshall "res1.data" in
 
-        let i = 123 in
-        let rho_keys = HM.fold (fun key vl acc -> List.cons key acc) infl [] in
-        let rho_vals = HM.fold (fun key vl acc -> List.cons vl acc) rho [] in
-        (*if Sys.file_exists "rho_keys.data" then (
-          let old_keys = Serialize.unmarshall "rho_keys.data" in 
-          let res = List.for_all (fun (a,b) -> S.Var.equal a b) (List.combine rho_keys old_keys) in
-          print_string "Equal: ";
-          print_endline (if res then "true" else "false");
-        );
-        if Sys.file_exists "rho_vals.data" then (
-          let old_vals = Serialize.unmarshall "rho_vals.data" in 
-          let res = List.for_all (fun (a,b) -> S.Dom.equal a b) (List.combine rho_vals old_vals) in
-          print_string "Equal: ";
-          print_endline (if res then "true" else "false");
-        );*)
-        print_int i;
-
-        Serialize.marshall rho_keys "rho_keys.data";
-        Serialize.marshall rho_vals "rho_vals.data";
+        let r1_keys = keys r1 in
+        let r_keys = keys r in 
+        let res = List.for_all (fun (a,b) -> S.Var.equal a b) (List.combine r1_keys r_keys) in
+        print_string "Equal keys: ";
+        print_endline (if res then "true" else "false");
+        
+        let r1_vals = vals r1 in
+        let r_vals = vals r in 
+        let res = List.for_all (fun (a,b) -> S.Dom.equal a b) (List.combine r1_vals r_vals) in
+        print_string "Equal values: ";
+        print_endline (if res then "true" else "false");
 
         print_endline "Called solve :";
         print_int !solve_count;
