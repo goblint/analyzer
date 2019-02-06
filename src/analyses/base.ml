@@ -1448,15 +1448,26 @@ struct
           (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
           `Top
       end
+    | Q.MustBeEqual (e1, e2) -> begin
+        let e1_val = eval_rv ctx.ask ctx.global ctx.local e1 in
+        let e2_val = eval_rv ctx.ask ctx.global ctx.local e2 in
+        match e1_val, e2_val with
+        | `Int i1, `Int i2 -> begin
+            match ID.to_int i1, ID.to_int i2 with
+            | Some i1', Some i2' when i1' == i2' -> `Bool(true) 
+            | _ -> Q.Result.top ()
+            end
+        | _ -> Q.Result.top ()
+      end
     | Q.MayBeEqual (e1, e2) -> begin
-        Printf.printf "---------------------->  equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2));
+        Printf.printf "---------------------->  may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2));
         let e1_val = eval_rv ctx.ask ctx.global ctx.local e1 in
         let e2_val = eval_rv ctx.ask ctx.global ctx.local e2 in
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             if ID.is_bot (ID.meet i1 i2) then 
               begin
-                Printf.printf "----------------------> NOPE  equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); 
+                Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); 
                 `Bool(false)
               end
               else Q.Result.top ()
@@ -1464,7 +1475,7 @@ struct
         | _ -> Q.Result.top ()
       end
     | Q.MayBeLess (e1, e2) -> begin
-        Printf.printf "---------------------->  check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2));
+        Printf.printf "----------------------> may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2));
         let e1_val = eval_rv ctx.ask ctx.global ctx.local e1 in
         let e2_val = eval_rv ctx.ask ctx.global ctx.local e2 in
         match e1_val, e2_val with
@@ -1473,7 +1484,7 @@ struct
             | Some i1', Some i2' ->
               if i1' >= i2' then 
                 begin
-                  Printf.printf "----------------------> NOPE check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); 
+                  Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); 
                   `Bool(false)
                 end
                 else Q.Result.top ()
