@@ -68,9 +68,6 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
 
-  (* TODO For set&get we later need to distinguish between must & may equality to see *)
-  (* decide whether to apply a least upper bound or not *)
-
   let get (ask:Q.ask) (e, (xl, xm, xr)) i =
     Messages.report ("Array get@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
     let join_over_all = Val.join (Val.join xl xm) xr in
@@ -159,9 +156,31 @@ struct
       else
         begin
           Messages.warn ("e is " ^ (Expp.short 20 e) ^ ", i is " ^ (Expp.short 20 i));
-          if Expp.equal e i then (e, (xl, a, xr))
+          match e, i with
+          | `Lifted e', `Lifted i' -> begin
+              let isEqual = match ask (Q.MustBeEqual (e',i')) with
+                | `Bool x when x == true -> true
+                | _ -> false in
+              if isEqual then (e, (xl, a, xr))
+              else
+                begin
+                  let left = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
+                  | `Bool x when x == false -> xl
+                  | _ -> lub xl in
+                  let middle = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
+                  | `Bool x when x == false -> xm
+                  | _ -> lub xm in
+                  let right =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
+                  | `Bool x when x == false -> xr
+                  | _ -> lub xr in
+                  (e, (left, middle, right))
+                end
+            end
+          | _ -> 
+          
+          (e, (lub xl, lub xm, lub xr))
+          (* if Expp.equal e i then (e, (xl, a, xr)) *)
           (* TODO: else if all the other cases *)
-          else (e, (lub xl, lub xm, lub xr));
         end
     end
 
