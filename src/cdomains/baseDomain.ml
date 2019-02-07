@@ -57,4 +57,8 @@ struct
   module Val = VD
 end
 
-module Dom = Lattice.Prod(CPA)(Flag)
+
+module VarSet = SetDomain.Make(Basetype.Variables)
+module VarMap:Lattice.S = MapDomain.MapBot(Basetype.Variables)(VarSet)
+
+module Dom = Lattice.Prod3(CPA)(Flag)(VarMap)

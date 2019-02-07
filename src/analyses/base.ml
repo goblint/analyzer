@@ -33,7 +33,7 @@ let precious_globs = ref []
 let is_precious_glob v = List.exists (fun x -> v.vname = Json.string x) !precious_globs
 
 let privatization = ref false
-let is_private (a: Q.ask) (_,fl) (v: varinfo): bool =
+let is_private (a: Q.ask) (_,fl,_) (v: varinfo): bool =
   !privatization &&
   (not (BaseDomain.Flag.is_multi fl) && is_precious_glob v ||
    match a (Q.IsPublic v) with `Bool tv -> not tv | _ -> false)
@@ -47,6 +47,7 @@ struct
   module VD     = BaseDomain.VD
   module CPA    = BaseDomain.CPA
   module Flag   = BaseDomain.Flag
+  module Dep    = BaseDomain.VarMap
 
   module G      = BaseDomain.VD
   module D      = BaseDomain.Dom
@@ -54,15 +55,15 @@ struct
   module V      = Basetype.Variables
 
   let name = "base"
-  let startstate v = CPA.bot (), Flag.bot ()
-  let otherstate v = CPA.bot (), Flag.start_multi v
-  let exitstate  v = CPA.bot (), Flag.start_main v
+  let startstate v = CPA.bot (), Flag.bot (), Dep.bot ()
+  let otherstate v = CPA.bot (), Flag.start_multi v, Dep.bot ()
+  let exitstate  v = CPA.bot (), Flag.start_main v, Dep.bot ()
 
-  let morphstate v (cpa,fl) = cpa, Flag.start_single v
+  let morphstate v (cpa,fl,dep) = cpa, Flag.start_single v, dep
   let create_tid v =
     let loc = !Tracing.current_loc in
     Flag.spawn_thread loc v
-  let threadstate v = CPA.bot (), create_tid v
+  let threadstate v = CPA.bot (), create_tid v, Dep.bot ()
 
   type cpa = CPA.t
   type flag = Flag.t
@@ -77,12 +78,12 @@ struct
    * State functions
    **************************************************************************)
 
-  let globalize ?(privates=false) a (cpa,fl): cpa * glob_diff  =
+  let globalize ?(privates=false) a (cpa,fl,dep): cpa * glob_diff  =
     (* For each global variable, we create the diff *)
     let add_var (v: varinfo) (value) (cpa,acc) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a (cpa,fl) v)) then begin
+        if is_global a v && ((privates && not (is_precious_glob v)) || not (is_private a (cpa,fl,dep) v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           (CPA.remove v cpa, (v,value) :: acc)
         end else
@@ -95,20 +96,21 @@ struct
     CPA.fold add_var cpa (cpa, [])
 
   let sync' privates ctx: D.t * glob_diff =
-    let cpa,fl = ctx.local in
+    let cpa,fl, dep = ctx.local in
     let privates = privates || (!GU.earlyglobs && not (Flag.is_multi fl)) in
     let cpa, diff = if !GU.earlyglobs || Flag.is_multi fl then globalize ~privates:privates ctx.ask ctx.local else (cpa,[]) in
-    (cpa,fl), diff
+    (cpa,fl, dep), diff
 
   let sync = sync' false
 
   let publish_all ctx =
-    let ctx_mul = swap_st ctx (fst ctx.local, Flag.get_multi ()) in
+    let cpa,fl,dep = ctx.local in
+    let ctx_mul = swap_st ctx (cpa, Flag.get_multi (), dep) in
     List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' true ctx_mul))
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
    *  adding proper dependencies *)
-  let rec get ?(full=false) a (gs: glob_fun) (st,fl: store) (addrs:address) (exp:exp option): value =
+  let rec get ?(full=false) a (gs: glob_fun) (st,fl,dep: store) (addrs:address) (exp:exp option): value =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
     let get_global x = gs x in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st;
@@ -125,7 +127,7 @@ struct
             CPA.find x st
           end
         in
-        let v = VD.eval_offset a (fun x -> get a gs (st,fl) x exp) var offs exp (Some x) in
+        let v = VD.eval_offset a (fun x -> get a gs (st,fl,dep) x exp) var offs exp (Some x) in
         if M.tracing then M.tracec "get" "var = %a, %a = %a\n" VD.pretty var AD.pretty (AD.from_var_offset (x, offs)) VD.pretty v;
         if full then v else match v with
           | `Blob (c, s) -> c
@@ -165,7 +167,7 @@ struct
 
 
   (** [set st addr val] returns a state where [addr] is set to [val] *)
-  let set a ?(effect=true) ?(change_array=true) (gs:glob_fun) (st,fl: store) (lval: AD.t) (value: value) (lval_raw:lval option) (rval_raw: exp option): store =
+  let set a ?(effect=true) ?(change_array=true) (gs:glob_fun) (st,fl,dep: store) (lval: AD.t) (value: value) (lval_raw:lval option) (rval_raw: exp option): store =
     let update_variable x y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x y z in (* refers to defintion that is outside of set *)
@@ -191,7 +193,7 @@ struct
       if (!GU.earlyglobs || Flag.is_multi fl) && is_global a x then
         (* Check if we should avoid producing a side-effect, such as updates to
          * the state when following conditional guards. *)
-        if not effect && not (is_private a (st,fl) x) then begin
+        if not effect && not (is_private a (st,fl,dep) x) then begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" effect;
           nst
         end else begin
@@ -308,14 +310,14 @@ struct
        * was ambiguous, we have to join it with the initial state. *)
       let nst = if AD.cardinal lval > 1 then CPA.join st nst else nst in
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "new state2 %a\n" CPA.pretty nst; *)
-      (nst,fl)
+      (nst,fl, dep)
     with
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x; *)
-      M.warn_each "Assignment to unknown address"; (st,fl)
+      M.warn_each "Assignment to unknown address"; (st,fl,dep)
 
-  let set_many a (gs:glob_fun) (st,fl as store: store) lval_value_list: store =
+  let set_many a (gs:glob_fun) (st,fl,dep as store: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(value:value)): store =
       set a gs acc lval value None None (* TODO: This is most likely wrong *)
@@ -328,11 +330,11 @@ struct
      * not sure in which order! *)
     (D.join st1 st2, gl1 @ gl2)
 
-  let rem_many (st,fl: store) (v_list: varinfo list): store =
+  let rem_many (st,fl,dep: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
-    List.fold_left f st v_list, fl
+    List.fold_left f st v_list, fl, dep
 
-  let call_descr f (es,fl) =
+  let call_descr f (es,fl,dep) =
     let short_fun x =
       match x.vtype, CPA.find x es with
       | TPtr (t, attr), `Address a
@@ -1052,12 +1054,12 @@ struct
     set_many ctx.ask ctx.global ctx.local inits
 
   let return ctx exp fundec =
-    let (cp,fl) = ctx.local in
+    let (cp,fl,dep) = ctx.local in
     match fundec.svar.vname with
-    | "__goblint_dummy_init" -> cp, Flag.make_main fl
+    | "__goblint_dummy_init" -> cp, Flag.make_main fl, dep
     | "StartupHook" ->
       publish_all ctx;
-      cp, Flag.get_multi ()
+      cp, Flag.get_multi (), dep
     | _ -> let nst = rem_many ctx.local (fundec.sformals @ fundec.slocals) in
       match exp with
       | None -> nst
@@ -1234,9 +1236,9 @@ struct
 
   let drop_interval32 = CPA.map (function `Int x -> `Int (ID.no_interval32 x) | x -> x)
 
-  let context (cpa,fl) =
-    let f t f (cpa,fl) = if t then f cpa, fl else cpa, fl in
-    (cpa,fl) |>
+  let context (cpa,fl,dep) =
+    let f t f (cpa,fl,dep) = if t then f cpa, fl, dep else cpa, fl, dep in
+    (cpa,fl,dep) |>
     f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
     %> f (get_bool "exp.addr-context") drop_non_ptrs
     %> f (get_bool "exp.no-int-context") drop_ints
@@ -1244,7 +1246,7 @@ struct
 
   (* interpreter end *)
 
-  let get_fl (_,fl) = fl
+  let get_fl (_,fl,_) = fl
 
   let hash    (x,y,_)             = Hashtbl.hash (x,y)
   let equal   (x1,x2,_) (y1,y2,_) = CPA.equal x1 y1 && Flag.equal x2 y2
@@ -1497,9 +1499,13 @@ struct
   (**************************************************************************
    * Function calls
    **************************************************************************)
+  let fst_triple (a,_,_) = a
+  let snd_triple (_,b,_) = b
+  let trd_triple (_,_,c) = c
 
-  let make_entry ctx ?nfl:(nfl=(snd ctx.local)) fn args: D.t =
-    let cpa,fl as st = ctx.local in
+
+  let make_entry (ctx:(D.t, G.t) Analyses.ctx) ?nfl:(nfl=(snd_triple ctx.local)) fn args: D.t =
+    let (cpa,fl,dep) as st = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv ctx.ask ctx.global st) args in
     (* generate the entry states *)
@@ -1512,7 +1518,7 @@ struct
     (* List of reachable variables *)
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars ctx.ask (get_ptrs vals) ctx.global st)) in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v cpa) new_cpa in
-    new_cpa, nfl
+    new_cpa, nfl, dep
 
   let enter ctx lval fn args : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
@@ -1520,7 +1526,7 @@ struct
 
   let tasks_var = makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType
 
-  let forkfun ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list =
+  let forkfun (ctx:(D.t, G.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list =
     let create_thread arg v =
       try
         (* try to get function declaration *)
@@ -1537,7 +1543,7 @@ struct
         if LF.use_special f.vname then None (* we handle this function *)
         else if isFunctionType v.vtype then (
           M.warn_each ("Creating a thread from unknown function " ^ v.vname);
-          Some (v, (fst ctx.local, create_tid v))
+          Some (v, (fst_triple ctx.local, create_tid v, trd_triple ctx.local))
         ) else (
           M.warn_each ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype);
           None
@@ -1640,7 +1646,7 @@ struct
     let forks = forkfun ctx lv f args in
     if M.tracing then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map fst forks);
     List.iter (uncurry ctx.spawn) forks;
-    let cpa,fl as st = ctx.local in
+    let cpa,fl,dep as st = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with
     | `Unknown "F59" (* strcpy *)
@@ -1736,7 +1742,7 @@ struct
         match ctx.ask (Queries.EvalInt (List.hd args)) with
         | `Int i when i=1L || i=2L -> ctx.local
         | `Bot -> ctx.local
-        | _ -> cpa, Flag.make_main fl
+        | _ -> cpa, Flag.make_main fl, dep
       end
     (* handling thread creations *)
     (*       | `Unknown "LAP_Se_CreateProcess" -> begin
@@ -1746,11 +1752,11 @@ struct
                       cpa, fl
                 | _ -> raise Deadcode
               end *)
-    | `ThreadCreate (f,x) -> cpa, Flag.make_main fl
+    | `ThreadCreate (f,x) -> cpa, Flag.make_main fl, dep
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       begin match (eval_rv ctx.ask gs st ret_var) with
-        | `Int n when n = ID.of_int 0L -> cpa,fl
+        | `Int n when n = ID.of_int 0L -> cpa,fl,dep
         | _      -> invalidate ctx.ask gs st [ret_var]
       end
     | `Malloc size -> begin
@@ -1803,7 +1809,7 @@ struct
               (* This rest here is just to see if something got spawned. *)
               let flist = collect_funargs ctx.ask gs st args in
               (* invalidate arguments for unknown functions *)
-              let (cpa,fl as st) = invalidate ctx.ask gs st addrs in
+              let (cpa,fl,dep as st) = invalidate ctx.ask gs st addrs in
               let f addr acc =
                 try
                   let var = List.hd (AD.to_var_may addr) in
@@ -1819,7 +1825,7 @@ struct
               if List.fold_right f flist false
               && not (get_bool "exp.single-threaded")
               && get_bool "exp.unknown_funs_spawn" then
-                cpa, Flag.make_main fl
+                cpa, Flag.make_main fl, dep
               else
                 st
             )
@@ -1836,17 +1842,17 @@ struct
       end
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: D.t) : D.t =
-    let combine_one (loc,lf as st: D.t) ((fun_st,fun_fl) as fun_d: D.t) =
+    let combine_one (loc,lf,ldep as st: D.t) ((fun_st,fun_fl,fun_dep) as fun_d: D.t) =
       (* This function does miscelaneous things, but the main task was to give the
        * handle to the global state to the state return from the function, but now
        * the function tries to add all the context variables back to the callee.
        * Note that, the function return above has to remove all the local
        * variables of the called function from cpa_s. *)
-      let add_globals (cpa_s,fl_s) (cpa_d,fl_dl) =
+      let add_globals (cpa_s,fl_s,dep_s) (cpa_d,fl_dl, dep_d) =
         (* Remove the return value as this is dealt with separately. *)
         let cpa_s = CPA.remove (return_varinfo ()) cpa_s in
         let new_cpa = CPA.fold CPA.add cpa_s cpa_d in
-        (new_cpa, fl_s)
+        (new_cpa, fl_s, dep_s)
       in
       let return_var = return_var () in
       let return_val =
@@ -1854,7 +1860,7 @@ struct
         then get ctx.ask ctx.global fun_d return_var None (* TODO: None probably wrong*)
         else VD.top ()
       in
-      let st = add_globals (fun_st,fun_fl) st in
+      let st = add_globals (fun_st,fun_fl, fun_dep) st in
       match lval with
       | None      -> st
       | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val None None(* TODO: Why None here? *)
@@ -1876,7 +1882,7 @@ struct
 
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
-    let _, fl = ctx.local in
+    let _, fl, _ = ctx.local in
     if BaseDomain.Flag.is_multi fl && not (is_special_ignorable_thread fl) then begin
       if is_unique ctx fl then
         let tid = BaseDomain.Flag.short 20 fl in
