@@ -215,7 +215,8 @@ struct
     match List.assoc "base" ctx.presub with
     | Some base ->
       let pid, ctxh, pred = ctx.local in
-      let base_context = fst @@ Base.Main.context @@ Obj.obj base in
+      let (a,b,c) = Base.Main.context @@ Obj.obj base in
+      let base_context = a in
       let context_hash = Hashtbl.hash (base_context, pid) in
       pid, Ctx.of_int (Int64.of_int context_hash), pred
     | None -> ctx.local (* TODO when can this happen? *)
