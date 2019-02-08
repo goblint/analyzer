@@ -132,8 +132,9 @@ struct
       | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
       | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
     in
-    if comp == 0 then LD.compare d1 d2 else comp
-
+    if comp == 0 then LD.compare d1 d2 (* culprit *) else comp
+(*         if comp == 0 then (try LD.compare d1 d2 (* culprit *) with Out_of_memory -> let _ = Pretty.printf "compare OoM for values %a and %a\n" LD.pretty d1 LD.pretty d2 in 0) else comp
+ *)
   let printXml f (n,c) =
     Var.printXml f n;
     BatPrintf.fprintf f "<context>\n";

@@ -29,6 +29,12 @@ module WP =
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
 
+      print_endline ("Start solve with infl="^string_of_int (HM.length infl)^"
+       rho="^string_of_int (HM.length rho)^"
+       called="^string_of_int (HM.length called)^"
+       wpoint="^string_of_int (HM.length wpoint)
+        );
+
       let stable = HM.create  10 in
 (*       let infl   = HM.create  10 in (* y -> xs *) *)
 (*       let called = HM.create  10 in
@@ -168,6 +174,12 @@ module WP =
       in
       solve_sidevs ();
 
+      (* print_endline ("End solve before reach with infl="^string_of_int (HM.length infl)^"
+       rho="^string_of_int (HM.length rho)^"
+       called="^string_of_int (HM.length called)^"
+       wpoint="^string_of_int (HM.length wpoint)
+        ); *)
+
       (* verifies values at widening points and adds values for variables in-between *)
       let visited = HM.create 10 in
       let rec get x =
@@ -241,6 +253,12 @@ module WP =
 
       stop_event ();
 
+      print_endline ("End solve & reach with infl="^string_of_int (HM.length infl)^"
+       rho="^string_of_int (HM.length rho)^"
+       called="^string_of_int (HM.length called)^"
+       wpoint="^string_of_int (HM.length wpoint)
+        );
+
 (*       HM.iter (fun key vl ->  (print_int (S.Var.line_nr key); print_string " "; print_string (S.Var.file_name key); print_string ((S.Var.var_id key)^ " "));  print_newline ()) rho;
  *)      let sum = HM.fold (fun key vl acc -> acc +1 ) rho 0 in
       print_string "Number of elemnts in rho: ";
@@ -264,21 +282,30 @@ module WP =
 
         let output = solve box st vs infl rho called wpoint in 
         Serialize.marshall output "solve_1.data"; *)
-        let (infl, rho, called, wpoint) =  if Sys.file_exists "solve_1.data" 
-                                            then Serialize.unmarshall "solve_1.data"
+        let (infl, rho, called, wpoint) =  if Sys.file_exists "solve.in" 
+                                            then Serialize.unmarshall "solve.in"
                                             else (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
-(*         let (infl, rho, called, wpoint) = Serialize.unmarshall "solve_1.data" in
- *)        let output1 = solve box st vs infl rho called wpoint in
-        Serialize.marshall output1 "solve_2.data" ;
+        (* let (infl, rho, called, wpoint) = Serialize.unmarshall "solve1.out" in *)
+        let output1 = solve box st vs infl rho called wpoint in
+        Serialize.marshall output1 "solve1.out" ;
+        let input = if Sys.file_exists "solve1.out.old" then "solve1.out.old" else "solve1.out" in
+        print_endline ("Unmarshall "^input);
+        let (infl, rho, called, wpoint) = Serialize.unmarshall input in
+        (* let (infl, rho, called, wpoint) = output1 in *)
+        (* 90 instead of 63 values in rho if 1. solve on empty data is missing *)
+        let output2 = solve box st vs infl rho called wpoint in
+        Serialize.marshall output2 "solve2.out" ;
 
 
 (*         Serialize.marshall (infl1, rho1, called1, wpoint1) "res1.data";
  *)
         let keys hm = HM.fold (fun key vl acc -> List.cons key acc) hm [] in
         let vals hm = HM.fold (fun key vl acc -> List.cons vl acc) hm [] in
+        let rho_of (_, r, _, _) = r in
+        (* print_endline ("rho.in = rho.out: "^string_of_bool (HM.equal (rho_of rho) (rho_of output1)); *)
 
-        let (_,r,_,_) = Serialize.unmarshall "solve_1.data" in
-        let (_,r1,_,_) = Serialize.unmarshall "solve_2.data" in
+        (* let (_,r,_,_) = Serialize.unmarshall "solve.in" in
+        let (_,r1,_,_) = Serialize.unmarshall "solve.out" in
         let r1_keys = keys r1 in
         let r_keys = keys r in 
         (try 
@@ -291,7 +318,7 @@ module WP =
           let res = List.for_all (fun (a,b) -> S.Dom.equal a b) (List.combine r1_vals r_vals) in
           print_string "Equal values: ";
           print_endline (if res then "true" else "false");
-        with e -> print_endline "Different size of hashmaps");
+        with e -> print_endline "Different size of hashmaps"); *)
 
 
         print_newline ();
