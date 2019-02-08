@@ -30,8 +30,8 @@ module Std =
 struct
   (*  let equal = Util.equals
       let hash = Hashtbl.hash*)
-  let compare = Pervasives.compare
-  let classify _ = 0
+(*   let compare = Pervasives.compare (* TODO: Fix *)
+ *)  let classify _ = 0
   let class_name _ = "None"
   let name () = "std"
   let trace_enabled = false
@@ -40,6 +40,7 @@ end
 module Blank =
 struct
   include Std
+  let compare = compare
   let pretty () _ = text "Output not supported"
   let short _ _ = "Output not supported"
   let toXML x = Xml.Element ("Leaf", [("text", "Output not supported")], [])
@@ -79,6 +80,7 @@ struct
   include Std
   let hash () = 7134679
   let equal _ _ = true
+  let compare x y = 0 (* This corresponds to equal x y = true for all x, y *)
   let pretty () _ = text N.name
   let short _ _ = N.name
   let toXML x = Xml.Element ("Leaf", [("text", N.name)], [])
@@ -147,6 +149,14 @@ struct
     | (`Lifted x, `Lifted y) -> Base.equal x y
     | _ -> false
 
+  let compare x y = if equal x y then 0 else
+    match (x, y) with
+    | (_, `Top) -> -1 
+    | (_, `Bot) -> 1
+    | (`Lifted x, `Lifted y) -> Base.compare x y
+    | _ -> raise @@ invalid_arg "Invalid argument for Lift.compare"
+
+
   let short w state =
     match state with
     | `Lifted n ->  Base.short w n
@@ -197,6 +207,14 @@ struct
     | (`Right x, `Right y) -> Base2.equal x y
     | _ -> false
 
+  let compare x y = if equal x y then 0 else
+    match (x, y) with
+    | (`Left _), (`Right _) -> -1
+    | (`Right _), (`Left _) -> 1
+    | (`Right x), (`Right y) -> Base2.compare x y 
+    | (`Left x), (`Left y) -> Base1.compare x y
+    | _, _ -> raise @@ Invalid_argument "Invalid argument for Either.compare" 
+
   let pretty_f _ () (state:t) =
     match state with
     | `Left n ->  Base1.pretty () n
@@ -246,6 +264,25 @@ struct
     | (`Lifted1 x, `Lifted1 y) -> Base1.equal x y
     | (`Lifted2 x, `Lifted2 y) -> Base2.equal x y
     | _ -> false
+  
+  let compare x y =
+    let order x = match x with
+      | `Top -> 0
+      | `Bot -> 1
+      | `Lifted1 _ -> 2
+      | `Lifted2 _ -> 3
+    in
+    if equal x y 
+      then 0
+      else 
+        let compareOrder = compare (order x) (order y) in
+        if compareOrder != 0 
+          then compareOrder
+          else
+           match (x, y) with
+            | (`Lifted1 a, `Lifted1 b) -> Base1.compare a b
+            | (`Lifted2 x, `Lifted2 y) -> Base2.compare x y
+            | _, _ -> 0
 
   let hash state =
     match state with
@@ -375,6 +412,15 @@ struct
   let hash (x,y,z) = Base1.hash x + Base2.hash y * 17 + Base3.hash z * 33
   let equal (x1,x2,x3) (y1,y2,y3) =
     Base1.equal x1 y1 && Base2.equal x2 y2 && Base3.equal x3 y3
+  let compare (x1,x2,x3) (y1,y2,y3) =
+    let comp1 = Base1.compare x1 y1 in
+    if comp1 != 0
+      then comp1
+      else let comp2 = Base2.compare x2 y2 in
+      if comp2 != 0
+      then comp2
+      else Base3.compare x3 y3
+
   let short w (x,y,z) =
     let first = ref "" in
     let second= ref "" in
@@ -414,6 +460,15 @@ struct
   type t = Base.t list [@@deriving to_yojson]
   include Std
   let equal x y = try List.for_all2 Base.equal x y with Invalid_argument _ -> false
+  let compare x y = 
+    let rec compare_lists xs ys = match (xs, ys) with
+      | (x::xs), (y::ys) ->
+        let compareHead = Base.compare x y in
+        if compareHead = 0 then compare_lists xs ys else compareHead
+      | (x::xs), [] -> -1
+      | [], (y::ys) -> 1
+      | [], [] -> 0 in
+    if equal x y then 0 else compare_lists x y
   let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
 
   let short _ x =
@@ -464,7 +519,7 @@ struct
   let isSimple _ = true
   let hash x = x-5284
   let equal (x:int) (y:int) = x=y
-
+  let compare (x:int) (y:int) = Pervasives.compare x y
   let toXML m = toXML_f short m
   let pretty () x = pretty_f short () x
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
@@ -478,6 +533,8 @@ struct
   include Std
 
   let lift x = `Lifted x
+
+  let compare = compare
 
   let equal x y =
     match (x, y) with
@@ -524,6 +581,8 @@ struct
   type t = [`Top | `Lifted of Base.t ] [@@deriving to_yojson]
   include Std
 
+  let compare = Pervasives.compare
+
   let lift x = `Lifted x
 
   let equal x y =
@@ -531,6 +590,15 @@ struct
     | (`Top, `Top) -> true
     | (`Lifted x, `Lifted y) -> Base.equal x y
     | _ -> false
+
+  let compare x y = 
+    if equal x y
+      then 0
+      else
+       match (x, y) with
+        | `Top, _ -> 1
+        | _, `Top -> -1
+        | `Lifted x, `Lifted y -> Base.compare x y
 
   let hash = function
     | `Top -> 7890
@@ -577,6 +645,7 @@ struct
   include Std
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
+  let compare (x:t) (y:t) = String.compare x y 
   let pretty () n = text n
   let short _ n = n
   let toXML x = Xml.Element ("Leaf", [("text", x)], [])

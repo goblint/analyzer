@@ -169,6 +169,7 @@ struct
   type t = string [@@deriving to_yojson]
   let hash (x:t) = Hashtbl.hash x
   let equal (x:t) (y:t) = x=y
+  let compare x y = Pervasives.compare x y
   let isSimple _ = true
   let short _ x = "\"" ^ x ^ "\""
   let toXML_f sf x =

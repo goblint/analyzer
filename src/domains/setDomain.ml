@@ -225,6 +225,14 @@ struct
     | All, All -> true
     | Set x, Set y -> S.equal x y
     | _ -> false
+
+  let compare x y = if equal x y then 0 else
+    match (x, y) with
+    | All, _ -> 1
+    | Set _, All -> -1
+    | Set x, Set y -> S.compare x y 
+    
+
   let empty () = Set (S.empty ())
   let is_empty x =
     match x with

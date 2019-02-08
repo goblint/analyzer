@@ -276,6 +276,28 @@ struct
     | NullPtr   , NullPtr -> true
     | _ -> false
 
+  let compare x y = if equal x y then 0 else
+    let order x = match x with
+      | Addr _ -> 0
+      | StrPtr _ -> 1
+      | UnknownPtr -> 2
+      | SafePtr -> 3
+      | NullPtr -> 4
+     in
+     let compareOrder =  compare (order x) (order y) in
+     if compareOrder != 0
+      then compareOrder
+      else match (x, y) with 
+        | Addr (v, o), Addr (u, p) -> 
+          let vidCompare = compare v.vid u.vid in
+          if vidCompare != 0 
+            then vidCompare
+            else Offs.compare o p
+        | StrPtr a, StrPtr b -> compare a b
+        | _, _ -> raise @@ Invalid_argument "Invalid argument for Normal.compare"
+
+
+
   let toXML_f_addr sf (x,y) =
     let esc = Goblintutil.escape in
     let typeinf = esc (Pretty.sprint Goblintutil.summary_length (d_type () x.vtype)) in

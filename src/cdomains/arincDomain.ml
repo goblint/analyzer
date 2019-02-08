@@ -60,6 +60,7 @@ struct
   (* Printable.S *)
   (* let equal = Util.equals *)
   let equal x y = Pid.equal x.pid y.pid && Pri.equal x.pri y.pri && Per.equal x.per y.per && Cap.equal x.cap y.cap && Pmo.equal x.pmo y.pmo && PrE.equal x.pre y.pre && Pred.equal x.pred y.pred && Ctx.equal x.ctx y.ctx
+  let compare x y = try compare x y with e -> raise @@ Failure "COMPARE FAILED in arincDomain" 
   (* let hash = Hashtbl.hash *)
   let hash x = Hashtbl.hash (Pid.hash x.pid, Pri.hash x.pri, Per.hash x.per, Cap.hash x.cap, Pmo.hash x.pmo, PrE.hash x.pre, Pred.hash x.pred, Ctx.hash x.ctx)
 
