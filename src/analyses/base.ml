@@ -74,6 +74,16 @@ struct
   type glob_fun  = V.t -> G.t
   type glob_diff = (V.t * G.t) list
 
+
+  
+  (**************************************************************************
+   * Helpers
+   **************************************************************************)
+
+  let fst_triple (a,_,_) = a
+  let snd_triple (_,b,_) = b
+  let trd_triple (_,_,c) = c
+
   (**************************************************************************
    * State functions
    **************************************************************************)
@@ -156,14 +166,22 @@ struct
     else
       CPA.add variable value state
 
-
-  let add_array_dependencies (x:varinfo) (v:VD.t) =
-    match v with
+  (** Add dependencies between an array x and the expression it is partitioned by *)
+  let add_array_dependencies (x:varinfo) (value:VD.t) (st,fl,dep:store):store =
+    let add_one_dep (array:varinfo) (var:varinfo) dep = 
+      let vMap = try BaseDomain.VarMap.find var dep
+          with Not_found -> BaseDomain.VarSet.empty () in
+      let vMapNew = BaseDomain.VarSet.add array vMap in
+      BaseDomain.VarMap.add var vMapNew dep
+    in
+    match value with
       | `Array x' ->
         begin
-          BaseDomain.add_all_affected_array x (CArrays.get_vars_in_e x')
+          let vars_in_e = (CArrays.get_vars_in_e x') in
+          let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) dep vars_in_e in
+          (st, fl, dep_new)
         end
-      | _ ->  ()
+      | _ ->  (st,fl, dep)
 
 
   (** [set st addr val] returns a state where [addr] is set to [val] *)
@@ -178,15 +196,15 @@ struct
     if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st;
     (* Updating a single varinfo*offset pair. NB! This function's type does
      * not include the flag. *)
-    let update_one_addr (x, offs) nst: cpa =
+    let update_one_addr (x, offs) (nst, fl, dep): store =
       if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype CPA.pretty st;
       if isFunctionType x.vtype then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
-        nst
+        nst, fl, dep
       end else
       if get_bool "exp.globs_are_top" then begin
         if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: BAD? exp.globs_are_top is set \n";
-        CPA.add x `Top nst
+        CPA.add x `Top nst, fl, dep
       end else
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
@@ -195,7 +213,7 @@ struct
          * the state when following conditional guards. *)
         if not effect && not (is_private a (st,fl,dep) x) then begin
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" effect;
-          nst
+          nst, fl, dep
         end else begin
           let get x st =
             match CPA.find x st with
@@ -205,7 +223,7 @@ struct
           if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
           (* Here, an effect should be generated, but we add it to the local
            * state, waiting for the sync function to publish it. *)
-          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) x) nst
+          update_variable x (VD.update_offset a (get x nst) offs value (Option.map (fun x -> Lval x) lval_raw) x) nst, fl, dep
         end
       else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
@@ -219,7 +237,10 @@ struct
           let is_truely_affected arr var =
             let arr' = CPA.find arr nst in
             VD.is_array_affected_by arr' var in
-          let potentially_affected = BaseDomain.get_affected_arrays x in
+          let potentially_affected =
+            let set = try BaseDomain.VarMap.find x dep
+              with Not_found -> BaseDomain.VarSet.empty () in 
+            BaseDomain.VarSet.elements set in
           let print_message_about_affected arr var =
             if is_truely_affected arr var then
               Printf.printf " (truely affected %s) " arr.vname
@@ -259,7 +280,7 @@ struct
              (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; None)
             end
         in
-        let effect_on_array arr st =
+        let effect_on_array arr (st,fl, dep):store =
           let v = CPA.find arr st in
           let nval = match lval_raw, rval_raw, v with
           | Some (Lval(Var l',_)), Some r', `Array v' -> (* last component should always be `Array since we only store array dependencies in this map *)
@@ -273,7 +294,7 @@ struct
               | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v None)
             end
           | _,_  ,  _-> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v None) in
-          (M.warn ("effect on "^arr.vname); update_variable arr nval st)
+          (M.warn ("effect on "^arr.vname); update_variable arr nval st), fl, dep
         in
         let rec effect_on_arrays arrs st =
           if not change_array then
@@ -292,25 +313,25 @@ struct
         let x_updated = update_variable x new_value nst
         in 
           begin
-            add_array_dependencies x new_value; (* TODO: Maybe only call this if the expression changed *)
-            effect_on_arrays affected_arrays x_updated
+            let with_dep = add_array_dependencies x new_value (x_updated, fl, dep) in (* TODO: Maybe only call this if the expression changed *)
+            effect_on_arrays affected_arrays with_dep (* TODO: Need to return the modified data structure, this does not work *)
           end
       end
     in
-    let update_one x (y: cpa) =
+    let update_one x store =
       match Addr.to_var_offset x with
-      | [x] -> update_one_addr x y
-      | _ -> y
+      | [x] -> update_one_addr x store
+      | _ -> store
     in try
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the the different possible places: *)
-      let nst = AD.fold update_one lval st in
+      let nst = AD.fold update_one lval (st, fl, dep) in
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "new state1 %a\n" CPA.pretty nst; *)
       (* If the address was definite, then we just return it. If the address
        * was ambiguous, we have to join it with the initial state. *)
-      let nst = if AD.cardinal lval > 1 then CPA.join st nst else nst in
+      let nst = if AD.cardinal lval > 1 then (CPA.join st (fst_triple nst), fl, dep) else nst in
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "new state2 %a\n" CPA.pretty nst; *)
-      (nst,fl, dep)
+      nst
     with
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
@@ -364,8 +385,7 @@ struct
     privatization := get_bool "exp.privatization";
     precious_globs := get_list "exp.precious_globs";
     return_varstore := makeVarinfo false "RETURN" voidType;
-    H.clear BaseDomain.heap_hash;
-    H.clear BaseDomain.affected_arrays
+    H.clear BaseDomain.heap_hash
 
   (**************************************************************************
    * Abstract evaluation functions
@@ -1499,9 +1519,6 @@ struct
   (**************************************************************************
    * Function calls
    **************************************************************************)
-  let fst_triple (a,_,_) = a
-  let snd_triple (_,b,_) = b
-  let trd_triple (_,_,c) = c
 
 
   let make_entry (ctx:(D.t, G.t) Analyses.ctx) ?nfl:(nfl=(snd_triple ctx.local)) fn args: D.t =
