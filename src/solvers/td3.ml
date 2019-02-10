@@ -287,14 +287,14 @@ module WP =
                                             else (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
         (* let (infl, rho, called, wpoint) = Serialize.unmarshall "solve1.out" in *)
         let output1 = solve box st vs infl rho called wpoint in
-        Serialize.marshall output1 "solve1.out" ;
-        let input = if Sys.file_exists "solve1.out.old" then "solve1.out.old" else "solve1.out" in
+        Serialize.marshall output1 "solve.in" ;
+    (*     let input = if Sys.file_exists "solve1.out.old" then "solve1.out.old" else "solve1.out" in
         print_endline ("Unmarshall "^input);
         let (infl, rho, called, wpoint) = Serialize.unmarshall input in
         (* let (infl, rho, called, wpoint) = output1 in *)
         (* 90 instead of 63 values in rho if 1. solve on empty data is missing *)
         let output2 = solve box st vs infl rho called wpoint in
-        Serialize.marshall output2 "solve2.out" ;
+        Serialize.marshall output2 "solve2.out" ; *)
 
 
 (*         Serialize.marshall (infl1, rho1, called1, wpoint1) "res1.data";
