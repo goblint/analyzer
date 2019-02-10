@@ -282,7 +282,7 @@ struct
            match (x, y) with
             | (`Lifted1 a, `Lifted1 b) -> Base1.compare a b
             | (`Lifted2 x, `Lifted2 y) -> Base2.compare x y
-            | _, _ -> 0
+            | _, _ -> raise @@ Failure "compare Lift2 failed"
 
   let hash state =
     match state with
