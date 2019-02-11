@@ -394,7 +394,7 @@ let main =
                           do_html_output ();
                           if !verified = Some false then exit 3;  (* verifier failed! *)
                           if !Messages.worldStopped then exit 124; (* timeout! *)
-          | None -> print_string "Failue when loading latest cil file"
+          | None -> print_string "Failure when loading latest cil file"
         );
         (* file|> do_analyze;
         Report.do_stats !cFileNames;
