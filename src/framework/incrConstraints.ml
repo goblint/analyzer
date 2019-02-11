@@ -82,13 +82,13 @@ struct
     | ((MyCFG.FunctionEntry f,_),_) -> 3
 
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
-  let hash x =
+  let hash x = 1(* 
     match x with
     | ((MyCFG.Statement     s,_),d) -> hashmul (LD.hash d) (s.sid*17)
     | ((MyCFG.Function      f,_), d) -> hashmul (LD.hash d) (f.vid*19)
-    | ((MyCFG.FunctionEntry f,_),d) -> hashmul (LD.hash d) (f.vid*23)
+    | ((MyCFG.FunctionEntry f,_),d) -> hashmul (LD.hash d) (f.vid*23) *)
 
-  let equal ((n1, a),d1) ((n2, a2),d2) = MyCFG.Node.equal n1 n2 && LD.equal d1 d2
+  let equal ((n1, a),d1) ((n2, a2),d2) = MyCFG.Node.equal n1 n2 && String.equal a a2 && LD.equal d1 d2
 
   let getLocation (n,d) = MyCFG.getLoc n
 
@@ -102,7 +102,7 @@ struct
     if get_bool "dbg.trace.context" then dprintf "(%a, %a)" pretty x LD.pretty c
     else dprintf "%a on %a \n" pretty x Basetype.ProgLines.pretty (getLocation x)
 
-  let compare ((n1,_),d1) ((n2, _),d2) =
+  let compare ((n1,c1),d1) ((n2, c2),d2) =
     let comp =
       match n1, n2 with
       | MyCFG.FunctionEntry f, MyCFG.FunctionEntry g -> compare f.vid g.vid
@@ -113,7 +113,7 @@ struct
       | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
       | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
     in
-    if comp == 0 then LD.compare d1 d2 else comp
+    if comp == 0 then let comp2= LD.compare d1 d2 in if comp2 == 0 then String.compare c1 c2 else comp2 else comp
 
   let printXml f ((n,_),c) =
     Var.printXml f n;

@@ -42,6 +42,14 @@ let node_compare n1 n2 =
   | Statement s, Statement l -> compare s.sid l.sid
   | Function  f, Function g  -> compare f.vid g.vid
 
+let print doc =
+  print_string @@ Pretty.sprint max_int doc
+
+let to_str doc =
+  Pretty.sprint max_int doc 
+let print_b bool = 
+  print_endline (if bool then "true" else "false"); bool
+
 module Node :
 sig
   include Hashtbl.HashedType with type t = node

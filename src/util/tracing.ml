@@ -101,21 +101,28 @@ let gtrace always f sys var ?loc do_subsys fmt =
   end else
     mygprintf fmt
 
-let trace sys ?var fmt = gtrace true printtrace sys var (fun x -> x) fmt
+let trace sys ?var fmt = gtrace true printtrace sys var ignore fmt
+
+(* trace*
+ * l: include location
+ * i: indent after print, optionally activate subsys for sys
+ * u: outdent after print, deactivate subsys of sys
+ * c: continue/normal print w/o indent-change
+*)
 
 let tracel sys ?var fmt =
   let loc = !current_loc in
   let docloc sys doc =
     printtrace sys (dprintf "(%s:%d)@?" loc.file loc.line ++ indent 2 doc);
   in
-  gtrace true docloc sys var ~loc:loc.line (fun x -> x) fmt
+  gtrace true docloc sys var ~loc:loc.line ignore fmt
 
 let tracei (sys:string) ?var ?(subsys=[]) fmt =
   let f sys d = printtrace sys d; traceIndent () in
   let g () = activate sys subsys in
   gtrace true f sys var g fmt
 
-let tracec sys fmt = gtrace false printtrace sys None (fun x -> x) fmt
+let tracec sys fmt = gtrace false printtrace sys None ignore fmt
 
 let traceu sys fmt =
   let f sys d = printtrace sys d; traceOutdent () in

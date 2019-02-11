@@ -101,11 +101,11 @@ struct
     | (MyCFG.FunctionEntry f,_) -> 3
 
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
-  let hash x =
-    match x with
+  let hash x = 1
+(*     match x with
     | (MyCFG.Statement     s,d) -> hashmul (LD.hash d) (s.sid*17)
     | (MyCFG.Function      f,d) -> hashmul (LD.hash d) (f.vid*19)
-    | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.vid*23)
+    | (MyCFG.FunctionEntry f,d) -> hashmul (LD.hash d) (f.vid*23) *)
 
   let equal (n1,d1) (n2,d2) = MyCFG.Node.equal n1 n2 && LD.equal d1 d2
 
@@ -132,8 +132,9 @@ struct
       | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
       | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
     in
-    if comp == 0 then LD.compare d1 d2 else comp
-
+    if comp == 0 then LD.compare d1 d2 (* culprit *) else comp
+(*         if comp == 0 then (try LD.compare d1 d2 (* culprit *) with Out_of_memory -> let _ = Pretty.printf "compare OoM for values %a and %a\n" LD.pretty d1 LD.pretty d2 in 0) else comp
+ *)
   let printXml f (n,c) =
     Var.printXml f n;
     BatPrintf.fprintf f "<context>\n";
