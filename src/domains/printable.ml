@@ -151,6 +151,8 @@ struct
 
   let compare x y = if equal x y then 0 else
     match (x, y) with
+    | (`Top, _) -> 1
+    | (`Bot, _) -> -1
     | (_, `Top) -> -1 
     | (_, `Bot) -> 1
     | (`Lifted x, `Lifted y) -> Base.compare x y
