@@ -437,9 +437,6 @@ struct
 
 
   let system ((v,i),c) =
-    print_string "Constraints for: ";
-    print_node v;
-    print_endline ("Commit: " ^ i);
     match v with
     | FunctionEntry _ when full_context ->
       [fun _ _ _ _ -> S.val_of c]
