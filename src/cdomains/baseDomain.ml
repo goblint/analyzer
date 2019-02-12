@@ -34,6 +34,6 @@ end
 
 
 module VarSet = SetDomain.Make(Basetype.Variables)
-module VarMap = MapDomain.MapBot(Basetype.Variables)(VarSet)
+module VarMap = MapDomain.MapBot_LiftTop(Basetype.Variables)(VarSet)
 
 module Dom = Lattice.Prod3(CPA)(Flag)(VarMap)
