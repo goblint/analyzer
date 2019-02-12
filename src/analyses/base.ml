@@ -557,7 +557,7 @@ struct
       | Index (_, offs) -> do_offs def offs
       | NoOffset -> def
     in
-    (* we have a special expression that should evalueate to top ... *)
+    (* we have a special expression that should evaluate to top ... *)
     if exp = MyCFG.unknown_exp then VD.top () else
       (* First we try with query functions --- these are currently more precise.
        * Ideally we would meet both values, but we fear types might not match. (bottom) *)

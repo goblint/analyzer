@@ -524,7 +524,7 @@ struct
           match x with
           | `Array x ->   (* TODO: This is a very bad idea *)
             let e = match exp with
-              | Some (Lval (Var _, (Index (e, offset) ))) ->
+              | Some (Lval (Var _, (Index (e, offset) ))) -> (* TODO: What about the offset? *)
                   `Lifted e (* the expression that is inside the [] (if any) *)
               | Some (Lval (Mem ptr, NoOffset)) -> 
                   begin
@@ -539,18 +539,23 @@ struct
                       end
                     | _ ->
                       begin
-                        M.warn ("There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))));
+                        M.warn ("A: There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))));
                         `Lifted (Lval (Mem ptr, NoOffset))
                       end
                   end
+              | Some (Lval (x, (Index (e, offset)))) ->
+                begin
+                  M.warn ("A': There is something fishy going on in eval_offset with an array access - " ^ (Expp.short 20 (`Lifted (Lval (x, (Index (e, offset)))))) ^ " took " ^ (Expp.short 20 (`Lifted e)));
+                  `Lifted e (* the expression inside the [] (if any) *)
+                end
               | Some exp ->
                 begin
-                  M.warn ("There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted exp)));
+                  M.warn ("B: There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted exp)));
                   `Lifted exp
                 end
               | None ->
                 begin
-                  M.warn "There is something fishy going on in eval_offset with an array access (TOP)" ;
+                  M.warn "C: There is something fishy going on in eval_offset with an array access (TOP)" ;
                   Expp.top ()
                 end in
             eval_offset ask f (CArrays.get ask x e) offs exp v
