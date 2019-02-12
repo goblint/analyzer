@@ -120,7 +120,7 @@ struct
   let set ?(length=None) (ask:Q.ask) (e, (xl, xm, xr)) i a =
     begin
       Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
-      let lub = Val.join a in
+      let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
       if Expp.is_bot e then
         begin
           let exp_value = 
@@ -166,19 +166,19 @@ struct
                 begin
                   let left = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
                   | `Bool x when x == false -> xl
-                  | _ -> lub xl in
+                  | _ -> lubIfNotBot xl in
                   let middle = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
                   | `Bool x when x == false -> xm
-                  | _ -> lub xm in
+                  | _ -> Val.join xm a in
                   let right =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
                   | `Bool x when x == false -> xr
-                  | _ -> lub xr in
+                  | _ -> lubIfNotBot xr in
                   (e, (left, middle, right))
                 end
             end
           | _ -> 
           
-          (e, (lub xl, lub xm, lub xr))
+          (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
           (* if Expp.equal e i then (e, (xl, a, xr)) *)
           (* TODO: else if all the other cases *)
         end
