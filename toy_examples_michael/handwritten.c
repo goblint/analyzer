@@ -12,6 +12,7 @@ int main(void) {
   example10();
   example11();
   example12();
+  example13();
 }
 
 // Simple example
@@ -183,4 +184,15 @@ void example12(void) {
   int x = a[5];
   int y = a[1];
   int z = a[i-1];
+}
+
+// Example having to arrays partitioned according to one expression
+void example13(void) {
+  int a[42];
+  int b[42];
+
+  for(int i=0; i<42;i++) {
+    a[i] = 2;
+    b[41-i] = 0;
+  }
 }
