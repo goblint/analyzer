@@ -634,6 +634,11 @@ struct
                     M.warn ("set_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
                     `Lifted (equivalent_expr)
                   end
+                | Some (Lval (x, (Index (e, offset)))) ->
+                  begin
+                    M.warn ("A': There is something fishy going on in update_offset with an array access - " ^ (Expp.short 20 (`Lifted (Lval (x, (Index (e, offset)))))) ^ " took " ^ (Expp.short 20 (`Lifted e)));
+                    `Lifted e (* the expression inside the [] (if any) *)
+                  end
                 | Some exp ->
                   begin
                     M.warn ("There is something fishy going on in update_offset with an array access " ^ (Expp.short 20 (`Lifted exp)));
