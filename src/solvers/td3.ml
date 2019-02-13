@@ -283,41 +283,42 @@ module WP =
 
         let output = solve box st vs infl rho called wpoint in 
         Serialize.marshall output "solve_1.data"; *)
-        let (infl, rho, called, wpoint) =  if Sys.file_exists "solve.in" 
-                                            then Serialize.unmarshall "solve.in"
+        let (infl, rho, called, wpoint) =  if Sys.file_exists "solve1.out" 
+                                            then Serialize.unmarshall "solve1.out"
                                             else (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
         (* let (infl, rho, called, wpoint) = Serialize.unmarshall "solve1.out" in *)
         let (infl, rho, called, wpoint) = solve box st vs infl rho called wpoint in
-        Serialize.marshall (infl, rho, called, wpoint) "solve.in" ;
+        Serialize.marshall (infl, rho, called, wpoint) "solve1.out" ;
 (*         let input = if Sys.file_exists "solve1.out.old" then "solve1.out.old" else "solve1.out" in
 (*  *)        print_endline ("Unmarshall "^input);
- *)        let (infl, rho, called, wpoint) = Serialize.unmarshall "solve.in" in
+ *)        let (infl, rho, called, wpoint) = Serialize.unmarshall "solve1.out" in
         (* let (infl, rho, called, wpoint) = output1 in *)
         (* 90 instead of 63 values in rho if 1. solve on empty data is missing *)
         let output2 = solve box st vs infl rho called wpoint in
-        Serialize.marshall output2 "solve.out" ; 
+        Serialize.marshall output2 "solve1.out" ; 
 
 (*         let (infl1, rho1, called1, wpoint1) = Serialize.unmarshall "solve.old" in
         let (infl2, rho2, called2, wpoint2) = solve box st vs infl1 rho1 called1 wpoint1 in
 (*         Serialize.marshall (infl1, rho1, called1, wpoint1) "res1.data"; *)
  *)
-(*
+
         let keys hm = HM.fold (fun key vl acc -> List.cons key acc) hm [] in
         let vals hm = HM.fold (fun key vl acc -> List.cons vl acc) hm [] in
         let rho_of (_, r, _, _) = r in
 
         (*  *)
-        let old_rho = rho_of (Serialize.unmarshall "solve.in") in
+        let old_rho = rho_of (Serialize.unmarshall "solve1.out.old") in
+        let cmp_rho = rho_of (Serialize.unmarshall "solve1.out.cmp") in
         let r1 = KeySet.of_list (keys old_rho) in
-        let r2 = KeySet.of_list (keys rho) in
+        let r2 = KeySet.of_list (keys cmp_rho) in
 
         let additional = KeySet.diff r2 r1 in
   
         KeySet.iter (fun a ->  print_string (S.Var.file_name a);print_int (S.Var.line_nr a); print_string ": "; print_string (S.Var.var_id a); print_newline ()) additional;
         let (el1, additional) = KeySet.pop additional in
         let (el2, additional) = KeySet.pop additional in
-(*         let (el2, additional) = KeySet.pop additional in
- *)        print_string "Compare:";
+         let (el2, additional) = KeySet.pop additional in
+         print_string "Compare:";
         print_string (S.Var.file_name el1);print_int (S.Var.line_nr el1); print_string ": "; print_string (S.Var.var_id el1); print_newline ();
         print_string (S.Var.file_name el2);print_int (S.Var.line_nr el2); print_string ": "; print_string (S.Var.var_id el2); print_newline ();
         print_string "result: ";
@@ -326,7 +327,7 @@ module WP =
 
         print_endline @@ Pretty.sprint ~width:1000 (S.Var.pretty_trace () el1);
 
-        print_endline @@ Pretty.sprint ~width:1000 (S.Var.pretty_trace () el1);*)
+        print_endline @@ Pretty.sprint ~width:1000 (S.Var.pretty_trace () el2); 
         (* print_endline ("rho.in = rho.out: "^string_of_bool (HM.equal (rho_of rho) (rho_of output1)); *)
 (* 
         let (_,r,_,_) = Serialize.unmarshall "solve.in" in
