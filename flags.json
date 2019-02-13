@@ -1,0 +1,32 @@
+{ "ana"
+  : { "activated" : [ "base"],
+   "int "
+  : { "interval " : true
+  , "trier "
+  : false
+  }
+  },
+  "exp":{
+     "solver": {
+        "td3":{
+           "term": true,
+           "space": true,
+           "space_cache": true
+        },
+        "wp":{
+           "restore": false
+        }
+     }
+  }
+  , "dbg"
+  : { "verbose" : true,
+   "trace":{
+      "context": true
+   }
+  }
+  , "printstats " : true
+  , "result " : "html"
+  , "solver"
+  : "td3",
+  "noverify": true
+  }
