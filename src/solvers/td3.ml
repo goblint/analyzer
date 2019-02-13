@@ -287,21 +287,21 @@ module WP =
                                             then Serialize.unmarshall "solve.in"
                                             else (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
         (* let (infl, rho, called, wpoint) = Serialize.unmarshall "solve1.out" in *)
-        let (infl, rho, called, wpoint) = solve box st vs (HM.create 10) rho called wpoint in
+        let (infl, rho, called, wpoint) = solve box st vs infl rho called wpoint in
         Serialize.marshall (infl, rho, called, wpoint) "solve.in" ;
-    (*     let input = if Sys.file_exists "solve1.out.old" then "solve1.out.old" else "solve1.out" in
-        print_endline ("Unmarshall "^input);
-        let (infl, rho, called, wpoint) = Serialize.unmarshall input in
+(*         let input = if Sys.file_exists "solve1.out.old" then "solve1.out.old" else "solve1.out" in
+(*  *)        print_endline ("Unmarshall "^input);
+ *)        let (infl, rho, called, wpoint) = Serialize.unmarshall "solve.in" in
         (* let (infl, rho, called, wpoint) = output1 in *)
         (* 90 instead of 63 values in rho if 1. solve on empty data is missing *)
         let output2 = solve box st vs infl rho called wpoint in
-        Serialize.marshall output2 "solve2.out" ; *)
+        Serialize.marshall output2 "solve.out" ; 
 
 (*         let (infl1, rho1, called1, wpoint1) = Serialize.unmarshall "solve.old" in
         let (infl2, rho2, called2, wpoint2) = solve box st vs infl1 rho1 called1 wpoint1 in
 (*         Serialize.marshall (infl1, rho1, called1, wpoint1) "res1.data"; *)
  *)
-
+(*
         let keys hm = HM.fold (fun key vl acc -> List.cons key acc) hm [] in
         let vals hm = HM.fold (fun key vl acc -> List.cons vl acc) hm [] in
         let rho_of (_, r, _, _) = r in
@@ -326,7 +326,7 @@ module WP =
 
         print_endline @@ Pretty.sprint ~width:1000 (S.Var.pretty_trace () el1);
 
-        print_endline @@ Pretty.sprint ~width:1000 (S.Var.pretty_trace () el1);
+        print_endline @@ Pretty.sprint ~width:1000 (S.Var.pretty_trace () el1);*)
         (* print_endline ("rho.in = rho.out: "^string_of_bool (HM.equal (rho_of rho) (rho_of output1)); *)
 (* 
         let (_,r,_,_) = Serialize.unmarshall "solve.in" in

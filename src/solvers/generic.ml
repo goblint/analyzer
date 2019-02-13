@@ -355,7 +355,7 @@ struct
         set v 1;
         Hashtbl.add histo v 1
       end
-
+    | Out_of_memory -> ()
   let start_event () = ()
   let stop_event () = ()
 
