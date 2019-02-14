@@ -15,7 +15,7 @@ struct
 
   let rec canonize (e:exp) =
     match e with
-      | BinOp (MinusA, BinOp(PlusA, e1, e2, typ1), e3, typ2)  when typ1 == typ2 -> (* (e1+e2)-e3 --> (e1-e3)+e2 *)
+      | BinOp (MinusA, BinOp(PlusA, e1, e2, typ1), e3, typ2)  when typ1 = typ2 -> (* (e1+e2)-e3 --> (e1-e3)+e2 *)
         begin                                                                      (* where + is arithmetic +   *)
           let ce1 = canonize e1 in
           let ce2 = canonize e2 in

@@ -80,19 +80,19 @@ struct
         | `Lifted e', `Lifted i' ->
           begin
             let isEqual = match ask (Q.MustBeEqual (e',i')) with
-              | `Bool x when x == true -> true
+              | `Bool x when x = true -> true
               | _ -> false in
             if isEqual then xm
             else
               begin
                 let contributionLess = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
-                | `Bool x when x == false -> Val.bot ()
+                | `Bool x when x = false -> Val.bot ()
                 | _ -> xl in
                 let contributionEqual = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
-                | `Bool x when x == false -> Val.bot ()
+                | `Bool x when x = false -> Val.bot ()
                 | _ -> xm in
                 let contributionGreater =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
-                | `Bool x when x == false -> Val.bot ()
+                | `Bool x when x = false -> Val.bot ()
                 | _ -> xr in
                 Val.join (Val.join contributionLess contributionEqual) contributionGreater
               end
@@ -159,19 +159,19 @@ struct
           match e, i with
           | `Lifted e', `Lifted i' -> begin
               let isEqual = match ask (Q.MustBeEqual (e',i')) with
-                | `Bool x when x == true -> true
+                | `Bool x when x = true -> true
                 | _ -> false in
               if isEqual then (e, (xl, a, xr))
               else
                 begin
                   let left = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
-                  | `Bool x when x == false -> xl
+                  | `Bool x when x = false -> xl
                   | _ -> lubIfNotBot xl in
                   let middle = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
-                  | `Bool x when x == false -> xm
+                  | `Bool x when x = false -> xm
                   | _ -> Val.join xm a in
                   let right =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
-                  | `Bool x when x == false -> xr
+                  | `Bool x when x = false -> xr
                   | _ -> lubIfNotBot xr in
                   (e, (left, middle, right))
                 end
