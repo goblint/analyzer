@@ -13,6 +13,8 @@ int main(void) {
   example11();
   example12();
   example13();
+  example14();
+  example15();
 }
 
 // Simple example
@@ -194,5 +196,28 @@ void example13(void) {
   for(int i=0; i<42;i++) {
     a[i] = 2;
     b[41-i] = 0;
+  }
+}
+
+// Example modifying sth used to index into the array via a pointer
+void example14(void) {
+  int a[42];
+  int i = 0;
+  int *ip = &i;
+
+  while(*ip < 42) {
+    a[i] = 0;
+    (*ip)++; // Currently unable to determine how much move was
+  } 
+}
+
+void example15(void) {
+  int a[42];
+  int i=0;
+  int *ip=&i;
+
+  while(i < 42) {
+    a[*ip] = 0;
+    i++;
   }
 }
