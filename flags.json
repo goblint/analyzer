@@ -1,32 +1,35 @@
-{ "ana"
-  : { "activated" : [ "base"],
-   "int "
-  : { "interval " : true
-  , "trier "
-  : false
-  }
-  },
-  "exp":{
-     "solver": {
-        "td3":{
-           "term": true,
-           "space": true,
-           "space_cache": true
-        },
-        "wp":{
-           "restore": false
-        }
-     }
-  }
-  , "dbg"
-  : { "verbose" : true,
-   "trace":{
-      "context": true
-   }
-  }
-  , "printstats " : true
-  , "result " : "html"
-  , "solver"
-  : "td3",
-  "noverify": true
-  }
+{
+   "ana": {
+      "activated": [
+         "base"
+      ],
+      "int ": {
+         "interval ": true,
+         "trier ": false
+      },
+      "hashcons": false
+   },
+   "exp": {
+      "solver": {
+         "td3": {
+            "term": true,
+            "space": false,
+            "space_cache": false
+         },
+         "wp": {
+            "restore": true
+         }
+      },
+      "addr-context": false
+   },
+   "dbg": {
+      "verbose": true,
+      "trace": {
+         "context": true
+      }
+   },
+   "printstats ": true,
+   "result ": "html",
+   "solver": "td3",
+   "noverify": true
+}
