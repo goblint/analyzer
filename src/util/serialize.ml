@@ -67,7 +67,7 @@ let unmarshall fileName =
 let save_cil (file: Cil.file) (fileList: string list)= match current_commit_dir fileList with
   |Some dir ->
     let cilFile = Filename.concat dir cilFileName in
-    Cil.saveBinaryFile file cilFile
+    marshall file cilFile
   | None -> print_endline "Failure when saving cil: working directory is dirty"
  
 let loadCil (fileList: string list) = 
@@ -75,7 +75,7 @@ let loadCil (fileList: string list) =
   match current_commit_dir fileList with
   |Some dir ->
     let cilFile = Filename.concat dir cilFileName in
-    Some (Cil.loadBinaryFile cilFile)
+    unmarshall cilFile
   | None -> None
 
 let results_exist (src_files: string list) =
@@ -90,5 +90,5 @@ let load_latest_cil (src_files: string list) =
   try
     let dir = last_analyzed_commit_dir src_files  in
     let cil = Filename.concat dir cilFileName in
-    Some (Cil.loadBinaryFile cil)
+    Some (unmarshall cil)
   with e -> None
