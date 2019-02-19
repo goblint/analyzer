@@ -485,95 +485,180 @@ struct
     |                 _ , `List n       -> `Top
     |                 t , _             -> top_value t
 
+
+  (* take the last offset in offset and move it over to left *)
+  let shift_one_over left offset =
+    match left, offset with
+    | Some(left), Some(offset) ->
+      begin
+        (* Remove the first part of an offset, returns (removedPart, remainingOffset) *) 
+        let removeFirstOffset offset =
+          match offset with
+            | Field(f, o) -> Field(f, NoOffset), o
+            | Index(exp, o) -> Index(exp, NoOffset), o
+            | NoOffset -> offset, offset in
+        let removed, remaining = removeFirstOffset offset in
+        Some (Cil.addOffsetLval removed left), Some(remaining)
+      end
+    | _ -> None, None
+
+  let rec determine_offset left offset exp v =
+    let legacy_offset exp v = begin
+      Printf.printf "XXXXXXXXXXXXXXXXXXXXXXXXXXX Going into legacy code";
+      let e = match exp with
+        | Some (Lval (Var _, (Index (e, offset) ))) -> (* TODO: What about the offset? *)
+            `Lifted e (* the expression that is inside the [] (if any) *)
+        | Some (Lval (Mem ptr, NoOffset)) -> 
+            begin
+            match v with
+              | Some v' ->
+                begin
+                  let array_name:lval = (Var v', NoOffset) in
+                  let start_of_array = StartOf array_name in
+                  let equivalent_expr = BinOp (MinusPP, ptr, start_of_array, intType) in
+                  M.warn ("eval_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
+                  `Lifted (equivalent_expr)
+                end
+              | _ ->
+                begin
+                  M.warn ("A: There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))));
+                  `Lifted (Lval (Mem ptr, NoOffset))
+                end
+            end
+        | Some (Lval (x, (Index (e, offset)))) ->
+          begin
+            M.warn ("A': There is something fishy going on in eval_offset with an array access - " ^ (Expp.short 20 (`Lifted (Lval (x, (Index (e, offset)))))) ^ " took " ^ (Expp.short 20 (`Lifted e)));
+            `Lifted e (* the expression inside the [] (if any) *)
+          end
+        | Some (AddrOf (x, (Index (e, offset)))) ->
+          begin
+            M.warn ("A'': There is something fishy going on in eval_offset with an array access - " ^ (Expp.short 20 (`Lifted (Lval (x, (Index (e, offset)))))) ^ " took " ^ (Expp.short 20 (`Lifted e)));
+            `Lifted e
+          end
+        | Some (Lval (v, (Field (f, (Index (e, offset)))))) ->
+          begin
+            M.warn ("A''': There is something fishy going on in eval_offset with an array access "^ (Expp.short 20 (`Lifted (Lval (v, (Field (f, (Index (e, offset)))))))) ^ " took " ^ (Expp.short 20 (`Lifted e)));
+            `Lifted e
+          end
+        | Some exp ->
+          begin
+            M.warn ("B: There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted exp)));
+            `Lifted exp
+          end
+        | None ->
+          begin
+            M.warn "C: There is something fishy going on in eval_offset with an array access (TOP)" ;
+            Expp.top ()
+          end in
+        e 
+      end 
+    in
+    match left, offset with
+      | Some(left), Some(Index(exp, o)) -> `Lifted exp
+      | Some((Mem(ptr), offset) as left), Some(NoOffset) -> (* legacy_offset exp v *)
+        begin
+          match v with
+          | Some v' ->
+            begin
+              (* This should mean the entire expression we have here is a pointer into the array *)
+              let array_name:lval = (Var v', NoOffset) in
+              let start_of_array = StartOf array_name in
+              let equivalent_expr = BinOp(MinusPP, ptr, start_of_array, intType) in
+              `Lifted (equivalent_expr)             
+            end
+          | _ ->
+            begin
+              M.warn ("A: There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted (Lval left))));
+              `Lifted (Lval left)
+            end
+        end
+      | Some(left), Some(Field _) -> Printf.printf "NOOOOOO FIELD"; legacy_offset exp v
+      | _, _ -> Printf.printf "NOOOOOO STH ELSE"; legacy_offset exp v
+        
+
+
   (* Funny, this does not compile without the final type annotation! *)
   let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:varinfo option): t =
-    match x, offs with
-    | `Blob c, `Index (_,o) -> eval_offset ask f (Blobs.value c) o exp v
-    | `Blob c, `Field _ -> eval_offset ask f (Blobs.value c) offs exp v
-    | `Blob c, `NoOffset -> `Blob c
-    | `Bot, _ -> `Bot
-    | _ ->
-      match offs with
-      | `NoOffset -> x
-      | `Field (fld, offs) when fld.fcomp.cstruct -> begin
-          match x with
-          | `List ls when fld.fname = "next" || fld.fname = "prev" ->
-            `Address (Lists.entry_rand ls)
-          | `Address ad when fld.fcomp.cname = "list_head" || fld.fname = "next" || fld.fname = "prev" ->
-            (*hack for lists*)
-            begin match f ad with
-              | `List l -> `Address (Lists.entry_rand l)
-              | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
-            end
-          | `Struct str ->
-            let x = Structs.get str fld in
-            eval_offset ask f x offs exp v
-          | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
-          | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
+    let rec do_eval_offset (ask:Q.ask) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:varinfo option):t =
+      match x, offs with
+      | `Blob c, `Index (_, ox) ->
+        begin
+          let l', o' = shift_one_over l o in 
+          do_eval_offset ask f (Blobs.value c) ox exp l' o' v
         end
-      | `Field (fld, offs) -> begin
-          match x with
-          | `Union (`Lifted l_fld, valu) ->
-            let x = cast ~torg:l_fld.ftype fld.ftype valu in
-            eval_offset ask f x offs exp v
-          | `Union (_, valu) -> top ()
-          | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
-          | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
+      | `Blob c, `Field _ ->
+        begin
+          let l', o' = shift_one_over l o in 
+          do_eval_offset ask f (Blobs.value c) offs exp l' o' v
         end
-      | `Index (idx, offs) -> begin
-          match x with
-          | `Array x ->   (* TODO: This is a very bad idea *)
-            let e = match exp with
-              | Some (Lval (Var _, (Index (e, offset) ))) -> (* TODO: What about the offset? *)
-                  `Lifted e (* the expression that is inside the [] (if any) *)
-              | Some (Lval (Mem ptr, NoOffset)) -> 
-                  begin
-                  match v with
-                    | Some v' ->
-                      begin
-                        let array_name:lval = (Var v', NoOffset) in
-                        let start_of_array = StartOf array_name in
-                        let equivalent_expr = BinOp (MinusPP, ptr, start_of_array, intType) in
-                        M.warn ("eval_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
-                        `Lifted (equivalent_expr)
-                      end
-                    | _ ->
-                      begin
-                        M.warn ("A: There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))));
-                        `Lifted (Lval (Mem ptr, NoOffset))
-                      end
-                  end
-              | Some (Lval (x, (Index (e, offset)))) ->
-                begin
-                  M.warn ("A': There is something fishy going on in eval_offset with an array access - " ^ (Expp.short 20 (`Lifted (Lval (x, (Index (e, offset)))))) ^ " took " ^ (Expp.short 20 (`Lifted e)));
-                  `Lifted e (* the expression inside the [] (if any) *)
-                end
-              | Some exp ->
-                begin
-                  M.warn ("B: There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted exp)));
-                  `Lifted exp
-                end
-              | None ->
-                begin
-                  M.warn "C: There is something fishy going on in eval_offset with an array access (TOP)" ;
-                  Expp.top ()
-                end in
-            eval_offset ask f (CArrays.get ask x e) offs exp v
-          | `Address _ -> 
-            begin  
-              eval_offset ask f x offs exp v (* this used to be `blob `address -> we ignore the index *)
-            end
-          | x when IndexDomain.to_int idx = Some 0L -> eval_offset ask f x offs exp v
-          | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
-          | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
-        end
+      | `Blob c, `NoOffset -> `Blob c
+      | `Bot, _ -> `Bot
+      | _ ->
+        match offs with
+        | `NoOffset -> x
+        | `Field (fld, offs) when fld.fcomp.cstruct -> begin
+            match x with
+            | `List ls when fld.fname = "next" || fld.fname = "prev" ->
+              `Address (Lists.entry_rand ls)
+            | `Address ad when fld.fcomp.cname = "list_head" || fld.fname = "next" || fld.fname = "prev" ->
+              (*hack for lists*)
+              begin match f ad with
+                | `List l -> `Address (Lists.entry_rand l)
+                | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
+              end
+            | `Struct str ->
+              let x = Structs.get str fld in
+              let l', o' = shift_one_over l o in 
+              do_eval_offset ask f x offs exp l' o' v
+            | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
+            | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
+          end
+        | `Field (fld, offs) -> begin
+            match x with
+            | `Union (`Lifted l_fld, valu) ->
+              let x = cast ~torg:l_fld.ftype fld.ftype valu in
+              let l', o' = shift_one_over l o in 
+              do_eval_offset ask f x offs exp l' o' v
+            | `Union (_, valu) -> top ()
+            | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
+            | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
+          end
+        | `Index (idx, offs) -> begin
+            let l', o' = shift_one_over l o in 
+            match x with
+            | `Array x ->   (* TODO: This is a very bad idea *)
+              let e = determine_offset l o exp v in
+              do_eval_offset ask f (CArrays.get ask x e) offs exp l' o' v
+            | `Address _ -> 
+              begin  
+                do_eval_offset ask f x offs exp l' o' v (* this used to be `blob `address -> we ignore the index *)
+              end
+            | x when IndexDomain.to_int idx = Some 0L -> eval_offset ask f x offs exp v
+            | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
+            | _ -> M.warn ("Trying to read an index, but was not given an array ("^short 80 x^")"); top ()
+          end
+    in 
+    let l, o = match exp with
+      | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)
+      | _ -> None, None
+    in
+    do_eval_offset ask f x offs exp l o v
 
   let rec update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:varinfo): t =
-    let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
-    match x, offs with
-    | `Blob (x,s), `Index (_,o) -> mu (`Blob (join x (update_offset ask x o value exp v), s))
-    | `Blob (x,s),_ -> mu (`Blob (join x (update_offset ask x offs value exp v), s))
-    | _ ->
+    let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:varinfo):t =
+      let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
+      match x, offs with
+      | `Blob (x,s), `Index (_,ofs) ->
+        begin
+          let l', o' = shift_one_over l o in 
+          mu (`Blob (join x (do_update_offset ask x ofs value exp l' o' v), s))
+        end
+      | `Blob (x,s),_ -> 
+        begin
+          let l', o' = shift_one_over l o in 
+          mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v), s))
+        end
+      | _ ->
       let result =
         match offs with
         | `NoOffset -> begin
@@ -583,7 +668,12 @@ struct
           end
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
             match x with
-            | `Struct str -> `Struct (Structs.replace str fld (update_offset ask (Structs.get str fld) offs value exp v))
+            | `Struct str ->
+              begin
+                let l', o' = shift_one_over l o in
+                let value' =  (do_update_offset ask (Structs.get str fld) offs value exp l' o' v) in
+                `Struct (Structs.replace str fld value')
+              end
             | `Bot ->
               let rec init_comp compinfo =
                 let nstruct = Structs.top () in
@@ -591,11 +681,13 @@ struct
                 List.fold_left init_field nstruct compinfo.cfields
               in
               let strc = init_comp fld.fcomp in
-              `Struct (Structs.replace strc fld (update_offset ask `Bot offs value exp v))
+              let l', o' = shift_one_over l o in
+              `Struct (Structs.replace strc fld (do_update_offset ask `Bot offs value exp l' o' v))
             | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
             | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
           end
         | `Field (fld, offs) -> begin
+            let l', o' = shift_one_over l o in
             match x with
             | `Union (last_fld, prev_val) ->
               let tempval, tempoffs =
@@ -614,46 +706,31 @@ struct
                     top (), offs
                 end
               in
-              `Union (`Lifted fld, update_offset ask tempval tempoffs value exp v)
-            | `Bot -> `Union (`Lifted fld, update_offset ask `Bot offs value exp v)
+              `Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v)
+            | `Bot -> `Union (`Lifted fld, do_update_offset ask `Bot offs value exp l' o' v)
             | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
             | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
+            let l', o' = shift_one_over l o in 
             match x with
             | `Array x' ->
-              let e = match exp with
-                | Some (Lval (Var v, (Index (e, offset) ))) ->
-                    `Lifted e (* the expression that is inside the [] (if any) *) (* TODO: what about offset here? *)
-                | Some (Lval (Mem ptr, NoOffset)) -> 
-                  begin
-                    (* Accessing the array via a pointer, turn this into an equivalent access into the array via subscript *)
-                    let array_name:lval = (Var v, NoOffset) in
-                    let start_of_array = StartOf array_name in
-                    let equivalent_expr = BinOp (MinusPP, ptr, start_of_array, intType) in 
-                    M.warn ("set_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
-                    `Lifted (equivalent_expr)
-                  end
-                | Some (Lval (x, (Index (e, offset)))) ->
-                  begin
-                    M.warn ("A': There is something fishy going on in update_offset with an array access - " ^ (Expp.short 20 (`Lifted (Lval (x, (Index (e, offset)))))) ^ " took " ^ (Expp.short 20 (`Lifted e)));
-                    `Lifted e (* the expression inside the [] (if any) *)
-                  end
-                | Some exp ->
-                  begin
-                    M.warn ("There is something fishy going on in update_offset with an array access " ^ (Expp.short 20 (`Lifted exp)));
-                    `Lifted exp
-                  end
-                | None -> Expp.top () in
-              let new_value_at_index = update_offset ask (CArrays.get ask x' e) offs value exp v in
+              let e = determine_offset l o exp (Some v) in
+              let new_value_at_index = do_update_offset ask (CArrays.get ask x' e) offs value exp l' o' v in
               let new_array_value = CArrays.set ask x' e new_value_at_index in
               `Array new_array_value
-            | x when IndexDomain.to_int idx = Some 0L -> update_offset ask x offs value exp v
-            | `Bot -> `Array (CArrays.make 42 (update_offset ask `Bot offs value exp v)) (* TODO: why 42? *)
+            | x when IndexDomain.to_int idx = Some 0L -> do_update_offset ask x offs value exp l' o' v
+            | `Bot -> `Array (CArrays.make 42 (do_update_offset ask `Bot offs value exp l' o' v)) (* TODO: why 42? *)
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | _ -> M.warn_each ("Trying to update an index, but was not given an array("^short 80 x^")"); top ()
           end
       in mu result
+    in
+    let l, o = match exp with
+      | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)
+      | _ -> None, None
+    in
+    do_update_offset ask x offs value exp l o v
 
   let is_array_affected_by (x:t) (v:varinfo) =
     match x with
