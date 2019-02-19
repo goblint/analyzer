@@ -265,7 +265,7 @@ struct
             | `Bool t ->
               begin
                 match Q.BD.to_bool t with
-                | Some t' when t' == true -> true
+                | Some t' when t' = true -> true
                 | _ -> false
               end
             | _ -> false 
