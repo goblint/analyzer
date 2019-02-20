@@ -359,7 +359,7 @@ let update_and_store_map old_file new_file =
 
 let print_variables (fnctn: Cil.fundec) = 
     List.iter (fun (a: Cil.varinfo) -> print_endline ("Local: "  ^ a.vname ^ " id: " ^ (string_of_int a.vid))) fnctn.slocals;
-    List.iter (fun (a: Cil.varinfo) -> print_endline ("Global: "  ^ a.vname ^ " id: " ^ (string_of_int a.vid))) fnctn.sformals
+    List.iter (fun (a: Cil.varinfo) -> print_endline ("Formal: "  ^ a.vname ^ " id: " ^ (string_of_int a.vid))) fnctn.sformals
 
 (** the main function *)
 let main =
