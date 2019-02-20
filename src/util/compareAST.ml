@@ -146,44 +146,49 @@ let eq_label (a: label) (b: label) = match a, b with
 | _, _ -> false
 
 (* This is needed for checking whether a goto does go to the same semantic location/statement*)
-let eq_stmt_with_location (a: stmt) (b: stmt) = eq_list eq_label a.labels b.labels && a.sid = b.sid
+let eq_stmt_with_location ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
+  let offsetA = a.sid - (List.hd af.sallstmts).sid in
+  let offsetB = b.sid - (List.hd bf.sallstmts).sid in
+  eq_list eq_label a.labels b.labels && offsetA = offsetB
 
-let rec eq_stmtkind (a: stmtkind) (b: stmtkind) = match a, b with
+let rec eq_stmtkind ((a, af): stmtkind * fundec) ((b, bf): stmtkind * fundec) =
+  let eq_block' = fun x y -> eq_block (x, af) (y, bf) in
+  match a, b with
     | Instr is1, Instr is2 -> eq_list eq_instr is1 is2
     | Return (Some exp1, _l1), Return (Some exp2, _l2) -> eq_exp exp1 exp2
     | Return (None, _l1), Return (None, _l2) -> true
     | Return _, Return _ -> false
-    | Goto (st1, _l1), Goto (st2, _l2) -> eq_stmt_with_location !st1 !st2
+    | Goto (st1, _l1), Goto (st2, _l2) -> eq_stmt_with_location (!st1, af) (!st2, bf)
     | Break _, Break _ -> true
     | Continue _, Continue _ -> true
-    | If (exp1, then1, else1, _l1), If (exp2, then2, else2, _l2) -> eq_exp exp1 exp2 && eq_block then1 then2 && eq_block else1 else2
-    | Switch (exp1, block1, stmts1, _l1), Switch (exp2, block2, stmts2, _l2) -> eq_exp exp1 exp2 && eq_block block1 block2 && eq_list eq_stmt stmts1 stmts2
-    | Loop (block1, _l1, _con1, _br1), Loop (block2, _l2, _con2, _br2) -> eq_block block1 block2 
-    | Block block1, Block block2 -> eq_block block1 block2
-    | TryFinally (tryBlock1, finallyBlock1, _l1), TryFinally (tryBlock2, finallyBlock2, _l2) -> eq_block tryBlock1 tryBlock2 && eq_block finallyBlock1 finallyBlock2
-    | TryExcept (tryBlock1, exn1, exceptBlock1, _l1), TryExcept (tryBlock2, exn2, exceptBlock2, _l2) -> eq_block tryBlock1 tryBlock2 && eq_block exceptBlock1 exceptBlock2
+    | If (exp1, then1, else1, _l1), If (exp2, then2, else2, _l2) -> eq_exp exp1 exp2 && eq_block' then1 then2 && eq_block' else1 else2
+    | Switch (exp1, block1, stmts1, _l1), Switch (exp2, block2, stmts2, _l2) -> eq_exp exp1 exp2 && eq_block' block1 block2 && eq_list (fun a b -> eq_stmt (a,af) (b,bf)) stmts1 stmts2
+    | Loop (block1, _l1, _con1, _br1), Loop (block2, _l2, _con2, _br2) -> eq_block' block1 block2
+    | Block block1, Block block2 -> eq_block' block1 block2
+    | TryFinally (tryBlock1, finallyBlock1, _l1), TryFinally (tryBlock2, finallyBlock2, _l2) -> eq_block' tryBlock1 tryBlock2 && eq_block' finallyBlock1 finallyBlock2
+    | TryExcept (tryBlock1, exn1, exceptBlock1, _l1), TryExcept (tryBlock2, exn2, exceptBlock2, _l2) -> eq_block' tryBlock1 tryBlock2 && eq_block' exceptBlock1 exceptBlock2
     | _, _ -> false
 
-and eq_stmt (a: Cil.stmt) (b: Cil.stmt) = 
+and eq_stmt ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
     List.for_all (fun (x,y) -> eq_label x y) (List.combine a.labels b.labels) &&
-    eq_stmtkind a.skind b.skind
+    eq_stmtkind (a.skind, af) (b.skind, bf)
 
-and eq_block (a: Cil.block) (b: Cil.block) =
-    a.battrs = b.battrs && List.for_all (fun (x,y) -> eq_stmt x y) (List.combine a.bstmts b.bstmts)
+and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) =
+    a.battrs = b.battrs && List.for_all (fun (x,y) -> eq_stmt (x, af) (y, bf)) (List.combine a.bstmts b.bstmts)
 
 let eqF (a: Cil.fundec) (b: Cil.fundec) =
     try
        eq_varinfo a.svar b.svar && 
        List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.sformals b.sformals) && 
        List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.slocals b.slocals) &&
-       eq_block a.sbody b.sbody
+       eq_block (a.sbody, a) (b.sbody, b)
     with Invalid_argument _ -> (* One of the combines failed because the lists have differend length *)
                             false
        (*&& a.sformals == b.sformals &&
        a.slocals == b.slocals && eqB a.sbody b.sbody && 
        List.for_all (fun (a,b) -> eqS a b) (List.combine a.sallstmts b.sallstmts)*)
 
-(* Do a (recrusive) equal comparision ignoring location information *)
+(* Do a (recursive) equal comparision ignoring location information *)
 let eq (a:Cil.global) (b: Cil.global) = match a, b with
   (GFun (x1,x2)), (GFun (y1,y2)) -> eqF x1 y1
   | _, _ -> assert false (* We should only compare two GFuns with this function, otherwise fail *) 
