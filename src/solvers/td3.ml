@@ -5,6 +5,8 @@ open Analyses
 open Constraints
 open Messages
 
+let debug_now = ref false
+
 module WP =
 
   functor (S:EqConstrSys) ->
@@ -286,9 +288,12 @@ module WP =
         let (infl, rho, called, wpoint) =  if Sys.file_exists "solve1.out" 
                                             then Serialize.unmarshall "solve1.out"
                                             else (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
+
+        let varCountBefore = HM.length rho in                                            
         (* let (infl, rho, called, wpoint) = Serialize.unmarshall "solve1.out" in *)
-        let (infl, rho, called, wpoint) = solve box st vs infl rho called wpoint in
-        Serialize.marshall (infl, rho, called, wpoint) "solve1.out" ;
+        let (infl, rho1, called, wpoint) = solve box st vs infl rho called wpoint in
+        let varCountAfter = HM.length rho1 in
+        Serialize.marshall (infl, rho1, called, wpoint) "solve1.out" ;
 (*         let input = if Sys.file_exists "solve1.out.old" then "solve1.out.old" else "solve1.out" in
 (*  *)        print_endline ("Unmarshall "^input);
  *)        let (infl, rho, called, wpoint) = Serialize.unmarshall "solve1.out" in
@@ -302,7 +307,7 @@ module WP =
 (*         Serialize.marshall (infl1, rho1, called1, wpoint1) "res1.data"; *)
  *)
 
-        let keys hm = HM.fold (fun key vl acc -> List.cons key acc) hm [] in
+(*         let keys hm = HM.fold (fun key vl acc -> List.cons key acc) hm [] in
         let vals hm = HM.fold (fun key vl acc -> List.cons vl acc) hm [] in
         let rho_of (_, r, _, _) = r in
 
@@ -316,18 +321,26 @@ module WP =
   
         KeySet.iter (fun a ->  print_string (S.Var.file_name a);print_int (S.Var.line_nr a); print_string ": "; print_string (S.Var.var_id a); print_newline ()) additional;
         let (el1, additional) = KeySet.pop additional in
-        let (el2, additional) = KeySet.pop additional in
-         let (el2, additional) = KeySet.pop additional in
+(*          let (el1, additional) = KeySet.pop additional in
+ *)      
+       let el2= KeySet.any (KeySet.filter (fun v -> S.Var.var_id v = S.Var.var_id el1 ) additional) in
          print_string "Compare:";
         print_string (S.Var.file_name el1);print_int (S.Var.line_nr el1); print_string ": "; print_string (S.Var.var_id el1); print_newline ();
         print_string (S.Var.file_name el2);print_int (S.Var.line_nr el2); print_string ": "; print_string (S.Var.var_id el2); print_newline ();
         print_string "result: ";
-        print_int (S.Var.compare el1 el2);
+        debug_now := true;
+        let c = S.Var.compare el1 el2 in
+        print_int c;
+
+        
         print_newline ();
 
         print_endline @@ Pretty.sprint ~width:1000 (S.Var.pretty_trace () el1);
 
-        print_endline @@ Pretty.sprint ~width:1000 (S.Var.pretty_trace () el2); 
+        print_endline @@ Pretty.sprint ~width:1000 (S.Var.pretty_trace () el2);
+
+        Dum.to_channel ~lim:999999 (Legacy.open_out "el1.txt") el1;
+        Dum.to_channel ~lim:999999 (Legacy.open_out "el2.txt") el2; *)
         (* print_endline ("rho.in = rho.out: "^string_of_bool (HM.equal (rho_of rho) (rho_of output1)); *)
 (* 
         let (_,r,_,_) = Serialize.unmarshall "solve.in" in
@@ -348,7 +361,10 @@ module WP =
  *)
 
         print_newline ();
-        rho
+
+        print_endline ("number of different vars: " ^ string_of_int (varCountAfter - varCountBefore));
+
+        rho1
 
 
   end
