@@ -391,15 +391,24 @@ let main =
             | None -> ());
           | None -> ();
         );
-        (match Serialize.load_latest_cil !cFileNames with
-          | Some file2 -> let functionNameMap = update_and_store_map file2 file in
-                          file|> do_analyze functionNameMap;
-                          Report.do_stats !cFileNames;
-                          do_html_output ();
-                          if !verified = Some false then exit 3;  (* verifier failed! *)
-                          if !Messages.worldStopped then exit 124; (* timeout! *)
-          | None -> print_string "Failure when loading latest cil file"
-        );
+        let function_name_map = (match Serialize.load_latest_cil !cFileNames with
+          | Some file2 -> update_and_store_map file2 file
+          | None -> match Serialize.current_commit !cFileNames with
+              Some commit ->
+                let functionNameMap = VersionLookup.create_map file commit  in
+                (match Serialize.current_commit_dir !cFileNames with 
+                  | Some commit_dir ->
+                      let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
+                      Serialize.marshall functionNameMap map_file_name;
+                      functionNameMap
+                  | None -> exit 4)
+          | None -> exit 5;
+        ) in
+        file|> do_analyze function_name_map;
+        Report.do_stats !cFileNames;
+        do_html_output ();
+        if !verified = Some false then exit 3;  (* verifier failed! *)
+        if !Messages.worldStopped then exit 124; (* timeout! *)
         (* file|> do_analyze;
         Report.do_stats !cFileNames;
         do_html_output ();
