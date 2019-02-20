@@ -357,6 +357,10 @@ let update_and_store_map old_file new_file =
       | None -> ());
     updated_map
 
+let print_variables (fnctn: Cil.fundec) = 
+    List.iter (fun (a: Cil.varinfo) -> print_endline ("Local: "  ^ a.vname ^ " id: " ^ (string_of_int a.vid))) fnctn.slocals;
+    List.iter (fun (a: Cil.varinfo) -> print_endline ("Global: "  ^ a.vname ^ " id: " ^ (string_of_int a.vid))) fnctn.sformals
+
 (** the main function *)
 let main =
   let main_running = ref false in fun () ->
@@ -401,6 +405,8 @@ let main =
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
         if !Messages.worldStopped then exit 124; (* timeout! *) *)
+        
+        Cil.iterGlobals file (fun glob -> match glob with GFun (f, location) -> print_endline f.svar.vname; print_variables f | _ -> ());
 
         Serialize.save_cil file !cFileNames;
       with Exit -> ())
