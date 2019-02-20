@@ -113,7 +113,11 @@ struct
       | MyCFG.Statement s, MyCFG.Statement l -> compare s.sid l.sid
       | MyCFG.Function  f, MyCFG.Function g  -> compare f.vid g.vid
     in
-    if comp == 0 then let comp2= LD.compare d1 d2 in if comp2 == 0 then String.compare c1 c2 else comp2 else comp
+    if comp == 0 then
+    let comp2=
+      if !Td3.debug_now then
+        print_endline "node eq";
+      LD.compare d1 d2 in if comp2 == 0 then String.compare c1 c2 else comp2 else comp
 
   let printXml f ((n,_),c) =
     Var.printXml f n;
