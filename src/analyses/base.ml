@@ -291,7 +291,8 @@ struct
               match currentE with
               | Some (`Lifted currentE') ->
                   begin
-                    VD.move_array v (move_value l' r' currentE')
+                  let moved_by = move_value l' r' currentE' in
+                    VD.affect_move v x moved_by
                   end
               | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v None)
             end

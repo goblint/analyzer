@@ -17,8 +17,10 @@ sig
   val make: int -> value -> t
   val length: t -> int option
 
+  val move_if_affected: t -> Cil.varinfo -> int option -> t
   val get_e: t -> idx option
   val get_vars_in_e: t -> Cil.varinfo list
+  val map: (value -> value) -> t -> t
   val is_affected_by: t -> Cil.varinfo -> bool
   val move: t -> int option -> t
 end
@@ -39,10 +41,15 @@ struct
   let make i v = v
   let length _ = None
 
+  let move_if_affected x _ _ = x
+
   let get_e _ = None
   let is_affected_by _ _ = false
   let move a _ = a
   let get_vars_in_e _ = []
+
+  let map f x =
+    f x  
 
   let set_inplace = set
   let copy a = a
@@ -70,6 +77,7 @@ struct
 
   let get (ask:Q.ask) (e, (xl, xm, xr)) i =
     Messages.report ("Array get@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
+    Printf.printf "Array get@%s (partitioned by %s)\n"  (Expp.short 20 i) (Expp.short 20 e);
     let join_over_all = Val.join (Val.join xl xm) xr in
     if Expp.is_bot e then (if Val.is_bot join_over_all then Val.top () else join_over_all)
     (* When the array is not partitioned, and all segments are \bot, we return \top.
@@ -109,6 +117,8 @@ struct
     | `Bot -> []
     | `Lifted exp -> Basetype.CilExp.get_vars exp
 
+  let map f (e, (xl, xm, xr)) =
+    (e, (f xl, f xm, f xr))  
 
   let is_affected_by (e, (xl,xm,xr)) v =
     match e with
@@ -116,6 +126,22 @@ struct
     | `Bot -> false
     | `Lifted exp -> Basetype.CilExp.occurs v exp
 
+  (* TODO: also move the respective contents if they are arrays *)
+  let move (e, (xl, xm, xr)) (i:int option) =     (* Under the assumption that we always get exact information about how much it moved *)
+    match i with
+    | Some 0   -> (e, (xl, xm, xr))
+    | Some 1   -> Messages.report ("moved - old was "^(short 20 (e, (xl, xm, xr)))^" , new is "^(short 20 (e, (Val.join xl xm, xr, xr)))^"\n") ; (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
+    | Some -1  -> (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
+    | Some x when x > 1
+      -> (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)
+    | Some x when x < -1
+      -> (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
+    | _ -> top()  (* TODO: Is it necessary to take top here? *)
+
+  let move_if_affected x (v:varinfo) (i:int option) =
+    if is_affected_by x v then
+      move x i else
+    x
 
   let set ?(length=None) (ask:Q.ask) (e, (xl, xm, xr)) i a =
     begin
@@ -151,7 +177,8 @@ struct
           let top_if_bot_lub_otherwise = if Val.is_bot join_over_all then Val.top () else join_over_all in
           let l = if e_equals_zero then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
           let r = if e_equals_maxIndex then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
-          (i, (l, a, r))
+          Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (i, (l, a, r)) )
+          ;(i, (l, a, r))
         end
       else
         begin
@@ -161,7 +188,11 @@ struct
               let isEqual = match ask (Q.MustBeEqual (e',i')) with
                 | `Bool x when x = true -> true
                 | _ -> false in
-              if isEqual then (e, (xl, a, xr))
+              if isEqual then
+                begin
+                  Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (e, (xl, a, xr)) );
+                  (e, (xl, a, xr))
+                end
               else
                 begin
                   let left = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
@@ -204,16 +235,6 @@ struct
 
   let length _ = None
 
-  let move (e, (xl, xm, xr)) (i:int option) =     (* Under the assumption that we always get exact information about how much it moved *)
-    match i with
-    | Some 0   -> (e, (xl, xm, xr))
-    | Some 1   -> Messages.report ("moved - old was "^(short 20 (e, (xl, xm, xr)))^" , new is "^(short 20 (e, (Val.join xl xm, xr, xr)))^"\n") ; (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
-    | Some -1  -> (e, (xl, xl, Val.join xm xr)) (* moved one to the left  *)
-    | Some x when x > 1
-      -> (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)
-    | Some x when x < -1
-      -> (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
-    | _ -> top()
 
   let set_inplace = set
   let copy a = a
@@ -232,8 +253,11 @@ struct
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
+  let move_if_affected x _ _ = x
   let is_affected_by _ _ = false
   let get_e _ = None
+  let map f (x, l):t =
+    (Base.map f x, l)  
   let move x _ = x
   let get_vars_in_e _ = []
 end
@@ -253,8 +277,13 @@ struct
   let make l x = Base.make l x, Length.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
 
+  let move_if_affected (x,l) v i = (Base.move_if_affected x v i), l
   let is_affected_by (x, _) v = Base.is_affected_by x v
   let get_e (x, _) = Base.get_e x
+
+  let map f (x, l):t =
+    (Base.map f x, l)  
+
   let move (x, l) i = (Base.move x i, l)
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 end

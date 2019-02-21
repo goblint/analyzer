@@ -34,13 +34,24 @@ void interesting(void) {
 
   assert(x.a[0] == 7);
 
+  struct kala xnn;
+  for(int l=0; l < 5; l++) {
+    xnn.a[l] = 42;
+  }
+
+  assert(xnn.a[3] == 42);
+
+
+
+
+  struct kala xn;
 
   struct kala xs[5];
   // xs[0] = x;
 
   for(int j=0; j < 4; j++) {
-    xs[j] = x;
-    for(int k=1; k < 5; k++) {
+    xs[j] = xn;
+    for(int k=0; k < 5; k++) {
       xs[j].a[k] = 7;
     }
   }

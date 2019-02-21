@@ -17,11 +17,16 @@ sig
     * containing the element [e]. *)
   val length: t -> int option
   (** returns length of array if known *)
+  val move_if_affected: t -> Cil.varinfo -> int option -> t
+  (** moves the way in which the array is partitioned if this is necessitated by a change 
+    * to the variable **)
   val get_e: t -> idx option
   (** returns the expression that is used to partition the array (if any) **)
   val get_vars_in_e: t -> Cil.varinfo list
   (** returns the variables occuring in the epxression according to which the
     * array was split *)
+  val map: (value -> value) -> t -> t
+  (** Apply a function to all elements of the array. *)
   val is_affected_by: t -> Cil.varinfo -> bool
   (** returns whether assigning a new value to the var will change the way the
   array is partitioned **)

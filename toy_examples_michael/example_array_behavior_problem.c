@@ -17,10 +17,10 @@ int main(void) {
   }
 
   *ptr = 5;
-  // after this, it is incorrect to have
+  // after this, it would be incorrect to have
   //    array1: part by ptr-array1 (\bot, 5, \top)
   //    array2: part by ptr-array2 (\bot, 5, \top)
-  // sth that would be correct is e.g.
+  // sth correct is e.g. (what we get now).
   //    array1: part by ptr-array1 (\bot, \top, \top)
   //    array2: part by ptr-array2 (\bot, \top, \top)  
 }
