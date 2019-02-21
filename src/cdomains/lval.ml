@@ -123,6 +123,13 @@ struct
     | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
     | _ -> raise Lattice.Uncomparable
 
+  let rec to_cil_offset (x:t) =
+    match x with
+    | `NoOffset -> NoOffset
+    | `Field(f,o) -> Field(f, to_cil_offset o)
+    | `Index(i,o) -> NoOffset (* TODO:This is wrong for sure *)
+
+
   let join x y = merge `Join x y
   let meet x y = merge `Meet x y
   let widen x y = merge `Widen x y

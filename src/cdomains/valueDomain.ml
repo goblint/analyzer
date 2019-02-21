@@ -16,8 +16,8 @@ module type S =
 sig
   include Lattice.S
   type offs
-  val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> varinfo option -> t
-  val update_offset: Q.ask -> t -> offs -> t -> exp option -> varinfo -> t
+  val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> t
+  val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> t
   val is_array_affected_by: t -> varinfo -> bool
   val move_array: t -> int option -> t
   val invalidate_value: Q.ask -> typ -> t -> t
@@ -513,7 +513,7 @@ struct
             match v with
               | Some v' ->
                 begin
-                  let array_name:lval = (Var v', NoOffset) in
+                  let array_name:lval = v' (* (Var v', NoOffset) *) in
                   let start_of_array = StartOf array_name in
                   let equivalent_expr = BinOp (MinusPP, ptr, start_of_array, intType) in
                   M.warn ("eval_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
@@ -561,8 +561,9 @@ struct
           | Some v' ->
             begin
               (* This should mean the entire expression we have here is a pointer into the array *)
-              let array_name:lval = (Var v', NoOffset) in
-              let start_of_array = StartOf array_name in
+              let array_name:lval = v' (* (Var v', NoOffset) *) in
+              let start_of_array = Cil.mkAddrOrStartOf(v') in
+              (* let start_of_array = StartOf array_name in *)
               let equivalent_expr = BinOp(MinusPP, ptr, start_of_array, intType) in
               `Lifted (equivalent_expr)             
             end
@@ -578,8 +579,8 @@ struct
 
 
   (* Funny, this does not compile without the final type annotation! *)
-  let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:varinfo option): t =
-    let rec do_eval_offset (ask:Q.ask) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:varinfo option):t =
+  let rec eval_offset (ask: Q.ask) f (x: t) (offs:offs) (exp:exp option) (v:lval option): t =
+    let rec do_eval_offset (ask:Q.ask) f (x:t) (offs:offs) (exp:exp option) (l:lval option) (o:offset option) (v:lval option):t =
       match x, offs with
       | `Blob c, `Index (_, ox) ->
         begin
@@ -644,8 +645,8 @@ struct
     in
     do_eval_offset ask f x offs exp l o v
 
-  let rec update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:varinfo): t =
-    let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:varinfo):t =
+  let rec update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval): t =
+    let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval):t =
       let mu = function `Blob (`Blob (y, s'), s) -> `Blob (y, ID.join s s') | x -> x in
       match x, offs with
       | `Blob (x,s), `Index (_,ofs) ->
