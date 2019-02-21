@@ -236,43 +236,21 @@ struct
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
         let affected_arrays =
-          let is_truely_affected arr var =
-            let arr' = CPA.find arr nst in
-            VD.is_array_affected_by arr' var in
-          let potentially_affected =
             let set = try BaseDomain.VarMap.find x dep
               with Not_found -> BaseDomain.VarSet.empty () in 
-            BaseDomain.VarSet.elements set in
-          let print_message_about_affected arr var =
-            if is_truely_affected arr var then
-              Printf.printf " (truely affected %s) " arr.vname
-            else
-              Printf.printf " (not truely affected %s) " arr.vname
+            BaseDomain.VarSet.elements set
+        in
+        let movement_for_expr l' r' currentE' =
+          let are_equal e1 e2 =
+            match a (Q.MustBeEqual (e1, e2)) with
+              | `Bool t ->
+                begin
+                  match Q.BD.to_bool t with
+                  | Some t' when t' = true -> true
+                  | _ -> false
+                end
+              | _ -> false 
           in
-          begin
-            (** debug stuff **)
-            if List.length potentially_affected > 0 then
-              begin
-                Printf.printf "Assignment to %s potentially affects: " x.vname;
-                List.iter (fun arr -> print_message_about_affected arr x) potentially_affected;
-                Printf.printf "\n"
-              end
-            else ();
-            (** end debug stuff **)
-            List.filter (fun arr -> is_truely_affected arr x) potentially_affected
-          end
-        in
-        let are_equal e1 e2 =
-          match a (Q.MustBeEqual (e1, e2)) with
-            | `Bool t ->
-              begin
-                match Q.BD.to_bool t with
-                | Some t' when t' = true -> true
-                | _ -> false
-              end
-            | _ -> false 
-        in
-        let move_value l' r' currentE' =
           let newE = Basetype.CilExp.replace l' r' currentE' in
           let currentEPlusOne = BinOp (PlusA, currentE', Cil.integer 1, Cil.intType) in 
           if are_equal newE currentEPlusOne then Some 1 else
@@ -284,19 +262,15 @@ struct
         in
         let effect_on_array arr (st,fl, dep):store =
           let v = CPA.find arr st in
-          let nval = match lval_raw, rval_raw, v with
-          | Some (Lval(Var l',_)), Some r', `Array v' -> (* last component should always be `Array since we only store array dependencies in this map *)
-            begin
-              let currentE = CArrays.get_e v' in
-              match currentE with
-              | Some (`Lifted currentE') ->
-                  begin
-                  let moved_by = move_value l' r' currentE' in
-                    VD.affect_move v x moved_by
-                  end
-              | _ -> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v None)
-            end
-          | _,_  ,  _-> (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v None) in
+          let nval = 
+            match lval_raw, rval_raw with
+              | Some (Lval(Var l',_)), Some r' -> (* last component should always be `Array since we only store array dependencies in this map *)
+                begin
+                  let moved_by = movement_for_expr l' r' in
+                  VD.affect_move v x moved_by
+                end
+              | _,_  -> 
+                (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v None) in
           (M.warn ("effect on "^arr.vname); update_variable arr nval st), fl, dep
         in
         let rec effect_on_arrays arrs st =
@@ -309,9 +283,7 @@ struct
               st
             end
           else
-          match arrs with
-          | [] -> st
-          | arr::arrs -> effect_on_arrays arrs (effect_on_array arr st)
+            List.fold_left (fun x y -> effect_on_array y x) st arrs
         in
         let x_updated = update_variable x new_value nst
         in 

@@ -17,7 +17,7 @@ sig
   val make: int -> value -> t
   val length: t -> int option
 
-  val move_if_affected: t -> Cil.varinfo -> int option -> t
+  val move_if_affected: t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   val get_e: t -> idx option
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
@@ -138,10 +138,13 @@ struct
       -> (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
     | _ -> top()  (* TODO: Is it necessary to take top here? *)
 
-  let move_if_affected x (v:varinfo) (i:int option) =
-    if is_affected_by x v then
-      move x i else
-    x
+  let move_if_affected ((e,vs) as x) (v:varinfo) movement_for_exp =
+  match e with
+    | `Lifted exp ->
+        if is_affected_by x v then
+          move x (movement_for_exp exp) else
+        x
+    | _ -> x
 
   let set ?(length=None) (ask:Q.ask) (e, (xl, xm, xr)) i a =
     begin

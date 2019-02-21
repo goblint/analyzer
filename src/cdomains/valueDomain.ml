@@ -18,7 +18,7 @@ sig
   type offs
   val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> t
   val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> t
-  val affect_move: t -> varinfo -> int option -> t
+  val affect_move: t -> varinfo -> (exp -> int option) -> t
   val is_array_affected_by: t -> varinfo -> bool
   val move_array: t -> int option -> t
   val invalidate_value: Q.ask -> typ -> t -> t
@@ -743,15 +743,15 @@ struct
     | _ -> 
       M.warn "our map for affected arrays somehow contains a variable that has a value not containing an arrays non-array value"; false
 
-  let rec affect_move (x:t) (v:varinfo) (i:int option):t =
-    let move_fun x = affect_move x v i in
+  let rec affect_move (x:t) (v:varinfo) movement_for_expr:t =
+    let move_fun x = affect_move x v movement_for_expr in
     match x with
     | `Array a -> 
       begin
         (* potentially move things (i.e. other arrays after arbitrarily deep nesting) in array first *)
         let moved_elems = CArrays.map move_fun a in
         (* then move the array itself *)
-        let new_val = CArrays.move_if_affected moved_elems v i in
+        let new_val = CArrays.move_if_affected moved_elems v movement_for_expr in
         `Array (new_val)
       end
     | `Struct s -> `Struct (Structs.map (move_fun) s)

@@ -17,7 +17,7 @@ sig
     * containing the element [e]. *)
   val length: t -> int option
   (** returns length of array if known *)
-  val move_if_affected: t -> Cil.varinfo -> int option -> t
+  val move_if_affected: t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   (** moves the way in which the array is partitioned if this is necessitated by a change 
     * to the variable **)
   val get_e: t -> idx option
