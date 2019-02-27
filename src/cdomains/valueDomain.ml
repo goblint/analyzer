@@ -19,8 +19,6 @@ sig
   val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> t
   val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> t
   val affect_move: Q.ask -> t -> varinfo -> (exp -> int option) -> t
-  val is_array_affected_by: t -> varinfo -> bool
-  val move_array: Q.ask -> t -> int option -> t
   val invalidate_value: Q.ask -> typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
@@ -734,15 +732,6 @@ struct
     in
     do_update_offset ask x offs value exp l o v
 
-  (* Check whether any array that is contained in this value is affected by assignments to varinfo *)
-  let rec is_array_affected_by (x:t) (v:varinfo) =
-    match x with
-    | `Array x' -> CArrays.is_affected_by x' v (*TODO: This needs to be recursive and take into account the values *)
-    | `Struct x' -> false
-    | `Bot -> false (* not a problem, simply not initialized yet *)
-    | _ -> 
-      M.warn "our map for affected arrays somehow contains a variable that has a value not containing an arrays non-array value"; false
-
   let rec affect_move ask (x:t) (v:varinfo) movement_for_expr:t =
     let move_fun x = affect_move ask x v movement_for_expr in
     match x with
@@ -757,12 +746,6 @@ struct
     | `Struct s -> `Struct (Structs.map (move_fun) s)
     (* TODO: Union etc. *) 
     | x -> x
-
-  let move_array ask (x:t) (i:int option) =
-    match x with
-    | `Array x' ->
-      (`Array (CArrays.move ask x' i))
-    | _ -> M.warn "sth weird is going on"; x
 
   let printXml f state =
     match state with

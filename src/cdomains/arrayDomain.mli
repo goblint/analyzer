@@ -27,11 +27,6 @@ sig
     * array was split *)
   val map: (value -> value) -> t -> t
   (** Apply a function to all elements of the array. *)
-  val is_affected_by: t -> Cil.varinfo -> bool
-  (** returns whether assigning a new value to the var will change the way the
-  array is partitioned **)
-  val move: ?length:(int64 option) -> Queries.ask -> t -> int option -> t
-  (** moves the way in which the array is partitioned **)
 end
 
 

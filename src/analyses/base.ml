@@ -264,13 +264,15 @@ struct
           let v = CPA.find arr st in
           let nval = 
             match lval_raw, rval_raw with
-              | Some (Lval(Var l',_)), Some r' -> (* last component should always be `Array since we only store array dependencies in this map *)
+              | Some (Lval(Var l',_)), Some r' -> 
                 begin
                   let moved_by = movement_for_expr l' r' in
                   VD.affect_move a v x moved_by
                 end
               | _,_  -> 
-                (Messages.warn "YYYXXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array a v None) in
+                (Messages.warn "Write access was not to an lval or no rval provided. THIS IS SERIOUS!!!!";  (* VD.move_array a v None *) 
+                v)
+                in
           (M.warn ("effect on "^arr.vname); update_variable arr nval st), fl, dep
         in
         let rec effect_on_arrays arrs st =
