@@ -27,6 +27,7 @@ sig
     * array was split *)
   val map: (value -> value) -> t -> t
   (** Apply a function to all elements of the array. *)
+  val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
 end
 
 

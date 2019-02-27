@@ -167,7 +167,7 @@ struct
     else
       CPA.add variable value state
 
-  (** Add dependencies between an array x and the expression it is partitioned by *)
+  (** Add dependencies between an array x and the expression it (or any of its contents) are partitioned by *)
   let add_array_dependencies (x:varinfo) (value:VD.t) (st,fl,dep:store):store =
     let add_one_dep (array:varinfo) (var:varinfo) dep = 
       let vMap = try BaseDomain.VarMap.find var dep
@@ -176,12 +176,18 @@ struct
       BaseDomain.VarMap.add var vMapNew dep
     in
     match value with
-      | `Array x' ->
+      | `Array _ ->
         begin
-          let vars_in_e = (CArrays.get_vars_in_e x') in
-          let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) dep vars_in_e in
+          let vars_in_paritioning = VD.affecting_vars value in
+          let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) dep vars_in_paritioning in
           (st, fl, dep_new)
         end
+      | `Struct s ->
+        begin
+          
+          (st, fl, dep)
+        end
+      (* TODO:other cases *)
       | _ ->  (st,fl, dep)
 
 

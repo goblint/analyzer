@@ -21,6 +21,7 @@ sig
   val get_e: t -> idx option
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
+  val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
 end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
@@ -45,7 +46,10 @@ struct
   let get_vars_in_e _ = []
 
   let map f x =
-    f x  
+    f x 
+
+  let fold_left f a x =
+    f a x
 
   let set_inplace = set
   let copy a = a
@@ -116,6 +120,8 @@ struct
   let map f (e, (xl, xm, xr)) =
     (e, (f xl, f xm, f xr))  
 
+  let fold_left f a (e, ((xl:value), (xm:value), (xr:value))) =
+    f (f (f a xl) xm) xr
        
   (* TODO: this needs to be modified to allow an optional length argument *)
   let move_if_affected ?(length=None) (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
@@ -275,9 +281,14 @@ struct
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
   let move_if_affected ?(length = None) _ x _ _ = x
+
   let get_e _ = None
   let map f (x, l):t =
     (Base.map f x, l)
+
+  let fold_left f a (x, l) =
+    Base.fold_left f a x
+
   let get_vars_in_e _ = []
 end
 
@@ -303,7 +314,10 @@ struct
   let get_e (x, _) = Base.get_e x
 
   let map f (x, l):t =
-    (Base.map f x, l)  
+    (Base.map f x, l)
+
+  let fold_left f a (x, l) =
+    Base.fold_left f a x  
 
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 end

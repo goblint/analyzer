@@ -19,6 +19,7 @@ sig
   val eval_offset: Q.ask -> (AD.t -> t) -> t-> offs -> exp option -> lval option -> t
   val update_offset: Q.ask -> t -> offs -> t -> exp option -> lval -> t
   val affect_move: Q.ask -> t -> varinfo -> (exp -> int option) -> t
+  val affecting_vars: t -> varinfo list
   val invalidate_value: Q.ask -> typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
@@ -746,6 +747,22 @@ struct
     | `Struct s -> `Struct (Structs.map (move_fun) s)
     (* TODO: Union etc. *) 
     | x -> x
+
+  let rec affecting_vars (x:t) =
+    let add_affecting_one_level list (va:t) =
+      list @ (affecting_vars va)
+    in
+    match x with
+    | `Array a ->
+      begin
+        let immediately_affecting = CArrays.get_vars_in_e a in
+        CArrays.fold_left add_affecting_one_level immediately_affecting a
+      end
+    | `Struct s ->
+      (* THIS IS ALSO STILL TO DO *)
+      []
+    (* TODO: union etc *)
+    | _ -> []
 
   let printXml f state =
     match state with
