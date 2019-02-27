@@ -759,8 +759,7 @@ struct
         CArrays.fold_left add_affecting_one_level immediately_affecting a
       end
     | `Struct s ->
-      (* THIS IS ALSO STILL TO DO *)
-      []
+        Structs.fold (fun x value acc -> add_affecting_one_level acc value) s []
     (* TODO: union etc *)
     | _ -> []
 

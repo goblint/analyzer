@@ -12,12 +12,16 @@ void test1(void) {
   int i=0;
 
   while(i < 10) {
+       // Right now this works because we treat this as an assignment that we do not know by how much the move was. Is it smart to do this for all except +1 or -1?
+       //         => Assumption that we only increment/decrement in a loop
       int j=0;
+      
       while(j < 10) {
         array1[i][j] = 42;
         j++;
       }
-    i++;
+
+      i++;
   }
 }
 

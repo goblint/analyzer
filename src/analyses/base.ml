@@ -176,16 +176,12 @@ struct
       BaseDomain.VarMap.add var vMapNew dep
     in
     match value with
-      | `Array _ ->
+      | `Array _ 
+      | `Struct _ ->
         begin
           let vars_in_paritioning = VD.affecting_vars value in
           let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) dep vars_in_paritioning in
           (st, fl, dep_new)
-        end
-      | `Struct s ->
-        begin
-          
-          (st, fl, dep)
         end
       (* TODO:other cases *)
       | _ ->  (st,fl, dep)

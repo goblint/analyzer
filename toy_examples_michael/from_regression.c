@@ -18,6 +18,62 @@ struct kass {
 };
 
 void interesting(void) {
+  // --------- PREPERATION --------------
+  int top, j;
+  
+  // really really top 
+  if (j) top = (int) &top;
+  else   top = 5;
+
+
+  // --------------- TEST 1 -------------
+  struct kala l;
+  int i = 0;
+
+  while(i < 5) {
+    l.a[i] = 42;
+    i++;
+
+    // Check assertion that should only hold later does not already hold here
+    assert(l.a[4] == 42); //UNKNOWN
+  }
+
+  // Check the array is correctly initialized
+  assert(l.a[1] == 42);
+  assert(l.a[2] == 42);
+  assert(l.a[3] == 42);
+  assert(l.a[4] == 42);
+
+  // Destructively assign to i
+  i = top;
+
+  // Check the array is still known to be correctly initialized
+  assert(l.a[1] == 42);
+  assert(l.a[2] == 42);
+  assert(l.a[3] == 42);
+  assert(l.a[4] == 42);
+
+  // -------------- TEST 2 ---------------
+  struct kala kalas[5];
+
+  int i2 = 0;
+
+  while(i2 < 5) {
+    int j2 = 0;
+    while(j2<5) {
+      kalas[i2].a[j2] = 8;
+      j2++;
+    }
+    i2++;
+  }
+
+  // Initialization has not proceeded this far
+  assert(kalas[4].a[0] == 42); //UNKNOWN
+
+  // This is something we would like to be able to show
+  assert(kalas[0].a[0] == 42); 
+
+ /** 
   int *ip;
   int top;
   
@@ -62,6 +118,7 @@ void interesting(void) {
   assert(*ip == 7);
 
   assert(xs[3].a[0] == 7);
+**/
 
 }
 

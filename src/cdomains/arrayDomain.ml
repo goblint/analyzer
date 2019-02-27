@@ -83,6 +83,7 @@ struct
     (* When the array is not partitioned, and all segments are \bot, we return \top.
     TODO: Check how that works with the case in which we want to get rid of the expression when we are at the end.
     Should not really cause any issues since in those cases the rest of the values would not be \bot *)
+    (* TODO: Here we should warn if we read bot because this means we are reading unitialized values *)
     else
       match e, i with
         | `Lifted e', `Lifted i' ->
