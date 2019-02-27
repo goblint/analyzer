@@ -17,7 +17,7 @@ sig
     * containing the element [e]. *)
   val length: t -> int option
   (** returns length of array if known *)
-  val move_if_affected: t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val move_if_affected: ?length:(int64 option) -> Queries.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   (** moves the way in which the array is partitioned if this is necessitated by a change 
     * to the variable **)
   val get_e: t -> idx option
@@ -30,7 +30,7 @@ sig
   val is_affected_by: t -> Cil.varinfo -> bool
   (** returns whether assigning a new value to the var will change the way the
   array is partitioned **)
-  val move: t -> int option -> t
+  val move: ?length:(int64 option) -> Queries.ask -> t -> int option -> t
   (** moves the way in which the array is partitioned **)
 end
 

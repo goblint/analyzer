@@ -1,20 +1,21 @@
 // Handcrafted examples I used when designing the domain
 int main(void) {
-  example1();
-  example2();
-  example3();
-  example4();
-  example5();
-  example6();
-  example7();
-  example8();
-  example9();
-  example10();
-  example11();
-  example12();
-  example13();
-  example14();
-  example15();
+  // example1();
+  // example2();
+  // example3();
+  // example4();
+  // example5();
+  // example6();
+  // example7();
+  // example8();
+  // example9();
+  // example10();
+  // example11();
+  // example12();
+  // example13();
+  // example14();
+  // example15();
+  example16();
 }
 
 // Simple example
@@ -219,5 +220,24 @@ void example15(void) {
   while(i < 42) {
     a[*ip] = 0;
     i++;
+  }
+}
+
+void example16(void) {
+  int a[42];
+  int i = 0;
+  int j = 0;
+  int top;
+
+  while(i < 42) {
+    a[i] = 4;
+    i++;
+  }
+
+  i = top;
+
+  while(j<10) {
+    a[j] = -1;
+    j++;
   }
 }

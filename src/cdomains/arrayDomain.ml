@@ -13,16 +13,16 @@ sig
   type value
 
   val get: Q.ask -> t -> idx -> value
-  val set: ?length:(int64 option)  -> Q.ask -> t -> idx -> value -> t
+  val set: ?length:(int64 option) -> Q.ask -> t -> idx -> value -> t
   val make: int -> value -> t
   val length: t -> int option
 
-  val move_if_affected: t -> Cil.varinfo -> (Cil.exp -> int option) -> t
+  val move_if_affected: ?length:(int64 option) -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   val get_e: t -> idx option
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
   val is_affected_by: t -> Cil.varinfo -> bool
-  val move: t -> int option -> t
+  val move: ?length:(int64 option) -> Q.ask -> t -> int option -> t
 end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
@@ -41,11 +41,11 @@ struct
   let make i v = v
   let length _ = None
 
-  let move_if_affected x _ _ = x
+  let move_if_affected ?(length = None) _ x _ _ = x
 
   let get_e _ = None
   let is_affected_by _ _ = false
-  let move a _ = a
+  let move ?(length=None) _ a _ = a
   let get_vars_in_e _ = []
 
   let map f x =
@@ -127,7 +127,7 @@ struct
     | `Lifted exp -> Basetype.CilExp.occurs v exp
 
   (* TODO: also move the respective contents if they are arrays *)
-  let move (e, (xl, xm, xr)) (i:int option) =     (* Under the assumption that we always get exact information about how much it moved *)
+  let move ?(length=None) (ask:Q.ask) (e, (xl, xm, xr)) (i:int option) =     (* Under the assumption that we always get exact information about how much it moved *)
     match i with
     | Some 0   -> (e, (xl, xm, xr))
     | Some 1   -> Messages.report ("moved - old was "^(short 20 (e, (xl, xm, xr)))^" , new is "^(short 20 (e, (Val.join xl xm, xr, xr)))^"\n") ; (e, (Val.join xl xm, xr, xr)) (* moved one to the right *)
@@ -136,13 +136,47 @@ struct
       -> (e, (Val.join (Val.join xl xm) xr, xr, xr)) (* moved more than one to the right *)
     | Some x when x < -1
       -> (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
-    | _ -> top()  (* TODO: Is it necessary to take top here? *)
-
-  let move_if_affected ((e,vs) as x) (v:varinfo) movement_for_exp =
+    | _ ->
+      (* Check if we can avoid destroying the information we have by giving up paritioning *) 
+      begin
+        let exp_value = 
+          match e with
+            | `Lifted e' -> 
+              begin
+                match ask (Q.EvalInt e') with
+                | `Int n -> Printf.printf "ggg-e-int"; Q.ID.to_int n
+                | _ -> None
+              end
+          |_ -> None 
+        in
+        let e_equals_length = 
+          match length with
+          | Some l ->
+            begin
+              match exp_value with
+              | Some v -> Printf.printf "ggglengthint"; Int64.equal v l
+              | _ -> false
+            end
+          | _ -> false
+        in
+        if e_equals_length then
+          begin
+            Printf.printf "ggggggggggggggggggggggg";
+            (Expp.bot(),(xl, xl, xl))
+          end
+        else
+          begin
+            Printf.printf "gggggggggggggggggggggggnono";
+            top()
+          end
+      end  (* TODO: Is it necessary to take top here? *)
+      
+  (* TODO: this needs to be modified to allow an optional length argument *)
+  let move_if_affected ?(length=None) (ask:Q.ask) ((e,vs) as x) (v:varinfo) movement_for_exp =
   match e with
     | `Lifted exp ->
         if is_affected_by x v then
-          move x (movement_for_exp exp) else
+          move ~length:length ask x (movement_for_exp exp) else
         x
     | _ -> x
 
@@ -151,7 +185,7 @@ struct
       Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
       let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
       if Expp.is_bot e then
-        begin
+        begin (* this should be solved via the must equal *)
           let exp_value = 
             match i with
              | `Lifted i' -> 
@@ -256,12 +290,12 @@ struct
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
 
-  let move_if_affected x _ _ = x
+  let move_if_affected ?(length = None) _ x _ _ = x
   let is_affected_by _ _ = false
   let get_e _ = None
   let map f (x, l):t =
     (Base.map f x, l)  
-  let move x _ = x
+  let move ?(length=None) _ x _ = x
   let get_vars_in_e _ = []
 end
 
@@ -280,13 +314,17 @@ struct
   let make l x = Base.make l x, Length.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
 
-  let move_if_affected (x,l) v i = (Base.move_if_affected x v i), l
+  let move_if_affected ?(length = None) ask (x,l) v i = 
+    let new_l = IntDomain.Flattened.to_int l in
+    (Base.move_if_affected ~length:new_l ask x v i), l
   let is_affected_by (x, _) v = Base.is_affected_by x v
   let get_e (x, _) = Base.get_e x
 
   let map f (x, l):t =
     (Base.map f x, l)  
 
-  let move (x, l) i = (Base.move x i, l)
+  let move ?(length=None) ask (x, l) i =
+    let new_l = IntDomain.Flattened.to_int l in
+    (Base.move ~length:new_l ask x i, l)
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 end

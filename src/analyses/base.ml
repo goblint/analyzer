@@ -267,10 +267,10 @@ struct
               | Some (Lval(Var l',_)), Some r' -> (* last component should always be `Array since we only store array dependencies in this map *)
                 begin
                   let moved_by = movement_for_expr l' r' in
-                  VD.affect_move v x moved_by
+                  VD.affect_move a v x moved_by
                 end
               | _,_  -> 
-                (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array v None) in
+                (Messages.warn "YYYXXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; VD.move_array a v None) in
           (M.warn ("effect on "^arr.vname); update_variable arr nval st), fl, dep
         in
         let rec effect_on_arrays arrs st =
