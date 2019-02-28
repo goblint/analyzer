@@ -67,7 +67,7 @@ struct
   let short w (e,(xl, xm, xr)) = "Array (partitioned by " ^ Expp.short (w-7) e ^ "): (" ^
                                  Val.short (w - 7) xl ^ " -- " ^ Val.short (w - 7) xm ^ " -- "
                                  ^ Val.short (w - 7) xr ^ ")"
-                                (* TODO w-7 needs to be replaced here *)
+                                (* TODO: w-7 needs to be replaced here *)
 
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -87,19 +87,19 @@ struct
         | `Lifted e', `Lifted i' ->
           begin
             let isEqual = match ask (Q.MustBeEqual (e',i')) with
-              | `Bool x when x = true -> true
+              | `Bool true -> true
               | _ -> false in
             if isEqual then xm
             else
               begin
                 let contributionLess = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
-                | `Bool x when x = false -> Val.bot ()
+                | `Bool false -> Val.bot ()
                 | _ -> xl in
                 let contributionEqual = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
-                | `Bool x when x = false -> Val.bot ()
+                | `Bool false -> Val.bot ()
                 | _ -> xm in
                 let contributionGreater =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
-                | `Bool x when x = false -> Val.bot ()
+                | `Bool false -> Val.bot ()
                 | _ -> xr in
                 Val.join (Val.join contributionLess contributionEqual) contributionGreater
               end
@@ -209,7 +209,7 @@ struct
           match e, i with
           | `Lifted e', `Lifted i' -> begin
               let isEqual = match ask (Q.MustBeEqual (e',i')) with
-                | `Bool x when x = true -> true
+                | `Bool true -> true
                 | _ -> false in
               if isEqual then
                 begin
@@ -219,25 +219,23 @@ struct
               else
                 begin
                   let left = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
-                  | `Bool x when x = false -> xl
+                  | `Bool false -> xl
                   | _ -> lubIfNotBot xl in
                   let middle = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
-                  | `Bool x when x = false -> xm
+                  | `Bool false -> xm
                   | _ -> Val.join xm a in
                   let right =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
-                  | `Bool x when x = false -> xr
+                  | `Bool false -> xr
                   | _ -> lubIfNotBot xr in
                   (e, (left, middle, right))
                 end
             end
           | _ -> 
-          
-          (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
-          (* if Expp.equal e i then (e, (xl, a, xr)) *)
-          (* TODO: else if all the other cases *)
+            (* If either the expression used to write or the partitioning is not known, all segements except the empty ones
+               will be affected *)
+            (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
         end
     end
-
 
   (* TODO: Do i really need to make this explicit? if the array is partitioned according to \top every read while have to take a least upper bound regardless of what the rest of the code does?! *)
   let join (e1, (xl1,xm1,xr1)) (e2, (xl2,xm2,xr2)) =
@@ -256,7 +254,6 @@ struct
   (* TODO: Interaction with get and the catch all *)
 
   let length _ = None
-
 
   let set_inplace = set
   let copy a = a

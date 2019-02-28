@@ -161,7 +161,32 @@ void interesting(void) {
 
 }
 
-int unionWeirdness() {
+void ptrToArray() {
+  int array1[10000000];
+  int array2[10000000];
+  
+  int* ptr;
+
+  if(rand()) {
+    ptr = &array1;
+    *ptr = 5;
+
+    assert(*ptr == 5);  
+  }
+  else {
+    ptr = &array2;
+    *ptr = 5;
+
+    assert(*ptr == 5);
+  }
+
+  // Since ptr could point to different arrays, the update here can not be precise
+  *ptr = 6;
+
+  assert(*ptr == 6); // UNKNOWN
+}
+
+void unionWeirdness() {
   // --------------- TEST 3 -------------------
   union uArray ua;
   int i3=0;
@@ -196,6 +221,7 @@ int unionWeirdness() {
 
 int main () {
   interesting();
+  ptrToArray();
   return 0;
 
   int i,t, k1,k2,top;
