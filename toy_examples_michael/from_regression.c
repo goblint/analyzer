@@ -6,6 +6,7 @@ int fun_6() { return 6; }
 int fun_5b() { return 5; }
 
 struct kala {
+  int i;
   int a[5];
 };
 
@@ -17,6 +18,16 @@ struct kass {
   int v;
 };
 
+union uArray {
+  int a[5];
+  int b[5];
+};
+
+union uStruct {
+  int b;
+  struct kala k;
+};
+
 void interesting(void) {
   // --------- PREPERATION --------------
   int top, j;
@@ -24,7 +35,6 @@ void interesting(void) {
   // really really top 
   if (j) top = (int) &top;
   else   top = 5;
-
 
   // --------------- TEST 1 -------------
   struct kala l;
@@ -72,6 +82,35 @@ void interesting(void) {
 
   // This is something we would like to be able to show
   assert(kalas[0].a[0] == 42); 
+
+  // --------------- TEST 3 ----------------
+  union uArray ua;
+  int i3=0;
+
+  (ua.b)[2] = 1;
+  (ua.a)[2] = 1;
+
+  while(i3< 5) {
+    (ua.a)[i3] = 42;
+    i3++;
+  } 
+
+  assert(ua.a[i3-1] == 42);
+
+  // --------------- TEST 4 ----------------
+  union uStruct us;
+  int i4=0;
+
+  us.b = 4;
+  us.k.a[0] = 0;
+  //us.k.a[1] = 42;
+
+  int iugbu = 4;
+  while(i4<5) {
+    us.k.a[i4] = 42;
+    i4++;
+  }
+
 
  /** 
   int *ip;
@@ -121,6 +160,38 @@ void interesting(void) {
 **/
 
 }
+
+int unionWeirdness() {
+  // --------------- TEST 3 -------------------
+  union uArray ua;
+  int i3=0;
+
+  (ua.b)[2] = 1;
+  (ua.a)[2] = 1;
+
+  while(i3< 5) {
+    (ua.a)[i3] = 42;
+    i3++;
+  } 
+
+  assert(ua.a[i3-1] == 42);
+
+  // --------------- TEST 4 ----------------
+  union uStruct us;
+  int i4=0;
+
+  us.b = 4;
+  us.k.a[0] = 0; // (k, { a -> [0,0] }) is the result here, 
+                // which is obviously unsound
+  //us.k.a[1] = 42;
+
+
+  while(i4<5) {
+    us.k.a[i4] = 42;
+    i4++;
+  }
+}
+
 
 
 int main () {

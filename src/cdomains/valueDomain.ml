@@ -760,7 +760,9 @@ struct
       end
     | `Struct s ->
         Structs.fold (fun x value acc -> add_affecting_one_level acc value) s []
-    (* TODO: union etc *)
+    | `Union (f, v) ->
+        affecting_vars v
+    (* TODO: etc *)
     | _ -> []
 
   let printXml f state =

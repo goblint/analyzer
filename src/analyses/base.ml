@@ -167,8 +167,8 @@ struct
     else
       CPA.add variable value state
 
-  (** Add dependencies between an array x and the expression it (or any of its contents) are partitioned by *)
-  let add_array_dependencies (x:varinfo) (value:VD.t) (st,fl,dep:store):store =
+  (** Add dependencies between a value and the expression it (or any of its contents) are partitioned by *)
+  let add_partitioning_dependencies (x:varinfo) (value:VD.t) (st,fl,dep:store):store =
     let add_one_dep (array:varinfo) (var:varinfo) dep = 
       let vMap = try BaseDomain.VarMap.find var dep
           with Not_found -> BaseDomain.VarSet.empty () in
@@ -177,14 +177,15 @@ struct
     in
     match value with
       | `Array _ 
-      | `Struct _ ->
+      | `Struct _ 
+      | `Union _ ->
         begin
           let vars_in_paritioning = VD.affecting_vars value in
           let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) dep vars_in_paritioning in
           (st, fl, dep_new)
         end
       (* TODO:other cases *)
-      | _ ->  (st,fl, dep)
+      | _ ->  (st, fl, dep)
 
 
   (** [set st addr val] returns a state where [addr] is set to [val] *)
@@ -292,7 +293,7 @@ struct
         let x_updated = update_variable x new_value nst
         in 
           begin
-            let with_dep = add_array_dependencies x new_value (x_updated, fl, dep) in (* TODO: Maybe only call this if the expression changed *)
+            let with_dep = add_partitioning_dependencies x new_value (x_updated, fl, dep) in (* TODO: Maybe only call this if the expression changed *)
             effect_on_arrays affected_arrays with_dep (* TODO: Need to return the modified data structure, this does not work *)
           end
       end
