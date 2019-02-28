@@ -18,7 +18,6 @@ sig
   val length: t -> int option
 
   val move_if_affected: ?length:(int64 option) -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
-  val get_e: t -> idx option
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
@@ -42,7 +41,6 @@ struct
 
   let move_if_affected ?(length = None) _ x _ _ = x
 
-  let get_e _ = None
   let get_vars_in_e _ = []
 
   let map f x =
@@ -107,10 +105,6 @@ struct
               end
           end
         | _ -> join_over_all (* The case in which we don't know anything *)
-
-
-  let get_e (e, _) = Some e (* TODO:This looks like it should really not be here,
-                               we should probably do all that internally *)
 
   let get_vars_in_e (e, _) =
     match e with
@@ -283,7 +277,6 @@ struct
 
   let move_if_affected ?(length = None) _ x _ _ = x
 
-  let get_e _ = None
   let map f (x, l):t =
     (Base.map f x, l)
 
@@ -311,8 +304,6 @@ struct
   let move_if_affected ?(length = None) ask (x,l) v i = 
     let new_l = Length.to_int l in
     (Base.move_if_affected ~length:new_l ask x v i), l
-
-  let get_e (x, _) = Base.get_e x
 
   let map f (x, l):t =
     (Base.map f x, l)
