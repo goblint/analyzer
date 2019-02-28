@@ -106,11 +106,20 @@ struct
           end
         | _ -> join_over_all (* The case in which we don't know anything *)
 
+
   let get_vars_in_e (e, _) =
-    match e with
+  match e with
     | `Top
     | `Bot -> []
     | `Lifted exp -> Basetype.CilExp.get_vars exp
+
+  let contains_globals e =  (* TODO: AddrOf things *)
+    match e with
+    | `Top
+    | `Bot -> false
+    | `Lifted exp ->
+      let vars = Basetype.CilExp.get_vars exp in
+      List.exists (fun x -> x.vglob) vars
 
   let map f (e, (xl, xm, xr)) =
     (e, (f xl, f xm, f xr))  
@@ -118,7 +127,6 @@ struct
   let fold_left f a (e, ((xl:value), (xm:value), (xr:value))) =
     f (f (f a xl) xm) xr
        
-  (* TODO: this needs to be modified to allow an optional length argument *)
   let move_if_affected ?(length=None) (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
     let move (i:int option) =     (* TODO: Maybe it would be nicer to switch to some kind of enum here *)
       match i with
@@ -179,30 +187,36 @@ struct
       Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
       let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
       if Expp.is_bot e then
-        begin (* this should be solved via the must equal *)
-          let exp_value = 
-            match i with
-             | `Lifted i' -> 
-                begin
-                  match ask (Q.EvalInt i') with
-                  | `Int n -> Q.ID.to_int n
-                  | _ -> None
-                end
-            |_ -> None in
-          let e_equals_zero = BatOption.map_default (Int64.equal Int64.zero) false exp_value in
-          let e_equals_maxIndex = 
-            match length with
-            | Some l ->
-                BatOption.map_default (Int64.equal (Int64.sub l Int64.one)) false exp_value
-            | _ -> false
-          in
+        if contains_globals i then
+          (* expressions containing globals are not suitable for partitioning *)
           let join_over_all = Val.join (Val.join xl xm) xr in
-          let top_if_bot_lub_otherwise = if Val.is_bot join_over_all then Val.top () else join_over_all in
-          let l = if e_equals_zero then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
-          let r = if e_equals_maxIndex then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
-          Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (i, (l, a, r)) )
-          ;(i, (l, a, r))
-        end
+          let result = if Val.is_bot join_over_all then Val.top () else Val.join a join_over_all in
+          (e, (result, result, result))
+        else
+          begin (* this should be solved via the must equal *)
+            let exp_value = 
+              match i with
+              | `Lifted i' -> 
+                  begin
+                    match ask (Q.EvalInt i') with
+                    | `Int n -> Q.ID.to_int n
+                    | _ -> None
+                  end
+              |_ -> None in
+            let e_equals_zero = BatOption.map_default (Int64.equal Int64.zero) false exp_value in
+            let e_equals_maxIndex = 
+              match length with
+              | Some l ->
+                  BatOption.map_default (Int64.equal (Int64.sub l Int64.one)) false exp_value
+              | _ -> false
+            in
+            let join_over_all = Val.join (Val.join xl xm) xr in
+            let top_if_bot_lub_otherwise = if Val.is_bot join_over_all then Val.top () else join_over_all in
+            let l = if e_equals_zero then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
+            let r = if e_equals_maxIndex then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
+            Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (i, (l, a, r)) )
+            ;(i, (l, a, r))
+          end
       else
         begin
           Messages.warn ("e is " ^ (Expp.short 20 e) ^ ", i is " ^ (Expp.short 20 i));
@@ -245,6 +259,8 @@ struct
       (new_e, (join_over_all, join_over_all, join_over_all))
     else
       (new_e, (Val.join xl1 xl2, Val.join xm1 xm2, Val.join xr1 xr2))
+
+  (* TODO: What if i =_must j? *)
 
   let make i v =
     if Val.is_bot v then (Expp.bot(), (Val.bot(), Val.top(), Val.bot()))
