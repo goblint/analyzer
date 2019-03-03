@@ -8,25 +8,32 @@ int main(void) {
 
 
 void test1(void) {
+  // This test works with both slr3 and new
+
   int array1[10][10];
   int i=0;
+  int j=0;
 
   while(i < 10) {
-       // Right now this works because we treat this as an assignment that we do not know by how much the move was. Is it smart to do this for all except +1 or -1?
-       //         => Assumption that we only increment/decrement in a loop
-      int j=0;
-      
+
+      j = 0; // if we have only this one, it does not work (because j could either be 10 or 0) 
       while(j < 10) {
         array1[i][j] = 42;
         j++;
       }
+
+      // the idea would be to test for covering the entire array on the Neg() [and why not also Pos()] edge
+      // N.B. no problem as the entire array is never covered by one segment if it just became partitioned
+
+      // if we have this one here, it does work because (because j is guaranteed to be 10)
+      j = 0;
 
       i++;
   }
 }
 
 // More or less interesting results depending on which solver
-// is used (and probably on the evluation order of the program points)
+// is used (and probably on the evaluation order of the program points)
 //    -> effectWCon (interesting results)
 //    -> slr3 (sound but boring top)
 void test2(void) {

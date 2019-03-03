@@ -83,34 +83,6 @@ void interesting(void) {
   // This is something we would like to be able to show
   assert(kalas[0].a[0] == 42); 
 
-  // --------------- TEST 3 ----------------
-  union uArray ua;
-  int i3=0;
-
-  (ua.b)[2] = 1;
-  (ua.a)[2] = 1;
-
-  while(i3< 5) {
-    (ua.a)[i3] = 42;
-    i3++;
-  } 
-
-  assert(ua.a[i3-1] == 42);
-
-  // --------------- TEST 4 ----------------
-  union uStruct us;
-  int i4=0;
-
-  us.b = 4;
-  us.k.a[0] = 0;
-  //us.k.a[1] = 42;
-
-  int iugbu = 4;
-  while(i4<5) {
-    us.k.a[i4] = 42;
-    i4++;
-  }
-
 
  /** 
   int *ip;
@@ -207,8 +179,11 @@ void unionWeirdness() {
 
   us.b = 4;
   us.k.a[0] = 0; // (k, { a -> [0,0] }) is the result here, 
-                // which is obviously unsound
+                // which is obviously unsound as it is not an array, leads to
+                // errors trying to update an array when there is none
   //us.k.a[1] = 42;
+
+  assert(us.k.a[3] == 0); // UNKOWN
 
 
   while(i4<5) {
@@ -221,6 +196,7 @@ void unionWeirdness() {
 
 int main () {
   interesting();
+  unionWeirdness();
   ptrToArray();
   return 0;
 

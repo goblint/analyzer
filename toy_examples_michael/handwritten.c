@@ -187,9 +187,13 @@ void example12(void) {
   int x = a[5];
   int y = a[1];
   int z = a[i-1];
+
+  assert(x == 7);
+  assert(y == 7);
+  assert(z == 7);
 }
 
-// Example having to arrays partitioned according to one expression
+// Example having two arrays partitioned according to one expression
 void example13(void) {
   int a[42];
   int b[42];
