@@ -11,9 +11,13 @@ int main(void) {
 
   int b[20];
 
-  for(int i=0;i < 10;i++) {
+  int i = 0;
+  while(i < 20){
     b[i] = 5;
+    i++;
   }
+
+  // i = 0;
 
   do_first(b);
 
@@ -22,10 +26,11 @@ int main(void) {
 
 void do_first(int* a) {
   int x = a[0];
+  a[0] = 3;
 }
 
 void init_array(int* a) {
-  for(int i =0; i < 20; i++) {
+  for(int i = 0; i < 20; i++) {
     a[i] = 42;
   }
 }

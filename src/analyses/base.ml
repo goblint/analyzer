@@ -295,7 +295,7 @@ struct
         in 
           begin
             let with_dep = add_partitioning_dependencies x new_value (x_updated, fl, dep) in (* TODO: Maybe only call this if the expression changed *)
-            effect_on_arrays affected_arrays with_dep (* TODO: Need to return the modified data structure, this does not work *)
+            effect_on_arrays affected_arrays with_dep
           end
       end
     in
@@ -1087,7 +1087,8 @@ struct
       let nst = rem_many ctx.ask nst_part locals in
       match exp with
       | None -> nst
-      | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp) None None(* TODO: None most likely wrong *)
+      | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp) None None
+        (* lval_raw:None, and rval_raw:None is correct here *)
 
 
   (**************************************************************************
