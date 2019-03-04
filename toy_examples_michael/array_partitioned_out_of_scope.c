@@ -25,6 +25,7 @@ void do_first(int* a) {
 }
 
 void init_array(int* a) {
-  int i = 0;
-  a[i] = 42;
+  for(int i =0; i < 20; i++) {
+    a[i] = 42;
+  }
 }

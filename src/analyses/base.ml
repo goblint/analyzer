@@ -249,7 +249,7 @@ struct
               | `Bool t ->
                 begin
                   match Q.BD.to_bool t with
-                  | Some t' when t' = true -> true
+                  | Some true -> true
                   | _ -> false
                 end
               | _ -> false 
@@ -332,11 +332,29 @@ struct
      * not sure in which order! *)
     (D.join st1 st2, gl1 @ gl2)
 
-  let rem_many (st,fl,dep: store) (v_list: varinfo list): store =
+  let rem_many a (st,fl,dep: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
     let g dep v = BaseDomain.VarMap.remove v dep in
     List.fold_left f st v_list, fl, List.fold_left g dep v_list
 
+  (* Removes all partitionings done according to this variable *)
+  let rem_many_paritioning a (s:store) (v_list: varinfo list):store =
+    (* Removes the paritioning information from all affected arrays, call before removing locals *)
+    let rem_partitioning a (st,fl,dep:store) (x:varinfo):store =
+      let affected_arrays =
+        let set = try BaseDomain.VarMap.find x dep
+         with Not_found -> BaseDomain.VarSet.empty () in 
+        BaseDomain.VarSet.elements set
+      in
+      let effect_on_array arr st =
+        let v = CPA.find arr st in
+        let nval = VD.affect_move a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
+        (M.warn ("Potentially dropped " ^ arr.vname); update_variable arr nval st)
+      in
+      let nst = List.fold_left (fun x y -> effect_on_array y x) st affected_arrays in
+      (nst, fl, dep) in
+    let f s v = rem_partitioning a s v in
+    List.fold_left f s v_list
 
   let call_descr f (es,fl,dep) =
     let short_fun x =
@@ -1063,7 +1081,10 @@ struct
     | "StartupHook" ->
       publish_all ctx;
       cp, Flag.get_multi (), dep
-    | _ -> let nst = rem_many ctx.local (fundec.sformals @ fundec.slocals) in
+    | _ -> 
+      let locals = (fundec.sformals @ fundec.slocals) in
+      let nst_part = rem_many_paritioning ctx.ask ctx.local locals in
+      let nst = rem_many ctx.ask nst_part locals in
       match exp with
       | None -> nst
       | Some exp -> set ctx.ask ctx.global nst (return_var ()) (eval_rv ctx.ask ctx.global ctx.local exp) None None(* TODO: None most likely wrong *)
