@@ -573,7 +573,7 @@ struct
               `Lifted (Lval left)
             end
         end
-      | Some(left), Some(Field _) -> Printf.printf "NOOOOOO FIELD"; legacy_offset exp v
+      | Some(left), Some(Field _) -> Printf.printf "NOOOOOO FIELD"; legacy_offset exp v (* TODO: Deal with top here *)
       | _, _ -> Printf.printf "NOOOOOO STH ELSE"; legacy_offset exp v
         
 

@@ -282,6 +282,7 @@ struct
           if not change_array then
             (* change_array is false if a change to the way arrays are partitioned is not desired *)
             (* for now, this is only the case when guards are evaluated *)
+            (* TODO: Monday This is where the check if the entire array is covered needs to happen *)
             begin
               (if List.length arrs > 0 then
               M.warn "There would have been affected arrays but no change was made because change_array was false");
@@ -333,7 +334,9 @@ struct
 
   let rem_many (st,fl,dep: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
-    List.fold_left f st v_list, fl, dep
+    let g dep v = BaseDomain.VarMap.remove v dep in
+    List.fold_left f st v_list, fl, List.fold_left g dep v_list
+
 
   let call_descr f (es,fl,dep) =
     let short_fun x =
