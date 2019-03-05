@@ -1916,4 +1916,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Main : Spec)
+  MCP.register_analysis ~dep:["expRelation"] (module Main : Spec)
