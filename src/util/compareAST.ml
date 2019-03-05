@@ -69,7 +69,11 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
           | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> eq_list eq_attribute attr1 attr2
           | _, _ -> a = b)
 
-and eq_typ (a: typ) (b: typ) = eq_typ_acc a b []
+and eq_typ (a: typ) (b: typ) = 
+  (* We compare the typsigs: so TNameds, i.e. typedefs, are unrolled *)
+  let a' = typeSig a in
+  let b' = typeSig b in
+  eq_typsig a' b'
  
 and eq_eitems (a: string * exp * location) (b: string * exp * location) = match a, b with
   (name1, exp1, _l1), (name2, exp2, _l2) -> name1 = name2 && eq_exp exp1 exp2
@@ -82,14 +86,15 @@ and eq_enuminfo (a: enuminfo) (b: enuminfo) = a.ename = b.ename && eq_list eq_at
 and eq_args (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
   (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ typ1 typ2 && eq_list eq_attribute attr1 attr2
 
-and eq_typsig (a: typsig) (b: typsig) = match a, b with
+and eq_typsig (a: typsig) (b: typsig) = 
+  match a, b with
   | TSArray (ts1, i1, attr1), TSArray (ts2, i2, attr2) -> eq_typsig ts1 ts2 && i1 = i2 && eq_list eq_attribute attr1 attr2
   | TSPtr (ts1, attr1), TSPtr (ts2, attr2) -> eq_typsig ts1 ts2 && eq_list eq_attribute attr1 attr2
   | TSComp (b1, str1, attr1), TSComp (b2, str2, attr2) -> b1 = b2 && str1 = str2 && eq_list eq_attribute attr1 attr2
   | TSFun (ts1, Some tsList1, b1, attr1), TSFun (ts2, Some tsList2, b2, attr2) -> eq_typsig ts1 ts2 && eq_list eq_typsig tsList1 tsList2 && b1 = b2 && eq_list eq_attribute attr1 attr2
   | TSFun (ts1, None, b1, attr1), TSFun (ts2, None, b2, attr2) -> eq_typsig ts1 ts2 && b1 = b2 && eq_list eq_attribute attr1 attr2
   | TSEnum (str1, attr1), TSEnum (str2, attr2) -> str1 = str2 && eq_list eq_attribute attr1 attr2
-  | TSBase typ1, TSBase typ2 -> eq_typ typ1 typ2
+  | TSBase typ1, TSBase typ2 -> eq_typ_acc typ1 typ2 []
   | _, _ -> false
 
 and eq_attrparam (a: attrparam) (b: attrparam) = match a, b with
