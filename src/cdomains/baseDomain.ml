@@ -8,11 +8,11 @@ module CPA =
 struct
   include MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
 
-  let arrays_should_join (x:t) (y:t) =
+  let arrays_should_join (x:t) (y:t) (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) =
     let array_join_ok key (value:VD.t) =
       try 
         let other = find key y in
-        VD.array_should_join value other
+        VD.array_should_join value other x_eval_int y_eval_int
       with Not_found -> true
     in
     for_all array_join_ok x

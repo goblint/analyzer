@@ -23,7 +23,7 @@ sig
   val invalidate_value: Q.ask -> typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
-  val array_should_join: t -> t -> bool 
+  val array_should_join: t -> t ->  (exp -> int64 option) -> (exp -> int64 option) -> bool 
 end
 
 module type Blob =
@@ -91,14 +91,15 @@ struct
   let is_top x = x = `Top
   let top_name = "Unknown"
 
-  let array_should_join x y = match (x,y) with    
+  let array_should_join x y (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) = match (x,y) with    
     | (`Top, `Top) -> true
     | (`Bot, `Bot) -> true
     | (`Int x, `Int y) -> true
     | (`Address x, `Address y) -> true
     | (`Struct x, `Struct y) -> true
     | (`Union x, `Union y) -> true
-    | (`Array x, `Array y) -> CArrays.array_should_join x y
+    | (`Array x, `Array y) -> 
+      CArrays.array_should_join x y x_eval_int y_eval_int
     | (`Blob x, `Blob y) -> true
     | _ -> true
 
