@@ -27,6 +27,8 @@ sig
   val map: (value -> value) -> t -> t
   (** Apply a function to all elements of the array. *)
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
+
+  val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
 end
 
 

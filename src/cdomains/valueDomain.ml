@@ -91,7 +91,7 @@ struct
   let is_top x = x = `Top
   let top_name = "Unknown"
 
-  let array_should_join x y (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) = match (x,y) with    
+  let rec array_should_join x y (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) = match (x,y) with    
     | (`Top, `Top) -> true
     | (`Bot, `Bot) -> true
     | (`Int x, `Int y) -> true
@@ -99,7 +99,9 @@ struct
     | (`Struct x, `Struct y) -> true
     | (`Union x, `Union y) -> true
     | (`Array x, `Array y) -> 
-      CArrays.array_should_join x y x_eval_int y_eval_int
+      CArrays.array_should_join x y x_eval_int y_eval_int &&
+      CArrays.fold_left2 (fun a (x:t) (y:t)  -> a && array_should_join x y x_eval_int y_eval_int) true x y
+      
     | (`Blob x, `Blob y) -> true
     | _ -> true
 

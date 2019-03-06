@@ -23,6 +23,7 @@ sig
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
+  val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
 end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
@@ -52,6 +53,9 @@ struct
 
   let fold_left f a x =
     f a x
+
+  let fold_left2 f a x y =
+    f a x y
 
   let set_inplace = set
   let copy a = a
@@ -152,8 +156,11 @@ struct
   let map f (e, (xl, xm, xr)) =
     (e, (f xl, f xm, f xr))  
 
-  let fold_left f a (e, ((xl:value), (xm:value), (xr:value))) =
+  let fold_left f a (_, ((xl:value), (xm:value), (xr:value))) =
     f (f (f a xl) xm) xr
+
+  let fold_left2 f a (_, ((xl:value), (xm:value), (xr:value))) (_, ((yl:value), (ym:value), (yr:value))) =
+    f (f (f a xl yl) xm ym) xr yr 
        
   let move_if_affected ?(length=None) (ask:Q.ask) ((e, (xl,xm, xr)) as x) (v:varinfo) movement_for_exp =
     let move (i:int option) =     (* TODO: Maybe it would be nicer to switch to some kind of enum here *)
@@ -292,7 +299,7 @@ struct
 
   let make i v =
     if Val.is_bot v then (Expp.bot(), (Val.top(), Val.top(), Val.top()))
-    else  (Expp.bot(), (Val.top(), v, Val.top()))
+    else  (Expp.bot(), (v, v, v))
   (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
   (* TODO: What about the cases where this is called with v != \bot, are we still sound in those *)
   (* TODO: Interaction with get and the catch all *)
@@ -325,6 +332,9 @@ struct
   let fold_left f a (x, l) =
     Base.fold_left f a x
 
+  let fold_left2 f a (x, l) (y, l) =
+    Base.fold_left2 f a x y
+
   let get_vars_in_e _ = []
 end
 
@@ -356,6 +366,10 @@ struct
 
   let fold_left f a (x, l) =
     Base.fold_left f a x  
+
+  let fold_left2 f a (x, l) (y, l) =
+    Base.fold_left2 f a x y
+
 
   let get_vars_in_e (x, _) = Base.get_vars_in_e x
 end
