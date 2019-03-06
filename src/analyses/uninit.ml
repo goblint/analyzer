@@ -25,6 +25,8 @@ struct
 
   let name = "uninit"
 
+  let should_join x y = D.equal x y
+
   let startstate v : D.t = D.empty ()
   let otherstate v : D.t = D.empty ()
   let exitstate  v : D.t = D.empty ()

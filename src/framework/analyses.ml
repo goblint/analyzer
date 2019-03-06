@@ -577,7 +577,9 @@ struct
      these to do postprocessing or other imperative hacks. *)
 
   let should_join _ _ = true
-  (* hint for path sensitivity --- MCP overrides this so don't we don't bother. *)
+  (* hint for path sensitivity --- MCP no longer overrides this so if you want
+    your analysis to be path sensitive, do override this. To obtain a behavior
+    where all paths are kept apart, set this to D.equal x y                    *)
 
   let call_descr f _ = f.svar.vname
   (* prettier name for equation variables --- currently base can do this and

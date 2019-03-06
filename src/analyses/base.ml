@@ -1933,4 +1933,5 @@ struct
 end
 
 let _ =
-  MCP.register_analysis ~dep:["expRelation"] (module Main : Spec)
+  (* add ~dep:["expRelation"]  again after modifying test cases accordingly *)
+  MCP.register_analysis (module Main : Spec)
