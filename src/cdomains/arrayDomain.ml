@@ -263,8 +263,8 @@ struct
   (* TODO: What if i =_must j? *)
 
   let make i v =
-    if Val.is_bot v then (Expp.bot(), (Val.bot(), Val.top(), Val.bot()))
-    else  (Expp.bot(), (Val.bot(), v, Val.bot()))
+    if Val.is_bot v then (Expp.bot(), (Val.top(), Val.top(), Val.top()))
+    else  (Expp.bot(), (Val.top(), v, Val.top()))
   (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
   (* TODO: What about the cases where this is called with v != \bot, are we still sound in those *)
   (* TODO: Interaction with get and the catch all *)

@@ -59,6 +59,7 @@ struct
   let otherstate v = CPA.bot (), Flag.start_multi v, Dep.bot ()
   let exitstate  v = CPA.bot (), Flag.start_main v, Dep.bot ()
 
+
   let morphstate v (cpa,fl,dep) = cpa, Flag.start_single v, dep
   let create_tid v =
     let loc = !Tracing.current_loc in
@@ -1913,6 +1914,19 @@ struct
         (Access.LSSSet.singleton es, es)
     end else
       Access.LSSSet.empty (), es
+
+
+  let should_join (a:D.t) (b:D.t) =
+    let dep1 = trd_triple a in
+    let dep2 = trd_triple b in
+    let cpa1 = fst_triple a in
+    let cpa2 = fst_triple b in
+    Printf.printf "called should join\n\n";
+    if dep1 = dep2 then
+      true
+    else
+     false
+
 end
 
 let _ =
