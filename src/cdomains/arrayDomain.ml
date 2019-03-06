@@ -17,6 +17,8 @@ sig
   val make: int -> value -> t
   val length: t -> int option
 
+  val array_should_join: t -> t -> bool 
+
   val move_if_affected: ?length:(int64 option) -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
   val get_vars_in_e: t -> Cil.varinfo list
   val map: (value -> value) -> t -> t
@@ -38,6 +40,8 @@ struct
   let set ?(length=None) (ask: Q.ask) a i v = join a v
   let make i v = v
   let length _ = None
+
+  let array_should_join _ _ = true
 
   let move_if_affected ?(length = None) _ x _ _ = x
 
@@ -72,6 +76,10 @@ struct
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
+
+  let array_should_join (e1, _) (e2, _) =
+    let one_bot = (Expp.is_bot e1) <> (Expp.is_bot e2) in  
+    not one_bot
 
   let get (ask:Q.ask) (e, (xl, xm, xr)) i =
     Messages.report ("Array get@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
@@ -287,6 +295,7 @@ struct
   let set ?(length=None) (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, Idx.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Idx.to_int l)
+  let array_should_join _ _ = true
 
   let move_if_affected ?(length = None) _ x _ _ = x
 
@@ -313,6 +322,7 @@ struct
     Base.set ~length:new_l ask x i v, l 
   let make l x = Base.make l x, Length.of_int (Int64.of_int l)
   let length (_,l) = BatOption.map Int64.to_int (Length.to_int l)
+  let array_should_join (x, xl) (y, yl) = Base.array_should_join x y
 
   let move_if_affected ?(length = None) ask (x,l) v i = 
     let new_l = Length.to_int l in

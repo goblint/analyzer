@@ -1922,10 +1922,12 @@ struct
     let cpa1 = fst_triple a in
     let cpa2 = fst_triple b in
     Printf.printf "called should join\n\n";
-    if dep1 = dep2 then
+    CPA.arrays_should_join cpa1 cpa2
+    
+    (* if dep1 = dep2 then
       true
     else
-     false
+     false *)
 
 end
 

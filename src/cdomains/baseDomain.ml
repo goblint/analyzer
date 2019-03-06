@@ -7,6 +7,17 @@ module VD = ValueDomain.Compound
 module CPA =
 struct
   include MapDomain.MapBot_LiftTop (Basetype.Variables) (VD)
+
+  let arrays_should_join (x:t) (y:t) =
+    let array_join_ok key (value:VD.t) =
+      try 
+        let other = find key y in
+        VD.array_should_join value other
+      with Not_found -> true
+    in
+    for_all array_join_ok x
+
+
   let name () = "value domain"
 end
 
