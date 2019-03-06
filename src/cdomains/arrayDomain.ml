@@ -82,11 +82,11 @@ struct
     if one_bot then
       begin
         let non_bot_value = if Expp.is_bot e1 then e2 else e1 in
-        let other_eval = if Expp.is_bot e1 then y_eval_int else x_eval_int in
+        let other_eval = if Expp.is_bot e1 then x_eval_int else y_eval_int in
         match non_bot_value with
         | `Top -> true
         | `Bot -> true (* does not happen *)
-        | `Lifted exp ->
+        | `Lifted exp -> 
           begin
             (* ask in the context of the other one for the value of the expression *)
             match other_eval exp with
@@ -95,9 +95,9 @@ struct
                   match length with
                     | Some y when Int64.equal x (Int64.sub y Int64.one) -> false
                     | _ -> true
-                  end
+                  end 
             | _ -> true
-          end
+          end 
       end
     else true
 
