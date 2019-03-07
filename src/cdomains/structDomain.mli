@@ -10,6 +10,7 @@ sig
   val get: t -> field -> value
   val replace: t -> field -> value -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
+  val for_all_common_bindings: (value -> value -> bool) -> t -> t -> bool
   val map: (value -> value) -> t -> t
   val cardinal: t -> int
   val keys: t -> field list

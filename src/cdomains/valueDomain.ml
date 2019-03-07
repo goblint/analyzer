@@ -96,12 +96,13 @@ struct
     | (`Bot, `Bot) -> true
     | (`Int x, `Int y) -> true
     | (`Address x, `Address y) -> true
-    | (`Struct x, `Struct y) -> true
+    | (`Struct x, `Struct y) ->
+      let pred = (fun (x:t) (y:t) -> array_should_join x y x_eval_int y_eval_int) in
+      Structs.for_all_common_bindings pred x y 
     | (`Union x, `Union y) -> true
     | (`Array x, `Array y) -> 
       CArrays.array_should_join x y x_eval_int y_eval_int &&
       CArrays.fold_left2 (fun a (x:t) (y:t)  -> a && array_should_join x y x_eval_int y_eval_int) true x y
-      
     | (`Blob x, `Blob y) -> true
     | _ -> true
 

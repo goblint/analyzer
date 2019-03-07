@@ -196,7 +196,7 @@ struct
             | Some l -> BatOption.map_default (Int64.equal l) false exp_value
             | _ -> false
           in
-          if e_equals_length then
+          if e_equals_length then (* TODO: what if it equals -1 *)
             begin
               Messages.report "Destructive assignment to expression, however the entire array is covered by one partition, dropping partitioning.";
               Expp.bot(),(xl, xl, xl)
