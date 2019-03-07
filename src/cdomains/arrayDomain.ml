@@ -72,10 +72,15 @@ struct
   type value = Val.t
   
 
-  let short w (e,(xl, xm, xr)) = "Array (partitioned by " ^ Expp.short (w-7) e ^ "): (" ^
-                                 Val.short (w - 7) xl ^ " -- " ^ Val.short (w - 7) xm ^ " -- "
-                                 ^ Val.short (w - 7) xr ^ ")"
-                                (* TODO: w-7 needs to be replaced here *)
+  let short w (e,(xl, xm, xr)) = 
+    if Expp.is_bot e then 
+      "Array (no part.) : " ^ Val.short (w - 7) xl
+    else
+      "Array (part. by " ^ Expp.short (w-7) e ^ "): (" ^
+        Val.short (w - 7) xl ^ " -- " ^
+        Val.short (w - 7) xm ^ " -- " ^
+        Val.short (w - 7) xr ^ ")"
+        (* TODO: w-7 needs to be replaced here *)
 
   let pretty () x = text "Array: " ++ pretty_f short () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y

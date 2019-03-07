@@ -57,7 +57,7 @@ void interesting(void) {
   // Destructively assign to i
   i = top;
 
-  // Check the array is still known to be correctly initialized
+  // Check the array is still known to be completly initialized
   assert(l.a[1] == 42);
   assert(l.a[2] == 42);
   assert(l.a[3] == 42);
@@ -68,7 +68,7 @@ void interesting(void) {
 
   int i2 = 0;
 
-  while(i2 < 5) {
+  while(i2 < 4) {
     int j2 = 0;
     while(j2<5) {
       kalas[i2].a[j2] = 8;
@@ -78,10 +78,9 @@ void interesting(void) {
   }
 
   // Initialization has not proceeded this far
-  assert(kalas[4].a[0] == 42); //UNKNOWN
+  assert(kalas[4].a[0] == 8); //UNKNOWN
 
-  // This is something we would like to be able to show
-  assert(kalas[0].a[0] == 42); 
+  assert(kalas[0].a[0] == 8); 
 
 
  /** 
