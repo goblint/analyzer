@@ -97,7 +97,7 @@ struct
         | `Bot -> true (* does not happen *)
         | `Lifted exp -> 
           begin
-            (* ask in the context of the other one for the value of the expression *)
+            (* ask in the state of the other one for the value of the expression *)
             match other_eval exp with
             | Some x when Int64.equal x Int64.zero -> false
             | Some x -> begin 
