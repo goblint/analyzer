@@ -345,21 +345,16 @@ let handle_extraspecials () =
 
 let srcPath () = List.first (!cFileNames)
 
-let update_and_store_map old_file new_file = 
-
+let update_map old_file new_file = 
     let dir = Serialize.gob_directory !cFileNames in
-    let updated_map = VersionLookup.restore_map !cFileNames dir old_file new_file in
-    (* Creates the directory for the commit *)
-    (match Serialize.current_commit_dir !cFileNames with 
-      | Some commit_dir ->
-        let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
-        Serialize.marshall updated_map map_file_name
-      | None -> ());
-    updated_map
+    VersionLookup.restore_map !cFileNames dir old_file new_file
 
-let print_variables (fnctn: Cil.fundec) = 
-    List.iter (fun (a: Cil.varinfo) -> print_endline ("Local: "  ^ a.vname ^ " id: " ^ (string_of_int a.vid))) fnctn.slocals;
-    List.iter (fun (a: Cil.varinfo) -> print_endline ("Formal: "  ^ a.vname ^ " id: " ^ (string_of_int a.vid))) fnctn.sformals
+let store_map updated_map =    (* Creates the directory for the commit *)
+  match Serialize.current_commit_dir !cFileNames with 
+  | Some commit_dir ->
+    let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
+    Serialize.marshall updated_map map_file_name
+  | None -> ()
 
 (** the main function *)
 let main =
@@ -391,8 +386,14 @@ let main =
             | None -> ());
           | None -> ();
         );
+        let current_commit = (match Serialize.current_commit !cFileNames with Some commit -> commit | _ -> "dirty") in
+        let last_analyzed_commit = (match Serialize.last_analyzed_commit !cFileNames with Some commit -> commit | _ -> "-none-") in
         let function_name_map = (match Serialize.load_latest_cil !cFileNames with
-          | Some file2 -> update_and_store_map file2 file
+          | Some file2 -> let function_name_map = update_map file2 file in
+                          let already_analyzed = (String.equal current_commit last_analyzed_commit) in
+                          UpdateCil.update_ids file2 file function_name_map current_commit already_analyzed;
+                          store_map function_name_map;
+                          function_name_map
           | None -> match Serialize.current_commit !cFileNames with
               Some commit ->
                 let functionNameMap = VersionLookup.create_map file commit  in
@@ -401,7 +402,7 @@ let main =
                       let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
                       Serialize.marshall functionNameMap map_file_name;
                       functionNameMap
-                  | None -> exit 4)
+                  | None -> exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
           | None -> exit 5;
         ) in
         file|> do_analyze function_name_map;
@@ -409,14 +410,6 @@ let main =
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)
         if !Messages.worldStopped then exit 124; (* timeout! *)
-        (* file|> do_analyze;
-        Report.do_stats !cFileNames;
-        do_html_output ();
-        if !verified = Some false then exit 3;  (* verifier failed! *)
-        if !Messages.worldStopped then exit 124; (* timeout! *) *)
-        
-        Cil.iterGlobals file (fun glob -> match glob with GFun (f, location) -> print_endline f.svar.vname; print_variables f | _ -> ());
-
         Serialize.save_cil file !cFileNames;
       with Exit -> ())
     

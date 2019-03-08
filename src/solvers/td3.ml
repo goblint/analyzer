@@ -278,88 +278,14 @@ module WP =
 
       let solve box st vs =
         print_string "SOLVER STARTED\n";
-(*         let infl   = HM.create 10 in (* y -> xs *)
-        let rho    = HM.create 10 in
-        let called = HM.create 10 in
-        let wpoint = HM.create 10 in
 
-        let output = solve box st vs infl rho called wpoint in 
-        Serialize.marshall output "solve_1.data"; *)
-        let (infl, rho, called, wpoint) =  if Sys.file_exists "solve1.out" 
+        let (infl, rho, called, wpoint, stable) as input_data =  if Sys.file_exists "solve1.out" 
                                             then Serialize.unmarshall "solve1.out"
-                                            else (HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
-
+                                            else (HM.create 10, HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
         let varCountBefore = HM.length rho in                                            
-        (* let (infl, rho, called, wpoint) = Serialize.unmarshall "solve1.out" in *)
         let (infl, rho1, called, wpoint) = solve box st vs infl rho called wpoint in
         let varCountAfter = HM.length rho1 in
         Serialize.marshall (infl, rho1, called, wpoint) "solve1.out" ;
-(*         let input = if Sys.file_exists "solve1.out.old" then "solve1.out.old" else "solve1.out" in
-(*  *)        print_endline ("Unmarshall "^input);
- *)        let (infl, rho, called, wpoint) = Serialize.unmarshall "solve1.out" in
-        (* let (infl, rho, called, wpoint) = output1 in *)
-        (* 90 instead of 63 values in rho if 1. solve on empty data is missing *)
-        let output2 = solve box st vs infl rho called wpoint in
-        Serialize.marshall output2 "solve1.out" ; 
-
-(*         let (infl1, rho1, called1, wpoint1) = Serialize.unmarshall "solve.old" in
-        let (infl2, rho2, called2, wpoint2) = solve box st vs infl1 rho1 called1 wpoint1 in
-(*         Serialize.marshall (infl1, rho1, called1, wpoint1) "res1.data"; *)
- *)
-
-(*         let keys hm = HM.fold (fun key vl acc -> List.cons key acc) hm [] in
-        let vals hm = HM.fold (fun key vl acc -> List.cons vl acc) hm [] in
-        let rho_of (_, r, _, _) = r in
-
-        (*  *)
-        let old_rho = rho_of (Serialize.unmarshall "solve1.out.old") in
-        let cmp_rho = rho_of (Serialize.unmarshall "solve1.out.cmp") in
-        let r1 = KeySet.of_list (keys old_rho) in
-        let r2 = KeySet.of_list (keys cmp_rho) in
-
-        let additional = KeySet.diff r2 r1 in
-  
-        KeySet.iter (fun a ->  print_string (S.Var.file_name a);print_int (S.Var.line_nr a); print_string ": "; print_string (S.Var.var_id a); print_newline ()) additional;
-        let (el1, additional) = KeySet.pop additional in
-(*          let (el1, additional) = KeySet.pop additional in
- *)      
-       let el2= KeySet.any (KeySet.filter (fun v -> S.Var.var_id v = S.Var.var_id el1 ) additional) in
-         print_string "Compare:";
-        print_string (S.Var.file_name el1);print_int (S.Var.line_nr el1); print_string ": "; print_string (S.Var.var_id el1); print_newline ();
-        print_string (S.Var.file_name el2);print_int (S.Var.line_nr el2); print_string ": "; print_string (S.Var.var_id el2); print_newline ();
-        print_string "result: ";
-        debug_now := true;
-        let c = S.Var.compare el1 el2 in
-        print_int c;
-
-        
-        print_newline ();
-
-        print_endline @@ Pretty.sprint ~width:1000 (S.Var.pretty_trace () el1);
-
-        print_endline @@ Pretty.sprint ~width:1000 (S.Var.pretty_trace () el2);
-
-        Dum.to_channel ~lim:999999 (Legacy.open_out "el1.txt") el1;
-        Dum.to_channel ~lim:999999 (Legacy.open_out "el2.txt") el2; *)
-        (* print_endline ("rho.in = rho.out: "^string_of_bool (HM.equal (rho_of rho) (rho_of output1)); *)
-(* 
-        let (_,r,_,_) = Serialize.unmarshall "solve.in" in
-        let (_,r1,_,_) = Serialize.unmarshall "solve.out" in *)
-(*         let r1_keys = keys r1 in
-        let r_keys = keys r in 
-        (try 
-          let res = List.for_all (fun (a,b) -> S.Var.equal a b) (List.combine r1_keys r_keys) in
-          print_string "Equal keys: ";
-          print_endline (if res then "true" else "false");
-          
-          let r1_vals = vals r1 in
-          let r_vals = vals r in 
-          let res = List.for_all (fun (a,b) -> S.Dom.equal a b) (List.combine r1_vals r_vals) in
-          print_string "Equal values: ";
-          print_endline (if res then "true" else "false");
-        with e -> print_endline "Different size of hashmaps"); 
- *)
-
         print_newline ();
 
         print_endline ("number of different vars: " ^ string_of_int (varCountAfter - varCountBefore));
