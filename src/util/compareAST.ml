@@ -213,7 +213,7 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
   in
   let checkUnchanged map global = 
     match global with
-       GFun (fundec,_location) ->                          
+       GFun (fundec,_location) as f ->                          
                     let funName = fundec.svar.vname in
                     (try
                         let oldFunction =  StringMap.find funName map in
@@ -222,8 +222,8 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
                         Prelude.print_string @@ funName ^ " ";
                         Prelude.print_bool identical;
                         Prelude.print_newline (); 
-                        Some (identical, fundec)
-                    with Not_found -> Prelude.print_string (funName ^ "Not found\n"); Some (false, fundec))
+                        Some (identical, f)
+                    with Not_found -> Prelude.print_string (funName ^ "Not found\n"); Some (false, f))
       | _ -> None
   in
   (* Store a map from functionNames in the old file to the function definition*)

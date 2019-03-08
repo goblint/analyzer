@@ -266,7 +266,7 @@ end
 
 module type FunctionMap =
 sig
-  val map: (string, Cil.fundec * string) Hashtbl.t
+  val map: (string, Cil.global * string) Hashtbl.t
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)

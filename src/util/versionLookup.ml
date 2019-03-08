@@ -4,25 +4,33 @@ open Serialize
 
 type commitID = string
 
-let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (string, Cil.fundec * commitID) Hashtbl.t) = 
-    let assocList = compareCilFiles oldFile newFile in
-    List.iter (fun (fundec: fundec) ->  Hashtbl.replace ht fundec.svar.vname (fundec, newCommitID)) assocList;
-    ht
+let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (string, Cil.global * commitID) Hashtbl.t) = 
+  let name_of_global glob =
+    match glob with
+    | GFun (fundec, l) -> fundec.svar.vname
+    | GVar (var, init, l) -> var.vname
+    | GVarDecl (var, l) -> var.vname
+    | _ -> raise (Failure "No variable or function") 
+    in
 
+  let assocList = compareCilFiles oldFile newFile in  
+  List.iter (fun (glob: global) ->  Hashtbl.replace ht (name_of_global glob) (glob, newCommitID)) assocList;
+  ht
 
 let create_map (new_file: Cil.file) (commit: commitID) =
     let add_to_hashtbl tbl (global: Cil.global) =
         match global with
-            | Cil.GFun (fund, loc) ->
-              Hashtbl.replace tbl fund.svar.vname (fund, commit) 
+            | GFun (fund, loc) as f -> Hashtbl.replace tbl fund.svar.vname (f, commit)
+            | GVar (var, _, _) as v -> Hashtbl.replace tbl var.vname (v, commit)
+            | GVarDecl (var, _) as v -> Hashtbl.replace tbl var.vname (v, commit)
             | other -> ()
     in
-    let tbl : (string, Cil.fundec * commitID) Hashtbl.t = Hashtbl.create 1000 in
+    let tbl : (string, Cil.global * commitID) Hashtbl.t = Hashtbl.create 1000 in
     Cil.iterGlobals new_file (add_to_hashtbl tbl);
     tbl
 
 (** For debugging purposes: print the mapping from function name to commit *)
-let print_mapping (function_name: string) (dec, commit: Cil.fundec * commitID) =
+let print_mapping (function_name: string) (dec, commit: Cil.global * commitID) =
   print_string function_name;
   print_string " -> ";
   print_endline commit
