@@ -396,12 +396,13 @@ let main =
                           function_name_map
           | None -> match Serialize.current_commit !cFileNames with
               Some commit ->
-                let functionNameMap = VersionLookup.create_map file commit  in
+                let function_name_map = VersionLookup.create_map file commit  in
                 (match Serialize.current_commit_dir !cFileNames with 
                   | Some commit_dir ->
                       let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
-                      Serialize.marshall functionNameMap map_file_name;
-                      functionNameMap
+                      UpdateCil.update_ids file file function_name_map current_commit false;
+                      Serialize.marshall function_name_map map_file_name;
+                      function_name_map
                   | None -> exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
           | None -> exit 5;
         ) in

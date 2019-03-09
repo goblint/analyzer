@@ -1,9 +1,11 @@
 open Cil
 
-let toFunctionName (glob: Cil.global) =
-  match glob with 
-  | GFun (fundec,_location)-> Some fundec.Cil.svar.Cil.vname
-  | _ -> None
+let name_of_global glob =
+  match glob with
+  | GFun (fundec, l) -> fundec.svar.vname
+  | GVar (var, init, l) -> var.vname
+  | GVarDecl (var, l) -> var.vname
+  | _ -> raise (Failure "No variable or function") 
 
 
 module StringMap = Map.Make(String)
@@ -193,38 +195,31 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) =
        a.slocals == b.slocals && eqB a.sbody b.sbody && 
        List.for_all (fun (a,b) -> eqS a b) (List.combine a.sallstmts b.sallstmts)*)
 
-(* Do a (recursive) equal comparision ignoring location information *)
-let eq (a:Cil.global) (b: Cil.global) = match a, b with
-  (GFun (x1,x2)), (GFun (y1,y2)) -> eqF x1 y1
-  | _, _ -> assert false (* We should only compare two GFuns with this function, otherwise fail *) 
-(* Beware: the sallstmts is only available when getCFG is called in control.ml *)
-(*	After you call Cil.computeCFGInfo this field is set to contain all statements in the function*)
-
-
-type status = Unchanged | NotFound | Changed
+let eq_glob (a: global) (b: global) = match a, b with
+  | GFun (f,_), GFun (g,_) -> eqF f g
+  | GVar (x, _, _), GVar (y,_, _) -> eq_varinfo x y
+  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y
+  | _ -> false
 
 (* Returns a list of changed functions *)
 let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
   let oldMap = StringMap.empty in
   let addGlobal map global  = 
-    match toFunctionName global with
-      Some funName -> StringMap.add funName global map |
-      None -> map 
+    try
+      StringMap.add (name_of_global global) global map
+    with
+      e -> map
   in
   let checkUnchanged map global = 
-    match global with
-       GFun (fundec,_location) as f ->                          
-                    let funName = fundec.svar.vname in
-                    (try
-                        let oldFunction =  StringMap.find funName map in
-                        (* Do a (recursive) equal comparision ignoring location information *)
-                        let identical = eq oldFunction global in
-                        Prelude.print_string @@ funName ^ " ";
-                        Prelude.print_bool identical;
-                        Prelude.print_newline (); 
-                        Some (identical, f)
-                    with Not_found -> Prelude.print_string (funName ^ "Not found\n"); Some (false, f))
-      | _ -> None
+    try 
+      let name = name_of_global global in
+      (try
+          let oldFunction =  StringMap.find name map in
+          (* Do a (recursive) equal comparision ignoring location information *)
+          let identical = eq_glob oldFunction global in
+          Some (identical, global)
+      with Not_found -> Some (false, global);)
+    with e -> None (* Global was no variable or function, it does not belong into the map *)
   in
   (* Store a map from functionNames in the old file to the function definition*)
   let oldMap = Cil.foldGlobals oldAST addGlobal oldMap in
