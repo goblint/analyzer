@@ -8,8 +8,8 @@ open Analyses
 open GobConfig
 open Constraints
 
-let function_map = ref @@ (Hashtbl.create 0: (string, Cil.global * string) Hashtbl.t)
-
+(* let function_map = ref @@ (Hashtbl.create 0: (string, Cil.global * string) Hashtbl.t)
+ *)
 module type S2S = functor (X : Spec) -> Spec
 (* gets Spec for current options *)
 let get_spec () : (module Spec) =
@@ -32,10 +32,10 @@ module AnalyzeCFG (Cfg:CfgBidir) =
 struct
 
   (** The main function to preform the selected analyses. *)
-  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) =
+  let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs)  (module Spec : Spec) (module Fm : IncrConstraints.FunctionMap) =
     
-    let module Fm = struct let map = !function_map end in
-    (** The Equation system *)
+(*     let module Fm = struct let map = function_map let obsolete = [12] end in
+ *)    (** The Equation system *)
     let module EQSys = IncrConstraints.FromSpec (Spec) (Cfg) (Fm) in
 
     (** Hashtbl for locals *)
@@ -309,13 +309,13 @@ struct
 
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, snd @@ Hashtbl.find !function_map n.vname), Spec.context e)) startvars
+        List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, snd @@ Hashtbl.find Fm.map n.vname), Spec.context e)) startvars
       else
-        List.map (fun (n,e) -> ((MyCFG.Function n, snd @@ Hashtbl.find !function_map n.vname), Spec.context e)) startvars
+        List.map (fun (n,e) -> ((MyCFG.Function n, snd @@ Hashtbl.find Fm.map n.vname), Spec.context e)) startvars
     in
 
     let entrystates =
-      List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, snd @@ Hashtbl.find !function_map n.vname), Spec.context e), e) startvars in
+      List.map (fun (n,e) -> ((MyCFG.FunctionEntry n, snd @@ Hashtbl.find Fm.map n.vname), Spec.context e), e) startvars in
 
 
     let local_xml = ref (Result.create 0) in
@@ -431,14 +431,13 @@ struct
     Result.output (lazy !local_xml) !global_xml make_global_xml make_global_fast_xml file
 
 
-  let analyze file fs =
-    analyze file fs (get_spec ())
+  let analyze file fs change_info =
+    analyze file fs (get_spec ()) change_info
 end
 
 
 (** The main function to perform the selected analyses. *)
-let analyze fnctn_map (file: file) fs =
-  function_map := fnctn_map;
+let analyze change_info (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
   let cfgF, cfgB = MyCFG.getCFG file in
   let cfgB' = function
@@ -448,4 +447,4 @@ let analyze fnctn_map (file: file) fs =
   let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
   let module CFG = struct let prev = cfgB let next = cfgF end in
   let module A = AnalyzeCFG (CFG) in
-  A.analyze file fs
+  A.analyze file fs change_info

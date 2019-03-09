@@ -483,14 +483,13 @@ sig
   type v    (** variables *)
   type d    (** values    *)
   type 'a m (** basically a monad carrier *)
-
+  val obsolete : string list
   (** Variables must be hashable, comparable, etc.  *)
   module Var : VarType with type t = v
   (** Values must form a lattice. *)
   module Dom : Lattice.S with type t = d
   (** box --- needed here for transformations *)
   val box : v -> d -> d -> d
-
   (** The system in functional form. *)
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
 end
@@ -509,7 +508,7 @@ sig
 
   module D : Lattice.S
   module G : Lattice.S
-
+  val obsolete: string list
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
 end
 

@@ -374,7 +374,7 @@ struct
   module G = S.G
 
   let full_context = get_bool "exp.full-context"
-
+  let obsolete = []
   let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
@@ -589,7 +589,7 @@ struct
       | `Left  a -> S.G.printXml f a
       | `Right a -> S.D.printXml f a
   end
-
+  let obsolete = S.obsolete
   type v = Var.t
   type d = Dom.t
 

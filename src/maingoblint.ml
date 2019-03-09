@@ -261,7 +261,7 @@ let merge_preprocessed cpp_file_names =
   merged_AST
 
 (** Perform the analysis over the merged AST.  *)
-let do_analyze function_map merged_AST =
+let do_analyze change_info merged_AST =
   let module L = Printable.Liszt (Basetype.CilFundec) in
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
@@ -286,7 +286,7 @@ let do_analyze function_map merged_AST =
           print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
           print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
         );
-        try Control.analyze function_map ast funs
+        try Control.analyze change_info ast funs
         with x ->
           let loc = !Tracing.current_loc in
           Printf.printf "About to crash on %s:%d\n" loc.Cil.file loc.Cil.line;
@@ -406,7 +406,8 @@ let main =
                   | None -> exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
           | None -> exit 5;
         ) in
-        file|> do_analyze function_name_map;
+        let changeInfo = (module struct let map = function_name_map let obsolete = []end : IncrConstraints.FunctionMap) in
+        file|> do_analyze changeInfo;
         Report.do_stats !cFileNames;
         do_html_output ();
         if !verified = Some false then exit 3;  (* verifier failed! *)

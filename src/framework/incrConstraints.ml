@@ -260,13 +260,14 @@ sig
 
   module D : Lattice.S
   module G : Lattice.S
-
+  val obsolete: string list
   val system : (LVar.t) -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
 end
 
 module type FunctionMap =
 sig
   val map: (string, Cil.global * string) Hashtbl.t
+  val obsolete: string list
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
@@ -294,7 +295,7 @@ struct
   module G = S.G
 
   let full_context = get_bool "exp.full-context"
-
+  let obsolete = Fm.obsolete
   let common_ctx var pval (getl:lv -> ld) (sidel: lv -> ld -> unit) getg sideg : (D.t, G.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
