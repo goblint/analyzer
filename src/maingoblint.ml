@@ -388,12 +388,12 @@ let main =
         );
         let current_commit = (match Serialize.current_commit !cFileNames with Some commit -> commit | _ -> "dirty") in
         let last_analyzed_commit = (match Serialize.last_analyzed_commit !cFileNames with Some commit -> commit | _ -> "-none-") in
-        let function_name_map = (match Serialize.load_latest_cil !cFileNames with
-          | Some file2 -> let function_name_map = update_map file2 file in
+        let (name_map, obsolete) = (match Serialize.load_latest_cil !cFileNames with
+          | Some file2 -> let (function_name_map, obsolete) = update_map file2 file in
                           let already_analyzed = (String.equal current_commit last_analyzed_commit) in
                           UpdateCil.update_ids file2 file function_name_map current_commit already_analyzed;
                           store_map function_name_map;
-                          function_name_map
+                          (function_name_map, obsolete)
           | None -> match Serialize.current_commit !cFileNames with
               Some commit ->
                 let function_name_map = VersionLookup.create_map file commit  in
@@ -402,11 +402,11 @@ let main =
                       let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
                       UpdateCil.update_ids file file function_name_map current_commit false;
                       Serialize.marshall function_name_map map_file_name;
-                      function_name_map
+                      (function_name_map, [])
                   | None -> exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
           | None -> exit 5;
         ) in
-        let changeInfo = (module struct let map = function_name_map let obsolete = []end : IncrConstraints.FunctionMap) in
+        let changeInfo = (module struct let map = name_map let obsolete = obsolete end : IncrConstraints.FunctionMap) in
         file|> do_analyze changeInfo;
         Report.do_stats !cFileNames;
         do_html_output ();

@@ -80,6 +80,7 @@ let type_inv (c:compinfo) : varinfo =
   try Hashtbl.find type_inv_tbl c.ckey
   with Not_found ->
     let i = makeGlobalVar ("{struct "^c.cname^"}") (TComp (c,[])) in
+    print_endline @@ "GoblintUtil makeGlobalVar: " ^ string_of_int i.vid;
     Hashtbl.add type_inv_tbl c.ckey i;
     i
 

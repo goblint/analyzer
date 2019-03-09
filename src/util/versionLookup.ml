@@ -5,9 +5,9 @@ open Serialize
 type commitID = string
 
 let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (string, Cil.global * commitID) Hashtbl.t) = 
-  let assocList = compareCilFiles oldFile newFile in  
+  let (assocList, obsolete) = compareCilFiles oldFile newFile in  
   List.iter (fun (glob: global) ->  Hashtbl.replace ht (name_of_global glob) (glob, newCommitID)) assocList;
-  ht
+  (ht, obsolete)
 
 let create_map (new_file: Cil.file) (commit: commitID) =
     let add_to_hashtbl tbl (global: Cil.global) =
@@ -35,9 +35,9 @@ let restoreMap (folder: string) (old_commit: commitID) (new_commit: commitID) (o
     let oldMap = Serialize.unmarshall versionFile in
    (* let astFile = Filename.concat commitFolder Serialize.cilFileName in
     let oldAST = Cil.loadBinaryFile astFile in *)
-    let updated = updateMap oldFile newFile new_commit oldMap in
+    let (updated, osbolete) = updateMap oldFile newFile new_commit oldMap in
     Hashtbl.iter print_mapping updated;
-    updated
+    (updated, osbolete)
 
 let restore_map (src_files: string list) (folder: string) (old_file: Cil.file) (new_file: Cil.file) =
     match Serialize.current_commit src_files with 

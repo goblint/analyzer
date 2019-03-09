@@ -160,6 +160,8 @@ module WP =
       in
 
       start_event ();
+      List.iter (fun a -> print_endline @@ "Destabilizing " ^ a ) S.obsolete;
+      HM.iter (fun k v-> if List.mem (S.Var.var_id k) S.obsolete then (print_endline ("destabilizing " ^ S.Var.var_id k); destabilize k)) stable;
       List.iter set_start st;
       List.iter init vs;
       List.iter (fun x -> solve x Widen) vs;
@@ -289,8 +291,9 @@ module WP =
         Serialize.marshall (infl, rho1, called, wpoint, stable) "solve1.out" ;
         print_newline ();
 
-        print_endline ("number of different vars: " ^ string_of_int (varCountAfter - varCountBefore));
 
+        HM.iter (fun a b-> print_endline @@ S.Var.var_id a) rho1;
+        print_endline ("number of different vars: " ^ string_of_int (varCountAfter - varCountBefore));
         rho1
 
 
