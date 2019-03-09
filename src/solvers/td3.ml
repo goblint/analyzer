@@ -27,7 +27,7 @@ module WP =
 
     let solve_count = ref 0
 
-    let solve box st vs infl rho called wpoint =
+    let solve box st vs infl rho called wpoint stable =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
@@ -38,8 +38,8 @@ module WP =
        wpoint="^string_of_int (HM.length wpoint)
         );
 
-      let stable = HM.create  10 in
-(*       let infl   = HM.create  10 in (* y -> xs *) *)
+(*       let stable = HM.create  10 in
+ *)(*       let infl   = HM.create  10 in (* y -> xs *) *)
 (*       let called = HM.create  10 in
  *)(*       let rho    = HM.create  10 in*)
 (*       let wpoint = HM.create  10 in
@@ -234,9 +234,9 @@ module WP =
         Stats.time "restore" restore ();
         if (GobConfig.get_bool "dbg.verbose") then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
       );
-      let avg xs = float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
+   (*    let avg xs = float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
       if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
-
+ *)
       (* let reachability xs =
         let reachable = HM.create (HM.length rho) in
         let rec one_var x =
@@ -267,14 +267,15 @@ module WP =
       print_string "Number of elemnts in rho: ";
       print_int sum;
       print_newline ();
-      HM.clear stable;
+(*       HM.clear stable;
+ *)   
       print_string "Called solve: ";
       print_int !solve_count;
       print_endline " times";
       solve_count := 0;
 (*       HM.clear infl  ;
  *)
-      (infl, rho, called, wpoint)
+      (infl, rho, called, wpoint, stable)
 
       let solve box st vs =
         print_string "SOLVER STARTED\n";
@@ -283,9 +284,9 @@ module WP =
                                             then Serialize.unmarshall "solve1.out"
                                             else (HM.create 10, HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
         let varCountBefore = HM.length rho in                                            
-        let (infl, rho1, called, wpoint) = solve box st vs infl rho called wpoint in
+        let (infl, rho1, called, wpoint, stable) = solve box st vs infl rho called wpoint stable in
         let varCountAfter = HM.length rho1 in
-        Serialize.marshall (infl, rho1, called, wpoint) "solve1.out" ;
+        Serialize.marshall (infl, rho1, called, wpoint, stable) "solve1.out" ;
         print_newline ();
 
         print_endline ("number of different vars: " ^ string_of_int (varCountAfter - varCountBefore));
