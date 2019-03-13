@@ -203,6 +203,10 @@ let eq_glob (a: global) (b: global) = match a, b with
 
 (* Returns a list of changed functions *)
 let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
+  let string_of_glob (glob: global) = match glob with
+    | GFun (v, l) ->  "fun" ^ (string_of_int v.svar.vid)
+    | _ -> raise (Failure "No Function")
+  in
   let oldMap = StringMap.empty in
   let addGlobal map global  = 
     try
@@ -214,18 +218,20 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
     try 
       let name = name_of_global global in
       (try
-          let oldFunction =  StringMap.find name map in
-          (* Do a (recursive) equal comparision ignoring location information *)
-          let identical = eq_glob oldFunction global in
-          Some (identical, global)
-      with Not_found -> Some (false, global);)
+        let oldFunction =  StringMap.find name map in
+        (* Do a (recursive) equal comparision ignoring location information *)
+        let identical = eq_glob oldFunction global in
+        print_endline (name ^ " " ^ string_of_bool identical);
+        Some (identical, global, if not identical then Some oldFunction else None)
+      with Not_found -> Some (false, global, None);)
     with e -> None (* Global was no variable or function, it does not belong into the map *)
   in
   (* Store a map from functionNames in the old file to the function definition*)
   let oldMap = Cil.foldGlobals oldAST addGlobal oldMap in
   (*  For each function in the new file, check whether a function with the same name 
-      already existed in the old version, and whether it is the same function.
-   *)
-  Cil.foldGlobals newAST (fun acc glob-> match checkUnchanged oldMap glob with Some (false, fundec) -> List.cons fundec acc | _ -> acc) []
-
-
+      already existed in the old version, and whether it is the same function. *)
+  Cil.foldGlobals newAST 
+    (fun acc glob -> match checkUnchanged oldMap glob with
+      | Some (false, fundec, None) -> (List.cons fundec (fst acc), snd acc)
+      | Some (false, fundec, (Some old)) -> (List.cons fundec (fst acc), List.cons (string_of_glob old) (snd acc))
+      | _ -> acc) ([], [])
