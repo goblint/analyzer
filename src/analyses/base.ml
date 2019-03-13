@@ -268,7 +268,7 @@ struct
   let init () =
     privatization := get_bool "exp.privatization";
     precious_globs := get_list "exp.precious_globs";
-    return_varstore := makeVarinfo false "RETURN" voidType;
+    return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
     H.clear BaseDomain.heap_hash
 
   (**************************************************************************
@@ -1361,7 +1361,7 @@ struct
     [ctx.local, make_entry ctx fn args]
 
 
-  let tasks_var = makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType
+  let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
 
   let forkfun ctx (lv: lval option) (f: varinfo) (args: exp list) : (varinfo * D.t) list =
     let create_thread arg v =

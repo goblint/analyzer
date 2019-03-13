@@ -229,7 +229,7 @@ struct
 
   let init () =
     set_bool "exp.malloc-fail" true;
-    return_addr_ :=  Addr.from_var (makeVarinfo false "RETURN" voidType)
+    return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 
 let _ =

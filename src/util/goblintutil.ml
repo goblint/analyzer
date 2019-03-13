@@ -74,13 +74,15 @@ let out = ref stdout
 (** Temp directory, set in maingoblint.ml, but used by the OSEK analysis. *)
 let tempDirName = ref "goblint_temp"
 
+(** Command for assigning an id to a varinfo. All varinfos directly created by Goblint should be modified by this method *)
+let create_var (var: varinfo) = { var with vid = 1000000 + Hashtbl.hash { var with vid = 0 } }
+
 (* Type invariant variables. *)
 let type_inv_tbl = Hashtbl.create 13
 let type_inv (c:compinfo) : varinfo =
   try Hashtbl.find type_inv_tbl c.ckey
   with Not_found ->
-    let i = makeGlobalVar ("{struct "^c.cname^"}") (TComp (c,[])) in
-    print_endline @@ "GoblintUtil makeGlobalVar: " ^ string_of_int i.vid;
+    let i = create_var (makeGlobalVar ("{struct "^c.cname^"}") (TComp (c,[]))) in
     Hashtbl.add type_inv_tbl c.ckey i;
     i
 
