@@ -230,7 +230,7 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
   let oldMap = Cil.foldGlobals oldAST addGlobal oldMap in
   (*  For each function in the new file, check whether a function with the same name 
       already existed in the old version, and whether it is the same function. *)
-  Cil.foldGlobals newAST 
+  Cil.foldGlobals newAST
     (fun acc glob -> match checkUnchanged oldMap glob with
       | Some (false, fundec, None) -> (List.cons fundec (fst acc), snd acc)
       | Some (false, fundec, (Some old)) -> (List.cons fundec (fst acc), List.cons (string_of_glob old) (snd acc))
