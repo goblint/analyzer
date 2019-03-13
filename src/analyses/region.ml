@@ -208,7 +208,7 @@ struct
   let name = "region"
 
   let init () =
-    partition_varstore := makeVarinfo false "REGION_PARTITIONS" voidType
+    partition_varstore := (print_endline "region makeVarinfo called"; makeVarinfo false "REGION_PARTITIONS" voidType);
 
 end
 

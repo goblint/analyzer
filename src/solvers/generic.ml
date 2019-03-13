@@ -20,7 +20,7 @@ struct
   let box = S.box
 
   let conv x = x
-
+  let obsolete = S.obsolete
   let system x =
     match S.system x with
     | [] -> None
@@ -65,7 +65,7 @@ struct
   module Dom = S.Dom
 
   let box (x,n) = S.box x
-
+  let obsolete = S.obsolete
   let conv x = (x,-1)
 
   let system (x,n) : ((v -> d) -> (v -> d -> unit) -> d) option =
