@@ -264,36 +264,38 @@ struct
              (Messages.warn "XXXXXXXXXXXXXXXXXXXX Could not establish how much move was"; None)
             end
         in
-        let effect_on_array arr (st,fl, dep):store =
+        let effect_on_array actually_moved arr (st,fl, dep):store =
           let v = CPA.find arr st in
           let nval = 
             match lval_raw, rval_raw with
               | Some (Lval(Var l',_)), Some r' -> 
                 begin
-                  let moved_by = movement_for_expr l' r' in
+                  let moved_by = 
+                    if actually_moved then
+                      movement_for_expr l' r' 
+                    else
+                      fun x -> Some 0
+                  in
                   VD.affect_move a v x moved_by
                 end
               | _,_  -> 
-                (Messages.warn "Write access was not to an lval or no rval provided. THIS IS SERIOUS!!!!";  (* VD.move_array a v None *) 
-                v)
+                if actually_moved then
+                  begin
+                    Messages.warn "Write access was not to an lval or no rval provided. THIS IS SERIOUS!!!!";
+                    VD.affect_move a v x (fun x -> None)
+                  end
+                else
+                  let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
+                  VD.affect_move a v x moved_by     (* was a set call caused e.g. by a guard *)
                 in
           (M.warn ("effect on "^arr.vname); update_variable arr nval st), fl, dep
         in
-        let rec effect_on_arrays arrs st =
-          if not change_array then
-            (* change_array is false if a change to the way arrays are partitioned is not desired *)
-            (* for now, this is only the case when guards are evaluated *)
-            (* TODO: Monday This is where the check if the entire array is covered needs to happen *)
-            begin
-              (if List.length arrs > 0 then
-              M.warn "There would have been affected arrays but no change was made because change_array was false");
-              st
-            end
-          else
-            List.fold_left (fun x y -> effect_on_array y x) st arrs
+        (* change_array is false if a change to the way arrays are partitioned is not neccessary *)
+        (* for now, this is only the case when guards are evaluated *)
+        let rec effect_on_arrays arrs st = List.fold_left (fun x y -> effect_on_array change_array y x) st arrs
         in
         let x_updated = update_variable x new_value nst
-        in 
+        in
           begin
             let with_dep = add_partitioning_dependencies x new_value (x_updated, fl, dep) in (* TODO: Maybe only call this if the expression changed *)
             effect_on_arrays affected_arrays with_dep
@@ -905,7 +907,7 @@ struct
       let addr = eval_lv a gs st lval in
       if (AD.is_top addr) then st
       else
-        let oldval = get a gs st addr  None in (* TODO probably wrong*)
+        let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unkown position in array) *)
         let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
         let new_val = apply_invariant oldval value in
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
@@ -915,8 +917,8 @@ struct
           raise Analyses.Deadcode
         )
         else if VD.is_bot new_val
-        then set a gs st addr value None None ~effect:false ~change_array:false (* TODO: Putting None here is most likely wrong *)
-        else set a gs st addr new_val None None ~effect:false ~change_array:false  (* TODO: Putting None here is most likely wrong *)
+        then set a gs st addr value None None ~effect:false ~change_array:false (* None None because this is not a real assignment *)
+        else set a gs st addr new_val None None ~effect:false ~change_array:false (* None None because this is not a real assignment *)
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
       M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");

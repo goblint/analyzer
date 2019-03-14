@@ -184,43 +184,55 @@ struct
       | Some x when x < -1
         -> (e, (xl, xl, Val.join (Val.join xl xm) xr)) (* moved more than one to the left *)
       | _ ->
-        (* Check if we can avoid destroying the information we have by giving up paritioning *) 
         begin
-          let exp_value = 
-            match e with
-              | `Lifted e' -> 
-                begin
-                  match ask (Q.EvalInt e') with
-                  | `Int n -> Q.ID.to_int n
-                  | _ -> None
-                end
-            |_ -> None 
-          in
-          let e_equals_length =
-            match length with
-            | Some l -> BatOption.map_default (Int64.equal l) false exp_value
-            | _ -> false
-          in
-          if e_equals_length then (* TODO: what if it equals -1 *)
-            begin
-              Messages.report "Destructive assignment to expression, however the entire array is covered by one partition, dropping partitioning.";
-              Expp.bot(),(xl, xl, xl)
-            end
-          else
-            begin
-              Messages.report "Destructive assignment to expression, not covering entire array.";
-              (* TODO: Is it necessary to take top here? *)
-              top()
-            end
-        end 
+          Messages.report "Destructive assignment to expression, not covering entire array.";
+          (* TODO: Is it necessary to take top here? *)
+          top()
+        end
     in
     match e with
     | `Lifted exp ->
         let is_affected = Basetype.CilExp.occurs v exp in
-        if is_affected then
-          move (movement_for_exp exp) else
-        x
-    | _ -> x
+        if not is_affected then
+          x
+        else
+          (* check if one covers the entire array, so we can drop partitioning *)
+          begin
+            Messages.warn "Checking if one partition covers entire array";
+            let exp_value = 
+              match e with
+                | `Lifted e' -> 
+                  begin
+                    match ask (Q.EvalInt e') with
+                    | `Int n -> Q.ID.to_int n
+                    | _ -> None
+                  end
+              |_ -> None 
+            in
+            let e_equals_length =
+              match length with
+              | Some l -> BatOption.map_default (Int64.equal l) false exp_value
+              | _ -> false
+            in
+            let e_equals_minus_one =
+              BatOption.map_default (Int64.equal Int64.minus_one) false exp_value
+            in
+            if e_equals_length then
+              begin
+                Messages.report "Entire array is covered by left value, dropping partitioning.";
+                Expp.bot(),(xl, xl, xl)
+              end
+            else if e_equals_minus_one then
+              begin
+                Messages.report "Entire array is covered by right value, dropping partitioning.";
+                Expp.bot(),(xr, xr, xr)
+              end
+            else
+              begin
+                move (movement_for_exp exp) 
+              end
+          end
+    | _ -> x (* If the array is not actually partitioned, there is nothing to do *)
 
   let set ?(length=None) (ask:Q.ask) (e, (xl, xm, xr)) i a =
     begin

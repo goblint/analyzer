@@ -4,6 +4,7 @@ int main(void) {
   test2();
   test3();
   test4();
+  test5();
 }
 
 
@@ -15,8 +16,7 @@ void test1(void) {
   int j=0;
 
   while(i < 10) {
-
-      j = 0; // if we have only this one, it does not work (because j could either be 10 or 0) 
+      j = 0;
       while(j < 10) {
         array1[i][j] = 42;
         j++;
@@ -25,10 +25,22 @@ void test1(void) {
       // the idea would be to test for covering the entire array on the Neg() [and why not also Pos()] edge
       // N.B. no problem as the entire array is never covered by one segment if it just became partitioned
 
-      // if we have this one here, it does work because (because j is guaranteed to be 10)
-      j = 0;
-
       i++;
+  }
+}
+
+void test2(void) {
+  int array1[10][10];
+  int i = 9;
+  int j = 9;
+
+  while(i >= 0){
+    j = 9;
+    while(j >= 0) {
+      array1[i][j] = 42;
+      j--;
+    }
+    i--;
   }
 }
 
@@ -36,7 +48,7 @@ void test1(void) {
 // is used (and probably on the evaluation order of the program points)
 //    -> effectWCon (interesting results)
 //    -> slr3 (sound but boring top)
-void test2(void) {
+void test3(void) {
   int array1[10][10];
   int i=0;
 
@@ -52,7 +64,7 @@ void test2(void) {
   }
 }
 
-void test3(void) {
+void test4(void) {
   int array1[10][10];
   int i = 0;
   while(i < 10) {
@@ -61,7 +73,7 @@ void test3(void) {
   }
 }
 
-void test4(void) {
+void test5(void) {
   int array[10][10];
   int i=0;
   while(i < 10) {
