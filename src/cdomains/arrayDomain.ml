@@ -199,38 +199,34 @@ struct
           (* check if one covers the entire array, so we can drop partitioning *)
           begin
             Messages.warn "Checking if one partition covers entire array";
-            let exp_value = 
-              match e with
-                | `Lifted e' -> 
-                  begin
-                    match ask (Q.EvalInt e') with
-                    | `Int n -> Q.ID.to_int n
-                    | _ -> None
-                  end
-              |_ -> None 
-            in
-            let e_equals_length =
+            let e_must_bigger_max_index =
               match length with
-              | Some l -> BatOption.map_default (Int64.equal l) false exp_value
+              | Some l -> 
+                begin
+                  match ask (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt l)) with
+                  | `Bool false -> true (* !(e <_{may} length) => e >=_{must} length *)
+                  | _ -> false
+                end
               | _ -> false
             in
-            let e_equals_minus_one =
-              BatOption.map_default (Int64.equal Int64.minus_one) false exp_value
+            let e_must_less_zero =
+              match ask (Q.MayBeLess (Cil.integer (-1), exp)) with
+              | `Bool false -> true (* !(-1 <_{may} e) => e <=_{must} -1 *)
+              | _ -> false
             in
-            if e_equals_length then
+            if e_must_bigger_max_index then
               begin
                 Messages.report "Entire array is covered by left value, dropping partitioning.";
                 Expp.bot(),(xl, xl, xl)
               end
-            else if e_equals_minus_one then
+            else if e_must_less_zero then
               begin
                 Messages.report "Entire array is covered by right value, dropping partitioning.";
                 Expp.bot(),(xr, xr, xr)
               end
             else
-              begin
-                move (movement_for_exp exp) 
-              end
+              (* If we can not drop partitioning, move *)
+              move (movement_for_exp exp)
           end
     | _ -> x (* If the array is not actually partitioned, there is nothing to do *)
 
