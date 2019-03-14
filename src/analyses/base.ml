@@ -120,7 +120,9 @@ struct
     List.iter (fun ((x,d)) -> ctx.sideg x d) (snd (sync' true ctx_mul))
 
   (** [get st addr] returns the value corresponding to [addr] in [st]
-   *  adding proper dependencies *)
+   *  adding proper dependencies.
+   *  For the exp argument it is always ok to put None. This means not using precise information about
+   *  which part of an array is involved.  *)
   let rec get ?(full=false) a (gs: glob_fun) (st,fl,dep: store) (addrs:address) (exp:exp option): value =
     let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
     let get_global x = gs x in
@@ -189,7 +191,10 @@ struct
       | _ ->  (st, fl, dep)
 
 
-  (** [set st addr val] returns a state where [addr] is set to [val] *)
+  (** [set st addr val] returns a state where [addr] is set to [val] 
+  * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining precise information
+  * available about arrays.
+  *)
   let set a ?(effect=true) ?(change_array=true) (gs:glob_fun) (st,fl,dep: store) (lval: AD.t) (value: value) (lval_raw:lval option) (rval_raw: exp option): store =
     let update_variable x y z =
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
@@ -281,7 +286,7 @@ struct
               | _,_  -> 
                 if actually_moved then
                   begin
-                    Messages.warn "Write access was not to an lval or no rval provided. THIS IS SERIOUS!!!!";
+                    Messages.warn "Problematic debug::: Write access was not to an lval or no rval provided.";
                     VD.affect_move a v x (fun x -> None)
                   end
                 else
@@ -325,7 +330,7 @@ struct
   let set_many a (gs:glob_fun) (st,fl,dep as store: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(value:value)): store =
-      set a gs acc lval value None None (* TODO: This is most likely wrong *)
+      set a gs acc lval value None None
     in
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f store lval_value_list
@@ -1071,7 +1076,7 @@ struct
       | _ -> res
 
   let body ctx f =
-    (* First we create a variable-initvalue pair for each varaiable *)
+    (* First we create a variable-initvalue pair for each variable *)
     let init_var v = (AD.from_var v, init_value ctx.ask ctx.global ctx.local v.vtype) in
     (* Apply it to all the locals and then assign them all *)
     let inits = List.map init_var f.slocals in
@@ -1184,7 +1189,7 @@ struct
      * top value. *)
     let invalidate_address st a =
       let t = AD.get_type a in
-      let v = get ask gs st a None in (* TODO: None probably wrong*)
+      let v = get ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
       let nv =  VD.invalidate_value ask t v in
       (a, nv)
     in
@@ -1808,7 +1813,7 @@ struct
     | `Unknown "__goblint_unknown" ->
       begin match args with
         | [Lval lv] | [CastE (_,AddrOf lv)] ->
-          let st = set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global st lv) `Top None None (* TODO: most likely wrong *) in
+          let st = set ctx.ask ctx.global ctx.local (eval_lv ctx.ask ctx.global st lv) `Top None None in
           st
         | _ ->
           M.bailwith "Function __goblint_unknown expected one address-of argument."
