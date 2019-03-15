@@ -598,7 +598,7 @@ struct
           let v = (* abstract base value *)
             let open Addr in
             if AD.for_all (function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false) p then
-              get a gs st p (Some exp)  (* downcasts are safe *) (* TODO: (Some exp)  probably wrong*)
+              get a gs st p (Some exp)  (* downcasts are safe *)
             else
               VD.top () (* upcasts not! *)
           in
@@ -992,8 +992,8 @@ struct
         set ctx.ask ctx.global ctx.local
           (AD.singleton (Addr.from_var a))
           (`List (ValueDomain.Lists.bot ()))
-          None (* TODO: None most likely wrong *)
-          None (* TODO: None most likely wrong *)
+          None
+          None
       end
     | _ ->
       let rval_val = eval_rv ctx.ask ctx.global ctx.local rval in
@@ -1154,7 +1154,7 @@ struct
       | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value v) acc) s empty
       | `Int _ -> empty
     in
-    let res = reachable_from_value (get ask gs st adr  None (* TODO: None probably wrong*)) in
+    let res = reachable_from_value (get ask gs st adr None) in
     if M.tracing then M.traceu "reachability" "Reachable addresses: %a\n" AD.pretty res;
     res
 
@@ -1358,7 +1358,7 @@ struct
           ValueDomain.Structs.fold f s (empty, TS.bot (), false)
         | `Int _ -> (empty, TS.bot (), false)
       in
-      reachable_from_value (get ctx.ask ctx.global ctx.local adr  None (* TODO: None probably wrong*))
+      reachable_from_value (get ctx.ask ctx.global ctx.local adr None)
     in
     let visited = ref empty in
     let work = ref ps in
@@ -1413,7 +1413,7 @@ struct
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | `Address a ->
-          let r = get ~full:true ctx.ask ctx.global ctx.local a  None (* TODO: probably wrong*) in
+          let r = get ~full:true ctx.ask ctx.global ctx.local a  None in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
           (match r with
            | `Blob (_,s) -> (match ID.to_int s with Some i -> `Int i | None -> `Top)
@@ -1714,15 +1714,15 @@ struct
         | [ AddrOf (Var elm,next);(AddrOf (Var lst,NoOffset))] ->
           begin
             let ladr = AD.singleton (Addr.from_var lst) in
-            match get ctx.ask ctx.global ctx.local ladr  None (* TODO: None probably wrong*) with
+            match get ctx.ask ctx.global ctx.local ladr  None with
             | `List ld ->
               let eadr = AD.singleton (Addr.from_var elm) in
               let eitemadr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
               let new_list = `List (ValueDomain.Lists.add eadr ld) in
-              let s1 = set ctx.ask ctx.global ctx.local ladr new_list None None (* TODO: None most likely wrong *) in
-              let s2 = set ctx.ask ctx.global s1 eitemadr (`Address (AD.singleton (Addr.from_var lst))) None None (* most likely wrong *) in
+              let s1 = set ctx.ask ctx.global ctx.local ladr new_list None None in
+              let s2 = set ctx.ask ctx.global s1 eitemadr (`Address (AD.singleton (Addr.from_var lst))) None None in
               s2
-            | _ -> set ctx.ask ctx.global ctx.local ladr `Top  None None (* TODO: None most likely wrong *)
+            | _ -> set ctx.ask ctx.global ctx.local ladr `Top  None None
           end
         | _ -> M.bailwith "List function arguments are strange/complicated."
       end
@@ -1732,15 +1732,15 @@ struct
           begin
             let eadr = AD.singleton (Addr.from_var elm) in
             let lptr = AD.singleton (Addr.from_var_offset (elm, convert_offset ctx.ask ctx.global ctx.local next)) in
-            let lprt_val = get ctx.ask ctx.global ctx.local lptr None in (* TODO: None probably wrong*)
+            let lprt_val = get ctx.ask ctx.global ctx.local lptr None in
             let lst_poison = `Address (AD.singleton (Addr.from_var ListDomain.list_poison)) in
-            let s1 = set ctx.ask ctx.global ctx.local lptr (VD.join lprt_val lst_poison)  None None (* most likely wrong *) in
-            match get ctx.ask ctx.global ctx.local lptr  None(* TODO: None probably wrong*) with
+            let s1 = set ctx.ask ctx.global ctx.local lptr (VD.join lprt_val lst_poison) None None in
+            match get ctx.ask ctx.global ctx.local lptr None with
             | `Address ladr -> begin
-                match get ctx.ask ctx.global ctx.local ladr  None (* TODO: None probably wrong*) with
+                match get ctx.ask ctx.global ctx.local ladr None with
                 | `List ld ->
                   let del_ls = ValueDomain.Lists.del eadr ld in
-                  let s2 = set ctx.ask ctx.global s1 ladr (`List del_ls)  None None (* TODO: most likely wrong *) in
+                  let s2 = set ctx.ask ctx.global s1 ladr (`List del_ls) None None in
                   s2
                 | _ -> s1
               end
@@ -1866,7 +1866,7 @@ struct
             invalidate ctx.ask gs st [mkAddrOrStartOf x]
         in
         (* apply all registered abstract effects from other analysis on the base value domain *)
-        List.map (fun f -> f (fun lv -> (fun x -> set ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) x None None (* TODO: None most likely wrong *)))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
+        List.map (fun f -> f (fun lv -> (fun x -> set ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) x None None))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st
       end
 
   let combine ctx (lval: lval option) fexp (f: varinfo) (args: exp list) (after: D.t) : D.t =
@@ -1885,13 +1885,13 @@ struct
       let return_var = return_var () in
       let return_val =
         if CPA.mem (return_varinfo ()) fun_st
-        then get ctx.ask ctx.global fun_d return_var None (* TODO: None probably wrong*)
+        then get ctx.ask ctx.global fun_d return_var None
         else VD.top ()
       in
       let st = add_globals (fun_st,fun_fl, fun_dep) st in
       match lval with
       | None      -> st
-      | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val None None(* TODO: Why None here? *)
+      | Some lval -> set_savetop ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lval) return_val None None
     in
     combine_one ctx.local after
 
