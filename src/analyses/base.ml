@@ -1495,14 +1495,14 @@ struct
         | _ -> Q.Result.top ()
       end
     | Q.MayBeEqual (e1, e2) -> begin
-        Printf.printf "---------------------->  may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2));
+        (* Printf.printf "---------------------->  may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
         let e1_val = eval_rv ctx.ask ctx.global ctx.local e1 in
         let e2_val = eval_rv ctx.ask ctx.global ctx.local e2 in
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             if ID.is_bot (ID.meet i1 i2) then 
               begin
-                Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); 
+                (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
                 `Bool(false)
               end
               else Q.Result.top ()
@@ -1510,7 +1510,7 @@ struct
         | _ -> Q.Result.top ()
       end
     | Q.MayBeLess (e1, e2) -> begin
-        Printf.printf "----------------------> may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2));
+        (* Printf.printf "----------------------> may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
         let e1_val = eval_rv ctx.ask ctx.global ctx.local e1 in
         let e2_val = eval_rv ctx.ask ctx.global ctx.local e2 in
         match e1_val, e2_val with
@@ -1519,7 +1519,7 @@ struct
             | Some i1', Some i2' ->
               if i1' >= i2' then 
                 begin
-                  Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); 
+                  (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
                   `Bool(false)
                 end
                 else Q.Result.top ()

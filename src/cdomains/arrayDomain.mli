@@ -19,7 +19,7 @@ sig
   val array_should_join: ?length:(int64 option) -> t -> t -> (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> bool
   (** should two arrays be joined or should the analysis keep the states seperate *)
   val move_if_affected: ?length:(int64 option) -> Queries.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
-  (** moves the way in which the array is partitioned if this is necessitated by a change 
+  (** changes the way in which the array is partitioned if this is necessitated by a change 
     * to the variable **)
   val get_vars_in_e: t -> Cil.varinfo list
   (** returns the variables occuring in the epxression according to which the
