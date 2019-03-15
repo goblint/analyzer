@@ -71,9 +71,14 @@ struct
   type idx = ExpDomain.t
   type value = Val.t
   
+  let is_not_partitioned (e, _) =
+    Expp.is_bot e || Expp.is_top e
 
-  let short w (e,(xl, xm, xr)) = 
-    if Expp.is_bot e then 
+  let join_of_all_parts (_,(xl, xm, xr)) =
+    Val.join (Val.join xl xm) xr
+
+  let short w ((e,(xl, xm, xr)) as x) = 
+    if is_not_partitioned x then 
       "Array (no part.) : " ^ Val.short (w - 7) xl
     else
       "Array (part. by " ^ Expp.short (w-7) e ^ "): (" ^
@@ -86,13 +91,14 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let toXML m = toXML_f short m
 
-  let array_should_join ?(length=None) (e1, _) (e2, _) (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) =
-    let one_bot = (Expp.is_bot e1) <> (Expp.is_bot e2) in  
-    if one_bot then
+
+  let array_should_join ?(length=None) ((e1, _) as x1) ((e2, _) as x2) (x_eval_int: exp -> int64 option) (y_eval_int: exp -> int64 option) =
+    let one_not_partitioned = (is_not_partitioned x1) <> (is_not_partitioned x2) in  
+    if one_not_partitioned then
       begin
-        let non_bot_value = if Expp.is_bot e1 then e2 else e1 in
-        let other_eval = if Expp.is_bot e1 then x_eval_int else y_eval_int in
-        match non_bot_value with
+        let partitioning_exp = if is_not_partitioned x1 then e2 else e1 in
+        let other_eval = if is_not_partitioned x1 then x_eval_int else y_eval_int in
+        match partitioning_exp with
         | `Top -> true
         | `Bot -> true (* does not happen *)
         | `Lifted exp -> 
@@ -110,38 +116,31 @@ struct
       end
     else true
 
-  let get (ask:Q.ask) (e, (xl, xm, xr)) i =
+  let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) i =
     Messages.report ("Array get@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
     Printf.printf "Array get@%s (partitioned by %s)\n"  (Expp.short 20 i) (Expp.short 20 e);
-    let join_over_all = Val.join (Val.join xl xm) xr in
-    if Expp.is_bot e then (if Val.is_bot join_over_all then Val.top () else join_over_all)
-    (* When the array is not partitioned, and all segments are \bot, we return \top.
-    TODO: Check how that works with the case in which we want to get rid of the expression when we are at the end.
-    Should not really cause any issues since in those cases the rest of the values would not be \bot *)
-    (* TODO: Here we should warn if we read bot because this means we are reading unitialized values *)
-    else
-      match e, i with
-        | `Lifted e', `Lifted i' ->
-          begin
-            let isEqual = match ask (Q.MustBeEqual (e',i')) with
-              | `Bool true -> true
-              | _ -> false in
-            if isEqual then xm
-            else
-              begin
-                let contributionLess = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
-                | `Bool false -> Val.bot ()
-                | _ -> xl in
-                let contributionEqual = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
-                | `Bool false -> Val.bot ()
-                | _ -> xm in
-                let contributionGreater =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
-                | `Bool false -> Val.bot ()
-                | _ -> xr in
-                Val.join (Val.join contributionLess contributionEqual) contributionGreater
-              end
-          end
-        | _ -> join_over_all (* The case in which we don't know anything *)
+    match e, i with
+      | `Lifted e', `Lifted i' ->
+        begin
+          let isEqual = match ask (Q.MustBeEqual (e',i')) with
+            | `Bool true -> true
+            | _ -> false in
+          if isEqual then xm
+          else
+            begin
+              let contributionLess = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
+              | `Bool false -> Val.bot ()
+              | _ -> xl in
+              let contributionEqual = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
+              | `Bool false -> Val.bot ()
+              | _ -> xm in
+              let contributionGreater =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
+              | `Bool false -> Val.bot ()
+              | _ -> xr in
+              Val.join (Val.join contributionLess contributionEqual) contributionGreater
+            end
+        end
+      | _ -> join_of_all_parts x (* The case in which we don't know anything *)
 
 
   let get_vars_in_e (e, _) =
@@ -186,8 +185,8 @@ struct
       | _ ->
         begin
           Messages.report "Destructive assignment to expression, not covering entire array.";
-          (* TODO: Is it necessary to take top here? *)
-          top()
+          let nval = join_of_all_parts x in
+          (Expp.top (), (nval, nval, nval))
         end
     in
     match e with
@@ -217,12 +216,12 @@ struct
             if e_must_bigger_max_index then
               begin
                 Messages.report "Entire array is covered by left value, dropping partitioning.";
-                Expp.bot(),(xl, xl, xl)
+                Expp.top(),(xl, xl, xl)
               end
             else if e_must_less_zero then
               begin
                 Messages.report "Entire array is covered by right value, dropping partitioning.";
-                Expp.bot(),(xr, xr, xr)
+                Expp.top(),(xr, xr, xr)
               end
             else
               (* If we can not drop partitioning, move *)
@@ -230,15 +229,14 @@ struct
           end
     | _ -> x (* If the array is not actually partitioned, there is nothing to do *)
 
-  let set ?(length=None) (ask:Q.ask) (e, (xl, xm, xr)) i a =
+  let set ?(length=None) (ask:Q.ask) ((e, (xl, xm, xr)) as x) i a =
     begin
       Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
       let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
-      if Expp.is_bot e then
+      if is_not_partitioned (e, (xl, xm, xr)) then
         if contains_globals i then
           (* expressions containing globals are not suitable for partitioning *)
-          let join_over_all = Val.join (Val.join xl xm) xr in
-          let result = if Val.is_bot join_over_all then Val.top () else Val.join a join_over_all in
+          let result = if Val.is_bot (join_of_all_parts x) then Val.top () else Val.join a (join_of_all_parts x) in
           (e, (result, result, result))
         else
           begin (* this should be solved via the must equal *)
@@ -258,12 +256,11 @@ struct
                   BatOption.map_default (Int64.equal (Int64.sub l Int64.one)) false exp_value
               | _ -> false
             in
-            let join_over_all = Val.join (Val.join xl xm) xr in
-            let top_if_bot_lub_otherwise = if Val.is_bot join_over_all then Val.top () else join_over_all in
+            let top_if_bot_lub_otherwise = if Val.is_bot (join_of_all_parts x) then Val.top () else (join_of_all_parts x) in
             let l = if e_equals_zero then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
             let r = if e_equals_maxIndex then Val.bot () else top_if_bot_lub_otherwise in (* TODO: How does this play with partitioning again according to a different rule? *)
-            Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (i, (l, a, r)) )
-            ;(i, (l, a, r))
+            Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (i, (l, a, r)) );
+            (i, (l, a, r))
           end
       else
         begin
@@ -293,26 +290,25 @@ struct
                 end
             end
           | _ -> 
-            (* If either the expression used to write or the partitioning is not known, all segements except the empty ones
-               will be affected *)
+            (* If the expression used to write is not known, all segements except the empty ones will be affected *)
             (e, (lubIfNotBot xl, Val.join xm a, lubIfNotBot xr))
         end
     end
 
-  (* TODO: Do i really need to make this explicit? if the array is partitioned according to \top every read while have to take a least upper bound regardless of what the rest of the code does?! *)
-  let join (e1, (xl1,xm1,xr1)) (e2, (xl2,xm2,xr2)) =
+  let join ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) =
     let new_e = Expp.join e1 e2 in
-    if Expp.is_top new_e then (* TODO: Figure out how this relates with what bottom means i.e. How does this play with partitioning again according to a different rule? *)
-      let join_over_all = Val.join (Val.join (Val.join xl1 xm1) xr1) (Val.join (Val.join xl2 xm2) xr2) in
+    if Expp.is_top new_e then
+      (* At least one of them was not partitioned, or e != f *)
+      let join_over_all = Val.join (join_of_all_parts x1) (join_of_all_parts x2) in
       (new_e, (join_over_all, join_over_all, join_over_all))
     else
       (new_e, (Val.join xl1 xl2, Val.join xm1 xm2, Val.join xr1 xr2))
 
-  (* TODO: What if i =_must j? *)
+  (* leq needs not be given explictly, leq from product domain works here *)
 
   let make i v =
-    if Val.is_bot v then (Expp.bot(), (Val.top(), Val.top(), Val.top()))
-    else  (Expp.bot(), (v, v, v))
+    if Val.is_bot v then (Expp.top(), (Val.top(), Val.top(), Val.top()))
+    else  (Expp.top(), (v, v, v))
   (* TODO: We need to see whether we need to modify the bottom element from the Prod3 domain here *)
   (* TODO: What about the cases where this is called with v != \bot, are we still sound in those *)
   (* TODO: Interaction with get and the catch all *)
