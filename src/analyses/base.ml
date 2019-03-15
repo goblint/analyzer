@@ -1256,9 +1256,7 @@ struct
     if CPA.is_top st then st else
       let rec replace_val = function
         | `Int _       -> `Top
-        | `Array n     -> `Array (ValueDomain.CArrays.set (fun x -> Queries.Result.top ()) n (ValueDomain.Expp.top ())
-                                    (replace_val (ValueDomain.CArrays.get (fun x -> Queries.Result.top ()) n (ValueDomain.Expp.top ()))))
-          (* TODO: Figure out what this does and if it is ok to simply give the query function that says top *)
+        | `Array n     -> `Array (ValueDomain.CArrays.map replace_val n)
         | `Struct n    -> `Struct (ValueDomain.Structs.map replace_val n)
         | `Union (f,v) -> `Union (f,replace_val v)
         | `Blob (n,s)  -> `Blob (replace_val n,s)
