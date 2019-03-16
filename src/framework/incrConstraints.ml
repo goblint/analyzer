@@ -411,10 +411,22 @@ struct
       | SelfLoop       -> tf_loop var
     end getl sidel getg sideg d
 
+  let node_to_string (n: node) = match n with
+  | Function f -> f.vname
+  | FunctionEntry f -> f.vname
+  | Statement s -> "s.sid" ^ string_of_int s.sid
+
   let tf var getl sidel getg sideg (_,edge) d (f,t) =
+    print_endline @@ "Node: " ^ (node_to_string (fst var));
+    let old_node = !Tracing.current_node in
     let old_loc  = !Tracing.current_loc in
     let old_loc2 = !Tracing.next_loc in
-    let _       = Tracing.current_loc := f in
+    let _       = Tracing.current_node := (Some (fst var)) in
+    let location = match old_node with
+      | Some old_n ->
+      (try Tracing.NodeMap.find !Tracing.location_map (old_n) with e -> f)
+      | None -> f in
+    let _       = Tracing.current_loc := location in
     let _       = Tracing.next_loc := t in
     let d       = tf var getl sidel getg sideg edge d in
     let _       = Tracing.current_loc := old_loc in
