@@ -8,8 +8,6 @@ open Analyses
 open GobConfig
 open Constraints
 
-(* let function_map = ref @@ (Hashtbl.create 0: (string, Cil.global * string) Hashtbl.t)
- *)
 module type S2S = functor (X : Spec) -> Spec
 (* gets Spec for current options *)
 let get_spec () : (module Spec) =
