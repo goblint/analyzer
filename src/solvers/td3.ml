@@ -7,6 +7,8 @@ open Messages
 
 let debug_now = ref false
 
+let result_file_name = "td3.data" 
+
 module WP =
 
   functor (S:EqConstrSys) ->
@@ -280,19 +282,19 @@ module WP =
       (infl, rho, called, wpoint, stable)
 
       let solve box st vs =
-        print_string "SOLVER STARTED\n";
-
-        let (infl, rho, called, wpoint, stable) as input_data =  if Sys.file_exists "solve1.out" 
-                                            then Serialize.unmarshall "solve1.out"
+        let file_in = Filename.concat S.I.analyzed_commit_dir result_file_name in
+        let (infl, rho, called, wpoint, stable) as input_data =  if Sys.file_exists file_in
+                                            then Serialize.unmarshall file_in
                                             else (HM.create 10, HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
         let varCountBefore = HM.length rho in                                            
         let (infl, rho1, called, wpoint, stable) = solve box st vs infl rho called wpoint stable in
         let varCountAfter = HM.length rho1 in
-        Serialize.marshall (infl, rho1, called, wpoint, stable) "solve1.out" ;
-        print_newline ();
 
-
-        HM.iter (fun a b-> print_endline @@ S.Var.var_id a) rho1;
+        let path = Goblintutil.create_dir S.I.current_commit_dir in
+        if Sys.file_exists path then (
+          let file_out = Filename.concat S.I.current_commit_dir result_file_name in
+          Serialize.marshall (infl, rho1, called, wpoint, stable) file_out;
+        );
         print_endline ("number of different vars: " ^ string_of_int (varCountAfter - varCountBefore));
         rho1
 

@@ -343,7 +343,8 @@ let handle_extraspecials () =
   let funs = List.fold_left f [] (get_list "exp.extraspecials") in
   LibraryFunctions.add_lib_funs funs
 
-let srcPath () = List.first (!cFileNames)
+let src_path () = Filename.dirname @@ List.first (!cFileNames)
+let data_path () = Filename.concat (src_path ()) ".gob"
 
 let update_map old_file new_file = 
     let dir = Serialize.gob_directory !cFileNames in
@@ -406,7 +407,9 @@ let main =
                   | None -> exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
           | None -> exit 5;
         ) in
-        let module  I = struct let obsolete = [] let analyzed_commit_dir = "" let current_commit_dir = "" end in
+        let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
+        let current_commit_dir = Filename.concat (data_path ()) current_commit in
+        let module I = struct let obsolete = [] let analyzed_commit_dir = analyzed_commit_dir let current_commit_dir = current_commit_dir end in
         let changeInfo = (module struct let map = name_map module I = I end : IncrConstraints.FunctionMap) in
         file|> do_analyze changeInfo;
         Report.do_stats !cFileNames;
