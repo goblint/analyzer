@@ -260,29 +260,30 @@ sig
 
   module D : Lattice.S
   module G : Lattice.S
-  val obsolete: string list
+
+  module I : IncrementalData
   val system : (LVar.t) -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
 end
 
 module type FunctionMap =
 sig
   val map: (string, Cil.global * string) Hashtbl.t
-  val obsolete: string list
+  module I: IncrementalData
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
 module FromSpec (S:Spec) (Cfg:CfgBackward) (Fm: FunctionMap)(* Possibly have to remove the signature *)
-  : sig
+   : sig
     include GlobConstrSys with module LVar = VarFI (S.C)
                            and module GVar = Basetype.Variables
                            and module D = S.D
-                           and module G = S.G 
+                           and module G = S.G
                            (*
     val tf : (MyCFG.node * commitID) * S.C.t -> (Cil.location * MyCFG.edge) list * (MyCFG.node *commitID) -> (((MyCFG.node * commitID) * S.C.t) -> S.D.t) -> ((MyCFG.node * commitID) * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
 
    (* val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * commitID * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
     *)*)
-  end
+   end
 =
 struct
   module LVar = VarFI (S.C)
@@ -295,7 +296,8 @@ struct
   module G = S.G
 
   let full_context = get_bool "exp.full-context"
-  let obsolete = Fm.obsolete
+
+  module I = Fm.I
   let common_ctx var pval (getl:lv -> ld) (sidel: lv -> ld -> unit) getg sideg : (D.t, G.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;

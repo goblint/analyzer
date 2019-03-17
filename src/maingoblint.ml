@@ -406,7 +406,8 @@ let main =
                   | None -> exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
           | None -> exit 5;
         ) in
-        let changeInfo = (module struct let map = name_map let obsolete = obsolete end : IncrConstraints.FunctionMap) in
+        let module  I = struct let obsolete = [] let analyzed_commit_dir = "" let current_commit_dir = "" end in
+        let changeInfo = (module struct let map = name_map module I = I end : IncrConstraints.FunctionMap) in
         file|> do_analyze changeInfo;
         Report.do_stats !cFileNames;
         do_html_output ();

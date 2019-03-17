@@ -16,11 +16,11 @@ struct
 
   module Var = S.Var
   module Dom = S.Dom
+  module I = S.I
 
   let box = S.box
 
   let conv x = x
-  let obsolete = S.obsolete
   let system x =
     match S.system x with
     | [] -> None
@@ -63,9 +63,9 @@ struct
 
   module Var = ExtendInt (S.Var)
   module Dom = S.Dom
+  module I = S.I
 
   let box (x,n) = S.box x
-  let obsolete = S.obsolete
   let conv x = (x,-1)
 
   let system (x,n) : ((v -> d) -> (v -> d -> unit) -> d) option =

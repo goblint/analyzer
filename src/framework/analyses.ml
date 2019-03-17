@@ -476,6 +476,11 @@ sig
   val combine : (D.t, G.t) ctx -> lval option -> exp -> varinfo -> exp list -> D.t -> D.t
 end
 
+module type IncrementalData = sig 
+  val analyzed_commit_dir: string
+  val current_commit_dir: string
+  val obsolete: string list
+end
 
 (** A side-effecting system. *)
 module type MonSystem =
@@ -483,7 +488,8 @@ sig
   type v    (** variables *)
   type d    (** values    *)
   type 'a m (** basically a monad carrier *)
-  val obsolete : string list
+  (** Data used for incremental analysis*)
+  module I : IncrementalData
   (** Variables must be hashable, comparable, etc.  *)
   module Var : VarType with type t = v
   (** Values must form a lattice. *)
@@ -508,7 +514,7 @@ sig
 
   module D : Lattice.S
   module G : Lattice.S
-  val obsolete: string list
+  module I : IncrementalData
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
 end
 

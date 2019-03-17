@@ -374,7 +374,12 @@ struct
   module G = S.G
 
   let full_context = get_bool "exp.full-context"
-  let obsolete = []
+  (* Dummy module. No incremental analysis supported here*)
+  module I = struct
+    let analyzed_commit_dir = ""
+    let current_commit_dir = ""
+    let obsolete = []
+  end 
   let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx * D.t list ref =
     let r = ref [] in
     if !Messages.worldStopped then raise M.StopTheWorld;
@@ -589,7 +594,7 @@ struct
       | `Left  a -> S.G.printXml f a
       | `Right a -> S.D.printXml f a
   end
-  let obsolete = S.obsolete
+  module I = S.I
   type v = Var.t
   type d = Dom.t
 

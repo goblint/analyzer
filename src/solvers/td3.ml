@@ -160,8 +160,8 @@ module WP =
       in
 
       start_event ();
-      List.iter (fun a -> print_endline @@ "Destabilizing " ^ a ) S.obsolete;
-      HM.iter (fun k v-> if List.mem (S.Var.var_id k) S.obsolete then (print_endline ("destabilizing " ^ S.Var.var_id k); destabilize k)) stable;
+      List.iter (fun a -> print_endline @@ "Destabilizing " ^ a ) S.I.obsolete;
+      HM.iter (fun k v-> if List.mem (S.Var.var_id k) S.I.obsolete then (print_endline ("destabilizing " ^ S.Var.var_id k); destabilize k)) stable;
       List.iter set_start st;
       List.iter init vs;
       List.iter (fun x -> solve x Widen) vs;
