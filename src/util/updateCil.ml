@@ -132,12 +132,5 @@ let update_ids (old_file: file) (new_file: file) (map: (string, Cil.global * Ver
   print_endline "globinit";
   match new_file.globinit with
   | Some f -> print_endline f.svar.vname;
-  | None -> print_endline "Nix";
-  
-  while newVID () < 3000 do
-    ()
-  done;
-
-  ()
-    
+  | None -> print_endline "Nix";  
   
