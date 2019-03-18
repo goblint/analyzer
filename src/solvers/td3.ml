@@ -162,8 +162,9 @@ module WP =
       in
 
       start_event ();
-      let obsolete_funs = List.filter (fun g -> match g with Cil.GFun _ -> true | _ -> false) S.I.obsolete in
-      let obsolete_funs = List.map (fun g -> match g with Cil.GFun (f, l) -> f | _ -> raise (Failure "Cannot happen")) obsolete_funs in
+
+      let obsolete_funs = List.filter (fun c -> match c.CompareAST.old with Cil.GFun _ -> true | _ -> false) S.I.changes.changed in
+      let obsolete_funs = List.map (fun c -> match c.CompareAST.old with Cil.GFun (f, l) -> f | _ -> raise (Failure "Cannot happen")) obsolete_funs in
 
       List.iter (fun a -> print_endline @@ "Destabilizing " ^ a.Cil.svar.vname ) obsolete_funs;
       let obsolete = Set.of_list (List.map (fun a -> "fun" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs) in

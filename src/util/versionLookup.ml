@@ -5,9 +5,11 @@ open Serialize
 type commitID = string
 
 let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (string, Cil.global * commitID) Hashtbl.t) = 
-  let (assocList, obsolete) = compareCilFiles oldFile newFile in  
-  List.iter (fun (glob: global) ->  Hashtbl.replace ht (name_of_global glob) (glob, newCommitID)) assocList;
-  (ht, obsolete)
+  let changes = compareCilFiles oldFile newFile in  
+  (* TODO: For updateCIL, we have to show whether the new data is from an changed or added functiong  *)
+  List.iter (fun (glob: global) ->  Hashtbl.replace ht (name_of_global glob) (glob, newCommitID)) (List.map (fun a -> a.current) changes.changed);
+  List.iter (fun (glob: global) ->  Hashtbl.replace ht (name_of_global glob) (glob, newCommitID)) changes.added;
+  (ht, changes)
 
 let create_map (new_file: Cil.file) (commit: commitID) =
     let add_to_hashtbl tbl (global: Cil.global) =

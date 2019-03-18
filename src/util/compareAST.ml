@@ -7,6 +7,19 @@ let name_of_global glob =
   | GVarDecl (var, l) -> var.vname
   | _ -> raise (Failure "No variable or function") 
 
+type changed_global = {
+  old: global;
+  current: global
+}
+
+type change_info = {
+  mutable changed: changed_global list;
+  mutable unchanged: global list;
+  mutable removed: global list;
+  mutable added: global list
+}
+
+let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
 
 module StringMap = Map.Make(String)
 
@@ -207,13 +220,13 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
     | GFun (v, l) ->  "fun" ^ (string_of_int v.svar.vid)
     | _ -> raise (Failure "No Function")
   in
-  let oldMap = StringMap.empty in
   let addGlobal map global  = 
     try
       StringMap.add (name_of_global global) global map
     with
       e -> map
   in
+  let changes = empty_change_info () in
   let checkUnchanged map global = 
     try 
       let name = name_of_global global in
@@ -222,17 +235,26 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
         (* Do a (recursive) equal comparision ignoring location information *)
         let identical = eq_glob oldFunction global in
         print_endline (name ^ " " ^ string_of_bool identical);
-        Some (identical, global, if not identical then 
-        Some oldFunction else None)
-      with Not_found -> Some (false, global, None);)
-    with e -> None (* Global was no variable or function, it does not belong into the map *)
+        if identical 
+          then changes.unchanged <- global :: changes.unchanged
+          else changes.changed <- {current = global; old = oldFunction} :: changes.changed
+          (*         Some (identical, global, if not identical then 
+        Some oldFunction else None) *)
+      with Not_found -> ())
+    with e -> () (* Global was no variable or function, it does not belong into the map *)
+  in
+  let checkExists map global =
+    let name = name_of_global global in
+    StringMap.mem name map
   in
   (* Store a map from functionNames in the old file to the function definition*)
-  let oldMap = Cil.foldGlobals oldAST addGlobal oldMap in
+  let oldMap = Cil.foldGlobals oldAST addGlobal StringMap.empty in
+  let newMap = Cil.foldGlobals newAST addGlobal StringMap.empty in
   (*  For each function in the new file, check whether a function with the same name 
       already existed in the old version, and whether it is the same function. *)
-  Cil.foldGlobals newAST
-    (fun acc glob -> match checkUnchanged oldMap glob with
-      | Some (false, fundec, None) -> (List.cons fundec (fst acc), snd acc)
-      | Some (false, fundec, (Some old)) -> (List.cons fundec (fst acc), List.cons (old) (snd acc))
-      | _ -> acc) ([], [])
+  let module StringSet = Set.Make (String) in
+  Cil.iterGlobals newAST
+    (fun glob -> checkUnchanged oldMap glob);
+  Cil.iterGlobals newAST (fun glob -> try if not (checkExists oldMap glob) then changes.added <- (glob::changes.added) with e -> ());
+  Cil.iterGlobals oldAST (fun glob -> try if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed) with e -> ());
+  changes

@@ -378,7 +378,7 @@ struct
   module I = struct
     let analyzed_commit_dir = ""
     let current_commit_dir = ""
-    let obsolete = []
+    let changes = CompareAST.empty_change_info ()
   end 
   let common_ctx var pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t) ctx * D.t list ref =
     let r = ref [] in
