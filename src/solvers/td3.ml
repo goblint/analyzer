@@ -4,6 +4,9 @@ open Prelude
 open Analyses
 open Constraints
 open Messages
+open Pervasives
+open CompareAST
+open Cil
 
 let debug_now = ref false
 
@@ -163,20 +166,24 @@ module WP =
 
       start_event ();
 
-      let obsolete_funs = List.filter (fun c -> match c.CompareAST.old with Cil.GFun _ -> true | _ -> false) S.I.changes.changed in
-      let obsolete_funs = List.map (fun c -> match c.CompareAST.old with Cil.GFun (f, l) -> f | _ -> raise (Failure "Cannot happen")) obsolete_funs in
-
+      let obsolete_funs = List.filter (fun c -> match c.old with GFun _ -> true | _ -> false) S.I.changes.changed in
+      let obsolete_funs = List.map (fun c -> match c.old with GFun (f, l) -> f | _ -> raise (Failure "Cannot happen")) obsolete_funs in
+      let removed_funs = S.I.changes.removed |> List.filter (fun g -> match g with GFun _ -> true | _ -> false) |> List.map  (fun g -> match g with GFun (f,l) -> f | _ -> raise (Failure "Cannot happen")) in
+      
       List.iter (fun a -> print_endline @@ "Destabilizing " ^ a.Cil.svar.vname ) obsolete_funs;
       let obsolete = Set.of_list (List.map (fun a -> "fun" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs) in
-      let nodes_to_delete (functions: Cil.fundec list) =
-        let nodes = Hashtbl.create 103 in
-        let add_stmts (f: Cil.fundec) =
-          List.iter (fun s -> Hashtbl.replace nodes (string_of_int s.Cil.sid) ()) (f.sallstmts)
+      
+      let add_nodes_of_fun (functions: fundec list) (nodes)=
+        let add_stmts (f: fundec) =
+          List.iter (fun s -> Hashtbl.replace nodes (string_of_int s.sid) ()) (f.sallstmts)
         in
-        List.iter (fun f -> Hashtbl.replace nodes ("fun"^(string_of_int f.Cil.svar.vid)) (); Hashtbl.replace nodes ("ret"^(string_of_int f.Cil.svar.vid)) (); add_stmts f) functions;
-        nodes
+        List.iter (fun f -> Hashtbl.replace nodes ("fun"^(string_of_int f.svar.vid)) (); Hashtbl.replace nodes ("ret"^(string_of_int f.svar.vid)) (); add_stmts f) functions;
       in
-      let marked_for_deletion = nodes_to_delete obsolete_funs in
+
+      let marked_for_deletion = Hashtbl.create 103 in
+      add_nodes_of_fun obsolete_funs marked_for_deletion;
+      add_nodes_of_fun removed_funs marked_for_deletion;
+      
       Set.iter (fun k  -> print_endline k) obsolete;
       print_endline @@ "Obsolete: " ^ string_of_int (Set.cardinal obsolete);
       HM.iter (fun k v -> print_endline @@ "Checking: " ^(S.Var.var_id k); if Set.mem (S.Var.var_id k) obsolete then (print_endline ("destabilizing " ^ S.Var.var_id k); destabilize k)) stable;

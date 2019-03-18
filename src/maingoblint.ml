@@ -392,7 +392,7 @@ let main =
         let (name_map, changes) = (match Serialize.load_latest_cil !cFileNames with
           | Some file2 -> let (function_name_map, changes) = update_map file2 file in
                           let already_analyzed = (String.equal current_commit last_analyzed_commit) in
-                          UpdateCil.update_ids file2 file function_name_map current_commit already_analyzed;
+                          UpdateCil.update_ids file2 file function_name_map current_commit already_analyzed changes;
                           store_map function_name_map;
                           (function_name_map, changes)
           | None -> match Serialize.current_commit !cFileNames with
@@ -401,8 +401,8 @@ let main =
                 (match Serialize.current_commit_dir !cFileNames with 
                   | Some commit_dir ->
                       let map_file_name = Filename.concat commit_dir Serialize.versionMapFilename in
-                      UpdateCil.update_ids file file function_name_map current_commit false;
-                      Serialize.marshall function_name_map map_file_name;
+(* TODO: fix, needs changes parameter                       UpdateCil.update_ids file file function_name_map current_commit false ;
+ *)                      Serialize.marshall function_name_map map_file_name;
                       (function_name_map, CompareAST.empty_change_info ())
                   | None -> exit 4) (* Some random exit codes, TODO: don't exit, but continue *)
           | None -> exit 5;

@@ -1,6 +1,7 @@
 open Cil
 open Node
 open Tracing
+open CompareAST
 
 let store_node_location (n: node) (l: location): unit =
   NodeMap.add !location_map n l 
@@ -29,7 +30,7 @@ let rec location_of_statement (s: stmt) = match s.skind with
   | TryFinally (_,_,l) -> l
   | TryExcept (_,_,_,l) -> l
 
-let update_ids (old_file: file) (new_file: file) (map: (string, Cil.global * VersionLookup.commitID) Hashtbl.t) (current_commit: string) (already_analyzed: bool) =
+let update_ids (old_file: file) (new_file: file) (map: (string, Cil.global * VersionLookup.commitID) Hashtbl.t) (current_commit: string) (already_analyzed: bool) (changes: change_info) =
   let vid_max = ref (Cil.newVID ()) in
   let sid_max = ref (-1) in
 
@@ -87,6 +88,18 @@ let update_ids (old_file: file) (new_file: file) (map: (string, Cil.global * Ver
       | _ -> ())
     with Failure m -> ()  
   in
+  let reset_changed_fun (f: fundec) (old_f: fundec) =
+    f.svar.vid <- old_f.svar.vid;
+    update_vid_max f.svar.vid;
+    List.iter (fun l -> l.vid <- make_vid ()) f.slocals;
+    List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
+    List.iter (fun s -> s.sid <- make_sid ()) f.sallstmts;
+  in
+  let reset_changed_globals (changed: changed_global) = 
+    match (changed.current, changed.old) with 
+    | GFun (nw, _), GFun (old, _) -> reset_changed_fun nw old
+    | _ -> () 
+  in
   let update_fun (f: fundec) (old_f: fundec) =
       print_endline @@ "updating " ^ old_f.svar.vname;
       f.svar.vid <- make_vid ();
@@ -125,8 +138,9 @@ let update_ids (old_file: file) (new_file: file) (map: (string, Cil.global * Ver
   print_endline "Global IDs!!";
   iterGlobals new_file print_globals;
   print_endline "After :"; *)
-  iterGlobals new_file reset_globals;
-  if not already_analyzed then iterGlobals new_file update_globals;
+  List.iter reset_globals changes.unchanged;
+  List.iter reset_changed_globals changes.changed;
+  List.iter update_globals changes.added;
 (*   iterGlobals new_file print_globals;
  *)
   print_endline "globinit";
