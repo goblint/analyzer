@@ -7,6 +7,7 @@ open Messages
 open Pervasives
 open CompareAST
 open Cil
+open Batteries
 
 let debug_now = ref false
 
@@ -166,10 +167,12 @@ module WP =
 
       start_event ();
 
-      let obsolete_funs = List.filter (fun c -> match c.old with GFun _ -> true | _ -> false) S.I.changes.changed in
-      let obsolete_funs = List.map (fun c -> match c.old with GFun (f, l) -> f | _ -> raise (Failure "Cannot happen")) obsolete_funs in
-      let removed_funs = S.I.changes.removed |> List.filter (fun g -> match g with GFun _ -> true | _ -> false) |> List.map  (fun g -> match g with GFun (f,l) -> f | _ -> raise (Failure "Cannot happen")) in
-      
+      let filter_map f l =
+        List.fold_left (fun acc el -> match f el with Some x -> x::acc | _ -> acc) [] l
+      in
+      let obsolete_funs = filter_map (fun c -> match c.old with GFun (f,l) -> Some f | _ -> None) S.I.changes.changed in
+      let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.I.changes.removed in
+
       List.iter (fun a -> print_endline @@ "Destabilizing " ^ a.Cil.svar.vname ) obsolete_funs;
       let obsolete = Set.of_list (List.map (fun a -> "fun" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs) in
       
@@ -191,11 +194,11 @@ module WP =
       let delete_marked1 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
       let delete_marked2 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
       
-      print_endline ("rho, infl, wpoint: " ^ string_of_int (HM.length rho) ^ ", "^ string_of_int (HM.length rho) ^ ", " ^ string_of_int (HM.length rho) ^ ", " );
+      print_endline ("rho, infl, wpoint: " ^ string_of_int (HM.length rho) ^ ", "^ string_of_int (HM.length infl) ^ ", " ^ string_of_int (HM.length wpoint) ^ ", " );
       delete_marked rho;
       delete_marked1 infl;
       delete_marked2 wpoint;
-      print_endline ("rho, infl, wpoint: " ^ string_of_int (HM.length rho) ^ ", "^ string_of_int (HM.length rho) ^ ", " ^ string_of_int (HM.length rho) ^ ", " );
+      print_endline ("rho, infl, wpoint: " ^ string_of_int (HM.length rho) ^ ", "^ string_of_int (HM.length infl) ^ ", " ^ string_of_int (HM.length wpoint) ^ ", " );
 
       List.iter set_start st;
       List.iter init vs;
@@ -320,7 +323,7 @@ module WP =
                                             then Serialize.unmarshall file_in
                                             else (HM.create 10, HM.create 10, HM.create 10, HM.create 10, HM.create 10) in
         let varCountBefore = HM.length rho in                                            
-        let (infl, rho1, called, wpoint, stable) = solve box st vs infl rho called wpoint stable in
+        let (infl, rho1, called, wpoint, stable) = solve box st vs infl rho called (HM.create 10) stable in
         let varCountAfter = HM.length rho1 in
 
         let path = Goblintutil.create_dir S.I.current_commit_dir in
