@@ -149,13 +149,40 @@ struct
     | `Bot -> []
     | `Lifted exp -> Basetype.CilExp.get_vars exp
 
-  let contains_globals e =  (* TODO: AddrOf things *)
+  (* expressions containing globals or array accesses are not suitable for partitioning *)
+  let not_allowed_for_part e =
+    let rec contains_array_access e =
+      let rec offset_contains_array_access offs =
+        match offs with
+        | NoOffset -> false
+        | Index _ -> true
+        | Field (_, o) -> offset_contains_array_access o
+      in
+      match e with
+        |	Const _
+        |	SizeOf _
+        |	SizeOfE _	
+        |	SizeOfStr _
+        |	AlignOf _
+        |	AlignOfE _ -> false
+        | Question(e1, e2, e3, _) ->
+          contains_array_access e1 || contains_array_access e2 || contains_array_access e3
+        |	CastE(_, e)
+        |	UnOp(_, e , _) -> contains_array_access e
+        |	BinOp(_, e1, e2, _) -> contains_array_access e1 || contains_array_access e2
+        | AddrOf _ -> false
+        | AddrOfLabel _ -> false
+        | StartOf _ -> false
+        | Lval(Mem e, o) -> offset_contains_array_access o || contains_array_access e
+        | Lval(Var _, o) -> offset_contains_array_access o
+    in
     match e with
     | `Top
     | `Bot -> false
     | `Lifted exp ->
       let vars = Basetype.CilExp.get_vars exp in
-      List.exists (fun x -> x.vglob) vars
+      List.exists (fun x -> x.vglob) vars || contains_array_access exp
+
 
   let map f (e, (xl, xm, xr)) =
     (e, (f xl, f xm, f xr))  
@@ -234,8 +261,7 @@ struct
       Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ")");
       let lubIfNotBot x = if Val.is_bot x then x else Val.join a x in
       if is_not_partitioned (e, (xl, xm, xr)) then
-        if contains_globals i then
-          (* expressions containing globals are not suitable for partitioning *)
+        if not_allowed_for_part i then
           let result = if Val.is_bot (join_of_all_parts x) then Val.top () else Val.join a (join_of_all_parts x) in
           (e, (result, result, result))
         else

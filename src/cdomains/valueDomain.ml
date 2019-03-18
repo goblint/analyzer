@@ -543,7 +543,7 @@ struct
           `Lifted exp 
         else
           Expp.top ()
-      | Some((Mem(ptr), NoOffset) as left), Some(NoOffset) ->
+      | Some((Mem(ptr), NoOffset)), Some(NoOffset) ->
         begin
           match v with
           | Some (v') ->
