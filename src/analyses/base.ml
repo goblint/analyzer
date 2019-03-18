@@ -273,7 +273,7 @@ struct
           let v = CPA.find arr st in
           let nval = 
             match lval_raw, rval_raw with
-              | Some (Lval(Var l',_)), Some r' -> 
+              | Some (Lval(Var l',NoOffset)), Some r' -> 
                 begin
                   let moved_by = 
                     if actually_moved then
@@ -357,7 +357,7 @@ struct
       let effect_on_array arr st =
         let v = CPA.find arr st in
         let nval = VD.affect_move a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
-        (M.warn ("Potentially dropped " ^ arr.vname); update_variable arr nval st)
+        update_variable arr nval st
       in
       let nst = List.fold_left (fun x y -> effect_on_array y x) st affected_arrays in
       (nst, fl, dep) in
