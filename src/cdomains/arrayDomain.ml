@@ -267,15 +267,7 @@ struct
           Messages.warn ("e is " ^ (Expp.short 20 e) ^ ", i is " ^ (Expp.short 20 i));
           match e, i with
           | `Lifted e', `Lifted i' -> begin
-              let isEqual = match ask (Q.MustBeEqual (e',i')) with
-                | `Bool true -> true
-                | _ -> false in
-              if isEqual then
-                begin
-                  Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (e, (xl, a, xr)) );
-                  (e, (xl, a, xr))
-                end
-              else
+              let default =
                 begin
                   let left = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
                   | `Bool false -> xl
@@ -288,6 +280,26 @@ struct
                   | _ -> lubIfNotBot xr in
                   (e, (left, middle, right))
                 end
+              in
+              let isEqual = match ask (Q.MustBeEqual (e',i')) with
+                | `Bool true -> true
+                | _ -> false in
+              if isEqual then
+                begin
+                  Messages.report ("Array set@" ^ (Expp.short 20 i) ^ " (partitioned by " ^ (Expp.short 20 e) ^ ") - new value is" ^ short 50 (e, (xl, a, xr)) );
+                  (e, (xl, a, xr))
+                end
+              else if Cil.isConstant e' && Cil.isConstant i' then
+                match Cil.isInteger e', Cil.isInteger i' with
+                  | Some e'', Some i'' ->
+                    if i'' = Int64.add e'' Int64.one then
+                      (i, (Val.join xl xm, a, xr))
+                    else
+                      default
+                  | _ ->
+                    default
+              else
+                default
             end
           | _ -> 
             (* If the expression used to write is not known, all segements except the empty ones will be affected *)

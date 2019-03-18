@@ -576,15 +576,15 @@ struct
       |	SizeOfStr _
       |	AlignOf _
       |	AlignOfE _ -> false
-      | Question (e1, e2, e3, _) ->
+      | Question(e1, e2, e3, _) ->
         (contains_pointer e1) || (contains_pointer e2) || (contains_pointer e3)
-      |	CastE (_, e)
-      |	UnOp (_, e , _) -> contains_pointer e
-      |	BinOp (_, e1, e2, _) -> (contains_pointer e1) || (contains_pointer e2)
+      |	CastE(_, e)
+      |	UnOp(_, e , _) -> contains_pointer e
+      |	BinOp(_, e1, e2, _) -> (contains_pointer e1) || (contains_pointer e2)
       | AddrOf _ -> true
       | AddrOfLabel _ -> true
       | StartOf _ -> true
-      | Lval (Mem _, _) -> true
+      | Lval(Mem _, _) -> true
       | Lval(Var _, _) -> false
     in
     match left, offset with
@@ -593,16 +593,14 @@ struct
           `Lifted exp 
         else
           Expp.top ()
-      | Some((Mem(ptr), offset) as left), Some(NoOffset) -> (* legacy_offset exp v *)
+      | Some((Mem(ptr), offset) as left), Some(NoOffset) ->
         begin
           match v with
           | Some v' ->
             begin
               (* This should mean the entire expression we have here is a pointer into the array *)
-              let array_name:lval = v' in (* (Var v', NoOffset) *)
               if Cil.isArrayType (Cil.typeOf (Lval v')) then
                 let start_of_array = StartOf v' in
-                (* let start_of_array = StartOf array_name in *)
                 let equivalent_expr = BinOp(MinusPP, ptr, start_of_array, intType) in
                 `Lifted (equivalent_expr)
               else
