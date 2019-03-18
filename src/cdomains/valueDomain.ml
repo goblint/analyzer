@@ -518,56 +518,6 @@ struct
     | _ -> None, None
 
   let rec determine_offset left offset exp v =
-    let legacy_offset exp v = begin
-      Printf.printf "XXXXXXXXXXXXXXXXXXXXXXXXXXX Going into legacy code";
-      let e = match exp with
-        | Some (Lval (Var _, (Index (e, offset) ))) -> (* TODO: What about the offset? *)
-            `Lifted e (* the expression that is inside the [] (if any) *)
-        | Some (Lval (Mem ptr, NoOffset)) -> 
-            begin
-            match v with
-              | Some v' ->
-                begin
-                  let array_name:lval = v' (* (Var v', NoOffset) *) in
-                  let start_of_array = StartOf array_name in
-                  let equivalent_expr = BinOp (MinusPP, ptr, start_of_array, intType) in
-                  M.warn ("eval_offset An array is being accessed with a pointer into it " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))) ^ " turned into " ^ (Expp.short 20 (`Lifted equivalent_expr)));
-                  `Lifted (equivalent_expr)
-                end
-              | _ ->
-                begin
-                  M.warn ("A: There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted (Lval (Mem ptr, NoOffset)))));
-                  `Lifted (Lval (Mem ptr, NoOffset))
-                end
-            end
-        | Some (Lval (x, (Index (e, offset)))) ->
-          begin
-            M.warn ("A': There is something fishy going on in eval_offset with an array access - " ^ (Expp.short 20 (`Lifted (Lval (x, (Index (e, offset)))))) ^ " took " ^ (Expp.short 20 (`Lifted e)));
-            `Lifted e (* the expression inside the [] (if any) *)
-          end
-        | Some (AddrOf (x, (Index (e, offset)))) ->
-          begin
-            M.warn ("A'': There is something fishy going on in eval_offset with an array access - " ^ (Expp.short 20 (`Lifted (Lval (x, (Index (e, offset)))))) ^ " took " ^ (Expp.short 20 (`Lifted e)));
-            `Lifted e
-          end
-        | Some (Lval (v, (Field (f, (Index (e, offset)))))) ->
-          begin
-            M.warn ("A''': There is something fishy going on in eval_offset with an array access "^ (Expp.short 20 (`Lifted (Lval (v, (Field (f, (Index (e, offset)))))))) ^ " took " ^ (Expp.short 20 (`Lifted e)));
-            `Lifted e
-          end
-        | Some exp ->
-          begin
-            M.warn ("B: There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted exp)));
-            `Lifted exp
-          end
-        | None ->
-          begin
-            M.warn "C: There is something fishy going on in eval_offset with an array access (TOP)" ;
-            Expp.top ()
-          end in
-        e 
-      end 
-    in
     let rec contains_pointer exp =
       match exp with
       |	Const _
@@ -593,28 +543,33 @@ struct
           `Lifted exp 
         else
           Expp.top ()
-      | Some((Mem(ptr), offset) as left), Some(NoOffset) ->
+      | Some((Mem(ptr), NoOffset) as left), Some(NoOffset) ->
         begin
           match v with
-          | Some v' ->
+          | Some (v') ->
             begin
               (* This should mean the entire expression we have here is a pointer into the array *)
               if Cil.isArrayType (Cil.typeOf (Lval v')) then
+                let expr = ptr in  
                 let start_of_array = StartOf v' in
-                let equivalent_expr = BinOp(MinusPP, ptr, start_of_array, intType) in
-                `Lifted (equivalent_expr)
+                let start_type = Cil.typeOf start_of_array in
+                let expr_type = Cil.typeOf ptr in
+                (* Comparing types for structural equality is inocrrect here, use typeSig *)
+                (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
+                if Cil.typeSig start_type = Cil.typeSig expr_type then
+                  let equivalent_expr = BinOp(MinusPP, expr, start_of_array, intType) in
+                  `Lifted (equivalent_expr)
+                else
+                  (* If types do not agree here, this means that we were looking at pointers that *)
+                  (* contain more than one array access. Those are not supported. *)
+                  Expp.top ()
               else
                 Expp.top ()
             end
           | _ ->
-            begin
-              M.warn ("A: There is something fishy going on in eval_offset with an array access " ^ (Expp.short 20 (`Lifted (Lval left))));
-              `Lifted (Lval left)
-            end
+            Expp.top ()
         end
-      | Some(left), Some(Field _) -> Printf.printf "NOOOOOO FIELD"; legacy_offset exp v (* TODO: Deal with top here *)
-      | None , None -> Expp.top ()
-      | _, _ ->  Printf.printf "NOOOOOO STH ELSE"; legacy_offset exp v
+      | _, _ ->  Expp.top()
         
 
 
