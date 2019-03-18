@@ -6,6 +6,11 @@ open Analyses
 open GobConfig
 open Constraints
 
+let node_to_string (n: node) = match n with
+| Function f -> f.vname
+| FunctionEntry f -> f.vname
+| Statement s -> "s.sid" ^ string_of_int s.sid
+
 type commitID = string
 
 module Node :
@@ -82,13 +87,17 @@ struct
     | ((MyCFG.FunctionEntry f,_),_) -> 3
 
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
-  let hash x = 1(* 
+  let hash x = 
     match x with
     | ((MyCFG.Statement     s,_),d) -> hashmul (LD.hash d) (s.sid*17)
     | ((MyCFG.Function      f,_), d) -> hashmul (LD.hash d) (f.vid*19)
-    | ((MyCFG.FunctionEntry f,_),d) -> hashmul (LD.hash d) (f.vid*23) *)
+    | ((MyCFG.FunctionEntry f,_),d) -> hashmul (LD.hash d) (f.vid*23)
 
-  let equal ((n1, a),d1) ((n2, a2),d2) = MyCFG.Node.equal n1 n2 && String.equal a a2 && LD.equal d1 d2
+  let equal ((n1, a),d1) ((n2, a2),d2) = (* print_endline ("equal:?" ^ (Pretty.sprint ~width: 100 (MyCFG.pretty_node () n1)) ^ " " ^ (Pretty.sprint ~width: 100 (MyCFG.pretty_node () n2)));
+   if node_to_string n1 = "s.sid51" then
+   print_string "dbg"; *)
+   let res = MyCFG.Node.equal n1 n2 && String.equal a a2 && LD.equal d1 d2 in
+   (* print_endline (string_of_bool res); *) res
 
   let getLocation (n,d) = MyCFG.getLoc n
 
@@ -412,11 +421,6 @@ struct
       | Skip           -> fun _ _ _ _ d -> d
       | SelfLoop       -> tf_loop var
     end getl sidel getg sideg d
-
-  let node_to_string (n: node) = match n with
-  | Function f -> f.vname
-  | FunctionEntry f -> f.vname
-  | Statement s -> "s.sid" ^ string_of_int s.sid
 
   let tf var getl sidel getg sideg (_,edge) d (f,t) =
     print_endline @@ "Node: " ^ (node_to_string (fst var));

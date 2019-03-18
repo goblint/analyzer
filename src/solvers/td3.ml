@@ -162,8 +162,33 @@ module WP =
       in
 
       start_event ();
-      List.iter (fun a -> print_endline @@ "Destabilizing " ^ a ) S.I.obsolete;
-      HM.iter (fun k v-> if List.mem (S.Var.var_id k) S.I.obsolete then (print_endline ("destabilizing " ^ S.Var.var_id k); destabilize k)) stable;
+      let obsolete_funs = List.filter (fun g -> match g with Cil.GFun _ -> true | _ -> false) S.I.obsolete in
+      let obsolete_funs = List.map (fun g -> match g with Cil.GFun (f, l) -> f | _ -> raise (Failure "Cannot happen")) obsolete_funs in
+
+      List.iter (fun a -> print_endline @@ "Destabilizing " ^ a.Cil.svar.vname ) obsolete_funs;
+      let obsolete = Set.of_list (List.map (fun a -> "fun" ^ (string_of_int a.Cil.svar.vid))  obsolete_funs) in
+      let nodes_to_delete (functions: Cil.fundec list) =
+        let nodes = Hashtbl.create 103 in
+        let add_stmts (f: Cil.fundec) =
+          List.iter (fun s -> Hashtbl.replace nodes (string_of_int s.Cil.sid) ()) (f.sallstmts)
+        in
+        List.iter (fun f -> Hashtbl.replace nodes ("fun"^(string_of_int f.Cil.svar.vid)) (); Hashtbl.replace nodes ("ret"^(string_of_int f.Cil.svar.vid)) (); add_stmts f) functions;
+        nodes
+      in
+      let marked_for_deletion = nodes_to_delete obsolete_funs in
+      Set.iter (fun k  -> print_endline k) obsolete;
+      print_endline @@ "Obsolete: " ^ string_of_int (Set.cardinal obsolete);
+      HM.iter (fun k v -> print_endline @@ "Checking: " ^(S.Var.var_id k); if Set.mem (S.Var.var_id k) obsolete then (print_endline ("destabilizing " ^ S.Var.var_id k); destabilize k)) stable;
+      let delete_marked = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
+      let delete_marked1 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
+      let delete_marked2 = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove rho k ) in
+      
+      print_endline ("rho, infl, wpoint: " ^ string_of_int (HM.length rho) ^ ", "^ string_of_int (HM.length rho) ^ ", " ^ string_of_int (HM.length rho) ^ ", " );
+      delete_marked rho;
+      delete_marked1 infl;
+      delete_marked2 wpoint;
+      print_endline ("rho, infl, wpoint: " ^ string_of_int (HM.length rho) ^ ", "^ string_of_int (HM.length rho) ^ ", " ^ string_of_int (HM.length rho) ^ ", " );
+
       List.iter set_start st;
       List.iter init vs;
       List.iter (fun x -> solve x Widen) vs;

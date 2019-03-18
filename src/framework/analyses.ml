@@ -479,7 +479,7 @@ end
 module type IncrementalData = sig 
   val analyzed_commit_dir: string
   val current_commit_dir: string
-  val obsolete: string list
+  val obsolete: global list
 end
 
 (** A side-effecting system. *)

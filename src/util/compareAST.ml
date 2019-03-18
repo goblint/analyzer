@@ -222,7 +222,8 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
         (* Do a (recursive) equal comparision ignoring location information *)
         let identical = eq_glob oldFunction global in
         print_endline (name ^ " " ^ string_of_bool identical);
-        Some (identical, global, if not identical then Some oldFunction else None)
+        Some (identical, global, if not identical then 
+        Some oldFunction else None)
       with Not_found -> Some (false, global, None);)
     with e -> None (* Global was no variable or function, it does not belong into the map *)
   in
@@ -233,5 +234,5 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
   Cil.foldGlobals newAST
     (fun acc glob -> match checkUnchanged oldMap glob with
       | Some (false, fundec, None) -> (List.cons fundec (fst acc), snd acc)
-      | Some (false, fundec, (Some old)) -> (List.cons fundec (fst acc), List.cons (string_of_glob old) (snd acc))
+      | Some (false, fundec, (Some old)) -> (List.cons fundec (fst acc), List.cons (old) (snd acc))
       | _ -> acc) ([], [])
