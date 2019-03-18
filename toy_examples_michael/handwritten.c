@@ -109,7 +109,7 @@ void example7(void) {
 }
 
 // What happens when we assign a variable in the expression e so that we lose
-// it, but still have some remaining information after the first iteration
+// it, via a function call
 void example8(void) {
   int a[42];
   int i = 41;
@@ -119,7 +119,7 @@ void example8(void) {
     a[i] = 0;
     i--;
     j = i;
-    i = 41;
+    i = rand();
     i = j;
   }
 }
@@ -212,7 +212,7 @@ void example14(void) {
 
   while(*ip < 42) {
     a[i] = 0;
-    (*ip)++; // Currently unable to determine how much move was
+    (*ip)++; // unable to determine how much move was
   } 
 }
 
