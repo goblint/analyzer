@@ -209,16 +209,36 @@ void array_access_in_subscript() {
   a[a[0]] = 2;
 }
 
+void struct_in_subscript() {
+  int a[42];
+  int i = 0;
+
+  struct kass k;
+  k.v = 7;
+
+  while(i < 42) {
+    a[i] = 0;
+    i++;
+  }
+
+  i = 0;
+
+  a[k.v] = 2;
+  k.v = k.v+1;
+
+  assert(a[k.v] != 3);
+}
 
 int main () {
-  // failing_example();
+  failing_example();
   // return 0;
 
-  interesting();
-  array_access_in_subscript();
+  // interesting();
+  // array_access_in_subscript();
+  // struct_in_subscript();
   // unionWeirdness();
   // ptrToArray();
-  // return 0;
+  return 0;
 
   int i,t, k1,k2,top;
 
